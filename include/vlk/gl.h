@@ -400,3 +400,54 @@ bool is_swapchain_capable(SwapChainDetails const& details) {
   return true;
 }
 
+// choose a specific surface format available on the GPU
+VkSurfaceFormatKHR select_surface_formats(
+    stx::Span<VkSurfaceFormatKHR const> formats) {
+  VLK_ENSURE(formats.size() > 0, "No window surface format gotten as arg");
+  auto It_format = std::find_if(
+      formats.begin(), formats.end(), [](VkSurfaceFormatKHR const& format) {
+        return format.format == VK_FORMAT_R8G8B8_SRGB &&
+               format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+      });
+
+  return (It_format != formats.end()) ? *It_format : formats[0];
+}
+
+VkPresentModeKHR select_presentation_mode(
+    stx::Span<VkPresentModeKHR const> available_presentation_modes) {
+  (void)available_presentation_modes;
+
+  /*
+  - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application are
+  transferred to the screen right away, which may result in tearing.
+
+  - VK_PRESENT_MODE_FIFO_KHR: The swap chain is a queue where the display takes
+  an image from the front of the queue when the display is refreshed and the
+  program inserts rendered images at the back of the queue. If the queue is full
+  then the program has to wait. This is most similar to vertical sync as found
+  in modern games. The moment that the display is refreshed is known as
+  "vertical blank".
+
+  - VK_PRESENT_MODE_FIFO_RELAXED_KHR: This mode only differs
+  from the previous one if the application is late and the queue was empty at
+  the last vertical blank. Instead of waiting for the next vertical blank, the
+  image is transferred right away when it finally arrives. This may result in
+  visible tearing.
+
+  - VK_PRESENT_MODE_MAILBOX_KHR: This is another variation of the
+  second mode. Instead of blocking the application when the queue is full, the
+  images that are already queued are simply replaced with the newer ones. This
+  mode can be used to implement triple buffering, which allows you to avoid
+  tearing with significantly less latency issues than standard vertical sync
+  that uses double buffering.
+  */
+
+  VLK_ENSURE(std::find(available_presentation_modes.begin(),
+                       available_presentation_modes.end(),
+                       VK_PRESENT_MODE_MAILBOX_KHR) !=
+                 available_presentation_modes.end(),
+             "Device swapchain does not support the FIFO presentation mode");
+
+  return VK_PRESENT_MODE_MAILBOX_KHR;
+}
+
