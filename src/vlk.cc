@@ -93,7 +93,7 @@ struct Application {
 
  private:
   void init_window_() {
-    glfwInit();
+    VLK_ENSURE(glfwInit() == GLFW_TRUE, "Unable to initialize GLFW");
     glfwWindowHint(
         GLFW_CLIENT_API,
         GLFW_NO_API);  // not an OpenGL app, do not create OpenGL context
