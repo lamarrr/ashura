@@ -350,3 +350,40 @@ VkDevice create_logical_device(
 
   return logical_device;
 }
+
+struct SwapChainDetails {
+  VkSurfaceCapabilitiesKHR capabilities;
+  std::vector<VkSurfaceFormatKHR> supported_formats;
+  std::vector<VkPresentModeKHR> presentation_modes;
+};
+
+SwapChainDetails get_swapchain_details(VkPhysicalDevice physical_device,
+                                       VkSurfaceKHR surface) {
+  SwapChainDetails details{};
+
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
+                                            &details.capabilities);
+
+  uint32_t supported_surface_formats_count = 0;
+
+  vkGetPhysicalDeviceSurfaceFormatsKHR(
+      physical_device, surface, &supported_surface_formats_count, nullptr);
+
+  details.supported_formats.resize(supported_surface_formats_count);
+
+  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface,
+                                       &supported_surface_formats_count,
+                                       details.supported_formats.data());
+
+  uint32_t surface_presentation_modes_count;
+  vkGetPhysicalDeviceSurfacePresentModesKHR(
+      physical_device, surface, &surface_presentation_modes_count, nullptr);
+
+  details.presentation_modes.resize(surface_presentation_modes_count);
+  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface,
+                                            &surface_presentation_modes_count,
+                                            details.presentation_modes.data());
+
+  return std::move(details);
+}
+
