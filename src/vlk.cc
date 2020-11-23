@@ -97,10 +97,14 @@ struct Application {
     glfwWindowHint(
         GLFW_CLIENT_API,
         GLFW_NO_API);  // not an OpenGL app, do not create OpenGL context
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE,
+                   GLFW_FALSE);  // requires handling the framebuffer size
+
+    // width and height here refer to the screen coordinates and not the actual
+    // pixels
     window_.window = glfwCreateWindow(window_.width, window_.height, "Valkyrie",
                                       nullptr, nullptr);
-    VLK_ENSURE(window_.window != nullptr, "WIndow creation failed");
+    VLK_ENSURE(window_.window != nullptr, "Window creation failed");
   }
 
   void init_vulkan_() {
@@ -141,6 +145,7 @@ struct Application {
   // automatically cleaned on destruction of the logical device
   VkQueue graphics_queue_;
 
+  // creation only needs the vulkan instance
   VkSurfaceKHR surface_;
 
 #if VLK_DEBUG
