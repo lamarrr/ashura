@@ -1,12 +1,13 @@
 
 
+#include "stx/option.h"
+#include "stx/result.h"
+
 // clang-format off
 #include "vulkan/vulkan.h"
 #include "GLFW/glfw3.h"
 // clang-format on
 
-#include "stx/option.h"
-#include "stx/result.h"
 #include "vlk/gl.h"
 #include "vlk/gl_debug.h"
 
