@@ -62,8 +62,10 @@ struct Application {
               &surface_presentation_queue_supported);
 
           return features.geometryShader &&
-                 surface_presentation_queue_supported;
+                 surface_presentation_queue_supported &&
+                 is_swapchain_capable(get_swapchain_details(device, surface_));
         });
+
     VLK_LOG("Using Physical Device: " << name_physical_device(prop))
 
     auto queue_families = get_queue_families(physical_device);
