@@ -226,21 +226,21 @@ static std::vector<DevicePropFt> get_physical_devices(VkInstance vk_instance) {
 // selects GPU, in the following preference order: dGPU => vGPU => iGPU => CPU
 static DevicePropFt most_suitable_physical_device(
     VkInstance vk_instance, stx::Span<DevicePropFt> physical_devices,
-    std::function<VkBool32(DevicePropFt const&)> criteria) {
+    std::function<VkBool32(DevicePropFt const&)> const& criteria) {
   std::vector<DevicePropFt> prioritized_physical_devices{
       physical_devices.begin(), physical_devices.end()};
 
   std::sort(prioritized_physical_devices.begin(),
             prioritized_physical_devices.end(), device_gt_eq);
 
-  auto ptr_selected_device = std::find_if(
+  auto It_selected_device = std::find_if(
       prioritized_physical_devices.begin(), prioritized_physical_devices.end(),
-      [=](DevicePropFt const& dev) -> VkBool32 { return criteria(dev); });
+      [&](DevicePropFt const& dev) -> bool { return criteria(dev); });
 
-  VLK_ENSURE(ptr_selected_device != prioritized_physical_devices.end(),
+  VLK_ENSURE(It_selected_device != prioritized_physical_devices.end(),
              "No Suitable Physical Device Found");
 
-  return *ptr_selected_device;
+  return *It_selected_device;
 }
 
 //  to do anything on the GPU (render, draw, compute, allocate memory, create
