@@ -387,3 +387,16 @@ SwapChainDetails get_swapchain_details(VkPhysicalDevice physical_device,
   return std::move(details);
 }
 
+bool is_swapchain_capable(SwapChainDetails const& details) {
+  // we use any available for selecting devices
+  VLK_ENSURE(details.supported_formats.size() != 0,
+             "Physical Device does not support any window/presentation surface "
+             "format");
+
+  VLK_ENSURE(details.presentation_modes.size() != 0,
+             "Physical Device does not support any window/presentation surface "
+             "presentation mode");
+
+  return true;
+}
+
