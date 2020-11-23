@@ -2,6 +2,7 @@
 #pragma once
 
 #include <algorithm>
+#include <limits>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -451,3 +452,33 @@ VkPresentModeKHR select_presentation_mode(
   return VK_PRESENT_MODE_MAILBOX_KHR;
 }
 
+VkExtent2D select_swapchain_extent(
+    GLFWwindow* window, VkSurfaceCapabilitiesKHR const& capabilities) {
+  // if this is already set (value other than uint32_t::max) then we are not
+  // allowed to choose the extent
+
+  if ((capabilities.currentExtent.width !=
+       std::numeric_limits<uint32_t>::max()) ||
+      (capabilities.currentExtent.height !=
+       std::numeric_limits<uint32_t>::max())) {
+    return capabilities.currentExtent;
+  } else {
+    int width, height;
+
+    // this, unlike the window dimensions is in pixels and is the rendered to
+    // area
+    glfwGetFramebufferSize(window, &width, &height);
+
+    VkExtent2D target_extent = {static_cast<uint32_t>(width),
+                                static_cast<uint32_t>(height)};
+
+    target_extent.width =
+        std::clamp(target_extent.width, capabilities.minImageExtent.width,
+                   capabilities.maxImageExtent.width);
+    target_extent.height =
+        std::clamp(target_extent.height, capabilities.minImageExtent.height,
+                   capabilities.maxImageExtent.height);
+
+    return target_extent;
+  }
+}
