@@ -75,7 +75,7 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback_(
         "detected");
   }
 
-  VLK_LOG("Validation Layer Message] " << callback_data->pMessage);
+  VLK_LOG("[Validation Layer Message] " << callback_data->pMessage);
 
   return VK_FALSE;
 }
