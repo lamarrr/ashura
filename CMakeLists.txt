@@ -17,6 +17,11 @@ add_subdirectory(third_party/glfw)
 
 find_package(Vulkan REQUIRED)
 
+if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID}
+                                                STREQUAL "GNU")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
 add_executable(valkyrie.bin src/vlk.cc)
 target_link_libraries(valkyrie.bin stx glfw vulkan ${Vulkan_LIBRARIES})
 target_include_directories(
