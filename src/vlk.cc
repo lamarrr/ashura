@@ -51,12 +51,14 @@ struct Application {
         vk_instance_, physical_devices, [=](DevicePropFt const& device_hpf) {
           auto const& [device, properties, features] = device_hpf;
           auto queue_families = get_queue_families(device);
+
+          // check device has graphics queue
           auto queue_family_index =
               find_queue_family(device, queue_families, VK_QUEUE_GRAPHICS_BIT);
           if (queue_family_index.is_none()) return false;
 
-          // device can have graphics queue but no presentation queue support
-          // for the window surface
+          // check that the device's graphics queue has presentation queue
+          // support for the window surface
           VkBool32 surface_presentation_queue_supported;
           vkGetPhysicalDeviceSurfaceSupportKHR(
               device, queue_family_index.clone().unwrap(), surface_,
@@ -87,6 +89,8 @@ struct Application {
                               required_logical_device_extensions,
                               required_validation_layers_, nullptr);
 
+    // it is loaded one the logical device is created as we already specified
+    // it
     vkGetDeviceQueue(logical_device_, graphics_queue_family_index, 0,
                      &graphics_queue_);
 
