@@ -64,16 +64,20 @@ struct Application {
 
           return features.geometryShader &&
                  surface_presentation_queue_supported &&
-                 is_swapchain_capable(get_swapchain_details(device, surface_));
+                 is_swapchain_adequate(
+                     get_swapchain_properties(device, surface_));
         });
 
     VLK_LOG("Using Physical Device: " << name_physical_device(prop))
 
-    auto queue_families = get_queue_families(physical_device);
-    auto graphics_queue_family_index =
+    std::vector<VkQueueFamilyProperties> queue_families =
+        get_queue_families(physical_device);
+    uint32_t graphics_queue_family_index =
         find_queue_family(physical_device, queue_families,
                           VK_QUEUE_GRAPHICS_BIT)
-            .unwrap();
+            .expect(
+                "Selected physical device does not have graphics command "
+                "queue");
 
     constexpr char const* required_logical_device_extensions[] = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME};

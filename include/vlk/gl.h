@@ -352,15 +352,15 @@ VkDevice create_logical_device(
   return logical_device;
 }
 
-struct SwapChainDetails {
+struct SwapChainProperties {
   VkSurfaceCapabilitiesKHR capabilities;
   std::vector<VkSurfaceFormatKHR> supported_formats;
   std::vector<VkPresentModeKHR> presentation_modes;
 };
 
-SwapChainDetails get_swapchain_details(VkPhysicalDevice physical_device,
-                                       VkSurfaceKHR surface) {
-  SwapChainDetails details{};
+SwapChainProperties get_swapchain_properties(VkPhysicalDevice physical_device,
+                                             VkSurfaceKHR surface) {
+  SwapChainProperties details{};
 
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
                                             &details.capabilities);
@@ -388,7 +388,7 @@ SwapChainDetails get_swapchain_details(VkPhysicalDevice physical_device,
   return std::move(details);
 }
 
-bool is_swapchain_capable(SwapChainDetails const& details) {
+bool is_swapchain_adequate(SwapChainProperties const& details) {
   // we use any available for selecting devices
   VLK_ENSURE(details.supported_formats.size() != 0,
              "Physical Device does not support any window/presentation surface "
@@ -414,10 +414,8 @@ VkSurfaceFormatKHR select_surface_formats(
   return (It_format != formats.end()) ? *It_format : formats[0];
 }
 
-VkPresentModeKHR select_presentation_mode(
+VkPresentModeKHR select_surface_presentation_mode(
     stx::Span<VkPresentModeKHR const> available_presentation_modes) {
-  (void)available_presentation_modes;
-
   /*
   - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application are
   transferred to the screen right away, which may result in tearing.
