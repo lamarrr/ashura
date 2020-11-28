@@ -51,7 +51,7 @@ static void ensure_validation_layers_supported(
   }
 }
 
-static VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback_(
+static VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     VkDebugUtilsMessageTypeFlagsEXT message_type,
     VkDebugUtilsMessengerCallbackDataEXT const* callback_data,
@@ -91,13 +91,13 @@ static VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_create_info() {
   create_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
                             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                             VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-  create_info.pfnUserCallback = default_debug_callback_;
+  create_info.pfnUserCallback = default_debug_callback;
   create_info.pUserData = nullptr;
 
   return create_info;
 }
 
-static VkResult create_install_debug_messenger_helper_(
+static VkResult create_install_debug_messenger_helper(
     VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT const* create_info,
     VkAllocationCallbacks const* allocator,
     VkDebugUtilsMessengerEXT* debug_messenger) {
@@ -116,8 +116,8 @@ static VkDebugUtilsMessengerEXT create_install_debug_messenger(
 
   auto create_info = make_debug_messenger_create_info();
 
-  if (create_install_debug_messenger_helper_(instance, &create_info, allocator,
-                                             &debug_messenger) != VK_SUCCESS)
+  if (create_install_debug_messenger_helper(instance, &create_info, allocator,
+                                            &debug_messenger) != VK_SUCCESS)
     stx::panic("Failed to setup debug messenger");
 
   return debug_messenger;
