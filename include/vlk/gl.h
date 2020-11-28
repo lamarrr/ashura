@@ -480,3 +480,31 @@ VkExtent2D select_swapchain_extent(
     return target_extent;
   }
 }
+
+VkSwapchainKHR create_swapchain(VkDevice device, VkSurfaceKHR surface,
+                                VkExtent2D extent,
+                                VkSurfaceFormatKHR surface_format,
+                                VkPresentModeKHR present_mode,
+                                SwapChainProperties const& properties) {
+  VkSwapchainCreateInfoKHR create_info{};
+
+  // number of images to have on the swap chain
+  uint32_t image_count = std::clamp(properties.capabilities.minImageCount + 1,
+                                    properties.capabilities.minImageCount,
+                                    properties.capabilities.maxImageCount);
+
+  create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+  create_info.imageExtent = extent;
+  create_info.surface = surface;
+  create_info.imageFormat = surface_format.format;
+  create_info.imageColorSpace = surface_format.colorSpace;
+  create_info.presentMode = present_mode;
+  create_info.minImageCount = properties.capabilities.minImageCount + 1;
+  create_info.imageArrayLayers = 1;
+  create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+  VkSwapchainKHR swapchain;
+  vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain);
+
+  return swapchain;
+}

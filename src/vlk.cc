@@ -89,10 +89,26 @@ struct Application {
                               required_logical_device_extensions,
                               required_validation_layers_, nullptr);
 
+    SwapChainProperties device_swapchain_properties =
+        get_swapchain_properties(physical_device, surface_);
+
+    VkSurfaceFormatKHR surface_format =
+        select_surface_formats(device_swapchain_properties.supported_formats);
+    VkPresentModeKHR surface_presentation_mode =
+        select_surface_presentation_mode(
+            device_swapchain_properties.presentation_modes);
+
     // it is loaded one the logical device is created as we already specified
     // it
     vkGetDeviceQueue(logical_device_, graphics_queue_family_index, 0,
                      &graphics_queue_);
+
+    VkExtent2D surface_extent = select_swapchain_extent(
+        window_.window, device_swapchain_properties.capabilities);
+
+    VkSwapchainKHR swapchain = create_swapchain(
+        logical_device_, surface_, surface_extent, surface_format,
+        surface_presentation_mode, device_swapchain_properties);
 
     main_loop_();
     cleanup_();
