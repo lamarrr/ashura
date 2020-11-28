@@ -23,6 +23,6 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID}
 endif()
 
 add_executable(valkyrie.bin src/vlk.cc)
-target_link_libraries(valkyrie.bin stx glfw vulkan ${Vulkan_LIBRARIES})
+target_link_libraries(valkyrie.bin stx glfw ${Vulkan_LIBRARIES})
 target_include_directories(
   valkyrie.bin PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include)
