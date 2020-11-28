@@ -391,11 +391,11 @@ SwapChainProperties get_swapchain_properties(VkPhysicalDevice physical_device,
 bool is_swapchain_adequate(SwapChainProperties const& details) {
   // we use any available for selecting devices
   VLK_ENSURE(details.supported_formats.size() != 0,
-             "Physical Device does not support any window/presentation surface "
+             "Physical Device does not support any window surface "
              "format");
 
   VLK_ENSURE(details.presentation_modes.size() != 0,
-             "Physical Device does not support any window/presentation surface "
+             "Physical Device does not support any window surface "
              "presentation mode");
 
   return true;
