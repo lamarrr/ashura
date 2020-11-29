@@ -230,7 +230,7 @@ static std::vector<DevicePropFt> get_physical_devices(VkInstance vk_instance) {
 
 // selects GPU, in the following preference order: dGPU => vGPU => iGPU => CPU
 static DevicePropFt most_suitable_physical_device(
-    VkInstance vk_instance, stx::Span<DevicePropFt> physical_devices,
+    stx::Span<DevicePropFt const> physical_devices,
     std::function<VkBool32(DevicePropFt const&)> const& criteria) {
   std::vector<DevicePropFt> prioritized_physical_devices{
       physical_devices.begin(), physical_devices.end()};
