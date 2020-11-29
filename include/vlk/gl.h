@@ -453,7 +453,22 @@ VkPresentModeKHR select_surface_presentation_mode(
                         VK_PRESENT_MODE_MAILBOX_KHR);
   if (mode != available_presentation_modes.end()) return *mode;
 
-  return VK_PRESENT_MODE_FIFO_KHR;
+  if (std::find(available_presentation_modes.begin(),
+                available_presentation_modes.end(), VK_PRESENT_MODE_FIFO_KHR) ==
+      available_presentation_modes.end()) {
+    VLK_WARN(
+        "Device does not support the Mailbox surface presentation mode nor "
+        "blocking FIFO surface presentation mode, using a random surface "
+        "presentation mode");
+
+    return available_presentation_modes[0];
+  } else {
+    VLK_WARN(
+        "Device does not support the Mailbox surface presentation mode, using "
+        "blocking FIFO");
+
+    return VK_PRESENT_MODE_FIFO_KHR;
+  }
 }
 
 VkExtent2D select_swapchain_extent(
