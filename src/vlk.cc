@@ -42,6 +42,7 @@ struct Application {
     init_window_();
     init_vulkan_();
 
+    // creates and binds the window surface (back buffer) to the glfw window
     VLK_ENSURE(glfwCreateWindowSurface(vk_instance_, window_.window, nullptr,
                                        &surface_) == VK_SUCCESS,
                "Unable to Create Window Surface");
@@ -57,12 +58,8 @@ struct Application {
               find_queue_family(device, queue_families, VK_QUEUE_GRAPHICS_BIT);
           if (queue_family_index.is_none()) return false;
 
-          // check that the device's graphics queue has presentation queue
-          // support for the window surface
-          VkBool32 surface_presentation_queue_supported;
-          vkGetPhysicalDeviceSurfaceSupportKHR(
-              device, queue_family_index.clone().unwrap(), surface_,
-              &surface_presentation_queue_supported);
+          // check that any of the device's graphics queue family has
+          // surface presentation support for the window surface
 
           return features.geometryShader &&
                  surface_presentation_queue_supported &&
@@ -81,6 +78,8 @@ struct Application {
                 "Selected physical device does not have graphics command "
                 "queue");
 
+    // the vector's length is equal to the number of command
+    // queues to create on each of the queue family
     constexpr char const* required_logical_device_extensions[] = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
@@ -165,6 +164,8 @@ struct Application {
 
   Window window_;
   VkInstance vk_instance_;
+  // creation only needs the vulkan instance
+  VkSurfaceKHR surface_;
   VkDevice logical_device_;
 
   // automatically cleaned on destruction of the logical device
