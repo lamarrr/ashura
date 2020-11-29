@@ -285,6 +285,7 @@ VkDevice create_logical_device(
     VkPhysicalDevice physical_device, uint32_t queue_family_index,
     stx::Span<char const* const> required_extensions,
     stx::Span<char const* const> required_validation_layers,
+    stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_infos,
     VkAllocationCallbacks const* allocation_callback) {
   VkDeviceQueueCreateInfo queue_create_info{};
   queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -346,6 +347,9 @@ VkDevice create_logical_device(
 
   device_create_info.enabledExtensionCount = required_extensions.size();
   device_create_info.ppEnabledExtensionNames = required_extensions.data();
+
+  device_create_info.pQueueCreateInfos = command_queue_create_infos.data();
+  device_create_info.queueCreateInfoCount = command_queue_create_infos.size();
 
   VkDevice logical_device;
 
