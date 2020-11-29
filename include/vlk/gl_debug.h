@@ -63,6 +63,9 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
   // VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT to see if they are
   // important o not
 
+  (void)user_data;
+  (void)message_severity;
+
   if (message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
     VLK_LOG(
         "[Validation Layer Hint] Specification violation or possible mistake "
