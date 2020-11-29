@@ -170,7 +170,7 @@ constexpr VkBool32 device_lt(DevicePropFt const& a, DevicePropFt const& b) {
 static std::string name_physical_device(VkPhysicalDeviceProperties properties) {
   std::string name = properties.deviceName;
 
-  name += "(id: " + std::to_string(properties.deviceID) + ", type: ";
+  name += " (id: " + std::to_string(properties.deviceID) + ", type: ";
 
   switch (properties.deviceType) {
     case VK_PHYSICAL_DEVICE_TYPE_CPU:
