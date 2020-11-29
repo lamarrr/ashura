@@ -445,11 +445,13 @@ VkPresentModeKHR select_surface_presentation_mode(
   that uses double buffering.
   */
 
+  VLK_ENSURE(available_presentation_modes.size() != 0,
+             "No surface presentation mode available");
+
   auto mode = std::find(available_presentation_modes.begin(),
                         available_presentation_modes.end(),
                         VK_PRESENT_MODE_MAILBOX_KHR);
   if (mode != available_presentation_modes.end()) return *mode;
-  VLK_WARN("Device does not support the Mailbox surface presentation mode");
 
   return VK_PRESENT_MODE_FIFO_KHR;
 }
