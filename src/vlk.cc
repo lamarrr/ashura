@@ -49,20 +49,23 @@ struct Application {
 
     auto physical_devices = get_physical_devices(vk_instance_);
     auto [physical_device, prop, features] = most_suitable_physical_device(
-        vk_instance_, physical_devices, [=](DevicePropFt const& device_hpf) {
+        physical_devices, [=](DevicePropFt const& device_hpf) {
           auto const& [device, properties, features] = device_hpf;
           auto queue_families = get_queue_families(device);
 
           // check device has graphics queue
-          auto queue_family_index =
-              find_queue_family(device, queue_families, VK_QUEUE_GRAPHICS_BIT);
-          if (queue_family_index.is_none()) return false;
+          auto graphics_queue_family_index =
+              find_queue_family(queue_families, VK_QUEUE_GRAPHICS_BIT);
 
           // check that any of the device's graphics queue family has
           // surface presentation support for the window surface
+          auto surface_presentation_queue_family_index =
+              find_surface_presentation_queue_family(device, queue_families,
+                                                     surface_);
 
-          return features.geometryShader &&
-                 surface_presentation_queue_supported &&
+          return graphics_queue_family_index.is_some() &&
+                 features.geometryShader &&
+                 surface_presentation_queue_family_index.is_some() &&
                  is_swapchain_adequate(
                      get_swapchain_properties(device, surface_));
         });
