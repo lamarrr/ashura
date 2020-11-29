@@ -75,8 +75,7 @@ struct Application {
     std::vector<VkQueueFamilyProperties> queue_families =
         get_queue_families(physical_device);
     uint32_t graphics_queue_family_index =
-        find_queue_family(physical_device, queue_families,
-                          VK_QUEUE_GRAPHICS_BIT)
+        find_queue_family(queue_families, VK_QUEUE_GRAPHICS_BIT)
             .expect(
                 "Selected physical device does not have graphics command "
                 "queue");
