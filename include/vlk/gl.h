@@ -267,12 +267,12 @@ std::vector<VkQueueFamilyProperties> get_queue_families(
 }
 
 stx::Option<uint32_t> find_queue_family(
-    VkPhysicalDevice device, stx::Span<VkQueueFamilyProperties> queue_families,
-    VkQueueFlagBits required_queue_families) {
+    stx::Span<VkQueueFamilyProperties const> queue_families,
+    VkQueueFlagBits required_command_queue) {
   auto req_queue_family =
       std::find_if(queue_families.begin(), queue_families.end(),
                    [=](VkQueueFamilyProperties const& fam_props) -> bool {
-                     return fam_props.queueFlags & required_queue_families;
+                     return fam_props.queueFlags & required_command_queue;
                    });
 
   if (req_queue_family == queue_families.end()) return stx::None;
