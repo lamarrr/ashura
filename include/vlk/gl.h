@@ -342,11 +342,12 @@ VkDevice create_logical_device(
       "Can't find all required extensions");
 
   device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-  device_create_info.enabledLayerCount = required_validation_layers.size();
-  device_create_info.ppEnabledLayerNames = required_validation_layers.data();
 
-  device_create_info.enabledExtensionCount = required_extensions.size();
+  device_create_info.ppEnabledLayerNames = required_validation_layers.data();
+  device_create_info.enabledLayerCount = required_validation_layers.size();
+
   device_create_info.ppEnabledExtensionNames = required_extensions.data();
+  device_create_info.enabledExtensionCount = required_extensions.size();
 
   device_create_info.pQueueCreateInfos = command_queue_create_infos.data();
   device_create_info.queueCreateInfoCount = command_queue_create_infos.size();
