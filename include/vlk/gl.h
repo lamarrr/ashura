@@ -20,7 +20,8 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
                                 VkPhysicalDeviceFeatures>;
 
 static auto create_vk_instance(
-    VkDebugUtilsMessengerCreateInfoEXT* default_debug_messenger_create_info,
+    VkDebugUtilsMessengerCreateInfoEXT const*
+        default_debug_messenger_create_info,
     stx::Span<char const* const> required_validation_layers)
     -> stx::Result<VkInstance, VkResult> {
   (void)default_debug_messenger_create_info;
@@ -90,9 +91,9 @@ static auto create_vk_instance(
   create_info.ppEnabledLayerNames = required_validation_layers.data();
 
   // debug messenger for when the installed debug messenger is uninstalled
-  *default_debug_messenger_create_info = make_debug_messenger_create_info();
-  create_info.pNext = reinterpret_cast<VkDebugUtilsMessengerCreateInfoEXT*>(
-      default_debug_messenger_create_info);
+  create_info.pNext =
+      reinterpret_cast<VkDebugUtilsMessengerCreateInfoEXT const*>(
+          default_debug_messenger_create_info);
 
 #endif
 
