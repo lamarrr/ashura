@@ -16,6 +16,8 @@
 #include "vlk/utils.h"
 #include "vulkan/vulkan.h"
 
+namespace vlk {
+
 using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
                                 VkPhysicalDeviceFeatures>;
 
@@ -281,6 +283,28 @@ stx::Option<uint32_t> find_queue_family(
       static_cast<uint32_t>(req_queue_family - queue_families.begin()));
 }
 
+// find the device's queue family capable of supporting surface presentation
+stx::Option<uint32_t> find_surface_presentation_queue_family(
+    VkPhysicalDevice physical_device,
+    stx::Span<VkQueueFamilyProperties const> queue_families,
+    VkSurfaceKHR surface) {
+  size_t i = 0;
+  auto queue_family = std::find_if(
+      queue_families.begin(), queue_families.end(),
+      [physical_device, &i, surface](VkQueueFamilyProperties const&) {
+        VkBool32 surface_presentation_queue_supported;
+        vkGetPhysicalDeviceSurfaceSupportKHR(
+            physical_device, i, surface, &surface_presentation_queue_supported);
+        i++;
+        return surface_presentation_queue_supported;
+      });
+
+  if (queue_family == queue_families.end()) return stx::None;
+
+  return stx::Some(
+      static_cast<uint32_t>(queue_family - queue_families.begin()));
+}
+
 VkDevice create_logical_device(
     VkPhysicalDevice physical_device, uint32_t queue_family_index,
     stx::Span<char const* const> required_extensions,
@@ -507,11 +531,16 @@ VkExtent2D select_swapchain_extent(
   }
 }
 
-VkSwapchainKHR create_swapchain(VkDevice device, VkSurfaceKHR surface,
-                                VkExtent2D extent,
-                                VkSurfaceFormatKHR surface_format,
-                                VkPresentModeKHR present_mode,
-                                SwapChainProperties const& properties) {
+VkSwapchainKHR create_swapchain(
+    VkDevice device, VkSurfaceKHR surface, VkExtent2D extent,
+    VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
+    SwapChainProperties const& properties,
+    VkSharingMode accessing_queue_families_sharing_mode,
+    stx::Span<uint32_t const> accessing_queue_families_indexes,
+    VkImageUsageFlags image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+    VkCompositeAlphaFlagBitsKHR alpha_channel_blending =
+        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+    VkBool32 clipped = VK_TRUE) {
   VkSwapchainCreateInfoKHR create_info{};
 
   // number of images to have on the swap chain
@@ -525,12 +554,88 @@ VkSwapchainKHR create_swapchain(VkDevice device, VkSurfaceKHR surface,
   create_info.imageFormat = surface_format.format;
   create_info.imageColorSpace = surface_format.colorSpace;
   create_info.presentMode = present_mode;
-  create_info.minImageCount = properties.capabilities.minImageCount + 1;
-  create_info.imageArrayLayers = 1;
-  create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+  // number of images to use for buffering on the swapchain
+  create_info.minImageCount = image_count;
+
+  create_info.imageArrayLayers = 1;  // 2 for stereoscopic rendering
+  create_info.imageUsage = image_usage;
+  create_info.preTransform = properties.capabilities.currentTransform;
+  create_info.compositeAlpha =
+      alpha_channel_blending;  // how the alpha channel should be
+                               // used for blending with other
+                               // windows in the window system
+  create_info.clipped = clipped;
+  create_info.oldSwapchain = VK_NULL_HANDLE;
+
+  // under normal circumstances command queues on the same queue family can
+  // access data without data race issues
+  //
+  // VK_SHARING_MODE_EXCLUSIVE: An image is owned by one queue family at a time
+  // and ownership must be explicitly transferred before using it in another
+  // queue family. This option offers the best performance.
+  // VK_SHARING_MODE_CONCURRENT: Images can be used across multiple queue
+  // families without explicit ownership transfers.
+  create_info.imageSharingMode = accessing_queue_families_sharing_mode;
+  create_info.pQueueFamilyIndices = accessing_queue_families_indexes.data();
+  create_info.queueFamilyIndexCount = accessing_queue_families_indexes.size();
 
   VkSwapchainKHR swapchain;
-  vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain);
+  VLK_ENSURE(vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain) ==
+                 VK_SUCCESS,
+             "Unable to create swapchain");
 
   return swapchain;
 }
+
+// the number of command queues to create is encapsulated in the
+// `queue_priorities` size
+VkDeviceQueueCreateInfo make_command_queue_create_info(
+    uint32_t queue_family_index, stx::Span<float const> queues_priorities) {
+  VkDeviceQueueCreateInfo create_info{};
+
+  create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+  create_info.queueFamilyIndex = queue_family_index;
+  create_info.pQueuePriorities = queues_priorities.data();
+  create_info.queueCount =
+      queues_priorities.size();  // the number of queues we want, since multiple
+                                 // queues can belong to a single family
+
+  return create_info;
+}
+
+VkImageView create_image_view(VkDevice device, VkImage image, VkFormat format) {
+  VkImageViewCreateInfo create_info{};
+
+  create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  create_info.image = image;
+
+  // VK_IMAGE_VIEW_TYPE_2D: 2D texture
+  // VK_IMAGE_VIEW_TYPE_3D: 3D texture
+  // VK_IMAGE_VIEW_TYPE_CUBE: cube map
+  create_info.viewType =
+      VK_IMAGE_VIEW_TYPE_2D;  // treat the image as a 2d texture
+  create_info.format = format;
+
+  // how to map the image color components
+  create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+  create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+  create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+  create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+  // defines what part of the image this image view represents and what this
+  // image view is used for
+  create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  create_info.subresourceRange.baseArrayLayer = 0;
+  create_info.subresourceRange.baseMipLevel = 0;
+  create_info.subresourceRange.layerCount = 1;
+  create_info.subresourceRange.levelCount = 1;
+
+  VkImageView image_view;
+  VLK_ENSURE(vkCreateImageView(device, &create_info, nullptr, &image_view) ==
+                 VK_SUCCESS,
+             "Unable to create image view");
+  return image_view;
+}
+
+}  // namespace vlk

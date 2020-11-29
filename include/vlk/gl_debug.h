@@ -20,6 +20,8 @@
 
 #if VLK_DEBUG
 
+namespace vlk {
+
 static void ensure_validation_layers_supported(
     stx::Span<char const* const> required_validation_layers) {
   uint32_t available_validation_layers_count;
@@ -137,5 +139,7 @@ static void destroy_debug_messenger(VkInstance instance,
     stx::panic("Failed to destroy debug messenger");
   }
 }
+
+}  // namespace vlk
 
 #endif
