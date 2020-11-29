@@ -23,6 +23,9 @@ static auto create_vk_instance(
     VkDebugUtilsMessengerCreateInfoEXT* default_debug_messenger_create_info,
     stx::Span<char const* const> required_validation_layers)
     -> stx::Result<VkInstance, VkResult> {
+  (void)default_debug_messenger_create_info;
+  (void)required_validation_layers;
+
   // helps bnt not necessary
   VkApplicationInfo app_info;
   app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
