@@ -194,7 +194,7 @@ static std::string name_physical_device(VkPhysicalDeviceProperties properties) {
 
   name += ")";
 
-  return std::move(name);
+  return name;
 }
 
 static std::vector<DevicePropFt> get_physical_devices(VkInstance vk_instance) {
@@ -224,7 +224,7 @@ static std::vector<DevicePropFt> get_physical_devices(VkInstance vk_instance) {
     device_prop_ft.emplace_back(device, device_properties, device_features);
   }
 
-  return std::move(device_prop_ft);
+  return device_prop_ft;
 }
 
 // selects GPU, in the following preference order: dGPU => vGPU => iGPU => CPU
@@ -262,7 +262,7 @@ std::vector<VkQueueFamilyProperties> get_queue_families(
   vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_families_count,
                                            queue_families_properties.data());
 
-  return std::move(queue_families_properties);
+  return queue_families_properties;
 }
 
 stx::Option<uint32_t> find_queue_family(
@@ -388,7 +388,7 @@ SwapChainProperties get_swapchain_properties(VkPhysicalDevice physical_device,
                                             &surface_presentation_modes_count,
                                             details.presentation_modes.data());
 
-  return std::move(details);
+  return details;
 }
 
 bool is_swapchain_adequate(SwapChainProperties const& details) {
