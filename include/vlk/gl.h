@@ -24,7 +24,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 static auto create_vk_instance(
     VkDebugUtilsMessengerCreateInfoEXT const*
         default_debug_messenger_create_info,
-    stx::Span<char const* const> required_validation_layers)
+    stx::Span<char const* const> const& required_validation_layers)
     -> stx::Result<VkInstance, VkResult> {
   (void)default_debug_messenger_create_info;
   (void)required_validation_layers;
@@ -173,7 +173,8 @@ constexpr VkBool32 device_lt(DevicePropFt const& a, DevicePropFt const& b) {
   return !device_gt_eq(a, b);
 }
 
-static std::string name_physical_device(VkPhysicalDeviceProperties properties) {
+static std::string name_physical_device(
+    VkPhysicalDeviceProperties const& properties) {
   std::string name = properties.deviceName;
 
   name += " (id: " + std::to_string(properties.deviceID) + ", type: ";
@@ -235,7 +236,7 @@ static std::vector<DevicePropFt> get_physical_devices(VkInstance vk_instance) {
 
 // selects GPU, in the following preference order: dGPU => vGPU => iGPU => CPU
 static DevicePropFt most_suitable_physical_device(
-    stx::Span<DevicePropFt const> physical_devices,
+    stx::Span<DevicePropFt const> const& physical_devices,
     std::function<VkBool32(DevicePropFt const&)> const& criteria) {
   std::vector<DevicePropFt> prioritized_physical_devices{
       physical_devices.begin(), physical_devices.end()};
@@ -272,7 +273,7 @@ std::vector<VkQueueFamilyProperties> get_queue_families(
 }
 
 stx::Option<uint32_t> find_queue_family(
-    stx::Span<VkQueueFamilyProperties const> queue_families,
+    stx::Span<VkQueueFamilyProperties const> const& queue_families,
     VkQueueFlagBits required_command_queue) {
   auto req_queue_family =
       std::find_if(queue_families.begin(), queue_families.end(),
@@ -289,7 +290,7 @@ stx::Option<uint32_t> find_queue_family(
 // find the device's queue family capable of supporting surface presentation
 stx::Option<uint32_t> find_surface_presentation_queue_family(
     VkPhysicalDevice physical_device,
-    stx::Span<VkQueueFamilyProperties const> queue_families,
+    stx::Span<VkQueueFamilyProperties const> const& queue_families,
     VkSurfaceKHR surface) {
   size_t i = 0;
   auto queue_family = std::find_if(
@@ -310,9 +311,9 @@ stx::Option<uint32_t> find_surface_presentation_queue_family(
 
 VkDevice create_logical_device(
     VkPhysicalDevice physical_device, uint32_t queue_family_index,
-    stx::Span<char const* const> required_extensions,
-    stx::Span<char const* const> required_validation_layers,
-    stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_infos,
+    stx::Span<char const* const> const& required_extensions,
+    stx::Span<char const* const> const& required_validation_layers,
+    stx::Span<VkDeviceQueueCreateInfo const> const& command_queue_create_infos,
     VkAllocationCallbacks const* allocation_callback) {
   VkDeviceQueueCreateInfo queue_create_info{};
   queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -439,8 +440,7 @@ bool is_swapchain_adequate(SwapChainProperties const& details) {
 
 // choose a specific surface format available on the GPU
 VkSurfaceFormatKHR select_surface_formats(
-    stx::Span<VkSurfaceFormatKHR const> formats) {
-  VLK_ENSURE(formats.size() > 0, "No window surface format gotten as arg");
+    stx::Span<VkSurfaceFormatKHR const> const& formats) {
   auto It_format = std::find_if(
       formats.begin(), formats.end(), [](VkSurfaceFormatKHR const& format) {
         return format.format == VK_FORMAT_R8G8B8_SRGB &&
@@ -451,7 +451,7 @@ VkSurfaceFormatKHR select_surface_formats(
 }
 
 VkPresentModeKHR select_surface_presentation_mode(
-    stx::Span<VkPresentModeKHR const> available_presentation_modes) {
+    stx::Span<VkPresentModeKHR const> const& available_presentation_modes) {
   /*
   - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application are
   transferred to the screen right away, which may result in tearing.
@@ -539,7 +539,7 @@ VkSwapchainKHR create_swapchain(
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
-    stx::Span<uint32_t const> accessing_queue_families_indexes,
+    stx::Span<uint32_t const> const& accessing_queue_families_indexes,
     VkImageUsageFlags image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
     VkCompositeAlphaFlagBitsKHR alpha_channel_blending =
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
@@ -594,7 +594,8 @@ VkSwapchainKHR create_swapchain(
 // the number of command queues to create is encapsulated in the
 // `queue_priorities` size
 VkDeviceQueueCreateInfo make_command_queue_create_info(
-    uint32_t queue_family_index, stx::Span<float const> queues_priorities) {
+    uint32_t queue_family_index,
+    stx::Span<float const> const& queues_priorities) {
   VkDeviceQueueCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
