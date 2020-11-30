@@ -643,4 +643,28 @@ VkImageView create_image_view(VkDevice device, VkImage image, VkFormat format) {
   return image_view;
 }
 
+VkShaderModule create_shader_module(
+    VkDevice device, stx::Span<uint32_t const> const& spirv_byte_data) {
+  VkShaderModuleCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+  create_info.codeSize = spirv_byte_data.size_bytes();
+  create_info.pCode = spirv_byte_data.data();
+
+  VkShaderModule shader_module;
+  VLK_ENSURE(vkCreateShaderModule(device, &create_info, nullptr,
+                                  &shader_module) == VK_SUCCESS,
+             "Unable to create shader module");
+}
+
+VkPipelineShaderStageCreateInfo make_pipeline_shader_stage_create_info(
+    VkShaderModule module, char const* name,
+    VkShaderStageFlagBits pipeline_stage_flag) {
+  VkPipelineShaderStageCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  create_info.module = module;
+  create_info.pName = name;
+  create_info.stage = pipeline_stage_flag;
+  return create_info;
+}
+
 }  // namespace vlk
