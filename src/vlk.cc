@@ -16,6 +16,21 @@
 
 using namespace vlk;
 
+// TODO(lamarrr):
+//    glfwSetCursorEnterCallback;
+//    glfwSetCursorPosCallback;
+//    glfwSetDropCallback;
+//    glfwSetJoystickCallback;
+//    glfwSetKeyCallback;
+//    glfwSetMouseButtonCallback;
+//    glfwSetScrollCallback;
+//    glfwSetWindowCloseCallback;
+//    glfwSetWindowFocusCallback;
+//    glfwSetWindowPosCallback;
+//    glfwSetWindowMaximizeCallback;
+//    glfwSetWindowIconifyCallback;
+
+
 struct Window {
   GLFWwindow* window;
   int width;
