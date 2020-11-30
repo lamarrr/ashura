@@ -425,13 +425,13 @@ SwapChainProperties get_swapchain_properties(VkPhysicalDevice physical_device,
   return details;
 }
 
-bool is_swapchain_adequate(SwapChainProperties const& details) {
+bool is_swapchain_adequate(SwapChainProperties const& properties) {
   // we use any available for selecting devices
-  VLK_ENSURE(details.supported_formats.size() != 0,
+  VLK_ENSURE(properties.supported_formats.size() != 0,
              "Physical Device does not support any window surface "
              "format");
 
-  VLK_ENSURE(details.presentation_modes.size() != 0,
+  VLK_ENSURE(properties.presentation_modes.size() != 0,
              "Physical Device does not support any window surface "
              "presentation mode");
 
@@ -441,6 +441,7 @@ bool is_swapchain_adequate(SwapChainProperties const& details) {
 // choose a specific surface format available on the GPU
 VkSurfaceFormatKHR select_surface_formats(
     stx::Span<VkSurfaceFormatKHR const> const& formats) {
+  VLK_ENSURE(formats.size() != 0, "No window surface format gotten as arg");
   auto It_format = std::find_if(
       formats.begin(), formats.end(), [](VkSurfaceFormatKHR const& format) {
         return format.format == VK_FORMAT_R8G8B8_SRGB &&
@@ -535,7 +536,7 @@ VkExtent2D select_swapchain_extent(
 }
 
 VkSwapchainKHR create_swapchain(
-    VkDevice device, VkSurfaceKHR surface, VkExtent2D extent,
+    VkDevice device, VkSurfaceKHR surface, VkExtent2D const& extent,
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
