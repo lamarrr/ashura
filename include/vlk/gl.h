@@ -30,17 +30,20 @@ static auto create_vk_instance(
   (void)required_validation_layers;
 
   // helps bnt not necessary
-  VkApplicationInfo app_info;
+  VkApplicationInfo app_info{};
   app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   app_info.pApplicationName = "Valkyrie";
   app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
   app_info.pEngineName = "Valkyrie Engine";
   app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
   app_info.apiVersion = VK_API_VERSION_1_2;
+  app_info.pNext = nullptr;
+
 
   VkInstanceCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   create_info.pApplicationInfo = &app_info;
+  create_info.pNext = nullptr;
 
   // get list of extensions required for vulkan interfacing with the window
   // system
