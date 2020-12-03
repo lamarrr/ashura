@@ -11,6 +11,12 @@
 
 #define VLK_ENSURE(expr, ...) IMPL_VLK_ENSURE(expr, __VA_ARGS__)
 
+#define VLK_MUST_SUCCEED(expr, message)                      \
+  do {                                                       \
+    auto result = (expr);                                    \
+    if (result != VK_SUCCESS) stx::panic(message, result); \
+  } while (false);
+
 #define VLK_LOG(expr)               \
   do {                              \
     std::cout << expr << std::endl; \
