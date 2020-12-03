@@ -161,10 +161,12 @@ struct Application {
                                 &image_count, swapchain_images.data()),
         "Unable to get swapchain images");
 
-    VkImageView image_view = create_image_view(
-        logical_device_, swapchain_images[0], surface_format.format);
+    for (auto swapchain_image : swapchain_images) {
+      active_swapchain_image_views_.push_back(create_image_view(
+          logical_device_, swapchain_image, surface_format.format));
+    }
 
-    active_swapchain_image_views_.push_back(image_view);
+    // pipeline creation
 
     main_loop_();
     cleanup_();
