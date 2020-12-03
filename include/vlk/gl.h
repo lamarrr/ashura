@@ -585,9 +585,9 @@ VkSwapchainKHR create_swapchain(
   create_info.queueFamilyIndexCount = accessing_queue_families_indexes.size();
 
   VkSwapchainKHR swapchain;
-  VLK_ENSURE(vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain) ==
-                 VK_SUCCESS,
-             "Unable to create swapchain");
+  VLK_MUST_SUCCEED(
+      vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain),
+      "Unable to create swapchain");
 
   return swapchain;
 }
@@ -637,9 +637,9 @@ VkImageView create_image_view(VkDevice device, VkImage image, VkFormat format) {
   create_info.subresourceRange.levelCount = 1;
 
   VkImageView image_view;
-  VLK_ENSURE(vkCreateImageView(device, &create_info, nullptr, &image_view) ==
-                 VK_SUCCESS,
-             "Unable to create image view");
+  VLK_MUST_SUCCEED(
+      vkCreateImageView(device, &create_info, nullptr, &image_view),
+      "Unable to create image view");
   return image_view;
 }
 
@@ -651,9 +651,10 @@ VkShaderModule create_shader_module(
   create_info.pCode = spirv_byte_data.data();
 
   VkShaderModule shader_module;
-  VLK_ENSURE(vkCreateShaderModule(device, &create_info, nullptr,
-                                  &shader_module) == VK_SUCCESS,
-             "Unable to create shader module");
+  VLK_MUST_SUCCEED(
+      vkCreateShaderModule(device, &create_info, nullptr, &shader_module),
+      "Unable to create shader module");
+  return shader_module;
 }
 
 VkPipelineShaderStageCreateInfo make_pipeline_shader_stage_create_info(

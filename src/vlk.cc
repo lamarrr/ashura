@@ -40,9 +40,9 @@ struct Application {
     init_vulkan_();
 
     // creates and binds the window surface (back buffer) to the glfw window
-    VLK_ENSURE(glfwCreateWindowSurface(vk_instance_, window_.window, nullptr,
-                                       &surface_) == VK_SUCCESS,
-               "Unable to Create Window Surface");
+    VLK_MUST_SUCCEED(glfwCreateWindowSurface(vk_instance_, window_.window,
+                                             nullptr, &surface_),
+                     "Unable to Create Window Surface");
 
     auto physical_devices = get_physical_devices(vk_instance_);
     auto [physical_device, prop, features] = most_suitable_physical_device(
@@ -150,16 +150,16 @@ struct Application {
         unique_queue_families_indexes);
 
     uint32_t image_count;
-    VLK_ENSURE(vkGetSwapchainImagesKHR(logical_device_, window_swapchain_,
-                                       &image_count, nullptr) == VK_SUCCESS,
-               "Unable to get swapchain images count");
+    VLK_MUST_SUCCEED(vkGetSwapchainImagesKHR(logical_device_, window_swapchain_,
+                                             &image_count, nullptr),
+                     "Unable to get swapchain images count");
 
     std::vector<VkImage> swapchain_images(image_count);
 
-    VLK_ENSURE(vkGetSwapchainImagesKHR(logical_device_, window_swapchain_,
-                                       &image_count,
-                                       swapchain_images.data()) == VK_SUCCESS,
-               "Unable to get swapchain images");
+    VLK_MUST_SUCCEED(
+        vkGetSwapchainImagesKHR(logical_device_, window_swapchain_,
+                                &image_count, swapchain_images.data()),
+        "Unable to get swapchain images");
 
     VkImageView image_view = create_image_view(
         logical_device_, swapchain_images[0], surface_format.format);
