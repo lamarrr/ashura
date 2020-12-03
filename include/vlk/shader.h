@@ -13,8 +13,7 @@ stx::Result<std::basic_string<uint32_t>, FileError> load_spirv_binary(
     std::filesystem::path const& path) {
   if (!std::filesystem::exists(path)) return stx::Err(FileError::NotExist);
   auto file =
-      std::ifstream(path.c_str(), std::ios_base::ate | std::ios_base::binary |
-                                      std::ios_base::in);
+      std::ifstream(path.c_str(), std::ios_base::ate | std::ios_base::binary);
 
   if (!file.is_open()) return stx::Err(FileError::OpenError);
 
