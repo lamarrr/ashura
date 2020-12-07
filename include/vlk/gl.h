@@ -779,4 +779,11 @@ make_pipeline_multisample_state_create_info() {
   return create_info;
 }
 
+[[nodiscard]] VkPipelineDepthStencilStateCreateInfo
+make_pipeline_depth_stencil_state_create_info() {
+  VkPipelineDepthStencilStateCreateInfo create_info{};
+  // VLK_ENSURE(false, "Unimplemented");
+  return create_info;
+}
+
 }  // namespace vlk
