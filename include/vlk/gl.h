@@ -700,6 +700,20 @@ make_pipeline_input_assembly_state_create_info() {
   return create_info;
 }
 
+[[nodiscard]] VkViewport make_viewport(float x, float y, float w, float h,
+                                       float min_depth = 0.0f,
+                                       float max_depth = 1.0f) {
+  VkViewport viewport{};
+  viewport.x = x;
+  viewport.y = y;
+  viewport.width = w;             // width of the framebuffer (swapchain image)
+  viewport.height = h;            // height of the framebuffer (swapchain image)
+  viewport.minDepth = min_depth;  // min depth value to use for the frame buffer
+  viewport.maxDepth = max_depth;  // max depth value to use for the frame buffer
+
+  return viewport;
+}
+
   return create_info;
 }
 
