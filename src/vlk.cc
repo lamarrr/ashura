@@ -24,11 +24,11 @@ struct Window {
   int height;
 };
 
-struct Application {
+struct [[nodiscard]] Application {
  public:
   Application(int window_width, int window_height)
       : window_{nullptr, window_width, window_height},
-        vk_instance_{nullptr},
+        vulkan_instance_{nullptr},
         surface_{nullptr},
         logical_device_{nullptr},
         debug_messenger_{},
@@ -39,11 +39,11 @@ struct Application {
     init_vulkan_();
 
     // creates and binds the window surface (back buffer) to the glfw window
-    VLK_MUST_SUCCEED(glfwCreateWindowSurface(vk_instance_, window_.window,
+    VLK_MUST_SUCCEED(glfwCreateWindowSurface(vulkan_instance_, window_.window,
                                              nullptr, &surface_),
                      "Unable to Create Window Surface");
 
-    auto physical_devices = get_physical_devices(vk_instance_);
+    auto physical_devices = get_physical_devices(vulkan_instance_);
     auto [physical_device, prop, features] = most_suitable_physical_device(
         physical_devices,
         [surface_ = this->surface_](DevicePropFt const& device_hpf) -> bool {
@@ -73,32 +73,46 @@ struct Application {
 
     std::vector<VkQueueFamilyProperties> queue_families =
         get_queue_families(physical_device);
-    uint32_t graphics_queue_family_index =
-        find_queue_family(queue_families, VK_QUEUE_GRAPHICS_BIT)
-            .expect(
-                "Selected physical device does not have graphics command "
-                "queue");
+    std::vector<bool> graphics_queue_support =
+        get_command_queue_support(queue_families, VK_QUEUE_GRAPHICS_BIT);
 
     // find any queue that supports surface presentation
-    uint32_t surface_presentation_queue_family_index =
-        find_surface_presentation_queue_family(physical_device, queue_families,
-                                               surface_)
-            .expect(
-                "Selected physical device does not have a surface presentation "
-                "command queue");
+    std::vector<bool> surface_presentation_queue_support =
+        get_surface_presentation_command_queue_support(
+            physical_device, queue_families, surface_);
+
+    auto graphics_queue_family_index =
+        std::find(graphics_queue_support.begin(), graphics_queue_support.end(),
+                  true) -
+        graphics_queue_support.begin();
+
+    auto surface_presentation_queue_family_index =
+        std::find(surface_presentation_queue_support.begin(),
+                  surface_presentation_queue_support.end(), true) -
+        surface_presentation_queue_support.begin();
 
     // the vector's length is equal to the number of command
     // queues to create on each of the queue family
     std::map<uint32_t, std::vector<float>> target_queue_families;
 
+    // TODO(lamarrr): ensure size must not exceed queue family's queueCount
     target_queue_families[graphics_queue_family_index].push_back(1.0f);
     auto graphics_command_queue_index =
         target_queue_families[graphics_queue_family_index].size() - 1;
-    target_queue_families[surface_presentation_queue_family_index].push_back(
-        1.0f);
+
+    // trying to make sure we don't create more than one command queue per queue
+    // family
     auto surface_presentation_command_queue_index =
-        target_queue_families[surface_presentation_queue_family_index].size() -
-        1;
+        graphics_command_queue_index;
+    if (surface_presentation_queue_family_index !=
+        graphics_queue_family_index) {
+      target_queue_families[surface_presentation_queue_family_index].push_back(
+          1.0f);
+      surface_presentation_command_queue_index =
+          target_queue_families[surface_presentation_queue_family_index]
+              .size() -
+          1;
+    }
 
     std::vector<VkDeviceQueueCreateInfo> command_queue_create_infos;
     std::vector<uint32_t> unique_queue_families_indexes;
@@ -114,9 +128,8 @@ struct Application {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
     logical_device_ = create_logical_device(
-        physical_device, graphics_queue_family_index,
-        required_logical_device_extensions, required_validation_layers_,
-        command_queue_create_infos, nullptr);
+        physical_device, required_logical_device_extensions,
+        required_validation_layers_, command_queue_create_infos, nullptr);
 
     SwapChainProperties device_swapchain_properties =
         get_swapchain_properties(physical_device, surface_);
@@ -147,7 +160,8 @@ struct Application {
         logical_device_, surface_, surface_extent, surface_format,
         surface_presentation_mode, device_swapchain_properties,
         graphics_queue_family_index == surface_presentation_queue_family_index
-            ? VK_SHARING_MODE_EXCLUSIVE
+            ? VK_SHARING_MODE_EXCLUSIVE  // command queue on same queue family
+                                         // can share resources
             : VK_SHARING_MODE_CONCURRENT,
         unique_queue_families_indexes);
 
@@ -164,7 +178,7 @@ struct Application {
         "Unable to get swapchain images");
 
     for (auto swapchain_image : swapchain_images) {
-      active_swapchain_image_views_.push_back(create_image_view(
+      swapchain_image_views_.push_back(create_image_view(
           logical_device_, swapchain_image, surface_format.format));
     }
 
@@ -271,12 +285,36 @@ struct Application {
     default_debug_messenger_create_info_ = make_debug_messenger_create_info();
 #endif
 
-    vk_instance_ = create_vk_instance(&default_debug_messenger_create_info_,
-                                      required_validation_layers_)
-                       .expect("Unable to create Vulkan Instance");
+    // get list of extensions required for vulkan interfacing with the window
+    // system
+    uint32_t glfw_req_extensions_count = 0;
+    char const** glfw_req_extensions_names;
+
+    glfw_req_extensions_names =
+        glfwGetRequiredInstanceExtensions(&glfw_req_extensions_count);
+
+    VLK_LOG("Required GLFW Extensions:");
+    for (size_t i = 0; i < glfw_req_extensions_count; i++) {
+      VLK_LOG("\t" << glfw_req_extensions_names[i]);
+    }
+
+    std::vector<char const*> required_extensions;
+    // TODO(lamarrr): deduction guides
+    for (auto extension : stx::Span<char const* const>(
+             glfw_req_extensions_names, glfw_req_extensions_count)) {
+      required_extensions.push_back(extension);
+    }
 
 #if VLK_DEBUG
-    debug_messenger_ = create_install_debug_messenger(vk_instance_, nullptr);
+    required_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
+    vulkan_instance_ =
+        create_vulkan_instance(required_extensions, required_validation_layers_,
+                               &default_debug_messenger_create_info_);
+
+#if VLK_DEBUG
+    debug_messenger_ =
+        create_install_debug_messenger(vulkan_instance_, nullptr);
 #endif
   }
 
@@ -287,22 +325,20 @@ struct Application {
   }
 
   void cleanup_() {
-    while (!active_swapchain_image_views_.empty()) {
-      VkImageView image_view = active_swapchain_image_views_.back();
+    for (auto image_view : swapchain_image_views_) {
       vkDestroyImageView(logical_device_, image_view, nullptr);
-      active_swapchain_image_views_.pop_back();
     }
 
     vkDestroySwapchainKHR(logical_device_, window_swapchain_, nullptr);
-    vkDestroySurfaceKHR(vk_instance_, surface_, nullptr);
+    vkDestroySurfaceKHR(vulkan_instance_, surface_, nullptr);
 
     vkDestroyDevice(logical_device_, nullptr);
 
 #if VLK_DEBUG
-    destroy_debug_messenger(vk_instance_, debug_messenger_, nullptr);
+    destroy_debug_messenger(vulkan_instance_, debug_messenger_, nullptr);
 #endif
 
-    vkDestroyInstance(vk_instance_, nullptr);
+    vkDestroyInstance(vulkan_instance_, nullptr);
 
     glfwDestroyWindow(window_.window);
     glfwTerminate();
@@ -310,9 +346,9 @@ struct Application {
 
   Window window_;
 
-  VkInstance vk_instance_;
+  VkInstance vulkan_instance_;
 
-  // creation only needs the vulkan instance
+  // creation only needs the vulkan instance, a.k.a. backbuffer
   VkSurfaceKHR surface_;
 
   VkDevice logical_device_;
@@ -323,7 +359,7 @@ struct Application {
 
   VkSwapchainKHR window_swapchain_;
 
-  std::vector<VkImageView> active_swapchain_image_views_;
+  std::vector<VkImageView> swapchain_image_views_;
 
   // only used in debug mode
   VkDebugUtilsMessengerEXT debug_messenger_;
