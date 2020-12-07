@@ -661,6 +661,29 @@ make_pipeline_shader_stage_create_info(
   return create_info;
 }
 
+[[nodiscard]] VkPipelineVertexInputStateCreateInfo
+make_pipeline_vertex_input_state_create_info(
+    stx::Span<VkVertexInputBindingDescription const> const&
+        vertex_binding_descriptions,
+    stx::Span<VkVertexInputAttributeDescription const> const&
+        vertex_attribute_desciptions) {
+  // Bindings: spacing between data and whether the data is per-vertex or
+  // per-instance
+  // Attribute descriptions: type of the attributes passed to the vertex shader,
+  // which binding to load them from and at which offset
+  VkPipelineVertexInputStateCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  create_info.vertexBindingDescriptionCount =
+      vertex_binding_descriptions.size();
+  create_info.pVertexBindingDescriptions = vertex_binding_descriptions.data();
+  create_info.vertexAttributeDescriptionCount =
+      vertex_attribute_desciptions.size();
+  create_info.pVertexAttributeDescriptions =
+      vertex_attribute_desciptions.data();
+
+  return create_info;
+}
+
   return create_info;
 }
 
