@@ -823,4 +823,35 @@ make_pipeline_color_blend_state_create_info(
   return create_info;
 }
 
+[[nodiscard]] VkPipelineDynamicStateCreateInfo make_pipeline_dynamic_state(
+    stx::Span<VkDynamicState const> const& dynamic_states) {
+  // This will cause the configuration of these values to be ignored and you
+  // will be required to specify the data at drawing time. This struct can be
+  // substituted by a nullptr later on if you don't have any dynamic state.
+
+  VkPipelineDynamicStateCreateInfo pipeline_state{};
+  pipeline_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+  pipeline_state.dynamicStateCount = std::size(dynamic_states);
+  pipeline_state.pDynamicStates = dynamic_states.data();
+
+  return pipeline_state;
+}
+
+[[nodiscard]] VkPipelineLayout create_pipeline_layout(VkDevice device) {
+  VkPipelineLayoutCreateInfo create_info{};
+
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  create_info.setLayoutCount = 0;
+  create_info.pSetLayouts = nullptr;
+  create_info.pushConstantRangeCount = 0;
+  create_info.pPushConstantRanges = nullptr;
+
+  VkPipelineLayout layout;
+  VLK_MUST_SUCCEED(
+      vkCreatePipelineLayout(device, &create_info, nullptr, &layout),
+      "Unable to create pipeline layout");
+
+  return layout;
+}
+
 }  // namespace vlk
