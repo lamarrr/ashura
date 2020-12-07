@@ -765,6 +765,17 @@ make_pipeline_rasterization_create_info(float line_width = 1.0f) {
   return create_info;
 }
 
+[[nodiscard]] VkPipelineMultisampleStateCreateInfo
+make_pipeline_multisample_state_create_info() {
+  VkPipelineMultisampleStateCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  create_info.sampleShadingEnable = VK_FALSE;
+  create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  create_info.minSampleShading = 1.0f;
+  create_info.pSampleMask = nullptr;
+  create_info.alphaToCoverageEnable = VK_FALSE;
+  create_info.alphaToOneEnable = VK_FALSE;
+
   return create_info;
 }
 
