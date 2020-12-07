@@ -106,12 +106,12 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 
 #endif
 
-  VkInstance vk_instance;
-  VkResult result = vkCreateInstance(&create_info, nullptr, &vk_instance);
+  VkInstance vulkan_instance;
+  VLK_MUST_SUCCEED(vkCreateInstance(&create_info, nullptr, &vulkan_instance),
+                   "Unable to create vulkan instance");
 
-  if (result != VK_SUCCESS) {
-    return stx::Err(std::move(result));
-  }
+  return vulkan_instance;
+}
 
 [[nodiscard]] constexpr bool device_gt_eq(DevicePropFt const& a,
                                           DevicePropFt const& b) {
@@ -211,13 +211,16 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
     VkInstance vk_instance) {
   uint32_t devices_count = 0;
 
-  vkEnumeratePhysicalDevices(vk_instance, &devices_count, nullptr);
+  VLK_MUST_SUCCEED(
+      vkEnumeratePhysicalDevices(vk_instance, &devices_count, nullptr),
+      "Unable to get physical devices");
 
   VLK_ENSURE(devices_count != 0, "No Physical Device Found");
 
   std::vector<VkPhysicalDevice> physical_devices(devices_count);
-  vkEnumeratePhysicalDevices(vk_instance, &devices_count,
-                             physical_devices.data());
+  VLK_MUST_SUCCEED(vkEnumeratePhysicalDevices(vk_instance, &devices_count,
+                                              physical_devices.data()),
+                   "Unable to get physical devices");
 
   std::vector<DevicePropFt> device_prop_ft;
 
@@ -336,16 +339,19 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
   device_create_info.pEnabledFeatures = &device_features;
 
   uint32_t available_extensions_count;
-  vkEnumerateDeviceExtensionProperties(physical_device, nullptr,
-                                       &available_extensions_count, nullptr);
+  VLK_MUST_SUCCEED(
+      vkEnumerateDeviceExtensionProperties(
+          physical_device, nullptr, &available_extensions_count, nullptr),
+      "Unable to get physical device extensions");
 
   // device specific extensions
   std::vector<VkExtensionProperties> available_device_extensions(
       available_extensions_count);
 
-  vkEnumerateDeviceExtensionProperties(physical_device, nullptr,
-                                       &available_extensions_count,
-                                       available_device_extensions.data());
+  VLK_MUST_SUCCEED(vkEnumerateDeviceExtensionProperties(
+                       physical_device, nullptr, &available_extensions_count,
+                       available_device_extensions.data()),
+                   "Unable to get physical device extensions");
 
   VLK_LOG("Required Device Extensions: ");
   std::for_each(required_extensions.begin(), required_extensions.end(),
@@ -402,28 +408,37 @@ struct [[nodiscard]] SwapChainProperties {
     VkPhysicalDevice physical_device, VkSurfaceKHR surface) {
   SwapChainProperties details{};
 
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
-                                            &details.capabilities);
+  VLK_MUST_SUCCEED(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+                       physical_device, surface, &details.capabilities),
+                   "Unable to get physical device' surface capabilities");
 
   uint32_t supported_surface_formats_count = 0;
 
-  vkGetPhysicalDeviceSurfaceFormatsKHR(
-      physical_device, surface, &supported_surface_formats_count, nullptr);
+  VLK_MUST_SUCCEED(
+      vkGetPhysicalDeviceSurfaceFormatsKHR(
+          physical_device, surface, &supported_surface_formats_count, nullptr),
+      "Unable to get physical device' surface format");
 
   details.supported_formats.resize(supported_surface_formats_count);
 
-  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface,
-                                       &supported_surface_formats_count,
-                                       details.supported_formats.data());
+  VLK_MUST_SUCCEED(
+      vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface,
+                                           &supported_surface_formats_count,
+                                           details.supported_formats.data()),
+      "Unable to get physical device' surface format");
 
   uint32_t surface_presentation_modes_count;
-  vkGetPhysicalDeviceSurfacePresentModesKHR(
-      physical_device, surface, &surface_presentation_modes_count, nullptr);
+  VLK_MUST_SUCCEED(
+      vkGetPhysicalDeviceSurfacePresentModesKHR(
+          physical_device, surface, &surface_presentation_modes_count, nullptr),
+      "Unable to get physical device' surface presentation mode");
 
   details.presentation_modes.resize(surface_presentation_modes_count);
-  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface,
-                                            &surface_presentation_modes_count,
-                                            details.presentation_modes.data());
+  VLK_MUST_SUCCEED(
+      vkGetPhysicalDeviceSurfacePresentModesKHR(
+          physical_device, surface, &surface_presentation_modes_count,
+          details.presentation_modes.data()),
+      "Unable to get physical device' surface presentation mode");
 
   return details;
 }
