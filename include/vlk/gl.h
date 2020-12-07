@@ -803,4 +803,24 @@ make_pipeline_color_blend_attachment_state() {
   return state;
 }
 
+// global pipeline state
+[[nodiscard]] VkPipelineColorBlendStateCreateInfo
+make_pipeline_color_blend_state_create_info(
+    stx::Span<VkPipelineColorBlendAttachmentState const> const&
+        color_frame_buffers) {
+  VkPipelineColorBlendStateCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  create_info.logicOpEnable = VK_FALSE;
+  create_info.logicOp = VK_LOGIC_OP_COPY;
+  create_info.attachmentCount =
+      color_frame_buffers.size();  // number of framebuffers
+  create_info.pAttachments = color_frame_buffers.data();
+  create_info.blendConstants[0] = 0.0f;
+  create_info.blendConstants[1] = 0.0f;
+  create_info.blendConstants[2] = 0.0f;
+  create_info.blendConstants[3] = 0.0f;
+
+  return create_info;
+}
+
 }  // namespace vlk
