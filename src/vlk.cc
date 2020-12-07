@@ -167,6 +167,80 @@ struct Application {
 
     // pipeline creation
 
+    std::basic_string<uint32_t> const vert_shader_binary =
+        load_spirv_binary(config::kSpirvBinariesPath / "triangle.vert.spv")
+            .expect("Unable to load vertex shader binary");
+
+    std::basic_string<uint32_t> const frag_shader_binary =
+        load_spirv_binary(config::kSpirvBinariesPath / "triangle.frag.spv")
+            .expect("Unable to load fragment shader binary");
+
+    auto vert_shader_module =
+        create_shader_module(logical_device_, vert_shader_binary);  // destroy
+
+    auto frag_shader_module =
+        create_shader_module(logical_device_, frag_shader_binary);  // destroy
+
+    auto vert_shader_pipeline_shader_stage_create_info =
+        make_pipeline_shader_stage_create_info(vert_shader_module, "main",
+                                               VK_SHADER_STAGE_VERTEX_BIT);
+
+    auto frag_shader_pipeline_shader_stage_create_info =
+        make_pipeline_shader_stage_create_info(frag_shader_module, "main",
+                                               VK_SHADER_STAGE_FRAGMENT_BIT);
+    std::vector<VkPipelineShaderStageCreateInfo> shader_stages_create_info = {
+        vert_shader_pipeline_shader_stage_create_info,
+        frag_shader_pipeline_shader_stage_create_info};
+
+    VkViewport const viewports[] = {
+        make_viewport(0, 0, surface_extent.width, surface_extent.height)};
+    VkRect2D const scissors[] = {
+        VkRect2D{{0, 0}, {surface_extent.width, surface_extent.height}}};
+
+    // the position of each element corresponds to the indexes of the active
+    // framebuffers
+    VkPipelineColorBlendAttachmentState const attachments_states[] = {
+        make_pipeline_color_blend_attachment_state()};
+    VkAttachmentDescription const attachments_descriptions[] = {
+        make_attachment_description(surface_format.format)};
+
+    VkAttachmentReference attachments_references[1] = {};
+    attachments_references[0].attachment = 0;
+    attachments_references[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription const subpasses_descriptions[] = {
+        make_subpass_description(attachments_references)};
+
+    VkDynamicState const dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT,
+                                             VK_DYNAMIC_STATE_LINE_WIDTH};
+    auto pipeline_dynamic_state = make_pipeline_dynamic_state(dynamic_states);
+
+    auto pipeline_layout = create_pipeline_layout(logical_device_);
+
+    auto render_pass = create_render_pass(
+        logical_device_, attachments_descriptions, subpasses_descriptions);
+
+    auto graphics_pipeline = create_graphics_pipeline(
+        logical_device_, pipeline_layout, render_pass,
+        shader_stages_create_info,
+        make_pipeline_vertex_input_state_create_info({}, {}),
+        make_pipeline_input_assembly_state_create_info(),
+        make_pipeline_viewport_state_create_info(viewports, scissors),
+        make_pipeline_rasterization_create_info(),
+        make_pipeline_multisample_state_create_info(),
+        make_pipeline_depth_stencil_state_create_info(),
+        make_pipeline_color_blend_state_create_info(attachments_states),
+        pipeline_dynamic_state);
+
+    std::vector<VkFramebuffer> swapchain_fraamebuffers;
+
+    for (size_t i = 0; i < swapchain_image_views_.size(); i++) {
+      VkImageView const attachments[] = {swapchain_image_views_[i]};
+      auto frame_buffer = create_frame_buffer(logical_device_, render_pass,
+                                              attachments, surface_extent);
+      swapchain_fraamebuffers.push_back(frame_buffer);
+    }
+
     main_loop_();
     cleanup_();
 
