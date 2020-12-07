@@ -684,6 +684,22 @@ make_pipeline_vertex_input_state_create_info(
   return create_info;
 }
 
+[[nodiscard]] VkPipelineInputAssemblyStateCreateInfo
+make_pipeline_input_assembly_state_create_info() {
+  // Bindings: spacing between data and whether the data is per-vertex or
+  // per-instance
+  // Attribute descriptions: type of the attributes passed to the vertex shader,
+  // which binding to load them from and at which offset
+  VkPipelineInputAssemblyStateCreateInfo create_info{};
+  create_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  create_info.topology =
+      VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;  // rendering in triangle mode
+  create_info.primitiveRestartEnable = VK_FALSE;
+
+  return create_info;
+}
+
   return create_info;
 }
 
