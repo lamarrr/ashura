@@ -21,7 +21,7 @@ namespace vlk {
 using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
                                 VkPhysicalDeviceFeatures>;
 
-static auto create_vk_instance(
+[[nodiscard]] VkInstance create_vulkan_instance(
     VkDebugUtilsMessengerCreateInfoEXT const*
         default_debug_messenger_create_info,
     stx::Span<char const* const> const& required_validation_layers)
@@ -108,10 +108,8 @@ static auto create_vk_instance(
     return stx::Err(std::move(result));
   }
 
-  return stx::Ok(std::move(vk_instance));
-}
-
-constexpr VkBool32 device_gt_eq(DevicePropFt const& a, DevicePropFt const& b) {
+[[nodiscard]] constexpr bool device_gt_eq(DevicePropFt const& a,
+                                          DevicePropFt const& b) {
   // Dedicated GPUs
   VkPhysicalDeviceType a_t = std::get<1>(a).deviceType;
   VkPhysicalDeviceType b_t = std::get<1>(b).deviceType;
@@ -168,11 +166,12 @@ constexpr VkBool32 device_gt_eq(DevicePropFt const& a, DevicePropFt const& b) {
   return false;
 }
 
-constexpr VkBool32 device_lt(DevicePropFt const& a, DevicePropFt const& b) {
+[[nodiscard]] constexpr bool device_lt(DevicePropFt const& a,
+                                       DevicePropFt const& b) {
   return !device_gt_eq(a, b);
 }
 
-static std::string name_physical_device(
+[[nodiscard]] std::string name_physical_device(
     VkPhysicalDeviceProperties const& properties) {
   std::string name = properties.deviceName;
 
@@ -203,7 +202,8 @@ static std::string name_physical_device(
   return name;
 }
 
-static std::vector<DevicePropFt> get_physical_devices(VkInstance vk_instance) {
+[[nodiscard]] std::vector<DevicePropFt> get_physical_devices(
+    VkInstance vk_instance) {
   uint32_t devices_count = 0;
 
   vkEnumeratePhysicalDevices(vk_instance, &devices_count, nullptr);
@@ -234,7 +234,7 @@ static std::vector<DevicePropFt> get_physical_devices(VkInstance vk_instance) {
 }
 
 // selects GPU, in the following preference order: dGPU => vGPU => iGPU => CPU
-static DevicePropFt most_suitable_physical_device(
+[[nodiscard]] DevicePropFt most_suitable_physical_device(
     stx::Span<DevicePropFt const> const& physical_devices,
     std::function<VkBool32(DevicePropFt const&)> const& criteria) {
   std::vector<DevicePropFt> prioritized_physical_devices{
@@ -255,7 +255,7 @@ static DevicePropFt most_suitable_physical_device(
 
 //  to do anything on the GPU (render, draw, compute, allocate memory, create
 //  texture, etc.) we use command queues
-std::vector<VkQueueFamilyProperties> get_queue_families(
+[[nodiscard]] std::vector<VkQueueFamilyProperties> get_queue_families(
     VkPhysicalDevice device) {
   uint32_t queue_families_count;
 
@@ -271,7 +271,7 @@ std::vector<VkQueueFamilyProperties> get_queue_families(
   return queue_families_properties;
 }
 
-stx::Option<uint32_t> find_queue_family(
+[[nodiscard]] std::vector<bool> get_command_queue_support(
     stx::Span<VkQueueFamilyProperties const> const& queue_families,
     VkQueueFlagBits required_command_queue) {
   auto req_queue_family =
@@ -287,7 +287,7 @@ stx::Option<uint32_t> find_queue_family(
 }
 
 // find the device's queue family capable of supporting surface presentation
-stx::Option<uint32_t> find_surface_presentation_queue_family(
+[[nodiscard]] std::vector<bool> get_surface_presentation_command_queue_support(
     VkPhysicalDevice physical_device,
     stx::Span<VkQueueFamilyProperties const> const& queue_families,
     VkSurfaceKHR surface) {
@@ -308,8 +308,7 @@ stx::Option<uint32_t> find_surface_presentation_queue_family(
       static_cast<uint32_t>(queue_family - queue_families.begin()));
 }
 
-VkDevice create_logical_device(
-    VkPhysicalDevice physical_device, uint32_t queue_family_index,
+[[nodiscard]] VkDevice create_logical_device(
     stx::Span<char const* const> const& required_extensions,
     stx::Span<char const* const> const& required_validation_layers,
     stx::Span<VkDeviceQueueCreateInfo const> const& command_queue_create_infos,
@@ -388,14 +387,14 @@ VkDevice create_logical_device(
   return logical_device;
 }
 
-struct SwapChainProperties {
+struct [[nodiscard]] SwapChainProperties {
   VkSurfaceCapabilitiesKHR capabilities;
   std::vector<VkSurfaceFormatKHR> supported_formats;
   std::vector<VkPresentModeKHR> presentation_modes;
 };
 
-SwapChainProperties get_swapchain_properties(VkPhysicalDevice physical_device,
-                                             VkSurfaceKHR surface) {
+[[nodiscard]] SwapChainProperties get_swapchain_properties(
+    VkPhysicalDevice physical_device, VkSurfaceKHR surface) {
   SwapChainProperties details{};
 
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
@@ -424,7 +423,8 @@ SwapChainProperties get_swapchain_properties(VkPhysicalDevice physical_device,
   return details;
 }
 
-bool is_swapchain_adequate(SwapChainProperties const& properties) {
+[[nodiscard]] bool is_swapchain_adequate(
+    SwapChainProperties const& properties) {
   // we use any available for selecting devices
   VLK_ENSURE(properties.supported_formats.size() != 0,
              "Physical Device does not support any window surface "
@@ -438,7 +438,7 @@ bool is_swapchain_adequate(SwapChainProperties const& properties) {
 }
 
 // choose a specific surface format available on the GPU
-VkSurfaceFormatKHR select_surface_formats(
+[[nodiscard]] VkSurfaceFormatKHR select_surface_formats(
     stx::Span<VkSurfaceFormatKHR const> const& formats) {
   VLK_ENSURE(formats.size() != 0, "No window surface format gotten as arg");
   auto It_format = std::find_if(
@@ -450,7 +450,7 @@ VkSurfaceFormatKHR select_surface_formats(
   return (It_format != formats.end()) ? *It_format : formats[0];
 }
 
-VkPresentModeKHR select_surface_presentation_mode(
+[[nodiscard]] VkPresentModeKHR select_surface_presentation_mode(
     stx::Span<VkPresentModeKHR const> const& available_presentation_modes) {
   /*
   - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application are
@@ -503,7 +503,7 @@ VkPresentModeKHR select_surface_presentation_mode(
   }
 }
 
-VkExtent2D select_swapchain_extent(
+[[nodiscard]] VkExtent2D select_swapchain_extent(
     GLFWwindow* window, VkSurfaceCapabilitiesKHR const& capabilities) {
   // if this is already set (value other than uint32_t::max) then we are not
   // allowed to choose the extent
@@ -534,7 +534,7 @@ VkExtent2D select_swapchain_extent(
   }
 }
 
-VkSwapchainKHR create_swapchain(
+[[nodiscard]] VkSwapchainKHR create_swapchain(
     VkDevice device, VkSurfaceKHR surface, VkExtent2D const& extent,
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
@@ -593,7 +593,7 @@ VkSwapchainKHR create_swapchain(
 
 // the number of command queues to create is encapsulated in the
 // `queue_priorities` size
-VkDeviceQueueCreateInfo make_command_queue_create_info(
+[[nodiscard]] VkDeviceQueueCreateInfo make_command_queue_create_info(
     uint32_t queue_family_index,
     stx::Span<float const> const& queues_priorities) {
   VkDeviceQueueCreateInfo create_info{};
@@ -608,7 +608,8 @@ VkDeviceQueueCreateInfo make_command_queue_create_info(
   return create_info;
 }
 
-VkImageView create_image_view(VkDevice device, VkImage image, VkFormat format) {
+[[nodiscard]] VkImageView create_image_view(VkDevice device, VkImage image,
+                                            VkFormat format) {
   VkImageViewCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -642,7 +643,7 @@ VkImageView create_image_view(VkDevice device, VkImage image, VkFormat format) {
   return image_view;
 }
 
-VkShaderModule create_shader_module(
+[[nodiscard]] VkShaderModule create_shader_module(
     VkDevice device, stx::Span<uint32_t const> const& spirv_byte_data) {
   VkShaderModuleCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
