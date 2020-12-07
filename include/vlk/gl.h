@@ -903,4 +903,25 @@ make_pipeline_color_blend_state_create_info(
   return subpass;
 }
 
+// specify how many color and depth buffers there will be, how many samples to
+// use for each of them and how their contents should be handled throughout the
+// rendering operations (and the subpasses description)
+[[nodiscard]] VkRenderPass create_render_pass(
+    VkDevice device,
+    stx::Span<VkAttachmentDescription const> const& attachment_descriptions,
+    stx::Span<VkSubpassDescription const> const& subpass_descriptions) {
+  VkRenderPassCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+  create_info.attachmentCount = attachment_descriptions.size();
+  create_info.pAttachments = attachment_descriptions.data();
+  create_info.subpassCount = subpass_descriptions.size();
+  create_info.pSubpasses = subpass_descriptions.data();
+  VkRenderPass render_pass;
+  VLK_MUST_SUCCEED(
+      vkCreateRenderPass(device, &create_info, nullptr, &render_pass),
+      "Unable to create render pass");
+
+  return render_pass;
+}
+
 }  // namespace vlk
