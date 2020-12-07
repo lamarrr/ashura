@@ -45,25 +45,28 @@ struct Application {
 
     auto physical_devices = get_physical_devices(vk_instance_);
     auto [physical_device, prop, features] = most_suitable_physical_device(
-        physical_devices, [=](DevicePropFt const& device_hpf) {
+        physical_devices,
+        [surface_ = this->surface_](DevicePropFt const& device_hpf) -> bool {
           auto const& [device, properties, features] = device_hpf;
           auto queue_families = get_queue_families(device);
 
           // check device has graphics queue
-          auto graphics_queue_family_index =
-              find_queue_family(queue_families, VK_QUEUE_GRAPHICS_BIT);
+          auto graphics_queue_support =
+              get_command_queue_support(queue_families, VK_QUEUE_GRAPHICS_BIT);
 
           // check that any of the device's graphics queue family has
           // surface presentation support for the window surface
-          auto surface_presentation_queue_family_index =
-              find_surface_presentation_queue_family(device, queue_families,
-                                                     surface_);
+          auto surface_presentation_queue_support =
+              get_surface_presentation_command_queue_support(
+                  device, queue_families, surface_);
 
-          return graphics_queue_family_index.is_some() &&
+          auto swapchain_properties =
+              get_swapchain_properties(device, surface_);
+
+          return any_true(graphics_queue_support) &&
+                 any_true(surface_presentation_queue_support) &&
                  features.geometryShader &&
-                 surface_presentation_queue_family_index.is_some() &&
-                 is_swapchain_adequate(
-                     get_swapchain_properties(device, surface_));
+                 is_swapchain_adequate(swapchain_properties);
         });
 
     VLK_LOG("Using Physical Device: " << name_physical_device(prop))
