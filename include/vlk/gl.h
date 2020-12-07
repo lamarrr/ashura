@@ -714,6 +714,23 @@ make_pipeline_input_assembly_state_create_info() {
   return viewport;
 }
 
+[[nodiscard]] VkPipelineViewportStateCreateInfo
+make_pipeline_viewport_state_create_info(
+    stx::Span<VkViewport const> const& viewports,
+    stx::Span<VkRect2D const> const& scissors) {
+  // to use multiple viewports, ensure the GPU feature is enabled during logical
+  // device creation
+  VkPipelineViewportStateCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+  create_info.viewportCount = viewports.size();
+  create_info.pViewports = viewports.data();
+  create_info.scissorCount =
+      scissors.size();  // scissors cut out the part to be rendered
+  create_info.pScissors = scissors.data();
+
+  return create_info;
+}
+
   return create_info;
 }
 
