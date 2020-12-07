@@ -644,14 +644,23 @@ struct [[nodiscard]] SwapChainProperties {
   return shader_module;
 }
 
-VkPipelineShaderStageCreateInfo make_pipeline_shader_stage_create_info(
-    VkShaderModule module, char const* name,
-    VkShaderStageFlagBits pipeline_stage_flag) {
+[[nodiscard]] VkPipelineShaderStageCreateInfo
+make_pipeline_shader_stage_create_info(
+    VkShaderModule module, char const* program_entry_point,
+    VkShaderStageFlagBits pipeline_stage_flag,
+    VkSpecializationInfo const& program_constants = {}) {
   VkPipelineShaderStageCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   create_info.module = module;
-  create_info.pName = name;
+  create_info.pName = program_entry_point;
   create_info.stage = pipeline_stage_flag;
+  create_info.pNext = nullptr;
+  create_info.pSpecializationInfo =
+      &program_constants;  // provide constants used within the shader
+
+  return create_info;
+}
+
   return create_info;
 }
 
