@@ -27,20 +27,22 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
                                 VkPhysicalDeviceFeatures>;
 
 [[nodiscard]] VkInstance create_vulkan_instance(
-    VkDebugUtilsMessengerCreateInfoEXT const*
-        default_debug_messenger_create_info,
-    stx::Span<char const* const> const& required_validation_layers)
-    -> stx::Result<VkInstance, VkResult> {
-  (void)default_debug_messenger_create_info;
-  (void)required_validation_layers;
-
+    stx::Span<char const* const> const& required_extensions,
+    [[maybe_unused]] stx::Span<char const* const> const&
+        required_validation_layers,
+    [[maybe_unused]] VkDebugUtilsMessengerCreateInfoEXT const*
+        default_debug_messenger_create_info = nullptr,
+    char const* const application_name = "Valkyrie",
+    uint32_t application_version = VK_MAKE_VERSION(1, 0, 0),
+    char const* const engine_name = "Valkyrie Engine",
+    uint32_t engine_version = VK_MAKE_VERSION(1, 0, 0)) {
   // helps bnt not necessary
   VkApplicationInfo app_info{};
   app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  app_info.pApplicationName = "Valkyrie";
-  app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-  app_info.pEngineName = "Valkyrie Engine";
-  app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+  app_info.pApplicationName = application_name;
+  app_info.applicationVersion = application_version;
+  app_info.pEngineName = engine_name;
+  app_info.engineVersion = engine_version;
   app_info.apiVersion = VK_API_VERSION_1_2;
   app_info.pNext = nullptr;
 
@@ -48,19 +50,6 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
   create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   create_info.pApplicationInfo = &app_info;
   create_info.pNext = nullptr;
-
-  // get list of extensions required for vulkan interfacing with the window
-  // system
-  uint32_t glfw_req_extensions_count = 0;
-  char const** glfw_req_extensions_names;
-
-  glfw_req_extensions_names =
-      glfwGetRequiredInstanceExtensions(&glfw_req_extensions_count);
-
-  VLK_LOG("Required GLFW Extensions:");
-  for (size_t i = 0; i < glfw_req_extensions_count; i++) {
-    VLK_LOG("\t" << glfw_req_extensions_names[i]);
-  }
 
   uint32_t available_vk_extensions_count = 0;
   vkEnumerateInstanceExtensionProperties(
@@ -70,17 +59,6 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
       available_vk_extensions_count);
   vkEnumerateInstanceExtensionProperties(
       nullptr, &available_vk_extensions_count, available_vk_extensions.data());
-
-  std::vector<char const*> required_extensions;
-  // TODO(lamarrr): deduction guides
-  for (auto extension : stx::Span<char const*>(glfw_req_extensions_names,
-                                               glfw_req_extensions_count)) {
-    required_extensions.push_back(extension);
-  }
-
-#if VLK_DEBUG
-  required_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
 
   VLK_LOG("Available Vulkan Extensions:");
   for (auto extension : available_vk_extensions) {
