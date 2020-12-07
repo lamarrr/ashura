@@ -18,6 +18,11 @@
 
 namespace vlk {
 
+// terminology: every object created using a `create_*` requires a `vkDestroy`
+// call.
+// `make_*` returns plain structs that could possibly contain immutable
+// view of data.
+
 using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
                                 VkPhysicalDeviceFeatures>;
 
