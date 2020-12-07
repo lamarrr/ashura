@@ -535,9 +535,14 @@ struct [[nodiscard]] SwapChainProperties {
   VkSwapchainCreateInfoKHR create_info{};
 
   // number of images to have on the swap chain
-  uint32_t image_count = std::clamp(properties.capabilities.minImageCount + 1,
-                                    properties.capabilities.minImageCount,
-                                    properties.capabilities.maxImageCount);
+
+  uint32_t image_count =
+      properties.capabilities.maxImageCount == 0
+          ?  // no limit on the number of swapchain images
+          (properties.capabilities.minImageCount + 1)
+          : std::clamp(properties.capabilities.minImageCount + 1,
+                       properties.capabilities.minImageCount,
+                       properties.capabilities.maxImageCount);
 
   create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
   create_info.imageExtent = extent;
