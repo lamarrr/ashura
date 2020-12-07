@@ -854,4 +854,35 @@ make_pipeline_color_blend_state_create_info(
   return layout;
 }
 
+[[nodiscard]] VkAttachmentDescription make_attachment_description(
+    VkFormat format) {
+  // the format of the color attachment should match the format of the swap
+  // chain images,
+  VkAttachmentDescription attachment_description{};
+
+  attachment_description.format = format;
+  attachment_description.samples = VK_SAMPLE_COUNT_1_BIT;  // no multi-sampling
+
+  // The loadOp and storeOp determine what to do with the data in the attachment
+  // before rendering and after rendering
+  // VK_ATTACHMENT_LOAD_OP_LOAD: Preserve the existing contents of the
+  // attachment
+  // VK_ATTACHMENT_LOAD_OP_CLEAR: Clear the values to a constant at
+  // the start
+  // VK_ATTACHMENT_LOAD_OP_DONT_CARE: Existing contents are undefined;
+  // we don't care about them
+  attachment_description.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+  attachment_description.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+  // VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: Images used as color attachment
+  // VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: Images to be presented in the swap chain
+  // VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: Images to be used as destination for
+  // a memory copy operation
+  // descibes layout of the images
+  attachment_description.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  attachment_description.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+  return attachment_description;
+}
+
 }  // namespace vlk
