@@ -971,4 +971,25 @@ make_pipeline_color_blend_state_create_info(
   return graphics_pipeline;
 }
 
+// basically a collection of attachments (color, depth, stencil, etc)
+[[nodiscard]] VkFramebuffer create_frame_buffer(
+    VkDevice device, VkRenderPass render_pass,
+    stx::Span<VkImageView const> const& attachments, VkExtent2D const& extent) {
+  VkFramebufferCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+  create_info.renderPass = render_pass;
+  create_info.attachmentCount = attachments.size();
+  create_info.pAttachments = attachments.data();
+  create_info.width = extent.width;
+  create_info.height = extent.height;
+  create_info.layers = 1;  // our swap chain images are single images, so the
+                           // number of layers is 1
+
+  VkFramebuffer frame_buffer;
+  VLK_MUST_SUCCEED(
+      vkCreateFramebuffer(device, &create_info, nullptr, &frame_buffer),
+      "Unable to create frame buffer");
+  return frame_buffer;
+}
+
 }  // namespace vlk
