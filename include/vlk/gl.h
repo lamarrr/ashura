@@ -260,16 +260,13 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 [[nodiscard]] std::vector<bool> get_command_queue_support(
     stx::Span<VkQueueFamilyProperties const> const& queue_families,
     VkQueueFlagBits required_command_queue) {
-  auto req_queue_family =
-      std::find_if(queue_families.begin(), queue_families.end(),
-                   [=](VkQueueFamilyProperties const& fam_props) -> bool {
-                     return fam_props.queueFlags & required_command_queue;
-                   });
+  std::vector<bool> supports;
 
-  if (req_queue_family == queue_families.end()) return stx::None;
+  for (auto const& fam_props : queue_families) {
+    supports.push_back(fam_props.queueFlags & required_command_queue);
+  }
 
-  return stx::Some(
-      static_cast<uint32_t>(req_queue_family - queue_families.begin()));
+  return supports;
 }
 
 // find the device's queue family capable of supporting surface presentation
@@ -277,21 +274,18 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
     VkPhysicalDevice physical_device,
     stx::Span<VkQueueFamilyProperties const> const& queue_families,
     VkSurfaceKHR surface) {
-  size_t i = 0;
-  auto queue_family = std::find_if(
-      queue_families.begin(), queue_families.end(),
-      [physical_device, &i, surface](VkQueueFamilyProperties const&) {
-        VkBool32 surface_presentation_queue_supported;
-        vkGetPhysicalDeviceSurfaceSupportKHR(
-            physical_device, i, surface, &surface_presentation_queue_supported);
-        i++;
-        return surface_presentation_queue_supported;
-      });
+  std::vector<bool> supports;
 
-  if (queue_family == queue_families.end()) return stx::None;
+  for (size_t i = 0; i < queue_families.size(); i++) {
+    VkBool32 surface_presentation_supported;
+    VLK_MUST_SUCCEED(
+        vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, surface,
+                                             &surface_presentation_supported),
+        "Unable to query physical device' surface support");
+    supports.push_back(surface_presentation_supported);
+  }
 
-  return stx::Some(
-      static_cast<uint32_t>(queue_family - queue_families.begin()));
+  return supports;
 }
 
 [[nodiscard]] VkDevice create_logical_device(
