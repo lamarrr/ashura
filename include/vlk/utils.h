@@ -35,3 +35,9 @@
   } while (false);
 
 #define VLK_WARN(...) IMPL_VLK_WARN(__VA_ARGS__)
+
+template <typename Container>
+bool any_true(Container const& cont) {
+  return std::any_of(cont.begin(), cont.end(),
+                     [](auto value) -> bool { return value; });
+}
