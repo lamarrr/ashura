@@ -295,26 +295,16 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 }
 
 [[nodiscard]] VkDevice create_logical_device(
+    VkPhysicalDevice physical_device,
     stx::Span<char const* const> const& required_extensions,
     stx::Span<char const* const> const& required_validation_layers,
     stx::Span<VkDeviceQueueCreateInfo const> const& command_queue_create_infos,
-    VkAllocationCallbacks const* allocation_callback) {
-  VkDeviceQueueCreateInfo queue_create_info{};
-  queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-  queue_create_info.queueFamilyIndex = queue_family_index;
-  queue_create_info.queueCount = 1;  // we only need one queue => GRAPHICS queue
-
-  float queue_priority = 1.0f;
-  // influence the scheduling of command buffer execution
-  queue_create_info.pQueuePriorities = &queue_priority;
-
-  // required features
-  VkPhysicalDeviceFeatures device_features{};
-
+    VkAllocationCallbacks const* allocation_callback,
+    VkPhysicalDeviceFeatures const& required_features = {}) {
   VkDeviceCreateInfo device_create_info{};
-  device_create_info.pQueueCreateInfos = &queue_create_info;
-  device_create_info.queueCreateInfoCount = 1;
-  device_create_info.pEnabledFeatures = &device_features;
+  device_create_info.pQueueCreateInfos = command_queue_create_infos.data();
+  device_create_info.queueCreateInfoCount = command_queue_create_infos.size();
+  device_create_info.pEnabledFeatures = &required_features;
 
   uint32_t available_extensions_count;
   VLK_MUST_SUCCEED(
