@@ -924,4 +924,51 @@ make_pipeline_color_blend_state_create_info(
   return render_pass;
 }
 
+[[nodiscard]] VkPipeline create_graphics_pipeline(
+    VkDevice device, VkPipelineLayout layout, VkRenderPass render_pass,
+    stx::Span<VkPipelineShaderStageCreateInfo const> const&
+        shader_stages_create_infos,
+    VkPipelineVertexInputStateCreateInfo const& vertex_input_state,
+    VkPipelineInputAssemblyStateCreateInfo const& input_assembly_state,
+    VkPipelineViewportStateCreateInfo const& viewport_state,
+    VkPipelineRasterizationStateCreateInfo const& rasterization_state,
+    VkPipelineMultisampleStateCreateInfo const& multisample_state,
+    VkPipelineDepthStencilStateCreateInfo const& depth_stencil_state,
+    VkPipelineColorBlendStateCreateInfo const& color_blend_state,
+    VkPipelineDynamicStateCreateInfo const& dynamic_state) {
+  VkGraphicsPipelineCreateInfo create_info{};
+
+  create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  create_info.pStages = shader_stages_create_infos.data();
+  create_info.stageCount = shader_stages_create_infos.size();
+  create_info.pVertexInputState = &vertex_input_state;
+  create_info.pInputAssemblyState = &input_assembly_state;
+  create_info.pViewportState = &viewport_state;
+  create_info.pRasterizationState = &rasterization_state;
+  create_info.pMultisampleState = &multisample_state;
+  create_info.pDepthStencilState = &depth_stencil_state;
+  create_info.pColorBlendState = &color_blend_state;
+  create_info.pDynamicState =
+      &dynamic_state;  // which of these fixed function states would change, any
+                       // of the ones listed here would need to be provided at
+                       // every draw/render call
+
+  create_info.layout = layout;
+  create_info.renderPass = render_pass;
+  create_info.subpass =
+      0;  // index of the device's subpass this graphics pipeline belongs to
+
+  create_info.basePipelineHandle = nullptr;
+  create_info.basePipelineIndex = -1;
+
+  VkPipeline graphics_pipeline;
+
+  VLK_MUST_SUCCEED(
+      vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &create_info,
+                                nullptr, &graphics_pipeline),
+      "Unable to create graphics pipeline");
+
+  return graphics_pipeline;
+}
+
 }  // namespace vlk
