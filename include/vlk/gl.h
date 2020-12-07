@@ -885,4 +885,22 @@ make_pipeline_color_blend_state_create_info(
   return attachment_description;
 }
 
+// subpasses are for post-processing. each subpass depends on the results of the
+// previous (sub)passes, used instead of transferring data
+[[nodiscard]] VkSubpassDescription make_subpass_description(
+    stx::Span<VkAttachmentReference const> const& color_attachments) {
+  VkSubpassDescription subpass{};
+  subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  subpass.colorAttachmentCount = color_attachments.size();
+  subpass.pColorAttachments =
+      color_attachments.data();  // layout(location = 0) out vec4 outColor
+
+  // pInputAttachments: Attachments that are read from a shader
+  // pResolveAttachments: Attachments used for multisampling color attachments
+  // pDepthStencilAttachment: Attachment for depth and stencil data
+  // pPreserveAttachments: Attachments that are not used by this subpass, but
+  // for which the data must be preserved
+  return subpass;
+}
+
 }  // namespace vlk
