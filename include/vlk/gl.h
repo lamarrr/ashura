@@ -993,3 +993,6 @@ make_pipeline_color_blend_state_create_info(
 }
 
 }  // namespace vlk
+
+// TODO(lamarrr): Go through the tutorial and comment into this code any
+// subtlety/important points
