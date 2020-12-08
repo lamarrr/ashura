@@ -18,45 +18,38 @@
 
 namespace vlk {
 
+// terminology: every object created using a `create_*` requires a `vkDestroy`
+// call.
+// `make_*` returns plain structs that could possibly contain immutable
+// view of data.
+
 using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
                                 VkPhysicalDeviceFeatures>;
 
-static auto create_vk_instance(
-    VkDebugUtilsMessengerCreateInfoEXT const*
-        default_debug_messenger_create_info,
-    stx::Span<char const* const> required_validation_layers)
-    -> stx::Result<VkInstance, VkResult> {
-  (void)default_debug_messenger_create_info;
-  (void)required_validation_layers;
-
+[[nodiscard]] VkInstance create_vulkan_instance(
+    stx::Span<char const* const> const& required_extensions,
+    [[maybe_unused]] stx::Span<char const* const> const&
+        required_validation_layers,
+    [[maybe_unused]] VkDebugUtilsMessengerCreateInfoEXT const*
+        default_debug_messenger_create_info = nullptr,
+    char const* const application_name = "Valkyrie",
+    uint32_t application_version = VK_MAKE_VERSION(1, 0, 0),
+    char const* const engine_name = "Valkyrie Engine",
+    uint32_t engine_version = VK_MAKE_VERSION(1, 0, 0)) {
   // helps bnt not necessary
   VkApplicationInfo app_info{};
   app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  app_info.pApplicationName = "Valkyrie";
-  app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-  app_info.pEngineName = "Valkyrie Engine";
-  app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+  app_info.pApplicationName = application_name;
+  app_info.applicationVersion = application_version;
+  app_info.pEngineName = engine_name;
+  app_info.engineVersion = engine_version;
   app_info.apiVersion = VK_API_VERSION_1_2;
   app_info.pNext = nullptr;
-
 
   VkInstanceCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   create_info.pApplicationInfo = &app_info;
   create_info.pNext = nullptr;
-
-  // get list of extensions required for vulkan interfacing with the window
-  // system
-  uint32_t glfw_req_extensions_count = 0;
-  char const** glfw_req_extensions_names;
-
-  glfw_req_extensions_names =
-      glfwGetRequiredInstanceExtensions(&glfw_req_extensions_count);
-
-  VLK_LOG("Required GLFW Extensions:");
-  for (size_t i = 0; i < glfw_req_extensions_count; i++) {
-    VLK_LOG("\t" << glfw_req_extensions_names[i]);
-  }
 
   uint32_t available_vk_extensions_count = 0;
   vkEnumerateInstanceExtensionProperties(
@@ -66,17 +59,6 @@ static auto create_vk_instance(
       available_vk_extensions_count);
   vkEnumerateInstanceExtensionProperties(
       nullptr, &available_vk_extensions_count, available_vk_extensions.data());
-
-  std::vector<char const*> required_extensions;
-  // TODO(lamarrr): deduction guides
-  for (auto extension : stx::Span<char const*>(glfw_req_extensions_names,
-                                               glfw_req_extensions_count)) {
-    required_extensions.push_back(extension);
-  }
-
-#if VLK_DEBUG
-  required_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
 
   VLK_LOG("Available Vulkan Extensions:");
   for (auto extension : available_vk_extensions) {
@@ -102,17 +84,15 @@ static auto create_vk_instance(
 
 #endif
 
-  VkInstance vk_instance;
-  VkResult result = vkCreateInstance(&create_info, nullptr, &vk_instance);
+  VkInstance vulkan_instance;
+  VLK_MUST_SUCCEED(vkCreateInstance(&create_info, nullptr, &vulkan_instance),
+                   "Unable to create vulkan instance");
 
-  if (result != VK_SUCCESS) {
-    return stx::Err(std::move(result));
-  }
-
-  return stx::Ok(std::move(vk_instance));
+  return vulkan_instance;
 }
 
-constexpr VkBool32 device_gt_eq(DevicePropFt const& a, DevicePropFt const& b) {
+[[nodiscard]] constexpr bool device_gt_eq(DevicePropFt const& a,
+                                          DevicePropFt const& b) {
   // Dedicated GPUs
   VkPhysicalDeviceType a_t = std::get<1>(a).deviceType;
   VkPhysicalDeviceType b_t = std::get<1>(b).deviceType;
@@ -169,11 +149,13 @@ constexpr VkBool32 device_gt_eq(DevicePropFt const& a, DevicePropFt const& b) {
   return false;
 }
 
-constexpr VkBool32 device_lt(DevicePropFt const& a, DevicePropFt const& b) {
+[[nodiscard]] constexpr bool device_lt(DevicePropFt const& a,
+                                       DevicePropFt const& b) {
   return !device_gt_eq(a, b);
 }
 
-static std::string name_physical_device(VkPhysicalDeviceProperties properties) {
+[[nodiscard]] std::string name_physical_device(
+    VkPhysicalDeviceProperties const& properties) {
   std::string name = properties.deviceName;
 
   name += " (id: " + std::to_string(properties.deviceID) + ", type: ";
@@ -203,16 +185,20 @@ static std::string name_physical_device(VkPhysicalDeviceProperties properties) {
   return name;
 }
 
-static std::vector<DevicePropFt> get_physical_devices(VkInstance vk_instance) {
+[[nodiscard]] std::vector<DevicePropFt> get_physical_devices(
+    VkInstance vk_instance) {
   uint32_t devices_count = 0;
 
-  vkEnumeratePhysicalDevices(vk_instance, &devices_count, nullptr);
+  VLK_MUST_SUCCEED(
+      vkEnumeratePhysicalDevices(vk_instance, &devices_count, nullptr),
+      "Unable to get physical devices");
 
   VLK_ENSURE(devices_count != 0, "No Physical Device Found");
 
   std::vector<VkPhysicalDevice> physical_devices(devices_count);
-  vkEnumeratePhysicalDevices(vk_instance, &devices_count,
-                             physical_devices.data());
+  VLK_MUST_SUCCEED(vkEnumeratePhysicalDevices(vk_instance, &devices_count,
+                                              physical_devices.data()),
+                   "Unable to get physical devices");
 
   std::vector<DevicePropFt> device_prop_ft;
 
@@ -234,8 +220,8 @@ static std::vector<DevicePropFt> get_physical_devices(VkInstance vk_instance) {
 }
 
 // selects GPU, in the following preference order: dGPU => vGPU => iGPU => CPU
-static DevicePropFt most_suitable_physical_device(
-    stx::Span<DevicePropFt const> physical_devices,
+[[nodiscard]] DevicePropFt most_suitable_physical_device(
+    stx::Span<DevicePropFt const> const& physical_devices,
     std::function<VkBool32(DevicePropFt const&)> const& criteria) {
   std::vector<DevicePropFt> prioritized_physical_devices{
       physical_devices.begin(), physical_devices.end()};
@@ -255,7 +241,7 @@ static DevicePropFt most_suitable_physical_device(
 
 //  to do anything on the GPU (render, draw, compute, allocate memory, create
 //  texture, etc.) we use command queues
-std::vector<VkQueueFamilyProperties> get_queue_families(
+[[nodiscard]] std::vector<VkQueueFamilyProperties> get_queue_families(
     VkPhysicalDevice device) {
   uint32_t queue_families_count;
 
@@ -271,77 +257,63 @@ std::vector<VkQueueFamilyProperties> get_queue_families(
   return queue_families_properties;
 }
 
-stx::Option<uint32_t> find_queue_family(
-    stx::Span<VkQueueFamilyProperties const> queue_families,
+[[nodiscard]] std::vector<bool> get_command_queue_support(
+    stx::Span<VkQueueFamilyProperties const> const& queue_families,
     VkQueueFlagBits required_command_queue) {
-  auto req_queue_family =
-      std::find_if(queue_families.begin(), queue_families.end(),
-                   [=](VkQueueFamilyProperties const& fam_props) -> bool {
-                     return fam_props.queueFlags & required_command_queue;
-                   });
+  std::vector<bool> supports;
 
-  if (req_queue_family == queue_families.end()) return stx::None;
+  for (auto const& fam_props : queue_families) {
+    supports.push_back(fam_props.queueFlags & required_command_queue);
+  }
 
-  return stx::Some(
-      static_cast<uint32_t>(req_queue_family - queue_families.begin()));
+  return supports;
 }
 
 // find the device's queue family capable of supporting surface presentation
-stx::Option<uint32_t> find_surface_presentation_queue_family(
+[[nodiscard]] std::vector<bool> get_surface_presentation_command_queue_support(
     VkPhysicalDevice physical_device,
-    stx::Span<VkQueueFamilyProperties const> queue_families,
+    stx::Span<VkQueueFamilyProperties const> const& queue_families,
     VkSurfaceKHR surface) {
-  size_t i = 0;
-  auto queue_family = std::find_if(
-      queue_families.begin(), queue_families.end(),
-      [physical_device, &i, surface](VkQueueFamilyProperties const&) {
-        VkBool32 surface_presentation_queue_supported;
-        vkGetPhysicalDeviceSurfaceSupportKHR(
-            physical_device, i, surface, &surface_presentation_queue_supported);
-        i++;
-        return surface_presentation_queue_supported;
-      });
+  std::vector<bool> supports;
 
-  if (queue_family == queue_families.end()) return stx::None;
+  for (size_t i = 0; i < queue_families.size(); i++) {
+    VkBool32 surface_presentation_supported;
+    VLK_MUST_SUCCEED(
+        vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, surface,
+                                             &surface_presentation_supported),
+        "Unable to query physical device' surface support");
+    supports.push_back(surface_presentation_supported);
+  }
 
-  return stx::Some(
-      static_cast<uint32_t>(queue_family - queue_families.begin()));
+  return supports;
 }
 
-VkDevice create_logical_device(
-    VkPhysicalDevice physical_device, uint32_t queue_family_index,
-    stx::Span<char const* const> required_extensions,
-    stx::Span<char const* const> required_validation_layers,
-    stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_infos,
-    VkAllocationCallbacks const* allocation_callback) {
-  VkDeviceQueueCreateInfo queue_create_info{};
-  queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-  queue_create_info.queueFamilyIndex = queue_family_index;
-  queue_create_info.queueCount = 1;  // we only need one queue => GRAPHICS queue
-
-  float queue_priority = 1.0f;
-  // influence the scheduling of command buffer execution
-  queue_create_info.pQueuePriorities = &queue_priority;
-
-  // required features
-  VkPhysicalDeviceFeatures device_features{};
-
+[[nodiscard]] VkDevice create_logical_device(
+    VkPhysicalDevice physical_device,
+    stx::Span<char const* const> const& required_extensions,
+    stx::Span<char const* const> const& required_validation_layers,
+    stx::Span<VkDeviceQueueCreateInfo const> const& command_queue_create_infos,
+    VkAllocationCallbacks const* allocation_callback,
+    VkPhysicalDeviceFeatures const& required_features = {}) {
   VkDeviceCreateInfo device_create_info{};
-  device_create_info.pQueueCreateInfos = &queue_create_info;
-  device_create_info.queueCreateInfoCount = 1;
-  device_create_info.pEnabledFeatures = &device_features;
+  device_create_info.pQueueCreateInfos = command_queue_create_infos.data();
+  device_create_info.queueCreateInfoCount = command_queue_create_infos.size();
+  device_create_info.pEnabledFeatures = &required_features;
 
   uint32_t available_extensions_count;
-  vkEnumerateDeviceExtensionProperties(physical_device, nullptr,
-                                       &available_extensions_count, nullptr);
+  VLK_MUST_SUCCEED(
+      vkEnumerateDeviceExtensionProperties(
+          physical_device, nullptr, &available_extensions_count, nullptr),
+      "Unable to get physical device extensions");
 
   // device specific extensions
   std::vector<VkExtensionProperties> available_device_extensions(
       available_extensions_count);
 
-  vkEnumerateDeviceExtensionProperties(physical_device, nullptr,
-                                       &available_extensions_count,
-                                       available_device_extensions.data());
+  VLK_MUST_SUCCEED(vkEnumerateDeviceExtensionProperties(
+                       physical_device, nullptr, &available_extensions_count,
+                       available_device_extensions.data()),
+                   "Unable to get physical device extensions");
 
   VLK_LOG("Required Device Extensions: ");
   std::for_each(required_extensions.begin(), required_extensions.end(),
@@ -388,49 +360,59 @@ VkDevice create_logical_device(
   return logical_device;
 }
 
-struct SwapChainProperties {
+struct [[nodiscard]] SwapChainProperties {
   VkSurfaceCapabilitiesKHR capabilities;
   std::vector<VkSurfaceFormatKHR> supported_formats;
   std::vector<VkPresentModeKHR> presentation_modes;
 };
 
-SwapChainProperties get_swapchain_properties(VkPhysicalDevice physical_device,
-                                             VkSurfaceKHR surface) {
+[[nodiscard]] SwapChainProperties get_swapchain_properties(
+    VkPhysicalDevice physical_device, VkSurfaceKHR surface) {
   SwapChainProperties details{};
 
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
-                                            &details.capabilities);
+  VLK_MUST_SUCCEED(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+                       physical_device, surface, &details.capabilities),
+                   "Unable to get physical device' surface capabilities");
 
   uint32_t supported_surface_formats_count = 0;
 
-  vkGetPhysicalDeviceSurfaceFormatsKHR(
-      physical_device, surface, &supported_surface_formats_count, nullptr);
+  VLK_MUST_SUCCEED(
+      vkGetPhysicalDeviceSurfaceFormatsKHR(
+          physical_device, surface, &supported_surface_formats_count, nullptr),
+      "Unable to get physical device' surface format");
 
   details.supported_formats.resize(supported_surface_formats_count);
 
-  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface,
-                                       &supported_surface_formats_count,
-                                       details.supported_formats.data());
+  VLK_MUST_SUCCEED(
+      vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface,
+                                           &supported_surface_formats_count,
+                                           details.supported_formats.data()),
+      "Unable to get physical device' surface format");
 
   uint32_t surface_presentation_modes_count;
-  vkGetPhysicalDeviceSurfacePresentModesKHR(
-      physical_device, surface, &surface_presentation_modes_count, nullptr);
+  VLK_MUST_SUCCEED(
+      vkGetPhysicalDeviceSurfacePresentModesKHR(
+          physical_device, surface, &surface_presentation_modes_count, nullptr),
+      "Unable to get physical device' surface presentation mode");
 
   details.presentation_modes.resize(surface_presentation_modes_count);
-  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface,
-                                            &surface_presentation_modes_count,
-                                            details.presentation_modes.data());
+  VLK_MUST_SUCCEED(
+      vkGetPhysicalDeviceSurfacePresentModesKHR(
+          physical_device, surface, &surface_presentation_modes_count,
+          details.presentation_modes.data()),
+      "Unable to get physical device' surface presentation mode");
 
   return details;
 }
 
-bool is_swapchain_adequate(SwapChainProperties const& details) {
+[[nodiscard]] bool is_swapchain_adequate(
+    SwapChainProperties const& properties) {
   // we use any available for selecting devices
-  VLK_ENSURE(details.supported_formats.size() != 0,
+  VLK_ENSURE(properties.supported_formats.size() != 0,
              "Physical Device does not support any window surface "
              "format");
 
-  VLK_ENSURE(details.presentation_modes.size() != 0,
+  VLK_ENSURE(properties.presentation_modes.size() != 0,
              "Physical Device does not support any window surface "
              "presentation mode");
 
@@ -438,9 +420,9 @@ bool is_swapchain_adequate(SwapChainProperties const& details) {
 }
 
 // choose a specific surface format available on the GPU
-VkSurfaceFormatKHR select_surface_formats(
-    stx::Span<VkSurfaceFormatKHR const> formats) {
-  VLK_ENSURE(formats.size() > 0, "No window surface format gotten as arg");
+[[nodiscard]] VkSurfaceFormatKHR select_surface_formats(
+    stx::Span<VkSurfaceFormatKHR const> const& formats) {
+  VLK_ENSURE(formats.size() != 0, "No window surface format gotten as arg");
   auto It_format = std::find_if(
       formats.begin(), formats.end(), [](VkSurfaceFormatKHR const& format) {
         return format.format == VK_FORMAT_R8G8B8_SRGB &&
@@ -450,8 +432,8 @@ VkSurfaceFormatKHR select_surface_formats(
   return (It_format != formats.end()) ? *It_format : formats[0];
 }
 
-VkPresentModeKHR select_surface_presentation_mode(
-    stx::Span<VkPresentModeKHR const> available_presentation_modes) {
+[[nodiscard]] VkPresentModeKHR select_surface_presentation_mode(
+    stx::Span<VkPresentModeKHR const> const& available_presentation_modes) {
   /*
   - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application are
   transferred to the screen right away, which may result in tearing.
@@ -503,7 +485,7 @@ VkPresentModeKHR select_surface_presentation_mode(
   }
 }
 
-VkExtent2D select_swapchain_extent(
+[[nodiscard]] VkExtent2D select_swapchain_extent(
     GLFWwindow* window, VkSurfaceCapabilitiesKHR const& capabilities) {
   // if this is already set (value other than uint32_t::max) then we are not
   // allowed to choose the extent
@@ -534,12 +516,12 @@ VkExtent2D select_swapchain_extent(
   }
 }
 
-VkSwapchainKHR create_swapchain(
-    VkDevice device, VkSurfaceKHR surface, VkExtent2D extent,
+[[nodiscard]] VkSwapchainKHR create_swapchain(
+    VkDevice device, VkSurfaceKHR surface, VkExtent2D const& extent,
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
-    stx::Span<uint32_t const> accessing_queue_families_indexes,
+    stx::Span<uint32_t const> const& accessing_queue_families_indexes,
     VkImageUsageFlags image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
     VkCompositeAlphaFlagBitsKHR alpha_channel_blending =
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
@@ -547,9 +529,14 @@ VkSwapchainKHR create_swapchain(
   VkSwapchainCreateInfoKHR create_info{};
 
   // number of images to have on the swap chain
-  uint32_t image_count = std::clamp(properties.capabilities.minImageCount + 1,
-                                    properties.capabilities.minImageCount,
-                                    properties.capabilities.maxImageCount);
+
+  uint32_t image_count =
+      properties.capabilities.maxImageCount == 0
+          ?  // no limit on the number of swapchain images
+          (properties.capabilities.minImageCount + 1)
+          : std::clamp(properties.capabilities.minImageCount + 1,
+                       properties.capabilities.minImageCount,
+                       properties.capabilities.maxImageCount);
 
   create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
   create_info.imageExtent = extent;
@@ -584,17 +571,18 @@ VkSwapchainKHR create_swapchain(
   create_info.queueFamilyIndexCount = accessing_queue_families_indexes.size();
 
   VkSwapchainKHR swapchain;
-  VLK_ENSURE(vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain) ==
-                 VK_SUCCESS,
-             "Unable to create swapchain");
+  VLK_MUST_SUCCEED(
+      vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain),
+      "Unable to create swapchain");
 
   return swapchain;
 }
 
 // the number of command queues to create is encapsulated in the
 // `queue_priorities` size
-VkDeviceQueueCreateInfo make_command_queue_create_info(
-    uint32_t queue_family_index, stx::Span<float const> queues_priorities) {
+[[nodiscard]] VkDeviceQueueCreateInfo make_command_queue_create_info(
+    uint32_t queue_family_index,
+    stx::Span<float const> const& queues_priorities) {
   VkDeviceQueueCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -607,7 +595,8 @@ VkDeviceQueueCreateInfo make_command_queue_create_info(
   return create_info;
 }
 
-VkImageView create_image_view(VkDevice device, VkImage image, VkFormat format) {
+[[nodiscard]] VkImageView create_image_view(VkDevice device, VkImage image,
+                                            VkFormat format) {
   VkImageViewCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -635,10 +624,375 @@ VkImageView create_image_view(VkDevice device, VkImage image, VkFormat format) {
   create_info.subresourceRange.levelCount = 1;
 
   VkImageView image_view;
-  VLK_ENSURE(vkCreateImageView(device, &create_info, nullptr, &image_view) ==
-                 VK_SUCCESS,
-             "Unable to create image view");
+  VLK_MUST_SUCCEED(
+      vkCreateImageView(device, &create_info, nullptr, &image_view),
+      "Unable to create image view");
   return image_view;
 }
 
+[[nodiscard]] VkShaderModule create_shader_module(
+    VkDevice device, stx::Span<uint32_t const> const& spirv_byte_data) {
+  VkShaderModuleCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+  create_info.codeSize = spirv_byte_data.size_bytes();
+  create_info.pCode = spirv_byte_data.data();
+
+  VkShaderModule shader_module;
+  VLK_MUST_SUCCEED(
+      vkCreateShaderModule(device, &create_info, nullptr, &shader_module),
+      "Unable to create shader module");
+  return shader_module;
+}
+
+[[nodiscard]] VkPipelineShaderStageCreateInfo
+make_pipeline_shader_stage_create_info(
+    VkShaderModule module, char const* program_entry_point,
+    VkShaderStageFlagBits pipeline_stage_flag,
+    VkSpecializationInfo const& program_constants = {}) {
+  VkPipelineShaderStageCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  create_info.module = module;
+  create_info.pName = program_entry_point;
+  create_info.stage = pipeline_stage_flag;
+  create_info.pNext = nullptr;
+  create_info.pSpecializationInfo =
+      &program_constants;  // provide constants used within the shader
+
+  return create_info;
+}
+
+[[nodiscard]] VkPipelineVertexInputStateCreateInfo
+make_pipeline_vertex_input_state_create_info(
+    stx::Span<VkVertexInputBindingDescription const> const&
+        vertex_binding_descriptions,
+    stx::Span<VkVertexInputAttributeDescription const> const&
+        vertex_attribute_desciptions) {
+  // Bindings: spacing between data and whether the data is per-vertex or
+  // per-instance
+  // Attribute descriptions: type of the attributes passed to the vertex shader,
+  // which binding to load them from and at which offset
+  VkPipelineVertexInputStateCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  create_info.vertexBindingDescriptionCount =
+      vertex_binding_descriptions.size();
+  create_info.pVertexBindingDescriptions = vertex_binding_descriptions.data();
+  create_info.vertexAttributeDescriptionCount =
+      vertex_attribute_desciptions.size();
+  create_info.pVertexAttributeDescriptions =
+      vertex_attribute_desciptions.data();
+
+  return create_info;
+}
+
+[[nodiscard]] VkPipelineInputAssemblyStateCreateInfo
+make_pipeline_input_assembly_state_create_info() {
+  // Bindings: spacing between data and whether the data is per-vertex or
+  // per-instance
+  // Attribute descriptions: type of the attributes passed to the vertex shader,
+  // which binding to load them from and at which offset
+  VkPipelineInputAssemblyStateCreateInfo create_info{};
+  create_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  create_info.topology =
+      VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;  // rendering in triangle mode
+  create_info.primitiveRestartEnable = VK_FALSE;
+
+  return create_info;
+}
+
+[[nodiscard]] VkViewport make_viewport(float x, float y, float w, float h,
+                                       float min_depth = 0.0f,
+                                       float max_depth = 1.0f) {
+  VkViewport viewport{};
+  viewport.x = x;
+  viewport.y = y;
+  viewport.width = w;             // width of the framebuffer (swapchain image)
+  viewport.height = h;            // height of the framebuffer (swapchain image)
+  viewport.minDepth = min_depth;  // min depth value to use for the frame buffer
+  viewport.maxDepth = max_depth;  // max depth value to use for the frame buffer
+
+  return viewport;
+}
+
+[[nodiscard]] VkPipelineViewportStateCreateInfo
+make_pipeline_viewport_state_create_info(
+    stx::Span<VkViewport const> const& viewports,
+    stx::Span<VkRect2D const> const& scissors) {
+  // to use multiple viewports, ensure the GPU feature is enabled during logical
+  // device creation
+  VkPipelineViewportStateCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+  create_info.viewportCount = viewports.size();
+  create_info.pViewports = viewports.data();
+  create_info.scissorCount =
+      scissors.size();  // scissors cut out the part to be rendered
+  create_info.pScissors = scissors.data();
+
+  return create_info;
+}
+
+[[nodiscard]] VkPipelineRasterizationStateCreateInfo
+make_pipeline_rasterization_create_info(float line_width = 1.0f) {
+  VkPipelineRasterizationStateCreateInfo create_info{};
+  create_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  create_info.depthClampEnable =
+      VK_FALSE;  // ragments that are beyond the near and far planes are clamped
+                 // to them as opposed to discarding them. This is useful in
+                 // some special cases like shadow maps. Using this requires
+                 // enabling a GPU feature.
+  create_info.rasterizerDiscardEnable =
+      VK_FALSE;  // if true geometry never passes through the rasterization
+                 // stage thus disabling output to the framebuffer
+  // VK_POLYGON_MODE_FILL: fill the area of the polygon with fragments
+  // VK_POLYGON_MODE_LINE: polygon edges are drawn as lines
+  // VK_POLYGON_MODE_POINT: polygon vertices are drawn as points
+  create_info.polygonMode =
+      VK_POLYGON_MODE_FILL;  // using any other one requires enabling a GPU
+                             // feature
+  create_info.lineWidth =
+      line_width;  // any thicker than 1.0f requires enabling a GPU feature
+
+  create_info.cullMode = VK_CULL_MODE_BACK_BIT;  // discard the back part of the
+                                                 // image that isn't facing us
+  create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+
+  create_info.depthBiasEnable = VK_FALSE;
+  create_info.depthBiasConstantFactor = 0.0f;  // mostly used for shadow mapping
+  create_info.depthBiasClamp = 0.0f;
+  create_info.depthBiasSlopeFactor = 0.0f;
+
+  return create_info;
+}
+
+[[nodiscard]] VkPipelineMultisampleStateCreateInfo
+make_pipeline_multisample_state_create_info() {
+  VkPipelineMultisampleStateCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  create_info.sampleShadingEnable = VK_FALSE;
+  create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  create_info.minSampleShading = 1.0f;
+  create_info.pSampleMask = nullptr;
+  create_info.alphaToCoverageEnable = VK_FALSE;
+  create_info.alphaToOneEnable = VK_FALSE;
+
+  return create_info;
+}
+
+[[nodiscard]] VkPipelineDepthStencilStateCreateInfo
+make_pipeline_depth_stencil_state_create_info() {
+  VkPipelineDepthStencilStateCreateInfo create_info{};
+  // VLK_ENSURE(false, "Unimplemented");
+  return create_info;
+}
+
+// per framebuffer
+[[nodiscard]] VkPipelineColorBlendAttachmentState
+make_pipeline_color_blend_attachment_state() {
+  // simply overwrites the pixels in the destination
+  VkPipelineColorBlendAttachmentState state{};
+  state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  state.blendEnable = VK_TRUE;
+  state.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  state.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  state.colorBlendOp = VK_BLEND_OP_ADD;
+  state.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+  state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+  state.alphaBlendOp = VK_BLEND_OP_ADD;
+  return state;
+}
+
+// global pipeline state
+[[nodiscard]] VkPipelineColorBlendStateCreateInfo
+make_pipeline_color_blend_state_create_info(
+    stx::Span<VkPipelineColorBlendAttachmentState const> const&
+        color_frame_buffers) {
+  VkPipelineColorBlendStateCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  create_info.logicOpEnable = VK_FALSE;
+  create_info.logicOp = VK_LOGIC_OP_COPY;
+  create_info.attachmentCount =
+      color_frame_buffers.size();  // number of framebuffers
+  create_info.pAttachments = color_frame_buffers.data();
+  create_info.blendConstants[0] = 0.0f;
+  create_info.blendConstants[1] = 0.0f;
+  create_info.blendConstants[2] = 0.0f;
+  create_info.blendConstants[3] = 0.0f;
+
+  return create_info;
+}
+
+[[nodiscard]] VkPipelineDynamicStateCreateInfo make_pipeline_dynamic_state(
+    stx::Span<VkDynamicState const> const& dynamic_states) {
+  // This will cause the configuration of these values to be ignored and you
+  // will be required to specify the data at drawing time. This struct can be
+  // substituted by a nullptr later on if you don't have any dynamic state.
+
+  VkPipelineDynamicStateCreateInfo pipeline_state{};
+  pipeline_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+  pipeline_state.dynamicStateCount = std::size(dynamic_states);
+  pipeline_state.pDynamicStates = dynamic_states.data();
+
+  return pipeline_state;
+}
+
+[[nodiscard]] VkPipelineLayout create_pipeline_layout(VkDevice device) {
+  VkPipelineLayoutCreateInfo create_info{};
+
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  create_info.setLayoutCount = 0;
+  create_info.pSetLayouts = nullptr;
+  create_info.pushConstantRangeCount = 0;
+  create_info.pPushConstantRanges = nullptr;
+
+  VkPipelineLayout layout;
+  VLK_MUST_SUCCEED(
+      vkCreatePipelineLayout(device, &create_info, nullptr, &layout),
+      "Unable to create pipeline layout");
+
+  return layout;
+}
+
+[[nodiscard]] VkAttachmentDescription make_attachment_description(
+    VkFormat format) {
+  // the format of the color attachment should match the format of the swap
+  // chain images,
+  VkAttachmentDescription attachment_description{};
+
+  attachment_description.format = format;
+  attachment_description.samples = VK_SAMPLE_COUNT_1_BIT;  // no multi-sampling
+
+  // The loadOp and storeOp determine what to do with the data in the attachment
+  // before rendering and after rendering
+  // VK_ATTACHMENT_LOAD_OP_LOAD: Preserve the existing contents of the
+  // attachment
+  // VK_ATTACHMENT_LOAD_OP_CLEAR: Clear the values to a constant at
+  // the start
+  // VK_ATTACHMENT_LOAD_OP_DONT_CARE: Existing contents are undefined;
+  // we don't care about them
+  attachment_description.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+  attachment_description.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+  // VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: Images used as color attachment
+  // VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: Images to be presented in the swap chain
+  // VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: Images to be used as destination for
+  // a memory copy operation
+  // descibes layout of the images
+  attachment_description.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  attachment_description.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+  return attachment_description;
+}
+
+// subpasses are for post-processing. each subpass depends on the results of the
+// previous (sub)passes, used instead of transferring data
+[[nodiscard]] VkSubpassDescription make_subpass_description(
+    stx::Span<VkAttachmentReference const> const& color_attachments) {
+  VkSubpassDescription subpass{};
+  subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  subpass.colorAttachmentCount = color_attachments.size();
+  subpass.pColorAttachments =
+      color_attachments.data();  // layout(location = 0) out vec4 outColor
+
+  // pInputAttachments: Attachments that are read from a shader
+  // pResolveAttachments: Attachments used for multisampling color attachments
+  // pDepthStencilAttachment: Attachment for depth and stencil data
+  // pPreserveAttachments: Attachments that are not used by this subpass, but
+  // for which the data must be preserved
+  return subpass;
+}
+
+// specify how many color and depth buffers there will be, how many samples to
+// use for each of them and how their contents should be handled throughout the
+// rendering operations (and the subpasses description)
+[[nodiscard]] VkRenderPass create_render_pass(
+    VkDevice device,
+    stx::Span<VkAttachmentDescription const> const& attachment_descriptions,
+    stx::Span<VkSubpassDescription const> const& subpass_descriptions) {
+  VkRenderPassCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+  create_info.attachmentCount = attachment_descriptions.size();
+  create_info.pAttachments = attachment_descriptions.data();
+  create_info.subpassCount = subpass_descriptions.size();
+  create_info.pSubpasses = subpass_descriptions.data();
+  VkRenderPass render_pass;
+  VLK_MUST_SUCCEED(
+      vkCreateRenderPass(device, &create_info, nullptr, &render_pass),
+      "Unable to create render pass");
+
+  return render_pass;
+}
+
+[[nodiscard]] VkPipeline create_graphics_pipeline(
+    VkDevice device, VkPipelineLayout layout, VkRenderPass render_pass,
+    stx::Span<VkPipelineShaderStageCreateInfo const> const&
+        shader_stages_create_infos,
+    VkPipelineVertexInputStateCreateInfo const& vertex_input_state,
+    VkPipelineInputAssemblyStateCreateInfo const& input_assembly_state,
+    VkPipelineViewportStateCreateInfo const& viewport_state,
+    VkPipelineRasterizationStateCreateInfo const& rasterization_state,
+    VkPipelineMultisampleStateCreateInfo const& multisample_state,
+    VkPipelineDepthStencilStateCreateInfo const& depth_stencil_state,
+    VkPipelineColorBlendStateCreateInfo const& color_blend_state,
+    VkPipelineDynamicStateCreateInfo const& dynamic_state) {
+  VkGraphicsPipelineCreateInfo create_info{};
+
+  create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  create_info.pStages = shader_stages_create_infos.data();
+  create_info.stageCount = shader_stages_create_infos.size();
+  create_info.pVertexInputState = &vertex_input_state;
+  create_info.pInputAssemblyState = &input_assembly_state;
+  create_info.pViewportState = &viewport_state;
+  create_info.pRasterizationState = &rasterization_state;
+  create_info.pMultisampleState = &multisample_state;
+  create_info.pDepthStencilState = &depth_stencil_state;
+  create_info.pColorBlendState = &color_blend_state;
+  create_info.pDynamicState =
+      &dynamic_state;  // which of these fixed function states would change, any
+                       // of the ones listed here would need to be provided at
+                       // every draw/render call
+
+  create_info.layout = layout;
+  create_info.renderPass = render_pass;
+  create_info.subpass =
+      0;  // index of the device's subpass this graphics pipeline belongs to
+
+  create_info.basePipelineHandle = nullptr;
+  create_info.basePipelineIndex = -1;
+
+  VkPipeline graphics_pipeline;
+
+  VLK_MUST_SUCCEED(
+      vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &create_info,
+                                nullptr, &graphics_pipeline),
+      "Unable to create graphics pipeline");
+
+  return graphics_pipeline;
+}
+
+// basically a collection of attachments (color, depth, stencil, etc)
+[[nodiscard]] VkFramebuffer create_frame_buffer(
+    VkDevice device, VkRenderPass render_pass,
+    stx::Span<VkImageView const> const& attachments, VkExtent2D const& extent) {
+  VkFramebufferCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+  create_info.renderPass = render_pass;
+  create_info.attachmentCount = attachments.size();
+  create_info.pAttachments = attachments.data();
+  create_info.width = extent.width;
+  create_info.height = extent.height;
+  create_info.layers = 1;  // our swap chain images are single images, so the
+                           // number of layers is 1
+
+  VkFramebuffer frame_buffer;
+  VLK_MUST_SUCCEED(
+      vkCreateFramebuffer(device, &create_info, nullptr, &frame_buffer),
+      "Unable to create frame buffer");
+  return frame_buffer;
+}
+
 }  // namespace vlk
+
+// TODO(lamarrr): Go through the tutorial and comment into this code any
+// subtlety/important points
