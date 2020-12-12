@@ -180,6 +180,8 @@ struct [[nodiscard]] Application {
                                              &image_count, nullptr),
                      "Unable to get swapchain images count");
 
+    VLK_LOG("Number of images on created swapchain: " << image_count);
+
     std::vector<VkImage> swapchain_images(image_count);
 
     VLK_MUST_SUCCEED(
