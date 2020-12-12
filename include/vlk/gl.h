@@ -901,6 +901,21 @@ make_pipeline_color_blend_state_create_info(
   return subpass;
 }
 
+// ????
+VkSubpassDependency make_subpass_dependency() {
+  VkSubpassDependency dependency{};
+  dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+  dependency.dstSubpass = 0;
+
+  dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+  dependency.srcAccessMask = 0;
+
+  dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+  dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+  return dependency;
+}
+
 // specify how many color and depth buffers there will be, how many samples to
 // use for each of them and how their contents should be handled throughout the
 // rendering operations (and the subpasses description)
