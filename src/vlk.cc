@@ -387,6 +387,17 @@ struct [[nodiscard]] Application {
     }
   }
 
+  void recreate_swapchain_() {
+    vkDeviceWaitIdle(logical_device_);
+    // cleanup_swapchain();
+    // create_swapchain();
+    // create_image_views();
+    // create_render_pass();
+    // create_graphics_pipeline();
+    // create_frame_buffers();
+    // create_command_buffers();
+  }
+
   void main_loop_() {
     while (!glfwWindowShouldClose(window_.window)) {
       glfwPollEvents();
