@@ -11,10 +11,10 @@
 
 #define VLK_ENSURE(expr, ...) IMPL_VLK_ENSURE(expr, __VA_ARGS__)
 
-#define VLK_MUST_SUCCEED(expr, message)                    \
-  do {                                                     \
-    auto result = (expr);                                  \
-    if (result != VK_SUCCESS) stx::panic(message, result); \
+#define VLK_MUST_SUCCEED(expr, message)                                      \
+  do {                                                                       \
+    auto result = (expr);                                                    \
+    if (result != VK_SUCCESS) stx::panic(message, static_cast<int>(result)); \
   } while (false);
 
 #define VLK_LOG(expr)               \
