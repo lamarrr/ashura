@@ -1167,6 +1167,31 @@ void submit_buffer(VkQueue command_queue, VkCommandBuffer command_buffer,
                    "Unable to submit command buffer to command queue");
 }
 
+void present_to_swapchains(
+    VkQueue command_queue, stx::Span<VkSemaphore const> const& await_semaphores,
+    stx::Span<VkSwapchainKHR const> const& swapchains,
+    stx::Span<uint32_t const> const& swapchain_image_indexes) {
+  VLK_ENSURE(swapchain_image_indexes.size() == swapchains.size(),
+             "swapchain and their image indices must be of the same size");
+
+  VkPresentInfoKHR present_info{};
+
+  present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+  present_info.waitSemaphoreCount = await_semaphores.size();
+  present_info.pWaitSemaphores = await_semaphores.data();
+
+  present_info.swapchainCount = swapchains.size();
+  present_info.pSwapchains = swapchains.data();
+
+  present_info.pImageIndices = swapchain_image_indexes.data();
+
+  present_info.pResults = nullptr;
+
+  VLK_MUST_SUCCEED(vkQueuePresentKHR(command_queue, &present_info),
+                   "Unable to present to swapchain");
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
