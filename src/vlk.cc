@@ -289,9 +289,7 @@ struct [[nodiscard]] Application {
   }
 
   void init_vulkan_() {
-#if VK_DEBUG
     default_debug_messenger_create_info_ = make_debug_messenger_create_info();
-#endif
 
     // get list of extensions required for vulkan interfacing with the window
     // system
