@@ -1006,6 +1006,25 @@ make_pipeline_color_blend_state_create_info(
   return command_pool;
 }
 
+void allocate_command_buffers(
+    VkDevice device, VkCommandPool command_pool,
+    stx::Span<VkCommandBuffer> const& command_buffers) {
+  VkCommandBufferAllocateInfo allocate_info{};
+  allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocate_info.commandPool = command_pool;
+
+  // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution,
+  // but cannot be called from other command buffers.
+  // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be
+  // called from primary command buffers.
+  allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocate_info.commandBufferCount = command_buffers.size();
+
+  VLK_MUST_SUCCEED(
+      vkAllocateCommandBuffers(device, &allocate_info, command_buffers.data()),
+      "Unable to allocate command buffer");
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
