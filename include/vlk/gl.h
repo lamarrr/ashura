@@ -1107,6 +1107,12 @@ void set_viewport(VkCommandBuffer command_buffer,
 }
 
 }  // namespace cmd
+
+void end_command_buffer_recording(VkCommandBuffer command_buffer) {
+  VLK_MUST_SUCCEED(vkEndCommandBuffer(command_buffer),
+                   "Unable to end command buffer recording");
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
