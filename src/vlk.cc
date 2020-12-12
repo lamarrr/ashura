@@ -204,19 +204,20 @@ struct [[nodiscard]] Application {
         load_spirv_binary(config::kSpirvBinariesPath / "triangle.frag.spv")
             .expect("Unable to load fragment shader binary");
 
-    auto vert_shader_module =
+    vert_shader_module_ =
         create_shader_module(logical_device_, vert_shader_binary);  // destroy
 
-    auto frag_shader_module =
+    frag_shader_module_ =
         create_shader_module(logical_device_, frag_shader_binary);  // destroy
 
     auto vert_shader_pipeline_shader_stage_create_info =
-        make_pipeline_shader_stage_create_info(vert_shader_module, "main",
+        make_pipeline_shader_stage_create_info(vert_shader_module_, "main",
                                                VK_SHADER_STAGE_VERTEX_BIT);
 
     auto frag_shader_pipeline_shader_stage_create_info =
-        make_pipeline_shader_stage_create_info(frag_shader_module, "main",
+        make_pipeline_shader_stage_create_info(frag_shader_module_, "main",
                                                VK_SHADER_STAGE_FRAGMENT_BIT);
+
     std::vector<VkPipelineShaderStageCreateInfo> shader_stages_create_info = {
         vert_shader_pipeline_shader_stage_create_info,
         frag_shader_pipeline_shader_stage_create_info};
@@ -244,13 +245,17 @@ struct [[nodiscard]] Application {
                                              VK_DYNAMIC_STATE_LINE_WIDTH};
     auto pipeline_dynamic_state = make_pipeline_dynamic_state(dynamic_states);
 
-    auto pipeline_layout = create_pipeline_layout(logical_device_);
+    pipeline_layout_ = create_pipeline_layout(logical_device_);
 
-    auto render_pass = create_render_pass(
-        logical_device_, attachments_descriptions, subpasses_descriptions);
+    VkSubpassDependency const subpass_dependencies[] = {
+        make_subpass_dependency()};
 
-    auto graphics_pipeline = create_graphics_pipeline(
-        logical_device_, pipeline_layout, render_pass,
+    render_pass_ =
+        create_render_pass(logical_device_, attachments_descriptions,
+                           subpasses_descriptions, subpass_dependencies);
+
+    graphics_pipeline_ = create_graphics_pipeline(
+        logical_device_, pipeline_layout_, render_pass_,
         shader_stages_create_info,
         make_pipeline_vertex_input_state_create_info({}, {}),
         make_pipeline_input_assembly_state_create_info(),
@@ -261,13 +266,45 @@ struct [[nodiscard]] Application {
         make_pipeline_color_blend_state_create_info(attachments_states),
         pipeline_dynamic_state);
 
-    std::vector<VkFramebuffer> swapchain_fraamebuffers;
-
     for (size_t i = 0; i < swapchain_image_views_.size(); i++) {
       VkImageView const attachments[] = {swapchain_image_views_[i]};
-      auto frame_buffer = create_frame_buffer(logical_device_, render_pass,
+      auto frame_buffer = create_frame_buffer(logical_device_, render_pass_,
                                               attachments, surface_extent);
-      swapchain_fraamebuffers.push_back(frame_buffer);
+      swapchain_framebuffers_.push_back(frame_buffer);
+    }
+
+    graphics_command_pool_ =
+        create_command_pool(logical_device_, graphics_queue_family_index);
+
+    graphics_command_buffers_.resize(swapchain_framebuffers_.size());
+
+    allocate_command_buffers(logical_device_, graphics_command_pool_,
+                             graphics_command_buffers_);
+
+    VkClearValue const clear_values[] = {VkClearValue{1.0f, 1.0f, 1.0f, 1.0f}};
+
+    for (size_t i = 0; i < swapchain_framebuffers_.size(); i++) {
+      begin_command_buffer_recording(graphics_command_buffers_[i]);
+      cmd::begin_render_pass(
+          render_pass_, graphics_command_buffers_[i],
+          swapchain_framebuffers_[i],
+          VkRect2D{{0, 0}, {surface_extent.width, surface_extent.height}},
+          clear_values);
+      cmd::bind_pipeline(graphics_pipeline_, graphics_command_buffers_[i]);
+      cmd::set_viewport(graphics_command_buffers_[i], viewports);
+      cmd::draw(graphics_command_buffers_[i], 3, 1, 0, 0);
+      cmd::end_render_pass(graphics_command_buffers_[i]);
+      end_command_buffer_recording(graphics_command_buffers_[i]);
+    }
+
+    max_frames_in_flight_ = 2;
+
+    // synchronization objects
+    for (uint32_t i = 0; i < max_frames_in_flight_; i++) {
+      image_available_semaphores_.push_back(create_semaphore(logical_device_));
+      rendering_finished_semaphores_.push_back(
+          create_semaphore(logical_device_));
+      in_flight_fences_.push_back(create_fence(logical_device_, true));
     }
 
     main_loop_();
@@ -406,9 +443,14 @@ struct [[nodiscard]] Application {
   }
 
   void main_loop_() {
+    uint32_t frame_flight_index = 0;
     while (!glfwWindowShouldClose(window_.window)) {
       glfwPollEvents();
+      draw_frame_(frame_flight_index);
+      frame_flight_index = (frame_flight_index + 1) % max_frames_in_flight_;
     }
+
+    vkDeviceWaitIdle(logical_device_);  // do this before cleaning up resources
   }
 
   void cleanup_() {
@@ -441,9 +483,31 @@ struct [[nodiscard]] Application {
 
   VkDevice logical_device_;
 
+  VkShaderModule vert_shader_module_;
+  VkShaderModule frag_shader_module_;
+
+  VkRenderPass render_pass_;
+
+  VkPipeline graphics_pipeline_;
+  VkPipelineLayout pipeline_layout_;
+
+  std::vector<VkFramebuffer> swapchain_framebuffers_;
+
+  VkCommandPool graphics_command_pool_;
+
   // automatically cleaned on destruction of the logical device
   VkQueue graphics_command_queue_;
   VkQueue surface_presentation_command_queue_;
+
+  std::vector<VkCommandBuffer> graphics_command_buffers_;
+
+  // one for each frame in flight
+  std::vector<VkSemaphore> image_available_semaphores_;
+  std::vector<VkSemaphore> rendering_finished_semaphores_;
+
+  std::vector<VkFence> in_flight_fences_;
+  // i.e. maximum number of frames to be processed per loop
+  uint32_t max_frames_in_flight_;
 
   VkSwapchainKHR window_swapchain_;
 
