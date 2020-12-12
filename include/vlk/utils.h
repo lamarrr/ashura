@@ -22,9 +22,9 @@
     std::cout << expr << std::endl; \
   } while (false);
 
-#define IMPL_VLK_WARN_IF(expr, ...)                                     \
-  do {                                                                  \
-    if (!(expr)) std::cout << "[WARNING] " << __VA_ARGS__ << std::endl; \
+#define IMPL_VLK_WARN_IF(expr, ...)                                    \
+  do {                                                                 \
+    if ((expr)) std::cout << "[WARNING] " << __VA_ARGS__ << std::endl; \
   } while (false);
 
 #define VLK_WARN_IF(expr, ...) IMPL_VLK_WARN_IF(expr, __VA_ARGS__)
