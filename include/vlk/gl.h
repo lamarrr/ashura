@@ -992,6 +992,20 @@ make_pipeline_color_blend_state_create_info(
   return frame_buffer;
 }
 
+[[nodiscard]] VkCommandPool create_command_pool(VkDevice device,
+                                                uint32_t queue_family_index) {
+  VkCommandPoolCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+  create_info.queueFamilyIndex = queue_family_index;
+
+  VkCommandPool command_pool;
+  VLK_MUST_SUCCEED(
+      vkCreateCommandPool(device, &create_info, nullptr, &command_pool),
+      "Unable to create command pool");
+
+  return command_pool;
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
