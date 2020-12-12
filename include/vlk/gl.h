@@ -1084,6 +1084,12 @@ void end_render_pass(VkCommandBuffer command_buffer) {
   vkCmdEndRenderPass(command_buffer);
 }
 
+void bind_pipeline(
+    VkPipeline pipeline, VkCommandBuffer command_buffer,
+    VkPipelineBindPoint bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS) {
+  vkCmdBindPipeline(command_buffer, bind_point, pipeline);
+}
+
 }  // namespace cmd
 }  // namespace vlk
 
