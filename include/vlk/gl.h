@@ -1090,6 +1090,22 @@ void bind_pipeline(
   vkCmdBindPipeline(command_buffer, bind_point, pipeline);
 }
 
+void draw(VkCommandBuffer command_buffer, uint32_t vertex_count,
+          uint32_t instance_count, uint32_t first_vertex,
+          uint32_t first_instance) {
+  // instanceCount: Used for instanced rendering
+  // firstVertex: Used as an offset into the vertex buffer, defines the lowest
+  // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
+  // rendering, defines the lowest value of gl_InstanceIndex.
+  vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex,
+            first_instance);
+}
+
+void set_viewport(VkCommandBuffer command_buffer,
+                  stx::Span<VkViewport const> const& viewports) {
+  vkCmdSetViewport(command_buffer, 0, viewports.size(), viewports.data());
+}
+
 }  // namespace cmd
 }  // namespace vlk
 
