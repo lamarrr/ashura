@@ -20,14 +20,19 @@ using namespace vlk;
 
 struct Window {
   GLFWwindow* window;
-  int width;
-  int height;
+};
+
+struct WindowConfig {
+  int desired_width;
+  int desired_height;
+  bool resizable;
 };
 
 struct [[nodiscard]] Application {
  public:
-  Application(int window_width, int window_height)
-      : window_{nullptr, window_width, window_height},
+  Application(WindowConfig const& window_config)
+      : window_{nullptr},
+        window_config_{window_config},
         vulkan_instance_{nullptr},
         surface_{nullptr},
         logical_device_{nullptr},
@@ -275,7 +280,8 @@ struct [[nodiscard]] Application {
 
     // width and height here refer to the screen coordinates and not the actual
     // pixels
-    window_.window = glfwCreateWindow(window_.width, window_.height, "Valkyrie",
+    window_.window = glfwCreateWindow(window_config_.desired_width,
+                                      window_config_.desired_height, "Valkyrie",
                                       nullptr, nullptr);
     VLK_ENSURE(window_.window != nullptr, "Window creation failed");
   }
@@ -345,6 +351,7 @@ struct [[nodiscard]] Application {
   }
 
   Window window_;
+  WindowConfig window_config_;
 
   VkInstance vulkan_instance_;
 
@@ -369,6 +376,7 @@ struct [[nodiscard]] Application {
 };
 
 int main() {
-  Application app{1920, 1080};
+  Application app{WindowConfig{
+      .desired_width = 1920, .desired_height = 1080, .resizable = true}};
   app.run();
 }
