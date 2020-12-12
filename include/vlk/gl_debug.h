@@ -18,8 +18,6 @@
 #define VLK_DEBUG false
 #endif
 
-#if VLK_DEBUG
-
 namespace vlk {
 
 static void ensure_validation_layers_supported(
@@ -141,5 +139,3 @@ static void destroy_debug_messenger(VkInstance instance,
 }
 
 }  // namespace vlk
-
-#endif
