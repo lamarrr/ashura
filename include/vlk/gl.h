@@ -1080,6 +1080,10 @@ void begin_render_pass(VkRenderPass render_pass, VkCommandBuffer command_buffer,
   vkCmdBeginRenderPass(command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 }
 
+void end_render_pass(VkCommandBuffer command_buffer) {
+  vkCmdEndRenderPass(command_buffer);
+}
+
 }  // namespace cmd
 }  // namespace vlk
 
