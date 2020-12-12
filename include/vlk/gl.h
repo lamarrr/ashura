@@ -1059,6 +1059,8 @@ void begin_command_buffer_recording(VkCommandBuffer command_buffer) {
                    "Unable to begin command buffer recording");
 }
 
+namespace cmd {
+}  // namespace cmd
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
