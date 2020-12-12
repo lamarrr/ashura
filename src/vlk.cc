@@ -275,6 +275,8 @@ struct [[nodiscard]] Application {
     glfwWindowHint(
         GLFW_CLIENT_API,
         GLFW_NO_API);  // not an OpenGL app, do not create OpenGL context
+
+    VLK_WARN_IF(window_config_.resizable, "Window resizing not supported yet");
     glfwWindowHint(GLFW_RESIZABLE,
                    GLFW_FALSE);  // requires handling the framebuffer size
 
