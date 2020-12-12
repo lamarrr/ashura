@@ -922,13 +922,18 @@ VkSubpassDependency make_subpass_dependency() {
 [[nodiscard]] VkRenderPass create_render_pass(
     VkDevice device,
     stx::Span<VkAttachmentDescription const> const& attachment_descriptions,
-    stx::Span<VkSubpassDescription const> const& subpass_descriptions) {
+    stx::Span<VkSubpassDescription const> const& subpass_descriptions,
+    stx::Span<VkSubpassDependency const> const& subpass_dependencies) {
   VkRenderPassCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   create_info.attachmentCount = attachment_descriptions.size();
   create_info.pAttachments = attachment_descriptions.data();
   create_info.subpassCount = subpass_descriptions.size();
   create_info.pSubpasses = subpass_descriptions.data();
+
+  create_info.dependencyCount = subpass_dependencies.size();
+  create_info.pDependencies = subpass_dependencies.data();
+
   VkRenderPass render_pass;
   VLK_MUST_SUCCEED(
       vkCreateRenderPass(device, &create_info, nullptr, &render_pass),
