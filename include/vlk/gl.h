@@ -1113,6 +1113,33 @@ void end_command_buffer_recording(VkCommandBuffer command_buffer) {
                    "Unable to end command buffer recording");
 }
 
+// GPU-GPU synchronization primitive
+[[nodiscard]] VkSemaphore create_semaphore(VkDevice device) {
+  VkSemaphoreCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+  VkSemaphore semaphore;
+  VLK_MUST_SUCCEED(vkCreateSemaphore(device, &create_info, nullptr, &semaphore),
+                   "Unable to create semaphore");
+
+  return semaphore;
+}
+
+// GPU-CPU synchronization primitive
+[[nodiscard]] VkFence create_fence(VkDevice device, bool make_signaled) {
+  VkFenceCreateInfo create_info{};
+
+  create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+  create_info.flags = make_signaled ? VK_FENCE_CREATE_SIGNALED_BIT : 0;
+
+  VkFence fence;
+
+  VLK_MUST_SUCCEED(vkCreateFence(device, &create_info, nullptr, &fence),
+                   "Unable to create fence");
+
+  return fence;
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
