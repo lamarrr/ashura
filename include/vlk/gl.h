@@ -74,13 +74,11 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 #if VLK_DEBUG
   // validation layers
   ensure_validation_layers_supported(required_validation_layers);
-  create_info.enabledLayerCount = std::size(required_validation_layers);
+  create_info.enabledLayerCount = required_validation_layers.size();
   create_info.ppEnabledLayerNames = required_validation_layers.data();
 
   // debug messenger for when the installed debug messenger is uninstalled
-  create_info.pNext =
-      reinterpret_cast<VkDebugUtilsMessengerCreateInfoEXT const*>(
-          default_debug_messenger_create_info);
+  create_info.pNext = default_debug_messenger_create_info;
 
 #endif
 
