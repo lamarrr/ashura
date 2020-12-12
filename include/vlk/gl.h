@@ -1060,6 +1060,26 @@ void begin_command_buffer_recording(VkCommandBuffer command_buffer) {
 }
 
 namespace cmd {
+void begin_render_pass(VkRenderPass render_pass, VkCommandBuffer command_buffer,
+                       VkFramebuffer framebuffer, VkRect2D render_area,
+                       stx::Span<VkClearValue const> const& clear_values) {
+  VkRenderPassBeginInfo begin_info{};
+  begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  begin_info.renderPass = render_pass;
+  begin_info.framebuffer = framebuffer;
+  begin_info.renderArea = render_area;
+  begin_info.clearValueCount = clear_values.size();
+  begin_info.pClearValues = clear_values.data();
+
+  // VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in
+  // the primary command buffer itself and no secondary command buffers will be
+  // executed.
+  // VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS: The render pass
+  // commands will be executed from secondary command buffers.
+
+  vkCmdBeginRenderPass(command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+}
+
 }  // namespace cmd
 }  // namespace vlk
 
