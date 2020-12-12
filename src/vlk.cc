@@ -28,6 +28,11 @@ struct WindowConfig {
   bool resizable;
 };
 
+constexpr uint64_t kWaitTimeout =
+    static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                              std::chrono::seconds(45))
+                              .count());
+
 struct [[nodiscard]] Application {
  public:
   Application(WindowConfig const& window_config)
