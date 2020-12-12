@@ -324,6 +324,69 @@ struct [[nodiscard]] Application {
 #endif
   }
 
+  void draw_frame_(uint32_t frame_flight_index) {
+    // - Acquire an image from the swap chain
+    // - Execute the command buffer with that image as attachment in the
+    // framebuffer
+    // - Return the image to the swap chain for presentation
+    //
+    // Each of these events is set in motion using a single function call, but
+    // they are executed asynchronously. The function calls will return before
+    // the operations are actually finished and the **order of execution** is
+    // also undefined. That is unfortunate, because each of the operations
+    // depends on the previous one finishing.
+    //
+    // Fences are mainly designed to synchronize your application itself with
+    // rendering operation, whereas semaphores are used to synchronize
+    // operations within or across command queues
+
+    // wait for the image using the present flight synchronization values to
+    // finish
+    VLK_MUST_SUCCEED(
+        vkWaitForFences(logical_device_, 1,
+                        in_flight_fences_.data() + frame_flight_index, VK_TRUE,
+                        kWaitTimeout),
+        "Error occured waiting for synchronization fences");
+
+    VLK_MUST_SUCCEED(
+        vkResetFences(logical_device_, 1,
+                      in_flight_fences_.data() + frame_flight_index),
+        "Error occured resetting synchronization fence");
+
+    uint32_t swapchain_image_index;
+
+    VLK_MUST_SUCCEED(
+        vkAcquireNextImageKHR(
+            logical_device_, window_swapchain_, kWaitTimeout,
+            /* notify */ image_available_semaphores_[frame_flight_index],
+            VK_NULL_HANDLE, &swapchain_image_index),
+        "Unable to acquire swapchain image");
+
+    {
+      VkSemaphore const await_semaphores[] = {
+          image_available_semaphores_[frame_flight_index]};
+      VkPipelineStageFlags const await_stages[] = {
+          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+      VkSemaphore const notify_semaphores[] = {
+          rendering_finished_semaphores_[frame_flight_index]};
+      submit_buffer(graphics_command_queue_,
+                    graphics_command_buffers_[swapchain_image_index],
+                    await_semaphores, await_stages, notify_semaphores,
+                    in_flight_fences_[frame_flight_index]);
+    }
+
+    {
+      VkSwapchainKHR const swapchains[] = {window_swapchain_};
+      uint32_t const swapchain_image_indexes[] = {swapchain_image_index};
+      VkSemaphore const await_semaphores[] = {
+          rendering_finished_semaphores_[frame_flight_index]};
+
+      present_to_swapchains(surface_presentation_command_queue_,
+                            await_semaphores, swapchains,
+                            swapchain_image_indexes);
+    }
+  }
+
   void main_loop_() {
     while (!glfwWindowShouldClose(window_.window)) {
       glfwPollEvents();
