@@ -579,6 +579,8 @@ struct [[nodiscard]] Application {
   }
 
   void cleanup_() {
+    vkDeviceWaitIdle(logical_device_);
+
     destroy_swapchain_();
     destroy_image_views_();
     destroy_pipeline_();
