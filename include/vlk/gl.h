@@ -358,6 +358,17 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
   return logical_device;
 }
 
+[[nodiscard]] VkQueue get_command_queue(
+    VkDevice device, uint32_t queue_family_index,
+    uint32_t command_queue_index_in_family) {
+  VkQueue command_queue;
+  vkGetDeviceQueue(device, queue_family_index, command_queue_index_in_family,
+                   &command_queue);
+  VLK_ENSURE(command_queue != nullptr,
+             "Requested command queue not created on target device");
+  return command_queue;
+}
+
 struct [[nodiscard]] SwapChainProperties {
   VkSurfaceCapabilitiesKHR capabilities;
   std::vector<VkSurfaceFormatKHR> supported_formats;
