@@ -426,6 +426,23 @@ struct [[nodiscard]] Application {
     glfwSetWindowUserPointer(window_.window, this);
     glfwSetWindowSizeCallback(window_.window,
                               application_window_resize_callback);
+
+    std::vector<uint32_t> pixels;
+    for (size_t i = 0; i < 16; i++) {
+      for (size_t j = 0; j < 16; j++) pixels.push_back(0xFF0000FF);
+      for (size_t j = 0; j < 16; j++) pixels.push_back(0xFFFFFFFF);
+    }
+
+    for (size_t i = 0; i < 16; i++) {
+      for (size_t j = 0; j < 16; j++) pixels.push_back(0xFFFFFFFF);
+      for (size_t j = 0; j < 16; j++) pixels.push_back(0xFF0000FF);
+    }
+
+    GLFWimage image;
+    image.width = 32;
+    image.height = 32;
+    image.pixels = reinterpret_cast<unsigned char*>(pixels.data());
+    glfwSetWindowIcon(window_.window, 1, &image);
   }
 
   void init_vulkan_() {
