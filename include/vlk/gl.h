@@ -1131,9 +1131,18 @@ void draw(VkCommandBuffer command_buffer, uint32_t vertex_count,
             first_instance);
 }
 
-void set_viewport(VkCommandBuffer command_buffer,
-                  stx::Span<VkViewport const> const& viewports) {
+void set_viewports(VkCommandBuffer command_buffer,
+                   stx::Span<VkViewport const> const& viewports) {
   vkCmdSetViewport(command_buffer, 0, viewports.size(), viewports.data());
+}
+
+void set_scissors(VkCommandBuffer command_buffer,
+                  stx::Span<VkRect2D const> const& scissors) {
+  vkCmdSetScissor(command_buffer, 0, scissors.size(), scissors.data());
+}
+
+void set_line_width(VkCommandBuffer command_buffer, float line_width) {
+  vkCmdSetLineWidth(command_buffer, line_width);
 }
 
 }  // namespace cmd
