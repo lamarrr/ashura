@@ -576,8 +576,6 @@ struct [[nodiscard]] Application {
       draw_frame_(frame_flight_index);
       frame_flight_index = (frame_flight_index + 1) % max_frames_in_flight_;
     }
-
-    vkDeviceWaitIdle(logical_device_);  // do this before cleaning up resources
   }
 
   void cleanup_() {
