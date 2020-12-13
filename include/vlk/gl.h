@@ -74,13 +74,11 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 #if VLK_DEBUG
   // validation layers
   ensure_validation_layers_supported(required_validation_layers);
-  create_info.enabledLayerCount = std::size(required_validation_layers);
+  create_info.enabledLayerCount = required_validation_layers.size();
   create_info.ppEnabledLayerNames = required_validation_layers.data();
 
   // debug messenger for when the installed debug messenger is uninstalled
-  create_info.pNext =
-      reinterpret_cast<VkDebugUtilsMessengerCreateInfoEXT const*>(
-          default_debug_messenger_create_info);
+  create_info.pNext = default_debug_messenger_create_info;
 
 #endif
 
@@ -360,6 +358,17 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
   return logical_device;
 }
 
+[[nodiscard]] VkQueue get_command_queue(
+    VkDevice device, uint32_t queue_family_index,
+    uint32_t command_queue_index_in_family) {
+  VkQueue command_queue;
+  vkGetDeviceQueue(device, queue_family_index, command_queue_index_in_family,
+                   &command_queue);
+  VLK_ENSURE(command_queue != nullptr,
+             "Requested command queue not created on target device");
+  return command_queue;
+}
+
 struct [[nodiscard]] SwapChainProperties {
   VkSurfaceCapabilitiesKHR capabilities;
   std::vector<VkSurfaceFormatKHR> supported_formats;
@@ -578,6 +587,24 @@ struct [[nodiscard]] SwapChainProperties {
   return swapchain;
 }
 
+[[nodiscard]] std::vector<VkImage> get_swapchain_images(
+    VkDevice device, VkSwapchainKHR swapchain) {
+  uint32_t image_count;
+
+  VLK_MUST_SUCCEED(
+      vkGetSwapchainImagesKHR(device, swapchain, &image_count, nullptr),
+      "Unable to get swapchain images count");
+
+  std::vector<VkImage> swapchain_images;
+  swapchain_images.resize(image_count);
+
+  VLK_MUST_SUCCEED(vkGetSwapchainImagesKHR(device, swapchain, &image_count,
+                                           swapchain_images.data()),
+                   "Unable to get swapchain images");
+
+  return swapchain_images;
+}
+
 // the number of command queues to create is encapsulated in the
 // `queue_priorities` size
 [[nodiscard]] VkDeviceQueueCreateInfo make_command_queue_create_info(
@@ -648,7 +675,7 @@ struct [[nodiscard]] SwapChainProperties {
 make_pipeline_shader_stage_create_info(
     VkShaderModule module, char const* program_entry_point,
     VkShaderStageFlagBits pipeline_stage_flag,
-    VkSpecializationInfo const& program_constants = {}) {
+    VkSpecializationInfo const* program_constants) {
   VkPipelineShaderStageCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   create_info.module = module;
@@ -656,7 +683,23 @@ make_pipeline_shader_stage_create_info(
   create_info.stage = pipeline_stage_flag;
   create_info.pNext = nullptr;
   create_info.pSpecializationInfo =
-      &program_constants;  // provide constants used within the shader
+      program_constants;  // provide constants used within the shader
+
+  return create_info;
+}
+
+[[nodiscard]] VkPipelineShaderStageCreateInfo
+make_pipeline_shader_stage_create_info(
+    VkShaderModule module, char const* program_entry_point,
+    VkShaderStageFlagBits pipeline_stage_flag) {
+  VkPipelineShaderStageCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  create_info.module = module;
+  create_info.pName = program_entry_point;
+  create_info.stage = pipeline_stage_flag;
+  create_info.pNext = nullptr;
+  create_info.pSpecializationInfo =
+      nullptr;  // provide constants used within the shader
 
   return create_info;
 }
@@ -712,6 +755,18 @@ make_pipeline_input_assembly_state_create_info() {
   viewport.maxDepth = max_depth;  // max depth value to use for the frame buffer
 
   return viewport;
+}
+
+[[nodiscard]] VkRect2D make_scissor(float x, float y, float w, float h) {
+  VkRect2D scissor{};
+
+  scissor.offset.x = x;
+  scissor.offset.y = y;
+
+  scissor.extent.width = w;
+  scissor.extent.height = h;
+
+  return scissor;
 }
 
 [[nodiscard]] VkPipelineViewportStateCreateInfo
@@ -903,19 +958,39 @@ make_pipeline_color_blend_state_create_info(
   return subpass;
 }
 
+// ????
+[[nodiscard]] VkSubpassDependency make_subpass_dependency() {
+  VkSubpassDependency dependency{};
+  dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+  dependency.dstSubpass = 0;
+
+  dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+  dependency.srcAccessMask = 0;
+
+  dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+  dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+  return dependency;
+}
+
 // specify how many color and depth buffers there will be, how many samples to
 // use for each of them and how their contents should be handled throughout the
 // rendering operations (and the subpasses description)
 [[nodiscard]] VkRenderPass create_render_pass(
     VkDevice device,
     stx::Span<VkAttachmentDescription const> const& attachment_descriptions,
-    stx::Span<VkSubpassDescription const> const& subpass_descriptions) {
+    stx::Span<VkSubpassDescription const> const& subpass_descriptions,
+    stx::Span<VkSubpassDependency const> const& subpass_dependencies) {
   VkRenderPassCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   create_info.attachmentCount = attachment_descriptions.size();
   create_info.pAttachments = attachment_descriptions.data();
   create_info.subpassCount = subpass_descriptions.size();
   create_info.pSubpasses = subpass_descriptions.data();
+
+  create_info.dependencyCount = subpass_dependencies.size();
+  create_info.pDependencies = subpass_dependencies.data();
+
   VkRenderPass render_pass;
   VLK_MUST_SUCCEED(
       vkCreateRenderPass(device, &create_info, nullptr, &render_pass),
@@ -990,6 +1065,202 @@ make_pipeline_color_blend_state_create_info(
       vkCreateFramebuffer(device, &create_info, nullptr, &frame_buffer),
       "Unable to create frame buffer");
   return frame_buffer;
+}
+
+[[nodiscard]] VkCommandPool create_command_pool(VkDevice device,
+                                                uint32_t queue_family_index) {
+  VkCommandPoolCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+  create_info.queueFamilyIndex = queue_family_index;
+
+  VkCommandPool command_pool;
+  VLK_MUST_SUCCEED(
+      vkCreateCommandPool(device, &create_info, nullptr, &command_pool),
+      "Unable to create command pool");
+
+  return command_pool;
+}
+
+void allocate_command_buffers(
+    VkDevice device, VkCommandPool command_pool,
+    stx::Span<VkCommandBuffer> const& command_buffers) {
+  VkCommandBufferAllocateInfo allocate_info{};
+  allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocate_info.commandPool = command_pool;
+
+  // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution,
+  // but cannot be called from other command buffers.
+  // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be
+  // called from primary command buffers.
+  allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocate_info.commandBufferCount = command_buffers.size();
+
+  VLK_MUST_SUCCEED(
+      vkAllocateCommandBuffers(device, &allocate_info, command_buffers.data()),
+      "Unable to allocate command buffer");
+}
+
+void begin_command_buffer_recording(VkCommandBuffer command_buffer) {
+  VkCommandBufferBeginInfo begin_info{};
+  begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+  // VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will be
+  // rerecorded right after executing it once.
+  // VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a secondary
+  // command buffer that will be entirely within a single render pass.
+  // VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The command buffer can be
+  // resubmitted while it is also already pending execution
+  begin_info.flags = 0;
+
+  VLK_MUST_SUCCEED(vkBeginCommandBuffer(command_buffer, &begin_info),
+                   "Unable to begin command buffer recording");
+}
+
+namespace cmd {
+void begin_render_pass(VkRenderPass render_pass, VkCommandBuffer command_buffer,
+                       VkFramebuffer framebuffer, VkRect2D render_area,
+                       stx::Span<VkClearValue const> const& clear_values) {
+  VkRenderPassBeginInfo begin_info{};
+  begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  begin_info.renderPass = render_pass;
+  begin_info.framebuffer = framebuffer;
+  begin_info.renderArea = render_area;
+  begin_info.clearValueCount = clear_values.size();
+  begin_info.pClearValues = clear_values.data();
+
+  // VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in
+  // the primary command buffer itself and no secondary command buffers will be
+  // executed.
+  // VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS: The render pass
+  // commands will be executed from secondary command buffers.
+
+  vkCmdBeginRenderPass(command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void end_render_pass(VkCommandBuffer command_buffer) {
+  vkCmdEndRenderPass(command_buffer);
+}
+
+void bind_pipeline(
+    VkPipeline pipeline, VkCommandBuffer command_buffer,
+    VkPipelineBindPoint bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS) {
+  vkCmdBindPipeline(command_buffer, bind_point, pipeline);
+}
+
+void draw(VkCommandBuffer command_buffer, uint32_t vertex_count,
+          uint32_t instance_count, uint32_t first_vertex,
+          uint32_t first_instance) {
+  // instanceCount: Used for instanced rendering
+  // firstVertex: Used as an offset into the vertex buffer, defines the lowest
+  // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
+  // rendering, defines the lowest value of gl_InstanceIndex.
+  vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex,
+            first_instance);
+}
+
+void set_viewports(VkCommandBuffer command_buffer,
+                   stx::Span<VkViewport const> const& viewports) {
+  vkCmdSetViewport(command_buffer, 0, viewports.size(), viewports.data());
+}
+
+void set_scissors(VkCommandBuffer command_buffer,
+                  stx::Span<VkRect2D const> const& scissors) {
+  vkCmdSetScissor(command_buffer, 0, scissors.size(), scissors.data());
+}
+
+void set_line_width(VkCommandBuffer command_buffer, float line_width) {
+  vkCmdSetLineWidth(command_buffer, line_width);
+}
+
+}  // namespace cmd
+
+void end_command_buffer_recording(VkCommandBuffer command_buffer) {
+  VLK_MUST_SUCCEED(vkEndCommandBuffer(command_buffer),
+                   "Unable to end command buffer recording");
+}
+
+// GPU-GPU synchronization primitive
+[[nodiscard]] VkSemaphore create_semaphore(VkDevice device) {
+  VkSemaphoreCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+  VkSemaphore semaphore;
+  VLK_MUST_SUCCEED(vkCreateSemaphore(device, &create_info, nullptr, &semaphore),
+                   "Unable to create semaphore");
+
+  return semaphore;
+}
+
+// GPU-CPU synchronization primitive
+[[nodiscard]] VkFence create_fence(VkDevice device, bool make_signaled) {
+  VkFenceCreateInfo create_info{};
+
+  create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+  create_info.flags = make_signaled ? VK_FENCE_CREATE_SIGNALED_BIT : 0;
+
+  VkFence fence;
+
+  VLK_MUST_SUCCEED(vkCreateFence(device, &create_info, nullptr, &fence),
+                   "Unable to create fence");
+
+  return fence;
+}
+
+void submit_buffer(VkQueue command_queue, VkCommandBuffer command_buffer,
+                   stx::Span<VkSemaphore const> const& await_semaphores,
+                   stx::Span<VkPipelineStageFlags const> const& await_stages,
+                   stx::Span<VkSemaphore const> const& notify_semaphores,
+                   VkFence notify_fence) {
+  VLK_ENSURE(await_semaphores.size() == await_stages.size(),
+             "stages to await must have the same number of semaphores (for "
+             "each of them)");
+
+  VkSubmitInfo submit_info{};
+  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+  submit_info.waitSemaphoreCount = await_semaphores.size();
+  submit_info.pWaitSemaphores = await_semaphores.data();
+
+  submit_info.pWaitDstStageMask = await_stages.data();
+
+  submit_info.commandBufferCount = 1;
+  submit_info.pCommandBuffers = &command_buffer;
+
+  submit_info.signalSemaphoreCount = notify_semaphores.size();
+  submit_info.pSignalSemaphores = notify_semaphores.data();
+
+  VLK_MUST_SUCCEED(vkQueueSubmit(command_queue, 1, &submit_info, notify_fence),
+                   "Unable to submit command buffer to command queue");
+}
+
+[[nodiscard]] VkResult present_to_swapchains(
+    VkQueue command_queue, stx::Span<VkSemaphore const> const& await_semaphores,
+    stx::Span<VkSwapchainKHR const> const& swapchains,
+    stx::Span<uint32_t const> const& swapchain_image_indexes) {
+  VLK_ENSURE(swapchain_image_indexes.size() == swapchains.size(),
+             "swapchain and their image indices must be of the same size");
+
+  VkPresentInfoKHR present_info{};
+
+  present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+  present_info.waitSemaphoreCount = await_semaphores.size();
+  present_info.pWaitSemaphores = await_semaphores.data();
+
+  present_info.swapchainCount = swapchains.size();
+  present_info.pSwapchains = swapchains.data();
+
+  present_info.pImageIndices = swapchain_image_indexes.data();
+
+  present_info.pResults = nullptr;
+
+  auto present_result = vkQueuePresentKHR(command_queue, &present_info);
+  VLK_ENSURE(present_result == VK_SUCCESS ||
+                 present_result == VK_SUBOPTIMAL_KHR ||
+                 present_result == VK_ERROR_OUT_OF_DATE_KHR,
+             "Unable to present to swapchain");
+
+  return present_result;
 }
 
 }  // namespace vlk
