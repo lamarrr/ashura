@@ -932,7 +932,7 @@ make_pipeline_color_blend_state_create_info(
 }
 
 // ????
-VkSubpassDependency make_subpass_dependency() {
+[[nodiscard]] VkSubpassDependency make_subpass_dependency() {
   VkSubpassDependency dependency{};
   dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
   dependency.dstSubpass = 0;
