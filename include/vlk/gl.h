@@ -576,6 +576,24 @@ struct [[nodiscard]] SwapChainProperties {
   return swapchain;
 }
 
+[[nodiscard]] std::vector<VkImage> get_swapchain_images(
+    VkDevice device, VkSwapchainKHR swapchain) {
+  uint32_t image_count;
+
+  VLK_MUST_SUCCEED(
+      vkGetSwapchainImagesKHR(device, swapchain, &image_count, nullptr),
+      "Unable to get swapchain images count");
+
+  std::vector<VkImage> swapchain_images;
+  swapchain_images.resize(image_count);
+
+  VLK_MUST_SUCCEED(vkGetSwapchainImagesKHR(device, swapchain, &image_count,
+                                           swapchain_images.data()),
+                   "Unable to get swapchain images");
+
+  return swapchain_images;
+}
+
 // the number of command queues to create is encapsulated in the
 // `queue_priorities` size
 [[nodiscard]] VkDeviceQueueCreateInfo make_command_queue_create_info(
