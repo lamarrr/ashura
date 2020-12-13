@@ -1206,7 +1206,7 @@ void submit_buffer(VkQueue command_queue, VkCommandBuffer command_buffer,
                    "Unable to submit command buffer to command queue");
 }
 
-void present_to_swapchains(
+[[nodiscard]] VkResult present_to_swapchains(
     VkQueue command_queue, stx::Span<VkSemaphore const> const& await_semaphores,
     stx::Span<VkSwapchainKHR const> const& swapchains,
     stx::Span<uint32_t const> const& swapchain_image_indexes) {
@@ -1227,8 +1227,13 @@ void present_to_swapchains(
 
   present_info.pResults = nullptr;
 
-  VLK_MUST_SUCCEED(vkQueuePresentKHR(command_queue, &present_info),
-                   "Unable to present to swapchain");
+  auto present_result = vkQueuePresentKHR(command_queue, &present_info);
+  VLK_ENSURE(present_result == VK_SUCCESS ||
+                 present_result == VK_SUBOPTIMAL_KHR ||
+                 present_result == VK_ERROR_OUT_OF_DATE_KHR,
+             "Unable to present to swapchain");
+
+  return present_result;
 }
 
 }  // namespace vlk
