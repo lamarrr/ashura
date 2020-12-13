@@ -307,8 +307,6 @@ struct [[nodiscard]] Application {
         make_pipeline_depth_stencil_state_create_info(),
         make_pipeline_color_blend_state_create_info(attachments_states),
         pipeline_dynamic_state);
-
-    VLK_LOG("Fetching command queue");
   }
 
   void destroy_pipeline_() {
