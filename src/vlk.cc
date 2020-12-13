@@ -18,14 +18,17 @@
 
 using namespace vlk;
 
-struct Window {
-  GLFWwindow* window;
-};
-
 struct WindowConfig {
+  // in pixels
   int desired_width;
   int desired_height;
   bool resizable;
+};
+
+struct Window {
+  GLFWwindow* window;
+  // in pixels
+  VkExtent2D surface_extent;
 };
 
 constexpr uint64_t kWaitTimeout =
@@ -33,15 +36,23 @@ constexpr uint64_t kWaitTimeout =
                               std::chrono::seconds(45))
                               .count());
 
+struct Application;
+
+static void application_window_resize_callback(GLFWwindow* window, int width,
+                                               int height);
+
 struct [[nodiscard]] Application {
  public:
   Application(WindowConfig const& window_config)
-      : window_{nullptr},
+      : window_{},
         window_config_{window_config},
+        clear_values_{VkClearValue{1.0f, 1.0f, 1.0f, 1.0f}},
         vulkan_instance_{nullptr},
         surface_{nullptr},
+        physical_device_{nullptr},
         logical_device_{nullptr},
         debug_messenger_{},
+        max_frames_in_flight_{2},
         default_debug_messenger_create_info_{} {}
 
   void run() {
@@ -79,24 +90,26 @@ struct [[nodiscard]] Application {
                  is_swapchain_adequate(swapchain_properties);
         });
 
+    physical_device_ = physical_device;
+
     VLK_LOG("Using Physical Device: " << name_physical_device(prop))
 
     std::vector<VkQueueFamilyProperties> queue_families =
-        get_queue_families(physical_device);
+        get_queue_families(physical_device_);
     std::vector<bool> graphics_queue_support =
         get_command_queue_support(queue_families, VK_QUEUE_GRAPHICS_BIT);
 
     // find any queue that supports surface presentation
     std::vector<bool> surface_presentation_queue_support =
         get_surface_presentation_command_queue_support(
-            physical_device, queue_families, surface_);
+            physical_device_, queue_families, surface_);
 
-    auto graphics_queue_family_index =
+    graphics_queue_family_index_ =
         std::find(graphics_queue_support.begin(), graphics_queue_support.end(),
                   true) -
         graphics_queue_support.begin();
 
-    auto surface_presentation_queue_family_index =
+    surface_presentation_queue_family_index_ =
         std::find(surface_presentation_queue_support.begin(),
                   surface_presentation_queue_support.end(), true) -
         surface_presentation_queue_support.begin();
@@ -106,31 +119,29 @@ struct [[nodiscard]] Application {
     std::map<uint32_t, std::vector<float>> target_queue_families;
 
     // TODO(lamarrr): ensure size must not exceed queue family's queueCount
-    target_queue_families[graphics_queue_family_index].push_back(1.0f);
-    auto graphics_command_queue_index =
-        target_queue_families[graphics_queue_family_index].size() - 1;
+    target_queue_families[graphics_queue_family_index_].push_back(1.0f);
+    graphics_command_queue_index_ =
+        target_queue_families[graphics_queue_family_index_].size() - 1;
 
     // trying to make sure we don't create more than one command queue per queue
     // family
-    auto surface_presentation_command_queue_index =
-        graphics_command_queue_index;
-    if (surface_presentation_queue_family_index !=
-        graphics_queue_family_index) {
-      target_queue_families[surface_presentation_queue_family_index].push_back(
+    surface_presentation_command_queue_index_ = graphics_command_queue_index_;
+    if (surface_presentation_queue_family_index_ !=
+        graphics_queue_family_index_) {
+      target_queue_families[surface_presentation_queue_family_index_].push_back(
           1.0f);
-      surface_presentation_command_queue_index =
-          target_queue_families[surface_presentation_queue_family_index]
+      surface_presentation_command_queue_index_ =
+          target_queue_families[surface_presentation_queue_family_index_]
               .size() -
           1;
     }
 
     std::vector<VkDeviceQueueCreateInfo> command_queue_create_infos;
-    std::vector<uint32_t> unique_queue_families_indexes;
 
     for (auto& [queue_family_index, priorities] : target_queue_families) {
       command_queue_create_infos.push_back(
           make_command_queue_create_info(queue_family_index, priorities));
-      unique_queue_families_indexes.push_back(queue_family_index);
+      unique_queue_families_indexes_.push_back(queue_family_index);
     }
 
     // required extensions for the device
@@ -138,63 +149,21 @@ struct [[nodiscard]] Application {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
     logical_device_ = create_logical_device(
-        physical_device, required_logical_device_extensions,
+        physical_device_, required_logical_device_extensions,
         required_validation_layers_, command_queue_create_infos, nullptr);
 
-    SwapChainProperties device_swapchain_properties =
-        get_swapchain_properties(physical_device, surface_);
+    /*========== Command Queue Fetching ==========*/
 
-    VkSurfaceFormatKHR surface_format =
-        select_surface_formats(device_swapchain_properties.supported_formats);
-    VkPresentModeKHR surface_presentation_mode =
-        select_surface_presentation_mode(
-            device_swapchain_properties.presentation_modes);
+    // it is already added onto the create_info of the logical device
+    graphics_command_queue_ =
+        get_command_queue(logical_device_, graphics_queue_family_index_,
+                          graphics_command_queue_index_);
 
-    // it is loaded one the logical device is created as we already specified
-    // it
-    vkGetDeviceQueue(logical_device_, graphics_queue_family_index,
-                     graphics_command_queue_index, &graphics_command_queue_);
-    VLK_ENSURE(graphics_command_queue_ != nullptr,
-               "Graphics command queue not created on target device");
+    surface_presentation_command_queue_ = get_command_queue(
+        logical_device_, surface_presentation_queue_family_index_,
+        surface_presentation_command_queue_index_);
 
-    vkGetDeviceQueue(logical_device_, surface_presentation_queue_family_index,
-                     surface_presentation_command_queue_index,
-                     &surface_presentation_command_queue_);
-    VLK_ENSURE(surface_presentation_command_queue_ != nullptr,
-               "Graphics command queue not created on target device");
-
-    VkExtent2D surface_extent = select_swapchain_extent(
-        window_.window, device_swapchain_properties.capabilities);
-
-    window_swapchain_ = create_swapchain(
-        logical_device_, surface_, surface_extent, surface_format,
-        surface_presentation_mode, device_swapchain_properties,
-        graphics_queue_family_index == surface_presentation_queue_family_index
-            ? VK_SHARING_MODE_EXCLUSIVE  // command queue on same queue family
-                                         // can share resources
-            : VK_SHARING_MODE_CONCURRENT,
-        unique_queue_families_indexes);
-
-    uint32_t image_count;
-    VLK_MUST_SUCCEED(vkGetSwapchainImagesKHR(logical_device_, window_swapchain_,
-                                             &image_count, nullptr),
-                     "Unable to get swapchain images count");
-
-    VLK_LOG("Number of images on created swapchain: " << image_count);
-
-    std::vector<VkImage> swapchain_images(image_count);
-
-    VLK_MUST_SUCCEED(
-        vkGetSwapchainImagesKHR(logical_device_, window_swapchain_,
-                                &image_count, swapchain_images.data()),
-        "Unable to get swapchain images");
-
-    for (auto swapchain_image : swapchain_images) {
-      swapchain_image_views_.push_back(create_image_view(
-          logical_device_, swapchain_image, surface_format.format));
-    }
-
-    // pipeline creation
+    /*========== Shader Loading ==========*/
 
     std::basic_string<uint32_t> const vert_shader_binary =
         load_spirv_binary(config::kSpirvBinariesPath / "triangle.vert.spv")
@@ -210,6 +179,79 @@ struct [[nodiscard]] Application {
     frag_shader_module_ =
         create_shader_module(logical_device_, frag_shader_binary);  // destroy
 
+    /*=====================================*/
+
+    create_swapchain_();
+
+    create_image_views_();
+
+    create_pipeline_();
+
+    create_framebuffers_();
+
+    create_command_pool_();
+
+    allocate_command_buffers_();
+
+    record_command_buffers_();
+
+    create_synchronization_objects_();
+
+    swapchain_dirty_ = false;
+
+    main_loop_();
+
+    cleanup_();
+
+    return;
+  }
+
+ private:
+  void create_swapchain_() {
+    device_swapchain_properties_ =
+        get_swapchain_properties(physical_device_, surface_);
+
+    device_surface_format_ =
+        select_surface_formats(device_swapchain_properties_.supported_formats);
+    device_surface_presentation_mode_ = select_surface_presentation_mode(
+        device_swapchain_properties_.presentation_modes);
+
+    window_.surface_extent = select_swapchain_extent(
+        window_.window, device_swapchain_properties_.capabilities);
+
+    window_swapchain_ = create_swapchain(
+        logical_device_, surface_, window_.surface_extent,
+        device_surface_format_, device_surface_presentation_mode_,
+        device_swapchain_properties_,
+        graphics_queue_family_index_ == surface_presentation_queue_family_index_
+            ? VK_SHARING_MODE_EXCLUSIVE  // command queue on same queue family
+                                         // can share resources
+            : VK_SHARING_MODE_CONCURRENT,
+        unique_queue_families_indexes_);
+  }
+
+  void destroy_swapchain_() {
+    vkDestroySwapchainKHR(logical_device_, window_swapchain_, nullptr);
+  }
+
+  void create_image_views_() {
+    swapchain_image_views_.clear();
+    std::vector<VkImage> swapchain_images =
+        get_swapchain_images(logical_device_, window_swapchain_);
+
+    for (auto swapchain_image : swapchain_images) {
+      swapchain_image_views_.push_back(create_image_view(
+          logical_device_, swapchain_image, device_surface_format_.format));
+    }
+  }
+
+  void destroy_image_views_() {
+    for (auto image_view : swapchain_image_views_) {
+      vkDestroyImageView(logical_device_, image_view, nullptr);
+    }
+  }
+
+  void create_pipeline_() {
     auto vert_shader_pipeline_shader_stage_create_info =
         make_pipeline_shader_stage_create_info(vert_shader_module_, "main",
                                                VK_SHADER_STAGE_VERTEX_BIT);
@@ -222,17 +264,15 @@ struct [[nodiscard]] Application {
         vert_shader_pipeline_shader_stage_create_info,
         frag_shader_pipeline_shader_stage_create_info};
 
-    VkViewport const viewports[] = {
-        make_viewport(0, 0, surface_extent.width, surface_extent.height)};
-    VkRect2D const scissors[] = {
-        VkRect2D{{0, 0}, {surface_extent.width, surface_extent.height}}};
+    VkViewport const viewports[] = {get_viewport_()};  // dynamic pipeline state
+    VkRect2D const scissors[] = {get_scissor_()};      // dynamic pipeline state
 
     // the position of each element corresponds to the indexes of the active
     // framebuffers
     VkPipelineColorBlendAttachmentState const attachments_states[] = {
         make_pipeline_color_blend_attachment_state()};
     VkAttachmentDescription const attachments_descriptions[] = {
-        make_attachment_description(surface_format.format)};
+        make_attachment_description(device_surface_format_.format)};
 
     VkAttachmentReference attachments_references[1] = {};
     attachments_references[0].attachment = 0;
@@ -241,7 +281,9 @@ struct [[nodiscard]] Application {
     VkSubpassDescription const subpasses_descriptions[] = {
         make_subpass_description(attachments_references)};
 
+    // will be set on command buffer recording
     VkDynamicState const dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT,
+                                             VK_DYNAMIC_STATE_SCISSOR,
                                              VK_DYNAMIC_STATE_LINE_WIDTH};
     auto pipeline_dynamic_state = make_pipeline_dynamic_state(dynamic_states);
 
@@ -266,70 +308,126 @@ struct [[nodiscard]] Application {
         make_pipeline_color_blend_state_create_info(attachments_states),
         pipeline_dynamic_state);
 
-    for (size_t i = 0; i < swapchain_image_views_.size(); i++) {
-      VkImageView const attachments[] = {swapchain_image_views_[i]};
-      auto frame_buffer = create_frame_buffer(logical_device_, render_pass_,
-                                              attachments, surface_extent);
+    VLK_LOG("Fetching command queue");
+  }
+
+  void destroy_pipeline_() {
+    vkDestroyPipelineLayout(logical_device_, pipeline_layout_, nullptr);
+    vkDestroyRenderPass(logical_device_, render_pass_, nullptr);
+    vkDestroyPipeline(logical_device_, graphics_pipeline_, nullptr);
+  }
+
+  void create_framebuffers_() {
+    swapchain_framebuffers_.clear();
+    for (auto image_view : swapchain_image_views_) {
+      VkImageView const attachments[] = {image_view};
+      auto frame_buffer = create_frame_buffer(
+          logical_device_, render_pass_, attachments, window_.surface_extent);
       swapchain_framebuffers_.push_back(frame_buffer);
     }
+  }
 
+  void destroy_framebuffers_() {
+    for (auto frame_buffer : swapchain_framebuffers_) {
+      vkDestroyFramebuffer(logical_device_, frame_buffer, nullptr);
+    }
+  }
+
+  void create_command_pool_() {
     graphics_command_pool_ =
-        create_command_pool(logical_device_, graphics_queue_family_index);
+        create_command_pool(logical_device_, graphics_queue_family_index_);
+  }
 
+  void allocate_command_buffers_() {
+    graphics_command_buffers_.clear();
     graphics_command_buffers_.resize(swapchain_framebuffers_.size());
-
     allocate_command_buffers(logical_device_, graphics_command_pool_,
                              graphics_command_buffers_);
+  }
 
-    VkClearValue const clear_values[] = {VkClearValue{1.0f, 1.0f, 1.0f, 1.0f}};
-
+  void record_command_buffers_() {
+    VkViewport const viewports[] = {get_viewport_()};
+    VkRect2D const scissors[] = {get_scissor_()};
     for (size_t i = 0; i < swapchain_framebuffers_.size(); i++) {
       begin_command_buffer_recording(graphics_command_buffers_[i]);
-      cmd::begin_render_pass(
-          render_pass_, graphics_command_buffers_[i],
-          swapchain_framebuffers_[i],
-          VkRect2D{{0, 0}, {surface_extent.width, surface_extent.height}},
-          clear_values);
+      auto render_area = VkRect2D{
+          {0, 0},
+          {window_.surface_extent.width, window_.surface_extent.height}};
+      cmd::begin_render_pass(render_pass_, graphics_command_buffers_[i],
+                             swapchain_framebuffers_[i], render_area,
+                             clear_values_);
       cmd::bind_pipeline(graphics_pipeline_, graphics_command_buffers_[i]);
-      cmd::set_viewport(graphics_command_buffers_[i], viewports);
+      cmd::set_viewports(graphics_command_buffers_[i], viewports);
+      cmd::set_scissors(graphics_command_buffers_[i], scissors);
+      cmd::set_line_width(graphics_command_buffers_[i], 1.0f);
       cmd::draw(graphics_command_buffers_[i], 3, 1, 0, 0);
       cmd::end_render_pass(graphics_command_buffers_[i]);
       end_command_buffer_recording(graphics_command_buffers_[i]);
     }
+  }
 
-    max_frames_in_flight_ = 2;
+  void destroy_command_pool_() {
+    vkDestroyCommandPool(logical_device_, graphics_command_pool_, nullptr);
+  }
 
-    // synchronization objects
+  void create_synchronization_objects_() {
+    image_available_semaphores_.clear();
+    rendering_finished_semaphores_.clear();
+    in_flight_fences_.clear();
+
     for (uint32_t i = 0; i < max_frames_in_flight_; i++) {
       image_available_semaphores_.push_back(create_semaphore(logical_device_));
       rendering_finished_semaphores_.push_back(
           create_semaphore(logical_device_));
       in_flight_fences_.push_back(create_fence(logical_device_, true));
     }
-
-    main_loop_();
-    cleanup_();
-
-    return;
   }
 
- private:
+  void destroy_synchronization_objects_() {
+    for (auto semaphore : image_available_semaphores_) {
+      vkDestroySemaphore(logical_device_, semaphore, nullptr);
+    }
+
+    for (auto semaphore : rendering_finished_semaphores_) {
+      vkDestroySemaphore(logical_device_, semaphore, nullptr);
+    }
+
+    for (auto fence : in_flight_fences_) {
+      vkDestroyFence(logical_device_, fence, nullptr);
+    }
+  }
+
+  VkViewport get_viewport_() {
+    return make_viewport(0, 0, window_.surface_extent.width,
+                         window_.surface_extent.height);
+  }
+
+  VkRect2D get_scissor_() {
+    return make_scissor(0, 0, window_.surface_extent.width,
+                        window_.surface_extent.height);
+  }
+
   void init_window_() {
     VLK_ENSURE(glfwInit() == GLFW_TRUE, "Unable to initialize GLFW");
     glfwWindowHint(
         GLFW_CLIENT_API,
         GLFW_NO_API);  // not an OpenGL app, do not create OpenGL context
 
-    VLK_WARN_IF(window_config_.resizable, "Window resizing not supported yet");
-    glfwWindowHint(GLFW_RESIZABLE,
-                   GLFW_FALSE);  // requires handling the framebuffer size
+    glfwWindowHint(
+        GLFW_RESIZABLE,
+        window_config_.resizable);  // requires handling the framebuffer size
 
     // width and height here refer to the screen coordinates and not the actual
     // pixels
     window_.window = glfwCreateWindow(window_config_.desired_width,
                                       window_config_.desired_height, "Valkyrie",
                                       nullptr, nullptr);
+
     VLK_ENSURE(window_.window != nullptr, "Window creation failed");
+
+    glfwSetWindowUserPointer(window_.window, this);
+    glfwSetWindowSizeCallback(window_.window,
+                              application_window_resize_callback);
   }
 
   void init_vulkan_() {
@@ -386,6 +484,7 @@ struct [[nodiscard]] Application {
 
     // wait for the image using the present flight synchronization values to
     // finish
+
     VLK_MUST_SUCCEED(
         vkWaitForFences(logical_device_, 1,
                         in_flight_fences_.data() + frame_flight_index, VK_TRUE,
@@ -399,12 +498,18 @@ struct [[nodiscard]] Application {
 
     uint32_t swapchain_image_index;
 
-    VLK_MUST_SUCCEED(
-        vkAcquireNextImageKHR(
-            logical_device_, window_swapchain_, kWaitTimeout,
-            /* notify */ image_available_semaphores_[frame_flight_index],
-            VK_NULL_HANDLE, &swapchain_image_index),
-        "Unable to acquire swapchain image");
+    auto image_acquire_result = vkAcquireNextImageKHR(
+        logical_device_, window_swapchain_, kWaitTimeout,
+        /* notify */ image_available_semaphores_[frame_flight_index],
+        VK_NULL_HANDLE, &swapchain_image_index);
+    VLK_ENSURE(image_acquire_result == VK_SUCCESS ||
+                   image_acquire_result == VK_ERROR_OUT_OF_DATE_KHR,
+               "Unable to acquire swapchain image");
+
+    if (image_acquire_result == VK_ERROR_OUT_OF_DATE_KHR) {
+      swapchain_dirty_ = true;
+      return;
+    }
 
     {
       VkSemaphore const await_semaphores[] = {
@@ -425,27 +530,51 @@ struct [[nodiscard]] Application {
       VkSemaphore const await_semaphores[] = {
           rendering_finished_semaphores_[frame_flight_index]};
 
-      present_to_swapchains(surface_presentation_command_queue_,
-                            await_semaphores, swapchains,
-                            swapchain_image_indexes);
+      if (present_to_swapchains(surface_presentation_command_queue_,
+                                await_semaphores, swapchains,
+                                swapchain_image_indexes) != VK_SUCCESS) {
+        swapchain_dirty_ = true;
+        return;
+      }
     }
   }
 
   void recreate_swapchain_() {
-    vkDeviceWaitIdle(logical_device_);
-    // cleanup_swapchain();
-    // create_swapchain();
-    // create_image_views();
-    // create_render_pass();
-    // create_graphics_pipeline();
-    // create_frame_buffers();
-    // create_command_buffers();
+    vkDeviceWaitIdle(logical_device_);  // to ensure we don't modify any
+                                        // resource while in use
+    int width, height;
+    glfwGetFramebufferSize(window_.window, &width, &height);
+    window_.surface_extent.width = width;
+    window_.surface_extent.height = height;
+
+    destroy_swapchain_();
+    destroy_image_views_();
+    destroy_pipeline_();
+    destroy_framebuffers_();
+    destroy_command_pool_();
+    destroy_synchronization_objects_();
+
+    create_swapchain_();
+    create_image_views_();
+    create_pipeline_();
+    create_framebuffers_();
+    create_command_pool_();
+    allocate_command_buffers_();
+    record_command_buffers_();
+    create_synchronization_objects_();
   }
 
   void main_loop_() {
     uint32_t frame_flight_index = 0;
     while (!glfwWindowShouldClose(window_.window)) {
       glfwPollEvents();
+
+      if (swapchain_dirty_) {
+        recreate_swapchain_();
+        swapchain_dirty_ = false;
+        continue;
+      }
+
       draw_frame_(frame_flight_index);
       frame_flight_index = (frame_flight_index + 1) % max_frames_in_flight_;
     }
@@ -454,11 +583,17 @@ struct [[nodiscard]] Application {
   }
 
   void cleanup_() {
-    for (auto image_view : swapchain_image_views_) {
-      vkDestroyImageView(logical_device_, image_view, nullptr);
-    }
+    destroy_swapchain_();
+    destroy_image_views_();
+    destroy_pipeline_();
+    destroy_framebuffers_();
+    destroy_command_pool_();
+    destroy_synchronization_objects_();
 
-    vkDestroySwapchainKHR(logical_device_, window_swapchain_, nullptr);
+    /*==================*/
+    vkDestroyShaderModule(logical_device_, frag_shader_module_, nullptr);
+    vkDestroyShaderModule(logical_device_, vert_shader_module_, nullptr);
+
     vkDestroySurfaceKHR(vulkan_instance_, surface_, nullptr);
 
     vkDestroyDevice(logical_device_, nullptr);
@@ -473,15 +608,35 @@ struct [[nodiscard]] Application {
     glfwTerminate();
   }
 
+  friend void application_window_resize_callback(GLFWwindow*, int, int);
+
   Window window_;
   WindowConfig window_config_;
+
+  std::vector<VkClearValue> clear_values_;
 
   VkInstance vulkan_instance_;
 
   // creation only needs the vulkan instance, a.k.a. backbuffer
   VkSurfaceKHR surface_;
 
+  VkPhysicalDevice physical_device_;
+  SwapChainProperties device_swapchain_properties_;
+  VkSurfaceFormatKHR device_surface_format_;
+  VkPresentModeKHR device_surface_presentation_mode_;
+
   VkDevice logical_device_;
+
+  uint32_t graphics_queue_family_index_;
+  uint32_t surface_presentation_queue_family_index_;
+
+  std::vector<uint32_t> unique_queue_families_indexes_;
+
+  uint32_t graphics_command_queue_index_;
+  uint32_t surface_presentation_command_queue_index_;
+
+  VkSwapchainKHR window_swapchain_;
+  bool swapchain_dirty_;
 
   VkShaderModule vert_shader_module_;
   VkShaderModule frag_shader_module_;
@@ -509,8 +664,6 @@ struct [[nodiscard]] Application {
   // i.e. maximum number of frames to be processed per loop
   uint32_t max_frames_in_flight_;
 
-  VkSwapchainKHR window_swapchain_;
-
   std::vector<VkImageView> swapchain_image_views_;
 
   // only used in debug mode
@@ -520,8 +673,16 @@ struct [[nodiscard]] Application {
       "VK_LAYER_KHRONOS_validation"};
 };
 
+static void application_window_resize_callback(GLFWwindow* window, int, int) {
+  auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+  app->swapchain_dirty_ = true;
+}
+
 int main() {
-  Application app{WindowConfig{
-      .desired_width = 1920, .desired_height = 1080, .resizable = true}};
+  WindowConfig window_config{};
+  window_config.desired_width = 1920;
+  window_config.desired_height = 1080;
+  window_config.resizable = true;
+  Application app{window_config};
   app.run();
 }
