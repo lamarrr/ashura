@@ -730,6 +730,18 @@ make_pipeline_input_assembly_state_create_info() {
   return viewport;
 }
 
+[[nodiscard]] VkRect2D make_scissor(float x, float y, float w, float h) {
+  VkRect2D scissor{};
+
+  scissor.offset.x = x;
+  scissor.offset.y = y;
+
+  scissor.extent.width = w;
+  scissor.extent.height = h;
+
+  return scissor;
+}
+
 [[nodiscard]] VkPipelineViewportStateCreateInfo
 make_pipeline_viewport_state_create_info(
     stx::Span<VkViewport const> const& viewports,
