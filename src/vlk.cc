@@ -13,6 +13,8 @@
 #include "vlk/shader.h"
 #include "vlk/config.h"
 
+#include "vlk/vertex.h"
+#include "vlk/allocators.h"
 // EXT suffix => extensions. needs to be loaded before use
 // PFN prefix => pointer function
 
@@ -81,10 +83,14 @@ struct [[nodiscard]] Application {
               get_surface_presentation_command_queue_support(
                   device, queue_families, surface_);
 
+          auto transfer_queue_support =
+              get_command_queue_support(queue_families, VK_QUEUE_TRANSFER_BIT);
+
           auto swapchain_properties =
               get_swapchain_properties(device, surface_);
 
           return any_true(graphics_queue_support) &&
+                 any_true(transfer_queue_support) &&
                  any_true(surface_presentation_queue_support) &&
                  features.geometryShader &&
                  is_swapchain_adequate(swapchain_properties);
@@ -104,6 +110,9 @@ struct [[nodiscard]] Application {
         get_surface_presentation_command_queue_support(
             physical_device_, queue_families, surface_);
 
+    std::vector<bool> transfer_queue_support =
+        get_command_queue_support(queue_families, VK_QUEUE_TRANSFER_BIT);
+
     graphics_queue_family_index_ =
         std::find(graphics_queue_support.begin(), graphics_queue_support.end(),
                   true) -
@@ -114,27 +123,39 @@ struct [[nodiscard]] Application {
                   surface_presentation_queue_support.end(), true) -
         surface_presentation_queue_support.begin();
 
+    transfer_queue_family_index_ =
+        std::find(transfer_queue_support.begin(), transfer_queue_support.end(),
+                  true) -
+        transfer_queue_support.begin();
+
     // the vector's length is equal to the number of command
     // queues to create on each of the queue family
     std::map<uint32_t, std::vector<float>> target_queue_families;
 
+    // NOTE: we only allow one command queue per queue family
+
     // TODO(lamarrr): ensure size must not exceed queue family's queueCount
     target_queue_families[graphics_queue_family_index_].push_back(1.0f);
-    graphics_command_queue_index_ =
-        target_queue_families[graphics_queue_family_index_].size() - 1;
+
+    graphics_command_queue_index_ = 0;
 
     // trying to make sure we don't create more than one command queue per queue
     // family
-    surface_presentation_command_queue_index_ = graphics_command_queue_index_;
-    if (surface_presentation_queue_family_index_ !=
-        graphics_queue_family_index_) {
-      target_queue_families[surface_presentation_queue_family_index_].push_back(
-          1.0f);
-      surface_presentation_command_queue_index_ =
-          target_queue_families[surface_presentation_queue_family_index_]
-              .size() -
-          1;
+
+    if (target_queue_families.find(surface_presentation_queue_family_index_) ==
+        target_queue_families.end()) {
+      target_queue_families[surface_presentation_queue_family_index_] =
+          std::vector{1.0f};
     }
+
+    surface_presentation_command_queue_index_ = 0;
+
+    if (target_queue_families.find(transfer_queue_family_index_) ==
+        target_queue_families.end()) {
+      target_queue_families[transfer_queue_family_index_] = std::vector{1.0f};
+    }
+
+    transfer_command_queue_index_ = 0;
 
     std::vector<VkDeviceQueueCreateInfo> command_queue_create_infos;
 
@@ -163,6 +184,10 @@ struct [[nodiscard]] Application {
         logical_device_, surface_presentation_queue_family_index_,
         surface_presentation_command_queue_index_);
 
+    transfer_command_queue_ =
+        get_command_queue(logical_device_, transfer_queue_family_index_,
+                          transfer_command_queue_index_);
+
     /*========== Shader Loading ==========*/
 
     std::basic_string<uint32_t> const vert_shader_binary =
@@ -189,13 +214,20 @@ struct [[nodiscard]] Application {
 
     create_framebuffers_();
 
-    create_command_pool_();
+    transfer_command_pool_ =
+        create_command_pool(logical_device_, transfer_command_queue_index_);
+    create_command_pools_();
 
+    transfer_command_buffers_.push_back({});
+    allocate_command_buffers(logical_device_, transfer_command_pool_,
+                             transfer_command_buffers_);
     allocate_command_buffers_();
 
     record_command_buffers_();
 
     create_synchronization_objects_();
+
+    create_buffers_();
 
     swapchain_dirty_ = false;
 
@@ -219,14 +251,19 @@ struct [[nodiscard]] Application {
     window_.surface_extent = select_swapchain_extent(
         window_.window, device_swapchain_properties_.capabilities);
 
+    // todo change unique_queue_families to swapchain_owning_queue_families
     window_swapchain_ = create_swapchain(
         logical_device_, surface_, window_.surface_extent,
         device_surface_format_, device_surface_presentation_mode_,
         device_swapchain_properties_,
-        graphics_queue_family_index_ == surface_presentation_queue_family_index_
-            ? VK_SHARING_MODE_EXCLUSIVE  // command queue on same queue family
-                                         // can share resources
-            : VK_SHARING_MODE_CONCURRENT,
+        (surface_presentation_queue_family_index_ !=
+             graphics_queue_family_index_ ||
+         surface_presentation_queue_family_index_ !=
+             transfer_queue_family_index_)
+            ? VK_SHARING_MODE_CONCURRENT  // surface, presentation, and transfer
+                                          // command queue on same queue family
+                                          // can share resources
+            : VK_SHARING_MODE_EXCLUSIVE,
         unique_queue_families_indexes_);
   }
 
@@ -296,10 +333,17 @@ struct [[nodiscard]] Application {
         create_render_pass(logical_device_, attachments_descriptions,
                            subpasses_descriptions, subpass_dependencies);
 
+    constexpr auto input_binding_description =
+        std::array{Vertex::make_input_binding_description()};
+    constexpr auto input_attribute_description =
+        Vertex::make_attributes_descriptions();
+
+    auto vertex_input_state =
+        make_pipeline_vertex_input_state_create_info({}, {});
+
     graphics_pipeline_ = create_graphics_pipeline(
         logical_device_, pipeline_layout_, render_pass_,
-        shader_stages_create_info,
-        make_pipeline_vertex_input_state_create_info({}, {}),
+        shader_stages_create_info, vertex_input_state,
         make_pipeline_input_assembly_state_create_info(),
         make_pipeline_viewport_state_create_info(viewports, scissors),
         make_pipeline_rasterization_create_info(),
@@ -331,7 +375,7 @@ struct [[nodiscard]] Application {
     }
   }
 
-  void create_command_pool_() {
+  void create_command_pools_() {
     graphics_command_pool_ =
         create_command_pool(logical_device_, graphics_queue_family_index_);
   }
@@ -364,7 +408,7 @@ struct [[nodiscard]] Application {
     }
   }
 
-  void destroy_command_pool_() {
+  void destroy_command_pools_() {
     vkDestroyCommandPool(logical_device_, graphics_command_pool_, nullptr);
   }
 
@@ -393,6 +437,20 @@ struct [[nodiscard]] Application {
     for (auto fence : in_flight_fences_) {
       vkDestroyFence(logical_device_, fence, nullptr);
     }
+  }
+
+  void create_buffers_() {
+    std::vector<Vertex> vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                                    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+                                    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+    device_vertex_buffer_ =
+        Buffer<VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE,
+               static_cast<VkMemoryPropertyFlagBits>(
+                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                   VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>::
+            create_with_allocator(logical_device_, physical_device_,
+                                  vertices.size() * sizeof(Vertex), 50'000'000);
+    // TODO(lamarrr): move semantics, resource types, allocator context, etc
   }
 
   VkViewport get_viewport_() {
@@ -566,14 +624,14 @@ struct [[nodiscard]] Application {
     destroy_image_views_();
     destroy_pipeline_();
     destroy_framebuffers_();
-    destroy_command_pool_();
+    destroy_command_pools_();
     destroy_synchronization_objects_();
 
     create_swapchain_();
     create_image_views_();
     create_pipeline_();
     create_framebuffers_();
-    create_command_pool_();
+    create_command_pools_();
     allocate_command_buffers_();
     record_command_buffers_();
     create_synchronization_objects_();
@@ -602,8 +660,11 @@ struct [[nodiscard]] Application {
     destroy_image_views_();
     destroy_pipeline_();
     destroy_framebuffers_();
-    destroy_command_pool_();
+    destroy_command_pools_();
+    vkDestroyCommandPool(logical_device_, transfer_command_pool_, nullptr);
     destroy_synchronization_objects_();
+
+    device_vertex_buffer_.destroy(logical_device_);
 
     /*==================*/
     vkDestroyShaderModule(logical_device_, frag_shader_module_, nullptr);
@@ -644,11 +705,13 @@ struct [[nodiscard]] Application {
 
   uint32_t graphics_queue_family_index_;
   uint32_t surface_presentation_queue_family_index_;
+  uint32_t transfer_queue_family_index_;
 
   std::vector<uint32_t> unique_queue_families_indexes_;
 
   uint32_t graphics_command_queue_index_;
   uint32_t surface_presentation_command_queue_index_;
+  uint32_t transfer_command_queue_index_;
 
   VkSwapchainKHR window_swapchain_;
   bool swapchain_dirty_;
@@ -664,12 +727,15 @@ struct [[nodiscard]] Application {
   std::vector<VkFramebuffer> swapchain_framebuffers_;
 
   VkCommandPool graphics_command_pool_;
+  VkCommandPool transfer_command_pool_;
 
   // automatically cleaned on destruction of the logical device
   VkQueue graphics_command_queue_;
   VkQueue surface_presentation_command_queue_;
+  VkQueue transfer_command_queue_;
 
   std::vector<VkCommandBuffer> graphics_command_buffers_;
+  std::vector<VkCommandBuffer> transfer_command_buffers_;
 
   // one for each frame in flight
   std::vector<VkSemaphore> image_available_semaphores_;
@@ -686,6 +752,23 @@ struct [[nodiscard]] Application {
   VkDebugUtilsMessengerCreateInfoEXT default_debug_messenger_create_info_;
   static constexpr char const* required_validation_layers_[] = {
       "VK_LAYER_KHRONOS_validation"};
+
+  BlockAllocator device_vertex_buffer_allocator_;
+  Buffer<VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE,
+         static_cast<VkMemoryPropertyFlagBits>(
+             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>
+      device_vertex_buffer_;
+  Buffer<VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE,
+         static_cast<VkMemoryPropertyFlagBits>(
+             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>
+      device_index_buffer_;
+  Buffer<VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_SHARING_MODE_EXCLUSIVE,
+         static_cast<VkMemoryPropertyFlagBits>(
+             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>
+      host_staging_buffer_;
 };
 
 static void application_window_resize_callback(GLFWwindow* window, int, int) {
