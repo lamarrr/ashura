@@ -1373,6 +1373,18 @@ void flush_memory_map(VkDevice device, VkDeviceMemory memory, uint64_t offset,
                    "Unable to flush memory map");
 }
 
+void refresh_memory_map(VkDevice device, VkDeviceMemory memory, uint64_t offset,
+                        stx::Span<uint8_t const> const& memory_map) {
+  VkMappedMemoryRange range{};
+  range.memory = memory;
+  range.offset = offset;
+  range.size = memory_map.size();
+  range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+
+  VLK_MUST_SUCCEED(vkInvalidateMappedMemoryRanges(device, 1, &range),
+                   "Unable to re-read memory map");
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
