@@ -1263,6 +1263,22 @@ void submit_buffer(VkQueue command_queue, VkCommandBuffer command_buffer,
   return present_result;
 }
 
+// creates buffer object but doesn't assign memory to it
+VkBuffer create_buffer(VkDevice device, size_t byte_size,
+                       VkBufferUsageFlagBits usage,
+                       VkSharingMode sharing_mode) {
+  VkBufferCreateInfo buffer_info{};
+  buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  buffer_info.size = byte_size;
+  buffer_info.usage = usage;
+  buffer_info.sharingMode = sharing_mode;
+
+  VkBuffer buffer;
+  VLK_MUST_SUCCEED(vkCreateBuffer(device, &buffer_info, nullptr, &buffer),
+                   "Unable to create buffer");
+  return buffer;
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
