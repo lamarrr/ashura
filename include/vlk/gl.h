@@ -1289,6 +1289,39 @@ VkBuffer create_vertex_buffer(VkDevice device, size_t byte_size,
                        sharing_mode);
 }
 
+// get memory requirements for a buffer based on it's type and usage mode
+VkMemoryRequirements get_memory_requirements(VkDevice device, VkBuffer buffer) {
+  VkMemoryRequirements memory_requirements;
+  vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
+  return memory_requirements;
+}
+
+// returns index of the heap on the physical device, could be RAM, SWAP, or VRAM
+stx::Option<uint32_t> find_suitable_memory_type(
+    VkPhysicalDevice physical_device,
+    VkMemoryRequirements const& memory_requirements,
+    VkMemoryPropertyFlagBits required_properties =
+        static_cast<VkMemoryPropertyFlagBits>(
+            std::numeric_limits<
+                std::underlying_type_t<VkMemoryPropertyFlagBits>>::max())) {
+  VkPhysicalDeviceMemoryProperties memory_properties;
+
+  vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
+  // different types of memory exist within the graphics card heap memory.
+  // this can affect performance.
+
+  for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
+    if ((memory_requirements.memoryTypeBits & (1 << i)) &&
+        ((required_properties &
+          memory_properties.memoryTypes[i].propertyFlags) ==
+         required_properties)) {
+      return stx::Some(std::move(i));
+    }
+  }
+
+  return stx::None;
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
