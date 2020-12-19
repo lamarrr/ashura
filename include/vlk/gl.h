@@ -1360,6 +1360,19 @@ void unmap_memory(VkDevice device, VkDeviceMemory memory) {
   vkUnmapMemory(device, memory);
 }
 
+// due to caching we need to flush writes to the memory map before reading again
+void flush_memory_map(VkDevice device, VkDeviceMemory memory, uint64_t offset,
+                      stx::Span<uint8_t const> const& memory_map) {
+  VkMappedMemoryRange range{};
+  range.memory = memory;
+  range.offset = offset;
+  range.size = memory_map.size();
+  range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+
+  VLK_MUST_SUCCEED(vkFlushMappedMemoryRanges(device, 1, &range),
+                   "Unable to flush memory map");
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
