@@ -35,12 +35,18 @@ set(GLFW_INSTALL
 
 add_subdirectory(third_party/glfw)
 add_subdirectory(third_party/spdlog)
+add_subdirectory(third_party/glm)
 
 find_package(Vulkan REQUIRED)
 
+add_executable(valkyrie.bin src/vlk.cc)
+target_link_libraries(valkyrie.bin stx glfw spdlog::spdlog glm::glm ${Vulkan_LIBRARIES})
+target_include_directories(
+  valkyrie.bin PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include)
+
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID}
                                                 STREQUAL "GNU")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  target_compile_options(valkyrie.bin PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 add_executable(valkyrie.bin src/vlk.cc)
