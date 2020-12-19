@@ -1322,6 +1322,22 @@ stx::Option<uint32_t> find_suitable_memory_type(
   return stx::None;
 }
 
+// vkFreeMemory
+VkDeviceMemory allocate_memory(VkDevice device, uint32_t heap_index,
+                               uint64_t size) {
+  VkMemoryAllocateInfo allocate_info{};
+
+  allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocate_info.allocationSize = size;
+  allocate_info.memoryTypeIndex = heap_index;
+
+  VkDeviceMemory memory;
+  VLK_MUST_SUCCEED(vkAllocateMemory(device, &allocate_info, nullptr, &memory),
+                   "Unable to allocate memory");
+
+  return memory;
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
