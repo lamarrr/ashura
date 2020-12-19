@@ -14,6 +14,9 @@ execute_process(
 execute_process(
   COMMAND git clone -b v1.8.2 https://github.com/gabime/spdlog.git
           third_party/spdlog WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+execute_process(
+  COMMAND git clone -b 0.9.9.8 https://github.com/g-truc/glm.git
+          third_party/glm WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 add_subdirectory(third_party/STX)
 add_subdirectory(third_party/glfw)
