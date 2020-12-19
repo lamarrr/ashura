@@ -1279,6 +1279,16 @@ VkBuffer create_buffer(VkDevice device, size_t byte_size,
   return buffer;
 }
 
+VkBuffer create_vertex_buffer(VkDevice device, size_t byte_size,
+                              VkSharingMode sharing_mode,
+                              VkBufferUsageFlagBits buffer_usage =
+                                  static_cast<VkBufferUsageFlagBits>(0)) {
+  return create_buffer(device, byte_size,
+                       static_cast<VkBufferUsageFlagBits>(
+                           VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | buffer_usage),
+                       sharing_mode);
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
