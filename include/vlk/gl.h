@@ -1338,6 +1338,13 @@ VkDeviceMemory allocate_memory(VkDevice device, uint32_t heap_index,
   return memory;
 }
 
+VkDeviceMemory bind_memory_to_buffer(VkDevice device, VkBuffer buffer,
+                                     VkDeviceMemory memory) {
+  VLK_MUST_SUCCEED(vkBindBufferMemory(device, buffer, memory, 0),
+                   "Unable to bind memory to buffer");
+  return memory;
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
