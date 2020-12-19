@@ -1354,6 +1354,12 @@ stx::Span<uint8_t> map_memory(VkDevice device, VkDeviceMemory memory,
   return stx::Span<uint8_t>{reinterpret_cast<uint8_t*>(ptr), size};
 }
 
+// unlike OpenGL the driver may not immediately copy the data after unmap, i.e.
+// due to caching. so we need to flush our writes
+void unmap_memory(VkDevice device, VkDeviceMemory memory) {
+  vkUnmapMemory(device, memory);
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
