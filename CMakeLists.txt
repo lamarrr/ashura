@@ -48,10 +48,24 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID}
                                                 STREQUAL "GNU")
   target_compile_options(valkyrie.bin PRIVATE -Wall -Wextra -Wpedantic)
 endif()
-
-add_executable(valkyrie.bin src/vlk.cc)
-target_link_libraries(valkyrie.bin stx glfw spdlog::spdlog ${Vulkan_LIBRARIES})
-target_include_directories(
-  valkyrie.bin PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include)
-
 # todo: add GLSL compilation
+
+function(add_spirv_shader TARGET_NAME IN_GLSL_FILE_PATH OUT_SPIRV_FILE)
+  add_custom_target(
+    shader-${TARGET_NAME}
+    glslangValidator -V ${IN_GLSL_FILE_PATH} -o
+    ${CMAKE_CURRENT_BINARY_DIR}/${OUT_SPIRV_FILE}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+endfunction()
+
+list(APPEND GLSL_TARGETS triangle)
+
+foreach(GLSL_TARGET ${GLSL_TARGETS})
+  add_spirv_shader(
+    ${GLSL_TARGET}-frag shaders/${GLSL_TARGET}/${GLSL_TARGET}.frag
+    ${GLSL_TARGET}.frag.spv)
+  add_spirv_shader(
+    ${GLSL_TARGET}-vert shaders/${GLSL_TARGET}/${GLSL_TARGET}.vert
+    ${GLSL_TARGET}.vert.spv)
+endforeach(GLSL_TARGET)
