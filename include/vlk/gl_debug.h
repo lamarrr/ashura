@@ -84,8 +84,19 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
             "detected";
   }
 
-  VLK_WARN("[Validation Layer Message, Hints=\"{}\"] {}", hint,
-           callback_data->pMessage);
+  bool const is_general =
+      message_type == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT;
+  if (hint.empty()) {
+    VLK_LOG_IF(is_general, "[Validation Layer Message] {}",
+               callback_data->pMessage);
+    VLK_WARN_IF(!is_general, "[Validation Layer Message] {}",
+                callback_data->pMessage);
+  } else {
+    VLK_LOG_IF(is_general, "[Validation Layer Message, Hints=\"{}\"] {}", hint,
+               callback_data->pMessage);
+    VLK_WARN_IF(!is_general, "[Validation Layer Message, Hints=\"{}\"] {}",
+                hint, callback_data->pMessage);
+  }
 
   return VK_FALSE;
 }
