@@ -708,7 +708,7 @@ struct [[nodiscard]] Application {
 
     VLK_LOG("Required GLFW Extensions:");
     for (size_t i = 0; i < glfw_req_extensions_count; i++) {
-      VLK_LOG("\t" << glfw_req_extensions_names[i]);
+      VLK_LOG("\t{}", glfw_req_extensions_names[i]);
     }
 
     std::vector<char const*> required_extensions;
