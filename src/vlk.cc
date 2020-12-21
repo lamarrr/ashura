@@ -736,7 +736,7 @@ struct [[nodiscard]] Application {
   VkQueue transfer_command_queue_;
 
   std::vector<VkCommandBuffer> graphics_command_buffers_;
-  std::vector<VkCommandBuffer> transfer_command_buffers_;
+  VkCommandBuffer transfer_command_buffer_;
 
   // one for each frame in flight
   std::vector<VkSemaphore> image_available_semaphores_;
