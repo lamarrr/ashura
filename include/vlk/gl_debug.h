@@ -77,8 +77,8 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
             "detected";
   }
 
-  VLK_LOG("[Validation Layer Message, Hints=\"{}\"] {}", hint,
-          callback_data->pMessage);
+  VLK_WARN("[Validation Layer Message, Hints=\"{}\"] {}", hint,
+           callback_data->pMessage);
 
   return VK_FALSE;
 }
