@@ -323,4 +323,4 @@ struct Buffer {
   BlockAllocator allocator_;
 };
 
-};  // namespace vlk
+}  // namespace vlk
