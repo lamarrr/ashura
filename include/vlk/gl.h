@@ -1447,8 +1447,8 @@ VkDeviceMemory allocate_memory(VkDevice device, uint32_t heap_index,
 }
 
 VkDeviceMemory bind_memory_to_buffer(VkDevice device, VkBuffer buffer,
-                                     VkDeviceMemory memory) {
-  VLK_MUST_SUCCEED(vkBindBufferMemory(device, buffer, memory, 0),
+                                     VkDeviceMemory memory, uint64_t offset) {
+  VLK_MUST_SUCCEED(vkBindBufferMemory(device, buffer, memory, offset),
                    "Unable to bind memory to buffer");
   return memory;
 }
