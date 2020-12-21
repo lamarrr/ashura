@@ -755,19 +755,27 @@ struct [[nodiscard]] Application {
       "VK_LAYER_KHRONOS_validation"};
 
   // VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: always fast memory for the device to
-             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>
-      device_vertex_buffer_;
-  Buffer<VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE,
-         static_cast<VkMemoryPropertyFlagBits>(
-             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>
-      device_index_buffer_;
-  Buffer<VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_SHARING_MODE_EXCLUSIVE,
-         static_cast<VkMemoryPropertyFlagBits>(
-             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>
-      host_staging_buffer_;
+  // read from during rendering
+  using DeviceVertexBuffer = Buffer<static_cast<VkBufferUsageFlagBits>(
+                                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+                                    VK_SHARING_MODE_EXCLUSIVE,
+                                    static_cast<VkMemoryPropertyFlagBits>(
+                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)>;
+
+  using DeviceIndexBuffer = Buffer<static_cast<VkBufferUsageFlagBits>(
+                                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+                                       VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+                                   VK_SHARING_MODE_EXCLUSIVE,
+                                   static_cast<VkMemoryPropertyFlagBits>(
+                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)>;
+
+  using HostStagingBuffer =
+      Buffer<VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_SHARING_MODE_EXCLUSIVE,
+             static_cast<VkMemoryPropertyFlagBits>(
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>;
+
 };
 
 static void application_window_resize_callback(GLFWwindow* window, int, int) {
