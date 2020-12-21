@@ -10,25 +10,23 @@
 
 namespace vlk {
 
-struct DeviceAllocationContext {
-  std::atomic<size_t> allocations;
-  size_t const max_allocations;
-};
-
 struct MemoryCommit {
-  size_t offset;
-  size_t size;
+  // offset into the device memory
+  uint64_t offset;
+  // true size of the memory commit (can be larger than requested size)
+  uint64_t size;
+  // the device memory
   VkDeviceMemory memory;
 };
 
 // not thread-safe
 // allocates memory in blocks and frees all of the blocks at the end of it's
-// lifetime
+// lifetime (when destroy is called)
 struct BlockAllocator {
   struct MemoryBlock {
     struct Partition {
-      size_t offset;
-      size_t size;
+      uint64_t offset;
+      uint64_t size;
       bool in_use;
 
      private:
@@ -146,7 +144,7 @@ struct BlockAllocator {
   }
 
   // allocates at-least {bytes} bytes of memory
-  stx::Option<MemoryCommit> allocate(VkDevice device, size_t bytes) noexcept {
+  stx::Option<MemoryCommit> allocate(VkDevice device, uint64_t bytes) noexcept {
     VLK_ENSURE(
         bytes <= bytes_per_block_,
         "Requested bytes size exceeds max requestable device memory size");
@@ -191,7 +189,7 @@ struct BlockAllocator {
  private:
   uint32_t memory_type_index_;
   std::vector<MemoryBlock> memory_blocks_;
-  size_t bytes_per_block_;
+  uint64_t bytes_per_block_;
   size_t max_allocations_count_;
 };
 

@@ -1264,7 +1264,7 @@ void submit_buffer(VkQueue command_queue, VkCommandBuffer command_buffer,
 }
 
 // creates buffer object but doesn't assign memory to it
-VkBuffer create_buffer(VkDevice device, size_t byte_size,
+VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
                        VkBufferUsageFlagBits usage,
                        VkSharingMode sharing_mode) {
   VkBufferCreateInfo buffer_info{};
