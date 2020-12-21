@@ -1278,16 +1278,6 @@ VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
   return buffer;
 }
 
-VkBuffer create_vertex_buffer(VkDevice device, size_t byte_size,
-                              VkSharingMode sharing_mode,
-                              VkBufferUsageFlagBits buffer_usage =
-                                  static_cast<VkBufferUsageFlagBits>(0)) {
-  return create_buffer(device, byte_size,
-                       static_cast<VkBufferUsageFlagBits>(
-                           VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | buffer_usage),
-                       sharing_mode);
-}
-
 // get memory requirements for a buffer based on it's type and usage mode
 VkMemoryRequirements get_memory_requirements(VkDevice device, VkBuffer buffer) {
   VkMemoryRequirements memory_requirements;
