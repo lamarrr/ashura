@@ -290,8 +290,8 @@ struct Buffer {
     auto commit = allocator.allocate(device, bytes_size)
                       .expect("unable to allocate memory for buffer");
 
-    bind_memory_to_buffer(device, buffer, commit.memory);
-    return Buffer{buffer, std::move(commit), std::move(allocator)};
+    bind_memory_to_buffer(device, buffer, commit.memory, commit.offset);
+    return Buffer{buffer, bytes_size, std::move(commit), std::move(allocator)};
   }
 
   void destroy(VkDevice device) {
