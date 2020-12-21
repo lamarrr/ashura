@@ -41,14 +41,15 @@ inline void ensure_validation_layers_supported(
   }
 
   for (auto const req_layer : required_validation_layers) {
-    if (std::find_if(available_validation_layers.begin(),
+    VLK_ENSURE(
+        std::find_if(available_validation_layers.begin(),
                      available_validation_layers.end(),
                      [&req_layer](VkLayerProperties const& available_layer) {
                        return std::string_view(req_layer) ==
                               std::string_view(available_layer.layerName);
-                     }) == available_validation_layers.end()) {
-      VLK_LOG("Required validation layer: {} is not supported", req_layer);
-    }
+                     }) != available_validation_layers.end(),
+        "Required validation layer is not available",
+        std::string_view(req_layer));
   }
 }
 
