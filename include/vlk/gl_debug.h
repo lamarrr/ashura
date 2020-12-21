@@ -53,19 +53,16 @@ inline void ensure_validation_layers_supported(
 }
 
 inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+    [[maybe_unused]] VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     VkDebugUtilsMessageTypeFlagsEXT message_type,
     VkDebugUtilsMessengerCallbackDataEXT const* callback_data,
-    void* user_data) {
-  // Message is important enough to show
-  // VK_DEBUG_UTILS_MESSAGE_SEVERITY_*_BIT_EXT are bit flags
+    [[maybe_unused]] void* user_data) {
+  // VK_DEBUG_UTILS_MESSAGE_SEVERITY_*_BIT_EXT are bit flags that indicate if
+  // the message is important enough to show
 
   // you can use comparisions like messageSeverity >=
   // VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT to see if they are
-  // important o not
-
-  (void)user_data;
-  (void)message_severity;
+  // important or not
 
   std::string hint;
   if (message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
