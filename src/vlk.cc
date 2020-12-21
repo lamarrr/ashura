@@ -559,16 +559,11 @@ struct [[nodiscard]] Application {
     // wait for the image using the present flight synchronization values to
     // finish
 
-    VLK_MUST_SUCCEED(
-        vkWaitForFences(logical_device_, 1,
-                        in_flight_fences_.data() + frame_flight_index, VK_TRUE,
-                        kWaitTimeout),
-        "Error occured waiting for synchronization fences");
+    VLK_ENSURE(await_fence(logical_device_,
+                           in_flight_fences_[frame_flight_index], kWaitTimeout),
+               "Fence timed out");
 
-    VLK_MUST_SUCCEED(
-        vkResetFences(logical_device_, 1,
-                      in_flight_fences_.data() + frame_flight_index),
-        "Error occured resetting synchronization fence");
+    reset_fence(logical_device_, in_flight_fences_[frame_flight_index]);
 
     uint32_t swapchain_image_index;
 
