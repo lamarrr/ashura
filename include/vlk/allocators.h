@@ -270,10 +270,9 @@ struct Buffer {
 
   // TODO(lamarrr): let it receive a span of allocators and decide whether to
   // use any of them or create a new one
-  static Buffer create_with_allocator(VkDevice device,
-                                      VkPhysicalDevice physical_device,
-                                      size_t bytes_size,
-                                      size_t block_size) {  // NOLINT
+  static Buffer create(VkDevice device, VkPhysicalDevice physical_device,
+                       uint64_t bytes_size,
+                       uint64_t block_size) {  // NOLINT
     auto buffer = create_buffer(device, bytes_size, usage, sharing_mode);
     auto requirements = get_memory_requirements(device, buffer);
 
@@ -325,7 +324,10 @@ struct Buffer {
     // wirtes may not immediately take effect, user might need to flush
   }
 
+  uint64_t size() { return size_; }
+
   VkBuffer buffer_;
+  uint64_t size_;
   MemoryCommit commit_;
   BlockAllocator allocator_;
 };
