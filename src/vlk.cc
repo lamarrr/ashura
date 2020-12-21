@@ -776,6 +776,8 @@ struct [[nodiscard]] Application {
                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>;
 
+  DeviceVertexBuffer device_vertex_buffer_;
+  DeviceIndexBuffer device_index_buffer_;
 };
 
 static void application_window_resize_callback(GLFWwindow* window, int, int) {
