@@ -165,18 +165,9 @@ struct BlockAllocator {
   BlockAllocator() = default;
   BlockAllocator(BlockAllocator const&) = delete;
   BlockAllocator& operator=(BlockAllocator const&) = delete;
-  BlockAllocator(BlockAllocator&& other)
-      : memory_type_index_{other.memory_type_index_},
-        memory_blocks_{std::move(other.memory_blocks_)},
-        bytes_per_block_{other.bytes_per_block_},
-        max_allocations_count_{other.max_allocations_count_} {}
-  BlockAllocator& operator=(BlockAllocator&& other) {
-    memory_type_index_ = other.memory_type_index_;
-    memory_blocks_ = std::move(other.memory_blocks_);
-    bytes_per_block_ = other.bytes_per_block_;
-    max_allocations_count_ = other.max_allocations_count_;
-    return *this;
-  }
+  BlockAllocator(BlockAllocator&& other) = default;
+  BlockAllocator& operator=(BlockAllocator&& other) = default;
+  ~BlockAllocator() = default;
 
   static BlockAllocator create(uint32_t memory_type_index,
                                size_t max_allocations_count,
