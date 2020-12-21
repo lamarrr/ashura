@@ -852,6 +852,7 @@ struct [[nodiscard]] Application {
     destroy_synchronization_objects_();
 
     device_vertex_buffer_.destroy(logical_device_);
+    device_index_buffer_.destroy(logical_device_);
 
     /*==================*/
     vkDestroyShaderModule(logical_device_, frag_shader_module_, nullptr);
