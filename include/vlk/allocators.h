@@ -195,6 +195,26 @@ struct BlockAllocator {
   size_t max_allocations_count_;
 };
 
+struct AllocationMonitor {
+  std::atomic<size_t> allocations_;
+  size_t max_allocations_;
+  constexpr auto max_allocations() const { return max_allocations_; }
+  auto current_allocation_count() const { return allocations_.load(); }
+};
+
+// active allocators and properties
+template <typename AllocatorT = BlockAllocator>
+struct AllocatorRegistry {
+ public:
+ private:
+  // heap index, allocator
+  std::map<size_t, AllocatorT> allocators_;
+  AllocationMonitor& monitor;
+
+  AllocatorT get_allocator();
+};
+
+// TODO(lamarrr): change block-size to min_block_size
 template <VkBufferUsageFlagBits Usage, VkSharingMode SharingMode,
           VkMemoryPropertyFlagBits MemoryProperties>
 struct Buffer {
