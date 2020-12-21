@@ -1103,8 +1103,16 @@ void allocate_command_buffers(
       "Unable to allocate command buffer");
 }
 
-void begin_command_buffer_recording(VkCommandBuffer command_buffer) {
-  VkCommandBufferBeginInfo begin_info{};
+void reset_command_buffer(VkCommandBuffer command_buffer,
+                          bool release_resources = false) {
+  VLK_MUST_SUCCEED(
+      vkResetCommandBuffer(command_buffer,
+                           release_resources
+                               ? VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT
+                               : 0),
+      "Unable to reset command buffer");
+}
+
   begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
   // VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will be
