@@ -56,7 +56,7 @@ struct BlockAllocator {
 
     // if there are any inactive usable partitions within the blocks and try to
     // use them first, else
-    stx::Option<MemoryCommit> try_commit(size_t bytes) noexcept {
+    stx::Option<MemoryCommit> try_commit(uint64_t bytes) noexcept {
       // check existing partitions
       for (auto& partition : partitions_) {
         if (!partition.in_use && partition.size >= bytes) {
@@ -82,7 +82,7 @@ struct BlockAllocator {
       return stx::Some(partition.commit_with(memory_));
     }
 
-    void uncommit(size_t offset) noexcept {
+    void uncommit(uint64_t offset) noexcept {
       auto partition = std::find_if(partitions_.begin(), partitions_.end(),
                                     [offset](Partition const& partition) {
                                       return partition.offset == offset;
@@ -180,7 +180,7 @@ struct BlockAllocator {
 
   static BlockAllocator create(uint32_t memory_type_index,
                                size_t max_allocations_count,
-                               size_t bytes_per_block) noexcept {
+                               uint64_t bytes_per_block) noexcept {
     auto allocator = BlockAllocator{};
     VLK_ENSURE(max_allocations_count > 0, "maximum allocations count is 0");
     VLK_ENSURE(bytes_per_block > 0, "bytes per block is 0");
