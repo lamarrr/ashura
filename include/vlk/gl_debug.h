@@ -122,13 +122,12 @@ inline VkDebugUtilsMessengerEXT create_install_debug_messenger(
 inline void destroy_debug_messenger(VkInstance instance,
                                     VkDebugUtilsMessengerEXT debug_messenger,
                                     VkAllocationCallbacks const* allocator) {
-  auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-      instance, "vkDestroyDebugUtilsMessengerEXT");
-  if (func != nullptr) {
-    func(instance, debug_messenger, allocator);
-  } else {
-    stx::panic("Failed to destroy debug messenger");
-  }
+  auto func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+      vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
+
+  VLK_ENSURE(func != nullptr, "Unable to destroy debug messenger");
+
+  return func(instance, debug_messenger, allocator);
 }
 
 }  // namespace vlk
