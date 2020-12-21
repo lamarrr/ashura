@@ -40,17 +40,23 @@ inline void ensure_validation_layers_supported(
     VLK_LOG("\t{} (spec version: {})", layer.layerName, layer.specVersion);
   }
 
+  bool all_layers_available = true;
+
   for (auto const req_layer : required_validation_layers) {
-    VLK_ENSURE(
-        std::find_if(available_validation_layers.begin(),
+    if (std::find_if(available_validation_layers.begin(),
                      available_validation_layers.end(),
                      [&req_layer](VkLayerProperties const& available_layer) {
                        return std::string_view(req_layer) ==
                               std::string_view(available_layer.layerName);
-                     }) != available_validation_layers.end(),
-        "Required validation layer is not available",
-        std::string_view(req_layer));
+                     }) == available_validation_layers.end()) {
+      all_layers_available = false;
+      VLK_WARN("Required validation layer is not available",
+               std::string_view(req_layer));
+    }
   }
+
+  VLK_ENSURE(all_layers_available,
+             "One or more required validation layers are not available");
 }
 
 inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
