@@ -1279,6 +1279,51 @@ struct Recorder {
   return fence;
 }
 
+void reset_fence(VkDevice device, VkFence fence) {
+  VLK_MUST_SUCCEED(vkResetFences(device, 1, &fence), "Unable to reset fence");
+}
+
+void reset_fences(VkDevice device, stx::Span<VkFence const> const& fences) {
+  VLK_MUST_SUCCEED(vkResetFences(device, fences.size(), fences.data()),
+                   "Unable to reset fences");
+}
+
+void await_fence(VkDevice device, VkFence fence) {
+  VLK_MUST_SUCCEED(vkWaitForFences(device, 1, &fence, true,
+                                   std::numeric_limits<uint64_t>::max()),
+                   "Unable to await fence");
+}
+
+// returns true if the fence didn't timeout
+[[nodiscard]] bool await_fence(VkDevice device, VkFence fence,
+                               std::chrono::nanoseconds timeout) {
+  auto result = vkWaitForFences(device, 1, &fence, true, timeout.count());
+  VLK_MUST_SUCCEED(
+      result == VK_SUCCESS || result == VK_TIMEOUT ? VK_SUCCESS : result,
+      "Unable to await fence");
+
+  return result != VK_TIMEOUT;
+}
+
+void await_fences(VkDevice device, stx::Span<VkFence const> const& fences) {
+  VLK_MUST_SUCCEED(vkWaitForFences(device, fences.size(), fences.data(), true,
+                                   std::numeric_limits<uint64_t>::max()),
+                   "Unable to await fences");
+}
+
+// returns true if the fences didn't timeout
+[[nodiscard]] bool await_fences(VkDevice device,
+                                stx::Span<VkFence const> const& fences,
+                                std::chrono::nanoseconds timeout) {
+  auto result = vkWaitForFences(device, fences.size(), fences.data(), true,
+                                timeout.count());
+  VLK_MUST_SUCCEED(
+      result == VK_SUCCESS || result == VK_TIMEOUT ? VK_SUCCESS : result,
+      "Unable to await fences");
+
+  return result != VK_TIMEOUT;
+}
+
 void submit_commands(VkQueue command_queue, VkCommandBuffer command_buffer,
                      stx::Span<VkSemaphore const> const& await_semaphores,
                      stx::Span<VkPipelineStageFlags const> const& await_stages,
