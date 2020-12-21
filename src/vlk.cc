@@ -98,7 +98,7 @@ struct [[nodiscard]] Application {
 
     physical_device_ = physical_device;
 
-    VLK_LOG("Using Physical Device: " << name_physical_device(prop))
+    VLK_LOG("Using Physical Device: {}", name_physical_device(prop))
 
     std::vector<VkQueueFamilyProperties> queue_families =
         get_queue_families(physical_device_);
@@ -333,13 +333,14 @@ struct [[nodiscard]] Application {
         create_render_pass(logical_device_, attachments_descriptions,
                            subpasses_descriptions, subpass_dependencies);
 
-    constexpr auto input_binding_description =
-        std::array{Vertex::make_input_binding_description()};
-    constexpr auto input_attribute_description =
-        Vertex::make_attributes_descriptions();
+    constexpr VkVertexInputBindingDescription
+        vertex_input_binding_descriptions[] = {
+            Vertex::make_input_binding_description(0 /* for binding 0 */)};
+    constexpr auto vertex_input_attribute_descriptions =
+        Vertex::make_attributes_descriptions(0 /* for binding 0 */);
 
-    auto vertex_input_state =
-        make_pipeline_vertex_input_state_create_info({}, {});
+    auto vertex_input_state = make_pipeline_vertex_input_state_create_info(
+        vertex_input_binding_descriptions, vertex_input_attribute_descriptions);
 
     graphics_pipeline_ = create_graphics_pipeline(
         logical_device_, pipeline_layout_, render_pass_,
