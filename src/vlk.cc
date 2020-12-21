@@ -33,12 +33,11 @@ struct Window {
   VkExtent2D surface_extent;
 };
 
-constexpr uint64_t kWaitTimeout =
-    static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                              std::chrono::seconds(45))
-                              .count());
+constexpr auto kWaitTimeout =
+    std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::seconds(45));
 
-struct Application;
+constexpr uint64_t kWaitTimeoutNS = kWaitTimeout.count();
 
 static void application_window_resize_callback(GLFWwindow* window, int width,
                                                int height);
