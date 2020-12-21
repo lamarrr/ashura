@@ -209,7 +209,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 
     vkGetPhysicalDeviceFeatures(device, &device_features);
 
-    VLK_LOG("\t{} \t(geometry shader: {}) ",
+    VLK_LOG("\t{} (geometry shader: {}) ",
             name_physical_device(device_properties),
             device_features.geometryShader);
     device_prop_ft.emplace_back(device, device_properties, device_features);
