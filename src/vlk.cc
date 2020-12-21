@@ -224,11 +224,11 @@ struct [[nodiscard]] Application {
 
     allocate_command_buffers_();
 
+    load_vertex_index_data_();
+
     record_command_buffers_();
 
     create_synchronization_objects_();
-
-    create_buffers_();
 
     swapchain_dirty_ = false;
 
