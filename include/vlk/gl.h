@@ -1120,7 +1120,7 @@ void allocate_command_buffers(
 
   VLK_MUST_SUCCEED(
       vkAllocateCommandBuffers(device, &allocate_info, command_buffers.data()),
-      "Unable to allocate command buffer");
+      "Unable to allocate command buffers");
 }
 
 void reset_command_buffer(VkCommandBuffer command_buffer,
