@@ -1066,11 +1066,15 @@ make_pipeline_color_blend_state_create_info(
   return frame_buffer;
 }
 
-[[nodiscard]] VkCommandPool create_command_pool(VkDevice device,
-                                                uint32_t queue_family_index) {
+[[nodiscard]] VkCommandPool create_command_pool(
+    VkDevice device, uint32_t queue_family_index,
+    bool enable_command_buffer_resetting = false) {
   VkCommandPoolCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   create_info.queueFamilyIndex = queue_family_index;
+  create_info.flags = enable_command_buffer_resetting
+                          ? VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+                          : 0;
 
   VkCommandPool command_pool;
   VLK_MUST_SUCCEED(
