@@ -393,20 +393,23 @@ struct [[nodiscard]] Application {
     VkViewport const viewports[] = {get_viewport_()};
     VkRect2D const scissors[] = {get_scissor_()};
     for (size_t i = 0; i < swapchain_framebuffers_.size(); i++) {
-      begin_command_buffer_recording(graphics_command_buffers_[i]);
       auto render_area = VkRect2D{
           {0, 0},
           {window_.surface_extent.width, window_.surface_extent.height}};
-      cmd::begin_render_pass(render_pass_, graphics_command_buffers_[i],
-                             swapchain_framebuffers_[i], render_area,
-                             clear_values_);
-      cmd::bind_pipeline(graphics_pipeline_, graphics_command_buffers_[i]);
-      cmd::set_viewports(graphics_command_buffers_[i], viewports);
-      cmd::set_scissors(graphics_command_buffers_[i], scissors);
-      cmd::set_line_width(graphics_command_buffers_[i], 1.0f);
-      cmd::draw(graphics_command_buffers_[i], 3, 1, 0, 0);
-      cmd::end_render_pass(graphics_command_buffers_[i]);
-      end_command_buffer_recording(graphics_command_buffers_[i]);
+
+      cmd::Recorder{graphics_command_buffers_[i]}
+          .begin_recording()
+          .begin_render_pass(render_pass_, swapchain_framebuffers_[i],
+                             render_area, clear_values_)
+          .bind_pipeline(graphics_pipeline_)
+          .set_viewports(viewports)
+          .set_scissors(scissors)
+          .set_line_width(1.0f)
+          .bind_vertex_buffer(0, device_vertex_buffer_, 0)
+          .bind_index_buffer(device_index_buffer_, 0, VK_INDEX_TYPE_UINT32)
+          .draw_indexed(36 /*size of indices buffer*/, 1, 0, 0, 0)
+          .end_render_pass()
+          .end_recording();
     }
   }
 
