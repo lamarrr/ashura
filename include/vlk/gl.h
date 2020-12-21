@@ -1453,13 +1453,20 @@ VkDeviceMemory bind_memory_to_buffer(VkDevice device, VkBuffer buffer,
   return memory;
 }
 
-stx::Span<uint8_t> map_memory(VkDevice device, VkDeviceMemory memory,
-                              uint64_t offset, uint64_t size,
-                              VkMemoryMapFlags flags) {
+struct MemoryMap {
+  // offset of the memory address this map points to
+  uint64_t offset;
+  // contains the (offset+adress) and size
+  stx::Span<uint8_t volatile> span;
+};
+
+MemoryMap map_memory(VkDevice device, VkDeviceMemory memory, uint64_t offset,
+                     uint64_t size, VkMemoryMapFlags flags = 0) {
   void* ptr;
   VLK_MUST_SUCCEED(vkMapMemory(device, memory, offset, size, flags, &ptr),
                    "Unable to map memory");
-  return stx::Span<uint8_t>{reinterpret_cast<uint8_t*>(ptr), size};
+  return MemoryMap{offset,
+                   stx::Span<uint8_t>{reinterpret_cast<uint8_t*>(ptr), size}};
 }
 
 // unlike OpenGL the driver may not immediately copy the data after unmap, i.e.
