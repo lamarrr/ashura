@@ -1113,82 +1113,144 @@ void reset_command_buffer(VkCommandBuffer command_buffer,
       "Unable to reset command buffer");
 }
 
-  begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-  // VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will be
-  // rerecorded right after executing it once.
-  // VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a secondary
-  // command buffer that will be entirely within a single render pass.
-  // VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The command buffer can be
-  // resubmitted while it is also already pending execution
-  begin_info.flags = 0;
-
-  VLK_MUST_SUCCEED(vkBeginCommandBuffer(command_buffer, &begin_info),
-                   "Unable to begin command buffer recording");
-}
-
 namespace cmd {
-void begin_render_pass(VkRenderPass render_pass, VkCommandBuffer command_buffer,
-                       VkFramebuffer framebuffer, VkRect2D render_area,
-                       stx::Span<VkClearValue const> const& clear_values) {
-  VkRenderPassBeginInfo begin_info{};
-  begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-  begin_info.renderPass = render_pass;
-  begin_info.framebuffer = framebuffer;
-  begin_info.renderArea = render_area;
-  begin_info.clearValueCount = clear_values.size();
-  begin_info.pClearValues = clear_values.data();
 
-  // VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in
-  // the primary command buffer itself and no secondary command buffers will be
-  // executed.
-  // VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS: The render pass
-  // commands will be executed from secondary command buffers.
+struct Recorder {
+  VkCommandBuffer command_buffer_;
 
-  vkCmdBeginRenderPass(command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
-}
+  Recorder begin_recording(
+      VkCommandBufferUsageFlagBits usage = {},
+      VkCommandBufferInheritanceInfo const* inheritance_info = nullptr) {
+    VkCommandBufferBeginInfo begin_info{};
 
-void end_render_pass(VkCommandBuffer command_buffer) {
-  vkCmdEndRenderPass(command_buffer);
-}
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-void bind_pipeline(
-    VkPipeline pipeline, VkCommandBuffer command_buffer,
-    VkPipelineBindPoint bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS) {
-  vkCmdBindPipeline(command_buffer, bind_point, pipeline);
-}
+    // VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will be
+    // rerecorded right after executing it once.
+    // VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a secondary
+    // command buffer that will be entirely within a single render pass.
+    // VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The command buffer can be
+    // resubmitted while it is also already pending execution
+    begin_info.flags = usage;
+    begin_info.pInheritanceInfo = inheritance_info;
 
-void draw(VkCommandBuffer command_buffer, uint32_t vertex_count,
-          uint32_t instance_count, uint32_t first_vertex,
-          uint32_t first_instance) {
-  // instanceCount: Used for instanced rendering
-  // firstVertex: Used as an offset into the vertex buffer, defines the lowest
-  // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
-  // rendering, defines the lowest value of gl_InstanceIndex.
-  vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex,
-            first_instance);
-}
+    VLK_MUST_SUCCEED(vkBeginCommandBuffer(command_buffer_, &begin_info),
+                     "unable to begin command buffer recording");
 
-void set_viewports(VkCommandBuffer command_buffer,
-                   stx::Span<VkViewport const> const& viewports) {
-  vkCmdSetViewport(command_buffer, 0, viewports.size(), viewports.data());
-}
+    return *this;
+  }
 
-void set_scissors(VkCommandBuffer command_buffer,
-                  stx::Span<VkRect2D const> const& scissors) {
-  vkCmdSetScissor(command_buffer, 0, scissors.size(), scissors.data());
-}
+  Recorder copy(VkBuffer src, uint64_t src_offset, uint64_t size, VkBuffer dst,
+                uint64_t dst_offset) {
+    VkBufferCopy copy_region{};
+    copy_region.dstOffset = dst_offset;
+    copy_region.size = size;
+    copy_region.srcOffset = src_offset;
+    vkCmdCopyBuffer(command_buffer_, src, dst, 1, &copy_region);
+    return *this;
+  }
 
-void set_line_width(VkCommandBuffer command_buffer, float line_width) {
-  vkCmdSetLineWidth(command_buffer, line_width);
-}
+  Recorder begin_render_pass(
+      VkRenderPass render_pass, VkFramebuffer framebuffer, VkRect2D render_area,
+      stx::Span<VkClearValue const> const& clear_values) {
+    VkRenderPassBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    begin_info.renderPass = render_pass;
+    begin_info.framebuffer = framebuffer;
+    begin_info.renderArea = render_area;
+    begin_info.clearValueCount = clear_values.size();
+    begin_info.pClearValues = clear_values.data();
 
+    // VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in
+    // the primary command buffer itself and no secondary command buffers will
+    // be executed. VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS: The render
+    // pass commands will be executed from secondary command buffers.
+
+    vkCmdBeginRenderPass(command_buffer_, &begin_info,
+                         VK_SUBPASS_CONTENTS_INLINE);
+    return *this;
+  }
+
+  Recorder end_render_pass() {
+    vkCmdEndRenderPass(command_buffer_);
+    return *this;
+  }
+
+  Recorder bind_pipeline(
+      VkPipeline pipeline,
+      VkPipelineBindPoint bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS) {
+    vkCmdBindPipeline(command_buffer_, bind_point, pipeline);
+    return *this;
+  }
+
+  template <
+      typename BufferType,
+      std::enable_if_t<static_cast<bool>(BufferType::usage&
+                                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
+                       int> = 0>
+  Recorder bind_vertex_buffer(uint32_t binding, BufferType const& buffer,
+                              uint64_t buffer_offset) {
+    vkCmdBindVertexBuffers(command_buffer_, binding, 1, &buffer.buffer_,
+                           &buffer_offset);
+    return *this;
+  }
+
+  template <
+      typename BufferType,
+      std::enable_if_t<static_cast<bool>(
+                           BufferType::usage& VK_BUFFER_USAGE_INDEX_BUFFER_BIT),
+                       int> = 0>
+  Recorder bind_index_buffer(BufferType const& buffer, uint64_t buffer_offset,
+                             VkIndexType dtype) {
+    vkCmdBindIndexBuffer(command_buffer_, buffer.buffer_, buffer_offset, dtype);
+    return *this;
+  }
+
+  Recorder draw(uint32_t vertex_count, uint32_t instance_count,
+                uint32_t first_vertex, uint32_t first_instance) {
+    // instanceCount: Used for instanced rendering
+    // firstVertex: Used as an offset into the vertex buffer, defines the lowest
+    // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
+    // rendering, defines the lowest value of gl_InstanceIndex.
+    vkCmdDraw(command_buffer_, vertex_count, instance_count, first_vertex,
+              first_instance);
+    return *this;
+  }
+
+  Recorder draw_indexed(uint32_t index_count, uint32_t instance_count,
+                        uint32_t first_index, uint32_t vertex_offset,
+                        uint32_t first_instance) {
+    // instanceCount: Used for instanced rendering
+    // firstVertex: Used as an offset into the vertex buffer, defines the lowest
+    // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
+    // rendering, defines the lowest value of gl_InstanceIndex.
+    vkCmdDrawIndexed(command_buffer_, index_count, instance_count, first_index,
+                     vertex_offset, first_instance);
+    return *this;
+  }
+
+  Recorder set_viewports(stx::Span<VkViewport const> const& viewports) {
+    vkCmdSetViewport(command_buffer_, 0, viewports.size(), viewports.data());
+    return *this;
+  }
+
+  Recorder set_scissors(stx::Span<VkRect2D const> const& scissors) {
+    vkCmdSetScissor(command_buffer_, 0, scissors.size(), scissors.data());
+    return *this;
+  }
+
+  Recorder set_line_width(float line_width) {
+    vkCmdSetLineWidth(command_buffer_, line_width);
+    return *this;
+  }
+
+  Recorder end_recording() {
+    VLK_MUST_SUCCEED(vkEndCommandBuffer(command_buffer_),
+                     "Unable to end command buffer recording");
+    return *this;
+  }
+};
 }  // namespace cmd
-
-void end_command_buffer_recording(VkCommandBuffer command_buffer) {
-  VLK_MUST_SUCCEED(vkEndCommandBuffer(command_buffer),
-                   "Unable to end command buffer recording");
-}
 
 // GPU-GPU synchronization primitive
 [[nodiscard]] VkSemaphore create_semaphore(VkDevice device) {
