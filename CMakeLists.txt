@@ -15,8 +15,8 @@ execute_process(
   COMMAND git clone -b v1.8.2 https://github.com/gabime/spdlog.git
           third_party/spdlog WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 execute_process(
-  COMMAND git clone -b 0.9.9.8 https://github.com/g-truc/glm.git
-          third_party/glm WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+  COMMAND git clone -b 0.9.9.8 https://github.com/g-truc/glm.git third_party/glm
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 add_subdirectory(third_party/STX)
 
@@ -40,7 +40,8 @@ add_subdirectory(third_party/glm)
 find_package(Vulkan REQUIRED)
 
 add_executable(valkyrie.bin src/vlk.cc)
-target_link_libraries(valkyrie.bin stx glfw spdlog::spdlog glm::glm ${Vulkan_LIBRARIES})
+target_link_libraries(valkyrie.bin stx glfw spdlog::spdlog glm::glm
+                      ${Vulkan_LIBRARIES})
 target_include_directories(
   valkyrie.bin PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include)
 
@@ -51,6 +52,11 @@ endif()
 # todo: add GLSL compilation
 
 function(add_spirv_shader TARGET_NAME IN_GLSL_FILE_PATH OUT_SPIRV_FILE)
+
+  if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${OUT_SPIRV_FILE})
+    file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/${OUT_SPIRV_FILE})
+  endif()
+
   add_custom_target(
     shader-${TARGET_NAME}
     glslangValidator -V ${IN_GLSL_FILE_PATH} -o
