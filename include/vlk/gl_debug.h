@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <iostream>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -20,7 +22,7 @@
 
 namespace vlk {
 
-static void ensure_validation_layers_supported(
+inline void ensure_validation_layers_supported(
     stx::Span<char const* const> required_validation_layers) {
   uint32_t available_validation_layers_count;
   vkEnumerateInstanceLayerProperties(&available_validation_layers_count,
@@ -35,7 +37,7 @@ static void ensure_validation_layers_supported(
                                      available_validation_layers.data());
 
   for (VkLayerProperties const& layer : available_validation_layers) {
-    VLK_LOG("\t" << layer.layerName << ", version: " << layer.specVersion);
+    VLK_LOG("\t{} (spec version: {})", layer.layerName, layer.specVersion);
   }
 
   for (auto const req_layer : required_validation_layers) {
@@ -45,13 +47,12 @@ static void ensure_validation_layers_supported(
                        return std::string_view(req_layer) ==
                               std::string_view(available_layer.layerName);
                      }) == available_validation_layers.end()) {
-      VLK_LOG("Required validation layer: " << req_layer
-                                            << " is not supported");
+      VLK_LOG("Required validation layer: {} is not supported", req_layer);
     }
   }
 }
 
-static VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
+inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     VkDebugUtilsMessageTypeFlagsEXT message_type,
     VkDebugUtilsMessengerCallbackDataEXT const* callback_data,
@@ -66,24 +67,26 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
   (void)user_data;
   (void)message_severity;
 
+  std::string hint;
   if (message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
-    VLK_LOG(
-        "[Validation Layer Hint] Specification violation or possible mistake "
-        "detected");
+    hint +=
+        "Specification violation or possible mistake "
+        "detected";
   }
 
   if (message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) {
-    VLK_LOG(
-        "[Validation Layer Hint] Potential non-optimal use of Vulkan "
-        "detected");
+    hint += std::string(hint.empty() ? "" : ", ") +
+            "Potential non-optimal use of Vulkan "
+            "detected";
   }
 
-  VLK_LOG("[Validation Layer Message] " << callback_data->pMessage);
+  VLK_LOG("[Validation Layer Message, Hints=\"{}\"] {}", hint,
+          callback_data->pMessage);
 
   return VK_FALSE;
 }
 
-static VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_create_info() {
+inline VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_create_info() {
   VkDebugUtilsMessengerCreateInfoEXT create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -100,7 +103,7 @@ static VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_create_info() {
   return create_info;
 }
 
-static VkResult create_install_debug_messenger_helper(
+inline VkResult create_install_debug_messenger_helper(
     VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT const* create_info,
     VkAllocationCallbacks const* allocator,
     VkDebugUtilsMessengerEXT* debug_messenger) {
@@ -113,7 +116,7 @@ static VkResult create_install_debug_messenger_helper(
   }
 }
 
-static VkDebugUtilsMessengerEXT create_install_debug_messenger(
+inline VkDebugUtilsMessengerEXT create_install_debug_messenger(
     VkInstance instance, VkAllocationCallbacks const* allocator) {
   VkDebugUtilsMessengerEXT debug_messenger;
 
@@ -126,7 +129,7 @@ static VkDebugUtilsMessengerEXT create_install_debug_messenger(
   return debug_messenger;
 }
 
-static void destroy_debug_messenger(VkInstance instance,
+inline void destroy_debug_messenger(VkInstance instance,
                                     VkDebugUtilsMessengerEXT debug_messenger,
                                     VkAllocationCallbacks const* allocator) {
   auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
