@@ -219,9 +219,9 @@ struct [[nodiscard]] Application {
                             true);  // command buffers will be reused
     create_command_pools_();
 
-    transfer_command_buffers_.push_back({});
-    allocate_command_buffers(logical_device_, transfer_command_pool_,
-                             transfer_command_buffers_);
+    allocate_command_buffer(logical_device_, transfer_command_pool_,
+                            transfer_command_buffer_);
+
     allocate_command_buffers_();
 
     record_command_buffers_();
