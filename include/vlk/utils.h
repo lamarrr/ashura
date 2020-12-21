@@ -22,6 +22,11 @@
     spdlog::info(fmt, ##__VA_ARGS__); \
   } while (false);
 
+#define VLK_LOG_IF(expr, fmt, ...)                \
+  do {                                            \
+    if ((expr)) spdlog::info(fmt, ##__VA_ARGS__); \
+  } while (false);
+
 #define VLK_WARN(fmt, ...)            \
   do {                                \
     spdlog::warn(fmt, ##__VA_ARGS__); \
