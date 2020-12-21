@@ -215,7 +215,8 @@ struct [[nodiscard]] Application {
     create_framebuffers_();
 
     transfer_command_pool_ =
-        create_command_pool(logical_device_, transfer_command_queue_index_);
+        create_command_pool(logical_device_, transfer_command_queue_index_,
+                            true);  // command buffers will be reused
     create_command_pools_();
 
     transfer_command_buffers_.push_back({});
