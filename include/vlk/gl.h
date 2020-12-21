@@ -62,8 +62,8 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 
   VLK_LOG("Available Vulkan Extensions:");
   for (auto extension : available_vk_extensions) {
-    VLK_LOG("\t" << extension.extensionName
-                 << ", spec version: " << extension.specVersion);
+    VLK_LOG("\t{},  spec version: {}", extension.extensionName,
+            extension.specVersion);
   }
 
   create_info.enabledExtensionCount = required_extensions.size();
@@ -208,9 +208,9 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 
     vkGetPhysicalDeviceFeatures(device, &device_features);
 
-    VLK_LOG("\t" << name_physical_device(device_properties)
-                 << " (geometry shader: " << device_features.geometryShader
-                 << ")");
+    VLK_LOG("\t{} \t(geometry shader: {}) ",
+            name_physical_device(device_properties),
+            device_features.geometryShader);
     device_prop_ft.emplace_back(device, device_properties, device_features);
   }
 
@@ -315,15 +315,14 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 
   VLK_LOG("Required Device Extensions: ");
   std::for_each(required_extensions.begin(), required_extensions.end(),
-                [](char const* ext) { VLK_LOG("\t" << ext); });
+                [](char const* ext) { VLK_LOG("\t{}", ext); });
 
   VLK_LOG("Available Device Extensions: ");
-  std::for_each(available_device_extensions.begin(),
-                available_device_extensions.end(),
-                [](VkExtensionProperties ext) {
-                  VLK_LOG("\t" << ext.extensionName
-                               << "(spec version: " << ext.specVersion << ")");
-                });
+  std::for_each(
+      available_device_extensions.begin(), available_device_extensions.end(),
+      [](VkExtensionProperties ext) {
+        VLK_LOG("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
+      });
 
   VLK_ENSURE(
       std::all_of(required_extensions.begin(), required_extensions.end(),
