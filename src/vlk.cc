@@ -47,7 +47,8 @@ struct [[nodiscard]] Application {
   Application(WindowConfig const& window_config)
       : window_{},
         window_config_{window_config},
-        clear_values_{VkClearValue{1.0f, 1.0f, 1.0f, 1.0f}},
+        clear_values_{
+            VkClearValue{0xfa / 255.0f, 0xfa / 255.0f, 0xfa / 255.0f, 1.0f}},
         vulkan_instance_{nullptr},
         surface_{nullptr},
         physical_device_{nullptr},
