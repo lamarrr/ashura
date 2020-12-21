@@ -2,39 +2,35 @@
 
 #include <iostream>
 
+#include "spdlog/spdlog.h"
 #include "stx/panic.h"
+#include "vlk/errors.h"
 
-#define IMPL_VLK_ENSURE(expr, ...)        \
+#define VLK_ENSURE(expr, ...)             \
   do {                                    \
     if (!(expr)) stx::panic(__VA_ARGS__); \
   } while (false);
 
-#define VLK_ENSURE(expr, ...) IMPL_VLK_ENSURE(expr, __VA_ARGS__)
-
-#define VLK_MUST_SUCCEED(expr, message)                                      \
-  do {                                                                       \
-    auto result = (expr);                                                    \
-    if (result != VK_SUCCESS) stx::panic(message, static_cast<int>(result)); \
+#define VLK_MUST_SUCCEED(expr, message)                                        \
+  do {                                                                         \
+    auto VLK_VK_GL_Result = (expr);                                            \
+    if (VLK_VK_GL_Result != VK_SUCCESS) stx::panic(message, VLK_VK_GL_Result); \
   } while (false);
 
-#define VLK_LOG(expr)               \
-  do {                              \
-    std::cout << expr << std::endl; \
+#define VLK_LOG(fmt, ...)             \
+  do {                                \
+    spdlog::info(fmt, ##__VA_ARGS__); \
   } while (false);
 
-#define IMPL_VLK_WARN_IF(expr, ...)                                    \
-  do {                                                                 \
-    if ((expr)) std::cout << "[WARNING] " << __VA_ARGS__ << std::endl; \
+#define VLK_WARN(fmt, ...)            \
+  do {                                \
+    spdlog::warn(fmt, ##__VA_ARGS__); \
   } while (false);
 
-#define VLK_WARN_IF(expr, ...) IMPL_VLK_WARN_IF(expr, __VA_ARGS__)
-
-#define IMPL_VLK_WARN(...)                                 \
-  do {                                                     \
-    std::cout << "[WARNING] " << __VA_ARGS__ << std::endl; \
+#define VLK_WARN_IF(expr, fmt, ...)               \
+  do {                                            \
+    if ((expr)) spdlog::warn(fmt, ##__VA_ARGS__); \
   } while (false);
-
-#define VLK_WARN(...) IMPL_VLK_WARN(__VA_ARGS__)
 
 template <typename Container>
 bool any_true(Container const& cont) {
