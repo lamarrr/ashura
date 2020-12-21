@@ -754,9 +754,7 @@ struct [[nodiscard]] Application {
   static constexpr char const* required_validation_layers_[] = {
       "VK_LAYER_KHRONOS_validation"};
 
-  BlockAllocator device_vertex_buffer_allocator_;
-  Buffer<VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE,
-         static_cast<VkMemoryPropertyFlagBits>(
+  // VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: always fast memory for the device to
              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>
       device_vertex_buffer_;
