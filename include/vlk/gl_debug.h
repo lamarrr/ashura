@@ -100,28 +100,21 @@ inline VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_create_info() {
   return create_info;
 }
 
-inline VkResult create_install_debug_messenger_helper(
-    VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT const* create_info,
-    VkAllocationCallbacks const* allocator,
-    VkDebugUtilsMessengerEXT* debug_messenger) {
-  auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-      instance, "vkCreateDebugUtilsMessengerEXT");
-  if (func != nullptr) {
-    return func(instance, create_info, allocator, debug_messenger);
-  } else {
-    return VK_ERROR_EXTENSION_NOT_PRESENT;
-  }
-}
-
 inline VkDebugUtilsMessengerEXT create_install_debug_messenger(
-    VkInstance instance, VkAllocationCallbacks const* allocator) {
+    VkInstance instance, VkAllocationCallbacks const* allocator,
+    VkDebugUtilsMessengerCreateInfoEXT create_info =
+        make_debug_messenger_create_info()) {
   VkDebugUtilsMessengerEXT debug_messenger;
 
-  auto create_info = make_debug_messenger_create_info();
+  auto func = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+      vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
 
-  if (create_install_debug_messenger_helper(instance, &create_info, allocator,
-                                            &debug_messenger) != VK_SUCCESS)
-    stx::panic("Failed to setup debug messenger");
+  VLK_ENSURE(
+      func != nullptr,
+      "Unable to get process address for vkCreateDebugUtilsMessengerEXT");
+
+  VLK_MUST_SUCCEED(func(instance, &create_info, allocator, &debug_messenger),
+                   "Unable to setup debug messenger");
 
   return debug_messenger;
 }
