@@ -104,14 +104,14 @@ make_vertex_description(uint32_t binding, DType... types) {
 #define VLK_VERTEX_STRUCT struct __attribute__((packed))
 
 VLK_VERTEX_STRUCT Vertex {
-  float position[2];
+  float position[3];
   float color[3];
 
   static constexpr VkVertexInputBindingDescription
-  make_input_binding_description() {
+  make_input_binding_description(uint32_t binding) {
     VkVertexInputBindingDescription binding_desciption{};
 
-    binding_desciption.binding = 0;
+    binding_desciption.binding = binding;
 
     // VK_VERTEX_INPUT_RATE_VERTEX: Move to the next data entry after each
     // vertex (per-vertex data)
@@ -123,10 +123,8 @@ VLK_VERTEX_STRUCT Vertex {
     return binding_desciption;
   }
 
-  static constexpr auto make_attributes_descriptions() {
-    constexpr auto desc =
-        make_vertex_description(0, DType::f32_2, DType::f32_3);
-    static_assert(desc.total_size == sizeof(Vertex));
+  static constexpr auto make_attributes_descriptions(uint32_t binding) {
+    auto desc = make_vertex_description(binding, DType::f32_3, DType::f32_3);
 
     return desc.desc;
   }
