@@ -592,10 +592,10 @@ struct [[nodiscard]] Application {
           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
       VkSemaphore const notify_semaphores[] = {
           rendering_finished_semaphores_[frame_flight_index]};
-      submit_buffer(graphics_command_queue_,
-                    graphics_command_buffers_[swapchain_image_index],
-                    await_semaphores, await_stages, notify_semaphores,
-                    in_flight_fences_[frame_flight_index]);
+      submit_commands(graphics_command_queue_,
+                      graphics_command_buffers_[swapchain_image_index],
+                      await_semaphores, await_stages, notify_semaphores,
+                      in_flight_fences_[frame_flight_index]);
     }
 
     {

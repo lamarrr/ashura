@@ -1205,11 +1205,11 @@ void end_command_buffer_recording(VkCommandBuffer command_buffer) {
   return fence;
 }
 
-void submit_buffer(VkQueue command_queue, VkCommandBuffer command_buffer,
-                   stx::Span<VkSemaphore const> const& await_semaphores,
-                   stx::Span<VkPipelineStageFlags const> const& await_stages,
-                   stx::Span<VkSemaphore const> const& notify_semaphores,
-                   VkFence notify_fence) {
+void submit_commands(VkQueue command_queue, VkCommandBuffer command_buffer,
+                     stx::Span<VkSemaphore const> const& await_semaphores,
+                     stx::Span<VkPipelineStageFlags const> const& await_stages,
+                     stx::Span<VkSemaphore const> const& notify_semaphores,
+                     VkFence notify_fence) {
   VLK_ENSURE(await_semaphores.size() == await_stages.size(),
              "stages to await must have the same number of semaphores (for "
              "each of them)");
