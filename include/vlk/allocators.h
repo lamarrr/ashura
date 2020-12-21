@@ -1,8 +1,11 @@
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <cstring>
+#include <map>
 #include <utility>
 #include <vector>
+
 #include "stx/option.h"
 #include "vlk/gl.h"
 #include "vlk/utils.h"
@@ -47,7 +50,9 @@ struct BlockAllocator {
    private:
     std::vector<Partition> partitions_;
     VkDeviceMemory memory_;
-    size_t size_;
+
+    stx::Option<MemoryMap> memory_map_;
+    uint64_t size_;
 
     // if there are any inactive usable partitions within the blocks and try to
     // use them first, else
@@ -87,6 +92,28 @@ struct BlockAllocator {
       partition->uncommit();
     }
 
+    // user is expected to already check offset and size
+    MemoryMap get_submap(VkDevice device, uint64_t offset, uint64_t size) {
+      VLK_ENSURE(offset + size <= size_,
+                 "Requested memory map outside of memory range");
+      memory_map_ = stx::Some(memory_map_.clone().unwrap_or_else([=]() {
+        auto map = map_memory(device, memory_, 0, size_);
+        return map;
+      }));
+
+      return memory_map_.clone()
+          .map([=](MemoryMap map) {
+            return MemoryMap{offset, stx::Span<uint8_t volatile>(
+                                         map.span.data() + offset, size)};
+          })
+          .unwrap();
+    }
+
+    void unmap(VkDevice device) {
+      vkUnmapMemory(device, memory_);
+      memory_map_ = stx::None;
+    }
+
     friend struct BlockAllocator;
   };
 
@@ -114,7 +141,28 @@ struct BlockAllocator {
     return stx::some_ref(memory_blocks_.back());
   }
 
-  BlockAllocator() {}
+  MemoryMap get_memory_submap(VkDevice device, VkDeviceMemory memory,
+                              uint64_t offset, uint64_t size) {
+    auto pos =
+        std::find_if(memory_blocks_.begin(), memory_blocks_.end(),
+                     [=](auto const& par) { return par.memory_ == memory; });
+    VLK_ENSURE(pos != memory_blocks_.end(),
+               "Requesting for memory map for memory not allocated from this "
+               "allocator");
+    return pos->get_submap(device, offset, size);
+  }
+
+  void unmap_memory(VkDevice device, VkDeviceMemory memory) {
+    auto pos =
+        std::find_if(memory_blocks_.begin(), memory_blocks_.end(),
+                     [=](auto const& par) { return par.memory_ == memory; });
+    VLK_ENSURE(pos != memory_blocks_.end(),
+               "Requesting for memory map for memory not allocated from this "
+               "allocator");
+    pos->unmap(device);
+  }
+
+  BlockAllocator() = default;
   BlockAllocator(BlockAllocator const&) = delete;
   BlockAllocator& operator=(BlockAllocator const&) = delete;
   BlockAllocator(BlockAllocator&& other)
@@ -251,6 +299,30 @@ struct Buffer {
     allocator_.deallocate(commit_);
     allocator_.destroy(device);
     vkDestroyBuffer(device, buffer_, nullptr);
+  }
+
+  // TODO(lamarrr): we are using a partition of the memory, a memory map may
+  // already exist, if we have two buffers using the same memory then we can't
+  // write to them at the same time we can alternatively always have a memory
+  // map for the whole memory region and then try to get that.
+  // - one map at a time
+  // problem is that multiple buffers using the same memory can't be used in a
+  // multi-threaded nature
+  // offset repressents offset into this buffer
+  void write(VkDevice device, uint64_t offset,
+             stx::Span<uint8_t const> const& data) {
+    VLK_ENSURE(offset + data.size() <= size());
+    VLK_ENSURE(static_cast<bool>(memory_properties &
+                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
+
+    auto buffer_map = allocator_.get_memory_submap(device, commit_.memory,
+                                                   commit_.offset, size());
+
+    std::copy(data.begin(), data.end(), buffer_map.span.begin() + offset);
+
+    allocator_.unmap_memory(device, commit_.memory);
+
+    // wirtes may not immediately take effect, user might need to flush
   }
 
   VkBuffer buffer_;
