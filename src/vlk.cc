@@ -1,4 +1,5 @@
 #include <map>
+#include <numeric>
 
 #include "stx/option.h"
 #include "stx/result.h"
@@ -762,7 +763,7 @@ struct [[nodiscard]] Application {
     uint32_t swapchain_image_index;
 
     auto image_acquire_result = vkAcquireNextImageKHR(
-        logical_device_, window_swapchain_, kWaitTimeout,
+        logical_device_, window_swapchain_, kWaitTimeoutNS,
         /* notify */ image_available_semaphores_[frame_flight_index],
         VK_NULL_HANDLE, &swapchain_image_index);
     VLK_ENSURE(image_acquire_result == VK_SUCCESS ||
