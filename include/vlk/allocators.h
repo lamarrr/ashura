@@ -266,8 +266,7 @@ struct Buffer {
   // TODO(lamarrr): let it receive a span of allocators and decide whether to
   // use any of them or create a new one
   static Buffer create(VkDevice device, VkPhysicalDevice physical_device,
-                       uint64_t bytes_size,
-                       uint64_t block_size) {  // NOLINT
+                       uint64_t bytes_size, uint64_t desired_block_size) {
     auto buffer = create_buffer(device, bytes_size, usage, sharing_mode);
     auto requirements = get_memory_requirements(device, buffer);
 
