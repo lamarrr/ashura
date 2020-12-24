@@ -280,7 +280,8 @@ struct Buffer {
             .expect("Could not find suitable memory type for buffer");
 
     auto allocator = BlockAllocator::create(
-        memory_type, properties.limits.maxMemoryAllocationCount, block_size);
+        memory_type, properties.limits.maxMemoryAllocationCount,
+        std::max(desired_block_size, requirements.size));
 
     auto commit = allocator.allocate(device, bytes_size)
                       .expect("unable to allocate memory for buffer");
