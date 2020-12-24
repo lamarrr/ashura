@@ -227,6 +227,8 @@ struct BlockAllocator {
     }
   }
 
+  size_t block_size() const { return bytes_per_block_; }
+
  private:
   uint32_t memory_type_index_;
   std::vector<MemoryBlock> memory_blocks_;
