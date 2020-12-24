@@ -18,8 +18,6 @@ execute_process(
   COMMAND git clone -b 0.9.9.8 https://github.com/g-truc/glm.git third_party/glm
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
-add_subdirectory(third_party/STX)
-
 set(GLFW_BUILD_EXAMPLES
     OFF
     CACHE BOOL "" FORCE)
@@ -30,9 +28,13 @@ set(GLFW_BUILD_DOCS
     OFF
     CACHE BOOL "" FORCE)
 set(GLFW_INSTALL
-    OFf
+    OFF
+    CACHE BOOL "" FORCE)
+set(STX_ENABLE_BACKTRACE
+    ON
     CACHE BOOL "" FORCE)
 
+add_subdirectory(third_party/STX)
 add_subdirectory(third_party/glfw)
 add_subdirectory(third_party/spdlog)
 add_subdirectory(third_party/glm)
