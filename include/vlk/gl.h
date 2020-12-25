@@ -876,6 +876,7 @@ make_pipeline_rasterization_create_info(float line_width = 1.0f,
                                                  // image that isn't facing us
   create_info.frontFace = front_face;
 
+  // TODO(lamarrr): abstract?
   create_info.depthBiasEnable = VK_FALSE;
   create_info.depthBiasConstantFactor = 0.0f;  // mostly used for shadow mapping
   create_info.depthBiasClamp = 0.0f;
