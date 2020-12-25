@@ -623,8 +623,20 @@ struct [[nodiscard]] SwapChainProperties {
   return create_info;
 }
 
-[[nodiscard]] VkImageView create_image_view(VkDevice device, VkImage image,
-                                            VkFormat format) {
+constexpr VkComponentMapping make_default_component_mapping() {
+  // how to map the image color components
+  VkComponentMapping mapping{};
+  mapping.r = VK_COMPONENT_SWIZZLE_IDENTITY;  // leave as-is
+  mapping.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+  mapping.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+  mapping.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+  return mapping;
+}
+
+[[nodiscard]] VkImageView create_image_view(
+    VkDevice device, VkImage image, VkFormat format, VkImageViewType view_type,
+    VkComponentMapping component_mapping = make_default_component_mapping()) {
   VkImageViewCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -633,15 +645,10 @@ struct [[nodiscard]] SwapChainProperties {
   // VK_IMAGE_VIEW_TYPE_2D: 2D texture
   // VK_IMAGE_VIEW_TYPE_3D: 3D texture
   // VK_IMAGE_VIEW_TYPE_CUBE: cube map
-  create_info.viewType =
-      VK_IMAGE_VIEW_TYPE_2D;  // treat the image as a 2d texture
+  create_info.viewType = view_type;  // treat the image as a 2d texture
   create_info.format = format;
 
-  // how to map the image color components
-  create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-  create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-  create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-  create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+  create_info.components = component_mapping;
 
   // defines what part of the image this image view represents and what this
   // image view is used for
