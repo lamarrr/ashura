@@ -5,7 +5,18 @@
 
 // TODO: explore other vulkan headers
 
-enum class DType { f32_1, f32_2, f32_3, i32_3, u32_3, Uknown };
+namespace vlk {
+enum class AtrrType {
+  f32,
+  f32x1 = f32,
+  f32x2,
+  f32x3,
+  f32x4,
+  i32x3,
+  u32x3,
+  // TODO(lamarrr): implement more dtypes
+  Unimplemented
+};
 
 constexpr VkFormat vk_dtype(DType type) {
   // float (vec1): VK_FORMAT_R32_SFLOAT
