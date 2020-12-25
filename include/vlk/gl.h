@@ -957,14 +957,17 @@ make_pipeline_color_blend_state_create_info(
   return pipeline_state;
 }
 
-[[nodiscard]] VkPipelineLayout create_pipeline_layout(VkDevice device) {
+[[nodiscard]] VkPipelineLayout create_pipeline_layout(
+    VkDevice device,
+    stx::Span<VkDescriptorSetLayout const> const& descriptor_sets_layout = {},
+    stx::Span<VkPushConstantRange const> const& constant_ranges = {}) {
   VkPipelineLayoutCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  create_info.setLayoutCount = 0;
-  create_info.pSetLayouts = nullptr;
-  create_info.pushConstantRangeCount = 0;
-  create_info.pPushConstantRanges = nullptr;
+  create_info.setLayoutCount = descriptor_sets_layout.size();
+  create_info.pSetLayouts = descriptor_sets_layout.data();
+  create_info.pushConstantRangeCount = constant_ranges.size();
+  create_info.pPushConstantRanges = constant_ranges.data();
 
   VkPipelineLayout layout;
   VLK_MUST_SUCCEED(
