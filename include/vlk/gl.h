@@ -431,14 +431,15 @@ struct [[nodiscard]] SwapChainProperties {
 // choose a specific surface format available on the GPU
 [[nodiscard]] VkSurfaceFormatKHR select_surface_formats(
     stx::Span<VkSurfaceFormatKHR const> const& formats) {
-  VLK_ENSURE(formats.size() != 0, "No window surface format gotten as arg");
-  auto It_format = std::find_if(
+  VLK_ENSURE(formats.size() != 0,
+             "No window surface format supported by physical device");
+  auto preferred_format = std::find_if(
       formats.begin(), formats.end(), [](VkSurfaceFormatKHR const& format) {
         return format.format == VK_FORMAT_R8G8B8_SRGB &&
                format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
       });
 
-  return (It_format != formats.end()) ? *It_format : formats[0];
+  return (preferred_format != formats.end()) ? *preferred_format : formats[0];
 }
 
 [[nodiscard]] VkPresentModeKHR select_surface_presentation_mode(
