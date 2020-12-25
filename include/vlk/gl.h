@@ -1458,6 +1458,13 @@ VkMemoryRequirements get_memory_requirements(VkDevice device, VkBuffer buffer) {
   return memory_requirements;
 }
 
+// get memory requirements for a buffer based on it's type and usage mode
+VkMemoryRequirements get_memory_requirements(VkDevice device, VkImage image) {
+  VkMemoryRequirements memory_requirements;
+  vkGetImageMemoryRequirements(device, image, &memory_requirements);
+  return memory_requirements;
+}
+
 // returns index of the heap on the physical device, could be RAM, SWAP, or VRAM
 stx::Option<uint32_t> find_suitable_memory_type(
     VkPhysicalDevice physical_device,
