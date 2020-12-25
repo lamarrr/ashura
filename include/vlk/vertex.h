@@ -18,22 +18,26 @@ enum class AtrrType {
   Unimplemented
 };
 
-constexpr VkFormat vk_dtype(DType type) {
+constexpr VkFormat to_vulkan_dtype(AtrrType type) noexcept {
   // float (vec1): VK_FORMAT_R32_SFLOAT
   // vec2: VK_FORMAT_R32G32_SFLOAT
   // vec3: VK_FORMAT_R32G32B32_SFLOAT
   // vec4: VK_FORMAT_R32G32B32A32_SFLOAT
 
+  // TODO(lamarrr): implement more dtypes
+
   switch (type) {
-    case DType::f32_1:
+    case AtrrType::f32x1:
       return VK_FORMAT_R32_SFLOAT;
-    case DType::f32_2:
+    case AtrrType::f32x2:
       return VK_FORMAT_R32G32_SFLOAT;
-    case DType::f32_3:
+    case AtrrType::f32x3:
       return VK_FORMAT_R32G32B32_SFLOAT;
-    case DType::i32_3:
+    case AtrrType::f32x4:
+      return VK_FORMAT_R32G32B32A32_SFLOAT;
+    case AtrrType::i32x3:
       return VK_FORMAT_R32G32B32_SINT;
-    case DType::u32_3:
+    case AtrrType::u32x3:
       return VK_FORMAT_R32G32B32_UINT;
     default:
       return static_cast<VkFormat>(-1);
