@@ -1540,6 +1540,32 @@ VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
   return buffer;
 }
 
+// creates image but doesn't assign memory to it
+// different image layouts are suitable for different image operations
+VkImage create_image(VkDevice device, VkImageType type,
+                     VkExtent3D const& extent, VkImageUsageFlagBits usage,
+                     VkSharingMode sharing_mode, VkFormat format,
+                     VkImageLayout initial_layout) {
+  VkImageCreateInfo image_info{};
+  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  image_info.usage = usage;
+  image_info.imageType = type;
+  image_info.extent = extent;
+  image_info.sharingMode = sharing_mode;
+  image_info.mipLevels = 1;
+  image_info.arrayLayers = 1;
+  image_info.format = format;
+  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_info.initialLayout = initial_layout;
+  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  image_info.flags = 0;
+
+  VkImage image;
+  VLK_MUST_SUCCEED(vkCreateImage(device, &image_info, nullptr, &image),
+                   "Unable to create image");
+  return image;
+}
+
 // get memory requirements for a buffer based on it's type and usage mode
 VkMemoryRequirements get_memory_requirements(VkDevice device, VkBuffer buffer) {
   VkMemoryRequirements memory_requirements;
