@@ -282,7 +282,7 @@ struct Buffer {
         memory_type, properties.limits.maxMemoryAllocationCount,
         std::max(desired_block_size, requirements.size));
 
-    auto commit = allocator.allocate(device, bytes_size)
+    auto commit = allocator.allocate(device, requirements.size)
                       .expect("unable to allocate memory for buffer");
 
     bind_memory_to_buffer(device, buffer, commit.memory, commit.offset);
