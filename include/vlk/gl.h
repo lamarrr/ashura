@@ -1602,6 +1602,30 @@ VkDescriptorSetLayout create_descriptor_set_layout(
   return dsl_layout;
 }
 
+VkDescriptorPool create_descriptor_pool(
+    VkDevice device, uint32_t max_descriptor_sets,
+    stx::Span<VkDescriptorPoolSize const> const& pool_sizing) {
+  // create pool capable of holding different types of data with varying number
+  // of descriptors
+  VkDescriptorPoolCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  create_info.poolSizeCount = pool_sizing.size();
+  create_info.pPoolSizes = pool_sizing.data();
+
+  create_info.maxSets =
+      max_descriptor_sets;  /// desc sets is
+                            // a set with similar properties (can be by type and
+                            // are not necessarily unique as the name might
+                            // imply)
+
+  VkDescriptorPool descriptor_pool;
+  VLK_MUST_SUCCEED(
+      vkCreateDescriptorPool(device, &create_info, nullptr, &descriptor_pool),
+      "Unable to create descriptor pool");
+
+  return descriptor_pool;
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
