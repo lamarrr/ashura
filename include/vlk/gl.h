@@ -1223,9 +1223,7 @@ struct Recorder {
     return *this;
   }
 
-  Recorder bind_pipeline(
-      VkPipeline pipeline,
-      VkPipelineBindPoint bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS) {
+  Recorder bind_pipeline(VkPipeline pipeline, VkPipelineBindPoint bind_point) {
     vkCmdBindPipeline(command_buffer_, bind_point, pipeline);
     return *this;
   }
