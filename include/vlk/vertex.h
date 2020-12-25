@@ -44,7 +44,37 @@ constexpr VkFormat to_vulkan_dtype(AtrrType type) noexcept {
   }
 }
 
-constexpr size_t dtype_size(DType type) {
+template <typename T>
+struct vk_attr_type {
+  static constexpr auto type = AtrrType::Unimplemented;
+};
+
+template <>
+struct vk_attr_type<float> {
+  static constexpr auto type = AtrrType::f32;
+};
+
+template <>
+struct vk_attr_type<float[1]> {
+  static constexpr auto type = AtrrType::f32x1;
+};
+
+template <>
+struct vk_attr_type<float[2]> {
+  static constexpr auto type = AtrrType::f32x2;
+};
+
+template <>
+struct vk_attr_type<float[3]> {
+  static constexpr auto type = AtrrType::f32x3;
+};
+
+template <>
+struct vk_attr_type<float[4]> {
+  static constexpr auto type = AtrrType::f32x4;
+};
+
+constexpr size_t dtype_size(AtrrType type) noexcept {
   switch (type) {
     case AtrrType::f32x1:
       return sizeof(float);
