@@ -1566,6 +1566,43 @@ VkImage create_image(VkDevice device, VkImageType type,
   return image;
 }
 
+// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: Optimal for presentation
+// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: Optimal as attachment for writing
+// colors from the fragment shader VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL: Optimal
+// as source in a transfer operation, like vkCmdCopyImageToBuffer
+// VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: Optimal as destination in a transfer
+// operation, like vkCmdCopyBufferToImage
+// VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL: Optimal for sampling from a shader
+
+// establishes synchronization of the state of the image's memory (state
+// transitions that must occur between each operation) i.e. making sure that an
+// image was written to before it is read. They can also be used to transition
+// the image's layouts.
+VkImageMemoryBarrier make_image_memory_barrier(
+    VkImage image, VkImageLayout old_layout, VkImageLayout new_layout,
+    VkAccessFlagBits src_access_flags, VkAccessFlagBits dst_access_flags) {
+  VkImageMemoryBarrier barrier{};
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.oldLayout = old_layout;
+  barrier.newLayout = new_layout;
+  barrier.srcQueueFamilyIndex =
+      VK_QUEUE_FAMILY_IGNORED;  // not transferring ownership of the image
+  barrier.dstQueueFamilyIndex =
+      VK_QUEUE_FAMILY_IGNORED;  // not transferring ownership of the image
+  barrier.image = image;
+  barrier.subresourceRange.aspectMask =
+      VK_IMAGE_ASPECT_COLOR_BIT;  // part of the image
+  barrier.subresourceRange.baseMipLevel = 0;
+  barrier.subresourceRange.levelCount = 1;
+  barrier.subresourceRange.baseArrayLayer = 0;
+  barrier.subresourceRange.layerCount = 1;
+
+  barrier.srcAccessMask = src_access_flags;  // TODO(lamarrr)
+  barrier.dstAccessMask = dst_access_flags;  // TODO(lamarrr)
+
+  return barrier;
+}
+
 // get memory requirements for a buffer based on it's type and usage mode
 VkMemoryRequirements get_memory_requirements(VkDevice device, VkBuffer buffer) {
   VkMemoryRequirements memory_requirements;
