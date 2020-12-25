@@ -1626,6 +1626,26 @@ VkDescriptorPool create_descriptor_pool(
   return descriptor_pool;
 }
 
+// each descriptor set represents a descriptor for a certain buffer type i.e.
+// DESCRIPTOR_TYPE_UNIFORM_BUFFER
+void allocate_descriptor_sets(
+    VkDevice device, VkDescriptorPool descriptor_pool,
+    stx::Span<VkDescriptorSetLayout const> const& layouts,
+    stx::Span<VkDescriptorSet> const& descriptor_sets) {
+  VLK_ENSURE(layouts.size() == descriptor_sets.size(),
+             "descriptor sets and layouts sizes must match");
+
+  VkDescriptorSetAllocateInfo info{};
+  info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  info.descriptorPool = descriptor_pool;
+  info.descriptorSetCount = layouts.size();
+  info.pSetLayouts = layouts.data();
+
+  VLK_MUST_SUCCEED(
+      vkAllocateDescriptorSets(device, &info, descriptor_sets.data()),
+      "Unable to create descriptor sets");
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
