@@ -1646,6 +1646,38 @@ void allocate_descriptor_sets(
       "Unable to create descriptor sets");
 }
 
+// descriptor set writer interface, can write multiple objects of the same time
+// type in one pass (images, buffers, texels, etc.)
+struct DescriptorSetWriter {
+  VkDevice device;
+  VkDescriptorSet descriptor_set;
+  VkDescriptorType descriptor_type;
+  uint32_t binding;
+
+  DescriptorSetWriter write_buffers(
+      stx::Span<VkDescriptorBufferInfo const> const& buffers) {
+    VkWriteDescriptorSet descriptor_write{};
+    descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptor_write.dstSet = descriptor_set;
+    descriptor_write.dstBinding = binding;
+    descriptor_write.dstArrayElement = 0;
+    descriptor_write.descriptorType = descriptor_type;
+    descriptor_write.descriptorCount = buffers.size();
+
+    descriptor_write.pBufferInfo = buffers.data();
+
+    vkUpdateDescriptorSets(device, 1, &descriptor_write, 0, nullptr);
+
+    return *this;
+  }
+
+  DescriptorSetWriter write_image();  // descriptor_write.pImageInfo
+
+  DescriptorSetWriter copy_image();  // descriptor_write.pImageInfo
+
+  DescriptorSetWriter write_texel();  // descriptor_write.pTexelView
+};
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
