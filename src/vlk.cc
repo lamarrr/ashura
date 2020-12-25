@@ -24,7 +24,7 @@
 // EXT suffix => extensions. needs to be loaded before use
 // PFN prefix => pointer function
 
-using namespace vlk;
+namespace vlk {
 
 struct WindowConfig {
   // in pixels
@@ -981,11 +981,13 @@ static void application_window_resize_callback(GLFWwindow* window, int, int) {
   app->swapchain_dirty_ = true;
 }
 
+}  // namespace vlk
+
 int main() {
-  WindowConfig window_config{};
+  vlk::WindowConfig window_config{};
   window_config.desired_width = 1920;
   window_config.desired_height = 1080;
   window_config.resizable = true;
-  Application app{window_config};
+  vlk::Application app{window_config};
   app.run();
 }
