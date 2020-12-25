@@ -1251,6 +1251,15 @@ struct Recorder {
     return *this;
   }
 
+  Recorder bind_descriptor_sets(
+      VkPipelineLayout pipeline_layout, VkPipelineBindPoint bind_point,
+      stx::Span<VkDescriptorSet const> const& descriptor_sets) {
+    vkCmdBindDescriptorSets(command_buffer_, bind_point, pipeline_layout, 0,
+                            descriptor_sets.size(), descriptor_sets.data(), 0,
+                            nullptr);  // no dynamic offsets for now
+    return *this;
+  }
+
   Recorder draw(uint32_t vertex_count, uint32_t instance_count,
                 uint32_t first_vertex, uint32_t first_instance) {
     // instanceCount: Used for instanced rendering
