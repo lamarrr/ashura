@@ -1170,6 +1170,33 @@ struct Recorder {
     return *this;
   }
 
+  // TODO(lamarrr): make into multi-copy interface
+  Recorder copy(VkBuffer src, uint64_t src_offset, VkImage dst,
+                VkImageLayout dst_expected_layout, VkOffset3D dst_offset,
+                VkExtent3D dst_extent) {
+    VkBufferImageCopy copy_region{};
+    copy_region.bufferOffset = src_offset;
+    copy_region.bufferRowLength = 0;    // tightly-packed, no padding
+    copy_region.bufferImageHeight = 0;  // tightly-packed, no padding
+
+    copy_region.imageOffset = dst_offset;
+    copy_region.imageExtent = dst_extent;
+
+    copy_region.imageSubresource.aspectMask =
+        VK_IMAGE_ASPECT_COLOR_BIT;  // we want to copy the color components of
+                                    // the pixels
+
+    // TODO(lamarrr): remove hard-coding
+    copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copy_region.imageSubresource.mipLevel = 0;
+    copy_region.imageSubresource.baseArrayLayer = 0;
+    copy_region.imageSubresource.layerCount = 1;
+
+    vkCmdCopyBufferToImage(command_buffer_, src, dst, dst_expected_layout, 1,
+                           &copy_region);
+    return *this;
+  }
+
   Recorder begin_render_pass(
       VkRenderPass render_pass, VkFramebuffer framebuffer, VkRect2D render_area,
       stx::Span<VkClearValue const> const& clear_values) {
