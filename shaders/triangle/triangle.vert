@@ -1,6 +1,7 @@
 #version 450
 
 layout(set = 0, binding = 0) uniform ViewParameters {
+  vec2 reserved;
   mat4 model;
   mat4 camera_view;
   mat4 camera_projection;
