@@ -850,7 +850,8 @@ make_pipeline_viewport_state_create_info(
 }
 
 [[nodiscard]] VkPipelineRasterizationStateCreateInfo
-make_pipeline_rasterization_create_info(float line_width = 1.0f) {
+make_pipeline_rasterization_create_info(float line_width = 1.0f,
+                                        VkFrontFace front_face) {
   VkPipelineRasterizationStateCreateInfo create_info{};
   create_info.sType =
       VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -860,7 +861,7 @@ make_pipeline_rasterization_create_info(float line_width = 1.0f) {
                  // some special cases like shadow maps. Using this requires
                  // enabling a GPU feature.
   create_info.rasterizerDiscardEnable =
-      VK_FALSE;  // if true geometry never passes through the rasterization
+      VK_FALSE;  // if true, geometry never passes through the rasterization
                  // stage thus disabling output to the framebuffer
   // VK_POLYGON_MODE_FILL: fill the area of the polygon with fragments
   // VK_POLYGON_MODE_LINE: polygon edges are drawn as lines
@@ -873,7 +874,7 @@ make_pipeline_rasterization_create_info(float line_width = 1.0f) {
 
   create_info.cullMode = VK_CULL_MODE_BACK_BIT;  // discard the back part of the
                                                  // image that isn't facing us
-  create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  create_info.frontFace = front_face;
 
   create_info.depthBiasEnable = VK_FALSE;
   create_info.depthBiasConstantFactor = 0.0f;  // mostly used for shadow mapping
