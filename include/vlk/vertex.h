@@ -46,32 +46,36 @@ constexpr VkFormat to_vulkan_dtype(AtrrType type) noexcept {
 
 constexpr size_t dtype_size(DType type) {
   switch (type) {
-    case DType::f32_1:
+    case AtrrType::f32x1:
       return sizeof(float);
-    case DType::f32_2:
-      return sizeof(float) * 2;
-    case DType::f32_3:
-      return sizeof(float) * 3;
-    case DType::i32_3:
-      return sizeof(int32_t) * 3;
-    case DType::u32_3:
-      return sizeof(uint32_t) * 3;
+    case AtrrType::f32x2:
+      return sizeof(float[2]);
+    case AtrrType::f32x3:
+      return sizeof(float[3]);
+    case AtrrType::f32x4:
+      return sizeof(float[4]);
+    case AtrrType::i32x3:
+      return sizeof(int32_t[3]);
+    case AtrrType::u32x3:
+      return sizeof(uint32_t[3]);
     default:
       return 0;
   }
 }
 
-constexpr size_t location_increment(DType type) {
+constexpr size_t location_increment(AtrrType type) noexcept {
   switch (type) {
-    case DType::f32_1:
+    case AtrrType::f32x1:
       return 1;
-    case DType::f32_2:
+    case AtrrType::f32x2:
       return 1;
-    case DType::f32_3:
+    case AtrrType::f32x3:
       return 1;
-    case DType::i32_3:
+    case AtrrType::f32x4:
       return 1;
-    case DType::u32_3:
+    case AtrrType::i32x3:
+      return 1;
+    case AtrrType::u32x3:
       return 1;
     default:
       return 0;
