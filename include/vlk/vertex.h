@@ -113,70 +113,117 @@ constexpr size_t location_increment(AtrrType type) noexcept {
   // TODO(lamarrr): not valid for matrices, double (f64) and others.
 }
 
-constexpr size_t recursive_fill_desc(
-    stx::Span<VkVertexInputAttributeDescription> const&, uint32_t, uint32_t,
-    uint32_t, uint32_t) {
-  return 0;
-}
+constexpr void fill_packed_vertex_input_attributes_description(
+    [[maybe_unused]] stx::Span<VkVertexInputAttributeDescription> const&
+        attribute_descriptions,
+    [[maybe_unused]] uint32_t binding, [[maybe_unused]] uint32_t location,
+    [[maybe_unused]] uint32_t bytes_offset,
+    [[maybe_unused]] uint32_t index) noexcept {}
 
-template <typename Head_DType, typename... Tail_DTypes>
-constexpr size_t recursive_fill_desc(
+template <typename Head_AtrrType, typename... Tail_AtrrTypes>
+constexpr void fill_packed_vertex_input_attributes_description(
     stx::Span<VkVertexInputAttributeDescription> const& attribute_descriptions,
-    uint32_t binding, uint32_t location, uint32_t offset, uint32_t index,
-    Head_DType type, Tail_DTypes... tail_types) {
+    uint32_t binding, uint32_t location, uint32_t bytes_offset, uint32_t index,
+    Head_AtrrType type, Tail_AtrrTypes... tail_types) noexcept {
   attribute_descriptions[index].binding = binding;
   attribute_descriptions[index].location = location;
-  attribute_descriptions[index].format = vk_dtype(type);
-  attribute_descriptions[index].offset = offset;
+  attribute_descriptions[index].format = to_vulkan_dtype(type);
+  attribute_descriptions[index].offset = bytes_offset;
 
-  return dtype_size(type) +
-         recursive_fill_desc(attribute_descriptions, binding,
-                             location + location_increment(type),
-                             offset + dtype_size(type), index + 1,
-                             tail_types...);
+  fill_packed_vertex_input_attributes_description(
+      attribute_descriptions, binding, location + location_increment(type),
+      bytes_offset + dtype_size(type), index + 1, tail_types...);
+}
+
+template <typename... AttributeTypes>
+constexpr std::array<VkVertexInputAttributeDescription,
+                     sizeof...(AttributeTypes)>
+make_packed_vertex_input_attributes_description(
+    uint32_t binding, uint32_t start_location = 0) noexcept {
+  std::array<VkVertexInputAttributeDescription, sizeof...(AttributeTypes)>
+      descriptions{};
+
+  fill_packed_vertex_input_attributes_description(
+      descriptions, binding, start_location, 0, 0,
+      vk_attr_type<AttributeTypes>::type...);
+  return descriptions;
+}
+
+static constexpr VkVertexInputBindingDescription
+make_vertex_input_binding_description(uint32_t binding,
+                                      VkVertexInputRate input_rate,
+                                      uint32_t stride) noexcept {
+  VkVertexInputBindingDescription binding_desciption{};
+
+  binding_desciption.binding = binding;
+  // VK_VERTEX_INPUT_RATE_VERTEX: Move to the next data entry after each
+  // vertex (per-vertex data)
+  // VK_VERTEX_INPUT_RATE_INSTANCE: Move to the next data entry after each
+  // instance (per-instance data)
+  binding_desciption.inputRate = input_rate;
+  binding_desciption.stride = stride;
+
+  return binding_desciption;
 }
 
 template <typename T>
-struct Desc {
-  T desc;
-  size_t total_size;
-};
-
-template <typename... DType>
-constexpr Desc<std::array<VkVertexInputAttributeDescription, sizeof...(DType)>>
-make_vertex_description(uint32_t binding, DType... types) {
-  std::array<VkVertexInputAttributeDescription, sizeof...(DType)>
-      descriptions{};
-
-  auto size = recursive_fill_desc(descriptions, binding, 0, 0, 0, types...);
-  return {descriptions, size};
+inline constexpr size_t vlk_size() noexcept {
+  return sizeof(T);
 }
 
-#define VLK_VERTEX_STRUCT struct __attribute__((packed))
+template <typename... T>
+inline constexpr size_t packed_bytes_size() noexcept {
+  return (0 + ... + vlk_size<T>());
+}
 
-VLK_VERTEX_STRUCT Vertex {
-  float position[3];
-  float color[3];
+template <typename... AttributeTypes>
+struct [[nodiscard]] PackedVertexInput {
+  constexpr PackedVertexInput(uint32_t binding, VkVertexInputRate input_rate,
+                              uint32_t start_location = 0,
+                              size_t bytes_to_skip = 0)
+      : attributes_description_{make_packed_vertex_input_attributes_description<
+            AttributeTypes...>(binding, start_location)},
+        binding_description_{make_vertex_input_binding_description(
+            binding, input_rate,
+            packed_bytes_size<AttributeTypes...>() + bytes_to_skip)} {}
 
-  static constexpr VkVertexInputBindingDescription
-  make_input_binding_description(uint32_t binding) {
-    VkVertexInputBindingDescription binding_desciption{};
-
-    binding_desciption.binding = binding;
-
-    // VK_VERTEX_INPUT_RATE_VERTEX: Move to the next data entry after each
-    // vertex (per-vertex data)
-    // VK_VERTEX_INPUT_RATE_INSTANCE: Move to the next data entry after each
-    // instance (per-instance data)
-    binding_desciption.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    binding_desciption.stride = sizeof(Vertex);
-
-    return binding_desciption;
+  constexpr size_t size_bytes() const noexcept {
+    return packed_bytes_size<AttributeTypes...>();
   }
 
-  static constexpr auto make_attributes_descriptions(uint32_t binding) {
-    auto desc = make_vertex_description(binding, DType::f32_3, DType::f32_3);
-
-    return desc.desc;
+  constexpr auto get_binding_description() const noexcept {
+    return binding_description_;
   }
+
+  constexpr auto get_attributes_description() const noexcept {
+    return attributes_description_;
+  }
+
+  template <typename T>
+  constexpr bool size_matches() const noexcept {
+    return sizeof(T) == size_bytes();
+  }
+
+  std::array<VkVertexInputAttributeDescription, sizeof...(AttributeTypes)>
+      attributes_description_;
+  VkVertexInputBindingDescription binding_description_;
 };
+
+#define VLK_VEC1_F32_ALIGN alignas(4)
+#define VLK_VEC2_F32_ALIGN alignas(4 * 2)
+#define VLK_VEC3_F32_ALIGN alignas(4 * 3)
+#define VLK_VEC4_F32_ALIGN alignas(4 * 4)
+#define VLK_MAT4_F32_ALIGN VLK_VEC4_F32_ALIGN
+
+#define VLK_MAT4_F32(field_name) VLK_MAT4_F32_ALIGN float field_name[4 * 4]
+#define VLK_VEC2_F32(field_name) VLK_VEC2_F32_ALIGN float field_name[2]
+#define VLK_VEC3_F32(field_name) VLK_VEC3_F32_ALIGN float field_name[3]
+
+struct ProjectionParameters {
+  VLK_VEC2_F32(reserved);
+  VLK_MAT4_F32(model);
+  VLK_MAT4_F32(view);
+  VLK_MAT4_F32(projection);
+};
+
+}  // namespace vlk
