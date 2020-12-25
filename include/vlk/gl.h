@@ -665,6 +665,61 @@ constexpr VkComponentMapping make_default_component_mapping() {
   return image_view;
 }
 
+VkSampler create_sampler(VkDevice device, stx::Option<float> max_anisotropy) {
+  VkSamplerCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+
+  // for treating the case where there are more fragments than texels
+  create_info.magFilter = VK_FILTER_LINEAR;
+  create_info.minFilter = VK_FILTER_LINEAR;
+
+  // VK_SAMPLER_ADDRESS_MODE_REPEAT: Repeat the texture when going beyond the
+  // image dimensions.
+  // VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT: Like repeat, but
+  // inverts the coordinates to mirror the image when going beyond the
+  // dimensions.
+  // VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE: Take the color of the
+  // edge closest to the coordinate beyond the image dimensions.
+  // VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: Like clamp to edge, but
+  // instead uses the edge opposite to the closest edge.
+  // VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: Return a solid color when sampling
+  // beyond the dimensions of the image.
+
+  // u, v, w coordinate overflow style of the textures
+  // this shouldn't affect the texture if we are not sampling outside of the
+  // image
+  create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+  // for treating the case where there are more texels than fragments
+  create_info.anisotropyEnable = max_anisotropy.is_some();
+  create_info.maxAnisotropy =
+      max_anisotropy.is_some() ? max_anisotropy.clone().unwrap() : 0.0f;
+
+  create_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  create_info.unnormalizedCoordinates =
+      VK_FALSE;  // coordinates matching the sampled image will be normalized to
+                 // the (0.0 to 1.0 range) otherwise in the (0, image width or
+                 // height range)
+
+  create_info.compareEnable = VK_FALSE;
+  create_info.compareOp = VK_COMPARE_OP_ALWAYS;
+
+  // mip-mapping
+  create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  create_info.mipLodBias = 0.0f;
+  create_info.minLod = 0.0f;
+  create_info.maxLod = 0.0f;
+
+  VkSampler sampler;
+
+  VLK_MUST_SUCCEED(vkCreateSampler(device, &create_info, nullptr, &sampler),
+                   "Unable to create sampler");
+
+  return sampler;
+}
+
 [[nodiscard]] VkShaderModule create_shader_module(
     VkDevice device, stx::Span<uint32_t const> const& spirv_byte_data) {
   VkShaderModuleCreateInfo create_info{};
