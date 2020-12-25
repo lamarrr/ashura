@@ -1583,6 +1583,25 @@ VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
   return dsl_binding;
 }
 
+VkDescriptorSetLayout create_descriptor_set_layout(
+    VkDevice device,
+    stx::Span<VkDescriptorSetLayoutBinding const> const& bindings,
+    VkDescriptorSetLayoutCreateFlagBits flags = {}) {
+  VkDescriptorSetLayoutCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  create_info.bindingCount = bindings.size();
+  create_info.pBindings = bindings.data();
+  create_info.pNext = nullptr;
+  create_info.flags = flags;
+
+  VkDescriptorSetLayout dsl_layout;
+  VLK_MUST_SUCCEED(
+      vkCreateDescriptorSetLayout(device, &create_info, nullptr, &dsl_layout),
+      "Unable to create descriptor set layout");
+
+  return dsl_layout;
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
