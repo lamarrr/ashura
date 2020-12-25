@@ -532,7 +532,7 @@ struct [[nodiscard]] SwapChainProperties {
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
     stx::Span<uint32_t const> const& accessing_queue_families_indexes,
-    VkImageUsageFlags image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+    VkImageUsageFlagBits image_usages = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
     VkCompositeAlphaFlagBitsKHR alpha_channel_blending =
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
     VkBool32 clipped = VK_TRUE) {
@@ -559,7 +559,7 @@ struct [[nodiscard]] SwapChainProperties {
   create_info.minImageCount = image_count;
 
   create_info.imageArrayLayers = 1;  // 2 for stereoscopic rendering
-  create_info.imageUsage = image_usage;
+  create_info.imageUsage = image_usages;
   create_info.preTransform = properties.capabilities.currentTransform;
   create_info.compositeAlpha =
       alpha_channel_blending;  // how the alpha channel should be
