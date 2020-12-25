@@ -50,17 +50,21 @@ static void application_window_resize_callback(GLFWwindow* window, int width,
 
 struct [[nodiscard]] Application {
  public:
+  struct Vertex {
+    float position[2];
+    float color[3];
+  };
+
   Application(WindowConfig const& window_config)
       : window_{},
         window_config_{window_config},
         clear_values_{
-            VkClearValue{0xfa / 255.0f, 0xfa / 255.0f, 0xfa / 255.0f, 1.0f}},
+            VkClearValue{0x00 / 255.0f, 0x00 / 255.0f, 0x00 / 255.0f, 1.0f}},
         vulkan_instance_{nullptr},
         surface_{nullptr},
         physical_device_{nullptr},
         logical_device_{nullptr},
         debug_messenger_{},
-        max_frames_in_flight_{2},
         default_debug_messenger_create_info_{} {}
 
   void run() {
@@ -175,9 +179,18 @@ struct [[nodiscard]] Application {
     constexpr char const* required_logical_device_extensions[] = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
+    VkPhysicalDeviceFeatures required_features{};
+
+    // enable sampler anisotropy if available
+    required_features.samplerAnisotropy = features.samplerAnisotropy;
+
     logical_device_ = create_logical_device(
         physical_device_, required_logical_device_extensions,
-        required_validation_layers_, command_queue_create_infos, nullptr);
+        required_validation_layers_, command_queue_create_infos, nullptr,
+        required_features);
+
+    sampler_anisotropy_ =
+        features.samplerAnisotropy ? stx::Option(stx::Some(16.0f)) : stx::None;
 
     /*========== Command Queue Fetching ==========*/
 
@@ -212,6 +225,7 @@ struct [[nodiscard]] Application {
 
     /*=====================================*/
 
+    // TODO(lamarrr): return a (const) reference to what each of them produces?
     create_swapchain_();
 
     create_image_views_();
@@ -236,10 +250,22 @@ struct [[nodiscard]] Application {
     allocate_command_buffers_();
 
     load_vertex_index_data_();
-
-    record_command_buffers_();
+    load_images_();
+    // TODO(lamarrr): split loading vertex and index data and make dependencies
+    // clearer
 
     create_synchronization_objects_();
+
+    // create_uniform_buffers
+    // TODO(lamarrr): use same allocator
+    for (size_t i = 0; i < swapchain_image_views_.size(); i++)
+      host_uniform_buffers_.push_back(HostUniformBuffer::create(
+          logical_device_, physical_device_, sizeof(ProjectionParameters),
+          sizeof(ProjectionParameters)));
+
+    create_descriptor_sets_();
+
+    record_command_buffers_();
 
     swapchain_dirty_ = false;
 
@@ -290,13 +316,59 @@ struct [[nodiscard]] Application {
 
     for (auto swapchain_image : swapchain_images) {
       swapchain_image_views_.push_back(create_image_view(
-          logical_device_, swapchain_image, device_surface_format_.format));
+          logical_device_, swapchain_image, device_surface_format_.format,
+          VK_IMAGE_VIEW_TYPE_2D));
     }
   }
 
   void destroy_image_views_() {
     for (auto image_view : swapchain_image_views_) {
       vkDestroyImageView(logical_device_, image_view, nullptr);
+    }
+  }
+
+  void create_descriptor_set_layouts_() {
+    auto const descriptor_set_count = swapchain_image_views_.size();
+
+    VkDescriptorSetLayoutBinding const descriptor_set_bindings[] = {
+        make_descriptor_set_layout_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                           1, VK_SHADER_STAGE_VERTEX_BIT)};
+
+    for (size_t i = 0; i < descriptor_set_count; i++)
+      descriptor_set_layouts_.push_back(create_descriptor_set_layout(
+          logical_device_, descriptor_set_bindings));
+  }
+
+  void create_descriptor_sets_() {
+    auto const descriptor_set_count = swapchain_image_views_.size();
+    // dsl bindings are different from vertex input attribute bindings even if
+    // they have the same binding value
+    // TODO(lamarrr): descriptor set abstraction
+
+    VkDescriptorPoolSize pool_sizing{};
+
+    pool_sizing.descriptorCount = descriptor_set_count;
+    pool_sizing.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+    // TODO(lamarrr): allow using for multiple descriptor types (if required)
+    descriptor_pool_ = create_descriptor_pool(
+        logical_device_, descriptor_set_count,
+        stx::Span<VkDescriptorPoolSize const, 1>(&pool_sizing));
+
+    descriptor_sets_.resize(descriptor_set_count);
+
+    allocate_descriptor_sets(logical_device_, descriptor_pool_,
+                             descriptor_set_layouts_, descriptor_sets_);
+
+    for (size_t i = 0; i < descriptor_set_count; i++) {
+      VkDescriptorBufferInfo buffers[1] = {};
+      buffers[0].buffer = host_uniform_buffers_[i].buffer_;
+      buffers[0].offset = 0;
+      buffers[0].range = sizeof(ProjectionParameters);
+
+      DescriptorSetWriter{logical_device_, descriptor_sets_[i],
+                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0}
+          .write_buffers(buffers);
     }
   }
 
@@ -336,7 +408,8 @@ struct [[nodiscard]] Application {
                                              VK_DYNAMIC_STATE_LINE_WIDTH};
     auto pipeline_dynamic_state = make_pipeline_dynamic_state(dynamic_states);
 
-    pipeline_layout_ = create_pipeline_layout(logical_device_);
+    pipeline_layout_ =
+        create_pipeline_layout(logical_device_, descriptor_set_layouts_);
 
     VkSubpassDependency const subpass_dependencies[] = {
         make_subpass_dependency()};
@@ -345,21 +418,28 @@ struct [[nodiscard]] Application {
         create_render_pass(logical_device_, attachments_descriptions,
                            subpasses_descriptions, subpass_dependencies);
 
+    constexpr auto vertex_input =
+        // position, color
+        PackedVertexInput<float[2], float[3]>(0,  // binding 0
+                                              VK_VERTEX_INPUT_RATE_VERTEX);
     constexpr VkVertexInputBindingDescription
-        vertex_input_binding_descriptions[] = {
-            Vertex::make_input_binding_description(0 /* for binding 0 */)};
-    constexpr auto vertex_input_attribute_descriptions =
-        Vertex::make_attributes_descriptions(0 /* for binding 0 */);
+        vertex_input_bindings_description[] = {
+            vertex_input.get_binding_description()};
+    constexpr auto vertex_input_attributes_description =
+        vertex_input.get_attributes_description();
+
+    static_assert(vertex_input.size_bytes() == sizeof(Vertex));
 
     auto vertex_input_state = make_pipeline_vertex_input_state_create_info(
-        vertex_input_binding_descriptions, vertex_input_attribute_descriptions);
+        vertex_input_bindings_description, vertex_input_attributes_description);
 
     graphics_pipeline_ = create_graphics_pipeline(
         logical_device_, pipeline_layout_, render_pass_,
         shader_stages_create_info, vertex_input_state,
         make_pipeline_input_assembly_state_create_info(),
         make_pipeline_viewport_state_create_info(viewports, scissors),
-        make_pipeline_rasterization_create_info(),
+        make_pipeline_rasterization_create_info(
+            1.0f, VK_FRONT_FACE_COUNTER_CLOCKWISE),
         make_pipeline_multisample_state_create_info(),
         make_pipeline_depth_stencil_state_create_info(),
         make_pipeline_color_blend_state_create_info(attachments_states),
@@ -418,7 +498,10 @@ struct [[nodiscard]] Application {
           .set_line_width(1.0f)
           .bind_vertex_buffer(0, device_vertex_buffer_, 0)
           .bind_index_buffer(device_index_buffer_, 0, VK_INDEX_TYPE_UINT32)
-          .draw_indexed(36 /*size of indices buffer*/, 1, 0, 0, 0)
+          .bind_descriptor_sets(pipeline_layout_,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                stx::Span(descriptor_sets_).subspan(i, 1))
+          .draw_indexed(6 /*size of indices buffer*/, 1, 0, 0, 0)
           .end_render_pass()
           .end_recording();
     }
@@ -457,174 +540,30 @@ struct [[nodiscard]] Application {
 
   // loads vertex and index data to Graphics device
   void load_vertex_index_data_() {
-    Vertex const vertices[] = {{
-                                   {-0.5f, -0.5f, -0.5f},
-                                   {0.583f, 0.771f, 0.014f},
-                               },
-                               {
-                                   {-0.5f, -0.5f, 0.5f},
-                                   {0.609f, 0.115f, 0.436f},
-                               },
-                               {
-                                   {-0.5f, 0.5f, 0.5f},
-                                   {0.327f, 0.483f, 0.844f},
-                               },
-                               {
-                                   {0.5f, 0.5f, -0.5f},
-                                   {0.822f, 0.569f, 0.201f},
-                               },
-                               {
-                                   {-0.5f, -0.5f, -0.5f},
-                                   {0.435f, 0.602f, 0.223f},
-                               },
-                               {
-                                   {-0.5f, 0.5f, -0.5f},
-                                   {0.31f, 0.747f, 0.185f},
-                               },
-                               {
-                                   {0.5f, -0.5f, 0.5f},
-                                   {0.597f, 0.77f, 0.761f},
-                               },
-                               {
-                                   {-0.5f, -0.5f, -0.5f},
-                                   {0.559f, 0.436f, 0.73f},
-                               },
-                               {
-                                   {0.5f, -0.5f, -0.5f},
-                                   {0.359f, 0.583f, 0.152f},
-                               },
-                               {
-                                   {0.5f, 0.5f, -0.5f},
-                                   {0.483f, 0.596f, 0.789f},
-                               },
-                               {
-                                   {0.5f, -0.5f, -0.5f},
-                                   {0.559f, 0.861f, 0.639f},
-                               },
-                               {
-                                   {-0.5f, -0.5f, -0.5f},
-                                   {0.195f, 0.548f, 0.859f},
-                               },
-                               {
-                                   {-0.5f, -0.5f, -0.5f},
-                                   {0.014f, 0.184f, 0.576f},
-                               },
-                               {
-                                   {-0.5f, 0.5f, 0.5f},
-                                   {0.771f, 0.328f, 0.97f},
-                               },
-                               {
-                                   {-0.5f, 0.5f, -0.5f},
-                                   {0.406f, 0.615f, 0.116f},
-                               },
-                               {
-                                   {0.5f, -0.5f, 0.5f},
-                                   {0.676f, 0.977f, 0.133f},
-                               },
-                               {
-                                   {-0.5f, -0.5f, 0.5f},
-                                   {0.971f, 0.572f, 0.833f},
-                               },
-                               {
-                                   {-0.5f, -0.5f, -0.5f},
-                                   {0.14f, 0.616f, 0.489f},
-                               },
-                               {
-                                   {-0.5f, 0.5f, 0.5f},
-                                   {0.997f, 0.513f, 0.064f},
-                               },
-                               {
-                                   {-0.5f, -0.5f, 0.5f},
-                                   {0.945f, 0.719f, 0.592f},
-                               },
-                               {
-                                   {0.5f, -0.5f, 0.5f},
-                                   {0.543f, 0.021f, 0.978f},
-                               },
-                               {
-                                   {0.5f, 0.5f, 0.5f},
-                                   {0.279f, 0.317f, 0.505f},
-                               },
-                               {
-                                   {0.5f, -0.5f, -0.5f},
-                                   {0.167f, 0.62f, 0.077f},
-                               },
-                               {
-                                   {0.5f, 0.5f, -0.5f},
-                                   {0.347f, 0.857f, 0.137f},
-                               },
-                               {
-                                   {0.5f, -0.5f, -0.5f},
-                                   {0.055f, 0.953f, 0.042f},
-                               },
-                               {
-                                   {0.5f, 0.5f, 0.5f},
-                                   {0.714f, 0.505f, 0.345f},
-                               },
-                               {
-                                   {0.5f, -0.5f, 0.5f},
-                                   {0.783f, 0.29f, 0.734f},
-                               },
-                               {
-                                   {0.5f, 0.5f, 0.5f},
-                                   {0.722f, 0.645f, 0.174f},
-                               },
-                               {
-                                   {0.5f, 0.5f, -0.5f},
-                                   {0.302f, 0.455f, 0.848f},
-                               },
-                               {
-                                   {-0.5f, 0.5f, -0.5f},
-                                   {0.225f, 0.587f, 0.04f},
-                               },
-                               {
-                                   {0.5f, 0.5f, 0.5f},
-                                   {0.517f, 0.713f, 0.338f},
-                               },
-                               {
-                                   {-0.5f, 0.5f, -0.5f},
-                                   {0.053f, 0.959f, 0.12f},
-                               },
-                               {
-                                   {-0.5f, 0.5f, 0.5f},
-                                   {0.393f, 0.621f, 0.362f},
-                               },
-                               {
-                                   {0.5f, 0.5f, 0.5f},
-                                   {0.673f, 0.211f, 0.457f},
-                               },
-                               {
-                                   {-0.5f, 0.5f, 0.5f},
-                                   {0.82f, 0.883f, 0.371f},
-                               },
-                               {
-                                   {0.5f, -0.5f, 0.5f},
-                                   {0.982f, 0.099f, 0.879f},
-                               }};
+    Vertex const vertices[] = {{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                               {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+                               {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+                               {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
 
-    std::vector<uint32_t> indices;
-    indices.resize(std::size(vertices));
-    std::iota(indices.begin(), indices.end(), 0);
+    uint32_t const indices[] = {0, 1, 2, 2, 3, 0};
 
-    HostStagingBuffer host_staging_buffer =
-        HostStagingBuffer::create(logical_device_, physical_device_,
-                                  std::max(std::size(vertices) * sizeof(Vertex),
-                                           indices.size() * sizeof(uint32_t)),
-                                  50'000'000);
+    auto const vertices_bytes = std::size(vertices) * sizeof(Vertex);
+    auto const indices_bytes = std::size(indices) * sizeof(uint32_t);
+    auto const staging_bytes = std::max(vertices_bytes, indices_bytes);
+
+    auto host_staging_buffer = HostStagingBuffer::create(
+        logical_device_, physical_device_, staging_bytes, 0);
 
     device_vertex_buffer_ = DeviceVertexBuffer::create(
-        logical_device_, physical_device_, std::size(vertices) * sizeof(Vertex),
-        50'000'000);
+        logical_device_, physical_device_, vertices_bytes, 0);
     device_index_buffer_ = DeviceIndexBuffer::create(
-        logical_device_, physical_device_, indices.size() * sizeof(uint32_t),
-        50'000'000);
+        logical_device_, physical_device_, indices_bytes, 0);
 
     host_staging_buffer.write(logical_device_, 0, stx::Span(vertices).as_u8());
 
     cmd::Recorder{transfer_command_buffer_}
         .begin_recording(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT)
-        .copy(host_staging_buffer.buffer_, 0,
-              std::size(vertices) * sizeof(Vertex),
+        .copy(host_staging_buffer.buffer_, 0, vertices_bytes,
               device_vertex_buffer_.buffer_, 0)
         .end_recording();
 
@@ -643,9 +582,8 @@ struct [[nodiscard]] Application {
       host_staging_buffer.write(logical_device_, 0, stx::Span(indices).as_u8());
       cmd::Recorder{transfer_command_buffer_}
           .begin_recording(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT)
-          .copy(host_staging_buffer.buffer_, 0,
-                indices.size() * sizeof(uint32_t), device_index_buffer_.buffer_,
-                0)
+          .copy(host_staging_buffer.buffer_, 0, indices_bytes,
+                device_index_buffer_.buffer_, 0)
           .end_recording();
 
       submit_commands(transfer_command_queue_, transfer_command_buffer_, {}, {},
@@ -657,6 +595,99 @@ struct [[nodiscard]] Application {
     }
 
     host_staging_buffer.destroy(logical_device_);
+  }
+
+  // TODO(lamarrr): move
+  inline static constexpr auto to_vk_format_SRGB(
+      data::Image::Format format) noexcept {
+    using Image = data::Image;
+    switch (format) {
+      case Image::Format::RGB:
+        return VK_FORMAT_R8G8B8_SRGB;
+      case Image::Format::Grey:
+        return VK_FORMAT_R8_SRGB;
+      case Image::Format::GreyAlpha:
+        return VK_FORMAT_R8G8_SRGB;
+      case Image::Format::RGBA:
+        return VK_FORMAT_R8G8B8A8_SRGB;
+      default:
+        return VK_FORMAT_R8G8B8_SRGB;
+    }
+  }
+
+  // TODO(lamarrr): this isn't eequired to be in this struct, same for
+  // load_vertex_index_data
+  void load_images_() {
+    data::Image images[] = {
+        data::Image::load(desc::Image{"/home/lamar/Desktop/wraith.jpg",
+                                      desc::Image::Format::RGBA, true})
+            .expect("Unable to load image")};
+    auto images_size = 0;
+
+    for (auto const& image : images) images_size += image.size();
+
+    auto staging_buffer = HostStagingBuffer::create(
+        logical_device_, physical_device_, images_size, 0);
+
+    staging_buffer.write(logical_device_, 0, images[0].bytes());
+
+    VkExtent3D extent;
+    extent.depth = 1;
+    extent.width = images[0].width();
+    extent.height = images[0].height();
+    auto format = to_vk_format_SRGB(images[0].format());
+
+    // TODO(lamarrr): we are using an hardcoded format for the images, it might
+    // not be available on the target device (though it's the most preferred
+    // one)
+    sampled_image_ = DeviceSampledImage::create(
+        logical_device_, physical_device_, VK_IMAGE_TYPE_2D, extent, format,
+        VK_IMAGE_LAYOUT_UNDEFINED, 0);
+
+    // change image layout to optimal layout for transfer queue writing
+    // change access mode of the image for writing by transfer command queue
+    VkImageMemoryBarrier const transfer_barriers[] = {make_image_memory_barrier(
+        sampled_image_.image_, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {},
+        VK_ACCESS_TRANSFER_WRITE_BIT)};
+
+    // change image layout to optimial layout for shader sampling
+    // change access mode of the image for reading in shader sampler
+    VkImageMemoryBarrier const shader_barriers[] = {make_image_memory_barrier(
+        sampled_image_.image_, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT)};
+
+    reset_command_buffer(transfer_command_buffer_);
+
+    cmd::Recorder{transfer_command_buffer_}
+        .begin_recording(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT)
+        .bind_pipeline_barrier(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                               VK_PIPELINE_STAGE_TRANSFER_BIT, {}, {},
+                               transfer_barriers)
+        .copy(staging_buffer.buffer_, 0, sampled_image_.image_,
+              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {0, 0, 0},
+              sampled_image_.extent_)
+        .bind_pipeline_barrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {}, {},
+                               shader_barriers)
+        .end_recording();
+
+    auto fence = create_fence(logical_device_, false);
+
+    submit_commands(transfer_command_queue_, transfer_command_buffer_, {}, {},
+                    {}, fence);
+
+    await_fence(logical_device_, fence);
+
+    vkDestroyFence(logical_device_, fence, nullptr);
+
+    auto image_view = create_image_view(logical_device_, sampled_image_.image_,
+                                        format, VK_IMAGE_VIEW_TYPE_2D);
+
+    staging_buffer.destroy(logical_device_);
+
+    auto sampler = create_sampler(logical_device_, sampler_anisotropy_.clone());
   }
 
   VkViewport get_viewport_() {
@@ -745,6 +776,46 @@ struct [[nodiscard]] Application {
 #endif
   }
 
+  void update_uniform_buffer_(uint32_t swapchain_image_index,
+                              VkExtent2D const& swapchain_extent) {
+    static auto const start_time = std::chrono::high_resolution_clock::now();
+
+    auto const glm_copy = [](glm::mat4 const& value, float(&dst)[16]) {
+      auto ptr = glm::value_ptr(value);
+      std::copy(ptr, ptr + 16, dst);
+    };
+
+    auto current_time = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(
+                     current_time - start_time)
+                     .count();
+
+    ProjectionParameters ubo{};
+
+    glm_copy(glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f),
+                         glm::vec3(0.0f, 0.0f, 1.0f)),
+             ubo.model);
+
+    glm_copy(
+        glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+                    glm::vec3(0.0f, 0.0f, 1.0f)),
+        ubo.view);
+
+    auto projection = glm::perspective(
+        glm::radians(45.0f),
+        swapchain_extent.width / static_cast<float>(swapchain_extent.height),
+        0.1f, 10.0f);
+
+    // downwards is positive y
+    projection[1][1] *= -1;
+
+    glm_copy(projection, ubo.projection);
+
+    host_uniform_buffers_[swapchain_image_index].write(
+        logical_device_, 0,
+        stx::Span<ProjectionParameters const, 1>(&ubo).as_u8());
+  }
+
   void draw_frame_(uint32_t frame_flight_index) {
     // - Acquire an image from the swap chain
     // - Execute the command buffer with that image as attachment in the
@@ -785,6 +856,10 @@ struct [[nodiscard]] Application {
       return;
     }
 
+    // each uniform buffer corresponds to an image on the swapchain as we
+    // described in the graphics pipeline
+    update_uniform_buffer_(swapchain_image_index, window_.surface_extent);
+
     {
       VkSemaphore const await_semaphores[] = {
           image_available_semaphores_[frame_flight_index]};
@@ -806,7 +881,10 @@ struct [[nodiscard]] Application {
 
       if (present_to_swapchains(surface_presentation_command_queue_,
                                 await_semaphores, swapchains,
-                                swapchain_image_indexes) != VK_SUCCESS) {
+                                swapchain_image_indexes) == VK_SUCCESS) {
+        auto duration = timer_.tick();
+        // VLK_LOG("{} FPS", 1 / (duration.count() / 1'000'000'000.0f));
+      } else {
         swapchain_dirty_ = true;
         return;
       }
@@ -840,6 +918,8 @@ struct [[nodiscard]] Application {
 
   void main_loop_() {
     uint32_t frame_flight_index = 0;
+    timer_.start();
+
     while (!glfwWindowShouldClose(window_.window)) {
       glfwPollEvents();
 
@@ -926,6 +1006,11 @@ struct [[nodiscard]] Application {
   VkPipeline graphics_pipeline_;
   VkPipelineLayout pipeline_layout_;
 
+  std::vector<VkDescriptorSetLayout> descriptor_set_layouts_;
+  VkDescriptorPool descriptor_pool_;
+  // one descriptor set per frame in flight
+  std::vector<VkDescriptorSet> descriptor_sets_;
+
   std::vector<VkFramebuffer> swapchain_framebuffers_;
 
   VkCommandPool graphics_command_pool_;
@@ -971,6 +1056,20 @@ struct [[nodiscard]] Application {
                                    static_cast<VkMemoryPropertyFlagBits>(
                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)>;
 
+  using DeviceSampledImage =
+      Image<static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_SAMPLED_BIT |
+                                              VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+            VK_SHARING_MODE_EXCLUSIVE,
+            static_cast<VkMemoryPropertyFlagBits>(
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)>;
+
+  using HostUniformBuffer = Buffer<static_cast<VkBufferUsageFlagBits>(
+                                       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
+                                   VK_SHARING_MODE_EXCLUSIVE,
+                                   static_cast<VkMemoryPropertyFlagBits>(
+                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)>;
+
   using HostStagingBuffer =
       Buffer<VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_SHARING_MODE_EXCLUSIVE,
              static_cast<VkMemoryPropertyFlagBits>(
@@ -979,6 +1078,13 @@ struct [[nodiscard]] Application {
 
   DeviceVertexBuffer device_vertex_buffer_;
   DeviceIndexBuffer device_index_buffer_;
+  // one for each swapchain image available for rendering
+  std::vector<HostUniformBuffer> host_uniform_buffers_;
+  DeviceSampledImage sampled_image_;
+
+  TickTimer<std::chrono::steady_clock> timer_;
+
+  stx::Option<float> sampler_anisotropy_;
 };
 
 static void application_window_resize_callback(GLFWwindow* window, int, int) {
