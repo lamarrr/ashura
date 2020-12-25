@@ -110,7 +110,7 @@ constexpr size_t location_increment(AtrrType type) noexcept {
     default:
       return 0;
   }
-  // not valid for matrices, double (f64) and others.
+  // TODO(lamarrr): not valid for matrices, double (f64) and others.
 }
 
 constexpr size_t recursive_fill_desc(
