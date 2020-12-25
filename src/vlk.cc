@@ -216,6 +216,11 @@ struct [[nodiscard]] Application {
 
     create_image_views_();
 
+    max_frames_in_flight_ =
+        std::min(static_cast<uint32_t>(2),
+                 static_cast<uint32_t>(swapchain_image_views_.size()));
+
+    create_descriptor_set_layouts_();
     create_pipeline_();
 
     create_framebuffers_();
