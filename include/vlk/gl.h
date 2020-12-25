@@ -1296,6 +1296,27 @@ struct Recorder {
     return *this;
   }
 
+  Recorder bind_pipeline_barrier(
+      VkPipelineStageFlagBits src_stages = {},
+      VkPipelineStageFlagBits dst_stages = {},
+      stx::Span<VkMemoryBarrier const> const& memory_barriers = {},
+      stx::Span<VkBufferMemoryBarrier const> const& buffer_memory_barriers = {},
+      stx::Span<VkImageMemoryBarrier const> const& iamge_memory_barriers = {}) {
+    // TODO(lamarrr): don't
+    // 0 or VK_DEPENDENCY_BY_REGION_BIT. VK_DEPENDENCY_BY_REGION_BIT the barrier
+    // into a per-region condition. That means that the implementation is
+    // allowed to already begin reading from the parts of a resource that were
+    // written so far.
+    VkDependencyFlags dependency = 0;
+
+    vkCmdPipelineBarrier(
+        command_buffer_, src_stages, dst_stages, dependency,
+        memory_barriers.size(), memory_barriers.data(),
+        buffer_memory_barriers.size(), buffer_memory_barriers.data(),
+        iamge_memory_barriers.size(), iamge_memory_barriers.data());
+    return *this;
+  }
+
   template <
       typename BufferType,
       std::enable_if_t<static_cast<bool>(BufferType::usage&
