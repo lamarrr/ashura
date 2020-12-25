@@ -407,7 +407,7 @@ struct [[nodiscard]] Application {
           .begin_recording()
           .begin_render_pass(render_pass_, swapchain_framebuffers_[i],
                              render_area, clear_values_)
-          .bind_pipeline(graphics_pipeline_)
+          .bind_pipeline(graphics_pipeline_, VK_PIPELINE_BIND_POINT_GRAPHICS)
           .set_viewports(viewports)
           .set_scissors(scissors)
           .set_line_width(1.0f)
