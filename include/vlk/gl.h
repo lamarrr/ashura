@@ -1567,6 +1567,22 @@ void refresh_memory_map(VkDevice device, VkDeviceMemory memory, uint64_t offset,
                    "Unable to re-read memory map");
 }
 
+VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
+    uint32_t binding, VkDescriptorType descriptor_type,
+    uint32_t descriptor_count  // number of objects being described starting
+                               // from {binding}
+    ,
+    VkShaderStageFlagBits shader_stages, VkSampler const* sampler = nullptr) {
+  VkDescriptorSetLayoutBinding dsl_binding{};
+  dsl_binding.binding = binding;
+  dsl_binding.descriptorType = descriptor_type;
+  dsl_binding.descriptorCount = descriptor_count;
+  dsl_binding.pImmutableSamplers = sampler;
+  dsl_binding.stageFlags = shader_stages;
+
+  return dsl_binding;
+}
+
 }  // namespace vlk
 
 // TODO(lamarrr): Go through the tutorial and comment into this code any
