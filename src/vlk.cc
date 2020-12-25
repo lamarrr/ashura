@@ -13,9 +13,14 @@
 #include "vlk/gl_debug.h"
 #include "vlk/shader.h"
 #include "vlk/config.h"
+#include "glm/mat4x4.hpp"
+#include "glm/ext/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
 
 #include "vlk/vertex.h"
+#include "vlk/timer.h"
 #include "vlk/allocators.h"
+#include "vlk/image.h"
 // EXT suffix => extensions. needs to be loaded before use
 // PFN prefix => pointer function
 
