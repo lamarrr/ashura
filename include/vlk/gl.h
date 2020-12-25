@@ -1512,6 +1512,11 @@ void bind_memory_to_buffer(VkDevice device, VkBuffer buffer,
   VLK_MUST_SUCCEED(vkBindBufferMemory(device, buffer, memory, offset),
                    "Unable to bind memory to buffer");
 }
+
+void bind_memory_to_image(VkDevice device, VkImage image, VkDeviceMemory memory,
+                          uint64_t offset) {
+  VLK_MUST_SUCCEED(vkBindImageMemory(device, image, memory, offset),
+                   "Unable to bind memory to image");
 }
 
 struct MemoryMap {
