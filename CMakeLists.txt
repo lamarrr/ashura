@@ -17,6 +17,9 @@ execute_process(
 execute_process(
   COMMAND git clone -b 0.9.9.8 https://github.com/g-truc/glm.git third_party/glm
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+execute_process(
+  COMMAND git clone -b master https://github.com/nothings/stb.git
+          third_party/stb WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 set(GLFW_BUILD_EXAMPLES
     OFF
@@ -45,7 +48,8 @@ add_executable(valkyrie.bin src/vlk.cc)
 target_link_libraries(valkyrie.bin stx glfw spdlog::spdlog glm::glm
                       ${Vulkan_LIBRARIES})
 target_include_directories(
-  valkyrie.bin PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include)
+  valkyrie.bin PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include
+                       ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID}
                                                 STREQUAL "GNU")
