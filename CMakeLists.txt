@@ -21,6 +21,10 @@ execute_process(
   COMMAND git clone -b master https://github.com/nothings/stb.git
           third_party/stb WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
+          execute_process(
+            COMMAND git clone -b release-1.10.0 https://github.com/google/googletest.git third_party/googletest WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+
 set(GLFW_BUILD_EXAMPLES
     OFF
     CACHE BOOL "" FORCE)
@@ -36,11 +40,14 @@ set(GLFW_INSTALL
 set(STX_ENABLE_BACKTRACE
     ON
     CACHE BOOL "" FORCE)
+set(BUILD_GMOCK OFF
+CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/STX)
 add_subdirectory(third_party/glfw)
 add_subdirectory(third_party/spdlog)
 add_subdirectory(third_party/glm)
+add_subdirectory(third_party/googletest)
 
 find_package(Vulkan REQUIRED)
 
@@ -51,9 +58,22 @@ target_include_directories(
   valkyrie.bin PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include
                        ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
 
+
+
+
+add_executable(valkyrie_tests.bin tests/widget.cc)
+target_link_libraries(valkyrie_tests.bin stx glfw spdlog::spdlog glm::glm
+                      ${Vulkan_LIBRARIES} gtest gtest_main)
+
+                      target_include_directories(
+                        valkyrie_tests.bin PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include
+                                             ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
+
+
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID}
                                                 STREQUAL "GNU")
   target_compile_options(valkyrie.bin PRIVATE -Wall -Wextra -Wpedantic)
+  target_compile_options(valkyrie_tests.bin PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 # todo: add GLSL compilation
 
