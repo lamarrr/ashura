@@ -26,6 +26,17 @@
 
 namespace vlk {
 
+template <typename T>
+auto join_copy(stx::Span<T> const& a, stx::Span<T> const& b) {
+  std::vector<std::remove_const_t<T>> x;
+  x.reserve(a.size() + b.size());
+
+  for (auto const& el : a) x.push_back(el);
+  for (auto const& el : b) x.push_back(el);
+
+  return x;
+}
+
 struct WindowConfig {
   // in pixels
   int desired_width;
