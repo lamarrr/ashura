@@ -1,3 +1,5 @@
+#pragma once
+
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
@@ -225,6 +227,8 @@ struct BlockAllocator {
     }
   }
 
+  size_t block_size() const { return bytes_per_block_; }
+
  private:
   uint32_t memory_type_index_;
   std::vector<MemoryBlock> memory_blocks_;
@@ -262,8 +266,7 @@ struct Buffer {
   // TODO(lamarrr): let it receive a span of allocators and decide whether to
   // use any of them or create a new one
   static Buffer create(VkDevice device, VkPhysicalDevice physical_device,
-                       uint64_t bytes_size,
-                       uint64_t block_size) {  // NOLINT
+                       uint64_t bytes_size, uint64_t desired_block_size) {
     auto buffer = create_buffer(device, bytes_size, usage, sharing_mode);
     auto requirements = get_memory_requirements(device, buffer);
 
@@ -276,9 +279,10 @@ struct Buffer {
             .expect("Could not find suitable memory type for buffer");
 
     auto allocator = BlockAllocator::create(
-        memory_type, properties.limits.maxMemoryAllocationCount, block_size);
+        memory_type, properties.limits.maxMemoryAllocationCount,
+        std::max(desired_block_size, requirements.size));
 
-    auto commit = allocator.allocate(device, bytes_size)
+    auto commit = allocator.allocate(device, requirements.size)
                       .expect("unable to allocate memory for buffer");
 
     bind_memory_to_buffer(device, buffer, commit.memory, commit.offset);
@@ -321,6 +325,91 @@ struct Buffer {
   uint64_t size_;
   MemoryCommit commit_;
   BlockAllocator allocator_;
+};
+
+// images are handled specially unlike buffers due to changing layouts
+template <VkImageUsageFlagBits Usage, VkSharingMode SharingMode,
+          VkMemoryPropertyFlagBits MemoryProperties>
+struct Image {
+  static constexpr auto usage = Usage;
+  static constexpr auto sharing_mode = SharingMode;
+  static constexpr auto memory_properties = MemoryProperties;
+
+  // TODO(lamarrr): let it receive a span of allocators and decide whether to
+  // use any of them or create a new one
+  static Image create(VkDevice device, VkPhysicalDevice physical_device,
+                      VkImageType type, VkExtent3D const& extent,
+                      VkFormat format, VkImageLayout initial_layout,
+                      uint64_t desired_block_size) {
+    auto image = create_image(device, type, extent, usage, sharing_mode, format,
+                              initial_layout);
+    auto requirements = get_memory_requirements(device, image);
+
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(physical_device, &properties);
+
+    auto memory_type =
+        find_suitable_memory_type(physical_device, requirements,
+                                  memory_properties)
+            .expect("Could not find suitable memory type for image");
+
+    auto allocator = BlockAllocator::create(
+        memory_type, properties.limits.maxMemoryAllocationCount,
+        std::max(desired_block_size, requirements.size));
+
+    auto commit = allocator.allocate(device, requirements.size)
+                      .expect("unable to allocate memory for buffer");
+
+    bind_memory_to_image(device, image, commit.memory, commit.offset);
+    return Image{image,
+                 extent,
+                 format,
+                 type,
+                 std::move(commit),
+                 std::move(allocator),
+                 requirements.size};
+  }
+
+  void destroy(VkDevice device) {
+    allocator_.deallocate(commit_);
+    allocator_.destroy(device);
+    vkDestroyImage(device, image_, nullptr);
+  }
+
+  // TODO(lamarrr): we are using a partition of the memory, a memory map may
+  // already exist, if we have two buffers using the same memory then we can't
+  // write to them at the same time we can alternatively always have a memory
+  // map for the whole memory region and then try to get that.
+  // - one map at a time
+  // problem is that multiple buffers using the same memory can't be used in a
+  // multi-threaded nature
+  // offset repressents offset into this buffer
+  void write(VkDevice device, uint64_t offset,
+             stx::Span<uint8_t const> const& data) {
+    VLK_ENSURE(offset + data.size() <= size());
+    VLK_ENSURE(static_cast<bool>(memory_properties &
+                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
+
+    auto buffer_map = allocator_.get_memory_submap(device, commit_.memory,
+                                                   commit_.offset, size());
+
+    std::copy(data.begin(), data.end(), buffer_map.span.begin() + offset);
+
+    allocator_.unmap_memory(device, commit_.memory);
+
+    // wirtes may not immediately take effect, user might need to flush
+  }
+
+  auto extent() { return extent_; }
+  auto size() { return allocated_memory_size_; }
+
+  VkImage image_;
+  VkExtent3D extent_;
+  VkFormat format_;
+  VkImageType type_;
+  MemoryCommit commit_;
+  BlockAllocator allocator_;
+  uint64_t allocated_memory_size_;
 };
 
 }  // namespace vlk

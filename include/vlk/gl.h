@@ -431,14 +431,15 @@ struct [[nodiscard]] SwapChainProperties {
 // choose a specific surface format available on the GPU
 [[nodiscard]] VkSurfaceFormatKHR select_surface_formats(
     stx::Span<VkSurfaceFormatKHR const> const& formats) {
-  VLK_ENSURE(formats.size() != 0, "No window surface format gotten as arg");
-  auto It_format = std::find_if(
+  VLK_ENSURE(formats.size() != 0,
+             "No window surface format supported by physical device");
+  auto preferred_format = std::find_if(
       formats.begin(), formats.end(), [](VkSurfaceFormatKHR const& format) {
         return format.format == VK_FORMAT_R8G8B8_SRGB &&
                format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
       });
 
-  return (It_format != formats.end()) ? *It_format : formats[0];
+  return (preferred_format != formats.end()) ? *preferred_format : formats[0];
 }
 
 [[nodiscard]] VkPresentModeKHR select_surface_presentation_mode(
@@ -531,7 +532,7 @@ struct [[nodiscard]] SwapChainProperties {
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
     stx::Span<uint32_t const> const& accessing_queue_families_indexes,
-    VkImageUsageFlags image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+    VkImageUsageFlagBits image_usages = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
     VkCompositeAlphaFlagBitsKHR alpha_channel_blending =
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
     VkBool32 clipped = VK_TRUE) {
@@ -558,7 +559,7 @@ struct [[nodiscard]] SwapChainProperties {
   create_info.minImageCount = image_count;
 
   create_info.imageArrayLayers = 1;  // 2 for stereoscopic rendering
-  create_info.imageUsage = image_usage;
+  create_info.imageUsage = image_usages;
   create_info.preTransform = properties.capabilities.currentTransform;
   create_info.compositeAlpha =
       alpha_channel_blending;  // how the alpha channel should be
@@ -622,8 +623,20 @@ struct [[nodiscard]] SwapChainProperties {
   return create_info;
 }
 
-[[nodiscard]] VkImageView create_image_view(VkDevice device, VkImage image,
-                                            VkFormat format) {
+constexpr VkComponentMapping make_default_component_mapping() {
+  // how to map the image color components
+  VkComponentMapping mapping{};
+  mapping.r = VK_COMPONENT_SWIZZLE_IDENTITY;  // leave as-is
+  mapping.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+  mapping.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+  mapping.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+  return mapping;
+}
+
+[[nodiscard]] VkImageView create_image_view(
+    VkDevice device, VkImage image, VkFormat format, VkImageViewType view_type,
+    VkComponentMapping component_mapping = make_default_component_mapping()) {
   VkImageViewCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -632,15 +645,10 @@ struct [[nodiscard]] SwapChainProperties {
   // VK_IMAGE_VIEW_TYPE_2D: 2D texture
   // VK_IMAGE_VIEW_TYPE_3D: 3D texture
   // VK_IMAGE_VIEW_TYPE_CUBE: cube map
-  create_info.viewType =
-      VK_IMAGE_VIEW_TYPE_2D;  // treat the image as a 2d texture
+  create_info.viewType = view_type;  // treat the image as a 2d texture
   create_info.format = format;
 
-  // how to map the image color components
-  create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-  create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-  create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-  create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+  create_info.components = component_mapping;
 
   // defines what part of the image this image view represents and what this
   // image view is used for
@@ -655,6 +663,61 @@ struct [[nodiscard]] SwapChainProperties {
       vkCreateImageView(device, &create_info, nullptr, &image_view),
       "Unable to create image view");
   return image_view;
+}
+
+VkSampler create_sampler(VkDevice device, stx::Option<float> max_anisotropy) {
+  VkSamplerCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+
+  // for treating the case where there are more fragments than texels
+  create_info.magFilter = VK_FILTER_LINEAR;
+  create_info.minFilter = VK_FILTER_LINEAR;
+
+  // VK_SAMPLER_ADDRESS_MODE_REPEAT: Repeat the texture when going beyond the
+  // image dimensions.
+  // VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT: Like repeat, but
+  // inverts the coordinates to mirror the image when going beyond the
+  // dimensions.
+  // VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE: Take the color of the
+  // edge closest to the coordinate beyond the image dimensions.
+  // VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: Like clamp to edge, but
+  // instead uses the edge opposite to the closest edge.
+  // VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: Return a solid color when sampling
+  // beyond the dimensions of the image.
+
+  // u, v, w coordinate overflow style of the textures
+  // this shouldn't affect the texture if we are not sampling outside of the
+  // image
+  create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+  // for treating the case where there are more texels than fragments
+  create_info.anisotropyEnable = max_anisotropy.is_some();
+  create_info.maxAnisotropy =
+      max_anisotropy.is_some() ? max_anisotropy.clone().unwrap() : 0.0f;
+
+  create_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  create_info.unnormalizedCoordinates =
+      VK_FALSE;  // coordinates matching the sampled image will be normalized to
+                 // the (0.0 to 1.0 range) otherwise in the (0, image width or
+                 // height range)
+
+  create_info.compareEnable = VK_FALSE;
+  create_info.compareOp = VK_COMPARE_OP_ALWAYS;
+
+  // mip-mapping
+  create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  create_info.mipLodBias = 0.0f;
+  create_info.minLod = 0.0f;
+  create_info.maxLod = 0.0f;
+
+  VkSampler sampler;
+
+  VLK_MUST_SUCCEED(vkCreateSampler(device, &create_info, nullptr, &sampler),
+                   "Unable to create sampler");
+
+  return sampler;
 }
 
 [[nodiscard]] VkShaderModule create_shader_module(
@@ -787,7 +850,8 @@ make_pipeline_viewport_state_create_info(
 }
 
 [[nodiscard]] VkPipelineRasterizationStateCreateInfo
-make_pipeline_rasterization_create_info(float line_width = 1.0f) {
+make_pipeline_rasterization_create_info(float line_width = 1.0f,
+                                        VkFrontFace front_face) {
   VkPipelineRasterizationStateCreateInfo create_info{};
   create_info.sType =
       VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -797,7 +861,7 @@ make_pipeline_rasterization_create_info(float line_width = 1.0f) {
                  // some special cases like shadow maps. Using this requires
                  // enabling a GPU feature.
   create_info.rasterizerDiscardEnable =
-      VK_FALSE;  // if true geometry never passes through the rasterization
+      VK_FALSE;  // if true, geometry never passes through the rasterization
                  // stage thus disabling output to the framebuffer
   // VK_POLYGON_MODE_FILL: fill the area of the polygon with fragments
   // VK_POLYGON_MODE_LINE: polygon edges are drawn as lines
@@ -810,8 +874,9 @@ make_pipeline_rasterization_create_info(float line_width = 1.0f) {
 
   create_info.cullMode = VK_CULL_MODE_BACK_BIT;  // discard the back part of the
                                                  // image that isn't facing us
-  create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  create_info.frontFace = front_face;
 
+  // TODO(lamarrr): abstract?
   create_info.depthBiasEnable = VK_FALSE;
   create_info.depthBiasConstantFactor = 0.0f;  // mostly used for shadow mapping
   create_info.depthBiasClamp = 0.0f;
@@ -892,14 +957,17 @@ make_pipeline_color_blend_state_create_info(
   return pipeline_state;
 }
 
-[[nodiscard]] VkPipelineLayout create_pipeline_layout(VkDevice device) {
+[[nodiscard]] VkPipelineLayout create_pipeline_layout(
+    VkDevice device,
+    stx::Span<VkDescriptorSetLayout const> const& descriptor_sets_layout = {},
+    stx::Span<VkPushConstantRange const> const& constant_ranges = {}) {
   VkPipelineLayoutCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  create_info.setLayoutCount = 0;
-  create_info.pSetLayouts = nullptr;
-  create_info.pushConstantRangeCount = 0;
-  create_info.pPushConstantRanges = nullptr;
+  create_info.setLayoutCount = descriptor_sets_layout.size();
+  create_info.pSetLayouts = descriptor_sets_layout.data();
+  create_info.pushConstantRangeCount = constant_ranges.size();
+  create_info.pPushConstantRanges = constant_ranges.data();
 
   VkPipelineLayout layout;
   VLK_MUST_SUCCEED(
@@ -1170,6 +1238,33 @@ struct Recorder {
     return *this;
   }
 
+  // TODO(lamarrr): make into multi-copy interface
+  Recorder copy(VkBuffer src, uint64_t src_offset, VkImage dst,
+                VkImageLayout dst_expected_layout, VkOffset3D dst_offset,
+                VkExtent3D dst_extent) {
+    VkBufferImageCopy copy_region{};
+    copy_region.bufferOffset = src_offset;
+    copy_region.bufferRowLength = 0;    // tightly-packed, no padding
+    copy_region.bufferImageHeight = 0;  // tightly-packed, no padding
+
+    copy_region.imageOffset = dst_offset;
+    copy_region.imageExtent = dst_extent;
+
+    copy_region.imageSubresource.aspectMask =
+        VK_IMAGE_ASPECT_COLOR_BIT;  // we want to copy the color components of
+                                    // the pixels
+
+    // TODO(lamarrr): remove hard-coding
+    copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copy_region.imageSubresource.mipLevel = 0;
+    copy_region.imageSubresource.baseArrayLayer = 0;
+    copy_region.imageSubresource.layerCount = 1;
+
+    vkCmdCopyBufferToImage(command_buffer_, src, dst, dst_expected_layout, 1,
+                           &copy_region);
+    return *this;
+  }
+
   Recorder begin_render_pass(
       VkRenderPass render_pass, VkFramebuffer framebuffer, VkRect2D render_area,
       stx::Span<VkClearValue const> const& clear_values) {
@@ -1196,10 +1291,29 @@ struct Recorder {
     return *this;
   }
 
-  Recorder bind_pipeline(
-      VkPipeline pipeline,
-      VkPipelineBindPoint bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS) {
+  Recorder bind_pipeline(VkPipeline pipeline, VkPipelineBindPoint bind_point) {
     vkCmdBindPipeline(command_buffer_, bind_point, pipeline);
+    return *this;
+  }
+
+  Recorder bind_pipeline_barrier(
+      VkPipelineStageFlagBits src_stages = {},
+      VkPipelineStageFlagBits dst_stages = {},
+      stx::Span<VkMemoryBarrier const> const& memory_barriers = {},
+      stx::Span<VkBufferMemoryBarrier const> const& buffer_memory_barriers = {},
+      stx::Span<VkImageMemoryBarrier const> const& iamge_memory_barriers = {}) {
+    // TODO(lamarrr): don't
+    // 0 or VK_DEPENDENCY_BY_REGION_BIT. VK_DEPENDENCY_BY_REGION_BIT the barrier
+    // into a per-region condition. That means that the implementation is
+    // allowed to already begin reading from the parts of a resource that were
+    // written so far.
+    VkDependencyFlags dependency = 0;
+
+    vkCmdPipelineBarrier(
+        command_buffer_, src_stages, dst_stages, dependency,
+        memory_barriers.size(), memory_barriers.data(),
+        buffer_memory_barriers.size(), buffer_memory_barriers.data(),
+        iamge_memory_barriers.size(), iamge_memory_barriers.data());
     return *this;
   }
 
@@ -1223,6 +1337,15 @@ struct Recorder {
   Recorder bind_index_buffer(BufferType const& buffer, uint64_t buffer_offset,
                              VkIndexType dtype) {
     vkCmdBindIndexBuffer(command_buffer_, buffer.buffer_, buffer_offset, dtype);
+    return *this;
+  }
+
+  Recorder bind_descriptor_sets(
+      VkPipelineLayout pipeline_layout, VkPipelineBindPoint bind_point,
+      stx::Span<VkDescriptorSet const> const& descriptor_sets) {
+    vkCmdBindDescriptorSets(command_buffer_, bind_point, pipeline_layout, 0,
+                            descriptor_sets.size(), descriptor_sets.data(), 0,
+                            nullptr);  // no dynamic offsets for now
     return *this;
   }
 
@@ -1417,10 +1540,80 @@ VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
   return buffer;
 }
 
+// creates image but doesn't assign memory to it
+// different image layouts are suitable for different image operations
+VkImage create_image(VkDevice device, VkImageType type,
+                     VkExtent3D const& extent, VkImageUsageFlagBits usage,
+                     VkSharingMode sharing_mode, VkFormat format,
+                     VkImageLayout initial_layout) {
+  VkImageCreateInfo image_info{};
+  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  image_info.usage = usage;
+  image_info.imageType = type;
+  image_info.extent = extent;
+  image_info.sharingMode = sharing_mode;
+  image_info.mipLevels = 1;
+  image_info.arrayLayers = 1;
+  image_info.format = format;
+  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_info.initialLayout = initial_layout;
+  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  image_info.flags = 0;
+
+  VkImage image;
+  VLK_MUST_SUCCEED(vkCreateImage(device, &image_info, nullptr, &image),
+                   "Unable to create image");
+  return image;
+}
+
+// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: Optimal for presentation
+// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: Optimal as attachment for writing
+// colors from the fragment shader VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL: Optimal
+// as source in a transfer operation, like vkCmdCopyImageToBuffer
+// VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: Optimal as destination in a transfer
+// operation, like vkCmdCopyBufferToImage
+// VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL: Optimal for sampling from a shader
+
+// establishes synchronization of the state of the image's memory (state
+// transitions that must occur between each operation) i.e. making sure that an
+// image was written to before it is read. They can also be used to transition
+// the image's layouts.
+VkImageMemoryBarrier make_image_memory_barrier(
+    VkImage image, VkImageLayout old_layout, VkImageLayout new_layout,
+    VkAccessFlagBits src_access_flags, VkAccessFlagBits dst_access_flags) {
+  VkImageMemoryBarrier barrier{};
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.oldLayout = old_layout;
+  barrier.newLayout = new_layout;
+  barrier.srcQueueFamilyIndex =
+      VK_QUEUE_FAMILY_IGNORED;  // not transferring ownership of the image
+  barrier.dstQueueFamilyIndex =
+      VK_QUEUE_FAMILY_IGNORED;  // not transferring ownership of the image
+  barrier.image = image;
+  barrier.subresourceRange.aspectMask =
+      VK_IMAGE_ASPECT_COLOR_BIT;  // part of the image
+  barrier.subresourceRange.baseMipLevel = 0;
+  barrier.subresourceRange.levelCount = 1;
+  barrier.subresourceRange.baseArrayLayer = 0;
+  barrier.subresourceRange.layerCount = 1;
+
+  barrier.srcAccessMask = src_access_flags;  // TODO(lamarrr)
+  barrier.dstAccessMask = dst_access_flags;  // TODO(lamarrr)
+
+  return barrier;
+}
+
 // get memory requirements for a buffer based on it's type and usage mode
 VkMemoryRequirements get_memory_requirements(VkDevice device, VkBuffer buffer) {
   VkMemoryRequirements memory_requirements;
   vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
+  return memory_requirements;
+}
+
+// get memory requirements for a buffer based on it's type and usage mode
+VkMemoryRequirements get_memory_requirements(VkDevice device, VkImage image) {
+  VkMemoryRequirements memory_requirements;
+  vkGetImageMemoryRequirements(device, image, &memory_requirements);
   return memory_requirements;
 }
 
@@ -1466,11 +1659,16 @@ VkDeviceMemory allocate_memory(VkDevice device, uint32_t heap_index,
   return memory;
 }
 
-VkDeviceMemory bind_memory_to_buffer(VkDevice device, VkBuffer buffer,
-                                     VkDeviceMemory memory, uint64_t offset) {
+void bind_memory_to_buffer(VkDevice device, VkBuffer buffer,
+                           VkDeviceMemory memory, uint64_t offset) {
   VLK_MUST_SUCCEED(vkBindBufferMemory(device, buffer, memory, offset),
                    "Unable to bind memory to buffer");
-  return memory;
+}
+
+void bind_memory_to_image(VkDevice device, VkImage image, VkDeviceMemory memory,
+                          uint64_t offset) {
+  VLK_MUST_SUCCEED(vkBindImageMemory(device, image, memory, offset),
+                   "Unable to bind memory to image");
 }
 
 struct MemoryMap {
@@ -1520,6 +1718,117 @@ void refresh_memory_map(VkDevice device, VkDeviceMemory memory, uint64_t offset,
   VLK_MUST_SUCCEED(vkInvalidateMappedMemoryRanges(device, 1, &range),
                    "Unable to re-read memory map");
 }
+
+VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
+    uint32_t binding, VkDescriptorType descriptor_type,
+    uint32_t descriptor_count  // number of objects being described starting
+                               // from {binding}
+    ,
+    VkShaderStageFlagBits shader_stages, VkSampler const* sampler = nullptr) {
+  VkDescriptorSetLayoutBinding dsl_binding{};
+  dsl_binding.binding = binding;
+  dsl_binding.descriptorType = descriptor_type;
+  dsl_binding.descriptorCount = descriptor_count;
+  dsl_binding.pImmutableSamplers = sampler;
+  dsl_binding.stageFlags = shader_stages;
+
+  return dsl_binding;
+}
+
+VkDescriptorSetLayout create_descriptor_set_layout(
+    VkDevice device,
+    stx::Span<VkDescriptorSetLayoutBinding const> const& bindings,
+    VkDescriptorSetLayoutCreateFlagBits flags = {}) {
+  VkDescriptorSetLayoutCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  create_info.bindingCount = bindings.size();
+  create_info.pBindings = bindings.data();
+  create_info.pNext = nullptr;
+  create_info.flags = flags;
+
+  VkDescriptorSetLayout dsl_layout;
+  VLK_MUST_SUCCEED(
+      vkCreateDescriptorSetLayout(device, &create_info, nullptr, &dsl_layout),
+      "Unable to create descriptor set layout");
+
+  return dsl_layout;
+}
+
+VkDescriptorPool create_descriptor_pool(
+    VkDevice device, uint32_t max_descriptor_sets,
+    stx::Span<VkDescriptorPoolSize const> const& pool_sizing) {
+  // create pool capable of holding different types of data with varying number
+  // of descriptors
+  VkDescriptorPoolCreateInfo create_info{};
+  create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  create_info.poolSizeCount = pool_sizing.size();
+  create_info.pPoolSizes = pool_sizing.data();
+
+  create_info.maxSets =
+      max_descriptor_sets;  /// desc sets is
+                            // a set with similar properties (can be by type and
+                            // are not necessarily unique as the name might
+                            // imply)
+
+  VkDescriptorPool descriptor_pool;
+  VLK_MUST_SUCCEED(
+      vkCreateDescriptorPool(device, &create_info, nullptr, &descriptor_pool),
+      "Unable to create descriptor pool");
+
+  return descriptor_pool;
+}
+
+// each descriptor set represents a descriptor for a certain buffer type i.e.
+// DESCRIPTOR_TYPE_UNIFORM_BUFFER
+void allocate_descriptor_sets(
+    VkDevice device, VkDescriptorPool descriptor_pool,
+    stx::Span<VkDescriptorSetLayout const> const& layouts,
+    stx::Span<VkDescriptorSet> const& descriptor_sets) {
+  VLK_ENSURE(layouts.size() == descriptor_sets.size(),
+             "descriptor sets and layouts sizes must match");
+
+  VkDescriptorSetAllocateInfo info{};
+  info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  info.descriptorPool = descriptor_pool;
+  info.descriptorSetCount = layouts.size();
+  info.pSetLayouts = layouts.data();
+
+  VLK_MUST_SUCCEED(
+      vkAllocateDescriptorSets(device, &info, descriptor_sets.data()),
+      "Unable to create descriptor sets");
+}
+
+// descriptor set writer interface, can write multiple objects of the same time
+// type in one pass (images, buffers, texels, etc.)
+struct DescriptorSetWriter {
+  VkDevice device;
+  VkDescriptorSet descriptor_set;
+  VkDescriptorType descriptor_type;
+  uint32_t binding;
+
+  DescriptorSetWriter write_buffers(
+      stx::Span<VkDescriptorBufferInfo const> const& buffers) {
+    VkWriteDescriptorSet descriptor_write{};
+    descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptor_write.dstSet = descriptor_set;
+    descriptor_write.dstBinding = binding;
+    descriptor_write.dstArrayElement = 0;
+    descriptor_write.descriptorType = descriptor_type;
+    descriptor_write.descriptorCount = buffers.size();
+
+    descriptor_write.pBufferInfo = buffers.data();
+
+    vkUpdateDescriptorSets(device, 1, &descriptor_write, 0, nullptr);
+
+    return *this;
+  }
+
+  DescriptorSetWriter write_image();  // descriptor_write.pImageInfo
+
+  DescriptorSetWriter copy_image();  // descriptor_write.pImageInfo
+
+  DescriptorSetWriter write_texel();  // descriptor_write.pTexelView
+};
 
 }  // namespace vlk
 

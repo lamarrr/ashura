@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "stx/backtrace.h"
 #include "stx/result.h"
 #include "stx/span.h"
 #include "vulkan/vulkan.h"
@@ -96,6 +97,18 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
                callback_data->pMessage);
     VLK_WARN_IF(!is_general, "[Validation Layer Message, Hints=\"{}\"] {}",
                 hint, callback_data->pMessage);
+  }
+
+  if (!is_general) {
+    VLK_LOG("Call Stack:");
+    stx::backtrace::trace(
+        [](stx::backtrace::Frame frame, int) {
+          VLK_LOG("\t=> {}", frame.symbol.clone().match(
+                                 [](auto sym) { return sym.raw(); },
+                                 []() { return std::string_view("unknown"); }));
+          return false;
+        },
+        2);
   }
 
   return VK_FALSE;
