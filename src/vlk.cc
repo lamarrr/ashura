@@ -33,6 +33,7 @@ struct WindowConfig {
   bool resizable;
 };
 
+// TODO(lamarrr): create API for this
 struct Window {
   GLFWwindow* window;
   // in pixels
