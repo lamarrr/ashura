@@ -191,11 +191,11 @@ struct [[nodiscard]] PackedVertexInput {
     return packed_bytes_size<AttributeTypes...>();
   }
 
-  constexpr auto get_binding_description() const noexcept {
+  constexpr auto binding_description() const noexcept {
     return binding_description_;
   }
 
-  constexpr auto get_attributes_description() const noexcept {
+  constexpr auto attributes_description() const noexcept {
     return attributes_description_;
   }
 

@@ -51,8 +51,8 @@ static void application_window_resize_callback(GLFWwindow* window, int width,
 struct [[nodiscard]] Application {
  public:
   struct Vertex {
-    float position[2];
-    float color[3];
+    float position[3];
+    float texture_coordinates[2];
   };
 
   Application(WindowConfig const& window_config)
@@ -327,49 +327,77 @@ struct [[nodiscard]] Application {
     }
   }
 
-  void create_descriptor_set_layouts_() {
-    auto const descriptor_set_count = swapchain_image_views_.size();
-
-    VkDescriptorSetLayoutBinding const descriptor_set_bindings[] = {
-        make_descriptor_set_layout_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                           1, VK_SHADER_STAGE_VERTEX_BIT)};
-
-    for (size_t i = 0; i < descriptor_set_count; i++)
-      descriptor_set_layouts_.push_back(create_descriptor_set_layout(
-          logical_device_, descriptor_set_bindings));
-  }
-
   void create_descriptor_sets_() {
-    auto const descriptor_set_count = swapchain_image_views_.size();
+    // TODO(lamarrr): explicit this is for the uniform buffers, consider
+    // renaming this function
+
     // dsl bindings are different from vertex input attribute bindings even if
     // they have the same binding value
-    // TODO(lamarrr): descriptor set abstraction
-
-    VkDescriptorPoolSize pool_sizing{};
-
-    pool_sizing.descriptorCount = descriptor_set_count;
-    pool_sizing.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // TODO(lamarrr): descriptor set abstraction?
 
     // TODO(lamarrr): allow using for multiple descriptor types (if required)
-    descriptor_pool_ = create_descriptor_pool(
-        logical_device_, descriptor_set_count,
-        stx::Span<VkDescriptorPoolSize const, 1>(&pool_sizing));
 
-    descriptor_sets_.resize(descriptor_set_count);
+    uint32_t const uniform_buffers_count =
+        swapchain_image_views_.size();  // as many uniform buffers as the
+                                        // number of images on the swapchain
+
+    uint32_t const samplers_count =
+        swapchain_image_views_.size();  // 1 sampler-per swapchain image view
+
+    VkDescriptorPoolSize pool_sizing[2] = {};
+
+    pool_sizing[0].descriptorCount = uniform_buffers_count;
+    pool_sizing[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+    pool_sizing[1].descriptorCount = samplers_count;
+    pool_sizing[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+    descriptor_pool_ = create_descriptor_pool(
+        logical_device_, uniform_buffers_count, pool_sizing);
+
+    descriptor_sets_.resize(uniform_buffers_count);
 
     allocate_descriptor_sets(logical_device_, descriptor_pool_,
                              descriptor_set_layouts_, descriptor_sets_);
 
-    for (size_t i = 0; i < descriptor_set_count; i++) {
+    // write uniform buffers
+
+    for (size_t i = 0; i < uniform_buffers_count; i++) {
       VkDescriptorBufferInfo buffers[1] = {};
       buffers[0].buffer = host_uniform_buffers_[i].buffer_;
       buffers[0].offset = 0;
       buffers[0].range = sizeof(ProjectionParameters);
 
-      DescriptorSetWriter{logical_device_, descriptor_sets_[i],
-                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0}
-          .write_buffers(buffers);
+      DescriptorSetProxy{logical_device_, descriptor_sets_[i],
+                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0}
+          .bind_buffers(buffers);
+
+      VkDescriptorImageInfo images[1] = {};
+      images[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      images[0].imageView = sampled_image_image_view_;
+      images[0].sampler = image_sampler_;
+
+      DescriptorSetProxy{logical_device_, descriptor_sets_[i],
+                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1}
+          .bind_images(images);
     }
+  }
+
+  // this is the data for the pipeline
+  void create_descriptor_set_layouts_() {
+    // TODO(lamarrr): abstract to struct?
+
+    VkDescriptorSetLayoutBinding const descriptor_set_bindings[] = {
+        make_descriptor_set_layout_binding(0, 1,
+                                           VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                           VK_SHADER_STAGE_VERTEX_BIT),
+        make_descriptor_set_layout_binding(
+            1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT)};
+
+    for (size_t i = 0; i < swapchain_image_views_.size(); i++)
+      descriptor_set_layouts_.push_back(create_descriptor_set_layout(
+          logical_device_, descriptor_set_bindings));
   }
 
   void create_pipeline_() {
