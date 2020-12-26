@@ -9,18 +9,24 @@
 #define GLFW_INCLUDE_NONE
 #include "GLFW/glfw3.h"
 
+#include "vlk/config.h"
 #include "vlk/gl.h"
 #include "vlk/gl_debug.h"
 #include "vlk/shader.h"
-#include "vlk/config.h"
-#include "glm/mat4x4.hpp"
+
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE  // use Vulkan range (0.0, 1.0) instead
+                                     // of OpenGL range (-1.0, 1.0)
+                                     // required for perspective projection
+                                     // matrix depth component
+#define GLM_FORCE_RADIANS
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
+#include "glm/mat4x4.hpp"
 
-#include "vlk/vertex.h"
-#include "vlk/timer.h"
 #include "vlk/allocators.h"
 #include "vlk/image.h"
+#include "vlk/timer.h"
+#include "vlk/vertex.h"
 // EXT suffix => extensions. needs to be loaded before use
 // PFN prefix => pointer function
 
