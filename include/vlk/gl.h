@@ -665,7 +665,8 @@ constexpr VkComponentMapping make_default_component_mapping() {
   return image_view;
 }
 
-VkSampler create_sampler(VkDevice device, stx::Option<float> max_anisotropy) {
+[[nodiscard]] VkSampler create_sampler(VkDevice device,
+                                       stx::Option<float> max_anisotropy) {
   VkSamplerCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 
@@ -850,8 +851,8 @@ make_pipeline_viewport_state_create_info(
 }
 
 [[nodiscard]] VkPipelineRasterizationStateCreateInfo
-make_pipeline_rasterization_create_info(float line_width = 1.0f,
-                                        VkFrontFace front_face) {
+make_pipeline_rasterization_create_info(VkFrontFace front_face,
+                                        float line_width = 1.0f) {
   VkPipelineRasterizationStateCreateInfo create_info{};
   create_info.sType =
       VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -1525,9 +1526,9 @@ void submit_commands(VkQueue command_queue, VkCommandBuffer command_buffer,
 }
 
 // creates buffer object but doesn't assign memory to it
-VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
-                       VkBufferUsageFlagBits usage,
-                       VkSharingMode sharing_mode) {
+[[nodiscard]] VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
+                                     VkBufferUsageFlagBits usage,
+                                     VkSharingMode sharing_mode) {
   VkBufferCreateInfo buffer_info{};
   buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   buffer_info.size = byte_size;
@@ -1542,10 +1543,11 @@ VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
 
 // creates image but doesn't assign memory to it
 // different image layouts are suitable for different image operations
-VkImage create_image(VkDevice device, VkImageType type,
-                     VkExtent3D const& extent, VkImageUsageFlagBits usage,
-                     VkSharingMode sharing_mode, VkFormat format,
-                     VkImageLayout initial_layout) {
+[[nodiscard]] VkImage create_image(VkDevice device, VkImageType type,
+                                   VkExtent3D const& extent,
+                                   VkImageUsageFlagBits usage,
+                                   VkSharingMode sharing_mode, VkFormat format,
+                                   VkImageLayout initial_layout) {
   VkImageCreateInfo image_info{};
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   image_info.usage = usage;
@@ -1578,7 +1580,7 @@ VkImage create_image(VkDevice device, VkImageType type,
 // transitions that must occur between each operation) i.e. making sure that an
 // image was written to before it is read. They can also be used to transition
 // the image's layouts.
-VkImageMemoryBarrier make_image_memory_barrier(
+[[nodiscard]] VkImageMemoryBarrier make_image_memory_barrier(
     VkImage image, VkImageLayout old_layout, VkImageLayout new_layout,
     VkAccessFlagBits src_access_flags, VkAccessFlagBits dst_access_flags) {
   VkImageMemoryBarrier barrier{};
@@ -1603,15 +1605,19 @@ VkImageMemoryBarrier make_image_memory_barrier(
   return barrier;
 }
 
-// get memory requirements for a buffer based on it's type and usage mode
-VkMemoryRequirements get_memory_requirements(VkDevice device, VkBuffer buffer) {
+// get memory requirements for a buffer based on it's type, usage mode, and
+// other properties
+[[nodiscard]] VkMemoryRequirements get_memory_requirements(VkDevice device,
+                                                           VkBuffer buffer) {
   VkMemoryRequirements memory_requirements;
   vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
   return memory_requirements;
 }
 
-// get memory requirements for a buffer based on it's type and usage mode
-VkMemoryRequirements get_memory_requirements(VkDevice device, VkImage image) {
+// get memory requirements for an image based on it's type, usage mode, and
+// other properties
+[[nodiscard]] VkMemoryRequirements get_memory_requirements(VkDevice device,
+                                                           VkImage image) {
   VkMemoryRequirements memory_requirements;
   vkGetImageMemoryRequirements(device, image, &memory_requirements);
   return memory_requirements;
@@ -1644,8 +1650,9 @@ stx::Option<uint32_t> find_suitable_memory_type(
 }
 
 // vkFreeMemory
-VkDeviceMemory allocate_memory(VkDevice device, uint32_t heap_index,
-                               uint64_t size) {
+[[nodiscard]] VkDeviceMemory allocate_memory(VkDevice device,
+                                             uint32_t heap_index,
+                                             uint64_t size) {
   VkMemoryAllocateInfo allocate_info{};
 
   allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -1671,15 +1678,16 @@ void bind_memory_to_image(VkDevice device, VkImage image, VkDeviceMemory memory,
                    "Unable to bind memory to image");
 }
 
-struct MemoryMap {
+struct [[nodiscard]] MemoryMap {
   // offset of the memory address this map points to
   uint64_t offset;
   // contains the (offset+adress) and size
   stx::Span<uint8_t volatile> span;
 };
 
-MemoryMap map_memory(VkDevice device, VkDeviceMemory memory, uint64_t offset,
-                     uint64_t size, VkMemoryMapFlags flags = 0) {
+[[nodiscard]] MemoryMap map_memory(VkDevice device, VkDeviceMemory memory,
+                                   uint64_t offset, uint64_t size,
+                                   VkMemoryMapFlags flags = 0) {
   void* ptr;
   VLK_MUST_SUCCEED(vkMapMemory(device, memory, offset, size, flags, &ptr),
                    "Unable to map memory");
@@ -1720,11 +1728,12 @@ void refresh_memory_map(VkDevice device, VkDeviceMemory memory, uint64_t offset,
 }
 
 VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
-    uint32_t binding, VkDescriptorType descriptor_type,
+    uint32_t binding,
     uint32_t descriptor_count  // number of objects being described starting
                                // from {binding}
     ,
-    VkShaderStageFlagBits shader_stages, VkSampler const* sampler = nullptr) {
+    VkDescriptorType descriptor_type, VkShaderStageFlagBits shader_stages,
+    VkSampler const* sampler = nullptr) {
   VkDescriptorSetLayoutBinding dsl_binding{};
   dsl_binding.binding = binding;
   dsl_binding.descriptorType = descriptor_type;
@@ -1735,7 +1744,8 @@ VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
   return dsl_binding;
 }
 
-VkDescriptorSetLayout create_descriptor_set_layout(
+// descriptor sets define the input data for the uniforms (or samplers)
+[[nodiscard]] VkDescriptorSetLayout create_descriptor_set_layout(
     VkDevice device,
     stx::Span<VkDescriptorSetLayoutBinding const> const& bindings,
     VkDescriptorSetLayoutCreateFlagBits flags = {}) {
@@ -1746,15 +1756,15 @@ VkDescriptorSetLayout create_descriptor_set_layout(
   create_info.pNext = nullptr;
   create_info.flags = flags;
 
-  VkDescriptorSetLayout dsl_layout;
+  VkDescriptorSetLayout ds_layout;
   VLK_MUST_SUCCEED(
-      vkCreateDescriptorSetLayout(device, &create_info, nullptr, &dsl_layout),
+      vkCreateDescriptorSetLayout(device, &create_info, nullptr, &ds_layout),
       "Unable to create descriptor set layout");
 
-  return dsl_layout;
+  return ds_layout;
 }
 
-VkDescriptorPool create_descriptor_pool(
+[[nodiscard]] VkDescriptorPool create_descriptor_pool(
     VkDevice device, uint32_t max_descriptor_sets,
     stx::Span<VkDescriptorPoolSize const> const& pool_sizing) {
   // create pool capable of holding different types of data with varying number
@@ -1800,13 +1810,13 @@ void allocate_descriptor_sets(
 
 // descriptor set writer interface, can write multiple objects of the same time
 // type in one pass (images, buffers, texels, etc.)
-struct DescriptorSetWriter {
+struct DescriptorSetProxy {
   VkDevice device;
   VkDescriptorSet descriptor_set;
   VkDescriptorType descriptor_type;
   uint32_t binding;
 
-  DescriptorSetWriter write_buffers(
+  DescriptorSetProxy bind_buffers(
       stx::Span<VkDescriptorBufferInfo const> const& buffers) {
     VkWriteDescriptorSet descriptor_write{};
     descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1823,11 +1833,28 @@ struct DescriptorSetWriter {
     return *this;
   }
 
-  DescriptorSetWriter write_image();  // descriptor_write.pImageInfo
+  DescriptorSetProxy bind_images(
+      stx::Span<VkDescriptorImageInfo const> const& images) {
+    VkWriteDescriptorSet descriptor_write{};
+    descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptor_write.dstSet = descriptor_set;
+    descriptor_write.dstBinding = binding;
+    descriptor_write.dstArrayElement = 0;
+    descriptor_write.descriptorType = descriptor_type;
+    descriptor_write.descriptorCount = images.size();
 
-  DescriptorSetWriter copy_image();  // descriptor_write.pImageInfo
+    descriptor_write.pImageInfo = images.data();
 
-  DescriptorSetWriter write_texel();  // descriptor_write.pTexelView
+    vkUpdateDescriptorSets(device, 1, &descriptor_write, 0, nullptr);
+
+    return *this;
+  }
+
+  // copy and write
+
+  DescriptorSetProxy copy_image();  // descriptor_write.pImageInfo
+
+  DescriptorSetProxy write_texel();  // descriptor_write.pTexelView
 };
 
 }  // namespace vlk
