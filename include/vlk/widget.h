@@ -2,11 +2,14 @@
 #include <cinttypes>
 #include <functional>
 #include <map>
+#include <memory>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "stx/option.h"
 #include "vlk/image.h"
+#include "vlk/utils.h"
 
 namespace vlk {
 
@@ -56,20 +59,33 @@ struct AutoExtent2D {
 
 struct Color {
   uint32_t rgba;
-  static Color rgba(uint8_t, uint8_t, uint8_t, uint8_t);
-  static Color rgb(uint8_t, uint8_t, uint8_t);
+  static constexpr Color FromRgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    uint32_t pixel = static_cast<uint32_t>(r) << 24 ||
+                     static_cast<uint32_t>(g) << 16 ||
+                     static_cast<uint32_t>(b) << 8 || a;
 
-  constexpr Color with_opacity(uint8_t) const;
-  constexpr Color with_red(uint8_t) const;
-  constexpr Color with_green(uint8_t) const;
-  constexpr Color with_blue(uint8_t) const;
+    return Color{pixel};
+  }
 
-  static constexpr auto Red = Color::rgb(0xFF, 0x00, 0x00);
-  static constexpr auto White = Color::rgb(0xFF, 0xFF, 0xFF);
-  static constexpr auto Black = Color::rgb(0x00, 0x00, 0x00);
-  static constexpr auto Blue = Color::rgb(0x00, 0x00, 0xFF);
-  static constexpr auto Green = Color::rgb(0x00, 0xFF, 0x00);
+  static constexpr Color FromRgb(uint8_t r, uint8_t g, uint8_t b) {
+    return Color::FromRgba(r, g, b, 0xFFU);
+  }
+
+  constexpr Color with_red(uint8_t) const noexcept;
+  constexpr Color with_green(uint8_t) const noexcept;
+  constexpr Color with_blue(uint8_t) const noexcept;
+  constexpr Color with_alpha(uint8_t a) const noexcept {
+    return Color{(rgba & 0xFFFFFF00U) | a};
+  }
 };
+
+namespace colors {
+static constexpr auto Red = Color::FromRgb(0xFF, 0x00, 0x00);
+static constexpr auto White = Color::FromRgb(0xFF, 0xFF, 0xFF);
+static constexpr auto Black = Color::FromRgb(0x00, 0x00, 0x00);
+static constexpr auto Blue = Color::FromRgb(0x00, 0x00, 0xFF);
+static constexpr auto Green = Color::FromRgb(0x00, 0xFF, 0x00);
+}  // namespace colors
 
 // to be inherited from
 struct TopBottomLeftRight {
@@ -112,16 +128,16 @@ namespace impl {
 // we are hereby avoiding unneeded hierachies via this proxy
 struct WidgetEventProxy {
   template <typename... ParamTypes>
-  using EventHandler = void(void *, ParamTypes...);
+  using EventHandler = void (*)(void *, ParamTypes...);
 
   using TickHandler = EventHandler<std::chrono::nanoseconds const &>;
   using DrawHandler = EventHandler<Context2D const &, CanvasRecorder2D &>;
-  using Handler = EventHandler<void>;
-  using QueryHandler = bool(void *);
+  using Handler = EventHandler<>;
+  using QueryHandler = bool (*)(void *);
 
  public:
   WidgetEventProxy(void *widget, bool is_stateful)
-      : widget_{widget}, is_stateful_{is_stateful_}, is_dirty_{true} {}
+      : widget_{widget}, is_stateful_{is_stateful} {}
 
   TickHandler on_tick;
   DrawHandler on_draw;
@@ -135,7 +151,7 @@ struct WidgetEventProxy {
 
   void *widget() const noexcept { return widget_; }
 
-  bool is_stateful() const noexcept { return is_stateful_; };
+  bool is_stateful() const noexcept { return is_stateful_; }
 
  private:
   void *widget_;
@@ -147,8 +163,8 @@ struct WidgetEventProxy {
 
 // The widgets will be stored as a pointer to this type, this will enable the
 // widget's appropriate destructor to be called
-virtual struct WidgetDestructorProxy {
-  virtual ~WidgetDestructor() noexcept = 0;
+struct WidgetDestructorProxy {
+  virtual ~WidgetDestructorProxy() noexcept {}
 };
 
 // For feeding the widgets events
@@ -160,7 +176,8 @@ struct WidgetEventBase {
 };
 
 struct WidgetDrawBase {
-  void draw(Context2D const &context, CanvasRecorder2D &canvas) {
+  void draw([[maybe_unused]] Context2D const &context,
+            [[maybe_unused]] CanvasRecorder2D &canvas) {
     // no-op
   }
 };
@@ -168,7 +185,7 @@ struct WidgetDrawBase {
 struct WidgetTickBase {
   // for UI related processing, all other-processing should be done
   // asynchronously
-  void tick(std::chrono::nanoseconds const &interval) {
+  void tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
     // no-op
   }
 };
@@ -177,7 +194,7 @@ struct WidgetStatefulnessBase {
   bool is_dirty() { return true; }
 };
 
-};  // namespace impl
+}  // namespace impl
 
 // virtual function calls here are not actually used, but helps to guide the
 // user, the only virtual function call used here is the destructor
@@ -185,7 +202,7 @@ struct StatelessWidget : public impl::WidgetDestructorProxy,
                          public impl::WidgetDrawBase,
                          public impl::WidgetEventBase,
                          public impl::WidgetTickBase {
-  virtual ~StatelessWidget()  noexcept override = 0;
+  virtual ~StatelessWidget() noexcept override {}
 };
 
 struct StatefulWidget : public impl::WidgetDestructorProxy,
@@ -193,7 +210,7 @@ struct StatefulWidget : public impl::WidgetDestructorProxy,
                         public impl::WidgetEventBase,
                         public impl::WidgetTickBase,
                         public impl::WidgetStatefulnessBase {
-  virtual ~StatelessWidget()  noexcept override = 0;
+  virtual ~StatefulWidget() noexcept override {}
 };
 
 struct WidgetGraph {
@@ -205,28 +222,31 @@ struct WidgetGraph {
   // take shortcuts on the inheritance hierarchy, this will help prevent
   // excessive vtable look-up in the rendering code. we know the exact type of
   // the widget hence we only pay at compile time with many functions.
-  template <typename WidgetType, typename... ConstructorArguments>
-  WidgetGraph &add_stateful_child(ConstructorArguments &&... arguments) & {
+  template <
+      typename WidgetType,
+      std::enable_if_t<std::is_base_of_v<StatefulWidget, WidgetType>, int> = 0,
+      typename... ConstructorArguments>
+  WidgetGraph &add_child(ConstructorArguments &&... arguments) & {
     static_assert(!std::is_reference_v<WidgetType>);
     static_assert(!std::is_const_v<WidgetType>);
-    static_assert(std::is_base_of_v<StatefulWidget, WidgetType>);
-
-    // std::unique_ptr because std::vector::push_back is not noexcept and could
-    // possibly leak otherwise
+    // std::unique_ptr because std::vector::push_back can throw and a
+    // memory leak would occur if raw memory
     std::unique_ptr<WidgetType> widget{
         new WidgetType{std::forward<ConstructorArguments &&>(arguments)...}};
 
     impl::WidgetEventProxy proxy{widget.get(), true};
 
-    proxy.on_tick =  [](void *widget_ptr,  std::chrono::nanoseconds const& interval) {
+    proxy.on_tick = [](void *widget_ptr,
+                       std::chrono::nanoseconds const &interval) {
       auto widget = reinterpret_cast<WidgetType *>(widget_ptr);
       widget->tick(interval);
-    });
+    };
 
-    proxy.on_draw =  [](void *widget_ptr,  Context2D const & context, CanvasRecorder2D & canvas) {
+    proxy.on_draw = [](void *widget_ptr, Context2D const &context,
+                       CanvasRecorder2D &canvas) {
       auto widget = reinterpret_cast<WidgetType *>(widget_ptr);
       widget->draw(context, canvas);
-    });
+    };
 
     proxy.on_click = [](void *widget_ptr) {
       auto widget = reinterpret_cast<WidgetType *>(widget_ptr);
@@ -254,17 +274,20 @@ struct WidgetGraph {
     };
 
     children_.push_back(widget.get());
+    event_proxies_.push_back(proxy);
 
     widget.release();
 
     return *this;
   }
 
-  WidgetGraph &add_stateful_child() && = delete;
+  // FIX
+  WidgetGraph &add_child() && = delete;
 
   ~WidgetGraph() {
     for (auto *child : children_) {
-      child->~WidgetDestructorProxy();
+      // uses the WidgetDestructorProxy
+      delete child;
     }
   }
 };
@@ -278,7 +301,7 @@ struct Button : StatefulWidget {};
 
 // the whole 2d ui performs only one flushandsubmit call to skia
 
-};  // namespace vlk
+}  // namespace vlk
 
 // Same goes for 3D?
 
@@ -286,4 +309,4 @@ extern "C" void *vlk_get_func(char const *name) {
   // get widgets description
   // get whole 2d context information required for the engine
   return {};
-};
+}
