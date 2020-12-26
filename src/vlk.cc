@@ -465,14 +465,14 @@ struct [[nodiscard]] Application {
                            subpasses_descriptions, subpass_dependencies);
 
     constexpr auto vertex_input =
-        // position, color
-        PackedVertexInput<float[2], float[3]>(0,  // binding 0
+        // position, texture coordinates
+        PackedVertexInput<float[3], float[2]>(0,  // binding 0
                                               VK_VERTEX_INPUT_RATE_VERTEX);
     constexpr VkVertexInputBindingDescription
         vertex_input_bindings_description[] = {
-            vertex_input.get_binding_description()};
+            vertex_input.binding_description()};
     constexpr auto vertex_input_attributes_description =
-        vertex_input.get_attributes_description();
+        vertex_input.attributes_description();
 
     static_assert(vertex_input.size_bytes() == sizeof(Vertex));
 
@@ -484,8 +484,8 @@ struct [[nodiscard]] Application {
         shader_stages_create_info, vertex_input_state,
         make_pipeline_input_assembly_state_create_info(),
         make_pipeline_viewport_state_create_info(viewports, scissors),
-        make_pipeline_rasterization_create_info(
-            1.0f, VK_FRONT_FACE_COUNTER_CLOCKWISE),
+        make_pipeline_rasterization_create_info(VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                                                1.0f),
         make_pipeline_multisample_state_create_info(),
         make_pipeline_depth_stencil_state_create_info(),
         make_pipeline_color_blend_state_create_info(attachments_states),
@@ -529,6 +529,7 @@ struct [[nodiscard]] Application {
   void record_command_buffers_() {
     VkViewport const viewports[] = {get_viewport_()};
     VkRect2D const scissors[] = {get_scissor_()};
+
     for (size_t i = 0; i < swapchain_framebuffers_.size(); i++) {
       auto render_area = VkRect2D{
           {0, 0},
@@ -544,10 +545,10 @@ struct [[nodiscard]] Application {
           .set_line_width(1.0f)
           .bind_vertex_buffer(0, device_vertex_buffer_, 0)
           .bind_index_buffer(device_index_buffer_, 0, VK_INDEX_TYPE_UINT32)
-          .bind_descriptor_sets(pipeline_layout_,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                stx::Span(descriptor_sets_).subspan(i, 1))
-          .draw_indexed(6 /*size of indices buffer*/, 1, 0, 0, 0)
+          .bind_descriptor_sets(
+              pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+              stx::Span<VkDescriptorSet const>(descriptor_sets_).subspan(i, 1))
+          .draw_indexed(12 /*size of indices buffer*/, 1, 0, 0, 0)
           .end_render_pass()
           .end_recording();
     }
@@ -586,12 +587,17 @@ struct [[nodiscard]] Application {
 
   // loads vertex and index data to Graphics device
   void load_vertex_index_data_() {
-    Vertex const vertices[] = {{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-                               {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-                               {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-                               {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+    Vertex const vertices[] = {{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},
+                               {{0.5f, -0.5f, 0.0}, {0.0f, 0.0f}},
+                               {{0.5f, 0.5f, 0.0}, {0.0f, 1.0f}},
+                               {{-0.5f, 0.5f, 0.0}, {1.0f, 1.0f}},
+                               //
+                               {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}},
+                               {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}},
+                               {{0.5f, 0.5f, -0.5f}, {1.0f, 1.0f}},
+                               {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f}}};
 
-    uint32_t const indices[] = {0, 1, 2, 2, 3, 0};
+    uint32_t const indices[] = {0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4};
 
     auto const vertices_bytes = std::size(vertices) * sizeof(Vertex);
     auto const indices_bytes = std::size(indices) * sizeof(uint32_t);
@@ -665,7 +671,7 @@ struct [[nodiscard]] Application {
   // load_vertex_index_data
   void load_images_() {
     data::Image images[] = {
-        data::Image::load(desc::Image{"/home/lamar/Desktop/wraith.jpg",
+        data::Image::load(desc::Image{"/home/lamar/Pictures/IMG_0187.PNG",
                                       desc::Image::Format::RGBA, true})
             .expect("Unable to load image")};
     auto images_size = 0;
@@ -728,12 +734,13 @@ struct [[nodiscard]] Application {
 
     vkDestroyFence(logical_device_, fence, nullptr);
 
-    auto image_view = create_image_view(logical_device_, sampled_image_.image_,
-                                        format, VK_IMAGE_VIEW_TYPE_2D);
+    sampled_image_image_view_ = create_image_view(
+        logical_device_, sampled_image_.image_, format, VK_IMAGE_VIEW_TYPE_2D);
 
     staging_buffer.destroy(logical_device_);
 
-    auto sampler = create_sampler(logical_device_, sampler_anisotropy_.clone());
+    image_sampler_ =
+        create_sampler(logical_device_, sampler_anisotropy_.clone());
   }
 
   VkViewport get_viewport_() {
@@ -838,7 +845,7 @@ struct [[nodiscard]] Application {
 
     ProjectionParameters ubo{};
 
-    glm_copy(glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f),
+    glm_copy(glm::rotate(glm::mat4(1.0f), time/2.0f * glm::radians(90.0f),
                          glm::vec3(0.0f, 0.0f, 1.0f)),
              ubo.model);
 
@@ -1014,6 +1021,8 @@ struct [[nodiscard]] Application {
 
   friend void application_window_resize_callback(GLFWwindow*, int, int);
 
+  TickTimer<std::chrono::steady_clock> timer_;
+
   Window window_;
   WindowConfig window_config_;
 
@@ -1052,9 +1061,10 @@ struct [[nodiscard]] Application {
   VkPipeline graphics_pipeline_;
   VkPipelineLayout pipeline_layout_;
 
+  // per-swapchain-image-view descriptor set layout
   std::vector<VkDescriptorSetLayout> descriptor_set_layouts_;
   VkDescriptorPool descriptor_pool_;
-  // one descriptor set per frame in flight
+  // per-swapchain-image-view descriptor set
   std::vector<VkDescriptorSet> descriptor_sets_;
 
   std::vector<VkFramebuffer> swapchain_framebuffers_;
@@ -1126,12 +1136,12 @@ struct [[nodiscard]] Application {
   DeviceIndexBuffer device_index_buffer_;
   // one for each swapchain image available for rendering
   std::vector<HostUniformBuffer> host_uniform_buffers_;
+
   DeviceSampledImage sampled_image_;
-
-  TickTimer<std::chrono::steady_clock> timer_;
-
+  VkImageView sampled_image_image_view_;
+  VkSampler image_sampler_;
   stx::Option<float> sampler_anisotropy_;
-};
+};  // namespace vlk
 
 static void application_window_resize_callback(GLFWwindow* window, int, int) {
   auto app = static_cast<Application*>(glfwGetWindowUserPointer(window));
