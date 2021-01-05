@@ -14,7 +14,8 @@
 #include "stx/result.h"
 #include "stx/span.h"
 #include "vlk/gl_debug.h"
-#include "vlk/utils.h"
+#include "vlk/utils/limits.h"
+#include "vlk/utils/utils.h"
 #include "vulkan/vulkan.h"
 
 namespace vlk {
@@ -36,7 +37,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
     char const* const application_name = "Valkyrie",
     uint32_t application_version = VK_MAKE_VERSION(1, 0, 0),
     char const* const engine_name = "Valkyrie Engine",
-    uint32_t engine_version = VK_MAKE_VERSION(1, 0, 0)) {
+    uint32_t engine_version = VK_MAKE_VERSION(1, 0, 0)) noexcept {
   // helps bnt not necessary
   VkApplicationInfo app_info{};
   app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -44,7 +45,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
   app_info.applicationVersion = application_version;
   app_info.pEngineName = engine_name;
   app_info.engineVersion = engine_version;
-  app_info.apiVersion = VK_API_VERSION_1_2;
+  app_info.apiVersion = VK_API_VERSION_1_1;
   app_info.pNext = nullptr;
 
   VkInstanceCreateInfo create_info{};
@@ -91,7 +92,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 }
 
 [[nodiscard]] constexpr bool device_gt_eq(DevicePropFt const& a,
-                                          DevicePropFt const& b) {
+                                          DevicePropFt const& b) noexcept {
   // Dedicated GPUs
   VkPhysicalDeviceType a_t = std::get<1>(a).deviceType;
   VkPhysicalDeviceType b_t = std::get<1>(b).deviceType;
@@ -149,12 +150,12 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 }
 
 [[nodiscard]] constexpr bool device_lt(DevicePropFt const& a,
-                                       DevicePropFt const& b) {
+                                       DevicePropFt const& b) noexcept {
   return !device_gt_eq(a, b);
 }
 
 [[nodiscard]] std::string name_physical_device(
-    VkPhysicalDeviceProperties const& properties) {
+    VkPhysicalDeviceProperties const& properties) noexcept {
   std::string name = properties.deviceName;
 
   name += " (id: " + std::to_string(properties.deviceID) + ", type: ";
@@ -185,7 +186,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 }
 
 [[nodiscard]] std::vector<DevicePropFt> get_physical_devices(
-    VkInstance vk_instance) {
+    VkInstance vk_instance) noexcept {
   uint32_t devices_count = 0;
 
   VLK_MUST_SUCCEED(
@@ -221,7 +222,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 // selects GPU, in the following preference order: dGPU => vGPU => iGPU => CPU
 [[nodiscard]] DevicePropFt most_suitable_physical_device(
     stx::Span<DevicePropFt const> const& physical_devices,
-    std::function<VkBool32(DevicePropFt const&)> const& criteria) {
+    std::function<VkBool32(DevicePropFt const&)> const& criteria) noexcept {
   std::vector<DevicePropFt> prioritized_physical_devices{
       physical_devices.begin(), physical_devices.end()};
 
@@ -241,7 +242,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 //  to do anything on the GPU (render, draw, compute, allocate memory, create
 //  texture, etc.) we use command queues
 [[nodiscard]] std::vector<VkQueueFamilyProperties> get_queue_families(
-    VkPhysicalDevice device) {
+    VkPhysicalDevice device) noexcept {
   uint32_t queue_families_count;
 
   vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_families_count,
@@ -272,7 +273,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 [[nodiscard]] std::vector<bool> get_surface_presentation_command_queue_support(
     VkPhysicalDevice physical_device,
     stx::Span<VkQueueFamilyProperties const> const& queue_families,
-    VkSurfaceKHR surface) {
+    VkSurfaceKHR surface) noexcept {
   std::vector<bool> supports;
 
   for (size_t i = 0; i < queue_families.size(); i++) {
@@ -293,7 +294,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
     stx::Span<char const* const> const& required_validation_layers,
     stx::Span<VkDeviceQueueCreateInfo const> const& command_queue_create_infos,
     VkAllocationCallbacks const* allocation_callback,
-    VkPhysicalDeviceFeatures const& required_features = {}) {
+    VkPhysicalDeviceFeatures const& required_features = {}) noexcept {
   VkDeviceCreateInfo device_create_info{};
   device_create_info.pQueueCreateInfos = command_queue_create_infos.data();
   device_create_info.queueCreateInfoCount = command_queue_create_infos.size();
@@ -360,7 +361,7 @@ using DevicePropFt = std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties,
 
 [[nodiscard]] VkQueue get_command_queue(
     VkDevice device, uint32_t queue_family_index,
-    uint32_t command_queue_index_in_family) {
+    uint32_t command_queue_index_in_family) noexcept {
   VkQueue command_queue;
   vkGetDeviceQueue(device, queue_family_index, command_queue_index_in_family,
                    &command_queue);
@@ -376,7 +377,7 @@ struct [[nodiscard]] SwapChainProperties {
 };
 
 [[nodiscard]] SwapChainProperties get_swapchain_properties(
-    VkPhysicalDevice physical_device, VkSurfaceKHR surface) {
+    VkPhysicalDevice physical_device, VkSurfaceKHR surface) noexcept {
   SwapChainProperties details{};
 
   VLK_MUST_SUCCEED(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
@@ -415,7 +416,7 @@ struct [[nodiscard]] SwapChainProperties {
 }
 
 [[nodiscard]] bool is_swapchain_adequate(
-    SwapChainProperties const& properties) {
+    SwapChainProperties const& properties) noexcept {
   // we use any available for selecting devices
   VLK_ENSURE(properties.supported_formats.size() != 0,
              "Physical Device does not support any window surface "
@@ -430,7 +431,7 @@ struct [[nodiscard]] SwapChainProperties {
 
 // choose a specific surface format available on the GPU
 [[nodiscard]] VkSurfaceFormatKHR select_surface_formats(
-    stx::Span<VkSurfaceFormatKHR const> const& formats) {
+    stx::Span<VkSurfaceFormatKHR const> const& formats) noexcept {
   VLK_ENSURE(formats.size() != 0,
              "No window surface format supported by physical device");
   auto preferred_format = std::find_if(
@@ -443,7 +444,8 @@ struct [[nodiscard]] SwapChainProperties {
 }
 
 [[nodiscard]] VkPresentModeKHR select_surface_presentation_mode(
-    stx::Span<VkPresentModeKHR const> const& available_presentation_modes) {
+    stx::Span<VkPresentModeKHR const> const&
+        available_presentation_modes) noexcept {
   /*
   - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application are
   transferred to the screen right away, which may result in tearing.
@@ -496,14 +498,12 @@ struct [[nodiscard]] SwapChainProperties {
 }
 
 [[nodiscard]] VkExtent2D select_swapchain_extent(
-    GLFWwindow* window, VkSurfaceCapabilitiesKHR const& capabilities) {
+    GLFWwindow* window, VkSurfaceCapabilitiesKHR const& capabilities) noexcept {
   // if this is already set (value other than uint32_t::max) then we are not
   // allowed to choose the extent
 
-  if ((capabilities.currentExtent.width !=
-       std::numeric_limits<uint32_t>::max()) ||
-      (capabilities.currentExtent.height !=
-       std::numeric_limits<uint32_t>::max())) {
+  if (capabilities.currentExtent.width != u32_max ||
+      capabilities.currentExtent.height != u32_max) {
     return capabilities.currentExtent;
   } else {
     int width, height;
@@ -535,7 +535,7 @@ struct [[nodiscard]] SwapChainProperties {
     VkImageUsageFlagBits image_usages = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
     VkCompositeAlphaFlagBitsKHR alpha_channel_blending =
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-    VkBool32 clipped = VK_TRUE) {
+    VkBool32 clipped = VK_TRUE) noexcept {
   VkSwapchainCreateInfoKHR create_info{};
 
   // number of images to have on the swap chain
@@ -589,7 +589,7 @@ struct [[nodiscard]] SwapChainProperties {
 }
 
 [[nodiscard]] std::vector<VkImage> get_swapchain_images(
-    VkDevice device, VkSwapchainKHR swapchain) {
+    VkDevice device, VkSwapchainKHR swapchain) noexcept {
   uint32_t image_count;
 
   VLK_MUST_SUCCEED(
@@ -608,9 +608,9 @@ struct [[nodiscard]] SwapChainProperties {
 
 // the number of command queues to create is encapsulated in the
 // `queue_priorities` size
-[[nodiscard]] VkDeviceQueueCreateInfo make_command_queue_create_info(
+[[nodiscard]] constexpr VkDeviceQueueCreateInfo make_command_queue_create_info(
     uint32_t queue_family_index,
-    stx::Span<float const> const& queues_priorities) {
+    stx::Span<float const> const& queues_priorities) noexcept {
   VkDeviceQueueCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -623,7 +623,8 @@ struct [[nodiscard]] SwapChainProperties {
   return create_info;
 }
 
-constexpr VkComponentMapping make_default_component_mapping() {
+[[nodiscard]] constexpr VkComponentMapping
+make_default_component_mapping() noexcept {
   // how to map the image color components
   VkComponentMapping mapping{};
   mapping.r = VK_COMPONENT_SWIZZLE_IDENTITY;  // leave as-is
@@ -636,7 +637,8 @@ constexpr VkComponentMapping make_default_component_mapping() {
 
 [[nodiscard]] VkImageView create_image_view(
     VkDevice device, VkImage image, VkFormat format, VkImageViewType view_type,
-    VkComponentMapping component_mapping = make_default_component_mapping()) {
+    VkComponentMapping component_mapping =
+        make_default_component_mapping()) noexcept {
   VkImageViewCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -665,8 +667,8 @@ constexpr VkComponentMapping make_default_component_mapping() {
   return image_view;
 }
 
-[[nodiscard]] VkSampler create_sampler(VkDevice device,
-                                       stx::Option<float> max_anisotropy) {
+[[nodiscard]] VkSampler create_sampler(
+    VkDevice device, stx::Option<float> max_anisotropy) noexcept {
   VkSamplerCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 
@@ -722,7 +724,8 @@ constexpr VkComponentMapping make_default_component_mapping() {
 }
 
 [[nodiscard]] VkShaderModule create_shader_module(
-    VkDevice device, stx::Span<uint32_t const> const& spirv_byte_data) {
+    VkDevice device,
+    stx::Span<uint32_t const> const& spirv_byte_data) noexcept {
   VkShaderModuleCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   create_info.codeSize = spirv_byte_data.size_bytes();
@@ -735,11 +738,11 @@ constexpr VkComponentMapping make_default_component_mapping() {
   return shader_module;
 }
 
-[[nodiscard]] VkPipelineShaderStageCreateInfo
+[[nodiscard]] constexpr VkPipelineShaderStageCreateInfo
 make_pipeline_shader_stage_create_info(
     VkShaderModule module, char const* program_entry_point,
     VkShaderStageFlagBits pipeline_stage_flag,
-    VkSpecializationInfo const* program_constants) {
+    VkSpecializationInfo const* program_constants) noexcept {
   VkPipelineShaderStageCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   create_info.module = module;
@@ -752,10 +755,10 @@ make_pipeline_shader_stage_create_info(
   return create_info;
 }
 
-[[nodiscard]] VkPipelineShaderStageCreateInfo
+[[nodiscard]] constexpr VkPipelineShaderStageCreateInfo
 make_pipeline_shader_stage_create_info(
     VkShaderModule module, char const* program_entry_point,
-    VkShaderStageFlagBits pipeline_stage_flag) {
+    VkShaderStageFlagBits pipeline_stage_flag) noexcept {
   VkPipelineShaderStageCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   create_info.module = module;
@@ -768,12 +771,12 @@ make_pipeline_shader_stage_create_info(
   return create_info;
 }
 
-[[nodiscard]] VkPipelineVertexInputStateCreateInfo
+[[nodiscard]] constexpr VkPipelineVertexInputStateCreateInfo
 make_pipeline_vertex_input_state_create_info(
     stx::Span<VkVertexInputBindingDescription const> const&
         vertex_binding_descriptions,
     stx::Span<VkVertexInputAttributeDescription const> const&
-        vertex_attribute_desciptions) {
+        vertex_attribute_desciptions) noexcept {
   // Bindings: spacing between data and whether the data is per-vertex or
   // per-instance
   // Attribute descriptions: type of the attributes passed to the vertex shader,
@@ -791,8 +794,8 @@ make_pipeline_vertex_input_state_create_info(
   return create_info;
 }
 
-[[nodiscard]] VkPipelineInputAssemblyStateCreateInfo
-make_pipeline_input_assembly_state_create_info() {
+[[nodiscard]] constexpr VkPipelineInputAssemblyStateCreateInfo
+make_pipeline_input_assembly_state_create_info() noexcept {
   // Bindings: spacing between data and whether the data is per-vertex or
   // per-instance
   // Attribute descriptions: type of the attributes passed to the vertex shader,
@@ -807,9 +810,9 @@ make_pipeline_input_assembly_state_create_info() {
   return create_info;
 }
 
-[[nodiscard]] VkViewport make_viewport(float x, float y, float w, float h,
-                                       float min_depth = 0.0f,
-                                       float max_depth = 1.0f) {
+[[nodiscard]] constexpr VkViewport make_viewport(
+    float x, float y, float w, float h, float min_depth = 0.0f,
+    float max_depth = 1.0f) noexcept {
   VkViewport viewport{};
   viewport.x = x;
   viewport.y = y;
@@ -821,7 +824,8 @@ make_pipeline_input_assembly_state_create_info() {
   return viewport;
 }
 
-[[nodiscard]] VkRect2D make_scissor(float x, float y, float w, float h) {
+[[nodiscard]] constexpr VkRect2D make_scissor(float x, float y, float w,
+                                              float h) noexcept {
   VkRect2D scissor{};
 
   scissor.offset.x = x;
@@ -833,10 +837,10 @@ make_pipeline_input_assembly_state_create_info() {
   return scissor;
 }
 
-[[nodiscard]] VkPipelineViewportStateCreateInfo
+[[nodiscard]] constexpr VkPipelineViewportStateCreateInfo
 make_pipeline_viewport_state_create_info(
     stx::Span<VkViewport const> const& viewports,
-    stx::Span<VkRect2D const> const& scissors) {
+    stx::Span<VkRect2D const> const& scissors) noexcept {
   // to use multiple viewports, ensure the GPU feature is enabled during logical
   // device creation
   VkPipelineViewportStateCreateInfo create_info{};
@@ -850,9 +854,9 @@ make_pipeline_viewport_state_create_info(
   return create_info;
 }
 
-[[nodiscard]] VkPipelineRasterizationStateCreateInfo
+[[nodiscard]] constexpr VkPipelineRasterizationStateCreateInfo
 make_pipeline_rasterization_create_info(VkFrontFace front_face,
-                                        float line_width = 1.0f) {
+                                        float line_width = 1.0f) noexcept {
   VkPipelineRasterizationStateCreateInfo create_info{};
   create_info.sType =
       VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -886,8 +890,8 @@ make_pipeline_rasterization_create_info(VkFrontFace front_face,
   return create_info;
 }
 
-[[nodiscard]] VkPipelineMultisampleStateCreateInfo
-make_pipeline_multisample_state_create_info() {
+[[nodiscard]] constexpr VkPipelineMultisampleStateCreateInfo
+make_pipeline_multisample_state_create_info() noexcept {
   VkPipelineMultisampleStateCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   create_info.sampleShadingEnable = VK_FALSE;
@@ -900,16 +904,16 @@ make_pipeline_multisample_state_create_info() {
   return create_info;
 }
 
-[[nodiscard]] VkPipelineDepthStencilStateCreateInfo
-make_pipeline_depth_stencil_state_create_info() {
+[[nodiscard]] constexpr VkPipelineDepthStencilStateCreateInfo
+make_pipeline_depth_stencil_state_create_info() noexcept {
   VkPipelineDepthStencilStateCreateInfo create_info{};
   // VLK_ENSURE(false, "Unimplemented");
   return create_info;
 }
 
 // per framebuffer
-[[nodiscard]] VkPipelineColorBlendAttachmentState
-make_pipeline_color_blend_attachment_state() {
+[[nodiscard]] constexpr VkPipelineColorBlendAttachmentState
+make_pipeline_color_blend_attachment_state() noexcept {
   // simply overwrites the pixels in the destination
   VkPipelineColorBlendAttachmentState state{};
   state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -925,10 +929,10 @@ make_pipeline_color_blend_attachment_state() {
 }
 
 // global pipeline state
-[[nodiscard]] VkPipelineColorBlendStateCreateInfo
+[[nodiscard]] constexpr VkPipelineColorBlendStateCreateInfo
 make_pipeline_color_blend_state_create_info(
     stx::Span<VkPipelineColorBlendAttachmentState const> const&
-        color_frame_buffers) {
+        color_frame_buffers) noexcept {
   VkPipelineColorBlendStateCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
   create_info.logicOpEnable = VK_FALSE;
@@ -944,8 +948,9 @@ make_pipeline_color_blend_state_create_info(
   return create_info;
 }
 
-[[nodiscard]] VkPipelineDynamicStateCreateInfo make_pipeline_dynamic_state(
-    stx::Span<VkDynamicState const> const& dynamic_states) {
+[[nodiscard]] constexpr VkPipelineDynamicStateCreateInfo
+make_pipeline_dynamic_state(
+    stx::Span<VkDynamicState const> const& dynamic_states) noexcept {
   // This will cause the configuration of these values to be ignored and you
   // will be required to specify the data at drawing time. This struct can be
   // substituted by a nullptr later on if you don't have any dynamic state.
@@ -961,7 +966,7 @@ make_pipeline_color_blend_state_create_info(
 [[nodiscard]] VkPipelineLayout create_pipeline_layout(
     VkDevice device,
     stx::Span<VkDescriptorSetLayout const> const& descriptor_sets_layout = {},
-    stx::Span<VkPushConstantRange const> const& constant_ranges = {}) {
+    stx::Span<VkPushConstantRange const> const& constant_ranges = {}) noexcept {
   VkPipelineLayoutCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -978,8 +983,8 @@ make_pipeline_color_blend_state_create_info(
   return layout;
 }
 
-[[nodiscard]] VkAttachmentDescription make_attachment_description(
-    VkFormat format) {
+[[nodiscard]] constexpr VkAttachmentDescription make_attachment_description(
+    VkFormat format) noexcept {
   // the format of the color attachment should match the format of the swap
   // chain images,
   VkAttachmentDescription attachment_description{};
@@ -1011,8 +1016,8 @@ make_pipeline_color_blend_state_create_info(
 
 // subpasses are for post-processing. each subpass depends on the results of the
 // previous (sub)passes, used instead of transferring data
-[[nodiscard]] VkSubpassDescription make_subpass_description(
-    stx::Span<VkAttachmentReference const> const& color_attachments) {
+[[nodiscard]] constexpr VkSubpassDescription make_subpass_description(
+    stx::Span<VkAttachmentReference const> const& color_attachments) noexcept {
   VkSubpassDescription subpass{};
   subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
   subpass.colorAttachmentCount = color_attachments.size();
@@ -1028,7 +1033,7 @@ make_pipeline_color_blend_state_create_info(
 }
 
 // ????
-[[nodiscard]] VkSubpassDependency make_subpass_dependency() {
+[[nodiscard]] constexpr VkSubpassDependency make_subpass_dependency() noexcept {
   VkSubpassDependency dependency{};
   dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
   dependency.dstSubpass = 0;
@@ -1049,7 +1054,7 @@ make_pipeline_color_blend_state_create_info(
     VkDevice device,
     stx::Span<VkAttachmentDescription const> const& attachment_descriptions,
     stx::Span<VkSubpassDescription const> const& subpass_descriptions,
-    stx::Span<VkSubpassDependency const> const& subpass_dependencies) {
+    stx::Span<VkSubpassDependency const> const& subpass_dependencies) noexcept {
   VkRenderPassCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   create_info.attachmentCount = attachment_descriptions.size();
@@ -1079,7 +1084,7 @@ make_pipeline_color_blend_state_create_info(
     VkPipelineMultisampleStateCreateInfo const& multisample_state,
     VkPipelineDepthStencilStateCreateInfo const& depth_stencil_state,
     VkPipelineColorBlendStateCreateInfo const& color_blend_state,
-    VkPipelineDynamicStateCreateInfo const& dynamic_state) {
+    VkPipelineDynamicStateCreateInfo const& dynamic_state) noexcept {
   VkGraphicsPipelineCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -1118,7 +1123,8 @@ make_pipeline_color_blend_state_create_info(
 // basically a collection of attachments (color, depth, stencil, etc)
 [[nodiscard]] VkFramebuffer create_frame_buffer(
     VkDevice device, VkRenderPass render_pass,
-    stx::Span<VkImageView const> const& attachments, VkExtent2D const& extent) {
+    stx::Span<VkImageView const> const& attachments,
+    VkExtent2D const& extent) noexcept {
   VkFramebufferCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
   create_info.renderPass = render_pass;
@@ -1138,7 +1144,7 @@ make_pipeline_color_blend_state_create_info(
 
 [[nodiscard]] VkCommandPool create_command_pool(
     VkDevice device, uint32_t queue_family_index,
-    bool enable_command_buffer_resetting = false) {
+    bool enable_command_buffer_resetting = false) noexcept {
   VkCommandPoolCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   create_info.queueFamilyIndex = queue_family_index;
@@ -1156,7 +1162,7 @@ make_pipeline_color_blend_state_create_info(
 
 void allocate_command_buffer(VkDevice device, VkCommandPool command_pool,
                              VkCommandBuffer& command_buffer  // NOLINT
-) {
+                             ) noexcept {
   VkCommandBufferAllocateInfo allocate_info{};
   allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   allocate_info.commandPool = command_pool;
@@ -1175,7 +1181,7 @@ void allocate_command_buffer(VkDevice device, VkCommandPool command_pool,
 
 void allocate_command_buffers(
     VkDevice device, VkCommandPool command_pool,
-    stx::Span<VkCommandBuffer> const& command_buffers) {
+    stx::Span<VkCommandBuffer> const& command_buffers) noexcept {
   VkCommandBufferAllocateInfo allocate_info{};
   allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   allocate_info.commandPool = command_pool;
@@ -1207,9 +1213,9 @@ namespace cmd {
 struct Recorder {
   VkCommandBuffer command_buffer_;
 
-  Recorder begin_recording(
-      VkCommandBufferUsageFlagBits usage = {},
-      VkCommandBufferInheritanceInfo const* inheritance_info = nullptr) {
+  Recorder begin_recording(VkCommandBufferUsageFlagBits usage = {},
+                           VkCommandBufferInheritanceInfo const*
+                               inheritance_info = nullptr) noexcept {
     VkCommandBufferBeginInfo begin_info{};
 
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1230,7 +1236,7 @@ struct Recorder {
   }
 
   Recorder copy(VkBuffer src, uint64_t src_offset, uint64_t size, VkBuffer dst,
-                uint64_t dst_offset) {
+                uint64_t dst_offset) noexcept {
     VkBufferCopy copy_region{};
     copy_region.dstOffset = dst_offset;
     copy_region.size = size;
@@ -1242,7 +1248,7 @@ struct Recorder {
   // TODO(lamarrr): make into multi-copy interface
   Recorder copy(VkBuffer src, uint64_t src_offset, VkImage dst,
                 VkImageLayout dst_expected_layout, VkOffset3D dst_offset,
-                VkExtent3D dst_extent) {
+                VkExtent3D dst_extent) noexcept {
     VkBufferImageCopy copy_region{};
     copy_region.bufferOffset = src_offset;
     copy_region.bufferRowLength = 0;    // tightly-packed, no padding
@@ -1268,7 +1274,7 @@ struct Recorder {
 
   Recorder begin_render_pass(
       VkRenderPass render_pass, VkFramebuffer framebuffer, VkRect2D render_area,
-      stx::Span<VkClearValue const> const& clear_values) {
+      stx::Span<VkClearValue const> const& clear_values) noexcept {
     VkRenderPassBeginInfo begin_info{};
     begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     begin_info.renderPass = render_pass;
@@ -1287,12 +1293,13 @@ struct Recorder {
     return *this;
   }
 
-  Recorder end_render_pass() {
+  Recorder end_render_pass() noexcept {
     vkCmdEndRenderPass(command_buffer_);
     return *this;
   }
 
-  Recorder bind_pipeline(VkPipeline pipeline, VkPipelineBindPoint bind_point) {
+  Recorder bind_pipeline(VkPipeline pipeline,
+                         VkPipelineBindPoint bind_point) noexcept {
     vkCmdBindPipeline(command_buffer_, bind_point, pipeline);
     return *this;
   }
@@ -1302,7 +1309,8 @@ struct Recorder {
       VkPipelineStageFlagBits dst_stages = {},
       stx::Span<VkMemoryBarrier const> const& memory_barriers = {},
       stx::Span<VkBufferMemoryBarrier const> const& buffer_memory_barriers = {},
-      stx::Span<VkImageMemoryBarrier const> const& iamge_memory_barriers = {}) {
+      stx::Span<VkImageMemoryBarrier const> const& iamge_memory_barriers =
+          {}) noexcept {
     // TODO(lamarrr): don't
     // 0 or VK_DEPENDENCY_BY_REGION_BIT. VK_DEPENDENCY_BY_REGION_BIT the barrier
     // into a per-region condition. That means that the implementation is
@@ -1324,7 +1332,7 @@ struct Recorder {
                                              VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
                        int> = 0>
   Recorder bind_vertex_buffer(uint32_t binding, BufferType const& buffer,
-                              uint64_t buffer_offset) {
+                              uint64_t buffer_offset) noexcept {
     vkCmdBindVertexBuffers(command_buffer_, binding, 1, &buffer.buffer_,
                            &buffer_offset);
     return *this;
@@ -1336,14 +1344,14 @@ struct Recorder {
                            BufferType::usage& VK_BUFFER_USAGE_INDEX_BUFFER_BIT),
                        int> = 0>
   Recorder bind_index_buffer(BufferType const& buffer, uint64_t buffer_offset,
-                             VkIndexType dtype) {
+                             VkIndexType dtype) noexcept {
     vkCmdBindIndexBuffer(command_buffer_, buffer.buffer_, buffer_offset, dtype);
     return *this;
   }
 
   Recorder bind_descriptor_sets(
       VkPipelineLayout pipeline_layout, VkPipelineBindPoint bind_point,
-      stx::Span<VkDescriptorSet const> const& descriptor_sets) {
+      stx::Span<VkDescriptorSet const> const& descriptor_sets) noexcept {
     vkCmdBindDescriptorSets(command_buffer_, bind_point, pipeline_layout, 0,
                             descriptor_sets.size(), descriptor_sets.data(), 0,
                             nullptr);  // no dynamic offsets for now
@@ -1351,7 +1359,7 @@ struct Recorder {
   }
 
   Recorder draw(uint32_t vertex_count, uint32_t instance_count,
-                uint32_t first_vertex, uint32_t first_instance) {
+                uint32_t first_vertex, uint32_t first_instance) noexcept {
     // instanceCount: Used for instanced rendering
     // firstVertex: Used as an offset into the vertex buffer, defines the lowest
     // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
@@ -1363,7 +1371,7 @@ struct Recorder {
 
   Recorder draw_indexed(uint32_t index_count, uint32_t instance_count,
                         uint32_t first_index, uint32_t vertex_offset,
-                        uint32_t first_instance) {
+                        uint32_t first_instance) noexcept {
     // instanceCount: Used for instanced rendering
     // firstVertex: Used as an offset into the vertex buffer, defines the lowest
     // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
@@ -1373,22 +1381,23 @@ struct Recorder {
     return *this;
   }
 
-  Recorder set_viewports(stx::Span<VkViewport const> const& viewports) {
+  Recorder set_viewports(
+      stx::Span<VkViewport const> const& viewports) noexcept {
     vkCmdSetViewport(command_buffer_, 0, viewports.size(), viewports.data());
     return *this;
   }
 
-  Recorder set_scissors(stx::Span<VkRect2D const> const& scissors) {
+  Recorder set_scissors(stx::Span<VkRect2D const> const& scissors) noexcept {
     vkCmdSetScissor(command_buffer_, 0, scissors.size(), scissors.data());
     return *this;
   }
 
-  Recorder set_line_width(float line_width) {
+  Recorder set_line_width(float line_width) noexcept {
     vkCmdSetLineWidth(command_buffer_, line_width);
     return *this;
   }
 
-  Recorder end_recording() {
+  Recorder end_recording() noexcept {
     VLK_MUST_SUCCEED(vkEndCommandBuffer(command_buffer_),
                      "Unable to end command buffer recording");
     return *this;
@@ -1397,7 +1406,7 @@ struct Recorder {
 }  // namespace cmd
 
 // GPU-GPU synchronization primitive
-[[nodiscard]] VkSemaphore create_semaphore(VkDevice device) {
+[[nodiscard]] VkSemaphore create_semaphore(VkDevice device) noexcept {
   VkSemaphoreCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -1409,7 +1418,8 @@ struct Recorder {
 }
 
 // GPU-CPU synchronization primitive
-[[nodiscard]] VkFence create_fence(VkDevice device, bool make_signaled) {
+[[nodiscard]] VkFence create_fence(VkDevice device,
+                                   bool make_signaled) noexcept {
   VkFenceCreateInfo create_info{};
 
   create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -1423,24 +1433,24 @@ struct Recorder {
   return fence;
 }
 
-void reset_fence(VkDevice device, VkFence fence) {
+void reset_fence(VkDevice device, VkFence fence) noexcept {
   VLK_MUST_SUCCEED(vkResetFences(device, 1, &fence), "Unable to reset fence");
 }
 
-void reset_fences(VkDevice device, stx::Span<VkFence const> const& fences) {
+void reset_fences(VkDevice device,
+                  stx::Span<VkFence const> const& fences) noexcept {
   VLK_MUST_SUCCEED(vkResetFences(device, fences.size(), fences.data()),
                    "Unable to reset fences");
 }
 
-void await_fence(VkDevice device, VkFence fence) {
-  VLK_MUST_SUCCEED(vkWaitForFences(device, 1, &fence, true,
-                                   std::numeric_limits<uint64_t>::max()),
+void await_fence(VkDevice device, VkFence fence) noexcept {
+  VLK_MUST_SUCCEED(vkWaitForFences(device, 1, &fence, true, u64_max),
                    "Unable to await fence");
 }
 
 // returns true if the fence didn't timeout
 [[nodiscard]] bool await_fence(VkDevice device, VkFence fence,
-                               std::chrono::nanoseconds timeout) {
+                               std::chrono::nanoseconds timeout) noexcept {
   auto result = vkWaitForFences(device, 1, &fence, true, timeout.count());
   VLK_MUST_SUCCEED(
       result == VK_SUCCESS || result == VK_TIMEOUT ? VK_SUCCESS : result,
@@ -1449,10 +1459,11 @@ void await_fence(VkDevice device, VkFence fence) {
   return result != VK_TIMEOUT;
 }
 
-void await_fences(VkDevice device, stx::Span<VkFence const> const& fences) {
-  VLK_MUST_SUCCEED(vkWaitForFences(device, fences.size(), fences.data(), true,
-                                   std::numeric_limits<uint64_t>::max()),
-                   "Unable to await fences");
+void await_fences(VkDevice device,
+                  stx::Span<VkFence const> const& fences) noexcept {
+  VLK_MUST_SUCCEED(
+      vkWaitForFences(device, fences.size(), fences.data(), true, u64_max),
+      "Unable to await fences");
 }
 
 // returns true if the fences didn't timeout
@@ -1472,7 +1483,7 @@ void submit_commands(VkQueue command_queue, VkCommandBuffer command_buffer,
                      stx::Span<VkSemaphore const> const& await_semaphores,
                      stx::Span<VkPipelineStageFlags const> const& await_stages,
                      stx::Span<VkSemaphore const> const& notify_semaphores,
-                     VkFence notify_fence) {
+                     VkFence notify_fence) noexcept {
   VLK_ENSURE(await_semaphores.size() == await_stages.size(),
              "stages to await must have the same number of semaphores (for "
              "each of them)");
@@ -1498,7 +1509,7 @@ void submit_commands(VkQueue command_queue, VkCommandBuffer command_buffer,
 [[nodiscard]] VkResult present_to_swapchains(
     VkQueue command_queue, stx::Span<VkSemaphore const> const& await_semaphores,
     stx::Span<VkSwapchainKHR const> const& swapchains,
-    stx::Span<uint32_t const> const& swapchain_image_indexes) {
+    stx::Span<uint32_t const> const& swapchain_image_indexes) noexcept {
   VLK_ENSURE(swapchain_image_indexes.size() == swapchains.size(),
              "swapchain and their image indices must be of the same size");
 
@@ -1528,7 +1539,7 @@ void submit_commands(VkQueue command_queue, VkCommandBuffer command_buffer,
 // creates buffer object but doesn't assign memory to it
 [[nodiscard]] VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
                                      VkBufferUsageFlagBits usage,
-                                     VkSharingMode sharing_mode) {
+                                     VkSharingMode sharing_mode) noexcept {
   VkBufferCreateInfo buffer_info{};
   buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   buffer_info.size = byte_size;
@@ -1547,7 +1558,7 @@ void submit_commands(VkQueue command_queue, VkCommandBuffer command_buffer,
                                    VkExtent3D const& extent,
                                    VkImageUsageFlagBits usage,
                                    VkSharingMode sharing_mode, VkFormat format,
-                                   VkImageLayout initial_layout) {
+                                   VkImageLayout initial_layout) noexcept {
   VkImageCreateInfo image_info{};
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   image_info.usage = usage;
@@ -1580,9 +1591,10 @@ void submit_commands(VkQueue command_queue, VkCommandBuffer command_buffer,
 // transitions that must occur between each operation) i.e. making sure that an
 // image was written to before it is read. They can also be used to transition
 // the image's layouts.
-[[nodiscard]] VkImageMemoryBarrier make_image_memory_barrier(
+[[nodiscard]] constexpr VkImageMemoryBarrier make_image_memory_barrier(
     VkImage image, VkImageLayout old_layout, VkImageLayout new_layout,
-    VkAccessFlagBits src_access_flags, VkAccessFlagBits dst_access_flags) {
+    VkAccessFlagBits src_access_flags,
+    VkAccessFlagBits dst_access_flags) noexcept {
   VkImageMemoryBarrier barrier{};
   barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
   barrier.oldLayout = old_layout;
@@ -1607,8 +1619,8 @@ void submit_commands(VkQueue command_queue, VkCommandBuffer command_buffer,
 
 // get memory requirements for a buffer based on it's type, usage mode, and
 // other properties
-[[nodiscard]] VkMemoryRequirements get_memory_requirements(VkDevice device,
-                                                           VkBuffer buffer) {
+[[nodiscard]] VkMemoryRequirements get_memory_requirements(
+    VkDevice device, VkBuffer buffer) noexcept {
   VkMemoryRequirements memory_requirements;
   vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
   return memory_requirements;
@@ -1616,8 +1628,8 @@ void submit_commands(VkQueue command_queue, VkCommandBuffer command_buffer,
 
 // get memory requirements for an image based on it's type, usage mode, and
 // other properties
-[[nodiscard]] VkMemoryRequirements get_memory_requirements(VkDevice device,
-                                                           VkImage image) {
+[[nodiscard]] VkMemoryRequirements get_memory_requirements(
+    VkDevice device, VkImage image) noexcept {
   VkMemoryRequirements memory_requirements;
   vkGetImageMemoryRequirements(device, image, &memory_requirements);
   return memory_requirements;
@@ -1628,9 +1640,7 @@ stx::Option<uint32_t> find_suitable_memory_type(
     VkPhysicalDevice physical_device,
     VkMemoryRequirements const& memory_requirements,
     VkMemoryPropertyFlagBits required_properties =
-        static_cast<VkMemoryPropertyFlagBits>(
-            std::numeric_limits<
-                std::underlying_type_t<VkMemoryPropertyFlagBits>>::max())) {
+        VK_MEMORY_PROPERTY_FLAG_BITS_MAX_ENUM) noexcept {
   VkPhysicalDeviceMemoryProperties memory_properties;
 
   vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
@@ -1652,7 +1662,7 @@ stx::Option<uint32_t> find_suitable_memory_type(
 // vkFreeMemory
 [[nodiscard]] VkDeviceMemory allocate_memory(VkDevice device,
                                              uint32_t heap_index,
-                                             uint64_t size) {
+                                             uint64_t size) noexcept {
   VkMemoryAllocateInfo allocate_info{};
 
   allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -1667,13 +1677,13 @@ stx::Option<uint32_t> find_suitable_memory_type(
 }
 
 void bind_memory_to_buffer(VkDevice device, VkBuffer buffer,
-                           VkDeviceMemory memory, uint64_t offset) {
+                           VkDeviceMemory memory, uint64_t offset) noexcept {
   VLK_MUST_SUCCEED(vkBindBufferMemory(device, buffer, memory, offset),
                    "Unable to bind memory to buffer");
 }
 
 void bind_memory_to_image(VkDevice device, VkImage image, VkDeviceMemory memory,
-                          uint64_t offset) {
+                          uint64_t offset) noexcept {
   VLK_MUST_SUCCEED(vkBindImageMemory(device, image, memory, offset),
                    "Unable to bind memory to image");
 }
@@ -1687,7 +1697,7 @@ struct [[nodiscard]] MemoryMap {
 
 [[nodiscard]] MemoryMap map_memory(VkDevice device, VkDeviceMemory memory,
                                    uint64_t offset, uint64_t size,
-                                   VkMemoryMapFlags flags = 0) {
+                                   VkMemoryMapFlags flags = 0) noexcept {
   void* ptr;
   VLK_MUST_SUCCEED(vkMapMemory(device, memory, offset, size, flags, &ptr),
                    "Unable to map memory");
@@ -1697,14 +1707,14 @@ struct [[nodiscard]] MemoryMap {
 
 // unlike OpenGL the driver may not immediately copy the data after unmap, i.e.
 // due to caching. so we need to flush our writes
-void unmap_memory(VkDevice device, VkDeviceMemory memory) {
+void unmap_memory(VkDevice device, VkDeviceMemory memory) noexcept {
   vkUnmapMemory(device, memory);
 }
 
 // due to caching we need to flush writes to the memory map before reading again
 // has size requirements for the flush range
 void flush_memory_map(VkDevice device, VkDeviceMemory memory, uint64_t offset,
-                      uint64_t size) {
+                      uint64_t size) noexcept {
   VkMappedMemoryRange range{};
   range.memory = memory;
   range.offset = offset;
@@ -1716,7 +1726,7 @@ void flush_memory_map(VkDevice device, VkDeviceMemory memory, uint64_t offset,
 }
 
 void refresh_memory_map(VkDevice device, VkDeviceMemory memory, uint64_t offset,
-                        uint64_t size) {
+                        uint64_t size) noexcept {
   VkMappedMemoryRange range{};
   range.memory = memory;
   range.offset = offset;
@@ -1727,13 +1737,14 @@ void refresh_memory_map(VkDevice device, VkDeviceMemory memory, uint64_t offset,
                    "Unable to re-read memory map");
 }
 
-VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
+[[nodiscard]] constexpr VkDescriptorSetLayoutBinding
+make_descriptor_set_layout_binding(
     uint32_t binding,
     uint32_t descriptor_count  // number of objects being described starting
                                // from {binding}
     ,
     VkDescriptorType descriptor_type, VkShaderStageFlagBits shader_stages,
-    VkSampler const* sampler = nullptr) {
+    VkSampler const* sampler = nullptr) noexcept {
   VkDescriptorSetLayoutBinding dsl_binding{};
   dsl_binding.binding = binding;
   dsl_binding.descriptorType = descriptor_type;
@@ -1748,7 +1759,7 @@ VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
 [[nodiscard]] VkDescriptorSetLayout create_descriptor_set_layout(
     VkDevice device,
     stx::Span<VkDescriptorSetLayoutBinding const> const& bindings,
-    VkDescriptorSetLayoutCreateFlagBits flags = {}) {
+    VkDescriptorSetLayoutCreateFlagBits flags = {}) noexcept {
   VkDescriptorSetLayoutCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   create_info.bindingCount = bindings.size();
@@ -1766,7 +1777,7 @@ VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
 
 [[nodiscard]] VkDescriptorPool create_descriptor_pool(
     VkDevice device, uint32_t max_descriptor_sets,
-    stx::Span<VkDescriptorPoolSize const> const& pool_sizing) {
+    stx::Span<VkDescriptorPoolSize const> const& pool_sizing) noexcept {
   // create pool capable of holding different types of data with varying number
   // of descriptors
   VkDescriptorPoolCreateInfo create_info{};
@@ -1793,7 +1804,7 @@ VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
 void allocate_descriptor_sets(
     VkDevice device, VkDescriptorPool descriptor_pool,
     stx::Span<VkDescriptorSetLayout const> const& layouts,
-    stx::Span<VkDescriptorSet> const& descriptor_sets) {
+    stx::Span<VkDescriptorSet> const& descriptor_sets) noexcept {
   VLK_ENSURE(layouts.size() == descriptor_sets.size(),
              "descriptor sets and layouts sizes must match");
 
@@ -1817,7 +1828,7 @@ struct DescriptorSetProxy {
   uint32_t binding;
 
   DescriptorSetProxy bind_buffers(
-      stx::Span<VkDescriptorBufferInfo const> const& buffers) {
+      stx::Span<VkDescriptorBufferInfo const> const& buffers) noexcept {
     VkWriteDescriptorSet descriptor_write{};
     descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptor_write.dstSet = descriptor_set;
@@ -1834,7 +1845,7 @@ struct DescriptorSetProxy {
   }
 
   DescriptorSetProxy bind_images(
-      stx::Span<VkDescriptorImageInfo const> const& images) {
+      stx::Span<VkDescriptorImageInfo const> const& images) noexcept {
     VkWriteDescriptorSet descriptor_write{};
     descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptor_write.dstSet = descriptor_set;
