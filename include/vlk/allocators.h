@@ -401,6 +401,8 @@ struct Image {
   }
 
   auto extent() { return extent_; }
+
+  // TODO(lamarrr): rename to allocated_size
   auto size() { return allocated_memory_size_; }
 
   VkImage image_;
