@@ -20,10 +20,18 @@ execute_process(
 execute_process(
   COMMAND git clone -b master https://github.com/nothings/stb.git
           third_party/stb WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+execute_process(
+  COMMAND git clone -b release-1.10.0 https://github.com/google/googletest.git
+          third_party/googletest WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
-          execute_process(
-            COMMAND git clone -b release-1.10.0 https://github.com/google/googletest.git third_party/googletest WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+  set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/skia/out/Debug)
+else()
+  set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/skia/out/Release)
+endif()
 
+find_package(Vulkan REQUIRED)
+find_package(Fontconfig REQUIRED)
 
 set(GLFW_BUILD_EXAMPLES
     OFF
@@ -40,8 +48,9 @@ set(GLFW_INSTALL
 set(STX_ENABLE_BACKTRACE
     ON
     CACHE BOOL "" FORCE)
-set(BUILD_GMOCK OFF
-CACHE BOOL "" FORCE)
+set(BUILD_GMOCK
+    OFF
+    CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/STX)
 add_subdirectory(third_party/glfw)
