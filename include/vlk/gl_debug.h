@@ -13,7 +13,7 @@
 #include "stx/span.h"
 #include "vulkan/vulkan.h"
 
-#include "vlk/utils.h"
+#include "vlk/utils/utils.h"
 
 #ifndef NDEBUG
 #define VLK_DEBUG true
