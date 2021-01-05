@@ -24,7 +24,7 @@
 #include "glm/mat4x4.hpp"
 
 #include "vlk/allocators.h"
-#include "vlk/image.h"
+#include "vlk/assets/image.h"
 #include "vlk/timer.h"
 #include "vlk/vertex.h"
 // EXT suffix => extensions. needs to be loaded before use
@@ -651,16 +651,16 @@ struct [[nodiscard]] Application {
 
   // TODO(lamarrr): move
   inline static constexpr auto to_vk_format_SRGB(
-      data::Image::Format format) noexcept {
-    using Image = data::Image;
+      data::Image2D::Format format) noexcept {
+    using Image2D = data::Image2D;
     switch (format) {
-      case Image::Format::RGB:
+      case Image2D::Format::RGB:
         return VK_FORMAT_R8G8B8_SRGB;
-      case Image::Format::Grey:
+      case Image2D::Format::Grey:
         return VK_FORMAT_R8_SRGB;
-      case Image::Format::GreyAlpha:
+      case Image2D::Format::GreyAlpha:
         return VK_FORMAT_R8G8_SRGB;
-      case Image::Format::RGBA:
+      case Image2D::Format::RGBA:
         return VK_FORMAT_R8G8B8A8_SRGB;
       default:
         return VK_FORMAT_R8G8B8_SRGB;
@@ -670,9 +670,9 @@ struct [[nodiscard]] Application {
   // TODO(lamarrr): this isn't eequired to be in this struct, same for
   // load_vertex_index_data
   void load_images_() {
-    data::Image images[] = {
-        data::Image::load(desc::Image{"/home/lamar/Pictures/IMG_0187.PNG",
-                                      desc::Image::Format::RGBA, true})
+    data::Image2D images[] = {
+        data::Image2D::load(desc::Image2D{"/home/lamar/Desktop/wraith.jpg",
+                                          desc::Image2D::Format::RGBA, true})
             .expect("Unable to load image")};
     auto images_size = 0;
 
@@ -845,7 +845,7 @@ struct [[nodiscard]] Application {
 
     ProjectionParameters ubo{};
 
-    glm_copy(glm::rotate(glm::mat4(1.0f), time/2.0f * glm::radians(90.0f),
+    glm_copy(glm::rotate(glm::mat4(1.0f), time / 2.0f * glm::radians(90.0f),
                          glm::vec3(0.0f, 0.0f, 1.0f)),
              ubo.model);
 
