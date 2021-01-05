@@ -6,8 +6,8 @@ target_include_directories(
 target_link_libraries(vlk_ui2d stx vlk_utils vlk_assets vlk_external_skia)
 target_compile_definitions(vlk_ui2d PUBLIC SK_VULKAN)
 
-add_executable(vlk_ui2d_test tests/base_widget_test.cc tests/compositor_test.cc
-                             tests/snapshot_test.cc tests/widget_test.cc)
+add_executable(vlk_ui2d_test tests/compositor_test.cc tests/snapshot_test.cc
+                             tests/widget_test.cc)
 
 target_link_libraries(vlk_ui2d_test gtest gtest_main vlk_ui2d)
 
