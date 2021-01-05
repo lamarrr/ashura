@@ -10,7 +10,7 @@
 
 #include "stx/option.h"
 #include "vlk/gl.h"
-#include "vlk/utils.h"
+#include "vlk/utils/utils.h"
 #include "vulkan/vulkan.h"
 
 namespace vlk {
