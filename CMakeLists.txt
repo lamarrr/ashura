@@ -49,32 +49,52 @@ add_subdirectory(third_party/spdlog)
 add_subdirectory(third_party/glm)
 add_subdirectory(third_party/googletest)
 
-find_package(Vulkan REQUIRED)
+add_library(vlk_external_stb INTERFACE)
+target_include_directories(vlk_external_stb
+                           INTERFACE ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
+
+file(GLOB VLK_EXTERNAL_SKIA_LIBRARIES ${SKIA_LIBRARIES_DIR}/*.a)
+add_library(vlk_external_skia
+            ${CMAKE_CURRENT_LIST_DIR}/src/vlk_external_skia.cc)
+target_include_directories(vlk_external_skia
+                           PUBLIC ${CMAKE_CURRENT_LIST_DIR}/third_party/skia)
+target_link_libraries(vlk_external_skia ${VLK_EXTERNAL_SKIA_LIBRARIES}
+                      ${FontConfig_LIBRARIES})
+target_compile_definitions(
+  vlk_external_skia
+  PUBLIC SK_ENABLE_SPIRV_VALIDATION
+         SK_R32_SHIFT=16
+         SK_GAMMA_APPLY_TO_A8
+         GR_OP_ALLOCATE_USE_NEW
+         SK_ALLOW_STATIC_GLOBAL_INITIALIZERS=1
+         GR_TEST_UTILS=1
+         SK_USE_VMA
+         SKIA_IMPLEMENTATION=1
+         SK_VULKAN
+         SK_ENABLE_VK_LAYERS
+         SK_ENABLE_DUMP_GPU)
+
+add_subdirectory(utils)
+add_subdirectory(assets)
+add_subdirectory(ui2d)
 
 add_executable(valkyrie.bin src/vlk.cc)
-target_link_libraries(valkyrie.bin stx glfw spdlog::spdlog glm::glm
-                      ${Vulkan_LIBRARIES})
+target_link_libraries(
+  valkyrie.bin
+  stx
+  glfw
+  spdlog::spdlog
+  glm::glm
+  ${Vulkan_LIBRARIES}
+  vlk_utils
+  vlk_assets
+  vlk_ui2d)
 target_include_directories(
-  valkyrie.bin PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include
-                       ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
+  valkyrie.bin
+  PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include
+          ${CMAKE_CURRENT_LIST_DIR}/third_party/skia
+          ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
 
-
-
-
-add_executable(valkyrie_tests.bin tests/widget.cc)
-target_link_libraries(valkyrie_tests.bin stx glfw spdlog::spdlog glm::glm
-                      ${Vulkan_LIBRARIES} gtest gtest_main)
-
-                      target_include_directories(
-                        valkyrie_tests.bin PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include
-                                             ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
-
-
-if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID}
-                                                STREQUAL "GNU")
-  target_compile_options(valkyrie.bin PRIVATE -Wall -Wextra -Wpedantic)
-  target_compile_options(valkyrie_tests.bin PRIVATE -Wall -Wextra -Wpedantic)
-endif()
 # todo: add GLSL compilation
 
 function(add_spirv_shader TARGET_NAME IN_GLSL_FILE_PATH OUT_SPIRV_FILE)
