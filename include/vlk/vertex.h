@@ -3,8 +3,6 @@
 #include <utility>
 #include "vulkan/vulkan.h"
 
-// TODO: explore other vulkan headers
-
 namespace vlk {
 enum class AtrrType {
   f32,
