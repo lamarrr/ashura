@@ -35,6 +35,18 @@ struct Image2D {
   enum class Format : uint8_t { Grey = 1, GreyAlpha = 2, RGB = 3, RGBA = 4 };
 
   static stx::Result<Image2D, Error> load(desc::Image2D const& desc);
+  static stx::Result<Image2D, Error> load(std::filesystem::path const& path,
+                                          desc::Image2D::Format format) {
+    return load(desc::Image2D{path, format});
+  }
+  static stx::Result<Image2D, Error> load(std::filesystem::path const& path,
+                                          desc::Image2D::Format format,
+                                          bool flip_vertically) {
+    return load(desc::Image2D{path, format, flip_vertically});
+  }
+
+  // void take();
+  // void ref();
 
   Image2D() : pixel_data_{}, width_{}, height_{}, format_{Format::RGBA} {}
   Image2D(Image2D const&) = delete;
