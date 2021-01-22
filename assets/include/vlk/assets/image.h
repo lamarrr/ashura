@@ -31,7 +31,10 @@ namespace data {
 enum class Error : uint8_t { InvalidPath, Internal };
 
 // stored in h x w x c memory order.
-struct Image2D {
+// each channel is representy by a byte
+// TODO(lamarrr): make better by adding support for new types
+// TODO(lamarrr): ensure only malloc is ever used here
+struct [[nodiscard]] Image2D {
   enum class Format : uint8_t { Grey = 1, GreyAlpha = 2, RGB = 3, RGBA = 4 };
 
   static stx::Result<Image2D, Error> load(desc::Image2D const& desc);
