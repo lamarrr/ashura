@@ -2,11 +2,13 @@
 
 #include "include/core/SkSurface.h"
 #include "vlk/ui2d/primitives.h"
+#include "vlk/utils/utils.h"
 
 namespace vlk {
 
 namespace ui2d {
 
+// TODO(lamarrr) consider not making surface provider virtual
 struct SurfaceProvider {
   virtual sk_sp<SkSurface> make_surface(Extent const& extent) = 0;
   virtual ~SurfaceProvider() {}
@@ -18,9 +20,12 @@ struct GpuSurfaceProvider : public SurfaceProvider {
   GpuSurfaceProvider(GrRecordingContext* context, SkBudgeted budgeted)
       : context_{context}, budgeted_{budgeted} {}
   virtual sk_sp<SkSurface> make_surface(Extent const& extent) override {
-    return SkSurface::MakeRenderTarget(
+    auto surface = SkSurface::MakeRenderTarget(
         context_, budgeted_,
-        SkImageInfo::MakeN32Premul(extent.width, extent.height));
+        SkImageInfo::MakeN32Premul(extent.width == 0 ? 1 : extent.width,
+                                   extent.height == 0 ? 1 : extent.height));
+    VLK_DEBUG_ENSURE(surface != nullptr);
+    return surface;
   }
 
  private:
@@ -31,8 +36,11 @@ struct GpuSurfaceProvider : public SurfaceProvider {
 struct CpuSurfaceProvider : public SurfaceProvider {
   CpuSurfaceProvider() {}
   virtual sk_sp<SkSurface> make_surface(Extent const& extent) override {
-    return SkSurface::MakeRaster(
-        SkImageInfo::MakeN32Premul(extent.width, extent.height));
+    auto surface = SkSurface::MakeRaster(
+        SkImageInfo::MakeN32Premul(extent.width == 0 ? 1 : extent.width,
+                                   extent.height == 0 ? 1 : extent.height));
+    VLK_DEBUG_ENSURE(surface != nullptr);
+    return surface;
   }
 };
 
