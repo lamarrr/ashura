@@ -2,6 +2,8 @@
 
 #include <chrono>
 
+// TODO(lamarrr): move to general?
+
 template <typename ClockType = std::chrono::steady_clock>
 struct TickTimer {
   using time_point = typename ClockType::time_point;
