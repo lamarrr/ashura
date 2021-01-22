@@ -2,20 +2,21 @@
 
 #include "vlk/ui2d/widget.h"
 #include "vlk/ui2d/compositor.h"
-#include "vlk/utils/utils.h"
+#include "vlk/ui2d/widgets/row.h"
 
 #include "gtest/gtest.h"
+#include "vlk/utils/utils.h"
 
 using namespace vlk::ui2d;
 using namespace vlk::ui2d::impl;
 
-struct TraceWidget : public Column {
-  using Column::Column;
+struct TraceWidget : public Row {
+  using Row::Row;
 };
 
-struct Box : public Widget {
-  Box() : width_{0}, height_{0} {}
-  Box(uint32_t width, uint32_t height) : width_{width}, height_{height} {}
+struct TestBox : public Widget {
+  TestBox() : width_{0}, height_{0} {}
+  TestBox(uint32_t width, uint32_t height) : width_{width}, height_{height} {}
 
   virtual bool is_layout_type() const noexcept override { return false; }
 
@@ -30,15 +31,17 @@ struct Box : public Widget {
 
   virtual Rect compute_area(
       [[maybe_unused]] Extent const &allotted_extent,
-      [[maybe_unused]] stx::Span<Rect> const &children_area) const
-      noexcept override {
+      [[maybe_unused]] stx::Span<Rect> const &children_area) override {
     return Rect{Offset{0, 0}, Extent{width_, height_}};
   }
 
-  virtual void draw(
-      [[maybe_unused]] Canvas &canvas,
-      [[maybe_unused]] Extent const &requested_extent) const override {
+  virtual void draw([[maybe_unused]] Canvas &canvas,
+                    [[maybe_unused]] Extent const &requested_extent) override {
     // no-op
+  }
+
+  virtual std::string_view get_type_hint() const noexcept override {
+    return "TestBox";
   }
 
  private:
@@ -47,12 +50,12 @@ struct Box : public Widget {
 };
 
 TEST(WidgetConstructionTest, Widget) {
-  auto col = Column({new TraceWidget(std::initializer_list<Widget *>{}),
+  auto col = Row({new TraceWidget(std::initializer_list<Widget *>{}),
                      new TraceWidget(std::initializer_list<Widget *>{})});
 
   auto children = col.get_children();
 
-  VLK_LOG("Widget Type Name: {}", children[0]->get_type_name());
+  VLK_LOG("Widget Type Name: {}", children[0]->get_type_hint());
   VLK_LOG("Widget Name: {}", children[0]->get_name());
 
   VLK_LOG("test children{}", children.size());
@@ -94,7 +97,7 @@ TEST(CompositorTest, DimensionBuilding) {
     w.push_back(new TraceWidget({}));
   }
   auto col =
-      Column({new TraceWidget({}), new TraceWidget(w), new TraceWidget({})});
+      Row({new TraceWidget({}), new TraceWidget(w), new TraceWidget({})});
   Residuals<> stateless_residuals;
   Residuals<> stateful_residuals;
   std::vector<std::pair<Widget *, Rect>> stateless_layout_widgets;
@@ -104,7 +107,7 @@ TEST(CompositorTest, DimensionBuilding) {
   Extent allotted_col_extent{400, 800};
   build_widget_layout(stateless_layout_widgets, stateful_layout_widgets,
                       stateless_residuals, stateful_residuals, &col,
-                      allotted_col_extent, allotted_col_offset);
+                      allotted_col_extent, allotted_col_offset, 0);
 
   EXPECT_EQ(get(stateless_layout_widgets, &col).offset.x, 0);
   EXPECT_EQ(get(stateless_layout_widgets, &col).offset.y, 0);
@@ -130,11 +133,11 @@ TEST(CompositorTest, LayoutBuilding) {
   // Overall surface width should be uint64_t Rect
   uint32_t heights[] = {200, 100, 100};
   uint32_t widths[] = {300, 300, 300};
-  auto col =
-      Column({new Box(widths[0], heights[0]), new Box(widths[1], heights[1]),
-              new Box(widths[2], heights[2])});
+  auto col = Row({new TestBox(widths[0], heights[0]),
+                     new TestBox(widths[1], heights[1]),
+                     new TestBox(widths[2], heights[2])});
 
-  VLK_LOG("Name: {}", col.get_children()[0]->get_type_name());
+  VLK_LOG("Name: {}", col.get_children()[0]->get_type_hint());
 
   Residuals<> stateless_residuals;
   Residuals<> stateful_residuals;
@@ -146,7 +149,7 @@ TEST(CompositorTest, LayoutBuilding) {
   Extent allotted_col_extent{400, 800};
   build_widget_layout(stateless_layout_widgets, stateful_layout_widgets,
                       stateless_residuals, stateful_residuals, &col,
-                      allotted_col_extent, allotted_col_offset);
+                      allotted_col_extent, allotted_col_offset, 0);
 
   uint32_t expected_width = allotted_col_extent.width / std::size(widths);
 
@@ -170,11 +173,11 @@ TEST(CompositorTest, LayoutBuilding) {
   }
 }
 
-TEST(CompositorTest, NestedColumn) {
+TEST(CompositorTest, NestedRow) {
   {
-    auto col =
-        Column{new Column{new Column{new Box(4, 6)}, new Column{new Box(6, 8)}},
-               new Column{new Box(6, 6), new Box(6, 6)}};
+    auto col = Row{new Row{new Row{new TestBox(4, 6)},
+                                 new Row{new TestBox(6, 8)}},
+                      new Row{new TestBox(6, 6), new TestBox(6, 6)}};
 
     Residuals<> stateless_residuals;
     Residuals<> stateful_residuals;
@@ -186,7 +189,7 @@ TEST(CompositorTest, NestedColumn) {
     Extent allotted_col_extent{600, 800};
     build_widget_layout(stateless_layout_widgets, stateful_layout_widgets,
                         stateless_residuals, stateful_residuals, &col,
-                        allotted_col_extent, allotted_col_offset);
+                        allotted_col_extent, allotted_col_offset, 0);
 
     auto &map = stateless_layout_widgets;
 
@@ -211,3 +214,65 @@ TEST(CompositorTest, NestedColumn) {
 }
 
 // nested children testing
+
+template <uint32_t ZI>
+struct ZIndexMockWidget : public Widget {
+  ZIndexMockWidget() {}
+
+  virtual bool is_layout_type() const noexcept override { return false; }
+
+  virtual bool is_stateful() const noexcept override { return false; }
+
+  virtual bool is_dirty() const noexcept override { return false; }
+  virtual void mark_clean() noexcept override {}
+
+  virtual stx::Span<Widget *const> get_children() const noexcept override {
+    return {};
+  }
+
+  virtual stx::Option<uint32_t> z_index() const noexcept override {
+    return stx::Some(ZI);
+  }
+
+  virtual Rect compute_area(
+      [[maybe_unused]] Extent const &allotted_extent,
+      [[maybe_unused]] stx::Span<Rect> const &children_area) override {
+    return Rect{Offset{0, 0}, {10, 10}};
+  }
+
+  virtual void draw([[maybe_unused]] Canvas &canvas,
+                    [[maybe_unused]] Extent const &requested_extent) override {
+    // no-op
+  }
+
+  virtual std::string_view get_type_hint() const noexcept override {
+    return "ZIndexMockWidget";
+  }
+};
+
+TEST(CompositorTest, ZIndexPositioning) {
+  //  impl::Compositor::CacheRegistry registry;
+  //  impl::LinearCache cache;
+  // Overall surface width should be uint64_t Rect
+  auto col = Row({new ZIndexMockWidget<1>(), new ZIndexMockWidget<200>(),
+                     new ZIndexMockWidget<21>(), new ZIndexMockWidget<13>(),
+                     new ZIndexMockWidget<5>(), new ZIndexMockWidget<67>(),
+                     new ZIndexMockWidget<159>()});
+
+  CpuSurfaceProvider surface_provider;
+  Extent screen{1920, 1080};
+  impl::Compositor compostior{surface_provider, screen,
+                              Rect{Offset{0, 0}, screen}, col};
+
+  // an overdraw across the x-axis will happen here
+
+  compostior.tick(std::chrono::nanoseconds(100));
+
+  auto &cache = compostior.get_stateless_cache();
+
+  EXPECT_EQ(cache.size(), col.get_children().size());
+  EXPECT_TRUE(std::is_sorted(cache.begin(), cache.end(),
+                             [](CacheEntry const &a, CacheEntry const &b) {
+                               return a.z_index < b.z_index;
+                             }));
+}

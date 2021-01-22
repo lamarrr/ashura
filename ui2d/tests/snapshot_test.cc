@@ -1,6 +1,7 @@
 #include "vlk/ui2d/compositor.h"
 #include "vlk/ui2d/surface_provider.h"
 #include "vlk/ui2d/widget.h"
+#include "vlk/ui2d/widgets/row.h"
 
 #include <iostream>
 #include "gtest/gtest.h"
@@ -10,7 +11,7 @@ using namespace vlk::ui2d;
 TEST(SnapshotTest, Snapshot) {
   using namespace vlk::ui2d::impl;
 
-  auto row = Column({});
+  auto row = Row({});
 
   auto snapshot =
       Snapshot::CreateRecorded(row, Rect{Offset{0, 0}, Extent{64, 64}});
@@ -72,14 +73,16 @@ TEST(CompositorTest, IsOverlapping) {
 TEST(CompositorTest, Residuals) {
   using namespace vlk::ui2d::impl;
 
-  auto row0 = Column({});
-  auto row1 = Column({});
+  auto row0 = Row({});
+  auto row1 = Row({});
 
   Residuals<> residuals;
   residuals.emplace_back(CacheEntry(
-      Snapshot::CreateRecorded(row0, Rect{Offset{0, 0}, Extent{64, 64}}), 0));
+      Snapshot::CreateRecorded(row0, Rect{Offset{0, 0}, Extent{64, 64}}), 0,
+      0));
   residuals.emplace_back(CacheEntry(
-      Snapshot::CreateRecorded(row1, Rect{Offset{0, 0}, Extent{32, 32}}), 1));
+      Snapshot::CreateRecorded(row1, Rect{Offset{0, 0}, Extent{32, 32}}), 0,
+      1));
 
   EXPECT_EQ(residuals.size(), 2);
   EXPECT_EQ(stx::Span(residuals)[0].out_of_view_ticks, 0);
@@ -91,17 +94,20 @@ TEST(CompositorTest, Residuals) {
 TEST(CompositorTest, ViewTicksUpdate) {
   using namespace vlk::ui2d::impl;
 
-  auto row0 = Column({});
-  auto row1 = Column({});
-  auto row2 = Column({});
+  auto row0 = Row({});
+  auto row1 = Row({});
+  auto row2 = Row({});
 
   std::vector<CacheEntry> entries;
   entries.emplace_back(CacheEntry(
-      Snapshot::CreateRecorded(row0, Rect{Offset{0, 0}, Extent{64, 64}}), 0));
+      Snapshot::CreateRecorded(row0, Rect{Offset{0, 0}, Extent{64, 64}}), 0,
+      0));
   entries.emplace_back(CacheEntry(
-      Snapshot::CreateRecorded(row1, Rect{Offset{0, 0}, Extent{32, 32}}), 1));
+      Snapshot::CreateRecorded(row1, Rect{Offset{0, 0}, Extent{32, 32}}), 0,
+      1));
   entries.emplace_back(CacheEntry(
-      Snapshot::CreateRecorded(row2, Rect{Offset{0, 0}, Extent{128, 128}}), 2));
+      Snapshot::CreateRecorded(row2, Rect{Offset{0, 0}, Extent{128, 128}}), 0,
+      2));
 
   auto view_area = Rect{Offset{64, 64}, Extent{32, 32}};
   update_out_of_view_ticks(entries[0], view_area);
@@ -120,11 +126,11 @@ TEST(CompositorTest, ViewTicksUpdate) {
 TEST(CompositorTest, LRUResolve) {
   using namespace vlk::ui2d::impl;
 
-  auto row0 = Column({});
-  auto row1 = Column({});
-  auto row2 = Column({});
-  auto row3 = Column({});
-  auto row4 = Column({});
+  auto row0 = Row({});
+  auto row1 = Row({});
+  auto row2 = Row({});
+  auto row3 = Row({});
+  auto row4 = Row({});
 
   Residuals residuals;
 
@@ -132,23 +138,28 @@ TEST(CompositorTest, LRUResolve) {
 
   // out of view
   residuals.emplace_back(CacheEntry(
-      Snapshot::CreateRecorded(row0, Rect{Offset{0, 0}, Extent{64, 64}}), 1));
+      Snapshot::CreateRecorded(row0, Rect{Offset{0, 0}, Extent{64, 64}}), 4,
+      1));
 
   // out of view
   residuals.emplace_back(CacheEntry(
-      Snapshot::CreateRecorded(row1, Rect{Offset{0, 0}, Extent{64, 64}}), 1));
+      Snapshot::CreateRecorded(row1, Rect{Offset{0, 0}, Extent{64, 64}}), 1,
+      1));
 
   // out of view
   residuals.emplace_back(CacheEntry(
-      Snapshot::CreateRecorded(row2, Rect{Offset{0, 0}, Extent{32, 32}}), 1));
+      Snapshot::CreateRecorded(row2, Rect{Offset{0, 0}, Extent{32, 32}}), 2,
+      1));
 
   // in view
   residuals.emplace_back(CacheEntry(
-      Snapshot::CreateRecorded(row3, Rect{Offset{0, 0}, Extent{128, 128}}), 0));
+      Snapshot::CreateRecorded(row3, Rect{Offset{0, 0}, Extent{128, 128}}), 0,
+      0));
 
   // in view
   residuals.emplace_back(CacheEntry(
-      Snapshot::CreateRecorded(row4, Rect{Offset{0, 0}, Extent{128, 128}}), 2));
+      Snapshot::CreateRecorded(row4, Rect{Offset{0, 0}, Extent{128, 128}}), 3,
+      2));
 
   Cache cache{};
   CpuSurfaceProvider provider;
@@ -183,4 +194,9 @@ TEST(CompositorTest, LRUResolve) {
                            return entry.snapshot.widget() == &row4;
                          }),
             residuals.end());
+
+  EXPECT_TRUE(std::is_sorted(cache.begin(), cache.end(),
+                             [](CacheEntry const& a, CacheEntry const& b) {
+                               return a.z_index < b.z_index;
+                             }));
 }
