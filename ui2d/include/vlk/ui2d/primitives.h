@@ -118,6 +118,21 @@ struct TopRightBottomLeft {
                                            uint32_t l) noexcept {
     return TopRightBottomLeft{t, r, b, l};
   }
+enum class Stretch : uint8_t {
+  None = 0b00,
+  X = 0b01,
+  Y = 0b10,
+  All = X | Y,
+};
+
+[[nodiscard]] constexpr Stretch operator|(Stretch a, Stretch b) noexcept {
+  return vlk::enum_or(a, b);
+}
+
+[[nodiscard]] constexpr Stretch operator&(Stretch a, Stretch b) noexcept {
+  return vlk::enum_and(a, b);
+}
+
 struct Sizing {
   enum class [[nodiscard]] Type : uint8_t{
       // the part of the target used is a portion of the image specified in
