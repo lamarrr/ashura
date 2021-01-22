@@ -265,69 +265,79 @@ struct BasicColumn
 
 using Column = BasicColumn<>;
 
+virtual Rect compute_area(Extent const &allotted_extent,
+                          [[maybe_unused]] stx::Span<Rect> const &children_area,
+                          std::map<Widget *, Rect> &cache) noexcept override {
+  auto this_widget = static_cast<Widget *>(const_cast<BasicColumn *>(this));
+  auto pos = cache.find(this_widget);
 
-  virtual Rect compute_area(
-      Extent const &allotted_extent,
-      [[maybe_unused]] stx::Span<Rect> const &children_area,
-      std::map<Widget *, Rect> &cache) const noexcept override {
-    auto this_widget = static_cast<Widget *>(const_cast<BasicColumn *>(this));
-    auto pos = cache.find(this_widget);
+  Offset offset{0, 0};
 
-    Offset offset{0, 0};
+  // if (pos == cache.end()) {
+  //      VLK_LOG("cache miss");
 
-    // if (pos == cache.end()) {
-    //      VLK_LOG("cache miss");
+  auto children = this->get_children();
+  uint32_t num_children = children.size();
+  // Height property: if the child will use all of the parent's allotted
+  // height, allow it. the child widget is however constrained by this
+  // widget's width.
 
-    auto children = this->get_children();
-    uint32_t num_children = children.size();
-    // Height property: if the child will use all of the parent's allotted
-    // height, allow it. the child widget is however constrained by this
-    // widget's width.
+  auto max_children_height = std::accumulate(
+      children.begin(), children.end(), static_cast<uint32_t>(0),
+      [&cache, num_children, allotted_extent](uint32_t max_height,
+                                              Widget *child) {
+        auto child_extent = Extent{allotted_extent.width / num_children,
+                                   allotted_extent.height};
 
-    auto max_children_height = std::accumulate(
-        children.begin(), children.end(), static_cast<uint32_t>(0),
-        [&cache, num_children, allotted_extent](uint32_t max_height,
-                                                Widget *child) {
-          auto child_extent = Extent{allotted_extent.width / num_children,
-                                     allotted_extent.height};
+        std::vector<Rect> vec;
+        vec.resize(child->get_children().size());
+        return std::max(
+            max_height,
+            child->compute_area(child_extent, vec, cache).extent.height);
+      });
 
-          std::vector<Rect> vec;
-          vec.resize(child->get_children().size());
-          return std::max(
-              max_height,
-              child->compute_area(child_extent, vec, cache).extent.height);
-        });
+  for (uint32_t i = 0; i < num_children; i++) {
+    children_area[i].extent.width = allotted_extent.width / num_children;
+    children_area[i].extent.height = max_children_height;
 
-    for (uint32_t i = 0; i < num_children; i++) {
-      children_area[i].extent.width = allotted_extent.width / num_children;
-      children_area[i].extent.height = max_children_height;
-
-      children_area[i].offset.x = children_area[i].extent.width * i;
-      children_area[i].offset.y = 0;
-    }
-
-    Extent extent{};
-    extent.width = allotted_extent.width;
-    extent.height = max_children_height;
-    Rect area{offset, extent};
-
-    // cache.emplace(this_widget, area);
-
-    return area;
-
-    //} else {
-    // the children layout will not be filled since it has previously been
-    // filled
-    // VLK_LOG("cache hit");
-    // return Rect{offset, pos->second.extent};
-    //}
+    children_area[i].offset.x = children_area[i].extent.width * i;
+    children_area[i].offset.y = 0;
   }
 
+  Extent extent{};
+  extent.width = allotted_extent.width;
+  extent.height = max_children_height;
+  Rect area{offset, extent};
 
+  // cache.emplace(this_widget, area);
 
-    // VLK_DEBUG_CODE(auto const repeating_child_pos =
-    //                   std::find_if(widget_surface_area_map.begin(),
-    //                   widget_surface_area_map.end(),
-    //                                [child](auto const &entry) { return entry.first == child; }));
-    // VLK_DEBUG_CODE(VLK_ENSURE(repeating_child_pos == widget_surface_area_map.end(),
-    //                          "Found repeating Widget", repeating_child_pos->first->get_name()));
+  return area;
+
+  //} else {
+  // the children layout will not be filled since it has previously been
+  // filled
+  // VLK_LOG("cache hit");
+  // return Rect{offset, pos->second.extent};
+  //}
+}
+
+// VLK_DEBUG_CODE(auto const repeating_child_pos =
+//                   std::find_if(widget_surface_area_map.begin(),
+//                   widget_surface_area_map.end(),
+//                                [child](auto const &entry) { return
+//                                entry.first == child; }));
+// VLK_DEBUG_CODE(VLK_ENSURE(repeating_child_pos ==
+// widget_surface_area_map.end(),
+//                          "Found repeating Widget",
+//                          repeating_child_pos->first->get_name()));
+
+bool font_found = false;
+
+std::string font_family = properties.font_family();
+SkString font{font_family.c_str()};
+for (int i = 0; i < font_mgr->countFamilies(); i++) {
+  SkString font_family_name;
+  font_mgr->getFamilyName(i, &font_family_name);
+  if (font_found = font_family_name.equals(font)) break;
+}
+VLK_ENSURE(font_found, "Unable to find font");
