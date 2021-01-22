@@ -75,3 +75,5 @@ struct ScopeEventTrace {
 }  // namespace ui2d
 }  // namespace vlk
 
+
+// TODO(lamarrr): remove vector and log to file or something else
