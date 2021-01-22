@@ -18,6 +18,8 @@
 #include "vlk/utils/utils.h"
 #include "vulkan/vulkan.h"
 
+// TODO(lamarrr): move gl.h to vk.h
+
 namespace vlk {
 
 // terminology: every object created using a `create_*` requires a `vkDestroy`
