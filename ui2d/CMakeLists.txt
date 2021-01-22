@@ -1,4 +1,4 @@
-add_library(vlk_ui2d src/canvas.cc src/compositor.cc)
+add_library(vlk_ui2d src/canvas.cc src/compositor.cc src/widgets/text.cc)
 target_include_directories(
   vlk_ui2d
   PUBLIC include
