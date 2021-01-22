@@ -68,7 +68,8 @@ add_library(vlk_external_skia
 target_include_directories(vlk_external_skia
                            PUBLIC ${CMAKE_CURRENT_LIST_DIR}/third_party/skia)
 target_link_libraries(vlk_external_skia ${VLK_EXTERNAL_SKIA_LIBRARIES}
-                      ${FontConfig_LIBRARIES})
+                      ${Fontconfig_LIBRARIES})
+
 target_compile_definitions(
   vlk_external_skia
   PUBLIC SK_ENABLE_SPIRV_VALIDATION
