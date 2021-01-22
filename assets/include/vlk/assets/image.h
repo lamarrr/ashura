@@ -57,6 +57,8 @@ struct Image2D {
     return stx::Span<uint8_t const>(pixel_data_, pixel_data_ + size());
   }
 
+  bool is_valid() const noexcept { return size() != 0; }
+
  private:
   uint8_t* pixel_data_;
   uint32_t width_, height_;
