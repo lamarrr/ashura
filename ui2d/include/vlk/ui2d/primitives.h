@@ -118,6 +118,77 @@ struct TopRightBottomLeft {
                                            uint32_t l) noexcept {
     return TopRightBottomLeft{t, r, b, l};
   }
+struct Sizing {
+  enum class [[nodiscard]] Type : uint8_t{
+      // the part of the target used is a portion of the image specified in
+      // pixels
+      Relative,
+      // the part of the target used is a portion of the image specified within
+      // the range of 0.0 to 1.0f and scaled to the target's dimensions
+      Absolute};
+
+  explicit constexpr Sizing(Rect const &rect) noexcept
+      : type_{Type::Absolute}, rect_data_{rect} {}
+  explicit constexpr Sizing(RelativeRect const &rect) noexcept
+      : type_{Type::Relative}, relative_data_{rect} {}
+
+  constexpr Sizing() noexcept
+      : type_{Type::Relative},
+        relative_data_{RelativeRect{{0.0f, 0.0f}, {1.0f, 1.0f}}} {}
+
+  constexpr Sizing(Sizing const &other) = default;
+  constexpr Sizing(Sizing &&other) = default;
+  constexpr Sizing &operator=(Sizing const &other) = default;
+  constexpr Sizing &operator=(Sizing &&other) = default;
+  ~Sizing() noexcept = default;
+
+  static constexpr Sizing relative(RelativeRect const &relative) noexcept {
+    return Sizing{relative};
+  }
+
+  static constexpr Sizing relative(float offset_x, float offset_y, float width,
+                                   float height) noexcept {
+    return Sizing{RelativeRect{RelativeOffset{offset_x, offset_y},
+                               RelativeExtent{width, height}}};
+  }
+
+  static constexpr Sizing relative(float width, float height) noexcept {
+    return relative(0.0f, 0.0f, width, height);
+  }
+
+  static constexpr Sizing relative() noexcept { return relative(1.0f, 1.0f); }
+
+  static constexpr Sizing absolute(Rect const &rect) noexcept {
+    return Sizing{rect};
+  }
+
+  static constexpr Sizing absolute(uint32_t offset_x, uint32_t offset_y,
+                                   uint32_t width, uint32_t height) noexcept {
+    return absolute(Rect{Offset{offset_x, offset_y}, Extent{width, height}});
+  }
+
+  static constexpr Sizing absolute(uint32_t width, uint32_t height) noexcept {
+    return absolute(0, 0, width, height);
+  }
+
+  constexpr Type type() const noexcept { return type_; }
+
+  stx::Option<RelativeRect> get_relative() const noexcept {
+    if (type_ == Type::Relative) return stx::Some(RelativeRect{relative_data_});
+    return stx::None;
+  }
+
+  stx::Option<Rect> get_absolute() const noexcept {
+    if (type_ == Type::Absolute) return stx::Some(Rect{rect_data_});
+    return stx::None;
+  }
+
+ private:
+  Type type_;
+  union {
+    RelativeRect relative_data_;
+    Rect rect_data_;
+  };
 };
 
 }  // namespace ui2d
