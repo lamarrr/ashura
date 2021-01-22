@@ -118,6 +118,17 @@ struct TopRightBottomLeft {
                                            uint32_t l) noexcept {
     return TopRightBottomLeft{t, r, b, l};
   }
+
+  constexpr bool operator==(TopRightBottomLeft const &other) const noexcept {
+    return top == other.top && right == other.right && bottom == other.bottom &&
+           left == other.left;
+  }
+
+  constexpr bool operator!=(TopRightBottomLeft const &other) const noexcept {
+    return !(*this == other);
+  }
+};
+
 enum class Stretch : uint8_t {
   None = 0b00,
   X = 0b01,
