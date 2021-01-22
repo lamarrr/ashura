@@ -18,14 +18,12 @@ struct Image2D {
   };
 
   std::filesystem::path path;
-  Format target_format;
-  bool flip_vertically;
+  Format target_format = Format::Internal;
+  bool flip_vertically = false;
 };
 
 }  // namespace desc
 
-// data namespace is low-level and less-forgiving of mistakes and intended for
-// optimized used cases
 namespace data {
 
 enum class Error : uint8_t { InvalidPath, Internal };
@@ -54,7 +52,7 @@ struct [[nodiscard]] Image2D {
   Image2D() : pixel_data_{}, width_{}, height_{}, format_{Format::RGBA} {}
   Image2D(Image2D const&) = delete;
   Image2D& operator=(Image2D const&) = delete;
-  Image2D(Image2D&& other) noexcept;
+  Image2D(Image2D && other) noexcept;
   Image2D& operator=(Image2D&& other) noexcept;
   ~Image2D() noexcept;
 
