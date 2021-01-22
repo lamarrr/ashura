@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include "stx/option.h"
+#include "vlk/utils/utils.h"
 
 namespace vlk {
 namespace ui2d {
@@ -44,6 +46,7 @@ struct RelativeRect {
   RelativeExtent extent;
 };
 
+// TODO(lamarrr): fix id casing here
 struct Color {
   static constexpr uint32_t kRedMask = 0xFF000000U;
   static constexpr uint32_t kGreenMask = kRedMask >> 8;
@@ -59,8 +62,16 @@ struct Color {
                  static_cast<uint32_t>(b) << 8 | a};
   }
 
+  static constexpr Color FromArgb(uint32_t argb) noexcept {
+    return Color{(argb << 8) | (argb >> 24)};
+  }
+
   static constexpr Color Rgb(uint8_t r, uint8_t g, uint8_t b) noexcept {
     return Color::Rgba(r, g, b, kAlphaMask);
+  }
+
+  constexpr uint32_t argb() const noexcept {
+    return (rgba >> 8) | (rgba << 24);
   }
 
   constexpr Color with_red(uint8_t r) const noexcept {
@@ -80,15 +91,19 @@ struct Color {
   }
 
   constexpr bool operator==(Color const &other) const noexcept {
-    return rgba & other.rgba;
+    return rgba == other.rgba;
   }
 
   constexpr bool operator!=(Color const &other) const noexcept {
     return !(*this == other);
   }
 
-  constexpr uint32_t argb() const noexcept {
-    return (rgba >> 8) | (rgba << 24);
+  constexpr Color operator|(Color const &other) const noexcept {
+    return Color{rgba | other.rgba};
+  }
+
+  constexpr Color operator&(Color const &other) const noexcept {
+    return Color{rgba & other.rgba};
   }
 };
 
