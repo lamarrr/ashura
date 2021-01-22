@@ -1,26 +1,13 @@
 #pragma once
 
-#include <algorithm>
-#include <chrono>
-#include <cinttypes>
-#include <map>
 #include <memory>
-#include <numeric>
 #include <string_view>
-#include <vector>
 
-#include "stx/option.h"
-
-#include "vlk/assets/image.h"
+#include "stx/span.h"
 #include "vlk/ui2d/canvas.h"
 #include "vlk/ui2d/primitives.h"
-#include "vlk/utils/limits.h"
-#include "vlk/utils/utils.h"
-
-#include "include/core/SkFont.h"
 
 namespace vlk {
-
 namespace ui2d {
 
 // Widgets do not contain any spatio-temporal models, they should not be
