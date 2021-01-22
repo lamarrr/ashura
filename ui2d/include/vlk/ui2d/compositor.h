@@ -11,7 +11,6 @@
 #include "vlk/ui2d/surface_provider.h"
 #include "vlk/ui2d/trace.h"
 #include "vlk/ui2d/widget.h"
-#include "vlk/utils/limits.h"
 
 #include "include/core/SkCanvas.h"
 #include "include/core/SkImage.h"
@@ -20,9 +19,22 @@
 #include "include/core/SkSurface.h"
 #include "stx/span.h"
 
-#define VLK_COMPOSITOR_TRACE_SCOPE VLK_SCOPE_EVENT_TRACE_TO_SINK(CompositorTraceSink);
+#include "vlk/utils/limits.h"
+#include "vlk/utils/utils.h"
 
+#define VLK_ENABLE_COMPOSITOR_TRACING 0
+
+#if VLK_ENABLE_COMPOSITOR_TRACING
+#define VLK_COMPOSITOR_TRACE_SCOPE VLK_SCOPE_EVENT_TRACE_TO_SINK(CompositorTraceSink);
 #define VLK_COMPOSITOR_TRACE_SCALAR(scalar) VLK_SCALAR_TRACE_TO_SINK(scalar, CompositorTraceSink)
+#else
+#define VLK_COMPOSITOR_TRACE_SCOPE \
+  do {                             \
+  } while (false)
+#define VLK_COMPOSITOR_TRACE_SCALAR(scalar) \
+  do {                                      \
+  } while (false)
+#endif
 
 VLK_DECLARE_TRACE_SINK(CompositorTraceSink);
 
