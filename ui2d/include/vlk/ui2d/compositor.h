@@ -449,15 +449,13 @@ inline void build_widget_layout(
     VLK_WARN_IF(widget_x_max > allotted_extent.width,
                 "overflow on x-axis by {}px detected in widget: {} (type: {}, address: {}) >>> "
                 "parent allotted width: {}px, widget requested: {}px offset and {}px extent",
-                widget_x_max - allotted_extent.width, widget->get_name(), widget->get_type_name(),
+                widget_x_max - allotted_extent.width, widget->get_name(), widget->get_type_hint(),
                 static_cast<void *>(widget), allotted_extent.width, desired_parent_area.offset.x,
                 desired_parent_area.extent.width);
     VLK_WARN_IF(widget_y_max > allotted_extent.height,
                 "overflow on y-axis by {}px detected in widget: {} (type: {}, address: {}) >>> "
                 "parent allotted height: {}px, widget requested: {}px offset and {}px extent",
-                widget_y_max - allotted_extent.height, widget->get_name(), widget->get_type_name(),
-                static_cast<void *>(widget), allotted_extent.height, desired_parent_area.offset.x,
-                desired_parent_area.extent.width);
+                widget_y_max - allotted_extent.height, widget->get_name(), widget->get_type_hint(),
 #endif
   }
 
