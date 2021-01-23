@@ -356,6 +356,7 @@ STX_FORCE_INLINE void LRU_resolve(Residuals<AllocatorResiduals> &residuals,
       if (in_view_cached_entry.snapshot.widget()->is_dirty()) {
         in_view_cached_entry.snapshot.discard_image();
         in_view_cached_entry.snapshot.rasterize(surface_provider);
+        in_view_cached_entry.snapshot.widget()->mark_clean();
       }
     }
   }
