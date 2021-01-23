@@ -134,6 +134,7 @@ struct Snapshot {
                      "an undiscarded on");
     SkPictureRecorder recorder;
     SkCanvas *canvas_pimpl = recorder.beginRecording(area_.extent.width, area_.extent.height);
+    VLK_DEBUG_ENSURE(canvas_pimpl != nullptr);
 
     auto canvas = Canvas::FromSkia(canvas_pimpl);
     widget_->draw(canvas, area_.extent);
@@ -149,6 +150,9 @@ struct Snapshot {
     VLK_DEBUG_ENSURE(gpu_surface != nullptr, "Returned surface from surface provider is nullptr");
 
     SkCanvas *canvas = gpu_surface->getCanvas();
+
+    VLK_DEBUG_ENSURE(canvas != nullptr, "SkCanvas is nullptr");
+
     canvas->clear(colors::Transparent.argb());
     canvas->drawPicture(
         draw_commands_.get());  // SkPaint, and SkMatrix for transform (surface zooming)
