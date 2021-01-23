@@ -213,13 +213,15 @@ struct Snapshot {
 struct CacheEntry {
   Snapshot snapshot;
 
+  uint32_t z_index;
+
   // represents the amount of time since the widget left the root surface view.
   // if it exceeds a specified maximum, the cache entry is removed.
   uint64_t out_of_view_ticks;
 
   CacheEntry() = default;
-  CacheEntry(Snapshot &&snapShot, uint64_t outOfViewTicks = 0)
-      : snapshot{std::move(snapShot)}, out_of_view_ticks{outOfViewTicks} {}
+  CacheEntry(Snapshot &&snapShot, uint32_t zIndex, uint64_t outOfViewTicks = 0)
+      : snapshot{std::move(snapShot)}, z_index{zIndex}, out_of_view_ticks{outOfViewTicks} {}
 
   static CacheEntry MakeStub() { return CacheEntry(); }
 
@@ -376,7 +378,7 @@ inline void build_widget_layout_helper(
     std::vector<std::pair<Widget *, Rect>, SlWAllocator> &stateless_layout_widgets,
     std::vector<std::pair<Widget *, Rect>, SfWAllocator> &stateful_layout_widgets,
     Residuals<SlRAllocator> &stateless_residuals, Residuals<SfRAllocator> &stateful_residuals,
-    Widget *widget, Rect const &surface_area) {
+    Widget *widget, Rect const &surface_area, uint32_t z_index) {
   VLK_COMPOSITOR_TRACE_SCOPE;
 
   if (widget->is_layout_type()) {
@@ -386,7 +388,8 @@ inline void build_widget_layout_helper(
       stateless_layout_widgets.emplace_back(widget, surface_area);
     }
   } else {
-    CacheEntry entry{Snapshot::CreateRecorded(*widget, surface_area), 0};
+    CacheEntry entry{Snapshot::CreateRecorded(*widget, surface_area),
+                     widget->z_index().is_none() ? z_index : widget->z_index().clone().unwrap(), 0};
     if (widget->is_stateful()) {
       stateful_residuals.emplace_back(std::move(entry));
     } else {
@@ -401,7 +404,8 @@ inline void build_widget_layout(
     std::vector<std::pair<Widget *, Rect>, SlWAllocator> &stateless_layout_widgets,
     std::vector<std::pair<Widget *, Rect>, SfWAllocator> &stateful_layout_widgets,
     Residuals<SlRAllocator> &stateless_residuals, Residuals<SfRAllocator> &stateful_residuals,
-    Widget *widget, Extent const &allotted_extent, Offset const &allotted_surface_offset) {
+    Widget *widget, Extent const &allotted_extent, Offset const &allotted_surface_offset,
+    uint32_t start_z_index) {
   VLK_DEBUG_ENSURE(widget != nullptr, "Found nullptr Widget");
 
   // TODO(lamarrr): centralized window zooming
@@ -469,7 +473,7 @@ inline void build_widget_layout(
   Rect widget_surface_area = {widget_surface_offset, widget_extent};
 
   build_widget_layout_helper(stateless_layout_widgets, stateful_layout_widgets, stateless_residuals,
-                             stateful_residuals, widget, widget_surface_area);
+                             stateful_residuals, widget, widget_surface_area, start_z_index);
 
   for (size_t i = 0; i < num_children; i++) {
     Widget *child = children[i];
@@ -479,7 +483,8 @@ inline void build_widget_layout(
 
     build_widget_layout(stateless_layout_widgets, stateful_layout_widgets, stateless_residuals,
                         stateful_residuals, child, allotted_child_extent,
-                        allotted_child_surface_offset);
+                        allotted_child_surface_offset,
+                        start_z_index + (child->is_layout_type() ? 0u : 1u));
   }
 }
 
