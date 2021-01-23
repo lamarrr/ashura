@@ -518,8 +518,8 @@ struct Compositor {
 
     VLK_COMPOSITOR_TRACE_SCOPE;
     build_widget_layout(stateless_layout_widgets_, stateful_layout_widgets_, stateless_residuals_,
-                        stateful_residuals_, root_widget_, surface_area.extent,
-                        surface_area.offset);
+                        stateful_residuals_, root_widget_, surface_area.extent, surface_area.offset,
+                        0);
 
     view_surface_ = surface_provider_->make_surface(view_area_.extent);
   }
@@ -540,6 +540,7 @@ struct Compositor {
     VLK_COMPOSITOR_TRACE_SCOPE;
 
     // TODO(lamarrr): render to surface argument instead of having own surface
+    // TODO(lamarrr): all widgets are stateful on first render pass
 
     for (auto &[layout_widget, surface_area] : stateful_layout_widgets_) {
       // TODO(lamarrr): rebuild widget tree, and loop through all widgets and
