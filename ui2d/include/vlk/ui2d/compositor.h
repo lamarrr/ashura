@@ -364,10 +364,11 @@ STX_FORCE_INLINE void LRU_resolve(Residuals<AllocatorResiduals> &residuals,
 
   cache.resize(cache_out_of_view_iterator - cache.begin());
 
-  auto residuals_in_view_iterator = std::remove_if(
+  // we don't need to preserve z-index order since they are out of view
+  auto residuals_in_view_iterator = std::partition(
       residuals.begin(), residuals.end(), [view_area, max_out_of_view_ticks](CacheEntry &entry) {
         update_out_of_view_ticks(entry, view_area);
-        return entry.out_of_view_ticks == 0;
+        return entry.out_of_view_ticks != 0;
       });
 
   cache.cache(stx::Span<CacheEntry>(residuals_in_view_iterator.base(), residuals.end().base()),
