@@ -313,12 +313,16 @@ struct Cache : private std::vector<CacheEntry, CacheEntryAllocator> {
   using base::resize;
   using base::size;
 
+  // widgets in cache are always sorted by z-index (increasing order)
   void cache(stx::Span<CacheEntry> const &residuals, SurfaceProvider &surface_provider) {
     VLK_COMPOSITOR_TRACE_SCOPE;
 
-    for (auto &residual : residuals) {
+    for (CacheEntry &residual : residuals) {
       residual.snapshot.rasterize(surface_provider);
-      base::emplace_back(std::move(residual));
+      auto insert_pos = std::lower_bound(
+          base::begin(), base::end(), residual,
+          [](CacheEntry const &a, CacheEntry const &b) { return a.z_index < b.z_index; });
+      base::insert(typename base::const_iterator{insert_pos}, std::move(residual));
     }
   }
 
@@ -329,8 +333,6 @@ struct Cache : private std::vector<CacheEntry, CacheEntryAllocator> {
   }
 
   ~Cache() { discard_all_snapshots(*this); }
-
- private:
 };
 
 namespace {
