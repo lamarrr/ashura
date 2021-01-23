@@ -343,10 +343,11 @@ STX_FORCE_INLINE void LRU_resolve(Residuals<AllocatorResiduals> &residuals,
                                   Rect const &view_area, uint64_t max_out_of_view_ticks) {
   VLK_COMPOSITOR_TRACE_SCOPE;
 
-  auto cache_out_of_view_iterator = std::remove_if(
+  // we need to preserve order of the widgets in the cache as they are sorted by z-index
+  auto cache_out_of_view_iterator = std::stable_partition(
       cache.begin(), cache.end(), [view_area, max_out_of_view_ticks](CacheEntry &entry) {
         update_out_of_view_ticks(entry, view_area);
-        return entry.out_of_view_ticks > max_out_of_view_ticks;
+        return entry.out_of_view_ticks <= max_out_of_view_ticks;
       });
 
   if constexpr (IsStateful) {
