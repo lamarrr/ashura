@@ -456,8 +456,10 @@ inline void build_widget_layout(
                 "overflow on y-axis by {}px detected in widget: {} (type: {}, address: {}) >>> "
                 "parent allotted height: {}px, widget requested: {}px offset and {}px extent",
                 widget_y_max - allotted_extent.height, widget->get_name(), widget->get_type_hint(),
-#endif
+                static_cast<void *>(widget), allotted_extent.height, desired_parent_area.offset.y,
+                desired_parent_area.extent.height);
   }
+#endif
 
   Offset widget_parent_offset = {};
   widget_parent_offset.x = std::min(desired_parent_area.offset.x, allotted_extent.width);
