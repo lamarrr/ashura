@@ -293,7 +293,7 @@ struct Residuals : private std::vector<CacheEntry, CacheEntryAllocator> {
   ~Residuals() { discard_all_snapshot_draw_commands(*this); }
 };
 
-// A Spatially-Aware Least Recently Used cache
+// Least Recently Used cache
 template <typename CacheEntryAllocator = std::allocator<CacheEntry>>
 struct Cache : private std::vector<CacheEntry, CacheEntryAllocator> {
   using base = std::vector<CacheEntry, CacheEntryAllocator>;
