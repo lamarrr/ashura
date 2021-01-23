@@ -89,15 +89,15 @@ struct Snapshot {
   Snapshot(Snapshot &&) = default;
   Snapshot &operator=(Snapshot &&) = default;
   ~Snapshot() noexcept {
-    VLK_DEBUG_ENSURE(image_.get() == nullptr,
+    VLK_DEBUG_ENSURE(image_ == nullptr,
                      "reached destructor without moving or discarding widget raster");
-    VLK_DEBUG_ENSURE(draw_commands_.get() == nullptr,
+    VLK_DEBUG_ENSURE(draw_commands_ == nullptr,
                      "reached destructor without moving or discarding draw commands");
   }
 
   // returns the estimated memory usage of the raster image (if any)
   uint64_t image_size() const {
-    if (image_.get() == nullptr) return 0;
+    if (image_ == nullptr) return 0;
     return image_->imageInfo().computeMinByteSize();
   }
 
@@ -114,14 +114,14 @@ struct Snapshot {
 
   void discard_image() {
     VLK_COMPOSITOR_TRACE_SCOPE;
-    VLK_DEBUG_ENSURE(image_.get() != nullptr,
+    VLK_DEBUG_ENSURE(image_ != nullptr,
                      "called `discard_image` with no previous rasterization result/image");
     image_.reset(nullptr);
   }
 
   void discard_draw_commands() {
     VLK_COMPOSITOR_TRACE_SCOPE;
-    VLK_DEBUG_ENSURE(draw_commands_.get() != nullptr,
+    VLK_DEBUG_ENSURE(draw_commands_ != nullptr,
                      "called `discard_draw_commands` with no previous draw "
                      "command recorded");
     draw_commands_.reset(nullptr);
@@ -129,7 +129,7 @@ struct Snapshot {
 
   void record_draw_commands() {
     VLK_COMPOSITOR_TRACE_SCOPE;
-    VLK_DEBUG_ENSURE(draw_commands_.get() == nullptr,
+    VLK_DEBUG_ENSURE(draw_commands_ == nullptr,
                      "Attempting to record draw commands whilst still having "
                      "an undiscarded on");
     SkPictureRecorder recorder;
@@ -142,9 +142,12 @@ struct Snapshot {
 
   void rasterize(SurfaceProvider &surface_provider) {
     VLK_COMPOSITOR_TRACE_SCOPE;
+    VLK_DEBUG_ENSURE(draw_commands_ != nullptr,
+                     "called `rasterize()` with no previously recorded draw command",
+                     widget_->get_type_hint());
     sk_sp gpu_surface = surface_provider.make_surface(area_.extent);
-    VLK_DEBUG_ENSURE(draw_commands_.get() != nullptr,
-                     "called `rasterize()` with no previously recorded draw command");
+    VLK_DEBUG_ENSURE(gpu_surface != nullptr, "Returned surface from surface provider is nullptr");
+
     SkCanvas *canvas = gpu_surface->getCanvas();
     canvas->clear(colors::Transparent.argb());
     canvas->drawPicture(
@@ -153,7 +156,7 @@ struct Snapshot {
   }
 
   void render_cache(SkCanvas &view_canvas, Rect const &view_area) {
-    VLK_DEBUG_ENSURE(image_.get() != nullptr,
+    VLK_DEBUG_ENSURE(image_ != nullptr,
                      "called `render_cache()` with no previous rasterization cache/image");
 
     VLK_DEBUG_ENSURE(is_overlapping(view_area, area_),
@@ -168,9 +171,9 @@ struct Snapshot {
     view_canvas.drawImage(image_.get(), static_cast<float>(x_start), static_cast<float>(y_start));
   }
 
-  bool is_draw_commands_recorded() const noexcept { return draw_commands_.get() != nullptr; }
+  bool is_draw_commands_recorded() const noexcept { return draw_commands_ != nullptr; }
 
-  bool is_rasterized() const noexcept { return image_.get() != nullptr; }
+  bool is_rasterized() const noexcept { return image_ != nullptr; }
 
   // called when the surface extent changes.
   // must be called irregardless of whether this is in the residual state or
