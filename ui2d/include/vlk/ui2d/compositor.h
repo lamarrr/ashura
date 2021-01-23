@@ -436,10 +436,10 @@ inline void build_widget_layout(
   if (!widget->is_layout_type()) {
     VLK_WARN_IF(desired_parent_area.extent.width == u32_max,
                 "widget {}'s (type: {}, address: {}) width is u32_max", widget->get_name(),
-                widget->get_type_name(), static_cast<void *>(widget));
+                widget->get_type_hint(), static_cast<void *>(widget));
     VLK_WARN_IF(desired_parent_area.extent.height == u32_max,
                 "widget {}'s (type: {}, address: {}) height is u32_max", widget->get_name(),
-                widget->get_type_name(), static_cast<void *>(widget));
+                widget->get_type_hint(), static_cast<void *>(widget));
 
     VLK_WARN_IF(widget_x_max > allotted_extent.width,
                 "overflow on x-axis by {}px detected in widget: {} (type: {}, address: {}) >>> "
