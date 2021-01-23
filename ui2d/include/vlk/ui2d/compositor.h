@@ -609,6 +609,7 @@ struct Compositor {
   residuals_type stateless_residuals_;
   residuals_type stateful_residuals_;
 
+  // TODO(lamarrr): Allocator?
   std::vector<std::pair<Widget *, Rect>> stateless_layout_widgets_;
   std::vector<std::pair<Widget *, Rect>> stateful_layout_widgets_;
 
