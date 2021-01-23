@@ -160,6 +160,7 @@ struct Snapshot {
   }
 
   void render_cache(SkCanvas &view_canvas, Rect const &view_area) {
+    VLK_COMPOSITOR_TRACE_SCOPE;
     VLK_DEBUG_ENSURE(image_ != nullptr,
                      "called `render_cache()` with no previous rasterization cache/image");
 
