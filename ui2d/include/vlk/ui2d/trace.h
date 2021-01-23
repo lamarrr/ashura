@@ -62,6 +62,8 @@ struct ScopeEventTrace {
     VLK_TRACE_SINK_FUNC_NAME(sink_name)()                                                                              \
   }
 
+// TODO(lamarrr): consider tracing to file instead using chrome's tracing format
+
 #define VLK_SCALAR_TRACE_TO_SINK(scalar, sink_name)           \
   do {                                                        \
     double value = static_cast<double>(scalar);               \
@@ -70,10 +72,7 @@ struct ScopeEventTrace {
         #scalar, ::std::chrono::steady_clock::now(), value}); \
   } while (false)
 
-
-
 }  // namespace ui2d
 }  // namespace vlk
-
 
 // TODO(lamarrr): remove vector and log to file or something else
