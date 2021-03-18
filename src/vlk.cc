@@ -1,6 +1,13 @@
 #include <map>
 #include <numeric>
 
+#define SK_VULKAN
+#include "include/core/SkCanvas.h"
+#include "include/core/SkSurface.h"
+#include "include/gpu/GrDirectContext.h"
+#include "include/gpu/vk/GrVkBackendContext.h"
+#include "include/gpu/vk/GrVkExtensions.h"
+
 #include "stx/option.h"
 #include "stx/result.h"
 
@@ -126,7 +133,7 @@ struct [[nodiscard]] Application {
 
     physical_device_ = physical_device;
 
-    VLK_LOG("Using Physical Device: {}", name_physical_device(prop))
+    VLK_LOG("Using Physical Device: {}", name_physical_device(prop));
 
     std::vector<VkQueueFamilyProperties> queue_families =
         get_queue_families(physical_device_);
@@ -226,6 +233,51 @@ struct [[nodiscard]] Application {
                           transfer_command_queue_index_);
 
     /*========== Shader Loading ==========*/
+    {
+      // TODO(lamarrr): Abstract into surface provider.
+
+      GrVkBackendContext vk_context{};
+
+      GrVkExtensions extensions_cache{};
+      vk_context.fInstance = vulkan_instance_;
+      vk_context.fPhysicalDevice = physical_device_;
+      vk_context.fDevice = logical_device_;
+      vk_context.fQueue = graphics_command_queue_;
+      vk_context.fGraphicsQueueIndex = graphics_command_queue_index_;
+      vk_context.fMaxAPIVersion = VK_API_VERSION_1_1;
+      vk_context.fDeviceFeatures = &features;
+      vk_context.fGetProc = [](char const* proc_name, VkInstance instance,
+                               VkDevice device) {
+        VLK_ENSURE(instance == nullptr || device == nullptr);
+        VLK_ENSURE(!(instance != nullptr && device != nullptr));
+        if (device != nullptr) {
+          return vkGetDeviceProcAddr(device, proc_name);
+        } else {
+          return vkGetInstanceProcAddr(instance, proc_name);
+        }
+      };
+      vk_context.fVkExtensions = &extensions_cache;
+
+      auto direct_context = GrDirectContext::MakeVulkan(vk_context);
+      VLK_ENSURE(direct_context != nullptr,
+                 "Unable to create Skia Direct Vulkan Context");
+      auto info =
+          SkImageInfo::Make(200, 400, SkColorType::kRGBA_8888_SkColorType,
+                            SkAlphaType::kPremul_SkAlphaType);
+      sk_sp<SkSurface> surface = SkSurface::MakeRenderTarget(
+          direct_context.get(), SkBudgeted::kNo, info);
+      VLK_ENSURE(surface != nullptr, "Unable to Create Skia Canvas");
+      SkCanvas* sk_canvas = surface->getCanvas();
+      SkPaint paint{};
+      paint.setColor(SK_ColorGREEN);
+      sk_canvas->drawRect(SkRect::MakeWH(100, 100), paint);
+      sk_sp<SkImage> snapshot =
+          surface->makeImageSnapshot();  // how to less overhead here
+      GrBackendTexture texture = snapshot->getBackendTexture(true);
+      GrVkImageInfo image_info;
+      VLK_ENSURE(texture.getVkImageInfo(&image_info),
+                 "Unable to get Vulkan Image from Skia surface snapshot");
+    }
 
     std::basic_string<uint32_t> const vert_shader_binary =
         load_spirv_binary(config::kSpirvBinariesPath / "triangle.vert.spv")

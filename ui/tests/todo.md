@@ -39,10 +39,7 @@
 - view offset scrolling
 - oov views handling (LRU_resolve_views), process should be -> resolve views -> resolve snapshots
 - state management for effects
-- finish calculating view offset
-- work on view offsets
 - DO WE??? we have to touch and calculate for all as we don't know which changed, and we'd have to trasverse the tree anyway to know which changed.
-- finish implementing layout tree for views and take offset so we can know the position on the parent and on the view
 - insertion order of the effects
 - children reference invalidation.
 - sequence of operation between layout, render, tick, and input event handling
@@ -52,8 +49,6 @@
 - we also need to keep track of the change of the effects as it affects the overall canvas caching/tiling
 - can we optimize layout re-calculation  for widgets/views that don't depend on their children's layouts?
 - should each view have it's own cache or should we draw everything into a single buffer and check if any part of it is dirty and clear that dirty area instead.
-- ATM, a view widget will allot uint32_max to its children, views are not necessarily unconstrained, they can be constrained along x and can be constrained along y, or both.
-- check whether the view layout calculations will affect the clamps we have in place.
 - for eeasy children removal, should we store a pointer to the view and node tree? so we can easily modify the node at that point and rebuild the tree as needed. we'd just have to perform a binary search on the snapshots using the z_index to remove the children update all caceh; render tree, layout tree
 - *should we make snapshot contain a view instead? since views can overlap with other views and/or widgets (in consideration to stacking). PENDING-ANSWER: a stack widget can just group them and create a separate view for one of them if needed?
 - *views seem to have the problem mentioned above

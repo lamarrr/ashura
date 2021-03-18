@@ -101,6 +101,20 @@ struct [[nodiscard]] RelativeExtent {
 struct [[nodiscard]] Rect {
   Offset offset;
   Extent extent;
+
+  constexpr bool overlaps(Rect const &other) noexcept {
+    uint64_t x1_min = offset.x;
+    uint64_t x1_max = x1_min + extent.width;
+    uint64_t y1_min = offset.y;
+    uint64_t y1_max = y1_min + extent.height;
+    uint64_t x2_min = other.offset.x;
+    uint64_t x2_max = x2_min + other.extent.width;
+    uint64_t y2_min = other.offset.y;
+    uint64_t y2_max = y2_min + other.extent.height;
+
+    return (x1_max > x2_min && x2_max > x1_min) &&
+           (y1_max > y2_min && y2_max > y1_min);
+  }
 };
 
 [[nodiscard]] inline constexpr bool operator==(Rect const &a,
@@ -127,22 +141,22 @@ struct [[nodiscard]] Color {
 
   uint32_t rgba;
 
-  static constexpr Color Rgba(uint8_t r, uint8_t g, uint8_t b,
-                              uint8_t a) noexcept {
+  static constexpr Color from_rgba(uint8_t r, uint8_t g, uint8_t b,
+                                   uint8_t a) noexcept {
     return Color{static_cast<uint32_t>(r) << 24 |
                  static_cast<uint32_t>(g) << 16 |
                  static_cast<uint32_t>(b) << 8 | a};
   }
 
-  static constexpr Color FromArgb(uint32_t argb) noexcept {
+  static constexpr Color from_argb(uint32_t argb) noexcept {
     return Color{(argb << 8) | (argb >> 24)};
   }
 
-  static constexpr Color Rgb(uint8_t r, uint8_t g, uint8_t b) noexcept {
-    return Color::Rgba(r, g, b, kAlphaMask);
+  static constexpr Color from_rgb(uint8_t r, uint8_t g, uint8_t b) noexcept {
+    return Color::from_rgba(r, g, b, 0xFF);
   }
 
-  [[nodiscard]] constexpr uint32_t argb() const noexcept {
+  [[nodiscard]] constexpr uint32_t to_argb() const noexcept {
     return (rgba >> 8) | (rgba << 24);
   }
 
@@ -263,7 +277,7 @@ inline constexpr Stretch operator&(Stretch a, Stretch b) noexcept {
   return vlk::enum_and(a, b);
 }
 
-// TODO(lamarrr): use independent parameters for sizing?
+// TODO(lamarrr): consider using constrain with aspect ratio?
 
 struct [[nodiscard]] Sizing {
   enum class [[nodiscard]] Type : uint8_t{

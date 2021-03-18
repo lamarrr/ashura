@@ -1,42 +1,14 @@
-#pragma once
 
-#include <algorithm>
-#include <cmath>
+/// we query the child's sizing first by giving it the max allottable
+/// extent determined by `children_allocation`.
+/// using the max children's spatial span (maximum of two extreme ends), we
+/// determine the widget's extent from the child's using `self_allocation`.
+struct DependentParameters {
+  IndependentParameters self_allocation;
+  IndependentParameters children_allocation;
+};
 
-#include "vlk/ui/constraints.h"
-
-#include "vlk/utils/utils.h"
-
-namespace vlk {
-namespace ui {
-
-inline uint32_t resolve_eqn(uint32_t source, float scale, uint32_t bias,
-                            uint32_t low, uint32_t high,
-                            OutputClamp const &clamp, bool is_constrained) {
-  // future-TODO[1]
-  VLK_DEBUG_ENSURE(high >= low);
-
-  VLK_DEBUG_ENSURE(scale >= 0.0f);
-
-  VLK_DEBUG_ENSURE(clamp.low >= 0.0f);
-  VLK_DEBUG_ENSURE(clamp.low <= 1.0f);
-
-  VLK_DEBUG_ENSURE(clamp.high >= 0.0f);
-  if (is_constrained) {
-    VLK_DEBUG_ENSURE(clamp.high <= 1.0f);
-  }
-
-  VLK_DEBUG_ENSURE(clamp.high >= clamp.low);
-
-  int64_t const value_i64 = static_cast<int64_t>(scale * source) + bias;
-  uint32_t const value_u32 = std::clamp(value_i64, static_cast<int64_t>(0),
-                                        static_cast<int64_t>(vlk::u32_max));
-  uint32_t value = std::clamp(value_u32, low, high);
-  uint32_t min = static_cast<uint32_t>(std::floor(clamp.low * source));
-  uint32_t max = static_cast<uint32_t>(std::floor(clamp.high * source));
-
-  return std::clamp(value, min, max);
-}
+using Parameters = std::variant<IndependentParameters, DependentParameters>;
 
 inline uint32_t resolve_eqn_dependent(uint32_t source, uint32_t allotted,
                                       float scale, uint32_t bias, uint32_t low,
@@ -65,12 +37,6 @@ inline uint32_t resolve_eqn_dependent(uint32_t source, uint32_t allotted,
   uint32_t max = static_cast<uint32_t>(std::floor(clamp.high * allotted));
 
   return std::clamp(value, min, max);
-}
-
-inline uint32_t resolve_self_layout(IndependentParameters const &param,
-                                    uint32_t allotted_extent) {
-  return resolve_eqn(allotted_extent, param.scale, param.bias, param.low,
-                     param.high, param.clamp, true);
 }
 
 /// the child's extent has already been calculated using
@@ -106,13 +72,6 @@ inline uint32_t resolve_view_child_allotted_layout(
 }
 
 // a view's extent is not constrained to the parent's allotted extent
-inline uint32_t resolve_view_extent(IndependentParameters const &param,
-                                    uint32_t parent_allotted_extent) {
-  return resolve_eqn(parent_allotted_extent, param.scale, param.bias, param.low,
-                     param.high, param.clamp, false);
-}
-
-// a view's extent is not constrained to the parent's allotted extent
 inline uint32_t resolve_view_extent(DependentParameters const &param,
                                     uint32_t child_extent,
                                     uint32_t allotted_extent) {
@@ -122,17 +81,34 @@ inline uint32_t resolve_view_extent(DependentParameters const &param,
                                dparam.clamp, false);
 }
 
-// view's offset is constrained to its extent
-inline uint32_t resolve_view_offset(IndependentParameters const &param,
-                                    uint32_t extent) {
-  return resolve_eqn(extent, param.scale, param.bias, param.low, param.high,
-                     param.clamp, true);
-}
-
 template <typename T>
 inline constexpr bool is_dependent(T const &value) {
   return std::holds_alternative<DependentParameters>(value);
 }
 
-}  // namespace ui
-}  // namespace vlk
+
+struct ChildLayout {
+  IndependentParameters x;
+  IndependentParameters y;
+  IndependentParameters width;
+  IndependentParameters height;
+};
+
+
+/// marks the inner extent of the view which could depend on its children's
+/// layout
+struct ViewExtent {
+  Parameters width = DependentParameters{// self allocation
+                                         IndependentParameters{1.0f},
+                                         // child allocation
+                                         IndependentParameters{1.0f}};
+  Parameters height = DependentParameters{// self allocation
+                                          IndependentParameters{1.0f},
+                                          // child allocation
+                                          IndependentParameters{1.0f}};
+};
+
+  // a view's extent is not constrained to the parent's allotted extent
+  // uint32_t resolve_view_extent(uint32_t parent_allotted_extent) {
+  //  return resolve(parent_allotted_extent, false);
+  // }

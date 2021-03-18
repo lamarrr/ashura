@@ -48,18 +48,7 @@ namespace impl {
 
 namespace {
 // this is a strict overlapping check
-STX_FORCE_INLINE constexpr bool is_overlapping(Rect const &rect_a, Rect const &rect_b) noexcept {
-  uint64_t x1_min = rect_a.offset.x;
-  uint64_t x1_max = x1_min + rect_a.extent.width;
-  uint64_t y1_min = rect_a.offset.y;
-  uint64_t y1_max = y1_min + rect_a.extent.height;
-  uint64_t x2_min = rect_b.offset.x;
-  uint64_t x2_max = x2_min + rect_b.extent.width;
-  uint64_t y2_min = rect_b.offset.y;
-  uint64_t y2_max = y2_min + rect_b.extent.height;
 
-  return (x1_max > x2_min && x2_max > x1_min) && (y1_max > y2_min && y2_max > y1_min);
-}
 }
 
 // This snapshot is not aware of the parent-child dimensional relationship. It only has dimensional

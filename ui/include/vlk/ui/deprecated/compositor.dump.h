@@ -57,3 +57,57 @@ widget->compute_area();
     }
   }
 };
+
+
+
+
+  /*  for (size_t i = 0; i < child_count; i++) {
+      WidgetLayoutTree::Node &child = node.children[i];
+      ChildLayout const &child_allotted_layout = children_layout[i];
+
+      Offset child_allotted_offset{
+          resolve_child_allotted_layout(child_allotted_layout.x,
+                                        node.type == Widget::Type::View
+                                            ? view_child_allotted_width
+                                            : allotted_extent.width),
+          resolve_child_allotted_layout(child_allotted_layout.y,
+                                        node.type == Widget::Type::View
+                                            ? view_child_allotted_height
+                                            : allotted_extent.height)};
+
+      Extent child_allotted_extent{
+          resolve_child_allotted_layout(child_allotted_layout.width,
+                                        node.type == Widget::Type::View
+                                            ? view_child_allotted_width
+                                            : allotted_extent.width),
+          resolve_child_allotted_layout(child_allotted_layout.height,
+                                        node.type == Widget::Type::View
+                                            ? view_child_allotted_height
+                                            : allotted_extent.height)};
+
+      clean_layout_tree_(child, child_allotted_offset, child_allotted_extent,
+                         node.type == Widget::Type::View
+                             ? child_allotted_offset
+                             : (allotted_view_offset + child_allotted_offset));
+    }
+
+
+    Extent self_extent{};
+
+
+
+    node.parent_offset = allotted_parent_offset;
+    node.parent_view_area = Rect{Offset{allotted_view_offset}, self_extent};
+
+      node.view_extent = {};
+
+    if (node.type == Widget::Type::View) {
+      ViewOffset view_offset = node.widget->get_view_offset();
+      node.view_offset.x =
+          resolve_view_offset(view_offset.x, node.view_extent.width);
+      node.view_offset.y =
+          resolve_view_offset(view_offset.y, node.view_extent.height);
+    } else {
+      node.view_offset = {};
+    }
+  */

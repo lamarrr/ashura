@@ -13,7 +13,7 @@
 #include "vlk/utils/utils.h"
 
 #include "vlk/ui/canvas.h"
-#include "vlk/ui/constraints.h"
+#include "vlk/ui/layout.h"
 
 namespace vlk {
 namespace ui {
@@ -63,78 +63,46 @@ struct Widget {
     Leave,
   };
 
-  Widget(Type type = Type::Render, bool should_cache = true,
-         SelfLayout self_layout = {},
-         stx::Span<ChildLayout const> children_layout = {},
-         stx::Span<Widget *const> children = {},
-         std::string_view name = "<unnamed widget>",
-         std::string_view type_hint = "Widget",
-         stx::Option<uint32_t> preferred_stack_index = stx::None,
-         ViewExtent view_extent = {}, ViewOffset view_offset = {})
+  Widget(Type const &type = Type::Render, bool const &should_cache = true,
+         SelfExtent const &self_extent = {}, Flex const &flex = {},
+         stx::Span<Widget *const> const &children = {},
+         std::string_view const &name = "<unnamed widget>",
+         std::string_view const &type_hint = "Widget",
+         stx::Option<uint32_t> const &preferred_stack_index = stx::None,
+         SelfExtent const &view_extent = {}, SelfOffset const &view_offset = {})
       : type_{type},
         should_cache_{should_cache},
-        self_layout_{self_layout},
-        children_layout_{children_layout},
+        self_extent_{self_extent},
+        flex_{flex},
         children_{children},
         name_{name},
         type_hint_{type_hint},
         preferred_stack_index_{preferred_stack_index.clone()},
         view_extent_{view_extent},
         view_offset_{view_offset},
-        state_proxy_{} {}
+        state_proxy_{},
+        pre_effects_{},
+        post_effects_{} {}
 
   Type get_type() const noexcept { return type_; }
 
   bool should_cache() const noexcept { return should_cache_; }
 
-  SelfLayout get_self_layout() const noexcept { return self_layout_; }
-
-  bool is_flexible() const noexcept {
-    bool flexible_dependent_width = f32_eq(
-        std::holds_alternative<DependentParameters>(get_self_layout().width) &&
-            std::get<DependentParameters>(get_self_layout().width)
-                .children_allocation.scale,
-        0.0f);
-
-    // is it technically unbounded if it's width depends on the children's?
-
-    // min max same
-    bool flexible_independent_width = f32_eq(
-        std::holds_alternative<IndependentParameters>(
-            get_self_layout().width) &&
-            std::get<IndependentParameters>(get_self_layout().width).scale,
-        0.0f);
-
-    bool flexible_dependent_height = f32_eq(
-        std::holds_alternative<DependentParameters>(get_self_layout().height) &&
-            std::get<DependentParameters>(get_self_layout().height)
-                .children_allocation.scale,
-        0.0f);
-
-    bool flexible_independent_height = f32_eq(
-        std::holds_alternative<IndependentParameters>(
-            get_self_layout().height) &&
-            std::get<IndependentParameters>(get_self_layout().height).scale,
-        0.0f);
-
-    return flexible_dependent_height || flexible_dependent_width ||
-           flexible_independent_height || flexible_independent_width;
-  }
+  SelfExtent get_self_extent() const noexcept { return self_extent_; }
 
   stx::Span<Widget *const> get_children() const noexcept { return children_; }
 
   bool has_children() const noexcept { return get_children().size() != 0; }
 
-  stx::Span<ChildLayout const> get_children_layout() const noexcept {
-    return children_layout_;
-  }
+  Flex get_flex() const noexcept { return flex_; }
 
   stx::Option<uint32_t> get_preferred_stack_index() const noexcept {
     return preferred_stack_index_.clone();
   }
 
-  ViewExtent get_view_extent() const noexcept { return view_extent_; }
-  ViewOffset get_view_offset() const noexcept { return view_offset_; }
+  SelfExtent get_view_extent() const noexcept { return view_extent_; }
+
+  SelfOffset get_view_offset() const noexcept { return view_offset_; }
 
   stx::Span<Effect const> get_post_effects() const noexcept {
     return post_effects_;
@@ -148,7 +116,7 @@ struct Widget {
 
   virtual void on_view(ViewEvent) {}
 
-  // we can use bulk allocation here
+  // TODO(lamarrr): can we use bulk allocation here?
   virtual void draw([[maybe_unused]] Canvas &canvas) {}
 
   /// process any event you need to process here.
@@ -159,33 +127,33 @@ struct Widget {
 
   virtual ~Widget() {}
 
-  void update_self_layout(SelfLayout layout) {
-    self_layout_ = layout;
+  void update_self_extent(SelfExtent const &extent) {
+    self_extent_ = extent;
     mark_layout_dirty_();
   }
 
-  void update_children_layout(stx::Span<ChildLayout const> layout) {
-    children_layout_ = layout;
+  void update_flex(Flex const &flex) {
+    flex_ = flex;
     mark_layout_dirty_();
   }
 
-  // this does not free the children, the derived widget is in charge of freeing
-  // any memory belonging to the list
+  void update_view_extent(SelfExtent view_extent) {
+    VLK_DEBUG_ENSURE(type_ == Type::View);
+    view_extent_ = view_extent;
+    mark_layout_dirty_();
+  }
+
+  void update_view_offset(SelfOffset view_offset) {
+    VLK_DEBUG_ENSURE(type_ == Type::View);
+    view_offset_ = view_offset;
+    mark_view_offset_dirty_();
+  }
+
+  /// this does not free the children, the derived widget is in charge of
+  /// freeing memory
   void update_children(stx::Span<Widget *const> children) {
     children_ = children;
     mark_children_dirty_();
-  }
-
-  void update_view_extent(ViewExtent extent) {
-    VLK_DEBUG_ENSURE(type_ == Type::View);
-    view_extent_ = extent;
-    mark_layout_dirty_();
-  }
-
-  void update_view_offset(ViewOffset offset) {
-    VLK_DEBUG_ENSURE(type_ == Type::View);
-    view_offset_ = offset;
-    mark_view_offset_dirty_();
   }
 
  private:
@@ -195,11 +163,12 @@ struct Widget {
   /// constant throughout lifetime
   bool should_cache_;
 
-  /// variable throughout lifetime. communicate changes with `on_layout_dirty`
-  SelfLayout self_layout_;
+  /// variable throughout lifetime. communicate changes with `on_layout_dirty`.
+  // for view widgets, this is effectively the size that's actually visible.
+  SelfExtent self_extent_;
 
   /// variable throughout lifetime. communicate changes with `on_layout_dirty`
-  stx::Span<ChildLayout const> children_layout_;
+  Flex flex_;
 
   /// variable throughout lifetime. communicate changes with
   /// `on_children_changed`
@@ -217,18 +186,18 @@ struct Widget {
   /// for view widgets (used for laying out its children).
   ///
   /// variable throughout lifetime ????.
-  ViewExtent view_extent_;
+  SelfExtent view_extent_;
 
   /// for view widgets (used for scrolling or moving of the view)
   ///
   /// variable throughout lifetime. communicate changes with
   /// `on_view_offset_changed`.
-  ViewOffset view_offset_;
+  SelfOffset view_offset_;
 
   StateProxy state_proxy_;
 
-  stx::Span<Effect const> pre_effects_{};
-  stx::Span<Effect const> post_effects_{};
+  stx::Span<Effect const> pre_effects_;
+  stx::Span<Effect const> post_effects_;
 
   void mark_children_dirty_() { state_proxy_.on_children_changed(); }
   void mark_layout_dirty_() { state_proxy_.on_layout_dirty(); }
@@ -237,10 +206,8 @@ struct Widget {
 
 struct WidgetStateProxyAdapter {
   template <typename Callback>
-  static void install_on_render_dirty(Widget &widget,
-                                      Callback &&on_render_dirty) {
-    widget.state_proxy_.on_render_dirty =
-        std::forward<Callback &&>(on_render_dirty);
+  static void install_on_render_dirty(Widget &widget, Callback &&callback) {
+    widget.state_proxy_.on_render_dirty = std::forward<Callback &&>(callback);
   }
 
   static void detach_on_render_dirty(Widget &widget) {
@@ -248,14 +215,23 @@ struct WidgetStateProxyAdapter {
   }
 
   template <typename Callback>
-  static void install_on_layout_dirty(Widget &widget,
-                                      Callback &&on_layout_dirty) {
-    widget.state_proxy_.on_layout_dirty =
-        std::forward<Callback &&>(on_layout_dirty);
+  static void install_on_layout_dirty(Widget &widget, Callback &&callback) {
+    widget.state_proxy_.on_layout_dirty = std::forward<Callback &&>(callback);
   }
 
   static void detach_on_layout_dirty(Widget &widget) {
     widget.state_proxy_.on_layout_dirty = [] {};
+  }
+
+  template <typename Callback>
+  static void install_on_view_offset_dirty(Widget &widget,
+                                           Callback &&callback) {
+    widget.state_proxy_.on_view_offset_dirty =
+        std::forward<Callback &&>(callback);
+  }
+
+  static void detach_on_view_offset_dirty(Widget &widget) {
+    widget.state_proxy_.on_view_offset_dirty = [] {};
   }
 };
 

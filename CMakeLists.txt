@@ -86,7 +86,7 @@ target_compile_definitions(
 
 add_subdirectory(utils)
 add_subdirectory(assets)
-add_subdirectory(ui2d)
+add_subdirectory(ui)
 
 add_executable(valkyrie.bin src/vlk.cc)
 target_link_libraries(
@@ -98,7 +98,7 @@ target_link_libraries(
   ${Vulkan_LIBRARIES}
   vlk_utils
   vlk_assets
-  vlk_ui2d)
+  vlk_ui)
 target_include_directories(
   valkyrie.bin
   PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include

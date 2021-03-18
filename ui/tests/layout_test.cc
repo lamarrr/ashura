@@ -10,6 +10,7 @@
 
 using namespace vlk::ui;
 
+/*
 struct MockSized : public Widget {
   MockSized(int32_t width, int32_t height) : Widget{Type::Render} {
     Widget::update_self_layout(SelfLayout{IndependentParameters{0.0, width},
@@ -27,3 +28,4 @@ TEST(LayoutTest, FlexSingle){
 }
 
 
+*/

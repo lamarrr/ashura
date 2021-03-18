@@ -11,6 +11,7 @@
 
 using namespace vlk::ui;
 
+/*
 constexpr inline SelfLayout image_sizing() { return SelfLayout{}; }
 
 constexpr inline SelfLayout make_column_layout() {
@@ -138,8 +139,8 @@ struct MockView : public Widget {
   std::vector<ChildLayout> children_layout_;
 };
 
-struct MockColumn : public Widget {
-  explicit MockColumn(stx::Span<Widget *const> children) : Widget{} {
+struct MockRow : public Widget {
+  explicit MockRow(stx::Span<Widget *const> children) : Widget{} {
     children_.resize(children.size());
     std::copy(children.begin(), children.end(), children_.begin());
     Widget::update_children(children_);
@@ -155,67 +156,12 @@ struct MockColumn : public Widget {
     Widget::update_children_layout(children_layout_);
   }
 
-  ~MockColumn() override {}
+  ~MockRow() override {}
 
   std::vector<Widget *> children_;
   std::vector<ChildLayout> children_layout_;
 };
 
-TEST(LayoutTest, ChildrenMaxHeight) {
-  using Node = WidgetLayoutTree::Node;
-
-  MockSized a(200, 400);
-  MockSized b(250, 600);
-  MockSized c(100, 200);
-  MockSized d(600, 60);
-
-  Widget *const children[] = {&a, &b, &c, &d};
-  MockColumn column(children);
-
-  WidgetLayoutTree tree;
-  build_widget_layout_tree(tree, column);
-  clean_layout_tree(tree, Extent{1920, 1080});
-
-  EXPECT_EQ(tree.root_node.parent_view_area.extent.width, 1920);
-  EXPECT_EQ(tree.root_node.parent_view_area.extent.height, 600);
-
-  auto &chlrn = tree.root_node.children;
-
-  Node &na = chlrn[0];
-  Node &nb = chlrn[1];
-  Node &nc = chlrn[2];
-  Node &nd = chlrn[3];
-
-  // parent offset and parent_view_area.offset should be same here
-
-  EXPECT_EQ(na.parent_view_area.extent.width, 200);
-  EXPECT_EQ(na.parent_view_area.extent.height, 400);
-  EXPECT_EQ(na.parent_offset.x, 0);
-  EXPECT_EQ(na.parent_offset.y, 0);
-  EXPECT_EQ(na.parent_view_area.offset.x, 0);
-  EXPECT_EQ(na.parent_view_area.offset.y, 0);
-
-  EXPECT_EQ(nb.parent_view_area.extent.width, 250);
-  EXPECT_EQ(nb.parent_view_area.extent.height, 600);
-  EXPECT_EQ(nb.parent_offset.x, 1920 / 4);
-  EXPECT_EQ(nb.parent_offset.y, 0);
-  EXPECT_EQ(nb.parent_view_area.offset.x, 1920 / 4);
-  EXPECT_EQ(nb.parent_view_area.offset.y, 0);
-
-  EXPECT_EQ(nc.parent_view_area.extent.width, 100);
-  EXPECT_EQ(nc.parent_view_area.extent.height, 200);
-  EXPECT_EQ(nc.parent_offset.x, (1920 / 4) * 2);
-  EXPECT_EQ(nc.parent_offset.y, 0);
-  EXPECT_EQ(nc.parent_view_area.offset.x, (1920 / 4) * 2);
-  EXPECT_EQ(nc.parent_view_area.offset.y, 0);
-
-  EXPECT_EQ(nd.parent_view_area.extent.width, 1920 / 4);
-  EXPECT_EQ(nd.parent_view_area.extent.height, 60);
-  EXPECT_EQ(nd.parent_offset.x, (1920 / 4) * 3);
-  EXPECT_EQ(nd.parent_offset.y, 0);
-  EXPECT_EQ(nd.parent_view_area.offset.x, (1920 / 4) * 3);
-  EXPECT_EQ(nd.parent_view_area.offset.y, 0);
-}
 
 // test view offset with padding?
 
@@ -233,7 +179,7 @@ TEST(LayoutTest, View) {
   MockView subview(200, 200, vlk::u32_max, subview_children);
   Widget *const root_children[] = {&subview, &side};
 
-  MockColumn column(root_children);
+  MockRow column(root_children);
 
   WidgetLayoutTree tree;
   build_widget_layout_tree(tree, column);
@@ -280,29 +226,219 @@ TEST(LayoutTest, View) {
   }
 }
 
-TEST(ColumnLayout, LayoutTest) {
-  MockWidget a{}, b{}, c{};
+*/
+
+struct MockSized : public Widget {
+  explicit MockSized(Extent const &extent) : Widget{} {
+    Widget::update_self_extent(SelfExtent{Constrain::absolute(extent.width),
+                                          Constrain::absolute(extent.height)});
+  }
+  ~MockSized() override {}
+};
+
+struct MockFlex : public Widget {
+  explicit MockFlex(stx::Span<Widget *const> children, Flex const &flex)
+      : Widget{} {
+    children_.resize(children.size());
+    std::copy(children.begin(), children.end(), children_.begin());
+    Widget::update_children(children_);
+
+    Widget::update_flex(flex);
+
+    Widget::update_self_extent(
+        SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)});
+  }
+
+  ~MockFlex() override {}
+
+  std::vector<Widget *> children_;
+};
+
+TEST(FlexLayout, DirRow_Wrap_MainStart_CrossStart) {
+  MockSized a{{250, 500}}, b{{100, 100}}, c{{50, 50}};
   Widget *children[3] = {&a, &b, &c};
 
-  MockColumn container{children};
+  MockFlex container{children,
+                     Flex{Flex::Direction::Row, Flex::Wrap::Wrap,
+                          Flex::MainAlign::Start, Flex::CrossAlign::Start}};
 
   WidgetLayoutTree layout_tree;
   build_widget_layout_tree(layout_tree, container);
   clean_layout_tree(layout_tree, Extent{1920, 1080});
 
-  EXPECT_EQ(layout_tree.root_node.children.size(), 3);
-  EXPECT_EQ(layout_tree.root_node.parent_offset.x, 0);
-  EXPECT_EQ(layout_tree.root_node.parent_offset.y, 0);
-  EXPECT_EQ(layout_tree.root_node.parent_view_area.extent.width, 1920);
-  EXPECT_EQ(layout_tree.root_node.parent_view_area.extent.height, 1080);
-  /* for (auto &child : layout_tree.root_node.children) {
-     std::cout << child.parent_offset.x << ", " << child.parent_offset.y
-               << std::endl;
-     std::cout << child.parent_view_area.extent.width << ", "
-               << child.parent_view_area.extent.height << std::endl
-               << std::endl;
-   }
- */
-  RenderTree render_tree;
-  build_render_tree(render_tree, layout_tree.root_node);
+  auto &root = layout_tree.root_node;
+
+  EXPECT_EQ(root.children.size(), 3);
+  EXPECT_EQ(root.parent_offset.x, 0);
+  EXPECT_EQ(root.parent_offset.y, 0);
+  EXPECT_EQ(root.parent_view_area.extent.width, 400);
+  EXPECT_EQ(root.parent_view_area.extent.height, 500);
+
+  {
+    auto &ch = root.children;
+
+    auto &a = ch[0];
+    auto &b = ch[1];
+    auto &c = ch[2];
+
+    EXPECT_EQ(a.parent_offset.x, 0);
+    EXPECT_EQ(a.parent_offset.y, 0);
+    EXPECT_EQ(a.parent_view_area.extent.width, 250);
+    EXPECT_EQ(a.parent_view_area.extent.height, 500);
+
+    EXPECT_EQ(b.parent_offset.x, 250);
+    EXPECT_EQ(b.parent_offset.y, 0);
+    EXPECT_EQ(b.parent_view_area.extent.width, 100);
+    EXPECT_EQ(b.parent_view_area.extent.height, 100);
+
+    EXPECT_EQ(c.parent_offset.x, 350);
+    EXPECT_EQ(c.parent_offset.y, 0);
+    EXPECT_EQ(c.parent_view_area.extent.width, 50);
+    EXPECT_EQ(c.parent_view_area.extent.height, 50);
+  }
+}
+
+TEST(FlexLayout, DirRow_Wrap_MainStart_CrossStart_Ext) {
+  MockSized a{{250, 500}}, b{{100, 100}}, c{{50, 50}}, d{{25, 25}};
+  Widget *children[] = {&a, &b, &c, &d};
+
+  MockFlex container{children,
+                     Flex{Flex::Direction::Row, Flex::Wrap::Wrap,
+                          Flex::MainAlign::Start, Flex::CrossAlign::Start}};
+
+  WidgetLayoutTree layout_tree;
+  build_widget_layout_tree(layout_tree, container);
+  clean_layout_tree(layout_tree, Extent{300, 1000});
+
+  auto &root = layout_tree.root_node;
+
+  EXPECT_EQ(root.children.size(), 4);
+  EXPECT_EQ(root.parent_offset.x, 0);
+  EXPECT_EQ(root.parent_offset.y, 0);
+  EXPECT_EQ(root.parent_view_area.extent.width, 250);
+  EXPECT_EQ(root.parent_view_area.extent.height, 600);
+
+  {
+    auto &ch = root.children;
+
+    auto &a = ch[0];
+    auto &b = ch[1];
+    auto &c = ch[2];
+    auto &d = ch[3];
+
+    EXPECT_EQ(a.parent_offset.x, 0);
+    EXPECT_EQ(a.parent_offset.y, 0);
+    EXPECT_EQ(a.parent_view_area.extent.width, 250);
+    EXPECT_EQ(a.parent_view_area.extent.height, 500);
+
+    EXPECT_EQ(b.parent_offset.x, 0);
+    EXPECT_EQ(b.parent_offset.y, 500);
+    EXPECT_EQ(b.parent_view_area.extent.width, 100);
+    EXPECT_EQ(b.parent_view_area.extent.height, 100);
+
+    EXPECT_EQ(c.parent_offset.x, 100);
+    EXPECT_EQ(c.parent_offset.y, 500);
+    EXPECT_EQ(c.parent_view_area.extent.width, 50);
+    EXPECT_EQ(c.parent_view_area.extent.height, 50);
+
+    EXPECT_EQ(d.parent_offset.x, 150);
+    EXPECT_EQ(d.parent_offset.y, 500);
+    EXPECT_EQ(d.parent_view_area.extent.width, 25);
+    EXPECT_EQ(d.parent_view_area.extent.height, 25);
+  }
+}
+
+TEST(FlexLayout, DirRow_Wrap_MainEnd_CrossStart_Ext) {
+  MockSized a{{250, 500}}, b{{100, 100}}, c{{50, 50}}, d{{25, 25}};
+  Widget *children[] = {&a, &b, &c, &d};
+
+  MockFlex container{children,
+                     Flex{Flex::Direction::Row, Flex::Wrap::Wrap,
+                          Flex::MainAlign::End, Flex::CrossAlign::Start}};
+
+  WidgetLayoutTree layout_tree;
+  build_widget_layout_tree(layout_tree, container);
+  clean_layout_tree(layout_tree, Extent{300, 1000});
+
+  auto &root = layout_tree.root_node;
+
+  EXPECT_EQ(root.children.size(), 4);
+  EXPECT_EQ(root.parent_offset.x, 0);
+  EXPECT_EQ(root.parent_offset.y, 0);
+  EXPECT_EQ(root.parent_view_area.extent.width, 250);
+  EXPECT_EQ(root.parent_view_area.extent.height, 600);
+
+  {
+    auto &ch = root.children;
+
+    auto &a = ch[0];
+    auto &b = ch[1];
+    auto &c = ch[2];
+    auto &d = ch[3];
+
+    EXPECT_EQ(a.parent_offset.x, 50);
+    EXPECT_EQ(a.parent_offset.y, 0);
+    EXPECT_EQ(a.parent_view_area.extent.width, 250);
+    EXPECT_EQ(a.parent_view_area.extent.height, 500);
+
+    EXPECT_EQ(b.parent_offset.x, 0);
+    EXPECT_EQ(b.parent_offset.y, 500);
+    EXPECT_EQ(b.parent_view_area.extent.width, 100);
+    EXPECT_EQ(b.parent_view_area.extent.height, 100);
+
+    EXPECT_EQ(c.parent_offset.x, 100);
+    EXPECT_EQ(c.parent_offset.y, 500);
+    EXPECT_EQ(c.parent_view_area.extent.width, 50);
+    EXPECT_EQ(c.parent_view_area.extent.height, 50);
+
+    EXPECT_EQ(d.parent_offset.x, 150);
+    EXPECT_EQ(d.parent_offset.y, 500);
+    EXPECT_EQ(d.parent_view_area.extent.width, 25);
+    EXPECT_EQ(d.parent_view_area.extent.height, 25);
+  }
+}
+
+// edge cases? insufficient space for all of the widgets
+TEST(FlexLayout, DirRow_Wrap_MainStart_CrossEnd) {
+  MockSized a{{250, 500}}, b{{100, 100}}, c{{50, 50}};
+  Widget *children[3] = {&a, &b, &c};
+
+  MockFlex container{children,
+                     Flex{Flex::Direction::Row, Flex::Wrap::Wrap,
+                          Flex::MainAlign::Start, Flex::CrossAlign::End}};
+
+  WidgetLayoutTree layout_tree;
+  build_widget_layout_tree(layout_tree, container);
+  clean_layout_tree(layout_tree, Extent{1920, 1080});
+
+  auto &root = layout_tree.root_node;
+
+  EXPECT_EQ(root.children.size(), 3);
+  EXPECT_EQ(root.parent_offset.x, 0);
+  EXPECT_EQ(root.parent_offset.y, 0);
+  EXPECT_EQ(root.parent_view_area.extent.width, 400);
+  EXPECT_EQ(root.parent_view_area.extent.height, 500);
+
+  {
+    auto &ch = root.children;
+
+    auto &a = ch[0];
+    auto &b = ch[1];
+    auto &c = ch[2];
+
+    EXPECT_EQ(a.parent_offset.x, 0);
+    EXPECT_EQ(a.parent_offset.y, 0);
+    EXPECT_EQ(a.parent_view_area.extent.width, 250);
+    EXPECT_EQ(a.parent_view_area.extent.height, 500);
+
+    EXPECT_EQ(b.parent_offset.x, 250);
+    EXPECT_EQ(b.parent_offset.y, 500 - 100);
+    EXPECT_EQ(b.parent_view_area.extent.width, 100);
+    EXPECT_EQ(b.parent_view_area.extent.height, 100);
+
+    EXPECT_EQ(c.parent_offset.x, 350);
+    EXPECT_EQ(c.parent_offset.y, 500 - 50);
+    EXPECT_EQ(c.parent_view_area.extent.width, 50);
+    EXPECT_EQ(c.parent_view_area.extent.height, 50);
+  }
 }
