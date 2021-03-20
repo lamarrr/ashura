@@ -84,22 +84,22 @@ SkPaint const& ref_foreground_paint(TextProperties const& props) noexcept;
 struct TextProperties {
   TextProperties color(Color text_color) const {
     TextProperties out{*this};
-    out.foreground_paint_.setColor(text_color.argb());
+    out.foreground_paint_.setColor(text_color.to_argb());
     return out;
   }
 
   Color color() const noexcept {
-    return Color::FromArgb(foreground_paint_.getColor());
+    return Color::from_argb(foreground_paint_.getColor());
   }
 
   TextProperties background_color(Color color) const {
     TextProperties out{*this};
-    out.background_paint_.setColor(color.argb());
+    out.background_paint_.setColor(color.to_argb());
     return out;
   }
 
   Color background_color() const noexcept {
-    return Color::FromArgb(background_paint_.getColor());
+    return Color::from_argb(background_paint_.getColor());
   }
 
   TextProperties font_size(float size) const {
@@ -265,14 +265,14 @@ struct TextProperties {
 
   static SkPaint default_foreground_paint_() {
     SkPaint paint;
-    paint.setColor(colors::Black.argb());
+    paint.setColor(colors::Black.to_argb());
     paint.setAntiAlias(true);
     return paint;
   }
 
   static SkPaint default_background_paint_() {
     SkPaint paint;
-    paint.setColor(colors::Transparent.argb());
+    paint.setColor(colors::Transparent.to_argb());
     paint.setAntiAlias(true);
     return paint;
   }
@@ -288,28 +288,16 @@ struct Text : public Widget {
        TextProperties const& properties = TextProperties{},
        stx::Span<TextShadow const> const& shadows = {});
 
-  virtual Type get_type() const noexcept override { return Type::Render; }
+  // virtual stx::Span<Widget* const> get_children() const noexcept override {
+  //  return {};
+  // }
 
-  virtual bool is_stateful() const noexcept override { return false; }
-
-  virtual bool is_dirty() const noexcept override { return false; }
-
-  virtual void mark_clean() noexcept override {}
-
-  virtual stx::Span<Widget* const> get_children() const noexcept override {
-    return {};
-  }
-
-  virtual Rect compute_area(
+  /*virtual Rect compute_area(
       Extent const& allotted_extent,
       [[maybe_unused]] stx::Span<Rect> const& children_area) override;
+*/
 
-  virtual void draw(Canvas& canvas,
-                    [[maybe_unused]] Extent const& requested_extent) override;
-
-  virtual std::string_view get_type_hint() const noexcept override {
-    return "Text";
-  }
+  virtual void draw(Canvas& canvas) override;
 
  private:
   std::string text_data_;

@@ -4,8 +4,9 @@
 
 #include "gtest/gtest.h"
 
-#include "vlk/ui/compositor.h"
+//#include "vlk/ui/compositor.h"
 
+#include "vlk/ui/tile_cache.h"
 #include "vlk/ui/widget.h"
 #include "vlk/ui/widget_utils.h"
 
@@ -253,7 +254,7 @@ struct MockFlex : public Widget {
 
   std::vector<Widget *> children_;
 };
-
+/*
 TEST(FlexLayout, DirRow_Wrap_MainStart_CrossStart) {
   MockSized a{{250, 500}}, b{{100, 100}}, c{{50, 50}};
   Widget *children[3] = {&a, &b, &c};
@@ -440,5 +441,73 @@ TEST(FlexLayout, DirRow_Wrap_MainStart_CrossEnd) {
     EXPECT_EQ(c.parent_offset.y, 500 - 50);
     EXPECT_EQ(c.parent_view_area.extent.width, 50);
     EXPECT_EQ(c.parent_view_area.extent.height, 50);
+  }
+}
+*/
+#include <thread>
+#include "include/core/SkCanvas.h"
+#include "include/core/SkPath.h"
+#include "include/core/SkRRect.h"
+#include "include/core/SkRect.h"
+#include "include/core/SkTextBlob.h"
+
+// Always use release mode of skia
+// does skia ensure async access of the textures? i.e. exclusive access not
+// enabled. else we'll need to make that.
+TEST(FlexLayout, DirRow_Wrap_MainStart_CrossEnd) {
+  CpuSurfaceProvider provider;
+  RasterContext context{};
+  context.alpha_type = SkAlphaType::kPremul_SkAlphaType;
+  context.budgeted = SkBudgeted::kYes;
+  context.color_space = SkColorSpace::MakeSRGB();
+  context.color_type = SkColorType::kRGBA_8888_SkColorType;
+  context.recording_context = nullptr;
+
+
+  std::vector<sk_sp<SkSurface>> surfaces;
+  std::vector<std::thread> threads;
+
+  for (int i = 0; i < 32; i++)
+    surfaces.emplace_back(provider.create_surface(Extent{256, 256}));
+
+  for (auto &surface : surfaces) {
+    // threads.emplace_back(std::thread([&surface]() {
+    auto *canvas = surface->getCanvas();
+    canvas->drawColor(SK_ColorWHITE);
+
+    SkPaint paint;
+    paint.setStyle(SkPaint::kStroke_Style);
+    paint.setStrokeWidth(4);
+    paint.setColor(SK_ColorRED);
+
+    SkRect rect = SkRect::MakeXYWH(50, 50, 40, 60);
+    canvas->drawRect(rect, paint);
+
+    SkRRect oval;
+    oval.setOval(rect);
+    oval.offset(40, 60);
+    paint.setColor(SK_ColorBLUE);
+    canvas->drawRRect(oval, paint);
+
+    paint.setColor(SK_ColorCYAN);
+    canvas->drawCircle(180, 50, 25, paint);
+
+    rect.offset(80, 0);
+    paint.setColor(SK_ColorYELLOW);
+    canvas->drawRoundRect(rect, 10, 10, paint);
+
+    SkPath path;
+    path.cubicTo(768, 0, -512, 256, 256, 256);
+    paint.setColor(SK_ColorGREEN);
+    canvas->drawPath(path, paint);
+
+    SkPaint paint2;
+    auto text = SkTextBlob::MakeFromString("Hello, Skia!", SkFont(nullptr, 18));
+    canvas->drawTextBlob(text.get(), 50, 25, paint2);
+    //  }));
+  }
+
+  for (auto &thread : threads) {
+    thread.join();
   }
 }

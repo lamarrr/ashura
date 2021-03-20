@@ -5,7 +5,7 @@
 
 namespace vlk {
 namespace ui {
-
+/*
 struct GestureInput {
   enum class Spatial : uint8_t {
     Spatial_Enum_Min__ = 0,
@@ -22,6 +22,7 @@ struct GestureInput {
                          Spatial::Spatial_Enum_Min__) +
                         1] = {};
 };
+*/
 
 }  // namespace ui
 }  // namespace vlk

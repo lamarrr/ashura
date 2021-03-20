@@ -24,6 +24,9 @@ execute_process(
   COMMAND git clone -b release-1.10.0 https://github.com/google/googletest.git
           third_party/googletest WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
+# TODO(lamarrr): check if skia binaries and header folder doesn't exists and
+# pull in
+
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
   set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/skia/out/Debug)
 else()

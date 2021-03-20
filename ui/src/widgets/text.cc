@@ -6,7 +6,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-/*
+
 #include "vlk/ui/widgets/text.h"
 #include "vlk/utils/utils.h"
 
@@ -19,6 +19,9 @@
 
 using namespace vlk::ui;
 
+// TODO(lamarrr): text splitting after layout. this would mean that the children
+// would change and invoke a large re-layout and re-paint when they change,
+// which is normal
 
 SkPaint const& impl::ref_background_paint(
     TextProperties const& props) noexcept {
@@ -153,7 +156,7 @@ to_skia_text_style(TextProperties const& front,
 
   for (auto const& shadow : shadows)
     text_style.addShadow(sktext::TextShadow{
-        shadow.color.argb(), SkPoint::Make(shadow.offset.x, shadow.offset.y),
+        shadow.color.to_argb(), SkPoint::Make(shadow.offset.x, shadow.offset.y),
         shadow.blur_radius});
 
   return std::make_pair(std::move(paragraph_style), std::move(text_style));
@@ -191,6 +194,7 @@ Text::Text(std::string_view const& str, TextProperties const& properties,
   VLK_ENSURE(paragraph_ != nullptr);
 }
 
+/*
 Rect Text::compute_area(Extent const& allotted_extent,
                         [[maybe_unused]] stx::Span<Rect> const& children_area) {
   paragraph_->layout(allotted_extent.width);
@@ -211,5 +215,4 @@ void Text::draw(Canvas& canvas,
   SkCanvas* sk_canvas = canvas.as_skia();
   paragraph_->paint(sk_canvas, 0, 0);
 }
-
 */

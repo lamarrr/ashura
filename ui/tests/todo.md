@@ -1,4 +1,16 @@
 
+
+
+# STX TODO
+1. deduction guide for pointer pair??? will cause issues like matching 0 and nullptr
+2. deduction guide for some_ref to accept const? some_cref
+3. implicit conversions?
+4. symbol visibility macros
+5. separating macros
+6. make versioning of exported symbols
+7. more changes
+
+
 # vlk::ui TODO
 
 - children replacing, adding and/or removal and how it will affect the trees
@@ -77,7 +89,14 @@
 1. pointer invalidation between widgets, widget layout tree and render tree. state syncing, etc.
 
 
-# STX TODO
-1. deduction guide for pointer pair??? will cause issues like matching 0 and nullptr
-2. deduction guide for some_ref to accept const? some_cref
-3. implicit conversions?
+
+# Materials
+- Accessibility: https://www.youtube.com/watch?v=9yK8DjlNRLM
+- TImw travel debugging: https://www.youtube.com/watch?v=pV7AYofV95A
+- Life of a Video Frame: https://www.youtube.com/watch?v=t_DFAHDSIiQ
+- Virtual Machines of Chromium: https://www.youtube.com/watch?v=BD_lcnkNAk4
+- Sensors in Chromium: https://www.youtube.com/watch?v=skrbujwn-J8
+- IPC 101: https://www.youtube.com/watch?v=ZdB5P88-w8s
+- EVolution of Chromium SYstem UI: https://www.youtube.com/watch?v=e1dT348THdI
+- SLimming paint: https://www.youtube.com/watch?v=5Xv2A7aqJ9Y
+- SKiA update: https://www.youtube.com/watch?v=SU58JHK0-3o

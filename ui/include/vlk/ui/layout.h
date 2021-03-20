@@ -34,41 +34,41 @@ struct Constrain {
   /// scaling the target size
   float scale = 1.0f;
   /// removing or deducting from the target size
-  int32_t bias = 0;
+  int64_t bias = 0;
 
-  /// clamping the target size, i.e. should be between 20px and 600px
-  uint32_t low = u32_min;
-  uint32_t high = u32_max;
+  /// clipping the target size, i.e. should be between 20px and 600px
+  int64_t low = i64_min;
+  int64_t high = i64_max;
 
   /// clamping the relative values of the result
   OutputClamp clamp{};
 
   static constexpr Constrain relative(float scale) { return Constrain{scale}; }
 
-  static constexpr Constrain absolute(int32_t value) {
+  static constexpr Constrain absolute(int64_t value) {
     return Constrain{0.0f, value};
   }
 
-  uint32_t resolve(uint32_t source) {
-    VLK_DEBUG_ENSURE(high >= low);
+  constexpr bool is_fixed() const { return scale == 0.0f; }
 
-    VLK_DEBUG_ENSURE(scale >= 0.0f);
+  int64_t resolve(int64_t source, bool is_restricted) const {
+    VLK_ENSURE(high >= low);
+    VLK_ENSURE(scale >= 0.0f);
 
-    VLK_DEBUG_ENSURE(clamp.low >= 0.0f);
-    VLK_DEBUG_ENSURE(clamp.low <= 1.0f);
+    if (is_restricted) {
+      VLK_ENSURE(clamp.low >= 0.0f);
+      VLK_ENSURE(clamp.low <= 1.0f);
 
-    VLK_DEBUG_ENSURE(clamp.high >= 0.0f);
+      VLK_ENSURE(clamp.high >= 0.0f);
+      VLK_ENSURE(clamp.high <= 1.0f);
+    }
 
-    VLK_DEBUG_ENSURE(clamp.high <= 1.0f);
-
-    VLK_DEBUG_ENSURE(clamp.high >= clamp.low);
+    VLK_ENSURE(clamp.high >= clamp.low);
 
     int64_t const value_i64 = static_cast<int64_t>(scale * source) + bias;
-    uint32_t const value_u32 = std::clamp(value_i64, static_cast<int64_t>(0),
-                                          static_cast<int64_t>(u32_max));
-    uint32_t const value = std::clamp(value_u32, low, high);
-    uint32_t const min = static_cast<uint32_t>(std::floor(clamp.low * source));
-    uint32_t const max = static_cast<uint32_t>(std::floor(clamp.high * source));
+    int64_t const value = std::clamp(value_i64, low, high);
+    auto const min = static_cast<int64_t>(clamp.low * source);
+    auto const max = static_cast<int64_t>(clamp.high * source);
 
     return std::clamp(value, min, max);
   }
@@ -78,20 +78,26 @@ struct SelfExtent {
   Constrain width = Constrain{0.0f};
   Constrain height = Constrain{0.0f};
 
-  Extent resolve(Extent const& allotment) {
-    return Extent{width.resolve(allotment.width),
-                  height.resolve(allotment.height)};
+  Extent resolve(Extent const& allotment) const {
+    auto const resolved_width = static_cast<uint32_t>(std::clamp(
+        width.resolve(allotment.width, true), static_cast<int64_t>(u32_min),
+        static_cast<int64_t>(u32_max)));
+    auto const resolved_height = static_cast<uint32_t>(std::clamp(
+        height.resolve(allotment.height, true), static_cast<int64_t>(u32_min),
+        static_cast<int64_t>(u32_max)));
+    return Extent{resolved_width, resolved_height};
   }
 };
 
-/// usually marks the offset of the view relative to the view extent (usually a
-/// resolved `SelfExtent`)
-struct SelfOffset {
+/// marks the offset of the view relative to the view extent (usually
+/// a resolved `SelfExtent`)
+struct ViewOffset {
   Constrain x = Constrain{0.0f};
   Constrain y = Constrain{0.0f};
 
-  Offset resolve(Extent const& self_extent) {
-    return Offset{x.resolve(self_extent.width), y.resolve(self_extent.height)};
+  IOffset resolve(Extent const& content_extent) const {
+    return IOffset{x.resolve(content_extent.width, false),
+                   y.resolve(content_extent.height, false)};
   }
 };
 
