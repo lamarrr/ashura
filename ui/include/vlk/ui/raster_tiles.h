@@ -64,15 +64,15 @@ struct RasterTiles {
     VLK_DEBUG_ENSURE(offset.x < extent().width);
     VLK_DEBUG_ENSURE(offset.y < extent().height);
 
-    uint32_t i = offset.x / tile_size().width;
-    uint32_t j = offset.y / tile_size().height;
+    uint32_t i = offset.x / tile_extent().width;
+    uint32_t j = offset.y / tile_extent().height;
 
     return tile_at_index(i, j);
   }
 
   Extent extent() const { return extent_; }
 
-  Extent tile_size() const { return tile_size_; }
+  Extent tile_extent() const { return tile_size_; }
 
   stx::Span<Tile> get_tiles() { return tiles_; }
 

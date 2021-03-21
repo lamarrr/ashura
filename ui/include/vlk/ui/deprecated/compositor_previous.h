@@ -259,12 +259,6 @@ inline void update_raster_cache(WidgetSnapshot &snapshot,
   }
 }
 
-template <typename T, typename Value, typename Cmp>
-inline void sorted_insert(std::vector<T> &vector, Value &&value, Cmp &&cmp) {
-  auto insert_pos = std::lower_bound(vector.begin(), vector.end(), value,
-                                     std::forward<Cmp &&>(cmp));
-  vector.insert(insert_pos, std::forward<Value &&>(value));
-}
 
 inline void LRU_resolve_cache(RenderTree::View &view, Rect const &view_area,
                               Ticks max_out_of_view_ticks,

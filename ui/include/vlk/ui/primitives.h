@@ -87,7 +87,7 @@ struct IRect {
         offset.y + static_cast<int64_t>(extent.height));
   }
 
-  // TEST
+  // TODO: TEST
   constexpr bool overlaps(IRect const &other) const {
     auto [x1_min, x1_max, y1_min, y1_max] = bounds();
     auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
@@ -99,7 +99,7 @@ struct IRect {
     return true;
   }
 
-  // TEST
+  // TODO: TEST
   constexpr bool contains(IRect const &other) const {
     auto [x1_min, x1_max, y1_min, y1_max] = bounds();
     auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
@@ -108,7 +108,7 @@ struct IRect {
            y1_max > y2_max;
   }
 
-  //  TEST
+  // TODO: TEST
   constexpr IRect intersect(IRect const &other) const {
     auto [x1_min, x1_max, y1_min, y1_max] = bounds();
     auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
@@ -315,59 +315,61 @@ constexpr auto Cyan = Color::from_rgb(0x00, 0xFF, 0xFF);
 constexpr auto Magenta = Color::from_rgb(0xFF, 0x00, 0xFF);
 }  // namespace colors
 
-struct Edge {
+struct Edges {
   uint32_t top = 0, right = 0, bottom = 0, left = 0;
 
-  static constexpr Edge uniform(uint32_t value) {
-    return Edge{value, value, value, value};
+  static constexpr Edges uniform(uint32_t value) {
+    return Edges{value, value, value, value};
   }
 
-  static constexpr Edge xy(uint32_t x, uint32_t y) { return Edge{y, x, y, x}; }
+  static constexpr Edges xy(uint32_t x, uint32_t y) {
+    return Edges{y, x, y, x};
+  }
 
-  static constexpr Edge trbl(uint32_t t, uint32_t r, uint32_t b, uint32_t l) {
-    return Edge{t, r, b, l};
+  static constexpr Edges trbl(uint32_t t, uint32_t r, uint32_t b, uint32_t l) {
+    return Edges{t, r, b, l};
   }
 };
 
-inline constexpr bool operator==(Edge const &a, Edge const &b) {
+inline constexpr bool operator==(Edges const &a, Edges const &b) {
   return a.top == b.top && a.right == b.right && a.bottom == b.bottom &&
          a.left == b.left;
 }
 
-inline constexpr bool operator!=(Edge const &a, Edge const &b) {
+inline constexpr bool operator!=(Edges const &a, Edges const &b) {
   return !(a == b);
 }
 
-struct Corner {
+struct Corners {
   uint32_t top_left = 0, top_right = 0, bottom_right = 0, bottom_left = 0;
 
-  static constexpr Corner uniform(uint32_t value) {
-    return Corner{value, value, value, value};
+  static constexpr Corners uniform(uint32_t value) {
+    return Corners{value, value, value, value};
   }
 
-  static constexpr Corner across(uint32_t tl_br, uint32_t tr_bl) {
-    return Corner{tl_br, tr_bl, tl_br, tr_bl};
+  static constexpr Corners across(uint32_t tl_br, uint32_t tr_bl) {
+    return Corners{tl_br, tr_bl, tl_br, tr_bl};
   }
 
-  static constexpr Corner spec(uint32_t tl, uint32_t tr, uint32_t br,
-                               uint32_t bl) {
-    return Corner{tl, tr, br, bl};
+  static constexpr Corners spec(uint32_t tl, uint32_t tr, uint32_t br,
+                                uint32_t bl) {
+    return Corners{tl, tr, br, bl};
   }
 };
 
-inline constexpr bool operator==(Corner const &a, Corner const &b) {
+inline constexpr bool operator==(Corners const &a, Corners const &b) {
   return a.top_left == b.top_left && a.top_right == b.top_right &&
          a.bottom_right == b.bottom_right && a.bottom_left == b.bottom_left;
 }
 
-inline constexpr bool operator!=(Corner const &a, Corner const &b) {
+inline constexpr bool operator!=(Corners const &a, Corners const &b) {
   return !(a == b);
 }
 
 enum class Stretch : uint8_t {
-  None = 0b00,
-  X = 0b01,
-  Y = 0b10,
+  None = 0,
+  X = 1,
+  Y = 2,
   All = X | Y,
 };
 

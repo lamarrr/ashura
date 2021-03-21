@@ -455,24 +455,21 @@ TEST(FlexLayout, DirRow_Wrap_MainStart_CrossEnd) {
 // does skia ensure async access of the textures? i.e. exclusive access not
 // enabled. else we'll need to make that.
 TEST(FlexLayout, DirRow_Wrap_MainStart_CrossEnd) {
-  CpuSurfaceProvider provider;
   RasterContext context{};
-  context.alpha_type = SkAlphaType::kPremul_SkAlphaType;
-  context.budgeted = SkBudgeted::kYes;
-  context.color_space = SkColorSpace::MakeSRGB();
-  context.color_type = SkColorType::kRGBA_8888_SkColorType;
-  context.recording_context = nullptr;
-
 
   std::vector<sk_sp<SkSurface>> surfaces;
   std::vector<std::thread> threads;
 
   for (int i = 0; i < 32; i++)
-    surfaces.emplace_back(provider.create_surface(Extent{256, 256}));
+    surfaces.emplace_back(context.create_cpu_surface(Extent{256, 256}));
 
+for(size_t i = 0; i < 2000; i++)
   for (auto &surface : surfaces) {
     // threads.emplace_back(std::thread([&surface]() {
+  
     auto *canvas = surface->getCanvas();
+  
+  canvas->clear(SK_ColorTRANSPARENT);
     canvas->drawColor(SK_ColorWHITE);
 
     SkPaint paint;
@@ -504,6 +501,8 @@ TEST(FlexLayout, DirRow_Wrap_MainStart_CrossEnd) {
     SkPaint paint2;
     auto text = SkTextBlob::MakeFromString("Hello, Skia!", SkFont(nullptr, 18));
     canvas->drawTextBlob(text.get(), 50, 25, paint2);
+
+    surface->flushAndSubmit(true);
     //  }));
   }
 

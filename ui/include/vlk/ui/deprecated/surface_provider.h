@@ -52,5 +52,22 @@ struct CpuSurfaceProvider : public SurfaceProvider {
   }
 };
 
+
+  sk_sp<SkImage> get_gpu_surface_texture_read_only_ref(RasterContext& context) {
+    VLK_DEBUG_ENSURE(is_surface_init());
+    VLK_ENSURE(context.target == RasterContext::Target::Gpu);
+
+    auto render_target = surface_->getBackendRenderTarget(
+        SkSurface::BackendHandleAccess::kFlushRead_BackendHandleAccess);
+
+
+    GrBackendTexture backend_texture = surface_->getBackendTexture(
+        SkSurface::BackendHandleAccess::kFlushRead_BackendHandleAccess);
+    return SkImage::MakeFromAdoptedTexture(
+        context.recording_context.clone().unwrap(), backend_texture,
+        context.surface_origin, context.color_type, context.alpha_type,
+        context.color_space);
+  }
+  
 }  // namespace ui
 }  // namespace vlk

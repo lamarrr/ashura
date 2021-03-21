@@ -208,3 +208,13 @@ constexpr float to_virtual(uint32_t virtual_extent, float pixel_ratio) {
 
 }  // namespace ui
 }  // namespace vlk
+
+
+
+struct Timeline {
+  std::vector<float> values;
+  // we need a wrapping behaviour in which it wraps the cursor
+  size_t start;
+  size_t end;
+};
+

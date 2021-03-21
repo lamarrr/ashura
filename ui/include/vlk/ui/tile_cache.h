@@ -5,6 +5,7 @@
 #include "vlk/ui/impl/widget_state_proxy_accessor.h"
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/raster_cache.h"
+#include "vlk/ui/raster_context.h"
 #include "vlk/ui/raster_tiles.h"
 #include "vlk/ui/view_tree.h"
 #include "vlk/ui/widget.h"
@@ -23,60 +24,87 @@ struct TileCache {
     // can we use a single view widget to represent the viewport, so all of its
     // chilren reference it?
     IOffset const *screen_offset;
-    // represents the extent of the widget to be drawn at offset `screen_offset`
+    // represents the whole extent of the widget (equivalent to viewtree's
+    // .parent_view_area.extent)
     Extent const *extent;
 
     // what we actually have is a series of nested clips and not a single one?
     // each view applies a clip on the widgets ClipTree::Node *clip;
     ViewTree::View const *parent_view;
 
-    // TODO(lamarrr): cross-check all the ensure uses
+    RasterContext *context;
+
     void draw(RasterCache &cache, Rect const &cache_screen_area) const {
       // use tile index and size to determine tile position on the screen and
       // use that as a translation matrix relative to the objects own position
       // on the screen
 
-      IRect const widget_area = IRect{*screen_offset, *extent};
+      IRect const widget_screen_area =
+          IRect{*this->screen_offset, *this->extent};
 
-      VLK_DEBUG_ENSURE(IRect(cache_screen_area).overlaps(widget_area));
-
-      IRect clip_rect = widget_area;
-
-      ViewTree::View const *view = parent_view;
-
-      while (view != nullptr) {
-        IRect parent_view_rect{parent_view->screen_offset_,
-                               parent_view->parent_view_area_.extent};
-
-        if (!parent_view_rect.overlaps(clip_rect)) {
-          clip_rect = IRect{IOffset{}, Extent{}};
-          break;
-        } else {
-          clip_rect = parent_view_rect.intersect(clip_rect);
-        }
-
-        view = view->parent_;
-      }
+      VLK_DEBUG_ENSURE(IRect(cache_screen_area).overlaps(widget_screen_area));
 
       Canvas canvas = cache.get_recording_canvas();
+      SkCanvas *sk_canvas = canvas.as_skia();
 
-      if (IRect(cache_screen_area).contains(clip_rect)) {
+      IOffset translation =
+          IOffset{widget_screen_area.offset.x - cache_screen_area.offset.x,
+                  widget_screen_area.offset.y - cache_screen_area.offset.y};
+
+      sk_canvas->setMatrix(SkMatrix::Translate(translation.x, translation.y));
+
+      if (IRect(cache_screen_area).contains(widget_screen_area)) {
         // draw without clip
         widget->draw(canvas);
       } else {
         // draw with clip
+        IRect clip_rect = widget_screen_area;
+
+        ViewTree::View const *ancestor = parent_view;
+
+        while (ancestor != nullptr) {
+          IRect ancestor_view_screen_rect{ancestor->screen_offset_,
+                                          ancestor->parent_view_area_.extent};
+
+          if (!ancestor_view_screen_rect.overlaps(clip_rect)) {
+            clip_rect = IRect{IOffset{}, Extent{}};
+            break;
+          } else {
+            clip_rect = ancestor_view_screen_rect.intersect(clip_rect);
+          }
+
+          ancestor = ancestor->parent_;
+        }
+
+        if (clip_rect.extent.is_visible()) {
+          // backup matrix and clip state
+          sk_canvas->save();
+
+          // apply clip
+          int64_t clip_start_x =
+              clip_rect.offset.x - widget_screen_area.offset.x;
+          int64_t clip_start_y =
+              clip_rect.offset.y - widget_screen_area.offset.y;
+
+          sk_canvas->clipRect(SkRect::MakeXYWH(clip_start_x, clip_start_y,
+                                               clip_rect.extent.width,
+                                               clip_rect.extent.height));
+
+          widget->draw(canvas);
+
+          // restore matrix and clip state
+          sk_canvas->restore();
+        }
       }
+
+      sk_canvas->resetMatrix();
     }
   };
 
   std::vector<Entry> entries_;
 
-  // for view widgets this means their offset changed and for raster widgets,
-  // this means their raster (draw commands changed).
-  // std::vector<bool> entry_is_dirty_;
-
   // must be very small  to reserve space, make 1 and increase as necessary
-  Ticks max_oov_ticks_;
+  Ticks max_oov_ticks_ = Ticks{1};
 
   RasterTiles tile_;
   std::vector<bool> tile_is_dirty_;
@@ -84,8 +112,6 @@ struct TileCache {
 
   std::vector<bool> tile_is_in_focus_;
   std::vector<Ticks> tile_out_of_view_ticks_;
-
-  // RasterTaskScheduler scheduler_;
 
   uint64_t bytes_size();
 
@@ -164,12 +190,15 @@ struct TileCache {
 
           if (tile_is_dirty_[j * tile_.rows() + i]) {
             Canvas canvas = subtile.get_recording_canvas();
+
             // draw to appropriate position relative to the tile size. and
             // also respect the viewport cropping
-            // TODO(lamarrr): this needs to depend on the widget's and tile's
-            // coordinates
-            // FIXME: correct rect
-            entry.draw(subtile, Rect{i * tile_.extent().width});
+            Extent tile_extent = tile_.tile_extent();
+            Offset tile_screen_offset =
+                Offset{tile_screen_offset.x = i * tile_extent.width,
+                       tile_screen_offset.y = j * tile_extent.height};
+
+            entry.draw(subtile, Rect{tile_screen_offset, tile_extent});
           }
         }
     }
@@ -183,21 +212,20 @@ struct TileCache {
 
           // tile caches are only updated if the tile is in focus
           // we need to submit
-          if (tile_is_in_focus_[i]) {
-            // the aggregator should be aware of the multithreaded nature of the
-            // tile and possibly offer pending updating
-            // scheduler_.submit_tile(subtile);
+          if (tile_out_of_view_ticks_[i] <= max_oov_ticks_) {
+            subtile.rasterize();
+            // TODO(lamarrr): update backing store with tile
           }
         }
       }
     }
-
-    // pool.await_all_submissions();
   }
+
   // about breaking text into multiple ones, we can: raterize on the CPU and
   // divide as necessary using a text widget
-  //
+  // or split into multiple widgets outselves using the text metrics
   // waiting for vsync so we don't do too much work
+  /// IMPORTANT: make a visualization of the text boundaries
 };
 
 }  // namespace ui
