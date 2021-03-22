@@ -1,9 +1,9 @@
 #pragma once
 
+#include <vector>
+
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/widget.h"
-
-#include <vector>
 
 namespace vlk {
 namespace ui {
@@ -31,11 +31,8 @@ namespace ui {
 // raster dirtiness effects
 //
 
-// how do we make view widgets and normal widgets get their z-indexes
-// respected?, now we don't need to reset the z-indexes of view widgets we can
-// now have absolute-positioned widgets. we don't need another layout tree, this
-// will effectively become our layout tree since layout and positioning is
-// highly dependent on views.
+//  now we don't need to reset the z-indexes of view widgets we can
+// now have absolute-positioned widgets.
 
 struct ViewTree {
   // IMPORTANT: how does this affect child views?
@@ -53,48 +50,45 @@ struct ViewTree {
     // how do we position views relative to views? whilst maintaining their
     // translations
     struct Entry {
-      Widget *widget_;
+      Widget *widget;
 
       // problem now is that we either have to accumulate all of the offsets
       // when trying to render for each widget or we update the screen offsets
       // for all the child widgets on scroll
-      IOffset screen_offset_;
+      IOffset screen_offset;
 
       // this never changes until a re-layout occurs
-      Rect parent_view_area_;
+      Rect const *parent_view_area;
 
       // offset on the parent view after translation (i.e. by scrolling)
-      IOffset effective_parent_view_offset_;
+      IOffset effective_parent_view_offset;
 
-      View const *parent_;
+      View const *parent;
     };
 
     // the widget associated with this view
-    Widget *widget_;
+    Widget *widget;
 
-    IOffset screen_offset_;
+    IOffset screen_offset;
 
     // which part of the parent view it occupies
-    Rect parent_view_area_;
+    Rect const *parent_view_area;
 
     // offset on the parent view after translation (i.e. by scrolling)
-    IOffset effective_parent_view_offset_;
+    IOffset effective_parent_view_offset;
 
     // represents the overall extent of the view widget (including the
     // non-visible or internal area)
-    Extent view_extent_;
+    Extent const *view_extent;
 
     // raster widgets. not sorted in any particular order
-    std::vector<Entry> entries_;
+    std::vector<Entry> entries;
 
     // will make processing clips easier
-    View const *parent_;
-
-    // TODO(lamarrr): consider changing to list for easier insertion and
-    // deletion
+    View const *parent;
 
     // view widgets. not sorted in any particular order
-    std::vector<View> subviews_;
+    std::vector<View> subviews;
 
     // if we are re-drawing for a tile for example, we can check if it
     // intersects with the tile and only redraw for the ones that intersect with
@@ -111,25 +105,30 @@ struct ViewTree {
     static constexpr void translate_view_helper_(
         T &entry, IOffset const &translation = IOffset{0, 0}) {
       IOffset ioffset =
-          IOffset{static_cast<int64_t>(entry.parent_view_area_.offset.x) +
+          IOffset{static_cast<int64_t>(entry.parent_view_area->offset.x) +
                       translation.x,
-                  static_cast<int64_t>(entry.parent_view_area_.offset.y) +
+                  static_cast<int64_t>(entry.parent_view_area->offset.y) +
                       translation.y};
 
-      entry.effective_parent_view_offset_.x = ioffset.x;
-      entry.effective_parent_view_offset_.y = ioffset.y;
+      entry.effective_parent_view_offset.x = ioffset.x;
+      entry.effective_parent_view_offset.y = ioffset.y;
     }
 
     template <typename T>
     static void update_screen_offset_helper_(T &child, View &parent) {
-      child.screen_offset_ =
-          parent.screen_offset_ + child.effective_parent_view_offset_;
+      child.screen_offset =
+          parent.screen_offset + child.effective_parent_view_offset;
       // now update tile bindings or defer it for the render tree to process and
       // re-attach as necessary. the render tree will be aware of the dirtiness
       // since the parent view raster area would have been marked as dirty
       // TODO(lamarrr): we need to also update the tile binding whilst marking
       // the previous as invalid by calling its attached callback i think the
       // cache should also reserve a vector of bool to know which offset changed
+      //
+      // we can have a function proxy to rebind the widget to another tile.
+      // since the parent view will mark the whole region as dirty, we don't
+      // need to worry too much about passing the dirtiness information to the
+      // tile cache
       //
       // TODO(lamarrr): synchronising the offset and render dirtiness of the
       // view widgets
@@ -144,37 +143,35 @@ struct ViewTree {
     static void update_screen_offset(View &child, View &parent) {
       update_screen_offset_helper_(child, parent);
 
-      for (View::Entry &entry : child.entries_) {
+      for (View::Entry &entry : child.entries) {
         update_screen_offset_helper_(entry, child);
       }
 
-      for (View &subview : child.subviews_) {
+      for (View &subview : child.subviews) {
         update_screen_offset(subview, child);
       }
     }
 
     static void translate_view(View &view, IOffset const &translation) {
-      for (View::Entry &child : view.entries_) {
+      // adjusts the view offset of the parent view.
+      // and shifts (translates) the children accordingly. we have to
+      // recursively perform passes to update the sceen offsets in the children.
+
+      for (View::Entry &child : view.entries) {
         View::translate_view_helper_(child, translation);
         update_screen_offset_helper_(child, view);
       }
 
-      for (View &subview : view.subviews_) {
-        // this is bad, it should only adjust the positioning of the parent view
-        // and just shift the children accordingly, not make them be as if the
-        // parent view shifted their child views we have to perform passes to
-        // correct this in the children recurse and update screen_offsets
-        // subview.parent_view_area_.extent;
-        // subview.effective_parent_view_offset_;
+      for (View &subview : view.subviews) {
         View::translate_view_helper_(subview, translation);
         update_screen_offset(subview, view);
       }
     }
 
     void bind() {
-      WidgetStateProxyAccessor::access(*widget_).on_view_offset_dirty =
+      WidgetStateProxyAccessor::access(*widget).on_view_offset_dirty =
           ([this](ViewOffset const &translation) {
-            translate_view(*this, translation.resolve(this->view_extent_));
+            translate_view(*this, translation.resolve(*this->view_extent));
           });
     }
   };
