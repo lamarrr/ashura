@@ -35,8 +35,8 @@ struct RasterCache {
     VLK_DEBUG_ENSURE(cull_rect.extent.is_visible());
   }
 
-  // NOTE: copy & move construction/assignment were disabled for
-  // SkPictureRecorder
+  // NOTE: copy & move constructor/assignment were disabled for
+  // SkPictureRecorder, so the ones here are basically workarounds
 
   RasterCache(RasterCache const& other) = delete;
   RasterCache& operator=(RasterCache const&) = delete;
@@ -90,7 +90,9 @@ struct RasterCache {
 
   Canvas get_recording_canvas() {
     VLK_DEBUG_ENSURE(is_recording());
-    return Canvas::from_skia(recorder_.getRecordingCanvas(), cull_rect_.extent);
+    SkCanvas* recording_canvas = recorder_.getRecordingCanvas();
+    VLK_DEBUG_ENSURE(recording_canvas != nullptr);
+    return Canvas::from_skia(*recording_canvas, cull_rect_.extent);
   }
 
   void init_surface(RasterContext& context) {
