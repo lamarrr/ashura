@@ -1,6 +1,9 @@
 #pragma once
 
 #include <type_traits>
+
+#include "stx/option.h"
+
 #include "vlk/ui/primitives.h"
 
 struct SkCanvas;
@@ -8,17 +11,19 @@ struct SkCanvas;
 namespace vlk {
 namespace ui {
 
-/// a view over a specific canvas implementation. Only supports Skia (with no
+/// a reference to a specific canvas implementation. Only supports Skia (with no
 /// implementation abstraction) at the moment.
 struct Canvas {
-    explicit constexpr Canvas(SkCanvas* pimpl, Extent const& extent)
-      : pimpl_{pimpl}, extent_{extent} {}
+  explicit constexpr Canvas(SkCanvas& pimpl, Extent const& extent)
+      : pimpl_{&pimpl}, extent_{extent} {}
 
-  static constexpr Canvas from_skia(SkCanvas* pimpl, Extent const& extent) {
+  static constexpr Canvas from_skia(SkCanvas& pimpl, Extent const& extent) {
     return Canvas{pimpl, extent};
   }
 
-  constexpr SkCanvas* as_skia() const { return static_cast<SkCanvas*>(pimpl_); }
+  stx::Option<SkCanvas*> as_skia() const {
+    return stx::Some(static_cast<SkCanvas*>(pimpl_));
+  }
 
   constexpr Extent extent() const { return extent_; }
 
