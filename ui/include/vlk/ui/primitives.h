@@ -13,8 +13,9 @@ using ZIndex = int64_t;
 
 // type marker
 template <typename T>
-using Normalized = T;  // normalized range [0.0f, 1.0f], i.e. for depth buffer
-                       // where we are not exposing the depth bit
+using Normalized =
+    T;  // normalized range [0.0f, 1.0f], i.e. in the case of a depth/color
+        // buffer where we are not exposing the depth bit or byte per pixel
 
 struct IOffset {
   int64_t x;
@@ -52,11 +53,6 @@ inline constexpr bool operator!=(Offset const &a, Offset const &b) {
   return !(a == b);
 }
 
-struct RelativeOffset {
-  float x;
-  float y;
-};
-
 struct Extent {
   uint32_t width;
   uint32_t height;
@@ -72,11 +68,6 @@ inline constexpr bool operator!=(Extent const &a, Extent const &b) {
   return !(a == b);
 }
 
-struct RelativeExtent {
-  float width;
-  float height;
-};
-
 struct IRect {
   IOffset offset;
   Extent extent;
@@ -87,31 +78,25 @@ struct IRect {
         offset.y + static_cast<int64_t>(extent.height));
   }
 
-  // TODO: TEST
   constexpr bool overlaps(IRect const &other) const {
-    auto [x1_min, x1_max, y1_min, y1_max] = bounds();
-    auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+    auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
+    auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
-    if (y2_max > y1_min || y1_max > y2_min || x2_max > x1_min ||
-        x1_max > x2_min)
-      return false;
-
-    return true;
+    return x1_min < x2_max && x1_max > x2_min && y2_max > y1_min &&
+           y2_min < y1_max;
   }
 
-  // TODO: TEST
   constexpr bool contains(IRect const &other) const {
-    auto [x1_min, x1_max, y1_min, y1_max] = bounds();
-    auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+    auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
+    auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
-    return x1_min < x2_min && x1_max > x2_max && y1_min < y2_min &&
-           y1_max > y2_max;
+    return x1_min <= x2_min && x1_max >= x2_max && y1_min <= y2_min &&
+           y1_max >= y2_max;
   }
 
-  // TODO: TEST
   constexpr IRect intersect(IRect const &other) const {
-    auto [x1_min, x1_max, y1_min, y1_max] = bounds();
-    auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+    auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
+    auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
     IOffset offset = {};
 
@@ -119,8 +104,8 @@ struct IRect {
     offset.y = std::max(y1_min, y2_min);
 
     Extent extent = {};
-    extent.width = static_cast<uint32_t>(std::min(x1_max, x2_max) - x1_min);
-    extent.height = static_cast<uint32_t>(std::min(y1_max, y2_max) - y1_min);
+    extent.width = static_cast<uint32_t>(std::min(x1_max, x2_max) - offset.x);
+    extent.height = static_cast<uint32_t>(std::min(y1_max, y2_max) - offset.y);
 
     return IRect{offset, extent};
   }
@@ -152,24 +137,21 @@ struct Rect {
     auto [x1_min, x1_max, y1_min, y1_max] = bounds();
     auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
-    if (y2_max > y1_min || y1_max > y2_min || x2_max > x1_min ||
-        x1_max > x2_min)
-      return false;
-
-    return true;
+    return x1_min < x2_max && x1_max > x2_min && y2_max > y1_min &&
+           y2_min < y1_max;
   }
 
   constexpr bool contains(Rect const &other) const {
-    auto [x1_min, x1_max, y1_min, y1_max] = bounds();
-    auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+    auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
+    auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
-    return x1_min < x2_min && x1_max > x2_max && y1_min < y2_min &&
-           y1_max > y2_max;
+    return x1_min <= x2_min && x1_max >= x2_max && y1_min <= y2_min &&
+           y1_max >= y2_max;
   }
 
   constexpr Rect intersect(Rect const &other) const {
-    auto [x1_min, x1_max, y1_min, y1_max] = bounds();
-    auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+    auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
+    auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
     Offset offset = {};
 
@@ -177,8 +159,8 @@ struct Rect {
     offset.y = std::max(y1_min, y2_min);
 
     Extent extent = {};
-    extent.width = std::min(x1_max, x2_max) - x1_min;
-    extent.height = std::min(y1_max, y2_max) - y1_min;
+    extent.width = std::min(x1_max, x2_max) - offset.x;
+    extent.height = std::min(y1_max, y2_max) - offset.y;
 
     return Rect{offset, extent};
   }
@@ -202,7 +184,9 @@ inline constexpr bool operator!=(Rect const &a, Rect const &b) {
 }
 
 struct Ticks {
-  Ticks(uint64_t value = 0) : value_{value} {}
+  Ticks() : value_{0} {}
+
+  explicit Ticks(uint64_t value) : value_{value} {}
 
   constexpr uint64_t count() const { return value_; }
 
@@ -241,12 +225,6 @@ struct Ticks {
   uint64_t value_ = 0;
 };
 
-struct RelativeRect {
-  RelativeOffset offset;
-  RelativeExtent extent;
-};
-
-// TODO(lamarrr): fix id casing here
 struct Color {
   static constexpr uint32_t kRedMask = 0xFF000000U;
   static constexpr uint32_t kGreenMask = kRedMask >> 8;
@@ -382,6 +360,22 @@ inline constexpr Stretch operator&(Stretch a, Stretch b) {
 }
 
 // TODO(lamarrr): consider using constrain with aspect ratio?
+// TODO(lamarrr): let's annhilate this and use constraints????
+
+struct RelativeOffset {
+  float x;
+  float y;
+};
+
+struct RelativeExtent {
+  float width;
+  float height;
+};
+
+struct RelativeRect {
+  RelativeOffset offset;
+  RelativeExtent extent;
+};
 
 struct Sizing {
   enum class Type : uint8_t {
