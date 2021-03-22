@@ -2,7 +2,7 @@
 
 #include "vlk/ui/layout_tree.h"
 #include "vlk/ui/widget.h"
-#include "vlk/ui/widget_utils.h"
+#include "vlk/ui/widget_builder.h"
 
 #include "gtest/gtest.h"
 

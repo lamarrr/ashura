@@ -13,8 +13,12 @@
 
 # vlk::ui TODO
 
-- children replacing, adding and/or removal and how it will affect the trees
+- When using skia with vulkan SK_VULKAN macro should reside in the source file
 
+
+- consider changing to list for easier insertion and deletion of children nodes
+- children replacing, adding and/or removal and how it will affect the trees
+- effects are performed on a per-widget basis
 ```cpp
     // complete layout rebuild
     // remove children at node on the tree.

@@ -8,7 +8,7 @@
 
 #include "vlk/ui/tile_cache.h"
 #include "vlk/ui/widget.h"
-#include "vlk/ui/widget_utils.h"
+#include "vlk/ui/widget_builder.h"
 
 using namespace vlk::ui;
 
@@ -463,48 +463,49 @@ TEST(FlexLayout, DirRow_Wrap_MainStart_CrossEnd) {
   for (int i = 0; i < 32; i++)
     surfaces.emplace_back(context.create_cpu_surface(Extent{256, 256}));
 
-for(size_t i = 0; i < 2000; i++)
-  for (auto &surface : surfaces) {
-    // threads.emplace_back(std::thread([&surface]() {
-  
-    auto *canvas = surface->getCanvas();
-  
-  canvas->clear(SK_ColorTRANSPARENT);
-    canvas->drawColor(SK_ColorWHITE);
+  for (size_t i = 0; i < 2000; i++)
+    for (auto &surface : surfaces) {
+      // threads.emplace_back(std::thread([&surface]() {
 
-    SkPaint paint;
-    paint.setStyle(SkPaint::kStroke_Style);
-    paint.setStrokeWidth(4);
-    paint.setColor(SK_ColorRED);
+      auto *canvas = surface->getCanvas();
 
-    SkRect rect = SkRect::MakeXYWH(50, 50, 40, 60);
-    canvas->drawRect(rect, paint);
+      canvas->clear(SK_ColorTRANSPARENT);
+      canvas->drawColor(SK_ColorWHITE);
 
-    SkRRect oval;
-    oval.setOval(rect);
-    oval.offset(40, 60);
-    paint.setColor(SK_ColorBLUE);
-    canvas->drawRRect(oval, paint);
+      SkPaint paint;
+      paint.setStyle(SkPaint::kStroke_Style);
+      paint.setStrokeWidth(4);
+      paint.setColor(SK_ColorRED);
 
-    paint.setColor(SK_ColorCYAN);
-    canvas->drawCircle(180, 50, 25, paint);
+      SkRect rect = SkRect::MakeXYWH(50, 50, 40, 60);
+      canvas->drawRect(rect, paint);
 
-    rect.offset(80, 0);
-    paint.setColor(SK_ColorYELLOW);
-    canvas->drawRoundRect(rect, 10, 10, paint);
+      SkRRect oval;
+      oval.setOval(rect);
+      oval.offset(40, 60);
+      paint.setColor(SK_ColorBLUE);
+      canvas->drawRRect(oval, paint);
 
-    SkPath path;
-    path.cubicTo(768, 0, -512, 256, 256, 256);
-    paint.setColor(SK_ColorGREEN);
-    canvas->drawPath(path, paint);
+      paint.setColor(SK_ColorCYAN);
+      canvas->drawCircle(180, 50, 25, paint);
 
-    SkPaint paint2;
-    auto text = SkTextBlob::MakeFromString("Hello, Skia!", SkFont(nullptr, 18));
-    canvas->drawTextBlob(text.get(), 50, 25, paint2);
+      rect.offset(80, 0);
+      paint.setColor(SK_ColorYELLOW);
+      canvas->drawRoundRect(rect, 10, 10, paint);
 
-    surface->flushAndSubmit(true);
-    //  }));
-  }
+      SkPath path;
+      path.cubicTo(768, 0, -512, 256, 256, 256);
+      paint.setColor(SK_ColorGREEN);
+      canvas->drawPath(path, paint);
+
+      SkPaint paint2;
+      auto text =
+          SkTextBlob::MakeFromString("Hello, Skia!", SkFont(nullptr, 18));
+      canvas->drawTextBlob(text.get(), 50, 25, paint2);
+
+      surface->flushAndSubmit(true);
+      //  }));
+    }
 
   for (auto &thread : threads) {
     thread.join();
