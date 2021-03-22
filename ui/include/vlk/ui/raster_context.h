@@ -20,8 +20,11 @@ struct RasterContext {
   stx::Option<GrRecordingContext*> recording_context = stx::None;
 
   sk_sp<SkSurface> create_cpu_surface(Extent const& extent) {
-    return SkSurface::MakeRaster(SkImageInfo::Make(
+    VLK_ENSURE(extent.is_visible());
+    sk_sp surface = SkSurface::MakeRaster(SkImageInfo::Make(
         extent.width, extent.height, color_type, alpha_type, color_space));
+    VLK_ENSURE(surface != nullptr);
+    return surface;
   }
 
   sk_sp<SkSurface> create_target_surface(Extent const& extent) {
@@ -29,7 +32,7 @@ struct RasterContext {
       VLK_ENSURE(extent.is_visible());
       sk_sp surface = SkSurface::MakeRenderTarget(
           recording_context.clone().expect(
-              "Using GPU but no recording context is set"),
+              "Using GPU Target but no recording context is set"),
           budgeted,
           SkImageInfo::Make(extent.width, extent.height, color_type, alpha_type,
                             color_space));
