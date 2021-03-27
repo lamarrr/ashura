@@ -104,3 +104,19 @@
 - EVolution of Chromium SYstem UI: https://www.youtube.com/watch?v=e1dT348THdI
 - SLimming paint: https://www.youtube.com/watch?v=5Xv2A7aqJ9Y
 - SKiA update: https://www.youtube.com/watch?v=SU58JHK0-3o
+
+
+
+
+
+
+responding to event triggers by the user
+
+- if a full rebuild already occured, maintaining the screen offsets when a re-build occurs.
+- multiple calls to rebuild the children and how it'd wreck havoc
+- this would mean we need a message passing system and not one that immediately processes the requests
+- request queues, processing order, possible optimizations
+- a
+- alternatively we can make sure we don't touch the widgets in any of the callbacks
+- re-evaluate memory touching in all cases. we must only touch our caches in the callbacks
+- move trees to impl header

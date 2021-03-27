@@ -30,6 +30,14 @@ struct OutputClamp {
 /// - absolute min/max (`low`, `high`)
 /// - relative min/max (`clamp.low`, `clamp.high`)
 ///
+/// how do we achieve padding/margin effect? we allot an extent and only draw
+/// over a specific portion of it, the implementation of the widget itself is
+/// left to determine how this will work.
+///
+/// TODO(lamarrr): this model will not position the children correctly, this
+/// means we still need a notion of margins/padding whithin the widget system.
+/// can we do better than existing solutions?
+///
 struct Constrain {
   /// scaling the target size
   float scale = 1.0f;
@@ -89,6 +97,53 @@ struct SelfExtent {
   }
 };
 
+// TODO(lamarrrr): child widget padding and alignment? How do we model
+// that? Offsetting and allotting
+struct Padding {
+  Constrain vertical = Constrain{0.0f};
+  Constrain horizontal = Constrain{0.0f};
+  Constrain bottom = Constrain{0.0f};
+  Constrain left = Constrain{0.0f};
+
+  Rect resolve(Extent const& resolved_extent) const {
+    auto resolved_top = static_cast<uint32_t>(std::clamp(
+        top.resolve(resolved_extent.height, true),
+        static_cast<int64_t>(u32_min), static_cast<int64_t>(u32_max)));
+    auto const resolved_right = static_cast<uint32_t>(std::clamp(
+        right.resolve(resolved_extent.width, true),
+        static_cast<int64_t>(u32_min), static_cast<int64_t>(u32_max)));
+    auto const resolved_bottom = static_cast<uint32_t>(std::clamp(
+        top.resolve(resolved_extent.height, true),
+        static_cast<int64_t>(u32_min), static_cast<int64_t>(u32_max)));
+    auto resolved_left = static_cast<uint32_t>(std::clamp(
+        right.resolve(resolved_extent.width, true),
+        static_cast<int64_t>(u32_min), static_cast<int64_t>(u32_max)));
+
+    resolved_top = resolved_extent.height - resolved_bottom;
+    resolved_left = resolved_extent.width - resolved_right;
+
+    return Rect{Offset{resolved_x, resolved_y}};
+  }
+};
+
+/// this can exceed the parent allotted size. especially in cases where we might
+/// need partially or wholly constrained/unconstrained views. (i.e. constrained
+/// to parent's alloted extent along width but unconstrained along height).
+struct ViewExtent {
+  Constrain width = Constrain{0.0f};
+  Constrain height = Constrain{0.0f};
+
+  Extent resolve(Extent const& allotment) const {
+    auto const resolved_width = static_cast<uint32_t>(std::clamp(
+        width.resolve(allotment.width, false), static_cast<int64_t>(u32_min),
+        static_cast<int64_t>(u32_max)));
+    auto const resolved_height = static_cast<uint32_t>(std::clamp(
+        height.resolve(allotment.height, false), static_cast<int64_t>(u32_min),
+        static_cast<int64_t>(u32_max)));
+    return Extent{resolved_width, resolved_height};
+  }
+};
+
 /// marks the offset of the view relative to the view extent (usually
 /// a resolved `SelfExtent`)
 struct ViewOffset {
@@ -131,7 +186,21 @@ struct Flex {
   enum class CrossAlign : uint8_t { Start, End, Center, Stretch };
 
   CrossAlign cross_align = CrossAlign::Start;
+
+  enum class Fit : uint8_t { Shrink = 0, Expand = 1 };
+
+  Fit main_fit = Fit::Shrink;
+
+  Fit cross_fit = Fit::Shrink;
 };
+
+constexpr Flex::Fit operator|(Flex::Fit const& a, Flex::Fit const& b) {
+  return vlk::enum_or(a, b);
+}
+
+constexpr Flex::Fit operator&(Flex::Fit const& a, Flex::Fit const& b) {
+  return vlk::enum_and(a, b);
+}
 
 }  // namespace ui
 }  // namespace vlk

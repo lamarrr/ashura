@@ -4,9 +4,11 @@
 #include <chrono>
 #include <cinttypes>
 #include <functional>
+#include <string>
 #include <string_view>
 
 #include "stx/option.h"
+#include "stx/report.h"
 #include "stx/span.h"
 #include "vlk/utils/limits.h"
 #include "vlk/utils/utils.h"
@@ -32,9 +34,9 @@ struct Widget {
   friend struct WidgetStateProxyAccessor;
 
   struct DebugInfo {
-    DebugInfo(std::string_view const &name = "<unnamed widget>",
-              std::string_view const &type_hint = "Unhinted Widget Type",
-              std::string_view const &info = "(no info)")
+    DebugInfo(std::string_view const &name = "<unnamed>",
+              std::string_view const &type_hint = "<none>",
+              std::string_view const &info = "<none>")
         : name{name}, type_hint{type_hint}, info{info} {}
 
     std::string_view name;
@@ -75,7 +77,7 @@ struct Widget {
          Flex const &flex = {}, stx::Span<Widget *const> const &children = {},
          DebugInfo const &debug_info = DebugInfo{},
          stx::Option<ZIndex> const &z_index = stx::None,
-         SelfExtent const &view_extent = {}, ViewOffset const &view_offset = {})
+         ViewExtent const &view_extent = {}, ViewOffset const &view_offset = {})
       : type_{type},
         self_extent_{self_extent},
         flex_{flex},
@@ -100,7 +102,7 @@ struct Widget {
 
   stx::Option<ZIndex> get_z_index() const { return z_index_.clone(); }
 
-  SelfExtent get_view_extent() const { return view_extent_; }
+  ViewExtent get_view_extent() const { return view_extent_; }
 
   ViewOffset get_view_offset() const { return view_offset_; }
 
@@ -135,7 +137,7 @@ struct Widget {
     mark_layout_dirty();
   }
 
-  void update_view_extent(SelfExtent view_extent) {
+  void update_view_extent(ViewExtent view_extent) {
     VLK_DEBUG_ENSURE(type_ == Type::View);
     view_extent_ = view_extent;
     mark_layout_dirty();
@@ -155,16 +157,15 @@ struct Widget {
     mark_children_dirty();
   }
 
- protected:
-  void mark_children_dirty() { state_proxy_.on_children_changed(); }
+  void mark_children_dirty() const { state_proxy_.on_children_changed(); }
 
-  void mark_layout_dirty() { state_proxy_.on_layout_dirty(); }
+  void mark_layout_dirty() const { state_proxy_.on_layout_dirty(); }
 
-  void mark_view_offset_dirty(ViewOffset const &offset) {
+  void mark_view_offset_dirty(ViewOffset const &offset) const {
     state_proxy_.on_view_offset_dirty(offset);
   }
 
-  void mark_render_dirty() { state_proxy_.on_render_dirty(); }
+  void mark_render_dirty() const { state_proxy_.on_render_dirty(); }
 
  private:
   /// constant throughout lifetime
@@ -192,7 +193,7 @@ struct Widget {
   /// variable throughout lifetime.
   /// resolved using the parent allotted extent.
   /// TODO(lamarrr): how is this resolved?
-  SelfExtent view_extent_;
+  ViewExtent view_extent_;
 
   /// for view widgets (used for scrolling or moving of the view)
   ///
@@ -201,10 +202,31 @@ struct Widget {
   /// resolved using the view extent.
   ViewOffset view_offset_;
 
+  // TODO(lamarrr): padding left, right, top, bottom???
+  Padding padding_;
+
   /// constant throughout lifetime, but modified and used for communication and
   /// managing updates in the system
   StateProxy state_proxy_;
 };
+
+constexpr auto h = sizeof(Widget);
+constexpr auto c = sizeof(SelfExtent);
+constexpr auto d = sizeof(ViewOffset);
+constexpr auto v = sizeof(OutputClamp);
+constexpr auto e = sizeof(Widget::DebugInfo);
+
+inline stx::FixedReport operator>>(stx::ReportQuery, Widget const &widget) {
+  Widget::DebugInfo const debug_info = widget.get_debug_info();
+  std::string message = "Widget: ";
+  message += debug_info.name;
+  message += " (type hint: ";
+  message += debug_info.type_hint;
+  message += ", info: ";
+  message += debug_info.info;
+  message += ", address: " + std::to_string((uintptr_t)&widget) + ")";
+  return stx::FixedReport(message);
+}
 
 }  // namespace ui
 }  // namespace vlk

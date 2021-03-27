@@ -1,7 +1,10 @@
 #include <map>
 #include <numeric>
 
+#if !defined(SK_VULKAN)
 #define SK_VULKAN
+#endif
+
 #include "include/core/SkCanvas.h"
 #include "include/core/SkSurface.h"
 #include "include/gpu/GrDirectContext.h"

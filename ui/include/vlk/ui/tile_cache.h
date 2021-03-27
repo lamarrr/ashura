@@ -61,7 +61,7 @@ struct TileCache {
 
       while (ancestor != nullptr) {
         IRect ancestor_view_screen_rect{ancestor->screen_offset,
-                                        ancestor->parent_view_area->extent};
+                                        ancestor->layout_node->self_extent};
 
         if (!ancestor_view_screen_rect.overlaps(clip_rect)) {
           clip_rect = IRect{IOffset{}, Extent{}};
