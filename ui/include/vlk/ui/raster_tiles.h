@@ -10,33 +10,13 @@
 
 namespace vlk {
 namespace ui {
-//
-// tile resizing when screen changes
-//
-// enum class RasterCacheState
-//  {
-//   Clean,
-//   Dirty,
-//   Rasterizing
-//  };
-
-// problem: recording and updating pictures multiple times can be costly, we
-// need effects
-
-// how do we re-record the raster tile content? without allocating extra memory
-// too frequently
-// what if we store chunks in each tile?
-
-// raster cache, even view widgets are added here, all widgets are layout
-// widgets, we thus don't reed a separate view on the render tree
-
-// how do we want to model raster task scheduling?
 
 struct RasterTiles {
   using Tile = RasterCache;
 
   RasterTiles(Extent const &extent, Extent const &tile_size)
       : extent_{extent}, tile_size_{tile_size}, tiles_{} {
+    VLK_ENSURE(tile_size.visible());
     for (size_t i = 0; i < rows() * columns(); i++)
       tiles_.emplace_back(Tile{IRect{IOffset{}, tile_size_}});
   }
@@ -78,14 +58,45 @@ struct RasterTiles {
 
   stx::Span<Tile const> get_tiles() const { return tiles_; }
 
+  size_t storage_size_estimate() const {
+    return std::accumulate(tiles_.begin(), tiles_.end(), size_t{0},
+                           [](size_t size, Tile const &tile) {
+                             return size + tile.storage_size();
+                           });
+  }
+
+  void resize(Extent const &new_extent) {
+    extent_ = new_extent;
+
+    auto const available_tiles = tiles_.size();
+    auto const num_required_tiles = rows() * columns();
+
+    if (available_tiles == num_required_tiles) {
+      // do nothing
+    } else if (available_tiles > num_required_tiles) {
+      for (size_t i = 0; i < (available_tiles - num_required_tiles); i++)
+        tiles_.pop_back();
+    } else {
+      // num_required_tiles > available_tiles
+      for (size_t i = 0; i < (num_required_tiles - available_tiles); i++)
+        tiles_.emplace_back(Tile{IRect{IOffset{}, tile_extent()}});
+    }
+
+    for (uint32_t j = 0; j < columns(); j++)
+      for (uint32_t i = 0; i < rows(); i++) {
+        tiles_[j * rows() + i].recycle(
+            IOffset{i * tile_extent().width, j * tile_extent().height});
+      }
+  }
+
  private:
   // future-TODO(lamarrr): implement pixel ratio usage, how to. should this stay
   // here?
   // float pixel_ratio_ = 1.0f;
 
-  Extent extent_ = {1920, 1080};
+  Extent extent_;
 
-  Extent tile_size_ = {64, 64};
+  Extent tile_size_;
 
   // a grid of tiles
   // each tile is of extent `tile_size_` * pixel_ratio_

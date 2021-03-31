@@ -135,5 +135,4 @@ foreach(GLSL_TARGET ${GLSL_TARGETS})
     ${GLSL_TARGET}.vert.spv)
 endforeach(GLSL_TARGET)
 
-
 # export ASAN_OPTIONS=fast_unwind_on_malloc=0 CXXFLAGS=""

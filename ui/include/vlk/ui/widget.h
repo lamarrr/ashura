@@ -35,21 +35,19 @@ struct Widget {
 
   struct DebugInfo {
     DebugInfo(std::string_view const &name = "<unnamed>",
-              std::string_view const &type_hint = "<none>",
-              std::string_view const &info = "<none>")
-        : name{name}, type_hint{type_hint}, info{info} {}
+              std::string_view const &type_hint = "<none>")
+        : name{name}, type_hint{type_hint} {}
 
     std::string_view name;
     std::string_view type_hint;
-    std::string_view info;
   };
 
   struct StateProxy {
     StateProxy()
         : on_render_dirty{[] {}},
           on_layout_dirty{[] {}},
-          on_children_changed{[] {}},
-          on_view_offset_dirty{[](ViewOffset const &) {}} {}
+          on_view_offset_dirty{[] {}},
+          on_children_changed{[] {}} {}
 
     /// informs the system that the widget's render data has changed
     std::function<void()> on_render_dirty;
@@ -57,40 +55,47 @@ struct Widget {
     /// informs the system that the widget's layout has changed
     std::function<void()> on_layout_dirty;
 
-    /// informs the system that the widget's children has changed (possibly
-    /// requiring a full rebuild)
-    std::function<void()> on_children_changed;
-
     /// informs the system that a view-widgets's offset (or visible area)
     /// has changed
-    std::function<void(ViewOffset const &)> on_view_offset_dirty;
+    std::function<void()> on_view_offset_dirty;
+
+    /// informs the system that the widget's children has changed (possibly
+    /// requiring a full rebuild of the pipeline)
+    std::function<void()> on_children_changed;
   };
 
   enum class Type : uint8_t {
     /// occupies space and has render data
     Render,
-    /// marks a separate composition context, can have render data
+    /// can have render data
     View
   };
 
-  Widget(Type const &type = Type::Render, SelfExtent const &self_extent = {},
+  Widget(Type const &type = Type::Render, bool is_flex = false,
+         SelfExtent const &self_extent = {}, Padding const &padding = Padding{},
          Flex const &flex = {}, stx::Span<Widget *const> const &children = {},
-         DebugInfo const &debug_info = DebugInfo{},
+         ViewExtent const &view_extent = {}, ViewOffset const &view_offset = {},
          stx::Option<ZIndex> const &z_index = stx::None,
-         ViewExtent const &view_extent = {}, ViewOffset const &view_offset = {})
+         DebugInfo const &debug_info = DebugInfo{})
       : type_{type},
+        is_flex_{is_flex},
         self_extent_{self_extent},
+        padding_{padding},
         flex_{flex},
         children_{children},
-        debug_info_{debug_info},
-        z_index_{z_index.clone()},
         view_extent_{view_extent},
         view_offset_{view_offset},
+        z_index_{z_index.clone()},
+        debug_info_{debug_info},
         state_proxy_{} {}
 
   Type get_type() const { return type_; }
 
+  bool is_flex() const { return is_flex_; }
+
   SelfExtent get_self_extent() const { return self_extent_; }
+
+  Padding get_padding() const { return padding_; }
 
   Flex get_flex() const { return flex_; }
 
@@ -98,13 +103,13 @@ struct Widget {
 
   bool has_children() const { return !get_children().empty(); }
 
-  DebugInfo get_debug_info() const { return debug_info_; }
-
-  stx::Option<ZIndex> get_z_index() const { return z_index_.clone(); }
-
   ViewExtent get_view_extent() const { return view_extent_; }
 
   ViewOffset get_view_offset() const { return view_offset_; }
+
+  stx::Option<ZIndex> get_z_index() const { return z_index_.clone(); }
+
+  DebugInfo get_debug_info() const { return debug_info_; }
 
   /// create draw commands
   virtual void draw([[maybe_unused]] Canvas &canvas) {
@@ -120,50 +125,58 @@ struct Widget {
 
   void init_type(Type type) { type_ = type; }
 
+  void init_is_flex(bool is_flex) { is_flex_ = is_flex; }
+
   void update_self_extent(SelfExtent const &self_extent) {
     self_extent_ = self_extent;
     mark_layout_dirty();
   }
 
-  // NOTE: this widget will now bind itself to this string
-  void set_debug_info(DebugInfo const &info) { debug_info_ = info; }
-
-  void init_z_index(stx::Option<ZIndex> const &z_index) {
-    z_index_ = z_index.clone();
+  void update_padding(Padding const &padding) {
+    padding_ = padding;
+    mark_layout_dirty();
   }
 
   void update_flex(Flex const &flex) {
     flex_ = flex;
+    VLK_ENSURE(is_flex(), "Widget is not a flex type", *this);
     mark_layout_dirty();
   }
 
+  /// MOTE: this does not free the memory associated with the referenced
+  /// container. the derived widget is in charge of freeing memory as necessary.
+  /// avoid using this as much as possible as it can cause a full re-build of
+  /// the pipeline.
+  void update_children(stx::Span<Widget *const> children) {
+    VLK_ENSURE(is_flex(), "Widget is not a flex type", *this);
+    children_ = children;
+    mark_children_dirty();
+  }
+
   void update_view_extent(ViewExtent view_extent) {
-    VLK_DEBUG_ENSURE(type_ == Type::View);
+    VLK_ENSURE(get_type() == Type::View, "Widget is not a view type", *this);
     view_extent_ = view_extent;
     mark_layout_dirty();
   }
 
   void update_view_offset(ViewOffset view_offset) {
-    VLK_DEBUG_ENSURE(type_ == Type::View);
+    VLK_ENSURE(get_type() == Type::View, "Widget is not a view type", *this);
     view_offset_ = view_offset;
-    mark_view_offset_dirty(view_offset_);
+    mark_view_offset_dirty();
     mark_render_dirty();
   }
 
-  /// MOTE: this does not free the memory associated with the referenced
-  /// container. the derived widget is in charge of freeing memory as necessary
-  void update_children(stx::Span<Widget *const> children) {
-    children_ = children;
-    mark_children_dirty();
+  void init_z_index(stx::Option<ZIndex> const &z_index) {
+    z_index_ = z_index.clone();
   }
+
+  void set_debug_info(DebugInfo const &info) { debug_info_ = info; }
 
   void mark_children_dirty() const { state_proxy_.on_children_changed(); }
 
   void mark_layout_dirty() const { state_proxy_.on_layout_dirty(); }
 
-  void mark_view_offset_dirty(ViewOffset const &offset) const {
-    state_proxy_.on_view_offset_dirty(offset);
-  }
+  void mark_view_offset_dirty() const { state_proxy_.on_view_offset_dirty(); }
 
   void mark_render_dirty() const { state_proxy_.on_render_dirty(); }
 
@@ -171,9 +184,15 @@ struct Widget {
   /// constant throughout lifetime
   Type type_;
 
+  /// constant throughout lifetime
+  bool is_flex_;
+
   /// variable throughout lifetime. communicate changes using `on_layout_dirty`.
   // for view widgets, this is effectively the size that's actually visible.
   SelfExtent self_extent_;
+
+  /// variable throughout lifetime. communicate changes using `on_layout_dirty`
+  Padding padding_;
 
   /// variable throughout lifetime. communicate changes using `on_layout_dirty`
   Flex flex_;
@@ -182,17 +201,10 @@ struct Widget {
   /// `on_children_changed`
   stx::Span<Widget *const> children_;
 
-  /// variable throughout lifetime
-  DebugInfo debug_info_;
-
-  /// constant throughout lifetime
-  stx::Option<ZIndex> z_index_;
-
   /// for view widgets (used for laying out its children).
   ///
   /// variable throughout lifetime.
   /// resolved using the parent allotted extent.
-  /// TODO(lamarrr): how is this resolved?
   ViewExtent view_extent_;
 
   /// for view widgets (used for scrolling or moving of the view)
@@ -202,19 +214,15 @@ struct Widget {
   /// resolved using the view extent.
   ViewOffset view_offset_;
 
-  // TODO(lamarrr): padding left, right, top, bottom???
-  Padding padding_;
+  /// constant throughout lifetime
+  stx::Option<ZIndex> z_index_;
 
-  /// constant throughout lifetime, but modified and used for communication and
-  /// managing updates in the system
+  /// variable throughout lifetime
+  DebugInfo debug_info_;
+
+  /// modified and used for communication of updates to the system
   StateProxy state_proxy_;
 };
-
-constexpr auto h = sizeof(Widget);
-constexpr auto c = sizeof(SelfExtent);
-constexpr auto d = sizeof(ViewOffset);
-constexpr auto v = sizeof(OutputClamp);
-constexpr auto e = sizeof(Widget::DebugInfo);
 
 inline stx::FixedReport operator>>(stx::ReportQuery, Widget const &widget) {
   Widget::DebugInfo const debug_info = widget.get_debug_info();
@@ -222,8 +230,6 @@ inline stx::FixedReport operator>>(stx::ReportQuery, Widget const &widget) {
   message += debug_info.name;
   message += " (type hint: ";
   message += debug_info.type_hint;
-  message += ", info: ";
-  message += debug_info.info;
   message += ", address: " + std::to_string((uintptr_t)&widget) + ")";
   return stx::FixedReport(message);
 }

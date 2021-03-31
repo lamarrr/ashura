@@ -1,5 +1,6 @@
 #pragma once
 
+#include <utility>
 #include <vector>
 
 #include "vlk/ui/layout_tree.h"
@@ -35,8 +36,7 @@ namespace ui {
 //  now we don't need to reset the z-indexes of view widgets we can
 // now have absolute-positioned widgets.
 
-// translates widget from the its normal position on its parent view.
-// TODO(lamarrr): this will also affect the dirty area updating
+// translates widget from its normal position on its parent view.
 template <typename T>
 constexpr void view_translate_helper_(T &entry, IOffset const &translation) {
   IOffset ioffset =
@@ -64,20 +64,13 @@ struct ViewTree {
     // all entries are positioned relative to the view
     // how do we position views relative to views? whilst maintaining their
     // translations
+    // problem now is that we either have to accumulate all of the offsets
+    // when trying to render for each widget or we update the screen offsets
+    // for all the child widgets on scroll
     struct Entry {
-      // Widget *widget;
       LayoutTree::Node const *layout_node;
 
-      // problem now is that we either have to accumulate all of the offsets
-      // when trying to render for each widget or we update the screen offsets
-      // for all the child widgets on scroll
       IOffset screen_offset;
-
-      // this never changes until a re-layout occurs
-      // TODO(lamarrr): this is entirely dependent on the layout tree's
-      // statefulness? or should we perform an update-with recursion where they
-      // are tied?
-      // Offset parent_view_offset;
 
       // offset on the parent view after translation (i.e. by scrolling)
       IOffset effective_parent_view_offset;
@@ -85,34 +78,31 @@ struct ViewTree {
       // can be null
       View const *parent;
 
-      void build(LayoutTree::Node &node, View const *view_parent) {
-        parent = view_parent;
-        // parent_view_area = &node.parent_view_area;
-        // widget = node.widget;
-        layout_node = &node;
+      ZIndex z_index;
 
+      void build(LayoutTree::Node const &init_layout_node,
+                 View const *view_parent, ZIndex init_z_index) {
+        layout_node = &init_layout_node;
+
+        // not yet updated
         effective_parent_view_offset = {};
         screen_offset = {};
+
+        parent = view_parent;
+
+        z_index = init_z_index;
       }
     };
 
-    // which part of the parent view it occupies
-    // TODO(lamarrr): will this be hazardrous if null?
-    // Rect const *parent_view_area;
-    // represents the overall extent of the view widget (including the
-    // non-visible or internal area)
-    // Extent const *view_extent;
+    // non-null
     LayoutTree::Node const *layout_node;
 
     IOffset screen_offset;
 
-    // this never changes until a re-layout occurs
-    // Offset parent_view_offset;
-
     // offset on the parent view after translation (i.e. by scrolling)
     IOffset effective_parent_view_offset;
 
-    // raster widgets. not sorted in any particular order
+    // non-view widgets. not sorted in any particular order
     std::vector<Entry> entries;
 
     // will make processing clips easier
@@ -121,12 +111,13 @@ struct ViewTree {
     // view widgets. not sorted in any particular order
     std::vector<View> subviews;
 
-    void build(LayoutTree::Node &node, View const *parent_view) {
-      parent = parent_view;
-      // parent_view_area = &node.parent_view_area;
-      // view_extent = &node.view_extent;
-      // widget = node.widget;
+    ZIndex z_index;
+
+    void build(LayoutTree::Node const &node, View const *parent_view,
+               ZIndex init_z_index) {
       layout_node = &node;
+      parent = parent_view;
+      z_index = node.widget->get_z_index().unwrap_or(std::move(init_z_index));
 
       // it is safe for the widget to access this multiple times even though the
       // user could pay a possibly minor perf penalty. this saves us the stress
@@ -141,16 +132,18 @@ struct ViewTree {
       // itself
       //
       //
+      // TODO(lamarrr): we might need to keep track of the translation
+      // incase the layout changes
+      //
+      //
       WidgetStateProxyAccessor::access(*node.widget).on_view_offset_dirty =
-          ([this](ViewOffset const &translation) {
-            // TODO(lamarrr): we might need to keep track of the translation
-            // incase the layout changes
+          ([this, widget = node.widget, layout_node = &node] {
             this->translate(
-                translation.resolve(this->layout_node->view_extent));
+                widget->get_view_offset().resolve(layout_node->view_extent));
           });
 
-      // needs to be updated after first build and on any insertion or removal
-      // from the tree, by triggering a IOffset{0, 0} translation at the root
+      // needs to be updated after building the tree, by triggering a
+      // on_view_offset dirty at the root.
       effective_parent_view_offset = {};
       screen_offset = {};
 
@@ -170,10 +163,10 @@ struct ViewTree {
 
       for (size_t i = 0; i < num_children; i++) {
         if (node.type == Widget::Type::View) {
-          subviews[subview_index].build(node.children[i], this);
+          subviews[subview_index].build(node.children[i], this, z_index + 1);
           subview_index++;
         } else {
-          entries[render_index].build(node.children[i], this);
+          entries[render_index].build(node.children[i], this, z_index + 1);
           render_index++;
         }
       }
@@ -190,9 +183,8 @@ struct ViewTree {
 
     template <typename T>
     static void update_screen_offset_helper_(T &child, View &parent) {
-      child.screen_offset =
-          parent.screen_offset + child.effective_parent_view_offset;
-      // now update tile bindings or defer it for the render tree to process and
+      // now update tile bindings or defer it for
+      // the render tree to process and
       // re-attach as necessary. the render tree will be aware of the dirtiness
       // since the parent view raster area would have been marked as dirty
       // TODO(lamarrr): we need to also update the tile binding whilst marking
@@ -212,6 +204,8 @@ struct ViewTree {
       //
       // I think we don't need this since the view will mark its area as
       // invalidated anyway
+      child.screen_offset =
+          parent.screen_offset + child.effective_parent_view_offset;
     }
 
     static void update_screen_offset(View &child, View &parent) {
@@ -227,35 +221,52 @@ struct ViewTree {
     }
 
     void translate(IOffset const &translation) {
-      // adjusts the view offset of the parent view.
+      // adjust the view offset of the parent view.
       // and shifts (translates) the children accordingly. we have to
       // recursively perform passes to update the sceen offsets in the children.
 
       for (View::Entry &child : entries) {
+        // translate the children's effective parent view offset by
+        // `translation`.
         view_translate_helper_(child, translation);
+        // update the resulting screen offset to match the new view position
+        // using the parent view's
         update_screen_offset_helper_(child, *this);
       }
 
+      // NOTE that this only requires that we update this view's child views
+      // offset and no need for translating them
       for (View &subview : subviews) {
         view_translate_helper_(subview, translation);
         update_screen_offset(subview, *this);
+      }
+    }
+
+    void clean_offsets() {
+      layout_node->widget->mark_view_offset_dirty();
+      for (auto &subview : subviews) {
+        subview.clean_offsets();
       }
     }
   };
 
   View root_view;
 
-  void build(LayoutTree &tree) {
-    /// FIXME:
+  void clean() { root_view.clean_offsets(); }
+
+  void build(LayoutTree const &layout_tree) {
     VLK_ENSURE(root_view.layout_node == nullptr);
     VLK_ENSURE(root_view.subviews.empty());
     VLK_ENSURE(root_view.entries.empty());
-    VLK_ENSURE(tree.root_node.type == Widget::Type::View);
 
-    root_view.build(tree.root_node, nullptr);
+    VLK_ENSURE(layout_tree.root_node.type == Widget::Type::View);
+    VLK_ENSURE(layout_tree.root_node.widget != nullptr);
+
+    root_view.build(layout_tree.root_node, nullptr, 0);
+    clean();
   }
 
-  void tick(std::chrono::nanoseconds const &interval) {}
+  void tick(std::chrono::nanoseconds const &) {}
 };
 
 }  // namespace ui

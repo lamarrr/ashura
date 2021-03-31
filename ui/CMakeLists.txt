@@ -8,8 +8,12 @@ target_compile_definitions(vlk_ui PUBLIC SK_VULKAN)
 
 add_executable(
   vlk_ui_test
-  tests/constraint_solver_test.cc tests/compositor_test.cc
-  tests/snapshot_test.cc tests/widget_test.cc tests/layout_test.cc
+  tests/constraint_solver_test.cc
+  tests/compositor_test.cc
+  tests/snapshot_test.cc
+  tests/widget_test.cc
+  tests/layout_test.cc
+  tests/pipeline_test.cc
   tests/raster_tiles_test.cc)
 
 target_link_libraries(vlk_ui_test gtest gtest_main vlk_ui)

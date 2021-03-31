@@ -18,8 +18,8 @@ using Normalized =
         // buffer where we are not exposing the depth bit or byte per pixel
 
 struct IOffset {
-  int64_t x;
-  int64_t y;
+  int64_t x = 0;
+  int64_t y = 0;
 };
 
 inline constexpr IOffset operator+(IOffset const &a, IOffset const &b) {
@@ -35,8 +35,8 @@ inline constexpr bool operator!=(IOffset const &a, IOffset const &b) {
 }
 
 struct Offset {
-  uint32_t x;
-  uint32_t y;
+  uint32_t x = 0;
+  uint32_t y = 0;
 
   explicit constexpr operator IOffset() const { return IOffset{x, y}; }
 };
@@ -54,11 +54,15 @@ inline constexpr bool operator!=(Offset const &a, Offset const &b) {
 }
 
 struct Extent {
-  uint32_t width;
-  uint32_t height;
+  uint32_t width = 0;
+  uint32_t height = 0;
 
-  constexpr bool is_visible() const { return width != 0 && height != 0; }
+  constexpr bool visible() const { return width != 0 && height != 0; }
 };
+
+inline constexpr Extent operator+(Extent const &a, Extent const &b) {
+  return Extent{a.width + b.width, a.height + b.height};
+}
 
 inline constexpr bool operator==(Extent const &a, Extent const &b) {
   return a.width == b.width && a.height == b.height;
@@ -296,11 +300,11 @@ constexpr auto Magenta = Color::from_rgb(0xFF, 0x00, 0xFF);
 struct Edges {
   uint32_t top = 0, right = 0, bottom = 0, left = 0;
 
-  static constexpr Edges uniform(uint32_t value) {
+  static constexpr Edges all(uint32_t value) {
     return Edges{value, value, value, value};
   }
 
-  static constexpr Edges xy(uint32_t x, uint32_t y) {
+  static constexpr Edges symmetric(uint32_t x, uint32_t y) {
     return Edges{y, x, y, x};
   }
 
@@ -321,7 +325,7 @@ inline constexpr bool operator!=(Edges const &a, Edges const &b) {
 struct Corners {
   uint32_t top_left = 0, top_right = 0, bottom_right = 0, bottom_left = 0;
 
-  static constexpr Corners uniform(uint32_t value) {
+  static constexpr Corners all(uint32_t value) {
     return Corners{value, value, value, value};
   }
 

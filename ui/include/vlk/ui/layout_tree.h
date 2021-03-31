@@ -16,13 +16,9 @@
 namespace vlk {
 namespace ui {
 
-// on layout dirty, this must update the view tree
-// whilst these trees use a std::vector, we try to ensure that the addresses
-// (even the ones in the callbacks) are valid and updated as necessary
-//
-//
-// this tree is very hazardrous and fragile to memory addresses, be sure to know
-// what you're doing, especially whilst binding references
+// this tree is very hazardrous and fragile with memory addresses, be sure to
+// know what you're doing, especially whilst binding references to nodes whithin
+// callbacks.
 //
 //
 // the layout tree also connects to other widgets and is like the proxy to
@@ -30,9 +26,9 @@ namespace ui {
 //
 //
 
-constexpr Extent apply_flex_fit(Flex::Direction direction, Flex::Fit main_fit,
-                                Flex::Fit cross_fit, Extent const &span,
-                                Extent const &allotted_extent) {
+constexpr Extent flex_fit(Flex::Direction direction, Flex::Fit main_fit,
+                          Flex::Fit cross_fit, Extent const &span,
+                          Extent const &allotted_extent) {
   Extent result = {};
 
   if (main_fit == Flex::Fit::Shrink) {
@@ -68,163 +64,159 @@ constexpr Extent apply_flex_fit(Flex::Direction direction, Flex::Fit main_fit,
   return result;
 }
 
+// returns the content rect relative to the resolved_extent
+constexpr std::pair<Rect, Padding> resolve_content_rect(
+    Extent const &resolved_extent, Padding const &padding) {
+  uint32_t const resolved_padding_top =
+      std::min(padding.top, resolved_extent.height);
+  uint32_t const resolved_padding_bottom =
+      std::min(resolved_extent.height - resolved_padding_top, padding.bottom);
+
+  uint32_t const resolved_padding_left =
+      std::min(padding.left, resolved_extent.width);
+  uint32_t const resolved_padding_right =
+      std::min(resolved_extent.width - resolved_padding_left, padding.right);
+
+  Offset const offset{resolved_padding_left, resolved_padding_top};
+  Extent const extent{
+      resolved_extent.width - resolved_padding_left - resolved_padding_right,
+      resolved_extent.height - resolved_padding_top - resolved_padding_bottom};
+
+  return std::make_pair(
+      Rect{offset, extent},
+      Padding::trbl(resolved_padding_top, resolved_padding_right,
+                    resolved_padding_bottom, resolved_padding_left));
+}
+
 struct LayoutTree {
   struct Node {
     /// target widget
-    Widget *widget;
+    Widget *widget{};
 
     /// target widget type
-    Widget::Type type;
+    Widget::Type type{};
 
     /// part of the parent view this widget occupies
-    Extent self_extent;
+    Extent self_extent{};
 
     /// part of the parent widget this widget occupies
-    Offset parent_offset;
+    Offset parent_offset{};
 
     /// initial parent view offset for this widget
-    Offset parent_view_offset;
+    Offset parent_view_offset{};
 
     /// for view widgets
-    Extent view_extent;
-
-    /// lets us know how deep into the heirarchy tree we are
-    uint64_t tree_depth;
+    Extent view_extent{};
 
     /// the child nodes (corresponds to child widgets)
-    std::vector<Node> children;
-
-    bool has_children() const { return !children.empty(); }
-
-    // forcing parent widgets to allow a child to detach itself can be
-    // catastrophic. ie. if the parent widget forgets to detach or pass in a
-    // reference
-    // TODO(lamarrr): fix this
-    struct LinkInfo {
-      struct View {
-        uintptr_t parent_view;
-        size_t parent_view_index;
-      } view_loc;
-
-      size_t render_tree_loc;
-    } link_info;
+    std::vector<Node> children{};
   };
 
-  Node root_node;
-
-  struct ChildrenUpdateRequest {
-    uint64_t tree_depth;
-    Node *node;
-  };
-
-  std::vector<ChildrenUpdateRequest> children_update_requests;
+  Node root_node{};
+  Extent allotted_extent{0, 0};
 
   // for now, we just re-perform layout when any of the widgets is dirty
-  bool is_layout_dirty;
-
-  /// sorted by tree depth (highest to lowest)
-  /// TODO(lamarrr): test
-  void submit_children_update_request(ChildrenUpdateRequest &&value) {
-    size_t partition_start = 0;
-    for (; partition_start < children_update_requests.size();
-         partition_start++) {
-      if (children_update_requests[partition_start].tree_depth <=
-          value.tree_depth)
-        break;
-    }
-
-    size_t partition_end = partition_start;
-
-    for (; partition_end < children_update_requests.size(); partition_end++) {
-      // if already inserted
-      if (value.tree_depth ==
-              children_update_requests[partition_end].tree_depth &&
-          value.node == children_update_requests[partition_end].node) {
-        return;
-      }
-
-      // this is the end of the partition
-      if (children_update_requests[partition_end].tree_depth < value.tree_depth)
-        break;
-    }
-
-    children_update_requests.insert(
-        children_update_requests.begin() + partition_end, std::move(value));
-  }
+  bool is_layout_dirty = false;
 
   // if we resize will the view be able to keep track of its translation?
   static void perform_layout(LayoutTree::Node &node,
                              Extent const &allotted_extent,
                              Offset const &parent_view_offset) {
+    // assumptions:
+    //          - being infinite in size is ok, it won't be drawn anyway
+    //          - there's no numeric overflow since the parent can't allot
+    //          more than its own extent and the constraint parameters
+    //          enforces that for the children via clamping, so even if the
+    //          child widget has a fixed extent, its resulting extent can't
+    //          exceed the parent's
+
     Widget const &widget = *node.widget;
+
+    Widget::Type const type = widget.get_type();
 
     SelfExtent const self_extent = widget.get_self_extent();
     Extent const resolved_self_extent = self_extent.resolve(allotted_extent);
 
-    // TODO(lamarrr): what if this is a flex that doesn't have children?
-    // or view without children?
-    if (node.has_children()) {
+    ViewExtent const view_extent = widget.get_view_extent();
+    Extent const resolved_view_extent = view_extent.resolve(allotted_extent);
+
+    Padding const padding = widget.get_padding();
+
+    if (widget.is_flex()) {
       Flex const flex = widget.get_flex();
 
-      ViewExtent const view_extent = widget.get_view_extent();
-
-      // TODO(lamarrr): being infinite in size is ok???? it won't be drawn
-      // anyway????
-      Extent const resolved_view_extent = view_extent.resolve(allotted_extent);
+      auto const [view_content_rect, resolved_view_padding] =
+          resolve_content_rect(resolved_view_extent, padding);
+      auto const [self_content_rect, resolved_self_padding] =
+          resolve_content_rect(resolved_self_extent, padding);
 
       Extent const flex_span = perform_flex_children_layout(
           flex,
-          node.type == Widget::Type::View ? resolved_view_extent
-                                          : resolved_self_extent,
+          type == Widget::Type::View ? view_content_rect.extent
+                                     : self_content_rect.extent,
           node.children);
 
-      // layout of children along parent is now done, we can now layout along
-      // the view
+      // layout of children along parent is now done,
+      // but the layout is performed relative to the {0, 0} offset along the
+      // content rect (not respecting the padding).
+      //
+      // we also now need to initialize the layout along the parent view.
       for (LayoutTree::Node &child : node.children) {
+        child.parent_offset =
+            child.parent_offset + (type == Widget::Type::View
+                                       ? view_content_rect.offset
+                                       : self_content_rect.offset);
+
         child.parent_view_offset =
-            node.type == Widget::Type::View
+            type == Widget::Type::View
                 ? child.parent_offset
                 : (parent_view_offset + child.parent_offset);
       }
 
-      if (node.type == Widget::Type::View) {
+      if (type == Widget::Type::View) {
         node.self_extent = resolved_self_extent;
-        // unconstrained
+        auto const fitted_view_content_extent =
+            flex_fit(flex.direction, flex.main_fit, flex.cross_fit, flex_span,
+                     view_content_rect.extent);
+        // padding already has a higher priority and its space is always
+        // deducted first from the allotted extent
+        //  so there's no need for re-calculating the padding.
         node.view_extent =
-            apply_flex_fit(flex.direction, flex.main_fit, flex.cross_fit,
-                           flex_span, Extent{vlk::u32_max, vlk::u32_max});
+            fitted_view_content_extent +
+            Extent{resolved_view_padding.left + resolved_view_padding.top,
+                   resolved_view_padding.top + resolved_view_padding.bottom};
+
       } else {
+        auto const fitted_self_content_extent =
+            flex_fit(flex.direction, flex.main_fit, flex.cross_fit, flex_span,
+                     self_content_rect.extent);
         node.self_extent =
-            apply_flex_fit(flex.direction, flex.main_fit, flex.cross_fit,
-                           flex_span, allotted_extent);
+            fitted_self_content_extent +
+            Extent{resolved_self_padding.left + resolved_self_padding.top,
+                   resolved_self_padding.top + resolved_self_padding.bottom};
+
         // really shouldn't be used for non-view widgets, but set for
-        // correctness
+        // correctness purpose
         node.view_extent = node.self_extent;
       }
     } else {
       node.self_extent = resolved_self_extent;
-      node.view_extent = node.self_extent;
+      node.view_extent = type == Widget::Type::View ? resolved_view_extent
+                                                    : resolved_self_extent;
     }
   }
 
   template <Flex::Direction direction>
   static Extent perform_flex_children_layout_(
-      Flex const &flex, Extent const &self_extent,
+      Flex const &flex, Extent const &content_extent,
 
       stx::Span<LayoutTree::Node> const &children) {
     for (LayoutTree::Node &child : children) {
-      // TODO(lamarrr): backing up scroll offsets
-      //
-      //
       // the width allotted to these child widgets **must** be
       // constrained, this especially due to the view widgets that may have a
       // u32_max extent. overflow shouldn't occur since the child widget's
       // extent is resolved using the parent's
-      perform_layout(child, self_extent, Offset{0, 0});
-
-      VLK_ENSURE(child.self_extent.width != u32_max &&
-                     child.self_extent.height != u32_max,
-                 "", *child.widget);
+      perform_layout(child, content_extent, Offset{0, 0});
     }
 
     Flex::CrossAlign const cross_align = flex.cross_align;
@@ -252,17 +244,17 @@ struct LayoutTree {
     // extent
     if (cross_align != Flex::CrossAlign::Start) {
       if constexpr (direction == Flex::Direction::Row) {
-        flex_span.height = self_extent.height;
+        flex_span.height = content_extent.height;
       } else {
-        flex_span.width = self_extent.width;
+        flex_span.width = content_extent.width;
       }
     }
 
     if (main_align != Flex::MainAlign::Start) {
       if constexpr (direction == Flex::Direction::Row) {
-        flex_span.width = self_extent.width;
+        flex_span.width = content_extent.width;
       } else {
-        flex_span.height = self_extent.height;
+        flex_span.height = content_extent.height;
       }
     }
 
@@ -277,14 +269,14 @@ struct LayoutTree {
       auto next_child_it = child_it + 1;
 
       // next widget is at the end of the block or at the end of the children
-      // list
+      // list, then we need to perform alignment
       if ((next_child_it < children.end() &&
            ((direction == Flex::Direction::Row &&
              (child_it->parent_offset.x + child_it->self_extent.width +
-              next_child_it->self_extent.width) > self_extent.width) ||
+              next_child_it->self_extent.width) > content_extent.width) ||
             (direction == Flex::Direction::Column &&
              (child_it->parent_offset.y + child_it->self_extent.height +
-              next_child_it->self_extent.height) > self_extent.height))) ||
+              next_child_it->self_extent.height) > content_extent.height))) ||
           next_child_it == children.end()) {
         // each block will have at least one widget
         for (auto &child :
@@ -302,10 +294,12 @@ struct LayoutTree {
           if (cross_align == Flex::CrossAlign::Start) {
             if constexpr (direction == Flex::Direction::Row) {
               flex_span.height =
-                  std::max(flex_span.height, self_extent.height - cross_space);
+                  std::max(flex_span.height,
+                           child.parent_offset.y + child.self_extent.height);
             } else {
               flex_span.width =
-                  std::max(flex_span.width, self_extent.width - cross_space);
+                  std::max(flex_span.width,
+                           child.parent_offset.x + child.self_extent.width);
             }
           }
 
@@ -313,10 +307,12 @@ struct LayoutTree {
           if (main_align == Flex::MainAlign::Start) {
             if constexpr (direction == Flex::Direction::Row) {
               flex_span.width =
-                  std::max(flex_span.width, self_extent.width - cross_space);
+                  std::max(flex_span.width,
+                           child.parent_offset.x + child.self_extent.width);
             } else {
               flex_span.height =
-                  std::max(flex_span.height, self_extent.height - cross_space);
+                  std::max(flex_span.height,
+                           child.parent_offset.y + child.self_extent.height);
             }
           }
 
@@ -339,21 +335,15 @@ struct LayoutTree {
               // re-layout the child to the max block height
               if (child.self_extent.height != block_max_height) {
                 perform_layout(*child_it,
-                               Extent{self_extent.width, block_max_height},
+                               Extent{content_extent.width, block_max_height},
                                Offset{0, 0});
-                VLK_ENSURE(child.self_extent.width != u32_max &&
-                               child.self_extent.height != u32_max,
-                           "", *child.widget);
               }
             } else {
               // re-layout the child to the max block width
               if (child.self_extent.width != block_max_width) {
                 perform_layout(*child_it,
-                               Extent{block_max_width, self_extent.height},
+                               Extent{block_max_width, content_extent.height},
                                Offset{0, 0});
-                VLK_ENSURE(child.self_extent.width != u32_max &&
-                               child.self_extent.height != u32_max,
-                           "", *child.widget);
               }
             }
           } else if (cross_align == Flex::CrossAlign::Start || true) {
@@ -364,11 +354,11 @@ struct LayoutTree {
         uint32_t main_space = 0;
 
         if constexpr (direction == Flex::Direction::Row) {
-          main_space = self_extent.width - (child_it->parent_offset.x +
-                                            child_it->self_extent.width);
+          main_space = content_extent.width - (child_it->parent_offset.x +
+                                               child_it->self_extent.width);
         } else {
-          main_space = self_extent.height - (child_it->parent_offset.y +
-                                             child_it->self_extent.height);
+          main_space = content_extent.height - (child_it->parent_offset.y +
+                                                child_it->self_extent.height);
         }
 
         uint32_t num_block_children = next_child_it - present_block_start;
@@ -462,14 +452,15 @@ struct LayoutTree {
             present_offset.x = 0;
             present_offset.y += block_max_height;
           } else {
-            present_offset.y = 0;
             present_offset.x += block_max_width;
+            present_offset.y = 0;
           }
 
           present_block_start = child_it + 1;
         }
 
       } else {
+        // no wrapping nor alignment needed
         if constexpr (direction == Flex::Direction::Row) {
           present_offset.x += child_it->self_extent.width;
         } else {
@@ -495,15 +486,14 @@ struct LayoutTree {
     }
   }
 
-  void clean(Extent const &allotted_extent) {
-    perform_layout(root_node, allotted_extent, Offset{0, 0});
-    is_layout_dirty = false;
+  void allot_extent(Extent const &new_allotted_extent) {
+    allotted_extent = new_allotted_extent;
+    is_layout_dirty = true;
   }
 
-  void build_node(Widget &widget, LayoutTree::Node &node, uint64_t tree_depth) {
+  void build_node(Widget &widget, LayoutTree::Node &node) {
     node.widget = &widget;
     node.type = node.widget->get_type();
-    node.tree_depth = tree_depth;
 
     WidgetStateProxyAccessor::access(widget).on_layout_dirty = [this] {
       this->is_layout_dirty = true;
@@ -514,105 +504,23 @@ struct LayoutTree {
     node.children.resize(num_children, LayoutTree::Node{});
 
     for (size_t i = 0; i < num_children; i++) {
-      build_node(*widget.get_children()[i], node.children[i], tree_depth + 1);
+      build_node(*widget.get_children()[i], node.children[i]);
     }
-
-    // we don't really want to process this imeediately as the user could misuse
-    // it and dereference data that shouldn't be dereferenced, we need a vector
-    // to store the dirty children info, instead of modifying it here any
-    // binded-to structure must not be moved nor its address changed
-    WidgetStateProxyAccessor::access(widget).on_children_changed = [&node,
-                                                                    this] {
-      // optimizations: if it is a view type, detach the whole view from the
-      // view tree
-      // node.detach_info;
-      // notify us of children changed or should we make modifications here?
-      //
-      // recursively detach child nodes from view tree with a best-case of it
-      // being a view (thid means we need to pass a boolean paramter to signify
-      // if it has already been removed) recursively detach child noes from the
-      // render tree
-      //
-      // void * view_tree_binding;
-      // view tree would have to reference some structs here
-      //
-      // on detach, the listeners must be removed
-      //
-      // we need to prevent the user callback from calling this multiple times
-      // what if a child has already been removed? we need to sort requests by
-      // tree depth too so we first remove the one at the lowest depth before
-      // proceeding upwards
-      //
-      // how do we remove widgets and what data structures are necessary? we'll
-      // need the view pointer from removing from the view tree, and the widget
-      // pointer for removing from the raster tree (we could back up the z-index
-      // to make searching on the raster tree faster)
-      //
-      //
-      //
-      //
-      //
-      // TODO(lamarrr): how do we process in trasversal order? i.e. if the
-      // parent is detached before the child and a new detach for the child
-      // comes in, we'd be referencing a dead node. we might need a fast tag to
-      // recognize the hierarchical relationship.
-      //
-      // perform a priority insertion with the lowest tree index being the first
-      // in the slot
-      //
-      //
-      // recurse into children, remove child from the render tree, and view tree
-      // and then remove from layout tree
-      //
-      // now do this for the lower tree depth widgets
-      //
-      //
-      // test for uniqueness, find request insertion position using partition
-      //
-      //
-      //
-      //
-      //
-      // Pop from layout tree, then pop from render tree and mark the area they
-      // occupy as dirty
-      //
-      //
-      //
-      //
-      //
-      ChildrenUpdateRequest request{};
-      request.node = &node;
-      request.tree_depth = node.tree_depth;
-      this->submit_children_update_request(std::move(request));
-    };
   }
 
-  void build(Widget &widget) {
-    VLK_ENSURE(!this->root_node.has_children());
-    VLK_ENSURE(this->root_node.widget == nullptr);
+  void build(Widget &root_widget) {
+    root_node = {};
+    build_node(root_widget, root_node);
 
-    root_node.self_extent = {};
-    root_node.parent_offset = {};
-    root_node.view_extent = {};
-
-    build_node(widget, root_node, 0);
+    VLK_ENSURE(root_node.self_extent.width != u32_max);
+    VLK_ENSURE(root_node.self_extent.height != u32_max);
   }
 
-  // just recursively detach all callbacks
-  void teardown();
-
-  void tick(std::chrono::nanoseconds const &interval) {
-    // tick all widgets
-    // TODO(lamarrr): how to process detach requests whilst preserving cache
-    // process view offset
-    // process dirtiness
-    // rasterize
-    // forward changes to backing store
-    // repeat
-    for (auto const &children_update_request : children_update_requests) {
+  void tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
+    if (is_layout_dirty) {
+      perform_layout(root_node, allotted_extent, Offset{0, 0});
+      is_layout_dirty = false;
     }
-
-    children_update_requests.clear();
   }
 };
 

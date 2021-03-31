@@ -16,6 +16,13 @@
 
 namespace vlk {
 namespace ui {
+// how do we re-record the raster tile content? without allocating extra memory
+// too frequently
+// what if we store chunks in each tile?
+
+// raster cache, even view widgets are added here, all widgets are layout
+// widgets, we thus don't reed a separate view on the render tree
+
 
 // this should cover the whole extent of the widgets. this should be allotted to
 // the size of the root view widget. they are only activated when in focus, this
@@ -32,7 +39,7 @@ struct RasterCache {
         is_recording_{false},
         recorder_{},
         cull_rect_{cull_rect} {
-    VLK_DEBUG_ENSURE(cull_rect.extent.is_visible());
+    VLK_ENSURE(cull_rect.extent.visible());
   }
 
   // NOTE: copy & move constructor/assignment were disabled for
@@ -68,10 +75,14 @@ struct RasterCache {
     return *this;
   }
 
+  bool has_recording() const { return picture_ != nullptr; }
+
+  bool has_surface() const { return surface_ != nullptr; }
+
   bool is_recording() const { return is_recording_; }
 
   void begin_recording() {
-    VLK_DEBUG_ENSURE(!is_recording());
+    VLK_ENSURE(!is_recording());
     is_recording_ = true;
     recorder_.beginRecording(
         SkRect::MakeXYWH(cull_rect_.offset.x, cull_rect_.offset.y,
@@ -79,25 +90,23 @@ struct RasterCache {
   }
 
   void finish_recording() {
-    VLK_DEBUG_ENSURE(is_recording());
+    VLK_ENSURE(is_recording());
     is_recording_ = false;
+    picture_ = recorder_.finishRecordingAsPicture();
   }
 
   void discard_recording() { picture_.reset(); }
 
-  bool has_picture() const { return picture_ != nullptr; }
-  bool has_surface() const { return surface_ != nullptr; }
-
   Canvas get_recording_canvas() {
-    VLK_DEBUG_ENSURE(is_recording());
+    VLK_ENSURE(is_recording());
     SkCanvas* recording_canvas = recorder_.getRecordingCanvas();
-    VLK_DEBUG_ENSURE(recording_canvas != nullptr);
+    VLK_ENSURE(recording_canvas != nullptr);
     return Canvas::from_skia(*recording_canvas, cull_rect_.extent);
   }
 
   void init_surface(RasterContext& context) {
     // initialize cache with a surface the size of extent
-    VLK_DEBUG_ENSURE(cull_rect_.extent.is_visible());
+    VLK_ENSURE(cull_rect_.extent.visible());
     surface_ = context.create_target_surface(cull_rect_.extent);
   }
 
@@ -106,17 +115,30 @@ struct RasterCache {
   bool is_surface_init() const { return surface_ != nullptr; }
 
   void rasterize() {
-    VLK_DEBUG_ENSURE(is_surface_init());
+    VLK_ENSURE(is_surface_init());
     SkCanvas* canvas = surface_->getCanvas();
     canvas->clear(SK_ColorTRANSPARENT);
     canvas->drawPicture(picture_);
     surface_->flushAndSubmit(false);
   }
 
-  void draw_to(SkCanvas& canvas, IOffset const& offset) {
-    VLK_DEBUG_ENSURE(is_surface_init());
+  void draw_cache_to(SkCanvas& canvas, IOffset const& offset) {
+    VLK_ENSURE(is_surface_init());
     surface_->draw(&canvas, static_cast<int>(offset.x),
                    static_cast<int>(offset.y), nullptr);
+  }
+
+  size_t storage_size() const {
+    if (surface_ == nullptr) return 0;
+    return surface_->imageInfo().computeByteSize(
+        surface_->imageInfo().minRowBytes());
+  }
+
+  // provides re-using the cache surface. NOTE: it doesn't discard its surface
+  // nor recording
+  void recycle(IOffset new_cull_offset) {
+    VLK_ENSURE(!is_recording());
+    cull_rect_.offset = new_cull_offset;
   }
 
  private:
