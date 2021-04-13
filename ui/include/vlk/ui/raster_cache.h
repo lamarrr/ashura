@@ -122,10 +122,12 @@ struct RasterCache {
     surface_->flushAndSubmit(false);
   }
 
-  void draw_cache_to(SkCanvas& canvas, IOffset const& offset) {
+  void write_to(SkCanvas& canvas, IOffset const& offset) {
     VLK_ENSURE(is_surface_init());
+    SkPaint paint;
+    paint.setBlendMode(SkBlendMode::kSrc);
     surface_->draw(&canvas, static_cast<int>(offset.x),
-                   static_cast<int>(offset.y), nullptr);
+                   static_cast<int>(offset.y), &paint);
   }
 
   size_t storage_size() const {
