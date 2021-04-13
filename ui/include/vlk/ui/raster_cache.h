@@ -1,8 +1,10 @@
 #pragma once
 
+#include <fstream>
 #include <utility>
 
 #include "include/core/SkCanvas.h"
+#include "include/core/SkImage.h"
 #include "include/core/SkPicture.h"
 #include "include/core/SkPictureRecorder.h"
 #include "include/core/SkSurface.h"
@@ -23,24 +25,22 @@ namespace ui {
 // raster cache, even view widgets are added here, all widgets are layout
 // widgets, we thus don't reed a separate view on the render tree
 
-
-// this should cover the whole extent of the widgets. this should be allotted to
-// the size of the root view widget. they are only activated when in focus, this
-// optimizes for scrolling especially when the content don't really change and
-// only their raster content change.
 struct RasterCache {
   // a render widget will belong to at least one tile.
   // each render widget will thus need to send a dirtiness notification to at
   // least one tile.
-  RasterCache(
+  explicit RasterCache(
       IRect const& cull_rect)  // float pixel_ratio = 1.0f shouldn't be here
       : surface_{nullptr},
         picture_{nullptr},
         is_recording_{false},
         recorder_{},
         cull_rect_{cull_rect} {
-    VLK_ENSURE(cull_rect.extent.visible());
+    VLK_ENSURE(cull_rect.visible());
   }
+
+  explicit RasterCache(Extent const& extent)
+      : RasterCache{IRect{IOffset{0, 0}, extent}} {}
 
   // NOTE: copy & move constructor/assignment were disabled for
   // SkPictureRecorder, so the ones here are basically workarounds
@@ -84,9 +84,9 @@ struct RasterCache {
   void begin_recording() {
     VLK_ENSURE(!is_recording());
     is_recording_ = true;
-    recorder_.beginRecording(
-        SkRect::MakeXYWH(cull_rect_.offset.x, cull_rect_.offset.y,
-                         cull_rect_.extent.width, cull_rect_.extent.height));
+    recorder_.beginRecording(SkRect::MakeXYWH(cull_rect_.x(), cull_rect_.y(),
+                                              cull_rect_.width(),
+                                              cull_rect_.height()));
   }
 
   void finish_recording() {
@@ -106,8 +106,13 @@ struct RasterCache {
 
   void init_surface(RasterContext& context) {
     // initialize cache with a surface the size of extent
-    VLK_ENSURE(cull_rect_.extent.visible());
+    VLK_ENSURE(cull_rect_.visible());
     surface_ = context.create_target_surface(cull_rect_.extent);
+  }
+
+  SkSurface& get_surface_ref() {
+    VLK_ENSURE(is_surface_init());
+    return *surface_;
   }
 
   void deinit_surface() { surface_.reset(); }
