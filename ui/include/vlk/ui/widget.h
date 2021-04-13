@@ -91,6 +91,12 @@ struct Widget {
         debug_info_{debug_info},
         state_proxy_{} {}
 
+  Widget(Widget const &) = delete;
+  Widget(Widget &&) = delete;
+
+  Widget &operator=(Widget const &) = delete;
+  Widget &operator=(Widget &&) = delete;
+
   Type get_type() const { return type_; }
 
   bool is_flex() const { return is_flex_; }
