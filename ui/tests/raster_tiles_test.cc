@@ -11,7 +11,7 @@ TEST(RasterTilesTest, BasicTest) {
   EXPECT_EQ(tiles.rows(), (1920 + 256) / 256);
   EXPECT_EQ(tiles.columns(), (1080 + 256) / 256);
 
-EXPECT_EQ(tiles.rows() * tiles.columns(), tiles.get_tiles().size());
+  EXPECT_EQ(tiles.rows() * tiles.columns(), tiles.get_tiles().size());
 
   for (RasterTiles::Tile& tile : tiles.get_tiles()) {
     EXPECT_FALSE(tile.is_recording());
@@ -20,5 +20,18 @@ EXPECT_EQ(tiles.rows() * tiles.columns(), tiles.get_tiles().size());
     EXPECT_TRUE(tile.is_recording());
     tile.finish_recording();
     EXPECT_FALSE(tile.is_recording());
+  }
+
+  tiles.resize(Extent{1920 * 2, 1080 * 2});
+
+  EXPECT_EQ(tiles.rows(), (1920 * 2 + 256) / 256);
+  EXPECT_EQ(tiles.columns(), (1080 * 2 + 256) / 256);
+
+  RasterContext context;
+
+  for (RasterTiles::Tile& tile : tiles.get_tiles()) {
+    EXPECT_FALSE(tile.is_surface_init());
+    tile.init_surface(context);
+    EXPECT_TRUE(tile.is_surface_init());
   }
 }
