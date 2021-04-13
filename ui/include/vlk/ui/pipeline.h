@@ -1,68 +1,114 @@
 #pragma once
 
+#include "vlk/ui/layout.h"
 #include "vlk/ui/layout_tree.h"
 #include "vlk/ui/tile_cache.h"
 #include "vlk/ui/view_tree.h"
+#include "vlk/ui/viewport.h"
 #include "vlk/ui/widget.h"
 
 namespace vlk {
 namespace ui {
 
-void recursive_tick(Widget& widget, std::chrono::nanoseconds const& interval) {
-  widget.tick(interval);
-
-  for (Widget* child : widget.get_children()) {
-    recursive_tick(*child, interval);
-  }
-}
-
 struct Pipeline {
-  RasterContext* context = nullptr;
-  Widget* root_widget = nullptr;
+  Widget* root_widget;
+  impl::Viewport viewport;
+  RasterContext raster_context;
 
-  LayoutTree layout_tree{};
-  ViewTree view_tree{};
-  TileCache tile_cache{};
+  LayoutTree layout_tree;
+  ViewTree view_tree;
+  TileCache tile_cache;
 
   bool needs_rebuild = false;
 
-  void bind(Widget& widget) {
-    // we don't really want to process this imeediately as the user could misuse
-    // it and dereference data that shouldn't be dereferenced, we need a vector
-    // to store the dirty children info, instead of modifying it here any
-    // binded-to structure must not be moved nor its address changed
+  Pipeline(Widget& init_root_widget, impl::Viewport init_viewport = {},
+           RasterContext init_raster_context = RasterContext{})
+      : root_widget{&init_root_widget},
+        viewport{init_viewport},
+        raster_context{init_raster_context},
+        layout_tree{},
+        view_tree{},
+        tile_cache{} {
+    // pass widget to pipeline => bind on children changed
+    // pass to layout tree => bind on layout changed
+    // pass to view tree => bind on view offset changed
+    // pass to tile_cache => bind on raster dirty
+
+    build_references(*root_widget);
+
+    layout_tree.build(*root_widget);
+    view_tree.build(layout_tree);
+    tile_cache.build(view_tree, raster_context);
+
+    // we might need to tell the root view to expand or shrink? or preserve its
+    // requested size?
+    //
+    //
+    // we might need to force this on the layout and view tree
+    //
+    // the root view should not scroll it's self_extent should correspond to the
+    // tiles extent
+    // does the layout tree take care of this? how?
+    // or the root view should make its self_extent equal to the view_extent
+    // both can be allocated infinite extents
+
+    viewport.get_on_resize() = [this] {
+      Extent const new_viewport_extent = viewport.get_extent();
+      Extent const widgets_allocation =
+          viewport.get_widgets_allocation().resolve(new_viewport_extent);
+
+      // if the new extent is invisible we will not respond to the request, we
+      // can't have a zero-sized surface
+      if (new_viewport_extent.visible() &&
+          new_viewport_extent != tile_cache.viewport_extent) {
+        // responsive viewport-based layout, lol
+        // the view is cleaned when the layout becomes dirty (see:
+        // `Pipeline::tick` method)
+        layout_tree.allot_extent(widgets_allocation);
+        tile_cache.resize_viewport(new_viewport_extent);
+      }
+    };
+
+    viewport.get_on_scroll() = [this] {
+      tile_cache.scroll_viewport(viewport.get_offset());
+    };
+
+    viewport.get_on_resize()();
+    viewport.get_on_scroll()();
+  }
+
+  Pipeline(Pipeline&&) = delete;
+  Pipeline(Pipeline const&) = delete;
+  Pipeline& operator=(Pipeline const&) = delete;
+  Pipeline& operator=(Pipeline&&) = delete;
+
+  ~Pipeline() = default;
+
+  void build_references(Widget& widget) {
+    // we don't really want to process this imediately as the user could misuse
+    // it and dereference data that shouldn't be dereferenced
+    //
+    // any binded-to structure must not be moved nor its address changed
     WidgetStateProxyAccessor::access(widget).on_children_changed = [this] {
       this->needs_rebuild = true;
     };
 
     for (Widget* child : widget.get_children()) {
-      bind(*child);
+      build_references(*child);
     }
   }
 
-  // TODO(lamarrr): we need to keep track of the present_view_offset so we can
-  // get that for the view while re-initializing the view tree and maintain the
-  // offset.
-
-  void build(Widget& new_root_widget, RasterContext& raster_context) {
-    // pass widget to pipeline => bind on children changed
-    // pass link tree to layout tree => bind on layout changed
-    // pass link tree to view tree => bind on view offset changed
-    // pass link tree to tile_cache => bind on raster dirty
-
-    root_widget = &new_root_widget;
-
-    layout_tree = {};
-    view_tree = {};
-
-    bind(*root_widget);
-    layout_tree.build(*root_widget);
-    view_tree.build(layout_tree);
-    tile_cache.build(view_tree, raster_context);
-  }
-
-  // root widget must be constant and be re-used.
+  // root widget must be constant and be re-used?
   void rebuild() {}
+
+  static void recursive_tick(Widget& widget,
+                             std::chrono::nanoseconds const& interval) {
+    widget.tick(interval);
+
+    for (Widget* child : widget.get_children()) {
+      recursive_tick(*child, interval);
+    }
+  }
 
   void tick(std::chrono::nanoseconds const& interval) {
     // child will be removed as necessary from the tick callback. of course we
@@ -92,43 +138,35 @@ struct Pipeline {
       // we should probably detach the callbacks in the
       // mark_children_changed callback itself?. no the span would have gone out
       // of mem
-
-      rebuild();
-
+      //
       // needs resizing to match and possibly discarding of recordings, just
       // mark all as dirty and recording will be updated anyway we need to
       // re-use this as it can be expensive
-      for (size_t i = 0; i < tile_cache.tile_is_dirty.size(); i++) {
-        tile_cache.tile_is_dirty[i] = true;
-      }
-
+      //
       // for the view tree, after detaching the view, the children can still
       // make callbacks, won't that be fatal? rebuild tile cache too and modify
       // the callbacks as necessary
 
-      // tile_cache.resize(...);
-      layout_tree.tick(interval);
-
       // TODO(lamarrr): invalidation interaction between view tree and the tile
       // cache
-
-      view_tree.tick(interval);
-      tile_cache.tick(interval);
-    } else {
-      if (layout_tree.is_layout_dirty) {
-        layout_tree.tick(interval);
-        view_tree.clean();
-        view_tree.tick(interval);
-
-        // update bindings since the layout has changed
-        // tile_cache.rebind();
-      }
-
-      tile_cache.tick(interval);
+      // this would mean that we need to re-attach the callbacks after the view
+      // offset become dirty.
+      rebuild();
     }
 
-    // now detach and re-attach to each tree
+    bool const layout_tree_was_dirty = layout_tree.is_layout_dirty;
+    layout_tree.tick(interval);
+    if (layout_tree_was_dirty) {
+      view_tree.force_clean_offsets();
+    }
 
+    view_tree.tick(interval);
+    tile_cache.tick(interval);
+    // if layout tree becomes dirty we need to force a total re-draw by marking
+    // all of the tiles as dirty view_tree.tick(interval);
+
+    // update bindings since the layout has changed
+    // now detach and re-attach to each tree
     // layout cleaning will occur if necessary
   }
 };
