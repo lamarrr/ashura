@@ -75,6 +75,7 @@ struct Widget {
          SelfExtent const &self_extent = {}, Padding const &padding = Padding{},
          Flex const &flex = {}, stx::Span<Widget *const> const &children = {},
          ViewExtent const &view_extent = {}, ViewOffset const &view_offset = {},
+         ViewFit const &view_fit = ViewFit::None,
          stx::Option<ZIndex> const &z_index = stx::None,
          DebugInfo const &debug_info = DebugInfo{})
       : type_{type},
@@ -85,6 +86,7 @@ struct Widget {
         children_{children},
         view_extent_{view_extent},
         view_offset_{view_offset},
+        view_fit_{view_fit},
         z_index_{z_index.clone()},
         debug_info_{debug_info},
         state_proxy_{} {}
@@ -106,6 +108,8 @@ struct Widget {
   ViewExtent get_view_extent() const { return view_extent_; }
 
   ViewOffset get_view_offset() const { return view_offset_; }
+
+  ViewFit get_view_fit() const { return view_fit_; }
 
   stx::Option<ZIndex> get_z_index() const { return z_index_.clone(); }
 
@@ -163,7 +167,12 @@ struct Widget {
     VLK_ENSURE(get_type() == Type::View, "Widget is not a view type", *this);
     view_offset_ = view_offset;
     mark_view_offset_dirty();
-    mark_render_dirty();
+  }
+
+  void update_view_fit(ViewFit view_fit) {
+    VLK_ENSURE(get_type() == Type::View, "Widget is not a view type", *this);
+    view_fit_ = view_fit;
+    mark_layout_dirty();
   }
 
   void init_z_index(stx::Option<ZIndex> const &z_index) {
@@ -213,6 +222,9 @@ struct Widget {
   /// `on_view_offset_changed`.
   /// resolved using the view extent.
   ViewOffset view_offset_;
+
+  // variable throughout lifetime. communicate changes using `on_layout_dirty`
+  ViewFit view_fit_;
 
   /// constant throughout lifetime
   stx::Option<ZIndex> z_index_;
