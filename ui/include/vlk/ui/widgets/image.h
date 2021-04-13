@@ -12,6 +12,118 @@
 namespace vlk {
 namespace ui {
 
+enum class Stretch : uint8_t {
+  None = 0,
+  X = 1,
+  Y = 2,
+  All = X | Y,
+};
+
+inline constexpr Stretch operator|(Stretch a, Stretch b) {
+  return vlk::enum_or(a, b);
+}
+
+inline constexpr Stretch operator&(Stretch a, Stretch b) {
+  return vlk::enum_and(a, b);
+}
+
+// TODO(lamarrr): let's annhilate this and use constraints????
+
+struct RelativeOffset {
+  float x;
+  float y;
+};
+
+struct RelativeExtent {
+  float width;
+  float height;
+};
+
+struct RelativeRect {
+  RelativeOffset offset;
+  RelativeExtent extent;
+};
+
+struct Sizing {
+  enum class Type : uint8_t {
+    // the part of the target used is a portion of the image specified in
+    // pixels
+    Relative,
+    // the part of the target used is a portion of the image specified within
+    // the range of 0.0 to 1.0f and scaled to the target's dimensions
+    Absolute
+  };
+
+  explicit constexpr Sizing(Rect const &rect)
+      : type_{Type::Absolute}, rect_data_{rect} {}
+  explicit constexpr Sizing(RelativeRect const &rect)
+      : type_{Type::Relative}, relative_data_{rect} {}
+
+  constexpr Sizing()
+      : type_{Type::Relative},
+        relative_data_{RelativeRect{{0.0f, 0.0f}, {1.0f, 1.0f}}} {}
+
+  constexpr Sizing(Sizing const &other) = default;
+  constexpr Sizing(Sizing &&other) = default;
+  constexpr Sizing &operator=(Sizing const &other) = default;
+  constexpr Sizing &operator=(Sizing &&other) = default;
+  ~Sizing() = default;
+
+  static constexpr Sizing relative(RelativeRect const &relative) {
+    return Sizing{relative};
+  }
+
+  static constexpr Sizing relative(float offset_x, float offset_y, float width,
+                                   float height) {
+    return Sizing{RelativeRect{RelativeOffset{offset_x, offset_y},
+                               RelativeExtent{width, height}}};
+  }
+
+  static constexpr Sizing relative(float width, float height) {
+    return relative(0.0f, 0.0f, width, height);
+  }
+
+  static constexpr Sizing relative() { return relative(1.0f, 1.0f); }
+
+  static constexpr Sizing absolute(Rect const &rect) { return Sizing{rect}; }
+
+  static constexpr Sizing absolute(uint32_t offset_x, uint32_t offset_y,
+                                   uint32_t width, uint32_t height) {
+    return absolute(Rect{Offset{offset_x, offset_y}, Extent{width, height}});
+  }
+
+  static constexpr Sizing absolute(uint32_t width, uint32_t height) {
+    return absolute(0, 0, width, height);
+  }
+
+  constexpr Type type() const { return type_; }
+
+  stx::Option<RelativeRect> get_relative() const {
+#if VLK_ENABLE_DEBUG_CHECKS
+    if (type_ == Type::Relative) return stx::Some(RelativeRect{relative_data_});
+    return stx::None;
+#else
+    return stx::Some(RelativeRect{relative_data_});
+#endif
+  }
+
+  stx::Option<Rect> get_absolute() const {
+#if VLK_ENABLE_DEBUG_CHECKS
+    if (type_ == Type::Absolute) return stx::Some(Rect{rect_data_});
+    return stx::None;
+#else
+    return stx::Some(Rect{rect_data_});
+#endif
+  }
+
+ private:
+  Type type_;
+  union {
+    RelativeRect relative_data_;
+    Rect rect_data_;
+  };
+};
+
 enum class ImageFormat : uint8_t {
   Rgba8888 = 0,  //!< pixel with 8 bits for red, green, blue, alpha; in 32-bit
                  //!< word
@@ -84,8 +196,7 @@ struct Image : public Widget {
   explicit Image(stx::Span<uint8_t const> const &pixels, ImageInfo const &info,
                  Sizing const &sizing = Sizing::relative())
       : info_{info}, sizing_{sizing} {
-    VLK_ENSURE(info.extent.width * info.extent.height *
-                   channel_size(info.format) ==
+    VLK_ENSURE(info.width() * info.height() * channel_size(info.format) ==
                pixels.size_bytes());
     pixels_.resize(pixels.size_bytes() / sizeof(uint32_t));
     // memory write here is always aligned
@@ -119,8 +230,7 @@ struct Image : public Widget {
   }
 
   virtual void draw(Canvas &canvas, Extent const &requested_extent) override {
-    if (info_.extent.width == 0 || info_.extent.height == 0 || pixels_.empty())
-      return;
+    if (info_.width() == 0 || info_.height() == 0 || pixels_.empty()) return;
 
     SkCanvas *sk_canvas = canvas.as_skia();
 
@@ -128,10 +238,10 @@ struct Image : public Widget {
     sk_sp<SkData> sk_data =
         SkData::MakeWithoutCopy(pixels_.data(), pixels_.size());
     sk_sp<SkImage> image = SkImage::MakeRasterData(
-        SkImageInfo::Make(info_.extent.width, info_.extent.height,
+        SkImageInfo::Make(info_.width(), info_.height(),
                           to_sk_type(info_.format),
                           SkAlphaType::kPremul_SkAlphaType),
-        sk_data, info_.extent.width * 4);
+        sk_data, info_.width() * 4);
     sk_canvas->drawImage(image, 0, 0);
   }
 
