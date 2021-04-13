@@ -9,6 +9,8 @@
 using namespace vlk::ui;
 using namespace vlk;
 
+inline namespace layout_test {
+
 struct MockSized : public Widget {
   MockSized(Extent extent, Padding padding = {}) : Widget{Type::Render} {
     Widget::init_is_flex(false);
@@ -40,16 +42,44 @@ struct MockFlex : public Widget {
   std::vector<Widget*> children_;
 };
 
+struct Body : public Widget {
+  Body(Widget* child, ViewFit const& view_fit) {
+    children_[0] = child;
+    Widget::init_type(Type::View);
+    Widget::init_is_flex(true);
+    Widget::update_children(children_);
+    // flex shrink to original size
+    Widget::update_flex(Flex{});
+    // fit the view_extent onto the self_extent
+    Widget::update_view_fit(view_fit);
+    // we need a way to make self extent match view extent and our problems will
+    // be solved
+    Widget::update_self_extent(SelfExtent{Constrain{1.0f}, Constrain{1.0f}});
+    Widget::update_view_extent(ViewExtent{Constrain{1.0f}, Constrain{1.0f}});
+    Widget::update_padding(Padding{});
+  }
+
+  ~Body() override {
+    // no freeing
+  }
+
+  Widget* children_[1];
+};
+
+}  // namespace layout_test
+
 TEST(LayoutTest, Sized) {
   MockSized sized{Extent{20, 75}, Padding::all(0)};
 
+  Body body = Body{&sized, ViewFit::Width | ViewFit::Height};
+
   LayoutTree tree;
 
-  tree.build(sized);
+  tree.build(body);
   tree.allot_extent(Extent{u32_max, u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
-  auto& node = tree.root_node;
+  auto& node = tree.root_node.children[0];
 
   EXPECT_EQ(node.widget, static_cast<Widget*>(&sized));
   EXPECT_EQ(node.self_extent.width, 20);
@@ -65,11 +95,13 @@ TEST(LayoutTest, SizedPadded) {
 
   LayoutTree tree;
 
-  tree.build(sized);
+  Body body = Body{&sized, ViewFit::Width | ViewFit::Height};
+
+  tree.build(body);
   tree.allot_extent(Extent{u32_max, u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
-  auto& node = tree.root_node;
+  auto& node = tree.root_node.children[0];
 
   EXPECT_EQ(node.widget, static_cast<Widget*>(&sized));
   EXPECT_EQ(node.self_extent.width, 20);
@@ -83,8 +115,8 @@ TEST(LayoutTest, SizedPadded) {
 TEST(LayoutTest, Flex_MainShrink_CrossShrink) {
   MockFlex flex{
       {new MockSized{Extent{20, 20}}, new MockSized{Extent{30, 50}}},
-      Flex{Flex::Direction::Row, Flex::Wrap::Wrap, Flex::MainAlign::Start,
-           Flex::CrossAlign::Start, Flex::Fit::Shrink, Flex::Fit::Shrink},
+      Flex{Direction::Row, Wrap::Wrap, MainAlign::Start, CrossAlign::Start,
+           Fit::Shrink, Fit::Shrink},
       SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
       Padding::all(0)};
 
@@ -124,8 +156,8 @@ TEST(LayoutTest, Flex_MainShrink_CrossShrink) {
 TEST(LayoutTest, Flex_Column) {
   MockFlex flex{
       {new MockSized{Extent{20, 20}}, new MockSized{Extent{30, 50}}},
-      Flex{Flex::Direction::Column, Flex::Wrap::Wrap, Flex::MainAlign::Start,
-           Flex::CrossAlign::Start, Flex::Fit::Shrink, Flex::Fit::Shrink},
+      Flex{Direction::Column, Wrap::Wrap, MainAlign::Start, CrossAlign::Start,
+           Fit::Shrink, Fit::Shrink},
       SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
       Padding::all(0)};
 
@@ -165,9 +197,9 @@ TEST(LayoutTest, Flex_Column) {
 TEST(LayoutTest, Flex_Row_MainAlignCenter_CrossAlignCenter) {
   MockFlex flex{
       {new MockSized{Extent{20, 20}}, new MockSized{Extent{30, 50}}},
-      Flex{Flex::Direction::Row, Flex::Wrap::Wrap, Flex::MainAlign::SpaceEvenly,
-           Flex::CrossAlign::Center, Flex::Fit::Shrink, Flex::Fit::Shrink},
-      SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
+      Flex{Direction::Row, Wrap::Wrap, MainAlign::SpaceEvenly,
+           CrossAlign::Center, Fit::Shrink, Fit::Shrink},
+      SelfExtent{Constrain{1.0f, 0, 0, 720}, Constrain{1.0f, 0, 0, 720}},
       Padding::all(0)};
 
   LayoutTree tree;
@@ -207,8 +239,8 @@ TEST(LayoutTest, Flex_Padded) {
   {
     MockFlex flex{
         {new MockSized{Extent{20, 20}}, new MockSized{Extent{30, 50}}},
-        Flex{Flex::Direction::Row, Flex::Wrap::Wrap, Flex::MainAlign::Start,
-             Flex::CrossAlign::Start, Flex::Fit::Shrink, Flex::Fit::Shrink},
+        Flex{Direction::Row, Wrap::Wrap, MainAlign::Start, CrossAlign::Start,
+             Fit::Shrink, Fit::Shrink},
         SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
         Padding::all(15)};
 
@@ -249,8 +281,8 @@ TEST(LayoutTest, Flex_Padded) {
   {
     MockFlex flex{
         {new MockSized{Extent{20, 20}}},
-        Flex{Flex::Direction::Row, Flex::Wrap::Wrap, Flex::MainAlign::Start,
-             Flex::CrossAlign::Start, Flex::Fit::Shrink, Flex::Fit::Shrink},
+        Flex{Direction::Row, Wrap::Wrap, MainAlign::Start, CrossAlign::Start,
+             Fit::Shrink, Fit::Shrink},
         SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
         Padding::all(15)};
 
@@ -283,8 +315,8 @@ TEST(LayoutTest, Flex_Padded) {
   {
     MockFlex flex{
         {},
-        Flex{Flex::Direction::Row, Flex::Wrap::Wrap, Flex::MainAlign::Start,
-             Flex::CrossAlign::Start, Flex::Fit::Shrink, Flex::Fit::Shrink},
+        Flex{Direction::Row, Wrap::Wrap, MainAlign::Start, CrossAlign::Start,
+             Fit::Shrink, Fit::Shrink},
         SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
         Padding::all(15)};
 
@@ -309,21 +341,23 @@ TEST(LayoutTest, Flex_Padded) {
 TEST(LayoutTest, Flex_MainExpand_CrossShrink) {
   MockFlex flex{
       {new MockSized{Extent{20, 20}}, new MockSized{Extent{30, 50}}},
-      Flex{Flex::Direction::Row, Flex::Wrap::Wrap, Flex::MainAlign::Start,
-           Flex::CrossAlign::Start, Flex::Fit::Expand, Flex::Fit::Shrink},
-      SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
+      Flex{Direction::Row, Wrap::Wrap, MainAlign::Start, CrossAlign::Start,
+           Fit::Expand, Fit::Shrink},
+      SelfExtent{Constrain{1.0f, 0, 0, 720}, Constrain{1.0f, 0, 0, 720}},
       Padding::all(0)};
 
   LayoutTree tree;
 
-  tree.build(flex);
+  Body body = Body{&flex, ViewFit::Width | ViewFit::Height};
+
+  tree.build(body);
   tree.allot_extent(Extent{u32_max, u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
-  auto& node = tree.root_node;
+  auto& node = tree.root_node.children[0];
 
   EXPECT_EQ(node.widget, static_cast<Widget*>(&flex));
-  EXPECT_EQ(node.self_extent.width, u32_max);
+  EXPECT_EQ(node.self_extent.width, 720);
   EXPECT_EQ(node.self_extent.height, 50);
   EXPECT_GT(node.children.size(), 0);
   EXPECT_EQ(node.parent_offset, Offset{});
@@ -350,21 +384,21 @@ TEST(LayoutTest, Flex_MainExpand_CrossShrink) {
 TEST(LayoutTest, Flex_MainExpand_MainExpand) {
   MockFlex flex{
       {new MockSized{Extent{20, 20}}, new MockSized{Extent{20, 20}}},
-      Flex{Flex::Direction::Row, Flex::Wrap::Wrap, Flex::MainAlign::Start,
-           Flex::CrossAlign::Start, Flex::Fit::Expand, Flex::Fit::Shrink},
+      Flex{Direction::Row, Wrap::Wrap, MainAlign::Start, CrossAlign::Start,
+           Fit::Expand, Fit::Shrink},
       SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
       Padding::all(0)};
 
   LayoutTree tree;
 
   tree.build(flex);
-  tree.allot_extent(Extent{u32_max, u32_max});
+  tree.allot_extent(Extent{1920, u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
   auto& node = tree.root_node;
 
   EXPECT_EQ(node.widget, static_cast<Widget*>(&flex));
-  EXPECT_EQ(node.self_extent.width, u32_max);
+  EXPECT_EQ(node.self_extent.width, 1920);
   EXPECT_EQ(node.self_extent.height, 20);
   EXPECT_GT(node.children.size(), 0);
   EXPECT_EQ(node.parent_offset, Offset{});
@@ -375,8 +409,8 @@ TEST(LayoutTest, Flex_MainExpand_MainExpand) {
 TEST(LayoutTest, Flex_Shrink) {
   MockFlex flex{
       {new MockSized{Extent{20, 20}}, new MockSized{Extent{20, 20}}},
-      Flex{Flex::Direction::Row, Flex::Wrap::Wrap, Flex::MainAlign::Start,
-           Flex::CrossAlign::Start, Flex::Fit::Shrink, Flex::Fit::Shrink},
+      Flex{Direction::Row, Wrap::Wrap, MainAlign::Start, CrossAlign::Start,
+           Fit::Shrink, Fit::Shrink},
       SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
       Padding::all(0)};
 
@@ -400,8 +434,8 @@ TEST(LayoutTest, Flex_Shrink) {
 TEST(LayoutTest, Flex_WrapOverflow_Shrink) {
   MockFlex flex{
       {new MockSized{Extent{20, 20}}, new MockSized{Extent{30, 50}}},
-      Flex{Flex::Direction::Row, Flex::Wrap::Wrap, Flex::MainAlign::Start,
-           Flex::CrossAlign::Start, Flex::Fit::Shrink, Flex::Fit::Shrink},
+      Flex{Direction::Row, Wrap::Wrap, MainAlign::Start, CrossAlign::Start,
+           Fit::Shrink, Fit::Shrink},
       SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
       Padding::all(0)};
 
@@ -441,8 +475,8 @@ TEST(LayoutTest, Flex_WrapOverflow_Shrink) {
 TEST(LayoutTest, Flex_WrapOverflow_Expand) {
   MockFlex flex{
       {new MockSized{Extent{20, 20}}, new MockSized{Extent{30, 50}}},
-      Flex{Flex::Direction::Row, Flex::Wrap::Wrap, Flex::MainAlign::Start,
-           Flex::CrossAlign::Start, Flex::Fit::Expand, Flex::Fit::Expand},
+      Flex{Direction::Row, Wrap::Wrap, MainAlign::Start, CrossAlign::Start,
+           Fit::Expand, Fit::Expand},
       SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)},
       Padding::all(0)};
 
