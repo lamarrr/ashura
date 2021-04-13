@@ -116,6 +116,22 @@ struct IRect {
     VLK_ENSURE(overlaps(other));
     return intersect(other);
   }
+
+  constexpr int64_t x() const { return offset.x; }
+  constexpr int64_t y() const { return offset.y; }
+
+  constexpr uint32_t width() const { return extent.width; }
+  constexpr uint32_t height() const { return extent.height; }
+
+  constexpr bool visible() const { return extent.visible(); }
+
+  constexpr IRect with_offset(IOffset const &new_offset) const {
+    return IRect{new_offset, extent};
+  }
+
+  constexpr IRect with_extent(Extent const &new_extent) const {
+    return IRect{offset, new_extent};
+  }
 };
 
 inline constexpr bool operator==(IRect const &a, IRect const &b) {
@@ -170,6 +186,22 @@ struct Rect {
   Rect checked_intersect(Rect const &other) const {
     VLK_ENSURE(overlaps(other));
     return intersect(other);
+  }
+
+  constexpr uint32_t x() const { return offset.x; }
+  constexpr uint32_t y() const { return offset.y; }
+
+  constexpr uint32_t width() const { return extent.width; }
+  constexpr uint32_t height() const { return extent.height; }
+
+  constexpr bool visible() const { return extent.visible(); }
+
+  constexpr Rect with_offset(Offset const &new_offset) const {
+    return Rect{new_offset, extent};
+  }
+
+  constexpr Rect with_extent(Extent const &new_extent) const {
+    return Rect{offset, new_extent};
   }
 
   explicit constexpr operator IRect() const {
