@@ -22,6 +22,7 @@ struct ScalarTraceEntry {
 
 // trace sink not thread-safe. not required since rendering is always on a
 // single thread and it won't be used across multiple threads anyway
+// TODO(lamarrr): use a cycling-iterator with a max extent.
 struct TraceSink {
   std::vector<EventTraceEntry> events;
   std::vector<ScalarTraceEntry> scalars;
@@ -50,14 +51,14 @@ struct ScopeEventTrace {
   VLK_TRACE_API_get_tracer_trace_sink__##sink_name
 #define VLK_DECLARE_TRACE_SINK(sink_name) \
   extern ::vlk::ui::TraceSink &VLK_TRACE_SINK_FUNC_NAME(sink_name)()
-#define VLK_DEFINE_TRACE_SINK(sink_name)                                 \
+#define VLK_DEFINE_TRACE_SINK(sink_name)                               \
   extern ::vlk::ui::TraceSink &VLK_TRACE_SINK_FUNC_NAME(sink_name)() { \
     static ::vlk::ui::TraceSink sink{{}, {}, #sink_name};              \
-    return sink;                                                         \
+    return sink;                                                       \
   }
 
 #define VLK_SCOPE_EVENT_TRACE_TO_SINK(sink_name)                                                                       \
-  ::vlk::ui::ScopeEventTrace                                                                                         \
+  ::vlk::ui::ScopeEventTrace                                                                                           \
       VLK_ScopedEventTrace_must_be_unique_for_sink__##sink_name##__sink_source_per_scope_else_you_are_doing_it_wrong { \
     VLK_TRACE_SINK_FUNC_NAME(sink_name)()                                                                              \
   }
@@ -68,7 +69,7 @@ struct ScopeEventTrace {
   do {                                                        \
     double value = static_cast<double>(scalar);               \
     VLK_TRACE_SINK_FUNC_NAME(sink_name)                       \
-    ().scalars.push_back(::vlk::ui::ScalarTraceEntry{       \
+    ().scalars.push_back(::vlk::ui::ScalarTraceEntry{         \
         #scalar, ::std::chrono::steady_clock::now(), value}); \
   } while (false)
 
