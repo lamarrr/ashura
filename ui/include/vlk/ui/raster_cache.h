@@ -143,6 +143,30 @@ struct RasterCache {
     cull_rect_.offset = new_cull_offset;
   }
 
+  void save_pixels_to_file(std::string const& path) {
+    VLK_ENSURE(is_surface_init());
+
+    std::ofstream file(path, std::ios_base::out);
+    sk_sp<SkImage> image = surface_->makeImageSnapshot();
+
+    auto const& image_info = image->imageInfo();
+    int const width = image_info.width();
+    int const height = image_info.height();
+
+    std::vector<uint8_t> buff;
+    buff.resize(height * width * 4);
+
+    image->readPixels(
+        SkImageInfo::Make(width, height, SkColorType::kRGBA_8888_SkColorType,
+                          SkAlphaType::kPremul_SkAlphaType),
+        buff.data(), width * 4, 0, 0);
+
+    for (uint8_t c : buff) {
+      file << static_cast<int>(c) << ", ";
+    }
+    file.flush();
+  }
+
  private:
   sk_sp<SkSurface> surface_;
 
