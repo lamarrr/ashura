@@ -67,7 +67,7 @@ struct Widget {
   enum class Type : uint8_t {
     /// occupies space and has render data
     Render,
-    /// can have render data
+    /// for view-based scrolling, has no render data
     View
   };
 
