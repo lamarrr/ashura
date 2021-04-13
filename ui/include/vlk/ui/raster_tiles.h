@@ -11,6 +11,14 @@
 namespace vlk {
 namespace ui {
 
+// this should cover the whole extent of the widgets. this should be allotted to
+// the self extent of the root view widget. they are only activated when in
+// focus, this optimizes for scrolling especially when the content don't really
+// change and only their raster content change. if we are re-drawing for a tile
+// for example, we can check if it intersects with the tile and only redraw for
+// the widgets that intersect with the tile. This enable us to process
+// rasetrization commands in batches rather than on a per-widget basis.
+//
 struct RasterTiles {
   using Tile = RasterCache;
 
