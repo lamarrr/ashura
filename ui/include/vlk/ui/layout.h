@@ -80,17 +80,17 @@ struct Constrain {
   }
 };
 
+// TODO(lamarrr): helper functions for SelfExtent, ViewExtent, and Constrain
+
 struct SelfExtent {
   Constrain width = Constrain{0.0f};
   Constrain height = Constrain{0.0f};
 
   Extent resolve(Extent const& allotment) const {
-    auto const resolved_width = static_cast<uint32_t>(std::clamp(
-        width.resolve(allotment.width, true), static_cast<int64_t>(u32_min),
-        static_cast<int64_t>(u32_max)));
-    auto const resolved_height = static_cast<uint32_t>(std::clamp(
-        height.resolve(allotment.height, true), static_cast<int64_t>(u32_min),
-        static_cast<int64_t>(u32_max)));
+    auto const resolved_width = static_cast<uint32_t>(std::clamp<int64_t>(
+        width.resolve(allotment.width, true), u32_min, u32_max));
+    auto const resolved_height = static_cast<uint32_t>(std::clamp<int64_t>(
+        height.resolve(allotment.height, true), u32_min, u32_max));
     return Extent{resolved_width, resolved_height};
   }
 };
@@ -105,12 +105,10 @@ struct ViewExtent {
   Constrain height = Constrain{0.0f};
 
   Extent resolve(Extent const& allotment) const {
-    auto const resolved_width = static_cast<uint32_t>(std::clamp(
-        width.resolve(allotment.width, false), static_cast<int64_t>(u32_min),
-        static_cast<int64_t>(u32_max)));
-    auto const resolved_height = static_cast<uint32_t>(std::clamp(
-        height.resolve(allotment.height, false), static_cast<int64_t>(u32_min),
-        static_cast<int64_t>(u32_max)));
+    auto const resolved_width = static_cast<uint32_t>(std::clamp<int64_t>(
+        width.resolve(allotment.width, false), u32_min, u32_max));
+    auto const resolved_height = static_cast<uint32_t>(std::clamp<int64_t>(
+        height.resolve(allotment.height, false), u32_min, u32_max));
     return Extent{resolved_width, resolved_height};
   }
 };
@@ -127,49 +125,51 @@ struct ViewOffset {
   }
 };
 
+enum class Direction : uint8_t { Row, Column };
+
+enum class Wrap : uint8_t { None, Wrap };
+
+/// main-axis alignment
+/// affects how free space is used on the main axis
+/// main-axis for row flex is x
+/// main-axis for column flex is y
+enum class MainAlign : uint8_t {
+  Start,
+  End,
+  SpaceBetween,
+  SpaceAround,
+  SpaceEvenly
+};
+
+/// cross-axis alignment
+/// affects how free space is used on the cross axis
+/// cross-axis for row flex is y
+/// cross-axis for column flex is x
+enum class CrossAlign : uint8_t { Start, End, Center, Stretch };
+
+enum class Fit : uint8_t { Shrink, Expand };
+
 struct Flex {
-  enum class Direction : uint8_t { Row, Column };
-
   Direction direction = Direction::Row;
-
-  enum class Wrap : uint8_t { None, Wrap };
 
   Wrap wrap = Wrap::Wrap;
 
-  /// main-axis alignment
-  /// affects how free space is used on the main axis
-  /// main-axis for row flex is x
-  /// main-axis for column flex is y
-  enum class MainAlign : uint8_t {
-    Start,
-    End,
-    SpaceBetween,
-    SpaceAround,
-    SpaceEvenly
-  };
-
   MainAlign main_align = MainAlign::Start;
 
-  /// cross-axis alignment
-  /// affects how free space is used on the cross axis
-  /// cross-axis for row flex is y
-  /// cross-axis for column flex is x
-  enum class CrossAlign : uint8_t { Start, End, Center, Stretch };
-
   CrossAlign cross_align = CrossAlign::Start;
-
-  enum class Fit : uint8_t { Shrink = 0, Expand = 1 };
 
   Fit main_fit = Fit::Shrink;
 
   Fit cross_fit = Fit::Shrink;
 };
 
-constexpr Flex::Fit operator|(Flex::Fit const& a, Flex::Fit const& b) {
-  return vlk::enum_or(a, b);
-}
+/// used to fit the widget's self_extent to its view_extent (if it has enough
+/// space to accomodate it)
+enum class ViewFit : uint8_t { None = 0, Width = 1, Height = 2 };
 
-constexpr Flex::Fit operator&(Flex::Fit const& a, Flex::Fit const& b) {
+constexpr ViewFit operator|(ViewFit a, ViewFit b) { return vlk::enum_or(a, b); }
+
+constexpr ViewFit operator&(ViewFit a, ViewFit b) {
   return vlk::enum_and(a, b);
 }
 
