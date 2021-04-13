@@ -209,8 +209,6 @@ constexpr float to_virtual(uint32_t virtual_extent, float pixel_ratio) {
 }  // namespace ui
 }  // namespace vlk
 
-
-
 struct Timeline {
   std::vector<float> values;
   // we need a wrapping behaviour in which it wraps the cursor
@@ -218,3 +216,48 @@ struct Timeline {
   size_t end;
 };
 
+constexpr Extent view_fit_self_extent(ViewFit fit,
+                                      Extent const &resolved_self_extent,
+                                      Extent const &view_extent,
+                                      Extent const &allotted_extent) {
+  Extent result_self_extent = resolved_self_extent;
+  if ((fit & ViewFit::Width) != ViewFit::None &&
+      view_extent.width <= allotted_extent.width) {
+    result_self_extent.width = view_extent.width;
+  }
+
+  if ((fit & ViewFit::Height) != ViewFit::None &&
+      view_extent.height <= allotted_extent.height) {
+    result_self_extent.height = view_extent.height;
+  }
+
+  return result_self_extent;
+}
+
+ sk_sp<SkImageFilter> filters[] = {
+        nullptr,
+        SkImageFilters::DropShadow(7.0f, 0.0f, 0.0f, 3.0f, SK_ColorBLUE,
+   nullptr), SkImageFilters::DropShadow(0.0f, 7.0f, 3.0f, 0.0f, SK_ColorBLUE,
+   nullptr), SkImageFilters::DropShadow(7.0f, 7.0f, 3.0f, 3.0f, SK_ColorBLUE,
+   nullptr), SkImageFilters::DropShadow(7.0f, 7.0f, 3.0f, 3.0f, SK_ColorBLUE,
+   std::move(cfif)), SkImageFilters::DropShadow(7.0f, 7.0f, 3.0f, 3.0f,
+   SK_ColorBLUE, nullptr, &cropRect),
+        SkImageFilters::DropShadow(7.0f, 7.0f, 3.0f, 3.0f, SK_ColorBLUE,
+   nullptr, &bogusRect), SkImageFilters::DropShadowOnly(7.0f, 7.0f, 3.0f, 3.0f,
+   SK_ColorBLUE, nullptr),
+    };
+struct BoxShadow {
+  // greater than or equal to 0
+  float blur_radius;
+  // greater than 0
+  float blur_sigma;
+};
+typename BoxShadowAllocator = std::allocator<BoxShadow>
+ shadows_{shadows.begin(), shadows.end()}
+  std::vector<BoxShadow, BoxShadowAllocator> shadows_;
+
+  stx::Span<BoxShadow const> const &shadows = {}
+
+struct Gradient {
+  // linear, radial, sweep
+};
