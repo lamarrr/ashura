@@ -8,7 +8,6 @@ target_compile_definitions(vlk_ui PUBLIC SK_VULKAN)
 
 add_executable(
   vlk_ui_test
-  tests/compositor_test.cc
   tests/snapshot_test.cc
   tests/widget_test.cc
   tests/layout_test.cc
