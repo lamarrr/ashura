@@ -11,12 +11,6 @@ namespace ui {
 
 using ZIndex = int64_t;
 
-// type marker
-template <typename T>
-using Normalized =
-    T;  // normalized range [0.0f, 1.0f], i.e. in the case of a depth/color
-        // buffer where we are not exposing the depth bit or byte per pixel
-
 struct IOffset {
   int64_t x = 0;
   int64_t y = 0;
