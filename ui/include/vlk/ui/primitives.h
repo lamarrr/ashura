@@ -20,6 +20,10 @@ inline constexpr IOffset operator+(IOffset const &a, IOffset const &b) {
   return IOffset{a.x + b.x, a.y + b.y};
 }
 
+inline constexpr IOffset operator-(IOffset const &a, IOffset const &b) {
+  return IOffset{a.x - b.x, a.y - b.y};
+}
+
 inline constexpr bool operator==(IOffset const &a, IOffset const &b) {
   return a.x == b.x && a.y == b.y;
 }
