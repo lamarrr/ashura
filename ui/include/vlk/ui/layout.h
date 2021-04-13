@@ -78,6 +78,11 @@ struct Constrain {
 
     return std::clamp(value, min, max);
   }
+
+  constexpr bool operator==(Constrain const& other) const {
+    return f32_eq(scale, other.scale) && bias == other.bias &&
+           min == other.min && max == other.max && clamp == other.clamp;
+  }
 };
 
 // TODO(lamarrr): helper functions for SelfExtent, ViewExtent, and Constrain
@@ -92,6 +97,10 @@ struct SelfExtent {
     auto const resolved_height = static_cast<uint32_t>(std::clamp<int64_t>(
         height.resolve(allotment.height, true), u32_min, u32_max));
     return Extent{resolved_width, resolved_height};
+  }
+
+  constexpr bool operator==(SelfExtent const& other) const {
+    return width == other.width && height == other.height;
   }
 };
 
@@ -111,6 +120,10 @@ struct ViewExtent {
         height.resolve(allotment.height, false), u32_min, u32_max));
     return Extent{resolved_width, resolved_height};
   }
+
+  constexpr bool operator==(ViewExtent const& other) const {
+    return width == other.width && height == other.height;
+  }
 };
 
 /// marks the offset of the view relative to the view extent (usually
@@ -122,6 +135,10 @@ struct ViewOffset {
   IOffset resolve(Extent const& content_extent) const {
     return IOffset{x.resolve(content_extent.width, false),
                    y.resolve(content_extent.height, false)};
+  }
+
+  constexpr bool operator==(ViewOffset const& other) const {
+    return x == other.x && y == other.y;
   }
 };
 
