@@ -12,6 +12,9 @@
 
 using namespace vlk::ui;
 
+// TODO(lamarrr): before deleting, evaluate and see if we can reuse some of
+// these tests
+
 /*
 constexpr inline SelfLayout image_sizing() { return SelfLayout{}; }
 
@@ -229,31 +232,6 @@ TEST(LayoutTest, View) {
 
 */
 
-struct MockSized : public Widget {
-  explicit MockSized(Extent const &extent) : Widget{} {
-    Widget::update_self_extent(SelfExtent{Constrain::absolute(extent.width),
-                                          Constrain::absolute(extent.height)});
-  }
-  ~MockSized() override {}
-};
-
-struct MockFlex : public Widget {
-  explicit MockFlex(stx::Span<Widget *const> children, Flex const &flex)
-      : Widget{} {
-    children_.resize(children.size());
-    std::copy(children.begin(), children.end(), children_.begin());
-    Widget::update_children(children_);
-
-    Widget::update_flex(flex);
-
-    Widget::update_self_extent(
-        SelfExtent{Constrain::relative(1.0f), Constrain::relative(1.0f)});
-  }
-
-  ~MockFlex() override {}
-
-  std::vector<Widget *> children_;
-};
 /*
 TEST(FlexLayout, DirRow_Wrap_MainStart_CrossStart) {
   MockSized a{{250, 500}}, b{{100, 100}}, c{{50, 50}};
@@ -454,4 +432,3 @@ TEST(FlexLayout, DirRow_Wrap_MainStart_CrossEnd) {
 // Always use release mode of skia
 // does skia ensure async access of the textures? i.e. exclusive access not
 // enabled. else we'll need to make that.
-TEST(FlexLayout, DirRow_Wrap_MainStart_CrossEnd) {}
