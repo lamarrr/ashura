@@ -68,7 +68,7 @@ namespace vlk {
 template <typename Container>
 bool any_true(Container const& cont) {
   return ::std::any_of(cont.begin(), cont.end(),
-                       [](auto value) -> bool { return value; });
+                       [](auto const& value) -> bool { return value; });
 }
 
 template <typename EnumType>
@@ -79,13 +79,13 @@ STX_FORCE_INLINE constexpr std::underlying_type_t<EnumType> enum_ut(
 
 template <typename EnumType>
 STX_FORCE_INLINE constexpr std::underlying_type_t<EnumType> enum_ut_or(
-    EnumType a, EnumType b) noexcept {
+    EnumType a, EnumType b) {
   return static_cast<std::underlying_type_t<EnumType>>(a) |
          static_cast<std::underlying_type_t<EnumType>>(b);
 }
 
 template <typename EnumType>
-STX_FORCE_INLINE constexpr EnumType enum_or(EnumType a, EnumType b) noexcept {
+STX_FORCE_INLINE constexpr EnumType enum_or(EnumType a, EnumType b) {
   return static_cast<EnumType>(
       static_cast<std::underlying_type_t<EnumType>>(a) |
       static_cast<std::underlying_type_t<EnumType>>(b));
@@ -93,20 +93,20 @@ STX_FORCE_INLINE constexpr EnumType enum_or(EnumType a, EnumType b) noexcept {
 
 template <typename EnumType>
 STX_FORCE_INLINE constexpr std::underlying_type_t<EnumType> enum_ut_and(
-    EnumType a, EnumType b) noexcept {
+    EnumType a, EnumType b) {
   return static_cast<std::underlying_type_t<EnumType>>(a) &
          static_cast<std::underlying_type_t<EnumType>>(b);
 }
 
 template <typename EnumType>
-STX_FORCE_INLINE constexpr EnumType enum_and(EnumType a, EnumType b) noexcept {
+STX_FORCE_INLINE constexpr EnumType enum_and(EnumType a, EnumType b) {
   return static_cast<EnumType>(
       static_cast<std::underlying_type_t<EnumType>>(a) &
       static_cast<std::underlying_type_t<EnumType>>(b));
 }
 
 STX_FORCE_INLINE constexpr bool f32_eq(float a, float b) {
-  return f32_epsilon <= std::abs(a - b);
+  return std::abs(a - b) < f32_epsilon;
 }
 
 }  // namespace vlk
