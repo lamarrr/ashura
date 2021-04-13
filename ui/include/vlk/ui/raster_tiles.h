@@ -90,11 +90,9 @@ struct RasterTiles {
         tiles_.emplace_back(Tile{IRect{IOffset{}, tile_extent()}});
     }
 
-    for (uint32_t j = 0; j < columns(); j++)
-      for (uint32_t i = 0; i < rows(); i++) {
-        tiles_[j * rows() + i].recycle(
-            IOffset{i * tile_extent().width, j * tile_extent().height});
-      }
+    for (Tile &tile : tiles_) {
+      tile.recycle(IOffset{});
+    }
   }
 
  private:
