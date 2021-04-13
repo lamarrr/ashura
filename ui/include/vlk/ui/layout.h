@@ -14,11 +14,15 @@ namespace ui {
 
 struct OutputClamp {
   /// i.e. result should be between 50% and 75% of the parent allotted extent.
-  /// by default, the `low` = 0% and `high` = 100% of the parent allotted
-  /// extent. `low` and `high` must be in [0.0, 1.0] and `high` >= `low`.
-  /// high must be <= 1.0 if in a constrained context.
-  float low = 0.0f;
-  float high = 1.0f;
+  /// by default, the `min` = 0% and `max` = 100% of the parent allotted
+  /// extent. `min` and `max` must be in [0.0, 1.0] and `max` >= `min`.
+  /// max must be <= 1.0 if in a constrained context.
+  float min = 0.0f;
+  float max = 1.0f;
+
+  constexpr bool operator==(OutputClamp const& other) const {
+    return f32_eq(min, other.min) && f32_eq(max, other.max);
+  }
 };
 
 /// Why this model? sizing can be
@@ -27,8 +31,8 @@ struct OutputClamp {
 ///
 /// you can also automatically have contracting layout effects
 /// - padding (+ve `bias`)
-/// - absolute min/max (`low`, `high`)
-/// - relative min/max (`clamp.low`, `clamp.high`)
+/// - absolute min/max (`min`, `max`)
+/// - relative min/max (`clamp.min`, `clamp.max`)
 ///
 /// how do we achieve padding/margin effect? we allot an extent and only draw
 /// over a specific portion of it, the implementation of the widget itself is
@@ -41,8 +45,8 @@ struct Constrain {
   int64_t bias = 0;
 
   /// clipping the target size, i.e. should be between 20px and 600px
-  int64_t low = i64_min;
-  int64_t high = i64_max;
+  int64_t min = i64_min;
+  int64_t max = i64_max;
 
   /// clamping the relative values of the result
   OutputClamp clamp{};
@@ -53,26 +57,24 @@ struct Constrain {
     return Constrain{0.0f, value};
   }
 
-  constexpr bool is_fixed() const { return scale == 0.0f; }
-
   int64_t resolve(int64_t source, bool is_restricted) const {
-    VLK_ENSURE(high >= low);
+    VLK_ENSURE(max >= min);
     VLK_ENSURE(scale >= 0.0f);
 
     if (is_restricted) {
-      VLK_ENSURE(clamp.low >= 0.0f);
-      VLK_ENSURE(clamp.low <= 1.0f);
+      VLK_ENSURE(clamp.min >= 0.0f);
+      VLK_ENSURE(clamp.min <= 1.0f);
 
-      VLK_ENSURE(clamp.high >= 0.0f);
-      VLK_ENSURE(clamp.high <= 1.0f);
+      VLK_ENSURE(clamp.max >= 0.0f);
+      VLK_ENSURE(clamp.max <= 1.0f);
     }
 
-    VLK_ENSURE(clamp.high >= clamp.low);
+    VLK_ENSURE(clamp.max >= clamp.min);
 
     int64_t const value_i64 = static_cast<int64_t>(scale * source) + bias;
-    int64_t const value = std::clamp(value_i64, low, high);
-    auto const min = static_cast<int64_t>(clamp.low * source);
-    auto const max = static_cast<int64_t>(clamp.high * source);
+    int64_t const value = std::clamp(value_i64, min, max);
+    auto const min = static_cast<int64_t>(clamp.min * source);
+    auto const max = static_cast<int64_t>(clamp.max * source);
 
     return std::clamp(value, min, max);
   }
