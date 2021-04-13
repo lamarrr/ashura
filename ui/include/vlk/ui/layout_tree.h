@@ -26,35 +26,34 @@ namespace ui {
 //
 //
 
-constexpr Extent flex_fit(Flex::Direction direction, Flex::Fit main_fit,
-                          Flex::Fit cross_fit, Extent const &span,
-                          Extent const &allotted_extent) {
+constexpr Extent flex_fit(Direction direction, Fit main_fit, Fit cross_fit,
+                          Extent const &span, Extent const &allotted_extent) {
   Extent result = {};
 
-  if (main_fit == Flex::Fit::Shrink) {
-    if (direction == Flex::Direction::Row) {
+  if (main_fit == Fit::Shrink) {
+    if (direction == Direction::Row) {
       result.width = std::min(span.width, allotted_extent.width);
     } else {
       result.height = std::min(span.height, allotted_extent.height);
     }
   } else {
     // expand
-    if (direction == Flex::Direction::Row) {
+    if (direction == Direction::Row) {
       result.width = allotted_extent.width;
     } else {
       result.height = allotted_extent.height;
     }
   }
 
-  if (cross_fit == Flex::Fit::Shrink) {
-    if (direction == Flex::Direction::Row) {
+  if (cross_fit == Fit::Shrink) {
+    if (direction == Direction::Row) {
       result.height = std::min(span.height, allotted_extent.height);
     } else {
       result.width = std::min(span.width, allotted_extent.width);
     }
   } else {
     // expand
-    if (direction == Flex::Direction::Row) {
+    if (direction == Direction::Row) {
       result.height = allotted_extent.height;
     } else {
       result.width = allotted_extent.width;
@@ -62,6 +61,52 @@ constexpr Extent flex_fit(Flex::Direction direction, Flex::Fit main_fit,
   }
 
   return result;
+}
+
+// we also need to shrink?
+// for a view, we need to fit its view_extent with its self_extent
+// i.e. we want view_extent's height to be in sync with self_extent's height
+
+// perform layout along this so so so dimension
+// be careful: if any flex uses stretching, it'll use up all of the dimensions
+// so we need to state ahead of time where it needs to layout to
+//
+// we might need a constrain?
+//
+// problem is that the root view doesn't know its dimensions ahead of time, so
+// if any child uses an expand property in any of the dimensions, the constraint
+// solver will fail
+//
+//
+constexpr Extent view_fit(ViewFit fit, Extent const &view_extent,
+                          Extent const &final_self_extent) {
+  Extent result_view_extent = view_extent;
+  if ((fit & ViewFit::Width) != ViewFit::None) {
+    result_view_extent.width = final_self_extent.width;
+  }
+
+  if ((fit & ViewFit::Height) != ViewFit::None) {
+    result_view_extent.width = final_self_extent.width;
+  }
+
+  return result_view_extent;
+}
+
+constexpr Extent view_fit_self_extent(ViewFit fit,
+                                      Extent const &resolved_self_extent,
+                                      Extent const &view_extent) {
+  Extent result_self_extent = resolved_self_extent;
+  if ((fit & ViewFit::Width) != ViewFit::None &&
+      view_extent.width <= resolved_self_extent.width) {
+    result_self_extent.width = view_extent.width;
+  }
+
+  if ((fit & ViewFit::Height) != ViewFit::None &&
+      view_extent.height <= resolved_self_extent.height) {
+    result_self_extent.height = view_extent.height;
+  }
+
+  return result_self_extent;
 }
 
 // returns the content rect relative to the resolved_extent
@@ -88,6 +133,16 @@ constexpr std::pair<Rect, Padding> resolve_content_rect(
                     resolved_padding_bottom, resolved_padding_left));
 }
 
+// cache invalidation sources:
+// - layout change
+// - viewport resize
+//
+// invalidates:
+// - view tree
+// - tile cache
+//
+//
+//
 struct LayoutTree {
   struct Node {
     /// target widget
@@ -112,18 +167,29 @@ struct LayoutTree {
     std::vector<Node> children{};
   };
 
+  LayoutTree() = default;
+
+  LayoutTree(LayoutTree const &) = delete;
+  LayoutTree(LayoutTree &&) = delete;
+
+  LayoutTree &operator=(LayoutTree const &) = delete;
+  LayoutTree &operator=(LayoutTree &&) = delete;
+
+  ~LayoutTree() = default;
+
   Node root_node{};
   Extent allotted_extent{0, 0};
 
   // for now, we just re-perform layout when any of the widgets is dirty
-  bool is_layout_dirty = false;
+  bool is_layout_dirty = true;
 
   // if we resize will the view be able to keep track of its translation?
   static void perform_layout(LayoutTree::Node &node,
                              Extent const &allotted_extent,
                              Offset const &parent_view_offset) {
     // assumptions:
-    //          - being infinite in size is ok, it won't be drawn anyway
+    //  no it's not        - being infinite in size is ok, it won't be drawn
+    //  anyway
     //          - there's no numeric overflow since the parent can't allot
     //          more than its own extent and the constraint parameters
     //          enforces that for the children via clamping, so even if the
@@ -137,13 +203,40 @@ struct LayoutTree {
     SelfExtent const self_extent = widget.get_self_extent();
     Extent const resolved_self_extent = self_extent.resolve(allotted_extent);
 
+    ViewFit const view_fit = widget.get_view_fit();
+
     ViewExtent const view_extent = widget.get_view_extent();
     Extent const resolved_view_extent = view_extent.resolve(allotted_extent);
+
+    // TODO(lamarrr): view fitting with shrinking and other properties
+    // preserved?
 
     Padding const padding = widget.get_padding();
 
     if (widget.is_flex()) {
       Flex const flex = widget.get_flex();
+
+      if (flex.main_align != MainAlign::Start) {
+        if (flex.direction == Direction::Row) {
+          VLK_ENSURE(self_extent.width.max != i64_max,
+                     "Flex widget with a space-based main-axis alignment (i.e. "
+                     "MainAlign::End, MainAlign::SpaceBetween, "
+                     "MainAlign::SpaceAround, or MainAlign::SpaceEvenly) must "
+                     "have a fixed maximum extent (`Constrain::max`)",
+                     widget);
+        } else {
+          VLK_ENSURE(self_extent.height.max != i64_max,
+                     "Flex widget with a space-based main-axis alignment (i.e. "
+                     "MainAlign::End, MainAlign::SpaceBetween, "
+                     "MainAlign::SpaceAround, or MainAlign::SpaceEvenly) must "
+                     "have a fixed maximum extent (`Constrain::max`)",
+                     widget);
+        }
+      }
+
+      // TODO(lamarrr): no shrink?
+      // TODO(lamrrrr): we should probably force shrinking along the cross-axis,
+      // and main-axis?
 
       auto const [view_content_rect, resolved_view_padding] =
           resolve_content_rect(resolved_view_extent, padding);
@@ -157,8 +250,8 @@ struct LayoutTree {
           node.children);
 
       // layout of children along parent is now done,
-      // but the layout is performed relative to the {0, 0} offset along the
-      // content rect (not respecting the padding).
+      // but the layout was performed relative to the {0, 0} offset along the
+      // content rect (content_rect.extent without respecting padding).
       //
       // we also now need to initialize the layout along the parent view.
       for (LayoutTree::Node &child : node.children) {
@@ -174,8 +267,7 @@ struct LayoutTree {
       }
 
       if (type == Widget::Type::View) {
-        node.self_extent = resolved_self_extent;
-        auto const fitted_view_content_extent =
+        Extent const fitted_view_content_extent =
             flex_fit(flex.direction, flex.main_fit, flex.cross_fit, flex_span,
                      view_content_rect.extent);
         // padding already has a higher priority and its space is always
@@ -185,9 +277,10 @@ struct LayoutTree {
             fitted_view_content_extent +
             Extent{resolved_view_padding.left + resolved_view_padding.top,
                    resolved_view_padding.top + resolved_view_padding.bottom};
-
+        node.self_extent = view_fit_self_extent(view_fit, resolved_self_extent,
+                                                node.view_extent);
       } else {
-        auto const fitted_self_content_extent =
+        Extent const fitted_self_content_extent =
             flex_fit(flex.direction, flex.main_fit, flex.cross_fit, flex_span,
                      self_content_rect.extent);
         node.self_extent =
@@ -200,13 +293,18 @@ struct LayoutTree {
         node.view_extent = node.self_extent;
       }
     } else {
-      node.self_extent = resolved_self_extent;
-      node.view_extent = type == Widget::Type::View ? resolved_view_extent
-                                                    : resolved_self_extent;
+      if (type == Widget::Type::View) {
+        node.view_extent = resolved_view_extent;
+        node.self_extent = view_fit_self_extent(view_fit, resolved_self_extent,
+                                                node.view_extent);
+      } else {
+        node.self_extent = resolved_self_extent;
+        node.view_extent = node.self_extent;
+      }
     }
   }
 
-  template <Flex::Direction direction>
+  template <Direction direction>
   static Extent perform_flex_children_layout_(
       Flex const &flex, Extent const &content_extent,
 
@@ -219,9 +317,9 @@ struct LayoutTree {
       perform_layout(child, content_extent, Offset{0, 0});
     }
 
-    Flex::CrossAlign const cross_align = flex.cross_align;
-    Flex::MainAlign const main_align = flex.main_align;
-    Flex::Wrap const wrap = flex.wrap;
+    CrossAlign const cross_align = flex.cross_align;
+    MainAlign const main_align = flex.main_align;
+    Wrap const wrap = flex.wrap;
 
     auto present_block_start = children.begin();
     auto child_it = children.begin();
@@ -242,16 +340,16 @@ struct LayoutTree {
 
     // alignments not positioned to start always utilize the full allotted
     // extent
-    if (cross_align != Flex::CrossAlign::Start) {
-      if constexpr (direction == Flex::Direction::Row) {
+    if (cross_align != CrossAlign::Start) {
+      if constexpr (direction == Direction::Row) {
         flex_span.height = content_extent.height;
       } else {
         flex_span.width = content_extent.width;
       }
     }
 
-    if (main_align != Flex::MainAlign::Start) {
-      if constexpr (direction == Flex::Direction::Row) {
+    if (main_align != MainAlign::Start) {
+      if constexpr (direction == Direction::Row) {
         flex_span.width = content_extent.width;
       } else {
         flex_span.height = content_extent.height;
@@ -271,10 +369,10 @@ struct LayoutTree {
       // next widget is at the end of the block or at the end of the children
       // list, then we need to perform alignment
       if ((next_child_it < children.end() &&
-           ((direction == Flex::Direction::Row &&
+           ((direction == Direction::Row &&
              (child_it->parent_offset.x + child_it->self_extent.width +
               next_child_it->self_extent.width) > content_extent.width) ||
-            (direction == Flex::Direction::Column &&
+            (direction == Direction::Column &&
              (child_it->parent_offset.y + child_it->self_extent.height +
               next_child_it->self_extent.height) > content_extent.height))) ||
           next_child_it == children.end()) {
@@ -284,15 +382,15 @@ struct LayoutTree {
           // cross-axis alignment
           uint32_t cross_space = 0;
 
-          if constexpr (direction == Flex::Direction::Row) {
+          if constexpr (direction == Direction::Row) {
             cross_space = block_max_height - child.self_extent.height;
           } else {
             cross_space = block_max_width - child.self_extent.width;
           }
 
           // determine cross-axis span
-          if (cross_align == Flex::CrossAlign::Start) {
-            if constexpr (direction == Flex::Direction::Row) {
+          if (cross_align == CrossAlign::Start) {
+            if constexpr (direction == Direction::Row) {
               flex_span.height =
                   std::max(flex_span.height,
                            child.parent_offset.y + child.self_extent.height);
@@ -304,8 +402,8 @@ struct LayoutTree {
           }
 
           // determine main-axis span
-          if (main_align == Flex::MainAlign::Start) {
-            if constexpr (direction == Flex::Direction::Row) {
+          if (main_align == MainAlign::Start) {
+            if constexpr (direction == Direction::Row) {
               flex_span.width =
                   std::max(flex_span.width,
                            child.parent_offset.x + child.self_extent.width);
@@ -316,22 +414,22 @@ struct LayoutTree {
             }
           }
 
-          if (cross_align == Flex::CrossAlign::Center) {
+          if (cross_align == CrossAlign::Center) {
             uint32_t cross_space_center = cross_space / 2;
-            if constexpr (direction == Flex::Direction::Row) {
+            if constexpr (direction == Direction::Row) {
               child.parent_offset.y += cross_space_center;
             } else {
               child.parent_offset.x += cross_space_center;
             }
-          } else if (cross_align == Flex::CrossAlign::End) {
+          } else if (cross_align == CrossAlign::End) {
             uint32_t cross_space_end = cross_space;
-            if constexpr (direction == Flex::Direction::Row) {
+            if constexpr (direction == Direction::Row) {
               child.parent_offset.y += cross_space_end;
             } else {
               child.parent_offset.x += cross_space_end;
             }
-          } else if (cross_align == Flex::CrossAlign::Stretch) {
-            if constexpr (direction == Flex::Direction::Row) {
+          } else if (cross_align == CrossAlign::Stretch) {
+            if constexpr (direction == Direction::Row) {
               // re-layout the child to the max block height
               if (child.self_extent.height != block_max_height) {
                 perform_layout(*child_it,
@@ -346,14 +444,14 @@ struct LayoutTree {
                                Offset{0, 0});
               }
             }
-          } else if (cross_align == Flex::CrossAlign::Start || true) {
+          } else if (cross_align == CrossAlign::Start || true) {
             // already done
           }
         }
 
         uint32_t main_space = 0;
 
-        if constexpr (direction == Flex::Direction::Row) {
+        if constexpr (direction == Direction::Row) {
           main_space = content_extent.width - (child_it->parent_offset.x +
                                                child_it->self_extent.width);
         } else {
@@ -363,17 +461,17 @@ struct LayoutTree {
 
         uint32_t num_block_children = next_child_it - present_block_start;
 
-        if (main_align == Flex::MainAlign::End) {
+        if (main_align == MainAlign::End) {
           uint32_t main_space_end = main_space;
           for (auto &child : stx::Span<LayoutTree::Node>(present_block_start,
                                                          next_child_it)) {
-            if constexpr (direction == Flex::Direction::Row) {
+            if constexpr (direction == Direction::Row) {
               child.parent_offset.x += main_space_end;
             } else {
               child.parent_offset.y += main_space_end;
             }
           }
-        } else if (main_align == Flex::MainAlign::SpaceAround) {
+        } else if (main_align == MainAlign::SpaceAround) {
           uint32_t main_space_around = main_space / num_block_children;
           main_space_around /= 2;
           uint32_t new_offset = 0;
@@ -381,7 +479,7 @@ struct LayoutTree {
           for (auto &child : stx::Span<LayoutTree::Node>(present_block_start,
                                                          next_child_it)) {
             new_offset += main_space_around;
-            if constexpr (direction == Flex::Direction::Row) {
+            if constexpr (direction == Direction::Row) {
               child.parent_offset.x = new_offset;
               new_offset += child.self_extent.width + main_space_around;
             } else {
@@ -389,10 +487,10 @@ struct LayoutTree {
               new_offset += child.self_extent.height + main_space_around;
             }
           }
-        } else if (main_align == Flex::MainAlign::SpaceBetween) {
+        } else if (main_align == MainAlign::SpaceBetween) {
           uint32_t new_offset = 0;
 
-          if constexpr (direction == Flex::Direction::Row) {
+          if constexpr (direction == Direction::Row) {
             new_offset += present_block_start->self_extent.width;
           } else {
             new_offset += present_block_start->self_extent.height;
@@ -407,7 +505,7 @@ struct LayoutTree {
             uint32_t main_space_between = main_space / (num_block_children - 1);
             new_offset += main_space_between;
 
-            if constexpr (direction == Flex::Direction::Row) {
+            if constexpr (direction == Direction::Row) {
               child.parent_offset.x = new_offset;
               new_offset += child.self_extent.width;
             } else {
@@ -416,12 +514,12 @@ struct LayoutTree {
             }
           }
 
-        } else if (main_align == Flex::MainAlign::SpaceEvenly) {
+        } else if (main_align == MainAlign::SpaceEvenly) {
           uint32_t main_space_evenly = main_space / (num_block_children + 1);
           uint32_t new_offset = main_space_evenly;
           for (auto &child :
                stx::Span<LayoutTree::Node>(present_block_start, child_it)) {
-            if constexpr (direction == Flex::Direction::Row) {
+            if constexpr (direction == Direction::Row) {
               child.parent_offset.x = new_offset;
               new_offset += child.self_extent.width + main_space_evenly;
             } else {
@@ -430,25 +528,25 @@ struct LayoutTree {
             }
           }
 
-          if constexpr (direction == Flex::Direction::Row) {
+          if constexpr (direction == Direction::Row) {
             child_it->parent_offset.x = new_offset;
           } else {
             child_it->parent_offset.y = new_offset;
           }
 
-        } else if (main_align == Flex::MainAlign::Start || true) {
+        } else if (main_align == MainAlign::Start || true) {
           // already done
         }
 
-        if (wrap == Flex::Wrap::None) {
-          if constexpr (direction == Flex::Direction::Row) {
+        if (wrap == Wrap::None) {
+          if constexpr (direction == Direction::Row) {
             present_offset.x += child_it->self_extent.width;
           } else {
             present_offset.y += child_it->self_extent.height;
           }
         } else {
           // move to the next row/column
-          if constexpr (direction == Flex::Direction::Row) {
+          if constexpr (direction == Direction::Row) {
             present_offset.x = 0;
             present_offset.y += block_max_height;
           } else {
@@ -461,7 +559,7 @@ struct LayoutTree {
 
       } else {
         // no wrapping nor alignment needed
-        if constexpr (direction == Flex::Direction::Row) {
+        if constexpr (direction == Direction::Row) {
           present_offset.x += child_it->self_extent.width;
         } else {
           present_offset.y += child_it->self_extent.height;
@@ -477,12 +575,12 @@ struct LayoutTree {
   static Extent perform_flex_children_layout(
       Flex const &flex, Extent const &self_extent,
       stx::Span<LayoutTree::Node> const &child_nodes) {
-    if (flex.direction == Flex::Direction::Row) {
-      return perform_flex_children_layout_<Flex::Direction::Row>(
-          flex, self_extent, child_nodes);
+    if (flex.direction == Direction::Row) {
+      return perform_flex_children_layout_<Direction::Row>(flex, self_extent,
+                                                           child_nodes);
     } else {
-      return perform_flex_children_layout_<Flex::Direction::Column>(
-          flex, self_extent, child_nodes);
+      return perform_flex_children_layout_<Direction::Column>(flex, self_extent,
+                                                              child_nodes);
     }
   }
 
@@ -511,14 +609,29 @@ struct LayoutTree {
   void build(Widget &root_widget) {
     root_node = {};
     build_node(root_widget, root_node);
-
-    VLK_ENSURE(root_node.self_extent.width != u32_max);
-    VLK_ENSURE(root_node.self_extent.height != u32_max);
+    tick(std::chrono::nanoseconds(0));
   }
 
-  void tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
+  void tick(std::chrono::nanoseconds const &interval) {
     if (is_layout_dirty) {
       perform_layout(root_node, allotted_extent, Offset{0, 0});
+
+      if (root_node.type == Widget::Type::View) {
+        VLK_ENSURE(root_node.view_extent.width < u32_max,
+                   "root widget has infinite resolved view width",
+                   *root_node.widget);
+        VLK_ENSURE(root_node.view_extent.height < u32_max,
+                   "root widget has infinite resolved view height",
+                   *root_node.widget);
+      }
+
+      VLK_ENSURE(root_node.self_extent.width < u32_max,
+                 "root widget has infinite resolved self width",
+                 *root_node.widget);
+      VLK_ENSURE(root_node.self_extent.height < u32_max,
+                 "root widget has infinite resolved self height",
+                 *root_node.widget);
+
       is_layout_dirty = false;
     }
   }
