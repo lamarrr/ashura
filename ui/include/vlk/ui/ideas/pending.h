@@ -261,3 +261,53 @@ typename BoxShadowAllocator = std::allocator<BoxShadow>
 struct Gradient {
   // linear, radial, sweep
 };
+
+   stx::Span<TextShadow const> const& shadows = {}
+
+struct TextShadow {
+  Color color = colors::Black;
+  IOffset offset = IOffset{0, 0};
+  double blur_radius = 0.0;
+};
+
+  bool is_underlined() const {
+    return (decoration_ & TextDecoration::Overline) != TextDecoration::None;
+  }
+
+  bool is_overlined() const {
+    return (decoration_ & TextDecoration::Overline) != TextDecoration::None;
+  }
+
+  bool has_strikethrough() const {
+    return (decoration_ & TextDecoration::StrikeThrough) !=
+           TextDecoration::None;
+  }
+
+/*
+for (auto const& shadow : shadows)
+  text_style.addShadow(sktext::TextShadow{
+      shadow.color.to_argb(), SkPoint::Make(shadow.offset.x, shadow.offset.y),
+      shadow.blur_radius});
+
+
+Rect Text::compute_area(Extent const& allotted_extent,
+                        [[maybe_unused]] stx::Span<Rect> const& children_area) {
+  paragraph_->layout(allotted_extent.width);
+
+  // it is laid out on the specified width above, its MaxIntrinsicWidth
+  // specifies the max width if the whole text were to be laid out on a straight
+  // line.
+  uint32_t width = static_cast<uint32_t>(
+      std::ceil(std::min(paragraph_->getMaxIntrinsicWidth(),
+                         static_cast<float>(allotted_extent.width))));
+  uint32_t height = static_cast<uint32_t>(std::ceil(paragraph_->getHeight()));
+
+  return Rect{Offset{0, 0}, Extent{width, height}};
+}
+
+void Text::draw(Canvas& canvas,
+                [[maybe_unused]] Extent const& requested_extent) {
+  SkCanvas* sk_canvas = canvas.as_skia();
+  paragraph_->paint(sk_canvas, 0, 0);
+}
+*/
