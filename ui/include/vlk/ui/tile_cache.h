@@ -326,38 +326,32 @@ struct TileCache {
       }
     }
 
-    if (any_tile_dirty) {
-      // subtiles should be marked as dirty and as in focus or out of focus as
-      // necessary before entering here
-      for (size_t i = 0; i < tiles.get_tiles().size(); i++) {
-        RasterCache &subtile = tiles.get_tiles()[i];
+    // subtiles should be marked as dirty and as in focus or out of focus as
+    // necessary before entering here
+    for (size_t i = 0; i < tiles.get_tiles().size(); i++) {
+      RasterCache &subtile = tiles.get_tiles()[i];
 
+      if (tile_is_in_focus[i] && !subtile.is_surface_init()) {
+        // prepare for rasterization
+        subtile.init_surface(*context);
+      }
+
+      if (tile_is_in_focus[i]) {
+        tile_oof_ticks[i].reset();
+        // mark the backing store as dirty
+        backing_store_dirty = true;
+      } else {
+        tile_oof_ticks[i]++;
+        if (tile_oof_ticks[i] > max_oof_ticks) {
+          // recording is always kept and not discarded
+          subtile.deinit_surface();
+        }
+      }
+
+      if (any_tile_dirty) {
         if (tile_is_dirty[i]) {
           subtile.discard_recording();
           subtile.begin_recording();
-
-          if (tile_is_in_focus[i]) {
-            // prepare for rasterization
-            if (!subtile.is_surface_init()) {
-              subtile.init_surface(*context);
-            }
-
-            tile_oof_ticks[i].reset();
-
-            // mark the backing store as dirty
-            backing_store_dirty = true;
-          } else {
-            tile_oof_ticks[i]++;
-            if (tile_oof_ticks[i] > max_oof_ticks) {
-              subtile.deinit_surface();
-              // recording is always kept and not discarded
-            } else {
-              // prepare for rasterization
-              if (!subtile.is_surface_init()) {
-                subtile.init_surface(*context);
-              }
-            }
-          }
         }
       }
     }
