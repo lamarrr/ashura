@@ -8,7 +8,8 @@
 namespace vlk {
 namespace desc {
 
-struct Image2D {
+
+struct Image {
   enum class Format : uint8_t {
     Internal = 0,
     Grey = 1,
@@ -32,29 +33,29 @@ enum class Error : uint8_t { InvalidPath, Internal };
 // each channel is representy by a byte
 // TODO(lamarrr): make better by adding support for new types
 // TODO(lamarrr): ensure only malloc is ever used here
-struct [[nodiscard]] Image2D {
+struct [[nodiscard]] Image {
   enum class Format : uint8_t { Grey = 1, GreyAlpha = 2, RGB = 3, RGBA = 4 };
 
-  static stx::Result<Image2D, Error> load(desc::Image2D const& desc);
-  static stx::Result<Image2D, Error> load(std::filesystem::path const& path,
-                                          desc::Image2D::Format format) {
-    return load(desc::Image2D{path, format});
+  static stx::Result<Image, Error> load(desc::Image const& desc);
+  static stx::Result<Image, Error> load(std::filesystem::path const& path,
+                                        desc::Image::Format format) {
+    return load(desc::Image{path, format});
   }
-  static stx::Result<Image2D, Error> load(std::filesystem::path const& path,
-                                          desc::Image2D::Format format,
-                                          bool flip_vertically) {
-    return load(desc::Image2D{path, format, flip_vertically});
+  static stx::Result<Image, Error> load(std::filesystem::path const& path,
+                                        desc::Image::Format format,
+                                        bool flip_vertically) {
+    return load(desc::Image{path, format, flip_vertically});
   }
 
   // void take();
   // void ref();
 
-  Image2D() : pixel_data_{}, width_{}, height_{}, format_{Format::RGBA} {}
-  Image2D(Image2D const&) = delete;
-  Image2D& operator=(Image2D const&) = delete;
-  Image2D(Image2D && other) noexcept;
-  Image2D& operator=(Image2D&& other) noexcept;
-  ~Image2D() noexcept;
+  Image() : pixel_data_{}, width_{}, height_{}, format_{Format::RGBA} {}
+  Image(Image const&) = delete;
+  Image& operator=(Image const&) = delete;
+  Image(Image && other) noexcept;
+  Image& operator=(Image&& other) noexcept;
+  ~Image() noexcept;
 
   uint32_t width() const noexcept { return width_; }
   uint32_t height() const noexcept { return height_; }

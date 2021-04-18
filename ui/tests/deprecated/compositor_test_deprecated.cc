@@ -13,8 +13,8 @@ using namespace vlk;
 struct TestImage : public Widget {
   TestImage(char const *path) : image_{}, path_{path} {
     auto im_desc =
-        vlk::desc::Image2D{path, vlk::desc::Image2D::Format::RGBA, false};
-    image_ = vlk::data::Image2D::load(im_desc).expect("unable to load image");
+        vlk::desc::Image{path, vlk::desc::Image::Format::RGBA, false};
+    image_ = vlk::data::Image::load(im_desc).expect("unable to load image");
   }
 
   virtual Type get_type() const noexcept override { return Type::Render; }
@@ -56,7 +56,7 @@ struct TestImage : public Widget {
   }
 
  private:
-  vlk::data::Image2D image_;
+  vlk::data::Image image_;
   char const *path_;
 };
 
@@ -138,8 +138,8 @@ TEST(TextRenderingTest, SimpleBox) {
                .border_radius(5000),
            BoxDecoration{}
                .color(colors::Black.with_alpha(0xAA))
-               .image(data::Image2D::load("/home/lamar/Pictures/bhound.jpg",
-                                          desc::Image2D::Format::RGBA)
+               .image(data::Image::load("/home/lamar/Pictures/bhound.jpg",
+                                          desc::Image::Format::RGBA)
                           .unwrap(),
                       1.0f, Sizing::relative(0.25f, 0.0f, 1.0f, 1.0f),
                       Stretch::None)

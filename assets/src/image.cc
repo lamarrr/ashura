@@ -15,8 +15,8 @@
 
 using namespace vlk;
 
-stx::Result<data::Image2D, data::Error> data::Image2D::load(
-    desc::Image2D const& desc) {
+stx::Result<data::Image, data::Error> data::Image::load(
+    desc::Image const& desc) {
   if (!std::filesystem::exists(desc.path))
     return stx::Err(data::Error::InvalidPath);
 
@@ -37,23 +37,23 @@ stx::Result<data::Image2D, data::Error> data::Image2D::load(
   auto const format = desc.target_format;
 
   switch (format) {
-    case desc::Image2D::Format::Internal:
+    case desc::Image::Format::Internal:
       target_channels = 0;
       break;
-    case desc::Image2D::Format::Grey:
+    case desc::Image::Format::Grey:
       target_channels = 1;
       break;
-    case desc::Image2D::Format::GreyAlpha:
+    case desc::Image::Format::GreyAlpha:
       target_channels = 2;
       break;
-    case desc::Image2D::Format::RGB:
+    case desc::Image::Format::RGB:
       target_channels = 3;
       break;
-    case desc::Image2D::Format::RGBA:
+    case desc::Image::Format::RGBA:
       target_channels = 4;
       break;
     default:
-      VLK_ENSURE(false, "Unrecognized Image2D Format");
+      VLK_ENSURE(false, "Unrecognized Image Format");
   }
 
   stbi_set_flip_vertically_on_load(desc.flip_vertically);
@@ -71,16 +71,16 @@ stx::Result<data::Image2D, data::Error> data::Image2D::load(
     resulting_channels = target_channels;
   }
 
-  data::Image2D image{};
+  data::Image image{};
   image.pixel_data_ = image_uc;
-  image.format_ = static_cast<data::Image2D::Format>(resulting_channels);
+  image.format_ = static_cast<data::Image::Format>(resulting_channels);
   image.width_ = width;
   image.height_ = height;
 
   return stx::Ok(std::move(image));
 }
 
-data::Image2D::Image2D(data::Image2D&& other) noexcept
+data::Image::Image(data::Image&& other) noexcept
     : pixel_data_{other.pixel_data_},
       width_{other.width_},
       height_{other.height_},
@@ -90,7 +90,7 @@ data::Image2D::Image2D(data::Image2D&& other) noexcept
   other.height_ = 0;
 }
 
-data::Image2D& data::Image2D::operator=(data::Image2D&& other) noexcept {
+data::Image& data::Image::operator=(data::Image&& other) noexcept {
   auto deleter = std::move(*this);
 
   format_ = other.format_;
@@ -105,7 +105,7 @@ data::Image2D& data::Image2D::operator=(data::Image2D&& other) noexcept {
   return *this;
 }
 
-data::Image2D::~Image2D() {
+data::Image::~Image() {
   // the image is allocated by stb library using malloc
   if (pixel_data_ != nullptr) free(pixel_data_);
 }
