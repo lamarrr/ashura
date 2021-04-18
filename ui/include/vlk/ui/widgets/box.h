@@ -75,7 +75,7 @@ struct BoxProps {
 };
 
 struct BoxDecoration {
-  using Image = data::Image2D;
+  using Image = data::Image;
 
   enum class Blend : uint8_t { ColorOver = 0, ImageOver = 1 };
 
@@ -136,6 +136,7 @@ struct Box : public Widget {
     Widget::update_children(children_);
     Widget::update_flex(flex);
     Widget::update_self_extent(SelfExtent{Constrain{1.0f}, Constrain{1.0f}});
+    Widget::update_padding(properties_.padding());
   }
 
   ~Box() { delete children_[0]; }
@@ -147,7 +148,11 @@ struct Box : public Widget {
 
     Border const border = properties_.border();
     BorderRadius const border_radius = properties_.border_radius();
-    Padding const padding = properties_.padding();
+    // TODO(lamarrr): do we need a notion of borders within our layout system?
+    // the child's layout does not respect this presently, we need it since we
+    // can't afford to make it a widget.
+    // TODO(lamarrr): add paths for ones with 0.0 border radius and unused
+    // properties
 
     uint32_t const border_x =
         std::min(border.edges.left + border.edges.right, widget_extent.width);
@@ -221,7 +226,7 @@ struct Box : public Widget {
             SkColorType color_type;
 
             switch (image.format()) {
-              case data::Image2D::Format::RGBA:
+              case data::Image::Format::RGBA:
                 color_type = SkColorType::kRGBA_8888_SkColorType;
                 break;
               default:
