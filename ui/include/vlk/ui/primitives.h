@@ -269,7 +269,7 @@ struct Color {
   static constexpr uint32_t kBlueMask = kGreenMask >> 8;
   static constexpr uint32_t kAlphaMask = kBlueMask >> 8;
 
-  uint32_t rgba;
+  uint32_t rgba = 0x000000FFU;
 
   static constexpr Color from_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     return Color{static_cast<uint32_t>(r) << 24 |
