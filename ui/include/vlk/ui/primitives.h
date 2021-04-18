@@ -56,6 +56,10 @@ struct Extent {
   uint32_t height = 0;
 
   constexpr bool visible() const { return width != 0 && height != 0; }
+
+  constexpr Extent constrain(Extent const &other) const {
+    return Extent{std::min(width, other.width), std::min(height, other.height)};
+  }
 };
 
 inline constexpr Extent operator+(Extent const &a, Extent const &b) {
