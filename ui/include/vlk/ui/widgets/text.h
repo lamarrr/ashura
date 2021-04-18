@@ -5,34 +5,31 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/widget.h"
 
-#include "include/core/SkPaint.h"
 #include "stx/span.h"
 #include "vlk/utils/limits.h"
 
-namespace skia {
-namespace textlayout {
+#include "modules/skparagraph/include/Paragraph.h"
 
-struct Paragraph;
+// future-TODO(lamarrr): accessibility text scale factor, can be changed at
+// runtime? or constant
 
-}
-}  // namespace skia
-
-// TODO(lamarrr): accessibility text scale factor, can be changed at runtime? or
-// constant
+// PR0
 // TODO(lamarrr): IMPORTANT!!! Font loading from path at least
 
 namespace vlk {
 namespace ui {
 
-enum class TextSlant : uint8_t {
-  Upright,
-  Italic,
-  Oblique,
-};
+// from file, from byte data, from name
+// we need to be able to share font data acrross widgets and thus need a font
+// manager
+struct Typeface;
+struct Font;
+struct FontManager;
 
 enum class TextDecoration : uint8_t {
   None = 0,
@@ -40,6 +37,28 @@ enum class TextDecoration : uint8_t {
   Overline = 2,
   StrikeThrough = 4,
 };
+
+constexpr TextDecoration operator|(TextDecoration a, TextDecoration b) {
+  return vlk::enum_or(a, b);
+}
+
+constexpr TextDecoration operator&(TextDecoration a, TextDecoration b) {
+  return vlk::enum_and(a, b);
+}
+
+enum class FontSlant : uint8_t {
+  Upright = 0,
+  Italic = 1,
+  Oblique = 2,
+};
+
+constexpr FontSlant operator|(FontSlant a, FontSlant b) {
+  return vlk::enum_or(a, b);
+}
+
+constexpr FontSlant operator&(FontSlant a, FontSlant b) {
+  return vlk::enum_and(a, b);
+}
 
 enum class FontWeight : uint16_t {
   Invisible = 0,
@@ -55,20 +74,24 @@ enum class FontWeight : uint16_t {
   ExtraBlack = 1000,
 };
 
-// TODO(LAMARRR): update the use of this
-enum class TextDecorationStyle : uint8_t {
-  None = 0,
-  Solid = 1,
-  Double = 2,
-  Dotted = 4,
-  Dashed = 8,
-  Wavy = 16
+enum class FontWidth : uint8_t {
+  UltraCondensed = 1,
+  ExtraCondensed = 2,
+  Condensed = 3,
+  SemiCondensed = 4,
+  Normal = 5,
+  SemiExpanded = 6,
+  Expanded = 7,
+  ExtraExpanded = 8,
+  UltraExpanded = 9,
 };
 
-struct TextShadow {
-  Color color = colors::Black;
-  Offset offset = Offset{0, 0};
-  double blur_radius = 0.0;
+enum class TextDecorationStyle : uint8_t {
+  Solid = 0,
+  Double,
+  Dotted,
+  Dashed,
+  Wavy
 };
 
 enum class TextDirection : uint8_t {
@@ -85,26 +108,28 @@ enum class TextAlign : uint8_t {
   End,
 };
 
+struct FontStyle {
+  FontWeight weight = FontWeight::Normal;
+  FontWidth width = FontWidth::Normal;
+  FontSlant slant = FontSlant::Upright;
+};
+
 struct TextProps {
   TextProps color(Color text_color) const {
     TextProps out{*this};
-    out.foreground_paint_.setColor(text_color.to_argb());
+    out.foreground_color_ = text_color;
     return out;
   }
 
-  Color color() const noexcept {
-    return Color::from_argb(foreground_paint_.getColor());
-  }
+  Color color() const { return foreground_color_; }
 
   TextProps background_color(Color color) const {
     TextProps out{*this};
-    out.background_paint_.setColor(color.to_argb());
+    out.background_color_ = color;
     return out;
   }
 
-  Color background_color() const noexcept {
-    return Color::from_argb(background_paint_.getColor());
-  }
+  Color background_color() const { return background_color_; }
 
   TextProps font_size(float size) const {
     TextProps out{*this};
@@ -112,7 +137,7 @@ struct TextProps {
     return out;
   }
 
-  float font_size() const noexcept { return font_size_; }
+  float font_size() const { return font_size_; }
 
   TextProps letter_spacing(float spacing) const {
     TextProps out{*this};
@@ -120,7 +145,7 @@ struct TextProps {
     return out;
   }
 
-  float letter_spacing() const noexcept { return letter_spacing_; }
+  float letter_spacing() const { return letter_spacing_; }
 
   TextProps word_spacing(float spacing) const {
     TextProps out{*this};
@@ -128,87 +153,85 @@ struct TextProps {
     return out;
   }
 
-  float word_spacing() const noexcept { return word_spacing_; }
+  float word_spacing() const { return word_spacing_; }
 
-  TextProps locale(std::string_view const& name) const {
+  TextProps locale(std::string_view const& new_locale) const {
     TextProps out{*this};
-    size_t max_size = name.size() < static_cast<size_t>(std::size(locale_) - 1)
-                          ? name.size()
-                          : static_cast<size_t>(std::size(locale_));
-    for (char& c : out.locale_) c = 0x00;
-    for (size_t i = 0; i < max_size; i++) {
-      out.locale_[i] = name[i];
-    }
+    out.locale_ = new_locale;
     return out;
   }
 
   std::string locale() const { return locale_; }
 
-  TextProps slant(TextSlant slant) const {
+  TextProps font_style(FontStyle style) const {
     TextProps out{*this};
-    out.slant_ = slant;
+    out.font_style_ = style;
     return out;
   }
 
-  TextProps italic() const { return slant(TextSlant::Italic); }
+  FontStyle font_style() const { return font_style_; }
 
-  TextSlant slant() const noexcept { return slant_; }
+  TextProps slant(FontSlant slant) const {
+    TextProps out{*this};
+    out.font_style_.slant = slant;
+    return out;
+  }
+
+  FontSlant slant() const { return font_style_.slant; }
+
+  TextProps italic() const { return slant(FontSlant::Italic); }
+  TextProps upright() const { return slant(FontSlant::Upright); }
+  TextProps oblique() const { return slant(FontSlant::Oblique); }
+
+  TextProps font_weight(FontWeight weight) const {
+    TextProps out{*this};
+    out.font_style_.weight = weight;
+    return out;
+  }
+
+  FontWeight font_weight() const { return font_style_.weight; }
+
+  TextProps font_width(FontWidth width) const {
+    TextProps out{*this};
+    out.font_style_.width = width;
+    return out;
+  }
+
+  FontWidth font_width() const { return font_style_.width; }
 
   TextProps underlined() const {
     TextProps out{*this};
-    out.decoration_ = static_cast<TextDecoration>(
-        static_cast<uint8_t>(decoration_) |
-        static_cast<uint8_t>(TextDecoration::Underline));
+    out.decoration_ = decoration_ | TextDecoration::Underline;
     return out;
-  }
-
-  bool is_underlined() const noexcept {
-    return static_cast<bool>(static_cast<uint8_t>(decoration_) &
-                             static_cast<uint8_t>(TextDecoration::Underline));
   }
 
   TextProps overlined() const {
     TextProps out{*this};
-    out.decoration_ = static_cast<TextDecoration>(
-        static_cast<uint8_t>(decoration_) |
-        static_cast<uint8_t>(TextDecoration::Overline));
+    out.decoration_ = decoration_ | TextDecoration::Overline;
     return out;
   }
 
-  bool is_overlined() const noexcept {
-    return static_cast<bool>(static_cast<uint8_t>(decoration_) &
-                             static_cast<uint8_t>(TextDecoration::Overline));
-  }
-
-  TextProps strikethrough() {
+  TextProps strikethrough() const {
     TextProps out{*this};
-    out.decoration_ = static_cast<TextDecoration>(
-        static_cast<uint8_t>(decoration_) |
-        static_cast<uint8_t>(TextDecoration::StrikeThrough));
+    out.decoration_ = decoration_ | TextDecoration::StrikeThrough;
     return out;
   }
 
-  bool has_strikethrough() const noexcept {
-    return static_cast<bool>(
-        static_cast<uint8_t>(decoration_) &
-        static_cast<uint8_t>(TextDecoration::StrikeThrough));
-  }
-
-  TextProps clear_decorations() const {
+  TextProps no_decoration() const {
     TextProps out{*this};
-    out.decoration_ = TextDecoration::NoDecoration;
+    out.decoration_ = TextDecoration::None;
     return out;
   }
 
-  TextDecoration get_decorations() const noexcept { return decoration_; }
+  TextDecoration decoration() const { return decoration_; }
 
-  TextProps font_weight(FontWeight weight) const {
+  TextProps decoration_color(Color color) const {
     TextProps out{*this};
-    out.font_weight_ = weight;
+    out.decoration_color_ = color;
     return out;
   }
 
-  FontWeight font_weight() const { return font_weight_; }
+  Color decoration_color() const { return decoration_color_; }
 
   TextProps decoration_style(TextDecorationStyle style) const {
     TextProps out{*this};
@@ -216,10 +239,9 @@ struct TextProps {
     return out;
   }
 
-  TextDecorationStyle decoration_style() const noexcept {
-    return decoration_style_;
-  }
+  TextDecorationStyle decoration_style() const { return decoration_style_; }
 
+  // TODO(lamarrr): fix this
   TextProps font_family(std::string_view const& font) const {
     TextProps out{*this};
     out.font_family_ = font;
@@ -234,66 +256,99 @@ struct TextProps {
     return out;
   }
 
-  TextDirection direction() const noexcept { return direction_; }
+  TextDirection direction() const { return direction_; }
 
-  TextProps align(TextAlign align) {
+  TextProps align(TextAlign align) const {
     TextProps out{*this};
     out.align_ = align;
     return out;
   }
 
-  TextAlign align() const noexcept { return align_; }
+  TextAlign align() const { return align_; }
 
-  TextProps line_limit(size_t limit) {
+  TextProps line_limit(uint32_t limit) const {
     TextProps out{*this};
     out.line_limit_ = limit;
     return out;
   }
 
-  size_t line_limit() const noexcept { return line_limit_; }
+  uint32_t line_limit() const { return line_limit_; }
+
+  void antialias(bool value) { antialiased_ = value; }
+
+  bool antialias() const { return antialiased_; }
 
  private:
-  SkPaint foreground_paint_ = default_foreground_paint_();
-  SkPaint background_paint_ = default_background_paint_();
+  Color foreground_color_ = colors::Black;
+  Color background_color_ = colors::Transparent;
   // float height = 1.0;
-  float font_size_ = 14.0, letter_spacing_ = 0.0, word_spacing_ = 0.0;
-  char locale_[85] = {};
+  // float leading = -1
+  float font_size_ = 14.0f;
+  float letter_spacing_ = 0.0f;
+  float word_spacing_ = 0.0f;
+  std::string locale_ = {};
   TextDecoration decoration_ = TextDecoration::None;
-  FontWeight font_weight_ = FontWeight::Normal;
-  TextSlant slant_ = TextSlant::Upright;
+  Color decoration_color_ = colors::Black;
+  FontStyle font_style_ = FontStyle{};
   TextDecorationStyle decoration_style_ = TextDecorationStyle::Solid;
   std::string font_family_ = "sans-serif";
   TextDirection direction_ = TextDirection::Ltr;
   TextAlign align_ = TextAlign::Left;
-  size_t line_limit_ = usize_max;
-
-  static SkPaint default_foreground_paint_() {
-    SkPaint paint;
-    paint.setColor(colors::Black.to_argb());
-    paint.setAntiAlias(true);
-    return paint;
-  }
-
-  static SkPaint default_background_paint_() {
-    SkPaint paint;
-    paint.setColor(colors::Transparent.to_argb());
-    paint.setAntiAlias(true);
-    return paint;
-  }
-
-  friend SkPaint const& ref_background_paint(TextProps const& props) noexcept;
-  friend SkPaint const& ref_foreground_paint(TextProps const& props) noexcept;
+  uint32_t line_limit_ = u32_max;
+  bool antialiased_ = true;
 };
 
+// TODO(lamarrr): A single paragraph. doesn't support multiple stylings. use
+// builder->addTextStyle and builder->addText
 struct Text : public Widget {
-  Text(std::string_view const& str, TextProps const& properties = TextProps{},
-       stx::Span<TextShadow const> const& shadows = {});
+  Text(std::string_view const& utf8_str,
+       TextProps const& properties = TextProps{}) {
+    update_text(utf8_str);
+    update_props(properties);
+    Widget::update_needs_trimming(true);
+    tick(std::chrono::nanoseconds(0));
+  }
 
-  virtual void draw(Canvas& canvas) override;
+  ~Text() override final = default;
+
+  std::string get_text() const { return utf8_text_; }
+
+  TextProps get_props() const { return properties_; }
+
+  void update_text(std::string_view const& utf8_str) {
+    utf8_text_ = utf8_str;
+    paragraph_dirty_ = true;
+  }
+
+  void update_props(TextProps const& properties) {
+    properties_ = properties;
+    paragraph_dirty_ = true;
+  }
+
+  // TODO(lamarrr): clip text if it height exceeds the maximum extent?
+  virtual void draw(Canvas& canvas) override final;
+
+  virtual void tick([
+      [maybe_unused]] std::chrono::nanoseconds const& interval) override final {
+    if (paragraph_dirty_) {
+      rebuild_paragraph_();
+      paragraph_dirty_ = false;
+
+      mark_render_dirty();
+      mark_layout_dirty();
+    }
+  }
+
+  virtual Extent trim(Extent const&) override;
 
  private:
-  std::string text_data_;
-  std::unique_ptr<skia::textlayout::Paragraph> paragraph_;
+  std::string utf8_text_;
+  TextProps properties_;
+
+  std::unique_ptr<skia::textlayout::Paragraph> paragraph_{nullptr};
+  bool paragraph_dirty_ = true;
+
+  void rebuild_paragraph_();
 };
 
 }  // namespace ui

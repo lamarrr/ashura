@@ -1,16 +1,15 @@
 
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-/*
 #include "vlk/ui/widgets/text.h"
 #include "vlk/utils/utils.h"
-
 
 #include "modules/skparagraph/include/Paragraph.h"
 #include "modules/skparagraph/include/ParagraphBuilder.h"
@@ -19,203 +18,278 @@
 #include "modules/skparagraph/src/ParagraphBuilderImpl.h"
 #include "modules/skparagraph/src/ParagraphImpl.h"
 
-using namespace vlk::ui;
+namespace ui = vlk::ui;
+namespace sktext = skia::textlayout;
 
 // TODO(lamarrr): text splitting after layout. this would mean that the children
 // would change and invoke a large re-layout and re-paint when they change,
 // which is normal
 
-SkPaint const& impl::ref_background_paint(
-    TextProperties const& props) noexcept {
-  return props.background_paint_;
+STX_FORCE_INLINE static SkFontStyle make_font_style(
+    ui::TextProps const& props) {
+  SkFontStyle::Weight weight =
+      static_cast<SkFontStyle::Weight>(static_cast<int>(props.font_weight()));
+  SkFontStyle::Width width =
+      static_cast<SkFontStyle::Width>(static_cast<int>(props.font_width()));
+  SkFontStyle::Slant slant = SkFontStyle::Slant::kUpright_Slant;
+
+  switch (props.slant()) {
+    case ui::FontSlant::Italic:
+      slant = (SkFontStyle::Slant)(slant | SkFontStyle::kItalic_Slant);
+      break;
+    case ui::FontSlant::Oblique:
+      slant = (SkFontStyle::Slant)(slant | SkFontStyle::kOblique_Slant);
+      break;
+    case ui::FontSlant::Upright:
+      slant = (SkFontStyle::Slant)(slant | SkFontStyle::kUpright_Slant);
+      break;
+
+    default:
+      VLK_PANIC("Unimplemented Font Slant");
+  }
+
+  return SkFontStyle{weight, width, slant};
 }
 
-SkPaint const& impl::ref_foreground_paint(
-    TextProperties const& props) noexcept {
-  return props.foreground_paint_;
-}
-
-STX_FORCE_INLINE static std::pair<skia::textlayout::ParagraphStyle,
-                                  skia::textlayout::TextStyle>
-to_skia_text_style(TextProperties const& front,
-                   stx::Span<TextShadow const> const& shadows) {
-  namespace sktext = skia::textlayout;
-
-  sktext::ParagraphStyle paragraph_style;
+STX_FORCE_INLINE static sktext::TextStyle make_text_style(
+    ui::TextProps const& props) {
   sktext::TextStyle text_style;
 
-  // paragraph_style.setDrawOptions(
-  //          DrawOptions::kDirect);  // ?
+  SkPaint foreground_paint;
+  SkPaint background_paint;
 
-  paragraph_style.setMaxLines(front.line_limit());
+  foreground_paint.setAntiAlias(props.antialias());
+  foreground_paint.setColor(props.color().to_argb());
 
-  switch (front.align()) {
-    case TextAlign::Center:
-      paragraph_style.setTextAlign(sktext::TextAlign::kCenter);
-      break;
+  background_paint.setAntiAlias(props.antialias());
+  background_paint.setColor(props.background_color().to_argb());
 
-    case TextAlign::End:
-      paragraph_style.setTextAlign(sktext::TextAlign::kEnd);
-      break;
-
-    case TextAlign::Justify:
-      paragraph_style.setTextAlign(sktext::TextAlign::kJustify);
-      break;
-
-    case TextAlign::Left:
-      paragraph_style.setTextAlign(sktext::TextAlign::kLeft);
-      break;
-
-    case TextAlign::Right:
-      paragraph_style.setTextAlign(sktext::TextAlign::kRight);
-      break;
-
-    case TextAlign::Start:
-      paragraph_style.setTextAlign(sktext::TextAlign::kStart);
-      break;
-  }
-
-  switch (front.direction()) {
-    case TextDirection::Ltr:
-      paragraph_style.setTextDirection(sktext::TextDirection::kLtr);
-      break;
-
-    case TextDirection::Rtl:
-      paragraph_style.setTextDirection(sktext::TextDirection::kRtl);
-      break;
-  }
-
-  text_style.setBackgroundColor(impl::ref_background_paint(front));
-  text_style.setForegroundColor(impl::ref_foreground_paint(front));
+  text_style.setForegroundColor(foreground_paint);
+  text_style.setBackgroundColor(background_paint);
 
   sktext::TextDecoration decoration = sktext::TextDecoration::kNoDecoration;
 
-  TextDecoration front_decorations = front.get_decorations();
-
-  if (vlk::enum_ut_and(front_decorations, TextDecoration::Overline)) {
-    decoration = vlk::enum_or(decoration, sktext::kOverline);
+  if ((props.decoration() & ui::TextDecoration::Overline) !=
+      ui::TextDecoration::None) {
+    decoration = (sktext::TextDecoration)(decoration |
+                                          sktext::TextDecoration::kOverline);
   }
 
-  if (vlk::enum_ut_and(front_decorations, TextDecoration::StrikeThrough)) {
-    decoration = vlk::enum_or(decoration, sktext::kLineThrough);
+  if ((props.decoration() & ui::TextDecoration::StrikeThrough) !=
+      ui::TextDecoration::None) {
+    decoration = (sktext::TextDecoration)(decoration |
+                                          sktext::TextDecoration::kLineThrough);
   }
 
-  if (vlk::enum_ut_and(front_decorations, TextDecoration::Underline)) {
-    decoration = vlk::enum_or(decoration, sktext::kUnderline);
+  if ((props.decoration() & ui::TextDecoration::Underline) !=
+      ui::TextDecoration::None) {
+    decoration = (sktext::TextDecoration)(decoration |
+                                          sktext::TextDecoration::kUnderline);
   }
 
   text_style.setDecoration(decoration);
+  text_style.setDecorationColor(props.decoration_color().to_argb());
 
-  switch (front.decoration_style()) {
-    case DecorationStyle::Dashed:
-      text_style.setDecorationStyle(sktext::kDashed);
+  switch (props.decoration_style()) {
+    case ui::TextDecorationStyle::Dashed:
+      text_style.setDecorationStyle(sktext::TextDecorationStyle::kDashed);
       break;
-
-    case DecorationStyle::Dotted:
-      text_style.setDecorationStyle(sktext::kDotted);
+    case ui::TextDecorationStyle::Dotted:
+      text_style.setDecorationStyle(sktext::TextDecorationStyle::kDotted);
       break;
-
-    case DecorationStyle::Double:
-      text_style.setDecorationStyle(sktext::kDouble);
+    case ui::TextDecorationStyle::Double:
+      text_style.setDecorationStyle(sktext::TextDecorationStyle::kDouble);
       break;
-
-    case DecorationStyle::Solid:
-      text_style.setDecorationStyle(sktext::kSolid);
+    case ui::TextDecorationStyle::Solid:
+      text_style.setDecorationStyle(sktext::TextDecorationStyle::kSolid);
       break;
-
-    case DecorationStyle::Wavy:
-      text_style.setDecorationStyle(sktext::kWavy);
-      break;
-  }
-
-  std::string front_font_family = front.font_family();
-  text_style.setFontFamilies({SkString(front_font_family.c_str())});
-
-  text_style.setFontSize(front.font_size());
-
-  SkFontStyle::Slant slant = SkFontStyle::kUpright_Slant;
-
-  switch (front.slant()) {
-    case TextSlant::Italic:
-      slant = SkFontStyle::kItalic_Slant;
-      break;
-    case TextSlant::Oblique:
-      slant = SkFontStyle::kOblique_Slant;
+    case ui::TextDecorationStyle::Wavy:
+      text_style.setDecorationStyle(sktext::TextDecorationStyle::kWavy);
       break;
     default:
+      VLK_PANIC("Unimplemented Text Decoration Style");
       break;
   }
 
-  SkFontStyle font_style{static_cast<int>(front.font_weight()),
-                         static_cast<int>(SkFontStyle::kNormal_Width), slant};
+  text_style.setFontStyle(make_font_style(props));
+  text_style.setFontSize(props.font_size());
+  text_style.setLetterSpacing(props.letter_spacing());
+  text_style.setWordSpacing(props.word_spacing());
+  std::string const locale = props.locale();
 
-  text_style.setFontStyle(font_style);
+  text_style.setLocale(SkString{locale.data(), locale.size()});
 
-  text_style.setLetterSpacing(front.letter_spacing());
-  std::string locale = front.locale();
-  text_style.setLocale(SkString{locale.c_str()});
-  text_style.setWordSpacing(front.word_spacing());
+  text_style.setFontFamilies({SkString{"Arial"}});
 
-  for (auto const& shadow : shadows)
-    text_style.addShadow(sktext::TextShadow{
-        shadow.color.to_argb(), SkPoint::Make(shadow.offset.x, shadow.offset.y),
-        shadow.blur_radius});
+  // fonts?
+  sktext::FontCollection font_collection;
 
-  return std::make_pair(std::move(paragraph_style), std::move(text_style));
+  return text_style;
 }
 
-Text::Text(std::string_view const& str, TextProperties const& properties,
-           stx::Span<TextShadow const> const& shadows)
-    : text_data_{str} {
-  namespace sktext = skia::textlayout;
-  auto [paragraph_style, text_style] = to_skia_text_style(properties, shadows);
+STX_FORCE_INLINE static sktext::ParagraphStyle make_paragraph_style(
+    ui::TextProps const& props) {
+  sktext::ParagraphStyle paragraph_style;
 
-  // TODO(lamarrr): global????
+  paragraph_style.setMaxLines(props.line_limit());
+
+  switch (props.align()) {
+    case ui::TextAlign::Center:
+      paragraph_style.setTextAlign(sktext::TextAlign::kCenter);
+      break;
+
+    case ui::TextAlign::End:
+      paragraph_style.setTextAlign(sktext::TextAlign::kEnd);
+      break;
+
+    case ui::TextAlign::Justify:
+      paragraph_style.setTextAlign(sktext::TextAlign::kJustify);
+      break;
+
+    case ui::TextAlign::Left:
+      paragraph_style.setTextAlign(sktext::TextAlign::kLeft);
+      break;
+
+    case ui::TextAlign::Right:
+      paragraph_style.setTextAlign(sktext::TextAlign::kRight);
+      break;
+
+    case ui::TextAlign::Start:
+      paragraph_style.setTextAlign(sktext::TextAlign::kStart);
+      break;
+
+    default:
+      VLK_PANIC("Unimplemented Text Align");
+  }
+
+  switch (props.direction()) {
+    case ui::TextDirection::Ltr:
+      paragraph_style.setTextDirection(sktext::TextDirection::kLtr);
+      break;
+
+    case ui::TextDirection::Rtl:
+      paragraph_style.setTextDirection(sktext::TextDirection::kRtl);
+      break;
+
+    default:
+      VLK_PANIC("Unimplemented Text Direction");
+  }
+
+  paragraph_style.setTextStyle(make_text_style(props));
+  // paragraph_style.setDrawOptions(DrawOptions::kDirect);
+
+  return paragraph_style;
+}
+
+STX_FORCE_INLINE static std::unique_ptr<sktext::Paragraph> build_paragraph(
+    std::string_view const& utf8_text, ui::TextProps const& props) {
   sk_sp<sktext::FontCollection> font_collection =
       sk_make_sp<sktext::FontCollection>();
-  VLK_ENSURE(font_collection != nullptr);
 
   // TODO(lamarrr): get system fonts list
   // global
   sk_sp<SkFontMgr> font_mgr = SkFontMgr::RefDefault();
 
-  VLK_ENSURE(font_mgr != nullptr, "font manager is null");
-  VLK_ENSURE(font_mgr->countFamilies() > 0, "No font family in font manager");
+  VLK_ENSURE(font_mgr != nullptr, "Default Font Manager is null");
+  VLK_WARN_IF(font_mgr->countFamilies() <= 0,
+              "No Font Family found in default Font Manager");
   // TODO(lamarrr): what does it do when it does not find the required font?
+
+  // TODO(lamarrr): global font collection?
+
+  //
+  //
+  // Skia's Font collection contains several font managers. one can be the
+  // default system font manager thhat loads fonts that belongs to the system,
+  // and the others can be custom font managers that load fonts from other paths
+  // or sources
+  //
+  // Fonts contain multiple typefaces (comes in different formats, mostly .ttf).
+  // Typeface (i.e. Arial) is a particular glyph of a TypeFace (i.e. Arial,
+  // Light, Italic).
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
 
   font_collection->setDefaultFontManager(font_mgr);
 
-  sktext::ParagraphBuilderImpl builder{paragraph_style, font_collection};
+  sktext::ParagraphStyle paragraph_style = make_paragraph_style(props);
 
-  builder.pushStyle(text_style);
-  builder.addText(text_data_.data(), text_data_.size());
-  builder.pop();  // pushStyle -> addText -> Pop (adds text in chunks)
+  std::unique_ptr<sktext::ParagraphBuilder> paragraph_builder =
+      sktext::ParagraphBuilderImpl::make(paragraph_style, font_collection);
 
-  paragraph_ = builder.Build();
+  paragraph_builder->addText(utf8_text.data(), utf8_text.size());
 
+  std::unique_ptr<sktext::Paragraph> paragraph = paragraph_builder->Build();
+
+  VLK_ENSURE(paragraph != nullptr);
+
+  return paragraph;
+}
+
+void ui::Text::rebuild_paragraph_() {
+  paragraph_ = build_paragraph(utf8_text_, properties_);
+
+  paragraph_->layout(0.0f);
+
+  float const min_intrinsic_width = paragraph_->getMinIntrinsicWidth();
+  float const max_intrinsic_width = paragraph_->getMaxIntrinsicWidth();
+
+  paragraph_->layout(min_intrinsic_width);
+  float const max_intrinsic_height = paragraph_->getHeight();
+  paragraph_->layout(max_intrinsic_width);
+  float const min_intrinsic_height = paragraph_->getHeight();
+
+  // request for max extent but still layout for the given extent.
+  // we need to introduce the notion of layout to the system, lambda callback or
+  // text specific?
+  ui::SelfExtent extent{};
+  extent.width.min = static_cast<int64_t>(std::ceil(min_intrinsic_width));
+  extent.width.max = static_cast<int64_t>(std::ceil(max_intrinsic_width));
+  extent.width.bias = extent.width.max;
+
+  extent.height.min = static_cast<int64_t>(std::ceil(min_intrinsic_height));
+  extent.height.max = static_cast<int64_t>(std::ceil(max_intrinsic_height));
+  extent.height.bias = extent.width.max;
+
+  // TODO(lamarrr): make it not perform layout as we did and instead just
+  // request for the max extent and 1.0 on the height and the apply the trimmer.
+
+  //
+  // it woudln't make sense text shrinker
+  // trimmer_op can be aspect ratio as well
+
+  Widget::update_self_extent(extent);
+}
+
+ui::Extent ui::Text::trim(ui::Extent const& extent) {
   VLK_ENSURE(paragraph_ != nullptr);
+  paragraph_->layout(extent.width);
+  return Extent{extent.width, static_cast<uint32_t>(
+                                  std::ceil(this->paragraph_->getHeight()))};
 }
 
-/*
-Rect Text::compute_area(Extent const& allotted_extent,
-                        [[maybe_unused]] stx::Span<Rect> const& children_area) {
-  paragraph_->layout(allotted_extent.width);
+void ui::Text::draw(Canvas& canvas) {
+  VLK_ENSURE(paragraph_ != nullptr);
+  VLK_DEBUG_ENSURE(!paragraph_dirty_);
 
-  // it is laid out on the specified width above, its MaxIntrinsicWidth
-  // specifies the max width if the whole text were to be laid out on a straight
-  // line.
-  uint32_t width = static_cast<uint32_t>(
-      std::ceil(std::min(paragraph_->getMaxIntrinsicWidth(),
-                         static_cast<float>(allotted_extent.width))));
-  uint32_t height = static_cast<uint32_t>(std::ceil(paragraph_->getHeight()));
+  SkCanvas* sk_canvas = canvas.as_skia().expect("canvas backend is not skia");
 
-  return Rect{Offset{0, 0}, Extent{width, height}};
+  // if there's leftover space, we might need to perform another layout step or
+  // add the notion of text layout to the system?
+
+  // TODO(lamarrr): can we cache this?
+  paragraph_->layout(canvas.extent().width);
+  paragraph_->paint(sk_canvas, 0.0f, 0.0f);
 }
 
-void Text::draw(Canvas& canvas,
-                [[maybe_unused]] Extent const& requested_extent) {
-  SkCanvas* sk_canvas = canvas.as_skia();
-  paragraph_->paint(sk_canvas, 0, 0);
-}
-*/
-
+//   // ?
+// SkTypeface::MakeFromFile("");
+// std::string front_font_family = front.font_family();
+// text_style.setFontFamilies({SkString(front_font_family.c_str())});
