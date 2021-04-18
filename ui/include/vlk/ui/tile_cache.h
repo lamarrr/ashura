@@ -15,9 +15,6 @@
 namespace vlk {
 namespace ui {
 
-// TODO(lamarrr): TiledRecorder
-// SlidingRasterizer with placeholder?
-
 // cache invalidation sources:
 // - view offset change
 // - viewport resize
@@ -44,24 +41,21 @@ struct TileCache {
     // represents the extent of the widget
     Extent const *extent;
 
-    // non-null
-    ViewTree::View const *parent_view;
+    IRect const *clip_rect;
 
     // invalid
     Entry()
         : z_index{0},
           widget{nullptr},
           screen_offset{nullptr},
-          extent{nullptr},
-          parent_view{nullptr} {}
+          extent{nullptr} {}
 
-    Entry(ViewTree::View::Entry const &entry,
-          ViewTree::View const &init_parent_view) {
+    explicit Entry(ViewTree::View::Entry const &entry) {
       z_index = entry.z_index;
       widget = entry.layout_node->widget;
       screen_offset = &entry.screen_offset;
       extent = &entry.layout_node->self_extent;
-      parent_view = &init_parent_view;
+      clip_rect = &entry.clip_rect;
     }
 
     void draw(RasterCache &cache, IRect const &tile_screen_area) const {
@@ -74,31 +68,12 @@ struct TileCache {
       // procedure, the widget can exceed its allotted region while drawing
       // itself
 
+      // points to the portion of the widget that would be visible
+      IRect const widget_clip_rect = *clip_rect;
+
       IRect const widget_screen_area = IRect{*screen_offset, *extent};
 
       VLK_DEBUG_ENSURE(IRect(tile_screen_area).overlaps(widget_screen_area));
-
-      // points to the portion of the widget that would be visible
-      IRect clip_rect = widget_screen_area;
-
-      // TODO(lamarrr): move clip rect processing
-      // only mark intersecting tiles as dirty if its clip rect is visible in
-      // both scenarios
-
-      ViewTree::View const *ancestor = parent_view;
-
-      while (ancestor != nullptr && clip_rect.visible()) {
-        IRect ancestor_view_screen_rect{ancestor->screen_offset,
-                                        ancestor->layout_node->self_extent};
-
-        if (!ancestor_view_screen_rect.overlaps(clip_rect)) {
-          clip_rect = clip_rect.with_extent(Extent{});
-        } else {
-          clip_rect = ancestor_view_screen_rect.intersect(clip_rect);
-        }
-
-        ancestor = ancestor->parent;
-      }
 
       Canvas canvas = cache.get_recording_canvas();
       SkCanvas *sk_canvas =
@@ -114,21 +89,23 @@ struct TileCache {
 
       sk_canvas->translate(translation.x, translation.y);
 
-      if (clip_rect == widget_screen_area) {
-        // draw without clip
-        widget->draw(widget_canvas);
-      } else if (clip_rect.visible()) {
-        // draw with clip
+      if (widget_clip_rect.visible()) {
+        if (widget_clip_rect == widget_screen_area) {
+          // draw without clip
+          widget->draw(widget_canvas);
+        } else {
+          // draw with clip
 
-        // apply clip
-        // note that this is performed relative to the widget's extent
-        IOffset const clip_start = clip_rect.offset - widget_screen_area.offset;
+          // apply clip
+          // note that this is performed relative to the widget's extent
+          IOffset const clip_start =
+              widget_clip_rect.offset - widget_screen_area.offset;
 
-        sk_canvas->clipRect(SkRect::MakeXYWH(
-            clip_start.x, clip_start.y, clip_rect.width(), clip_rect.height()));
-
-        widget->draw(widget_canvas);
-
+          sk_canvas->clipRect(SkRect::MakeXYWH(clip_start.x, clip_start.y,
+                                               widget_clip_rect.width(),
+                                               widget_clip_rect.height()));
+          widget->draw(widget_canvas);
+        }
       } else {
         // draw nothing
       }
@@ -219,7 +196,7 @@ struct TileCache {
                            [](Entry const &a, ViewTree::View::Entry const &b) {
                              return a.z_index < b.z_index;
                            });
-      entries.insert(insert_pos, Entry{view_entry, view});
+      entries.insert(insert_pos, Entry{view_entry});
     }
 
     for (ViewTree::View &subview : view.subviews) {
