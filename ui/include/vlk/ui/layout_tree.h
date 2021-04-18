@@ -3,7 +3,7 @@
 
 #include <algorithm>
 #include <chrono>
-#include <utility>
+#include <tuple>
 #include <vector>
 
 #include "stx/span.h"
@@ -110,7 +110,7 @@ constexpr Extent view_fit_self_extent(ViewFit fit,
 }
 
 // returns the content rect relative to the resolved_extent
-constexpr std::pair<Rect, Padding> resolve_content_rect(
+constexpr std::tuple<Rect, Padding> resolve_content_rect(
     Extent const &resolved_extent, Padding const &padding) {
   uint32_t const resolved_padding_top =
       std::min(padding.top, resolved_extent.height);
@@ -127,7 +127,7 @@ constexpr std::pair<Rect, Padding> resolve_content_rect(
       resolved_extent.width - resolved_padding_left - resolved_padding_right,
       resolved_extent.height - resolved_padding_top - resolved_padding_bottom};
 
-  return std::make_pair(
+  return std::make_tuple(
       Rect{offset, extent},
       Padding::trbl(resolved_padding_top, resolved_padding_right,
                     resolved_padding_bottom, resolved_padding_left));
@@ -263,7 +263,7 @@ struct LayoutTree {
         child.parent_view_offset =
             type == Widget::Type::View
                 ? child.parent_offset
-                : (parent_view_offset + child.parent_offset);
+                : (child.parent_offset + parent_view_offset);
       }
 
       if (type == Widget::Type::View) {
@@ -299,6 +299,12 @@ struct LayoutTree {
                                                 node.view_extent);
       } else {
         node.self_extent = resolved_self_extent;
+
+        if (widget.needs_trimming()) {
+          Extent const trimmed_extent = node.widget->trim(node.self_extent);
+          node.self_extent = node.self_extent.constrain(trimmed_extent);
+        }
+
         node.view_extent = node.self_extent;
       }
     }
@@ -593,6 +599,8 @@ struct LayoutTree {
     node.widget = &widget;
     node.type = node.widget->get_type();
 
+    // NOTE: allocates memory, we might need an extra step to bind the lambda
+    // references if we want to utilize cache to the max
     WidgetStateProxyAccessor::access(widget).on_layout_dirty = [this] {
       this->is_layout_dirty = true;
     };
@@ -612,7 +620,7 @@ struct LayoutTree {
     tick(std::chrono::nanoseconds(0));
   }
 
-  void tick(std::chrono::nanoseconds const &interval) {
+  void tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
     if (is_layout_dirty) {
       perform_layout(root_node, allotted_extent, Offset{0, 0});
 

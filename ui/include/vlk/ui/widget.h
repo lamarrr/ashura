@@ -72,8 +72,9 @@ struct Widget {
   };
 
   Widget(Type const &type = Type::Render, bool is_flex = false,
-         SelfExtent const &self_extent = {}, Padding const &padding = Padding{},
-         Flex const &flex = {}, stx::Span<Widget *const> const &children = {},
+         SelfExtent const &self_extent = {}, bool const needs_trimming = false,
+         Padding const &padding = Padding{}, Flex const &flex = {},
+         stx::Span<Widget *const> const &children = {},
          ViewExtent const &view_extent = {}, ViewOffset const &view_offset = {},
          ViewFit const &view_fit = ViewFit::None,
          stx::Option<ZIndex> const &z_index = stx::None,
@@ -81,6 +82,7 @@ struct Widget {
       : type_{type},
         is_flex_{is_flex},
         self_extent_{self_extent},
+        needs_trimming_{needs_trimming},
         padding_{padding},
         flex_{flex},
         children_{children},
@@ -102,6 +104,8 @@ struct Widget {
   bool is_flex() const { return is_flex_; }
 
   SelfExtent get_self_extent() const { return self_extent_; }
+
+  bool needs_trimming() const { return needs_trimming_; }
 
   Padding get_padding() const { return padding_; }
 
@@ -131,6 +135,8 @@ struct Widget {
     // no-op
   }
 
+  virtual Extent trim(Extent const &extent) { return extent; }
+
   virtual ~Widget() {}
 
   void init_type(Type type) { type_ = type; }
@@ -139,6 +145,12 @@ struct Widget {
 
   void update_self_extent(SelfExtent const &self_extent) {
     self_extent_ = self_extent;
+    mark_layout_dirty();
+  }
+
+  void update_needs_trimming(bool need_trim) {
+    VLK_ENSURE(!is_flex(), "Only non-flex Widgets can be trimmed", *this);
+    needs_trimming_ = need_trim;
     mark_layout_dirty();
   }
 
@@ -205,6 +217,8 @@ struct Widget {
   /// variable throughout lifetime. communicate changes using `on_layout_dirty`.
   // for view widgets, this is effectively the size that's actually visible.
   SelfExtent self_extent_;
+
+  bool needs_trimming_;
 
   /// variable throughout lifetime. communicate changes using `on_layout_dirty`
   Padding padding_;
