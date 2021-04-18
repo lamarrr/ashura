@@ -22,6 +22,41 @@ namespace ui {
 // - viewport scrolling
 //
 
+constexpr auto get_tile_region(Extent const &tile_extent, int64_t const nrows,
+                               int64_t const ncols, IRect const &region) {
+  // the .screen_offset can exceed the whole screen's extent (due to
+  // scrolling) so we need to clamp
+
+  // the widget could be an outlieing widget
+  //
+  // screen offset can be negative
+  //
+  // screen offset can even change due to a resize, we don't need to
+  // worry about outlieing since it is handled
+  //
+  // we don't want to clamp so we don't mark the tiles at the edges as
+  // dirty (if any)
+  // also note that the `end`s can be negative
+  //
+  //
+  // auto -> int64_t
+  auto const [x_min, x_max, y_min, y_max] = region.bounds();
+
+  int64_t const i_begin = x_min / tile_extent.width;
+  int64_t const i_end = ((x_max + tile_extent.width) - 1) / tile_extent.width;
+
+  int64_t const j_begin = y_min / tile_extent.height;
+  int64_t const j_end = ((y_max + tile_extent.height) - 1) / tile_extent.height;
+
+  int64_t const i_begin_c = std::clamp<int64_t>(i_begin, 0, nrows);
+  int64_t const i_end_c = std::clamp<int64_t>(i_end, 0, nrows);
+
+  int64_t const j_begin_c = std::clamp<int64_t>(j_begin, 0, ncols);
+  int64_t const j_end_c = std::clamp<int64_t>(j_end, 0, ncols);
+
+  return std::make_tuple(i_begin_c, i_end_c, j_begin_c, j_end_c);
+}
+
 // consider making the parent inject the effects and add them to an effect
 // tree, with all of the widgets having individual effects as a result we
 // need to be able to render the effects independent of the widget, we'll
@@ -215,37 +250,13 @@ struct TileCache {
           [this, &entry] {
             // note that tile binding is semi-automatic and determined by the
             // screen offset
-
-            Extent const tile_extent = this->tiles.tile_extent();
-
-            // the .screen_offset can exceed the whole screen's extent (due to
-            // scrolling) so we need to clamp
-            int64_t const x_min = entry.screen_offset->x;
-            int64_t const x_max = x_min + entry.extent->width;
-
-            int64_t const y_min = entry.screen_offset->y;
-            int64_t const y_max = y_min + entry.extent->height;
-
-            int64_t const j_begin = y_min / tile_extent.height;
-            int64_t const j_end = (y_max / tile_extent.height) + 1;
-
-            int64_t const i_begin = x_min / tile_extent.width;
-            int64_t const i_end = (x_max / tile_extent.width) + 1;
-
-            int64_t const ncols = this->tiles.columns();
             int64_t const nrows = this->tiles.rows();
+            auto const [i_begin, i_end, j_begin, j_end] = get_tile_region(
+                this->tiles.tile_extent(), nrows, this->tiles.columns(),
+                IRect{*entry.screen_offset, *entry.extent});
 
-            // the widget could be an outlieing widget
-            //
-            // screen offset can be negative
-            //
-            // we don't want to clamp so we don't mark the tiles at the edges as
-            // dirty (if any)
-            // also note that the `end`s can be negative
-            for (int64_t j = j_begin; j < j_end && j < ncols; j++) {
-              if (j < 0) continue;
-              for (int64_t i = i_begin; i < i_end && i < nrows; i++) {
-                if (i < 0) continue;
+            for (int64_t j = j_begin; j < j_end; j++) {
+              for (int64_t i = i_begin; i < i_end; i++) {
                 // this is here because it should only mark as dirty when at
                 // least one of the actual tiles is dirty
                 any_tile_dirty = true;
@@ -258,12 +269,15 @@ struct TileCache {
     tick(std::chrono::nanoseconds(0));
   }
 
+  // TODO(lamarrr): implement
   void recycle(ViewTree &view_tree) {}
 
   // consider scroll swapping instead of allocating and de-allocating
 
-  void tick(std::chrono::nanoseconds const &interval) {
+  void tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
     // TODO(lamarrr): fix and make all correct
+    // TODO(lamarrr): consider removing the focus/extent or finishing its
+    // implementation and making it correct
 
     // for now, we'll check if any in focus tile is dirty to make the backing
     // store dirty instead of any in viewport tile dirty
@@ -357,27 +371,15 @@ struct TileCache {
         // invalidates the whole area so this is solved? won't the viewport also
         // be doing too much work? no since all its widget will be moved
 
-        Extent const tile_extent = this->tiles.tile_extent();
+        // TODO(lamarrr): fix
 
-        int64_t const x_min = entry.screen_offset->x;
-        int64_t const x_max = x_min + entry.extent->width;
-
-        int64_t const y_min = entry.screen_offset->y;
-        int64_t const y_max = y_min + entry.extent->height;
-
-        int64_t const j_begin = y_min / tile_extent.height;
-        int64_t const j_end = (y_max / tile_extent.height) + 1;
-
-        int64_t const i_begin = x_min / tile_extent.width;
-        int64_t const i_end = (x_max / tile_extent.width) + 1;
-
-        int64_t const ncols = this->tiles.columns();
         int64_t const nrows = this->tiles.rows();
+        auto const [i_begin, i_end, j_begin, j_end] = get_tile_region(
+            this->tiles.tile_extent(), nrows, this->tiles.columns(),
+            IRect{*entry.screen_offset, *entry.extent});
 
-        for (int64_t j = j_begin; j < j_end && j < ncols; j++) {
-          if (j < 0) continue;
-          for (int64_t i = i_begin; i < i_end && i < nrows; i++) {
-            if (i < 0) continue;
+        for (int64_t j = j_begin; j < j_end; j++) {
+          for (int64_t i = i_begin; i < i_end; i++) {
             RasterCache &subtile = tiles.tile_at_index(i, j);
 
             if (tile_is_dirty[j * tiles.rows() + i]) {
@@ -421,7 +423,7 @@ struct TileCache {
       backing_store.begin_recording();
 
       Canvas canvas = backing_store.get_recording_canvas();
-      SkCanvas *sk_canvas =
+      SkCanvas *const sk_canvas =
           canvas.as_skia().expect("canvas is not using a skia backend");
       sk_canvas->clear(SkColors::kTransparent);
 
