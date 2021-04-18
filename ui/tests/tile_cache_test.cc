@@ -24,7 +24,7 @@ TEST(TileCacheTest, Basic) {
 
   ViewTree view_tree;
   view_tree.build(layout_tree);
-  vroot.update_view_offset(ViewOffset{Constrain{0.0f, 10}, Constrain{0.0f}});
+  vroot.update_view_offset(ViewOffset::absolute(10, 0));
   view_tree.tick(std::chrono::nanoseconds(0));
 
   TileCache cache;
@@ -44,7 +44,7 @@ TEST(TileCacheTest, Basic) {
   EXPECT_FALSE(cache.any_tile_dirty);
 
   cache.resize_viewport(Extent{2080, 1440});
-  cache.scroll_viewport(ViewOffset{Constrain{0.0f, 10}, Constrain{0.0f, 10}});
+  cache.scroll_viewport(ViewOffset::absolute(10, 10));
 
   EXPECT_EQ(cache.viewport_scroll_offset, (IOffset{10, 10}));
   EXPECT_TRUE(cache.viewport_scrolled);
