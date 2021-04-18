@@ -12,7 +12,7 @@
 namespace vlk {
 namespace ui {
 
-struct OutputClamp {
+struct Clamp {
   /// i.e. result should be between 50% and 75% of the parent allotted extent.
   /// by default, the `min` = 0% and `max` = 100% of the parent allotted
   /// extent. `min` and `max` must be in [0.0, 1.0] and `max` >= `min`.
@@ -20,7 +20,7 @@ struct OutputClamp {
   float min = 0.0f;
   float max = 1.0f;
 
-  constexpr bool operator==(OutputClamp const& other) const {
+  constexpr bool operator==(Clamp const& other) const {
     return f32_eq(min, other.min) && f32_eq(max, other.max);
   }
 };
@@ -40,7 +40,7 @@ struct OutputClamp {
 ///
 struct Constrain {
   /// scaling the target size
-  float scale = 1.0f;
+  float scale = 0.0f;
   /// removing or deducting from the target size
   int64_t bias = 0;
 
@@ -49,7 +49,7 @@ struct Constrain {
   int64_t max = i64_max;
 
   /// clamping the relative values of the result
-  OutputClamp clamp{};
+  Clamp clamp;
 
   static constexpr Constrain relative(float scale) { return Constrain{scale}; }
 
@@ -88,8 +88,20 @@ struct Constrain {
 // TODO(lamarrr): helper functions for SelfExtent, ViewExtent, and Constrain
 
 struct SelfExtent {
-  Constrain width = Constrain{0.0f};
-  Constrain height = Constrain{0.0f};
+  Constrain width;
+  Constrain height;
+
+  static constexpr SelfExtent relative(float width, float height) {
+    return SelfExtent{Constrain::relative(width), Constrain::relative(height)};
+  }
+
+  static constexpr SelfExtent absolute(int64_t width, int64_t height) {
+    return SelfExtent{Constrain::absolute(width), Constrain::absolute(height)};
+  }
+
+  static constexpr SelfExtent absolute(Extent const& extent) {
+    return SelfExtent::absolute(extent.width, extent.height);
+  }
 
   Extent resolve(Extent const& allotment) const {
     auto const resolved_width = static_cast<uint32_t>(std::clamp<int64_t>(
@@ -105,13 +117,30 @@ struct SelfExtent {
 };
 
 using Padding = Edges;
+// using Border =
+//    Edges;  // TODO(lamarrr): do we add more properties or more widgets?
+//    widgets
+// will ensure they are used on a per-need basis
+// using Margin = Edges;  // ?
 
 /// this can exceed the parent allotted size. especially in cases where we might
 /// need partially or wholly constrained/unconstrained views. (i.e. constrained
 /// to parent's alloted extent along width but unconstrained along height).
 struct ViewExtent {
-  Constrain width = Constrain{0.0f};
-  Constrain height = Constrain{0.0f};
+  Constrain width;
+  Constrain height;
+
+  static constexpr ViewExtent relative(float width, float height) {
+    return ViewExtent{Constrain::relative(width), Constrain::relative(height)};
+  }
+
+  static constexpr ViewExtent absolute(int64_t width, int64_t height) {
+    return ViewExtent{Constrain::absolute(width), Constrain::absolute(height)};
+  }
+
+  static constexpr ViewExtent absolute(Extent const& extent) {
+    return ViewExtent::absolute(extent.width, extent.height);
+  }
 
   Extent resolve(Extent const& allotment) const {
     auto const resolved_width = static_cast<uint32_t>(std::clamp<int64_t>(
@@ -129,8 +158,24 @@ struct ViewExtent {
 /// marks the offset of the view relative to the view extent (usually
 /// a resolved `SelfExtent`)
 struct ViewOffset {
-  Constrain x = Constrain{0.0f};
-  Constrain y = Constrain{0.0f};
+  Constrain x;
+  Constrain y;
+
+  static constexpr ViewOffset relative(float x, float y) {
+    return ViewOffset{Constrain::relative(x), Constrain::relative(y)};
+  }
+
+  static constexpr ViewOffset absolute(int64_t x, int64_t y) {
+    return ViewOffset{Constrain::absolute(x), Constrain::absolute(y)};
+  }
+
+  static constexpr ViewOffset absolute(IOffset const& offset) {
+    return ViewOffset::absolute(offset.x, offset.y);
+  }
+
+  static constexpr ViewOffset absolute(Offset const& offset) {
+    return ViewOffset::absolute(offset.x, offset.y);
+  }
 
   IOffset resolve(Extent const& content_extent) const {
     return IOffset{x.resolve(content_extent.width, false),
