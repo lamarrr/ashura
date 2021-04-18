@@ -79,6 +79,8 @@ struct ViewTree {
 
       ZIndex z_index;
 
+      IRect clip_rect;
+
       void build(LayoutTree::Node const &init_layout_node, View &view_parent,
                  ZIndex init_z_index) {
         // build child widgets, add child views to the tree.
@@ -96,6 +98,8 @@ struct ViewTree {
 
         z_index = init_layout_node.widget->get_z_index().unwrap_or(
             std::move(init_z_index));
+
+        clip_rect = {};
 
         for (LayoutTree::Node const &child : init_layout_node.children) {
           if (child.type == Widget::Type::View) {
@@ -172,15 +176,45 @@ struct ViewTree {
 
     static void update_screen_offset_helper_(View::Entry &entry, View &parent) {
       // mark that the intersecting tiles are now dirty
-      IOffset const new_offset =
+      IOffset const new_screen_offset =
           parent.screen_offset + entry.effective_parent_view_offset;
 
-      if (entry.screen_offset != new_offset) {
+      IRect const previous_clip_rect = entry.clip_rect;
+
+      ViewTree::View const *ancestor = entry.parent;
+
+      IRect new_clip_rect =
+          IRect{new_screen_offset, entry.layout_node->self_extent};
+
+      while (ancestor != nullptr && new_clip_rect.visible()) {
+        IRect ancestor_view_screen_rect{ancestor->screen_offset,
+                                        ancestor->layout_node->self_extent};
+
+        if (!ancestor_view_screen_rect.overlaps(new_clip_rect)) {
+          new_clip_rect = new_clip_rect.with_extent(Extent{0, 0});
+        } else {
+          new_clip_rect = ancestor_view_screen_rect.intersect(new_clip_rect);
+        }
+
+        ancestor = ancestor->parent;
+      }
+
+      entry.clip_rect = new_clip_rect;
+
+      // only mark intersecting tiles as dirty if its clip rect is visible
+
+      if (entry.screen_offset != new_screen_offset) {
         // call the callback so the tile cache is aware that its entries are now
         // dirty
-        entry.layout_node->widget->mark_render_dirty();
-        entry.screen_offset = new_offset;
-        entry.layout_node->widget->mark_render_dirty();
+        if (previous_clip_rect.visible()) {
+          entry.layout_node->widget->mark_render_dirty();
+        }
+
+        entry.screen_offset = new_screen_offset;
+
+        if (new_clip_rect.visible()) {
+          entry.layout_node->widget->mark_render_dirty();
+        }
       }
     }
 
@@ -253,6 +287,8 @@ struct ViewTree {
       // the tiles the children widgets intersect will be marked as dirty.
       // performing multiple scrolls in between a tick wil unnecessarily mark
       // more tiles than needed.
+      WidgetStateProxyAccessor::access(*layout_node->widget).on_render_dirty =
+          [] {};
       WidgetStateProxyAccessor::access(*layout_node->widget)
           .on_view_offset_dirty = ([this, &any_view_dirty] {
         this->is_dirty = true;
@@ -306,11 +342,15 @@ struct ViewTree {
     VLK_ENSURE(layout_tree.root_node.widget != nullptr);
 
     root_view.build(layout_tree.root_node, 0);
+    // this should be cheap since we are unlikely to have many views and
+    // subviews (>100 for example)
     build_links();
     tick(std::chrono::nanoseconds(0));
   }
 
-  void tick(std::chrono::nanoseconds const &interval) { clean_offsets(); }
+  void tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
+    clean_offsets();
+  }
 };
 
 }  // namespace ui
