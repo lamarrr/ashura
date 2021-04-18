@@ -706,16 +706,16 @@ struct [[nodiscard]] Application {
 
   // TODO(lamarrr): move
   inline static constexpr auto to_vk_format_SRGB(
-      data::Image2D::Format format) noexcept {
-    using Image2D = data::Image2D;
+      data::Image::Format format) noexcept {
+    using Image = data::Image;
     switch (format) {
-      case Image2D::Format::RGB:
+      case Image::Format::RGB:
         return VK_FORMAT_R8G8B8_SRGB;
-      case Image2D::Format::Grey:
+      case Image::Format::Grey:
         return VK_FORMAT_R8_SRGB;
-      case Image2D::Format::GreyAlpha:
+      case Image::Format::GreyAlpha:
         return VK_FORMAT_R8G8_SRGB;
-      case Image2D::Format::RGBA:
+      case Image::Format::RGBA:
         return VK_FORMAT_R8G8B8A8_SRGB;
       default:
         return VK_FORMAT_R8G8B8_SRGB;
@@ -725,9 +725,9 @@ struct [[nodiscard]] Application {
   // TODO(lamarrr): this isn't eequired to be in this struct, same for
   // load_vertex_index_data
   void load_images_() {
-    data::Image2D images[] = {
-        data::Image2D::load(desc::Image2D{"/home/lamar/Desktop/wraith.jpg",
-                                          desc::Image2D::Format::RGBA, true})
+    data::Image images[] = {
+        data::Image::load(desc::Image{"/home/lamar/Desktop/wraith.jpg",
+                                          desc::Image::Format::RGBA, true})
             .expect("Unable to load image")};
     auto images_size = 0;
 
