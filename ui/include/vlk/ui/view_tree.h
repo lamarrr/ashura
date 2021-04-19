@@ -335,6 +335,7 @@ struct ViewTree {
     VLK_ENSURE(layout_tree.root_node.type == Widget::Type::View);
     VLK_ENSURE(layout_tree.root_node.widget != nullptr);
 
+    any_view_dirty = true;
     root_view.build(layout_tree.root_node, 0);
     // this should be cheap since we are unlikely to have many views and
     // subviews (>100 for example)
