@@ -227,8 +227,8 @@ struct TileCache {
     // insert by z-index order
     for (ViewTree::View::Entry &view_entry : view.entries) {
       auto const insert_pos =
-          std::lower_bound(entries.begin(), entries.end(), view_entry,
-                           [](Entry const &a, ViewTree::View::Entry const &b) {
+          std::upper_bound(entries.begin(), entries.end(), view_entry,
+                           [](ViewTree::View::Entry const &a, Entry const &b) {
                              return a.z_index < b.z_index;
                            });
       entries.insert(insert_pos, Entry{view_entry});
