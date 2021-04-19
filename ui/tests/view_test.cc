@@ -122,7 +122,7 @@ TEST(ViewTree, Hierarchy_And_Scrolling) {
   // v1
   view_tree.root_view.subviews[0].layout_node->widget->update_view_offset(
       ViewOffset{
-          Constrain{0.0f, 90, i64_min, i64_max, OutputClamp{0.0f, 200.0f}},
+          Constrain{0.0f, 90, i64_min, i64_max, Clamp{0.0f, 200.0f}},
           Constrain{0.0f}});
 
   view_tree.tick(std::chrono::nanoseconds(0));
