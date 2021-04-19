@@ -34,14 +34,8 @@ namespace ui {
 // translates widget from its normal position on its parent view.
 template <typename T>
 constexpr void view_translate_helper_(T &entry, IOffset const &translation) {
-  IOffset new_offset =
-      IOffset{static_cast<int64_t>(entry.layout_node->parent_view_offset.x) +
-                  translation.x,
-              static_cast<int64_t>(entry.layout_node->parent_view_offset.y) +
-                  translation.y};
-
-  entry.effective_parent_view_offset.x = new_offset.x;
-  entry.effective_parent_view_offset.y = new_offset.y;
+  entry.effective_parent_view_offset =
+      IOffset(entry.layout_node->parent_view_offset) + translation;
 }
 
 // cache invalidation sources:
