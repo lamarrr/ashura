@@ -23,6 +23,10 @@ struct Clamp {
   constexpr bool operator==(Clamp const& other) const {
     return f32_eq(min, other.min) && f32_eq(max, other.max);
   }
+
+  constexpr bool operator!=(Clamp const& other) const {
+    return !(*this == other);
+  }
 };
 
 /// Why this model? sizing can be
@@ -83,6 +87,10 @@ struct Constrain {
     return f32_eq(scale, other.scale) && bias == other.bias &&
            min == other.min && max == other.max && clamp == other.clamp;
   }
+
+  constexpr bool operator!=(Constrain const& other) const {
+    return !(*this == other);
+  }
 };
 
 // TODO(lamarrr): helper functions for SelfExtent, ViewExtent, and Constrain
@@ -113,6 +121,10 @@ struct SelfExtent {
 
   constexpr bool operator==(SelfExtent const& other) const {
     return width == other.width && height == other.height;
+  }
+
+  constexpr bool operator!=(SelfExtent const& other) const {
+    return !(*this == other);
   }
 };
 
@@ -152,6 +164,10 @@ struct ViewExtent {
 
   constexpr bool operator==(ViewExtent const& other) const {
     return width == other.width && height == other.height;
+  }
+
+  constexpr bool operator!=(ViewExtent const& other) const {
+    return !(*this == other);
   }
 };
 
