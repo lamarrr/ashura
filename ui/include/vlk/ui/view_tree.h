@@ -27,9 +27,6 @@ namespace ui {
 // the view widget covers.
 // what if the widget is not visible in b
 //
-// TODO(lamarrr): what if the widget is not visible in both cases? on scroll and
-// it is occluded by the view
-//
 
 // translates widget from its normal position on its parent view.
 template <typename T>
