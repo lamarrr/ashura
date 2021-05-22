@@ -95,10 +95,9 @@ STX_FORCE_INLINE constexpr std::underlying_type_t<EnumType> enum_ut_and(
 
 template <typename EnumType>
 STX_FORCE_INLINE constexpr EnumType enum_and(EnumType a, EnumType b) {
-  return static_cast<EnumType>(
-      static_cast<std::underlying_type_t<EnumType>>(a) &
-      static_cast<std::underlying_type_t<EnumType>>(b));
+  return static_cast<EnumType>(enum_ut_and(a, b));
 }
+
 
 STX_FORCE_INLINE constexpr bool f32_eq(float a, float b) {
   return std::abs(a - b) < f32_epsilon;
