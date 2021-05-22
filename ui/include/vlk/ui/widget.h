@@ -10,6 +10,9 @@
 #include "stx/option.h"
 #include "stx/report.h"
 #include "stx/span.h"
+#include "vlk/ui/asset_manager.h"
+#include "vlk/ui/canvas.h"
+#include "vlk/ui/layout.h"
 #include "vlk/utils/limits.h"
 #include "vlk/utils/utils.h"
 
