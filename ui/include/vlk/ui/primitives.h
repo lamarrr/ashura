@@ -382,5 +382,53 @@ inline constexpr bool operator!=(Corners const &a, Corners const &b) {
   return !(a == b);
 }
 
+struct Border {
+  Color color;
+  Edges edges;
+
+  static constexpr Border all(Color color, uint32_t value) {
+    return Border{color, Edges::all(value)};
+  }
+
+  static constexpr Border symmetric(Color color, uint32_t x, uint32_t y) {
+    return Border{color, Edges::symmetric(x, y)};
+  }
+
+  static constexpr Border trbl(Color color, uint32_t t, uint32_t r, uint32_t b,
+                               uint32_t l) {
+    return Border{color, Edges::trbl(t, r, b, l)};
+  }
+};
+
+inline constexpr bool operator==(Border const &a, Border const &b) {
+  return a.color == b.color && a.edges == b.edges;
+}
+
+inline constexpr bool operator!=(Border const &a, Border const &b) {
+  return !(a == b);
+}
+
+using BorderRadius = Corners;
+
+struct Blur {
+  Blur(float sigma_x, float sigma_y) : sigma_x_{sigma_x}, sigma_y_{sigma_y} {
+    VLK_ENSURE(sigma_x > 0.0f, "Gaussian Blur Sigma must be greater than 0.0f");
+    VLK_ENSURE(sigma_y > 0.0f, "Gaussian Blur Sigma must be greater than 0.0f");
+  }
+
+  float sigma_x() const { return sigma_x_; }
+
+  float sigma_y() const { return sigma_y_; }
+
+  bool is_valid() const { return sigma_x_ > 0.0f && sigma_y_ > 0.0f; }
+
+ private:
+  float sigma_x_;
+  float sigma_y_;
+};
+
+// TODO(lamarrr): should shadow be a primitive, is text shadow spec same as a
+// box? offset 50%?
+
 }  // namespace ui
 }  // namespace vlk
