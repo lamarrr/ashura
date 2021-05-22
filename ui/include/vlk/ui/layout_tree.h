@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "stx/span.h"
-
 #include "vlk/ui/impl/widget_state_proxy_accessor.h"
 #include "vlk/ui/layout.h"
 #include "vlk/ui/primitives.h"
@@ -183,10 +182,25 @@ struct LayoutTree {
   // for now, we just re-perform layout when any of the widgets is dirty
   bool is_layout_dirty = true;
 
+  // TODO(lamarrr): move parent_view_offset out of the layout step and perform
+  // that in another step since we can't know that until the whole layout is
+  // done? else we'd perform more recursive iterations than necessary
+
+  static void force_clean_parent_view_offset(Node &node,
+                                             Offset parent_view_offset) {
+    node.parent_view_offset = parent_view_offset;
+
+    for (auto &child : node.children) {
+      force_clean_parent_view_offset(
+          child, node.type == Widget::Type::View
+                     ? child.parent_offset
+                     : (child.parent_offset + parent_view_offset));
+    }
+  }
+
   // if we resize will the view be able to keep track of its translation?
   static void perform_layout(LayoutTree::Node &node,
-                             Extent const &allotted_extent,
-                             Offset const &parent_view_offset) {
+                             Extent const &allotted_extent) {
     // assumptions:
     //  no it's not        - being infinite in size is ok, it won't be drawn
     //  anyway
@@ -259,11 +273,6 @@ struct LayoutTree {
             child.parent_offset + (type == Widget::Type::View
                                        ? view_content_rect.offset
                                        : self_content_rect.offset);
-
-        child.parent_view_offset =
-            type == Widget::Type::View
-                ? child.parent_offset
-                : (child.parent_offset + parent_view_offset);
       }
 
       if (type == Widget::Type::View) {
@@ -320,7 +329,7 @@ struct LayoutTree {
       // constrained, this especially due to the view widgets that may have a
       // u32_max extent. overflow shouldn't occur since the child widget's
       // extent is resolved using the parent's
-      perform_layout(child, content_extent, Offset{0, 0});
+      perform_layout(child, content_extent);
     }
 
     CrossAlign const cross_align = flex.cross_align;
@@ -439,15 +448,13 @@ struct LayoutTree {
               // re-layout the child to the max block height
               if (child.self_extent.height != block_max_height) {
                 perform_layout(*child_it,
-                               Extent{content_extent.width, block_max_height},
-                               Offset{0, 0});
+                               Extent{content_extent.width, block_max_height});
               }
             } else {
               // re-layout the child to the max block width
               if (child.self_extent.width != block_max_width) {
                 perform_layout(*child_it,
-                               Extent{block_max_width, content_extent.height},
-                               Offset{0, 0});
+                               Extent{block_max_width, content_extent.height});
               }
             }
           } else if (cross_align == CrossAlign::Start || true) {
@@ -622,7 +629,8 @@ struct LayoutTree {
 
   void tick(std::chrono::nanoseconds) {
     if (is_layout_dirty) {
-      perform_layout(root_node, allotted_extent, Offset{0, 0});
+      perform_layout(root_node, allotted_extent);
+      force_clean_parent_view_offset(root_node, Offset{0, 0});
 
       if (root_node.type == Widget::Type::View) {
         VLK_ENSURE(root_node.view_extent.width < u32_max,
