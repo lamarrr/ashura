@@ -222,46 +222,41 @@ inline constexpr bool operator!=(Rect const &a, Rect const &b) {
 }
 
 struct Ticks {
-  Ticks() : value_{0} {}
+  uint64_t value = 0;
 
-  explicit Ticks(uint64_t value) : value_{value} {}
-
-  constexpr uint64_t count() const { return value_; }
+  constexpr uint64_t count() const { return value; }
 
   constexpr Ticks &operator++(int) {
-    value_++;
+    value++;
     return *this;
   }
 
-  constexpr void reset() { value_ = 0; }
-
-  constexpr bool operator>(Ticks const &other) const {
-    return value_ > other.value_;
-  }
-
-  constexpr bool operator>=(Ticks const &other) const {
-    return value_ >= other.value_;
-  }
-
-  constexpr bool operator<(Ticks const &other) const {
-    return value_ < other.value_;
-  }
-
-  constexpr bool operator<=(Ticks const &other) const {
-    return value_ <= other.value_;
-  }
-
-  constexpr bool operator==(Ticks const &other) const {
-    return value_ == other.value_;
-  }
-
-  constexpr bool operator!=(Ticks const &other) const {
-    return value_ != other.value_;
-  }
-
- private:
-  uint64_t value_ = 0;
+  constexpr void reset() { value = 0; }
 };
+
+inline constexpr bool operator>(Ticks const &a, Ticks const &b) {
+  return a.count() > b.count();
+}
+
+inline constexpr bool operator>=(Ticks const &a, Ticks const &b) {
+  return a.count() >= b.count();
+}
+
+inline constexpr bool operator<(Ticks const &a, Ticks const &b) {
+  return a.count() < b.count();
+}
+
+inline constexpr bool operator<=(Ticks const &a, Ticks const &b) {
+  return a.count() <= b.count();
+}
+
+inline constexpr bool operator==(Ticks const &a, Ticks const &b) {
+  return a.count() == b.count();
+}
+
+inline constexpr bool operator!=(Ticks const &a, Ticks const &b) {
+  return a.count() != b.count();
+}
 
 struct Color {
   static constexpr uint32_t kRedMask = 0xFF000000U;
