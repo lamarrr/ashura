@@ -105,7 +105,7 @@ struct RasterCache {
     return Canvas::from_skia(*recording_canvas, cull_rect_.extent);
   }
 
-  void init_surface(RasterContext& context) {
+  void init_surface(RasterContext const& context) {
     // initialize cache with a surface the size of extent
     VLK_ENSURE(cull_rect_.visible());
     surface_ = context.create_target_surface(cull_rect_.extent);

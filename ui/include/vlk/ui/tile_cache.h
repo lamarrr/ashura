@@ -161,6 +161,7 @@ struct TileCache {
 
   ~TileCache() = default;
 
+  RasterContext const *context = nullptr;
 
   AssetManager *asset_manager = nullptr;
 
