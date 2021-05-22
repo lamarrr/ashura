@@ -65,9 +65,9 @@
 namespace vlk {
 
 template <typename Container>
-bool any_true(Container const& cont) {
+bool any_true(Container const &cont) {
   return ::std::any_of(cont.begin(), cont.end(),
-                       [](auto const& value) -> bool { return value; });
+                       [](auto const &value) -> bool { return value; });
 }
 
 template <typename EnumType>
