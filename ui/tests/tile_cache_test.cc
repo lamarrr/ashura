@@ -29,9 +29,11 @@ TEST(TileCacheTest, Basic) {
 
   TileCache cache;
 
+  AssetManager asset_manager{context};
+
   // TODO(lamarrr): layout tree must be ticked and view tree must be ticked
   // before ticking the tile_cache else we get invalid results
-  cache.build(view_tree, context);
+  cache.build(view_tree, context, asset_manager);
 
   EXPECT_EQ(cache.context, &context);
   EXPECT_EQ(cache.entries.size(), 5);

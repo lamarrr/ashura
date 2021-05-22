@@ -275,7 +275,7 @@ ui::Extent ui::Text::trim(ui::Extent const& extent) {
                                   std::ceil(this->paragraph_->getHeight()))};
 }
 
-void ui::Text::draw(Canvas& canvas) {
+void ui::Text::draw(Canvas& canvas, AssetManager&) {
   VLK_ENSURE(paragraph_ != nullptr);
   VLK_DEBUG_ENSURE(!paragraph_dirty_);
 

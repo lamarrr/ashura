@@ -93,7 +93,8 @@ struct TileCache {
       clip_rect = &entry.clip_rect;
     }
 
-    void draw(RasterCache &cache, IRect const &tile_screen_area) const {
+    void draw(RasterCache &cache, IRect const &tile_screen_area,
+              AssetManager &asset_manager) const {
       // use tile index and size to determine tile position on the screen and
       // use that as a translation matrix relative to the objects own position
       // on the screen
@@ -127,7 +128,7 @@ struct TileCache {
       if (widget_clip_rect.visible()) {
         if (widget_clip_rect == widget_screen_area) {
           // draw without clip
-          widget->draw(widget_canvas);
+          widget->draw(widget_canvas, asset_manager);
         } else {
           // draw with clip
 
@@ -139,7 +140,7 @@ struct TileCache {
           sk_canvas->clipRect(SkRect::MakeXYWH(clip_start.x, clip_start.y,
                                                widget_clip_rect.width(),
                                                widget_clip_rect.height()));
-          widget->draw(widget_canvas);
+          widget->draw(widget_canvas, asset_manager);
         }
       } else {
         // draw nothing
@@ -160,7 +161,8 @@ struct TileCache {
 
   ~TileCache() = default;
 
-  RasterContext *context = nullptr;
+
+  AssetManager *asset_manager = nullptr;
 
   // entries are sorted in descending z-index order
   std::vector<Entry> entries{};
@@ -239,9 +241,11 @@ struct TileCache {
     }
   }
 
-  void build(ViewTree &view_tree, RasterContext &raster_context) {
+  void build(ViewTree &view_tree, RasterContext const &raster_context,
+             AssetManager &iasset_manager) {
     context = &raster_context;
 
+    asset_manager = &iasset_manager;
     root_view = &view_tree.root_view;
     build_from(view_tree.root_view);
 
@@ -383,7 +387,8 @@ struct TileCache {
               IOffset tile_screen_offset =
                   IOffset{i * tile_extent.width, j * tile_extent.height};
 
-              entry.draw(subtile, IRect{tile_screen_offset, tile_extent});
+              entry.draw(subtile, IRect{tile_screen_offset, tile_extent},
+                         *asset_manager);
             }
           }
         }

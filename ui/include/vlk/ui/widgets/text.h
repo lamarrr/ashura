@@ -326,7 +326,7 @@ struct Text : public Widget {
   }
 
   // TODO(lamarrr): clip text if it height exceeds the maximum extent?
-  virtual void draw(Canvas& canvas) override final;
+  virtual void draw(Canvas&, AssetManager&) override final;
 
   virtual void tick([
       [maybe_unused]] std::chrono::nanoseconds const& interval) override final {

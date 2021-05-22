@@ -114,7 +114,7 @@ struct Row : public Widget {
     Widget::update_self_extent(SelfExtent::relative(1.0f, 1.0f));
   }
 
-  virtual void draw(Canvas&) override {
+  virtual void draw(Canvas&, AssetManager&) override {
     // no-op
   }
 

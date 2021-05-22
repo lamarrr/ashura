@@ -18,6 +18,7 @@ struct Pipeline {
   LayoutTree layout_tree;
   ViewTree view_tree;
   TileCache tile_cache;
+  AssetManager asset_manager;
 
   bool needs_rebuild = false;
 
@@ -28,7 +29,8 @@ struct Pipeline {
         raster_context{init_raster_context},
         layout_tree{},
         view_tree{},
-        tile_cache{} {
+        tile_cache{},
+        asset_manager{raster_context} {
     // pass widget to pipeline => bind on children changed
     // pass to layout tree => bind on layout changed
     // pass to view tree => bind on view offset changed
@@ -38,7 +40,7 @@ struct Pipeline {
 
     layout_tree.build(*root_widget);
     view_tree.build(layout_tree);
-    tile_cache.build(view_tree, raster_context);
+    tile_cache.build(view_tree, raster_context, asset_manager);
 
     // we might need to tell the root view to expand or shrink? or preserve its
     // requested size?
@@ -102,7 +104,7 @@ struct Pipeline {
   void rebuild() {}
 
   static void recursive_tick(Widget& widget,
-                             std::chrono::nanoseconds const& interval) {
+                             std::chrono::nanoseconds interval) {
     widget.tick(interval);
 
     for (Widget* child : widget.get_children()) {
@@ -162,6 +164,7 @@ struct Pipeline {
 
     view_tree.tick(interval);
     tile_cache.tick(interval);
+    asset_manager.tick(interval);
     // if layout tree becomes dirty we need to force a total re-draw by marking
     // all of the tiles as dirty view_tree.tick(interval);
 

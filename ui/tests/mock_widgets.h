@@ -18,7 +18,7 @@ struct MockSized : public Widget {
   }
   ~MockSized() override {}
 
-  virtual void draw(Canvas& canvas) override {
+  virtual void draw(Canvas& canvas, AssetManager&) override {
     Extent const& extent = canvas.extent();
     std::cout << "[MockSized] draw on extent: Extent{width: " << extent.width
               << ", height: " << extent.height << "}" << std::endl;

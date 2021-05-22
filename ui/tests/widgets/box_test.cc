@@ -92,7 +92,9 @@ TEST(BoxTest, BasicTest) {
 
   TileCache cache;
 
-  cache.build(view_tree, context);
+  AssetManager asset_manager{context};
+
+  cache.build(view_tree, context, asset_manager);
 
   cache.resize_viewport(screen_extent);
 

@@ -125,8 +125,7 @@ struct Widget {
 
   DebugInfo get_debug_info() const { return debug_info_; }
 
-  /// create draw commands
-  virtual void draw([[maybe_unused]] Canvas &canvas) {
+  virtual void draw([[maybe_unused]] Canvas &, AssetManager &) {
     // no-op
   }
 
