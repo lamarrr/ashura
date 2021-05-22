@@ -1,301 +1,258 @@
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
+#include <string_view>
+#include <tuple>
 #include <vector>
 
+#include "stx/option.h"
+#include "stx/span.h"
+#include "vlk/ui/image_asset.h"
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/widget.h"
 #include "vlk/utils/utils.h"
 
-#include "stx/span.h"
-
 namespace vlk {
 namespace ui {
 
-enum class Stretch : uint8_t {
+enum class Dirtiness : uint8_t {
+  None = 0b00,
+  Render = 0b01,
+  Layout = 0b10,
+  Children = 0b11
+};
+
+VLK_DEFINE_ENUM_BIT_OPS(Dirtiness)
+
+// TODO(lamarrr): consider opacity tree? or require manually setting the
+// opacitgies?
+// we need render props that all widgets must have: i.e. opacity
+//
+// we need visibility prop
+//
+// is_layout_changed
+// is_render_changed
+//
+// BaseProps? BaseProps::clean_state()..
+//
+
+// TODO(lamarrr): provided widgets must be static
+enum class ImageStretch : uint8_t {
   None = 0,
   X = 1,
   Y = 2,
-  All = X | Y,
+  XY = X | Y,
 };
 
-inline constexpr Stretch operator|(Stretch a, Stretch b) {
-  return vlk::enum_or(a, b);
-}
+// TODO(lamarrr): on effects: users would be able to inherit from the base
+// widget and override the draw methods of each widget to provide their own draw
+// methods that apply one effect or the other. effects that span acrross
+// widgets? i.e. parent opacity and intends to fade along with its children.
+VLK_DEFINE_ENUM_BIT_OPS(ImageStretch);
 
-inline constexpr Stretch operator&(Stretch a, Stretch b) {
-  return vlk::enum_and(a, b);
-}
-
-// TODO(lamarrr): let's annhilate this and use constraints????
-
-struct RelativeOffset {
-  float x;
-  float y;
-};
-
-struct RelativeExtent {
-  float width;
-  float height;
-};
-
-struct RelativeRect {
-  RelativeOffset offset;
-  RelativeExtent extent;
-};
-
-struct Sizing {
-  enum class Type : uint8_t {
-    // the part of the target used is a portion of the image specified in
-    // pixels
-    Relative,
-    // the part of the target used is a portion of the image specified within
-    // the range of 0.0 to 1.0f and scaled to the target's dimensions
-    Absolute
-  };
-
-  explicit constexpr Sizing(Rect const &rect)
-      : type_{Type::Absolute}, rect_data_{rect} {}
-  explicit constexpr Sizing(RelativeRect const &rect)
-      : type_{Type::Relative}, relative_data_{rect} {}
-
-  constexpr Sizing()
-      : type_{Type::Relative},
-        relative_data_{RelativeRect{{0.0f, 0.0f}, {1.0f, 1.0f}}} {}
-
-  constexpr Sizing(Sizing const &other) = default;
-  constexpr Sizing(Sizing &&other) = default;
-  constexpr Sizing &operator=(Sizing const &other) = default;
-  constexpr Sizing &operator=(Sizing &&other) = default;
-  ~Sizing() = default;
-
-  static constexpr Sizing relative(RelativeRect const &relative) {
-    return Sizing{relative};
+struct ImageProps {
+  //! target extent for the image widget, otherwise initially uses an internally
+  //! specified extent and then updates the image widget's extent once the image
+  //! is available.
+  //! it is recommended to set this to prevent layout shift.
+  ImageProps extent(SelfExtent value) const {
+    ImageProps out{*this};
+    out.extent_ = stx::Some(std::move(value));
+    return out;
   }
 
-  static constexpr Sizing relative(float offset_x, float offset_y, float width,
-                                   float height) {
-    return Sizing{RelativeRect{RelativeOffset{offset_x, offset_y},
-                               RelativeExtent{width, height}}};
+  ImageProps no_extent() const {
+    ImageProps out{*this};
+    out.extent_ = stx::None;
+    return out;
   }
 
-  static constexpr Sizing relative(float width, float height) {
-    return relative(0.0f, 0.0f, width, height);
+  ImageProps extent(Extent value) const {
+    return extent(SelfExtent::absolute(value));
   }
 
-  static constexpr Sizing relative() { return relative(1.0f, 1.0f); }
-
-  static constexpr Sizing absolute(Rect const &rect) { return Sizing{rect}; }
-
-  static constexpr Sizing absolute(uint32_t offset_x, uint32_t offset_y,
-                                   uint32_t width, uint32_t height) {
-    return absolute(Rect{Offset{offset_x, offset_y}, Extent{width, height}});
+  ImageProps extent(uint32_t width, uint32_t height) const {
+    return extent(Extent{width, height});
   }
 
-  static constexpr Sizing absolute(uint32_t width, uint32_t height) {
-    return absolute(0, 0, width, height);
+  stx::Option<SelfExtent> extent() const { return extent_; }
+
+  ImageProps border_radius(BorderRadius radius) const {
+    ImageProps out{*this};
+    out.border_radius_ = radius;
+    return out;
   }
 
-  constexpr Type type() const { return type_; }
+  BorderRadius border_radius() const { return border_radius_; }
 
-  stx::Option<RelativeRect> get_relative() const {
-#if VLK_ENABLE_DEBUG_CHECKS
-    if (type_ == Type::Relative) return stx::Some(RelativeRect{relative_data_});
-    return stx::None;
-#else
-    return stx::Some(RelativeRect{relative_data_});
-#endif
+  // no data must be referenced beyond these functions
+  // async transition: optional
+  // i.e. always maintain aspect ration even if a relative dimension is used.
+  // must return option on query
+  // -1.0f by default
+  // input must not be 0.0f nor negative
+  // if resulting aspect ratio results in a 0.0 then just not draw the image
+  // TODO(lamarrr): we need to properly handle zero-sized widgets
+  ImageProps aspect_ratio(Extent value) const {
+    ImageProps out{*this};
+    out.aspect_ratio_ = stx::Some(std::move(value));
+    return out;
   }
 
-  stx::Option<Rect> get_absolute() const {
-#if VLK_ENABLE_DEBUG_CHECKS
-    if (type_ == Type::Absolute) return stx::Some(Rect{rect_data_});
-    return stx::None;
-#else
-    return stx::Some(Rect{rect_data_});
-#endif
+  ImageProps no_aspect_ratio() const {
+    ImageProps out{*this};
+    out.aspect_ratio_ = stx::None;
+    return out;
+  }
+
+  ImageProps aspect_ratio(uint32_t width, uint32_t height) const {
+    return aspect_ratio(Extent{width, height});
+  }
+
+  stx::Option<Extent> aspect_ratio() const { return aspect_ratio_; }
+
+  ImageProps crop(Rect area) const {
+    ImageProps out{*this};
+    out.crop_ = stx::Some(std::move(area));
+    return out;
+  }
+
+  ImageProps no_crop() const {
+    ImageProps out{*this};
+    out.crop_ = stx::None;
+    return out;
+  }
+
+  stx::Option<Rect> crop() const { return crop_; }
+
+  ImageProps stretch(ImageStretch value) const {
+    ImageProps out{*this};
+    out.stretch_ = value;
+    return out;
+  }
+
+  ImageStretch stretch() const { return stretch_; }
+
+  Dirtiness diff(ImageProps const &new_props) const {
+    Dirtiness dirtiness = Dirtiness::None;
+
+    if (extent() != new_props.extent()) {
+      dirtiness |= Dirtiness::Layout;
+    }
+
+    if (border_radius() != new_props.border_radius()) {
+      dirtiness |= Dirtiness::Render;
+    }
+
+    if (aspect_ratio() != new_props.aspect_ratio()) {
+      dirtiness |= Dirtiness::Layout;
+    }
+
+    if (crop() != new_props.crop()) {
+      dirtiness |= Dirtiness::Render;
+    }
+
+    if (stretch() != new_props.stretch()) {
+      dirtiness |= Dirtiness::Render;
+    }
+
+    return dirtiness;
   }
 
  private:
-  Type type_;
-  union {
-    RelativeRect relative_data_;
-    Rect rect_data_;
-  };
+  // if extent is specified and different from the extent once loaded...
+  stx::Option<SelfExtent> extent_;
+  BorderRadius border_radius_;
+  stx::Option<Extent> aspect_ratio_;
+  // same cond app to extent
+  stx::Option<Rect> crop_;
+  ImageStretch stretch_ = ImageStretch::None;
 };
 
-enum class ImageFormat : uint8_t {
-  Rgba8888 = 0,  //!< pixel with 8 bits for red, green, blue, alpha; in 32-bit
-                 //!< word
-  Rgbx8888,  //!< pixel with 8 bits each for red, green, blue; in 32-bit word,
-  Bgra8888,  //!< pixel with 8 bits for blue, green, red, alpha;
-             //!< in 32-bit word
-  Rgb565,    //!< pixel with 5 bits red, 6 bits green, 5 bits blue, in 16-bit
-             //!< word
-  Argb4444,  //!< pixel with 4 bits for alpha, red, green, blue; in 16-bit
-             //!< word
-  Gray8,     //!< pixel with grayscale level in 8-bit word
-  ImageFormatMin = Rgba8888,
-  ImageFormatMax = Gray8
-};
-
-STX_FORCE_INLINE SkColorType to_sk_type(ImageFormat format) {
-  switch (format) {
-    case ImageFormat::Rgba8888:
-      return kRGBA_8888_SkColorType;
-    case ImageFormat::Rgbx8888:
-      return kRGB_888x_SkColorType;
-    case ImageFormat::Bgra8888:
-      return kBGRA_8888_SkColorType;
-    case ImageFormat::Rgb565:
-      return kRGB_565_SkColorType;
-    case ImageFormat::Argb4444:
-      return kARGB_4444_SkColorType;
-    case ImageFormat::Gray8:
-      return kGray_8_SkColorType;
-  }
-}
-
-STX_FORCE_INLINE uint32_t channel_size(ImageFormat format) noexcept {
-  VLK_ENSURE(vlk::enum_ut(format) >=
-                 vlk::enum_ut(ImageFormat::ImageFormatMin) &&
-             vlk::enum_ut(format) <= vlk::enum_ut(ImageFormat::ImageFormatMax));
-  switch (format) {
-    case ImageFormat::Rgba8888:
-    case ImageFormat::Rgbx8888:
-    case ImageFormat::Bgra8888:
-      return 4;
-    case ImageFormat::Rgb565:
-    case ImageFormat::Argb4444:
-      return 2;
-    case ImageFormat::Gray8:
-      return 1;
-  }
-}
-
-struct ImageInfo {
-  Extent extent;
-  ImageFormat format;
-};
-
-struct ImageData {
-  ImageInfo info;
-  stx::Span<uint8_t const> pixels;
-};
-
-// TODO(lamarrr): handling statefulness.
-// TODO(lamarrr): caching policy, how will the caching policy affect the clips
-// and others?
-
-// To copy or not to copy?
-template <bool IsStateful,
-          typename PixelDataAllocator = std::allocator<uint32_t>>
 struct Image : public Widget {
   // Note: we can use sizing here because width and height is known ahead of
   // time.
-  explicit Image(stx::Span<uint8_t const> const &pixels, ImageInfo const &info,
-                 Sizing const &sizing = Sizing::relative())
-      : info_{info}, sizing_{sizing} {
-    VLK_ENSURE(info.width() * info.height() * channel_size(info.format) ==
-               pixels.size_bytes());
-    pixels_.resize(pixels.size_bytes() / sizeof(uint32_t));
-    // memory write here is always aligned
-    std::copy(pixels.begin(), pixels.end(),
-              reinterpret_cast<uint8_t *>(pixels_.begin().base()));
+  static constexpr Extent DefaultImageExtent = Extent{50, 50};
+
+  Image(MemoryImageSource const &source, ImageProps const &props) {
+    source_ = source;
+    update_props(props);
   }
 
-  virtual Type get_type() const noexcept override { return Type::Render; }
-  virtual bool is_stateful() const noexcept override { return IsStateful; }
-  virtual bool is_dirty() const noexcept override {
-    if constexpr (IsStateful)
-      return image_updated_;
-    else
-      return false;
+  Image(FileImageSource const &source, ImageProps const &props) {
+    source_ = source;
+    update_props(props);
   }
 
-  virtual void mark_clean() noexcept override {}
+  virtual void draw(Canvas &canvas, AssetManager &asset_manager) override {
+    SkCanvas *sk_canvas = canvas.as_skia().unwrap();
 
-  virtual std::string_view get_type_hint() const noexcept override {
-    return "Image";
+    if (std::holds_alternative<MemoryImageSource>(source_)) {
+      auto const &image_source = std::get<MemoryImageSource>(source_);
+      (void)add_asset(asset_manager, image_source);
+      get_asset(asset_manager, image_source)
+          .match(
+              [&](std::shared_ptr<ImageAsset const> const &image_asset) {
+                image_asset->get_ref().match(
+                    [](sk_sp<SkSurface> const &texture) {
+
+                    },
+                    [](ImageLoadError) {});
+              },
+              [](AssetError) {});
+    } else {
+      auto const &image_source = std::get<FileImageSource>(source_);
+      (void)add_asset(asset_manager, image_source);
+      get_asset(asset_manager, image_source)
+          .match([&](std::shared_ptr<ImageAsset const> const &image_asset) {},
+                 [](AssetError) {});
+    }
   }
 
-  virtual stx::Span<Widget *const> get_children() const noexcept override {
-    return {};
+  // copy() copy_err()
+  // copy() copy_none()
+  // void update_source(MemoryImageSource const &);
+  // void update_source(FileImageSource const &);
+  bool is_memory_sourced() const {
+    return std::holds_alternative<MemoryImageSource>(source_);
   }
 
-  virtual Rect compute_area(
-      Extent const &allotted_extent,
-      [[maybe_unused]] stx::Span<Rect> const &children_area) override {
-    return Rect{Offset{0, 0}, allotted_extent};
+  bool is_file_sourced() const {
+    return std::holds_alternative<FileImageSource>(source_);
   }
 
-  virtual void draw(Canvas &canvas, Extent const &requested_extent) override {
-    if (info_.width() == 0 || info_.height() == 0 || pixels_.empty()) return;
-
-    SkCanvas *sk_canvas = canvas.as_skia();
-
-    // TODO(lamarrr): does SkPicture keep a reference to the image?
-    sk_sp<SkData> sk_data =
-        SkData::MakeWithoutCopy(pixels_.data(), pixels_.size());
-    sk_sp<SkImage> image = SkImage::MakeRasterData(
-        SkImageInfo::Make(info_.width(), info_.height(),
-                          to_sk_type(info_.format),
-                          SkAlphaType::kPremul_SkAlphaType),
-        sk_data, info_.width() * 4);
-    sk_canvas->drawImage(image, 0, 0);
+  void update_props(ImageProps const &props) {
+    // once a file image is loaded and no extent if provided we need to perform
+    // a re-layout
+    dirtiness_ = props_.diff(props);
+    props_ = props;
   }
 
-  void update_image(stx::Span<uint8_t const> const &pixels) noexcept {
-    VLK_ENSURE(IsStateful);
-    VLK_ENSURE(pixels.size() == pixels_.size());
-    std::copy(pixels.begin(), pixels.end(),
-              reinterpret_cast<uint8_t *>(pixels_.begin().base()));
-    image_updated_ = true;
+  //! process any event you need to process here.
+  // tick should return Dirtiness and its link tree is then consulted?
+  virtual void tick(std::chrono::nanoseconds) {
+    if ((dirtiness_ & Dirtiness::Render) != Dirtiness::None) {
+      Widget::mark_render_dirty();
+    }
+
+    if ((dirtiness_ & Dirtiness::Layout) != Dirtiness::None) {
+      Widget::mark_layout_dirty();
+    }
+
+    if ((dirtiness_ & Dirtiness::Children) != Dirtiness::None) {
+      Widget::mark_children_dirty();
+    }
   }
 
  private:
-  ImageInfo info_;
-  // each image type has alignment requirements. i.e. each RGB565 pixel must be
-  // aligned to a 16-bit boundary, same as for RGBA8888 which must be aligned to
-  // a 32-bit boundary. uint32_t is suitable for all of these.
-  std::vector<uint32_t, PixelDataAllocator> pixels_;
-  Sizing sizing_;
-  bool image_updated_;
+  ImageProps props_;
+  Dirtiness dirtiness_;
+  std::variant<stx::NoneType, MemoryImageSource, FileImageSource> source_;
 };
-
-struct DeferredImage {};
-
-namespace ops {
-
-struct Fused : public Widget {
-  Widget *first;
-  Widget *second;
-
-  Widget *operator|(Widget const &) { return nullptr; }
-};
-
-struct Blend {
-  Widget *b;
-};
-
-struct Clip {
-  struct Shape {};
-};
-
-// TODO(lamarrr): we need a widget inhibitor, the translate widget will now
-// take inputs on behalf of the Widget type.
-// TODO(lamarrr): i.e. type hint for Opacity widget for Button will be
-// "Opacity for Button"
-// TODO(lamarr): Concrete structs for ops and then an Effect widget that takes
-// the ops as an argument, we'll be able to avoid the virtual function overhead.
-// alsom how do we map fusing them to a concrete type? Fuse<Clip, Blend,
-// Translate> {   void draw(){  // for each, draw   };       }
-// output of one is passed to another
-//  Translate | Rotate => Fused<Translate, Rotate, Clip, Draw>
-struct Translate {};
-struct Rotate {};
-
-};  // namespace ops
 
 }  // namespace ui
 };  // namespace vlk
