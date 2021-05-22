@@ -38,13 +38,7 @@ enum class TextDecoration : uint8_t {
   StrikeThrough = 4,
 };
 
-constexpr TextDecoration operator|(TextDecoration a, TextDecoration b) {
-  return vlk::enum_or(a, b);
-}
-
-constexpr TextDecoration operator&(TextDecoration a, TextDecoration b) {
-  return vlk::enum_and(a, b);
-}
+VLK_DEFINE_ENUM_BIT_OPS(TextDecoration)
 
 enum class FontSlant : uint8_t {
   Upright = 0,
@@ -52,13 +46,7 @@ enum class FontSlant : uint8_t {
   Oblique = 2,
 };
 
-constexpr FontSlant operator|(FontSlant a, FontSlant b) {
-  return vlk::enum_or(a, b);
-}
-
-constexpr FontSlant operator&(FontSlant a, FontSlant b) {
-  return vlk::enum_and(a, b);
-}
+VLK_DEFINE_ENUM_BIT_OPS(FontSlant)
 
 enum class FontWeight : uint16_t {
   Invisible = 0,
