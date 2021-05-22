@@ -201,6 +201,10 @@ struct ViewOffset {
   constexpr bool operator==(ViewOffset const& other) const {
     return x == other.x && y == other.y;
   }
+
+  constexpr bool operator!=(ViewOffset const& other) const {
+    return !(*this == other);
+  }
 };
 
 enum class Direction : uint8_t { Row, Column };
