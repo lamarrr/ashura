@@ -5,9 +5,11 @@
 #include <variant>
 
 #include "vlk/ui/primitives.h"
-
 #include "vlk/utils/limits.h"
 #include "vlk/utils/utils.h"
+
+// this header represents the layout frontend, these are all the data the
+// widgets can pass to the layout system implementation
 
 namespace vlk {
 namespace ui {
@@ -53,7 +55,7 @@ struct Constrain {
   int64_t max = i64_max;
 
   /// clamping the relative values of the result
-  Clamp clamp;
+  Clamp clamp{};
 
   static constexpr Constrain relative(float scale) { return Constrain{scale}; }
 
@@ -96,8 +98,8 @@ struct Constrain {
 // TODO(lamarrr): helper functions for SelfExtent, ViewExtent, and Constrain
 
 struct SelfExtent {
-  Constrain width;
-  Constrain height;
+  Constrain width{};
+  Constrain height{};
 
   static constexpr SelfExtent relative(float width, float height) {
     return SelfExtent{Constrain::relative(width), Constrain::relative(height)};
@@ -139,8 +141,8 @@ using Padding = Edges;
 /// need partially or wholly constrained/unconstrained views. (i.e. constrained
 /// to parent's alloted extent along width but unconstrained along height).
 struct ViewExtent {
-  Constrain width;
-  Constrain height;
+  Constrain width{};
+  Constrain height{};
 
   static constexpr ViewExtent relative(float width, float height) {
     return ViewExtent{Constrain::relative(width), Constrain::relative(height)};
@@ -174,8 +176,8 @@ struct ViewExtent {
 /// marks the offset of the view relative to the view extent (usually
 /// a resolved `SelfExtent`)
 struct ViewOffset {
-  Constrain x;
-  Constrain y;
+  Constrain x{};
+  Constrain y{};
 
   static constexpr ViewOffset relative(float x, float y) {
     return ViewOffset{Constrain::relative(x), Constrain::relative(y)};
