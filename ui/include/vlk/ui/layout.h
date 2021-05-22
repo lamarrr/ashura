@@ -229,11 +229,7 @@ struct Flex {
 /// space to accomodate it)
 enum class ViewFit : uint8_t { None = 0, Width = 1, Height = 2 };
 
-constexpr ViewFit operator|(ViewFit a, ViewFit b) { return vlk::enum_or(a, b); }
-
-constexpr ViewFit operator&(ViewFit a, ViewFit b) {
-  return vlk::enum_and(a, b);
-}
+VLK_DEFINE_ENUM_BIT_OPS(ViewFit)
 
 }  // namespace ui
 }  // namespace vlk
