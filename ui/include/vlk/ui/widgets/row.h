@@ -2,12 +2,11 @@
 
 #include <vector>
 
+#include "stx/span.h"
 #include "vlk/ui/layout.h"
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/widget.h"
 #include "vlk/ui/widget_builder.h"
-
-#include "stx/span.h"
 
 namespace vlk {
 namespace ui {
