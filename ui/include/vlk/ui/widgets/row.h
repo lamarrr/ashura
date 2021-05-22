@@ -95,13 +95,6 @@ struct Row : public Widget {
     update_props(props);
   }
 
-  Row() = delete;
-  Row(Row const&) = delete;
-  Row(Row&&) = delete;
-  Row& operator=(Row const&) = delete;
-  Row& operator=(Row&&) = delete;
-  ~Row() = default;
-
   void update_props(RowProps const& props) {
     Flex flex{};
     flex.direction = Direction::Row;
