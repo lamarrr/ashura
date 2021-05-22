@@ -7,13 +7,11 @@
 #include <string_view>
 #include <vector>
 
+#include "modules/skparagraph/include/Paragraph.h"
+#include "stx/span.h"
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/widget.h"
-
-#include "stx/span.h"
 #include "vlk/utils/limits.h"
-
-#include "modules/skparagraph/include/Paragraph.h"
 
 // future-TODO(lamarrr): accessibility text scale factor, can be changed at
 // runtime? or constant
@@ -288,6 +286,7 @@ struct TextProps {
 
 // TODO(lamarrr): A single paragraph. doesn't support multiple stylings. use
 // builder->addTextStyle and builder->addText
+// TODO(lamarrr): review how this works with the new widget system
 struct Text : public Widget {
   Text(std::string_view const& utf8_str,
        TextProps const& properties = TextProps{}) {
@@ -301,23 +300,22 @@ struct Text : public Widget {
 
   std::string get_text() const { return utf8_text_; }
 
-  TextProps get_props() const { return properties_; }
+  TextProps get_props() const { return props_; }
 
   void update_text(std::string_view const& utf8_str) {
     utf8_text_ = utf8_str;
     paragraph_dirty_ = true;
   }
 
-  void update_props(TextProps const& properties) {
-    properties_ = properties;
+  void update_props(TextProps const& new_props) {
+    props_ = new_props;
     paragraph_dirty_ = true;
   }
 
   // TODO(lamarrr): clip text if it height exceeds the maximum extent?
   virtual void draw(Canvas&, AssetManager&) override final;
 
-  virtual void tick([
-      [maybe_unused]] std::chrono::nanoseconds const& interval) override final {
+  virtual void tick(std::chrono::nanoseconds) override final {
     if (paragraph_dirty_) {
       rebuild_paragraph_();
       paragraph_dirty_ = false;
@@ -331,7 +329,7 @@ struct Text : public Widget {
 
  private:
   std::string utf8_text_;
-  TextProps properties_;
+  TextProps props_;
 
   std::unique_ptr<skia::textlayout::Paragraph> paragraph_{nullptr};
   bool paragraph_dirty_ = true;
