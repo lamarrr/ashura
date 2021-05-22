@@ -1,5 +1,6 @@
 #pragma once
 
+#include "vlk/ui/asset_manager.h"
 #include "vlk/ui/layout.h"
 #include "vlk/ui/layout_tree.h"
 #include "vlk/ui/tile_cache.h"
@@ -10,6 +11,10 @@
 namespace vlk {
 namespace ui {
 
+// TODO(lamarrr): make this a virtual function? with a unique_ptr static
+// ::default return to abstract from the user and reduce compile-time or
+// unrequired dependencies
+// this will be in the impl namespace
 struct Pipeline {
   Widget* root_widget;
   impl::Viewport viewport;
