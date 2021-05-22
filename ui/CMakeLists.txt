@@ -1,4 +1,8 @@
-add_library(vlk_ui src/canvas.cc src/compositor.cc src/widgets/text.cc)
+add_library(
+  vlk_ui
+  src/canvas.cc src/image_asset.cc
+  # Widgets
+  src/widgets/text.cc)
 target_include_directories(
   vlk_ui
   PUBLIC include
@@ -15,7 +19,10 @@ add_executable(
   tests/pipeline_test.cc
   tests/raster_tiles_test.cc
   tests/tile_cache_test.cc
-  tests/widgets/box_test.cc)
+  tests/widgets/box_test.cc
+  tests/widgets/image_test.cc
+  tests/widgets/row_test.cc
+  tests/asset_manager_test.cc)
 
 target_link_libraries(vlk_ui_test gtest gtest_main vlk_ui)
 target_include_directories(vlk_ui_test PRIVATE ${CMAKE_CURRENT_LIST_DIR}/tests)
