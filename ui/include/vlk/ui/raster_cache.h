@@ -9,11 +9,9 @@
 #include "include/core/SkPictureRecorder.h"
 #include "include/core/SkSurface.h"
 #include "include/gpu/GrBackendSurface.h"
-
 #include "vlk/ui/canvas.h"
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/raster_context.h"
-
 #include "vlk/utils/utils.h"
 
 namespace vlk {

@@ -620,7 +620,7 @@ struct LayoutTree {
     tick(std::chrono::nanoseconds(0));
   }
 
-  void tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
+  void tick(std::chrono::nanoseconds) {
     if (is_layout_dirty) {
       perform_layout(root_node, allotted_extent, Offset{0, 0});
 

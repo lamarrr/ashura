@@ -129,8 +129,9 @@ struct Widget {
     // no-op
   }
 
-  /// process any event you need to process here.
-  virtual void tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
+  //! process any event you need to process here.
+  // tick should return Dirtiness and its link tree is then consulted?
+  virtual void tick([[maybe_unused]] std::chrono::nanoseconds interval) {
     // no-op
   }
 

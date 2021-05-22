@@ -112,7 +112,7 @@ struct Pipeline {
     }
   }
 
-  void tick(std::chrono::nanoseconds const& interval) {
+  void tick(std::chrono::nanoseconds interval) {
     // child will be removed as necessary from the tick callback. of course we
     // assume that the children have been deleted by the parent so there's no
     // need to detach the previously attached state proxies. this also means we

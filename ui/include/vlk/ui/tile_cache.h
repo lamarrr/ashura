@@ -278,7 +278,7 @@ struct TileCache {
 
   // consider scroll swapping instead of allocating and de-allocating
 
-  void tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
+  void tick(std::chrono::nanoseconds) {
     // TODO(lamarrr): fix and make all correct
     // TODO(lamarrr): consider removing the focus/extent or finishing its
     // implementation and making it correct

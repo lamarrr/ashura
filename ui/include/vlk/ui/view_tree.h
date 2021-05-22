@@ -343,9 +343,7 @@ struct ViewTree {
     tick(std::chrono::nanoseconds(0));
   }
 
-  void tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
-    clean_offsets();
-  }
+  void tick(std::chrono::nanoseconds) { clean_offsets(); }
 };
 
 }  // namespace ui
