@@ -16,9 +16,6 @@
 #include "vlk/utils/limits.h"
 #include "vlk/utils/utils.h"
 
-#include "vlk/ui/canvas.h"
-#include "vlk/ui/layout.h"
-
 // TODO(lamarrr): should we pass a rasterization constext to the draw function?
 // (do draw commands keep references to image data)?
 // can we abstract the datasource provider to destroy returned memeory
@@ -28,11 +25,11 @@
 namespace vlk {
 namespace ui {
 
-/// NOTE: Widget is a very large struct (about 420-bytes). avoid
-/// touching the struct in hot code paths as it could disrupt cache
-/// if you're touching a large number of them, especially whilst not all fields
-/// of it are touched
-/// NOTE: this struct's data is always accessed from the main thread.
+//! NOTE: Widget is a very large struct (about 420-bytes). avoid
+//! touching the struct in hot code paths as it could disrupt cache
+//! if you're touching a large number of them, especially whilst not all fields
+//! of it are touched
+//! NOTE: this struct's data is always accessed from the main thread.
 struct Widget {
   friend struct WidgetStateProxyAccessor;
 
@@ -52,25 +49,25 @@ struct Widget {
           on_view_offset_dirty{[] {}},
           on_children_changed{[] {}} {}
 
-    /// informs the system that the widget's render data has changed
+    //! informs the system that the widget's render data has changed
     std::function<void()> on_render_dirty;
 
-    /// informs the system that the widget's layout has changed
+    //! informs the system that the widget's layout has changed
     std::function<void()> on_layout_dirty;
 
-    /// informs the system that a view-widgets's offset (or visible area)
-    /// has changed
+    //! informs the system that a view-widgets's offset (or visible area)
+    //! has changed
     std::function<void()> on_view_offset_dirty;
 
-    /// informs the system that the widget's children has changed (possibly
-    /// requiring a full rebuild of the pipeline)
+    //! informs the system that the widget's children has changed (possibly
+    //! requiring a full rebuild of the pipeline)
     std::function<void()> on_children_changed;
   };
 
   enum class Type : uint8_t {
-    /// occupies space and has render data
+    //! occupies space and has render data
     Render,
-    /// for view-based scrolling, has no render data
+    //! for view-based scrolling, has no render data
     View
   };
 
@@ -128,6 +125,9 @@ struct Widget {
 
   DebugInfo get_debug_info() const { return debug_info_; }
 
+  //! create draw commands
+  // TODO(lamarrr): we might need to make calls to assetmanager thread safe if
+  // we want to perform mult-threaded recording
   virtual void draw([[maybe_unused]] Canvas &, AssetManager &) {
     // no-op
   }
@@ -168,10 +168,10 @@ struct Widget {
     mark_layout_dirty();
   }
 
-  /// MOTE: this does not free the memory associated with the referenced
-  /// container. the derived widget is in charge of freeing memory as necessary.
-  /// avoid using this as much as possible as it can cause a full re-build of
-  /// the pipeline.
+  //! MOTE: this does not free the memory associated with the referenced
+  //! container. the derived widget is in charge of freeing memory as necessary.
+  //! avoid using this as much as possible as it can cause a full re-build of
+  //! the pipeline.
   void update_children(stx::Span<Widget *const> children) {
     VLK_ENSURE(is_flex(), "Widget is not a flex type", *this);
     children_ = children;
@@ -202,6 +202,18 @@ struct Widget {
 
   void set_debug_info(DebugInfo const &info) { debug_info_ = info; }
 
+  // TODO(lamarrr): we should probably make this deferred, how can we do that
+  // without affecting children updating too much?
+  //
+  //
+  // we can thus even avoid having function pointers?
+  //
+  // I think function pointers can be avoided since the tick() is called for
+  // every widget
+  //
+  // for maximum efficiency we call tick for all the widgets and then perform
+  // children update pass -> layout update pass -> render update pass
+  //
   void mark_children_dirty() const { state_proxy_.on_children_changed(); }
 
   void mark_layout_dirty() const { state_proxy_.on_layout_dirty(); }
@@ -211,54 +223,55 @@ struct Widget {
   void mark_render_dirty() const { state_proxy_.on_render_dirty(); }
 
  private:
-  /// constant throughout lifetime
+  //! constant throughout lifetime
   Type type_;
 
-  /// constant throughout lifetime
+  //! constant throughout lifetime
   bool is_flex_;
 
-  /// variable throughout lifetime. communicate changes using `on_layout_dirty`.
+  //! variable throughout lifetime. communicate changes using `on_layout_dirty`.
   // for view widgets, this is effectively the size that's actually visible.
   SelfExtent self_extent_;
 
   bool needs_trimming_;
 
-  /// variable throughout lifetime. communicate changes using `on_layout_dirty`
+  //! variable throughout lifetime. communicate changes using `on_layout_dirty`
   Padding padding_;
 
-  /// variable throughout lifetime. communicate changes using `on_layout_dirty`
+  //! variable throughout lifetime. communicate changes using `on_layout_dirty`
   Flex flex_;
 
-  /// variable throughout lifetime. communicate changes using
-  /// `on_children_changed`
+  //! variable throughout lifetime. communicate changes using
+  //! `on_children_changed`
   stx::Span<Widget *const> children_;
 
-  /// for view widgets (used for laying out its children).
-  ///
-  /// variable throughout lifetime.
-  /// resolved using the parent allotted extent.
+  //! for view widgets (used for laying out its children).
+  //!
+  //! variable throughout lifetime.
+  //! resolved using the parent allotted extent.
   ViewExtent view_extent_;
 
-  /// for view widgets (used for scrolling or moving of the view)
-  ///
-  /// variable throughout lifetime. communicate changes with
-  /// `on_view_offset_changed`.
-  /// resolved using the view extent.
+  //! for view widgets (used for scrolling or moving of the view)
+  //!
+  //! variable throughout lifetime. communicate changes with
+  //! `on_view_offset_changed`.
+  //! resolved using the view extent.
   ViewOffset view_offset_;
 
   // variable throughout lifetime. communicate changes using `on_layout_dirty`
   ViewFit view_fit_;
 
-  /// constant throughout lifetime
+  //! constant throughout lifetime
   stx::Option<ZIndex> z_index_;
 
-  /// variable throughout lifetime
+  //! variable throughout lifetime
   DebugInfo debug_info_;
 
-  /// modified and used for communication of updates to the system
+  //! modified and used for communication of updates to the system
   StateProxy state_proxy_;
 };
 
+// TODO(lamarrr): we should be able to return std::string?
 inline stx::FixedReport operator>>(stx::ReportQuery, Widget const &widget) {
   Widget::DebugInfo const debug_info = widget.get_debug_info();
   std::string message = "Widget: ";
