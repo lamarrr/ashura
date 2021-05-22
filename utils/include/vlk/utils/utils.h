@@ -79,22 +79,18 @@ STX_FORCE_INLINE constexpr std::underlying_type_t<EnumType> enum_ut(
 template <typename EnumType>
 STX_FORCE_INLINE constexpr std::underlying_type_t<EnumType> enum_ut_or(
     EnumType a, EnumType b) {
-  return static_cast<std::underlying_type_t<EnumType>>(a) |
-         static_cast<std::underlying_type_t<EnumType>>(b);
+  return enum_ut(a) | enum_ut(b);
 }
 
 template <typename EnumType>
 STX_FORCE_INLINE constexpr EnumType enum_or(EnumType a, EnumType b) {
-  return static_cast<EnumType>(
-      static_cast<std::underlying_type_t<EnumType>>(a) |
-      static_cast<std::underlying_type_t<EnumType>>(b));
+  return static_cast<EnumType>(enum_ut_or(a, b));
 }
 
 template <typename EnumType>
 STX_FORCE_INLINE constexpr std::underlying_type_t<EnumType> enum_ut_and(
     EnumType a, EnumType b) {
-  return static_cast<std::underlying_type_t<EnumType>>(a) &
-         static_cast<std::underlying_type_t<EnumType>>(b);
+  return enum_ut(a) & enum_ut(b);
 }
 
 template <typename EnumType>
