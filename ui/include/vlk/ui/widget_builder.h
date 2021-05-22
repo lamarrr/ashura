@@ -20,7 +20,7 @@ struct Widget;
 
 /// builds a list of widgets. the function is called with the index, until it
 /// returns `stx::None`
-using WidgetBuilder = std::function<stx::Option<Widget *>(size_t)>;
+using WidgetBuilder = std::function<Widget *(size_t)>;
 
 inline std::vector<Widget *> build_children(
     stx::Span<Widget *const> const &src_children) {
@@ -40,11 +40,13 @@ inline std::vector<Widget *> build_children(WidgetBuilder &builder) {
   std::vector<Widget *> children;
   size_t i = 0;
   while (auto child = builder(i)) {
-    children.push_back(child.clone().unwrap());
+    children.push_back(child);
     i++;
   }
   return children;
 }
+
+// TODO(lamarrr): children list? with deleter functor
 
 }  // namespace ui
 }  // namespace vlk
