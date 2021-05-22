@@ -135,8 +135,8 @@ struct ViewTree {
       z_index = init_layout_node.widget->get_z_index().unwrap_or(
           std::move(init_z_index));
 
-      // needs to be updated after building the tree, by recursively triggering
-      // a on_view_offset dirty starting from the root view.
+      // needs to be updated after building the tree, by recursively
+      // triggering a on_view_offset dirty starting from the root view.
       screen_offset = {};
       effective_parent_view_offset = {};
 
@@ -158,14 +158,20 @@ struct ViewTree {
       }
     }
 
-    static void update_screen_offset_helper_(View &subview, View &parent) {
+    // TODO(lamarrr): screen oifset calculations are incorrect and need to be
+    // fixed, it's parent view offset should be the accumulation of its parent
+    // view offset from its parent to itself
+
+    static void update_screen_offset_helper_(View &subview,
+                                             View const &parent) {
       subview.screen_offset =
           parent.screen_offset + subview.effective_parent_view_offset;
-      // remember: views do not have render data so they will not invalidate any
-      // area of the cache
+      // remember: views do not have render data so they will not invalidate
+      // any area of the cache
     }
 
-    static void update_screen_offset_helper_(View::Entry &entry, View &parent) {
+    static void update_screen_offset_helper_(View::Entry &entry,
+                                             View const &parent) {
       // mark that the intersecting tiles are now dirty
       IOffset const new_screen_offset =
           parent.screen_offset + entry.effective_parent_view_offset;
@@ -195,8 +201,8 @@ struct ViewTree {
       // only mark intersecting tiles as dirty if its clip rect is visible
 
       if (entry.screen_offset != new_screen_offset) {
-        // call the callback so the tile cache is aware that its entries are now
-        // dirty
+        // call the callback so the tile cache is aware that its entries are
+        // now dirty
         if (previous_clip_rect.visible()) {
           entry.layout_node->widget->mark_render_dirty();
         }
@@ -224,7 +230,8 @@ struct ViewTree {
     void translate(IOffset const &translation) {
       // adjust the view offset of the parent view.
       // and shifts (translates) the children accordingly. we have to
-      // recursively perform passes to update the sceen offsets in the children.
+      // recursively perform passes to update the sceen offsets in the
+      // children.
 
       for (View::Entry &child : entries) {
         // translate the children's effective parent view offset by
@@ -244,8 +251,8 @@ struct ViewTree {
     }
 
     void clean_offsets() {
-      // its offset could be correct and its children offset be incorrect so we
-      // still need to recurse to the children irregardless
+      // its offset could be correct and its children offset be incorrect so
+      // we still need to recurse to the children irregardless
       if (is_dirty) {
         IOffset const translation =
             layout_node->widget->get_view_offset().resolve(
@@ -273,11 +280,11 @@ struct ViewTree {
 
     void build_links(bool &any_view_dirty) {
       // it is safe for the widget to access this multiple times between ticks
-      // even though the user could pay a perf penalty. this saves us the stress
-      // of accumulating scroll offsets into a vector.
-      // the tiles the children widgets intersect will be marked as dirty.
-      // performing multiple scrolls in between a tick wil unnecessarily mark
-      // more tiles than needed.
+      // even though the user could pay a perf penalty. this saves us the
+      // stress of accumulating scroll offsets into a vector. the tiles the
+      // children widgets intersect will be marked as dirty. performing
+      // multiple scrolls in between a tick wil unnecessarily mark more tiles
+      // than needed.
       WidgetStateProxyAccessor::access(*layout_node->widget).on_render_dirty =
           [] {};
       WidgetStateProxyAccessor::access(*layout_node->widget)
