@@ -247,6 +247,7 @@ struct TileCache {
 
     asset_manager = &iasset_manager;
     root_view = &view_tree.root_view;
+
     build_from(view_tree.root_view);
 
     for (Entry &entry : entries) {
@@ -424,7 +425,6 @@ struct TileCache {
       Canvas canvas = backing_store.get_recording_canvas();
       SkCanvas *const sk_canvas =
           canvas.as_skia().expect("canvas is not using a skia backend");
-      sk_canvas->clear(SkColors::kTransparent);
 
       Extent tile_extent = tiles.tile_extent();
 

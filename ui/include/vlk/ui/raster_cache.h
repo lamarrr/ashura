@@ -85,6 +85,9 @@ struct RasterCache {
     recorder_.beginRecording(SkRect::MakeXYWH(cull_rect_.x(), cull_rect_.y(),
                                               cull_rect_.width(),
                                               cull_rect_.height()));
+
+    Canvas canvas = get_recording_canvas();
+    canvas.as_skia().unwrap()->clear(SK_ColorWHITE);
   }
 
   void finish_recording() {
@@ -120,7 +123,6 @@ struct RasterCache {
   void rasterize() {
     VLK_ENSURE(is_surface_init());
     SkCanvas* canvas = surface_->getCanvas();
-    canvas->clear(SK_ColorTRANSPARENT);
     canvas->drawPicture(picture_);
     surface_->flushAndSubmit(false);
   }
