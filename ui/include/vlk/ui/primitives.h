@@ -302,6 +302,10 @@ struct Color {
   constexpr Color with_alpha(uint8_t a) const {
     return Color{(rgba & ~kAlphaMask) | a};
   }
+
+  constexpr bool transparent() const { return (rgba & kAlphaMask) == 0u; }
+
+  constexpr bool visible() const { return !transparent(); }
 };
 
 inline constexpr bool operator==(Color const &a, Color const &b) {
