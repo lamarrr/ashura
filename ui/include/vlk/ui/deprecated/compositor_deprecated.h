@@ -535,7 +535,7 @@ struct Compositor {
   // tick must be called before render_widgets
   // TODO(lamarrr): ticking the compositor should make it also send tick events
   // to the widgets. helps to prevent having multiple copies of the widgets
-  sk_sp<SkImage> tick([[maybe_unused]] std::chrono::nanoseconds const &interval) {
+  sk_sp<SkImage> tick([[maybe_unused]] std::chrono::nanoseconds interval) {
     VLK_COMPOSITOR_TRACE_SCOPE;
 
     // TODO(lamarrr): render to surface argument instead of having own surface

@@ -53,7 +53,7 @@ struct CpuSurfaceProvider : public SurfaceProvider {
 };
 
 
-  sk_sp<SkImage> get_gpu_surface_texture_read_only_ref(RasterContext& context) {
+  sk_sp<SkImage> get_gpu_surface_texture_read_only_ref(RasterContext const& context) {
     VLK_DEBUG_ENSURE(is_surface_init());
     VLK_ENSURE(context.target == RasterContext::Target::Gpu);
 

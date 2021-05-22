@@ -115,7 +115,7 @@ request.tree_depth = node.tree_depth;
 this->submit_children_update_request(request);
 
 
-  void tick(std::chrono::nanoseconds const& interval) {
+  void tick(std::chrono::nanoseconds interval) {
     auto const children_update_requests_count = children_update_requests.size();
     layout_tree.is_layout_dirty |= (children_update_requests_count >= 0);
     // view_tree, mark dirty
