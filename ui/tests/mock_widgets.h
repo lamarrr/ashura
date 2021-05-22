@@ -1,7 +1,8 @@
+#include <iostream>
 #include <vector>
+
 #include "stx/option.h"
 #include "vlk/ui/widget.h"
-#include <iostream>
 
 using namespace vlk::ui;
 using namespace vlk;
@@ -43,7 +44,7 @@ struct MockFlex : public Widget {
 
   std::vector<Widget*> children_;
 
-  virtual void draw(Canvas& canvas) override {
+  virtual void draw(Canvas& canvas, AssetManager&) override {
     Extent const& extent = canvas.extent();
     std::cout << "[MockFlex] draw on extent: Extent{width: " << extent.width
               << ", height: " << extent.height << "}" << std::endl;
@@ -69,7 +70,7 @@ struct MockView : public Widget {
 
   Widget* child_;
 
-  virtual void draw(Canvas& canvas) override {
+  virtual void draw(Canvas& canvas, AssetManager&) override {
     Extent const& extent = canvas.extent();
     std::cout << "[MockView] draw on extent: Extent{width: " << extent.width
               << ", height: " << extent.height << "}" << std::endl;
