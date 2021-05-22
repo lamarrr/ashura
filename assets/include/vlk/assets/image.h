@@ -8,6 +8,10 @@
 namespace vlk {
 namespace desc {
 
+// TODO(lamarrr): what can we do to separate this? constrain some? it is rarely
+// possible that we would want the image to reside in memory forever, we need an
+// image view and an image type with ticking managed by an asset manager
+// count references or count ticks?
 
 struct Image {
   enum class Format : uint8_t {
