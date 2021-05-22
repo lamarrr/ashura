@@ -1,5 +1,7 @@
 
 
+#include "vlk/ui/widgets/text.h"
+
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -8,15 +10,13 @@
 #include <utility>
 #include <vector>
 
-#include "vlk/ui/widgets/text.h"
-#include "vlk/utils/utils.h"
-
 #include "modules/skparagraph/include/Paragraph.h"
 #include "modules/skparagraph/include/ParagraphBuilder.h"
 #include "modules/skparagraph/include/TextStyle.h"
 #include "modules/skparagraph/include/TypefaceFontProvider.h"
 #include "modules/skparagraph/src/ParagraphBuilderImpl.h"
 #include "modules/skparagraph/src/ParagraphImpl.h"
+#include "vlk/utils/utils.h"
 
 namespace ui = vlk::ui;
 namespace sktext = skia::textlayout;
@@ -119,7 +119,8 @@ STX_FORCE_INLINE static sktext::TextStyle make_text_style(
 
   text_style.setLocale(SkString{locale.data(), locale.size()});
 
-  text_style.setFontFamilies({SkString{"Arial"}});
+  text_style.setFontFamilies(
+      {SkString{props.font_family()}, SkString{"sans-serif"}});
 
   // fonts?
   sktext::FontCollection font_collection;
@@ -212,7 +213,7 @@ STX_FORCE_INLINE static std::unique_ptr<sktext::Paragraph> build_paragraph(
   //
   //
   //
-  //
+  // we might need the user to provide font bundles upfront
   //
   //
   //
@@ -234,7 +235,7 @@ STX_FORCE_INLINE static std::unique_ptr<sktext::Paragraph> build_paragraph(
 }
 
 void ui::Text::rebuild_paragraph_() {
-  paragraph_ = build_paragraph(utf8_text_, properties_);
+  paragraph_ = build_paragraph(utf8_text_, props_);
 
   paragraph_->layout(0.0f);
 

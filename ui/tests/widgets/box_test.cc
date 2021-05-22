@@ -1,41 +1,19 @@
 
 #include "vlk/ui/widgets/box.h"
+
 #include <filesystem>
 #include <fstream>
 #include <vector>
+
 #include "gtest/gtest.h"
+#include "mock_widgets.h"
+#include "stx/panic.h"
 #include "vlk/ui/pipeline.h"
 #include "vlk/ui/tile_cache.h"
 #include "vlk/ui/widgets/text.h"
 
-#include "stx/panic.h"
-
-#include "mock_widgets.h"
-
 using namespace vlk::ui;
 using namespace vlk;
-
-// TODO(lamarrr): if image is not opaque and its size is preserved we can
-// perform a direct write to the surface.
-//
-// writing rgb images will be faster as it doesn't need blending
-//
-struct ImageSource {
-  static std::unique_ptr<ImageSource> file(std::filesystem::path const& path);
-  static std::unique_ptr<ImageSource> url();
-
-  virtual ~ImageSource() = 0;
-};
-
-// resource ticker?
-// renderer resource ticker or registry
-// caching
-struct FileImageSource : public ImageSource {
-  // load
-  // discard
-  // tick()?
-  virtual ~FileImageSource() override {}
-};
 
 TEST(BoxTest, BasicTest) {
   RasterContext context;
@@ -76,8 +54,10 @@ TEST(BoxTest, BasicTest) {
                    .color(colors::White)
                    .font_size(16.0f)
                    .font_family("Arial")),
-      BoxProps().padding(Padding::all(10)).border_radius(BorderRadius::all(0)),
-      BoxDecoration().color(colors::Black))}};
+      BoxProps()
+          .padding(Padding::all(10))
+          .border_radius(BorderRadius::all(0))
+          .color(colors::Black))}};
 
   Extent screen_extent{3840, 2160};
 
@@ -102,6 +82,7 @@ TEST(BoxTest, BasicTest) {
     constexpr float mul = 1 / 5.0f;
     cache.scroll_viewport(ViewOffset{{mul * i}, {mul * i}});
     cache.tick(std::chrono::nanoseconds(0));
-  //  cache.backing_store.save_pixels_to_file("./ui_output_" + std::to_string(i));
+    //  cache.backing_store.save_pixels_to_file("./ui_output_" +
+    //  std::to_string(i));
   }
 }

@@ -2,31 +2,53 @@
 
 #include "vlk/ui/widgets/row.h"
 
+#include "gtest/gtest.h"
+#include "mock_widgets.h"
+#include "vlk/ui/palettes/material.h"
 #include "vlk/ui/pipeline.h"
 #include "vlk/ui/raster_context.h"
 #include "vlk/ui/tile_cache.h"
 #include "vlk/ui/widgets/box.h"
 #include "vlk/ui/widgets/text.h"
 
-#include "mock_widgets.h"
-
-#include "gtest/gtest.h"
-
 using namespace vlk::ui;
 using namespace vlk;
+
+// RowProps constrain
+
+// what to work on next?
+// on image loading the user needs to use a default fallback image or a provided
+// one. transition?
+//
+//
+// Add imgui and glfw for testing
+//
 
 TEST(RowTest, BasicTest) {
   RasterContext context;
 
-  MockView view{{new Row{[](size_t i) {
-    if (i >= 3) return stx::make_none<Widget*>();
-    return stx::make_some<Widget*>(
-        new Box(new Text(std::to_string(i), TextProps()
-                                                .font_size(30.0f)
-                                                .font_weight(FontWeight::Bold)
-                                                .color(colors::Red)),
-                BoxProps().padding(Padding::all(20)),
-                BoxDecoration().color(colors::Black)));
+  constexpr Color color_list[] = {material::RedA400,    material::OrangeA400,
+                                  material::YellowA400, material::BlueGrey800,
+                                  material::PurpleA400, material::GreenA400};
+
+  MockView view{{new Row{[&](size_t i) -> Widget* {
+    if (i >= 60) return nullptr;
+    return new Box(new Box(new Text("Number " + std::to_string(i),
+                                    TextProps()
+                                        .font_size(15.0f)
+                                        .font_weight(FontWeight::Normal)
+                                        .color(colors::Black)
+                                        .font_family("Roboto")),
+                           BoxProps()
+                               .padding(Padding::all(15))
+                               .border_radius(BorderRadius::all(20))
+                               .blur(Blur{2.5f, 2.5f})
+                               .color(colors::White.with_alpha(0x7F))),
+                   BoxProps()
+                       .padding(Padding::all(35))
+                       .border(Border::all(material::AmberA100, 20))
+                       .border_radius(BorderRadius::all(20))
+                       .color(color_list[i % std::size(color_list)]));
   }}}};
 
   Extent screen_extent{1600, 600};
@@ -34,11 +56,11 @@ TEST(RowTest, BasicTest) {
   LayoutTree layout_tree;
   layout_tree.allot_extent(screen_extent);
   layout_tree.build(view);
-  layout_tree.tick(std::chrono::nanoseconds(0));
 
   ViewTree view_tree;
   view_tree.build(layout_tree);
-  view_tree.tick(std::chrono::nanoseconds(0));
+
+  // TODO(lamarrr): we don't need tick after build
 
   TileCache cache;
 
