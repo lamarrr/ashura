@@ -2,10 +2,9 @@
 
 #include <type_traits>
 
-#include "vlk/utils/limits.h"
-
 #include "spdlog/spdlog.h"
 #include "stx/panic.h"
+#include "vlk/utils/limits.h"
 
 #define VLK_PANIC(...)         \
   do {                         \
