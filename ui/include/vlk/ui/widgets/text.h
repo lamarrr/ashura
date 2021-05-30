@@ -25,9 +25,278 @@ namespace ui {
 // from file, from byte data, from name
 // we need to be able to share font data acrross widgets and thus need a font
 // manager
-struct Typeface;
-struct Font;
-struct FontManager;
+
+enum class FontLoadError : uint8_t { InvalidPath, InvalidBytes, Loadfailed };
+
+namespace impl {
+
+struct FileTypefaceSourceData {
+  std::filesystem::path path;
+  std::string identifier;
+};
+
+struct MemoryTypefaceSourceData {
+  std::vector<uint8_t> bytes;
+  std::string identifier;
+};
+
+};  // namespace impl
+
+struct FileTypefaceSource {
+  explicit FileTypefaceSource(std::filesystem::path path) {
+    std::string identifier = std::string("FileTypefaceSource{path: ") +
+                             std::string(path) + std::string("}");
+    data_ = std::make_shared<impl::FileTypefaceSourceData>(
+        impl::FileTypefaceSourceData{std::move(path), std::move(identifier)});
+  }
+
+  std::shared_ptr<impl::FileTypefaceSourceData const> data() const {
+    return data_;
+  }
+
+  bool operator==(FileTypefaceSource const& other) const {
+    return data_->identifier == other.data_->identifier;
+  }
+
+  bool operator!=(FileTypefaceSource const& other) const {
+    return !(*this == other);
+  }
+
+ private:
+  std::shared_ptr<impl::FileTypefaceSourceData const> data_;
+};
+
+struct MemoryTypefaceSource {
+  friend struct FontSourceProxy;
+
+  explicit MemoryTypefaceSource(std::vector<uint8_t> bytes) {
+    VLK_ENSURE(!bytes.empty());
+    uint64_t uid = make_uid();
+    std::string identifier = std::string("MemoryTypefaceSource{uid: ") +
+                             std::to_string(uid) + std::string("}");
+    data_ = std::make_shared<impl::MemoryTypefaceSourceData>(
+        impl::MemoryTypefaceSourceData{std::move(bytes),
+                                       std::move(identifier)});
+  }
+
+  std::shared_ptr<impl::MemoryTypefaceSourceData const> data() const {
+    return data_;
+  }
+
+  bool operator==(MemoryTypefaceSource const& other) const {
+    return data_->identifier == other.data_->identifier;
+  }
+
+  bool operator!=(MemoryTypefaceSource const& other) const {
+    return !(*this == other);
+  }
+
+ private:
+  static uint64_t make_uid();
+
+  std::shared_ptr<impl::MemoryTypefaceSourceData const> data_;
+};
+
+namespace impl {
+struct FileFontSourceData {
+  std::vector<FileTypefaceSource> data;
+  std::string identifier;
+};
+
+struct MemoryFontSourceData {
+  std::vector<MemoryTypefaceSource> data;
+  std::string identifier;
+};
+
+}  // namespace impl
+
+struct FileFontSource {
+  explicit FileFontSource(std::vector<FileTypefaceSource> typeface_sources) {
+    std::string identifier = "FileFontSource{typefaces: [";
+
+    for (auto const& typeface_source : typeface_sources) {
+      identifier += "{file: " + typeface_source.data()->identifier + "}, ";
+    }
+
+    identifier += "]}";
+
+    data_ = std::make_shared<impl::FileFontSourceData>(impl::FileFontSourceData{
+        std::move(typeface_sources), std::move(identifier)});
+  }
+
+  std::shared_ptr<impl::FileFontSourceData const> data() const { return data_; }
+
+  bool operator==(FileFontSource const& other) const {
+    return data_->identifier == other.data_->identifier;
+  }
+
+  bool operator!=(FileFontSource const& other) const {
+    return !(*this == other);
+  }
+
+ private:
+  std::shared_ptr<impl::FileFontSourceData const> data_;
+};
+
+struct MemoryFontSource {
+  explicit MemoryFontSource(
+      std::vector<MemoryTypefaceSource> typeface_sources) {
+    std::string identifier = "MemoryFontSource{typefaces: [";
+
+    for (auto const& typeface_source : typeface_sources) {
+      identifier += "{file: " + typeface_source.data()->identifier + "}, ";
+    }
+
+    identifier += "]}";
+
+    data_ =
+        std::make_shared<impl::MemoryFontSourceData>(impl::MemoryFontSourceData{
+            std::move(typeface_sources), std::move(identifier)});
+  }
+
+  std::shared_ptr<impl::MemoryFontSourceData const> data() const {
+    return data_;
+  }
+
+  bool operator==(MemoryFontSource const& other) const {
+    return data_->identifier == other.data_->identifier;
+  }
+
+  bool operator!=(MemoryFontSource const& other) const {
+    return !(*this == other);
+  }
+
+ private:
+  std::shared_ptr<impl::MemoryFontSourceData const> data_;
+};
+
+namespace impl {
+uint64_t get_typeface_size(sk_sp<SkTypeface const> const& typeface) {
+  uint64_t byte_size = 0;
+  uint64_t num_tables = typeface->countTables();
+  std::vector<SkFontTableTag> table_tags;
+  table_tags.resize(num_tables);
+  for (int i = 0; i < num_tables; i++) {
+    typeface->getTableTags(table_tags.data());
+  }
+  for (auto const& table_tag : table_tags) {
+    byte_size += typeface->getTableSize(table_tag);
+  }
+
+  return byte_size;
+}
+}  // namespace impl
+
+// TODO(lamarrr): ss
+// this should probably just get the size of the text from the default font
+// manager
+struct TypefaceAsset : public Asset {
+  TypefaceAsset(
+      stx::Result<sk_sp<SkTypeface const>, FontLoadError>&& load_result)
+      : load_result_{std::move(load_result)} {
+    load_result_.as_cref().match(
+        [&](sk_sp<SkTypeface const> const& typeface) {
+          Asset::update_size(impl::get_typeface_size(typeface));
+        },
+        [&](FontLoadError error) { Asset::update_size(0); });
+  }
+
+  // TODO(lamarrr): rename get_ref
+  auto const& get_ref() const { return load_result_; }
+
+ private:
+  stx::Result<sk_sp<SkTypeface const>, FontLoadError> load_result_;
+};
+
+// TODO(lamarrr): fonts must be persistent in memory once loaded
+
+namespace impl {
+
+struct FontLoadArgs : public AssetLoadArgs {
+  explicit FontLoadArgs(
+      std::shared_ptr<MemoryTypefaceSourceData const> source_data) {
+    data_ = std::move(source_data);
+  }
+
+  explicit FontLoadArgs(
+      std::shared_ptr<FileTypefaceSourceData const> source_data) {
+    data_ = std::move(source_data);
+  }
+
+  explicit FontLoadArgs(
+      std::shared_ptr<MemoryFontSourceData const> source_data) {
+    data_ = std::move(source_data);
+  }
+
+  explicit FontLoadArgs(std::shared_ptr<FileFontSourceData const> source_data) {
+    data_ = std::move(source_data);
+  }
+
+  bool is_mem_tf() const {
+    return std::holds_alternative<
+        std::shared_ptr<MemoryTypefaceSourceData const>>(data_);
+  }
+
+  bool is_file_tf() const {
+    return std::holds_alternative<
+        std::shared_ptr<FileTypefaceSourceData const>>(data_);
+  }
+
+  bool is_mem_fnt() const {
+    return std::holds_alternative<std::shared_ptr<MemoryFontSourceData const>>(
+        data_);
+  }
+
+  bool is_file_fnt() const {
+    return std::holds_alternative<std::shared_ptr<FileFontSourceData const>>(
+        data_);
+  }
+
+  auto const& source_data() const { return data_; }
+
+ private:
+  std::variant<std::shared_ptr<MemoryTypefaceSourceData const>,
+               std::shared_ptr<FileTypefaceSourceData const>,
+               std::shared_ptr<MemoryFontSourceData const>,
+               std::shared_ptr<FileFontSourceData const>>
+      data_;
+};
+
+struct FontAssetLoader : public AssetLoader {
+  virtual std::unique_ptr<Asset> load(
+      RasterContext const& context, AssetLoadArgs const& args) const override {
+    sk_sp font_mgr = SkFontMgr::RefDefault();
+    // font_mgr->makeFromData();
+    FontLoadArgs const& load_args = upcast<FontLoadArgs>(args);
+    if (load_args.is_mem_tf()) {
+    } else if (load_args.is_mem_fnt()) {
+    } else if (load_args.is_file_tf()) {
+    } else if (load_args.is_file_fnt()) {
+      auto const& source_data =
+          std::get<std::shared_ptr<FileFontSourceData const>>(
+              load_args.source_data());
+      std::vector<TypefaceAsset> load_results;
+      for (FileTypefaceSource const& tf_source : source_data->data) {
+        // tf_source.data()->path
+      }
+    }
+  }
+
+ private:
+  stx::Result<TypefaceAsset, FontLoadError> load_typeface_from_path(
+      std::filesystem::path const& path);
+  stx::Result<TypefaceAsset, FontLoadError> load_typeface_from_memory(
+      stx::Span<uint8_t const> bytes) {
+    sk_sp font_mgr = SkFontMgr::RefDefault();
+
+    font_mgr->makeFromData(
+        SkData::MakeWithoutCopy(bytes.data(), bytes.size_bytes()));
+  }
+
+  static std::shared_ptr<FontAssetLoader const> get_default();
+};
+
+}  // namespace impl
 
 enum class TextDecoration : uint8_t {
   None = 0,
