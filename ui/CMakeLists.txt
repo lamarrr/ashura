@@ -1,17 +1,29 @@
 add_library(
   vlk_ui
-  src/canvas.cc src/image_asset.cc
+  src/canvas.cc
+  src/widget.cc
+  # asset systems
+  src/image_asset.cc
+  src/font.cc
+  src/font_asset.cc
   # Widgets
+  src/widgets/box.cc
+  src/widgets/image.cc
   src/widgets/text.cc)
+
 target_include_directories(
   vlk_ui
   PUBLIC include
   PRIVATE src)
-target_link_libraries(vlk_ui stx vlk_utils vlk_assets vlk_external_skia)
+
+target_link_libraries(vlk_ui stx vlk_utils vlk_assets vlk_external_skia
+                      fmt::fmt)
+
 target_compile_definitions(vlk_ui PUBLIC SK_VULKAN)
 
 add_executable(
   vlk_ui_test
+  tests/primitives_test.cc
   tests/snapshot_test.cc
   tests/widget_test.cc
   tests/layout_test.cc
