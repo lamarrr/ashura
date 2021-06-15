@@ -68,14 +68,33 @@ struct WidgetStateProxy {
   //! scenario where we need to scroll to it
 };
 
-  Widget(Type const &type = Type::Render, bool is_flex = false,
-         SelfExtent const &self_extent = {}, bool const needs_trimming = false,
-         Padding const &padding = Padding{}, Flex const &flex = {},
-         stx::Span<Widget *const> const &children = {},
-         ViewExtent const &view_extent = {}, ViewOffset const &view_offset = {},
-         ViewFit const &view_fit = ViewFit::None,
-         stx::Option<ZIndex> const &z_index = stx::None,
-         DebugInfo const &debug_info = DebugInfo{})
+// important: if layout is updated multiple times in between ticks the ticked
+// one is not tracked, the widget only tracks the latest one
+//
+//
+// TODO(lamarrr): visibility
+//
+//
+// do we maintain a separate layout tree for them? or still reside on the main
+// layout tree Positioning{Normal, Viewport}
+//
+// we'll need a list of sticky widgets
+// fixed positioning?
+//
+//
+
+struct Widget {
+  friend struct WidgetSystemProxy;
+
+  Widget(WidgetType type = WidgetType::Render, bool is_flex = false,
+         SelfExtent self_extent = SelfExtent{}, bool needs_trimming = false,
+         Padding padding = Padding{}, Flex flex = Flex{},
+         stx::Span<Widget *const> children = {},
+         ViewExtent view_extent = ViewExtent{},
+         ViewOffset view_offset = ViewOffset{},
+         ViewFit view_fit = ViewFit::None,
+         stx::Option<ZIndex> z_index = stx::None,
+         WidgetDebugInfo debug_info = WidgetDebugInfo{})
       : type_{type},
         is_flex_{is_flex},
         self_extent_{self_extent},
