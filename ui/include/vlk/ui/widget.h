@@ -327,6 +327,9 @@ struct Widget {
 
   //! modified and used for communication of updates to the system
   WidgetStateProxy state_proxy_;
+
+  // TODO(lamarrr): bool in_view_ = false;
+  // is_active
 };
 
 std::string format(Widget const &widget);
