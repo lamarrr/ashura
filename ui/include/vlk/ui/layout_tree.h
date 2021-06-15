@@ -158,6 +158,35 @@ struct LayoutTree {
 
     /// the child nodes (corresponds to child widgets)
     std::vector<Node> children{};
+
+    void build(Widget &in_widget, LayoutTree &tree) {
+      widget = &in_widget;
+      type = widget->get_type();
+      self_extent = Extent{};
+      parent_offset = Offset{};
+      parent_view_offset = Offset{};
+      view_extent = Extent{};
+
+      // NOTE: allocates memory, we might need an extra step to bind the lambda
+      // references if we want to utilize cache to the max
+      WidgetSystemProxy::get_state_proxy(in_widget).on_layout_dirty = [&tree] {
+        tree.is_layout_dirty = true;
+      };
+
+      size_t const num_children = in_widget.get_children().size();
+
+      // note that we are not releasing the memory used by the
+      // layout tree already during build for a rebuild (if it fits)
+      //
+      // IMPORTANT: layout tree rebuild should also use this function
+      //
+
+      children.resize(num_children, Node{});
+
+      for (size_t i = 0; i < num_children; i++) {
+        children[i].build(*in_widget.get_children()[i], tree);
+      }
+    }
   };
 
   LayoutTree() = default;
@@ -565,33 +594,13 @@ struct LayoutTree {
   }
 
   void allot_extent(Extent const &new_allotted_extent) {
-    allotted_extent = new_allotted_extent;
-    is_layout_dirty = true;
-  }
-
-  void build_node(Widget &widget, LayoutTree::Node &node) {
-    node.widget = &widget;
-    node.type = node.widget->get_type();
-
-    // NOTE: allocates memory, we might need an extra step to bind the lambda
-    // references if we want to utilize cache to the max
-    WidgetStateProxyAccessor::access(widget).on_layout_dirty = [this] {
-      this->is_layout_dirty = true;
-    };
-
-    size_t const num_children = widget.get_children().size();
-
-    node.children.resize(num_children, LayoutTree::Node{});
-
-    for (size_t i = 0; i < num_children; i++) {
-      build_node(*widget.get_children()[i], node.children[i]);
     }
   }
 
   void build(Widget &root_widget) {
-    root_node = {};
-    build_node(root_widget, root_node);
-    tick(std::chrono::nanoseconds(0));
+    is_layout_dirty = true;
+    // allotted_extent needs to be explicitly set
+    root_node.build(root_widget, *this);
   }
 
   void tick(std::chrono::nanoseconds) {
