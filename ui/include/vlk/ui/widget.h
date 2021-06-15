@@ -24,13 +24,13 @@ namespace ui {
 //! if you're touching a large number of them, especially whilst not all fields
 //! of it are touched
 //! NOTE: this struct's data is always accessed from the main thread.
-struct Widget {
-  friend struct WidgetStateProxyAccessor;
 
-  struct DebugInfo {
-    DebugInfo(std::string_view const &name = "<unnamed>",
-              std::string_view const &type_hint = "<none>")
-        : name{name}, type_hint{type_hint} {}
+enum class WidgetType : uint8_t {
+  //! occupies space and has render data
+  Render,
+  //! for view-based scrolling, has no render data
+  View
+};
 
     std::string_view name;
     std::string_view type_hint;
