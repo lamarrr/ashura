@@ -169,26 +169,35 @@ struct Widget {
 
   void init_is_flex(bool is_flex) { is_flex_ = is_flex; }
 
-  void update_self_extent(SelfExtent const &self_extent) {
-    self_extent_ = self_extent;
-    mark_layout_dirty();
+  void update_self_extent(SelfExtent self_extent) {
+    if (self_extent_ != self_extent) {
+      self_extent_ = self_extent;
+      mark_layout_dirty();
+    }
   }
 
-  void update_needs_trimming(bool need_trim) {
+  void update_needs_trimming(bool needs_trimming) {
     VLK_ENSURE(!is_flex(), "Only non-flex Widgets can be trimmed", *this);
-    needs_trimming_ = need_trim;
-    mark_layout_dirty();
+
+    if (needs_trimming_ != needs_trimming) {
+      needs_trimming_ = needs_trimming;
+      mark_layout_dirty();
+    }
   }
 
-  void update_padding(Padding const &padding) {
-    padding_ = padding;
-    mark_layout_dirty();
+  void update_padding(Padding padding) {
+    if (padding_ != padding) {
+      padding_ = padding;
+      mark_layout_dirty();
+    }
   }
 
-  void update_flex(Flex const &flex) {
-    flex_ = flex;
+  void update_flex(Flex flex) {
     VLK_ENSURE(is_flex(), "Widget is not a flex type", *this);
-    mark_layout_dirty();
+    if (flex_ != flex) {
+      flex_ = flex;
+      mark_layout_dirty();
+    }
   }
 
   //! MOTE: this does not free the memory associated with the referenced
@@ -196,31 +205,38 @@ struct Widget {
   //! avoid using this as much as possible as it can cause a full re-build of
   //! the pipeline.
   void update_children(stx::Span<Widget *const> children) {
+    // we assume the memory has been released or the widget still uses the same
+    // children span but with the child widgets pointers changed
     VLK_ENSURE(is_flex(), "Widget is not a flex type", *this);
     children_ = children;
     mark_children_dirty();
   }
 
   void update_view_extent(ViewExtent view_extent) {
-    VLK_ENSURE(get_type() == Type::View, "Widget is not a view type", *this);
-    view_extent_ = view_extent;
-    mark_layout_dirty();
+    VLK_ENSURE(get_type() == WidgetType::View, "Widget is not a view type",
+               *this);
+    if (view_extent_ != view_extent) {
+      view_extent_ = view_extent;
+      mark_layout_dirty();
+    }
   }
 
   void update_view_offset(ViewOffset view_offset) {
-    VLK_ENSURE(get_type() == Type::View, "Widget is not a view type", *this);
-    view_offset_ = view_offset;
-    mark_view_offset_dirty();
+    VLK_ENSURE(get_type() == WidgetType::View, "Widget is not a view type",
+               *this);
+    if (view_offset_ != view_offset) {
+      view_offset_ = view_offset;
+      mark_view_offset_dirty();
+    }
   }
 
   void update_view_fit(ViewFit view_fit) {
-    VLK_ENSURE(get_type() == Type::View, "Widget is not a view type", *this);
-    view_fit_ = view_fit;
-    mark_layout_dirty();
-  }
-
-  void init_z_index(stx::Option<ZIndex> const &z_index) {
-    z_index_ = z_index.clone();
+    VLK_ENSURE(get_type() == WidgetType::View, "Widget is not a view type",
+               *this);
+    if (view_fit_ != view_fit) {
+      view_fit_ = view_fit;
+      mark_layout_dirty();
+    }
   }
 
   void set_debug_info(DebugInfo const &info) { debug_info_ = info; }
@@ -239,13 +255,40 @@ struct Widget {
   //
   void mark_children_dirty() const { state_proxy_.on_children_changed(); }
 
-  void mark_layout_dirty() const { state_proxy_.on_layout_dirty(); }
+  void add_dirtiness(WidgetDirtiness dirtiness) { dirtiness_ |= dirtiness; }
 
-  void mark_view_offset_dirty() const { state_proxy_.on_view_offset_dirty(); }
+  void mark_children_dirty() { dirtiness_ |= WidgetDirtiness::Children; }
 
-  void mark_render_dirty() const { state_proxy_.on_render_dirty(); }
+  void mark_layout_dirty() { dirtiness_ |= WidgetDirtiness::Layout; }
+
+  void mark_view_offset_dirty() { dirtiness_ |= WidgetDirtiness::ViewOffset; }
+
+  void mark_render_dirty() { dirtiness_ |= WidgetDirtiness::Render; }
 
  private:
+  void system_tick(std::chrono::nanoseconds interval,
+                   AssetManager &asset_manager) {
+    tick(interval, asset_manager);
+
+    if ((dirtiness_ & WidgetDirtiness::Children) != WidgetDirtiness::None) {
+      state_proxy_.on_children_changed();
+    }
+
+    if ((dirtiness_ & WidgetDirtiness::Layout) != WidgetDirtiness::None) {
+      state_proxy_.on_layout_dirty();
+    }
+
+    if ((dirtiness_ & WidgetDirtiness::Render) != WidgetDirtiness::None) {
+      state_proxy_.on_render_dirty();
+    }
+
+    if ((dirtiness_ & WidgetDirtiness::ViewOffset) != WidgetDirtiness::None) {
+      state_proxy_.on_view_offset_dirty();
+    }
+
+    dirtiness_ = WidgetDirtiness::None;
+  }
+
   //! constant throughout lifetime
   Type type_;
 
