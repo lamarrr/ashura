@@ -13,20 +13,37 @@
 #include <utility>
 #include <vector>
 
+#include "fmt/format.h"
 #include "stx/result.h"
 #include "vlk/ui/primitives.h"
-#include "vlk/ui/raster_context.h"
+#include "vlk/ui/render_context.h"
 #include "vlk/utils/utils.h"
 
-// NOLINTFILE(runtime/references)
 namespace vlk {
 namespace ui {
 
-/*
-struct CancToken{
-alignas(std::hardware_destructive_interference_size) std::atomic<Token> token;
-};
-*/
+namespace impl {
+
+inline std::string format_bytes_unit(uint64_t bytes) {
+  static constexpr uint64_t kb_bytes = 1000UL;
+  static constexpr uint64_t mb_bytes = kb_bytes * 1000UL;
+  static constexpr uint64_t gb_bytes = mb_bytes * 1000UL;
+  static constexpr uint64_t tb_bytes = gb_bytes * 1000UL;
+
+  if (bytes >= (tb_bytes / 10)) {
+    return fmt::format("{} TeraBytes", bytes / static_cast<float>(tb_bytes));
+  } else if (bytes >= (gb_bytes / 10)) {
+    return fmt::format("{} GigaBytes", bytes / static_cast<float>(gb_bytes));
+  } else if (bytes >= (mb_bytes / 10)) {
+    return fmt::format("{} MegaBytes", bytes / static_cast<float>(mb_bytes));
+  } else if (bytes >= (kb_bytes / 10)) {
+    return fmt::format("{} KiloBytes", bytes / static_cast<float>(kb_bytes));
+  } else {
+    return fmt::format("{} Bytes", bytes);
+  }
+}
+
+}  // namespace impl
 
 struct Asset {
  public:
@@ -47,15 +64,15 @@ struct AssetLoadArgs {
   virtual ~AssetLoadArgs() {}
 };
 
-// loaders can be shared accross multiple threads and thus share the same memory
+// loaders can be shared across multiple threads and thus share the same memory
 // space. therefore, `load()` is made const to prevent modifying the address
-// space across threads (data races).
+// space across threads (data races) to an extent.
 struct AssetLoader {
   AssetLoader() {}
   virtual ~AssetLoader() {}
 
   // must be thread-safe
-  virtual std::unique_ptr<Asset> load(RasterContext const &,
+  virtual std::unique_ptr<Asset> load(RenderContext const &,
                                       AssetLoadArgs const &) const {
     return std::make_unique<Asset>();
   }
@@ -65,14 +82,17 @@ struct AssetLoader {
 //
 // - we want to be able to load by tag, tags must be unique
 // - we want to be able to view usage, drop, reload and hit statistics
-// - we want to be able to drop the items when not in use or whenever we want or
-// feel like
-// - we want persistence of the assets in certain cases, i.e. icons that are
+// - =*= we want to be able to drop the items when not in use or whenever we
+// want or feel like
+// - =*= we want persistence of the assets in certain cases, i.e. icons that are
 // certain to be used in a lot of places and are cheap to have in memory
 // - we want to provide asynchronous data loading without blocking the main
 // thread.
 // - we want to be able to relay the status of the loaded assets
-//
+// - guarantee to not discard assets whilst in use
+// - consistency of managed objects across ticks. i.e. if widget A tries to get
+// asset K in tick 0, the result it gets must be equal to the result widget B
+// would get in tick 0
 
 enum class AssetState : uint8_t { Loading, Loaded, Unloaded };
 
@@ -80,7 +100,7 @@ enum class AssetError : uint8_t { TagExists, InvalidTag, IsLoading };
 
 struct AssetManager {
  public:
-  AssetManager(RasterContext const &context)
+  AssetManager(RenderContext const &context)
       : data_{},
         submission_queue_{},
         submission_queue_mutex_{},
@@ -105,8 +125,7 @@ struct AssetManager {
   //!
   auto add(std::string_view tag,
            std::unique_ptr<AssetLoadArgs const> &&load_args,
-           std::shared_ptr<AssetLoader const> &&loader,
-           bool requires_persistence = false)
+           std::shared_ptr<AssetLoader const> &&loader)
       -> stx::Result<stx::NoneType, AssetError> {
     VLK_ENSURE(load_args != nullptr);
     VLK_ENSURE(loader != nullptr);
@@ -114,8 +133,8 @@ struct AssetManager {
     // references are not invalidated
     auto const [iterator, was_inserted] = data_.try_emplace(
         std::string{tag},
-        AssetData{std::move(load_args), std::move(loader), requires_persistence,
-                  stx::None, AssetState::Unloaded, Ticks{}, false});
+        AssetData{std::move(load_args), std::move(loader), stx::None,
+                  AssetState::Unloaded, Ticks{}, false});
 
     if (!was_inserted) {
       return stx::Err(AssetError::TagExists);
@@ -126,8 +145,8 @@ struct AssetManager {
 
   // if asset has an entry and it has been discarded, we need to now create make
   // a reload and then return that the asset is being loaded back
-  auto get(std::string const &tag)
-      -> stx::Result<std::shared_ptr<Asset>, AssetError> {
+  auto get(std::string_view tag)
+      -> stx::Result<std::shared_ptr<Asset const>, AssetError> {
     auto const pos = data_.find(tag);
     if (pos == data_.end()) return stx::Err(AssetError::InvalidTag);
 
@@ -149,34 +168,32 @@ struct AssetManager {
                 pos->first);
 
         return stx::Err(AssetError::IsLoading);
+
+      default:
+        VLK_PANIC("Unimplemented");
     }
   }
 
-  // TODO(lamarrr): allow suggesting removal if the person that added the asset
-  // is cetain that the asset wont be used again. this will enusre that the
-  // asset is removed before the max tick provided
-
-  void tick(std::chrono::nanoseconds interval) {
+  void tick(std::chrono::nanoseconds) {
     bool size_changed = false;
     {
       std::lock_guard guard{completion_queue_mutex_};
 
-      for (size_t i = 0; i < completion_queue_.size(); i++) {
+      while (!completion_queue_.empty()) {
         CompletionData cmpl_data = std::move(completion_queue_.front());
-        auto const iter = data_.find(std::string(cmpl_data.tag));
+        completion_queue_.pop();
+        auto const iter = data_.find(cmpl_data.tag);
         VLK_ENSURE(iter != data_.end());
         iter->second.state = AssetState::Loaded;
-        iter->second.asset =
-            stx::Some(std::shared_ptr{std::move(cmpl_data.asset)});
+        iter->second.asset = stx::Some(std::shared_ptr<Asset const>{
+            std::shared_ptr<Asset>{std::move(cmpl_data.asset)}});
 
-        VLK_LOG("Loaded asset with tag `{}` of size: {} bytes", iter->first,
-                iter->second.asset.value()->size_bytes());
+        VLK_LOG(
+            "Loaded asset with tag `{}` of size: {}", iter->first,
+            impl::format_bytes_unit(iter->second.asset.value()->size_bytes()));
 
         size_changed = true;
       }
-
-      // a poor man's std::queue::clear
-      completion_queue_ = {};
     }
 
     for (auto &[tag, entry] : data_) {
@@ -188,16 +205,17 @@ struct AssetManager {
 
       entry.just_accessed = false;
 
-      if (!entry.requires_persistence && entry.stale_ticks > max_stale_ticks_ &&
+      if (entry.stale_ticks > max_stale_ticks_ &&
           entry.state == AssetState::Loaded &&
           entry.asset.value().use_count() == 1) {
         VLK_LOG(
-            "Asset with tag `{}` and size {} bytes has been stale and not in "
+            "Asset with tag `{}` and size {} has been stale and not in "
             "use "
             "for {} ticks. "
             "Asset will be "
             "discarded",
-            tag, entry.asset.value()->size_bytes(), entry.stale_ticks.count());
+            tag, impl::format_bytes_unit(entry.asset.value()->size_bytes()),
+            entry.stale_ticks.count());
         entry.asset = stx::None;
         entry.state = AssetState::Unloaded;
 
@@ -212,14 +230,15 @@ struct AssetManager {
           total_size += entry.asset.value()->size_bytes();
         }
       }
-      VLK_LOG("Present total assets size: {} bytes", total_size);
+      VLK_LOG("Present total assets size: {}",
+              impl::format_bytes_unit(total_size));
     }
   }
 
   ~AssetManager() { shutdown_worker_thread(); }
 
  private:
-  enum class Token : uint8_t { Running = 0, Cancel, Exited };
+  enum class Token : uint8_t { Running, Cancel, Exited };
 
   using AtomicToken = std::atomic<Token>;
 
@@ -230,9 +249,7 @@ struct AssetManager {
   struct AssetData {
     std::unique_ptr<AssetLoadArgs const> load_args;
     std::shared_ptr<AssetLoader const> loader;
-    bool requires_persistence = false;
-    // TODO(lamarrr): should asset and image_asset be const?
-    stx::Option<std::shared_ptr<Asset>> asset;
+    stx::Option<std::shared_ptr<Asset const>> asset;
     AssetState state = AssetState::Loading;
     Ticks stale_ticks = Ticks{0};
     bool just_accessed = false;
@@ -264,7 +281,7 @@ struct AssetManager {
     }
   }
 
-  // is RasterContext safe across threads?
+  // is RenderContext safe across threads?
   //
   // the worker threads only read the submission data and not modify them
   //
@@ -274,7 +291,7 @@ struct AssetManager {
                                  std::queue<CompletionData> &completion_queue,
                                  std::mutex &completion_queue_mutex,
                                  CancelationToken cancelation_token,
-                                 RasterContext const &context) {
+                                 RenderContext const &context) {
     do {
       bool gotten_task = false;
 
@@ -322,7 +339,7 @@ struct AssetManager {
     VLK_LOG("Asset manager worker thread shut down");
   }
 
-  std::map<std::string, AssetData> data_;
+  std::map<std::string, AssetData, std::less<>> data_;
 
   std::queue<SubmissionData> submission_queue_;
   std::mutex submission_queue_mutex_;
@@ -332,7 +349,7 @@ struct AssetManager {
 
   CancelationToken cancelation_token_;
 
-  RasterContext const *context_ = nullptr;
+  RenderContext const *context_ = nullptr;
 
   std::thread worker_thread_;
 
