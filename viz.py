@@ -5,7 +5,7 @@ from PIL import Image
 
 with open(sys.argv[1]) as file:
     pdata = np.reshape(
-        np.array([int(c) for c in file.read().split(",")[:-1]]), (600, 1600, 4)).astype(np.uint8)
+        np.array([int(c) for c in file.read().split(",")[:-1]]), (1000, 2000, 4)).astype(np.uint8)
 
 pyp.imshow(pdata)
 pyp.show()
