@@ -72,28 +72,32 @@ struct ViewTree {
 
       IRect clip_rect;
 
-      void build(LayoutTree::Node const &init_layout_node, View &view_parent,
+      void build(LayoutTree::Node &init_layout_node, View &view_parent,
                  ZIndex init_z_index) {
         // build child widgets, add child views to the tree.
-        // we need to avoid performing multiple counting on every
-        // depth increment. we can add them to the tree and fix the reference
-        // linking later on.
+        // we need
+        // to avoid performing multiple counting on every depth increment.
 
         layout_node = &init_layout_node;
 
         // not yet updated
-        effective_parent_view_offset = {};
-        screen_offset = {};
+        screen_offset = IOffset{};
+        effective_parent_view_offset = IOffset{};
 
+        // we can't know the number of views or entries a view will have ahead
+        // of time fast enough without doing a lot of work, so we can't
+        // pre-allocate the vector for that and bind references to it. instead,
+        // we add the entries/views to the tree and add parent references later
+        // on
         parent = nullptr;
 
         z_index = init_layout_node.widget->get_z_index().unwrap_or(
             std::move(init_z_index));
 
-        clip_rect = {};
+        clip_rect = IRect{};
 
-        for (LayoutTree::Node const &child : init_layout_node.children) {
-          if (child.type == Widget::Type::View) {
+        for (LayoutTree::Node &child : init_layout_node.children) {
+          if (child.type == WidgetType::View) {
             view_parent.subviews.push_back(View{});
             view_parent.subviews.back().build(child, init_z_index + 1);
           } else {
@@ -105,10 +109,13 @@ struct ViewTree {
       }
     };
 
+    // denotes whether the view offset from the widget is different and now
+    // needs to be updated, i.e. by calculating screen_offset and
+    // parent_view_offset
     bool is_dirty = true;
 
     // non-null
-    LayoutTree::Node const *layout_node;
+    LayoutTree::Node *layout_node;
 
     // pre-calculated for the tile cache
     ZIndex z_index;
@@ -129,7 +136,15 @@ struct ViewTree {
     // view widgets. not sorted in any particular order
     std::vector<View> subviews;
 
-    void build(LayoutTree::Node const &init_layout_node, ZIndex init_z_index) {
+    void recursive_mark_view_offset_dirty() {
+      is_dirty = true;
+
+      for (auto &subview : subviews) {
+        subview.recursive_mark_view_offset_dirty();
+      }
+    }
+
+    void build(LayoutTree::Node &init_layout_node, ZIndex init_z_index) {
       is_dirty = true;
       layout_node = &init_layout_node;
       z_index = init_layout_node.widget->get_z_index().unwrap_or(
@@ -137,18 +152,18 @@ struct ViewTree {
 
       // needs to be updated after building the tree, by recursively
       // triggering a on_view_offset dirty starting from the root view.
-      screen_offset = {};
-      effective_parent_view_offset = {};
+      screen_offset = IOffset{};
+      effective_parent_view_offset = IOffset{};
 
       // parents and children are not linked until the building of the whole
       // tree is done as the addresses will not be stable until then
       parent = nullptr;
 
-      size_t const num_children = init_layout_node.children.size();
+      entries.clear();
+      subviews.clear();
 
-      for (size_t i = 0; i < num_children; i++) {
-        LayoutTree::Node const &child = init_layout_node.children[i];
-        if (child.type == Widget::Type::View) {
+      for (LayoutTree::Node &child : init_layout_node.children) {
+        if (child.type == WidgetType::View) {
           subviews.push_back(View{});
           subviews.back().build(child, z_index + 1);
         } else {
