@@ -11,6 +11,49 @@
 7. more changes
 
 
+- investigate performance characteristics of LIKELY and UNLIKELY on STX?
+- create storage types for trivial types (movable, copyable, etc)
+- consider enabling implicit conversions in API
+
+
+
+STX_UNREACHABLE
+STX_LIKELY
+STX_UNLIKELY for unwrap and the likes
+are visibility macros used correctly?
+  // copy() copy_err()
+  // copy() copy_none()
+//
+//
+//
+//
+//
+// // future-TODO(lamarrr): accessibility text scale factor, can be changed at runtime? or constant. probably use a subsystem for this
+//
+//
+// 
+// TODO(lamarrr): we should be able to return std::string that is not released in the panic formatter? ReportQuery seems unnecessary, std::string*  stx::make_report(  )
+//
+//
+//
+//
+// TODO(lamarrr): on effects: users would be able to inherit from the base
+// widget and override the draw methods of each widget to provide their own draw
+// methods that apply one effect or the other. effects that span acrross
+// widgets? i.e. parent opacity and intends to fade along with its children.
+// TODO(lamarrr): consider opacity tree? or require manually setting the
+// opacitgies?
+// we need render props that all widgets must have: i.e. opacity
+//
+// we need visibility prop
+//
+// is_layout_changed
+// is_render_changed
+//
+// BaseProps? BaseProps::clean_state()..
+//
+
+
 # vlk::ui TODO
 
 
