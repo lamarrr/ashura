@@ -145,15 +145,19 @@ struct Widget {
   WidgetDirtiness get_dirtiness() const { return dirtiness_; }
 
   //! create draw commands
-  // TODO(lamarrr): we might need to make calls to assetmanager thread safe if
-  // we want to perform mult-threaded recording
-  virtual void draw([[maybe_unused]] Canvas &, AssetManager &) {
+  //! NOTE: states, variables, or properties that could affect rendering must
+  //! not change in the draw method until `mark_rendering_dirty()` is called,
+  //! else this would lead to partial updates in a tile-based rendering
+  //! scenario.
+  //!
+  virtual void draw([[maybe_unused]] Canvas &) {
     // no-op
   }
 
   //! process any event you need to process here.
-  // tick should return Dirtiness and its link tree is then consulted?
-  virtual void tick([[maybe_unused]] std::chrono::nanoseconds interval) {
+  //! animations and property updates can and should happen here.
+  virtual void tick([[maybe_unused]] std::chrono::nanoseconds interval,
+                    [[maybe_unused]] AssetManager &asset_manager) {
     // no-op
   }
 
