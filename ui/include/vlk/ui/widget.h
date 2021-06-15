@@ -16,12 +16,6 @@
 #include "vlk/utils/limits.h"
 #include "vlk/utils/utils.h"
 
-// TODO(lamarrr): should we pass a rasterization constext to the draw function?
-// (do draw commands keep references to image data)?
-// can we abstract the datasource provider to destroy returned memeory
-// immediately after use so we can copy elsewhere? also, we need to have async
-// first asset loading as loading synchronously will be slow
-
 namespace vlk {
 namespace ui {
 
