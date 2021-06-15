@@ -65,7 +65,7 @@ struct ViewTree {
       // offset on the parent view after translation (i.e. by scrolling)
       IOffset effective_parent_view_offset;
 
-      // can be null
+      // nullptr for root widget only
       View const *parent;
 
       ZIndex z_index;
