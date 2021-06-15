@@ -85,7 +85,7 @@ struct RasterCache {
                                               cull_rect_.height()));
 
     Canvas canvas = get_recording_canvas();
-    canvas.as_skia().unwrap()->clear(SK_ColorWHITE);
+    canvas.to_skia().clear(SK_ColorWHITE);
   }
 
   void finish_recording() {
