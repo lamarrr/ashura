@@ -29,8 +29,6 @@ struct RasterTiles {
       tiles_.emplace_back(Tile{IRect{IOffset{}, tile_size_}});
   }
 
-  ~RasterTiles() = default;
-
   uint32_t rows() const {
     return ((extent_.width + tile_size_.width) / tile_size_.width);
   }
