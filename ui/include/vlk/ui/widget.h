@@ -105,8 +105,9 @@ struct Widget {
         view_extent_{view_extent},
         view_offset_{view_offset},
         view_fit_{view_fit},
-        z_index_{z_index.clone()},
+        z_index_{z_index},
         debug_info_{debug_info},
+        dirtiness_{WidgetDirtiness::None},
         state_proxy_{} {}
 
   Widget(Widget const &) = delete;
@@ -115,7 +116,7 @@ struct Widget {
   Widget &operator=(Widget const &) = delete;
   Widget &operator=(Widget &&) = delete;
 
-  Type get_type() const { return type_; }
+  WidgetType get_type() const { return type_; }
 
   bool is_flex() const { return is_flex_; }
 
@@ -137,7 +138,9 @@ struct Widget {
 
   ViewFit get_view_fit() const { return view_fit_; }
 
-  stx::Option<ZIndex> get_z_index() const { return z_index_.clone(); }
+  stx::Option<ZIndex> get_z_index() const { return z_index_; }
+
+  WidgetDebugInfo get_debug_info() const { return debug_info_; }
 
   WidgetDirtiness get_dirtiness() const { return dirtiness_; }
 
@@ -154,11 +157,11 @@ struct Widget {
     // no-op
   }
 
-  virtual Extent trim(Extent const &extent) { return extent; }
+  virtual Extent trim(Extent extent) { return extent; }
 
   virtual ~Widget() {}
 
-  void init_type(Type type) { type_ = type; }
+  void init_type(WidgetType type) { type_ = type; }
 
   void init_is_flex(bool is_flex) { is_flex_ = is_flex; }
 
@@ -281,10 +284,13 @@ struct Widget {
   stx::Option<ZIndex> z_index_;
 
   //! variable throughout lifetime
-  DebugInfo debug_info_;
+  WidgetDebugInfo debug_info_;
 
   //! modified and used for communication of updates to the system
-  StateProxy state_proxy_;
+  WidgetDirtiness dirtiness_;
+
+  //! modified and used for communication of updates to the system
+  WidgetStateProxy state_proxy_;
 };
 
 // TODO(lamarrr): we should be able to return std::string?
