@@ -1,10 +1,9 @@
 
+#include "gtest/gtest.h"
 #include "vlk/ui/layout_tree.h"
 #include "vlk/ui/view_tree.h"
 #include "vlk/ui/widget.h"
 #include "vlk/ui/widget_builder.h"
-
-#include "gtest/gtest.h"
 
 using namespace vlk::ui;
 using namespace vlk;
@@ -14,7 +13,7 @@ namespace view_test {
 struct MockSized : public Widget {
   MockSized(Extent extent, stx::Option<ZIndex> const& z_index = stx::None,
             Padding padding = {})
-      : Widget{Type::Render} {
+      : Widget{WidgetType::Render} {
     Widget::init_is_flex(false);
     Widget::update_self_extent(SelfExtent{Constrain::absolute(extent.width),
                                           Constrain::absolute(extent.height)});
@@ -27,7 +26,7 @@ struct MockSized : public Widget {
 struct MockFlex : public Widget {
   MockFlex(std::initializer_list<Widget*> const& children,
            stx::Option<ZIndex> const& z_index = stx::None)
-      : Widget{Type::Render} {
+      : Widget{WidgetType::Render} {
     children_ = children;
     Widget::init_is_flex(true);
     Widget::update_children(children_);
@@ -45,7 +44,7 @@ struct MockFlex : public Widget {
 // this optimization would mean we can't move the widgets since the pointer
 // address would change, even if it is a std::array
 struct MockView : public Widget {
-  MockView(Widget* child) : Widget{Type::View} {
+  MockView(Widget* child) : Widget{WidgetType::View} {
     child_ = child;
     Widget::init_is_flex(true);
     Widget::update_children(stx::Span<Widget*>(&child_, 1));
@@ -83,7 +82,7 @@ TEST(ViewTree, Hierarchy_And_Scrolling) {
   layout_tree.build(vroot);
 
   ViewTree view_tree;
-  view_tree.build(layout_tree);
+  view_tree.build(layout_tree.root_node);
 
   layout_tree.tick(std::chrono::nanoseconds(0));
 
@@ -121,9 +120,13 @@ TEST(ViewTree, Hierarchy_And_Scrolling) {
 
   // v1
   view_tree.root_view.subviews[0].layout_node->widget->update_view_offset(
-      ViewOffset{
-          Constrain{0.0f, 90, i64_min, i64_max, Clamp{0.0f, 200.0f}},
-          Constrain{0.0f}});
+      ViewOffset{Constrain{0.0f, 90, i64_min, i64_max, Clamp{0.0f, 200.0f}},
+                 Constrain{0.0f}});
+
+  AssetManager asset_manager{RenderContext{}};
+
+  WidgetSystemProxy::tick(*view_tree.root_view.subviews[0].layout_node->widget,
+                          std::chrono::nanoseconds(0), asset_manager);
 
   view_tree.tick(std::chrono::nanoseconds(0));
 
@@ -150,7 +153,7 @@ namespace view_test {
 struct Body : public Widget {
   Body(Widget* child, ViewFit const& view_fit) {
     children_[0] = child;
-    Widget::init_type(Type::View);
+    Widget::init_type(WidgetType::View);
     Widget::init_is_flex(true);
     Widget::update_children(children_);
     Widget::update_flex(Flex{});

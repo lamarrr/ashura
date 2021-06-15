@@ -7,8 +7,8 @@ using namespace vlk;
 using namespace vlk::ui;
 
 TEST(ImageTest, BasicTest) {
-  RasterContext context;
+  RenderContext context;
 
-  Image(FileImageSource{"/home/lamar/Desktop/2711345.jpg", ImageFormat::RGB},
-        ImageProps{});
+  Image(ImageProps{FileImageSource{"/home/lamar/Desktop/2711345.jpg",
+                                   stx::Some(ImageFormat::RGB)}});
 }

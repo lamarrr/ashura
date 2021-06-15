@@ -4,11 +4,13 @@
 
 #include "gtest/gtest.h"
 #include "mock_widgets.h"
+#include "vlk/ui/palettes/ios.h"
 #include "vlk/ui/palettes/material.h"
 #include "vlk/ui/pipeline.h"
-#include "vlk/ui/raster_context.h"
+#include "vlk/ui/render_context.h"
 #include "vlk/ui/tile_cache.h"
 #include "vlk/ui/widgets/box.h"
+#include "vlk/ui/widgets/image.h"
 #include "vlk/ui/widgets/text.h"
 
 using namespace vlk::ui;
@@ -25,56 +27,107 @@ using namespace vlk;
 //
 
 TEST(RowTest, BasicTest) {
-  RasterContext context;
+  RenderContext context;
 
-  constexpr Color color_list[] = {material::RedA400,    material::OrangeA400,
-                                  material::YellowA400, material::BlueGrey800,
-                                  material::PurpleA400, material::GreenA400};
+  constexpr Color color_list[] = {ios::DarkPurple, ios::DarkRed,
+                                  ios::DarkIndigo, ios::DarkMint,
+                                  ios::DarkTeal};
 
-  MockView view{{new Row{[&](size_t i) -> Widget* {
-    if (i >= 60) return nullptr;
-    return new Box(new Box(new Text("Number " + std::to_string(i),
-                                    TextProps()
-                                        .font_size(15.0f)
-                                        .font_weight(FontWeight::Normal)
-                                        .color(colors::Black)
-                                        .font_family("Roboto")),
-                           BoxProps()
-                               .padding(Padding::all(15))
-                               .border_radius(BorderRadius::all(20))
-                               .blur(Blur{2.5f, 2.5f})
-                               .color(colors::White.with_alpha(0x7F))),
-                   BoxProps()
-                       .padding(Padding::all(35))
-                       .border(Border::all(material::AmberA100, 20))
-                       .border_radius(BorderRadius::all(20))
-                       .color(color_list[i % std::size(color_list)]));
-  }}}};
+  // TODO(lamarrr): why isn't this wrapping to the next line? it actually is
+  // wrapping but the height allotted is wrong? or do we need to scroll the root
+  // view on viewport scroll?
 
-  Extent screen_extent{1600, 600};
+  MockView view{{new Row{
+      [&](size_t i) -> Widget* {
+        if (i >= 8) return nullptr;
 
-  LayoutTree layout_tree;
-  layout_tree.allot_extent(screen_extent);
-  layout_tree.build(view);
+        if (i == 0)
+          return new Text{
+              {InlineText{"Apparently we had reached a great height in the "
+                          "atmosphere, for "
+                          "the sky was a dead black, and the stars had ceased "
+                          "to twinkle. "
+                          "By the same illusion which lifts the horizon of the "
+                          "sea to the "
+                          "level of the spectator on a hillside, the sable "
+                          "cloud beneath "
+                          "was dished out, and the car seemed to float in the "
+                          "middle of an "
+                          "immense dark sphere, whose upper half was strewn "
+                          "with silver. "},
+               InlineText{"Looking down into the dark gulf below, I could "
+                          "see a ruddy "
+                          "light streaming through a rift in the clouds.",
+                          TextProps{}.color(ios::LightRed)}},
+              ParagraphProps{}
+                  .font_size(25.0f)
+                  .color(ios::DarkGray6)
+                  .font(SystemFont{"SF Pro"})};
 
-  ViewTree view_tree;
-  view_tree.build(layout_tree);
+        if (i == 1) {
+          return new Image{ImageProps{
+              FileImageSource{"/home/lamar/Pictures/E0U2xTYVcAE1-gl.jpeg"}}
+                               .extent(700, 700)
+                               .aspect_ratio(3, 1)
+                               .border_radius(BorderRadius::all(50))};
+        }
 
-  // TODO(lamarrr): we don't need tick after build
+        if (i == 2) {
+          return new Image{
+              ImageProps{FileImageSource{"/home/lamar/Pictures/crow.PNG"}}
+                  .extent(500, 500)
+                  .aspect_ratio(3, 2)
+                  .border_radius(BorderRadius::all(50))};
+        }
 
-  TileCache cache;
+        if (i == 3) {
+          return new Image{
+              ImageProps{FileImageSource{"/home/lamar/Pictures/IMG_0079.JPG"}}
+                  .extent(500, 500)
+                  .aspect_ratio(2, 1)
+                  .border_radius(BorderRadius::all(20))};
+        }
 
-  AssetManager asset_manager{context};
+        if (i == 4) {
+          return new Image{ImageProps{
+              MemoryImageSource{ImageInfo{Extent{2, 2}, ImageFormat::RGB},
+                                {255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 0, 0}}}
+                               .extent(500, 500)
+                               .aspect_ratio(2, 1)
+                               .border_radius(BorderRadius::all(20))};
+        }
 
-  cache.build(view_tree, context, asset_manager);
+        return new Box(
+            new Box(new Text{"Aa Type of A Box (" + std::to_string(i) + ")",
+                             TextProps{}
+                                 .font_size(25.0f)
+                                 .color(colors::White)
+                                 .font(SystemFont{"SF Pro"})},
+                    BoxProps{}
+                        .padding(Padding::all(15))
+                        .border_radius(BorderRadius::all(20))
+                        .color(color_list[i % std::size(color_list)])),
+            BoxProps{}
+                .image(FileImageSource{
+                    "/home/lamar/Pictures/E0U20cZUYAEaJqL.jpeg"})
+                .padding(Padding::all(50))
+                .border(Border::all(ios::DarkPurple, 20))
+                .border_radius(BorderRadius::all(50)));
+      },
+      RowProps{}.main_align(MainAlign::SpaceBetween)}}};
 
-  cache.resize_viewport(screen_extent);
+  Extent screen_extent{2000, 1000};
 
-  for (size_t i = 0; i < 5; i++) {
-    constexpr float mul = 1 / 5.0f;
-    cache.scroll_viewport(ViewOffset{{mul * i}, {mul * i}});
-    cache.tick(std::chrono::nanoseconds(0));
-    cache.backing_store.save_pixels_to_file("./ui_output_row_" +
-                                            std::to_string(i));
+  Pipeline pipeline{view};
+
+  pipeline.viewport.resize(screen_extent);
+
+  for (size_t i = 0; i < 50; i++) {
+    constexpr float mul = 1 / 50.0f;
+    pipeline.tick(std::chrono::nanoseconds(0));
+    pipeline.tile_cache.scroll_backing_store(IOffset{0, mul * i * 0});
+    pipeline.tile_cache.backing_store.save_pixels_to_file("./ui_output_row_" +
+                                                          std::to_string(i));
+    VLK_LOG("written tick: {}", i);
   }
 }

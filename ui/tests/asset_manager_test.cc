@@ -13,22 +13,20 @@ TEST(AssetManagerTest, Simple) {
   using namespace vlk::ui;
   using namespace vlk::ui::impl;
 
-  RasterContext context;
+  RenderContext context;
   AssetManager asset_manager{context};
 
   // TODO(lamarrr): think about how to specify alt images
 
   auto image_source = FileImageSource{
       std::filesystem::path("/home/lamar/Pictures/IMG_0079.JPG"),
-      ImageFormat::RGBA};
+      stx::Some(ImageFormat::RGBA)};
 
   add_asset(asset_manager, image_source).unwrap();
 
   uint64_t i = 0;
 
-  while (true) {
-    asset_manager.tick(std::chrono::seconds(100));
-    i++;
-    get_asset(asset_manager, image_source).match([](auto) {}, [](auto) {});
-  }
+  asset_manager.tick(std::chrono::seconds(100));
+  i++;
+  get_asset(asset_manager, image_source).match([](auto) {}, [](auto) {});
 }

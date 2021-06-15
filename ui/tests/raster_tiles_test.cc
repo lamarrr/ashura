@@ -27,7 +27,7 @@ TEST(RasterTilesTest, BasicTest) {
   EXPECT_EQ(tiles.rows(), (1920 * 2 + 256) / 256);
   EXPECT_EQ(tiles.columns(), (1080 * 2 + 256) / 256);
 
-  RasterContext context;
+  RenderContext context;
 
   for (RasterTiles::Tile& tile : tiles.get_tiles()) {
     EXPECT_FALSE(tile.is_surface_init());
