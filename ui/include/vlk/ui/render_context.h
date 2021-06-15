@@ -11,8 +11,8 @@ namespace ui {
 
 enum class RasterTarget : uint8_t { Cpu, Gpu };
 
-struct RasterContext {
-  RasterContext(RasterTarget target = RasterTarget::Cpu,
+struct RenderContext {
+  RenderContext(RasterTarget target = RasterTarget::Cpu,
                 stx::Option<std::shared_ptr<GrRecordingContext>>&&
                     recording_context = stx::None,
                 SkColorType color_type = SkColorType::kRGBA_8888_SkColorType,
