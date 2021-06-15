@@ -102,29 +102,30 @@ STX_FORCE_INLINE constexpr EnumType enum_and(EnumType a, EnumType b) {
 }
 
 #define VLK_DEFINE_ENUM_BIT_OPS(enum_identifier)                              \
-  STX_FORCE_INLINE constexpr enum_identifier operator|(enum_identifier a,     \
-                                                       enum_identifier b) {   \
+  constexpr enum_identifier operator|(enum_identifier a, enum_identifier b) { \
     return vlk::enum_or(a, b);                                                \
   }                                                                           \
+  constexpr enum_identifier operator~(enum_identifier a) {                    \
+    return vlk::enum_toggle(a);                                               \
+  }                                                                           \
                                                                               \
-  STX_FORCE_INLINE constexpr enum_identifier &operator|=(enum_identifier &a,  \
-                                                         enum_identifier b) { \
+  constexpr enum_identifier &operator|=(enum_identifier &a,                   \
+                                        enum_identifier b) {                  \
     a = a | b;                                                                \
     return a;                                                                 \
   }                                                                           \
                                                                               \
-  STX_FORCE_INLINE constexpr enum_identifier operator&(enum_identifier a,     \
-                                                       enum_identifier b) {   \
+  constexpr enum_identifier operator&(enum_identifier a, enum_identifier b) { \
     return vlk::enum_and(a, b);                                               \
   }                                                                           \
                                                                               \
-  STX_FORCE_INLINE constexpr enum_identifier &operator&=(enum_identifier &a,  \
-                                                         enum_identifier b) { \
+  constexpr enum_identifier &operator&=(enum_identifier &a,                   \
+                                        enum_identifier b) {                  \
     a = a & b;                                                                \
     return a;                                                                 \
   }
 
-STX_FORCE_INLINE constexpr bool f32_eq(float a, float b) {
+constexpr bool f32_eq(float a, float b) {
   return std::abs(a - b) < f32_epsilon;
 }
 
