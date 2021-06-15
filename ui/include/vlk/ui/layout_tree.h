@@ -19,11 +19,6 @@ namespace ui {
 // know what you're doing, especially whilst binding references to nodes whithin
 // callbacks.
 //
-//
-// the layout tree also connects to other widgets and is like the proxy to
-// detach or add widgets to them.
-//
-//
 
 constexpr Extent flex_fit(Direction direction, Fit main_fit, Fit cross_fit,
                           Extent const &span, Extent const &allotted_extent) {
