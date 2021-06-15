@@ -278,16 +278,8 @@ struct ViewTree {
       }
     }
 
-    void build_links(bool &any_view_dirty) {
-      // it is safe for the widget to access this multiple times between ticks
-      // even though the user could pay a perf penalty. this saves us the
-      // stress of accumulating scroll offsets into a vector. the tiles the
-      // children widgets intersect will be marked as dirty. performing
-      // multiple scrolls in between a tick wil unnecessarily mark more tiles
-      // than needed.
-      WidgetStateProxyAccessor::access(*layout_node->widget).on_render_dirty =
-          [] {};
-      WidgetStateProxyAccessor::access(*layout_node->widget)
+    void attach_state_proxies_and_parent_refs(bool &any_view_dirty) {
+      WidgetSystemProxy::get_state_proxy(*layout_node->widget)
           .on_view_offset_dirty = ([this, &any_view_dirty] {
         this->is_dirty = true;
         any_view_dirty = true;
@@ -299,7 +291,7 @@ struct ViewTree {
 
       for (View &subview : subviews) {
         subview.parent = this;
-        subview.build_links(any_view_dirty);
+        subview.attach_state_proxies_and_parent_refs(any_view_dirty);
       }
     }
   };
@@ -329,22 +321,21 @@ struct ViewTree {
     any_view_dirty = false;
   }
 
-  void build_links() { root_view.build_links(any_view_dirty); }
+  void mark_views_dirty() {
+    any_view_dirty = true;
+    root_view.recursive_mark_view_offset_dirty();
+  }
 
-  void build(LayoutTree const &layout_tree) {
-    VLK_ENSURE(root_view.layout_node == nullptr);
-    VLK_ENSURE(root_view.subviews.empty());
-    VLK_ENSURE(root_view.entries.empty());
+  void attach_state_proxies_and_parent_refs() {
+    root_view.attach_state_proxies_and_parent_refs(any_view_dirty);
+  }
 
-    VLK_ENSURE(layout_tree.root_node.type == Widget::Type::View);
-    VLK_ENSURE(layout_tree.root_node.widget != nullptr);
+  void build(LayoutTree::Node &tree_root) {
+    VLK_ENSURE(tree_root.type == WidgetType::View);
 
     any_view_dirty = true;
-    root_view.build(layout_tree.root_node, 0);
-    // this should be cheap since we are unlikely to have many views and
-    // subviews (>100 for example)
-    build_links();
-    tick(std::chrono::nanoseconds(0));
+    root_view.build(tree_root, 0);
+    attach_state_proxies_and_parent_refs();
   }
 
   void tick(std::chrono::nanoseconds) { clean_offsets(); }
