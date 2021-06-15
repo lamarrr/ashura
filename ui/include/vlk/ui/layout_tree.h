@@ -599,22 +599,6 @@ struct LayoutTree {
       perform_layout(root_node, allotted_extent);
       force_clean_parent_view_offset(root_node, Offset{0, 0});
 
-      if (root_node.type == Widget::Type::View) {
-        VLK_ENSURE(root_node.view_extent.width < u32_max,
-                   "root widget has infinite resolved view width",
-                   *root_node.widget);
-        VLK_ENSURE(root_node.view_extent.height < u32_max,
-                   "root widget has infinite resolved view height",
-                   *root_node.widget);
-      }
-
-      VLK_ENSURE(root_node.self_extent.width < u32_max,
-                 "root widget has infinite resolved self width",
-                 *root_node.widget);
-      VLK_ENSURE(root_node.self_extent.height < u32_max,
-                 "root widget has infinite resolved self height",
-                 *root_node.widget);
-
       is_layout_dirty = false;
     }
   }
