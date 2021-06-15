@@ -161,7 +161,7 @@ struct RasterCache {
 
     image->readPixels(
         SkImageInfo::Make(width, height, SkColorType::kRGBA_8888_SkColorType,
-                          SkAlphaType::kPremul_SkAlphaType),
+                          SkAlphaType::kUnpremul_SkAlphaType),
         buff.data(), width * 4, 0, 0);
 
     for (uint8_t c : buff) {
