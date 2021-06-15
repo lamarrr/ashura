@@ -42,7 +42,7 @@ struct TestImage : public Widget {
 
   virtual void draw([[maybe_unused]] Canvas &canvas,
                     [[maybe_unused]] Extent const &requested_extent) override {
-    SkCanvas *sk_canvas = canvas.as_skia();
+    SkCanvas &sk_canvas = canvas.to_skia();
     sk_sp<SkData> sk_data =
         SkData::MakeWithoutCopy(image_.bytes().data(), image_.size());
     VLK_ENSURE(sk_data != nullptr);
