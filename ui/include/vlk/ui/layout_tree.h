@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "stx/span.h"
-#include "vlk/ui/impl/widget_state_proxy_accessor.h"
 #include "vlk/ui/layout.h"
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/widget.h"
