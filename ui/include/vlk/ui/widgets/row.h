@@ -11,7 +11,9 @@
 namespace vlk {
 namespace ui {
 
-// TODO(lamarrr): widgets can be made to be in source
+// TODO - constrain extent in props
+// padding, etc.
+// remove const refs
 
 struct RowProps {
   constexpr RowProps() {}
