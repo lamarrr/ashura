@@ -173,7 +173,6 @@ struct LayoutTree {
   Node root_node{};
   Extent allotted_extent{0, 0};
 
-  // for now, we just re-perform layout when any of the widgets is dirty
   bool is_layout_dirty = true;
 
   static void force_clean_parent_view_offset(Node &node,
