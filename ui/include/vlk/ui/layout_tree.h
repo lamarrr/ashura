@@ -214,9 +214,6 @@ struct LayoutTree {
     ViewExtent const view_extent = widget.get_view_extent();
     Extent const resolved_view_extent = view_extent.resolve(allotted_extent);
 
-    // TODO(lamarrr): view fitting with shrinking and other properties
-    // preserved?
-
     Padding const padding = widget.get_padding();
 
     if (widget.is_flex()) {
