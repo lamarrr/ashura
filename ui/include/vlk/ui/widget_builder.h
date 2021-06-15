@@ -46,7 +46,5 @@ inline std::vector<Widget *> build_children(WidgetBuilder &builder) {
   return children;
 }
 
-// TODO(lamarrr): children list? with deleter functor
-
 }  // namespace ui
 }  // namespace vlk
