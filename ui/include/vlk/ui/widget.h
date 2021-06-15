@@ -32,9 +32,13 @@ enum class WidgetType : uint8_t {
   View
 };
 
-    std::string_view name;
-    std::string_view type_hint;
-  };
+enum class WidgetDirtiness : uint8_t {
+  None = 0,
+  Render = 1,
+  ViewOffset = 2,
+  Layout = 4,
+  Children = 8
+};
 
   struct StateProxy {
     StateProxy()
@@ -117,7 +121,7 @@ enum class WidgetType : uint8_t {
 
   stx::Option<ZIndex> get_z_index() const { return z_index_.clone(); }
 
-  DebugInfo get_debug_info() const { return debug_info_; }
+  WidgetDirtiness get_dirtiness() const { return dirtiness_; }
 
   //! create draw commands
   // TODO(lamarrr): we might need to make calls to assetmanager thread safe if
