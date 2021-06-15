@@ -182,10 +182,6 @@ struct LayoutTree {
   // for now, we just re-perform layout when any of the widgets is dirty
   bool is_layout_dirty = true;
 
-  // TODO(lamarrr): move parent_view_offset out of the layout step and perform
-  // that in another step since we can't know that until the whole layout is
-  // done? else we'd perform more recursive iterations than necessary
-
   static void force_clean_parent_view_offset(Node &node,
                                              Offset parent_view_offset) {
     node.parent_view_offset = parent_view_offset;
