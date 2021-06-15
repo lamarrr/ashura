@@ -158,7 +158,7 @@ struct ViewTree {
       }
     }
 
-    // TODO(lamarrr): screen oifset calculations are incorrect and need to be
+    // TODO(lamarrr): screen offset calculations are incorrect and need to be
     // fixed, it's parent view offset should be the accumulation of its parent
     // view offset from its parent to itself
 
