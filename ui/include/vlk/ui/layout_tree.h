@@ -148,7 +148,7 @@ struct LayoutTree {
     Widget *widget{};
 
     /// target widget type
-    Widget::Type type{};
+    WidgetType type{};
 
     /// part of the parent view this widget occupies
     Extent self_extent{};
@@ -186,9 +186,12 @@ struct LayoutTree {
                                              Offset parent_view_offset) {
     node.parent_view_offset = parent_view_offset;
 
+    // we move parent_view_offset calculation out of the layout step and perform
+    // that in another step since we can't calculate it until the whole layout
+    // is done? else we'd perform more recursive iterations than necessary
     for (auto &child : node.children) {
       force_clean_parent_view_offset(
-          child, node.type == Widget::Type::View
+          child, node.type == WidgetType::View
                      ? child.parent_offset
                      : (child.parent_offset + parent_view_offset));
     }
@@ -208,7 +211,7 @@ struct LayoutTree {
 
     Widget const &widget = *node.widget;
 
-    Widget::Type const type = widget.get_type();
+    WidgetType const type = widget.get_type();
 
     SelfExtent const self_extent = widget.get_self_extent();
     Extent const resolved_self_extent = self_extent.resolve(allotted_extent);
@@ -255,8 +258,8 @@ struct LayoutTree {
 
       Extent const flex_span = perform_flex_children_layout(
           flex,
-          type == Widget::Type::View ? view_content_rect.extent
-                                     : self_content_rect.extent,
+          type == WidgetType::View ? view_content_rect.extent
+                                   : self_content_rect.extent,
           node.children);
 
       // layout of children along parent is now done,
@@ -266,12 +269,12 @@ struct LayoutTree {
       // we also now need to initialize the layout along the parent view.
       for (LayoutTree::Node &child : node.children) {
         child.parent_offset =
-            child.parent_offset + (type == Widget::Type::View
+            child.parent_offset + (type == WidgetType::View
                                        ? view_content_rect.offset
                                        : self_content_rect.offset);
       }
 
-      if (type == Widget::Type::View) {
+      if (type == WidgetType::View) {
         Extent const fitted_view_content_extent =
             flex_fit(flex.direction, flex.main_fit, flex.cross_fit, flex_span,
                      view_content_rect.extent);
@@ -298,7 +301,7 @@ struct LayoutTree {
         node.view_extent = node.self_extent;
       }
     } else {
-      if (type == Widget::Type::View) {
+      if (type == WidgetType::View) {
         node.view_extent = resolved_view_extent;
         node.self_extent = view_fit_self_extent(view_fit, resolved_self_extent,
                                                 node.view_extent);
