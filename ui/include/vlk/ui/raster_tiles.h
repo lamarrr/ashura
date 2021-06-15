@@ -96,9 +96,8 @@ struct RasterTiles {
   }
 
  private:
-  // future-TODO(lamarrr): implement pixel ratio usage, how to. should this stay
-  // here?
-  // float pixel_ratio_ = 1.0f;
+  // future-TODO(lamarrr): implement pixel ratio usage and zooming, how to.
+  // should this stay here?
 
   Extent extent_;
 
