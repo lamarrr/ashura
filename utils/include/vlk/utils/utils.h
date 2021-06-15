@@ -65,31 +65,34 @@
 namespace vlk {
 
 template <typename Container>
-bool any_true(Container const &cont) {
+constexpr bool any_true(Container const &cont) {
   return ::std::any_of(cont.begin(), cont.end(),
                        [](auto const &value) -> bool { return value; });
 }
 
+template <typename Container, typename UnaryPredicate>
+constexpr bool any(Container const &cont, UnaryPredicate &&predicate) {
+  return ::std::any_of(cont.begin(), cont.end(),
+                       std::forward<UnaryPredicate &&>(predicate));
+}
+
 template <typename EnumType>
-STX_FORCE_INLINE constexpr std::underlying_type_t<EnumType> enum_ut(
-    EnumType a) {
+constexpr std::underlying_type_t<EnumType> enum_ut(EnumType a) {
   return static_cast<std::underlying_type_t<EnumType>>(a);
 }
 
 template <typename EnumType>
-STX_FORCE_INLINE constexpr std::underlying_type_t<EnumType> enum_ut_or(
-    EnumType a, EnumType b) {
+constexpr std::underlying_type_t<EnumType> enum_ut_or(EnumType a, EnumType b) {
   return enum_ut(a) | enum_ut(b);
 }
 
 template <typename EnumType>
-STX_FORCE_INLINE constexpr EnumType enum_or(EnumType a, EnumType b) {
+constexpr EnumType enum_or(EnumType a, EnumType b) {
   return static_cast<EnumType>(enum_ut_or(a, b));
 }
 
 template <typename EnumType>
-STX_FORCE_INLINE constexpr std::underlying_type_t<EnumType> enum_ut_and(
-    EnumType a, EnumType b) {
+constexpr std::underlying_type_t<EnumType> enum_ut_and(EnumType a, EnumType b) {
   return enum_ut(a) & enum_ut(b);
 }
 
