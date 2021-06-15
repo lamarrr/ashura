@@ -1,96 +1,46 @@
-#include <algorithm>
-#include <atomic>
-#include <chrono>
-#include <filesystem>
-#include <functional>
-#include <map>
-#include <memory>
-#include <string_view>
-#include <tuple>
-#include <vector>
+#pragma once
 
-#include "include/core/SkPoint.h"
+#include <memory>
+#include <utility>
+
 #include "stx/option.h"
-#include "stx/span.h"
-#include "vlk/ui/image_asset.h"
+
+//
+
+#include "vlk/ui/image_source.h"
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/widget.h"
-#include "vlk/utils/utils.h"
 
 namespace vlk {
 namespace ui {
 
-// TODO(lamarrr): on effects: users would be able to inherit from the base
-// widget and override the draw methods of each widget to provide their own draw
-// methods that apply one effect or the other. effects that span acrross
-// widgets? i.e. parent opacity and intends to fade along with its children.
-// TODO(lamarrr): consider opacity tree? or require manually setting the
-// opacitgies?
-// we need render props that all widgets must have: i.e. opacity
-//
-// we need visibility prop
-//
-// is_layout_changed
-// is_render_changed
-//
-// BaseProps? BaseProps::clean_state()..
-//
-// TODO(lamarrr): provided widgets must be static
-
-enum class ImageStretch : uint8_t {
-  None = 0,
-  X = 1,
-  Y = 2,
-  XY = X | Y,
-};
-
-VLK_DEFINE_ENUM_BIT_OPS(ImageStretch)
-
-namespace impl {
-
-// aspect_ratio must be non-zero
-static constexpr Extent aspect_ratio_trim(Extent aspect_ratio, Extent extent) {
-  // 4 : 1
-  // 1000 : 100
-  // (100 * (4 / 1)) : 100
-  //
-  // 4 : 1
-  // 100 : 1000
-  // 100 : (100  / (4 / 1))
-  //
-
-  //
-  // 1 : 4
-  // 1000 : 100
-  // (100 * (1 / 4)) : 100
-  //
-  // 1 : 4
-  // 100 : 1000
-  // 100 : (100 / (1 / 4))
-  //
-
-  float ratio = aspect_ratio.width / static_cast<float>(aspect_ratio.height);
-
-  return extent.width > extent.height
-             ? Extent{static_cast<uint32_t>(extent.height * ratio),
-                      extent.height}
-             : Extent{extent.width,
-                      static_cast<uint32_t>(extent.width / ratio)};
-}
-
-}  // namespace impl
-
-// TODO(lamarrr): move out these tests
-static_assert(impl::aspect_ratio_trim(Extent{4, 1}, Extent{1000, 100}) ==
-              Extent{400, 100});
-static_assert(impl::aspect_ratio_trim(Extent{4, 1}, Extent{100, 1000}) ==
-              Extent{100, 25});
-static_assert(impl::aspect_ratio_trim(Extent{1, 4}, Extent{1000, 100}) ==
-              Extent{25, 100});
-static_assert(impl::aspect_ratio_trim(Extent{1, 4}, Extent{100, 1000}) ==
-              Extent{100, 400});
-
 struct ImageProps {
+  explicit ImageProps(MemoryImageSource source) : source_{std::move(source)} {}
+
+  explicit ImageProps(FileImageSource source) : source_{std::move(source)} {}
+
+  ImageProps source(MemoryImageSource image_source) const {
+    ImageProps out{*this};
+    out.source_ = std::move(image_source);
+    return out;
+  }
+
+  ImageProps source(FileImageSource image_source) const {
+    ImageProps out{*this};
+    out.source_ = std::move(image_source);
+    return out;
+  }
+
+  ImageProps source(ImageSource image_source) const {
+    ImageProps out{*this};
+    out.source_ = std::move(image_source);
+    return out;
+  }
+
+  ImageSource source() const { return source_; }
+
+  ImageSource const &source_ref() const { return source_; }
+
   //! target extent for the image widget, otherwise initially uses an internally
   //! specified extent and then updates the image widget's extent once the image
   //! is available.
@@ -127,7 +77,6 @@ struct ImageProps {
 
   //! this is applied on the effective extent of this widget
   ImageProps aspect_ratio(Extent value) const {
-    VLK_ENSURE(value.visible());
     ImageProps out{*this};
     out.aspect_ratio_ = stx::Some(std::move(value));
     return out;
@@ -145,298 +94,106 @@ struct ImageProps {
 
   stx::Option<Extent> aspect_ratio() const { return aspect_ratio_; }
 
-  ImageProps crop(Rect area) const {
-    ImageProps out{*this};
-    out.crop_ = stx::Some(std::move(area));
-    return out;
-  }
-
-  ImageProps no_crop() const {
-    ImageProps out{*this};
-    out.crop_ = stx::None;
-    return out;
-  }
-
-  stx::Option<Rect> crop() const { return crop_; }
-
-  ImageProps stretch(ImageStretch value) const {
-    ImageProps out{*this};
-    out.stretch_ = value;
-    return out;
-  }
-
-  ImageStretch stretch() const { return stretch_; }
-
-  WidgetDirtiness diff(ImageProps const &new_props) const {
-    WidgetDirtiness dirtiness = WidgetDirtiness::None;
-
-    if (extent() != new_props.extent()) {
-      dirtiness |= WidgetDirtiness::Layout;
-    }
-
-    if (border_radius() != new_props.border_radius()) {
-      dirtiness |= WidgetDirtiness::Render;
-    }
-
-    if (aspect_ratio() != new_props.aspect_ratio()) {
-      dirtiness |= WidgetDirtiness::Layout;
-    }
-
-    if (crop() != new_props.crop()) {
-      dirtiness |= WidgetDirtiness::Render;
-    }
-
-    if (stretch() != new_props.stretch()) {
-      dirtiness |= WidgetDirtiness::Render;
-    }
-
-    return dirtiness;
-  }
-
  private:
-  // if extent is specified and different from the extent once loaded...
+  ImageSource source_;
   stx::Option<SelfExtent> extent_;
   BorderRadius border_radius_;
   stx::Option<Extent> aspect_ratio_;
-  stx::Option<Rect> crop_;
-  ImageStretch stretch_ = ImageStretch::None;
 };
 
-constexpr std::array<SkVector, 4> to_skia(BorderRadius const &border_radius) {
-  return {
-      SkVector::Make(border_radius.top_left, border_radius.top_left),
-      SkVector::Make(border_radius.top_right, border_radius.top_right),
-      SkVector::Make(border_radius.bottom_left, border_radius.bottom_left),
-      SkVector::Make(border_radius.bottom_right, border_radius.bottom_right),
-  };
-}
+enum class ImageState : uint8_t {
+  //! the image has not been in view yet (or in a long time, its not holding a
+  //! reference to its image asset)
+  Stale,
+  //! the image's asset is loading
+  Loading,
+  //! a non-fatal failure occured while loading the image's asset
+  LoadFailed,
+  //! the image's asset has been successfully loaded
+  Loaded
+};
 
+namespace impl {
+
+enum class ImageDiff : uint8_t {
+  None = 0,
+  Source = 1,
+  Extent = 2,
+  BorderRadius = 4,
+  AspectRatio = 8,
+  All = 16
+};
+
+VLK_DEFINE_ENUM_BIT_OPS(ImageDiff)
+
+struct ImageStorage {
+  ImageProps props;
+  ImageState state = ImageState::Stale;
+  bool drawn_in_last_tick = false;
+  Ticks asset_stale_ticks = Ticks{0};
+  stx::Option<std::shared_ptr<ImageAsset const>> asset = stx::None;
+};
+
+}  // namespace impl
+
+//
+// Usage Needs
+//
+// - Add image to asset registry for offloading to GPU for fast transfers when
+// needed (i.e. zero copy over PCIE from CPU to GPU during rendering)
+// - Fetch image from the asset registry and inform the target widget once the
+// image arrives and mark its render as dirty
+// - Inform the widget that the image is loading
+// NOTE: Partial invalidations will occur to the image widget while its still in
+// view, so the widget itself doesn't have a means of determining when this
+// invalidation will happen or when and which part of the widget the system will
+// need
+// - The assets need to be discarded when not in use specifically when not in
+// use by the widget's draw method
+//
+//
+//
+// track the image last hit tick in the draw method
+// once the asset is not hit for a long time remove shared_ptr to the asset and
+// mark widget as dirty.
+//
+//
 struct Image : public Widget {
-  // Note: we can use sizing here because width and height is known ahead of
-  // time.
-  // static constexpr Extent DefaultImageExtent = Extent{50, 50};
-  // TODO(lamarrr): implement source updating???
-
-  Image(MemoryImageSource const &source, ImageProps const &props) {
-    source_ = source;
-    update_props(props);
+  explicit Image(ImageProps props) : storage_{std::move(props)} {
+    // called to intialize Widget's extent and aspect ratio
+    update_props(storage_.props);
   }
 
-  Image(FileImageSource const &source, ImageProps const &props) {
-    source_ = source;
-    update_props(props);
-  }
+  ImageState get_state() const { return storage_.state; }
 
-  virtual void draw(Canvas &canvas, AssetManager &asset_manager) override {
-    // TODO(lamarrr): if props is updated in-between these states?
+  ImageProps get_props() const { return storage_.props; }
 
-    // TODO(lamarrr): AssetManager should be accessed in the tick method, not
-    // the draw method.
-    // otherwise this method will cause partial updates.
-
-    SkCanvas *sk_canvas = canvas.as_skia().unwrap();
-
-    // the widget was just initialized and we need to submit the image asset
-    // to the asset manager
-  }
-
-  bool is_memory_sourced() const {
-    return std::holds_alternative<MemoryImageSource>(source_);
-  }
-
-  bool is_file_sourced() const {
-    return std::holds_alternative<FileImageSource>(source_);
-  }
-
-  void update_props(ImageProps const &props) {
-    // once a file image is loaded and no extent is provided we'd need to
-    // perform a re-layout
-    //
-    //
-    // once the image arrives, we update the prop to use the new extent of the
-    // new image
-    //
-    //
-    props.extent().match(
-        [&](SelfExtent const &extent) { Widget::update_self_extent(extent); },
-        [&]() { Widget::update_self_extent(SelfExtent{}); });
-
-    props.aspect_ratio().match(
-        [&](Extent) { Widget::update_needs_trimming(true); },
-        [&]() { Widget::update_needs_trimming(false); });
-
-    WidgetDirtiness dirtiness = props_.diff(props);
-    Widget::add_dirtiness(dirtiness);
-
-    props_ = props;
-
-    // updating any of the props will cause the state of the rendering to be
-    // disrupted, we thus need to start again
-    if (dirtiness == WidgetDirtiness::None) state_ = State::Begin;
-  }
-
-  ImageProps get_props() const { return props_; }
+  void update_props(ImageProps props);
 
   virtual Extent trim(Extent extent) override {
-    // TODO(lamarrr): due to aspect ratio cropping we need to place image at the
-    // center.
-    return impl::aspect_ratio_trim(
-        get_props().aspect_ratio().expect(
-            "Trim called without an aspect ratio set"),
+    return aspect_ratio_trim(
+        storage_.props.aspect_ratio().expect(
+            "Image::trim() called without an aspect ratio set"),
         extent);
   }
 
-  virtual void tick(std::chrono::nanoseconds interval) override {
-    if (state_ == State::Begin) {
-      if (is_memory_sourced()) {
-        auto const &source = std::get<MemoryImageSource>(source_);
-        (void)add_asset(asset_manager, source);
-      } else {
-        auto const &source = std::get<FileImageSource>(source_);
-        (void)add_asset(asset_manager, source);
-      }
+  //! implement this to draw a custom loading image/animation
+  virtual void draw_loading_image(Canvas &) {}
 
-      state_ = State::ImageSubmitted;
-    }
+  //! implement this to draw a custom loading image/animation
+  virtual void draw_error_image(Canvas &) {}
 
-    // we've submitted the image to the asset manager or it has previously
-    // been submitted by another widget and we are awaiting the status of
-    // the image
-    if (state_ == State::ImageSubmitted) {
-      stx::Result load_result =
-          is_memory_sourced()
-              ? get_asset(asset_manager, std::get<MemoryImageSource>(source_))
-              : get_asset(asset_manager, std::get<FileImageSource>(source_));
+  //! NOTE: only part of an image might be actually needed during drawing, any
+  //! ref.
+  virtual void draw(Canvas &canvas) override;
 
-      load_result.as_ref().match(
-          [&](std::shared_ptr<ImageAsset const> const &asset) {
-            state_ = asset->get_ref().is_ok() ? State::ImageLoadSuccessful
-                                              : State::ImageLoadFailed;
-          },
-          [&](AssetError error) {
-            switch (error) {
-              case AssetError::InvalidTag: {
-                state_ = State::ImageLoadFailed;
-              } break;
-              case AssetError::IsLoading: {
-                // we need to check the image load status again
-                state_ = State::ImageSubmitted;
-              } break;
-              default: {
-                VLK_PANIC("Unexpected State");
-              }
-            }
-          });
-    }
-
-    // the image has been successfully loaded
-    if (state_ == State::ImageLoadSuccessful) {
-      stx::Result load_result =
-          is_memory_sourced()
-              ? get_asset(asset_manager, std::get<MemoryImageSource>(source_))
-              : get_asset(asset_manager, std::get<FileImageSource>(source_));
-
-      // props updating? this would take an unnecessarily long time
-      if (is_file_sourced() && props_.extent().is_none()) {
-        // send layout details out and request for reflow if necessary
-        load_result.as_ref().match(
-            [&](std::shared_ptr<ImageAsset const> const &image_asset) {
-              image_asset->get_ref().match(
-                  [&](sk_sp<SkSurface> const &surface) {
-                    update_props(get_props().extent(
-                        Extent{static_cast<uint32_t>(surface->width()),
-                               static_cast<uint32_t>(surface->height())}));
-                  },
-                  [](auto) { VLK_PANIC("Unexpected State"); });
-            },
-            [](auto) { VLK_PANIC("Unexpected State"); });
-
-        // layout reflow will occur in next system tick, immediately return as
-        // layout needs to be allowed to perform before doing anything else
-        mark_layout_dirty();
-
-        // TODO(lamarrr): reflow is processed immediately after tick() so we can
-        // move on to rendering immediately
-        state_ = State::RequestedRelayout;
-        return;
-      } else {
-        // the image doesn't need reflow and we can just proceed to rendering
-        state_ = State::RenderImage;
-      }
-    }
-
-    // we failed to load the image, render error image.
-    // the error image uses whatever extent the widget has which is Extent{0, 0}
-    // by default.
-    if (state_ == State::ImageLoadFailed) {
-      state_ = State::RenderErrorImage;
-    }
-
-    if (state_ == State::RequestedRelayout) {
-      state_ = State::RenderImage;
-    }
-
-    if (state_ == State::RenderImage) {
-      // draw actual image
-      stx::Result load_result =
-          is_memory_sourced()
-              ? get_asset(asset_manager, std::get<MemoryImageSource>(source_))
-              : get_asset(asset_manager, std::get<FileImageSource>(source_));
-
-      load_result.as_ref().match(
-          [&](std::shared_ptr<ImageAsset const> const &image_asset) {
-            image_asset->get_ref().match(
-                [&](sk_sp<SkSurface> const &surface) {
-                  sk_canvas->save();
-
-                  if (props_.border_radius() != BorderRadius::all(0)) {
-                    SkRRect round_rect;
-
-                    std::array border_radii = to_skia(props_.border_radius());
-
-                    round_rect.setRectRadii(
-                        SkRect::MakeWH(surface->width(), surface->height()),
-                        border_radii.data());
-
-                    sk_canvas->clipRRect(round_rect, true);
-                  }
-
-                  // we can add transparency effects to the paint here
-                  // scale and stretch
-                  surface->draw(sk_canvas, 0, 0, nullptr);
-
-                  sk_canvas->restore();
-                },
-                [](auto) {
-
-                });
-          },
-          [](auto) {});
-    }
-
-    // TODO(lamarrr): if the image is discarded? get_asset will? go back to
-    // submitted state?
-    if (state_ == State::RenderErrorImage) {
-      // draw error image
-    }
-  }
+  virtual void tick(std::chrono::nanoseconds,
+                    AssetManager &asset_manager) override;
 
  private:
-  enum class State {
-    Begin,
-    ImageSubmitted,
-    ImageLoadFailed,
-    ImageLoadSuccessful,
-    // RequestedRelayout,
-    // RenderImage,
-    // RenderErrorImage
-  };
-
-  ImageProps props_;
-  std::variant<stx::NoneType, MemoryImageSource, FileImageSource> source_;
-  State state_ = State::Begin;
-  stx::Option<sk_sp<SkSurface>> texture_ = stx::None;
-};  // namespace ui
+  impl::ImageStorage storage_;
+  impl::ImageDiff diff_ = impl::ImageDiff::All;
+};
 
 }  // namespace ui
 }  // namespace vlk
