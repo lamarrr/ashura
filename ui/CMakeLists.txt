@@ -16,8 +16,7 @@ target_include_directories(
   PUBLIC include
   PRIVATE src)
 
-target_link_libraries(vlk_ui stx vlk_utils vlk_assets vlk_external_skia
-                      fmt::fmt)
+target_link_libraries(vlk_ui stx vlk_utils vlk_external_skia fmt::fmt)
 
 target_compile_definitions(vlk_ui PUBLIC SK_VULKAN)
 
