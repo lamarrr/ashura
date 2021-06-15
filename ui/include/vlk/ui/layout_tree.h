@@ -594,6 +594,9 @@ struct LayoutTree {
   }
 
   void allot_extent(Extent const &new_allotted_extent) {
+    if (allotted_extent != new_allotted_extent) {
+      allotted_extent = new_allotted_extent;
+      is_layout_dirty = true;
     }
   }
 
