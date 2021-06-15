@@ -10,7 +10,7 @@ using namespace vlk;
 struct MockSized : public Widget {
   MockSized(Extent extent, stx::Option<ZIndex> const& z_index = stx::None,
             Padding padding = {})
-      : Widget{Type::Render} {
+      : Widget{WidgetType::Render} {
     Widget::init_is_flex(false);
     Widget::update_self_extent(SelfExtent{Constrain::absolute(extent.width),
                                           Constrain::absolute(extent.height)});
@@ -19,7 +19,7 @@ struct MockSized : public Widget {
   }
   ~MockSized() override {}
 
-  virtual void draw(Canvas& canvas, AssetManager&) override {
+  virtual void draw(Canvas& canvas) override {
     Extent const& extent = canvas.extent();
     std::cout << "[MockSized] draw on extent: Extent{width: " << extent.width
               << ", height: " << extent.height << "}" << std::endl;
@@ -29,7 +29,7 @@ struct MockSized : public Widget {
 struct MockFlex : public Widget {
   MockFlex(std::initializer_list<Widget*> const& children,
            stx::Option<ZIndex> const& z_index = stx::None)
-      : Widget{Type::Render} {
+      : Widget{WidgetType::Render} {
     children_ = children;
     Widget::init_is_flex(true);
     Widget::update_children(children_);
@@ -44,7 +44,7 @@ struct MockFlex : public Widget {
 
   std::vector<Widget*> children_;
 
-  virtual void draw(Canvas& canvas, AssetManager&) override {
+  virtual void draw(Canvas& canvas) override {
     Extent const& extent = canvas.extent();
     std::cout << "[MockFlex] draw on extent: Extent{width: " << extent.width
               << ", height: " << extent.height << "}" << std::endl;
@@ -54,7 +54,7 @@ struct MockFlex : public Widget {
 // this optimization would mean we can't move the widgets since the pointer
 // address would change, even if it is a std::array
 struct MockView : public Widget {
-  MockView(Widget* child) : Widget{Type::View} {
+  MockView(Widget* child) : Widget{WidgetType::View} {
     child_ = child;
     Widget::init_is_flex(true);
     Widget::update_children(stx::Span<Widget*>(&child_, 1));
@@ -70,7 +70,7 @@ struct MockView : public Widget {
 
   Widget* child_;
 
-  virtual void draw(Canvas& canvas, AssetManager&) override {
+  virtual void draw(Canvas& canvas) override {
     Extent const& extent = canvas.extent();
     std::cout << "[MockView] draw on extent: Extent{width: " << extent.width
               << ", height: " << extent.height << "}" << std::endl;
