@@ -95,7 +95,6 @@ struct Constrain {
   }
 };
 
-// TODO(lamarrr): helper functions for SelfExtent, ViewExtent, and Constrain
 
 struct SelfExtent {
   Constrain width{};
@@ -131,11 +130,6 @@ struct SelfExtent {
 };
 
 using Padding = Edges;
-// using Border =
-//    Edges;  // TODO(lamarrr): do we add more properties or more widgets?
-//    widgets
-// will ensure they are used on a per-need basis
-// using Margin = Edges;  // ?
 
 /// this can exceed the parent allotted size. especially in cases where we might
 /// need partially or wholly constrained/unconstrained views. (i.e. constrained
