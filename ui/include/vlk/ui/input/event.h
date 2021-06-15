@@ -36,7 +36,7 @@ struct Context {
 // for UI related processing, all other-processing should be done
 // asynchronously else will block the rendering loop
 // similar to Unreal Engine's `FTickable::Tick(float)`
-// TODO (lamarrr): events will of course be forwarded on every tick. there's
+// [====*====] events will of course be forwarded on every tick. there's
 // ADD  a new always valid event named std::chrono::nanoseconds;
 // technically no reason for splitting this from the event handler and having
 // the renderer use it.
