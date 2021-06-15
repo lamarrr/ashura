@@ -290,7 +290,7 @@ struct Widget {
   }
 
   //! constant throughout lifetime
-  Type type_;
+  WidgetType type_;
 
   //! constant throughout lifetime
   bool is_flex_;
@@ -299,6 +299,7 @@ struct Widget {
   // for view widgets, this is effectively the size that's actually visible.
   SelfExtent self_extent_;
 
+  //! variable throughout lifetime. communicate changes using `on_layout_dirty`
   bool needs_trimming_;
 
   //! variable throughout lifetime. communicate changes using `on_layout_dirty`
