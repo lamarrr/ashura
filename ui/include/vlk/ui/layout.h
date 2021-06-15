@@ -239,6 +239,16 @@ struct Flex {
   Fit main_fit = Fit::Shrink;
 
   Fit cross_fit = Fit::Shrink;
+
+  constexpr bool operator==(Flex const& other) const {
+    return direction == other.direction && wrap == other.wrap &&
+           main_align == other.main_align && cross_align == other.cross_align &&
+           main_fit == other.main_fit && cross_fit == other.cross_fit;
+  }
+
+  constexpr bool operator!=(Flex const& other) const {
+    return !(*this == other);
+  }
 };
 
 /// used to fit the widget's self_extent to its view_extent (if it has enough
