@@ -221,6 +221,8 @@ inline constexpr bool operator!=(Rect const &a, Rect const &b) {
   return !(a == b);
 }
 
+//! unit of time within the whole API.
+//! NOTE: wall or system clocks are unreliable and not easily reproducible.
 struct Ticks {
   uint64_t value = 0;
 
