@@ -41,16 +41,16 @@ struct RasterTiles {
 
   // checked if debug checks are enabled
   Tile &tile_at_index(uint32_t row, uint32_t column) {
-    VLK_DEBUG_ENSURE(row < rows());
-    VLK_DEBUG_ENSURE(column < columns());
+    VLK_ENSURE(row < rows());
+    VLK_ENSURE(column < columns());
 
     return tiles_[column * rows() + row];
   }
 
   // checked if debug checks are enabled
   Tile &tile_at_point(Offset const &offset) {
-    VLK_DEBUG_ENSURE(offset.x < extent().width);
-    VLK_DEBUG_ENSURE(offset.y < extent().height);
+    VLK_ENSURE(offset.x < extent().width);
+    VLK_ENSURE(offset.y < extent().height);
 
     uint32_t i = offset.x / tile_extent().width;
     uint32_t j = offset.y / tile_extent().height;
