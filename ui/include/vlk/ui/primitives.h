@@ -436,8 +436,14 @@ struct Blur {
   float sigma_y_;
 };
 
-// TODO(lamarrr): should shadow be a primitive, is text shadow spec same as a
-// box? offset 50%?
+constexpr Extent aspect_ratio_trim(Extent aspect_ratio, Extent extent) {
+  float ratio = aspect_ratio.width / static_cast<float>(aspect_ratio.height);
+
+  uint32_t width = std::min<uint32_t>(extent.height * ratio, extent.width);
+  uint32_t height = std::min<uint32_t>(extent.width / ratio, extent.height);
+
+  return Extent{width, height};
+}
 
 }  // namespace ui
 }  // namespace vlk
