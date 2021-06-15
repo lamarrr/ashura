@@ -341,16 +341,19 @@ struct Widget {
   WidgetStateProxy state_proxy_;
 };
 
-// TODO(lamarrr): we should be able to return std::string?
-inline stx::FixedReport operator>>(stx::ReportQuery, Widget const &widget) {
-  Widget::DebugInfo const debug_info = widget.get_debug_info();
-  std::string message = "Widget: ";
-  message += debug_info.name;
-  message += " (type hint: ";
-  message += debug_info.type_hint;
-  message += ", address: " + std::to_string((uintptr_t)&widget) + ")";
-  return stx::FixedReport(message);
-}
+std::string format(Widget const &widget);
+stx::FixedReport operator>>(stx::ReportQuery, Widget const &widget);
+
+struct WidgetSystemProxy {
+  static void tick(Widget &widget, std::chrono::nanoseconds interval,
+                   AssetManager &asset_manager) {
+    widget.system_tick(interval, asset_manager);
+  }
+
+  static WidgetStateProxy &get_state_proxy(Widget &widget) {
+    return widget.state_proxy_;
+  }
+};
 
 }  // namespace ui
 }  // namespace vlk
