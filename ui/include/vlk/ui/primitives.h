@@ -425,6 +425,12 @@ struct Blur {
 
   bool is_valid() const { return sigma_x_ > 0.0f && sigma_y_ > 0.0f; }
 
+  bool operator==(Blur const &other) const {
+    return f32_eq(sigma_x_, other.sigma_x_) && f32_eq(sigma_y_, other.sigma_y_);
+  }
+
+  bool operator!=(Blur const &other) const { return !(*this == other); }
+
  private:
   float sigma_x_;
   float sigma_y_;
