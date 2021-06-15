@@ -219,28 +219,6 @@ struct LayoutTree {
     if (widget.is_flex()) {
       Flex const flex = widget.get_flex();
 
-      if (flex.main_align != MainAlign::Start) {
-        if (flex.direction == Direction::Row) {
-          VLK_ENSURE(self_extent.width.max != i64_max,
-                     "Flex widget with a space-based main-axis alignment (i.e. "
-                     "MainAlign::End, MainAlign::SpaceBetween, "
-                     "MainAlign::SpaceAround, or MainAlign::SpaceEvenly) must "
-                     "have a fixed maximum extent (`Constrain::max`)",
-                     widget);
-        } else {
-          VLK_ENSURE(self_extent.height.max != i64_max,
-                     "Flex widget with a space-based main-axis alignment (i.e. "
-                     "MainAlign::End, MainAlign::SpaceBetween, "
-                     "MainAlign::SpaceAround, or MainAlign::SpaceEvenly) must "
-                     "have a fixed maximum extent (`Constrain::max`)",
-                     widget);
-        }
-      }
-
-      // TODO(lamarrr): no shrink?
-      // TODO(lamrrrr): we should probably force shrinking along the cross-axis,
-      // and main-axis?
-
       auto const [view_content_rect, resolved_view_padding] =
           resolve_content_rect(resolved_view_extent, padding);
       auto const [self_content_rect, resolved_self_padding] =
