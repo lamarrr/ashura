@@ -412,14 +412,16 @@ inline constexpr bool operator!=(Border const &a, Border const &b) {
 using BorderRadius = Corners;
 
 struct Blur {
-  Blur(float sigma_x, float sigma_y) : sigma_x_{sigma_x}, sigma_y_{sigma_y} {
-    VLK_ENSURE(sigma_x > 0.0f, "Gaussian Blur Sigma must be greater than 0.0f");
-    VLK_ENSURE(sigma_y > 0.0f, "Gaussian Blur Sigma must be greater than 0.0f");
+  Blur(float x, float y) : sigma_x_{x}, sigma_y_{y} {
+    VLK_ENSURE(x > 0.0f, "Gaussian Blur Sigma X must be greater than 0.0f");
+    VLK_ENSURE(y > 0.0f, "Gaussian Blur Sigma Y must be greater than 0.0f");
   }
 
-  float sigma_x() const { return sigma_x_; }
+  explicit Blur(float value) : Blur{value, value} {}
 
-  float sigma_y() const { return sigma_y_; }
+  float x() const { return sigma_x_; }
+
+  float y() const { return sigma_y_; }
 
   bool is_valid() const { return sigma_x_ > 0.0f && sigma_y_ > 0.0f; }
 
