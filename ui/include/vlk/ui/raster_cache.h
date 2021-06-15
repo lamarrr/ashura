@@ -26,8 +26,7 @@ struct RasterCache {
   // a render widget will belong to at least one tile.
   // each render widget will thus need to send a dirtiness notification to at
   // least one tile.
-  explicit RasterCache(
-      IRect const& cull_rect)  // float pixel_ratio = 1.0f shouldn't be here
+  explicit RasterCache(IRect const& cull_rect)
       : surface_{nullptr},
         picture_{nullptr},
         is_recording_{false},
