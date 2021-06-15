@@ -1,10 +1,9 @@
 
 
+#include "gtest/gtest.h"
 #include "vlk/ui/layout_tree.h"
 #include "vlk/ui/widget.h"
 #include "vlk/ui/widget_builder.h"
-
-#include "gtest/gtest.h"
 
 using namespace vlk::ui;
 using namespace vlk;
@@ -12,7 +11,7 @@ using namespace vlk;
 inline namespace layout_test {
 
 struct MockSized : public Widget {
-  MockSized(Extent extent, Padding padding = {}) : Widget{Type::Render} {
+  MockSized(Extent extent, Padding padding = {}) : Widget{WidgetType::Render} {
     Widget::init_is_flex(false);
     Widget::update_self_extent(SelfExtent::absolute(extent));
     Widget::update_padding(padding);
@@ -23,7 +22,7 @@ struct MockSized : public Widget {
 struct MockFlex : public Widget {
   MockFlex(std::initializer_list<Widget*> const& children, Flex const& flex,
            SelfExtent const& self_extent, Padding padding)
-      : Widget{Type::Render} {
+      : Widget{WidgetType::Render} {
     children_ = children;
     Widget::init_is_flex(true);
     Widget::update_children(children_);
@@ -44,7 +43,7 @@ struct MockFlex : public Widget {
 struct Body : public Widget {
   Body(Widget* child, ViewFit const& view_fit) {
     children_[0] = child;
-    Widget::init_type(Type::View);
+    Widget::init_type(WidgetType::View);
     Widget::init_is_flex(true);
     Widget::update_children(children_);
     // flex shrink to original size
