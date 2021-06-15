@@ -239,21 +239,9 @@ struct Widget {
     }
   }
 
-  void set_debug_info(DebugInfo const &info) { debug_info_ = info; }
+  void init_z_index(stx::Option<ZIndex> z_index) { z_index_ = z_index; }
 
-  // TODO(lamarrr): we should probably make this deferred, how can we do that
-  // without affecting children updating too much?
-  //
-  //
-  // we can thus even avoid having function pointers?
-  //
-  // I think function pointers can be avoided since the tick() is called for
-  // every widget
-  //
-  // for maximum efficiency we call tick for all the widgets and then perform
-  // children update pass -> layout update pass -> render update pass
-  //
-  void mark_children_dirty() const { state_proxy_.on_children_changed(); }
+  void set_debug_info(WidgetDebugInfo info) { debug_info_ = info; }
 
   void add_dirtiness(WidgetDirtiness dirtiness) { dirtiness_ |= dirtiness; }
 
