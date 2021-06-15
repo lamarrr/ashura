@@ -97,7 +97,17 @@ constexpr std::underlying_type_t<EnumType> enum_ut_and(EnumType a, EnumType b) {
 }
 
 template <typename EnumType>
-STX_FORCE_INLINE constexpr EnumType enum_and(EnumType a, EnumType b) {
+constexpr std::underlying_type_t<EnumType> enum_ut_toggle(EnumType a) {
+  return ~enum_ut(a);
+}
+
+template <typename EnumType>
+constexpr EnumType enum_toggle(EnumType a) {
+  return static_cast<EnumType>(enum_ut_toggle(a));
+}
+
+template <typename EnumType>
+constexpr EnumType enum_and(EnumType a, EnumType b) {
   return static_cast<EnumType>(enum_ut_and(a, b));
 }
 
