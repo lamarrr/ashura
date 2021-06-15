@@ -25,13 +25,13 @@
 #endif
 
 #if VLK_ENABLE_DEBUG_CHECKS
-#define VLK_DEBUG_ENSURE(expr, ...) \
-  do {                              \
-    VLK_ENSURE(expr, __VA_ARGS__);  \
+#define VLK_DEBUG_ENSURE(...) \
+  do {                        \
+    VLK_ENSURE(__VA_ARGS__);  \
   } while (false)
 #else
-#define VLK_DEBUG_ENSURE(expr, ...) \
-  do {                              \
+#define VLK_DEBUG_ENSURE(...) \
+  do {                        \
   } while (false)
 #endif
 
@@ -42,24 +42,24 @@
       ::stx::panic(message, VLK_VK_GL_Result); \
   } while (false)
 
-#define VLK_LOG(fmt, ...)               \
-  do {                                  \
-    ::spdlog::info(fmt, ##__VA_ARGS__); \
+#define VLK_LOG(...)             \
+  do {                           \
+    ::spdlog::info(__VA_ARGS__); \
   } while (false)
 
-#define VLK_LOG_IF(expr, fmt, ...)                  \
-  do {                                              \
-    if ((expr)) ::spdlog::info(fmt, ##__VA_ARGS__); \
+#define VLK_LOG_IF(expr, ...)                \
+  do {                                       \
+    if ((expr)) ::spdlog::info(__VA_ARGS__); \
   } while (false)
 
-#define VLK_WARN(fmt, ...)              \
-  do {                                  \
-    ::spdlog::warn(fmt, ##__VA_ARGS__); \
+#define VLK_WARN(...)            \
+  do {                           \
+    ::spdlog::warn(__VA_ARGS__); \
   } while (false)
 
-#define VLK_WARN_IF(expr, fmt, ...)                 \
-  do {                                              \
-    if ((expr)) ::spdlog::warn(fmt, ##__VA_ARGS__); \
+#define VLK_WARN_IF(expr, ...)               \
+  do {                                       \
+    if ((expr)) ::spdlog::warn(__VA_ARGS__); \
   } while (false)
 
 namespace vlk {
