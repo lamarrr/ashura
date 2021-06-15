@@ -4,7 +4,6 @@
 #include <chrono>
 #include <cinttypes>
 #include <functional>
-#include <string>
 #include <string_view>
 
 #include "stx/option.h"
