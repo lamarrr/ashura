@@ -22,7 +22,7 @@ namespace ui {
 
 constexpr Extent flex_fit(Direction direction, Fit main_fit, Fit cross_fit,
                           Extent const &span, Extent const &allotted_extent) {
-  Extent result = {};
+  Extent result{};
 
   if (main_fit == Fit::Shrink) {
     if (direction == Direction::Row) {
