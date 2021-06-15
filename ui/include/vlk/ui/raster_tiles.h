@@ -1,10 +1,10 @@
 #pragma once
 
+#include <numeric>
 #include <vector>
 
 #include "include/core/SkSurface.h"
 #include "stx/span.h"
-
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/raster_cache.h"
 
