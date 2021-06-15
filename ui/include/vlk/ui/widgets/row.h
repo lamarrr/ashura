@@ -58,6 +58,9 @@ struct RowProps {
 
   constexpr Fit cross_fit() const { return cross_fit_; }
 
+  // TODO(lamarrr): constrain()
+  // clamp
+
  private:
   Wrap wrap_ = Wrap::Wrap;
   MainAlign main_align_ = MainAlign::Start;
@@ -108,7 +111,7 @@ struct Row : public Widget {
     Widget::update_self_extent(SelfExtent::relative(1.0f, 1.0f));
   }
 
-  virtual void draw(Canvas&, AssetManager&) override {
+  virtual void draw(Canvas&) override {
     // no-op
   }
 
