@@ -104,12 +104,12 @@ struct IRect {
     auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
     auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
-    IOffset offset = {};
+    IOffset offset {};
 
     offset.x = std::max(x1_min, x2_min);
     offset.y = std::max(y1_min, y2_min);
 
-    Extent extent = {};
+    Extent extent{};
     extent.width = static_cast<uint32_t>(std::min(x1_max, x2_max) - offset.x);
     extent.height = static_cast<uint32_t>(std::min(y1_max, y2_max) - offset.y);
 
@@ -175,12 +175,12 @@ struct Rect {
     auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
     auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
-    Offset offset = {};
+    Offset offset{};
 
     offset.x = std::max(x1_min, x2_min);
     offset.y = std::max(y1_min, y2_min);
 
-    Extent extent = {};
+    Extent extent{};
     extent.width = std::min(x1_max, x2_max) - offset.x;
     extent.height = std::min(y1_max, y2_max) - offset.y;
 
