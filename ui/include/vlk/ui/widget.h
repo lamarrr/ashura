@@ -40,34 +40,34 @@ enum class WidgetDirtiness : uint8_t {
   Children = 8
 };
 
-  struct StateProxy {
-    StateProxy()
-        : on_render_dirty{[] {}},
-          on_layout_dirty{[] {}},
-          on_view_offset_dirty{[] {}},
-          on_children_changed{[] {}} {}
+VLK_DEFINE_ENUM_BIT_OPS(WidgetDirtiness)
 
-    //! informs the system that the widget's render data has changed
-    std::function<void()> on_render_dirty;
+struct WidgetDebugInfo {
+  std::string_view name = "<unnamed>";
+  std::string_view type_hint = "<none>";
+};
 
-    //! informs the system that the widget's layout has changed
-    std::function<void()> on_layout_dirty;
+// binds to different parts of the the pipeline and its trees that we want to
+// abstract as much as possible. the callbacks also function to capture various
+// values.
+struct WidgetStateProxy {
+  //! informs the system that the widget's render data has changed
+  std::function<void()> on_render_dirty = [] {};
 
-    //! informs the system that a view-widgets's offset (or visible area)
-    //! has changed
-    std::function<void()> on_view_offset_dirty;
+  //! informs the system that the widget's layout has changed
+  std::function<void()> on_layout_dirty = [] {};
 
-    //! informs the system that the widget's children has changed (possibly
-    //! requiring a full rebuild of the pipeline)
-    std::function<void()> on_children_changed;
-  };
+  //! informs the system that a view-widgets's offset (or visible area)
+  //! has changed
+  std::function<void()> on_view_offset_dirty = [] {};
 
-  enum class Type : uint8_t {
-    //! occupies space and has render data
-    Render,
-    //! for view-based scrolling, has no render data
-    View
-  };
+  //! informs the system that the widget's children has changed (possibly
+  //! requiring a full rebuild of the pipeline)
+  std::function<void()> on_children_changed = [] {};
+
+  //! we need to be able to consult the tree for the widget's offset i.e. in the
+  //! scenario where we need to scroll to it
+};
 
   Widget(Type const &type = Type::Render, bool is_flex = false,
          SelfExtent const &self_extent = {}, bool const needs_trimming = false,
