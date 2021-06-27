@@ -148,8 +148,6 @@ void Box::update_props(BoxProps new_props) {
 }
 
 void Box::draw(Canvas &canvas) {
-  storage_.drawn_in_last_tick = true;
-
   SkCanvas &sk_canvas = canvas.to_skia();
 
   Extent const widget_extent = canvas.extent();
@@ -261,8 +259,8 @@ void Box::draw(Canvas &canvas) {
 }
 
 void Box::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
-  if (storage_.state == BoxState::BackgroundStale &&
-      storage_.drawn_in_last_tick && storage_.props.image_ref().is_some()) {
+  if (storage_.state == BoxState::BackgroundStale && !Widget::is_stale() &&
+      storage_.props.image_ref().is_some()) {
     impl::add_image_asset(asset_manager, storage_.props.image_ref().value())
         .match(
             [&](stx::NoneType) {
@@ -322,9 +320,7 @@ void Box::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
   // the image has been successfully loaded
   if (storage_.state == BoxState::BackgroundLoaded) {
     // image asset usage tracking
-    if (storage_.drawn_in_last_tick) {
-      storage_.asset_stale_ticks.reset();
-    } else {
+    if (Widget::is_stale()) {
       storage_.asset_stale_ticks++;
       // mark widget as dirty since the asset has been discarded after not
       // being used for long
@@ -333,6 +329,8 @@ void Box::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
         Widget::mark_render_dirty();
         storage_.state = BoxState::BackgroundStale;
       }
+    } else {
+      storage_.asset_stale_ticks.reset();
     }
   }
 
@@ -341,9 +339,6 @@ void Box::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
   if (storage_.state == BoxState::BackgroundLoadFailed) {
     // no-op
   }
-
-  // reset
-  storage_.drawn_in_last_tick = false;
 
   if (diff_ != impl::BoxDiff::None) {
     Widget::update_flex(storage_.props.flex());
