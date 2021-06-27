@@ -91,6 +91,7 @@ struct Pipeline {
     // `system_tick` method called unless its state proxies have been updated.
 
     WidgetSystemProxy::tick(widget, interval, asset_manager);
+    WidgetSystemProxy::mark_stale(widget);
 
     for (Widget* child : widget.get_children()) {
       // note that we only touch the latest updated pointers to the children,
