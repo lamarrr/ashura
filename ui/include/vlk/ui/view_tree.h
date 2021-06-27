@@ -182,12 +182,11 @@ struct ViewTree {
       subview.screen_offset =
           parent.screen_offset + subview.effective_parent_view_offset;
       // remember: views do not have render data so they will not invalidate
-      // any area of the cache
+      // any area of the tile cache
     }
 
     static void update_screen_offset_helper_(View::Entry &entry,
                                              View const &parent) {
-      // mark that the intersecting tiles are now dirty
       IOffset const new_screen_offset =
           parent.screen_offset + entry.effective_parent_view_offset;
 
