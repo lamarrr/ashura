@@ -94,9 +94,6 @@ struct RasterTiles {
   }
 
  private:
-  // future-TODO(lamarrr): implement pixel ratio usage and zooming, how to.
-  // should this stay here?
-
   Extent extent_;
 
   Extent tile_size_;
