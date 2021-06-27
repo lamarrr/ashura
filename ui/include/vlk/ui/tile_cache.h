@@ -60,13 +60,6 @@ constexpr auto get_tile_region(Extent const &tile_extent, int64_t const nrows,
 // need to be able to render the effects independent of the widget, we'll
 // thus need bindings for them
 
-//! Invalidation sources:
-//!   - Viewport scroll
-//!   - Viewport resize (TODO(lamarrr): shouldn't extent only change when layout
-//!   tree becomes dirty? since tile cache depends on the extent of the layout
-//!   tree and not viewport)
-//!   - Layout tree invalidation
-//!   - View tree view_offset and screen_offset invalidation
 struct TileCache {
   // both raster and view widgets are added here. when a view widget's offset
   // are dirty, it marks its spanning raster tiles as dirty
