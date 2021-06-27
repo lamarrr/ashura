@@ -125,6 +125,7 @@ struct MemoryImageLoader : public AssetLoader {
 
 }  // namespace impl
 
+// TODO(lamarrr): target size optional
 struct FileImageSource {
   FileImageSource(std::filesystem::path path,
                   stx::Option<ImageFormat> target_format = stx::None) {
