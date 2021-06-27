@@ -122,6 +122,7 @@ struct RasterCache {
     VLK_ENSURE(is_surface_init());
     SkCanvas* canvas = surface_->getCanvas();
     canvas->drawPicture(picture_);
+    // GPU-CPU synchronization is not performed
     surface_->flushAndSubmit(false);
   }
 
