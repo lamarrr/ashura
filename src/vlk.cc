@@ -726,8 +726,9 @@ struct [[nodiscard]] Application {
   // load_vertex_index_data
   void load_images_() {
     data::Image images[] = {
-        data::Image::load(desc::Image{"/home/lamar/Desktop/wraith.jpg",
-                                          desc::Image::Format::RGBA, true})
+        data::Image::load(
+            desc::Image{"/home/lamar/Pictures/E0U2xTYVcAE1-gl.jpeg",
+                        desc::Image::Format::RGBA, true})
             .expect("Unable to load image")};
     auto images_size = 0;
 
