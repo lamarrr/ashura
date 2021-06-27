@@ -30,6 +30,13 @@ execute_process(
   COMMAND git clone -b release-2.0.14 https://github.com/libsdl-org/SDL.git
           third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
+# TODO(lamarrr): use a tagged version with CMakeLists.txt
+execute_process(
+  COMMAND
+    git clone -b master
+    https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+    third_party/VulkanMemoryAllocator
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 # TODO(lamarrr): check if skia binaries and header folder doesn't exists and
 # pull in
