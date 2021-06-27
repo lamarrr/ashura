@@ -129,7 +129,6 @@ VLK_DEFINE_ENUM_BIT_OPS(ImageDiff)
 struct ImageStorage {
   ImageProps props;
   ImageState state = ImageState::Stale;
-  bool drawn_in_last_tick = false;
   Ticks asset_stale_ticks = Ticks{0};
   stx::Option<std::shared_ptr<ImageAsset const>> asset = stx::None;
 };
