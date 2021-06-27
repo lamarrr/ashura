@@ -31,13 +31,13 @@ inline std::string format_bytes_unit(uint64_t bytes) {
   static constexpr uint64_t tb_bytes = gb_bytes * 1000UL;
 
   if (bytes >= (tb_bytes / 10)) {
-    return fmt::format("{} TeraBytes", bytes / static_cast<float>(tb_bytes));
+    return fmt::format("{:.2f} TeraBytes", bytes / static_cast<float>(tb_bytes));
   } else if (bytes >= (gb_bytes / 10)) {
-    return fmt::format("{} GigaBytes", bytes / static_cast<float>(gb_bytes));
+    return fmt::format("{:.2f} GigaBytes", bytes / static_cast<float>(gb_bytes));
   } else if (bytes >= (mb_bytes / 10)) {
-    return fmt::format("{} MegaBytes", bytes / static_cast<float>(mb_bytes));
+    return fmt::format("{:.2f} MegaBytes", bytes / static_cast<float>(mb_bytes));
   } else if (bytes >= (kb_bytes / 10)) {
-    return fmt::format("{} KiloBytes", bytes / static_cast<float>(kb_bytes));
+    return fmt::format("{:.2f} KiloBytes", bytes / static_cast<float>(kb_bytes));
   } else {
     return fmt::format("{} Bytes", bytes);
   }
