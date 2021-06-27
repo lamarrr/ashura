@@ -57,10 +57,20 @@
     ::spdlog::warn(__VA_ARGS__); \
   } while (false)
 
+#define VLK_ERR(...)              \
+  do {                            \
+    ::spdlog::error(__VA_ARGS__); \
+  } while (false)
+
 #define VLK_WARN_IF(expr, ...)               \
   do {                                       \
     if ((expr)) ::spdlog::warn(__VA_ARGS__); \
   } while (false)
+
+// TODO(lamarrr): rename
+#define VLK_ERRNUM_CASE(x) \
+  case x:                  \
+    return #x;
 
 namespace vlk {
 
