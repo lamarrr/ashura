@@ -2,6 +2,7 @@ add_library(
   vlk_ui
   src/canvas.cc
   src/widget.cc
+  src/vulkan.cc
   # asset systems
   src/image_asset.cc
   src/font.cc
@@ -16,7 +17,16 @@ target_include_directories(
   PUBLIC include
   PRIVATE src)
 
-target_link_libraries(vlk_ui stx vlk_utils vlk_external_skia fmt::fmt)
+target_link_libraries(
+  vlk_ui
+  stx
+  vlk_utils
+  VulkanMemoryAllocator
+  vlk_external_skia
+  vlk_external_stb
+  SDL2-static
+  fmt::fmt
+  ${Vulkan_LIBRARIES})
 
 target_compile_definitions(vlk_ui PUBLIC SK_VULKAN)
 
