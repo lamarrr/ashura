@@ -10,15 +10,12 @@
 #include "include/gpu/GrDirectContext.h"
 #include "include/gpu/vk/GrVkBackendContext.h"
 #include "include/gpu/vk/GrVkExtensions.h"
-
 #include "stx/option.h"
 #include "stx/result.h"
-
 #include "vulkan/vulkan.h"
 
 #define GLFW_INCLUDE_NONE
 #include "GLFW/glfw3.h"
-
 #include "vlk/config.h"
 #include "vlk/gl.h"
 #include "vlk/gl_debug.h"
@@ -32,7 +29,6 @@
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 #include "glm/mat4x4.hpp"
-
 #include "vlk/allocators.h"
 #include "vlk/assets/image.h"
 #include "vlk/timer.h"
