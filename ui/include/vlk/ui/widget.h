@@ -72,9 +72,6 @@ struct WidgetStateProxy {
 // one is not tracked, the widget only tracks the latest one
 //
 //
-// TODO(lamarrr): visibility
-//
-//
 // do we maintain a separate layout tree for them? or still reside on the main
 // layout tree Positioning{Normal, Viewport}
 //
@@ -143,6 +140,8 @@ struct Widget {
   WidgetDebugInfo get_debug_info() const { return debug_info_; }
 
   WidgetDirtiness get_dirtiness() const { return dirtiness_; }
+
+  bool is_stale() const { return is_stale_; }
 
   //! create draw commands
   //! NOTE: states, variables, or properties that could affect rendering must
@@ -328,8 +327,10 @@ struct Widget {
   //! modified and used for communication of updates to the system
   WidgetStateProxy state_proxy_;
 
-  // TODO(lamarrr): bool in_view_ = false;
-  // is_active
+  //! updated by the widget system to inform the user that the widget is
+  //! presently in use for rendering. i.e. informing the widget that it
+  //! shouldn't discard its asset or rendering data
+  bool is_stale_ = true;
 };
 
 std::string format(Widget const &widget);
@@ -344,6 +345,10 @@ struct WidgetSystemProxy {
   static WidgetStateProxy &get_state_proxy(Widget &widget) {
     return widget.state_proxy_;
   }
+
+  static void mark_stale(Widget &widget) { widget.is_stale_ = true; }
+
+  static void mark_non_stale(Widget &widget) { widget.is_stale_ = false; }
 };
 
 }  // namespace ui

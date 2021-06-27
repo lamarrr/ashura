@@ -105,10 +105,7 @@ void Image::update_props(ImageProps props) {
 
   diff_ |= impl::image_props_diff(storage_.props, props);
 
-  bool const previously_drawn = storage_.drawn_in_last_tick;
-
-  storage_ =
-      impl::ImageStorage{std::move(props), ImageState::Stale, previously_drawn};
+  storage_ = impl::ImageStorage{std::move(props), ImageState::Stale};
 }
 // TODO(lamarrr): once the asset is discarded, the tick calls marK_render_dirty
 // which then triggers another draw call, we should wait for another draw call
@@ -135,8 +132,6 @@ void Image::update_props(ImageProps props) {
 //
 
 void Image::draw(Canvas &canvas) {
-  storage_.drawn_in_last_tick = true;
-
   SkCanvas &sk_canvas = canvas.to_skia();
 
   // extent has already been taken care of
@@ -204,7 +199,7 @@ void Image::draw(Canvas &canvas) {
 }
 
 void Image::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
-  if (storage_.state == ImageState::Stale && storage_.drawn_in_last_tick) {
+  if (storage_.state == ImageState::Stale && !Widget::is_stale()) {
     impl::add_image_asset(asset_manager, storage_.props.source_ref())
         .match([&](stx::NoneType) { storage_.state = ImageState::Loading; },
                [&](AssetError error) {
@@ -273,9 +268,7 @@ void Image::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
   // image has been established
   if (storage_.state == ImageState::Loaded) {
     // image asset usage tracking
-    if (storage_.drawn_in_last_tick) {
-      storage_.asset_stale_ticks.reset();
-    } else {
+    if (Widget::is_stale()) {
       storage_.asset_stale_ticks++;
       // mark widget as dirty since the asset has been discarded after not
       // being used for long
@@ -284,6 +277,8 @@ void Image::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
         Widget::mark_render_dirty();
         storage_.state = ImageState::Stale;
       }
+    } else {
+      storage_.asset_stale_ticks.reset();
     }
   }
 
@@ -292,9 +287,6 @@ void Image::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
   if (storage_.state == ImageState::LoadFailed) {
     // no-op
   }
-
-  // reset
-  storage_.drawn_in_last_tick = false;
 
   if (diff_ != impl::ImageDiff::None) {
     WidgetDirtiness dirtiness = impl::map_diff(diff_);
