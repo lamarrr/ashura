@@ -125,6 +125,8 @@ add_subdirectory(third_party/spdlog)
 add_subdirectory(third_party/glm)
 add_subdirectory(third_party/googletest)
 add_subdirectory(third_party/fmt)
+add_subdirectory(third_party/VulkanMemoryAllocator)
+add_subdirectory(third_party/SDL)
 
 add_library(vlk_external_stb INTERFACE)
 target_include_directories(vlk_external_stb
@@ -138,6 +140,7 @@ target_include_directories(vlk_external_skia
 target_link_libraries(vlk_external_skia ${VLK_EXTERNAL_SKIA_LIBRARIES}
                       ${Fontconfig_LIBRARIES})
 
+# TODO(lamarrr): automate this
 target_compile_definitions(
   vlk_external_skia
   PUBLIC SK_ENABLE_SPIRV_VALIDATION
