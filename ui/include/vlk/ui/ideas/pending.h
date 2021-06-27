@@ -283,3 +283,72 @@ if (flex.main_align != MainAlign::Start) {
       VLK_ENSURE(root_node.self_extent.height < u32_max,
                  "root widget has infinite resolved self height",
                  *root_node.widget);
+
+
+/*
+inline SkColorType win_surface__to_skia(VkFormat format) {
+  switch (format) {
+    case VK_FORMAT_R8G8B8A8_SRGB:
+    case VK_FORMAT_R8G8B8A8_UINT:
+    case VK_FORMAT_R8G8B8A8_UNORM:
+    case VK_FORMAT_B8G8R8A8_SRGB:
+    case VK_FORMAT_B8G8R8A8_UINT:
+    case VK_FORMAT_B8G8R8A8_UNORM:
+      return kRGBA_8888_SkColorType;
+
+    default:
+      VLK_PANIC("Unsupported VkFormat", format);
+  }
+}
+
+inline sk_sp<SkColorSpace> win_surface__to_skia(VkColorSpaceKHR color_space) {
+  switch (color_space) {
+    case VK_COLORSPACE_SRGB_NONLINEAR_KHR:
+      return SkColorSpace::MakeSRGB();
+    default:
+      VLK_PANIC("Unsupported VkColorSpaceKHR");
+  }
+}
+*/
+
+/*
+// i.e. disable mouse acceleration if supported
+  Raw mouse motion is closer to the actual motion of the mouse across a surface.
+It is not affected by the scaling and acceleration applied to the motion of the
+desktop cursor. That processing is suitable for a cursor while raw motion is
+better for controlling for example a 3D camera. Because of this, raw mouse
+motion is only provided when the cursor is disabled.
+
+Call glfwRawMouseMotionSupported to check if the current machine provides raw
+motion and set the GLFW_RAW_MOUSE_MOTION input mode to enable it. It is disabled
+by default.
+
+if (glfwRawMouseMotionSupported())
+    glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+If supported, raw mouse motion can be enabled or disabled per-window and at any
+time but it will only be provided when the cursor is disabled.
+*/
+
+// if previous mouse event was a click without modifieirs and the present
+  // one is also a click without modifiers within a fixed time interval, then
+  // we consider it a double click
+  //
+  //
+  // how do we merge across refresh?
+  //
+  //
+  //
+  // TODO(lamarrr):
+  //    - proper double click support
+  //    - order of processing or dispatching events
+
+  // static constexpr std::chrono::milliseconds double_click_timeout =
+  //    std::chrono::milliseconds{250};
+ // interleaved?
+  // std::chrono::steady_clock::time_point last_mouse_double_click_start;
+  // events processed at refresh rate.
+
+  
+
+  // TODO(lamarrr): report int for unknown error enum
+
