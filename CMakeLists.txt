@@ -24,8 +24,8 @@ execute_process(
   COMMAND git clone -b release-1.10.0 https://github.com/google/googletest.git
           third_party/googletest WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 execute_process(
-  COMMAND git clone -b 7.1.3 https://github.com/fmtlib/fmt.git
-          third_party/fmt WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+  COMMAND git clone -b 7.1.3 https://github.com/fmtlib/fmt.git third_party/fmt
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 # TODO(lamarrr): check if skia binaries and header folder doesn't exists and
 # pull in
