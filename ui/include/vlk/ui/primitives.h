@@ -8,9 +8,39 @@
 #include "vlk/utils/utils.h"
 
 namespace vlk {
-namespace ui {
 
 using ZIndex = int64_t;
+
+constexpr bool fits_u32(int64_t value) {
+  return value <= u32_max && value >= 0;
+}
+
+constexpr bool fits_u32(int32_t value) { return value >= 0; }
+
+constexpr bool fits_i32(int64_t value) {
+  return value <= i32_max && value >= i32_min;
+}
+
+constexpr bool fits_i32(uint32_t value) {
+  return value <= static_cast<uint32_t>(i32_max);
+}
+
+// TODO(lamarrr): implement
+constexpr uint32_t u32_clamp(int64_t value) {
+  return static_cast<uint32_t>(std::clamp<int64_t>(value, 0, u32_max));
+}
+
+constexpr uint32_t u32_clamp(int32_t value) {
+  return static_cast<uint32_t>(std::clamp<int32_t>(value, 0, i32_max));
+}
+
+constexpr int32_t i32_clamp(int64_t value) {
+  return static_cast<int32_t>(std::clamp<int64_t>(value, i32_min, i32_max));
+}
+
+constexpr int32_t i32_clamp(uint32_t value) {
+  return static_cast<int32_t>(std::clamp<uint32_t>(value, 0, i32_max));
+}
 
 struct IOffset {
   int64_t x = 0;
@@ -33,6 +63,14 @@ inline constexpr bool operator!=(IOffset const &a, IOffset const &b) {
   return !(a == b);
 }
 
+constexpr bool fits_u32(IOffset const &offset) {
+  return fits_u32(offset.x) && fits_u32(offset.y);
+}
+
+constexpr bool fits_i32(IOffset const &offset) {
+  return fits_i32(offset.x) && fits_i32(offset.y);
+}
+
 struct Offset {
   uint32_t x = 0;
   uint32_t y = 0;
@@ -50,6 +88,14 @@ inline constexpr bool operator==(Offset const &a, Offset const &b) {
 
 inline constexpr bool operator!=(Offset const &a, Offset const &b) {
   return !(a == b);
+}
+
+constexpr bool fits_i32(Offset const &offset) {
+  return fits_i32(offset.x) && fits_i32(offset.y);
+}
+
+constexpr std::pair<int32_t> i32_clamp(Offset const &offset) {
+  return std::make_pair(i32_clamp(offset.x), i32_clamp(offset.y));
 }
 
 struct Extent {
@@ -73,6 +119,14 @@ inline constexpr bool operator==(Extent const &a, Extent const &b) {
 
 inline constexpr bool operator!=(Extent const &a, Extent const &b) {
   return !(a == b);
+}
+
+constexpr bool fits_i32(Extent const &extent) {
+  return fits_i32(extent.width) && fits_i32(extent.height);
+}
+
+constexpr std::pair<int32_t> i32_clamp(Extent const &extent) {
+  return std::make_pair(i32_clamp(extent.width), i32_clamp(extent.height));
 }
 
 struct IRect {
@@ -105,7 +159,7 @@ struct IRect {
     auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
     auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
-    IOffset offset {};
+    IOffset offset{};
 
     offset.x = std::max(x1_min, x2_min);
     offset.y = std::max(y1_min, y2_min);
@@ -176,12 +230,12 @@ struct Rect {
     auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
     auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
-    Offset offset{};
+    Offset offset;
 
     offset.x = std::max(x1_min, x2_min);
     offset.y = std::max(y1_min, y2_min);
 
-    Extent extent{};
+    Extent extent;
     extent.width = std::min(x1_max, x2_max) - offset.x;
     extent.height = std::min(y1_max, y2_max) - offset.y;
 
@@ -446,5 +500,4 @@ constexpr Extent aspect_ratio_trim(Extent aspect_ratio, Extent extent) {
   return Extent{width, height};
 }
 
-}  // namespace ui
 }  // namespace vlk

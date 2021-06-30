@@ -1,7 +1,9 @@
 #pragma once
 
 #include <fstream>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "include/core/SkCanvas.h"
 #include "include/core/SkImage.h"

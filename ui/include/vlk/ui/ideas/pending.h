@@ -338,7 +338,6 @@ time but it will only be provided when the cursor is disabled.
   //
   //
   //
-  // TODO(lamarrr):
   //    - proper double click support
   //    - order of processing or dispatching events
 
@@ -350,5 +349,182 @@ time but it will only be provided when the cursor is disabled.
 
   
 
-  // TODO(lamarrr): report int for unknown error enum
+    glfwSetWindowSizeCallback(handle->window, Window::resize_callback);
+    glfwSetFramebufferSizeCallback(handle->window,
+                                   Window::surface_resize_callback);
 
+    // glfwGetWindowMonitor
+    // we might need to handle disconnection/connection of monitors
+    GLFWmonitor* primary_monitor = glfwGetPrimaryMonitor();
+    VLK_ENSURE(primary_monitor != nullptr, "No monitors found");
+    GLFWvidmode const* primary_monitor_video_mode =
+        glfwGetVideoMode(primary_monitor);
+    VLK_ENSURE(primary_monitor_video_mode != nullptr,
+               "Unable to get monitor video mode");
+
+    // makes the window into windowed mode if primary_monitor is not null
+    // otherwise into non-windowed mode
+    // setting should otherwise only be used during monitor setting
+    glfwSetWindowMonitor(window, primary_monitor, 0, 0, 1920, 1080,
+                         primary_monitor_video_mode->refreshRate);
+
+    // might need to be updated
+    VLK_LOG("Monitor is at {}hz", primary_monitor_video_mode->refreshRate);
+
+    handle->cfg = cfg;
+
+    WindowSurface surface;
+    surface.handle =
+        std::shared_ptr<WindowSurfaceHandle>(new WindowSurfaceHandle{});
+    surface.handle->instance = instance;
+
+    // creates and binds the window surface (back buffer, render target
+    // surface) to the glfw window
+    VLK_MUST_SUCCEED(
+        glfwCreateWindowSurface(instance.handle->instance, handle->window,
+                                nullptr, &surface.handle->surface),
+        "Unable to Create Window Surface");
+
+    handle->surface = std::move(surface);
+
+    return stx::Some(Window{std::move(handle)});
+  }
+
+  void publish_events() {
+    for (InputPawn* pawn : handle->input_pawns) {
+      InputPawnSystemProxy::system_tick(*pawn, handle->event_queue.mouse_events,
+                                        handle->event_queue.keyboard_events);
+    }
+  }
+
+  static void resize_callback(GLFWwindow* window, int width, int height) {
+    auto handle = static_cast<WindowHandle*>(glfwGetWindowUserPointer(window));
+    handle->resize(
+        Extent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)});
+  }
+
+  static void surface_resize_callback(GLFWwindow* window, int width,
+                                      int height) {
+    auto handle = static_cast<WindowHandle*>(glfwGetWindowUserPointer(window));
+    handle->resize_surface(
+        Extent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)});
+  }
+
+  static void cursor_position_callback(GLFWwindow* window, double x, double y) {
+    // measured in screen coordinates
+  }
+
+  static void mouse_button_callback(GLFWwindow* window, int button, int action,
+                                    int modifier) {
+    auto handle = static_cast<WindowHandle*>(glfwGetWindowUserPointer(window));
+
+    MouseEvent event;
+
+    switch (button) {
+      case GLFW_MOUSE_BUTTON_LEFT:
+        event.button = MouseButton::Primary;
+        break;
+      case GLFW_MOUSE_BUTTON_RIGHT:
+        event.button = MouseButton::Secondary;
+        break;
+      case GLFW_MOUSE_BUTTON_MIDDLE:
+        event.button = MouseButton::Middle;
+        break;
+      case GLFW_MOUSE_BUTTON_4:
+        event.button = MouseButton::A1;
+        break;
+      case GLFW_MOUSE_BUTTON_5:
+        event.button = MouseButton::A2;
+        break;
+      case GLFW_MOUSE_BUTTON_6:
+        event.button = MouseButton::A3;
+        break;
+      case GLFW_MOUSE_BUTTON_7:
+        event.button = MouseButton::A4;
+        break;
+      case GLFW_MOUSE_BUTTON_8:
+        event.button = MouseButton::A5;
+        break;
+      default:
+        VLK_PANIC("Unimplemented mouse button", static_cast<int>(button));
+    }
+
+    switch (action) {
+      case GLFW_PRESS:
+        event.action = MouseAction::Press;
+        break;
+      case GLFW_RELEASE:
+        event.action = MouseAction::Release;
+        break;
+      default:
+        VLK_PANIC("Unimplemented mouse action", static_cast<int>(action));
+    }
+
+    if (modifier & GLFW_MOD_SHIFT) {
+      event.modifiers |= MouseModifier::Shift;
+    }
+
+    if (modifier & GLFW_MOD_CONTROL) {
+      event.modifiers |= MouseModifier::Ctrl;
+    }
+
+    if (modifier & GLFW_MOD_ALT) {
+      event.modifiers |= MouseModifier::Alt;
+    }
+
+    if (modifier & GLFW_MOD_SUPER) {
+      event.modifiers |= MouseModifier::Super;
+    }
+
+    if (modifier & GLFW_MOD_CAPS_LOCK) {
+      event.modifiers |= MouseModifier::CapsLock;
+    }
+
+    if (modifier & GLFW_MOD_NUM_LOCK) {
+      event.modifiers |= MouseModifier::NumLock;
+    }
+
+    handle->event_queue.add_raw(event);
+  }
+
+  static void scroll_callback(GLFWwindow* window, double x, double y) {}
+
+  bool should_close() const { }
+
+  void request_close() const {  }
+
+  void request_attention() const {  }
+
+ private:
+
+
+ #pragma once
+
+#include "stx/span.h"
+#include "vlk/ui/event.h"
+
+namespace vlk {
+namespace ui {
+
+struct EventPawn {
+  friend struct EventPawnSystemProxy;
+
+  virtual void tick(stx::Span<MouseButtonEvent const> mouse_button_events) {
+    (void)mouse_button_events;
+  }
+
+ private:
+  void system_tick(stx::Span<MouseButtonEvent const> mouse_button_events) {
+    tick(mouse_button_events);
+  }
+};
+
+struct EventPawnSystemProxy {
+  static void system_tick(
+      EventPawn& pawn, stx::Span<MouseButtonEvent const> mouse_button_events) {
+    pawn.system_tick(mouse_button_events);
+  }
+};
+
+}  // namespace ui
+}  // namespace vlk

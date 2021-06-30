@@ -173,10 +173,6 @@ struct ViewTree {
       }
     }
 
-    // TODO(lamarrr): screen offset calculations are incorrect and need to be
-    // fixed, it's parent view offset should be the accumulation of its parent
-    // view offset from its parent to itself
-
     static void update_screen_offset_helper_(View &subview,
                                              View const &parent) {
       subview.screen_offset =
@@ -216,7 +212,7 @@ struct ViewTree {
 
       if (entry.screen_offset != new_screen_offset) {
         // call the callback so the tile cache is aware that its entries are
-        // now dirty
+        // now dirty, both before and after changing position
         if (previous_clip_rect.visible()) {
           entry.layout_node->widget->mark_render_dirty();
         }
@@ -312,11 +308,7 @@ struct ViewTree {
 
   ViewTree() = default;
 
-  ViewTree(ViewTree const &) = delete;
-  ViewTree(ViewTree &&) = delete;
-
-  ViewTree &operator=(ViewTree const &) = delete;
-  ViewTree &operator=(ViewTree &&) = delete;
+  VLK_MAKE_PINNED(ViewTree)
 
   ~ViewTree() = default;
 

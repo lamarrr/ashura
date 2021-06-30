@@ -1,0 +1,7 @@
+
+
+struct Clipboard{
+
+// utf8
+
+};

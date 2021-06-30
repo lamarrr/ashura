@@ -17,13 +17,11 @@
 #include "vlk/utils/utils.h"
 #include "vulkan/vulkan.h"
 
-#define GLFW_INCLUDE_NONE
-#include "GLFW/glfw3.h"
-
 namespace vlk {
+namespace vk {
 
 template <typename T>
-static auto join_copy(stx::Span<T> a, stx::Span<T> b) {
+inline auto join_copy(stx::Span<T> a, stx::Span<T> b) {
   std::vector<std::remove_const_t<T>> x;
   x.reserve(a.size() + b.size());
 
@@ -876,7 +874,6 @@ make_pipeline_rasterization_create_info(VkFrontFace front_face,
                                                  // image that isn't facing us
   create_info.frontFace = front_face;
 
-  // TODO(lamarrr): abstract?
   create_info.depthBiasEnable = VK_FALSE;
   create_info.depthBiasConstantFactor = 0.0f;  // mostly used for shadow mapping
   create_info.depthBiasClamp = 0.0f;
@@ -1587,8 +1584,8 @@ constexpr VkImageMemoryBarrier make_image_memory_barrier(
   barrier.subresourceRange.baseArrayLayer = 0;
   barrier.subresourceRange.layerCount = 1;
 
-  barrier.srcAccessMask = src_access_flags;  // TODO(lamarrr)
-  barrier.dstAccessMask = dst_access_flags;  // TODO(lamarrr)
+  barrier.srcAccessMask = src_access_flags;
+  barrier.dstAccessMask = dst_access_flags;
 
   return barrier;
 }
@@ -2074,12 +2071,11 @@ constexpr std::string_view format(VkFormat format) {
     VLK_ERRNUM_CASE(VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG)
     VLK_ERRNUM_CASE(VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG)
     default:
-      return "Unidentified Enum";
+      return "Unidentified Format Enum";
   }
 }
 
-STX_FORCE_INLINE constexpr std::string_view format(
-    VkResult error, char const* alt = "Unidentified Error Enum") noexcept {
+constexpr std::string_view format(VkResult error) noexcept {
   switch (error) {
     VLK_ERRNUM_CASE(VK_SUCCESS)
     VLK_ERRNUM_CASE(VK_NOT_READY)
@@ -2147,22 +2143,60 @@ STX_FORCE_INLINE constexpr std::string_view format(
     VLK_ERRNUM_CASE(VK_RESULT_MAX_ENUM)
 
     default:
-      return alt;
+      return "Unidentified Error Enum";
   }
 }
+
+constexpr std::string_view format(VkPhysicalDeviceType type) {
+  switch (type) {
+    case VK_PHYSICAL_DEVICE_TYPE_CPU:
+      return "CPU";
+    case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+      return "dGPU";
+    case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+      return "iGPU";
+    case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+      return "vGPU";
+    case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+      return "other";
+    default:
+      return "unidentified device type";
+  }
+}
+
+constexpr std::string_view format(VkColorSpaceKHR color_space) {
+  switch (color_space) {
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_DCI_P3_LINEAR_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_BT709_LINEAR_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_BT709_NONLINEAR_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_BT2020_LINEAR_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_HDR10_ST2084_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_DOLBYVISION_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_HDR10_HLG_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_PASS_THROUGH_EXT)
+    VLK_ERRNUM_CASE(VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT)
+    default:
+      return "unidentified color space";
+  }
+}
+
+}  // namespace vk
 }  // namespace vlk
 
 // TODO(lamarrr): must return a span of any type. would be converted to bytes
 // and sent
 STX_FORCE_INLINE stx::SpanReport operator>>(stx::ReportQuery,
                                             VkResult const& result) noexcept {
-  return stx::SpanReport(vlk::format(result));
+  return stx::SpanReport(vlk::vk::format(result));
 }
 
 STX_FORCE_INLINE stx::SpanReport operator>>(stx::ReportQuery,
                                             VkFormat const& format) noexcept {
-  return stx::SpanReport(vlk::format(format));
+  return stx::SpanReport(vlk::vk::format(format));
 }
-
-// TODO(lamarrr): Go through the tutorial and comment into this code any
-// subtlety/important points

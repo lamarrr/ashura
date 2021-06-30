@@ -55,9 +55,9 @@ constexpr auto get_tile_region(Extent const &tile_extent, int64_t const nrows,
   return std::make_tuple(i_begin_c, i_end_c, j_begin_c, j_end_c);
 }
 
-// consider making the parent inject the effects and add them to an effect
-// tree, with all of the widgets having individual effects as a result we
-// need to be able to render the effects independent of the widget, we'll
+// TODO(lamarrr): consider making the parent inject the effects and add them to
+// an effect tree, with all of the widgets having individual effects as a result
+// we need to be able to render the effects independent of the widget, we'll
 // thus need bindings for them
 
 struct TileCache {
@@ -150,11 +150,7 @@ struct TileCache {
 
   TileCache() = default;
 
-  TileCache(TileCache const &) = delete;
-  TileCache(TileCache &&) = delete;
-
-  TileCache &operator=(TileCache const &) = delete;
-  TileCache &operator=(TileCache &&) = delete;
+  VLK_MAKE_PINNED(TileCache)
 
   ~TileCache() = default;
 
@@ -167,7 +163,7 @@ struct TileCache {
   RenderContext const *context = nullptr;
 
   // entries are sorted in descending z-index order
-  std::vector<Entry> entries{};
+  std::vector<Entry> entries;
 
   IOffset backing_store_offset = IOffset{0, 0};
   bool backing_store_offset_changed = true;
@@ -182,13 +178,11 @@ struct TileCache {
   RasterTiles tiles{Extent{0, 0}, tile_extent};
   bool tiles_extent_dirty = true;
 
-  bool any_tile_dirty = true;
+  std::vector<bool> tile_is_dirty;
 
-  std::vector<bool> tile_is_dirty{};
+  std::vector<bool> tile_is_in_focus;
 
-  std::vector<bool> tile_is_in_focus{};
-
-  std::vector<Ticks> tile_oof_ticks{};
+  std::vector<Ticks> tile_oof_ticks;
 
   ViewTree::View *root_view = nullptr;
 
@@ -207,7 +201,9 @@ struct TileCache {
 
   void resize_backing_store(Extent new_extent) {
     if (backing_store_extent != new_extent) {
-      backing_store_extent = new_extent;
+      // we just use the same extent if the incoming extent is zero
+      backing_store_extent =
+          new_extent.visible() ? new_extent : backing_store_extent;
       backing_store_resized = true;
     }
   }
@@ -215,7 +211,6 @@ struct TileCache {
   void mark_tiles_extent_dirty() { tiles_extent_dirty = true; }
 
   void mark_all_tiles_dirty() {
-    any_tile_dirty = true;
     for (size_t i = 0; i < tile_is_dirty.size(); i++) {
       tile_is_dirty[i] = true;
     }
@@ -258,8 +253,7 @@ struct TileCache {
             for (int64_t j = j_begin; j < j_end; j++) {
               for (int64_t i = i_begin; i < i_end; i++) {
                 // this is here because it should only mark as dirty when at
-                // least one of the actual tiles is dirty
-                any_tile_dirty = true;
+                // least one of the actual intersecting tiles is dirty
                 tile_is_dirty[j * nrows + i] = true;
               }
             }
@@ -267,11 +261,9 @@ struct TileCache {
     }
   }
 
-  // TODO(lamarrr): raster_context shared_ptr?, even internally? ....
-  //
   void build(ViewTree::View &view_tree_root,
-             RenderContext const &raster_context) {
-    context = &raster_context;
+             RenderContext const &render_context) {
+    context = &render_context;
 
     entries.clear();
 
@@ -292,9 +284,6 @@ struct TileCache {
     // viewport
 
     tiles_extent_dirty = true;
-
-    // any_tile_dirty maintained, will be updated in tick() to true
-    // [tiles_extent_dirty]
 
     // tile_is_dirty maintained, will be resized and updated in tick() to all
     // true [tiles_extent_dirty]
@@ -339,8 +328,6 @@ struct TileCache {
       tile_is_in_focus.resize(num_tiles);
       tile_oof_ticks.resize(num_tiles);
 
-      any_tile_dirty = true;
-
       for (size_t i = 0; i < num_tiles; i++) {
         tile_is_dirty[i] = true;
         tile_is_in_focus[i] = false;
@@ -358,8 +345,9 @@ struct TileCache {
       for (uint32_t i = 0; i < tiles.rows(); i++) {
         IOffset const offset{i * tiles.tile_extent().width,
                              j * tiles.tile_extent().height};
+        IRect const tile_rect = IRect{offset, tiles.tile_extent()};
         tile_is_in_focus[j * tiles.rows() + i] =
-            IRect{offset, tiles.tile_extent()}.overlaps(backing_store_rect);
+            tile_rect.overlaps(backing_store_rect);
       }
     }
 
@@ -368,9 +356,20 @@ struct TileCache {
     for (size_t i = 0; i < tiles.get_tiles().size(); i++) {
       RasterCache &subtile = tiles.get_tiles()[i];
 
-      if (tile_is_in_focus[i] && !subtile.is_surface_init()) {
-        // prepare for rasterization
+      if (tile_is_in_focus[i]) {
+        tile_oof_ticks[i].reset();
+      } else {
+        tile_oof_ticks[i]++;
+      }
+
+      if (tile_oof_ticks[i] <= max_oof_ticks && !subtile.is_surface_init()) {
+        // add rasterization surface if not present
         subtile.init_surface(*context);
+      }
+
+      if (tile_oof_ticks[i] > max_oof_ticks) {
+        subtile.deinit_surface();
+        subtile.discard_recording();
       }
 
       if (tile_is_in_focus[i] && tile_is_dirty[i]) {
@@ -378,88 +377,54 @@ struct TileCache {
         backing_store_dirty = true;
       }
 
-      if (tile_is_in_focus[i]) {
-        tile_oof_ticks[i].reset();
-      } else {
-        tile_oof_ticks[i]++;
-      }
-
-      if (!tile_is_in_focus[i] && tile_oof_ticks[i] > max_oof_ticks) {
-        // recording is always kept and not discarded
-        // but we need to detach the surface it owns to save memory as we'll
-        // have multiple of these tiles in memory and their total number would
-        // be proportional to the total extent of the root widget
-        // TODO(lamarrr): can we have a stack of surfaces we can pop and attach
-        // to? allocating these tiles can be costly, BENCHMARK.
-        // consider scroll swapping instead of allocating and de-allocating.
-        // i.e. tile surface stack. we might need to re-allocate when the
-        // viewport zoom occurs?
-        // the stack will always have enough tile surfaces for the tiles covered
-        // by the viewport
-        subtile.deinit_surface();
-        // discard recording
-      }
-
-      if (any_tile_dirty) {
-        if (tile_is_dirty[i]) {  // && tile_is_in_focus[i], we'll still need to
-                                 // take care of any_tile_dirty and our
-                                 // dirtiness handling criteria since it is now
-                                 // not attended to immediately
-          subtile.discard_recording();
-          subtile.begin_recording();
-        }
+      if (tile_is_dirty[i] && tile_oof_ticks[i] <= max_oof_ticks) {
+        subtile.discard_recording();
+        subtile.begin_recording();
       }
     }
 
-    // recordings are updated even when not in view
-    if (any_tile_dirty) {
-      for (Entry &entry : entries) {
-        int64_t const nrows = this->tiles.rows();
-        auto const [i_begin, i_end, j_begin, j_end] = get_tile_region(
-            this->tiles.tile_extent(), nrows, this->tiles.columns(),
-            IRect{*entry.screen_offset, *entry.extent});
+    for (Entry &entry : entries) {
+      int64_t const nrows = this->tiles.rows();
+      IRect const entry_area = IRect{*entry.screen_offset, *entry.extent};
+      auto const [i_begin, i_end, j_begin, j_end] = get_tile_region(
+          this->tiles.tile_extent(), nrows, this->tiles.columns(), entry_area);
 
-        for (int64_t j = j_begin; j < j_end; j++) {
-          for (int64_t i = i_begin; i < i_end; i++) {
-            RasterCache &subtile = tiles.tile_at_index(i, j);
+      for (int64_t j = j_begin; j < j_end; j++) {
+        for (int64_t i = i_begin; i < i_end; i++) {
+          RasterCache &subtile = tiles.tile_at_index(i, j);
+          int64_t const tile_index = j * tiles.rows() + i;
+          if (tile_oof_ticks[tile_index] <= max_oof_ticks) {
+            WidgetSystemProxy::mark_non_stale(*entry.widget);
+          }
 
-            // TODO(lamarrr): notify of entering or leaving view irregardless of
-            // whether tile is dirty, we'd thus need to not first check
-            // `any_tile_dirty`
-            if (tile_is_dirty[j * tiles.rows() + i]) {
-              // draw to appropriate position relative to the tile size. and
-              // also respect the view clipping
-              Extent tile_extent = tiles.tile_extent();
-              IOffset tile_screen_offset =
-                  IOffset{i * tile_extent.width, j * tile_extent.height};
+          if (tile_is_dirty[tile_index]) {
+            // draw to appropriate position relative to the tile size. and
+            // also respect the view clipping
+            Extent tile_extent = tiles.tile_extent();
+            IOffset tile_screen_offset =
+                IOffset{i * tile_extent.width, j * tile_extent.height};
 
-              entry.draw(subtile, IRect{tile_screen_offset, tile_extent});
-            }
+            entry.draw(subtile, IRect{tile_screen_offset, tile_extent});
           }
         }
       }
     }
 
-    if (any_tile_dirty) {
-      for (size_t i = 0; i < tiles.get_tiles().size(); i++) {
-        RasterCache &subtile = tiles.get_tiles()[i];
+    for (size_t i = 0; i < tiles.get_tiles().size(); i++) {
+      RasterCache &subtile = tiles.get_tiles()[i];
 
-        if (tile_is_dirty[i]) {  // && tile_is_in_focus[i]
-          subtile.finish_recording();
+      if (tile_is_dirty[i] && tile_oof_ticks[i] <= max_oof_ticks) {
+        subtile.finish_recording();
 
-          // tile caches are only updated if the tile is in focus
-          // we need to submit
-          if (tile_oof_ticks[i] <= max_oof_ticks) {
-            subtile.rasterize();
-          }
+        // tile caches are only updated if the tile is in focus
+        // we need to submit
+        subtile.rasterize();
 
-          tile_is_dirty[i] = false;
-        }
+        tile_is_dirty[i] = false;
       }
-
-      any_tile_dirty = false;
     }
 
+    // should backing store wrap a backend texture?
     if (backing_store_dirty) {
       // accumulate raster cache into backing store
 

@@ -1,4 +1,5 @@
 #pragma once
+#include <utility>
 
 #include "vlk/ui/asset_manager.h"
 #include "vlk/ui/layout.h"
@@ -14,26 +15,24 @@ namespace ui {
 struct Pipeline {
   Widget* root_widget;
   Viewport viewport;
-  RenderContext raster_context;
+  RenderContext render_context;
 
   LayoutTree layout_tree;
   ViewTree view_tree;
   TileCache tile_cache;
   AssetManager asset_manager;
 
-  bool needs_rebuild = false;
-  bool is_first_tick = true;
+  bool needs_rebuild = true;
 
   Pipeline(Widget& init_root_widget,
-           Viewport init_viewport = Viewport{Extent{1920, 1080}, ViewOffset{}},
-           RenderContext init_raster_context = RenderContext{})
+           RenderContext init_render_context = RenderContext{})
       : root_widget{&init_root_widget},
-        viewport{init_viewport},
-        raster_context{std::move(init_raster_context)},
+        viewport{Viewport{Extent{1920, 1080}, ViewOffset{}}},
+        render_context{std::move(init_render_context)},
         layout_tree{},
         view_tree{},
         tile_cache{},
-        asset_manager{raster_context} {
+        asset_manager{render_context} {
     // pass widget to pipeline => bind on children changed
     // pass to layout tree => bind on layout changed
     // pass to view tree => bind on view offset changed
@@ -52,25 +51,13 @@ struct Pipeline {
     // does the layout tree take care of this? how?
     // or the root view should make its self_extent equal to the view_extent
     // both can be allocated infinite extents
-
-    // TODO(lamarrr): handle zero-extent viewport
-
-    ViewportSystemProxy::get_state_proxy(viewport).on_resize = [this] {
-      Extent const new_viewport_extent = viewport.get_extent();
-      Extent const widgets_allocation = viewport.get_widgets_allocation();
-      layout_tree.allot_extent(widgets_allocation);
-      tile_cache.resize_backing_store(new_viewport_extent);
-    };
-
-    ViewportSystemProxy::get_state_proxy(viewport).on_scroll = [this] {
-      tile_cache.scroll_backing_store(viewport.get_offset());
-    };
   }
 
-  Pipeline(Pipeline&&) = delete;
-  Pipeline(Pipeline const&) = delete;
-  Pipeline& operator=(Pipeline const&) = delete;
-  Pipeline& operator=(Pipeline&&) = delete;
+  VLK_MAKE_PINNED(Pipeline);
+
+  void dispatch_events(stx::Span<MouseButtonEvent const> mouse_button_events) {
+    // TODO(lamarrr): forward events
+  }
 
   void attach_state_proxies(Widget& widget) {
     WidgetSystemProxy::get_state_proxy(widget).on_children_changed = [this] {
@@ -103,7 +90,7 @@ struct Pipeline {
   void tick(std::chrono::nanoseconds interval) {
     recursive_tick(*root_widget, interval);
 
-    if (needs_rebuild || is_first_tick) {
+    if (needs_rebuild) {
       // note that each build method is optimized for rebuilding and should not
       // re-allocate too much of memory in the case where the tree sizes don't
       // really change and we thus have a `build()` method separated from the
@@ -112,12 +99,24 @@ struct Pipeline {
       // enough
       layout_tree.build(*root_widget);
       view_tree.build(layout_tree.root_node);
-      tile_cache.build(view_tree.root_view, raster_context);
+      tile_cache.build(view_tree.root_view, render_context);
       needs_rebuild = false;
-      is_first_tick = false;
     }
 
-    ViewportSystemProxy::tick(viewport);
+    {
+      if (viewport.is_scrolled()) {
+        tile_cache.scroll_backing_store(viewport.get_offset());
+      }
+
+      if (viewport.is_resized()) {
+        Extent const new_viewport_extent = viewport.get_extent();
+        Extent const widgets_allocation = viewport.get_widgets_allocation();
+        layout_tree.allot_extent(widgets_allocation);
+        tile_cache.resize_backing_store(new_viewport_extent);
+      }
+
+      ViewportSystemProxy::mark_clean(viewport);
+    }
 
     bool const layout_tree_was_cleaned = layout_tree.is_layout_dirty;
     layout_tree.tick(interval);
@@ -128,8 +127,6 @@ struct Pipeline {
       view_tree.mark_views_dirty();
       // resize tiles to layout extent
       tile_cache.mark_tiles_extent_dirty();
-      // NOTE: resizing might not trigger a dirtiness event in some
-      // cases and we seem to over-rely on that in many parts of the codebase
     }
 
     view_tree.tick(interval);

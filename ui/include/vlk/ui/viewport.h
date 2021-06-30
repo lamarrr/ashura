@@ -7,11 +7,6 @@
 namespace vlk {
 namespace ui {
 
-struct ViewportStateProxy {
-  std::function<void()> on_resize = [] {};
-  std::function<void()> on_scroll = [] {};
-};
-
 struct Viewport {
   friend struct ViewportSystemProxy;
 
@@ -27,6 +22,10 @@ struct Viewport {
   IOffset get_offset() const { return offset_; }
 
   Extent get_widgets_allocation() const { return widgets_allocation_; }
+
+  bool is_resized() const { return is_resized_; }
+
+  bool is_scrolled() const { return is_scrolled_; }
 
   void resize(Extent const extent,
               // give the widgets Extent{width of viewport, infinite height}
@@ -55,18 +54,6 @@ struct Viewport {
   }
 
  private:
-  void system_tick() {
-    if (is_resized_) {
-      state_proxy_.on_resize();
-      is_resized_ = false;
-    }
-
-    if (is_scrolled_) {
-      state_proxy_.on_scroll();
-      is_scrolled_ = false;
-    }
-  }
-
   // updated due to a resize event
   Extent extent_;
   Extent widgets_allocation_;
@@ -75,15 +62,12 @@ struct Viewport {
   // updated due to a scrolling event
   IOffset offset_;
   bool is_scrolled_ = true;
-
-  ViewportStateProxy state_proxy_{};
 };
 
 struct ViewportSystemProxy {
-  static void tick(Viewport& viewport) { viewport.system_tick(); }
-
-  static ViewportStateProxy& get_state_proxy(Viewport& viewport) {
-    return viewport.state_proxy_;
+  static void mark_clean(Viewport& viewport) {
+    viewport.is_resized_ = false;
+    viewport.is_scrolled_ = false;
   }
 };
 

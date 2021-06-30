@@ -21,7 +21,12 @@
 - Diagram of Asset manager sqe, cqe
 - DPR support. it should be a property of the surface, we only need to re-rasterize and use the same surfaces as before to draw the new content
 - zooming support 
-- can we have a stack of surfaces we can pop and attach and release surfaces to? allocating these tiles can be costly, even when zooming, this stack can also handle DPR and zooming and force the tiles to release their surfaces. BENCHMARK. consider scroll swapping instead of allocating and de-allocating. i.e. tile surface stack. we might need to re-allocate when the viewport zoom occurs? the stack will always have enough tile surfaces for the tiles covered by the viewport. we don't necessarily want to use the layout tree for this
+- can we have a stack of surfaces we can pop and attach and release surfaces to? allocating these tiles can be costly, even when zooming, this stack can also handle DPR and zooming and force the tiles to release their surfaces. BENCHMARK. consider scroll swapping instead of allocating and de-allocating. i.e. tile surface stack. we might need to re-allocate when the viewport zoom occurs? the stack will always have enough tile surfaces for the tiles covered by the viewport. we don't necessarily want to use the layout tree for this.
+
+
+THIs might not be necessary since Skia will most likely be using a memory pool and a memory pool should be able to handle this allocation and re-allocation efficiently
+
+
 - Implement dynamic runtime subsystems for accessibility and text scale factor
 - Subsystem map named subsystems, using enums as identifiers and then other subsystems
 

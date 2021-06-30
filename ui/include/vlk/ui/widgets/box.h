@@ -36,8 +36,44 @@ namespace ui {
 
 enum class BoxBlend : uint8_t { ColorOver = 0, ImageOver = 1 };
 
-// 
+//
 // TODO(lamarrr): background image fit
+enum class BoxFit {
+  //! center the background image on the box whilst preserving aspect ratio
+  None,
+  //! resize image to cover entire box without distorting the image, some parts
+  //! of the image may become invisible
+  Cover,
+  // make the image fully visible, without distorting the image, the image may
+  // not cover the entire area of the widget and leave some parts stale
+  Contain,
+  // fill the whole area even if it means distorting the width and height
+  Fill
+};
+
+namespace impl {
+
+constexpr IRect box_fit_crop(BoxFit fit, Extent image_extent,
+                             Extent widget_extent) {
+  IRect dst_rect{};
+
+  switch (fit) {
+    case BoxFit::None:
+    {
+      // dst_rect
+    }
+      break;
+    case BoxFit::Cover:
+      break;
+    case BoxFit::Contain:
+      break;
+    case BoxFit::Fill:
+      break;
+  }
+}
+
+}  // namespace impl
+
 struct BoxProps {
   //! if extent is not specified, Box shrinks down enough to accomodate the size
   //! of its child
@@ -113,6 +149,14 @@ struct BoxProps {
 
   auto const &image_ref() const { return background_; }
 
+  BoxProps fit(BoxFit value) const {
+    BoxProps out{*this};
+    out.fit_ = value;
+    return out;
+  }
+
+  auto fit() const { return fit_; }
+
   BoxProps color(Color value) const {
     BoxProps out{*this};
     out.color_ = value;
@@ -161,6 +205,7 @@ struct BoxProps {
   stx::Option<Blur> blur_ = stx::None;
   BoxBlend blend_ = BoxBlend::ColorOver;
   stx::Option<ImageSource> background_ = stx::None;
+  BoxFit fit_ = BoxFit::None;
   Flex flex_ = Flex{};
 };
 
@@ -183,7 +228,8 @@ enum class BoxDiff : uint16_t {
   Blend = 1 << 6,
   // needs to reload image asset but shouldn't cause layout reflow
   BackgroundImage = 1 << 7,
-  Flex = 1 << 8,
+  Fit = 1 << 8,
+  Flex = 1 << 9,
   All = (Flex << 1) - 1
 };
 
@@ -192,7 +238,6 @@ VLK_DEFINE_ENUM_BIT_OPS(BoxDiff)
 struct BoxStorage {
   BoxProps props;
   BoxState state = BoxState::BackgroundStale;
-  bool drawn_in_last_tick = false;
   Ticks asset_stale_ticks = Ticks{0};
   stx::Option<std::shared_ptr<ImageAsset const>> asset = stx::None;
 };

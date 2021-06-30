@@ -30,7 +30,110 @@ using namespace vlk;
 struct App {
   WindowApi api;
 
+  static constexpr char const* required_validation_layers[] = {
+      "VK_LAYER_KHRONOS_validation"};
+  static constexpr char const* required_device_extensions[] = {
+      VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+
+  static stx::Option<vk::PhysDevice> select_device(
+      stx::Span<vk::PhysDevice const> const physical_devices,
+      stx::Span<VkPhysicalDeviceType const> preferred_device_types,
+      WindowSurface const& target_surface) {
+    for (auto type : preferred_device_types) {
+      auto selected_device_it = std::find_if(
+          physical_devices.begin(), physical_devices.end(),
+          [&](vk::PhysDevice const& dev) -> bool {
+            return dev.info.properties.deviceType == type &&
+                   // can use shaders (fragment and vertex)
+                   dev.has_geometry_shader() &&
+                   // has graphics command queue for rendering commands
+                   dev.has_graphics_command_queue_family() &&
+                   // has data transfer command queue for uploading textures
+                   // or data
+                   dev.has_transfer_command_queue_family() &&
+                   // can be used for presenting to a specific surface
+                   any_true(vk::get_surface_presentation_command_queue_support(
+                       dev.info.phys_device, dev.info.family_properties,
+                       target_surface.handle->surface));
+          });
+      if (selected_device_it != physical_devices.end()) {
+        return stx::Some(vk::PhysDevice{*selected_device_it});
+      }
+    }
+
+    return stx::None;
+  }
+
   void start() {
+    WindowCfg cfg{};
+    cfg.maximized = false;
+
+    Window window = Window::create(api, cfg).expect("Unable to create window");
+
+    {
+     
+    }
+
+   
+
+    auto instance = vk::Instance::create("TestApp", VK_MAKE_VERSION(0, 0, 1),
+                                         "Valkyrie", VK_MAKE_VERSION(1, 0, 0),
+                                         required_instance_extensions,
+                                         required_validation_layers);
+
+    window.attach_surface(api, instance);
+
+    auto phys_devices = vk::PhysDevice::get_all(instance);
+
+    VkPhysicalDeviceType const device_preference[] = {
+        VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
+
+        VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
+        VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU, VK_PHYSICAL_DEVICE_TYPE_CPU};
+
+    VLK_LOG("Available Physical Devices:");
+
+    for (vk::PhysDevice const& device : phys_devices) {
+      VLK_LOG("\t{}", device.format());
+    }
+
+    vk::PhysDevice phys_device =
+        select_device(phys_devices, device_preference, window.handle->surface)
+            .expect("Unable to find any suitable rendering device");
+
+    VLK_LOG("Selected Physical Device: {}", phys_device.format());
+
+    auto const& features = phys_device.info.features;
+
+    // enable sampler anisotropy if available
+    VkPhysicalDeviceFeatures required_features{};
+
+    required_features.samplerAnisotropy = features.samplerAnisotropy;
+
+    // we need multiple command queues, one for data transfer and one for
+    // rendering
+    float const priorities[] = {// priority for command queue used for
+                                // presentation, rendering, data transfer
+                                1.0f};
+
+    vk::CommandQueueFamily graphic_command_queue_family =
+        vk::CommandQueueFamily::get_graphics(phys_device).unwrap();
+
+    // we can accept queue family struct here instead and thus not have to
+    // perform extra manual checks
+    // the user shouldn't have to touch handles
+    VkDeviceQueueCreateInfo const command_queue_create_infos[] = {
+        vk::make_command_queue_create_info(
+            graphic_command_queue_family.info.index, priorities)};
+
+    vk::Device device = vk::Device::create(
+        phys_device, command_queue_create_infos, required_device_extensions,
+        required_validation_layers, required_features);
+
+    vk::CommandQueue graphics_command_queue =
+        vk::CommandQueue::get(device, graphic_command_queue_family, 0)
+            .expect("Failed to create graphics command queue");
+
     {
       // how do we send pixels over from SKia to Vulkan window?
       GrVkBackendContext vk_context{};
@@ -237,4 +340,4 @@ TEST(RowTest, BasicTest) {
     //                                                      std::to_string(i));
     // VLK_LOG("written tick: {}", i);
   }
-}
+}s

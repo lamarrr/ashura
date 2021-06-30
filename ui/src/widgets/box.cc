@@ -52,6 +52,10 @@ constexpr WidgetDirtiness map_diff(BoxDiff diff) {
     dirtiness |= WidgetDirtiness::Render;
   }
 
+  if ((diff & BoxDiff::Fit) != BoxDiff::None) {
+    dirtiness |= WidgetDirtiness::Render;
+  }
+
   if ((diff & BoxDiff::Flex) != BoxDiff::None) {
     dirtiness |= WidgetDirtiness::Layout;
   }
@@ -93,6 +97,10 @@ inline BoxDiff box_props_diff(BoxProps const &props,
 
   if (props.image_ref() != new_props.image_ref()) {
     diff |= BoxDiff::BackgroundImage;
+  }
+
+  if (props.fit() != new_props.fit()) {
+    diff |= BoxDiff::Fit;
   }
 
   if (props.flex() != new_props.flex()) {
@@ -199,7 +207,6 @@ void Box::draw(Canvas &canvas) {
   storage_.props.blur().match(
       [&](Blur blur) {
         SkPaint blur_paint;
-        blur_paint.setAntiAlias(true);
         sk_sp blur_filter = SkImageFilters::Blur(blur.x(), blur.y(), nullptr);
         blur_paint.setImageFilter(blur_filter);
         sk_canvas.saveLayer(
@@ -215,13 +222,43 @@ void Box::draw(Canvas &canvas) {
           image_asset->get_ref().match(
               [&](sk_sp<SkImage> const &image) {
                 // TODO(lamarrr): use specific portion or fit of the image?
-                sk_canvas.drawImageRect(
-                    image,
-                    SkRect::MakeXYWH(0, 0, image->width(), image->height()),
-                    SkRect::MakeXYWH(border_width_left, border_width_top,
-                                     content_extent.width,
-                                     content_extent.height),
-                    nullptr);
+                // TODO(lamarrr): direct write if not transparent image
+
+                BoxFit const fit = storage_.props.fit();
+
+                if (fit == BoxFit::None) {
+                  sk_canvas.drawImageRect(
+                      image,
+                      SkRect::MakeXYWH(0, 0, image->width(), image->height()),
+                      SkRect::MakeXYWH(border_width_left, border_width_top,
+                                       content_extent.width,
+                                       content_extent.height),
+                      nullptr);
+                } else if (fit == BoxFit::Cover) {
+                  sk_canvas.drawImageRect(
+                      image,
+                      SkRect::MakeXYWH(0, 0, image->width(), image->height()),
+                      SkRect::MakeXYWH(border_width_left, border_width_top,
+                                       content_extent.width,
+                                       content_extent.height),
+                      nullptr);
+                } else if (fit == BoxFit::Contain) {
+                  sk_canvas.drawImageRect(
+                      image,
+                      SkRect::MakeXYWH(0, 0, image->width(), image->height()),
+                      SkRect::MakeXYWH(border_width_left, border_width_top,
+                                       content_extent.width,
+                                       content_extent.height),
+                      nullptr);
+                } else if (fit == BoxFit::Fill) {
+                  sk_canvas.drawImageRect(
+                      image,
+                      SkRect::MakeXYWH(0, 0, image->width(), image->height()),
+                      SkRect::MakeXYWH(border_width_left, border_width_top,
+                                       content_extent.width,
+                                       content_extent.height),
+                      nullptr);
+                }
               },
               [](ImageLoadError) {});
         },

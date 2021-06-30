@@ -107,11 +107,7 @@ struct Widget {
         dirtiness_{WidgetDirtiness::None},
         state_proxy_{} {}
 
-  Widget(Widget const &) = delete;
-  Widget(Widget &&) = delete;
-
-  Widget &operator=(Widget const &) = delete;
-  Widget &operator=(Widget &&) = delete;
+  VLK_MAKE_PINNED(Widget)
 
   WidgetType get_type() const { return type_; }
 

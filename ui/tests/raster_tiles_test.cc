@@ -5,6 +5,7 @@
 
 TEST(RasterTilesTest, BasicTest) {
   using namespace vlk::ui;
+  using namespace vlk;
 
   RasterTiles tiles{Extent{1920, 1080}, Extent{256, 256}};
 

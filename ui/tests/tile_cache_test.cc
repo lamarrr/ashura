@@ -41,7 +41,7 @@ TEST(TileCacheTest, Basic) {
   EXPECT_TRUE(cache.backing_store_resized);
   // focus_span
   // tiles_extent?
-  EXPECT_TRUE(cache.any_tile_dirty);
+  // TODO(lamarrr): EXPECT_TRUE(cache.any_tile_dirty);
 
   cache.resize_backing_store(Extent{2080, 1440});
   cache.scroll_backing_store(IOffset{10, 10});
@@ -62,7 +62,7 @@ TEST(TileCacheTest, Basic) {
 
   EXPECT_FALSE(cache.backing_store_offset_changed);
   EXPECT_FALSE(cache.backing_store_resized);
-  EXPECT_FALSE(cache.any_tile_dirty);
+  // TODO(lamarrr): EXPECT_TRUE(cache.any_tile_dirty);
 
   std::cout << "\nbytes estimate: " << cache.tiles.storage_size_estimate()
             << " bytes\n";

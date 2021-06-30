@@ -2,7 +2,10 @@ add_library(
   vlk_ui
   src/canvas.cc
   src/widget.cc
+  src/window.cc
+  src/window_api.cc
   src/vulkan.cc
+  src/app.cc
   # asset systems
   src/image_asset.cc
   src/font.cc

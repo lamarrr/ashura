@@ -191,11 +191,7 @@ struct LayoutTree {
 
   LayoutTree() = default;
 
-  LayoutTree(LayoutTree const &) = delete;
-  LayoutTree(LayoutTree &&) = delete;
-
-  LayoutTree &operator=(LayoutTree const &) = delete;
-  LayoutTree &operator=(LayoutTree &&) = delete;
+  VLK_MAKE_PINNED(LayoutTree)
 
   ~LayoutTree() = default;
 
