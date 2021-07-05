@@ -110,6 +110,7 @@ inline BoxDiff box_props_diff(BoxProps const &props,
   return diff;
 }
 
+// TODO(lamarrr): move to sk utils
 constexpr std::array<SkVector, 4> to_skia(BorderRadius const &border_radius) {
   return {
       SkVector::Make(border_radius.top_left, border_radius.top_left),
