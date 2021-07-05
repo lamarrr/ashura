@@ -76,8 +76,7 @@ struct AssetLoader {
   virtual ~AssetLoader() {}
 
   // must be thread-safe
-  virtual std::unique_ptr<Asset> load(RenderContext const &,
-                                      AssetLoadArgs const &) const {
+  virtual std::unique_ptr<Asset> load(AssetLoadArgs const &) const {
     return std::make_unique<Asset>();
   }
 };
@@ -104,21 +103,19 @@ enum class AssetError : uint8_t { TagExists, InvalidTag, IsLoading };
 
 struct AssetManager {
  public:
-  AssetManager(RenderContext const &context)
+  AssetManager()
       : data_{},
         submission_queue_{},
         submission_queue_mutex_{},
         completion_queue_{},
         completion_queue_mutex_{},
         cancelation_token_{std::make_shared<AtomicToken>(Token::Running)},
-        context_{&context},
         worker_thread_{worker_thread_task,
                        std::ref(submission_queue_),
                        std::ref(submission_queue_mutex_),
                        std::ref(completion_queue_),
                        std::ref(completion_queue_mutex_),
-                       cancelation_token_,
-                       std::ref(*context_)} {}
+                       cancelation_token_} {}
 
   //! `requires_persistence`: some data assets must just persist. i.e. icons and
   //! frequently used data. internet-loaded data file-loaded data should not
@@ -294,8 +291,7 @@ struct AssetManager {
                                  std::mutex &submission_queue_mutex,
                                  std::queue<CompletionData> &completion_queue,
                                  std::mutex &completion_queue_mutex,
-                                 CancelationToken cancelation_token,
-                                 RenderContext const &context) {
+                                 CancelationToken cancelation_token) {
     do {
       bool gotten_task = false;
 
@@ -316,7 +312,7 @@ struct AssetManager {
           gotten_task = true;
 
           CompletionData cmpl_data{std::move(task.tag),
-                                   task.loader->load(context, *task.load_args)};
+                                   task.loader->load(*task.load_args)};
 
           {
             std::lock_guard guard{completion_queue_mutex};
@@ -352,8 +348,6 @@ struct AssetManager {
   std::mutex completion_queue_mutex_;
 
   CancelationToken cancelation_token_;
-
-  RenderContext const *context_ = nullptr;
 
   std::thread worker_thread_;
 

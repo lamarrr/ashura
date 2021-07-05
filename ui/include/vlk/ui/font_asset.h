@@ -344,8 +344,7 @@ struct TypefaceLoadArgs : public AssetLoadArgs {
 };
 
 struct TypefaceLoader : public AssetLoader {
-  virtual std::unique_ptr<Asset> load(RenderContext const&,
-                                      AssetLoadArgs const& args) const override;
+  virtual std::unique_ptr<Asset> load(AssetLoadArgs const& args) const override;
 
   static std::shared_ptr<TypefaceLoader const> get_default();
 };

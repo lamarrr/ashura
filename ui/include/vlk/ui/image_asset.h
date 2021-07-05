@@ -7,7 +7,6 @@
 #include "stx/result.h"
 #include "vlk/ui/asset_manager.h"
 #include "vlk/ui/primitives.h"
-#include "vlk/ui/render_context.h"
 
 namespace vlk {
 namespace ui {
@@ -53,9 +52,9 @@ struct ImageAsset : public Asset {
   explicit ImageAsset(stx::Result<sk_sp<SkImage>, ImageLoadError>&& load_result)
       : load_result_{std::move(load_result)} {
     load_result_.as_cref().match(
-        [&](sk_sp<SkImage> const& gpu_texture) {
-          VLK_ENSURE(gpu_texture != nullptr);
-          Asset::update_size(gpu_texture->imageInfo().computeMinByteSize());
+        [&](sk_sp<SkImage> const& image) {
+          VLK_ENSURE(image != nullptr);
+          Asset::update_size(image->imageInfo().computeMinByteSize());
         },
         [&](ImageLoadError) { Asset::update_size(0); });
   }
@@ -110,22 +109,21 @@ struct MemoryImageLoadArgs : public AssetLoadArgs {
 };
 
 struct FileImageLoader : public AssetLoader {
-  virtual std::unique_ptr<Asset> load(RenderContext const& context,
-                                      AssetLoadArgs const& args) const override;
+  virtual std::unique_ptr<Asset> load(AssetLoadArgs const& args) const override;
 
   static std::shared_ptr<AssetLoader const> get_default();
 };
 
 struct MemoryImageLoader : public AssetLoader {
-  virtual std::unique_ptr<Asset> load(RenderContext const& context,
-                                      AssetLoadArgs const& args) const override;
+  virtual std::unique_ptr<Asset> load(AssetLoadArgs const& args) const override;
 
   static std::shared_ptr<AssetLoader const> get_default();
 };
 
 }  // namespace impl
 
-// TODO(lamarrr): target size optional
+// TODO(lamarrr): maximum target size optional, or target scale factor defaults
+// to 1.0f
 struct FileImageSource {
   FileImageSource(std::filesystem::path path,
                   stx::Option<ImageFormat> target_format = stx::None) {
