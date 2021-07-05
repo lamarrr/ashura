@@ -47,19 +47,19 @@ struct IOffset {
   int64_t y = 0;
 };
 
-inline constexpr IOffset operator+(IOffset const &a, IOffset const &b) {
+constexpr IOffset operator+(IOffset const &a, IOffset const &b) {
   return IOffset{a.x + b.x, a.y + b.y};
 }
 
-inline constexpr IOffset operator-(IOffset const &a, IOffset const &b) {
+constexpr IOffset operator-(IOffset const &a, IOffset const &b) {
   return IOffset{a.x - b.x, a.y - b.y};
 }
 
-inline constexpr bool operator==(IOffset const &a, IOffset const &b) {
+constexpr bool operator==(IOffset const &a, IOffset const &b) {
   return a.x == b.x && a.y == b.y;
 }
 
-inline constexpr bool operator!=(IOffset const &a, IOffset const &b) {
+constexpr bool operator!=(IOffset const &a, IOffset const &b) {
   return !(a == b);
 }
 
@@ -78,15 +78,15 @@ struct Offset {
   explicit constexpr operator IOffset() const { return IOffset{x, y}; }
 };
 
-inline constexpr Offset operator+(Offset const &a, Offset const &b) {
+constexpr Offset operator+(Offset const &a, Offset const &b) {
   return Offset{a.x + b.x, a.y + b.y};
 }
 
-inline constexpr bool operator==(Offset const &a, Offset const &b) {
+constexpr bool operator==(Offset const &a, Offset const &b) {
   return a.x == b.x && a.y == b.y;
 }
 
-inline constexpr bool operator!=(Offset const &a, Offset const &b) {
+constexpr bool operator!=(Offset const &a, Offset const &b) {
   return !(a == b);
 }
 
@@ -94,7 +94,7 @@ constexpr bool fits_i32(Offset const &offset) {
   return fits_i32(offset.x) && fits_i32(offset.y);
 }
 
-constexpr std::pair<int32_t> i32_clamp(Offset const &offset) {
+constexpr std::pair<int32_t, int32_t> i32_clamp(Offset const &offset) {
   return std::make_pair(i32_clamp(offset.x), i32_clamp(offset.y));
 }
 
@@ -109,15 +109,15 @@ struct Extent {
   }
 };
 
-inline constexpr Extent operator+(Extent const &a, Extent const &b) {
+constexpr Extent operator+(Extent const &a, Extent const &b) {
   return Extent{a.width + b.width, a.height + b.height};
 }
 
-inline constexpr bool operator==(Extent const &a, Extent const &b) {
+constexpr bool operator==(Extent const &a, Extent const &b) {
   return a.width == b.width && a.height == b.height;
 }
 
-inline constexpr bool operator!=(Extent const &a, Extent const &b) {
+constexpr bool operator!=(Extent const &a, Extent const &b) {
   return !(a == b);
 }
 
@@ -125,7 +125,7 @@ constexpr bool fits_i32(Extent const &extent) {
   return fits_i32(extent.width) && fits_i32(extent.height);
 }
 
-constexpr std::pair<int32_t> i32_clamp(Extent const &extent) {
+constexpr std::pair<int32_t, int32_t> i32_clamp(Extent const &extent) {
   return std::make_pair(i32_clamp(extent.width), i32_clamp(extent.height));
 }
 
@@ -193,13 +193,11 @@ struct IRect {
   }
 };
 
-inline constexpr bool operator==(IRect const &a, IRect const &b) {
+constexpr bool operator==(IRect const &a, IRect const &b) {
   return a.offset == b.offset && a.extent == b.extent;
 }
 
-inline constexpr bool operator!=(IRect const &a, IRect const &b) {
-  return !(a == b);
-}
+constexpr bool operator!=(IRect const &a, IRect const &b) { return !(a == b); }
 
 struct Rect {
   Offset offset;
@@ -268,13 +266,14 @@ struct Rect {
   }
 };
 
-inline constexpr bool operator==(Rect const &a, Rect const &b) {
+constexpr bool operator==(Rect const &a, Rect const &b) {
   return a.offset == b.offset && a.extent == b.extent;
 }
 
-inline constexpr bool operator!=(Rect const &a, Rect const &b) {
-  return !(a == b);
-}
+constexpr bool operator!=(Rect const &a, Rect const &b) { return !(a == b); }
+
+//! Virtual Rects
+//!
 
 //! unit of time within the whole API.
 //! NOTE: wall or system clocks are unreliable and not easily reproducible.
@@ -291,27 +290,27 @@ struct Ticks {
   constexpr void reset() { value = 0; }
 };
 
-inline constexpr bool operator>(Ticks const &a, Ticks const &b) {
+constexpr bool operator>(Ticks const &a, Ticks const &b) {
   return a.count() > b.count();
 }
 
-inline constexpr bool operator>=(Ticks const &a, Ticks const &b) {
+constexpr bool operator>=(Ticks const &a, Ticks const &b) {
   return a.count() >= b.count();
 }
 
-inline constexpr bool operator<(Ticks const &a, Ticks const &b) {
+constexpr bool operator<(Ticks const &a, Ticks const &b) {
   return a.count() < b.count();
 }
 
-inline constexpr bool operator<=(Ticks const &a, Ticks const &b) {
+constexpr bool operator<=(Ticks const &a, Ticks const &b) {
   return a.count() <= b.count();
 }
 
-inline constexpr bool operator==(Ticks const &a, Ticks const &b) {
+constexpr bool operator==(Ticks const &a, Ticks const &b) {
   return a.count() == b.count();
 }
 
-inline constexpr bool operator!=(Ticks const &a, Ticks const &b) {
+constexpr bool operator!=(Ticks const &a, Ticks const &b) {
   return a.count() != b.count();
 }
 
@@ -360,19 +359,17 @@ struct Color {
   constexpr bool visible() const { return !transparent(); }
 };
 
-inline constexpr bool operator==(Color const &a, Color const &b) {
+constexpr bool operator==(Color const &a, Color const &b) {
   return a.rgba == b.rgba;
 }
 
-inline constexpr bool operator!=(Color const &a, Color const &b) {
-  return !(a == b);
-}
+constexpr bool operator!=(Color const &a, Color const &b) { return !(a == b); }
 
-inline constexpr Color operator|(Color const &a, Color const &b) {
+constexpr Color operator|(Color const &a, Color const &b) {
   return Color{a.rgba | b.rgba};
 }
 
-inline constexpr Color operator&(Color const &a, Color const &b) {
+constexpr Color operator&(Color const &a, Color const &b) {
   return Color{a.rgba & b.rgba};
 }
 
@@ -403,14 +400,12 @@ struct Edges {
   }
 };
 
-inline constexpr bool operator==(Edges const &a, Edges const &b) {
+constexpr bool operator==(Edges const &a, Edges const &b) {
   return a.top == b.top && a.right == b.right && a.bottom == b.bottom &&
          a.left == b.left;
 }
 
-inline constexpr bool operator!=(Edges const &a, Edges const &b) {
-  return !(a == b);
-}
+constexpr bool operator!=(Edges const &a, Edges const &b) { return !(a == b); }
 
 struct Corners {
   uint32_t top_left = 0, top_right = 0, bottom_right = 0, bottom_left = 0;
@@ -429,12 +424,12 @@ struct Corners {
   }
 };
 
-inline constexpr bool operator==(Corners const &a, Corners const &b) {
+constexpr bool operator==(Corners const &a, Corners const &b) {
   return a.top_left == b.top_left && a.top_right == b.top_right &&
          a.bottom_right == b.bottom_right && a.bottom_left == b.bottom_left;
 }
 
-inline constexpr bool operator!=(Corners const &a, Corners const &b) {
+constexpr bool operator!=(Corners const &a, Corners const &b) {
   return !(a == b);
 }
 
@@ -456,11 +451,11 @@ struct Border {
   }
 };
 
-inline constexpr bool operator==(Border const &a, Border const &b) {
+constexpr bool operator==(Border const &a, Border const &b) {
   return a.color == b.color && a.edges == b.edges;
 }
 
-inline constexpr bool operator!=(Border const &a, Border const &b) {
+constexpr bool operator!=(Border const &a, Border const &b) {
   return !(a == b);
 }
 
