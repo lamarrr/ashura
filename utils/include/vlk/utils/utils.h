@@ -79,6 +79,8 @@
 
 #define VLK_DEFAULT_CONSTRUCTOR(target_type) target_type() = default;
 
+#define VLK_DEFAULT_DESTRUCTOR(target_type) ~target_type() = default;
+
 #define VLK_DEFAULT_COPY(target_type)         \
   target_type(target_type const &) = default; \
   target_type &operator=(target_type const &) = default;
