@@ -291,6 +291,8 @@ void Image::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
   if (diff_ != impl::ImageDiff::None) {
     WidgetDirtiness dirtiness = impl::map_diff(diff_);
 
+    // TODO(lamarrr): abstract the default extent to a constexpr global visible
+    // to the user
     storage_.props.extent().match(
         [&](SelfExtent extent) { Widget::update_self_extent(extent); },
         [&]() { Widget::update_self_extent(SelfExtent::absolute(100, 100)); });
