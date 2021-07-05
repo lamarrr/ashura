@@ -37,5 +37,26 @@ struct MouseButtonEvent {
   MouseAction action = MouseAction::Press;
 };
 
+enum class WindowEvent : uint8_t {
+  None,
+  Shown,
+  Hidden,
+  Exposed,
+  Moved,
+  // window size changed by user
+  Resized,
+  // window size changed by user or via window API
+  SizeChanged,
+  Minimized,
+  Maximized,
+  Restored,
+  Enter,
+  Leave,
+  FocusGained,
+  FocusLost,
+  Close,
+  TakeFocus
+};
+
 }  // namespace ui
 }  // namespace vlk
