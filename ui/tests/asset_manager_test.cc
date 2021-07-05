@@ -14,7 +14,7 @@ TEST(AssetManagerTest, Simple) {
   using namespace vlk::ui::impl;
 
   RenderContext context;
-  AssetManager asset_manager{context};
+  AssetManager asset_manager;
 
   // TODO(lamarrr): think about how to specify alt images
 

@@ -123,7 +123,7 @@ TEST(ViewTree, Hierarchy_And_Scrolling) {
       ViewOffset{Constrain{0.0f, 90, i64_min, i64_max, Clamp{0.0f, 200.0f}},
                  Constrain{0.0f}});
 
-  AssetManager asset_manager{RenderContext{}};
+  AssetManager asset_manager;
 
   WidgetSystemProxy::tick(*view_tree.root_view.subviews[0].layout_node->widget,
                           std::chrono::nanoseconds(0), asset_manager);
