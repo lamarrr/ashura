@@ -6,10 +6,7 @@
 #include "stx/panic.h"
 #include "vlk/utils/limits.h"
 
-#define VLK_PANIC(...)         \
-  do {                         \
-    ::stx::panic(__VA_ARGS__); \
-  } while (false)
+#define VLK_PANIC(...) ::stx::panic(__VA_ARGS__)
 
 #define VLK_ENSURE(expr, ...)               \
   do {                                      \
