@@ -235,55 +235,49 @@ if (flex.main_align != MainAlign::Start) {
   }
 }
 
+// this is used for preloading some of the tiles
+// constant throughout lifetime.
+// Extent focus_extension = Extent{0, 0};
 
-  // this is used for preloading some of the tiles
-  // constant throughout lifetime.
-  // Extent focus_extension = Extent{0, 0};
+// focusing helps us preload a part of the screen into the tiles
+// rename focus rect and focus extension to something more descriptive
+// also move this function out as we'll need to test it
+/*IRect get_focus_rect() const {
+  uint32_t const focus_x = focus_extension.width / 2;
+  uint32_t const focus_y = focus_extension.height / 2;
 
+  int64_t const x_min = viewport_scroll_offset.x - focus_x;
+  int64_t const y_min = viewport_scroll_offset.y - focus_y;
 
-  // focusing helps us preload a part of the screen into the tiles
-  // rename focus rect and focus extension to something more descriptive
-  // also move this function out as we'll need to test it
-  /*IRect get_focus_rect() const {
-    uint32_t const focus_x = focus_extension.width / 2;
-    uint32_t const focus_y = focus_extension.height / 2;
+  return IRect{IOffset{x_min, y_min},
+               Extent{viewport_extent.width + focus_extension.width,
+                      viewport_extent.height + focus_extension.height}};
+}
+*/
 
-    int64_t const x_min = viewport_scroll_offset.x - focus_x;
-    int64_t const y_min = viewport_scroll_offset.y - focus_y;
+SkVector const inner_border_radii[] = {
+    SkVector::Make(border_radius.top_left + border_width_left,
+                   border_radius.top_left + border_width_top),
+    SkVector::Make(border_radius.top_right + border_width_right,
+                   border_radius.top_right + border_width_top),
+    SkVector::Make(border_radius.bottom_left + border_width_left,
+                   border_radius.bottom_left + border_width_bottom),
+    SkVector::Make(border_radius.bottom_right + border_width_right,
+                   border_radius.bottom_right + border_width_bottom),
+};
 
-    return IRect{IOffset{x_min, y_min},
-                 Extent{viewport_extent.width + focus_extension.width,
-                        viewport_extent.height + focus_extension.height}};
-  }
-  */
+if (root_node.type == WidgetType::View) {
+  VLK_ENSURE(root_node.view_extent.width < u32_max,
+             "root widget has infinite resolved view width", *root_node.widget);
+  VLK_ENSURE(root_node.view_extent.height < u32_max,
+             "root widget has infinite resolved view height",
+             *root_node.widget);
+}
 
-   SkVector const inner_border_radii[] = {
-      SkVector::Make(border_radius.top_left + border_width_left,
-                     border_radius.top_left + border_width_top),
-      SkVector::Make(border_radius.top_right + border_width_right,
-                     border_radius.top_right + border_width_top),
-      SkVector::Make(border_radius.bottom_left + border_width_left,
-                     border_radius.bottom_left + border_width_bottom),
-      SkVector::Make(border_radius.bottom_right + border_width_right,
-                     border_radius.bottom_right + border_width_bottom),
-  };
-
-  if (root_node.type == WidgetType::View) {
-        VLK_ENSURE(root_node.view_extent.width < u32_max,
-                   "root widget has infinite resolved view width",
-                   *root_node.widget);
-        VLK_ENSURE(root_node.view_extent.height < u32_max,
-                   "root widget has infinite resolved view height",
-                   *root_node.widget);
-      }
-
-      VLK_ENSURE(root_node.self_extent.width < u32_max,
-                 "root widget has infinite resolved self width",
-                 *root_node.widget);
-      VLK_ENSURE(root_node.self_extent.height < u32_max,
-                 "root widget has infinite resolved self height",
-                 *root_node.widget);
-
+VLK_ENSURE(root_node.self_extent.width < u32_max,
+           "root widget has infinite resolved self width", *root_node.widget);
+VLK_ENSURE(root_node.self_extent.height < u32_max,
+           "root widget has infinite resolved self height", *root_node.widget);
 
 /*
 inline SkColorType win_surface__to_skia(VkFormat format) {
@@ -330,175 +324,169 @@ time but it will only be provided when the cursor is disabled.
 */
 
 // if previous mouse event was a click without modifieirs and the present
-  // one is also a click without modifiers within a fixed time interval, then
-  // we consider it a double click
-  //
-  //
-  // how do we merge across refresh?
-  //
-  //
-  //
-  //    - proper double click support
-  //    - order of processing or dispatching events
+// one is also a click without modifiers within a fixed time interval, then
+// we consider it a double click
+//
+//
+// how do we merge across refresh?
+//
+//
+//
+//    - proper double click support
+//    - order of processing or dispatching events
 
-  // static constexpr std::chrono::milliseconds double_click_timeout =
-  //    std::chrono::milliseconds{250};
- // interleaved?
-  // std::chrono::steady_clock::time_point last_mouse_double_click_start;
-  // events processed at refresh rate.
+// static constexpr std::chrono::milliseconds double_click_timeout =
+//    std::chrono::milliseconds{250};
+// interleaved?
+// std::chrono::steady_clock::time_point last_mouse_double_click_start;
+// events processed at refresh rate.
 
-  
+glfwSetWindowSizeCallback(handle->window, Window::resize_callback);
+glfwSetFramebufferSizeCallback(handle->window, Window::surface_resize_callback);
 
-    glfwSetWindowSizeCallback(handle->window, Window::resize_callback);
-    glfwSetFramebufferSizeCallback(handle->window,
-                                   Window::surface_resize_callback);
+// glfwGetWindowMonitor
+// we might need to handle disconnection/connection of monitors
+GLFWmonitor *primary_monitor = glfwGetPrimaryMonitor();
+VLK_ENSURE(primary_monitor != nullptr, "No monitors found");
+GLFWvidmode const *primary_monitor_video_mode =
+    glfwGetVideoMode(primary_monitor);
+VLK_ENSURE(primary_monitor_video_mode != nullptr,
+           "Unable to get monitor video mode");
 
-    // glfwGetWindowMonitor
-    // we might need to handle disconnection/connection of monitors
-    GLFWmonitor* primary_monitor = glfwGetPrimaryMonitor();
-    VLK_ENSURE(primary_monitor != nullptr, "No monitors found");
-    GLFWvidmode const* primary_monitor_video_mode =
-        glfwGetVideoMode(primary_monitor);
-    VLK_ENSURE(primary_monitor_video_mode != nullptr,
-               "Unable to get monitor video mode");
+// makes the window into windowed mode if primary_monitor is not null
+// otherwise into non-windowed mode
+// setting should otherwise only be used during monitor setting
+glfwSetWindowMonitor(window, primary_monitor, 0, 0, 1920, 1080,
+                     primary_monitor_video_mode->refreshRate);
 
-    // makes the window into windowed mode if primary_monitor is not null
-    // otherwise into non-windowed mode
-    // setting should otherwise only be used during monitor setting
-    glfwSetWindowMonitor(window, primary_monitor, 0, 0, 1920, 1080,
-                         primary_monitor_video_mode->refreshRate);
+// might need to be updated
+VLK_LOG("Monitor is at {}hz", primary_monitor_video_mode->refreshRate);
 
-    // might need to be updated
-    VLK_LOG("Monitor is at {}hz", primary_monitor_video_mode->refreshRate);
+handle->cfg = cfg;
 
-    handle->cfg = cfg;
+WindowSurface surface;
+surface.handle =
+    std::shared_ptr<WindowSurfaceHandle>(new WindowSurfaceHandle{});
+surface.handle->instance = instance;
 
-    WindowSurface surface;
-    surface.handle =
-        std::shared_ptr<WindowSurfaceHandle>(new WindowSurfaceHandle{});
-    surface.handle->instance = instance;
+// creates and binds the window surface (back buffer, render target
+// surface) to the glfw window
+VLK_MUST_SUCCEED(glfwCreateWindowSurface(instance.handle->instance,
+                                         handle->window, nullptr,
+                                         &surface.handle->surface),
+                 "Unable to Create Window Surface");
 
-    // creates and binds the window surface (back buffer, render target
-    // surface) to the glfw window
-    VLK_MUST_SUCCEED(
-        glfwCreateWindowSurface(instance.handle->instance, handle->window,
-                                nullptr, &surface.handle->surface),
-        "Unable to Create Window Surface");
+handle->surface = std::move(surface);
 
-    handle->surface = std::move(surface);
+return stx::Some(Window{std::move(handle)});
+}
 
-    return stx::Some(Window{std::move(handle)});
+void publish_events() {
+  for (InputPawn *pawn : handle->input_pawns) {
+    InputPawnSystemProxy::system_tick(*pawn, handle->event_queue.mouse_events,
+                                      handle->event_queue.keyboard_events);
+  }
+}
+
+static void resize_callback(GLFWwindow *window, int width, int height) {
+  auto handle = static_cast<WindowHandle *>(glfwGetWindowUserPointer(window));
+  handle->resize(
+      Extent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)});
+}
+
+static void surface_resize_callback(GLFWwindow *window, int width, int height) {
+  auto handle = static_cast<WindowHandle *>(glfwGetWindowUserPointer(window));
+  handle->resize_surface(
+      Extent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)});
+}
+
+static void cursor_position_callback(GLFWwindow *window, double x, double y) {
+  // measured in screen coordinates
+}
+
+static void mouse_button_callback(GLFWwindow *window, int button, int action,
+                                  int modifier) {
+  auto handle = static_cast<WindowHandle *>(glfwGetWindowUserPointer(window));
+
+  MouseEvent event;
+
+  switch (button) {
+    case GLFW_MOUSE_BUTTON_LEFT:
+      event.button = MouseButton::Primary;
+      break;
+    case GLFW_MOUSE_BUTTON_RIGHT:
+      event.button = MouseButton::Secondary;
+      break;
+    case GLFW_MOUSE_BUTTON_MIDDLE:
+      event.button = MouseButton::Middle;
+      break;
+    case GLFW_MOUSE_BUTTON_4:
+      event.button = MouseButton::A1;
+      break;
+    case GLFW_MOUSE_BUTTON_5:
+      event.button = MouseButton::A2;
+      break;
+    case GLFW_MOUSE_BUTTON_6:
+      event.button = MouseButton::A3;
+      break;
+    case GLFW_MOUSE_BUTTON_7:
+      event.button = MouseButton::A4;
+      break;
+    case GLFW_MOUSE_BUTTON_8:
+      event.button = MouseButton::A5;
+      break;
+    default:
+      VLK_PANIC("Unimplemented mouse button", static_cast<int>(button));
   }
 
-  void publish_events() {
-    for (InputPawn* pawn : handle->input_pawns) {
-      InputPawnSystemProxy::system_tick(*pawn, handle->event_queue.mouse_events,
-                                        handle->event_queue.keyboard_events);
-    }
+  switch (action) {
+    case GLFW_PRESS:
+      event.action = MouseAction::Press;
+      break;
+    case GLFW_RELEASE:
+      event.action = MouseAction::Release;
+      break;
+    default:
+      VLK_PANIC("Unimplemented mouse action", static_cast<int>(action));
   }
 
-  static void resize_callback(GLFWwindow* window, int width, int height) {
-    auto handle = static_cast<WindowHandle*>(glfwGetWindowUserPointer(window));
-    handle->resize(
-        Extent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)});
+  if (modifier & GLFW_MOD_SHIFT) {
+    event.modifiers |= MouseModifier::Shift;
   }
 
-  static void surface_resize_callback(GLFWwindow* window, int width,
-                                      int height) {
-    auto handle = static_cast<WindowHandle*>(glfwGetWindowUserPointer(window));
-    handle->resize_surface(
-        Extent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)});
+  if (modifier & GLFW_MOD_CONTROL) {
+    event.modifiers |= MouseModifier::Ctrl;
   }
 
-  static void cursor_position_callback(GLFWwindow* window, double x, double y) {
-    // measured in screen coordinates
+  if (modifier & GLFW_MOD_ALT) {
+    event.modifiers |= MouseModifier::Alt;
   }
 
-  static void mouse_button_callback(GLFWwindow* window, int button, int action,
-                                    int modifier) {
-    auto handle = static_cast<WindowHandle*>(glfwGetWindowUserPointer(window));
-
-    MouseEvent event;
-
-    switch (button) {
-      case GLFW_MOUSE_BUTTON_LEFT:
-        event.button = MouseButton::Primary;
-        break;
-      case GLFW_MOUSE_BUTTON_RIGHT:
-        event.button = MouseButton::Secondary;
-        break;
-      case GLFW_MOUSE_BUTTON_MIDDLE:
-        event.button = MouseButton::Middle;
-        break;
-      case GLFW_MOUSE_BUTTON_4:
-        event.button = MouseButton::A1;
-        break;
-      case GLFW_MOUSE_BUTTON_5:
-        event.button = MouseButton::A2;
-        break;
-      case GLFW_MOUSE_BUTTON_6:
-        event.button = MouseButton::A3;
-        break;
-      case GLFW_MOUSE_BUTTON_7:
-        event.button = MouseButton::A4;
-        break;
-      case GLFW_MOUSE_BUTTON_8:
-        event.button = MouseButton::A5;
-        break;
-      default:
-        VLK_PANIC("Unimplemented mouse button", static_cast<int>(button));
-    }
-
-    switch (action) {
-      case GLFW_PRESS:
-        event.action = MouseAction::Press;
-        break;
-      case GLFW_RELEASE:
-        event.action = MouseAction::Release;
-        break;
-      default:
-        VLK_PANIC("Unimplemented mouse action", static_cast<int>(action));
-    }
-
-    if (modifier & GLFW_MOD_SHIFT) {
-      event.modifiers |= MouseModifier::Shift;
-    }
-
-    if (modifier & GLFW_MOD_CONTROL) {
-      event.modifiers |= MouseModifier::Ctrl;
-    }
-
-    if (modifier & GLFW_MOD_ALT) {
-      event.modifiers |= MouseModifier::Alt;
-    }
-
-    if (modifier & GLFW_MOD_SUPER) {
-      event.modifiers |= MouseModifier::Super;
-    }
-
-    if (modifier & GLFW_MOD_CAPS_LOCK) {
-      event.modifiers |= MouseModifier::CapsLock;
-    }
-
-    if (modifier & GLFW_MOD_NUM_LOCK) {
-      event.modifiers |= MouseModifier::NumLock;
-    }
-
-    handle->event_queue.add_raw(event);
+  if (modifier & GLFW_MOD_SUPER) {
+    event.modifiers |= MouseModifier::Super;
   }
 
-  static void scroll_callback(GLFWwindow* window, double x, double y) {}
+  if (modifier & GLFW_MOD_CAPS_LOCK) {
+    event.modifiers |= MouseModifier::CapsLock;
+  }
 
-  bool should_close() const { }
+  if (modifier & GLFW_MOD_NUM_LOCK) {
+    event.modifiers |= MouseModifier::NumLock;
+  }
 
-  void request_close() const {  }
+  handle->event_queue.add_raw(event);
+}
 
-  void request_attention() const {  }
+static void scroll_callback(GLFWwindow *window, double x, double y) {}
 
- private:
+bool should_close() const {}
 
+void request_close() const {}
 
- #pragma once
+void request_attention() const {}
+
+private:
+#pragma once
 
 #include "stx/span.h"
 #include "vlk/ui/event.h"
@@ -521,10 +509,117 @@ struct EventPawn {
 
 struct EventPawnSystemProxy {
   static void system_tick(
-      EventPawn& pawn, stx::Span<MouseButtonEvent const> mouse_button_events) {
+      EventPawn &pawn, stx::Span<MouseButtonEvent const> mouse_button_events) {
     pawn.system_tick(mouse_button_events);
   }
 };
 
 }  // namespace ui
 }  // namespace vlk
+
+constexpr uint32_t devirtualize_to_u32(float value) {
+  return static_cast<uint32_t>(value);
+}
+
+constexpr int64_t devirtualize_to_i64(float value) {
+  return static_cast<int64_t>(value);
+}
+
+constexpr auto devirtualize_to_offset(VOffset const &value) {
+  return Offset{devirtualize_to_u32(value.x), devirtualize_to_u32(value.y)};
+}
+
+constexpr auto devirtualize_to_ioffset(VOffset const &value) {
+  return IOffset{devirtualize_to_i64(value.x), devirtualize_to_i64(value.y)};
+}
+
+constexpr auto devirtualize_to_rect(VRect const &value) {
+  float x_min = value.offset.x;
+  float x_max = x_min + value.extent.width;
+  float y_min = value.offset.y;
+  float y_max = y_min + value.extent.height;
+
+  uint32_t x = devirtualize_to_u32(x_min);
+  uint32_t y = devirtualize_to_u32(y_min);
+
+  return Offset{devirtualize_to_u32(value.x), devirtualize_to_u32(value.y)};
+}
+
+constexpr auto devirtualize_to_ioffset(VOffset const &value) {
+  return IOffset{devirtualize_to_i64(value.x), devirtualize_to_i64(value.y)};
+}
+
+// checked if debug checks are enabled
+Tile &tile_at_point(Offset const &offset) {
+  VLK_ENSURE(offset.x < physical_extent().width);
+  VLK_ENSURE(offset.y < physical_extent().height);
+
+  uint32_t i = offset.x / tile_physical_extent().width;
+  uint32_t j = offset.y / tile_physical_extent().height;
+
+  return tile_at_index(i, j);
+}
+
+if (num_required_tiles > available_tiles) {
+  for (size_t i = available_tiles; i < num_required_tiles; i++) {
+    tiles_[i].init_surface(render_context);
+  }
+}
+
+void mark_backing_store_offset_dirty() { backing_store_offset_changed = true; }
+
+void mark_backing_store_render_dirty() { mark_backing_store_offset_dirty(); }
+
+struct App {
+  WindowApi api;
+
+  void start() {
+    auto frame_budget = std::chrono::milliseconds(16);
+
+    while (!quit) {
+      // we need to get frame budget and use diff between it and the used time
+      // window.publish_events();  // defer the events into the widget system
+      // via the pawn process widget invalidation and events
+
+      while (!window.handle->tick(graphics_command_queue, direct_context)) {
+      }
+
+      Ticks no_event_ticks{0};
+      static constexpr auto sleep_interval = std::chrono::milliseconds(1);
+
+      while (frame_budget > total_used) {
+        bool got_event = false;
+
+        if (got_event) {
+          no_event_ticks.reset();
+        } else {
+          no_event_ticks++;
+        }
+
+        if (no_event_ticks >= Ticks{64}) {
+          std::this_thread::sleep_for(sleep_interval);
+        }
+
+        total_used = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - begin);
+      }
+    }
+  }
+}
+}
+;
+
+/*
+  // checked if debug checks are enabled
+  Tile &tile_at_index(uint32_t row, uint32_t column) {
+    VLK_ENSURE(row < rows());
+    VLK_ENSURE(column < columns());
+
+    return tiles_[column * rows() + row];
+  }
+
+  // after the first render, we don't need to update if none of the inview ones
+// is dirty accumulating cache
+//  sk_sp<SkSurface> accumulation_ = nullptr;
+
+  */

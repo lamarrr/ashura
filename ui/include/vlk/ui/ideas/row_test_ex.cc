@@ -341,3 +341,17 @@ TEST(RowTest, BasicTest) {
     // VLK_LOG("written tick: {}", i);
   }
 }s
+
+
+  uint32_t uneventful_polls = 0;
+
+  while (total_used < frame_budget) {
+    if (window_api.poll_events()) {
+      uneventful_polls = 0;
+    } else {
+      uneventful_polls++;
+    }
+
+    backoff_spin_sleep(uneventful_polls, std::chrono::milliseconds(1));
+    total_used = std::chrono::steady_clock::now() - begin;
+  }
