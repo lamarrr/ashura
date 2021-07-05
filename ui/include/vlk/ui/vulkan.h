@@ -323,8 +323,6 @@ struct Image {
                                    VkFormat format, Extent extent) {
     if (!extent.visible()) return stx::None;
 
-    auto const& phys_device = allocator.handle->device.handle->phys_device.info;
-
     VkImageCreateInfo info{};
 
     // TODO(lamarrr) should we store the queue family object?
