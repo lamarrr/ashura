@@ -100,7 +100,7 @@ struct PhysDevice {
       devices.push_back(std::move(phys_device));
     }
 
-    return std::move(devices);
+    return devices;
   }
 
   std::string format() const {
