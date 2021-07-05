@@ -95,7 +95,6 @@ struct Constrain {
   }
 };
 
-
 struct SelfExtent {
   Constrain width{};
   Constrain height{};
