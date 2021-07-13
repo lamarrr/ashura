@@ -7,6 +7,7 @@
 #include "include/core/SkPaint.h"
 #include "include/core/SkRRect.h"
 #include "include/effects/SkImageFilters.h"
+#include "vlk/ui/sk_utils.h"
 
 namespace vlk {
 namespace ui {
@@ -204,18 +205,19 @@ void Box::draw(Canvas &canvas) {
   // cut out content area
   sk_canvas.clipRRect(content_rrect, true);
 
+  Blur blur = storage_.props.blur();
+
   // draw backdrop blur filter
-  storage_.props.blur().match(
-      [&](Blur blur) {
-        SkPaint blur_paint;
-        sk_sp blur_filter = SkImageFilters::Blur(blur.x(), blur.y(), nullptr);
-        blur_paint.setImageFilter(blur_filter);
-        sk_canvas.saveLayer(
-            SkRect::MakeXYWH(border_width_left, border_width_top,
-                             content_extent.width, content_extent.height),
-            &blur_paint);
-      },
-      []() {});
+  if (blur.visible()) {
+    SkPaint blur_paint;
+    blur_paint.setImageFilter(
+        SkImageFilters::Blur(static_cast<float>(blur.width),
+                             static_cast<float>(blur.height), nullptr));
+    sk_canvas.saveLayer(
+        to_sk_rect(Rect{Offset{border_width_left, border_width_top},
+                        Extent{content_extent.width, content_extent.height}}),
+        &blur_paint);
+  }
 
   auto image_draw_op = [&]() {
     storage_.asset.as_cref().match(
@@ -227,38 +229,22 @@ void Box::draw(Canvas &canvas) {
 
                 BoxFit const fit = storage_.props.fit();
 
+                // TODO(lamarrr): optimize this for transparency blending (paint
+                // blend mode), we might need more info from the image decoding
+                // process
+
                 if (fit == BoxFit::None) {
                   sk_canvas.drawImageRect(
                       image,
                       SkRect::MakeXYWH(0, 0, image->width(), image->height()),
-                      SkRect::MakeXYWH(border_width_left, border_width_top,
-                                       content_extent.width,
-                                       content_extent.height),
+                      to_sk_rect(Rect{
+                          Offset{border_width_left, border_width_top},
+                          Extent{content_extent.width, content_extent.height}}),
                       nullptr);
                 } else if (fit == BoxFit::Cover) {
-                  sk_canvas.drawImageRect(
-                      image,
-                      SkRect::MakeXYWH(0, 0, image->width(), image->height()),
-                      SkRect::MakeXYWH(border_width_left, border_width_top,
-                                       content_extent.width,
-                                       content_extent.height),
-                      nullptr);
+                  // TODO
                 } else if (fit == BoxFit::Contain) {
-                  sk_canvas.drawImageRect(
-                      image,
-                      SkRect::MakeXYWH(0, 0, image->width(), image->height()),
-                      SkRect::MakeXYWH(border_width_left, border_width_top,
-                                       content_extent.width,
-                                       content_extent.height),
-                      nullptr);
                 } else if (fit == BoxFit::Fill) {
-                  sk_canvas.drawImageRect(
-                      image,
-                      SkRect::MakeXYWH(0, 0, image->width(), image->height()),
-                      SkRect::MakeXYWH(border_width_left, border_width_top,
-                                       content_extent.width,
-                                       content_extent.height),
-                      nullptr);
                 }
               },
               [](ImageLoadError) {});
@@ -287,7 +273,9 @@ void Box::draw(Canvas &canvas) {
   }
 
   // remove saveLayer and clip for backdrop filter blur
-  storage_.props.blur().match([&](Blur blur) { sk_canvas.restore(); }, []() {});
+  if (blur.visible()) {
+    sk_canvas.restore();
+  }
 
   // restore clip for border
   sk_canvas.restore();
@@ -380,8 +368,7 @@ void Box::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
 
   if (diff_ != impl::BoxDiff::None) {
     Widget::update_flex(storage_.props.flex());
-    Widget::update_self_extent(
-        storage_.props.extent().unwrap_or(SelfExtent::relative(1.0f, 1.0f)));
+    Widget::update_self_extent(storage_.props.extent());
     Padding const padding = storage_.props.padding();
     Border const border = storage_.props.border();
     Widget::update_padding(Padding::trbl(padding.top + border.edges.top,
@@ -390,9 +377,7 @@ void Box::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
                                          padding.left + border.edges.left));
 
     // these diffs are already tracked by the widget system
-    WidgetDirtiness dirtiness =
-        impl::map_diff(diff_ & ~impl::BoxDiff::Flex & ~impl::BoxDiff::Extent &
-                       ~impl::BoxDiff::Padding & ~impl::BoxDiff::Border);
+    WidgetDirtiness dirtiness = impl::map_diff(diff_);
     Widget::add_dirtiness(dirtiness);
     diff_ = impl::BoxDiff::None;
   }

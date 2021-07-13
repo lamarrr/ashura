@@ -58,11 +58,9 @@ constexpr IRect box_fit_crop(BoxFit fit, Extent image_extent,
   IRect dst_rect{};
 
   switch (fit) {
-    case BoxFit::None:
-    {
+    case BoxFit::None: {
       // dst_rect
-    }
-      break;
+    } break;
     case BoxFit::Cover:
       break;
     case BoxFit::Contain:
@@ -79,29 +77,49 @@ struct BoxProps {
   //! of its child
   BoxProps extent(SelfExtent self_extent) const {
     BoxProps out{*this};
-    out.extent_ = stx::Some(std::move(self_extent));
+    out.extent_ = self_extent;
     return out;
   }
 
   BoxProps extent(Extent self_extent) const {
     BoxProps out{*this};
-    out.extent_ = stx::Some(SelfExtent::absolute(self_extent));
+    out.extent_ = SelfExtent::absolute(self_extent);
     return out;
   }
 
   BoxProps extent(uint32_t width, uint32_t height) const {
     BoxProps out{*this};
-    out.extent_ = stx::Some(SelfExtent::absolute(width, height));
+    out.extent_ = SelfExtent::absolute(width, height);
     return out;
   }
 
-  BoxProps extent(stx::NoneType) const {
+  BoxProps constrain(Extent min = Extent{u32_min, u32_min},
+                     Extent max = Extent{u32_max, u32_max}) const {
     BoxProps out{*this};
-    out.extent_ = stx::None;
+    out.extent_.width.min = min.width;
+    out.extent_.width.max = max.width;
+    out.extent_.height.min = min.height;
+    out.extent_.height.max = max.height;
     return out;
   }
 
   auto extent() const { return extent_; }
+
+  BoxProps fit(BoxFit value) const {
+    BoxProps out{*this};
+    out.fit_ = value;
+    return out;
+  }
+
+  auto fit() const { return fit_; }
+
+  BoxProps flex(Flex box_flex) const {
+    BoxProps out{*this};
+    out.flex_ = box_flex;
+    return out;
+  }
+
+  auto flex() const { return flex_; }
 
   BoxProps padding(Padding value) const {
     BoxProps out{*this};
@@ -127,36 +145,6 @@ struct BoxProps {
 
   auto border_radius() const { return border_radius_; }
 
-  BoxProps image(FileImageSource source) const {
-    BoxProps out{*this};
-    out.background_ = stx::Some(ImageSource{std::move(source)});
-    return out;
-  }
-
-  BoxProps image(MemoryImageSource source) const {
-    BoxProps out{*this};
-    out.background_ = stx::Some(ImageSource{std::move(source)});
-    return out;
-  }
-
-  BoxProps image(stx::NoneType) const {
-    BoxProps out{*this};
-    out.background_ = stx::None;
-    return out;
-  }
-
-  auto image() const { return background_; }
-
-  auto const &image_ref() const { return background_; }
-
-  BoxProps fit(BoxFit value) const {
-    BoxProps out{*this};
-    out.fit_ = value;
-    return out;
-  }
-
-  auto fit() const { return fit_; }
-
   BoxProps color(Color value) const {
     BoxProps out{*this};
     out.color_ = value;
@@ -168,17 +156,33 @@ struct BoxProps {
   //! background blur
   BoxProps blur(Blur blur) const {
     BoxProps out{*this};
-    out.blur_ = stx::Some(std::move(blur));
-    return out;
-  }
-
-  BoxProps blur(stx::NoneType) const {
-    BoxProps out{*this};
-    out.blur_ = stx::None;
+    out.blur_ = blur;
     return out;
   }
 
   auto blur() const { return blur_; }
+
+  BoxProps image(FileImageSource source) const {
+    BoxProps out{*this};
+    out.background_image_ = stx::Some(ImageSource{std::move(source)});
+    return out;
+  }
+
+  BoxProps image(MemoryImageSource source) const {
+    BoxProps out{*this};
+    out.background_image_ = stx::Some(ImageSource{std::move(source)});
+    return out;
+  }
+
+  BoxProps image(stx::NoneType) const {
+    BoxProps out{*this};
+    out.background_image_ = stx::None;
+    return out;
+  }
+
+  auto image() const { return background_image_; }
+
+  auto const &image_ref() const { return background_image_; }
 
   BoxProps blend(BoxBlend blend) const {
     BoxProps out{*this};
@@ -188,25 +192,17 @@ struct BoxProps {
 
   auto blend() const { return blend_; }
 
-  BoxProps flex(Flex box_flex) const {
-    BoxProps out{*this};
-    out.flex_ = box_flex;
-    return out;
-  }
-
-  auto flex() const { return flex_; }
-
  private:
-  stx::Option<SelfExtent> extent_;
+  SelfExtent extent_ = SelfExtent::relative(1.0f, 1.0f);
+  BoxFit fit_ = BoxFit::None;
+  Flex flex_ = Flex{};
   Padding padding_ = Padding::all(0);
   Border border_ = Border::all(colors::Transparent, 0);
   BorderRadius border_radius_ = BorderRadius::all(0);
   Color color_ = colors::Transparent;
-  stx::Option<Blur> blur_ = stx::None;
+  Blur blur_;
+  stx::Option<ImageSource> background_image_ = stx::None;
   BoxBlend blend_ = BoxBlend::ColorOver;
-  stx::Option<ImageSource> background_ = stx::None;
-  BoxFit fit_ = BoxFit::None;
-  Flex flex_ = Flex{};
 };
 
 enum class BoxState : uint8_t {
@@ -220,17 +216,16 @@ namespace impl {
 enum class BoxDiff : uint16_t {
   None = 0,
   Extent = 1 << 0,
-  Padding = 1 << 1,
-  Border = 1 << 2,
-  BorderRadius = 1 << 3,
-  Color = 1 << 4,
-  Blur = 1 << 5,
-  Blend = 1 << 6,
-  // needs to reload image asset but shouldn't cause layout reflow
-  BackgroundImage = 1 << 7,
-  Fit = 1 << 8,
-  Flex = 1 << 9,
-  All = (Flex << 1) - 1
+  Fit = 1 << 1,
+  Flex = 1 << 2,
+  Padding = 1 << 3,
+  Border = 1 << 4,
+  BorderRadius = 1 << 5,
+  Color = 1 << 6,
+  Blur = 1 << 7,
+  BackgroundImage = 1 << 8,
+  Blend = 1 << 9,
+  All = (1 << 10) - 1
 };
 
 VLK_DEFINE_ENUM_BIT_OPS(BoxDiff)

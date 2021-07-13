@@ -103,13 +103,6 @@ struct PhysDevice {
     return devices;
   }
 
-  std::string format() const {
-    auto const& properties = info.properties;
-    return fmt::format("Device(name: '{}', ID: {}, type: {}) ",
-                       properties.deviceName, properties.deviceID,
-                       ::vlk::vk::format(properties.deviceType));
-  }
-
   bool has_geometry_shader() const { return info.features.geometryShader; }
 
   bool has_transfer_command_queue_family() const {
@@ -128,13 +121,15 @@ struct PhysDevice {
                        });
   }
 
-  std::string format_features() const {
-    // nice-to-have(lamarrr): print all properties and capabilities
-    return fmt::format("Geometry Shader: {}", has_geometry_shader());
-  }
-
   PhysDeviceInfo info;
 };
+
+inline std::string format(PhysDevice const& device) {
+  auto const& properties = device.info.properties;
+  return fmt::format("Device(name: '{}', ID: {}, type: {}) ",
+                     properties.deviceName, properties.deviceID,
+                     ::vlk::vk::format(properties.deviceType));
+}
 
 struct QueueInfo {
   uint32_t family_index = 0;
@@ -325,7 +320,6 @@ struct Image {
 
     VkImageCreateInfo info{};
 
-    // TODO(lamarrr) should we store the queue family object?
     info.arrayLayers = 1;
 
     info.extent.width = extent.width;

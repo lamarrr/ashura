@@ -4,9 +4,18 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "vlk/ui/primitives.h"
+#include "vlk/ui/trace.h"
+#include "vlk/ui/widget.h"
+#include "vlk/ui/window.h"
+#include "vlk/ui/window_api.h"
 #include "vlk/utils/utils.h"
+
+namespace spdlog {
+class logger;
+}
 
 namespace vlk {
 
@@ -19,10 +28,6 @@ namespace ui {
 
 // forward declarations here
 
-enum class AppLogTarget : uint8_t { Std = 0, File = 1 };
-
-VLK_DEFINE_ENUM_BIT_OPS(AppLogTarget);
-
 //
 //
 // Issues: direct context order with app, also given we can't create vulkan
@@ -30,22 +35,15 @@ VLK_DEFINE_ENUM_BIT_OPS(AppLogTarget);
 //
 //
 
+// initial window config
 struct AppCfg {
-  AppLogTarget log_target = AppLogTarget::Std;
+  // refresh rate and various other settings
   std::string name;
-  Extent extent = Extent{1920, 1080};
-  std::string title = "Valkyrie App";
-  bool resizable = true;
-  bool maximized = false;
-  // borderless
-  // fullscreen
-  // minimized
+  WindowCfg window_cfg;
 };
 
-struct Widget;
-struct Window;
-struct WindowApi;
 struct Pipeline;
+struct VkRenderContext;
 
 struct Version {
   uint8_t major = 0;
@@ -66,22 +64,24 @@ struct App {
     init();
   }
 
-  virtual void tick(std::chrono::nanoseconds interval) {}
+  virtual void tick();
 
   ~App();
 
  private:
   void init();
 
-  // nice-to-have: custom vulkan instance, custom window api abstracted by
-  // virtual methods?
-  std::unique_ptr<WindowApi> window_api;
-  std::unique_ptr<Window> window;
-  std::unique_ptr<vk::Instance> vk_instance;
+  WindowApi window_api;
+  Window window;
+  bool window_extent_changed = true;
+  bool should_quit = false;
   // used for rendering and presentation
-  std::unique_ptr<vk::CommandQueue> vk_graphics_command_queue;
+  std::shared_ptr<VkRenderContext> vk_render_context;
   std::unique_ptr<Pipeline> pipeline;
   std::unique_ptr<Widget> root_widget;
+  std::unique_ptr<spdlog::logger> logger;
+  trace::SingleThreadContext trace_context;
+  uint32_t present_refresh_rate_hz = 0;
 
   AppCfg cfg;
 

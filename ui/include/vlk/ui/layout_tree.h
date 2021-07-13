@@ -562,6 +562,11 @@ struct LayoutTree {
           present_block_start = child_it + 1;
         }
 
+        // we are now at the end of the block, we thus need to reset the max
+        // block width and height
+        block_max_width = 0;
+        block_max_height = 0;
+
       } else {
         // no wrapping nor alignment needed
         if constexpr (direction == Direction::Row) {

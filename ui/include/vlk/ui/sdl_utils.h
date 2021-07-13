@@ -7,5 +7,5 @@
   do {                                                               \
     if (!(expr))                                                     \
       ::stx::panic(additional_context_message ". SDL's Last Error:", \
-                   SDL_GetError());                                  \
+                   std::string_view(SDL_GetError()));                \
   } while (false)

@@ -535,7 +535,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
 
   // number of images to use for buffering on the swapchain
   create_info.minImageCount = select_swapchain_image_count(
-      properties.capabilities, properties.capabilities.minImageCount + 1);
+      properties.capabilities, desired_num_buffers);
 
   create_info.imageArrayLayers = 1;  // 2 for stereoscopic rendering
   create_info.imageUsage = image_usages;
@@ -1711,8 +1711,7 @@ inline void refresh_memory_map(VkDevice device, VkDeviceMemory memory,
                    "Unable to re-read memory map");
 }
 
-inline constexpr VkDescriptorSetLayoutBinding
-make_descriptor_set_layout_binding(
+constexpr VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
     uint32_t binding,
     uint32_t descriptor_count  // number of objects being described starting
                                // from {binding}
@@ -2191,12 +2190,12 @@ constexpr std::string_view format(VkColorSpaceKHR color_space) {
 
 // TODO(lamarrr): must return a span of any type. would be converted to bytes
 // and sent
-STX_FORCE_INLINE stx::SpanReport operator>>(stx::ReportQuery,
-                                            VkResult const& result) noexcept {
+inline stx::SpanReport operator>>(stx::ReportQuery,
+                                  VkResult const& result) noexcept {
   return stx::SpanReport(vlk::vk::format(result));
 }
 
-STX_FORCE_INLINE stx::SpanReport operator>>(stx::ReportQuery,
-                                            VkFormat const& format) noexcept {
+inline stx::SpanReport operator>>(stx::ReportQuery,
+                                  VkFormat const& format) noexcept {
   return stx::SpanReport(vlk::vk::format(format));
 }

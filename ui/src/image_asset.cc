@@ -187,69 +187,54 @@ struct StbiImageBuffer {
 // in the skia API (8-bit alignment for single channel images i.e. Grey. and
 // 32-bit alignment for multi-channel images i.e. RGB and RGBA).
 // a new buffer establishes alignment requirement for the image if necessary
-inline sk_sp<SkImage> dispatch_image_to_gpu(
-    RenderContext const& context, ImageInfo const& info,
-    stx::Span<uint8_t const> unaligned_pixels) {
-  sk_sp texture = context.create_target_texture(
-      info.extent, to_skia(info.format),
-      (info.format == ImageFormat::RGB || info.format == ImageFormat::Gray)
-          ? kOpaque_SkAlphaType
-          : kUnpremul_SkAlphaType);
-
-  SkCanvas* canvas = texture->getCanvas();
-
-  SkPaint paint;
-  paint.setBlendMode(SkBlendMode::kSrc);
-
+static inline sk_sp<SkImage> make_sk_image(
+    ImageInfo const& info, stx::Span<uint8_t const> unaligned_pixels) {
   switch (info.format) {
     case ImageFormat::Gray: {
-      sk_sp data = SkData::MakeWithoutCopy(unaligned_pixels.data(),
-                                           unaligned_pixels.size_bytes());
+      sk_sp data = SkData::MakeWithCopy(unaligned_pixels.data(),
+                                        unaligned_pixels.size_bytes());
       sk_sp image =
           SkImage::MakeRasterData(to_skia(info), data, info.extent.width * 1);
       VLK_ENSURE(image != nullptr);
-      canvas->drawImage(image, 0, 0, &paint);
-    } break;
+      return image;
+    };
     case ImageFormat::RGB: {
       auto aligned_buffer = make_aligned_RGBx_buffer(
           unaligned_pixels.data(), info.extent.width, info.extent.height);
-      sk_sp data = SkData::MakeWithoutCopy(
-          aligned_buffer.get(), info.extent.width * info.extent.height *
-                                    aligned_channel_size(info.format));
+      sk_sp data = SkData::MakeWithCopy(aligned_buffer.get(),
+                                        info.extent.width * info.extent.height *
+                                            aligned_channel_size(info.format));
       sk_sp image =
           SkImage::MakeRasterData(to_skia(info), data, info.extent.width * 4);
       VLK_ENSURE(image != nullptr);
-      canvas->drawImage(image, 0, 0, &paint);
+      return image;
     } break;
     case ImageFormat::RGBA: {
       auto aligned_buffer = make_aligned_RGBA_buffer(
           unaligned_pixels.data(), info.extent.width, info.extent.height);
-      sk_sp data = SkData::MakeWithoutCopy(
-          aligned_buffer.get(), info.extent.width * info.extent.height *
-                                    aligned_channel_size(info.format));
+      sk_sp data = SkData::MakeWithCopy(aligned_buffer.get(),
+                                        info.extent.width * info.extent.height *
+                                            aligned_channel_size(info.format));
       sk_sp image =
           SkImage::MakeRasterData(to_skia(info), data, info.extent.width * 4);
       VLK_ENSURE(image != nullptr);
-      canvas->drawImage(image, 0, 0, &paint);
+      return image;
     } break;
 
     default:
       VLK_PANIC("Unsupported Image Format", info.format);
   }
-
-  return texture->makeImageSnapshot();
 }
 
 // remove pixmap and replace with this function instead
-inline sk_sp<SkImage> dispatch_image_to_gpu(
-    RenderContext const& context, StbiImageBuffer const& unaligned_buffer) {
-  return dispatch_image_to_gpu(context, unaligned_buffer.info(),
-                               unaligned_buffer.span());
+static inline sk_sp<SkImage> make_sk_image(
+    StbiImageBuffer const& unaligned_buffer) {
+  return make_sk_image(unaligned_buffer.info(), unaligned_buffer.span());
 }
 
-std::unique_ptr<Asset> FileImageLoader::load(RenderContext const& context,
-                                             AssetLoadArgs const& args) const {
-  auto const& load_args = upcast<impl::FileImageLoadArgs const&>(args);
+std::unique_ptr<Asset> FileImageLoader::load(AssetLoadArgs const& args) const {
+  auto const& load_args =
+      upcast<impl::FileImageLoadArgs const>(args).expect("Upcast failed").get();
 
   std::shared_ptr source_data = load_args.source_data();
 
@@ -261,7 +246,7 @@ std::unique_ptr<Asset> FileImageLoader::load(RenderContext const& context,
         ImageAsset{stx::Err(std::move(load_result).unwrap_err())});
 
   return std::make_unique<ImageAsset>(
-      ImageAsset{stx::Ok(dispatch_image_to_gpu(context, load_result.value()))});
+      ImageAsset{stx::Ok(make_sk_image(load_result.value()))});
 }
 
 std::shared_ptr<AssetLoader const> FileImageLoader::get_default() {
@@ -270,13 +255,14 @@ std::shared_ptr<AssetLoader const> FileImageLoader::get_default() {
 }
 
 std::unique_ptr<Asset> MemoryImageLoader::load(
-    RenderContext const& context, AssetLoadArgs const& args) const {
-  auto const& load_args = upcast<impl::MemoryImageLoadArgs const&>(args);
+    AssetLoadArgs const& args) const {
+  auto const& load_args =
+      upcast<impl::MemoryImageLoadArgs const>(args).expect("Upcast failed").get();
 
   std::shared_ptr source_data = load_args.source_data();
 
-  return std::make_unique<ImageAsset>(ImageAsset{stx::Ok(
-      dispatch_image_to_gpu(context, source_data->info, source_data->buffer))});
+  return std::make_unique<ImageAsset>(ImageAsset{
+      stx::Ok(make_sk_image(source_data->info, source_data->buffer))});
 }
 
 std::shared_ptr<AssetLoader const> MemoryImageLoader::get_default() {
@@ -291,6 +277,8 @@ uint64_t MemoryImageSource::make_uid() {
 
   return latest_uid.fetch_add(1, std::memory_order_seq_cst);
 }
+
+// TODO(lamarrr): WEBP support
 
 }  // namespace ui
 }  // namespace vlk

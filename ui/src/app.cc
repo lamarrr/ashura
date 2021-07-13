@@ -1,8 +1,14 @@
 #include "vlk/ui/app.h"
 
+#include "include/core/SkGraphics.h"
 #include "include/gpu/vk/GrVkBackendContext.h"
 #include "include/gpu/vk/GrVkExtensions.h"
+#include "spdlog/sinks/basic_file_sink.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/spdlog.h"
 #include "vlk/ui/pipeline.h"
+#include "vlk/ui/trace.h"
+#include "vlk/ui/trace_contexts.h"
 #include "vlk/ui/vk_render_context.h"
 #include "vlk/ui/vulkan.h"
 #include "vlk/ui/window.h"
@@ -10,6 +16,20 @@
 
 namespace vlk {
 namespace ui {
+
+namespace impl {
+// take a quick look at UE log file content and structure
+// Valkyrie.App
+static std::unique_ptr<spdlog::logger> make_single_threaded_logger(
+    std::string name, std::string file_path) {
+  std::vector<spdlog::sink_ptr> sinks;
+  sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_st>(
+      std::move(file_path)));
+  sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_st>());
+  return std::make_unique<spdlog::logger>(std::move(name), sinks.begin(),
+                                          sinks.end());
+}
+}  // namespace impl
 
 static stx::Option<vk::PhysDevice> select_device(
     stx::Span<vk::PhysDevice const> const physical_devices,
@@ -49,15 +69,19 @@ static constexpr char const* required_validation_layers[] = {
 App::~App() = default;
 
 void App::init() {
+  logger = impl::make_single_threaded_logger("App", "log.txt");
+
+  logger->info("Initializing Window API");
+
   window_api = WindowApi::init();
 
-  WindowCfg win_cfg;
-  win_cfg.extent = cfg.extent;
-  win_cfg.maximized = cfg.maximized;
-  win_cfg.resizable = cfg.resizable;
-  win_cfg.title = cfg.resizable;
+  logger->info("Initialized Window API");
+  logger->info("Creating root window");
 
-  window = Window::create(window_api, win_cfg);
+  window = Window::create(window_api, cfg.window_cfg);
+
+  logger->info("Created root window");
+
   std::vector window_required_instance_extensions =
       window.handle->get_required_instance_extensions();
 
@@ -77,10 +101,10 @@ void App::init() {
       VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
       VK_PHYSICAL_DEVICE_TYPE_CPU};
 
-  VLK_LOG("Available Physical Devices:");
+  logger->info("Available Physical Devices:");
 
   for (vk::PhysDevice const& device : phys_devices) {
-    VLK_LOG("\t{}", device.format());
+    logger->info("\t{}", vk::format(device));
     // TODO(lamarrr): log graphics families on devices and other properties
   }
 
@@ -88,7 +112,7 @@ void App::init() {
       select_device(phys_devices, device_preference, window.handle->surface)
           .expect("Unable to find any suitable rendering device");
 
-  VLK_LOG("Selected Physical Device: {}", phys_device.format());
+  logger->info("Selected Physical Device: {}", vk::format(phys_device));
 
   // we might need multiple command queues, one for data transfer and one for
   // rendering
@@ -173,38 +197,44 @@ void App::init() {
 void App::tick() {
   auto frame_budget = frequency_to_period(present_refresh_rate_hz);
   auto begin = std::chrono::steady_clock::now();
-  auto total_used = std::chrono::nanoseconds(0);
+  auto total_used = std::chrono::steady_clock::duration(0);
 
   // TODO(lamarrr): add actual tick
-  BackingStoreDiff backing_store_diff = pipeline->tick({});
+  BackingStoreDiff backing_store_diff = BackingStoreDiff::None;
+
+  {
+    VLK_TRACE(trace_context, "Swapchain", "Pipeline Tick");
+    backing_store_diff = pipeline->tick({});
+  }
 
   // only try to present if the pipeline has new changes or window was
   // resized
   if (backing_store_diff != BackingStoreDiff::None || window_extent_changed) {
-    auto present_begin = std::chrono::steady_clock::now();
-
     // TODO(lamarrr): make presentation happen after recreation, for the first
     // iteration. and remove the created swapchain in the init method
 
+    // only try to recreate swapchain if the present swapchain can't be used for
+    // presentation
+    if (window_extent_changed) {
+      VLK_TRACE(trace_context, "Swapchain", "Recreation");
+      window.handle->recreate_swapchain(vk_render_context);
+    }
+
+    // TODO(lamarrr): we don't need another backing store on the pipeline side
     WindowSwapchainDiff swapchain_diff = window.handle->present_backing_store(
         pipeline->tile_cache.backing_store_cache.get_surface_ref());
 
-    auto present_end = std::chrono::steady_clock::now();
-
-    VLK_LOG("Presented new frame to swapchain in {}ms",
-            std::chrono::duration_cast<std::chrono::milliseconds>(present_end -
-                                                                  present_begin)
-                .count());
-
     while (swapchain_diff != WindowSwapchainDiff::None) {
-      window.handle->recreate_swapchain(vk_render_context);
-      swapchain_diff = window.handle->present_backing_store(
-          pipeline->tile_cache.backing_store_cache.get_surface_ref());
-      auto recreate_end = std::chrono::steady_clock::now();
-      VLK_LOG("Recreated swapchain in {}ms",
-              std::chrono::duration_cast<std::chrono::milliseconds>(
-                  recreate_end - present_end)
-                  .count());
+      {
+        VLK_TRACE(trace_context, "Swapchain", "Recreation");
+        window.handle->recreate_swapchain(vk_render_context);
+      }
+
+      {
+        VLK_TRACE(trace_context, "Swapchain", "Presentation");
+        swapchain_diff = window.handle->present_backing_store(
+            pipeline->tile_cache.backing_store_cache.get_surface_ref());
+      }
     }
 
     // we need to update viewport in case it changed
@@ -230,34 +260,33 @@ void App::tick() {
     auto render_end = std::chrono::steady_clock::now();
 
     total_used = render_end - begin;
+    // we can save power on minimized and not have to update the buffer
   }
 
-  // poll events irregardless to make the window not be marked as unresponsive.
+  // poll events to make the window not be marked as unresponsive.
+  // we also poll events from SDL's event queue until there are none left.
   //
   // any missed event should be rolled over to the next tick()
   do {
   } while (window_api.poll_events());
-  // TODO(lamarrr): we are still missing events
-
-  // this would mean the pipeline needs to store the states and process and
-  // dispatch them on the next tick()
-  pipeline->dispatch_events(window.handle->event_queue.mouse_button_events,
-                            window.handle->event_queue.window_events);
-
-  window_extent_changed =
-      any_eq(window.handle->event_queue.window_events, WindowEvent::Resized);
-
-  if (any_eq(window.handle->event_queue.window_events, WindowEvent::Close)) {
-    std::exit(0);
-  }
-
-  window.handle->event_queue.clear();
 
   total_used = std::chrono::steady_clock::now() - begin;
 
   if (total_used < frame_budget) {
     std::this_thread::sleep_for(frame_budget - total_used);
   }
+
+  pipeline->dispatch_events(window.handle->event_queue.mouse_button_events,
+                            window.handle->event_queue.window_events);
+
+  window_extent_changed = any_eq(window.handle->event_queue.window_events,
+                                 WindowEvent::SizeChanged);
+
+  if (any_eq(window.handle->event_queue.window_events, WindowEvent::Close)) {
+    std::exit(0);
+  }
+
+  window.handle->event_queue.clear();
 }
 
 }  // namespace ui

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <memory>
 
 #include "stx/option.h"
@@ -14,7 +16,7 @@ struct WindowApi {
   // TODO(lamarrr): check to ensure we only have one instance
   static WindowApi init();
 
-  void poll_events() const;
+  bool poll_events() const;
 
   std::shared_ptr<WindowApiHandle> handle;
 };

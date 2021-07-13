@@ -3,6 +3,7 @@
 #include <type_traits>
 
 #include "spdlog/spdlog.h"
+#include "stx/option.h"
 #include "stx/panic.h"
 #include "vlk/utils/limits.h"
 
@@ -194,12 +195,13 @@ constexpr bool f32_eq(float a, float b) {
 }
 
 template <typename Target, typename Source>
-STX_FORCE_INLINE Target upcast(Source &source) {
-  static_assert(std::is_lvalue_reference_v<Target>);
-  auto *const dyn_ptr =
-      dynamic_cast<std::remove_reference_t<Target> *>(&source);
-  VLK_ENSURE(dyn_ptr != nullptr, "Dynamic upcast failed");
-  return *dyn_ptr;
+STX_FORCE_INLINE stx::Option<stx::Ref<Target>> upcast(Source &source) {
+  auto *dyn_ptr = dynamic_cast<Target *>(&source);
+  if (dyn_ptr == nullptr) {
+    return stx::None;
+  } else {
+    return stx::Some(stx::Ref<Target>(*dyn_ptr));
+  }
 }
 
 }  // namespace vlk

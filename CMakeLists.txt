@@ -29,6 +29,9 @@ execute_process(
 execute_process(
   COMMAND git clone -b release-2.0.14 https://github.com/libsdl-org/SDL.git
           third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+execute_process(
+            COMMAND git clone -b curl-7_77_0 https://github.com/curl/curl.git
+                    third_party/curl WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 # TODO(lamarrr): use a tagged version with CMakeLists.txt
 execute_process(
@@ -37,6 +40,7 @@ execute_process(
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
     third_party/VulkanMemoryAllocator
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
 
 # TODO(lamarrr): check if skia binaries and header folder doesn't exists and
 # pull in
@@ -127,6 +131,7 @@ add_subdirectory(third_party/googletest)
 add_subdirectory(third_party/fmt)
 add_subdirectory(third_party/VulkanMemoryAllocator)
 add_subdirectory(third_party/SDL)
+add_subdirectory(third_party/curl)
 
 add_library(vlk_external_stb INTERFACE)
 target_include_directories(vlk_external_stb

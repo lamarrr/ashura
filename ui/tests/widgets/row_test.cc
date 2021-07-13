@@ -4,6 +4,7 @@
 
 #include "gtest/gtest.h"
 #include "mock_widgets.h"
+#include "vlk/ui/app.h"
 #include "vlk/ui/palettes/ios.h"
 #include "vlk/ui/palettes/material.h"
 #include "vlk/ui/pipeline.h"
@@ -27,113 +28,29 @@ using namespace vlk;
 // Add imgui and glfw for testing
 //
 
-struct App {
-  WindowApi api;
+struct WhiteBgFlex : public MockFlex {
+  WhiteBgFlex(std::initializer_list<Widget*> children) : MockFlex{children} {}
 
-  void start() {
-    {
-      // how do we send pixels over from SKia to Vulkan window?
-      GrVkBackendContext vk_context{};
+  ~WhiteBgFlex() {}
 
-      GrVkExtensions extensions_cache{};
-      vk_context.fVkExtensions = &extensions_cache;
-      vk_context.fInstance = instance.handle->instance;
-      vk_context.fPhysicalDevice = phys_device.info.phys_device;
-      vk_context.fDevice = device.handle->device;
-      vk_context.fQueue = graphics_command_queue.info.queue;
-      vk_context.fGraphicsQueueIndex = graphics_command_queue.info.index;
-      vk_context.fMaxAPIVersion = VK_API_VERSION_1_1;
-      vk_context.fDeviceFeatures = &features;
-      // vk_context.fMemoryAllocator
-      vk_context.fGetProc = [](char const* proc_name, VkInstance instance,
-                               VkDevice device) {
-        VLK_ENSURE(instance == nullptr || device == nullptr);
-        VLK_ENSURE(!(instance != nullptr && device != nullptr));
-        if (device != nullptr) {
-          return vkGetDeviceProcAddr(device, proc_name);
-        } else {
-          return vkGetInstanceProcAddr(instance, proc_name);
-        }
-      };
+  virtual void draw(Canvas& canvas) override {
+    // TODO(lamarrr): this won't give us a correct behaviour?
+    // as it will also clear the outlying parts
+    SkPaint paint;
+    paint.setBlendMode(SkBlendMode::kSrc);
+    paint.setColor(SK_ColorWHITE);
+    paint.setStyle(SkPaint::Style::kFill_Style);
 
-      auto direct_context = GrDirectContext::MakeVulkan(vk_context);
-      VLK_ENSURE(direct_context != nullptr,
-                 "Unable to create Skia Direct Vulkan Context");
+    canvas.to_skia().drawRect(to_sk_rect(Rect{{}, canvas.extent()}), paint);
+  }
 
-      auto allocator = vk::Allocator::create(device);
-
-      auto image = vk::Image::create(allocator, graphic_command_queue_family,
-                                     VK_FORMAT_R8G8B8A8_UINT, Extent{250, 250})
-                       .unwrap();
-
-      bool quit = false;
-
-      auto frame_budget = std::chrono::milliseconds(16);
-
-      while (!quit) {
-        // we need to get frame budget and use diff between it and the used time
-        // window.publish_events();  // defer the events into the widget system
-        // via the pawn process widget invalidation and events
-
-        auto begin = std::chrono::steady_clock::now();
-
-        while (!window.handle->tick(graphics_command_queue, direct_context)) {
-        }
-
-        auto render_end = std::chrono::steady_clock::now();
-        auto total_used = std::chrono::duration_cast<std::chrono::milliseconds>(
-            render_end - begin);
-
-        Ticks no_event_ticks{0};
-        static constexpr auto sleep_interval = std::chrono::milliseconds(1);
-
-        while (frame_budget > total_used) {
-          bool got_event = false;
-
-          window.handle->api.poll_event().match(
-              [&](SDL_Event event) {
-                if (event.type == SDL_QUIT) quit = true;
-
-                if (event.type == SDL_WINDOWEVENT) {
-                  if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                    window.handle->surface_extent_dirty = true;
-                    window.handle->extent_dirty = true;
-                  }
-                }
-
-                if (event.type == SDL_MOUSEBUTTONDOWN) {
-                  if (event.button.clicks == 2) {
-                    VLK_LOG("Double click");
-                  }
-                }
-
-                got_event = true;
-              },
-              []() {});
-
-          if (got_event) {
-            no_event_ticks.reset();
-          } else {
-            no_event_ticks++;
-          }
-
-          if (no_event_ticks >= Ticks{64}) {
-            std::this_thread::sleep_for(sleep_interval);
-          }
-
-          total_used = std::chrono::duration_cast<std::chrono::milliseconds>(
-              std::chrono::steady_clock::now() - begin);
-        }
-      }
-    }
+  virtual void tick(std::chrono::nanoseconds, AssetManager&) override {
+    // mark_render_dirty();
   }
 };
 
 TEST(RowTest, BasicTest) {
   RenderContext context;
-
-  App app;
-  app.start();
 
   constexpr Color color_list[] = {ios::DarkPurple, ios::DarkRed,
                                   ios::DarkIndigo, ios::DarkMint,
@@ -143,12 +60,13 @@ TEST(RowTest, BasicTest) {
   // wrapping but the height allotted is wrong? or do we need to scroll the root
   // view on viewport scroll?
 
-  MockView view{{new Row{
+  // TODO(lamarrr): we need a flexbox, not row or column
+  MockView view{new Row{
       [&](size_t i) -> Widget* {
         if (i >= 8) return nullptr;
 
         if (i == 0)
-          return new Text{
+          return new WhiteBgFlex{new Text{
               {InlineText{"Apparently we had reached a great height in the "
                           "atmosphere, for "
                           "the sky was a dead black, and the stars had ceased "
@@ -164,11 +82,20 @@ TEST(RowTest, BasicTest) {
                InlineText{"Looking down into the dark gulf below, I could "
                           "see a ruddy "
                           "light streaming through a rift in the clouds.",
-                          TextProps{}.color(ios::LightRed)}},
+                          TextProps{}.color(ios::LightRed)},
+               InlineText{"explicit",
+                          TextProps{}
+                              .font_size(20.0f)
+                              .color(ios::LightPurple)
+                              .font(FileTypefaceSource{
+                                  "/home/lamar/Desktop/"
+                                  "MaterialIcons-Regular-4.0.0.ttf"})}
+
+              },
               ParagraphProps{}
-                  .font_size(25.0f)
+                  .font_size(20.0f)
                   .color(ios::DarkGray6)
-                  .font(SystemFont{"SF Pro"})};
+                  .font(SystemFont{"SF Pro"})}};
 
         if (i == 1) {
           return new Image{ImageProps{
@@ -191,7 +118,7 @@ TEST(RowTest, BasicTest) {
               ImageProps{FileImageSource{"/home/lamar/Pictures/IMG_0079.JPG"}}
                   .extent(500, 500)
                   .aspect_ratio(2, 1)
-                  .border_radius(BorderRadius::all(20))};
+                  .border_radius(BorderRadius::spec(20, 10, 5, 40))};
         }
 
         if (i == 4) {
@@ -206,7 +133,7 @@ TEST(RowTest, BasicTest) {
         return new Box(
             new Box(new Text{"Aa Type of A Box (" + std::to_string(i) + ")",
                              TextProps{}
-                                 .font_size(25.0f)
+                                 .font_size(10.0f)
                                  .color(colors::White)
                                  .font(SystemFont{"SF Pro"})},
                     BoxProps{}
@@ -220,21 +147,29 @@ TEST(RowTest, BasicTest) {
                 .border(Border::all(ios::DarkPurple, 20))
                 .border_radius(BorderRadius::all(50)));
       },
-      RowProps{}.main_align(MainAlign::SpaceBetween)}}};
+      RowProps{}
+          .main_align(MainAlign::SpaceAround)
+          .cross_align(CrossAlign::Start)}};
+
+  App app{&view, AppCfg{}};
+
+  while (true) {
+    app.tick();
+  }
 
   Extent screen_extent{2000, 1000};
 
-  Pipeline pipeline{view};
+  Pipeline pipeline{view, context};
 
-  pipeline.viewport.resize(screen_extent);
+  pipeline.viewport.resize(
+      screen_extent, pipeline.viewport.get_unresolved_widgets_allocation());
 
   for (size_t i = 0; i < 1'00; i++) {
     constexpr float mul = 1 / 50.0f;
     pipeline.tick(std::chrono::nanoseconds(0));
-    pipeline.tile_cache.scroll_backing_store(IOffset{0, mul * i * 0});
-    // pipeline.tile_cache.backing_store.save_pixels_to_file("./ui_output_row_"
-    // +
-    //                                                      std::to_string(i));
-    // VLK_LOG("written tick: {}", i);
+    pipeline.tile_cache.scroll_backing_store_logical(IOffset{0, mul * i * 0});
+    pipeline.tile_cache.backing_store_cache.save_pixels_to_file(
+        "./ui_output_row_" + std::to_string(i));
+    VLK_LOG("written tick: {}", i);
   }
 }

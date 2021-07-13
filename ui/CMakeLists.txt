@@ -6,6 +6,9 @@ add_library(
   src/window_api.cc
   src/vulkan.cc
   src/app.cc
+  # subsystems
+
+  src/subsystems/async.cc
   # asset systems
   src/image_asset.cc
   src/font.cc
@@ -29,7 +32,8 @@ target_link_libraries(
   vlk_external_stb
   SDL2-static
   fmt::fmt
-  ${Vulkan_LIBRARIES})
+  ${Vulkan_LIBRARIES}
+  libcurl)
 
 target_compile_definitions(vlk_ui PUBLIC SK_VULKAN)
 

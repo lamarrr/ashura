@@ -14,6 +14,7 @@ namespace ui {
 // TODO - constrain extent in props
 // padding, etc.
 // remove const refs
+// TODO(lamarrr): rename this widget to flexbox
 
 struct RowProps {
   constexpr RowProps() {}

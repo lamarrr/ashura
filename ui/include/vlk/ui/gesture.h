@@ -1,0 +1,45 @@
+  ET_UNKNOWN = 0,
+  ET_MOUSE_PRESSED,
+  ET_MOUSE_DRAGGED,
+  ET_MOUSE_RELEASED,
+  ET_MOUSE_MOVED,
+  ET_MOUSE_ENTERED,
+  ET_MOUSE_EXITED,
+  ET_KEY_PRESSED,
+  ET_KEY_RELEASED,
+  ET_MOUSEWHEEL,
+  ET_MOUSE_CAPTURE_CHANGED,  // Event has no location.
+  ET_TOUCH_RELEASED,
+  ET_TOUCH_PRESSED,
+  ET_TOUCH_MOVED,
+  ET_TOUCH_STATIONARY,
+  ET_TOUCH_CANCELLED,
+  ET_DROP_TARGET_EVENT,
+  ET_FOCUS_CHANGE,
+  ET_TRANSLATED_KEY_PRESS,
+  ET_TRANSLATED_KEY_RELEASE,
+
+  // GestureEvent types
+  ET_GESTURE_SCROLL_BEGIN,
+  ET_GESTURE_SCROLL_END,
+  ET_GESTURE_SCROLL_UPDATE,
+  ET_GESTURE_TAP,
+  ET_GESTURE_TAP_DOWN,
+  ET_GESTURE_TAP_CANCEL,
+  ET_GESTURE_BEGIN,  // Sent before any other gesture types.
+  ET_GESTURE_END,    // Sent after any other gestures.
+  ET_GESTURE_DOUBLE_TAP,
+  ET_GESTURE_TWO_FINGER_TAP,
+  ET_GESTURE_PINCH_BEGIN,
+  ET_GESTURE_PINCH_END,
+  ET_GESTURE_PINCH_UPDATE,
+  ET_GESTURE_LONG_PRESS,
+  // A SWIPE gesture can happen at the end of a TAP_UP gesture if the
+  // finger(s) were moving quickly before they are released.
+  ET_GESTURE_MULTIFINGER_SWIPE,
+
+  // Scroll support.
+  // TODO[davemoore] we need to unify these events w/ touch and gestures.
+  ET_SCROLL,
+  ET_SCROLL_FLING_START,
+  ET_SCROLL_FLING_CANCEL,

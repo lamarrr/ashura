@@ -25,13 +25,12 @@ constexpr bool fits_i32(uint32_t value) {
   return value <= static_cast<uint32_t>(i32_max);
 }
 
-// TODO(lamarrr): implement
 constexpr uint32_t u32_clamp(int64_t value) {
   return static_cast<uint32_t>(std::clamp<int64_t>(value, 0, u32_max));
 }
 
 constexpr uint32_t u32_clamp(int32_t value) {
-  return static_cast<uint32_t>(std::clamp<int32_t>(value, 0, i32_max));
+  return static_cast<uint32_t>(std::max<int32_t>(value, 0));
 }
 
 constexpr int32_t i32_clamp(int64_t value) {
@@ -39,7 +38,7 @@ constexpr int32_t i32_clamp(int64_t value) {
 }
 
 constexpr int32_t i32_clamp(uint32_t value) {
-  return static_cast<int32_t>(std::clamp<uint32_t>(value, 0, i32_max));
+  return static_cast<int32_t>(std::min<uint32_t>(value, i32_max));
 }
 
 struct IOffset {
@@ -98,6 +97,28 @@ constexpr std::pair<int32_t, int32_t> i32_clamp(Offset const &offset) {
   return std::make_pair(i32_clamp(offset.x), i32_clamp(offset.y));
 }
 
+// virtual offset
+struct VOffset {
+  float x = 0.0f;
+  float y = 0.0f;
+};
+
+constexpr VOffset operator+(VOffset const &a, VOffset const &b) {
+  return VOffset{a.x + b.x, a.y + b.y};
+}
+
+constexpr VOffset operator-(VOffset const &a, VOffset const &b) {
+  return VOffset{a.x - b.x, a.y - b.y};
+}
+
+constexpr bool operator==(VOffset const &a, VOffset const &b) {
+  return a.x == b.x && a.y == b.y;
+}
+
+constexpr bool operator!=(VOffset const &a, VOffset const &b) {
+  return !(a == b);
+}
+
 struct Extent {
   uint32_t width = 0;
   uint32_t height = 0;
@@ -128,6 +149,12 @@ constexpr bool fits_i32(Extent const &extent) {
 constexpr std::pair<int32_t, int32_t> i32_clamp(Extent const &extent) {
   return std::make_pair(i32_clamp(extent.width), i32_clamp(extent.height));
 }
+
+// virtual offset
+struct VExtent {
+  float width = 0.0f;
+  float height = 0.0f;
+};
 
 struct IRect {
   IOffset offset;
@@ -274,6 +301,60 @@ constexpr bool operator!=(Rect const &a, Rect const &b) { return !(a == b); }
 
 //! Virtual Rects
 //!
+//! we typically use this struct in cases where we need to implement zooming or
+//! device pixel ratio scaling. floating point numbers are notoriously difficult
+//! to deal with, hence we use integers where possible. floating point numbers
+//! represent virtual quantities. converting to real numbers typically involve
+//! rounding of sorts. Note that floating point arithmetic is brittle, hence we
+//! use the `virtualize` and `devirtualize` process when converting or operating
+//! across the virtual and non-virtual quantities.
+//!
+//! when zooming, floating point inconsistencies will tend to be visibile, so
+//! our floating point arithmetic needs to be as accurate as possible.
+//!
+//! virtual dimensions or quantities are typically used for rendering operations
+//! where we floating point precision is a concern (translation, rotation,
+//! zooming, scaling, etc)
+//!
+struct VRect {
+  VOffset offset;
+  VExtent extent;
+
+  constexpr auto bounds() const {
+    return std::make_tuple(offset.x, offset.x + extent.width, offset.y,
+                           offset.y + extent.height);
+  }
+
+  constexpr bool overlaps(VRect const &other) const {
+    auto [x1_min, x1_max, y1_min, y1_max] = bounds();
+    auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+
+    return x1_min < x2_max && x1_max > x2_min && y2_max > y1_min &&
+           y2_min < y1_max;
+  }
+
+  constexpr bool contains(VRect const &other) const {
+    auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
+    auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+
+    return x1_min <= x2_min && x1_max >= x2_max && y1_min <= y2_min &&
+           y1_max >= y2_max;
+  }
+
+  constexpr float x() const { return offset.x; }
+  constexpr float y() const { return offset.y; }
+
+  constexpr float width() const { return extent.width; }
+  constexpr float height() const { return extent.height; }
+
+  constexpr VRect with_offset(VOffset const &new_offset) const {
+    return VRect{new_offset, extent};
+  }
+
+  constexpr VRect with_extent(VExtent const &new_extent) const {
+    return VRect{offset, new_extent};
+  }
+};
 
 //! unit of time within the whole API.
 //! NOTE: wall or system clocks are unreliable and not easily reproducible.
@@ -461,30 +542,7 @@ constexpr bool operator!=(Border const &a, Border const &b) {
 
 using BorderRadius = Corners;
 
-struct Blur {
-  Blur(float x, float y) : sigma_x_{x}, sigma_y_{y} {
-    VLK_ENSURE(x > 0.0f, "Gaussian Blur Sigma X must be greater than 0.0f");
-    VLK_ENSURE(y > 0.0f, "Gaussian Blur Sigma Y must be greater than 0.0f");
-  }
-
-  explicit Blur(float value) : Blur{value, value} {}
-
-  float x() const { return sigma_x_; }
-
-  float y() const { return sigma_y_; }
-
-  bool is_valid() const { return sigma_x_ > 0.0f && sigma_y_ > 0.0f; }
-
-  bool operator==(Blur const &other) const {
-    return f32_eq(sigma_x_, other.sigma_x_) && f32_eq(sigma_y_, other.sigma_y_);
-  }
-
-  bool operator!=(Blur const &other) const { return !(*this == other); }
-
- private:
-  float sigma_x_;
-  float sigma_y_;
-};
+using Blur = Extent;
 
 constexpr Extent aspect_ratio_trim(Extent aspect_ratio, Extent extent) {
   float ratio = aspect_ratio.width / static_cast<float>(aspect_ratio.height);
@@ -493,6 +551,183 @@ constexpr Extent aspect_ratio_trim(Extent aspect_ratio, Extent extent) {
   uint32_t height = std::min<uint32_t>(extent.width / ratio, extent.height);
 
   return Extent{width, height};
+}
+
+// device pixel ratio
+//
+// TODO(lamarrr): check for negative
+struct Dpr {
+  float x = 1.0f;
+  float y = 1.0f;
+};
+
+constexpr bool operator==(Dpr const &a, Dpr const &b) {
+  return a.x == b.x && a.y == b.y;
+}
+
+constexpr bool operator!=(Dpr const &a, Dpr const &b) { return !(a == b); }
+
+constexpr Dpr dpr_from_extents(Extent logical_extent, Extent physical_extent) {
+  return Dpr{
+      physical_extent.width / static_cast<float>(logical_extent.width),
+      physical_extent.height / static_cast<float>(logical_extent.height)};
+}
+
+namespace impl {
+template <typename NumericT>
+constexpr float logical_to_physical_integral(float phys_log_ratio,
+                                             NumericT value) {
+  return value * phys_log_ratio;
+}
+
+template <typename NumericT>
+constexpr float physical_to_logical_integral(float phys_log_ratio,
+                                             NumericT value) {
+  return value / phys_log_ratio;
+}
+
+}  // namespace impl
+
+constexpr auto logical_to_physical(Dpr dpr, Offset const &value) {
+  return VOffset{impl::logical_to_physical_integral(dpr.x, value.x),
+                 impl::logical_to_physical_integral(dpr.y, value.y)};
+}
+
+constexpr auto logical_to_physical(Dpr dpr, IOffset const &value) {
+  return VOffset{impl::logical_to_physical_integral(dpr.x, value.x),
+                 impl::logical_to_physical_integral(dpr.y, value.y)};
+}
+
+constexpr auto logical_to_physical(Dpr dpr, Extent const &value) {
+  return VExtent{impl::logical_to_physical_integral(dpr.x, value.width),
+                 impl::logical_to_physical_integral(dpr.y, value.height)};
+}
+
+constexpr auto logical_to_physical(Dpr dpr, Rect const &value) {
+  return VRect{logical_to_physical(dpr, value.offset),
+               logical_to_physical(dpr, value.extent)};
+}
+
+constexpr auto logical_to_physical(Dpr dpr, IRect const &value) {
+  return VRect{logical_to_physical(dpr, value.offset),
+               logical_to_physical(dpr, value.extent)};
+}
+
+constexpr auto physical_to_logical(Dpr dpr, Offset const &value) {
+  return VOffset{impl::physical_to_logical_integral(dpr.x, value.x),
+                 impl::physical_to_logical_integral(dpr.y, value.y)};
+}
+
+constexpr auto physical_to_logical(Dpr dpr, IOffset const &value) {
+  return VOffset{impl::physical_to_logical_integral(dpr.x, value.x),
+                 impl::physical_to_logical_integral(dpr.y, value.y)};
+}
+
+constexpr auto physical_to_logical(Dpr dpr, Extent const &value) {
+  return VExtent{impl::physical_to_logical_integral(dpr.x, value.width),
+                 impl::physical_to_logical_integral(dpr.y, value.height)};
+}
+
+constexpr auto physical_to_logical(Dpr dpr, Rect const &value) {
+  return VRect{physical_to_logical(dpr, value.offset),
+               physical_to_logical(dpr, value.extent)};
+}
+
+constexpr auto physical_to_logical(Dpr dpr, IRect const &value) {
+  return VRect{physical_to_logical(dpr, value.offset),
+               physical_to_logical(dpr, value.extent)};
+}
+
+namespace impl {
+constexpr auto virtualize(uint32_t value) { return static_cast<float>(value); }
+
+constexpr auto virtualize(int64_t value) { return static_cast<float>(value); }
+}  // namespace impl
+
+constexpr auto virtualize(Offset const &value) {
+  return VOffset{impl::virtualize(value.x), impl::virtualize(value.y)};
+}
+
+constexpr auto virtualize(Extent const &value) {
+  return VExtent{impl::virtualize(value.width), impl::virtualize(value.height)};
+}
+
+constexpr auto virtualize(IOffset const &value) {
+  return VOffset{impl::virtualize(value.x), impl::virtualize(value.y)};
+}
+
+constexpr auto virtualize(Rect const &value) {
+  return VRect{virtualize(value.offset), virtualize(value.extent)};
+}
+
+constexpr auto virtualize(IRect const &value) {
+  return VRect{virtualize(value.offset), virtualize(value.extent)};
+}
+
+namespace impl {
+constexpr uint32_t devirtualize_to_u32(float value) {
+  return static_cast<uint32_t>(value);
+}
+
+constexpr int64_t devirtualize_to_i64(float value) {
+  return static_cast<int64_t>(value);
+}
+}  // namespace impl
+
+constexpr auto devirtualize_to_offset(VOffset const &value) {
+  return Offset{impl::devirtualize_to_u32(value.x),
+                impl::devirtualize_to_u32(value.y)};
+}
+
+constexpr auto devirtualize_to_ioffset(VOffset const &value) {
+  return IOffset{impl::devirtualize_to_i64(value.x),
+                 impl::devirtualize_to_i64(value.y)};
+}
+
+constexpr auto devirtualize_to_extent(VExtent const &value) {
+  return Extent{impl::devirtualize_to_u32(value.width),
+                impl::devirtualize_to_u32(value.height)};
+}
+
+inline auto devirtualize_to_rect(VRect const &value) {
+  VLK_ENSURE(value.x() >= 0.0f);
+  VLK_ENSURE(value.y() >= 0.0f);
+  VLK_ENSURE(value.width() >= 0.0f);
+  VLK_ENSURE(value.height() >= 0.0f);
+
+  auto [x_min, x_max, y_min, y_max] = value.bounds();
+
+  uint32_t x = impl::devirtualize_to_u32(x_min);
+  uint32_t y = impl::devirtualize_to_u32(y_min);
+  uint32_t w = impl::devirtualize_to_u32(x_max - x_min);
+  uint32_t h = impl::devirtualize_to_u32(y_max - y_min);
+
+  return Rect{Offset{x, y}, Extent{w, h}};
+}
+
+inline auto devirtualize_to_irect(VRect const &value) {
+  VLK_ENSURE(value.width() >= 0.0f);
+  VLK_ENSURE(value.height() >= 0.0f);
+
+  auto [x_min, x_max, y_min, y_max] = value.bounds();
+
+  int64_t x = impl::devirtualize_to_i64(x_min);
+  int64_t y = impl::devirtualize_to_i64(y_min);
+  uint32_t w = impl::devirtualize_to_u32(x_max - x_min);
+  uint32_t h = impl::devirtualize_to_u32(y_max - y_min);
+
+  return IRect{IOffset{x, y}, Extent{w, h}};
+}
+
+// num/sec to sec/num
+constexpr std::chrono::nanoseconds frequency_to_period(uint32_t frequency) {
+  float period_seconds = 1.0f / frequency;
+  float period_nanoseconds =
+      period_seconds * std::chrono::duration_cast<std::chrono::nanoseconds>(
+                           std::chrono::seconds(1))
+                           .count();
+  return std::chrono::nanoseconds(
+      static_cast<typename std::chrono::nanoseconds::rep>(period_nanoseconds));
 }
 
 }  // namespace vlk

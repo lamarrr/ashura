@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fstream>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -13,140 +14,150 @@
 #include "vlk/ui/canvas.h"
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/render_context.h"
+#include "vlk/ui/sk_utils.h"
 #include "vlk/utils/utils.h"
 
 namespace vlk {
 namespace ui {
-// how do we re-record the raster tile content? without allocating extra memory
-// too frequently
-// what if we store chunks in each tile?
+
+// how do we re-record the raster tile content? without allocating extra
+// memory too frequently what if we store chunks in each tile?
 
 // raster cache, even view widgets are added here, all widgets are layout
 // widgets, we thus don't reed a separate view on the render tree
+
+struct RasterRecord {
+  struct RecordSessionInfo {
+    SkRect sk_logical_recording_cull_rect{};
+  };
+
+  VLK_DEFAULT_CONSTRUCTOR(RasterRecord)
+  VLK_DISABLE_COPY(RasterRecord)
+  VLK_DEFAULT_MOVE(RasterRecord)
+
+  bool has_recording() const { return picture_ != nullptr; }
+
+  bool is_recording() const { return is_recording_; }
+
+  //! NOTE: screen coordinates are logical.
+  //! recording is done in logical coordinates and rasterization in physical
+  //! coordinates.
+  void begin_recording(VRect virtual_logical_cull_rect) {
+    VLK_ENSURE(!is_recording());
+
+    is_recording_ = true;
+
+    session_info_ = RecordSessionInfo{to_sk_rect(virtual_logical_cull_rect)};
+
+    if (recorder_ == nullptr) {
+      recorder_ = std::unique_ptr<SkPictureRecorder>{new SkPictureRecorder{}};
+    }
+
+    recorder_->beginRecording(session_info_.sk_logical_recording_cull_rect);
+  }
+
+  void finish_recording() {
+    VLK_ENSURE(is_recording());
+    VLK_ENSURE(recorder_ != nullptr);
+
+    is_recording_ = false;
+
+    picture_ = recorder_->finishRecordingAsPicture();
+  }
+
+  void discard() { picture_ = nullptr; }
+
+  SkCanvas& get_recording_canvas() {
+    VLK_ENSURE(is_recording());
+
+    SkCanvas* recording_canvas = recorder_->getRecordingCanvas();
+
+    VLK_ENSURE(recording_canvas != nullptr);
+
+    return *recording_canvas;
+  }
+
+  SkPicture const& get_recording() const {
+    VLK_ENSURE(picture_ != nullptr);
+    return *picture_;
+  }
+
+ private:
+  sk_sp<SkPicture> picture_;
+
+  // apparently, skia doesn't allow move construction and assignment for this
+  // type, so we defer initialize it
+  std::unique_ptr<SkPictureRecorder> recorder_;
+
+  RecordSessionInfo session_info_;
+
+  bool is_recording_ = false;
+};
 
 struct RasterCache {
   // a render widget will belong to at least one tile.
   // each render widget will thus need to send a dirtiness notification to at
   // least one tile.
-  explicit RasterCache(IRect const& cull_rect)
-      : surface_{nullptr},
-        picture_{nullptr},
-        is_recording_{false},
-        recorder_{},
-        cull_rect_{cull_rect} {
-    VLK_ENSURE(cull_rect.visible());
+
+  VLK_DEFAULT_CONSTRUCTOR(RasterCache)
+  VLK_DISABLE_COPY(RasterCache)
+  VLK_DEFAULT_MOVE(RasterCache)
+
+  ~RasterCache() = default;
+
+  void init_surface(RenderContext const& context, Extent physical_extent) {
+    VLK_ENSURE(physical_extent.visible());
+    surface_ = context.create_target_surface(physical_extent);
+    physical_extent_ = physical_extent;
   }
 
-  explicit RasterCache(Extent const& extent)
-      : RasterCache{IRect{IOffset{0, 0}, extent}} {}
+  bool is_surface_init() const { return surface_ != nullptr; }
 
-  // NOTE: copy & move constructor/assignment were disabled for
-  // SkPictureRecorder, so the ones here are basically workarounds
-
-  RasterCache(RasterCache const& other) = delete;
-  RasterCache& operator=(RasterCache const&) = delete;
-
-  RasterCache(RasterCache&& other)
-      : is_recording_{false},
-        recorder_{},
-        cull_rect_{std::move(other.cull_rect_)} {
-    if (other.is_recording()) {
-      other.finish_recording();
-    }
-    surface_ = std::move(other.surface_);
-    picture_ = std::move(other.picture_);
-  }
-
-  RasterCache& operator=(RasterCache&& other) {
-    if (is_recording()) {
-      finish_recording();
-    }
-    if (other.is_recording()) {
-      other.finish_recording();
-    }
-    surface_ = std::move(other.surface_);
-    picture_ = std::move(other.picture_);
-    [[maybe_unused]] bool tmp = std::move(other.is_recording_);
-
-    cull_rect_ = std::move(other.cull_rect_);
-
-    return *this;
-  }
-
-  bool has_recording() const { return picture_ != nullptr; }
-
-  bool has_surface() const { return surface_ != nullptr; }
-
-  bool is_recording() const { return is_recording_; }
-
-  void begin_recording() {
-    VLK_ENSURE(!is_recording());
-    is_recording_ = true;
-    recorder_.beginRecording(SkRect::MakeXYWH(cull_rect_.x(), cull_rect_.y(),
-                                              cull_rect_.width(),
-                                              cull_rect_.height()));
-
-    Canvas canvas = get_recording_canvas();
-    canvas.to_skia().clear(SK_ColorWHITE);
-  }
-
-  void finish_recording() {
-    VLK_ENSURE(is_recording());
-    is_recording_ = false;
-    picture_ = recorder_.finishRecordingAsPicture();
-  }
-
-  void discard_recording() { picture_.reset(); }
-
-  Canvas get_recording_canvas() {
-    VLK_ENSURE(is_recording());
-    SkCanvas* recording_canvas = recorder_.getRecordingCanvas();
-    VLK_ENSURE(recording_canvas != nullptr);
-    return Canvas::from_skia(*recording_canvas, cull_rect_.extent);
-  }
-
-  void init_surface(RenderContext const& context) {
-    // initialize cache with a surface the size of extent
-    VLK_ENSURE(cull_rect_.visible());
-    surface_ = context.create_target_surface(cull_rect_.extent);
-  }
+  void deinit_surface() { surface_ = nullptr; }
 
   SkSurface& get_surface_ref() {
     VLK_ENSURE(is_surface_init());
     return *surface_;
   }
 
-  void deinit_surface() { surface_.reset(); }
-
-  bool is_surface_init() const { return surface_ != nullptr; }
-
-  void rasterize() {
+  void rasterize(Dpr target_device_pixel_ratio, RasterRecord const& record) {
     VLK_ENSURE(is_surface_init());
+    // first await any pending rendering operation by performing GPU-CPU
+    // synchronization
+    // we can't await completion of a task if it is not submitted
+    if (submitted_work_) {
+      surface_->flushAndSubmit(true);
+      submitted_work_ = false;
+    }
     SkCanvas* canvas = surface_->getCanvas();
-    canvas->drawPicture(picture_);
-    // GPU-CPU synchronization is not performed
+    canvas->clear(SK_ColorTRANSPARENT);
+
+    // backup transform matrix and clip state
+    canvas->save();
+    canvas->scale(target_device_pixel_ratio.x, target_device_pixel_ratio.y);
+
+    canvas->drawPicture(&record.get_recording());
+
+    // restore transform matrix and clip state
+    canvas->restore();
+
+    // NOTE: GPU-CPU synchronization is not performed
     surface_->flushAndSubmit(false);
+    submitted_work_ = true;
   }
 
   void write_to(SkCanvas& canvas, IOffset const& offset) {
     VLK_ENSURE(is_surface_init());
     SkPaint paint;
     paint.setBlendMode(SkBlendMode::kSrc);
-    surface_->draw(&canvas, static_cast<int>(offset.x),
-                   static_cast<int>(offset.y), &paint);
+    surface_->draw(&canvas, static_cast<float>(offset.x),
+                   static_cast<float>(offset.y), &paint);
   }
 
-  size_t storage_size() const {
+  size_t surface_size() const {
     if (surface_ == nullptr) return 0;
     return surface_->imageInfo().computeByteSize(
         surface_->imageInfo().minRowBytes());
-  }
-
-  // provides re-using the cache surface. NOTE: it doesn't discard its surface
-  // nor recording
-  void recycle(IOffset new_cull_offset) {
-    VLK_ENSURE(!is_recording());
-    cull_rect_.offset = new_cull_offset;
   }
 
   void save_pixels_to_file(std::string const& path) {
@@ -170,19 +181,14 @@ struct RasterCache {
     for (uint8_t c : buff) {
       file << static_cast<int>(c) << ", ";
     }
+
     file.flush();
   }
 
  private:
+  Extent physical_extent_;
   sk_sp<SkSurface> surface_;
-
-  sk_sp<SkPicture> picture_;
-
-  bool is_recording_;
-
-  SkPictureRecorder recorder_;
-
-  IRect cull_rect_;
+  bool submitted_work_ = false;
 };
 
 }  // namespace ui

@@ -165,7 +165,7 @@ struct AssetManager {
         submit_task(SubmissionData{pos->first, pos->second.loader.get(),
                                    pos->second.load_args.get()});
 
-        VLK_LOG("Submitted asset `{}` to worker thread for loading",
+        VLK_LOG("Submitted asset `{}` to worker thread for reloading",
                 pos->first);
 
         return stx::Err(AssetError::IsLoading);
@@ -219,6 +219,7 @@ struct AssetManager {
             entry.stale_ticks.count());
         entry.asset = stx::None;
         entry.state = AssetState::Unloaded;
+        entry.stale_ticks.reset();
 
         size_changed = true;
       }
@@ -282,8 +283,6 @@ struct AssetManager {
     }
   }
 
-  // is RenderContext safe across threads?
-  //
   // the worker threads only read the submission data and not modify them
   //
   //

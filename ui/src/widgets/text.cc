@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "include/core/SkCanvas.h"
 #include "include/core/SkFontMgr.h"
 #include "modules/skparagraph/include/Paragraph.h"
 #include "modules/skparagraph/include/ParagraphBuilder.h"
@@ -396,6 +397,7 @@ inline sktext::ParagraphStyle make_paragraph_style(
   }
 
   paragraph_style.setMaxLines(paragraph_props.line_limit());
+  paragraph_style.setDrawOptions(sktext::DrawOptions::kReplay);
 
   return paragraph_style;
 }
@@ -536,13 +538,16 @@ Extent Text::trim(Extent extent) {
 }
 
 void Text::draw(Canvas& canvas) {
+  // TODO(lamarrr): rendering should be done at device scale. and cache should
+  // be recorded at logical scale. i.e. offscreen rendered at physical scale and
+  // recorded at onscreen scale
   VLK_ENSURE(paragraph_ != nullptr);
 
   SkCanvas& sk_canvas = canvas.to_skia();
 
   sk_canvas.save();
 
-  Extent const widget_extent = canvas.extent();
+  Extent widget_extent = canvas.extent();
 
   // the text might overflow so we clip just in case it actually does
   sk_canvas.clipRect(SkRect::MakeWH(widget_extent.width, widget_extent.height));

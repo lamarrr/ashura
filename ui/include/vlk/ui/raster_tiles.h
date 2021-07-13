@@ -19,22 +19,22 @@ namespace ui {
 // the widgets that intersect with the tile. This enable us to process
 // rasetrization commands in batches rather than on a per-widget basis.
 //
-struct RasterTiles {
+struct RasterCacheTiles {
   using Tile = RasterCache;
 
-  RasterTiles(Extent const &extent, Extent const &tile_size)
-      : extent_{extent}, tile_size_{tile_size}, tiles_{} {
-    VLK_ENSURE(tile_size.visible());
-    for (size_t i = 0; i < rows() * columns(); i++)
-      tiles_.emplace_back(Tile{IRect{IOffset{}, tile_size_}});
+  explicit RasterCacheTiles(Extent tile_physical_extent)
+      : tile_physical_extent_{tile_physical_extent} {
+    VLK_ENSURE(tile_physical_extent_.visible());
   }
 
   uint32_t rows() const {
-    return ((extent_.width + tile_size_.width) / tile_size_.width);
+    return ((physical_extent_.width + tile_physical_extent_.width) /
+            tile_physical_extent_.width);
   }
 
   uint32_t columns() const {
-    return ((extent_.height + tile_size_.height) / tile_size_.height);
+    return ((physical_extent_.height + tile_physical_extent_.height) /
+            tile_physical_extent_.height);
   }
 
   // checked if debug checks are enabled
@@ -45,20 +45,9 @@ struct RasterTiles {
     return tiles_[column * rows() + row];
   }
 
-  // checked if debug checks are enabled
-  Tile &tile_at_point(Offset const &offset) {
-    VLK_ENSURE(offset.x < extent().width);
-    VLK_ENSURE(offset.y < extent().height);
+  Extent physical_extent() const { return physical_extent_; }
 
-    uint32_t i = offset.x / tile_extent().width;
-    uint32_t j = offset.y / tile_extent().height;
-
-    return tile_at_index(i, j);
-  }
-
-  Extent extent() const { return extent_; }
-
-  Extent tile_extent() const { return tile_size_; }
+  Extent tile_physical_extent() const { return tile_physical_extent_; }
 
   stx::Span<Tile> get_tiles() { return tiles_; }
 
@@ -67,46 +56,59 @@ struct RasterTiles {
   size_t storage_size_estimate() const {
     return std::accumulate(tiles_.begin(), tiles_.end(), size_t{0},
                            [](size_t size, Tile const &tile) {
-                             return size + tile.storage_size();
+                             return size + tile.surface_size();
                            });
   }
 
-  void resize(Extent const &new_extent) {
-    extent_ = new_extent;
+  void resize(Extent const &new_physical_extent) {
+    physical_extent_ = new_physical_extent;
+    auto const num_required_tiles = static_cast<size_t>(rows()) * columns();
 
-    auto const available_tiles = tiles_.size();
-    auto const num_required_tiles = rows() * columns();
-
-    if (available_tiles == num_required_tiles) {
-      // do nothing
-    } else if (available_tiles > num_required_tiles) {
-      for (size_t i = 0; i < (available_tiles - num_required_tiles); i++)
-        tiles_.pop_back();
-    } else {
-      // num_required_tiles > available_tiles
-      for (size_t i = 0; i < (num_required_tiles - available_tiles); i++)
-        tiles_.emplace_back(Tile{IRect{IOffset{}, tile_extent()}});
-    }
-
-    for (Tile &tile : tiles_) {
-      tile.recycle(IOffset{});
-    }
+    tiles_.resize(num_required_tiles);
   }
 
  private:
-  Extent extent_;
+  Extent physical_extent_;
 
-  Extent tile_size_;
+  Extent tile_physical_extent_;
 
-  // a grid of tiles
-  // each tile is of extent `tile_size_` * pixel_ratio_
-  // sorted in row-major order.
+  // a grid of tiles sorted in row-major order.
+  // each tile is of extent `tile_physical_extent_`
   std::vector<Tile> tiles_;
 };
 
-// after the first render, we don't need to update if none of the inview ones
-// is dirty accumulating cache
-//  sk_sp<SkSurface> accumulation_ = nullptr;
+struct RasterRecordTiles {
+  using Tile = RasterRecord;
+
+  RasterRecordTiles(uint32_t nrows, uint32_t ncolumns)
+      : rows_{nrows}, columns_{ncolumns} {
+    resize(rows_, columns_);
+  }
+
+  RasterRecordTiles() = default;
+
+  uint32_t rows() const { return rows_; }
+
+  uint32_t columns() const { return columns_; }
+
+  stx::Span<Tile> get_tiles() { return tiles_; }
+
+  stx::Span<Tile const> get_tiles() const { return tiles_; }
+
+  void resize(uint32_t nrows, uint32_t ncols) {
+    size_t num_required_tiles = nrows * static_cast<size_t>(ncols);
+
+    tiles_.resize(num_required_tiles);
+
+    rows_ = nrows;
+    columns_ = ncols;
+  }
+
+ private:
+  // a grid of tiles sorted in row-major order.
+  uint32_t rows_ = 0, columns_ = 0;
+  std::vector<Tile> tiles_;
+};
 
 }  // namespace ui
 }  // namespace vlk

@@ -13,10 +13,12 @@ WindowApi WindowApi::init() {
   WindowApi api{};
   api.handle = std::shared_ptr<WindowApiHandle>(new WindowApiHandle{});
 
+  api.handle->init();
+
   return std::move(api);
 }
 
-void WindowApi::poll_events() const { handle->poll_events(); }
+bool WindowApi::poll_events() const { return handle->poll_events(); }
 
 }  // namespace ui
 }  // namespace vlk

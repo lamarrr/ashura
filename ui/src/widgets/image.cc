@@ -1,6 +1,8 @@
 #include "vlk/ui/widgets/image.h"
 
+#include "include/core/SkCanvas.h"
 #include "vlk/ui/image_asset.h"
+#include "vlk/ui/sk_utils.h"
 
 namespace vlk {
 
@@ -133,6 +135,12 @@ void Image::update_props(ImageProps props) {
 
 void Image::draw(Canvas &canvas) {
   SkCanvas &sk_canvas = canvas.to_skia();
+
+  {
+    SkPaint paint;
+    paint.setColor(SkColorSetARGB(125, 255, 0, 0));
+    sk_canvas.drawRect(vlk::to_sk_rect(Rect{{}, canvas.extent()}), paint);
+  }
 
   // extent has already been taken care of
   Extent const widget_extent = canvas.extent();

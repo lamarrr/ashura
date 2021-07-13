@@ -1,0 +1,113 @@
+2021-07-03 04:12:49.461] [info] Loaded asset with tag `DefaultSystemFont{style: (weight: Normal, width: Normal, slant: Upright)}` of size: 0.76 MegaBytes
+[2021-07-03 04:12:49.461] [info] Present total assets size: 8.26 MegaBytes
+[2021-07-03 04:12:49.520] [warning] [Validation Layer Message, Hints="Specification violation or possible mistake detected"] Validation Error: [ VUID-vkCmdPipelineBarrier-pDependencies-02285 ] Object 0: handle = 0x9e000000009e, type = VK_OBJECT_TYPE_RENDER_PASS; | MessageID = 0x3936bc0c | vkCmdPipelineBarrier(): Barriers cannot be set during subpass 0 of VkRenderPass 0x9e000000009e[] with no self-dependency specified. The Vulkan spec states: If fname:vkCmdPipelineBarrier is called within a render pass instance, the render pass must have been created with at least one VkSubpassDependency instance in VkRenderPassCreateInfo::pDependencies that expresses a dependency from the current subpass to itself, with synchronization scopes and access scopes that are all supersets of the scopes defined in this command (https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VUID-vkCmdPipelineBarrier-pDependencies-02285)
+[2021-07-03 04:12:49.520] [info] Call Stack:
+[2021-07-03 04:12:49.521] [warning] [Validation Layer Message, Hints="Specification violation or possible mistake detected"] Validation Error: [ VUID-vkCmdCopyBufferToImage-renderpass ] Object 0: handle = 0x6210000b5500, type = VK_OBJECT_TYPE_COMMAND_BUFFER; | MessageID = 0x43594cd | vkCmdCopyBufferToImage(): It is invalid to issue this call inside an active VkRenderPass 0x9e000000009e[]. The Vulkan spec states: This command must only be called outside of a render pass instance (https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VUID-vkCmdCopyBufferToImage-renderpass)
+[2021-07-03 04:12:49.521] [info] Call Stack:
+[2021-07-03 04:12:49.521] [warning] [Validation Layer Message, Hints="Specification violation or possible mistake detected"] Validation Error: [ UNASSIGNED-Threading-MultipleThreads ] Object 0: handle = 0xdb00000000db, type = VK_OBJECT_TYPE_COMMAND_POOL; | MessageID = 0x141cb623 | THREADING ERROR : vkCmdSetScissor(): object of type VkCommandPool is simultaneously used in thread 0x7fcff2958640 and thread 0x7fd034bb5880
+[2021-07-03 04:12:49.521] [info] Call Stack:
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==55013==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000058 (pc 0x7fd0091033bd bp 0x6210000b4100 sp 0x7fffb8efa1f0 T0)
+==55013==The signal is caused by a READ memory access.
+==55013==Hint: address points to the zero page.
+[2021-07-03 04:12:49.618] [warning] [Validation Layer Message, Hints="Specification violation or possible mistake detected"] Validation Error: [ VUID-vkCmdPipelineBarrier-pDependencies-02285 ] Object 0: handle = 0x9e000000009e, type = VK_OBJECT_TYPE_RENDER_PASS; | MessageID = 0x3936bc0c | vkCmdPipelineBarrier(): Barriers cannot be set during subpass 0 of VkRenderPass 0x9e000000009e[] with no self-dependency specified. The Vulkan spec states: If fname:vkCmdPipelineBarrier is called within a render pass instance, the render pass must have been created with at least one VkSubpassDependency instance in VkRenderPassCreateInfo::pDependencies that expresses a dependency from the current subpass to itself, with synchronization scopes and access scopes that are all supersets of the scopes defined in this command (https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VUID-vkCmdPipelineBarrier-pDependencies-02285)
+[2021-07-03 04:12:49.618] [info] Call Stack:
+[2021-07-03 04:12:49.618] [warning] [Validation Layer Message, Hints="Specification violation or possible mistake detected"] Validation Error: [ UNASSIGNED-Threading-MultipleThreads ] Object 0: handle = 0xdb00000000db, type = VK_OBJECT_TYPE_COMMAND_POOL; | MessageID = 0x141cb623 | THREADING ERROR : vkCmdPipelineBarrier(): object of type VkCommandPool is simultaneously used in thread 0x7fd034bb5880 and thread 0x7fcff2958640
+[2021-07-03 04:12:49.618] [info] Call Stack:
+[2021-07-03 04:12:49.618] [warning] [Validation Layer Message, Hints="Specification violation or possible mistake detected"] Validation Error: [ UNASSIGNED-Threading-MultipleThreads ] Object 0: handle = 0x6210000b5500, type = VK_OBJECT_TYPE_COMMAND_BUFFER; | MessageID = 0x141cb623 | THREADING ERROR : vkCmdPipelineBarrier(): object of type VkCommandBuffer is simultaneously used in thread 0x7fd034bb5880 and thread 0x7fcff2958640
+[2021-07-03 04:12:49.618] [info] Call Stack:
+[2021-07-03 04:12:49.618] [warning] [Validation Layer Message, Hints="Specification violation or possible mistake detected"] Validation Error: [ VUID-vkCmdCopyBufferToImage-renderpass ] Object 0: handle = 0x6210000b5500, type = VK_OBJECT_TYPE_COMMAND_BUFFER; | MessageID = 0x43594cd | vkCmdCopyBufferToImage(): It is invalid to issue this call inside an active VkRenderPass 0x9e000000009e[]. The Vulkan spec states: This command must only be called outside of a render pass instance (https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VUID-vkCmdCopyBufferToImage-renderpass)
+[2021-07-03 04:12:49.618] [info] Call Stack:
+    #0 0x7fd0091033bd  (/usr/lib/x86_64-linux-gnu/libvulkan_radeon.so+0xc43bd)
+    #1 0x7fd009109f35  (/usr/lib/x86_64-linux-gnu/libvulkan_radeon.so+0xcaf35)
+    #2 0x7fd00910a0c1  (/usr/lib/x86_64-linux-gnu/libvulkan_radeon.so+0xcb0c1)
+    #3 0x7fd00830bbe8  (/lib/x86_64-linux-gnu/libVkLayer_khronos_validation.so+0x962be8)
+    #4 0x5647af78fd56 in GrVkOpsRenderPass::onDrawIndexedInstanced(int, int, int, int, int) ../../src/gpu/vk/GrVkOpsRenderPass.cpp:636
+    #5 0x5647af78fd56 in GrVkOpsRenderPass::onDrawIndexed(int, int, unsigned short, unsigned short, int) ../../src/gpu/vk/GrVkOpsRenderPass.h:81
+    #6 0x5647af66f4be in GrOpsRenderPass::drawIndexed(int, int, unsigned short, unsigned short, int) ../../src/gpu/GrOpsRenderPass.cpp:250
+    #7 0x5647af66f4be in GrOpsRenderPass::drawIndexed(int, int, unsigned short, unsigned short, int) ../../src/gpu/GrOpsRenderPass.cpp:242
+    #8 0x5647af66f4be in GrOpsRenderPass::drawIndexPattern(int, int, int, int, int) ../../src/gpu/GrOpsRenderPass.cpp:343
+    #9 0x5647af66ea87 in GrOpFlushState::executeDrawsAndUploadsForMeshDrawOp(GrOp const*, SkRect const&, GrPipeline const*, GrUserStencilSettings const*) ../../src/gpu/GrOpFlushState.cpp:69
+    #10 0x5647af670043 in GrOp::execute(GrOpFlushState*, SkRect const&) ../../src/gpu/ops/GrOp.h:226
+    #11 0x5647af670043 in GrOpsTask::onExecute(GrOpFlushState*) ../../src/gpu/GrOpsTask.cpp:596
+    #12 0x5647af65dd5f in GrRenderTask::execute(GrOpFlushState*) ../../src/gpu/GrRenderTask.h:38
+    #13 0x5647af65dd5f in GrDrawingManager::executeRenderTasks(int, int, GrOpFlushState*, int*) ../../src/gpu/GrDrawingManager.cpp:350
+    #14 0x5647af6610f3 in GrDrawingManager::flush(SkSpan<GrSurfaceProxy*>, SkSurface::BackendSurfaceAccess, GrFlushInfo const&, GrBackendSurfaceMutableState const*) ../../src/gpu/GrDrawingManager.cpp:230
+    #15 0x5647af661e37 in GrDrawingManager::flushSurfaces(SkSpan<GrSurfaceProxy*>, SkSurface::BackendSurfaceAccess, GrFlushInfo const&, GrBackendSurfaceMutableState const*) ../../src/gpu/GrDrawingManager.cpp:510
+    #16 0x5647af65c05d in GrDirectContextPriv::flushSurfaces(SkSpan<GrSurfaceProxy*>, SkSurface::BackendSurfaceAccess, GrFlushInfo const&, GrBackendSurfaceMutableState const*) ../../src/gpu/GrDirectContextPriv.cpp:66
+    #17 0x5647af777325 in GrDirectContextPriv::flushSurface(GrSurfaceProxy*, SkSurface::BackendSurfaceAccess, GrFlushInfo const&, GrBackendSurfaceMutableState const*) ../../src/gpu/GrDirectContextPriv.h:98
+    #18 0x5647af777325 in SkSurface_Gpu::onFlush(SkSurface::BackendSurfaceAccess, GrFlushInfo const&, GrBackendSurfaceMutableState const*) ../../src/image/SkSurface_Gpu.cpp:219
+    #19 0x5647af77950c in SkSurface::flushAndSubmit(bool) ../../src/image/SkSurface_Gpu.cpp:711
+    #20 0x5647aee875e0 in vlk::ui::TileCache::tick(std::chrono::duration<long, std::ratio<1l, 1000000000l> >) [clone .isra.0] (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1c885e0)
+    #21 0x5647aeeb236f in vlk::ui::App::tick() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1cb336f)
+    #22 0x5647aebf32d7 in RowTest_BasicTest_Test::TestBody() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x19f42d7)
+    #23 0x5647aee6658a in void testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>(testing::Test*, void (testing::Test::*)(), char const*) (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1c6758a)
+    #24 0x5647aedbea55 in testing::Test::Run() [clone .part.0] (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1bbfa55)
+    #25 0x5647aedc0034 in testing::TestInfo::Run() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1bc1034)
+    #26 0x5647aedc1a46 in testing::TestSuite::Run() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1bc2a46)
+    #27 0x5647aedc9517 in testing::internal::UnitTestImpl::RunAllTests() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1bca517)
+    #28 0x5647aedce7bf in testing::UnitTest::Run() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1bcf7bf)
+    #29 0x5647ae98cb26 in main (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x178db26)
+    #30 0x7fd034d69564 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x28564)
+    #31 0x5647ae98f33d in _start (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x179033d)
+
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV (/usr/lib/x86_64-linux-gnu/libvulkan_radeon.so+0xc43bd) 
+==55013==ABORTING
+
+
+
+
+
+
+
+
+
+
+
+
+/home/lamar/Documents/workspace/oss/valkyrie/third_party/stb/stb_image.h:2248:43: runtime error: left shift of negative value -1
+/home/lamar/Documents/workspace/oss/valkyrie/third_party/stb/stb_image.h:2266:63: runtime error: left shift of negative value -20
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==56886==ERROR: AddressSanitizer: SEGV on unknown address 0x004310000098 (pc 0x555cbeb819c6 bp 0x004310000090 sp 0x7ffe58db0530 T0)
+==56886==The signal is caused by a READ memory access.
+    #0 0x555cbeb819c6 in std::__atomic_base<int>::load(std::memory_order) const /usr/include/c++/10/bits/atomic_base.h:426
+    #1 0x555cbeb819c6 in SkRefCntBase::unique() const ../../include/core/SkRefCnt.h:50
+    #2 0x555cbeb819c6 in GrDrawingManager::removeRenderTasks(int, int) ../../src/gpu/GrDrawingManager.cpp:379
+    #3 0x555cbeb81d77 in GrDrawingManager::executeRenderTasks(int, int, GrOpFlushState*, int*) ../../src/gpu/GrDrawingManager.cpp:368
+    #4 0x555cbeb850c3 in GrDrawingManager::flush(SkSpan<GrSurfaceProxy*>, SkSurface::BackendSurfaceAccess, GrFlushInfo const&, GrBackendSurfaceMutableState const*) ../../src/gpu/GrDrawingManager.cpp:230
+    #5 0x555cbeb85e07 in GrDrawingManager::flushSurfaces(SkSpan<GrSurfaceProxy*>, SkSurface::BackendSurfaceAccess, GrFlushInfo const&, GrBackendSurfaceMutableState const*) ../../src/gpu/GrDrawingManager.cpp:510
+    #6 0x555cbeb8002d in GrDirectContextPriv::flushSurfaces(SkSpan<GrSurfaceProxy*>, SkSurface::BackendSurfaceAccess, GrFlushInfo const&, GrBackendSurfaceMutableState const*) ../../src/gpu/GrDirectContextPriv.cpp:66
+    #7 0x555cbec9b2f5 in GrDirectContextPriv::flushSurface(GrSurfaceProxy*, SkSurface::BackendSurfaceAccess, GrFlushInfo const&, GrBackendSurfaceMutableState const*) ../../src/gpu/GrDirectContextPriv.h:98
+    #8 0x555cbec9b2f5 in SkSurface_Gpu::onFlush(SkSurface::BackendSurfaceAccess, GrFlushInfo const&, GrBackendSurfaceMutableState const*) ../../src/image/SkSurface_Gpu.cpp:219
+    #9 0x555cbec9d4dc in SkSurface::flushAndSubmit(bool) ../../src/image/SkSurface_Gpu.cpp:711
+    #10 0x555cbe3ab5a1 in vlk::ui::TileCache::tick(std::chrono::duration<long, std::ratio<1l, 1000000000l> >) [clone .isra.0] (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1c885a1)
+    #11 0x555cbe3d633f in vlk::ui::App::tick() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1cb333f)
+    #12 0x555cbe117237 in RowTest_BasicTest_Test::TestBody() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x19f4237)
+    #13 0x555cbe38a4ea in void testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void>(testing::Test*, void (testing::Test::*)(), char const*) (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1c674ea)
+    #14 0x555cbe2e29b5 in testing::Test::Run() [clone .part.0] (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1bbf9b5)
+    #15 0x555cbe2e3f94 in testing::TestInfo::Run() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1bc0f94)
+    #16 0x555cbe2e59a6 in testing::TestSuite::Run() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1bc29a6)
+    #17 0x555cbe2ed477 in testing::internal::UnitTestImpl::RunAllTests() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1bca477)
+    #18 0x555cbe2f271f in testing::UnitTest::Run() (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x1bcf71f)
+    #19 0x555cbdeb0b26 in main (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x178db26)
+    #20 0x7efed6002564 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x28564)
+    #21 0x555cbdeb333d in _start (/home/lamar/Documents/workspace/oss/valkyrie/build/ui/vlk_ui_test+0x179033d)
+
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV /usr/include/c++/10/bits/atomic_base.h:426 in std::__atomic_base<int>::load(std::memory_order) const
+==56886==ABORTING
+
+
+
+
+
+
+
+
+
+
+
+

@@ -94,9 +94,9 @@ inline stx::Result<sk_sp<SkTypeface>, FontLoadError> load_system_typeface(
   return stx::Ok(std::move(sk_typeface));
 }
 
-std::unique_ptr<Asset> TypefaceLoader::load(RenderContext const&,
-                                            AssetLoadArgs const& args) const {
-  auto const& load_args = upcast<TypefaceLoadArgs const&>(args);
+std::unique_ptr<Asset> TypefaceLoader::load(AssetLoadArgs const& args) const {
+  auto const& load_args =
+      upcast<TypefaceLoadArgs const>(args).expect("Upcast failed").get();
   if (load_args.is_mem()) {
     auto const& source_data =
         std::get<std::shared_ptr<MemoryTypefaceSourceData const>>(
@@ -130,3 +130,9 @@ std::shared_ptr<TypefaceLoader const> TypefaceLoader::get_default() {
 
 }  // namespace ui
 }  // namespace vlk
+
+struct QueueMutex {
+  // use a contention metric to determine if to spin for a period of time or
+  // sleep
+  std::atomic<uint64_t> num_accesses;
+};

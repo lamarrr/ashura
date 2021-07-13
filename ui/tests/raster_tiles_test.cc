@@ -1,38 +1,40 @@
 
 #include "gtest/gtest.h"
-
 #include "vlk/ui/tile_cache.h"
 
 TEST(RasterTilesTest, BasicTest) {
   using namespace vlk::ui;
   using namespace vlk;
 
-  RasterTiles tiles{Extent{1920, 1080}, Extent{256, 256}};
+  RasterCacheTiles caches{Extent{256, 256}};
+  RasterRecordTiles records;
 
-  EXPECT_EQ(tiles.rows(), (1920 + 256) / 256);
-  EXPECT_EQ(tiles.columns(), (1080 + 256) / 256);
+  caches.resize(Extent{1920, 1080});
+  records.resize(caches.rows(), caches.columns());
 
-  EXPECT_EQ(tiles.rows() * tiles.columns(), tiles.get_tiles().size());
+  EXPECT_EQ(caches.rows(), (1920 + 256) / 256);
+  EXPECT_EQ(caches.columns(), (1080 + 256) / 256);
+  EXPECT_EQ(caches.rows(), records.rows());
+  EXPECT_EQ(caches.columns(), records.columns());
 
-  for (RasterTiles::Tile& tile : tiles.get_tiles()) {
-    EXPECT_FALSE(tile.is_recording());
-    EXPECT_FALSE(tile.is_surface_init());
-    tile.begin_recording();
-    EXPECT_TRUE(tile.is_recording());
-    tile.finish_recording();
-    EXPECT_FALSE(tile.is_recording());
+  EXPECT_EQ(caches.rows() * caches.columns(), caches.get_tiles().size());
+
+  for (auto& cache : caches.get_tiles()) {
+    EXPECT_FALSE(cache.is_surface_init());
   }
 
-  tiles.resize(Extent{1920 * 2, 1080 * 2});
-
-  EXPECT_EQ(tiles.rows(), (1920 * 2 + 256) / 256);
-  EXPECT_EQ(tiles.columns(), (1080 * 2 + 256) / 256);
+  for (auto& record : records.get_tiles()) {
+    EXPECT_FALSE(record.is_recording());
+    record.begin_recording(VRect{});
+    EXPECT_TRUE(record.is_recording());
+    record.finish_recording();
+    EXPECT_FALSE(record.is_recording());
+  }
 
   RenderContext context;
 
-  for (RasterTiles::Tile& tile : tiles.get_tiles()) {
-    EXPECT_FALSE(tile.is_surface_init());
-    tile.init_surface(context);
-    EXPECT_TRUE(tile.is_surface_init());
+  for (auto& cache : caches.get_tiles()) {
+    cache.init_surface(context, caches.tile_physical_extent());
+    EXPECT_TRUE(cache.is_surface_init());
   }
 }

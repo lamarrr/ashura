@@ -2,29 +2,32 @@
 
 #include <type_traits>
 
-// TODO(lamarrr): make SkCanvas forward declared
-#include "include/core/SkCanvas.h"
 #include "vlk/ui/primitives.h"
+
+struct SkCanvas;
 
 namespace vlk {
 namespace ui {
 
 //! a wrapper over the Skia canvas
 struct Canvas {
-  explicit constexpr Canvas(SkCanvas& canvas, Extent const& extent)
-      : canvas_addr_{&canvas}, extent_{extent} {}
+  explicit constexpr Canvas(SkCanvas& canvas, Extent extent, Dpr dpr)
+      : canvas_addr_{&canvas}, extent_{extent}, dpr_{dpr} {}
 
-  static constexpr Canvas from_skia(SkCanvas& pimpl, Extent const& extent) {
-    return Canvas{pimpl, extent};
+  static constexpr Canvas from_skia(SkCanvas& pimpl, Extent extent, Dpr dpr) {
+    return Canvas{pimpl, extent, dpr};
   }
 
   SkCanvas& to_skia() const { return *canvas_addr_; }
 
   constexpr Extent extent() const { return extent_; }
 
+  Dpr get_device_pixel_ratio() const { return dpr_; }
+
  private:
   SkCanvas* canvas_addr_;
   Extent extent_;
+  Dpr dpr_;
 };
 
 }  // namespace ui

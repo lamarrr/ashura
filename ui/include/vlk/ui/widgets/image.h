@@ -117,11 +117,11 @@ namespace impl {
 
 enum class ImageDiff : uint8_t {
   None = 0,
-  Source = 1,
-  Extent = 2,
-  BorderRadius = 4,
-  AspectRatio = 8,
-  All = 16
+  Source = 1 << 0,
+  Extent = 1 << 1,
+  BorderRadius = 1 << 2,
+  AspectRatio = 1 << 3,
+  All = (1 << 4) - 1
 };
 
 VLK_DEFINE_ENUM_BIT_OPS(ImageDiff)

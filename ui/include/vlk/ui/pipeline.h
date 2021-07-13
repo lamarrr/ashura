@@ -2,6 +2,7 @@
 #include <utility>
 
 #include "vlk/ui/asset_manager.h"
+#include "vlk/ui/event.h"
 #include "vlk/ui/layout.h"
 #include "vlk/ui/layout_tree.h"
 #include "vlk/ui/tile_cache.h"
@@ -12,27 +13,22 @@
 namespace vlk {
 namespace ui {
 
+// TODO(lamarrr): asset manager should be stored in the subsystems map?
+// `render_context` and `root_widget` must outlive the pipeline.
+// `tick()` must not be called with either of them deleted.
 struct Pipeline {
   Widget* root_widget;
   Viewport viewport;
-  RenderContext render_context;
+  RenderContext const* render_context;
 
   LayoutTree layout_tree;
   ViewTree view_tree;
   TileCache tile_cache;
   AssetManager asset_manager;
-
   bool needs_rebuild = true;
 
-  Pipeline(Widget& init_root_widget,
-           RenderContext init_render_context = RenderContext{})
-      : root_widget{&init_root_widget},
-        viewport{Viewport{Extent{1920, 1080}, ViewOffset{}}},
-        render_context{std::move(init_render_context)},
-        layout_tree{},
-        view_tree{},
-        tile_cache{},
-        asset_manager{render_context} {
+  Pipeline(Widget& init_root_widget, RenderContext const& init_render_context)
+      : root_widget{&init_root_widget}, render_context{&init_render_context} {
     // pass widget to pipeline => bind on children changed
     // pass to layout tree => bind on layout changed
     // pass to view tree => bind on view offset changed
@@ -53,10 +49,17 @@ struct Pipeline {
     // both can be allocated infinite extents
   }
 
-  VLK_MAKE_PINNED(Pipeline);
+  VLK_DEFAULT_CONSTRUCTOR(Pipeline)
+  VLK_MAKE_PINNED(Pipeline)
 
-  void dispatch_events(stx::Span<MouseButtonEvent const> mouse_button_events) {
+  void dispatch_events(stx::Span<MouseButtonEvent const> mouse_button_events,
+                       stx::Span<WindowEvent const> window_events) {
     // TODO(lamarrr): forward events
+    for (auto& event : mouse_button_events) {
+      VLK_LOG("Mouse {}, clicks: {}",
+              event.action == MouseAction::Press ? "Press" : "Release",
+              event.clicks);
+    }
   }
 
   void attach_state_proxies(Widget& widget) {
@@ -87,8 +90,11 @@ struct Pipeline {
     }
   }
 
-  void tick(std::chrono::nanoseconds interval) {
+  // TODO(lamarrrr): should be ticked with subsytem map
+  BackingStoreDiff tick(std::chrono::nanoseconds interval) {
     recursive_tick(*root_widget, interval);
+
+    // dpr
 
     if (needs_rebuild) {
       // note that each build method is optimized for rebuilding and should not
@@ -99,20 +105,23 @@ struct Pipeline {
       // enough
       layout_tree.build(*root_widget);
       view_tree.build(layout_tree.root_node);
-      tile_cache.build(view_tree.root_view, render_context);
+      tile_cache.build(view_tree.root_view, *render_context);
       needs_rebuild = false;
     }
 
     {
       if (viewport.is_scrolled()) {
-        tile_cache.scroll_backing_store(viewport.get_offset());
+        tile_cache.scroll_backing_store_logical(viewport.get_offset());
       }
 
       if (viewport.is_resized()) {
-        Extent const new_viewport_extent = viewport.get_extent();
-        Extent const widgets_allocation = viewport.get_widgets_allocation();
-        layout_tree.allot_extent(widgets_allocation);
-        tile_cache.resize_backing_store(new_viewport_extent);
+        Extent new_viewport_extent = viewport.get_extent();
+        tile_cache.resize_backing_store_logical(new_viewport_extent);
+      }
+
+      if (viewport.is_widgets_allocation_changed()) {
+        Extent new_widgets_allocation = viewport.get_widgets_allocation();
+        layout_tree.allot_extent(new_widgets_allocation);
       }
 
       ViewportSystemProxy::mark_clean(viewport);
@@ -130,8 +139,12 @@ struct Pipeline {
     }
 
     view_tree.tick(interval);
-    tile_cache.tick(interval);
+
+    BackingStoreDiff backing_store_diff = tile_cache.tick(interval);
+
     asset_manager.tick(interval);
+
+    return backing_store_diff;
   }
 };
 

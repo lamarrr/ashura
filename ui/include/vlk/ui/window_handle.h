@@ -5,23 +5,13 @@
 #include <utility>
 #include <vector>
 
-//
-
-#include "include/core/SkCanvas.h"
-#include "include/core/SkSurface.h"
-#include "include/gpu/GrDirectContext.h"
-#include "include/gpu/vk/GrVkBackendContext.h"
-#include "include/gpu/vk/GrVkExtensions.h"
-#include "src/gpu/vk/GrVkRenderTarget.h"
-
-//
-
-//
-
 #include "SDL_vulkan.h"
+#include "include/core/SkCanvas.h"
+#include "include/core/SkPaint.h"
+#include "include/gpu/GrBackendSemaphore.h"
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/sdl_utils.h"
-#include "vlk/ui/trace.h"
+#include "vlk/ui/vk_render_context.h"
 #include "vlk/ui/vulkan.h"
 #include "vlk/ui/window_api_handle.h"
 #include "vlk/ui/window_event_queue.h"
@@ -128,17 +118,12 @@ struct WindowSwapChainHandle {
 
   std::vector<VkSemaphore> image_acquisition_semaphores;
 
-  // TODO(lamarrr): coalesce the lifetimes of these objects
-
-  vk::CommandQueue graphics_command_queue;
-
-  //! IMPORTANT: placed after graphics_command_queue to ensure it is deleted
-  //! after it
-  sk_sp<GrDirectContext> direct_context = nullptr;
+  std::shared_ptr<VkRenderContext> vk_render_context = nullptr;
 
   //! IMPORTANT: placed in this position so Skia can destroy its command queue
   //! before the logical device contained by `graphics_command_queue` is
   //! destroyed
+  // but surfaces are bound to the contexts
   std::vector<sk_sp<SkSurface>> skia_surfaces;
 
   VLK_MAKE_HANDLE(WindowSwapChainHandle)
@@ -149,27 +134,32 @@ struct WindowSwapChainHandle {
       // semaphore and images whislt not in use.
       // any part of the device could be using the semaphore
       VLK_MUST_SUCCEED(
-          vkDeviceWaitIdle(graphics_command_queue.info.device.handle->device),
+          vkDeviceWaitIdle(vk_render_context->graphics_command_queue.info.device
+                               .handle->device),
           "Unable to await device idleness");
 
       for (VkSemaphore semaphore : rendering_semaphores) {
-        vkDestroySemaphore(graphics_command_queue.info.device.handle->device,
+        vkDestroySemaphore(vk_render_context->graphics_command_queue.info.device
+                               .handle->device,
                            semaphore, nullptr);
       }
 
       for (VkSemaphore semaphore : image_acquisition_semaphores) {
-        vkDestroySemaphore(graphics_command_queue.info.device.handle->device,
+        vkDestroySemaphore(vk_render_context->graphics_command_queue.info.device
+                               .handle->device,
                            semaphore, nullptr);
       }
 
       for (VkImageView image_view : image_views) {
-        vkDestroyImageView(graphics_command_queue.info.device.handle->device,
+        vkDestroyImageView(vk_render_context->graphics_command_queue.info.device
+                               .handle->device,
                            image_view, nullptr);
       }
 
       // swapchain image is automatically deleted along with the swapchain
-      vkDestroySwapchainKHR(graphics_command_queue.info.device.handle->device,
-                            swapchain, nullptr);
+      vkDestroySwapchainKHR(
+          vk_render_context->graphics_command_queue.info.device.handle->device,
+          swapchain, nullptr);
     }
 
     swapchain = nullptr;
@@ -196,13 +186,13 @@ struct WindowSurfaceHandle {
   VLK_MAKE_HANDLE(WindowSurfaceHandle)
 
   void change_swapchain(
-      vk::CommandQueue const& command_queue,
+      std::shared_ptr<VkRenderContext> const& vk_render_context,
       stx::Span<WindowSurfaceFormat const> preferred_formats,
       stx::Span<VkPresentModeKHR const> preferred_present_modes, Extent extent,
-      VkCompositeAlphaFlagBitsKHR alpha_compositing,
-      sk_sp<GrDirectContext> const& direct_context) {
-    VLK_ENSURE(command_queue.info.device.handle->phys_device.info.instance
-                       .handle->instance == instance.handle->instance,
+      VkCompositeAlphaFlagBitsKHR alpha_compositing) {
+    VLK_ENSURE(vk_render_context->graphics_command_queue.info.device.handle
+                       ->phys_device.info.instance.handle->instance ==
+                   instance.handle->instance,
                "Provided command queue and target surface do not belong on the "
                "same Vulkan instance");
 
@@ -211,13 +201,13 @@ struct WindowSurfaceHandle {
     std::unique_ptr<WindowSwapChainHandle> new_handle{
         new WindowSwapChainHandle{}};
 
-    new_handle->graphics_command_queue = command_queue;
+    new_handle->vk_render_context = vk_render_context;
 
-    new_handle->direct_context = direct_context;
-
-    auto const& phys_device =
-        command_queue.info.device.handle->phys_device.info.phys_device;
-    auto const& device = command_queue.info.device.handle->device;
+    vk::Device const& device_object =
+        vk_render_context->graphics_command_queue.info.device;
+    VkPhysicalDevice phys_device =
+        device_object.handle->phys_device.info.phys_device;
+    VkDevice device = device_object.handle->device;
 
     // the properties change every time we need to create a swapchain so we must
     // query for this every time
@@ -238,7 +228,9 @@ struct WindowSurfaceHandle {
     new_handle->present_mode = select_swapchain_presentation_mode(
         properties.presentation_modes, preferred_present_modes);
 
-    uint32_t accessing_families[1] = {command_queue.info.family.info.index};
+    uint32_t accessing_families[1] = {
+        new_handle->vk_render_context->graphics_command_queue.info.family.info
+            .index};
 
     auto [new_swapchain, actual_extent] = vk::create_swapchain(
         device, surface, VkExtent2D{extent.width, extent.height},
@@ -284,7 +276,9 @@ struct WindowSurfaceHandle {
       SkSurfaceProps props{};
 
       auto sk_surface = SkSurface::MakeFromBackendRenderTarget(
-          new_handle->direct_context.get(),   // context
+          new_handle->vk_render_context->render_context.get_direct_context()
+              .unwrap()
+              .get(),                         // context
           backend_render_target,              // backend render target
           kTopLeft_GrSurfaceOrigin,           // origin
           new_handle->format.sk_color,        // color type
@@ -447,12 +441,6 @@ struct WindowHandle {
   // notify of pipeline render and layout dirtiness
   //
   //
-  // TODO(lamarrr): separate suboptimal from OOD and others so we don't have to
-  // re-render or re-layout unnecessarily
-  //
-  //
-  //
-  //
   // poll events for polling budget
   //
   //
@@ -475,10 +463,8 @@ struct WindowHandle {
   // the event queue should be cleared after publishing the eventas
 
   // TODO(lamarrr): do these need to be passed in everytime?
-  void recreate_swapchain(vk::CommandQueue const& queue,
-                          sk_sp<GrDirectContext> const& context) {
-    VLK_TRACE(Render, "Swapchain Recreation");
-
+  void recreate_swapchain(
+      std::shared_ptr<VkRenderContext> const& vk_render_context) {
     // if cause of change in swapchain is a change in extent, then mark
     // layout as dirty, otherwise maintain pipeline state
     int width = 0, height = 0;
@@ -491,6 +477,9 @@ struct WindowHandle {
     surface_extent = Extent{static_cast<uint32_t>(surface_width),
                             static_cast<uint32_t>(surface_height)};
 
+    VLK_LOG("Resizing window to logical({},{}), physical({},{})", width, height,
+            surface_width, surface_height);
+
     WindowSurfaceFormat preferred_formats[] = {
         {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
          kRGBA_8888_SkColorType, SkColorSpace::MakeSRGB()},
@@ -501,20 +490,21 @@ struct WindowHandle {
         {VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
          kRGBA_F16_SkColorType, SkColorSpace::MakeSRGBLinear()}};
 
-    surface.handle->change_swapchain(
-        queue, preferred_formats, WindowSwapChainHandle::present_modes,
-        surface_extent, WindowSwapChainHandle::composite_alpha, context);
+    surface.handle->change_swapchain(vk_render_context, preferred_formats,
+                                     WindowSwapChainHandle::present_modes,
+                                     surface_extent,
+                                     WindowSwapChainHandle::composite_alpha);
   }
 
   WindowSwapchainDiff present_backing_store(
-      sk_sp<SkSurface> const& backing_store_sk_surface) {
+      SkSurface& backing_store_sk_surface) {
     WindowSwapchainDiff diff = WindowSwapchainDiff::None;
 
     // We submit multiple render commands (operating on the swapchain images) to
     // the GPU to prevent having to force a sync with the GPU (await_fence) when
     // it could be doing useful work.
-    VkDevice device = surface.handle->swapchain_handle->graphics_command_queue
-                          .info.device.handle->device;
+    VkDevice device = surface.handle->swapchain_handle->vk_render_context
+                          ->graphics_command_queue.info.device.handle->device;
 
     VkSemaphore image_acquisition_semaphore =
         surface.handle->swapchain_handle->image_acquisition_semaphores
@@ -555,6 +545,13 @@ struct WindowHandle {
     // now just push the pixels to the sk_surface
     SkCanvas* canvas = sk_surface->getCanvas();
 
+    // we need to clear the image, as the image on the swapcahins could be
+    // re-used.
+    // BONUS: the subsequent operations will be optimized since we are not
+    // reading back the previous pixels on the image
+    //
+    canvas->clear(SK_ColorTRANSPARENT);
+
     // TODO(lamarrr): ensure the pipeline is constructed to use the same
     // format or something? we can't construct render context before creating
     // window and swapchain we also need to change pipeline render context if
@@ -562,7 +559,8 @@ struct WindowHandle {
     // supported? or does skia manage to somehow convert them?
     SkPaint paint;
     paint.setBlendMode(SkBlendMode::kSrc);
-    backing_store_sk_surface->draw(canvas, 0, 0, &paint);
+
+    backing_store_sk_surface.draw(canvas, 0, 0, &paint);
 
     // rendering
     VkSemaphore rendering_semaphore =
@@ -578,28 +576,35 @@ struct WindowHandle {
 
     GrBackendSurfaceMutableState target_presentation_surface_state{
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        surface.handle->swapchain_handle->graphics_command_queue.info.family
-            .info.index};
+        surface.handle->swapchain_handle->vk_render_context
+            ->graphics_command_queue.info.family.info.index};
 
     VLK_ENSURE(
         sk_surface->flush(flush_info, &target_presentation_surface_state) ==
         GrSemaphoresSubmitted::kYes);
 
-    VLK_ENSURE(surface.handle->swapchain_handle->direct_context->submit(false));
+    VLK_ENSURE(
+        surface.handle->swapchain_handle->vk_render_context->render_context
+            .get_direct_context()
+            .unwrap()
+            ->submit(false));
 
-    // presentation
-    // TODO(lamarrr): find a way to coalesce direct context and command queue
-    // (into SkiaContext?)
-    // (we don't need to wait on presentation)
-    auto present_result = vk::present(
-        surface.handle->swapchain_handle->graphics_command_queue.info.queue,
-        stx::Span<VkSemaphore const>(&rendering_semaphore, 1),
-        stx::Span<VkSwapchainKHR const>(
-            &surface.handle->swapchain_handle->swapchain, 1),
-        stx::Span<uint32_t const>(&next_swapchain_image_index, 1));
+    // presentation (we don't need to wait on presentation)
+    //
+    // if v-sync is enabled (VK_PRESENT_MODE_FIFO_KHR) the GPU driver *can*
+    // delay the process so we don't submit more frames than the display's
+    // refresh rate can keep up with and we thus save power.
+    //
+    auto present_result =
+        vk::present(surface.handle->swapchain_handle->vk_render_context
+                        ->graphics_command_queue.info.queue,
+                    stx::Span<VkSemaphore const>(&rendering_semaphore, 1),
+                    stx::Span<VkSwapchainKHR const>(
+                        &surface.handle->swapchain_handle->swapchain, 1),
+                    stx::Span<uint32_t const>(&next_swapchain_image_index, 1));
 
-    // the semaphores and synchronization primitives are still used even if an
-    // error is returned
+    // the frame semaphores and synchronization primitives are still used even
+    // if an error is returned
     surface.handle->swapchain_handle->frame_flight_index =
         (surface.handle->swapchain_handle->frame_flight_index + 1) %
         surface.handle->swapchain_handle->images.size();
@@ -610,7 +615,9 @@ struct WindowHandle {
     } else if (present_result == VK_ERROR_OUT_OF_DATE_KHR) {
       diff |= WindowSwapchainDiff::OutOfDate;
       return diff;
-    } else if (present_result != VK_SUCCESS) {
+    } else if (present_result == VK_SUCCESS) {
+      return diff;
+    } else {
       VLK_PANIC("Unable to present swapchain image", present_result);
     }
   }

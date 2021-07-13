@@ -36,7 +36,8 @@ enum class WidgetDirtiness : uint8_t {
   Render = 1,
   ViewOffset = 2,
   Layout = 4,
-  Children = 8
+  Children = 8,
+  All = Render | ViewOffset | Layout | Children
 };
 
 VLK_DEFINE_ENUM_BIT_OPS(WidgetDirtiness)
@@ -318,7 +319,7 @@ struct Widget {
   WidgetDebugInfo debug_info_;
 
   //! modified and used for communication of updates to the system
-  WidgetDirtiness dirtiness_;
+  WidgetDirtiness dirtiness_ = WidgetDirtiness::All;
 
   //! modified and used for communication of updates to the system
   WidgetStateProxy state_proxy_;
