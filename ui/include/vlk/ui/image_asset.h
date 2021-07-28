@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <utility>
 
+#include "fmt/format.h"
 #include "include/core/SkImage.h"
 #include "stx/result.h"
 #include "vlk/ui/asset_manager.h"
@@ -12,6 +13,19 @@ namespace vlk {
 namespace ui {
 
 enum class ImageFormat : uint8_t { RGB, RGBA, Gray };
+
+constexpr std::string_view format(ImageFormat image_format) {
+  switch (image_format) {
+    case ImageFormat::Gray:
+      return "Gray";
+    case ImageFormat::RGB:
+      return "RGB";
+    case ImageFormat::RGBA:
+      return "RGBA";
+      default:
+      return "";
+  }
+}
 
 namespace impl {
 
@@ -69,13 +83,13 @@ namespace impl {
 struct FileImageSourceData {
   std::filesystem::path path;
   stx::Option<ImageFormat> target_format = stx::None;
-  std::string identifier;
+  std::string tag;
 };
 
 struct MemoryImageSourceData {
   ImageInfo info;
   std::vector<uint8_t> buffer;
-  std::string identifier;
+  std::string tag;
 };
 
 struct FileImageLoadArgs : public AssetLoadArgs {
@@ -127,25 +141,25 @@ struct MemoryImageLoader : public AssetLoader {
 struct FileImageSource {
   FileImageSource(std::filesystem::path path,
                   stx::Option<ImageFormat> target_format = stx::None) {
-    std::string identifier = std::string("FileImage{path: ") +
-                             std::string(path) + std::string(", format: ") +
-                             target_format.clone()
-                                 .map(enum_ut<ImageFormat>)
-                                 .map([](auto v) { return std::to_string(v); })
-                                 .unwrap_or("internal format") +
-                             "}";
+    auto format_str = target_format.clone()
+                          .map([](ImageFormat value) { return format(value); })
+                          .unwrap_or("internal format");
 
-    data_ = std::make_shared<impl::FileImageSourceData const>(
-        impl::FileImageSourceData{std::move(path), target_format,
-                                  std::move(identifier)});
+    data_ = std::shared_ptr<impl::FileImageSourceData const>{
+        new impl::FileImageSourceData{
+            path, target_format,
+            fmt::format("Bultin.FileImage(path: {}, format: {})", path.c_str(),
+                        std::move(format_str))}};
   }
 
   auto data() const { return data_; }
 
   auto const& data_ref() const { return data_; }
 
+  AssetTag get_tag() const { return AssetTag::from_shared(data_, data_->tag); }
+
   bool operator==(FileImageSource const& other) const {
-    return data_ == other.data_;
+    return data_->tag == other.data_->tag;
   }
 
   bool operator!=(FileImageSource const& other) const {
@@ -165,9 +179,9 @@ struct MemoryImageSource {
     VLK_ENSURE(image_info.extent.visible());
 
     data_ = std::make_shared<impl::MemoryImageSourceData const>(
-        impl::MemoryImageSourceData{image_info, std::move(image_buffer),
-                                    std::string("MemoryImage{uid: ") +
-                                        std::to_string(make_uid()) + "}"});
+        impl::MemoryImageSourceData{
+            image_info, std::move(image_buffer),
+            fmt::format("Bultin.MemoryImage(uid: {})", make_uid())});
   }
 
   ImageInfo info() const { return data_->info; }
@@ -176,8 +190,10 @@ struct MemoryImageSource {
 
   auto const& data_ref() const { return data_; }
 
+  AssetTag get_tag() const { return AssetTag::from_shared(data_, data_->tag); }
+
   bool operator==(MemoryImageSource const& other) const {
-    return data_ == other.data_;
+    return data_->tag == other.data_->tag;
   }
 
   bool operator!=(MemoryImageSource const& other) const {
@@ -195,7 +211,7 @@ struct MemoryImageSource {
 inline auto add_asset(AssetManager& asset_manager,
                       FileImageSource const& image_source) {
   return asset_manager.add(
-      image_source.data_ref()->identifier,
+      image_source.get_tag(),
       std::make_unique<impl::FileImageLoadArgs>(
           impl::FileImageLoadArgs{image_source.data_ref()}),
       impl::FileImageLoader::get_default());
@@ -204,7 +220,7 @@ inline auto add_asset(AssetManager& asset_manager,
 inline auto add_asset(AssetManager& asset_manager,
                       MemoryImageSource const& image_source) {
   return asset_manager.add(
-      image_source.data_ref()->identifier,
+      image_source.get_tag(),
       std::make_unique<impl::MemoryImageLoadArgs>(
           impl::MemoryImageLoadArgs{image_source.data_ref()}),
       impl::MemoryImageLoader::get_default());
@@ -212,7 +228,7 @@ inline auto add_asset(AssetManager& asset_manager,
 
 inline stx::Result<std::shared_ptr<ImageAsset const>, AssetError> get_asset(
     AssetManager& asset_manager, FileImageSource const& image_source) {
-  TRY_OK(asset, asset_manager.get(image_source.data_ref()->identifier));
+  TRY_OK(asset, asset_manager.get(image_source.get_tag()));
   auto image_asset = std::dynamic_pointer_cast<ImageAsset const>(asset);
   VLK_ENSURE(image_asset != nullptr);
   return stx::Ok(std::move(image_asset));
@@ -220,7 +236,7 @@ inline stx::Result<std::shared_ptr<ImageAsset const>, AssetError> get_asset(
 
 inline stx::Result<std::shared_ptr<ImageAsset const>, AssetError> get_asset(
     AssetManager& asset_manager, MemoryImageSource const& image_source) {
-  TRY_OK(asset, asset_manager.get(image_source.data_ref()->identifier));
+  TRY_OK(asset, asset_manager.get(image_source.get_tag()));
   auto image_asset = std::dynamic_pointer_cast<ImageAsset const>(asset);
   VLK_ENSURE(image_asset != nullptr);
   return stx::Ok(std::move(image_asset));

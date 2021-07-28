@@ -61,3 +61,7 @@ struct ParallelAsyncSink {
  private:
   CacheLineAligned<impl::ParallelAsyncSinkStorage<T>> storage_;
 };
+
+  // this is aligned to the cache line size via heap allocation which should
+  // make allocations chunked to std::max_align_t granularity. so we shouldn't
+  // have cache coherence issues.

@@ -191,7 +191,7 @@ struct LayoutTree {
 
   LayoutTree() = default;
 
-  VLK_MAKE_PINNED(LayoutTree)
+  STX_MAKE_PINNED(LayoutTree)
 
   ~LayoutTree() = default;
 

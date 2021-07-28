@@ -81,6 +81,57 @@ struct AssetLoader {
   }
 };
 
+struct AssetTag {
+  explicit AssetTag(std::string identifier_string) {
+    auto shared_handle = std::shared_ptr<std::string>{
+        new std::string{std::move(identifier_string)}};
+    handle = shared_handle;
+  }
+
+  static AssetTag from_static(std::string_view ref) {
+    AssetTag identifier;
+    identifier.ref = ref;
+    identifier.handle = nullptr;
+    return identifier;
+  }
+
+  static AssetTag from_shared(std::shared_ptr<void const> resource_handle,
+                              std::string_view ref) {
+    AssetTag identifier;
+    identifier.ref = ref;
+    identifier.handle = resource_handle;
+    return identifier;
+  }
+
+  std::string_view as_string_view() const { return ref; }
+
+  bool operator==(AssetTag const &other) const {
+    return as_string_view() == other.as_string_view();
+  }
+
+  bool operator<(AssetTag const &other) const {
+    return as_string_view() < other.as_string_view();
+  }
+
+  bool operator>(AssetTag const &other) const {
+    return as_string_view() > other.as_string_view();
+  }
+
+  bool operator<=(AssetTag const &other) const {
+    return as_string_view() <= other.as_string_view();
+  }
+
+  bool operator>=(AssetTag const &other) const {
+    return as_string_view() >= other.as_string_view();
+  }
+
+ private:
+  STX_DEFAULT_CONSTRUCTOR(AssetTag)
+
+  std::string_view ref;
+  std::shared_ptr<void const> handle;
+};
+
 // Asset Manager Requirements
 //
 // - we want to be able to load by tag, tags must be unique
@@ -117,15 +168,14 @@ struct AssetManager {
                        std::ref(completion_queue_mutex_),
                        cancelation_token_} {}
 
-  //! `requires_persistence`: some data assets must just persist. i.e. icons and
-  //! frequently used data. internet-loaded data file-loaded data should not
-  //! necessarily persist
-  //!
-  //! non-persistent ones will be discarded/unloaded after a period of time
-  //!
-  //!
-  auto add(std::string_view tag,
-           std::unique_ptr<AssetLoadArgs const> &&load_args,
+  /// `requires_persistence`: some data assets must just persist. i.e. icons and
+  /// frequently used data. internet-loaded data file-loaded data should not
+  /// necessarily persist
+  ///
+  /// non-persistent ones will be discarded/unloaded after a period of time
+  ///
+  ///
+  auto add(AssetTag tag, std::unique_ptr<AssetLoadArgs const> &&load_args,
            std::shared_ptr<AssetLoader const> &&loader)
       -> stx::Result<stx::NoneType, AssetError> {
     VLK_ENSURE(load_args != nullptr);
@@ -133,7 +183,7 @@ struct AssetManager {
 
     // references are not invalidated
     auto const [iterator, was_inserted] = data_.try_emplace(
-        std::string{tag},
+        std::move(tag),
         AssetData{std::move(load_args), std::move(loader), stx::None,
                   AssetState::Unloaded, Ticks{}, false});
 
@@ -146,7 +196,7 @@ struct AssetManager {
 
   // if asset has an entry and it has been discarded, we need to now create make
   // a reload and then return that the asset is being loaded back
-  auto get(std::string_view tag)
+  auto get(AssetTag tag)
       -> stx::Result<std::shared_ptr<Asset const>, AssetError> {
     auto const pos = data_.find(tag);
     if (pos == data_.end()) return stx::Err(AssetError::InvalidTag);
@@ -166,7 +216,7 @@ struct AssetManager {
                                    pos->second.load_args.get()});
 
         VLK_LOG("Submitted asset `{}` to worker thread for reloading",
-                pos->first);
+                pos->first.as_string_view());
 
         return stx::Err(AssetError::IsLoading);
 
@@ -190,7 +240,8 @@ struct AssetManager {
             std::shared_ptr<Asset>{std::move(cmpl_data.asset)}});
 
         VLK_LOG(
-            "Loaded asset with tag `{}` of size: {}", iter->first,
+            "Loaded asset with tag `{}` of size: {}",
+            iter->first.as_string_view(),
             impl::format_bytes_unit(iter->second.asset.value()->size_bytes()));
 
         size_changed = true;
@@ -215,7 +266,8 @@ struct AssetManager {
             "for {} ticks. "
             "Asset will be "
             "discarded",
-            tag, impl::format_bytes_unit(entry.asset.value()->size_bytes()),
+            tag.as_string_view(),
+            impl::format_bytes_unit(entry.asset.value()->size_bytes()),
             entry.stale_ticks.count());
         entry.asset = stx::None;
         entry.state = AssetState::Unloaded;
@@ -258,13 +310,13 @@ struct AssetManager {
   };
 
   struct SubmissionData {
-    std::string tag;
+    AssetTag tag;
     AssetLoader const *loader = nullptr;
     AssetLoadArgs const *load_args = nullptr;
   };
 
   struct CompletionData {
-    std::string tag;
+    AssetTag tag;
     std::unique_ptr<Asset> asset;
   };
 
@@ -338,7 +390,7 @@ struct AssetManager {
     VLK_LOG("Asset manager worker thread shut down");
   }
 
-  std::map<std::string, AssetData, std::less<>> data_;
+  std::map<AssetTag, AssetData, std::less<>> data_;
 
   std::queue<SubmissionData> submission_queue_;
   std::mutex submission_queue_mutex_;

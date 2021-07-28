@@ -308,7 +308,7 @@ struct ViewTree {
 
   ViewTree() = default;
 
-  VLK_MAKE_PINNED(ViewTree)
+  STX_MAKE_PINNED(ViewTree)
 
   ~ViewTree() = default;
 

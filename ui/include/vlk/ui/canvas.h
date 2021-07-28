@@ -9,7 +9,7 @@ struct SkCanvas;
 namespace vlk {
 namespace ui {
 
-//! a wrapper over the Skia canvas
+/// a wrapper over the Skia canvas
 struct Canvas {
   explicit constexpr Canvas(SkCanvas& canvas, Extent extent, Dpr dpr)
       : canvas_addr_{&canvas}, extent_{extent}, dpr_{dpr} {}

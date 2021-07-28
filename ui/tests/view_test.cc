@@ -120,8 +120,9 @@ TEST(ViewTree, Hierarchy_And_Scrolling) {
 
   // v1
   view_tree.root_view.subviews[0].layout_node->widget->update_view_offset(
-      ViewOffset{Constrain{0.0f, 90, i64_min, i64_max, Clamp{0.0f, 200.0f}},
-                 Constrain{0.0f}});
+      ViewOffset{
+          Constrain{0.0f, 90, stx::i64_min, stx::i64_max, Clamp{0.0f, 200.0f}},
+          Constrain{0.0f}});
 
   AssetManager asset_manager;
 
@@ -180,7 +181,7 @@ TEST(BodyTest, UnconstrainedRoot) {
   auto body = Body{&w1, ViewFit::Height};
 
   LayoutTree layout_tree;
-  layout_tree.allot_extent(Extent{1920, u32_max});
+  layout_tree.allot_extent(Extent{1920, stx::u32_max});
   layout_tree.build(body);
 
   layout_tree.tick(std::chrono::nanoseconds(0));

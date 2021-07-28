@@ -24,9 +24,8 @@ struct RenderContext {
         color_space_{std::move(color_space)},
         surface_origin_{surface_origin} {}
 
-  VLK_DISABLE_COPY(RenderContext)
-  VLK_DEFAULT_MOVE(RenderContext)
-  VLK_DEFAULT_DESTRUCTOR(RenderContext)
+  STX_DISABLE_COPY(RenderContext)
+  STX_DEFAULT_MOVE(RenderContext)
 
   sk_sp<SkSurface> create_cpu_surface(Extent const& extent) const {
     return create_cpu_texture(extent, color_type_, alpha_type_, color_space_);

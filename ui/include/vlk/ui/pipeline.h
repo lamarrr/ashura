@@ -49,8 +49,8 @@ struct Pipeline {
     // both can be allocated infinite extents
   }
 
-  VLK_DEFAULT_CONSTRUCTOR(Pipeline)
-  VLK_MAKE_PINNED(Pipeline)
+  STX_DEFAULT_CONSTRUCTOR(Pipeline)
+  STX_MAKE_PINNED(Pipeline)
 
   void dispatch_events(stx::Span<MouseButtonEvent const> mouse_button_events,
                        stx::Span<WindowEvent const> window_events) {

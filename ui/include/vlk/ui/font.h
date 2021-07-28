@@ -16,7 +16,7 @@ enum class TextDecoration : uint8_t {
   StrikeThrough = 4,
 };
 
-VLK_DEFINE_ENUM_BIT_OPS(TextDecoration)
+STX_DEFINE_ENUM_BIT_OPS(TextDecoration)
 
 enum class FontSlant : uint8_t {
   Upright = 0,
@@ -24,7 +24,7 @@ enum class FontSlant : uint8_t {
   Oblique = 2,
 };
 
-VLK_DEFINE_ENUM_BIT_OPS(FontSlant)
+STX_DEFINE_ENUM_BIT_OPS(FontSlant)
 
 constexpr std::string_view format(FontSlant slant) {
   switch (slant) {

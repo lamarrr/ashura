@@ -12,21 +12,21 @@ namespace vlk {
 using ZIndex = int64_t;
 
 constexpr bool fits_u32(int64_t value) {
-  return value <= u32_max && value >= 0;
+  return value <= stx::u32_max && value >= 0;
 }
 
 constexpr bool fits_u32(int32_t value) { return value >= 0; }
 
 constexpr bool fits_i32(int64_t value) {
-  return value <= i32_max && value >= i32_min;
+  return value <= stx::i32_max && value >= stx::i32_min;
 }
 
 constexpr bool fits_i32(uint32_t value) {
-  return value <= static_cast<uint32_t>(i32_max);
+  return value <= static_cast<uint32_t>(stx::i32_max);
 }
 
 constexpr uint32_t u32_clamp(int64_t value) {
-  return static_cast<uint32_t>(std::clamp<int64_t>(value, 0, u32_max));
+  return static_cast<uint32_t>(std::clamp<int64_t>(value, 0, stx::u32_max));
 }
 
 constexpr uint32_t u32_clamp(int32_t value) {
@@ -34,11 +34,12 @@ constexpr uint32_t u32_clamp(int32_t value) {
 }
 
 constexpr int32_t i32_clamp(int64_t value) {
-  return static_cast<int32_t>(std::clamp<int64_t>(value, i32_min, i32_max));
+  return static_cast<int32_t>(
+      std::clamp<int64_t>(value, stx::i32_min, stx::i32_max));
 }
 
 constexpr int32_t i32_clamp(uint32_t value) {
-  return static_cast<int32_t>(std::min<uint32_t>(value, i32_max));
+  return static_cast<int32_t>(std::min<uint32_t>(value, stx::i32_max));
 }
 
 struct IOffset {
@@ -299,23 +300,23 @@ constexpr bool operator==(Rect const &a, Rect const &b) {
 
 constexpr bool operator!=(Rect const &a, Rect const &b) { return !(a == b); }
 
-//! Virtual Rects
-//!
-//! we typically use this struct in cases where we need to implement zooming or
-//! device pixel ratio scaling. floating point numbers are notoriously difficult
-//! to deal with, hence we use integers where possible. floating point numbers
-//! represent virtual quantities. converting to real numbers typically involve
-//! rounding of sorts. Note that floating point arithmetic is brittle, hence we
-//! use the `virtualize` and `devirtualize` process when converting or operating
-//! across the virtual and non-virtual quantities.
-//!
-//! when zooming, floating point inconsistencies will tend to be visibile, so
-//! our floating point arithmetic needs to be as accurate as possible.
-//!
-//! virtual dimensions or quantities are typically used for rendering operations
-//! where we floating point precision is a concern (translation, rotation,
-//! zooming, scaling, etc)
-//!
+/// Virtual Rects
+///
+/// we typically use this struct in cases where we need to implement zooming or
+/// device pixel ratio scaling. floating point numbers are notoriously difficult
+/// to deal with, hence we use integers where possible. floating point numbers
+/// represent virtual quantities. converting to real numbers typically involve
+/// rounding of sorts. Note that floating point arithmetic is brittle, hence we
+/// use the `virtualize` and `devirtualize` process when converting or operating
+/// across the virtual and non-virtual quantities.
+///
+/// when zooming, floating point inconsistencies will tend to be visibile, so
+/// our floating point arithmetic needs to be as accurate as possible.
+///
+/// virtual dimensions or quantities are typically used for rendering operations
+/// where we floating point precision is a concern (translation, rotation,
+/// zooming, scaling, etc)
+///
 struct VRect {
   VOffset offset;
   VExtent extent;
@@ -356,8 +357,8 @@ struct VRect {
   }
 };
 
-//! unit of time within the whole API.
-//! NOTE: wall or system clocks are unreliable and not easily reproducible.
+/// unit of time within the whole API.
+/// NOTE: wall or system clocks are unreliable and not easily reproducible.
 struct Ticks {
   uint64_t value = 0;
 

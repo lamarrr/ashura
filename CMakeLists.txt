@@ -9,14 +9,11 @@ execute_process(
   COMMAND git clone https://github.com/lamarrr/STX.git third_party/STX
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 execute_process(
-  COMMAND git clone -b 3.3.2 https://github.com/glfw/glfw.git third_party/glfw
-  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-execute_process(
   COMMAND git clone -b v1.8.2 https://github.com/gabime/spdlog.git
           third_party/spdlog WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-execute_process(
-  COMMAND git clone -b 0.9.9.8 https://github.com/g-truc/glm.git third_party/glm
-  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+# execute_process( COMMAND git clone -b 0.9.9.8
+# https://github.com/g-truc/glm.git third_party/glm WORKING_DIRECTORY
+# ${CMAKE_CURRENT_LIST_DIR})
 execute_process(
   COMMAND git clone -b master https://github.com/nothings/stb.git
           third_party/stb WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
@@ -30,8 +27,8 @@ execute_process(
   COMMAND git clone -b release-2.0.14 https://github.com/libsdl-org/SDL.git
           third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 execute_process(
-            COMMAND git clone -b curl-7_77_0 https://github.com/curl/curl.git
-                    third_party/curl WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+  COMMAND git clone -b curl-7_77_0 https://github.com/curl/curl.git
+          third_party/curl WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 # TODO(lamarrr): use a tagged version with CMakeLists.txt
 execute_process(
@@ -40,7 +37,6 @@ execute_process(
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
     third_party/VulkanMemoryAllocator
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
 
 # TODO(lamarrr): check if skia binaries and header folder doesn't exists and
 # pull in
@@ -124,22 +120,22 @@ set(SDL_LOCALE_ENABLED_BY_DEFAULT
     CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/STX)
-add_subdirectory(third_party/glfw)
-add_subdirectory(third_party/spdlog)
-add_subdirectory(third_party/glm)
-add_subdirectory(third_party/googletest)
-add_subdirectory(third_party/fmt)
-add_subdirectory(third_party/VulkanMemoryAllocator)
-add_subdirectory(third_party/SDL)
-add_subdirectory(third_party/curl)
+add_subdirectory(third_party/spdlog EXCLUDE_FROM_ALL)
+add_subdirectory(third_party/googletest EXCLUDE_FROM_ALL)
+add_subdirectory(third_party/fmt EXCLUDE_FROM_ALL)
+add_subdirectory(third_party/VulkanMemoryAllocator EXCLUDE_FROM_ALL)
+add_subdirectory(third_party/SDL EXCLUDE_FROM_ALL)
+add_subdirectory(third_party/curl EXCLUDE_FROM_ALL)
+
+set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(add_project_library)
 
 add_library(vlk_external_stb INTERFACE)
 target_include_directories(vlk_external_stb
                            INTERFACE ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
 
 file(GLOB VLK_EXTERNAL_SKIA_LIBRARIES ${SKIA_LIBRARIES_DIR}/*.a)
-add_library(vlk_external_skia
-            ${CMAKE_CURRENT_LIST_DIR}/src/vlk_external_skia.cc)
+add_library(vlk_external_skia STATIC ${CMAKE_CURRENT_LIST_DIR}/skia/src/skia.cc)
 target_include_directories(vlk_external_skia
                            PUBLIC ${CMAKE_CURRENT_LIST_DIR}/third_party/skia)
 target_link_libraries(vlk_external_skia ${VLK_EXTERNAL_SKIA_LIBRARIES}
@@ -160,52 +156,10 @@ target_compile_definitions(
          SK_ENABLE_VK_LAYERS
          SK_ENABLE_DUMP_GPU)
 
+add_subdirectory(stx_ext)
+add_subdirectory(vlk_subsystem)
+add_subdirectory(http)
 add_subdirectory(utils)
-add_subdirectory(assets)
 add_subdirectory(ui)
-
-add_executable(valkyrie.bin src/vlk.cc)
-target_link_libraries(
-  valkyrie.bin
-  stx
-  glfw
-  spdlog::spdlog
-  glm::glm
-  ${Vulkan_LIBRARIES}
-  vlk_utils
-  vlk_assets
-  vlk_ui)
-target_include_directories(
-  valkyrie.bin
-  PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/include
-          ${CMAKE_CURRENT_LIST_DIR}/third_party/skia
-          ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
-
-# todo: add GLSL compilation
-
-function(add_spirv_shader TARGET_NAME IN_GLSL_FILE_PATH OUT_SPIRV_FILE)
-
-  if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${OUT_SPIRV_FILE})
-    file(REMOVE ${CMAKE_CURRENT_BINARY_DIR}/${OUT_SPIRV_FILE})
-  endif()
-
-  add_custom_target(
-    shader-${TARGET_NAME}
-    glslangValidator -V ${IN_GLSL_FILE_PATH} -o
-    ${CMAKE_CURRENT_BINARY_DIR}/${OUT_SPIRV_FILE}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
-endfunction()
-
-list(APPEND GLSL_TARGETS triangle)
-
-foreach(GLSL_TARGET ${GLSL_TARGETS})
-  add_spirv_shader(
-    ${GLSL_TARGET}-frag shaders/${GLSL_TARGET}/${GLSL_TARGET}.frag
-    ${GLSL_TARGET}.frag.spv)
-  add_spirv_shader(
-    ${GLSL_TARGET}-vert shaders/${GLSL_TARGET}/${GLSL_TARGET}.vert
-    ${GLSL_TARGET}.vert.spv)
-endforeach(GLSL_TARGET)
 
 # export ASAN_OPTIONS=fast_unwind_on_malloc=0 CXXFLAGS=""

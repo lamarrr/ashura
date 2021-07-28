@@ -31,17 +31,17 @@ struct RasterRecord {
     SkRect sk_logical_recording_cull_rect{};
   };
 
-  VLK_DEFAULT_CONSTRUCTOR(RasterRecord)
-  VLK_DISABLE_COPY(RasterRecord)
-  VLK_DEFAULT_MOVE(RasterRecord)
+  STX_DEFAULT_CONSTRUCTOR(RasterRecord)
+  STX_DISABLE_COPY(RasterRecord)
+  STX_DEFAULT_MOVE(RasterRecord)
 
   bool has_recording() const { return picture_ != nullptr; }
 
   bool is_recording() const { return is_recording_; }
 
-  //! NOTE: screen coordinates are logical.
-  //! recording is done in logical coordinates and rasterization in physical
-  //! coordinates.
+  /// NOTE: screen coordinates are logical.
+  /// recording is done in logical coordinates and rasterization in physical
+  /// coordinates.
   void begin_recording(VRect virtual_logical_cull_rect) {
     VLK_ENSURE(!is_recording());
 
@@ -99,9 +99,9 @@ struct RasterCache {
   // each render widget will thus need to send a dirtiness notification to at
   // least one tile.
 
-  VLK_DEFAULT_CONSTRUCTOR(RasterCache)
-  VLK_DISABLE_COPY(RasterCache)
-  VLK_DEFAULT_MOVE(RasterCache)
+  STX_DEFAULT_CONSTRUCTOR(RasterCache)
+  STX_DISABLE_COPY(RasterCache)
+  STX_DEFAULT_MOVE(RasterCache)
 
   ~RasterCache() = default;
 

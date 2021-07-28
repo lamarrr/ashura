@@ -22,7 +22,7 @@ namespace vlk {
 namespace vk {
 struct Instance;
 struct CommandQueue;
-};  // namespace vk
+}  // namespace vk
 
 namespace ui {
 
@@ -57,7 +57,7 @@ struct EngineCfg {
 };
 
 struct App {
-  VLK_MAKE_PINNED(App)
+  STX_MAKE_PINNED(App)
 
   App(Widget* widget, AppCfg app_cfg)
       : cfg{std::move(app_cfg)}, root_widget{widget} {

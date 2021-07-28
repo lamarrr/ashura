@@ -41,10 +41,10 @@ struct ImageProps {
 
   ImageSource const &source_ref() const { return source_; }
 
-  //! target extent for the image widget, otherwise initially uses an internally
-  //! specified extent and then updates the image widget's extent once the image
-  //! is available.
-  //! it is recommended to set this to prevent layout shift.
+  /// target extent for the image widget, otherwise initially uses an internally
+  /// specified extent and then updates the image widget's extent once the image
+  /// is available.
+  /// it is recommended to set this to prevent layout shift.
   ImageProps extent(SelfExtent value) const {
     ImageProps out{*this};
     out.extent_ = stx::Some(std::move(value));
@@ -75,7 +75,7 @@ struct ImageProps {
 
   BorderRadius border_radius() const { return border_radius_; }
 
-  //! this is applied on the effective extent of this widget
+  /// this is applied on the effective extent of this widget
   ImageProps aspect_ratio(Extent value) const {
     ImageProps out{*this};
     out.aspect_ratio_ = stx::Some(std::move(value));
@@ -102,14 +102,14 @@ struct ImageProps {
 };
 
 enum class ImageState : uint8_t {
-  //! the image has not been in view yet (or in a long time, its not holding a
-  //! reference to its image asset)
+  /// the image has not been in view yet (or in a long time, its not holding a
+  /// reference to its image asset)
   Stale,
-  //! the image's asset is loading
+  /// the image's asset is loading
   Loading,
-  //! a non-fatal failure occured while loading the image's asset
+  /// a non-fatal failure occured while loading the image's asset
   LoadFailed,
-  //! the image's asset has been successfully loaded
+  /// the image's asset has been successfully loaded
   Loaded
 };
 
@@ -124,7 +124,7 @@ enum class ImageDiff : uint8_t {
   All = (1 << 4) - 1
 };
 
-VLK_DEFINE_ENUM_BIT_OPS(ImageDiff)
+STX_DEFINE_ENUM_BIT_OPS(ImageDiff)
 
 struct ImageStorage {
   ImageProps props;
@@ -176,14 +176,14 @@ struct Image : public Widget {
         extent);
   }
 
-  //! implement this to draw a custom loading image/animation
+  /// implement this to draw a custom loading image/animation
   virtual void draw_loading_image(Canvas &) {}
 
-  //! implement this to draw a custom loading image/animation
+  /// implement this to draw a custom loading image/animation
   virtual void draw_error_image(Canvas &) {}
 
-  //! NOTE: only part of an image might be actually needed during drawing, any
-  //! ref.
+  /// NOTE: only part of an image might be actually needed during drawing, any
+  /// ref.
   virtual void draw(Canvas &canvas) override;
 
   virtual void tick(std::chrono::nanoseconds,

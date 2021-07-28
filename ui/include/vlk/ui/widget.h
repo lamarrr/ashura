@@ -12,22 +12,22 @@
 #include "vlk/ui/asset_manager.h"
 #include "vlk/ui/canvas.h"
 #include "vlk/ui/layout.h"
-#include "vlk/utils/limits.h"
 #include "vlk/utils/utils.h"
+#include "stx/struct.h"
 
 namespace vlk {
 namespace ui {
 
-//! NOTE: Widget is a very large struct (about 420-bytes). avoid
-//! touching the struct in hot code paths as it could disrupt cache
-//! if you're touching a large number of them, especially whilst not all fields
-//! of it are touched
-//! NOTE: this struct's data is always accessed from the main thread.
+/// NOTE: Widget is a very large struct (about 420-bytes). avoid
+/// touching the struct in hot code paths as it could disrupt cache
+/// if you're touching a large number of them, especially whilst not all fields
+/// of it are touched
+/// NOTE: this struct's data is always accessed from the main thread.
 
 enum class WidgetType : uint8_t {
-  //! occupies space and has render data
+  /// occupies space and has render data
   Render,
-  //! for view-based scrolling, has no render data
+  /// for view-based scrolling, has no render data
   View
 };
 
@@ -40,7 +40,7 @@ enum class WidgetDirtiness : uint8_t {
   All = Render | ViewOffset | Layout | Children
 };
 
-VLK_DEFINE_ENUM_BIT_OPS(WidgetDirtiness)
+STX_DEFINE_ENUM_BIT_OPS(WidgetDirtiness)
 
 struct WidgetDebugInfo {
   std::string_view name = "<unnamed>";
@@ -51,22 +51,22 @@ struct WidgetDebugInfo {
 // abstract as much as possible. the callbacks also function to capture various
 // values.
 struct WidgetStateProxy {
-  //! informs the system that the widget's render data has changed
+  /// informs the system that the widget's render data has changed
   std::function<void()> on_render_dirty = [] {};
 
-  //! informs the system that the widget's layout has changed
+  /// informs the system that the widget's layout has changed
   std::function<void()> on_layout_dirty = [] {};
 
-  //! informs the system that a view-widgets's offset (or visible area)
-  //! has changed
+  /// informs the system that a view-widgets's offset (or visible area)
+  /// has changed
   std::function<void()> on_view_offset_dirty = [] {};
 
-  //! informs the system that the widget's children has changed (possibly
-  //! requiring a full rebuild of the pipeline)
+  /// informs the system that the widget's children has changed (possibly
+  /// requiring a full rebuild of the pipeline)
   std::function<void()> on_children_changed = [] {};
 
-  //! we need to be able to consult the tree for the widget's offset i.e. in the
-  //! scenario where we need to scroll to it
+  /// we need to be able to consult the tree for the widget's offset i.e. in the
+  /// scenario where we need to scroll to it
 };
 
 // important: if layout is updated multiple times in between ticks the ticked
@@ -108,7 +108,7 @@ struct Widget {
         dirtiness_{WidgetDirtiness::None},
         state_proxy_{} {}
 
-  VLK_MAKE_PINNED(Widget)
+  STX_MAKE_PINNED(Widget)
 
   WidgetType get_type() const { return type_; }
 
@@ -140,18 +140,18 @@ struct Widget {
 
   bool is_stale() const { return is_stale_; }
 
-  //! create draw commands
-  //! NOTE: states, variables, or properties that could affect rendering must
-  //! not change in the draw method until `mark_rendering_dirty()` is called,
-  //! else this would lead to partial updates in a tile-based rendering
-  //! scenario.
-  //!
+  /// create draw commands
+  /// NOTE: states, variables, or properties that could affect rendering must
+  /// not change in the draw method until `mark_rendering_dirty()` is called,
+  /// else this would lead to partial updates in a tile-based rendering
+  /// scenario.
+  ///
   virtual void draw([[maybe_unused]] Canvas &) {
     // no-op
   }
 
-  //! process any event you need to process here.
-  //! animations and property updates can and should happen here.
+  /// process any event you need to process here.
+  /// animations and property updates can and should happen here.
   virtual void tick([[maybe_unused]] std::chrono::nanoseconds interval,
                     [[maybe_unused]] AssetManager &asset_manager) {
     // no-op
@@ -196,10 +196,10 @@ struct Widget {
     }
   }
 
-  //! MOTE: this does not free the memory associated with the referenced
-  //! container. the derived widget is in charge of freeing memory as necessary.
-  //! avoid using this as much as possible as it can cause a full re-build of
-  //! the pipeline.
+  /// MOTE: this does not free the memory associated with the referenced
+  /// container. the derived widget is in charge of freeing memory as necessary.
+  /// avoid using this as much as possible as it can cause a full re-build of
+  /// the pipeline.
   void update_children(stx::Span<Widget *const> children) {
     // we assume the memory has been released or the widget still uses the same
     // children span but with the child widgets pointers changed
@@ -273,60 +273,60 @@ struct Widget {
     dirtiness_ = WidgetDirtiness::None;
   }
 
-  //! constant throughout lifetime
+  /// constant throughout lifetime
   WidgetType type_;
 
-  //! constant throughout lifetime
+  /// constant throughout lifetime
   bool is_flex_;
 
-  //! variable throughout lifetime. communicate changes using `on_layout_dirty`.
+  /// variable throughout lifetime. communicate changes using `on_layout_dirty`.
   // for view widgets, this is effectively the size that's actually visible.
   SelfExtent self_extent_;
 
-  //! variable throughout lifetime. communicate changes using `on_layout_dirty`
+  /// variable throughout lifetime. communicate changes using `on_layout_dirty`
   bool needs_trimming_;
 
-  //! variable throughout lifetime. communicate changes using `on_layout_dirty`
+  /// variable throughout lifetime. communicate changes using `on_layout_dirty`
   Padding padding_;
 
-  //! variable throughout lifetime. communicate changes using `on_layout_dirty`
+  /// variable throughout lifetime. communicate changes using `on_layout_dirty`
   Flex flex_;
 
-  //! variable throughout lifetime. communicate changes using
-  //! `on_children_changed`
+  /// variable throughout lifetime. communicate changes using
+  /// `on_children_changed`
   stx::Span<Widget *const> children_;
 
-  //! for view widgets (used for laying out its children).
-  //!
-  //! variable throughout lifetime.
-  //! resolved using the parent allotted extent.
+  /// for view widgets (used for laying out its children).
+  ///
+  /// variable throughout lifetime.
+  /// resolved using the parent allotted extent.
   ViewExtent view_extent_;
 
-  //! for view widgets (used for scrolling or moving of the view)
-  //!
-  //! variable throughout lifetime. communicate changes with
-  //! `on_view_offset_changed`.
-  //! resolved using the view extent.
+  /// for view widgets (used for scrolling or moving of the view)
+  ///
+  /// variable throughout lifetime. communicate changes with
+  /// `on_view_offset_changed`.
+  /// resolved using the view extent.
   ViewOffset view_offset_;
 
   // variable throughout lifetime. communicate changes using `on_layout_dirty`
   ViewFit view_fit_;
 
-  //! constant throughout lifetime
+  /// constant throughout lifetime
   stx::Option<ZIndex> z_index_;
 
-  //! variable throughout lifetime
+  /// variable throughout lifetime
   WidgetDebugInfo debug_info_;
 
-  //! modified and used for communication of updates to the system
+  /// modified and used for communication of updates to the system
   WidgetDirtiness dirtiness_ = WidgetDirtiness::All;
 
-  //! modified and used for communication of updates to the system
+  /// modified and used for communication of updates to the system
   WidgetStateProxy state_proxy_;
 
-  //! updated by the widget system to inform the user that the widget is
-  //! presently in use for rendering. i.e. informing the widget that it
-  //! shouldn't discard its asset or rendering data
+  /// updated by the widget system to inform the user that the widget is
+  /// presently in use for rendering. i.e. informing the widget that it
+  /// shouldn't discard its asset or rendering data
   bool is_stale_ = true;
 };
 

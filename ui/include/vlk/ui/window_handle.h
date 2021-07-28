@@ -49,24 +49,24 @@ inline WindowSurfaceFormat select_swapchain_surface_formats(
   VLK_PANIC("Unable to find any of the preferred swapchain surface formats");
 }
 
-//! Swapchains handle the presentation and update logic of the images to the
-//! window surface.
-//!
-//!
-//!
-//! NOTE: all arguments to create a swapchain for a window surface are
-//! preferences, meaning another available argument will be used if the
-//! suggested ones are not supported. Thus do not assume your arguments are
-//! final.
-//!
-//!
-//! swapchains can not be headless, nor exist independently of the surface they
-//! originated from, its lifetime thus depends on the surface. the surface can
-//! and should be able to destroy and create it at will (which would be
-//! impossible to do correctly with ref-counting, since we are not holding a
-//! reference to the surface) we thus can't hold a reference to the swapchain,
-//! its images, nor its image views outside itself (the swapchain object).
-//!
+/// Swapchains handle the presentation and update logic of the images to the
+/// window surface.
+///
+///
+///
+/// NOTE: all arguments to create a swapchain for a window surface are
+/// preferences, meaning another available argument will be used if the
+/// suggested ones are not supported. Thus do not assume your arguments are
+/// final.
+///
+///
+/// swapchains can not be headless, nor exist independently of the surface they
+/// originated from, its lifetime thus depends on the surface. the surface can
+/// and should be able to destroy and create it at will (which would be
+/// impossible to do correctly with ref-counting, since we are not holding a
+/// reference to the surface) we thus can't hold a reference to the swapchain,
+/// its images, nor its image views outside itself (the swapchain object).
+///
 struct WindowSwapChainHandle {
   static constexpr VkImageUsageFlags images_usage =
       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
@@ -96,13 +96,13 @@ struct WindowSwapChainHandle {
   VkPresentModeKHR present_mode{};
   Extent extent;
 
-  //! IMPORTANT: this is different from the image index obtained via
-  //! `vkAcquireNextImageKHR`. this index is used for referencing semaphores
-  //! used for submitting and querying rendering operations. this value is
-  //! always increasing and wrapping, unlike the index obtained from
-  //! `vkAcquireNextImageKHR` which depends on the presentation mode being used
-  //! (determines how the images are used, in what order and whether they
-  //! repeat).
+  /// IMPORTANT: this is different from the image index obtained via
+  /// `vkAcquireNextImageKHR`. this index is used for referencing semaphores
+  /// used for submitting and querying rendering operations. this value is
+  /// always increasing and wrapping, unlike the index obtained from
+  /// `vkAcquireNextImageKHR` which depends on the presentation mode being used
+  /// (determines how the images are used, in what order and whether they
+  /// repeat).
   uint32_t frame_flight_index = 0;
 
   // the images in the swapchain
@@ -120,9 +120,9 @@ struct WindowSwapChainHandle {
 
   std::shared_ptr<VkRenderContext> vk_render_context = nullptr;
 
-  //! IMPORTANT: placed in this position so Skia can destroy its command queue
-  //! before the logical device contained by `graphics_command_queue` is
-  //! destroyed
+  /// IMPORTANT: placed in this position so Skia can destroy its command queue
+  /// before the logical device contained by `graphics_command_queue` is
+  /// destroyed
   // but surfaces are bound to the contexts
   std::vector<sk_sp<SkSurface>> skia_surfaces;
 
@@ -311,28 +311,28 @@ struct WindowSurfaceHandle {
   inline VkPresentModeKHR select_swapchain_presentation_mode(
       stx::Span<VkPresentModeKHR const> available_presentation_modes,
       stx::Span<VkPresentModeKHR const> preferred_present_modes) noexcept {
-    //! - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application
-    //! are transferred to the screen right away, which may result in tearing.
-    //!
-    //! - VK_PRESENT_MODE_FIFO_KHR: The swap chain is a queue where the
-    //! display takes an image from the front of the queue when the display is
-    //! refreshed and the program inserts rendered images at the back of the
-    //! queue. If the queue is full then the program has to wait. This is most
-    //! similar to vertical sync as found in modern games. The moment that the
-    //! display is refreshed is known as "vertical blank" (v-sync).
-    //!
-    //! - VK_PRESENT_MODE_FIFO_RELAXED_KHR: This mode only differs
-    //! from the previous one if the application is late and the queue was
-    //! empty at the last vertical blank. Instead of waiting for the next
-    //! vertical blank, the image is transferred right away when it finally
-    //! arrives. This may result in visible tearing.
+    /// - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application
+    /// are transferred to the screen right away, which may result in tearing.
+    ///
+    /// - VK_PRESENT_MODE_FIFO_KHR: The swap chain is a queue where the
+    /// display takes an image from the front of the queue when the display is
+    /// refreshed and the program inserts rendered images at the back of the
+    /// queue. If the queue is full then the program has to wait. This is most
+    /// similar to vertical sync as found in modern games. The moment that the
+    /// display is refreshed is known as "vertical blank" (v-sync).
+    ///
+    /// - VK_PRESENT_MODE_FIFO_RELAXED_KHR: This mode only differs
+    /// from the previous one if the application is late and the queue was
+    /// empty at the last vertical blank. Instead of waiting for the next
+    /// vertical blank, the image is transferred right away when it finally
+    /// arrives. This may result in visible tearing.
 
-    //! - VK_PRESENT_MODE_MAILBOX_KHR: This is another variation of the
-    //! second mode. Instead of blocking the application when the queue is
-    //! full, the images that are already queued are simply replaced with the
-    //! newer ones. This mode can be used to implement triple buffering, which
-    //! allows you to avoid tearing with significantly less latency issues
-    //! than standard vertical sync that uses double buffering.
+    /// - VK_PRESENT_MODE_MAILBOX_KHR: This is another variation of the
+    /// second mode. Instead of blocking the application when the queue is
+    /// full, the images that are already queued are simply replaced with the
+    /// newer ones. This mode can be used to implement triple buffering, which
+    /// allows you to avoid tearing with significantly less latency issues
+    /// than standard vertical sync that uses double buffering.
 
     VLK_ENSURE(available_presentation_modes.size() != 0,
                "No surface presentation mode available");
@@ -364,7 +364,7 @@ enum class WindowSwapchainDiff : uint8_t {
   All = Extent | Suboptimal | OutOfDate
 };
 
-VLK_DEFINE_ENUM_BIT_OPS(WindowSwapchainDiff);
+STX_DEFINE_ENUM_BIT_OPS(WindowSwapchainDiff);
 
 enum class WindowContentDirtiness : uint8_t {
   None = 0,
@@ -373,7 +373,7 @@ enum class WindowContentDirtiness : uint8_t {
   All = Layout | RePresent
 };
 
-VLK_DEFINE_ENUM_BIT_OPS(WindowContentDirtiness);
+STX_DEFINE_ENUM_BIT_OPS(WindowContentDirtiness);
 
 constexpr WindowContentDirtiness map_diff(WindowSwapchainDiff diff) {
   WindowContentDirtiness dirtiness = WindowContentDirtiness::None;

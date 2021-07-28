@@ -1,0 +1,7 @@
+add_subdirectory(async)
+add_subdirectory(enum)
+add_subdirectory(limits)
+add_subdirectory(mem)
+add_subdirectory(resource)
+add_subdirectory(struct)
+add_subdirectory(task)

@@ -74,7 +74,7 @@ TEST(LayoutTest, Sized) {
   LayoutTree tree;
 
   tree.build(body);
-  tree.allot_extent(Extent{u32_max, u32_max});
+  tree.allot_extent(Extent{stx::u32_max, stx::u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
   auto& node = tree.root_node.children[0];
@@ -96,7 +96,7 @@ TEST(LayoutTest, SizedPadded) {
   Body body = Body{&sized, ViewFit::Width | ViewFit::Height};
 
   tree.build(body);
-  tree.allot_extent(Extent{u32_max, u32_max});
+  tree.allot_extent(Extent{stx::u32_max, stx::u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
   auto& node = tree.root_node.children[0];
@@ -120,7 +120,7 @@ TEST(LayoutTest, Flex_MainShrink_CrossShrink) {
   LayoutTree tree;
 
   tree.build(flex);
-  tree.allot_extent(Extent{u32_max, u32_max});
+  tree.allot_extent(Extent{stx::u32_max, stx::u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
   auto& node = tree.root_node;
@@ -160,7 +160,7 @@ TEST(LayoutTest, Flex_Column) {
   LayoutTree tree;
 
   tree.build(flex);
-  tree.allot_extent(Extent{u32_max, u32_max});
+  tree.allot_extent(Extent{stx::u32_max, stx::u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
   auto& node = tree.root_node;
@@ -243,7 +243,7 @@ TEST(LayoutTest, Flex_Padded) {
     LayoutTree tree;
 
     tree.build(flex);
-    tree.allot_extent(Extent{u32_max, u32_max});
+    tree.allot_extent(Extent{stx::u32_max, stx::u32_max});
     tree.tick(std::chrono::nanoseconds(0));
 
     auto& node = tree.root_node;
@@ -284,7 +284,7 @@ TEST(LayoutTest, Flex_Padded) {
     LayoutTree tree;
 
     tree.build(flex);
-    tree.allot_extent(Extent{u32_max, u32_max});
+    tree.allot_extent(Extent{stx::u32_max, stx::u32_max});
     tree.tick(std::chrono::nanoseconds(0));
 
     auto& node = tree.root_node;
@@ -317,7 +317,7 @@ TEST(LayoutTest, Flex_Padded) {
     LayoutTree tree;
 
     tree.build(flex);
-    tree.allot_extent(Extent{u32_max, u32_max});
+    tree.allot_extent(Extent{stx::u32_max, stx::u32_max});
     tree.tick(std::chrono::nanoseconds(0));
 
     auto& node = tree.root_node;
@@ -345,7 +345,7 @@ TEST(LayoutTest, Flex_MainExpand_CrossShrink) {
   Body body = Body{&flex, ViewFit::Width | ViewFit::Height};
 
   tree.build(body);
-  tree.allot_extent(Extent{u32_max, u32_max});
+  tree.allot_extent(Extent{stx::u32_max, stx::u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
   auto& node = tree.root_node.children[0];
@@ -385,7 +385,7 @@ TEST(LayoutTest, Flex_MainExpand_MainExpand) {
   LayoutTree tree;
 
   tree.build(flex);
-  tree.allot_extent(Extent{1920, u32_max});
+  tree.allot_extent(Extent{1920, stx::u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
   auto& node = tree.root_node;
@@ -409,7 +409,7 @@ TEST(LayoutTest, Flex_Shrink) {
   LayoutTree tree;
 
   tree.build(flex);
-  tree.allot_extent(Extent{u32_max, u32_max});
+  tree.allot_extent(Extent{stx::u32_max, stx::u32_max});
   tree.tick(std::chrono::nanoseconds(0));
 
   auto& node = tree.root_node;

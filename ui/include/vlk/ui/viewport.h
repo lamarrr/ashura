@@ -84,7 +84,7 @@ struct Viewport {
   bool widgets_allocation_changed_ = true;
   // give the widgets Extent{width of viewport, infinite height}
   ViewExtent unresolved_widgets_allocation_ =
-      ViewExtent{Constrain::relative(1.0f), Constrain::absolute(u32_max)};
+      ViewExtent{Constrain::relative(1.0f), Constrain::absolute(stx::u32_max)};
 
   // updated due to a scrolling event
   IOffset offset_;

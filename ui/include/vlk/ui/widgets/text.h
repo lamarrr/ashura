@@ -15,7 +15,7 @@
 #include "vlk/ui/font_source.h"
 #include "vlk/ui/primitives.h"
 #include "vlk/ui/widget.h"
-#include "vlk/utils/limits.h"
+#include "stx/limits.h"
 
 namespace vlk {
 namespace ui {
@@ -124,42 +124,42 @@ struct TextProps {
 
   auto locale() const { return locale_; }
 
-  //! uses the specified system font if available, else uses the default
-  //! system font
+  /// uses the specified system font if available, else uses the default
+  /// system font
   TextProps font(SystemFont system_font) const {
     TextProps out{*this};
     out.font_ = stx::Some(FontSource{std::move(system_font)});
     return out;
   }
 
-  //! loads the specified fonts from the specified faces of the fonts if not
-  //! already loaded. if the required font face specified by `.style` fails
-  //! to load, the defult system font is used.
+  /// loads the specified fonts from the specified faces of the fonts if not
+  /// already loaded. if the required font face specified by `.style` fails
+  /// to load, the defult system font is used.
   TextProps font(FileFont file_font) const {
     TextProps out{*this};
     out.font_ = stx::Some(FontSource{std::move(file_font)});
     return out;
   }
 
-  //! decodes the specified fonts from the provided bytes if not
-  //! already loaded. if the required font face specified by `.style` fails
-  //! to load, the defult system font is used.
+  /// decodes the specified fonts from the provided bytes if not
+  /// already loaded. if the required font face specified by `.style` fails
+  /// to load, the defult system font is used.
   TextProps font(MemoryFont memory_font) const {
     TextProps out{*this};
     out.font_ = stx::Some(FontSource{std::move(memory_font)});
     return out;
   }
 
-  //! loads the typeface from the specified path. if the required typeface fails
-  //! to load, the defult system font is used.
+  /// loads the typeface from the specified path. if the required typeface fails
+  /// to load, the defult system font is used.
   TextProps font(FileTypefaceSource file_source) const {
     TextProps out{*this};
     out.font_ = stx::Some(FontSource{std::move(file_source)});
     return out;
   }
 
-  //! decodes the typeface from the provided bytes. if the required typeface
-  //! fails to decode, the defult system font is used.
+  /// decodes the typeface from the provided bytes. if the required typeface
+  /// fails to decode, the defult system font is used.
   TextProps font(MemoryTypefaceSource memory_source) const {
     TextProps out{*this};
     out.font_ = stx::Some(FontSource{std::move(memory_source)});
@@ -511,12 +511,12 @@ struct ParagraphProps {
   // reflow
   TextAlign align_ = TextAlign::Left;
   // reflow
-  uint32_t line_limit_ = u32_max;
+  uint32_t line_limit_ = stx::u32_max;
 };
 
 struct InlineText {
   std::string text;
-  //! uses the paragraph's default style if none is set
+  /// uses the paragraph's default style if none is set
   TextProps props = TextProps{};
 };
 
@@ -541,13 +541,13 @@ struct ParagraphStorage {
 };
 
 enum class TextDiff : uint16_t {
-  //! nothing changed in the inline text
+  /// nothing changed in the inline text
   None = 0,
-  //! the color of the inline text changed
+  /// the color of the inline text changed
   Color = 1 << 0,
-  //! the background color of the inline text changed
+  /// the background color of the inline text changed
   BgColor = 1 << 1,
-  //! the font size of the inline text changed
+  /// the font size of the inline text changed
   FontSize = 1 << 2,
   LetterSpacing = 1 << 3,
   WordSpacing = 1 << 4,
@@ -557,8 +557,8 @@ enum class TextDiff : uint16_t {
   DecorationStyle = 1 << 8,
   Font = 1 << 9,
   Antialias = 1 << 10,
-  //! the length of the inline text or the contents of the inline texts have
-  //! changed
+  /// the length of the inline text or the contents of the inline texts have
+  /// changed
   Text = 1 << 11,
   Direction = 1 << 12,
   Align = 1 << 13,
@@ -566,7 +566,7 @@ enum class TextDiff : uint16_t {
   All = (LineLimit << 1) - 1
 };
 
-VLK_DEFINE_ENUM_BIT_OPS(TextDiff)
+STX_DEFINE_ENUM_BIT_OPS(TextDiff)
 
 }  // namespace impl
 

@@ -38,11 +38,11 @@ enum class BoxBlend : uint8_t { ColorOver = 0, ImageOver = 1 };
 
 //
 // TODO(lamarrr): background image fit
-enum class BoxFit {
-  //! center the background image on the box whilst preserving aspect ratio
+enum class BoxFit : uint8_t{
+  /// center the background image on the box whilst preserving aspect ratio
   None,
-  //! resize image to cover entire box without distorting the image, some parts
-  //! of the image may become invisible
+  /// resize image to cover entire box without distorting the image, some parts
+  /// of the image may become invisible
   Cover,
   // make the image fully visible, without distorting the image, the image may
   // not cover the entire area of the widget and leave some parts stale
@@ -73,8 +73,8 @@ constexpr IRect box_fit_crop(BoxFit fit, Extent image_extent,
 }  // namespace impl
 
 struct BoxProps {
-  //! if extent is not specified, Box shrinks down enough to accomodate the size
-  //! of its child
+  /// if extent is not specified, Box shrinks down enough to accomodate the size
+  /// of its child
   BoxProps extent(SelfExtent self_extent) const {
     BoxProps out{*this};
     out.extent_ = self_extent;
@@ -93,8 +93,8 @@ struct BoxProps {
     return out;
   }
 
-  BoxProps constrain(Extent min = Extent{u32_min, u32_min},
-                     Extent max = Extent{u32_max, u32_max}) const {
+  BoxProps constrain(Extent min = Extent{stx::u32_min, stx::u32_min},
+                     Extent max = Extent{stx::u32_max, stx::u32_max}) const {
     BoxProps out{*this};
     out.extent_.width.min = min.width;
     out.extent_.width.max = max.width;
@@ -153,7 +153,7 @@ struct BoxProps {
 
   auto color() const { return color_; }
 
-  //! background blur
+  /// background blur
   BoxProps blur(Blur blur) const {
     BoxProps out{*this};
     out.blur_ = blur;
@@ -228,7 +228,7 @@ enum class BoxDiff : uint16_t {
   All = (1 << 10) - 1
 };
 
-VLK_DEFINE_ENUM_BIT_OPS(BoxDiff)
+STX_DEFINE_ENUM_BIT_OPS(BoxDiff)
 
 struct BoxStorage {
   BoxProps props;

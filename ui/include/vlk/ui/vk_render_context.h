@@ -11,8 +11,8 @@ namespace ui {
 struct VkRenderContext {
   vk::CommandQueue graphics_command_queue;
 
-  //! NOTE: placed in this position to ensure Skia deletes its context before
-  //! the vulkan command queue, instance, and logical devices are destroyed
+  /// NOTE: placed in this position to ensure Skia deletes its context before
+  /// the vulkan command queue, instance, and logical devices are destroyed
   RenderContext render_context;
 };
 

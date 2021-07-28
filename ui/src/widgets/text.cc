@@ -224,17 +224,17 @@ inline auto get_font_asset_helper(AssetManager& asset_manager,
   }
 }
 
-inline std::string_view get_source_identifier(FontSource const& font_source) {
+inline std::string_view get_source_tag(FontSource const& font_source) {
   if (std::holds_alternative<SystemFont>(font_source)) {
-    return std::get<SystemFont>(font_source).data_ref()->identifier;
+    return std::get<SystemFont>(font_source).data_ref()->tag;
   } else if (std::holds_alternative<FileFont>(font_source)) {
-    return std::get<FileFont>(font_source).source.data_ref()->identifier;
+    return std::get<FileFont>(font_source).source.data_ref()->tag;
   } else if (std::holds_alternative<MemoryFont>(font_source)) {
-    return std::get<MemoryFont>(font_source).source.data_ref()->identifier;
+    return std::get<MemoryFont>(font_source).source.data_ref()->tag;
   } else if (std::holds_alternative<FileTypefaceSource>(font_source)) {
-    return std::get<FileTypefaceSource>(font_source).data_ref()->identifier;
+    return std::get<FileTypefaceSource>(font_source).data_ref()->tag;
   } else if (std::holds_alternative<MemoryTypefaceSource>(font_source)) {
-    return std::get<MemoryTypefaceSource>(font_source).data_ref()->identifier;
+    return std::get<MemoryTypefaceSource>(font_source).data_ref()->tag;
   } else {
     VLK_PANIC();
   }
@@ -316,8 +316,7 @@ inline sktext::TextStyle make_text_style(
   if (font_source.is_some()) {
     if (text_storage.state == TextState::FontsLoadDone &&
         text_storage.typeface.is_some()) {
-      std::string_view source_identifier =
-          get_source_identifier(font_source.value());
+      std::string_view source_identifier = get_source_tag(font_source.value());
       text_style.setFontFamilies(std::vector{
           SkString{source_identifier.data(), source_identifier.size()}});
     } else {
@@ -326,7 +325,7 @@ inline sktext::TextStyle make_text_style(
     if (paragraph_storage.state == TextState::FontsLoadDone &&
         paragraph_storage.typeface.is_some()) {
       std::string_view source_identifier =
-          get_source_identifier(paragraph_storage.props.font_ref());
+          get_source_tag(paragraph_storage.props.font_ref());
       text_style.setFontFamilies(std::vector{
           SkString{source_identifier.data(), source_identifier.size()}});
     }
@@ -434,7 +433,7 @@ inline std::unique_ptr<sktext::Paragraph> build_paragraph(
                 FontSource const& font =
                     inline_text.props.font_ref().as_cref().unwrap_or(
                         paragraph_storage.props.font_ref());
-                std::string_view identifier = get_source_identifier(font);
+                std::string_view identifier = get_source_tag(font);
                 font_provider->registerTypeface(
                     std::move(sk_typeface),
                     SkString{identifier.data(), identifier.size()});

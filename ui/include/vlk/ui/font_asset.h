@@ -42,22 +42,22 @@ namespace impl {
 
 struct FileTypefaceSourceData {
   std::filesystem::path path;
-  std::string identifier;
+  std::string tag;
 };
 
 struct MemoryTypefaceSourceData {
   std::vector<uint8_t> bytes;
-  std::string identifier;
+  std::string tag;
 };
 
 }  // namespace impl
 
 struct FileTypefaceSource {
   explicit FileTypefaceSource(std::filesystem::path path) {
-    std::string identifier = std::string("FileTypefaceSource{path: ") +
-                             std::string(path) + std::string("}");
     data_ = std::make_shared<impl::FileTypefaceSourceData>(
-        impl::FileTypefaceSourceData{std::move(path), std::move(identifier)});
+        impl::FileTypefaceSourceData{
+            path,
+            fmt::format("Bultin.FileTypefaceSource(path: {})", path.c_str())});
   }
 
   auto data() const { return data_; }
@@ -66,8 +66,10 @@ struct FileTypefaceSource {
   // copying from data() as compilers are required to not optimize volatile ops.
   auto const& data_ref() const { return data_; }
 
+  AssetTag get_tag() const { return AssetTag::from_shared(data_, data_->tag); }
+
   bool operator==(FileTypefaceSource const& other) const {
-    return data_->identifier == other.data_->identifier;
+    return data_->tag == other.data_->tag;
   }
 
   bool operator!=(FileTypefaceSource const& other) const {
@@ -79,26 +81,27 @@ struct FileTypefaceSource {
 };
 
 inline std::string format(FileTypefaceSource const& source) {
-  return source.data_ref()->identifier;
+  return source.data_ref()->tag;
 }
 
 struct MemoryTypefaceSource {
   explicit MemoryTypefaceSource(std::vector<uint8_t> bytes) {
     VLK_ENSURE(!bytes.empty());
     uint64_t uid = make_uid();
-    std::string identifier = std::string("MemoryTypefaceSource{uid: ") +
-                             std::to_string(uid) + std::string("}");
     data_ = std::make_shared<impl::MemoryTypefaceSourceData>(
-        impl::MemoryTypefaceSourceData{std::move(bytes),
-                                       std::move(identifier)});
+        impl::MemoryTypefaceSourceData{
+            std::move(bytes),
+            fmt::format("Builtin.MemoryTypefaceSource(uid: {})", uid)});
   }
 
   auto data() const { return data_; }
 
   auto const& data_ref() const { return data_; }
 
+  AssetTag get_tag() const { return AssetTag::from_shared(data_, data_->tag); }
+
   bool operator==(MemoryTypefaceSource const& other) const {
-    return data_ref()->identifier == other.data_ref()->identifier;
+    return data_->tag == other.data_->tag;
   }
 
   bool operator!=(MemoryTypefaceSource const& other) const {
@@ -112,7 +115,7 @@ struct MemoryTypefaceSource {
 };
 
 inline std::string format(MemoryTypefaceSource const& source) {
-  return source.data_ref()->identifier;
+  return source.data_ref()->tag;
 }
 
 template <typename TypefaceSource>
@@ -129,44 +132,43 @@ namespace impl {
 struct FileFontSourceData {
   std::string family;
   std::vector<FontFace<FileTypefaceSource>> faces;
-  std::string debug_identifier;
+  std::string tag;
 };
 
 struct MemoryFontSourceData {
   std::string family;
   std::vector<FontFace<MemoryTypefaceSource>> faces;
-  std::string debug_identifier;
+  std::string tag;
 };
 
 struct SystemFontData {
   stx::Option<std::string> family = stx::None;
 
-  //! style variant of system font to use
+  /// style variant of system font to use
   FontStyle style = FontStyle{};
 
-  std::string identifier;
+  std::string tag;
 };
 
 }  // namespace impl
 
-//! system font to use. uses default system font by default
+/// system font to use. uses default system font by default
 struct SystemFont {
   SystemFont(std::string font_family, FontStyle font_style) {
-    std::string identifier = "SystemFont{font: " + font_family + ", style: (" +
-                             format(font_style) + ")}";
-    data_ = std::make_shared<impl::SystemFontData const>(
-        impl::SystemFontData{stx::Some(std::move(font_family)),
-                             std::move(font_style), std::move(identifier)});
+    data_ = std::make_shared<impl::SystemFontData const>(impl::SystemFontData{
+        stx::Some(std::string(font_family)), font_style,
+        fmt::format("Builtin.SystemFont(font family: '{}', style: '{}')",
+                    font_family, format(font_style))});
   }
 
   explicit SystemFont(std::string font_family)
       : SystemFont{std::move(font_family), FontStyle{}} {}
 
   explicit SystemFont(FontStyle font_style) {
-    std::string identifier =
-        "DefaultSystemFont{style: (" + format(font_style) + ")}";
     data_ = std::make_shared<impl::SystemFontData const>(impl::SystemFontData{
-        stx::None, std::move(font_style), std::move(identifier)});
+        stx::None, font_style,
+        fmt::format("Builtin.DefaultSystemFont(style: '{}')",
+                    format(font_style))});
   }
 
   SystemFont() : SystemFont{FontStyle{}} {}
@@ -175,8 +177,10 @@ struct SystemFont {
 
   auto const& data_ref() const { return data_; }
 
+  AssetTag get_tag() const { return AssetTag::from_shared(data_, data_->tag); }
+
   bool operator==(SystemFont const& other) const {
-    return data_ref()->identifier == other.data_ref()->identifier;
+    return data_->tag == other.data_->tag;
   }
 
   bool operator!=(SystemFont const& other) const { return !(*this == other); }
@@ -188,28 +192,28 @@ struct SystemFont {
 struct FileFontSource {
   FileFontSource(std::string family_name,
                  std::vector<FontFace<FileTypefaceSource>> font_faces) {
-    std::string debug_identifier =
-        fmt::format("FileFontSourcefamily(family: {}, faces: [", family_name);
+    std::string tag = fmt::format(
+        "Builtin.FileFontSourcefamily(family: {}, faces: [", family_name);
 
     for (auto const& face : font_faces) {
-      debug_identifier +=
-          fmt::format("(id: {}, style: {}), ",
-                      face.source.data_ref()->identifier, format(face.style));
+      tag += fmt::format("(tag: {}, style: {}), ", face.source.data_ref()->tag,
+                         format(face.style));
     }
 
-    debug_identifier += "])";
+    tag += "])";
 
-    data_ = std::make_shared<impl::FileFontSourceData>(
-        impl::FileFontSourceData{std::move(family_name), std::move(font_faces),
-                                 std::move(debug_identifier)});
+    data_ = std::make_shared<impl::FileFontSourceData>(impl::FileFontSourceData{
+        std::move(family_name), std::move(font_faces), std::move(tag)});
   }
 
   auto data() const { return data_; }
 
   auto const& data_ref() const { return data_; }
 
+  AssetTag get_tag() const { return AssetTag::from_shared(data_, data_->tag); }
+
   bool operator==(FileFontSource const& other) const {
-    return data_ref()->debug_identifier == other.data_ref()->debug_identifier;
+    return data_->tag == other.data_->tag;
   }
 
   bool operator!=(FileFontSource const& other) const {
@@ -221,7 +225,7 @@ struct FileFontSource {
 };
 
 inline std::string format(FileFontSource const& source) {
-  return source.data_ref()->debug_identifier;
+  return source.data_ref()->tag;
 }
 
 struct MemoryFontSource {
@@ -230,29 +234,29 @@ struct MemoryFontSource {
       std::vector<FontFace<MemoryTypefaceSource>> font_faces) {
     VLK_ENSURE(!font_faces.empty(), "font faces can not be empty");
 
-    std::string debug_identifier =
-        fmt::format("FileFontSourcefamily(family: {}, faces: [", family_name);
+    std::string tag = fmt::format(
+        "Builtin.FileFontSourcefamily(family: {}, faces: [", family_name);
 
     for (auto const& face : font_faces) {
-      debug_identifier +=
-          fmt::format("(id: {}, style: {}), ",
-                      face.source.data_ref()->identifier, format(face.style));
+      tag += fmt::format("(tag: {}, style: {}), ", face.source.data_ref()->tag,
+                         format(face.style));
     }
 
-    debug_identifier += "])";
+    tag += "])";
 
     data_ =
         std::make_shared<impl::MemoryFontSourceData>(impl::MemoryFontSourceData{
-            std::move(family_name), std::move(font_faces),
-            std::move(debug_identifier)});
+            std::move(family_name), std::move(font_faces), std::move(tag)});
   }
 
   auto data() const { return data_; }
 
   auto const& data_ref() const { return data_; }
 
+  AssetTag get_tag() const { return AssetTag::from_shared(data_, data_->tag); }
+
   bool operator==(MemoryFontSource const& other) const {
-    return data_ref()->debug_identifier == other.data_ref()->debug_identifier;
+    return data_ref()->tag == other.data_ref()->tag;
   }
 
   bool operator!=(MemoryFontSource const& other) const {
@@ -264,7 +268,7 @@ struct MemoryFontSource {
 };
 
 inline std::string format(MemoryFontSource const& source) {
-  return source.data_ref()->debug_identifier;
+  return source.data_ref()->tag;
 }
 
 namespace impl {
@@ -366,7 +370,7 @@ auto const& get_typeface_source(FontSourceType const& font_source,
         "the specified "
         "typefaces of the font source: {}. "
         "The first font in the typefaces of the font source will be used",
-        format(style), font_source.data_ref()->debug_identifier);
+        format(style), font_source.data_ref()->tag);
     return faces[0].source;
   } else {
     return pos->source;
@@ -410,7 +414,7 @@ struct MemoryFont {
 inline auto add_font_asset(AssetManager& asset_manager,
                            FileTypefaceSource const& typeface_source) {
   return asset_manager.add(
-      typeface_source.data_ref()->identifier,
+      typeface_source.get_tag(),
       std::make_unique<impl::TypefaceLoadArgs>(
           impl::TypefaceLoadArgs{typeface_source.data_ref()}),
       impl::TypefaceLoader::get_default());
@@ -419,7 +423,7 @@ inline auto add_font_asset(AssetManager& asset_manager,
 inline auto add_font_asset(AssetManager& asset_manager,
                            MemoryTypefaceSource const& typeface_source) {
   return asset_manager.add(
-      typeface_source.data_ref()->identifier,
+      typeface_source.get_tag(),
       std::make_unique<impl::TypefaceLoadArgs>(
           impl::TypefaceLoadArgs{typeface_source.data_ref()}),
       impl::TypefaceLoader::get_default());
@@ -427,7 +431,7 @@ inline auto add_font_asset(AssetManager& asset_manager,
 
 inline auto add_font_asset(AssetManager& asset_manager,
                            SystemFont const& system_font) {
-  return asset_manager.add(system_font.data_ref()->identifier,
+  return asset_manager.add(system_font.get_tag(),
                            std::make_unique<impl::TypefaceLoadArgs>(
                                impl::TypefaceLoadArgs{system_font.data_ref()}),
                            impl::TypefaceLoader::get_default());
@@ -446,7 +450,7 @@ inline auto add_font_asset(AssetManager& asset_manager,
 inline stx::Result<std::shared_ptr<TypefaceAsset const>, AssetError>
 get_font_asset(AssetManager& asset_manager,
                FileTypefaceSource const& typeface_source) {
-  TRY_OK(asset, asset_manager.get(typeface_source.data_ref()->identifier));
+  TRY_OK(asset, asset_manager.get(typeface_source.get_tag()));
   auto typeface_asset = std::dynamic_pointer_cast<TypefaceAsset const>(asset);
   VLK_ENSURE(typeface_asset != nullptr);
   return stx::Ok(std::move(typeface_asset));
@@ -454,7 +458,7 @@ get_font_asset(AssetManager& asset_manager,
 
 inline stx::Result<std::shared_ptr<TypefaceAsset const>, AssetError>
 get_font_asset(AssetManager& asset_manager, SystemFont const& system_font) {
-  TRY_OK(asset, asset_manager.get(system_font.data_ref()->identifier));
+  TRY_OK(asset, asset_manager.get(system_font.get_tag()));
   auto typeface_asset = std::dynamic_pointer_cast<TypefaceAsset const>(asset);
   VLK_ENSURE(typeface_asset != nullptr);
   return stx::Ok(std::move(typeface_asset));
@@ -463,7 +467,7 @@ get_font_asset(AssetManager& asset_manager, SystemFont const& system_font) {
 inline stx::Result<std::shared_ptr<TypefaceAsset const>, AssetError>
 get_font_asset(AssetManager& asset_manager,
                MemoryTypefaceSource const& typeface_source) {
-  TRY_OK(asset, asset_manager.get(typeface_source.data_ref()->identifier));
+  TRY_OK(asset, asset_manager.get(typeface_source.get_tag()));
   auto typeface_asset = std::dynamic_pointer_cast<TypefaceAsset const>(asset);
   VLK_ENSURE(typeface_asset != nullptr);
   return stx::Ok(std::move(typeface_asset));

@@ -14,12 +14,12 @@ namespace ui {
 
 struct Widget;
 
-//! each widget accepting children could use these helper functions:
-//! they should have function overloads with: `WidgetBuilder`, `stx::Span<Widget
-//! *>`, `std::initializer_list<Widget*>`, and `std::vector<Widget*>`
-//!
-//! builds a list of widgets. the function is called with the index, until it
-//! returns `nullptr`
+/// each widget accepting children could use these helper functions:
+/// they should have function overloads with: `WidgetBuilder`, `stx::Span<Widget
+/// *>`, `std::initializer_list<Widget*>`, and `std::vector<Widget*>`
+///
+/// builds a list of widgets. the function is called with the index, until it
+/// returns `nullptr`
 using WidgetBuilder = std::function<Widget *(size_t)>;
 
 inline std::vector<Widget *> build_children(

@@ -10,10 +10,10 @@
 #include <vector>
 
 #include "stx/backtrace.h"
+#include "stx/limits.h"
 #include "stx/option.h"
 #include "stx/result.h"
 #include "stx/span.h"
-#include "vlk/utils/limits.h"
 #include "vlk/utils/utils.h"
 #include "vulkan/vulkan.h"
 
@@ -478,8 +478,8 @@ inline VkExtent2D select_swapchain_extent(
   // then we are not allowed to choose the extent and we must use the provided
   // extent. otherwise, we a range of extents will be provided that we must
   // clamp to.
-  if (capabilities.currentExtent.width != u32_max ||
-      capabilities.currentExtent.height != u32_max) {
+  if (capabilities.currentExtent.width != stx::u32_max ||
+      capabilities.currentExtent.height != stx::u32_max) {
     return capabilities.currentExtent;
   } else {
     VkExtent2D target_extent =
@@ -504,7 +504,8 @@ inline uint32_t select_swapchain_image_count(
   return
       // no limit on the number of swapchain images
       capabilities.maxImageCount == 0
-          ? std::clamp(desired_num_buffers, capabilities.minImageCount, u32_max)
+          ? std::clamp(desired_num_buffers, capabilities.minImageCount,
+                       stx::u32_max)
           : std::clamp(desired_num_buffers, capabilities.minImageCount,
                        capabilities.maxImageCount);
 }

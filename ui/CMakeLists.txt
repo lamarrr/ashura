@@ -1,5 +1,5 @@
 add_library(
-  vlk_ui
+  vlk_ui STATIC
   src/canvas.cc
   src/widget.cc
   src/window.cc
@@ -7,7 +7,6 @@ add_library(
   src/vulkan.cc
   src/app.cc
   # subsystems
-
   src/subsystems/async.cc
   # asset systems
   src/image_asset.cc
@@ -30,10 +29,13 @@ target_link_libraries(
   VulkanMemoryAllocator
   vlk_external_skia
   vlk_external_stb
+  vlk_http
+  vlk::subsystem
+  stx::async
+  stx::task
   SDL2-static
   fmt::fmt
-  ${Vulkan_LIBRARIES}
-  libcurl)
+  ${Vulkan_LIBRARIES})
 
 target_compile_definitions(vlk_ui PUBLIC SK_VULKAN)
 

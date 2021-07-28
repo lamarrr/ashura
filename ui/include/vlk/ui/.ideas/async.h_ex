@@ -1,0 +1,31 @@
+
+template <typename T, typename OnLocked, typename OnLockFailed>
+STX_FORCE_INLINE auto visit_weak(std::weak_ptr<T> const& weak_ptr,
+                                 OnLocked&& on_locked,
+                                 OnLockFailed&& on_lock_failed) {
+  auto const shared_ptr = weak_ptr.lock();
+
+  if (shared_ptr != nullptr) {
+    return std::invoke(static_cast<OnLocked&&>(on_locked), *shared_ptr);
+  } else {
+    return std::invoke(static_cast<OnLockFailed&&>(on_lock_failed));
+  }
+}
+
+template <typename T, typename OnLocked>
+STX_FORCE_INLINE void visit_weak(std::weak_ptr<T> const& weak_ptr,
+                                 OnLocked&& on_locked) {
+  visit_weak(
+      weak_ptr,
+      [&](T& value) { std::invoke(static_cast<OnLocked&&>(on_locked), value); },
+      []() {});
+}
+
+template <typename T, typename OnLocked, typename AltType>
+STX_FORCE_INLINE void visit_weak_or(std::weak_ptr<T> const& weak_ptr,
+                                    OnLocked&& on_locked, AltType&& alt_value) {
+  return visit_weak(
+      weak_ptr,
+      [&](T& value) { std::invoke(static_cast<OnLocked&&>(on_locked), value); },
+      [&]() { return static_cast<AltType&&>(alt_value); });
+}

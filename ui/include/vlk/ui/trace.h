@@ -16,11 +16,13 @@ namespace vlk {
 namespace trace {
 // causal tracing?
 
-enum class EventType { Begin, End };
+enum class EventType :uint8_t{ Begin, End };
 
 enum class EventUID : uint64_t {};
 
-enum class TraceDiff { None, Some };
+enum class TraceDiff: uint8_t { None, Some };
+
+// TODO(lamarrr): make these generic.
 
 struct Event {
   // must reference a static string

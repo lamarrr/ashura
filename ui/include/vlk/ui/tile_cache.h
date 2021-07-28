@@ -97,7 +97,7 @@ struct TileCache {
       clip_rect = &entry.clip_rect;
     }
 
-    //! NOTE: all dimensions here are in the logical coordinates
+    /// NOTE: all dimensions here are in the logical coordinates
     void draw(RasterRecord &record, VRect const &tile_screen_area,
               Dpr dpr) const {
       // use tile index and size to determine tile position on the screen and
@@ -156,9 +156,9 @@ struct TileCache {
     }
   };
 
-  VLK_DEFAULT_CONSTRUCTOR(TileCache)
-  VLK_MAKE_PINNED(TileCache)
-  VLK_DEFAULT_DESTRUCTOR(TileCache)
+  STX_DEFAULT_CONSTRUCTOR(TileCache)
+  STX_MAKE_PINNED(TileCache)
+  STX_DEFAULT_DESTRUCTOR(TileCache)
 
   // we can have zoom value that directly affects the draw method? that would
   // mean we'd have to re-record on zoom
@@ -182,6 +182,12 @@ struct TileCache {
 
   // accumulates the cache result of all the tiles.
   // resized on viewport resize.
+  //
+  //
+  // TODO(lamarrr): we need to render to the swapchain's images directly
+  // instead.
+  //
+  //
   RasterCache backing_store_cache;
 
   RasterCacheTiles cache_tiles{kTilePhysicalExtent};
@@ -296,11 +302,11 @@ struct TileCache {
       //
       WidgetSystemProxy::get_state_proxy(*entry.widget)
           .on_render_dirty = [this, &entry] {
-        //! NOTE: tile binding is semi-automatic and determined by the
-        //! screen offset
-        //! NOTE: the tile's rows and columns are not actually updated until
-        //! tick, so widgets can still mark them as dirty even if a resize
-        //! is needed
+        /// NOTE: tile binding is semi-automatic and determined by the
+        /// screen offset
+        /// NOTE: the tile's rows and columns are not actually updated until
+        /// tick, so widgets can still mark them as dirty even if a resize
+        /// is needed
         int64_t const nrows = this->record_tiles.rows();
         int64_t const ncols = this->record_tiles.columns();
 

@@ -4,9 +4,8 @@
 #include <numeric>
 #include <variant>
 
+#include "stx/limits.h"
 #include "vlk/ui/primitives.h"
-#include "vlk/utils/limits.h"
-#include "vlk/utils/utils.h"
 
 // this header represents the layout frontend, these are all the data the
 // widgets can pass to the layout system implementation
@@ -23,7 +22,7 @@ struct Clamp {
   float max = 1.0f;
 
   constexpr bool operator==(Clamp const& other) const {
-    return f32_eq(min, other.min) && f32_eq(max, other.max);
+    return min == other.min && max == other.max;
   }
 
   constexpr bool operator!=(Clamp const& other) const {
@@ -51,8 +50,8 @@ struct Constrain {
   int64_t bias = 0;
 
   /// clipping the target size, i.e. should be between 20px and 600px
-  int64_t min = i64_min;
-  int64_t max = i64_max;
+  int64_t min = stx::i64_min;
+  int64_t max = stx::i64_max;
 
   /// clamping the relative values of the result
   Clamp clamp{};
@@ -86,8 +85,8 @@ struct Constrain {
   }
 
   constexpr bool operator==(Constrain const& other) const {
-    return f32_eq(scale, other.scale) && bias == other.bias &&
-           min == other.min && max == other.max && clamp == other.clamp;
+    return scale == other.scale && bias == other.bias && min == other.min &&
+           max == other.max && clamp == other.clamp;
   }
 
   constexpr bool operator!=(Constrain const& other) const {
@@ -113,9 +112,9 @@ struct SelfExtent {
 
   Extent resolve(Extent const& allotment) const {
     auto const resolved_width = static_cast<uint32_t>(std::clamp<int64_t>(
-        width.resolve(allotment.width, true), u32_min, u32_max));
+        width.resolve(allotment.width, true), stx::u32_min, stx::u32_max));
     auto const resolved_height = static_cast<uint32_t>(std::clamp<int64_t>(
-        height.resolve(allotment.height, true), u32_min, u32_max));
+        height.resolve(allotment.height, true), stx::u32_min, stx::u32_max));
     return Extent{resolved_width, resolved_height};
   }
 
@@ -151,9 +150,9 @@ struct ViewExtent {
 
   Extent resolve(Extent const& allotment) const {
     auto const resolved_width = static_cast<uint32_t>(std::clamp<int64_t>(
-        width.resolve(allotment.width, false), u32_min, u32_max));
+        width.resolve(allotment.width, false), stx::u32_min, stx::u32_max));
     auto const resolved_height = static_cast<uint32_t>(std::clamp<int64_t>(
-        height.resolve(allotment.height, false), u32_min, u32_max));
+        height.resolve(allotment.height, false), stx::u32_min, stx::u32_max));
     return Extent{resolved_width, resolved_height};
   }
 
@@ -254,7 +253,7 @@ struct Flex {
 /// space to accomodate it)
 enum class ViewFit : uint8_t { None = 0, Width = 1, Height = 2 };
 
-VLK_DEFINE_ENUM_BIT_OPS(ViewFit)
+STX_DEFINE_ENUM_BIT_OPS(ViewFit)
 
 }  // namespace ui
 }  // namespace vlk
