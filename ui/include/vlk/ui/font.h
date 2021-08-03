@@ -4,7 +4,7 @@
 #include <string>
 #include <string_view>
 
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 namespace vlk {
 namespace ui {

@@ -8,7 +8,7 @@
 
 #include "stx/span.h"
 #include "vlk/ui/layout.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/widget.h"
 
 namespace vlk {

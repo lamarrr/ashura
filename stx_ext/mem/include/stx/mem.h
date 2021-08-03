@@ -88,6 +88,7 @@ mem::Rc<T> make_rc_inplace(Args&&... args) {
 /// uses polymorphic default-delete manager
 template <typename T>
 mem::Rc<T> make_rc(T&& value) {
+  // TODO(lamarrr): check for references?
   return make_rc_inplace<T>(std::move(value));
 }
 
@@ -110,11 +111,29 @@ mem::Rc<T> make_rc_for_static(T& object) {
 }
 
 // requires that c_str be non-null.
-inline stx::Rc<std::string_view> make_static_string_rc(char const* c_str) {
-  return transmute(std::string_view{c_str}, make_rc_for_static(c_str[0]));
+inline stx::Rc<std::string_view> make_static_string_rc(
+    std::string_view string) {
+  stx::pmr::Manager manager{stx::pmr::static_storage_manager_handle};
+  manager.ref();
+  return stx::unsafe_make_rc<std::string_view>(std::move(string),
+                                               std::move(manager));
 }
 
-// make static array rc
+// TODO(lamarrr): make static array rc
+
+// TODO(lamarrr): make chunk
+
+//
+template <typename Target, typename Source>
+Rc<Target> cast(Rc<Source>&& source) {
+  Target* target = static_cast<Target*>(source.get());
+  return transmute(static_cast<Target*>(target), std::move(source));
+}
+
+template <typename Target, typename Source>
+Rc<Target> cast(Rc<Source> const& source) {
+  return transmute(static_cast<Target*>(source.get()), source);
+}
 
 }  // namespace mem
 }  // namespace stx

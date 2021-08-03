@@ -6,7 +6,6 @@
 #include <new>
 #include <utility>
 
-#include "stx/limits.h"
 #include "stx/mem.h"
 #include "stx/result.h"
 #include "stx/struct.h"
@@ -65,7 +64,7 @@ enum class [[nodiscard]] LockStatus : uint8_t{Unlocked, Locked};
 /// operation.
 /// NOTE: only the future's terminal states are guaranteed to have any side
 /// effect on the program's state. the other states are just for informational
-/// purposes.
+/// purposes as such, can't be relied on.
 ///
 ///
 ///
@@ -251,6 +250,9 @@ enum class [[nodiscard]] FutureStatus : uint8_t{
 enum class [[nodiscard]] FutureError : uint8_t{
     /// the async operation is pending and not yet finalized
     Pending,
+    /// the async operation has been completed but its result is being observed
+    /// (possibly on another thread)
+    Locked,
     /// the async operation has been canceled either forcefully or by the user
     Canceled};
 
@@ -297,17 +299,20 @@ struct [[nodiscard]] SuspendRequest {
   RequestedSuspendState state = RequestedSuspendState::None;
 };
 
-enum class [[nodiscard]] RequestType{Suspend, Cancel};
+enum class [[nodiscard]] RequestType : uint8_t{Suspend, Cancel};
 
-// returned by functions to signify why they returned
+/// returned by functions to signify why they returned.
+///
+/// NOTE: this is a plain data structure and doesn't check if a request was sent
+/// or not
 struct [[nodiscard]] ServiceToken {
-  ServiceToken(CancelRequest const& request)
-      : type{RequestType::Cancel}, source{request.source} {
-    // ideally we should check if a request was actually sent, but we dont
-  }
+  explicit constexpr ServiceToken(CancelRequest const& request)
+      : type{RequestType::Cancel}, source{request.source} {}
 
-  ServiceToken(SuspendRequest const& request)
+  explicit constexpr ServiceToken(SuspendRequest const& request)
       : type{RequestType::Suspend}, source{request.source} {}
+
+  explicit constexpr ServiceToken() {}
 
   RequestType type = RequestType::Suspend;
   RequestSource source = RequestSource::User;
@@ -443,23 +448,11 @@ struct FutureRequestState {
   }
 
   void user___request_resume() {
-    // NOTE: suspension might still be on the queue, but we are not informing
-    // the user about that. so both are canceled.
-    // if the user suspends for resume and suspension immediately before the
-    // executor has an opportunity to respond, we ignore both requests since
-    // they cancel each other.
-    //
     user_requested_suspend_state.store(RequestedSuspendState::Resumed,
                                        std::memory_order_relaxed);
   }
 
   void user___request_suspend() {
-    // NOTE: resumption might still be on the queue, but we are not informing
-    // the user about that.
-    // if the user suspends for resume and suspension immediately before the
-    // executor has an opportunity to respond, we ignore both requests since
-    // they cancel each other.
-    //
     user_requested_suspend_state.store(RequestedSuspendState::Suspended,
                                        std::memory_order_relaxed);
   }
@@ -481,7 +474,8 @@ struct FutureRequestState {
 
   // this must happen before bringing the task back to the resumed state
   void scheduler___clear_force_suspension_request() {
-    executor_requested_suspend_state.store(RequestedSuspendState::None);
+    executor_requested_suspend_state.store(RequestedSuspendState::None,
+                                           std::memory_order_relaxed);
   }
 
  private:
@@ -517,14 +511,20 @@ struct FutureState : public FutureBaseState {
   std::aligned_storage_t<sizeof(T), alignof(T)> storage;
 
   void executor___notify_completed_with_return_value(T&& value) {
-    executor___unsafe_send(std::move(value));
+    executor___unsafe_init(std::move(value));
     FutureBaseState::executor___notify_completed_with_return_value();
   }
 
-  Result<T, FutureError> user___copy_result() const {
+  Result<T, FutureError> user___copy_result() {
     switch (user___fetch_status_with_result()) {
       case FutureStatus::Completed: {
-        return Ok(unsafe_copy());
+        if (user___try_lock_result()) {
+          T result{unsafe_launder_readable()};
+          user___unlock_result();
+          return Ok(std::move(result));
+        } else {
+          return stx::Err(FutureError::Locked);
+        }
       }
 
       case FutureStatus::Canceled:
@@ -541,7 +541,13 @@ struct FutureState : public FutureBaseState {
   Result<T, FutureError> user___move_result() {
     switch (FutureBaseState::user___fetch_status_with_result()) {
       case FutureStatus::Completed: {
-        return Ok(unsafe_move());
+        if (user___try_lock_result()) {
+          T result{std::move(unsafe_launder_writable())};
+          user___unlock_result();
+          return Ok(std::move(result));
+        } else {
+          return stx::Err(FutureError::Locked);
+        }
       }
 
       case FutureStatus::Canceled:
@@ -567,32 +573,34 @@ struct FutureState : public FutureBaseState {
   }
 
  private:
-  T& launder_writable() {
-    return *std::launder(reinterpret_cast<T*>(&storage));
-  }
-
-  T const& launder_readable() const {
-    return *std::launder(reinterpret_cast<T const*>(&storage));
-  }
+  STX_CACHELINE_ALIGNED std::atomic<LockStatus> result_lock_status{
+      LockStatus::Unlocked};
 
   // sends in the result of the async operation.
   // calling this function implies that the async operation has completed.
-  void executor___unsafe_send(T&& value) { new (&storage) T{std::move(value)}; }
+  // this function must only be called once.
+  void executor___unsafe_init(T&& value) { new (&storage) T{std::move(value)}; }
 
-  // copies the result of the async operation.
-  // calling this function implies that the async operation has been completed
-  // and `unsafe_send()` has been called.
-  T unsafe_copy() const { return T{launder_readable()}; }
+  bool user___try_lock_result() {
+    LockStatus expected = LockStatus::Unlocked;
+    LockStatus target = LockStatus::Locked;
+    return result_lock_status.compare_exchange_strong(
+        expected, target, std::memory_order_acquire, std::memory_order_relaxed);
+  }
 
-  // moves out the result of the async operation.
-  // calling this function implies that the async operation has been completed
-  // and `unsafe_send` has been called. by the C++ object model, the object is
-  // left in a valid but unspecified state after the move, the object state
-  // will determined by the object's move operators. subsequent moves and
-  // copies' validity will be affected by this.
-  T unsafe_move() { return T{std::move(launder_writable())}; }
+  void user___unlock_result() {
+    result_lock_status.store(LockStatus::Unlocked, std::memory_order_release);
+  }
 
-  void unsafe_destroy() { launder_writable().~T(); }
+  T& unsafe_launder_writable() {
+    return *std::launder(reinterpret_cast<T*>(&storage));
+  }
+
+  T const& unsafe_launder_readable() const {
+    return *std::launder(reinterpret_cast<T const*>(&storage));
+  }
+
+  void unsafe_destroy() { unsafe_launder_writable().~T(); }
 };
 
 template <>
@@ -601,15 +609,6 @@ struct FutureState<void> : public FutureBaseState {
   STX_MAKE_PINNED(FutureState)
 };
 
-// the user can considering using sync , guards, sink or other ordering and
-// synchronization primitives provided by us and the standard library.
-//
-///
-///
-///
-//
-// observes termination of an async operation.
-//
 // and ensures ordering of instructions or observation of the changes from
 // another thread.
 //
@@ -617,38 +616,20 @@ struct FutureState<void> : public FutureBaseState {
 // very likely to use incorrectly due instruction re-ordering or order of
 // observation of changes.
 //
-// any side-effects made by the callback function (reference capture or program
-// state modifications) must not be observed until `is_finished` returns true or
-// `await_finish` is called. this means that we don't require exclusive locking
-// of the values being modified (i.e. using a mutex).
+//
+// This Future type helps the user from writing excessive code to track the
+// state of the async operation or having to maintain, manage, track, and
+// implement numerous cancelation tokens and suspension tokens. or ad-hoc,
+// error-prone, and costly approaches like helps prevent the user from writing
+// ugly hacks like `std::shared_ptr<std::atomic<CancelationRequest>>` which they
+// might not even use correctly.
+//
+//
+// This Future type is totally lock-free and deterministic.
 //
 //
 //
-// the captured reference's memory address should also be aligned as
-// `std::hardware_destructive_interference_size` to prevent cache coherency
-// issues.
-//
-//
-//
-// this also means only one task must capture the referenced values. otherwise,
-// exclusive locking is required to ensure that the values aren't being written
-// to across different worker threads.
-//
-// for canceling a task and submitting a new one, the user has to use the
-// cancelation token and call `await_finish` which will block the calling thread
-// until the task's cancelation is acknowledged, or the user has to specifically
-// use a mutex to lock the captured references to ensure multiple worker threads
-// don't write to it at once.
-//
-// this helps prevent the user from writing ugly hacks like
-// `std::shared_ptr<std::atomic<TaskStatus>>` which they might not even use
-// correctly.
-// this also prevents having the user from manually writing code to track state
-// of each submitted task.
-//
-//
-//
-// Futures observer side effects of changes from the executor
+// Futures observes effects of changes from the executor
 //
 //
 //
@@ -662,11 +643,6 @@ struct Future {
   explicit Future(mem::Rc<FutureState<T>>&& init_state)
       : state{std::move(init_state)} {}
 
-  // TODO(lamarrr): IMPORTANT:::::::::::::::: a control block is till allocated
-  // for a shared ptr with custom destructor. we therefore need handles.
-  // handle to a future state
-  // static auto recycle() {} // can't really recycle due to the invalid use
-  // of????
   FutureStatus fetch_status() const {
     return state.get()->user___fetch_status();
   }
@@ -681,10 +657,6 @@ struct Future {
     return state.get()->user___copy_result();
   }
 
-  // NOTE: this is not safe to call in a multithreaded context unless only one
-  // thread calls it. ensure the calling thread has exclusive access
-  // (read/writes) to the contained object whilst calling move. if not sure,
-  // `use copy()`.
   Result<T, FutureError> move() const {
     return state.get()->user___move_result();
   }
@@ -896,9 +868,9 @@ struct RequestProxy {
   mem::Rc<FutureBaseState> state;
 };
 
-// NOTE: this uses heap allocations for allocating states for the future and
-// promise. the `maker` of the future can choose to use another allocation
-// strategy.
+// NOTE: this helper function uses heap allocations for allocating states for
+// the future and promise. the executor producing the future can choose to use
+// another allocation strategy.
 template <typename T>
 std::pair<Future<T>, Promise<T>> make_future() {
   mem::Rc<FutureState<T>> shared_state = mem::make_rc_inplace<FutureState<T>>();

@@ -14,7 +14,7 @@
 
 #include "stx/option.h"
 #include "stx/result.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 // exception-safety: absolute zero
 // we don't use exceptions and neither do we plan to support it

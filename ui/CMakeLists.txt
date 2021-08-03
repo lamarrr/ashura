@@ -29,7 +29,11 @@ target_link_libraries(
   VulkanMemoryAllocator
   vlk_external_skia
   vlk_external_stb
-  vlk_http
+  vlk::asset
+  vlk_subsystems::asset_cache
+  vlk::http
+  vlk::primitives
+  vlk_subsystems::http
   vlk::subsystem
   stx::async
   stx::task

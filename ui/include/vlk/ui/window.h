@@ -4,7 +4,7 @@
 #include <string>
 #include <variant>
 
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/window_api.h"
 
 namespace vlk {

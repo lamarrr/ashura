@@ -6,12 +6,14 @@ macro(add_project_library target_project_name target_library_name)
   set(${library_name}_PRIVATE_INCLUDE_DIRECTORY "src")
   set(${library_name}_SOURCE_FILES ${${library_name}_SOURCE_FILES_LIST})
 
-  message("${library_name} public include directory: "
+  message(VERBOSE "${library_name} public include directory: "
           ${${library_name}_PUBLIC_INCLUDE_DIRECTORY})
-  message("${library_name} private include directory: "
+  message(VERBOSE "${library_name} private include directory: "
           ${${library_name}_PRIVATE_INCLUDE_DIRECTORY})
+  message(VERBOSE "${library_name} source files: "
+          ${${library_name}_SOURCE_FILES})
 
-  add_library(${library_name} ${${library_name}_SOURCE_FILES})
+  add_library(${library_name} STATIC ${${library_name}_SOURCE_FILES})
   add_library(${library_alias} ALIAS ${library_name})
 
   target_include_directories(${library_name}

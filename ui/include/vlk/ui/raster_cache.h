@@ -12,10 +12,10 @@
 #include "include/core/SkPictureRecorder.h"
 #include "include/core/SkSurface.h"
 #include "vlk/ui/canvas.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/render_context.h"
 #include "vlk/ui/sk_utils.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 namespace vlk {
 namespace ui {

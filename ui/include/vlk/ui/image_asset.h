@@ -7,7 +7,7 @@
 #include "include/core/SkImage.h"
 #include "stx/result.h"
 #include "vlk/ui/asset_manager.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 
 namespace vlk {
 namespace ui {

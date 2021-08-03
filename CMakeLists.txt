@@ -119,7 +119,7 @@ set(SDL_LOCALE_ENABLED_BY_DEFAULT
     OFF
     CACHE BOOL "" FORCE)
 
-add_subdirectory(third_party/STX)
+add_subdirectory(third_party/STX EXCLUDE_FROM_ALL)
 add_subdirectory(third_party/spdlog EXCLUDE_FROM_ALL)
 add_subdirectory(third_party/googletest EXCLUDE_FROM_ALL)
 add_subdirectory(third_party/fmt EXCLUDE_FROM_ALL)
@@ -157,8 +157,11 @@ target_compile_definitions(
          SK_ENABLE_DUMP_GPU)
 
 add_subdirectory(stx_ext)
-add_subdirectory(vlk_subsystem)
+add_subdirectory(subsystem)
+add_subdirectory(subsystems)
 add_subdirectory(http)
+add_subdirectory(asset)
+add_subdirectory(primitives)
 add_subdirectory(utils)
 add_subdirectory(ui)
 

@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 
 namespace vlk {
 namespace ui {

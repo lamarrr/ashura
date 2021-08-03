@@ -6,12 +6,12 @@
 #include <utility>
 #include <vector>
 
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/trace.h"
 #include "vlk/ui/widget.h"
 #include "vlk/ui/window.h"
 #include "vlk/ui/window_api.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 namespace spdlog {
 class logger;

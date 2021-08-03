@@ -5,7 +5,7 @@
 #include <variant>
 
 #include "stx/limits.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 
 // this header represents the layout frontend, these are all the data the
 // widgets can pass to the layout system implementation

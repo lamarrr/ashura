@@ -15,7 +15,7 @@
 #include "stx/span.h"
 #include "vlk/gl_debug.h"
 #include "vlk/utils/limits.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 #include "vulkan/vulkan.h"
 
 // TODO(lamarrr): move gl.h to vk.h

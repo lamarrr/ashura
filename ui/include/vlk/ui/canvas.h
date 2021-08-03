@@ -2,7 +2,7 @@
 
 #include <type_traits>
 
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 
 struct SkCanvas;
 

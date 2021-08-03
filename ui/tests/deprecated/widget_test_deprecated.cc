@@ -5,7 +5,7 @@
 #include "vlk/ui/widgets/row.h"
 
 #include "gtest/gtest.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 using namespace vlk::ui;
 using namespace vlk::ui::impl;

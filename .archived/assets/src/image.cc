@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "vlk/assets/image.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 // clang-format off
 #define STB_IMAGE_IMPLEMENTATION

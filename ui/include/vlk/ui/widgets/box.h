@@ -6,9 +6,9 @@
 #include "stx/option.h"
 #include "vlk/ui/image_source.h"
 #include "vlk/ui/layout.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/widget.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 namespace vlk {
 namespace ui {

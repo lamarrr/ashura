@@ -15,9 +15,9 @@
 
 #include "fmt/format.h"
 #include "stx/result.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/render_context.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 namespace vlk {
 namespace ui {

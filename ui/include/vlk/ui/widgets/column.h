@@ -2,7 +2,7 @@
 #include <memory>
 #include <vector>
 
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/widget.h"
 #include "vlk/ui/widgets/layout_widget_base.h"
 

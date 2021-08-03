@@ -7,7 +7,7 @@
 #include "include/core/SkSurface.h"
 #include "include/gpu/GrDirectContext.h"
 #include "stx/option.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 
 namespace vlk {
 namespace ui {

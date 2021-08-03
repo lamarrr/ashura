@@ -2,7 +2,7 @@
 #pragma once
 
 #include "include/core/SkRect.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 
 namespace vlk {
 

@@ -14,7 +14,7 @@
 #include "stx/option.h"
 #include "stx/result.h"
 #include "stx/span.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 #include "vulkan/vulkan.h"
 
 namespace vlk {

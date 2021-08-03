@@ -13,12 +13,46 @@
 #include "stx/option.h"
 #include "stx/span.h"
 #include "vlk/ui/font_source.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/widget.h"
 #include "stx/limits.h"
 
 namespace vlk {
 namespace ui {
+
+/*
+enum class TextDecorationStyle : uint8_t {
+  Solid = 0,
+  Double,
+  Dotted,
+  Dashed,
+  Wavy
+};
+
+enum class TextDecoration : uint8_t {
+  None = 0,
+  Underline = 1,
+  Overline = 2,
+  StrikeThrough = 4,
+};
+
+STX_DEFINE_ENUM_BIT_OPS(TextDecoration)
+
+
+enum class TextDirection : uint8_t {
+  Rtl,
+  Ltr,
+};
+
+enum class TextAlign : uint8_t {
+  Left,
+  Right,
+  Center,
+  Justify,
+  Start,
+  End,
+};
+*/
 
 // text shadow
 // h-shadow	Required. The position of the horizontal shadow. Negative values

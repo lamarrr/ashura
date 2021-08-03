@@ -16,7 +16,7 @@
 #include "modules/skparagraph/include/TypefaceFontProvider.h"
 #include "modules/skparagraph/src/ParagraphBuilderImpl.h"
 #include "modules/skparagraph/src/ParagraphImpl.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 namespace sktext = skia::textlayout;
 

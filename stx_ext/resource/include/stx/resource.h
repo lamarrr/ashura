@@ -122,14 +122,13 @@ struct Manager {
   Manager(Manager const& other) = default;
   Manager& operator=(Manager const& other) = default;
 
-  /// on-move, the reference table must copy and then invalidate the other
-  /// refrence table's handle, the moved-from table is required to be valid but
+  /// on-move, the manager must copy and then invalidate the other
+  /// manager's handle, the moved-from manager is required to be valid but
   /// unable to affect the associated state of the resource, i.e. (no-op). why
   /// not nullptr? nullptr means we'd have to perform a check everytime we want
-  /// to send calls to the reftable (weak_ref, strong_ref, weak_deref,
-  /// strong_deref, try_weak_upgrade). but with a no-op we don't have any
-  /// branches, though we'd have an extra copy on move (new noop reftable
-  /// pointer assignment).
+  /// to send calls to the manager. but with a no-op we don't have any
+  /// branches, though we'd have an extra copy on move (noop manager
+  /// handle assignment).
   ///
   Manager(Manager&& other) : handle_{other.handle_} {
     /// unarm other and prevent it from affecting the state of any object
@@ -244,8 +243,6 @@ Rc<H> unsafe_make_rc(H&& handle, pmr::Manager&& manager) {
   return Rc<H>{std::move(handle), std::move(manager)};
 }
 
-
-
 /// Transmute a resource that uses a polymorphic manager.
 /// transmutation involves pretending that a target resource constructed from
 /// another source resource is valid provided the other source resource is
@@ -276,5 +273,4 @@ template <typename Target, typename Source>
 Rc<Target> transmute(Target target, Rc<Source> const& source) {
   return transmute<Target, Source>(std::move(target), Rc<Source>(source));
 }
-
 }  // namespace stx

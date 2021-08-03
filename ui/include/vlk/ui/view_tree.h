@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "vlk/ui/layout_tree.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/widget.h"
 
 namespace vlk {

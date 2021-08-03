@@ -4,7 +4,7 @@
 #include <queue>
 #include <vector>
 
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/raster_cache.h"
 #include "vlk/ui/raster_tiles.h"
 #include "vlk/ui/render_context.h"

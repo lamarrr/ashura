@@ -8,7 +8,7 @@
 //
 
 #include "vlk/ui/image_source.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/widget.h"
 
 namespace vlk {

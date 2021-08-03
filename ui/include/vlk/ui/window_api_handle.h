@@ -7,7 +7,7 @@
 #include "SDL_vulkan.h"
 #include "vlk/ui/sdl_utils.h"
 #include "vlk/ui/window_event_queue.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 namespace vlk {
 namespace ui {

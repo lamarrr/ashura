@@ -13,7 +13,7 @@ namespace stx {
 // used to notify executors of the task's priority. the executor must conform to
 // the required properties of each task priority.
 //
-enum class TaskPriority : uint32_t {
+enum class TaskPriority : uint8_t {
   // can be force-canceled and suspended. involves tasks that need to be run in
   // the background. i.e. checking wifi status, polling peripherral status, etc.
   //
@@ -46,7 +46,7 @@ enum class TaskPriority : uint32_t {
   // bring them to a preempted state to ensure their execution.
   //
   //
-  Critical = stx::u32_max
+  Critical = stx::u8_max
 };
 
 // TODO(lamarrr): We need a CFS?

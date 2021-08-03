@@ -9,13 +9,13 @@
 #include "include/core/SkCanvas.h"
 #include "include/core/SkPaint.h"
 #include "include/gpu/GrBackendSemaphore.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/sdl_utils.h"
 #include "vlk/ui/vk_render_context.h"
 #include "vlk/ui/vulkan.h"
 #include "vlk/ui/window_api_handle.h"
 #include "vlk/ui/window_event_queue.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 namespace vlk {
 namespace ui {

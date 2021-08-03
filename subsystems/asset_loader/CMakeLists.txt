@@ -1,0 +1,1 @@
+add_project_library(vlk_subsystems asset_loader)

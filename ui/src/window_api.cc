@@ -4,7 +4,7 @@
 #include <map>
 
 #include "vlk/ui/window_api_handle.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 
 namespace vlk {
 namespace ui {

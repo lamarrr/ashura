@@ -8,9 +8,9 @@
 
 #include "stx/option.h"
 #include "stx/span.h"
-#include "vlk/ui/primitives.h"
+#include "vlk/primitives.h"
 #include "vlk/ui/vulkan_helpers.h"
-#include "vlk/utils/utils.h"
+#include "vlk/utils.h"
 #include "vulkan/vulkan.h"
 
 //

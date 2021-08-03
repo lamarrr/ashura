@@ -9,11 +9,11 @@
 #include "stx/option.h"
 #include "stx/report.h"
 #include "stx/span.h"
+#include "stx/struct.h"
 #include "vlk/ui/asset_manager.h"
 #include "vlk/ui/canvas.h"
 #include "vlk/ui/layout.h"
-#include "vlk/utils/utils.h"
-#include "stx/struct.h"
+#include "vlk/utils.h"
 
 namespace vlk {
 namespace ui {
@@ -84,6 +84,8 @@ struct WidgetStateProxy {
 struct Widget {
   friend struct WidgetSystemProxy;
 
+  STX_MAKE_PINNED(Widget)
+
   Widget(WidgetType type = WidgetType::Render, bool is_flex = false,
          SelfExtent self_extent = SelfExtent{}, bool needs_trimming = false,
          Padding padding = Padding{}, Flex flex = Flex{},
@@ -107,8 +109,6 @@ struct Widget {
         debug_info_{debug_info},
         dirtiness_{WidgetDirtiness::None},
         state_proxy_{} {}
-
-  STX_MAKE_PINNED(Widget)
 
   WidgetType get_type() const { return type_; }
 
