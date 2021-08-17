@@ -3,7 +3,6 @@
 #include <atomic>
 #include <cinttypes>
 #include <cstddef>
-#include <new>
 #include <string_view>
 
 #include "stx/resource.h"
