@@ -107,18 +107,19 @@ struct RawProgress {
   uint64_t download_size = stx::u64_max;
 };
 
+// TODO(lamarrr): pack this into the future
 struct ProgressMonitorState {
   STX_DEFAULT_CONSTRUCTOR(ProgressMonitorState)
   STX_MAKE_PINNED(ProgressMonitorState)
 
-  STX_CACHELINE_ALIGNED std::atomic<uint64_t> total_bytes_sent = 0;
-  STX_CACHELINE_ALIGNED std::atomic<uint64_t> total_bytes_received = 0;
-  STX_CACHELINE_ALIGNED std::atomic<uint64_t> bytes_sent = 0;
-  STX_CACHELINE_ALIGNED std::atomic<uint64_t> bytes_received = 0;
-  STX_CACHELINE_ALIGNED std::atomic<uint64_t> upload_speed = 0;
-  STX_CACHELINE_ALIGNED std::atomic<uint64_t> download_speed = 0;
-  STX_CACHELINE_ALIGNED std::atomic<uint64_t> upload_size = 0;
-  STX_CACHELINE_ALIGNED std::atomic<uint64_t> download_size = 0;
+  std::atomic<uint64_t> total_bytes_sent = 0;
+  std::atomic<uint64_t> total_bytes_received = 0;
+  std::atomic<uint64_t> bytes_sent = 0;
+  std::atomic<uint64_t> bytes_received = 0;
+  std::atomic<uint64_t> upload_speed = 0;
+  std::atomic<uint64_t> download_speed = 0;
+  std::atomic<uint64_t> upload_size = 0;
+  std::atomic<uint64_t> download_size = 0;
 
   static constexpr auto memory_order = std::memory_order_relaxed;
 
@@ -408,7 +409,8 @@ struct TaskQueue {
 
   std::tuple<stx::Future<Response>, ProgressMonitor> submit_task(
       Request &&request, stx::TaskPriority priority) {
-    auto [future, promise] = stx::make_future<Response>();
+    stx::Promise promise = stx::make_promise<Response>();
+    stx::Future future = promise.get_future();
     auto [progress_monitor, progress_update_proxy] = make_progress_monitor();
 
     auto mode = mode_.load(std::memory_order_relaxed);
@@ -455,8 +457,8 @@ struct TaskQueue {
   }
 
  private:
-  STX_CACHELINE_ALIGNED std::atomic<Mode> mode_{Mode::Accept};
-  STX_CACHELINE_ALIGNED std::atomic<uint64_t> num_scheduled_critical_ = 0;
+  std::atomic<Mode> mode_{Mode::Accept};
+  std::atomic<uint64_t> num_scheduled_critical_ = 0;
   std::mutex tasks_mutex_;
   std::vector<PackagedTask> tasks_;
 };
