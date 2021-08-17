@@ -25,11 +25,12 @@ using Rc = stx::Rc<T*>;
 ///
 ///
 template <typename Object>
-struct RefCnt final : public stx::pmr::ManagerHandle {
+struct RefCnt final : public pmr::ManagerHandle {
   using object_type = Object;
 
   Object object;
   std::atomic<uint64_t> ref_count;
+  // TODO(lamarrr): needs allocator
 
   template <typename... Args>
   RefCnt(uint64_t initial_ref_count, Args&&... args)
@@ -64,14 +65,15 @@ struct RefCnt final : public stx::pmr::ManagerHandle {
 ///
 /// reference count for this associated object must be >=1 (if any).
 template <typename T>
-mem::Rc<T> unsafe_make_rc(T& object, stx::pmr::Manager&& manager) {
+mem::Rc<T> unsafe_make_rc(T& object, pmr::Manager&& manager) {
   return stx::unsafe_make_rc<T*>(&object, std::move(manager));
 }
 
 template <typename T, typename... Args>
 mem::Rc<T> make_rc_inplace(Args&&... args) {
+  // TODO(lamarrr): accept allocator
   auto* manager_handle = new RefCnt<T>{0, std::forward<Args>(args)...};
-  stx::pmr::Manager manager{*manager_handle};
+  pmr::Manager manager{*manager_handle};
 
   // the polymorphic manager manages itself,
   // unref can be called on a polymorphic manager with a different pointer since
@@ -88,12 +90,12 @@ mem::Rc<T> make_rc_inplace(Args&&... args) {
 /// uses polymorphic default-delete manager
 template <typename T>
 mem::Rc<T> make_rc(T&& value) {
-  // TODO(lamarrr): check for references?
+  // TODO(lamarrr): check for l-value references?
   return make_rc_inplace<T>(std::move(value));
 }
 
 // make_rc_array
-
+//
 /// adopt an object memory handle that is guaranteed to be valid for the
 /// lifetime of this mem::Rc struct and any mem::Rc structs constructed or
 /// assigned from it. typically used for static storage lifetimes.
@@ -105,7 +107,7 @@ mem::Rc<T> make_rc(T&& value) {
 ///
 template <typename T>
 mem::Rc<T> make_rc_for_static(T& object) {
-  stx::pmr::Manager manager{stx::pmr::static_storage_manager_handle};
+  pmr::Manager manager{pmr::static_storage_manager_handle};
   manager.ref();
   return unsafe_make_rc(object, std::move(manager));
 }
