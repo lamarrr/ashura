@@ -2,16 +2,13 @@
 
 namespace vlk {
 
-// this is bad and doesn't represent failure or success
 struct Asset {
-  Asset() : size_bytes_{0} {}
+  explicit constexpr Asset(uint64_t size_in_bytes)
+      : size_bytes_{size_in_bytes} {}
 
   virtual ~Asset() = 0;
 
-  uint64_t size_bytes() const { return size_bytes_; }
-
- protected:
-  void update_size(uint64_t size) { size_bytes_ = size; }
+  constexpr uint64_t size_bytes() const { return size_bytes_; }
 
  private:
   uint64_t size_bytes_ = 0;

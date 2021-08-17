@@ -25,7 +25,6 @@ ImageAsset::ImageAsset(sk_sp<SkImage> raw_image) : raw_{std::move(raw_image)} {
 
 }
 
-/*
 
 #include <fstream>
 

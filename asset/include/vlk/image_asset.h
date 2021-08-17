@@ -19,12 +19,12 @@ struct SkImage;
 
 namespace vlk {
 
-struct ImageAsset : public Asset {
+struct ImageAsset final : public Asset {
   explicit ImageAsset(sk_sp<SkImage> raw_image);
 
   auto get_raw() const { return raw_; }
 
-  ~ImageAsset() final {}
+  ~ImageAsset() override {}
 
  private:
   sk_sp<SkImage> raw_;

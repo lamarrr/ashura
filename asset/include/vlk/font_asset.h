@@ -7,20 +7,18 @@ struct SkTypeface;
 
 namespace vlk {
 
-struct FontAsset : public Asset {
+struct FontAsset final : public Asset {
   explicit FontAsset(sk_sp<SkTypeface> raw_typeface);
 
   auto get_raw() const { return raw_; }
 
-  ~FontAsset() final {}
+  ~FontAsset() override {}
 
  private:
   sk_sp<SkTypeface> raw_;
 };
 
 }  // namespace vlk
-
-
 
 //
 
