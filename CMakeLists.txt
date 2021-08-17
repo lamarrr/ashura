@@ -161,6 +161,14 @@ target_compile_definitions(
          SK_ENABLE_VK_LAYERS
          SK_ENABLE_DUMP_GPU)
 
+if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
+  add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)
+elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
+  add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic)
+endif()
+
+# TODO(lamarrr): we need extensive unit testing even for dependencies
+
 add_subdirectory(stx_ext)
 add_subdirectory(subsystem)
 add_subdirectory(subsystems)
