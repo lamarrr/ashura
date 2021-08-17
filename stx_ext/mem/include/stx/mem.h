@@ -116,7 +116,7 @@ mem::Rc<T> make_rc_for_static(T& object) {
 // TODO(lamarrr): make chunk
 //
 template <typename Target, typename Source>
-Rc<Target> cast(Rc<Source>&& source) {
+constexpr Rc<Target> cast(Rc<Source>&& source) {
   Target* target = static_cast<Target*>(source.get());
   return transmute(static_cast<Target*>(target), std::move(source));
 }
