@@ -70,8 +70,7 @@ mem::Rc<T> unsafe_make_rc(T& object, stx::pmr::Manager&& manager) {
 
 template <typename T, typename... Args>
 mem::Rc<T> make_rc_inplace(Args&&... args) {
-  auto* manager_handle =
-      new pmr::RefCntHandle<T>{0, std::forward<Args>(args)...};
+  auto* manager_handle = new RefCnt<T>{0, std::forward<Args>(args)...};
   stx::pmr::Manager manager{*manager_handle};
 
   // the polymorphic manager manages itself,
@@ -79,7 +78,7 @@ mem::Rc<T> make_rc_inplace(Args&&... args) {
   // it doesn't need the handle, it can delete itself independently
   manager.ref();
 
-  mem::Rc<pmr::RefCntHandle<T>> manager_rc =
+  mem::Rc<RefCnt<T>> manager_rc =
       unsafe_make_rc(*manager_handle, std::move(manager));
 
   return transmute(static_cast<T*>(&manager_handle->object),
