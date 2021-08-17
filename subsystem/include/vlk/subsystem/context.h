@@ -9,6 +9,7 @@
 #include "vlk/subsystem/impl.h"
 #include "vlk/subsystem/map.h"
 #include "vlk/subsystem/registry.h"
+#include "stx/span.h"
 
 namespace vlk {
 
