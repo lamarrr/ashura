@@ -112,19 +112,8 @@ mem::Rc<T> make_rc_for_static(T& object) {
   return unsafe_make_rc(object, std::move(manager));
 }
 
-// requires that c_str be non-null.
-inline stx::Rc<std::string_view> make_static_string_rc(
-    std::string_view string) {
-  stx::pmr::Manager manager{stx::pmr::static_storage_manager_handle};
-  manager.ref();
-  return stx::unsafe_make_rc<std::string_view>(std::move(string),
-                                               std::move(manager));
-}
-
 // TODO(lamarrr): make static array rc
-
 // TODO(lamarrr): make chunk
-
 //
 template <typename Target, typename Source>
 Rc<Target> cast(Rc<Source>&& source) {
