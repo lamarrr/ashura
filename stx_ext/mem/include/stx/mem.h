@@ -3,10 +3,9 @@
 #include <atomic>
 #include <cinttypes>
 #include <cstddef>
-#include <string_view>
+#include <utility>
 
-#include "stx/resource.h"
-#include "stx/span.h"
+#include "stx/rc.h"
 
 namespace stx {
 
@@ -25,7 +24,7 @@ using Rc = stx::Rc<T*>;
 ///
 ///
 template <typename Object>
-struct RefCnt final : public pmr::ManagerHandle {
+struct RefCnt final : public ManagerHandle {
   using object_type = Object;
 
   Object object;
@@ -65,7 +64,7 @@ struct RefCnt final : public pmr::ManagerHandle {
 ///
 /// reference count for this associated object must be >=1 (if any).
 template <typename T>
-mem::Rc<T> unsafe_make_rc(T& object, pmr::Manager&& manager) {
+mem::Rc<T> unsafe_make_rc(T& object, Manager&& manager) {
   return stx::unsafe_make_rc<T*>(&object, std::move(manager));
 }
 
@@ -73,7 +72,7 @@ template <typename T, typename... Args>
 mem::Rc<T> make_rc_inplace(Args&&... args) {
   // TODO(lamarrr): accept allocator
   auto* manager_handle = new RefCnt<T>{0, std::forward<Args>(args)...};
-  pmr::Manager manager{*manager_handle};
+  Manager manager{*manager_handle};
 
   // the polymorphic manager manages itself,
   // unref can be called on a polymorphic manager with a different pointer since
@@ -107,7 +106,7 @@ mem::Rc<T> make_rc(T&& value) {
 ///
 template <typename T>
 mem::Rc<T> make_rc_for_static(T& object) {
-  pmr::Manager manager{pmr::static_storage_manager_handle};
+  Manager manager{static_storage_manager_handle};
   manager.ref();
   return unsafe_make_rc(object, std::move(manager));
 }
