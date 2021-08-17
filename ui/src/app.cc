@@ -60,10 +60,10 @@ static stx::Option<vk::PhysDevice> select_device(
   return stx::None;
 }
 
-static constexpr char const* const required_device_extensions[] = {
+static constexpr char const* const REQUIRED_DEVICE_EXTENSIONS[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-static constexpr char const* required_validation_layers[] = {
+static constexpr char const* REQUIRED_VALIDATION_LAYERS[] = {
     "VK_LAYER_KHRONOS_validation"};
 
 App::~App() = default;
@@ -90,7 +90,7 @@ void App::init() {
       cfg.name, VK_MAKE_VERSION(0, 0, 1), engine_cfg.name,
       VK_MAKE_VERSION(engine_cfg.version.major, engine_cfg.version.minor,
                       engine_cfg.version.patch),
-      window_required_instance_extensions, required_validation_layers);
+      window_required_instance_extensions, REQUIRED_VALIDATION_LAYERS);
 
   window.attach_surface(vk_instance);
 
@@ -134,8 +134,8 @@ void App::init() {
   VkPhysicalDeviceFeatures required_features{};
 
   vk::Device device = vk::Device::create(
-      phys_device, command_queue_create_infos, required_device_extensions,
-      required_validation_layers, required_features);
+      phys_device, command_queue_create_infos, REQUIRED_DEVICE_EXTENSIONS,
+      REQUIRED_VALIDATION_LAYERS, required_features);
 
   vk::CommandQueue vk_graphics_command_queue = vk::CommandQueue{
       vk::CommandQueue::get(device, graphic_command_queue_family, 0)
