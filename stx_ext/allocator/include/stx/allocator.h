@@ -1,12 +1,12 @@
 
 #pragma once
-#include <stdlib.h>
-
+#include <cinttypes>
 #include <cstddef>
+#include <cstdlib>
 
 namespace stx {
 
-enum class [[nodiscard]] AllocError{None, NoMemory};
+enum class [[nodiscard]] AllocError : uint8_t{None, NoMemory};
 
 //
 //
@@ -30,7 +30,7 @@ struct StaticAllocatorHandle {
   //
   // alignment must be greater than 0.
   //
-  virtual AllocError allocate(void *&out_ptr, size_t size) = 0;
+  virtual AllocError allocate(void *&out_mem, size_t size) = 0;
 
   // if there is not enough memory, the old memory block is not freed and
   // `AllocError::NoMemory` is returned without modifying the output pointer.
@@ -49,23 +49,21 @@ struct StaticAllocatorHandle {
   // if successful, the bytes in the previous pointer must be copied into the
   // new pointer.
   //
-  virtual AllocError reallocate(void *&ptr, size_t new_size) = 0;
+  virtual AllocError reallocate(void *&out_mem, size_t new_size) = 0;
 
   // if `ptr` is `nullptr`, nothing is done.
   // if `ptr` is not `nullptr`, it must have been previously allocated by
   // calling `allocate`, or `reallocate`
   //
-  virtual void deallocate(void *ptr) = 0;
+  virtual void deallocate(void *mem) = 0;
 };
 
 struct NoopAllocatorHandle final : public StaticAllocatorHandle {
-  virtual AllocError allocate(void *&out_ptr, size_t) override {
-    out_ptr = nullptr;
+  virtual AllocError allocate(void *&, size_t) override {
     return AllocError::NoMemory;
   }
 
-  virtual AllocError reallocate(void *&out_ptr, size_t) override {
-    out_ptr = nullptr;
+  virtual AllocError reallocate(void *&, size_t) override {
     return AllocError::NoMemory;
   }
 
@@ -78,13 +76,11 @@ inline NoopAllocatorHandle noop_allocator_handle{};
 
 // it has no memory once program is initialized
 struct StaticStorageAllocatorHandle final : public StaticAllocatorHandle {
-  virtual AllocError allocate(void *&out_ptr, size_t) override {
-    out_ptr = nullptr;
+  virtual AllocError allocate(void *&, size_t) override {
     return AllocError::NoMemory;
   }
 
-  virtual AllocError reallocate(void *&out_ptr, size_t) override {
-    out_ptr = nullptr;
+  virtual AllocError reallocate(void *&, size_t) override {
     return AllocError::NoMemory;
   }
 
@@ -96,9 +92,9 @@ struct StaticStorageAllocatorHandle final : public StaticAllocatorHandle {
 inline StaticStorageAllocatorHandle static_storage_allocator_handle{};
 
 struct OsAllocatorHandle final : public StaticAllocatorHandle {
-  virtual AllocError allocate(void *&out_ptr, size_t size) override {
+  virtual AllocError allocate(void *&out_mem, size_t size) override {
     if (size == 0) {
-      out_ptr = nullptr;
+      out_mem = nullptr;
       return AllocError::None;
     }
 
@@ -106,28 +102,28 @@ struct OsAllocatorHandle final : public StaticAllocatorHandle {
     if (mem == nullptr) {
       return AllocError::NoMemory;
     } else {
-      out_ptr = mem;
+      out_mem = mem;
       return AllocError::None;
     }
   }
 
-  virtual AllocError reallocate(void *&out_ptr, size_t new_size) override {
-    if (out_ptr == nullptr) {
-      return allocate(out_ptr, new_size);
+  virtual AllocError reallocate(void *&out_mem, size_t new_size) override {
+    if (out_mem == nullptr) {
+      return allocate(out_mem, new_size);
     }
 
     if (new_size == 0) {
-      deallocate(out_ptr);
-      out_ptr = nullptr;
+      deallocate(out_mem);
+      out_mem = nullptr;
       return AllocError::None;
     }
 
-    void *mem = realloc(out_ptr, new_size);
+    void *mem = std::realloc(out_mem, new_size);
 
     if (mem == nullptr) {
       return AllocError::NoMemory;
     } else {
-      out_ptr = mem;
+      out_mem = mem;
       return AllocError::None;
     }
   }
@@ -156,17 +152,17 @@ struct StaticAllocator {
 
   constexpr StaticAllocator &operator=(StaticAllocator const &other) = default;
 
-  AllocError allocate(void *&out_ptr, size_t size) const {
-    return handle->allocate(out_ptr, size);
+  AllocError allocate(void *&out_mem, size_t size) const {
+    return handle->allocate(out_mem, size);
   }
 
-  AllocError reallocate(void *&out_ptr, size_t new_size) const {
-    return handle->reallocate(out_ptr, new_size);
+  AllocError reallocate(void *&out_mem, size_t new_size) const {
+    return handle->reallocate(out_mem, new_size);
   }
 
   void deallocate(void *mem) const { handle->deallocate(mem); }
 
-  StaticAllocatorHandle *get_handle() const { return handle; }
+  constexpr StaticAllocatorHandle *get_handle() const { return handle; }
 
  private:
   StaticAllocatorHandle *handle;
