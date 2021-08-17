@@ -20,6 +20,9 @@
 #include "vlk/utils.h"
 
 namespace vlk {
+
+using namespace std::chrono_literals;
+
 namespace ui {
 
 namespace impl {
@@ -331,7 +334,7 @@ struct AssetManager {
     } else if (iteration < 128) {
       std::this_thread::yield();
     } else {
-      std::this_thread::sleep_for(std::chrono::milliseconds(125));
+      std::this_thread::sleep_for(125ms);
     }
   }
 
