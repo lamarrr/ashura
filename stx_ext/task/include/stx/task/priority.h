@@ -1,3 +1,4 @@
+#pragma once
 
 #include "stx/limits.h"
 
@@ -7,7 +8,7 @@ namespace stx {
 /// for them to complete, we therefore need these priorities along with a
 /// cancelation mechanism.
 /// this will enable us make smart decisions about graceful shutdown and task
-/// prioritization
+/// prioritization.
 ///
 
 // used to notify executors of the task's priority. the executor must conform to
@@ -20,15 +21,13 @@ enum class TaskPriority : uint8_t {
   // these tasks need not be executed immediately but can be executed once there
   // is no important tasks that need execution.
   //
+  //
   Background,
   // can be force-canceled and suspended. involves tasks that the user needs to
   // observe its result as soon as possible. i.e. image loading and decoding,
   // texture loading, offscreen rendering, etc.
   //
   // these tasks can be terminated without consequences.
-  //
-  // these tasks must either run along with Background tasks or bring Background
-  // tasks to a preempted state to ensure its execution.
   //
   Interactive,
   // once execution of this task begins, the executor must ensure it is
@@ -41,15 +40,11 @@ enum class TaskPriority : uint8_t {
   // Critical tasks can involve tasks saving user data. i.e. backing up user
   // data, saving changes to disk, etc.
   //
-  //
-  // these tasks must either run alongside Background and Interactive tasks or
-  // bring them to a preempted state to ensure their execution.
+  // this is similar but simpler and more intuitive than taking a `shared_ptr`
+  // or `ExecutorKeepAlive` token.
   //
   //
   Critical = stx::u8_max
 };
-
-// TODO(lamarrr): We need a CFS?
-// the background tasks must still get some time to execute and not be starved.
 
 }  // namespace stx
