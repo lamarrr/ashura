@@ -18,24 +18,28 @@ namespace mem {
 template <typename T>
 using Rc = stx::Rc<T*>;
 
-namespace pmr {
-
 /// thread-safe
+///
+///
+/// TODO(lamarrr): RefCnt objects should be created in batches to avoid false
+/// sharing issues
+///
+///
 template <typename Object>
-struct RefCntHandle final : public stx::pmr::ManagerHandle {
+struct RefCnt final : public stx::pmr::ManagerHandle {
   using object_type = Object;
+
   Object object;
-  alignas(alignof(std::max_align_t) * 2) std::atomic<uint64_t> ref_count;
+  std::atomic<uint64_t> ref_count;
 
   template <typename... Args>
-  RefCntHandle(uint64_t initial_ref_count, Args&&... args)
+  RefCnt(uint64_t initial_ref_count, Args&&... args)
       : object{std::forward<Args>(args)...}, ref_count{initial_ref_count} {}
 
-  RefCntHandle(RefCntHandle const&) = delete;
-  RefCntHandle(RefCntHandle&&) = delete;
-
-  RefCntHandle& operator=(RefCntHandle const&) = delete;
-  RefCntHandle& operator=(RefCntHandle&&) = delete;
+  RefCnt(RefCnt const&) = delete;
+  RefCnt& operator=(RefCnt const&) = delete;
+  RefCnt(RefCnt&&) = delete;
+  RefCnt& operator=(RefCnt&&) = delete;
 
   virtual void ref() override final {
     ref_count.fetch_add(1, std::memory_order_relaxed);
@@ -56,8 +60,6 @@ struct RefCntHandle final : public stx::pmr::ManagerHandle {
     }
   }
 };
-
-}  // namespace pmr
 
 /// adopt the object
 ///
