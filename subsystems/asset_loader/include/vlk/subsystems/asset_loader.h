@@ -13,5 +13,6 @@ using AssetLoadErrorString = std::string;
 
 
 
+stb failure reason
 
-
+stb image resize for size hint if any
