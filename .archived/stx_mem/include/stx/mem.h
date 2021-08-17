@@ -6,7 +6,7 @@
 #include <new>
 #include <string_view>
 
-#include "stx/resource.h"
+#include "stx/rc.h"
 #include "stx/span.h"
 
 namespace stx {
@@ -16,7 +16,7 @@ namespace mem {
 
 /// uses polymorphic default-delete manager
 template <typename T>
-using Rc = stx::Rc<T*, stx::pmr::Manager>;
+using Rc = stx::Rc<T*, stx::Manager>;
 
 /// thread-safe
 template <typename T>
@@ -24,7 +24,7 @@ struct DefaultDeleteManager {
   void ref(T*) {}
 
   /// this manager is stateless and doesn't observe moves or copies along with
-  /// the handle (as in the case of pmr::Manager), so we can't use that to
+  /// the handle (as in the case of Manager), so we can't use that to
   /// prevent if-switches. we still have to check the address as Unique and Rc
   /// assumes the default-value is also a valid handle, it is left to the
   /// managers to determine what is valid and what is not.
@@ -55,7 +55,7 @@ namespace pmr {
 
 /// thread-safe
 template <typename Object>
-struct IntrusiveRefCountHandle final : public stx::pmr::ManagerHandle {
+struct IntrusiveRefCountHandle final : public stx::ManagerHandle {
   using object_type = Object;
   Object object;
   alignas(alignof(std::max_align_t) * 2) std::atomic<uint64_t> ref_count;
@@ -96,22 +96,22 @@ struct IntrusiveRefCountHandle final : public stx::pmr::ManagerHandle {
 ///
 /// reference count for this associated object must be >=1 (if any).
 template <typename T>
-Rc<T> unsafe_make_rc(T& object, stx::pmr::Manager&& manager) {
+Rc<T> unsafe_make_rc(T& object, stx::Manager&& manager) {
   return Rc<T>{&object, std::move(manager)};
 }
 
 template <typename T, typename... Args>
 Rc<T> make_rc_inplace(Args&&... args) {
   auto* manager_handle =
-      new pmr::IntrusiveRefCountHandle<T>{0, std::forward<Args>(args)...};
-  stx::pmr::Manager manager{*manager_handle};
+      new IntrusiveRefCountHandle<T>{0, std::forward<Args>(args)...};
+  stx::Manager manager{*manager_handle};
 
   // the polymorphic manager manages itself,
   // unref can be called on a polymorphic manager with a different pointer since
   // it doesn't need the handle, it can delete itself independently
   manager.ref(manager_handle);
 
-  stx::Rc<pmr::IntrusiveRefCountHandle<T>*, stx::pmr::Manager> manager_rc =
+  stx::Rc<IntrusiveRefCountHandle<T>*, stx::Manager> manager_rc =
       unsafe_make_rc(*manager_handle, std::move(manager));
 
   return transmute(static_cast<T*>(&manager_handle->object),
@@ -137,14 +137,14 @@ Rc<T> make_rc(T&& value) {
 ///
 template <typename T>
 Rc<T> make_rc_for_static(T& object) {
-  stx::pmr::Manager manager{stx::pmr::static_storage_manager_handle};
+  stx::Manager manager{stx::static_storage_manager_handle};
   T* handle = &object;
   manager.ref(handle);
   return unsafe_make_rc(object, std::move(manager));
 }
 
 // requires that c_str be non-null.
-inline stx::Rc<std::string_view, stx::pmr::Manager> make_static_string_rc(
+inline stx::Rc<std::string_view, stx::Manager> make_static_string_rc(
     char const* c_str) {
   return transmute(std::string_view{c_str}, make_rc_for_static(c_str[0]));
 }

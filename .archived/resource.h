@@ -334,8 +334,8 @@ constexpr M&& unsafe_move_manager(Unique<H, M>&& unique) {
 /// This is more of an alias or possibly unsafe alias as we can't guarantee its
 /// validity.
 ///
-/// i.e. `Rc<string_view, pmr::Manager>` can transmute `Rc<std::string *,
-/// pmr::Manager>`. this means the contained `string_view` is valid as long as
+/// i.e. `Rc<string_view, Manager>` can transmute `Rc<std::string *,
+/// Manager>`. this means the contained `string_view` is valid as long as
 /// the string pointer is valid.
 ///
 ///
@@ -347,23 +347,23 @@ constexpr M&& unsafe_move_manager(Unique<H, M>&& unique) {
 ///
 ///
 template <typename Target, typename Source>
-Rc<Target, pmr::Manager> transmute(Target&& target,
-                                   Rc<Source, pmr::Manager>&& source) {
-  return Rc<Target, pmr::Manager>{std::move(target),
+Rc<Target, Manager> transmute(Target&& target,
+                                   Rc<Source, Manager>&& source) {
+  return Rc<Target, Manager>{std::move(target),
                                   unsafe_move_manager(std::move(source))};
 }
 
 template <typename Target, typename Source>
-Rc<Target, pmr::Manager> transmute(Target&& target,
-                                   Rc<Source, pmr::Manager> const& source) {
+Rc<Target, Manager> transmute(Target&& target,
+                                   Rc<Source, Manager> const& source) {
   get_manager(source).ref(target);
-  return Rc<Target, pmr::Manager>{std::move(target),
-                                  pmr::Manager{get_manager(source)}};
+  return Rc<Target, Manager>{std::move(target),
+                                  Manager{get_manager(source)}};
 }
 
 namespace pmr {
 template <typename T>
-using Rc = stx::Rc<T, stx::pmr::Manager>;
+using Rc = stx::Rc<T, stx::Manager>;
 }
 
 // TODO(lamarrr): transmute unique

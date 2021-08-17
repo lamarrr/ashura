@@ -234,7 +234,7 @@ auto make_static_fn(RawFunctionType function_pointer) {
   using handle_type = typename traits::handle;
   using rc_type = Rc<handle_type>;
 
-  pmr::Manager manager{pmr::static_storage_manager_handle};
+  Manager manager{static_storage_manager_handle};
   manager.ref();
 
   return unsafe_make_rc(handle_type{function_pointer}, std::move(manager));

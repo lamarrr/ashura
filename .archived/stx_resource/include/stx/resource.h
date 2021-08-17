@@ -374,8 +374,8 @@ constexpr void unsafe_mark_resource_released(Unique<H, M>& unique) {
 /// This is more of an alias or possibly unsafe alias as we can't guarantee its
 /// validity.
 ///
-/// i.e. `Rc<string_view, pmr::Manager>` can transmute `Rc<std::string *,
-/// pmr::Manager>`. this means the contained `string_view` is valid as long as
+/// i.e. `Rc<string_view, Manager>` can transmute `Rc<std::string *,
+/// Manager>`. this means the contained `string_view` is valid as long as
 /// the string pointer is valid.
 ///
 ///
@@ -387,21 +387,21 @@ constexpr void unsafe_mark_resource_released(Unique<H, M>& unique) {
 ///
 ///
 template <typename Target, typename Source>
-Rc<Target, pmr::Manager> transmute(Target&& target,
-                                   Rc<Source, pmr::Manager>&& source) {
+Rc<Target, Manager> transmute(Target&& target,
+                                   Rc<Source, Manager>&& source) {
   unsafe_mark_resource_released(source);
-  return Rc<Target, pmr::Manager>{std::move(target),
+  return Rc<Target, Manager>{std::move(target),
                                   std::move(unsafe_ref_manager(source))};
 }
 
 template <typename Target, typename Source>
-Rc<Target, pmr::Manager> transmute(Target&& target,
-                                   Rc<Source, pmr::Manager> const& source) {
-  pmr::Manager manager{unsafe_ref_manager(source)};  // clone manager
+Rc<Target, Manager> transmute(Target&& target,
+                                   Rc<Source, Manager> const& source) {
+  Manager manager{unsafe_ref_manager(source)};  // clone manager
   // pretend as if the manager can handle the resource, even
   // though the manager has stored the actual backing resource handle
   manager.ref(target);
-  return Rc<Target, pmr::Manager>{std::move(target), std::move(manager)};
+  return Rc<Target, Manager>{std::move(target), std::move(manager)};
 }
 
 // TODO(lamarrr): transmute unique
