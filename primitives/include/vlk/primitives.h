@@ -293,7 +293,7 @@ struct Rect {
   }
 
   explicit constexpr operator IRect() const {
-    return IRect{IOffset(offset), extent};
+    return IRect{static_cast<IOffset>(offset), extent};
   }
 };
 
@@ -709,6 +709,7 @@ inline auto devirtualize_to_rect(VRect const &value) {
   return Rect{Offset{x, y}, Extent{w, h}};
 }
 
+// TODO(lamarrr): return option?
 inline auto devirtualize_to_irect(VRect const &value) {
   VLK_ENSURE(value.width() >= 0.0f);
   VLK_ENSURE(value.height() >= 0.0f);
