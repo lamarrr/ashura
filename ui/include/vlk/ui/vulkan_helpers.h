@@ -237,7 +237,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   create_info.pApplicationInfo = &app_info;
   create_info.pNext = nullptr;
 
-  static constexpr char const* debug_extensions[] = {
+  static constexpr char const* DEBUG_EXTENSIONS[] = {
       VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
   // TODO(lamarrr): check that the requested extensions are available
@@ -246,7 +246,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
       join_copy(required_extensions,
                 required_validation_layers.empty()
                     ? stx::Span<char const* const>{}
-                    : stx::Span<char const* const>(debug_extensions));
+                    : stx::Span<char const* const>(DEBUG_EXTENSIONS));
 
   create_info.enabledExtensionCount = extensions.size();
   create_info.ppEnabledExtensionNames = extensions.data();
