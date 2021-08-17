@@ -25,23 +25,23 @@ namespace ui {
 namespace impl {
 
 inline std::string format_bytes_unit(uint64_t bytes) {
-  static constexpr uint64_t kb_bytes = 1000UL;
-  static constexpr uint64_t mb_bytes = kb_bytes * 1000UL;
-  static constexpr uint64_t gb_bytes = mb_bytes * 1000UL;
-  static constexpr uint64_t tb_bytes = gb_bytes * 1000UL;
+  static constexpr uint64_t KB_BYTES = 1000UL;
+  static constexpr uint64_t MB_BYTES = KB_BYTES * 1000UL;
+  static constexpr uint64_t GB_BYTES = MB_BYTES * 1000UL;
+  static constexpr uint64_t TB_BYTES = GB_BYTES * 1000UL;
 
-  if (bytes >= (tb_bytes / 10)) {
+  if (bytes >= (TB_BYTES / 10)) {
     return fmt::format("{:.2f} TeraBytes",
-                       bytes / static_cast<float>(tb_bytes));
-  } else if (bytes >= (gb_bytes / 10)) {
+                       bytes / static_cast<float>(TB_BYTES));
+  } else if (bytes >= (GB_BYTES / 10)) {
     return fmt::format("{:.2f} GigaBytes",
-                       bytes / static_cast<float>(gb_bytes));
-  } else if (bytes >= (mb_bytes / 10)) {
+                       bytes / static_cast<float>(GB_BYTES));
+  } else if (bytes >= (MB_BYTES / 10)) {
     return fmt::format("{:.2f} MegaBytes",
-                       bytes / static_cast<float>(mb_bytes));
-  } else if (bytes >= (kb_bytes / 10)) {
+                       bytes / static_cast<float>(MB_BYTES));
+  } else if (bytes >= (KB_BYTES / 10)) {
     return fmt::format("{:.2f} KiloBytes",
-                       bytes / static_cast<float>(kb_bytes));
+                       bytes / static_cast<float>(KB_BYTES));
   } else {
     return fmt::format("{} Bytes", bytes);
   }
