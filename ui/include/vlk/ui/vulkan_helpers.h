@@ -18,6 +18,9 @@
 #include "vulkan/vulkan.h"
 
 namespace vlk {
+
+using namespace std::chrono_literals;
+
 namespace vk {
 
 template <typename T>
@@ -1430,10 +1433,9 @@ inline void reset_fences(VkDevice device,
 
 inline bool await_fences(VkDevice device, stx::Span<VkFence const> fences) {
   VLK_MUST_SUCCEED(
-      vkWaitForFences(device, fences.size(), fences.data(), true,
-                      std::chrono::duration_cast<std::chrono::nanoseconds>(
-                          std::chrono::minutes(1))
-                          .count()),
+      vkWaitForFences(
+          device, fences.size(), fences.data(), true,
+          std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count()),
       "Unable to await fences");
 }
 
@@ -1473,7 +1475,7 @@ inline std::pair<uint32_t, VkResult> acquire_next_swapchain_image(
   auto result = vkAcquireNextImageKHR(
       device, swapchain,
       std::chrono::duration_cast<std::chrono::nanoseconds>(
-          std::chrono::minutes(1))
+        1min)
           .count(),
       signal_semaphore, signal_fence, &index);
   VLK_ENSURE(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
