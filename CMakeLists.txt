@@ -170,6 +170,7 @@ endif()
 # TODO(lamarrr): we need extensive unit testing even for dependencies
 
 add_subdirectory(stx_ext)
+add_subdirectory(palettes)
 add_subdirectory(subsystem)
 add_subdirectory(subsystems)
 add_subdirectory(http)
@@ -177,5 +178,5 @@ add_subdirectory(asset)
 add_subdirectory(primitives)
 add_subdirectory(utils)
 add_subdirectory(ui)
-
+add_subdirectory(scheduler)
 # export ASAN_OPTIONS=fast_unwind_on_malloc=0 CXXFLAGS=""
