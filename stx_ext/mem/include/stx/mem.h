@@ -120,10 +120,5 @@ constexpr Rc<Target> cast(Rc<Source>&& source) {
   return transmute(static_cast<Target*>(target), std::move(source));
 }
 
-template <typename Target, typename Source>
-Rc<Target> cast(Rc<Source> const& source) {
-  return transmute(static_cast<Target*>(source.get()), source);
-}
-
 }  // namespace mem
 }  // namespace stx
