@@ -759,28 +759,29 @@ struct Future<void> : public FutureBase<void> {
 };
 
 struct FutureAny {
-  friend struct RequestProxy;
-
   STX_DISABLE_DEFAULT_CONSTRUCTOR(FutureAny)
 
   template <typename T>
   explicit FutureAny(Future<T> const& future)
-      : state{transmute(static_cast<FutureBaseState*>(future.state.get()),
-                        future)} {}
+      : state{stx::mem::cast<FutureBaseState>(future.state.share())} {}
+
+  explicit FutureAny(mem::Rc<FutureBaseState>&& istate)
+      : state{std::move(istate)} {}
 
   FutureStatus fetch_status() const {
-    return state.get()->user___fetch_status();
+    return state.get()->user____fetch_status____with_no_result();
   }
 
-  void request_cancel() const { state.get()->user___request_cancel(); }
+  void request_cancel() const { state.get()->user____request_cancel(); }
 
-  void request_suspend() const { state.get()->user___request_suspend(); }
+  void request_suspend() const { state.get()->user____request_suspend(); }
 
-  void request_resume() const { state.get()->user___request_resume(); }
+  void request_resume() const { state.get()->user____request_resume(); }
 
-  bool is_done() const { return state.get()->user___is_done(); }
+  bool is_done() const { return state.get()->user____is_done(); }
 
- private:
+  FutureAny share() const { return FutureAny{state.share()}; }
+
   mem::Rc<FutureBaseState> state;
 };
 
