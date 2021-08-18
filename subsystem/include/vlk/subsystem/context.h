@@ -21,7 +21,7 @@ struct SubsystemsContext {
   stx::Option<stx::mem::Rc<Subsystem>> get(std::string_view identifier) const {
     auto pos = map_.find(identifier);
     if (pos != map_.end()) {
-      return stx::Some(stx::mem::cast<Subsystem>(pos->second.impl));
+      return stx::Some(stx::mem::cast<Subsystem>(pos->second.impl.share()));
     } else {
       return stx::None;
     }
