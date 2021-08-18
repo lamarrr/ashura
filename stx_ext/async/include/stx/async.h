@@ -6,8 +6,11 @@
 #include <new>
 #include <utility>
 
+#include "stx/enum.h"
+#include "stx/limits.h"
 #include "stx/mem.h"
 #include "stx/result.h"
+#include "stx/spinlock.h"
 #include "stx/struct.h"
 
 // exception-safety: absolute zero
