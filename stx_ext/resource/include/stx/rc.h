@@ -42,28 +42,22 @@ struct Rc {
   constexpr Rc(HandleType&& handle, Manager&& manager)
       : handle_{std::move(handle)}, manager_{std::move(manager)} {}
 
-  Rc(Rc const& other) : handle_{other.handle_}, manager_{other.manager_} {
-    manager_.ref();
-  }
-
   constexpr Rc(Rc&& other) = default;
   constexpr Rc& operator=(Rc&& other) = default;
 
   // TODO(lamarrr): test self-assignment
-  Rc& operator=(Rc const& other) {
-    // ref needs to happen before unref, in case the rc refers to itself
-    other.manager_.ref();
-    manager_.unref();
-    handle_ = other.handle_;
-    manager_ = other.manager_;
-    return *this;
+  Rc(Rc const& other) = delete;
+  Rc& operator=(Rc const& other) = delete;
+
+  Rc share() const {
+    manager_.ref();
+
+    return Rc{HandleType{handle_}, Manager{manager_}};
   }
 
   ~Rc() { manager_.unref(); }
 
   constexpr HandleType const& get() const { return handle_; }
-
-  constexpr Rc share() const { return *this; }
 
   constexpr auto& unsafe_handle_ref() { return handle_; }
 
@@ -109,8 +103,4 @@ constexpr Rc<Target> transmute(Target target, Rc<Source>&& source) {
                         std::move(source.unsafe_manager_ref()));
 }
 
-template <typename Target, typename Source>
-Rc<Target> transmute(Target target, Rc<Source> const& source) {
-  return transmute<Target, Source>(std::move(target), Rc<Source>{source});
-}
 }  // namespace stx
