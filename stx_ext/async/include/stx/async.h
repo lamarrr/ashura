@@ -904,13 +904,9 @@ struct PromiseBase {
   mem::Rc<FutureState<T>> state;
 };
 
-// NOTE: results and notifications do not propagate if the associated future has
-// been discarded
 template <typename T>
 struct Promise : public PromiseBase<T> {
   using Base = PromiseBase<T>;
-
-  friend struct RequestProxy;
 
   STX_DISABLE_DEFAULT_CONSTRUCTOR(Promise)
 
@@ -918,16 +914,15 @@ struct Promise : public PromiseBase<T> {
       : Base{std::move(init_state)} {}
 
   void notify_completed(T&& value) const {
-    Base::state.get()->executor___notify_completed_with_return_value(
-        std::move(value));
+    Base::state.get()->executor____complete_with_object(std::move(value));
   }
+
+  Promise share() const { return Promise{Base::state.share()}; }
 };
 
 template <>
 struct Promise<void> : public PromiseBase<void> {
   using Base = PromiseBase<void>;
-
-  friend struct RequestProxy;
 
   STX_DISABLE_DEFAULT_CONSTRUCTOR(Promise)
 
@@ -935,6 +930,11 @@ struct Promise<void> : public PromiseBase<void> {
       : Base{std::move(init_state)} {}
 
   void notify_completed() const {
+    Base::state.get()->executor____complete____with_void();
+  }
+
+  Promise share() const { return Promise{Base::state.share()}; }
+};
 
 struct PromiseAny {
   STX_DISABLE_DEFAULT_CONSTRUCTOR(PromiseAny)
