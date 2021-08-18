@@ -5,11 +5,11 @@
 #include <vector>
 
 #include "stx/option.h"
+#include "stx/span.h"
 #include "stx/struct.h"
 #include "vlk/subsystem/impl.h"
 #include "vlk/subsystem/map.h"
 #include "vlk/subsystem/registry.h"
-#include "stx/span.h"
 
 namespace vlk {
 
