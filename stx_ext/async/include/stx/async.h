@@ -465,7 +465,7 @@ struct FutureRequestState {
   STX_DEFAULT_CONSTRUCTOR(FutureRequestState)
   STX_MAKE_PINNED(FutureRequestState)
 
-  CancelRequest proxy___fetch_cancel_request() const {
+  CancelRequest proxy____fetch_cancel_request() const {
     RequestedCancelState user_requested_state =
         user_requested_cancel_state.load(std::memory_order_relaxed);
     RequestedCancelState executor_requested_state =
@@ -477,7 +477,7 @@ struct FutureRequestState {
                                executor_requested_state};
   }
 
-  SuspendRequest proxy___fetch_suspend_request() const {
+  SuspendRequest proxy____fetch_suspend_request() const {
     // when in a force suspended state, it is the sole responsibilty of the
     // executor to bring the async operation back to the resumed state and clear
     // the force suspend request
@@ -492,51 +492,54 @@ struct FutureRequestState {
                                 executor_requested_state};
   }
 
-  void user___request_cancel() {
+  void user____request_cancel() {
     user_requested_cancel_state.store(RequestedCancelState::Canceled,
                                       std::memory_order_relaxed);
   }
 
-  void user___request_resume() {
+  void user____request_resume() {
     user_requested_suspend_state.store(RequestedSuspendState::Resumed,
                                        std::memory_order_relaxed);
   }
 
-  void user___request_suspend() {
+  void user____request_suspend() {
     user_requested_suspend_state.store(RequestedSuspendState::Suspended,
                                        std::memory_order_relaxed);
   }
 
-  void scheduler___request_force_cancel() {
+  void scheduler____request_force_cancel() {
     executor_requested_cancel_state.store(RequestedCancelState::Canceled,
                                           std::memory_order_relaxed);
   }
 
-  void scheduler___request_force_resume() {
+  void scheduler____request_force_resume() {
     executor_requested_suspend_state.store(RequestedSuspendState::Resumed,
                                            std::memory_order_relaxed);
   }
 
-  void scheduler___request_force_suspend() {
+  void scheduler____request_force_suspend() {
     executor_requested_suspend_state.store(RequestedSuspendState::Suspended,
                                            std::memory_order_relaxed);
   }
 
   // this must happen before bringing the task back to the resumed state
-  void scheduler___clear_force_suspension_request() {
+  void scheduler____clear_force_suspension_request() {
     executor_requested_suspend_state.store(RequestedSuspendState::None,
                                            std::memory_order_relaxed);
   }
 
  private:
-  STX_CACHELINE_ALIGNED std::atomic<RequestedCancelState>
-      user_requested_cancel_state{RequestedCancelState::None};
-  STX_CACHELINE_ALIGNED std::atomic<RequestedSuspendState>
-      user_requested_suspend_state{RequestedSuspendState::None};
-  STX_CACHELINE_ALIGNED std::atomic<RequestedCancelState>
-      executor_requested_cancel_state{RequestedCancelState::None};
-  STX_CACHELINE_ALIGNED std::atomic<RequestedSuspendState>
-      executor_requested_suspend_state{RequestedSuspendState::None};
+  // not cacheline aligned since this is usually requested by a single thread
+  // and serviced by a single thread and we aren't performing millions of
+  // cancelation/suspend requests at once (cold path).
+  std::atomic<RequestedCancelState> user_requested_cancel_state{
+      RequestedCancelState::None};
+  std::atomic<RequestedSuspendState> user_requested_suspend_state{
+      RequestedSuspendState::None};
+  std::atomic<RequestedCancelState> executor_requested_cancel_state{
+      RequestedCancelState::None};
+  std::atomic<RequestedSuspendState> executor_requested_suspend_state{
+      RequestedSuspendState::None};
 };
 
 struct FutureBaseState : public FutureExecutionState,
