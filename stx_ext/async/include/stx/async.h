@@ -260,11 +260,12 @@ enum class [[nodiscard]] FutureError : uint8_t{
 /// the executor might not be able to immediately respond to the requested
 /// states of the async operations. the executor might not even be able to
 /// attend to it at all.
-enum class [[nodiscard]] RequestedCancelState : uint8_t{
-    // the target is indifferent, no request for cancelation has been sent
-    None,
-    // the target has requested for cancelation
-    Canceled};
+enum class RequestedCancelState : uint8_t {
+  // the target is indifferent, no request for cancelation has been sent
+  None,
+  // the target has requested for cancelation
+  Canceled
+};
 
 /// the executor might not be able to immediately respond to the requested
 /// states of the async operations. the executor might not even be able to
@@ -279,38 +280,39 @@ enum class [[nodiscard]] RequestedCancelState : uint8_t{
 /// state.
 ///
 ///
-enum class [[nodiscard]] RequestedSuspendState : uint8_t{
-    // the target is indifferent about the suspension state and no suspension
-    // requests has been sent
-    None,
-    // the target has requested for resumption
-    Resumed,
-    // the target has requested for suspension
-    Suspended};
+enum class RequestedSuspendState : uint8_t {
+  // the target is indifferent about the suspension state and no suspension
+  // requests has been sent
+  None,
+  // the target has requested for resumption
+  Resumed,
+  // the target has requested for suspension
+  Suspended
+};
 
-enum class [[nodiscard]] RequestSource : uint8_t{User, Executor};
+enum class RequestSource : uint8_t { User, Executor };
 
-struct [[nodiscard]] CancelRequest {
+struct CancelRequest {
   RequestSource source = RequestSource::User;
   RequestedCancelState state = RequestedCancelState::None;
 };
 
-struct [[nodiscard]] SuspendRequest {
+struct SuspendRequest {
   RequestSource source = RequestSource::User;
   RequestedSuspendState state = RequestedSuspendState::None;
 };
 
-enum class [[nodiscard]] RequestType : uint8_t{Suspend, Cancel};
+enum class RequestType : uint8_t { Suspend, Cancel };
 
 /// returned by functions to signify why they returned.
 ///
 /// NOTE: this is a plain data structure and doesn't check if a request was sent
 /// or not
-struct [[nodiscard]] ServiceToken {
-  explicit constexpr ServiceToken(CancelRequest const& request)
+struct ServiceToken {
+  explicit constexpr ServiceToken(CancelRequest request)
       : type{RequestType::Cancel}, source{request.source} {}
 
-  explicit constexpr ServiceToken(SuspendRequest const& request)
+  explicit constexpr ServiceToken(SuspendRequest request)
       : type{RequestType::Suspend}, source{request.source} {}
 
   explicit constexpr ServiceToken() {}
