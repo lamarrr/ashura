@@ -720,11 +720,6 @@ struct FutureBase {
 // ugly hacks like `std::shared_ptr<std::atomic<CancelationRequest>>` which they
 // might not even use correctly.
 //
-//
-// This Future type is totally lock-free and deterministic.
-//
-//
-//
 // Futures observes effects of changes from the executor
 //
 template <typename T>
