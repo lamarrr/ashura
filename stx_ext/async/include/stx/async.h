@@ -749,29 +749,13 @@ struct Future : public FutureBase<T> {
 };
 
 template <>
-struct Future<void> {
-  friend struct FutureAny;
-  friend struct RequestProxy;
+struct Future<void> : public FutureBase<void> {
+  using Base = FutureBase<void>;
 
   STX_DISABLE_DEFAULT_CONSTRUCTOR(Future)
 
   explicit Future(mem::Rc<FutureState<void>>&& init_state)
-      : state{std::move(init_state)} {}
-
-  FutureStatus fetch_status() const {
-    return state.get()->user___fetch_status();
-  }
-
-  void request_cancel() const { state.get()->user___request_cancel(); }
-
-  void request_suspend() const { state.get()->user___request_suspend(); }
-
-  void request_resume() const { state.get()->user___request_resume(); }
-
-  bool is_done() const { return state.get()->user___is_done(); }
-
- private:
-  mem::Rc<FutureState<void>> state;
+      : Base{std::move(init_state)} {}
 };
 
 struct FutureAny {
