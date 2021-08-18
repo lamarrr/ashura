@@ -727,40 +727,30 @@ struct FutureBase {
 //
 // Futures observes effects of changes from the executor
 //
-//
-//
 template <typename T>
-struct Future {
-  friend struct FutureAny;
-  friend struct RequestProxy;
+struct Future : public FutureBase<T> {
+  using Base = FutureBase<T>;
 
   STX_DISABLE_DEFAULT_CONSTRUCTOR(Future)
 
   explicit Future(mem::Rc<FutureState<T>>&& init_state)
-      : state{std::move(init_state)} {}
+      : Base{std::move(init_state)} {}
 
-  FutureStatus fetch_status() const {
-    return state.get()->user___fetch_status();
-  }
-
-  void request_cancel() const { state.get()->user___request_cancel(); }
-
-  void request_suspend() const { state.get()->user___request_suspend(); }
-
-  void request_resume() const { state.get()->user___request_resume(); }
-
+  // copy operations should be extremely fast
   Result<T, FutureError> copy() const {
-    return state.get()->user___copy_result();
+    return Base::state.get()->user____copy_result();
   }
 
+  // move operations should be extremely fast
   Result<T, FutureError> move() const {
-    return state.get()->user___move_result();
+    return Base::state.get()->user____move_result();
   }
 
-  bool is_done() const { return state.get()->user___is_done(); }
+  Future share() const { return Future{Base::state.share()}; }
 
- private:
-  mem::Rc<FutureState<T>> state;
+  // map operations should be extremely fast
+  // .map -> Result<U, FutureError> {}
+  // .map -> Result<U, FutureError> const {}
 };
 
 template <>
