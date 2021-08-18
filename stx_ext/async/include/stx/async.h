@@ -76,177 +76,171 @@ namespace stx {
 ///
 /// future status are updated only by the executor.
 ///
-enum class [[nodiscard]] FutureStatus : uint8_t{
-    /// the async operation has not been scheduled for execution.
-    /// default initial state of a newly created future. a re-cycled future
-    /// might
-    /// not observe this state.
-    ///
-    /// `REQUIRED STATE?`: Yes. this is the default-initialized state of the
-    /// future,
-    /// a recycled future must transition to this state.
-    ///
-    /// `INTENDED FOR`: executors that wish to notify of task scheduling state.
-    ///
-    Unscheduled,
-    /// the async operation has been submitted to the scheduler and is scheduled
-    /// for execution.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// scheduling.
-    ///
-    /// `INTENDED FOR`:
-    ///
-    Scheduled,
-    /// the async operation has been submitted by the scheduler to the executor
-    /// for
-    /// execution.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor has a
-    /// task
-    /// scheduler. i.e. an immediately-executing executor doesn't need
-    /// submission.
-    ///
-    /// `INTENDED FOR`:
-    ///
-    Submitted,
-    /// the async operation is now being executed by the executor.
-    /// this can also mean that the task has been resumed from the suspended or
-    /// force suspended state.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped.
-    ///
-    /// `INTENDED FOR`: executors that wish to notify of task execution. an
-    /// immediately-executing executor might need to avoid the
-    /// overhead
-    /// of an atomic operation (i.e. notification of the Future's state).
-    ///
-    Executing,
-    /// the async operation is now being canceled due to a cancelation request.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// cancelation and cancelation has been requested.
-    ///
-    /// `INTENDED FOR`: cancelable executors with prolonged or staged
-    /// cancelation
-    /// procedures.
-    ///
-    Canceling,
-    /// the async operation is now being forced to cancel by the executor. this
-    /// happens without the user requesting for it. i.e. the scheduler and
-    /// execution context might want to shutdown and then cancel all pending
-    /// tasks.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// cancelation and cancelation has been forced by the executor.
-    ///
-    /// `INTENDED FOR`: cancelable executors with prolonged or staged
-    /// cancelation procedures.
-    ///
-    ForceCanceling,
-    /// the async operation is now being suspended.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// suspension and suspension has been requested.
-    ///
-    /// `INTENDED FOR`: suspendable executors with prolonged or staged
-    /// suspension
-    /// procedures.
-    ///
-    /// `IMPLEMENTATION REQUIREMENT`: must be preceded by the `Executing` state.
-    ///
-    Suspending,
-    /// the async operation is now being forced to suspend.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// suspension and suspension has been forced by the executor.
-    ///
-    /// `INTENDED FOR`: suspendable executors with prolonged or staged
-    /// suspension
-    /// procedures.
-    ///
-    /// `IMPLEMENTATION REQUIREMENT`: must be preceded by the `Executing` and
-    /// `ForceSuspending` states.
-    ///
-    // TODO(lamarrr): what about preemption?
-    ForceSuspending,
-    /// the async operation has been suspended.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// suspension and suspension has been requested.
-    ///
-    /// `INTENDED FOR`: suspendable executors.
-    ///
-    /// `IMPLEMENTATION REQUIREMENT`: must be preceded by the `Suspending` and
-    /// `Executing`
-    /// states.
-    ///
-    Suspended,
-    /// the async operation has been forcefully suspended.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// suspension and suspension has forced by the executor.
-    ///
-    /// `INTENDED FOR`: suspendable executors.
-    ///
-    /// `IMPLEMENTATION REQUIREMENT`: must be preceded by the `ForceSuspending`
-    /// and `Executing` states.
-    ///
-    ForceSuspended,
-    /// the async operation is being resumed.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// suspension and resumption has been requested.
-    ///
-    /// `INTENDED FOR`: executors with prolonged or staged resumption procedure.
-    ///
-    /// `IMPLEMENTATION REQUIREMENT`: must preceded by the `Executing` and
-    /// `Suspending`
-    /// states.
-    ///
-    Resuming,
-    /// the async operation is being forcefully resumed.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// suspension and needs to force the async operation into resumption, i.e.
-    /// a prioritizing scheduler.
-    ///
-    /// `INTENDED FOR`: executors with prolonged or staged resumption procedure.
-    ///
-    /// `IMPLEMENTATION REQUIREMENT`: must be preceded by the `Executing`,
-    /// `ForceSuspending`, and `ForceSuspended` states.
-    ///
-    ForceResuming,
-    /// the async operation has been canceled.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// cancelation and cancelation has been requested.
-    ///
-    /// `IMPLEMENTATION REQUIREMENT`: must be a terminal state for cancelable
-    /// executors.
-    ///
-    Canceled,
-    /// the async operation has been forcefully canceled.
-    ///
-    /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
-    /// cancelation and cancelation has been forced by the executor.
-    ///
-    /// `IMPLEMENTATION REQUIREMENT`: must be a terminal state for cancelable
-    /// executors.
-    ///
-    ForceCanceled,
-    /// the async operation has been completed.
-    ///
-    /// `REQUIRED STATE?`: Yes, if async operation is complete-able. must be set
-    /// once
-    /// the async operation has been completed.
-    /// this implies that completion is not required i.e. a forever-running task
-    /// that never completes.
-    ///
-    /// `IMPLEMENTATION REQUIREMENT`: must be a terminal state for executors on
-    /// complete-able tasks.
-    ///
-    Completed};
+///
+/// what is a terminal state? A terminal state is a state where the executor no
+/// longer sends notifications or values via the Promise object.
+///
+///
+enum class FutureStatus : uint8_t {
+  /// the async operation has been submitted to the scheduler and is scheduled
+  /// for execution.
+  ///
+  /// `REQUIRED STATE?`: Yes. this is the default-initialized state of the
+  /// future.
+  ///
+  /// `INTENDED FOR`: executors that wish to notify of task scheduling state.
+  ///
+  Scheduled,
+  /// the async operation has been submitted by the scheduler to the execution
+  /// unit for execution.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor has a
+  /// task scheduler. i.e. an immediately-executing executor doesn't need
+  /// submission.
+  ///
+  /// `INTENDED FOR`: executors that wish to notify of task submission.
+  ///
+  Submitted,
+  /// the async operation is now being executed by the executor.
+  /// this can also mean that the task has been resumed from the suspended or
+  /// force suspended state.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped.
+  ///
+  /// `INTENDED FOR`: executors that wish to notify of task execution. an
+  /// immediately-executing executor might need to avoid the
+  /// overhead of an atomic operation (i.e. notification of the Future's
+  /// state).
+  ///
+  Executing,
+  /// the async operation is now being canceled due to a cancelation request.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
+  /// cancelation and cancelation has been requested.
+  ///
+  /// `INTENDED FOR`: cancelable executors with prolonged or staged
+  /// cancelation procedures.
+  ///
+  Canceling,
+  /// the async operation is now being forced to cancel by the executor. this
+  /// happens without the user requesting for it. i.e. the scheduler and
+  /// execution context might want to shutdown and then cancel all pending
+  /// tasks.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
+  /// cancelation and cancelation has been forced by the executor.
+  ///
+  /// `INTENDED FOR`: cancelable executors with prolonged or staged
+  /// cancelation procedures.
+  ///
+  ForceCanceling,
+  /// the async operation is now being suspended.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
+  /// suspension and suspension has been requested.
+  ///
+  /// `INTENDED FOR`: suspendable executors with prolonged or staged
+  /// suspension procedures.
+  ///
+  /// `IMPLEMENTATION REQUIREMENT`: must be preceded by the `Executing` state.
+  ///
+  Suspending,
+  /// the async operation is now being forced to suspend. typically known as
+  /// preemption.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
+  /// suspension and suspension has been forced by the executor.
+  ///
+  /// `INTENDED FOR`: suspendable executors with prolonged or staged
+  /// suspension procedures.
+  ///
+  /// `IMPLEMENTATION REQUIREMENT`: must be preceded by the `Executing` and
+  /// `ForceSuspending` states.
+  ///
+  ForceSuspending,
+  /// the async operation has been suspended.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
+  /// suspension and suspension has been requested.
+  ///
+  /// `INTENDED FOR`: suspendable executors.
+  ///
+  /// `IMPLEMENTATION REQUIREMENT`: must be preceded by the `Suspending` and
+  /// `Executing` states.
+  ///
+  Suspended,
+  /// the async operation has been forcefully suspended.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
+  /// suspension and suspension has forced by the executor.
+  ///
+  /// `INTENDED FOR`: suspendable executors.
+  ///
+  /// `IMPLEMENTATION REQUIREMENT`: must be preceded by the `ForceSuspending`
+  /// and `Executing` states.
+  ///
+  ForceSuspended,
+  /// the async operation is being resumed.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
+  /// suspension and resumption has been requested.
+  ///
+  /// `INTENDED FOR`: executors with prolonged or staged resumption
+  /// procedures.
+  ///
+  /// `IMPLEMENTATION REQUIREMENT`: must preceded by the `Executing` and
+  /// `Suspending` states.
+  ///
+  Resuming,
+  /// the async operation is being forcefully resumed.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
+  /// suspension and needs to force the async operation into resumption, i.e.
+  /// a prioritizing scheduler.
+  ///
+  /// `INTENDED FOR`: executors with prolonged or staged resumption procedure.
+  ///
+  /// `IMPLEMENTATION REQUIREMENT`: must be preceded by the `Executing`,
+  /// `ForceSuspending`, and `ForceSuspended` states.
+  ///
+  ForceResuming,
+  /// the async operation has been canceled.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
+  /// cancelation and cancelation has been requested.
+  ///
+  /// `IMPLEMENTATION REQUIREMENT`: must be a terminal state for cancelable
+  /// executors.
+  ///
+  Canceled,
+  /// the async operation has been forcefully canceled.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped. Set only if the executor supports
+  /// cancelation and cancelation has been forced by the executor.
+  ///
+  /// `IMPLEMENTATION REQUIREMENT`: must be a terminal state for cancelable
+  /// executors.
+  ///
+  ForceCanceled,
+  /// the async operation is being completed.
+  ///
+  /// `REQUIRED STATE?`: No, can be skipped.
+  ///
+  /// `INTENDED FOR`: executors with prolonged or staged completion procedure.
+  ///
+  Completing,
+  /// the async operation has been completed.
+  ///
+  /// `REQUIRED STATE?`: Yes, if async operation is complete-able. must be set
+  /// once
+  /// the async operation has been completed.
+  /// this implies that completion is not required i.e. a forever-running task
+  /// that never completes.
+  ///
+  /// `IMPLEMENTATION REQUIREMENT`: must be a terminal state for executors on
+  /// complete-able tasks.
+  ///
+  Completed,
 
 enum class [[nodiscard]] FutureError : uint8_t{
     /// the async operation is pending and not yet finalized
