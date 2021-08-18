@@ -241,15 +241,42 @@ enum class FutureStatus : uint8_t {
   /// complete-able tasks.
   ///
   Completed,
+  // reserved
+  ____Pending = u8_max
+};
 
-enum class [[nodiscard]] FutureError : uint8_t{
-    /// the async operation is pending and not yet finalized
-    Pending,
-    /// the async operation has been completed but its result is being observed
-    /// (possibly on another thread)
-    Locked,
-    /// the async operation has been canceled either forcefully or by the user
-    Canceled};
+namespace impl {
+enum class InfoFutureStatus : uint8_t {
+  Scheduled = enum_uv(FutureStatus::Scheduled),
+  Submitted = enum_uv(FutureStatus::Submitted),
+  Executing = enum_uv(FutureStatus::Executing),
+  Canceling = enum_uv(FutureStatus::Canceling),
+  ForceCanceling = enum_uv(FutureStatus::ForceCanceling),
+  Suspending = enum_uv(FutureStatus::Suspending),
+  ForceSuspending = enum_uv(FutureStatus::ForceSuspending),
+  Suspended = enum_uv(FutureStatus::Suspended),
+  ForceSuspended = enum_uv(FutureStatus::ForceSuspended),
+  Resuming = enum_uv(FutureStatus::Resuming),
+  ForceResuming = enum_uv(FutureStatus::ForceResuming)
+};
+
+enum class TerminalFutureStatus : uint8_t {
+  Canceled = enum_uv(FutureStatus::Canceled),
+  ForceCanceled = enum_uv(FutureStatus::ForceCanceled),
+  Completing = enum_uv(FutureStatus::Completing),
+  Completed = enum_uv(FutureStatus::Completed),
+  Pending = enum_uv(FutureStatus::____Pending)
+};
+
+}  // namespace impl
+
+// TODO(lamarrr): error enum stringify
+enum class FutureError : uint8_t {
+  /// the async operation is pending and not yet finalized
+  Pending,
+  /// the async operation has been canceled either forcefully or by the user
+  Canceled
+};
 
 /// the executor might not be able to immediately respond to the requested
 /// states of the async operations. the executor might not even be able to
