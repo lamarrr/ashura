@@ -1056,13 +1056,9 @@ struct RequestProxy {
 // the future and promise. the executor producing the future can choose to use
 // another allocation strategy.
 template <typename T>
-std::pair<Future<T>, Promise<T>> make_future() {
+Promise<T> make_promise() {
   mem::Rc<FutureState<T>> shared_state = mem::make_rc_inplace<FutureState<T>>();
-
-  Future<T> future{stx::Rc{shared_state}};
-  Promise<T> promise{std::move(shared_state)};
-
-  return std::make_pair(std::move(future), std::move(promise));
+  return Promise<T>{std::move(shared_state)};
 }
 
 }  // namespace stx
