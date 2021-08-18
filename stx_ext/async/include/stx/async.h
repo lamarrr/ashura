@@ -315,6 +315,7 @@ struct ServiceToken {
   explicit constexpr ServiceToken(SuspendRequest request)
       : type{RequestType::Suspend}, source{request.source} {}
 
+  // invalid
   explicit constexpr ServiceToken() {}
 
   RequestType type = RequestType::Suspend;
