@@ -48,21 +48,17 @@ constexpr size_t HARDWARE_DESTRUCTIVE_INTERFERENCE_SIZE =
 //
 // False sharing leads to excessive cache flushes and thus reduces
 // multi-threaded performances as the CPU now has to read from main memory which
-// is the slowest read path. false sharing happens along word boundaries which
-// is the individual unit of reading from memory. i.e. on a 64-bit system. 8
-// uint8-s might be packed by the compiler into a single word (uint64), sharing
-// atomics of uint8 along this word boundary would lead to excessive flushing
-// across each CPU core's cache line on write to the cache line of either core.
+// is the slowest read path. sharing atomics that arent aligned to the L1 cache
+// size would lead to excessive flushing across each CPU core's cache line on
+// write to the cache line of either core.
 //
 // A ripple effect as each CPU core's cache line entry for the cached address of
-// the uint8-s has now been invalidated and each CPU core's cache now has to
+// the atomics has now been invalidated and each CPU core's cache now has to
 // reload from main memory
 #define STX_CACHELINE_ALIGNED \
-  alignas(stx::hardware_destructive_interference_size)
+  alignas(stx::HARDWARE_DESTRUCTIVE_INTERFERENCE_SIZE)
 
 namespace stx {
-
-enum class [[nodiscard]] LockStatus : uint8_t{Unlocked, Locked};
 
 /// the future's status are mutually exclusive. i.e. no two can exist at once.
 /// and some states might be skipped or never occur or observed during the async
