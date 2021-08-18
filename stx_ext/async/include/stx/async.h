@@ -328,6 +328,9 @@ struct ServiceToken {
 // the async operation's associated task, the user has to take care of that
 // themselves.
 //
+// non-terminal unsequenced updates to the future's states don't affect what the
+// user observes.
+//
 struct FutureExecutionState {
   STX_DEFAULT_CONSTRUCTOR(FutureExecutionState)
   STX_MAKE_PINNED(FutureExecutionState)
