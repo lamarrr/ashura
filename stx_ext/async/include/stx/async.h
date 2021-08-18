@@ -548,36 +548,25 @@ struct FutureBaseState : public FutureExecutionState,
 // TODO(lamarrr): does stx's Result handle const?
 template <typename T>
 struct FutureState : public FutureBaseState {
-  static_assert(!std::is_const_v<T>);
-
   STX_DEFAULT_CONSTRUCTOR(FutureState)
   STX_MAKE_PINNED(FutureState)
 
-  // NOTE: we don't use mutexes on the final result of the async operation
-  // since the executor will have exclusive access to the storage address
-  // until the async operation is finished (completed, force canceled, or,
-  // canceled).
-  //
-  // the async operation's result will be discarded if the
-  // future has been discarded.
-  //
-  std::aligned_storage_t<sizeof(T), alignof(T)> storage;
-
-  void executor___notify_completed_with_return_value(T&& value) {
-    executor___unsafe_init(std::move(value));
-    FutureBaseState::executor___notify_completed_with_return_value();
+  // this only happens once across all threads and the lifetime of the
+  // futurestate.
+  // only one executor will have access to this so no locking is required.
+  void executor____complete_with_object(T&& value) {
+    FutureBaseState::executor____complete____with_result(
+        [&value, this] { executor____unsafe_init_storage(std::move(value)); });
   }
 
-  Result<T, FutureError> user___copy_result() {
-    switch (user___fetch_status_with_result()) {
+  Result<T, FutureError> user____copy_result() {
+    FutureStatus status =
+        FutureBaseState::user____fetch_status____with_result();
+
+    switch (status) {
       case FutureStatus::Completed: {
-        if (user___try_lock_result()) {
-          T result{unsafe_launder_readable()};
-          user___unlock_result();
-          return Ok(std::move(result));
-        } else {
-          return stx::Err(FutureError::Locked);
-        }
+        LockGuard guard{storage_lock};
+        return Ok(T{unsafe_launder_readable()});
       }
 
       case FutureStatus::Canceled:
@@ -585,22 +574,19 @@ struct FutureState : public FutureBaseState {
         return Err(FutureError::Canceled);
       }
 
-      default: {
+      default:
         return Err(FutureError::Pending);
-      }
     }
   }
 
-  Result<T, FutureError> user___move_result() {
-    switch (FutureBaseState::user___fetch_status_with_result()) {
+  Result<T, FutureError> user____move_result() {
+    FutureStatus status =
+        FutureBaseState::user____fetch_status____with_result();
+
+    switch (status) {
       case FutureStatus::Completed: {
-        if (user___try_lock_result()) {
-          T result{std::move(unsafe_launder_writable())};
-          user___unlock_result();
-          return Ok(std::move(result));
-        } else {
-          return stx::Err(FutureError::Locked);
-        }
+        LockGuard guard{storage_lock};
+        return Ok(std::move(unsafe_launder_writable()));
       }
 
       case FutureStatus::Canceled:
@@ -608,14 +594,18 @@ struct FutureState : public FutureBaseState {
         return Err(FutureError::Canceled);
       }
 
-      default: {
+      default:
         return Err(FutureError::Pending);
-      }
     }
   }
 
   ~FutureState() {
-    switch (FutureBaseState::user___fetch_status_with_result()) {
+    // destructor only runs once and only happens when it isn't used across
+    // threads, so locking is not necessary
+    FutureStatus status =
+        FutureBaseState::user____fetch_status____with_result();
+
+    switch (status) {
       case FutureStatus::Completed: {
         unsafe_destroy();
         return;
@@ -626,23 +616,30 @@ struct FutureState : public FutureBaseState {
   }
 
  private:
-  STX_CACHELINE_ALIGNED std::atomic<LockStatus> result_lock_status{
-      LockStatus::Unlocked};
+  // NOTE: we don't use mutexes on the final result of the async operation
+  // since the executor will have exclusive access to the storage address
+  // until the async operation is finished (completed, force canceled, or,
+  // canceled).
+  //
+  std::aligned_storage_t<sizeof(T), alignof(T)> storage;
+
+  // the producer (executor) only writes once to the future, but the future is a
+  // shared one by default and is intended to be shared by multiple executors so
+  // we need to use an extremely fast non-blocking lock so we don't get in the
+  // way of the executors. completion operations are usually extremely fast.
+  // i.e. std::move in, shared_ptr or Rc write. if you're performing a copy
+  // (i.e. of a vector whilst holding this lock, you'll block the executor and
+  // waste a lot of processor time if it so happens that the executor needs to
+  // access it and busy waits).
+  SpinLock storage_lock;
 
   // sends in the result of the async operation.
   // calling this function implies that the async operation has completed.
-  // this function must only be called once.
-  void executor___unsafe_init(T&& value) { new (&storage) T{std::move(value)}; }
-
-  bool user___try_lock_result() {
-    LockStatus expected = LockStatus::Unlocked;
-    LockStatus target = LockStatus::Locked;
-    return result_lock_status.compare_exchange_strong(
-        expected, target, std::memory_order_acquire, std::memory_order_relaxed);
-  }
-
-  void user___unlock_result() {
-    result_lock_status.store(LockStatus::Unlocked, std::memory_order_release);
+  // this function must only be called once otherwise could potentially lead to
+  // a memory leak.
+  // this is enforced by the atomic terminal state check via CAS.
+  void executor____unsafe_init_storage(T&& value) {
+    new (&storage) T{std::move(value)};
   }
 
   T& unsafe_launder_writable() {
