@@ -329,87 +329,136 @@ struct FutureExecutionState {
   STX_DEFAULT_CONSTRUCTOR(FutureExecutionState)
   STX_MAKE_PINNED(FutureExecutionState)
 
-  void executor___notify_unscheduled() { notify(FutureStatus::Unscheduled); }
-
-  void executor___notify_scheduled() { notify(FutureStatus::Scheduled); }
-
-  void executor___notify_submitted() { notify(FutureStatus::Submitted); }
-
-  void executor___notify_executing() { notify(FutureStatus::Executing); }
-
-  void executor___notify_user_resumed() { notify(FutureStatus::Executing); }
-
-  void executor___notify_user_canceling() { notify(FutureStatus::Canceling); }
-
-  void executor___notify_force_canceling() {
-    notify(FutureStatus::ForceCanceling);
+  void executor____notify_scheduled() {
+    notify_info(impl::InfoFutureStatus::Scheduled);
   }
 
-  void executor___notify_user_suspending() { notify(FutureStatus::Suspending); }
-
-  void executor___notify_force_suspending() {
-    notify(FutureStatus::ForceSuspending);
+  void executor____notify_submitted() {
+    notify_info(impl::InfoFutureStatus::Submitted);
   }
 
-  void executor___notify_user_suspended() { notify(FutureStatus::Suspended); }
-
-  void executor___notify_force_suspended() {
-    notify(FutureStatus::ForceSuspended);
+  void executor____notify_executing() {
+    notify_info(impl::InfoFutureStatus::Executing);
   }
 
-  void executor___notify_user_resuming() { notify(FutureStatus::Resuming); }
-
-  void executor___notify_force_resuming() {
-    notify(FutureStatus::ForceResuming);
+  void executor____notify_user_resumed() {
+    notify_info(impl::InfoFutureStatus::Executing);
   }
 
-  void executor___notify_user_canceled() { notify(FutureStatus::Canceled); }
-
-  void executor___notify_force_canceled() {
-    notify(FutureStatus::ForceCanceled);
+  void executor____notify_user_canceling() {
+    notify_info(impl::InfoFutureStatus::Canceling);
   }
 
-  void executor___notify_completed_with_no_return_value() {
-    notify(FutureStatus::Completed);
+  void executor____notify_force_canceling() {
+    notify_info(impl::InfoFutureStatus::ForceCanceling);
   }
 
-  // sends that the async operation has completed and the shared value storage
-  // has been updated, so it can begin reading from it
-  void executor___notify_completed_with_return_value() {
-    future_status.store(FutureStatus::Completed, std::memory_order_release);
+  void executor____notify_user_suspending() {
+    notify_info(impl::InfoFutureStatus::Suspending);
   }
 
-  FutureStatus user___fetch_status() const {
-    return future_status.load(std::memory_order_relaxed);
+  void executor____notify_force_suspending() {
+    notify_info(impl::InfoFutureStatus::ForceSuspending);
   }
 
-  // acquires write operations and stored value that happened on the
-  // executor thread, ordered around `future_status`
-  FutureStatus user___fetch_status_with_result() const {
-    return future_status.load(std::memory_order_acquire);
+  void executor____notify_user_suspended() {
+    notify_info(impl::InfoFutureStatus::Suspended);
   }
 
-  bool user___is_done() const {
-    switch (user___fetch_status()) {
-      case FutureStatus::Canceled:
-      case FutureStatus::ForceCanceled:
-      case FutureStatus::Completed: {
-        return true;
-      }
+  void executor____notify_force_suspended() {
+    notify_info(impl::InfoFutureStatus::ForceSuspended);
+  }
 
-      default: {
-        return false;
+  void executor____notify_user_resuming() {
+    notify_info(impl::InfoFutureStatus::Resuming);
+  }
+
+  void executor____notify_force_resuming() {
+    notify_info(impl::InfoFutureStatus::ForceResuming);
+  }
+
+  void executor____notify_user_canceled() {
+    notify_term_no_result(impl::TerminalFutureStatus::Canceled);
+  }
+
+  void executor____notify_force_canceled() {
+    notify_term_no_result(impl::TerminalFutureStatus::ForceCanceled);
+  }
+
+  void executor____complete____with_void() {
+    notify_term_no_result(impl::TerminalFutureStatus::Completed);
+  }
+
+  template <typename Lambda>
+  void executor____complete____with_result(Lambda&& setter_op) {
+    {
+      impl::TerminalFutureStatus expected = impl::TerminalFutureStatus::Pending;
+      impl::TerminalFutureStatus target =
+          impl::TerminalFutureStatus::Completing;
+      if (term.compare_exchange_strong(expected, target,
+                                       std::memory_order_relaxed,
+                                       std::memory_order_relaxed)) {
+        std::forward<Lambda>(setter_op)();
+        term.store(impl::TerminalFutureStatus::Completed,
+                   std::memory_order_release);
+      } else {
+        // already completed, completing, canceled, or force canceled
       }
     }
   }
 
- private:
-  void notify(FutureStatus status) {
-    future_status.store(status, std::memory_order_relaxed);
+  FutureStatus user____fetch_status____with_no_result() const {
+    return fetch_status(std::memory_order_relaxed);
   }
 
-  STX_CACHELINE_ALIGNED std::atomic<FutureStatus> future_status{
-      FutureStatus::Unscheduled};
+  // acquires write operations and stored value that happened on the
+  // executor thread, ordered around `future_status`
+  FutureStatus user____fetch_status____with_result() const {
+    return fetch_status(std::memory_order_acquire);
+  }
+
+  bool user____is_done() const {
+    switch (user____fetch_status____with_no_result()) {
+      case FutureStatus::Canceled:
+      case FutureStatus::ForceCanceled:
+      case FutureStatus::Completed:
+        return true;
+
+      default:
+        return false;
+    }
+  }
+
+ private:
+  FutureStatus fetch_status(std::memory_order terminal_load_mem_order) const {
+    impl::TerminalFutureStatus term_status = term.load(terminal_load_mem_order);
+
+    switch (term_status) {
+      case impl::TerminalFutureStatus::Pending: {
+        impl::InfoFutureStatus info_status =
+            info.load(std::memory_order_relaxed);
+        return FutureStatus{enum_uv(info_status)};
+      }
+
+      default: {
+        return FutureStatus{enum_uv(term_status)};
+      }
+    }
+  }
+
+  void notify_info(impl::InfoFutureStatus status) {
+    info.store(status, std::memory_order_relaxed);
+  }
+
+  void notify_term_no_result(impl::TerminalFutureStatus const status) {
+    impl::TerminalFutureStatus expected = impl::TerminalFutureStatus::Pending;
+    term.compare_exchange_strong(expected, status, std::memory_order_relaxed,
+                                 std::memory_order_relaxed);
+  }
+
+  std::atomic<impl::InfoFutureStatus> info{impl::InfoFutureStatus::Scheduled};
+  std::atomic<impl::TerminalFutureStatus> term{
+      impl::TerminalFutureStatus::Pending};
 };
 
 struct FutureRequestState {
