@@ -690,8 +690,6 @@ template <typename T>
 struct FutureBase {
   STX_DISABLE_DEFAULT_CONSTRUCTOR(FutureBase)
 
-  friend struct FutureAny;
-
   explicit FutureBase(mem::Rc<FutureState<T>>&& init_state)
       : state{std::move(init_state)} {}
 
