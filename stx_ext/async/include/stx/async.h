@@ -1025,27 +1025,32 @@ struct RequestProxy {
 
   template <typename T>
   explicit RequestProxy(Promise<T> const& promise)
-      : state{transmute(static_cast<FutureBaseState*>(promise.state.get()),
-                        promise.state)} {}
+      : state{stx::mem::cast<FutureBaseState>(promise.state.share())} {}
 
   template <typename T>
   explicit RequestProxy(Future<T> const& future)
-      : state{transmute(static_cast<FutureBaseState*>(future.state.get()),
-                        future.state)} {}
+      : state{stx::mem::cast<FutureBaseState>(future.state)} {}
 
-  explicit RequestProxy(FutureAny const& future) : state{future.state} {}
+  explicit RequestProxy(FutureAny const& future)
+      : state{future.state.share()} {}
+
+  explicit RequestProxy(mem::Rc<FutureBaseState>&& istate)
+      : state{std::move(istate)} {}
 
   CancelRequest fetch_cancel_request() const {
-    return state.get()->proxy___fetch_cancel_request();
+    return state.get()->proxy____fetch_cancel_request();
   }
 
   SuspendRequest fetch_suspend_request() const {
-    return state.get()->proxy___fetch_suspend_request();
+    return state.get()->proxy____fetch_suspend_request();
   }
 
- private:
+  RequestProxy share() const { return RequestProxy{state.share()}; }
+
   mem::Rc<FutureBaseState> state;
 };
+
+// TODO(lamarrr): disable copy constructor???
 
 // NOTE: this helper function uses heap allocations for allocating states for
 // the future and promise. the executor producing the future can choose to use
