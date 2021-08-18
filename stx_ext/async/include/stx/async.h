@@ -659,9 +659,30 @@ struct FutureState<void> : public FutureBaseState {
   STX_MAKE_PINNED(FutureState)
 };
 
-// and ensures ordering of instructions or observation of the changes from
-// another thread.
-//
+template <typename T>
+struct FutureBase {
+  STX_DISABLE_DEFAULT_CONSTRUCTOR(FutureBase)
+
+  friend struct FutureAny;
+
+  explicit FutureBase(mem::Rc<FutureState<T>>&& init_state)
+      : state{std::move(init_state)} {}
+
+  FutureStatus fetch_status() const {
+    return state.get()->user____fetch_status____with_no_result();
+  }
+
+  void request_cancel() const { state.get()->user____request_cancel(); }
+
+  void request_suspend() const { state.get()->user____request_suspend(); }
+
+  void request_resume() const { state.get()->user____request_resume(); }
+
+  bool is_done() const { return state.get()->user____is_done(); }
+
+  mem::Rc<FutureState<T>> state;
+};
+
 // this is contrary to the on-finished callback approach in which the user is
 // very likely to use incorrectly due instruction re-ordering or order of
 // observation of changes.
