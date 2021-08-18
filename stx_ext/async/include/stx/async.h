@@ -824,83 +824,94 @@ struct PromiseBase {
   explicit PromiseBase(mem::Rc<FutureState<T>>&& init_state)
       : state{std::move(init_state)} {}
 
-  void notify_unscheduled() const {
-    state.get()->executor___notify_unscheduled();
-  }
+  void notify_scheduled() const { state.get()->executor____notify_scheduled(); }
 
-  void notify_scheduled() const { state.get()->executor___notify_scheduled(); }
+  void notify_submitted() const { state.get()->executor____notify_submitted(); }
 
-  void notify_submitted() const { state.get()->executor___notify_submitted(); }
-
-  void notify_executing() const { state.get()->executor___notify_executing(); }
+  void notify_executing() const { state.get()->executor____notify_executing(); }
 
   void notify_user_cancel_begin() const {
-    state.get()->executor___notify_user_canceling();
+    state.get()->executor____notify_user_canceling();
   }
 
   void notify_user_canceled() const {
-    state.get()->executor___notify_user_canceled();
+    state.get()->executor____notify_user_canceled();
   }
 
   void notify_force_cancel_begin() const {
-    state.get()->executor___notify_force_canceling();
+    state.get()->executor____notify_force_canceling();
   }
 
   void notify_force_canceled() const {
-    state.get()->executor___notify_force_canceled();
+    state.get()->executor____notify_force_canceled();
   }
 
   void notify_force_suspend_begin() const {
-    state.get()->executor___notify_force_suspending();
+    state.get()->executor____notify_force_suspending();
   }
 
   void notify_force_suspended() const {
-    state.get()->executor___notify_force_suspended();
+    state.get()->executor____notify_force_suspended();
   }
 
   void notify_force_resume_begin() const {
-    state.get()->executor___notify_force_resuming();
+    state.get()->executor____notify_force_resuming();
   }
 
   void notify_force_resumed() const {
-    state.get()->executor___notify_force_resuming();
+    state.get()->executor____notify_force_resuming();
   }
 
   void notify_user_suspend_begin() const {
-    state.get()->executor___notify_user_suspending();
+    state.get()->executor____notify_user_suspending();
   }
 
   void notify_user_suspended() const {
-    state.get()->executor___notify_user_suspended();
+    state.get()->executor____notify_user_suspended();
   }
 
   void notify_user_resume_begin() const {
-    state.get()->executor___notify_user_resuming();
+    state.get()->executor____notify_user_resuming();
   }
 
   void notify_user_resumed() const {
-    state.get()->executor___notify_user_resumed();
+    state.get()->executor____notify_user_resumed();
   }
 
   void request_force_cancel() const {
-    state.get()->scheduler___request_force_cancel();
+    state.get()->scheduler____request_force_cancel();
   }
 
   void request_force_suspend() const {
-    state.get()->scheduler___request_force_suspend();
+    state.get()->scheduler____request_force_suspend();
   }
 
   void request_force_resume() const {
-    state.get()->scheduler___request_force_resume();
+    state.get()->scheduler____request_force_resume();
   }
 
   // after `request_force_suspend` or `request_force_resume` are called. all
   // tasks remain in the forced state until they are cleared.
   void clear_force_suspension_request() const {
-    state.get()->scheduler___clear_force_suspension_request();
+    state.get()->scheduler____clear_force_suspension_request();
   }
 
- protected:
+  CancelRequest fetch_cancel_request() const {
+    return state.get()->proxy____fetch_cancel_request();
+  }
+
+  SuspendRequest fetch_suspend_request() const {
+    return state.get()->proxy____fetch_suspend_request();
+  }
+
+  FutureStatus fetch_status() const {
+    return state.get()->user____fetch_status____with_no_result();
+  }
+
+  bool is_done() const { return state.get()->user____is_done(); }
+
+  Future<T> get_future() const { return Future<T>{state.share()}; }
+
   mem::Rc<FutureState<T>> state;
 };
 
