@@ -32,7 +32,7 @@ using std::string_view;
 struct Str {
   Str() : data_{nullptr}, size_{0}, allocator_{noop_allocator} {}
 
-  Str(char const* data, size_t size, StaticAllocator allocator)
+  Str(char const* data, size_t size, Allocator allocator)
       : data_{data}, size_{size}, allocator_{allocator} {}
 
   Str(Str const&) = delete;
@@ -63,7 +63,7 @@ struct Str {
  private:
   char const* data_ = 0;
   size_t size_ = 0;
-  StaticAllocator allocator_;
+  Allocator allocator_;
 };
 
 // meaning, i want to share this, but I don't care about it's source or any
@@ -87,14 +87,14 @@ inline Str make_static(std::string_view str) {
 }
 
 inline RcStr make_static_rc(std::string_view str) {
-  Manager manager{static_storage_manager_handle};
+  Manager manager = static_storage_manager;
   manager.ref();
   return unsafe_make_rc<std::string_view>(std::move(str), std::move(manager));
 }
 
 template <typename... Strs>
 Result<Str, AllocError> join(Str const& first, Strs const&...,
-                             StaticAllocator allocator);
+                             Allocator allocator);
 
 }  // namespace str
 }  // namespace stx

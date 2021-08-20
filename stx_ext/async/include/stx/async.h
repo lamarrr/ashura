@@ -593,7 +593,7 @@ struct FutureState : public FutureBaseState {
     switch (status) {
       case FutureStatus::Completed: {
         LockGuard guard{storage_lock};
-        return Ok(T{unsafe_launder_readable()});
+        return Ok(unsafe_copy());
       }
 
       case FutureStatus::Canceled:
@@ -613,7 +613,7 @@ struct FutureState : public FutureBaseState {
     switch (status) {
       case FutureStatus::Completed: {
         LockGuard guard{storage_lock};
-        return Ok(std::move(unsafe_launder_writable()));
+        return Ok(unsafe_move());
       }
 
       case FutureStatus::Canceled:
@@ -625,6 +625,9 @@ struct FutureState : public FutureBaseState {
         return Err(FutureError::Pending);
     }
   }
+
+  // allow drain operation to modify object. alt: reap
+  // allow inspect object to copy object.
 
   ~FutureState() {
     // destructor only runs once and only happens when it isn't used across
@@ -677,6 +680,10 @@ struct FutureState : public FutureBaseState {
     return *std::launder(reinterpret_cast<T const*>(&storage));
   }
 
+  T&& unsafe_move() { return std::move(unsafe_launder_writable()); }
+
+  T unsafe_copy() const { return unsafe_launder_readable(); }
+
   void unsafe_destroy() { unsafe_launder_writable().~T(); }
 };
 
@@ -690,7 +697,7 @@ template <typename T>
 struct FutureBase {
   STX_DISABLE_DEFAULT_CONSTRUCTOR(FutureBase)
 
-  explicit FutureBase(mem::Rc<FutureState<T>>&& init_state)
+  explicit FutureBase(Rc<FutureState<T>*>&& init_state)
       : state{std::move(init_state)} {}
 
   FutureStatus fetch_status() const {
@@ -705,7 +712,7 @@ struct FutureBase {
 
   bool is_done() const { return state.get()->user____is_done(); }
 
-  mem::Rc<FutureState<T>> state;
+  Rc<FutureState<T>*> state;
 };
 
 // this is contrary to the on-finished callback approach in which the user is
@@ -728,7 +735,7 @@ struct Future : public FutureBase<T> {
 
   STX_DISABLE_DEFAULT_CONSTRUCTOR(Future)
 
-  explicit Future(mem::Rc<FutureState<T>>&& init_state)
+  explicit Future(Rc<FutureState<T>*>&& init_state)
       : Base{std::move(init_state)} {}
 
   // copy operations should be extremely fast
@@ -754,7 +761,7 @@ struct Future<void> : public FutureBase<void> {
 
   STX_DISABLE_DEFAULT_CONSTRUCTOR(Future)
 
-  explicit Future(mem::Rc<FutureState<void>>&& init_state)
+  explicit Future(Rc<FutureState<void>*>&& init_state)
       : Base{std::move(init_state)} {}
 };
 
@@ -763,9 +770,9 @@ struct FutureAny {
 
   template <typename T>
   explicit FutureAny(Future<T> const& future)
-      : state{stx::mem::cast<FutureBaseState>(future.state.share())} {}
+      : state{cast<FutureBaseState*>(future.state.share())} {}
 
-  explicit FutureAny(mem::Rc<FutureBaseState>&& istate)
+  explicit FutureAny(Rc<FutureBaseState*>&& istate)
       : state{std::move(istate)} {}
 
   FutureStatus fetch_status() const {
@@ -782,14 +789,14 @@ struct FutureAny {
 
   FutureAny share() const { return FutureAny{state.share()}; }
 
-  mem::Rc<FutureBaseState> state;
+  Rc<FutureBaseState*> state;
 };
 
 template <typename T>
 struct PromiseBase {
   STX_DISABLE_DEFAULT_CONSTRUCTOR(PromiseBase)
 
-  explicit PromiseBase(mem::Rc<FutureState<T>>&& init_state)
+  explicit PromiseBase(Rc<FutureState<T>*>&& init_state)
       : state{std::move(init_state)} {}
 
   void notify_scheduled() const { state.get()->executor____notify_scheduled(); }
@@ -880,7 +887,7 @@ struct PromiseBase {
 
   Future<T> get_future() const { return Future<T>{state.share()}; }
 
-  mem::Rc<FutureState<T>> state;
+  Rc<FutureState<T>*> state;
 };
 
 template <typename T>
@@ -889,7 +896,7 @@ struct Promise : public PromiseBase<T> {
 
   STX_DISABLE_DEFAULT_CONSTRUCTOR(Promise)
 
-  explicit Promise(mem::Rc<FutureState<T>>&& init_state)
+  explicit Promise(Rc<FutureState<T>*>&& init_state)
       : Base{std::move(init_state)} {}
 
   void notify_completed(T&& value) const {
@@ -905,7 +912,7 @@ struct Promise<void> : public PromiseBase<void> {
 
   STX_DISABLE_DEFAULT_CONSTRUCTOR(Promise)
 
-  explicit Promise(mem::Rc<FutureState<void>>&& init_state)
+  explicit Promise(Rc<FutureState<void>*>&& init_state)
       : Base{std::move(init_state)} {}
 
   void notify_completed() const {
@@ -920,9 +927,9 @@ struct PromiseAny {
 
   template <typename T>
   explicit PromiseAny(Promise<T> const& promise)
-      : state{stx::mem::cast<FutureBaseState>(promise.state.share())} {}
+      : state{cast<FutureBaseState*>(promise.state.share())} {}
 
-  explicit PromiseAny(mem::Rc<FutureBaseState>&& istate)
+  explicit PromiseAny(Rc<FutureBaseState*>&& istate)
       : state{std::move(istate)} {}
 
   void notify_scheduled() const { state.get()->executor____notify_scheduled(); }
@@ -1011,13 +1018,11 @@ struct PromiseAny {
 
   bool is_done() const { return state.get()->user____is_done(); }
 
-  FutureAny get_future() const {
-    return FutureAny{mem::Rc<FutureBaseState>{state.share()}};
-  }
+  FutureAny get_future() const { return FutureAny{state.share()}; }
 
   PromiseAny share() const { return PromiseAny{state.share()}; }
 
-  mem::Rc<FutureBaseState> state;
+  Rc<FutureBaseState*> state;
 };
 
 struct RequestProxy {
@@ -1025,16 +1030,16 @@ struct RequestProxy {
 
   template <typename T>
   explicit RequestProxy(Promise<T> const& promise)
-      : state{stx::mem::cast<FutureBaseState>(promise.state.share())} {}
+      : state{cast<FutureBaseState*>(promise.state.share())} {}
 
   template <typename T>
   explicit RequestProxy(Future<T> const& future)
-      : state{stx::mem::cast<FutureBaseState>(future.state)} {}
+      : state{cast<FutureBaseState*>(future.state)} {}
 
   explicit RequestProxy(FutureAny const& future)
       : state{future.state.share()} {}
 
-  explicit RequestProxy(mem::Rc<FutureBaseState>&& istate)
+  explicit RequestProxy(Rc<FutureBaseState*>&& istate)
       : state{std::move(istate)} {}
 
   CancelRequest fetch_cancel_request() const {
@@ -1047,7 +1052,7 @@ struct RequestProxy {
 
   RequestProxy share() const { return RequestProxy{state.share()}; }
 
-  mem::Rc<FutureBaseState> state;
+  Rc<FutureBaseState*> state;
 };
 
 // TODO(lamarrr): disable copy constructor???
@@ -1056,9 +1061,9 @@ struct RequestProxy {
 // the future and promise. the executor producing the future can choose to use
 // another allocation strategy.
 template <typename T>
-Promise<T> make_promise() {
-  mem::Rc<FutureState<T>> shared_state = mem::make_rc_inplace<FutureState<T>>();
-  return Promise<T>{std::move(shared_state)};
+Result<Promise<T>, AllocError> make_promise(Allocator allocator) {
+  TRY_OK(shared_state, mem::make_rc_inplace<FutureState<T>>(allocator));
+  return Ok(Promise<T>{std::move(shared_state)});
 }
 
 }  // namespace stx

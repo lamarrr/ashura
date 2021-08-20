@@ -99,3 +99,24 @@ TEST(VecTest, ResizeLifetime) {
     EXPECT_VALID_VEC(vec);
   }
 }
+
+TEST(VecTest, Noop) {
+  stx::Vec<int> vec{stx::os_allocator};
+
+  vec.push(3);
+
+  vec.push_inplace(3);
+  vec.reserve(444).unwrap();
+  vec.span();
+  vec.at(1).unwrap().get() = 0;
+
+  stx::FixedVec<int> g{stx::os_allocator, nullptr, 0};
+
+  EXPECT_DEATH_IF_SUPPORTED(g.push_inplace(4783).expect("unable to push"),
+                            ".*?");
+
+  stx::Vec<int> no_vec{stx::noop_allocator};
+
+  EXPECT_DEATH_IF_SUPPORTED(no_vec.push_inplace(4783).expect("unable to push"),
+                            ".*?");
+}

@@ -9,7 +9,7 @@
 namespace vlk {
 
 struct SubsystemImplInfo {
-  stx::mem::Rc<SubsystemImpl> impl;
+  stx::Rc<SubsystemImpl *> impl;
   stx::FutureAny cancelation_future;
 };
 

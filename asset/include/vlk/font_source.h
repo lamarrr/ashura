@@ -38,7 +38,7 @@ struct FileTypefaceSource {
     return !(*this == other);
   }
 
-  stx::mem::Rc<FileTypefaceSourceData const> data;
+  Rc<FileTypefaceSourceData const*> data;
 };
 
 inline std::string format(FileTypefaceSource const& source) {
@@ -66,7 +66,7 @@ struct MemoryTypefaceSource {
 
   static uint64_t make_uid();
 
-  stx::mem::Rc<MemoryTypefaceSourceData const> data;
+  Rc<MemoryTypefaceSourceData const*> data;
 };
 
 inline std::string format(MemoryTypefaceSource const& source) {
@@ -141,7 +141,7 @@ struct SystemFont {
 
   bool operator!=(SystemFont const& other) const { return !(*this == other); }
 
-  stx::mem::Rc<SystemFontData const> data;
+  Rc<SystemFontData const*> data;
 };
 
 struct FileFontSource {
@@ -165,7 +165,7 @@ struct FileFontSource {
     return !(*this == other);
   }
 
-  stx::mem::Rc<FileFontSourceData const> data;
+  Rc<FileFontSourceData const*> data;
 };
 
 inline std::string format(FileFontSource const& source) {
@@ -194,7 +194,7 @@ struct MemoryFontSource {
     return !(*this == other);
   }
 
-  stx::mem::Rc<MemoryFontSourceData const> data;
+  Rc<MemoryFontSourceData const*> data;
 };
 
 inline std::string format(MemoryFontSource const& source) {

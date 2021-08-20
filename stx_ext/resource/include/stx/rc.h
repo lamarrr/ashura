@@ -39,13 +39,12 @@ struct Rc {
 
   using handle_type = HandleType;
 
-  constexpr Rc(HandleType&& handle, Manager&& manager)
-      : handle_{std::move(handle)}, manager_{std::move(manager)} {}
+  constexpr Rc(HandleType&& handle, Manager manager)
+      : handle_{std::move(handle)}, manager_{manager} {}
 
   constexpr Rc(Rc&& other) = default;
   constexpr Rc& operator=(Rc&& other) = default;
 
-  // TODO(lamarrr): test self-assignment
   Rc(Rc const& other) = delete;
   Rc& operator=(Rc const& other) = delete;
 
@@ -73,8 +72,8 @@ struct Rc {
 };
 
 template <typename H>
-constexpr Rc<H> unsafe_make_rc(H&& handle, Manager&& manager) {
-  return Rc<H>{std::move(handle), std::move(manager)};
+constexpr Rc<H> unsafe_make_rc(H&& handle, Manager manager) {
+  return Rc<H>{std::move(handle), manager};
 }
 
 /// Transmute a resource that uses a polymorphic manager.
@@ -101,6 +100,15 @@ template <typename Target, typename Source>
 constexpr Rc<Target> transmute(Target target, Rc<Source>&& source) {
   return unsafe_make_rc(std::move(target),
                         std::move(source.unsafe_manager_ref()));
+}
+
+// TODO(lamarrr): make static array rc
+// TODO(lamarrr): make chunk
+//
+template <typename Target, typename Source>
+constexpr Rc<Target> cast(Rc<Source>&& source) {
+  Target target = static_cast<Target>(std::move(source.unsafe_handle_ref()));
+  return transmute(std::move(target), std::move(source));
 }
 
 }  // namespace stx

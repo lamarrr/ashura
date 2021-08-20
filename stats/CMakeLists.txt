@@ -1,3 +1,3 @@
-add_project_library(vlk http)
+add_project_library(vlk stats)
 
-target_link_libraries(vlk_http stx vlk_utils stx::async stx::task libcurl fmt::fmt)
+target_link_libraries(vlk_stats)

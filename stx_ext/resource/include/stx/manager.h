@@ -36,8 +36,6 @@ struct StaticStorageManagerHandle final : public ManagerHandle {
   virtual void unref() override {}
 };
 
-inline StaticStorageManagerHandle static_storage_manager_handle;
-
 /// this handle type has no effect on the state of the program.
 /// we used this to help prevent cases where we have to perform branches to
 /// check validity of the manager handle.
@@ -49,8 +47,6 @@ struct NoopManagerHandle final : public ManagerHandle {
   virtual void unref() override {}
 };
 
-inline NoopManagerHandle noop_manager_handle;
-
 /// once a resource is released, this manager is put in its place
 ///
 ///
@@ -61,9 +57,13 @@ struct ReleasedResourceManagerStubHandle final : public ManagerHandle {
   virtual void unref() override {}
 };
 
+inline constexpr const StaticStorageManagerHandle static_storage_manager_handle;
+inline constexpr const NoopManagerHandle noop_manager_handle;
+
 // inlined to mean it is same across all translation units. marking them as
 // static would mean they are different across translation units.
-inline ReleasedResourceManagerStubHandle released_resource_manager_stub_handle;
+inline constexpr const ReleasedResourceManagerStubHandle
+    released_resource_manager_stub_handle;
 
 ///
 /// this is a polymorphic resource manager.
@@ -103,10 +103,6 @@ inline ReleasedResourceManagerStubHandle released_resource_manager_stub_handle;
 struct Manager {
   explicit constexpr Manager(ManagerHandle& handle) : handle_{&handle} {}
 
-  /// default-initialized with a no-op handle.
-  /// this will not cause a fatal crash (as would happen if we used a  nullptr).
-  explicit constexpr Manager() : handle_{&noop_manager_handle} {}
-
   /// on-copy, the handles must refer to the same manager
   constexpr Manager(Manager const& other) = default;
   constexpr Manager& operator=(Manager const& other) = default;
@@ -121,12 +117,14 @@ struct Manager {
   ///
   constexpr Manager(Manager&& other) : handle_{other.handle_} {
     /// unarm other and prevent it from affecting the state of any object
-    other.handle_ = &released_resource_manager_stub_handle;
+    other.handle_ = const_cast<ReleasedResourceManagerStubHandle*>(
+        &released_resource_manager_stub_handle);
   }
 
   constexpr Manager& operator=(Manager&& other) {
     handle_ = other.handle_;
-    other.handle_ = &released_resource_manager_stub_handle;
+    other.handle_ = const_cast<ReleasedResourceManagerStubHandle*>(
+        &released_resource_manager_stub_handle);
     return *this;
   }
 
@@ -139,5 +137,17 @@ struct Manager {
  private:
   ManagerHandle* handle_;
 };
+
+inline constexpr const Manager static_storage_manager{
+    const_cast<StaticStorageManagerHandle&>(static_storage_manager_handle)};
+
+inline constexpr const Manager noop_manager{
+    const_cast<NoopManagerHandle&>(noop_manager_handle)};
+
+// inlined to mean it is same across all translation units. marking them as
+// static would mean they are different across translation units.
+inline constexpr const Manager released_resource_manager_stub{
+    const_cast<ReleasedResourceManagerStubHandle&>(
+        released_resource_manager_stub_handle)};
 
 }  // namespace stx

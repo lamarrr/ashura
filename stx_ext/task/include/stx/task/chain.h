@@ -88,8 +88,8 @@ using chain_stack_variant = unique_variant<
 
 struct ChainState {
   // only valid if the function finishes and next_phase_index !=
-  // num_chain_phases
-  stx::ServiceToken service_token{};
+  // num_phases
+  ServiceToken service_token{};
   // once next_phase_index == num_chains then the chain has reached completion,
   // otherwise, it is assumed to be in a suspended state
   uint8_t next_phase_index = 0;
@@ -100,7 +100,7 @@ namespace impl {
 template <uint8_t PhaseIndex, typename Arg, typename Fn, typename... OtherFns>
 struct ChainPhase {
   using arg_type = Arg;
-  using function_type = stx::raw_function_decay<Fn>;
+  using function_type = raw_function_decay<Fn>;
   using result_type = std::invoke_result_t<Fn &, Arg &&>;
   using next_phase_type = ChainPhase<PhaseIndex + 1, result_type, OtherFns...>;
 
@@ -111,7 +111,7 @@ struct ChainPhase {
       : fn{std::move(ifn)}, next_phase{std::move(iothers)...} {}
 
   template <typename Variant>
-  void resume(Variant &stack, ChainState &state, stx::RequestProxy &proxy) {
+  void resume(Variant &stack, ChainState &state, RequestProxy &proxy) {
     // we need to resume at a precise specified phase.
     //
     //
@@ -124,16 +124,16 @@ struct ChainPhase {
 
       state.next_phase_index++;
 
-      stx::CancelRequest const cancel_request = proxy.fetch_cancel_request();
-      stx::SuspendRequest const suspend_request = proxy.fetch_suspend_request();
+      CancelRequest const cancel_request = proxy.fetch_cancel_request();
+      SuspendRequest const suspend_request = proxy.fetch_suspend_request();
 
-      if (cancel_request.state == stx::RequestedCancelState::Canceled) {
-        state.service_token = stx::ServiceToken{cancel_request};
+      if (cancel_request.state == RequestedCancelState::Canceled) {
+        state.service_token = ServiceToken{cancel_request};
         return;
       }
 
-      if (suspend_request.state == stx::RequestedSuspendState::Suspended) {
-        state.service_token = stx::ServiceToken{suspend_request};
+      if (suspend_request.state == RequestedSuspendState::Suspended) {
+        state.service_token = ServiceToken{suspend_request};
         return;
       }
 
@@ -157,7 +157,7 @@ struct ChainPhase<PhaseIndex, Arg, Fn> {
   explicit constexpr ChainPhase(function_type &&ifn) : fn{std::move(ifn)} {}
 
   template <typename Variant>
-  void resume(Variant &stack, ChainState &state, stx::RequestProxy &) {
+  void resume(Variant &stack, ChainState &state, RequestProxy &) {
     if (PhaseIndex == state.next_phase_index) {
       arg_type &&arg = std::move(std::get<arg_type>(stack));
       stack = fn(std::move(arg));
@@ -173,14 +173,15 @@ struct ChainPhase<PhaseIndex, Arg, Fn> {
 }  // namespace impl
 
 template <typename Fn, typename... OtherFns>
-struct Chain : impl::check_chain_valid<stx::Void, Fn, OtherFns...> {
-  static constexpr uint8_t num_chain_phases = (1 + sizeof...(OtherFns));
+struct Chain : impl::check_chain_valid<Void, Fn, OtherFns...> {
+  static constexpr uint8_t num_phases = (1 + sizeof...(OtherFns));
 
-  static_assert(num_chain_phases <= (stx::u8_max - 2),
+  static_assert(num_phases <= (stx::u8_max - 2),
                 "maximum depth of chain is 253");
 
   using phases_type = impl::ChainPhase<0, stx::Void, Fn, OtherFns...>;
   using stack_type = impl::chain_stack_variant<stx::Void, Fn, OtherFns...>;
+  using last_phase_result_type = typename phases_type::last_phase_result_type;
 
   explicit constexpr Chain(Fn &&fn, OtherFns &&... others)
       : phases{std::move(fn), std::move(others)...} {}
@@ -191,7 +192,7 @@ struct Chain : impl::check_chain_valid<stx::Void, Fn, OtherFns...> {
   Chain &operator=(Chain &&) = default;
 
   template <typename Variant>
-  void resume(Variant &stack, ChainState &state, stx::RequestProxy &proxy) {
+  void resume(Variant &stack, ChainState &state, RequestProxy &proxy) {
     phases.resume(stack, state, proxy);
   }
 

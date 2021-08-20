@@ -24,13 +24,25 @@ struct Fn {};
 // call as in the case of a mutable lambda with captures and classes/structs
 // with members.
 //
-//
 // Fn is to function pointers and functors as std::span is to std::vector and
 // std::array (a view).
 //
 // we'd ideally lock this whilst it is being called but the user could
 // potentially already have internally thread-safe data structures.
 //
+//
+// for high-perf scenarios, std::function is just terrible, especially if you
+// have millions of it being created.
+//        - it performs allocation on it's own without being able to provide an
+//        allocator. meaning the memory it uses could be disjoint from the data
+//        it needs to operate on, which is totally terrible performance-wise as
+//        you'd be jumping along the cacheline
+//        - Surprisingly, its copy constructor copies the containing data and
+//        the function ptr/definition whenever it is copied. WTF? Copy
+//        constructors are implicit and it is extremely easy to have accidental
+//        copies with them. in fact, the notion of `copy` is implicit and
+//        ambigous and should be explicit and disambiguated for non-trivial
+//        types
 //
 template <typename ReturnType, typename... Args>
 struct Fn<ReturnType(Args...)> {
@@ -118,6 +130,7 @@ struct RawFnTraits<ReturnType(Args...)> {
   using signature = ReturnType(Args...);
   using fn = Fn<signature>;
   using dispatcher = RawFunctionDispatcher<ReturnType, Args...>;
+  using return_type = ReturnType;
 };
 
 template <typename ReturnType, typename... Args>
@@ -142,6 +155,7 @@ struct MemberFnTraits<ReturnType (Type::*)(Args...)> {
   using fn = Fn<signature>;
   using type = Type;
   using dispatcher = FunctorDispatcher<type, ReturnType, Args...>;
+  using return_type = ReturnType;
 };
 
 // const member functions
@@ -152,6 +166,7 @@ struct MemberFnTraits<ReturnType (Type::*)(Args...) const> {
   using fn = Fn<signature>;
   using type = Type const;
   using dispatcher = FunctorDispatcher<type, ReturnType, Args...>;
+  using return_type = ReturnType;
 };
 
 template <class Type>
@@ -171,6 +186,7 @@ struct is_functor_impl<T, decltype(&T::operator(), (void)0)>
 template <typename T>
 constexpr bool is_functor = impl::is_functor_impl<T>::value;
 
+// TODO(lamarrr): rename to unsafe
 template <typename Functor>
 auto make_functor_fn_raw(Functor& functor) {
   static_assert(is_functor<Functor>);
@@ -181,6 +197,20 @@ auto make_functor_fn_raw(Functor& functor) {
 
   return fn{&dispatcher::dispatch, &functor};
 }
+
+// (1) fn::make(Functor<R(A...)>) -> Fn<R(A...)>; functors
+//
+// (2) fn::make_static(R(*)(A...)) -> Fn<R(A...)>; function pointers and static
+// lambdas (i.e. lambdas without data/functor static functions)
+//
+// fn::rc::make(Allocator, Functor<R(A...)>) -> Rc<Fn<R(A...)>>; same as (1) but
+// takes ownership of its arguments and returns a reference count to them,
+// AllocResult
+//
+// fn::rc::make_static(Allocator, R(*)(A...)) -> Rc<Fn<R(A...)>>; same as (2)
+// but takes ownership of its arguments and returns a reference count to them,
+// AllocResult
+//
 
 template <typename RawFunctionType,
           std::enable_if_t<is_function_pointer<RawFunctionType>, int> = 0>
@@ -205,18 +235,20 @@ auto make_ptr_fn_raw(StaticFunctor functor) {
   return make_ptr_fn_raw(function_pointer);
 }
 
-template <typename FunctorType>
-auto make_functor_fn(FunctorType&& functor) {
-  Rc fn_rc = mem::make_rc(std::move(functor));
+template <typename Functor>
+Result<Rc<typename FunctorFnTraits<Functor>::fn>, AllocError> make_functor_fn(
+    Allocator allocator, Functor&& functor) {
+  TRY_OK(fn_rc, mem::make_rc(allocator, std::move(functor)));
 
   Fn fn = make_functor_fn_raw(*fn_rc.get());
 
-  return stx::transmute(fn, std::move(fn_rc));
+  return Ok(stx::transmute(fn, std::move(fn_rc)));
 }
 
-template <typename FunctorType>
-void make_functor_fn(FunctorType& fn) = delete;
+template <typename Functor>
+void make_functor_fn(Allocator allocator, Functor& fn) = delete;
 
+// ...
 template <typename RawFunctionType,
           std::enable_if_t<is_function_pointer<RawFunctionType>, int> = 0>
 auto make_static_fn(RawFunctionType* function_pointer) {
@@ -224,7 +256,7 @@ auto make_static_fn(RawFunctionType* function_pointer) {
   using fn = typename traits::fn;
   using dispatcher = typename traits::dispatcher;
 
-  Manager manager{static_storage_manager_handle};
+  Manager manager = static_storage_manager;
   manager.ref();
 
   return unsafe_make_rc(
@@ -232,6 +264,7 @@ auto make_static_fn(RawFunctionType* function_pointer) {
       std::move(manager));
 }
 
+// ...
 template <typename StaticFunctor,
           std::enable_if_t<is_functor<StaticFunctor>, int> = 0>
 auto make_static_fn(StaticFunctor functor) {

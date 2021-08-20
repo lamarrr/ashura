@@ -21,9 +21,9 @@ struct SubsystemsRegistry {
 
   template <typename SubSystemType>
   stx::Result<stx::NoneType, SubsystemError> register_subsystem(
-      std::string identifier, stx::mem::Rc<SubSystemType> const& subsystem) {
+      std::string identifier, stx::Rc<SubSystemType*> const& subsystem) {
     static_assert(std::is_base_of_v<SubsystemImpl, SubSystemType>);
-    auto subsystem_impl = stx::mem::cast<SubsystemImpl>(subsystem);
+    auto subsystem_impl = stx::cast<SubsystemImpl*>(subsystem);
     auto cancelation_future = subsystem_impl.get()->get_future();
     auto [pos, was_inserted] =
         map_.emplace(std::move(identifier),

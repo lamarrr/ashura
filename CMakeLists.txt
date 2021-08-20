@@ -162,9 +162,9 @@ target_compile_definitions(
          SK_ENABLE_DUMP_GPU)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-  add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)
+  add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic -fno-exceptions -fno-unwind-tables)
 elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-  add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic)
+  add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic -fno-exceptions -fno-unwind-tables)
 endif()
 
 # TODO(lamarrr): we need extensive unit testing even for dependencies
@@ -179,4 +179,3 @@ add_subdirectory(primitives)
 add_subdirectory(utils)
 add_subdirectory(ui)
 add_subdirectory(scheduler)
-# export ASAN_OPTIONS=fast_unwind_on_malloc=0 CXXFLAGS=""

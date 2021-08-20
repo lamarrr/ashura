@@ -1,5 +1,5 @@
+#include "stx/memory.h"
 #include "vlk/scheduler.h"
-
 using namespace std::chrono_literals;
 
 float rawrrr(float arg) {
@@ -10,11 +10,13 @@ float rawrrr(float arg) {
 void gggg() {
   // vlk::TaskScheduler sched;
 
-  stx::Promise promise = stx::make_promise<int>();
+  stx::Promise promise = stx::make_promise<int>(stx::os_allocator).unwrap();
   stx::Future future = promise.get_future();
   // auto [future2, promise2] = stx::make_future<void>();
 
-  auto fn = stx::make_functor_fn([](int value) { VLK_LOG("value {}", value); });
+  auto fn = stx::make_functor_fn(stx::os_allocator, [](int value) {
+              VLK_LOG("value {}", value);
+            }).unwrap();
 
   auto g = stx::make_static_fn(rawrrr);
 
@@ -100,6 +102,10 @@ promise2.notify_completed();
 #include "gtest/gtest.h"
 #include "vlk/scheduler/timeline.h"
 
+struct alignas(64) fuck {
+  int y;
+};
+
 TEST(ScheduleTimelineTest, Tick) {
   auto timepoint = std::chrono::steady_clock::now();
   {
@@ -111,12 +117,14 @@ TEST(ScheduleTimelineTest, Tick) {
 
     timeline
         .add_task(stx::make_static_fn([]() {}), {}, {},
-                  stx::PromiseAny{stx::make_promise<void>()}, timepoint)
+                  stx::PromiseAny{
+                      stx::make_promise<void>(stx::os_allocator).unwrap()},
+                  timepoint)
         .unwrap();
 
     timeline.tick(slots, timepoint);
 
-    EXPECT_EQ(timeline.thread_slots_capture_.size(), 0);
+    EXPECT_EQ(timeline.thread_slots_capture.size(), 0);
   }
 
   {
@@ -127,20 +135,29 @@ TEST(ScheduleTimelineTest, Tick) {
     for (size_t i = 0; i < 10; i++)
       slots
           .push(stx::mem::make_rc_inplace<vlk::ThreadSlot>(
-              stx::make_promise<void>()))
+                    stx::os_allocator,
+                    stx::make_promise<void>(stx::os_allocator).unwrap())
+                    .unwrap())
           .unwrap();
 
     for (size_t i = 0; i < 20; i++) {
       timeline
           .add_task(stx::make_static_fn([]() {}), {}, {},
-                    stx::PromiseAny{stx::make_promise<void>()}, timepoint)
+                    stx::PromiseAny{
+                        stx::make_promise<void>(stx::os_allocator).unwrap()},
+                    timepoint)
           .unwrap();
     }
 
     timeline.tick(slots, timepoint);
     EXPECT_EQ(slots.size(), 10);
-    EXPECT_EQ(timeline.thread_slots_capture_.size(), slots.size());
+    EXPECT_EQ(timeline.thread_slots_capture.size(), slots.size());
 
     EXPECT_EQ(timeline.starvation_timeline.size(), 20);
   }
+
+  stx::Heaped heaped =
+      stx::make_heaped(stx::os_allocator, std::array<fuck, 400>{}).unwrap();
+  heaped->size();
+  heaped->empty();
 }

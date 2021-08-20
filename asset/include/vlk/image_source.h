@@ -52,7 +52,8 @@ struct FileImageSource {
                   stx::Option<ImageFormat> target_format = stx::None);
 
   auto get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.get()->tag}, data)};
+    return AssetTag{
+        stx::transmute(std::string_view{data.get()->tag}, data.share())};
   }
 
   bool operator==(FileImageSource const& other) const {
@@ -63,7 +64,7 @@ struct FileImageSource {
     return !(*this == other);
   }
 
-  stx::mem::Rc<FileImageSourceData const> data;
+  stx ::Rc<FileImageSourceData const*> data;
 };
 
 struct MemoryImageSource {
@@ -72,7 +73,8 @@ struct MemoryImageSource {
   ImageInfo get_info() const { return data.get()->info; }
 
   auto get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.get()->tag}, data)};
+    return AssetTag{
+        stx::transmute(std::string_view{data.get()->tag}, data.share())};
   }
 
   bool operator==(MemoryImageSource const& other) const {
@@ -85,7 +87,7 @@ struct MemoryImageSource {
 
   static uint64_t make_uid();
 
-  stx::mem::Rc<MemoryImageSourceData const> data;
+  stx ::Rc<MemoryImageSourceData const*> data;
 };
 
 using ImageSource = std::variant<MemoryImageSource, FileImageSource>;

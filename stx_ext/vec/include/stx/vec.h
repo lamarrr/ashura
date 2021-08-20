@@ -51,9 +51,9 @@ struct VecBase {
   static constexpr size_t alignment = alignof(T);
   static constexpr size_t element_size = sizeof(T);
 
-  explicit VecBase(StaticAllocator allocator, T* elements, size_t capacity)
+  explicit VecBase(Allocator allocator, void* memory, size_t capacity)
       : allocator_{std::move(allocator)},
-        elements_{elements},
+        elements_{static_cast<T*>(memory)},
         size_{0},
         capacity_{capacity} {}
 
@@ -170,7 +170,7 @@ struct VecBase {
   void unsafe_deallocate() { allocator_.deallocate(elements_); }
 
  protected:
-  StaticAllocator allocator_;
+  Allocator allocator_;
   T* elements_ = nullptr;
   size_t size_ = 0;
   size_t capacity_ = 0;
@@ -195,8 +195,7 @@ template <typename T>
 struct Vec : public VecBase<T> {
   using base = VecBase<T>;
 
-  explicit Vec(StaticAllocator allocator)
-      : base{std::move(allocator), nullptr, 0} {}
+  explicit Vec(Allocator allocator) : base{std::move(allocator), nullptr, 0} {}
 
   Vec(Vec&&) = default;
   Vec& operator=(Vec&&) = default;
@@ -304,7 +303,7 @@ struct FixedVec : public VecBase<T> {
 
   // `memory` must be an uninitialized memory
   //
-  FixedVec(StaticAllocator allocator, T* memory, size_t capacity)
+  FixedVec(Allocator allocator, void* memory, size_t capacity)
       : base{std::move(allocator), memory, capacity} {}
 
   FixedVec(FixedVec&&) = default;
@@ -335,6 +334,17 @@ struct FixedVec : public VecBase<T> {
 };
 
 namespace vec {
+
+template <typename T>
+Result<FixedVec<T>, AllocError> fixed(Allocator allocator, size_t capacity) {
+  void* mem = nullptr;
+  AllocError error = allocator.allocate(mem, capacity);
+  if (error != AllocError::None) {
+    return Err(AllocError{error});
+  }
+
+  return Ok(FixedVec<T>{allocator, mem, capacity});
+}
 
 // copy_with_allocator();
 // copy()

@@ -159,7 +159,7 @@ struct ProgressMonitorState {
 struct ProgressMonitor {
   Progress get_progress() const { return state.get()->load(); }
 
-  stx::mem::Rc<ProgressMonitorState const> state;
+  stx ::Rc<ProgressMonitorState const *> state;
 };
 
 struct ProgressUpdateProxy {
@@ -167,7 +167,7 @@ struct ProgressUpdateProxy {
     state.get()->update(progress);
   }
 
-  stx::mem::Rc<ProgressMonitorState> state;
+  stx::Rc<ProgressMonitorState *> state;
 };
 
 inline std::pair<ProgressMonitor, ProgressUpdateProxy> make_progress_monitor() {
@@ -211,7 +211,7 @@ struct CurlMultiHandle {
   }
 };
 
-inline stx::mem::Rc<CurlMultiHandle> make_curl_multi_handle() {
+inline stx::Rc<CurlMultiHandle *> make_curl_multi_handle() {
   return stx::mem::make_rc_inplace<CurlMultiHandle>(curl_multi_init());
 }
 
@@ -230,10 +230,10 @@ struct CurlEasyHandle {
 
   CURL *easy;
   curl_slist *header;
-  stx::mem::Rc<CurlMultiHandle> parent;
+  stx::Rc<CurlMultiHandle *> parent;
 
   CurlEasyHandle(CURL *easy_easy, curl_slist *easy_header,
-                 stx::mem::Rc<CurlMultiHandle> const &easy_parent)
+                 stx::Rc<CurlMultiHandle *> const &easy_parent)
       : easy{easy_easy}, header{easy_header}, parent{easy_parent} {}
 
   ~CurlEasyHandle() {
@@ -244,7 +244,7 @@ struct CurlEasyHandle {
     curl_slist_free_all(header);
   }
 
-  void begin_request(stx::mem::Rc<CurlMultiHandle> const &parent,
+  void begin_request(stx::Rc<CurlMultiHandle *> const &parent,
                      RunningTaskInfo *info_addr) {
     VLK_CURLE_ENSURE(curl_easy_setopt(easy, CURLOPT_WRITEDATA, info_addr));
     VLK_CURLE_ENSURE(curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION,
@@ -256,8 +256,8 @@ struct CurlEasyHandle {
   }
 };
 
-inline stx::mem::Rc<CurlEasyHandle> make_curl_easy_handle(
-    stx::mem::Rc<CurlMultiHandle> const &parent, PackagedTask const &task) {
+inline stx::Rc<CurlEasyHandle *> make_curl_easy_handle(
+    stx::Rc<CurlMultiHandle *> const &parent, PackagedTask const &task) {
   stx::Rc easy_handle_rc = stx::mem::make_rc_inplace<CurlEasyHandle>(
       curl_easy_init(), nullptr, parent);
 
@@ -308,7 +308,7 @@ enum class CancelState : uint8_t { Uncanceled, ExecutorCanceled, UserCanceled };
 enum class SuspendState : uint8_t { Resumed, Suspended };
 
 struct RunningTaskInfo {
-  stx::mem::Rc<CurlEasyHandle> easy;
+  stx::Rc<CurlEasyHandle *> easy;
   stx::RequestProxy request_proxy;
   PackagedTask packaged_task;
   Response response;
@@ -374,7 +374,7 @@ struct RunningTask {
   std::unique_ptr<RunningTaskInfo> info;
 
   explicit RunningTask(PackagedTask &&task,
-                       stx::mem::Rc<CurlMultiHandle> const &parent)
+                       stx::Rc<CurlMultiHandle *> const &parent)
       : info{std::make_unique<RunningTaskInfo>(RunningTaskInfo{
             make_curl_easy_handle(parent, task),
             stx::RequestProxy{task.promise}, std::move(task), Response{}})} {
@@ -711,7 +711,7 @@ struct ExecutionContextHandle {
                          });
   }
 
-  stx::mem::Rc<CurlMultiHandle> multi_;
+  stx::Rc<CurlMultiHandle *> multi_;
   stx::Promise<void> promise_;
   stx::RequestProxy request_proxy_;
 

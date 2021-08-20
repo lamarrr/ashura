@@ -19,18 +19,18 @@ namespace vlk {
 
 enum class AssetCacheError : uint8_t { InvalidTag };
 
-using PendingAsset = stx::Future<stx::mem::Rc<Asset>>;
-using LoadedAsset = stx::mem::Rc<Asset>;
+using PendingAsset = stx::Future<stx::Rc<Asset *>>;
+using LoadedAsset = stx::Rc<Asset *>;
 struct CanceledAsset {};
 
 // not thread or async safe
 struct AssetCache : public SubsystemImpl {
   // NOTE: the asset_future must not be moved from
-  void update(AssetTag tag, stx::Future<stx::mem::Rc<Asset>> asset_future) {
+  void update(AssetTag tag, stx::Future<stx::Rc<Asset *>> asset_future) {
     data_.insert_or_assign(std::move(tag), AssetInfo{std::move(asset_future)});
   }
 
-  void update(AssetTag tag, stx::mem::Rc<Asset> asset) {
+  void update(AssetTag tag, stx::Rc<Asset *> asset) {
     data_.insert_or_assign(std::move(tag), AssetInfo{asset});
   }
 

@@ -35,7 +35,7 @@ void AssetCache::tick(std::chrono::nanoseconds) {
     if (std::holds_alternative<PendingAsset>(asset_info.asset)) {
       auto &future = std::get<PendingAsset>(asset_info.asset);
       future.copy().match(
-          [&](stx::mem::Rc<Asset> &&asset) {
+          [&](stx::Rc<Asset*> &&asset) {
             uint64_t asset_size = asset.get()->size_bytes();
             total_size_ += asset_size;
             VLK_LOG(
