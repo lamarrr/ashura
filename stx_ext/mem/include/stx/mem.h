@@ -11,10 +11,6 @@
 #include "stx/struct.h"
 
 namespace stx {
-
-// template <typename T>
-// using RcObj = Rc<T*>;
-
 /// thread-safe
 ///
 ///
@@ -22,12 +18,16 @@ namespace stx {
 /// sharing issues
 ///
 ///
-struct AtomicRefCnt {
-  STX_MAKE_PINNED(AtomicRefCnt)
+/// we assume the user is sharing data/instructions and their side effects via a
+/// shared object shared across threads, so we perform acquire when performing
+/// unref.
+///
+struct AtomicRefCount {
+  STX_MAKE_PINNED(AtomicRefCount)
 
   std::atomic<uint64_t> ref_count;
 
-  explicit AtomicRefCnt(uint64_t initial_ref_count)
+  explicit AtomicRefCount(uint64_t initial_ref_count)
       : ref_count{initial_ref_count} {}
 
   uint64_t ref() { return ref_count.fetch_add(1, std::memory_order_relaxed); }
@@ -52,7 +52,7 @@ struct AtomicRefCnt {
 //
 // non-trivially destructible?
 // allocate
-// ObjectManager{ Object; AtomicRefCnt;   void unref() {  delete Object;   } }
+// ObjectManager{ Object; AtomicRefCount;   void unref() {  delete Object;   } }
 // allocate storage for pool
 //
 // trivially destructible blocks with trivial chunks, needs no destructor
@@ -69,7 +69,30 @@ struct AtomicRefCnt {
 // destructor????
 //
 //
-//
+template <typename Object>
+struct DeallocateObject {
+  STX_MAKE_PINNED(DeallocateObject)
+
+  using object_type = Object;
+
+  // placed in union to ensure the object's destructor is not called
+  union {
+    Object object;
+  };
+
+  Allocator allocator;
+
+  template <typename... Args>
+  explicit DeallocateObject(Allocator iallocator, Args&&... args)
+      : object{std::forward<Args>(args)...}, allocator{std::move(iallocator)} {}
+
+  constexpr void operator()(void* memory) {
+    object.~Object();
+    allocator.handle->deallocate(memory);
+  }
+
+  ~DeallocateObject() {}
+};
 
 /// thread-safe in ref-count and deallocation only
 ///
@@ -77,24 +100,23 @@ struct AtomicRefCnt {
 ///
 /// can be used for bulk object sharing.
 ///
-///
-template <typename Object>
-struct RefCntObject final : public ManagerHandle {
-  using object_type = Object;
+template <typename Functor>
+struct RefCntOperation : public ManagerHandle {
+  static_assert(std::is_invocable_v<Functor, void*>);
 
-  AtomicRefCnt ref_cnt;
-  Allocator allocator;
-  Object object;
+  STX_MAKE_PINNED(RefCntOperation)
 
-  STX_MAKE_PINNED(RefCntObject)
+  AtomicRefCount ref_count;
+
+  // operation to be performed once. i.e.
+  // once the ref count reaches zero.
+  Functor operation;
 
   template <typename... Args>
-  RefCntObject(uint64_t initial_ref_count, Allocator iallocator, Args&&... args)
-      : ref_cnt{initial_ref_count},
-        allocator{std::move(iallocator)},
-        object{std::forward<Args>(args)...} {}
+  RefCntOperation(uint64_t initial_ref_count, Args&&... args)
+      : ref_count{initial_ref_count}, operation{std::forward<Args>(args)...} {}
 
-  virtual void ref() override final { ref_cnt.ref(); }
+  virtual void ref() override final { ref_count.ref(); }
 
   virtual void unref() override final {
     /// NOTE: the last user of the object might have made modifications to the
@@ -106,60 +128,52 @@ struct RefCntObject final : public ManagerHandle {
     /// atomic operation since it is non-observable anyway, since the handle
     /// will be deleted afterwards
     ///
-    if (ref_cnt.unref() == 1) {
-      if constexpr (!std::is_trivially_destructible_v<Object>) {
-        this->~RefCntObject();
-      }
-      allocator.deallocate(this);
+    if (ref_count.unref() == 1) {
+      operation(this);
     }
   }
 };
 
-/// memory resource management
-namespace mem {
-
-/// adopt the object
-///
-/// reference count for this associated object must be >=1 (if any).
-template <typename T>
-Rc<T*> unsafe_make_rc(T& object, Manager manager) {
-  return stx::unsafe_make_rc<T*>(&object, manager);
-}
+namespace dyn {
+namespace rc {
 
 template <typename T, typename... Args>
-Result<Rc<T*>, AllocError> make_rc_inplace(Allocator allocator,
-                                           Args&&... args) {
-  void* mem = nullptr;
-  AllocError error = allocator.allocate(mem, sizeof(RefCntObject<T>));
+Result<Rc<T*>, AllocError> make_inplace(Allocator allocator, Args&&... args) {
+  TRY_OK(memory, mem::allocate(allocator,
+                               sizeof(RefCntOperation<DeallocateObject<T>>)));
 
-  if (error != AllocError::None) {
-    return Err(AllocError{error});
-  }
+  void* mem = memory.handle;
 
-  RefCntObject<T>* obj_ptr =
-      new (mem) RefCntObject<T>{0, allocator, std::forward<Args>(args)...};
+  // release ownership of memory
+  memory.allocator = allocator_stub;
 
-  Manager manager{*static_cast<ManagerHandle*>(obj_ptr)};
+  using destroy_operation_type = RefCntOperation<DeallocateObject<T>>;
 
-  // the polymorphic manager manages itself,
+  destroy_operation_type* destroy_operation_handle =
+      new (mem) RefCntOperation<DeallocateObject<T>>{
+          0, std::move(allocator), std::forward<Args>(args)...};
+
+  // this polymorphic manager manages itself.
   // unref can be called on a polymorphic manager with a different pointer since
   // it doesn't need the handle, it can delete itself independently
+  Manager manager{*destroy_operation_handle};
+
+  // we perform a reference count increment for debugging/runtime hooking
+  // purpose. I know we can start with a 1 ref-count but no.
   manager.ref();
 
-  Rc<RefCntObject<T>*> obj_rc = unsafe_make_rc(*obj_ptr, manager);
+  Rc<destroy_operation_type*> destroy_operation_rc{
+      static_cast<destroy_operation_type*>(destroy_operation_handle), manager};
 
-  return Ok(transmute(static_cast<T*>(&obj_ptr->object), std::move(obj_rc)));
+  return Ok(transmute(&destroy_operation_handle->operation.object,
+                      std::move(destroy_operation_rc)));
 }
 
-/// uses polymorphic default-delete manager
 template <typename T>
-auto make_rc(Allocator allocator, T&& value) {
-  // TODO(lamarrr): check for l-value references?
-  return make_rc_inplace<T>(allocator, std::move(value));
+auto make(Allocator allocator, T value) {
+  return make_inplace<T>(allocator, std::move(value));
 }
 
-// make_rc_array
-//
 /// adopt an object memory handle that is guaranteed to be valid for the
 /// lifetime of this mem::Rc struct and any mem::Rc structs constructed or
 /// assigned from it. typically used for static storage lifetimes.
@@ -170,11 +184,12 @@ auto make_rc(Allocator allocator, T&& value) {
 /// storage objects live for the whole duration of the program so this is safe.
 ///
 template <typename T>
-Rc<T*> make_rc_for_static(T& object) {
+Rc<T*> make_static(T& object) {
   Manager manager = static_storage_manager;
   manager.ref();
-  return unsafe_make_rc(object, std::move(manager));
+  return Rc<T*>{&object, std::move(manager)};
 }
 
-}  // namespace mem
+}  // namespace rc
+}  // namespace dyn
 }  // namespace stx

@@ -16,7 +16,7 @@ namespace impl {
 struct AssetTag {
   explicit AssetTag(Rc<string_view> &&rc) : tag{std::move(rc)} {}
 
-  string_view as_str() const { return tag.get(); }
+  string_view as_str() const { return tag.handle; }
 
   bool operator==(AssetTag const &other) const {
     return as_str() == other.as_str();
@@ -44,3 +44,4 @@ struct AssetTag {
 };
 
 }  // namespace impl
+

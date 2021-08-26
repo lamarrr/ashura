@@ -16,8 +16,7 @@ namespace stx {
 ///
 template <typename T>
 constexpr bool is_resource_handle_type =
-    std::is_copy_constructible_v<T>&& std::is_move_constructible_v<T>&&
-        std::is_copy_assignable_v<T>&& std::is_move_assignable_v<T>;
+    std::is_move_constructible_v<T>&& std::is_move_assignable_v<T>;
 
 /// Rc - reference-counted resource
 ///
@@ -33,48 +32,58 @@ constexpr bool is_resource_handle_type =
 /// NOTE: Rc is neither a pointer nor a function. It just does one thing:
 /// manages lifetime
 ///
+///
+/// the only point of vulnerability is a use after std::move.
+/// shared_ptr leaves the pointer as a nullptr and the compiler can totally
+/// ignore it being dereferenced too. so both use-after-free and nullptr
+/// dereference are undefined behaviour.
+///
+/// probably more useful for debugging since the state of all the Rcs will be
+/// captured and you'd get to see which have been released and which haven't
+///
+///
+///
+/// Rc sort of guarantees that a use-after-free will only happen due to a
+/// use-after-move which is arguably more easily detectable than chasing raw
+/// pointers.
+///
+///
+///
 template <typename HandleType>
 struct Rc {
   static_assert(is_resource_handle_type<HandleType>);
 
   using handle_type = HandleType;
 
-  constexpr Rc(HandleType&& handle, Manager manager)
-      : handle_{std::move(handle)}, manager_{manager} {}
+  constexpr Rc(HandleType&& ihandle, Manager imanager)
+      : handle{std::move(ihandle)}, manager{std::move(imanager)} {}
 
-  constexpr Rc(Rc&& other) = default;
-  constexpr Rc& operator=(Rc&& other) = default;
+  constexpr Rc(Rc&& other)
+      : handle{std::move(other.handle)}, manager{std::move(other.manager)} {
+    other.manager = manager_stub;
+  }
+
+  constexpr Rc& operator=(Rc&& other) {
+    std::swap(handle, other.handle);
+    std::swap(manager, other.manager);
+
+    return *this;
+  }
 
   Rc(Rc const& other) = delete;
   Rc& operator=(Rc const& other) = delete;
 
   Rc share() const {
-    manager_.ref();
+    manager.ref();
 
-    return Rc{HandleType{handle_}, Manager{manager_}};
+    return Rc{HandleType{handle}, Manager{manager}};
   }
 
-  ~Rc() { manager_.unref(); }
+  ~Rc() { manager.unref(); }
 
-  constexpr HandleType const& get() const { return handle_; }
-
-  constexpr auto& unsafe_handle_ref() { return handle_; }
-
-  constexpr auto const& unsafe_handle_ref() const { return handle_; }
-
-  constexpr auto& unsafe_manager_ref() { return manager_; }
-
-  constexpr auto const& unsafe_manager_ref() const { return manager_; }
-
- private:
-  HandleType handle_;
-  Manager manager_;
+  HandleType handle;
+  Manager manager;
 };
-
-template <typename H>
-constexpr Rc<H> unsafe_make_rc(H&& handle, Manager manager) {
-  return Rc<H>{std::move(handle), manager};
-}
 
 /// Transmute a resource that uses a polymorphic manager.
 /// transmutation involves pretending that a target resource constructed from
@@ -98,16 +107,12 @@ constexpr Rc<H> unsafe_make_rc(H&& handle, Manager manager) {
 ///
 template <typename Target, typename Source>
 constexpr Rc<Target> transmute(Target target, Rc<Source>&& source) {
-  return unsafe_make_rc(std::move(target),
-                        std::move(source.unsafe_manager_ref()));
+  return Rc<Target>{std::move(target), std::move(source.manager)};
 }
 
-// TODO(lamarrr): make static array rc
-// TODO(lamarrr): make chunk
-//
 template <typename Target, typename Source>
 constexpr Rc<Target> cast(Rc<Source>&& source) {
-  Target target = static_cast<Target>(std::move(source.unsafe_handle_ref()));
+  Target target = static_cast<Target>(std::move(source.handle));
   return transmute(std::move(target), std::move(source));
 }
 

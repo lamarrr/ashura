@@ -113,3 +113,31 @@
 //
 //
 //
+
+
+Standard library is too general where it need not be.
+
+Sharing
+mostly used for sharing resources where the cost of sharing is lower than the cost of re-creating them. also when the same object is not guaranteed to be gotten once lost.
+
+
+# you'd typically need to allocate memory for the device handle and all other of its properties and attributes
+
+
+# "a workaround it isn't hard to implement" is not an excuse  for poor abstractions
+
+shared_ptr makes lifetime event-oriented???
+
+# resource sharing has nothing to do with allocation or memory, they are two independent and intertwined concepts
+
+OOP gives the illusion that we are operating on objects, meanwhile we are only operating on a virtual representation of them / these concepts, they are represented as bytes and operations to be performed on them.
+
+Objects are often bytes
+
+
+# if you think about it, the pointer isn't the resource, it is the device. and what we are trying to do is to keep the device alive until we don't need it any more.
+
+
+
+asynchrony/concurrency is a function of operations not of values nor of objects
+

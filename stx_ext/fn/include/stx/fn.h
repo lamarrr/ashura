@@ -186,9 +186,10 @@ struct is_functor_impl<T, decltype(&T::operator(), (void)0)>
 template <typename T>
 constexpr bool is_functor = impl::is_functor_impl<T>::value;
 
-// TODO(lamarrr): rename to unsafe
+namespace fn {
+
 template <typename Functor>
-auto make_functor_fn_raw(Functor& functor) {
+auto make_functor(Functor& functor) {
   static_assert(is_functor<Functor>);
 
   using traits = FunctorFnTraits<Functor>;
@@ -197,6 +198,76 @@ auto make_functor_fn_raw(Functor& functor) {
 
   return fn{&dispatcher::dispatch, &functor};
 }
+
+template <typename RawFunctionType,
+          std::enable_if_t<is_function_pointer<RawFunctionType>, int> = 0>
+auto make_static(RawFunctionType* function_pointer) {
+  using traits = RawFnTraits<RawFunctionType>;
+  using fn = typename traits::fn;
+  using dispatcher = typename traits::dispatcher;
+
+  return fn{&dispatcher::dispatch, function_pointer};
+}
+
+template <typename StaticFunctor,
+          std::enable_if_t<is_functor<StaticFunctor>, int> = 0>
+auto make_static(StaticFunctor functor) {
+  using traits = FunctorFnTraits<StaticFunctor>;
+  using ptr = typename traits::ptr;
+
+  static_assert(std::is_convertible_v<StaticFunctor, ptr>);
+
+  ptr function_pointer = static_cast<ptr>(functor);
+
+  return make_static(function_pointer);
+}
+
+namespace rc {
+
+template <typename Functor>
+Result<Rc<typename FunctorFnTraits<Functor>::fn>, AllocError> make_functor(
+    Allocator allocator, Functor functor) {
+  TRY_OK(fn_rc, dyn::rc::make(allocator, std::move(functor)));
+
+  Fn fn = stx::fn::make_functor(*fn_rc.handle);
+
+  return Ok(stx::transmute(fn, std::move(fn_rc)));
+}
+
+// ...
+template <typename RawFunctionType,
+          std::enable_if_t<is_function_pointer<RawFunctionType>, int> = 0>
+auto make_static(RawFunctionType* function_pointer) {
+  using traits = RawFnTraits<RawFunctionType>;
+  using fn = typename traits::fn;
+  using dispatcher = typename traits::dispatcher;
+
+  Manager manager = static_storage_manager;
+  manager.ref();
+
+  return Rc{
+      fn{&dispatcher::dispatch, reinterpret_cast<void*>(function_pointer)},
+      std::move(manager)};
+}
+
+// ...
+template <typename StaticFunctor,
+          std::enable_if_t<is_functor<StaticFunctor>, int> = 0>
+auto make_static(StaticFunctor functor) {
+  using traits = FunctorFnTraits<StaticFunctor>;
+  using ptr = typename traits::ptr;
+
+  static_assert(std::is_convertible_v<StaticFunctor, ptr>,
+                "functor is not convertible to function pointer");
+
+  ptr function_pointer = static_cast<ptr>(functor);
+
+  return make_static(function_pointer);
+}
+
+}  // namespace rc
+}  // namespace fn
+}  // namespace stx
 
 // (1) fn::make(Functor<R(A...)>) -> Fn<R(A...)>; functors
 //
@@ -211,72 +282,3 @@ auto make_functor_fn_raw(Functor& functor) {
 // but takes ownership of its arguments and returns a reference count to them,
 // AllocResult
 //
-
-template <typename RawFunctionType,
-          std::enable_if_t<is_function_pointer<RawFunctionType>, int> = 0>
-auto make_ptr_fn_raw(RawFunctionType* function_pointer) {
-  using traits = RawFnTraits<RawFunctionType>;
-  using fn = typename traits::fn;
-  using dispatcher = typename traits::dispatcher;
-
-  return fn{&dispatcher::dispatch, function_pointer};
-}
-
-template <typename StaticFunctor,
-          std::enable_if_t<is_functor<StaticFunctor>, int> = 0>
-auto make_ptr_fn_raw(StaticFunctor functor) {
-  using traits = FunctorFnTraits<StaticFunctor>;
-  using ptr = typename traits::ptr;
-
-  static_assert(std::is_convertible_v<StaticFunctor, ptr>);
-
-  ptr function_pointer = static_cast<ptr>(functor);
-
-  return make_ptr_fn_raw(function_pointer);
-}
-
-template <typename Functor>
-Result<Rc<typename FunctorFnTraits<Functor>::fn>, AllocError> make_functor_fn(
-    Allocator allocator, Functor&& functor) {
-  TRY_OK(fn_rc, mem::make_rc(allocator, std::move(functor)));
-
-  Fn fn = make_functor_fn_raw(*fn_rc.get());
-
-  return Ok(stx::transmute(fn, std::move(fn_rc)));
-}
-
-template <typename Functor>
-void make_functor_fn(Allocator allocator, Functor& fn) = delete;
-
-// ...
-template <typename RawFunctionType,
-          std::enable_if_t<is_function_pointer<RawFunctionType>, int> = 0>
-auto make_static_fn(RawFunctionType* function_pointer) {
-  using traits = RawFnTraits<RawFunctionType>;
-  using fn = typename traits::fn;
-  using dispatcher = typename traits::dispatcher;
-
-  Manager manager = static_storage_manager;
-  manager.ref();
-
-  return unsafe_make_rc(
-      fn{&dispatcher::dispatch, reinterpret_cast<void*>(function_pointer)},
-      std::move(manager));
-}
-
-// ...
-template <typename StaticFunctor,
-          std::enable_if_t<is_functor<StaticFunctor>, int> = 0>
-auto make_static_fn(StaticFunctor functor) {
-  using traits = FunctorFnTraits<StaticFunctor>;
-  using ptr = typename traits::ptr;
-
-  static_assert(std::is_convertible_v<StaticFunctor, ptr>,
-                "functor is not convertible to function pointer");
-
-  ptr function_pointer = static_cast<ptr>(functor);
-
-  return make_static_fn(function_pointer);
-}
-
-}  // namespace stx

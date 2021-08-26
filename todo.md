@@ -57,3 +57,27 @@ THIs might not be necessary since Skia will most likely be using a memory pool a
 - SLimming paint: https://www.youtube.com/watch?v=5Xv2A7aqJ9Y
 - SKiA update: https://www.youtube.com/watch?v=SU58JHK0-3o
 
+
+
+
+
+
+
+Turn off vsync to get raw performance numbers
+
+Profilers:
+
+- Radeon GPU Profiler
+- NVIDIA GPU Profiler
+- RenderDoc
+- High ALU usage tasks need to be moved to Compute, How?  Check APPLE METAL talks at WWDC
+
+
+
+Linux Perf Attach to Process:
+- ```perf stat -p 3129```
+
+
+
+
+perf sat -e L1-icache-loads,L1-icache-load-misses.... stalls ./bin - search for other flags

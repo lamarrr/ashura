@@ -7,8 +7,8 @@
 #include <vector>
 
 #include "stx/span.h"
-#include "vlk/ui/layout.h"
 #include "vlk/primitives.h"
+#include "vlk/ui/layout.h"
 #include "vlk/ui/widget.h"
 
 namespace vlk {
@@ -135,6 +135,8 @@ constexpr std::tuple<Rect, Padding> resolve_content_rect(
 // - tile cache
 //
 //
+// it is highly unlikely that the whole layout tree will be torn down so we try
+// to maintain the layout tree across rebuilds
 //
 struct LayoutTree {
   struct Node {

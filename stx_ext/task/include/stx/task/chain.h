@@ -119,8 +119,8 @@ struct ChainPhase {
     // here and proceed to the next phase, otherwise skip this phase and pass on
     // to the desired phase
     if (PhaseIndex == state.next_phase_index) {
-      arg_type &&arg = std::move(std::get<arg_type>(stack));
-      stack = fn(std::move(arg));
+      arg_type arg = std::move(std::get<arg_type>(stack));
+      stack = fn(std::forward<arg_type>(arg));
 
       state.next_phase_index++;
 
@@ -159,8 +159,8 @@ struct ChainPhase<PhaseIndex, Arg, Fn> {
   template <typename Variant>
   void resume(Variant &stack, ChainState &state, RequestProxy &) {
     if (PhaseIndex == state.next_phase_index) {
-      arg_type &&arg = std::move(std::get<arg_type>(stack));
-      stack = fn(std::move(arg));
+      arg_type arg = std::move(std::get<arg_type>(stack));
+      stack = fn(std::forward<arg_type>(arg));
 
       state.next_phase_index++;
       return;

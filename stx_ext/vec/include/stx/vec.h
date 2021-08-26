@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <new>
 #include <utility>
 
 #include "stx/allocator.h"
@@ -51,52 +50,38 @@ struct VecBase {
   static constexpr size_t alignment = alignof(T);
   static constexpr size_t element_size = sizeof(T);
 
-  explicit VecBase(Allocator allocator, void* memory, size_t capacity)
-      : allocator_{std::move(allocator)},
-        elements_{static_cast<T*>(memory)},
-        size_{0},
-        capacity_{capacity} {}
+  explicit VecBase(Memory memory, size_t capacity)
+      : memory_{std::move(memory)}, size_{0}, capacity_{capacity} {}
 
   VecBase(VecBase&& other)
-      : allocator_{std::move(other.allocator_)},
-        elements_{other.elements_},
+      : memory_{std::move(other.memory_)},
         size_{other.size_},
         capacity_{other.capacity_} {
-    other.elements_ = nullptr;
     other.size_ = 0;
     other.capacity_ = 0;
   }
 
   VecBase& operator=(VecBase&& other) {
-    impl::destroy_range(elements_, size_);
-    unsafe_deallocate();
+    std::swap(memory_, other.memory_);
+    std::swap(size_, other.size_);
+    std::swap(capacity_, other.capacity_);
 
-    allocator_ = std::move(other.allocator_);
-    elements_ = other.elements_;
-    size_ = other.size_;
-    capacity_ = other.capacity_;
-
-    other.elements_ = nullptr;
-    other.size_ = 0;
-    other.capacity_ = 0;
+    return *this;
   }
 
   VecBase(VecBase const&) = delete;
   VecBase& operator=(VecBase const&) = delete;
 
-  ~VecBase() {
-    impl::destroy_range(elements_, size_);
-    unsafe_deallocate();
-  }
+  ~VecBase() { impl::destroy_range(elements(), size_); }
 
-  T& operator[](size_t index) { return elements_[index]; }
-  T const& operator[](size_t index) const { return elements_[index]; }
+  T& operator[](size_t index) { return elements()[index]; }
+  T const& operator[](size_t index) const { return elements()[index]; }
 
   Option<Ref<T>> at(size_t index) {
     if (index >= size_) {
       return None;
     } else {
-      return some_ref(elements_[index]);
+      return some_ref(elements()[index]);
     }
   }
 
@@ -104,7 +89,7 @@ struct VecBase {
     if (index >= size_) {
       return None;
     } else {
-      return some_ref<T const>(elements_[index]);
+      return some_ref<T const>(elements()[index]);
     }
   }
 
@@ -115,22 +100,23 @@ struct VecBase {
 
   size_t capacity() const { return capacity_; }
 
-  T* data() { return elements_; }
-  T const* data() const { return elements_; }
+  T* data() { return static_cast<T*>(memory_.handle); }
+  T const* data() const { return static_cast<T const*>(memory_.handle); }
+
+  T* elements() { return data(); }
+  T const* elements() const { return data(); }
 
   bool empty() const { return size_ == 0; }
 
-  T* begin() { return elements_; }
-  T const* begin() const { return cbegin(); }
-  T const* cbegin() const { return elements_; }
+  T* begin() { return data(); }
+  T const* begin() const { return data(); }
 
-  T* end() { return elements_ + size_; }
-  T const* end() const { return cend(); }
-  T const* cend() const { return elements_ + size_; }
+  T* end() { return data() + size_; }
+  T const* end() const { return data() + size_; }
 
   // capacity is unchanged
   void clear() {
-    impl::destroy_range(elements_, size_);
+    impl::destroy_range(begin(), size_);
     size_ = 0;
   }
 
@@ -163,15 +149,12 @@ struct VecBase {
     }
   }
 
-  auto& unsafe_allocator_ref() { return allocator_; }
-  auto& unsafe_elements_ref() { return elements_; }
+  auto& unsafe_memory_ref() { return memory_; }
   auto& unsafe_size_ref() { return size_; }
   auto& unsafe_capacity_ref() { return capacity_; }
-  void unsafe_deallocate() { allocator_.deallocate(elements_); }
 
  protected:
-  Allocator allocator_;
-  T* elements_ = nullptr;
+  Memory memory_;
   size_t size_ = 0;
   size_t capacity_ = 0;
 };
@@ -195,7 +178,7 @@ template <typename T>
 struct Vec : public VecBase<T> {
   using base = VecBase<T>;
 
-  explicit Vec(Allocator allocator) : base{std::move(allocator), nullptr, 0} {}
+  explicit Vec(Allocator allocator) : base{Memory{allocator, nullptr}, 0} {}
 
   Vec(Vec&&) = default;
   Vec& operator=(Vec&&) = default;
@@ -227,7 +210,7 @@ struct Vec : public VecBase<T> {
 
     (void)ok;
 
-    T* inplace_construct_pos = base::elements_ + base::size_;
+    T* inplace_construct_pos = base::begin() + base::size_;
 
     new (inplace_construct_pos) T{std::forward<Args>(args)...};
 
@@ -246,45 +229,32 @@ struct Vec : public VecBase<T> {
   //
   Result<Void, AllocError> reserve(size_t cap) {
     size_t new_capacity = base::capacity_ > cap ? base::capacity_ : cap;
+    size_t new_capacity_bytes = new_capacity * base::element_size;
 
     if (new_capacity != base::capacity_) {
       if constexpr (std::is_trivially_move_constructible_v<T> &&
                     std::is_trivially_destructible_v<T>) {
-        void* ptr = base::elements_;
+        TRY_OK(ok, mem::reallocate(base::memory_, new_capacity_bytes));
 
-        AllocError err =
-            base::allocator_.reallocate(ptr, new_capacity * base::element_size);
+        (void)ok;
 
-        if (err != AllocError::None) {
-          return Err(AllocError{err});
-        }
-
-        base::elements_ = std::launder(reinterpret_cast<T*>(ptr));
         base::capacity_ = new_capacity;
-
       } else {
-        void* ptr = nullptr;
+        TRY_OK(new_memory,
+               mem::allocate(base::memory_.allocator, new_capacity_bytes));
 
-        AllocError err =
-            base::allocator_.allocate(ptr, new_capacity * base::element_size);
+        T* new_location = static_cast<T*>(new_memory.handle);
 
-        if (err != AllocError::None) {
-          return Err(AllocError{err});
-        }
-
-        T* new_elements = std::launder(reinterpret_cast<T*>(ptr));
-
-        T* out_it = new_elements;
+        T* iter = new_location;
 
         for (T& element : base::span()) {
-          new (out_it) T{std::move(element)};
-          out_it++;
+          new (iter) T{std::move(element)};
+          iter++;
         }
 
-        impl::destroy_range(base::elements_, base::size_);
-        base::unsafe_deallocate();
+        impl::destroy_range(base::begin(), base::size_);
 
-        base::elements_ = new_elements;
+        base::memory_ = std::move(new_memory);
         base::capacity_ = new_capacity;
       }
 
@@ -303,8 +273,8 @@ struct FixedVec : public VecBase<T> {
 
   // `memory` must be an uninitialized memory
   //
-  FixedVec(Allocator allocator, void* memory, size_t capacity)
-      : base{std::move(allocator), memory, capacity} {}
+  FixedVec(Memory memory, size_t capacity)
+      : base{std::move(memory), capacity} {}
 
   FixedVec(FixedVec&&) = default;
   FixedVec& operator=(FixedVec&&) = default;
@@ -324,7 +294,7 @@ struct FixedVec : public VecBase<T> {
     if (base::capacity_ < target_size) {
       return Err(VecError::InsufficientMemory);
     } else {
-      new (base::elements_ + base::size_) T{std::forward<Args>(args)...};
+      new (base::begin() + base::size_) T{std::forward<Args>(args)...};
 
       base::size_ = target_size;
 
@@ -337,13 +307,9 @@ namespace vec {
 
 template <typename T>
 Result<FixedVec<T>, AllocError> fixed(Allocator allocator, size_t capacity) {
-  void* mem = nullptr;
-  AllocError error = allocator.allocate(mem, capacity);
-  if (error != AllocError::None) {
-    return Err(AllocError{error});
-  }
+  TRY_OK(memory, mem::allocate(allocator, capacity));
 
-  return Ok(FixedVec<T>{allocator, mem, capacity});
+  return Ok(FixedVec<T>{std::move(memory), capacity});
 }
 
 // copy_with_allocator();
@@ -411,5 +377,4 @@ Result<Void, VecError> resize(FixedVec<T>& vec, size_t target_size,
 }
 
 }  // namespace vec
-
 }  // namespace stx

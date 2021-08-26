@@ -1,1 +1,1 @@
-#include "stx/memory.h"
+#include "stx/dynamic.h"

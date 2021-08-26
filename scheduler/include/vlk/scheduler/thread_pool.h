@@ -69,7 +69,7 @@ struct ThreadPool {
       : num_threads{std::min<size_t>(std::thread::hardware_concurrency(), 1)},
         threads{stx::vec::fixed<std::thread>(allocator, num_threads).unwrap()},
         thread_slots{
-            stx::vec::fixed<stx ::Rc<ThreadSlot *>>(allocator, num_threads)
+            stx::vec::fixed<stx ::Rc<ThreadSlot*>>(allocator, num_threads)
                 .unwrap()},
         promise{stx::make_promise<void>(allocator).unwrap()} {
     promise.notify_executing();
@@ -77,7 +77,7 @@ struct ThreadPool {
     for (size_t i = 0; i < num_threads; i++) {
       thread_slots
           .push_inplace(
-              stx::mem::make_rc_inplace<ThreadSlot>(
+              stx::dyn::rc::make_inplace<ThreadSlot>(
                   allocator, stx::make_promise<void>(allocator).unwrap())
                   .unwrap())
           .unwrap();
@@ -85,7 +85,7 @@ struct ThreadPool {
 
     for (size_t i = 0; i < num_threads; i++) {
       threads
-          .push_inplace([slot = &thread_slots[i].get()->slot] {
+          .push_inplace([slot = &thread_slots[i].handle->slot] {
             uint64_t eventless_polls = 0;
             while (true) {
               stx::CancelRequest request = slot->promise.fetch_cancel_request();
@@ -108,7 +108,7 @@ struct ThreadPool {
               while ((now - task_poll_begin) < CANCELATION_POLL_MIN_PERIOD) {
                 Option task = slot->try_pop_task();
                 if (task.is_some()) {
-                  task.value().get()();
+                  task.value().handle();
                   eventless_polls = 0;
                 } else {
                   eventless_polls++;
@@ -144,7 +144,7 @@ struct ThreadPool {
         if (promise.fetch_cancel_request().state ==
             stx::RequestedCancelState::Canceled) {
           for (auto& slot : thread_slots) {
-            slot.get()->slot.promise.get_future().request_cancel();
+            slot.handle->slot.promise.get_future().request_cancel();
           }
           state = State::ShuttingDown;
         }
@@ -155,7 +155,7 @@ struct ThreadPool {
       case State::ShuttingDown: {
         if (std::all_of(thread_slots.begin(), thread_slots.end(),
                         [](auto const& slot) {
-                          return slot.get()->slot.promise.is_done();
+                          return slot.handle->slot.promise.is_done();
                         })) {
           state = State::Shutdown;
           promise.notify_user_canceled();

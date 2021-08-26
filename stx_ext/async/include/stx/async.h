@@ -297,7 +297,7 @@ enum class RequestedCancelState : uint8_t {
 ///
 /// Implementation Note: the executor is solely responsible for bringing the
 /// task back to the resumed state once forced into the suspended state. the
-/// executor's suspension requested state therefore overrides any user requested
+/// executor's requested states therefore overrides any user requested
 /// state.
 ///
 ///
@@ -350,7 +350,9 @@ struct ServiceToken {
 // themselves.
 //
 // non-terminal unsequenced updates to the future's states don't affect what the
-// user observes.
+// user observes. this helps with consistency of observation of terminal state
+// but not for the non-terminal ones.
+//
 //
 struct FutureExecutionState {
   STX_DEFAULT_CONSTRUCTOR(FutureExecutionState)
@@ -422,6 +424,17 @@ struct FutureExecutionState {
       impl::TerminalFutureStatus expected = impl::TerminalFutureStatus::Pending;
       impl::TerminalFutureStatus target =
           impl::TerminalFutureStatus::Completing;
+
+      // if the future has already reached a terminal state (canceled,
+      // completed, force-canceled) or another thread is completing the future,
+      // then we can't proceed to modify the future's terminal state or  the
+      // shared storage
+      //
+      // satisfies: the shared data storage is only ever written to once by all
+      // the executors satisfies: the terminal state is only ever updated once.
+      //
+
+      // the future has not already reached a terminal state
       if (term.compare_exchange_strong(expected, target,
                                        std::memory_order_relaxed,
                                        std::memory_order_relaxed)) {
@@ -439,8 +452,11 @@ struct FutureExecutionState {
   }
 
   // acquires write operations and stored value that happened on the
-  // executor thread, ordered around `future_status`
+  // executor thread, ordered around the terminal status
   FutureStatus user____fetch_status____with_result() const {
+    // satisfies: the ordering of instructions to the shared storage is
+    // consistent with the order in which it was written from the executor
+    // thread.
     return fetch_status(std::memory_order_acquire);
   }
 
@@ -458,6 +474,13 @@ struct FutureExecutionState {
 
  private:
   FutureStatus fetch_status(std::memory_order terminal_load_mem_order) const {
+    // satisfies: the terminal status overrides the informational status and is
+    // always checked before the informational status
+    //
+    // NOTE: that no data is shared or communicated with the user prior to
+    // completion of the future so the sequence in which the user observes the
+    // statuses don't matter.
+    //
     impl::TerminalFutureStatus term_status = term.load(terminal_load_mem_order);
 
     switch (term_status) {
@@ -474,10 +497,14 @@ struct FutureExecutionState {
   }
 
   void notify_info(impl::InfoFutureStatus status) {
+    // the informational status can come in any order and don't need to be
+    // sequenced
+    // it doesn't need to be coordinated with the terminal status.
     info.store(status, std::memory_order_relaxed);
   }
 
   void notify_term_no_result(impl::TerminalFutureStatus const status) {
+    // satisfies that terminal state is only ever updated once
     impl::TerminalFutureStatus expected = impl::TerminalFutureStatus::Pending;
     term.compare_exchange_strong(expected, status, std::memory_order_relaxed,
                                  std::memory_order_relaxed);
@@ -508,6 +535,11 @@ struct FutureRequestState {
     // when in a force suspended state, it is the sole responsibilty of the
     // executor to bring the async operation back to the resumed state and clear
     // the force suspend request
+    //
+
+    // satisfies: suspend and cancelation requests can come in any order and be
+    // observed in any order.
+
     RequestedSuspendState user_requested_state =
         user_requested_suspend_state.load(std::memory_order_relaxed);
     RequestedSuspendState executor_requested_state =
@@ -520,16 +552,19 @@ struct FutureRequestState {
   }
 
   void user____request_cancel() {
+    // satisfies: cancelation request can only happen once and can't be cleared
     user_requested_cancel_state.store(RequestedCancelState::Canceled,
                                       std::memory_order_relaxed);
   }
 
   void user____request_resume() {
+    // satisfies: suspend and resume can be requested across threads
     user_requested_suspend_state.store(RequestedSuspendState::Resumed,
                                        std::memory_order_relaxed);
   }
 
   void user____request_suspend() {
+    // satisfies: suspend and resume can be requested across threads
     user_requested_suspend_state.store(RequestedSuspendState::Suspended,
                                        std::memory_order_relaxed);
   }
@@ -628,10 +663,20 @@ struct FutureState : public FutureBaseState {
 
   // allow drain operation to modify object. alt: reap
   // allow inspect object to copy object.
-
+  //
+  // destructor only runs when there's no reference to the future's state
+  //
   ~FutureState() {
-    // destructor only runs once and only happens when it isn't used across
-    // threads, so locking is not necessary
+    // destructor only runs once when no other operation is happening on the
+    // future. and only happens when it isn't used across threads, so locking is
+    // not necessary.
+    //
+    // we do need to ensure the ordering of writes to the shared state relative
+    // to this destroy operation (acquire).
+    //
+    // we don't need to release after destroying since changes can't be observed
+    // after destructor is run.
+    //
     FutureStatus status =
         FutureBaseState::user____fetch_status____with_result();
 
@@ -656,11 +701,25 @@ struct FutureState : public FutureBaseState {
   // the producer (executor) only writes once to the future, but the future is a
   // shared one by default and is intended to be shared by multiple executors so
   // we need to use an extremely fast non-blocking lock so we don't get in the
-  // way of the executors. completion operations are usually extremely fast.
-  // i.e. std::move in, shared_ptr or Rc write. if you're performing a copy
-  // (i.e. of a vector whilst holding this lock, you'll block the executor and
-  // waste a lot of processor time if it so happens that the executor needs to
-  // access it and busy waits).
+  // way of the executors, and the result acquisition operation is expected to
+  // be very fast, typically spanning 10 loads/writes.
+  //
+  // completion operations are extremely fast. i.e. std::move.
+  //
+  // For a shared future, if you're performing a deep copy and then another
+  // executor or execution unit happens to be requesting access to the shared
+  // storage whilst you're doing so, you'd degrade your performance benefits as
+  // the executor would block for prolonged period of time wasting processor
+  // cycles. You should ideally perform copy of trivial types or shallow copies
+  // during this.
+  //
+  // i.e. copying a very large vector whilst holding this lock, will block all
+  // other executors requesting access to the storage and thus waste a lot of
+  // processor time. it is therefore recommended to return a shared vector and
+  // then shallow copy it. but be careful of modifications, if you need to
+  // modify across threads then perform the task of copying across different
+  // tasks.
+  //
   SpinLock storage_lock;
 
   // sends in the result of the async operation.
@@ -701,16 +760,16 @@ struct FutureBase {
       : state{std::move(init_state)} {}
 
   FutureStatus fetch_status() const {
-    return state.get()->user____fetch_status____with_no_result();
+    return state.handle->user____fetch_status____with_no_result();
   }
 
-  void request_cancel() const { state.get()->user____request_cancel(); }
+  void request_cancel() const { state.handle->user____request_cancel(); }
 
-  void request_suspend() const { state.get()->user____request_suspend(); }
+  void request_suspend() const { state.handle->user____request_suspend(); }
 
-  void request_resume() const { state.get()->user____request_resume(); }
+  void request_resume() const { state.handle->user____request_resume(); }
 
-  bool is_done() const { return state.get()->user____is_done(); }
+  bool is_done() const { return state.handle->user____is_done(); }
 
   Rc<FutureState<T>*> state;
 };
@@ -740,15 +799,18 @@ struct Future : public FutureBase<T> {
 
   // copy operations should be extremely fast
   Result<T, FutureError> copy() const {
-    return Base::state.get()->user____copy_result();
+    return Base::state.handle->user____copy_result();
   }
 
   // move operations should be extremely fast
   Result<T, FutureError> move() const {
-    return Base::state.get()->user____move_result();
+    return Base::state.handle->user____move_result();
   }
 
   Future share() const { return Future{Base::state.share()}; }
+
+  // user ref result
+  // invocable(ref)
 
   // map operations should be extremely fast
   // .map -> Result<U, FutureError> {}
@@ -769,23 +831,23 @@ struct FutureAny {
   STX_DISABLE_DEFAULT_CONSTRUCTOR(FutureAny)
 
   template <typename T>
-  explicit FutureAny(Future<T> const& future)
-      : state{cast<FutureBaseState*>(future.state.share())} {}
+  explicit FutureAny(Future<T>&& future)
+      : state{cast<FutureBaseState*>(std::move(future.state))} {}
 
   explicit FutureAny(Rc<FutureBaseState*>&& istate)
       : state{std::move(istate)} {}
 
   FutureStatus fetch_status() const {
-    return state.get()->user____fetch_status____with_no_result();
+    return state.handle->user____fetch_status____with_no_result();
   }
 
-  void request_cancel() const { state.get()->user____request_cancel(); }
+  void request_cancel() const { state.handle->user____request_cancel(); }
 
-  void request_suspend() const { state.get()->user____request_suspend(); }
+  void request_suspend() const { state.handle->user____request_suspend(); }
 
-  void request_resume() const { state.get()->user____request_resume(); }
+  void request_resume() const { state.handle->user____request_resume(); }
 
-  bool is_done() const { return state.get()->user____is_done(); }
+  bool is_done() const { return state.handle->user____is_done(); }
 
   FutureAny share() const { return FutureAny{state.share()}; }
 
@@ -799,91 +861,97 @@ struct PromiseBase {
   explicit PromiseBase(Rc<FutureState<T>*>&& init_state)
       : state{std::move(init_state)} {}
 
-  void notify_scheduled() const { state.get()->executor____notify_scheduled(); }
+  void notify_scheduled() const {
+    state.handle->executor____notify_scheduled();
+  }
 
-  void notify_submitted() const { state.get()->executor____notify_submitted(); }
+  void notify_submitted() const {
+    state.handle->executor____notify_submitted();
+  }
 
-  void notify_executing() const { state.get()->executor____notify_executing(); }
+  void notify_executing() const {
+    state.handle->executor____notify_executing();
+  }
 
   void notify_user_cancel_begin() const {
-    state.get()->executor____notify_user_canceling();
+    state.handle->executor____notify_user_canceling();
   }
 
   void notify_user_canceled() const {
-    state.get()->executor____notify_user_canceled();
+    state.handle->executor____notify_user_canceled();
   }
 
   void notify_force_cancel_begin() const {
-    state.get()->executor____notify_force_canceling();
+    state.handle->executor____notify_force_canceling();
   }
 
   void notify_force_canceled() const {
-    state.get()->executor____notify_force_canceled();
+    state.handle->executor____notify_force_canceled();
   }
 
   void notify_force_suspend_begin() const {
-    state.get()->executor____notify_force_suspending();
+    state.handle->executor____notify_force_suspending();
   }
 
   void notify_force_suspended() const {
-    state.get()->executor____notify_force_suspended();
+    state.handle->executor____notify_force_suspended();
   }
 
   void notify_force_resume_begin() const {
-    state.get()->executor____notify_force_resuming();
+    state.handle->executor____notify_force_resuming();
   }
 
   void notify_force_resumed() const {
-    state.get()->executor____notify_force_resuming();
+    state.handle->executor____notify_force_resuming();
   }
 
   void notify_user_suspend_begin() const {
-    state.get()->executor____notify_user_suspending();
+    state.handle->executor____notify_user_suspending();
   }
 
   void notify_user_suspended() const {
-    state.get()->executor____notify_user_suspended();
+    state.handle->executor____notify_user_suspended();
   }
 
   void notify_user_resume_begin() const {
-    state.get()->executor____notify_user_resuming();
+    state.handle->executor____notify_user_resuming();
   }
 
   void notify_user_resumed() const {
-    state.get()->executor____notify_user_resumed();
+    state.handle->executor____notify_user_resumed();
   }
 
   void request_force_cancel() const {
-    state.get()->scheduler____request_force_cancel();
+    state.handle->scheduler____request_force_cancel();
   }
 
   void request_force_suspend() const {
-    state.get()->scheduler____request_force_suspend();
+    state.handle->scheduler____request_force_suspend();
   }
 
   void request_force_resume() const {
-    state.get()->scheduler____request_force_resume();
+    state.handle->scheduler____request_force_resume();
   }
 
   // after `request_force_suspend` or `request_force_resume` are called. all
   // tasks remain in the forced state until they are cleared.
   void clear_force_suspension_request() const {
-    state.get()->scheduler____clear_force_suspension_request();
+    state.handle->scheduler____clear_force_suspension_request();
   }
 
   CancelRequest fetch_cancel_request() const {
-    return state.get()->proxy____fetch_cancel_request();
+    return state.handle->proxy____fetch_cancel_request();
   }
 
   SuspendRequest fetch_suspend_request() const {
-    return state.get()->proxy____fetch_suspend_request();
+    return state.handle->proxy____fetch_suspend_request();
   }
 
   FutureStatus fetch_status() const {
-    return state.get()->user____fetch_status____with_no_result();
+    return state.handle->user____fetch_status____with_no_result();
   }
 
-  bool is_done() const { return state.get()->user____is_done(); }
+  bool is_done() const { return state.handle->user____is_done(); }
 
   Future<T> get_future() const { return Future<T>{state.share()}; }
 
@@ -900,7 +968,7 @@ struct Promise : public PromiseBase<T> {
       : Base{std::move(init_state)} {}
 
   void notify_completed(T&& value) const {
-    Base::state.get()->executor____complete_with_object(std::move(value));
+    Base::state.handle->executor____complete_with_object(std::move(value));
   }
 
   Promise share() const { return Promise{Base::state.share()}; }
@@ -916,7 +984,7 @@ struct Promise<void> : public PromiseBase<void> {
       : Base{std::move(init_state)} {}
 
   void notify_completed() const {
-    Base::state.get()->executor____complete____with_void();
+    Base::state.handle->executor____complete____with_void();
   }
 
   Promise share() const { return Promise{Base::state.share()}; }
@@ -926,97 +994,103 @@ struct PromiseAny {
   STX_DISABLE_DEFAULT_CONSTRUCTOR(PromiseAny)
 
   template <typename T>
-  explicit PromiseAny(Promise<T> const& promise)
-      : state{cast<FutureBaseState*>(promise.state.share())} {}
+  explicit PromiseAny(Promise<T>&& promise)
+      : state{cast<FutureBaseState*>(std::move(promise.state))} {}
 
   explicit PromiseAny(Rc<FutureBaseState*>&& istate)
       : state{std::move(istate)} {}
 
-  void notify_scheduled() const { state.get()->executor____notify_scheduled(); }
+  void notify_scheduled() const {
+    state.handle->executor____notify_scheduled();
+  }
 
-  void notify_submitted() const { state.get()->executor____notify_submitted(); }
+  void notify_submitted() const {
+    state.handle->executor____notify_submitted();
+  }
 
-  void notify_executing() const { state.get()->executor____notify_executing(); }
+  void notify_executing() const {
+    state.handle->executor____notify_executing();
+  }
 
   void notify_user_cancel_begin() const {
-    state.get()->executor____notify_user_canceling();
+    state.handle->executor____notify_user_canceling();
   }
 
   void notify_user_canceled() const {
-    state.get()->executor____notify_user_canceled();
+    state.handle->executor____notify_user_canceled();
   }
 
   void notify_force_cancel_begin() const {
-    state.get()->executor____notify_force_canceling();
+    state.handle->executor____notify_force_canceling();
   }
 
   void notify_force_canceled() const {
-    state.get()->executor____notify_force_canceled();
+    state.handle->executor____notify_force_canceled();
   }
 
   void notify_force_suspend_begin() const {
-    state.get()->executor____notify_force_suspending();
+    state.handle->executor____notify_force_suspending();
   }
 
   void notify_force_suspended() const {
-    state.get()->executor____notify_force_suspended();
+    state.handle->executor____notify_force_suspended();
   }
 
   void notify_force_resume_begin() const {
-    state.get()->executor____notify_force_resuming();
+    state.handle->executor____notify_force_resuming();
   }
 
   void notify_force_resumed() const {
-    state.get()->executor____notify_force_resuming();
+    state.handle->executor____notify_force_resuming();
   }
 
   void notify_user_suspend_begin() const {
-    state.get()->executor____notify_user_suspending();
+    state.handle->executor____notify_user_suspending();
   }
 
   void notify_user_suspended() const {
-    state.get()->executor____notify_user_suspended();
+    state.handle->executor____notify_user_suspended();
   }
 
   void notify_user_resume_begin() const {
-    state.get()->executor____notify_user_resuming();
+    state.handle->executor____notify_user_resuming();
   }
 
   void notify_user_resumed() const {
-    state.get()->executor____notify_user_resumed();
+    state.handle->executor____notify_user_resumed();
   }
 
   void request_force_cancel() const {
-    state.get()->scheduler____request_force_cancel();
+    state.handle->scheduler____request_force_cancel();
   }
 
   void request_force_suspend() const {
-    state.get()->scheduler____request_force_suspend();
+    state.handle->scheduler____request_force_suspend();
   }
 
   void request_force_resume() const {
-    state.get()->scheduler____request_force_resume();
+    state.handle->scheduler____request_force_resume();
   }
 
   // after `request_force_suspend` or `request_force_resume` are called. all
   // tasks remain in the forced state until the force requests are cleared.
   void clear_force_suspension_request() const {
-    state.get()->scheduler____clear_force_suspension_request();
+    state.handle->scheduler____clear_force_suspension_request();
   }
 
   CancelRequest fetch_cancel_request() const {
-    return state.get()->proxy____fetch_cancel_request();
+    return state.handle->proxy____fetch_cancel_request();
   }
 
   SuspendRequest fetch_suspend_request() const {
-    return state.get()->proxy____fetch_suspend_request();
+    return state.handle->proxy____fetch_suspend_request();
   }
 
   FutureStatus fetch_status() const {
-    return state.get()->user____fetch_status____with_no_result();
+    return state.handle->user____fetch_status____with_no_result();
   }
 
-  bool is_done() const { return state.get()->user____is_done(); }
+  bool is_done() const { return state.handle->user____is_done(); }
 
   FutureAny get_future() const { return FutureAny{state.share()}; }
 
@@ -1039,15 +1113,15 @@ struct RequestProxy {
   explicit RequestProxy(FutureAny const& future)
       : state{future.state.share()} {}
 
-  explicit RequestProxy(Rc<FutureBaseState*>&& istate)
+  explicit RequestProxy(Rc<FutureBaseState*> istate)
       : state{std::move(istate)} {}
 
   CancelRequest fetch_cancel_request() const {
-    return state.get()->proxy____fetch_cancel_request();
+    return state.handle->proxy____fetch_cancel_request();
   }
 
   SuspendRequest fetch_suspend_request() const {
-    return state.get()->proxy____fetch_suspend_request();
+    return state.handle->proxy____fetch_suspend_request();
   }
 
   RequestProxy share() const { return RequestProxy{state.share()}; }
@@ -1055,14 +1129,9 @@ struct RequestProxy {
   Rc<FutureBaseState*> state;
 };
 
-// TODO(lamarrr): disable copy constructor???
-
-// NOTE: this helper function uses heap allocations for allocating states for
-// the future and promise. the executor producing the future can choose to use
-// another allocation strategy.
 template <typename T>
 Result<Promise<T>, AllocError> make_promise(Allocator allocator) {
-  TRY_OK(shared_state, mem::make_rc_inplace<FutureState<T>>(allocator));
+  TRY_OK(shared_state, dyn::rc::make_inplace<FutureState<T>>(allocator));
   return Ok(Promise<T>{std::move(shared_state)});
 }
 

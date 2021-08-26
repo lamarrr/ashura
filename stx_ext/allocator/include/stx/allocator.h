@@ -5,24 +5,19 @@
 #include <cstdlib>
 #include <utility>
 
-#include "stx/option.h"
+#include "stx/result.h"
+#include "stx/void.h"
 
 namespace stx {
 
 enum class [[nodiscard]] AllocError : uint8_t{None, NoMemory};
 
-//
-//
-/// TODO(lamarrr): move allocator to mem package?
-//
-//
-
 // a static allocator is always available for the lifetime of the program.
 //
-// a static allocator *should* be thread-safe.
-// (should because, single-threaded programs don't need them to be).
+// a static allocator *should* be thread-safe (preferably lock-free).
+// (single-threaded programs don't need them to be thread-safe).
 //
-// allocators must never throw
+// allocators MUST never throw
 //
 struct AllocatorHandle {
   // returns `AllocError::NoMemory` if allocation fails
@@ -73,7 +68,7 @@ struct NoopAllocatorHandle final : public AllocatorHandle {
   }
 };
 
-struct ReleasedMemoryAllocatorStubHandle final : public AllocatorHandle {
+struct AllocatorStubHandle final : public AllocatorHandle {
   virtual AllocError allocate(void *&, size_t) override {
     return AllocError::NoMemory;
   }
@@ -146,31 +141,23 @@ constexpr const inline NoopAllocatorHandle noop_allocator_handle;
 constexpr const inline StaticStorageAllocatorHandle
     static_storage_allocator_handle;
 constexpr const inline OsAllocatorHandle os_allocator_handle;
-constexpr const inline ReleasedMemoryAllocatorStubHandle
-    released_memory_allocator_stub_handle;
+constexpr const inline AllocatorStubHandle allocator_stub_handle;
 
 struct Allocator {
   explicit constexpr Allocator(AllocatorHandle &allocator_handle)
       : handle{&allocator_handle} {}
 
   constexpr Allocator(Allocator &&other) : handle{other.handle} {
-    other.handle = const_cast<ReleasedMemoryAllocatorStubHandle *>(
-        &released_memory_allocator_stub_handle);
+    other.handle = const_cast<AllocatorStubHandle *>(&allocator_stub_handle);
   }
 
   constexpr Allocator &operator=(Allocator &&other) {
-    handle = other.handle;
-    other.handle = const_cast<ReleasedMemoryAllocatorStubHandle *>(
-        &released_memory_allocator_stub_handle);
-
+    std::swap(handle, other.handle);
     return *this;
   }
 
   constexpr Allocator(Allocator const &) = default;
-
   constexpr Allocator &operator=(Allocator const &other) = default;
-
-  constexpr AllocatorHandle *get_handle() const { return handle; }
 
   AllocatorHandle *handle;
 };
@@ -178,18 +165,25 @@ struct Allocator {
 // an always-valid memory
 struct Memory {
   constexpr Memory(Allocator iallocator, void *imemory)
-      : allocator{iallocator}, pointer{imemory} {}
+      : allocator{iallocator}, handle{imemory} {}
 
   Memory(Memory const &) = delete;
   Memory &operator=(Memory const &) = delete;
 
-  constexpr Memory(Memory &&) = default;
-  constexpr Memory &operator=(Memory &&) = default;
+  Memory(Memory &&other)
+      : allocator{std::move(other.allocator)}, handle{other.handle} {}
 
-  ~Memory() { allocator.handle->deallocate(pointer); }
+  Memory &operator=(Memory &&other) {
+    std::swap(allocator, other.allocator);
+    std::swap(handle, other.handle);
+
+    return *this;
+  }
+
+  ~Memory() { allocator.handle->deallocate(handle); }
 
   Allocator allocator;
-  void *pointer;
+  void *handle;
 };
 
 namespace mem {
@@ -206,21 +200,15 @@ inline Result<Memory, AllocError> allocate(Allocator allocator, size_t size) {
   }
 }
 
-inline void deallocate(Memory memory) {
-  Allocator allocator = std::move(memory.allocator);
-  memory.allocator.handle->deallocate(memory.pointer);
-}
+inline Result<Void, AllocError> reallocate(Memory &memory, size_t new_size) {
+  void *new_memory = memory.handle;
 
-inline Result<Memory, AllocError> reallocate(Memory memory, size_t new_size) {
-  void *new_memory = memory.pointer;
-  Allocator allocator = std::move(memory.allocator);
-
-  AllocError error = allocator.handle->allocate(new_memory, new_size);
+  AllocError error = memory.allocator.handle->reallocate(new_memory, new_size);
 
   if (error != AllocError::None) {
     return Err(AllocError{error});
   } else {
-    return Ok(Memory{allocator, new_memory});
+    return Ok(Void{});
   }
 }
 
@@ -241,8 +229,7 @@ inline constexpr const Allocator static_storage_allocator{
     const_cast<StaticStorageAllocatorHandle &>(
         static_storage_allocator_handle)};
 
-inline constexpr const Allocator released_memory_allocator_stub{
-    const_cast<ReleasedMemoryAllocatorStubHandle &>(
-        released_memory_allocator_stub_handle)};
+inline constexpr const Allocator allocator_stub{
+    const_cast<AllocatorStubHandle &>(allocator_stub_handle)};
 
 }  // namespace stx

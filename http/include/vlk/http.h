@@ -156,15 +156,19 @@ struct ProgressMonitorState {
   }
 };
 
+
+// we probably shouldn't mix up cancelation and prirorities
+// some tasks might still need to be run even whilst shutting down
+
 struct ProgressMonitor {
-  Progress get_progress() const { return state.get()->load(); }
+  Progress get_progress() const { return state.handle->load(); }
 
   stx ::Rc<ProgressMonitorState const *> state;
 };
 
 struct ProgressUpdateProxy {
   void update(RawProgress const &progress) const {
-    state.get()->update(progress);
+    state.handle->update(progress);
   }
 
   stx::Rc<ProgressMonitorState *> state;
@@ -174,7 +178,7 @@ inline std::pair<ProgressMonitor, ProgressUpdateProxy> make_progress_monitor() {
   auto state = stx::mem::make_rc_inplace<ProgressMonitorState>();
 
   auto progress_monitor = ProgressMonitor{stx::transmute(
-      static_cast<ProgressMonitorState const *>(state.get()), state)};
+      static_cast<ProgressMonitorState const *>(state.handle), state)};
   return std::make_pair(std::move(progress_monitor),
                         ProgressUpdateProxy{std::move(state)});
 }
@@ -238,7 +242,7 @@ struct CurlEasyHandle {
 
   ~CurlEasyHandle() {
     // remove from the multi interface
-    VLK_CURLM_ENSURE(curl_multi_remove_handle(parent.get()->multi, easy));
+    VLK_CURLM_ENSURE(curl_multi_remove_handle(parent.handle->multi, easy));
     curl_easy_cleanup(easy);
     // NOTE: curl accepts nullptr for headers which means empty header
     curl_slist_free_all(header);
@@ -252,7 +256,7 @@ struct CurlEasyHandle {
     VLK_CURLE_ENSURE(curl_easy_setopt(easy, CURLOPT_HEADERDATA, info_addr));
     VLK_CURLE_ENSURE(curl_easy_setopt(easy, CURLOPT_HEADERFUNCTION,
                                       curl_header_write_function));
-    VLK_CURLM_ENSURE(curl_multi_add_handle(parent.get()->multi, easy));
+    VLK_CURLM_ENSURE(curl_multi_add_handle(parent.handle->multi, easy));
   }
 };
 
@@ -261,7 +265,7 @@ inline stx::Rc<CurlEasyHandle *> make_curl_easy_handle(
   stx::Rc easy_handle_rc = stx::mem::make_rc_inplace<CurlEasyHandle>(
       curl_easy_init(), nullptr, parent);
 
-  CurlEasyHandle *easy_handle = easy_handle_rc.get();
+  CurlEasyHandle *easy_handle = easy_handle_rc.handle;
 
   Verb verb = task.request.verb;
 
@@ -317,7 +321,7 @@ struct RunningTaskInfo {
 
   void update_progress() {
     RawProgress progress;
-    CURL *easyr = easy.get()->easy;
+    CURL *easyr = easy.handle->easy;
 
     {
       curl_off_t size = 0;
@@ -378,7 +382,7 @@ struct RunningTask {
       : info{std::make_unique<RunningTaskInfo>(RunningTaskInfo{
             make_curl_easy_handle(parent, task),
             stx::RequestProxy{task.promise}, std::move(task), Response{}})} {
-    info.get()->easy.get()->begin_request(parent, info.get());
+    info.get()->easy.handle->begin_request(parent, info.get());
   }
 };
 
@@ -558,7 +562,7 @@ struct ExecutionContextHandle {
       for (auto &task : running_tasks_) {
         auto *info = task.info.get();
         auto &promise = info->packaged_task.promise;
-        auto *easy = info->easy.get()->easy;
+        auto *easy = info->easy.handle->easy;
 
         info->update_progress();
 
@@ -634,12 +638,12 @@ struct ExecutionContextHandle {
         }
 
         VLK_CURLM_ENSURE(
-            curl_multi_perform(multi_.get()->multi, &num_running_handles_));
+            curl_multi_perform(multi_.handle->multi, &num_running_handles_));
 
         // one or more tasks have finished executing
         int num_messages_in_queue = 0;
         CURLMsg const *messages =
-            curl_multi_info_read(multi_.get()->multi, &num_messages_in_queue);
+            curl_multi_info_read(multi_.handle->multi, &num_messages_in_queue);
 
         // CURL can return 0 along with a valid pointer which would mean
         // there's a single message on the queue
@@ -650,16 +654,16 @@ struct ExecutionContextHandle {
         for (CURLMsg const &msg :
              stx::Span<CURLMsg const>(messages, num_messages_in_queue)) {
           if (msg.msg == CURLMSG_DONE) {
-            auto task_pos =
-                std::find_if(running_tasks_.begin(), running_tasks_.end(),
-                             [easy = msg.easy_handle](RunningTask const &task) {
-                               return task.info.get()->easy.get()->easy == easy;
-                             });
+            auto task_pos = std::find_if(
+                running_tasks_.begin(), running_tasks_.end(),
+                [easy = msg.easy_handle](RunningTask const &task) {
+                  return task.info.get()->easy.handle->easy == easy;
+                });
 
             VLK_ENSURE(task_pos != running_tasks_.end());
 
             auto *info = task_pos->info.get();
-            CURL *easy = info->easy.get()->easy;
+            CURL *easy = info->easy.handle->easy;
 
             // get status and more completion info
             char const *effective_url = nullptr;

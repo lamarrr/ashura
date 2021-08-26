@@ -41,7 +41,7 @@ struct ScheduleTimeline {
   struct Task {
     RcFn<void()> fn;
     TaskId id{};
-    TaskPriority priority = TaskPriority::Background;
+    TaskPriority priority = stx::NORMAL_PRIORITY;
     PromiseAny promise;
 
     // scheduling parameters
@@ -200,7 +200,7 @@ struct ScheduleTimeline {
     // fetch the status of each thread slot
     std::transform(slots.begin(), slots.end(), thread_slots_capture.begin(),
                    [](Rc<ThreadSlot*> const& rc_slot) {
-                     return rc_slot.get()->slot.query();
+                     return rc_slot.handle->slot.query();
                    });
 
     update_records(present_timepoint);
@@ -248,7 +248,7 @@ struct ScheduleTimeline {
       while (next_slot < num_slots && !has_slot) {
         if (thread_slots_capture[next_slot].can_push) {
           task.promise.clear_force_suspension_request();
-          slots[next_slot].get()->slot.push_task(
+          slots[next_slot].handle->slot.push_task(
               ThreadSlot::Task{task.fn.share(), task.id});
           has_slot = true;
         }
@@ -264,5 +264,13 @@ struct ScheduleTimeline {
   Vec<Task> starvation_timeline;
   Vec<ThreadSlot::Query> thread_slots_capture;
 };
+
+
+// TODO(lamarrr): move execution of the timeline to the worker threads
+// they go to the slots and sort them, satisfy pending streams if any
+//
+// they need to sleep if no task is available
+//
+
 
 }  // namespace vlk

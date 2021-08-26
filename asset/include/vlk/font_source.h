@@ -25,13 +25,13 @@ struct FileTypefaceSource {
   explicit FileTypefaceSource(std::filesystem::path path);
 
   auto get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.get()->tag}, data)};
+    return AssetTag{stx::transmute(std::string_view{data.handle->tag}, data)};
   }
 
-  auto get_path() const { return data.get()->path; }
+  auto get_path() const { return data.handle->path; }
 
   bool operator==(FileTypefaceSource const& other) const {
-    return data.get()->tag == other.data.get()->tag;
+    return data.handle->tag == other.data.handle->tag;
   }
 
   bool operator!=(FileTypefaceSource const& other) const {
@@ -42,22 +42,22 @@ struct FileTypefaceSource {
 };
 
 inline std::string format(FileTypefaceSource const& source) {
-  return source.data.get()->tag;
+  return source.data.handle->tag;
 }
 
 struct MemoryTypefaceSource {
   explicit MemoryTypefaceSource(std::vector<uint8_t>&& bytes);
 
   auto get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.get()->tag}, data)};
+    return AssetTag{stx::transmute(std::string_view{data.handle->tag}, data)};
   }
 
   auto get_bytes() const {
-    return stx::transmute(stx::Span{data.get()->bytes}, data);
+    return stx::transmute(stx::Span{data.handle->bytes}, data);
   }
 
   bool operator==(MemoryTypefaceSource const& other) const {
-    return data.get()->tag == other.data.get()->tag;
+    return data.handle->tag == other.data.handle->tag;
   }
 
   bool operator!=(MemoryTypefaceSource const& other) const {
@@ -70,7 +70,7 @@ struct MemoryTypefaceSource {
 };
 
 inline std::string format(MemoryTypefaceSource const& source) {
-  return source.data.get()->tag;
+  return source.data.handle->tag;
 }
 
 struct MemoryFontFace {
@@ -128,15 +128,15 @@ struct SystemFont {
   SystemFont() : SystemFont{FontStyle{}} {}
 
   auto get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.get()->tag}, data)};
+    return AssetTag{stx::transmute(std::string_view{data.handle->tag}, data)};
   }
 
-  auto get_family() const { return data.get()->family; }
+  auto get_family() const { return data.handle->family; }
 
-  auto get_style() const { return data.get()->style; }
+  auto get_style() const { return data.handle->style; }
 
   bool operator==(SystemFont const& other) const {
-    return data.get()->tag == other.data.get()->tag;
+    return data.handle->tag == other.data.handle->tag;
   }
 
   bool operator!=(SystemFont const& other) const { return !(*this == other); }
@@ -148,17 +148,17 @@ struct FileFontSource {
   FileFontSource(std::string family_name, std::vector<FileFontFace> font_faces);
 
   AssetTag get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.get()->tag}, data)};
+    return AssetTag{stx::transmute(std::string_view{data.handle->tag}, data)};
   }
 
-  auto get_family() const { return data.get()->family; }
+  auto get_family() const { return data.handle->family; }
 
   auto get_typefaces() const {
-    return stx::transmute(stx::Span{data.get()->faces}, data);
+    return stx::transmute(stx::Span{data.handle->faces}, data);
   }
 
   bool operator==(FileFontSource const& other) const {
-    return data.get()->tag == other.data.get()->tag;
+    return data.handle->tag == other.data.handle->tag;
   }
 
   bool operator!=(FileFontSource const& other) const {
@@ -169,7 +169,7 @@ struct FileFontSource {
 };
 
 inline std::string format(FileFontSource const& source) {
-  return source.data.get()->tag;
+  return source.data.handle->tag;
 }
 
 struct MemoryFontSource {
@@ -177,17 +177,17 @@ struct MemoryFontSource {
                             std::vector<MemoryFontFace> font_faces);
 
   AssetTag get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.get()->tag}, data)};
+    return AssetTag{stx::transmute(std::string_view{data.handle->tag}, data)};
   }
 
-  auto get_family() const { return data.get()->family; }
+  auto get_family() const { return data.handle->family; }
 
   auto get_typefaces() const {
-    return stx::transmute(stx::Span{data.get()->faces}, data);
+    return stx::transmute(stx::Span{data.handle->faces}, data);
   }
 
   bool operator==(MemoryFontSource const& other) const {
-    return data.get()->tag == other.data.get()->tag;
+    return data.handle->tag == other.data.handle->tag;
   }
 
   bool operator!=(MemoryFontSource const& other) const {
@@ -198,7 +198,7 @@ struct MemoryFontSource {
 };
 
 inline std::string format(MemoryFontSource const& source) {
-  return source.data.get()->tag;
+  return source.data.handle->tag;
 }
 
 using FontSource =

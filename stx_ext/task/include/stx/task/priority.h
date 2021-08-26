@@ -10,41 +10,27 @@ namespace stx {
 /// this will enable us make smart decisions about graceful shutdown and task
 /// prioritization.
 ///
+///
+/// these are just hints to the executors and they don't need to support or
+/// respond to them.
+enum class TaskPriority : uint8_t {};
 
-// used to notify executors of the task's priority. the executor must conform to
-// the required properties of each task priority.
+constexpr TaskPriority NORMAL_PRIORITY{0};
+
+// can be force-canceled and suspended. involves tasks that need to be run in
+// the background. i.e. checking wifi status, polling peripherral status,
+// responding to non-urgent widget requests, etc.
 //
-enum class TaskPriority : uint8_t {
-  // can be force-canceled and suspended. involves tasks that need to be run in
-  // the background. i.e. checking wifi status, polling peripherral status, etc.
-  //
-  // these tasks need not be executed immediately but can be executed once there
-  // is no important tasks that need execution.
-  //
-  //
-  Background,
-  // can be force-canceled and suspended. involves tasks that the user needs to
-  // observe its result as soon as possible. i.e. image loading and decoding,
-  // texture loading, offscreen rendering, etc.
-  //
-  // these tasks can be terminated without consequences.
-  //
-  Interactive,
-  // once execution of this task begins, the executor must ensure it is
-  // completed before shutting down and must not be force-canceled in the
-  // process.
-  //
-  // If the executor is shut down before the task arrives, the
-  // executor must mark the task as force-canceled.
-  //
-  // Critical tasks can involve tasks saving user data. i.e. backing up user
-  // data, saving changes to disk, etc.
-  //
-  // this is similar but simpler and more intuitive than taking a `shared_ptr`
-  // or `ExecutorKeepAlive` token.
-  //
-  //
-  Critical = stx::u8_max
-};
+constexpr TaskPriority SERVICE_PRIORITY{1};
+// involves tasks that the user needs to
+// observe its result as soon as possible. i.e. image loading and decoding,
+// texture loading, offscreen rendering, etc.
+//
+constexpr TaskPriority INTERACTIVE_PRIORITY{2};
+
+// critical tasks can involve tasks saving user data. i.e. backing up user
+// data, saving changes to disk, etc.
+//
+constexpr TaskPriority CRITICAL_PRIORITY{stx::u8_max};
 
 }  // namespace stx
