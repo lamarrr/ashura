@@ -11,7 +11,6 @@
 
 namespace stx {
 
-namespace impl {
 template <typename T, typename... Ts>
 struct filter_duplicates {
   using type = T;
@@ -84,8 +83,6 @@ template <typename Arg, typename Fn, typename... OtherFns>
 using chain_stack_variant = unique_variant<
     typename chain_stack_variant_impl<Arg, Fn, OtherFns...>::variant>;
 
-};  // namespace impl
-
 struct ChainState {
   // only valid if the function finishes and next_phase_index !=
   // num_phases
@@ -94,8 +91,6 @@ struct ChainState {
   // otherwise, it is assumed to be in a suspended state
   uint8_t next_phase_index = 0;
 };
-
-namespace impl {
 
 template <uint8_t PhaseIndex, typename Arg, typename Fn, typename... OtherFns>
 struct ChainPhase {
@@ -170,17 +165,15 @@ struct ChainPhase<PhaseIndex, Arg, Fn> {
   function_type fn;
 };
 
-}  // namespace impl
-
 template <typename Fn, typename... OtherFns>
-struct Chain : impl::check_chain_valid<Void, Fn, OtherFns...> {
+struct Chain : check_chain_valid<Void, Fn, OtherFns...> {
   static constexpr uint8_t num_phases = (1 + sizeof...(OtherFns));
 
   static_assert(num_phases <= (stx::u8_max - 2),
                 "maximum depth of chain is 253");
 
-  using phases_type = impl::ChainPhase<0, stx::Void, Fn, OtherFns...>;
-  using stack_type = impl::chain_stack_variant<stx::Void, Fn, OtherFns...>;
+  using phases_type = ChainPhase<0, stx::Void, Fn, OtherFns...>;
+  using stack_type = chain_stack_variant<stx::Void, Fn, OtherFns...>;
   using last_phase_result_type = typename phases_type::last_phase_result_type;
 
   explicit constexpr Chain(Fn &&fn, OtherFns &&... others)

@@ -16,7 +16,7 @@
 #include "stx/str.h"
 #include "stx/task/chain.h"
 #include "stx/task/priority.h"
-#include "stx/vec.h"
+#include "stx/flex.h"
 #include "stx/void.h"
 #include "vlk/scheduler/thread_pool.h"
 #include "vlk/subsystem/impl.h"
@@ -38,7 +38,7 @@ using stx::Rc;
 using stx::RcFn;
 using stx::RcStr;
 using stx::TaskPriority;
-using stx::Vec;
+using stx::Flex;
 using stx::Void;
 using timepoint = std::chrono::steady_clock::time_point;
 using stx::AllocError;
@@ -48,6 +48,11 @@ struct TaskTraceInfo {
   RcStr content = stx::str::rc::make_static("[Unspecified Context]");
   RcStr purpose = stx::str::rc::make_static("[Unspecified Purpose]");
 };
+
+namespace stream_target {
+struct main_thread {};
+struct worker_threads {};
+};  // namespace stream_target
 
 enum class TaskReady { Yes, No };
 
@@ -160,8 +165,11 @@ struct TaskScheduler final : public SubsystemImpl {
   }
 
   timepoint reference_timepoint;
-  Vec<Task> entries;
-  Vec<DeferredTask> deferred_entries;
+  Flex<Task> entries;
+  // TODO(lamarrr):
+  // main thread tasks
+  // secondary thread tasks
+  Flex<DeferredTask> deferred_entries;
   Promise<void> cancelation_promise;
   Allocator allocator;
 };

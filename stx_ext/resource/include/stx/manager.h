@@ -20,7 +20,7 @@ struct ManagerHandle {
   /// a resource with a refcount of 1 or more must always be valid.
   ///
   virtual void ref() = 0;
-  /// reduce the ref count of the associated resource.
+  /// decrement the ref count of the associated resource.
   ///
   /// a resource with a refcount of 0 needs not be valid.
   ///

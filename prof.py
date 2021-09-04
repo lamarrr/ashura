@@ -4,3 +4,6 @@ perf script | c++filt | gprof2dot - f perf | dot - Tpng - o output.png
 
 for k in [k.split("::")[1] for k in mdc.keys()]:
     print("".join([m.capitalize() for m in k.split("_")]))
+
+
+# sudo perf record --help

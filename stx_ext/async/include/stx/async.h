@@ -245,7 +245,6 @@ enum class FutureStatus : uint8_t {
   ____Pending = u8_max
 };
 
-namespace impl {
 enum class InfoFutureStatus : uint8_t {
   Scheduled = enum_uv(FutureStatus::Scheduled),
   Submitted = enum_uv(FutureStatus::Submitted),
@@ -267,8 +266,6 @@ enum class TerminalFutureStatus : uint8_t {
   Completed = enum_uv(FutureStatus::Completed),
   Pending = enum_uv(FutureStatus::____Pending)
 };
-
-}  // namespace impl
 
 // TODO(lamarrr): error enum stringify
 enum class FutureError : uint8_t {
@@ -359,71 +356,70 @@ struct FutureExecutionState {
   STX_MAKE_PINNED(FutureExecutionState)
 
   void executor____notify_scheduled() {
-    notify_info(impl::InfoFutureStatus::Scheduled);
+    notify_info(InfoFutureStatus::Scheduled);
   }
 
   void executor____notify_submitted() {
-    notify_info(impl::InfoFutureStatus::Submitted);
+    notify_info(InfoFutureStatus::Submitted);
   }
 
   void executor____notify_executing() {
-    notify_info(impl::InfoFutureStatus::Executing);
+    notify_info(InfoFutureStatus::Executing);
   }
 
   void executor____notify_user_resumed() {
-    notify_info(impl::InfoFutureStatus::Executing);
+    notify_info(InfoFutureStatus::Executing);
   }
 
   void executor____notify_user_canceling() {
-    notify_info(impl::InfoFutureStatus::Canceling);
+    notify_info(InfoFutureStatus::Canceling);
   }
 
   void executor____notify_force_canceling() {
-    notify_info(impl::InfoFutureStatus::ForceCanceling);
+    notify_info(InfoFutureStatus::ForceCanceling);
   }
 
   void executor____notify_user_suspending() {
-    notify_info(impl::InfoFutureStatus::Suspending);
+    notify_info(InfoFutureStatus::Suspending);
   }
 
   void executor____notify_force_suspending() {
-    notify_info(impl::InfoFutureStatus::ForceSuspending);
+    notify_info(InfoFutureStatus::ForceSuspending);
   }
 
   void executor____notify_user_suspended() {
-    notify_info(impl::InfoFutureStatus::Suspended);
+    notify_info(InfoFutureStatus::Suspended);
   }
 
   void executor____notify_force_suspended() {
-    notify_info(impl::InfoFutureStatus::ForceSuspended);
+    notify_info(InfoFutureStatus::ForceSuspended);
   }
 
   void executor____notify_user_resuming() {
-    notify_info(impl::InfoFutureStatus::Resuming);
+    notify_info(InfoFutureStatus::Resuming);
   }
 
   void executor____notify_force_resuming() {
-    notify_info(impl::InfoFutureStatus::ForceResuming);
+    notify_info(InfoFutureStatus::ForceResuming);
   }
 
   void executor____notify_user_canceled() {
-    notify_term_no_result(impl::TerminalFutureStatus::Canceled);
+    notify_term_no_result(TerminalFutureStatus::Canceled);
   }
 
   void executor____notify_force_canceled() {
-    notify_term_no_result(impl::TerminalFutureStatus::ForceCanceled);
+    notify_term_no_result(TerminalFutureStatus::ForceCanceled);
   }
 
   void executor____complete____with_void() {
-    notify_term_no_result(impl::TerminalFutureStatus::Completed);
+    notify_term_no_result(TerminalFutureStatus::Completed);
   }
 
   template <typename Lambda>
   void executor____complete____with_result(Lambda&& setter_op) {
     {
-      impl::TerminalFutureStatus expected = impl::TerminalFutureStatus::Pending;
-      impl::TerminalFutureStatus target =
-          impl::TerminalFutureStatus::Completing;
+      TerminalFutureStatus expected = TerminalFutureStatus::Pending;
+      TerminalFutureStatus target = TerminalFutureStatus::Completing;
 
       // if the future has already reached a terminal state (canceled,
       // completed, force-canceled) or another thread is completing the future,
@@ -439,8 +435,7 @@ struct FutureExecutionState {
                                        std::memory_order_relaxed,
                                        std::memory_order_relaxed)) {
         std::forward<Lambda>(setter_op)();
-        term.store(impl::TerminalFutureStatus::Completed,
-                   std::memory_order_release);
+        term.store(TerminalFutureStatus::Completed, std::memory_order_release);
       } else {
         // already completed, completing, canceled, or force canceled
       }
@@ -481,12 +476,11 @@ struct FutureExecutionState {
     // completion of the future so the sequence in which the user observes the
     // statuses don't matter.
     //
-    impl::TerminalFutureStatus term_status = term.load(terminal_load_mem_order);
+    TerminalFutureStatus term_status = term.load(terminal_load_mem_order);
 
     switch (term_status) {
-      case impl::TerminalFutureStatus::Pending: {
-        impl::InfoFutureStatus info_status =
-            info.load(std::memory_order_relaxed);
+      case TerminalFutureStatus::Pending: {
+        InfoFutureStatus info_status = info.load(std::memory_order_relaxed);
         return FutureStatus{enum_uv(info_status)};
       }
 
@@ -496,23 +490,22 @@ struct FutureExecutionState {
     }
   }
 
-  void notify_info(impl::InfoFutureStatus status) {
+  void notify_info(InfoFutureStatus status) {
     // the informational status can come in any order and don't need to be
     // sequenced
     // it doesn't need to be coordinated with the terminal status.
     info.store(status, std::memory_order_relaxed);
   }
 
-  void notify_term_no_result(impl::TerminalFutureStatus const status) {
+  void notify_term_no_result(TerminalFutureStatus const status) {
     // satisfies that terminal state is only ever updated once
-    impl::TerminalFutureStatus expected = impl::TerminalFutureStatus::Pending;
+    TerminalFutureStatus expected = TerminalFutureStatus::Pending;
     term.compare_exchange_strong(expected, status, std::memory_order_relaxed,
                                  std::memory_order_relaxed);
   }
 
-  std::atomic<impl::InfoFutureStatus> info{impl::InfoFutureStatus::Scheduled};
-  std::atomic<impl::TerminalFutureStatus> term{
-      impl::TerminalFutureStatus::Pending};
+  std::atomic<InfoFutureStatus> info{InfoFutureStatus::Scheduled};
+  std::atomic<TerminalFutureStatus> term{TerminalFutureStatus::Pending};
 };
 
 struct FutureRequestState {
@@ -660,6 +653,9 @@ struct FutureState : public FutureBaseState {
         return Err(FutureError::Pending);
     }
   }
+
+  // TODO(lamarrr):
+  // user___map
 
   // allow drain operation to modify object. alt: reap
   // allow inspect object to copy object.
@@ -812,9 +808,10 @@ struct Future : public FutureBase<T> {
   // user ref result
   // invocable(ref)
 
+  // TODO(lamarrr):
+  // mutable or immutable ref arg as appropriate
   // map operations should be extremely fast
-  // .map -> Result<U, FutureError> {}
-  // .map -> Result<U, FutureError> const {}
+  // .map () -> Result<U, FutureError> {}
 };
 
 template <>
@@ -1131,7 +1128,7 @@ struct RequestProxy {
 
 template <typename T>
 Result<Promise<T>, AllocError> make_promise(Allocator allocator) {
-  TRY_OK(shared_state, dyn::rc::make_inplace<FutureState<T>>(allocator));
+  TRY_OK(shared_state, rc::make_inplace<FutureState<T>>(allocator));
   return Ok(Promise<T>{std::move(shared_state)});
 }
 

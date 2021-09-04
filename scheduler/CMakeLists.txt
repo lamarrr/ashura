@@ -6,7 +6,7 @@ target_link_libraries(
   stx
   stx::task
   vlk::subsystem
-  stx::vec
+  stx::flex
   vlk::utils
   stx::str
   stx::void)

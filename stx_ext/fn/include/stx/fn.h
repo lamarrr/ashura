@@ -46,9 +46,9 @@ struct Fn {};
 //
 template <typename ReturnType, typename... Args>
 struct Fn<ReturnType(Args...)> {
-  using func_type = ReturnType (*)(void*, Args...);
+  using func_type = ReturnType (*)(memory_handle, Args...);
 
-  explicit constexpr Fn(func_type idispatcher, void* idata_addr)
+  explicit constexpr Fn(func_type idispatcher, memory_handle idata_addr)
       : dispatcher{idispatcher}, data_addr{idata_addr} {}
 
   constexpr ReturnType operator()(Args... args) const {
@@ -56,13 +56,11 @@ struct Fn<ReturnType(Args...)> {
   }
 
   func_type dispatcher = nullptr;
-  void* data_addr = nullptr;
+  memory_handle data_addr = nullptr;
 };
 
 template <typename Signature>
 using RcFn = Rc<Fn<Signature>>;
-
-namespace impl {
 
 template <typename T>
 struct raw_function_decay_impl {
@@ -84,15 +82,11 @@ template <typename ReturnType, typename... Args>
 struct is_function_pointer_impl<ReturnType (*)(Args...)>
     : public std::true_type {};
 
-}  // namespace impl
+template <typename T>
+using raw_function_decay = typename raw_function_decay_impl<T>::type;
 
 template <typename T>
-using raw_function_decay = typename impl::raw_function_decay_impl<T>::type;
-
-template <typename T>
-constexpr bool is_function_pointer = impl::is_function_pointer_impl<T>::value;
-
-namespace impl {
+constexpr bool is_function_pointer = is_function_pointer_impl<T>::value;
 
 template <typename Signature>
 struct raw_fn_impl {};
@@ -107,20 +101,20 @@ struct raw_fn_impl<ReturnType (*)(Args...)> {
   using type = ReturnType (*)(Args...);
 };
 
-}  // namespace impl
-
 template <typename Type>
-using RawFn = typename impl::raw_fn_impl<Type>::type;
+using RawFn = typename raw_fn_impl<Type>::type;
 
 template <typename RawFunctionType>
 struct RawFnTraits {};
 
 template <typename ReturnType, typename... Args>
 struct RawFunctionDispatcher {
-  static constexpr ReturnType dispatch(void* data_addr, Args... args) {
+  static constexpr ReturnType dispatch(memory_handle data_addr, Args... args) {
     using ptr = ReturnType (*)(Args...);
 
-    return reinterpret_cast<ptr>(data_addr)(std::forward<Args>(args)...);
+    ptr function_ptr = reinterpret_cast<ptr>(data_addr);
+
+    return function_ptr(std::forward<Args>(args)...);
   }
 };
 
@@ -139,7 +133,7 @@ struct RawFnTraits<ReturnType (*)(Args...)>
 
 template <typename Type, typename ReturnType, typename... Args>
 struct FunctorDispatcher {
-  static constexpr ReturnType dispatch(void* data_addr, Args... args) {
+  static constexpr ReturnType dispatch(memory_handle data_addr, Args... args) {
     return (*(reinterpret_cast<Type*>(data_addr)))(std::forward<Args>(args)...);
   }
 };
@@ -172,8 +166,6 @@ struct MemberFnTraits<ReturnType (Type::*)(Args...) const> {
 template <class Type>
 struct FunctorFnTraits : public MemberFnTraits<decltype(&Type::operator())> {};
 
-namespace impl {
-
 template <typename T, typename Stub = void>
 struct is_functor_impl : public std::false_type {};
 
@@ -181,10 +173,8 @@ template <typename T>
 struct is_functor_impl<T, decltype(&T::operator(), (void)0)>
     : public std::true_type {};
 
-}  // namespace impl
-
 template <typename T>
-constexpr bool is_functor = impl::is_functor_impl<T>::value;
+constexpr bool is_functor = is_functor_impl<T>::value;
 
 namespace fn {
 
@@ -222,19 +212,23 @@ auto make_static(StaticFunctor functor) {
   return make_static(function_pointer);
 }
 
+// TODO(lamarrr): documentation
 namespace rc {
 
 template <typename Functor>
 Result<Rc<typename FunctorFnTraits<Functor>::fn>, AllocError> make_functor(
-    Allocator allocator, Functor functor) {
-  TRY_OK(fn_rc, dyn::rc::make(allocator, std::move(functor)));
+    Allocator allocator, Functor&& functor) {
+  TRY_OK(fn_rc, stx::rc::make(allocator, std::move(functor)));
 
   Fn fn = stx::fn::make_functor(*fn_rc.handle);
 
   return Ok(stx::transmute(fn, std::move(fn_rc)));
 }
 
-// ...
+template <typename Functor>
+Result<Rc<typename FunctorFnTraits<Functor>::fn>, AllocError> make_functor(
+    Allocator allocator, Functor& functor) = delete;
+
 template <typename RawFunctionType,
           std::enable_if_t<is_function_pointer<RawFunctionType>, int> = 0>
 auto make_static(RawFunctionType* function_pointer) {
@@ -250,7 +244,6 @@ auto make_static(RawFunctionType* function_pointer) {
       std::move(manager)};
 }
 
-// ...
 template <typename StaticFunctor,
           std::enable_if_t<is_functor<StaticFunctor>, int> = 0>
 auto make_static(StaticFunctor functor) {

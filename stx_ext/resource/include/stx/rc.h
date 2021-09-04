@@ -85,6 +85,43 @@ struct Rc {
   Manager manager;
 };
 
+// A uniquely owned resource.
+//
+// can not be shared.
+//
+// only one instance of the associated resource is meant to be valid/active
+// throughout the lifetime of the program.
+//
+// only ever calls unref once.
+//
+template <typename HandleType>
+struct Unique {
+  constexpr Unique(HandleType&& ihandle, Manager imanager)
+      : handle{std::move(ihandle)}, manager{std::move(imanager)} {}
+
+  constexpr Unique(Unique&& other)
+      : handle{std::move(other.handle)}, manager{std::move(other.manager)} {
+    other.manager = manager_stub;
+  }
+
+  constexpr Unique& operator=(Unique&& other) {
+    std::swap(handle, other.handle);
+    std::swap(manager, other.manager);
+
+    return *this;
+  }
+
+  Unique(Unique const& other) = delete;
+  Unique& operator=(Unique const& other) = delete;
+
+  ~Unique() { manager.unref(); }
+
+  HandleType handle;
+  Manager manager;
+};
+
+// make_unique will thus not need a ref-count
+
 /// Transmute a resource that uses a polymorphic manager.
 /// transmutation involves pretending that a target resource constructed from
 /// another source resource is valid provided the other source resource is
@@ -112,6 +149,17 @@ constexpr Rc<Target> transmute(Target target, Rc<Source>&& source) {
 
 template <typename Target, typename Source>
 constexpr Rc<Target> cast(Rc<Source>&& source) {
+  Target target = static_cast<Target>(std::move(source.handle));
+  return transmute(std::move(target), std::move(source));
+}
+
+template <typename Target, typename Source>
+constexpr Unique<Target> transmute(Target target, Unique<Source>&& source) {
+  return Unique<Target>{std::move(target), std::move(source.manager)};
+}
+
+template <typename Target, typename Source>
+constexpr Unique<Target> cast(Unique<Source>&& source) {
   Target target = static_cast<Target>(std::move(source.handle));
   return transmute(std::move(target), std::move(source));
 }

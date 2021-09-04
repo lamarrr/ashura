@@ -1,4 +1,4 @@
-#include "stx/dynamic.h"
+// #include "stx/dynamic.h"
 #include "vlk/scheduler.h"
 #include "vlk/scheduler/scheduling/deferred.h"
 
@@ -136,7 +136,7 @@ TEST(ScheduleTimelineTest, Tick) {
 
     for (size_t i = 0; i < 10; i++)
       slots
-          .push(stx::dyn::rc::make_inplace<vlk::ThreadSlot>(
+          .push(stx::rc::make_inplace<vlk::ThreadSlot>(
                     stx::os_allocator,
                     stx::make_promise<void>(stx::os_allocator).unwrap())
                     .unwrap())
@@ -158,18 +158,19 @@ TEST(ScheduleTimelineTest, Tick) {
     EXPECT_EQ(timeline.starvation_timeline.size(), 20);
   }
 
-  stx::Dynamic dyn_array =
-      stx::dyn::make(stx::os_allocator, std::array<fuck, 400>{}).unwrap();
-  dyn_array->size();
-  dyn_array->empty();
+  // stx::Dynamic dyn_array =
+  //   stx::dyn::make(stx::os_allocator, std::array<fuck, 400>{}).unwrap();
+  // dyn_array->size();
+  // dyn_array->empty();
 
   stx::Str h = stx::str::make_static("Hello boy");
   stx::Str y = stx::str::make(stx::os_allocator, "Hello boy").unwrap();
   EXPECT_EQ(h, "Hello boy");
   EXPECT_NE(h, "Hello Boy");
+  EXPECT_EQ(y, "Hello boy");
   EXPECT_EQ(h, y);
 
-  EXPECT_TRUE(h.starts_with("Hello world"));
+  EXPECT_FALSE(h.starts_with("Hello world"));
 }
 
 #include "vlk/scheduler/scheduling/await.h"

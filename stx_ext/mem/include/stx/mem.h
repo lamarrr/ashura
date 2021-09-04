@@ -11,6 +11,7 @@
 #include "stx/struct.h"
 
 namespace stx {
+
 /// thread-safe
 ///
 ///
@@ -22,12 +23,21 @@ namespace stx {
 /// shared object shared across threads, so we perform acquire when performing
 /// unref.
 ///
-struct AtomicRefCount {
-  STX_MAKE_PINNED(AtomicRefCount)
+///
+///
+///
+/// TODO(lamarrr): this should probably go to a separate directory and also be
+/// used for the panic code.
+///
+///
+// if the application is multi-threaded, the compiler can make more informed
+// decisions about reference-counting.
+struct RefCount {
+  STX_MAKE_PINNED(RefCount)
 
   std::atomic<uint64_t> ref_count;
 
-  explicit AtomicRefCount(uint64_t initial_ref_count)
+  explicit RefCount(uint64_t initial_ref_count)
       : ref_count{initial_ref_count} {}
 
   uint64_t ref() { return ref_count.fetch_add(1, std::memory_order_relaxed); }
@@ -43,7 +53,7 @@ struct AtomicRefCount {
 //
 //
 //
-//
+//===========================
 // we need to store manager too if non-trivial.
 //
 //
@@ -52,7 +62,7 @@ struct AtomicRefCount {
 //
 // non-trivially destructible?
 // allocate
-// ObjectManager{ Object; AtomicRefCount;   void unref() {  delete Object;   } }
+// ObjectManager{ Object; RefCount;   void unref() {  delete Object;   } }
 // allocate storage for pool
 //
 // trivially destructible blocks with trivial chunks, needs no destructor
@@ -101,57 +111,78 @@ struct DeallocateObject {
 /// can be used for bulk object sharing.
 ///
 template <typename Functor>
-struct RefCntOperation : public ManagerHandle {
+struct RcOperation final : public ManagerHandle {
   static_assert(std::is_invocable_v<Functor, void*>);
 
-  STX_MAKE_PINNED(RefCntOperation)
+  STX_MAKE_PINNED(RcOperation)
 
-  AtomicRefCount ref_count;
+  RefCount ref_count;
 
   // operation to be performed once. i.e.
-  // once the ref count reaches zero.
+  // once the ref count reaches zero, synchronized across threads.
   Functor operation;
 
   template <typename... Args>
-  RefCntOperation(uint64_t initial_ref_count, Args&&... args)
+  explicit RcOperation(uint64_t initial_ref_count, Args&&... args)
       : ref_count{initial_ref_count}, operation{std::forward<Args>(args)...} {}
 
   virtual void ref() override final { ref_count.ref(); }
 
   virtual void unref() override final {
-    /// NOTE: the last user of the object might have made modifications to the
-    /// object's address just before unref is called, this means we need to
-    /// ensure correct ordering of the operations/instructions relative to the
-    /// unref call (instruction re-ordering).
-    ///
-    /// we don't need to ensure correct ordering of instructions after this
-    /// atomic operation since it is non-observable anyway, since the handle
-    /// will be deleted afterwards
-    ///
+    // NOTE: the last user of the object might have made modifications to the
+    // object's address just before unref is called, this means we need to
+    // ensure correct ordering of the operations/instructions relative to the
+    // unref call (instruction re-ordering).
+    //
+    // we don't need to ensure correct ordering of instructions after
+    // decreasing the ref-count atomically and the object being marked for
+    // destruction since the object by contract is not meant to be used
+    // afterwards.
+    //
+    // the destructor's instructions only needs to be ordered relative to the
+    // last-owning thread's instructions.
+    //
     if (ref_count.unref() == 1) {
       operation(this);
     }
   }
 };
 
-namespace dyn {
+template <typename Functor>
+struct UniqueRcOperation final : public ManagerHandle {
+  static_assert(std::is_invocable_v<Functor, void*>);
+
+  STX_MAKE_PINNED(UniqueRcOperation)
+
+  // operation to be performed once.
+  Functor operation;
+
+  template <typename... Args>
+  explicit UniqueRcOperation(Args&&... args)
+      : operation{std::forward<Args>(args)...} {}
+
+  virtual void ref() override final {}
+
+  virtual void unref() override final { operation(this); }
+};
+
 namespace rc {
 
 template <typename T, typename... Args>
 Result<Rc<T*>, AllocError> make_inplace(Allocator allocator, Args&&... args) {
-  TRY_OK(memory, mem::allocate(allocator,
-                               sizeof(RefCntOperation<DeallocateObject<T>>)));
+  TRY_OK(memory,
+         mem::allocate(allocator, sizeof(RcOperation<DeallocateObject<T>>)));
 
   void* mem = memory.handle;
 
   // release ownership of memory
   memory.allocator = allocator_stub;
 
-  using destroy_operation_type = RefCntOperation<DeallocateObject<T>>;
+  using destroy_operation_type = RcOperation<DeallocateObject<T>>;
 
   destroy_operation_type* destroy_operation_handle =
-      new (mem) RefCntOperation<DeallocateObject<T>>{
-          0, std::move(allocator), std::forward<Args>(args)...};
+      new (mem) RcOperation<DeallocateObject<T>>{0, std::move(allocator),
+                                                 std::forward<Args>(args)...};
 
   // this polymorphic manager manages itself.
   // unref can be called on a polymorphic manager with a different pointer since
@@ -170,8 +201,8 @@ Result<Rc<T*>, AllocError> make_inplace(Allocator allocator, Args&&... args) {
 }
 
 template <typename T>
-auto make(Allocator allocator, T value) {
-  return make_inplace<T>(allocator, std::move(value));
+auto make(Allocator allocator, T&& value) {
+  return make_inplace<T>(allocator, std::forward<T>(value));
 }
 
 /// adopt an object memory handle that is guaranteed to be valid for the
@@ -190,6 +221,44 @@ Rc<T*> make_static(T& object) {
   return Rc<T*>{&object, std::move(manager)};
 }
 
+template <typename T, typename... Args>
+Result<Unique<T*>, AllocError> make_unique_inplace(Allocator allocator,
+                                                   Args&&... args) {
+  TRY_OK(memory, mem::allocate(allocator,
+                               sizeof(UniqueRcOperation<DeallocateObject<T>>)));
+
+  void* mem = memory.handle;
+
+  memory.allocator = allocator_stub;
+
+  using destroy_operation_type = UniqueRcOperation<DeallocateObject<T>>;
+
+  destroy_operation_type* destroy_operation_handle =
+      new (mem) UniqueRcOperation<DeallocateObject<T>>{
+          std::move(allocator), std::forward<Args>(args)...};
+
+  Manager manager{*destroy_operation_handle};
+
+  manager.ref();
+
+  Unique<destroy_operation_type*> destroy_operation_rc{
+      static_cast<destroy_operation_type*>(destroy_operation_handle), manager};
+
+  return Ok(transmute(&destroy_operation_handle->operation.object,
+                      std::move(destroy_operation_rc)));
+}
+
+template <typename T>
+auto make_unique(Allocator allocator, T&& value) {
+  return make_unique_inplace<T>(allocator, std::forward<T>(value));
+}
+
+template <typename T>
+Unique<T*> make_unique_static(T& object) {
+  Manager manager = static_storage_manager;
+  manager.ref();
+  return Unique<T*>{&object, std::move(manager)};
+}
+
 }  // namespace rc
-}  // namespace dyn
 }  // namespace stx

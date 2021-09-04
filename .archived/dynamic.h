@@ -18,6 +18,11 @@ namespace stx {
 //
 // unlike unique_ptr, this always contains an object on the heap
 //
+//
+// TODO(lamarrr): remove this and always use unique_rc
+//
+//
+//
 template <typename T>
 struct Dynamic {
   explicit Dynamic(Memory&& object) : memory{std::move(object)} {}

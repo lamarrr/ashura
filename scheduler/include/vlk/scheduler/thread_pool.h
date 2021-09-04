@@ -77,7 +77,7 @@ struct ThreadPool {
     for (size_t i = 0; i < num_threads; i++) {
       thread_slots
           .push_inplace(
-              stx::dyn::rc::make_inplace<ThreadSlot>(
+              stx::rc::make_inplace<ThreadSlot>(
                   allocator, stx::make_promise<void>(allocator).unwrap())
                   .unwrap())
           .unwrap();

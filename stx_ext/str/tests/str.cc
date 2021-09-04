@@ -8,6 +8,6 @@ using namespace stx;
 TEST(StrTest, Init) {
   Str str;
 
-  Str("HELLO", 5, static_storage_allocator);
+  stx::str::make_static("hello");
   //
 }
