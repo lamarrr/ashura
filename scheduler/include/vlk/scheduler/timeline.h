@@ -6,9 +6,9 @@
 #include <utility>
 
 #include "stx/async.h"
+#include "stx/flex.h"
 #include "stx/task/id.h"
 #include "stx/task/priority.h"
-#include "stx/vec.h"
 #include "vlk/scheduler/thread_slot.h"
 
 namespace vlk {
@@ -17,18 +17,22 @@ using timepoint = std::chrono::steady_clock::time_point;
 using namespace std::chrono_literals;
 using std::chrono::nanoseconds;
 using stx::Allocator;
+using stx::AllocError;
 using stx::CancelRequest;
+using stx::Flex;
 using stx::FutureStatus;
+using stx::Ok;
 using stx::Option;
 using stx::PromiseAny;
 using stx::Rc;
 using stx::RcFn;
 using stx::RequestedCancelState;
 using stx::RequestSource;
+using stx::Result;
 using stx::Span;
 using stx::TaskId;
 using stx::TaskPriority;
-using stx::Vec;
+using stx::Void;
 
 enum class ThreadId : uint32_t {};
 
@@ -40,14 +44,19 @@ struct ScheduleTimeline {
 
   struct Task {
     RcFn<void()> fn;
-    TaskId id{};
-    TaskPriority priority = stx::NORMAL_PRIORITY;
+
     PromiseAny promise;
 
     // scheduling parameters
     // must be initialized to the timepoint the task became ready
     timepoint last_preempt_timepoint{};
+
+    TaskId id{};
+
+    TaskPriority priority = stx::NORMAL_PRIORITY;
+
     FutureStatus last_status_poll = FutureStatus::Scheduled;
+
     RequestedCancelState last_requested_cancel_state_poll =
         RequestedCancelState::None;
   };
@@ -55,24 +64,31 @@ struct ScheduleTimeline {
   explicit ScheduleTimeline(Allocator allocator)
       : starvation_timeline{allocator}, thread_slots_capture{allocator} {}
 
-  auto add_task(RcFn<void()> fn, TaskId id, TaskPriority priority,
-                PromiseAny promise, timepoint present_timepoint) {
-    return starvation_timeline.push(Task{
-        std::move(fn), id, priority, std::move(promise), present_timepoint});
+  Result<Void, AllocError> add_task(RcFn<void()>&& fn, PromiseAny&& promise,
+                                    timepoint present_timepoint, TaskId id,
+                                    TaskPriority priority) {
+    TRY_OK(new_timeline_flex,
+           stx::flex::push_inplace(std::move(starvation_timeline),
+                                   std::move(fn), std::move(promise),
+                                   present_timepoint, id, priority));
+
+    starvation_timeline = std::move(new_timeline_flex);
+
+    return Ok(Void{});
   }
 
   void remove_done_and_canceled_tasks() {
+    auto span = starvation_timeline.span();
     auto new_starvation_timeline_end =
-        std::remove_if(starvation_timeline.begin(), starvation_timeline.end(),
-                       [](Task const& task) {
-                         FutureStatus status = task.last_status_poll;
-                         return status == FutureStatus::Completed ||
-                                status == FutureStatus::Canceled ||
-                                status == FutureStatus::ForceCanceled;
-                       });
+        std::remove_if(span.begin(), span.end(), [](Task const& task) {
+          FutureStatus status = task.last_status_poll;
+          return status == FutureStatus::Completed ||
+                 status == FutureStatus::Canceled ||
+                 status == FutureStatus::ForceCanceled;
+        });
 
-    starvation_timeline.erase(new_starvation_timeline_end,
-                              starvation_timeline.end());
+    //    starvation_timeline.erase(new_starvation_timeline_end,
+    //                            starvation_timeline.end());
   }
 
   void update_records(timepoint present_timepoint) {
@@ -91,40 +107,38 @@ struct ScheduleTimeline {
     //
     //
     //
-    std::for_each(
-        starvation_timeline.begin(), starvation_timeline.end(),
-        [present_timepoint](Task& task) {
-          CancelRequest const cancel_request =
-              task.promise.fetch_cancel_request();
 
-          task.last_requested_cancel_state_poll = cancel_request.state;
+    for (Task& task : starvation_timeline.span()) {
+      CancelRequest const cancel_request = task.promise.fetch_cancel_request();
 
-          if (cancel_request.state == RequestedCancelState::Canceled) {
-            if (cancel_request.source == RequestSource::Executor) {
-              task.promise.notify_force_canceled();
-            } else {
-              task.promise.notify_user_canceled();
-            }
-          }
+      task.last_requested_cancel_state_poll = cancel_request.state;
 
-          // the status could have been modified in another thread, so we need
-          // to fetch the status
-          FutureStatus new_status = task.promise.fetch_status();
+      if (cancel_request.state == RequestedCancelState::Canceled) {
+        if (cancel_request.source == RequestSource::Executor) {
+          task.promise.notify_force_canceled();
+        } else {
+          task.promise.notify_user_canceled();
+        }
+      }
 
-          task.last_status_poll = new_status;
+      // the status could have been modified in another thread, so we need
+      // to fetch the status
+      FutureStatus new_status = task.promise.fetch_status();
 
-          // TODO(lamarrr): forward events to scheduler trace system.
-          // though this would mean we won't be able to observe the task's state
-          // immediately after the event happens?? but that's okay????
-          //
-          //
+      task.last_status_poll = new_status;
 
-          // if preempt timepoint not already updated, update it
-          if (task.last_status_poll != FutureStatus::ForceSuspended &&
-              new_status == FutureStatus::ForceSuspended) {
-            task.last_preempt_timepoint = present_timepoint;
-          }
-        });
+      // TODO(lamarrr): forward events to scheduler trace system.
+      // though this would mean we won't be able to observe the task's state
+      // immediately after the event happens?? but that's okay????
+      //
+      //
+
+      // if preempt timepoint not already updated, update it
+      if (task.last_status_poll != FutureStatus::ForceSuspended &&
+          new_status == FutureStatus::ForceSuspended) {
+        task.last_preempt_timepoint = present_timepoint;
+      }
+    }
 
     remove_done_and_canceled_tasks();
   }
@@ -133,14 +147,14 @@ struct ScheduleTimeline {
   auto sort_and_partition_timeline() {
     // split into ready to execute (pre-empted or running) and user-suspended
     // partition
-    auto const starvation_timeline_starving_end = std::partition(
-        starvation_timeline.begin(), starvation_timeline.end(),
-        [](Task const& task) {
+    auto span = starvation_timeline.span();
+    auto const starvation_timeline_starving_end =
+        std::partition(span.begin(), span.end(), [](Task const& task) {
           return task.last_status_poll != FutureStatus::Suspended;
         });
 
     // sort by preemption/starvation duration (descending)
-    std::sort(starvation_timeline.begin(), starvation_timeline_starving_end,
+    std::sort(span.begin(), starvation_timeline_starving_end,
               [](Task const& a, Task const& b) {
                 return a.last_preempt_timepoint > b.last_preempt_timepoint;
               });
@@ -150,14 +164,14 @@ struct ScheduleTimeline {
 
   // returns end of selections (sorted by priority in descending order)
   auto select_tasks_for_slots(size_t num_slots) {
-    auto const begin = starvation_timeline.begin();
-    auto timeline_selection_it = begin;
+    auto span = starvation_timeline.span();
+    auto* timeline_selection_it = span.begin();
 
     // select only starving and ready tasks
-    auto starving_end = sort_and_partition_timeline();
+    auto* starving_end = sort_and_partition_timeline();
 
     timepoint const most_starved_task_timepoint =
-        starvation_timeline[0].last_preempt_timepoint;
+        span[0].last_preempt_timepoint;
 
     nanoseconds selection_period_span = STARVATION_PERIOD;
 
@@ -165,7 +179,7 @@ struct ScheduleTimeline {
       if ((timeline_selection_it->last_preempt_timepoint -
            most_starved_task_timepoint) <= selection_period_span) {
         // add to timeline selection
-      } else if (static_cast<size_t>(timeline_selection_it - begin) <
+      } else if (static_cast<size_t>(timeline_selection_it - span.begin()) <
                  num_slots) {
         // if there's not enough tasks to fill up all the slots, extend
         // the starvation period span
@@ -179,10 +193,10 @@ struct ScheduleTimeline {
 
     // sort selection span by priority
     std::sort(
-        starvation_timeline.begin(), timeline_selection_it,
+        span.begin(), timeline_selection_it,
         [](Task const& a, Task const& b) { return a.priority > b.priority; });
 
-    size_t num_selected = timeline_selection_it - starvation_timeline.begin();
+    size_t num_selected = timeline_selection_it - span.begin();
 
     return std::min(num_slots, num_selected);
   }
@@ -195,17 +209,19 @@ struct ScheduleTimeline {
 
     size_t const num_slots = slots.size();
 
-    stx::vec::resize(thread_slots_capture, num_slots).unwrap();
+    thread_slots_capture =
+        stx::flex::resize(std::move(thread_slots_capture), num_slots).unwrap();
 
     // fetch the status of each thread slot
-    std::transform(slots.begin(), slots.end(), thread_slots_capture.begin(),
+    std::transform(slots.begin(), slots.end(),
+                   thread_slots_capture.span().begin(),
                    [](Rc<ThreadSlot*> const& rc_slot) {
                      return rc_slot.handle->slot.query();
                    });
 
     update_records(present_timepoint);
 
-    if (starvation_timeline.size() == 0) return;
+    if (starvation_timeline.empty()) return;
 
     size_t const num_selected = select_tasks_for_slots(num_slots);
 
@@ -217,8 +233,7 @@ struct ScheduleTimeline {
     // we don't expect just-suspended tasks to suspend immediately, even if
     // they do we'll process them in the next tick and our we account for that.
     //
-    for (Task const& task :
-         Span<Task const>{starvation_timeline}.subspan(num_selected)) {
+    for (Task const& task : starvation_timeline.span().subspan(num_selected)) {
       if (task.last_status_poll != FutureStatus::ForceSuspended) {
         task.promise.request_force_suspend();
       }
@@ -235,18 +250,19 @@ struct ScheduleTimeline {
     // here will get assigned in the next tick
     //
     for (Task const& task :
-         Span<Task const>{starvation_timeline}.subspan(0, num_selected)) {
-      auto task_pos =
-          std::find_if(thread_slots_capture.begin(), thread_slots_capture.end(),
+         starvation_timeline.span().subspan(0, num_selected)) {
+      auto* task_pos =
+          std::find_if(thread_slots_capture.span().begin(),
+                       thread_slots_capture.span().end(),
                        [&task](ThreadSlot::Query const& query) {
                          return query.executing_task.contains(task.id) ||
                                 query.pending_task.contains(task.id);
                        });
 
-      bool has_slot = task_pos != thread_slots_capture.end();
+      bool has_slot = task_pos != thread_slots_capture.span().end();
 
       while (next_slot < num_slots && !has_slot) {
-        if (thread_slots_capture[next_slot].can_push) {
+        if (thread_slots_capture.span()[next_slot].can_push) {
           task.promise.clear_force_suspension_request();
           slots[next_slot].handle->slot.push_task(
               ThreadSlot::Task{task.fn.share(), task.id});
@@ -261,16 +277,14 @@ struct ScheduleTimeline {
   // pending tasks
   // TODO(lamarrr):  newly ready tasks must be marked as suspended
   //
-  Vec<Task> starvation_timeline;
-  Vec<ThreadSlot::Query> thread_slots_capture;
+  Flex<Task> starvation_timeline;
+  Flex<ThreadSlot::Query> thread_slots_capture;
 };
-
 
 // TODO(lamarrr): move execution of the timeline to the worker threads
 // they go to the slots and sort them, satisfy pending streams if any
 //
 // they need to sleep if no task is available
 //
-
 
 }  // namespace vlk

@@ -26,6 +26,10 @@
 /// address and its contents are not moved or copied as its content could also
 /// refer to the object itself. this enforces stability of the address of the
 /// object as it will not change throughout its lifetime.
+//
+// This also means its content can not be duplicated in anyway. i.e. structs in
+// which it doesn't make sense to copy their bytes.
+//
 #define STX_MAKE_PINNED(target_type) \
   STX_DISABLE_COPY(target_type)      \
   STX_DISABLE_MOVE(target_type)

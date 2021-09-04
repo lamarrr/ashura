@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 execute_process(
-  COMMAND git clone https://github.com/lamarrr/STX.git third_party/STX
+  COMMAND git clone -b v2 https://github.com/lamarrr/STX.git third_party/STX
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 execute_process(
   COMMAND git clone -b v1.8.2 https://github.com/gabime/spdlog.git
