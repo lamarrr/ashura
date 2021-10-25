@@ -12,6 +12,10 @@ template <typename Fn, typename FirstInput, typename... OtherInputs>
 auto await(vlk::TaskScheduler &scheduler, Fn task, TaskPriority priority,
            TaskTraceInfo trace_info, Future<FirstInput> first_input,
            Future<OtherInputs>... other_inputs) {
+  auto timepoint = std::chrono::steady_clock::now();
+  TaskId task_id{scheduler.next_task_id};
+  scheduler.next_task_id++;
+
   static_assert(std::is_invocable_v<Fn &, Future<FirstInput> &&,
                                     Future<OtherInputs> &&...>);
 
@@ -39,6 +43,8 @@ auto await(vlk::TaskScheduler &scheduler, Fn task, TaskPriority priority,
   Promise promise = stx::make_promise<output>(scheduler.allocator).unwrap();
   Future future = promise.get_future();
 
+  PromiseAny task_promise = PromiseAny{promise.share()};
+
   RcFn<void()> fn =
       stx::fn::rc::make_functor(scheduler.allocator, [task_ = std::move(task),
                                                       args_ = std::move(args),
@@ -55,7 +61,8 @@ auto await(vlk::TaskScheduler &scheduler, Fn task, TaskPriority priority,
 
   scheduler.entries =
       stx::flex::push(std::move(scheduler.entries),
-                      Task{std::move(fn), std::move(readiness_fn), priority,
+                      Task{std::move(fn), std::move(readiness_fn), timepoint,
+                           std::move(task_promise), task_id, priority,
                            std::move(trace_info)})
           .unwrap();
 
@@ -66,6 +73,10 @@ template <typename Fn, typename FirstInput, typename... OtherInputs>
 auto await_any(vlk::TaskScheduler &scheduler, Fn task, TaskPriority priority,
                TaskTraceInfo trace_info, Future<FirstInput> first_input,
                Future<OtherInputs>... other_inputs) {
+  auto timepoint = std::chrono::steady_clock::now();
+  TaskId task_id{scheduler.next_task_id};
+  scheduler.next_task_id++;
+
   static_assert(std::is_invocable_v<Fn &, Future<FirstInput> &&,
                                     Future<OtherInputs> &&...>);
 
@@ -92,6 +103,7 @@ auto await_any(vlk::TaskScheduler &scheduler, Fn task, TaskPriority priority,
 
   Promise promise = stx::make_promise<output>(scheduler.allocator).unwrap();
   Future future = promise.get_future();
+  PromiseAny task_promise{promise.share()};
 
   RcFn<void()> fn =
       stx::fn::rc::make_functor(scheduler.allocator, [task_ = std::move(task),
@@ -109,7 +121,8 @@ auto await_any(vlk::TaskScheduler &scheduler, Fn task, TaskPriority priority,
 
   scheduler.entries =
       stx::flex::push(std::move(scheduler.entries),
-                      Task{std::move(fn), std::move(readiness_fn), priority,
+                      Task{std::move(fn), std::move(readiness_fn), timepoint,
+                           std::move(task_promise), task_id, priority,
                            std::move(trace_info)})
           .unwrap();
 

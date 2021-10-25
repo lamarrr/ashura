@@ -17,12 +17,16 @@ namespace sched {
 template <typename Fn>
 auto fn(TaskScheduler &scheduler, Fn fn_task, TaskPriority priority,
         TaskTraceInfo trace_info) {
+  auto timepoint = std::chrono::steady_clock::now();
+  TaskId task_id{scheduler.next_task_id};
+  scheduler.next_task_id++;
   static_assert(std::is_invocable_v<Fn &>);
 
   using output = std::invoke_result_t<Fn &>;
 
   Promise promise = stx::make_promise<output>(scheduler.allocator).unwrap();
   Future future = promise.get_future();
+  PromiseAny scheduler_promise{promise.share()};
 
   RcFn<void()> sched_fn =
       stx::fn::rc::make_functor(scheduler.allocator, [fn_task_ =
@@ -41,7 +45,8 @@ auto fn(TaskScheduler &scheduler, Fn fn_task, TaskPriority priority,
       stx::flex::push(
           std::move(scheduler.entries),
           Task{std::move(sched_fn), stx::fn::rc::make_static(task_is_ready),
-               priority, std::move(trace_info)})
+               timepoint, std::move(scheduler_promise), task_id, priority,
+               std::move(trace_info)})
           .unwrap();
 
   return future;
@@ -51,6 +56,10 @@ auto fn(TaskScheduler &scheduler, Fn fn_task, TaskPriority priority,
 template <typename Fn, typename... OtherFns>
 auto chain(TaskScheduler &scheduler, Chain<Fn, OtherFns...> chain,
            TaskPriority priority, TaskTraceInfo trace_info) {
+  auto timepoint = std::chrono::steady_clock::now();
+  TaskId task_id{scheduler.next_task_id};
+  scheduler.next_task_id++;
+
   using result_type = typename Chain<Fn, OtherFns...>::last_phase_result_type;
   using stack_type = typename Chain<Fn, OtherFns...>::stack_type;
   static constexpr auto num_phases = Chain<Fn, OtherFns...>::num_phases;
@@ -59,6 +68,8 @@ auto chain(TaskScheduler &scheduler, Chain<Fn, OtherFns...> chain,
       stx::make_promise<result_type>(scheduler.allocator).unwrap();
 
   Future future = promise.get_future();
+
+  PromiseAny scheduler_promise{promise.share()};
 
   RcFn<void()> fn =
       stx::fn::rc::make_functor(
@@ -96,7 +107,8 @@ auto chain(TaskScheduler &scheduler, Chain<Fn, OtherFns...> chain,
   scheduler.entries =
       stx::flex::push(
           std::move(scheduler.entries),
-          Task{std::move(fn), stx::fn::rc::make_static(task_is_ready), priority,
+          Task{std::move(fn), stx::fn::rc::make_static(task_is_ready),
+               timepoint, std::move(scheduler_promise), task_id, priority,
                std::move(trace_info)})
           .unwrap();
 
