@@ -21,6 +21,7 @@
 #include "stx/void.h"
 #include "vlk/scheduler/thread_pool.h"
 #include "vlk/scheduler/thread_slot.h"
+#include "vlk/scheduler/timeline.h"
 #include "vlk/subsystem/impl.h"
 #include "vlk/utils.h"
 
@@ -80,6 +81,12 @@ struct Task {
   // this is used for awaiting of futures or events.
   //
   RcFn<TaskReady(nanoseconds)> poll_ready;
+
+  std::chrono::steady_clock::time_point schedule_timepoint;
+
+  stx::PromiseAny scheduler_promise;
+
+  stx::TaskId task_id{0};
 
   TaskPriority priority = stx::NORMAL_PRIORITY;
 
@@ -172,9 +179,10 @@ struct TaskScheduler final : public SubsystemImpl {
   TaskScheduler(timepoint ireference_timepoint, Allocator iallocator)
       : reference_timepoint{ireference_timepoint},
         entries{iallocator},
-        deferred_entries{iallocator},
         cancelation_promise{stx::make_promise<void>(iallocator).unwrap()},
-        allocator{iallocator} {}
+        allocator{iallocator},
+        timeline{iallocator},
+        deferred_entries{iallocator} {}
 
   FutureAny get_future() final {
     return FutureAny{cancelation_promise.get_future()};
@@ -185,23 +193,39 @@ struct TaskScheduler final : public SubsystemImpl {
     // if cancelation requested,
     // begin shutdown sequence
     // cancel non-critical tasks
+    timepoint present = std::chrono::steady_clock::now();
+    auto [___r, ready_tasks] =
+        entries.span().partition([present](Task const& task) {
+          return task.poll_ready.handle(present - task.schedule_timepoint) !=
+                 TaskReady::Yes;
+        });
+
+    for (auto& task : ready_tasks) {
+      timeline
+          .add_task(std::move(task.function), std::move(task.scheduler_promise),
+                    present, task.task_id, task.priority)
+          .unwrap();
+    }
+
+    entries = stx::flex::erase(std::move(entries), ready_tasks);
+  }
+
+  void schedule() {
+    auto timepoint = std::chrono::steady_clock::now();
+    TaskId task_id{next_task_id};
+    next_task_id++;
   }
 
   timepoint reference_timepoint;
   Flex<Task> entries;
-  // TODO(lamarrr):
-  // main thread tasks
-  // secondary thread tasks
-  Flex<DeferredTask> deferred_entries;
+  ScheduleTimeline timeline;
   Promise<void> cancelation_promise;
+  uint64_t next_task_id{0};
+  Flex<DeferredTask> deferred_entries;
+
   Allocator allocator;
 
-  Flex<Task> main_thread_tasks;
-  Flex<Task> worker_threads_tasks;
-  Flex<StreamTask> main_thread_stream_tasks;
-  Flex<StreamTask> worker_threads_stream_tasks;
-
-  Flex<Fn<void()>> stream_operations;
+  // Flex<Task> main_thread_tasks;
 };
 
 // Processes stream operations on every tick.
@@ -214,21 +238,43 @@ struct TaskScheduler final : public SubsystemImpl {
 // join
 struct StreamPipeline {
   template <typename Fn, typename T, typename U>
-  void map(Fn&& transform, stx::Stream<T>&&, stx::Generator<U>&&);
+  void map(Fn&& transform, stx::Stream<T>&& input, stx::Generator<U>&& output) {
+    stx::fn::rc::make_functor(
+        stx::os_allocator,
+        [transform_ = std::move(transform), input_ = std::move(input),
+         output_ = std::move(output)]() {
+          input_.pop().match(
+              [](T&& input) { output_.yield(transform_(input)); }, []() {});
+        });
+  }
 
   template <typename Predicate, typename T, typename U>
-  void filter(Predicate&& predicate, stx::Stream<T>&&, stx::Generator<U>&&);
+  void filter(Predicate&& predicate, stx::Stream<T>&& input,
+              stx::Generator<U>&& output) {
+    stx::fn::rc::make_functor(
+        stx::os_allocator,
+        [predicate_ = std::move(predicate), input_ = std::move(input),
+         output_ = std::move(output)]() {
+          input_.pop().match(
+              [](T&& input) {
+                if (predicate_(input)) output_.yield(std::move(input));
+              },
+              []() {});
+        });
+  }
 
-  template <typename T, typename U>
-  void enumerate(stx::Stream<T>&&);
+  template <typename Operation, typename T, typename... U, typename V>
+  void fork(Operation&& operation, stx::Stream<T>&& input,
+            stx::Generator<U>&&... ouputs) {
+    //
+    //
+  }
 
-  template <typename Operation, typename T, typename U, typename V>
-  void fork(Operation&& operation, stx::Stream<T>&&, stx::Generator<U>&&,
-            stx::Generator<V>&&);
-
-  template <typename Operation, typename T, typename U, typename V>
-  void join(Operation&& operation, stx::Stream<T>&&, stx::Stream<U>&&,
-            stx::Generator<V>&&);
+  template <typename Operation, typename T, typename... U>
+  void join(Operation&& operation, stx::Generator<T>&&, stx::Stream<U>&&...) {
+    //
+    //
+  }
 
   stx::Flex<stx::RcFn<void()>> jobs;
 };
