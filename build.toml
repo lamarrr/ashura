@@ -1,0 +1,109 @@
+
+#
+#
+#
+#
+# We want to be able to bootstrap the application
+#
+#
+#
+# cmd 
+# build --release, --release-with-debug-info, --debug
+#
+#
+#
+# TOOLCHAIN FILE
+#
+#
+
+
+# Use these files to make a custom build.
+CMAKE_PACKAGE_DEPENDENCIES = [
+    "http://github.com/*.git" 
+    # install all? has custom install and build commands and configurations?
+    #
+]
+
+
+# Option(name, description) => MACRO
+# Version
+# Project Name
+# BUILD_TESTS
+# BUILD_BENCHMARK
+
+# root file to recognize root package
+# all commands must be executed from root
+# commands =>
+
+#
+#
+# Setup LLVM Toolchain Folder
+#
+#
+# [https://releases.llvm.org/download.html#12.0.1]
+#
+#
+#
+#
+# Defines
+#
+# Fetch LibCxx + CLang Tools + CLang Lint + CLang TIDY
+#
+#
+#
+#
+# A depends on B
+#
+#
+
+
+
+
+#
+#
+#
+#
+#
+#
+#
+# Should generate documentation on usage
+#
+#
+#
+#
+# automatically generate benchmarks and tests
+#
+#
+#
+# #always fetch benchmarks and tests for the workspace
+#
+#
+#
+# check for linux prof
+#
+#
+#
+#
+#
+# run multiple find packages for specific versions and if the required ones aren't available, recommend downloading
+#
+#
+
+# we need to set 
+#
+# use ninja
+# use clang
+#
+#-- CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES=/usr/include/c++/10;/usr/include/x86_64-linux-gnu/c++/10;/usr/include/c++/10/backward;/usr/local/include;/usr/lib/llvm-12/lib/clang/12.0.0/include;/usr/include/x86_64-linux-gnu;/usr/include
+#-- CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES=/usr/lib/gcc/x86_64-linux-gnu/10;/usr/lib/x86_64-linux-gnu;/usr/lib64;/lib/x86_64-linux-gnu;/lib64;/usr/lib;/usr/lib/llvm-12/lib;/lib
+
+
+#
+# install to workspace DIR
+#
+# WORKSPACE_DIR
+#
+#
+# PROJECT_NAME
+#
+#

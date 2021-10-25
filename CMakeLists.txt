@@ -9,26 +9,8 @@ execute_process(
   COMMAND git clone -b v2 https://github.com/lamarrr/STX.git third_party/STX
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 execute_process(
-  COMMAND git clone -b v1.8.2 https://github.com/gabime/spdlog.git
-          third_party/spdlog WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-# execute_process( COMMAND git clone -b 0.9.9.8
-# https://github.com/g-truc/glm.git third_party/glm WORKING_DIRECTORY
-# ${CMAKE_CURRENT_LIST_DIR})
-execute_process(
   COMMAND git clone -b master https://github.com/nothings/stb.git
           third_party/stb WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-execute_process(
-  COMMAND git clone -b release-1.10.0 https://github.com/google/googletest.git
-          third_party/googletest WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-execute_process(
-  COMMAND git clone -b 7.1.3 https://github.com/fmtlib/fmt.git third_party/fmt
-  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-execute_process(
-  COMMAND git clone -b release-2.0.14 https://github.com/libsdl-org/SDL.git
-          third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-execute_process(
-  COMMAND git clone -b curl-7_77_0 https://github.com/curl/curl.git
-          third_party/curl WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 # TODO(lamarrr): use a tagged version with CMakeLists.txt
 execute_process(
@@ -37,6 +19,14 @@ execute_process(
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
     third_party/VulkanMemoryAllocator
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+find_package(GTest REQUIRED)
+find_package(fmt REQUIRED)
+find_package(spdlog REQUIRED)
+find_package(SDL2 REQUIRED)
+find_package(CURL REQUIRED)
+find_package(Vulkan REQUIRED)
+find_package(Fontconfig REQUIRED)
 
 # TODO(lamarrr): check if skia binaries and header folder doesn't exists and
 # pull in
@@ -51,9 +41,6 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/third_party/skia/out/Release)
   endif()
 endif()
-
-find_package(Vulkan REQUIRED)
-find_package(Fontconfig REQUIRED)
 
 set(GLFW_BUILD_EXAMPLES
     OFF
@@ -124,13 +111,8 @@ set(SDL_LOCALE_ENABLED_BY_DEFAULT
     OFF
     CACHE BOOL "" FORCE)
 
-add_subdirectory(third_party/STX EXCLUDE_FROM_ALL)
-add_subdirectory(third_party/spdlog EXCLUDE_FROM_ALL)
-add_subdirectory(third_party/googletest EXCLUDE_FROM_ALL)
-add_subdirectory(third_party/fmt EXCLUDE_FROM_ALL)
-add_subdirectory(third_party/VulkanMemoryAllocator EXCLUDE_FROM_ALL)
-add_subdirectory(third_party/SDL EXCLUDE_FROM_ALL)
-add_subdirectory(third_party/curl EXCLUDE_FROM_ALL)
+add_subdirectory(third_party/STX)
+add_subdirectory(third_party/VulkanMemoryAllocator)
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
@@ -162,9 +144,11 @@ target_compile_definitions(
          SK_ENABLE_DUMP_GPU)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-  add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic -fno-exceptions -fno-unwind-tables)
+  add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic
+                      -fno-exceptions -fno-unwind-tables)
 elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-  add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic -fno-exceptions -fno-unwind-tables)
+  add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic
+                      -fno-exceptions -fno-unwind-tables)
 endif()
 
 # TODO(lamarrr): we need extensive unit testing even for dependencies
@@ -179,3 +163,4 @@ add_subdirectory(primitives)
 add_subdirectory(utils)
 add_subdirectory(ui)
 add_subdirectory(scheduler)
+

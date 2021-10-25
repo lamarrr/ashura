@@ -10,17 +10,18 @@
 #include <variant>
 
 #include "stx/async.h"
+#include "stx/flex.h"
 #include "stx/fn.h"
 #include "stx/mem.h"
 #include "stx/option.h"
-#include "stx/str.h"
+#include "stx/string.h"
 #include "stx/task/chain.h"
 #include "stx/task/priority.h"
-#include "stx/flex.h"
 #include "stx/void.h"
 #include "vlk/scheduler/thread_pool.h"
 #include "vlk/subsystem/impl.h"
 #include "vlk/utils.h"
+#include "vlk/scheduler/thread_slot.h"
 
 namespace vlk {
 
@@ -28,6 +29,7 @@ using namespace std::chrono_literals;
 using std::string_view;
 using std::chrono::nanoseconds;
 using stx::Chain;
+using stx::Flex;
 using stx::Fn;
 using stx::Future;
 using stx::FutureAny;
@@ -36,25 +38,27 @@ using stx::Promise;
 using stx::PromiseAny;
 using stx::Rc;
 using stx::RcFn;
-using stx::RcStr;
+using stx::String;
+using stx::StringView;
 using stx::TaskPriority;
-using stx::Flex;
 using stx::Void;
 using timepoint = std::chrono::steady_clock::time_point;
 using stx::AllocError;
 using stx::Result;
 
 struct TaskTraceInfo {
-  RcStr content = stx::str::rc::make_static("[Unspecified Context]");
-  RcStr purpose = stx::str::rc::make_static("[Unspecified Purpose]");
+  Rc<StringView> content =
+      stx::string::rc::make_static_view("[Unspecified Context]");
+  Rc<StringView> purpose =
+      stx::string::rc::make_static_view("[Unspecified Purpose]");
 };
 
-namespace stream_target {
+namespace task_target {
 struct main_thread {};
 struct worker_threads {};
-};  // namespace stream_target
+};  // namespace task_target
 
-enum class TaskReady { Yes, No };
+enum class TaskReady { No, Yes };
 
 constexpr TaskReady task_is_ready(nanoseconds) { return TaskReady::Yes; }
 
@@ -62,10 +66,10 @@ constexpr TaskReady task_is_ready(nanoseconds) { return TaskReady::Yes; }
 // tasks.
 //
 struct Task {
-  // this is the final task to be executed on **another thread**.
+  // this is the final task to be executed on the target thread.
   // must only be invoked by one thread at a point in time.
   //
-  RcFn<void()> fn;
+  RcFn<void()> function;
 
   // used to ask if the task is ready for execution.
   // called on scheduler thread.
@@ -78,6 +82,24 @@ struct Task {
 
   TaskPriority priority = stx::NORMAL_PRIORITY;
 
+  TaskTraceInfo trace_info;
+};
+
+enum class StopStreaming { No, Yes };
+
+// this should run until we poll for data and told that the stream is closed.
+// ...
+//
+// Poll frequency???
+//
+struct StreamTask {
+  // throttle, map, reduce, forward, connect, split, etc.
+  // must only be invoked by one thread at a point in time.
+  RcFn<void()> function;
+  RcFn<StopStreaming(nanoseconds)> should_stop;
+  // will be used to schedule tasks onto threads once the stream chunks are
+  // available
+  TaskPriority priority = stx::NORMAL_PRIORITY;
   TaskTraceInfo trace_info;
 };
 
@@ -172,6 +194,36 @@ struct TaskScheduler final : public SubsystemImpl {
   Flex<DeferredTask> deferred_entries;
   Promise<void> cancelation_promise;
   Allocator allocator;
+
+  Flex<Task> main_thread_tasks;
+  Flex<Task> worker_threads_tasks;
+  Flex<StreamTask> main_thread_stream_tasks;
+  Flex<StreamTask> worker_threads_stream_tasks;
+
+  Flex<Fn<void()>> stream_operations;
+};
+
+
+
+// Processes stream operations on every tick.
+// operations include:
+// map
+// filter
+// reduce (ends on {N} yields or when stream is closed)
+// enumerate
+// fork
+// join
+struct StreamPipeline{
+void map();
+void filter();
+void reduce();
+void enumerate();
+void fork();
+void join();
+
+
+
+
 };
 
 }  // namespace vlk

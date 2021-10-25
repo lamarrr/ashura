@@ -21,12 +21,13 @@ constexpr TaskPriority NORMAL_PRIORITY{0};
 // the background. i.e. checking wifi status, polling peripherral status,
 // responding to non-urgent widget requests, etc.
 //
-constexpr TaskPriority SERVICE_PRIORITY{1};
+// constexpr TaskPriority SERVICE_PRIORITY{1};
+
 // involves tasks that the user needs to
 // observe its result as soon as possible. i.e. image loading and decoding,
 // texture loading, offscreen rendering, etc.
 //
-constexpr TaskPriority INTERACTIVE_PRIORITY{2};
+constexpr TaskPriority INTERACTIVE_PRIORITY{1};
 
 // critical tasks can involve tasks saving user data. i.e. backing up user
 // data, saving changes to disk, etc.

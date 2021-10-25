@@ -4,7 +4,7 @@ target_link_libraries(
   vlk::asset
   stx::async
   stx::mem
-  stx
+  stx::option_result
   vlk::subsystem
   vlk::utils
   fmt::fmt)

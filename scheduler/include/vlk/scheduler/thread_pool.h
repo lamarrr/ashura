@@ -6,10 +6,11 @@
 #include <utility>
 
 #include "stx/async.h"
+#include "stx/flex.h"
 #include "stx/fn.h"
 #include "stx/mem.h"
+#include "stx/option.h"
 #include "stx/spinlock.h"
-#include "stx/vec.h"
 #include "vlk/scheduler/thread_slot.h"
 #include "vlk/utils.h"
 
@@ -28,8 +29,8 @@ using stx::Some;
 using stx::SpinLock;
 using timepoint = std::chrono::steady_clock::time_point;
 using stx::Allocator;
-using stx::FixedVec;
-using stx::Vec;
+using stx::FixedFlex;
+using stx::Flex;
 
 namespace impl {
 
@@ -67,25 +68,32 @@ struct ThreadPool {
 
   explicit ThreadPool(Allocator allocator)
       : num_threads{std::min<size_t>(std::thread::hardware_concurrency(), 1)},
-        threads{stx::vec::fixed<std::thread>(allocator, num_threads).unwrap()},
+        threads{stx::flex::make_fixed<std::thread>(allocator, num_threads)
+                    .unwrap()},
         thread_slots{
-            stx::vec::fixed<stx ::Rc<ThreadSlot*>>(allocator, num_threads)
+            stx::flex::make_fixed<stx ::Rc<ThreadSlot*>>(allocator, num_threads)
                 .unwrap()},
         promise{stx::make_promise<void>(allocator).unwrap()} {
     promise.notify_executing();
 
     for (size_t i = 0; i < num_threads; i++) {
-      thread_slots
-          .push_inplace(
+      thread_slots =
+          stx::flex::push_inplace(
+              std::move(thread_slots),
               stx::rc::make_inplace<ThreadSlot>(
                   allocator, stx::make_promise<void>(allocator).unwrap())
                   .unwrap())
-          .unwrap();
+              .unwrap();
     }
 
     for (size_t i = 0; i < num_threads; i++) {
-      threads
-          .push_inplace([slot = &thread_slots[i].handle->slot] {
+      threads =
+          stx::flex::push_inplace(std::move(threads), [slot =
+                                                           &thread_slots
+                                                                .span()[i]
+                                                                .handle->slot] {
+            // TODO(lamarrr): separate this and ensure no thread panics whilst
+            // holding a lock or even communicating
             uint64_t eventless_polls = 0;
             while (true) {
               stx::CancelRequest request = slot->promise.fetch_cancel_request();
@@ -121,19 +129,18 @@ struct ThreadPool {
                 now = std::chrono::steady_clock::now();
               }
             }
-          })
-          .unwrap();
+          }).unwrap();
     }
   }
 
   ~ThreadPool() {
-    for (std::thread& thread : threads) {
+    for (std::thread& thread : threads.span()) {
       thread.join();
     }
   }
 
   stx::Span<Rc<ThreadSlot*> const> get_thread_slots() const {
-    return thread_slots;
+    return thread_slots.span().as_const();
   }
 
   FutureAny get_future() { return FutureAny{promise.get_future()}; }
@@ -143,7 +150,7 @@ struct ThreadPool {
       case State::Running: {
         if (promise.fetch_cancel_request().state ==
             stx::RequestedCancelState::Canceled) {
-          for (auto& slot : thread_slots) {
+          for (auto& slot : thread_slots.span()) {
             slot.handle->slot.promise.get_future().request_cancel();
           }
           state = State::ShuttingDown;
@@ -153,7 +160,7 @@ struct ThreadPool {
       }
 
       case State::ShuttingDown: {
-        if (std::all_of(thread_slots.begin(), thread_slots.end(),
+        if (std::all_of(thread_slots.span().begin(), thread_slots.span().end(),
                         [](auto const& slot) {
                           return slot.handle->slot.promise.is_done();
                         })) {
@@ -176,10 +183,10 @@ struct ThreadPool {
 
  private:
   size_t num_threads = 0;
-  FixedVec<std::thread> threads;
+  FixedFlex<std::thread> threads;
   // slots are not stored in the thread's lambda since we want to push tasks
   // onto them
-  FixedVec<Rc<ThreadSlot*>> thread_slots;
+  FixedFlex<Rc<ThreadSlot*>> thread_slots;
   stx::Promise<void> promise;
   State state = State::Running;
 };

@@ -227,7 +227,7 @@ struct [[nodiscard]] StreamState {
   // contention is O(1) and not proportional to the contained object nor
   // management of the chunks.
   //
-  // yielding never fails.
+  // yielding never fails here.
   //
   // REQUIREMENTS:
   //
@@ -372,7 +372,7 @@ struct [[nodiscard]] BufferMemory {
   uint64_t capacity;
 };
 
-enum class [[nodiscard]] RingBufferError : uint8_t{_____None = 0, MemoryFull};
+enum class [[nodiscard]] RingBufferError : uint8_t{None = 0, NoMemory};
 
 // A ring buffer for objects that accounts for the C++ object model
 template <typename T>
@@ -412,7 +412,7 @@ struct [[nodiscard]] SmpRingBuffer {
       num_available--;
     });
 
-    if (selected == u64_max) return Err(RingBufferError::MemoryFull);
+    if (selected == u64_max) return Err(RingBufferError::NoMemory);
 
     // construct at the allocated memory
     T *placement = new (memory[selected]) T{std::forward<Args>(args)...};
@@ -451,7 +451,7 @@ struct [[nodiscard]] SmpRingBuffer {
     memory[to_destroy]->~T();
 
     WITH_LOCK(lock, {
-      // free the memory
+      // only declared as re-usable memory once the object is destroyed.
       num_available = (num_available + 1) % memory.capacity;
     });
   }
@@ -540,6 +540,16 @@ struct [[nodiscard]] Generator {
   Rc<StreamState<T> *> state;
 };
 
+// NOTE: the Memory Backed generator can use the base generator if it runs out
+// of memory
+//
+//
+// The memory backed generator is most efficient for a variety of reasons:
+//
+// - high data and instruction cache re-use
+// - data spatial and temporal locality
+// - zero allocation
+//
 template <typename T>
 struct [[nodiscard]] MemoryBackedGenerator {
   STX_DEFAULT_MOVE(MemoryBackedGenerator)
@@ -622,6 +632,24 @@ struct [[nodiscard]] Stream {
 
   Rc<StreamState<T> *> state;
 };
+
+template <typename T>
+Stream<T> make_stream(Generator<T> const &generator) {
+  return Stream<T>{generator.state.share()};
+}
+
+
+template<typename T>
+void map(Stream<T>& input, Stream<T>& output){}
+template<typename T>
+void filter(Stream<T>& input, Stream<T>& output){}
+template<typename T>
+void enumerate(Stream<T>& input, Stream<std::pair<uint64_t, T>>& output){}
+
+
+// scheduler handles operations on the stream.
+// it pops attached streams until nothing is left and perfroms the required operations on them.
+// this will make the scheduler act as a pipeline for streams and generators
 
 // map (fast)
 // filter

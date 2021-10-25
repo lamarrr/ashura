@@ -44,6 +44,9 @@ struct ThreadSlot {
     explicit ____ThreadSlot(stx::Promise<void>&& ipromise)
         : promise{std::move(ipromise)} {}
 
+    // sorts the executing and pending task.
+    // relies on the fact that only one task can be executed at once.
+    // tasks are marked as completed by the scheduler.
     auto try_pop_task() -> Option<RcFn<void()>> {
       LockGuard guard{lock};
       executing_task = None;

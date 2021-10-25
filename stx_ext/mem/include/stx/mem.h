@@ -9,6 +9,7 @@
 #include "stx/rc.h"
 #include "stx/result.h"
 #include "stx/struct.h"
+#include "stx/try_ok.h"
 
 namespace stx {
 
@@ -169,7 +170,9 @@ struct UniqueRcOperation final : public ManagerHandle {
 namespace rc {
 
 template <typename T, typename... Args>
-Result<Rc<T*>, AllocError> make_inplace(Allocator allocator, Args&&... args) {
+Result<Rc<T*>, AllocError> make_inplace(Allocator allocator,
+
+                                        Args&&... args) {
   TRY_OK(memory,
          mem::allocate(allocator, sizeof(RcOperation<DeallocateObject<T>>)));
 
@@ -223,6 +226,7 @@ Rc<T*> make_static(T& object) {
 
 template <typename T, typename... Args>
 Result<Unique<T*>, AllocError> make_unique_inplace(Allocator allocator,
+
                                                    Args&&... args) {
   TRY_OK(memory, mem::allocate(allocator,
                                sizeof(UniqueRcOperation<DeallocateObject<T>>)));
@@ -235,7 +239,7 @@ Result<Unique<T*>, AllocError> make_unique_inplace(Allocator allocator,
 
   destroy_operation_type* destroy_operation_handle =
       new (mem) UniqueRcOperation<DeallocateObject<T>>{
-          std::move(allocator), std::forward<Args>(args)...};
+          allocator, std::forward<Args>(args)...};
 
   Manager manager{*destroy_operation_handle};
 

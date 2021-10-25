@@ -7,6 +7,7 @@
 #include "stx/result.h"
 #include "stx/span.h"
 #include "stx/struct.h"
+#include "stx/try_ok.h"
 #include "stx/void.h"
 
 #define STX_DISABLE_BOUNDS_CHECK 0
@@ -109,9 +110,7 @@ struct FlexBase {
 
   ~FlexBase() { destruct_range(iterator____elements(), size_); }
 
-  Span<T> span() const& {
-    return Span<T>{iterator____begin(), iterator____end()};
-  }
+  Span<T> span() const& { return Span<T>{iterator____begin(), size_}; }
 
   Span<T> span() const&& = delete;
 
@@ -195,7 +194,7 @@ template <typename T>
 Result<Flex<T>, AllocError> make(Allocator allocator, size_t capacity = 0) {
   TRY_OK(memory, mem::allocate(allocator, capacity * sizeof(T)));
 
-  return Ok(Flex<T>{std::move(memory), capacity});
+  return Ok(Flex<T>{std::move(memory), 0, capacity});
 }
 
 template <typename T>
@@ -203,7 +202,7 @@ Result<FixedFlex<T>, AllocError> make_fixed(Allocator allocator,
                                             size_t capacity = 0) {
   TRY_OK(memory, mem::allocate(allocator, capacity * sizeof(T)));
 
-  return Ok(FixedFlex<T>{std::move(memory), capacity});
+  return Ok(FixedFlex<T>{std::move(memory), 0, capacity});
 }
 
 // reserve enough memory to contain at least n elements
@@ -299,6 +298,9 @@ Result<Flex<T>, AllocError> push(Flex<T>&& flex, T&& value) {
   return push_inplace(std::move(flex), std::move(value));
 }
 
+template <typename T>
+Result<Flex<T>, AllocError> push(Flex<T>&& flex, T& value) = delete;
+
 template <typename T, typename... Args>
 Result<FixedFlex<T>, FlexError> push_inplace(FixedFlex<T>&& flex,
                                              Args&&... args) {
@@ -320,6 +322,9 @@ template <typename T>
 Result<FixedFlex<T>, FlexError> push(FixedFlex<T>&& flex, T&& value) {
   return push_inplace(std::move(flex), std::move(value));
 }
+
+template <typename T>
+Result<FixedFlex<T>, FlexError> push(FixedFlex<T>&& flex, T& value) = delete;
 
 // copy_with_allocator();
 // copy()
@@ -449,13 +454,15 @@ void flex____erase(FlexBase<T>& base, Span<T> range) {
 }
 
 template <typename T>
-void erase(Flex<T>&& flex, Span<T> range) {
+Flex<T> erase(Flex<T>&& flex, Span<T> range) {
   flex____erase(flex, range);
+  return std::move(flex);
 }
 
 template <typename T>
-void erase(FixedFlex<T>&& flex, Span<T> range) {
+Flex<T> erase(FixedFlex<T>&& flex, Span<T> range) {
   flex____erase(flex, range);
+  return std::move(flex);
 }
 
 }  // namespace flex

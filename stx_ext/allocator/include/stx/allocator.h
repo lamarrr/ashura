@@ -11,7 +11,7 @@
 
 namespace stx {
 
-// any memory handle (read-only or writable)
+// any memory handle (contextual, i.e. read-only or writable)
 using memory_handle = void *;
 
 // readonly memory handle
@@ -19,6 +19,8 @@ using readonly_memory_handle = void const *;
 
 // writable memory handle
 using writable_memory_handle = void *;
+
+using static_str_handle = char const *;
 
 enum class [[nodiscard]] RawAllocError : uint8_t{None, NoMemory};
 
@@ -248,7 +250,6 @@ struct ReadOnlyMemory {
   ReadOnlyMemory &operator=(ReadOnlyMemory &&other) {
     std::swap(allocator, other.allocator);
     std::swap(handle, other.handle);
-
     return *this;
   }
 

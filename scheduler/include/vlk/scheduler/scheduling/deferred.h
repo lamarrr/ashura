@@ -54,9 +54,10 @@ auto deferred(vlk::TaskScheduler &scheduler, Fn schedule_task,
           })
           .unwrap();
 
-  scheduler.deferred_entries
-      .push(DeferredTask{std::move(schedule), std::move(readiness)})
-      .unwrap();
+  scheduler.deferred_entries =
+      stx::flex::push(std::move(scheduler.deferred_entries),
+                      DeferredTask{std::move(schedule), std::move(readiness)})
+          .unwrap();
 
   return future;
 }

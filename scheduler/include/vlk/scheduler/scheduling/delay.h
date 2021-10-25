@@ -39,10 +39,11 @@ auto delay(TaskScheduler &scheduler, Fn fn_task, TaskPriority priority,
         }
       }).unwrap();
 
-  scheduler.entries
-      .push(Task{std::move(sched_fn), std::move(readiness_fn), priority,
-                 std::move(trace_info)})
-      .unwrap();
+  scheduler.entries =
+      stx::flex::push(std::move(scheduler.entries),
+                      Task{std::move(sched_fn), std::move(readiness_fn),
+                           priority, std::move(trace_info)})
+          .unwrap();
 
   return future;
 }

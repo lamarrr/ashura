@@ -53,10 +53,11 @@ auto await(vlk::TaskScheduler &scheduler, Fn task, TaskPriority priority,
         }
       }).unwrap();
 
-  scheduler.entries
-      .push(Task{std::move(fn), std::move(readiness_fn), priority,
-                 std::move(trace_info)})
-      .unwrap();
+  scheduler.entries =
+      stx::flex::push(std::move(scheduler.entries),
+                      Task{std::move(fn), std::move(readiness_fn), priority,
+                           std::move(trace_info)})
+          .unwrap();
 
   return future;
 }
@@ -106,10 +107,11 @@ auto await_any(vlk::TaskScheduler &scheduler, Fn task, TaskPriority priority,
         }
       }).unwrap();
 
-  scheduler.entries
-      .push(Task{std::move(fn), std::move(readiness_fn), priority,
-                 std::move(trace_info)})
-      .unwrap();
+  scheduler.entries =
+      stx::flex::push(std::move(scheduler.entries),
+                      Task{std::move(fn), std::move(readiness_fn), priority,
+                           std::move(trace_info)})
+          .unwrap();
 
   return future;
 }

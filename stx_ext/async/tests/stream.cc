@@ -132,8 +132,6 @@ TEST(StreamTest, Basic) {
   }
 }
 
-
-
 TEST(StreamRingMemoryTest, Basic) {
   using namespace stx;
 
@@ -220,8 +218,26 @@ TEST(STream, x) {
   EXPECT_FALSE(stream.is_closed());
   EXPECT_EQ(stream.pop(), Err(StreamError::Pending));
   stream.close();
-  stream.fork();
+  Stream child = stream.fork();
   EXPECT_TRUE(stream.is_closed());
+  EXPECT_TRUE(child.is_closed());
+  EXPECT_EQ(stream.pop(), Err(StreamError::Closed));
+}
+
+TEST(Stream, MemoryBackedGenerator) {
+  using namespace stx;
+
+  auto generator = make_memory_backed_generator<int>(os_allocator, 4).unwrap();
+  Stream stream{generator.generator.state.share()};
+
+  EXPECT_FALSE(generator.is_closed());
+  EXPECT_TRUE(generator.yield(0, false).is_ok());
+  EXPECT_TRUE(generator.yield(1, false).is_ok());
+  EXPECT_TRUE(generator.yield(2, true).is_ok());
+
+  EXPECT_EQ(stream.pop(), Ok(0));
+  EXPECT_EQ(stream.pop(), Ok(1));
+  EXPECT_EQ(stream.pop(), Ok(2));
   EXPECT_EQ(stream.pop(), Err(StreamError::Closed));
 }
 

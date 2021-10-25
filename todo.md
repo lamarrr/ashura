@@ -81,3 +81,16 @@ Linux Perf Attach to Process:
 
 
 perf sat -e L1-icache-loads,L1-icache-load-misses.... stalls ./bin - search for other flags
+
+
+
+it's mll data oriented
+
+
+// remove all std::apply
+
+
+SPAN EXT
+
+# [auto first_partition, second_partion] =  span().filter([]);
+# [auto r] second_partition.sort().remove([])

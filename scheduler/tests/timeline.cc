@@ -113,18 +113,18 @@ TEST(ScheduleTimelineTest, Tick) {
   {
     vlk::ScheduleTimeline timeline{stx::os_allocator};
 
-    stx::Vec<stx::Rc<vlk::ThreadSlot *>> slots{stx::noop_allocator};
+    stx::Flex<stx::Rc<vlk::ThreadSlot *>> slots{stx::noop_allocator};
 
-    timeline.tick(slots, timepoint);
+    timeline.tick(slots.span(), timepoint);
 
     timeline
-        .add_task(stx::fn::rc::make_static([]() {}), {}, {},
+        .add_task(stx::fn::rc::make_static([]() {}),
                   stx::PromiseAny{
                       stx::make_promise<void>(stx::os_allocator).unwrap()},
-                  timepoint)
+                  timepoint, {}, stx::NORMAL_PRIORITY)
         .unwrap();
 
-    timeline.tick(slots, timepoint);
+    timeline.tick(slots.span(), timepoint);
 
     EXPECT_EQ(timeline.thread_slots_capture.size(), 0);
   }
@@ -132,26 +132,27 @@ TEST(ScheduleTimelineTest, Tick) {
   {
     vlk::ScheduleTimeline timeline{stx::os_allocator};
 
-    stx::Vec<stx::Rc<vlk::ThreadSlot *>> slots{stx::os_allocator};
+    stx::Flex<stx::Rc<vlk::ThreadSlot *>> slots{stx::os_allocator};
 
     for (size_t i = 0; i < 10; i++)
-      slots
-          .push(stx::rc::make_inplace<vlk::ThreadSlot>(
-                    stx::os_allocator,
-                    stx::make_promise<void>(stx::os_allocator).unwrap())
-                    .unwrap())
-          .unwrap();
+      slots = stx::flex::push(
+                  std::move(slots),
+                  stx::rc::make_inplace<vlk::ThreadSlot>(
+                      stx::os_allocator,
+                      stx::make_promise<void>(stx::os_allocator).unwrap())
+                      .unwrap())
+                  .unwrap();
 
     for (size_t i = 0; i < 20; i++) {
       timeline
-          .add_task(stx::fn::rc::make_static([]() {}), {}, {},
+          .add_task(stx::fn::rc::make_static([]() {}),
                     stx::PromiseAny{
                         stx::make_promise<void>(stx::os_allocator).unwrap()},
-                    timepoint)
+                    timepoint, stx::TaskId{0}, stx::NORMAL_PRIORITY)
           .unwrap();
     }
 
-    timeline.tick(slots, timepoint);
+    timeline.tick(slots.span(), timepoint);
     EXPECT_EQ(slots.size(), 10);
     EXPECT_EQ(timeline.thread_slots_capture.size(), slots.size());
 
@@ -163,12 +164,13 @@ TEST(ScheduleTimelineTest, Tick) {
   // dyn_array->size();
   // dyn_array->empty();
 
-  stx::Str h = stx::str::make_static("Hello boy");
-  stx::Str y = stx::str::make(stx::os_allocator, "Hello boy").unwrap();
-  EXPECT_EQ(h, "Hello boy");
-  EXPECT_NE(h, "Hello Boy");
-  EXPECT_EQ(y, "Hello boy");
-  EXPECT_EQ(h, y);
+  stx::String h = stx::string::make_static("Hello boy");
+  stx::String y = stx::string::make(stx::os_allocator, "Hello boy").unwrap();
+  EXPECT_TRUE(h.equals("Hello boy"));
+  EXPECT_FALSE(h.equals("Hello Boy"));
+
+  EXPECT_TRUE(y.equals("Hello boy"));
+  EXPECT_TRUE(h.equals(y));
 
   EXPECT_FALSE(h.starts_with("Hello world"));
 }
@@ -215,7 +217,7 @@ TEST(SchedulerTest, HH) {
       a.share(), b.share());
 
   sched::delay(
-      scheduler, []() {}, SERVICE_PRIORITY, {}, 500ms);
+      scheduler, []() {}, NORMAL_PRIORITY, {}, 500ms);
 
   Future<Option<Future<int>>> schedule = sched::deferred(
       scheduler,
@@ -236,4 +238,102 @@ TEST(SchedulerTest, HH) {
   // map
   // reduce streams
   // forloop combine with loop combine with others???
+}
+
+TEST(Scheduler, ThreadSlots) {
+  using namespace vlk;
+  ThreadSlot slot{stx::make_promise<void>(stx::os_allocator).unwrap()};
+
+  ThreadSlot::Query query0 = slot.slot.query();
+
+  EXPECT_TRUE(query0.can_push);
+  EXPECT_TRUE(query0.executing_task.is_none());
+  EXPECT_TRUE(query0.pending_task.is_none());
+
+  slot.slot.push_task(ThreadSlot::Task{
+      stx::fn::rc::make_static([]() { VLK_LOG("1"); }), stx::TaskId{1}});
+
+  // test that popping tasks from the queue works as expected
+  EXPECT_TRUE(slot.slot.try_pop_task().is_some());
+
+  // test for correct organization
+  EXPECT_TRUE(query0.executing_task.is_none());
+  EXPECT_TRUE(query0.pending_task.is_none());
+
+  slot.slot.push_task(
+      ThreadSlot::Task{stx::fn::rc::make_static([]() {}), stx::TaskId{1}});
+
+  EXPECT_TRUE(query0.executing_task.is_none());
+  EXPECT_TRUE(query0.pending_task.is_none());
+}
+
+TEST(Timeline, Sample) {
+  using namespace vlk;
+
+  // Testing for work spreading amongst CPU cores
+
+  ScheduleTimeline timeline{stx::os_allocator};
+
+  timeline.add_task(
+      stx::fn::rc::make_static([]() { VLK_LOG("1"); }),
+      stx::PromiseAny{stx::make_promise<void>(stx::os_allocator).unwrap()},
+      std::chrono::steady_clock::now(), stx::TaskId{1}, stx::NORMAL_PRIORITY);
+
+  timeline.add_task(
+      stx::fn::rc::make_static([]() { VLK_LOG("2"); }),
+      stx::PromiseAny{stx::make_promise<void>(stx::os_allocator).unwrap()},
+      std::chrono::steady_clock::now(), stx::TaskId{2}, stx::NORMAL_PRIORITY);
+
+  timeline.add_task(
+      stx::fn::rc::make_static([]() { VLK_LOG("3"); }),
+      stx::PromiseAny{stx::make_promise<void>(stx::os_allocator).unwrap()},
+      std::chrono::steady_clock::now(), stx::TaskId{3}, stx::NORMAL_PRIORITY);
+
+  timeline.add_task(
+      stx::fn::rc::make_static([]() { VLK_LOG("4"); }),
+      stx::PromiseAny{stx::make_promise<void>(stx::os_allocator).unwrap()},
+      std::chrono::steady_clock::now(), stx::TaskId{4}, stx::NORMAL_PRIORITY);
+
+  std::array<Rc<ThreadSlot *>, 4> slot{
+      stx::rc::make_inplace<ThreadSlot>(
+          stx::os_allocator,
+          stx::make_promise<void>(stx::os_allocator).unwrap())
+          .unwrap(),
+      stx::rc::make_inplace<ThreadSlot>(
+          stx::os_allocator,
+          stx::make_promise<void>(stx::os_allocator).unwrap())
+          .unwrap(),
+      stx::rc::make_inplace<ThreadSlot>(
+          stx::os_allocator,
+          stx::make_promise<void>(stx::os_allocator).unwrap())
+          .unwrap(),
+      stx::rc::make_inplace<ThreadSlot>(
+          stx::os_allocator,
+          stx::make_promise<void>(stx::os_allocator).unwrap())
+          .unwrap()};
+
+  timeline.tick(stx::Span{slot.data(), slot.size()},
+                std::chrono::steady_clock::now());
+
+  EXPECT_FALSE(slot[0].handle->slot.query().can_push);
+  EXPECT_FALSE(slot[1].handle->slot.query().can_push);
+  EXPECT_FALSE(slot[2].handle->slot.query().can_push);
+  EXPECT_FALSE(slot[3].handle->slot.query().can_push);
+
+  EXPECT_FALSE(slot[0].handle->slot.query().executing_task.is_some());
+  EXPECT_FALSE(slot[1].handle->slot.query().executing_task.is_some());
+  EXPECT_FALSE(slot[2].handle->slot.query().executing_task.is_some());
+  EXPECT_FALSE(slot[3].handle->slot.query().executing_task.is_some());
+
+  EXPECT_TRUE(slot[0].handle->slot.query().pending_task.is_some());
+  EXPECT_TRUE(slot[1].handle->slot.query().pending_task.is_some());
+  EXPECT_TRUE(slot[2].handle->slot.query().pending_task.is_some());
+  EXPECT_TRUE(slot[3].handle->slot.query().pending_task.is_some());
+
+  EXPECT_TRUE(std::is_sorted(
+      timeline.starvation_timeline.iterator____begin(),
+      timeline.starvation_timeline.iterator____end(),
+      [](ScheduleTimeline::Task const &a, ScheduleTimeline::Task const &b) {
+        return a.priority < b.priority;
+      }));
 }

@@ -28,7 +28,8 @@ struct SubsystemsContext {
   }
 
   stx::Span<std::string_view const> enumerate_subsystems() const {
-    return enumeration_;
+    return stx::Span<std::string_view const>{enumeration_.data(),
+                                             enumeration_.size()};
   }
 
  protected:

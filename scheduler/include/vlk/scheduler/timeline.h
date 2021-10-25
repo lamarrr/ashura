@@ -36,6 +36,19 @@ using stx::Void;
 
 enum class ThreadId : uint32_t {};
 
+/// Scheduler Documentation
+/// - Tasks are added to the timeline once they become ready for execution
+/// - We first split tasks into timelines based on when they last ran
+/// - We then select the most starved tasks in a sliding window containing at
+/// least a certain amount of tasks
+/// - We then sort the sliding window using their priorities
+/// - We repeat these steps
+/// - if any of the selected tasks is in the thread slot then we need not
+/// suspend or cancel them
+///
+///
+///
+
 struct ScheduleTimeline {
   static constexpr nanoseconds INTERRUPT_PERIOD{16ms};
   static constexpr uint8_t STARVATION_FACTOR{4};
@@ -67,10 +80,11 @@ struct ScheduleTimeline {
   Result<Void, AllocError> add_task(RcFn<void()>&& fn, PromiseAny&& promise,
                                     timepoint present_timepoint, TaskId id,
                                     TaskPriority priority) {
+    promise.notify_force_suspended();
     TRY_OK(new_timeline_flex,
-           stx::flex::push_inplace(std::move(starvation_timeline),
-                                   std::move(fn), std::move(promise),
-                                   present_timepoint, id, priority));
+           stx::flex::push(std::move(starvation_timeline),
+                           Task{std::move(fn), std::move(promise),
+                                present_timepoint, id, priority}));
 
     starvation_timeline = std::move(new_timeline_flex);
 
@@ -79,22 +93,20 @@ struct ScheduleTimeline {
 
   void remove_done_and_canceled_tasks() {
     auto span = starvation_timeline.span();
-    auto new_starvation_timeline_end =
-        std::remove_if(span.begin(), span.end(), [](Task const& task) {
-          FutureStatus status = task.last_status_poll;
-          return status == FutureStatus::Completed ||
-                 status == FutureStatus::Canceled ||
-                 status == FutureStatus::ForceCanceled;
-        });
 
-    //    starvation_timeline.erase(new_starvation_timeline_end,
-    //                            starvation_timeline.end());
+    starvation_timeline =
+        stx::flex::erase(std::move(starvation_timeline),
+                         span.partition([](Task const& task) {
+                               FutureStatus status = task.last_status_poll;
+                               return status == FutureStatus::Completed ||
+                                      status == FutureStatus::Canceled ||
+                                      status == FutureStatus::ForceCanceled;
+                             })
+                             .first);
   }
 
-  void update_records(timepoint present_timepoint) {
+  void poll_tasks(timepoint present_timepoint) {
     // update all our record of the tasks' statuses
-
-    //
     //
     // NOTE: the task could still be running whilst cancelation was requested.
     // it just means we get to remove it from taking part in future scheduling.
@@ -145,6 +157,10 @@ struct ScheduleTimeline {
 
   // returns the end of the starving tasks (non-suspended)
   auto sort_and_partition_timeline() {
+    // TODO(lamarrr): (UNPROVEN): The tasks are mostly sorted so we are very
+    // unlikely to pay much cost in sorting???
+    //
+    //
     // split into ready to execute (pre-empted or running) and user-suspended
     // partition
     auto span = starvation_timeline.span();
@@ -201,6 +217,7 @@ struct ScheduleTimeline {
     return std::min(num_slots, num_selected);
   }
 
+  // slots uses Rc because we need a stable address
   void tick(Span<Rc<ThreadSlot*> const> slots, timepoint present_timepoint) {
     // cancelation and suspension isn't handled in here, it doesn't really make
     // sense to handle here. if the task is fine-grained enough, it'll be
@@ -209,17 +226,18 @@ struct ScheduleTimeline {
 
     size_t const num_slots = slots.size();
 
-    thread_slots_capture =
-        stx::flex::resize(std::move(thread_slots_capture), num_slots).unwrap();
+    thread_slots_capture = stx::flex::resize(std::move(thread_slots_capture),
+                                             num_slots, ThreadSlot::Query{})
+                               .unwrap();
 
     // fetch the status of each thread slot
-    std::transform(slots.begin(), slots.end(),
-                   thread_slots_capture.span().begin(),
-                   [](Rc<ThreadSlot*> const& rc_slot) {
-                     return rc_slot.handle->slot.query();
-                   });
+    slots.map(
+        [](Rc<ThreadSlot*> const& rc_slot) {
+          return rc_slot.handle->slot.query();
+        },
+        thread_slots_capture.span());
 
-    update_records(present_timepoint);
+    poll_tasks(present_timepoint);
 
     if (starvation_timeline.empty()) return;
 
@@ -233,7 +251,7 @@ struct ScheduleTimeline {
     // we don't expect just-suspended tasks to suspend immediately, even if
     // they do we'll process them in the next tick and our we account for that.
     //
-    for (Task const& task : starvation_timeline.span().subspan(num_selected)) {
+    for (Task const& task : starvation_timeline.span().slice(num_selected)) {
       if (task.last_status_poll != FutureStatus::ForceSuspended) {
         task.promise.request_force_suspend();
       }
@@ -249,20 +267,18 @@ struct ScheduleTimeline {
     // are still using some of the slots. tasks that don't get assigned to slots
     // here will get assigned in the next tick
     //
-    for (Task const& task :
-         starvation_timeline.span().subspan(0, num_selected)) {
-      auto* task_pos =
-          std::find_if(thread_slots_capture.span().begin(),
-                       thread_slots_capture.span().end(),
-                       [&task](ThreadSlot::Query const& query) {
-                         return query.executing_task.contains(task.id) ||
-                                query.pending_task.contains(task.id);
-                       });
+    for (Task const& task : starvation_timeline.span().slice(0, num_selected)) {
+      auto selection = thread_slots_capture.span().which(
+          [&task](ThreadSlot::Query const& query) {
+            return query.executing_task.contains(task.id) ||
+                   query.pending_task.contains(task.id);
+          });
 
-      bool has_slot = task_pos != thread_slots_capture.span().end();
+      bool has_slot = !selection.is_empty();
 
       while (next_slot < num_slots && !has_slot) {
         if (thread_slots_capture.span()[next_slot].can_push) {
+          // possibly a force suspended task
           task.promise.clear_force_suspension_request();
           slots[next_slot].handle->slot.push_task(
               ThreadSlot::Task{task.fn.share(), task.id});

@@ -37,10 +37,12 @@ auto fn(TaskScheduler &scheduler, Fn fn_task, TaskPriority priority,
         }
       }).unwrap();
 
-  scheduler.entries
-      .push(Task{std::move(sched_fn), stx::fn::rc::make_static(task_is_ready),
-                 priority, std::move(trace_info)})
-      .unwrap();
+  scheduler.entries =
+      stx::flex::push(
+          std::move(scheduler.entries),
+          Task{std::move(sched_fn), stx::fn::rc::make_static(task_is_ready),
+               priority, std::move(trace_info)})
+          .unwrap();
 
   return future;
 }
@@ -91,14 +93,15 @@ auto chain(TaskScheduler &scheduler, Chain<Fn, OtherFns...> chain,
           })
           .unwrap();
 
-  scheduler.entries
-      .push(Task{std::move(fn), stx::fn::rc::make_static(task_is_ready),
-                 priority, std::move(trace_info)})
-      .unwrap();
+  scheduler.entries =
+      stx::flex::push(
+          std::move(scheduler.entries),
+          Task{std::move(fn), stx::fn::rc::make_static(task_is_ready), priority,
+               std::move(trace_info)})
+          .unwrap();
 
   return future;
 }
 
 }  // namespace sched
-
 }  // namespace vlk
