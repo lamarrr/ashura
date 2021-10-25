@@ -14,14 +14,15 @@
 #include "stx/fn.h"
 #include "stx/mem.h"
 #include "stx/option.h"
+#include "stx/stream.h"
 #include "stx/string.h"
 #include "stx/task/chain.h"
 #include "stx/task/priority.h"
 #include "stx/void.h"
 #include "vlk/scheduler/thread_pool.h"
+#include "vlk/scheduler/thread_slot.h"
 #include "vlk/subsystem/impl.h"
 #include "vlk/utils.h"
-#include "vlk/scheduler/thread_slot.h"
 
 namespace vlk {
 
@@ -179,7 +180,7 @@ struct TaskScheduler final : public SubsystemImpl {
     return FutureAny{cancelation_promise.get_future()};
   }
 
-  void link(SubsystemsContext const &) override {}
+  void link(SubsystemsContext const&) override {}
   void tick(nanoseconds) override {
     // if cancelation requested,
     // begin shutdown sequence
@@ -203,8 +204,6 @@ struct TaskScheduler final : public SubsystemImpl {
   Flex<Fn<void()>> stream_operations;
 };
 
-
-
 // Processes stream operations on every tick.
 // operations include:
 // map
@@ -213,17 +212,25 @@ struct TaskScheduler final : public SubsystemImpl {
 // enumerate
 // fork
 // join
-struct StreamPipeline{
-void map();
-void filter();
-void reduce();
-void enumerate();
-void fork();
-void join();
+struct StreamPipeline {
+  template <typename Fn, typename T, typename U>
+  void map(Fn&& transform, stx::Stream<T>&&, stx::Generator<U>&&);
 
+  template <typename Predicate, typename T, typename U>
+  void filter(Predicate&& predicate, stx::Stream<T>&&, stx::Generator<U>&&);
 
+  template <typename T, typename U>
+  void enumerate(stx::Stream<T>&&);
 
+  template <typename Operation, typename T, typename U, typename V>
+  void fork(Operation&& operation, stx::Stream<T>&&, stx::Generator<U>&&,
+            stx::Generator<V>&&);
 
+  template <typename Operation, typename T, typename U, typename V>
+  void join(Operation&& operation, stx::Stream<T>&&, stx::Stream<U>&&,
+            stx::Generator<V>&&);
+
+  stx::Flex<stx::RcFn<void()>> jobs;
 };
 
 }  // namespace vlk
