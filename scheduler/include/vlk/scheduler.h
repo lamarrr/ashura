@@ -173,6 +173,11 @@ struct DeferredTask {
 // TODO(lamarrr): scheduler just dispatches to the timeline once the tasks are
 // ready
 struct TaskScheduler final : public SubsystemImpl {
+  struct TaskThread {
+    Rc<ThreadSlot*> task_slot;
+    std::thread thread;
+  };
+
   // if task is a ready one, add it to the schedule timeline immediately. this
   // should probably be renamed to the execution timeline.
   //
@@ -182,17 +187,59 @@ struct TaskScheduler final : public SubsystemImpl {
         cancelation_promise{stx::make_promise<void>(iallocator).unwrap()},
         allocator{iallocator},
         timeline{iallocator},
-        deferred_entries{iallocator} {}
+        deferred_entries{iallocator},
+        thread_pool{iallocator} {
+    size_t num_threads = std::thread::hardware_concurrency();
+
+    thread_slots =
+        stx::flex::make_fixed<Rc<ThreadSlot*>>(iallocator, num_threads)
+            .unwrap();
+
+    for (size_t i = 0; i < num_threads; i++) {
+      thread_slots =
+          stx::flex::push(
+              std::move(thread_slots),
+              stx::rc::make_inplace<ThreadSlot>(
+                  iallocator, stx::make_promise<void>(iallocator).unwrap())
+                  .unwrap())
+              .unwrap();
+    }
+
+    for (size_t i = 0; i < num_threads; i++) {
+      threads = stx::flex::push(
+                    std::move(threads), std::thread{[i, this]() {
+                      while (true) {
+                        this->thread_slots.span()[i]
+                            .handle->slot.try_pop_task()
+                            .match([](RcFn<void()>&& task) { task.handle(); },
+                                   []() {
+                                     // TODO(lamarrr): sleeping strategy
+                                   });
+
+                        auto& promise =
+                            this->thread_slots.span()[i].handle->slot.promise;
+
+                        CancelRequest req = promise.fetch_cancel_request();
+                        if (req.state == RequestedCancelState::Canceled) {
+                          if (req.source == RequestSource::User) {
+                            promise.notify_user_canceled();
+                          } else {
+                            promise.notify_force_canceled();
+                          }
+                          break;
+                        }
+                      }
+                    }})
+                    .unwrap();
+    }
+  }
 
   FutureAny get_future() final {
     return FutureAny{cancelation_promise.get_future()};
   }
 
   void link(SubsystemsContext const&) override {}
-  void tick(nanoseconds) override {
-    // if cancelation requested,
-    // begin shutdown sequence
-    // cancel non-critical tasks
+  void tick(nanoseconds interval) override {
     timepoint present = std::chrono::steady_clock::now();
     auto [___r, ready_tasks] =
         entries.span().partition([present](Task const& task) {
@@ -208,6 +255,18 @@ struct TaskScheduler final : public SubsystemImpl {
     }
 
     entries = stx::flex::erase(std::move(entries), ready_tasks);
+
+    timeline.tick(thread_pool.get_thread_slots(), present);
+    thread_pool.tick(interval);
+
+
+    // if cancelation requested,
+    // begin shutdown sequence
+    // cancel non-critical tasks
+    if (cancelation_promise.fetch_cancel_request().state ==
+        RequestedCancelState::Canceled) {
+      thread_pool.get_future().request_cancel();
+    }
   }
 
   void schedule() {
@@ -222,7 +281,7 @@ struct TaskScheduler final : public SubsystemImpl {
   Promise<void> cancelation_promise;
   uint64_t next_task_id{0};
   Flex<DeferredTask> deferred_entries;
-
+  ThreadPool thread_pool;
   Allocator allocator;
 
   // Flex<Task> main_thread_tasks;
