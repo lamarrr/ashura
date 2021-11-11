@@ -67,7 +67,7 @@ struct ThreadPool {
   static_assert((STALL_TIMEOUT.count() % 2) == 0);
 
   explicit ThreadPool(Allocator allocator)
-      : num_threads{std::min<size_t>(std::thread::hardware_concurrency(), 1)},
+      : num_threads{std::max<size_t>(std::thread::hardware_concurrency(), 1)},
         threads{stx::flex::make_fixed<std::thread>(allocator, num_threads)
                     .unwrap()},
         thread_slots{
