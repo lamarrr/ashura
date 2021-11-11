@@ -134,6 +134,10 @@ struct ThreadPool {
   }
 
   ~ThreadPool() {
+    for (auto& slot : thread_slots.span()) {
+      slot.handle->slot.promise.request_force_cancel();
+    }
+
     for (std::thread& thread : threads.span()) {
       thread.join();
     }
