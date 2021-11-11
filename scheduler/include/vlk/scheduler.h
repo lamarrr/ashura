@@ -188,51 +188,7 @@ struct TaskScheduler final : public SubsystemImpl {
         allocator{iallocator},
         timeline{iallocator},
         deferred_entries{iallocator},
-        thread_pool{iallocator} {
-    size_t num_threads = std::thread::hardware_concurrency();
-
-    thread_slots =
-        stx::flex::make_fixed<Rc<ThreadSlot*>>(iallocator, num_threads)
-            .unwrap();
-
-    for (size_t i = 0; i < num_threads; i++) {
-      thread_slots =
-          stx::flex::push(
-              std::move(thread_slots),
-              stx::rc::make_inplace<ThreadSlot>(
-                  iallocator, stx::make_promise<void>(iallocator).unwrap())
-                  .unwrap())
-              .unwrap();
-    }
-
-    for (size_t i = 0; i < num_threads; i++) {
-      threads = stx::flex::push(
-                    std::move(threads), std::thread{[i, this]() {
-                      while (true) {
-                        this->thread_slots.span()[i]
-                            .handle->slot.try_pop_task()
-                            .match([](RcFn<void()>&& task) { task.handle(); },
-                                   []() {
-                                     // TODO(lamarrr): sleeping strategy
-                                   });
-
-                        auto& promise =
-                            this->thread_slots.span()[i].handle->slot.promise;
-
-                        CancelRequest req = promise.fetch_cancel_request();
-                        if (req.state == RequestedCancelState::Canceled) {
-                          if (req.source == RequestSource::User) {
-                            promise.notify_user_canceled();
-                          } else {
-                            promise.notify_force_canceled();
-                          }
-                          break;
-                        }
-                      }
-                    }})
-                    .unwrap();
-    }
-  }
+        thread_pool{iallocator} {}
 
   FutureAny get_future() final {
     return FutureAny{cancelation_promise.get_future()};
