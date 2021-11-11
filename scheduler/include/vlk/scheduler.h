@@ -215,7 +215,6 @@ struct TaskScheduler final : public SubsystemImpl {
     timeline.tick(thread_pool.get_thread_slots(), present);
     thread_pool.tick(interval);
 
-
     // if cancelation requested,
     // begin shutdown sequence
     // cancel non-critical tasks
@@ -223,12 +222,6 @@ struct TaskScheduler final : public SubsystemImpl {
         RequestedCancelState::Canceled) {
       thread_pool.get_future().request_cancel();
     }
-  }
-
-  void schedule() {
-    auto timepoint = std::chrono::steady_clock::now();
-    TaskId task_id{next_task_id};
-    next_task_id++;
   }
 
   timepoint reference_timepoint;
