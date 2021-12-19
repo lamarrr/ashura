@@ -15,17 +15,20 @@ uint64_t MemoryTypefaceSource::make_uid() {
 }
 
 FileTypefaceSource::FileTypefaceSource(std::filesystem::path path)
-    : data{stx::mem::make_rc<FileTypefaceSourceData const>(
-          FileTypefaceSourceData{
-              path, fmt::format("FileTypeface(path: {})", path.c_str())})} {}
+    : data{stx::rc::make_inplace<FileTypefaceSourceData const>(
+               stx::os_allocator, path,
+               fmt::format("FileTypeface(path: {})", path.c_str()))
+               .unwrap()} {}
 
 namespace {
 
 inline auto make_typeface_source_data(std::vector<uint8_t>&& bytes) {
   uint64_t uid = MemoryTypefaceSource::make_uid();
 
-  return stx::mem::make_rc_inplace<MemoryTypefaceSourceData const>(
-      std::move(bytes), fmt::format("MemoryTypeface(uid: {})", uid));
+  return stx::rc::make_inplace<MemoryTypefaceSourceData const>(
+             stx::os_allocator, std::move(bytes),
+             fmt::format("MemoryTypeface(uid: {})", uid))
+      .unwrap();
 }
 
 inline auto make_system_font_data(stx::Option<std::string>&& font_family,
@@ -37,8 +40,10 @@ inline auto make_system_font_data(stx::Option<std::string>&& font_family,
   auto tag = fmt::format("SystemFont(family: '{}', style: '{}')",
                          font_family_str, format(font_style));
 
-  return stx::mem::make_rc_inplace<SystemFontData const>(
-      std::move(font_family), font_style, std::move(tag));
+  return stx::rc::make_inplace<SystemFontData const>(stx::os_allocator,
+                                                     std::move(font_family),
+                                                     font_style, std::move(tag))
+      .unwrap();
 }
 
 inline auto make_file_font_source_data(std::string&& family_name,
@@ -52,8 +57,10 @@ inline auto make_file_font_source_data(std::string&& family_name,
 
   tag += "])";
 
-  return stx::mem::make_rc_inplace<FileFontSourceData const>(
-      std::move(family_name), std::move(font_faces), std::move(tag));
+  return stx::rc::make_inplace<FileFontSourceData const>(
+             stx::os_allocator, std::move(family_name), std::move(font_faces),
+             std::move(tag))
+      .unwrap();
 }
 
 inline auto make_memory_font_source_data(
@@ -67,8 +74,10 @@ inline auto make_memory_font_source_data(
 
   tag += "])";
 
-  return stx::mem::make_rc_inplace<MemoryFontSourceData const>(
-      std::move(family_name), std::move(font_faces), std::move(tag));
+  return stx::rc::make_inplace<MemoryFontSourceData const>(
+             stx::os_allocator, std::move(family_name), std::move(font_faces),
+             std::move(tag))
+      .unwrap();
 }
 
 }  // namespace

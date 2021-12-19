@@ -11,8 +11,6 @@ namespace vlk {
 using std::string_view;
 using stx::Rc;
 
-namespace impl {
-
 struct AssetTag {
   explicit AssetTag(Rc<string_view> &&rc) : tag{std::move(rc)} {}
 
@@ -43,5 +41,4 @@ struct AssetTag {
   Rc<string_view> tag;
 };
 
-}  // namespace impl
-
+}  // namespace vlk

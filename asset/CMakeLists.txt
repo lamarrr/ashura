@@ -5,6 +5,10 @@ target_link_libraries(
   stx::mem
   fmt::fmt
   stx::enum
+  stx::async
+  vlk::scheduler
+  vlk::subsystem
   vlk::primitives
   vlk_external_skia
+vlk_external_stb
   vlk::utils)

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "stx/mem.h"
+#include "stx/span.h"
 #include "vlk/asset_tag.h"
 #include "vlk/font_style.h"
 
@@ -24,8 +25,21 @@ struct MemoryTypefaceSourceData {
 struct FileTypefaceSource {
   explicit FileTypefaceSource(std::filesystem::path path);
 
+  FileTypefaceSource(FileTypefaceSource const& other)
+      : data{other.data.share()} {}
+
+  FileTypefaceSource& operator=(FileTypefaceSource const& other) {
+    data = other.data.share();
+    return *this;
+  }
+
+  FileTypefaceSource(FileTypefaceSource&&) = default;
+
+  FileTypefaceSource& operator=(FileTypefaceSource&&) = default;
+
   auto get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.handle->tag}, data)};
+    return AssetTag{
+        stx::transmute(std::string_view{data.handle->tag}, data.share())};
   }
 
   auto get_path() const { return data.handle->path; }
@@ -48,12 +62,27 @@ inline std::string format(FileTypefaceSource const& source) {
 struct MemoryTypefaceSource {
   explicit MemoryTypefaceSource(std::vector<uint8_t>&& bytes);
 
+  MemoryTypefaceSource(MemoryTypefaceSource const& other)
+      : data{other.data.share()} {}
+
+  MemoryTypefaceSource& operator=(MemoryTypefaceSource const& other) {
+    data = other.data.share();
+    return *this;
+  }
+
+  MemoryTypefaceSource(MemoryTypefaceSource&&) = default;
+
+  MemoryTypefaceSource& operator=(MemoryTypefaceSource&&) = default;
+
   auto get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.handle->tag}, data)};
+    return AssetTag{
+        stx::transmute(std::string_view{data.handle->tag}, data.share())};
   }
 
   auto get_bytes() const {
-    return stx::transmute(stx::Span{data.handle->bytes}, data);
+    return stx::transmute(stx::Span<uint8_t const>{data.handle->bytes.data(),
+                                                   data.handle->bytes.size()},
+                          data.share());
   }
 
   bool operator==(MemoryTypefaceSource const& other) const {
@@ -127,8 +156,20 @@ struct SystemFont {
 
   SystemFont() : SystemFont{FontStyle{}} {}
 
+  SystemFont(SystemFont const& other) : data{other.data.share()} {}
+
+  SystemFont& operator=(SystemFont const& other) {
+    data = other.data.share();
+    return *this;
+  }
+
+  SystemFont(SystemFont&&) = default;
+
+  SystemFont& operator=(SystemFont&&) = default;
+
   auto get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.handle->tag}, data)};
+    return AssetTag{
+        stx::transmute(std::string_view{data.handle->tag}, data.share())};
   }
 
   auto get_family() const { return data.handle->family; }
@@ -147,14 +188,28 @@ struct SystemFont {
 struct FileFontSource {
   FileFontSource(std::string family_name, std::vector<FileFontFace> font_faces);
 
+  FileFontSource(FileFontSource const& other) : data{other.data.share()} {}
+
+  FileFontSource& operator=(FileFontSource const& other) {
+    data = other.data.share();
+    return *this;
+  }
+
+  FileFontSource(FileFontSource&&) = default;
+
+  FileFontSource& operator=(FileFontSource&&) = default;
+
   AssetTag get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.handle->tag}, data)};
+    return AssetTag{
+        stx::transmute(std::string_view{data.handle->tag}, data.share())};
   }
 
   auto get_family() const { return data.handle->family; }
 
   auto get_typefaces() const {
-    return stx::transmute(stx::Span{data.handle->faces}, data);
+    return stx::transmute(
+        stx::Span{data.handle->faces.data(), data.handle->faces.size()},
+        data.share());
   }
 
   bool operator==(FileFontSource const& other) const {
@@ -176,14 +231,28 @@ struct MemoryFontSource {
   explicit MemoryFontSource(std::string family_name,
                             std::vector<MemoryFontFace> font_faces);
 
+  MemoryFontSource(MemoryFontSource const& other) : data{other.data.share()} {}
+
+  MemoryFontSource& operator=(MemoryFontSource const& other) {
+    data = other.data.share();
+    return *this;
+  }
+
+  MemoryFontSource(MemoryFontSource&&) = default;
+
+  MemoryFontSource& operator=(MemoryFontSource&&) = default;
+
   AssetTag get_tag() const {
-    return AssetTag{stx::transmute(std::string_view{data.handle->tag}, data)};
+    return AssetTag{
+        stx::transmute(std::string_view{data.handle->tag}, data.share())};
   }
 
   auto get_family() const { return data.handle->family; }
 
   auto get_typefaces() const {
-    return stx::transmute(stx::Span{data.handle->faces}, data);
+    return stx::transmute(
+        stx::Span{data.handle->faces.data(), data.handle->faces.size()},
+        data.share());
   }
 
   bool operator==(MemoryFontSource const& other) const {
