@@ -1,18 +1,18 @@
 #include "vlk/ui/widgets/image.h"
 
 #include "include/core/SkCanvas.h"
-#include "vlk/ui/image_asset.h"
+#include "include/core/SkRRect.h"
+#include "stx/fn.h"
+#include "vlk/asset_loader.h"
+#include "vlk/image_asset.h"
 #include "vlk/ui/sk_utils.h"
 
 namespace vlk {
 
 namespace ui {
 
-namespace impl {
 
-//! 60Hz * (60 seconds * 2) = 60Hz * 120 seconds = 2 Minutes @60Hz = 1 Minute
-//! @120Hz
-constexpr Ticks default_texture_asset_timeout = Ticks{60 * 60 * 2};
+namespace impl {
 
 constexpr WidgetDirtiness map_diff(ImageDiff diff) {
   WidgetDirtiness dirtiness = WidgetDirtiness::None;
@@ -59,30 +59,6 @@ inline ImageDiff image_props_diff(ImageProps const &props,
   return diff;
 }
 
-inline auto get_image_asset(AssetManager &asset_manager,
-                            ImageSource const &source)
-    -> stx::Result<std::shared_ptr<ImageAsset const>, AssetError> {
-  if (std::holds_alternative<MemoryImageSource>(source)) {
-    return get_asset(asset_manager, std::get<MemoryImageSource>(source));
-  } else if (std::holds_alternative<FileImageSource>(source)) {
-    return get_asset(asset_manager, std::get<FileImageSource>(source));
-  } else {
-    VLK_PANIC();
-  }
-}
-
-inline auto add_image_asset(AssetManager &asset_manager,
-                            ImageSource const &source)
-    -> stx::Result<stx::NoneType, AssetError> {
-  if (std::holds_alternative<MemoryImageSource>(source)) {
-    return add_asset(asset_manager, std::get<MemoryImageSource>(source));
-  } else if (std::holds_alternative<FileImageSource>(source)) {
-    return add_asset(asset_manager, std::get<FileImageSource>(source));
-  } else {
-    VLK_PANIC();
-  }
-}
-
 // TODO(lamarrr): this should probably be moved to an impl conversions file
 constexpr std::array<SkVector, 4> to_skia(BorderRadius const &border_radius) {
   return {
@@ -107,7 +83,7 @@ void Image::update_props(ImageProps props) {
 
   diff_ |= impl::image_props_diff(storage_.props, props);
 
-  storage_ = impl::ImageStorage{std::move(props), ImageState::Stale};
+  storage_ = impl::ImageStorage{std::move(props)};
 }
 // TODO(lamarrr): once the asset is discarded, the tick calls marK_render_dirty
 // which then triggers another draw call, we should wait for another draw call
@@ -136,145 +112,153 @@ void Image::update_props(ImageProps props) {
 void Image::draw(Canvas &canvas) {
   SkCanvas &sk_canvas = canvas.to_skia();
 
-  {
+  // TODO(lamarrr): what's this for?
+  /*{
     SkPaint paint;
     paint.setColor(SkColorSetARGB(125, 255, 0, 0));
     sk_canvas.drawRect(vlk::to_sk_rect(Rect{{}, canvas.extent()}), paint);
-  }
+  }*/
 
   // extent has already been taken care of
   Extent const widget_extent = canvas.extent();
 
-  switch (storage_.state) {
-    case ImageState::Loading:
-      draw_loading_image(canvas);
-      break;
+  if (storage_.image.is_some()) {
+    auto const &image_future = storage_.image.value().image;
 
-    case ImageState::LoadFailed:
-      draw_error_image(canvas);
-      break;
+    if (image_future.is_done()) {
+      switch (image_future.fetch_status()) {
+        case FutureStatus::Completed: {
+          auto *load_result = image_future.ref().unwrap();
+          load_result->match(
+              [&](ImageAsset asset) {
+                sk_sp texture = asset.get_raw();
+                int const texture_width = texture->width();
+                int const texture_height = texture->height();
+                Extent const texture_extent =
+                    Extent{static_cast<uint32_t>(texture_width),
+                           static_cast<uint32_t>(texture_height)};
 
-    case ImageState::Loaded: {
-      // load_result_ref, handle error?
-      sk_sp<SkImage> const &texture = storage_.asset.value()->get_ref().value();
+                sk_canvas.save();
 
-      int const texture_width = texture->width();
-      int const texture_height = texture->height();
-      Extent const texture_extent =
-          Extent{static_cast<uint32_t>(texture_width),
-                 static_cast<uint32_t>(texture_height)};
+                if (storage_.props.border_radius() != BorderRadius::all(0)) {
+                  SkRRect round_rect;
 
-      sk_canvas.save();
+                  std::array const border_radii =
+                      impl::to_skia(storage_.props.border_radius());
 
-      if (storage_.props.border_radius() != BorderRadius::all(0)) {
-        SkRRect round_rect;
+                  round_rect.setRectRadii(
+                      SkRect::MakeWH(widget_extent.width, widget_extent.height),
+                      border_radii.data());
 
-        auto const border_radii = impl::to_skia(storage_.props.border_radius());
+                  sk_canvas.clipRRect(round_rect, true);
+                }
 
-        round_rect.setRectRadii(
-            SkRect::MakeWH(widget_extent.width, widget_extent.height),
-            border_radii.data());
+                // due to aspect ratio cropping we need to place image at the
+                // center.
+                Extent const roi =
+                    storage_.props.aspect_ratio().is_some()
+                        ? aspect_ratio_trim(
+                              storage_.props.aspect_ratio().unwrap(),
+                              texture_extent)
+                        : texture_extent;
 
-        sk_canvas.clipRRect(round_rect, true);
+                int const start_x = (texture_width - roi.width) / 2;
+                int const start_y = (texture_height - roi.height) / 2;
+
+                sk_canvas.drawImageRect(
+                    texture,
+                    SkRect::MakeXYWH(start_x, start_y, roi.width, roi.height),
+                    SkRect::MakeXYWH(0, 0, widget_extent.width,
+                                     widget_extent.height),
+                    nullptr);
+
+                sk_canvas.restore();
+              },
+              [&](ImageLoadError error) { draw_error_image(canvas); });
+        } break;
+        default:
+          break;
       }
-
-      // due to aspect ratio cropping we need to place image at the
-      // center.
-      Extent const roi =
-          storage_.props.aspect_ratio().is_some()
-              ? aspect_ratio_trim(storage_.props.aspect_ratio().unwrap(),
-                                  texture_extent)
-              : texture_extent;
-
-      int const start_x = (texture_width - roi.width) / 2;
-      int const start_y = (texture_height - roi.height) / 2;
-
-      sk_canvas.drawImageRect(
-          texture, SkRect::MakeXYWH(start_x, start_y, roi.width, roi.height),
-          SkRect::MakeXYWH(0, 0, widget_extent.width, widget_extent.height),
-          nullptr);
-
-      sk_canvas.restore();
-
-    } break;
-
-    case ImageState::Stale:
-      break;
-
-    default:
-      VLK_PANIC("Unexpected State");
+    }
   }
 }
 
-void Image::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
-  if (storage_.state == ImageState::Stale && !Widget::is_stale()) {
-    impl::add_image_asset(asset_manager, storage_.props.source_ref())
-        .match([&](stx::NoneType) { storage_.state = ImageState::Loading; },
-               [&](AssetError error) {
-                 switch (error) {
-                   case AssetError::TagExists:
-                     storage_.state = ImageState::Loading;
-                     break;
-                   default:
-                     VLK_PANIC("Unexpected State");
-                 }
-               });
+void Image::tick(std::chrono::nanoseconds, SubsystemsContext const &context) {
+  // TODO(lamarrr): update widget extent to extent of the actual texture
+  // Future awaiter to await results of futures?
+  auto tmp = context.get("AssetLoader").unwrap();
+  auto asset_loader = tmp.handle->as<AssetLoader>().unwrap();
 
-    // mark the widget as dirty so a loading image is displayed
+  if ((storage_.image.is_some() &&
+       storage_.props.source_ref() != storage_.image.value().source) ||
+      storage_.image.is_none()) {
+    auto const &source = storage_.props.source_ref();
+
+    if (std::holds_alternative<MemoryImageSource>(source)) {
+      storage_.image = Some{impl::LoadedImage{
+          source,
+          asset_loader->load_image(std::get<MemoryImageSource>(source))}};
+    } else {
+      storage_.image = Some{impl::LoadedImage{
+          source, asset_loader->load_image(std::get<FileImageSource>(source))}};
+    }
+
     Widget::mark_render_dirty();
   }
 
   // we've submitted the image to the asset manager or it has previously
   // been submitted by another widget and we are awaiting the status of
   // the image
-  if (storage_.state == ImageState::Loading) {
-    storage_.state =
-        impl::get_image_asset(asset_manager, storage_.props.source_ref())
-            .match(
-                [&](auto &&asset) -> ImageState {
-                  return asset->get_ref().match(
-                      [&](auto &) {
-                        storage_.asset = stx::Some(std::move(asset));
-                        return ImageState::Loaded;
-                      },
-                      [&](ImageLoadError error) {
-                        VLK_WARN("Failed to load image for {}, error: {}",
-                                 format(*this), format(error));
-                        return ImageState::LoadFailed;
-                      });
-                },
-                [&](AssetError error) -> ImageState {
-                  switch (error) {
-                      // image is still loading
-                    case AssetError::IsLoading:
-                      return ImageState::Loading;
-                    default:
-                      VLK_PANIC("Unexpected State");
-                  }
-                });
+  // if (storage_.state == ImageState::Loading) {
+  /*
+  storage_.state =
+      impl::get_image_asset(asset_manager, storage_.props.source_ref())
+          .match(
+              [&](auto &&asset) -> ImageState {
+                return asset->get_ref().match(
+                    [&](auto &) {
+                      storage_.asset = stx::Some(std::move(asset));
+                      return ImageState::Loaded;
+                    },
+                    [&](ImageLoadError error) {
+                      VLK_WARN("Failed to load image for {}, error: {}",
+                               format(*this), format(error));
+                      return ImageState::LoadFailed;
+                    });
+              },
+              [&](AssetError error) -> ImageState {
+                switch (error) {
+                    // image is still loading
+                  case AssetError::IsLoading:
+                    return ImageState::Loading;
+                  default:
+                    VLK_PANIC("Unexpected State");
+                }
+              });
+*/
 
-    // if state changed from image loading (to success or failure), mark as
-    // dirty so the failure or sucess image can be displayed
-    if (storage_.state != ImageState::Loading) {
-      Widget::mark_render_dirty();
-    }
+  // if state changed from image loading (to success or failure), mark as
+  // dirty so the failure or sucess image can be displayed
+  // if (storage_.state != ImageState::Loading) {
+  // Widget::mark_render_dirty();
+  //}
 
-    // if the image loaded correctly and the user did not already provide an
-    // extent, we need to request for a relayout to the loaded image asset's
-    // extent. if a reflow is needed, immediately return so the relayout can
-    // be processed by the system before rendering
-    if (storage_.state == ImageState::Loaded &&
-        storage_.props.extent().is_none()) {
-      sk_sp texture = storage_.asset.value()->get_ref().value();
-      Widget::update_self_extent(
-          SelfExtent::absolute(texture->width(), texture->height()));
-      return;
-    }
-  }
+  // if the image loaded correctly and the user did not already provide an
+  // extent, we need to request for a relayout to the loaded image asset's
+  // extent. if a reflow is needed, immediately return so the relayout can
+  // be processed by the system before rendering
+  // if (storage_.state == ImageState::Loaded &&
+  //   storage_.props.extent().is_none()) {
+  /*  sk_sp texture = storage_.asset.value()->get_ref().value();
+    Widget::update_self_extent(
+        SelfExtent::absolute(texture->width(), texture->height()));*/
+  //  return;
+  //}
+  //}
 
   // the image has been successfully loaded and the required layout for the
   // image has been established
-  if (storage_.state == ImageState::Loaded) {
+  /*if (storage_.state == ImageState::Loaded) {
     // image asset usage tracking
     if (Widget::is_stale()) {
       storage_.asset_stale_ticks++;
@@ -289,12 +273,14 @@ void Image::tick(std::chrono::nanoseconds, AssetManager &asset_manager) {
       storage_.asset_stale_ticks.reset();
     }
   }
+  */
 
   // we failed to load the image, we proceed to render error image.
   // the error image uses whatever extent the widget has available.
-  if (storage_.state == ImageState::LoadFailed) {
+  /*if (storage_.state == ImageState::LoadFailed) {
     // no-op
   }
+  */
 
   if (diff_ != impl::ImageDiff::None) {
     WidgetDirtiness dirtiness = impl::map_diff(diff_);
