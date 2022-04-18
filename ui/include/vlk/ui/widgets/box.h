@@ -4,9 +4,12 @@
 #include <utility>
 
 #include "stx/option.h"
-#include "vlk/ui/image_source.h"
-#include "vlk/ui/layout.h"
+#include "stx/result.h"
+#include "vlk/image_asset.h"
+#include "vlk/image_source.h"
 #include "vlk/primitives.h"
+#include "vlk/ui/future_awaiter.h"
+#include "vlk/ui/layout.h"
 #include "vlk/ui/widget.h"
 #include "vlk/utils.h"
 
@@ -36,9 +39,10 @@ namespace ui {
 
 enum class BoxBlend : uint8_t { ColorOver = 0, ImageOver = 1 };
 
+/*
 //
 // TODO(lamarrr): background image fit
-enum class BoxFit : uint8_t{
+enum class BoxFit : uint8_t {
   /// center the background image on the box whilst preserving aspect ratio
   None,
   /// resize image to cover entire box without distorting the image, some parts
@@ -50,9 +54,10 @@ enum class BoxFit : uint8_t{
   // fill the whole area even if it means distorting the width and height
   Fill
 };
-
+*/
 namespace impl {
 
+/*
 constexpr IRect box_fit_crop(BoxFit fit, Extent image_extent,
                              Extent widget_extent) {
   IRect dst_rect{};
@@ -68,7 +73,10 @@ constexpr IRect box_fit_crop(BoxFit fit, Extent image_extent,
     case BoxFit::Fill:
       break;
   }
+
+  return dst_rect;
 }
+*/
 
 }  // namespace impl
 
@@ -104,15 +112,15 @@ struct BoxProps {
   }
 
   auto extent() const { return extent_; }
+  /*
+    BoxProps fit(BoxFit value) const {
+      BoxProps out{*this};
+      out.fit_ = value;
+      return out;
+    }
 
-  BoxProps fit(BoxFit value) const {
-    BoxProps out{*this};
-    out.fit_ = value;
-    return out;
-  }
-
-  auto fit() const { return fit_; }
-
+    auto fit() const { return fit_; }
+  */
   BoxProps flex(Flex box_flex) const {
     BoxProps out{*this};
     out.flex_ = box_flex;
@@ -194,7 +202,7 @@ struct BoxProps {
 
  private:
   SelfExtent extent_ = SelfExtent::relative(1.0f, 1.0f);
-  BoxFit fit_ = BoxFit::None;
+  // BoxFit fit_ = BoxFit::None;
   Flex flex_ = Flex{};
   Padding padding_ = Padding::all(0);
   Border border_ = Border::all(colors::Transparent, 0);
@@ -205,49 +213,44 @@ struct BoxProps {
   BoxBlend blend_ = BoxBlend::ColorOver;
 };
 
-enum class BoxState : uint8_t {
-  BackgroundStale,
-  BackgroundLoading,
-  BackgroundLoaded,
-  BackgroundLoadFailed
-};
-
 namespace impl {
 enum class BoxDiff : uint16_t {
   None = 0,
   Extent = 1 << 0,
-  Fit = 1 << 1,
-  Flex = 1 << 2,
-  Padding = 1 << 3,
-  Border = 1 << 4,
-  BorderRadius = 1 << 5,
-  Color = 1 << 6,
-  Blur = 1 << 7,
-  BackgroundImage = 1 << 8,
-  Blend = 1 << 9,
-  All = (1 << 10) - 1
+  Flex = 1 << 1,
+  Padding = 1 << 2,
+  Border = 1 << 3,
+  BorderRadius = 1 << 4,
+  Color = 1 << 5,
+  Blur = 1 << 6,
+  BackgroundImage = 1 << 7,
+  Blend = 1 << 8,
+  All = (1 << 9) - 1
 };
 
 STX_DEFINE_ENUM_BIT_OPS(BoxDiff)
 
+struct BoxBackgroundImage {
+  ImageSource source;
+  vlk::FutureAwaiter<stx::Result<ImageAsset, ImageLoadError>> future;
+};
+
 struct BoxStorage {
   BoxProps props;
-  BoxState state = BoxState::BackgroundStale;
   Ticks asset_stale_ticks = Ticks{0};
-  stx::Option<std::shared_ptr<ImageAsset const>> asset = stx::None;
+  stx::Option<BoxBackgroundImage> background = stx::None;
 };
 
 }  // namespace impl
 
 struct Box : public Widget {
+  // claims ownership of `child`
   Box(Widget *child, BoxProps props) {
     update_props(std::move(props));
     update_child(child);
   }
 
   BoxProps get_props() const { return storage_.props; }
-
-  BoxState get_state() const { return storage_.state; }
 
   void update_props(BoxProps new_props);
 
@@ -269,7 +272,8 @@ struct Box : public Widget {
 
   virtual void draw(Canvas &) override;
 
-  virtual void tick(std::chrono::nanoseconds, AssetManager &) override;
+  virtual void tick(std::chrono::nanoseconds,
+                    SubsystemsContext const &) override;
 
  private:
   Widget *children_[1] = {nullptr};

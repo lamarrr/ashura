@@ -19,6 +19,15 @@ constexpr SkRect to_sk_rect(VRect const& rect) {
                           rect.extent.height);
 }
 
+constexpr std::array<SkVector, 4> to_skia(BorderRadius const& border_radius) {
+  return {
+      SkVector::Make(border_radius.top_left, border_radius.top_left),
+      SkVector::Make(border_radius.top_right, border_radius.top_right),
+      SkVector::Make(border_radius.bottom_left, border_radius.bottom_left),
+      SkVector::Make(border_radius.bottom_right, border_radius.bottom_right),
+  };
+}
+
 inline Rect to_vlk_rect(SkRect const& rect) {
   auto x = static_cast<int32_t>(rect.x());
   auto y = static_cast<int32_t>(rect.y());

@@ -16,6 +16,7 @@
 #include "modules/skparagraph/include/TypefaceFontProvider.h"
 #include "modules/skparagraph/src/ParagraphBuilderImpl.h"
 #include "modules/skparagraph/src/ParagraphImpl.h"
+#include "vlk/asset_loader.h"
 #include "vlk/utils.h"
 
 namespace sktext = skia::textlayout;
@@ -184,57 +185,13 @@ inline TextDiff inline_texts_diff(stx::Span<InlineTextStorage const> a,
   return diff;
 }
 
-inline auto add_font_asset_helper(AssetManager& asset_manager,
-                                  FontSource const& font_source)
-    -> stx::Result<stx::NoneType, AssetError> {
-  if (std::holds_alternative<SystemFont>(font_source)) {
-    return add_font_asset(asset_manager, std::get<SystemFont>(font_source));
-  } else if (std::holds_alternative<FileFont>(font_source)) {
-    return add_font_asset(asset_manager, std::get<FileFont>(font_source));
-  } else if (std::holds_alternative<MemoryFont>(font_source)) {
-    return add_font_asset(asset_manager, std::get<MemoryFont>(font_source));
-  } else if (std::holds_alternative<FileTypefaceSource>(font_source)) {
-    return add_font_asset(asset_manager,
-                          std::get<FileTypefaceSource>(font_source));
-  } else if (std::holds_alternative<MemoryTypefaceSource>(font_source)) {
-    return add_font_asset(asset_manager,
-                          std::get<MemoryTypefaceSource>(font_source));
-  } else {
-    VLK_PANIC();
-  }
-}
-
-inline auto get_font_asset_helper(AssetManager& asset_manager,
-                                  FontSource const& font_source)
-    -> stx::Result<std::shared_ptr<TypefaceAsset const>, AssetError> {
-  if (std::holds_alternative<SystemFont>(font_source)) {
-    return get_font_asset(asset_manager, std::get<SystemFont>(font_source));
-  } else if (std::holds_alternative<FileFont>(font_source)) {
-    return get_font_asset(asset_manager, std::get<FileFont>(font_source));
-  } else if (std::holds_alternative<MemoryFont>(font_source)) {
-    return get_font_asset(asset_manager, std::get<MemoryFont>(font_source));
-  } else if (std::holds_alternative<FileTypefaceSource>(font_source)) {
-    return get_font_asset(asset_manager,
-                          std::get<FileTypefaceSource>(font_source));
-  } else if (std::holds_alternative<MemoryTypefaceSource>(font_source)) {
-    return get_font_asset(asset_manager,
-                          std::get<MemoryTypefaceSource>(font_source));
-  } else {
-    VLK_PANIC();
-  }
-}
-
 inline std::string_view get_source_tag(FontSource const& font_source) {
   if (std::holds_alternative<SystemFont>(font_source)) {
-    return std::get<SystemFont>(font_source).data_ref()->tag;
-  } else if (std::holds_alternative<FileFont>(font_source)) {
-    return std::get<FileFont>(font_source).source.data_ref()->tag;
-  } else if (std::holds_alternative<MemoryFont>(font_source)) {
-    return std::get<MemoryFont>(font_source).source.data_ref()->tag;
+    return std::get<SystemFont>(font_source).data.handle->tag;
   } else if (std::holds_alternative<FileTypefaceSource>(font_source)) {
-    return std::get<FileTypefaceSource>(font_source).data_ref()->tag;
+    return std::get<FileTypefaceSource>(font_source).data.handle->tag;
   } else if (std::holds_alternative<MemoryTypefaceSource>(font_source)) {
-    return std::get<MemoryTypefaceSource>(font_source).data_ref()->tag;
+    return std::get<MemoryTypefaceSource>(font_source).data.handle->tag;
   } else {
     VLK_PANIC();
   }
@@ -312,23 +269,44 @@ inline sktext::TextStyle make_text_style(
   }
 
   auto const& font_source = props.font_ref();
+  auto default_font_source = default_props.font();
 
   if (font_source.is_some()) {
-    if (text_storage.state == TextState::FontsLoadDone &&
-        text_storage.typeface.is_some()) {
-      std::string_view source_identifier = get_source_tag(font_source.value());
-      text_style.setFontFamilies(std::vector{
-          SkString{source_identifier.data(), source_identifier.size()}});
-    } else {
-    }
+    // use own font
+    text_storage.font_future.match(
+        [&](FontFuture const& future) {
+          future.awaiter.future_.ref().match(
+              [&](stx::Result<FontAsset, FontLoadError>* result) {
+                result->match(
+                    [&](FontAsset const&) {
+                      std::string_view source_identifier =
+                          get_source_tag(font_source.value());
+                      text_style.setFontFamilies(std::vector{SkString{
+                          source_identifier.data(), source_identifier.size()}});
+                    },
+                    [](FontLoadError) {});
+              },
+              [](stx::FutureError) {});
+        },
+        []() {});
   } else {
-    if (paragraph_storage.state == TextState::FontsLoadDone &&
-        paragraph_storage.typeface.is_some()) {
-      std::string_view source_identifier =
-          get_source_tag(paragraph_storage.props.font_ref());
-      text_style.setFontFamilies(std::vector{
-          SkString{source_identifier.data(), source_identifier.size()}});
-    }
+    // use paragraph's font
+    paragraph_storage.font_future.match(
+        [&](FontFuture const& future) {
+          future.awaiter.future_.ref().match(
+              [&](stx::Result<FontAsset, FontLoadError>* result) {
+                result->match(
+                    [&](FontAsset const&) {
+                      std::string_view source_identifier =
+                          get_source_tag(default_font_source);
+                      text_style.setFontFamilies(std::vector{SkString{
+                          source_identifier.data(), source_identifier.size()}});
+                    },
+                    [](FontLoadError) {});
+              },
+              [](stx::FutureError) {});
+        },
+        []() {});
   }
 
   text_style.setFontSize(
@@ -426,19 +404,25 @@ inline std::unique_ptr<sktext::Paragraph> build_paragraph(
   sk_sp font_provider = sk_make_sp<sktext::TypefaceFontProvider>();
 
   for (auto const& inline_text : inline_texts) {
-    inline_text.typeface.as_ref().match(
-        [&](std::shared_ptr<TypefaceAsset const> const& typeface) {
-          typeface->load_result_ref().as_cref().match(
-              [&](sk_sp<SkTypeface> sk_typeface) {
-                FontSource const& font =
-                    inline_text.props.font_ref().as_cref().unwrap_or(
-                        paragraph_storage.props.font_ref());
-                std::string_view identifier = get_source_tag(font);
-                font_provider->registerTypeface(
-                    std::move(sk_typeface),
-                    SkString{identifier.data(), identifier.size()});
+    inline_text.font_future.as_ref().match(
+        [&](impl::FontFuture const& future) {
+          future.awaiter.future_.ref().match(
+              [&](stx::Result<FontAsset, FontLoadError>* result) {
+                result->as_ref().match(
+                    [&](FontAsset& asset) {
+                      // use paragraph font if none was specified for the inline
+                      // text
+                      FontSource const& font =
+                          inline_text.props.font_ref().as_cref().unwrap_or(
+                              paragraph_storage.props.font_ref());
+                      std::string_view identifier = get_source_tag(font);
+                      font_provider->registerTypeface(
+                          asset.get_raw(),
+                          SkString{identifier.data(), identifier.size()});
+                    },
+                    [](FontLoadError) {});
               },
-              [](auto error) {});
+              [](stx::FutureError) {});
         },
         []() {});
   }
@@ -468,7 +452,6 @@ inline std::unique_ptr<sktext::Paragraph> build_paragraph(
 
   return paragraph;
 }
-
 }  // namespace impl
 
 void Text::rebuild_paragraph() {
@@ -476,7 +459,7 @@ void Text::rebuild_paragraph() {
   VLK_ENSURE(paragraph_ != nullptr);
 
   // perform layout pass to get minimum and maximum width
-  paragraph_->layout(0.0f);
+  paragraph_->layout(0.0F);
 
   float const min_intrinsic_width = paragraph_->getMinIntrinsicWidth();
   float const max_intrinsic_width = paragraph_->getMaxIntrinsicWidth();
@@ -508,12 +491,11 @@ void Text::rebuild_paragraph() {
 void Text::update_text(std::vector<InlineText> inline_texts) {
   diff_ |= impl::inline_texts_diff(inline_texts_, inline_texts);
 
-  inline_texts_.resize(0);
+  inline_texts_.clear();
 
   for (InlineText& inline_text : inline_texts)
     inline_texts_.push_back(impl::InlineTextStorage{
-        std::move(inline_text.text), std::move(inline_text.props), stx::None,
-        TextState::Begin});
+        std::move(inline_text.text), std::move(inline_text.props), stx::None});
 }
 
 void Text::update_paragraph_props(ParagraphProps paragraph_props) {
@@ -522,8 +504,8 @@ void Text::update_paragraph_props(ParagraphProps paragraph_props) {
       impl::paragraph_props_diff(paragraph_storage_.props, paragraph_props);
 
   // this means the inline text's style and font might change
-  paragraph_storage_ = impl::ParagraphStorage{std::move(paragraph_props),
-                                              stx::None, TextState::Begin};
+  paragraph_storage_ =
+      impl::ParagraphStorage{std::move(paragraph_props), stx::None};
 }
 
 Extent Text::trim(Extent extent) {
@@ -558,110 +540,49 @@ void Text::draw(Canvas& canvas) {
   sk_canvas.restore();
 }
 
-void Text::tick(std::chrono::nanoseconds, AssetManager& asset_manager) {
+void Text::tick(std::chrono::nanoseconds interval,
+                SubsystemsContext const& context) {
   // fonts are loaded immediately, irregardless of whether they are in use or
   // not
-  if (paragraph_storage_.state == TextState::Begin) {
-    impl::add_font_asset_helper(asset_manager,
-                                paragraph_storage_.props.font_ref())
-        .match(
-            [&](stx::NoneType) {
-              paragraph_storage_.state = TextState::FontsLoading;
-            },
-            [&](AssetError error) {
-              switch (error) {
-                case AssetError::TagExists:
-                  paragraph_storage_.state = TextState::FontsLoading;
-                  break;
-                default:
-                  VLK_PANIC("Unexpected State");
-              }
-            });
-  }
 
-  if (paragraph_storage_.state == TextState::FontsLoading) {
-    paragraph_storage_.state =
-        impl::get_font_asset_helper(asset_manager,
-                                    paragraph_storage_.props.font_ref())
-            .match(
-                [&](std::shared_ptr<TypefaceAsset const>&& typeface) {
-                  return typeface->load_result_ref().match(
-                      [&](auto&) {
-                        paragraph_storage_.typeface =
-                            stx::Some(std::move(typeface));
-                        return TextState::FontsLoadDone;
-                      },
-                      [&](FontLoadError error) {
-                        VLK_WARN("Failed to load font for {}, error: {}",
-                                 format(*this), format(error));
-                        return TextState::FontsLoadDone;
-                      });
-                },
-                [](AssetError error) {
-                  switch (error) {
-                      // image is still loading
-                    case AssetError::IsLoading:
-                      return TextState::FontsLoading;
-                    default:
-                      VLK_PANIC("Unexpected State");
-                  }
-                });
-
-    if (paragraph_storage_.state == TextState::FontsLoadDone) {
-      diff_ |= impl::TextDiff::Font;
-    }
-  }
+  auto tmp = context.get("AssetLoader").unwrap();
+  auto asset_loader = tmp.handle->as<AssetLoader>().unwrap();
 
   for (auto& inline_text : inline_texts_) {
-    if (inline_text.state == TextState::Begin) {
-      impl::add_font_asset_helper(
-          asset_manager,
-          inline_text.props.font().unwrap_or(paragraph_storage_.props.font()))
-          .match(
-              [&](stx::NoneType) {
-                inline_text.state = TextState::FontsLoading;
-              },
-              [&](AssetError error) {
-                switch (error) {
-                  case AssetError::TagExists:
-                    inline_text.state = TextState::FontsLoading;
-                    break;
-                  default:
-                    VLK_PANIC("Unexpected State");
-                }
-              });
-    }
+    inline_text.font_future.match(
+        [interval](impl::FontFuture& future) { future.awaiter.tick(interval); },
+        []() {});
 
-    if (inline_text.state == TextState::FontsLoading) {
-      inline_text.state =
-          impl::get_font_asset_helper(asset_manager,
-                                      inline_text.props.font().unwrap_or(
-                                          paragraph_storage_.props.font()))
-              .match(
-                  [&](std::shared_ptr<TypefaceAsset const>&& typeface) {
-                    return typeface->load_result_ref().match(
-                        [&](auto&) {
-                          inline_text.typeface = stx::Some(std::move(typeface));
-                          return TextState::FontsLoadDone;
-                        },
-                        [&](FontLoadError error) {
-                          VLK_WARN("Failed to load font for {}, error: {}",
-                                   format(*this), format(error));
-                          return TextState::FontsLoadDone;
-                        });
-                  },
-                  [](AssetError error) {
-                    switch (error) {
-                        // image is still loading
-                      case AssetError::IsLoading:
-                        return TextState::FontsLoading;
-                      default:
-                        VLK_PANIC("Unexpected State");
-                    }
-                  });
+    FontSource source =
+        inline_text.props.font().unwrap_or(paragraph_storage_.props.font());
 
-      if (inline_text.state == TextState::FontsLoadDone) {
-        diff_ |= impl::TextDiff::Font;
+    auto on_completed = stx::fn::rc::make_functor(stx::os_allocator, [this]() {
+                          Widget::mark_layout_dirty();
+                          Widget::mark_render_dirty();
+
+                          rebuild_paragraph();
+                        }).unwrap();
+
+    if ((inline_text.font_future.is_some() &&
+         source != inline_text.font_future.as_ref().unwrap().get().source) ||
+        inline_text.font_future.is_none()) {
+      if (std::holds_alternative<SystemFont>(source)) {
+        inline_text.font_future = stx::Some(impl::FontFuture{
+            source,
+            FutureAwaiter{asset_loader->load_font(std::get<SystemFont>(source)),
+                          std::move(on_completed)}});
+      } else if (std::holds_alternative<FileTypefaceSource>(source)) {
+        inline_text.font_future = stx::Some(impl::FontFuture{
+            source, FutureAwaiter{asset_loader->load_font(
+                                      std::get<FileTypefaceSource>(source)),
+                                  std::move(on_completed)}});
+      } else if (std::holds_alternative<MemoryTypefaceSource>(source)) {
+        inline_text.font_future = stx::Some(impl::FontFuture{
+            source, FutureAwaiter{asset_loader->load_font(
+                                      std::get<MemoryTypefaceSource>(source)),
+                                  std::move(on_completed)}});
+      } else {
+        VLK_PANIC("UNSUPPORTED");
       }
     }
   }
