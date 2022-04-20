@@ -556,31 +556,41 @@ void Text::tick(std::chrono::nanoseconds interval,
     FontSource source =
         inline_text.props.font().unwrap_or(paragraph_storage_.props.font());
 
-    auto on_completed = stx::fn::rc::make_functor(stx::os_allocator, [this]() {
-                          Widget::mark_layout_dirty();
-                          Widget::mark_render_dirty();
-
-                          rebuild_paragraph();
-                        }).unwrap();
-
     if ((inline_text.font_future.is_some() &&
          source != inline_text.font_future.as_ref().unwrap().get().source) ||
         inline_text.font_future.is_none()) {
       if (std::holds_alternative<SystemFont>(source)) {
         inline_text.font_future = stx::Some(impl::FontFuture{
-            source,
-            FutureAwaiter{asset_loader->load_font(std::get<SystemFont>(source)),
-                          std::move(on_completed)}});
+            source, FutureAwaiter{
+                        asset_loader->load_font(std::get<SystemFont>(source)),
+                        stx::fn::rc::make_functor(stx::os_allocator, [this]() {
+                          Widget::mark_layout_dirty();
+                          Widget::mark_render_dirty();
+
+                          rebuild_paragraph();
+                        }).unwrap()}});
       } else if (std::holds_alternative<FileTypefaceSource>(source)) {
         inline_text.font_future = stx::Some(impl::FontFuture{
-            source, FutureAwaiter{asset_loader->load_font(
-                                      std::get<FileTypefaceSource>(source)),
-                                  std::move(on_completed)}});
+            source,
+            FutureAwaiter{
+                asset_loader->load_font(std::get<FileTypefaceSource>(source)),
+                stx::fn::rc::make_functor(stx::os_allocator, [this]() {
+                  Widget::mark_layout_dirty();
+                  Widget::mark_render_dirty();
+
+                  rebuild_paragraph();
+                }).unwrap()}});
       } else if (std::holds_alternative<MemoryTypefaceSource>(source)) {
         inline_text.font_future = stx::Some(impl::FontFuture{
-            source, FutureAwaiter{asset_loader->load_font(
-                                      std::get<MemoryTypefaceSource>(source)),
-                                  std::move(on_completed)}});
+            source,
+            FutureAwaiter{
+                asset_loader->load_font(std::get<MemoryTypefaceSource>(source)),
+                stx::fn::rc::make_functor(stx::os_allocator, [this]() {
+                  Widget::mark_layout_dirty();
+                  Widget::mark_render_dirty();
+
+                  rebuild_paragraph();
+                }).unwrap()}});
       } else {
         VLK_PANIC("UNSUPPORTED");
       }

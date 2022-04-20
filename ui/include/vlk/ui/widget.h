@@ -6,6 +6,7 @@
 #include <functional>
 #include <string_view>
 
+#include "stx/fn.h"
 #include "stx/option.h"
 #include "stx/report.h"
 #include "stx/span.h"
@@ -52,18 +53,18 @@ struct WidgetDebugInfo {
 // values.
 struct WidgetStateProxy {
   /// informs the system that the widget's render data has changed
-  std::function<void()> on_render_dirty = [] {};
+  stx::RcFn<void()> on_render_dirty = stx::fn::rc::make_static([]() {});
 
   /// informs the system that the widget's layout has changed
-  std::function<void()> on_layout_dirty = [] {};
+  stx::RcFn<void()> on_layout_dirty = stx::fn::rc::make_static([]() {});
 
   /// informs the system that a view-widgets's offset (or visible area)
   /// has changed
-  std::function<void()> on_view_offset_dirty = [] {};
+  stx::RcFn<void()> on_view_offset_dirty = stx::fn::rc::make_static([]() {});
 
   /// informs the system that the widget's children has changed (possibly
   /// requiring a full rebuild of the pipeline)
-  std::function<void()> on_children_changed = [] {};
+  stx::RcFn<void()> on_children_changed = stx::fn::rc::make_static([]() {});
 
   /// we need to be able to consult the tree for the widget's offset i.e. in the
   /// scenario where we need to scroll to it
@@ -152,8 +153,7 @@ struct Widget {
 
   /// process any event you need to process here.
   /// animations and property updates can and should happen here.
-  virtual void tick([[maybe_unused]] std::chrono::nanoseconds interval,
-                    [[maybe_unused]] AssetManager &asset_manager) {
+  virtual void tick([[maybe_unused]] std::chrono::nanoseconds interval) {
     // no-op
   }
 
@@ -255,19 +255,19 @@ struct Widget {
     tick(interval, asset_manager);
 
     if ((dirtiness_ & WidgetDirtiness::Children) != WidgetDirtiness::None) {
-      state_proxy_.on_children_changed();
+      state_proxy_.on_children_changed.handle();
     }
 
     if ((dirtiness_ & WidgetDirtiness::Layout) != WidgetDirtiness::None) {
-      state_proxy_.on_layout_dirty();
+      state_proxy_.on_layout_dirty.handle();
     }
 
     if ((dirtiness_ & WidgetDirtiness::Render) != WidgetDirtiness::None) {
-      state_proxy_.on_render_dirty();
+      state_proxy_.on_render_dirty.handle();
     }
 
     if ((dirtiness_ & WidgetDirtiness::ViewOffset) != WidgetDirtiness::None) {
-      state_proxy_.on_view_offset_dirty();
+      state_proxy_.on_view_offset_dirty.handle();
     }
 
     dirtiness_ = WidgetDirtiness::None;

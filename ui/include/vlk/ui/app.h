@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "vlk/primitives.h"
-#include "vlk/ui/trace.h"
 #include "vlk/ui/widget.h"
 #include "vlk/ui/window.h"
 #include "vlk/ui/window_api.h"

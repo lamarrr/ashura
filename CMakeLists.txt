@@ -20,6 +20,10 @@ execute_process(
     third_party/VulkanMemoryAllocator
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
+execute_process(
+  COMMAND git clone -b main https://github.com/google/skia.git
+          third_party/skia WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
 find_package(GTest REQUIRED)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
@@ -153,7 +157,6 @@ endif()
 
 # TODO(lamarrr): we need extensive unit testing even for dependencies
 
-add_subdirectory(stx_ext)
 add_subdirectory(palettes)
 add_subdirectory(subsystem)
 add_subdirectory(subsystems)
@@ -162,5 +165,3 @@ add_subdirectory(asset)
 add_subdirectory(primitives)
 add_subdirectory(utils)
 add_subdirectory(ui)
-add_subdirectory(scheduler)
-

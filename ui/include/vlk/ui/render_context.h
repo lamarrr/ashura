@@ -64,7 +64,7 @@ struct RenderContext {
           SkImageInfo::Make(SkISize{static_cast<int32_t>(extent.width),
                                     static_cast<int32_t>(extent.height)},
                             color_type_, alpha_type_,
-                            color_space_.clone().unwrap_or(nullptr)),
+                            color_space_.copy().unwrap_or(nullptr)),
           0, surface_origin_, nullptr);
 
       VLK_ENSURE(surface != nullptr);
@@ -76,7 +76,7 @@ struct RenderContext {
     }
   }
 
-  auto get_direct_context() const { return direct_context_.clone(); }
+  auto get_direct_context() const { return direct_context_.copy(); }
 
  private:
   stx::Option<sk_sp<GrDirectContext>> direct_context_;

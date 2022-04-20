@@ -12,7 +12,7 @@
 #include "modules/skparagraph/include/Paragraph.h"
 #include "stx/option.h"
 #include "stx/span.h"
-#include "vlk/ui/font_source.h"
+#include "vlk/font_source.h"
 #include "vlk/primitives.h"
 #include "vlk/ui/widget.h"
 #include "stx/limits.h"
