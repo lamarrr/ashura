@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-#include "stx/backtrace.h"
+// #include "stx/backtrace.h"
 #include "stx/limits.h"
 #include "stx/option.h"
 #include "stx/result.h"
@@ -149,6 +149,7 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
 
   if (!is_general) {
     VLK_LOG("Call Stack:");
+    /*
     stx::backtrace::trace(
         [](stx::backtrace::Frame frame, int) {
           VLK_LOG("\t=> {}", frame.symbol.clone().match(
@@ -157,6 +158,7 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
           return false;
         },
         2);
+        */
   }
 
   return VK_FALSE;
@@ -244,7 +246,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   // debug message callback extension
   auto extensions =
       join_copy(required_extensions,
-                required_validation_layers.empty()
+                required_validation_layers.is_empty()
                     ? stx::Span<char const* const>{}
                     : stx::Span<char const* const>(DEBUG_EXTENSIONS));
 
@@ -253,7 +255,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 
   ensure_extensions_supported(extensions);
 
-  if (!required_validation_layers.empty()) {
+  if (!required_validation_layers.is_empty()) {
     // validation layers
     ensure_validation_layers_supported(required_validation_layers);
     create_info.enabledLayerCount = required_validation_layers.size();
@@ -271,7 +273,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 
   VkDebugUtilsMessengerEXT messenger = nullptr;
 
-  if (!required_validation_layers.empty()) {
+  if (!required_validation_layers.is_empty()) {
     messenger = create_install_debug_messenger(vulkan_instance, nullptr,
                                                debug_messenger_create_info);
   }
@@ -697,7 +699,7 @@ inline VkSampler create_sampler(VkDevice device,
   // for treating the case where there are more texels than fragments
   create_info.anisotropyEnable = max_anisotropy.is_some();
   create_info.maxAnisotropy =
-      max_anisotropy.is_some() ? max_anisotropy.clone().unwrap() : 0.0f;
+      max_anisotropy.is_some() ? max_anisotropy.copy().unwrap() : 0.0f;
 
   create_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
   create_info.unnormalizedCoordinates =
@@ -1474,9 +1476,7 @@ inline std::pair<uint32_t, VkResult> acquire_next_swapchain_image(
 
   auto result = vkAcquireNextImageKHR(
       device, swapchain,
-      std::chrono::duration_cast<std::chrono::nanoseconds>(
-        1min)
-          .count(),
+      std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count(),
       signal_semaphore, signal_fence, &index);
   VLK_ENSURE(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                  result == VK_ERROR_OUT_OF_DATE_KHR,

@@ -18,7 +18,7 @@ struct MockSized : public Widget {
     Widget::update_self_extent(SelfExtent{Constrain::absolute(extent.width),
                                           Constrain::absolute(extent.height)});
     Widget::update_padding(padding);
-    Widget::init_z_index(z_index.clone());
+    Widget::init_z_index(z_index.copy());
   }
   ~MockSized() override {}
 };
@@ -30,7 +30,7 @@ struct MockFlex : public Widget {
     children_ = children;
     Widget::init_is_flex(true);
     Widget::update_children(children_);
-    Widget::init_z_index(z_index.clone());
+    Widget::init_z_index(z_index.copy());
     Widget::update_self_extent(SelfExtent{Constrain{1.0f}, Constrain{1.0f}});
   }
 
@@ -124,10 +124,10 @@ TEST(ViewTree, Hierarchy_And_Scrolling) {
           Constrain{0.0f, 90, stx::i64_min, stx::i64_max, Clamp{0.0f, 200.0f}},
           Constrain{0.0f}});
 
-  AssetManager asset_manager;
+  SubsystemsContext context;
 
   WidgetSystemProxy::tick(*view_tree.root_view.subviews[0].layout_node->widget,
-                          std::chrono::nanoseconds(0), asset_manager);
+                          std::chrono::nanoseconds(0), context);
 
   view_tree.tick(std::chrono::nanoseconds(0));
 

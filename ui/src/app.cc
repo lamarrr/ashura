@@ -7,8 +7,6 @@
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
 #include "vlk/ui/pipeline.h"
-#include "vlk/ui/trace.h"
-#include "vlk/ui/trace_contexts.h"
 #include "vlk/ui/vk_render_context.h"
 #include "vlk/ui/vulkan.h"
 #include "vlk/ui/window.h"

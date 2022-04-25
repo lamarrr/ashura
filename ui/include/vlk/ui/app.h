@@ -79,7 +79,6 @@ struct App {
   std::unique_ptr<Pipeline> pipeline;
   std::unique_ptr<Widget> root_widget;
   std::unique_ptr<spdlog::logger> logger;
-  trace::SingleThreadContext trace_context;
   uint32_t present_refresh_rate_hz = 0;
 
   AppCfg cfg;

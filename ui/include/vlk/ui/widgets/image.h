@@ -7,8 +7,10 @@
 
 //
 
-#include "vlk/ui/image_source.h"
+#include "vlk/image_asset.h"
+#include "vlk/image_source.h"
 #include "vlk/primitives.h"
+#include "vlk/ui/future_awaiter.h"
 #include "vlk/ui/widget.h"
 
 namespace vlk {
@@ -126,11 +128,16 @@ enum class ImageDiff : uint8_t {
 
 STX_DEFINE_ENUM_BIT_OPS(ImageDiff)
 
+struct LoadedImage {
+  ImageSource source;
+  FutureAwaiter<stx::Result<ImageAsset, ImageLoadError>> image;
+};
+
 struct ImageStorage {
   ImageProps props;
   ImageState state = ImageState::Stale;
   Ticks asset_stale_ticks = Ticks{0};
-  stx::Option<std::shared_ptr<ImageAsset const>> asset = stx::None;
+  stx::Option<LoadedImage> image = stx::None;
 };
 
 }  // namespace impl
@@ -187,7 +194,7 @@ struct Image : public Widget {
   virtual void draw(Canvas &canvas) override;
 
   virtual void tick(std::chrono::nanoseconds,
-                    AssetManager &asset_manager) override;
+                    SubsystemsContext const &) override;
 
  private:
   impl::ImageStorage storage_;

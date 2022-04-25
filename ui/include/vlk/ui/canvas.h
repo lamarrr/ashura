@@ -4,7 +4,7 @@
 
 #include "vlk/primitives.h"
 
-struct SkCanvas;
+class SkCanvas;
 
 namespace vlk {
 namespace ui {

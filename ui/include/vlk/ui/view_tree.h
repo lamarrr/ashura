@@ -3,8 +3,8 @@
 #include <utility>
 #include <vector>
 
-#include "vlk/ui/layout_tree.h"
 #include "vlk/primitives.h"
+#include "vlk/ui/layout_tree.h"
 #include "vlk/ui/widget.h"
 
 namespace vlk {
@@ -290,10 +290,13 @@ struct ViewTree {
 
     void attach_state_proxies_and_parent_refs(bool &any_view_dirty) {
       WidgetSystemProxy::get_state_proxy(*layout_node->widget)
-          .on_view_offset_dirty = ([this, &any_view_dirty] {
-        this->is_dirty = true;
-        any_view_dirty = true;
-      });
+          .on_view_offset_dirty =
+          stx::fn::rc::make_functor(stx::os_allocator,
+                                    ([this, &any_view_dirty] {
+                                      this->is_dirty = true;
+                                      any_view_dirty = true;
+                                    }))
+              .unwrap();
 
       for (View::Entry &entry : entries) {
         entry.parent = this;

@@ -9,8 +9,7 @@
 #include "include/core/SkPaint.h"
 #include "include/core/SkRRect.h"
 #include "include/effects/SkImageFilters.h"
-#include "vlk/asset_loader.h"
-#include "vlk/asset_registry.h"
+#include "vlk/subsystems/asset_loader.h"
 #include "vlk/ui/sk_utils.h"
 
 namespace vlk {
@@ -198,7 +197,8 @@ void Box::draw(Canvas &canvas) {
                       to_sk_rect(Rect{
                           Offset{border_width_left, border_width_top},
                           Extent{content_extent.width, content_extent.height}}),
-                      nullptr);
+                      SkSamplingOptions{}, nullptr,
+                      SkCanvas::SrcRectConstraint::kStrict_SrcRectConstraint);
                 },
                 [](ImageLoadError) {});
           }
@@ -251,10 +251,10 @@ void Box::draw(Canvas &canvas) {
 
 void Box::tick(std::chrono::nanoseconds interval,
                SubsystemsContext const &context) {
-  auto tmp = context.get("AssetLoader").unwrap();
-  auto asset_loader = tmp.handle->as<AssetLoader>().unwrap();
+  auto tmp = context.get("VLK_AssetLoader").unwrap();
+  AssetLoader *asset_loader = tmp.handle->as<AssetLoader>().unwrap();
 
-  if (!Widget::is_stale() && storage_.props.image_ref().is_some()) {
+  if (storage_.props.image_ref().is_some()) {
     // check if image is already loaded
     auto next_image = storage_.props.image_ref().value();
     auto &loaded_image = storage_.background;
@@ -267,7 +267,7 @@ void Box::tick(std::chrono::nanoseconds interval,
     } else {
       if (std::holds_alternative<MemoryImageSource>(next_image)) {
         auto &source = std::get<MemoryImageSource>(next_image);
-        storage_.background = Some(impl::BoxBackgroundImage{
+        storage_.background = stx::Some(impl::BoxBackgroundImage{
             source, vlk::FutureAwaiter{
                         asset_loader->load_image(source),
                         stx::fn::rc::make_functor(stx::os_allocator, [this]() {
@@ -275,7 +275,7 @@ void Box::tick(std::chrono::nanoseconds interval,
                         }).unwrap()}});
       } else {
         auto &source = std::get<FileImageSource>(next_image);
-        storage_.background = Some(impl::BoxBackgroundImage{
+        storage_.background = stx::Some(impl::BoxBackgroundImage{
             source, vlk::FutureAwaiter{
                         asset_loader->load_image(source),
                         stx::fn::rc::make_functor(stx::os_allocator, [this]() {

@@ -156,14 +156,13 @@ struct ProgressMonitorState {
   }
 };
 
-
 // we probably shouldn't mix up cancelation and prirorities
 // some tasks might still need to be run even whilst shutting down
 
 struct ProgressMonitor {
   Progress get_progress() const { return state.handle->load(); }
 
-  stx ::Rc<ProgressMonitorState const *> state;
+  stx::Rc<ProgressMonitorState const *> state;
 };
 
 struct ProgressUpdateProxy {
@@ -175,7 +174,8 @@ struct ProgressUpdateProxy {
 };
 
 inline std::pair<ProgressMonitor, ProgressUpdateProxy> make_progress_monitor() {
-  auto state = stx::mem::make_rc_inplace<ProgressMonitorState>();
+  auto state =
+      stx::rc::make_inplace<ProgressMonitorState>(stx::os_allocator).unwrap();
 
   auto progress_monitor = ProgressMonitor{stx::transmute(
       static_cast<ProgressMonitorState const *>(state.handle), state)};
@@ -216,7 +216,7 @@ struct CurlMultiHandle {
 };
 
 inline stx::Rc<CurlMultiHandle *> make_curl_multi_handle() {
-  return stx::mem::make_rc_inplace<CurlMultiHandle>(curl_multi_init());
+  return stx::rc::make_rc_inplace<CurlMultiHandle>(curl_multi_init());
 }
 
 struct RunningTaskInfo;
@@ -262,7 +262,7 @@ struct CurlEasyHandle {
 
 inline stx::Rc<CurlEasyHandle *> make_curl_easy_handle(
     stx::Rc<CurlMultiHandle *> const &parent, PackagedTask const &task) {
-  stx::Rc easy_handle_rc = stx::mem::make_rc_inplace<CurlEasyHandle>(
+  stx::Rc easy_handle_rc = stx::rc::make_rc_inplace<CurlEasyHandle>(
       curl_easy_init(), nullptr, parent);
 
   CurlEasyHandle *easy_handle = easy_handle_rc.handle;
@@ -567,7 +567,7 @@ struct ExecutionContextHandle {
         info->update_progress();
 
         if (state_ == State::UserShuttingDown &&
-            info->packaged_task.priority < stx::TaskPriority::Critical) {
+            info->packaged_task.priority < stx::CRITICAL_PRIORITY) {
           promise.request_force_cancel();
         }
 
@@ -693,8 +693,9 @@ struct ExecutionContextHandle {
             curl_off_t response_code = 0;
             VLK_CURLE_ENSURE(curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE,
                                                &response_code));
-            // TODO(check for negative)
-            info->response.code = ResponseCode{response_code};
+            // TODO(lamarrr): (check for negative)
+            info->response.code =
+                ResponseCode{static_cast<uint64_t>(response_code)};
 
             // notify of completion
             info->packaged_task.promise.notify_completed(
@@ -736,7 +737,7 @@ struct ExecutionContext {
             CurlMulti::create(), std::move(promise))});
   }
 
-  stx::mem::Unique<ExecutionContextHandle> handle;
+  stx::rc::Unique<ExecutionContextHandle> handle;
 };
 */
 

@@ -6,7 +6,7 @@ target_link_libraries(
   fmt::fmt
   stx::enum
   stx::async
-  vlk::scheduler
+  stx::scheduler
   vlk::subsystem
   vlk::primitives
   vlk_external_skia

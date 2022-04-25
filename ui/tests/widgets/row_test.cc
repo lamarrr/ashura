@@ -6,7 +6,6 @@
 
 #include "gtest/gtest.h"
 #include "mock_widgets.h"
-#include "vlk/http.h"
 #include "vlk/palettes/ios.h"
 #include "vlk/palettes/material.h"
 #include "vlk/ui/app.h"
@@ -129,13 +128,12 @@ TEST(RowTest, BasicTest) {
                               .font(FileTypefaceSource{
                                   "/home/lamar/Desktop/"
                                   "MaterialIcons-Regular-4.0.0.ttf"})},
-               InlineText{"cast",
-                          TextProps{}
-                              .font_size(40.0f)
-                              .color(ios::DARK_BLUE)
-                              .font(FileTypefaceSource{
-                                  "/home/lamar/Desktop/"
-                                  "MaterialIcons-Regular-4.0.0.ttf"})}},
+               InlineText{"cast", TextProps{}
+                                      .font_size(40.0f)
+                                      .color(ios::DARK_BLUE)
+                                      .font(FileTypefaceSource{
+                                          "/home/lamar/Desktop/"
+                                          "MaterialIcons-Regular-4.0.0.ttf"})}},
               ParagraphProps{}
                   .font_size(20.0f)
                   .color(ios::DARK_GRAY_6)
@@ -183,7 +181,8 @@ TEST(RowTest, BasicTest) {
                                    .font_size(10.0f)
                                    .color(colors::White)
                                    .font(SystemFont{"JetBrains Mono"})},
-                      BoxProps{}.blur(Blur{15, 15})
+                      BoxProps{}
+                          .blur(Blur{15, 15})
                           .padding(Padding::all(15))
                           .border_radius(BorderRadius::all(20))
                           .color(color_list[i % std::size(color_list)])),

@@ -1,7 +1,9 @@
 #pragma once
 #include <utility>
 
-#include "vlk/ui/asset_manager.h"
+#include "vlk/subsystem/context.h"
+#include "vlk/subsystems/asset_loader.h"
+#include "vlk/subsystems/scheduler.h"
 #include "vlk/ui/event.h"
 #include "vlk/ui/layout.h"
 #include "vlk/ui/layout_tree.h"
@@ -24,8 +26,9 @@ struct Pipeline {
   LayoutTree layout_tree;
   ViewTree view_tree;
   TileCache tile_cache;
-  AssetManager asset_manager;
   bool needs_rebuild = true;
+
+  SubsystemsContext context{};
 
   Pipeline(Widget& init_root_widget, RenderContext const& init_render_context)
       : root_widget{&init_root_widget}, render_context{&init_render_context} {
@@ -35,6 +38,23 @@ struct Pipeline {
     // pass to tile_cache => bind on raster dirty
 
     attach_state_proxies(*root_widget);
+
+    context
+        .__register_subsystem(
+            "VLK_AssetLoader",
+            stx::rc::make_inplace<AssetLoader>(stx::os_allocator).unwrap())
+        .unwrap();
+
+    context
+        .__register_subsystem(
+            "VLK_TaskScheduler",
+            stx::rc::make_inplace<TaskScheduler>(
+                stx::os_allocator, std::chrono::steady_clock::now(),
+                stx::os_allocator)
+                .unwrap())
+        .unwrap();
+
+    context.__link();
 
     // we might need to tell the root view to expand or shrink? or preserve its
     // requested size?
@@ -63,9 +83,10 @@ struct Pipeline {
   }
 
   void attach_state_proxies(Widget& widget) {
-    WidgetSystemProxy::get_state_proxy(widget).on_children_changed = [this] {
-      this->needs_rebuild = true;
-    };
+    WidgetSystemProxy::get_state_proxy(widget).on_children_changed =
+        stx::fn::rc::make_functor(stx::os_allocator, [this] {
+          this->needs_rebuild = true;
+        }).unwrap();
 
     for (Widget* child : widget.get_children()) {
       attach_state_proxies(*child);
@@ -80,7 +101,7 @@ struct Pipeline {
     // detached child must not use its state proxy callbacks or have its
     // `system_tick` method called unless its state proxies have been updated.
 
-    WidgetSystemProxy::tick(widget, interval, asset_manager);
+    WidgetSystemProxy::tick(widget, interval, context);
     WidgetSystemProxy::mark_stale(widget);
 
     for (Widget* child : widget.get_children()) {
@@ -142,7 +163,7 @@ struct Pipeline {
 
     BackingStoreDiff backing_store_diff = tile_cache.tick(interval);
 
-    asset_manager.tick(interval);
+    context.__tick(interval);
 
     return backing_store_diff;
   }

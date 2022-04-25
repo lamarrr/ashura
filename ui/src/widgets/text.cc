@@ -16,7 +16,7 @@
 #include "modules/skparagraph/include/TypefaceFontProvider.h"
 #include "modules/skparagraph/src/ParagraphBuilderImpl.h"
 #include "modules/skparagraph/src/ParagraphImpl.h"
-#include "vlk/asset_loader.h"
+#include "vlk/subsystems/asset_loader.h"
 #include "vlk/utils.h"
 
 namespace sktext = skia::textlayout;
@@ -374,7 +374,7 @@ inline sktext::ParagraphStyle make_paragraph_style(
   }
 
   paragraph_style.setMaxLines(paragraph_props.line_limit());
-  paragraph_style.setDrawOptions(sktext::DrawOptions::kReplay);
+  //  paragraph_style.setDrawOptions(sktext::DrawOptions::kReplay);
 
   return paragraph_style;
 }
@@ -545,7 +545,7 @@ void Text::tick(std::chrono::nanoseconds interval,
   // fonts are loaded immediately, irregardless of whether they are in use or
   // not
 
-  auto tmp = context.get("AssetLoader").unwrap();
+  auto tmp = context.get("VLK_AssetLoader").unwrap();
   auto asset_loader = tmp.handle->as<AssetLoader>().unwrap();
 
   for (auto& inline_text : inline_texts_) {
@@ -557,7 +557,7 @@ void Text::tick(std::chrono::nanoseconds interval,
         inline_text.props.font().unwrap_or(paragraph_storage_.props.font());
 
     if ((inline_text.font_future.is_some() &&
-         source != inline_text.font_future.as_ref().unwrap().get().source) ||
+         source != inline_text.font_future.value().source) ||
         inline_text.font_future.is_none()) {
       if (std::holds_alternative<SystemFont>(source)) {
         inline_text.font_future = stx::Some(impl::FontFuture{

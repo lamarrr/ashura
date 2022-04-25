@@ -171,9 +171,10 @@ struct LayoutTree {
 
       // NOTE: allocates memory, we might need an extra step to bind the lambda
       // references if we want to utilize cache to the max
-      WidgetSystemProxy::get_state_proxy(in_widget).on_layout_dirty = [&tree] {
-        tree.is_layout_dirty = true;
-      };
+      WidgetSystemProxy::get_state_proxy(in_widget).on_layout_dirty =
+          stx::fn::rc::make_functor(stx::os_allocator, [&tree] {
+            tree.is_layout_dirty = true;
+          }).unwrap();
 
       size_t const num_children = in_widget.get_children().size();
 
@@ -386,8 +387,8 @@ struct LayoutTree {
               next_child_it->self_extent.height) > content_extent.height))) ||
           next_child_it == children.end()) {
         // each block will have at least one widget
-        for (auto &child :
-             stx::Span<LayoutTree::Node>(present_block_start, next_child_it)) {
+        for (auto &child : stx::Span<LayoutTree::Node>(
+                 present_block_start, next_child_it - present_block_start)) {
           // cross-axis alignment
           uint32_t cross_space = 0;
 
@@ -470,8 +471,8 @@ struct LayoutTree {
 
         if (main_align == MainAlign::End) {
           uint32_t main_space_end = main_space;
-          for (auto &child : stx::Span<LayoutTree::Node>(present_block_start,
-                                                         next_child_it)) {
+          for (auto &child : stx::Span<LayoutTree::Node>(
+                   present_block_start, next_child_it - present_block_start)) {
             if constexpr (direction == Direction::Row) {
               child.parent_offset.x += main_space_end;
             } else {
@@ -483,8 +484,8 @@ struct LayoutTree {
           main_space_around /= 2;
           uint32_t new_offset = 0;
 
-          for (auto &child : stx::Span<LayoutTree::Node>(present_block_start,
-                                                         next_child_it)) {
+          for (auto &child : stx::Span<LayoutTree::Node>(
+                   present_block_start, next_child_it - present_block_start)) {
             new_offset += main_space_around;
             if constexpr (direction == Direction::Row) {
               child.parent_offset.x = new_offset;
@@ -505,7 +506,8 @@ struct LayoutTree {
 
           // there's always atleast one element in a block
           for (auto &child : stx::Span<LayoutTree::Node>(
-                   present_block_start + 1, next_child_it)) {
+                   present_block_start + 1,
+                   next_child_it - (present_block_start + 1))) {
             // this expression is in the block scope due to possible
             // division-by-zero if it only has one element, this loop will only
             // be entered if it has at-least 2 children
@@ -524,8 +526,8 @@ struct LayoutTree {
         } else if (main_align == MainAlign::SpaceEvenly) {
           uint32_t main_space_evenly = main_space / (num_block_children + 1);
           uint32_t new_offset = main_space_evenly;
-          for (auto &child :
-               stx::Span<LayoutTree::Node>(present_block_start, child_it)) {
+          for (auto &child : stx::Span<LayoutTree::Node>(
+                   present_block_start, child_it - present_block_start)) {
             if constexpr (direction == Direction::Row) {
               child.parent_offset.x = new_offset;
               new_offset += child.self_extent.width + main_space_evenly;

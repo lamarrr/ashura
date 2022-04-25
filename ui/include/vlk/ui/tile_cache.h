@@ -300,39 +300,40 @@ struct TileCache {
       // pipeline event dispatch => pipeline tick
       //
       //
-      WidgetSystemProxy::get_state_proxy(*entry.widget)
-          .on_render_dirty = [this, &entry] {
-        /// NOTE: tile binding is semi-automatic and determined by the
-        /// screen offset
-        /// NOTE: the tile's rows and columns are not actually updated until
-        /// tick, so widgets can still mark them as dirty even if a resize
-        /// is needed
-        int64_t const nrows = this->record_tiles.rows();
-        int64_t const ncols = this->record_tiles.columns();
+      WidgetSystemProxy::get_state_proxy(*entry.widget).on_render_dirty =
+          stx::fn::rc::make_functor(stx::os_allocator, [this, &entry] {
+            /// NOTE: tile binding is semi-automatic and determined by the
+            /// screen offset
+            /// NOTE: the tile's rows and columns are not actually updated until
+            /// tick, so widgets can still mark them as dirty even if a resize
+            /// is needed
+            int64_t const nrows = this->record_tiles.rows();
+            int64_t const ncols = this->record_tiles.columns();
 
-        IRect logical_widget_rect{*entry.screen_offset, *entry.extent};
+            IRect logical_widget_rect{*entry.screen_offset, *entry.extent};
 
-        VRect virtual_physical_widget_rect =
-            logical_to_physical(this->device_pixel_ratio, logical_widget_rect);
+            VRect virtual_physical_widget_rect = logical_to_physical(
+                this->device_pixel_ratio, logical_widget_rect);
 
-        IRect physical_widget_rect =
-            devirtualize_to_irect(virtual_physical_widget_rect);
+            IRect physical_widget_rect =
+                devirtualize_to_irect(virtual_physical_widget_rect);
 
-        auto [i_begin, i_end, j_begin, j_end] = get_tiles_range(
-            kTilePhysicalExtent, nrows, ncols, physical_widget_rect);
+            auto [i_begin, i_end, j_begin, j_end] = get_tiles_range(
+                kTilePhysicalExtent, nrows, ncols, physical_widget_rect);
 
-        VLK_LOG(
-            "marking tiles i={}, j={} and i={}, j={} OF nrows: {}, ncols: {}",
-            i_begin, j_begin, i_end, j_end, nrows, ncols);
+            VLK_LOG(
+                "marking tiles i={}, j={} and i={}, j={} OF nrows: {}, ncols: "
+                "{}",
+                i_begin, j_begin, i_end, j_end, nrows, ncols);
 
-        for (int64_t j = j_begin; j < j_end; j++) {
-          for (int64_t i = i_begin; i < i_end; i++) {
-            // this is here because it should only mark as dirty when at
-            // least one of the actual intersecting tiles is dirty
-            tile_record_is_dirty[j * nrows + i] = true;
-          }
-        }
-      };
+            for (int64_t j = j_begin; j < j_end; j++) {
+              for (int64_t i = i_begin; i < i_end; i++) {
+                // this is here because it should only mark as dirty when at
+                // least one of the actual intersecting tiles is dirty
+                tile_record_is_dirty[j * nrows + i] = true;
+              }
+            }
+          }).unwrap();
     }
   }
 

@@ -26,6 +26,7 @@
 #include "vlk/image_source.h"
 #include "include/core/SkPaint.h"
 #include "include/core/SkCanvas.h"
+#include "include/core/SkData.h"
 #include "include/core/SkRefCnt.h"
 #include "include/core/SkImage.h"
 

@@ -51,6 +51,15 @@ struct FileImageSource {
   FileImageSource(std::filesystem::path path,
                   stx::Option<ImageFormat> target_format = stx::None);
 
+  FileImageSource(FileImageSource const& other) : data{other.data.share()} {}
+  FileImageSource(FileImageSource&& other) = default;
+  FileImageSource& operator=(FileImageSource const& other) {
+    data = other.data.share();
+    return *this;
+  }
+  FileImageSource& operator=(FileImageSource&& other) = default;
+  ~FileImageSource() = default;
+
   auto get_tag() const {
     return AssetTag{
         stx::transmute(std::string_view{data.handle->tag}, data.share())};
@@ -69,6 +78,16 @@ struct FileImageSource {
 
 struct MemoryImageSource {
   MemoryImageSource(ImageInfo image_info, std::vector<uint8_t>&& image_buffer);
+
+  MemoryImageSource(MemoryImageSource const& other)
+      : data{other.data.share()} {}
+  MemoryImageSource(MemoryImageSource&& other) = default;
+  MemoryImageSource& operator=(MemoryImageSource const& other) {
+    data = other.data.share();
+    return *this;
+  }
+  MemoryImageSource& operator=(MemoryImageSource&& other) = default;
+  ~MemoryImageSource() = default;
 
   ImageInfo get_info() const { return data.handle->info; }
 

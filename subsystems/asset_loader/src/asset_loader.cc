@@ -1,3 +1,2 @@
-#include "stb_image.h"
-
+#include "vlk/subsystems/asset_loader.h"
 

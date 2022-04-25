@@ -3,14 +3,13 @@
 #include "include/core/SkCanvas.h"
 #include "include/core/SkRRect.h"
 #include "stx/fn.h"
-#include "vlk/asset_loader.h"
 #include "vlk/image_asset.h"
+#include "vlk/subsystems/asset_loader.h"
 #include "vlk/ui/sk_utils.h"
 
 namespace vlk {
 
 namespace ui {
-
 
 namespace impl {
 
@@ -123,11 +122,11 @@ void Image::draw(Canvas &canvas) {
   Extent const widget_extent = canvas.extent();
 
   if (storage_.image.is_some()) {
-    auto const &image_future = storage_.image.value().image;
+    auto const &image_future = storage_.image.value().image.future_;
 
     if (image_future.is_done()) {
       switch (image_future.fetch_status()) {
-        case FutureStatus::Completed: {
+        case stx::FutureStatus::Completed: {
           auto *load_result = image_future.ref().unwrap();
           load_result->match(
               [&](ImageAsset asset) {
@@ -170,7 +169,8 @@ void Image::draw(Canvas &canvas) {
                     SkRect::MakeXYWH(start_x, start_y, roi.width, roi.height),
                     SkRect::MakeXYWH(0, 0, widget_extent.width,
                                      widget_extent.height),
-                    nullptr);
+                    SkSamplingOptions{}, (SkPaint *)nullptr,
+                    SkCanvas::kFast_SrcRectConstraint);
 
                 sk_canvas.restore();
               },
@@ -183,11 +183,16 @@ void Image::draw(Canvas &canvas) {
   }
 }
 
-void Image::tick(std::chrono::nanoseconds, SubsystemsContext const &context) {
+void Image::tick(std::chrono::nanoseconds interval,
+                 SubsystemsContext const &context) {
   // TODO(lamarrr): update widget extent to extent of the actual texture
   // Future awaiter to await results of futures?
-  auto tmp = context.get("AssetLoader").unwrap();
+  auto tmp = context.get("VLK_AssetLoader").unwrap();
   auto asset_loader = tmp.handle->as<AssetLoader>().unwrap();
+
+  storage_.image.match(
+      [interval](impl::LoadedImage &image) { image.image.tick(interval); },
+      []() {});
 
   if ((storage_.image.is_some() &&
        storage_.props.source_ref() != storage_.image.value().source) ||
@@ -195,15 +200,24 @@ void Image::tick(std::chrono::nanoseconds, SubsystemsContext const &context) {
     auto const &source = storage_.props.source_ref();
 
     if (std::holds_alternative<MemoryImageSource>(source)) {
-      storage_.image = Some{impl::LoadedImage{
+      storage_.image = stx::Some{impl::LoadedImage{
           source,
-          asset_loader->load_image(std::get<MemoryImageSource>(source))}};
+          FutureAwaiter{
+              asset_loader->load_image(std::get<MemoryImageSource>(source)),
+              stx::fn::rc::make_functor(stx::os_allocator, [this]() {
+                Widget::mark_render_dirty();
+                Widget::mark_layout_dirty();
+              }).unwrap()}}};
     } else {
-      storage_.image = Some{impl::LoadedImage{
-          source, asset_loader->load_image(std::get<FileImageSource>(source))}};
+      storage_.image = stx::Some{impl::LoadedImage{
+          source,
+          FutureAwaiter{
+              asset_loader->load_image(std::get<FileImageSource>(source)),
+              stx::fn::rc::make_functor(stx::os_allocator, [this]() {
+                Widget::mark_render_dirty();
+                Widget::mark_layout_dirty();
+              }).unwrap()}}};
     }
-
-    Widget::mark_render_dirty();
   }
 
   // we've submitted the image to the asset manager or it has previously
@@ -285,8 +299,8 @@ void Image::tick(std::chrono::nanoseconds, SubsystemsContext const &context) {
   if (diff_ != impl::ImageDiff::None) {
     WidgetDirtiness dirtiness = impl::map_diff(diff_);
 
-    // TODO(lamarrr): abstract the default extent to a constexpr global visible
-    // to the user
+    // TODO(lamarrr): abstract the default extent to a constexpr global
+    // visible to the user
     storage_.props.extent().match(
         [&](SelfExtent extent) { Widget::update_self_extent(extent); },
         [&]() { Widget::update_self_extent(SelfExtent::absolute(100, 100)); });

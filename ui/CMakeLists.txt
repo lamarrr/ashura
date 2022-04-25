@@ -8,10 +8,6 @@ add_library(
   src/app.cc
   # subsystems
   src/subsystems/async.cc
-  # asset systems
-  src/image_asset.cc
-  src/font.cc
-  src/font_asset.cc
   # Widgets
   src/widgets/box.cc
   src/widgets/image.cc
@@ -30,10 +26,9 @@ target_link_libraries(
   vlk_external_skia
   vlk_external_stb
   vlk::asset
-  vlk_subsystems::asset_cache
-  vlk::http
   vlk::primitives
-  vlk_subsystems::http
+  vlk_subsystems_http
+  vlk_subsystems_asset_loader
   vlk::subsystem
   stx::async
   stx::task
@@ -55,8 +50,7 @@ add_executable(
   tests/tile_cache_test.cc
   tests/widgets/box_test.cc
   tests/widgets/image_test.cc
-  tests/widgets/row_test.cc
-  tests/asset_manager_test.cc)
+  tests/widgets/row_test.cc)
 
 target_link_libraries(vlk_ui_test gtest gtest_main vlk_ui)
 target_include_directories(vlk_ui_test PRIVATE ${CMAKE_CURRENT_LIST_DIR}/tests)

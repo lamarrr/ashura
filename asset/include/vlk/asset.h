@@ -2,15 +2,7 @@
 
 #include <cinttypes>
 
-#include "stx/async.h"
-#include "vlk/scheduler.h"
-#include "vlk/subsystem/context.h"
-#include "vlk/subsystem/impl.h"
-
 namespace vlk {
-
-using stx::Future;
-using stx::Rc;
 
 struct Asset {
   explicit constexpr Asset(uint64_t size_in_bytes = 0)
@@ -23,6 +15,5 @@ struct Asset {
  protected:
   uint64_t size_bytes_ = 0;
 };
-
 
 };  // namespace vlk

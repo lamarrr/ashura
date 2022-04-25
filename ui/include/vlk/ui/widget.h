@@ -8,10 +8,10 @@
 
 #include "stx/fn.h"
 #include "stx/option.h"
-#include "stx/report.h"
+#include "stx/panic/report.h"
 #include "stx/span.h"
 #include "stx/struct.h"
-#include "vlk/ui/asset_manager.h"
+#include "vlk/subsystem/context.h"
 #include "vlk/ui/canvas.h"
 #include "vlk/ui/layout.h"
 #include "vlk/utils.h"
@@ -125,7 +125,7 @@ struct Widget {
 
   stx::Span<Widget *const> get_children() const { return children_; }
 
-  bool has_children() const { return !get_children().empty(); }
+  bool has_children() const { return !get_children().is_empty(); }
 
   ViewExtent get_view_extent() const { return view_extent_; }
 
@@ -153,7 +153,8 @@ struct Widget {
 
   /// process any event you need to process here.
   /// animations and property updates can and should happen here.
-  virtual void tick([[maybe_unused]] std::chrono::nanoseconds interval) {
+  virtual void tick([[maybe_unused]] std::chrono::nanoseconds interval,
+                    [[maybe_unused]] SubsystemsContext const &subsystems) {
     // no-op
   }
 
@@ -251,8 +252,8 @@ struct Widget {
 
  private:
   void system_tick(std::chrono::nanoseconds interval,
-                   AssetManager &asset_manager) {
-    tick(interval, asset_manager);
+                   SubsystemsContext const &subsystems) {
+    tick(interval, subsystems);
 
     if ((dirtiness_ & WidgetDirtiness::Children) != WidgetDirtiness::None) {
       state_proxy_.on_children_changed.handle();
@@ -335,8 +336,8 @@ stx::FixedReport operator>>(stx::ReportQuery, Widget const &widget);
 
 struct WidgetSystemProxy {
   static void tick(Widget &widget, std::chrono::nanoseconds interval,
-                   AssetManager &asset_manager) {
-    widget.system_tick(interval, asset_manager);
+                   SubsystemsContext const &context) {
+    widget.system_tick(interval, context);
   }
 
   static WidgetStateProxy &get_state_proxy(Widget &widget) {

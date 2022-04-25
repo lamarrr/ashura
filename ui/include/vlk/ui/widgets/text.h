@@ -10,49 +10,18 @@
 #include <vector>
 
 #include "modules/skparagraph/include/Paragraph.h"
+#include "stx/limits.h"
 #include "stx/option.h"
 #include "stx/span.h"
+#include "vlk/font_asset.h"
 #include "vlk/font_source.h"
 #include "vlk/primitives.h"
+#include "vlk/ui/font.h"
+#include "vlk/ui/future_awaiter.h"
 #include "vlk/ui/widget.h"
-#include "stx/limits.h"
 
 namespace vlk {
 namespace ui {
-
-/*
-enum class TextDecorationStyle : uint8_t {
-  Solid = 0,
-  Double,
-  Dotted,
-  Dashed,
-  Wavy
-};
-
-enum class TextDecoration : uint8_t {
-  None = 0,
-  Underline = 1,
-  Overline = 2,
-  StrikeThrough = 4,
-};
-
-STX_DEFINE_ENUM_BIT_OPS(TextDecoration)
-
-
-enum class TextDirection : uint8_t {
-  Rtl,
-  Ltr,
-};
-
-enum class TextAlign : uint8_t {
-  Left,
-  Right,
-  Center,
-  Justify,
-  Start,
-  End,
-};
-*/
 
 // text shadow
 // h-shadow	Required. The position of the horizontal shadow. Negative values
@@ -166,23 +135,25 @@ struct TextProps {
     return out;
   }
 
-  /// loads the specified fonts from the specified faces of the fonts if not
-  /// already loaded. if the required font face specified by `.style` fails
-  /// to load, the defult system font is used.
-  TextProps font(FileFont file_font) const {
-    TextProps out{*this};
-    out.font_ = stx::Some(FontSource{std::move(file_font)});
-    return out;
-  }
+  /*
+    /// loads the specified fonts from the specified faces of the fonts if not
+    /// already loaded. if the required font face specified by `.style` fails
+    /// to load, the defult system font is used.
+    TextProps font(FileFont file_font) const {
+      TextProps out{*this};
+      out.font_ = stx::Some(FontSource{std::move(file_font)});
+      return out;
+    }
 
-  /// decodes the specified fonts from the provided bytes if not
-  /// already loaded. if the required font face specified by `.style` fails
-  /// to load, the defult system font is used.
-  TextProps font(MemoryFont memory_font) const {
-    TextProps out{*this};
-    out.font_ = stx::Some(FontSource{std::move(memory_font)});
-    return out;
-  }
+    /// decodes the specified fonts from the provided bytes if not
+    /// already loaded. if the required font face specified by `.style` fails
+    /// to load, the defult system font is used.
+    TextProps font(MemoryFont memory_font) const {
+      TextProps out{*this};
+      out.font_ = stx::Some(FontSource{std::move(memory_font)});
+      return out;
+    }
+  */
 
   /// loads the typeface from the specified path. if the required typeface fails
   /// to load, the defult system font is used.
@@ -213,7 +184,7 @@ struct TextProps {
   TextProps underlined() const {
     TextProps out{*this};
     out.decoration_ =
-        stx::Some(decoration_.clone().unwrap_or(TextDecoration::None) |
+        stx::Some(decoration_.copy().unwrap_or(TextDecoration::None) |
                   TextDecoration::Underline);
     return out;
   }
@@ -221,7 +192,7 @@ struct TextProps {
   TextProps overlined() const {
     TextProps out{*this};
     out.decoration_ =
-        stx::Some(decoration_.clone().unwrap_or(TextDecoration::None) |
+        stx::Some(decoration_.copy().unwrap_or(TextDecoration::None) |
                   TextDecoration::Overline);
     return out;
   }
@@ -229,7 +200,7 @@ struct TextProps {
   TextProps strikethrough() const {
     TextProps out{*this};
     out.decoration_ =
-        stx::Some(decoration_.clone().unwrap_or(TextDecoration::None) |
+        stx::Some(decoration_.copy().unwrap_or(TextDecoration::None) |
                   TextDecoration::StrikeThrough);
     return out;
   }
@@ -417,17 +388,19 @@ struct ParagraphProps {
     return out;
   }
 
-  ParagraphProps font(FileFont file_font) const {
-    ParagraphProps out{*this};
-    out.text_props_.font = std::move(file_font);
-    return out;
-  }
+  /*
+    ParagraphProps font(FileFont file_font) const {
+      ParagraphProps out{*this};
+      out.text_props_.font = std::move(file_font);
+      return out;
+    }
 
-  ParagraphProps font(MemoryFont memory_font) const {
-    ParagraphProps out{*this};
-    out.text_props_.font = std::move(memory_font);
-    return out;
-  }
+    ParagraphProps font(MemoryFont memory_font) const {
+      ParagraphProps out{*this};
+      out.text_props_.font = std::move(memory_font);
+      return out;
+    }
+  */
 
   ParagraphProps font(FileTypefaceSource file_source) const {
     ParagraphProps out{*this};
@@ -554,9 +527,12 @@ struct InlineText {
   TextProps props = TextProps{};
 };
 
-enum class TextState : uint8_t { Begin, FontsLoading, FontsLoadDone };
-
 namespace impl {
+
+struct FontFuture {
+  FontSource source;
+  FutureAwaiter<stx::Result<FontAsset, FontLoadError>> awaiter;
+};
 
 struct InlineTextStorage {
   std::string text;
@@ -564,14 +540,12 @@ struct InlineTextStorage {
   // this is always held on to and never released once loaded, because it is
   // expensive to re-load and re-layout the fonts after the text hasn't been
   // in view for long and would cause undesired reflow
-  stx::Option<std::shared_ptr<TypefaceAsset const>> typeface = stx::None;
-  TextState state = TextState::Begin;
+  stx::Option<FontFuture> font_future = stx::None;
 };
 
 struct ParagraphStorage {
   ParagraphProps props;
-  stx::Option<std::shared_ptr<TypefaceAsset const>> typeface = stx::None;
-  TextState state = TextState::Begin;
+  stx::Option<FontFuture> font_future = stx::None;
 };
 
 enum class TextDiff : uint16_t {
@@ -631,15 +605,13 @@ struct Text : public Widget {
     rebuild_paragraph();
   }
 
-  std::vector<impl::InlineTextStorage> get_inline_texts() const {
+  stx::Span<impl::InlineTextStorage const> get_inline_texts() const {
     return inline_texts_;
   }
 
   ParagraphProps get_paragraph_props() const {
     return paragraph_storage_.props;
   }
-
-  TextState get_paragraph_state() const { return paragraph_storage_.state; }
 
   void update_text(std::string utf8_text, TextProps text_props) {
     update_text(
@@ -655,7 +627,7 @@ struct Text : public Widget {
   virtual void draw(Canvas&) override;
 
   virtual void tick(std::chrono::nanoseconds,
-                    AssetManager& asset_manager) override;
+                    SubsystemsContext const&) override;
 
  private:
   impl::ParagraphStorage paragraph_storage_;
