@@ -58,15 +58,7 @@ inline ImageDiff image_props_diff(ImageProps const &props,
   return diff;
 }
 
-// TODO(lamarrr): this should probably be moved to an impl conversions file
-constexpr std::array<SkVector, 4> to_skia(BorderRadius const &border_radius) {
-  return {
-      SkVector::Make(border_radius.top_left, border_radius.top_left),
-      SkVector::Make(border_radius.top_right, border_radius.top_right),
-      SkVector::Make(border_radius.bottom_left, border_radius.bottom_left),
-      SkVector::Make(border_radius.bottom_right, border_radius.bottom_right),
-  };
-}
+
 
 }  // namespace impl
 
@@ -111,13 +103,6 @@ void Image::update_props(ImageProps props) {
 void Image::draw(Canvas &canvas) {
   SkCanvas &sk_canvas = canvas.to_skia();
 
-  // TODO(lamarrr): what's this for?
-  /*{
-    SkPaint paint;
-    paint.setColor(SkColorSetARGB(125, 255, 0, 0));
-    sk_canvas.drawRect(vlk::to_sk_rect(Rect{{}, canvas.extent()}), paint);
-  }*/
-
   // extent has already been taken care of
   Extent const widget_extent = canvas.extent();
 
@@ -143,7 +128,7 @@ void Image::draw(Canvas &canvas) {
                   SkRRect round_rect;
 
                   std::array const border_radii =
-                      impl::to_skia(storage_.props.border_radius());
+                      to_skia(storage_.props.border_radius());
 
                   round_rect.setRectRadii(
                       SkRect::MakeWH(widget_extent.width, widget_extent.height),
@@ -164,6 +149,7 @@ void Image::draw(Canvas &canvas) {
                 int const start_x = (texture_width - roi.width) / 2;
                 int const start_y = (texture_height - roi.height) / 2;
 
+                VLK_LOG("DRAWN");
                 sk_canvas.drawImageRect(
                     texture,
                     SkRect::MakeXYWH(start_x, start_y, roi.width, roi.height),
@@ -220,43 +206,6 @@ void Image::tick(std::chrono::nanoseconds interval,
     }
   }
 
-  // we've submitted the image to the asset manager or it has previously
-  // been submitted by another widget and we are awaiting the status of
-  // the image
-  // if (storage_.state == ImageState::Loading) {
-  /*
-  storage_.state =
-      impl::get_image_asset(asset_manager, storage_.props.source_ref())
-          .match(
-              [&](auto &&asset) -> ImageState {
-                return asset->get_ref().match(
-                    [&](auto &) {
-                      storage_.asset = stx::Some(std::move(asset));
-                      return ImageState::Loaded;
-                    },
-                    [&](ImageLoadError error) {
-                      VLK_WARN("Failed to load image for {}, error: {}",
-                               format(*this), format(error));
-                      return ImageState::LoadFailed;
-                    });
-              },
-              [&](AssetError error) -> ImageState {
-                switch (error) {
-                    // image is still loading
-                  case AssetError::IsLoading:
-                    return ImageState::Loading;
-                  default:
-                    VLK_PANIC("Unexpected State");
-                }
-              });
-*/
-
-  // if state changed from image loading (to success or failure), mark as
-  // dirty so the failure or sucess image can be displayed
-  // if (storage_.state != ImageState::Loading) {
-  // Widget::mark_render_dirty();
-  //}
-
   // if the image loaded correctly and the user did not already provide an
   // extent, we need to request for a relayout to the loaded image asset's
   // extent. if a reflow is needed, immediately return so the relayout can
@@ -269,25 +218,6 @@ void Image::tick(std::chrono::nanoseconds interval,
   //  return;
   //}
   //}
-
-  // the image has been successfully loaded and the required layout for the
-  // image has been established
-  /*if (storage_.state == ImageState::Loaded) {
-    // image asset usage tracking
-    if (Widget::is_stale()) {
-      storage_.asset_stale_ticks++;
-      // mark widget as dirty since the asset has been discarded after not
-      // being used for long
-      if (storage_.asset_stale_ticks >= impl::default_texture_asset_timeout) {
-        storage_.asset = stx::None;
-        Widget::mark_render_dirty();
-        storage_.state = ImageState::Stale;
-      }
-    } else {
-      storage_.asset_stale_ticks.reset();
-    }
-  }
-  */
 
   // we failed to load the image, we proceed to render error image.
   // the error image uses whatever extent the widget has available.

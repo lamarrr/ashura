@@ -2,7 +2,7 @@
 
 args = [
 
-    "is_debug=true",
+    "is_debug=false",
 
     "paragraph_bench_enabled=false",
     "paragraph_gms_enabled=false",

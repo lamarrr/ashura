@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "stx/async.h"
 #include "stx/result.h"
 #include "stx/scheduler.h"
@@ -110,10 +112,28 @@ struct AssetLoader : public Subsystem {
   }
 
   stx::Future<stx::Result<FontAsset, FontLoadError>> load_font(
+      SystemFont font) {
+    Rc<SystemFontData const*> font_data = font.data.share();
+    std::string_view tag{font_data.handle->tag};
+    return stx::sched::fn(
+        scheduler.value().handle->scheduler,
+        [font_ = std::move(font)]() {
+          return impl::load_system_typeface(font_.get_family(),
+                                            font_.get_style())
+              .map([](sk_sp<SkTypeface>&& typeface) {
+                return FontAsset{std::move(typeface)};
+              });
+        },
+        stx::NORMAL_PRIORITY,
+        stx::TaskTraceInfo{
+            stx::string::rc::make_static_view("AssetLoader"),
+            stx::transmute(std::string_view{tag}, std::move(font_data))});
+  }
+
+  stx::Future<stx::Result<FontAsset, FontLoadError>> load_font(
       MemoryFontSource source);
   stx::Future<stx::Result<FontAsset, FontLoadError>> load_font(
       FileFontSource source);
-  stx::Future<stx::Result<FontAsset, FontLoadError>> load_font(SystemFont font);
 
   stx::Option<stx::Rc<vlk::TaskScheduler*>> scheduler = stx::None;
 };

@@ -29,7 +29,7 @@ struct Subsystem {
   // called on every frame
   virtual void tick(std::chrono::nanoseconds) = 0;
 
-  virtual ~Subsystem() = 0;
+  virtual ~Subsystem() {}
 };
 
 }  // namespace vlk

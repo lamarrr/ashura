@@ -116,7 +116,7 @@ set(SDL_LOCALE_ENABLED_BY_DEFAULT
     CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/STX)
-add_subdirectory(third_party/VulkanMemoryAllocator)
+# add_subdirectory(third_party/VulkanMemoryAllocator)
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)

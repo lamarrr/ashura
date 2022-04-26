@@ -13,10 +13,6 @@
 #include "vlk/utils.h"
 #include "vulkan/vulkan.h"
 
-//
-
-#include "vk_mem_alloc.h"
-
 namespace vlk {
 namespace vk {
 
@@ -180,7 +176,7 @@ struct Device {
       }
     }
 
-    return std::move(Device{std::move(handle)});
+    return Device{std::move(handle)};
   }
 
   std::shared_ptr<DeviceHandle> handle;
@@ -259,6 +255,7 @@ struct CommandQueue {
   CommandQueueInfo info;
 };
 
+/*
 struct AllocatorHandle {
   VmaAllocator allocator = nullptr;
   Device device;
@@ -316,7 +313,7 @@ struct Image {
   static stx::Option<Image> create(Allocator const& allocator,
                                    CommandQueueFamily const& family,
                                    VkFormat format, Extent extent) {
-    if (!extent.visible()) return stx::None;
+    VLK_ENSURE(extent.visible());
 
     VkImageCreateInfo info{};
 
@@ -384,6 +381,8 @@ struct ImageViewHandle {
 struct ImageView {
   std::shared_ptr<ImageViewHandle> handle;
 };
+
+*/
 
 }  // namespace vk
 }  // namespace vlk

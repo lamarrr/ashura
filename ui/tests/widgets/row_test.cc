@@ -9,7 +9,6 @@
 #include "vlk/palettes/ios.h"
 #include "vlk/palettes/material.h"
 #include "vlk/ui/app.h"
-#include "vlk/ui/ios/switch.h"
 #include "vlk/ui/pipeline.h"
 #include "vlk/ui/render_context.h"
 #include "vlk/ui/tile_cache.h"
@@ -154,7 +153,11 @@ TEST(RowTest, BasicTest) {
         }
 
         if (i == 3) {
-          return new CupertinoSwitch{};
+          return new Image{
+              ImageProps{FileImageSource{"/home/lamar/Pictures/IMG_0079.JPG"}}
+                  .extent(500, 500)
+                  .aspect_ratio(2, 1)
+                  .border_radius(BorderRadius::spec(20, 10, 5, 40))};
         }
 
         if (i == 4) {
@@ -221,7 +224,7 @@ TEST(RowTest, BasicTest) {
 
   Extent screen_extent{2000, 1000};
 
-  Pipeline pipeline{view, context, SubsystemsRegistry{}};
+  Pipeline pipeline{view, context};
 
   pipeline.viewport.resize(
       screen_extent, pipeline.viewport.get_unresolved_widgets_allocation());

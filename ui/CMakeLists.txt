@@ -20,19 +20,20 @@ target_include_directories(
 
 target_link_libraries(
   vlk_ui
-  stx
   vlk_utils
-  VulkanMemoryAllocator
+ # VulkanMemoryAllocator
   vlk_external_skia
   vlk_external_stb
   vlk::asset
   vlk::primitives
+  vlk::palettes
   vlk_subsystems_http
   vlk_subsystems_asset_loader
+  vlk_subsystems_scheduler
   vlk::subsystem
   stx::async
   stx::task
-  SDL2-static
+  SDL2::SDL2
   fmt::fmt
   ${Vulkan_LIBRARIES})
 

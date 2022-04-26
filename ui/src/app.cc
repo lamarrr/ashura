@@ -201,7 +201,7 @@ void App::tick() {
   BackingStoreDiff backing_store_diff = BackingStoreDiff::None;
 
   {
-    VLK_TRACE(trace_context, "Swapchain", "Pipeline Tick");
+    // VLK_TRACE(trace_context, "Swapchain", "Pipeline Tick");
     backing_store_diff = pipeline->tick({});
   }
 
@@ -214,7 +214,7 @@ void App::tick() {
     // only try to recreate swapchain if the present swapchain can't be used for
     // presentation
     if (window_extent_changed) {
-      VLK_TRACE(trace_context, "Swapchain", "Recreation");
+      // VLK_TRACE(trace_context, "Swapchain", "Recreation");
       window.handle->recreate_swapchain(vk_render_context);
     }
 
@@ -224,12 +224,12 @@ void App::tick() {
 
     while (swapchain_diff != WindowSwapchainDiff::None) {
       {
-        VLK_TRACE(trace_context, "Swapchain", "Recreation");
+        // VLK_TRACE(trace_context, "Swapchain", "Recreation");
         window.handle->recreate_swapchain(vk_render_context);
       }
 
       {
-        VLK_TRACE(trace_context, "Swapchain", "Presentation");
+        //   VLK_TRACE(trace_context, "Swapchain", "Presentation");
         swapchain_diff = window.handle->present_backing_store(
             pipeline->tile_cache.backing_store_cache.get_surface_ref());
       }

@@ -8,7 +8,7 @@ struct Asset {
   explicit constexpr Asset(uint64_t size_in_bytes = 0)
       : size_bytes_{size_in_bytes} {}
 
-  virtual ~Asset() = 0;
+  virtual ~Asset() {}
 
   constexpr uint64_t size_bytes() const { return size_bytes_; }
 

@@ -62,14 +62,14 @@ Window Window::create(WindowApi const& api, WindowCfg const& cfg) {
   // there's no point in the program proceeding
   VLK_SDL_ENSURE(window != nullptr, "Unable to create window");
 
-  cfg.min_extent.clone().match(
+  cfg.min_extent.copy().match(
       [&](Extent min_extent) {
         SDL_SetWindowMinimumSize(window, i32_clamp(min_extent.width),
                                  i32_clamp(min_extent.height));
       },
       []() {});
 
-  cfg.max_extent.clone().match(
+  cfg.max_extent.copy().match(
       [&](Extent max_extent) {
         SDL_SetWindowMaximumSize(window, i32_clamp(max_extent.width),
                                  i32_clamp(max_extent.height));

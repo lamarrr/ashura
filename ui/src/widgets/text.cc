@@ -493,9 +493,11 @@ void Text::update_text(std::vector<InlineText> inline_texts) {
 
   inline_texts_.clear();
 
-  for (InlineText& inline_text : inline_texts)
-    inline_texts_.push_back(impl::InlineTextStorage{
-        std::move(inline_text.text), std::move(inline_text.props), stx::None});
+  for (InlineText& inline_text : inline_texts) {
+    impl::InlineTextStorage storage{std::move(inline_text.text),
+                                    std::move(inline_text.props), stx::None};
+    inline_texts_.push_back(std::move(storage));
+  }
 }
 
 void Text::update_paragraph_props(ParagraphProps paragraph_props) {

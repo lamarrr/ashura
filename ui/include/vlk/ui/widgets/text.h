@@ -530,13 +530,33 @@ struct InlineText {
 namespace impl {
 
 struct FontFuture {
+  FontFuture(FontSource _source,
+             FutureAwaiter<stx::Result<FontAsset, FontLoadError>> _awaiter)
+      : source{std::move(_source)}, awaiter{std::move(_awaiter)} {}
+
+  FontFuture(FontFuture const&) = delete;
+  FontFuture(FontFuture&&) = default;
+  FontFuture& operator=(FontFuture const&) = delete;
+  FontFuture& operator=(FontFuture&&) = default;
+
   FontSource source;
   FutureAwaiter<stx::Result<FontAsset, FontLoadError>> awaiter;
 };
 
 struct InlineTextStorage {
-  std::string text;
-  TextProps props;
+  InlineTextStorage(std::string _text = {}, TextProps _props = {},
+                    stx::Option<FontFuture> _future = stx::None)
+      : text{std::move(_text)},
+        props{std::move(_props)},
+        font_future{std::move(_future)} {}
+
+  InlineTextStorage(InlineTextStorage const&) = delete;
+  InlineTextStorage(InlineTextStorage&&) = default;
+  InlineTextStorage& operator=(InlineTextStorage const&) = delete;
+  InlineTextStorage& operator=(InlineTextStorage&&) = default;
+
+  std::string text{};
+  TextProps props{};
   // this is always held on to and never released once loaded, because it is
   // expensive to re-load and re-layout the fonts after the text hasn't been
   // in view for long and would cause undesired reflow
@@ -544,7 +564,16 @@ struct InlineTextStorage {
 };
 
 struct ParagraphStorage {
-  ParagraphProps props;
+  ParagraphStorage(ParagraphProps _props = {},
+                   stx::Option<FontFuture> _future = stx::None)
+      : props{std::move(_props)}, font_future{std::move(_future)} {}
+
+  ParagraphStorage(ParagraphStorage const&) = delete;
+  ParagraphStorage(ParagraphStorage&&) = default;
+  ParagraphStorage& operator=(ParagraphStorage const&) = delete;
+  ParagraphStorage& operator=(ParagraphStorage&&) = default;
+
+  ParagraphProps props{};
   stx::Option<FontFuture> font_future = stx::None;
 };
 

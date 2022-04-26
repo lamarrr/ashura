@@ -8,8 +8,11 @@
 namespace vlk {
 
 struct TaskScheduler : public Subsystem {
-  virtual void tick(std::chrono::nanoseconds) override;
-  virtual void link(SubsystemsContext const&) override;
+  virtual void tick(std::chrono::nanoseconds interval) override {
+    scheduler.tick(interval);
+  }
+  
+  virtual void link(SubsystemsContext const&) override {}
 
   virtual stx::FutureAny get_future() override {
     return stx::FutureAny{scheduler.cancelation_promise.get_future()};
