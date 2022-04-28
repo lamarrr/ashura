@@ -91,8 +91,8 @@ struct ViewTree {
         // on
         parent = nullptr;
 
-        z_index = init_layout_node.widget->get_z_index().unwrap_or(
-            std::move(init_z_index));
+        z_index =
+            init_layout_node.widget->get_z_index().unwrap_or(init_z_index + 0);
 
         clip_rect = IRect{};
 
@@ -147,8 +147,8 @@ struct ViewTree {
     void build(LayoutTree::Node &init_layout_node, ZIndex init_z_index) {
       is_dirty = true;
       layout_node = &init_layout_node;
-      z_index = init_layout_node.widget->get_z_index().unwrap_or(
-          std::move(init_z_index));
+      z_index =
+          init_layout_node.widget->get_z_index().unwrap_or(init_z_index + 0);
 
       // needs to be updated after building the tree, by recursively
       // triggering a on_view_offset dirty starting from the root view.

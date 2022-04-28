@@ -58,8 +58,6 @@ inline ImageDiff image_props_diff(ImageProps const &props,
   return diff;
 }
 
-
-
 }  // namespace impl
 
 void Image::update_props(ImageProps props) {
@@ -149,7 +147,6 @@ void Image::draw(Canvas &canvas) {
                 int const start_x = (texture_width - roi.width) / 2;
                 int const start_y = (texture_height - roi.height) / 2;
 
-                VLK_LOG("DRAWN");
                 sk_canvas.drawImageRect(
                     texture,
                     SkRect::MakeXYWH(start_x, start_y, roi.width, roi.height),

@@ -21,7 +21,6 @@
 # vlk::ui TODO
 - In the contributing guide state how skia isn't thread-safe and the graphics part is basically a vulkan wrapper
 - consider making the parent inject the effects and add them to an effect tree, with all of the widgets having individual effects as a result we need to be able to render the effects independent of the widget, we'll thus need bindings for them
-- Diagram of Asset manager sqe, cqe
 - DPR support. it should be a property of the surface, we only need to re-rasterize and use the same surfaces as before to draw the new content
 - zooming support 
 - can we have a stack of surfaces we can pop and attach and release surfaces to? allocating these tiles can be costly, even when zooming, this stack can also handle DPR and zooming and force the tiles to release their surfaces. BENCHMARK. consider scroll swapping instead of allocating and de-allocating. i.e. tile surface stack. we might need to re-allocate when the viewport zoom occurs? the stack will always have enough tile surfaces for the tiles covered by the viewport. we don't necessarily want to use the layout tree for this.

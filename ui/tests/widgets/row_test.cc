@@ -106,7 +106,8 @@ TEST(RowTest, BasicTest) {
 
         if (i == 0)
           return new WhiteBgFlex{new Text{
-              {InlineText{"Apparently we had reached a great height in the "
+              {InlineText{"دعاء بصوت الشيخ عبد الرحمن السديس يريح القلب"
+                          "Apparently we had reached a great height in the "
                           "atmosphere, for "
                           "the sky was a dead black, and the stars had ceased "
                           "to twinkle. By the same illusion which lifts the "
@@ -125,14 +126,15 @@ TEST(RowTest, BasicTest) {
                               .font_size(20.0f)
                               .color(ios::LIGHT_PURPLE)
                               .font(FileTypefaceSource{
-                                  "/home/lamar/Desktop/"
-                                  "MaterialIcons-Regular-4.0.0.ttf"})},
-               InlineText{"cast", TextProps{}
-                                      .font_size(40.0f)
-                                      .color(ios::DARK_BLUE)
-                                      .font(FileTypefaceSource{
-                                          "/home/lamar/Desktop/"
-                                          "MaterialIcons-Regular-4.0.0.ttf"})}},
+                                  "/home/lamar/Documents/workspace/oss/"
+                                  "valkyrie/MaterialIcons-Regular.ttf"})},
+               InlineText{"cast",
+                          TextProps{}
+                              .font_size(40.0f)
+                              .color(ios::DARK_BLUE)
+                              .font(FileTypefaceSource{
+                                  "/home/lamar/Documents/workspace/oss/"
+                                  "valkyrie/MaterialIcons-Regular.ttf"})}},
               ParagraphProps{}
                   .font_size(20.0f)
                   .color(ios::DARK_GRAY_6)

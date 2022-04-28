@@ -275,6 +275,8 @@ struct TileCache {
     }
   }
 
+  // NOTE: view widgets are not inserted as they are not expected to have render
+  // data
   void build_entries(ViewTree::View &view) {
     // insert by z-index order
     for (ViewTree::View::Entry &view_entry : view.entries) {

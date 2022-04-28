@@ -183,6 +183,7 @@ struct Image : public Widget {
         extent);
   }
 
+  /// TODO(lamarrr): actually implement this
   /// implement this to draw a custom loading image/animation
   virtual void draw_loading_image(Canvas &) {}
 
