@@ -3,6 +3,7 @@
 
 #include "vlk/subsystem/context.h"
 #include "vlk/subsystems/asset_loader.h"
+#include "vlk/subsystems/keyboard.h"
 #include "vlk/subsystems/scheduler.h"
 #include "vlk/ui/event.h"
 #include "vlk/ui/layout.h"
@@ -52,6 +53,13 @@ struct Pipeline {
                 stx::os_allocator, std::chrono::steady_clock::now(),
                 stx::os_allocator)
                 .unwrap())
+        .unwrap();
+
+    context
+        .__register_subsystem("VLK_Keyboard",
+                              stx::rc::make_inplace<Keyboard>(stx::os_allocator,
+                                                              stx::os_allocator)
+                                  .unwrap())
         .unwrap();
 
     context.__link();

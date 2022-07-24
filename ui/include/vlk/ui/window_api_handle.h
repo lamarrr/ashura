@@ -100,6 +100,8 @@ struct WindowApiHandle {
   }
 
   // TODO(lamarrr): keyboard events must be handled as combinations
+  // events belongs to windows, ensure we are routing the events to the tagged
+  // window
   bool poll_events() {
     SDL_Event event{};
 

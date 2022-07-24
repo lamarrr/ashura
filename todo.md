@@ -44,6 +44,9 @@ THIs might not be necessary since Skia will most likely be using a memory pool a
 - we need visibility prop?
 - overdraw handling (thread-safe, lifetime-safe design pattern i.e. worker, scheduler, draw-splitting between frames, etc.)
 
+- need a way to support and handle multi-window event routing and listening
+
+
 # Notes
 - When using skia with vulkan SK_VULKAN macro should reside in the implementation/source files
 
