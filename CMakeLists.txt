@@ -6,16 +6,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 execute_process(
-  COMMAND git clone -b v2 https://github.com/lamarrr/STX.git third_party/STX
+  COMMAND git clone -b main https://github.com/lamarrr/STX.git third_party/STX
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
 execute_process(
   COMMAND git clone -b master https://github.com/nothings/stb.git
           third_party/stb WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
-# TODO(lamarrr): use a tagged version with CMakeLists.txt
 execute_process(
   COMMAND
-    git clone -b master
+    git clone -b v3.0.1
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
     third_party/VulkanMemoryAllocator
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
@@ -24,11 +24,26 @@ execute_process(
   COMMAND git clone -b main https://github.com/google/skia.git third_party/skia
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
-find_package(GTest REQUIRED)
-find_package(fmt REQUIRED)
-find_package(spdlog REQUIRED)
-find_package(SDL2 REQUIRED)
-find_package(CURL REQUIRED)
+execute_process(
+  COMMAND git clone -b v1.12.0 https://github.com/google/googletest.git
+          third_party/googletest WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+execute_process(
+  COMMAND git clone -b 9.0.0 https://github.com/fmtlib/fmt.git third_party/fmt
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+execute_process(
+  COMMAND git clone -b v1.10.0 https://github.com/gabime/spdlog.git
+          third_party/spdlog WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+execute_process(
+  COMMAND git clone -b release-2.24.0 https://github.com/libsdl-org/SDL.git
+          third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+execute_process(
+  COMMAND git clone -b curl-7_84_0 https://github.com/curl/curl.git
+          third_party/curl WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
 find_package(Vulkan REQUIRED)
 find_package(Fontconfig REQUIRED)
 
@@ -46,77 +61,81 @@ else()
   endif()
 endif()
 
-set(GLFW_BUILD_EXAMPLES
-    OFF
-    CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS
-    OFF
-    CACHE BOOL "" FORCE)
-set(GLFW_BUILD_DOCS
-    OFF
-    CACHE BOOL "" FORCE)
-set(GLFW_INSTALL
-    OFF
-    CACHE BOOL "" FORCE)
-set(STX_ENABLE_BACKTRACE
-    ON
-    CACHE BOOL "" FORCE)
-set(BUILD_GMOCK
-    OFF
-    CACHE BOOL "" FORCE)
+# set(GLFW_BUILD_EXAMPLES
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(GLFW_BUILD_TESTS
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(GLFW_BUILD_DOCS
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(GLFW_INSTALL
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(STX_ENABLE_BACKTRACE
+#     ON
+#     CACHE BOOL "" FORCE)
+# set(BUILD_GMOCK
+#     OFF
+#     CACHE BOOL "" FORCE)
 
-set(SDL_ATOMIC_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
-set(SDL_AUDIO_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
-set(SDL_VIDEO_ENABLED_BY_DEFAULT
-    ON
-    CACHE BOOL "" FORCE)
-set(SDL_RENDER_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
-set(SDL_EVENTS_ENABLED_BY_DEFAULT
-    ON
-    CACHE BOOL "" FORCE)
-# set(SDL_JOYSTICK_ENABLED_BY_DEFAULT OFF CACHE BOOL "" FORCE)
-set(SDL_HAPTIC_ENABLED_BY_DEFAULT
-    ON
-    CACHE BOOL "" FORCE)
-set(SDL_POWER_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
-set(SDL_THREADS_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
-set(SDL_TIMERS_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
-set(SDL_FILE_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
-set(SDL_LOADSO_ENABLED_BY_DEFAULT
-    ON
-    CACHE BOOL "" FORCE)
-set(SDL_CPUINFO_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
-set(SDL_FILESYSTEM_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
-set(SDL_DLOPEN_ENABLED_BY_DEFAULT
-    ON
-    CACHE BOOL "" FORCE)
-set(SDL_SENSOR_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
-set(SDL_LOCALE_ENABLED_BY_DEFAULT
-    OFF
-    CACHE BOOL "" FORCE)
+# set(SDL_ATOMIC_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(SDL_AUDIO_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(SDL_VIDEO_ENABLED_BY_DEFAULT
+#     ON
+#     CACHE BOOL "" FORCE)
+# set(SDL_RENDER_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(SDL_EVENTS_ENABLED_BY_DEFAULT
+#     ON
+#     CACHE BOOL "" FORCE)
+# set(SDL_HAPTIC_ENABLED_BY_DEFAULT
+#     ON
+#     CACHE BOOL "" FORCE)
+# set(SDL_POWER_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(SDL_THREADS_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(SDL_TIMERS_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(SDL_FILE_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(SDL_LOADSO_ENABLED_BY_DEFAULT
+#     ON
+#     CACHE BOOL "" FORCE)
+# set(SDL_CPUINFO_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(SDL_FILESYSTEM_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(SDL_DLOPEN_ENABLED_BY_DEFAULT
+#     ON
+#     CACHE BOOL "" FORCE)
+# set(SDL_SENSOR_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
+# set(SDL_LOCALE_ENABLED_BY_DEFAULT
+#     OFF
+#     CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/STX)
-# add_subdirectory(third_party/VulkanMemoryAllocator)
+add_subdirectory(third_party/VulkanMemoryAllocator)
+add_subdirectory(third_party/googletest)
+add_subdirectory(third_party/fmt)
+add_subdirectory(third_party/spdlog)
+add_subdirectory(third_party/SDL)
+add_subdirectory(third_party/curl)
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
@@ -160,7 +179,7 @@ endif()
 add_subdirectory(palettes)
 add_subdirectory(subsystem)
 add_subdirectory(subsystems)
-#add_subdirectory(http)
+add_subdirectory(http)
 add_subdirectory(asset)
 add_subdirectory(primitives)
 add_subdirectory(utils)

@@ -112,6 +112,7 @@ struct ProgressMonitorState {
   STX_DEFAULT_CONSTRUCTOR(ProgressMonitorState)
   STX_MAKE_PINNED(ProgressMonitorState)
 
+  // TODO(lamarrr): use a single spinlock for these, and remove the atomics
   std::atomic<uint64_t> total_bytes_sent = 0;
   std::atomic<uint64_t> total_bytes_received = 0;
   std::atomic<uint64_t> bytes_sent = 0;
