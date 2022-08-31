@@ -41,11 +41,28 @@ execute_process(
           third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 execute_process(
-  COMMAND git clone -b curl-7_84_0 https://github.com/curl/curl.git
+  COMMAND git clone -b curl-7_80_0 https://github.com/curl/curl.git
           third_party/curl WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+execute_process(
+  COMMAND git clone -b main https://github.com/google/skia.git third_party/skia
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
+set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(add_project_library)
+
+include(ExternalProject)
 
 find_package(Vulkan REQUIRED)
 find_package(Fontconfig REQUIRED)
+
+add_subdirectory(third_party/STX)
+add_subdirectory(third_party/VulkanMemoryAllocator)
+add_subdirectory(third_party/googletest)
+add_subdirectory(third_party/fmt)
+add_subdirectory(third_party/spdlog)
+add_subdirectory(third_party/SDL)
+add_subdirectory(third_party/curl)
 
 # TODO(lamarrr): check if skia binaries and header folder doesn't exists and
 # pull in
@@ -60,85 +77,6 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/third_party/skia/out/Release)
   endif()
 endif()
-
-# set(GLFW_BUILD_EXAMPLES
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(GLFW_BUILD_TESTS
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(GLFW_BUILD_DOCS
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(GLFW_INSTALL
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(STX_ENABLE_BACKTRACE
-#     ON
-#     CACHE BOOL "" FORCE)
-# set(BUILD_GMOCK
-#     OFF
-#     CACHE BOOL "" FORCE)
-
-# set(SDL_ATOMIC_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(SDL_AUDIO_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(SDL_VIDEO_ENABLED_BY_DEFAULT
-#     ON
-#     CACHE BOOL "" FORCE)
-# set(SDL_RENDER_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(SDL_EVENTS_ENABLED_BY_DEFAULT
-#     ON
-#     CACHE BOOL "" FORCE)
-# set(SDL_HAPTIC_ENABLED_BY_DEFAULT
-#     ON
-#     CACHE BOOL "" FORCE)
-# set(SDL_POWER_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(SDL_THREADS_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(SDL_TIMERS_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(SDL_FILE_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(SDL_LOADSO_ENABLED_BY_DEFAULT
-#     ON
-#     CACHE BOOL "" FORCE)
-# set(SDL_CPUINFO_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(SDL_FILESYSTEM_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(SDL_DLOPEN_ENABLED_BY_DEFAULT
-#     ON
-#     CACHE BOOL "" FORCE)
-# set(SDL_SENSOR_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-# set(SDL_LOCALE_ENABLED_BY_DEFAULT
-#     OFF
-#     CACHE BOOL "" FORCE)
-
-add_subdirectory(third_party/STX)
-add_subdirectory(third_party/VulkanMemoryAllocator)
-add_subdirectory(third_party/googletest)
-add_subdirectory(third_party/fmt)
-add_subdirectory(third_party/spdlog)
-add_subdirectory(third_party/SDL)
-add_subdirectory(third_party/curl)
-
-set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(add_project_library)
 
 add_library(vlk_external_stb INTERFACE)
 target_include_directories(vlk_external_stb
@@ -166,15 +104,13 @@ target_compile_definitions(
          SK_ENABLE_VK_LAYERS
          SK_ENABLE_DUMP_GPU)
 
-if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-  add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic
-                      -fno-exceptions -fno-unwind-tables)
-elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-  add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic
-                      -fno-exceptions -fno-unwind-tables)
-endif()
+# -fno-exceptions -fno-unwind-tables
 
-# TODO(lamarrr): we need extensive unit testing even for dependencies
+if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
+  add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)
+elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
+  add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic)
+endif()
 
 add_subdirectory(palettes)
 add_subdirectory(subsystem)

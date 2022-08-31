@@ -31,8 +31,7 @@ target_link_libraries(
   vlk_subsystems_asset_loader
   vlk_subsystems_scheduler
   vlk::subsystem
-  stx::async
-  stx::task
+  stx::stx
   SDL2::SDL2
   fmt::fmt
   ${Vulkan_LIBRARIES})
