@@ -53,18 +53,18 @@ struct WidgetDebugInfo {
 // values.
 struct WidgetStateProxy {
   /// informs the system that the widget's render data has changed
-  stx::RcFn<void()> on_render_dirty = stx::fn::rc::make_static([]() {});
+  stx::UniqueFn<void()> on_render_dirty = stx::fn::rc::make_unique_static([]() {});
 
   /// informs the system that the widget's layout has changed
-  stx::RcFn<void()> on_layout_dirty = stx::fn::rc::make_static([]() {});
+  stx::UniqueFn<void()> on_layout_dirty = stx::fn::rc::make_unique_static([]() {});
 
   /// informs the system that a view-widgets's offset (or visible area)
   /// has changed
-  stx::RcFn<void()> on_view_offset_dirty = stx::fn::rc::make_static([]() {});
+  stx::UniqueFn<void()> on_view_offset_dirty = stx::fn::rc::make_unique_static([]() {});
 
   /// informs the system that the widget's children has changed (possibly
   /// requiring a full rebuild of the pipeline)
-  stx::RcFn<void()> on_children_changed = stx::fn::rc::make_static([]() {});
+  stx::UniqueFn<void()> on_children_changed = stx::fn::rc::make_unique_static([]() {});
 
   /// we need to be able to consult the tree for the widget's offset i.e. in the
   /// scenario where we need to scroll to it
@@ -81,7 +81,12 @@ struct WidgetStateProxy {
 // fixed positioning?
 //
 //
-
+//
+// CHALLENGES
+//  - we need sticky positioned widgets
+//  - we need absolute-positioned widgets
+//  - 
+//
 struct Widget {
   friend struct WidgetSystemProxy;
 
@@ -332,7 +337,7 @@ struct Widget {
 };
 
 std::string format(Widget const &widget);
-stx::FixedReport operator>>(stx::ReportQuery, Widget const &widget);
+std::string_view operator>>(stx::ReportQuery, Widget const &widget);
 
 struct WidgetSystemProxy {
   static void tick(Widget &widget, std::chrono::nanoseconds interval,

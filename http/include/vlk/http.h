@@ -11,12 +11,9 @@
 #include "curl/curl.h"
 #include "fmt/format.h"
 #include "stx/async.h"
-#include "stx/limits.h"
 #include "stx/option.h"
-#include "stx/span.h"
 #include "stx/spinlock.h"
 #include "stx/string.h"
-#include "stx/task/priority.h"
 #include "stx/vec.h"
 #include "vlk/utils.h"
 
@@ -382,7 +379,7 @@ struct Task {
 struct Client {
   STX_MAKE_PINNED(Client)
 
-  Client(stx::Allocator allocator)
+  explicit Client(stx::Allocator allocator)
       : multi_{impl::make_curl_multi_handle(allocator).unwrap()},
         tasks_{allocator},
         lock_{},

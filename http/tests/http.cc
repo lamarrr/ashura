@@ -12,7 +12,7 @@ TEST(Http, Pr) {
                                std::chrono::steady_clock::now()};
 
   auto [response, monitor] =
-      client.get(stx::string::make_static("https://github.com"));
+      client.get(stx::string::make_static("https://fast.com"));
 
   stx::Future a = stx::sched::await(
       scheduler,
