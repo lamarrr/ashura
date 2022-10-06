@@ -45,8 +45,8 @@ execute_process(
           third_party/curl WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 execute_process(
-  COMMAND git clone -b main https://github.com/google/skia.git third_party/skia
-  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+  COMMAND git clone -b chrome/m106 https://github.com/google/skia.git
+          third_party/skia WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
@@ -67,16 +67,7 @@ add_subdirectory(third_party/curl)
 # TODO(lamarrr): check if skia binaries and header folder doesn't exists and
 # pull in
 
-if(NOT CMAKE_BUILD_TYPE)
-  set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/skia/out/Debug)
-else()
-  if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-    set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/skia/out/Debug)
-  else()
-    set(SKIA_LIBRARIES_DIR
-        ${CMAKE_CURRENT_LIST_DIR}/third_party/skia/out/Release)
-  endif()
-endif()
+set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/skia/libs)
 
 add_library(vlk_external_stb INTERFACE)
 target_include_directories(vlk_external_stb

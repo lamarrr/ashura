@@ -4,6 +4,8 @@
 #include <string>
 #include <variant>
 
+#include "stx/rc.h"
+#include "stx/string.h"
 #include "vlk/primitives.h"
 #include "vlk/ui/window_api.h"
 
@@ -15,26 +17,23 @@ struct Instance;
 
 namespace ui {
 
-// TODO(lamarrr): log selections
-
-enum class WindowState : uint8_t { Normal, Maximized, Minimized };
-
 enum class WindowTypeHint : uint8_t { Normal, Utility, Tooltip, Popup };
 
 enum class WindowPosition : uint8_t { Centered };
 
 struct WindowCfg {
+  // TODO(lamarrr): remove this constant
   Extent extent{1920, 1080};
   stx::Option<Extent> min_extent;
   stx::Option<Extent> max_extent;
-  std::string title;
-  WindowState state = WindowState::Normal;
+  stx::String title;
   WindowTypeHint type_hint = WindowTypeHint::Normal;
   bool resizable = true;
   bool fullscreen = false;
   bool borderless = false;
   bool hidden = false;
-  bool enable_hit_testing = false;  // needed for borderless windows
+  bool enable_hit_testing =
+      false;  // TODO(lamarrr) needed for borderless windows
   std::variant<WindowPosition, IOffset> position;
 };
 
@@ -47,7 +46,7 @@ struct WindowHandle;
 // they use references
 struct Window {
   // creates a window without a surface
-  static Window create(WindowApi const& api, WindowCfg const& cfg);
+  static Window create(WindowApi const& api, WindowCfg cfg);
 
   // attach surface to window for presentation
   void attach_surface(vk::Instance const& instance) const;
@@ -57,32 +56,30 @@ struct Window {
   //
   //
 
-  void set_title(std::string const& title);
+  void set_title(stx::String const& title);
+  void position(IOffset pos);
+  void set_icon(uint8_t* rgba_pixels, Extent extent);
+  void make_bordered();
+  void make_borderless();
   void show();
   void hide();
+  void raise();
   void maximize();
   void minimize();
-  // raise this window above others
-  void raise();
   void restore();
   void make_fullscreen();
   void make_nonfullscreen();
-  void set_icon();
-  void make_bordered();
-  void make_borderless();
-  // TODO(lamarrr): how will this work?
   void enable_hit_testing();
   void make_resizable();
   void make_unresizable();
   void center();
-  void position(IOffset const&);
   void resize();
-  void constrain_max();
-  void constrain_min();
+  void constrain_max(stx::Option<int> width, stx::Option<int> height);
+  void constrain_min(stx::Option<int> width, stx::Option<int> height);
 
   // we need sksurface or skpicture or skimage backbuffer here
   // dirtiness detection
-  std::shared_ptr<WindowHandle> handle;
+  stx::Rc<WindowHandle*> handle;
 };
 
 }  // namespace ui

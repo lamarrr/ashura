@@ -4,6 +4,7 @@
 #include <memory>
 #include <utility>
 
+#include "include/core/SkColorSpace.h"
 #include "include/core/SkSurface.h"
 #include "include/gpu/GrDirectContext.h"
 #include "stx/option.h"
@@ -14,7 +15,7 @@ namespace ui {
 
 struct RenderContext {
   RenderContext(stx::Option<sk_sp<GrDirectContext>> direct_context = stx::None,
-                SkColorType color_type = SkColorType::kRGBA_8888_SkColorType,
+                SkColorType color_type = SkColorType::kSRGBA_8888_SkColorType,
                 SkAlphaType alpha_type = SkAlphaType::kPremul_SkAlphaType,
                 stx::Option<sk_sp<SkColorSpace>> color_space = stx::None,
                 GrSurfaceOrigin surface_origin = kTopLeft_GrSurfaceOrigin)
@@ -85,7 +86,7 @@ struct RenderContext {
   stx::Option<sk_sp<SkColorSpace>> color_space_;
   // Only required for graphics backend, Skia's software rasterizer uses
   // kTopLeft_GrSurfaceOrigin
-  GrSurfaceOrigin const surface_origin_;
+  GrSurfaceOrigin surface_origin_;
   // TODO(lamarrr): find out what this does
   SkBudgeted budgeted_ = SkBudgeted::kNo;
 };

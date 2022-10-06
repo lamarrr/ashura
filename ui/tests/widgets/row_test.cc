@@ -126,29 +126,27 @@ TEST(RowTest, BasicTest) {
                               .font_size(20.0f)
                               .color(ios::LIGHT_PURPLE)
                               .font(FileTypefaceSource{
-                                  "/home/lamar/Documents/workspace/oss/"
-                                  "valkyrie/MaterialIcons-Regular.ttf"})},
+                                  "/home/lamar/Desktop/MaterialIcons-Regular.ttf"})},
                InlineText{"cast",
                           TextProps{}
                               .font_size(40.0f)
                               .color(ios::DARK_BLUE)
                               .font(FileTypefaceSource{
-                                  "/home/lamar/Documents/workspace/oss/"
-                                  "valkyrie/MaterialIcons-Regular.ttf"})}},
+                                  "/home/lamar/Desktop/MaterialIcons-Regular.ttf"})}},
               ParagraphProps{}
                   .font_size(20.0f)
                   .color(ios::DARK_GRAY_6)
                   .font(SystemFont{"SF Pro"})}};
         if (i == 1) {
-          return new Image{ImageProps{
-              FileImageSource{"/home/lamar/Pictures/E0U2xTYVcAE1-gl.jpeg"}}
-                               .extent(700, 700)
-                               .aspect_ratio(3, 1)
-                               .border_radius(BorderRadius::all(50))};
+          return new Image{
+              ImageProps{FileImageSource{"/home/lamar/Desktop/1185431.jpg"}}
+                  .extent(700, 700)
+                  .aspect_ratio(3, 1)
+                  .border_radius(BorderRadius::all(50))};
         }
         if (i == 2) {
           return new Image{
-              ImageProps{FileImageSource{"/home/lamar/Pictures/crow.PNG"}}
+              ImageProps{FileImageSource{"/home/lamar/Desktop/1185431.jpg"}}
                   .extent(500, 500)
                   .aspect_ratio(3, 2)
                   .border_radius(BorderRadius::all(50))};
@@ -156,7 +154,10 @@ TEST(RowTest, BasicTest) {
 
         if (i == 3) {
           return new Image{
-              ImageProps{FileImageSource{"/home/lamar/Pictures/IMG_0079.JPG"}}
+              ImageProps{
+                  FileImageSource{"/home/lamar/Desktop/"
+                                  "66c8fc42-98ce-4dc0-8748-05c8e4e763e4.__CR0,"
+                                  "0,1464,600_PT0_SX1464_V1___.jpg"}}
                   .extent(500, 500)
                   .aspect_ratio(2, 1)
                   .border_radius(BorderRadius::spec(20, 10, 5, 40))};
@@ -164,8 +165,8 @@ TEST(RowTest, BasicTest) {
 
         if (i == 4) {
           return new Image{
-              ImageProps{FileImageSource{"/home/lamar/Pictures/IMG_0079.JPG"}}
-                  .extent(500, 500)
+              ImageProps{FileImageSource{"/home/lamar/Desktop/1185431.jpg"}}
+                  .extent(750, 750)
                   .aspect_ratio(2, 1)
                   .border_radius(BorderRadius::spec(20, 10, 5, 40))};
         }
@@ -192,7 +193,7 @@ TEST(RowTest, BasicTest) {
                           .border_radius(BorderRadius::all(20))
                           .color(color_list[i % std::size(color_list)])),
               BoxProps{}
-                  .image(FileImageSource{"/home/lamar/Pictures/crow.PNG"})
+                  .image(FileImageSource{"/home/lamar/Desktop/1185431.jpg"})
                   .padding(Padding::all(50))
                   .border(Border::all(ios::DARK_PINK, 20))
                   .border_radius(BorderRadius::all(50)));
@@ -208,8 +209,7 @@ TEST(RowTest, BasicTest) {
                         .border_radius(BorderRadius::all(20))
                         .color(color_list[i % std::size(color_list)])),
             BoxProps{}
-                .image(FileImageSource{
-                    "/home/lamar/Pictures/E0U20cZUYAEaJqL.jpeg"})
+                .image(FileImageSource{"/home/lamar/Desktop/1185431.jpg"})
                 .padding(Padding::all(50))
                 .border(Border::all(ios::DARK_PINK, 20))
                 .border_radius(BorderRadius::all(50)));

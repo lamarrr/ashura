@@ -33,16 +33,15 @@ struct InstanceHandle {
 };
 
 struct Instance {
-  static Instance create(std::string const& app_name, uint32_t app_version,
-                         std::string const& engine_name,
-                         uint32_t engine_version,
+  static Instance create(char const* app_name, uint32_t app_version,
+                         char const* engine_name, uint32_t engine_version,
                          stx::Span<char const* const> required_extensions = {},
                          stx::Span<char const* const> validation_layers = {}) {
     auto handle = std::shared_ptr<InstanceHandle>(new InstanceHandle{});
-    auto [instance, messenger] = create_vulkan_instance(
-        required_extensions, validation_layers,
-        make_debug_messenger_create_info(), app_name.c_str(), app_version,
-        engine_name.c_str(), engine_version);
+    auto [instance, messenger] =
+        create_vulkan_instance(required_extensions, validation_layers,
+                               make_debug_messenger_create_info(), app_name,
+                               app_version, engine_name, engine_version);
 
     // validation layers are extensions and might not be supported so we still
     // need to check for support

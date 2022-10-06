@@ -268,19 +268,21 @@ void Box::tick(std::chrono::nanoseconds interval,
       if (std::holds_alternative<MemoryImageSource>(next_image)) {
         auto &source = std::get<MemoryImageSource>(next_image);
         storage_.background = stx::Some(impl::BoxBackgroundImage{
-            source, vlk::FutureAwaiter{
-                        asset_loader->load_image(source),
-                        stx::fn::rc::make_functor(stx::os_allocator, [this]() {
-                          Widget::mark_render_dirty();
-                        }).unwrap()}});
+            source,
+            vlk::FutureAwaiter{
+                asset_loader->load_image(source),
+                stx::fn::rc::make_unique_functor(stx::os_allocator, [this]() {
+                  Widget::mark_render_dirty();
+                }).unwrap()}});
       } else {
         auto &source = std::get<FileImageSource>(next_image);
         storage_.background = stx::Some(impl::BoxBackgroundImage{
-            source, vlk::FutureAwaiter{
-                        asset_loader->load_image(source),
-                        stx::fn::rc::make_functor(stx::os_allocator, [this]() {
-                          Widget::mark_render_dirty();
-                        }).unwrap()}});
+            source,
+            vlk::FutureAwaiter{
+                asset_loader->load_image(source),
+                stx::fn::rc::make_unique_functor(stx::os_allocator, [this]() {
+                  Widget::mark_render_dirty();
+                }).unwrap()}});
       }
     }
   }

@@ -58,39 +58,42 @@ static stx::Option<vk::PhysDevice> select_device(
   return stx::None;
 }
 
-static constexpr char const* const REQUIRED_DEVICE_EXTENSIONS[] = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-
-static constexpr char const* REQUIRED_VALIDATION_LAYERS[] = {
-    "VK_LAYER_KHRONOS_validation"};
-
 App::~App() = default;
 
 void App::init() {
+  std::vector<char const*> required_device_extensions{
+      VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+
+  std::vector<char const*> required_validation_layers;
+
+  if (cfg.enable_validation_layers)
+    required_validation_layers.push_back("VK_LAYER_KHRONOS_validation");
+
   logger = impl::make_single_threaded_logger("App", "log.txt");
 
   logger->info("Initializing Window API");
 
-  window_api = WindowApi::init();
+  window_api = std::make_unique<WindowApi>(WindowApi::init());
 
   logger->info("Initialized Window API");
   logger->info("Creating root window");
 
-  window = Window::create(window_api, cfg.window_cfg);
+  window = std::make_unique<Window>(
+      Window::create(*window_api, std::move(cfg.window_cfg)));
 
   logger->info("Created root window");
 
   std::vector window_required_instance_extensions =
-      window.handle->get_required_instance_extensions();
+      window->handle.handle->get_required_instance_extensions();
 
   // TODO(lamarrr): check for validation layers requirement
   vk::Instance vk_instance = vk::Instance::create(
-      cfg.name, VK_MAKE_VERSION(0, 0, 1), engine_cfg.name,
+      cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), engine_cfg.name.c_str(),
       VK_MAKE_VERSION(engine_cfg.version.major, engine_cfg.version.minor,
                       engine_cfg.version.patch),
-      window_required_instance_extensions, REQUIRED_VALIDATION_LAYERS);
+      window_required_instance_extensions, required_validation_layers);
 
-  window.attach_surface(vk_instance);
+  window->attach_surface(vk_instance);
 
   std::vector phys_devices = vk::PhysDevice::get_all(vk_instance);
 
@@ -107,7 +110,8 @@ void App::init() {
   }
 
   vk::PhysDevice phys_device =
-      select_device(phys_devices, device_preference, window.handle->surface)
+      select_device(phys_devices, device_preference,
+                    window->handle.handle->surface)
           .expect("Unable to find any suitable rendering device");
 
   logger->info("Selected Physical Device: {}", vk::format(phys_device));
@@ -132,8 +136,8 @@ void App::init() {
   VkPhysicalDeviceFeatures required_features{};
 
   vk::Device device = vk::Device::create(
-      phys_device, command_queue_create_infos, REQUIRED_DEVICE_EXTENSIONS,
-      REQUIRED_VALIDATION_LAYERS, required_features);
+      phys_device, command_queue_create_infos, required_device_extensions,
+      required_validation_layers, required_features);
 
   vk::CommandQueue vk_graphics_command_queue = vk::CommandQueue{
       vk::CommandQueue::get(device, graphic_command_queue_family, 0)
@@ -150,13 +154,15 @@ void App::init() {
   sk_vk_context.fGraphicsQueueIndex = vk_graphics_command_queue.info.index;
   sk_vk_context.fMaxAPIVersion = VK_API_VERSION_1_1;
   sk_vk_context.fDeviceFeatures = &phys_device.info.features;
+
   // TODO(lamarrr): vk_context.fMemoryAllocator, see: GrVkAMDMemoryAllocator
+
   sk_vk_context.fGetProc = [](char const* proc_name, VkInstance instance,
                               VkDevice device) {
     VLK_ENSURE(instance == nullptr || device == nullptr);
     VLK_ENSURE(!(instance != nullptr && device != nullptr));
     if (device != nullptr) {
-      // get process address
+      // get procedre address
       return vkGetDeviceProcAddr(device, proc_name);
     } else {
       return vkGetInstanceProcAddr(instance, proc_name);
@@ -184,7 +190,7 @@ void App::init() {
   vk_render_context = std::shared_ptr<VkRenderContext>{new VkRenderContext{
       std::move(vk_graphics_command_queue), std::move(render_context)}};
 
-  window.handle->recreate_swapchain(vk_render_context);
+  window->handle.handle->recreate_swapchain(vk_render_context);
 
   // TODO(lamarrr): initial extent?, RenderContext
   pipeline = std::unique_ptr<Pipeline>{
@@ -215,40 +221,41 @@ void App::tick() {
     // presentation
     if (window_extent_changed) {
       // VLK_TRACE(trace_context, "Swapchain", "Recreation");
-      window.handle->recreate_swapchain(vk_render_context);
+      window->handle.handle->recreate_swapchain(vk_render_context);
     }
 
     // TODO(lamarrr): we don't need another backing store on the pipeline side
-    WindowSwapchainDiff swapchain_diff = window.handle->present_backing_store(
-        pipeline->tile_cache.backing_store_cache.get_surface_ref());
+    WindowSwapchainDiff swapchain_diff =
+        window->handle.handle->present_backing_store(
+            pipeline->tile_cache.backing_store_cache.get_surface_ref());
 
     while (swapchain_diff != WindowSwapchainDiff::None) {
       {
         // VLK_TRACE(trace_context, "Swapchain", "Recreation");
-        window.handle->recreate_swapchain(vk_render_context);
+        window->handle.handle->recreate_swapchain(vk_render_context);
       }
 
       {
         //   VLK_TRACE(trace_context, "Swapchain", "Presentation");
-        swapchain_diff = window.handle->present_backing_store(
+        swapchain_diff = window->handle.handle->present_backing_store(
             pipeline->tile_cache.backing_store_cache.get_surface_ref());
       }
     }
 
     // we need to update viewport in case it changed
     pipeline->viewport.resize(
-        window.handle->extent,
+        window->handle.handle->extent,
         pipeline->viewport.get_unresolved_widgets_allocation());
 
     // resize event could have been caused by a display or DPR-setting change.
     // we thus need to update the DPR accordingly
-    pipeline->tile_cache.update_dpr(
-        dpr_from_extents(window.handle->extent, window.handle->surface_extent));
+    pipeline->tile_cache.update_dpr(dpr_from_extents(
+        window->handle.handle->extent, window->handle.handle->surface_extent));
 
     SDL_DisplayMode display_mode{};
-    VLK_SDL_ENSURE(
-        SDL_GetWindowDisplayMode(window.handle->window, &display_mode) == 0,
-        "Unable to get window display mode");
+    VLK_SDL_ENSURE(SDL_GetWindowDisplayMode(window->handle.handle->window,
+                                            &display_mode) == 0,
+                   "Unable to get window display mode");
 
     // TODO(lamarrr): log refresh rate
     present_refresh_rate_hz = static_cast<uint32_t>(display_mode.refresh_rate);
@@ -266,7 +273,7 @@ void App::tick() {
   //
   // any missed event should be rolled over to the next tick()
   do {
-  } while (window_api.poll_events());
+  } while (window_api->poll_events());
 
   total_used = std::chrono::steady_clock::now() - begin;
 
@@ -274,17 +281,20 @@ void App::tick() {
     std::this_thread::sleep_for(frame_budget - total_used);
   }
 
-  pipeline->dispatch_events(window.handle->event_queue.mouse_button_events,
-                            window.handle->event_queue.window_events);
+  pipeline->dispatch_events(
+      window->handle.handle->event_queue.mouse_button_events,
+      window->handle.handle->event_queue.window_events);
 
-  window_extent_changed = any_eq(window.handle->event_queue.window_events,
-                                 WindowEvent::SizeChanged);
+  window_extent_changed =
+      any_eq(window->handle.handle->event_queue.window_events,
+             WindowEvent::SizeChanged);
 
-  if (any_eq(window.handle->event_queue.window_events, WindowEvent::Close)) {
+  if (any_eq(window->handle.handle->event_queue.window_events,
+             WindowEvent::Close)) {
     std::exit(0);
   }
 
-  window.handle->event_queue.clear();
+  window->handle.handle->event_queue.clear();
 }
 
 }  // namespace ui

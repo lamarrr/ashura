@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "stx/string.h"
 #include "vlk/primitives.h"
 #include "vlk/ui/widget.h"
 #include "vlk/ui/window.h"
@@ -37,8 +38,9 @@ namespace ui {
 // initial window config
 struct AppCfg {
   // refresh rate and various other settings
-  std::string name;
+  stx::String name;
   WindowCfg window_cfg;
+  bool enable_validation_layers = false;
 };
 
 struct Pipeline;
@@ -51,7 +53,7 @@ struct Version {
 };
 
 struct EngineCfg {
-  char const* name = "Valkyrie Engine";
+  stx::String name = stx::string::make_static("Valkyrie Engine");
   Version version = Version{0, 0, 1};
 };
 
@@ -68,10 +70,11 @@ struct App {
   ~App();
 
  private:
+  // TODO(lamarrr): move this logic into a separate static factory function
   void init();
 
-  WindowApi window_api;
-  Window window;
+  std::unique_ptr<WindowApi> window_api;
+  std::unique_ptr<Window> window;
   bool window_extent_changed = true;
   bool should_quit = false;
   // used for rendering and presentation
@@ -83,7 +86,7 @@ struct App {
 
   AppCfg cfg;
 
-  static constexpr EngineCfg engine_cfg{};
+  EngineCfg engine_cfg{};
 };
 
 }  // namespace ui

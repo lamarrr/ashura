@@ -303,7 +303,7 @@ struct TileCache {
       //
       //
       WidgetSystemProxy::get_state_proxy(*entry.widget).on_render_dirty =
-          stx::fn::rc::make_functor(stx::os_allocator, [this, &entry] {
+          stx::fn::rc::make_unique_functor(stx::os_allocator, [this, &entry] {
             /// NOTE: tile binding is semi-automatic and determined by the
             /// screen offset
             /// NOTE: the tile's rows and columns are not actually updated until

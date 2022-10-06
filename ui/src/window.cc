@@ -8,25 +8,14 @@
 namespace vlk {
 namespace ui {
 
-Window Window::create(WindowApi const& api, WindowCfg const& cfg) {
-  std::shared_ptr<WindowHandle> handle{new WindowHandle{}};
+Window Window::create(WindowApi const& api, WindowCfg cfg) {
+  stx::Rc<WindowHandle*> handle =
+      stx::rc::make_inplace<WindowHandle>(stx::os_allocator).unwrap();
 
   // width and height here refer to the screen coordinates and not the
   // actual pixel coordinates (cc: Device Pixel Ratio)
 
   auto window_flags = SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_VULKAN;
-
-  if (cfg.borderless) {
-    window_flags |= SDL_WINDOW_BORDERLESS;
-  }
-
-  if (cfg.fullscreen) {
-    window_flags |= SDL_WINDOW_FULLSCREEN;
-  }
-
-  if (cfg.resizable) {
-    window_flags |= SDL_WINDOW_RESIZABLE;
-  }
 
   if (cfg.hidden) {
     window_flags |= SDL_WINDOW_HIDDEN;
@@ -38,11 +27,12 @@ Window Window::create(WindowApi const& api, WindowCfg const& cfg) {
     window_flags |= SDL_WINDOW_RESIZABLE;
   }
 
-  if (cfg.state == WindowState::Normal) {
-  } else if (cfg.state == WindowState::Minimized) {
-    window_flags |= SDL_WINDOW_MINIMIZED;
-  } else if (cfg.state == WindowState::Maximized) {
-    window_flags |= SDL_WINDOW_MAXIMIZED;
+  if (cfg.borderless) {
+    window_flags |= SDL_WINDOW_BORDERLESS;
+  }
+
+  if (cfg.fullscreen) {
+    window_flags |= SDL_WINDOW_FULLSCREEN;
   }
 
   if (cfg.type_hint == WindowTypeHint::Normal) {
@@ -80,19 +70,16 @@ Window Window::create(WindowApi const& api, WindowCfg const& cfg) {
     //[[maybe_unused]] int result = SDL_SetWindowHitTest();
   }
 
-  if (true) {
-    SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED,
-                          SDL_WINDOWPOS_CENTERED);
-  }
+  SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-  handle->window = window;
-  handle->id = WindowID{SDL_GetWindowID(window)};
-  handle->api = api;
-  handle->cfg = cfg;
+  handle.handle->window = window;
+  handle.handle->id = WindowID{SDL_GetWindowID(window)};
+  handle.handle->api = api;
+  handle.handle->cfg = std::move(cfg);
 
   WindowInfo info{};
-  info.queue = &handle->event_queue;
-  api.handle->add_window_info(handle->id, info);
+  info.queue = &handle.handle->event_queue;
+  api.handle->add_window_info(handle.handle->id, info);
 
   return Window{std::move(handle)};
 }
@@ -103,7 +90,7 @@ void Window::attach_surface(vk::Instance const& instance) const {
       std::shared_ptr<WindowSurfaceHandle>(new WindowSurfaceHandle{});
 
   VLK_SDL_ENSURE(
-      SDL_Vulkan_CreateSurface(handle->window, instance.handle->instance,
+      SDL_Vulkan_CreateSurface(handle.handle->window, instance.handle->instance,
                                &surface.handle->surface) == SDL_TRUE,
       "Unable to create surface for window");
 
@@ -111,7 +98,7 @@ void Window::attach_surface(vk::Instance const& instance) const {
 
   surface.handle->instance = instance;
 
-  handle->surface = std::move(surface);
+  handle.handle->surface = std::move(surface);
 }
 
 }  // namespace ui

@@ -27,7 +27,6 @@ target_link_libraries(
   vlk::asset
   vlk::primitives
   vlk::palettes
-  vlk_subsystems_http
   vlk_subsystems_asset_loader
   vlk_subsystems_scheduler
   vlk::subsystem

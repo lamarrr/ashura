@@ -19,7 +19,7 @@ struct TaskScheduler : public Subsystem {
   }
 
   TaskScheduler(stx::Allocator allocator,
-                std::chrono::steady_clock::time_point tp, )
+                std::chrono::steady_clock::time_point tp)
       : scheduler{allocator, tp} {}
 
   virtual ~TaskScheduler() override {}

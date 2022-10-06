@@ -3,7 +3,7 @@
 
 #include "vlk/subsystem/context.h"
 #include "vlk/subsystems/asset_loader.h"
-#include "vlk/subsystems/keyboard.h"
+// #include "vlk/subsystems/keyboard.h"
 #include "vlk/subsystems/scheduler.h"
 #include "vlk/ui/event.h"
 #include "vlk/ui/layout.h"
@@ -47,21 +47,20 @@ struct Pipeline {
         .unwrap();
 
     context
-        .__register_subsystem(
-            "VLK_TaskScheduler",
-            stx::rc::make_inplace<TaskScheduler>(
-                stx::os_allocator, std::chrono::steady_clock::now(),
-                stx::os_allocator)
-                .unwrap())
-        .unwrap();
-
-    context
-        .__register_subsystem("VLK_Keyboard",
-                              stx::rc::make_inplace<Keyboard>(stx::os_allocator,
-                                                              stx::os_allocator)
+        .__register_subsystem("VLK_TaskScheduler",
+                              stx::rc::make_inplace<TaskScheduler>(
+                                  stx::os_allocator, stx::os_allocator,
+                                  std::chrono::steady_clock::now())
                                   .unwrap())
         .unwrap();
 
+    /*    context
+            .__register_subsystem("VLK_Keyboard",
+                                  stx::rc::make_inplace<Keyboard>(stx::os_allocator,
+                                                                  stx::os_allocator)
+                                      .unwrap())
+            .unwrap();
+    */
     context.__link();
 
     // we might need to tell the root view to expand or shrink? or preserve its
@@ -92,7 +91,7 @@ struct Pipeline {
 
   void attach_state_proxies(Widget& widget) {
     WidgetSystemProxy::get_state_proxy(widget).on_children_changed =
-        stx::fn::rc::make_functor(stx::os_allocator, [this] {
+        stx::fn::rc::make_unique_functor(stx::os_allocator, [this] {
           this->needs_rebuild = true;
         }).unwrap();
 

@@ -1,3 +1,12 @@
+# improvements
+
+- use single sksurface for presentation, we presently have 2 sksurfaces that we render to, 1 in tile_cache and one in the window
+- use a single SkPicture for recording commands for all the tiles and just clip and transform the picture onto the sksurface.
+
+
+
+
+
 
 # STX TODO
 - deduction guide for pointer pair??? will cause issues like matching 0 and nullptr

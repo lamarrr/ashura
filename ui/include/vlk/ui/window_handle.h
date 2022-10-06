@@ -7,6 +7,7 @@
 
 #include "SDL_vulkan.h"
 #include "include/core/SkCanvas.h"
+#include "include/core/SkColorSpace.h"
 #include "include/core/SkPaint.h"
 #include "include/gpu/GrBackendSemaphore.h"
 #include "vlk/primitives.h"

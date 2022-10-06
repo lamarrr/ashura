@@ -291,11 +291,11 @@ struct ViewTree {
     void attach_state_proxies_and_parent_refs(bool &any_view_dirty) {
       WidgetSystemProxy::get_state_proxy(*layout_node->widget)
           .on_view_offset_dirty =
-          stx::fn::rc::make_functor(stx::os_allocator,
-                                    ([this, &any_view_dirty] {
-                                      this->is_dirty = true;
-                                      any_view_dirty = true;
-                                    }))
+          stx::fn::rc::make_unique_functor(stx::os_allocator,
+                                           ([this, &any_view_dirty] {
+                                             this->is_dirty = true;
+                                             any_view_dirty = true;
+                                           }))
               .unwrap();
 
       for (View::Entry &entry : entries) {

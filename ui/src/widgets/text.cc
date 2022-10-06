@@ -19,8 +19,6 @@
 #include "vlk/subsystems/asset_loader.h"
 #include "vlk/utils.h"
 
-namespace sktext = skia::textlayout;
-
 namespace vlk {
 namespace ui {
 
@@ -197,11 +195,10 @@ inline std::string_view get_source_tag(FontSource const& font_source) {
   }
 }
 
-inline sktext::TextStyle make_text_style(
+inline skia::textlayout::TextStyle make_text_style(
     impl::InlineTextStorage const& text_storage,
     impl::ParagraphStorage const& paragraph_storage) {
-  sktext::TextStyle text_style;
-
+  skia::textlayout::TextStyle text_style;
   SkPaint foreground_paint;
   SkPaint background_paint;
 
@@ -224,24 +221,25 @@ inline sktext::TextStyle make_text_style(
   text_style.setForegroundColor(foreground_paint);
   text_style.setBackgroundColor(background_paint);
 
-  sktext::TextDecoration decoration = sktext::TextDecoration::kNoDecoration;
+  skia::textlayout::TextDecoration decoration =
+      skia::textlayout::TextDecoration::kNoDecoration;
 
   if ((props.decoration().unwrap_or(default_props.decoration()) &
        TextDecoration::Overline) != TextDecoration::None) {
-    decoration = (sktext::TextDecoration)(decoration |
-                                          sktext::TextDecoration::kOverline);
+    decoration = (skia::textlayout::TextDecoration)(
+        decoration | skia::textlayout::TextDecoration::kOverline);
   }
 
   if ((props.decoration().unwrap_or(default_props.decoration()) &
        TextDecoration::StrikeThrough) != TextDecoration::None) {
-    decoration = (sktext::TextDecoration)(decoration |
-                                          sktext::TextDecoration::kLineThrough);
+    decoration = (skia::textlayout::TextDecoration)(
+        decoration | skia::textlayout::TextDecoration::kLineThrough);
   }
 
   if ((props.decoration().unwrap_or(default_props.decoration()) &
        TextDecoration::Underline) != TextDecoration::None) {
-    decoration = (sktext::TextDecoration)(decoration |
-                                          sktext::TextDecoration::kUnderline);
+    decoration = (skia::textlayout::TextDecoration)(
+        decoration | skia::textlayout::TextDecoration::kUnderline);
   }
 
   text_style.setDecoration(decoration);
@@ -252,19 +250,19 @@ inline sktext::TextStyle make_text_style(
   switch (
       props.decoration_style().unwrap_or(default_props.decoration_style())) {
     case TextDecorationStyle::Dashed:
-      text_style.setDecorationStyle(sktext::kDashed);
+      text_style.setDecorationStyle(skia::textlayout::kDashed);
       break;
     case TextDecorationStyle::Dotted:
-      text_style.setDecorationStyle(sktext::kDotted);
+      text_style.setDecorationStyle(skia::textlayout::kDotted);
       break;
     case TextDecorationStyle::Double:
-      text_style.setDecorationStyle(sktext::kDouble);
+      text_style.setDecorationStyle(skia::textlayout::kDouble);
       break;
     case TextDecorationStyle::Solid:
-      text_style.setDecorationStyle(sktext::kSolid);
+      text_style.setDecorationStyle(skia::textlayout::kSolid);
       break;
     case TextDecorationStyle::Wavy:
-      text_style.setDecorationStyle(sktext::kWavy);
+      text_style.setDecorationStyle(skia::textlayout::kWavy);
       break;
   }
 
@@ -333,53 +331,53 @@ inline sktext::TextStyle make_text_style(
   return text_style;
 }
 
-inline sktext::ParagraphStyle make_paragraph_style(
+inline skia::textlayout::ParagraphStyle make_paragraph_style(
     ParagraphProps const& paragraph_props) {
-  sktext::ParagraphStyle paragraph_style;
+  skia::textlayout::ParagraphStyle paragraph_style;
 
   switch (paragraph_props.direction()) {
     case TextDirection::Ltr:
-      paragraph_style.setTextDirection(sktext::TextDirection::kLtr);
+      paragraph_style.setTextDirection(skia::textlayout::TextDirection::kLtr);
       break;
 
     case TextDirection::Rtl:
-      paragraph_style.setTextDirection(sktext::TextDirection::kRtl);
+      paragraph_style.setTextDirection(skia::textlayout::TextDirection::kRtl);
       break;
   }
 
   switch (paragraph_props.align()) {
     case TextAlign::Center:
-      paragraph_style.setTextAlign(sktext::TextAlign::kCenter);
+      paragraph_style.setTextAlign(skia::textlayout::TextAlign::kCenter);
       break;
 
     case TextAlign::End:
-      paragraph_style.setTextAlign(sktext::TextAlign::kEnd);
+      paragraph_style.setTextAlign(skia::textlayout::TextAlign::kEnd);
       break;
 
     case TextAlign::Justify:
-      paragraph_style.setTextAlign(sktext::TextAlign::kJustify);
+      paragraph_style.setTextAlign(skia::textlayout::TextAlign::kJustify);
       break;
 
     case TextAlign::Left:
-      paragraph_style.setTextAlign(sktext::TextAlign::kLeft);
+      paragraph_style.setTextAlign(skia::textlayout::TextAlign::kLeft);
       break;
 
     case TextAlign::Right:
-      paragraph_style.setTextAlign(sktext::TextAlign::kRight);
+      paragraph_style.setTextAlign(skia::textlayout::TextAlign::kRight);
       break;
 
     case TextAlign::Start:
-      paragraph_style.setTextAlign(sktext::TextAlign::kStart);
+      paragraph_style.setTextAlign(skia::textlayout::TextAlign::kStart);
       break;
   }
 
   paragraph_style.setMaxLines(paragraph_props.line_limit());
-  //  paragraph_style.setDrawOptions(sktext::DrawOptions::kReplay);
+  //  paragraph_style.setDrawOptions(skia::textlayout::DrawOptions::kReplay);
 
   return paragraph_style;
 }
 
-inline std::unique_ptr<sktext::Paragraph> build_paragraph(
+inline std::unique_ptr<skia::textlayout::Paragraph> build_paragraph(
     stx::Span<impl::InlineTextStorage const> inline_texts,
     impl::ParagraphStorage const& paragraph_storage) {
   // Skia's Font collection contains several font managers. one can be the
@@ -393,15 +391,15 @@ inline std::unique_ptr<sktext::Paragraph> build_paragraph(
   // Typefaces are typically stored into files (i.e. .ttf, .woff files)
   //
 
-  sktext::ParagraphStyle paragraph_style =
+  skia::textlayout::ParagraphStyle paragraph_style =
       make_paragraph_style(paragraph_storage.props);
 
-  sk_sp<sktext::FontCollection> font_collection =
-      sk_make_sp<sktext::FontCollection>();
+  sk_sp<skia::textlayout::FontCollection> font_collection =
+      sk_make_sp<skia::textlayout::FontCollection>();
 
   font_collection->getParagraphCache()->turnOn(false);
 
-  sk_sp font_provider = sk_make_sp<sktext::TypefaceFontProvider>();
+  sk_sp font_provider = sk_make_sp<skia::textlayout::TypefaceFontProvider>();
 
   for (auto const& inline_text : inline_texts) {
     inline_text.font_future.as_ref().match(
@@ -433,20 +431,22 @@ inline std::unique_ptr<sktext::Paragraph> build_paragraph(
 
   if (font_mgr != nullptr) font_collection->setDefaultFontManager(font_mgr);
 
-  std::unique_ptr<sktext::ParagraphBuilder> paragraph_builder =
-      sktext::ParagraphBuilderImpl::make(paragraph_style, font_collection);
+  std::unique_ptr<skia::textlayout::ParagraphBuilder> paragraph_builder =
+      skia::textlayout::ParagraphBuilderImpl::make(paragraph_style,
+                                                   font_collection);
 
   VLK_ENSURE(paragraph_builder != nullptr);
 
   for (auto const& inline_text : inline_texts) {
-    sktext::TextStyle const text_style =
+    skia::textlayout::TextStyle const text_style =
         make_text_style(inline_text, paragraph_storage);
     paragraph_builder->pushStyle(text_style);
     paragraph_builder->addText(inline_text.text.data(),
                                inline_text.text.size());
   }
 
-  std::unique_ptr<sktext::Paragraph> paragraph = paragraph_builder->Build();
+  std::unique_ptr<skia::textlayout::Paragraph> paragraph =
+      paragraph_builder->Build();
 
   VLK_ENSURE(paragraph != nullptr);
 
@@ -563,20 +563,21 @@ void Text::tick(std::chrono::nanoseconds interval,
         inline_text.font_future.is_none()) {
       if (std::holds_alternative<SystemFont>(source)) {
         inline_text.font_future = stx::Some(impl::FontFuture{
-            source, FutureAwaiter{
-                        asset_loader->load_font(std::get<SystemFont>(source)),
-                        stx::fn::rc::make_functor(stx::os_allocator, [this]() {
-                          Widget::mark_layout_dirty();
-                          Widget::mark_render_dirty();
+            source,
+            FutureAwaiter{
+                asset_loader->load_font(std::get<SystemFont>(source)),
+                stx::fn::rc::make_unique_functor(stx::os_allocator, [this]() {
+                  Widget::mark_layout_dirty();
+                  Widget::mark_render_dirty();
 
-                          rebuild_paragraph();
-                        }).unwrap()}});
+                  rebuild_paragraph();
+                }).unwrap()}});
       } else if (std::holds_alternative<FileTypefaceSource>(source)) {
         inline_text.font_future = stx::Some(impl::FontFuture{
             source,
             FutureAwaiter{
                 asset_loader->load_font(std::get<FileTypefaceSource>(source)),
-                stx::fn::rc::make_functor(stx::os_allocator, [this]() {
+                stx::fn::rc::make_unique_functor(stx::os_allocator, [this]() {
                   Widget::mark_layout_dirty();
                   Widget::mark_render_dirty();
 
@@ -587,7 +588,7 @@ void Text::tick(std::chrono::nanoseconds interval,
             source,
             FutureAwaiter{
                 asset_loader->load_font(std::get<MemoryTypefaceSource>(source)),
-                stx::fn::rc::make_functor(stx::os_allocator, [this]() {
+                stx::fn::rc::make_unique_functor(stx::os_allocator, [this]() {
                   Widget::mark_layout_dirty();
                   Widget::mark_render_dirty();
 

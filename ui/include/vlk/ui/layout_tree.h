@@ -172,7 +172,7 @@ struct LayoutTree {
       // NOTE: allocates memory, we might need an extra step to bind the lambda
       // references if we want to utilize cache to the max
       WidgetSystemProxy::get_state_proxy(in_widget).on_layout_dirty =
-          stx::fn::rc::make_functor(stx::os_allocator, [&tree] {
+          stx::fn::rc::make_unique_functor(stx::os_allocator, [&tree] {
             tree.is_layout_dirty = true;
           }).unwrap();
 

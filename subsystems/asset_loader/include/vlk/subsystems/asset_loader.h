@@ -25,7 +25,7 @@ struct AssetLoader : public Subsystem {
   ~AssetLoader() override {}
 
   virtual void link(SubsystemsContext const& context) override {
-    Rc<Subsystem*> scheduler_subsystem =
+    stx::Rc<Subsystem*> scheduler_subsystem =
         context.get("VLK_TaskScheduler")
             .expect("Unable to find task scheduler subsystem");
 
@@ -113,7 +113,7 @@ struct AssetLoader : public Subsystem {
 
   stx::Future<stx::Result<FontAsset, FontLoadError>> load_font(
       SystemFont font) {
-    Rc<SystemFontData const*> font_data = font.data.share();
+    stx::Rc<SystemFontData const*> font_data = font.data.share();
     std::string_view tag{font_data.handle->tag};
     return stx::sched::fn(
         scheduler.value().handle->scheduler,

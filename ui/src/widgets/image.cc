@@ -147,13 +147,17 @@ void Image::draw(Canvas &canvas) {
                 int const start_x = (texture_width - roi.width) / 2;
                 int const start_y = (texture_height - roi.height) / 2;
 
+                SkSamplingOptions sampling_options{SkFilterMode::kNearest,
+                                                   SkMipmapMode::kNearest};
+                SkPaint paint;
+
                 sk_canvas.drawImageRect(
                     texture,
                     SkRect::MakeXYWH(start_x, start_y, roi.width, roi.height),
                     SkRect::MakeXYWH(0, 0, widget_extent.width,
                                      widget_extent.height),
-                    SkSamplingOptions{}, (SkPaint *)nullptr,
-                    SkCanvas::kFast_SrcRectConstraint);
+                    sampling_options, &paint,
+                    SkCanvas::kStrict_SrcRectConstraint);
 
                 sk_canvas.restore();
               },
@@ -187,7 +191,7 @@ void Image::tick(std::chrono::nanoseconds interval,
           source,
           FutureAwaiter{
               asset_loader->load_image(std::get<MemoryImageSource>(source)),
-              stx::fn::rc::make_functor(stx::os_allocator, [this]() {
+              stx::fn::rc::make_unique_functor(stx::os_allocator, [this]() {
                 Widget::mark_render_dirty();
                 Widget::mark_layout_dirty();
               }).unwrap()}}};
@@ -196,7 +200,7 @@ void Image::tick(std::chrono::nanoseconds interval,
           source,
           FutureAwaiter{
               asset_loader->load_image(std::get<FileImageSource>(source)),
-              stx::fn::rc::make_functor(stx::os_allocator, [this]() {
+              stx::fn::rc::make_unique_functor(stx::os_allocator, [this]() {
                 Widget::mark_render_dirty();
                 Widget::mark_layout_dirty();
               }).unwrap()}}};

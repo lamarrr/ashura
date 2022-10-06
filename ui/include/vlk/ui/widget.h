@@ -25,6 +25,9 @@ namespace ui {
 /// of it are touched
 /// NOTE: this struct's data is always accessed from the main thread.
 
+// TODO(lamarrr): find a way to generalize clipping, transformation,
+// displacement and effects
+
 enum class WidgetType : uint8_t {
   /// occupies space and has render data
   Render,
@@ -43,28 +46,35 @@ enum class WidgetDirtiness : uint8_t {
 
 STX_DEFINE_ENUM_BIT_OPS(WidgetDirtiness)
 
+enum class WidgetPosition : uint8_t { Static, Fixed, Absolute };
+
 struct WidgetDebugInfo {
   std::string_view name = "<unnamed>";
-  std::string_view type_hint = "<none>";
+  std::string_view type_hint = "<unspecified type>";
 };
 
 // binds to different parts of the the pipeline and its trees that we want to
 // abstract as much as possible. the callbacks also function to capture various
 // values.
+//
 struct WidgetStateProxy {
   /// informs the system that the widget's render data has changed
-  stx::UniqueFn<void()> on_render_dirty = stx::fn::rc::make_unique_static([]() {});
+  stx::UniqueFn<void()> on_render_dirty =
+      stx::fn::rc::make_unique_static([]() {});
 
   /// informs the system that the widget's layout has changed
-  stx::UniqueFn<void()> on_layout_dirty = stx::fn::rc::make_unique_static([]() {});
+  stx::UniqueFn<void()> on_layout_dirty =
+      stx::fn::rc::make_unique_static([]() {});
 
   /// informs the system that a view-widgets's offset (or visible area)
   /// has changed
-  stx::UniqueFn<void()> on_view_offset_dirty = stx::fn::rc::make_unique_static([]() {});
+  stx::UniqueFn<void()> on_view_offset_dirty =
+      stx::fn::rc::make_unique_static([]() {});
 
   /// informs the system that the widget's children has changed (possibly
   /// requiring a full rebuild of the pipeline)
-  stx::UniqueFn<void()> on_children_changed = stx::fn::rc::make_unique_static([]() {});
+  stx::UniqueFn<void()> on_children_changed =
+      stx::fn::rc::make_unique_static([]() {});
 
   /// we need to be able to consult the tree for the widget's offset i.e. in the
   /// scenario where we need to scroll to it
@@ -83,13 +93,13 @@ struct WidgetStateProxy {
 //
 //
 // CHALLENGES
-//  - we need sticky positioned widgets
+//  - we need sticky-positioned widgets
 //  - we need absolute-positioned widgets
-//  - 
+//  - we need static-positioned widgets
+//  - we need fixed-positioned widgets
+//  - we need better representation for view clipping and children layout
 //
 struct Widget {
-  friend struct WidgetSystemProxy;
-
   STX_MAKE_PINNED(Widget)
 
   Widget(WidgetType type = WidgetType::Render, bool is_flex = false,
@@ -255,9 +265,8 @@ struct Widget {
 
   void mark_render_dirty() { dirtiness_ |= WidgetDirtiness::Render; }
 
- private:
-  void system_tick(std::chrono::nanoseconds interval,
-                   SubsystemsContext const &subsystems) {
+  void system_tick____(std::chrono::nanoseconds interval,
+                       SubsystemsContext const &subsystems) {
     tick(interval, subsystems);
 
     if ((dirtiness_ & WidgetDirtiness::Children) != WidgetDirtiness::None) {
@@ -278,6 +287,8 @@ struct Widget {
 
     dirtiness_ = WidgetDirtiness::None;
   }
+
+  virtual void on_event() {}
 
   /// constant throughout lifetime
   WidgetType type_;
@@ -337,12 +348,12 @@ struct Widget {
 };
 
 std::string format(Widget const &widget);
-std::string_view operator>>(stx::ReportQuery, Widget const &widget);
+std::string operator>>(stx::ReportQuery, Widget const &widget);
 
 struct WidgetSystemProxy {
   static void tick(Widget &widget, std::chrono::nanoseconds interval,
                    SubsystemsContext const &context) {
-    widget.system_tick(interval, context);
+    widget.system_tick____(interval, context);
   }
 
   static WidgetStateProxy &get_state_proxy(Widget &widget) {
@@ -356,3 +367,12 @@ struct WidgetSystemProxy {
 
 }  // namespace ui
 }  // namespace vlk
+
+// onclick
+// onhover
+// ondoubleclick
+// ondrag, ondragstart, ondragenter, ondragend, ondragleave, ondragover, ondrop
+// oninput, onkeydown, onkeypress, onkeyup
+// onscroll
+// oninput
+// onfocus

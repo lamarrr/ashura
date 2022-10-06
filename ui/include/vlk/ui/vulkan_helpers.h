@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-// #include "stx/backtrace.h"
+#include "stx/backtrace.h"
 #include "stx/limits.h"
 #include "stx/option.h"
 #include "stx/result.h"
@@ -149,16 +149,14 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
 
   if (!is_general) {
     VLK_LOG("Call Stack:");
-    /*
     stx::backtrace::trace(
-        [](stx::backtrace::Frame frame, int) {
-          VLK_LOG("\t=> {}", frame.symbol.clone().match(
+        stx::fn::make_static([](stx::backtrace::Frame frame, int) {
+          VLK_LOG("\t=> {}", frame.symbol.copy().match(
                                  [](auto sym) { return sym.raw(); },
                                  []() { return std::string_view("unknown"); }));
           return false;
-        },
+        }),
         2);
-        */
   }
 
   return VK_FALSE;
@@ -2193,12 +2191,12 @@ constexpr std::string_view format(VkColorSpaceKHR color_space) {
 
 // TODO(lamarrr): must return a span of any type. would be converted to bytes
 // and sent
-inline stx::SpanReport operator>>(stx::ReportQuery,
-                                  VkResult const& result) noexcept {
-  return stx::SpanReport(vlk::vk::format(result));
+inline std::string operator>>(stx::ReportQuery,
+                              VkResult const& result) noexcept {
+  return std::string{vlk::vk::format(result)};
 }
 
-inline stx::SpanReport operator>>(stx::ReportQuery,
-                                  VkFormat const& format) noexcept {
-  return stx::SpanReport(vlk::vk::format(format));
+inline std::string operator>>(stx::ReportQuery,
+                              VkFormat const& format) noexcept {
+  return std::string{vlk::vk::format(format)};
 }

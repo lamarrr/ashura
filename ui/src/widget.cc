@@ -8,7 +8,7 @@ std::string vlk::ui::format(Widget const &widget) {
                      debug_info.type_hint, (void *)&widget);
 }
 
-stx::FixedReport vlk::ui::operator>>(stx::ReportQuery,
+std::string vlk::ui::operator>>(stx::ReportQuery,
                                      vlk::ui::Widget const &widget) {
-  return stx::FixedReport(vlk::ui::format(widget));
+  return vlk::ui::format(widget);
 }
