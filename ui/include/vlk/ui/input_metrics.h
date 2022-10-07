@@ -1,6 +1,0 @@
-
-
-Getdoubleclick(..)
-
-
-cursorcontroller

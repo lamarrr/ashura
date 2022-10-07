@@ -1,2 +1,0 @@
-add_project_library(vlk_subsystems asset_loader)
-target_link_libraries(vlk_subsystems_asset_loader stx::stx vlk_asset vlk_subsystems_scheduler)
