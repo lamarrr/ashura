@@ -72,5 +72,5 @@ elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
 endif()
 
 # add_subdirectory(asset)
-# add_subdirectory(utils)
+add_subdirectory(utils)
 add_subdirectory(asura)

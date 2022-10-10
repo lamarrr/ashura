@@ -1,0 +1,2 @@
+- multithreaded
+- works on win, ios, linux, ps5

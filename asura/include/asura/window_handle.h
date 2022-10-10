@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -10,41 +11,80 @@
 #include "asura/sdl_utils.h"
 #include "asura/utils.h"
 #include "asura/vulkan.h"
-#include "asura/window_api_handle.h"
 #include "asura/window_event_queue.h"
-#include "include/core/SkCanvas.h"
-#include "include/core/SkColorSpace.h"
-#include "include/core/SkPaint.h"
-#include "include/gpu/GrBackendSemaphore.h"
+#include "stx/vec.h"
 
 namespace asr {
-namespace ui {
 
-// skia doesn't support all surface formats, hence we have to provide formats or
-// color types for it to convert to
-struct WindowSurfaceFormat {
-  VkFormat vk_format{};
-  VkColorSpaceKHR vk_color_space{};
+enum class WindowSwapchainDiff : uint8_t {
+  None = 0,
+  // the window's extent and surface (framebuffer) extent has changed
+  Extent = 1,
+  // the window swapchain can still be used for presentation but is not optimal
+  // for presentation in its present state
+  Suboptimal = 2,
+  // the window swapchain is now out of date and needs to be changed
+  OutOfDate = 4,
+  All = Extent | Suboptimal | OutOfDate
 };
 
+STX_DEFINE_ENUM_BIT_OPS(WindowSwapchainDiff);
+
 // choose a specific swapchain format available on the surface
-inline WindowSurfaceFormat select_swapchain_surface_formats(
+inline VkSurfaceFormatKHR select_swapchain_surface_formats(
     stx::Span<VkSurfaceFormatKHR const> formats,
-    stx::Span<WindowSurfaceFormat const> preferred_formats) noexcept {
-  ASR_ENSURE(formats.size() != 0,
+    stx::Span<VkSurfaceFormatKHR const> preferred_formats) {
+  ASR_ENSURE(!formats.is_empty(),
              "No window surface format supported by physical device");
 
-  for (auto const& preferred_format : preferred_formats) {
-    auto pos = std::find_if(
-        formats.begin(), formats.end(), [&](VkSurfaceFormatKHR const& format) {
-          return format.format == preferred_format.vk_format &&
-                 format.colorSpace == preferred_format.vk_color_space;
-        });
-
-    if (pos != formats.end()) return preferred_format;
+  for (VkSurfaceFormatKHR preferred_format : preferred_formats) {
+    if (!formats
+             .which([&](VkSurfaceFormatKHR format) {
+               return preferred_format.colorSpace == format.colorSpace &&
+                      preferred_format.format == format.format;
+             })
+             .is_empty())
+      return preferred_format;
   }
 
   ASR_PANIC("Unable to find any of the preferred swapchain surface formats");
+}
+
+inline VkPresentModeKHR select_swapchain_presentation_mode(
+    stx::Span<VkPresentModeKHR const> available_presentation_modes,
+    stx::Span<VkPresentModeKHR const> preferred_present_modes) noexcept {
+  /// - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application
+  /// are transferred to the screen right away, which may result in tearing.
+  ///
+  /// - VK_PRESENT_MODE_FIFO_KHR: The swap chain is a queue where the
+  /// display takes an image from the front of the queue when the display is
+  /// refreshed and the program inserts rendered images at the back of the
+  /// queue. If the queue is full then the program has to wait. This is most
+  /// similar to vertical sync as found in modern games. The moment that the
+  /// display is refreshed is known as "vertical blank" (v-sync).
+  ///
+  /// - VK_PRESENT_MODE_FIFO_RELAXED_KHR: This mode only differs
+  /// from the previous one if the application is late and the queue was
+  /// empty at the last vertical blank. Instead of waiting for the next
+  /// vertical blank, the image is transferred right away when it finally
+  /// arrives. This may result in visible tearing.
+  ///
+  /// - VK_PRESENT_MODE_MAILBOX_KHR: This is another variation of the
+  /// second mode. Instead of blocking the application when the queue is
+  /// full, the images that are already queued are simply replaced with the
+  /// newer ones. This mode can be used to implement triple buffering, which
+  /// allows you to avoid tearing with significantly less latency issues
+  /// than standard vertical sync that uses double buffering.
+
+  ASR_ENSURE(!available_presentation_modes.is_empty(),
+             "No surface presentation mode available");
+
+  for (auto const& preferred_present_mode : preferred_present_modes) {
+    if (!available_presentation_modes.find(preferred_present_mode).is_empty())
+      return preferred_present_mode;
+  }
+
+  ASR_PANIC("Unable to find any of the preferred presentation modes");
 }
 
 /// Swapchains handle the presentation and update logic of the images to the
@@ -65,33 +105,34 @@ inline WindowSurfaceFormat select_swapchain_surface_formats(
 /// reference to the surface) we thus can't hold a reference to the swapchain,
 /// its images, nor its image views outside itself (the swapchain object).
 ///
-struct WindowSwapChainHandle {
-  static constexpr VkImageUsageFlags images_usage =
+struct WindowSwapChain {
+  static constexpr VkImageUsageFlags IMAGES_USAGE =
       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
       VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
-  static constexpr VkImageTiling images_tiling = VK_IMAGE_TILING_OPTIMAL;
+  static constexpr VkImageTiling IMAGES_TILING = VK_IMAGE_TILING_OPTIMAL;
 
-  static constexpr VkSharingMode images_sharing_mode =
+  static constexpr VkSharingMode IMAGES_SHARING_MODE =
       VK_SHARING_MODE_EXCLUSIVE;
 
-  static constexpr VkImageLayout images_initial_layout =
+  static constexpr VkImageLayout IMAGES_INITIAL_LAYOUT =
       VK_IMAGE_LAYOUT_UNDEFINED;
 
-  static constexpr VkCompositeAlphaFlagBitsKHR composite_alpha =
+  static constexpr VkCompositeAlphaFlagBitsKHR COMPOSITE_ALPHA =
       VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
   // TODO(lamarrr): log and format presentation modes
-  static constexpr VkPresentModeKHR present_modes[4] = {
-      VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_MAILBOX_KHR,
-      VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR};
+  static constexpr VkPresentModeKHR PRESENT_MODES[4] = {
+      VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_FIFO_KHR,
+      VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR};
 
   // actually holds the images of the surface and used to present to the render
   // target image. when resizing is needed, the swapchain is destroyed and
   // recreated with the desired extents.
   VkSwapchainKHR swapchain = nullptr;
-  WindowSurfaceFormat format;
-  VkPresentModeKHR present_mode{};
+  VkSurfaceFormatKHR format{VK_FORMAT_R8G8B8A8_SRGB,
+                            VK_COLORSPACE_SRGB_NONLINEAR_KHR};
+  VkPresentModeKHR present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
   Extent extent;
 
   /// IMPORTANT: this is different from the image index obtained via
@@ -104,59 +145,51 @@ struct WindowSwapChainHandle {
   uint32_t frame_flight_index = 0;
 
   // the images in the swapchain
-  std::vector<VkImage> images;
+  stx::Vec<VkImage> images;
 
   // the image views pointing to a part of a whole texture (images in the
   // swapchain)
-  std::vector<VkImageView> image_views;
+  stx::Vec<VkImageView> image_views;
 
   // the rendering semaphores correspond to the frame indexes and not the
   // swapchain images
-  std::vector<VkSemaphore> rendering_semaphores;
+  stx::Vec<VkSemaphore> rendering_semaphores;
 
-  std::vector<VkSemaphore> image_acquisition_semaphores;
+  stx::Vec<VkSemaphore> image_acquisition_semaphores;
 
-  ASR_MAKE_HANDLE(WindowSwapChainHandle)
+  stx::Option<stx::Rc<vk::Device*>> device;
 
-  ~WindowSwapChainHandle() {
+  ASR_MAKE_HANDLE(WindowSwapChain)
+
+  ~WindowSwapChain() {
     if (swapchain != nullptr) {
+      VkDevice dev = device.value().handle->device;
+
       // await idleness of the semaphores device, so we can destroy the
       // semaphore and images whislt not in use.
       // any part of the device could be using the semaphore
-      ASR_MUST_SUCCEED(
-          vkDeviceWaitIdle(vk_render_context->graphics_command_queue.info.device
-                               .handle->device),
-          "Unable to await device idleness");
+      ASR_MUST_SUCCEED(vkDeviceWaitIdle(dev),
+                       "Unable to await device idleness");
 
       for (VkSemaphore semaphore : rendering_semaphores) {
-        vkDestroySemaphore(vk_render_context->graphics_command_queue.info.device
-                               .handle->device,
-                           semaphore, nullptr);
+        vkDestroySemaphore(dev, semaphore, nullptr);
       }
 
       for (VkSemaphore semaphore : image_acquisition_semaphores) {
-        vkDestroySemaphore(vk_render_context->graphics_command_queue.info.device
-                               .handle->device,
-                           semaphore, nullptr);
+        vkDestroySemaphore(dev, semaphore, nullptr);
       }
 
       for (VkImageView image_view : image_views) {
-        vkDestroyImageView(vk_render_context->graphics_command_queue.info.device
-                               .handle->device,
-                           image_view, nullptr);
+        vkDestroyImageView(dev, image_view, nullptr);
       }
 
       // swapchain image is automatically deleted along with the swapchain
-      vkDestroySwapchainKHR(
-          vk_render_context->graphics_command_queue.info.device.handle->device,
-          swapchain, nullptr);
+      vkDestroySwapchainKHR(dev, swapchain, nullptr);
     }
-
-    swapchain = nullptr;
   }
 };
 
-struct WindowSurfaceHandle {
+struct WindowSurface {
   // only a pointer to metadata, does not contain data itself, resilient to
   // resizing
   VkSurfaceKHR surface = nullptr;
@@ -169,32 +202,37 @@ struct WindowSurfaceHandle {
   // resources when destroyed, not just by calling a method to destroy its
   // resources.
   //
-  std::unique_ptr<WindowSwapChainHandle> swapchain_handle;
+  stx::Option<stx::Unique<WindowSwapChain*>> swapchain;
 
-  vk::Instance instance;
+  stx::Option<stx::Rc<vk::Instance*>> instance;
 
-  ASR_MAKE_HANDLE(WindowSurfaceHandle)
+  ASR_MAKE_HANDLE(WindowSurface)
+
+  ~WindowSurface() {
+    // we need to ensure the swapchain is destroyed before the surface (if not
+    // already destroyed)
+    swapchain = stx::None;
+
+    if (surface != nullptr) {
+      vkDestroySurfaceKHR(instance.value().handle->instance, surface, nullptr);
+    }
+  }
 
   void change_swapchain(
-      stx::Span<WindowSurfaceFormat const> preferred_formats,
+      vk::CommandQueue const& queue,
+      stx::Span<VkSurfaceFormatKHR const> preferred_formats,
       stx::Span<VkPresentModeKHR const> preferred_present_modes, Extent extent,
       VkCompositeAlphaFlagBitsKHR alpha_compositing) {
-    ASR_ENSURE(vk_render_context->graphics_command_queue.info.device.handle
-                       ->phys_device.info.instance.handle->instance ==
-                   instance.handle->instance,
-               "Provided command queue and target surface do not belong on the "
-               "same Vulkan instance");
+    swapchain = stx::None;  // probably don't want to have two existing at once
 
-    swapchain_handle = nullptr;
+    stx::Unique new_swapchain =
+        stx::rc::make_unique_inplace<WindowSwapChain>(stx::os_allocator)
+            .unwrap();
 
-    std::unique_ptr<WindowSwapChainHandle> new_handle{
-        new WindowSwapChainHandle{}};
-
-    vk::Device const& device_object =
-        vk_render_context->graphics_command_queue.info.device;
     VkPhysicalDevice phys_device =
-        device_object.handle->phys_device.info.phys_device;
-    VkDevice device = device_object.handle->device;
+        queue.info.device.value().handle->phys_device.info.phys_device;
+
+    VkDevice device = queue.info.device.value().handle->device;
 
     // the properties change every time we need to create a swapchain so we must
     // query for this every time
@@ -208,219 +246,70 @@ struct WindowSurfaceHandle {
     }
 
     // swapchain formats are device-dependent
-    new_handle->format = select_swapchain_surface_formats(
+    new_swapchain.handle->format = select_swapchain_surface_formats(
         properties.supported_formats, preferred_formats);
     // log selections
     // swapchain presentation modes are device-dependent
-    new_handle->present_mode = select_swapchain_presentation_mode(
+    new_swapchain.handle->present_mode = select_swapchain_presentation_mode(
         properties.presentation_modes, preferred_present_modes);
 
-    uint32_t accessing_families[1] = {
-        new_handle->vk_render_context->graphics_command_queue.info.family.info
-            .index};
+    uint32_t accessing_families[1] = {queue.info.family.info.index};
 
-    auto [new_swapchain, actual_extent] = vk::create_swapchain(
+    auto [new_swapchain_r, actual_extent] = vk::create_swapchain(
         device, surface, VkExtent2D{extent.width, extent.height},
-        VkSurfaceFormatKHR{new_handle->format.vk_format,
-                           new_handle->format.vk_color_space},
-        new_handle->present_mode, properties,
+        new_swapchain.handle->format, new_swapchain.handle->present_mode,
+        properties,
         // not thread-safe since GPUs typically have one graphics queue
-        WindowSwapChainHandle::images_sharing_mode, accessing_families,
+        WindowSwapChain::IMAGES_SHARING_MODE, accessing_families,
         // render target image
-        WindowSwapChainHandle::images_usage, alpha_compositing,
+        WindowSwapChain::IMAGES_USAGE, alpha_compositing,
         // we don't care about the color of pixels that are obscured, for
         // example because another window is in front of them. Unless you really
         // need to be able to read these pixels back and get predictable
         // results, you'll get the best performance by enabling clipping.
         true);
 
-    new_handle->swapchain = new_swapchain;
-    new_handle->extent = Extent{actual_extent.width, actual_extent.height};
-    new_handle->images =
-        vk::get_swapchain_images(device, new_handle->swapchain);
+    new_swapchain.handle->swapchain = new_swapchain_r;
+    new_swapchain.handle->extent =
+        Extent{actual_extent.width, actual_extent.height};
+    new_swapchain.handle->images =
+        vk::get_swapchain_images(device, new_swapchain.handle->swapchain);
 
-    for (VkImage image : new_handle->images) {
+    for (VkImage image : new_swapchain.handle->images) {
       VkImageView image_view = vk::create_image_view(
-          device, image, new_handle->format.vk_format, VK_IMAGE_VIEW_TYPE_2D,
+          device, image, new_swapchain.handle->format.format,
+          VK_IMAGE_VIEW_TYPE_2D,
           // use image view as color buffer (can be used as depth buffer)
           VK_IMAGE_ASPECT_COLOR_BIT, vk::make_default_component_mapping());
-      new_handle->image_views.push_back(image_view);
+      new_swapchain.handle->image_views.push_inplace(image_view).unwrap();
     }
 
-    for (VkImage image : new_handle->images) {
-      GrVkImageInfo image_info{};
-      image_info.fImage = image;
-      image_info.fImageTiling = WindowSwapChainHandle::images_tiling;
-      image_info.fImageLayout = WindowSwapChainHandle::images_initial_layout;
-      image_info.fFormat = new_handle->format.vk_format;
-      image_info.fImageUsageFlags = WindowSwapChainHandle::images_usage;
-      image_info.fSampleCount = 1;  // VK_SAMPLE_COUNT_1
-      image_info.fLevelCount = 1;   // mip levels
-      image_info.fSharingMode = WindowSwapChainHandle::images_sharing_mode;
-
-      GrBackendRenderTarget backend_render_target(
-          new_handle->extent.width, new_handle->extent.height, 1, image_info);
-      SkSurfaceProps props{};
-
-      auto sk_surface = SkSurface::MakeFromBackendRenderTarget(
-          new_handle->vk_render_context->render_context.get_direct_context()
-              .unwrap()
-              .get(),                         // context
-          backend_render_target,              // backend render target
-          kTopLeft_GrSurfaceOrigin,           // origin
-          new_handle->format.sk_color,        // color type
-          new_handle->format.sk_color_space,  // color space
-          &props);                            // surface properties
-
-      ASR_ENSURE(sk_surface != nullptr);
-      new_handle->skia_surfaces.push_back(std::move(sk_surface));
+    for (size_t i = 0; i < new_swapchain.handle->images.size(); i++) {
+      new_swapchain.handle->rendering_semaphores
+          .push(vk::create_semaphore(device))
+          .unwrap();
+      new_swapchain.handle->image_acquisition_semaphores
+          .push(vk::create_semaphore(device))
+          .unwrap();
     }
 
-    for (size_t i = 0; i < new_handle->images.size(); i++) {
-      new_handle->rendering_semaphores.push_back(vk::create_semaphore(device));
-      new_handle->image_acquisition_semaphores.push_back(
-          vk::create_semaphore(device));
-    }
-
-    swapchain_handle = std::move(new_handle);
-  }
-
-  ~WindowSurfaceHandle() {
-    // we need to ensure the swapchain is destroyed before the surface (if not
-    // already destroyed)
-    swapchain_handle = nullptr;
-
-    if (surface != nullptr) {
-      vkDestroySurfaceKHR(instance.handle->instance, surface, nullptr);
-    }
-  }
-
-  inline VkPresentModeKHR select_swapchain_presentation_mode(
-      stx::Span<VkPresentModeKHR const> available_presentation_modes,
-      stx::Span<VkPresentModeKHR const> preferred_present_modes) noexcept {
-    /// - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application
-    /// are transferred to the screen right away, which may result in tearing.
-    ///
-    /// - VK_PRESENT_MODE_FIFO_KHR: The swap chain is a queue where the
-    /// display takes an image from the front of the queue when the display is
-    /// refreshed and the program inserts rendered images at the back of the
-    /// queue. If the queue is full then the program has to wait. This is most
-    /// similar to vertical sync as found in modern games. The moment that the
-    /// display is refreshed is known as "vertical blank" (v-sync).
-    ///
-    /// - VK_PRESENT_MODE_FIFO_RELAXED_KHR: This mode only differs
-    /// from the previous one if the application is late and the queue was
-    /// empty at the last vertical blank. Instead of waiting for the next
-    /// vertical blank, the image is transferred right away when it finally
-    /// arrives. This may result in visible tearing.
-
-    /// - VK_PRESENT_MODE_MAILBOX_KHR: This is another variation of the
-    /// second mode. Instead of blocking the application when the queue is
-    /// full, the images that are already queued are simply replaced with the
-    /// newer ones. This mode can be used to implement triple buffering, which
-    /// allows you to avoid tearing with significantly less latency issues
-    /// than standard vertical sync that uses double buffering.
-
-    ASR_ENSURE(available_presentation_modes.size() != 0,
-               "No surface presentation mode available");
-
-    for (auto const& preferred_present_mode : preferred_present_modes) {
-      auto it =
-          std::find(available_presentation_modes.begin(),
-                    available_presentation_modes.end(), preferred_present_mode);
-      if (it != available_presentation_modes.end()) return *it;
-    }
-
-    ASR_PANIC("Unable to find any of the preferred presentation modes");
+    swapchain = stx::Some(std::move(new_swapchain));
   }
 };
-
-struct WindowSurface {
-  std::shared_ptr<WindowSurfaceHandle> handle;
-};
-
-enum class WindowSwapchainDiff : uint8_t {
-  None = 0,
-  // the window's extent and surface (framebuffer) extent has changed
-  Extent = 1,
-  // the window swapchain can still be used for presentation but is not optimal
-  // for presentation in its present state
-  Suboptimal = 2,
-  // the window swapchain is now out of date and needs to be changed
-  OutOfDate = 4,
-  All = Extent | Suboptimal | OutOfDate
-};
-
-STX_DEFINE_ENUM_BIT_OPS(WindowSwapchainDiff);
-
-enum class WindowContentDirtiness : uint8_t {
-  None = 0,
-  Layout = 1,
-  RePresent = 2,
-  All = Layout | RePresent
-};
-
-STX_DEFINE_ENUM_BIT_OPS(WindowContentDirtiness);
-
-constexpr WindowContentDirtiness map_diff(WindowSwapchainDiff diff) {
-  WindowContentDirtiness dirtiness = WindowContentDirtiness::None;
-
-  if ((diff & WindowSwapchainDiff::Extent) != WindowSwapchainDiff::None) {
-    dirtiness |=
-        WindowContentDirtiness::Layout | WindowContentDirtiness::RePresent;
-  }
-
-  if ((diff & WindowSwapchainDiff::Suboptimal) != WindowSwapchainDiff::None) {
-    dirtiness |= WindowContentDirtiness::RePresent;
-  }
-
-  if ((diff & WindowSwapchainDiff::OutOfDate) != WindowSwapchainDiff::None) {
-    dirtiness |= WindowContentDirtiness::RePresent;
-  }
-
-  return dirtiness;
-}
 
 struct WindowHandle {
-  SDL_Window* window = nullptr;
-  WindowID id{};
-  WindowSurface surface;
-  WindowApi api;
-  Extent extent;
-  Extent surface_extent;
-  WindowEventQueue event_queue;
-  WindowCfg cfg;
+  // SDL_Window* window = nullptr;
+  // WindowID id{};
+  // WindowSurface surface;
+  // WindowApi api;
+  // Extent extent;
+  // Extent surface_extent;
+  // WindowEventQueue event_queue;
+  // WindowCfg cfg;
+  // std::thread::id init_thread_id{};
 
   ASR_MAKE_HANDLE(WindowHandle)
 
-  ~WindowHandle() {
-    if (window != nullptr) {
-      api.handle->remove_window_info(id);
-      SDL_DestroyWindow(window);
-    }
-  }
-
-  std::vector<char const*> get_required_instance_extensions() const {
-    uint32_t ext_count = 0;
-    std::vector<char const*> required_instance_extensions;
-
-    ASR_SDL_ENSURE(
-        SDL_Vulkan_GetInstanceExtensions(window, &ext_count, nullptr) ==
-            SDL_TRUE,
-        "Unable to get number of window's required Vulkan instance extensions");
-
-    required_instance_extensions.resize(ext_count);
-
-    ASR_SDL_ENSURE(
-        SDL_Vulkan_GetInstanceExtensions(window, &ext_count,
-                                         required_instance_extensions.data()) ==
-            SDL_TRUE,
-        "Unable to get window's required Vulkan instance extensions");
-
-    return required_instance_extensions;
-  }
-
-  // needs:
   //
   //
   // process and dispatch events
@@ -450,8 +339,7 @@ struct WindowHandle {
   // the event queue should be cleared after publishing the eventas
 
   // TODO(lamarrr): do these need to be passed in everytime?
-  void recreate_swapchain(
-      std::shared_ptr<VkRenderContext> const& vk_render_context) {
+  void recreate_swapchain() {
     // if cause of change in swapchain is a change in extent, then mark
     // layout as dirty, otherwise maintain pipeline state
     int width = 0, height = 0;
@@ -576,6 +464,8 @@ struct WindowHandle {
             .unwrap()
             ->submit(false));
 
+    // cmd.drawIndexed();
+
     // presentation (we don't need to wait on presentation)
     //
     // if v-sync is enabled (VK_PRESENT_MODE_FIFO_KHR) the GPU driver *can*
@@ -610,5 +500,4 @@ struct WindowHandle {
   }
 };
 
-}  // namespace ui
 }  // namespace asr

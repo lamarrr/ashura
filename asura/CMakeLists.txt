@@ -5,5 +5,11 @@ target_include_directories(
   PUBLIC include
   PRIVATE src)
 
-target_link_libraries(asura VulkanMemoryAllocator stx::stx SDL2::SDL2 fmt::fmt
-                      ${Vulkan_LIBRARIES})
+target_link_libraries(
+  asura
+  VulkanMemoryAllocator
+  stx::stx
+  SDL2::SDL2
+  fmt::fmt
+  asura::utils
+  ${Vulkan_LIBRARIES})

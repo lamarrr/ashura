@@ -12,24 +12,27 @@
 
 #include "asura/primitives.h"
 #include "asura/utils.h"
-#include "asura/vulkan_helpers.h"
 #include "stx/backtrace.h"
 #include "stx/limits.h"
 #include "stx/option.h"
 #include "stx/result.h"
 #include "stx/span.h"
+#include "stx/vec.h"
 #include "vulkan/vulkan.h"
 
 namespace asr {
+
+using namespace std::chrono_literals;
+
 namespace vk {
 
 template <typename T>
 inline auto join_copy(stx::Span<T> a, stx::Span<T> b) {
-  std::vector<std::remove_const_t<T>> x;
-  x.reserve(a.size() + b.size());
+  stx::Vec<std::remove_const_t<T>> x{stx::os_allocator};
+  x.reserve(a.size() + b.size()).unwrap();
 
-  for (auto const& el : a) x.push_back(el);
-  for (auto const& el : b) x.push_back(el);
+  for (auto const& el : a) x.push_inplace(el).unwrap();
+  for (auto const& el : b) x.push_inplace(el).unwrap();
 
   return x;
 }
@@ -40,8 +43,10 @@ inline void ensure_validation_layers_supported(
   vkEnumerateInstanceLayerProperties(&available_validation_layers_count,
                                      nullptr);
 
-  std::vector<VkLayerProperties> available_validation_layers(
-      available_validation_layers_count);
+  stx::Vec<VkLayerProperties> available_validation_layers(stx::os_allocator);
+
+  available_validation_layers.resize(available_validation_layers_count)
+      .unwrap();
 
   ASR_LOG("Available Vulkan Validation Layers:");
 
@@ -54,13 +59,13 @@ inline void ensure_validation_layers_supported(
 
   bool all_layers_available = true;
 
-  for (auto const req_layer : layers) {
-    if (std::find_if(available_validation_layers.begin(),
-                     available_validation_layers.end(),
-                     [&req_layer](VkLayerProperties const& available_layer) {
-                       return std::string_view(req_layer) ==
-                              std::string_view(available_layer.layerName);
-                     }) == available_validation_layers.end()) {
+  for (char const* req_layer : layers) {
+    if (available_validation_layers.span()
+            .which([&req_layer](VkLayerProperties const& available_layer) {
+              return std::string_view(req_layer) ==
+                     std::string_view(available_layer.layerName);
+            })
+            .is_empty()) {
       all_layers_available = false;
       ASR_WARN("Required validation layer `{}` is not available",
                std::string_view(req_layer));
@@ -78,8 +83,10 @@ inline void ensure_extensions_supported(stx::Span<char const* const> names) {
   vkEnumerateInstanceExtensionProperties(
       nullptr, &available_vk_extensions_count, nullptr);
 
-  std::vector<VkExtensionProperties> available_vk_extensions(
-      available_vk_extensions_count);
+  stx::Vec<VkExtensionProperties> available_vk_extensions(stx::os_allocator);
+
+  available_vk_extensions.resize(available_vk_extensions_count).unwrap();
+
   vkEnumerateInstanceExtensionProperties(
       nullptr, &available_vk_extensions_count, available_vk_extensions.data());
 
@@ -92,12 +99,12 @@ inline void ensure_extensions_supported(stx::Span<char const* const> names) {
   bool all_available = true;
 
   for (auto const name : names) {
-    if (std::find_if(available_vk_extensions.begin(),
-                     available_vk_extensions.end(),
-                     [&name](VkExtensionProperties const& props) {
-                       return std::string_view(name) ==
-                              std::string_view(props.extensionName);
-                     }) == available_vk_extensions.end()) {
+    if (available_vk_extensions.span()
+            .which([&name](VkExtensionProperties const& props) {
+              return std::string_view(name) ==
+                     std::string_view(props.extensionName);
+            })
+            .is_empty()) {
       all_available = false;
       ASR_WARN("Required extension `{}` is not available",
                std::string_view(name));
@@ -163,18 +170,16 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
 }
 
 inline VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_create_info() {
-  VkDebugUtilsMessengerCreateInfoEXT create_info{};
-
-  create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-  create_info.messageSeverity =
-      VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-      VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-      VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-  create_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-  create_info.pfnUserCallback = default_debug_callback;
-  create_info.pUserData = nullptr;
+  VkDebugUtilsMessengerCreateInfoEXT create_info{
+      .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+      .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+      .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                     VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                     VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+      .pfnUserCallback = default_debug_callback,
+      .pUserData = nullptr};
 
   return create_info;
 }
@@ -221,21 +226,20 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
     char const* const application_name = "Valkyrie",
     uint32_t application_version = VK_MAKE_VERSION(1, 0, 0),
     char const* const engine_name = "Valkyrie Engine",
-    uint32_t engine_version = VK_MAKE_VERSION(1, 0, 0)) noexcept {
+    uint32_t engine_version = VK_MAKE_VERSION(1, 0, 0)) {
   // helps bnt not necessary
-  VkApplicationInfo app_info{};
-  app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  app_info.pApplicationName = application_name;
-  app_info.applicationVersion = application_version;
-  app_info.pEngineName = engine_name;
-  app_info.engineVersion = engine_version;
-  app_info.apiVersion = VK_API_VERSION_1_1;
-  app_info.pNext = nullptr;
+  VkApplicationInfo app_info{.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+                             .pApplicationName = application_name,
+                             .applicationVersion = application_version,
+                             .pEngineName = engine_name,
+                             .engineVersion = engine_version,
+                             .apiVersion = VK_API_VERSION_1_1,
+                             .pNext = nullptr};
 
-  VkInstanceCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  create_info.pApplicationInfo = &app_info;
-  create_info.pNext = nullptr;
+  VkInstanceCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+      .pApplicationInfo = &app_info,
+      .pNext = nullptr};
 
   static constexpr char const* DEBUG_EXTENSIONS[] = {
       VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
@@ -281,15 +285,17 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 
 //  to do anything on the GPU (render, draw, compute, allocate memory, create
 //  texture, etc.) we use command queues
-inline std::vector<VkQueueFamilyProperties> get_queue_families(
-    VkPhysicalDevice device) noexcept {
+inline stx::Vec<VkQueueFamilyProperties> get_queue_families(
+    VkPhysicalDevice device) {
   uint32_t queue_families_count;
 
   vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_families_count,
                                            nullptr);
 
-  std::vector<VkQueueFamilyProperties> queue_families_properties(
-      queue_families_count);
+  stx::Vec<VkQueueFamilyProperties> queue_families_properties(
+      stx::os_allocator);
+
+  queue_families_properties.resize(queue_families_count).unwrap();
 
   vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_families_count,
                                            queue_families_properties.data());
@@ -297,24 +303,24 @@ inline std::vector<VkQueueFamilyProperties> get_queue_families(
   return queue_families_properties;
 }
 
-inline std::vector<bool> get_command_queue_support(
+inline stx::Vec<bool> get_command_queue_support(
     stx::Span<VkQueueFamilyProperties const> queue_families,
     VkQueueFlagBits required_command_queue) {
-  std::vector<bool> supports;
+  stx::Vec<bool> supports{stx::os_allocator};
 
   for (auto const& fam_props : queue_families) {
-    supports.push_back(fam_props.queueFlags & required_command_queue);
+    supports.push(fam_props.queueFlags & required_command_queue).unwrap();
   }
 
   return supports;
 }
 
 // find the device's queue family capable of supporting surface presentation
-inline std::vector<bool> get_surface_presentation_command_queue_support(
+inline stx::Vec<bool> get_surface_presentation_command_queue_support(
     VkPhysicalDevice physical_device,
     stx::Span<VkQueueFamilyProperties const> queue_families,
-    VkSurfaceKHR surface) noexcept {
-  std::vector<bool> supports;
+    VkSurfaceKHR surface) {
+  stx::Vec<bool> supports{stx::os_allocator};
 
   for (size_t i = 0; i < queue_families.size(); i++) {
     VkBool32 surface_presentation_supported;
@@ -322,7 +328,7 @@ inline std::vector<bool> get_surface_presentation_command_queue_support(
         vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, surface,
                                              &surface_presentation_supported),
         "Unable to query physical device' surface support");
-    supports.push_back(surface_presentation_supported);
+    supports.push_inplace(surface_presentation_supported).unwrap();
   }
 
   return supports;
@@ -334,11 +340,11 @@ inline VkDevice create_logical_device(
     stx::Span<char const* const> required_validation_layers,
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_infos,
     VkAllocationCallbacks const* allocation_callback,
-    VkPhysicalDeviceFeatures const& required_features = {}) noexcept {
-  VkDeviceCreateInfo device_create_info{};
-  device_create_info.pQueueCreateInfos = command_queue_create_infos.data();
-  device_create_info.queueCreateInfoCount = command_queue_create_infos.size();
-  device_create_info.pEnabledFeatures = &required_features;
+    VkPhysicalDeviceFeatures const& required_features = {}) {
+  VkDeviceCreateInfo device_create_info{
+      .pQueueCreateInfos = command_queue_create_infos.data(),
+      .queueCreateInfoCount = command_queue_create_infos.size(),
+      .pEnabledFeatures = &required_features};
 
   uint32_t available_extensions_count;
   ASR_MUST_SUCCEED(
@@ -347,8 +353,10 @@ inline VkDevice create_logical_device(
       "Unable to get physical device extensions");
 
   // device specific extensions
-  std::vector<VkExtensionProperties> available_device_extensions(
-      available_extensions_count);
+  stx::Vec<VkExtensionProperties> available_device_extensions{
+      stx::os_allocator};
+
+  available_device_extensions.resize(available_extensions_count).unwrap();
 
   ASR_MUST_SUCCEED(vkEnumerateDeviceExtensionProperties(
                        physical_device, nullptr, &available_extensions_count,
@@ -356,28 +364,22 @@ inline VkDevice create_logical_device(
                    "Unable to get physical device extensions");
 
   ASR_LOG("Required Device Extensions: ");
-  std::for_each(required_extensions.begin(), required_extensions.end(),
-                [](char const* ext) { ASR_LOG("\t{}", ext); });
+  required_extensions.for_each([](char const* ext) { ASR_LOG("\t{}", ext); });
 
   ASR_LOG("Available Device Extensions: ");
-  std::for_each(
-      available_device_extensions.begin(), available_device_extensions.end(),
-      [](VkExtensionProperties ext) {
-        ASR_LOG("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
-      });
+  available_device_extensions.span().for_each([](VkExtensionProperties ext) {
+    ASR_LOG("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
+  });
 
-  ASR_ENSURE(
-      std::all_of(required_extensions.begin(), required_extensions.end(),
-                  [&](char const* const ext) {
-                    return std::find_if(
-                               available_device_extensions.begin(),
-                               available_device_extensions.end(),
-                               [=](VkExtensionProperties a_ext) {
-                                 return std::string_view(ext) ==
-                                        std::string_view(a_ext.extensionName);
-                               }) != available_device_extensions.end();
-                  }),
-      "Can't find all required extensions");
+  ASR_ENSURE(required_extensions.is_all([&](char const* ext) {
+    return !available_device_extensions.span()
+                .which([=](VkExtensionProperties a_ext) {
+                  return std::string_view(ext) ==
+                         std::string_view(a_ext.extensionName);
+                })
+                .is_empty();
+  }),
+             "Can't find all required extensions");
 
   device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
@@ -399,9 +401,8 @@ inline VkDevice create_logical_device(
   return logical_device;
 }
 
-inline VkQueue get_command_queue(
-    VkDevice device, uint32_t queue_family_index,
-    uint32_t command_queue_index_in_family) noexcept {
+inline VkQueue get_command_queue(VkDevice device, uint32_t queue_family_index,
+                                 uint32_t command_queue_index_in_family) {
   VkQueue command_queue;
   vkGetDeviceQueue(device, queue_family_index, command_queue_index_in_family,
                    &command_queue);
@@ -412,12 +413,12 @@ inline VkQueue get_command_queue(
 
 struct SwapChainProperties {
   VkSurfaceCapabilitiesKHR capabilities;
-  std::vector<VkSurfaceFormatKHR> supported_formats;
-  std::vector<VkPresentModeKHR> presentation_modes;
+  stx::Vec<VkSurfaceFormatKHR> supported_formats{stx::os_allocator};
+  stx::Vec<VkPresentModeKHR> presentation_modes{stx::os_allocator};
 };
 
 inline SwapChainProperties get_swapchain_properties(
-    VkPhysicalDevice physical_device, VkSurfaceKHR surface) noexcept {
+    VkPhysicalDevice physical_device, VkSurfaceKHR surface) {
   SwapChainProperties details{};
 
   ASR_MUST_SUCCEED(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
@@ -431,7 +432,7 @@ inline SwapChainProperties get_swapchain_properties(
           physical_device, surface, &supported_surface_formats_count, nullptr),
       "Unable to get physical device' surface format");
 
-  details.supported_formats.resize(supported_surface_formats_count);
+  details.supported_formats.resize(supported_surface_formats_count).unwrap();
 
   ASR_MUST_SUCCEED(
       vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface,
@@ -445,7 +446,7 @@ inline SwapChainProperties get_swapchain_properties(
           physical_device, surface, &surface_presentation_modes_count, nullptr),
       "Unable to get physical device' surface presentation mode");
 
-  details.presentation_modes.resize(surface_presentation_modes_count);
+  details.presentation_modes.resize(surface_presentation_modes_count).unwrap();
   ASR_MUST_SUCCEED(
       vkGetPhysicalDeviceSurfacePresentModesKHR(
           physical_device, surface, &surface_presentation_modes_count,
@@ -455,14 +456,13 @@ inline SwapChainProperties get_swapchain_properties(
   return details;
 }
 
-inline bool is_swapchain_adequate(
-    SwapChainProperties const& properties) noexcept {
+inline bool is_swapchain_adequate(SwapChainProperties const& properties) {
   // we use any available for selecting devices
-  ASR_ENSURE(properties.supported_formats.size() != 0,
+  ASR_ENSURE(!properties.supported_formats.is_empty(),
              "Physical Device does not support any window surface "
              "format");
 
-  ASR_ENSURE(properties.presentation_modes.size() != 0,
+  ASR_ENSURE(!properties.presentation_modes.is_empty(),
              "Physical Device does not support any window surface "
              "presentation mode");
 
@@ -470,8 +470,7 @@ inline bool is_swapchain_adequate(
 }
 
 inline VkExtent2D select_swapchain_extent(
-    VkSurfaceCapabilitiesKHR const& capabilities,
-    VkExtent2D desired_extent) noexcept {
+    VkSurfaceCapabilitiesKHR const& capabilities, VkExtent2D desired_extent) {
   // this, unlike the window dimensions is in pixels and is the rendered to
   // area
   //
@@ -522,60 +521,54 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
     VkImageUsageFlags image_usages = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
     VkCompositeAlphaFlagBitsKHR alpha_channel_blending =
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-    VkBool32 clipped = VK_TRUE) noexcept {
-  VkSwapchainCreateInfoKHR create_info{};
-
-  uint32_t desired_num_buffers = properties.capabilities.minImageCount + 1;
+    VkBool32 clipped = VK_TRUE) {
+  uint32_t desired_num_buffers =
+      std::max(properties.capabilities.minImageCount + 1,
+               properties.capabilities.maxImageCount);
 
   VkExtent2D selected_extent =
       select_swapchain_extent(properties.capabilities, extent);
 
-  create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-  create_info.imageExtent = selected_extent;
-  create_info.surface = surface;
-  create_info.imageFormat = surface_format.format;
-  create_info.imageColorSpace = surface_format.colorSpace;
-  create_info.presentMode = present_mode;
+  VkSwapchainCreateInfoKHR create_info{
+      create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+      .imageExtent = selected_extent, .surface = surface,
+      .imageFormat = surface_format.format,
+      .imageColorSpace = surface_format.colorSpace, .presentMode = present_mode,
 
-  // number of images to use for buffering on the swapchain
-  create_info.minImageCount = select_swapchain_image_count(
-      properties.capabilities, desired_num_buffers);
-
-  create_info.imageArrayLayers = 1;  // 2 for stereoscopic rendering
-  create_info.imageUsage = image_usages;
-  create_info.preTransform = properties.capabilities.currentTransform;
-  create_info.compositeAlpha =
-      alpha_channel_blending;  // how the alpha channel should be
-                               // used for blending with other
-                               // windows in the window system
-
-  // clipped specifies whether the Vulkan implementation is allowed to discard
-  // rendering operations that affect regions of the surface that are not
-  // visible.
-  // If set to VK_TRUE, the presentable images associated with the swapchain may
-  // not own all of their pixels. Pixels in the presentable images that
-  // correspond to regions of the target surface obscured by another window on
-  // the desktop, or subject to some other clipping mechanism will have
-  // undefined content when read back. Fragment shaders may not execute for
-  // these pixels, and thus any side effects they would have had will not occur.
-  // Setting VK_TRUE does not guarantee any clipping will occur, but allows more
-  // efficient presentation methods to be used on some platforms. If set to
-  // VK_FALSE, presentable images associated with the swapchain will own all of
-  // the pixels they contain.
-  create_info.clipped = clipped;
-  create_info.oldSwapchain = VK_NULL_HANDLE;
-
-  // under normal circumstances command queues on the same queue family can
-  // access data without data race issues
-  //
-  // VK_SHARING_MODE_EXCLUSIVE: An image is owned by one queue family at a time
-  // and ownership must be explicitly transferred before using it in another
-  // queue family. This option offers the best performance.
-  // VK_SHARING_MODE_CONCURRENT: Images can be used across multiple queue
-  // families without explicit ownership transfers.
-  create_info.imageSharingMode = accessing_queue_families_sharing_mode;
-  create_info.pQueueFamilyIndices = accessing_queue_families_indexes.data();
-  create_info.queueFamilyIndexCount = accessing_queue_families_indexes.size();
+      // number of images to use for buffering on the swapchain
+      .minImageCount = select_swapchain_image_count(properties.capabilities,
+                                                    desired_num_buffers),
+      .imageArrayLayers = 1,  // 2 for stereoscopic rendering
+      .imageUsage = image_usages,
+      .preTransform = properties.capabilities.currentTransform,
+      .compositeAlpha =
+          alpha_channel_blending,  // how the alpha channel should be
+                                   // used for blending with other
+                                   // windows in the window system
+      // clipped specifies whether the Vulkan implementation is allowed to
+      // discard rendering operations that affect regions of the surface that
+      // are not visible. If set to VK_TRUE, the presentable images associated
+      // with the swapchain may not own all of their pixels. Pixels in the
+      // presentable images that correspond to regions of the target surface
+      // obscured by another window on the desktop, or subject to some other
+      // clipping mechanism will have undefined content when read back. Fragment
+      // shaders may not execute for these pixels, and thus any side effects
+      // they would have had will not occur. Setting VK_TRUE does not guarantee
+      // any clipping will occur, but allows more efficient presentation methods
+      // to be used on some platforms. If set to VK_FALSE, presentable images
+      // associated with the swapchain will own all of the pixels they contain.
+      .clipped = clipped, .oldSwapchain = VK_NULL_HANDLE,
+      // under normal circumstances command queues on the same queue family can
+      // access data without data race issues
+      //
+      // VK_SHARING_MODE_EXCLUSIVE: An image is owned by one queue family at a
+      // time and ownership must be explicitly transferred before using it in
+      // another queue family. This option offers the best performance.
+      // VK_SHARING_MODE_CONCURRENT: Images can be used across multiple queue
+      // families without explicit ownership transfers.
+      .imageSharingMode = accessing_queue_families_sharing_mode,
+      .pQueueFamilyIndices = accessing_queue_families_indexes.data(),
+      .queueFamilyIndexCount = accessing_queue_families_indexes.size()};
 
   VkSwapchainKHR swapchain;
   ASR_MUST_SUCCEED(
@@ -585,16 +578,16 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
   return std::make_pair(swapchain, selected_extent);
 }
 
-inline std::vector<VkImage> get_swapchain_images(
-    VkDevice device, VkSwapchainKHR swapchain) noexcept {
+inline stx::Vec<VkImage> get_swapchain_images(VkDevice device,
+                                              VkSwapchainKHR swapchain) {
   uint32_t image_count;
 
   ASR_MUST_SUCCEED(
       vkGetSwapchainImagesKHR(device, swapchain, &image_count, nullptr),
       "Unable to get swapchain images count");
 
-  std::vector<VkImage> swapchain_images;
-  swapchain_images.resize(image_count);
+  stx::Vec<VkImage> swapchain_images{stx::os_allocator};
+  swapchain_images.resize(image_count).unwrap();
 
   ASR_MUST_SUCCEED(vkGetSwapchainImagesKHR(device, swapchain, &image_count,
                                            swapchain_images.data()),
@@ -608,27 +601,24 @@ inline std::vector<VkImage> get_swapchain_images(
 // this will create `queue_priorities.size()` number of command queues from
 // family `queue_family_index`
 constexpr VkDeviceQueueCreateInfo make_command_queue_create_info(
-    uint32_t queue_family_index,
-    stx::Span<float const> queues_priorities) noexcept {
-  VkDeviceQueueCreateInfo create_info{};
-
-  create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-  create_info.queueFamilyIndex = queue_family_index;
-  create_info.pQueuePriorities = queues_priorities.data();
-  create_info.queueCount =
-      queues_priorities.size();  // the number of queues we want, since multiple
+    uint32_t queue_family_index, stx::Span<float const> queues_priorities) {
+  VkDeviceQueueCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+      .queueFamilyIndex = queue_family_index,
+      .pQueuePriorities = queues_priorities.data(),
+      .queueCount = queues_priorities
+                        .size()  // the number of queues we want, since multiple
                                  // queues can belong to a single family
-
+  };
   return create_info;
 }
 
-constexpr VkComponentMapping make_default_component_mapping() noexcept {
+constexpr VkComponentMapping make_default_component_mapping() {
   // how to map the image color components
-  VkComponentMapping mapping{};
-  mapping.r = VK_COMPONENT_SWIZZLE_IDENTITY;  // leave as-is
-  mapping.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-  mapping.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-  mapping.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+  VkComponentMapping mapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,  // leave as-is
+                             .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .a = VK_COMPONENT_SWIZZLE_IDENTITY};
 
   return mapping;
 }
@@ -636,28 +626,23 @@ constexpr VkComponentMapping make_default_component_mapping() noexcept {
 inline VkImageView create_image_view(
     VkDevice device, VkImage image, VkFormat format, VkImageViewType view_type,
     VkImageAspectFlagBits aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT,
-    VkComponentMapping component_mapping =
-        make_default_component_mapping()) noexcept {
-  VkImageViewCreateInfo create_info{};
-
-  create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-  create_info.image = image;
-
-  // VK_IMAGE_VIEW_TYPE_2D: 2D texture
-  // VK_IMAGE_VIEW_TYPE_3D: 3D texture
-  // VK_IMAGE_VIEW_TYPE_CUBE: cube map
-  create_info.viewType = view_type;  // treat the image as a 2d texture
-  create_info.format = format;
-
-  create_info.components = component_mapping;
-
-  // defines what part of the image this image view represents and what this
-  // image view is used for
-  create_info.subresourceRange.aspectMask = aspect_mask;
-  create_info.subresourceRange.baseArrayLayer = 0;
-  create_info.subresourceRange.baseMipLevel = 0;
-  create_info.subresourceRange.layerCount = 1;
-  create_info.subresourceRange.levelCount = 1;
+    VkComponentMapping component_mapping = make_default_component_mapping()) {
+  VkImageViewCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .image = image,
+      // VK_IMAGE_VIEW_TYPE_2D: 2D texture
+      // VK_IMAGE_VIEW_TYPE_3D: 3D texture
+      // VK_IMAGE_VIEW_TYPE_CUBE: cube map
+      .viewType = view_type,  // treat the image as a 2d texture
+      .format = format,
+      .components = component_mapping,
+      // defines what part of the image this image view represents and what this
+      // image view is used for
+      .subresourceRange.aspectMask = aspect_mask,
+      .subresourceRange.baseArrayLayer = 0,
+      .subresourceRange.baseMipLevel = 0,
+      .subresourceRange.layerCount = 1,
+      .subresourceRange.levelCount = 1};
 
   VkImageView image_view;
   ASR_MUST_SUCCEED(
@@ -667,52 +652,44 @@ inline VkImageView create_image_view(
 }
 
 inline VkSampler create_sampler(VkDevice device,
-                                stx::Option<float> max_anisotropy) noexcept {
-  VkSamplerCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-
-  // for treating the case where there are more fragments than texels
-  create_info.magFilter = VK_FILTER_LINEAR;
-  create_info.minFilter = VK_FILTER_LINEAR;
-
-  // VK_SAMPLER_ADDRESS_MODE_REPEAT: Repeat the texture when going beyond the
-  // image dimensions.
-  // VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT: Like repeat, but
-  // inverts the coordinates to mirror the image when going beyond the
-  // dimensions.
-  // VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE: Take the color of the
-  // edge closest to the coordinate beyond the image dimensions.
-  // VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: Like clamp to edge, but
-  // instead uses the edge opposite to the closest edge.
-  // VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: Return a solid color when sampling
-  // beyond the dimensions of the image.
-
-  // u, v, w coordinate overflow style of the textures
-  // this shouldn't affect the texture if we are not sampling outside of the
-  // image
-  create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-
-  // for treating the case where there are more texels than fragments
-  create_info.anisotropyEnable = max_anisotropy.is_some();
-  create_info.maxAnisotropy =
-      max_anisotropy.is_some() ? max_anisotropy.copy().unwrap() : 0.0f;
-
-  create_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-  create_info.unnormalizedCoordinates =
-      VK_FALSE;  // coordinates matching the sampled image will be normalized to
-                 // the (0.0 to 1.0 range) otherwise in the (0, image width or
-                 // height range)
-
-  create_info.compareEnable = VK_FALSE;
-  create_info.compareOp = VK_COMPARE_OP_ALWAYS;
-
-  // mip-mapping
-  create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-  create_info.mipLodBias = 0.0f;
-  create_info.minLod = 0.0f;
-  create_info.maxLod = 0.0f;
+                                stx::Option<float> max_anisotropy) {
+  VkSamplerCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+      // for treating the case where there are more fragments than texels
+      .magFilter = VK_FILTER_LINEAR,
+      .minFilter = VK_FILTER_LINEAR,
+      // VK_SAMPLER_ADDRESS_MODE_REPEAT: Repeat the texture when going beyond
+      // the image dimensions. VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT: Like
+      // repeat, but inverts the coordinates to mirror the image when going
+      // beyond the dimensions. VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE: Take the
+      // color of the edge closest to the coordinate beyond the image
+      // dimensions. VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: Like clamp to
+      // edge, but instead uses the edge opposite to the closest edge.
+      // VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: Return a solid color when
+      // sampling beyond the dimensions of the image.
+      //
+      // u, v, w coordinate overflow style of the textures
+      // this shouldn't affect the texture if we are not sampling outside of the
+      // image
+      .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+      .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+      .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+      // for treating the case where there are more texels than fragments
+      .anisotropyEnable = max_anisotropy.is_some(),
+      .maxAnisotropy =
+          max_anisotropy.is_some() ? max_anisotropy.copy().unwrap() : 0.0f,
+      .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+      .unnormalizedCoordinates =
+          VK_FALSE,  // coordinates matching the sampled image will be
+                     // normalized to the (0.0 to 1.0 range) otherwise in the
+                     // (0, image width or height range)
+      .compareEnable = VK_FALSE,
+      .compareOp = VK_COMPARE_OP_ALWAYS,
+      // mip-mapping
+      .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+      .mipLodBias = 0.0f,
+      .minLod = 0.0f,
+      .maxLod = 0.0f};
 
   VkSampler sampler;
 
@@ -723,11 +700,11 @@ inline VkSampler create_sampler(VkDevice device,
 }
 
 inline VkShaderModule create_shader_module(
-    VkDevice device, stx::Span<uint32_t const> spirv_byte_data) noexcept {
-  VkShaderModuleCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  create_info.codeSize = spirv_byte_data.size_bytes();
-  create_info.pCode = spirv_byte_data.data();
+    VkDevice device, stx::Span<uint32_t const> spirv_byte_data) {
+  VkShaderModuleCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .codeSize = spirv_byte_data.size_bytes(),
+      .pCode = spirv_byte_data.data()};
 
   VkShaderModule shader_module;
   ASR_MUST_SUCCEED(
@@ -740,15 +717,15 @@ constexpr VkPipelineShaderStageCreateInfo
 make_pipeline_shader_stage_create_info(
     VkShaderModule module, char const* program_entry_point,
     VkShaderStageFlagBits pipeline_stage_flag,
-    VkSpecializationInfo const* program_constants) noexcept {
-  VkPipelineShaderStageCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  create_info.module = module;
-  create_info.pName = program_entry_point;
-  create_info.stage = pipeline_stage_flag;
-  create_info.pNext = nullptr;
-  create_info.pSpecializationInfo =
-      program_constants;  // provide constants used within the shader
+    VkSpecializationInfo const* program_constants) {
+  VkPipelineShaderStageCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .module = module,
+      .pName = program_entry_point,
+      .stage = pipeline_stage_flag,
+      .pNext = nullptr,
+      .pSpecializationInfo =
+          program_constants};  // provide constants used within the shader
 
   return create_info;
 }
@@ -756,15 +733,16 @@ make_pipeline_shader_stage_create_info(
 constexpr VkPipelineShaderStageCreateInfo
 make_pipeline_shader_stage_create_info(
     VkShaderModule module, char const* program_entry_point,
-    VkShaderStageFlagBits pipeline_stage_flag) noexcept {
-  VkPipelineShaderStageCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  create_info.module = module;
-  create_info.pName = program_entry_point;
-  create_info.stage = pipeline_stage_flag;
-  create_info.pNext = nullptr;
-  create_info.pSpecializationInfo =
-      nullptr;  // provide constants used within the shader
+    VkShaderStageFlagBits pipeline_stage_flag) {
+  VkPipelineShaderStageCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .module = module,
+      .pName = program_entry_point,
+      .stage = pipeline_stage_flag,
+      .pNext = nullptr,
+      .pSpecializationInfo =
+          nullptr  // provide constants used within the shader
+  };
 
   return create_info;
 }
@@ -774,186 +752,165 @@ make_pipeline_vertex_input_state_create_info(
     stx::Span<VkVertexInputBindingDescription const>
         vertex_binding_descriptions,
     stx::Span<VkVertexInputAttributeDescription const>
-        vertex_attribute_desciptions) noexcept {
+        vertex_attribute_desciptions) {
   // Bindings: spacing between data and whether the data is per-vertex or
   // per-instance
   // Attribute descriptions: type of the attributes passed to the vertex shader,
   // which binding to load them from and at which offset
-  VkPipelineVertexInputStateCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  create_info.vertexBindingDescriptionCount =
-      vertex_binding_descriptions.size();
-  create_info.pVertexBindingDescriptions = vertex_binding_descriptions.data();
-  create_info.vertexAttributeDescriptionCount =
-      vertex_attribute_desciptions.size();
-  create_info.pVertexAttributeDescriptions =
-      vertex_attribute_desciptions.data();
+  VkPipelineVertexInputStateCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+      .vertexBindingDescriptionCount = vertex_binding_descriptions.size(),
+      .pVertexBindingDescriptions = vertex_binding_descriptions.data(),
+      .vertexAttributeDescriptionCount = vertex_attribute_desciptions.size(),
+      .pVertexAttributeDescriptions = vertex_attribute_desciptions.data()};
 
   return create_info;
 }
 
 constexpr VkPipelineInputAssemblyStateCreateInfo
-make_pipeline_input_assembly_state_create_info() noexcept {
+make_pipeline_input_assembly_state_create_info() {
   // Bindings: spacing between data and whether the data is per-vertex or
   // per-instance
   // Attribute descriptions: type of the attributes passed to the vertex shader,
   // which binding to load them from and at which offset
-  VkPipelineInputAssemblyStateCreateInfo create_info{};
-  create_info.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  create_info.topology =
-      VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;  // rendering in triangle mode
-  create_info.primitiveRestartEnable = VK_FALSE;
+  VkPipelineInputAssemblyStateCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+      .topology =
+          VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,  // rendering in triangle mode
+      .primitiveRestartEnable = VK_FALSE};
 
   return create_info;
 }
 
+/*
 constexpr VkViewport make_viewport(float x, float y, float w, float h,
                                    float min_depth = 0.0f,
-                                   float max_depth = 1.0f) noexcept {
-  VkViewport viewport{};
-  viewport.x = x;
-  viewport.y = y;
-  viewport.width = w;             // width of the framebuffer (swapchain image)
-  viewport.height = h;            // height of the framebuffer (swapchain image)
-  viewport.minDepth = min_depth;  // min depth value to use for the frame buffer
-  viewport.maxDepth = max_depth;  // max depth value to use for the frame buffer
-
+                                   float max_depth = 1.0f) {
+  VkViewport viewport{
+      .x = x,
+      .y = y,
+      .width = w,             // width of the framebuffer (swapchain image)
+      .height = h,            // height of the framebuffer (swapchain image)
+      .minDepth = min_depth,  // min depth value to use for the frame buffer
+      .maxDepth = max_depth   // max depth value to use for the frame buffer
+  };
   return viewport;
 }
-
-constexpr VkRect2D make_scissor(float x, float y, float w, float h) noexcept {
-  VkRect2D scissor{};
-
-  scissor.offset.x = x;
-  scissor.offset.y = y;
-
-  scissor.extent.width = w;
-  scissor.extent.height = h;
-
-  return scissor;
-}
+*/
 
 constexpr VkPipelineViewportStateCreateInfo
-make_pipeline_viewport_state_create_info(
-    stx::Span<VkViewport const> viewports,
-    stx::Span<VkRect2D const> scissors) noexcept {
+make_pipeline_viewport_state_create_info(stx::Span<VkViewport const> viewports,
+                                         stx::Span<VkRect2D const> scissors) {
   // to use multiple viewports, ensure the GPU feature is enabled during logical
   // device creation
-  VkPipelineViewportStateCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-  create_info.viewportCount = viewports.size();
-  create_info.pViewports = viewports.data();
-  create_info.scissorCount =
-      scissors.size();  // scissors cut out the part to be rendered
-  create_info.pScissors = scissors.data();
+  VkPipelineViewportStateCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      .viewportCount = viewports.size(),
+      .pViewports = viewports.data(),
+      .scissorCount =
+          scissors.size(),  // scissors cut out the part to be rendered
+      .pScissors = scissors.data()};
 
   return create_info;
 }
 
 constexpr VkPipelineRasterizationStateCreateInfo
 make_pipeline_rasterization_create_info(VkFrontFace front_face,
-                                        float line_width = 1.0f) noexcept {
-  VkPipelineRasterizationStateCreateInfo create_info{};
-  create_info.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-  create_info.depthClampEnable =
-      VK_FALSE;  // ragments that are beyond the near and far planes are clamped
-                 // to them as opposed to discarding them. This is useful in
-                 // some special cases like shadow maps. Using this requires
-                 // enabling a GPU feature.
-  create_info.rasterizerDiscardEnable =
-      VK_FALSE;  // if true, geometry never passes through the rasterization
-                 // stage thus disabling output to the framebuffer
-  // VK_POLYGON_MODE_FILL: fill the area of the polygon with fragments
-  // VK_POLYGON_MODE_LINE: polygon edges are drawn as lines
-  // VK_POLYGON_MODE_POINT: polygon vertices are drawn as points
-  create_info.polygonMode =
-      VK_POLYGON_MODE_FILL;  // using any other one requires enabling a GPU
-                             // feature
-  create_info.lineWidth =
-      line_width;  // any thicker than 1.0f requires enabling a GPU feature
-
-  create_info.cullMode = VK_CULL_MODE_BACK_BIT;  // discard the back part of the
-                                                 // image that isn't facing us
-  create_info.frontFace = front_face;
-
-  create_info.depthBiasEnable = VK_FALSE;
-  create_info.depthBiasConstantFactor = 0.0f;  // mostly used for shadow mapping
-  create_info.depthBiasClamp = 0.0f;
-  create_info.depthBiasSlopeFactor = 0.0f;
+                                        float line_width = 1.0f) {
+  VkPipelineRasterizationStateCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+      .depthClampEnable =
+          VK_FALSE,  // ragments that are beyond the near and far planes are
+                     // clamped to them as opposed to discarding them. This is
+                     // useful in some special cases like shadow maps. Using
+                     // this requires enabling a GPU feature.
+      .rasterizerDiscardEnable =
+          VK_FALSE,  // if true, geometry never passes through the rasterization
+                     // stage thus disabling output to the framebuffer
+      // VK_POLYGON_MODE_FILL: fill the area of the polygon with fragments
+      // VK_POLYGON_MODE_LINE: polygon edges are drawn as lines
+      // VK_POLYGON_MODE_POINT: polygon vertices are drawn as points
+      .polygonMode = VK_POLYGON_MODE_FILL,  // using any other one requires
+                                            // enabling a GPU feature
+      .lineWidth =
+          line_width,  // any thicker than 1.0f requires enabling a GPU feature
+      .cullMode = VK_CULL_MODE_BACK_BIT,  // discard the back part of the
+                                          // image that isn't facing us
+      .frontFace = front_face,
+      .depthBiasEnable = VK_FALSE,
+      .depthBiasConstantFactor = 0.0f,  // mostly used for shadow mapping
+      .depthBiasClamp = 0.0f,
+      .depthBiasSlopeFactor = 0.0f};
 
   return create_info;
 }
 
 constexpr VkPipelineMultisampleStateCreateInfo
-make_pipeline_multisample_state_create_info() noexcept {
-  VkPipelineMultisampleStateCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  create_info.sampleShadingEnable = VK_FALSE;
-  create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-  create_info.minSampleShading = 1.0f;
-  create_info.pSampleMask = nullptr;
-  create_info.alphaToCoverageEnable = VK_FALSE;
-  create_info.alphaToOneEnable = VK_FALSE;
+make_pipeline_multisample_state_create_info() {
+  VkPipelineMultisampleStateCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+      .sampleShadingEnable = VK_FALSE,
+      .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+      .minSampleShading = 1.0f,
+      .pSampleMask = nullptr,
+      .alphaToCoverageEnable = VK_FALSE,
+      .alphaToOneEnable = VK_FALSE};
 
   return create_info;
 }
 
 constexpr VkPipelineDepthStencilStateCreateInfo
-make_pipeline_depth_stencil_state_create_info() noexcept {
+make_pipeline_depth_stencil_state_create_info() {
   VkPipelineDepthStencilStateCreateInfo create_info{};
-  // ASR_ENSURE(false, "Unimplemented");
+  ASR_ENSURE(false, "Unimplemented");
   return create_info;
 }
 
 // per framebuffer
 constexpr VkPipelineColorBlendAttachmentState
-make_pipeline_color_blend_attachment_state() noexcept {
+make_pipeline_color_blend_attachment_state() {
   // simply overwrites the pixels in the destination
-  VkPipelineColorBlendAttachmentState state{};
-  state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  state.blendEnable = VK_TRUE;
-  state.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  state.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-  state.colorBlendOp = VK_BLEND_OP_ADD;
-  state.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-  state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-  state.alphaBlendOp = VK_BLEND_OP_ADD;
+  VkPipelineColorBlendAttachmentState state{
+      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+      .blendEnable = VK_TRUE,
+      .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+      .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+      .colorBlendOp = VK_BLEND_OP_ADD,
+      .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+      .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+      .alphaBlendOp = VK_BLEND_OP_ADD};
   return state;
 }
 
 // global pipeline state
 constexpr VkPipelineColorBlendStateCreateInfo
 make_pipeline_color_blend_state_create_info(
-    stx::Span<VkPipelineColorBlendAttachmentState const>
-        color_frame_buffers) noexcept {
-  VkPipelineColorBlendStateCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  create_info.logicOpEnable = VK_FALSE;
-  create_info.logicOp = VK_LOGIC_OP_COPY;
-  create_info.attachmentCount =
-      color_frame_buffers.size();  // number of framebuffers
-  create_info.pAttachments = color_frame_buffers.data();
-  create_info.blendConstants[0] = 0.0f;
-  create_info.blendConstants[1] = 0.0f;
-  create_info.blendConstants[2] = 0.0f;
-  create_info.blendConstants[3] = 0.0f;
+    stx::Span<VkPipelineColorBlendAttachmentState const> color_frame_buffers) {
+  VkPipelineColorBlendStateCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+      .logicOpEnable = VK_FALSE,
+      .logicOp = VK_LOGIC_OP_COPY,
+      .attachmentCount = color_frame_buffers.size(),  // number of framebuffers
+      .pAttachments = color_frame_buffers.data(),
+      .blendConstants[0] = 0.0f,
+      .blendConstants[1] = 0.0f,
+      .blendConstants[2] = 0.0f,
+      .blendConstants[3] = 0.0f};
 
   return create_info;
 }
 
 constexpr VkPipelineDynamicStateCreateInfo make_pipeline_dynamic_state(
-    stx::Span<VkDynamicState const> dynamic_states) noexcept {
+    stx::Span<VkDynamicState const> dynamic_states) {
   // This will cause the configuration of these values to be ignored and you
   // will be required to specify the data at drawing time. This struct can be
   // substituted by a nullptr later on if you don't have any dynamic state.
 
-  VkPipelineDynamicStateCreateInfo pipeline_state{};
-  pipeline_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-  pipeline_state.dynamicStateCount = std::size(dynamic_states);
-  pipeline_state.pDynamicStates = dynamic_states.data();
+  VkPipelineDynamicStateCreateInfo pipeline_state{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+      .dynamicStateCount = std::size(dynamic_states),
+      .pDynamicStates = dynamic_states.data()};
 
   return pipeline_state;
 }
@@ -961,14 +918,13 @@ constexpr VkPipelineDynamicStateCreateInfo make_pipeline_dynamic_state(
 inline VkPipelineLayout create_pipeline_layout(
     VkDevice device,
     stx::Span<VkDescriptorSetLayout const> descriptor_sets_layout = {},
-    stx::Span<VkPushConstantRange const> constant_ranges = {}) noexcept {
-  VkPipelineLayoutCreateInfo create_info{};
-
-  create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  create_info.setLayoutCount = descriptor_sets_layout.size();
-  create_info.pSetLayouts = descriptor_sets_layout.data();
-  create_info.pushConstantRangeCount = constant_ranges.size();
-  create_info.pPushConstantRanges = constant_ranges.data();
+    stx::Span<VkPushConstantRange const> constant_ranges = {}) {
+  VkPipelineLayoutCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .setLayoutCount = descriptor_sets_layout.size(),
+      .pSetLayouts = descriptor_sets_layout.data(),
+      .pushConstantRangeCount = constant_ranges.size(),
+      .pPushConstantRanges = constant_ranges.data()};
 
   VkPipelineLayout layout;
   ASR_MUST_SUCCEED(
@@ -978,33 +934,29 @@ inline VkPipelineLayout create_pipeline_layout(
   return layout;
 }
 
-constexpr VkAttachmentDescription make_attachment_description(
-    VkFormat format) noexcept {
+constexpr VkAttachmentDescription make_attachment_description(VkFormat format) {
   // the format of the color attachment should match the format of the swap
   // chain images,
-  VkAttachmentDescription attachment_description{};
-
-  attachment_description.format = format;
-  attachment_description.samples = VK_SAMPLE_COUNT_1_BIT;  // no multi-sampling
-
-  // The loadOp and storeOp determine what to do with the data in the attachment
-  // before rendering and after rendering
-  // VK_ATTACHMENT_LOAD_OP_LOAD: Preserve the existing contents of the
-  // attachment
-  // VK_ATTACHMENT_LOAD_OP_CLEAR: Clear the values to a constant at
-  // the start
-  // VK_ATTACHMENT_LOAD_OP_DONT_CARE: Existing contents are undefined;
-  // we don't care about them
-  attachment_description.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-  attachment_description.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-  // VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: Images used as color attachment
-  // VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: Images to be presented in the swap chain
-  // VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: Images to be used as destination for
-  // a memory copy operation
-  // descibes layout of the images
-  attachment_description.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  attachment_description.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+  VkAttachmentDescription attachment_description{
+      .format = format,
+      .samples = VK_SAMPLE_COUNT_1_BIT,  // no multi-sampling
+      // The loadOp and storeOp determine what to do with the data in the
+      // attachment before rendering and after rendering
+      // VK_ATTACHMENT_LOAD_OP_LOAD: Preserve the existing contents of the
+      // attachment
+      // VK_ATTACHMENT_LOAD_OP_CLEAR: Clear the values to a constant at
+      // the start
+      // VK_ATTACHMENT_LOAD_OP_DONT_CARE: Existing contents are undefined;
+      // we don't care about them
+      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+      // VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: Images used as color
+      // attachment VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: Images to be presented in
+      // the swap chain VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: Images to be used
+      // as destination for a memory copy operation descibes layout of the
+      // images
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+      .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
 
   return attachment_description;
 }
@@ -1012,12 +964,13 @@ constexpr VkAttachmentDescription make_attachment_description(
 // subpasses are for post-processing. each subpass depends on the results of the
 // previous (sub)passes, used instead of transferring data
 constexpr VkSubpassDescription make_subpass_description(
-    stx::Span<VkAttachmentReference const> color_attachments) noexcept {
-  VkSubpassDescription subpass{};
-  subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-  subpass.colorAttachmentCount = color_attachments.size();
-  subpass.pColorAttachments =
-      color_attachments.data();  // layout(location = 0) out vec4 outColor
+    stx::Span<VkAttachmentReference const> color_attachments) {
+  VkSubpassDescription subpass{
+      .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+      .colorAttachmentCount = color_attachments.size(),
+      .pColorAttachments =
+          color_attachments.data()  // layout(location = 0) out vec4 outColor
+  };
 
   // pInputAttachments: Attachments that are read from a shader
   // pResolveAttachments: Attachments used for multisampling color attachments
@@ -1028,16 +981,14 @@ constexpr VkSubpassDescription make_subpass_description(
 }
 
 // ????
-constexpr VkSubpassDependency make_subpass_dependency() noexcept {
-  VkSubpassDependency dependency{};
-  dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-  dependency.dstSubpass = 0;
-
-  dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  dependency.srcAccessMask = 0;
-
-  dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+constexpr VkSubpassDependency make_subpass_dependency() {
+  VkSubpassDependency dependency{
+      .srcSubpass = VK_SUBPASS_EXTERNAL,
+      .dstSubpass = 0,
+      .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      .srcAccessMask = 0,
+      .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT};
 
   return dependency;
 }
@@ -1049,16 +1000,15 @@ inline VkRenderPass create_render_pass(
     VkDevice device,
     stx::Span<VkAttachmentDescription const> attachment_descriptions,
     stx::Span<VkSubpassDescription const> subpass_descriptions,
-    stx::Span<VkSubpassDependency const> subpass_dependencies) noexcept {
-  VkRenderPassCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-  create_info.attachmentCount = attachment_descriptions.size();
-  create_info.pAttachments = attachment_descriptions.data();
-  create_info.subpassCount = subpass_descriptions.size();
-  create_info.pSubpasses = subpass_descriptions.data();
-
-  create_info.dependencyCount = subpass_dependencies.size();
-  create_info.pDependencies = subpass_dependencies.data();
+    stx::Span<VkSubpassDependency const> subpass_dependencies) {
+  VkRenderPassCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+      .attachmentCount = attachment_descriptions.size(),
+      .pAttachments = attachment_descriptions.data(),
+      .subpassCount = subpass_descriptions.size(),
+      .pSubpasses = subpass_descriptions.data(),
+      .dependencyCount = subpass_dependencies.size(),
+      .pDependencies = subpass_dependencies.data()};
 
   VkRenderPass render_pass;
   ASR_MUST_SUCCEED(
@@ -1078,31 +1028,28 @@ inline VkPipeline create_graphics_pipeline(
     VkPipelineMultisampleStateCreateInfo const& multisample_state,
     VkPipelineDepthStencilStateCreateInfo const& depth_stencil_state,
     VkPipelineColorBlendStateCreateInfo const& color_blend_state,
-    VkPipelineDynamicStateCreateInfo const& dynamic_state) noexcept {
-  VkGraphicsPipelineCreateInfo create_info{};
-
-  create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  create_info.pStages = shader_stages_create_infos.data();
-  create_info.stageCount = shader_stages_create_infos.size();
-  create_info.pVertexInputState = &vertex_input_state;
-  create_info.pInputAssemblyState = &input_assembly_state;
-  create_info.pViewportState = &viewport_state;
-  create_info.pRasterizationState = &rasterization_state;
-  create_info.pMultisampleState = &multisample_state;
-  create_info.pDepthStencilState = &depth_stencil_state;
-  create_info.pColorBlendState = &color_blend_state;
-  create_info.pDynamicState =
-      &dynamic_state;  // which of these fixed function states would change, any
-                       // of the ones listed here would need to be provided at
-                       // every draw/render call
-
-  create_info.layout = layout;
-  create_info.renderPass = render_pass;
-  create_info.subpass =
-      0;  // index of the device's subpass this graphics pipeline belongs to
-
-  create_info.basePipelineHandle = nullptr;
-  create_info.basePipelineIndex = -1;
+    VkPipelineDynamicStateCreateInfo const& dynamic_state) {
+  VkGraphicsPipelineCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+      .pStages = shader_stages_create_infos.data(),
+      .stageCount = shader_stages_create_infos.size(),
+      .pVertexInputState = &vertex_input_state,
+      .pInputAssemblyState = &input_assembly_state,
+      .pViewportState = &viewport_state,
+      .pRasterizationState = &rasterization_state,
+      .pMultisampleState = &multisample_state,
+      .pDepthStencilState = &depth_stencil_state,
+      .pColorBlendState = &color_blend_state,
+      .pDynamicState =
+          &dynamic_state,  // which of these fixed function states would change,
+                           // any of the ones listed here would need to be
+                           // provided at every draw/render call
+      .layout = layout,
+      .renderPass = render_pass,
+      .subpass =
+          0,  // index of the device's subpass this graphics pipeline belongs to
+      .basePipelineHandle = nullptr,
+      .basePipelineIndex = -1};
 
   VkPipeline graphics_pipeline;
 
@@ -1117,16 +1064,16 @@ inline VkPipeline create_graphics_pipeline(
 // basically a collection of attachments (color, depth, stencil, etc)
 inline VkFramebuffer create_frame_buffer(
     VkDevice device, VkRenderPass render_pass,
-    stx::Span<VkImageView const> attachments, VkExtent2D extent) noexcept {
-  VkFramebufferCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-  create_info.renderPass = render_pass;
-  create_info.attachmentCount = attachments.size();
-  create_info.pAttachments = attachments.data();
-  create_info.width = extent.width;
-  create_info.height = extent.height;
-  create_info.layers = 1;  // our swap chain images are single images, so the
-                           // number of layers is 1
+    stx::Span<VkImageView const> attachments, VkExtent2D extent) {
+  VkFramebufferCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+      .renderPass = render_pass,
+      .attachmentCount = attachments.size(),
+      .pAttachments = attachments.data(),
+      .width = extent.width,
+      .height = extent.height,
+      .layers = 1};  // our swap chain images are single images, so the
+                     // number of layers is 1
 
   VkFramebuffer frame_buffer;
   ASR_MUST_SUCCEED(
@@ -1137,13 +1084,13 @@ inline VkFramebuffer create_frame_buffer(
 
 inline VkCommandPool create_command_pool(
     VkDevice device, uint32_t queue_family_index,
-    bool enable_command_buffer_resetting = false) noexcept {
-  VkCommandPoolCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-  create_info.queueFamilyIndex = queue_family_index;
-  create_info.flags = enable_command_buffer_resetting
-                          ? VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
-                          : 0;
+    bool enable_command_buffer_resetting = false) {
+  VkCommandPoolCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+      .queueFamilyIndex = queue_family_index,
+      .flags = enable_command_buffer_resetting
+                   ? VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+                   : 0};
 
   VkCommandPool command_pool;
   ASR_MUST_SUCCEED(
@@ -1155,17 +1102,16 @@ inline VkCommandPool create_command_pool(
 
 inline void allocate_command_buffer(VkDevice device, VkCommandPool command_pool,
                                     VkCommandBuffer& command_buffer  // NOLINT
-                                    ) noexcept {
-  VkCommandBufferAllocateInfo allocate_info{};
-  allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocate_info.commandPool = command_pool;
-
-  // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution,
-  // but cannot be called from other command buffers.
-  // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be
-  // called from primary command buffers.
-  allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocate_info.commandBufferCount = 1;
+) {
+  VkCommandBufferAllocateInfo allocate_info{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+      .commandPool = command_pool,
+      // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for
+      // execution, but cannot be called from other command buffers.
+      // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but
+      // can be called from primary command buffers.
+      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+      .commandBufferCount = 1};
 
   ASR_MUST_SUCCEED(
       vkAllocateCommandBuffers(device, &allocate_info, &command_buffer),
@@ -1174,17 +1120,16 @@ inline void allocate_command_buffer(VkDevice device, VkCommandPool command_pool,
 
 inline void allocate_command_buffers(
     VkDevice device, VkCommandPool command_pool,
-    stx::Span<VkCommandBuffer> command_buffers) noexcept {
-  VkCommandBufferAllocateInfo allocate_info{};
-  allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocate_info.commandPool = command_pool;
-
-  // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution,
-  // but cannot be called from other command buffers.
-  // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be
-  // called from primary command buffers.
-  allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocate_info.commandBufferCount = command_buffers.size();
+    stx::Span<VkCommandBuffer> command_buffers) {
+  VkCommandBufferAllocateInfo allocate_info{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+      .commandPool = command_pool,
+      // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for
+      // execution, but cannot be called from other command buffers.
+      // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but
+      // can be called from primary command buffers.
+      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+      .commandBufferCount = command_buffers.size()};
 
   ASR_MUST_SUCCEED(
       vkAllocateCommandBuffers(device, &allocate_info, command_buffers.data()),
@@ -1206,21 +1151,19 @@ namespace cmd {
 struct Recorder {
   VkCommandBuffer command_buffer_;
 
-  Recorder begin_recording(VkCommandBufferUsageFlagBits usage = {},
-                           VkCommandBufferInheritanceInfo const*
-                               inheritance_info = nullptr) noexcept {
-    VkCommandBufferBeginInfo begin_info{};
-
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-    // VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will be
-    // rerecorded right after executing it once.
-    // VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a secondary
-    // command buffer that will be entirely within a single render pass.
-    // VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The command buffer can be
-    // resubmitted while it is also already pending execution
-    begin_info.flags = usage;
-    begin_info.pInheritanceInfo = inheritance_info;
+  Recorder begin_recording(
+      VkCommandBufferUsageFlagBits usage = {},
+      VkCommandBufferInheritanceInfo const* inheritance_info = nullptr) {
+    VkCommandBufferBeginInfo begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        // VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will
+        // be rerecorded right after executing it once.
+        // VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a secondary
+        // command buffer that will be entirely within a single render pass.
+        // VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The command buffer can
+        // be resubmitted while it is also already pending execution
+        .flags = usage,
+        .pInheritanceInfo = inheritance_info};
 
     ASR_MUST_SUCCEED(vkBeginCommandBuffer(command_buffer_, &begin_info),
                      "unable to begin command buffer recording");
@@ -1229,11 +1172,9 @@ struct Recorder {
   }
 
   Recorder copy(VkBuffer src, uint64_t src_offset, uint64_t size, VkBuffer dst,
-                uint64_t dst_offset) noexcept {
-    VkBufferCopy copy_region{};
-    copy_region.dstOffset = dst_offset;
-    copy_region.size = size;
-    copy_region.srcOffset = src_offset;
+                uint64_t dst_offset) {
+    VkBufferCopy copy_region{
+        .dstOffset = dst_offset, .size = size, .srcOffset = src_offset};
     vkCmdCopyBuffer(command_buffer_, src, dst, 1, &copy_region);
     return *this;
   }
@@ -1241,40 +1182,37 @@ struct Recorder {
   // TODO(lamarrr): make into multi-copy interface
   Recorder copy(VkBuffer src, uint64_t src_offset, VkImage dst,
                 VkImageLayout dst_expected_layout, VkOffset3D dst_offset,
-                VkExtent3D dst_extent) noexcept {
-    VkBufferImageCopy copy_region{};
-    copy_region.bufferOffset = src_offset;
-    copy_region.bufferRowLength = 0;    // tightly-packed, no padding
-    copy_region.bufferImageHeight = 0;  // tightly-packed, no padding
-
-    copy_region.imageOffset = dst_offset;
-    copy_region.imageExtent = dst_extent;
-
-    copy_region.imageSubresource.aspectMask =
-        VK_IMAGE_ASPECT_COLOR_BIT;  // we want to copy the color components of
-                                    // the pixels
-
-    // TODO(lamarrr): remove hard-coding
-    copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copy_region.imageSubresource.mipLevel = 0;
-    copy_region.imageSubresource.baseArrayLayer = 0;
-    copy_region.imageSubresource.layerCount = 1;
+                VkExtent3D dst_extent) {
+    VkBufferImageCopy copy_region{
+        .bufferOffset = src_offset,
+        .bufferRowLength = 0,    // tightly-packed, no padding
+        .bufferImageHeight = 0,  // tightly-packed, no padding
+        .imageOffset = dst_offset,
+        .imageExtent = dst_extent,
+        .imageSubresource.aspectMask =
+            VK_IMAGE_ASPECT_COLOR_BIT,  // we want to copy the color components
+                                        // of the pixels
+        // TODO(lamarrr): remove hard-coding
+        .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .imageSubresource.mipLevel = 0,
+        .imageSubresource.baseArrayLayer = 0,
+        .imageSubresource.layerCount = 1};
 
     vkCmdCopyBufferToImage(command_buffer_, src, dst, dst_expected_layout, 1,
                            &copy_region);
     return *this;
   }
 
-  Recorder begin_render_pass(
-      VkRenderPass render_pass, VkFramebuffer framebuffer, VkRect2D render_area,
-      stx::Span<VkClearValue const> clear_values) noexcept {
-    VkRenderPassBeginInfo begin_info{};
-    begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    begin_info.renderPass = render_pass;
-    begin_info.framebuffer = framebuffer;
-    begin_info.renderArea = render_area;
-    begin_info.clearValueCount = clear_values.size();
-    begin_info.pClearValues = clear_values.data();
+  Recorder begin_render_pass(VkRenderPass render_pass,
+                             VkFramebuffer framebuffer, VkRect2D render_area,
+                             stx::Span<VkClearValue const> clear_values) {
+    VkRenderPassBeginInfo begin_info{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = render_pass,
+        .framebuffer = framebuffer,
+        .renderArea = render_area,
+        .clearValueCount = clear_values.size(),
+        .pClearValues = clear_values.data()};
 
     // VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in
     // the primary command buffer itself and no secondary command buffers will
@@ -1286,13 +1224,12 @@ struct Recorder {
     return *this;
   }
 
-  Recorder end_render_pass() noexcept {
+  Recorder end_render_pass() {
     vkCmdEndRenderPass(command_buffer_);
     return *this;
   }
 
-  Recorder bind_pipeline(VkPipeline pipeline,
-                         VkPipelineBindPoint bind_point) noexcept {
+  Recorder bind_pipeline(VkPipeline pipeline, VkPipelineBindPoint bind_point) {
     vkCmdBindPipeline(command_buffer_, bind_point, pipeline);
     return *this;
   }
@@ -1302,8 +1239,7 @@ struct Recorder {
       VkPipelineStageFlagBits dst_stages = {},
       stx::Span<VkMemoryBarrier const> memory_barriers = {},
       stx::Span<VkBufferMemoryBarrier const> buffer_memory_barriers = {},
-      stx::Span<VkImageMemoryBarrier const> iamge_memory_barriers =
-          {}) noexcept {
+      stx::Span<VkImageMemoryBarrier const> iamge_memory_barriers = {}) {
     // TODO(lamarrr): don't
     // 0 or VK_DEPENDENCY_BY_REGION_BIT. VK_DEPENDENCY_BY_REGION_BIT the barrier
     // into a per-region condition. That means that the implementation is
@@ -1319,32 +1255,9 @@ struct Recorder {
     return *this;
   }
 
-  template <
-      typename BufferType,
-      std::enable_if_t<static_cast<bool>(BufferType::usage&
-                                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
-                       int> = 0>
-  Recorder bind_vertex_buffer(uint32_t binding, BufferType const& buffer,
-                              uint64_t buffer_offset) noexcept {
-    vkCmdBindVertexBuffers(command_buffer_, binding, 1, &buffer.buffer_,
-                           &buffer_offset);
-    return *this;
-  }
-
-  template <
-      typename BufferType,
-      std::enable_if_t<static_cast<bool>(
-                           BufferType::usage& VK_BUFFER_USAGE_INDEX_BUFFER_BIT),
-                       int> = 0>
-  Recorder bind_index_buffer(BufferType const& buffer, uint64_t buffer_offset,
-                             VkIndexType dtype) noexcept {
-    vkCmdBindIndexBuffer(command_buffer_, buffer.buffer_, buffer_offset, dtype);
-    return *this;
-  }
-
   Recorder bind_descriptor_sets(
       VkPipelineLayout pipeline_layout, VkPipelineBindPoint bind_point,
-      stx::Span<VkDescriptorSet const> descriptor_sets) noexcept {
+      stx::Span<VkDescriptorSet const> descriptor_sets) {
     vkCmdBindDescriptorSets(command_buffer_, bind_point, pipeline_layout, 0,
                             descriptor_sets.size(), descriptor_sets.data(), 0,
                             nullptr);  // no dynamic offsets for now
@@ -1352,7 +1265,7 @@ struct Recorder {
   }
 
   Recorder draw(uint32_t vertex_count, uint32_t instance_count,
-                uint32_t first_vertex, uint32_t first_instance) noexcept {
+                uint32_t first_vertex, uint32_t first_instance) {
     // instanceCount: Used for instanced rendering
     // firstVertex: Used as an offset into the vertex buffer, defines the lowest
     // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
@@ -1364,7 +1277,7 @@ struct Recorder {
 
   Recorder draw_indexed(uint32_t index_count, uint32_t instance_count,
                         uint32_t first_index, uint32_t vertex_offset,
-                        uint32_t first_instance) noexcept {
+                        uint32_t first_instance) {
     // instanceCount: Used for instanced rendering
     // firstVertex: Used as an offset into the vertex buffer, defines the lowest
     // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
@@ -1374,22 +1287,22 @@ struct Recorder {
     return *this;
   }
 
-  Recorder set_viewports(stx::Span<VkViewport const> viewports) noexcept {
+  Recorder set_viewports(stx::Span<VkViewport const> viewports) {
     vkCmdSetViewport(command_buffer_, 0, viewports.size(), viewports.data());
     return *this;
   }
 
-  Recorder set_scissors(stx::Span<VkRect2D const> scissors) noexcept {
+  Recorder set_scissors(stx::Span<VkRect2D const> scissors) {
     vkCmdSetScissor(command_buffer_, 0, scissors.size(), scissors.data());
     return *this;
   }
 
-  Recorder set_line_width(float line_width) noexcept {
+  Recorder set_line_width(float line_width) {
     vkCmdSetLineWidth(command_buffer_, line_width);
     return *this;
   }
 
-  Recorder end_recording() noexcept {
+  Recorder end_recording() {
     ASR_MUST_SUCCEED(vkEndCommandBuffer(command_buffer_),
                      "Unable to end command buffer recording");
     return *this;
@@ -1398,9 +1311,9 @@ struct Recorder {
 }  // namespace cmd
 
 // GPU-GPU synchronization primitive, cheap
-inline VkSemaphore create_semaphore(VkDevice device) noexcept {
-  VkSemaphoreCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+inline VkSemaphore create_semaphore(VkDevice device) {
+  VkSemaphoreCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
 
   VkSemaphore semaphore;
   ASR_MUST_SUCCEED(vkCreateSemaphore(device, &create_info, nullptr, &semaphore),
@@ -1411,11 +1324,9 @@ inline VkSemaphore create_semaphore(VkDevice device) noexcept {
 
 // GPU-CPU synchronization primitive, expensive
 inline VkFence create_fence(VkDevice device,
-                            VkFenceCreateFlagBits make_signaled) noexcept {
-  VkFenceCreateInfo create_info{};
-
-  create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-  create_info.flags = make_signaled;
+                            VkFenceCreateFlagBits make_signaled) {
+  VkFenceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                                .flags = make_signaled};
 
   VkFence fence;
 
@@ -1425,8 +1336,7 @@ inline VkFence create_fence(VkDevice device,
   return fence;
 }
 
-inline void reset_fences(VkDevice device,
-                         stx::Span<VkFence const> fences) noexcept {
+inline void reset_fences(VkDevice device, stx::Span<VkFence const> fences) {
   ASR_MUST_SUCCEED(vkResetFences(device, fences.size(), fences.data()),
                    "Unable to reset fences");
 }
@@ -1444,24 +1354,19 @@ inline void submit_commands(VkQueue command_queue,
                             stx::Span<VkSemaphore const> await_semaphores,
                             stx::Span<VkPipelineStageFlags const> await_stages,
                             stx::Span<VkSemaphore const> notify_semaphores,
-                            VkFence notify_fence) noexcept {
+                            VkFence notify_fence) {
   ASR_ENSURE(await_semaphores.size() == await_stages.size(),
              "stages to await must have the same number of semaphores (for "
              "each of them)");
 
-  VkSubmitInfo submit_info{};
-  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-  submit_info.waitSemaphoreCount = await_semaphores.size();
-  submit_info.pWaitSemaphores = await_semaphores.data();
-
-  submit_info.pWaitDstStageMask = await_stages.data();
-
-  submit_info.commandBufferCount = 1;
-  submit_info.pCommandBuffers = &command_buffer;
-
-  submit_info.signalSemaphoreCount = notify_semaphores.size();
-  submit_info.pSignalSemaphores = notify_semaphores.data();
+  VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                           .waitSemaphoreCount = await_semaphores.size(),
+                           .pWaitSemaphores = await_semaphores.data(),
+                           .pWaitDstStageMask = await_stages.data(),
+                           .commandBufferCount = 1,
+                           .pCommandBuffers = &command_buffer,
+                           .signalSemaphoreCount = notify_semaphores.size(),
+                           .pSignalSemaphores = notify_semaphores.data()};
 
   ASR_MUST_SUCCEED(vkQueueSubmit(command_queue, 1, &submit_info, notify_fence),
                    "Unable to submit command buffer to command queue");
@@ -1483,26 +1388,20 @@ inline std::pair<uint32_t, VkResult> acquire_next_swapchain_image(
   return std::make_pair(index, result);
 }
 
-inline VkResult present(
-    VkQueue command_queue, stx::Span<VkSemaphore const> await_semaphores,
-    stx::Span<VkSwapchainKHR const> swapchains,
-    stx::Span<uint32_t const> swapchain_image_indexes) noexcept {
+inline VkResult present(VkQueue command_queue,
+                        stx::Span<VkSemaphore const> await_semaphores,
+                        stx::Span<VkSwapchainKHR const> swapchains,
+                        stx::Span<uint32_t const> swapchain_image_indexes) {
   ASR_ENSURE(swapchain_image_indexes.size() == swapchains.size(),
              "swapchain and their image indices must be of the same size");
 
-  VkPresentInfoKHR present_info{};
-
-  present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-
-  present_info.waitSemaphoreCount = await_semaphores.size();
-  present_info.pWaitSemaphores = await_semaphores.data();
-
-  present_info.swapchainCount = swapchains.size();
-  present_info.pSwapchains = swapchains.data();
-
-  present_info.pImageIndices = swapchain_image_indexes.data();
-
-  present_info.pResults = nullptr;
+  VkPresentInfoKHR present_info{.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+                                .waitSemaphoreCount = await_semaphores.size(),
+                                .pWaitSemaphores = await_semaphores.data(),
+                                .swapchainCount = swapchains.size(),
+                                .pSwapchains = swapchains.data(),
+                                .pImageIndices = swapchain_image_indexes.data(),
+                                .pResults = nullptr};
 
   auto result = vkQueuePresentKHR(command_queue, &present_info);
   ASR_ENSURE(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
@@ -1515,12 +1414,11 @@ inline VkResult present(
 // creates buffer object but doesn't assign memory to it
 inline VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
                               VkBufferUsageFlagBits usage,
-                              VkSharingMode sharing_mode) noexcept {
-  VkBufferCreateInfo buffer_info{};
-  buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  buffer_info.size = byte_size;
-  buffer_info.usage = usage;
-  buffer_info.sharingMode = sharing_mode;
+                              VkSharingMode sharing_mode) {
+  VkBufferCreateInfo buffer_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                                 .size = byte_size,
+                                 .usage = usage,
+                                 .sharingMode = sharing_mode};
 
   VkBuffer buffer;
   ASR_MUST_SUCCEED(vkCreateBuffer(device, &buffer_info, nullptr, &buffer),
@@ -1533,20 +1431,19 @@ inline VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
 inline VkImage create_image(VkDevice device, VkImageType type,
                             VkExtent3D extent, VkImageUsageFlagBits usage,
                             VkSharingMode sharing_mode, VkFormat format,
-                            VkImageLayout initial_layout) noexcept {
-  VkImageCreateInfo image_info{};
-  image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  image_info.usage = usage;
-  image_info.imageType = type;
-  image_info.extent = extent;
-  image_info.sharingMode = sharing_mode;
-  image_info.mipLevels = 1;
-  image_info.arrayLayers = 1;
-  image_info.format = format;
-  image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_info.initialLayout = initial_layout;
-  image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-  image_info.flags = 0;
+                            VkImageLayout initial_layout) {
+  VkImageCreateInfo image_info{.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                               .usage = usage,
+                               .imageType = type,
+                               .extent = extent,
+                               .sharingMode = sharing_mode,
+                               .mipLevels = 1,
+                               .arrayLayers = 1,
+                               .format = format,
+                               .tiling = VK_IMAGE_TILING_OPTIMAL,
+                               .initialLayout = initial_layout,
+                               .samples = VK_SAMPLE_COUNT_1_BIT,
+                               .flags = 0};
 
   VkImage image;
   ASR_MUST_SUCCEED(vkCreateImage(device, &image_info, nullptr, &image),
@@ -1568,33 +1465,33 @@ inline VkImage create_image(VkDevice device, VkImageType type,
 // the image's layouts.
 constexpr VkImageMemoryBarrier make_image_memory_barrier(
     VkImage image, VkImageLayout old_layout, VkImageLayout new_layout,
-    VkAccessFlags src_access_flags, VkAccessFlags dst_access_flags) noexcept {
-  VkImageMemoryBarrier barrier{};
-  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrier.oldLayout = old_layout;
-  barrier.newLayout = new_layout;
-  barrier.srcQueueFamilyIndex =
-      VK_QUEUE_FAMILY_IGNORED;  // not transferring ownership of the image
-  barrier.dstQueueFamilyIndex =
-      VK_QUEUE_FAMILY_IGNORED;  // not transferring ownership of the image
-  barrier.image = image;
-  barrier.subresourceRange.aspectMask =
-      VK_IMAGE_ASPECT_COLOR_BIT;  // part of the image
-  barrier.subresourceRange.baseMipLevel = 0;
-  barrier.subresourceRange.levelCount = 1;
-  barrier.subresourceRange.baseArrayLayer = 0;
-  barrier.subresourceRange.layerCount = 1;
-
-  barrier.srcAccessMask = src_access_flags;
-  barrier.dstAccessMask = dst_access_flags;
+    VkAccessFlags src_access_flags, VkAccessFlags dst_access_flags) {
+  VkImageMemoryBarrier barrier{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .oldLayout = old_layout,
+      .newLayout = new_layout,
+      .srcQueueFamilyIndex =
+          VK_QUEUE_FAMILY_IGNORED,  // not transferring ownership of the image
+      .dstQueueFamilyIndex =
+          VK_QUEUE_FAMILY_IGNORED,  // not transferring ownership of the image
+      .image = image,
+      .subresourceRange.aspectMask =
+          VK_IMAGE_ASPECT_COLOR_BIT,  // part of the image
+      .subresourceRange.baseMipLevel = 0,
+      .subresourceRange.levelCount = 1,
+      .subresourceRange.baseArrayLayer = 0,
+      .subresourceRange.layerCount = 1,
+      .srcAccessMask = src_access_flags,
+      .dstAccessMask = dst_access_flags};
 
   return barrier;
 }
 
+/*
 // get memory requirements for a buffer based on it's type, usage mode, and
 // other properties
 inline VkMemoryRequirements get_memory_requirements(VkDevice device,
-                                                    VkBuffer buffer) noexcept {
+                                                    VkBuffer buffer)  {
   VkMemoryRequirements memory_requirements;
   vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
   return memory_requirements;
@@ -1603,7 +1500,7 @@ inline VkMemoryRequirements get_memory_requirements(VkDevice device,
 // get memory requirements for an image based on it's type, usage mode, and
 // other properties
 inline VkMemoryRequirements get_memory_requirements(VkDevice device,
-                                                    VkImage image) noexcept {
+                                                    VkImage image)  {
   VkMemoryRequirements memory_requirements;
   vkGetImageMemoryRequirements(device, image, &memory_requirements);
   return memory_requirements;
@@ -1614,7 +1511,7 @@ inline stx::Option<uint32_t> find_suitable_memory_type(
     VkPhysicalDevice physical_device,
     VkMemoryRequirements const& memory_requirements,
     VkMemoryPropertyFlagBits required_properties =
-        VK_MEMORY_PROPERTY_FLAG_BITS_MAX_ENUM) noexcept {
+        VK_MEMORY_PROPERTY_FLAG_BITS_MAX_ENUM)  {
   VkPhysicalDeviceMemoryProperties memory_properties;
 
   vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
@@ -1635,7 +1532,7 @@ inline stx::Option<uint32_t> find_suitable_memory_type(
 
 // vkFreeMemory
 inline VkDeviceMemory allocate_memory(VkDevice device, uint32_t heap_index,
-                                      uint64_t size) noexcept {
+                                      uint64_t size)  {
   VkMemoryAllocateInfo allocate_info{};
 
   allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -1651,14 +1548,14 @@ inline VkDeviceMemory allocate_memory(VkDevice device, uint32_t heap_index,
 
 inline void bind_memory_to_buffer(VkDevice device, VkBuffer buffer,
                                   VkDeviceMemory memory,
-                                  uint64_t offset) noexcept {
+                                  uint64_t offset)  {
   ASR_MUST_SUCCEED(vkBindBufferMemory(device, buffer, memory, offset),
                    "Unable to bind memory to buffer");
 }
 
 inline void bind_memory_to_image(VkDevice device, VkImage image,
                                  VkDeviceMemory memory,
-                                 uint64_t offset) noexcept {
+                                 uint64_t offset)  {
   ASR_MUST_SUCCEED(vkBindImageMemory(device, image, memory, offset),
                    "Unable to bind memory to image");
 }
@@ -1672,7 +1569,7 @@ struct MemoryMap {
 
 inline MemoryMap map_memory(VkDevice device, VkDeviceMemory memory,
                             uint64_t offset, uint64_t size,
-                            VkMemoryMapFlags flags = 0) noexcept {
+                            VkMemoryMapFlags flags = 0)  {
   void* ptr;
   ASR_MUST_SUCCEED(vkMapMemory(device, memory, offset, size, flags, &ptr),
                    "Unable to map memory");
@@ -1682,14 +1579,14 @@ inline MemoryMap map_memory(VkDevice device, VkDeviceMemory memory,
 
 // unlike OpenGL the driver may not immediately copy the data after unmap, i.e.
 // due to caching. so we need to flush our writes
-inline void unmap_memory(VkDevice device, VkDeviceMemory memory) noexcept {
+inline void unmap_memory(VkDevice device, VkDeviceMemory memory)  {
   vkUnmapMemory(device, memory);
 }
 
 // due to caching we need to flush writes to the memory map before reading again
 // has size requirements for the flush range
 inline void flush_memory_map(VkDevice device, VkDeviceMemory memory,
-                             uint64_t offset, uint64_t size) noexcept {
+                             uint64_t offset, uint64_t size)  {
   VkMappedMemoryRange range{};
   range.memory = memory;
   range.offset = offset;
@@ -1701,7 +1598,7 @@ inline void flush_memory_map(VkDevice device, VkDeviceMemory memory,
 }
 
 inline void refresh_memory_map(VkDevice device, VkDeviceMemory memory,
-                               uint64_t offset, uint64_t size) noexcept {
+                               uint64_t offset, uint64_t size)  {
   VkMappedMemoryRange range{};
   range.memory = memory;
   range.offset = offset;
@@ -1711,6 +1608,7 @@ inline void refresh_memory_map(VkDevice device, VkDeviceMemory memory,
   ASR_MUST_SUCCEED(vkInvalidateMappedMemoryRanges(device, 1, &range),
                    "Unable to re-read memory map");
 }
+*/
 
 constexpr VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
     uint32_t binding,
@@ -1718,13 +1616,12 @@ constexpr VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
                                // from {binding}
     ,
     VkDescriptorType descriptor_type, VkShaderStageFlagBits shader_stages,
-    VkSampler const* sampler = nullptr) noexcept {
-  VkDescriptorSetLayoutBinding dsl_binding{};
-  dsl_binding.binding = binding;
-  dsl_binding.descriptorType = descriptor_type;
-  dsl_binding.descriptorCount = descriptor_count;
-  dsl_binding.pImmutableSamplers = sampler;
-  dsl_binding.stageFlags = shader_stages;
+    VkSampler const* sampler) {
+  VkDescriptorSetLayoutBinding dsl_binding{.binding = binding,
+                                           .descriptorType = descriptor_type,
+                                           .descriptorCount = descriptor_count,
+                                           .pImmutableSamplers = sampler,
+                                           .stageFlags = shader_stages};
 
   return dsl_binding;
 }
@@ -1732,13 +1629,13 @@ constexpr VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
 // descriptor sets define the input data for the uniforms (or samplers)
 inline VkDescriptorSetLayout create_descriptor_set_layout(
     VkDevice device, stx::Span<VkDescriptorSetLayoutBinding const> bindings,
-    VkDescriptorSetLayoutCreateFlagBits flags = {}) noexcept {
-  VkDescriptorSetLayoutCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-  create_info.bindingCount = bindings.size();
-  create_info.pBindings = bindings.data();
-  create_info.pNext = nullptr;
-  create_info.flags = flags;
+    VkDescriptorSetLayoutCreateFlagBits flags = {}) {
+  VkDescriptorSetLayoutCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+      .bindingCount = bindings.size(),
+      .pBindings = bindings.data(),
+      .pNext = nullptr,
+      .flags = flags};
 
   VkDescriptorSetLayout ds_layout;
   ASR_MUST_SUCCEED(
@@ -1750,19 +1647,18 @@ inline VkDescriptorSetLayout create_descriptor_set_layout(
 
 inline VkDescriptorPool create_descriptor_pool(
     VkDevice device, uint32_t max_descriptor_sets,
-    stx::Span<VkDescriptorPoolSize const> pool_sizing) noexcept {
+    stx::Span<VkDescriptorPoolSize const> pool_sizing) {
   // create pool capable of holding different types of data with varying number
   // of descriptors
-  VkDescriptorPoolCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-  create_info.poolSizeCount = pool_sizing.size();
-  create_info.pPoolSizes = pool_sizing.data();
-
-  create_info.maxSets =
-      max_descriptor_sets;  /// desc sets is
-                            // a set with similar properties (can be by type and
-                            // are not necessarily unique as the name might
-                            // imply)
+  VkDescriptorPoolCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+      .poolSizeCount = pool_sizing.size(),
+      .pPoolSizes = pool_sizing.data(),
+      .maxSets = max_descriptor_sets  /// desc sets is
+                                      // a set with similar properties (can be
+                                      // by type and are not necessarily unique
+                                      // as the name might imply)
+  };
 
   VkDescriptorPool descriptor_pool;
   ASR_MUST_SUCCEED(
@@ -1777,15 +1673,15 @@ inline VkDescriptorPool create_descriptor_pool(
 inline void allocate_descriptor_sets(
     VkDevice device, VkDescriptorPool descriptor_pool,
     stx::Span<VkDescriptorSetLayout const> layouts,
-    stx::Span<VkDescriptorSet> descriptor_sets) noexcept {
+    stx::Span<VkDescriptorSet> descriptor_sets) {
   ASR_ENSURE(layouts.size() == descriptor_sets.size(),
              "descriptor sets and layouts sizes must match");
 
-  VkDescriptorSetAllocateInfo info{};
-  info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-  info.descriptorPool = descriptor_pool;
-  info.descriptorSetCount = layouts.size();
-  info.pSetLayouts = layouts.data();
+  VkDescriptorSetAllocateInfo info{
+      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+      .descriptorPool = descriptor_pool,
+      .descriptorSetCount = layouts.size(),
+      .pSetLayouts = layouts.data()};
 
   ASR_MUST_SUCCEED(
       vkAllocateDescriptorSets(device, &info, descriptor_sets.data()),
@@ -1794,6 +1690,7 @@ inline void allocate_descriptor_sets(
 
 // descriptor set writer interface, can write multiple objects of the same time
 // type in one pass (images, buffers, texels, etc.)
+/*
 struct DescriptorSetProxy {
   VkDevice device;
   VkDescriptorSet descriptor_set;
@@ -1801,7 +1698,7 @@ struct DescriptorSetProxy {
   uint32_t binding;
 
   DescriptorSetProxy bind_buffers(
-      stx::Span<VkDescriptorBufferInfo const> buffers) noexcept {
+      stx::Span<VkDescriptorBufferInfo const> buffers) {
     VkWriteDescriptorSet descriptor_write{};
     descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptor_write.dstSet = descriptor_set;
@@ -1818,7 +1715,7 @@ struct DescriptorSetProxy {
   }
 
   DescriptorSetProxy bind_images(
-      stx::Span<VkDescriptorImageInfo const> images) noexcept {
+      stx::Span<VkDescriptorImageInfo const> images) {
     VkWriteDescriptorSet descriptor_write{};
     descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptor_write.dstSet = descriptor_set;
@@ -1840,6 +1737,7 @@ struct DescriptorSetProxy {
 
   DescriptorSetProxy write_texel();  // descriptor_write.pTexelView
 };
+*/
 
 constexpr std::string_view format(VkFormat format) {
   switch (format) {
@@ -2075,7 +1973,7 @@ constexpr std::string_view format(VkFormat format) {
   }
 }
 
-constexpr std::string_view format(VkResult error) noexcept {
+constexpr std::string_view format(VkResult error) {
   switch (error) {
     ASR_ERRNUM_CASE(VK_SUCCESS)
     ASR_ERRNUM_CASE(VK_NOT_READY)
@@ -2186,13 +2084,13 @@ constexpr std::string_view format(VkColorSpaceKHR color_space) {
   }
 }
 
-struct InstanceHandle {
+struct Instance {
   VkInstance instance = nullptr;
   stx::Option<VkDebugUtilsMessengerEXT> debug_messenger = stx::None;
 
-  ASR_MAKE_HANDLE(InstanceHandle)
+  ASR_MAKE_HANDLE(Instance)
 
-  ~InstanceHandle() {
+  ~Instance() {
     if (instance != nullptr) {
       if (debug_messenger.is_some()) {
         destroy_debug_messenger(instance, debug_messenger.value(), nullptr);
@@ -2200,14 +2098,13 @@ struct InstanceHandle {
       vkDestroyInstance(instance, nullptr);
     }
   }
-};
 
-struct Instance {
-  static Instance create(char const* app_name, uint32_t app_version,
-                         char const* engine_name, uint32_t engine_version,
-                         stx::Span<char const* const> required_extensions = {},
-                         stx::Span<char const* const> validation_layers = {}) {
-    auto handle = std::shared_ptr<InstanceHandle>(new InstanceHandle{});
+  static stx::Rc<Instance*> create(
+      char const* app_name, uint32_t app_version, char const* engine_name,
+      uint32_t engine_version,
+      stx::Span<char const* const> required_extensions = {},
+      stx::Span<char const* const> validation_layers = {}) {
+    auto out = stx::rc::make_inplace<Instance>(stx::os_allocator).unwrap();
     auto [instance, messenger] =
         create_vulkan_instance(required_extensions, validation_layers,
                                make_debug_messenger_create_info(), app_name,
@@ -2215,26 +2112,26 @@ struct Instance {
 
     // validation layers are extensions and might not be supported so we still
     // need to check for support
-    handle->instance = instance;
-    if (messenger != nullptr) {
-      handle->debug_messenger = stx::Some(std::move(messenger));
-    }
-    return Instance{std::move(handle)};
-  }
+    out.handle->instance = instance;
 
-  std::shared_ptr<InstanceHandle const> handle;
+    if (messenger != nullptr) {
+      out.handle->debug_messenger = stx::Some(std::move(messenger));
+    }
+
+    return out;
+  }
 };
 
 struct PhysDeviceInfo {
   VkPhysicalDevice phys_device = nullptr;
   VkPhysicalDeviceProperties properties{};
   VkPhysicalDeviceFeatures features{};
-  std::vector<VkQueueFamilyProperties> family_properties;
-  Instance instance;
+  stx::Vec<VkQueueFamilyProperties> family_properties{stx::os_allocator};
+  stx::Option<stx::Rc<Instance*>> instance;
 };
 
 struct PhysDevice {
-  static std::vector<PhysDevice> get_all(Instance const& instance) {
+  static stx::Vec<PhysDevice> get_all(stx::Rc<Instance*> const& instance) {
     uint32_t devices_count = 0;
 
     ASR_MUST_SUCCEED(vkEnumeratePhysicalDevices(instance.handle->instance,
@@ -2243,13 +2140,16 @@ struct PhysDevice {
 
     ASR_ENSURE(devices_count != 0, "No Physical Device Found");
 
-    std::vector<VkPhysicalDevice> physical_devices(devices_count);
+    stx::Vec<VkPhysicalDevice> physical_devices{stx::os_allocator};
+
+    physical_devices.resize(devices_count).unwrap();
+
     ASR_MUST_SUCCEED(
         vkEnumeratePhysicalDevices(instance.handle->instance, &devices_count,
                                    physical_devices.data()),
         "Unable to get physical devices");
 
-    std::vector<PhysDevice> devices;
+    stx::Vec<PhysDevice> devices{stx::os_allocator};
 
     for (VkPhysicalDevice device : physical_devices) {
       VkPhysicalDeviceProperties device_properties;
@@ -2258,11 +2158,11 @@ struct PhysDevice {
       vkGetPhysicalDeviceProperties(device, &device_properties);
       vkGetPhysicalDeviceFeatures(device, &device_features);
 
-      auto phys_device =
-          PhysDevice{PhysDeviceInfo{device, device_properties, device_features,
-                                    get_queue_families(device), instance}};
+      PhysDevice phys_device{PhysDeviceInfo{
+          device, device_properties, device_features,
+          get_queue_families(device), stx::Some(instance.share())}};
 
-      devices.push_back(std::move(phys_device));
+      devices.push(std::move(phys_device)).unwrap();
     }
 
     return devices;
@@ -2271,19 +2171,17 @@ struct PhysDevice {
   bool has_geometry_shader() const { return info.features.geometryShader; }
 
   bool has_transfer_command_queue_family() const {
-    return std::any_of(info.family_properties.begin(),
-                       info.family_properties.end(),
-                       [](VkQueueFamilyProperties const& prop) -> bool {
-                         return prop.queueFlags & VK_QUEUE_TRANSFER_BIT;
-                       });
+    return info.family_properties.span().is_any(
+        [](VkQueueFamilyProperties const& prop) -> bool {
+          return prop.queueFlags & VK_QUEUE_TRANSFER_BIT;
+        });
   }
 
   bool has_graphics_command_queue_family() const {
-    return std::any_of(info.family_properties.begin(),
-                       info.family_properties.end(),
-                       [](VkQueueFamilyProperties const& prop) -> bool {
-                         return prop.queueFlags & VK_QUEUE_GRAPHICS_BIT;
-                       });
+    return info.family_properties.span().is_any(
+        [](VkQueueFamilyProperties const& prop) -> bool {
+          return prop.queueFlags & VK_QUEUE_GRAPHICS_BIT;
+        });
   }
 
   PhysDeviceInfo info;
@@ -2303,28 +2201,26 @@ struct QueueInfo {
   uint32_t create_index = 0;
 };
 
-struct DeviceHandle {
+struct Device {
   VkDevice device = nullptr;
   PhysDevice phys_device;
-  std::vector<QueueInfo> command_queues;
+  stx::Vec<QueueInfo> command_queues{stx::os_allocator};
 
-  ASR_MAKE_HANDLE(DeviceHandle)
+  ASR_MAKE_HANDLE(Device)
 
-  ~DeviceHandle() {
+  ~Device() {
     if (device != nullptr) vkDestroyDevice(device, nullptr);
   }
-};
 
-struct Device {
-  static Device create(
+  static stx::Rc<Device*> create(
       PhysDevice const& phys_device,
       stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_info,
       stx::Span<char const* const> required_extensions = {},
       stx::Span<char const* const> required_validation_layers = {},
       VkPhysicalDeviceFeatures required_features = {}) {
-    auto handle = std::shared_ptr<DeviceHandle>(new DeviceHandle{});
-    handle->phys_device = phys_device;
-    handle->device = create_logical_device(
+    auto dev = stx::rc::make_inplace<Device>(stx::os_allocator).unwrap();
+    dev.handle->phys_device = phys_device;
+    dev.handle->device = create_logical_device(
         phys_device.info.phys_device, required_extensions,
         required_validation_layers, command_queue_create_info, nullptr,
         required_features);
@@ -2339,16 +2235,16 @@ struct Device {
       for (uint32_t queue_index = 0; queue_index < queue_count; queue_index++) {
         float priority = create_info.pQueuePriorities[i];
         VkQueue command_queue = get_command_queue(
-            handle->device, command_queue_family_index, queue_index);
-        handle->command_queues.push_back(QueueInfo{
-            command_queue_family_index, command_queue, priority, queue_index});
+            dev.handle->device, command_queue_family_index, queue_index);
+        dev.handle->command_queues
+            .push(QueueInfo{command_queue_family_index, command_queue, priority,
+                            queue_index})
+            .unwrap();
       }
     }
 
-    return Device{std::move(handle)};
+    return dev;
   }
-
-  std::shared_ptr<DeviceHandle> handle;
 };
 
 struct CommandQueueFamilyInfo {
@@ -2387,36 +2283,35 @@ struct CommandQueueInfo {
   uint32_t index = 0;
   float priority = 0.0f;
   CommandQueueFamily family;
-  Device device;
+  stx::Option<stx::Rc<Device*>> device;
 };
 
 struct CommandQueue {
-  static stx::Option<CommandQueue> get(Device const& device,
+  static stx::Option<CommandQueue> get(stx::Rc<Device*> device,
                                        CommandQueueFamily const& family,
                                        uint32_t command_queue_create_index) {
     // We shouldn't have to perform checks?
     ASR_ENSURE(device.handle->phys_device.info.phys_device ==
                family.info.phys_device.info.phys_device);
 
-    auto pos = std::find_if(
-        device.handle->command_queues.begin(),
-        device.handle->command_queues.end(), [&](QueueInfo const& info) {
+    stx::Span queue_s =
+        device.handle->command_queues.span().which([&](QueueInfo const& info) {
           return info.family_index == family.info.index &&
                  info.create_index == command_queue_create_index;
         });
 
-    if (pos == device.handle->command_queues.end()) {
-      return stx::None;
-    }
+    if (queue_s.is_empty()) return stx::None;
+
+    auto& queue = queue_s[0];
 
     CommandQueueInfo info;
 
-    info.queue = pos->raw_handle;
+    info.queue = queue.raw_handle;
     info.family = CommandQueueFamily{
-        CommandQueueFamilyInfo{pos->family_index, device.handle->phys_device}};
-    info.index = pos->create_index;
-    info.priority = pos->priority;
-    info.device = device;
+        CommandQueueFamilyInfo{queue.family_index, device.handle->phys_device}};
+    info.index = queue.create_index;
+    info.priority = queue.priority;
+    info.device = stx::Some(std::move(device));
 
     return stx::Some(CommandQueue{std::move(info)});
   }

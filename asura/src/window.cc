@@ -1,21 +1,63 @@
 
-#include "asura/ui/window.h"
+#include "asura/window.h"
 
-#include "asura/ui/sdl_utils.h"
-#include "asura/ui/window_api_handle.h"
-#include "asura/ui/window_handle.h"
+#include <thread>
+
+#include "asura/sdl_utils.h"
+#include "asura/window_handle.h"
 
 namespace asr {
-namespace ui {
 
-Window Window::create(WindowApi const& api, WindowCfg cfg) {
-  stx::Rc<WindowHandle*> handle =
-      stx::rc::make_inplace<WindowHandle>(stx::os_allocator).unwrap();
+stx::Vec<char const*> Window::get_required_instance_extensions() const {
+  uint32_t ext_count = 0;
+  stx::Vec<char const*> required_instance_extensions;
 
+  ASR_SDL_ENSURE(
+      SDL_Vulkan_GetInstanceExtensions(window_, &ext_count, nullptr) ==
+          SDL_TRUE,
+      "Unable to get number of window's required Vulkan instance extensions");
+
+  required_instance_extensions.resize(ext_count).unwrap();
+
+  ASR_SDL_ENSURE(
+      SDL_Vulkan_GetInstanceExtensions(
+          window_, &ext_count, required_instance_extensions.data()) == SDL_TRUE,
+      "Unable to get window's required Vulkan instance extensions");
+
+  return required_instance_extensions;
+}
+
+void Window::attach_surface(vk::Instance const& instance) const {
+  WindowSurface surface;
+  surface.handle =
+      std::shared_ptr<WindowSurfaceHandle>(new WindowSurfaceHandle{});
+
+  ASR_SDL_ENSURE(
+      SDL_Vulkan_CreateSurface(handle.handle->window, instance.handle->instance,
+                               &surface.handle->surface) == SDL_TRUE,
+      "Unable to create surface for window");
+
+  ASR_ENSURE(surface.handle->surface != nullptr);
+
+  surface.handle->instance = instance;
+
+  handle.handle->surface = std::move(surface);
+}
+
+stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
   // width and height here refer to the screen coordinates and not the
   // actual pixel coordinates (cc: Device Pixel Ratio)
 
   auto window_flags = SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_VULKAN;
+
+  if (cfg.type_hint == WindowTypeHint::Normal) {
+  } else if (cfg.type_hint == WindowTypeHint::Popup) {
+    window_flags |= SDL_WINDOW_POPUP_MENU;
+  } else if (cfg.type_hint == WindowTypeHint::Tooltip) {
+    window_flags |= SDL_WINDOW_TOOLTIP;
+  } else if (cfg.type_hint == WindowTypeHint::Utility) {
+    window_flags |= SDL_WINDOW_UTILITY;
+  }
 
   if (cfg.hidden) {
     window_flags |= SDL_WINDOW_HIDDEN;
@@ -33,15 +75,6 @@ Window Window::create(WindowApi const& api, WindowCfg cfg) {
 
   if (cfg.fullscreen) {
     window_flags |= SDL_WINDOW_FULLSCREEN;
-  }
-
-  if (cfg.type_hint == WindowTypeHint::Normal) {
-  } else if (cfg.type_hint == WindowTypeHint::Popup) {
-    window_flags |= SDL_WINDOW_POPUP_MENU;
-  } else if (cfg.type_hint == WindowTypeHint::Tooltip) {
-    window_flags |= SDL_WINDOW_TOOLTIP;
-  } else if (cfg.type_hint == WindowTypeHint::Utility) {
-    window_flags |= SDL_WINDOW_UTILITY;
   }
 
   SDL_Window* window =
@@ -66,40 +99,29 @@ Window Window::create(WindowApi const& api, WindowCfg cfg) {
       },
       []() {});
 
-  if (cfg.enable_hit_testing) {
-    //[[maybe_unused]] int result = SDL_SetWindowHitTest();
-  }
+  // if (cfg.enable_hit_testing) {
+  //[[maybe_unused]] int result = SDL_SetWindowHitTest();
+  // }
 
   SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-  handle.handle->window = window;
-  handle.handle->id = WindowID{SDL_GetWindowID(window)};
-  handle.handle->api = api;
-  handle.handle->cfg = std::move(cfg);
+  stx::Rc<Window*> win =
+      stx::rc::make_inplace<Window>(stx::os_allocator).unwrap();
 
-  WindowInfo info{};
-  info.queue = &handle.handle->event_queue;
-  api.handle->add_window_info(handle.handle->id, info);
+  win.handle->api_ = stx::Some(std::move(api));
+  win.handle->window_ = window;
+  win.handle->id_ = WindowID{SDL_GetWindowID(window)};
+  // swin.handle->surface_
+  win.handle->extent_ = cfg.extent;
+  win.handle->surface_extent_ = cfg.extent;
+  win.handle->cfg_ = std::move(cfg);
+  win.handle->init_thread_id_ = std::this_thread::get_id();
 
-  return Window{std::move(handle)};
+  WindowApi::WindowInfo info;
+  info.queue = &win.handle->event_queue_;
+  api.handle->add_window_info(win.handle->id_, info);
+
+  return std::move(win);
 }
 
-void Window::attach_surface(vk::Instance const& instance) const {
-  WindowSurface surface;
-  surface.handle =
-      std::shared_ptr<WindowSurfaceHandle>(new WindowSurfaceHandle{});
-
-  ASR_SDL_ENSURE(
-      SDL_Vulkan_CreateSurface(handle.handle->window, instance.handle->instance,
-                               &surface.handle->surface) == SDL_TRUE,
-      "Unable to create surface for window");
-
-  ASR_ENSURE(surface.handle->surface != nullptr);
-
-  surface.handle->instance = instance;
-
-  handle.handle->surface = std::move(surface);
-}
-
-}  // namespace ui
 }  // namespace asr

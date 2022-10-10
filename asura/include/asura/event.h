@@ -3,7 +3,6 @@
 #include "asura/primitives.h"
 
 namespace asr {
-namespace ui {
 
 enum class MouseButton : uint8_t {
   Primary,
@@ -58,5 +57,4 @@ enum class WindowEvent : uint8_t {
   TakeFocus
 };
 
-}  // namespace ui
 }  // namespace asr

@@ -469,4 +469,24 @@ constexpr auto Cyan = Color::from_rgb(0x00, 0xFF, 0xFF);
 constexpr auto Magenta = Color::from_rgb(0xFF, 0x00, 0xFF);
 }  // namespace colors
 
+struct Mat4x4 {
+  float data[16] = {};
+};
+
+struct Vec3 {
+  float x = 0.0f;
+  float y = 0.0f;
+  float z = 0.0f;
+
+  constexpr Vec3 operator+(Vec3 const &) const;
+
+  constexpr Vec3 operator-(Vec3 const &) const;
+
+  constexpr Vec3 operator*(Vec3 const &) const;
+
+  constexpr float dot(Vec3 const &) const;
+
+  constexpr Vec3 normalize() const;
+};
+
 }  // namespace asr
