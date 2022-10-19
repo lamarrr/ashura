@@ -12,7 +12,7 @@ namespace asr {
 struct App {
   STX_MAKE_PINNED(App)
 
-  App(AppConfig cfg) : cfg_{std::move(cfg)} {}
+  App(AppConfig cfg) : cfg_{std::move(cfg)}, engine_{cfg} {}
 
   void tick(std::chrono::nanoseconds interval);
 

@@ -75,19 +75,6 @@
   case x:                  \
     return #x;
 
-/// used for making handle types. they typically store pointers which could be
-/// dangerous when copied across structs as this would eventually lead to a
-/// double or multiple destruction of the same resource the handle points to.
-/// the `target_type` is usually used in conjuction with smart pointers: i.e.
-/// shared_ptr, intrusive_ptr, and unique_ptr.
-///
-/// handles point to resources and are default-able and nullable.
-/// their wrapping smart pointers are also inherently nulled by default.
-#define ASR_MAKE_HANDLE(target_type)   \
-  STX_DEFAULT_CONSTRUCTOR(target_type) \
-  STX_DISABLE_COPY(target_type)        \
-  STX_DISABLE_MOVE(target_type)
-
 namespace asr {
 
 template <typename Container>

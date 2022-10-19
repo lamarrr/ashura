@@ -1,4 +1,5 @@
-add_library(asura STATIC src/app.cc src/window_api.cc src/window.cc)
+add_library(asura STATIC src/app.cc src/engine.cc src/window_api.cc
+                         src/window.cc)
 
 target_include_directories(
   asura

@@ -3,35 +3,35 @@
 #include <map>
 #include <memory>
 
+#include "asura/event.h"
 #include "asura/utils.h"
-#include "asura/window_event_queue.h"
+#include "stx/fn.h"
 #include "stx/option.h"
 #include "stx/rc.h"
+#include "stx/vec.h"
 
 namespace asr {
 
 enum class WindowID : uint32_t {};
+
+struct Window;
 
 // not thread-safe, only one instance should be possible
 // TODO(lamarrr): setup loggers, this needs a window api logger
 
 // this also dispatches events to the created windows
 struct WindowApi {
-  struct WindowInfo {
-    // queue to receive events from
-    WindowEventQueue* queue = nullptr;
-  };
-
   WindowApi();
-  STX_DISABLE_COPY(WindowApi)
-  STX_DISABLE_MOVE(WindowApi)
+
+  STX_MAKE_PINNED(WindowApi)
+
   ~WindowApi();
 
-  void add_window_info(WindowID id, WindowInfo info) {
-    windows_info_.emplace(id, info);
+  void add_window_info(WindowID id, Window *win) {
+    windows_info_.emplace(id, win);
   }
 
-  WindowInfo get_window_info(WindowID id) {
+  Window* get_window_info(WindowID id) {
     auto window_entry_pos = windows_info_.find(id);
     ASR_ENSURE(window_entry_pos != windows_info_.end());
 
@@ -46,13 +46,13 @@ struct WindowApi {
     windows_info_.erase(pos);
   }
 
+  // polls for events, returns true if an event occured, otherwise false
   bool poll_events();
 
   // this implies that we need to detach the handle from here first
   //
   // also ensure all api calls occur on the main thread.
-  std::map<WindowID, WindowInfo> windows_info_;
+  std::map<WindowID, Window *> windows_info_;
 };
-
 
 }  // namespace asr

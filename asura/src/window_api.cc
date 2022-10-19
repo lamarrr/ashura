@@ -5,8 +5,10 @@
 
 #include "SDL.h"
 #include "SDL_vulkan.h"
+#include "asura/event.h"
 #include "asura/sdl_utils.h"
 #include "asura/utils.h"
+#include "asura/window.h"
 
 namespace asr {
 
@@ -64,14 +66,22 @@ bool WindowApi::poll_events() {
   if (SDL_PollEvent(&event) == 1) {
     switch (event.type) {
       case SDL_WINDOWEVENT: {
-        get_window_info(WindowID{event.window.windowID})
-            .queue->add_raw(impl::sdl_window_event_to_asr(event.window.event));
+        auto listener =
+            get_window_info(WindowID{event.window.windowID})
+                ->window_listeners.find(
+                    impl::sdl_window_event_to_asr(event.window.event));
+
+        if (listener != get_window_info(WindowID{event.window.windowID})
+                            ->window_listeners.end()) {
+          listener->second.handle();
+        }
+
         return true;
       }
 
       case SDL_MOUSEBUTTONDOWN:
       case SDL_MOUSEBUTTONUP: {
-        MouseButtonEvent mouse_event;
+        MouseClickEvent mouse_event;
         mouse_event.mouse_id = MouseID{event.button.which};
         mouse_event.offset = IOffset{event.button.x, event.button.y};
         mouse_event.clicks = event.button.clicks;
@@ -104,10 +114,63 @@ bool WindowApi::poll_events() {
         }
 
         get_window_info(WindowID{event.button.windowID})
-            .queue->add_raw(mouse_event);
-      };
+            ->mouse_click_listener.handle(mouse_event);
+
+        return true;
+      }
+
+      case SDL_MOUSEMOTION: {
+        MouseMotionEvent mouse_event;
+
+        mouse_event.mouse_id = MouseID{event.motion.which};
+        mouse_event.offset.x = event.motion.x;
+        mouse_event.offset.y = event.motion.y;
+        mouse_event.translation.x = event.motion.xrel;
+        mouse_event.translation.y = event.motion.yrel;
+
+        get_window_info(WindowID{event.button.windowID})
+            ->mouse_motion_listener.handle(mouse_event);
+
+        return true;
+      }
+
+      case SDL_MOUSEWHEEL: {
+        return true;
+      }
+
+      case SDL_QUIT: {
+        get_window_info(WindowID{event.button.windowID})
+            ->quit_listener.handle();
+
+        return true;
+      }
 
         // TODO(lamarrr): forward other events
+        // case SDL_CLIPBOARDUPDATE
+
+        // case SDL_DROPFILE
+        // case SDL_DROPFILE
+        // case SDL_DROPBEGIN
+        // case SDL_DROPCOMPLETE
+
+        // TODO(lamarrr): add requestkeyoardinput
+        // SDL_KEYDOWN
+        // SDL_KEYUP,
+        // SDL_TEXTEDITING,
+        // SDL_TEXTINPUT,
+        // SDL_KEYMAPCHANGED,
+
+        // Future
+        // SDL_CONTROLLERAXISMOTION
+        // SDL_CONTROLLERBUTTONDOWN
+        // SDL_CONTROLLERBUTTONUP
+        // SDL_CONTROLLERDEVICEADDED
+        // SDL_CONTROLLERDEVICEREMOVED
+        // SDL_CONTROLLERDEVICEREMAPPED
+        // SDL_CONTROLLERTOUCHPADDOWN
+        // SDL_CONTROLLERTOUCHPADMOTION
+        // SDL_CONTROLLERTOUCHPADUP
+        // SDL_CONTROLLERSENSORUPDATE
 
       default: {
         return true;

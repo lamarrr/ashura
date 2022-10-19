@@ -2,16 +2,16 @@
 
 #include "asura/vulkan.h"
 #include "asura/window.h"
-#include "asura/window_handle.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
-#include "spdlog/spdlog.h" #
+#include "spdlog/spdlog.h"
 #include "stx/vec.h"
 
 namespace asr {
 
 // TODO(lamarrr): handle should_quit
-void App::tick() {
+void App::tick(std::chrono::nanoseconds interval) {
+  /*
   auto frame_budget = frequency_to_period(present_refresh_rate_hz);
   auto begin = std::chrono::steady_clock::now();
   auto total_used = std::chrono::steady_clock::duration(0);
@@ -108,6 +108,7 @@ void App::tick() {
   }
 
   window->handle.handle->event_queue.clear();
+  */
 }
 
 }  // namespace asr

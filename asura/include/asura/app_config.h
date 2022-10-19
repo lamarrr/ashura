@@ -3,6 +3,7 @@
 #include "asura/primitives.h"
 #include "asura/utils.h"
 #include "asura/version.h"
+#include "asura/window.h"
 #include "stx/string.h"
 
 namespace asr {
@@ -14,6 +15,7 @@ struct AppConfig {
   Version version = Version{0, 0, 1};
   bool enable_validation_layers = false;
   stx::String log_file = stx::string::make_static("log.txt");
+  WindowConfig window_config;
   // asset dir, shader dir, etc
 };
 
