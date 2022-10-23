@@ -1,5 +1,6 @@
 #include "asura/engine.h"
 #include "asura/xcontext.h"
+#include "asura/render_object.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 

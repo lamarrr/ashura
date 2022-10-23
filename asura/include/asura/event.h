@@ -47,13 +47,13 @@ enum class MouseAction : uint8_t {
 
 struct MouseMotionEvent {
   MouseID mouse_id{};
-  IOffset offset;
-  IOffset translation;
+  OffsetI offset;
+  OffsetI translation;
 };
 
 struct MouseClickEvent {
   MouseID mouse_id{};
-  IOffset offset;
+  OffsetI offset;
   uint32_t clicks = 0;
   MouseButton button = MouseButton::Primary;
   MouseAction action = MouseAction::Press;

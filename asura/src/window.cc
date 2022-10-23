@@ -77,12 +77,11 @@ void Window::recreate_swapchain(
   // layout as dirty, otherwise maintain pipeline state
   int width = 0, height = 0;
   SDL_GetWindowSize(window_, &width, &height);
-  extent_ = Extent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+  extent_ = Extent{u32_clamp(width), u32_clamp(height)};
 
   int surface_width = 0, surface_height = 0;
   SDL_Vulkan_GetDrawableSize(window_, &surface_width, &surface_height);
-  surface_extent_ = Extent{static_cast<uint32_t>(surface_width),
-                           static_cast<uint32_t>(surface_height)};
+  surface_extent_ = Extent{u32_clamp(surface_width), u32_clamp(surface_height)};
 
   ASR_LOG("Resizing window to logical({},{}), physical({},{})", width, height,
           surface_width, surface_height);
@@ -266,8 +265,8 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
   }
 
   SDL_Window* window =
-      SDL_CreateWindow(cfg.title.c_str(), 0, 0, i32_clamp(cfg.extent.width),
-                       i32_clamp(cfg.extent.height), window_flags);
+      SDL_CreateWindow(cfg.title.c_str(), 0, 0, i32_clamp(cfg.extent.w),
+                       i32_clamp(cfg.extent.h), window_flags);
 
   // window creation shouldn't fail reliably, if it fails,
   // there's no point in the program proceeding
@@ -275,25 +274,26 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
 
   cfg.min_extent.copy().match(
       [&](Extent min_extent) {
-        SDL_SetWindowMinimumSize(window, i32_clamp(min_extent.width),
-                                 i32_clamp(min_extent.height));
+        SDL_SetWindowMinimumSize(window, i32_clamp(min_extent.w),
+                                 i32_clamp(min_extent.h));
       },
       []() {});
 
   cfg.max_extent.copy().match(
       [&](Extent max_extent) {
-        SDL_SetWindowMaximumSize(window, i32_clamp(max_extent.width),
-                                 i32_clamp(max_extent.height));
+        SDL_SetWindowMaximumSize(window, i32_clamp(max_extent.w),
+                                 i32_clamp(max_extent.h));
       },
       []() {});
 
   SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
+  uint32_t window_id = SDL_GetWindowID(window);
+
   stx::Rc<Window*> win =
       stx::rc::make_inplace<Window>(stx::os_allocator, std::move(api), window,
-                                    WindowID{SDL_GetWindowID(window)},
-                                    cfg.extent, cfg.extent, std::move(cfg),
-                                    std::this_thread::get_id(), stx::None)
+                                    WindowID{window_id}, cfg.extent, cfg.extent,
+                                    std::move(cfg), std::this_thread::get_id())
           .unwrap();
 
   api.handle->add_window_info(win.handle->id_, win.handle);

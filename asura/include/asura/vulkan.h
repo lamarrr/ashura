@@ -415,8 +415,8 @@ struct SwapChainProperties {
   stx::Vec<VkPresentModeKHR> presentation_modes{stx::os_allocator};
 };
 
-inline SwapChainProperties get_swapchain_properties(
-    VkPhysicalDevice phy_device, VkSurfaceKHR surface) {
+inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_device,
+                                                    VkSurfaceKHR surface) {
   SwapChainProperties details{};
 
   ASR_MUST_SUCCEED(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
@@ -432,11 +432,10 @@ inline SwapChainProperties get_swapchain_properties(
 
   details.supported_formats.resize(supported_surface_formats_count).unwrap();
 
-  ASR_MUST_SUCCEED(
-      vkGetPhysicalDeviceSurfaceFormatsKHR(phy_device, surface,
-                                           &supported_surface_formats_count,
-                                           details.supported_formats.data()),
-      "Unable to get physical device' surface format");
+  ASR_MUST_SUCCEED(vkGetPhysicalDeviceSurfaceFormatsKHR(
+                       phy_device, surface, &supported_surface_formats_count,
+                       details.supported_formats.data()),
+                   "Unable to get physical device' surface format");
 
   uint32_t surface_presentation_modes_count;
   ASR_MUST_SUCCEED(
@@ -445,11 +444,10 @@ inline SwapChainProperties get_swapchain_properties(
       "Unable to get physical device' surface presentation mode");
 
   details.presentation_modes.resize(surface_presentation_modes_count).unwrap();
-  ASR_MUST_SUCCEED(
-      vkGetPhysicalDeviceSurfacePresentModesKHR(
-          phy_device, surface, &surface_presentation_modes_count,
-          details.presentation_modes.data()),
-      "Unable to get physical device' surface presentation mode");
+  ASR_MUST_SUCCEED(vkGetPhysicalDeviceSurfacePresentModesKHR(
+                       phy_device, surface, &surface_presentation_modes_count,
+                       details.presentation_modes.data()),
+                   "Unable to get physical device' surface presentation mode");
 
   return details;
 }
@@ -626,10 +624,10 @@ constexpr VkComponentMapping make_default_component_mapping() {
   return mapping;
 }
 
-inline VkImageView create_image_view(
-    VkDevice device, VkImage image, VkFormat format, VkImageViewType view_type,
-    VkImageAspectFlagBits aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT,
-    VkComponentMapping component_mapping = make_default_component_mapping()) {
+inline VkImageView create_image_view(VkDevice device, VkImage image,
+                                     VkFormat format, VkImageViewType view_type,
+                                     VkImageAspectFlagBits aspect_mask,
+                                     VkComponentMapping component_mapping) {
   VkImageViewCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
       .image = image,
@@ -2127,7 +2125,7 @@ struct PhyDeviceInfo {
     }
 
     return PhyDeviceInfo{phy_device, properties, features,
-                          std::move(nfamily_properties), instance.share()};
+                         std::move(nfamily_properties), instance.share()};
   }
 
   bool has_geometry_shader() const { return features.geometryShader; }
@@ -2176,12 +2174,11 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
     vkGetPhysicalDeviceFeatures(device, &device_features);
 
     devices
-        .push(
-            PhyDeviceInfo{.phy_device = device,
-                           .properties = device_properties,
-                           .features = device_features,
-                           .family_properties = vk::get_queue_families(device),
-                           .instance = instance.share()})
+        .push(PhyDeviceInfo{.phy_device = device,
+                            .properties = device_properties,
+                            .features = device_features,
+                            .family_properties = vk::get_queue_families(device),
+                            .instance = instance.share()})
         .unwrap();
   }
 

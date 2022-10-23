@@ -275,8 +275,8 @@ struct WindowSurface {
     uint32_t accessing_families[] = {family.handle->index};
 
     auto [new_swapchain_r, actual_extent] = vk::create_swapchain(
-        device, surface, VkExtent2D{extent.width, extent.height}, format,
-        present_mode, properties,
+        device, surface, VkExtent2D{extent.w, extent.h}, format, present_mode,
+        properties,
         // not thread-safe since GPUs typically have one graphics queue
         WindowSwapChain::IMAGES_SHARING_MODE, accessing_families,
         // render target image

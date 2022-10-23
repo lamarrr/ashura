@@ -15,7 +15,7 @@ namespace asr {
 // TODO(lamarrr): runtime antialiasing setting
 
 // global resource identifier
-using UUID = uint64_t;
+
 struct Material {};
 struct Image {};
 struct Shader {};
@@ -24,8 +24,8 @@ struct DirectionalLight {};
 struct SpotLight {};
 struct PointLight {};
 struct Camera {
-  Mat4x4 projection;
-  Vec3 position;
+  mat4x4 projection;
+  vec3 position;
   // transform, rotation, model, view, far_plane
 };
 struct Component {};
@@ -49,18 +49,18 @@ struct ColorMaterial {
 };
 struct Material {};
 struct Mesh {
-  FixedVec<Vec4 const> vertices;
-  FixedVec<uint32_t const> indices;
+  stx::FixedVec<vec4> vertices;
+  stx::FixedVec<u32> indices;
 };
 struct Entity {
-  uint64_t id = 0;
+  u64 id = 0;
   stx::String identifier = stx::string::make_static("unnamed");
 };
 struct EntitySystem {
   Entity create_entity() {
     return Entity{next_id.fetch_add(1, std::memory_order_relaxed)};
   }
-  std::atomic<uint64_t> next_id{1};
+  std::atomic<u64> next_id{1};
 };
 struct Scene {
   void add_component(Component component);
@@ -72,25 +72,18 @@ struct RendererSystem {
 };
 struct Typeface {};
 
-struct Transform {
-  Vec3 translation{0.0f, 0.0f, 0.0f};
-  Vec3 rotation{0.0f, 0.0f, 0.0f};
-  Vec3 scale{1.0f, 1.0f, 1.0f};
-  Vec3 position{0.0f, 0.0f, 0.0f};
-};
+struct Transform;
 struct RenderObject {
-  Transform transform;
+  Transform *transform;
+  vec3 position{0.0f, 0.0f, 0.0f};
   Mesh mesh;
   Shader vertex_shader;
   Shader fragment_shader;
   Material material;  // or 2D material?
 };
-struct Rect {};
+
 struct WidgetInfo {};
-struct Offset {
-  float x, y;
-};
-using ZIndex = uint64_t;
+
 struct System {};
 // TODO(lamarrr): this must work well for 3D animations, might need transforms
 // and the likes
@@ -112,6 +105,9 @@ struct Context {
 
 struct JsonObject {};
 
+// TODO(lamarrr): we need to pass in a zoom level to the rendering widget? so
+// that widgets like text can shape their glyphs properly
+
 struct Widget {
   // + handling floating, relative, sticky and fixed positioned elements
   virtual Rect layout(Extent allotted_extent);  // min, max, available
@@ -124,12 +120,12 @@ struct Widget {
   virtual stx::Span<Widget *const> get_children();
   virtual WidgetInfo get_debug_info();
   virtual Visibility get_visibility();
-  virtual stx::Option<ZIndex> get_z_index();
+  virtual stx::Option<i64> get_z_index();
   // events
   virtual void on_click(MouseButton btn, Offset pos);
   virtual void on_double_click(MouseButton button, Offset pos);
-  virtual void on_mouse_scroll(Offset translation, float precise_x,
-                               float precise_y);
+  virtual void on_mouse_scroll(OffsetI translation, f32 precise_x,
+                               f32 precise_y);
   virtual void on_mouse_move();
   virtual void on_hover(Offset pos);
   virtual void on_mouse_down();
@@ -146,8 +142,8 @@ struct Widget {
   virtual void on_focus();
   virtual void on_focus_in();
   virtual void on_focus_out();
-  virtual void on_scroll(Offset translation, float precision_x,
-                         float precision_y);  // scroll of this widget's content
+  virtual void on_scroll(OffsetI translation, f32 precision_x,
+                         f32 precision_y);  // scroll of this widget's content
   virtual void on_enter_view();
   virtual void on_leave_view();
   // virtual void on_full_screen_change();

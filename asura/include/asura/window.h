@@ -140,7 +140,7 @@ struct Window {
   WindowSwapchainDiff present_backing_store();
 
   void on(WindowEvent event, stx::UniqueFn<void()> callback) {
-    window_listeners.emplace(event, std::move(callback));
+    window_event_listeners.emplace(event, std::move(callback));
   }
 
   // use SDL_EVENT_DISPLAY
@@ -165,8 +165,7 @@ struct Window {
   std::thread::id init_thread_id_;
   stx::Option<stx::Unique<WindowSurface*>> surface_;
   uint32_t refresh_rate_ = 1;
-  // overlay
-  std::map<WindowEvent, stx::UniqueFn<void()>> window_listeners;
+  std::map<WindowEvent, stx::UniqueFn<void()>> window_event_listeners;
   stx::UniqueFn<void(MouseClickEvent const&)> mouse_click_listener =
       stx::fn::rc::make_unique_static([](MouseClickEvent const&) {});
   stx::UniqueFn<void(MouseMotionEvent const&)> mouse_motion_listener =

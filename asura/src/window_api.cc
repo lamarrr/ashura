@@ -66,13 +66,12 @@ bool WindowApi::poll_events() {
   if (SDL_PollEvent(&event) == 1) {
     switch (event.type) {
       case SDL_WINDOWEVENT: {
-        auto listener =
-            get_window_info(WindowID{event.window.windowID})
-                ->window_listeners.find(
-                    impl::sdl_window_event_to_asr(event.window.event));
+        Window* win = get_window_info(WindowID{event.window.windowID});
 
-        if (listener != get_window_info(WindowID{event.window.windowID})
-                            ->window_listeners.end()) {
+        auto listener = win->window_event_listeners.find(
+            impl::sdl_window_event_to_asr(event.window.event));
+
+        if (listener != win->window_event_listeners.end()) {
           listener->second.handle();
         }
 
@@ -83,7 +82,7 @@ bool WindowApi::poll_events() {
       case SDL_MOUSEBUTTONUP: {
         MouseClickEvent mouse_event;
         mouse_event.mouse_id = MouseID{event.button.which};
-        mouse_event.offset = IOffset{event.button.x, event.button.y};
+        mouse_event.offset = OffsetI{event.button.x, event.button.y};
         mouse_event.clicks = event.button.clicks;
 
         switch (event.button.button) {
