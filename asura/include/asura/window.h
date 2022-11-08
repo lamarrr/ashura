@@ -106,14 +106,17 @@ struct Window {
   void restore() const { SDL_RestoreWindow(window_); }
 
   void make_fullscreen() const {
-    SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    ASR_ENSURE(
+        SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP) == 0);
   }
 
   void make_nonfullscreen_exclusive() const {
-    SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN);
+    ASR_ENSURE(SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN) == 0);
   }
 
-  void make_windowed() const { SDL_SetWindowFullscreen(window_, 0); }
+  void make_windowed() const {
+    ASR_ENSURE(SDL_SetWindowFullscreen(window_, 0) == 0);
+  }
 
   // void enable_hit_testing();
 
@@ -151,7 +154,7 @@ struct Window {
 
   void tick(std::chrono::nanoseconds) {
     SDL_DisplayMode display_mode{};
-    SDL_GetWindowDisplayMode(window_, &display_mode);
+    ASR_ENSURE(SDL_GetWindowDisplayMode(window_, &display_mode) == 0);
     refresh_rate_ = display_mode.refresh_rate;
     // forward event if refresh rate changed
   }

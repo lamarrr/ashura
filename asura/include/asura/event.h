@@ -4,7 +4,7 @@
 
 namespace asr {
 
-enum class WindowEvent : uint8_t {
+enum class WindowEvent : u8 {
   None,
   Shown,
   Hidden,
@@ -25,7 +25,7 @@ enum class WindowEvent : uint8_t {
   TakeFocus
 };
 
-enum class MouseButton : uint8_t {
+enum class MouseButton : u8 {
   Primary,
   Secondary,
   Middle,
@@ -36,11 +36,11 @@ enum class MouseButton : uint8_t {
   A5
 };
 
-enum class KeyModifier : uint8_t {};
+enum class KeyModifier : u8 {};
 
-enum class MouseID : uint32_t {};
+enum class MouseID : u32 {};
 
-enum class MouseAction : uint8_t {
+enum class MouseAction : u8 {
   Press,
   Release,
 };
@@ -54,7 +54,7 @@ struct MouseMotionEvent {
 struct MouseClickEvent {
   MouseID mouse_id{};
   OffsetI offset;
-  uint32_t clicks = 0;
+  u32 clicks = 0;
   MouseButton button = MouseButton::Primary;
   MouseAction action = MouseAction::Press;
   KeyModifier modifier;  // TODO(lamarrr)

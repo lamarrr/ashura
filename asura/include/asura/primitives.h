@@ -58,9 +58,7 @@ struct mat3x3 {
 struct mat4x4 {
   vec4 data[4]{};
 
-  constexpr mat4x4 operator*(mat4x4 const &other) const {
-    // TODO
-  }
+  constexpr mat4x4 operator*(mat4x4 const &other) const;
 
   static constexpr mat4x4 identity() {
     return mat4x4{vec4{.x = 1.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},

@@ -1,4 +1,6 @@
 
+// TODO(): account for thickness
+
 float circle(in vec2 coord, in vec2 center, in float radius){
 vec2 displacement = coord - center;
 float dist = length(displacement);

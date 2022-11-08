@@ -14,13 +14,6 @@ execute_process(
           third_party/stb WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 execute_process(
-  COMMAND
-    git clone -b v3.0.1
-    https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-    third_party/VulkanMemoryAllocator
-  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
-execute_process(
   COMMAND git clone -b v1.12.0 https://github.com/google/googletest.git
           third_party/googletest WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
@@ -36,10 +29,6 @@ execute_process(
   COMMAND git clone -b release-2.24.0 https://github.com/libsdl-org/SDL.git
           third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
-execute_process(
-  COMMAND git clone -b chrome/m106 https://github.com/google/skia.git
-          third_party/skia WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
 
@@ -48,7 +37,6 @@ include(ExternalProject)
 find_package(Vulkan REQUIRED)
 
 add_subdirectory(third_party/STX)
-add_subdirectory(third_party/VulkanMemoryAllocator)
 add_subdirectory(third_party/googletest)
 add_subdirectory(third_party/fmt)
 add_subdirectory(third_party/spdlog)
