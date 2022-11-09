@@ -47,8 +47,8 @@ add_subdirectory(third_party/SDL)
 
 set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/skia/libs)
 
-add_library(asura_external_stb INTERFACE)
-target_include_directories(asura_external_stb
+add_library(ashura_external_stb INTERFACE)
+target_include_directories(ashura_external_stb
                            INTERFACE ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
 
 # -fno-exceptions -fno-unwind-tables
@@ -61,4 +61,4 @@ endif()
 
 # add_subdirectory(asset)
 add_subdirectory(utils)
-add_subdirectory(asura)
+add_subdirectory(ashura)

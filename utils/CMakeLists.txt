@@ -1,2 +1,2 @@
-add_project_library(asura utils)
-target_link_libraries(asura_utils spdlog::spdlog stx::stx)
+add_project_library(ashura utils)
+target_link_libraries(ashura_utils spdlog::spdlog stx::stx)

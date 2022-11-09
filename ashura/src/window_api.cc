@@ -1,14 +1,14 @@
 
-#include "asura/window_api.h"
+#include "ashura/window_api.h"
 
 #include <map>
 
 #include "SDL.h"
 #include "SDL_vulkan.h"
-#include "asura/event.h"
-#include "asura/sdl_utils.h"
-#include "asura/utils.h"
-#include "asura/window.h"
+#include "ashura/event.h"
+#include "ashura/sdl_utils.h"
+#include "ashura/utils.h"
+#include "ashura/window.h"
 
 namespace asr {
 

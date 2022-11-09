@@ -10,8 +10,8 @@
 #include <utility>
 #include <vector>
 
-#include "asura/primitives.h"
-#include "asura/utils.h"
+#include "ashura/primitives.h"
+#include "ashura/utils.h"
 #include "stx/backtrace.h"
 #include "stx/limits.h"
 #include "stx/option.h"
@@ -39,7 +39,7 @@ inline auto join_copy(stx::Span<T> a, stx::Span<T> b) {
 
 inline void ensure_validation_layers_supported(
     stx::Span<char const* const> layers) {
-  uint32_t available_validation_layers_count;
+  u32 available_validation_layers_count;
   vkEnumerateInstanceLayerProperties(&available_validation_layers_count,
                                      nullptr);
 
@@ -79,7 +79,7 @@ inline void ensure_validation_layers_supported(
 // NICE-TO-HAVE(lamarrr): versioning of extensions, know which one wasn't
 // available and adjust features to that
 inline void ensure_extensions_supported(stx::Span<char const* const> names) {
-  uint32_t available_vk_extensions_count = 0;
+  u32 available_vk_extensions_count = 0;
   vkEnumerateInstanceExtensionProperties(
       nullptr, &available_vk_extensions_count, nullptr);
 
@@ -222,9 +222,9 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
     stx::Span<char const* const> required_validation_layers,
     VkDebugUtilsMessengerCreateInfoEXT debug_messenger_create_info,
     char const* const application_name = "Valkyrie",
-    uint32_t application_version = VK_MAKE_VERSION(1, 0, 0),
+    u32 application_version = VK_MAKE_VERSION(1, 0, 0),
     char const* const engine_name = "Valkyrie Engine",
-    uint32_t engine_version = VK_MAKE_VERSION(1, 0, 0)) {
+    u32 engine_version = VK_MAKE_VERSION(1, 0, 0)) {
   // helps bnt not necessary
   VkApplicationInfo app_info{.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
                              .pApplicationName = application_name,
@@ -285,7 +285,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 //  texture, etc.) we use command queues
 inline stx::Vec<VkQueueFamilyProperties> get_queue_families(
     VkPhysicalDevice device) {
-  uint32_t queue_families_count;
+  u32 queue_families_count;
 
   vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_families_count,
                                            nullptr);
@@ -341,10 +341,10 @@ inline VkDevice create_logical_device(
   VkDeviceCreateInfo device_create_info{
       .pQueueCreateInfos = command_queue_create_infos.data(),
       .queueCreateInfoCount =
-          static_cast<uint32_t>(command_queue_create_infos.size()),
+          static_cast<u32>(command_queue_create_infos.size()),
       .pEnabledFeatures = &required_features};
 
-  uint32_t available_extensions_count;
+  u32 available_extensions_count;
   ASR_MUST_SUCCEED(
       vkEnumerateDeviceExtensionProperties(
           phy_device, nullptr, &available_extensions_count, nullptr),
@@ -399,8 +399,8 @@ inline VkDevice create_logical_device(
   return logical_device;
 }
 
-inline VkQueue get_command_queue(VkDevice device, uint32_t queue_family_index,
-                                 uint32_t command_queue_index_in_family) {
+inline VkQueue get_command_queue(VkDevice device, u32 queue_family_index,
+                                 u32 command_queue_index_in_family) {
   VkQueue command_queue;
   vkGetDeviceQueue(device, queue_family_index, command_queue_index_in_family,
                    &command_queue);
@@ -423,7 +423,7 @@ inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_device,
                        phy_device, surface, &details.capabilities),
                    "Unable to get physical device' surface capabilities");
 
-  uint32_t supported_surface_formats_count = 0;
+  u32 supported_surface_formats_count = 0;
 
   ASR_MUST_SUCCEED(
       vkGetPhysicalDeviceSurfaceFormatsKHR(
@@ -437,7 +437,7 @@ inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_device,
                        details.supported_formats.data()),
                    "Unable to get physical device' surface format");
 
-  uint32_t surface_presentation_modes_count;
+  u32 surface_presentation_modes_count;
   ASR_MUST_SUCCEED(
       vkGetPhysicalDeviceSurfacePresentModesKHR(
           phy_device, surface, &surface_presentation_modes_count, nullptr),
@@ -496,9 +496,8 @@ inline VkExtent2D select_swapchain_extent(
 
 // select number of images to have on the swap chain based on device
 // capabilities. i.e. double buffering, triple buffering.
-inline uint32_t select_swapchain_image_count(
-    VkSurfaceCapabilitiesKHR const& capabilities,
-    uint32_t desired_num_buffers) {
+inline u32 select_swapchain_image_count(
+    VkSurfaceCapabilitiesKHR const& capabilities, u32 desired_num_buffers) {
   return
       // no limit on the number of swapchain images
       capabilities.maxImageCount == 0
@@ -513,14 +512,13 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
-    stx::Span<uint32_t const> accessing_queue_families_indexes,
+    stx::Span<u32 const> accessing_queue_families_indexes,
     VkImageUsageFlags image_usages = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
     VkCompositeAlphaFlagBitsKHR alpha_channel_blending =
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
     VkBool32 clipped = VK_TRUE) {
-  uint32_t desired_num_buffers =
-      std::max(properties.capabilities.minImageCount + 1,
-               properties.capabilities.maxImageCount);
+  u32 desired_num_buffers = std::max(properties.capabilities.minImageCount + 1,
+                                     properties.capabilities.maxImageCount);
 
   VkExtent2D selected_extent =
       select_swapchain_extent(properties.capabilities, extent);
@@ -568,7 +566,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
       .imageSharingMode = accessing_queue_families_sharing_mode,
       .pQueueFamilyIndices = accessing_queue_families_indexes.data(),
       .queueFamilyIndexCount =
-          static_cast<uint32_t>(accessing_queue_families_indexes.size())};
+          static_cast<u32>(accessing_queue_families_indexes.size())};
 
   VkSwapchainKHR swapchain;
   ASR_MUST_SUCCEED(
@@ -580,7 +578,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
 
 inline stx::Vec<VkImage> get_swapchain_images(VkDevice device,
                                               VkSwapchainKHR swapchain) {
-  uint32_t image_count;
+  u32 image_count;
 
   ASR_MUST_SUCCEED(
       vkGetSwapchainImagesKHR(device, swapchain, &image_count, nullptr),
@@ -601,12 +599,12 @@ inline stx::Vec<VkImage> get_swapchain_images(VkDevice device,
 // this will create `queue_priorities.size()` number of command queues from
 // family `queue_family_index`
 constexpr VkDeviceQueueCreateInfo make_command_queue_create_info(
-    uint32_t queue_family_index, stx::Span<float const> queues_priorities) {
+    u32 queue_family_index, stx::Span<float const> queues_priorities) {
   VkDeviceQueueCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
       .queueFamilyIndex = queue_family_index,
       .pQueuePriorities = queues_priorities.data(),
-      .queueCount = static_cast<uint32_t>(
+      .queueCount = static_cast<u32>(
           queues_priorities
               .size())  // the number of queues we want, since multiple
                         // queues can belong to a single family
@@ -701,7 +699,7 @@ inline VkSampler create_sampler(VkDevice device,
 }
 
 inline VkShaderModule create_shader_module(
-    VkDevice device, stx::Span<uint32_t const> spirv_byte_data) {
+    VkDevice device, stx::Span<u32 const> spirv_byte_data) {
   VkShaderModuleCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
       .codeSize = spirv_byte_data.size_bytes(),
@@ -761,10 +759,10 @@ make_pipeline_vertex_input_state_create_info(
   VkPipelineVertexInputStateCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
       .vertexBindingDescriptionCount =
-          static_cast<uint32_t>(vertex_binding_descriptions.size()),
+          static_cast<u32>(vertex_binding_descriptions.size()),
       .pVertexBindingDescriptions = vertex_binding_descriptions.data(),
       .vertexAttributeDescriptionCount =
-          static_cast<uint32_t>(vertex_attribute_desciptions.size()),
+          static_cast<u32>(vertex_attribute_desciptions.size()),
       .pVertexAttributeDescriptions = vertex_attribute_desciptions.data()};
 
   return create_info;
@@ -808,9 +806,9 @@ make_pipeline_viewport_state_create_info(stx::Span<VkViewport const> viewports,
   // device creation
   VkPipelineViewportStateCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .viewportCount = static_cast<uint32_t>(viewports.size()),
+      .viewportCount = static_cast<u32>(viewports.size()),
       .pViewports = viewports.data(),
-      .scissorCount = static_cast<uint32_t>(
+      .scissorCount = static_cast<u32>(
           scissors.size()),  // scissors cut out the part to be rendered
       .pScissors = scissors.data()};
 
@@ -894,7 +892,7 @@ make_pipeline_color_blend_state_create_info(
       .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
       .logicOpEnable = VK_FALSE,
       .logicOp = VK_LOGIC_OP_COPY,
-      .attachmentCount = static_cast<uint32_t>(
+      .attachmentCount = static_cast<u32>(
           color_frame_buffers.size()),  // number of framebuffers
       .pAttachments = color_frame_buffers.data(),
       .blendConstants[0] = 0.0f,
@@ -913,7 +911,7 @@ constexpr VkPipelineDynamicStateCreateInfo make_pipeline_dynamic_state(
 
   VkPipelineDynamicStateCreateInfo pipeline_state{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-      .dynamicStateCount = static_cast<uint32_t>(dynamic_states.size()),
+      .dynamicStateCount = static_cast<u32>(dynamic_states.size()),
       .pDynamicStates = dynamic_states.data()};
 
   return pipeline_state;
@@ -925,9 +923,9 @@ inline VkPipelineLayout create_pipeline_layout(
     stx::Span<VkPushConstantRange const> constant_ranges) {
   VkPipelineLayoutCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-      .setLayoutCount = static_cast<uint32_t>(descriptor_sets_layout.size()),
+      .setLayoutCount = static_cast<u32>(descriptor_sets_layout.size()),
       .pSetLayouts = descriptor_sets_layout.data(),
-      .pushConstantRangeCount = static_cast<uint32_t>(constant_ranges.size()),
+      .pushConstantRangeCount = static_cast<u32>(constant_ranges.size()),
       .pPushConstantRanges = constant_ranges.data()};
 
   VkPipelineLayout layout;
@@ -971,7 +969,7 @@ constexpr VkSubpassDescription make_subpass_description(
     stx::Span<VkAttachmentReference const> color_attachments) {
   VkSubpassDescription subpass{
       .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-      .colorAttachmentCount = static_cast<uint32_t>(color_attachments.size()),
+      .colorAttachmentCount = static_cast<u32>(color_attachments.size()),
       .pColorAttachments =
           color_attachments.data()  // layout(location = 0) out vec4 outColor
   };
@@ -1007,11 +1005,11 @@ inline VkRenderPass create_render_pass(
     stx::Span<VkSubpassDependency const> subpass_dependencies) {
   VkRenderPassCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-      .attachmentCount = static_cast<uint32_t>(attachment_descriptions.size()),
+      .attachmentCount = static_cast<u32>(attachment_descriptions.size()),
       .pAttachments = attachment_descriptions.data(),
-      .subpassCount = static_cast<uint32_t>(subpass_descriptions.size()),
+      .subpassCount = static_cast<u32>(subpass_descriptions.size()),
       .pSubpasses = subpass_descriptions.data(),
-      .dependencyCount = static_cast<uint32_t>(subpass_dependencies.size()),
+      .dependencyCount = static_cast<u32>(subpass_dependencies.size()),
       .pDependencies = subpass_dependencies.data()};
 
   VkRenderPass render_pass;
@@ -1036,7 +1034,7 @@ inline VkPipeline create_graphics_pipeline(
   VkGraphicsPipelineCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
       .pStages = shader_stages_create_infos.data(),
-      .stageCount = static_cast<uint32_t>(shader_stages_create_infos.size()),
+      .stageCount = static_cast<u32>(shader_stages_create_infos.size()),
       .pVertexInputState = &vertex_input_state,
       .pInputAssemblyState = &input_assembly_state,
       .pViewportState = &viewport_state,
@@ -1072,7 +1070,7 @@ inline VkFramebuffer create_frame_buffer(
   VkFramebufferCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
       .renderPass = render_pass,
-      .attachmentCount = static_cast<uint32_t>(attachments.size()),
+      .attachmentCount = static_cast<u32>(attachments.size()),
       .pAttachments = attachments.data(),
       .width = extent.width,
       .height = extent.height,
@@ -1087,7 +1085,7 @@ inline VkFramebuffer create_frame_buffer(
 }
 
 inline VkCommandPool create_command_pool(
-    VkDevice device, uint32_t queue_family_index,
+    VkDevice device, u32 queue_family_index,
     bool enable_command_buffer_resetting = false) {
   VkCommandPoolCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -1133,7 +1131,7 @@ inline void allocate_command_buffers(
       // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but
       // can be called from primary command buffers.
       .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-      .commandBufferCount = static_cast<uint32_t>(command_buffers.size())};
+      .commandBufferCount = static_cast<u32>(command_buffers.size())};
 
   ASR_MUST_SUCCEED(
       vkAllocateCommandBuffers(device, &allocate_info, command_buffers.data()),
@@ -1175,8 +1173,8 @@ struct Recorder {
     return *this;
   }
 
-  Recorder copy(VkBuffer src, uint64_t src_offset, uint64_t size, VkBuffer dst,
-                uint64_t dst_offset) {
+  Recorder copy(VkBuffer src, u64 src_offset, u64 size, VkBuffer dst,
+                u64 dst_offset) {
     VkBufferCopy copy_region{
         .dstOffset = dst_offset, .size = size, .srcOffset = src_offset};
     vkCmdCopyBuffer(command_buffer_, src, dst, 1, &copy_region);
@@ -1184,7 +1182,7 @@ struct Recorder {
   }
 
   // TODO(lamarrr): make into multi-copy interface
-  Recorder copy(VkBuffer src, uint64_t src_offset, VkImage dst,
+  Recorder copy(VkBuffer src, u64 src_offset, VkImage dst,
                 VkImageLayout dst_expected_layout, VkOffset3D dst_offset,
                 VkExtent3D dst_extent) {
     VkBufferImageCopy copy_region{
@@ -1214,7 +1212,7 @@ struct Recorder {
         .renderPass = render_pass,
         .framebuffer = framebuffer,
         .renderArea = render_area,
-        .clearValueCount = static_cast<uint32_t>(clear_values.size()),
+        .clearValueCount = static_cast<u32>(clear_values.size()),
         .pClearValues = clear_values.data()};
 
     // VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in
@@ -1267,8 +1265,8 @@ struct Recorder {
     return *this;
   }
 
-  Recorder draw(uint32_t vertex_count, uint32_t instance_count,
-                uint32_t first_vertex, uint32_t first_instance) {
+  Recorder draw(u32 vertex_count, u32 instance_count, u32 first_vertex,
+                u32 first_instance) {
     // instanceCount: Used for instanced rendering
     // firstVertex: Used as an offset into the vertex buffer, defines the lowest
     // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
@@ -1278,9 +1276,8 @@ struct Recorder {
     return *this;
   }
 
-  Recorder draw_indexed(uint32_t index_count, uint32_t instance_count,
-                        uint32_t first_index, uint32_t vertex_offset,
-                        uint32_t first_instance) {
+  Recorder draw_indexed(u32 index_count, u32 instance_count, u32 first_index,
+                        u32 vertex_offset, u32 first_instance) {
     // instanceCount: Used for instanced rendering
     // firstVertex: Used as an offset into the vertex buffer, defines the lowest
     // value of gl_VertexIndex. firstInstance: Used as an offset for instanced
@@ -1364,22 +1361,22 @@ inline void submit_commands(VkQueue command_queue,
 
   VkSubmitInfo submit_info{
       .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-      .waitSemaphoreCount = static_cast<uint32_t>(await_semaphores.size()),
+      .waitSemaphoreCount = static_cast<u32>(await_semaphores.size()),
       .pWaitSemaphores = await_semaphores.data(),
       .pWaitDstStageMask = await_stages.data(),
       .commandBufferCount = 1,
       .pCommandBuffers = &command_buffer,
-      .signalSemaphoreCount = static_cast<uint32_t>(notify_semaphores.size()),
+      .signalSemaphoreCount = static_cast<u32>(notify_semaphores.size()),
       .pSignalSemaphores = notify_semaphores.data()};
 
   ASR_MUST_SUCCEED(vkQueueSubmit(command_queue, 1, &submit_info, notify_fence),
                    "Unable to submit command buffer to command queue");
 }
 
-inline std::pair<uint32_t, VkResult> acquire_next_swapchain_image(
+inline std::pair<u32, VkResult> acquire_next_swapchain_image(
     VkDevice device, VkSwapchainKHR swapchain, VkSemaphore signal_semaphore,
     VkFence signal_fence) {
-  uint32_t index = 0;
+  u32 index = 0;
 
   auto result = vkAcquireNextImageKHR(
       device, swapchain,
@@ -1395,15 +1392,15 @@ inline std::pair<uint32_t, VkResult> acquire_next_swapchain_image(
 inline VkResult present(VkQueue command_queue,
                         stx::Span<VkSemaphore const> await_semaphores,
                         stx::Span<VkSwapchainKHR const> swapchains,
-                        stx::Span<uint32_t const> swapchain_image_indexes) {
+                        stx::Span<u32 const> swapchain_image_indexes) {
   ASR_ENSURE(swapchain_image_indexes.size() == swapchains.size(),
              "swapchain and their image indices must be of the same size");
 
   VkPresentInfoKHR present_info{
       .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-      .waitSemaphoreCount = static_cast<uint32_t>(await_semaphores.size()),
+      .waitSemaphoreCount = static_cast<u32>(await_semaphores.size()),
       .pWaitSemaphores = await_semaphores.data(),
-      .swapchainCount = static_cast<uint32_t>(swapchains.size()),
+      .swapchainCount = static_cast<u32>(swapchains.size()),
       .pSwapchains = swapchains.data(),
       .pImageIndices = swapchain_image_indexes.data(),
       .pResults = nullptr};
@@ -1417,7 +1414,7 @@ inline VkResult present(VkQueue command_queue,
 }
 
 // creates buffer object but doesn't assign memory to it
-inline VkBuffer create_buffer(VkDevice device, uint64_t byte_size,
+inline VkBuffer create_buffer(VkDevice device, u64 byte_size,
                               VkBufferUsageFlagBits usage,
                               VkSharingMode sharing_mode) {
   VkBufferCreateInfo buffer_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -1512,7 +1509,7 @@ inline VkMemoryRequirements get_memory_requirements(VkDevice device,
 }
 
 // returns index of the heap on the physical device, could be RAM, SWAP, or VRAM
-inline stx::Option<uint32_t> find_suitable_memory_type(
+inline stx::Option<u32> find_suitable_memory_type(
     VkPhysicalDevice phy_device,
     VkMemoryRequirements const& memory_requirements,
     VkMemoryPropertyFlagBits required_properties =
@@ -1523,7 +1520,7 @@ inline stx::Option<uint32_t> find_suitable_memory_type(
   // different types of memory exist within the graphics card heap memory.
   // this can affect performance.
 
-  for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
+  for (u32 i = 0; i < memory_properties.memoryTypeCount; i++) {
     if ((memory_requirements.memoryTypeBits & (1 << i)) &&
         ((required_properties &
           memory_properties.memoryTypes[i].propertyFlags) ==
@@ -1534,91 +1531,12 @@ inline stx::Option<uint32_t> find_suitable_memory_type(
 
   return stx::None;
 }
-
-// vkFreeMemory
-inline VkDeviceMemory allocate_memory(VkDevice device, uint32_t heap_index,
-                                      uint64_t size)  {
-  VkMemoryAllocateInfo allocate_info{};
-
-  allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-  allocate_info.allocationSize = size;
-  allocate_info.memoryTypeIndex = heap_index;
-
-  VkDeviceMemory memory;
-  ASR_MUST_SUCCEED(vkAllocateMemory(device, &allocate_info, nullptr, &memory),
-                   "Unable to allocate memory");
-
-  return memory;
-}
-
-inline void bind_memory_to_buffer(VkDevice device, VkBuffer buffer,
-                                  VkDeviceMemory memory,
-                                  uint64_t offset)  {
-  ASR_MUST_SUCCEED(vkBindBufferMemory(device, buffer, memory, offset),
-                   "Unable to bind memory to buffer");
-}
-
-inline void bind_memory_to_image(VkDevice device, VkImage image,
-                                 VkDeviceMemory memory,
-                                 uint64_t offset)  {
-  ASR_MUST_SUCCEED(vkBindImageMemory(device, image, memory, offset),
-                   "Unable to bind memory to image");
-}
-
-struct MemoryMap {
-  // offset of the memory address this map points to
-  uint64_t offset;
-  // contains the (offset+adress) and size
-  stx::Span<uint8_t volatile> span;
-};
-
-inline MemoryMap map_memory(VkDevice device, VkDeviceMemory memory,
-                            uint64_t offset, uint64_t size,
-                            VkMemoryMapFlags flags = 0)  {
-  void* ptr;
-  ASR_MUST_SUCCEED(vkMapMemory(device, memory, offset, size, flags, &ptr),
-                   "Unable to map memory");
-  return MemoryMap{offset,
-                   stx::Span<uint8_t>{reinterpret_cast<uint8_t*>(ptr), size}};
-}
-
-// unlike OpenGL the driver may not immediately copy the data after unmap, i.e.
-// due to caching. so we need to flush our writes
-inline void unmap_memory(VkDevice device, VkDeviceMemory memory)  {
-  vkUnmapMemory(device, memory);
-}
-
-// due to caching we need to flush writes to the memory map before reading again
-// has size requirements for the flush range
-inline void flush_memory_map(VkDevice device, VkDeviceMemory memory,
-                             uint64_t offset, uint64_t size)  {
-  VkMappedMemoryRange range{};
-  range.memory = memory;
-  range.offset = offset;
-  range.size = size;
-  range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-
-  ASR_MUST_SUCCEED(vkFlushMappedMemoryRanges(device, 1, &range),
-                   "Unable to flush memory map");
-}
-
-inline void refresh_memory_map(VkDevice device, VkDeviceMemory memory,
-                               uint64_t offset, uint64_t size)  {
-  VkMappedMemoryRange range{};
-  range.memory = memory;
-  range.offset = offset;
-  range.size = size;
-  range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-
-  ASR_MUST_SUCCEED(vkInvalidateMappedMemoryRanges(device, 1, &range),
-                   "Unable to re-read memory map");
-}
 */
 
 constexpr VkDescriptorSetLayoutBinding make_descriptor_set_layout_binding(
-    uint32_t binding,
-    uint32_t descriptor_count  // number of objects being described starting
-                               // from {binding}
+    u32 binding,
+    u32 descriptor_count  // number of objects being described starting
+                          // from {binding}
     ,
     VkDescriptorType descriptor_type, VkShaderStageFlagBits shader_stages,
     VkSampler const* sampler) {
@@ -1637,7 +1555,7 @@ inline VkDescriptorSetLayout create_descriptor_set_layout(
     VkDescriptorSetLayoutCreateFlagBits flags = {}) {
   VkDescriptorSetLayoutCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-      .bindingCount = static_cast<uint32_t>(bindings.size()),
+      .bindingCount = static_cast<u32>(bindings.size()),
       .pBindings = bindings.data(),
       .pNext = nullptr,
       .flags = flags};
@@ -1651,13 +1569,13 @@ inline VkDescriptorSetLayout create_descriptor_set_layout(
 }
 
 inline VkDescriptorPool create_descriptor_pool(
-    VkDevice device, uint32_t max_descriptor_sets,
+    VkDevice device, u32 max_descriptor_sets,
     stx::Span<VkDescriptorPoolSize const> pool_sizing) {
   // create pool capable of holding different types of data with varying number
   // of descriptors
   VkDescriptorPoolCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-      .poolSizeCount = static_cast<uint32_t>(pool_sizing.size()),
+      .poolSizeCount = static_cast<u32>(pool_sizing.size()),
       .pPoolSizes = pool_sizing.data(),
       .maxSets = max_descriptor_sets  /// desc sets is
                                       // a set with similar properties (can be
@@ -1685,7 +1603,7 @@ inline void allocate_descriptor_sets(
   VkDescriptorSetAllocateInfo info{
       .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
       .descriptorPool = descriptor_pool,
-      .descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+      .descriptorSetCount = static_cast<u32>(layouts.size()),
       .pSetLayouts = layouts.data()};
 
   ASR_MUST_SUCCEED(
@@ -1700,7 +1618,7 @@ struct DescriptorSetProxy {
   VkDevice device;
   VkDescriptorSet descriptor_set;
   VkDescriptorType descriptor_type;
-  uint32_t binding;
+  u32 binding;
 
   DescriptorSetProxy bind_buffers(
       stx::Span<VkDescriptorBufferInfo const> buffers) {
@@ -2147,7 +2065,7 @@ struct PhyDeviceInfo {
 
 inline stx::Vec<PhyDeviceInfo> get_all_devices(
     stx::Rc<Instance*> const& instance) {
-  uint32_t devices_count = 0;
+  u32 devices_count = 0;
 
   ASR_MUST_SUCCEED(vkEnumeratePhysicalDevices(instance.handle->instance,
                                               &devices_count, nullptr),
@@ -2194,7 +2112,7 @@ inline std::string format(PhyDeviceInfo const& device) {
 
 struct CommandQueueFamilyInfo {
   // automatically destroyed once the device is destroyed
-  uint32_t index = 0;
+  u32 index = 0;
   stx::Rc<PhyDeviceInfo*> phy_device;
 };
 
@@ -2203,7 +2121,7 @@ struct Device;
 struct CommandQueueInfo {
   // automatically destroyed once the device is destroyed
   VkQueue queue = VK_NULL_HANDLE;
-  uint32_t create_index = 0;
+  u32 create_index = 0;
   float priority = 0.0f;
   CommandQueueFamilyInfo family;
 };
@@ -2230,9 +2148,8 @@ struct Device {
 };
 
 inline stx::Rc<Instance*> create_instance(
-    char const* app_name, uint32_t app_version, char const* engine_name,
-    uint32_t engine_version,
-    stx::Span<char const* const> required_extensions = {},
+    char const* app_name, u32 app_version, char const* engine_name,
+    u32 engine_version, stx::Span<char const* const> required_extensions = {},
     stx::Span<char const* const> validation_layers = {}) {
   auto [instance, messenger] = vk::create_vulkan_instance(
       required_extensions, validation_layers,
@@ -2260,8 +2177,8 @@ inline stx::Option<CommandQueueFamilyInfo> get_graphics_command_queue(
   }
 
   return stx::Some(CommandQueueFamilyInfo{
-      .index = static_cast<uint32_t>(
-          pos - phy_device.handle->family_properties.begin()),
+      .index =
+          static_cast<u32>(pos - phy_device.handle->family_properties.begin()),
       .phy_device = phy_device.share()});
 }
 
@@ -2284,8 +2201,8 @@ inline stx::Rc<Device*> create_device(
     ASR_ENSURE(command_queue_family_index <
                phy_device.handle->family_properties.size());
 
-    for (uint32_t queue_index_in_family = 0;
-         queue_index_in_family < queue_count; queue_index_in_family++) {
+    for (u32 queue_index_in_family = 0; queue_index_in_family < queue_count;
+         queue_index_in_family++) {
       float priority = create_info.pQueuePriorities[i];
       VkQueue command_queue = vk::get_command_queue(
           device, command_queue_family_index, queue_index_in_family);
@@ -2293,7 +2210,7 @@ inline stx::Rc<Device*> create_device(
       command_queues
           .push(CommandQueueInfo{
               .queue = command_queue,
-              .create_index = static_cast<uint32_t>(i),
+              .create_index = static_cast<u32>(i),
               .priority = priority,
               .family =
                   CommandQueueFamilyInfo{.index = command_queue_family_index,
@@ -2311,7 +2228,7 @@ inline stx::Rc<Device*> create_device(
 
 inline stx::Option<CommandQueue> get_command_queue(
     stx::Rc<Device*> const& device, CommandQueueFamilyInfo const& family,
-    uint32_t command_queue_create_index) {
+    u32 command_queue_create_index) {
   // We shouldn't have to perform checks?
   ASR_ENSURE(device.handle->phy_device.handle->phy_device ==
              family.phy_device.handle->phy_device);
@@ -2338,137 +2255,476 @@ inline stx::Option<CommandQueue> get_command_queue(
       .device = device.share()});
 }
 
-/*
-struct AllocatorHandle {
-  VmaAllocator allocator = nullptr;
-  Device device;
+struct Buffer {
+  VkDeviceMemory memory = VK_NULL_HANDLE;
+  VkBuffer buffer = VK_NULL_HANDLE;
+  stx::Rc<Device*> device;
 
-  ASR_DISABLE_COPY(AllocatorHandle)
-ASR_DISABLE_MOVE(AllocatorHandle)
+  STX_DISABLE_COPY(Buffer)
+  STX_DISABLE_MOVE(Buffer)
 
-  ~AllocatorHandle() {
-    if (allocator != nullptr) {
-      vmaDestroyAllocator(allocator);
-    }
+  ~Buffer() {
+    vkFreeMemory(device.handle->device, memory, nullptr);
+    vkDestroyBuffer(device.handle->device, buffer, nullptr);
   }
 };
 
-struct Allocator {
-  static Allocator create(Device const& device) {
-    VmaAllocatorCreateInfo info{};
-    info.vulkanApiVersion =
-        device.handle->phy_device.info.properties.apiVersion;
-    info.device = device.handle->device;
-    info.physicalDevice = device.handle->phy_device.info.phy_device;
-    info.instance = device.handle->phy_device.info.instance.handle->instance;
+stx::Rc<Buffer*> upload_vertices(
+    stx::Rc<Device*> const& device,
+    CommandQueueFamilyInfo const& graphics_command_queue,
+    VkPhysicalDeviceMemoryProperties const& memory_properties,
+    stx::Span<vec3 const> vertices) {
+  u32 queue_families[] = {graphics_command_queue.index};
 
-    auto handle = std::shared_ptr<AllocatorHandle>(new AllocatorHandle{});
+  // host coherent buffer
+  VkBufferCreateInfo create_info{
+      .flags = 0,
+      .pNext = nullptr,
+      .pQueueFamilyIndices = queue_families,
+      .queueFamilyIndexCount = 1,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .size = vertices.size_bytes(),
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+  };
 
-    handle->device = device;
+  VkBuffer buffer;
 
-    ASR_MUST_SUCCEED(vmaCreateAllocator(&info, &handle->allocator),
-                     "Unable to create allocator");
+  VkDevice dev = device.handle->device;
 
-    return Allocator{std::move(handle)};
-  }
+  ASR_ENSURE(vkCreateBuffer(dev, &create_info, nullptr, &buffer) == VK_SUCCESS);
 
-  std::shared_ptr<AllocatorHandle> handle;
-};
+  VkDeviceMemory memory;
 
-struct ImageHandle {
-  VkImage image = nullptr;
-  uint32_t queue_family = 0;
-  VmaAllocation allocation = nullptr;
-  Extent extent;
+  VkMemoryRequirements requirements;
 
-  Allocator allocator;
+  vkGetBufferMemoryRequirements(dev, buffer, &requirements);
 
-  ASR_DISABLE_COPY(ImageHandle)
-ASR_DISABLE_MOVE(ImageHandle)
+  auto memory_type =
+      stx::Span{memory_properties.memoryTypes,
+                memory_properties.memoryTypeCount}
+          .which([&](VkMemoryType const& type) {
+            return (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) &&
+                   (type.propertyFlags & requirements.memoryTypeBits);
+            // need some bit index magic here
+          });
 
-  ~ImageHandle() {
-    if (image != nullptr) {
-      vmaDestroyImage(allocator.handle->allocator, image, allocation);
-    }
-  }
-};
+  ASR_ENSURE(!memory_type.is_empty());
 
-// 2d Image
+  u32 memory_type_index = memory_type.data() - memory_properties.memoryTypes;
+
+  VkMemoryAllocateInfo alloc_info{
+      .allocationSize = requirements.size,
+      .memoryTypeIndex = memory_type_index,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+
+  ASR_ENSURE(vkAllocateMemory(dev, &alloc_info, nullptr, &memory) ==
+             VK_SUCCESS);
+
+  ASR_ENSURE(vkBindBufferMemory(dev, buffer, memory, 0) == VK_SUCCESS);
+
+  void* memory_map;
+  ASR_ENSURE(vkMapMemory(dev, memory, 0, alloc_info.allocationSize, 0,
+                         &memory_map) == VK_SUCCESS);
+
+  memcpy(memory_map, vertices.data(), vertices.size_bytes());
+
+  VkMappedMemoryRange range{.memory = memory,
+                            .offset = 0,
+                            .pNext = nullptr,
+                            .size = alloc_info.allocationSize,
+                            .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
+
+  ASR_ENSURE(vkFlushMappedMemoryRanges(dev, 1, &range) == VK_SUCCESS);
+
+  vkUnmapMemory(dev, memory);
+
+  return stx::rc::make_inplace<Buffer>(stx::os_allocator, memory, buffer,
+                                       device.share())
+      .unwrap();
+}
+
+stx::Rc<Buffer*> upload_indices(
+    stx::Rc<Device*> const& device,
+    CommandQueueFamilyInfo const& graphics_command_queue,
+    VkPhysicalDeviceMemoryProperties const& memory_properties,
+    stx::Span<u32 const> indices) {
+  u32 queue_families[] = {graphics_command_queue.index};
+
+  // host coherent buffer
+  VkBufferCreateInfo create_info{
+      .flags = 0,
+      .pNext = nullptr,
+      .pQueueFamilyIndices = queue_families,
+      .queueFamilyIndexCount = 1,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .size = indices.size_bytes(),
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+  };
+
+  VkBuffer buffer;
+
+  VkDevice dev = device.handle->device;
+
+  ASR_ENSURE(vkCreateBuffer(dev, &create_info, nullptr, &buffer) == VK_SUCCESS);
+
+  VkDeviceMemory memory;
+
+  VkMemoryRequirements requirements;
+
+  vkGetBufferMemoryRequirements(dev, buffer, &requirements);
+
+  auto memory_type =
+      stx::Span{memory_properties.memoryTypes,
+                memory_properties.memoryTypeCount}
+          .which([&](VkMemoryType const& type) {
+            return (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) &&
+                   (type.propertyFlags & requirements.memoryTypeBits);
+            // need some bit index magic here
+          });
+
+  ASR_ENSURE(!memory_type.is_empty());
+
+  u32 memory_type_index = memory_type.data() - memory_properties.memoryTypes;
+
+  VkMemoryAllocateInfo alloc_info{
+      .allocationSize = requirements.size,
+      .memoryTypeIndex = memory_type_index,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+
+  ASR_ENSURE(vkAllocateMemory(dev, &alloc_info, nullptr, &memory) ==
+             VK_SUCCESS);
+
+  ASR_ENSURE(vkBindBufferMemory(dev, buffer, memory, 0) == VK_SUCCESS);
+
+  void* memory_map;
+  ASR_ENSURE(vkMapMemory(dev, memory, 0, alloc_info.allocationSize, 0,
+                         &memory_map) == VK_SUCCESS);
+
+  memcpy(memory_map, indices.data(), indices.size_bytes());
+
+  VkMappedMemoryRange range{.memory = memory,
+                            .offset = 0,
+                            .pNext = nullptr,
+                            .size = alloc_info.allocationSize,
+                            .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
+
+  ASR_ENSURE(vkFlushMappedMemoryRanges(dev, 1, &range) == VK_SUCCESS);
+
+  vkUnmapMemory(dev, memory);
+
+  return stx::rc::make_inplace<Buffer>(stx::os_allocator, memory, buffer,
+                                       device.share())
+      .unwrap();
+}
+
 struct Image {
-  static stx::Option<Image> create(Allocator const& allocator,
-                                   CommandQueueFamily const& family,
-                                   VkFormat format, Extent extent) {
-    ASR_ENSURE(extent.visible());
+  VkImage image = VK_NULL_HANDLE;
+  VkImageView view = VK_NULL_HANDLE;
+  VkDeviceMemory memory = VK_NULL_HANDLE;
+  stx::Rc<Device*> device;
 
-    VkImageCreateInfo info{};
+  STX_DISABLE_COPY(Image)
+  STX_DISABLE_MOVE(Image)
 
-    info.arrayLayers = 1;
-
-    info.extent.width = extent.width;
-    info.extent.height = extent.height;
-    info.extent.depth = 1;
-
-    info.flags = 0;
-
-    info.format = format;
-    info.imageType = VK_IMAGE_TYPE_2D;
-
-    info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    info.mipLevels = 1;
-    info.pNext = nullptr;
-    info.pQueueFamilyIndices = &family.info.index;
-    info.queueFamilyIndexCount = 1;
-    info.samples = VK_SAMPLE_COUNT_1_BIT;
-    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
-
-    VmaAllocationCreateInfo alloc_info{};
-
-    auto handle = std::shared_ptr<ImageHandle>(new ImageHandle{});
-    handle->allocator = allocator;
-    handle->queue_family = family.info.index;
-    handle->extent = extent;
-
-    VkResult result =
-        vmaCreateImage(allocator.handle->allocator, &info, &alloc_info,
-                       &handle->image, &handle->allocation, nullptr);
-
-    if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY) {
-      return stx::None;
-    }
-
-    if (result == VK_SUCCESS) {
-      return stx::Some(Image{std::move(handle)});
-    }
-
-    ASR_MUST_SUCCEED(result, "Unable to create image on device");
-  }
-
-  std::shared_ptr<ImageHandle> handle;
-};
-
-struct ImageViewHandle {
-  VkImageView view = nullptr;
-  Image image;
-
-  ASR_DISABLE_COPY(ImageViewHandle)
-ASR_DISABLE_MOVE(ImageViewHandle)
-
-  ~ImageViewHandle() {
-    if (view != nullptr) {
-      vkDestroyImageView(image.handle->allocator.handle->device.handle->device,
-                         view, nullptr);
-    }
+  ~Image() {
+    vkFreeMemory(device.handle->device, memory, nullptr);
+    vkDestroyImageView(device.handle->device, view, nullptr);
+    vkDestroyImage(device.handle->device, image, nullptr);
   }
 };
 
-struct ImageView {
-  std::shared_ptr<ImageViewHandle> handle;
+struct ImageSampler {
+  VkSampler sampler = VK_NULL_HANDLE;
+  stx::Rc<Image*> image;
+
+  ~ImageSampler() {
+    vkDestroySampler(image.handle->device.handle->device, sampler, nullptr);
+  }
 };
 
+// R | G | B | A
+stx::Rc<Image*> upload_rgba_image(
+    stx::Rc<Device*> const& device,
+    VkPhysicalDeviceMemoryProperties const& memory_properties, u32 width,
+    u32 height, stx::Span<u32 const> data) {
+  ASR_ENSURE(data.size_bytes() == width * height * 4);
+
+  VkDevice dev = device.handle->device;
+
+  VkImageCreateInfo create_info{
+      .arrayLayers = 1,
+      .extent = VkExtent3D{.depth = 1, .height = height, .width = width},
+      .flags = 0,
+      .format = VK_FORMAT_R8G8B8A8_SRGB,
+      .imageType = VK_IMAGE_TYPE_2D,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+      .mipLevels = 1,
+      .pNext = nullptr,
+      .pQueueFamilyIndices = 0,
+      .queueFamilyIndexCount = 1,
+      .samples = VK_SAMPLE_COUNT_8_BIT,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_SAMPLED_BIT};
+
+  VkImage image;
+
+  ASR_ENSURE(vkCreateImage(dev, &create_info, nullptr, &image) == VK_SUCCESS);
+
+  VkMemoryRequirements requirements;
+
+  vkGetImageMemoryRequirements(dev, image, &requirements);
+
+  auto memory_type =
+      stx::Span{memory_properties.memoryTypes,
+                memory_properties.memoryTypeCount}
+          .which([&](VkMemoryType const& type) {
+            return (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) &&
+                   (type.propertyFlags & requirements.memoryTypeBits);
+            // need some bit index magic here
+          });
+
+  ASR_ENSURE(!memory_type.is_empty());
+
+  u32 memory_type_index = memory_type.data() - memory_properties.memoryTypes;
+
+  VkMemoryAllocateInfo alloc_info{
+      .allocationSize = requirements.size,
+      .memoryTypeIndex = memory_type_index,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+
+  VkDeviceMemory memory;
+
+  ASR_ENSURE(vkAllocateMemory(dev, &alloc_info, nullptr, &memory) ==
+             VK_SUCCESS);
+
+  ASR_ENSURE(vkBindImageMemory(dev, image, memory, 0) == VK_SUCCESS);
+
+  void* memory_map;
+
+  ASR_ENSURE(vkMapMemory(dev, memory, 0, alloc_info.allocationSize, 0,
+                         &memory_map) == VK_SUCCESS);
+
+  memcpy(memory_map, data.data(), data.size_bytes());
+
+  VkMappedMemoryRange range{.memory = memory,
+                            .offset = 0,
+                            .pNext = nullptr,
+                            .size = alloc_info.allocationSize,
+                            .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
+
+  ASR_ENSURE(vkFlushMappedMemoryRanges(dev, 1, &range) == VK_SUCCESS);
+
+  vkUnmapMemory(dev, memory);
+
+  VkImageViewCreateInfo view_create_info{
+      .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+      .flags = 0,
+      .format = VK_FORMAT_R8G8B8A8_SRGB,
+      .image = image,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .subresourceRange =
+          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                  .baseArrayLayer = 1,
+                                  .baseMipLevel = 1,
+                                  .layerCount = 1,
+                                  .levelCount = 1},
+      .viewType = VK_IMAGE_VIEW_TYPE_2D};
+
+  VkImageView view;
+
+  ASR_ENSURE(vkCreateImageView(dev, &view_create_info, nullptr, &view) ==
+             VK_SUCCESS);
+
+  VkSamplerCreateInfo sampler_create_info{.addressModeU};
+  vkCreateSampler();
+
+  return stx::rc::make_inplace<Image>(stx::os_allocator, image, view, memory,
+                                      device.share())
+      .unwrap();
+}
+/*
+struct Shader {
+  VkShaderModule module;
+  stx::Rc<Device*> device;
+
+  STX_DISABLE_COPY(Shader)
+  STX_DISABLE_MOVE(Shader)
+
+  ~Shader() { vkDestroyShaderModule(device.handle->device, module, nullptr); }
+};
+
+stx::Rc<Shader*> create_shader(stx::Rc<Device*> const& device,
+                               stx::Span<u32 const> code) {
+  VkShaderModuleCreateInfo create_info{
+      .codeSize = code.size_bytes(),
+      .flags = 0,
+      .pCode = code.data(),
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+
+  VkShaderModule shader_module;
+
+  ASR_ENSURE(vkCreateShaderModule(device.handle->device, &create_info, nullptr,
+                                  &shader_module) == VK_SUCCESS);
+
+  return stx::rc::make_inplace<Shader>(stx::os_allocator, shader_module,
+                                       device.share())
+      .unwrap();
+}
 */
+enum class DescriptorTarget { VertexShader, FragmentShader };
+
+enum class DescriptorType { Vec4, Mat4, Sampler };
+
+// TODO(lamarrr): ownership scheme so they don't get freed until we are done with them
+struct DescriptorBinding {
+  DescriptorType type = DescriptorType::Vec4;
+  void* data1 = nullptr;
+  void* data2 = nullptr;
+
+  explicit DescriptorBinding(vec4* value)
+      : type{DescriptorType::Vec4}, data1{value} {}
+
+  explicit DescriptorBinding(mat4x4* value)
+      : type{DescriptorType::Mat4}, data1{value} {}
+
+  explicit DescriptorBinding(ImageSampler const& sampler)
+      : type{DescriptorType::Sampler},
+        data1{sampler.sampler},
+        data2{sampler.image.handle->view} {}
+};
+
+struct DescriptorSet {
+  stx::Vec<DescriptorBinding> bindings{stx::os_allocator};
+
+  explicit DescriptorSet(std::initializer_list<DescriptorBinding> abindings) {
+    for (auto const& binding : abindings) {
+      bindings.push_inplace(binding).unwrap();
+    }
+  }
+};
+
+struct Program {
+  VkShaderModule vertex_shader;
+  VkShaderModule fragment_shader;
+
+  void spec_descriptor_sets(DescriptorTarget target,
+                            std::initializer_list<DescriptorSet> set);
+
+  void flush_descriptor_sets();
+
+  void example() {
+    vec4 vec;
+    mat4x4 mat;
+
+    spec_descriptor_sets(
+        DescriptorTarget::FragmentShader,
+        {DescriptorSet{DescriptorBinding{&vec}, DescriptorBinding{&vec},
+                       DescriptorBinding{&mat}, DescriptorBinding{&mat}}});
+  }
+
+  void bind(f32 value, stx::Rc<Device*> device) {
+    VkDevice dev = device.handle->device;
+
+    VkDescriptorPoolSize pool_sizes[] = {
+        {.descriptorCount = 20, .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER},
+        {.descriptorCount = 10, .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE}};
+
+    VkDescriptorPoolCreateInfo pool_create_info{
+        .flags = 0,
+        .maxSets = 10,
+        .pNext = nullptr,
+        .poolSizeCount = std::size(pool_sizes),
+        .pPoolSizes = pool_sizes,
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+
+    VkDescriptorPool pool;
+
+    ASR_ENSURE(vkCreateDescriptorPool(dev, &pool_create_info, nullptr, &pool) ==
+               VK_SUCCESS);
+
+    VkDescriptorSetLayoutBinding bindings[] = {
+        {.binding = 0,
+         .descriptorCount = 1,
+         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+         .pImmutableSamplers = nullptr,
+         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT}};
+
+    VkDescriptorSetLayoutCreateInfo layout_create_info{
+        .bindingCount = std::size(bindings),
+        .flags = 0,
+        .pBindings = bindings,
+        .pNext = nullptr,
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+
+    VkDescriptorSetLayout layout;
+
+    ASR_ENSURE(vkCreateDescriptorSetLayout(dev, &layout_create_info, nullptr,
+                                           &layout) == VK_SUCCESS);
+
+    VkDescriptorSetLayout layouts[] = {layout};
+
+    VkDescriptorSetAllocateInfo alloc_info{
+        .descriptorPool = pool,
+        .descriptorSetCount = 1,
+        .pNext = nullptr,
+        .pSetLayouts = nullptr,
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+
+    VkDescriptorSet set;
+    ASR_ENSURE(vkAllocateDescriptorSets(dev, &alloc_info, &set) == VK_SUCCESS);
+
+    VkDescriptorBufferInfo buffer_info{
+        .buffer = 0, .offset = 0, .range = VK_WHOLE_SIZE};
+
+    VkDescriptorImageInfo image_info{
+        .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED, .imageView = 0, .sampler = 0};
+
+    VkWriteDescriptorSet writes[] = {
+        {.descriptorCount = 0,
+         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+         .dstArrayElement = 0,
+         .dstBinding = 0,
+         .dstSet = 0,
+         .pBufferInfo = nullptr,
+         .pImageInfo = nullptr,
+         .pNext = nullptr,
+         .pTexelBufferView = nullptr,
+         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET}};
+
+    vkUpdateDescriptorSets(dev, 1, 0, 0, 1);
+  }
+
+  // we need to be able to easily declare values in an easy way. and
+  // automatically update them i.e.
+  //
+  //
+  // layout(set = 0, binding = 0) uniform vec3 color;
+  // layout(set = 0, binding = 1) uniform mat4 model;
+  // layout(set = 0, binding = 2) uniform mat4 view;
+  // layout(set = 0, binding = 3) uniform mat4 projection;
+  //
+  //
+  // void fragment_shader::spec(u32 set, u32 binding, mat4x4 * value);
+  //
+
+  // flush values to program (descriptor sets)
+  Program create_program(stx::Span<u32 const> fragment_shader,
+                         stx::Span<u32 const> vertex_shader
+                         // descriptor bindings
+                         // descriptor values
+  );
 
 }  // namespace vkh
 }  // namespace asr

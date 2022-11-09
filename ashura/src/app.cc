@@ -1,7 +1,7 @@
-#include "asura/app.h"
+#include "ashura/app.h"
 
-#include "asura/vulkan.h"
-#include "asura/window.h"
+#include "ashura/vulkan.h"
+#include "ashura/window.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"

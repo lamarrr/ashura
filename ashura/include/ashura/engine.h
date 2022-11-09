@@ -2,10 +2,10 @@
 
 #include <chrono>
 
-#include "asura/app_config.h"
-#include "asura/version.h"
-#include "asura/window.h"
-#include "asura/window_api.h"
+#include "ashura/app_config.h"
+#include "ashura/version.h"
+#include "ashura/window.h"
+#include "ashura/window_api.h"
 #include "spdlog/logger.h"
 #include "stx/rc.h"
 #include "stx/string.h"

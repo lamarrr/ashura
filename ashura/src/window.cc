@@ -1,11 +1,11 @@
 
-#include "asura/window.h"
+#include "ashura/window.h"
 
 #include <thread>
 
 #include "SDL.h"
 #include "SDL_vulkan.h"
-#include "asura/sdl_utils.h"
+#include "ashura/sdl_utils.h"
 
 namespace asr {
 

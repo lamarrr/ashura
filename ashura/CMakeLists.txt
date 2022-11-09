@@ -1,16 +1,16 @@
-add_library(asura STATIC src/app.cc src/engine.cc src/window_api.cc
+add_library(ashura STATIC src/app.cc src/engine.cc src/window_api.cc
                          src/window.cc)
 
 target_include_directories(
-  asura
+  ashura
   PUBLIC include
   PRIVATE src)
 
 target_link_libraries(
-  asura
+  ashura
   VulkanMemoryAllocator
   stx::stx
   SDL2::SDL2
   fmt::fmt
-  asura::utils
+  ashura::utils
   ${Vulkan_LIBRARIES})

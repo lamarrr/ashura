@@ -7,11 +7,11 @@
 #include <variant>
 
 #include "SDL.h"
-#include "asura/primitives.h"
-#include "asura/vulkan.h"
-#include "asura/window.h"
-#include "asura/window_api.h"
-#include "asura/window_surface.h"
+#include "ashura/primitives.h"
+#include "ashura/vulkan.h"
+#include "ashura/window.h"
+#include "ashura/window_api.h"
+#include "ashura/window_surface.h"
 #include "stx/option.h"
 #include "stx/rc.h"
 #include "stx/string.h"
@@ -23,7 +23,7 @@ enum class WindowTypeHint : uint8_t { Normal, Utility, Tooltip, Popup };
 enum class WindowPosition : uint8_t { Centered };
 
 struct WindowConfig {
-  stx::String title = stx::string::make_static("Asura");
+  stx::String title = stx::string::make_static("ashura");
   Extent extent{1920, 1080};  // TODO(lamarrr): GetDisplaySize
   stx::Option<Extent> min_extent;
   stx::Option<Extent> max_extent;

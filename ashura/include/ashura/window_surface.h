@@ -6,9 +6,9 @@
 #include <utility>
 #include <vector>
 
-#include "asura/primitives.h"
-#include "asura/utils.h"
-#include "asura/vulkan.h"
+#include "ashura/primitives.h"
+#include "ashura/utils.h"
+#include "ashura/vulkan.h"
 #include "stx/vec.h"
 
 namespace asr {

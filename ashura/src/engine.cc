@@ -1,6 +1,6 @@
-#include "asura/engine.h"
-#include "asura/canvas.h"
-#include "asura/render_object.h"
+#include "ashura/engine.h"
+#include "ashura/canvas.h"
+#include "ashura/render_object.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
@@ -66,7 +66,7 @@ Engine::Engine(AppConfig const& cfg) {
     required_validation_layers.push("VK_LAYER_KHRONOS_validation").unwrap();
 
   logger_ = stx::Some(
-      impl::make_multi_threaded_logger("Asura", cfg.log_file.c_str()));
+      impl::make_multi_threaded_logger("ashura", cfg.log_file.c_str()));
 
   auto& logger = *logger_.value().handle;
 
