@@ -1,4 +1,10 @@
-layout(location = 0) in vec3 in_position;
+#version 460
+
+layout(binding = 0, location = 0) in vec3 in_position;
+layout(binding = 0, location = 1) in vec3 color;
+
+layout(binding = 1, location = 0) in vec2 uv;
+
 layout(location = 0) out vec3 out_position;
 
 layout(set = 0, binding = 0) uniform mat4 projection;
