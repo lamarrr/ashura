@@ -11,7 +11,6 @@
 #include "ashura/vulkan.h"
 #include "ashura/window.h"
 #include "ashura/window_api.h"
-#include "ashura/window_surface.h"
 #include "stx/option.h"
 #include "stx/rc.h"
 #include "stx/string.h"
@@ -51,6 +50,20 @@ struct WindowConfig {
                         always_on_top};
   }
 };
+
+enum class WindowSwapchainDiff : u8 {
+  None = 0,
+  // the window's extent and surface (framebuffer) extent has changed
+  Extent = 1,
+  // the window swapchain can still be used for presentation but is not optimal
+  // for presentation in its present state
+  Suboptimal = 2,
+  // the window swapchain is now out of date and needs to be changed
+  OutOfDate = 4,
+  All = Extent | Suboptimal | OutOfDate
+};
+
+STX_DEFINE_ENUM_BIT_OPS(WindowSwapchainDiff)
 
 // TODO(lamarrr): ensure render context is not copied from just anywhere and
 // they use references
@@ -167,7 +180,7 @@ struct Window {
   Extent surface_extent_;
   WindowConfig cfg_;
   std::thread::id init_thread_id_;
-  stx::Option<stx::Unique<WindowSurface*>> surface_;
+  stx::Option<stx::Unique<vkh::Surface*>> surface_;
   u32 refresh_rate_ = 1;
   std::map<WindowEvent, stx::UniqueFn<void()>> window_event_listeners;
   stx::UniqueFn<void(MouseClickEvent const&)> mouse_click_listener =

@@ -597,24 +597,6 @@ inline stx::Vec<VkImage> get_swapchain_images(VkDevice device,
   return swapchain_images;
 }
 
-// the number of command queues to create is encapsulated in the
-// `queue_priorities` size
-// this will create `queue_priorities.size()` number of command queues from
-// family `queue_family_index`
-constexpr VkDeviceQueueCreateInfo make_command_queue_create_info(
-    u32 queue_family_index, stx::Span<f32 const> queues_priorities) {
-  VkDeviceQueueCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-      .queueFamilyIndex = queue_family_index,
-      .pQueuePriorities = queues_priorities.data(),
-      .queueCount = static_cast<u32>(
-          queues_priorities
-              .size())  // the number of queues we want, since multiple
-                        // queues can belong to a single family
-  };
-  return create_info;
-}
-
 inline VkImageView create_image_view(VkDevice device, VkImage image,
                                      VkFormat format, VkImageViewType view_type,
                                      VkImageAspectFlagBits aspect_mask,
@@ -641,471 +623,6 @@ inline VkImageView create_image_view(VkDevice device, VkImage image,
       vkCreateImageView(device, &create_info, nullptr, &image_view),
       "Unable to create image view");
   return image_view;
-}
-
-inline VkSampler create_sampler(VkDevice device,
-                                stx::Option<f32> max_anisotropy) {
-  VkSamplerCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-      // for treating the case where there are more fragments than texels
-      .magFilter = VK_FILTER_LINEAR,
-      .minFilter = VK_FILTER_LINEAR,
-      // VK_SAMPLER_ADDRESS_MODE_REPEAT: Repeat the texture when going beyond
-      // the image dimensions. VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT: Like
-      // repeat, but inverts the coordinates to mirror the image when going
-      // beyond the dimensions. VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE: Take the
-      // color of the edge closest to the coordinate beyond the image
-      // dimensions. VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: Like clamp to
-      // edge, but instead uses the edge opposite to the closest edge.
-      // VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: Return a solid color when
-      // sampling beyond the dimensions of the image.
-      //
-      // u, v, w coordinate overflow style of the textures
-      // this shouldn't affect the texture if we are not sampling outside of the
-      // image
-      .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-      .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-      .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-      // for treating the case where there are more texels than fragments
-      .anisotropyEnable = max_anisotropy.is_some(),
-      .maxAnisotropy =
-          max_anisotropy.is_some() ? max_anisotropy.copy().unwrap() : 0.0f,
-      .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-      .unnormalizedCoordinates =
-          VK_FALSE,  // coordinates matching the sampled image will be
-                     // normalized to the (0.0 to 1.0 range) otherwise in the
-                     // (0, image width or height range)
-      .compareEnable = VK_FALSE,
-      .compareOp = VK_COMPARE_OP_ALWAYS,
-      // mip-mapping
-      .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-      .mipLodBias = 0.0f,
-      .minLod = 0.0f,
-      .maxLod = 0.0f};
-
-  VkSampler sampler;
-
-  ASR_MUST_SUCCEED(vkCreateSampler(device, &create_info, nullptr, &sampler),
-                   "Unable to create sampler");
-
-  return sampler;
-}
-
-constexpr VkPipelineShaderStageCreateInfo
-make_pipeline_shader_stage_create_info(
-    VkShaderModule module, char const* program_entry_point,
-    VkShaderStageFlagBits pipeline_stage_flag,
-    VkSpecializationInfo const* program_constants) {
-  VkPipelineShaderStageCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-      .module = module,
-      .pName = program_entry_point,
-      .stage = pipeline_stage_flag,
-      .pNext = nullptr,
-      .pSpecializationInfo =
-          program_constants};  // provide constants used within the shader
-
-  return create_info;
-}
-
-constexpr VkPipelineShaderStageCreateInfo
-make_pipeline_shader_stage_create_info(
-    VkShaderModule module, char const* program_entry_point,
-    VkShaderStageFlagBits pipeline_stage_flag) {
-  VkPipelineShaderStageCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-      .module = module,
-      .pName = program_entry_point,
-      .stage = pipeline_stage_flag,
-      .pNext = nullptr,
-      .pSpecializationInfo =
-          nullptr  // provide constants used within the shader
-  };
-
-  return create_info;
-}
-
-constexpr VkPipelineVertexInputStateCreateInfo
-make_pipeline_vertex_input_state_create_info(
-    stx::Span<VkVertexInputBindingDescription const>
-        vertex_binding_descriptions,
-    stx::Span<VkVertexInputAttributeDescription const>
-        vertex_attribute_desciptions) {
-  // Bindings: spacing between data and whether the data is per-vertex or
-  // per-instance
-  // Attribute descriptions: type of the attributes passed to the vertex shader,
-  // which binding to load them from and at which offset
-  VkPipelineVertexInputStateCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-      .vertexBindingDescriptionCount =
-          static_cast<u32>(vertex_binding_descriptions.size()),
-      .pVertexBindingDescriptions = vertex_binding_descriptions.data(),
-      .vertexAttributeDescriptionCount =
-          static_cast<u32>(vertex_attribute_desciptions.size()),
-      .pVertexAttributeDescriptions = vertex_attribute_desciptions.data()};
-
-  return create_info;
-}
-
-constexpr VkPipelineInputAssemblyStateCreateInfo
-make_pipeline_input_assembly_state_create_info() {
-  // Bindings: spacing between data and whether the data is per-vertex or
-  // per-instance
-  // Attribute descriptions: type of the attributes passed to the vertex shader,
-  // which binding to load them from and at which offset
-  VkPipelineInputAssemblyStateCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-      .topology =
-          VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,  // rendering in triangle mode
-      .primitiveRestartEnable = VK_FALSE};
-
-  return create_info;
-}
-
-constexpr VkPipelineViewportStateCreateInfo
-make_pipeline_viewport_state_create_info(stx::Span<VkViewport const> viewports,
-                                         stx::Span<VkRect2D const> scissors) {
-  // to use multiple viewports, ensure the GPU feature is enabled during logical
-  // device creation
-  VkPipelineViewportStateCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .viewportCount = static_cast<u32>(viewports.size()),
-      .pViewports = viewports.data(),
-      .scissorCount = static_cast<u32>(
-          scissors.size()),  // scissors cut out the part to be rendered
-      .pScissors = scissors.data()};
-
-  return create_info;
-}
-
-constexpr VkPipelineRasterizationStateCreateInfo
-make_pipeline_rasterization_create_info(VkFrontFace front_face,
-                                        f32 line_width = 1.0f) {
-  VkPipelineRasterizationStateCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-      .depthClampEnable =
-          VK_FALSE,  // ragments that are beyond the near and far planes are
-                     // clamped to them as opposed to discarding them. This is
-                     // useful in some special cases like shadow maps. Using
-                     // this requires enabling a GPU feature.
-      .rasterizerDiscardEnable =
-          VK_FALSE,  // if true, geometry never passes through the rasterization
-                     // stage thus disabling output to the framebuffer
-      // VK_POLYGON_MODE_FILL: fill the area of the polygon with fragments
-      // VK_POLYGON_MODE_LINE: polygon edges are drawn as lines
-      // VK_POLYGON_MODE_POINT: polygon vertices are drawn as points
-      .polygonMode = VK_POLYGON_MODE_FILL,  // using any other one requires
-                                            // enabling a GPU feature
-      .lineWidth =
-          line_width,  // any thicker than 1.0f requires enabling a GPU feature
-      .cullMode = VK_CULL_MODE_BACK_BIT,  // discard the back part of the
-                                          // image that isn't facing us
-      .frontFace = front_face,
-      .depthBiasEnable = VK_FALSE,
-      .depthBiasConstantFactor = 0.0f,  // mostly used for shadow mapping
-      .depthBiasClamp = 0.0f,
-      .depthBiasSlopeFactor = 0.0f};
-
-  return create_info;
-}
-
-constexpr VkPipelineMultisampleStateCreateInfo
-make_pipeline_multisample_state_create_info() {
-  VkPipelineMultisampleStateCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-      .sampleShadingEnable = VK_FALSE,
-      .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-      .minSampleShading = 1.0f,
-      .pSampleMask = nullptr,
-      .alphaToCoverageEnable = VK_FALSE,
-      .alphaToOneEnable = VK_FALSE};
-
-  return create_info;
-}
-
-constexpr VkPipelineDepthStencilStateCreateInfo
-make_pipeline_depth_stencil_state_create_info() {
-  VkPipelineDepthStencilStateCreateInfo create_info{};
-  ASR_ENSURE(false, "Unimplemented");
-  return create_info;
-}
-
-// per framebuffer
-constexpr VkPipelineColorBlendAttachmentState
-make_pipeline_color_blend_attachment_state() {
-  // simply overwrites the pixels in the destination
-  VkPipelineColorBlendAttachmentState state{
-      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-      .blendEnable = VK_TRUE,
-      .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-      .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-      .colorBlendOp = VK_BLEND_OP_ADD,
-      .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-      .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-      .alphaBlendOp = VK_BLEND_OP_ADD};
-  return state;
-}
-
-// global pipeline state
-constexpr VkPipelineColorBlendStateCreateInfo
-make_pipeline_color_blend_state_create_info(
-    stx::Span<VkPipelineColorBlendAttachmentState const> color_frame_buffers) {
-  VkPipelineColorBlendStateCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-      .logicOpEnable = VK_FALSE,
-      .logicOp = VK_LOGIC_OP_COPY,
-      .attachmentCount = static_cast<u32>(
-          color_frame_buffers.size()),  // number of framebuffers
-      .pAttachments = color_frame_buffers.data(),
-      .blendConstants = {0.0f, 0.0f, 0.0f, 0.0f}};
-
-  return create_info;
-}
-
-constexpr VkPipelineDynamicStateCreateInfo make_pipeline_dynamic_state(
-    stx::Span<VkDynamicState const> dynamic_states) {
-  // This will cause the configuration of these values to be ignored and you
-  // will be required to specify the data at drawing time. This struct can be
-  // substituted by a nullptr later on if you don't have any dynamic state.
-
-  VkPipelineDynamicStateCreateInfo pipeline_state{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-      .dynamicStateCount = static_cast<u32>(dynamic_states.size()),
-      .pDynamicStates = dynamic_states.data()};
-
-  return pipeline_state;
-}
-
-inline VkPipelineLayout create_pipeline_layout(
-    VkDevice device,
-    stx::Span<VkDescriptorSetLayout const> descriptor_sets_layout,
-    stx::Span<VkPushConstantRange const> constant_ranges) {
-  VkPipelineLayoutCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-      .setLayoutCount = static_cast<u32>(descriptor_sets_layout.size()),
-      .pSetLayouts = descriptor_sets_layout.data(),
-      .pushConstantRangeCount = static_cast<u32>(constant_ranges.size()),
-      .pPushConstantRanges = constant_ranges.data()};
-
-  VkPipelineLayout layout;
-  ASR_MUST_SUCCEED(
-      vkCreatePipelineLayout(device, &create_info, nullptr, &layout),
-      "Unable to create pipeline layout");
-
-  return layout;
-}
-
-constexpr VkAttachmentDescription make_attachment_description(VkFormat format) {
-  // the format of the color attachment should match the format of the swap
-  // chain images,
-  VkAttachmentDescription attachment_description{
-      .format = format,
-      .samples = VK_SAMPLE_COUNT_1_BIT,  // no multi-sampling
-      // The loadOp and storeOp determine what to do with the data in the
-      // attachment before rendering and after rendering
-      // VK_ATTACHMENT_LOAD_OP_LOAD: Preserve the existing contents of the
-      // attachment
-      // VK_ATTACHMENT_LOAD_OP_CLEAR: Clear the values to a constant at
-      // the start
-      // VK_ATTACHMENT_LOAD_OP_DONT_CARE: Existing contents are undefined;
-      // we don't care about them
-      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-      // VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: Images used as color
-      // attachment VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: Images to be presented in
-      // the swap chain VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: Images to be used
-      // as destination for a memory copy operation descibes layout of the
-      // images
-      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-      .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
-
-  return attachment_description;
-}
-
-// subpasses are for post-processing. each subpass depends on the results of the
-// previous (sub)passes, used instead of transferring data
-constexpr VkSubpassDescription make_subpass_description(
-    stx::Span<VkAttachmentReference const> color_attachments) {
-  VkSubpassDescription subpass{
-      .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-      .colorAttachmentCount = static_cast<u32>(color_attachments.size()),
-      .pColorAttachments =
-          color_attachments.data()  // layout(location = 0) out vec4 outColor
-  };
-
-  // pInputAttachments: Attachments that are read from a shader
-  // pResolveAttachments: Attachments used for multisampling color attachments
-  // pDepthStencilAttachment: Attachment for depth and stencil data
-  // pPreserveAttachments: Attachments that are not used by this subpass, but
-  // for which the data must be preserved
-  return subpass;
-}
-
-// ????
-constexpr VkSubpassDependency make_subpass_dependency() {
-  VkSubpassDependency dependency{
-      .srcSubpass = VK_SUBPASS_EXTERNAL,
-      .dstSubpass = 0,
-      .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      .srcAccessMask = 0,
-      .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT};
-
-  return dependency;
-}
-
-// specify how many color and depth buffers there will be, how many samples to
-// use for each of them and how their contents should be handled throughout the
-// rendering operations (and the subpasses description)
-inline VkRenderPass create_render_pass(
-    VkDevice device,
-    stx::Span<VkAttachmentDescription const> attachment_descriptions,
-    stx::Span<VkSubpassDescription const> subpass_descriptions,
-    stx::Span<VkSubpassDependency const> subpass_dependencies) {
-  VkRenderPassCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-      .attachmentCount = static_cast<u32>(attachment_descriptions.size()),
-      .pAttachments = attachment_descriptions.data(),
-      .subpassCount = static_cast<u32>(subpass_descriptions.size()),
-      .pSubpasses = subpass_descriptions.data(),
-      .dependencyCount = static_cast<u32>(subpass_dependencies.size()),
-      .pDependencies = subpass_dependencies.data()};
-
-  VkRenderPass render_pass;
-  ASR_MUST_SUCCEED(
-      vkCreateRenderPass(device, &create_info, nullptr, &render_pass),
-      "Unable to create render pass");
-
-  return render_pass;
-}
-
-inline VkPipeline create_graphics_pipeline(
-    VkDevice device, VkPipelineLayout layout, VkRenderPass render_pass,
-    stx::Span<VkPipelineShaderStageCreateInfo const> shader_stages_create_infos,
-    VkPipelineVertexInputStateCreateInfo const& vertex_input_state,
-    VkPipelineInputAssemblyStateCreateInfo const& input_assembly_state,
-    VkPipelineViewportStateCreateInfo const& viewport_state,
-    VkPipelineRasterizationStateCreateInfo const& rasterization_state,
-    VkPipelineMultisampleStateCreateInfo const& multisample_state,
-    VkPipelineDepthStencilStateCreateInfo const& depth_stencil_state,
-    VkPipelineColorBlendStateCreateInfo const& color_blend_state,
-    VkPipelineDynamicStateCreateInfo const& dynamic_state) {
-  VkGraphicsPipelineCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-      .pStages = shader_stages_create_infos.data(),
-      .stageCount = static_cast<u32>(shader_stages_create_infos.size()),
-      .pVertexInputState = &vertex_input_state,
-      .pInputAssemblyState = &input_assembly_state,
-      .pViewportState = &viewport_state,
-      .pRasterizationState = &rasterization_state,
-      .pMultisampleState = &multisample_state,
-      .pDepthStencilState = &depth_stencil_state,
-      .pColorBlendState = &color_blend_state,
-      .pDynamicState =
-          &dynamic_state,  // which of these fixed function states would change,
-                           // any of the ones listed here would need to be
-                           // provided at every draw/render call
-      .layout = layout,
-      .renderPass = render_pass,
-      .subpass =
-          0,  // index of the device's subpass this graphics pipeline belongs to
-      .basePipelineHandle = nullptr,
-      .basePipelineIndex = -1};
-
-  VkPipeline graphics_pipeline;
-
-  ASR_MUST_SUCCEED(
-      vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &create_info,
-                                nullptr, &graphics_pipeline),
-      "Unable to create graphics pipeline");
-
-  return graphics_pipeline;
-}
-
-// basically a collection of attachments (color, depth, stencil, etc)
-inline VkFramebuffer create_frame_buffer(
-    VkDevice device, VkRenderPass render_pass,
-    stx::Span<VkImageView const> attachments, VkExtent2D extent) {
-  VkFramebufferCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-      .renderPass = render_pass,
-      .attachmentCount = static_cast<u32>(attachments.size()),
-      .pAttachments = attachments.data(),
-      .width = extent.width,
-      .height = extent.height,
-      .layers = 1};  // our swap chain images are single images, so the
-                     // number of layers is 1
-
-  VkFramebuffer frame_buffer;
-  ASR_MUST_SUCCEED(
-      vkCreateFramebuffer(device, &create_info, nullptr, &frame_buffer),
-      "Unable to create frame buffer");
-  return frame_buffer;
-}
-
-inline VkCommandPool create_command_pool(
-    VkDevice device, u32 queue_family_index,
-    bool enable_command_buffer_resetting = false) {
-  VkCommandPoolCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-      .queueFamilyIndex = queue_family_index,
-      .flags = enable_command_buffer_resetting
-                   ? VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
-                   : static_cast<VkCommandPoolCreateFlagBits>(0)};
-
-  VkCommandPool command_pool;
-  ASR_MUST_SUCCEED(
-      vkCreateCommandPool(device, &create_info, nullptr, &command_pool),
-      "Unable to create command pool");
-
-  return command_pool;
-}
-
-inline void allocate_command_buffer(VkDevice device, VkCommandPool command_pool,
-                                    VkCommandBuffer& command_buffer  // NOLINT
-) {
-  VkCommandBufferAllocateInfo allocate_info{
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-      .commandPool = command_pool,
-      // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for
-      // execution, but cannot be called from other command buffers.
-      // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but
-      // can be called from primary command buffers.
-      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-      .commandBufferCount = 1};
-
-  ASR_MUST_SUCCEED(
-      vkAllocateCommandBuffers(device, &allocate_info, &command_buffer),
-      "Unable to allocate command buffer");
-}
-
-inline void allocate_command_buffers(
-    VkDevice device, VkCommandPool command_pool,
-    stx::Span<VkCommandBuffer> command_buffers) {
-  VkCommandBufferAllocateInfo allocate_info{
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-      .commandPool = command_pool,
-      // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for
-      // execution, but cannot be called from other command buffers.
-      // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but
-      // can be called from primary command buffers.
-      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-      .commandBufferCount = static_cast<u32>(command_buffers.size())};
-
-  ASR_MUST_SUCCEED(
-      vkAllocateCommandBuffers(device, &allocate_info, command_buffers.data()),
-      "Unable to allocate command buffers");
-}
-
-inline void reset_command_buffer(VkCommandBuffer command_buffer,
-                                 bool release_resources = false) {
-  ASR_MUST_SUCCEED(
-      vkResetCommandBuffer(command_buffer,
-                           release_resources
-                               ? VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT
-                               : 0),
-      "Unable to reset command buffer");
 }
 
 // GPU-GPU synchronization primitive, cheap
@@ -1145,30 +662,6 @@ inline void await_fences(VkDevice device, stx::Span<VkFence const> fences) {
           device, fences.size(), fences.data(), true,
           std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count()),
       "Unable to await fences");
-}
-
-inline void submit_commands(VkQueue command_queue,
-                            VkCommandBuffer command_buffer,
-                            stx::Span<VkSemaphore const> await_semaphores,
-                            stx::Span<VkPipelineStageFlags const> await_stages,
-                            stx::Span<VkSemaphore const> notify_semaphores,
-                            VkFence notify_fence) {
-  ASR_ENSURE(await_semaphores.size() == await_stages.size(),
-             "stages to await must have the same number of semaphores (for "
-             "each of them)");
-
-  VkSubmitInfo submit_info{
-      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-      .waitSemaphoreCount = static_cast<u32>(await_semaphores.size()),
-      .pWaitSemaphores = await_semaphores.data(),
-      .pWaitDstStageMask = await_stages.data(),
-      .commandBufferCount = 1,
-      .pCommandBuffers = &command_buffer,
-      .signalSemaphoreCount = static_cast<u32>(notify_semaphores.size()),
-      .pSignalSemaphores = notify_semaphores.data()};
-
-  ASR_MUST_SUCCEED(vkQueueSubmit(command_queue, 1, &submit_info, notify_fence),
-                   "Unable to submit command buffer to command queue");
 }
 
 inline std::pair<u32, VkResult> acquire_next_swapchain_image(
@@ -1249,43 +742,6 @@ inline VkImage create_image(VkDevice device, VkImageType type,
   ASR_MUST_SUCCEED(vkCreateImage(device, &image_info, nullptr, &image),
                    "Unable to create image");
   return image;
-}
-
-// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: Optimal for presentation
-// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: Optimal as attachment for writing
-// colors from the fragment shader VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL: Optimal
-// as source in a transfer operation, like vkCmdCopyImageToBuffer
-// VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: Optimal as destination in a transfer
-// operation, like vkCmdCopyBufferToImage
-// VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL: Optimal for sampling from a shader
-
-// establishes synchronization of the state of the image's memory (state
-// transitions that must occur between each operation) i.e. making sure that an
-// image was written to before it is read. They can also be used to transition
-// the image's layouts.
-constexpr VkImageMemoryBarrier make_image_memory_barrier(
-    VkImage image, VkImageLayout old_layout, VkImageLayout new_layout,
-    VkAccessFlags src_access_flags, VkAccessFlags dst_access_flags) {
-  VkImageMemoryBarrier barrier{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-      .oldLayout = old_layout,
-      .newLayout = new_layout,
-      .srcQueueFamilyIndex =
-          VK_QUEUE_FAMILY_IGNORED,  // not transferring ownership of the image
-      .dstQueueFamilyIndex =
-          VK_QUEUE_FAMILY_IGNORED,  // not transferring ownership of the image
-      .image = image,
-      .subresourceRange =
-          VkImageSubresourceRange{
-              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,  // part of the image
-              .baseMipLevel = 0,
-              .levelCount = 1,
-              .baseArrayLayer = 0,
-              .layerCount = 1},
-      .srcAccessMask = src_access_flags,
-      .dstAccessMask = dst_access_flags};
-
-  return barrier;
 }
 
 // get memory requirements for an image based on it's type, usage mode, and
@@ -1926,8 +1382,7 @@ struct Buffer {
   Buffer(VkDeviceMemory amemory, VkBuffer abuffer, stx::Rc<Device*> adevice)
       : memory{amemory}, buffer{abuffer}, device{std::move(adevice)} {}
 
-  STX_DISABLE_COPY(Buffer)
-  STX_DISABLE_MOVE(Buffer)
+  STX_MAKE_PINNED(Buffer)
 
   ~Buffer() {
     vkFreeMemory(device.handle->device, memory, nullptr);
@@ -2053,8 +1508,7 @@ struct Image {
         memory{amemory},
         queue{std::move(aqueue)} {};
 
-  STX_DISABLE_COPY(Image)
-  STX_DISABLE_MOVE(Image)
+  STX_MAKE_PINNED(Image)
 
   ~Image() {
     VkDevice dev = queue.handle->device.handle->device;
@@ -2166,8 +1620,7 @@ struct ImageSampler {
   ImageSampler(VkSampler asampler, stx::Rc<Image*> aimage)
       : sampler{asampler}, image{std::move(aimage)} {}
 
-  STX_DISABLE_COPY(ImageSampler)
-  STX_DISABLE_MOVE(ImageSampler)
+  STX_MAKE_PINNED(ImageSampler)
 
   ~ImageSampler() {
     vkDestroySampler(image.handle->queue.handle->device.handle->device, sampler,
@@ -2314,8 +1767,7 @@ struct DescriptorSetsSpec {
 // NOTE: descriptor binding values lifetime must be longer than the
 // ShaderProgram's
 struct ShaderProgram {
-  STX_DISABLE_COPY(ShaderProgram)
-  STX_DISABLE_MOVE(ShaderProgram)
+  STX_MAKE_PINNED(ShaderProgram)
 
   VkShaderModule vertex_shader = VK_NULL_HANDLE;
   VkShaderModule fragment_shader = VK_NULL_HANDLE;
@@ -2546,6 +1998,489 @@ struct ShaderProgram {
   }
 };
 
+inline std::tuple<VkImage, VkImageView, VkDeviceMemory>
+create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
+                           VkFormat swapchain_format,
+                           VkExtent2D swapchain_extent,
+                           VkSampleCountFlagBits sample_count) {
+  VkDevice dev = queue.handle->device.handle->device;
+
+  VkImageCreateInfo create_info{
+      .arrayLayers = 1,
+      .extent = VkExtent3D{.depth = 1,
+                           .height = swapchain_extent.height,
+                           .width = swapchain_extent.width},
+      .flags = 0,
+      .format = swapchain_format,
+      .imageType = VK_IMAGE_TYPE_2D,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+      .mipLevels = 1,
+      .pNext = nullptr,
+      .pQueueFamilyIndices = &queue.handle->info.family.index,
+      .queueFamilyIndexCount = 1,
+      .samples = sample_count,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT};
+
+  VkImage image;
+
+  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
+
+  VkMemoryRequirements requirements;
+
+  vkGetImageMemoryRequirements(dev, image, &requirements);
+
+  u32 memory_type_index =
+      vk::find_suitable_memory_type(
+          requirements,
+          queue.handle->device.handle->phy_device.handle->memory_properties,
+          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+          .unwrap();
+
+  VkMemoryAllocateInfo alloc_info{
+      .allocationSize = requirements.size,
+      .memoryTypeIndex = memory_type_index,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+
+  VkDeviceMemory memory;
+
+  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+
+  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
+
+  VkImageViewCreateInfo view_create_info{
+      .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+      .flags = 0,
+      .format = VK_FORMAT_R8G8B8A8_SRGB,
+      .image = image,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .subresourceRange =
+          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                  .baseArrayLayer = 0,
+                                  .baseMipLevel = 0,
+                                  .layerCount = 1,
+                                  .levelCount = 1},
+      .viewType = VK_IMAGE_VIEW_TYPE_2D};
+
+  VkImageView view;
+
+  ASR_ENSURE(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+
+  return std::make_tuple(image, view, memory);
+}
+
+inline std::tuple<VkImage, VkImageView, VkDeviceMemory>
+create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
+                           VkFormat swapchain_format,
+                           VkExtent2D swapchain_extent,
+                           VkSampleCountFlagBits sample_count) {
+  VkDevice dev = queue.handle->device.handle->device;
+
+  VkImageCreateInfo create_info{
+      .arrayLayers = 1,
+      .extent = VkExtent3D{.depth = 1,
+                           .height = swapchain_extent.height,
+                           .width = swapchain_extent.width},
+      .flags = 0,
+      .format = swapchain_format,
+      .imageType = VK_IMAGE_TYPE_2D,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+      .mipLevels = 1,
+      .pNext = nullptr,
+      .pQueueFamilyIndices = &queue.handle->info.family.index,
+      .queueFamilyIndexCount = 1,
+      .samples = sample_count,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT};
+
+  VkImage image;
+
+  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
+
+  VkMemoryRequirements requirements;
+
+  vkGetImageMemoryRequirements(dev, image, &requirements);
+
+  u32 memory_type_index =
+      vk::find_suitable_memory_type(
+          requirements,
+          queue.handle->device.handle->phy_device.handle->memory_properties,
+          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+          .unwrap();
+
+  VkMemoryAllocateInfo alloc_info{
+      .allocationSize = requirements.size,
+      .memoryTypeIndex = memory_type_index,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+
+  VkDeviceMemory memory;
+
+  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+
+  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
+
+  VkImageViewCreateInfo view_create_info{
+      .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+      .flags = 0,
+      .format = VK_FORMAT_R8G8B8A8_SRGB,
+      .image = image,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .subresourceRange =
+          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                  .baseArrayLayer = 0,
+                                  .baseMipLevel = 0,
+                                  .layerCount = 1,
+                                  .levelCount = 1},
+      .viewType = VK_IMAGE_VIEW_TYPE_2D};
+
+  VkImageView view;
+
+  ASR_ENSURE(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+
+  return std::make_tuple(image, view, memory);
+}
+
+/// Swapchains handle the presentation and update logic of the images to the
+/// window surface.
+///
+///
+///
+/// NOTE: all arguments to create a swapchain for a window surface are
+/// preferences, meaning another available argument will be used if the
+/// suggested ones are not supported. Thus do not assume your arguments are
+/// final.
+///
+///
+/// swapchains can not be headless, nor exist independently of the surface they
+/// originated from, its lifetime thus depends on the surface. the surface can
+/// and should be able to destroy and create it at will (which would be
+/// impossible to do correctly with ref-counting, since we are not holding a
+/// reference to the surface) we thus can't hold a reference to the swapchain,
+/// its images, nor its image views outside itself (the swapchain object).
+///
+struct SwapChain {
+  // actually holds the images of the surface and used to present to the render
+  // target image. when resizing is needed, the swapchain is destroyed and
+  // recreated with the desired extents.
+  VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+  VkSurfaceFormatKHR format{.colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
+                            .format = VK_FORMAT_R8G8B8A8_SRGB};
+  VkPresentModeKHR present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+  VkExtent2D extent{.height = 0, .width = 0};
+
+  /// IMPORTANT: this is different from the image index obtained via
+  /// `vkAcquireNextImageKHR`. this index is used for referencing semaphores
+  /// used for submitting and querying rendering operations. this value is
+  /// always increasing and wrapping, unlike the index obtained from
+  /// `vkAcquireNextImageKHR` which depends on the presentation mode being used
+  /// (determines how the images are used, in what order and whether they
+  /// repeat).
+  u32 frame_flight_index = 0;
+
+  // the images in the swapchain
+  stx::Vec<VkImage> images{stx::os_allocator};
+
+  // the image views pointing to a part of a whole texture (images in the
+  // swapchain)
+  stx::Vec<VkImageView> image_views{stx::os_allocator};
+
+  // the rendering semaphores correspond to the frame indexes and not the
+  // swapchain images
+  stx::Vec<VkSemaphore> rendering_semaphores{stx::os_allocator};
+
+  stx::Vec<VkSemaphore> image_acquisition_semaphores{stx::os_allocator};
+
+  stx::Vec<VkFramebuffer> frame_buffers{stx::os_allocator};
+
+  VkImage msaa_color_image = VK_NULL_HANDLE;
+  VkImageView msaa_color_image_view = VK_NULL_HANDLE;
+  VkDeviceMemory msaa_color_image_memory = VK_NULL_HANDLE;
+
+  VkImage msaa_depth_image = VK_NULL_HANDLE;
+  VkImageView msaa_depth_image_view = VK_NULL_HANDLE;
+  VkDeviceMemory msaa_depth_image_memory = VK_NULL_HANDLE;
+
+  stx::Rc<CommandQueue*> queue;
+
+  SwapChain(VkSwapchainKHR aswapchain, VkSurfaceFormatKHR aformat,
+            VkPresentModeKHR apresent_mode, VkExtent2D aextent,
+            stx::Rc<vkh::CommandQueue*> aqueue)
+      : swapchain{aswapchain},
+        format{aformat},
+        present_mode{apresent_mode},
+        extent{aextent},
+        queue{std::move(aqueue)} {}
+
+  STX_MAKE_PINNED(SwapChain)
+
+  ~SwapChain() {
+    VkDevice dev = queue.handle->device.handle->device;
+
+    // await idleness of the semaphores device, so we can destroy the
+    // semaphore and images whislt not in use.
+    // any part of the device could be using the semaphore
+
+    ASR_MUST_SUCCEED(vkDeviceWaitIdle(dev), "Unable to await device idleness");
+
+    vkFreeMemory(dev, msaa_color_image_memory, nullptr);
+    vkDestroyImageView(dev, msaa_color_image_view, nullptr);
+    vkDestroyImage(dev, msaa_color_image, nullptr);
+
+    vkFreeMemory(dev, msaa_depth_image_memory, nullptr);
+    vkDestroyImageView(dev, msaa_depth_image_view, nullptr);
+    vkDestroyImage(dev, msaa_depth_image, nullptr);
+
+    for (VkFramebuffer framebuffer : frame_buffers) {
+      vkDestroyFramebuffer(dev, framebuffer, nullptr);
+    }
+
+    for (VkSemaphore semaphore : rendering_semaphores) {
+      vkDestroySemaphore(dev, semaphore, nullptr);
+    }
+
+    for (VkSemaphore semaphore : image_acquisition_semaphores) {
+      vkDestroySemaphore(dev, semaphore, nullptr);
+    }
+
+    for (VkImageView image_view : image_views) {
+      vkDestroyImageView(dev, image_view, nullptr);
+    }
+
+    // swapchain image is automatically deleted along with the swapchain
+    vkDestroySwapchainKHR(dev, swapchain, nullptr);
+  }
+};
+
+// choose a specific swapchain format available on the surface
+inline VkSurfaceFormatKHR select_swapchain_surface_formats(
+    stx::Span<VkSurfaceFormatKHR const> formats,
+    stx::Span<VkSurfaceFormatKHR const> preferred_formats) {
+  ASR_ENSURE(!formats.is_empty(),
+             "No window surface format supported by physical device");
+
+  for (VkSurfaceFormatKHR preferred_format : preferred_formats) {
+    if (!formats
+             .which([&](VkSurfaceFormatKHR format) {
+               return preferred_format.colorSpace == format.colorSpace &&
+                      preferred_format.format == format.format;
+             })
+             .is_empty())
+      return preferred_format;
+  }
+
+  ASR_PANIC("Unable to find any of the preferred swapchain surface formats");
+}
+
+inline VkPresentModeKHR select_swapchain_presentation_mode(
+    stx::Span<VkPresentModeKHR const> available_presentation_modes,
+    stx::Span<VkPresentModeKHR const> preferred_present_modes) noexcept {
+  /// - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application
+  /// are transferred to the screen right away, which may result in tearing.
+  ///
+  /// - VK_PRESENT_MODE_FIFO_KHR: The swap chain is a queue where the
+  /// display takes an image from the front of the queue when the display is
+  /// refreshed and the program inserts rendered images at the back of the
+  /// queue. If the queue is full then the program has to wait. This is most
+  /// similar to vertical sync as found in modern games. The moment that the
+  /// display is refreshed is known as "vertical blank" (v-sync).
+  ///
+  /// - VK_PRESENT_MODE_FIFO_RELAXED_KHR: This mode only differs
+  /// from the previous one if the application is late and the queue was
+  /// empty at the last vertical blank. Instead of waiting for the next
+  /// vertical blank, the image is transferred right away when it finally
+  /// arrives. This may result in visible tearing.
+  ///
+  /// - VK_PRESENT_MODE_MAILBOX_KHR: This is another variation of the
+  /// second mode. Instead of blocking the application when the queue is
+  /// full, the images that are already queued are simply replaced with the
+  /// newer ones. This mode can be used to implement triple buffering, which
+  /// allows you to avoid tearing with significantly less latency issues
+  /// than standard vertical sync that uses double buffering.
+
+  ASR_ENSURE(!available_presentation_modes.is_empty(),
+             "No surface presentation mode available");
+
+  for (auto const& preferred_present_mode : preferred_present_modes) {
+    if (!available_presentation_modes.find(preferred_present_mode).is_empty())
+      return preferred_present_mode;
+  }
+
+  ASR_PANIC("Unable to find any of the preferred presentation modes");
+}
+
+inline VkSampleCountFlagBits get_max_sample_count(PhyDeviceInfo const& device) {
+  VkSampleCountFlags counts =
+      device.properties.limits.framebufferColorSampleCounts &
+      device.properties.limits.framebufferDepthSampleCounts;
+
+  if (counts & VK_SAMPLE_COUNT_64_BIT) return VK_SAMPLE_COUNT_64_BIT;
+  if (counts & VK_SAMPLE_COUNT_32_BIT) return VK_SAMPLE_COUNT_32_BIT;
+  if (counts & VK_SAMPLE_COUNT_16_BIT) return VK_SAMPLE_COUNT_16_BIT;
+  if (counts & VK_SAMPLE_COUNT_8_BIT) return VK_SAMPLE_COUNT_8_BIT;
+  if (counts & VK_SAMPLE_COUNT_4_BIT) return VK_SAMPLE_COUNT_4_BIT;
+  if (counts & VK_SAMPLE_COUNT_2_BIT) return VK_SAMPLE_COUNT_2_BIT;
+
+  return VK_SAMPLE_COUNT_1_BIT;
+}
+
+struct Pipeline;
+
+struct Surface {
+  // only a pointer to metadata, does not contain data itself, resilient to
+  // resizing
+  VkSurfaceKHR surface = VK_NULL_HANDLE;
+
+  // empty and invalid until change_swapchain is called.
+  // not ref-counted since it solely belongs to this surface and the surface can
+  // create and destroy it upon request.
+  //
+  // also, we need to be certain it is non-existent and not referring to any
+  // resources when destroyed, not just by calling a method to destroy its
+  // resources.
+  //
+  stx::Option<stx::Unique<SwapChain*>> swapchain;
+
+  stx::Rc<vkh::Instance*> instance;
+
+  Surface(VkSurfaceKHR asurface,
+          stx::Option<stx::Unique<SwapChain*>> aswapchain,
+          stx::Rc<vkh::Instance*> ainstance)
+      : surface{asurface},
+        swapchain{std::move(aswapchain)},
+        instance{std::move(ainstance)} {}
+
+  STX_MAKE_PINNED(Surface)
+
+  ~Surface() {
+    // we need to ensure the swapchain is destroyed before the surface (if not
+    // already destroyed)
+    swapchain = stx::None;
+
+    vkDestroySurfaceKHR(instance.handle->instance, surface, nullptr);
+  }
+
+  void change_swapchain(
+      stx::Rc<vkh::CommandQueue*> const& queue,
+      stx::Span<VkSurfaceFormatKHR const> preferred_formats,
+      stx::Span<VkPresentModeKHR const> preferred_present_modes, Extent extent,
+      VkCompositeAlphaFlagBitsKHR alpha_compositing) {
+    swapchain = stx::None;  // probably don't want to have two existing at once
+
+    VkPhysicalDevice phy_device =
+        queue.handle->device.handle->phy_device.handle->phy_device;
+    VkDevice dev = queue.handle->device.handle->device;
+
+    // the properties change every time we need to create a swapchain so we must
+    // query for this every time
+    vk::SwapChainProperties properties =
+        vk::get_swapchain_properties(phy_device, surface);
+
+    ASR_LOG("Device Supported Surface Formats:");
+    for (VkSurfaceFormatKHR const& format : properties.supported_formats) {
+      ASR_LOG("\tFormat: {}, Color Space: {}", vk::format(format.format),
+              vk::format(format.colorSpace));
+    }
+
+    // swapchain formats are device-dependent
+    VkSurfaceFormatKHR format = select_swapchain_surface_formats(
+        properties.supported_formats, preferred_formats);
+
+    // TODO(lamarrr): log selections
+    // swapchain presentation modes are device-dependent
+    VkPresentModeKHR present_mode = select_swapchain_presentation_mode(
+        properties.presentation_modes, preferred_present_modes);
+
+    u32 accessing_families[] = {queue.handle->info.family.index};
+
+    auto [new_swapchain_r, actual_extent] = vk::create_swapchain(
+        dev, surface, VkExtent2D{extent.w, extent.h}, format, present_mode,
+        properties,
+        // not thread-safe since GPUs typically have one graphics queue
+        VK_SHARING_MODE_EXCLUSIVE, accessing_families,
+        // render target image
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+            VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        alpha_compositing,
+        // we don't care about the color of pixels that are obscured, for
+        // example because another window is in front of them. Unless you really
+        // need to be able to read these pixels back and get predictable
+        // results, you'll get the best performance by enabling clipping.
+        true);
+
+    swapchain = stx::Some(
+        stx::rc::make_unique_inplace<SwapChain>(
+            stx::os_allocator, new_swapchain_r, format, present_mode,
+            Extent{actual_extent.width, actual_extent.height},
+            static_cast<u32>(0), vk::get_swapchain_images(dev, new_swapchain_r),
+            stx::Vec<VkImageView>{stx::os_allocator},
+            stx::Vec<VkSemaphore>{stx::os_allocator},
+            stx::Vec<VkSemaphore>{stx::os_allocator},
+            stx::Vec<VkFramebuffer>{stx::os_allocator},
+            queue.handle->device.share(), family.share())
+            .unwrap());
+
+    auto& swapchain_r = *swapchain.value().handle;
+
+    for (VkImage image : swapchain_r.images) {
+      VkImageView image_view = vk::create_image_view(
+          dev, image, format.format, VK_IMAGE_VIEW_TYPE_2D,
+          VK_IMAGE_ASPECT_COLOR_BIT,
+          VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .a = VK_COMPONENT_SWIZZLE_IDENTITY});
+      swapchain_r.image_views.push_inplace(image_view).unwrap();
+    }
+
+    for (usize i = 0; i < swapchain_r.images.size(); i++) {
+      swapchain_r.rendering_semaphores.push(vk::create_semaphore(dev)).unwrap();
+      swapchain_r.image_acquisition_semaphores.push(vk::create_semaphore(dev))
+          .unwrap();
+    }
+
+    VkSampleCountFlagBits msaa_sample_count =
+        get_max_sample_count(*queue.handle->device.handle->phy_device.handle);
+
+    auto [msaa_color_image, msaa_color_image_view, msaa_color_image_memory] =
+        create_msaa_color_resource(queue, format.format, actual_extent,
+                                   msaa_sample_count);
+
+    // TODO(lamarrr): depth format is incorrect
+    auto [msaa_depth_image, msaa_depth_image_view, msaa_depth_image_memory] =
+        create_msaa_depth_resource(queue, format.format, actual_extent,
+                                   msaa_sample_count);
+
+    swapchain_r.msaa_color_image = msaa_color_image;
+    swapchain_r.msaa_color_image_view = msaa_color_image_view;
+    swapchain_r.msaa_color_image_memory = msaa_color_image_memory;
+
+    swapchain_r.msaa_depth_image = msaa_depth_image;
+    swapchain_r.msaa_depth_image_view = msaa_depth_image_view;
+    swapchain_r.msaa_depth_image_memory = msaa_depth_image_memory;
+  }
+
+  void add_framebuffers(stx::Rc<Pipeline*> const& pipeline);
+};
+
+// void bind() {
+// vkCmdSetViewport
+// vkCmdSetScissor
+// }
 struct Pipeline {
   VkPipeline pipeline = VK_NULL_HANDLE;
   VkRenderPass render_pass = VK_NULL_HANDLE;
@@ -2554,7 +2489,7 @@ struct Pipeline {
   Pipeline(stx::Rc<ShaderProgram*> aprogram,
            stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
            usize vertex_input_size, VkFormat swapchain_format,
-           VkSampleCountFlags sample_count)
+           VkSampleCountFlagBits sample_count)
       : program{std::move(aprogram)} {
     VkDevice dev = program.handle->queue.handle->device.handle->device;
 
@@ -2654,7 +2589,7 @@ struct Pipeline {
         .minSampleShading = 1.0f,
         .pNext = nullptr,
         .pSampleMask = nullptr,
-        .rasterizationSamples = (VkSampleCountFlagBits)sample_count,
+        .rasterizationSamples = sample_count,
         .sampleShadingEnable = VK_FALSE,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
 
@@ -2731,7 +2666,7 @@ struct Pipeline {
         .format = swapchain_format,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .samples = (VkSampleCountFlagBits)sample_count,
+        .samples = sample_count,
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE};
@@ -2742,7 +2677,7 @@ struct Pipeline {
         .format = findDepthFormat(),
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .samples = (VkSampleCountFlagBits)sample_count,
+        .samples = sample_count,
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE};
@@ -2833,10 +2768,7 @@ struct Pipeline {
                                            nullptr, &pipeline));
   }
 
-  // void bind() {
-  // vkCmdSetViewport
-  // vkCmdSetScissor
-  // }
+  STX_MAKE_PINNED(Pipeline)
 
   ~Pipeline() {
     vkDestroyPipeline(program.handle->queue.handle->device.handle->device,
@@ -2846,170 +2778,33 @@ struct Pipeline {
   }
 };
 
-inline VkSampleCountFlagBits get_max_sample_count(PhyDeviceInfo const& device) {
-  VkSampleCountFlags counts =
-      device.properties.limits.framebufferColorSampleCounts &
-      device.properties.limits.framebufferDepthSampleCounts;
+void Surface::add_framebuffers(stx::Rc<Pipeline*> const& pipeline) {
+  // TODO(lamarrr): store pipeline
+  auto& swapchain_r = *swapchain.value().handle;
+  for (usize i = 0; i < swapchain_r.images.size(); i++) {
+    VkFramebuffer framebuffer;
 
-  if (counts & VK_SAMPLE_COUNT_64_BIT) return VK_SAMPLE_COUNT_64_BIT;
-  if (counts & VK_SAMPLE_COUNT_32_BIT) return VK_SAMPLE_COUNT_32_BIT;
-  if (counts & VK_SAMPLE_COUNT_16_BIT) return VK_SAMPLE_COUNT_16_BIT;
-  if (counts & VK_SAMPLE_COUNT_8_BIT) return VK_SAMPLE_COUNT_8_BIT;
-  if (counts & VK_SAMPLE_COUNT_4_BIT) return VK_SAMPLE_COUNT_4_BIT;
-  if (counts & VK_SAMPLE_COUNT_2_BIT) return VK_SAMPLE_COUNT_2_BIT;
+    VkImageView attachments[] = {swapchain_r.msaa_color_image_view,
+                                 swapchain_r.msaa_depth_image_view,
+                                 swapchain_r.image_views[i]};
 
-  return VK_SAMPLE_COUNT_1_BIT;
-}
+    VkFramebufferCreateInfo create_info{
+        .attachmentCount = std::size(attachments),
+        .flags = 0,
+        .height = swapchain_r.extent.height,
+        .layers = 1,
+        .pAttachments = attachments,
+        .pNext = nullptr,
+        .renderPass = pipeline.handle->render_pass,
+        .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+        .width = swapchain_r.extent.width};
 
-inline void create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
-                                       VkFormat swapchain_format,
-                                       VkExtent2D swapchain_extent,
-                                       VkSampleCountFlags sample_count) {
-  VkDevice dev = queue.handle->device.handle->device;
+    ASR_VK_CHECK(vkCreateFramebuffer(
+        pipeline.handle->program.handle->queue.handle->device.handle->device,
+        &create_info, nullptr, &framebuffer));
 
-  VkImageCreateInfo create_info{
-      .arrayLayers = 1,
-      .extent = VkExtent3D{.depth = 1,
-                           .height = swapchain_extent.height,
-                           .width = swapchain_extent.width},
-      .flags = 0,
-      .format = swapchain_format,
-      .imageType = VK_IMAGE_TYPE_2D,
-      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-      .mipLevels = 1,
-      .pNext = nullptr,
-      .pQueueFamilyIndices = &queue.handle->info.family.index,
-      .queueFamilyIndexCount = 1,
-      .samples = (VkSampleCountFlagBits)sample_count,
-      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-      .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT};
-
-  VkImage image;
-
-  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
-
-  VkMemoryRequirements requirements;
-
-  vkGetImageMemoryRequirements(dev, image, &requirements);
-
-  u32 memory_type_index =
-      vk::find_suitable_memory_type(
-          requirements,
-          queue.handle->device.handle->phy_device.handle->memory_properties,
-          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-          .unwrap();
-
-  VkMemoryAllocateInfo alloc_info{
-      .allocationSize = requirements.size,
-      .memoryTypeIndex = memory_type_index,
-      .pNext = nullptr,
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-
-  VkDeviceMemory memory;
-
-  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
-
-  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
-
-  VkImageViewCreateInfo view_create_info{
-      .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
-      .flags = 0,
-      .format = VK_FORMAT_R8G8B8A8_SRGB,
-      .image = image,
-      .pNext = nullptr,
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .subresourceRange =
-          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                  .baseArrayLayer = 0,
-                                  .baseMipLevel = 0,
-                                  .layerCount = 1,
-                                  .levelCount = 1},
-      .viewType = VK_IMAGE_VIEW_TYPE_2D};
-
-  VkImageView view;
-
-  ASR_ENSURE(vkCreateImageView(dev, &view_create_info, nullptr, &view));
-}
-
-inline void create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
-                                       VkFormat swapchain_format,
-                                       VkExtent2D swapchain_extent,
-                                       VkSampleCountFlags sample_count) {
-  VkDevice dev = queue.handle->device.handle->device;
-
-  VkImageCreateInfo create_info{
-      .arrayLayers = 1,
-      .extent = VkExtent3D{.depth = 1,
-                           .height = swapchain_extent.height,
-                           .width = swapchain_extent.width},
-      .flags = 0,
-      .format = swapchain_format,
-      .imageType = VK_IMAGE_TYPE_2D,
-      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-      .mipLevels = 1,
-      .pNext = nullptr,
-      .pQueueFamilyIndices = &queue.handle->info.family.index,
-      .queueFamilyIndexCount = 1,
-      .samples = (VkSampleCountFlagBits)sample_count,
-      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-      .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT};
-
-  VkImage image;
-
-  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
-
-  VkMemoryRequirements requirements;
-
-  vkGetImageMemoryRequirements(dev, image, &requirements);
-
-  u32 memory_type_index =
-      vk::find_suitable_memory_type(
-          requirements,
-          queue.handle->device.handle->phy_device.handle->memory_properties,
-          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-          .unwrap();
-
-  VkMemoryAllocateInfo alloc_info{
-      .allocationSize = requirements.size,
-      .memoryTypeIndex = memory_type_index,
-      .pNext = nullptr,
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-
-  VkDeviceMemory memory;
-
-  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
-
-  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
-
-  VkImageViewCreateInfo view_create_info{
-      .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
-      .flags = 0,
-      .format = VK_FORMAT_R8G8B8A8_SRGB,
-      .image = image,
-      .pNext = nullptr,
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .subresourceRange =
-          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                  .baseArrayLayer = 0,
-                                  .baseMipLevel = 0,
-                                  .layerCount = 1,
-                                  .levelCount = 1},
-      .viewType = VK_IMAGE_VIEW_TYPE_2D};
-
-  VkImageView view;
-
-  ASR_ENSURE(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+    swapchain_r.frame_buffers.push_inplace(framebuffer).unwrap();
+  }
 }
 
 }  // namespace vkh

@@ -27,6 +27,7 @@ struct Widget {
   virtual stx::Option<i64> get_z_index();
   // + handling floating, relative, sticky and fixed positioned elements
   virtual Rect layout(Extent allotted_extent);  // min, max, available
+  // children layout??? or do we entirely allow self layout
   // + other properties that will make its rendering work well with other
   // widgets
   virtual void draw();
