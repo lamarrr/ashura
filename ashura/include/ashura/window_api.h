@@ -12,7 +12,7 @@
 
 namespace asr {
 
-enum class WindowID : uint32_t {};
+enum class WindowID : u32 {};
 
 struct Window;
 

@@ -1,12 +1,12 @@
 #pragma once
-#include <cinttypes>
+#include "ashura/primitives.h"
 
 namespace asr {
 
 struct Version {
-  uint8_t major = 0;
-  uint8_t minor = 0;
-  uint8_t patch = 0;
+  u8 major = 0;
+  u8 minor = 0;
+  u8 patch = 0;
 };
 
 }  // namespace asr

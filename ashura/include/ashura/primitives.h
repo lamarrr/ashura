@@ -25,6 +25,9 @@ using i64 = int64_t;
 using f32 = float;
 using f64 = double;
 
+using usize = size_t;
+using isize = ptrdiff_t;
+
 struct vec2 {
   f32 x = 0.0f, y = 0.0f;
 };

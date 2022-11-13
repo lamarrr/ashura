@@ -17,13 +17,14 @@
 #include "stx/string.h"
 
 namespace asr {
+using namespace stx::literals;
 
-enum class WindowTypeHint : uint8_t { Normal, Utility, Tooltip, Popup };
+enum class WindowTypeHint : u8 { Normal, Utility, Tooltip, Popup };
 
-enum class WindowPosition : uint8_t { Centered };
+enum class WindowPosition : u8 { Centered };
 
 struct WindowConfig {
-  stx::String title = stx::string::make_static("ashura");
+  stx::String title = "ashura"_ss;
   Extent extent{1920, 1080};  // TODO(lamarrr): GetDisplaySize
   stx::Option<Extent> min_extent;
   stx::Option<Extent> max_extent;
@@ -167,7 +168,7 @@ struct Window {
   WindowConfig cfg_;
   std::thread::id init_thread_id_;
   stx::Option<stx::Unique<WindowSurface*>> surface_;
-  uint32_t refresh_rate_ = 1;
+  u32 refresh_rate_ = 1;
   std::map<WindowEvent, stx::UniqueFn<void()>> window_event_listeners;
   stx::UniqueFn<void(MouseClickEvent const&)> mouse_click_listener =
       stx::fn::rc::make_unique_static([](MouseClickEvent const&) {});

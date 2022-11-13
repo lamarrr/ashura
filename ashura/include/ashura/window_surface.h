@@ -13,7 +13,7 @@
 
 namespace asr {
 
-enum class WindowSwapchainDiff : uint8_t {
+enum class WindowSwapchainDiff : u8 {
   None = 0,
   // the window's extent and surface (framebuffer) extent has changed
   Extent = 1,
@@ -314,7 +314,7 @@ struct WindowSurface {
       swapchain_r.image_views.push_inplace(image_view).unwrap();
     }
 
-    for (size_t i = 0; i < swapchain_r.images.size(); i++) {
+    for (usize i = 0; i < swapchain_r.images.size(); i++) {
       swapchain_r.rendering_semaphores.push(vk::create_semaphore(device))
           .unwrap();
       swapchain_r.image_acquisition_semaphores

@@ -9,11 +9,12 @@
 #include "ashura/sdl_utils.h"
 #include "ashura/utils.h"
 #include "ashura/window.h"
+#include "ashura/primitives.h"
 
 namespace asr {
 
 namespace impl {
-inline WindowEvent sdl_window_event_to_asr(uint8_t win_event_type) {
+inline WindowEvent sdl_window_event_to_asr(u8 win_event_type) {
   switch (win_event_type) {
     case SDL_WINDOWEVENT_NONE:
       return WindowEvent::None;

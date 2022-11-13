@@ -66,7 +66,6 @@ struct ClipBoardEvent;  // on_update only
 
 struct DeviceOrientationEvent;
 
-// TODO(lamarrr):
 struct Controller;
 
 struct PointerLock;

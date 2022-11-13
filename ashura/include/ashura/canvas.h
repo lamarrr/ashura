@@ -11,15 +11,11 @@
 #include "stx/vec.h"
 #include "vulkan/vulkan.h"
 
-// See: https://html.spec.whatwg.org/multipage/canvas.html
-
 // TODO(lamarrr): we'll acrtually generate 3D vertices with them so they can
-// play well with 3D animations
+// play well with 3D graphics and animations
 
 namespace asr {
-
-// TODO(lamarrr): this should be a GPU texture/image
-// struct Image {};
+namespace gfx {
 
 // TODO(lamarrr): child must inherit parent's transformation and opacity
 
@@ -66,12 +62,6 @@ struct Filter {
   /* None by default */
 };
 
-// the type of endings that UAs will place on the end of lines
-enum class LineCap : u8 { Butt, Round, Square };
-
-// the type of corners that UAs will place where two lines meet
-enum class LineJoin : u8 { Round, Bevel, Miter };
-
 enum class TextAlign : u8 {
   Start /* detect locale and other crap */,
   End,
@@ -107,12 +97,7 @@ enum class FontStretch : u8 {
 
 struct PathStyle {
   f32 line_width = 1.0f;
-  LineCap line_cap = LineCap::Butt;
-  LineJoin line_join = LineJoin::Miter;
-  f32 miter_limit = 10.0f;
 };
-
-// struct Typeface {};
 
 enum class FontWeight : u32 {
   Thin = 100,
@@ -126,6 +111,20 @@ enum class FontWeight : u32 {
   Black = 900,
   ExtraBlack = 950
 };
+
+// requirements:
+// - easy resource specification
+// - caching so we don't have to reupload on every frame
+// - GPU texture/image
+// NOTE: canvas is low-level so we don't use paths, urls, or uris
+struct Image {};
+
+// requirements:
+// -
+struct Typeface {};
+
+// requirements:
+struct Shader {};
 
 // TODO(lamarrr): embed font into a cpp file
 //
@@ -147,7 +146,7 @@ struct TextStyle {
 struct Brush {
   bool fill = true;
   Color color = colors::BLACK;
-  stx::Option<stx::Rc<Image *>> pattern;
+  stx::Option<Image> pattern;
   PathStyle path_style;
   TextStyle text_style;
   Filter filter;
@@ -155,8 +154,6 @@ struct Brush {
   ImageSmoothing smoothing;
   Compositing compositing;
 };
-
-// struct Shader {};
 
 // TODO(lamarrr): invert these rows and columns
 namespace transforms {
@@ -209,54 +206,22 @@ constexpr mat4x4 rotate_z(f32 degree) {
 
 // TODO(lamarrr): what about positioning?
 struct DrawCommand {
-  u64 indices_offset = 0;
-  u64 num_triangles = 0;
-  mat4x4 transform;
+  u32 indices_offset = 0;
+  u32 num_triangles = 0;
+  vec3 opacity;
+  mat4x4 transform;  //  transform contains position (translation from origin)
   Color color = colors::BLACK;
-  stx::Option<stx::Rc<Image *>> texture;
-  stx::Rc<Shader *> vert_shader;
-  stx::Rc<Shader *> frag_shader;  // - clip options will apply in the fragment
-                                  // and vertex shaders
-                                  // - blending
+  stx::Option<Image> texture;
+  Shader vert_shader;
+  Shader frag_shader;  // - clip options will apply in the fragment
+                       // and vertex shaders
+                       // - blending
 };
 
 struct DrawList {
   stx::Vec<vec3> vertices{stx::os_allocator};
   stx::Vec<u32> indices{stx::os_allocator};
   stx::Vec<DrawCommand> commands{stx::os_allocator};
-};
-
-enum class BuiltinShaderID : u32 {
-  FragColored,
-  VertMvp,
-  FragCircle,
-  FragEllipse,
-};
-
-struct BuiltinShaderPack {
-  virtual stx::Rc<Shader *> get(BuiltinShaderID);
-};
-
-// TODO(lamarrr): Builtin ShaderManager and TextureManager that is preloaded at
-// runtime and we just use enums to find which we need
-
-// clipping, filling, stroking
-struct Path {
-  vec3 position;
-  stx::Vec<vec3> points{stx::os_allocator};
-
-  void move_to(vec2 point) {
-    position = vec3{.x = point.x, .y = point.y, .z = 0.0f};
-  }
-
-  void line_to(vec2 point) {
-    points.push_inplace(position).unwrap();
-    points.push(vec3{.x = point.x, .y = point.y, .z = 0.0f}).unwrap();
-  }
-
-  void circle(f32 radius) {}
-
-  void close() {}
 };
 
 // TODO(lamarrr): how do we handle selection of transformed widgets?
@@ -266,49 +231,69 @@ struct Canvas {
   ExtentF extent;
   Brush brush;
   mat4x4 transform = mat4x4::identity();
-  stx::Vec<mat4x4> saved_transform_states{stx::os_allocator};
-  stx::Vec<RectF> clips{stx::os_allocator};
+  stx::Vec<mat4x4> transform_state_stack{stx::os_allocator};
   DrawList draw_list;
-  stx::Rc<BuiltinShaderPack *> shader_pack;
+  //   stx::Vec<RectF> clips{stx::os_allocator};
 
-  // shape???
-
-  Canvas(stx::Rc<BuiltinShaderPack *> ashader_pack)
-      : shader_pack{std::move(ashader_pack)} {}
-
-  // rect clip, rrect clip
   // push state (transform and clips) on state stack
-  void save() { saved_transform_states.push_inplace(transform).unwrap(); }
+  Canvas& save() {
+    transform_state_stack.push_inplace(transform).unwrap();
+    return *this;
+  }
 
   // save current transform and clip state
   // pop state (transform and clips) stack and restore state
-  void restore() {
-    ASR_ENSURE(!saved_transform_states.is_empty());
-    transform = *(saved_transform_states.end() - 1);
-    saved_transform_states.resize(saved_transform_states.size() - 1).unwrap();
+  Canvas& restore() {
+    ASR_ENSURE(!transform_state_stack.is_empty());
+    transform = *(transform_state_stack.end() - 1);
+    transform_state_stack.resize(transform_state_stack.size() - 1).unwrap();
+
+    return *this;
   }
 
-  //
   // reset the rendering context to its default state (transform
   // and clips)
-  void reset() { transform = mat4x4::identity(); }
-
-  void translate(f32 x, f32 y) {
-    transform = transforms::translate(vec3{x, y, 0.0f}) * transform;
+  Canvas& reset() {
+    transform = mat4x4::identity();
+    return *this;
   }
 
-  void rotate(f32 degree) {
+  Canvas& translate(f32 x, f32 y, f32 z) {
+    transform = transforms::translate(vec3{x, y, z}) * transform;
+    return *this;
+  }
+
+  Canvas& translate(f32 x, f32 y) { return translate(x, y, 0.0f); }
+
+  Canvas& rotate(f32 degree) {
     transform = transforms::rotate_z(degree) * transform;
+    return *this;
   }
 
-  void scale(f32 x, f32 y) {
-    transform = transforms::scale(vec3{x, y, 1.0f}) * transform;
+  Canvas& rotate(f32 x, f32 y, f32 z) {
+    transform = transforms::rotate_z(z) * transforms::rotate_y(y) *
+                transforms::rotate_x(x) * transform;
+    return *this;
   }
 
-  // TODO(lamarrr): we can reuse this quad for others without needing to
+  Canvas& scale(f32 x, f32 y, f32 z) {
+    transform = transforms::scale(vec3{x, y, z}) * transform;
+    return *this;
+  }
+
+  Canvas& scale(f32 x, f32 y) { return scale(x, y, 1.0f); }
+
+  Canvas& move_to(f32 x, f32 y, f32 z) {
+    position = vec3{x, y, z};
+    return *this;
+  }
+
+  Canvas& move_to(f32 x, f32 y) { return move_to(x, y, position.z); }
+
+  // TODO(lamarrr): we can reuse this for others without needing to
   // allocate anything
-  u64 __reserve_rect() {
-    u64 start = draw_list.vertices.size();
+  u32 __reserve_rect() {
+    u32 start = draw_list.vertices.size();
 
     draw_list.vertices.push(vec3{0.0f, 0.0f, 0.0f}).unwrap();
     draw_list.vertices.push(vec3{1.0f, 0.0f, 0.0f}).unwrap();
@@ -325,8 +310,8 @@ struct Canvas {
     return start;
   }
 
-  void clear() {
-    u64 start = __reserve_rect();
+  Canvas& clear() {
+    u32 start = __reserve_rect();
 
     draw_list.commands
         .push(DrawCommand{
@@ -335,36 +320,23 @@ struct Canvas {
             .transform = transforms::scale(vec3{extent.w, extent.h, 1.0f}),
             .color = brush.color,
             .texture = stx::None,
-            .vert_shader = shader_pack.handle->get(BuiltinShaderID::VertMvp),
-            .frag_shader =
-                shader_pack.handle->get(BuiltinShaderID::FragColored)})
+            .vert_shader = {},
+            .frag_shader = {}})
         .unwrap();
+
+    return *this;
   }
 
-  //   void clip_rect();
-  //   void clip_rrect();
-  //   void clip_slanted_rect();
+  // clip_rect(), clip_rrect(), clip_slanted_rect();
 
-  // TEXT API
-  void text(stx::StringView text, OffsetF position);
-
-  // IMAGE API
-  void draw_image(stx::Rc<Image *> image, OffsetF position);
-  void draw_image(stx::Rc<Image *> image, RectF target);
-  void draw_image(stx::Rc<Image *> image, RectF portion, RectF target);
-
-  void move_to(OffsetF point) {
-    position = vec3{.x = point.x, .y = point.y, .z = position.z};
-  }
-
-  void line_to(OffsetF point) {
+  Canvas& draw_line_to(OffsetF point) {
     position;
     point;
 
-    u64 start = draw_list.vertices.size();
+    u32 start = draw_list.vertices.size();
     u64 line_width = brush.path_style.line_width;
     vec3 p1 = position;
-    vec3 p2 = vec3{point.x, point.y, position.z};
+    vec3 p2{point.x, point.y, position.z};
 
     draw_list.vertices.push(vec3{0.0f, 0.0f, 0.0f}).unwrap();
     draw_list.vertices.push(vec3{1.0f, 0.0f, 0.0f}).unwrap();
@@ -377,15 +349,13 @@ struct Canvas {
     draw_list.indices.push_inplace(start + 2).unwrap();
     draw_list.indices.push_inplace(start).unwrap();
     draw_list.indices.push_inplace(start + 3).unwrap();
-  }
-  //   void quadratic_curve_to(f32 cpx, f32 cpy, f32 x, f32 y);
-  //   void bezier_curve_to(f32 cp1x, f32 cp1y, f32 cp2x, f32 cp2y, f32 x, f32
-  //   y);
 
-  // PRIMITIVES
-  void rect(RectF area) {
+    return *this;
+  }
+
+  Canvas& draw_rect(RectF area) {
     // TODO(lamarrr): this will only work for filled rects
-    u64 start = __reserve_rect();
+    u32 start = __reserve_rect();
 
     mat4x4 transforms =
         transform *
@@ -394,33 +364,53 @@ struct Canvas {
 
     brush.pattern;  // TODO(lamarrr): what about textured backgrounds?
     draw_list.commands
-        .push(DrawCommand{
-            .indices_offset = start,
-            .num_triangles = 2,
-            .transform = transforms,
-            .color = brush.color,
-            .texture = stx::None,
-            .vert_shader = shader_pack.handle->get(BuiltinShaderID::VertMvp),
-            .frag_shader =
-                shader_pack.handle->get(BuiltinShaderID::FragColored)})
+        .push(DrawCommand{.indices_offset = start,
+                          .num_triangles = 2,
+                          .transform = transforms,
+                          .color = brush.color,
+                          .texture = stx::None,
+                          .vert_shader = {},
+                          .frag_shader = {}})
         .unwrap();
+
+    return *this;
   }
 
-  void round_rect(RectF area, vec4 radii);
-  void slanted_rect(RectF area);
-  void arc(OffsetF p1, OffsetF p2,
-           f32 radius);  // within circle and within a rect that comtains that
-                         // circle (for filled arc)
-  void circle(OffsetF center, f32 radius) { u64 start = __reserve_rect(); }
-  void ellipse(OffsetF center, ExtentF radius, f32 rotation, f32 start_angle,
-               f32 end_angle) {
-    __reserve_rect();
-  }
+  Canvas& draw_round_rect(RectF area, vec4 radii);
+  Canvas& draw_slanted_rect(RectF area);
+  // within circle and within a rect that comtains
+  // that circle (for filled arc)
+  Canvas& draw_arc(OffsetF p1, OffsetF p2, f32 radius);
+  Canvas& draw_circle(OffsetF center, f32 radius);
+  Canvas& draw_ellipse(OffsetF center, ExtentF radius, f32 rotation,
+                       f32 start_angle, f32 end_angle);
+
+  // Text API
+  Canvas& draw_text(stx::StringView text, OffsetF position);
+
+  // Image API
+  Canvas& draw_image(Image image, OffsetF position);
+  Canvas& draw_image(Image image, RectF target);
+  Canvas& draw_image(Image image, RectF portion, RectF target);
 };
 
-void record(DrawList const &draw_list, stx::Rc<vkh::Device *> const &device,
-            vkh::CommandQueueFamilyInfo const &graphics_command_queue,
-            VkPhysicalDeviceMemoryProperties const &memory_properties) {
+void sample(Canvas& canvas) {
+  canvas.save()
+      .rotate(45)
+      .draw_circle({0, 0}, 20.0f)
+      .draw_image(Image{}, {0.0, 0.0, 20, 40})
+      .restore()
+      .move_to(0, 0)
+      .scale(2.0f, 2.0f)
+      .draw_line_to({200, 200})
+      .draw_text("Hello World, こんにちは世界", {10, 10})
+      .draw_rect({0, 0, 20, 20})
+      .draw_round_rect({0, 0, 20, 20}, {10, 10, 10, 10});
+}
+
+void record(DrawList const& draw_list, stx::Rc<vkh::Device*> const& device,
+            vkh::CommandQueueFamilyInfo const& graphics_command_queue,
+            VkPhysicalDeviceMemoryProperties const& memory_properties) {
   VkCommandBuffer command_buffer;
 
   auto vertex_buffer = upload_vertices(device, graphics_command_queue,
@@ -435,7 +425,7 @@ void record(DrawList const &draw_list, stx::Rc<vkh::Device *> const &device,
 
   // we need to retain texture uploads, we can't be reuploading them every time
 
-  for (DrawCommand const &draw_command : draw_list.commands) {
+  for (DrawCommand const& draw_command : draw_list.commands) {
     vkCmdBindPipeline();
     vkCmdBindDescriptorSets();
     vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer.handle->buffer,
@@ -448,4 +438,5 @@ void record(DrawList const &draw_list, stx::Rc<vkh::Device *> const &device,
   }
 }
 
+}  // namespace gfx
 };  // namespace asr

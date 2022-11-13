@@ -2065,10 +2065,9 @@ struct Image {
 };
 
 // R | G | B | A
-stx::Rc<Image*> upload_rgba_image(
-    stx::Rc<CommandQueue*> const& queue,
-    VkPhysicalDeviceMemoryProperties const& memory_properties, u32 width,
-    u32 height, stx::Span<u32 const> data) {
+stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
+                                  u32 width, u32 height,
+                                  stx::Span<u32 const> data) {
   ASR_ENSURE(data.size_bytes() == width * height * 4);
 
   VkDevice dev = queue.handle->device.handle->device;
@@ -2084,7 +2083,7 @@ stx::Rc<Image*> upload_rgba_image(
       .pNext = nullptr,
       .pQueueFamilyIndices = &queue.handle->info.family.index,
       .queueFamilyIndexCount = 1,
-      .samples = VK_SAMPLE_COUNT_8_BIT,
+      .samples = VK_SAMPLE_COUNT_1_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
@@ -2099,8 +2098,10 @@ stx::Rc<Image*> upload_rgba_image(
   vkGetImageMemoryRequirements(dev, image, &requirements);
 
   u32 memory_type_index =
-      vk::find_suitable_memory_type(requirements, memory_properties,
-                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+      vk::find_suitable_memory_type(
+          requirements,
+          queue.handle->device.handle->phy_device.handle->memory_properties,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
@@ -2206,32 +2207,25 @@ stx::Rc<ImageSampler*> create_sampler(stx::Rc<Image*> const& image) {
       .unwrap();
 }
 
-
-enum class ShaderValueType : u8 { Vec1, Vec2, Vec4, Mat4 };
-
-struct TypeDesc{};
-
-enum class DescriptorType : u8 { Vec1, Vec2, Vec4, Mat4, Sampler };
-
+enum class DescriptorType : u8 { Buffer, Sampler };
 
 struct DescriptorBinding {
-  DescriptorType type = DescriptorType::Vec4;
+  DescriptorType type = DescriptorType::Buffer;
+  // only valid if type is DescriptorType::Buffer
+  usize size = 0;
   void const* data = nullptr;
 
-  explicit DescriptorBinding(f32 const* value)
-      : type{DescriptorType::Vec1}, data{value} {}
+  template <typename BufferType>
+  static DescriptorBinding uniform(BufferType const* value) {
+    return DescriptorBinding{.type = DescriptorType::Buffer,
+                             .size = sizeof(BufferType),
+                             .data = value};
+  }
 
-  explicit DescriptorBinding(vec2 const* value)
-      : type{DescriptorType::Vec2}, data{value} {}
-
-  explicit DescriptorBinding(vec4 const* value)
-      : type{DescriptorType::Vec4}, data{value} {}
-
-  explicit DescriptorBinding(mat4x4 const* value)
-      : type{DescriptorType::Mat4}, data{value} {}
-
-  explicit DescriptorBinding(ImageSampler const* sampler)
-      : type{DescriptorType::Sampler}, data{sampler} {}
+  static DescriptorBinding sampler(ImageSampler const* sampler) {
+    return DescriptorBinding{
+        .type = DescriptorType::Sampler, .size = 0, .data = sampler};
+  }
 };
 
 struct DescriptorSet {
@@ -2258,10 +2252,7 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
       VkDescriptorType type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
       switch (binding.type) {
-        case DescriptorType::Vec1:
-        case DescriptorType::Vec2:
-        case DescriptorType::Vec4:
-        case DescriptorType::Mat4:
+        case DescriptorType::Buffer:
           type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
           break;
         case DescriptorType::Sampler:
@@ -2322,23 +2313,6 @@ struct DescriptorSetsSpec {
 
 // NOTE: descriptor binding values lifetime must be longer than the
 // ShaderProgram's
-//
-//  ```cpp
-//  void example() {
-//   vec4 vec;
-//   mat4x4 mat;
-//   ImageSampler sampler;
-//
-//   DescriptorSet sets[] = {DescriptorSet{
-//   DescriptorBinding{&vec}, DescriptorBinding{&vec},
-//   DescriptorBinding{&mat}, DescriptorBinding{&mat},
-//   DescriptorBinding{&*sampler}, DescriptorBinding{&*sampler}}};
-//
-//   spec_descriptor_sets(
-//   DescriptorSetsSpec{.fragment_shader = sets, .vertex_shader = sets});
-// }
-//
-// ```
 struct ShaderProgram {
   STX_DISABLE_COPY(ShaderProgram)
   STX_DISABLE_MOVE(ShaderProgram)
@@ -2358,7 +2332,7 @@ struct ShaderProgram {
   stx::Vec<std::pair<VkBuffer, VkDeviceMemory>> uniform_buffers{
       stx::os_allocator};
 
-  stx::Vec<std::tuple<VkDeviceMemory, void const*, DescriptorBufferType>>
+  stx::Vec<std::tuple<VkDeviceMemory, DescriptorBinding>>
       uniform_buffer_memory_mappings{stx::os_allocator};
 
   stx::Rc<CommandQueue*> queue;
@@ -2478,39 +2452,16 @@ struct ShaderProgram {
       for (DescriptorSet const& set : specs) {
         u32 ibinding = 0;
         for (DescriptorBinding const& binding : set.bindings) {
-          if (binding.type == DescriptorType::Vec1 ||
-              binding.type == DescriptorType::Vec2 ||
-              binding.type == DescriptorType::Mat4 ||
-              binding.type == DescriptorType::Vec4) {
-            usize size_bytes = 0;
-            DescriptorBufferType buffer_type = DescriptorBufferType::Vec1;
-
-            if (binding.type == DescriptorType::Vec1) {
-              size_bytes = 4 * 1;
-              buffer_type = DescriptorBufferType::Vec1;
-            } else if (binding.type == DescriptorType::Vec2) {
-              size_bytes = 4 * 2;
-              buffer_type = DescriptorBufferType::Vec2;
-            } else if (binding.type == DescriptorType::Vec4) {
-              size_bytes = 4 * 4;
-              buffer_type = DescriptorBufferType::Vec4;
-            } else if (binding.type == DescriptorType::Mat4) {
-              size_bytes = 4 * 4 * 4;
-              buffer_type = DescriptorBufferType::Mat4;
-            } else {
-              ASR_ENSURE(false);
-            }
-
+          if (binding.type == DescriptorType::Buffer) {
             auto [buffer, memory] = create_buffer_with_memory(
                 dev, queue.handle->info.family,
                 queue.handle->device.handle->phy_device.handle
                     ->memory_properties,
-                size_bytes);
+                binding.size);
 
             uniform_buffers.push_inplace(buffer, memory).unwrap();
 
-            uniform_buffer_memory_mappings
-                .push_inplace(memory, binding.data, buffer_type)
+            uniform_buffer_memory_mappings.push_inplace(memory, binding)
                 .unwrap();
 
             VkDescriptorBufferInfo buffer_info{
@@ -2568,68 +2519,14 @@ struct ShaderProgram {
   void flush_uniform_buffers() {
     VkDevice dev = queue.handle->device.handle->device;
 
-    for (auto [memory, ptr, type] : uniform_buffer_memory_mappings) {
-      switch (type) {
-        case DescriptorBufferType::Vec1: {
+    for (auto [memory, binding] : uniform_buffer_memory_mappings) {
+      switch (binding.type) {
+        case DescriptorType::Buffer: {
           void* memory_map;
           ASR_VK_CHECK(
               vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
 
-          memcpy(memory_map, ptr, 4 * 1);
-
-          VkMappedMemoryRange range{
-              .memory = memory,
-              .offset = 0,
-              .pNext = nullptr,
-              .size = VK_WHOLE_SIZE,
-              .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
-
-          ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
-
-          vkUnmapMemory(dev, memory);
-        } break;
-        case DescriptorBufferType::Vec2: {
-          void* memory_map;
-          ASR_VK_CHECK(
-              vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
-
-          memcpy(memory_map, ptr, 4 * 2);
-
-          VkMappedMemoryRange range{
-              .memory = memory,
-              .offset = 0,
-              .pNext = nullptr,
-              .size = VK_WHOLE_SIZE,
-              .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
-
-          ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
-
-          vkUnmapMemory(dev, memory);
-        } break;
-        case DescriptorBufferType::Vec4: {
-          void* memory_map;
-          ASR_VK_CHECK(
-              vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
-
-          memcpy(memory_map, ptr, 4 * 4);
-
-          VkMappedMemoryRange range{
-              .memory = memory,
-              .offset = 0,
-              .pNext = nullptr,
-              .size = VK_WHOLE_SIZE,
-              .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
-
-          ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
-
-          vkUnmapMemory(dev, memory);
-        } break;
-        case DescriptorBufferType::Mat4: {
-          void* memory_map;
-          ASR_VK_CHECK(
-              vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
-
-          memcpy(memory_map, ptr, 4 * 4 * 4);
+          memcpy(memory_map, binding.data, binding.size);
 
           VkMappedMemoryRange range{
               .memory = memory,
@@ -2651,20 +2548,14 @@ struct ShaderProgram {
 
 struct Pipeline {
   VkPipeline pipeline = VK_NULL_HANDLE;
+  VkRenderPass render_pass = VK_NULL_HANDLE;
   stx::Rc<ShaderProgram*> program;
 
-  Pipeline(stx::Rc<ShaderProgram*> aprogram) : program{std::move(aprogram)} {
-    // TODO(lamarrr): is it possible to have the vertex shader and fragment
-    // shaders as dynamic states so they don't have to binded to a specific
-    // program?
-    //
-    //
-    // TODO(lamarrr): implementing clipping
-    //
-    // we create buffers that define the clip area and then perform bitwise and
-    // operations on them to clip them out of the scene
-    //
-
+  Pipeline(stx::Rc<ShaderProgram*> aprogram,
+           stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
+           usize vertex_input_size, VkFormat swapchain_format,
+           VkSampleCountFlags sample_count)
+      : program{std::move(aprogram)} {
     VkDevice dev = program.handle->queue.handle->device.handle->device;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
@@ -2688,17 +2579,17 @@ struct Pipeline {
     VkPipelineShaderStageCreateInfo stages[] = {vert_shader_stage,
                                                 frag_shader_stage};
 
-    // TODO(lamarrr): implement
     VkPipelineLayoutCreateInfo layout_create_info{
         .flags = 0,
         .pNext = nullptr,
         .pPushConstantRanges = nullptr,
-        .pSetLayouts = 0x000,
+        .pSetLayouts = nullptr,
         .pushConstantRangeCount = 0,
-        .setLayoutCount = 0x000,
+        .setLayoutCount = 0,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
 
     VkPipelineLayout layout;
+
     ASR_VK_CHECK(
         vkCreatePipelineLayout(dev, &layout_create_info, nullptr, &layout));
 
@@ -2763,7 +2654,7 @@ struct Pipeline {
         .minSampleShading = 1.0f,
         .pNext = nullptr,
         .pSampleMask = nullptr,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .rasterizationSamples = (VkSampleCountFlagBits)sample_count,
         .sampleShadingEnable = VK_FALSE,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
 
@@ -2775,8 +2666,8 @@ struct Pipeline {
         .depthBiasSlopeFactor = 0.0f,
         .depthClampEnable = VK_FALSE,
         .flags = 0,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
-        .lineWidth = 1.0,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .lineWidth = 1.0f,
         .pNext = nullptr,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .rasterizerDiscardEnable = VK_FALSE,
@@ -2790,24 +2681,18 @@ struct Pipeline {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO};
     */
 
-    VkVertexInputAttributeDescription vertex_attribute_descriptions[] = {
-        {.binding, .format, .location, .offset}};
-
-    using type = f32;
-
     VkVertexInputBindingDescription vertex_binding_descriptions[] = {
-        {.binding,
+        {.binding = 0,
          .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-         .stride = sizeof(type)}};
+         .stride = vertex_input_size}};
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state{
         .flags = 0,
         .pNext = nullptr,
-        .pVertexAttributeDescriptions = vertex_attribute_descriptions,
+        .pVertexAttributeDescriptions = vertex_input_attr.data(),
         .pVertexBindingDescriptions = vertex_binding_descriptions,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexAttributeDescriptionCount =
-            std::size(vertex_attribute_descriptions),
+        .vertexAttributeDescriptionCount = vertex_input_attr.size(),
         .vertexBindingDescriptionCount =
             std::size(vertex_binding_descriptions)};
 
@@ -2840,6 +2725,89 @@ struct Pipeline {
         .pNext = nullptr,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
 
+    VkAttachmentDescription color_attachment{
+        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .flags = 0,
+        .format = swapchain_format,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .samples = (VkSampleCountFlagBits)sample_count,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE};
+
+    VkAttachmentDescription depth_attachment{
+        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        .flags = 0,
+        .format = findDepthFormat(),
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .samples = (VkSampleCountFlagBits)sample_count,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE};
+
+    VkAttachmentDescription color_attachment_resolve{
+        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .flags = 0,
+        .format = swapchain_format,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE};
+
+    VkAttachmentDescription attachments[] = {color_attachment, depth_attachment,
+                                             color_attachment_resolve};
+
+    VkAttachmentReference color_attachment_reference{
+        .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkAttachmentReference depth_attachment_reference{
+        .attachment = 1, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkAttachmentReference color_attachment_resolve_reference{
+        .attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkSubpassDescription subpass{
+        .colorAttachmentCount = 1,
+        .flags = 0,
+        .inputAttachmentCount = 0,
+        .pColorAttachments = &color_attachment_reference,
+        .pDepthStencilAttachment = &depth_attachment_reference,
+        .pInputAttachments = nullptr,
+        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .pPreserveAttachments = nullptr,
+        .preserveAttachmentCount = 0,
+        .pResolveAttachments = &color_attachment_resolve_reference};
+
+    VkSubpassDependency dependency{
+        .dependencyFlags = 0,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .dstSubpass = 0,
+        .srcAccessMask = 0,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .srcSubpass = VK_SUBPASS_EXTERNAL};
+
+    VkRenderPassCreateInfo render_pass_create_info{
+        .attachmentCount = std::size(attachments),
+        .dependencyCount = 1,
+        .flags = 0,
+        .pAttachments = attachments,
+        .pDependencies = &dependency,
+        .pNext = nullptr,
+        .pSubpasses = &subpass,
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .subpassCount = 1};
+
+    ASR_VK_CHECK(vkCreateRenderPass(dev, &render_pass_create_info, nullptr,
+                                    &render_pass));
+
     VkGraphicsPipelineCreateInfo create_info{
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = 0,
@@ -2856,26 +2824,193 @@ struct Pipeline {
         .pTessellationState = nullptr,
         .pVertexInputState = &vertex_input_state,
         .pViewportState = &viewport_state,
-        .renderPass =,
+        .renderPass = render_pass,
         .stageCount = std::size(stages),
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .subpass =,
-    };
+        .subpass = 0};
 
     ASR_VK_CHECK(vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &create_info,
                                            nullptr, &pipeline));
   }
 
-  void bind() {
-    // vkCmdSetViewport
-    // vkCmdSetScissor
-  }
+  // void bind() {
+  // vkCmdSetViewport
+  // vkCmdSetScissor
+  // }
 
   ~Pipeline() {
     vkDestroyPipeline(program.handle->queue.handle->device.handle->device,
                       pipeline, nullptr);
+    vkDestroyRenderPass(program.handle->queue.handle->device.handle->device,
+                        render_pass, nullptr);
   }
 };
+
+inline VkSampleCountFlagBits get_max_sample_count(PhyDeviceInfo const& device) {
+  VkSampleCountFlags counts =
+      device.properties.limits.framebufferColorSampleCounts &
+      device.properties.limits.framebufferDepthSampleCounts;
+
+  if (counts & VK_SAMPLE_COUNT_64_BIT) return VK_SAMPLE_COUNT_64_BIT;
+  if (counts & VK_SAMPLE_COUNT_32_BIT) return VK_SAMPLE_COUNT_32_BIT;
+  if (counts & VK_SAMPLE_COUNT_16_BIT) return VK_SAMPLE_COUNT_16_BIT;
+  if (counts & VK_SAMPLE_COUNT_8_BIT) return VK_SAMPLE_COUNT_8_BIT;
+  if (counts & VK_SAMPLE_COUNT_4_BIT) return VK_SAMPLE_COUNT_4_BIT;
+  if (counts & VK_SAMPLE_COUNT_2_BIT) return VK_SAMPLE_COUNT_2_BIT;
+
+  return VK_SAMPLE_COUNT_1_BIT;
+}
+
+inline void create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
+                                       VkFormat swapchain_format,
+                                       VkExtent2D swapchain_extent,
+                                       VkSampleCountFlags sample_count) {
+  VkDevice dev = queue.handle->device.handle->device;
+
+  VkImageCreateInfo create_info{
+      .arrayLayers = 1,
+      .extent = VkExtent3D{.depth = 1,
+                           .height = swapchain_extent.height,
+                           .width = swapchain_extent.width},
+      .flags = 0,
+      .format = swapchain_format,
+      .imageType = VK_IMAGE_TYPE_2D,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+      .mipLevels = 1,
+      .pNext = nullptr,
+      .pQueueFamilyIndices = &queue.handle->info.family.index,
+      .queueFamilyIndexCount = 1,
+      .samples = (VkSampleCountFlagBits)sample_count,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT};
+
+  VkImage image;
+
+  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
+
+  VkMemoryRequirements requirements;
+
+  vkGetImageMemoryRequirements(dev, image, &requirements);
+
+  u32 memory_type_index =
+      vk::find_suitable_memory_type(
+          requirements,
+          queue.handle->device.handle->phy_device.handle->memory_properties,
+          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+          .unwrap();
+
+  VkMemoryAllocateInfo alloc_info{
+      .allocationSize = requirements.size,
+      .memoryTypeIndex = memory_type_index,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+
+  VkDeviceMemory memory;
+
+  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+
+  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
+
+  VkImageViewCreateInfo view_create_info{
+      .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+      .flags = 0,
+      .format = VK_FORMAT_R8G8B8A8_SRGB,
+      .image = image,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .subresourceRange =
+          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                  .baseArrayLayer = 0,
+                                  .baseMipLevel = 0,
+                                  .layerCount = 1,
+                                  .levelCount = 1},
+      .viewType = VK_IMAGE_VIEW_TYPE_2D};
+
+  VkImageView view;
+
+  ASR_ENSURE(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+}
+
+inline void create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
+                                       VkFormat swapchain_format,
+                                       VkExtent2D swapchain_extent,
+                                       VkSampleCountFlags sample_count) {
+  VkDevice dev = queue.handle->device.handle->device;
+
+  VkImageCreateInfo create_info{
+      .arrayLayers = 1,
+      .extent = VkExtent3D{.depth = 1,
+                           .height = swapchain_extent.height,
+                           .width = swapchain_extent.width},
+      .flags = 0,
+      .format = swapchain_format,
+      .imageType = VK_IMAGE_TYPE_2D,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+      .mipLevels = 1,
+      .pNext = nullptr,
+      .pQueueFamilyIndices = &queue.handle->info.family.index,
+      .queueFamilyIndexCount = 1,
+      .samples = (VkSampleCountFlagBits)sample_count,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT};
+
+  VkImage image;
+
+  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
+
+  VkMemoryRequirements requirements;
+
+  vkGetImageMemoryRequirements(dev, image, &requirements);
+
+  u32 memory_type_index =
+      vk::find_suitable_memory_type(
+          requirements,
+          queue.handle->device.handle->phy_device.handle->memory_properties,
+          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+          .unwrap();
+
+  VkMemoryAllocateInfo alloc_info{
+      .allocationSize = requirements.size,
+      .memoryTypeIndex = memory_type_index,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+
+  VkDeviceMemory memory;
+
+  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+
+  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
+
+  VkImageViewCreateInfo view_create_info{
+      .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+      .flags = 0,
+      .format = VK_FORMAT_R8G8B8A8_SRGB,
+      .image = image,
+      .pNext = nullptr,
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .subresourceRange =
+          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                  .baseArrayLayer = 0,
+                                  .baseMipLevel = 0,
+                                  .layerCount = 1,
+                                  .levelCount = 1},
+      .viewType = VK_IMAGE_VIEW_TYPE_2D};
+
+  VkImageView view;
+
+  ASR_ENSURE(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+}
 
 }  // namespace vkh
 }  // namespace asr

@@ -1,6 +1,7 @@
 #pragma once
 #include <chrono>
 
+#include "ashura/event.h"
 #include "ashura/primitives.h"
 #include "stx/fn.h"
 #include "stx/option.h"
@@ -8,33 +9,37 @@
 
 namespace asr {
 
-enum class Visibility : uint8_t { Shown, Hidden };
+enum class Visibility : u8 { Shown, Hidden };
 
 struct JsonObject {};
 
 struct WidgetInfo {};
 
+struct Context {};
+
 // TODO(lamarrr): we need to pass in a zoom level to the rendering widget? so
 // that widgets like text can shape their glyphs properly
 
 struct Widget {
-  // + handling floating, relative, sticky and fixed positioned elements
-  virtual Rect layout(Extent allotted_extent);  // min, max, available
-  // + other properties that will make its rendering work well with other
-  // widgets
-  virtual void draw(Canvas &);
-  //
-  // virtual void draw_child();
-  virtual void tick(std::chrono::nanoseconds interval, Context &ctx);
   virtual stx::Span<Widget *const> get_children();
   virtual WidgetInfo get_debug_info();
   virtual Visibility get_visibility();
   virtual stx::Option<i64> get_z_index();
+  // + handling floating, relative, sticky and fixed positioned elements
+  virtual Rect layout(Extent allotted_extent);  // min, max, available
+  // + other properties that will make its rendering work well with other
+  // widgets
+  virtual void draw();
+  // called before children are drawn
+  virtual void pre_effect();
+  // called once children are drawn
+  virtual void post_effect();
+
+  virtual void tick(std::chrono::nanoseconds interval, Context &ctx);
   // events
   virtual void on_click(MouseButton btn, Offset pos);
-  virtual void on_double_click(MouseButton button, Offset pos);
-  virtual void on_mouse_scroll(OffsetI translation, f32 precise_x,
-                               f32 precise_y);
+  virtual void on_double_click(MouseButton btn, Offset pos);
+  virtual void on_mouse_scroll(OffsetI translation, f32 x, f32 y);
   virtual void on_mouse_move();
   virtual void on_hover(Offset pos);
   virtual void on_mouse_down();
@@ -43,7 +48,7 @@ struct Widget {
   virtual void on_mouse_leave();
   virtual void on_mouse_out();
   virtual void on_mouse_over();
-  virtual void on_enter();  // ?
+  virtual void on_enter();
   virtual void on_tap();
   virtual void on_drag();
   virtual void on_drag_start();
@@ -51,8 +56,8 @@ struct Widget {
   virtual void on_focus();
   virtual void on_focus_in();
   virtual void on_focus_out();
-  virtual void on_scroll(OffsetI translation, f32 precision_x,
-                         f32 precision_y);  // scroll of this widget's content
+  // scroll of this widget's content
+  virtual void on_scroll(OffsetI translation, f32 x, f32 y);
   virtual void on_enter_view();
   virtual void on_leave_view();
   // virtual void on_full_screen_change();
