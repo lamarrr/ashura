@@ -77,8 +77,8 @@ inline void ensure_validation_layers_supported(
             })
             .is_empty()) {
       all_layers_available = false;
-      ASR_WARN("Required validation layer `{}` is not available",
-               std::string_view(req_layer));
+      ASR_LOG_WARN("Required validation layer `{}` is not available",
+                   std::string_view(req_layer));
     }
   }
 
@@ -116,8 +116,8 @@ inline void ensure_extensions_supported(stx::Span<char const* const> names) {
             })
             .is_empty()) {
       all_available = false;
-      ASR_WARN("Required extension `{}` is not available",
-               std::string_view(name));
+      ASR_LOG_WARN("Required extension `{}` is not available",
+                   std::string_view(name));
     }
   }
 
@@ -155,13 +155,13 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
   if (hint.empty()) {
     ASR_LOG_IF(is_general, "[Validation Layer Message] {}",
                callback_data->pMessage);
-    ASR_WARN_IF(!is_general, "[Validation Layer Message] {}",
-                callback_data->pMessage);
+    ASR_LOG_WARN_IF(!is_general, "[Validation Layer Message] {}",
+                    callback_data->pMessage);
   } else {
     ASR_LOG_IF(is_general, "[Validation Layer Message, Hints=\"{}\"] {}", hint,
                callback_data->pMessage);
-    ASR_WARN_IF(!is_general, "[Validation Layer Message, Hints=\"{}\"] {}",
-                hint, callback_data->pMessage);
+    ASR_LOG_WARN_IF(!is_general, "[Validation Layer Message, Hints=\"{}\"] {}",
+                    hint, callback_data->pMessage);
   }
 
   if (!is_general) {
@@ -252,7 +252,6 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   static constexpr char const* DEBUG_EXTENSIONS[] = {
       VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
-  // TODO(lamarrr): check that the requested extensions are available
   // debug message callback extension
   auto extensions =
       join_copy(required_extensions,
@@ -511,7 +510,7 @@ inline u32 select_swapchain_image_count(
 }
 
 inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
-    VkDevice device, VkSurfaceKHR surface, VkExtent2D extent,
+    VkDevice device, VkSurfaceKHR surface, VkExtent2D preferred_extent,
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
@@ -524,7 +523,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
                                      properties.capabilities.maxImageCount);
 
   VkExtent2D selected_extent =
-      select_swapchain_extent(properties.capabilities, extent);
+      select_swapchain_extent(properties.capabilities, preferred_extent);
 
   VkSwapchainCreateInfoKHR create_info{
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -1118,9 +1117,6 @@ constexpr std::string_view format(VkColorSpaceKHR color_space) {
   }
 }
 
-}  // namespace vk
-
-namespace vkh {
 struct Instance {
   VkInstance instance = VK_NULL_HANDLE;
   stx::Option<VkDebugUtilsMessengerEXT> debug_messenger = stx::None;
@@ -1176,6 +1172,20 @@ struct PhyDeviceInfo {
         [](VkQueueFamilyProperties const& prop) -> bool {
           return prop.queueFlags & VK_QUEUE_GRAPHICS_BIT;
         });
+  }
+
+  VkSampleCountFlagBits get_max_sample_count() const {
+    VkSampleCountFlags counts = properties.limits.framebufferColorSampleCounts &
+                                properties.limits.framebufferDepthSampleCounts;
+
+    if (counts & VK_SAMPLE_COUNT_64_BIT) return VK_SAMPLE_COUNT_64_BIT;
+    if (counts & VK_SAMPLE_COUNT_32_BIT) return VK_SAMPLE_COUNT_32_BIT;
+    if (counts & VK_SAMPLE_COUNT_16_BIT) return VK_SAMPLE_COUNT_16_BIT;
+    if (counts & VK_SAMPLE_COUNT_8_BIT) return VK_SAMPLE_COUNT_8_BIT;
+    if (counts & VK_SAMPLE_COUNT_4_BIT) return VK_SAMPLE_COUNT_4_BIT;
+    if (counts & VK_SAMPLE_COUNT_2_BIT) return VK_SAMPLE_COUNT_2_BIT;
+
+    return VK_SAMPLE_COUNT_1_BIT;
   }
 };
 
@@ -1304,9 +1314,9 @@ inline stx::Option<CommandQueueFamilyInfo> get_graphics_command_queue(
 inline stx::Rc<Device*> create_device(
     stx::Rc<PhyDeviceInfo*> const& phy_device,
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_info,
-    stx::Span<char const* const> required_extensions = {},
-    stx::Span<char const* const> required_validation_layers = {},
-    VkPhysicalDeviceFeatures required_features = {}) {
+    stx::Span<char const* const> required_extensions,
+    stx::Span<char const* const> required_validation_layers,
+    VkPhysicalDeviceFeatures required_features) {
   VkDevice device = vk::create_logical_device(
       phy_device.handle->phy_device, required_extensions,
       required_validation_layers, command_queue_create_info, required_features);
@@ -1606,7 +1616,7 @@ stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
 
   VkImageView view;
 
-  ASR_ENSURE(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+  ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
   return stx::rc::make_inplace<Image>(stx::os_allocator, image, view, memory,
                                       queue.share())
@@ -1712,7 +1722,7 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
           type = VK_DESCRIPTOR_TYPE_SAMPLER;
           break;
         default:
-          ASR_ENSURE(false);
+          ASR_UNREACHABLE();
       }
 
       bindings
@@ -1992,7 +2002,7 @@ struct ShaderProgram {
           vkUnmapMemory(dev, memory);
         } break;
         default:
-          ASR_ENSURE(false);
+          ASR_UNREACHABLE();
       }
     }
   }
@@ -2072,7 +2082,7 @@ create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
 
   VkImageView view;
 
-  ASR_ENSURE(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+  ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
   return std::make_tuple(image, view, memory);
 }
@@ -2150,9 +2160,66 @@ create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
 
   VkImageView view;
 
-  ASR_ENSURE(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+  ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
   return std::make_tuple(image, view, memory);
+}
+
+// choose a specific swapchain format available on the surface
+inline VkSurfaceFormatKHR select_swapchain_surface_formats(
+    stx::Span<VkSurfaceFormatKHR const> formats,
+    stx::Span<VkSurfaceFormatKHR const> preferred_formats) {
+  ASR_ENSURE(!formats.is_empty(),
+             "No window surface format supported by physical device");
+
+  for (VkSurfaceFormatKHR preferred_format : preferred_formats) {
+    if (!formats
+             .which([&](VkSurfaceFormatKHR format) {
+               return preferred_format.colorSpace == format.colorSpace &&
+                      preferred_format.format == format.format;
+             })
+             .is_empty())
+      return preferred_format;
+  }
+
+  ASR_PANIC("Unable to find any of the preferred swapchain surface formats");
+}
+
+inline VkPresentModeKHR select_swapchain_presentation_mode(
+    stx::Span<VkPresentModeKHR const> available_presentation_modes,
+    stx::Span<VkPresentModeKHR const> preferred_present_modes) noexcept {
+  /// - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application
+  /// are transferred to the screen right away, which may result in tearing.
+  ///
+  /// - VK_PRESENT_MODE_FIFO_KHR: The swap chain is a queue where the
+  /// display takes an image from the front of the queue when the display is
+  /// refreshed and the program inserts rendered images at the back of the
+  /// queue. If the queue is full then the program has to wait. This is most
+  /// similar to vertical sync as found in modern games. The moment that the
+  /// display is refreshed is known as "vertical blank" (v-sync).
+  ///
+  /// - VK_PRESENT_MODE_FIFO_RELAXED_KHR: This mode only differs
+  /// from the previous one if the application is late and the queue was
+  /// empty at the last vertical blank. Instead of waiting for the next
+  /// vertical blank, the image is transferred right away when it finally
+  /// arrives. This may result in visible tearing.
+  ///
+  /// - VK_PRESENT_MODE_MAILBOX_KHR: This is another variation of the
+  /// second mode. Instead of blocking the application when the queue is
+  /// full, the images that are already queued are simply replaced with the
+  /// newer ones. This mode can be used to implement triple buffering, which
+  /// allows you to avoid tearing with significantly less latency issues
+  /// than standard vertical sync that uses double buffering.
+
+  ASR_ENSURE(!available_presentation_modes.is_empty(),
+             "No surface presentation mode available");
+
+  for (auto const& preferred_present_mode : preferred_present_modes) {
+    if (!available_presentation_modes.find(preferred_present_mode).is_empty())
+      return preferred_present_mode;
+  }
+
+  ASR_PANIC("Unable to find any of the preferred presentation modes");
 }
 
 /// Swapchains handle the presentation and update logic of the images to the
@@ -2215,16 +2282,208 @@ struct SwapChain {
   VkImageView msaa_depth_image_view = VK_NULL_HANDLE;
   VkDeviceMemory msaa_depth_image_memory = VK_NULL_HANDLE;
 
+  VkRenderPass render_pass = VK_NULL_HANDLE;
+
   stx::Rc<CommandQueue*> queue;
 
-  SwapChain(VkSwapchainKHR aswapchain, VkSurfaceFormatKHR aformat,
-            VkPresentModeKHR apresent_mode, VkExtent2D aextent,
-            stx::Rc<vkh::CommandQueue*> aqueue)
-      : swapchain{aswapchain},
-        format{aformat},
-        present_mode{apresent_mode},
-        extent{aextent},
-        queue{std::move(aqueue)} {}
+  SwapChain(stx::Rc<CommandQueue*> aqueue, VkSurfaceKHR target_surface,
+            stx::Span<VkSurfaceFormatKHR const> preferred_formats,
+            stx::Span<VkPresentModeKHR const> preferred_present_modes,
+            VkExtent2D preferred_extent,
+            VkCompositeAlphaFlagBitsKHR alpha_compositing)
+      : queue{std::move(aqueue)} {
+    VkPhysicalDevice phy_device =
+        queue.handle->device.handle->phy_device.handle->phy_device;
+    VkDevice dev = queue.handle->device.handle->device;
+
+    // the properties change every time we need to create a swapchain so we must
+    // query for this every time
+    vk::SwapChainProperties properties =
+        vk::get_swapchain_properties(phy_device, target_surface);
+
+    ASR_LOG("Device Supported Surface Formats:");
+    for (VkSurfaceFormatKHR const& format : properties.supported_formats) {
+      ASR_LOG("\tFormat: {}, Color Space: {}", vk::format(format.format),
+              vk::format(format.colorSpace));
+    }
+
+    // swapchain formats are device-dependent
+    VkSurfaceFormatKHR selected_format = select_swapchain_surface_formats(
+        properties.supported_formats, preferred_formats);
+
+    // TODO(lamarrr): log selections
+    // swapchain presentation modes are device-dependent
+    VkPresentModeKHR selected_present_mode = select_swapchain_presentation_mode(
+        properties.presentation_modes, preferred_present_modes);
+
+    u32 accessing_families[] = {queue.handle->info.family.index};
+
+    auto [new_swapchain, new_extent] = vk::create_swapchain(
+        dev, target_surface, preferred_extent, selected_format,
+        selected_present_mode, properties,
+        // not thread-safe since GPUs typically have one graphics queue
+        VK_SHARING_MODE_EXCLUSIVE, accessing_families,
+        // render target image
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+            VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        alpha_compositing,
+        // we don't care about the color of pixels that are obscured, for
+        // example because another window is in front of them. Unless you really
+        // need to be able to read these pixels back and get predictable
+        // results, you'll get the best performance by enabling clipping.
+        true);
+
+    swapchain = new_swapchain;
+    format = selected_format;
+    present_mode = selected_present_mode;
+    extent = new_extent;
+
+    for (VkImage image : images) {
+      VkImageView image_view = vk::create_image_view(
+          dev, image, format.format, VK_IMAGE_VIEW_TYPE_2D,
+          VK_IMAGE_ASPECT_COLOR_BIT,
+          VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                             .a = VK_COMPONENT_SWIZZLE_IDENTITY});
+      image_views.push_inplace(image_view).unwrap();
+    }
+
+    for (usize i = 0; i < images.size(); i++) {
+      rendering_semaphores.push(vk::create_semaphore(dev)).unwrap();
+      image_acquisition_semaphores.push(vk::create_semaphore(dev)).unwrap();
+    }
+
+    VkSampleCountFlagBits msaa_sample_count =
+        queue.handle->device.handle->phy_device.handle->get_max_sample_count();
+
+    auto [xmsaa_color_image, xmsaa_color_image_view, xmsaa_color_image_memory] =
+        create_msaa_color_resource(queue, format.format, new_extent,
+                                   msaa_sample_count);
+
+    // TODO(lamarrr): depth format is incorrect
+    auto [xmsaa_depth_image, xmsaa_depth_image_view, xmsaa_depth_image_memory] =
+        create_msaa_depth_resource(queue, format.format, new_extent,
+                                   msaa_sample_count);
+
+    msaa_color_image = xmsaa_color_image;
+    msaa_color_image_view = xmsaa_color_image_view;
+    msaa_color_image_memory = xmsaa_color_image_memory;
+
+    msaa_depth_image = xmsaa_depth_image;
+    msaa_depth_image_view = xmsaa_depth_image_view;
+    msaa_depth_image_memory = xmsaa_depth_image_memory;
+
+    // TODO(lamarrrr)
+    VkSampleCountFlagBits sample_count = 0;
+
+    VkAttachmentDescription color_attachment{
+        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .flags = 0,
+        .format = format.format,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .samples = sample_count,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE};
+
+    VkAttachmentDescription depth_attachment{
+        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        .flags = 0,
+        .format = find_depth_format(
+            queue.handle->device.handle->phy_device.handle->phy_device),
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .samples = sample_count,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE};
+
+    VkAttachmentDescription color_attachment_resolve{
+        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .flags = 0,
+        .format = format.format,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE};
+
+    VkAttachmentDescription attachments[] = {color_attachment, depth_attachment,
+                                             color_attachment_resolve};
+
+    VkAttachmentReference color_attachment_reference{
+        .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkAttachmentReference depth_attachment_reference{
+        .attachment = 1, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkAttachmentReference color_attachment_resolve_reference{
+        .attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkSubpassDescription subpass{
+        .colorAttachmentCount = 1,
+        .flags = 0,
+        .inputAttachmentCount = 0,
+        .pColorAttachments = &color_attachment_reference,
+        .pDepthStencilAttachment = &depth_attachment_reference,
+        .pInputAttachments = nullptr,
+        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .pPreserveAttachments = nullptr,
+        .preserveAttachmentCount = 0,
+        .pResolveAttachments = &color_attachment_resolve_reference};
+
+    VkSubpassDependency dependency{
+        .dependencyFlags = 0,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .dstSubpass = 0,
+        .srcAccessMask = 0,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .srcSubpass = VK_SUBPASS_EXTERNAL};
+
+    VkRenderPassCreateInfo render_pass_create_info{
+        .attachmentCount = std::size(attachments),
+        .dependencyCount = 1,
+        .flags = 0,
+        .pAttachments = attachments,
+        .pDependencies = &dependency,
+        .pNext = nullptr,
+        .pSubpasses = &subpass,
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .subpassCount = 1};
+
+    ASR_VK_CHECK(vkCreateRenderPass(dev, &render_pass_create_info, nullptr,
+                                    &render_pass));
+
+    for (usize i = 0; i < images.size(); i++) {
+      VkFramebuffer framebuffer;
+
+      VkImageView attachments[] = {msaa_color_image_view, msaa_depth_image_view,
+                                   image_views[i]};
+
+      VkFramebufferCreateInfo create_info{
+          .attachmentCount = std::size(attachments),
+          .flags = 0,
+          .height = extent.height,
+          .layers = 1,
+          .pAttachments = attachments,
+          .pNext = nullptr,
+          .renderPass = render_pass,
+          .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+          .width = extent.width};
+
+      ASR_VK_CHECK(vkCreateFramebuffer(queue.handle->device.handle->device,
+                                       &create_info, nullptr, &framebuffer));
+
+      frame_buffers.push_inplace(framebuffer).unwrap();
+    }
+  }
 
   STX_MAKE_PINNED(SwapChain)
 
@@ -2236,6 +2495,8 @@ struct SwapChain {
     // any part of the device could be using the semaphore
 
     ASR_MUST_SUCCEED(vkDeviceWaitIdle(dev), "Unable to await device idleness");
+
+    vkDestroyRenderPass(dev, render_pass, nullptr);
 
     vkFreeMemory(dev, msaa_color_image_memory, nullptr);
     vkDestroyImageView(dev, msaa_color_image_view, nullptr);
@@ -2266,78 +2527,6 @@ struct SwapChain {
   }
 };
 
-// choose a specific swapchain format available on the surface
-inline VkSurfaceFormatKHR select_swapchain_surface_formats(
-    stx::Span<VkSurfaceFormatKHR const> formats,
-    stx::Span<VkSurfaceFormatKHR const> preferred_formats) {
-  ASR_ENSURE(!formats.is_empty(),
-             "No window surface format supported by physical device");
-
-  for (VkSurfaceFormatKHR preferred_format : preferred_formats) {
-    if (!formats
-             .which([&](VkSurfaceFormatKHR format) {
-               return preferred_format.colorSpace == format.colorSpace &&
-                      preferred_format.format == format.format;
-             })
-             .is_empty())
-      return preferred_format;
-  }
-
-  ASR_PANIC("Unable to find any of the preferred swapchain surface formats");
-}
-
-inline VkPresentModeKHR select_swapchain_presentation_mode(
-    stx::Span<VkPresentModeKHR const> available_presentation_modes,
-    stx::Span<VkPresentModeKHR const> preferred_present_modes) noexcept {
-  /// - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application
-  /// are transferred to the screen right away, which may result in tearing.
-  ///
-  /// - VK_PRESENT_MODE_FIFO_KHR: The swap chain is a queue where the
-  /// display takes an image from the front of the queue when the display is
-  /// refreshed and the program inserts rendered images at the back of the
-  /// queue. If the queue is full then the program has to wait. This is most
-  /// similar to vertical sync as found in modern games. The moment that the
-  /// display is refreshed is known as "vertical blank" (v-sync).
-  ///
-  /// - VK_PRESENT_MODE_FIFO_RELAXED_KHR: This mode only differs
-  /// from the previous one if the application is late and the queue was
-  /// empty at the last vertical blank. Instead of waiting for the next
-  /// vertical blank, the image is transferred right away when it finally
-  /// arrives. This may result in visible tearing.
-  ///
-  /// - VK_PRESENT_MODE_MAILBOX_KHR: This is another variation of the
-  /// second mode. Instead of blocking the application when the queue is
-  /// full, the images that are already queued are simply replaced with the
-  /// newer ones. This mode can be used to implement triple buffering, which
-  /// allows you to avoid tearing with significantly less latency issues
-  /// than standard vertical sync that uses double buffering.
-
-  ASR_ENSURE(!available_presentation_modes.is_empty(),
-             "No surface presentation mode available");
-
-  for (auto const& preferred_present_mode : preferred_present_modes) {
-    if (!available_presentation_modes.find(preferred_present_mode).is_empty())
-      return preferred_present_mode;
-  }
-
-  ASR_PANIC("Unable to find any of the preferred presentation modes");
-}
-
-inline VkSampleCountFlagBits get_max_sample_count(PhyDeviceInfo const& device) {
-  VkSampleCountFlags counts =
-      device.properties.limits.framebufferColorSampleCounts &
-      device.properties.limits.framebufferDepthSampleCounts;
-
-  if (counts & VK_SAMPLE_COUNT_64_BIT) return VK_SAMPLE_COUNT_64_BIT;
-  if (counts & VK_SAMPLE_COUNT_32_BIT) return VK_SAMPLE_COUNT_32_BIT;
-  if (counts & VK_SAMPLE_COUNT_16_BIT) return VK_SAMPLE_COUNT_16_BIT;
-  if (counts & VK_SAMPLE_COUNT_8_BIT) return VK_SAMPLE_COUNT_8_BIT;
-  if (counts & VK_SAMPLE_COUNT_4_BIT) return VK_SAMPLE_COUNT_4_BIT;
-  if (counts & VK_SAMPLE_COUNT_2_BIT) return VK_SAMPLE_COUNT_2_BIT;
-
-  return VK_SAMPLE_COUNT_1_BIT;
-}
-
 struct Pipeline;
 
 struct Surface {
@@ -2355,11 +2544,11 @@ struct Surface {
   //
   stx::Option<stx::Unique<SwapChain*>> swapchain;
 
-  stx::Rc<vkh::Instance*> instance;
+  stx::Rc<Instance*> instance;
 
   Surface(VkSurfaceKHR asurface,
           stx::Option<stx::Unique<SwapChain*>> aswapchain,
-          stx::Rc<vkh::Instance*> ainstance)
+          stx::Rc<Instance*> ainstance)
       : surface{asurface},
         swapchain{std::move(aswapchain)},
         instance{std::move(ainstance)} {}
@@ -2375,107 +2564,50 @@ struct Surface {
   }
 
   void change_swapchain(
-      stx::Rc<vkh::CommandQueue*> const& queue,
+      stx::Rc<CommandQueue*> const& queue,
       stx::Span<VkSurfaceFormatKHR const> preferred_formats,
-      stx::Span<VkPresentModeKHR const> preferred_present_modes, Extent extent,
+      stx::Span<VkPresentModeKHR const> preferred_present_modes,
+      VkExtent2D preferred_extent,
       VkCompositeAlphaFlagBitsKHR alpha_compositing) {
     swapchain = stx::None;  // probably don't want to have two existing at once
 
-    VkPhysicalDevice phy_device =
-        queue.handle->device.handle->phy_device.handle->phy_device;
-    VkDevice dev = queue.handle->device.handle->device;
-
-    // the properties change every time we need to create a swapchain so we must
-    // query for this every time
-    vk::SwapChainProperties properties =
-        vk::get_swapchain_properties(phy_device, surface);
-
-    ASR_LOG("Device Supported Surface Formats:");
-    for (VkSurfaceFormatKHR const& format : properties.supported_formats) {
-      ASR_LOG("\tFormat: {}, Color Space: {}", vk::format(format.format),
-              vk::format(format.colorSpace));
-    }
-
-    // swapchain formats are device-dependent
-    VkSurfaceFormatKHR format = select_swapchain_surface_formats(
-        properties.supported_formats, preferred_formats);
-
-    // TODO(lamarrr): log selections
-    // swapchain presentation modes are device-dependent
-    VkPresentModeKHR present_mode = select_swapchain_presentation_mode(
-        properties.presentation_modes, preferred_present_modes);
-
-    u32 accessing_families[] = {queue.handle->info.family.index};
-
-    auto [new_swapchain_r, actual_extent] = vk::create_swapchain(
-        dev, surface, VkExtent2D{extent.w, extent.h}, format, present_mode,
-        properties,
-        // not thread-safe since GPUs typically have one graphics queue
-        VK_SHARING_MODE_EXCLUSIVE, accessing_families,
-        // render target image
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-        alpha_compositing,
-        // we don't care about the color of pixels that are obscured, for
-        // example because another window is in front of them. Unless you really
-        // need to be able to read these pixels back and get predictable
-        // results, you'll get the best performance by enabling clipping.
-        true);
-
-    swapchain = stx::Some(
-        stx::rc::make_unique_inplace<SwapChain>(
-            stx::os_allocator, new_swapchain_r, format, present_mode,
-            Extent{actual_extent.width, actual_extent.height},
-            static_cast<u32>(0), vk::get_swapchain_images(dev, new_swapchain_r),
-            stx::Vec<VkImageView>{stx::os_allocator},
-            stx::Vec<VkSemaphore>{stx::os_allocator},
-            stx::Vec<VkSemaphore>{stx::os_allocator},
-            stx::Vec<VkFramebuffer>{stx::os_allocator},
-            queue.handle->device.share(), family.share())
-            .unwrap());
-
-    auto& swapchain_r = *swapchain.value().handle;
-
-    for (VkImage image : swapchain_r.images) {
-      VkImageView image_view = vk::create_image_view(
-          dev, image, format.format, VK_IMAGE_VIEW_TYPE_2D,
-          VK_IMAGE_ASPECT_COLOR_BIT,
-          VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                             .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                             .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                             .a = VK_COMPONENT_SWIZZLE_IDENTITY});
-      swapchain_r.image_views.push_inplace(image_view).unwrap();
-    }
-
-    for (usize i = 0; i < swapchain_r.images.size(); i++) {
-      swapchain_r.rendering_semaphores.push(vk::create_semaphore(dev)).unwrap();
-      swapchain_r.image_acquisition_semaphores.push(vk::create_semaphore(dev))
-          .unwrap();
-    }
-
-    VkSampleCountFlagBits msaa_sample_count =
-        get_max_sample_count(*queue.handle->device.handle->phy_device.handle);
-
-    auto [msaa_color_image, msaa_color_image_view, msaa_color_image_memory] =
-        create_msaa_color_resource(queue, format.format, actual_extent,
-                                   msaa_sample_count);
-
-    // TODO(lamarrr): depth format is incorrect
-    auto [msaa_depth_image, msaa_depth_image_view, msaa_depth_image_memory] =
-        create_msaa_depth_resource(queue, format.format, actual_extent,
-                                   msaa_sample_count);
-
-    swapchain_r.msaa_color_image = msaa_color_image;
-    swapchain_r.msaa_color_image_view = msaa_color_image_view;
-    swapchain_r.msaa_color_image_memory = msaa_color_image_memory;
-
-    swapchain_r.msaa_depth_image = msaa_depth_image;
-    swapchain_r.msaa_depth_image_view = msaa_depth_image_view;
-    swapchain_r.msaa_depth_image_memory = msaa_depth_image_memory;
+    swapchain = stx::Some(stx::rc::make_unique_inplace<SwapChain>(
+                              stx::os_allocator, queue.share(), surface,
+                              preferred_formats, preferred_present_modes,
+                              preferred_extent, alpha_compositing)
+                              .unwrap());
   }
 
   void add_framebuffers(stx::Rc<Pipeline*> const& pipeline);
 };
+
+inline VkFormat find_supported_format(VkPhysicalDevice phy_device,
+                                      stx::Span<VkFormat const> candidates,
+                                      VkImageTiling tiling,
+                                      VkFormatFeatureFlags features) {
+  for (VkFormat format : candidates) {
+    VkFormatProperties props;
+    vkGetPhysicalDeviceFormatProperties(phy_device, format, &props);
+
+    if (tiling == VK_IMAGE_TILING_LINEAR &&
+        (props.linearTilingFeatures & features) == features) {
+      return format;
+    } else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
+               (props.optimalTilingFeatures & features) == features) {
+      return format;
+    }
+  }
+
+  ASR_UNREACHABLE();
+}
+
+inline VkFormat find_depth_format(VkPhysicalDevice phy_device) {
+  VkFormat formats[] = {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT,
+                        VK_FORMAT_D24_UNORM_S8_UINT};
+
+  return find_supported_format(phy_device, formats, VK_IMAGE_TILING_OPTIMAL,
+                               VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+}
 
 // void bind() {
 // vkCmdSetViewport
@@ -2483,7 +2615,6 @@ struct Surface {
 // }
 struct Pipeline {
   VkPipeline pipeline = VK_NULL_HANDLE;
-  VkRenderPass render_pass = VK_NULL_HANDLE;
   stx::Rc<ShaderProgram*> program;
 
   Pipeline(stx::Rc<ShaderProgram*> aprogram,
@@ -2619,7 +2750,7 @@ struct Pipeline {
     VkVertexInputBindingDescription vertex_binding_descriptions[] = {
         {.binding = 0,
          .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-         .stride = vertex_input_size}};
+         .stride = static_cast<u32>(vertex_input_size)}};
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state{
         .flags = 0,
@@ -2627,7 +2758,8 @@ struct Pipeline {
         .pVertexAttributeDescriptions = vertex_input_attr.data(),
         .pVertexBindingDescriptions = vertex_binding_descriptions,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexAttributeDescriptionCount = vertex_input_attr.size(),
+        .vertexAttributeDescriptionCount =
+            static_cast<u32>(vertex_input_attr.size()),
         .vertexBindingDescriptionCount =
             std::size(vertex_binding_descriptions)};
 
@@ -2660,89 +2792,6 @@ struct Pipeline {
         .pNext = nullptr,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
 
-    VkAttachmentDescription color_attachment{
-        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .flags = 0,
-        .format = swapchain_format,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .samples = sample_count,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE};
-
-    VkAttachmentDescription depth_attachment{
-        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        .flags = 0,
-        .format = findDepthFormat(),
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .samples = sample_count,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE};
-
-    VkAttachmentDescription color_attachment_resolve{
-        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        .flags = 0,
-        .format = swapchain_format,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE};
-
-    VkAttachmentDescription attachments[] = {color_attachment, depth_attachment,
-                                             color_attachment_resolve};
-
-    VkAttachmentReference color_attachment_reference{
-        .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-
-    VkAttachmentReference depth_attachment_reference{
-        .attachment = 1, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-
-    VkAttachmentReference color_attachment_resolve_reference{
-        .attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-
-    VkSubpassDescription subpass{
-        .colorAttachmentCount = 1,
-        .flags = 0,
-        .inputAttachmentCount = 0,
-        .pColorAttachments = &color_attachment_reference,
-        .pDepthStencilAttachment = &depth_attachment_reference,
-        .pInputAttachments = nullptr,
-        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-        .pPreserveAttachments = nullptr,
-        .preserveAttachmentCount = 0,
-        .pResolveAttachments = &color_attachment_resolve_reference};
-
-    VkSubpassDependency dependency{
-        .dependencyFlags = 0,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-                         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-        .dstSubpass = 0,
-        .srcAccessMask = 0,
-        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-        .srcSubpass = VK_SUBPASS_EXTERNAL};
-
-    VkRenderPassCreateInfo render_pass_create_info{
-        .attachmentCount = std::size(attachments),
-        .dependencyCount = 1,
-        .flags = 0,
-        .pAttachments = attachments,
-        .pDependencies = &dependency,
-        .pNext = nullptr,
-        .pSubpasses = &subpass,
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .subpassCount = 1};
-
-    ASR_VK_CHECK(vkCreateRenderPass(dev, &render_pass_create_info, nullptr,
-                                    &render_pass));
-
     VkGraphicsPipelineCreateInfo create_info{
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = 0,
@@ -2773,14 +2822,26 @@ struct Pipeline {
   ~Pipeline() {
     vkDestroyPipeline(program.handle->queue.handle->device.handle->device,
                       pipeline, nullptr);
-    vkDestroyRenderPass(program.handle->queue.handle->device.handle->device,
-                        render_pass, nullptr);
   }
 };
 
 void Surface::add_framebuffers(stx::Rc<Pipeline*> const& pipeline) {
-  // TODO(lamarrr): store pipeline
+  // TODO(lamarrr): store pipeline!!!
+  // TODO(lamarrr): this will mean the swapchain can only be used with one
+  // pipeline as we will be binding to the renderpass
+  //
+  // each pipeline will have a framebuffer, we will need to maintain this in the
+  // surface?
+  //
+  //
+  ASR_ENSURE(swapchain.is_some(),
+             "surface swapchain must be present before adding framebuffers");
+
   auto& swapchain_r = *swapchain.value().handle;
+
+  ASR_ENSURE(swapchain_r.frame_buffers.is_empty(),
+             "attempted to add framebuffers whilst some are already present");
+
   for (usize i = 0; i < swapchain_r.images.size(); i++) {
     VkFramebuffer framebuffer;
 
@@ -2807,7 +2868,7 @@ void Surface::add_framebuffers(stx::Rc<Pipeline*> const& pipeline) {
   }
 }
 
-}  // namespace vkh
+}  // namespace vk
 }  // namespace asr
 
 #if STX_CFG(COMPILER, CLANG)

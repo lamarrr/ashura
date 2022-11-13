@@ -23,7 +23,7 @@ enum class WindowTypeHint : u8 { Normal, Utility, Tooltip, Popup };
 enum class WindowPosition : u8 { Centered };
 
 struct WindowConfig {
-  stx::String title = "ashura"_ss;
+  stx::String title = "ashura"_str;
   Extent extent{1920, 1080};  // TODO(lamarrr): GetDisplaySize
   stx::Option<Extent> min_extent;
   stx::Option<Extent> max_extent;
@@ -149,10 +149,9 @@ struct Window {
   stx::Vec<char const*> get_required_instance_extensions() const;
 
   // attach surface to window for presentation
-  void attach_surface(stx::Rc<vkh::Instance*> instance);
+  void attach_surface(stx::Rc<vk::Instance*> instance);
 
-  void recreate_swapchain(stx::Rc<vkh::Device*> const& device,
-                          stx::Rc<vkh::CommandQueueFamilyInfo*> const& family);
+  void recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue);
 
   WindowSwapchainDiff present_backing_store();
 
@@ -180,7 +179,7 @@ struct Window {
   Extent surface_extent_;
   WindowConfig cfg_;
   std::thread::id init_thread_id_;
-  stx::Option<stx::Unique<vkh::Surface*>> surface_;
+  stx::Option<stx::Unique<vk::Surface*>> surface_;
   u32 refresh_rate_ = 1;
   std::map<WindowEvent, stx::UniqueFn<void()>> window_event_listeners;
   stx::UniqueFn<void(MouseClickEvent const&)> mouse_click_listener =

@@ -55,17 +55,17 @@
     if ((expr)) ::spdlog::info(__VA_ARGS__); \
   } while (false)
 
-#define ASR_WARN(...)            \
+#define ASR_LOG_WARN(...)        \
   do {                           \
     ::spdlog::warn(__VA_ARGS__); \
   } while (false)
 
-#define ASR_ERR(...)              \
+#define ASR_LOG_ERR(...)          \
   do {                            \
     ::spdlog::error(__VA_ARGS__); \
   } while (false)
 
-#define ASR_WARN_IF(expr, ...)               \
+#define ASR_LOG_WARN_IF(expr, ...)           \
   do {                                       \
     if ((expr)) ::spdlog::warn(__VA_ARGS__); \
   } while (false)
@@ -74,6 +74,9 @@
 #define ASR_ERRNUM_CASE(x) \
   case x:                  \
     return #x;
+
+#define ASR_UNREACHABLE() \
+  ASR_PANIC("Expected program execution to not reach this state")
 
 namespace asr {
 

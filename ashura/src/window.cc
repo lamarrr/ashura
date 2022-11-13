@@ -28,7 +28,7 @@ stx::Vec<char const*> Window::get_required_instance_extensions() const {
   return required_instance_extensions;
 }
 
-void Window::attach_surface(stx::Rc<vkh::Instance*> instance) {
+void Window::attach_surface(stx::Rc<vk::Instance*> instance) {
   VkSurfaceKHR surface;
 
   ASR_SDL_ENSURE(SDL_Vulkan_CreateSurface(window_, instance.handle->instance,
@@ -36,7 +36,7 @@ void Window::attach_surface(stx::Rc<vkh::Instance*> instance) {
                  "Unable to create surface for window");
 
   surface_ =
-      stx::Some(stx::rc::make_unique_inplace<WindowSurface>(
+      stx::Some(stx::rc::make_unique_inplace<vk::Surface>(
                     stx::os_allocator, surface, stx::None, std::move(instance))
                     .unwrap());
 }
@@ -70,9 +70,7 @@ void Window::attach_surface(stx::Rc<vkh::Instance*> instance) {
 // the event queue should be cleared after publishing the eventas
 
 // TODO(lamarrr): do these need to be passed in everytime?
-void Window::recreate_swapchain(
-    stx::Rc<vkh::Device*> const& device,
-    stx::Rc<vkh::CommandQueueFamilyInfo*> const& family) {
+void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   // if cause of change in swapchain is a change in extent, then mark
   // layout as dirty, otherwise maintain pipeline state
   int width = 0, height = 0;
@@ -92,9 +90,14 @@ void Window::recreate_swapchain(
       {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
       {VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}};
 
+  VkPresentModeKHR preferred_present_modes[] = {
+      VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_FIFO_KHR,
+      VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR};
+
   surface_.value().handle->change_swapchain(
-      device, family, preferred_formats, WindowSwapChain::PRESENT_MODES,
-      surface_extent_, WindowSwapChain ::COMPOSITE_ALPHA);
+      queue, preferred_formats, preferred_present_modes,
+      VkExtent2D{.height = surface_extent_.h, .width = surface_extent_.w},
+      VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
 }
 
 // TODO(lamarrr): can't we render to the swapchain images directly?
@@ -107,9 +110,11 @@ WindowSwapchainDiff Window::present_backing_store() {
   // We submit multiple render commands (operating on the swapchain images) to
   // the GPU to prevent having to force a sync with the GPU (await_fence) when
   // it could be doing useful work.
-  VkDevice device =
-      surface_.value().handle->swapchain.value().handle->device.handle->device;
-  auto& swapchain = *surface_.value().handle->swapchain.value().handle;
+  vk::SwapChain& swapchain =
+      *surface_.value().handle->swapchain.value().handle;
+
+  VkDevice device = swapchain.queue.handle->device.handle->device;
+
   VkSemaphore image_acquisition_semaphore =
       swapchain.image_acquisition_semaphores[swapchain.frame_flight_index];
 

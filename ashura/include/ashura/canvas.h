@@ -398,18 +398,19 @@ void sample(Canvas& canvas) {
   canvas.save()
       .rotate(45)
       .draw_circle({0, 0}, 20.0f)
-      .draw_image(Image{}, {0.0, 0.0, 20, 40})
+      .draw_image(Image{}, {{0.0, 0.0}, {20, 40}})
       .restore()
       .move_to(0, 0)
       .scale(2.0f, 2.0f)
       .draw_line_to({200, 200})
-      .draw_text("Hello World, こんにちは世界", {10, 10})
+      .draw_text("Hello World, こんにちは世界", {10.0f, 10.0f})
       .draw_rect({0, 0, 20, 20})
-      .draw_round_rect({0, 0, 20, 20}, {10, 10, 10, 10});
+      .draw_round_rect({{0.0f, 0.0f}, {20.0f, 20.0f}},
+                       {10.0f, 10.0f, 10.0f, 10.0f});
 }
 
-void record(DrawList const& draw_list, stx::Rc<vkh::Device*> const& device,
-            vkh::CommandQueueFamilyInfo const& graphics_command_queue,
+void record(DrawList const& draw_list, stx::Rc<vk::Device*> const& device,
+            vk::CommandQueueFamilyInfo const& graphics_command_queue,
             VkPhysicalDeviceMemoryProperties const& memory_properties) {
   VkCommandBuffer command_buffer;
 
@@ -426,15 +427,19 @@ void record(DrawList const& draw_list, stx::Rc<vkh::Device*> const& device,
   // we need to retain texture uploads, we can't be reuploading them every time
 
   for (DrawCommand const& draw_command : draw_list.commands) {
-    vkCmdBindPipeline();
-    vkCmdBindDescriptorSets();
-    vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer.handle->buffer,
-                           0);
-    vkCmdBindIndexBuffer(command_buffer, index_buffer.handle->buffer, 0,
-                         VK_INDEX_TYPE_UINT32);
-
+    // vkCmdBindPipeline();
+    // vkCmdBindDescriptorSets();
+    // vkCmdBindVertexBuffers(command_buffer, 0, 1,
+    // &vertex_buffer.handle->buffer,
+    //    0);
+    // vkCmdBindIndexBuffer(command_buffer,
+    // index_buffer.handle->buffer, 0,
+    //  VK_INDEX_TYPE_UINT32);
     //
-    vkCmdDrawIndexed(command_buffer, 0, 0, 0, 0, 0);
+    //
+    // vkCmdDrawIndexed(command_buffer, 0, 0, 0, 0, 0);
+    // vkCmdSetScissor();
+    // vkCmdSetViewport();
   }
 }
 

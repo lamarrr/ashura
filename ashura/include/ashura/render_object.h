@@ -11,7 +11,7 @@
 #include "stx/vec.h"
 
 namespace asr {
-
+/*
 // TODO(lamarrr): runtime antialiasing setting
 
 // global resource identifier
@@ -101,5 +101,5 @@ struct Context {
   int plugins, window;
 };
 
-
+*/
 }  // namespace asr
