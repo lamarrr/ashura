@@ -19,6 +19,83 @@ namespace gfx {
 
 // TODO(lamarrr): child must inherit parent's transformation and opacity
 
+constexpr f32 dot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; }
+
+constexpr f32 cross(vec2 a, vec2 b) { return a.x * b.y - b.x * a.y; }
+
+// check if a point is on the LEFT side of an edge
+constexpr bool is_inside(vec2 point, vec2 a, vec2 b) {
+  return (cross(a - b, point) + cross(b, a)) < 0.0f;
+}
+
+// calculate intersection point
+constexpr vec2 intersection(vec2 a1, vec2 a2, vec2 b1, vec2 b2) {
+  return ((b1 - b2) * cross(a1, a2) - (a1 - a2) * cross(b1, b2)) *
+         (1.0f / cross(a1 - a2, b1 - b2));
+}
+
+// Sutherland-Hodgman clipping
+inline void clip_polygon(stx::Span<vec2 const> subject_polygon,
+                         stx::Span<vec2 const> clip_polygon) {
+  constexpr int N = 99;  // clipped (new) polygon size
+
+  vec2 output_polygon[N];
+  vec2 input_polygon[N];
+
+  // copy subject polygon to new polygon and set its size
+  for (usize i = 0; i < subject_polygon.size(); i++) {
+    output_polygon[i] = subject_polygon[i];
+  }
+
+  usize output_polygon_size = subject_polygon.size();
+
+  for (usize j = 0; j < clip_polygon.size(); j++) {
+    // copy new polygon to input polygon & set counter to 0
+    for (usize k = 0; k < output_polygon_size; k++) {
+      input_polygon[k] = output_polygon[k];
+    }
+
+    usize counter = 0;
+
+    // get clipping polygon edge
+    vec2 cp1 = clip_polygon[j];
+    vec2 cp2 = clip_polygon[(j + 1) % clip_polygon.size()];
+
+    for (usize i = 0; i < output_polygon_size; i++) {
+      // get subject polygon edge
+      vec2 s = input_polygon[i];
+      vec2 e = input_polygon[(i + 1) % output_polygon_size];
+
+      // Case 1: Both vertices are inside:
+      // Only the second vertex is added to the output list
+      if (is_inside(s, cp1, cp2) && is_inside(e, cp1, cp2))
+        output_polygon[counter++] = e;
+
+      // Case 2: First vertex is outside while second one is inside:
+      // Both the point of intersection of the edge with the clip boundary
+      // and the second vertex are added to the output list
+      else if (!is_inside(s, cp1, cp2) && is_inside(e, cp1, cp2)) {
+        output_polygon[counter++] = intersection(cp1, cp2, s, e);
+        output_polygon[counter++] = e;
+      }
+
+      // Case 3: First vertex is inside while second one is outside:
+      // Only the point of intersection of the edge with the clip boundary
+      // is added to the output list
+      else if (is_inside(s, cp1, cp2) && !is_inside(e, cp1, cp2))
+        output_polygon[counter++] = intersection(cp1, cp2, s, e);
+
+      // Case 4: Both vertices are outside
+      else if (!is_inside(s, cp1, cp2) && !is_inside(e, cp1, cp2)) {
+        // No vertices are added to the output list
+      }
+    }
+
+    // set new polygon size
+    output_polygon_size = counter;
+  }
+}
+
 struct TextMetrics {
   // x-direction
   f32 width = 0.0f;
@@ -338,17 +415,16 @@ struct Canvas {
     vec3 p1 = position;
     vec3 p2{point.x, point.y, position.z};
 
-    draw_list.vertices.push(vec3{0.0f, 0.0f, 0.0f}).unwrap();
-    draw_list.vertices.push(vec3{1.0f, 0.0f, 0.0f}).unwrap();
-    draw_list.vertices.push(vec3{1.0f, 1.0f, 0.0f}).unwrap();
-    draw_list.vertices.push(vec3{0.0f, 1.0f, 0.0f}).unwrap();
+    vec3 vertices[] = {{0.0f, 0.0f, 0.0f},
+                       {1.0f, 0.0f, 0.0f},
+                       {1.0f, 1.0f, 0.0f},
+                       {0.0f, 1.0f, 0.0f}};
 
-    draw_list.indices.push_inplace(start).unwrap();
-    draw_list.indices.push_inplace(start + 1).unwrap();
-    draw_list.indices.push_inplace(start + 2).unwrap();
-    draw_list.indices.push_inplace(start + 2).unwrap();
-    draw_list.indices.push_inplace(start).unwrap();
-    draw_list.indices.push_inplace(start + 3).unwrap();
+    draw_list.vertices.extend(vertices).unwrap();
+
+    u32 indices[] = {start, start + 1, start + 2, start + 2, start, start + 3};
+
+    draw_list.indices.extend(indices).unwrap();
 
     return *this;
   }

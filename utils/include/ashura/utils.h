@@ -70,7 +70,6 @@
     if ((expr)) ::spdlog::warn(__VA_ARGS__); \
   } while (false)
 
-// TODO(lamarrr): rename
 #define ASR_ERRNUM_CASE(x) \
   case x:                  \
     return #x;

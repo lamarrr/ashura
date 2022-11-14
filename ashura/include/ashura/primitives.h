@@ -32,6 +32,12 @@ struct vec2 {
   f32 x = 0.0f, y = 0.0f;
 };
 
+constexpr vec2 operator*(vec2 a, f32 b);
+constexpr vec2 operator*(f32 a, vec2 b);
+
+constexpr vec2 operator+(vec2 a, vec2 b);
+constexpr vec2 operator-(vec2 a, vec2 b);
+
 struct vec3 {
   f32 x = 0.0f, y = 0.0f, z = 0.0f;
 };

@@ -1129,7 +1129,7 @@ struct Instance {
 
   ~Instance() {
     if (debug_messenger.is_some()) {
-      vk::destroy_debug_messenger(instance, debug_messenger.value());
+      destroy_debug_messenger(instance, debug_messenger.value());
     }
     vkDestroyInstance(instance, nullptr);
   }
@@ -1224,7 +1224,7 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
                             .properties = device_properties,
                             .features = device_features,
                             .memory_properties = memory_properties,
-                            .family_properties = vk::get_queue_families(device),
+                            .family_properties = get_queue_families(device),
                             .instance = instance.share()})
         .unwrap();
   }
@@ -1280,10 +1280,10 @@ inline stx::Rc<Instance*> create_instance(
     char const* app_name, u32 app_version, char const* engine_name,
     u32 engine_version, stx::Span<char const* const> required_extensions = {},
     stx::Span<char const* const> validation_layers = {}) {
-  auto [instance, messenger] = vk::create_vulkan_instance(
-      required_extensions, validation_layers,
-      vk::make_debug_messenger_create_info(), app_name, app_version,
-      engine_name, engine_version);
+  auto [instance, messenger] =
+      create_vulkan_instance(required_extensions, validation_layers,
+                             make_debug_messenger_create_info(), app_name,
+                             app_version, engine_name, engine_version);
 
   return stx::rc::make_inplace<Instance>(
              stx::os_allocator, instance,
@@ -1317,7 +1317,7 @@ inline stx::Rc<Device*> create_device(
     stx::Span<char const* const> required_extensions,
     stx::Span<char const* const> required_validation_layers,
     VkPhysicalDeviceFeatures required_features) {
-  VkDevice device = vk::create_logical_device(
+  VkDevice device = create_logical_device(
       phy_device.handle->phy_device, required_extensions,
       required_validation_layers, command_queue_create_info, required_features);
 
@@ -1333,7 +1333,7 @@ inline stx::Rc<Device*> create_device(
     for (u32 queue_index_in_family = 0; queue_index_in_family < queue_count;
          queue_index_in_family++) {
       f32 priority = create_info.pQueuePriorities[i];
-      VkQueue command_queue = vk::get_command_queue(
+      VkQueue command_queue = get_command_queue(
           device, command_queue_family_index, queue_index_in_family);
 
       command_queues
@@ -1402,8 +1402,8 @@ struct Buffer {
 
 std::pair<VkBuffer, VkDeviceMemory> create_buffer_with_memory(
     VkDevice dev, CommandQueueFamilyInfo const& graphics_command_queue,
-    VkPhysicalDeviceMemoryProperties const& memory_properties,
-    usize size_bytes) {
+    VkPhysicalDeviceMemoryProperties const& memory_properties, usize size_bytes,
+    VkBufferUsageFlagBits usage) {
   u32 queue_families[] = {graphics_command_queue.index};
 
   VkBufferCreateInfo create_info{
@@ -1414,7 +1414,7 @@ std::pair<VkBuffer, VkDeviceMemory> create_buffer_with_memory(
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .size = size_bytes,
       .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-      .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+      .usage = usage,
   };
 
   VkBuffer buffer;
@@ -1428,8 +1428,8 @@ std::pair<VkBuffer, VkDeviceMemory> create_buffer_with_memory(
   vkGetBufferMemoryRequirements(dev, buffer, &requirements);
 
   u32 memory_type_index =
-      vk::find_suitable_memory_type(requirements, memory_properties,
-                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+      find_suitable_memory_type(requirements, memory_properties,
+                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
@@ -1453,7 +1453,8 @@ stx::Rc<Buffer*> upload_vertices(
   VkDevice dev = device.handle->device;
 
   auto [buffer, memory] = create_buffer_with_memory(
-      dev, graphics_command_queue, memory_properties, vertices.size_bytes());
+      dev, graphics_command_queue, memory_properties, vertices.size_bytes(),
+      VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
   void* memory_map;
   ASR_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
@@ -1483,7 +1484,8 @@ stx::Rc<Buffer*> upload_indices(
   VkDevice dev = device.handle->device;
 
   auto [buffer, memory] = create_buffer_with_memory(
-      dev, graphics_command_queue, memory_properties, indices.size_bytes());
+      dev, graphics_command_queue, memory_properties, indices.size_bytes(),
+      VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
   void* memory_map;
   ASR_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
@@ -1562,7 +1564,7 @@ stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
   vkGetImageMemoryRequirements(dev, image, &requirements);
 
   u32 memory_type_index =
-      vk::find_suitable_memory_type(
+      find_suitable_memory_type(
           requirements,
           queue.handle->device.handle->phy_device.handle->memory_properties,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
@@ -1678,11 +1680,10 @@ struct DescriptorBinding {
   usize size = 0;
   void const* data = nullptr;
 
-  template <typename BufferType>
-  static DescriptorBinding uniform(BufferType const* value) {
-    return DescriptorBinding{.type = DescriptorType::Buffer,
-                             .size = sizeof(BufferType),
-                             .data = value};
+  template <typename Type>
+  static DescriptorBinding uniform(Type const* value) {
+    return DescriptorBinding{
+        .type = DescriptorType::Buffer, .size = sizeof(Type), .data = value};
   }
 
   static DescriptorBinding sampler(ImageSampler const* sampler) {
@@ -1777,8 +1778,6 @@ struct DescriptorSetsSpec {
 // NOTE: descriptor binding values lifetime must be longer than the
 // ShaderProgram's
 struct ShaderProgram {
-  STX_MAKE_PINNED(ShaderProgram)
-
   VkShaderModule vertex_shader = VK_NULL_HANDLE;
   VkShaderModule fragment_shader = VK_NULL_HANDLE;
 
@@ -1853,6 +1852,8 @@ struct ShaderProgram {
     ____prepare_descriptor_sets();
   }
 
+  STX_MAKE_PINNED(ShaderProgram)
+
   ~ShaderProgram() {
     VkDevice dev = queue.handle->device.handle->device;
 
@@ -1919,7 +1920,7 @@ struct ShaderProgram {
                 dev, queue.handle->info.family,
                 queue.handle->device.handle->phy_device.handle
                     ->memory_properties,
-                binding.size);
+                binding.size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
             uniform_buffers.push_inplace(buffer, memory).unwrap();
 
@@ -2044,7 +2045,7 @@ create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
   vkGetImageMemoryRequirements(dev, image, &requirements);
 
   u32 memory_type_index =
-      vk::find_suitable_memory_type(
+      find_suitable_memory_type(
           requirements,
           queue.handle->device.handle->phy_device.handle->memory_properties,
           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
@@ -2122,7 +2123,7 @@ create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
   vkGetImageMemoryRequirements(dev, image, &requirements);
 
   u32 memory_type_index =
-      vk::find_suitable_memory_type(
+      find_suitable_memory_type(
           requirements,
           queue.handle->device.handle->phy_device.handle->memory_properties,
           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
@@ -2222,6 +2223,34 @@ inline VkPresentModeKHR select_swapchain_presentation_mode(
   ASR_PANIC("Unable to find any of the preferred presentation modes");
 }
 
+inline VkFormat find_supported_format(VkPhysicalDevice phy_device,
+                                      stx::Span<VkFormat const> candidates,
+                                      VkImageTiling tiling,
+                                      VkFormatFeatureFlags features) {
+  for (VkFormat format : candidates) {
+    VkFormatProperties props;
+    vkGetPhysicalDeviceFormatProperties(phy_device, format, &props);
+
+    if (tiling == VK_IMAGE_TILING_LINEAR &&
+        (props.linearTilingFeatures & features) == features) {
+      return format;
+    } else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
+               (props.optimalTilingFeatures & features) == features) {
+      return format;
+    }
+  }
+
+  ASR_UNREACHABLE();
+}
+
+inline VkFormat find_depth_format(VkPhysicalDevice phy_device) {
+  VkFormat formats[] = {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT,
+                        VK_FORMAT_D24_UNORM_S8_UINT};
+
+  return find_supported_format(phy_device, formats, VK_IMAGE_TILING_OPTIMAL,
+                               VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+}
+
 /// Swapchains handle the presentation and update logic of the images to the
 /// window surface.
 ///
@@ -2274,6 +2303,8 @@ struct SwapChain {
 
   stx::Vec<VkFramebuffer> frame_buffers{stx::os_allocator};
 
+  VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
+
   VkImage msaa_color_image = VK_NULL_HANDLE;
   VkImageView msaa_color_image_view = VK_NULL_HANDLE;
   VkDeviceMemory msaa_color_image_memory = VK_NULL_HANDLE;
@@ -2298,8 +2329,8 @@ struct SwapChain {
 
     // the properties change every time we need to create a swapchain so we must
     // query for this every time
-    vk::SwapChainProperties properties =
-        vk::get_swapchain_properties(phy_device, target_surface);
+    SwapChainProperties properties =
+        get_swapchain_properties(phy_device, target_surface);
 
     ASR_LOG("Device Supported Surface Formats:");
     for (VkSurfaceFormatKHR const& format : properties.supported_formats) {
@@ -2318,7 +2349,7 @@ struct SwapChain {
 
     u32 accessing_families[] = {queue.handle->info.family.index};
 
-    auto [new_swapchain, new_extent] = vk::create_swapchain(
+    auto [new_swapchain, new_extent] = create_swapchain(
         dev, target_surface, preferred_extent, selected_format,
         selected_present_mode, properties,
         // not thread-safe since GPUs typically have one graphics queue
@@ -2337,9 +2368,11 @@ struct SwapChain {
     format = selected_format;
     present_mode = selected_present_mode;
     extent = new_extent;
+    msaa_sample_count =
+        queue.handle->device.handle->phy_device.handle->get_max_sample_count();
 
     for (VkImage image : images) {
-      VkImageView image_view = vk::create_image_view(
+      VkImageView image_view = create_image_view(
           dev, image, format.format, VK_IMAGE_VIEW_TYPE_2D,
           VK_IMAGE_ASPECT_COLOR_BIT,
           VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -2350,12 +2383,9 @@ struct SwapChain {
     }
 
     for (usize i = 0; i < images.size(); i++) {
-      rendering_semaphores.push(vk::create_semaphore(dev)).unwrap();
-      image_acquisition_semaphores.push(vk::create_semaphore(dev)).unwrap();
+      rendering_semaphores.push(create_semaphore(dev)).unwrap();
+      image_acquisition_semaphores.push(create_semaphore(dev)).unwrap();
     }
-
-    VkSampleCountFlagBits msaa_sample_count =
-        queue.handle->device.handle->phy_device.handle->get_max_sample_count();
 
     auto [xmsaa_color_image, xmsaa_color_image_view, xmsaa_color_image_memory] =
         create_msaa_color_resource(queue, format.format, new_extent,
@@ -2374,16 +2404,13 @@ struct SwapChain {
     msaa_depth_image_view = xmsaa_depth_image_view;
     msaa_depth_image_memory = xmsaa_depth_image_memory;
 
-    // TODO(lamarrrr)
-    VkSampleCountFlagBits sample_count = 0;
-
     VkAttachmentDescription color_attachment{
         .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .flags = 0,
         .format = format.format,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .samples = sample_count,
+        .samples = msaa_sample_count,
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE};
@@ -2395,7 +2422,7 @@ struct SwapChain {
             queue.handle->device.handle->phy_device.handle->phy_device),
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .samples = sample_count,
+        .samples = msaa_sample_count,
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE};
@@ -2577,37 +2604,7 @@ struct Surface {
                               preferred_extent, alpha_compositing)
                               .unwrap());
   }
-
-  void add_framebuffers(stx::Rc<Pipeline*> const& pipeline);
 };
-
-inline VkFormat find_supported_format(VkPhysicalDevice phy_device,
-                                      stx::Span<VkFormat const> candidates,
-                                      VkImageTiling tiling,
-                                      VkFormatFeatureFlags features) {
-  for (VkFormat format : candidates) {
-    VkFormatProperties props;
-    vkGetPhysicalDeviceFormatProperties(phy_device, format, &props);
-
-    if (tiling == VK_IMAGE_TILING_LINEAR &&
-        (props.linearTilingFeatures & features) == features) {
-      return format;
-    } else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
-               (props.optimalTilingFeatures & features) == features) {
-      return format;
-    }
-  }
-
-  ASR_UNREACHABLE();
-}
-
-inline VkFormat find_depth_format(VkPhysicalDevice phy_device) {
-  VkFormat formats[] = {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT,
-                        VK_FORMAT_D24_UNORM_S8_UINT};
-
-  return find_supported_format(phy_device, formats, VK_IMAGE_TILING_OPTIMAL,
-                               VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-}
 
 // void bind() {
 // vkCmdSetViewport
@@ -2615,13 +2612,20 @@ inline VkFormat find_depth_format(VkPhysicalDevice phy_device) {
 // }
 struct Pipeline {
   VkPipeline pipeline = VK_NULL_HANDLE;
-  stx::Rc<ShaderProgram*> program;
+  VkPipelineLayout layout;
 
-  Pipeline(stx::Rc<ShaderProgram*> aprogram,
+  stx::Rc<ShaderProgram*> program;
+  stx::Rc<Surface*> surface;
+
+  Pipeline(stx::Rc<ShaderProgram*> aprogram, stx::Rc<Surface*> asurface,
            stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
-           usize vertex_input_size, VkFormat swapchain_format,
-           VkSampleCountFlagBits sample_count)
-      : program{std::move(aprogram)} {
+           usize vertex_input_size)
+      : program{std::move(aprogram)}, surface{std::move(asurface)} {
+    ASR_ENSURE(surface.handle->swapchain.is_some(),
+               "target surface has no swapchain");
+
+    SwapChain& swapchain = *surface.handle->swapchain.value().handle;
+
     VkDevice dev = program.handle->queue.handle->device.handle->device;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
@@ -2653,8 +2657,6 @@ struct Pipeline {
         .pushConstantRangeCount = 0,
         .setLayoutCount = 0,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-
-    VkPipelineLayout layout;
 
     ASR_VK_CHECK(
         vkCreatePipelineLayout(dev, &layout_create_info, nullptr, &layout));
@@ -2720,7 +2722,7 @@ struct Pipeline {
         .minSampleShading = 1.0f,
         .pNext = nullptr,
         .pSampleMask = nullptr,
-        .rasterizationSamples = sample_count,
+        .rasterizationSamples = swapchain.msaa_sample_count,
         .sampleShadingEnable = VK_FALSE,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
 
@@ -2763,14 +2765,14 @@ struct Pipeline {
         .vertexBindingDescriptionCount =
             std::size(vertex_binding_descriptions)};
 
-    VkViewport viewport{.height = 1080,
+    VkViewport viewport{.height = static_cast<f32>(swapchain.extent.height),
                         .maxDepth = 1.0f,
                         .minDepth = 0.0f,
-                        .width = 1920,
+                        .width = static_cast<f32>(swapchain.extent.width),
                         .x = 0.0f,
                         .y = 0.0f};
 
-    VkRect2D scissor{.extent = VkExtent2D{.height = 1080, .width = 1920},
+    VkRect2D scissor{.extent = swapchain.extent,
                      .offset = VkOffset2D{.x = 0, .y = 0}};
 
     VkPipelineViewportStateCreateInfo viewport_state{
@@ -2808,7 +2810,7 @@ struct Pipeline {
         .pTessellationState = nullptr,
         .pVertexInputState = &vertex_input_state,
         .pViewportState = &viewport_state,
-        .renderPass = render_pass,
+        .renderPass = swapchain.render_pass,
         .stageCount = std::size(stages),
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .subpass = 0};
@@ -2820,53 +2822,17 @@ struct Pipeline {
   STX_MAKE_PINNED(Pipeline)
 
   ~Pipeline() {
+    vkDestroyPipelineLayout(program.handle->queue.handle->device.handle->device,
+                            layout, nullptr);
     vkDestroyPipeline(program.handle->queue.handle->device.handle->device,
                       pipeline, nullptr);
   }
 };
 
-void Surface::add_framebuffers(stx::Rc<Pipeline*> const& pipeline) {
-  // TODO(lamarrr): store pipeline!!!
-  // TODO(lamarrr): this will mean the swapchain can only be used with one
-  // pipeline as we will be binding to the renderpass
-  //
-  // each pipeline will have a framebuffer, we will need to maintain this in the
-  // surface?
-  //
-  //
-  ASR_ENSURE(swapchain.is_some(),
-             "surface swapchain must be present before adding framebuffers");
-
-  auto& swapchain_r = *swapchain.value().handle;
-
-  ASR_ENSURE(swapchain_r.frame_buffers.is_empty(),
-             "attempted to add framebuffers whilst some are already present");
-
-  for (usize i = 0; i < swapchain_r.images.size(); i++) {
-    VkFramebuffer framebuffer;
-
-    VkImageView attachments[] = {swapchain_r.msaa_color_image_view,
-                                 swapchain_r.msaa_depth_image_view,
-                                 swapchain_r.image_views[i]};
-
-    VkFramebufferCreateInfo create_info{
-        .attachmentCount = std::size(attachments),
-        .flags = 0,
-        .height = swapchain_r.extent.height,
-        .layers = 1,
-        .pAttachments = attachments,
-        .pNext = nullptr,
-        .renderPass = pipeline.handle->render_pass,
-        .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-        .width = swapchain_r.extent.width};
-
-    ASR_VK_CHECK(vkCreateFramebuffer(
-        pipeline.handle->program.handle->queue.handle->device.handle->device,
-        &create_info, nullptr, &framebuffer));
-
-    swapchain_r.frame_buffers.push_inplace(framebuffer).unwrap();
-  }
-}
+struct RecordingContext {
+  VkCommandPool command_pool;
+  stx::Rc<CommandQueue*> queue;
+};
 
 }  // namespace vk
 }  // namespace asr
