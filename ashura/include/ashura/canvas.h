@@ -19,81 +19,162 @@ namespace gfx {
 
 // TODO(lamarrr): child must inherit parent's transformation and opacity
 
-constexpr f32 dot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; }
-
-constexpr f32 cross(vec2 a, vec2 b) { return a.x * b.y - b.x * a.y; }
-
-// check if a point is on the LEFT side of an edge
-constexpr bool is_inside(vec2 point, vec2 a, vec2 b) {
-  return (cross(a - b, point) + cross(b, a)) < 0.0f;
-}
-
-// calculate intersection point
-constexpr vec2 intersection(vec2 a1, vec2 a2, vec2 b1, vec2 b2) {
-  return ((b1 - b2) * cross(a1, a2) - (a1 - a2) * cross(b1, b2)) *
-         (1.0f / cross(a1 - a2, b1 - b2));
-}
-
 // Sutherland-Hodgman clipping
-inline void clip_polygon(stx::Span<vec2 const> subject_polygon,
-                         stx::Span<vec2 const> clip_polygon) {
-  constexpr int N = 99;  // clipped (new) polygon size
+inline stx::Vec<vec2> clip_polygon(stx::Span<vec2 const> subject_polygon,
+                                   stx::Span<vec2 const> clip_polygon) {
+  ASR_ENSURE(!clip_polygon.is_empty());
+  ASR_ENSURE(!subject_polygon.is_empty());
 
-  vec2 output_polygon[N];
-  vec2 input_polygon[N];
+  stx::Vec<vec2> ring{stx::os_allocator};
 
-  // copy subject polygon to new polygon and set its size
-  for (usize i = 0; i < subject_polygon.size(); i++) {
-    output_polygon[i] = subject_polygon[i];
-  }
+  ring.extend(subject_polygon).unwrap();
 
-  usize output_polygon_size = subject_polygon.size();
+  vec2 p1 = clip_polygon[clip_polygon.size() - 1];
 
-  for (usize j = 0; j < clip_polygon.size(); j++) {
-    // copy new polygon to input polygon & set counter to 0
-    for (usize k = 0; k < output_polygon_size; k++) {
-      input_polygon[k] = output_polygon[k];
-    }
+  stx::Vec<vec2> input{stx::os_allocator};
 
-    usize counter = 0;
+  for (vec2 p2 : clip_polygon) {
+    input.clear();
+    input.extend(ring).unwrap();
+    vec2 s = input[input.size() - 1];
 
-    // get clipping polygon edge
-    vec2 cp1 = clip_polygon[j];
-    vec2 cp2 = clip_polygon[(j + 1) % clip_polygon.size()];
+    ring.clear();
 
-    for (usize i = 0; i < output_polygon_size; i++) {
-      // get subject polygon edge
-      vec2 s = input_polygon[i];
-      vec2 e = input_polygon[(i + 1) % output_polygon_size];
+    for (vec2 e : input) {
+      if (is_inside(p1, p2, e)) {
+        if (!is_inside(p1, p2, s)) {
+          ring.push(intersection(p1, p2, s, e)).unwrap();
+        }
 
-      // Case 1: Both vertices are inside:
-      // Only the second vertex is added to the output list
-      if (is_inside(s, cp1, cp2) && is_inside(e, cp1, cp2))
-        output_polygon[counter++] = e;
-
-      // Case 2: First vertex is outside while second one is inside:
-      // Both the point of intersection of the edge with the clip boundary
-      // and the second vertex are added to the output list
-      else if (!is_inside(s, cp1, cp2) && is_inside(e, cp1, cp2)) {
-        output_polygon[counter++] = intersection(cp1, cp2, s, e);
-        output_polygon[counter++] = e;
+        ring.push_inplace(e).unwrap();
+      } else if (is_inside(p1, p2, s)) {
+        ring.push(intersection(p1, p2, s, e)).unwrap();
       }
 
-      // Case 3: First vertex is inside while second one is outside:
-      // Only the point of intersection of the edge with the clip boundary
-      // is added to the output list
-      else if (is_inside(s, cp1, cp2) && !is_inside(e, cp1, cp2))
-        output_polygon[counter++] = intersection(cp1, cp2, s, e);
-
-      // Case 4: Both vertices are outside
-      else if (!is_inside(s, cp1, cp2) && !is_inside(e, cp1, cp2)) {
-        // No vertices are added to the output list
-      }
+      s = e;
     }
 
-    // set new polygon size
-    output_polygon_size = counter;
+    p1 = p2;
   }
+
+  return std::move(ring);
+}
+
+// compute area of a contour/polygon
+constexpr f32 compute_polygon_area(stx::Span<vec2 const> polygon) {
+  usize num_points = polygon.size();
+
+  f32 area = 0.0f;
+
+  for (usize p = num_points - 1, q = 0; q < num_points; p = q++) {
+    area += cross(polygon[p], polygon[q]);
+  }
+
+  return area * 0.5f;
+}
+
+constexpr bool is_valid_polygon(stx::Span<vec2 const> polygon) {
+  if (polygon.size() < 3) return false;
+
+  // check that points do not overlap
+  vec2 x = polygon[0];
+
+  for (vec2 y : polygon.slice(1)) {
+    if (x == y) return false;
+    x = y;
+  }
+
+  return true;
+}
+
+constexpr bool polygon_snip_check(stx::Span<vec2 const> polygon, i64 u, i64 v,
+                                  i64 w, i64 n, stx::Span<i64 const> V) {
+  vec2 a = polygon[V[u]];
+  vec2 b = polygon[V[v]];
+  vec2 c = polygon[V[w]];
+
+  if (stx::f32_epsilon > cross(b - a, c - a)) return false;
+
+  for (i64 p = 0; p < n; p++) {
+    if ((p == u) || (p == v) || (p == w)) continue;
+    if (is_inside_triangle(a, b, c, polygon[V[p]])) return false;
+  }
+
+  return true;
+}
+
+inline stx::Vec<vec2> triangulate_polygon(stx::Span<vec2 const> polygon) {
+  stx::Vec<vec2> result{stx::os_allocator};
+
+  i64 num_points = polygon.size();
+
+  ASR_ENSURE(num_points >= 3, "polygon must have 3 or more points");
+
+  stx::Vec<i64> V{stx::os_allocator};
+
+  V.resize(num_points, 0).unwrap();
+
+  // we want a counter-clockwise polygon in V
+  if (0.0f < compute_polygon_area(polygon)) {
+    for (i64 v = 0; v < num_points; v++) {
+      V[v] = v;
+    }
+  } else {
+    for (i64 v = 0; v < num_points; v++) {
+      V[v] = (num_points - 1) - v;
+    }
+  }
+
+  i64 nv = num_points;
+
+  //  remove nv-2 vertices, creating 1 triangle every time
+  i64 count = 2 * nv;  // error detection
+
+  for (i64 m = 0, v = nv - 1; nv > 2;) {
+    // if we loop, it is probably a non-simple polygon
+    if (0 >= (count--)) {
+      ASR_PANIC("Polygon triangulation error: probable bad polygon!");
+    }
+
+    // three consecutive vertices in current polygon, <u, v, w>
+    i64 u = v;
+
+    if (nv <= u) u = 0;  //  previous
+
+    v = u + 1;
+
+    if (nv <= v) v = 0;  // new v
+
+    i64 w = v + 1;
+
+    if (nv <= w) w = 0;  // next
+
+    if (polygon_snip_check(polygon, u, v, w, nv, V)) {
+      // true names of the vertices
+      i64 a = V[u];
+      i64 b = V[v];
+      i64 c = V[w];
+
+      // output triangle
+      result.push_inplace(polygon[a]).unwrap();
+      result.push_inplace(polygon[b]).unwrap();
+      result.push_inplace(polygon[c]).unwrap();
+
+      m++;
+
+      // remove v from remaining polygon
+      for (i64 s = v, t = v + 1; t < nv; s++, t++) {
+        V[s] = V[t];
+      }
+
+      nv--;
+
+      // reset error detection counter
+      count = 2 * nv;
+    }
+  }
+
+  return std::move(result);
 }
 
 struct TextMetrics {
@@ -114,20 +195,6 @@ struct TextMetrics {
   f32 ideographic_baseline = 0.0f;
 };
 
-enum class ImageSmoothingQuality : u8 { Low, Medium, High };
-
-enum class BlendMode : u8 { SrcOver, Src };
-
-struct Compositing {
-  f32 global_alpha = 1.0f;
-  BlendMode blend_mode = BlendMode::SrcOver;
-};
-
-struct ImageSmoothing {
-  bool enabled = true;
-  ImageSmoothingQuality quality = ImageSmoothingQuality::Medium;
-};
-
 struct Shadow {
   f32 offset_x = 0.0f;
   f32 offset_y = 0.0f;
@@ -136,11 +203,12 @@ struct Shadow {
 };
 
 struct Filter {
-  /* None by default */
+  // None by default
 };
 
 enum class TextAlign : u8 {
-  Start /* detect locale and other crap */,
+  // detect locale and other crap
+  Start,
   End,
   Left,
   Right,
@@ -172,10 +240,6 @@ enum class FontStretch : u8 {
   UltraExpanded
 };
 
-struct PathStyle {
-  f32 line_width = 1.0f;
-};
-
 enum class FontWeight : u32 {
   Thin = 100,
   ExtraLight = 200,
@@ -194,14 +258,20 @@ enum class FontWeight : u32 {
 // - caching so we don't have to reupload on every frame
 // - GPU texture/image
 // NOTE: canvas is low-level so we don't use paths, urls, or uris
-struct Image {};
+struct Image {
+  u64 id = 0;
+};
 
 // requirements:
 // -
-struct Typeface {};
+struct Typeface {
+  u64 id = 0;
+};
 
 // requirements:
-struct Shader {};
+struct Shader {
+  u64 id = 0;
+};
 
 // TODO(lamarrr): embed font into a cpp file
 //
@@ -223,13 +293,12 @@ struct TextStyle {
 struct Brush {
   bool fill = true;
   Color color = colors::BLACK;
+  f32 opacity = 1.0f;
+  f32 line_width = 1.0f;
   stx::Option<Image> pattern;
-  PathStyle path_style;
   TextStyle text_style;
   Filter filter;
   Shadow shadow;
-  ImageSmoothing smoothing;
-  Compositing compositing;
 };
 
 // TODO(lamarrr): invert these rows and columns
@@ -285,7 +354,7 @@ constexpr mat4x4 rotate_z(f32 degree) {
 struct DrawCommand {
   u32 indices_offset = 0;
   u32 num_triangles = 0;
-  vec3 opacity;
+  f32 opacity = 1.0f;
   mat4x4 transform;  //  transform contains position (translation from origin)
   Color color = colors::BLACK;
   stx::Option<Image> texture;
@@ -301,16 +370,29 @@ struct DrawList {
   stx::Vec<DrawCommand> commands{stx::os_allocator};
 };
 
+// TODO(lamarrr): deduplicate points
+// TODO(lamarrr): this will mean we need to also be able to render lines using
+// points, requiring us to smoothen the edges of the lines
+//
+// points are specified in counter-clockwise direction
+//
+// using Polygon = stx::Vec<vec2>;
+
 // TODO(lamarrr): how do we handle selection of transformed widgets?
 // Topleft origin coordinate system
 struct Canvas {
   vec3 position;
-  ExtentF extent;
+  vec2 extent;
   Brush brush;
+
   mat4x4 transform = mat4x4::identity();
   stx::Vec<mat4x4> transform_state_stack{stx::os_allocator};
+
+  stx::Vec<stx::Vec<vec2>> clipping_polygons{stx::os_allocator};
+  stx::Vec<stx::Vec<stx::Vec<vec2>>> clipping_polygons_state_stack{
+      stx::os_allocator};
+
   DrawList draw_list;
-  //   stx::Vec<RectF> clips{stx::os_allocator};
 
   // push state (transform and clips) on state stack
   Canvas& save() {
@@ -394,7 +476,7 @@ struct Canvas {
         .push(DrawCommand{
             .indices_offset = start,
             .num_triangles = 2,
-            .transform = transforms::scale(vec3{extent.w, extent.h, 1.0f}),
+            .transform = transforms::scale(vec3{extent.x, extent.y, 1.0f}),
             .color = brush.color,
             .texture = stx::None,
             .vert_shader = {},
@@ -404,14 +486,118 @@ struct Canvas {
     return *this;
   }
 
-  // clip_rect(), clip_rrect(), clip_slanted_rect();
 
-  Canvas& draw_line_to(OffsetF point) {
+  Canvas& clip_rect();
+  Canvas& clip_round_rect();
+  Canvas& clip_slanted_rect();
+  Canvas& clip_circle();
+  Canvas& clip_ellipse();
+
+  // TODO(lamarrr): clipping line polygons doesn't work this way
+  // TODO(lamarrr): path closing for lines?
+  // polygon will be closed
+  // this is just stroke line really?
+  Canvas& draw_line(stx::Span<vec2 const> line) {
+    ASR_ENSURE(line.size() >= 2);
+
+    for (usize i = 0; i < line.size(); i++) {
+      usize j = i + 1;
+
+      if (i == clipped_polygon.size()) j = 0;
+
+      vec2 p1 = clipped_polygon[i];
+      vec2 p2 = clipped_polygon[j];
+
+      vec2 d = p2 - p1;
+
+      {
+        float d2 = dot(d, d);
+        if (d2 > 0.0f) {
+          float inv_len = 1 / std::sqrt(d2);
+          d.x *= inv_len;
+          d.y *= inv_len;
+        }
+      }
+
+      d.x *= brush.line_width * 0.5f;
+      d.y *= brush.line_width * 0.5f;
+
+      u32 start = draw_list.indices.size();
+
+      vec3 vertices[] = {{p1.x + d.y, p1.y - d.x, 0.0f},
+                         {p2.x + d.y, p2.y - d.x, 0.0f},
+                         {p2.x - d.y, p2.y + d.x, 0.0f},
+                         {p1.x - d.y, p1.y + d.x, 0.0f}};
+
+      u32 indices[] = {start,     start + 1, start + 2,
+                       start + 3, start + 4, start + 5};
+
+      draw_list.vertices.extend(vertices).unwrap();
+      draw_list.indices.extend(indices).unwrap();
+
+      draw_list.commands
+          .push(DrawCommand{.color,
+                            .frag_shader,
+                            .indices_offset = start,
+                            .num_triangles = 2,
+                            .opacity,
+                            .texture,
+                            .transform,
+                            .vert_shader})
+          .unwrap();
+    }
+
+    return *this;
+  }
+
+  Canvas& draw_filled_polygon(stx::Span<vec2 const> polygon) {
+    ASR_ENSURE(polygon.size() >= 3);
+
+    stx::Vec<vec2> clipped_polygon{stx::os_allocator};
+
+    clipped_polygon.extend(polygon).unwrap();
+
+    for (stx::Vec<vec2> const& clip : clipping_polygons) {
+      clipped_polygon = clip_polygon(clipped_polygon, clip);
+    }
+
+    stx::Vec<vec2> polygon_vertices = triangulate_polygon(clipped_polygon);
+
+    for (vec2 vertex : polygon_vertices) {
+      draw_list.vertices.push(vec3{vertex.x, vertex.y, 0.0f}).unwrap();
+    }
+
+    for (usize index = draw_list.indices.size();
+         index < (draw_list.indices.size() + polygon_vertices.size());
+         index++) {
+      draw_list.indices.push_inplace(index).unwrap();
+      index++;
+    }
+
+    u32 num_triangles = polygon_vertices.size() / 3U;
+
+    draw_list.commands
+        .push(DrawCommand{.color,
+                          .frag_shader,
+                          .indices_offset,
+                          .num_triangles = num_triangles,
+                          .opacity,
+                          .texture,
+                          .transform,
+                          .vert_shader})
+        .unwrap();
+
+    return *this;
+  }
+
+  Canvas& draw_stroke_polygon();
+
+  Canvas& draw_line_to(vec2 point) {
     position;
     point;
 
     u32 start = draw_list.vertices.size();
-    u64 line_width = brush.path_style.line_width;
+    u64 line_width = brush.line_width;
     vec3 p1 = position;
     vec3 p2{point.x, point.y, position.z};
 
@@ -425,6 +611,15 @@ struct Canvas {
     u32 indices[] = {start, start + 1, start + 2, start + 2, start, start + 3};
 
     draw_list.indices.extend(indices).unwrap();
+
+    draw_list.commands.push(DrawCommand{.color,
+                                        .frag_shader,
+                                        .indices_offset,
+                                        .num_triangles,
+                                        .opacity,
+                                        .texture,
+                                        .transform,
+                                        .vert_shader});
 
     return *this;
   }
@@ -456,7 +651,6 @@ struct Canvas {
   Canvas& draw_slanted_rect(RectF area);
   // within circle and within a rect that comtains
   // that circle (for filled arc)
-  Canvas& draw_arc(OffsetF p1, OffsetF p2, f32 radius);
   Canvas& draw_circle(OffsetF center, f32 radius);
   Canvas& draw_ellipse(OffsetF center, ExtentF radius, f32 rotation,
                        f32 start_angle, f32 end_angle);
@@ -488,7 +682,9 @@ void sample(Canvas& canvas) {
 void record(DrawList const& draw_list, stx::Rc<vk::Device*> const& device,
             vk::CommandQueueFamilyInfo const& graphics_command_queue,
             VkPhysicalDeviceMemoryProperties const& memory_properties) {
-  VkCommandBuffer command_buffer;
+  VkCommandBuffer command_buffer;  // part of recording context
+
+  ASR_VK_CHECK(vkResetCommandBuffer(command_buffer, 0));
 
   auto vertex_buffer = upload_vertices(device, graphics_command_queue,
                                        memory_properties, draw_list.vertices);
@@ -500,7 +696,8 @@ void record(DrawList const& draw_list, stx::Rc<vk::Device*> const& device,
   // - upload index buffer
   // - upload textures
 
-  // we need to retain texture uploads, we can't be reuploading them every time
+  // we need to retain texture uploads, we can't be reuploading them every
+  // time
 
   for (DrawCommand const& draw_command : draw_list.commands) {
     // vkCmdBindPipeline();

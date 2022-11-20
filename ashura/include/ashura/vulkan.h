@@ -2554,8 +2554,6 @@ struct SwapChain {
   }
 };
 
-struct Pipeline;
-
 struct Surface {
   // only a pointer to metadata, does not contain data itself, resilient to
   // resizing
@@ -2610,22 +2608,22 @@ struct Surface {
 // vkCmdSetViewport
 // vkCmdSetScissor
 // }
+// TODO(lamarrr): this pipeline can't store the surface as its swapchain changes
+// from time to time and we need to update the pipeline accordingly
 struct Pipeline {
   VkPipeline pipeline = VK_NULL_HANDLE;
-  VkPipelineLayout layout;
-
+  VkPipelineLayout layout = VK_NULL_HANDLE;
+  VkRenderPass target_render_pass = VK_NULL_HANDLE;
+  VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
   stx::Rc<ShaderProgram*> program;
-  stx::Rc<Surface*> surface;
 
-  Pipeline(stx::Rc<ShaderProgram*> aprogram, stx::Rc<Surface*> asurface,
+  Pipeline(stx::Rc<ShaderProgram*> aprogram, VkRenderPass atarget_render_pass,
+           VkSampleCountFlagBits amsaa_sample_count,
            stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
            usize vertex_input_size)
-      : program{std::move(aprogram)}, surface{std::move(asurface)} {
-    ASR_ENSURE(surface.handle->swapchain.is_some(),
-               "target surface has no swapchain");
-
-    SwapChain& swapchain = *surface.handle->swapchain.value().handle;
-
+      : program{std::move(aprogram)},
+        target_render_pass{atarget_render_pass},
+        msaa_sample_count{amsaa_sample_count} {
     VkDevice dev = program.handle->queue.handle->device.handle->device;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
@@ -2722,7 +2720,7 @@ struct Pipeline {
         .minSampleShading = 1.0f,
         .pNext = nullptr,
         .pSampleMask = nullptr,
-        .rasterizationSamples = swapchain.msaa_sample_count,
+        .rasterizationSamples = msaa_sample_count,
         .sampleShadingEnable = VK_FALSE,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
 
@@ -2765,21 +2763,11 @@ struct Pipeline {
         .vertexBindingDescriptionCount =
             std::size(vertex_binding_descriptions)};
 
-    VkViewport viewport{.height = static_cast<f32>(swapchain.extent.height),
-                        .maxDepth = 1.0f,
-                        .minDepth = 0.0f,
-                        .width = static_cast<f32>(swapchain.extent.width),
-                        .x = 0.0f,
-                        .y = 0.0f};
-
-    VkRect2D scissor{.extent = swapchain.extent,
-                     .offset = VkOffset2D{.x = 0, .y = 0}};
-
     VkPipelineViewportStateCreateInfo viewport_state{
         .flags = 0,
         .pNext = nullptr,
-        .pScissors = &scissor,
-        .pViewports = &viewport,
+        .pScissors = nullptr,
+        .pViewports = nullptr,
         .scissorCount = 1,
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
         .viewportCount = 1};
@@ -2810,7 +2798,7 @@ struct Pipeline {
         .pTessellationState = nullptr,
         .pVertexInputState = &vertex_input_state,
         .pViewportState = &viewport_state,
-        .renderPass = swapchain.render_pass,
+        .renderPass = target_render_pass,
         .stageCount = std::size(stages),
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .subpass = 0};
@@ -2830,7 +2818,8 @@ struct Pipeline {
 };
 
 struct RecordingContext {
-  VkCommandPool command_pool;
+  VkCommandPool command_pool = VK_NULL_HANDLE;
+  VkCommandBuffer command_buffer = VK_NULL_HANDLE;
   stx::Rc<CommandQueue*> queue;
 };
 

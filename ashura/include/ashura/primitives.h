@@ -38,6 +38,34 @@ constexpr vec2 operator*(f32 a, vec2 b);
 constexpr vec2 operator+(vec2 a, vec2 b);
 constexpr vec2 operator-(vec2 a, vec2 b);
 
+constexpr bool operator==(vec2 a, vec2 b);
+
+constexpr f32 dot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; }
+
+constexpr f32 cross(vec2 a, vec2 b) { return a.x * b.y - b.x * a.y; }
+
+// check if a point is on the LEFT side of an edge
+constexpr bool is_inside(vec2 a, vec2 b, vec2 point) {
+  return (cross(a - b, point) + cross(b, a)) < 0.0f;
+}
+
+// calculate intersection point of two lines
+constexpr vec2 intersection(vec2 a1, vec2 a2, vec2 b1, vec2 b2) {
+  return ((b1 - b2) * cross(a1, a2) - (a1 - a2) * cross(b1, b2)) *
+         (1.0f / cross(a1 - a2, b1 - b2));
+}
+
+constexpr bool is_inside_triangle(vec2 p1, vec2 p2, vec2 p3, vec2 point) {
+  vec2 a = p3 - p2;
+  vec2 b = p1 - p3;
+  vec2 c = p2 - p1;
+  vec2 ap = point - p1;
+  vec2 bp = point - p2;
+  vec2 cp = point - p3;
+
+  return cross(a, bp) >= 0.0f && cross(c, ap) >= 0.0f && cross(b, cp) >= 0.0f;
+}
+
 struct vec3 {
   f32 x = 0.0f, y = 0.0f, z = 0.0f;
 };

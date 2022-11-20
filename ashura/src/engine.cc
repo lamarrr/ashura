@@ -135,7 +135,7 @@ Engine::Engine(AppConfig const& cfg) {
   // we can accept queue family struct here instead and thus not have to
   // perform extra manual checks
   // the user shouldn't have to touch handles
-  VkDeviceQueueCreateInfo const command_queue_create_infos[] = {
+  VkDeviceQueueCreateInfo command_queue_create_infos[] = {
       VkDeviceQueueCreateInfo{
           .flags = 0,
           .pNext = nullptr,
