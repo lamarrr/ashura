@@ -97,10 +97,6 @@ constexpr bool any(Container const &cont, UnaryPredicate &&predicate) {
                        static_cast<UnaryPredicate &&>(predicate));
 }
 
-constexpr bool f32_approx_eq(float a, float b) {
-  return std::abs(a - b) < stx::f32_epsilon;
-}
-
 template <typename Target, typename Source>
 STX_FORCE_INLINE stx::Option<stx::Ref<Target>> upcast(Source &source) {
   auto *dyn_ptr = dynamic_cast<Target *>(&source);
