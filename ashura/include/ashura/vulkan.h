@@ -2551,10 +2551,6 @@ struct Surface {
   }
 };
 
-// void bind() {
-// vkCmdSetViewport
-// vkCmdSetScissor
-// }
 // TODO(lamarrr): this pipeline can't store the surface as its swapchain changes
 // from time to time and we need to update the pipeline accordingly
 struct Pipeline {
