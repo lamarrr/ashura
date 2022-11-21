@@ -444,14 +444,7 @@ struct Canvas {
   Canvas& clip_circle();
   Canvas& clip_ellipse();
 
-  // TODO(lamarrr): clipping line polygons doesn't work this way
-  // TODO(lamarrr): path closing for lines?
-  // polygon will be closed
-  // this is just stroke line really?
-  //
-  //
-  //
-  // // vertices are expected to be specified in unit dimension. i.e. ranging
+  // vertices are expected to be specified in unit dimension. i.e. ranging
   // from 0.0f to 1.0f
   Canvas& draw_polygon_line(stx::Span<vec2 const> line, mat4x4 placement) {
     ASR_ENSURE(line.size() >= 2);
