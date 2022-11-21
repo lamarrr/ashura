@@ -36,8 +36,8 @@ using namespace std::chrono_literals;
 namespace vk {
 
 template <typename T>
-inline auto join_copy(stx::Span<T> a, stx::Span<T> b) {
-  stx::Vec<std::remove_const_t<T>> x{stx::os_allocator};
+inline auto join_copy(stx::Span<T const> a, stx::Span<T const> b) {
+  stx::Vec<T> x{stx::os_allocator};
   x.extend(a).unwrap();
   x.extend(b).unwrap();
   return x;
