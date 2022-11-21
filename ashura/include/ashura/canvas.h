@@ -119,7 +119,7 @@ inline stx::Vec<vec2> triangulate_polygon(stx::Span<vec2 const> polygon) {
     }
   }
 
-  return std::move(result);
+  return result;
 }
 
 struct TextMetrics {
@@ -330,6 +330,14 @@ struct DrawList {
 // TODO(lamarrr): implement clipping
 //
 //
+//
+//
+//
+// TODO(lamarrr): is there a way we can not require specifying the coordinates
+// in unit?
+//
+//
+//
 struct Canvas {
   vec2 extent;
   Brush brush;
@@ -401,17 +409,17 @@ struct Canvas {
 
     draw_list.indices.extend(indices).unwrap();
 
-    draw_list.commands
-        .push(DrawCommand{
-            .color = brush.color,
-            .frag_shader,
-            .indices_offset = start,
-            .num_triangles = 2,
-            .opacity,
-            .texture,
-            .transform = transforms::scale(vec3{extent.x, extent.y, 1.0f}),
-            .vert_shader})
-        .unwrap();
+    // draw_list.commands
+    //     .push(DrawCommand{
+    //         .color = brush.color,
+    //         .frag_shader,
+    //         .indices_offset = start,
+    //         .num_triangles = 2,
+    //         .opacity,
+    //         .texture,
+    //         .transform = transforms::scale(vec3{extent.x, extent.y, 1.0f}),
+    //         .vert_shader})
+    //     .unwrap();
 
     return *this;
   }
@@ -467,17 +475,17 @@ struct Canvas {
       draw_list.vertices.extend(vertices).unwrap();
       draw_list.indices.extend(indices).unwrap();
 
-      draw_list.commands
-          .push(DrawCommand{.color,
-                            .frag_shader,
-                            .indices_offset = start,
-                            .num_triangles = 2,
-                            .opacity,
-                            .placement,
-                            .texture,
-                            .transform,
-                            .vert_shader})
-          .unwrap();
+      //   draw_list.commands
+      //       .push(DrawCommand{.color,
+      //                         .frag_shader,
+      //                         .indices_offset = start,
+      //                         .num_triangles = 2,
+      //                         .opacity,
+      //                         .placement,
+      //                         .texture,
+      //                         .transform,
+      //                         .vert_shader})
+      //       .unwrap();
     }
 
     return *this;
@@ -503,23 +511,22 @@ struct Canvas {
 
     u32 num_triangles = polygon_vertices.size() / 3U;
 
-    draw_list.commands
-        .push(DrawCommand{.color,
-                          .frag_shader,
-                          .indices_offset = start,
-                          .num_triangles = num_triangles,
-                          .opacity,
-                          .placement,
-                          .texture,
-                          .transform,
-                          .vert_shader})
-        .unwrap();
+    // draw_list.commands
+    //     .push(DrawCommand{.color,
+    //                       .frag_shader,
+    //                       .indices_offset = start,
+    //                       .num_triangles = num_triangles,
+    //                       .opacity,
+    //                       .placement,
+    //                       .texture,
+    //                       .transform,
+    //                       .vert_shader})
+    //     .unwrap();
 
     return *this;
   }
 
   Canvas& draw_line(vec2 p1, vec2 p2) {
-    u32 start = draw_list.vertices.size();
     u64 line_width = brush.line_width;
 
     mat4x4 placement;
@@ -531,22 +538,22 @@ struct Canvas {
 
     draw_list.vertices.extend(vertices).unwrap();
 
-    u32 indices[] = {start, start + 1, start + 2, start + 2, start, start + 3};
-
     u32 start = draw_list.indices.size();
+
+    u32 indices[] = {start, start + 1, start + 2, start + 2, start, start + 3};
 
     draw_list.indices.extend(indices).unwrap();
 
-    draw_list.commands.push(
-        DrawCommand{.color,
-                    .frag_shader,
-                    .indices_offset = start,
-                    .num_triangles = std::size(indices) / 3U,
-                    .opacity,
-                    .placement,
-                    .texture,
-                    .transform,
-                    .vert_shader});
+    // draw_list.commands.push(
+    //     DrawCommand{.color,
+    //                 .frag_shader,
+    //                 .indices_offset = start,
+    //                 .num_triangles = std::size(indices) / 3U,
+    //                 .opacity,
+    //                 .placement,
+    //                 .texture,
+    //                 .transform,
+    //                 .vert_shader});
 
     return *this;
   }

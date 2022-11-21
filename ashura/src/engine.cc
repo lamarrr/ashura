@@ -137,12 +137,12 @@ Engine::Engine(AppConfig const& cfg) {
   // the user shouldn't have to touch handles
   VkDeviceQueueCreateInfo command_queue_create_infos[] = {
       VkDeviceQueueCreateInfo{
-          .flags = 0,
+          .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
           .pNext = nullptr,
-          .pQueuePriorities = queue_priorities,
-          .queueCount = std::size(queue_priorities),
+          .flags = 0,
           .queueFamilyIndex = graphics_command_queue_family.handle->index,
-          .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO}};
+          .queueCount = std::size(queue_priorities),
+          .pQueuePriorities = queue_priorities}};
 
   VkPhysicalDeviceFeatures required_features{};
 

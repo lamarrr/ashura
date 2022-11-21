@@ -96,7 +96,7 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
 
   surface_.value().handle->change_swapchain(
       queue, preferred_formats, preferred_present_modes,
-      VkExtent2D{.height = surface_extent_.h, .width = surface_extent_.w},
+      VkExtent2D{.width = surface_extent_.w, .height = surface_extent_.h},
       VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
 }
 
@@ -110,8 +110,7 @@ WindowSwapchainDiff Window::present_backing_store() {
   // We submit multiple render commands (operating on the swapchain images) to
   // the GPU to prevent having to force a sync with the GPU (await_fence) when
   // it could be doing useful work.
-  vk::SwapChain& swapchain =
-      *surface_.value().handle->swapchain.value().handle;
+  vk::SwapChain& swapchain = *surface_.value().handle->swapchain.value().handle;
 
   VkDevice device = swapchain.queue.handle->device.handle->device;
 
