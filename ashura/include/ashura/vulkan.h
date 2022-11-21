@@ -649,7 +649,7 @@ inline VkSemaphore create_semaphore(VkDevice device) {
 
 // GPU-CPU synchronization primitive, expensive
 inline VkFence create_fence(VkDevice device,
-                            VkFenceCreateFlagBits make_signaled) {
+                            VkFenceCreateFlags make_signaled) {
   VkFenceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                                 .pNext = nullptr,
                                 .flags = make_signaled};
@@ -1376,7 +1376,7 @@ struct Buffer {
 std::pair<VkBuffer, VkDeviceMemory> create_buffer_with_memory(
     VkDevice dev, CommandQueueFamilyInfo const& graphics_command_queue,
     VkPhysicalDeviceMemoryProperties const& memory_properties, usize size_bytes,
-    VkBufferUsageFlagBits usage) {
+    VkBufferUsageFlags usage) {
   u32 queue_families[] = {graphics_command_queue.index};
 
   VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
