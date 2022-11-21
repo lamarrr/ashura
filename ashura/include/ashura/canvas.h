@@ -640,6 +640,7 @@ inline void record(DrawList const& draw_list,
   // time
 
   for (DrawCommand const& draw_command : draw_list.commands) {
+    // TODO(lamarrr): how do we create pipelines and descriptor sets?
     // vkCmdBindPipeline();
     // vkCmdBindDescriptorSets();
     // vkCmdBindVertexBuffers(command_buffer, 0, 1,
