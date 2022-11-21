@@ -19,32 +19,6 @@
     if (!(expr)) ::stx::panic(__VA_ARGS__); \
   } while (false)
 
-#define ASR_ENABLE_DEBUG_CHECKS 1
-
-#if ASR_ENABLE_DEBUG_CHECKS
-#define ASR_DEBUG_CODE(...) __VA_ARGS__
-#else
-#define ASR_DEBUG_CODE(...)
-#endif
-
-#if ASR_ENABLE_DEBUG_CHECKS
-#define ASR_DEBUG_ENSURE(...) \
-  do {                        \
-    ASR_ENSURE(__VA_ARGS__);  \
-  } while (false)
-#else
-#define ASR_DEBUG_ENSURE(...) \
-  do {                        \
-  } while (false)
-#endif
-
-#define ASR_MUST_SUCCEED(expr, message)        \
-  do {                                         \
-    auto ASR_VK_GL_Result = (expr);            \
-    if (ASR_VK_GL_Result != VK_SUCCESS)        \
-      ::stx::panic(message, ASR_VK_GL_Result); \
-  } while (false)
-
 #define ASR_LOG(...)             \
   do {                           \
     ::spdlog::info(__VA_ARGS__); \

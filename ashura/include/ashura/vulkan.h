@@ -20,10 +20,14 @@
 #include "stx/vec.h"
 #include "vulkan/vulkan.h"
 
-#define ASR_VK_CHECK(...)                      \
-  ASR_ENSURE((__VA_ARGS__) == VK_SUCCESS,      \
-             "Vulkan Operation (" #__VA_ARGS__ \
-             ")  failed (VK_SUCCESS not returned)")
+#define ASR_VK_CHECK(...)                             \
+  do {                                                \
+    VkResult operation_result = (__VA_ARGS__);        \
+    ASR_ENSURE(operation_result == VK_SUCCESS,        \
+               "Vulkan Operation (" #__VA_ARGS__      \
+               ")  failed (VK_SUCCESS not returned)", \
+               operation_result);                     \
+  } while (false)
 
 namespace asr {
 
@@ -196,15 +200,16 @@ inline VkDebugUtilsMessengerEXT create_install_debug_messenger(
                              make_debug_messenger_create_info()) {
   VkDebugUtilsMessengerEXT debug_messenger;
 
-  auto func = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
-      vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
+  auto createDebugUtilsMessengerEXT =
+      reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+          vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
 
   ASR_ENSURE(
-      func != nullptr,
+      createDebugUtilsMessengerEXT != nullptr,
       "Unable to get process address for vkCreateDebugUtilsMessengerEXT");
 
-  ASR_MUST_SUCCEED(func(instance, &create_info, nullptr, &debug_messenger),
-                   "Unable to setup debug messenger");
+  ASR_VK_CHECK(createDebugUtilsMessengerEXT(instance, &create_info, nullptr,
+                                            &debug_messenger));
 
   return debug_messenger;
 }
@@ -281,8 +286,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   }
 
   VkInstance vulkan_instance;
-  ASR_MUST_SUCCEED(vkCreateInstance(&create_info, nullptr, &vulkan_instance),
-                   "Unable to create vulkan instance");
+  ASR_VK_CHECK(vkCreateInstance(&create_info, nullptr, &vulkan_instance));
 
   VkDebugUtilsMessengerEXT messenger = nullptr;
 
@@ -335,10 +339,8 @@ inline stx::Vec<bool> get_surface_presentation_command_queue_support(
 
   for (u32 i = 0; i < AS_U32(queue_families.size()); i++) {
     VkBool32 surface_presentation_supported;
-    ASR_MUST_SUCCEED(
-        vkGetPhysicalDeviceSurfaceSupportKHR(phy_device, i, surface,
-                                             &surface_presentation_supported),
-        "Unable to query physical device' surface support");
+    ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(
+        phy_device, i, surface, &surface_presentation_supported));
     supports.push_inplace(surface_presentation_supported == VK_TRUE).unwrap();
   }
 
@@ -352,10 +354,8 @@ inline VkDevice create_logical_device(
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_infos,
     VkPhysicalDeviceFeatures const& required_features = {}) {
   u32 available_extensions_count;
-  ASR_MUST_SUCCEED(
-      vkEnumerateDeviceExtensionProperties(
-          phy_device, nullptr, &available_extensions_count, nullptr),
-      "Unable to get physical device extensions");
+  ASR_VK_CHECK(vkEnumerateDeviceExtensionProperties(
+      phy_device, nullptr, &available_extensions_count, nullptr));
 
   // device specific extensions
   stx::Vec<VkExtensionProperties> available_device_extensions{
@@ -363,10 +363,9 @@ inline VkDevice create_logical_device(
 
   available_device_extensions.resize(available_extensions_count).unwrap();
 
-  ASR_MUST_SUCCEED(vkEnumerateDeviceExtensionProperties(
-                       phy_device, nullptr, &available_extensions_count,
-                       available_device_extensions.data()),
-                   "Unable to get physical device extensions");
+  ASR_VK_CHECK(vkEnumerateDeviceExtensionProperties(
+      phy_device, nullptr, &available_extensions_count,
+      available_device_extensions.data()));
 
   ASR_LOG("Required Device Extensions: ");
   required_extensions.for_each([](char const* ext) { ASR_LOG("\t{}", ext); });
@@ -426,35 +425,28 @@ inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_device,
                                                     VkSurfaceKHR surface) {
   SwapChainProperties details{};
 
-  ASR_MUST_SUCCEED(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-                       phy_device, surface, &details.capabilities),
-                   "Unable to get physical device' surface capabilities");
+  ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+      phy_device, surface, &details.capabilities));
 
   u32 supported_surface_formats_count = 0;
 
-  ASR_MUST_SUCCEED(
-      vkGetPhysicalDeviceSurfaceFormatsKHR(
-          phy_device, surface, &supported_surface_formats_count, nullptr),
-      "Unable to get physical device' surface format");
+  ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+      phy_device, surface, &supported_surface_formats_count, nullptr));
 
   details.supported_formats.resize(supported_surface_formats_count).unwrap();
 
-  ASR_MUST_SUCCEED(vkGetPhysicalDeviceSurfaceFormatsKHR(
-                       phy_device, surface, &supported_surface_formats_count,
-                       details.supported_formats.data()),
-                   "Unable to get physical device' surface format");
+  ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+      phy_device, surface, &supported_surface_formats_count,
+      details.supported_formats.data()));
 
   u32 surface_presentation_modes_count;
-  ASR_MUST_SUCCEED(
-      vkGetPhysicalDeviceSurfacePresentModesKHR(
-          phy_device, surface, &surface_presentation_modes_count, nullptr),
-      "Unable to get physical device' surface presentation mode");
+  ASR_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
+      phy_device, surface, &surface_presentation_modes_count, nullptr));
 
   details.presentation_modes.resize(surface_presentation_modes_count).unwrap();
-  ASR_MUST_SUCCEED(vkGetPhysicalDeviceSurfacePresentModesKHR(
-                       phy_device, surface, &surface_presentation_modes_count,
-                       details.presentation_modes.data()),
-                   "Unable to get physical device' surface presentation mode");
+  ASR_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
+      phy_device, surface, &surface_presentation_modes_count,
+      details.presentation_modes.data()));
 
   return details;
 }
@@ -576,9 +568,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
   };
 
   VkSwapchainKHR swapchain;
-  ASR_MUST_SUCCEED(
-      vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain),
-      "Unable to create swapchain");
+  ASR_VK_CHECK(vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain));
 
   return std::make_pair(swapchain, selected_extent);
 }
@@ -587,16 +577,14 @@ inline stx::Vec<VkImage> get_swapchain_images(VkDevice device,
                                               VkSwapchainKHR swapchain) {
   u32 image_count;
 
-  ASR_MUST_SUCCEED(
-      vkGetSwapchainImagesKHR(device, swapchain, &image_count, nullptr),
-      "Unable to get swapchain images count");
+  ASR_VK_CHECK(
+      vkGetSwapchainImagesKHR(device, swapchain, &image_count, nullptr));
 
   stx::Vec<VkImage> swapchain_images{stx::os_allocator};
   swapchain_images.resize(image_count).unwrap();
 
-  ASR_MUST_SUCCEED(vkGetSwapchainImagesKHR(device, swapchain, &image_count,
-                                           swapchain_images.data()),
-                   "Unable to get swapchain images");
+  ASR_VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &image_count,
+                                       swapchain_images.data()));
 
   return swapchain_images;
 }
@@ -625,9 +613,7 @@ inline VkImageView create_image_view(VkDevice device, VkImage image,
                                                   .layerCount = 1}};
 
   VkImageView image_view;
-  ASR_MUST_SUCCEED(
-      vkCreateImageView(device, &create_info, nullptr, &image_view),
-      "Unable to create image view");
+  ASR_VK_CHECK(vkCreateImageView(device, &create_info, nullptr, &image_view));
   return image_view;
 }
 
@@ -639,8 +625,7 @@ inline VkSemaphore create_semaphore(VkDevice device) {
       .flags = 0};
 
   VkSemaphore semaphore;
-  ASR_MUST_SUCCEED(vkCreateSemaphore(device, &create_info, nullptr, &semaphore),
-                   "Unable to create semaphore");
+  ASR_VK_CHECK(vkCreateSemaphore(device, &create_info, nullptr, &semaphore));
 
   return semaphore;
 }
@@ -653,23 +638,19 @@ inline VkFence create_fence(VkDevice device, VkFenceCreateFlags make_signaled) {
 
   VkFence fence;
 
-  ASR_MUST_SUCCEED(vkCreateFence(device, &create_info, nullptr, &fence),
-                   "Unable to create fence");
+  ASR_VK_CHECK(vkCreateFence(device, &create_info, nullptr, &fence));
 
   return fence;
 }
 
 inline void reset_fences(VkDevice device, stx::Span<VkFence const> fences) {
-  ASR_MUST_SUCCEED(vkResetFences(device, AS_U32(fences.size()), fences.data()),
-                   "Unable to reset fences");
+  ASR_VK_CHECK(vkResetFences(device, AS_U32(fences.size()), fences.data()));
 }
 
 inline void await_fences(VkDevice device, stx::Span<VkFence const> fences) {
-  ASR_MUST_SUCCEED(
-      vkWaitForFences(
-          device, AS_U32(fences.size()), fences.data(), true,
-          std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count()),
-      "Unable to await fences");
+  ASR_VK_CHECK(vkWaitForFences(
+      device, AS_U32(fences.size()), fences.data(), true,
+      std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count()));
 }
 
 inline std::pair<u32, VkResult> acquire_next_swapchain_image(
@@ -1163,9 +1144,8 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
     stx::Rc<Instance*> const& instance) {
   u32 devices_count = 0;
 
-  ASR_MUST_SUCCEED(vkEnumeratePhysicalDevices(instance.handle->instance,
-                                              &devices_count, nullptr),
-                   "Unable to get physical devices");
+  ASR_VK_CHECK(vkEnumeratePhysicalDevices(instance.handle->instance,
+                                          &devices_count, nullptr));
 
   ASR_ENSURE(devices_count != 0, "No Physical Device Found");
 
@@ -1173,10 +1153,8 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 
   phy_devices.resize(devices_count).unwrap();
 
-  ASR_MUST_SUCCEED(
-      vkEnumeratePhysicalDevices(instance.handle->instance, &devices_count,
-                                 phy_devices.data()),
-      "Unable to get physical devices");
+  ASR_VK_CHECK(vkEnumeratePhysicalDevices(instance.handle->instance,
+                                          &devices_count, phy_devices.data()));
 
   stx::Vec<PhyDeviceInfo> devices{stx::os_allocator};
 
@@ -2499,7 +2477,7 @@ struct SwapChain {
     // semaphore and images whislt not in use.
     // any part of the device could be using the semaphore
 
-    ASR_MUST_SUCCEED(vkDeviceWaitIdle(dev), "Unable to await device idleness");
+    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
 
     vkDestroyRenderPass(dev, render_pass, nullptr);
 
