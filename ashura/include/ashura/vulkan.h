@@ -38,11 +38,8 @@ namespace vk {
 template <typename T>
 inline auto join_copy(stx::Span<T> a, stx::Span<T> b) {
   stx::Vec<std::remove_const_t<T>> x{stx::os_allocator};
-  x.reserve(a.size() + b.size()).unwrap();
-
-  for (auto const& el : a) x.push_inplace(el).unwrap();
-  for (auto const& el : b) x.push_inplace(el).unwrap();
-
+  x.extend(a).unwrap();
+  x.extend(b).unwrap();
   return x;
 }
 
@@ -1097,9 +1094,7 @@ struct PhyDeviceInfo {
   PhyDeviceInfo copy() const {
     stx::Vec<VkQueueFamilyProperties> nfamily_properties{stx::os_allocator};
 
-    for (auto& prop : family_properties) {
-      nfamily_properties.push_inplace(prop).unwrap();
-    }
+    nfamily_properties.extend(family_properties).unwrap();
 
     return PhyDeviceInfo{phy_device,
                          properties,
@@ -1643,9 +1638,7 @@ struct DescriptorSet {
   stx::Vec<DescriptorBinding> bindings{stx::os_allocator};
 
   explicit DescriptorSet(std::initializer_list<DescriptorBinding> abindings) {
-    for (auto const& binding : abindings) {
-      bindings.push_inplace(binding).unwrap();
-    }
+    bindings.extend(abindings).unwrap();
   }
 };
 
@@ -1834,11 +1827,9 @@ struct ShaderProgram {
   }
 
   void ____spec_descriptor_sets(DescriptorSetsSpec spec) {
-    for (DescriptorSet& set : spec.vertex_shader)
-      vertex_shader_descriptor_set_spec.push_inplace(std::move(set)).unwrap();
-
-    for (DescriptorSet& set : spec.fragment_shader)
-      fragment_shader_descriptor_set_spec.push_inplace(std::move(set)).unwrap();
+    vertex_shader_descriptor_set_spec.extend_move(spec.vertex_shader).unwrap();
+    fragment_shader_descriptor_set_spec.extend_move(spec.fragment_shader)
+        .unwrap();
   }
 
   void ____prepare_descriptor_sets() {
