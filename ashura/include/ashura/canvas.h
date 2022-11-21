@@ -248,7 +248,7 @@ struct Brush {
 
 // TODO(lamarrr): invert these rows and columns
 namespace transforms {
-constexpr mat4x4 translate(vec3 t) {
+inline mat4x4 translate(vec3 t) {
   return mat4x4{
       vec4{1.0f, 0.0f, 0.0f, t.x},
       vec4{0.0f, 1.0f, 0.0f, t.y},
@@ -257,7 +257,7 @@ constexpr mat4x4 translate(vec3 t) {
   };
 }
 
-constexpr mat4x4 scale(vec3 s) {
+inline mat4x4 scale(vec3 s) {
   return mat4x4{
       vec4{s.x, 0.0f, 0.0f, 0.0f},
       vec4{0.0f, s.y, 0.0f, 0.0f},
@@ -266,7 +266,7 @@ constexpr mat4x4 scale(vec3 s) {
   };
 }
 
-constexpr mat4x4 rotate_x(f32 degree) {
+inline mat4x4 rotate_x(f32 degree) {
   return mat4x4{
       vec4{1.0f, 0.0f, 0.0f, 0.0f},
       vec4{0.0f, std::cos(degree), -std::sin(degree), 0.0f},
@@ -275,7 +275,7 @@ constexpr mat4x4 rotate_x(f32 degree) {
   };
 }
 
-constexpr mat4x4 rotate_y(f32 degree) {
+inline mat4x4 rotate_y(f32 degree) {
   return mat4x4{
       vec4{std::cos(degree), 0.0f, std::sin(degree), 0.0f},
       vec4{0.0f, 1.0f, 0.0f, 0.0f},
@@ -284,7 +284,7 @@ constexpr mat4x4 rotate_y(f32 degree) {
   };
 }
 
-constexpr mat4x4 rotate_z(f32 degree) {
+inline mat4x4 rotate_z(f32 degree) {
   return mat4x4{
       vec4{std::cos(degree), -std::sin(degree), 0.0f, 0.0f},
       vec4{std::sin(degree), std::cos(degree), 0.0f, 0.0f},
@@ -589,7 +589,7 @@ struct Canvas {
   Canvas& draw_slanted_rect(RectF area);
   // within circle and within a rect that comtains
   // that circle (for filled arc)
-  Canvas& draw_circle(vec2 center, f32 radius) {}
+  Canvas& draw_circle(vec2 center, f32 radius);
 
   Canvas& draw_ellipse(OffsetF center, ExtentF radius, f32 rotation,
                        f32 start_angle, f32 end_angle);
