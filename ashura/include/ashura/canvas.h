@@ -218,6 +218,18 @@ struct Shader {
   u64 id = 0;
 };
 
+// thread-safe multithreaded
+//
+//
+// std::pair<Image, Future<ImageData>> add(bytes, spec);
+// Result<ImageData, Error> get(Image);
+// Result<Future<ImageData>, Error> get_future(Image);
+//
+//
+struct ImageManager;
+struct TypefaceManager;
+struct ShaderManager;
+
 // TODO(lamarrr): embed font into a cpp file
 //
 // on font loading
@@ -620,16 +632,19 @@ void sample(Canvas& canvas) {
 
 inline void record(DrawList const& draw_list,
                    stx::Rc<vk::Device*> const& device,
+                   stx::Rc<vk::SwapChain*> const& swapchain,
                    vk::CommandQueueFamilyInfo const& graphics_command_queue,
                    VkPhysicalDeviceMemoryProperties const& memory_properties) {
+  VkCommandPool command_pool;
   VkCommandBuffer command_buffer;  // part of recording context
 
   ASR_VK_CHECK(vkResetCommandBuffer(command_buffer, 0));
 
-  auto vertex_buffer = upload_vertices(device, graphics_command_queue,
-                                       memory_properties, draw_list.vertices);
-  auto index_buffer = upload_indices(device, graphics_command_queue,
-                                     memory_properties, draw_list.indices);
+  stx::Rc<vk::Buffer*> vertex_buffer = upload_vertices(
+      device, graphics_command_queue, memory_properties, draw_list.vertices);
+
+  stx::Rc<vk::Buffer*> index_buffer = upload_indices(
+      device, graphics_command_queue, memory_properties, draw_list.indices);
   // texture uploads
   // buffer uploads
   // - upload vertex buffer
@@ -643,17 +658,26 @@ inline void record(DrawList const& draw_list,
     // TODO(lamarrr): how do we create pipelines and descriptor sets?
     // vkCmdBindPipeline();
     // vkCmdBindDescriptorSets();
-    // vkCmdBindVertexBuffers(command_buffer, 0, 1,
-    // &vertex_buffer.handle->buffer,
-    //    0);
-    // vkCmdBindIndexBuffer(command_buffer,
-    // index_buffer.handle->buffer, 0,
-    //  VK_INDEX_TYPE_UINT32);
-    //
-    //
-    // vkCmdDrawIndexed(command_buffer, 0, 0, 0, 0, 0);
-    // vkCmdSetScissor();
-    // vkCmdSetViewport();
+
+    VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.handle->extent};
+    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+    VkViewport viewport{.x = 0.0f,
+                        .y = 0.0f,
+                        .width = swapchain.handle->extent.width,
+                        .height = swapchain.handle->extent.height,
+                        .minDepth = 0.0f,
+                        .maxDepth = 1.0f};
+
+    vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+    vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer.handle->buffer,
+                           0);
+    vkCmdBindIndexBuffer(command_buffer, index_buffer.handle->buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+
+    vkCmdDrawIndexed(command_buffer, draw_command.num_triangles * 3, 1, 0, 0,
+                     0);
   }
 }
 
