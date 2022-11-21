@@ -53,6 +53,8 @@
 
 #define AS_U32(...) static_cast<u32>(__VA_ARGS__)
 
+#define AS_F32(...) static_cast<f32>(__VA_ARGS__)
+
 namespace asr {
 
 template <typename Container>

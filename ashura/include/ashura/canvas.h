@@ -666,8 +666,8 @@ inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
 
     VkViewport viewport{.x = 0.0f,
                         .y = 0.0f,
-                        .width = ctx.swapchain.handle->extent.width,
-                        .height = ctx.swapchain.handle->extent.height,
+                        .width = AS_F32(ctx.swapchain.handle->extent.width),
+                        .height = AS_F32(ctx.swapchain.handle->extent.height),
                         .minDepth = 0.0f,
                         .maxDepth = 1.0f};
 
