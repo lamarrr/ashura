@@ -15,51 +15,10 @@
 // play well with 3D graphics and animations
 
 namespace asr {
+
+using namespace stx::literals;
+
 namespace gfx {
-
-// TODO(lamarrr): child must inherit parent's transformation and opacity
-
-// Sutherland-Hodgman clipping
-inline stx::Vec<vec2> clip_polygon(stx::Span<vec2 const> subject_polygon,
-                                   stx::Span<vec2 const> clip_polygon) {
-  ASR_ENSURE(!clip_polygon.is_empty());
-  ASR_ENSURE(!subject_polygon.is_empty());
-
-  stx::Vec<vec2> ring{stx::os_allocator};
-
-  ring.extend(subject_polygon).unwrap();
-
-  vec2 p1 = clip_polygon[clip_polygon.size() - 1];
-
-  stx::Vec<vec2> input{stx::os_allocator};
-
-  for (vec2 p2 : clip_polygon) {
-    input.clear();
-    input.extend(ring).unwrap();
-    vec2 s = input[input.size() - 1];
-
-    ring.clear();
-
-    for (vec2 e : input) {
-      if (is_inside(p1, p2, e)) {
-        if (!is_inside(p1, p2, s)) {
-          ring.push(intersection(p1, p2, s, e)).unwrap();
-        }
-
-        ring.push_inplace(e).unwrap();
-      } else if (is_inside(p1, p2, s)) {
-        ring.push(intersection(p1, p2, s, e)).unwrap();
-      }
-
-      s = e;
-    }
-
-    p1 = p2;
-  }
-
-  return std::move(ring);
-}
-
 // compute area of a contour/polygon
 constexpr f32 compute_polygon_area(stx::Span<vec2 const> polygon) {
   usize num_points = polygon.size();
@@ -71,20 +30,6 @@ constexpr f32 compute_polygon_area(stx::Span<vec2 const> polygon) {
   }
 
   return area * 0.5f;
-}
-
-constexpr bool is_valid_polygon(stx::Span<vec2 const> polygon) {
-  if (polygon.size() < 3) return false;
-
-  // check that points do not overlap
-  vec2 x = polygon[0];
-
-  for (vec2 y : polygon.slice(1)) {
-    if (x == y) return false;
-    x = y;
-  }
-
-  return true;
 }
 
 constexpr bool polygon_snip_check(stx::Span<vec2 const> polygon, i64 u, i64 v,
@@ -278,7 +223,7 @@ struct Shader {
 // on font loading
 //
 struct TextStyle {
-  stx::String font_family = stx::string::make_static("SF Pro");
+  stx::String font_family = "SF Pro"_str;
   FontWeight font_weight = FontWeight::Normal;
   u32 font_size = 10;
   TextAlign align = TextAlign::Start;
@@ -355,7 +300,9 @@ struct DrawCommand {
   u32 indices_offset = 0;
   u32 num_triangles = 0;
   f32 opacity = 1.0f;
-  mat4x4 transform;  //  transform contains position (translation from origin)
+  mat4x4 placement = mat4x4::identity();
+  mat4x4 transform = mat4x4::identity();  //  transform contains position
+                                          //  (translation from origin)
   Color color = colors::BLACK;
   stx::Option<Image> texture;
   Shader vert_shader;
@@ -370,27 +317,25 @@ struct DrawList {
   stx::Vec<DrawCommand> commands{stx::os_allocator};
 };
 
-// TODO(lamarrr): deduplicate points
-// TODO(lamarrr): this will mean we need to also be able to render lines using
-// points, requiring us to smoothen the edges of the lines
-//
-// points are specified in counter-clockwise direction
-//
-// using Polygon = stx::Vec<vec2>;
-
 // TODO(lamarrr): how do we handle selection of transformed widgets?
 // Topleft origin coordinate system
+//
+//
+// TODO(lamarrr): we need to implement clipping via clipping bitmaps, create
+// framebuffer with only an alpha attachment, this framebuffer will be the size
+// of the window and will be reused for every drawing operation so we don't have
+// to recreate or resize the bitmap everytime
+//
+//
+// TODO(lamarrr): implement clipping
+//
+//
 struct Canvas {
-  vec3 position;
   vec2 extent;
   Brush brush;
 
   mat4x4 transform = mat4x4::identity();
   stx::Vec<mat4x4> transform_state_stack{stx::os_allocator};
-
-  stx::Vec<stx::Vec<vec2>> clipping_polygons{stx::os_allocator};
-  stx::Vec<stx::Vec<stx::Vec<vec2>>> clipping_polygons_state_stack{
-      stx::os_allocator};
 
   DrawList draw_list;
 
@@ -442,50 +387,34 @@ struct Canvas {
 
   Canvas& scale(f32 x, f32 y) { return scale(x, y, 1.0f); }
 
-  Canvas& move_to(f32 x, f32 y, f32 z) {
-    position = vec3{x, y, z};
-    return *this;
-  }
-
-  Canvas& move_to(f32 x, f32 y) { return move_to(x, y, position.z); }
-
-  // TODO(lamarrr): we can reuse this for others without needing to
-  // allocate anything
-  u32 __reserve_rect() {
+  Canvas& clear() {
     u32 start = draw_list.vertices.size();
 
-    draw_list.vertices.push(vec3{0.0f, 0.0f, 0.0f}).unwrap();
-    draw_list.vertices.push(vec3{1.0f, 0.0f, 0.0f}).unwrap();
-    draw_list.vertices.push(vec3{1.0f, 1.0f, 0.0f}).unwrap();
-    draw_list.vertices.push(vec3{0.0f, 1.0f, 0.0f}).unwrap();
+    vec3 vertices[] = {{0.0f, 0.0f, 0.0f},
+                       {1.0f, 0.0f, 0.0f},
+                       {1.0f, 1.0f, 0.0f},
+                       {0.0f, 1.0f, 0.0f}};
 
-    draw_list.indices.push_inplace(start).unwrap();
-    draw_list.indices.push_inplace(start + 1).unwrap();
-    draw_list.indices.push_inplace(start + 2).unwrap();
-    draw_list.indices.push_inplace(start + 2).unwrap();
-    draw_list.indices.push_inplace(start).unwrap();
-    draw_list.indices.push_inplace(start + 3).unwrap();
+    draw_list.vertices.extend(vertices).unwrap();
 
-    return start;
-  }
+    u32 indices[] = {start, start + 1, start + 2, start + 2, start, start + 3};
 
-  Canvas& clear() {
-    u32 start = __reserve_rect();
+    draw_list.indices.extend(indices).unwrap();
 
     draw_list.commands
         .push(DrawCommand{
+            .color = brush.color,
+            .frag_shader,
             .indices_offset = start,
             .num_triangles = 2,
+            .opacity,
+            .texture,
             .transform = transforms::scale(vec3{extent.x, extent.y, 1.0f}),
-            .color = brush.color,
-            .texture = stx::None,
-            .vert_shader = {},
-            .frag_shader = {}})
+            .vert_shader})
         .unwrap();
 
     return *this;
   }
-
 
   Canvas& clip_rect();
   Canvas& clip_round_rect();
@@ -497,25 +426,28 @@ struct Canvas {
   // TODO(lamarrr): path closing for lines?
   // polygon will be closed
   // this is just stroke line really?
-  Canvas& draw_line(stx::Span<vec2 const> line) {
+  //
+  //
+  //
+  // // vertices are expected to be specified in unit dimension. i.e. ranging
+  // from 0.0f to 1.0f
+  Canvas& draw_polygon_line(stx::Span<vec2 const> line, mat4x4 placement) {
     ASR_ENSURE(line.size() >= 2);
 
     for (usize i = 0; i < line.size(); i++) {
-      usize j = i + 1;
+      usize j = (i == line.size()) ? 0 : (i + 1);
 
-      if (i == clipped_polygon.size()) j = 0;
-
-      vec2 p1 = clipped_polygon[i];
-      vec2 p2 = clipped_polygon[j];
+      vec2 p1 = line[i];
+      vec2 p2 = line[j];
 
       vec2 d = p2 - p1;
 
       {
-        float d2 = dot(d, d);
-        if (d2 > 0.0f) {
-          float inv_len = 1 / std::sqrt(d2);
-          d.x *= inv_len;
-          d.y *= inv_len;
+        float dot_product = dot(d, d);
+        if (dot_product > 0.0f) {
+          float inverse_length = 1 / std::sqrt(dot_product);
+          d.x *= inverse_length;
+          d.y *= inverse_length;
         }
       }
 
@@ -541,6 +473,7 @@ struct Canvas {
                             .indices_offset = start,
                             .num_triangles = 2,
                             .opacity,
+                            .placement,
                             .texture,
                             .transform,
                             .vert_shader})
@@ -550,28 +483,22 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& draw_filled_polygon(stx::Span<vec2 const> polygon) {
+  // vertices are expected to be specified in unit dimension. i.e. ranging from
+  // 0.0f to 1.0f
+  Canvas& draw_polygon_filled(stx::Span<vec2 const> polygon, mat4x4 placement) {
     ASR_ENSURE(polygon.size() >= 3);
 
-    stx::Vec<vec2> clipped_polygon{stx::os_allocator};
-
-    clipped_polygon.extend(polygon).unwrap();
-
-    for (stx::Vec<vec2> const& clip : clipping_polygons) {
-      clipped_polygon = clip_polygon(clipped_polygon, clip);
-    }
-
-    stx::Vec<vec2> polygon_vertices = triangulate_polygon(clipped_polygon);
+    stx::Vec<vec2> polygon_vertices = triangulate_polygon(polygon);
 
     for (vec2 vertex : polygon_vertices) {
       draw_list.vertices.push(vec3{vertex.x, vertex.y, 0.0f}).unwrap();
     }
 
-    for (usize index = draw_list.indices.size();
-         index < (draw_list.indices.size() + polygon_vertices.size());
+    u32 start = draw_list.indices.size();
+
+    for (u32 index = start; index < (start + polygon_vertices.size());
          index++) {
       draw_list.indices.push_inplace(index).unwrap();
-      index++;
     }
 
     u32 num_triangles = polygon_vertices.size() / 3U;
@@ -579,9 +506,10 @@ struct Canvas {
     draw_list.commands
         .push(DrawCommand{.color,
                           .frag_shader,
-                          .indices_offset,
+                          .indices_offset = start,
                           .num_triangles = num_triangles,
                           .opacity,
+                          .placement,
                           .texture,
                           .transform,
                           .vert_shader})
@@ -590,16 +518,11 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& draw_stroke_polygon();
-
-  Canvas& draw_line_to(vec2 point) {
-    position;
-    point;
-
+  Canvas& draw_line(vec2 p1, vec2 p2) {
     u32 start = draw_list.vertices.size();
     u64 line_width = brush.line_width;
-    vec3 p1 = position;
-    vec3 p2{point.x, point.y, position.z};
+
+    mat4x4 placement;
 
     vec3 vertices[] = {{0.0f, 0.0f, 0.0f},
                        {1.0f, 0.0f, 0.0f},
@@ -610,39 +533,47 @@ struct Canvas {
 
     u32 indices[] = {start, start + 1, start + 2, start + 2, start, start + 3};
 
+    u32 start = draw_list.indices.size();
+
     draw_list.indices.extend(indices).unwrap();
 
-    draw_list.commands.push(DrawCommand{.color,
-                                        .frag_shader,
-                                        .indices_offset,
-                                        .num_triangles,
-                                        .opacity,
-                                        .texture,
-                                        .transform,
-                                        .vert_shader});
+    draw_list.commands.push(
+        DrawCommand{.color,
+                    .frag_shader,
+                    .indices_offset = start,
+                    .num_triangles = std::size(indices) / 3U,
+                    .opacity,
+                    .placement,
+                    .texture,
+                    .transform,
+                    .vert_shader});
 
     return *this;
   }
 
-  Canvas& draw_rect(RectF area) {
-    // TODO(lamarrr): this will only work for filled rects
-    u32 start = __reserve_rect();
+  Canvas& draw_rect(f32 x, f32 y, f32 width, f32 height) {
+    // TODO(lamarrr): what about textured backgrounds?
 
-    mat4x4 transforms =
-        transform *
-        (transforms::translate(vec3{area.offset.x, area.offset.y, 0.0f}) *
-         transforms::scale(vec3{area.extent.w, area.extent.h, 1.0f}));
+    // save();
+    // translate(x, y);
+    // scale(width, height);
+    // TODO(lamarrr): we need a separate shape translate and scale as we want to
+    // specify in unit dimensions? otherwise we need to pass in width and height
+    // to shaders, which still won't work since we need to use some for sampling
+    // from textures
 
-    brush.pattern;  // TODO(lamarrr): what about textured backgrounds?
-    draw_list.commands
-        .push(DrawCommand{.indices_offset = start,
-                          .num_triangles = 2,
-                          .transform = transforms,
-                          .color = brush.color,
-                          .texture = stx::None,
-                          .vert_shader = {},
-                          .frag_shader = {}})
-        .unwrap();
+    vec2 points[] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
+
+    mat4x4 placement = transforms::translate({x, y, 0.0f}) *
+                       transforms::scale({width, height, 1.0f});
+
+    if (brush.fill) {
+      draw_polygon_filled(points, placement);
+    } else {
+      draw_polygon_line(points, placement);
+    }
+
+    // restore();
 
     return *this;
   }
@@ -651,7 +582,8 @@ struct Canvas {
   Canvas& draw_slanted_rect(RectF area);
   // within circle and within a rect that comtains
   // that circle (for filled arc)
-  Canvas& draw_circle(OffsetF center, f32 radius);
+  Canvas& draw_circle(vec2 center, f32 radius) {}
+
   Canvas& draw_ellipse(OffsetF center, ExtentF radius, f32 rotation,
                        f32 start_angle, f32 end_angle);
 
@@ -670,11 +602,10 @@ void sample(Canvas& canvas) {
       .draw_circle({0, 0}, 20.0f)
       .draw_image(Image{}, {{0.0, 0.0}, {20, 40}})
       .restore()
-      .move_to(0, 0)
       .scale(2.0f, 2.0f)
-      .draw_line_to({200, 200})
+      .draw_line({0, 0}, {200, 200})
       .draw_text("Hello World, こんにちは世界", {10.0f, 10.0f})
-      .draw_rect({0, 0, 20, 20})
+      .draw_rect(0, 0, 20, 20)
       .draw_round_rect({{0.0f, 0.0f}, {20.0f, 20.0f}},
                        {10.0f, 10.0f, 10.0f, 10.0f});
 }
