@@ -141,7 +141,7 @@ Engine::Engine(AppConfig const& cfg) {
           .pNext = nullptr,
           .flags = 0,
           .queueFamilyIndex = graphics_command_queue_family.handle->index,
-          .queueCount = std::size(queue_priorities),
+          .queueCount = AS_U32(std::size(queue_priorities)),
           .pQueuePriorities = queue_priorities}};
 
   VkPhysicalDeviceFeatures required_features{};

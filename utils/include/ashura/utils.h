@@ -77,6 +77,8 @@
 #define ASR_UNREACHABLE() \
   ASR_PANIC("Expected program execution to not reach this state")
 
+#define AS_U32(...) static_cast<u32>(__VA_ARGS__)
+
 namespace asr {
 
 template <typename Container>

@@ -263,7 +263,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
                     ? stx::Span<char const* const>{}
                     : stx::Span<char const* const>(DEBUG_EXTENSIONS));
 
-  create_info.enabledExtensionCount = extensions.size();
+  create_info.enabledExtensionCount = AS_U32(extensions.size());
   create_info.ppEnabledExtensionNames = extensions.data();
 
   ensure_extensions_supported(extensions);
@@ -271,7 +271,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   if (!required_validation_layers.is_empty()) {
     // validation layers
     ensure_validation_layers_supported(required_validation_layers);
-    create_info.enabledLayerCount = required_validation_layers.size();
+    create_info.enabledLayerCount = AS_U32(required_validation_layers.size());
     create_info.ppEnabledLayerNames = required_validation_layers.data();
 
     // debug messenger for when the installed debug messenger is uninstalled.
@@ -333,7 +333,7 @@ inline stx::Vec<bool> get_surface_presentation_command_queue_support(
     VkSurfaceKHR surface) {
   stx::Vec<bool> supports{stx::os_allocator};
 
-  for (usize i = 0; i < queue_families.size(); i++) {
+  for (u32 i = 0; i < AS_U32(queue_families.size()); i++) {
     VkBool32 surface_presentation_supported;
     ASR_MUST_SUCCEED(
         vkGetPhysicalDeviceSurfaceSupportKHR(phy_device, i, surface,
@@ -390,12 +390,11 @@ inline VkDevice create_logical_device(
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
       .pNext = nullptr,
       .flags = 0,
-      .queueCreateInfoCount =
-          static_cast<u32>(command_queue_create_infos.size()),
+      .queueCreateInfoCount = AS_U32(command_queue_create_infos.size()),
       .pQueueCreateInfos = command_queue_create_infos.data(),
-      .enabledLayerCount = static_cast<u32>(required_validation_layers.size()),
+      .enabledLayerCount = AS_U32(required_validation_layers.size()),
       .ppEnabledLayerNames = required_validation_layers.data(),
-      .enabledExtensionCount = static_cast<u32>(required_extensions.size()),
+      .enabledExtensionCount = AS_U32(required_extensions.size()),
       .ppEnabledExtensionNames = required_extensions.data(),
       .pEnabledFeatures = &required_features};
 
@@ -552,8 +551,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
       // VK_SHARING_MODE_CONCURRENT: Images can be used across multiple queue
       // families without explicit ownership transfers.
       .imageSharingMode = accessing_queue_families_sharing_mode,
-      .queueFamilyIndexCount =
-          static_cast<u32>(accessing_queue_families_indexes.size()),
+      .queueFamilyIndexCount = AS_U32(accessing_queue_families_indexes.size()),
       .pQueueFamilyIndices = accessing_queue_families_indexes.data(),
       .preTransform = properties.capabilities.currentTransform,
       .compositeAlpha =
@@ -648,8 +646,7 @@ inline VkSemaphore create_semaphore(VkDevice device) {
 }
 
 // GPU-CPU synchronization primitive, expensive
-inline VkFence create_fence(VkDevice device,
-                            VkFenceCreateFlags make_signaled) {
+inline VkFence create_fence(VkDevice device, VkFenceCreateFlags make_signaled) {
   VkFenceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                                 .pNext = nullptr,
                                 .flags = make_signaled};
@@ -663,14 +660,14 @@ inline VkFence create_fence(VkDevice device,
 }
 
 inline void reset_fences(VkDevice device, stx::Span<VkFence const> fences) {
-  ASR_MUST_SUCCEED(vkResetFences(device, fences.size(), fences.data()),
+  ASR_MUST_SUCCEED(vkResetFences(device, AS_U32(fences.size()), fences.data()),
                    "Unable to reset fences");
 }
 
 inline void await_fences(VkDevice device, stx::Span<VkFence const> fences) {
   ASR_MUST_SUCCEED(
       vkWaitForFences(
-          device, fences.size(), fences.data(), true,
+          device, AS_U32(fences.size()), fences.data(), true,
           std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count()),
       "Unable to await fences");
 }
@@ -701,9 +698,9 @@ inline VkResult present(VkQueue command_queue,
   VkPresentInfoKHR present_info{
       .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
       .pNext = nullptr,
-      .waitSemaphoreCount = static_cast<u32>(await_semaphores.size()),
+      .waitSemaphoreCount = AS_U32(await_semaphores.size()),
       .pWaitSemaphores = await_semaphores.data(),
-      .swapchainCount = static_cast<u32>(swapchains.size()),
+      .swapchainCount = AS_U32(swapchains.size()),
       .pSwapchains = swapchains.data(),
       .pImageIndices = swapchain_image_indexes.data(),
       .pResults = nullptr};
@@ -1279,8 +1276,7 @@ inline stx::Option<CommandQueueFamilyInfo> get_graphics_command_queue(
   }
 
   return stx::Some(CommandQueueFamilyInfo{
-      .index =
-          static_cast<u32>(pos - phy_device.handle->family_properties.begin()),
+      .index = AS_U32(pos - phy_device.handle->family_properties.begin()),
       .phy_device = phy_device.share()});
 }
 
@@ -1312,7 +1308,7 @@ inline stx::Rc<Device*> create_device(
       command_queues
           .push(CommandQueueInfo{
               .queue = command_queue,
-              .create_index = static_cast<u32>(i),
+              .create_index = AS_U32(i),
               .priority = priority,
               .family =
                   CommandQueueFamilyInfo{.index = command_queue_family_index,
@@ -1373,7 +1369,7 @@ struct Buffer {
   }
 };
 
-std::pair<VkBuffer, VkDeviceMemory> create_buffer_with_memory(
+inline std::pair<VkBuffer, VkDeviceMemory> create_buffer_with_memory(
     VkDevice dev, CommandQueueFamilyInfo const& graphics_command_queue,
     VkPhysicalDeviceMemoryProperties const& memory_properties, usize size_bytes,
     VkBufferUsageFlags usage) {
@@ -1416,7 +1412,7 @@ std::pair<VkBuffer, VkDeviceMemory> create_buffer_with_memory(
   return std::make_pair(buffer, memory);
 }
 
-stx::Rc<Buffer*> upload_vertices(
+inline stx::Rc<Buffer*> upload_vertices(
     stx::Rc<Device*> const& device,
     CommandQueueFamilyInfo const& graphics_command_queue,
     VkPhysicalDeviceMemoryProperties const& memory_properties,
@@ -1449,7 +1445,7 @@ stx::Rc<Buffer*> upload_vertices(
       .unwrap();
 }
 
-stx::Rc<Buffer*> upload_indices(
+inline stx::Rc<Buffer*> upload_indices(
     stx::Rc<Device*> const& device,
     CommandQueueFamilyInfo const& graphics_command_queue,
     VkPhysicalDeviceMemoryProperties const& memory_properties,
@@ -1504,9 +1500,9 @@ struct Image {
 };
 
 // R | G | B | A
-stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
-                                  u32 width, u32 height,
-                                  stx::Span<u32 const> data) {
+inline stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
+                                         u32 width, u32 height,
+                                         stx::Span<u32 const> data) {
   ASR_ENSURE(data.size_bytes() == width * height * 4);
 
   VkDevice dev = queue.handle->device.handle->device;
@@ -1613,7 +1609,7 @@ struct ImageSampler {
   }
 };
 
-stx::Rc<ImageSampler*> create_sampler(stx::Rc<Image*> const& image) {
+inline stx::Rc<ImageSampler*> create_sampler(stx::Rc<Image*> const& image) {
   VkSamplerCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
       .pNext = nullptr,
@@ -1714,7 +1710,7 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .bindingCount = static_cast<u32>(bindings.size()),
+        .bindingCount = AS_U32(bindings.size()),
         .pBindings = bindings.data(),
     };
 
@@ -1732,7 +1728,7 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
       .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
       .pNext = nullptr,
       .descriptorPool = descriptor_pool,
-      .descriptorSetCount = static_cast<u32>(layouts.size()),
+      .descriptorSetCount = AS_U32(layouts.size()),
       .pSetLayouts = layouts.data(),
   };
 
@@ -1816,7 +1812,7 @@ struct ShaderProgram {
         .pNext = nullptr,
         .flags = 0,
         .maxSets = 10,
-        .poolSizeCount = std::size(pool_sizes),
+        .poolSizeCount = AS_U32(std::size(pool_sizes)),
         .pPoolSizes = pool_sizes,
     };
 
@@ -1844,12 +1840,12 @@ struct ShaderProgram {
       vkDestroyDescriptorSetLayout(dev, layout, nullptr);
     }
 
-    ASR_VK_CHECK(vkFreeDescriptorSets(dev, descriptor_pool,
-                                      vertex_shader_descriptor_sets.size(),
-                                      vertex_shader_descriptor_sets.data()));
-    ASR_VK_CHECK(vkFreeDescriptorSets(dev, descriptor_pool,
-                                      fragment_shader_descriptor_sets.size(),
-                                      fragment_shader_descriptor_sets.data()));
+    ASR_VK_CHECK(vkFreeDescriptorSets(
+        dev, descriptor_pool, AS_U32(vertex_shader_descriptor_sets.size()),
+        vertex_shader_descriptor_sets.data()));
+    ASR_VK_CHECK(vkFreeDescriptorSets(
+        dev, descriptor_pool, AS_U32(fragment_shader_descriptor_sets.size()),
+        fragment_shader_descriptor_sets.data()));
 
     vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
 
@@ -2460,7 +2456,7 @@ struct SwapChain {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .attachmentCount = std::size(attachments),
+        .attachmentCount = AS_U32(std::size(attachments)),
         .pAttachments = attachments,
         .subpassCount = 1,
         .pSubpasses = &subpass,
@@ -2481,7 +2477,7 @@ struct SwapChain {
           .pNext = nullptr,
           .flags = 0,
           .renderPass = render_pass,
-          .attachmentCount = std::size(attachments),
+          .attachmentCount = AS_U32(std::size(attachments)),
           .pAttachments = attachments,
           .width = extent.width,
           .height = extent.height,
@@ -2732,17 +2728,17 @@ struct Pipeline {
 
     VkVertexInputBindingDescription vertex_binding_descriptions[] = {
         {.binding = 0,
-         .stride = static_cast<u32>(vertex_input_size),
+         .stride = AS_U32(vertex_input_size),
          .inputRate = VK_VERTEX_INPUT_RATE_VERTEX}};
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .vertexBindingDescriptionCount = std::size(vertex_binding_descriptions),
+        .vertexBindingDescriptionCount =
+            AS_U32(std::size(vertex_binding_descriptions)),
         .pVertexBindingDescriptions = vertex_binding_descriptions,
-        .vertexAttributeDescriptionCount =
-            static_cast<u32>(vertex_input_attr.size()),
+        .vertexAttributeDescriptionCount = AS_U32(vertex_input_attr.size()),
         .pVertexAttributeDescriptions = vertex_input_attr.data()};
 
     VkPipelineViewportStateCreateInfo viewport_state{
@@ -2761,14 +2757,14 @@ struct Pipeline {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .dynamicStateCount = std::size(dynamic_states),
+        .dynamicStateCount = AS_U32(std::size(dynamic_states)),
         .pDynamicStates = dynamic_states};
 
     VkGraphicsPipelineCreateInfo create_info{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .stageCount = std::size(stages),
+        .stageCount = AS_U32(std::size(stages)),
         .pStages = stages,
         .pVertexInputState = &vertex_input_state,
         .pInputAssemblyState = &input_assembly_state,

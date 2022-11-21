@@ -396,7 +396,7 @@ struct Canvas {
   Canvas& scale(f32 x, f32 y) { return scale(x, y, 1.0f); }
 
   Canvas& clear() {
-    u32 start = draw_list.vertices.size();
+    u32 start = AS_U32(draw_list.vertices.size());
 
     vec3 vertices[] = {{0.0f, 0.0f, 0.0f},
                        {1.0f, 0.0f, 0.0f},
@@ -462,7 +462,7 @@ struct Canvas {
       d.x *= brush.line_width * 0.5f;
       d.y *= brush.line_width * 0.5f;
 
-      u32 start = draw_list.indices.size();
+      u32 start = AS_U32(draw_list.indices.size());
 
       vec3 vertices[] = {{p1.x + d.y, p1.y - d.x, 0.0f},
                          {p2.x + d.y, p2.y - d.x, 0.0f},
@@ -502,14 +502,14 @@ struct Canvas {
       draw_list.vertices.push(vec3{vertex.x, vertex.y, 0.0f}).unwrap();
     }
 
-    u32 start = draw_list.indices.size();
+    u32 start = AS_U32(draw_list.indices.size());
 
     for (u32 index = start; index < (start + polygon_vertices.size());
          index++) {
       draw_list.indices.push_inplace(index).unwrap();
     }
 
-    u32 num_triangles = polygon_vertices.size() / 3U;
+    u32 num_triangles = AS_U32(polygon_vertices.size()) / 3U;
 
     // draw_list.commands
     //     .push(DrawCommand{.color,
@@ -527,7 +527,7 @@ struct Canvas {
   }
 
   Canvas& draw_line(vec2 p1, vec2 p2) {
-    u64 line_width = brush.line_width;
+    f32 line_width = brush.line_width;
 
     mat4x4 placement;
 
@@ -538,7 +538,7 @@ struct Canvas {
 
     draw_list.vertices.extend(vertices).unwrap();
 
-    u32 start = draw_list.indices.size();
+    u32 start = AS_U32(draw_list.indices.size());
 
     u32 indices[] = {start, start + 1, start + 2, start + 2, start, start + 3};
 
@@ -617,9 +617,10 @@ void sample(Canvas& canvas) {
                        {10.0f, 10.0f, 10.0f, 10.0f});
 }
 
-void record(DrawList const& draw_list, stx::Rc<vk::Device*> const& device,
-            vk::CommandQueueFamilyInfo const& graphics_command_queue,
-            VkPhysicalDeviceMemoryProperties const& memory_properties) {
+inline void record(DrawList const& draw_list,
+                   stx::Rc<vk::Device*> const& device,
+                   vk::CommandQueueFamilyInfo const& graphics_command_queue,
+                   VkPhysicalDeviceMemoryProperties const& memory_properties) {
   VkCommandBuffer command_buffer;  // part of recording context
 
   ASR_VK_CHECK(vkResetCommandBuffer(command_buffer, 0));
