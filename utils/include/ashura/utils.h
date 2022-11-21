@@ -76,12 +76,12 @@ constexpr bool any(Container const &cont, UnaryPredicate &&predicate) {
 }
 
 template <typename Target, typename Source>
-STX_FORCE_INLINE stx::Option<stx::Ref<Target>> upcast(Source &source) {
-  auto *dyn_ptr = dynamic_cast<Target *>(&source);
-  if (dyn_ptr == nullptr) {
+STX_FORCE_INLINE stx::Option<Target *> upcast(Source &source) {
+  Target *ptr = dynamic_cast<Target *>(&source);
+  if (ptr == nullptr) {
     return stx::None;
   } else {
-    return stx::Some(stx::Ref<Target>(*dyn_ptr));
+    return stx::Some(static_cast<Target *>(ptr));
   }
 }
 
