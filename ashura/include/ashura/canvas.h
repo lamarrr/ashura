@@ -4,6 +4,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <map>
 
 #include "ashura/primitives.h"
 #include "ashura/vulkan.h"
@@ -219,7 +220,7 @@ struct ShaderProgramId {
 };
 
 // stored in vulkan context
-struct Image;
+using Image = stx::Rc<vk::ImageSampler>;
 struct Typeface;
 struct ShaderProgram;
 
@@ -229,7 +230,29 @@ struct ShaderProgram;
 // Image get(ImageId);
 //
 //
-struct ImageRetainer;
+struct ImageRetainer {
+  ImageId push(Image image) {
+    last_id++;
+    entries.emplace(ImageId{last_id}, std::move(image));
+    return ImageId{last_id};
+  }
+
+  Image pop(ImageId id) {
+    auto pos = entries.find(id.id);
+    ASR_ENSURE(pos != entries.end());
+    Image image = std::move(pos->second);
+    entries.erase(pos);
+    return image;
+  }
+
+Image get(ImageId id){
+    auto pos = entries.find(id.id);
+    ASR_ENSURE()
+}
+
+  std::map<u64, Image> entries;
+  u64 last_id = 0;
+};
 struct TypefaceRetainer;
 struct ShaderRetainer;
 
