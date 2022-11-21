@@ -330,7 +330,8 @@ struct DrawList {
 // TODO(lamarrr): implement clipping
 //
 //
-//
+// TODO(lamarrr): how will color and image blending work, image and color
+// srcover or dstover, color over image or image over color
 //
 //
 // TODO(lamarrr): is there a way we can not require specifying the coordinates
