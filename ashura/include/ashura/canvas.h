@@ -203,32 +203,35 @@ enum class FontWeight : u32 {
 // - caching so we don't have to reupload on every frame
 // - GPU texture/image
 // NOTE: canvas is low-level so we don't use paths, urls, or uris
-struct Image {
+struct ImageId {
   u64 id = 0;
 };
 
 // requirements:
 // -
-struct Typeface {
+struct TypefaceId {
   u64 id = 0;
 };
 
 // requirements:
-struct Shader {
+struct ShaderProgramId {
   u64 id = 0;
 };
 
-// thread-safe multithreaded
+// stored in vulkan context
+struct Image;
+struct Typeface;
+struct ShaderProgram;
+
+//
+// ImageId push(Image);
+// Image pop(ImageId);
+// Image get(ImageId);
 //
 //
-// std::pair<Image, Future<ImageData>> add(bytes, spec);
-// Result<ImageData, Error> get(Image);
-// Result<Future<ImageData>, Error> get_future(Image);
-//
-//
-struct ImageManager;
-struct TypefaceManager;
-struct ShaderManager;
+struct ImageRetainer;
+struct TypefaceRetainer;
+struct ShaderRetainer;
 
 // TODO(lamarrr): embed font into a cpp file
 //
@@ -252,7 +255,7 @@ struct Brush {
   Color color = colors::BLACK;
   f32 opacity = 1.0f;
   f32 line_width = 1.0f;
-  stx::Option<Image> pattern;
+  stx::Option<ImageId> pattern;
   TextStyle text_style;
   Filter filter;
   Shadow shadow;
@@ -307,7 +310,6 @@ inline mat4x4 rotate_z(f32 degree) {
 
 };  // namespace transforms
 
-// TODO(lamarrr): what about positioning?
 struct DrawCommand {
   u32 indices_offset = 0;
   u32 num_triangles = 0;
@@ -316,11 +318,10 @@ struct DrawCommand {
   mat4x4 transform = mat4x4::identity();  //  transform contains position
                                           //  (translation from origin)
   Color color = colors::BLACK;
-  stx::Option<Image> texture;
-  Shader vert_shader;
-  Shader frag_shader;  // - clip options will apply in the fragment
-                       // and vertex shaders
-                       // - blending
+  stx::Option<ImageId> texture;
+  ShaderProgramId shader_program;  // - clip options will apply in the fragment
+                                   // and vertex shaders
+                                   // - blending
 };
 
 struct DrawList {
@@ -611,16 +612,16 @@ struct Canvas {
   Canvas& draw_text(stx::StringView text, OffsetF position);
 
   // Image API
-  Canvas& draw_image(Image image, OffsetF position);
-  Canvas& draw_image(Image image, RectF target);
-  Canvas& draw_image(Image image, RectF portion, RectF target);
+  Canvas& draw_image(ImageId image, OffsetF position);
+  Canvas& draw_image(ImageId image, RectF target);
+  Canvas& draw_image(ImageId image, RectF portion, RectF target);
 };
 
 void sample(Canvas& canvas) {
   canvas.save()
       .rotate(45)
       .draw_circle({0, 0}, 20.0f)
-      .draw_image(Image{}, {{0.0, 0.0}, {20, 40}})
+      .draw_image(ImageId{}, {{0.0, 0.0}, {20, 40}})
       .restore()
       .scale(2.0f, 2.0f)
       .draw_line({0, 0}, {200, 200})
@@ -630,21 +631,22 @@ void sample(Canvas& canvas) {
                        {10.0f, 10.0f, 10.0f, 10.0f});
 }
 
-inline void record(DrawList const& draw_list,
-                   stx::Rc<vk::Device*> const& device,
-                   stx::Rc<vk::SwapChain*> const& swapchain,
-                   vk::CommandQueueFamilyInfo const& graphics_command_queue,
-                   VkPhysicalDeviceMemoryProperties const& memory_properties) {
-  VkCommandPool command_pool;
-  VkCommandBuffer command_buffer;  // part of recording context
+inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
+  ASR_VK_CHECK(vkResetCommandBuffer(ctx.command_buffer, 0));
 
-  ASR_VK_CHECK(vkResetCommandBuffer(command_buffer, 0));
+  stx::Rc<vk::Buffer*> vertex_buffer =
+      upload_vertices(ctx.swapchain.handle->queue.handle->device,
+                      ctx.swapchain.handle->queue.handle->info.family,
+                      ctx.swapchain.handle->queue.handle->device.handle
+                          ->phy_device.handle->memory_properties,
+                      draw_list.vertices);
 
-  stx::Rc<vk::Buffer*> vertex_buffer = upload_vertices(
-      device, graphics_command_queue, memory_properties, draw_list.vertices);
-
-  stx::Rc<vk::Buffer*> index_buffer = upload_indices(
-      device, graphics_command_queue, memory_properties, draw_list.indices);
+  stx::Rc<vk::Buffer*> index_buffer =
+      upload_indices(ctx.swapchain.handle->queue.handle->device,
+                     ctx.swapchain.handle->queue.handle->info.family,
+                     ctx.swapchain.handle->queue.handle->device.handle
+                         ->phy_device.handle->memory_properties,
+                     draw_list.indices);
   // texture uploads
   // buffer uploads
   // - upload vertex buffer
@@ -659,25 +661,25 @@ inline void record(DrawList const& draw_list,
     // vkCmdBindPipeline();
     // vkCmdBindDescriptorSets();
 
-    VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.handle->extent};
-    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+    VkRect2D scissor{.offset = {0, 0}, .extent = ctx.swapchain.handle->extent};
+    vkCmdSetScissor(ctx.command_buffer, 0, 1, &scissor);
 
     VkViewport viewport{.x = 0.0f,
                         .y = 0.0f,
-                        .width = swapchain.handle->extent.width,
-                        .height = swapchain.handle->extent.height,
+                        .width = ctx.swapchain.handle->extent.width,
+                        .height = ctx.swapchain.handle->extent.height,
                         .minDepth = 0.0f,
                         .maxDepth = 1.0f};
 
-    vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+    vkCmdSetViewport(ctx.command_buffer, 0, 1, &viewport);
 
-    vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer.handle->buffer,
-                           0);
-    vkCmdBindIndexBuffer(command_buffer, index_buffer.handle->buffer, 0,
+    vkCmdBindVertexBuffers(ctx.command_buffer, 0, 1,
+                           &vertex_buffer.handle->buffer, 0);
+    vkCmdBindIndexBuffer(ctx.command_buffer, index_buffer.handle->buffer, 0,
                          VK_INDEX_TYPE_UINT32);
 
-    vkCmdDrawIndexed(command_buffer, draw_command.num_triangles * 3, 1, 0, 0,
-                     0);
+    vkCmdDrawIndexed(ctx.command_buffer, draw_command.num_triangles * 3, 1, 0,
+                     0, 0);
   }
 }
 

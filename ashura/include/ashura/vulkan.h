@@ -2768,7 +2768,9 @@ struct Pipeline {
 struct RecordingContext {
   VkCommandPool command_pool = VK_NULL_HANDLE;
   VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-  stx::Rc<CommandQueue*> queue;
+  stx::Rc<SwapChain*> swapchain;
+
+  STX_MAKE_PINNED(RecordingContext)
 };
 
 }  // namespace vk
