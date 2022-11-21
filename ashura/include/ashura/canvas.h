@@ -662,6 +662,7 @@ inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
     // vkCmdBindDescriptorSets();
 
     VkRect2D scissor{.offset = {0, 0}, .extent = ctx.swapchain.handle->extent};
+
     vkCmdSetScissor(ctx.command_buffer, 0, 1, &scissor);
 
     VkViewport viewport{.x = 0.0f,
