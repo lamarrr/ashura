@@ -1355,11 +1355,12 @@ inline std::pair<VkBuffer, VkDeviceMemory> create_buffer_with_memory(
   return std::make_pair(buffer, memory);
 }
 
+template <typename VertexType>
 inline stx::Rc<Buffer*> upload_vertices(
     stx::Rc<Device*> const& device,
     CommandQueueFamilyInfo const& graphics_command_queue,
     VkPhysicalDeviceMemoryProperties const& memory_properties,
-    stx::Span<vec3 const> vertices) {
+    stx::Span<VertexType const> vertices) {
   VkDevice dev = device.handle->device;
 
   auto [buffer, memory] = create_buffer_with_memory(
@@ -1537,7 +1538,7 @@ inline stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
       .unwrap();
 }
 
-// R
+// R only
 inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
     stx::Rc<CommandQueue*> const& queue, u32 width, u32 height) {
   VkDevice dev = queue.handle->device.handle->device;
@@ -1765,10 +1766,6 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
   return std::make_pair(std::move(layouts), std::move(descriptor_sets));
 }
 
-// NOTE: descriptor binding values lifetime must be longer than the
-// ShaderProgram's
-//
-//
 struct DescriptorSets {
   stx::Vec<VkDescriptorSetLayout> descriptor_set_layouts{stx::os_allocator};
   stx::Vec<VkDescriptorSet> descriptor_sets{stx::os_allocator};
@@ -2196,6 +2193,8 @@ struct SwapChain {
 
   stx::Vec<VkSemaphore> image_acquisition_semaphores{stx::os_allocator};
 
+  stx::Vec<VkFence> rendering_fences{stx::os_allocator};
+
   stx::Vec<VkFramebuffer> frame_buffers{stx::os_allocator};
 
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
@@ -2306,6 +2305,8 @@ struct SwapChain {
     for (usize i = 0; i < MAX_FRAMES_INFLIGHT; i++) {
       rendering_semaphores.push(create_semaphore(dev)).unwrap();
       image_acquisition_semaphores.push(create_semaphore(dev)).unwrap();
+      rendering_fences.push(create_fence(dev, VK_FENCE_CREATE_SIGNALED_BIT))
+          .unwrap();
     }
 
     auto [xmsaa_color_image, xmsaa_color_image_view, xmsaa_color_image_memory] =
@@ -2558,6 +2559,10 @@ struct SwapChain {
 
     for (VkFramebuffer framebuffer : frame_buffers) {
       vkDestroyFramebuffer(dev, framebuffer, nullptr);
+    }
+
+    for (VkFence fence : rendering_fences) {
+      vkDestroyFence(dev, fence, nullptr);
     }
 
     for (VkSemaphore semaphore : rendering_semaphores) {
@@ -3042,8 +3047,14 @@ struct RecordingContext {
   VkShaderModule clip_fragment_shader = VK_NULL_HANDLE;
   Pipeline pipeline;
   ClipPipeline clip_pipeline;
-  stx::Vec<stx::Unique<DescriptorSets*>> descriptor_sets{stx::os_allocator};
-  stx::Unique<DescriptorSet> clip_descriptor_sets;
+  // TODO(lamarrr): each in-flight frame will have a descriptor set
+  stx::Vec<DescriptorSets> descriptor_sets{stx::os_allocator};
+  DescriptorSets clip_descriptor_sets;
+  u32 next_swapchain_image_index = 0;
+  stx::Rc<Surface*> surface;
+  stx::Rc<CommandQueue*> queue;
+
+RecordingContext();
 
   STX_MAKE_PINNED(RecordingContext)
 

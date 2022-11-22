@@ -118,7 +118,7 @@ WindowSwapchainDiff Window::present_backing_store() {
   VkDevice device = swapchain.queue.handle->device.handle->device;
 
   VkSemaphore image_acquisition_semaphore =
-      swapchain.image_acquisition_semaphores[swapchain.frame_flight_index];
+      swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
 
   auto [next_swapchain_image_index, acquire_result] =
       vk::acquire_next_swapchain_image(device, swapchain.swapchain,

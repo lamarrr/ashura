@@ -1,10 +1,8 @@
 #pragma once
 
+#include <chrono>
 #include <cinttypes>
 #include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <map>
 
 #include "ashura/primitives.h"
 #include "ashura/vulkan.h"
@@ -16,11 +14,12 @@
 // play well with 3D graphics and animations
 
 namespace asr {
-
 using namespace stx::literals;
+using namespace std::chrono_literals;
 
 namespace gfx {
 // compute area of a contour/polygon
+
 constexpr f32 compute_polygon_area(stx::Span<vec2 const> polygon) {
   usize npoints = polygon.size();
 
@@ -247,6 +246,7 @@ struct Brush {
 
 // TODO(lamarrr): invert these rows and columns
 namespace transforms {
+
 inline mat4x4 translate(vec3 t) {
   return mat4x4{
       vec4{1.0f, 0.0f, 0.0f, t.x},
@@ -297,17 +297,23 @@ inline mat4x4 rotate_z(f32 degree) {
 struct DrawCommand {
   u32 indices_offset = 0;
   u32 ntriangles = 0;
-  f32 opacity = 1.0f;
+  u32 clip_indices_offset = 0;
+  u32 nclip_triangles = 0;
+  // defines size, rotation, and position of the object
   mat4x4 placement = mat4x4::identity();
-  mat4x4 transform = mat4x4::identity();  //  transform contains position
-                                          //  (translation from origin)
+  // transform contains position (translation from origin)
+  mat4x4 transform = mat4x4::identity();
+  // color to use for the output
   Color color = colors::BLACK;
-  stx::Option<Image> texture;
+  // texture to use for output
+  Image texture;
 };
 
 struct DrawList {
   stx::Vec<vec3> vertices{stx::os_allocator};
   stx::Vec<u32> indices{stx::os_allocator};
+  stx::Vec<vec2> clip_vertices{stx::os_allocator};
+  stx::Vec<u32> clip_indices{stx::os_allocator};
   stx::Vec<DrawCommand> commands{stx::os_allocator};
 };
 
@@ -342,6 +348,10 @@ struct Canvas {
 
   mat4x4 transform = mat4x4::identity();
   stx::Vec<mat4x4> transform_state_stack{stx::os_allocator};
+  // clip with size and
+
+  // clip should be rect by default
+  // can only have one clip polygon
 
   DrawList draw_list;
 
@@ -610,61 +620,180 @@ void sample(Canvas& canvas) {
                        {10.0f, 10.0f, 10.0f, 10.0f});
 }
 
+struct MVP {
+  mat4x4 model;
+  mat4x4 view;
+  mat4x4 projection;
+} mvp;
+
+VkBuffer mvp_buffer;
+
+struct Skinning {
+  vec4 overlay_color{0.0f, 0.0f, 0.0f, 0.0f};
+} skin;
+
+VkBuffer skin_buffer;
+
 // TODO(lamarrr): add to list of device/operations currently using resources so
 // resource won't be freed when in use
 //
 //
-// TODO(lamarrr): how to ensure resource are not destroyed whilst in use
+// TODO(lamarrr): how to ensure resources are not destroyed whilst in use
 //
 //
 //
-inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
+inline void render(DrawList const& draw_list, vk::RecordingContext const& ctx) {
+  static constexpr u64 TIMEOUT = AS_U64(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
+
+  vk::SwapChain const& swapchain =
+      *ctx.surface.handle->swapchain.value().handle;
+
+  stx::Rc<vk::Device*> const& device = swapchain.queue.handle->device;
+
+  VkPhysicalDeviceMemoryProperties const& memory_properties =
+      swapchain.queue.handle->device.handle->phy_device.handle
+          ->memory_properties;
+
+  vk::CommandQueueFamilyInfo const& family =
+      swapchain.queue.handle->info.family;
+
+  VkDevice dev = device.handle->device;
+
+  stx::Rc<vk::Buffer*> vertex_buffer =
+      upload_vertices(device, family, memory_properties,
+                      stx::Span<vec3 const>{draw_list.vertices});
+
+  stx::Rc<vk::Buffer*> index_buffer =
+      upload_indices(device, family, memory_properties, draw_list.indices);
+
+  stx::Rc<vk::Buffer*> clip_vertex_buffer =
+      upload_vertices(device, family, memory_properties,
+                      stx::Span<vec2 const>{draw_list.clip_vertices});
+
+  stx::Rc<vk::Buffer*> clip_index_buffer =
+      upload_indices(device, family, memory_properties, draw_list.clip_indices);
+
   ASR_VK_CHECK(vkResetCommandBuffer(ctx.command_buffer, 0));
 
-  vk::SwapChain& swapchain = *ctx.surface.handle->swapchain.value().handle;
-
-  stx::Rc<vk::Buffer*> vertex_buffer = upload_vertices(
-      swapchain.queue.handle->device, swapchain.queue.handle->info.family,
-      swapchain.queue.handle->device.handle->phy_device.handle
-          ->memory_properties,
-      draw_list.vertices);
-
-  stx::Rc<vk::Buffer*> index_buffer = upload_indices(
-      swapchain.queue.handle->device, swapchain.queue.handle->info.family,
-      swapchain.queue.handle->device.handle->phy_device.handle
-          ->memory_properties,
-      draw_list.indices);
-
-  // we need to retain texture uploads, we can't be reuploading them every
-  // time
-  VkCommandBufferBeginInfo begin_info{
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-      .pNext = nullptr,
-      .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-      .pInheritanceInfo = nullptr,
-  };
-
-  ASR_VK_CHECK(vkBeginCommandBuffer(ctx.command_buffer, &begin_info));
-
   for (DrawCommand const& draw_command : draw_list.commands) {
+    VkCommandBufferBeginInfo command_buffer_begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
+
+    ASR_VK_CHECK(
+        vkBeginCommandBuffer(ctx.command_buffer, &command_buffer_begin_info));
+
     //
     // render clip if any
-    // if none, fill the whole buffer with the color (2 triangles, 1 color)
+    // if none, fill the whole buffer with the color (2 triangles, 1 color),
+    // done in canvas
+    //
+    //
+    // TODO(lamarrr): sampler will not be able to pick up the correct
+    // coordinates for the texture
+    //
+    //
 
+    // TODO(lamarrr): clip shape orientation and sizing to fit
     {
+      // TODO(lamarrr): update descriptor sets
+      ctx.clip_descriptor_sets.write();
 
+      ASR_VK_CHECK(vkResetCommandBuffer(ctx.clip_command_buffer, 0));
 
-        
+      VkCommandBufferBeginInfo command_buffer_begin_info{
+          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+          .pNext = nullptr,
+          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+          .pInheritanceInfo = nullptr,
+      };
+
+      ASR_VK_CHECK(vkBeginCommandBuffer(ctx.clip_command_buffer,
+                                        &command_buffer_begin_info));
+
+      VkClearValue clear_values[] = {
+          {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}}};
+
+      VkRenderPassBeginInfo render_pass_begin_info{
+          .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+          .pNext = nullptr,
+          .renderPass = swapchain.clip.render_pass,
+          .framebuffer = swapchain.clip.framebuffer,
+          .renderArea = VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
+          .clearValueCount = AS_U32(std::size(clear_values)),
+          .pClearValues = clear_values};
+
+      vkCmdBeginRenderPass(ctx.clip_command_buffer, &render_pass_begin_info,
+                           VK_SUBPASS_CONTENTS_INLINE);
+
+      VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.extent};
+
+      vkCmdSetScissor(ctx.clip_command_buffer, 0, 1, &scissor);
+
+      VkViewport viewport{.x = 0.0f,
+                          .y = 0.0f,
+                          .width = AS_F32(swapchain.extent.width),
+                          .height = AS_F32(swapchain.extent.height),
+                          .minDepth = 0.0f,
+                          .maxDepth = 1.0f};
+
+      vkCmdSetViewport(ctx.clip_command_buffer, 0, 1, &viewport);
+
+      vkCmdBindVertexBuffers(ctx.clip_command_buffer, 0, 1,
+                             &clip_vertex_buffer.handle->buffer, 0);
+
+      vkCmdBindIndexBuffer(ctx.clip_command_buffer,
+                           clip_index_buffer.handle->buffer, 0,
+                           VK_INDEX_TYPE_UINT32);
+
+      vkCmdBindDescriptorSets(
+          ctx.clip_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+          ctx.clip_pipeline.layout, 0,
+          AS_U32(ctx.clip_descriptor_sets.descriptor_sets.size()),
+          ctx.clip_descriptor_sets.descriptor_sets.data(), 0, nullptr);
+
+      vkCmdBindPipeline(ctx.clip_command_buffer,
+                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        ctx.clip_pipeline.pipeline);
+
+      vkCmdDrawIndexed(ctx.clip_command_buffer,
+                       draw_command.nclip_triangles * 3, 1, 0, 0, 0);
+
+      vkCmdEndRenderPass(ctx.clip_command_buffer);
+
+      ASR_VK_CHECK(vkEndCommandBuffer(ctx.clip_command_buffer));
+
+      VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                               .pNext = nullptr,
+                               .waitSemaphoreCount = 0,
+                               .pWaitSemaphores = nullptr,
+                               .pWaitDstStageMask = nullptr,
+                               .commandBufferCount = 0,
+                               .pCommandBuffers = nullptr,
+                               .signalSemaphoreCount = 0,
+                               .pSignalSemaphores = nullptr};
+
+      ASR_VK_CHECK(vkQueueSubmit(ctx.queue.handle->info.queue, 1, &submit_info,
+                                 swapchain.clip.fence));
+
+      ASR_VK_CHECK(
+          vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE, TIMEOUT));
+
+      ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.clip.fence));
     }
-  
 
-    // TODO(lamarrr): we only clear color for the clipping one
+    ctx.descriptor_sets[swapchain.next_frame_flight_index].write();
+
     VkClearValue clear_values[] = {
-        {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 1.0f}}},
+        {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}},
         {.depthStencil =
              VkClearDepthStencilValue{.depth = 1.0f, .stencil = 0}}};
 
-    VkRenderPassBeginInfo begin_info{
+    VkRenderPassBeginInfo render_pass_begin_info{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .pNext = nullptr,
         .renderPass = swapchain.render_pass,
@@ -674,12 +803,10 @@ inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
         .clearValueCount = AS_U32(std::size(clear_values)),
         .pClearValues = clear_values};
 
-    vkCmdBeginRenderPass(ctx.command_buffer, &begin_info,
+    vkCmdBeginRenderPass(ctx.command_buffer, &render_pass_begin_info,
                          VK_SUBPASS_CONTENTS_INLINE);
 
-    VkRect2D scissor{
-        .offset = {0, 0},
-        .extent = ctx.surface.handle->swapchain.value().handle->extent};
+    VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.extent};
 
     vkCmdSetScissor(ctx.command_buffer, 0, 1, &scissor);
 
@@ -698,11 +825,14 @@ inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
     vkCmdBindIndexBuffer(ctx.command_buffer, index_buffer.handle->buffer, 0,
                          VK_INDEX_TYPE_UINT32);
 
-    // TODO(lamarrr): each in-flight frame will have a descriptor set
-    vkCmdBindDescriptorSets(ctx.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            ctx.pipeline.layout, 0,
-                            AS_U32(ctx.program.descriptor_sets.size()),
-                            ctx.program.descriptor_sets.data(), 0, nullptr);
+    vkCmdBindDescriptorSets(
+        ctx.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        ctx.pipeline.layout, 0,
+        AS_U32(ctx.descriptor_sets[ctx.next_swapchain_image_index]
+                   .descriptor_sets.size()),
+        ctx.descriptor_sets[swapchain.next_frame_flight_index]
+            .descriptor_sets.data(),
+        0, nullptr);
 
     vkCmdBindPipeline(ctx.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx.pipeline.pipeline);
@@ -711,9 +841,31 @@ inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
                      0);
 
     vkCmdEndRenderPass(ctx.command_buffer);
-  }
 
-  ASR_VK_CHECK(vkEndCommandBuffer(ctx.command_buffer));
+    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .pNext = nullptr,
+                             .waitSemaphoreCount = 0,
+                             .pWaitSemaphores = nullptr,
+                             .pWaitDstStageMask = nullptr,
+                             .commandBufferCount = 0,
+                             .pCommandBuffers = nullptr,
+                             .signalSemaphoreCount = 0,
+                             .pSignalSemaphores = nullptr};
+
+    ASR_VK_CHECK(vkEndCommandBuffer(ctx.command_buffer));
+
+    ASR_VK_CHECK(vkQueueSubmit(
+        ctx.queue.handle->info.queue, 1, &submit_info,
+        swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
+    ASR_VK_CHECK(vkWaitForFences(
+        dev, 1, &swapchain.rendering_fences[swapchain.next_frame_flight_index],
+        VK_TRUE, TIMEOUT));
+
+    ASR_VK_CHECK(vkResetFences(
+        dev, 1,
+        &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+  }
 }
 
 }  // namespace gfx
