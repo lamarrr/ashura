@@ -1677,12 +1677,12 @@ struct DescriptorBinding {
   // only valid if type is DescriptorType::Sampler
   VkSampler sampler = VK_NULL_HANDLE;
 
-  static constexpr DescriptorBinding buffer(VkBuffer buff) {
+  static constexpr DescriptorBinding make_buffer(VkBuffer buff) {
     return DescriptorBinding{.type = DescriptorType::Buffer, .buffer = buff};
   }
 
-  static constexpr DescriptorBinding sampler(VkImageView view,
-                                             VkSampler sampler) {
+  static constexpr DescriptorBinding make_sampler(VkImageView view,
+                                                  VkSampler sampler) {
     return DescriptorBinding{
         .type = DescriptorType::Sampler, .view = view, .sampler = sampler};
   }
@@ -1696,7 +1696,6 @@ struct DescriptorSet {
   }
 };
 
-// TODO(lamarrr): format to only accept types of each slot
 inline std::pair<stx::Vec<VkDescriptorSetLayout>, stx::Vec<VkDescriptorSet>>
 prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
                         VkShaderStageFlags shader_stage,
@@ -1766,68 +1765,22 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
   return std::make_pair(std::move(layouts), std::move(descriptor_sets));
 }
 
-struct DescriptorSetsSpec {
-  stx::Span<DescriptorSet> vertex_shader;
-  stx::Span<DescriptorSet> fragment_shader;
-};
-
 // NOTE: descriptor binding values lifetime must be longer than the
 // ShaderProgram's
 //
-// TODO(lamarrr): we need a separate update_descriptor_sets function, specifying
-// at compile time won't work
 //
-//
-struct ShaderProgram {
-  VkShaderModule vertex_shader = VK_NULL_HANDLE;
-  VkShaderModule fragment_shader = VK_NULL_HANDLE;
-
-  stx::Vec<VkDescriptorSetLayout> vertex_shader_descriptor_set_layouts{
-      stx::os_allocator};
-  stx::Vec<VkDescriptorSetLayout> fragment_shader_descriptor_set_layouts{
-      stx::os_allocator};
-  stx::Vec<VkDescriptorSet> vertex_shader_descriptor_sets{stx::os_allocator};
-  stx::Vec<VkDescriptorSet> fragment_shader_descriptor_sets{stx::os_allocator};
+struct DescriptorSets {
+  stx::Vec<VkDescriptorSetLayout> descriptor_set_layouts{stx::os_allocator};
+  stx::Vec<VkDescriptorSet> descriptor_sets{stx::os_allocator};
 
   VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
 
-  stx::Rc<CommandQueue*> queue;
+  stx::Rc<Device*> device;
 
-  stx::Vec<DescriptorSet> vertex_shader_descriptor_set_spec{stx::os_allocator};
-  stx::Vec<DescriptorSet> fragment_shader_descriptor_set_spec{
-      stx::os_allocator};
+  stx::Vec<DescriptorSet> descriptor_set_spec{stx::os_allocator};
 
-  ShaderProgram(stx::Rc<CommandQueue*> const& aqueue,
-                stx::Span<u32 const> fragment_shader_code,
-                stx::Span<u32 const> vertex_shader_code,
-                DescriptorSetsSpec spec)
-      : queue{aqueue.share()} {
-    VkDevice dev = queue.handle->device.handle->device;
-
-    {
-      VkShaderModuleCreateInfo create_info{
-          .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0,
-          .codeSize = vertex_shader_code.size_bytes(),
-          .pCode = vertex_shader_code.data()};
-
-      ASR_VK_CHECK(
-          vkCreateShaderModule(dev, &create_info, nullptr, &vertex_shader));
-    }
-
-    {
-      VkShaderModuleCreateInfo create_info{
-          .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0,
-          .codeSize = fragment_shader_code.size_bytes(),
-          .pCode = fragment_shader_code.data()};
-
-      ASR_VK_CHECK(
-          vkCreateShaderModule(dev, &create_info, nullptr, &fragment_shader));
-    }
-
+  DescriptorSets(stx::Rc<Device*> adevice, stx::Span<DescriptorSet> spec)
+      : device{std::move(adevice)} {
     VkDescriptorPoolSize pool_sizes[] = {
         {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 20},
         {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 10}};
@@ -1841,141 +1794,108 @@ struct ShaderProgram {
         .pPoolSizes = pool_sizes,
     };
 
-    ASR_VK_CHECK(vkCreateDescriptorPool(dev, &pool_create_info, nullptr,
-                                        &descriptor_pool));
+    ASR_VK_CHECK(vkCreateDescriptorPool(
+        device.handle->device, &pool_create_info, nullptr, &descriptor_pool));
 
-    vertex_shader_descriptor_set_spec.extend_move(spec.vertex_shader).unwrap();
-    fragment_shader_descriptor_set_spec.extend_move(spec.fragment_shader)
-        .unwrap();
+    descriptor_set_spec.extend_move(spec).unwrap();
 
     ____prepare_descriptor_sets();
   }
 
-  STX_MAKE_PINNED(ShaderProgram)
+  STX_MAKE_PINNED(DescriptorSets)
 
-  ~ShaderProgram() {
-    VkDevice dev = queue.handle->device.handle->device;
+  ~DescriptorSets() {
+    VkDevice dev = device.handle->device;
 
-    vkDestroyShaderModule(dev, vertex_shader, nullptr);
-    vkDestroyShaderModule(dev, fragment_shader, nullptr);
-
-    for (VkDescriptorSetLayout layout : vertex_shader_descriptor_set_layouts) {
+    for (VkDescriptorSetLayout layout : descriptor_set_layouts) {
       vkDestroyDescriptorSetLayout(dev, layout, nullptr);
     }
 
-    for (VkDescriptorSetLayout layout :
-         fragment_shader_descriptor_set_layouts) {
-      vkDestroyDescriptorSetLayout(dev, layout, nullptr);
-    }
-
-    ASR_VK_CHECK(vkFreeDescriptorSets(
-        dev, descriptor_pool, AS_U32(vertex_shader_descriptor_sets.size()),
-        vertex_shader_descriptor_sets.data()));
-
-    ASR_VK_CHECK(vkFreeDescriptorSets(
-        dev, descriptor_pool, AS_U32(fragment_shader_descriptor_sets.size()),
-        fragment_shader_descriptor_sets.data()));
+    ASR_VK_CHECK(vkFreeDescriptorSets(dev, descriptor_pool,
+                                      AS_U32(descriptor_sets.size()),
+                                      descriptor_sets.data()));
 
     vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
   }
 
   void ____prepare_descriptor_sets() {
-    VkDevice dev = queue.handle->device.handle->device;
+    auto [descset_layouts, descsets] = prepare_descriptor_sets(
+        device.handle->device, descriptor_pool, VK_SHADER_STAGE_VERTEX_BIT,
+        descriptor_set_spec);
 
-    auto [vert_descset_layouts, vert_descsets] = prepare_descriptor_sets(
-        dev, descriptor_pool, VK_SHADER_STAGE_VERTEX_BIT,
-        vertex_shader_descriptor_set_spec);
-
-    vertex_shader_descriptor_set_layouts = std::move(vert_descset_layouts);
-    vertex_shader_descriptor_sets = std::move(vert_descsets);
-
-    auto [frag_descset_layouts, frag_descsets] = prepare_descriptor_sets(
-        dev, descriptor_pool, VK_SHADER_STAGE_FRAGMENT_BIT,
-        fragment_shader_descriptor_set_spec);
-
-    fragment_shader_descriptor_set_layouts = std::move(frag_descset_layouts);
-    fragment_shader_descriptor_sets = std::move(frag_descsets);
+    descriptor_set_layouts = std::move(descset_layouts);
+    descriptor_sets = std::move(descsets);
   }
 
-  void write(
-      stx::Span<stx::Span<DescriptorBinding const> const> vertex_shader_sets,
-      stx::Span<stx::Span<DescriptorBinding const> const>
-          fragment_shader_sets) {
-    auto write_set =
-        [dev = queue.handle->device.handle->device](
-            stx::Span<stx::Span<DescriptorBinding const> const> sets,
-            stx::Span<DescriptorSet const> spec,
-            stx::Span<VkDescriptorSet const> vk_set) {
-          ASR_ENSURE(sets.size() == spec.size());
+  void write(stx::Span<stx::Span<DescriptorBinding const> const> sets) {
+    VkDevice dev = device.handle->device;
 
-          for (usize iset = 0; iset < sets.size(); iset++) {
-            stx::Span<DescriptorBinding const> set = sets[iset];
-            ASR_ENSURE(set.size() == spec[iset].bindings.size());
+    ASR_ENSURE(sets.size() == descriptor_set_spec.size());
+    ASR_ENSURE(sets.size() == descriptor_sets.size());
 
-            for (usize ibinding = 0; ibinding < sets[iset].size(); ibinding++) {
-              DescriptorBinding binding = sets[iset][ibinding];
+    for (u32 iset = 0; iset < AS_U32(sets.size()); iset++) {
+      stx::Span<DescriptorBinding const> set = sets[iset];
 
-              ASR_ENSURE(binding.type == spec[iset].bindings[ibinding]);
+      ASR_ENSURE(set.size() == descriptor_set_spec[iset].bindings.size());
 
-              switch (binding.type) {
-                case DescriptorType::Sampler: {
-                  VkDescriptorImageInfo image_info{
-                      .sampler = binding.sampler,
-                      .imageView = binding.view,
-                      .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+      for (u32 ibinding = 0; ibinding < AS_U32(sets[iset].size()); ibinding++) {
+        DescriptorBinding binding = sets[iset][ibinding];
 
-                  VkWriteDescriptorSet writes[] = {{
-                      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                      .pNext = nullptr,
-                      .dstSet = vk_set[iset],
-                      .dstBinding = ibinding,
-                      .dstArrayElement = 0,
-                      .descriptorCount = 1,
-                      .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-                      .pImageInfo = &image_info,
-                      .pBufferInfo = nullptr,
-                      .pTexelBufferView = nullptr,
-                  }};
+        ASR_ENSURE(binding.type ==
+                   descriptor_set_spec[iset].bindings[ibinding]);
 
-                  vkUpdateDescriptorSets(dev, AS_U32(std::size(writes)), writes,
-                                         0, nullptr);
+        switch (binding.type) {
+          case DescriptorType::Sampler: {
+            VkDescriptorImageInfo image_info{
+                .sampler = binding.sampler,
+                .imageView = binding.view,
+                .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
-                } break;
+            VkWriteDescriptorSet writes[] = {{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = descriptor_sets[iset],
+                .dstBinding = ibinding,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                .pImageInfo = &image_info,
+                .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr,
+            }};
 
-                case DescriptorType::Buffer: {
-                  VkDescriptorBufferInfo buffer_info{.buffer = binding.buffer,
-                                                     .offset = 0,
-                                                     .range = VK_WHOLE_SIZE};
+            vkUpdateDescriptorSets(dev, AS_U32(std::size(writes)), writes, 0,
+                                   nullptr);
 
-                  VkWriteDescriptorSet writes[] = {{
-                      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                      .pNext = nullptr,
-                      .dstSet = vk_set[iset],
-                      .dstBinding = ibinding,
-                      .dstArrayElement = 0,
-                      .descriptorCount = 1,
-                      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                      .pImageInfo = nullptr,
-                      .pBufferInfo = &buffer_info,
-                      .pTexelBufferView = nullptr,
-                  }};
+          } break;
 
-                  vkUpdateDescriptorSets(dev, AS_U32(std::size(writes)), writes,
-                                         0, nullptr);
-                } break;
+          case DescriptorType::Buffer: {
+            VkDescriptorBufferInfo buffer_info{
+                .buffer = binding.buffer, .offset = 0, .range = VK_WHOLE_SIZE};
 
-                default: {
-                  ASR_UNREACHABLE();
-                }
-              }
-            }
+            VkWriteDescriptorSet writes[] = {{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = descriptor_sets[iset],
+                .dstBinding = ibinding,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .pImageInfo = nullptr,
+                .pBufferInfo = &buffer_info,
+                .pTexelBufferView = nullptr,
+            }};
+
+            vkUpdateDescriptorSets(dev, AS_U32(std::size(writes)), writes, 0,
+                                   nullptr);
+          } break;
+
+          default: {
+            ASR_UNREACHABLE();
           }
-        };
-
-    write_set(vertex_shader_sets, vertex_shader_descriptor_set_spec,
-              vertex_shader_descriptor_sets);
-    write_set(fragment_shader_sets, fragment_shader_descriptor_set_spec,
-              fragment_shader_descriptor_sets);
+        }
+      }
+    }
   }
 };
 
@@ -2261,7 +2181,7 @@ struct SwapChain {
   /// `vkAcquireNextImageKHR` which depends on the presentation mode being used
   /// (determines how the images are used, in what order and whether they
   /// repeat).
-  u32 frame_flight_index = 0;
+  u32 next_frame_flight_index = 0;
 
   // the images in the swapchain
   stx::Vec<VkImage> images{stx::os_allocator};
@@ -2708,30 +2628,34 @@ struct Surface {
   }
 };
 
-// TODO(lamarrr): this pipeline can't store the surface as its swapchain changes
-// from time to time and we need to update the pipeline accordingly
 struct Pipeline {
   VkPipeline pipeline = VK_NULL_HANDLE;
   VkPipelineLayout layout = VK_NULL_HANDLE;
   VkRenderPass target_render_pass = VK_NULL_HANDLE;
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
-  stx::Rc<ShaderProgram*> program;
+  VkShaderModule target_vertex_shader = VK_NULL_HANDLE;
+  VkShaderModule target_fragment_shader = VK_NULL_HANDLE;
+  stx::Rc<Device*> device;
 
-  Pipeline(stx::Rc<ShaderProgram*> aprogram, VkRenderPass atarget_render_pass,
+  Pipeline(stx::Rc<Device*> adevice, VkShaderModule atarget_vertex_shader,
+           VkShaderModule atarget_fragment_shader,
+           VkRenderPass atarget_render_pass,
            VkSampleCountFlagBits amsaa_sample_count,
            stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
            usize vertex_input_size)
       : target_render_pass{atarget_render_pass},
         msaa_sample_count{amsaa_sample_count},
-        program{std::move(aprogram)} {
-    VkDevice dev = program.handle->queue.handle->device.handle->device;
+        target_vertex_shader{atarget_vertex_shader},
+        target_fragment_shader{atarget_fragment_shader},
+        device{std::move(adevice)} {
+    VkDevice dev = device.handle->device;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = program.handle->vertex_shader,
+        .module = target_vertex_shader,
         .pName = "main",
         .pSpecializationInfo = nullptr};
 
@@ -2740,7 +2664,7 @@ struct Pipeline {
         .pNext = nullptr,
         .flags = 0,
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = program.handle->fragment_shader,
+        .module = target_fragment_shader,
         .pName = "main",
         .pSpecializationInfo = nullptr};
 
@@ -2903,32 +2827,36 @@ struct Pipeline {
   STX_MAKE_PINNED(Pipeline)
 
   ~Pipeline() {
-    vkDestroyPipelineLayout(program.handle->queue.handle->device.handle->device,
-                            layout, nullptr);
-    vkDestroyPipeline(program.handle->queue.handle->device.handle->device,
-                      pipeline, nullptr);
+    vkDestroyPipelineLayout(device.handle->device, layout, nullptr);
+    vkDestroyPipeline(device.handle->device, pipeline, nullptr);
   }
 };
 
-struct BitmapPipeline {
+struct ClipPipeline {
   VkPipeline pipeline = VK_NULL_HANDLE;
   VkPipelineLayout layout = VK_NULL_HANDLE;
   VkRenderPass target_render_pass = VK_NULL_HANDLE;
-  stx::Rc<ShaderProgram*> program;
+  VkShaderModule target_vertex_shader = VK_NULL_HANDLE;
+  VkShaderModule target_fragment_shader = VK_NULL_HANDLE;
+  stx::Rc<Device*> device;
 
-  BitmapPipeline(
-      stx::Rc<ShaderProgram*> aprogram, VkRenderPass atarget_render_pass,
+  ClipPipeline(
+      stx::Rc<Device*> adevice, VkShaderModule atarget_vertex_shader,
+      VkShaderModule atarget_fragment_shader, VkRenderPass atarget_render_pass,
       stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
       usize vertex_input_size)
-      : target_render_pass{atarget_render_pass}, program{std::move(aprogram)} {
-    VkDevice dev = program.handle->queue.handle->device.handle->device;
+      : target_render_pass{atarget_render_pass},
+        target_vertex_shader{atarget_vertex_shader},
+        target_fragment_shader{atarget_fragment_shader},
+        device{std::move(adevice)} {
+    VkDevice dev = device.handle->device;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = program.handle->vertex_shader,
+        .module = target_vertex_shader,
         .pName = "main",
         .pSpecializationInfo = nullptr};
 
@@ -2937,7 +2865,7 @@ struct BitmapPipeline {
         .pNext = nullptr,
         .flags = 0,
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = program.handle->fragment_shader,
+        .module = target_fragment_shader,
         .pName = "main",
         .pSpecializationInfo = nullptr};
 
@@ -3070,26 +2998,52 @@ struct BitmapPipeline {
                                            nullptr, &pipeline));
   }
 
-  STX_MAKE_PINNED(BitmapPipeline)
+  STX_MAKE_PINNED(ClipPipeline)
 
-  ~BitmapPipeline() {
-    vkDestroyPipelineLayout(program.handle->queue.handle->device.handle->device,
-                            layout, nullptr);
-    vkDestroyPipeline(program.handle->queue.handle->device.handle->device,
-                      pipeline, nullptr);
+  ~ClipPipeline() {
+    vkDestroyPipelineLayout(device.handle->device, layout, nullptr);
+    vkDestroyPipeline(device.handle->device, pipeline, nullptr);
   }
 };
 
+// stx::Span<u32 const> fragment_shader_code,
+// stx::Span<u32 const> vertex_shader_code,
+//   {
+//       VkShaderModuleCreateInfo create_info{
+//           .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+//           .pNext = nullptr,
+//           .flags = 0,
+//           .codeSize = vertex_shader_code.size_bytes(),
+//           .pCode = vertex_shader_code.data()};
+
+//       ASR_VK_CHECK(
+//           vkCreateShaderModule(dev, &create_info, nullptr, &vertex_shader));
+//     }
+
+//     {
+//       VkShaderModuleCreateInfo create_info{
+//           .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+//           .pNext = nullptr,
+//           .flags = 0,
+//           .codeSize = fragment_shader_code.size_bytes(),
+//           .pCode = fragment_shader_code.data()};
+
+//       ASR_VK_CHECK(
+//           vkCreateShaderModule(dev, &create_info, nullptr,
+//           &fragment_shader));
+//     }
 struct RecordingContext {
   VkCommandPool command_pool = VK_NULL_HANDLE;
   VkCommandBuffer command_buffer = VK_NULL_HANDLE;
   VkCommandBuffer clip_command_buffer = VK_NULL_HANDLE;
+  VkShaderModule vertex_shader = VK_NULL_HANDLE;
+  VkShaderModule fragment_shader = VK_NULL_HANDLE;
+  VkShaderModule clip_vertex_shader = VK_NULL_HANDLE;
+  VkShaderModule clip_fragment_shader = VK_NULL_HANDLE;
   Pipeline pipeline;
-  BitmapPipeline clip_pipeline;
-  ShaderProgram program;
-  ShaderProgram clip_program;
-
-  stx::Rc<Surface*> surface;
+  ClipPipeline clip_pipeline;
+  stx::Vec<stx::Unique<DescriptorSets*>> descriptor_sets{stx::os_allocator};
+  stx::Unique<DescriptorSet> clip_descriptor_sets;
 
   STX_MAKE_PINNED(RecordingContext)
 

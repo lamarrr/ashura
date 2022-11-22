@@ -650,19 +650,29 @@ inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
     //
     // render clip if any
     // if none, fill the whole buffer with the color (2 triangles, 1 color)
-    //
-    // TODO(lamarrr): how do we create pipelines and descriptor sets?
-    // vkCmdBindPipeline();
-    // vkCmdBindDescriptorSets();
+
+    {
+
+
+        
+    }
   
+
+    // TODO(lamarrr): we only clear color for the clipping one
+    VkClearValue clear_values[] = {
+        {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 1.0f}}},
+        {.depthStencil =
+             VkClearDepthStencilValue{.depth = 1.0f, .stencil = 0}}};
+
     VkRenderPassBeginInfo begin_info{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .pNext = nullptr,
-        .renderPass,
-        .framebuffer,
-        .renderArea,
-        .clearValueCount,
-        .pClearValues};
+        .renderPass = swapchain.render_pass,
+        .framebuffer =
+            swapchain.frame_buffers[swapchain.next_frame_flight_index],
+        .renderArea = VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
+        .clearValueCount = AS_U32(std::size(clear_values)),
+        .pClearValues = clear_values};
 
     vkCmdBeginRenderPass(ctx.command_buffer, &begin_info,
                          VK_SUBPASS_CONTENTS_INLINE);
@@ -687,6 +697,15 @@ inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
 
     vkCmdBindIndexBuffer(ctx.command_buffer, index_buffer.handle->buffer, 0,
                          VK_INDEX_TYPE_UINT32);
+
+    // TODO(lamarrr): each in-flight frame will have a descriptor set
+    vkCmdBindDescriptorSets(ctx.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            ctx.pipeline.layout, 0,
+                            AS_U32(ctx.program.descriptor_sets.size()),
+                            ctx.program.descriptor_sets.data(), 0, nullptr);
+
+    vkCmdBindPipeline(ctx.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      ctx.pipeline.pipeline);
 
     vkCmdDrawIndexed(ctx.command_buffer, draw_command.ntriangles * 3, 1, 0, 0,
                      0);
