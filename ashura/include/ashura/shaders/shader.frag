@@ -4,7 +4,7 @@ layout(location = 0) in vec3 in_position;
 
 layout(location = 0) out vec4 out_color;
 
-layout(set = 0, binding = 1) uniform Skinning {
+layout(set = 0, binding = 1) uniform Skin {
     vec4 overlay_color;
 } skin;
 

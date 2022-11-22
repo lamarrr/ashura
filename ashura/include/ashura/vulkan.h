@@ -3054,7 +3054,7 @@ struct RecordingContext {
   stx::Rc<Surface*> surface;
   stx::Rc<CommandQueue*> queue;
 
-RecordingContext();
+  RecordingContext();
 
   STX_MAKE_PINNED(RecordingContext)
 

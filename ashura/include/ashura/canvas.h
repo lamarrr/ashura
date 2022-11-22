@@ -10,9 +10,6 @@
 #include "stx/vec.h"
 #include "vulkan/vulkan.h"
 
-// TODO(lamarrr): we'll acrtually generate 3D vertices with them so they can
-// play well with 3D graphics and animations
-
 namespace asr {
 using namespace stx::literals;
 using namespace std::chrono_literals;
@@ -294,6 +291,8 @@ inline mat4x4 rotate_z(f32 degree) {
 
 };  // namespace transforms
 
+// TODO(lamarrr): examine placement and transform
+// TODO(lamarrr): placement and transform for clip
 struct DrawCommand {
   u32 indices_offset = 0;
   u32 ntriangles = 0;
@@ -349,6 +348,9 @@ struct Canvas {
   mat4x4 transform = mat4x4::identity();
   stx::Vec<mat4x4> transform_state_stack{stx::os_allocator};
   // clip with size and
+
+  stx::Vec<vec2> clip_area{stx::os_allocator};
+  stx::Vec<stx::Vec<vec2>> clip_area_state_stack{stx::os_allocator};
 
   // clip should be rect by default
   // can only have one clip polygon
@@ -620,15 +622,13 @@ void sample(Canvas& canvas) {
                        {10.0f, 10.0f, 10.0f, 10.0f});
 }
 
-struct MVP {
-  mat4x4 model;
-  mat4x4 view;
-  mat4x4 projection;
+struct Transform {
+  mat4x4 transform;
 } mvp;
 
 VkBuffer mvp_buffer;
 
-struct Skinning {
+struct Skin {
   vec4 overlay_color{0.0f, 0.0f, 0.0f, 0.0f};
 } skin;
 
@@ -641,6 +641,7 @@ VkBuffer skin_buffer;
 // TODO(lamarrr): how to ensure resources are not destroyed whilst in use
 //
 //
+// TODO(lamarrr): clear draw list after render call
 //
 inline void render(DrawList const& draw_list, vk::RecordingContext const& ctx) {
   static constexpr u64 TIMEOUT = AS_U64(
@@ -652,8 +653,7 @@ inline void render(DrawList const& draw_list, vk::RecordingContext const& ctx) {
   stx::Rc<vk::Device*> const& device = swapchain.queue.handle->device;
 
   VkPhysicalDeviceMemoryProperties const& memory_properties =
-      swapchain.queue.handle->device.handle->phy_device.handle
-          ->memory_properties;
+      device.handle->phy_device.handle->memory_properties;
 
   vk::CommandQueueFamilyInfo const& family =
       swapchain.queue.handle->info.family;
