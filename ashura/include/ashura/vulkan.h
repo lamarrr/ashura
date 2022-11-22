@@ -508,11 +508,9 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
     stx::Span<u32 const> accessing_queue_families_indexes,
-    VkImageUsageFlags image_usages = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-    VkCompositeAlphaFlagBitsKHR alpha_channel_blending =
-        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-    VkBool32 clipped = VK_TRUE) {
-  u32 desired_num_buffers = std::max(properties.capabilities.minImageCount + 1,
+    VkImageUsageFlags image_usages,
+    VkCompositeAlphaFlagBitsKHR alpha_channel_blending, VkBool32 clipped) {
+  u32 desired_num_buffers = std::min(properties.capabilities.minImageCount + 1,
                                      properties.capabilities.maxImageCount);
 
   VkExtent2D selected_extent =
@@ -584,34 +582,6 @@ inline stx::Vec<VkImage> get_swapchain_images(VkDevice device,
                                        swapchain_images.data()));
 
   return swapchain_images;
-}
-
-inline VkImageView create_image_view(VkDevice device, VkImage image,
-                                     VkFormat format, VkImageViewType view_type,
-                                     VkImageAspectFlags aspect_mask,
-                                     VkComponentMapping component_mapping) {
-  VkImageViewCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .image = image,
-      // VK_IMAGE_VIEW_TYPE_2D: 2D texture
-      // VK_IMAGE_VIEW_TYPE_3D: 3D texture
-      // VK_IMAGE_VIEW_TYPE_CUBE: cube map
-      .viewType = view_type,  // treat the image as a 2d texture
-      .format = format,
-      .components = component_mapping,
-      // defines what part of the image this image view represents and what this
-      // image view is used for
-      .subresourceRange = VkImageSubresourceRange{.aspectMask = aspect_mask,
-                                                  .baseMipLevel = 0,
-                                                  .levelCount = 1,
-                                                  .baseArrayLayer = 0,
-                                                  .layerCount = 1}};
-
-  VkImageView image_view;
-  ASR_VK_CHECK(vkCreateImageView(device, &create_info, nullptr, &image_view));
-  return image_view;
 }
 
 // GPU-GPU synchronization primitive, cheap
@@ -1567,6 +1537,80 @@ inline stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
       .unwrap();
 }
 
+// R
+inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
+    stx::Rc<CommandQueue*> const& queue, u32 width, u32 height) {
+  VkDevice dev = queue.handle->device.handle->device;
+
+  VkImageCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = 0,
+      .imageType = VK_IMAGE_TYPE_2D,
+      .format = VK_FORMAT_R32_SFLOAT,
+      .extent = VkExtent3D{.width = width, .height = height, .depth = 1},
+      .mipLevels = 1,
+      .arrayLayers = 1,
+      .samples = VK_SAMPLE_COUNT_1_BIT,
+      .tiling = VK_IMAGE_TILING_OPTIMAL,
+      .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .queueFamilyIndexCount = 1,
+      .pQueueFamilyIndices = &queue.handle->info.family.index,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+
+  VkImage image;
+
+  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
+
+  VkMemoryRequirements requirements;
+
+  vkGetImageMemoryRequirements(dev, image, &requirements);
+
+  u32 memory_type_index =
+      find_suitable_memory_type(
+          requirements,
+          queue.handle->device.handle->phy_device.handle->memory_properties,
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+          .unwrap();
+
+  VkMemoryAllocateInfo alloc_info{
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext = nullptr,
+      .allocationSize = requirements.size,
+      .memoryTypeIndex = memory_type_index};
+
+  VkDeviceMemory memory;
+
+  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+
+  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
+
+  VkImageViewCreateInfo view_create_info{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = 0,
+      .image = image,
+      .viewType = VK_IMAGE_VIEW_TYPE_2D,
+      .format = VK_FORMAT_R32_SFLOAT,
+      .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .g = VK_COMPONENT_SWIZZLE_ZERO,
+                                       .b = VK_COMPONENT_SWIZZLE_ZERO,
+                                       .a = VK_COMPONENT_SWIZZLE_ZERO},
+      .subresourceRange =
+          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                  .baseMipLevel = 0,
+                                  .levelCount = 1,
+                                  .baseArrayLayer = 0,
+                                  .layerCount = 1}};
+
+  VkImageView view;
+
+  ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+
+  return std::make_tuple(image, memory, view);
+}
+
 struct ImageSampler {
   VkSampler sampler = VK_NULL_HANDLE;
   stx::Rc<Image*> image;
@@ -1582,7 +1626,8 @@ struct ImageSampler {
   }
 };
 
-inline stx::Rc<ImageSampler*> create_sampler(stx::Rc<Image*> const& image) {
+inline VkSampler create_sampler(stx::Rc<Device*> const& device,
+                                bool enable_anisotropy) {
   VkSamplerCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
       .pNext = nullptr,
@@ -1594,9 +1639,9 @@ inline stx::Rc<ImageSampler*> create_sampler(stx::Rc<Image*> const& image) {
       .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
       .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
       .mipLodBias = 0.0f,
-      .anisotropyEnable = VK_TRUE,
-      .maxAnisotropy = image.handle->queue.handle->device.handle->phy_device
-                           .handle->properties.limits.maxSamplerAnisotropy,
+      .anisotropyEnable = enable_anisotropy,
+      .maxAnisotropy = device.handle->phy_device.handle->properties.limits
+                           .maxSamplerAnisotropy,
       .compareEnable = VK_FALSE,
       .compareOp = VK_COMPARE_OP_ALWAYS,
       .minLod = 0.0f,
@@ -1605,12 +1650,19 @@ inline stx::Rc<ImageSampler*> create_sampler(stx::Rc<Image*> const& image) {
       .unnormalizedCoordinates = VK_FALSE};
 
   VkSampler sampler;
-  ASR_VK_CHECK(
-      vkCreateSampler(image.handle->queue.handle->device.handle->device,
-                      &create_info, nullptr, &sampler));
 
-  return stx::rc::make_inplace<ImageSampler>(stx::os_allocator, sampler,
-                                             image.share())
+  ASR_VK_CHECK(
+      vkCreateSampler(device.handle->device, &create_info, nullptr, &sampler));
+
+  return sampler;
+}
+
+inline stx::Rc<ImageSampler*> create_image_sampler(
+    stx::Rc<Image*> const& image) {
+  return stx::rc::make_inplace<ImageSampler>(
+             stx::os_allocator,
+             create_sampler(image.handle->queue.handle->device, true),
+             image.share())
       .unwrap();
 }
 
@@ -1619,29 +1671,32 @@ enum class DescriptorType : u8 { Buffer, Sampler };
 struct DescriptorBinding {
   DescriptorType type = DescriptorType::Buffer;
   // only valid if type is DescriptorType::Buffer
-  usize size = 0;
-  void const* data = nullptr;
+  VkBuffer buffer = VK_NULL_HANDLE;
+  // only valid if type is DescriptorType::Sampler
+  VkImageView view = VK_NULL_HANDLE;
+  // only valid if type is DescriptorType::Sampler
+  VkSampler sampler = VK_NULL_HANDLE;
 
-  template <typename Type>
-  static DescriptorBinding uniform(Type const* value) {
-    return DescriptorBinding{
-        .type = DescriptorType::Buffer, .size = sizeof(Type), .data = value};
+  static constexpr DescriptorBinding buffer(VkBuffer buff) {
+    return DescriptorBinding{.type = DescriptorType::Buffer, .buffer = buff};
   }
 
-  static DescriptorBinding sampler(ImageSampler const* sampler) {
+  static constexpr DescriptorBinding sampler(VkImageView view,
+                                             VkSampler sampler) {
     return DescriptorBinding{
-        .type = DescriptorType::Sampler, .size = 0, .data = sampler};
+        .type = DescriptorType::Sampler, .view = view, .sampler = sampler};
   }
 };
 
 struct DescriptorSet {
-  stx::Vec<DescriptorBinding> bindings{stx::os_allocator};
+  stx::Vec<DescriptorType> bindings{stx::os_allocator};
 
-  explicit DescriptorSet(std::initializer_list<DescriptorBinding> abindings) {
+  explicit DescriptorSet(std::initializer_list<DescriptorType> abindings) {
     bindings.extend(abindings).unwrap();
   }
 };
 
+// TODO(lamarrr): format to only accept types of each slot
 inline std::pair<stx::Vec<VkDescriptorSetLayout>, stx::Vec<VkDescriptorSet>>
 prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
                         VkShaderStageFlags shader_stage,
@@ -1652,15 +1707,15 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
     stx::Vec<VkDescriptorSetLayoutBinding> bindings{stx::os_allocator};
     u32 binding_index = 0;
 
-    for (DescriptorBinding const& binding : set.bindings) {
-      VkDescriptorType type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    for (DescriptorType type : set.bindings) {
+      VkDescriptorType vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
-      switch (binding.type) {
+      switch (type) {
         case DescriptorType::Buffer:
-          type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+          vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
           break;
         case DescriptorType::Sampler:
-          type = VK_DESCRIPTOR_TYPE_SAMPLER;
+          vktype = VK_DESCRIPTOR_TYPE_SAMPLER;
           break;
         default:
           ASR_UNREACHABLE();
@@ -1668,7 +1723,7 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
 
       bindings
           .push(VkDescriptorSetLayoutBinding{.binding = binding_index,
-                                             .descriptorType = type,
+                                             .descriptorType = vktype,
                                              .descriptorCount = 1,
                                              .stageFlags = shader_stage,
                                              .pImmutableSamplers = nullptr})
@@ -1718,6 +1773,11 @@ struct DescriptorSetsSpec {
 
 // NOTE: descriptor binding values lifetime must be longer than the
 // ShaderProgram's
+//
+// TODO(lamarrr): we need a separate update_descriptor_sets function, specifying
+// at compile time won't work
+//
+//
 struct ShaderProgram {
   VkShaderModule vertex_shader = VK_NULL_HANDLE;
   VkShaderModule fragment_shader = VK_NULL_HANDLE;
@@ -1730,12 +1790,6 @@ struct ShaderProgram {
   stx::Vec<VkDescriptorSet> fragment_shader_descriptor_sets{stx::os_allocator};
 
   VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
-
-  stx::Vec<std::pair<VkBuffer, VkDeviceMemory>> uniform_buffers{
-      stx::os_allocator};
-
-  stx::Vec<std::tuple<VkDeviceMemory, DescriptorBinding>>
-      uniform_buffer_memory_mappings{stx::os_allocator};
 
   stx::Rc<CommandQueue*> queue;
 
@@ -1790,7 +1844,10 @@ struct ShaderProgram {
     ASR_VK_CHECK(vkCreateDescriptorPool(dev, &pool_create_info, nullptr,
                                         &descriptor_pool));
 
-    ____spec_descriptor_sets(spec);
+    vertex_shader_descriptor_set_spec.extend_move(spec.vertex_shader).unwrap();
+    fragment_shader_descriptor_set_spec.extend_move(spec.fragment_shader)
+        .unwrap();
+
     ____prepare_descriptor_sets();
   }
 
@@ -1814,22 +1871,12 @@ struct ShaderProgram {
     ASR_VK_CHECK(vkFreeDescriptorSets(
         dev, descriptor_pool, AS_U32(vertex_shader_descriptor_sets.size()),
         vertex_shader_descriptor_sets.data()));
+
     ASR_VK_CHECK(vkFreeDescriptorSets(
         dev, descriptor_pool, AS_U32(fragment_shader_descriptor_sets.size()),
         fragment_shader_descriptor_sets.data()));
 
     vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
-
-    for (auto [buffer, memory] : uniform_buffers) {
-      vkFreeMemory(dev, memory, nullptr);
-      vkDestroyBuffer(dev, buffer, nullptr);
-    }
-  }
-
-  void ____spec_descriptor_sets(DescriptorSetsSpec spec) {
-    vertex_shader_descriptor_set_spec.extend_move(spec.vertex_shader).unwrap();
-    fragment_shader_descriptor_set_spec.extend_move(spec.fragment_shader)
-        .unwrap();
   }
 
   void ____prepare_descriptor_sets() {
@@ -1848,106 +1895,87 @@ struct ShaderProgram {
 
     fragment_shader_descriptor_set_layouts = std::move(frag_descset_layouts);
     fragment_shader_descriptor_sets = std::move(frag_descsets);
-
-    auto pass = [&](stx::Span<DescriptorSet const> specs,
-                    stx::Span<VkDescriptorSet const> descriptor_sets) {
-      u32 iset = 0;
-      for (DescriptorSet const& set : specs) {
-        u32 ibinding = 0;
-        for (DescriptorBinding const& binding : set.bindings) {
-          if (binding.type == DescriptorType::Buffer) {
-            auto [buffer, memory] = create_buffer_with_memory(
-                dev, queue.handle->info.family,
-                queue.handle->device.handle->phy_device.handle
-                    ->memory_properties,
-                binding.size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-            uniform_buffers.push_inplace(buffer, memory).unwrap();
-
-            uniform_buffer_memory_mappings.push_inplace(memory, binding)
-                .unwrap();
-
-            VkDescriptorBufferInfo buffer_info{
-                .buffer = buffer, .offset = 0, .range = VK_WHOLE_SIZE};
-
-            VkWriteDescriptorSet writes[] = {{
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .pNext = nullptr,
-                .dstSet = descriptor_sets[iset],
-                .dstBinding = ibinding,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .pImageInfo = nullptr,
-                .pBufferInfo = &buffer_info,
-                .pTexelBufferView = nullptr,
-            }};
-
-            vkUpdateDescriptorSets(dev, 1, writes, 0, nullptr);
-
-          } else if (binding.type == DescriptorType::Sampler) {
-            ImageSampler const* sampler =
-                static_cast<ImageSampler const*>(binding.data);
-
-            VkDescriptorImageInfo image_info{
-                .sampler = sampler->sampler,
-                .imageView = sampler->image.handle->view,
-                .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
-
-            VkWriteDescriptorSet writes[] = {{
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .pNext = nullptr,
-                .dstSet = descriptor_sets[iset],
-                .dstBinding = ibinding,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-                .pImageInfo = &image_info,
-                .pBufferInfo = nullptr,
-                .pTexelBufferView = nullptr,
-            }};
-
-            vkUpdateDescriptorSets(dev, 1, writes, 0, nullptr);
-          }
-
-          ibinding++;
-        }
-
-        iset++;
-      }
-    };
-
-    pass(vertex_shader_descriptor_set_spec, vertex_shader_descriptor_sets);
-    pass(fragment_shader_descriptor_set_spec, fragment_shader_descriptor_sets);
   }
 
-  void flush_uniform_buffers() {
-    VkDevice dev = queue.handle->device.handle->device;
+  void write(
+      stx::Span<stx::Span<DescriptorBinding const> const> vertex_shader_sets,
+      stx::Span<stx::Span<DescriptorBinding const> const>
+          fragment_shader_sets) {
+    auto write_set =
+        [dev = queue.handle->device.handle->device](
+            stx::Span<stx::Span<DescriptorBinding const> const> sets,
+            stx::Span<DescriptorSet const> spec,
+            stx::Span<VkDescriptorSet const> vk_set) {
+          ASR_ENSURE(sets.size() == spec.size());
 
-    for (auto [memory, binding] : uniform_buffer_memory_mappings) {
-      switch (binding.type) {
-        case DescriptorType::Buffer: {
-          void* memory_map;
-          ASR_VK_CHECK(
-              vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
+          for (usize iset = 0; iset < sets.size(); iset++) {
+            stx::Span<DescriptorBinding const> set = sets[iset];
+            ASR_ENSURE(set.size() == spec[iset].bindings.size());
 
-          memcpy(memory_map, binding.data, binding.size);
+            for (usize ibinding = 0; ibinding < sets[iset].size(); ibinding++) {
+              DescriptorBinding binding = sets[iset][ibinding];
 
-          VkMappedMemoryRange range{
-              .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-              .pNext = nullptr,
-              .memory = memory,
-              .offset = 0,
-              .size = VK_WHOLE_SIZE};
+              ASR_ENSURE(binding.type == spec[iset].bindings[ibinding]);
 
-          ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+              switch (binding.type) {
+                case DescriptorType::Sampler: {
+                  VkDescriptorImageInfo image_info{
+                      .sampler = binding.sampler,
+                      .imageView = binding.view,
+                      .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
-          vkUnmapMemory(dev, memory);
-        } break;
-        default:
-          ASR_UNREACHABLE();
-      }
-    }
+                  VkWriteDescriptorSet writes[] = {{
+                      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                      .pNext = nullptr,
+                      .dstSet = vk_set[iset],
+                      .dstBinding = ibinding,
+                      .dstArrayElement = 0,
+                      .descriptorCount = 1,
+                      .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                      .pImageInfo = &image_info,
+                      .pBufferInfo = nullptr,
+                      .pTexelBufferView = nullptr,
+                  }};
+
+                  vkUpdateDescriptorSets(dev, AS_U32(std::size(writes)), writes,
+                                         0, nullptr);
+
+                } break;
+
+                case DescriptorType::Buffer: {
+                  VkDescriptorBufferInfo buffer_info{.buffer = binding.buffer,
+                                                     .offset = 0,
+                                                     .range = VK_WHOLE_SIZE};
+
+                  VkWriteDescriptorSet writes[] = {{
+                      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                      .pNext = nullptr,
+                      .dstSet = vk_set[iset],
+                      .dstBinding = ibinding,
+                      .dstArrayElement = 0,
+                      .descriptorCount = 1,
+                      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                      .pImageInfo = nullptr,
+                      .pBufferInfo = &buffer_info,
+                      .pTexelBufferView = nullptr,
+                  }};
+
+                  vkUpdateDescriptorSets(dev, AS_U32(std::size(writes)), writes,
+                                         0, nullptr);
+                } break;
+
+                default: {
+                  ASR_UNREACHABLE();
+                }
+              }
+            }
+          }
+        };
+
+    write_set(vertex_shader_sets, vertex_shader_descriptor_set_spec,
+              vertex_shader_descriptor_sets);
+    write_set(fragment_shader_sets, fragment_shader_descriptor_set_spec,
+              fragment_shader_descriptor_sets);
   }
 };
 
@@ -2201,7 +2229,6 @@ inline VkFormat find_depth_format(VkPhysicalDevice phy_device) {
 /// window surface.
 ///
 ///
-///
 /// NOTE: all arguments to create a swapchain for a window surface are
 /// preferences, meaning another available argument will be used if the
 /// suggested ones are not supported. Thus do not assume your arguments are
@@ -2216,6 +2243,8 @@ inline VkFormat find_depth_format(VkPhysicalDevice phy_device) {
 /// its images, nor its image views outside itself (the swapchain object).
 ///
 struct SwapChain {
+  static constexpr u32 MAX_FRAMES_INFLIGHT = 2;
+
   // actually holds the images of the surface and used to present to the render
   // target image. when resizing is needed, the swapchain is destroyed and
   // recreated with the desired extents.
@@ -2261,12 +2290,24 @@ struct SwapChain {
 
   VkRenderPass render_pass = VK_NULL_HANDLE;
 
+  struct Clip {
+    VkImage image = VK_NULL_HANDLE;
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+    VkImageView view = VK_NULL_HANDLE;
+    VkSampler sampler = VK_NULL_HANDLE;
+    VkFramebuffer framebuffer = VK_NULL_HANDLE;
+    VkFence fence = VK_NULL_HANDLE;
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    VkRenderPass render_pass = VK_NULL_HANDLE;
+  } clip;
+
   stx::Rc<CommandQueue*> queue;
 
   SwapChain(stx::Rc<CommandQueue*> aqueue, VkSurfaceKHR target_surface,
             stx::Span<VkSurfaceFormatKHR const> preferred_formats,
             stx::Span<VkPresentModeKHR const> preferred_present_modes,
             VkExtent2D preferred_extent,
+            VkSampleCountFlagBits amsaa_sample_count,
             VkCompositeAlphaFlagBitsKHR alpha_compositing)
       : queue{std::move(aqueue)} {
     VkPhysicalDevice phy_device =
@@ -2314,21 +2355,35 @@ struct SwapChain {
     format = selected_format;
     present_mode = selected_present_mode;
     extent = new_extent;
-    msaa_sample_count =
-        queue.handle->device.handle->phy_device.handle->get_max_sample_count();
+    msaa_sample_count = amsaa_sample_count;
 
     for (VkImage image : images) {
-      VkImageView image_view = create_image_view(
-          dev, image, format.format, VK_IMAGE_VIEW_TYPE_2D,
-          VK_IMAGE_ASPECT_COLOR_BIT,
-          VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                             .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                             .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                             .a = VK_COMPONENT_SWIZZLE_IDENTITY});
-      image_views.push_inplace(image_view).unwrap();
+      VkImageViewCreateInfo create_info{
+          .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0,
+          .image = image,
+          .viewType = VK_IMAGE_VIEW_TYPE_2D,
+          .format = format.format,
+          .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                           .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                           .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                           .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+          .subresourceRange =
+              VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                      .baseMipLevel = 0,
+                                      .levelCount = 1,
+                                      .baseArrayLayer = 0,
+                                      .layerCount = 1}};
+
+      VkImageView view;
+
+      ASR_VK_CHECK(vkCreateImageView(dev, &create_info, nullptr, &view));
+
+      image_views.push_inplace(view).unwrap();
     }
 
-    for (usize i = 0; i < images.size(); i++) {
+    for (usize i = 0; i < MAX_FRAMES_INFLIGHT; i++) {
       rendering_semaphores.push(create_semaphore(dev)).unwrap();
       image_acquisition_semaphores.push(create_semaphore(dev)).unwrap();
     }
@@ -2337,10 +2392,12 @@ struct SwapChain {
         create_msaa_color_resource(queue, format.format, new_extent,
                                    msaa_sample_count);
 
-    // TODO(lamarrr): depth format is incorrect
     auto [xmsaa_depth_image, xmsaa_depth_image_view, xmsaa_depth_image_memory] =
-        create_msaa_depth_resource(queue, format.format, new_extent,
-                                   msaa_sample_count);
+        create_msaa_depth_resource(
+            queue,
+            find_depth_format(
+                queue.handle->device.handle->phy_device.handle->phy_device),
+            new_extent, msaa_sample_count);
 
     msaa_color_image = xmsaa_color_image;
     msaa_color_image_view = xmsaa_color_image_view;
@@ -2452,10 +2509,98 @@ struct SwapChain {
           .height = extent.height,
           .layers = 1};
 
-      ASR_VK_CHECK(vkCreateFramebuffer(queue.handle->device.handle->device,
-                                       &create_info, nullptr, &framebuffer));
+      ASR_VK_CHECK(
+          vkCreateFramebuffer(dev, &create_info, nullptr, &framebuffer));
 
       frame_buffers.push_inplace(framebuffer).unwrap();
+    }
+
+    {
+      auto [image, memory, view] =
+          create_bitmap_image(queue, extent.width, extent.height);
+
+      VkRenderPass render_pass;
+
+      {
+        VkAttachmentDescription color_attachment{
+            .flags = 0,
+            .format = format.format,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+
+        VkAttachmentReference color_attachment_reference{
+            .attachment = 0,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+        VkSubpassDescription subpass{
+            .flags = 0,
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .inputAttachmentCount = 0,
+            .pInputAttachments = nullptr,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &color_attachment_reference,
+            .pResolveAttachments = nullptr,
+            .pDepthStencilAttachment = nullptr,
+            .preserveAttachmentCount = 0,
+            .pPreserveAttachments = nullptr};
+
+        VkSubpassDependency dependency{
+            .srcSubpass = VK_SUBPASS_EXTERNAL,
+            .dstSubpass = 0,
+            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask = 0,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dependencyFlags = 0};
+
+        VkRenderPassCreateInfo create_info{
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .attachmentCount = 1,
+            .pAttachments = &color_attachment,
+            .subpassCount = 1,
+            .pSubpasses = &subpass,
+            .dependencyCount = 1,
+            .pDependencies = &dependency};
+
+        ASR_VK_CHECK(
+            vkCreateRenderPass(dev, &create_info, nullptr, &render_pass));
+      }
+
+      VkFramebuffer framebuffer;
+
+      {
+        VkImageView attachments[] = {view};
+
+        VkFramebufferCreateInfo create_info{
+            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .renderPass = render_pass,
+            .attachmentCount = AS_U32(std::size(attachments)),
+            .pAttachments = attachments,
+            .width = extent.width,
+            .height = extent.height,
+            .layers = 1};
+
+        ASR_VK_CHECK(
+            vkCreateFramebuffer(dev, &create_info, nullptr, &framebuffer));
+      }
+
+      clip = Clip{.image = image,
+                  .memory = memory,
+                  .view = view,
+                  .sampler = create_sampler(queue.handle->device, false),
+                  .framebuffer = framebuffer,
+                  .fence = create_fence(dev, 0),
+                  .semaphore = create_semaphore(dev),
+                  .render_pass = render_pass};
     }
   }
 
@@ -2469,6 +2614,17 @@ struct SwapChain {
     // any part of the device could be using the semaphore
 
     ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+
+    {
+      vkDestroySemaphore(dev, clip.semaphore, nullptr);
+      vkDestroyFence(dev, clip.fence, nullptr);
+      vkDestroyRenderPass(dev, clip.render_pass, nullptr);
+      vkFreeMemory(dev, clip.memory, nullptr);
+      vkDestroyImageView(dev, clip.view, nullptr);
+      vkDestroyImage(dev, clip.image, nullptr);
+      vkDestroySampler(dev, clip.sampler, nullptr);
+      vkDestroyFramebuffer(dev, clip.framebuffer, nullptr);
+    }
 
     vkDestroyRenderPass(dev, render_pass, nullptr);
 
@@ -2539,15 +2695,16 @@ struct Surface {
       stx::Rc<CommandQueue*> const& queue,
       stx::Span<VkSurfaceFormatKHR const> preferred_formats,
       stx::Span<VkPresentModeKHR const> preferred_present_modes,
-      VkExtent2D preferred_extent,
+      VkExtent2D preferred_extent, VkSampleCountFlagBits msaa_sample_count,
       VkCompositeAlphaFlagBitsKHR alpha_compositing) {
     swapchain = stx::None;  // probably don't want to have two existing at once
 
-    swapchain = stx::Some(stx::rc::make_unique_inplace<SwapChain>(
-                              stx::os_allocator, queue.share(), surface,
-                              preferred_formats, preferred_present_modes,
-                              preferred_extent, alpha_compositing)
-                              .unwrap());
+    swapchain =
+        stx::Some(stx::rc::make_unique_inplace<SwapChain>(
+                      stx::os_allocator, queue.share(), surface,
+                      preferred_formats, preferred_present_modes,
+                      preferred_extent, msaa_sample_count, alpha_compositing)
+                      .unwrap());
   }
 };
 
@@ -2683,14 +2840,6 @@ struct Pipeline {
         .depthBiasSlopeFactor = 0.0f,
         .lineWidth = 1.0f};
 
-    /*
-        VkPipelineTessellationStateCreateInfo tesselation_state{
-            .flags,
-            .patchControlPoints,
-            .pNext = nullptr,
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO};
-    */
-
     VkVertexInputBindingDescription vertex_binding_descriptions[] = {
         {.binding = 0,
          .stride = AS_U32(vertex_input_size),
@@ -2761,12 +2910,190 @@ struct Pipeline {
   }
 };
 
+struct BitmapPipeline {
+  VkPipeline pipeline = VK_NULL_HANDLE;
+  VkPipelineLayout layout = VK_NULL_HANDLE;
+  VkRenderPass target_render_pass = VK_NULL_HANDLE;
+  stx::Rc<ShaderProgram*> program;
+
+  BitmapPipeline(
+      stx::Rc<ShaderProgram*> aprogram, VkRenderPass atarget_render_pass,
+      stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
+      usize vertex_input_size)
+      : target_render_pass{atarget_render_pass}, program{std::move(aprogram)} {
+    VkDevice dev = program.handle->queue.handle->device.handle->device;
+
+    VkPipelineShaderStageCreateInfo vert_shader_stage{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .module = program.handle->vertex_shader,
+        .pName = "main",
+        .pSpecializationInfo = nullptr};
+
+    VkPipelineShaderStageCreateInfo frag_shader_stage{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .module = program.handle->fragment_shader,
+        .pName = "main",
+        .pSpecializationInfo = nullptr};
+
+    VkPipelineShaderStageCreateInfo stages[] = {vert_shader_stage,
+                                                frag_shader_stage};
+
+    VkPipelineLayoutCreateInfo layout_create_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .setLayoutCount = 0,
+        .pSetLayouts = nullptr,
+        .pushConstantRangeCount = 0,
+        .pPushConstantRanges = nullptr};
+
+    ASR_VK_CHECK(
+        vkCreatePipelineLayout(dev, &layout_create_info, nullptr, &layout));
+
+    VkPipelineColorBlendAttachmentState color_blend_attachment_states[]{
+        {.blendEnable = VK_TRUE,
+         .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+         .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+         .colorBlendOp = VK_BLEND_OP_ADD,
+         .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+         .alphaBlendOp = VK_BLEND_OP_ADD,
+         // only R component is written
+         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT}};
+
+    VkPipelineColorBlendStateCreateInfo color_blend_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .logicOpEnable = VK_FALSE,
+        .logicOp = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments = color_blend_attachment_states,
+        .blendConstants = {0.0f, 0.0f, 0.0f, 0.0f}};
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE};
+
+    VkPipelineMultisampleStateCreateInfo multisample_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .sampleShadingEnable = VK_FALSE,
+        .minSampleShading = 1.0f,
+        .pSampleMask = nullptr,
+        .alphaToCoverageEnable = VK_FALSE,
+        .alphaToOneEnable = VK_FALSE};
+
+    VkPipelineRasterizationStateCreateInfo rasterization_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .depthClampEnable = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable = VK_FALSE,
+        .depthBiasConstantFactor = 0.0f,
+        .depthBiasClamp = 0.0f,
+        .depthBiasSlopeFactor = 0.0f,
+        .lineWidth = 1.0f};
+
+    VkVertexInputBindingDescription vertex_binding_descriptions[] = {
+        {.binding = 0,
+         .stride = AS_U32(vertex_input_size),
+         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX}};
+
+    VkPipelineVertexInputStateCreateInfo vertex_input_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .vertexBindingDescriptionCount =
+            AS_U32(std::size(vertex_binding_descriptions)),
+        .pVertexBindingDescriptions = vertex_binding_descriptions,
+        .vertexAttributeDescriptionCount = AS_U32(vertex_input_attr.size()),
+        .pVertexAttributeDescriptions = vertex_input_attr.data()};
+
+    VkPipelineViewportStateCreateInfo viewport_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .viewportCount = 1,
+        .pViewports = nullptr,
+        .scissorCount = 1,
+        .pScissors = nullptr};
+
+    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_SCISSOR,
+                                       VK_DYNAMIC_STATE_VIEWPORT};
+
+    VkPipelineDynamicStateCreateInfo dynamic_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .dynamicStateCount = AS_U32(std::size(dynamic_states)),
+        .pDynamicStates = dynamic_states};
+
+    VkGraphicsPipelineCreateInfo create_info{
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .stageCount = AS_U32(std::size(stages)),
+        .pStages = stages,
+        .pVertexInputState = &vertex_input_state,
+        .pInputAssemblyState = &input_assembly_state,
+        .pTessellationState = nullptr,
+        .pViewportState = &viewport_state,
+        .pRasterizationState = &rasterization_state,
+        .pMultisampleState = &multisample_state,
+        .pDepthStencilState = nullptr,
+        .pColorBlendState = &color_blend_state,
+        .pDynamicState = &dynamic_state,
+        .layout = layout,
+        .renderPass = target_render_pass,
+        .subpass = 0,
+        .basePipelineHandle = VK_NULL_HANDLE,
+        .basePipelineIndex = 0,
+    };
+
+    ASR_VK_CHECK(vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &create_info,
+                                           nullptr, &pipeline));
+  }
+
+  STX_MAKE_PINNED(BitmapPipeline)
+
+  ~BitmapPipeline() {
+    vkDestroyPipelineLayout(program.handle->queue.handle->device.handle->device,
+                            layout, nullptr);
+    vkDestroyPipeline(program.handle->queue.handle->device.handle->device,
+                      pipeline, nullptr);
+  }
+};
+
 struct RecordingContext {
   VkCommandPool command_pool = VK_NULL_HANDLE;
   VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-  stx::Rc<SwapChain*> swapchain;
+  VkCommandBuffer clip_command_buffer = VK_NULL_HANDLE;
+  Pipeline pipeline;
+  BitmapPipeline clip_pipeline;
+  ShaderProgram program;
+  ShaderProgram clip_program;
+
+  stx::Rc<Surface*> surface;
 
   STX_MAKE_PINNED(RecordingContext)
+
+  ~RecordingContext();
 };
 
 }  // namespace vk

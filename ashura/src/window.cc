@@ -94,10 +94,13 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
       VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_FIFO_KHR,
       VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR};
 
+  VkSampleCountFlagBits msaa_sample_count =
+      queue.handle->device.handle->phy_device.handle->get_max_sample_count();
+
   surface_.value().handle->change_swapchain(
       queue, preferred_formats, preferred_present_modes,
       VkExtent2D{.width = surface_extent_.w, .height = surface_extent_.h},
-      VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+      msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
 }
 
 // TODO(lamarrr): can't we render to the swapchain images directly?
@@ -214,7 +217,7 @@ WindowSwapchainDiff Window::present_backing_store() {
     // if an error is returned
     surface.handle->swapchain_handle->frame_flight_index =
         (surface.handle->swapchain_handle->frame_flight_index + 1) %
-        surface.handle->swapchain_handle->images.size();
+        vk::Swapchain::MAX_FRAMES_INFLIGHT;
   */
 
   VkResult present_result = VK_SUBOPTIMAL_KHR;

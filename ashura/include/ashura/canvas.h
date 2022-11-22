@@ -22,11 +22,11 @@ using namespace stx::literals;
 namespace gfx {
 // compute area of a contour/polygon
 constexpr f32 compute_polygon_area(stx::Span<vec2 const> polygon) {
-  usize num_points = polygon.size();
+  usize npoints = polygon.size();
 
   f32 area = 0.0f;
 
-  for (usize p = num_points - 1, q = 0; q < num_points; p = q++) {
+  for (usize p = npoints - 1, q = 0; q < npoints; p = q++) {
     area += cross(polygon[p], polygon[q]);
   }
 
@@ -52,26 +52,26 @@ constexpr bool polygon_snip_check(stx::Span<vec2 const> polygon, i64 u, i64 v,
 inline stx::Vec<vec2> triangulate_polygon(stx::Span<vec2 const> polygon) {
   stx::Vec<vec2> result{stx::os_allocator};
 
-  i64 num_points = polygon.size();
+  i64 npoints = polygon.size();
 
-  ASR_ENSURE(num_points >= 3, "polygon must have 3 or more points");
+  ASR_ENSURE(npoints >= 3, "polygon must have 3 or more points");
 
   stx::Vec<i64> V{stx::os_allocator};
 
-  V.resize(num_points, 0).unwrap();
+  V.resize(npoints, 0).unwrap();
 
   // we want a counter-clockwise polygon in V
   if (0.0f < compute_polygon_area(polygon)) {
-    for (i64 v = 0; v < num_points; v++) {
+    for (i64 v = 0; v < npoints; v++) {
       V[v] = v;
     }
   } else {
-    for (i64 v = 0; v < num_points; v++) {
-      V[v] = (num_points - 1) - v;
+    for (i64 v = 0; v < npoints; v++) {
+      V[v] = (npoints - 1) - v;
     }
   }
 
-  i64 nv = num_points;
+  i64 nv = npoints;
 
   //  remove nv-2 vertices, creating 1 triangle every time
   i64 count = 2 * nv;  // error detection
@@ -204,9 +204,6 @@ enum class FontWeight : u32 {
 // - caching so we don't have to reupload on every frame
 // - GPU texture/image
 // NOTE: canvas is low-level so we don't use paths, urls, or uris
-struct ImageId {
-  u64 id = 0;
-};
 
 // requirements:
 // -
@@ -214,47 +211,11 @@ struct TypefaceId {
   u64 id = 0;
 };
 
-// requirements:
-struct ShaderProgramId {
-  u64 id = 0;
-};
-
 // stored in vulkan context
-using Image = stx::Rc<vk::ImageSampler>;
+using Image = stx::Rc<vk::ImageSampler*>;
 struct Typeface;
-struct ShaderProgram;
 
-//
-// ImageId push(Image);
-// Image pop(ImageId);
-// Image get(ImageId);
-//
-//
-struct ImageRetainer {
-  ImageId push(Image image) {
-    last_id++;
-    entries.emplace(ImageId{last_id}, std::move(image));
-    return ImageId{last_id};
-  }
-
-  Image pop(ImageId id) {
-    auto pos = entries.find(id.id);
-    ASR_ENSURE(pos != entries.end());
-    Image image = std::move(pos->second);
-    entries.erase(pos);
-    return image;
-  }
-
-Image get(ImageId id){
-    auto pos = entries.find(id.id);
-    ASR_ENSURE()
-}
-
-  std::map<u64, Image> entries;
-  u64 last_id = 0;
-};
 struct TypefaceRetainer;
-struct ShaderRetainer;
 
 // TODO(lamarrr): embed font into a cpp file
 //
@@ -278,7 +239,7 @@ struct Brush {
   Color color = colors::BLACK;
   f32 opacity = 1.0f;
   f32 line_width = 1.0f;
-  stx::Option<ImageId> pattern;
+  stx::Option<Image> pattern;
   TextStyle text_style;
   Filter filter;
   Shadow shadow;
@@ -335,16 +296,13 @@ inline mat4x4 rotate_z(f32 degree) {
 
 struct DrawCommand {
   u32 indices_offset = 0;
-  u32 num_triangles = 0;
+  u32 ntriangles = 0;
   f32 opacity = 1.0f;
   mat4x4 placement = mat4x4::identity();
   mat4x4 transform = mat4x4::identity();  //  transform contains position
                                           //  (translation from origin)
   Color color = colors::BLACK;
-  stx::Option<ImageId> texture;
-  ShaderProgramId shader_program;  // - clip options will apply in the fragment
-                                   // and vertex shaders
-                                   // - blending
+  stx::Option<Image> texture;
 };
 
 struct DrawList {
@@ -373,6 +331,9 @@ struct DrawList {
 // TODO(lamarrr): is there a way we can not require specifying the coordinates
 // in unit?
 //
+//
+// TODO(lamarrr): add clipping, atleast clip_rounded_rect
+// use clipping masks, just a simple convex polygon
 //
 //
 struct Canvas {
@@ -451,7 +412,7 @@ struct Canvas {
     //         .color = brush.color,
     //         .frag_shader,
     //         .indices_offset = start,
-    //         .num_triangles = 2,
+    //         .ntriangles = 2,
     //         .opacity,
     //         .texture,
     //         .transform = transforms::scale(vec3{extent.x, extent.y, 1.0f}),
@@ -509,7 +470,7 @@ struct Canvas {
       //       .push(DrawCommand{.color,
       //                         .frag_shader,
       //                         .indices_offset = start,
-      //                         .num_triangles = 2,
+      //                         .ntriangles = 2,
       //                         .opacity,
       //                         .placement,
       //                         .texture,
@@ -539,13 +500,13 @@ struct Canvas {
       draw_list.indices.push_inplace(index).unwrap();
     }
 
-    u32 num_triangles = AS_U32(polygon_vertices.size()) / 3U;
+    u32 ntriangles = AS_U32(polygon_vertices.size()) / 3U;
 
     // draw_list.commands
     //     .push(DrawCommand{.color,
     //                       .frag_shader,
     //                       .indices_offset = start,
-    //                       .num_triangles = num_triangles,
+    //                       .ntriangles = ntriangles,
     //                       .opacity,
     //                       .placement,
     //                       .texture,
@@ -578,7 +539,7 @@ struct Canvas {
     //     DrawCommand{.color,
     //                 .frag_shader,
     //                 .indices_offset = start,
-    //                 .num_triangles = std::size(indices) / 3U,
+    //                 .ntriangles = std::size(indices) / 3U,
     //                 .opacity,
     //                 .placement,
     //                 .texture,
@@ -628,16 +589,18 @@ struct Canvas {
   Canvas& draw_text(stx::StringView text, OffsetF position);
 
   // Image API
-  Canvas& draw_image(ImageId image, OffsetF position);
-  Canvas& draw_image(ImageId image, RectF target);
-  Canvas& draw_image(ImageId image, RectF portion, RectF target);
+  Canvas& draw_image(Image const& image, OffsetF position);
+  Canvas& draw_image(Image const& image, RectF target);
+  Canvas& draw_image(Image const& image, RectF portion, RectF target);
 };
 
 void sample(Canvas& canvas) {
+  Image* image;
+
   canvas.save()
       .rotate(45)
       .draw_circle({0, 0}, 20.0f)
-      .draw_image(ImageId{}, {{0.0, 0.0}, {20, 40}})
+      .draw_image(*image, {{0.0, 0.0}, {20, 40}})
       .restore()
       .scale(2.0f, 2.0f)
       .draw_line({0, 0}, {200, 200})
@@ -647,44 +610,73 @@ void sample(Canvas& canvas) {
                        {10.0f, 10.0f, 10.0f, 10.0f});
 }
 
+// TODO(lamarrr): add to list of device/operations currently using resources so
+// resource won't be freed when in use
+//
+//
+// TODO(lamarrr): how to ensure resource are not destroyed whilst in use
+//
+//
+//
 inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
   ASR_VK_CHECK(vkResetCommandBuffer(ctx.command_buffer, 0));
 
-  stx::Rc<vk::Buffer*> vertex_buffer =
-      upload_vertices(ctx.swapchain.handle->queue.handle->device,
-                      ctx.swapchain.handle->queue.handle->info.family,
-                      ctx.swapchain.handle->queue.handle->device.handle
-                          ->phy_device.handle->memory_properties,
-                      draw_list.vertices);
+  vk::SwapChain& swapchain = *ctx.surface.handle->swapchain.value().handle;
 
-  stx::Rc<vk::Buffer*> index_buffer =
-      upload_indices(ctx.swapchain.handle->queue.handle->device,
-                     ctx.swapchain.handle->queue.handle->info.family,
-                     ctx.swapchain.handle->queue.handle->device.handle
-                         ->phy_device.handle->memory_properties,
-                     draw_list.indices);
-  // texture uploads
-  // buffer uploads
-  // - upload vertex buffer
-  // - upload index buffer
-  // - upload textures
+  stx::Rc<vk::Buffer*> vertex_buffer = upload_vertices(
+      swapchain.queue.handle->device, swapchain.queue.handle->info.family,
+      swapchain.queue.handle->device.handle->phy_device.handle
+          ->memory_properties,
+      draw_list.vertices);
+
+  stx::Rc<vk::Buffer*> index_buffer = upload_indices(
+      swapchain.queue.handle->device, swapchain.queue.handle->info.family,
+      swapchain.queue.handle->device.handle->phy_device.handle
+          ->memory_properties,
+      draw_list.indices);
 
   // we need to retain texture uploads, we can't be reuploading them every
   // time
+  VkCommandBufferBeginInfo begin_info{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      .pNext = nullptr,
+      .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+      .pInheritanceInfo = nullptr,
+  };
+
+  ASR_VK_CHECK(vkBeginCommandBuffer(ctx.command_buffer, &begin_info));
 
   for (DrawCommand const& draw_command : draw_list.commands) {
+    //
+    // render clip if any
+    // if none, fill the whole buffer with the color (2 triangles, 1 color)
+    //
     // TODO(lamarrr): how do we create pipelines and descriptor sets?
     // vkCmdBindPipeline();
     // vkCmdBindDescriptorSets();
+  
+    VkRenderPassBeginInfo begin_info{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .pNext = nullptr,
+        .renderPass,
+        .framebuffer,
+        .renderArea,
+        .clearValueCount,
+        .pClearValues};
 
-    VkRect2D scissor{.offset = {0, 0}, .extent = ctx.swapchain.handle->extent};
+    vkCmdBeginRenderPass(ctx.command_buffer, &begin_info,
+                         VK_SUBPASS_CONTENTS_INLINE);
+
+    VkRect2D scissor{
+        .offset = {0, 0},
+        .extent = ctx.surface.handle->swapchain.value().handle->extent};
 
     vkCmdSetScissor(ctx.command_buffer, 0, 1, &scissor);
 
     VkViewport viewport{.x = 0.0f,
                         .y = 0.0f,
-                        .width = AS_F32(ctx.swapchain.handle->extent.width),
-                        .height = AS_F32(ctx.swapchain.handle->extent.height),
+                        .width = AS_F32(swapchain.extent.width),
+                        .height = AS_F32(swapchain.extent.height),
                         .minDepth = 0.0f,
                         .maxDepth = 1.0f};
 
@@ -692,12 +684,17 @@ inline void record(DrawList const& draw_list, vk::RecordingContext const& ctx) {
 
     vkCmdBindVertexBuffers(ctx.command_buffer, 0, 1,
                            &vertex_buffer.handle->buffer, 0);
+
     vkCmdBindIndexBuffer(ctx.command_buffer, index_buffer.handle->buffer, 0,
                          VK_INDEX_TYPE_UINT32);
 
-    vkCmdDrawIndexed(ctx.command_buffer, draw_command.num_triangles * 3, 1, 0,
-                     0, 0);
+    vkCmdDrawIndexed(ctx.command_buffer, draw_command.ntriangles * 3, 1, 0, 0,
+                     0);
+
+    vkCmdEndRenderPass(ctx.command_buffer);
   }
+
+  ASR_VK_CHECK(vkEndCommandBuffer(ctx.command_buffer));
 }
 
 }  // namespace gfx
