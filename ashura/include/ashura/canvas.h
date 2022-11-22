@@ -341,6 +341,9 @@ struct DrawList {
 // use clipping masks, just a simple convex polygon
 //
 //
+//
+// TODO(lamarrr): separate shape generating functions
+//
 struct Canvas {
   vec2 extent;
   Brush brush;
@@ -588,22 +591,34 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& draw_round_rect(RectF area, vec4 radii);
-  Canvas& draw_slanted_rect(RectF area);
-  // within circle and within a rect that comtains
-  // that circle (for filled arc)
-  Canvas& draw_circle(vec2 center, f32 radius);
+  // angle = 0.0f to 90.0f for top left, angle
+  // = 90.0f to 180.0f for top right,
+  // angle = 180.0f to 270.0f for bottom right,
+  // angle = 270.0f to 360.0f for bottom left,
+  // nsegments
+  //
+  Canvas& draw_round_rect(vec2 offset, vec2 extent, vec4 radii,
+                          usize nsegments);
+  Canvas& draw_slanted_rect(vec2 offset, vec2 extent);
 
-  Canvas& draw_ellipse(OffsetF center, ExtentF radius, f32 rotation,
-                       f32 start_angle, f32 end_angle);
+  // within circle and within a rect that contains
+  // that circle (for filled arc)
+  Canvas& draw_circle(vec2 center, f32 radius, usize nsegments) {
+    // from angle = 0.0f to 360.0f with delta = 360.0f/num_segments
+    return *this;
+  }
+
+  Canvas& draw_ellipse(vec2 center, vec2 radius, f32 rotation, f32 start_angle,
+                       f32 end_angle);
 
   // Text API
-  Canvas& draw_text(stx::StringView text, OffsetF position);
+  Canvas& draw_text(stx::StringView text, vec2 position);
 
   // Image API
-  Canvas& draw_image(Image const& image, OffsetF position);
-  Canvas& draw_image(Image const& image, RectF target);
-  Canvas& draw_image(Image const& image, RectF portion, RectF target);
+  Canvas& draw_image(Image const& image, vec2 position);
+  Canvas& draw_image(Image const& image, vec2 position, vec2 extent);
+  Canvas& draw_image(Image const& image, vec2 portion_offset, vec2 portion_size,
+                     vec2 target_offset, vec2 target_extent);
 };
 
 void sample(Canvas& canvas) {
