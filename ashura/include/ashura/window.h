@@ -99,9 +99,14 @@ struct Window {
         .unwrap();
   }
 
-  // void position(IOffset pos) const;
-  // IOffset get_position() const;
-  // void set_icon(uint8_t *rgba_pixels, Extent extent);
+  void set_position(OffsetI pos) const;
+
+  void center();
+
+  // variant, or centered?
+  OffsetI get_position() const;
+
+  void set_icon(stx::Span<uint8_t const> rgba_pixels, Extent extent);
 
   void make_bordered() const { SDL_SetWindowBordered(window_, SDL_TRUE); }
 
@@ -118,6 +123,8 @@ struct Window {
   void minimize() const { SDL_MinimizeWindow(window_); }
 
   void restore() const { SDL_RestoreWindow(window_); }
+
+  void flash();
 
   void make_fullscreen() const {
     ASR_ENSURE(
@@ -138,13 +145,10 @@ struct Window {
 
   void make_unresizable() const { SDL_SetWindowResizable(window_, SDL_FALSE); }
 
-  // void center();
+  void resize();
 
-  // void resize();
-
-  // void constrain_max(stx::Option<int> width, stx::Option<int> height);
-
-  // void constrain_min(stx::Option<int> width, stx::Option<int> height);
+  void constrain(stx::Option<int> min_width, stx::Option<int> min_height,
+                 stx::Option<int> max_width, stx::Option<int> max_height);
 
   stx::Vec<char const*> get_required_instance_extensions() const;
 
@@ -166,7 +170,7 @@ struct Window {
   // controller
 
   void tick(std::chrono::nanoseconds) {
-    SDL_DisplayMode display_mode{};
+    SDL_DisplayMode display_mode;
     ASR_ENSURE(SDL_GetWindowDisplayMode(window_, &display_mode) == 0);
     refresh_rate_ = display_mode.refresh_rate;
     // forward event if refresh rate changed
