@@ -47,9 +47,8 @@ constexpr bool polygon_snip_check(stx::Span<vec2 const> polygon, i64 u, i64 v,
   return true;
 }
 
-inline stx::Vec<vec2> triangulate_polygon(stx::Span<vec2 const> polygon) {
-  stx::Vec<vec2> result{stx::os_allocator};
-
+inline void triangulate_polygon(stx::Vec<vec2>& output,
+                                stx::Span<vec2 const> polygon) {
   i64 npoints = polygon.size();
 
   ASR_ENSURE(npoints >= 3, "polygon must have 3 or more points");
@@ -100,9 +99,9 @@ inline stx::Vec<vec2> triangulate_polygon(stx::Span<vec2 const> polygon) {
       i64 c = V[w];
 
       // output triangle
-      result.push_inplace(polygon[a]).unwrap();
-      result.push_inplace(polygon[b]).unwrap();
-      result.push_inplace(polygon[c]).unwrap();
+      output.push_inplace(polygon[a]).unwrap();
+      output.push_inplace(polygon[b]).unwrap();
+      output.push_inplace(polygon[c]).unwrap();
 
       m++;
 
@@ -117,8 +116,6 @@ inline stx::Vec<vec2> triangulate_polygon(stx::Span<vec2 const> polygon) {
       count = 2 * nv;
     }
   }
-
-  return result;
 }
 
 struct TextMetrics {
@@ -297,14 +294,11 @@ inline mat4x4 rotate_z(f32 degree) {
 // TODO(lamarrr): placement and transform for clip
 struct DrawCommand {
   u32 indices_offset = 0;
-  u32 ntriangles = 0;
+  u32 nvertices = 0;
   u32 clip_indices_offset = 0;
-  u32 nclip_triangles = 0;
-  vec2 extent{0.0f,
-              0.0f};  // overall resulting extent???? not workable it seems
-  // defines size, rotation, and position of the object
-  mat4x4 placement = mat4x4::identity();
-  // transform contains position (translation from origin)
+  u32 nclip_vertices = 0;
+  // vec2 extent{0.0f,
+  // 0.0f};  // overall resulting extent???? not workable it seems
   mat4x4 transform = mat4x4::identity();
   // color to use for the output
   Color color = colors::BLACK;
@@ -313,7 +307,7 @@ struct DrawCommand {
 };
 
 struct DrawList {
-  stx::Vec<vec3> vertices{stx::os_allocator};
+  stx::Vec<vec2> vertices{stx::os_allocator};
   stx::Vec<u32> indices{stx::os_allocator};
   stx::Vec<vec2> clip_vertices{stx::os_allocator};
   stx::Vec<u32> clip_indices{stx::os_allocator};
@@ -349,6 +343,7 @@ struct DrawList {
 // TODO(lamarrr): separate shape generating functions
 //
 struct Canvas {
+  // in viewport coordinates
   vec2 extent;
   Brush brush;
 
@@ -363,6 +358,20 @@ struct Canvas {
   // can only have one clip polygon
 
   DrawList draw_list;
+
+  void restart() {
+    extent;
+    brush = Brush{};
+    transform = mat4x4::identity();
+    transform_state_stack.clear();
+    clip_area.clear();
+    clip_area_state_stack.clear();
+    draw_list.vertices.clear();
+    draw_list.indices.clear();
+    draw_list.clip_vertices.clear();
+    draw_list.clip_indices.clear();
+    draw_list.commands.clear();
+  }
 
   // push state (transform and clips) on state stack
   Canvas& save() {
@@ -415,10 +424,8 @@ struct Canvas {
   Canvas& clear() {
     u32 start = AS_U32(draw_list.vertices.size());
 
-    vec3 vertices[] = {{0.0f, 0.0f, 0.0f},
-                       {1.0f, 0.0f, 0.0f},
-                       {1.0f, 1.0f, 0.0f},
-                       {0.0f, 1.0f, 0.0f}};
+    vec2 vertices[] = {
+        {0.0f, 0.0f}, {extent.x, 0.0f}, {extent.x, extent.y}, {0.0f, extent.y}};
 
     draw_list.vertices.extend(vertices).unwrap();
 
@@ -449,7 +456,7 @@ struct Canvas {
 
   // vertices are expected to be specified in unit dimension. i.e. ranging
   // from 0.0f to 1.0f
-  Canvas& draw_polygon_line(stx::Span<vec2 const> line, mat4x4 placement) {
+  Canvas& draw_polygon_line(stx::Span<vec2 const> line) {
     ASR_ENSURE(line.size() >= 2);
 
     for (usize i = 0; i < line.size(); i++) {
@@ -474,10 +481,10 @@ struct Canvas {
 
       u32 start = AS_U32(draw_list.indices.size());
 
-      vec3 vertices[] = {{p1.x + d.y, p1.y - d.x, 0.0f},
-                         {p2.x + d.y, p2.y - d.x, 0.0f},
-                         {p2.x - d.y, p2.y + d.x, 0.0f},
-                         {p1.x - d.y, p1.y + d.x, 0.0f}};
+      vec2 vertices[] = {{p1.x + d.y, p1.y - d.x},
+                         {p2.x + d.y, p2.y - d.x},
+                         {p2.x - d.y, p2.y + d.x},
+                         {p1.x - d.y, p1.y + d.x}};
 
       u32 indices[] = {start,     start + 1, start + 2,
                        start + 3, start + 4, start + 5};
@@ -503,23 +510,22 @@ struct Canvas {
 
   // vertices are expected to be specified in unit dimension. i.e. ranging from
   // 0.0f to 1.0f
-  Canvas& draw_polygon_filled(stx::Span<vec2 const> polygon, mat4x4 placement) {
+  Canvas& draw_polygon_filled(stx::Span<vec2 const> polygon) {
     ASR_ENSURE(polygon.size() >= 3);
 
-    stx::Vec<vec2> polygon_vertices = triangulate_polygon(polygon);
+    u32 npolygon_vertices = AS_U32(draw_list.vertices.size());
 
-    for (vec2 vertex : polygon_vertices) {
-      draw_list.vertices.push(vec3{vertex.x, vertex.y, 0.0f}).unwrap();
-    }
+    triangulate_polygon(draw_list.vertices, polygon);
+
+    npolygon_vertices = AS_U32(draw_list.vertices.size()) - npolygon_vertices;
 
     u32 start = AS_U32(draw_list.indices.size());
 
-    for (u32 index = start; index < (start + polygon_vertices.size());
-         index++) {
+    for (u32 index = start; index < (start + npolygon_vertices); index++) {
       draw_list.indices.push_inplace(index).unwrap();
     }
 
-    u32 ntriangles = AS_U32(polygon_vertices.size()) / 3U;
+    u32 ntriangles = npolygon_vertices / 3U;
 
     // draw_list.commands
     //     .push(DrawCommand{.color,
@@ -541,10 +547,7 @@ struct Canvas {
 
     mat4x4 placement;
 
-    vec3 vertices[] = {{0.0f, 0.0f, 0.0f},
-                       {1.0f, 0.0f, 0.0f},
-                       {1.0f, 1.0f, 0.0f},
-                       {0.0f, 1.0f, 0.0f}};
+    vec2 vertices[] = {{p1.x, p1.y}, {p2.x, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
 
     draw_list.vertices.extend(vertices).unwrap();
 
@@ -554,6 +557,10 @@ struct Canvas {
 
     draw_list.indices.extend(indices).unwrap();
 
+    //
+    // we can't use draw_polygon_lines as it closes its candidate
+    //
+    //
     // draw_list.commands.push(
     //     DrawCommand{.color,
     //                 .frag_shader,
@@ -570,29 +577,19 @@ struct Canvas {
 
   Canvas& draw_rect(f32 x, f32 y, f32 width, f32 height) {
     // TODO(lamarrr): what about textured backgrounds?
-
-    // save();
-    // translate(x, y);
-    // scale(width, height);
     // TODO(lamarrr): we need a separate shape translate and scale as we want to
     // specify in unit dimensions? otherwise we need to pass in width and height
     // to shaders, which still won't work since we need to use some for sampling
     // from textures
 
-    vec2 points[] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
-
-    mat4x4 placement = transforms::translate({x, y, 0.0f}) *
-                       transforms::scale({width, height, 1.0f});
+    vec2 points[] = {
+        {x, y}, {x + width, y}, {x + width, y + height}, {x, y + height}};
 
     if (brush.fill) {
-      draw_polygon_filled(points, placement);
+      return draw_polygon_filled(points);
     } else {
-      draw_polygon_line(points, placement);
+      return draw_polygon_line(points);
     }
-
-    // restore();
-
-    return *this;
   }
 
   // angle = 0.0f to 90.0f for top left, angle
@@ -615,7 +612,7 @@ struct Canvas {
     // needs clamping as well? cos and sin are already clamped
     for (i64 i = 0; i < AS_I64(nsegments); i++) {
       f32 angle = delta + i * delta;
-      vec2 point{std::cos(angle), std::sin(angle)};
+      vec2 point{radius * std::cos(angle), radius * std::sin(angle)};
     }
     return *this;
   }
@@ -789,7 +786,6 @@ struct CanvasContext {
 // TODO(lamarrr): how to ensure resources are not destroyed whilst in use
 //
 //
-// TODO(lamarrr): clear draw list after render call
 //
 //
 // TODO(lamarrr): correct viewport and scissor by getting window size
@@ -797,11 +793,8 @@ struct CanvasContext {
 //
 //
 //
-// TODO(lamarrr): due to clipping requirements we might have to change to fully
-// 2d-based rendering and have a separate draw list for 3d objects
 //
-//
-//
+
 inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                    DrawList const& draw_list) {
   static constexpr u64 TIMEOUT = AS_U64(
@@ -822,7 +815,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
 
   stx::Rc<vk::Buffer*> vertex_buffer =
       upload_vertices(device, family, memory_properties,
-                      stx::Span<vec3 const>{draw_list.vertices});
+                      stx::Span<vec2 const>{draw_list.vertices});
 
   stx::Rc<vk::Buffer*> index_buffer =
       upload_indices(device, family, memory_properties, draw_list.indices);
@@ -865,7 +858,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
     //
     // TODO(lamarrr): clip shape orientation and sizing to fit
     {
-      Transform clip_transform{draw_command.transform * draw_command.placement};
+      Transform clip_transform{draw_command.transform};
 
       canvas_ctx.write_clip_transform(clip_transform);
 
@@ -935,8 +928,8 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                         VK_PIPELINE_BIND_POINT_GRAPHICS,
                         ctx.clip_pipeline.pipeline);
 
-      vkCmdDrawIndexed(ctx.clip_command_buffer,
-                       draw_command.nclip_triangles * 3, 1, 0, 0, 0);
+      vkCmdDrawIndexed(ctx.clip_command_buffer, draw_command.nclip_vertices, 1,
+                       0, 0, 0);
 
       vkCmdEndRenderPass(ctx.clip_command_buffer);
 
@@ -956,7 +949,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                                  swapchain.clip.fence));
     }
 
-    Transform transform{draw_command.transform * draw_command.placement};
+    Transform transform{draw_command.transform};
 
     Overlay overlay{.color = {draw_command.color.r / 255.0f,
                               draw_command.color.g / 255.0f,
@@ -1035,8 +1028,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
     vkCmdBindPipeline(ctx.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx.pipeline.pipeline);
 
-    vkCmdDrawIndexed(ctx.command_buffer, draw_command.ntriangles * 3, 1, 0, 0,
-                     0);
+    vkCmdDrawIndexed(ctx.command_buffer, draw_command.nvertices, 1, 0, 0, 0);
 
     vkCmdEndRenderPass(ctx.command_buffer);
 

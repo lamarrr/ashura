@@ -78,24 +78,6 @@ struct vec4 {
   f32 x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;
 };
 
-struct mat2x2 {
-  vec2 data[2]{};
-
-  static constexpr mat2x2 identity() {
-    return mat2x2{vec2{.x = 1.0f, .y = 0.0f}, vec2{.x = 0.0f, .y = 1.0f}};
-  }
-};
-
-struct mat3x3 {
-  vec3 data[3]{};
-
-  static constexpr mat3x3 identity() {
-    return mat3x3{vec3{.x = 1.0f, .y = 0.0f, .z = 0.0f},
-                  vec3{.x = 0.0f, .y = 1.0f, .z = 0.0f},
-                  vec3{.x = 0.0f, .y = 0.0f, .z = 0.0f}};
-  }
-};
-
 struct mat4x4 {
   vec4 data[4]{};
 
