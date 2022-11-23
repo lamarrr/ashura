@@ -796,6 +796,12 @@ struct CanvasContext {
 //
 //
 //
+//
+// TODO(lamarrr): due to clipping requirements we might have to change to fully
+// 2d-based rendering and have a separate draw list for 3d objects
+//
+//
+//
 inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                    DrawList const& draw_list) {
   static constexpr u64 TIMEOUT = AS_U64(
