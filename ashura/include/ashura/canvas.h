@@ -523,8 +523,6 @@ struct Canvas {
       draw_list.indices.push_inplace(index).unwrap();
     }
 
-    u32 ntriangles = npolygon_vertices / 3U;
-
     // draw_list.commands
     //     .push(DrawCommand{.color,
     //                       .frag_shader,
@@ -612,6 +610,8 @@ struct Canvas {
       f32 angle = delta + i * delta;
       vec2 point{radius * std::cos(angle), radius * std::sin(angle)};
     }
+
+    // add draw command
     return *this;
   }
 
