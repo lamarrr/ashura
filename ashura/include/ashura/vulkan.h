@@ -2173,6 +2173,7 @@ struct SwapChain {
                             .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};
   VkPresentModeKHR present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
   VkExtent2D extent{.width = 0, .height = 0};
+  VkExtent2D window_extent{.width = 0, .height = 0};
 
   /// IMPORTANT: this is different from the image index obtained via
   /// `vkAcquireNextImageKHR`. this index is used for referencing semaphores
@@ -2228,7 +2229,7 @@ struct SwapChain {
   SwapChain(stx::Rc<CommandQueue*> aqueue, VkSurfaceKHR target_surface,
             stx::Span<VkSurfaceFormatKHR const> preferred_formats,
             stx::Span<VkPresentModeKHR const> preferred_present_modes,
-            VkExtent2D preferred_extent,
+            VkExtent2D preferred_extent, VkExtent2D awindow_extent,
             VkSampleCountFlagBits amsaa_sample_count,
             VkCompositeAlphaFlagBitsKHR alpha_compositing)
       : queue{std::move(aqueue)} {
@@ -2277,6 +2278,7 @@ struct SwapChain {
     format = selected_format;
     present_mode = selected_present_mode;
     extent = new_extent;
+    window_extent = awindow_extent;
     msaa_sample_count = amsaa_sample_count;
 
     for (VkImage image : images) {
@@ -2623,16 +2625,17 @@ struct Surface {
       stx::Rc<CommandQueue*> const& queue,
       stx::Span<VkSurfaceFormatKHR const> preferred_formats,
       stx::Span<VkPresentModeKHR const> preferred_present_modes,
-      VkExtent2D preferred_extent, VkSampleCountFlagBits msaa_sample_count,
+      VkExtent2D preferred_extent, VkExtent2D window_extent,
+      VkSampleCountFlagBits msaa_sample_count,
       VkCompositeAlphaFlagBitsKHR alpha_compositing) {
     swapchain = stx::None;  // probably don't want to have two existing at once
 
-    swapchain =
-        stx::Some(stx::rc::make_unique_inplace<SwapChain>(
-                      stx::os_allocator, queue.share(), surface,
-                      preferred_formats, preferred_present_modes,
-                      preferred_extent, msaa_sample_count, alpha_compositing)
-                      .unwrap());
+    swapchain = stx::Some(stx::rc::make_unique_inplace<SwapChain>(
+                              stx::os_allocator, queue.share(), surface,
+                              preferred_formats, preferred_present_modes,
+                              preferred_extent, window_extent,
+                              msaa_sample_count, alpha_compositing)
+                              .unwrap());
   }
 };
 

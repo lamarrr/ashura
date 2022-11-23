@@ -100,11 +100,12 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   surface_.value().handle->change_swapchain(
       queue, preferred_formats, preferred_present_modes,
       VkExtent2D{.width = surface_extent_.w, .height = surface_extent_.h},
-      msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+      VkExtent2D{.width = extent_.w, .height = extent_.h}, msaa_sample_count,
+      VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR);
 }
 
 // TODO(lamarrr): can't we render to the swapchain images directly?
-WindowSwapchainDiff Window::present_backing_store() {
+WindowSwapchainDiff Window::present() {
   ASR_ENSURE(surface_.is_some(),
              "trying to present backing store without having surface attached");
 
@@ -124,6 +125,8 @@ WindowSwapchainDiff Window::present_backing_store() {
       vk::acquire_next_swapchain_image(device, swapchain.swapchain,
                                        image_acquisition_semaphore, nullptr);
 
+  // swapchain.render(next_swapchain_image_index)
+
   if (acquire_result == VK_SUBOPTIMAL_KHR) {
     diff |= WindowSwapchainDiff::Suboptimal;
     return diff;
@@ -131,96 +134,25 @@ WindowSwapchainDiff Window::present_backing_store() {
     diff |= WindowSwapchainDiff::OutOfDate;
     return diff;
   } else if (acquire_result != VK_SUCCESS) {
-    ASR_PANIC("Unable to acquire image from swapchain", acquire_result);
+    ASR_PANIC("failed to acquire image from swapchain", acquire_result);
   }
 
-  /*
-    sk_sp<SkSurface>& sk_surface =
-        surface.handle->swapchain_handle
-            ->skia_surfaces[next_swapchain_image_index];
+  // we don't need to wait on presentation
+  //
+  // if v-sync is enabled (VK_PRESENT_MODE_FIFO_KHR) the GPU driver *can*
+  // delay the process so we don't submit more frames than the display's
+  // refresh rate can keep up with and we thus save power.
+  //
+  VkResult present_result =
+      vk::present(swapchain.queue.handle->info.queue, stx::Span<VkSemaphore>{},
+                  stx::Span{&swapchain.swapchain, 1},
+                  stx::Span{&next_swapchain_image_index, 1});
 
-    // if the previously submitted images from the previous swapchain image
-    // rendering iteration is not done yet, then perform an expensive
-    // GPU-CPU synchronization
+  // the frame semaphores and synchronization primitives are still used even
+  // if an error is returned
+  swapchain.next_frame_flight_index = (swapchain.next_frame_flight_index + 1) %
+                                      vk::SwapChain::MAX_FRAMES_INFLIGHT;
 
-    // Ques(lamarrr): Since GrDirectContext has and retains internal state,
-    // wont that affect this command in any way?
-    sk_surface->flushAndSubmit(true);
-
-    GrBackendSemaphore gr_image_acquisition_semaphore{};
-    gr_image_acquisition_semaphore.initVulkan(image_acquisition_semaphore);
-
-    ASR_ENSURE(sk_surface->wait(1, &gr_image_acquisition_semaphore, false));
-
-    // now just push the pixels to the sk_surface
-    SkCanvas* canvas = sk_surface->getCanvas();
-
-    // we need to clear the image, as the image on the swapcahins could be
-    // re-used.
-    // BONUS: the subsequent operations will be optimized since we are not
-    // reading back the previous pixels on the image
-    //
-    canvas->clear(SK_ColorTRANSPARENT);
-
-    // TODO(lamarrr): ensure the pipeline is constructed to use the same
-    // format or something? we can't construct render context before creating
-    // window and swapchain we also need to change pipeline render context if
-    // for example, the swapchain format changes and conversion is not
-    // supported? or does skia manage to somehow convert them?
-    SkPaint paint;
-    paint.setBlendMode(SkBlendMode::kSrc);
-
-    backing_store_sk_surface.draw(canvas, 0, 0, &paint);
-
-    // rendering
-    VkSemaphore rendering_semaphore =
-        surface.handle->swapchain_handle->rendering_semaphores
-            [surface.handle->swapchain_handle->frame_flight_index];
-
-    GrBackendSemaphore gr_rendering_semaphore{};
-    gr_rendering_semaphore.initVulkan(rendering_semaphore);
-
-    GrFlushInfo flush_info{};
-    flush_info.fNumSemaphores = 1;
-    flush_info.fSignalSemaphores = &gr_rendering_semaphore;
-
-    GrBackendSurfaceMutableState target_presentation_surface_state{
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        surface.handle->swapchain_handle->vk_render_context
-            ->graphics_command_queue.info.family.info.index};
-
-    ASR_ENSURE(
-        sk_surface->flush(flush_info, &target_presentation_surface_state) ==
-        GrSemaphoresSubmitted::kYes);
-
-    ASR_ENSURE(surface.handle->swapchain_handle->vk_render_context->render_context
-                   .get_direct_context()
-                   .unwrap()
-                   ->submit(false));
-    // cmd.drawIndexed();
-
-    // presentation (we don't need to wait on presentation)
-    //
-    // if v-sync is enabled (VK_PRESENT_MODE_FIFO_KHR) the GPU driver *can*
-    // delay the process so we don't submit more frames than the display's
-    // refresh rate can keep up with and we thus save power.
-    //
-    auto present_result =
-        vk::present(surface.handle->swapchain_handle->vk_render_context
-                        ->graphics_command_queue.info.queue,
-                    stx::Span<VkSemaphore const>(&rendering_semaphore, 1),
-                    stx::Span<VkSwapchainKHR const>(
-                        &surface.handle->swapchain_handle->swapchain, 1),
-                    stx::Span<uint32_t const>(&next_swapchain_image_index, 1));
-
-    // the frame semaphores and synchronization primitives are still used even
-    // if an error is returned
-    surface.handle->swapchain_handle->frame_flight_index =
-        (surface.handle->swapchain_handle->frame_flight_index + 1) %
-        vk::Swapchain::MAX_FRAMES_INFLIGHT;
-  */
-
-  VkResult present_result = VK_SUBOPTIMAL_KHR;
   if (present_result == VK_SUBOPTIMAL_KHR) {
     diff |= WindowSwapchainDiff::Suboptimal;
     return diff;
@@ -230,7 +162,7 @@ WindowSwapchainDiff Window::present_backing_store() {
   } else if (present_result == VK_SUCCESS) {
     return diff;
   } else {
-    ASR_PANIC("Unable to present swapchain image", present_result);
+    ASR_PANIC("failed to present swapchain image", present_result);
   }
 }
 

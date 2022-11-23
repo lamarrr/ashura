@@ -153,7 +153,7 @@ struct Window {
 
   void recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue);
 
-  WindowSwapchainDiff present_backing_store();
+  WindowSwapchainDiff present();
 
   void on(WindowEvent event, stx::UniqueFn<void()> callback) {
     window_event_listeners.emplace(event, std::move(callback));

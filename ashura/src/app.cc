@@ -39,7 +39,7 @@ void App::tick(std::chrono::nanoseconds interval) {
 
     // TODO(lamarrr): we don't need another backing store on the pipeline side
     WindowSwapchainDiff swapchain_diff =
-        window->handle.handle->present_backing_store(
+        window->handle.handle->present(
             pipeline->tile_cache.backing_store_cache.get_surface_ref());
 
     while (swapchain_diff != WindowSwapchainDiff::None) {
@@ -50,7 +50,7 @@ void App::tick(std::chrono::nanoseconds interval) {
 
       {
         //   ASR_TRACE(trace_context, "Swapchain", "Presentation");
-        swapchain_diff = window->handle.handle->present_backing_store(
+        swapchain_diff = window->handle.handle->present(
             pipeline->tile_cache.backing_store_cache.get_surface_ref());
       }
     }

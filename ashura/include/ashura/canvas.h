@@ -300,6 +300,8 @@ struct DrawCommand {
   u32 ntriangles = 0;
   u32 clip_indices_offset = 0;
   u32 nclip_triangles = 0;
+  vec2 extent{0.0f,
+              0.0f};  // overall resulting extent???? not workable it seems
   // defines size, rotation, and position of the object
   mat4x4 placement = mat4x4::identity();
   // transform contains position (translation from origin)
@@ -789,6 +791,11 @@ struct CanvasContext {
 //
 // TODO(lamarrr): clear draw list after render call
 //
+//
+// TODO(lamarrr): correct viewport and scissor by getting window size
+//
+//
+//
 inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                    DrawList const& draw_list) {
   static constexpr u64 TIMEOUT = AS_U64(
@@ -799,13 +806,13 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
 
   stx::Rc<vk::Device*> const& device = swapchain.queue.handle->device;
 
+  VkDevice dev = device.handle->device;
+
   VkPhysicalDeviceMemoryProperties const& memory_properties =
       device.handle->phy_device.handle->memory_properties;
 
   vk::CommandQueueFamilyInfo const& family =
       swapchain.queue.handle->info.family;
-
-  VkDevice dev = device.handle->device;
 
   stx::Rc<vk::Buffer*> vertex_buffer =
       upload_vertices(device, family, memory_properties,
@@ -878,7 +885,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
       VkClearValue clear_values[] = {
           {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}}};
 
-      // TODO(lamarrr): set render area to clip area
+      // TODO(lamarrr): set render area to clip area (x scale)
       VkRenderPassBeginInfo render_pass_begin_info{
           .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
           .pNext = nullptr,
@@ -892,14 +899,14 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                            VK_SUBPASS_CONTENTS_INLINE);
 
       // TODO(lamarrr): set viewport and scissor to clip area
-      VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.extent};
+      VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
 
       vkCmdSetScissor(ctx.clip_command_buffer, 0, 1, &scissor);
 
       VkViewport viewport{.x = 0.0f,
                           .y = 0.0f,
-                          .width = AS_F32(swapchain.extent.width),
-                          .height = AS_F32(swapchain.extent.height),
+                          .width = AS_F32(swapchain.window_extent.width),
+                          .height = AS_F32(swapchain.window_extent.height),
                           .minDepth = 0.0f,
                           .maxDepth = 1.0f};
 
@@ -957,6 +964,11 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
         vk::DescriptorBinding::make_buffer(canvas_ctx.transform_buffer),
         vk::DescriptorBinding::make_buffer(canvas_ctx.overlay_buffer)};
 
+    // TODO(lamarrr): how do we determine what portion of the clip mask to use?
+    //
+    // remember the image view will be sampled in the framebuffer coordinates
+    //
+
     vk::DescriptorBinding set1[] = {
         vk::DescriptorBinding::make_sampler(
             draw_command.texture.handle->image.handle->view,
@@ -986,14 +998,14 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
     vkCmdBeginRenderPass(ctx.command_buffer, &render_pass_begin_info,
                          VK_SUBPASS_CONTENTS_INLINE);
 
-    VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.extent};
+    VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
 
     vkCmdSetScissor(ctx.command_buffer, 0, 1, &scissor);
 
     VkViewport viewport{.x = 0.0f,
                         .y = 0.0f,
-                        .width = AS_F32(swapchain.extent.width),
-                        .height = AS_F32(swapchain.extent.height),
+                        .width = AS_F32(swapchain.window_extent.width),
+                        .height = AS_F32(swapchain.window_extent.height),
                         .minDepth = 0.0f,
                         .maxDepth = 1.0f};
 
