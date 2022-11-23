@@ -1055,4 +1055,3 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
 
 }  // namespace gfx
 };  // namespace asr
-`
