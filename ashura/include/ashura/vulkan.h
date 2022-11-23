@@ -24,8 +24,8 @@
   do {                                                \
     VkResult operation_result = (__VA_ARGS__);        \
     ASR_ENSURE(operation_result == VK_SUCCESS,        \
-               "Vulkan Operation (" #__VA_ARGS__      \
-               ")  failed (VK_SUCCESS not returned)", \
+               "Vulkan Operation: (" #__VA_ARGS__      \
+               ")  failed! (VK_SUCCESS not returned)", \
                operation_result);                     \
   } while (false)
 

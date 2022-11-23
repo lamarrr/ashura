@@ -22,6 +22,8 @@ constexpr f32 compute_polygon_area(stx::Span<vec2 const> polygon) {
 
   f32 area = 0.0f;
 
+  if (npoints < 3) return area;
+
   for (usize p = npoints - 1, q = 0; q < npoints; p = q++) {
     area += cross(polygon[p], polygon[q]);
   }
@@ -597,6 +599,7 @@ struct Canvas {
   // angle = 270.0f to 360.0f for bottom left,
   // nsegments
   //
+  //
   Canvas& draw_round_rect(vec2 offset, vec2 extent, vec4 radii,
                           usize nsegments);
   Canvas& draw_slanted_rect(vec2 offset, vec2 extent);
@@ -604,7 +607,14 @@ struct Canvas {
   // within circle and within a rect that contains
   // that circle (for filled arc)
   Canvas& draw_circle(vec2 center, f32 radius, usize nsegments) {
-    // from angle = 0.0f to 360.0f with delta = 360.0f/num_segments
+    f32 delta = 360.0f / nsegments;
+    // from angle = 0.0f to 360.0f with
+    // TODO(lamarrr): what if segment count is 1, 0
+    // needs clamping as well? cos and sin are already clamped
+    for (i64 i = 0; i < AS_I64(nsegments) - 2; i++) {
+      f32 angle = delta + i * delta;
+      vec2 point{std::cos(angle), std::sin(angle)};
+    }
     return *this;
   }
 

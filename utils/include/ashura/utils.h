@@ -55,6 +55,8 @@
 
 #define AS_U64(...) static_cast<u64>(__VA_ARGS__)
 
+#define AS_I64(...) static_cast<i64>(__VA_ARGS__)
+
 #define AS_F32(...) static_cast<f32>(__VA_ARGS__)
 
 namespace asr {
