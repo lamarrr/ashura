@@ -636,15 +636,15 @@ void sample(Canvas& canvas) {
 
   canvas.save()
       .rotate(45)
-      .draw_circle({0, 0}, 20.0f)
-      .draw_image(*image, {{0.0, 0.0}, {20, 40}})
+      .draw_circle({0, 0}, 20.0f, 20)
+      .draw_image(*image, {0.0, 0.0}, {20, 40})
       .restore()
       .scale(2.0f, 2.0f)
       .draw_line({0, 0}, {200, 200})
       .draw_text("Hello World, こんにちは世界", {10.0f, 10.0f})
       .draw_rect(0, 0, 20, 20)
-      .draw_round_rect({{0.0f, 0.0f}, {20.0f, 20.0f}},
-                       {10.0f, 10.0f, 10.0f, 10.0f});
+      .draw_round_rect({0.0f, 0.0f}, {20.0f, 20.0f},
+                       {10.0f, 10.0f, 10.0f, 10.0f}, 20);
 }
 
 struct Transform {
