@@ -15,8 +15,8 @@ using namespace stx::literals;
 using namespace std::chrono_literals;
 
 namespace gfx {
-// compute area of a contour/polygon
 
+// compute area of a contour/polygon
 constexpr f32 compute_polygon_area(stx::Span<vec2 const> polygon) {
   usize npoints = polygon.size();
 
@@ -611,7 +611,7 @@ struct Canvas {
     // from angle = 0.0f to 360.0f with
     // TODO(lamarrr): what if segment count is 1, 0
     // needs clamping as well? cos and sin are already clamped
-    for (i64 i = 0; i < AS_I64(nsegments) - 2; i++) {
+    for (i64 i = 0; i < AS_I64(nsegments); i++) {
       f32 angle = delta + i * delta;
       vec2 point{std::cos(angle), std::sin(angle)};
     }
@@ -648,16 +648,137 @@ void sample(Canvas& canvas) {
 }
 
 struct Transform {
-  mat4x4 transform;
-} mvp;
+  mat4x4 value = mat4x4::identity();
+};
 
-VkBuffer mvp_buffer;
+struct Overlay {
+  vec4 color{0.0f, 0.0f, 0.0f, 0.0f};
+};
 
-struct Skin {
-  vec4 overlay_color{0.0f, 0.0f, 0.0f, 0.0f};
-} skin;
+struct CanvasContext {
+  VkBuffer transform_buffer = VK_NULL_HANDLE;
+  VkDeviceMemory transform_memory = VK_NULL_HANDLE;
+  void* transform_memory_map = nullptr;
 
-VkBuffer skin_buffer;
+  VkBuffer clip_transform_buffer = VK_NULL_HANDLE;
+  VkDeviceMemory clip_transform_memory = VK_NULL_HANDLE;
+  void* clip_transform_memory_map = nullptr;
+
+  VkBuffer overlay_buffer = VK_NULL_HANDLE;
+  VkDeviceMemory overlay_memory = VK_NULL_HANDLE;
+  void* overlay_memory_map = nullptr;
+
+  stx::Rc<vk::CommandQueue*> queue;
+
+  CanvasContext(stx::Rc<vk::CommandQueue*> aqueue) : queue{std::move(aqueue)} {
+    VkDevice dev = queue.handle->device.handle->device;
+
+    {
+      auto [buffer, memory] = vk::create_buffer_with_memory(
+          dev, queue.handle->info.family,
+          queue.handle->device.handle->phy_device.handle->memory_properties,
+          sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+      transform_memory = memory;
+      transform_buffer = buffer;
+
+      ASR_VK_CHECK(vkMapMemory(dev, transform_memory, 0, VK_WHOLE_SIZE, 0,
+                               &transform_memory_map));
+    }
+
+    {
+      auto [buffer, memory] = vk::create_buffer_with_memory(
+          dev, queue.handle->info.family,
+          queue.handle->device.handle->phy_device.handle->memory_properties,
+          sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+      clip_transform_buffer = buffer;
+      clip_transform_memory = memory;
+
+      ASR_VK_CHECK(vkMapMemory(dev, clip_transform_memory, 0, VK_WHOLE_SIZE, 0,
+                               &clip_transform_memory_map));
+    }
+
+    {
+      auto [buffer, memory] = vk::create_buffer_with_memory(
+          dev, queue.handle->info.family,
+          queue.handle->device.handle->phy_device.handle->memory_properties,
+          sizeof(Overlay), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+      overlay_buffer = buffer;
+      overlay_memory = memory;
+
+      ASR_VK_CHECK(
+          vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &overlay_memory_map));
+    }
+  }
+
+  STX_MAKE_PINNED(CanvasContext)
+
+  ~CanvasContext() {
+    VkDevice dev = queue.handle->device.handle->device;
+
+    vkUnmapMemory(dev, transform_memory);
+    vkUnmapMemory(dev, clip_transform_memory);
+    vkUnmapMemory(dev, overlay_memory);
+
+    vkFreeMemory(dev, transform_memory, nullptr);
+    vkFreeMemory(dev, clip_transform_memory, nullptr);
+    vkFreeMemory(dev, overlay_memory, nullptr);
+
+    vkDestroyBuffer(dev, transform_buffer, nullptr);
+    vkDestroyBuffer(dev, clip_transform_buffer, nullptr);
+    vkDestroyBuffer(dev, overlay_buffer, nullptr);
+  }
+
+  void write_transform(Transform const& transform) {
+    std::memcpy(transform_memory_map, &transform, sizeof(Transform));
+
+    VkDevice dev = queue.handle->device.handle->device;
+
+    VkMappedMemoryRange range{
+        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .pNext = nullptr,
+        .memory = transform_memory,
+        .offset = 0,
+        .size = VK_WHOLE_SIZE,
+    };
+
+    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+  }
+
+  void write_clip_transform(Transform const& transform) {
+    std::memcpy(clip_transform_memory_map, &transform, sizeof(Transform));
+
+    VkDevice dev = queue.handle->device.handle->device;
+
+    VkMappedMemoryRange range{
+        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .pNext = nullptr,
+        .memory = clip_transform_memory,
+        .offset = 0,
+        .size = VK_WHOLE_SIZE,
+    };
+
+    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+  }
+
+  void write_overlay(Overlay const& overlay) {
+    std::memcpy(overlay_memory_map, &overlay, sizeof(Overlay));
+
+    VkDevice dev = queue.handle->device.handle->device;
+
+    VkMappedMemoryRange range{
+        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .pNext = nullptr,
+        .memory = overlay_memory,
+        .offset = 0,
+        .size = VK_WHOLE_SIZE,
+    };
+
+    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+  }
+};
 
 // TODO(lamarrr): add to list of device/operations currently using resources so
 // resource won't be freed when in use
@@ -668,7 +789,8 @@ VkBuffer skin_buffer;
 //
 // TODO(lamarrr): clear draw list after render call
 //
-inline void render(DrawList const& draw_list, vk::RecordingContext const& ctx) {
+inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
+                   DrawList const& draw_list) {
   static constexpr u64 TIMEOUT = AS_U64(
       std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
 
@@ -722,11 +844,24 @@ inline void render(DrawList const& draw_list, vk::RecordingContext const& ctx) {
     // coordinates for the texture
     //
     //
-
+    // TODO(lamarrr): does the descriptor set copy the data on write
+    //
+    // this also means we might need to have different buffers and memory per
+    // flight frame
+    //
+    //
     // TODO(lamarrr): clip shape orientation and sizing to fit
     {
-      // TODO(lamarrr): update descriptor sets
-      ctx.clip_descriptor_sets.write();
+      Transform clip_transform{draw_command.transform * draw_command.placement};
+
+      canvas_ctx.write_clip_transform(clip_transform);
+
+      vk::DescriptorBinding set0[] = {
+          vk::DescriptorBinding::make_buffer(canvas_ctx.clip_transform_buffer)};
+
+      stx::Span<vk::DescriptorBinding const> sets[] = {set0};
+
+      ctx.clip_descriptor_sets.write(sets);
 
       ASR_VK_CHECK(vkResetCommandBuffer(ctx.clip_command_buffer, 0));
 
@@ -743,6 +878,7 @@ inline void render(DrawList const& draw_list, vk::RecordingContext const& ctx) {
       VkClearValue clear_values[] = {
           {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}}};
 
+      // TODO(lamarrr): set render area to clip area
       VkRenderPassBeginInfo render_pass_begin_info{
           .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
           .pNext = nullptr,
@@ -755,6 +891,7 @@ inline void render(DrawList const& draw_list, vk::RecordingContext const& ctx) {
       vkCmdBeginRenderPass(ctx.clip_command_buffer, &render_pass_begin_info,
                            VK_SUBPASS_CONTENTS_INLINE);
 
+      // TODO(lamarrr): set viewport and scissor to clip area
       VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.extent};
 
       vkCmdSetScissor(ctx.clip_command_buffer, 0, 1, &scissor);
@@ -804,14 +941,32 @@ inline void render(DrawList const& draw_list, vk::RecordingContext const& ctx) {
 
       ASR_VK_CHECK(vkQueueSubmit(ctx.queue.handle->info.queue, 1, &submit_info,
                                  swapchain.clip.fence));
-
-      ASR_VK_CHECK(
-          vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE, TIMEOUT));
-
-      ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.clip.fence));
     }
 
-    ctx.descriptor_sets[swapchain.next_frame_flight_index].write();
+    Transform transform{draw_command.transform * draw_command.placement};
+
+    Overlay overlay{.color = {draw_command.color.r / 255.0f,
+                              draw_command.color.g / 255.0f,
+                              draw_command.color.b / 255.0f,
+                              draw_command.color.a / 255.0f}};
+
+    canvas_ctx.write_transform(transform);
+    canvas_ctx.write_overlay(overlay);
+
+    vk::DescriptorBinding set0[] = {
+        vk::DescriptorBinding::make_buffer(canvas_ctx.transform_buffer),
+        vk::DescriptorBinding::make_buffer(canvas_ctx.overlay_buffer)};
+
+    vk::DescriptorBinding set1[] = {
+        vk::DescriptorBinding::make_sampler(
+            draw_command.texture.handle->image.handle->view,
+            draw_command.texture.handle->sampler),
+        vk::DescriptorBinding::make_sampler(swapchain.clip.view,
+                                            swapchain.clip.sampler)};
+
+    stx::Span<vk::DescriptorBinding const> sets[] = {set0, set1};
+
+    ctx.descriptor_sets[swapchain.next_frame_flight_index].write(sets);
 
     VkClearValue clear_values[] = {
         {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}},
@@ -879,6 +1034,11 @@ inline void render(DrawList const& draw_list, vk::RecordingContext const& ctx) {
 
     ASR_VK_CHECK(vkEndCommandBuffer(ctx.command_buffer));
 
+    ASR_VK_CHECK(
+        vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE, TIMEOUT));
+
+    ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.clip.fence));
+
     ASR_VK_CHECK(vkQueueSubmit(
         ctx.queue.handle->info.queue, 1, &submit_info,
         swapchain.rendering_fences[swapchain.next_frame_flight_index]));
@@ -895,3 +1055,4 @@ inline void render(DrawList const& draw_list, vk::RecordingContext const& ctx) {
 
 }  // namespace gfx
 };  // namespace asr
+`

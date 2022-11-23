@@ -42,6 +42,8 @@ constexpr vec2 operator-(vec2 a, vec2 b) { return vec2{a.x - b.x, a.y - b.y}; }
 
 constexpr bool operator==(vec2 a, vec2 b) { return a.x == b.x && a.y == b.y; }
 
+constexpr bool operator!=(vec2 a, vec2 b) { return !(a == b); }
+
 constexpr f32 dot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; }
 
 constexpr f32 cross(vec2 a, vec2 b) { return a.x * b.y - b.x * a.y; }

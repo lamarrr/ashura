@@ -20,13 +20,13 @@
 #include "stx/vec.h"
 #include "vulkan/vulkan.h"
 
-#define ASR_VK_CHECK(...)                             \
-  do {                                                \
-    VkResult operation_result = (__VA_ARGS__);        \
-    ASR_ENSURE(operation_result == VK_SUCCESS,        \
+#define ASR_VK_CHECK(...)                              \
+  do {                                                 \
+    VkResult operation_result = (__VA_ARGS__);         \
+    ASR_ENSURE(operation_result == VK_SUCCESS,         \
                "Vulkan Operation: (" #__VA_ARGS__      \
                ")  failed! (VK_SUCCESS not returned)", \
-               operation_result);                     \
+               operation_result);                      \
   } while (false)
 
 namespace asr {
@@ -616,7 +616,7 @@ inline void reset_fences(VkDevice device, stx::Span<VkFence const> fences) {
 
 inline void await_fences(VkDevice device, stx::Span<VkFence const> fences) {
   ASR_VK_CHECK(vkWaitForFences(
-      device, AS_U32(fences.size()), fences.data(), true,
+      device, AS_U32(fences.size()), fences.data(), VK_TRUE,
       std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count()));
 }
 
@@ -1628,7 +1628,7 @@ struct ImageSampler {
 };
 
 inline VkSampler create_sampler(stx::Rc<Device*> const& device,
-                                bool enable_anisotropy) {
+                                VkBool32 enable_anisotropy) {
   VkSamplerCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
       .pNext = nullptr,
@@ -1662,7 +1662,7 @@ inline stx::Rc<ImageSampler*> create_image_sampler(
     stx::Rc<Image*> const& image) {
   return stx::rc::make_inplace<ImageSampler>(
              stx::os_allocator,
-             create_sampler(image.handle->queue.handle->device, true),
+             create_sampler(image.handle->queue.handle->device, VK_TRUE),
              image.share())
       .unwrap();
 }
@@ -1671,10 +1671,13 @@ enum class DescriptorType : u8 { Buffer, Sampler };
 
 struct DescriptorBinding {
   DescriptorType type = DescriptorType::Buffer;
+
   // only valid if type is DescriptorType::Buffer
   VkBuffer buffer = VK_NULL_HANDLE;
+
   // only valid if type is DescriptorType::Sampler
   VkImageView view = VK_NULL_HANDLE;
+
   // only valid if type is DescriptorType::Sampler
   VkSampler sampler = VK_NULL_HANDLE;
 
@@ -2268,7 +2271,7 @@ struct SwapChain {
         // example because another window is in front of them. Unless you really
         // need to be able to read these pixels back and get predictable
         // results, you'll get the best performance by enabling clipping.
-        true);
+        VK_TRUE);
 
     swapchain = new_swapchain;
     format = selected_format;
