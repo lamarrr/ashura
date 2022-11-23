@@ -243,8 +243,8 @@ struct Brush {
 // TODO(lamarrr): invert these rows and columns
 namespace transforms {
 
-inline mat4x4 translate(vec3 t) {
-  return mat4x4{
+inline mat4 translate(vec3 t) {
+  return mat4{
       vec4{1.0f, 0.0f, 0.0f, t.x},
       vec4{0.0f, 1.0f, 0.0f, t.y},
       vec4{0.0f, 0.0f, 1.0f, t.z},
@@ -252,8 +252,8 @@ inline mat4x4 translate(vec3 t) {
   };
 }
 
-inline mat4x4 scale(vec3 s) {
-  return mat4x4{
+inline mat4 scale(vec3 s) {
+  return mat4{
       vec4{s.x, 0.0f, 0.0f, 0.0f},
       vec4{0.0f, s.y, 0.0f, 0.0f},
       vec4{0.0f, 0.0f, s.z, 0.0f},
@@ -261,8 +261,8 @@ inline mat4x4 scale(vec3 s) {
   };
 }
 
-inline mat4x4 rotate_x(f32 degree) {
-  return mat4x4{
+inline mat4 rotate_x(f32 degree) {
+  return mat4{
       vec4{1.0f, 0.0f, 0.0f, 0.0f},
       vec4{0.0f, std::cos(degree), -std::sin(degree), 0.0f},
       vec4{0.0f, std::sin(degree), std::cos(degree), 0.0f},
@@ -270,8 +270,8 @@ inline mat4x4 rotate_x(f32 degree) {
   };
 }
 
-inline mat4x4 rotate_y(f32 degree) {
-  return mat4x4{
+inline mat4 rotate_y(f32 degree) {
+  return mat4{
       vec4{std::cos(degree), 0.0f, std::sin(degree), 0.0f},
       vec4{0.0f, 1.0f, 0.0f, 0.0f},
       vec4{-std::sin(degree), 0, std::cos(degree), 0.0f},
@@ -279,8 +279,8 @@ inline mat4x4 rotate_y(f32 degree) {
   };
 }
 
-inline mat4x4 rotate_z(f32 degree) {
-  return mat4x4{
+inline mat4 rotate_z(f32 degree) {
+  return mat4{
       vec4{std::cos(degree), -std::sin(degree), 0.0f, 0.0f},
       vec4{std::sin(degree), std::cos(degree), 0.0f, 0.0f},
       vec4{0.0f, 0.0f, 1.0f, 0.0f},
@@ -299,7 +299,7 @@ struct DrawCommand {
   u32 nclip_vertices = 0;
   // vec2 extent{0.0f,
   // 0.0f};  // overall resulting extent???? not workable it seems
-  mat4x4 transform = mat4x4::identity();
+  mat4 transform = mat4::identity();
   // color to use for the output
   Color color = colors::BLACK;
   // texture to use for output
@@ -347,8 +347,8 @@ struct Canvas {
   vec2 extent;
   Brush brush;
 
-  mat4x4 transform = mat4x4::identity();
-  stx::Vec<mat4x4> transform_state_stack{stx::os_allocator};
+  mat4 transform = mat4::identity();
+  stx::Vec<mat4> transform_state_stack{stx::os_allocator};
   // clip with size and
 
   stx::Vec<vec2> clip_area{stx::os_allocator};
@@ -362,7 +362,7 @@ struct Canvas {
   void restart() {
     extent;
     brush = Brush{};
-    transform = mat4x4::identity();
+    transform = mat4::identity();
     transform_state_stack.clear();
     clip_area.clear();
     clip_area_state_stack.clear();
@@ -392,7 +392,7 @@ struct Canvas {
   // reset the rendering context to its default state (transform
   // and clips)
   Canvas& reset() {
-    transform = mat4x4::identity();
+    transform = mat4::identity();
     return *this;
   }
 
@@ -508,8 +508,6 @@ struct Canvas {
     return *this;
   }
 
-  // vertices are expected to be specified in unit dimension. i.e. ranging from
-  // 0.0f to 1.0f
   Canvas& draw_polygon_filled(stx::Span<vec2 const> polygon) {
     ASR_ENSURE(polygon.size() >= 3);
 
@@ -545,7 +543,7 @@ struct Canvas {
   Canvas& draw_line(vec2 p1, vec2 p2) {
     f32 line_width = brush.line_width;
 
-    mat4x4 placement;
+    mat4 placement;
 
     vec2 vertices[] = {{p1.x, p1.y}, {p2.x, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
 
@@ -647,7 +645,7 @@ void sample(Canvas& canvas) {
 }
 
 struct Transform {
-  mat4x4 value = mat4x4::identity();
+  mat4 value = mat4::identity();
 };
 
 struct Overlay {
@@ -854,6 +852,10 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
     //
     // this also means we might need to have different buffers and memory per
     // flight frame
+    //
+    //
+    // the clip corresponds to a face of the rendered output
+    //
     //
     //
     // TODO(lamarrr): clip shape orientation and sizing to fit

@@ -78,16 +78,16 @@ struct vec4 {
   f32 x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;
 };
 
-struct mat4x4 {
-  vec4 data[4]{};
+struct mat4 {
+  vec4 data[4];
 
-  constexpr mat4x4 operator*(mat4x4 const &other) const;
+  constexpr mat4 operator*(mat4 const &other) const;
 
-  static constexpr mat4x4 identity() {
-    return mat4x4{vec4{.x = 1.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
-                  vec4{.x = 0.0f, .y = 1.0f, .z = 0.0f, .w = 0.0f},
-                  vec4{.x = 0.0f, .y = 0.0f, .z = 1.0f, .w = 0.0f},
-                  vec4{.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f}};
+  static constexpr mat4 identity() {
+    return mat4{vec4{.x = 1.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
+                vec4{.x = 0.0f, .y = 1.0f, .z = 0.0f, .w = 0.0f},
+                vec4{.x = 0.0f, .y = 0.0f, .z = 1.0f, .w = 0.0f},
+                vec4{.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f}};
   }
 };
 

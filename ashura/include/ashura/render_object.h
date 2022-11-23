@@ -24,7 +24,7 @@ struct DirectionalLight {};
 struct SpotLight {};
 struct PointLight {};
 struct Camera {
-  mat4x4 projection;
+  mat4 projection;
   vec3 position;
   // transform, rotation, model, view, far_plane
 };
