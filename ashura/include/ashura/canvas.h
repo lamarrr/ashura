@@ -47,6 +47,10 @@ constexpr bool polygon_snip_check(stx::Span<vec2 const> polygon, i64 u, i64 v,
   return true;
 }
 
+// constexpr stx::Span<vec2> deduplicate_points(stx::Span<vec2> points) {
+//   return points;
+// }
+
 inline void triangulate_polygon(stx::Vec<vec2>& output,
                                 stx::Span<vec2 const> polygon) {
   i64 npoints = polygon.size();
@@ -118,6 +122,34 @@ inline void triangulate_polygon(stx::Vec<vec2>& output,
   }
 }
 
+namespace polygons {
+
+constexpr void rect(stx::Span<vec2> output, vec2 offset, vec2 extent) {
+  output[0] = offset;
+  output[1] = {offset.x + extent.x, offset.y};
+  output[2] = offset + extent;
+  output[3] = {offset.x, offset.y + extent.y};
+}
+
+inline stx::Vec<vec2> circle(vec2 offset, f32 radius, usize nsegments) {
+  stx::Vec<vec2> polygon{stx::os_allocator};
+
+  if (nsegments == 0 || radius <= 0.0f) return polygon;
+
+  f32 step = 360.0f / nsegments;
+
+  for (usize i = 0; i < nsegments; i++) {
+    polygon
+        .push(vec2{offset.x + 2 * radius * std::sin(i * step),
+                   offset.y + 2 * radius * std::cos(i * step)})
+        .unwrap();
+  }
+
+  return polygon;
+}
+
+};  // namespace polygons
+
 struct TextMetrics {
   // x-direction
   f32 width = 0.0f;
@@ -182,23 +214,22 @@ enum class FontStretch : u8 {
 };
 
 enum class FontWeight : u32 {
-  Thin = 100,
-  ExtraLight = 200,
-  Light = 300,
-  Normal = 400,
-  Medium = 500,
-  Semi = 600,
-  Bold = 700,
-  ExtraBold = 800,
-  Black = 900,
-  ExtraBlack = 950
+  Thin = 100U,
+  ExtraLight = 200U,
+  Light = 300U,
+  Normal = 400U,
+  Medium = 500U,
+  Semi = 600U,
+  Bold = 700U,
+  ExtraBold = 800U,
+  Black = 900U,
+  ExtraBlack = 950U
 };
 
 // requirements:
 // - easy resource specification
 // - caching so we don't have to reupload on every frame
 // - GPU texture/image
-// NOTE: canvas is low-level so we don't use paths, urls, or uris
 
 // requirements:
 // -
@@ -208,6 +239,7 @@ struct TypefaceId {
 
 // stored in vulkan context
 using Image = stx::Rc<vk::ImageSampler*>;
+
 struct Typeface;
 
 struct TypefaceRetainer;
@@ -230,8 +262,8 @@ struct TextStyle {
 };
 
 struct Brush {
-  bool fill = true;
   Color color = colors::BLACK;
+  bool fill = true;
   f32 opacity = 1.0f;
   f32 line_width = 1.0f;
   stx::Option<Image> pattern;
@@ -290,16 +322,14 @@ inline mat4 rotate_z(f32 degree) {
 
 };  // namespace transforms
 
-// TODO(lamarrr): examine placement and transform
-// TODO(lamarrr): placement and transform for clip
 struct DrawCommand {
   u32 indices_offset = 0;
   u32 nvertices = 0;
   u32 clip_indices_offset = 0;
   u32 nclip_vertices = 0;
-  // vec2 extent{0.0f,
-  // 0.0f};  // overall resulting extent???? not workable it seems
   mat4 transform = mat4::identity();
+  // scaled, used for clipping and sizing clip mask
+  vec2 extent{0.0f, 0.0f};
   // color to use for the output
   Color color = colors::BLACK;
   // texture to use for output
@@ -343,29 +373,43 @@ struct DrawList {
 // TODO(lamarrr): separate shape generating functions
 //
 struct Canvas {
-  // in viewport coordinates
+  struct Transform {
+    mat4 value = mat4::identity();
+    vec2 scale{1.0f, 1.0f};
+  };
+
+  // TODO(lamarrr): remember clip is sized differently from the target
+  // TODO(lamarrr): does transform apply to clip as well?
+  struct Clip {
+    stx::Vec<vec2> points{stx::os_allocator};
+    vec2 extent{0.0f, 0.0f};
+    vec2 scale{1.0f, 1.0f};
+  };
+
   vec2 extent;
   Brush brush;
 
-  mat4 transform = mat4::identity();
-  stx::Vec<mat4> transform_state_stack{stx::os_allocator};
-  // clip with size and
+  Transform transform;
+  stx::Vec<Transform> transform_state_stack{stx::os_allocator};
 
-  stx::Vec<vec2> clip_area{stx::os_allocator};
-  stx::Vec<stx::Vec<vec2>> clip_area_state_stack{stx::os_allocator};
-
-  // clip should be rect by default
-  // can only have one clip polygon
+  stx::Vec<vec2> clip{stx::os_allocator};
+  stx::Vec<stx::Vec<vec2>> clip_state_stack{stx::os_allocator};
 
   DrawList draw_list;
+
+  Canvas() { restart(); }
 
   void restart() {
     extent;
     brush = Brush{};
-    transform = mat4::identity();
+    transform = Transform{};
     transform_state_stack.clear();
-    clip_area.clear();
-    clip_area_state_stack.clear();
+
+    clip.clear();
+    clip.resize(4, vec2{0.0f, 0.0f}).unwrap();
+    polygons::rect(clip, vec2{0.0f, 0.0f}, extent);
+
+    clip_state_stack.clear();
     draw_list.vertices.clear();
     draw_list.indices.clear();
     draw_list.clip_vertices.clear();
@@ -376,6 +420,7 @@ struct Canvas {
   // push state (transform and clips) on state stack
   Canvas& save() {
     transform_state_stack.push_inplace(transform).unwrap();
+    clip_state_stack.push(clip.copy(stx::os_allocator).unwrap()).unwrap();
     return *this;
   }
 
@@ -383,43 +428,59 @@ struct Canvas {
   // pop state (transform and clips) stack and restore state
   Canvas& restore() {
     ASR_ENSURE(!transform_state_stack.is_empty());
+    ASR_ENSURE(!clip_state_stack.is_empty());
+
     transform = *(transform_state_stack.end() - 1);
     transform_state_stack.resize(transform_state_stack.size() - 1).unwrap();
+
+    clip = (clip_state_stack.end() - 1)->copy(stx::os_allocator).unwrap();
+    clip_state_stack.resize(clip_state_stack.size() - 1).unwrap();
 
     return *this;
   }
 
   // reset the rendering context to its default state (transform
   // and clips)
-  Canvas& reset() {
-    transform = mat4::identity();
-    return *this;
-  }
+  //   Canvas& reset() {
+  //     transform = Transform{};
+  //     transform_state_stack.clear();
+  //     clip.resize(4, vec2{0.0f, 0.0f}).unwrap();
+  //     polygons::rect(clip, {0.0f, 0.0f}, extent);
+  //     return *this;
+  //   }
 
   Canvas& translate(f32 x, f32 y, f32 z) {
-    transform = transforms::translate(vec3{x, y, z}) * transform;
+    transform = Transform{
+        .value = transforms::translate(vec3{x, y, z}) * transform.value,
+        .scale = transform.scale};
     return *this;
   }
 
   Canvas& translate(f32 x, f32 y) { return translate(x, y, 0.0f); }
 
   Canvas& rotate(f32 degree) {
-    transform = transforms::rotate_z(degree) * transform;
+    transform =
+        Transform{.value = transforms::rotate_z(degree) * transform.value,
+                  .scale = transform.scale};
     return *this;
   }
 
   Canvas& rotate(f32 x, f32 y, f32 z) {
-    transform = transforms::rotate_z(z) * transforms::rotate_y(y) *
-                transforms::rotate_x(x) * transform;
+    transform =
+        Transform{.value = transforms::rotate_z(z) * transforms::rotate_y(y) *
+                           transforms::rotate_x(x) * transform.value,
+                  .scale = transform.scale};
     return *this;
   }
 
-  Canvas& scale(f32 x, f32 y, f32 z) {
-    transform = transforms::scale(vec3{x, y, z}) * transform;
+  Canvas& scale(f32 x, f32 y) {
+    transform = Transform{
+        .value = transforms::scale(vec3{x, y, 1.0f}) * transform.value,
+        .scale = vec2{x, y} * transform.scale};
     return *this;
   }
 
-  Canvas& scale(f32 x, f32 y) { return scale(x, y, 1.0f); }
+  Canvas& scale(f32 x, f32 y) { return scale(x, y); }
 
   Canvas& clear() {
     u32 start = AS_U32(draw_list.vertices.size());
@@ -433,26 +494,26 @@ struct Canvas {
 
     draw_list.indices.extend(indices).unwrap();
 
-    // draw_list.commands
-    //     .push(DrawCommand{
-    //         .color = brush.color,
-    //         .frag_shader,
-    //         .indices_offset = start,
-    //         .ntriangles = 2,
-    //         .opacity,
-    //         .texture,
-    //         .transform = transforms::scale(vec3{extent.x, extent.y, 1.0f}),
-    //         .vert_shader})
-    //     .unwrap();
+    draw_list.commands
+        .push(DrawCommand{.indices_offset = start,
+                          .nvertices = std::size(indices),
+                          .clip_indices_offset = 0,
+                          .nclip_vertices = 0,
+                          .transform = mat4::identity(),
+                          .extent = extent,
+                          .color = brush.color,
+                          .texture})
+        .unwrap();
 
     return *this;
   }
 
+  Canvas& clip(stx::Span<vec2 const> polygon_points) {}
+
   Canvas& clip_rect();
-  Canvas& clip_round_rect();
-  Canvas& clip_slanted_rect();
   Canvas& clip_circle();
   Canvas& clip_ellipse();
+  Canvas& clip_round_rect();
 
   // vertices are expected to be specified in unit dimension. i.e. ranging
   // from 0.0f to 1.0f
@@ -510,7 +571,7 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& draw_polygon_filled(stx::Span<vec2 const> polygon) {
+  Canvas& draw_polygon_filled(stx::Span<vec2 const> polygon, vec2 extent) {
     ASR_ENSURE(polygon.size() >= 3);
 
     u32 npolygon_vertices = AS_U32(draw_list.vertices.size());
@@ -524,6 +585,8 @@ struct Canvas {
     for (u32 index = start; index < (start + npolygon_vertices); index++) {
       draw_list.indices.push_inplace(index).unwrap();
     }
+
+    triangulate_polygon(draw_list.clip_vertices, clip);
 
     // draw_list.commands
     //     .push(DrawCommand{.color,
@@ -573,22 +636,40 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& draw_rect(f32 x, f32 y, f32 width, f32 height) {
+  Canvas& draw_rect(vec2 offset, vec2 extent) {
     // TODO(lamarrr): what about textured backgrounds?
     // TODO(lamarrr): we need a separate shape translate and scale as we want to
     // specify in unit dimensions? otherwise we need to pass in width and height
     // to shaders, which still won't work since we need to use some for sampling
     // from textures
 
-    vec2 points[] = {
-        {x, y}, {x + width, y}, {x + width, y + height}, {x, y + height}};
+    vec2 points[4];
+
+    polygons::rect(points, offset, extent);
 
     if (brush.fill) {
-      return draw_polygon_filled(points);
+      return draw_polygon_filled(points, extent);
     } else {
       return draw_polygon_line(points);
     }
   }
+
+  // within circle and within a rect that contains
+  // that circle (for filled arc)
+  Canvas& draw_circle(vec2 offset, f32 radius, usize nsegments) {
+    // TODO(lamarrr): sizing of clip mask with the thick border
+
+    stx::Vec<vec2> points = polygons::circle(offset, radius, nsegments);
+
+    if (brush.fill) {
+      return draw_polygon_filled(points, extent);
+    } else {
+      return draw_polygon_line(points);
+    }
+  }
+
+  Canvas& draw_ellipse(vec2 offset, vec2 radius, f32 rotation, f32 start_angle,
+                       f32 end_angle);
 
   // angle = 0.0f to 90.0f for top left, angle
   // = 90.0f to 180.0f for top right,
@@ -599,35 +680,15 @@ struct Canvas {
   //
   Canvas& draw_round_rect(vec2 offset, vec2 extent, vec4 radii,
                           usize nsegments);
-  Canvas& draw_slanted_rect(vec2 offset, vec2 extent);
-
-  // within circle and within a rect that contains
-  // that circle (for filled arc)
-  Canvas& draw_circle(vec2 center, f32 radius, usize nsegments) {
-    f32 delta = 360.0f / nsegments;
-    // from angle = 0.0f to 360.0f with
-    // TODO(lamarrr): what if segment count is 1, 0
-    // needs clamping as well? cos and sin are already clamped
-    for (i64 i = 0; i < AS_I64(nsegments); i++) {
-      f32 angle = delta + i * delta;
-      vec2 point{radius * std::cos(angle), radius * std::sin(angle)};
-    }
-
-    // add draw command
-    return *this;
-  }
-
-  Canvas& draw_ellipse(vec2 center, vec2 radius, f32 rotation, f32 start_angle,
-                       f32 end_angle);
 
   // Text API
   Canvas& draw_text(stx::StringView text, vec2 position);
 
   // Image API
-  Canvas& draw_image(Image const& image, vec2 position);
-  Canvas& draw_image(Image const& image, vec2 position, vec2 extent);
+  Canvas& draw_image(Image const& image, vec2 offset);
+  Canvas& draw_image(Image const& image, vec2 offset, vec2 extent);
   Canvas& draw_image(Image const& image, vec2 portion_offset, vec2 portion_size,
-                     vec2 target_offset, vec2 target_extent);
+                     vec2 dest_offset, vec2 dest_extent);
 };
 
 void sample(Canvas& canvas) {
@@ -641,7 +702,7 @@ void sample(Canvas& canvas) {
       .scale(2.0f, 2.0f)
       .draw_line({0, 0}, {200, 200})
       .draw_text("Hello World, こんにちは世界", {10.0f, 10.0f})
-      .draw_rect(0, 0, 20, 20)
+      .draw_rect({0, 0}, {20, 20})
       .draw_round_rect({0.0f, 0.0f}, {20.0f, 20.0f},
                        {10.0f, 10.0f, 10.0f, 10.0f}, 20);
 }

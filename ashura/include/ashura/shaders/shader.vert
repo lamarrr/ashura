@@ -10,6 +10,6 @@ layout(set = 0, binding = 0) uniform Transform {
 } transform;
 
 void main() {
-    gl_Position = transform.value * vec4(in_position, 0.0f, 0.0f);
+    gl_Position = transform.value * vec4(in_position, 0.0f, 1.0f);
     out_position = in_position;
 }
