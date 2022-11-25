@@ -1335,8 +1335,9 @@ struct SpanBuffer {
   }
 
   template <typename T>
-  void write(VkDevice dev, VkBufferUsageFlagBits usage,
-             stx::Span<T const> span) {
+  void write(VkDevice dev, u32 family_index,
+             VkPhysicalDeviceMemoryProperties const& memory_properties,
+             VkBufferUsageFlagBits usage, stx::Span<T const> span) {
     if (span.size_bytes() != size) {
       vkDestroyBuffer(dev, buffer, nullptr);
 
@@ -1348,7 +1349,7 @@ struct SpanBuffer {
           .usage = usage,
           .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
           .queueFamilyIndexCount = 1,
-          .pQueueFamilyIndices = &family_info.index};
+          .pQueueFamilyIndices = &family_index};
 
       ASR_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
 
@@ -1448,18 +1449,30 @@ struct Image {
   VkImage image = VK_NULL_HANDLE;
   VkImageView view = VK_NULL_HANDLE;
   VkDeviceMemory memory = VK_NULL_HANDLE;
+
+  void destroy(VkDevice dev) {
+    vkFreeMemory(dev, memory, nullptr);
+    vkDestroyImageView(dev, view, nullptr);
+    vkDestroyImage(dev, image, nullptr);
+  }
+};
+
+struct ImageX {
+  VkImage image = VK_NULL_HANDLE;
+  VkImageView view = VK_NULL_HANDLE;
+  VkDeviceMemory memory = VK_NULL_HANDLE;
   stx::Rc<CommandQueue*> queue;
 
-  Image(VkImage aimage, VkImageView aview, VkDeviceMemory amemory,
-        stx::Rc<CommandQueue*> aqueue)
+  ImageX(VkImage aimage, VkImageView aview, VkDeviceMemory amemory,
+         stx::Rc<CommandQueue*> aqueue)
       : image{aimage},
         view{aview},
         memory{amemory},
         queue{std::move(aqueue)} {};
 
-  STX_MAKE_PINNED(Image)
+  STX_MAKE_PINNED(ImageX)
 
-  ~Image() {
+  ~ImageX() {
     VkDevice dev = queue.handle->device.handle->device;
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyImageView(dev, view, nullptr);
@@ -1468,9 +1481,9 @@ struct Image {
 };
 
 // R | G | B | A
-inline stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
-                                         u32 width, u32 height,
-                                         stx::Span<u32 const> data) {
+inline stx::Rc<ImageX*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
+                                          u32 width, u32 height,
+                                          stx::Span<u32 const> data) {
   ASR_ENSURE(data.size_bytes() == width * height * 4);
 
   VkDevice dev = queue.handle->device.handle->device;
@@ -1557,8 +1570,8 @@ inline stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
 
   ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
-  return stx::rc::make_inplace<Image>(stx::os_allocator, image, view, memory,
-                                      queue.share())
+  return stx::rc::make_inplace<ImageX>(stx::os_allocator, image, view, memory,
+                                       queue.share())
       .unwrap();
 }
 
@@ -1638,9 +1651,9 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
 
 struct ImageSampler {
   VkSampler sampler = VK_NULL_HANDLE;
-  stx::Rc<Image*> image;
+  stx::Rc<ImageX*> image;
 
-  ImageSampler(VkSampler asampler, stx::Rc<Image*> aimage)
+  ImageSampler(VkSampler asampler, stx::Rc<ImageX*> aimage)
       : sampler{asampler}, image{std::move(aimage)} {}
 
   STX_MAKE_PINNED(ImageSampler)
@@ -1683,7 +1696,7 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device,
 }
 
 inline stx::Rc<ImageSampler*> create_image_sampler(
-    stx::Rc<Image*> const& image) {
+    stx::Rc<ImageX*> const& image) {
   return stx::rc::make_inplace<ImageSampler>(
              stx::os_allocator,
              create_sampler(image.handle->queue.handle->device, VK_TRUE),
@@ -1923,11 +1936,10 @@ struct DescriptorSets {
   }
 };
 
-inline std::tuple<VkImage, VkImageView, VkDeviceMemory>
-create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
-                           VkFormat swapchain_format,
-                           VkExtent2D swapchain_extent,
-                           VkSampleCountFlagBits sample_count) {
+inline Image create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
+                                        VkFormat swapchain_format,
+                                        VkExtent2D swapchain_extent,
+                                        VkSampleCountFlagBits sample_count) {
   VkDevice dev = queue.handle->device.handle->device;
 
   VkImageCreateInfo create_info{
@@ -2003,14 +2015,13 @@ create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
 
   ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
-  return std::make_tuple(image, view, memory);
+  return Image{.image = image, .view = view, .memory = memory};
 }
 
-inline std::tuple<VkImage, VkImageView, VkDeviceMemory>
-create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
-                           VkFormat swapchain_format,
-                           VkExtent2D swapchain_extent,
-                           VkSampleCountFlagBits sample_count) {
+inline Image create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
+                                        VkFormat swapchain_format,
+                                        VkExtent2D swapchain_extent,
+                                        VkSampleCountFlagBits sample_count) {
   VkDevice dev = queue.handle->device.handle->device;
 
   VkImageCreateInfo create_info{
@@ -2081,7 +2092,7 @@ create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
 
   ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
-  return std::make_tuple(image, view, memory);
+  return Image{.image = image, .view = view, .memory = memory};
 }
 
 // choose a specific swapchain format available on the surface
@@ -2187,6 +2198,24 @@ inline VkFormat find_depth_format(VkPhysicalDevice phy_device) {
 /// its images, nor its image views outside itself (the swapchain object).
 ///
 struct SwapChain {
+  struct Clip {
+    Image image;
+    VkSampler sampler = VK_NULL_HANDLE;
+    VkFramebuffer framebuffer = VK_NULL_HANDLE;
+    VkFence fence = VK_NULL_HANDLE;
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    VkRenderPass render_pass = VK_NULL_HANDLE;
+
+    void destroy(VkDevice dev) {
+      vkDestroySemaphore(dev, semaphore, nullptr);
+      vkDestroyFence(dev, fence, nullptr);
+      vkDestroyRenderPass(dev, render_pass, nullptr);
+      image.destroy(dev);
+      vkDestroySampler(dev, sampler, nullptr);
+      vkDestroyFramebuffer(dev, framebuffer, nullptr);
+    }
+  };
+
   static constexpr u32 MAX_FRAMES_INFLIGHT = 2;
 
   // actually holds the images of the surface and used to present to the render
@@ -2227,26 +2256,13 @@ struct SwapChain {
 
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
 
-  VkImage msaa_color_image = VK_NULL_HANDLE;
-  VkImageView msaa_color_image_view = VK_NULL_HANDLE;
-  VkDeviceMemory msaa_color_image_memory = VK_NULL_HANDLE;
+  Image msaa_color_image;
 
-  VkImage msaa_depth_image = VK_NULL_HANDLE;
-  VkImageView msaa_depth_image_view = VK_NULL_HANDLE;
-  VkDeviceMemory msaa_depth_image_memory = VK_NULL_HANDLE;
+  Image msaa_depth_image;
 
   VkRenderPass render_pass = VK_NULL_HANDLE;
 
-  struct Clip {
-    VkImage image = VK_NULL_HANDLE;
-    VkDeviceMemory memory = VK_NULL_HANDLE;
-    VkImageView view = VK_NULL_HANDLE;
-    VkSampler sampler = VK_NULL_HANDLE;
-    VkFramebuffer framebuffer = VK_NULL_HANDLE;
-    VkFence fence = VK_NULL_HANDLE;
-    VkSemaphore semaphore = VK_NULL_HANDLE;
-    VkRenderPass render_pass = VK_NULL_HANDLE;
-  } clip;
+  Clip clip;
 
   stx::Rc<CommandQueue*> queue;
 
@@ -2304,6 +2320,10 @@ struct SwapChain {
     extent = new_extent;
     window_extent = awindow_extent;
     msaa_sample_count = amsaa_sample_count;
+    msaa_color_image = create_msaa_color_resource(
+        queue, format.format, new_extent, msaa_sample_count);
+    msaa_depth_image = create_msaa_depth_resource(
+        queue, find_depth_format(phy_device), new_extent, msaa_sample_count);
 
     for (VkImage image : images) {
       VkImageViewCreateInfo create_info{
@@ -2338,25 +2358,6 @@ struct SwapChain {
           .unwrap();
     }
 
-    auto [xmsaa_color_image, xmsaa_color_image_view, xmsaa_color_image_memory] =
-        create_msaa_color_resource(queue, format.format, new_extent,
-                                   msaa_sample_count);
-
-    auto [xmsaa_depth_image, xmsaa_depth_image_view, xmsaa_depth_image_memory] =
-        create_msaa_depth_resource(
-            queue,
-            find_depth_format(
-                queue.handle->device.handle->phy_device.handle->phy_device),
-            new_extent, msaa_sample_count);
-
-    msaa_color_image = xmsaa_color_image;
-    msaa_color_image_view = xmsaa_color_image_view;
-    msaa_color_image_memory = xmsaa_color_image_memory;
-
-    msaa_depth_image = xmsaa_depth_image;
-    msaa_depth_image_view = xmsaa_depth_image_view;
-    msaa_depth_image_memory = xmsaa_depth_image_memory;
-
     VkAttachmentDescription color_attachment{
         .flags = 0,
         .format = format.format,
@@ -2370,8 +2371,7 @@ struct SwapChain {
 
     VkAttachmentDescription depth_attachment{
         .flags = 0,
-        .format = find_depth_format(
-            queue.handle->device.handle->phy_device.handle->phy_device),
+        .format = find_depth_format(phy_device),
         .samples = msaa_sample_count,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -2445,7 +2445,7 @@ struct SwapChain {
     for (usize i = 0; i < images.size(); i++) {
       VkFramebuffer framebuffer;
 
-      VkImageView attachments[] = {msaa_color_image_view, msaa_depth_image_view,
+      VkImageView attachments[] = {msaa_color_image.view, msaa_depth_image.view,
                                    image_views[i]};
 
       VkFramebufferCreateInfo create_info{
@@ -2543,14 +2543,13 @@ struct SwapChain {
             vkCreateFramebuffer(dev, &create_info, nullptr, &framebuffer));
       }
 
-      clip = Clip{.image = image,
-                  .memory = memory,
-                  .view = view,
-                  .sampler = create_sampler(queue.handle->device, false),
-                  .framebuffer = framebuffer,
-                  .fence = create_fence(dev, 0),
-                  .semaphore = create_semaphore(dev),
-                  .render_pass = render_pass};
+      clip =
+          Clip{.image = Image{.image = image, .view = view, .memory = memory},
+               .sampler = create_sampler(queue.handle->device, false),
+               .framebuffer = framebuffer,
+               .fence = create_fence(dev, 0),
+               .semaphore = create_semaphore(dev),
+               .render_pass = render_pass};
     }
   }
 
@@ -2565,26 +2564,12 @@ struct SwapChain {
 
     ASR_VK_CHECK(vkDeviceWaitIdle(dev));
 
-    {
-      vkDestroySemaphore(dev, clip.semaphore, nullptr);
-      vkDestroyFence(dev, clip.fence, nullptr);
-      vkDestroyRenderPass(dev, clip.render_pass, nullptr);
-      vkFreeMemory(dev, clip.memory, nullptr);
-      vkDestroyImageView(dev, clip.view, nullptr);
-      vkDestroyImage(dev, clip.image, nullptr);
-      vkDestroySampler(dev, clip.sampler, nullptr);
-      vkDestroyFramebuffer(dev, clip.framebuffer, nullptr);
-    }
+    clip.destroy(dev);
 
     vkDestroyRenderPass(dev, render_pass, nullptr);
 
-    vkFreeMemory(dev, msaa_color_image_memory, nullptr);
-    vkDestroyImageView(dev, msaa_color_image_view, nullptr);
-    vkDestroyImage(dev, msaa_color_image, nullptr);
-
-    vkFreeMemory(dev, msaa_depth_image_memory, nullptr);
-    vkDestroyImageView(dev, msaa_depth_image_view, nullptr);
-    vkDestroyImage(dev, msaa_depth_image, nullptr);
+    msaa_color_image.destroy(dev);
+    msaa_depth_image.destroy(dev);
 
     for (VkFramebuffer framebuffer : frame_buffers) {
       vkDestroyFramebuffer(dev, framebuffer, nullptr);
@@ -2628,9 +2613,8 @@ struct Surface {
 
   stx::Rc<Instance*> instance;
 
-  Surface(VkSurfaceKHR asurface,
-          stx::Option<stx::Unique<SwapChain*>> aswapchain,
-          stx::Rc<Instance*> ainstance)
+  Surface(stx::Rc<Instance*> ainstance, VkSurfaceKHR asurface,
+          stx::Option<stx::Unique<SwapChain*>> aswapchain)
       : surface{asurface},
         swapchain{std::move(aswapchain)},
         instance{std::move(ainstance)} {}

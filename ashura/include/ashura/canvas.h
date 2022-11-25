@@ -721,8 +721,10 @@ struct CanvasContext {
         queue.handle->device.handle->phy_device.handle->memory_properties;
     vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
 
-    vertex_buffer.write(dev, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
-    index_buffer.write(dev, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
+    vertex_buffer.write(dev, family_info.index, memory_properties,
+                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
+    index_buffer.write(dev, family_info.index, memory_properties,
+                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
   }
 
   void write_clip_vertices(stx::Span<vec2 const> vertices,
@@ -732,8 +734,10 @@ struct CanvasContext {
         queue.handle->device.handle->phy_device.handle->memory_properties;
     vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
 
-    clip_vertex_buffer.write(dev, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
-    clip_index_buffer.write(dev, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
+    clip_vertex_buffer.write(dev, family_info.index, memory_properties,
+                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
+    clip_index_buffer.write(dev, family_info.index, memory_properties,
+                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
   }
 };
 
@@ -922,7 +926,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
         vk::DescriptorBinding::make_sampler(
             draw_command.texture.handle->image.handle->view,
             draw_command.texture.handle->sampler),
-        vk::DescriptorBinding::make_sampler(swapchain.clip.view,
+        vk::DescriptorBinding::make_sampler(swapchain.clip.image.view,
                                             swapchain.clip.sampler)};
 
     stx::Span<vk::DescriptorBinding const> sets[] = {set0, set1};

@@ -153,7 +153,7 @@ struct Window {
   stx::Vec<char const*> get_required_instance_extensions() const;
 
   // attach surface to window for presentation
-  void attach_surface(stx::Rc<vk::Instance*> instance);
+  void attach_surface(stx::Rc<vk::Instance*> const& instance);
 
   void recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue);
 

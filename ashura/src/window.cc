@@ -28,7 +28,7 @@ stx::Vec<char const*> Window::get_required_instance_extensions() const {
   return required_instance_extensions;
 }
 
-void Window::attach_surface(stx::Rc<vk::Instance*> instance) {
+void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
   VkSurfaceKHR surface;
 
   ASR_SDL_ENSURE(SDL_Vulkan_CreateSurface(window_, instance.handle->instance,
@@ -37,7 +37,7 @@ void Window::attach_surface(stx::Rc<vk::Instance*> instance) {
 
   surface_ =
       stx::Some(stx::rc::make_unique_inplace<vk::Surface>(
-                    stx::os_allocator, surface, stx::None, std::move(instance))
+                    stx::os_allocator, instance.share(), surface, stx::None)
                     .unwrap());
 }
 

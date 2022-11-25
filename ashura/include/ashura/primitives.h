@@ -304,8 +304,8 @@ struct RectI {
   Extent extent;
 
   constexpr auto bounds() const {
-    return std::make_tuple(offset.x, offset.x + static_cast<i64>(extent.w),
-                           offset.y, offset.y + static_cast<i64>(extent.h));
+    return std::make_tuple(offset.x, offset.x + AS_I64(extent.w), offset.y,
+                           offset.y + AS_I64(extent.h));
   }
 
   constexpr bool overlaps(RectI const &other) const {
@@ -331,9 +331,8 @@ struct RectI {
     return RectI{
         .offset = OffsetI{.x = std::max(x1_min, x2_min),
                           .y = std::max(y1_min, y2_min)},
-        .extent =
-            Extent{.w = static_cast<u32>(std::min(x1_max, x2_max) - offset.x),
-                   .h = static_cast<u32>(std::min(y1_max, y2_max) - offset.y)}};
+        .extent = Extent{.w = AS_U32(std::min(x1_max, x2_max) - offset.x),
+                         .h = AS_U32(std::min(y1_max, y2_max) - offset.y)}};
   }
 
   RectI checked_intersect(RectI const &other) const {
@@ -421,24 +420,20 @@ constexpr bool fits_i32(i64 value) {
   return value <= stx::i32_max && value >= stx::i32_min;
 }
 
-constexpr bool fits_i32(u32 value) {
-  return value <= static_cast<u32>(stx::i32_max);
-}
+constexpr bool fits_i32(u32 value) { return value <= AS_U32(stx::i32_max); }
 
 constexpr u32 u32_clamp(i64 value) {
-  return static_cast<u32>(std::clamp<i64>(value, 0, stx::u32_max));
+  return AS_U32(std::clamp<i64>(value, 0, stx::u32_max));
 }
 
-constexpr u32 u32_clamp(i32 value) {
-  return static_cast<u32>(std::max<i32>(value, 0));
-}
+constexpr u32 u32_clamp(i32 value) { return AS_U32(std::max<i32>(value, 0)); }
 
 constexpr i32 i32_clamp(i64 value) {
-  return static_cast<i32>(std::clamp<i64>(value, stx::i32_min, stx::i32_max));
+  return AS_I32(std::clamp<i64>(value, stx::i32_min, stx::i32_max));
 }
 
 constexpr i32 i32_clamp(u32 value) {
-  return static_cast<i32>(std::min<u32>(value, stx::i32_max));
+  return AS_I32(std::min<u32>(value, stx::i32_max));
 }
 
 constexpr bool fits_u32(OffsetI const &offset) {
