@@ -1297,22 +1297,104 @@ inline stx::Option<CommandQueue> get_command_queue(
 }
 
 struct Buffer {
-  VkDeviceMemory memory = VK_NULL_HANDLE;
   VkBuffer buffer = VK_NULL_HANDLE;
-  stx::Rc<Device*> device;
+  VkDeviceMemory memory = VK_NULL_HANDLE;
+  usize size = 0;
+  void* memory_map = nullptr;
 
-  Buffer(VkDeviceMemory amemory, VkBuffer abuffer, stx::Rc<Device*> adevice)
-      : memory{amemory}, buffer{abuffer}, device{std::move(adevice)} {}
+  void destroy(VkDevice dev) {
+    vkFreeMemory(dev, memory, nullptr);
+    vkDestroyBuffer(dev, buffer, nullptr);
+  }
 
-  STX_MAKE_PINNED(Buffer)
+  void write(VkDevice dev, void const* data) {
+    std::memcpy(memory_map, data, size);
 
-  ~Buffer() {
-    vkFreeMemory(device.handle->device, memory, nullptr);
-    vkDestroyBuffer(device.handle->device, buffer, nullptr);
+    VkMappedMemoryRange range{
+        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .pNext = nullptr,
+        .memory = memory,
+        .offset = 0,
+        .size = VK_WHOLE_SIZE,
+    };
+
+    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
   }
 };
 
-inline std::pair<VkBuffer, VkDeviceMemory> create_buffer_with_memory(
+struct SpanBuffer {
+  VkBuffer buffer = VK_NULL_HANDLE;
+  VkDeviceMemory memory = VK_NULL_HANDLE;
+  usize size = 0;
+  usize memory_size = 0;
+  void* memory_map = nullptr;
+
+  void destroy(VkDevice dev) {
+    vkFreeMemory(dev, memory, nullptr);
+    vkDestroyBuffer(dev, buffer, nullptr);
+  }
+
+  template <typename T>
+  void write(VkDevice dev, VkBufferUsageFlagBits usage,
+             stx::Span<T const> span) {
+    if (span.size_bytes() != size) {
+      vkDestroyBuffer(dev, buffer, nullptr);
+
+      VkBufferCreateInfo create_info{
+          .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0,
+          .size = span.size_bytes(),
+          .usage = usage,
+          .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+          .queueFamilyIndexCount = 1,
+          .pQueueFamilyIndices = &family_info.index};
+
+      ASR_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
+
+      size = span.size_bytes();
+
+      VkMemoryRequirements memory_requirements;
+
+      vkGetBufferMemoryRequirements(dev, buffer, &memory_requirements);
+
+      if (memory_requirements.size <= memory_size) {
+        ASR_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
+      } else {
+        u32 memory_type_index = vk::find_suitable_memory_type(
+                                    memory_requirements, memory_properties,
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+                                    .unwrap();
+
+        VkMemoryAllocateInfo alloc_info{
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .pNext = nullptr,
+            .allocationSize = memory_requirements.size,
+            .memoryTypeIndex = memory_type_index};
+
+        ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+
+        memory_size = memory_requirements.size;
+
+        ASR_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
+
+        ASR_VK_CHECK(vkMapMemory(dev, memory, 0, memory_size, 0, &memory_map));
+      }
+    }
+
+    memcpy(memory_map, span.data(), span.size_bytes());
+
+    VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                              .pNext = nullptr,
+                              .memory = memory,
+                              .offset = 0,
+                              .size = VK_WHOLE_SIZE};
+
+    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+  }
+};
+
+inline Buffer create_buffer(
     VkDevice dev, CommandQueueFamilyInfo const& graphics_command_queue,
     VkPhysicalDeviceMemoryProperties const& memory_properties, usize size_bytes,
     VkBufferUsageFlags usage) {
@@ -1333,91 +1415,33 @@ inline std::pair<VkBuffer, VkDeviceMemory> create_buffer_with_memory(
 
   VkDeviceMemory memory;
 
-  VkMemoryRequirements requirements;
+  VkMemoryRequirements memory_requirements;
 
-  vkGetBufferMemoryRequirements(dev, buffer, &requirements);
+  vkGetBufferMemoryRequirements(dev, buffer, &memory_requirements);
 
   u32 memory_type_index =
-      find_suitable_memory_type(requirements, memory_properties,
+      find_suitable_memory_type(memory_requirements, memory_properties,
                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
       .pNext = nullptr,
-      .allocationSize = requirements.size,
+      .allocationSize = memory_requirements.size,
       .memoryTypeIndex = memory_type_index};
 
   ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
 
   ASR_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
 
-  return std::make_pair(buffer, memory);
-}
-
-template <typename VertexType>
-inline stx::Rc<Buffer*> upload_vertices(
-    stx::Rc<Device*> const& device,
-    CommandQueueFamilyInfo const& graphics_command_queue,
-    VkPhysicalDeviceMemoryProperties const& memory_properties,
-    stx::Span<VertexType const> vertices) {
-  VkDevice dev = device.handle->device;
-
-  auto [buffer, memory] = create_buffer_with_memory(
-      dev, graphics_command_queue, memory_properties, vertices.size_bytes(),
-      VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-
   void* memory_map;
+
   ASR_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
 
-  memcpy(memory_map, vertices.data(), vertices.size_bytes());
-
-  VkMappedMemoryRange range{
-      .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-      .pNext = nullptr,
-      .memory = memory,
-      .offset = 0,
-      .size = VK_WHOLE_SIZE,
-  };
-
-  ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
-
-  vkUnmapMemory(dev, memory);
-
-  return stx::rc::make_inplace<Buffer>(stx::os_allocator, memory, buffer,
-                                       device.share())
-      .unwrap();
-}
-
-inline stx::Rc<Buffer*> upload_indices(
-    stx::Rc<Device*> const& device,
-    CommandQueueFamilyInfo const& graphics_command_queue,
-    VkPhysicalDeviceMemoryProperties const& memory_properties,
-    stx::Span<u32 const> indices) {
-  VkDevice dev = device.handle->device;
-
-  auto [buffer, memory] = create_buffer_with_memory(
-      dev, graphics_command_queue, memory_properties, indices.size_bytes(),
-      VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-
-  void* memory_map;
-  ASR_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
-
-  memcpy(memory_map, indices.data(), indices.size_bytes());
-
-  VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                            .pNext = nullptr,
-                            .memory = memory,
-                            .offset = 0,
-                            .size = VK_WHOLE_SIZE};
-
-  ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
-
-  vkUnmapMemory(dev, memory);
-
-  return stx::rc::make_inplace<Buffer>(stx::os_allocator, memory, buffer,
-                                       device.share())
-      .unwrap();
+  return Buffer{.buffer = buffer,
+                .memory = memory,
+                .size = size_bytes,
+                .memory_map = memory_map};
 }
 
 struct Image {
@@ -1472,13 +1496,13 @@ inline stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
 
   ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
 
-  VkMemoryRequirements requirements;
+  VkMemoryRequirements memory_requirements;
 
-  vkGetImageMemoryRequirements(dev, image, &requirements);
+  vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
   u32 memory_type_index =
       find_suitable_memory_type(
-          requirements,
+          memory_requirements,
           queue.handle->device.handle->phy_device.handle->memory_properties,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
           .unwrap();
@@ -1486,7 +1510,7 @@ inline stx::Rc<Image*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
   VkMemoryAllocateInfo alloc_info{
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
       .pNext = nullptr,
-      .allocationSize = requirements.size,
+      .allocationSize = memory_requirements.size,
       .memoryTypeIndex = memory_type_index};
 
   VkDeviceMemory memory;
@@ -1564,13 +1588,13 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
 
   ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
 
-  VkMemoryRequirements requirements;
+  VkMemoryRequirements memory_requirements;
 
-  vkGetImageMemoryRequirements(dev, image, &requirements);
+  vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
   u32 memory_type_index =
       find_suitable_memory_type(
-          requirements,
+          memory_requirements,
           queue.handle->device.handle->phy_device.handle->memory_properties,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
           .unwrap();
@@ -1578,7 +1602,7 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
   VkMemoryAllocateInfo alloc_info{
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
       .pNext = nullptr,
-      .allocationSize = requirements.size,
+      .allocationSize = memory_requirements.size,
       .memoryTypeIndex = memory_type_index};
 
   VkDeviceMemory memory;
@@ -1934,13 +1958,13 @@ create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
 
   ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
 
-  VkMemoryRequirements requirements;
+  VkMemoryRequirements memory_requirements;
 
-  vkGetImageMemoryRequirements(dev, image, &requirements);
+  vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
   u32 memory_type_index =
       find_suitable_memory_type(
-          requirements,
+          memory_requirements,
           queue.handle->device.handle->phy_device.handle->memory_properties,
           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
           .unwrap();
@@ -1948,7 +1972,7 @@ create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
   VkMemoryAllocateInfo alloc_info{
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
       .pNext = nullptr,
-      .allocationSize = requirements.size,
+      .allocationSize = memory_requirements.size,
       .memoryTypeIndex = memory_type_index};
 
   VkDeviceMemory memory;
@@ -2012,13 +2036,13 @@ create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
 
   ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
 
-  VkMemoryRequirements requirements;
+  VkMemoryRequirements memory_requirements;
 
-  vkGetImageMemoryRequirements(dev, image, &requirements);
+  vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
   u32 memory_type_index =
       find_suitable_memory_type(
-          requirements,
+          memory_requirements,
           queue.handle->device.handle->phy_device.handle->memory_properties,
           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
           .unwrap();
@@ -2026,7 +2050,7 @@ create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
   VkMemoryAllocateInfo alloc_info{
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
       .pNext = nullptr,
-      .allocationSize = requirements.size,
+      .allocationSize = memory_requirements.size,
       .memoryTypeIndex = memory_type_index};
 
   VkDeviceMemory memory;

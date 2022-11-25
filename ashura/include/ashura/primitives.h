@@ -78,6 +78,7 @@ struct vec4 {
   f32 x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;
 };
 
+// TODO(lamarrr): consider indexing? is the first a row or a column?
 struct mat4 {
   vec4 data[4];
 

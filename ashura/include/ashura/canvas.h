@@ -479,6 +479,8 @@ struct Canvas {
       d.x *= brush.line_width * 0.5f;
       d.y *= brush.line_width * 0.5f;
 
+      // TODO(lamarrr): is this start correct? since we are putting in quite a
+      // few indices
       u32 start = AS_U32(draw_list.indices.size());
 
       vec2 vertices[] = {{p1.x + d.y, p1.y - d.x},
@@ -491,19 +493,19 @@ struct Canvas {
 
       draw_list.vertices.extend(vertices).unwrap();
       draw_list.indices.extend(indices).unwrap();
-
-      //   draw_list.commands
-      //       .push(DrawCommand{.color,
-      //                         .frag_shader,
-      //                         .indices_offset = start,
-      //                         .ntriangles = 2,
-      //                         .opacity,
-      //                         .placement,
-      //                         .texture,
-      //                         .transform,
-      //                         .vert_shader})
-      //       .unwrap();
     }
+
+    //   draw_list.commands
+    //       .push(DrawCommand{.color,
+    //                         .frag_shader,
+    //                         .indices_offset = start,
+    //                         .ntriangles = 2,
+    //                         .opacity,
+    //                         .placement,
+    //                         .texture,
+    //                         .transform,
+    //                         .vert_shader})
+    //       .unwrap();
 
     return *this;
   }
@@ -653,61 +655,34 @@ struct Overlay {
 };
 
 struct CanvasContext {
-  VkBuffer transform_buffer = VK_NULL_HANDLE;
-  VkDeviceMemory transform_memory = VK_NULL_HANDLE;
-  void* transform_memory_map = nullptr;
+  vk::Buffer transform_buffer;
+  vk::Buffer clip_transform_buffer;
+  vk::Buffer overlay_buffer;
 
-  VkBuffer clip_transform_buffer = VK_NULL_HANDLE;
-  VkDeviceMemory clip_transform_memory = VK_NULL_HANDLE;
-  void* clip_transform_memory_map = nullptr;
-
-  VkBuffer overlay_buffer = VK_NULL_HANDLE;
-  VkDeviceMemory overlay_memory = VK_NULL_HANDLE;
-  void* overlay_memory_map = nullptr;
+  vk::SpanBuffer vertex_buffer;
+  vk::SpanBuffer index_buffer;
+  vk::SpanBuffer clip_vertex_buffer;
+  vk::SpanBuffer clip_index_buffer;
 
   stx::Rc<vk::CommandQueue*> queue;
 
   CanvasContext(stx::Rc<vk::CommandQueue*> aqueue) : queue{std::move(aqueue)} {
     VkDevice dev = queue.handle->device.handle->device;
 
-    {
-      auto [buffer, memory] = vk::create_buffer_with_memory(
-          dev, queue.handle->info.family,
-          queue.handle->device.handle->phy_device.handle->memory_properties,
-          sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    transform_buffer = vk::create_buffer(
+        dev, queue.handle->info.family,
+        queue.handle->device.handle->phy_device.handle->memory_properties,
+        sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-      transform_memory = memory;
-      transform_buffer = buffer;
+    clip_transform_buffer = vk::create_buffer(
+        dev, queue.handle->info.family,
+        queue.handle->device.handle->phy_device.handle->memory_properties,
+        sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-      ASR_VK_CHECK(vkMapMemory(dev, transform_memory, 0, VK_WHOLE_SIZE, 0,
-                               &transform_memory_map));
-    }
-
-    {
-      auto [buffer, memory] = vk::create_buffer_with_memory(
-          dev, queue.handle->info.family,
-          queue.handle->device.handle->phy_device.handle->memory_properties,
-          sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-      clip_transform_buffer = buffer;
-      clip_transform_memory = memory;
-
-      ASR_VK_CHECK(vkMapMemory(dev, clip_transform_memory, 0, VK_WHOLE_SIZE, 0,
-                               &clip_transform_memory_map));
-    }
-
-    {
-      auto [buffer, memory] = vk::create_buffer_with_memory(
-          dev, queue.handle->info.family,
-          queue.handle->device.handle->phy_device.handle->memory_properties,
-          sizeof(Overlay), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-      overlay_buffer = buffer;
-      overlay_memory = memory;
-
-      ASR_VK_CHECK(
-          vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &overlay_memory_map));
-    }
+    overlay_buffer = vk::create_buffer(
+        dev, queue.handle->info.family,
+        queue.handle->device.handle->phy_device.handle->memory_properties,
+        sizeof(Overlay), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
   }
 
   STX_MAKE_PINNED(CanvasContext)
@@ -715,65 +690,50 @@ struct CanvasContext {
   ~CanvasContext() {
     VkDevice dev = queue.handle->device.handle->device;
 
-    vkUnmapMemory(dev, transform_memory);
-    vkUnmapMemory(dev, clip_transform_memory);
-    vkUnmapMemory(dev, overlay_memory);
+    vertex_buffer.destroy(dev);
+    index_buffer.destroy(dev);
+    clip_vertex_buffer.destroy(dev);
+    clip_index_buffer.destroy(dev);
 
-    vkFreeMemory(dev, transform_memory, nullptr);
-    vkFreeMemory(dev, clip_transform_memory, nullptr);
-    vkFreeMemory(dev, overlay_memory, nullptr);
+    transform_buffer.destroy(dev);
 
-    vkDestroyBuffer(dev, transform_buffer, nullptr);
-    vkDestroyBuffer(dev, clip_transform_buffer, nullptr);
-    vkDestroyBuffer(dev, overlay_buffer, nullptr);
+    clip_transform_buffer.destroy(dev);
+    overlay_buffer.destroy(dev);
   }
 
   void write_transform(Transform const& transform) {
-    std::memcpy(transform_memory_map, &transform, sizeof(Transform));
-
-    VkDevice dev = queue.handle->device.handle->device;
-
-    VkMappedMemoryRange range{
-        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-        .pNext = nullptr,
-        .memory = transform_memory,
-        .offset = 0,
-        .size = VK_WHOLE_SIZE,
-    };
-
-    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+    transform_buffer.write(queue.handle->device.handle->device, &transform);
   }
 
   void write_clip_transform(Transform const& transform) {
-    std::memcpy(clip_transform_memory_map, &transform, sizeof(Transform));
-
-    VkDevice dev = queue.handle->device.handle->device;
-
-    VkMappedMemoryRange range{
-        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-        .pNext = nullptr,
-        .memory = clip_transform_memory,
-        .offset = 0,
-        .size = VK_WHOLE_SIZE,
-    };
-
-    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+    clip_transform_buffer.write(queue.handle->device.handle->device,
+                                &transform);
   }
 
   void write_overlay(Overlay const& overlay) {
-    std::memcpy(overlay_memory_map, &overlay, sizeof(Overlay));
+    overlay_buffer.write(queue.handle->device.handle->device, &overlay);
+  }
 
+  void write_vertices(stx::Span<vec2 const> vertices,
+                      stx::Span<u32 const> indices) {
     VkDevice dev = queue.handle->device.handle->device;
+    VkPhysicalDeviceMemoryProperties const& memory_properties =
+        queue.handle->device.handle->phy_device.handle->memory_properties;
+    vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
 
-    VkMappedMemoryRange range{
-        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-        .pNext = nullptr,
-        .memory = overlay_memory,
-        .offset = 0,
-        .size = VK_WHOLE_SIZE,
-    };
+    vertex_buffer.write(dev, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
+    index_buffer.write(dev, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
+  }
 
-    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+  void write_clip_vertices(stx::Span<vec2 const> vertices,
+                           stx::Span<u32 const> indices) {
+    VkDevice dev = queue.handle->device.handle->device;
+    VkPhysicalDeviceMemoryProperties const& memory_properties =
+        queue.handle->device.handle->phy_device.handle->memory_properties;
+    vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
+
+    clip_vertex_buffer.write(dev, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
+    clip_index_buffer.write(dev, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
   }
 };
 
@@ -790,9 +750,6 @@ struct CanvasContext {
 //
 //
 //
-//
-//
-
 inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                    DrawList const& draw_list) {
   static constexpr u64 TIMEOUT = AS_U64(
@@ -811,19 +768,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
   vk::CommandQueueFamilyInfo const& family =
       swapchain.queue.handle->info.family;
 
-  stx::Rc<vk::Buffer*> vertex_buffer =
-      upload_vertices(device, family, memory_properties,
-                      stx::Span<vec2 const>{draw_list.vertices});
-
-  stx::Rc<vk::Buffer*> index_buffer =
-      upload_indices(device, family, memory_properties, draw_list.indices);
-
-  stx::Rc<vk::Buffer*> clip_vertex_buffer =
-      upload_vertices(device, family, memory_properties,
-                      stx::Span<vec2 const>{draw_list.clip_vertices});
-
-  stx::Rc<vk::Buffer*> clip_index_buffer =
-      upload_indices(device, family, memory_properties, draw_list.clip_indices);
+  canvas_ctx.write_vertices(draw_list.vertices, draw_list.indices);
 
   ASR_VK_CHECK(vkResetCommandBuffer(ctx.command_buffer, 0));
 
@@ -860,12 +805,15 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
     //
     // TODO(lamarrr): clip shape orientation and sizing to fit
     {
+      canvas_ctx.write_clip_vertices(draw_list.clip_vertices,
+                                     draw_list.clip_indices);
+
       Transform clip_transform{draw_command.transform};
 
       canvas_ctx.write_clip_transform(clip_transform);
 
-      vk::DescriptorBinding set0[] = {
-          vk::DescriptorBinding::make_buffer(canvas_ctx.clip_transform_buffer)};
+      vk::DescriptorBinding set0[] = {vk::DescriptorBinding::make_buffer(
+          canvas_ctx.clip_transform_buffer.buffer)};
 
       stx::Span<vk::DescriptorBinding const> sets[] = {set0};
 
@@ -914,10 +862,10 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
       vkCmdSetViewport(ctx.clip_command_buffer, 0, 1, &viewport);
 
       vkCmdBindVertexBuffers(ctx.clip_command_buffer, 0, 1,
-                             &clip_vertex_buffer.handle->buffer, 0);
+                             &canvas_ctx.clip_vertex_buffer.buffer, 0);
 
       vkCmdBindIndexBuffer(ctx.clip_command_buffer,
-                           clip_index_buffer.handle->buffer, 0,
+                           canvas_ctx.clip_index_buffer.buffer, 0,
                            VK_INDEX_TYPE_UINT32);
 
       vkCmdBindDescriptorSets(
@@ -962,8 +910,8 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
     canvas_ctx.write_overlay(overlay);
 
     vk::DescriptorBinding set0[] = {
-        vk::DescriptorBinding::make_buffer(canvas_ctx.transform_buffer),
-        vk::DescriptorBinding::make_buffer(canvas_ctx.overlay_buffer)};
+        vk::DescriptorBinding::make_buffer(canvas_ctx.transform_buffer.buffer),
+        vk::DescriptorBinding::make_buffer(canvas_ctx.overlay_buffer.buffer)};
 
     // TODO(lamarrr): how do we determine what portion of the clip mask to use?
     //
@@ -1013,9 +961,9 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
     vkCmdSetViewport(ctx.command_buffer, 0, 1, &viewport);
 
     vkCmdBindVertexBuffers(ctx.command_buffer, 0, 1,
-                           &vertex_buffer.handle->buffer, 0);
+                           &canvas_ctx.vertex_buffer.buffer, 0);
 
-    vkCmdBindIndexBuffer(ctx.command_buffer, index_buffer.handle->buffer, 0,
+    vkCmdBindIndexBuffer(ctx.command_buffer, canvas_ctx.index_buffer.buffer, 0,
                          VK_INDEX_TYPE_UINT32);
 
     vkCmdBindDescriptorSets(
