@@ -1152,13 +1152,11 @@ inline std::string format(PhyDeviceInfo const& device) {
                      ::asr::vk::format(properties.deviceType));
 }
 
+// automatically destroyed once the device is destroyed
 struct CommandQueueFamilyInfo {
-  // automatically destroyed once the device is destroyed
   u32 index = 0;
   stx::Rc<PhyDeviceInfo*> phy_device;
 };
-
-struct Device;
 
 struct CommandQueueInfo {
   // automatically destroyed once the device is destroyed
@@ -1167,6 +1165,8 @@ struct CommandQueueInfo {
   f32 priority = 0.0f;
   CommandQueueFamilyInfo family;
 };
+
+struct Device;
 
 struct CommandQueue {
   CommandQueueInfo info;
@@ -1282,7 +1282,7 @@ inline stx::Option<CommandQueue> get_command_queue(
 
   if (queue_s.is_empty()) return stx::None;
 
-  auto& queue = queue_s[0];
+  auto const& queue = queue_s[0];
 
   return stx::Some(CommandQueue{
       .info = CommandQueueInfo{.queue = queue.queue,

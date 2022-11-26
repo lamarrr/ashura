@@ -357,10 +357,6 @@ struct DrawList {
 // TODO(lamarrr): implement clipping
 //
 //
-// TODO(lamarrr): how will color and image blending work, image and color
-// srcover or dstover, color over image or image over color
-//
-//
 // TODO(lamarrr): is there a way we can not require specifying the coordinates
 // in unit?
 //
@@ -369,8 +365,22 @@ struct DrawList {
 // use clipping masks, just a simple convex polygon
 //
 //
+// TODO(lamarrr): clips don't need to use the object's transform
 //
-// TODO(lamarrr): separate shape generating functions
+//
+//
+//
+// TODO(lamarrr)
+//
+// vertex X will be transformed by Transformation matrix T to position Y on the
+// screen we need to get the clip mask value at position Y and multiply it by
+// the output color texture coordinate will now be sampled by Y /
+// swapchain_extent
+//
+//
+// TODO(lamarrr): will the above work with z rotation and translation?
+//
+//
 //
 struct Canvas {
   struct Transform {
@@ -715,10 +725,16 @@ struct Overlay {
   vec4 color{0.0f, 0.0f, 0.0f, 0.0f};
 };
 
+struct Viewport {
+  // in pixels
+  vec2 extent{0.0f, 0.0f};
+};
+
 struct CanvasContext {
   vk::Buffer transform_buffer;
   vk::Buffer clip_transform_buffer;
   vk::Buffer overlay_buffer;
+  vk::Buffer viewport_buffer;
 
   vk::SpanBuffer vertex_buffer;
   vk::SpanBuffer index_buffer;
@@ -744,6 +760,11 @@ struct CanvasContext {
         dev, queue.handle->info.family,
         queue.handle->device.handle->phy_device.handle->memory_properties,
         sizeof(Overlay), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+    viewport_buffer = vk::create_buffer(
+        dev, queue.handle->info.family,
+        queue.handle->device.handle->phy_device.handle->memory_properties,
+        sizeof(Viewport), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
   }
 
   STX_MAKE_PINNED(CanvasContext)
@@ -760,6 +781,7 @@ struct CanvasContext {
 
     clip_transform_buffer.destroy(dev);
     overlay_buffer.destroy(dev);
+    viewport_buffer.destroy(dev);
   }
 
   void write_transform(Transform const& transform) {
@@ -773,6 +795,10 @@ struct CanvasContext {
 
   void write_overlay(Overlay const& overlay) {
     overlay_buffer.write(queue.handle->device.handle->device, &overlay);
+  }
+
+  void write_viewport(Viewport const& viewport) {
+    viewport_buffer.write(queue.handle->device.handle->device, &viewport);
   }
 
   void write_vertices(stx::Span<vec2 const> vertices,
@@ -899,7 +925,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
       VkClearValue clear_values[] = {
           {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}}};
 
-      // TODO(lamarrr): set render area to clip area (x scale)
+      // TODO(lamarrr): set render area to clip area (x scale)???
       VkRenderPassBeginInfo render_pass_begin_info{
           .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
           .pNext = nullptr,
@@ -912,7 +938,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
       vkCmdBeginRenderPass(ctx.clip_command_buffer, &render_pass_begin_info,
                            VK_SUBPASS_CONTENTS_INLINE);
 
-      // TODO(lamarrr): set viewport and scissor to clip area
+      // TODO(lamarrr): set viewport and scissor to clip area???
       VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
 
       vkCmdSetScissor(ctx.clip_command_buffer, 0, 1, &scissor);
@@ -971,17 +997,16 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                               draw_command.color.b / 255.0f,
                               draw_command.color.a / 255.0f}};
 
+    Viewport canvas_viewport{
+        .extent = {swapchain.extent.width, swapchain.extent.height}};
+
     canvas_ctx.write_transform(transform);
     canvas_ctx.write_overlay(overlay);
+    canvas_ctx.write_viewport(canvas_viewport);
 
     vk::DescriptorBinding set0[] = {
         vk::DescriptorBinding::make_buffer(canvas_ctx.transform_buffer.buffer),
         vk::DescriptorBinding::make_buffer(canvas_ctx.overlay_buffer.buffer)};
-
-    // TODO(lamarrr): how do we determine what portion of the clip mask to use?
-    //
-    // remember the image view will be sampled in the framebuffer coordinates
-    //
 
     vk::DescriptorBinding set1[] = {
         vk::DescriptorBinding::make_sampler(
