@@ -507,8 +507,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
-    stx::Span<u32 const> accessing_queue_families_indexes,
-    VkImageUsageFlags image_usages,
+    u32 accessing_queue_family_index, VkImageUsageFlags image_usages,
     VkCompositeAlphaFlagBitsKHR alpha_channel_blending, VkBool32 clipped) {
   u32 desired_num_buffers = std::min(properties.capabilities.minImageCount + 1,
                                      properties.capabilities.maxImageCount);
@@ -538,8 +537,8 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
       // VK_SHARING_MODE_CONCURRENT: Images can be used across multiple queue
       // families without explicit ownership transfers.
       .imageSharingMode = accessing_queue_families_sharing_mode,
-      .queueFamilyIndexCount = AS_U32(accessing_queue_families_indexes.size()),
-      .pQueueFamilyIndices = accessing_queue_families_indexes.data(),
+      .queueFamilyIndexCount = 1,
+      .pQueueFamilyIndices = &accessing_queue_family_index,
       .preTransform = properties.capabilities.currentTransform,
       .compositeAlpha =
           alpha_channel_blending,  // how the alpha channel should be
@@ -1807,10 +1806,10 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
 }
 
 struct DescriptorSets {
+  VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
+
   stx::Vec<VkDescriptorSetLayout> descriptor_set_layouts{stx::os_allocator};
   stx::Vec<VkDescriptorSet> descriptor_sets{stx::os_allocator};
-
-  VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
 
   stx::Rc<Device*> device;
 
@@ -1836,7 +1835,12 @@ struct DescriptorSets {
 
     descriptor_set_spec.extend_move(spec).unwrap();
 
-    ____prepare_descriptor_sets();
+    auto [descset_layouts, descsets] = prepare_descriptor_sets(
+        device.handle->device, descriptor_pool, VK_SHADER_STAGE_VERTEX_BIT,
+        descriptor_set_spec);
+
+    descriptor_set_layouts = std::move(descset_layouts);
+    descriptor_sets = std::move(descsets);
   }
 
   STX_MAKE_PINNED(DescriptorSets)
@@ -1853,15 +1857,6 @@ struct DescriptorSets {
                                       descriptor_sets.data()));
 
     vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
-  }
-
-  void ____prepare_descriptor_sets() {
-    auto [descset_layouts, descsets] = prepare_descriptor_sets(
-        device.handle->device, descriptor_pool, VK_SHADER_STAGE_VERTEX_BIT,
-        descriptor_set_spec);
-
-    descriptor_set_layouts = std::move(descset_layouts);
-    descriptor_sets = std::move(descsets);
   }
 
   void write(stx::Span<stx::Span<DescriptorBinding const> const> sets) {
@@ -2297,13 +2292,11 @@ struct SwapChain {
     VkPresentModeKHR selected_present_mode = select_swapchain_presentation_mode(
         properties.presentation_modes, preferred_present_modes);
 
-    u32 accessing_families[] = {queue.handle->info.family.index};
-
     auto [new_swapchain, new_extent] = create_swapchain(
         dev, target_surface, preferred_extent, selected_format,
         selected_present_mode, properties,
         // not thread-safe since GPUs typically have one graphics queue
-        VK_SHARING_MODE_EXCLUSIVE, accessing_families,
+        VK_SHARING_MODE_EXCLUSIVE, queue.handle->info.family.index,
         // render target image
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
             VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -3025,32 +3018,6 @@ struct ClipPipeline {
   }
 };
 
-// stx::Span<u32 const> fragment_shader_code,
-// stx::Span<u32 const> vertex_shader_code,
-//   {
-//       VkShaderModuleCreateInfo create_info{
-//           .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-//           .pNext = nullptr,
-//           .flags = 0,
-//           .codeSize = vertex_shader_code.size_bytes(),
-//           .pCode = vertex_shader_code.data()};
-
-//       ASR_VK_CHECK(
-//           vkCreateShaderModule(dev, &create_info, nullptr, &vertex_shader));
-//     }
-
-//     {
-//       VkShaderModuleCreateInfo create_info{
-//           .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-//           .pNext = nullptr,
-//           .flags = 0,
-//           .codeSize = fragment_shader_code.size_bytes(),
-//           .pCode = fragment_shader_code.data()};
-
-//       ASR_VK_CHECK(
-//           vkCreateShaderModule(dev, &create_info, nullptr,
-//           &fragment_shader));
-//     }
 struct RecordingContext {
   VkCommandPool command_pool = VK_NULL_HANDLE;
   VkCommandBuffer command_buffer = VK_NULL_HANDLE;
@@ -3068,11 +3035,71 @@ struct RecordingContext {
   stx::Rc<Surface*> surface;
   stx::Rc<CommandQueue*> queue;
 
-  RecordingContext();
+  RecordingContext(stx::Rc<Surface*> asurface, stx::Rc<CommandQueue*> aqueue,
+                   stx::Span<u32 const> vertex_shader_code,
+                   stx::Span<u32 const> fragment_shader_code,
+                   stx::Span<u32 const> clip_vertex_shader_code,
+                   stx::Span<u32 const> clip_fragment_shader_code)
+      : surface{std::move(asurface)}, queue{std::move(aqueue)} {
+    VkDevice dev = queue.handle->device.handle->device;
+
+    auto create_shader = [dev](stx::Span<u32 const> code) {
+      VkShaderModuleCreateInfo create_info{
+          .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0,
+          .codeSize = code.size_bytes(),
+          .pCode = code.data()};
+
+      VkShaderModule shader;
+
+      ASR_VK_CHECK(vkCreateShaderModule(dev, &create_info, nullptr, &shader));
+
+      return shader;
+    };
+
+    vertex_shader = create_shader(vertex_shader_code);
+    fragment_shader = create_shader(fragment_shader_code);
+    clip_vertex_shader = create_shader(clip_vertex_shader_code);
+    clip_fragment_shader = create_shader(clip_fragment_shader_code);
+
+    VkCommandPoolCreateInfo command_pool_create_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = queue.handle->info.family.index};
+
+    ASR_VK_CHECK(vkCreateCommandPool(dev, &command_pool_create_info, nullptr,
+                                     &command_pool));
+
+    VkCommandBufferAllocateInfo command_buffer_allocate_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .commandPool = command_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1};
+
+    ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &command_buffer_allocate_info,
+                                          &command_buffer));
+    ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &command_buffer_allocate_info,
+                                          &clip_command_buffer));
+  }
 
   STX_MAKE_PINNED(RecordingContext)
 
-  ~RecordingContext();
+  ~RecordingContext() {
+    VkDevice dev = queue.handle->device.handle->device;
+
+    vkDestroyShaderModule(dev, vertex_shader, nullptr);
+    vkDestroyShaderModule(dev, fragment_shader, nullptr);
+    vkDestroyShaderModule(dev, clip_vertex_shader, nullptr);
+    vkDestroyShaderModule(dev, clip_fragment_shader, nullptr);
+
+    vkFreeCommandBuffers(dev, command_pool, 1, &command_buffer);
+    vkFreeCommandBuffers(dev, command_pool, 1, &clip_command_buffer);
+
+    vkDestroyCommandPool(dev, command_pool, nullptr);
+  }
 };
 
 }  // namespace vk

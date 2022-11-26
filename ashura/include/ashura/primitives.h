@@ -38,6 +38,8 @@ constexpr vec2 operator*(f32 a, vec2 b) { return vec2{b.x * a, b.y * a}; }
 
 constexpr vec2 operator*(vec2 a, vec2 b) { return vec2{a.x * b.x, a.y * b.y}; }
 
+constexpr vec2 operator/(vec2 a, vec2 b) { return vec2{a.x / b.x, a.y / b.y}; }
+
 constexpr vec2 operator+(vec2 a, vec2 b) { return vec2{a.x + b.x, a.y + b.y}; }
 
 constexpr vec2 operator-(vec2 a, vec2 b) { return vec2{a.x - b.x, a.y - b.y}; }

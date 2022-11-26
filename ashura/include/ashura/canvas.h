@@ -383,24 +383,11 @@ struct DrawList {
 //
 //
 struct Canvas {
-  struct Transform {
-    mat4 value = mat4::identity();
-    vec2 scale{1.0f, 1.0f};
-  };
-
-  // TODO(lamarrr): remember clip is sized differently from the target
-  // TODO(lamarrr): does transform apply to clip as well?
-  struct Clip {
-    stx::Vec<vec2> points{stx::os_allocator};
-    vec2 extent{0.0f, 0.0f};
-    vec2 scale{1.0f, 1.0f};
-  };
-
   vec2 extent;
   Brush brush;
 
-  Transform transform;
-  stx::Vec<Transform> transform_state_stack{stx::os_allocator};
+  mat4 transform = mat4::identity();
+  stx::Vec<mat4> transform_state_stack{stx::os_allocator};
 
   stx::Vec<vec2> clip{stx::os_allocator};
   stx::Vec<stx::Vec<vec2>> clip_state_stack{stx::os_allocator};
@@ -412,7 +399,7 @@ struct Canvas {
   void restart() {
     extent;
     brush = Brush{};
-    transform = Transform{};
+    transform = mat4::identity();
     transform_state_stack.clear();
 
     clip.clear();
@@ -444,7 +431,8 @@ struct Canvas {
     transform_state_stack.resize(transform_state_stack.size() - 1).unwrap();
 
     clip = (clip_state_stack.end() - 1)->copy(stx::os_allocator).unwrap();
-    clip_state_stack.resize(clip_state_stack.size() - 1).unwrap();
+    // TODO(lamarrr)
+    // clip_state_stack.resize(clip_state_stack.size() - 1).unwrap();
 
     return *this;
   }
@@ -460,37 +448,27 @@ struct Canvas {
   //   }
 
   Canvas& translate(f32 x, f32 y, f32 z) {
-    transform = Transform{
-        .value = transforms::translate(vec3{x, y, z}) * transform.value,
-        .scale = transform.scale};
+    transform = transforms::translate(vec3{x, y, z}) * transform;
     return *this;
   }
 
   Canvas& translate(f32 x, f32 y) { return translate(x, y, 0.0f); }
 
   Canvas& rotate(f32 degree) {
-    transform =
-        Transform{.value = transforms::rotate_z(degree) * transform.value,
-                  .scale = transform.scale};
+    transform = transforms::rotate_z(degree) * transform;
     return *this;
   }
 
   Canvas& rotate(f32 x, f32 y, f32 z) {
-    transform =
-        Transform{.value = transforms::rotate_z(z) * transforms::rotate_y(y) *
-                           transforms::rotate_x(x) * transform.value,
-                  .scale = transform.scale};
+    transform = transforms::rotate_z(z) * transforms::rotate_y(y) *
+                transforms::rotate_x(x) * transform;
     return *this;
   }
 
   Canvas& scale(f32 x, f32 y) {
-    transform = Transform{
-        .value = transforms::scale(vec3{x, y, 1.0f}) * transform.value,
-        .scale = vec2{x, y} * transform.scale};
+    transform = transforms::scale(vec3{x, y, 1.0f}) * transform;
     return *this;
   }
-
-  Canvas& scale(f32 x, f32 y) { return scale(x, y); }
 
   Canvas& clear() {
     u32 start = AS_U32(draw_list.vertices.size());
@@ -518,7 +496,7 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& clip(stx::Span<vec2 const> polygon_points) {}
+  Canvas& clip_polygon(stx::Span<vec2 const> polygon_points) {}
 
   Canvas& clip_rect();
   Canvas& clip_circle();
@@ -726,7 +704,6 @@ struct Overlay {
 };
 
 struct Viewport {
-  // in pixels
   vec2 extent{0.0f, 0.0f};
 };
 
@@ -997,16 +974,17 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                               draw_command.color.b / 255.0f,
                               draw_command.color.a / 255.0f}};
 
-    Viewport canvas_viewport{
-        .extent = {swapchain.extent.width, swapchain.extent.height}};
+    Viewport viewport{.extent = vec2{AS_F32(swapchain.window_extent.width),
+                                     AS_F32(swapchain.window_extent.height)}};
 
     canvas_ctx.write_transform(transform);
     canvas_ctx.write_overlay(overlay);
-    canvas_ctx.write_viewport(canvas_viewport);
+    canvas_ctx.write_viewport(viewport);
 
     vk::DescriptorBinding set0[] = {
         vk::DescriptorBinding::make_buffer(canvas_ctx.transform_buffer.buffer),
-        vk::DescriptorBinding::make_buffer(canvas_ctx.overlay_buffer.buffer)};
+        vk::DescriptorBinding::make_buffer(canvas_ctx.overlay_buffer.buffer),
+        vk::DescriptorBinding::make_buffer(canvas_ctx.viewport_buffer.buffer)};
 
     vk::DescriptorBinding set1[] = {
         vk::DescriptorBinding::make_sampler(
