@@ -148,6 +148,23 @@ inline stx::Vec<vec2> circle(vec2 offset, f32 radius, usize nsegments) {
   return polygon;
 }
 
+inline stx::Vec<vec2> ellipse(vec2 offset, vec2 radius, usize nsegments) {
+  stx::Vec<vec2> polygon{stx::os_allocator};
+
+  if (nsegments == 0 || radius.x <= 0.0f || radius.y <= 0.0f) return polygon;
+
+  f32 step = 360.0f / nsegments;
+
+  for (usize i = 0; i < nsegments; i++) {
+    polygon
+        .push(vec2{offset.x + 2 * radius.x * std::sin(i * step),
+                   offset.y + 2 * radius.y * std::cos(i * step)})
+        .unwrap();
+  }
+
+  return polygon;
+}
+
 };  // namespace polygons
 
 struct TextMetrics {
@@ -272,6 +289,18 @@ struct Brush {
   Shadow shadow;
 };
 
+struct Transform {
+  mat4 value = mat4::identity();
+};
+
+struct Overlay {
+  vec4 color{0.0f, 0.0f, 0.0f, 0.0f};
+};
+
+struct Viewport {
+  vec2 extent{0.0f, 0.0f};
+};
+
 // TODO(lamarrr): invert these rows and columns
 namespace transforms {
 
@@ -344,33 +373,6 @@ struct DrawList {
   stx::Vec<DrawCommand> commands{stx::os_allocator};
 };
 
-// TODO(lamarrr): how do we handle selection of transformed widgets?
-// Topleft origin coordinate system
-//
-//
-// TODO(lamarrr): we need to implement clipping via clipping bitmaps, create
-// framebuffer with only an alpha attachment, this framebuffer will be the size
-// of the window and will be reused for every drawing operation so we don't have
-// to recreate or resize the bitmap everytime
-//
-//
-// TODO(lamarrr): implement clipping
-//
-//
-// TODO(lamarrr): is there a way we can not require specifying the coordinates
-// in unit?
-//
-//
-// TODO(lamarrr): add clipping, atleast clip_rounded_rect
-// use clipping masks, just a simple convex polygon
-//
-//
-// TODO(lamarrr): clips don't need to use the object's transform
-//
-//
-//
-//
-// TODO(lamarrr)
 //
 // vertex X will be transformed by Transformation matrix T to position Y on the
 // screen we need to get the clip mask value at position Y and multiply it by
@@ -379,6 +381,11 @@ struct DrawList {
 //
 //
 // TODO(lamarrr): will the above work with z rotation and translation?
+//
+//
+//
+// TODO(lamarrr): if the clip rotates along and scales with the object, there
+// might be a problem
 //
 //
 //
@@ -392,9 +399,14 @@ struct Canvas {
   stx::Vec<vec2> clip{stx::os_allocator};
   stx::Vec<stx::Vec<vec2>> clip_state_stack{stx::os_allocator};
 
+  Image transparent_image;
+
   DrawList draw_list;
 
-  Canvas() { restart(); }
+  Canvas(Image atransparent_image)
+      : transparent_image{std::move(atransparent_image)} {
+    restart();
+  }
 
   void restart() {
     extent;
@@ -428,24 +440,24 @@ struct Canvas {
     ASR_ENSURE(!clip_state_stack.is_empty());
 
     transform = *(transform_state_stack.end() - 1);
-    transform_state_stack.resize(transform_state_stack.size() - 1).unwrap();
+    transform_state_stack.erase(transform_state_stack.span().slice(1));
 
     clip = (clip_state_stack.end() - 1)->copy(stx::os_allocator).unwrap();
-    // TODO(lamarrr)
-    // clip_state_stack.resize(clip_state_stack.size() - 1).unwrap();
+    clip_state_stack.erase(clip_state_stack.span().slice(1));
 
     return *this;
   }
 
   // reset the rendering context to its default state (transform
   // and clips)
-  //   Canvas& reset() {
-  //     transform = Transform{};
-  //     transform_state_stack.clear();
-  //     clip.resize(4, vec2{0.0f, 0.0f}).unwrap();
-  //     polygons::rect(clip, {0.0f, 0.0f}, extent);
-  //     return *this;
-  //   }
+  Canvas& reset() {
+    transform = mat4::identity();
+    transform_state_stack.clear();
+    clip.resize(4, vec2{0.0f, 0.0f}).unwrap();
+    polygons::rect(clip, {0.0f, 0.0f}, extent);
+    clip_state_stack.clear();
+    return *this;
+  }
 
   Canvas& translate(f32 x, f32 y, f32 z) {
     transform = transforms::translate(vec3{x, y, z}) * transform;
@@ -490,17 +502,37 @@ struct Canvas {
                           .transform = mat4::identity(),
                           .extent = extent,
                           .color = brush.color,
-                          .texture})
+                          .texture = transparent_image.share()})
         .unwrap();
 
     return *this;
   }
 
-  Canvas& clip_polygon(stx::Span<vec2 const> polygon_points) {}
+  Canvas& clip_polygon(stx::Span<vec2 const> polygon_points) {
+    clip.extend(polygon_points).unwrap();
+    return *this;
+  }
 
-  Canvas& clip_rect();
-  Canvas& clip_circle();
-  Canvas& clip_ellipse();
+  Canvas& clip_rect(vec2 offset, vec2 extent) {
+    vec2 points[4];
+
+    polygons::rect(points, offset, extent);
+
+    clip.extend(points).unwrap();
+
+    return *this;
+  }
+
+  Canvas& clip_circle(vec2 offset, f32 radius, usize nsegments) {
+    clip = polygons::circle(offset, radius, nsegments);
+    return *this;
+  }
+
+  Canvas& clip_ellipse(vec2 offset, vec2 radius, usize nsegments) {
+    clip = polygons::ellipse(offset, radius, nsegments);
+    return *this;
+  }
+
   Canvas& clip_round_rect();
 
   // vertices are expected to be specified in unit dimension. i.e. ranging
@@ -529,7 +561,7 @@ struct Canvas {
       d.y *= brush.line_width * 0.5f;
 
       // TODO(lamarrr): is this start correct? since we are putting in quite a
-      // few indices
+      // few indices on every iteration instead of when done
       u32 start = AS_U32(draw_list.indices.size());
 
       vec2 vertices[] = {{p1.x + d.y, p1.y - d.x},
@@ -559,7 +591,7 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& draw_polygon_filled(stx::Span<vec2 const> polygon, vec2 extent) {
+  Canvas& draw_polygon_filled(stx::Span<vec2 const> polygon) {
     ASR_ENSURE(polygon.size() >= 3);
 
     u32 npolygon_vertices = AS_U32(draw_list.vertices.size());
@@ -625,18 +657,12 @@ struct Canvas {
   }
 
   Canvas& draw_rect(vec2 offset, vec2 extent) {
-    // TODO(lamarrr): what about textured backgrounds?
-    // TODO(lamarrr): we need a separate shape translate and scale as we want to
-    // specify in unit dimensions? otherwise we need to pass in width and height
-    // to shaders, which still won't work since we need to use some for sampling
-    // from textures
-
     vec2 points[4];
 
     polygons::rect(points, offset, extent);
 
     if (brush.fill) {
-      return draw_polygon_filled(points, extent);
+      return draw_polygon_filled(points);
     } else {
       return draw_polygon_line(points);
     }
@@ -650,14 +676,25 @@ struct Canvas {
     stx::Vec<vec2> points = polygons::circle(offset, radius, nsegments);
 
     if (brush.fill) {
-      return draw_polygon_filled(points, extent);
+      return draw_polygon_filled(points,
+                                 vec2{radius * 2 + 2 * brush.line_width,
+                                      radius * 2 + 2 * brush.line_width});
     } else {
       return draw_polygon_line(points);
     }
   }
 
-  Canvas& draw_ellipse(vec2 offset, vec2 radius, f32 rotation, f32 start_angle,
-                       f32 end_angle);
+  Canvas& draw_ellipse(vec2 offset, vec2 radius, usize nsegments) {
+    stx::Vec<vec2> points = polygons::ellipse(offset, radius, nsegments);
+
+    if (brush.fill) {
+      return draw_polygon_filled(points,
+                                 vec2{radius.x * 2 + 2 * brush.line_width,
+                                      radius.y * 2 + 2 * brush.line_width});
+    } else {
+      return draw_polygon_line(points);
+    }
+  }
 
   // angle = 0.0f to 90.0f for top left, angle
   // = 90.0f to 180.0f for top right,
@@ -694,18 +731,6 @@ void sample(Canvas& canvas) {
       .draw_round_rect({0.0f, 0.0f}, {20.0f, 20.0f},
                        {10.0f, 10.0f, 10.0f, 10.0f}, 20);
 }
-
-struct Transform {
-  mat4 value = mat4::identity();
-};
-
-struct Overlay {
-  vec4 color{0.0f, 0.0f, 0.0f, 0.0f};
-};
-
-struct Viewport {
-  vec2 extent{0.0f, 0.0f};
-};
 
 struct CanvasContext {
   vk::Buffer transform_buffer;
@@ -812,12 +837,6 @@ struct CanvasContext {
 // TODO(lamarrr): how to ensure resources are not destroyed whilst in use
 //
 //
-//
-//
-// TODO(lamarrr): correct viewport and scissor by getting window size
-//
-//
-//
 inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                    DrawList const& draw_list) {
   static constexpr u64 TIMEOUT = AS_U64(
@@ -851,27 +870,6 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
     ASR_VK_CHECK(
         vkBeginCommandBuffer(ctx.command_buffer, &command_buffer_begin_info));
 
-    //
-    // render clip if any
-    // if none, fill the whole buffer with the color (2 triangles, 1 color),
-    // done in canvas
-    //
-    //
-    // TODO(lamarrr): sampler will not be able to pick up the correct
-    // coordinates for the texture
-    //
-    //
-    // TODO(lamarrr): does the descriptor set copy the data on write
-    //
-    // this also means we might need to have different buffers and memory per
-    // flight frame
-    //
-    //
-    // the clip corresponds to a face of the rendered output
-    //
-    //
-    //
-    // TODO(lamarrr): clip shape orientation and sizing to fit
     {
       canvas_ctx.write_clip_vertices(draw_list.clip_vertices,
                                      draw_list.clip_indices);
@@ -902,7 +900,6 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
       VkClearValue clear_values[] = {
           {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}}};
 
-      // TODO(lamarrr): set render area to clip area (x scale)???
       VkRenderPassBeginInfo render_pass_begin_info{
           .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
           .pNext = nullptr,
@@ -915,7 +912,6 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
       vkCmdBeginRenderPass(ctx.clip_command_buffer, &render_pass_begin_info,
                            VK_SUBPASS_CONTENTS_INLINE);
 
-      // TODO(lamarrr): set viewport and scissor to clip area???
       VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
 
       vkCmdSetScissor(ctx.clip_command_buffer, 0, 1, &scissor);
@@ -974,12 +970,13 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                               draw_command.color.b / 255.0f,
                               draw_command.color.a / 255.0f}};
 
-    Viewport viewport{.extent = vec2{AS_F32(swapchain.window_extent.width),
-                                     AS_F32(swapchain.window_extent.height)}};
+    Viewport render_viewport{.extent =
+                                 vec2{AS_F32(swapchain.window_extent.width),
+                                      AS_F32(swapchain.window_extent.height)}};
 
     canvas_ctx.write_transform(transform);
     canvas_ctx.write_overlay(overlay);
-    canvas_ctx.write_viewport(viewport);
+    canvas_ctx.write_viewport(render_viewport);
 
     vk::DescriptorBinding set0[] = {
         vk::DescriptorBinding::make_buffer(canvas_ctx.transform_buffer.buffer),

@@ -30,11 +30,11 @@ struct Widget {
   // children layout??? or do we entirely allow self layout
   // + other properties that will make its rendering work well with other
   // widgets
-  virtual void draw();
+  virtual void draw(Rect area);
   // called before children are drawn
-  virtual void pre_effect();
+  virtual void pre_effect(Rect area);
   // called once children are drawn
-  virtual void post_effect();
+  virtual void post_effect(Rect area);
 
   virtual void tick(std::chrono::nanoseconds interval, Context &ctx);
   // events
@@ -86,7 +86,7 @@ struct Widget {
 struct GlobalEvent {
   void on_mouse_click();
   void on_key();
-  void on_shutdown_requested();
+  void on_close_requested();
 };
 
 }  // namespace asr
