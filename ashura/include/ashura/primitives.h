@@ -82,11 +82,16 @@ struct vec4 {
   f32 x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;
 };
 
-// TODO(lamarrr): consider indexing? is the first a row or a column?
+constexpr bool operator==(vec4 const &a, vec4 const &b) {
+  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+}
+
+constexpr f32 dot(vec4 a, vec4 b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+}
+
 struct mat4 {
   vec4 data[4];
-
-  constexpr mat4 operator*(mat4 const &other) const;
 
   static constexpr mat4 identity() {
     return mat4{vec4{.x = 1.0f, .y = 0.0f, .z = 0.0f, .w = 0.0f},
@@ -95,6 +100,51 @@ struct mat4 {
                 vec4{.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f}};
   }
 };
+
+constexpr mat4 operator*(mat4 const &a, mat4 const &b) {
+  return mat4{
+      .data = {
+          vec4{dot(a.data[0],
+                   vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
+               dot(a.data[0],
+                   vec4{b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
+               dot(a.data[0],
+                   vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
+               dot(a.data[0],
+                   vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
+
+          vec4{dot(a.data[1],
+                   vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
+               dot(a.data[1],
+                   vec4{b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
+               dot(a.data[1],
+                   vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
+               dot(a.data[1],
+                   vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
+
+          vec4{dot(a.data[2],
+                   vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
+               dot(a.data[2],
+                   vec4{b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
+               dot(a.data[2],
+                   vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
+               dot(a.data[2],
+                   vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
+
+          vec4{dot(a.data[3],
+                   vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
+               dot(a.data[3],
+                   vec4{b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
+               dot(a.data[3],
+                   vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
+               dot(a.data[3],
+                   vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})}}};
+}
+
+constexpr bool operator==(mat4 const &a, mat4 const &b) {
+  return a.data[0] == b.data[0] && a.data[1] == b.data[1] &&
+         a.data[2] == b.data[2] && a.data[3] == b.data[3];
+}
 
 struct Offset {
   u32 x = 0, y = 0;

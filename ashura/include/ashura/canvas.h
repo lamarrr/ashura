@@ -47,9 +47,9 @@ constexpr bool polygon_snip_check(stx::Span<vec2 const> polygon, i64 u, i64 v,
   return true;
 }
 
-// constexpr stx::Span<vec2> deduplicate_points(stx::Span<vec2> points) {
-//   return points;
-// }
+constexpr stx::Span<vec2> deduplicate_points(stx::Span<vec2> points) {
+  return points;
+}
 
 inline void triangulate_polygon(stx::Vec<vec2>& output,
                                 stx::Span<vec2 const> polygon) {
@@ -124,45 +124,90 @@ inline void triangulate_polygon(stx::Vec<vec2>& output,
 
 namespace polygons {
 
-constexpr void rect(stx::Span<vec2> output, vec2 offset, vec2 extent) {
-  output[0] = offset;
-  output[1] = {offset.x + extent.x, offset.y};
-  output[2] = offset + extent;
-  output[3] = {offset.x, offset.y + extent.y};
+constexpr void rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent) {
+  polygon[0] = offset;
+  polygon[1] = {offset.x + extent.x, offset.y};
+  polygon[2] = offset + extent;
+  polygon[3] = {offset.x, offset.y + extent.y};
 }
 
-inline stx::Vec<vec2> circle(vec2 offset, f32 radius, usize nsegments) {
-  stx::Vec<vec2> polygon{stx::os_allocator};
-
-  if (nsegments == 0 || radius <= 0.0f) return polygon;
+inline void circle(stx::Vec<vec2>& polygon, vec2 offset, f32 radius,
+                   usize nsegments) {
+  if (nsegments == 0 || radius <= 0.0f) return;
 
   f32 step = 360.0f / nsegments;
 
   for (usize i = 0; i < nsegments; i++) {
     polygon
-        .push(vec2{offset.x + 2 * radius * std::sin(i * step),
-                   offset.y + 2 * radius * std::cos(i * step)})
+        .push(vec2{offset.x + radius - radius * std::cos(i * step),
+                   offset.y + radius - radius * std::sin(i * step)})
         .unwrap();
   }
-
-  return polygon;
 }
 
-inline stx::Vec<vec2> ellipse(vec2 offset, vec2 radius, usize nsegments) {
-  stx::Vec<vec2> polygon{stx::os_allocator};
-
-  if (nsegments == 0 || radius.x <= 0.0f || radius.y <= 0.0f) return polygon;
+inline void ellipse(stx::Vec<vec2>& polygon, vec2 offset, vec2 radius,
+                    usize nsegments) {
+  if (nsegments == 0 || radius.x <= 0.0f || radius.y <= 0.0f) return;
 
   f32 step = 360.0f / nsegments;
 
   for (usize i = 0; i < nsegments; i++) {
     polygon
-        .push(vec2{offset.x + 2 * radius.x * std::sin(i * step),
-                   offset.y + 2 * radius.y * std::cos(i * step)})
+        .push(vec2{offset.x + radius.x - radius.x * std::cos(i * step),
+                   offset.y + radius.y - radius.y * std::sin(i * step)})
+        .unwrap();
+  }
+}
+
+inline void round_rect(stx::Vec<vec2>& polygon, vec2 offset, vec2 extent,
+                       vec4 radii, usize nsegments) {
+  ASR_ENSURE(nsegments > 0);
+
+  // TODO(lamarrr): we should ideally do some subtraction to ensure both radiis
+  // are contained within a dimension
+  radii.x = std::min(radii.x, std::min(extent.x, extent.y));
+  radii.y = std::min(radii.y, std::min(extent.x, extent.y));
+  radii.z = std::min(radii.z, std::min(extent.x, extent.y));
+  radii.w = std::min(radii.w, std::min(extent.x, extent.y));
+
+  f32 step = 90.0f / nsegments;
+
+  vec2 xoffset{offset.x + radii.x, offset.y + radii.x};
+
+  for (usize i = 0; i < nsegments; i++) {
+    polygon
+        .push(vec2{xoffset.y - radii.x * std::cos(i * step),
+                   xoffset.x - radii.x * std::sin(i * step)})
         .unwrap();
   }
 
-  return polygon;
+  vec2 yoffset{offset.x + (extent.x - radii.y), offset.y + radii.y};
+
+  for (usize i = 0; i < nsegments; i++) {
+    polygon
+        .push(vec2{yoffset.y - radii.y * std::cos(90.0f + i * step),
+                   yoffset.x - radii.y * std::sin(90.0f + i * step)})
+        .unwrap();
+  }
+
+  vec2 zoffset{offset.x + (extent.x - radii.z),
+               offset.y + (extent.y - radii.z)};
+
+  for (usize i = 0; i < nsegments; i++) {
+    polygon
+        .push(vec2{zoffset.y - radii.z * std::cos(180.0f + i * step),
+                   zoffset.x - radii.z * std::sin(180.0f + i * step)})
+        .unwrap();
+  }
+
+  vec2 woffset{offset.x + radii.w, offset.y + (extent.y - radii.w)};
+
+  for (usize i = 0; i < nsegments; i++) {
+    polygon
+        .push(vec2{woffset.y - radii.w * std::cos(270.0f + i * step),
+                   woffset.x - radii.w * std::sin(270.0f + i * step)})
+        .unwrap();
+  }
 }
 
 };  // namespace polygons
@@ -278,17 +323,6 @@ struct TextStyle {
   u32 word_spacing = 0;
 };
 
-struct Brush {
-  Color color = colors::BLACK;
-  bool fill = true;
-  f32 opacity = 1.0f;
-  f32 line_width = 1.0f;
-  stx::Option<Image> pattern;
-  TextStyle text_style;
-  Filter filter;
-  Shadow shadow;
-};
-
 struct Transform {
   mat4 value = mat4::identity();
 };
@@ -301,7 +335,6 @@ struct Viewport {
   vec2 extent{0.0f, 0.0f};
 };
 
-// TODO(lamarrr): invert these rows and columns
 namespace transforms {
 
 inline mat4 translate(vec3 t) {
@@ -351,17 +384,23 @@ inline mat4 rotate_z(f32 degree) {
 
 };  // namespace transforms
 
+struct Brush {
+  Color color = colors::BLACK;
+  bool fill = true;
+  f32 line_width = 1.0f;
+  Image pattern;
+  TextStyle text_style;
+  Filter filter;
+  Shadow shadow;
+};
+
 struct DrawCommand {
   u32 indices_offset = 0;
-  u32 nvertices = 0;
+  u32 nindices = 0;
   u32 clip_indices_offset = 0;
-  u32 nclip_vertices = 0;
+  u32 nclip_indices = 0;
   mat4 transform = mat4::identity();
-  // scaled, used for clipping and sizing clip mask
-  vec2 extent{0.0f, 0.0f};
-  // color to use for the output
   Color color = colors::BLACK;
-  // texture to use for output
   Image texture;
 };
 
@@ -373,22 +412,6 @@ struct DrawList {
   stx::Vec<DrawCommand> commands{stx::os_allocator};
 };
 
-//
-// vertex X will be transformed by Transformation matrix T to position Y on the
-// screen we need to get the clip mask value at position Y and multiply it by
-// the output color texture coordinate will now be sampled by Y /
-// swapchain_extent
-//
-//
-// TODO(lamarrr): will the above work with z rotation and translation?
-//
-//
-//
-// TODO(lamarrr): if the clip rotates along and scales with the object, there
-// might be a problem
-//
-//
-//
 struct Canvas {
   vec2 extent;
   Brush brush;
@@ -403,14 +426,14 @@ struct Canvas {
 
   DrawList draw_list;
 
-  Canvas(Image atransparent_image)
+  Canvas(vec2 viewport_extent, Image atransparent_image)
       : transparent_image{std::move(atransparent_image)} {
-    restart();
+    restart(viewport_extent);
   }
 
-  void restart() {
-    extent;
-    brush = Brush{};
+  void restart(vec2 viewport_extent) {
+    extent = viewport_extent;
+    brush = Brush{.pattern = transparent_image.share()};
     transform = mat4::identity();
     transform_state_stack.clear();
 
@@ -466,21 +489,18 @@ struct Canvas {
 
   Canvas& translate(f32 x, f32 y) { return translate(x, y, 0.0f); }
 
-  Canvas& rotate(f32 degree) {
-    transform = transforms::rotate_z(degree) * transform;
-    return *this;
-  }
-
   Canvas& rotate(f32 x, f32 y, f32 z) {
     transform = transforms::rotate_z(z) * transforms::rotate_y(y) *
                 transforms::rotate_x(x) * transform;
     return *this;
   }
 
-  Canvas& scale(f32 x, f32 y) {
-    transform = transforms::scale(vec3{x, y, 1.0f}) * transform;
+  Canvas& scale(f32 x, f32 y, f32 z) {
+    transform = transforms::scale(vec3{x, y, z}) * transform;
     return *this;
   }
+
+  Canvas& scale(f32 x, f32 y) { return scale(x, y); }
 
   Canvas& clear() {
     u32 start = AS_U32(draw_list.vertices.size());
@@ -496,13 +516,12 @@ struct Canvas {
 
     draw_list.commands
         .push(DrawCommand{.indices_offset = start,
-                          .nvertices = std::size(indices),
+                          .nindices = std::size(indices),
                           .clip_indices_offset = 0,
-                          .nclip_vertices = 0,
+                          .nclip_indices = 0,
                           .transform = mat4::identity(),
-                          .extent = extent,
                           .color = brush.color,
-                          .texture = transparent_image.share()})
+                          .texture = brush.pattern.share()})
         .unwrap();
 
     return *this;
@@ -524,24 +543,32 @@ struct Canvas {
   }
 
   Canvas& clip_circle(vec2 offset, f32 radius, usize nsegments) {
-    clip = polygons::circle(offset, radius, nsegments);
+    clip.clear();
+    polygons::circle(clip, offset, radius, nsegments);
     return *this;
   }
 
   Canvas& clip_ellipse(vec2 offset, vec2 radius, usize nsegments) {
-    clip = polygons::ellipse(offset, radius, nsegments);
+    clip.clear();
+    polygons::ellipse(clip, offset, radius, nsegments);
     return *this;
   }
 
-  Canvas& clip_round_rect();
+  Canvas& clip_round_rect(vec2 offset, vec2 extent, vec4 radii,
+                          usize nsegments) {
+    clip.clear();
+    polygons::round_rect(clip, offset, extent, radii, nsegments);
+    return *this;
+  }
 
-  // vertices are expected to be specified in unit dimension. i.e. ranging
-  // from 0.0f to 1.0f
   Canvas& draw_polygon_line(stx::Span<vec2 const> line) {
     ASR_ENSURE(line.size() >= 2);
 
+    u32 start = AS_U32(draw_list.indices.size());
+    u32 nindices = 0;
+
     for (usize i = 0; i < line.size(); i++) {
-      usize j = (i == line.size()) ? 0 : (i + 1);
+      usize j = (i == line.size()) ? 0UL : (i + 1);
 
       vec2 p1 = line[i];
       vec2 p2 = line[j];
@@ -549,9 +576,9 @@ struct Canvas {
       vec2 d = p2 - p1;
 
       {
-        float dot_product = dot(d, d);
+        f32 dot_product = dot(d, d);
         if (dot_product > 0.0f) {
-          float inverse_length = 1 / std::sqrt(dot_product);
+          f32 inverse_length = 1 / std::sqrt(dot_product);
           d.x *= inverse_length;
           d.y *= inverse_length;
         }
@@ -559,10 +586,6 @@ struct Canvas {
 
       d.x *= brush.line_width * 0.5f;
       d.y *= brush.line_width * 0.5f;
-
-      // TODO(lamarrr): is this start correct? since we are putting in quite a
-      // few indices on every iteration instead of when done
-      u32 start = AS_U32(draw_list.indices.size());
 
       vec2 vertices[] = {{p1.x + d.y, p1.y - d.x},
                          {p2.x + d.y, p2.y - d.x},
@@ -574,19 +597,33 @@ struct Canvas {
 
       draw_list.vertices.extend(vertices).unwrap();
       draw_list.indices.extend(indices).unwrap();
+
+      nindices += AS_U32(std::size(indices));
     }
 
-    //   draw_list.commands
-    //       .push(DrawCommand{.color,
-    //                         .frag_shader,
-    //                         .indices_offset = start,
-    //                         .ntriangles = 2,
-    //                         .opacity,
-    //                         .placement,
-    //                         .texture,
-    //                         .transform,
-    //                         .vert_shader})
-    //       .unwrap();
+    u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
+
+    triangulate_polygon(draw_list.clip_vertices, clip);
+
+    nclip_polygon_vertices =
+        AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
+
+    u32 clip_start = AS_U32(draw_list.clip_indices.size());
+
+    for (u32 index = clip_start; index < (clip_start + nclip_polygon_vertices);
+         index++) {
+      draw_list.clip_indices.push_inplace(index).unwrap();
+    }
+
+    draw_list.commands
+        .push(DrawCommand{.indices_offset = start,
+                          .nindices = nindices,
+                          .clip_indices_offset = clip_start,
+                          .nclip_indices = nclip_polygon_vertices,
+                          .transform = transform,
+                          .color = brush.color,
+                          .texture = brush.pattern.share()})
+        .unwrap();
 
     return *this;
   }
@@ -606,52 +643,81 @@ struct Canvas {
       draw_list.indices.push_inplace(index).unwrap();
     }
 
+    u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
+
     triangulate_polygon(draw_list.clip_vertices, clip);
 
-    // draw_list.commands
-    //     .push(DrawCommand{.color,
-    //                       .frag_shader,
-    //                       .indices_offset = start,
-    //                       .ntriangles = ntriangles,
-    //                       .opacity,
-    //                       .placement,
-    //                       .texture,
-    //                       .transform,
-    //                       .vert_shader})
-    //     .unwrap();
+    nclip_polygon_vertices =
+        AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
+
+    u32 clip_start = AS_U32(draw_list.clip_indices.size());
+
+    for (u32 index = clip_start; index < (clip_start + nclip_polygon_vertices);
+         index++) {
+      draw_list.clip_indices.push_inplace(index).unwrap();
+    }
+
+    draw_list.commands
+        .push(DrawCommand{.indices_offset = start,
+                          .nindices = npolygon_vertices,
+                          .clip_indices_offset = clip_start,
+                          .nclip_indices = nclip_polygon_vertices,
+                          .transform = transform,
+                          .color = brush.color,
+                          .texture = brush.pattern.share()})
+        .unwrap();
 
     return *this;
   }
 
   Canvas& draw_line(vec2 p1, vec2 p2) {
-    f32 line_width = brush.line_width;
+    vec2 d = p2 - p1;
 
-    mat4 placement;
+    {
+      f32 dot_product = dot(d, d);
+      if (dot_product > 0.0f) {
+        f32 inverse_length = 1 / std::sqrt(dot_product);
+        d.x *= inverse_length;
+        d.y *= inverse_length;
+      }
+    }
 
-    vec2 vertices[] = {{p1.x, p1.y}, {p2.x, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
+    d.x *= brush.line_width * 0.5f;
+    d.y *= brush.line_width * 0.5f;
 
-    draw_list.vertices.extend(vertices).unwrap();
+    vec2 vertices[] = {{p1.x + d.y, p1.y - d.x},
+                       {p2.x + d.y, p2.y - d.x},
+                       {p2.x - d.y, p2.y + d.x},
+                       {p1.x - d.y, p1.y + d.x}};
 
-    u32 start = AS_U32(draw_list.indices.size());
+    u32 start = AS_U32(draw_list.clip_indices.size());
 
-    u32 indices[] = {start, start + 1, start + 2, start + 2, start, start + 3};
+    u32 indices[] = {start,     start + 1, start + 2,
+                     start + 3, start + 4, start + 5};
 
-    draw_list.indices.extend(indices).unwrap();
+    u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
 
-    //
-    // we can't use draw_polygon_lines as it closes its candidate
-    //
-    //
-    // draw_list.commands.push(
-    //     DrawCommand{.color,
-    //                 .frag_shader,
-    //                 .indices_offset = start,
-    //                 .ntriangles = std::size(indices) / 3U,
-    //                 .opacity,
-    //                 .placement,
-    //                 .texture,
-    //                 .transform,
-    //                 .vert_shader});
+    triangulate_polygon(draw_list.clip_vertices, clip);
+
+    nclip_polygon_vertices =
+        AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
+
+    u32 clip_start = AS_U32(draw_list.clip_indices.size());
+
+    for (u32 index = clip_start; index < (clip_start + nclip_polygon_vertices);
+         index++) {
+      draw_list.clip_indices.push_inplace(index).unwrap();
+    }
+
+    draw_list.commands
+        .push(DrawCommand{.indices_offset = start,
+                          .nindices = AS_U32(std::size(indices)),
+                          .clip_indices_offset = clip_start,
+                          .nclip_indices = nclip_polygon_vertices,
+                          .transform = transform,
+                          .color = brush.color,
+                          .texture = brush.pattern.share()})
+        .unwrap();
 
     return *this;
   }
@@ -668,43 +734,39 @@ struct Canvas {
     }
   }
 
-  // within circle and within a rect that contains
-  // that circle (for filled arc)
   Canvas& draw_circle(vec2 offset, f32 radius, usize nsegments) {
-    // TODO(lamarrr): sizing of clip mask with the thick border
-
-    stx::Vec<vec2> points = polygons::circle(offset, radius, nsegments);
+    stx::Vec<vec2> points{stx::os_allocator};
+    polygons::circle(points, offset, radius, nsegments);
 
     if (brush.fill) {
-      return draw_polygon_filled(points,
-                                 vec2{radius * 2 + 2 * brush.line_width,
-                                      radius * 2 + 2 * brush.line_width});
+      return draw_polygon_filled(points);
     } else {
       return draw_polygon_line(points);
     }
   }
 
   Canvas& draw_ellipse(vec2 offset, vec2 radius, usize nsegments) {
-    stx::Vec<vec2> points = polygons::ellipse(offset, radius, nsegments);
+    stx::Vec<vec2> points{stx::os_allocator};
+    polygons::ellipse(points, offset, radius, nsegments);
 
     if (brush.fill) {
-      return draw_polygon_filled(points,
-                                 vec2{radius.x * 2 + 2 * brush.line_width,
-                                      radius.y * 2 + 2 * brush.line_width});
+      return draw_polygon_filled(points);
     } else {
       return draw_polygon_line(points);
     }
   }
 
-  // angle = 0.0f to 90.0f for top left, angle
-  // = 90.0f to 180.0f for top right,
-  // angle = 180.0f to 270.0f for bottom right,
-  // angle = 270.0f to 360.0f for bottom left,
-  // nsegments
-  //
-  //
   Canvas& draw_round_rect(vec2 offset, vec2 extent, vec4 radii,
-                          usize nsegments);
+                          usize nsegments) {
+    stx::Vec<vec2> points{stx::os_allocator};
+    polygons::round_rect(points, offset, extent, radii, nsegments);
+
+    if (brush.fill) {
+      return draw_polygon_filled(points);
+    } else {
+      return draw_polygon_line(points);
+    }
+  }
 
   // Text API
   Canvas& draw_text(stx::StringView text, vec2 position);
@@ -720,7 +782,7 @@ void sample(Canvas& canvas) {
   Image* image;
 
   canvas.save()
-      .rotate(45)
+      .rotate(45, 0, 0)
       .draw_circle({0, 0}, 20.0f, 20)
       .draw_image(*image, {0.0, 0.0}, {20, 40})
       .restore()
@@ -830,13 +892,6 @@ struct CanvasContext {
   }
 };
 
-// TODO(lamarrr): add to list of device/operations currently using resources so
-// resource won't be freed when in use
-//
-//
-// TODO(lamarrr): how to ensure resources are not destroyed whilst in use
-//
-//
 inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                    DrawList const& draw_list) {
   static constexpr u64 TIMEOUT = AS_U64(
@@ -874,7 +929,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
       canvas_ctx.write_clip_vertices(draw_list.clip_vertices,
                                      draw_list.clip_indices);
 
-      Transform clip_transform{draw_command.transform};
+      Transform clip_transform{.value = draw_command.transform};
 
       canvas_ctx.write_clip_transform(clip_transform);
 
@@ -942,7 +997,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                         VK_PIPELINE_BIND_POINT_GRAPHICS,
                         ctx.clip_pipeline.pipeline);
 
-      vkCmdDrawIndexed(ctx.clip_command_buffer, draw_command.nclip_vertices, 1,
+      vkCmdDrawIndexed(ctx.clip_command_buffer, draw_command.nclip_indices, 1,
                        0, 0, 0);
 
       vkCmdEndRenderPass(ctx.clip_command_buffer);
@@ -963,7 +1018,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                                  swapchain.clip.fence));
     }
 
-    Transform transform{draw_command.transform};
+    Transform transform{.value = draw_command.transform};
 
     Overlay overlay{.color = {draw_command.color.r / 255.0f,
                               draw_command.color.g / 255.0f,
@@ -1043,7 +1098,7 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
     vkCmdBindPipeline(ctx.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx.pipeline.pipeline);
 
-    vkCmdDrawIndexed(ctx.command_buffer, draw_command.nvertices, 1, 0, 0, 0);
+    vkCmdDrawIndexed(ctx.command_buffer, draw_command.nindices, 1, 0, 0, 0);
 
     vkCmdEndRenderPass(ctx.command_buffer);
 
