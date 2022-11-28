@@ -16,14 +16,14 @@ stx::Vec<char const*> Window::get_required_instance_extensions() const {
   ASR_SDL_ENSURE(
       SDL_Vulkan_GetInstanceExtensions(window_, &ext_count, nullptr) ==
           SDL_TRUE,
-      "Unable to get number of window's required Vulkan instance extensions");
+      "unable to get number of window's required Vulkan instance extensions");
 
   required_instance_extensions.resize(ext_count).unwrap();
 
   ASR_SDL_ENSURE(
       SDL_Vulkan_GetInstanceExtensions(
           window_, &ext_count, required_instance_extensions.data()) == SDL_TRUE,
-      "Unable to get window's required Vulkan instance extensions");
+      "unable to get window's required Vulkan instance extensions");
 
   return required_instance_extensions;
 }
@@ -33,7 +33,7 @@ void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
 
   ASR_SDL_ENSURE(SDL_Vulkan_CreateSurface(window_, instance.handle->instance,
                                           &surface) == SDL_TRUE,
-                 "Unable to create surface for window");
+                 "unable to create surface for window");
 
   surface_ =
       stx::Some(stx::rc::make_unique_inplace<vk::Surface>(
@@ -75,14 +75,14 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   // layout as dirty, otherwise maintain pipeline state
   int width = 0, height = 0;
   SDL_GetWindowSize(window_, &width, &height);
-  extent_ = Extent{u32_clamp(width), u32_clamp(height)};
+  window_extent_ = Extent{u32_clamp(width), u32_clamp(height)};
 
   int surface_width = 0, surface_height = 0;
   SDL_Vulkan_GetDrawableSize(window_, &surface_width, &surface_height);
   surface_extent_ = Extent{u32_clamp(surface_width), u32_clamp(surface_height)};
 
-  ASR_LOG("Resizing window to logical({},{}), physical({},{})", width, height,
-          surface_width, surface_height);
+  ASR_LOG_TRACE("resizing window to logical({}, {}), physical({}, {})", width,
+                height, surface_width, surface_height);
 
   VkSurfaceFormatKHR preferred_formats[] = {
       {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
@@ -100,42 +100,51 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   surface_.value().handle->change_swapchain(
       queue, preferred_formats, preferred_present_modes,
       VkExtent2D{.width = surface_extent_.w, .height = surface_extent_.h},
-      VkExtent2D{.width = extent_.w, .height = extent_.h}, msaa_sample_count,
-      VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR);
+      VkExtent2D{.width = window_extent_.w, .height = window_extent_.h},
+      msaa_sample_count, VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR);
 }
 
-// TODO(lamarrr): can't we render to the swapchain images directly?
-WindowSwapchainDiff Window::present() {
+std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   ASR_ENSURE(surface_.is_some(),
              "trying to present backing store without having surface attached");
 
-  WindowSwapchainDiff diff = WindowSwapchainDiff::None;
-
-  // We submit multiple render commands (operating on the swapchain images) to
-  // the GPU to prevent having to force a sync with the GPU (await_fence) when
-  // it could be doing useful work.
   vk::SwapChain& swapchain = *surface_.value().handle->swapchain.value().handle;
-
-  VkDevice device = swapchain.queue.handle->device.handle->device;
 
   VkSemaphore image_acquisition_semaphore =
       swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
 
+  VkFence image_acquisition_fence =
+      swapchain.image_acquisition_fences[swapchain.next_frame_flight_index];
+
+  VkDevice device = swapchain.queue.handle->device.handle->device;
+
   auto [next_swapchain_image_index, acquire_result] =
       vk::acquire_next_swapchain_image(device, swapchain.swapchain,
-                                       image_acquisition_semaphore, nullptr);
-
-  // swapchain.render(next_swapchain_image_index)
+                                       image_acquisition_semaphore,
+                                       image_acquisition_fence);
 
   if (acquire_result == VK_SUBOPTIMAL_KHR) {
-    diff |= WindowSwapchainDiff::Suboptimal;
-    return diff;
+    return std::make_pair(WindowSwapchainDiff::Suboptimal,
+                          next_swapchain_image_index);
   } else if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR) {
-    diff |= WindowSwapchainDiff::OutOfDate;
-    return diff;
-  } else if (acquire_result != VK_SUCCESS) {
+    return std::make_pair(WindowSwapchainDiff::OutOfDate,
+                          next_swapchain_image_index);
+  } else if (acquire_result == VK_SUCCESS) {
+    return std::make_pair(WindowSwapchainDiff::None,
+                          next_swapchain_image_index);
+  } else {
     ASR_PANIC("failed to acquire image from swapchain", acquire_result);
   }
+}
+
+WindowSwapchainDiff Window::present(u32 next_swapchain_image_index) {
+  ASR_ENSURE(surface_.is_some(),
+             "trying to present backing store without having surface attached");
+
+  // we submit multiple render commands (operating on the swapchain images) to
+  // the GPU to prevent having to force a sync with the GPU (await_fence) when
+  // it could be doing useful work.
+  vk::SwapChain& swapchain = *surface_.value().handle->swapchain.value().handle;
 
   // we don't need to wait on presentation
   //
@@ -148,19 +157,12 @@ WindowSwapchainDiff Window::present() {
                   stx::Span{&swapchain.swapchain, 1},
                   stx::Span{&next_swapchain_image_index, 1});
 
-  // the frame semaphores and synchronization primitives are still used even
-  // if an error is returned
-  swapchain.next_frame_flight_index = (swapchain.next_frame_flight_index + 1) %
-                                      vk::SwapChain::MAX_FRAMES_INFLIGHT;
-
   if (present_result == VK_SUBOPTIMAL_KHR) {
-    diff |= WindowSwapchainDiff::Suboptimal;
-    return diff;
+    return WindowSwapchainDiff::Suboptimal;
   } else if (present_result == VK_ERROR_OUT_OF_DATE_KHR) {
-    diff |= WindowSwapchainDiff::OutOfDate;
-    return diff;
+    return WindowSwapchainDiff::OutOfDate;
   } else if (present_result == VK_SUCCESS) {
-    return diff;
+    return WindowSwapchainDiff::None;
   } else {
     ASR_PANIC("failed to present swapchain image", present_result);
   }
@@ -209,7 +211,7 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
 
   // window creation shouldn't fail reliably, if it fails,
   // there's no point in the program proceeding
-  ASR_SDL_ENSURE(window != nullptr, "Unable to create window");
+  ASR_SDL_ENSURE(window != nullptr, "unable to create window");
 
   cfg.min_extent.copy().match(
       [&](Extent min_extent) {

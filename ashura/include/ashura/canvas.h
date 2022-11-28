@@ -80,7 +80,8 @@ inline void triangulate_polygon(stx::Vec<vec2>& output,
   for (i64 m = 0, v = nv - 1; nv > 2;) {
     // if we loop, it is probably a non-simple polygon
     if (0 >= (count--)) {
-      ASR_PANIC("Polygon triangulation error: probable bad polygon!");
+      ASR_PANIC("polygon triangulation error: probable bad polygon!");
+      return;
     }
 
     // three consecutive vertices in current polygon, <u, v, w>
@@ -412,6 +413,8 @@ struct DrawList {
   stx::Vec<DrawCommand> commands{stx::os_allocator};
 };
 
+// TODO(lamarrr): properly handle the case of zero sized indices and clip
+// indices
 struct Canvas {
   vec2 extent;
   Brush brush;
@@ -426,8 +429,9 @@ struct Canvas {
 
   DrawList draw_list;
 
-  Canvas(vec2 viewport_extent, Image atransparent_image)
-      : transparent_image{std::move(atransparent_image)} {
+  Canvas(vec2 viewport_extent, Image const& atransparent_image)
+      : brush{.pattern = atransparent_image.share()},
+        transparent_image{atransparent_image.share()} {
     restart(viewport_extent);
   }
 
@@ -500,7 +504,7 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& scale(f32 x, f32 y) { return scale(x, y); }
+  Canvas& scale(f32 x, f32 y) { return scale(x, y, 1.0f); }
 
   Canvas& clear() {
     u32 start = AS_U32(draw_list.vertices.size());
@@ -514,11 +518,25 @@ struct Canvas {
 
     draw_list.indices.extend(indices).unwrap();
 
+    u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
+
+    triangulate_polygon(draw_list.clip_vertices, clip);
+
+    nclip_polygon_vertices =
+        AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
+
+    u32 clip_start = AS_U32(draw_list.clip_indices.size());
+
+    for (u32 index = clip_start; index < (clip_start + nclip_polygon_vertices);
+         index++) {
+      draw_list.clip_indices.push_inplace(index).unwrap();
+    }
+
     draw_list.commands
         .push(DrawCommand{.indices_offset = start,
                           .nindices = std::size(indices),
-                          .clip_indices_offset = 0,
-                          .nclip_indices = 0,
+                          .clip_indices_offset = clip_start,
+                          .nclip_indices = nclip_polygon_vertices,
                           .transform = mat4::identity(),
                           .color = brush.color,
                           .texture = brush.pattern.share()})
@@ -690,10 +708,13 @@ struct Canvas {
                        {p2.x - d.y, p2.y + d.x},
                        {p1.x - d.y, p1.y + d.x}};
 
-    u32 start = AS_U32(draw_list.clip_indices.size());
+    u32 start = AS_U32(draw_list.indices.size());
 
     u32 indices[] = {start,     start + 1, start + 2,
                      start + 3, start + 4, start + 5};
+
+    draw_list.vertices.extend(vertices).unwrap();
+    draw_list.indices.extend(indices).unwrap();
 
     u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
 
@@ -778,13 +799,11 @@ struct Canvas {
                      vec2 dest_offset, vec2 dest_extent);
 };
 
-void sample(Canvas& canvas) {
-  Image* image;
-
+inline void sample(Canvas& canvas, Image& image) {
   canvas.save()
       .rotate(45, 0, 0)
       .draw_circle({0, 0}, 20.0f, 20)
-      .draw_image(*image, {0.0, 0.0}, {20, 40})
+      .draw_image(image, {0.0, 0.0}, {20, 40})
       .restore()
       .scale(2.0f, 2.0f)
       .draw_line({0, 0}, {200, 200})
@@ -804,6 +823,8 @@ struct CanvasContext {
   vk::SpanBuffer index_buffer;
   vk::SpanBuffer clip_vertex_buffer;
   vk::SpanBuffer clip_index_buffer;
+
+  vk::RecordingContext recording_context;
 
   stx::Rc<vk::CommandQueue*> queue;
 
@@ -829,6 +850,225 @@ struct CanvasContext {
         dev, queue.handle->info.family,
         queue.handle->device.handle->phy_device.handle->memory_properties,
         sizeof(Viewport), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+    // glslangValidator -V -x shader.vert
+    static constexpr u32 const vertex_shader_code[] = {
+        0x07230203, 0x00010000, 0x0008000b, 0x00000026, 0x00000000, 0x00020011,
+        0x00000001, 0x0006000b, 0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e,
+        0x00000000, 0x0003000e, 0x00000000, 0x00000001, 0x0008000f, 0x00000000,
+        0x00000004, 0x6e69616d, 0x00000000, 0x0000000d, 0x00000019, 0x00000024,
+        0x00030003, 0x00000002, 0x000001c2, 0x00040005, 0x00000004, 0x6e69616d,
+        0x00000000, 0x00060005, 0x0000000b, 0x505f6c67, 0x65567265, 0x78657472,
+        0x00000000, 0x00060006, 0x0000000b, 0x00000000, 0x505f6c67, 0x7469736f,
+        0x006e6f69, 0x00070006, 0x0000000b, 0x00000001, 0x505f6c67, 0x746e696f,
+        0x657a6953, 0x00000000, 0x00070006, 0x0000000b, 0x00000002, 0x435f6c67,
+        0x4470696c, 0x61747369, 0x0065636e, 0x00070006, 0x0000000b, 0x00000003,
+        0x435f6c67, 0x446c6c75, 0x61747369, 0x0065636e, 0x00030005, 0x0000000d,
+        0x00000000, 0x00050005, 0x00000011, 0x6e617254, 0x726f6673, 0x0000006d,
+        0x00050006, 0x00000011, 0x00000000, 0x756c6176, 0x00000065, 0x00050005,
+        0x00000013, 0x6e617274, 0x726f6673, 0x0000006d, 0x00050005, 0x00000019,
+        0x705f6e69, 0x7469736f, 0x006e6f69, 0x00060005, 0x00000024, 0x5f74756f,
+        0x69736f70, 0x6e6f6974, 0x00000000, 0x00050048, 0x0000000b, 0x00000000,
+        0x0000000b, 0x00000000, 0x00050048, 0x0000000b, 0x00000001, 0x0000000b,
+        0x00000001, 0x00050048, 0x0000000b, 0x00000002, 0x0000000b, 0x00000003,
+        0x00050048, 0x0000000b, 0x00000003, 0x0000000b, 0x00000004, 0x00030047,
+        0x0000000b, 0x00000002, 0x00040048, 0x00000011, 0x00000000, 0x00000005,
+        0x00050048, 0x00000011, 0x00000000, 0x00000023, 0x00000000, 0x00050048,
+        0x00000011, 0x00000000, 0x00000007, 0x00000010, 0x00030047, 0x00000011,
+        0x00000002, 0x00040047, 0x00000013, 0x00000022, 0x00000000, 0x00040047,
+        0x00000013, 0x00000021, 0x00000000, 0x00040047, 0x00000019, 0x0000001e,
+        0x00000000, 0x00040047, 0x00000024, 0x0000001e, 0x00000000, 0x00020013,
+        0x00000002, 0x00030021, 0x00000003, 0x00000002, 0x00030016, 0x00000006,
+        0x00000020, 0x00040017, 0x00000007, 0x00000006, 0x00000004, 0x00040015,
+        0x00000008, 0x00000020, 0x00000000, 0x0004002b, 0x00000008, 0x00000009,
+        0x00000001, 0x0004001c, 0x0000000a, 0x00000006, 0x00000009, 0x0006001e,
+        0x0000000b, 0x00000007, 0x00000006, 0x0000000a, 0x0000000a, 0x00040020,
+        0x0000000c, 0x00000003, 0x0000000b, 0x0004003b, 0x0000000c, 0x0000000d,
+        0x00000003, 0x00040015, 0x0000000e, 0x00000020, 0x00000001, 0x0004002b,
+        0x0000000e, 0x0000000f, 0x00000000, 0x00040018, 0x00000010, 0x00000007,
+        0x00000004, 0x0003001e, 0x00000011, 0x00000010, 0x00040020, 0x00000012,
+        0x00000002, 0x00000011, 0x0004003b, 0x00000012, 0x00000013, 0x00000002,
+        0x00040020, 0x00000014, 0x00000002, 0x00000010, 0x00040017, 0x00000017,
+        0x00000006, 0x00000002, 0x00040020, 0x00000018, 0x00000001, 0x00000017,
+        0x0004003b, 0x00000018, 0x00000019, 0x00000001, 0x0004002b, 0x00000006,
+        0x0000001b, 0x00000000, 0x0004002b, 0x00000006, 0x0000001c, 0x3f800000,
+        0x00040020, 0x00000021, 0x00000003, 0x00000007, 0x00040020, 0x00000023,
+        0x00000003, 0x00000017, 0x0004003b, 0x00000023, 0x00000024, 0x00000003,
+        0x00050036, 0x00000002, 0x00000004, 0x00000000, 0x00000003, 0x000200f8,
+        0x00000005, 0x00050041, 0x00000014, 0x00000015, 0x00000013, 0x0000000f,
+        0x0004003d, 0x00000010, 0x00000016, 0x00000015, 0x0004003d, 0x00000017,
+        0x0000001a, 0x00000019, 0x00050051, 0x00000006, 0x0000001d, 0x0000001a,
+        0x00000000, 0x00050051, 0x00000006, 0x0000001e, 0x0000001a, 0x00000001,
+        0x00070050, 0x00000007, 0x0000001f, 0x0000001d, 0x0000001e, 0x0000001b,
+        0x0000001c, 0x00050091, 0x00000007, 0x00000020, 0x00000016, 0x0000001f,
+        0x00050041, 0x00000021, 0x00000022, 0x0000000d, 0x0000000f, 0x0003003e,
+        0x00000022, 0x00000020, 0x0004003d, 0x00000017, 0x00000025, 0x00000019,
+        0x0003003e, 0x00000024, 0x00000025, 0x000100fd, 0x00010038};
+
+    // glslangValidator -V -x shader.frag
+    static constexpr u32 const fragment_shader_code[] = {
+        0x07230203, 0x00010000, 0x0008000b, 0x0000003b, 0x00000000, 0x00020011,
+        0x00000001, 0x0006000b, 0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e,
+        0x00000000, 0x0003000e, 0x00000000, 0x00000001, 0x0007000f, 0x00000004,
+        0x00000004, 0x6e69616d, 0x00000000, 0x00000011, 0x00000037, 0x00030010,
+        0x00000004, 0x00000007, 0x00030003, 0x00000002, 0x000001c2, 0x00040005,
+        0x00000004, 0x6e69616d, 0x00000000, 0x00050005, 0x00000009, 0x6e696b73,
+        0x6c6f635f, 0x0000726f, 0x00060005, 0x0000000d, 0x6e696b73, 0x7865745f,
+        0x65727574, 0x00000000, 0x00050005, 0x00000011, 0x705f6e69, 0x7469736f,
+        0x006e6f69, 0x00040005, 0x00000014, 0x6f6c6f63, 0x00000072, 0x00040005,
+        0x00000015, 0x7265764f, 0x0079616c, 0x00050006, 0x00000015, 0x00000000,
+        0x6f6c6f63, 0x00000072, 0x00040005, 0x00000017, 0x7265766f, 0x0079616c,
+        0x00040005, 0x00000028, 0x6b73616d, 0x00000000, 0x00050005, 0x00000029,
+        0x70696c63, 0x73616d5f, 0x0000006b, 0x00050005, 0x0000002c, 0x77656956,
+        0x74726f70, 0x00000000, 0x00050006, 0x0000002c, 0x00000000, 0x65747865,
+        0x0000746e, 0x00050005, 0x0000002e, 0x77656976, 0x74726f70, 0x00000000,
+        0x00050005, 0x00000037, 0x5f74756f, 0x6f6c6f63, 0x00000072, 0x00040047,
+        0x0000000d, 0x00000022, 0x00000001, 0x00040047, 0x0000000d, 0x00000021,
+        0x00000000, 0x00040047, 0x00000011, 0x0000001e, 0x00000000, 0x00050048,
+        0x00000015, 0x00000000, 0x00000023, 0x00000000, 0x00030047, 0x00000015,
+        0x00000002, 0x00040047, 0x00000017, 0x00000022, 0x00000000, 0x00040047,
+        0x00000017, 0x00000021, 0x00000001, 0x00040047, 0x00000029, 0x00000022,
+        0x00000001, 0x00040047, 0x00000029, 0x00000021, 0x00000001, 0x00050048,
+        0x0000002c, 0x00000000, 0x00000023, 0x00000000, 0x00030047, 0x0000002c,
+        0x00000002, 0x00040047, 0x0000002e, 0x00000022, 0x00000000, 0x00040047,
+        0x0000002e, 0x00000021, 0x00000002, 0x00040047, 0x00000037, 0x0000001e,
+        0x00000000, 0x00020013, 0x00000002, 0x00030021, 0x00000003, 0x00000002,
+        0x00030016, 0x00000006, 0x00000020, 0x00040017, 0x00000007, 0x00000006,
+        0x00000004, 0x00040020, 0x00000008, 0x00000007, 0x00000007, 0x00090019,
+        0x0000000a, 0x00000006, 0x00000001, 0x00000000, 0x00000000, 0x00000000,
+        0x00000001, 0x00000000, 0x0003001b, 0x0000000b, 0x0000000a, 0x00040020,
+        0x0000000c, 0x00000000, 0x0000000b, 0x0004003b, 0x0000000c, 0x0000000d,
+        0x00000000, 0x00040017, 0x0000000f, 0x00000006, 0x00000002, 0x00040020,
+        0x00000010, 0x00000001, 0x0000000f, 0x0004003b, 0x00000010, 0x00000011,
+        0x00000001, 0x0003001e, 0x00000015, 0x00000007, 0x00040020, 0x00000016,
+        0x00000002, 0x00000015, 0x0004003b, 0x00000016, 0x00000017, 0x00000002,
+        0x00040015, 0x00000018, 0x00000020, 0x00000001, 0x0004002b, 0x00000018,
+        0x00000019, 0x00000000, 0x00040020, 0x0000001a, 0x00000002, 0x00000007,
+        0x0004002b, 0x00000006, 0x0000001e, 0x3f800000, 0x00040015, 0x0000001f,
+        0x00000020, 0x00000000, 0x0004002b, 0x0000001f, 0x00000020, 0x00000003,
+        0x00040020, 0x00000021, 0x00000002, 0x00000006, 0x00040020, 0x00000027,
+        0x00000007, 0x00000006, 0x0004003b, 0x0000000c, 0x00000029, 0x00000000,
+        0x0003001e, 0x0000002c, 0x0000000f, 0x00040020, 0x0000002d, 0x00000002,
+        0x0000002c, 0x0004003b, 0x0000002d, 0x0000002e, 0x00000002, 0x00040020,
+        0x0000002f, 0x00000002, 0x0000000f, 0x0004002b, 0x0000001f, 0x00000034,
+        0x00000000, 0x00040020, 0x00000036, 0x00000003, 0x00000007, 0x0004003b,
+        0x00000036, 0x00000037, 0x00000003, 0x00050036, 0x00000002, 0x00000004,
+        0x00000000, 0x00000003, 0x000200f8, 0x00000005, 0x0004003b, 0x00000008,
+        0x00000009, 0x00000007, 0x0004003b, 0x00000008, 0x00000014, 0x00000007,
+        0x0004003b, 0x00000027, 0x00000028, 0x00000007, 0x0004003d, 0x0000000b,
+        0x0000000e, 0x0000000d, 0x0004003d, 0x0000000f, 0x00000012, 0x00000011,
+        0x00050057, 0x00000007, 0x00000013, 0x0000000e, 0x00000012, 0x0003003e,
+        0x00000009, 0x00000013, 0x00050041, 0x0000001a, 0x0000001b, 0x00000017,
+        0x00000019, 0x0004003d, 0x00000007, 0x0000001c, 0x0000001b, 0x0004003d,
+        0x00000007, 0x0000001d, 0x00000009, 0x00060041, 0x00000021, 0x00000022,
+        0x00000017, 0x00000019, 0x00000020, 0x0004003d, 0x00000006, 0x00000023,
+        0x00000022, 0x00050083, 0x00000006, 0x00000024, 0x0000001e, 0x00000023,
+        0x0005008e, 0x00000007, 0x00000025, 0x0000001d, 0x00000024, 0x00050081,
+        0x00000007, 0x00000026, 0x0000001c, 0x00000025, 0x0003003e, 0x00000014,
+        0x00000026, 0x0004003d, 0x0000000b, 0x0000002a, 0x00000029, 0x0004003d,
+        0x0000000f, 0x0000002b, 0x00000011, 0x00050041, 0x0000002f, 0x00000030,
+        0x0000002e, 0x00000019, 0x0004003d, 0x0000000f, 0x00000031, 0x00000030,
+        0x00050088, 0x0000000f, 0x00000032, 0x0000002b, 0x00000031, 0x00050057,
+        0x00000007, 0x00000033, 0x0000002a, 0x00000032, 0x00050051, 0x00000006,
+        0x00000035, 0x00000033, 0x00000000, 0x0003003e, 0x00000028, 0x00000035,
+        0x0004003d, 0x00000006, 0x00000038, 0x00000028, 0x0004003d, 0x00000007,
+        0x00000039, 0x00000014, 0x0005008e, 0x00000007, 0x0000003a, 0x00000039,
+        0x00000038, 0x0003003e, 0x00000037, 0x0000003a, 0x000100fd, 0x00010038};
+
+    // glslangValidator -V -x clip_shader.vert
+    static constexpr u32 const clip_vertex_shader_code[] = {
+        0x07230203, 0x00010000, 0x0008000b, 0x00000023, 0x00000000, 0x00020011,
+        0x00000001, 0x0006000b, 0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e,
+        0x00000000, 0x0003000e, 0x00000000, 0x00000001, 0x0007000f, 0x00000000,
+        0x00000004, 0x6e69616d, 0x00000000, 0x0000000d, 0x00000019, 0x00030003,
+        0x00000002, 0x000001c2, 0x00040005, 0x00000004, 0x6e69616d, 0x00000000,
+        0x00060005, 0x0000000b, 0x505f6c67, 0x65567265, 0x78657472, 0x00000000,
+        0x00060006, 0x0000000b, 0x00000000, 0x505f6c67, 0x7469736f, 0x006e6f69,
+        0x00070006, 0x0000000b, 0x00000001, 0x505f6c67, 0x746e696f, 0x657a6953,
+        0x00000000, 0x00070006, 0x0000000b, 0x00000002, 0x435f6c67, 0x4470696c,
+        0x61747369, 0x0065636e, 0x00070006, 0x0000000b, 0x00000003, 0x435f6c67,
+        0x446c6c75, 0x61747369, 0x0065636e, 0x00030005, 0x0000000d, 0x00000000,
+        0x00050005, 0x00000011, 0x6e617254, 0x726f6673, 0x0000006d, 0x00050006,
+        0x00000011, 0x00000000, 0x756c6176, 0x00000065, 0x00050005, 0x00000013,
+        0x6e617274, 0x726f6673, 0x0000006d, 0x00050005, 0x00000019, 0x705f6e69,
+        0x7469736f, 0x006e6f69, 0x00050048, 0x0000000b, 0x00000000, 0x0000000b,
+        0x00000000, 0x00050048, 0x0000000b, 0x00000001, 0x0000000b, 0x00000001,
+        0x00050048, 0x0000000b, 0x00000002, 0x0000000b, 0x00000003, 0x00050048,
+        0x0000000b, 0x00000003, 0x0000000b, 0x00000004, 0x00030047, 0x0000000b,
+        0x00000002, 0x00040048, 0x00000011, 0x00000000, 0x00000005, 0x00050048,
+        0x00000011, 0x00000000, 0x00000023, 0x00000000, 0x00050048, 0x00000011,
+        0x00000000, 0x00000007, 0x00000010, 0x00030047, 0x00000011, 0x00000002,
+        0x00040047, 0x00000013, 0x00000022, 0x00000000, 0x00040047, 0x00000013,
+        0x00000021, 0x00000000, 0x00040047, 0x00000019, 0x0000001e, 0x00000000,
+        0x00020013, 0x00000002, 0x00030021, 0x00000003, 0x00000002, 0x00030016,
+        0x00000006, 0x00000020, 0x00040017, 0x00000007, 0x00000006, 0x00000004,
+        0x00040015, 0x00000008, 0x00000020, 0x00000000, 0x0004002b, 0x00000008,
+        0x00000009, 0x00000001, 0x0004001c, 0x0000000a, 0x00000006, 0x00000009,
+        0x0006001e, 0x0000000b, 0x00000007, 0x00000006, 0x0000000a, 0x0000000a,
+        0x00040020, 0x0000000c, 0x00000003, 0x0000000b, 0x0004003b, 0x0000000c,
+        0x0000000d, 0x00000003, 0x00040015, 0x0000000e, 0x00000020, 0x00000001,
+        0x0004002b, 0x0000000e, 0x0000000f, 0x00000000, 0x00040018, 0x00000010,
+        0x00000007, 0x00000004, 0x0003001e, 0x00000011, 0x00000010, 0x00040020,
+        0x00000012, 0x00000002, 0x00000011, 0x0004003b, 0x00000012, 0x00000013,
+        0x00000002, 0x00040020, 0x00000014, 0x00000002, 0x00000010, 0x00040017,
+        0x00000017, 0x00000006, 0x00000002, 0x00040020, 0x00000018, 0x00000001,
+        0x00000017, 0x0004003b, 0x00000018, 0x00000019, 0x00000001, 0x0004002b,
+        0x00000006, 0x0000001b, 0x00000000, 0x0004002b, 0x00000006, 0x0000001c,
+        0x3f800000, 0x00040020, 0x00000021, 0x00000003, 0x00000007, 0x00050036,
+        0x00000002, 0x00000004, 0x00000000, 0x00000003, 0x000200f8, 0x00000005,
+        0x00050041, 0x00000014, 0x00000015, 0x00000013, 0x0000000f, 0x0004003d,
+        0x00000010, 0x00000016, 0x00000015, 0x0004003d, 0x00000017, 0x0000001a,
+        0x00000019, 0x00050051, 0x00000006, 0x0000001d, 0x0000001a, 0x00000000,
+        0x00050051, 0x00000006, 0x0000001e, 0x0000001a, 0x00000001, 0x00070050,
+        0x00000007, 0x0000001f, 0x0000001d, 0x0000001e, 0x0000001b, 0x0000001c,
+        0x00050091, 0x00000007, 0x00000020, 0x00000016, 0x0000001f, 0x00050041,
+        0x00000021, 0x00000022, 0x0000000d, 0x0000000f, 0x0003003e, 0x00000022,
+        0x00000020, 0x000100fd, 0x00010038};
+
+    // glslangValidator -V -x clip_shader.frag
+    static constexpr u32 const clip_fragment_shader_code[] = {
+        0x07230203, 0x00010000, 0x0008000b, 0x0000000c, 0x00000000, 0x00020011,
+        0x00000001, 0x0006000b, 0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e,
+        0x00000000, 0x0003000e, 0x00000000, 0x00000001, 0x0006000f, 0x00000004,
+        0x00000004, 0x6e69616d, 0x00000000, 0x00000009, 0x00030010, 0x00000004,
+        0x00000007, 0x00030003, 0x00000002, 0x000001c2, 0x00040005, 0x00000004,
+        0x6e69616d, 0x00000000, 0x00050005, 0x00000009, 0x5f74756f, 0x6f6c6f63,
+        0x00000072, 0x00040047, 0x00000009, 0x0000001e, 0x00000000, 0x00020013,
+        0x00000002, 0x00030021, 0x00000003, 0x00000002, 0x00030016, 0x00000006,
+        0x00000020, 0x00040017, 0x00000007, 0x00000006, 0x00000004, 0x00040020,
+        0x00000008, 0x00000003, 0x00000007, 0x0004003b, 0x00000008, 0x00000009,
+        0x00000003, 0x0004002b, 0x00000006, 0x0000000a, 0x3f800000, 0x0007002c,
+        0x00000007, 0x0000000b, 0x0000000a, 0x0000000a, 0x0000000a, 0x0000000a,
+        0x00050036, 0x00000002, 0x00000004, 0x00000000, 0x00000003, 0x000200f8,
+        0x00000005, 0x0003003e, 0x00000009, 0x0000000b, 0x000100fd, 0x00010038};
+
+    VkVertexInputAttributeDescription vertex_input_attributes[]{
+        {.location = 0,
+         .binding = 0,
+         .format = VK_FORMAT_R32G32_SFLOAT,
+         .offset = 0}};
+
+    VkVertexInputAttributeDescription clip_vertex_input_attributes[]{
+        {.location = 0,
+         .binding = 0,
+         .format = VK_FORMAT_R32G32_SFLOAT,
+         .offset = 0}};
+
+    vk::DescriptorSetSpec descriptor_set_specs[] = {
+        vk::DescriptorSetSpec{vk::DescriptorType::Buffer,
+                              vk::DescriptorType::Buffer,
+                              vk::DescriptorType::Buffer},
+        vk::DescriptorSetSpec{vk::DescriptorType::Sampler,
+                              vk::DescriptorType::Sampler}};
+
+    vk::DescriptorSetSpec clip_descriptor_set_specs[] = {
+        vk::DescriptorSetSpec{vk::DescriptorType::Buffer}};
+
+    recording_context.init(
+        dev, *queue.handle, vertex_shader_code, fragment_shader_code,
+        clip_vertex_shader_code, clip_fragment_shader_code,
+        vertex_input_attributes, sizeof(vec2), clip_vertex_input_attributes,
+        sizeof(vec2), descriptor_set_specs, clip_descriptor_set_specs);
   }
 
   STX_MAKE_PINNED(CanvasContext)
@@ -846,6 +1086,8 @@ struct CanvasContext {
     clip_transform_buffer.destroy(dev);
     overlay_buffer.destroy(dev);
     viewport_buffer.destroy(dev);
+
+    recording_context.destroy(dev);
   }
 
   void write_transform(Transform const& transform) {
@@ -890,58 +1132,27 @@ struct CanvasContext {
     clip_index_buffer.write(dev, family_info.index, memory_properties,
                             VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
   }
-};
 
-inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
-                   DrawList const& draw_list) {
-  static constexpr u64 TIMEOUT = AS_U64(
-      std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
+  void submit(vk::SwapChain const& swapchain, DrawList const& draw_list) {
+    ASR_ENSURE(!draw_list.vertices.is_empty());
+    ASR_ENSURE(!draw_list.indices.is_empty());
+    ASR_ENSURE(!draw_list.clip_vertices.is_empty());
+    ASR_ENSURE(!draw_list.clip_indices.is_empty());
 
-  vk::SwapChain const& swapchain =
-      *ctx.surface.handle->swapchain.value().handle;
+    static constexpr u64 TIMEOUT = AS_U64(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
 
-  stx::Rc<vk::Device*> const& device = swapchain.queue.handle->device;
+    stx::Rc<vk::Device*> const& device = swapchain.queue.handle->device;
 
-  VkDevice dev = device.handle->device;
+    VkDevice dev = device.handle->device;
 
-  VkPhysicalDeviceMemoryProperties const& memory_properties =
-      device.handle->phy_device.handle->memory_properties;
+    VkQueue queue = swapchain.queue.handle->info.queue;
 
-  vk::CommandQueueFamilyInfo const& family =
-      swapchain.queue.handle->info.family;
+    write_vertices(draw_list.vertices, draw_list.indices);
 
-  canvas_ctx.write_vertices(draw_list.vertices, draw_list.indices);
+    ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
 
-  ASR_VK_CHECK(vkResetCommandBuffer(ctx.command_buffer, 0));
-
-  for (DrawCommand const& draw_command : draw_list.commands) {
-    VkCommandBufferBeginInfo command_buffer_begin_info{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext = nullptr,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = nullptr,
-    };
-
-    ASR_VK_CHECK(
-        vkBeginCommandBuffer(ctx.command_buffer, &command_buffer_begin_info));
-
-    {
-      canvas_ctx.write_clip_vertices(draw_list.clip_vertices,
-                                     draw_list.clip_indices);
-
-      Transform clip_transform{.value = draw_command.transform};
-
-      canvas_ctx.write_clip_transform(clip_transform);
-
-      vk::DescriptorBinding set0[] = {vk::DescriptorBinding::make_buffer(
-          canvas_ctx.clip_transform_buffer.buffer)};
-
-      stx::Span<vk::DescriptorBinding const> sets[] = {set0};
-
-      ctx.clip_descriptor_sets.write(sets);
-
-      ASR_VK_CHECK(vkResetCommandBuffer(ctx.clip_command_buffer, 0));
-
+    for (DrawCommand const& draw_command : draw_list.commands) {
       VkCommandBufferBeginInfo command_buffer_begin_info{
           .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
           .pNext = nullptr,
@@ -949,27 +1160,167 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
           .pInheritanceInfo = nullptr,
       };
 
-      ASR_VK_CHECK(vkBeginCommandBuffer(ctx.clip_command_buffer,
+      ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
                                         &command_buffer_begin_info));
 
+      {
+        write_clip_vertices(draw_list.clip_vertices, draw_list.clip_indices);
+
+        Transform clip_transform{.value = draw_command.transform};
+
+        write_clip_transform(clip_transform);
+
+        vk::DescriptorBinding set0[] = {
+            vk::DescriptorBinding::make_buffer(clip_transform_buffer.buffer)};
+
+        stx::Span<vk::DescriptorBinding const> sets[] = {set0};
+
+        recording_context.clip_descriptor_sets.write(sets);
+
+        ASR_VK_CHECK(
+            vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
+
+        VkCommandBufferBeginInfo command_buffer_begin_info{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .pNext = nullptr,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            .pInheritanceInfo = nullptr,
+        };
+
+        ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.clip_command_buffer,
+                                          &command_buffer_begin_info));
+
+        VkClearValue clear_values[] = {
+            {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}}};
+
+        VkRenderPassBeginInfo render_pass_begin_info{
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .pNext = nullptr,
+            .renderPass = swapchain.clip.render_pass,
+            .framebuffer = swapchain.clip.framebuffer,
+            .renderArea =
+                VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
+            .clearValueCount = AS_U32(std::size(clear_values)),
+            .pClearValues = clear_values};
+
+        vkCmdBeginRenderPass(recording_context.clip_command_buffer,
+                             &render_pass_begin_info,
+                             VK_SUBPASS_CONTENTS_INLINE);
+
+        VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
+
+        vkCmdSetScissor(recording_context.clip_command_buffer, 0, 1, &scissor);
+
+        VkViewport viewport{.x = 0.0f,
+                            .y = 0.0f,
+                            .width = AS_F32(swapchain.window_extent.width),
+                            .height = AS_F32(swapchain.window_extent.height),
+                            .minDepth = 0.0f,
+                            .maxDepth = 1.0f};
+
+        vkCmdSetViewport(recording_context.clip_command_buffer, 0, 1,
+                         &viewport);
+
+        VkDeviceSize offset = 0;
+
+        vkCmdBindVertexBuffers(recording_context.clip_command_buffer, 0, 1,
+                               &clip_vertex_buffer.buffer, &offset);
+
+        vkCmdBindIndexBuffer(recording_context.clip_command_buffer,
+                             clip_index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdBindDescriptorSets(
+            recording_context.clip_command_buffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            recording_context.clip_pipeline.layout, 0,
+            AS_U32(
+                recording_context.clip_descriptor_sets.descriptor_sets.size()),
+            recording_context.clip_descriptor_sets.descriptor_sets.data(), 0,
+            nullptr);
+
+        vkCmdBindPipeline(recording_context.clip_command_buffer,
+                          VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          recording_context.clip_pipeline.pipeline);
+
+        vkCmdDrawIndexed(recording_context.clip_command_buffer,
+                         draw_command.nclip_indices, 1, 0, 0, 0);
+
+        vkCmdEndRenderPass(recording_context.clip_command_buffer);
+
+        ASR_VK_CHECK(vkEndCommandBuffer(recording_context.clip_command_buffer));
+
+        VkPipelineStageFlags wait_stages[] = {
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
+        VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                                 .pNext = nullptr,
+                                 .waitSemaphoreCount = 0,
+                                 .pWaitSemaphores = nullptr,
+                                 .pWaitDstStageMask = wait_stages,
+                                 .commandBufferCount = 0,
+                                 .pCommandBuffers = nullptr,
+                                 .signalSemaphoreCount = 0,
+                                 .pSignalSemaphores = nullptr};
+
+        ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.clip.fence));
+
+        ASR_VK_CHECK(
+            vkQueueSubmit(queue, 1, &submit_info, swapchain.clip.fence));
+      }
+
+      Transform transform{.value = draw_command.transform};
+
+      Overlay overlay{.color = {draw_command.color.r / 255.0f,
+                                draw_command.color.g / 255.0f,
+                                draw_command.color.b / 255.0f,
+                                draw_command.color.a / 255.0f}};
+
+      Viewport render_viewport{
+          .extent = vec2{AS_F32(swapchain.window_extent.width),
+                         AS_F32(swapchain.window_extent.height)}};
+
+      write_transform(transform);
+      write_overlay(overlay);
+      write_viewport(render_viewport);
+
+      vk::DescriptorBinding set0[] = {
+          vk::DescriptorBinding::make_buffer(transform_buffer.buffer),
+          vk::DescriptorBinding::make_buffer(overlay_buffer.buffer),
+          vk::DescriptorBinding::make_buffer(viewport_buffer.buffer)};
+
+      vk::DescriptorBinding set1[] = {
+          vk::DescriptorBinding::make_sampler(
+              draw_command.texture.handle->image.handle->view,
+              draw_command.texture.handle->sampler),
+          vk::DescriptorBinding::make_sampler(swapchain.clip.image.view,
+                                              swapchain.clip.sampler)};
+
+      stx::Span<vk::DescriptorBinding const> sets[] = {set0, set1};
+
+      recording_context.descriptor_sets[swapchain.next_frame_flight_index]
+          .write(sets);
+
       VkClearValue clear_values[] = {
-          {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}}};
+          {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}},
+          {.depthStencil =
+               VkClearDepthStencilValue{.depth = 1.0f, .stencil = 0}}};
 
       VkRenderPassBeginInfo render_pass_begin_info{
           .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
           .pNext = nullptr,
-          .renderPass = swapchain.clip.render_pass,
-          .framebuffer = swapchain.clip.framebuffer,
+          .renderPass = swapchain.render_pass,
+          .framebuffer =
+              swapchain.framebuffers[swapchain.next_frame_flight_index],
           .renderArea = VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
           .clearValueCount = AS_U32(std::size(clear_values)),
           .pClearValues = clear_values};
 
-      vkCmdBeginRenderPass(ctx.clip_command_buffer, &render_pass_begin_info,
-                           VK_SUBPASS_CONTENTS_INLINE);
+      vkCmdBeginRenderPass(recording_context.command_buffer,
+                           &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
       VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
 
-      vkCmdSetScissor(ctx.clip_command_buffer, 0, 1, &scissor);
+      vkCmdSetScissor(recording_context.command_buffer, 0, 1, &scissor);
 
       VkViewport viewport{.x = 0.0f,
                           .y = 0.0f,
@@ -978,31 +1329,43 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                           .minDepth = 0.0f,
                           .maxDepth = 1.0f};
 
-      vkCmdSetViewport(ctx.clip_command_buffer, 0, 1, &viewport);
+      vkCmdSetViewport(recording_context.command_buffer, 0, 1, &viewport);
 
-      vkCmdBindVertexBuffers(ctx.clip_command_buffer, 0, 1,
-                             &canvas_ctx.clip_vertex_buffer.buffer, 0);
+      VkDeviceSize offset = 0;
 
-      vkCmdBindIndexBuffer(ctx.clip_command_buffer,
-                           canvas_ctx.clip_index_buffer.buffer, 0,
-                           VK_INDEX_TYPE_UINT32);
+      vkCmdBindVertexBuffers(recording_context.command_buffer, 0, 1,
+                             &vertex_buffer.buffer, &offset);
+
+      vkCmdBindIndexBuffer(recording_context.command_buffer,
+                           index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
       vkCmdBindDescriptorSets(
-          ctx.clip_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-          ctx.clip_pipeline.layout, 0,
-          AS_U32(ctx.clip_descriptor_sets.descriptor_sets.size()),
-          ctx.clip_descriptor_sets.descriptor_sets.data(), 0, nullptr);
+          recording_context.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+          recording_context.pipeline.layout, 0,
+          AS_U32(recording_context
+                     .descriptor_sets[swapchain.next_frame_flight_index]
+                     .descriptor_sets.size()),
+          recording_context.descriptor_sets[swapchain.next_frame_flight_index]
+              .descriptor_sets.data(),
+          0, nullptr);
 
-      vkCmdBindPipeline(ctx.clip_command_buffer,
+      vkCmdBindPipeline(recording_context.command_buffer,
                         VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        ctx.clip_pipeline.pipeline);
+                        recording_context.pipeline.pipeline);
 
-      vkCmdDrawIndexed(ctx.clip_command_buffer, draw_command.nclip_indices, 1,
-                       0, 0, 0);
+      vkCmdDrawIndexed(recording_context.command_buffer, draw_command.nindices,
+                       1, 0, 0, 0);
 
-      vkCmdEndRenderPass(ctx.clip_command_buffer);
+      vkCmdEndRenderPass(recording_context.command_buffer);
 
-      ASR_VK_CHECK(vkEndCommandBuffer(ctx.clip_command_buffer));
+      ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
+
+      ASR_VK_CHECK(
+          vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE, TIMEOUT));
+
+      ASR_VK_CHECK(vkResetFences(
+          dev, 1,
+          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
 
       VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                                .pNext = nullptr,
@@ -1014,124 +1377,20 @@ inline void render(vk::RecordingContext& ctx, CanvasContext& canvas_ctx,
                                .signalSemaphoreCount = 0,
                                .pSignalSemaphores = nullptr};
 
-      ASR_VK_CHECK(vkQueueSubmit(ctx.queue.handle->info.queue, 1, &submit_info,
-                                 swapchain.clip.fence));
+      ASR_VK_CHECK(vkQueueSubmit(
+          queue, 1, &submit_info,
+          swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
+      ASR_VK_CHECK(vkWaitForFences(
+          dev, 1,
+          &swapchain.rendering_fences[swapchain.next_frame_flight_index],
+          VK_TRUE, TIMEOUT));
     }
 
-    Transform transform{.value = draw_command.transform};
-
-    Overlay overlay{.color = {draw_command.color.r / 255.0f,
-                              draw_command.color.g / 255.0f,
-                              draw_command.color.b / 255.0f,
-                              draw_command.color.a / 255.0f}};
-
-    Viewport render_viewport{.extent =
-                                 vec2{AS_F32(swapchain.window_extent.width),
-                                      AS_F32(swapchain.window_extent.height)}};
-
-    canvas_ctx.write_transform(transform);
-    canvas_ctx.write_overlay(overlay);
-    canvas_ctx.write_viewport(render_viewport);
-
-    vk::DescriptorBinding set0[] = {
-        vk::DescriptorBinding::make_buffer(canvas_ctx.transform_buffer.buffer),
-        vk::DescriptorBinding::make_buffer(canvas_ctx.overlay_buffer.buffer),
-        vk::DescriptorBinding::make_buffer(canvas_ctx.viewport_buffer.buffer)};
-
-    vk::DescriptorBinding set1[] = {
-        vk::DescriptorBinding::make_sampler(
-            draw_command.texture.handle->image.handle->view,
-            draw_command.texture.handle->sampler),
-        vk::DescriptorBinding::make_sampler(swapchain.clip.image.view,
-                                            swapchain.clip.sampler)};
-
-    stx::Span<vk::DescriptorBinding const> sets[] = {set0, set1};
-
-    ctx.descriptor_sets[swapchain.next_frame_flight_index].write(sets);
-
-    VkClearValue clear_values[] = {
-        {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}},
-        {.depthStencil =
-             VkClearDepthStencilValue{.depth = 1.0f, .stencil = 0}}};
-
-    VkRenderPassBeginInfo render_pass_begin_info{
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext = nullptr,
-        .renderPass = swapchain.render_pass,
-        .framebuffer =
-            swapchain.frame_buffers[swapchain.next_frame_flight_index],
-        .renderArea = VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
-        .clearValueCount = AS_U32(std::size(clear_values)),
-        .pClearValues = clear_values};
-
-    vkCmdBeginRenderPass(ctx.command_buffer, &render_pass_begin_info,
-                         VK_SUBPASS_CONTENTS_INLINE);
-
-    VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
-
-    vkCmdSetScissor(ctx.command_buffer, 0, 1, &scissor);
-
-    VkViewport viewport{.x = 0.0f,
-                        .y = 0.0f,
-                        .width = AS_F32(swapchain.window_extent.width),
-                        .height = AS_F32(swapchain.window_extent.height),
-                        .minDepth = 0.0f,
-                        .maxDepth = 1.0f};
-
-    vkCmdSetViewport(ctx.command_buffer, 0, 1, &viewport);
-
-    vkCmdBindVertexBuffers(ctx.command_buffer, 0, 1,
-                           &canvas_ctx.vertex_buffer.buffer, 0);
-
-    vkCmdBindIndexBuffer(ctx.command_buffer, canvas_ctx.index_buffer.buffer, 0,
-                         VK_INDEX_TYPE_UINT32);
-
-    vkCmdBindDescriptorSets(
-        ctx.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        ctx.pipeline.layout, 0,
-        AS_U32(ctx.descriptor_sets[ctx.next_swapchain_image_index]
-                   .descriptor_sets.size()),
-        ctx.descriptor_sets[swapchain.next_frame_flight_index]
-            .descriptor_sets.data(),
-        0, nullptr);
-
-    vkCmdBindPipeline(ctx.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      ctx.pipeline.pipeline);
-
-    vkCmdDrawIndexed(ctx.command_buffer, draw_command.nindices, 1, 0, 0, 0);
-
-    vkCmdEndRenderPass(ctx.command_buffer);
-
-    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                             .pNext = nullptr,
-                             .waitSemaphoreCount = 0,
-                             .pWaitSemaphores = nullptr,
-                             .pWaitDstStageMask = nullptr,
-                             .commandBufferCount = 0,
-                             .pCommandBuffers = nullptr,
-                             .signalSemaphoreCount = 0,
-                             .pSignalSemaphores = nullptr};
-
-    ASR_VK_CHECK(vkEndCommandBuffer(ctx.command_buffer));
-
-    ASR_VK_CHECK(
-        vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE, TIMEOUT));
-
-    ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.clip.fence));
-
-    ASR_VK_CHECK(vkQueueSubmit(
-        ctx.queue.handle->info.queue, 1, &submit_info,
-        swapchain.rendering_fences[swapchain.next_frame_flight_index]));
-
-    ASR_VK_CHECK(vkWaitForFences(
-        dev, 1, &swapchain.rendering_fences[swapchain.next_frame_flight_index],
-        VK_TRUE, TIMEOUT));
-
-    ASR_VK_CHECK(vkResetFences(
-        dev, 1,
-        &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+    // TODO(lamarrr): perform renderpass transition to src?, render pass
+    // presently converts to src_khr multiple times?
   }
-}
+};
 
 }  // namespace gfx
 };  // namespace asr

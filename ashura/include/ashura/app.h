@@ -16,7 +16,7 @@ struct App {
 
   void tick(std::chrono::nanoseconds interval);
 
-  ~App();
+  ~App() {}
 
   AppConfig cfg_;
   Engine engine_;

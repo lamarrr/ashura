@@ -40,6 +40,13 @@
     ::spdlog::error(__VA_ARGS__); \
   } while (false)
 
+
+#define ASR_LOG_TRACE(...)          \
+  do {                            \
+    ::spdlog::trace(__VA_ARGS__); \
+  } while (false)
+
+
 #define ASR_LOG_WARN_IF(expr, ...)           \
   do {                                       \
     if ((expr)) ::spdlog::warn(__VA_ARGS__); \

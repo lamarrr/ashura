@@ -221,11 +221,6 @@ inline void destroy_debug_messenger(VkInstance instance,
   return func(instance, debug_messenger, nullptr);
 }
 
-// terminology: every object created using a `create_*` requires a `vkDestroy`
-// call.
-// `make_*` returns plain structs that could possibly contain immutable
-// view of data.
-
 inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
     stx::Span<char const* const> required_extensions,
     stx::Span<char const* const> required_validation_layers,
@@ -234,7 +229,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
     u32 application_version = VK_MAKE_VERSION(1, 0, 0),
     char const* const engine_name = "Valkyrie Engine",
     u32 engine_version = VK_MAKE_VERSION(1, 0, 0)) {
-  // helps bnt not necessary
+  // helps but not necessary
   VkApplicationInfo app_info{
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
       .pNext = nullptr,
@@ -242,7 +237,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
       .applicationVersion = application_version,
       .pEngineName = engine_name,
       .engineVersion = engine_version,
-      .apiVersion = VK_API_VERSION_1_1,
+      .apiVersion = VK_API_VERSION_1_3,
   };
 
   VkInstanceCreateInfo create_info{
@@ -1337,6 +1332,7 @@ struct SpanBuffer {
   void write(VkDevice dev, u32 family_index,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
              VkBufferUsageFlagBits usage, stx::Span<T const> span) {
+    // TODO(lamarrr): handle less than
     if (span.size_bytes() != size) {
       vkDestroyBuffer(dev, buffer, nullptr);
 
@@ -1382,15 +1378,17 @@ struct SpanBuffer {
       }
     }
 
-    memcpy(memory_map, span.data(), span.size_bytes());
+    if (!span.is_empty()) {
+      memcpy(memory_map, span.data(), span.size_bytes());
 
-    VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                              .pNext = nullptr,
-                              .memory = memory,
-                              .offset = 0,
-                              .size = VK_WHOLE_SIZE};
+      VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                                .pNext = nullptr,
+                                .memory = memory,
+                                .offset = 0,
+                                .size = VK_WHOLE_SIZE};
 
-    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+      ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+    }
   }
 };
 
@@ -1576,7 +1574,8 @@ inline stx::Rc<ImageX*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
 
 // R only
 inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
-    stx::Rc<CommandQueue*> const& queue, u32 width, u32 height) {
+    stx::Rc<CommandQueue*> const& queue, u32 width, u32 height,
+    VkImageUsageFlags usage) {
   VkDevice dev = queue.handle->device.handle->device;
 
   VkImageCreateInfo create_info{
@@ -1590,7 +1589,7 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
       .arrayLayers = 1,
       .samples = VK_SAMPLE_COUNT_1_BIT,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
+      .usage = usage | VK_IMAGE_USAGE_SAMPLED_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queue.handle->info.family.index,
@@ -1631,9 +1630,9 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
       .viewType = VK_IMAGE_VIEW_TYPE_2D,
       .format = VK_FORMAT_R32_SFLOAT,
       .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .g = VK_COMPONENT_SWIZZLE_ZERO,
-                                       .b = VK_COMPONENT_SWIZZLE_ZERO,
-                                       .a = VK_COMPONENT_SWIZZLE_ZERO},
+                                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
       .subresourceRange =
           VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                                   .baseMipLevel = 0,
@@ -1728,25 +1727,28 @@ struct DescriptorBinding {
   }
 };
 
-struct DescriptorSet {
+struct DescriptorSetSpec {
   stx::Vec<DescriptorType> bindings{stx::os_allocator};
 
-  explicit DescriptorSet(std::initializer_list<DescriptorType> abindings) {
+  explicit DescriptorSetSpec(std::initializer_list<DescriptorType> abindings) {
+    bindings.extend(abindings).unwrap();
+  }
+
+  explicit DescriptorSetSpec(stx::Span<DescriptorType const> abindings) {
     bindings.extend(abindings).unwrap();
   }
 };
 
 inline std::pair<stx::Vec<VkDescriptorSetLayout>, stx::Vec<VkDescriptorSet>>
 prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
-                        VkShaderStageFlags shader_stage,
-                        stx::Span<DescriptorSet const> sets) {
+                        stx::Span<DescriptorSetSpec const> specs) {
   stx::Vec<VkDescriptorSetLayout> layouts{stx::os_allocator};
 
-  for (DescriptorSet const& set : sets) {
+  for (DescriptorSetSpec const& spec : specs) {
     stx::Vec<VkDescriptorSetLayoutBinding> bindings{stx::os_allocator};
     u32 binding_index = 0;
 
-    for (DescriptorType type : set.bindings) {
+    for (DescriptorType type : spec.bindings) {
       VkDescriptorType vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
       switch (type) {
@@ -1754,7 +1756,7 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
           vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
           break;
         case DescriptorType::Sampler:
-          vktype = VK_DESCRIPTOR_TYPE_SAMPLER;
+          vktype = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
           break;
         default:
           ASR_UNREACHABLE();
@@ -1764,7 +1766,7 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
           .push(VkDescriptorSetLayoutBinding{.binding = binding_index,
                                              .descriptorType = vktype,
                                              .descriptorCount = 1,
-                                             .stageFlags = shader_stage,
+                                             .stageFlags = VK_SHADER_STAGE_ALL,
                                              .pImmutableSamplers = nullptr})
           .unwrap();
 
@@ -1797,7 +1799,7 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
       .pSetLayouts = layouts.data(),
   };
 
-  descriptor_sets.reserve(layouts.size()).unwrap();
+  descriptor_sets.resize(layouts.size(), VK_NULL_HANDLE).unwrap();
 
   ASR_VK_CHECK(vkAllocateDescriptorSets(dev, &descriptor_set_alloc_info,
                                         descriptor_sets.data()));
@@ -1811,12 +1813,13 @@ struct DescriptorSets {
   stx::Vec<VkDescriptorSetLayout> descriptor_set_layouts{stx::os_allocator};
   stx::Vec<VkDescriptorSet> descriptor_sets{stx::os_allocator};
 
-  stx::Rc<Device*> device;
+  stx::Vec<DescriptorSetSpec> descriptor_sets_specs{stx::os_allocator};
 
-  stx::Vec<DescriptorSet> descriptor_set_spec{stx::os_allocator};
+  VkDevice dev = VK_NULL_HANDLE;
 
-  DescriptorSets(stx::Rc<Device*> adevice, stx::Span<DescriptorSet> spec)
-      : device{std::move(adevice)} {
+  void init(VkDevice adev, stx::Span<DescriptorSetSpec> spec) {
+    dev = adev;
+
     VkDescriptorPoolSize pool_sizes[] = {
         {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 20},
         {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 10}};
@@ -1824,30 +1827,26 @@ struct DescriptorSets {
     VkDescriptorPoolCreateInfo pool_create_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .pNext = nullptr,
-        .flags = 0,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
         .maxSets = 10,
         .poolSizeCount = AS_U32(std::size(pool_sizes)),
         .pPoolSizes = pool_sizes,
     };
 
-    ASR_VK_CHECK(vkCreateDescriptorPool(
-        device.handle->device, &pool_create_info, nullptr, &descriptor_pool));
+    ASR_VK_CHECK(vkCreateDescriptorPool(dev, &pool_create_info, nullptr,
+                                        &descriptor_pool));
 
-    descriptor_set_spec.extend_move(spec).unwrap();
+    descriptor_sets_specs.extend_move(spec).unwrap();
 
-    auto [descset_layouts, descsets] = prepare_descriptor_sets(
-        device.handle->device, descriptor_pool, VK_SHADER_STAGE_VERTEX_BIT,
-        descriptor_set_spec);
+    // TODO(lamarrr): make descriptor set visible to fragment shader
+    auto [descset_layouts, descsets] =
+        prepare_descriptor_sets(dev, descriptor_pool, descriptor_sets_specs);
 
     descriptor_set_layouts = std::move(descset_layouts);
     descriptor_sets = std::move(descsets);
   }
 
-  STX_MAKE_PINNED(DescriptorSets)
-
-  ~DescriptorSets() {
-    VkDevice dev = device.handle->device;
-
+  void destroy() {
     for (VkDescriptorSetLayout layout : descriptor_set_layouts) {
       vkDestroyDescriptorSetLayout(dev, layout, nullptr);
     }
@@ -1860,28 +1859,26 @@ struct DescriptorSets {
   }
 
   void write(stx::Span<stx::Span<DescriptorBinding const> const> sets) {
-    VkDevice dev = device.handle->device;
-
-    ASR_ENSURE(sets.size() == descriptor_set_spec.size());
+    ASR_ENSURE(sets.size() == descriptor_sets_specs.size());
     ASR_ENSURE(sets.size() == descriptor_sets.size());
 
     for (u32 iset = 0; iset < AS_U32(sets.size()); iset++) {
       stx::Span<DescriptorBinding const> set = sets[iset];
 
-      ASR_ENSURE(set.size() == descriptor_set_spec[iset].bindings.size());
+      ASR_ENSURE(set.size() == descriptor_sets_specs[iset].bindings.size());
 
       for (u32 ibinding = 0; ibinding < AS_U32(sets[iset].size()); ibinding++) {
         DescriptorBinding binding = sets[iset][ibinding];
 
         ASR_ENSURE(binding.type ==
-                   descriptor_set_spec[iset].bindings[ibinding]);
+                   descriptor_sets_specs[iset].bindings[ibinding]);
 
         switch (binding.type) {
           case DescriptorType::Sampler: {
             VkDescriptorImageInfo image_info{
                 .sampler = binding.sampler,
                 .imageView = binding.view,
-                .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
             VkWriteDescriptorSet writes[] = {{
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -1890,7 +1887,7 @@ struct DescriptorSets {
                 .dstBinding = ibinding,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .pImageInfo = &image_info,
                 .pBufferInfo = nullptr,
                 .pTexelBufferView = nullptr,
@@ -1958,8 +1955,7 @@ inline Image create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queue.handle->info.family.index,
-      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-  };
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
   VkImage image;
 
@@ -1994,7 +1990,7 @@ inline Image create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
       .flags = 0,
       .image = image,
       .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = VK_FORMAT_R8G8B8A8_SRGB,
+      .format = swapchain_format,
       .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -2014,7 +2010,7 @@ inline Image create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
 }
 
 inline Image create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
-                                        VkFormat swapchain_format,
+                                        VkFormat depth_format,
                                         VkExtent2D swapchain_extent,
                                         VkSampleCountFlagBits sample_count) {
   VkDevice dev = queue.handle->device.handle->device;
@@ -2024,7 +2020,7 @@ inline Image create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
       .pNext = nullptr,
       .flags = 0,
       .imageType = VK_IMAGE_TYPE_2D,
-      .format = swapchain_format,
+      .format = depth_format,
       .extent = VkExtent3D{.width = swapchain_extent.width,
                            .height = swapchain_extent.height,
                            .depth = 1},
@@ -2071,13 +2067,13 @@ inline Image create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
       .flags = 0,
       .image = image,
       .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = VK_FORMAT_R8G8B8A8_SRGB,
+      .format = depth_format,
       .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .a = VK_COMPONENT_SWIZZLE_IDENTITY},
       .subresourceRange =
-          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
                                   .baseMipLevel = 0,
                                   .levelCount = 1,
                                   .baseArrayLayer = 0,
@@ -2095,7 +2091,7 @@ inline VkSurfaceFormatKHR select_swapchain_surface_formats(
     stx::Span<VkSurfaceFormatKHR const> formats,
     stx::Span<VkSurfaceFormatKHR const> preferred_formats) {
   ASR_ENSURE(!formats.is_empty(),
-             "No window surface format supported by physical device");
+             "no window surface format supported by physical device");
 
   for (VkSurfaceFormatKHR preferred_format : preferred_formats) {
     if (!formats
@@ -2107,7 +2103,7 @@ inline VkSurfaceFormatKHR select_swapchain_surface_formats(
       return preferred_format;
   }
 
-  ASR_PANIC("Unable to find any of the preferred swapchain surface formats");
+  ASR_PANIC("unable to find any of the preferred swapchain surface formats");
 }
 
 inline VkPresentModeKHR select_swapchain_presentation_mode(
@@ -2137,14 +2133,14 @@ inline VkPresentModeKHR select_swapchain_presentation_mode(
   /// than standard vertical sync that uses double buffering.
 
   ASR_ENSURE(!available_presentation_modes.is_empty(),
-             "No surface presentation mode available");
+             "no surface presentation mode available");
 
   for (auto const& preferred_present_mode : preferred_present_modes) {
     if (!available_presentation_modes.find(preferred_present_mode).is_empty())
       return preferred_present_mode;
   }
 
-  ASR_PANIC("Unable to find any of the preferred presentation modes");
+  ASR_PANIC("unable to find any of the preferred presentation modes");
 }
 
 inline VkFormat find_supported_format(VkPhysicalDevice phy_device,
@@ -2245,9 +2241,11 @@ struct SwapChain {
 
   stx::Vec<VkSemaphore> image_acquisition_semaphores{stx::os_allocator};
 
+  stx::Vec<VkFence> image_acquisition_fences{stx::os_allocator};
+
   stx::Vec<VkFence> rendering_fences{stx::os_allocator};
 
-  stx::Vec<VkFramebuffer> frame_buffers{stx::os_allocator};
+  stx::Vec<VkFramebuffer> framebuffers{stx::os_allocator};
 
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
 
@@ -2308,6 +2306,7 @@ struct SwapChain {
         VK_TRUE);
 
     swapchain = new_swapchain;
+    images = get_swapchain_images(dev, swapchain);
     format = selected_format;
     present_mode = selected_present_mode;
     extent = new_extent;
@@ -2347,6 +2346,9 @@ struct SwapChain {
     for (usize i = 0; i < MAX_FRAMES_INFLIGHT; i++) {
       rendering_semaphores.push(create_semaphore(dev)).unwrap();
       image_acquisition_semaphores.push(create_semaphore(dev)).unwrap();
+      image_acquisition_fences
+          .push(create_fence(dev, VK_FENCE_CREATE_SIGNALED_BIT))
+          .unwrap();
       rendering_fences.push(create_fence(dev, VK_FENCE_CREATE_SIGNALED_BIT))
           .unwrap();
     }
@@ -2392,7 +2394,8 @@ struct SwapChain {
         .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
 
     VkAttachmentReference depth_attachment_reference{
-        .attachment = 1, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+        .attachment = 1,
+        .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
 
     VkAttachmentReference color_attachment_resolve_reference{
         .attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
@@ -2455,26 +2458,27 @@ struct SwapChain {
       ASR_VK_CHECK(
           vkCreateFramebuffer(dev, &create_info, nullptr, &framebuffer));
 
-      frame_buffers.push_inplace(framebuffer).unwrap();
+      framebuffers.push_inplace(framebuffer).unwrap();
     }
 
     {
       auto [image, memory, view] =
-          create_bitmap_image(queue, extent.width, extent.height);
+          create_bitmap_image(queue, extent.width, extent.height,
+                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
       VkRenderPass render_pass;
 
       {
         VkAttachmentDescription color_attachment{
             .flags = 0,
-            .format = format.format,
+            .format = VK_FORMAT_R32_SFLOAT,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+            .finalLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL};
 
         VkAttachmentReference color_attachment_reference{
             .attachment = 0,
@@ -2564,11 +2568,15 @@ struct SwapChain {
     msaa_color_image.destroy(dev);
     msaa_depth_image.destroy(dev);
 
-    for (VkFramebuffer framebuffer : frame_buffers) {
+    for (VkFramebuffer framebuffer : framebuffers) {
       vkDestroyFramebuffer(dev, framebuffer, nullptr);
     }
 
     for (VkFence fence : rendering_fences) {
+      vkDestroyFence(dev, fence, nullptr);
+    }
+
+    for (VkFence fence : image_acquisition_fences) {
       vkDestroyFence(dev, fence, nullptr);
     }
 
@@ -2645,29 +2653,22 @@ struct Pipeline {
   VkPipelineLayout layout = VK_NULL_HANDLE;
   VkRenderPass target_render_pass = VK_NULL_HANDLE;
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
-  VkShaderModule target_vertex_shader = VK_NULL_HANDLE;
-  VkShaderModule target_fragment_shader = VK_NULL_HANDLE;
-  stx::Rc<Device*> device;
 
-  Pipeline(stx::Rc<Device*> adevice, VkShaderModule atarget_vertex_shader,
-           VkShaderModule atarget_fragment_shader,
-           VkRenderPass atarget_render_pass,
-           VkSampleCountFlagBits amsaa_sample_count,
-           stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
-           usize vertex_input_size)
-      : target_render_pass{atarget_render_pass},
-        msaa_sample_count{amsaa_sample_count},
-        target_vertex_shader{atarget_vertex_shader},
-        target_fragment_shader{atarget_fragment_shader},
-        device{std::move(adevice)} {
-    VkDevice dev = device.handle->device;
+  void build(
+      VkDevice dev, VkShaderModule vertex_shader,
+      VkShaderModule fragment_shader, VkRenderPass target_render_pass,
+      VkSampleCountFlagBits amsaa_sample_count,
+      stx::Span<VkDescriptorSetLayout const> descriptor_set_layout,
+      stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
+      usize vertex_input_size) {
+    msaa_sample_count = amsaa_sample_count;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = target_vertex_shader,
+        .module = vertex_shader,
         .pName = "main",
         .pSpecializationInfo = nullptr};
 
@@ -2676,7 +2677,7 @@ struct Pipeline {
         .pNext = nullptr,
         .flags = 0,
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = target_fragment_shader,
+        .module = fragment_shader,
         .pName = "main",
         .pSpecializationInfo = nullptr};
 
@@ -2687,8 +2688,8 @@ struct Pipeline {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .setLayoutCount = 0,
-        .pSetLayouts = nullptr,
+        .setLayoutCount = AS_U32(descriptor_set_layout.size()),
+        .pSetLayouts = descriptor_set_layout.data(),
         .pushConstantRangeCount = 0,
         .pPushConstantRanges = nullptr};
 
@@ -2836,39 +2837,28 @@ struct Pipeline {
                                            nullptr, &pipeline));
   }
 
-  STX_MAKE_PINNED(Pipeline)
-
-  ~Pipeline() {
-    vkDestroyPipelineLayout(device.handle->device, layout, nullptr);
-    vkDestroyPipeline(device.handle->device, pipeline, nullptr);
+  void destroy(VkDevice dev) {
+    vkDestroyPipelineLayout(dev, layout, nullptr);
+    vkDestroyPipeline(dev, pipeline, nullptr);
   }
 };
 
 struct ClipPipeline {
   VkPipeline pipeline = VK_NULL_HANDLE;
   VkPipelineLayout layout = VK_NULL_HANDLE;
-  VkRenderPass target_render_pass = VK_NULL_HANDLE;
-  VkShaderModule target_vertex_shader = VK_NULL_HANDLE;
-  VkShaderModule target_fragment_shader = VK_NULL_HANDLE;
-  stx::Rc<Device*> device;
 
-  ClipPipeline(
-      stx::Rc<Device*> adevice, VkShaderModule atarget_vertex_shader,
-      VkShaderModule atarget_fragment_shader, VkRenderPass atarget_render_pass,
+  void build(
+      VkDevice dev, VkShaderModule vertex_shader,
+      VkShaderModule fragment_shader, VkRenderPass target_render_pass,
+      stx::Span<VkDescriptorSetLayout const> descriptor_set_layout,
       stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
-      usize vertex_input_size)
-      : target_render_pass{atarget_render_pass},
-        target_vertex_shader{atarget_vertex_shader},
-        target_fragment_shader{atarget_fragment_shader},
-        device{std::move(adevice)} {
-    VkDevice dev = device.handle->device;
-
+      usize vertex_input_size) {
     VkPipelineShaderStageCreateInfo vert_shader_stage{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = target_vertex_shader,
+        .module = vertex_shader,
         .pName = "main",
         .pSpecializationInfo = nullptr};
 
@@ -2877,7 +2867,7 @@ struct ClipPipeline {
         .pNext = nullptr,
         .flags = 0,
         .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = target_fragment_shader,
+        .module = fragment_shader,
         .pName = "main",
         .pSpecializationInfo = nullptr};
 
@@ -2888,8 +2878,8 @@ struct ClipPipeline {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .setLayoutCount = 0,
-        .pSetLayouts = nullptr,
+        .setLayoutCount = AS_U32(descriptor_set_layout.size()),
+        .pSetLayouts = descriptor_set_layout.data(),
         .pushConstantRangeCount = 0,
         .pPushConstantRanges = nullptr};
 
@@ -3010,11 +3000,9 @@ struct ClipPipeline {
                                            nullptr, &pipeline));
   }
 
-  STX_MAKE_PINNED(ClipPipeline)
-
-  ~ClipPipeline() {
-    vkDestroyPipelineLayout(device.handle->device, layout, nullptr);
-    vkDestroyPipeline(device.handle->device, pipeline, nullptr);
+  void destroy(VkDevice dev) {
+    vkDestroyPipelineLayout(dev, layout, nullptr);
+    vkDestroyPipeline(dev, pipeline, nullptr);
   }
 };
 
@@ -3028,21 +3016,31 @@ struct RecordingContext {
   VkShaderModule clip_fragment_shader = VK_NULL_HANDLE;
   Pipeline pipeline;
   ClipPipeline clip_pipeline;
-  // TODO(lamarrr): each in-flight frame will have a descriptor set
+  stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{
+      stx::os_allocator};
+  usize vertex_input_size = 0;
+  stx::Vec<VkVertexInputAttributeDescription> clip_vertex_input_attr{
+      stx::os_allocator};
+  usize clip_vertex_input_size = 0;
+  //  each in-flight frame will have one descriptor set
   stx::Vec<DescriptorSets> descriptor_sets{stx::os_allocator};
+  //  only one clip operation ever executes at a point in time so has only one
+  //  descriptor set
   DescriptorSets clip_descriptor_sets;
-  u32 next_swapchain_image_index = 0;
-  stx::Rc<Surface*> surface;
-  stx::Rc<CommandQueue*> queue;
 
-  RecordingContext(stx::Rc<Surface*> asurface, stx::Rc<CommandQueue*> aqueue,
-                   stx::Span<u32 const> vertex_shader_code,
-                   stx::Span<u32 const> fragment_shader_code,
-                   stx::Span<u32 const> clip_vertex_shader_code,
-                   stx::Span<u32 const> clip_fragment_shader_code)
-      : surface{std::move(asurface)}, queue{std::move(aqueue)} {
-    VkDevice dev = queue.handle->device.handle->device;
-
+  void init(
+      VkDevice dev, CommandQueue const& queue,
+      stx::Span<u32 const> vertex_shader_code,
+      stx::Span<u32 const> fragment_shader_code,
+      stx::Span<u32 const> clip_vertex_shader_code,
+      stx::Span<u32 const> clip_fragment_shader_code,
+      stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
+      usize avertex_input_size,
+      stx::Span<VkVertexInputAttributeDescription const>
+          aclip_vertex_input_attr,
+      usize aclip_vertex_input_size,
+      stx::Span<DescriptorSetSpec const> descriptor_sets_specs,
+      stx::Span<DescriptorSetSpec const> clip_descriptor_sets_specs) {
     auto create_shader = [dev](stx::Span<u32 const> code) {
       VkShaderModuleCreateInfo create_info{
           .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -3067,7 +3065,7 @@ struct RecordingContext {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .pNext = nullptr,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = queue.handle->info.family.index};
+        .queueFamilyIndex = queue.info.family.index};
 
     ASR_VK_CHECK(vkCreateCommandPool(dev, &command_pool_create_info, nullptr,
                                      &command_pool));
@@ -3083,13 +3081,51 @@ struct RecordingContext {
                                           &command_buffer));
     ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &command_buffer_allocate_info,
                                           &clip_command_buffer));
+
+    vertex_input_attr.extend(avertex_input_attr).unwrap();
+    vertex_input_size = avertex_input_size;
+
+    clip_vertex_input_attr.extend(aclip_vertex_input_attr).unwrap();
+    clip_vertex_input_size = aclip_vertex_input_size;
+
+    for (usize i = 0; i < SwapChain::MAX_FRAMES_INFLIGHT; i++) {
+      DescriptorSets sets;
+
+      stx::Vec<DescriptorSetSpec> specs{stx::os_allocator};
+
+      for (DescriptorSetSpec const& spec : descriptor_sets_specs) {
+        specs.push(DescriptorSetSpec{spec.bindings}).unwrap();
+      }
+
+      sets.init(dev, specs);
+
+      descriptor_sets.push(std::move(sets)).unwrap();
+    }
+
+    stx::Vec<DescriptorSetSpec> clip_specs{stx::os_allocator};
+
+    for (DescriptorSetSpec const& spec : clip_descriptor_sets_specs) {
+      clip_specs.push(DescriptorSetSpec{spec.bindings}).unwrap();
+    }
+
+    clip_descriptor_sets.init(dev, clip_specs);
   }
 
-  STX_MAKE_PINNED(RecordingContext)
+  void on_swapchain_changed(SwapChain const& swapchain) {
+    pipeline.build(swapchain.queue.handle->device.handle->device, vertex_shader,
+                   fragment_shader, swapchain.render_pass,
+                   swapchain.msaa_sample_count,
+                   descriptor_sets[swapchain.next_frame_flight_index]
+                       .descriptor_set_layouts,
+                   vertex_input_attr, vertex_input_size);
+    clip_pipeline.build(swapchain.queue.handle->device.handle->device,
+                        clip_vertex_shader, clip_fragment_shader,
+                        swapchain.clip.render_pass,
+                        clip_descriptor_sets.descriptor_set_layouts,
+                        clip_vertex_input_attr, clip_vertex_input_size);
+  }
 
-  ~RecordingContext() {
-    VkDevice dev = queue.handle->device.handle->device;
-
+  void destroy(VkDevice dev) {
     vkDestroyShaderModule(dev, vertex_shader, nullptr);
     vkDestroyShaderModule(dev, fragment_shader, nullptr);
     vkDestroyShaderModule(dev, clip_vertex_shader, nullptr);
@@ -3099,6 +3135,15 @@ struct RecordingContext {
     vkFreeCommandBuffers(dev, command_pool, 1, &clip_command_buffer);
 
     vkDestroyCommandPool(dev, command_pool, nullptr);
+
+    for (DescriptorSets& sets : descriptor_sets) {
+      sets.destroy();
+    }
+
+    clip_descriptor_sets.destroy();
+
+    pipeline.destroy(dev);
+    clip_pipeline.destroy(dev);
   }
 };
 

@@ -75,7 +75,7 @@ struct Window {
       : api_{std::move(api)},
         window_{window},
         id_{id},
-        extent_{extent},
+        window_extent_{extent},
         surface_extent_{surface_extent},
         cfg_{std::move(cfg)},
         init_thread_id_{init_thread_id} {}
@@ -157,7 +157,9 @@ struct Window {
 
   void recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue);
 
-  WindowSwapchainDiff present();
+  std::pair<WindowSwapchainDiff, u32> acquire_image();
+
+  WindowSwapchainDiff present(u32 next_swapchain_image_index);
 
   void on(WindowEvent event, stx::UniqueFn<void()> callback) {
     window_event_listeners.emplace(event, std::move(callback));
@@ -171,15 +173,16 @@ struct Window {
 
   void tick(std::chrono::nanoseconds) {
     SDL_DisplayMode display_mode;
-    ASR_ENSURE(SDL_GetWindowDisplayMode(window_, &display_mode) == 0);
-    refresh_rate_ = display_mode.refresh_rate;
+    ASR_ENSURE(SDL_GetWindowDisplayMode(window_, &display_mode) == 0,
+               "Unable to get window display mode");
+    refresh_rate_ = AS_U32(display_mode.refresh_rate);
     // forward event if refresh rate changed
   }
 
   stx::Rc<WindowApi*> api_;
   SDL_Window* window_ = nullptr;
   WindowID id_ = WindowID{0};
-  Extent extent_;
+  Extent window_extent_;
   Extent surface_extent_;
   WindowConfig cfg_;
   std::thread::id init_thread_id_;

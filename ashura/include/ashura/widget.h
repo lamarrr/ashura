@@ -6,6 +6,7 @@
 #include "stx/fn.h"
 #include "stx/option.h"
 #include "stx/span.h"
+#include "stx/string.h"
 
 namespace asr {
 
@@ -22,25 +23,37 @@ struct Context {};
 
 struct Widget {
   virtual stx::Span<Widget *const> get_children();
+
   virtual WidgetInfo get_debug_info();
+
   virtual Visibility get_visibility();
+
   virtual stx::Option<i64> get_z_index();
+
   // + handling floating, relative, sticky and fixed positioned elements
-  virtual Rect layout(Extent allotted_extent);  // min, max, available
+  virtual RectF layout(vec2 allotted_extent);  // min, max, available
+
   // children layout??? or do we entirely allow self layout
   // + other properties that will make its rendering work well with other
   // widgets
-  virtual void draw(Rect area);
+  virtual void draw(vec2 offset, vec2 extent);
+
   // called before children are drawn
-  virtual void pre_effect(Rect area);
+  virtual void pre_effect(vec2 offset, vec2 extent);
+
   // called once children are drawn
-  virtual void post_effect(Rect area);
+  virtual void post_effect(vec2 offset, vec2 extent);
 
   virtual void tick(std::chrono::nanoseconds interval, Context &ctx);
-  // events
-  virtual void on_click(MouseButton btn, Offset pos);
-  virtual void on_double_click(MouseButton btn, Offset pos);
-  virtual void on_mouse_scroll(OffsetI translation, f32 x, f32 y);
+
+  /*=== EVENTS ===*/
+
+  virtual void on_enter_view();
+  virtual void on_leave_view();
+
+  virtual void on_click(MouseButton btn, vec2 pos);
+  virtual void on_double_click(MouseButton btn, vec2 pos);
+  virtual void on_mouse_scroll(vec2 translation, vec2 x, vec2 y);
   virtual void on_mouse_move();
   virtual void on_hover(Offset pos);
   virtual void on_mouse_down();
@@ -54,33 +67,50 @@ struct Widget {
   virtual void on_drag();
   virtual void on_drag_start();
   virtual void on_drag_end();
+  virtual void on_drag_enter();
+  virtual void on_drag_leave();
+  virtual void on_drag_over();
+  virtual void on_drop();
+  virtual void on_wheel();
+
+  virtual void on_touch_cancel();
+  virtual void on_touch_end();
+  virtual void on_touch_move();
+  virtual void on_touch_start();
+  virtual void on_touch_enter();
+  virtual void on_touch_leave();
+
+  virtual void on_key_down();
+  virtual void on_key_up();
+  virtual void on_keypressed();
+
   virtual void on_focus();
   virtual void on_focus_in();
   virtual void on_focus_out();
+
+  virtual void on_select();
+
+  virtual void on_copy();
+  virtual void on_cut();
+  virtual void on_paste();
+
   // scroll of this widget's content
-  virtual void on_scroll(OffsetI translation, f32 x, f32 y);
-  virtual void on_enter_view();
-  virtual void on_leave_view();
-  // virtual void on_full_screen_change();
-  // virtual void on_keydown();
-  // virtual void on_keyup();
-  // virtual void on_input(); - input widget
-  virtual void tooltip();
+  virtual void on_scroll(vec2 translation, vec2 y);
+
+  virtual void on_full_screen_change();
+
+  virtual void on_input();  // <- input widget
+
+  virtual void on_resize();
+
+  // TODO(lamarrr): can this be simpler?
+  virtual stx::String tooltip();
+
   virtual void accessibility_navigate();
   virtual void accessibility_info();
-  // bind to keyboard
-  // virtual void on_keyboard();
-  // state saving - just bytes, left to the widget to decide how to save and
-  // restore state
+
   virtual JsonObject save();
   virtual void restore(JsonObject const &);
-
-  stx::UniqueFn<void()> mark_needs_redraw =
-      stx::fn::rc::make_unique_static([]() {});
-  stx::UniqueFn<void()> mark_needs_relayout =
-      stx::fn::rc::make_unique_static([]() {});
-  stx::UniqueFn<void()> mark_children_changed =
-      stx::fn::rc::make_unique_static([]() {});
 };
 
 struct GlobalEvent {

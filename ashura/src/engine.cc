@@ -1,7 +1,7 @@
 #include "ashura/engine.h"
 
 #include "ashura/canvas.h"
-#include "ashura/render_object.h"
+#include "ashura/sdl_utils.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
@@ -14,11 +14,11 @@ namespace impl {
 static stx::Rc<spdlog::logger*> make_multi_threaded_logger(
     std::string name, std::string file_path) {
   stx::Vec<spdlog::sink_ptr> sinks{stx::os_allocator};
-  sinks
-      .push(std::make_shared<spdlog::sinks::basic_file_sink_mt>(
-          std::move(file_path)))
-      .unwrap();
-
+  /* sinks
+       .push(std::make_shared<spdlog::sinks::basic_file_sink_mt>(
+           std::move(file_path)))
+       .unwrap();
+ */
   sinks.push(std::make_shared<spdlog::sinks::stdout_color_sink_mt>()).unwrap();
 
   return stx::rc::make_inplace<spdlog::logger>(
@@ -27,7 +27,7 @@ static stx::Rc<spdlog::logger*> make_multi_threaded_logger(
 }
 }  // namespace impl
 
-static stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
+inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
     stx::Span<vk::PhyDeviceInfo const> const phy_devices,
     stx::Span<VkPhysicalDeviceType const> preferred_device_types,
     vk::Surface const& target_surface) {
@@ -66,26 +66,26 @@ Engine::Engine(AppConfig const& cfg) {
   if (cfg.enable_validation_layers)
     required_validation_layers.push("VK_LAYER_KHRONOS_validation").unwrap();
 
-  logger_ = stx::Some(
+  logger = stx::Some(
       impl::make_multi_threaded_logger("ashura", cfg.log_file.c_str()));
 
-  auto& logger = *logger_.value().handle;
+  auto& xlogger = *logger.value().handle;
 
-  logger.info("Initializing Window API");
+  xlogger.info("Initializing Window API");
 
-  window_api_ =
+  window_api =
       stx::Some(stx::rc::make_inplace<WindowApi>(stx::os_allocator).unwrap());
 
-  logger.info("Initialized Window API");
-  logger.info("Creating root window");
+  xlogger.info("Initialized Window API");
+  xlogger.info("Creating root window");
 
-  root_window_ = stx::Some(
-      create_window(window_api_.value().share(), cfg.window_config.copy()));
+  window = stx::Some(
+      create_window(window_api.value().share(), cfg.window_config.copy()));
 
-  logger.info("Created root window");
+  xlogger.info("Created root window");
 
   stx::Vec window_required_instance_extensions =
-      root_window_.value().handle->get_required_instance_extensions();
+      window.value().handle->get_required_instance_extensions();
 
   // TODO(lamarrr): check for validation layers requirement
   stx::Rc<vk::Instance*> vk_instance = vk::create_instance(
@@ -93,7 +93,7 @@ Engine::Engine(AppConfig const& cfg) {
       VK_MAKE_VERSION(cfg.version.major, cfg.version.minor, cfg.version.patch),
       window_required_instance_extensions, required_validation_layers);
 
-  root_window_.value().handle->attach_surface(vk_instance.share());
+  window.value().handle->attach_surface(vk_instance.share());
 
   stx::Vec phy_devices = vk::get_all_devices(vk_instance);
 
@@ -102,10 +102,10 @@ Engine::Engine(AppConfig const& cfg) {
       VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
       VK_PHYSICAL_DEVICE_TYPE_CPU};
 
-  logger.info("Available Physical Devices:");
+  xlogger.info("Available Physical Devices:");
 
   for (vk::PhyDeviceInfo const& device : phy_devices) {
-    logger.info("\t{}", vk::format(device));
+    xlogger.info("\t{}", vk::format(device));
     // TODO(lamarrr): log graphics families on devices and other properties
   }
 
@@ -113,12 +113,12 @@ Engine::Engine(AppConfig const& cfg) {
       stx::rc::make(
           stx::os_allocator,
           select_device(phy_devices, device_preference,
-                        *root_window_.value().handle->surface_.value().handle)
+                        *window.value().handle->surface_.value().handle)
               .expect("Unable to find any suitable rendering device")[0]
               .copy())
           .unwrap();
 
-  logger.info("Selected Physical Device: {}", vk::format(*phy_device.handle));
+  xlogger.info("Selected Physical Device: {}", vk::format(*phy_device.handle));
 
   // we might need multiple command queues, one for data transfer and one for
   // rendering
@@ -146,11 +146,13 @@ Engine::Engine(AppConfig const& cfg) {
 
   VkPhysicalDeviceFeatures required_features{};
 
+  required_features.samplerAnisotropy = VK_TRUE;
+
   stx::Rc<vk::Device*> device = vk::create_device(
       phy_device, command_queue_create_infos, required_device_extensions,
       required_validation_layers, required_features);
 
-  stx::Rc<vk::CommandQueue*> graphics_command_queue =
+  stx::Rc<vk::CommandQueue*> xqueue =
       stx::rc::make_inplace<vk::CommandQueue>(
           stx::os_allocator,
           vk::get_command_queue(device, *graphics_command_queue_family.handle,
@@ -158,22 +160,148 @@ Engine::Engine(AppConfig const& cfg) {
               .expect("Failed to create graphics command queue"))
           .unwrap();
 
-  root_window_.value().handle->recreate_swapchain(graphics_command_queue);
+  queue = stx::Some(xqueue.share());
 
-  root_window_.value().handle->on(
+  window.value().handle->recreate_swapchain(xqueue);
+
+  canvas_context = stx::Some(stx::rc::make_inplace<gfx::CanvasContext>(
+                                 stx::os_allocator, xqueue.share())
+                                 .unwrap());
+
+  canvas_context.value().handle->recording_context.on_swapchain_changed(
+      *window.value()
+           .handle->surface_.value()
+           .handle->swapchain.value()
+           .handle);
+
+  window.value().handle->on(
       WindowEvent::Resized,
       stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
         ASR_LOG("resized");
       }).unwrap());
 
-  root_window_.value().handle->mouse_motion_listener =
+  window.value().handle->mouse_motion_listener =
       stx::fn::rc::make_unique_static(
           [](MouseMotionEvent const&) { ASR_LOG("mouse motion detected"); });
+
+  u32 const data[1] = {0x00000000};
+  auto transparent_image = vk::upload_rgba_image(xqueue, 1, 1, data);
+
+  auto sampler = vk::create_image_sampler(transparent_image);
+
+  canvas = stx::Some(gfx::Canvas{{0.0f, 0.0f}, sampler});
 };
 
 void Engine::tick(std::chrono::nanoseconds interval) {
-  window_api_.value().handle->poll_events();
-  root_window_.value().handle->tick(interval);
+  window.value().handle->tick(interval);
+
+  auto draw_content = [&]() {
+    VkExtent2D window_extent = window.value()
+                                   .handle->surface_.value()
+                                   .handle->swapchain.value()
+                                   .handle->window_extent;
+
+    canvas.value().restart(
+        vec2{AS_F32(window_extent.width), AS_F32(window_extent.height)});
+
+    canvas.value().brush.color = colors::GREEN;
+    canvas.value().clear();
+  };
+
+  draw_content();
+  // only try to present if the pipeline has new changes or window was
+  // resized
+
+  // TODO(lamarrr): make presentation happen after recreation, for the first
+  // iteration. and remove the created swapchain in the init method
+
+  // only try to recreate swapchain if the present swapchain can't be used for
+  // presentation
+
+  WindowSwapchainDiff swapchain_diff = WindowSwapchainDiff::None;
+
+  do {
+    if (swapchain_diff != WindowSwapchainDiff::None) {
+      window.value().handle->recreate_swapchain(queue.value());
+      canvas_context.value().handle->recording_context.on_swapchain_changed(
+          *window.value()
+               .handle->surface_.value()
+               .handle->swapchain.value()
+               .handle);
+
+      draw_content();
+    }
+
+    vk::SwapChain& swapchain = *window.value()
+                                    .handle->surface_.value()
+                                    .handle->swapchain.value()
+                                    .handle;
+
+    ASR_VK_CHECK(vkResetFences(
+        swapchain.queue.handle->device.handle->device, 1,
+        &swapchain
+             .image_acquisition_fences[swapchain.next_frame_flight_index]));
+
+    auto [diff, next_swapchain_image_index] =
+        window.value().handle->acquire_image();
+
+    swapchain_diff = diff;
+
+    if (swapchain_diff != WindowSwapchainDiff::None) {
+      continue;
+    }
+
+    static constexpr u64 TIMEOUT = AS_U64(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
+
+    ASR_VK_CHECK(vkWaitForFences(
+        swapchain.queue.handle->device.handle->device, 1,
+        &swapchain.image_acquisition_fences[swapchain.next_frame_flight_index],
+        VK_TRUE, TIMEOUT));
+
+    ASR_VK_CHECK(vkResetFences(
+        swapchain.queue.handle->device.handle->device, 1,
+        &swapchain
+             .image_acquisition_fences[swapchain.next_frame_flight_index]));
+
+    canvas_context.value().handle->submit(*window.value()
+                                               .handle->surface_.value()
+                                               .handle->swapchain.value()
+                                               .handle,
+                                          canvas.value().draw_list);
+
+    swapchain_diff = window.value().handle->present(next_swapchain_image_index);
+
+    // the frame semaphores and synchronization primitives are still used even
+    // if an error is returned
+    swapchain.next_frame_flight_index =
+        (swapchain.next_frame_flight_index + 1) %
+        vk::SwapChain::MAX_FRAMES_INFLIGHT;
+
+  } while (swapchain_diff != WindowSwapchainDiff::None);
+
+  // poll events to make the window not be marked as unresponsive.
+  // we also poll events from SDL's event queue until there are none left.
+  //
+  // any missed event should be rolled over to the next tick()
+  do {
+  } while (window_api.value().handle->poll_events());
+
+  //   pipeline->dispatch_events(
+  //   window->handle.handle->event_queue.mouse_button_events,
+  //   window->handle.handle->event_queue.window_events);
+
+  //   bool window_extent_changed =
+  //   any_eq(window.value().handle->, WindowEvent::SizeChanged);
+
+  // actually forward
+  //   if (any_eq(window->handle.handle->event_queue.window_events,
+  //  WindowEvent::Close)) {
+  // std::exit(0);
+  //   }
+
+  // TODO(lamarrr): ???
+  //   window->handle.handle->event_queue.clear();
 }
 
 }  // namespace asr
