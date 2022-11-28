@@ -1331,7 +1331,7 @@ struct SpanBuffer {
   template <typename T>
   void write(VkDevice dev, u32 family_index,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
-             VkBufferUsageFlagBits usage, stx::Span<T const> span) {
+             VkBufferUsageFlags usage, stx::Span<T const> span) {
     // TODO(lamarrr): handle less than
     if (span.size_bytes() != size) {
       vkDestroyBuffer(dev, buffer, nullptr);

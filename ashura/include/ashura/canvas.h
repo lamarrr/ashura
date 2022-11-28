@@ -534,7 +534,7 @@ struct Canvas {
 
     draw_list.commands
         .push(DrawCommand{.indices_offset = start,
-                          .nindices = std::size(indices),
+                          .nindices = AS_U32(std::size(indices)),
                           .clip_indices_offset = clip_start,
                           .nclip_indices = nclip_polygon_vertices,
                           .transform = mat4::identity(),
