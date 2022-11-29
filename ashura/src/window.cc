@@ -152,11 +152,13 @@ WindowSwapchainDiff Window::present(u32 next_swapchain_image_index) {
   // delay the process so we don't submit more frames than the display's
   // refresh rate can keep up with and we thus save power.
   //
-  VkResult present_result =
+  /*VkResult present_result =
       vk::present(swapchain.queue.handle->info.queue, stx::Span<VkSemaphore>{},
                   stx::Span{&swapchain.swapchain, 1},
                   stx::Span{&next_swapchain_image_index, 1});
+*/
 
+  VkResult present_result = VK_SUCCESS;
   if (present_result == VK_SUBOPTIMAL_KHR) {
     return WindowSwapchainDiff::Suboptimal;
   } else if (present_result == VK_ERROR_OUT_OF_DATE_KHR) {
