@@ -1163,7 +1163,8 @@ struct CanvasContext {
       ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
                                         &command_buffer_begin_info));
 
-      // clip mask rendering
+      // TODO(lamarrr): can this be done in batch, i.e. submit multiple command
+      // buffers at once clip mask rendering
       {
         write_clip_vertices(draw_list.clip_vertices, draw_list.clip_indices);
 
@@ -1253,15 +1254,16 @@ struct CanvasContext {
         VkPipelineStageFlags wait_stages[] = {
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
-        VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                                 .pNext = nullptr,
-                                 .waitSemaphoreCount = 0,
-                                 .pWaitSemaphores = nullptr,
-                                 .pWaitDstStageMask = wait_stages,
-                                 .commandBufferCount = 0,
-                                 .pCommandBuffers = nullptr,
-                                 .signalSemaphoreCount = 0,
-                                 .pSignalSemaphores = nullptr};
+        VkSubmitInfo submit_info{
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .pNext = nullptr,
+            .waitSemaphoreCount = 0,
+            .pWaitSemaphores = nullptr,
+            .pWaitDstStageMask = wait_stages,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &recording_context.clip_command_buffer,
+            .signalSemaphoreCount = 0,
+            .pSignalSemaphores = nullptr};
 
         ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.clip.fence));
 
@@ -1368,15 +1370,16 @@ struct CanvasContext {
           dev, 1,
           &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
 
-      VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                               .pNext = nullptr,
-                               .waitSemaphoreCount = 0,
-                               .pWaitSemaphores = nullptr,
-                               .pWaitDstStageMask = nullptr,
-                               .commandBufferCount = 0,
-                               .pCommandBuffers = nullptr,
-                               .signalSemaphoreCount = 0,
-                               .pSignalSemaphores = nullptr};
+      VkSubmitInfo submit_info{
+          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+          .pNext = nullptr,
+          .waitSemaphoreCount = 0,
+          .pWaitSemaphores = nullptr,
+          .pWaitDstStageMask = nullptr,
+          .commandBufferCount = 1,
+          .pCommandBuffers = &recording_context.command_buffer,
+          .signalSemaphoreCount = 0,
+          .pSignalSemaphores = nullptr};
 
       ASR_VK_CHECK(vkQueueSubmit(
           queue, 1, &submit_info,
@@ -1397,47 +1400,54 @@ struct CanvasContext {
         .pInheritanceInfo = nullptr,
     };
 
-    ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
-                                      &command_buffer_begin_info));
 
-    VkRenderPassBeginInfo render_pass_begin_info{
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext = nullptr,
-        .renderPass = swapchain.present_render_pass,
-        .framebuffer =
-            swapchain.present_framebuffers[swapchain.next_frame_flight_index],
-        .renderArea = VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
-        .clearValueCount = 0,
-        .pClearValues = nullptr};
 
-    vkCmdBeginRenderPass(recording_context.command_buffer,
-                         &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdEndRenderPass(recording_context.command_buffer);
+    //     ASR_VK_CHECK(
+    //         vkResetCommandBuffer(recording_context.command_buffer, 0));
 
-    ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
+    // ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
+    //                                   &command_buffer_begin_info));
 
-    ASR_VK_CHECK(vkResetFences(
-        dev, 1,
-        &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+    // VkRenderPassBeginInfo render_pass_begin_info{
+    //     .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+    //     .pNext = nullptr,
+    //     .renderPass = swapchain.present_render_pass,
+    //     .framebuffer =
+    //         swapchain.present_framebuffers[swapchain.next_frame_flight_index],
+    //     .renderArea = VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
+    //     .clearValueCount = 0,
+    //     .pClearValues = nullptr};
 
-    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                             .pNext = nullptr,
-                             .waitSemaphoreCount = 0,
-                             .pWaitSemaphores = nullptr,
-                             .pWaitDstStageMask = nullptr,
-                             .commandBufferCount = 0,
-                             .pCommandBuffers = nullptr,
-                             .signalSemaphoreCount = 0,
-                             .pSignalSemaphores = nullptr};
+    // vkCmdBeginRenderPass(recording_context.command_buffer,
+    //                      &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-    ASR_VK_CHECK(vkQueueSubmit(
-        queue, 1, &submit_info,
-        swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+    // vkCmdEndRenderPass(recording_context.command_buffer);
 
-    ASR_VK_CHECK(vkWaitForFences(
-        dev, 1, &swapchain.rendering_fences[swapchain.next_frame_flight_index],
-        VK_TRUE, TIMEOUT));
+    // ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
+
+    // ASR_VK_CHECK(vkResetFences(
+    //     dev, 1,
+    //     &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
+    // VkSubmitInfo submit_info{
+    //     .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+    //     .pNext = nullptr,
+    //     .waitSemaphoreCount = 0,
+    //     .pWaitSemaphores = nullptr,
+    //     .pWaitDstStageMask = nullptr,
+    //     .commandBufferCount = 1,
+    //     .pCommandBuffers = &recording_context.command_buffer,
+    //     .signalSemaphoreCount = 0,
+    //     .pSignalSemaphores = nullptr};
+
+    // ASR_VK_CHECK(vkQueueSubmit(
+    //     queue, 1, &submit_info,
+    //     swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
+    // ASR_VK_CHECK(vkWaitForFences(
+    //     dev, 1, &swapchain.rendering_fences[swapchain.next_frame_flight_index],
+    //     VK_TRUE, TIMEOUT));
 
     // TODO(lamarrr): perform renderpass transition to src?, render pass
     // presently converts to src_khr multiple times?
