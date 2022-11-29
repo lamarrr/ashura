@@ -1150,9 +1150,9 @@ struct CanvasContext {
 
     write_vertices(draw_list.vertices, draw_list.indices);
 
-    ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
-
     for (DrawCommand const& draw_command : draw_list.commands) {
+      ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
+
       VkCommandBufferBeginInfo command_buffer_begin_info{
           .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
           .pNext = nullptr,
@@ -1163,6 +1163,7 @@ struct CanvasContext {
       ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
                                         &command_buffer_begin_info));
 
+      // clip mask rendering
       {
         write_clip_vertices(draw_list.clip_vertices, draw_list.clip_indices);
 
@@ -1385,7 +1386,58 @@ struct CanvasContext {
           dev, 1,
           &swapchain.rendering_fences[swapchain.next_frame_flight_index],
           VK_TRUE, TIMEOUT));
+
+      ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
     }
+
+    VkCommandBufferBeginInfo command_buffer_begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
+
+    ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
+                                      &command_buffer_begin_info));
+
+    VkRenderPassBeginInfo render_pass_begin_info{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .pNext = nullptr,
+        .renderPass = swapchain.present_render_pass,
+        .framebuffer =
+            swapchain.present_framebuffers[swapchain.next_frame_flight_index],
+        .renderArea = VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
+        .clearValueCount = 0,
+        .pClearValues = nullptr};
+
+    vkCmdBeginRenderPass(recording_context.command_buffer,
+                         &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdEndRenderPass(recording_context.command_buffer);
+
+    ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
+
+    ASR_VK_CHECK(vkResetFences(
+        dev, 1,
+        &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
+    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .pNext = nullptr,
+                             .waitSemaphoreCount = 0,
+                             .pWaitSemaphores = nullptr,
+                             .pWaitDstStageMask = nullptr,
+                             .commandBufferCount = 0,
+                             .pCommandBuffers = nullptr,
+                             .signalSemaphoreCount = 0,
+                             .pSignalSemaphores = nullptr};
+
+    ASR_VK_CHECK(vkQueueSubmit(
+        queue, 1, &submit_info,
+        swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
+    ASR_VK_CHECK(vkWaitForFences(
+        dev, 1, &swapchain.rendering_fences[swapchain.next_frame_flight_index],
+        VK_TRUE, TIMEOUT));
 
     // TODO(lamarrr): perform renderpass transition to src?, render pass
     // presently converts to src_khr multiple times?

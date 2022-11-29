@@ -1331,7 +1331,7 @@ struct SpanBuffer {
   template <typename T>
   void write(VkDevice dev, u32 family_index,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
-             VkBufferUsageFlags usage, stx::Span<T const> span) {
+             VkBufferUsageFlagBits usage, stx::Span<T const> span) {
     // TODO(lamarrr): handle less than
     if (span.size_bytes() != size) {
       vkDestroyBuffer(dev, buffer, nullptr);
@@ -2247,6 +2247,8 @@ struct SwapChain {
 
   stx::Vec<VkFramebuffer> framebuffers{stx::os_allocator};
 
+  stx::Vec<VkFramebuffer> present_framebuffers{stx::os_allocator};
+
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
 
   Image msaa_color_image;
@@ -2254,6 +2256,8 @@ struct SwapChain {
   Image msaa_depth_image;
 
   VkRenderPass render_pass = VK_NULL_HANDLE;
+
+  VkRenderPass present_render_pass = VK_NULL_HANDLE;
 
   Clip clip;
 
@@ -2437,6 +2441,60 @@ struct SwapChain {
     ASR_VK_CHECK(vkCreateRenderPass(dev, &render_pass_create_info, nullptr,
                                     &render_pass));
 
+    VkAttachmentDescription present_color_attachment{
+        .flags = 0,
+        .format = format.format,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+        .storeOp = VK_ATTACHMENT_STORE_OP_NONE,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_NONE,
+        .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
+
+    VkAttachmentDescription present_attachments[] = {present_color_attachment};
+
+    VkAttachmentReference present_color_attachment_reference{
+        .attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkSubpassDescription present_subpass{
+        .flags = 0,
+        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .inputAttachmentCount = 0,
+        .pInputAttachments = nullptr,
+        .colorAttachmentCount = 1,
+        .pColorAttachments = &present_color_attachment_reference,
+        .pResolveAttachments = nullptr,
+        .pDepthStencilAttachment = nullptr,
+        .preserveAttachmentCount = 0,
+        .pPreserveAttachments = nullptr};
+
+    VkSubpassDependency present_dependency{
+        .srcSubpass = VK_SUBPASS_EXTERNAL,
+        .dstSubpass = 0,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .dependencyFlags = 0};
+
+    VkRenderPassCreateInfo present_render_pass_create_info{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .attachmentCount = AS_U32(std::size(present_attachments)),
+        .pAttachments = present_attachments,
+        .subpassCount = 1,
+        .pSubpasses = &present_subpass,
+        .dependencyCount = 1,
+        .pDependencies = &present_dependency};
+
+    ASR_VK_CHECK(vkCreateRenderPass(dev, &present_render_pass_create_info,
+                                    nullptr, &present_render_pass));
+
     for (usize i = 0; i < images.size(); i++) {
       VkFramebuffer framebuffer;
 
@@ -2458,6 +2516,28 @@ struct SwapChain {
           vkCreateFramebuffer(dev, &create_info, nullptr, &framebuffer));
 
       framebuffers.push_inplace(framebuffer).unwrap();
+    }
+
+    for (usize i = 0; i < images.size(); i++) {
+      VkFramebuffer framebuffer;
+
+      VkImageView attachments[] = {image_views[i]};
+
+      VkFramebufferCreateInfo create_info{
+          .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0,
+          .renderPass = present_render_pass,
+          .attachmentCount = AS_U32(std::size(attachments)),
+          .pAttachments = attachments,
+          .width = extent.width,
+          .height = extent.height,
+          .layers = 1};
+
+      ASR_VK_CHECK(
+          vkCreateFramebuffer(dev, &create_info, nullptr, &framebuffer));
+
+      present_framebuffers.push_inplace(framebuffer).unwrap();
     }
 
     {
@@ -2564,10 +2644,16 @@ struct SwapChain {
 
     vkDestroyRenderPass(dev, render_pass, nullptr);
 
+    vkDestroyRenderPass(dev, present_render_pass, nullptr);
+
     msaa_color_image.destroy(dev);
     msaa_depth_image.destroy(dev);
 
     for (VkFramebuffer framebuffer : framebuffers) {
+      vkDestroyFramebuffer(dev, framebuffer, nullptr);
+    }
+
+    for (VkFramebuffer framebuffer : present_framebuffers) {
       vkDestroyFramebuffer(dev, framebuffer, nullptr);
     }
 
