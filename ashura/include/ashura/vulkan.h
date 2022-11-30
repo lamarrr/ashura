@@ -2383,7 +2383,7 @@ struct SwapChain {
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
 
     VkAttachmentDescription attachments[] = {color_attachment, depth_attachment,
                                              color_attachment_resolve};
@@ -2458,54 +2458,6 @@ struct SwapChain {
 
       framebuffers.push_inplace(framebuffer).unwrap();
     }
-
-    // {
-    //   std::cout << "creating image" << std::endl;
-    //   VkImageCreateInfo info = {};
-    //   info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    //   info.imageType = VK_IMAGE_TYPE_2D;
-    //   info.format = VK_FORMAT_R8G8B8A8_UNORM;
-    //   info.extent.width = 200;
-    //   info.extent.height = 200;
-    //   info.extent.depth = 1;
-    //   info.mipLevels = 1;
-    //   info.arrayLayers = 1;
-    //   info.samples = VK_SAMPLE_COUNT_1_BIT;
-    //   info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    //   info.usage = VK_IMAGE_USAGE_SAMPLED_BIT |
-    //   VK_IMAGE_USAGE_TRANSFER_DST_BIT; info.sharingMode =
-    //   VK_SHARING_MODE_EXCLUSIVE; info.initialLayout =
-    //   VK_IMAGE_LAYOUT_PREINITIALIZED;
-
-    //   VkImage image;
-
-    //   ASR_VK_CHECK(vkCreateImage(dev, &info, nullptr, &image));
-
-    //   VkMemoryRequirements memory_requirements;
-
-    //   vkGetImageMemoryRequirements(dev, image, &memory_requirements);
-
-    //   u32 memory_type_index =
-    //       find_suitable_memory_type(
-    //           queue.handle->device.handle->phy_device.handle->memory_properties,
-    //           memory_requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-    //           .unwrap();
-
-    //   ASR_ENSURE(memory_type_index != 0xFFFFFFFF);
-
-    //   VkMemoryAllocateInfo alloc_info{
-    //       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-    //       .pNext = nullptr,
-    //       .allocationSize = memory_requirements.size,
-    //       .memoryTypeIndex = memory_type_index};
-
-    //   VkDeviceMemory memory;
-
-    //   ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
-
-    //   ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
-    //   std::cout << "iamge created" << std::endl;
-    // }
 
     {
       VkFormat bitmap_format = format.format;

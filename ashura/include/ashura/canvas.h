@@ -1214,21 +1214,6 @@ struct CanvasContext {
             vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
 
         // todo(lamarrr): insert barrier
-
-        // void* map;
-        // vkMapMemory(dev, swapchain.clip.image.memory, 0, VK_WHOLE_SIZE, 0,
-        //             &map);
-
-        // u8* xap = (u8*)map;
-
-        // std::cout << "CLIP" << std::endl;
-        // for (usize j = 0; j < 1920; j++) {
-        //   for (usize i = 0; i < 1080; i++) {
-        //     std::cout << (u32)xap[j * 1080 + i] << ", ";
-        //   }
-        //   std::cout << std::endl;
-        // }
-        // vkUnmapMemory(dev, swapchain.clip.image.memory);
       }
 
       Transform transform{.value = draw_command.transform};
@@ -1287,6 +1272,28 @@ struct CanvasContext {
           .clearValueCount = AS_U32(std::size(clear_values)),
           .pClearValues = clear_values};
 
+      //   {
+      //     VkImageMemoryBarrier barrier{};
+      //     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+      //     barrier.image = swapchain.clip.image.image;
+      //     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      //     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+      //     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      //     barrier.subresourceRange.baseArrayLayer = 0;
+      //     barrier.subresourceRange.layerCount = 1;
+      //     barrier.subresourceRange.levelCount = 1;
+      //     barrier.subresourceRange.baseMipLevel = 0;
+      //     barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+      //     barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      //     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      //     barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+      //     vkCmdPipelineBarrier(recording_context.clip_command_buffer,
+      //                          VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+      //                          VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0,
+      //                          nullptr, 0, nullptr, 1, &barrier);
+      //   }
+
       vkCmdBeginRenderPass(recording_context.command_buffer,
                            &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -1339,8 +1346,9 @@ struct CanvasContext {
       VkSubmitInfo submit_info{
           .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
           .pNext = nullptr,
-          .waitSemaphoreCount = 0,
-          .pWaitSemaphores = nullptr,
+          .waitSemaphoreCount = 1,
+          .pWaitSemaphores = &swapchain.image_acquisition_semaphores
+                                  [swapchain.next_frame_flight_index],
           .pWaitDstStageMask = nullptr,
           .commandBufferCount = 1,
           .pCommandBuffers = &recording_context.command_buffer,
