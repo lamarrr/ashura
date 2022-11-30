@@ -1573,9 +1573,9 @@ inline stx::Rc<ImageX*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
 }
 
 // R only
-inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
+inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_image(
     stx::Rc<CommandQueue*> const& queue, u32 width, u32 height,
-    VkImageUsageFlags usage) {
+    VkImageUsageFlags usage, VkFormat format) {
   VkDevice dev = queue.handle->device.handle->device;
 
   VkImageCreateInfo create_info{
@@ -1583,13 +1583,13 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
       .pNext = nullptr,
       .flags = 0,
       .imageType = VK_IMAGE_TYPE_2D,
-      .format = VK_FORMAT_R8_SRGB,
+      .format = format,
       .extent = VkExtent3D{.width = width, .height = height, .depth = 1},
       .mipLevels = 1,
       .arrayLayers = 1,
       .samples = VK_SAMPLE_COUNT_1_BIT,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = usage | VK_IMAGE_USAGE_SAMPLED_BIT,
+      .usage = usage,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queue.handle->info.family.index,
@@ -1628,7 +1628,7 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
       .flags = 0,
       .image = image,
       .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = VK_FORMAT_R8_SRGB,
+      .format = format,
       .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -2463,17 +2463,19 @@ struct SwapChain {
     }
 
     {
-      // vkGetPhysicalDeviceImageFormatProperties()
-      auto [image, memory, view] = create_bitmap_image(
+      VkFormat bitmap_format = format.format;
+
+      auto [image, memory, view] = create_image(
           queue, extent.width, extent.height,
-          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+          bitmap_format);
 
       VkRenderPass render_pass;
 
       {
         VkAttachmentDescription color_attachment{
             .flags = 0,
-            .format = VK_FORMAT_R8_SRGB,
+            .format = bitmap_format,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
