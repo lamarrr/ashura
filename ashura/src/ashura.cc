@@ -7,7 +7,7 @@
 int main() {
   asr::App app{asr::AppConfig{.enable_validation_layers = true}};
 
-  app.tick({});
+  while (true) app.tick({});
 
   return 0;
 }

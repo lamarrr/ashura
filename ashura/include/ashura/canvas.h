@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cinttypes>
 #include <cmath>
+#include <iostream>
 
 #include "ashura/primitives.h"
 #include "ashura/vulkan.h"
@@ -815,7 +816,6 @@ inline void sample(Canvas& canvas, Image& image) {
 
 struct CanvasContext {
   vk::Buffer transform_buffer;
-  vk::Buffer clip_transform_buffer;
   vk::Buffer overlay_buffer;
   vk::Buffer viewport_buffer;
 
@@ -832,11 +832,6 @@ struct CanvasContext {
     VkDevice dev = queue.handle->device.handle->device;
 
     transform_buffer = vk::create_buffer(
-        dev, queue.handle->info.family,
-        queue.handle->device.handle->phy_device.handle->memory_properties,
-        sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-    clip_transform_buffer = vk::create_buffer(
         dev, queue.handle->info.family,
         queue.handle->device.handle->phy_device.handle->memory_properties,
         sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
@@ -977,10 +972,10 @@ struct CanvasContext {
 
     // glslangValidator -V -x clip_shader.vert
     static constexpr u32 const clip_vertex_shader_code[] = {
-        0x07230203, 0x00010000, 0x0008000b, 0x00000023, 0x00000000, 0x00020011,
+        0x07230203, 0x00010000, 0x0008000b, 0x0000001b, 0x00000000, 0x00020011,
         0x00000001, 0x0006000b, 0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e,
         0x00000000, 0x0003000e, 0x00000000, 0x00000001, 0x0007000f, 0x00000000,
-        0x00000004, 0x6e69616d, 0x00000000, 0x0000000d, 0x00000019, 0x00030003,
+        0x00000004, 0x6e69616d, 0x00000000, 0x0000000d, 0x00000012, 0x00030003,
         0x00000002, 0x000001c2, 0x00040005, 0x00000004, 0x6e69616d, 0x00000000,
         0x00060005, 0x0000000b, 0x505f6c67, 0x65567265, 0x78657472, 0x00000000,
         0x00060006, 0x0000000b, 0x00000000, 0x505f6c67, 0x7469736f, 0x006e6f69,
@@ -988,42 +983,30 @@ struct CanvasContext {
         0x00000000, 0x00070006, 0x0000000b, 0x00000002, 0x435f6c67, 0x4470696c,
         0x61747369, 0x0065636e, 0x00070006, 0x0000000b, 0x00000003, 0x435f6c67,
         0x446c6c75, 0x61747369, 0x0065636e, 0x00030005, 0x0000000d, 0x00000000,
-        0x00050005, 0x00000011, 0x6e617254, 0x726f6673, 0x0000006d, 0x00050006,
-        0x00000011, 0x00000000, 0x756c6176, 0x00000065, 0x00050005, 0x00000013,
-        0x6e617274, 0x726f6673, 0x0000006d, 0x00050005, 0x00000019, 0x705f6e69,
-        0x7469736f, 0x006e6f69, 0x00050048, 0x0000000b, 0x00000000, 0x0000000b,
-        0x00000000, 0x00050048, 0x0000000b, 0x00000001, 0x0000000b, 0x00000001,
-        0x00050048, 0x0000000b, 0x00000002, 0x0000000b, 0x00000003, 0x00050048,
-        0x0000000b, 0x00000003, 0x0000000b, 0x00000004, 0x00030047, 0x0000000b,
-        0x00000002, 0x00040048, 0x00000011, 0x00000000, 0x00000005, 0x00050048,
-        0x00000011, 0x00000000, 0x00000023, 0x00000000, 0x00050048, 0x00000011,
-        0x00000000, 0x00000007, 0x00000010, 0x00030047, 0x00000011, 0x00000002,
-        0x00040047, 0x00000013, 0x00000022, 0x00000000, 0x00040047, 0x00000013,
-        0x00000021, 0x00000000, 0x00040047, 0x00000019, 0x0000001e, 0x00000000,
-        0x00020013, 0x00000002, 0x00030021, 0x00000003, 0x00000002, 0x00030016,
-        0x00000006, 0x00000020, 0x00040017, 0x00000007, 0x00000006, 0x00000004,
-        0x00040015, 0x00000008, 0x00000020, 0x00000000, 0x0004002b, 0x00000008,
-        0x00000009, 0x00000001, 0x0004001c, 0x0000000a, 0x00000006, 0x00000009,
-        0x0006001e, 0x0000000b, 0x00000007, 0x00000006, 0x0000000a, 0x0000000a,
-        0x00040020, 0x0000000c, 0x00000003, 0x0000000b, 0x0004003b, 0x0000000c,
-        0x0000000d, 0x00000003, 0x00040015, 0x0000000e, 0x00000020, 0x00000001,
-        0x0004002b, 0x0000000e, 0x0000000f, 0x00000000, 0x00040018, 0x00000010,
-        0x00000007, 0x00000004, 0x0003001e, 0x00000011, 0x00000010, 0x00040020,
-        0x00000012, 0x00000002, 0x00000011, 0x0004003b, 0x00000012, 0x00000013,
-        0x00000002, 0x00040020, 0x00000014, 0x00000002, 0x00000010, 0x00040017,
-        0x00000017, 0x00000006, 0x00000002, 0x00040020, 0x00000018, 0x00000001,
-        0x00000017, 0x0004003b, 0x00000018, 0x00000019, 0x00000001, 0x0004002b,
-        0x00000006, 0x0000001b, 0x00000000, 0x0004002b, 0x00000006, 0x0000001c,
-        0x3f800000, 0x00040020, 0x00000021, 0x00000003, 0x00000007, 0x00050036,
-        0x00000002, 0x00000004, 0x00000000, 0x00000003, 0x000200f8, 0x00000005,
-        0x00050041, 0x00000014, 0x00000015, 0x00000013, 0x0000000f, 0x0004003d,
-        0x00000010, 0x00000016, 0x00000015, 0x0004003d, 0x00000017, 0x0000001a,
-        0x00000019, 0x00050051, 0x00000006, 0x0000001d, 0x0000001a, 0x00000000,
-        0x00050051, 0x00000006, 0x0000001e, 0x0000001a, 0x00000001, 0x00070050,
-        0x00000007, 0x0000001f, 0x0000001d, 0x0000001e, 0x0000001b, 0x0000001c,
-        0x00050091, 0x00000007, 0x00000020, 0x00000016, 0x0000001f, 0x00050041,
-        0x00000021, 0x00000022, 0x0000000d, 0x0000000f, 0x0003003e, 0x00000022,
-        0x00000020, 0x000100fd, 0x00010038};
+        0x00050005, 0x00000012, 0x705f6e69, 0x7469736f, 0x006e6f69, 0x00050048,
+        0x0000000b, 0x00000000, 0x0000000b, 0x00000000, 0x00050048, 0x0000000b,
+        0x00000001, 0x0000000b, 0x00000001, 0x00050048, 0x0000000b, 0x00000002,
+        0x0000000b, 0x00000003, 0x00050048, 0x0000000b, 0x00000003, 0x0000000b,
+        0x00000004, 0x00030047, 0x0000000b, 0x00000002, 0x00040047, 0x00000012,
+        0x0000001e, 0x00000000, 0x00020013, 0x00000002, 0x00030021, 0x00000003,
+        0x00000002, 0x00030016, 0x00000006, 0x00000020, 0x00040017, 0x00000007,
+        0x00000006, 0x00000004, 0x00040015, 0x00000008, 0x00000020, 0x00000000,
+        0x0004002b, 0x00000008, 0x00000009, 0x00000001, 0x0004001c, 0x0000000a,
+        0x00000006, 0x00000009, 0x0006001e, 0x0000000b, 0x00000007, 0x00000006,
+        0x0000000a, 0x0000000a, 0x00040020, 0x0000000c, 0x00000003, 0x0000000b,
+        0x0004003b, 0x0000000c, 0x0000000d, 0x00000003, 0x00040015, 0x0000000e,
+        0x00000020, 0x00000001, 0x0004002b, 0x0000000e, 0x0000000f, 0x00000000,
+        0x00040017, 0x00000010, 0x00000006, 0x00000002, 0x00040020, 0x00000011,
+        0x00000001, 0x00000010, 0x0004003b, 0x00000011, 0x00000012, 0x00000001,
+        0x0004002b, 0x00000006, 0x00000014, 0x00000000, 0x0004002b, 0x00000006,
+        0x00000015, 0x3f800000, 0x00040020, 0x00000019, 0x00000003, 0x00000007,
+        0x00050036, 0x00000002, 0x00000004, 0x00000000, 0x00000003, 0x000200f8,
+        0x00000005, 0x0004003d, 0x00000010, 0x00000013, 0x00000012, 0x00050051,
+        0x00000006, 0x00000016, 0x00000013, 0x00000000, 0x00050051, 0x00000006,
+        0x00000017, 0x00000013, 0x00000001, 0x00070050, 0x00000007, 0x00000018,
+        0x00000016, 0x00000017, 0x00000014, 0x00000015, 0x00050041, 0x00000019,
+        0x0000001a, 0x0000000d, 0x0000000f, 0x0003003e, 0x0000001a, 0x00000018,
+        0x000100fd, 0x00010038};
 
     // glslangValidator -V -x clip_shader.frag
     static constexpr u32 const clip_fragment_shader_code[] = {
@@ -1061,14 +1044,11 @@ struct CanvasContext {
         vk::DescriptorSetSpec{vk::DescriptorType::Sampler,
                               vk::DescriptorType::Sampler}};
 
-    vk::DescriptorSetSpec clip_descriptor_set_specs[] = {
-        vk::DescriptorSetSpec{vk::DescriptorType::Buffer}};
-
-    recording_context.init(
-        dev, *queue.handle, vertex_shader_code, fragment_shader_code,
-        clip_vertex_shader_code, clip_fragment_shader_code,
-        vertex_input_attributes, sizeof(vec2), clip_vertex_input_attributes,
-        sizeof(vec2), descriptor_set_specs, clip_descriptor_set_specs);
+    recording_context.init(dev, *queue.handle, vertex_shader_code,
+                           fragment_shader_code, clip_vertex_shader_code,
+                           clip_fragment_shader_code, vertex_input_attributes,
+                           sizeof(vec2), clip_vertex_input_attributes,
+                           sizeof(vec2), descriptor_set_specs);
   }
 
   STX_MAKE_PINNED(CanvasContext)
@@ -1083,7 +1063,6 @@ struct CanvasContext {
 
     transform_buffer.destroy(dev);
 
-    clip_transform_buffer.destroy(dev);
     overlay_buffer.destroy(dev);
     viewport_buffer.destroy(dev);
 
@@ -1092,11 +1071,6 @@ struct CanvasContext {
 
   void write_transform(Transform const& transform) {
     transform_buffer.write(queue.handle->device.handle->device, &transform);
-  }
-
-  void write_clip_transform(Transform const& transform) {
-    clip_transform_buffer.write(queue.handle->device.handle->device,
-                                &transform);
   }
 
   void write_overlay(Overlay const& overlay) {
@@ -1133,7 +1107,8 @@ struct CanvasContext {
                             VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
   }
 
-  void submit(vk::SwapChain const& swapchain, DrawList const& draw_list) {
+  void submit(vk::SwapChain const& swapchain, u32 swapchain_image_index,
+              DrawList const& draw_list) {
     ASR_ENSURE(!draw_list.vertices.is_empty());
     ASR_ENSURE(!draw_list.indices.is_empty());
     ASR_ENSURE(!draw_list.clip_vertices.is_empty());
@@ -1150,42 +1125,15 @@ struct CanvasContext {
 
     write_vertices(draw_list.vertices, draw_list.indices);
 
-    ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
-
     for (DrawCommand const& draw_command : draw_list.commands) {
-      VkCommandBufferBeginInfo command_buffer_begin_info{
-          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-          .pNext = nullptr,
-          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-          .pInheritanceInfo = nullptr,
-      };
-
-      ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
-                                        &command_buffer_begin_info));
-
       {
         write_clip_vertices(draw_list.clip_vertices, draw_list.clip_indices);
-
-        Transform clip_transform{.value = draw_command.transform};
-
-        write_clip_transform(clip_transform);
-
-        vk::DescriptorBinding set0[] = {
-            vk::DescriptorBinding::make_buffer(clip_transform_buffer.buffer)};
-
-        stx::Span<vk::DescriptorBinding const> sets[] = {set0};
-
-        recording_context.clip_descriptor_sets.write(sets);
-
-        ASR_VK_CHECK(
-            vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
 
         VkCommandBufferBeginInfo command_buffer_begin_info{
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
             .pNext = nullptr,
             .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            .pInheritanceInfo = nullptr,
-        };
+            .pInheritanceInfo = nullptr};
 
         ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.clip_command_buffer,
                                           &command_buffer_begin_info));
@@ -1207,9 +1155,9 @@ struct CanvasContext {
                              &render_pass_begin_info,
                              VK_SUBPASS_CONTENTS_INLINE);
 
-        VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
-
-        vkCmdSetScissor(recording_context.clip_command_buffer, 0, 1, &scissor);
+        vkCmdBindPipeline(recording_context.clip_command_buffer,
+                          VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          recording_context.clip_pipeline.pipeline);
 
         VkViewport viewport{.x = 0.0f,
                             .y = 0.0f,
@@ -1221,6 +1169,10 @@ struct CanvasContext {
         vkCmdSetViewport(recording_context.clip_command_buffer, 0, 1,
                          &viewport);
 
+        VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
+
+        vkCmdSetScissor(recording_context.clip_command_buffer, 0, 1, &scissor);
+
         VkDeviceSize offset = 0;
 
         vkCmdBindVertexBuffers(recording_context.clip_command_buffer, 0, 1,
@@ -1228,19 +1180,6 @@ struct CanvasContext {
 
         vkCmdBindIndexBuffer(recording_context.clip_command_buffer,
                              clip_index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-
-        vkCmdBindDescriptorSets(
-            recording_context.clip_command_buffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            recording_context.clip_pipeline.layout, 0,
-            AS_U32(
-                recording_context.clip_descriptor_sets.descriptor_sets.size()),
-            recording_context.clip_descriptor_sets.descriptor_sets.data(), 0,
-            nullptr);
-
-        vkCmdBindPipeline(recording_context.clip_command_buffer,
-                          VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          recording_context.clip_pipeline.pipeline);
 
         vkCmdDrawIndexed(recording_context.clip_command_buffer,
                          draw_command.nclip_indices, 1, 0, 0, 0);
@@ -1252,20 +1191,44 @@ struct CanvasContext {
         VkPipelineStageFlags wait_stages[] = {
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
-        VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                                 .pNext = nullptr,
-                                 .waitSemaphoreCount = 0,
-                                 .pWaitSemaphores = nullptr,
-                                 .pWaitDstStageMask = wait_stages,
-                                 .commandBufferCount = 0,
-                                 .pCommandBuffers = nullptr,
-                                 .signalSemaphoreCount = 0,
-                                 .pSignalSemaphores = nullptr};
+        VkSubmitInfo submit_info{
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .pNext = nullptr,
+            .waitSemaphoreCount = 0,
+            .pWaitSemaphores = nullptr,
+            .pWaitDstStageMask = wait_stages,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &recording_context.clip_command_buffer,
+            .signalSemaphoreCount = 0,
+            .pSignalSemaphores = nullptr};
 
         ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.clip.fence));
 
         ASR_VK_CHECK(
             vkQueueSubmit(queue, 1, &submit_info, swapchain.clip.fence));
+
+        ASR_VK_CHECK(
+            vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE, TIMEOUT));
+
+        ASR_VK_CHECK(
+            vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
+
+        // todo(lamarrr): insert barrier
+
+        // void* map;
+        // vkMapMemory(dev, swapchain.clip.image.memory, 0, VK_WHOLE_SIZE, 0,
+        //             &map);
+
+        // u8* xap = (u8*)map;
+
+        // std::cout << "CLIP" << std::endl;
+        // for (usize j = 0; j < 1920; j++) {
+        //   for (usize i = 0; i < 1080; i++) {
+        //     std::cout << (u32)xap[j * 1080 + i] << ", ";
+        //   }
+        //   std::cout << std::endl;
+        // }
+        // vkUnmapMemory(dev, swapchain.clip.image.memory);
       }
 
       Transform transform{.value = draw_command.transform};
@@ -1300,6 +1263,16 @@ struct CanvasContext {
       recording_context.descriptor_sets[swapchain.next_frame_flight_index]
           .write(sets);
 
+      VkCommandBufferBeginInfo command_buffer_begin_info{
+          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+          .pNext = nullptr,
+          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+          .pInheritanceInfo = nullptr,
+      };
+
+      ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
+                                        &command_buffer_begin_info));
+
       VkClearValue clear_values[] = {
           {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}},
           {.depthStencil =
@@ -1309,8 +1282,7 @@ struct CanvasContext {
           .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
           .pNext = nullptr,
           .renderPass = swapchain.render_pass,
-          .framebuffer =
-              swapchain.framebuffers[swapchain.next_frame_flight_index],
+          .framebuffer = swapchain.framebuffers[swapchain_image_index],
           .renderArea = VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
           .clearValueCount = AS_U32(std::size(clear_values)),
           .pClearValues = clear_values};
@@ -1318,9 +1290,9 @@ struct CanvasContext {
       vkCmdBeginRenderPass(recording_context.command_buffer,
                            &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-      VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
-
-      vkCmdSetScissor(recording_context.command_buffer, 0, 1, &scissor);
+      vkCmdBindPipeline(recording_context.command_buffer,
+                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        recording_context.pipeline.pipeline);
 
       VkViewport viewport{.x = 0.0f,
                           .y = 0.0f,
@@ -1330,6 +1302,10 @@ struct CanvasContext {
                           .maxDepth = 1.0f};
 
       vkCmdSetViewport(recording_context.command_buffer, 0, 1, &viewport);
+
+      VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
+
+      vkCmdSetScissor(recording_context.command_buffer, 0, 1, &scissor);
 
       VkDeviceSize offset = 0;
 
@@ -1349,10 +1325,6 @@ struct CanvasContext {
               .descriptor_sets.data(),
           0, nullptr);
 
-      vkCmdBindPipeline(recording_context.command_buffer,
-                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        recording_context.pipeline.pipeline);
-
       vkCmdDrawIndexed(recording_context.command_buffer, draw_command.nindices,
                        1, 0, 0, 0);
 
@@ -1360,22 +1332,20 @@ struct CanvasContext {
 
       ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
 
-      ASR_VK_CHECK(
-          vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE, TIMEOUT));
-
       ASR_VK_CHECK(vkResetFences(
           dev, 1,
           &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
 
-      VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                               .pNext = nullptr,
-                               .waitSemaphoreCount = 0,
-                               .pWaitSemaphores = nullptr,
-                               .pWaitDstStageMask = nullptr,
-                               .commandBufferCount = 0,
-                               .pCommandBuffers = nullptr,
-                               .signalSemaphoreCount = 0,
-                               .pSignalSemaphores = nullptr};
+      VkSubmitInfo submit_info{
+          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+          .pNext = nullptr,
+          .waitSemaphoreCount = 0,
+          .pWaitSemaphores = nullptr,
+          .pWaitDstStageMask = nullptr,
+          .commandBufferCount = 1,
+          .pCommandBuffers = &recording_context.command_buffer,
+          .signalSemaphoreCount = 0,
+          .pSignalSemaphores = nullptr};
 
       ASR_VK_CHECK(vkQueueSubmit(
           queue, 1, &submit_info,
@@ -1385,10 +1355,72 @@ struct CanvasContext {
           dev, 1,
           &swapchain.rendering_fences[swapchain.next_frame_flight_index],
           VK_TRUE, TIMEOUT));
+
+      ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
     }
 
-    // TODO(lamarrr): perform renderpass transition to src?, render pass
-    // presently converts to src_khr multiple times?
+    if (false) {
+      VkCommandBufferBeginInfo command_buffer_begin_info{
+          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+          .pNext = nullptr,
+          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+          .pInheritanceInfo = nullptr,
+      };
+
+      ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
+                                        &command_buffer_begin_info));
+
+      VkImageMemoryBarrier barrier{
+          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+          .pNext = nullptr,
+          .srcAccessMask = 0,
+          .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+          .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+          .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .image = swapchain.images[swapchain_image_index],
+          .subresourceRange =
+              VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                      .baseMipLevel = 0,
+                                      .levelCount = 1,
+                                      .baseArrayLayer = 0,
+                                      .layerCount = 1}};
+
+      ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
+                                        &command_buffer_begin_info));
+
+      vkCmdPipelineBarrier(recording_context.command_buffer,
+                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                           nullptr, 0, nullptr, 1, &barrier);
+
+      ASR_VK_CHECK(vkResetFences(
+          dev, 1,
+          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
+      VkSubmitInfo submit_info{
+          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+          .pNext = nullptr,
+          .waitSemaphoreCount = 0,
+          .pWaitSemaphores = nullptr,
+          .pWaitDstStageMask = nullptr,
+          .commandBufferCount = 1,
+          .pCommandBuffers = &recording_context.command_buffer,
+          .signalSemaphoreCount = 0,
+          .pSignalSemaphores = nullptr};
+
+      ASR_VK_CHECK(vkQueueSubmit(
+          queue, 1, &submit_info,
+          swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
+      ASR_VK_CHECK(vkWaitForFences(
+          dev, 1,
+          &swapchain.rendering_fences[swapchain.next_frame_flight_index],
+          VK_TRUE, TIMEOUT));
+
+      ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
+    }
   }
 };
 

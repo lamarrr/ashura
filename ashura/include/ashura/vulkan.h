@@ -487,13 +487,13 @@ inline VkExtent2D select_swapchain_extent(
 // select number of images to have on the swap chain based on device
 // capabilities. i.e. double buffering, triple buffering.
 inline u32 select_swapchain_image_count(
-    VkSurfaceCapabilitiesKHR const& capabilities, u32 desired_num_buffers) {
+    VkSurfaceCapabilitiesKHR const& capabilities, u32 desired_nbuffers) {
   return
       // no limit on the number of swapchain images
       capabilities.maxImageCount == 0
-          ? std::clamp(desired_num_buffers, capabilities.minImageCount,
+          ? std::clamp(desired_nbuffers, capabilities.minImageCount,
                        stx::u32_max)
-          : std::clamp(desired_num_buffers, capabilities.minImageCount,
+          : std::clamp(desired_nbuffers, capabilities.minImageCount,
                        capabilities.maxImageCount);
 }
 
@@ -504,8 +504,8 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
     VkSharingMode accessing_queue_families_sharing_mode,
     u32 accessing_queue_family_index, VkImageUsageFlags image_usages,
     VkCompositeAlphaFlagBitsKHR alpha_channel_blending, VkBool32 clipped) {
-  u32 desired_num_buffers = std::min(properties.capabilities.minImageCount + 1,
-                                     properties.capabilities.maxImageCount);
+  u32 desired_nbuffers = std::min(properties.capabilities.minImageCount + 1,
+                                  properties.capabilities.maxImageCount);
 
   VkExtent2D selected_extent =
       select_swapchain_extent(properties.capabilities, preferred_extent);
@@ -517,7 +517,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
       .surface = surface,
       // number of images to use for buffering on the swapchain
       .minImageCount = select_swapchain_image_count(properties.capabilities,
-                                                    desired_num_buffers),
+                                                    desired_nbuffers),
       .imageFormat = surface_format.format,
       .imageColorSpace = surface_format.colorSpace,
       .imageExtent = selected_extent,
@@ -1331,7 +1331,7 @@ struct SpanBuffer {
   template <typename T>
   void write(VkDevice dev, u32 family_index,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
-             VkBufferUsageFlags usage, stx::Span<T const> span) {
+             VkBufferUsageFlagBits usage, stx::Span<T const> span) {
     // TODO(lamarrr): handle less than
     if (span.size_bytes() != size) {
       vkDestroyBuffer(dev, buffer, nullptr);
@@ -1393,10 +1393,10 @@ struct SpanBuffer {
 };
 
 inline Buffer create_buffer(
-    VkDevice dev, CommandQueueFamilyInfo const& graphics_command_queue,
+    VkDevice dev, CommandQueueFamilyInfo const& queue,
     VkPhysicalDeviceMemoryProperties const& memory_properties, usize size_bytes,
     VkBufferUsageFlags usage) {
-  u32 queue_families[] = {graphics_command_queue.index};
+  u32 queue_families[] = {queue.index};
 
   VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                  .pNext = nullptr,
@@ -1573,9 +1573,9 @@ inline stx::Rc<ImageX*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
 }
 
 // R only
-inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
+inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_image(
     stx::Rc<CommandQueue*> const& queue, u32 width, u32 height,
-    VkImageUsageFlags usage) {
+    VkImageUsageFlags usage, VkFormat format) {
   VkDevice dev = queue.handle->device.handle->device;
 
   VkImageCreateInfo create_info{
@@ -1583,13 +1583,13 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
       .pNext = nullptr,
       .flags = 0,
       .imageType = VK_IMAGE_TYPE_2D,
-      .format = VK_FORMAT_R32_SFLOAT,
+      .format = format,
       .extent = VkExtent3D{.width = width, .height = height, .depth = 1},
       .mipLevels = 1,
       .arrayLayers = 1,
       .samples = VK_SAMPLE_COUNT_1_BIT,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = usage | VK_IMAGE_USAGE_SAMPLED_BIT,
+      .usage = usage,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices = &queue.handle->info.family.index,
@@ -1628,7 +1628,7 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_bitmap_image(
       .flags = 0,
       .image = image,
       .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = VK_FORMAT_R32_SFLOAT,
+      .format = format,
       .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -1716,8 +1716,8 @@ struct DescriptorBinding {
   // only valid if type is DescriptorType::Sampler
   VkSampler sampler = VK_NULL_HANDLE;
 
-  static constexpr DescriptorBinding make_buffer(VkBuffer buff) {
-    return DescriptorBinding{.type = DescriptorType::Buffer, .buffer = buff};
+  static constexpr DescriptorBinding make_buffer(VkBuffer buffer) {
+    return DescriptorBinding{.type = DescriptorType::Buffer, .buffer = buffer};
   }
 
   static constexpr DescriptorBinding make_sampler(VkImageView view,
@@ -2255,6 +2255,8 @@ struct SwapChain {
 
   VkRenderPass render_pass = VK_NULL_HANDLE;
 
+  VkRenderPass present_render_pass = VK_NULL_HANDLE;
+
   Clip clip;
 
   stx::Rc<CommandQueue*> queue;
@@ -2384,8 +2386,7 @@ struct SwapChain {
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-    };
+        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
 
     VkAttachmentDescription attachments[] = {color_attachment, depth_attachment,
                                              color_attachment_resolve};
@@ -2462,23 +2463,26 @@ struct SwapChain {
     }
 
     {
-      auto [image, memory, view] =
-          create_bitmap_image(queue, extent.width, extent.height,
-                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+      VkFormat bitmap_format = format.format;
+
+      auto [image, memory, view] = create_image(
+          queue, extent.width, extent.height,
+          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+          bitmap_format);
 
       VkRenderPass render_pass;
 
       {
         VkAttachmentDescription color_attachment{
             .flags = 0,
-            .format = VK_FORMAT_R32_SFLOAT,
+            .format = bitmap_format,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL};
+            .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
         VkAttachmentReference color_attachment_reference{
             .attachment = 0,
@@ -2564,6 +2568,8 @@ struct SwapChain {
     clip.destroy(dev);
 
     vkDestroyRenderPass(dev, render_pass, nullptr);
+
+    vkDestroyRenderPass(dev, present_render_pass, nullptr);
 
     msaa_color_image.destroy(dev);
     msaa_depth_image.destroy(dev);
@@ -2696,17 +2702,17 @@ struct Pipeline {
     ASR_VK_CHECK(
         vkCreatePipelineLayout(dev, &layout_create_info, nullptr, &layout));
 
-    VkPipelineColorBlendAttachmentState color_blend_attachment_states[]{{
-        .blendEnable = VK_TRUE,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .colorBlendOp = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-        .alphaBlendOp = VK_BLEND_OP_ADD,
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-    }};
+    VkPipelineColorBlendAttachmentState color_blend_attachment_states[] = {
+        {.blendEnable = VK_TRUE,
+         .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+         .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+         .colorBlendOp = VK_BLEND_OP_ADD,
+         .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+         .alphaBlendOp = VK_BLEND_OP_ADD,
+         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                           VK_COLOR_COMPONENT_B_BIT |
+                           VK_COLOR_COMPONENT_A_BIT}};
 
     VkPipelineColorBlendStateCreateInfo color_blend_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -2850,7 +2856,6 @@ struct ClipPipeline {
   void build(
       VkDevice dev, VkShaderModule vertex_shader,
       VkShaderModule fragment_shader, VkRenderPass target_render_pass,
-      stx::Span<VkDescriptorSetLayout const> descriptor_set_layout,
       stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
       usize vertex_input_size) {
     VkPipelineShaderStageCreateInfo vert_shader_stage{
@@ -2878,23 +2883,22 @@ struct ClipPipeline {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .setLayoutCount = AS_U32(descriptor_set_layout.size()),
-        .pSetLayouts = descriptor_set_layout.data(),
+        .setLayoutCount = 0,
+        .pSetLayouts = nullptr,
         .pushConstantRangeCount = 0,
         .pPushConstantRanges = nullptr};
 
     ASR_VK_CHECK(
         vkCreatePipelineLayout(dev, &layout_create_info, nullptr, &layout));
 
-    VkPipelineColorBlendAttachmentState color_blend_attachment_states[]{
-        {.blendEnable = VK_TRUE,
+    VkPipelineColorBlendAttachmentState color_blend_attachment_states[] = {
+        {.blendEnable = VK_FALSE,
          .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
          .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
          .colorBlendOp = VK_BLEND_OP_ADD,
          .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
          .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
          .alphaBlendOp = VK_BLEND_OP_ADD,
-         // only R component is written
          .colorWriteMask = VK_COLOR_COMPONENT_R_BIT}};
 
     VkPipelineColorBlendStateCreateInfo color_blend_state{
@@ -3024,9 +3028,6 @@ struct RecordingContext {
   usize clip_vertex_input_size = 0;
   //  each in-flight frame will have one descriptor set
   stx::Vec<DescriptorSets> descriptor_sets{stx::os_allocator};
-  //  only one clip operation ever executes at a point in time so has only one
-  //  descriptor set
-  DescriptorSets clip_descriptor_sets;
 
   void init(
       VkDevice dev, CommandQueue const& queue,
@@ -3039,8 +3040,7 @@ struct RecordingContext {
       stx::Span<VkVertexInputAttributeDescription const>
           aclip_vertex_input_attr,
       usize aclip_vertex_input_size,
-      stx::Span<DescriptorSetSpec const> descriptor_sets_specs,
-      stx::Span<DescriptorSetSpec const> clip_descriptor_sets_specs) {
+      stx::Span<DescriptorSetSpec const> descriptor_sets_specs) {
     auto create_shader = [dev](stx::Span<u32 const> code) {
       VkShaderModuleCreateInfo create_info{
           .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -3103,12 +3103,6 @@ struct RecordingContext {
     }
 
     stx::Vec<DescriptorSetSpec> clip_specs{stx::os_allocator};
-
-    for (DescriptorSetSpec const& spec : clip_descriptor_sets_specs) {
-      clip_specs.push(DescriptorSetSpec{spec.bindings}).unwrap();
-    }
-
-    clip_descriptor_sets.init(dev, clip_specs);
   }
 
   void on_swapchain_changed(SwapChain const& swapchain) {
@@ -3120,9 +3114,8 @@ struct RecordingContext {
                    vertex_input_attr, vertex_input_size);
     clip_pipeline.build(swapchain.queue.handle->device.handle->device,
                         clip_vertex_shader, clip_fragment_shader,
-                        swapchain.clip.render_pass,
-                        clip_descriptor_sets.descriptor_set_layouts,
-                        clip_vertex_input_attr, clip_vertex_input_size);
+                        swapchain.clip.render_pass, clip_vertex_input_attr,
+                        clip_vertex_input_size);
   }
 
   void destroy(VkDevice dev) {
@@ -3139,8 +3132,6 @@ struct RecordingContext {
     for (DescriptorSets& sets : descriptor_sets) {
       sets.destroy();
     }
-
-    clip_descriptor_sets.destroy();
 
     pipeline.destroy(dev);
     clip_pipeline.destroy(dev);

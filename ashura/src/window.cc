@@ -97,11 +97,12 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   VkSampleCountFlagBits msaa_sample_count =
       queue.handle->device.handle->phy_device.handle->get_max_sample_count();
 
+  // TODO(lamarr): check VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR
   surface_.value().handle->change_swapchain(
       queue, preferred_formats, preferred_present_modes,
       VkExtent2D{.width = surface_extent_.w, .height = surface_extent_.h},
       VkExtent2D{.width = window_extent_.w, .height = window_extent_.h},
-      msaa_sample_count, VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR);
+      msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
 }
 
 std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
