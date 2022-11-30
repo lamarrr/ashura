@@ -1390,10 +1390,11 @@ struct SpanBuffer {
   }
 };
 
-inline Buffer create_buffer(
-    VkDevice dev, CommandQueueFamilyInfo const& queue,
-    VkPhysicalDeviceMemoryProperties const& memory_properties, usize size_bytes,
-    VkBufferUsageFlags usage) {
+inline Buffer create_buffer(VkDevice dev, CommandQueueFamilyInfo const& queue,
+                            usize size_bytes, VkBufferUsageFlags usage) {
+  VkPhysicalDeviceMemoryProperties const& memory_properties =
+      queue.phy_device.handle->memory_properties;
+
   u32 queue_families[] = {queue.index};
 
   VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -2212,6 +2213,7 @@ struct SwapChain {
   VkSwapchainKHR swapchain = VK_NULL_HANDLE;
   VkSurfaceFormatKHR format{.format = VK_FORMAT_R8G8B8A8_SRGB,
                             .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};
+  VkFormat depth_format = VK_FORMAT_D32_SFLOAT;
   VkPresentModeKHR present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
   VkExtent2D extent{.width = 0, .height = 0};
   VkExtent2D window_extent{.width = 0, .height = 0};
@@ -2307,6 +2309,7 @@ struct SwapChain {
     swapchain = new_swapchain;
     images = get_swapchain_images(dev, swapchain);
     format = selected_format;
+    depth_format = find_depth_format(phy_device);
     present_mode = selected_present_mode;
     extent = new_extent;
     window_extent = awindow_extent;
@@ -2314,7 +2317,7 @@ struct SwapChain {
     msaa_color_image = create_msaa_color_resource(
         queue, format.format, new_extent, msaa_sample_count);
     msaa_depth_image = create_msaa_depth_resource(
-        queue, find_depth_format(phy_device), new_extent, msaa_sample_count);
+        queue, depth_format, new_extent, msaa_sample_count);
 
     for (VkImage image : images) {
       VkImageViewCreateInfo create_info{
@@ -2365,7 +2368,7 @@ struct SwapChain {
 
     VkAttachmentDescription depth_attachment{
         .flags = 0,
-        .format = find_depth_format(phy_device),
+        .format = depth_format,
         .samples = msaa_sample_count,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -2481,6 +2484,8 @@ struct SwapChain {
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
+        VkAttachmentDescription attachments[] = {color_attachment};
+
         VkAttachmentReference color_attachment_reference{
             .attachment = 0,
             .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
@@ -2510,8 +2515,8 @@ struct SwapChain {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
             .pNext = nullptr,
             .flags = 0,
-            .attachmentCount = 1,
-            .pAttachments = &color_attachment,
+            .attachmentCount = AS_U32(std::size(attachments)),
+            .pAttachments = attachments,
             .subpassCount = 1,
             .pSubpasses = &subpass,
             .dependencyCount = 1,
@@ -2833,8 +2838,7 @@ struct Pipeline {
         .renderPass = target_render_pass,
         .subpass = 0,
         .basePipelineHandle = VK_NULL_HANDLE,
-        .basePipelineIndex = 0,
-    };
+        .basePipelineIndex = 0};
 
     ASR_VK_CHECK(vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &create_info,
                                            nullptr, &pipeline));
@@ -3022,8 +3026,7 @@ struct ClipPipeline {
         .renderPass = target_render_pass,
         .subpass = 0,
         .basePipelineHandle = VK_NULL_HANDLE,
-        .basePipelineIndex = 0,
-    };
+        .basePipelineIndex = 0};
 
     ASR_VK_CHECK(vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &create_info,
                                            nullptr, &pipeline));
@@ -3055,8 +3058,7 @@ struct RecordingContext {
   stx::Vec<DescriptorSets> descriptor_sets{stx::os_allocator};
 
   void init(
-      VkDevice dev, CommandQueue const& queue,
-      stx::Span<u32 const> vertex_shader_code,
+      CommandQueue const& queue, stx::Span<u32 const> vertex_shader_code,
       stx::Span<u32 const> fragment_shader_code,
       stx::Span<u32 const> clip_vertex_shader_code,
       stx::Span<u32 const> clip_fragment_shader_code,
@@ -3066,6 +3068,8 @@ struct RecordingContext {
           aclip_vertex_input_attr,
       usize aclip_vertex_input_size,
       stx::Span<DescriptorSetSpec const> descriptor_sets_specs) {
+    VkDevice dev = queue.device.handle->device;
+
     auto create_shader = [dev](stx::Span<u32 const> code) {
       VkShaderModuleCreateInfo create_info{
           .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,

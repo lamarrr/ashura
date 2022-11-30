@@ -831,20 +831,17 @@ struct CanvasContext {
   CanvasContext(stx::Rc<vk::CommandQueue*> aqueue) : queue{std::move(aqueue)} {
     VkDevice dev = queue.handle->device.handle->device;
 
-    transform_buffer = vk::create_buffer(
-        dev, queue.handle->info.family,
-        queue.handle->device.handle->phy_device.handle->memory_properties,
-        sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    transform_buffer =
+        vk::create_buffer(dev, queue.handle->info.family, sizeof(Transform),
+                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-    overlay_buffer = vk::create_buffer(
-        dev, queue.handle->info.family,
-        queue.handle->device.handle->phy_device.handle->memory_properties,
-        sizeof(Overlay), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    overlay_buffer =
+        vk::create_buffer(dev, queue.handle->info.family, sizeof(Overlay),
+                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-    viewport_buffer = vk::create_buffer(
-        dev, queue.handle->info.family,
-        queue.handle->device.handle->phy_device.handle->memory_properties,
-        sizeof(Viewport), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    viewport_buffer =
+        vk::create_buffer(dev, queue.handle->info.family, sizeof(Viewport),
+                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     // glslangValidator -V -x shader.vert
     static constexpr u32 const vertex_shader_code[] = {
@@ -1044,7 +1041,7 @@ struct CanvasContext {
         vk::DescriptorSetSpec{vk::DescriptorType::Sampler,
                               vk::DescriptorType::Sampler}};
 
-    recording_context.init(dev, *queue.handle, vertex_shader_code,
+    recording_context.init(*queue.handle, vertex_shader_code,
                            fragment_shader_code, clip_vertex_shader_code,
                            clip_fragment_shader_code, vertex_input_attributes,
                            sizeof(vec2), clip_vertex_input_attributes,
