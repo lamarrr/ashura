@@ -225,9 +225,9 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
     stx::Span<char const* const> required_extensions,
     stx::Span<char const* const> required_validation_layers,
     VkDebugUtilsMessengerCreateInfoEXT debug_messenger_create_info,
-    char const* const application_name = "Valkyrie",
+    char const* const application_name = "Ashura",
     u32 application_version = VK_MAKE_VERSION(1, 0, 0),
-    char const* const engine_name = "Valkyrie Engine",
+    char const* const engine_name = "Ashura Engine",
     u32 engine_version = VK_MAKE_VERSION(1, 0, 0)) {
   // helps but not necessary
   VkApplicationInfo app_info{

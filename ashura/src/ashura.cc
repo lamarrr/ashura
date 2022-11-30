@@ -1,10 +1,9 @@
+#define SDL_MAIN_HANDLED
+#include "SDL2/SDL.h"
 #include "ashura/app.h"
 
-#if STX_CFG(OS, WINDOWS)
-#define main SDL_main
-#endif
-
-int main() {
+int main(int arc, char* argv[]) {
+  SDL_SetMainReady();
   asr::App app{asr::AppConfig{.enable_validation_layers = true}};
 
   while (true) app.tick({});

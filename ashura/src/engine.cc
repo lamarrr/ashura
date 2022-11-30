@@ -10,7 +10,6 @@ namespace asr {
 namespace impl {
 
 // TODO(lamarrr): take a quick look at UE log file content and structure
-// Valkyrie.App
 static stx::Rc<spdlog::logger*> make_multi_threaded_logger(
     std::string name, std::string file_path) {
   stx::Vec<spdlog::sink_ptr> sinks{stx::os_allocator};
