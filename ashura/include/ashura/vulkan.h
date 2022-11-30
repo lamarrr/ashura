@@ -2896,7 +2896,9 @@ struct ClipPipeline {
          .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
          .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
          .alphaBlendOp = VK_BLEND_OP_ADD,
-         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT}};
+         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                           VK_COLOR_COMPONENT_B_BIT |
+                           VK_COLOR_COMPONENT_A_BIT}};
 
     VkPipelineColorBlendStateCreateInfo color_blend_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -2915,13 +2917,39 @@ struct ClipPipeline {
         .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
         .primitiveRestartEnable = VK_FALSE};
 
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .depthTestEnable = VK_FALSE,
+        .depthWriteEnable = VK_FALSE,
+        .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE,
+        .front = VkStencilOpState{.failOp = VK_STENCIL_OP_KEEP,
+                                  .passOp = VK_STENCIL_OP_KEEP,
+                                  .depthFailOp = VK_STENCIL_OP_KEEP,
+                                  .compareOp = VK_COMPARE_OP_NEVER,
+                                  .compareMask = 0,
+                                  .writeMask = 0,
+                                  .reference = 0},
+        .back = VkStencilOpState{.failOp = VK_STENCIL_OP_KEEP,
+                                 .passOp = VK_STENCIL_OP_KEEP,
+                                 .depthFailOp = VK_STENCIL_OP_KEEP,
+                                 .compareOp = VK_COMPARE_OP_NEVER,
+                                 .compareMask = 0,
+                                 .writeMask = 0,
+                                 .reference = 0},
+        .minDepthBounds = 0.0f,
+        .maxDepthBounds = 1.0f};
+
     VkPipelineMultisampleStateCreateInfo multisample_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
         .sampleShadingEnable = VK_FALSE,
-        .minSampleShading = 1.0f,
+        .minSampleShading = 0.0f,
         .pSampleMask = nullptr,
         .alphaToCoverageEnable = VK_FALSE,
         .alphaToOneEnable = VK_FALSE};
@@ -2987,7 +3015,7 @@ struct ClipPipeline {
         .pViewportState = &viewport_state,
         .pRasterizationState = &rasterization_state,
         .pMultisampleState = &multisample_state,
-        .pDepthStencilState = nullptr,
+        .pDepthStencilState = &depth_stencil_state,
         .pColorBlendState = &color_blend_state,
         .pDynamicState = &dynamic_state,
         .layout = layout,

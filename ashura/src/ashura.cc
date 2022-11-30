@@ -2,7 +2,7 @@
 #include "SDL2/SDL.h"
 #include "ashura/app.h"
 
-int main(int arc, char* argv[]) {
+int main(int, char*[]) {
   SDL_SetMainReady();
   asr::App app{asr::AppConfig{.enable_validation_layers = true}};
 
