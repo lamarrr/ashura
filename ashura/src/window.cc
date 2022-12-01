@@ -112,10 +112,10 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   vk::SwapChain& swapchain = *surface_.value().handle->swapchain.value().handle;
 
   VkSemaphore image_acquisition_semaphore =
-      swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
+      VK_NULL_HANDLE;
 
   VkFence image_acquisition_fence =
-      swapchain.image_acquisition_fences[swapchain.next_frame_flight_index];
+     VK_NULL_HANDLE;
 
   VkDevice device = swapchain.queue.handle->device.handle->device;
 

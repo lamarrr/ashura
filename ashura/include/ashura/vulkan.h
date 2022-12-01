@@ -1357,7 +1357,8 @@ struct SpanBuffer {
       } else {
         u32 memory_type_index = vk::find_suitable_memory_type(
                                     memory_properties, memory_requirements,
-                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
                                     .unwrap();
 
         VkMemoryAllocateInfo alloc_info{
@@ -1418,7 +1419,8 @@ inline Buffer create_buffer(VkDevice dev, CommandQueueFamilyInfo const& queue,
 
   u32 memory_type_index =
       find_suitable_memory_type(memory_properties, memory_requirements,
-                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
@@ -2211,7 +2213,7 @@ struct SwapChain {
   // target image. when resizing is needed, the swapchain is destroyed and
   // recreated with the desired extents.
   VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-  VkSurfaceFormatKHR format{.format = VK_FORMAT_R8G8B8A8_SRGB,
+  VkSurfaceFormatKHR color_format{.format = VK_FORMAT_R8G8B8A8_SRGB,
                             .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};
   VkFormat depth_format = VK_FORMAT_D32_SFLOAT;
   VkPresentModeKHR present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
@@ -2308,14 +2310,14 @@ struct SwapChain {
 
     swapchain = new_swapchain;
     images = get_swapchain_images(dev, swapchain);
-    format = selected_format;
+    color_format = selected_format;
     depth_format = find_depth_format(phy_device);
     present_mode = selected_present_mode;
     extent = new_extent;
     window_extent = awindow_extent;
     msaa_sample_count = amsaa_sample_count;
     msaa_color_image = create_msaa_color_resource(
-        queue, format.format, new_extent, msaa_sample_count);
+        queue, color_format.format, new_extent, msaa_sample_count);
     msaa_depth_image = create_msaa_depth_resource(
         queue, depth_format, new_extent, msaa_sample_count);
 
@@ -2326,7 +2328,7 @@ struct SwapChain {
           .flags = 0,
           .image = image,
           .viewType = VK_IMAGE_VIEW_TYPE_2D,
-          .format = format.format,
+          .format = color_format.format,
           .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -2357,7 +2359,7 @@ struct SwapChain {
 
     VkAttachmentDescription color_attachment{
         .flags = 0,
-        .format = format.format,
+        .format = color_format.format,
         .samples = msaa_sample_count,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -2379,7 +2381,7 @@ struct SwapChain {
 
     VkAttachmentDescription color_attachment_resolve{
         .flags = 0,
-        .format = format.format,
+        .format = color_format.format,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -2463,7 +2465,7 @@ struct SwapChain {
     }
 
     {
-      VkFormat bitmap_format = format.format;
+      VkFormat bitmap_format = color_format.format;
 
       auto [image, memory, view] = create_image(
           queue, extent.width, extent.height,
