@@ -6,8 +6,8 @@
 #include <iostream>
 
 #include "ashura/primitives.h"
-#include "ashura/vulkan.h"
 #include "ashura/shaders.h"
+#include "ashura/vulkan.h"
 #include "stx/string.h"
 #include "stx/vec.h"
 #include "vulkan/vulkan.h"
@@ -966,7 +966,7 @@ struct CanvasContext {
             .renderPass = swapchain.clip.render_pass,
             .framebuffer = swapchain.clip.framebuffer,
             .renderArea =
-                VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
+                VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
             .clearValueCount = AS_U32(std::size(clear_values)),
             .pClearValues = clear_values};
 
@@ -1085,7 +1085,8 @@ struct CanvasContext {
           .pNext = nullptr,
           .renderPass = swapchain.render_pass,
           .framebuffer = swapchain.framebuffers[swapchain_image_index],
-          .renderArea = VkRect2D{.offset = {0, 0}, .extent = swapchain.extent},
+          .renderArea =
+              VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
           .clearValueCount = AS_U32(std::size(clear_values)),
           .pClearValues = clear_values};
 

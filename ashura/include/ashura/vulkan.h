@@ -1352,6 +1352,7 @@ struct SpanBuffer {
 
       vkGetBufferMemoryRequirements(dev, buffer, &memory_requirements);
 
+      // TODO(lamarrr): fix memory leak
       if (memory_requirements.size <= memory_size) {
         ASR_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
       } else {
@@ -1577,8 +1578,8 @@ inline stx::Rc<ImageX*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
 
 // R only
 inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_image(
-    stx::Rc<CommandQueue*> const& queue, u32 width, u32 height,
-    VkImageUsageFlags usage, VkFormat format) {
+    stx::Rc<CommandQueue*> const& queue, VkExtent2D extent,
+    VkImageUsageFlags usage, VkFormat format, VkImageAspectFlags image_aspect) {
   VkDevice dev = queue.handle->device.handle->device;
 
   VkImageCreateInfo create_info{
@@ -1587,7 +1588,9 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_image(
       .flags = 0,
       .imageType = VK_IMAGE_TYPE_2D,
       .format = format,
-      .extent = VkExtent3D{.width = width, .height = height, .depth = 1},
+      .extent =
+          VkExtent3D{
+              .width = extent.width, .height = extent.height, .depth = 1},
       .mipLevels = 1,
       .arrayLayers = 1,
       .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -1635,12 +1638,11 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_image(
                                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .a = VK_COMPONENT_SWIZZLE_IDENTITY},
-      .subresourceRange =
-          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                  .baseMipLevel = 0,
-                                  .levelCount = 1,
-                                  .baseArrayLayer = 0,
-                                  .layerCount = 1}};
+      .subresourceRange = VkImageSubresourceRange{.aspectMask = image_aspect,
+                                                  .baseMipLevel = 0,
+                                                  .levelCount = 1,
+                                                  .baseArrayLayer = 0,
+                                                  .layerCount = 1}};
 
   VkImageView view;
 
@@ -2213,11 +2215,12 @@ struct SwapChain {
   // target image. when resizing is needed, the swapchain is destroyed and
   // recreated with the desired extents.
   VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-  VkSurfaceFormatKHR color_format{.format = VK_FORMAT_R8G8B8A8_SRGB,
-                            .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};
+  VkSurfaceFormatKHR color_format{
+      .format = VK_FORMAT_R8G8B8A8_SRGB,
+      .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};
   VkFormat depth_format = VK_FORMAT_D32_SFLOAT;
   VkPresentModeKHR present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-  VkExtent2D extent{.width = 0, .height = 0};
+  VkExtent2D image_extent{.width = 0, .height = 0};
   VkExtent2D window_extent{.width = 0, .height = 0};
 
   /// IMPORTANT: this is different from the image index obtained via
@@ -2313,7 +2316,7 @@ struct SwapChain {
     color_format = selected_format;
     depth_format = find_depth_format(phy_device);
     present_mode = selected_present_mode;
-    extent = new_extent;
+    image_extent = new_extent;
     window_extent = awindow_extent;
     msaa_sample_count = amsaa_sample_count;
     msaa_color_image = create_msaa_color_resource(
@@ -2425,7 +2428,7 @@ struct SwapChain {
         .srcAccessMask = 0,
         .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
                          VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-        .dependencyFlags = 0};
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT};
 
     VkRenderPassCreateInfo render_pass_create_info{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -2454,8 +2457,8 @@ struct SwapChain {
           .renderPass = render_pass,
           .attachmentCount = AS_U32(std::size(attachments)),
           .pAttachments = attachments,
-          .width = extent.width,
-          .height = extent.height,
+          .width = image_extent.width,
+          .height = image_extent.height,
           .layers = 1};
 
       ASR_VK_CHECK(
@@ -2465,19 +2468,12 @@ struct SwapChain {
     }
 
     {
-      VkFormat bitmap_format = color_format.format;
-
-      auto [image, memory, view] = create_image(
-          queue, extent.width, extent.height,
-          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-          bitmap_format);
-
       VkRenderPass render_pass;
 
       {
         VkAttachmentDescription color_attachment{
             .flags = 0,
-            .format = bitmap_format,
+            .format = color_format.format,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -2511,7 +2507,7 @@ struct SwapChain {
             .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             .srcAccessMask = 0,
             .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dependencyFlags = 0};
+            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT};
 
         VkRenderPassCreateInfo create_info{
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -2530,6 +2526,11 @@ struct SwapChain {
 
       VkFramebuffer framebuffer;
 
+      auto [image, memory, view] = create_image(
+          queue, image_extent,
+          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+          color_format.format, VK_IMAGE_ASPECT_COLOR_BIT);
+
       {
         VkImageView attachments[] = {view};
 
@@ -2540,8 +2541,8 @@ struct SwapChain {
             .renderPass = render_pass,
             .attachmentCount = AS_U32(std::size(attachments)),
             .pAttachments = attachments,
-            .width = extent.width,
-            .height = extent.height,
+            .width = image_extent.width,
+            .height = image_extent.height,
             .layers = 1};
 
         ASR_VK_CHECK(
@@ -2712,7 +2713,7 @@ struct Pipeline {
          .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
          .colorBlendOp = VK_BLEND_OP_ADD,
          .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
          .alphaBlendOp = VK_BLEND_OP_ADD,
          .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                            VK_COLOR_COMPONENT_B_BIT |
@@ -2724,7 +2725,7 @@ struct Pipeline {
         .flags = 0,
         .logicOpEnable = VK_FALSE,
         .logicOp = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1,
+        .attachmentCount = AS_U32(std::size(color_blend_attachment_states)),
         .pAttachments = color_blend_attachment_states,
         .blendConstants = {0.0f, 0.0f, 0.0f, 0.0f}};
 
@@ -2780,7 +2781,7 @@ struct Pipeline {
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .depthBiasConstantFactor = 0.0f,
         .depthBiasClamp = 0.0f,
@@ -2811,8 +2812,8 @@ struct Pipeline {
         .scissorCount = 1,
         .pScissors = nullptr};
 
-    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_SCISSOR,
-                                       VK_DYNAMIC_STATE_VIEWPORT};
+    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT,
+                                       VK_DYNAMIC_STATE_SCISSOR};
 
     VkPipelineDynamicStateCreateInfo dynamic_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
@@ -2896,10 +2897,10 @@ struct ClipPipeline {
 
     VkPipelineColorBlendAttachmentState color_blend_attachment_states[] = {
         {.blendEnable = VK_FALSE,
-         .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+         .srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
          .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
          .colorBlendOp = VK_BLEND_OP_ADD,
-         .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+         .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
          .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
          .alphaBlendOp = VK_BLEND_OP_ADD,
          .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -2929,7 +2930,7 @@ struct ClipPipeline {
         .flags = 0,
         .depthTestEnable = VK_FALSE,
         .depthWriteEnable = VK_FALSE,
-        .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
+        .depthCompareOp = VK_COMPARE_OP_NEVER,
         .depthBoundsTestEnable = VK_FALSE,
         .stencilTestEnable = VK_FALSE,
         .front = VkStencilOpState{.failOp = VK_STENCIL_OP_KEEP,
@@ -2967,8 +2968,8 @@ struct ClipPipeline {
         .depthClampEnable = VK_FALSE,
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .cullMode = VK_CULL_MODE_NONE,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .depthBiasConstantFactor = 0.0f,
         .depthBiasClamp = 0.0f,
@@ -2999,8 +3000,8 @@ struct ClipPipeline {
         .scissorCount = 1,
         .pScissors = nullptr};
 
-    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_SCISSOR,
-                                       VK_DYNAMIC_STATE_VIEWPORT};
+    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT,
+                                       VK_DYNAMIC_STATE_SCISSOR};
 
     VkPipelineDynamicStateCreateInfo dynamic_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,

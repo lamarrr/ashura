@@ -111,18 +111,17 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
 
   vk::SwapChain& swapchain = *surface_.value().handle->swapchain.value().handle;
 
-  VkSemaphore image_acquisition_semaphore =
-      VK_NULL_HANDLE;
+  VkSemaphore semaphore =
+      swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
 
-  VkFence image_acquisition_fence =
-     VK_NULL_HANDLE;
+  VkFence fence =
+      swapchain.image_acquisition_fences[swapchain.next_frame_flight_index];
 
   VkDevice device = swapchain.queue.handle->device.handle->device;
 
   auto [next_swapchain_image_index, acquire_result] =
-      vk::acquire_next_swapchain_image(device, swapchain.swapchain,
-                                       image_acquisition_semaphore,
-                                       image_acquisition_fence);
+      vk::acquire_next_swapchain_image(device, swapchain.swapchain, semaphore,
+                                       fence);
 
   if (acquire_result == VK_SUBOPTIMAL_KHR) {
     return std::make_pair(WindowSwapchainDiff::Suboptimal,
