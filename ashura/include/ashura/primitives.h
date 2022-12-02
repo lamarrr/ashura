@@ -82,7 +82,7 @@ struct vec4 {
   f32 x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;
 };
 
-constexpr bool operator==(vec4 const &a, vec4 const &b) {
+constexpr bool operator==(vec4 a, vec4 b) {
   return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }
 
@@ -112,7 +112,6 @@ constexpr mat4 operator*(mat4 const &a, mat4 const &b) {
                    vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
                dot(a.data[0],
                    vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
-
           vec4{dot(a.data[1],
                    vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
                dot(a.data[1],
@@ -121,7 +120,6 @@ constexpr mat4 operator*(mat4 const &a, mat4 const &b) {
                    vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
                dot(a.data[1],
                    vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
-
           vec4{dot(a.data[2],
                    vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
                dot(a.data[2],
@@ -130,7 +128,6 @@ constexpr mat4 operator*(mat4 const &a, mat4 const &b) {
                    vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
                dot(a.data[2],
                    vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
-
           vec4{dot(a.data[3],
                    vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
                dot(a.data[3],
@@ -150,99 +147,89 @@ struct Offset {
   u32 x = 0, y = 0;
 };
 
-constexpr Offset operator+(Offset const &a, Offset const &b) {
+constexpr Offset operator+(Offset a, Offset b) {
   return Offset{.x = a.x + b.x, .y = a.y + b.y};
 }
 
-constexpr bool operator==(Offset const &a, Offset const &b) {
+constexpr bool operator==(Offset a, Offset b) {
   return a.x == b.x && a.y == b.y;
 }
 
-constexpr bool operator!=(Offset const &a, Offset const &b) {
-  return !(a == b);
-}
+constexpr bool operator!=(Offset a, Offset b) { return !(a == b); }
 
 struct OffsetF {
   f32 x = 0.0f, y = 0.0f;
 };
 
-constexpr OffsetF operator+(OffsetF const &a, OffsetF const &b) {
+constexpr OffsetF operator+(OffsetF a, OffsetF b) {
   return OffsetF{.x = a.x + b.x, .y = a.y + b.y};
 }
 
-constexpr OffsetF operator-(OffsetF const &a, OffsetF const &b) {
+constexpr OffsetF operator-(OffsetF a, OffsetF b) {
   return OffsetF{.x = a.x - b.x, .y = a.y - b.y};
 }
 
-constexpr bool operator==(OffsetF const &a, OffsetF const &b) {
+constexpr bool operator==(OffsetF a, OffsetF b) {
   return a.x == b.x && a.y == b.y;
 }
 
-constexpr bool operator!=(OffsetF const &a, OffsetF const &b) {
-  return !(a == b);
-}
+constexpr bool operator!=(OffsetF a, OffsetF b) { return !(a == b); }
 
 struct OffsetI {
   i64 x = 0, y = 0;
 };
 
-constexpr OffsetI operator+(OffsetI const &a, OffsetI const &b) {
+constexpr OffsetI operator+(OffsetI a, OffsetI b) {
   return OffsetI{.x = a.x + b.x, .y = a.y + b.y};
 }
 
-constexpr OffsetI operator-(OffsetI const &a, OffsetI const &b) {
+constexpr OffsetI operator-(OffsetI a, OffsetI b) {
   return OffsetI{.x = a.x - b.x, .y = a.y - b.y};
 }
 
-constexpr bool operator==(OffsetI const &a, OffsetI const &b) {
+constexpr bool operator==(OffsetI a, OffsetI b) {
   return a.x == b.x && a.y == b.y;
 }
 
-constexpr bool operator!=(OffsetI const &a, OffsetI const &b) {
-  return !(a == b);
-}
+constexpr bool operator!=(OffsetI a, OffsetI b) { return !(a == b); }
 
 struct Extent {
   u32 w = 0, h = 0;
 
   constexpr bool is_visible() const { return w != 0 && h != 0; }
 
-  constexpr Extent constrain(Extent const &other) const {
+  constexpr Extent constrain(Extent other) const {
     return Extent{.w = std::min(w, other.w), .h = std::min(w, other.w)};
   }
 };
 
-constexpr Extent operator+(Extent const &a, Extent const &b) {
+constexpr Extent operator+(Extent a, Extent b) {
   return Extent{.w = a.w + b.w, .h = a.h + b.h};
 }
 
-constexpr bool operator==(Extent const &a, Extent const &b) {
+constexpr bool operator==(Extent a, Extent b) {
   return a.w == b.w && a.h == b.h;
 }
 
-constexpr bool operator!=(Extent const &a, Extent const &b) {
-  return !(a == b);
-}
+constexpr bool operator!=(Extent a, Extent b) { return !(a == b); }
 
 struct ExtentF {
   f32 w = 0.0f, h = 0.0f;
 };
 
-constexpr ExtentF operator+(ExtentF const &a, ExtentF const &b) {
+constexpr ExtentF operator+(ExtentF a, ExtentF b) {
   return ExtentF{.w = a.w + b.w, .h = a.h + b.h};
 }
 
-constexpr ExtentF operator-(ExtentF const &a, ExtentF const &b) {
+constexpr ExtentF operator-(ExtentF a, ExtentF b) {
   return ExtentF{.w = a.w - b.w, .h = a.h - b.h};
 }
 
-constexpr bool operator==(ExtentF const &a, ExtentF const &b) {
+constexpr bool operator==(ExtentF a, ExtentF b) {
   return a.w == b.w && a.h == b.h;
 }
 
-constexpr bool operator!=(ExtentF const &a, ExtentF const &b) {
-  return !(a == b);
-}
+constexpr bool operator!=(ExtentF a, ExtentF b) { return !(a == b); }
 
 struct Rect {
   Offset offset;
@@ -280,7 +267,7 @@ struct Rect {
   }
 
   Rect checked_intersect(Rect const &other) const {
-    ASR_ENSURE(overlaps(other));
+    ASR_CHECK(overlaps(other));
     return intersect(other);
   }
 
@@ -292,11 +279,11 @@ struct Rect {
 
   constexpr bool is_visible() const { return extent.is_visible(); }
 
-  constexpr Rect with_offset(Offset const &new_offset) const {
+  constexpr Rect with_offset(Offset new_offset) const {
     return Rect{.offset = new_offset, .extent = extent};
   }
 
-  constexpr Rect with_extent(Extent const &new_extent) const {
+  constexpr Rect with_extent(Extent new_extent) const {
     return Rect{.offset = offset, .extent = new_extent};
   }
 };
@@ -338,11 +325,11 @@ struct RectF {
   constexpr f32 w() const { return extent.w; }
   constexpr f32 h() const { return extent.h; }
 
-  constexpr RectF with_offset(OffsetF const &new_offset) const {
+  constexpr RectF with_offset(OffsetF new_offset) const {
     return RectF{.offset = new_offset, .extent = extent};
   }
 
-  constexpr RectF with_extent(ExtentF const &new_extent) const {
+  constexpr RectF with_extent(ExtentF new_extent) const {
     return RectF{.offset = offset, .extent = new_extent};
   }
 };
@@ -390,7 +377,7 @@ struct RectI {
   }
 
   RectI checked_intersect(RectI const &other) const {
-    ASR_ENSURE(overlaps(other));
+    ASR_CHECK(overlaps(other));
     return intersect(other);
   }
 
@@ -402,11 +389,11 @@ struct RectI {
 
   constexpr bool is_visible() const { return extent.is_visible(); }
 
-  constexpr RectI with_offset(OffsetI const &new_offset) const {
+  constexpr RectI with_offset(OffsetI new_offset) const {
     return RectI{.offset = new_offset, .extent = extent};
   }
 
-  constexpr RectI with_extent(Extent const &new_extent) const {
+  constexpr RectI with_extent(Extent new_extent) const {
     return RectI{.offset = offset, .extent = new_extent};
   }
 };
@@ -454,13 +441,13 @@ constexpr bool operator!=(Color const &a, Color const &b) { return !(a == b); }
 namespace colors {
 
 constexpr Color TRANSPARENT{.r = 0x00, .g = 0x00, .b = 0x00, .a = 0x00};
-constexpr auto WHITE = Color::from_rgb(0xFF, 0xFF, 0xFF);
-constexpr auto BLACK = Color::from_rgb(0x00, 0x00, 0x00);
-constexpr auto RED = Color::from_rgb(0xFF, 0x00, 0x00);
-constexpr auto BLUE = Color::from_rgb(0x00, 0x00, 0xFF);
-constexpr auto GREEN = Color::from_rgb(0x00, 0xFF, 0x00);
-constexpr auto CYAN = Color::from_rgb(0x00, 0xFF, 0xFF);
-constexpr auto MAGENTA = Color::from_rgb(0xFF, 0x00, 0xFF);
+constexpr Color WHITE = Color::from_rgb(0xFF, 0xFF, 0xFF);
+constexpr Color BLACK = Color::from_rgb(0x00, 0x00, 0x00);
+constexpr Color RED = Color::from_rgb(0xFF, 0x00, 0x00);
+constexpr Color BLUE = Color::from_rgb(0x00, 0x00, 0xFF);
+constexpr Color GREEN = Color::from_rgb(0x00, 0xFF, 0x00);
+constexpr Color CYAN = Color::from_rgb(0x00, 0xFF, 0xFF);
+constexpr Color MAGENTA = Color::from_rgb(0xFF, 0x00, 0xFF);
 
 }  // namespace colors
 
@@ -490,27 +477,27 @@ constexpr i32 i32_clamp(u32 value) {
   return AS_I32(std::min<u32>(value, stx::i32_max));
 }
 
-constexpr bool fits_u32(OffsetI const &offset) {
+constexpr bool fits_u32(OffsetI offset) {
   return fits_u32(offset.x) && fits_u32(offset.y);
 }
 
-constexpr bool fits_i32(OffsetI const &offset) {
+constexpr bool fits_i32(OffsetI offset) {
   return fits_i32(offset.x) && fits_i32(offset.y);
 }
 
-constexpr bool fits_i32(Offset const &offset) {
+constexpr bool fits_i32(Offset offset) {
   return fits_i32(offset.x) && fits_i32(offset.y);
 }
 
-constexpr std::pair<i32, i32> i32_clamp(Offset const &offset) {
+constexpr std::pair<i32, i32> i32_clamp(Offset offset) {
   return std::make_pair(i32_clamp(offset.x), i32_clamp(offset.y));
 }
 
-constexpr bool fits_i32(Extent const &extent) {
+constexpr bool fits_i32(Extent extent) {
   return fits_i32(extent.w) && fits_i32(extent.h);
 }
 
-constexpr std::pair<i32, i32> i32_clamp(Extent const &extent) {
+constexpr std::pair<i32, i32> i32_clamp(Extent extent) {
   return std::make_pair(i32_clamp(extent.w), i32_clamp(extent.h));
 }
 

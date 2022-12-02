@@ -84,7 +84,7 @@ struct Window {
 
   ~Window() {
     // window should be destructed on the same thread that created it
-    ASR_ENSURE(init_thread_id_ == std::this_thread::get_id());
+    ASR_CHECK(init_thread_id_ == std::this_thread::get_id());
     api_.handle->remove_window_info(id_);
     // delete window
     SDL_DestroyWindow(window_);
@@ -127,16 +127,16 @@ struct Window {
   void flash();
 
   void make_fullscreen() const {
-    ASR_ENSURE(
-        SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP) == 0);
+    ASR_CHECK(SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP) ==
+              0);
   }
 
   void make_nonfullscreen_exclusive() const {
-    ASR_ENSURE(SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN) == 0);
+    ASR_CHECK(SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN) == 0);
   }
 
   void make_windowed() const {
-    ASR_ENSURE(SDL_SetWindowFullscreen(window_, 0) == 0);
+    ASR_CHECK(SDL_SetWindowFullscreen(window_, 0) == 0);
   }
 
   // void enable_hit_testing();
@@ -162,7 +162,7 @@ struct Window {
   WindowSwapchainDiff present(u32 next_swapchain_image_index);
 
   void on(WindowEvent event, stx::UniqueFn<void()> callback) {
-    window_event_listeners.emplace(event, std::move(callback));
+    event_listeners.emplace(event, std::move(callback));
   }
 
   // use SDL_EVENT_DISPLAY
@@ -173,8 +173,8 @@ struct Window {
 
   void tick(std::chrono::nanoseconds) {
     SDL_DisplayMode display_mode;
-    ASR_ENSURE(SDL_GetWindowDisplayMode(window_, &display_mode) == 0,
-               "Unable to get window display mode");
+    ASR_CHECK(SDL_GetWindowDisplayMode(window_, &display_mode) == 0,
+              "Unable to get window display mode");
     refresh_rate_ = AS_U32(display_mode.refresh_rate);
     // forward event if refresh rate changed
   }
@@ -188,13 +188,11 @@ struct Window {
   std::thread::id init_thread_id_;
   stx::Option<stx::Unique<vk::Surface*>> surface_;
   u32 refresh_rate_ = 1;
-  std::map<WindowEvent, stx::UniqueFn<void()>> window_event_listeners;
+  std::map<WindowEvent, stx::UniqueFn<void()>> event_listeners;
   stx::UniqueFn<void(MouseClickEvent const&)> mouse_click_listener =
       stx::fn::rc::make_unique_static([](MouseClickEvent const&) {});
   stx::UniqueFn<void(MouseMotionEvent const&)> mouse_motion_listener =
       stx::fn::rc::make_unique_static([](MouseMotionEvent const&) {});
-  stx::UniqueFn<void()> quit_listener =
-      stx::fn::rc::make_unique_static([]() {});
 };
 
 stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg);

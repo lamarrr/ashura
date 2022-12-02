@@ -15,7 +15,7 @@
 
 #define ASR_PANIC(...) ::stx::panic(__VA_ARGS__)
 
-#define ASR_ENSURE(expr, ...)               \
+#define ASR_CHECK(expr, ...)               \
   do {                                      \
     if (!(expr)) ::stx::panic(__VA_ARGS__); \
   } while (false)

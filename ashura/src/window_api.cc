@@ -6,10 +6,10 @@
 #include "SDL.h"
 #include "SDL_vulkan.h"
 #include "ashura/event.h"
+#include "ashura/primitives.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/utils.h"
 #include "ashura/window.h"
-#include "ashura/primitives.h"
 
 namespace asr {
 
@@ -55,7 +55,7 @@ inline WindowEvent sdl_window_event_to_asr(u8 win_event_type) {
 }  // namespace impl
 
 WindowApi::WindowApi() {
-  ASR_SDL_ENSURE(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) == 0,
+  ASR_SDL_CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) == 0,
                  "Unable to initialize SDL");
 }
 
@@ -69,10 +69,10 @@ bool WindowApi::poll_events() {
       case SDL_WINDOWEVENT: {
         Window* win = get_window_info(WindowID{event.window.windowID});
 
-        auto listener = win->window_event_listeners.find(
+        auto listener = win->event_listeners.find(
             impl::sdl_window_event_to_asr(event.window.event));
 
-        if (listener != win->window_event_listeners.end()) {
+        if (listener != win->event_listeners.end()) {
           listener->second.handle();
         }
 
@@ -135,13 +135,6 @@ bool WindowApi::poll_events() {
       }
 
       case SDL_MOUSEWHEEL: {
-        return true;
-      }
-
-      case SDL_QUIT: {
-        get_window_info(WindowID{event.button.windowID})
-            ->quit_listener.handle();
-
         return true;
       }
 

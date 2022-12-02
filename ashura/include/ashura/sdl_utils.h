@@ -3,7 +3,7 @@
 #include "SDL.h"
 #include "stx/panic.h"
 
-#define ASR_SDL_ENSURE(expr, additional_context_message)             \
+#define ASR_SDL_CHECK(expr, additional_context_message)              \
   do {                                                               \
     if (!(expr))                                                     \
       ::stx::panic(additional_context_message ". SDL's Last Error:", \

@@ -57,7 +57,7 @@ inline void triangulate_polygon(stx::Vec<vec2>& output,
                                 stx::Span<vec2 const> polygon) {
   i64 npoints = polygon.size();
 
-  ASR_ENSURE(npoints >= 3, "polygon must have 3 or more points");
+  ASR_CHECK(npoints >= 3, "polygon must have 3 or more points");
 
   stx::Vec<i64> V{stx::os_allocator};
 
@@ -164,9 +164,9 @@ inline void ellipse(stx::Vec<vec2>& polygon, vec2 offset, vec2 radius,
 
 inline void round_rect(stx::Vec<vec2>& polygon, vec2 offset, vec2 extent,
                        vec4 radii, usize nsegments) {
-  ASR_ENSURE(nsegments > 0);
+  ASR_CHECK(nsegments > 0);
 
-  // TODO(lamarrr): we should ideally do some subtraction to ensure both radiis
+  // TODO(lamarrr): we should ideally do some subtraction to CHECK both radiis
   // are contained within a dimension
   radii.x = std::min(radii.x, std::min(extent.x, extent.y));
   radii.y = std::min(radii.y, std::min(extent.x, extent.y));
@@ -465,8 +465,8 @@ struct Canvas {
   // save current transform and clip state
   // pop state (transform and clips) stack and restore state
   Canvas& restore() {
-    ASR_ENSURE(!transform_state_stack.is_empty());
-    ASR_ENSURE(!clip_state_stack.is_empty());
+    ASR_CHECK(!transform_state_stack.is_empty());
+    ASR_CHECK(!clip_state_stack.is_empty());
 
     transform = *(transform_state_stack.end() - 1);
     transform_state_stack.erase(transform_state_stack.span().slice(1));
@@ -582,7 +582,7 @@ struct Canvas {
   }
 
   Canvas& draw_polygon_line(stx::Span<vec2 const> line) {
-    ASR_ENSURE(line.size() >= 2);
+    ASR_CHECK(line.size() >= 2);
 
     u32 start = AS_U32(draw_list.indices.size());
     u32 nindices = 0;
@@ -649,7 +649,7 @@ struct Canvas {
   }
 
   Canvas& draw_polygon_filled(stx::Span<vec2 const> polygon) {
-    ASR_ENSURE(polygon.size() >= 3);
+    ASR_CHECK(polygon.size() >= 3);
 
     u32 npolygon_vertices = AS_U32(draw_list.vertices.size());
 
@@ -928,10 +928,10 @@ struct CanvasContext {
 
   void submit(vk::SwapChain const& swapchain, u32 swapchain_image_index,
               DrawList const& draw_list) {
-    ASR_ENSURE(!draw_list.vertices.is_empty());
-    ASR_ENSURE(!draw_list.indices.is_empty());
-    ASR_ENSURE(!draw_list.clip_vertices.is_empty());
-    ASR_ENSURE(!draw_list.clip_indices.is_empty());
+    ASR_CHECK(!draw_list.vertices.is_empty());
+    ASR_CHECK(!draw_list.indices.is_empty());
+    ASR_CHECK(!draw_list.clip_vertices.is_empty());
+    ASR_CHECK(!draw_list.clip_indices.is_empty());
 
     static constexpr u64 TIMEOUT = AS_U64(
         std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());

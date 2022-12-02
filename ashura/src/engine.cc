@@ -195,6 +195,12 @@ Engine::Engine(AppConfig const& cfg) {
 
   VkDevice dev = queue.value().handle->device.handle->device;
 
+  window.value().handle->on(
+      WindowEvent::Close,
+      stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
+        std::exit(0);
+      }).unwrap());
+
   // TODO(lamarrr)
   //   : vertices need to be specified in clockwise direction
 };
@@ -321,11 +327,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   //   bool window_extent_changed =
   //   any_eq(window.value().handle->, WindowEvent::SizeChanged);
 
-  // actually forward
-  //   if (any_eq(window->handle.handle->event_queue.window_events,
-  //  WindowEvent::Close)) {
-  // std::exit(0);
-  //   }
 
   // TODO(lamarrr): ???
   //   window->handle.handle->event_queue.clear();

@@ -31,9 +31,9 @@ struct WindowApi {
     windows_info_.emplace(id, win);
   }
 
-  Window* get_window_info(WindowID id) {
+  Window *get_window_info(WindowID id) {
     auto window_entry_pos = windows_info_.find(id);
-    ASR_ENSURE(window_entry_pos != windows_info_.end());
+    ASR_CHECK(window_entry_pos != windows_info_.end());
 
     return window_entry_pos->second;
   }
@@ -42,7 +42,7 @@ struct WindowApi {
   // 'add_window_info' method
   void remove_window_info(WindowID id) {
     auto pos = windows_info_.find(id);
-    ASR_ENSURE(pos != windows_info_.end());
+    ASR_CHECK(pos != windows_info_.end());
     windows_info_.erase(pos);
   }
 
@@ -51,7 +51,7 @@ struct WindowApi {
 
   // this implies that we need to detach the handle from here first
   //
-  // also ensure all api calls occur on the main thread.
+  // also CHECK all api calls occur on the main thread.
   std::map<WindowID, Window *> windows_info_;
 };
 

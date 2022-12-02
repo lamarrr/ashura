@@ -21,13 +21,13 @@
 #include "stx/vec.h"
 #include "vulkan/vulkan.h"
 
-#define ASR_VK_CHECK(...)                              \
-  do {                                                 \
-    VkResult operation_result = (__VA_ARGS__);         \
-    ASR_ENSURE(operation_result == VK_SUCCESS,         \
-               "Vulkan Operation: (" #__VA_ARGS__      \
-               ")  failed! (VK_SUCCESS not returned)", \
-               operation_result);                      \
+#define ASR_VK_CHECK(...)                             \
+  do {                                                \
+    VkResult operation_result = (__VA_ARGS__);        \
+    ASR_CHECK(operation_result == VK_SUCCESS,         \
+              "Vulkan Operation: (" #__VA_ARGS__      \
+              ")  failed! (VK_SUCCESS not returned)", \
+              operation_result);                      \
   } while (false)
 
 namespace asr {
@@ -44,7 +44,7 @@ inline auto join_copy(stx::Span<T const> a, stx::Span<T const> b) {
   return x;
 }
 
-inline void ensure_validation_layers_supported(
+inline void CHECK_validation_layers_supported(
     stx::Span<char const* const> layers) {
   u32 available_validation_layers_count;
   vkEnumerateInstanceLayerProperties(&available_validation_layers_count,
@@ -79,13 +79,13 @@ inline void ensure_validation_layers_supported(
     }
   }
 
-  ASR_ENSURE(all_layers_available,
-             "One or more required validation layers are not available");
+  ASR_CHECK(all_layers_available,
+            "One or more required validation layers are not available");
 }
 
 // NICE-TO-HAVE(lamarrr): versioning of extensions, know which one wasn't
 // available and adjust features to that
-inline void ensure_extensions_supported(stx::Span<char const* const> names) {
+inline void CHECK_extensions_supported(stx::Span<char const* const> names) {
   u32 available_vk_extensions_count = 0;
   vkEnumerateInstanceExtensionProperties(
       nullptr, &available_vk_extensions_count, nullptr);
@@ -118,8 +118,7 @@ inline void ensure_extensions_supported(stx::Span<char const* const> names) {
     }
   }
 
-  ASR_ENSURE(all_available,
-             "One or more required extensions are not available");
+  ASR_CHECK(all_available, "One or more required extensions are not available");
 }
 
 inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
@@ -202,9 +201,8 @@ inline VkDebugUtilsMessengerEXT create_install_debug_messenger(
       reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
           vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
 
-  ASR_ENSURE(
-      createDebugUtilsMessengerEXT != nullptr,
-      "Unable to get process address for vkCreateDebugUtilsMessengerEXT");
+  ASR_CHECK(createDebugUtilsMessengerEXT != nullptr,
+            "Unable to get process address for vkCreateDebugUtilsMessengerEXT");
 
   ASR_VK_CHECK(createDebugUtilsMessengerEXT(instance, &create_info, nullptr,
                                             &debug_messenger));
@@ -217,7 +215,7 @@ inline void destroy_debug_messenger(VkInstance instance,
   auto func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
       vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
 
-  ASR_ENSURE(func != nullptr, "Unable to destroy debug messenger");
+  ASR_CHECK(func != nullptr, "Unable to destroy debug messenger");
 
   return func(instance, debug_messenger, nullptr);
 }
@@ -264,11 +262,11 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   create_info.enabledExtensionCount = AS_U32(extensions.size());
   create_info.ppEnabledExtensionNames = extensions.data();
 
-  ensure_extensions_supported(extensions);
+  CHECK_extensions_supported(extensions);
 
   if (!required_validation_layers.is_empty()) {
     // validation layers
-    ensure_validation_layers_supported(required_validation_layers);
+    CHECK_validation_layers_supported(required_validation_layers);
     create_info.enabledLayerCount = AS_U32(required_validation_layers.size());
     create_info.ppEnabledLayerNames = required_validation_layers.data();
 
@@ -368,7 +366,7 @@ inline VkDevice create_logical_device(
     ASR_LOG("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
   });
 
-  ASR_ENSURE(required_extensions.is_all([&](char const* ext) {
+  ASR_CHECK(required_extensions.is_all([&](char const* ext) {
     return !available_device_extensions.span()
                 .which([=](VkExtensionProperties a_ext) {
                   return std::string_view(ext) ==
@@ -376,7 +374,7 @@ inline VkDevice create_logical_device(
                 })
                 .is_empty();
   }),
-             "Can't find all required extensions");
+            "Can't find all required extensions");
 
   VkDeviceCreateInfo device_create_info{
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -403,8 +401,8 @@ inline VkQueue get_command_queue(VkDevice device, u32 queue_family_index,
   VkQueue command_queue;
   vkGetDeviceQueue(device, queue_family_index, command_queue_index_in_family,
                    &command_queue);
-  ASR_ENSURE(command_queue != nullptr,
-             "Requested command queue not created on target device");
+  ASR_CHECK(command_queue != nullptr,
+            "Requested command queue not created on target device");
   return command_queue;
 }
 
@@ -446,13 +444,13 @@ inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_device,
 
 inline bool is_swapchain_adequate(SwapChainProperties const& properties) {
   // we use any available for selecting devices
-  ASR_ENSURE(!properties.supported_formats.is_empty(),
-             "Physical Device does not support any window surface "
-             "format");
+  ASR_CHECK(!properties.supported_formats.is_empty(),
+            "Physical Device does not support any window surface "
+            "format");
 
-  ASR_ENSURE(!properties.presentation_modes.is_empty(),
-             "Physical Device does not support any window surface "
-             "presentation mode");
+  ASR_CHECK(!properties.presentation_modes.is_empty(),
+            "Physical Device does not support any window surface "
+            "presentation mode");
 
   return true;
 }
@@ -624,9 +622,9 @@ inline std::pair<u32, VkResult> acquire_next_swapchain_image(
       device, swapchain,
       std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count(),
       signal_semaphore, signal_fence, &index);
-  ASR_ENSURE(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
-                 result == VK_ERROR_OUT_OF_DATE_KHR,
-             "Unable to acquire next image");
+  ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
+                result == VK_ERROR_OUT_OF_DATE_KHR,
+            "Unable to acquire next image");
 
   return std::make_pair(index, result);
 }
@@ -635,8 +633,8 @@ inline VkResult present(VkQueue command_queue,
                         stx::Span<VkSemaphore const> await_semaphores,
                         stx::Span<VkSwapchainKHR const> swapchains,
                         stx::Span<u32 const> swapchain_image_indexes) {
-  ASR_ENSURE(swapchain_image_indexes.size() == swapchains.size(),
-             "swapchain and their image indices must be of the same size");
+  ASR_CHECK(swapchain_image_indexes.size() == swapchains.size(),
+            "swapchain and their image indices must be of the same size");
 
   VkPresentInfoKHR present_info{
       .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -649,9 +647,9 @@ inline VkResult present(VkQueue command_queue,
       .pResults = nullptr};
 
   auto result = vkQueuePresentKHR(command_queue, &present_info);
-  ASR_ENSURE(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
-                 result == VK_ERROR_OUT_OF_DATE_KHR,
-             "Unable to present to swapchain");
+  ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
+                result == VK_ERROR_OUT_OF_DATE_KHR,
+            "Unable to present to swapchain");
 
   return result;
 }
@@ -1104,7 +1102,7 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
   ASR_VK_CHECK(vkEnumeratePhysicalDevices(instance.handle->instance,
                                           &devices_count, nullptr));
 
-  ASR_ENSURE(devices_count != 0, "No Physical Device Found");
+  ASR_CHECK(devices_count != 0, "No Physical Device Found");
 
   stx::Vec<VkPhysicalDevice> phy_devices{stx::os_allocator};
 
@@ -1231,8 +1229,8 @@ inline stx::Rc<Device*> create_device(
     auto create_info = command_queue_create_info[i];
     auto command_queue_family_index = create_info.queueFamilyIndex;
     auto queue_count = create_info.queueCount;
-    ASR_ENSURE(command_queue_family_index <
-               phy_device.handle->family_properties.size());
+    ASR_CHECK(command_queue_family_index <
+              phy_device.handle->family_properties.size());
 
     for (u32 queue_index_in_family = 0; queue_index_in_family < queue_count;
          queue_index_in_family++) {
@@ -1263,8 +1261,8 @@ inline stx::Option<CommandQueue> get_command_queue(
     stx::Rc<Device*> const& device, CommandQueueFamilyInfo const& family,
     u32 command_queue_create_index) {
   // We shouldn't have to perform checks?
-  ASR_ENSURE(device.handle->phy_device.handle->phy_device ==
-             family.phy_device.handle->phy_device);
+  ASR_CHECK(device.handle->phy_device.handle->phy_device ==
+            family.phy_device.handle->phy_device);
 
   stx::Span queue_s = device.handle->command_queues.span().which(
       [&](CommandQueueInfo const& info) {
@@ -1483,7 +1481,7 @@ struct ImageX {
 inline stx::Rc<ImageX*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
                                           u32 width, u32 height,
                                           stx::Span<u32 const> data) {
-  ASR_ENSURE(data.size_bytes() == width * height * 4);
+  ASR_CHECK(data.size_bytes() == width * height * 4);
 
   VkDevice dev = queue.handle->device.handle->device;
 
@@ -1863,19 +1861,19 @@ struct DescriptorSets {
   }
 
   void write(stx::Span<stx::Span<DescriptorBinding const> const> sets) {
-    ASR_ENSURE(sets.size() == descriptor_sets_specs.size());
-    ASR_ENSURE(sets.size() == descriptor_sets.size());
+    ASR_CHECK(sets.size() == descriptor_sets_specs.size());
+    ASR_CHECK(sets.size() == descriptor_sets.size());
 
     for (u32 iset = 0; iset < AS_U32(sets.size()); iset++) {
       stx::Span<DescriptorBinding const> set = sets[iset];
 
-      ASR_ENSURE(set.size() == descriptor_sets_specs[iset].bindings.size());
+      ASR_CHECK(set.size() == descriptor_sets_specs[iset].bindings.size());
 
       for (u32 ibinding = 0; ibinding < AS_U32(sets[iset].size()); ibinding++) {
         DescriptorBinding binding = sets[iset][ibinding];
 
-        ASR_ENSURE(binding.type ==
-                   descriptor_sets_specs[iset].bindings[ibinding]);
+        ASR_CHECK(binding.type ==
+                  descriptor_sets_specs[iset].bindings[ibinding]);
 
         switch (binding.type) {
           case DescriptorType::Sampler: {
@@ -2092,8 +2090,8 @@ inline Image create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
 inline VkSurfaceFormatKHR select_swapchain_surface_formats(
     stx::Span<VkSurfaceFormatKHR const> formats,
     stx::Span<VkSurfaceFormatKHR const> preferred_formats) {
-  ASR_ENSURE(!formats.is_empty(),
-             "no window surface format supported by physical device");
+  ASR_CHECK(!formats.is_empty(),
+            "no window surface format supported by physical device");
 
   for (VkSurfaceFormatKHR preferred_format : preferred_formats) {
     if (!formats
@@ -2134,8 +2132,8 @@ inline VkPresentModeKHR select_swapchain_presentation_mode(
   /// allows you to avoid tearing with significantly less latency issues
   /// than standard vertical sync that uses double buffering.
 
-  ASR_ENSURE(!available_presentation_modes.is_empty(),
-             "no surface presentation mode available");
+  ASR_CHECK(!available_presentation_modes.is_empty(),
+            "no surface presentation mode available");
 
   for (auto const& preferred_present_mode : preferred_present_modes) {
     if (!available_presentation_modes.find(preferred_present_mode).is_empty())
@@ -2634,7 +2632,7 @@ struct Surface {
   STX_MAKE_PINNED(Surface)
 
   ~Surface() {
-    // we need to ensure the swapchain is destroyed before the surface (if not
+    // we need to CHECK the swapchain is destroyed before the surface (if not
     // already destroyed)
     swapchain = stx::None;
 
@@ -2671,7 +2669,7 @@ struct Pipeline {
       VkSampleCountFlagBits amsaa_sample_count,
       stx::Span<VkDescriptorSetLayout const> descriptor_set_layout,
       stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
-      usize vertex_input_size) {
+      u32 vertex_input_size) {
     msaa_sample_count = amsaa_sample_count;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
@@ -2790,7 +2788,7 @@ struct Pipeline {
 
     VkVertexInputBindingDescription vertex_binding_descriptions[] = {
         {.binding = 0,
-         .stride = AS_U32(vertex_input_size),
+         .stride = vertex_input_size,
          .inputRate = VK_VERTEX_INPUT_RATE_VERTEX}};
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state{
@@ -2861,7 +2859,7 @@ struct ClipPipeline {
       VkDevice dev, VkShaderModule vertex_shader,
       VkShaderModule fragment_shader, VkRenderPass target_render_pass,
       stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
-      usize vertex_input_size) {
+      u32 vertex_input_size) {
     VkPipelineShaderStageCreateInfo vert_shader_stage{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .pNext = nullptr,
@@ -2978,7 +2976,7 @@ struct ClipPipeline {
 
     VkVertexInputBindingDescription vertex_binding_descriptions[] = {
         {.binding = 0,
-         .stride = AS_U32(vertex_input_size),
+         .stride = vertex_input_size,
          .inputRate = VK_VERTEX_INPUT_RATE_VERTEX}};
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state{
@@ -3053,10 +3051,10 @@ struct RecordingContext {
   ClipPipeline clip_pipeline;
   stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{
       stx::os_allocator};
-  usize vertex_input_size = 0;
+  u32 vertex_input_size = 0;
   stx::Vec<VkVertexInputAttributeDescription> clip_vertex_input_attr{
       stx::os_allocator};
-  usize clip_vertex_input_size = 0;
+  u32 clip_vertex_input_size = 0;
   //  each in-flight frame will have one descriptor set
   stx::Vec<DescriptorSets> descriptor_sets{stx::os_allocator};
 
@@ -3066,10 +3064,10 @@ struct RecordingContext {
       stx::Span<u32 const> clip_vertex_shader_code,
       stx::Span<u32 const> clip_fragment_shader_code,
       stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
-      usize avertex_input_size,
+      u32 avertex_input_size,
       stx::Span<VkVertexInputAttributeDescription const>
           aclip_vertex_input_attr,
-      usize aclip_vertex_input_size,
+      u32 aclip_vertex_input_size,
       stx::Span<DescriptorSetSpec const> descriptor_sets_specs) {
     VkDevice dev = queue.device.handle->device;
 
