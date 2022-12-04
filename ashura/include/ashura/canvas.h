@@ -14,7 +14,13 @@
 
 namespace asr {
 using namespace stx::literals;
-using namespace std::chrono_literals;
+
+// TODO(lamarrr): how do we sample the texture to the fragment
+struct Vertex{
+vec2 position;
+vec2 st;
+};
+
 
 namespace gfx {
 
@@ -832,17 +838,17 @@ struct CanvasContext {
   CanvasContext(stx::Rc<vk::CommandQueue*> aqueue) : queue{std::move(aqueue)} {
     VkDevice dev = queue.handle->device.handle->device;
 
-    transform_buffer =
-        vk::create_buffer(dev, queue.handle->info.family, sizeof(Transform),
-                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    transform_buffer = vk::create_host_buffer(
+        dev, queue.handle->info.family, sizeof(Transform),
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     overlay_buffer =
-        vk::create_buffer(dev, queue.handle->info.family, sizeof(Overlay),
-                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        vk::create_host_buffer(dev, queue.handle->info.family, sizeof(Overlay),
+                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     viewport_buffer =
-        vk::create_buffer(dev, queue.handle->info.family, sizeof(Viewport),
-                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        vk::create_host_buffer(dev, queue.handle->info.family, sizeof(Viewport),
+                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     VkVertexInputAttributeDescription vertex_input_attributes[]{
         {.location = 0,
@@ -933,8 +939,6 @@ struct CanvasContext {
     ASR_CHECK(!draw_list.clip_vertices.is_empty());
     ASR_CHECK(!draw_list.clip_indices.is_empty());
 
-    static constexpr u64 TIMEOUT = AS_U64(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
 
     stx::Rc<vk::Device*> const& device = swapchain.queue.handle->device;
 
@@ -1023,12 +1027,6 @@ struct CanvasContext {
 
         ASR_VK_CHECK(
             vkQueueSubmit(queue, 1, &submit_info, swapchain.clip.fence));
-
-        ASR_VK_CHECK(
-            vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE, TIMEOUT));
-
-        ASR_VK_CHECK(
-            vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
       }
 
       write_vertices(draw_list.vertices, draw_list.indices);
@@ -1135,9 +1133,11 @@ struct CanvasContext {
 
       ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
 
-      ASR_VK_CHECK(vkResetFences(
-          dev, 1,
-          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+      ASR_VK_CHECK(
+          vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE, COMMAND_TIMEOUT));
+
+      ASR_VK_CHECK(
+          vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
 
       VkSubmitInfo submit_info{
           .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -1151,6 +1151,10 @@ struct CanvasContext {
           .signalSemaphoreCount = 0,
           .pSignalSemaphores = nullptr};
 
+      ASR_VK_CHECK(vkResetFences(
+          dev, 1,
+          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
       ASR_VK_CHECK(vkQueueSubmit(
           queue, 1, &submit_info,
           swapchain.rendering_fences[swapchain.next_frame_flight_index]));
@@ -1158,7 +1162,7 @@ struct CanvasContext {
       ASR_VK_CHECK(vkWaitForFences(
           dev, 1,
           &swapchain.rendering_fences[swapchain.next_frame_flight_index],
-          VK_TRUE, TIMEOUT));
+          VK_TRUE, COMMAND_TIMEOUT));
 
       ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
     }

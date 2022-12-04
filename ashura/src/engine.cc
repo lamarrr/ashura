@@ -3,6 +3,7 @@
 #include "ashura/canvas.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/shaders.h"
+#include "ashura/sample_image.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
@@ -78,6 +79,7 @@ Engine::Engine(AppConfig const& cfg) {
 
   xlogger.info("Initialized Window API");
   xlogger.info("Creating root window");
+
 
   window = stx::Some(
       create_window(window_api.value().share(), cfg.window_config.copy()));
@@ -186,8 +188,14 @@ Engine::Engine(AppConfig const& cfg) {
 
   u32 const transparent_image_data[1] = {0x00000000};
   // TODO(lamarrr): fill with zeros
-  auto transparent_image =
-      vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
+  // auto transparent_image =
+      //vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
+
+
+
+auto transparent_image =  canvas_context.value().handle->recording_context.upload_image(
+      queue.value(), ImageDims{.width = 210, .height = 133, .nchannels = 4},
+      sample_image);
 
   auto sampler = vk::create_image_sampler(transparent_image);
 
@@ -234,7 +242,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
                                .clip_indices_offset = 0,
                                .nclip_indices = AS_U32(std::size(indices)),
                                .transform = mat4::identity(),
-                               .color = colors::CYAN,
+                               .color = colors::CYAN.with_alpha(0),
                                .texture = canvas.value().brush.pattern.share()})
         .unwrap();
   };
@@ -281,14 +289,12 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       continue;
     }
-
-    static constexpr u64 TIMEOUT = AS_U64(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
+ 
 
     ASR_VK_CHECK(vkWaitForFences(
         swapchain.queue.handle->device.handle->device, 1,
         &swapchain.image_acquisition_fences[swapchain.next_frame_flight_index],
-        VK_TRUE, TIMEOUT));
+        VK_TRUE, COMMAND_TIMEOUT));
 
     // TODO(lamarrr): temporary hacks
     ASR_VK_CHECK(vkResetFences(

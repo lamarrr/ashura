@@ -31,8 +31,10 @@
   } while (false)
 
 namespace asr {
-
 using namespace std::chrono_literals;
+
+static constexpr u64 COMMAND_TIMEOUT =
+    AS_U64(std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
 
 namespace vk {
 
@@ -44,7 +46,7 @@ inline auto join_copy(stx::Span<T const> a, stx::Span<T const> b) {
   return x;
 }
 
-inline void CHECK_validation_layers_supported(
+inline void ensure_validation_layers_supported(
     stx::Span<char const* const> layers) {
   u32 available_validation_layers_count;
   vkEnumerateInstanceLayerProperties(&available_validation_layers_count,
@@ -85,7 +87,7 @@ inline void CHECK_validation_layers_supported(
 
 // NICE-TO-HAVE(lamarrr): versioning of extensions, know which one wasn't
 // available and adjust features to that
-inline void CHECK_extensions_supported(stx::Span<char const* const> names) {
+inline void ensure_extensions_supported(stx::Span<char const* const> names) {
   u32 available_vk_extensions_count = 0;
   vkEnumerateInstanceExtensionProperties(
       nullptr, &available_vk_extensions_count, nullptr);
@@ -262,11 +264,11 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   create_info.enabledExtensionCount = AS_U32(extensions.size());
   create_info.ppEnabledExtensionNames = extensions.data();
 
-  CHECK_extensions_supported(extensions);
+  ensure_extensions_supported(extensions);
 
   if (!required_validation_layers.is_empty()) {
     // validation layers
-    CHECK_validation_layers_supported(required_validation_layers);
+    ensure_validation_layers_supported(required_validation_layers);
     create_info.enabledLayerCount = AS_U32(required_validation_layers.size());
     create_info.ppEnabledLayerNames = required_validation_layers.data();
 
@@ -1390,8 +1392,9 @@ struct SpanBuffer {
   }
 };
 
-inline Buffer create_buffer(VkDevice dev, CommandQueueFamilyInfo const& queue,
-                            usize size_bytes, VkBufferUsageFlags usage) {
+inline Buffer create_host_buffer(VkDevice dev,
+                                 CommandQueueFamilyInfo const& queue,
+                                 usize size_bytes, VkBufferUsageFlags usage) {
   VkPhysicalDeviceMemoryProperties const& memory_properties =
       queue.phy_device.handle->memory_properties;
 
@@ -1454,6 +1457,8 @@ struct Image {
   }
 };
 
+
+
 struct ImageX {
   VkImage image = VK_NULL_HANDLE;
   VkImageView view = VK_NULL_HANDLE;
@@ -1476,103 +1481,6 @@ struct ImageX {
     vkDestroyImage(dev, image, nullptr);
   }
 };
-
-// R | G | B | A
-inline stx::Rc<ImageX*> upload_rgba_image(stx::Rc<CommandQueue*> const& queue,
-                                          u32 width, u32 height,
-                                          stx::Span<u32 const> data) {
-  ASR_CHECK(data.size_bytes() == width * height * 4);
-
-  VkDevice dev = queue.handle->device.handle->device;
-
-  VkImageCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .imageType = VK_IMAGE_TYPE_2D,
-      .format = VK_FORMAT_R8G8B8A8_SRGB,
-      .extent = VkExtent3D{.width = width, .height = height, .depth = 1},
-      .mipLevels = 1,
-      .arrayLayers = 1,
-      .samples = VK_SAMPLE_COUNT_1_BIT,
-      .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
-      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-      .queueFamilyIndexCount = 1,
-      .pQueueFamilyIndices = &queue.handle->info.family.index,
-      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
-
-  VkImage image;
-
-  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
-
-  VkMemoryRequirements memory_requirements;
-
-  vkGetImageMemoryRequirements(dev, image, &memory_requirements);
-
-  u32 memory_type_index =
-      find_suitable_memory_type(
-          queue.handle->device.handle->phy_device.handle->memory_properties,
-          memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-          .unwrap();
-
-  VkMemoryAllocateInfo alloc_info{
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .pNext = nullptr,
-      .allocationSize = memory_requirements.size,
-      .memoryTypeIndex = memory_type_index};
-
-  VkDeviceMemory memory;
-
-  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
-
-  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
-
-  // TODO(lamarrr): handle data uploading
-  /*
-    void* memory_map;
-
-    ASR_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
-
-    memcpy(memory_map, data.data(), data.size_bytes());
-
-    VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                              .pNext = nullptr,
-                              .memory = memory,
-                              .offset = 0,
-                              .size = VK_WHOLE_SIZE};
-
-    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
-
-    vkUnmapMemory(dev, memory);
-  */
-
-  VkImageViewCreateInfo view_create_info{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .image = image,
-      .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = VK_FORMAT_R8G8B8A8_SRGB,
-      .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
-      .subresourceRange =
-          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                  .baseMipLevel = 0,
-                                  .levelCount = 1,
-                                  .baseArrayLayer = 0,
-                                  .layerCount = 1}};
-
-  VkImageView view;
-
-  ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
-
-  return stx::rc::make_inplace<ImageX>(stx::os_allocator, image, view, memory,
-                                       queue.share())
-      .unwrap();
-}
 
 // R only
 inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_image(
@@ -2471,7 +2379,7 @@ struct SwapChain {
       {
         VkAttachmentDescription color_attachment{
             .flags = 0,
-            .format = color_format.format,
+            .format = VK_FORMAT_R8_SRGB,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -2527,7 +2435,7 @@ struct SwapChain {
       auto [image, memory, view] = create_image(
           queue, image_extent,
           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-          color_format.format, VK_IMAGE_ASPECT_COLOR_BIT);
+         VK_FORMAT_R8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
       {
         VkImageView attachments[] = {view};
@@ -2632,7 +2540,7 @@ struct Surface {
   STX_MAKE_PINNED(Surface)
 
   ~Surface() {
-    // we need to CHECK the swapchain is destroyed before the surface (if not
+    // we need to ensure the swapchain is destroyed before the surface (if not
     // already destroyed)
     swapchain = stx::None;
 
@@ -3043,10 +2951,12 @@ struct RecordingContext {
   VkCommandPool command_pool = VK_NULL_HANDLE;
   VkCommandBuffer command_buffer = VK_NULL_HANDLE;
   VkCommandBuffer clip_command_buffer = VK_NULL_HANDLE;
+  VkCommandBuffer upload_command_buffer = VK_NULL_HANDLE;
   VkShaderModule vertex_shader = VK_NULL_HANDLE;
   VkShaderModule fragment_shader = VK_NULL_HANDLE;
   VkShaderModule clip_vertex_shader = VK_NULL_HANDLE;
   VkShaderModule clip_fragment_shader = VK_NULL_HANDLE;
+  VkFence upload_fence = VK_NULL_HANDLE;
   Pipeline pipeline;
   ClipPipeline clip_pipeline;
   stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{
@@ -3055,7 +2965,7 @@ struct RecordingContext {
   stx::Vec<VkVertexInputAttributeDescription> clip_vertex_input_attr{
       stx::os_allocator};
   u32 clip_vertex_input_size = 0;
-  //  each in-flight frame will have one descriptor set
+  //  each in-flight frame will ideally have one descriptor set
   stx::Vec<DescriptorSets> descriptor_sets{stx::os_allocator};
 
   void init(
@@ -3111,6 +3021,16 @@ struct RecordingContext {
                                           &command_buffer));
     ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &command_buffer_allocate_info,
                                           &clip_command_buffer));
+    ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &command_buffer_allocate_info,
+                                          &upload_command_buffer));
+
+    VkFenceCreateInfo fence_create_info{
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT};
+
+    ASR_VK_CHECK(
+        vkCreateFence(dev, &fence_create_info, nullptr, &upload_fence));
 
     vertex_input_attr.extend(avertex_input_attr).unwrap();
     vertex_input_size = avertex_input_size;
@@ -3156,6 +3076,9 @@ struct RecordingContext {
 
     vkFreeCommandBuffers(dev, command_pool, 1, &command_buffer);
     vkFreeCommandBuffers(dev, command_pool, 1, &clip_command_buffer);
+    vkFreeCommandBuffers(dev, command_pool, 1, &upload_command_buffer);
+
+    vkDestroyFence(dev, upload_fence, nullptr);
 
     vkDestroyCommandPool(dev, command_pool, nullptr);
 
@@ -3165,6 +3088,193 @@ struct RecordingContext {
 
     pipeline.destroy(dev);
     clip_pipeline.destroy(dev);
+  }
+
+  stx::Rc<ImageX*> upload_image(stx::Rc<CommandQueue*> const& queue,
+                                ImageDims dims, stx::Span<u8 const> data) {
+    ASR_CHECK(data.size_bytes() == dims.size());
+
+    VkDevice dev = queue.handle->device.handle->device;
+
+    VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
+
+    if (dims.nchannels == 4) {
+    } else if (dims.nchannels == 3) {
+      format = VK_FORMAT_R8G8B8_SRGB;
+    } else if (dims.nchannels == 1) {
+      format = VK_FORMAT_R8_SRGB;
+    } else {
+      ASR_PANIC("Image channels must either be 1, 3, or 4");
+    }
+
+    VkImageCreateInfo create_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = format,
+        .extent =
+            VkExtent3D{.width = dims.width, .height = dims.height, .depth = 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 1,
+        .pQueueFamilyIndices = &queue.handle->info.family.index,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+
+    VkImage image;
+
+    ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
+
+    VkMemoryRequirements memory_requirements;
+
+    vkGetImageMemoryRequirements(dev, image, &memory_requirements);
+
+    u32 memory_type_index =
+        find_suitable_memory_type(
+            queue.handle->device.handle->phy_device.handle->memory_properties,
+            memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+            .unwrap();
+
+    VkMemoryAllocateInfo alloc_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .allocationSize = memory_requirements.size,
+        .memoryTypeIndex = memory_type_index};
+
+    VkDeviceMemory memory;
+
+    ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+
+    ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
+
+    VkImageViewCreateInfo view_create_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .image = image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = format,
+        .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                         .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                         .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                         .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+        .subresourceRange =
+            VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                    .baseMipLevel = 0,
+                                    .levelCount = 1,
+                                    .baseArrayLayer = 0,
+                                    .layerCount = 1}};
+
+    VkImageView view;
+
+    ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+
+    Buffer staging_buffer =
+        create_host_buffer(dev, queue.handle->info.family, dims.size(),
+                           VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+    std::memcpy(staging_buffer.memory_map, data.data(), dims.size());
+
+    VkCommandBufferBeginInfo command_buffer_begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr};
+
+    ASR_VK_CHECK(vkBeginCommandBuffer(upload_command_buffer,
+                                      &command_buffer_begin_info));
+
+    VkImageMemoryBarrier pre_upload_barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_NONE_KHR,
+        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image,
+        .subresourceRange =
+            VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                    .baseMipLevel = 0,
+                                    .levelCount = 1,
+                                    .baseArrayLayer = 0,
+                                    .layerCount = 1}};
+
+    vkCmdPipelineBarrier(
+        upload_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0,
+        nullptr, 1, &pre_upload_barrier);
+
+    VkBufferImageCopy copy{
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource =
+            VkImageSubresourceLayers{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                     .mipLevel = 0,
+                                     .baseArrayLayer = 0,
+                                     .layerCount = 1},
+        .imageOffset = VkOffset3D{.x = 0, .y = 0, .z = 0},
+        .imageExtent =
+            VkExtent3D{.width = dims.width, .height = dims.height, .depth = 1}};
+
+    vkCmdCopyBufferToImage(upload_command_buffer, staging_buffer.buffer, image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+
+    VkImageMemoryBarrier post_upload_barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image,
+        .subresourceRange =
+            VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                    .baseMipLevel = 0,
+                                    .levelCount = 1,
+                                    .baseArrayLayer = 0,
+                                    .layerCount = 1}};
+
+    vkCmdPipelineBarrier(upload_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1,
+                         &post_upload_barrier);
+
+    ASR_VK_CHECK(vkEndCommandBuffer(upload_command_buffer));
+
+    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .pNext = nullptr,
+                             .waitSemaphoreCount = 0,
+                             .pWaitSemaphores = nullptr,
+                             .pWaitDstStageMask = nullptr,
+                             .commandBufferCount = 1,
+                             .pCommandBuffers = &upload_command_buffer,
+                             .signalSemaphoreCount = 0,
+                             .pSignalSemaphores = nullptr};
+
+    ASR_VK_CHECK(vkResetFences(dev, 1, &upload_fence));
+
+    ASR_VK_CHECK(
+        vkQueueSubmit(queue.handle->info.queue, 1, &submit_info, upload_fence));
+
+    ASR_VK_CHECK(
+        vkWaitForFences(dev, 1, &upload_fence, VK_TRUE, COMMAND_TIMEOUT));
+
+    ASR_VK_CHECK(vkResetCommandBuffer(upload_command_buffer, 0));
+
+    staging_buffer.destroy(dev);
+
+    return stx::rc::make_inplace<ImageX>(stx::os_allocator, image, view, memory,
+                                         queue.share())
+        .unwrap();
   }
 };
 
