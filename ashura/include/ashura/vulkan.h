@@ -1457,8 +1457,6 @@ struct Image {
   }
 };
 
-
-
 struct ImageX {
   VkImage image = VK_NULL_HANDLE;
   VkImageView view = VK_NULL_HANDLE;
@@ -2379,7 +2377,7 @@ struct SwapChain {
       {
         VkAttachmentDescription color_attachment{
             .flags = 0,
-            .format = VK_FORMAT_R8_SRGB,
+            .format = color_format.format,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -2435,7 +2433,7 @@ struct SwapChain {
       auto [image, memory, view] = create_image(
           queue, image_extent,
           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-         VK_FORMAT_R8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+          color_format.format, VK_IMAGE_ASPECT_COLOR_BIT);
 
       {
         VkImageView attachments[] = {view};
