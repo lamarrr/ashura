@@ -1,9 +1,9 @@
 #include "ashura/engine.h"
 
 #include "ashura/canvas.h"
+#include "ashura/sample_image.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/shaders.h"
-#include "ashura/sample_image.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
@@ -79,7 +79,6 @@ Engine::Engine(AppConfig const& cfg) {
 
   xlogger.info("Initialized Window API");
   xlogger.info("Creating root window");
-
 
   window = stx::Some(
       create_window(window_api.value().share(), cfg.window_config.copy()));
@@ -189,13 +188,12 @@ Engine::Engine(AppConfig const& cfg) {
   u32 const transparent_image_data[1] = {0x00000000};
   // TODO(lamarrr): fill with zeros
   // auto transparent_image =
-      //vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
+  // vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
 
-
-
-auto transparent_image =  canvas_context.value().handle->recording_context.upload_image(
-      queue.value(), ImageDims{.width = 210, .height = 133, .nchannels = 4},
-      sample_image);
+  auto transparent_image =
+      canvas_context.value().handle->recording_context.upload_image(
+          queue.value(), ImageDims{.width = 210, .height = 133, .nchannels = 4},
+          sample_image);
 
   auto sampler = vk::create_image_sampler(transparent_image);
 
@@ -289,7 +287,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       continue;
     }
- 
 
     ASR_VK_CHECK(vkWaitForFences(
         swapchain.queue.handle->device.handle->device, 1,
@@ -332,7 +329,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
   //   bool window_extent_changed =
   //   any_eq(window.value().handle->, WindowEvent::SizeChanged);
-
 
   // TODO(lamarrr): ???
   //   window->handle.handle->event_queue.clear();

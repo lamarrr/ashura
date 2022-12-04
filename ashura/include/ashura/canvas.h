@@ -16,11 +16,10 @@ namespace asr {
 using namespace stx::literals;
 
 // TODO(lamarrr): how do we sample the texture to the fragment
-struct Vertex{
-vec2 position;
-vec2 st;
+struct Vertex {
+  vec2 position;
+  vec2 st;
 };
-
 
 namespace gfx {
 
@@ -939,7 +938,6 @@ struct CanvasContext {
     ASR_CHECK(!draw_list.clip_vertices.is_empty());
     ASR_CHECK(!draw_list.clip_indices.is_empty());
 
-
     stx::Rc<vk::Device*> const& device = swapchain.queue.handle->device;
 
     VkDevice dev = device.handle->device;
@@ -1133,8 +1131,8 @@ struct CanvasContext {
 
       ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
 
-      ASR_VK_CHECK(
-          vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE, COMMAND_TIMEOUT));
+      ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE,
+                                   COMMAND_TIMEOUT));
 
       ASR_VK_CHECK(
           vkResetCommandBuffer(recording_context.clip_command_buffer, 0));

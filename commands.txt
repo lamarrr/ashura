@@ -1,0 +1,2 @@
+# format all files using clang-format
+clang-format-14 -i -style=file  ../ashura/src/*.cc

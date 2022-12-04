@@ -1,9 +1,9 @@
 
 
-gnome/atkobject
+gnome / atkobject
 
-struct{
-role;
-    name;
-    desc;
+    struct {
+  role;
+  name;
+  desc;
 }

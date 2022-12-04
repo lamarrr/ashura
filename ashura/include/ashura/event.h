@@ -25,16 +25,7 @@ enum class WindowEvent : u8 {
   TakeFocus
 };
 
-enum class MouseButton : u8 {
-  Primary,
-  Secondary,
-  Middle,
-  A1,
-  A2,
-  A3,
-  A4,
-  A5
-};
+enum class MouseButton : u8 { Primary, Secondary, Middle, A1, A2, A3, A4, A5 };
 
 enum class KeyModifier : u8 {};
 

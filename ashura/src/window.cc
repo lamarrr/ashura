@@ -32,8 +32,8 @@ void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
   VkSurfaceKHR surface;
 
   ASR_SDL_CHECK(SDL_Vulkan_CreateSurface(window_, instance.handle->instance,
-                                          &surface) == SDL_TRUE,
-                 "unable to create surface for window");
+                                         &surface) == SDL_TRUE,
+                "unable to create surface for window");
 
   surface_ =
       stx::Some(stx::rc::make_unique_inplace<vk::Surface>(
@@ -140,9 +140,9 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
 
 WindowSwapchainDiff Window::present(u32 next_swapchain_image_index) {
   ASR_CHECK(surface_.is_some(),
-             "trying to present to swapchain without having surface attached");
-  ASR_CHECK(surface_.value().handle->swapchain. is_some(),
-             "trying to present to swapchain without having one");
+            "trying to present to swapchain without having surface attached");
+  ASR_CHECK(surface_.value().handle->swapchain.is_some(),
+            "trying to present to swapchain without having one");
 
   // we submit multiple render commands (operating on the swapchain images) to
   // the GPU to prevent having to force a sync with the GPU (await_fence) when

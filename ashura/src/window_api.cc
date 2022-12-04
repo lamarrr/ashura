@@ -56,7 +56,7 @@ inline WindowEvent sdl_window_event_to_asr(u8 win_event_type) {
 
 WindowApi::WindowApi() {
   ASR_SDL_CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) == 0,
-                 "Unable to initialize SDL");
+                "Unable to initialize SDL");
 }
 
 WindowApi::~WindowApi() { SDL_Quit(); }
