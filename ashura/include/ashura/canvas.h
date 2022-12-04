@@ -942,8 +942,6 @@ struct CanvasContext {
 
     VkQueue queue = swapchain.queue.handle->info.queue;
 
-    write_vertices(draw_list.vertices, draw_list.indices);
-
     for (DrawCommand const& draw_command : draw_list.commands) {
       {
         write_clip_vertices(draw_list.clip_vertices, draw_list.clip_indices);
@@ -1032,6 +1030,8 @@ struct CanvasContext {
         ASR_VK_CHECK(
             vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
       }
+
+      write_vertices(draw_list.vertices, draw_list.indices);
 
       Transform transform{.value = draw_command.transform};
 
