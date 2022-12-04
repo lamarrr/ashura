@@ -44,10 +44,12 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
                      // or data
                      dev.has_transfer_command_queue_family() &&
                      // can be used for presenting to a specific surface
-                     any_true(
-                         vk::get_surface_presentation_command_queue_support(
-                             dev.phy_device, dev.family_properties,
-                             target_surface.surface));
+                     !vk::get_surface_presentation_command_queue_support(
+                          dev.phy_device, dev.family_properties,
+                          target_surface.surface)
+                          .span()
+                          .find(true)
+                          .is_empty();
             });
         !selected.is_empty()) {
       return stx::Some(std::move(selected));
@@ -170,10 +172,8 @@ Engine::Engine(AppConfig const& cfg) {
                                  .unwrap());
 
   canvas_context.value().handle->recording_context.on_swapchain_changed(
-      *window.value()
-           .handle->surface_.value()
-           .handle->swapchain.value()
-           .handle);
+      queue.value().handle->device.handle->device,
+      window.value().handle->surface_.value().handle->swapchain.value());
 
   window.value().handle->on(
       WindowEvent::Resized,
@@ -206,7 +206,6 @@ Engine::Engine(AppConfig const& cfg) {
       stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
         std::exit(0);
       }).unwrap());
-
 };
 
 void Engine::tick(std::chrono::nanoseconds interval) {
@@ -216,15 +215,15 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     VkExtent2D extent = window.value()
                             .handle->surface_.value()
                             .handle->swapchain.value()
-                            .handle->window_extent;
+                            .window_extent;
 
     canvas.value().restart(vec2{250, 250});
-     
+
     auto& draw_list = canvas.value().draw_list;
 
     vec2 polygon[300];
     gfx::polygons::ellipse(polygon, {0, 0}, {0.1, 0.1}, 300);
-    
+
     draw_list.vertices.extend(polygon).unwrap();
 
     gfx::triangulate_convex_polygon(draw_list.indices, polygon);
@@ -265,21 +264,17 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       window.value().handle->recreate_swapchain(queue.value());
       canvas_context.value().handle->recording_context.on_swapchain_changed(
-          *window.value()
-               .handle->surface_.value()
-               .handle->swapchain.value()
-               .handle);
+          queue.value().handle->device.handle->device,
+          window.value().handle->surface_.value().handle->swapchain.value());
 
       draw_content();
     }
 
-    vk::SwapChain& swapchain = *window.value()
-                                    .handle->surface_.value()
-                                    .handle->swapchain.value()
-                                    .handle;
+    vk::SwapChain& swapchain =
+        window.value().handle->surface_.value().handle->swapchain.value();
 
     ASR_VK_CHECK(vkResetFences(
-        swapchain.queue.handle->device.handle->device, 1,
+        queue.value().handle->device.handle->device, 1,
         &swapchain
              .image_acquisition_fences[swapchain.next_frame_flight_index]));
 
@@ -303,12 +298,9 @@ void Engine::tick(std::chrono::nanoseconds interval) {
         &swapchain
              .image_acquisition_fences[swapchain.next_frame_flight_index]));
 
-    canvas_context.value().handle->submit(*window.value()
-                                               .handle->surface_.value()
-                                               .handle->swapchain.value()
-                                               .handle,
-                                          next_swapchain_image_index,
-                                          canvas.value().draw_list);
+    canvas_context.value().handle->submit(
+        window.value().handle->surface_.value().handle->swapchain.value(),
+        next_swapchain_image_index, canvas.value().draw_list);
 
     swapchain_diff = window.value().handle->present(next_swapchain_image_index);
 

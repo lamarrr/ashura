@@ -6,7 +6,7 @@ target_include_directories(
   PUBLIC include
   PRIVATE src)
 
-target_link_libraries(ashura stx::stx SDL2::SDL2  SDL2::SDL2main fmt::fmt ashura::utils
+target_link_libraries(ashura stx::stx SDL2::SDL2  SDL2::SDL2main fmt::fmt    
                       Vulkan::Vulkan)
 
 add_executable(ashura_test src/ashura.cc)

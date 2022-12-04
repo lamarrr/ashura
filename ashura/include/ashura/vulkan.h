@@ -294,18 +294,17 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 //  to do anything on the GPU (render, draw, compute, allocate memory, create
 //  texture, etc.) we use command queues
 inline stx::Vec<VkQueueFamilyProperties> get_queue_families(
-    VkPhysicalDevice device) {
+    VkPhysicalDevice dev) {
   u32 queue_families_count;
 
-  vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_families_count,
-                                           nullptr);
+  vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_families_count, nullptr);
 
   stx::Vec<VkQueueFamilyProperties> queue_families_properties(
       stx::os_allocator);
 
   queue_families_properties.resize(queue_families_count).unwrap();
 
-  vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_families_count,
+  vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_families_count,
                                            queue_families_properties.data());
 
   return queue_families_properties;
@@ -325,7 +324,7 @@ inline stx::Vec<bool> get_command_queue_support(
 
 // find the device's queue family capable of supporting surface presentation
 inline stx::Vec<bool> get_surface_presentation_command_queue_support(
-    VkPhysicalDevice phy_device,
+    VkPhysicalDevice phy_dev,
     stx::Span<VkQueueFamilyProperties const> queue_families,
     VkSurfaceKHR surface) {
   stx::Vec<bool> supports{stx::os_allocator};
@@ -333,7 +332,7 @@ inline stx::Vec<bool> get_surface_presentation_command_queue_support(
   for (u32 i = 0; i < AS_U32(queue_families.size()); i++) {
     VkBool32 surface_presentation_supported;
     ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(
-        phy_device, i, surface, &surface_presentation_supported));
+        phy_dev, i, surface, &surface_presentation_supported));
     supports.push_inplace(surface_presentation_supported == VK_TRUE).unwrap();
   }
 
@@ -341,14 +340,13 @@ inline stx::Vec<bool> get_surface_presentation_command_queue_support(
 }
 
 inline VkDevice create_logical_device(
-    VkPhysicalDevice phy_device,
-    stx::Span<char const* const> required_extensions,
+    VkPhysicalDevice phy_dev, stx::Span<char const* const> required_extensions,
     stx::Span<char const* const> required_validation_layers,
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_infos,
     VkPhysicalDeviceFeatures const& required_features = {}) {
   u32 available_extensions_count;
   ASR_VK_CHECK(vkEnumerateDeviceExtensionProperties(
-      phy_device, nullptr, &available_extensions_count, nullptr));
+      phy_dev, nullptr, &available_extensions_count, nullptr));
 
   // device specific extensions
   stx::Vec<VkExtensionProperties> available_device_extensions{
@@ -357,7 +355,7 @@ inline VkDevice create_logical_device(
   available_device_extensions.resize(available_extensions_count).unwrap();
 
   ASR_VK_CHECK(vkEnumerateDeviceExtensionProperties(
-      phy_device, nullptr, &available_extensions_count,
+      phy_dev, nullptr, &available_extensions_count,
       available_device_extensions.data()));
 
   ASR_LOG("Required Device Extensions: ");
@@ -392,16 +390,16 @@ inline VkDevice create_logical_device(
 
   VkDevice logical_device;
 
-  ASR_VK_CHECK(vkCreateDevice(phy_device, &device_create_info, nullptr,
-                              &logical_device));
+  ASR_VK_CHECK(
+      vkCreateDevice(phy_dev, &device_create_info, nullptr, &logical_device));
 
   return logical_device;
 }
 
-inline VkQueue get_command_queue(VkDevice device, u32 queue_family_index,
+inline VkQueue get_command_queue(VkDevice dev, u32 queue_family_index,
                                  u32 command_queue_index_in_family) {
   VkQueue command_queue;
-  vkGetDeviceQueue(device, queue_family_index, command_queue_index_in_family,
+  vkGetDeviceQueue(dev, queue_family_index, command_queue_index_in_family,
                    &command_queue);
   ASR_CHECK(command_queue != nullptr,
             "Requested command queue not created on target device");
@@ -414,31 +412,31 @@ struct SwapChainProperties {
   stx::Vec<VkPresentModeKHR> presentation_modes{stx::os_allocator};
 };
 
-inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_device,
+inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_dev,
                                                     VkSurfaceKHR surface) {
   SwapChainProperties details{};
 
   ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-      phy_device, surface, &details.capabilities));
+      phy_dev, surface, &details.capabilities));
 
   u32 supported_surface_formats_count = 0;
 
   ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
-      phy_device, surface, &supported_surface_formats_count, nullptr));
+      phy_dev, surface, &supported_surface_formats_count, nullptr));
 
   details.supported_formats.resize(supported_surface_formats_count).unwrap();
 
   ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
-      phy_device, surface, &supported_surface_formats_count,
+      phy_dev, surface, &supported_surface_formats_count,
       details.supported_formats.data()));
 
   u32 surface_presentation_modes_count;
   ASR_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
-      phy_device, surface, &surface_presentation_modes_count, nullptr));
+      phy_dev, surface, &surface_presentation_modes_count, nullptr));
 
   details.presentation_modes.resize(surface_presentation_modes_count).unwrap();
   ASR_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
-      phy_device, surface, &surface_presentation_modes_count,
+      phy_dev, surface, &surface_presentation_modes_count,
       details.presentation_modes.data()));
 
   return details;
@@ -499,7 +497,7 @@ inline u32 select_swapchain_image_count(
 }
 
 inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
-    VkDevice device, VkSurfaceKHR surface, VkExtent2D preferred_extent,
+    VkDevice dev, VkSurfaceKHR surface, VkExtent2D preferred_extent,
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
@@ -558,70 +556,69 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
   };
 
   VkSwapchainKHR swapchain;
-  ASR_VK_CHECK(vkCreateSwapchainKHR(device, &create_info, nullptr, &swapchain));
+  ASR_VK_CHECK(vkCreateSwapchainKHR(dev, &create_info, nullptr, &swapchain));
 
   return std::make_pair(swapchain, selected_extent);
 }
 
-inline stx::Vec<VkImage> get_swapchain_images(VkDevice device,
+inline stx::Vec<VkImage> get_swapchain_images(VkDevice dev,
                                               VkSwapchainKHR swapchain) {
   u32 image_count;
 
-  ASR_VK_CHECK(
-      vkGetSwapchainImagesKHR(device, swapchain, &image_count, nullptr));
+  ASR_VK_CHECK(vkGetSwapchainImagesKHR(dev, swapchain, &image_count, nullptr));
 
   stx::Vec<VkImage> swapchain_images{stx::os_allocator};
   swapchain_images.resize(image_count).unwrap();
 
-  ASR_VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &image_count,
+  ASR_VK_CHECK(vkGetSwapchainImagesKHR(dev, swapchain, &image_count,
                                        swapchain_images.data()));
 
   return swapchain_images;
 }
 
 // GPU-GPU synchronization primitive, cheap
-inline VkSemaphore create_semaphore(VkDevice device) {
+inline VkSemaphore create_semaphore(VkDevice dev) {
   VkSemaphoreCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
       .pNext = nullptr,
       .flags = 0};
 
   VkSemaphore semaphore;
-  ASR_VK_CHECK(vkCreateSemaphore(device, &create_info, nullptr, &semaphore));
+  ASR_VK_CHECK(vkCreateSemaphore(dev, &create_info, nullptr, &semaphore));
 
   return semaphore;
 }
 
 // GPU-CPU synchronization primitive, expensive
-inline VkFence create_fence(VkDevice device, VkFenceCreateFlags make_signaled) {
+inline VkFence create_fence(VkDevice dev, VkFenceCreateFlags make_signaled) {
   VkFenceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                                 .pNext = nullptr,
                                 .flags = make_signaled};
 
   VkFence fence;
 
-  ASR_VK_CHECK(vkCreateFence(device, &create_info, nullptr, &fence));
+  ASR_VK_CHECK(vkCreateFence(dev, &create_info, nullptr, &fence));
 
   return fence;
 }
 
-inline void reset_fences(VkDevice device, stx::Span<VkFence const> fences) {
-  ASR_VK_CHECK(vkResetFences(device, AS_U32(fences.size()), fences.data()));
+inline void reset_fences(VkDevice dev, stx::Span<VkFence const> fences) {
+  ASR_VK_CHECK(vkResetFences(dev, AS_U32(fences.size()), fences.data()));
 }
 
-inline void await_fences(VkDevice device, stx::Span<VkFence const> fences) {
+inline void await_fences(VkDevice dev, stx::Span<VkFence const> fences) {
   ASR_VK_CHECK(vkWaitForFences(
-      device, AS_U32(fences.size()), fences.data(), VK_TRUE,
+      dev, AS_U32(fences.size()), fences.data(), VK_TRUE,
       std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count()));
 }
 
 inline std::pair<u32, VkResult> acquire_next_swapchain_image(
-    VkDevice device, VkSwapchainKHR swapchain, VkSemaphore signal_semaphore,
+    VkDevice dev, VkSwapchainKHR swapchain, VkSemaphore signal_semaphore,
     VkFence signal_fence) {
   u32 index = 0;
 
   auto result = vkAcquireNextImageKHR(
-      device, swapchain,
+      dev, swapchain,
       std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count(),
       signal_semaphore, signal_fence, &index);
   ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
@@ -658,10 +655,10 @@ inline VkResult present(VkQueue command_queue,
 
 // get memory requirements for an image based on it's type, usage mode, and
 // other properties
-inline VkMemoryRequirements get_memory_requirements(VkDevice device,
+inline VkMemoryRequirements get_memory_requirements(VkDevice dev,
                                                     VkImage image) {
   VkMemoryRequirements memory_requirements;
-  vkGetImageMemoryRequirements(device, image, &memory_requirements);
+  vkGetImageMemoryRequirements(dev, image, &memory_requirements);
   return memory_requirements;
 }
 
@@ -1115,21 +1112,21 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 
   stx::Vec<PhyDeviceInfo> devices{stx::os_allocator};
 
-  for (VkPhysicalDevice device : phy_devices) {
+  for (VkPhysicalDevice dev : phy_devices) {
     VkPhysicalDeviceProperties device_properties;
     VkPhysicalDeviceFeatures device_features;
     VkPhysicalDeviceMemoryProperties memory_properties;
 
-    vkGetPhysicalDeviceProperties(device, &device_properties);
-    vkGetPhysicalDeviceFeatures(device, &device_features);
-    vkGetPhysicalDeviceMemoryProperties(device, &memory_properties);
+    vkGetPhysicalDeviceProperties(dev, &device_properties);
+    vkGetPhysicalDeviceFeatures(dev, &device_features);
+    vkGetPhysicalDeviceMemoryProperties(dev, &memory_properties);
 
     devices
-        .push(PhyDeviceInfo{.phy_device = device,
+        .push(PhyDeviceInfo{.phy_device = dev,
                             .properties = device_properties,
                             .features = device_features,
                             .memory_properties = memory_properties,
-                            .family_properties = get_queue_families(device),
+                            .family_properties = get_queue_families(dev),
                             .instance = instance.share()})
         .unwrap();
   }
@@ -1137,8 +1134,8 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
   return devices;
 }
 
-inline std::string format(PhyDeviceInfo const& device) {
-  auto const& properties = device.properties;
+inline std::string format(PhyDeviceInfo const& dev) {
+  auto const& properties = dev.properties;
   return fmt::format("Device(name: '{}', ID: {}, type: {}) ",
                      properties.deviceName, properties.deviceID,
                      ::asr::vk::format(properties.deviceType));
@@ -1199,30 +1196,30 @@ inline stx::Rc<Instance*> create_instance(
 
 // can also be used for transfer
 inline stx::Option<CommandQueueFamilyInfo> get_graphics_command_queue(
-    stx::Rc<PhyDeviceInfo*> const& phy_device) {
-  auto pos = std::find_if(phy_device.handle->family_properties.begin(),
-                          phy_device.handle->family_properties.end(),
+    stx::Rc<PhyDeviceInfo*> const& phy_dev) {
+  auto pos = std::find_if(phy_dev.handle->family_properties.begin(),
+                          phy_dev.handle->family_properties.end(),
                           [](VkQueueFamilyProperties const& prop) -> bool {
                             return prop.queueFlags & VK_QUEUE_GRAPHICS_BIT;
                           });
 
-  if (pos == phy_device.handle->family_properties.end()) {
+  if (pos == phy_dev.handle->family_properties.end()) {
     return stx::None;
   }
 
   return stx::Some(CommandQueueFamilyInfo{
-      .index = AS_U32(pos - phy_device.handle->family_properties.begin()),
-      .phy_device = phy_device.share()});
+      .index = AS_U32(pos - phy_dev.handle->family_properties.begin()),
+      .phy_device = phy_dev.share()});
 }
 
 inline stx::Rc<Device*> create_device(
-    stx::Rc<PhyDeviceInfo*> const& phy_device,
+    stx::Rc<PhyDeviceInfo*> const& phy_dev,
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_info,
     stx::Span<char const* const> required_extensions,
     stx::Span<char const* const> required_validation_layers,
     VkPhysicalDeviceFeatures required_features) {
-  VkDevice device = create_logical_device(
-      phy_device.handle->phy_device, required_extensions,
+  VkDevice dev = create_logical_device(
+      phy_dev.handle->phy_device, required_extensions,
       required_validation_layers, command_queue_create_info, required_features);
 
   stx::Vec<CommandQueueInfo> command_queues{stx::os_allocator};
@@ -1232,13 +1229,13 @@ inline stx::Rc<Device*> create_device(
     auto command_queue_family_index = create_info.queueFamilyIndex;
     auto queue_count = create_info.queueCount;
     ASR_CHECK(command_queue_family_index <
-              phy_device.handle->family_properties.size());
+              phy_dev.handle->family_properties.size());
 
     for (u32 queue_index_in_family = 0; queue_index_in_family < queue_count;
          queue_index_in_family++) {
       f32 priority = create_info.pQueuePriorities[i];
-      VkQueue command_queue = get_command_queue(
-          device, command_queue_family_index, queue_index_in_family);
+      VkQueue command_queue = get_command_queue(dev, command_queue_family_index,
+                                                queue_index_in_family);
 
       command_queues
           .push(CommandQueueInfo{
@@ -1247,14 +1244,13 @@ inline stx::Rc<Device*> create_device(
               .priority = priority,
               .family =
                   CommandQueueFamilyInfo{.index = command_queue_family_index,
-                                         .phy_device = phy_device.share()},
+                                         .phy_device = phy_dev.share()},
           })
           .unwrap();
     }
   }
 
-  return stx::rc::make_inplace<Device>(stx::os_allocator, device,
-                                       phy_device.share(),
+  return stx::rc::make_inplace<Device>(stx::os_allocator, dev, phy_dev.share(),
                                        std::move(command_queues))
       .unwrap();
 }
@@ -2049,13 +2045,13 @@ inline VkPresentModeKHR select_swapchain_presentation_mode(
   ASR_PANIC("unable to find any of the preferred presentation modes");
 }
 
-inline VkFormat find_supported_format(VkPhysicalDevice phy_device,
+inline VkFormat find_supported_format(VkPhysicalDevice phy_dev,
                                       stx::Span<VkFormat const> candidates,
                                       VkImageTiling tiling,
                                       VkFormatFeatureFlags features) {
   for (VkFormat format : candidates) {
     VkFormatProperties props;
-    vkGetPhysicalDeviceFormatProperties(phy_device, format, &props);
+    vkGetPhysicalDeviceFormatProperties(phy_dev, format, &props);
 
     if (tiling == VK_IMAGE_TILING_LINEAR &&
         (props.linearTilingFeatures & features) == features) {
@@ -2069,11 +2065,11 @@ inline VkFormat find_supported_format(VkPhysicalDevice phy_device,
   ASR_UNREACHABLE();
 }
 
-inline VkFormat find_depth_format(VkPhysicalDevice phy_device) {
+inline VkFormat find_depth_format(VkPhysicalDevice phy_dev) {
   VkFormat formats[] = {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT,
                         VK_FORMAT_D24_UNORM_S8_UINT};
 
-  return find_supported_format(phy_device, formats, VK_IMAGE_TILING_OPTIMAL,
+  return find_supported_format(phy_dev, formats, VK_IMAGE_TILING_OPTIMAL,
                                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
@@ -2176,14 +2172,14 @@ struct SwapChain {
             VkSampleCountFlagBits amsaa_sample_count,
             VkCompositeAlphaFlagBitsKHR alpha_compositing)
       : queue{std::move(aqueue)} {
-    VkPhysicalDevice phy_device =
+    VkPhysicalDevice phy_dev =
         queue.handle->device.handle->phy_device.handle->phy_device;
     VkDevice dev = queue.handle->device.handle->device;
 
     // the properties change every time we need to create a swapchain so we must
     // query for this every time
     SwapChainProperties properties =
-        get_swapchain_properties(phy_device, target_surface);
+        get_swapchain_properties(phy_dev, target_surface);
 
     ASR_LOG("Device Supported Surface Formats:");
     for (VkSurfaceFormatKHR const& format : properties.supported_formats) {
@@ -2218,7 +2214,7 @@ struct SwapChain {
     swapchain = new_swapchain;
     images = get_swapchain_images(dev, swapchain);
     color_format = selected_format;
-    depth_format = find_depth_format(phy_device);
+    depth_format = find_depth_format(phy_dev);
     present_mode = selected_present_mode;
     image_extent = new_extent;
     window_extent = awindow_extent;
@@ -2463,11 +2459,8 @@ struct SwapChain {
     }
   }
 
-  STX_MAKE_PINNED(SwapChain)
-
-  ~SwapChain() {
+  void destroy() {
     VkDevice dev = queue.handle->device.handle->device;
-
     // await idleness of the semaphores device, so we can destroy the
     // semaphore and images whislt not in use.
     // any part of the device could be using the semaphore
@@ -2525,12 +2518,12 @@ struct Surface {
   // resources when destroyed, not just by calling a method to destroy its
   // resources.
   //
-  stx::Option<stx::Unique<SwapChain*>> swapchain;
+  stx::Option<SwapChain> swapchain;
 
   stx::Rc<Instance*> instance;
 
   Surface(stx::Rc<Instance*> ainstance, VkSurfaceKHR asurface,
-          stx::Option<stx::Unique<SwapChain*>> aswapchain)
+          stx::Option<SwapChain> aswapchain)
       : surface{asurface},
         swapchain{std::move(aswapchain)},
         instance{std::move(ainstance)} {}
@@ -2540,7 +2533,9 @@ struct Surface {
   ~Surface() {
     // we need to ensure the swapchain is destroyed before the surface (if not
     // already destroyed)
-    swapchain = stx::None;
+    if (swapchain.is_some()) {
+      swapchain.value().destroy();
+    }
 
     vkDestroySurfaceKHR(instance.handle->instance, surface, nullptr);
   }
@@ -2552,14 +2547,15 @@ struct Surface {
       VkExtent2D preferred_extent, VkExtent2D window_extent,
       VkSampleCountFlagBits msaa_sample_count,
       VkCompositeAlphaFlagBitsKHR alpha_compositing) {
-    swapchain = stx::None;  // probably don't want to have two existing at once
+    // don't want to have two existing at once
+    if (swapchain.is_some()) {
+      swapchain.value().destroy();
+      swapchain = stx::None;
+    }
 
-    swapchain = stx::Some(stx::rc::make_unique_inplace<SwapChain>(
-                              stx::os_allocator, queue.share(), surface,
-                              preferred_formats, preferred_present_modes,
-                              preferred_extent, window_extent,
-                              msaa_sample_count, alpha_compositing)
-                              .unwrap());
+    swapchain = stx::Some(SwapChain{
+        queue.share(), surface, preferred_formats, preferred_present_modes,
+        preferred_extent, window_extent, msaa_sample_count, alpha_compositing});
   }
 };
 
@@ -3053,15 +3049,13 @@ struct RecordingContext {
     stx::Vec<DescriptorSetSpec> clip_specs{stx::os_allocator};
   }
 
-  void on_swapchain_changed(SwapChain const& swapchain) {
-    pipeline.build(swapchain.queue.handle->device.handle->device, vertex_shader,
-                   fragment_shader, swapchain.render_pass,
+  void on_swapchain_changed(VkDevice dev, SwapChain const& swapchain) {
+    pipeline.build(dev, vertex_shader, fragment_shader, swapchain.render_pass,
                    swapchain.msaa_sample_count,
                    descriptor_sets[swapchain.next_frame_flight_index]
                        .descriptor_set_layouts,
                    vertex_input_attr, vertex_input_size);
-    clip_pipeline.build(swapchain.queue.handle->device.handle->device,
-                        clip_vertex_shader, clip_fragment_shader,
+    clip_pipeline.build(dev, clip_vertex_shader, clip_fragment_shader,
                         swapchain.clip.render_pass, clip_vertex_input_attr,
                         clip_vertex_input_size);
   }

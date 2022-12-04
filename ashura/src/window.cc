@@ -110,7 +110,7 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   ASR_CHECK(surface_.value().handle->swapchain.is_some(),
             "trying to present to swapchain without having one");
 
-  vk::SwapChain& swapchain = *surface_.value().handle->swapchain.value().handle;
+  vk::SwapChain& swapchain = surface_.value().handle->swapchain.value();
 
   VkSemaphore semaphore =
       swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
@@ -147,7 +147,7 @@ WindowSwapchainDiff Window::present(u32 next_swapchain_image_index) {
   // we submit multiple render commands (operating on the swapchain images) to
   // the GPU to prevent having to force a sync with the GPU (await_fence) when
   // it could be doing useful work.
-  vk::SwapChain& swapchain = *surface_.value().handle->swapchain.value().handle;
+  vk::SwapChain& swapchain = surface_.value().handle->swapchain.value();
 
   // we don't need to wait on presentation
   //
