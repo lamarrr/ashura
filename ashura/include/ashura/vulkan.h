@@ -912,7 +912,7 @@ constexpr std::string_view format(VkFormat format) {
     ASR_ERRNUM_CASE(VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG)
     ASR_ERRNUM_CASE(VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG)
     default:
-      return "Unidentified Format Enum";
+      return "Unidentified Color Format Enum";
   }
 }
 
@@ -1001,7 +1001,7 @@ constexpr std::string_view format(VkPhysicalDeviceType type) {
     case VK_PHYSICAL_DEVICE_TYPE_OTHER:
       return "other";
     default:
-      return "unidentified device type";
+      return "unidentified Device Type";
   }
 }
 
@@ -1023,7 +1023,7 @@ constexpr std::string_view format(VkColorSpaceKHR color_space) {
     ASR_ERRNUM_CASE(VK_COLOR_SPACE_PASS_THROUGH_EXT)
     ASR_ERRNUM_CASE(VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT)
     default:
-      return "unidentified color space";
+      return "Unidentified Color Space";
   }
 }
 
@@ -2684,7 +2684,7 @@ struct Pipeline {
         .depthClampEnable = VK_FALSE,
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .cullMode = VK_CULL_MODE_NONE,
         .frontFace = VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .depthBiasConstantFactor = 0.0f,

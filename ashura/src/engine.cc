@@ -207,8 +207,6 @@ Engine::Engine(AppConfig const& cfg) {
         std::exit(0);
       }).unwrap());
 
-  // TODO(lamarrr)
-  //   : vertices need to be specified in clockwise direction
 };
 
 void Engine::tick(std::chrono::nanoseconds interval) {
@@ -221,24 +219,30 @@ void Engine::tick(std::chrono::nanoseconds interval) {
                             .handle->window_extent;
 
     canvas.value().restart(vec2{250, 250});
-
+     
     auto& draw_list = canvas.value().draw_list;
 
-    vec2 vertices[] = {{-.5, -.5}, {.5, -.5}, {.5, .5}, {-.5, .5}};
+    vec2 polygon[300];
+    gfx::polygons::ellipse(polygon, {0, 0}, {0.1, 0.1}, 300);
+    
+    draw_list.vertices.extend(polygon).unwrap();
 
-    u32 indices[] = {0, 1, 2, 0, 2, 3};
+    gfx::triangulate_convex_polygon(draw_list.indices, polygon);
 
-    draw_list.vertices.extend(vertices).unwrap();
-    draw_list.indices.extend(indices).unwrap();
+    u32 nindices = AS_U32(draw_list.indices.size());
 
-    draw_list.clip_vertices.extend(vertices).unwrap();
-    draw_list.clip_indices.extend(indices).unwrap();
+    vec2 clip_vertices[] = {{-.5, -.5}, {.5, -.5}, {.5, .5}, {-.5, .5}};
+
+    u32 clip_indices[] = {0, 1, 2, 0, 2, 3};
+
+    draw_list.clip_vertices.extend(clip_vertices).unwrap();
+    draw_list.clip_indices.extend(clip_indices).unwrap();
 
     draw_list.commands
         .push(gfx::DrawCommand{.indices_offset = 0,
-                               .nindices = AS_U32(std::size(indices)),
+                               .nindices = nindices,
                                .clip_indices_offset = 0,
-                               .nclip_indices = AS_U32(std::size(indices)),
+                               .nclip_indices = AS_U32(std::size(clip_indices)),
                                .transform = mat4::identity(),
                                .color = colors::CYAN.with_alpha(0),
                                .texture = canvas.value().brush.pattern.share()})

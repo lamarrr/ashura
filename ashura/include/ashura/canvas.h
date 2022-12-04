@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cinttypes>
 #include <cmath>
@@ -15,163 +16,79 @@
 namespace asr {
 using namespace stx::literals;
 
-// TODO(lamarrr): how do we sample the texture to the fragment
-struct Vertex {
+struct vertex {
   vec2 position;
   vec2 st;
+
+  static constexpr std::array<VkVertexInputAttributeDescription, 2>
+  attribute_descriptions() {
+    return {
+        VkVertexInputAttributeDescription{.location = 0,
+                                          .binding = 0,
+                                          .format = VK_FORMAT_R32G32_SFLOAT,
+                                          .offset = offsetof(vertex, position)},
+        VkVertexInputAttributeDescription{.location = 1,
+                                          .binding = 0,
+                                          .format = VK_FORMAT_R32G32_SFLOAT,
+                                          .offset = offsetof(vertex, st)}};
+  }
+
+  static constexpr VkVertexInputBindingDescription binding_description() {
+    return {.binding = 0,
+            .stride = sizeof(vertex),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
+  }
 };
 
 namespace gfx {
 
-// compute area of a contour/polygon
-constexpr f32 compute_polygon_area(stx::Span<vec2 const> polygon) {
-  usize npoints = polygon.size();
+inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
+                                       stx::Span<vec2 const> polygon) {
+  ASR_CHECK(polygon.size() >= 3, "polygon must have 3 or more points");
 
-  f32 area = 0.0f;
-
-  if (npoints < 3) return area;
-
-  for (usize p = npoints - 1, q = 0; q < npoints; p = q++) {
-    area += cross(polygon[p], polygon[q]);
-  }
-
-  return area * 0.5f;
-}
-
-constexpr bool polygon_snip_check(stx::Span<vec2 const> polygon, i64 u, i64 v,
-                                  i64 w, i64 n, stx::Span<i64 const> V) {
-  vec2 a = polygon[V[u]];
-  vec2 b = polygon[V[v]];
-  vec2 c = polygon[V[w]];
-
-  if (stx::f32_epsilon > cross(b - a, c - a)) return false;
-
-  for (i64 p = 0; p < n; p++) {
-    if ((p == u) || (p == v) || (p == w)) continue;
-    if (is_inside_triangle(a, b, c, polygon[V[p]])) return false;
-  }
-
-  return true;
-}
-
-constexpr stx::Span<vec2> deduplicate_points(stx::Span<vec2> points) {
-  return points;
-}
-
-inline void triangulate_polygon(stx::Vec<vec2>& output,
-                                stx::Span<vec2 const> polygon) {
-  i64 npoints = polygon.size();
-
-  ASR_CHECK(npoints >= 3, "polygon must have 3 or more points");
-
-  stx::Vec<i64> V{stx::os_allocator};
-
-  V.resize(npoints, 0).unwrap();
-
-  // we want a counter-clockwise polygon in V
-  if (0.0f < compute_polygon_area(polygon)) {
-    for (i64 v = 0; v < npoints; v++) {
-      V[v] = v;
-    }
-  } else {
-    for (i64 v = 0; v < npoints; v++) {
-      V[v] = (npoints - 1) - v;
-    }
-  }
-
-  i64 nv = npoints;
-
-  //  remove nv-2 vertices, creating 1 triangle every time
-  i64 count = 2 * nv;  // error detection
-
-  for (i64 m = 0, v = nv - 1; nv > 2;) {
-    // if we loop, it is probably a non-simple polygon
-    if (0 >= (count--)) {
-      ASR_PANIC("polygon triangulation error: probable bad polygon!");
-      return;
-    }
-
-    // three consecutive vertices in current polygon, <u, v, w>
-    i64 u = v;
-
-    if (nv <= u) u = 0;  //  previous
-
-    v = u + 1;
-
-    if (nv <= v) v = 0;  // new v
-
-    i64 w = v + 1;
-
-    if (nv <= w) w = 0;  // next
-
-    if (polygon_snip_check(polygon, u, v, w, nv, V)) {
-      // true names of the vertices
-      i64 a = V[u];
-      i64 b = V[v];
-      i64 c = V[w];
-
-      // output triangle
-      output.push_inplace(polygon[a]).unwrap();
-      output.push_inplace(polygon[b]).unwrap();
-      output.push_inplace(polygon[c]).unwrap();
-
-      m++;
-
-      // remove v from remaining polygon
-      for (i64 s = v, t = v + 1; t < nv; s++, t++) {
-        V[s] = V[t];
-      }
-
-      nv--;
-
-      // reset error detection counter
-      count = 2 * nv;
-    }
+  for (u32 i = 2; i < polygon.size(); i++) {
+    indices.push(0).unwrap();
+    indices.push_inplace(i - 1).unwrap();
+    indices.push_inplace(i).unwrap();
   }
 }
 
 namespace polygons {
 
-constexpr void rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent) {
+inline void rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent) {
   polygon[0] = offset;
   polygon[1] = {offset.x + extent.x, offset.y};
   polygon[2] = offset + extent;
   polygon[3] = {offset.x, offset.y + extent.y};
 }
 
-inline void circle(stx::Vec<vec2>& polygon, vec2 offset, f32 radius,
+inline void circle(stx::Span<vec2> polygon, vec2 offset, f32 radius,
                    usize nsegments) {
   if (nsegments == 0 || radius <= 0.0f) return;
 
   f32 step = 360.0f / nsegments;
 
   for (usize i = 0; i < nsegments; i++) {
-    polygon
-        .push(vec2{offset.x + radius - radius * std::cos(i * step),
-                   offset.y + radius - radius * std::sin(i * step)})
-        .unwrap();
+    polygon[i] = vec2{offset.x + radius - radius * std::cos(i * step),
+                      offset.y + radius - radius * std::sin(i * step)};
   }
 }
 
-inline void ellipse(stx::Vec<vec2>& polygon, vec2 offset, vec2 radius,
+inline void ellipse(stx::Span<vec2> polygon, vec2 offset, vec2 radius,
                     usize nsegments) {
   if (nsegments == 0 || radius.x <= 0.0f || radius.y <= 0.0f) return;
 
   f32 step = 360.0f / nsegments;
 
   for (usize i = 0; i < nsegments; i++) {
-    polygon
-        .push(vec2{offset.x + radius.x - radius.x * std::cos(i * step),
-                   offset.y + radius.y - radius.y * std::sin(i * step)})
-        .unwrap();
+    polygon[i] = vec2{offset.x + radius.x - radius.x * std::cos(i * step),
+                      offset.y + radius.y - radius.y * std::sin(i * step)};
   }
 }
 
-inline void round_rect(stx::Vec<vec2>& polygon, vec2 offset, vec2 extent,
+inline void round_rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent,
                        vec4 radii, usize nsegments) {
-  ASR_CHECK(nsegments > 0);
-
-  // TODO(lamarrr): we should ideally do some subtraction to CHECK both radiis
+  // TODO(lamarrr): we should ideally do some subtraction to ensure both radii
   // are contained within a dimension
   radii.x = std::min(radii.x, std::min(extent.x, extent.y));
   radii.y = std::min(radii.y, std::min(extent.x, extent.y));
@@ -180,41 +97,35 @@ inline void round_rect(stx::Vec<vec2>& polygon, vec2 offset, vec2 extent,
 
   f32 step = 90.0f / nsegments;
 
+  usize i = 0;
+
   vec2 xoffset{offset.x + radii.x, offset.y + radii.x};
 
-  for (usize i = 0; i < nsegments; i++) {
-    polygon
-        .push(vec2{xoffset.y - radii.x * std::cos(i * step),
-                   xoffset.x - radii.x * std::sin(i * step)})
-        .unwrap();
+  for (usize segment = 0; segment < nsegments; segment++, i++) {
+    polygon[i] = vec2{xoffset.y - radii.x * std::cos(segment * step),
+                      xoffset.x - radii.x * std::sin(segment * step)};
   }
 
   vec2 yoffset{offset.x + (extent.x - radii.y), offset.y + radii.y};
 
-  for (usize i = 0; i < nsegments; i++) {
-    polygon
-        .push(vec2{yoffset.y - radii.y * std::cos(90.0f + i * step),
-                   yoffset.x - radii.y * std::sin(90.0f + i * step)})
-        .unwrap();
+  for (usize segment = 0; segment < nsegments; segment++, i++) {
+    polygon[i] = vec2{yoffset.y - radii.y * std::cos(90.0f + segment * step),
+                      yoffset.x - radii.y * std::sin(90.0f + segment * step)};
   }
 
   vec2 zoffset{offset.x + (extent.x - radii.z),
                offset.y + (extent.y - radii.z)};
 
-  for (usize i = 0; i < nsegments; i++) {
-    polygon
-        .push(vec2{zoffset.y - radii.z * std::cos(180.0f + i * step),
-                   zoffset.x - radii.z * std::sin(180.0f + i * step)})
-        .unwrap();
+  for (usize segment = 0; segment < nsegments; segment++, i++) {
+    polygon[i] = vec2{zoffset.y - radii.z * std::cos(180.0f + segment * step),
+                      zoffset.x - radii.z * std::sin(180.0f + segment * step)};
   }
 
   vec2 woffset{offset.x + radii.w, offset.y + (extent.y - radii.w)};
 
-  for (usize i = 0; i < nsegments; i++) {
-    polygon
-        .push(vec2{woffset.y - radii.w * std::cos(270.0f + i * step),
-                   woffset.x - radii.w * std::sin(270.0f + i * step)})
-        .unwrap();
+  for (usize segment = 0; segment < nsegments; segment++, i++) {
+    polygon[i] = vec2{woffset.y - radii.w * std::cos(270.0f + segment * step),
+                      woffset.x - radii.w * std::sin(270.0f + segment * step)};
   }
 }
 
@@ -363,28 +274,28 @@ inline mat4 scale(vec3 s) {
   };
 }
 
-inline mat4 rotate_x(f32 degree) {
+inline mat4 rotate_x(f32 degree_radians) {
   return mat4{
       vec4{1.0f, 0.0f, 0.0f, 0.0f},
-      vec4{0.0f, std::cos(degree), -std::sin(degree), 0.0f},
-      vec4{0.0f, std::sin(degree), std::cos(degree), 0.0f},
+      vec4{0.0f, std::cos(degree_radians), -std::sin(degree_radians), 0.0f},
+      vec4{0.0f, std::sin(degree_radians), std::cos(degree_radians), 0.0f},
       vec4{0.0f, 0.0f, 0.0f, 1.0f},
   };
 }
 
-inline mat4 rotate_y(f32 degree) {
+inline mat4 rotate_y(f32 degree_radians) {
   return mat4{
-      vec4{std::cos(degree), 0.0f, std::sin(degree), 0.0f},
+      vec4{std::cos(degree_radians), 0.0f, std::sin(degree_radians), 0.0f},
       vec4{0.0f, 1.0f, 0.0f, 0.0f},
-      vec4{-std::sin(degree), 0, std::cos(degree), 0.0f},
+      vec4{-std::sin(degree_radians), 0, std::cos(degree_radians), 0.0f},
       vec4{0.0f, 0.0f, 0.0f, 1.0f},
   };
 }
 
-inline mat4 rotate_z(f32 degree) {
+inline mat4 rotate_z(f32 degree_radians) {
   return mat4{
-      vec4{std::cos(degree), -std::sin(degree), 0.0f, 0.0f},
-      vec4{std::sin(degree), std::cos(degree), 0.0f, 0.0f},
+      vec4{std::cos(degree_radians), -std::sin(degree_radians), 0.0f, 0.0f},
+      vec4{std::sin(degree_radians), std::cos(degree_radians), 0.0f, 0.0f},
       vec4{0.0f, 0.0f, 1.0f, 0.0f},
       vec4{0.0f, 0.0f, 0.0f, 1.0f},
   };
@@ -413,7 +324,7 @@ struct DrawCommand {
 };
 
 struct DrawList {
-  stx::Vec<vec2> vertices{stx::os_allocator};
+  stx::Vec<vertex> vertices{stx::os_allocator};
   stx::Vec<u32> indices{stx::os_allocator};
   stx::Vec<vec2> clip_vertices{stx::os_allocator};
   stx::Vec<u32> clip_indices{stx::os_allocator};
@@ -422,6 +333,11 @@ struct DrawList {
 
 // TODO(lamarrr): properly handle the case of zero sized indices and clip
 // indices
+//
+//
+/// Coordinates are specified in top-left origin space
+///
+///
 struct Canvas {
   vec2 extent;
   Brush brush;
@@ -527,7 +443,7 @@ struct Canvas {
 
     u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
 
-    triangulate_polygon(draw_list.clip_vertices, clip);
+    // triangulate_polygon(draw_list.clip_vertices, clip);
 
     nclip_polygon_vertices =
         AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
@@ -593,7 +509,7 @@ struct Canvas {
     u32 nindices = 0;
 
     for (usize i = 0; i < line.size(); i++) {
-      usize j = (i == line.size()) ? 0UL : (i + 1);
+      usize j = (i + 1 == line.size()) ? 0UL : (i + 1);
 
       vec2 p1 = line[i];
       vec2 p2 = line[j];
@@ -628,7 +544,7 @@ struct Canvas {
 
     u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
 
-    triangulate_polygon(draw_list.clip_vertices, clip);
+    // triangulate_polygon(draw_list.clip_vertices, clip);
 
     nclip_polygon_vertices =
         AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
@@ -658,7 +574,7 @@ struct Canvas {
 
     u32 npolygon_vertices = AS_U32(draw_list.vertices.size());
 
-    triangulate_polygon(draw_list.vertices, polygon);
+    // triangulate_polygon(draw_list.vertices, polygon);
 
     npolygon_vertices = AS_U32(draw_list.vertices.size()) - npolygon_vertices;
 
@@ -670,7 +586,7 @@ struct Canvas {
 
     u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
 
-    triangulate_polygon(draw_list.clip_vertices, clip);
+    // triangulate_polygon(draw_list.clip_vertices, clip);
 
     nclip_polygon_vertices =
         AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
@@ -725,7 +641,7 @@ struct Canvas {
 
     u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
 
-    triangulate_polygon(draw_list.clip_vertices, clip);
+    // triangulate_polygon(draw_list.clip_vertices, clip);
 
     nclip_polygon_vertices =
         AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
@@ -849,11 +765,7 @@ struct CanvasContext {
         vk::create_host_buffer(dev, queue.handle->info.family, sizeof(Viewport),
                                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-    VkVertexInputAttributeDescription vertex_input_attributes[]{
-        {.location = 0,
-         .binding = 0,
-         .format = VK_FORMAT_R32G32_SFLOAT,
-         .offset = 0}};
+    auto vertex_input_attributes = vertex::attribute_descriptions();
 
     VkVertexInputAttributeDescription clip_vertex_input_attributes[]{
         {.location = 0,
@@ -871,7 +783,7 @@ struct CanvasContext {
     recording_context.init(*queue.handle, vertex_shader_code,
                            fragment_shader_code, clip_vertex_shader_code,
                            clip_fragment_shader_code, vertex_input_attributes,
-                           sizeof(vec2), clip_vertex_input_attributes,
+                           sizeof(vertex), clip_vertex_input_attributes,
                            sizeof(vec2), descriptor_set_specs);
   }
 
@@ -905,7 +817,7 @@ struct CanvasContext {
     viewport_buffer.write(queue.handle->device.handle->device, &viewport);
   }
 
-  void write_vertices(stx::Span<vec2 const> vertices,
+  void write_vertices(stx::Span<vertex const> vertices,
                       stx::Span<u32 const> indices) {
     VkDevice dev = queue.handle->device.handle->device;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
