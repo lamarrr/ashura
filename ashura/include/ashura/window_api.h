@@ -51,7 +51,7 @@ struct WindowApi {
 
   // this implies that we need to detach the handle from here first
   //
-  // also CHECK all api calls occur on the main thread.
+  // also ensure all api calls occur on the main thread.
   std::map<WindowID, Window *> windows_info_;
 };
 

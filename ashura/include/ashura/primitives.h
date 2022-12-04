@@ -501,4 +501,18 @@ constexpr std::pair<i32, i32> i32_clamp(Extent extent) {
   return std::make_pair(i32_clamp(extent.w), i32_clamp(extent.h));
 }
 
+struct ImageDims {
+  u32 width = 0;
+  u32 height = 0;
+  u32 nchannels = 4;
+
+  constexpr usize size() const {
+    usize result = width;
+    result *= height;
+    result *= nchannels;
+
+    return result;
+  }
+};
+
 }  // namespace asr
