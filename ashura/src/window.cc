@@ -118,23 +118,31 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   VkFence fence =
       swapchain.image_acquisition_fences[swapchain.next_frame_flight_index];
 
-  VkDevice device = swapchain.queue.handle->device.handle->device;
+  VkDevice dev = swapchain.queue.handle->device.handle->device;
 
-  auto [next_swapchain_image_index, acquire_result] =
-      vk::acquire_next_swapchain_image(device, swapchain.swapchain, semaphore,
-                                       fence);
+  ASR_VK_CHECK(vkResetFences(dev, 1, &fence));
 
-  if (acquire_result == VK_SUBOPTIMAL_KHR) {
+  u32 next_swapchain_image_index = 0;
+
+  VkResult result =
+      vkAcquireNextImageKHR(dev, swapchain.swapchain, COMMAND_TIMEOUT,
+                            semaphore, fence, &next_swapchain_image_index);
+
+  ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
+                result == VK_ERROR_OUT_OF_DATE_KHR,
+            "failed to acquire swapchain image");
+
+  if (result == VK_SUBOPTIMAL_KHR) {
     return std::make_pair(WindowSwapchainDiff::Suboptimal,
                           next_swapchain_image_index);
-  } else if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR) {
+  } else if (result == VK_ERROR_OUT_OF_DATE_KHR) {
     return std::make_pair(WindowSwapchainDiff::OutOfDate,
                           next_swapchain_image_index);
-  } else if (acquire_result == VK_SUCCESS) {
+  } else if (result == VK_SUCCESS) {
     return std::make_pair(WindowSwapchainDiff::None,
                           next_swapchain_image_index);
   } else {
-    ASR_PANIC("failed to acquire image from swapchain", acquire_result);
+    ASR_PANIC("failed to acquire swapchain image", result);
   }
 }
 

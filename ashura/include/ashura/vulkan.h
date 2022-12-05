@@ -589,45 +589,6 @@ inline VkSemaphore create_semaphore(VkDevice dev) {
   return semaphore;
 }
 
-// GPU-CPU synchronization primitive, expensive
-inline VkFence create_fence(VkDevice dev, VkFenceCreateFlags make_signaled) {
-  VkFenceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                                .pNext = nullptr,
-                                .flags = make_signaled};
-
-  VkFence fence;
-
-  ASR_VK_CHECK(vkCreateFence(dev, &create_info, nullptr, &fence));
-
-  return fence;
-}
-
-inline void reset_fences(VkDevice dev, stx::Span<VkFence const> fences) {
-  ASR_VK_CHECK(vkResetFences(dev, AS_U32(fences.size()), fences.data()));
-}
-
-inline void await_fences(VkDevice dev, stx::Span<VkFence const> fences) {
-  ASR_VK_CHECK(vkWaitForFences(
-      dev, AS_U32(fences.size()), fences.data(), VK_TRUE,
-      std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count()));
-}
-
-inline std::pair<u32, VkResult> acquire_next_swapchain_image(
-    VkDevice dev, VkSwapchainKHR swapchain, VkSemaphore signal_semaphore,
-    VkFence signal_fence) {
-  u32 index = 0;
-
-  auto result = vkAcquireNextImageKHR(
-      dev, swapchain,
-      std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count(),
-      signal_semaphore, signal_fence, &index);
-  ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
-                result == VK_ERROR_OUT_OF_DATE_KHR,
-            "Unable to acquire next image");
-
-  return std::make_pair(index, result);
-}
-
 inline VkResult present(VkQueue command_queue,
                         stx::Span<VkSemaphore const> await_semaphores,
                         stx::Span<VkSwapchainKHR const> swapchains,
@@ -2253,11 +2214,25 @@ struct SwapChain {
     for (usize i = 0; i < MAX_FRAMES_INFLIGHT; i++) {
       rendering_semaphores.push(create_semaphore(dev)).unwrap();
       image_acquisition_semaphores.push(create_semaphore(dev)).unwrap();
-      image_acquisition_fences
-          .push(create_fence(dev, VK_FENCE_CREATE_SIGNALED_BIT))
-          .unwrap();
-      rendering_fences.push(create_fence(dev, VK_FENCE_CREATE_SIGNALED_BIT))
-          .unwrap();
+
+      VkFenceCreateInfo fence_create_info{
+          .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0};
+
+      VkFence image_acquisition_fence;
+
+      ASR_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr,
+                                 &image_acquisition_fence));
+
+      image_acquisition_fences.push_inplace(image_acquisition_fence).unwrap();
+
+      VkFence rendering_fence;
+
+      ASR_VK_CHECK(
+          vkCreateFence(dev, &fence_create_info, nullptr, &rendering_fence));
+
+      rendering_fences.push_inplace(rendering_fence).unwrap();
     }
 
     VkAttachmentDescription color_attachment{
@@ -2449,11 +2424,20 @@ struct SwapChain {
             vkCreateFramebuffer(dev, &create_info, nullptr, &framebuffer));
       }
 
+      VkFenceCreateInfo fence_create_info{
+          .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0};
+
+      VkFence fence;
+
+      ASR_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr, &fence));
+
       clip =
           Clip{.image = Image{.image = image, .view = view, .memory = memory},
                .sampler = create_sampler(queue.handle->device, false),
                .framebuffer = framebuffer,
-               .fence = create_fence(dev, 0),
+               .fence = fence,
                .semaphore = create_semaphore(dev),
                .render_pass = render_pass};
     }
@@ -3021,7 +3005,7 @@ struct RecordingContext {
     VkFenceCreateInfo fence_create_info{
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .pNext = nullptr,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT};
+        .flags = 0};
 
     ASR_VK_CHECK(
         vkCreateFence(dev, &fence_create_info, nullptr, &upload_fence));

@@ -209,8 +209,7 @@ Engine::Engine(AppConfig const& cfg) {
 };
 
 void Engine::tick(std::chrono::nanoseconds interval) {
-
-    // TODO(lamarrr): try getting window extent on each frame instead
+  // TODO(lamarrr): try getting window extent on each frame instead
   window.value().handle->tick(interval);
 
   auto draw_content = [&]() {
@@ -219,35 +218,13 @@ void Engine::tick(std::chrono::nanoseconds interval) {
                             .handle->swapchain.value()
                             .window_extent;
 
-    canvas.value().restart(vec2{250, 250});
+    gfx::Canvas& c = canvas.value();
 
-    auto& draw_list = canvas.value().draw_list;
-
-    vec2 polygon[300];
-    gfx::polygons::ellipse(polygon, {0, 0}, {0.1, 0.1}, 300);
-
-    draw_list.vertices.extend(polygon).unwrap();
-
-    gfx::triangulate_convex_polygon(draw_list.indices, polygon);
-
-    u32 nindices = AS_U32(draw_list.indices.size());
-
-    vec2 clip_vertices[] = {{-.5, -.5}, {.5, -.5}, {.5, .5}, {-.5, .5}};
-
-    u32 clip_indices[] = {0, 1, 2, 0, 2, 3};
-
-    draw_list.clip_vertices.extend(clip_vertices).unwrap();
-    draw_list.clip_indices.extend(clip_indices).unwrap();
-
-    draw_list.commands
-        .push(gfx::DrawCommand{.indices_offset = 0,
-                               .nindices = nindices,
-                               .clip_indices_offset = 0,
-                               .nclip_indices = AS_U32(std::size(clip_indices)),
-                               .transform = mat4::identity(),
-                               .color = colors::CYAN.with_alpha(0),
-                               .texture = canvas.value().brush.pattern.share()})
-        .unwrap();
+    c.restart(vec2{1920, 1080});
+    c.brush.color = colors::CYAN;
+    c.draw_rect({0, 0}, {1920, 1080});
+    c.brush.color = colors::MAGENTA;
+    c.draw_rect({200, 200}, {200, 20});
   };
 
   draw_content();
@@ -275,11 +252,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     vk::SwapChain& swapchain =
         window.value().handle->surface_.value().handle->swapchain.value();
 
-    ASR_VK_CHECK(vkResetFences(
-        queue.value().handle->device.handle->device, 1,
-        &swapchain
-             .image_acquisition_fences[swapchain.next_frame_flight_index]));
-
     auto [diff, next_swapchain_image_index] =
         window.value().handle->acquire_image();
 
@@ -293,12 +265,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
         swapchain.queue.handle->device.handle->device, 1,
         &swapchain.image_acquisition_fences[swapchain.next_frame_flight_index],
         VK_TRUE, COMMAND_TIMEOUT));
-
-    // TODO(lamarrr): temporary hacks
-    ASR_VK_CHECK(vkResetFences(
-        swapchain.queue.handle->device.handle->device, 1,
-        &swapchain
-             .image_acquisition_fences[swapchain.next_frame_flight_index]));
 
     canvas_context.value().handle->submit(
         window.value().handle->surface_.value().handle->swapchain.value(),

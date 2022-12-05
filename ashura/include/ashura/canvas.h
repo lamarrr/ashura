@@ -62,27 +62,27 @@ inline void rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent) {
   polygon[3] = {offset.x, offset.y + extent.y};
 }
 
-inline void circle(stx::Span<vec2> polygon, vec2 offset, f32 radius,
+inline void circle(stx::Span<vec2> polygon, vec2 center, f32 radius,
                    usize nsegments) {
   if (nsegments == 0 || radius <= 0.0f) return;
 
   f32 step = AS_F32((2 * M_PI) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
-    polygon[i] = vec2{offset.x + radius - radius * std::cos(i * step),
-                      offset.y + radius - radius * std::sin(i * step)};
+    polygon[i] = vec2{center.x + radius - radius * std::cos(i * step),
+                      center.y + radius - radius * std::sin(i * step)};
   }
 }
 
-inline void ellipse(stx::Span<vec2> polygon, vec2 offset, vec2 radius,
+inline void ellipse(stx::Span<vec2> polygon, vec2 center, vec2 radius,
                     usize nsegments) {
   if (nsegments == 0 || radius.x <= 0.0f || radius.y <= 0.0f) return;
 
   f32 step = AS_F32((2 * M_PI) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
-    polygon[i] = vec2{offset.x + radius.x - radius.x * std::cos(i * step),
-                      offset.y + radius.y - radius.y * std::sin(i * step)};
+    polygon[i] = vec2{center.x + radius.x - radius.x * std::cos(i * step),
+                      center.y + radius.y - radius.y * std::sin(i * step)};
   }
 }
 
@@ -330,22 +330,36 @@ struct DrawList {
   stx::Vec<vec2> clip_vertices{stx::os_allocator};
   stx::Vec<u32> clip_indices{stx::os_allocator};
   stx::Vec<DrawCommand> commands{stx::os_allocator};
+
+  void clear() {
+    vertices.clear();
+    indices.clear();
+    clip_vertices.clear();
+    clip_indices.clear();
+    commands.clear();
+  }
 };
 
-inline void transform_vertices_to_viewport(
-    stx::Span<vertex> vertices, vec2 viewport_extent, vec2 polygon_offset,
-    vec2 polygon_extent, vec2 texture_offset, vec2 texture_extent) {
+inline void transform_vertices_to_viewport(stx::Span<vertex> vertices,
+                                           vec2 viewport_extent,
+                                           rect polygon_area,
+                                           rect texture_area) {
   for (usize i = 0; i < vertices.size(); i++) {
-    // positions are specified with x pointing right and y pointing downwards
-    vec2 position = vertices[i].position * vec2{1, -1};
-
     // transform to -1 to +1 range with x pointing right and y pointing upwards
-    position = ((2 * position) / viewport_extent) - 1;
+    vec2 normalized = (2 * vertices[i].position / viewport_extent) - 1;
 
-    // transform vertex position into texture coordinates,
-    vec2 st = (vertices[i].position - polygon_offset) / polygon_extent;
+    // positions are specified with x pointing right and y pointing downwards
+    vec2 flipped = normalized * vec2{1, -1};
 
-    vertices[i] = vertex{.position = position, .st = st};
+    // transform vertex position into texture coordinates (within the polygon's
+    // extent)
+    vec2 st =
+        (vertices[i].position - polygon_area.offset) / polygon_area.extent;
+
+    // map it into the portion of the texture we are interested in
+    st = (texture_area.offset + st * texture_area.extent);
+
+    vertices[i] = vertex{.position = flipped, .st = st};
   }
 }
 
@@ -353,11 +367,12 @@ inline void transform_vertices_to_viewport(
 // indices
 //
 //
-/// Coordinates are specified in top-left origin space
+/// Coordinates are specified in top-left origin space with x pointing to the
+/// right and y pointing downwards
 ///
 ///
 struct Canvas {
-  vec2 extent;
+  vec2 viewport_extent;
   Brush brush;
 
   mat4 transform = mat4::identity();
@@ -376,22 +391,18 @@ struct Canvas {
     restart(viewport_extent);
   }
 
-  void restart(vec2 viewport_extent) {
-    extent = viewport_extent;
+  void restart(vec2 new_viewport_extent) {
+    viewport_extent = new_viewport_extent;
     brush = Brush{.pattern = transparent_image.share()};
     transform = mat4::identity();
     transform_state_stack.clear();
 
     clip.clear();
     clip.resize(4).unwrap();
-    polygons::rect(clip, vec2{0.0f, 0.0f}, extent);
+    polygons::rect(clip, vec2{0.0f, 0.0f}, viewport_extent);
 
     clip_state_stack.clear();
-    draw_list.vertices.clear();
-    draw_list.indices.clear();
-    draw_list.clip_vertices.clear();
-    draw_list.clip_indices.clear();
-    draw_list.commands.clear();
+    draw_list.clear();
   }
 
   // push state (transform and clips) on state stack
@@ -422,7 +433,7 @@ struct Canvas {
     transform = mat4::identity();
     transform_state_stack.clear();
     clip.resize(4).unwrap();
-    polygons::rect(clip, {0.0f, 0.0f}, extent);
+    polygons::rect(clip, {0.0f, 0.0f}, viewport_extent);
     clip_state_stack.clear();
     return *this;
   }
@@ -448,40 +459,30 @@ struct Canvas {
   Canvas& scale(f32 x, f32 y) { return scale(x, y, 1.0f); }
 
   Canvas& clear() {
-    u32 start = AS_U32(draw_list.vertices.size());
-
     vertex vertices[] = {{{0, 0}, {0, 0}},
-                         {{extent.x, 0}, {0, 0}},
-                         {{extent.x, extent.y}, {0, 0}},
-                         {{0.0f, extent.y}, {0, 0}}};
-
-    transform_vertices_to_viewport(vertices, {0, 0}, {extent.x, extent.y});
+                         {{viewport_extent.x, 0}, {0, 0}},
+                         {viewport_extent, {0, 0}},
+                         {{0, viewport_extent.y}, {0, 0}}};
 
     draw_list.vertices.extend(vertices).unwrap();
 
-    u32 indices[] = {start, start + 1, start + 2, start + 2, start, start + 3};
+    vec2 clip_vertices[] = {{0, 0},
+                            {viewport_extent.x, 0},
+                            viewport_extent,
+                            {0, viewport_extent.y}};
+
+    draw_list.clip_vertices.extend(clip_vertices).unwrap();
+
+    u32 indices[] = {0, 1, 2, 0, 2, 3};
 
     draw_list.indices.extend(indices).unwrap();
-
-    u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
-
-    // triangulate_polygon(draw_list.clip_vertices, clip);
-
-    nclip_polygon_vertices =
-        AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
-
-    u32 clip_start = AS_U32(draw_list.clip_indices.size());
-
-    for (u32 index = clip_start; index < (clip_start + nclip_polygon_vertices);
-         index++) {
-      draw_list.clip_indices.push_inplace(index).unwrap();
-    }
+    draw_list.clip_indices.extend(indices).unwrap();
 
     draw_list.commands
-        .push(DrawCommand{.indices_offset = start,
+        .push(DrawCommand{.indices_offset = 0,
                           .nindices = AS_U32(std::size(indices)),
-                          .clip_indices_offset = clip_start,
-                          .nclip_indices = nclip_polygon_vertices,
+                          .clip_indices_offset = 0,
+                          .nclip_indices = AS_U32(std::size(indices)),
                           .transform = mat4::identity(),
                           .color = brush.color,
                           .texture = brush.pattern.share()})
@@ -505,26 +506,30 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& clip_circle(vec2 offset, f32 radius, usize nsegments) {
+  Canvas& clip_circle(vec2 center, f32 radius, usize nsegments) {
     clip.clear();
-    polygons::circle(clip, offset, radius, nsegments);
+    clip.resize(nsegments).unwrap();
+    polygons::circle(clip, center, radius, nsegments);
     return *this;
   }
 
-  Canvas& clip_ellipse(vec2 offset, vec2 radius, usize nsegments) {
+  Canvas& clip_ellipse(vec2 center, vec2 radius, usize nsegments) {
     clip.clear();
-    polygons::ellipse(clip, offset, radius, nsegments);
+    clip.resize(nsegments).unwrap();
+    polygons::ellipse(clip, center, radius, nsegments);
     return *this;
   }
 
   Canvas& clip_round_rect(vec2 offset, vec2 extent, vec4 radii,
                           usize nsegments) {
     clip.clear();
+    clip.resize(nsegments * 4).unwrap();
     polygons::round_rect(clip, offset, extent, radii, nsegments);
     return *this;
   }
 
   Canvas& draw_polygon_line(stx::Span<vec2 const> line) {
+    /*
     ASR_CHECK(line.size() >= 2);
 
     u32 start = AS_U32(draw_list.indices.size());
@@ -587,44 +592,50 @@ struct Canvas {
                           .color = brush.color,
                           .texture = brush.pattern.share()})
         .unwrap();
-
+        */
     return *this;
   }
 
-  Canvas& draw_polygon_filled(stx::Span<vec2 const> polygon) {
-    ASR_CHECK(polygon.size() >= 3);
-
-    u32 npolygon_vertices = AS_U32(draw_list.vertices.size());
-
-    // triangulate_polygon(draw_list.vertices, polygon);
-
-    npolygon_vertices = AS_U32(draw_list.vertices.size()) - npolygon_vertices;
+  Canvas& draw_convex_polygon_filled(stx::Span<vec2 const> polygon, rect area,
+                                     rect texture_area) {
+    if (polygon.size() < 3 || area.extent.x == 0 || area.extent.y == 0)
+      return *this;
 
     u32 start = AS_U32(draw_list.indices.size());
 
-    for (u32 index = start; index < (start + npolygon_vertices); index++) {
-      draw_list.indices.push_inplace(index).unwrap();
+    triangulate_convex_polygon(draw_list.indices, polygon);
+
+    u32 nindices = AS_U32(draw_list.indices.size() - start);
+
+    usize vertices_offset = AS_U32(draw_list.vertices.size());
+
+    for (usize i = 0; i < polygon.size(); i++) {
+      draw_list.vertices.push(vertex{.position = polygon[i], .st = {0, 0}})
+          .unwrap();
     }
 
-    u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
-
-    // triangulate_polygon(draw_list.clip_vertices, clip);
-
-    nclip_polygon_vertices =
-        AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
+    transform_vertices_to_viewport(
+        draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
+        texture_area);
 
     u32 clip_start = AS_U32(draw_list.clip_indices.size());
 
-    for (u32 index = clip_start; index < (clip_start + nclip_polygon_vertices);
-         index++) {
-      draw_list.clip_indices.push_inplace(index).unwrap();
+    triangulate_convex_polygon(draw_list.clip_indices, clip);
+
+    u32 nclip_indices = AS_U32(draw_list.clip_indices.size() - clip_start);
+
+    draw_list.clip_vertices.extend(clip).unwrap();
+
+    for (vec2& pos : draw_list.clip_vertices) {
+      pos = (2 * pos / viewport_extent) - 1;
+      pos = pos * vec2{1, -1};
     }
 
     draw_list.commands
         .push(DrawCommand{.indices_offset = start,
-                          .nindices = npolygon_vertices,
+                          .nindices = nindices,
                           .clip_indices_offset = clip_start,
-                          .nclip_indices = nclip_polygon_vertices,
+                          .nclip_indices = nclip_indices,
                           .transform = transform,
                           .color = brush.color,
                           .texture = brush.pattern.share()})
@@ -634,57 +645,58 @@ struct Canvas {
   }
 
   Canvas& draw_line(vec2 p1, vec2 p2) {
+    /*
     vec2 d = p2 - p1;
 
-    {
-      f32 dot_product = dot(d, d);
-      if (dot_product > 0.0f) {
-        f32 inverse_length = 1 / std::sqrt(dot_product);
-        d.x *= inverse_length;
-        d.y *= inverse_length;
-      }
+  {
+    f32 dot_product = dot(d, d);
+    if (dot_product > 0.0f) {
+      f32 inverse_length = 1 / std::sqrt(dot_product);
+      d.x *= inverse_length;
+      d.y *= inverse_length;
     }
+  }
 
-    d.x *= brush.line_width * 0.5f;
-    d.y *= brush.line_width * 0.5f;
+  d.x *= brush.line_width * 0.5f;
+  d.y *= brush.line_width * 0.5f;
 
-    vec2 vertices[] = {{p1.x + d.y, p1.y - d.x},
-                       {p2.x + d.y, p2.y - d.x},
-                       {p2.x - d.y, p2.y + d.x},
-                       {p1.x - d.y, p1.y + d.x}};
+  vec2 vertices[] = {{p1.x + d.y, p1.y - d.x},
+                     {p2.x + d.y, p2.y - d.x},
+                     {p2.x - d.y, p2.y + d.x},
+                     {p1.x - d.y, p1.y + d.x}};
 
-    u32 start = AS_U32(draw_list.indices.size());
+  u32 start = AS_U32(draw_list.indices.size());
 
-    u32 indices[] = {start,     start + 1, start + 2,
-                     start + 3, start + 4, start + 5};
+  u32 indices[] = {start,     start + 1, start + 2,
+                   start + 3, start + 4, start + 5};
 
-    draw_list.vertices.extend(vertices).unwrap();
-    draw_list.indices.extend(indices).unwrap();
+  draw_list.vertices.extend(vertices).unwrap();
+  draw_list.indices.extend(indices).unwrap();
 
-    u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
+  u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
 
-    // triangulate_polygon(draw_list.clip_vertices, clip);
+  // triangulate_polygon(draw_list.clip_vertices, clip);
 
-    nclip_polygon_vertices =
-        AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
+  nclip_polygon_vertices =
+      AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
 
-    u32 clip_start = AS_U32(draw_list.clip_indices.size());
+  u32 clip_start = AS_U32(draw_list.clip_indices.size());
 
-    for (u32 index = clip_start; index < (clip_start + nclip_polygon_vertices);
-         index++) {
-      draw_list.clip_indices.push_inplace(index).unwrap();
-    }
+  for (u32 index = clip_start; index < (clip_start + nclip_polygon_vertices);
+       index++) {
+    draw_list.clip_indices.push_inplace(index).unwrap();
+  }
 
-    draw_list.commands
-        .push(DrawCommand{.indices_offset = start,
-                          .nindices = AS_U32(std::size(indices)),
-                          .clip_indices_offset = clip_start,
-                          .nclip_indices = nclip_polygon_vertices,
-                          .transform = transform,
-                          .color = brush.color,
-                          .texture = brush.pattern.share()})
-        .unwrap();
-
+  draw_list.commands
+      .push(DrawCommand{.indices_offset = start,
+                        .nindices = AS_U32(std::size(indices)),
+                        .clip_indices_offset = clip_start,
+                        .nclip_indices = nclip_polygon_vertices,
+                        .transform = transform,
+                        .color = brush.color,
+                        .texture = brush.pattern.share()})
+      .unwrap();
+      */
     return *this;
   }
 
@@ -694,31 +706,35 @@ struct Canvas {
     polygons::rect(points, offset, extent);
 
     if (brush.fill) {
-      return draw_polygon_filled(points);
+      return draw_convex_polygon_filled(points, {offset, extent},
+                                        {{0, 0}, {1, 1}});
     } else {
       return draw_polygon_line(points);
     }
   }
 
-  Canvas& draw_circle(vec2 offset, f32 radius, usize nsegments) {
+  Canvas& draw_circle(vec2 center, f32 radius, usize nsegments) {
     stx::Vec<vec2> points{stx::os_allocator};
     points.resize(nsegments).unwrap();
-    polygons::circle(points, offset, radius, nsegments);
+    polygons::circle(points, center, radius, nsegments);
 
     if (brush.fill) {
-      return draw_polygon_filled(points);
+      return draw_convex_polygon_filled(
+          points, {center - radius, 2 * vec2{radius, radius}},
+          {{0, 0}, {1, 1}});
     } else {
       return draw_polygon_line(points);
     }
   }
 
-  Canvas& draw_ellipse(vec2 offset, vec2 radius, usize nsegments) {
+  Canvas& draw_ellipse(vec2 center, vec2 radius, usize nsegments) {
     stx::Vec<vec2> points{stx::os_allocator};
     points.resize(nsegments).unwrap();
-    polygons::ellipse(points, offset, radius, nsegments);
+    polygons::ellipse(points, center, radius, nsegments);
 
     if (brush.fill) {
-      return draw_polygon_filled(points);
+      return draw_convex_polygon_filled(points, {center - radius, 2 * radius},
+                                        {{0, 0}, {1, 1}});
     } else {
       return draw_polygon_line(points);
     }
@@ -731,7 +747,8 @@ struct Canvas {
     polygons::round_rect(points, offset, extent, radii, nsegments);
 
     if (brush.fill) {
-      return draw_polygon_filled(points);
+      return draw_convex_polygon_filled(points, {offset, extent},
+                                        {{0, 0}, {1, 1}});
     } else {
       return draw_polygon_line(points);
     }
@@ -962,6 +979,12 @@ struct CanvasContext {
 
         ASR_VK_CHECK(
             vkQueueSubmit(queue, 1, &submit_info, swapchain.clip.fence));
+
+        ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE,
+                                     COMMAND_TIMEOUT));
+
+        ASR_VK_CHECK(
+            vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
       }
 
       write_vertices(draw_list.vertices, draw_list.indices);
@@ -1068,27 +1091,20 @@ struct CanvasContext {
 
       ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
 
-      ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE,
-                                   COMMAND_TIMEOUT));
-
-      ASR_VK_CHECK(
-          vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
+      ASR_VK_CHECK(vkResetFences(
+          dev, 1,
+          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
 
       VkSubmitInfo submit_info{
           .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
           .pNext = nullptr,
-          .waitSemaphoreCount = 1,
-          .pWaitSemaphores = &swapchain.image_acquisition_semaphores
-                                  [swapchain.next_frame_flight_index],
+          .waitSemaphoreCount = 0,
+          .pWaitSemaphores = nullptr,
           .pWaitDstStageMask = nullptr,
           .commandBufferCount = 1,
           .pCommandBuffers = &recording_context.command_buffer,
           .signalSemaphoreCount = 0,
           .pSignalSemaphores = nullptr};
-
-      ASR_VK_CHECK(vkResetFences(
-          dev, 1,
-          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
 
       ASR_VK_CHECK(vkQueueSubmit(
           queue, 1, &submit_info,

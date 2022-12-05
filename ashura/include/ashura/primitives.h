@@ -82,6 +82,11 @@ constexpr bool is_inside_triangle(vec2 p1, vec2 p2, vec2 p3, vec2 point) {
   return cross(a, bp) >= 0.0f && cross(c, ap) >= 0.0f && cross(b, cp) >= 0.0f;
 }
 
+struct rect {
+  vec2 offset;
+  vec2 extent;
+};
+
 struct vec3 {
   f32 x = 0.0f, y = 0.0f, z = 0.0f;
 };
