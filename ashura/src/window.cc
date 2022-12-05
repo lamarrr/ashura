@@ -112,13 +112,13 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
 
   vk::SwapChain& swapchain = surface_.value().handle->swapchain.value();
 
+  VkDevice dev = swapchain.queue.handle->device.handle->device;
+
   VkSemaphore semaphore =
       swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
 
   VkFence fence =
       swapchain.image_acquisition_fences[swapchain.next_frame_flight_index];
-
-  VkDevice dev = swapchain.queue.handle->device.handle->device;
 
   ASR_VK_CHECK(vkResetFences(dev, 1, &fence));
 
@@ -163,19 +163,30 @@ WindowSwapchainDiff Window::present(u32 next_swapchain_image_index) {
   // delay the process so we don't submit more frames than the display's
   // refresh rate can keep up with and we thus save power.
   //
-  VkResult present_result =
-      vk::present(swapchain.queue.handle->info.queue, stx::Span<VkSemaphore>{},
-                  stx::Span{&swapchain.swapchain, 1},
-                  stx::Span{&next_swapchain_image_index, 1});
+  VkPresentInfoKHR present_info{.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+                                .pNext = nullptr,
+                                .waitSemaphoreCount = 0,
+                                .pWaitSemaphores = nullptr,
+                                .swapchainCount = 1,
+                                .pSwapchains = &swapchain.swapchain,
+                                .pImageIndices = &next_swapchain_image_index,
+                                .pResults = nullptr};
 
-  if (present_result == VK_SUBOPTIMAL_KHR) {
+  VkResult result =
+      vkQueuePresentKHR(swapchain.queue.handle->info.queue, &present_info);
+
+  ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
+                result == VK_ERROR_OUT_OF_DATE_KHR,
+            "failed to present to swapchain");
+
+  if (result == VK_SUBOPTIMAL_KHR) {
     return WindowSwapchainDiff::Suboptimal;
-  } else if (present_result == VK_ERROR_OUT_OF_DATE_KHR) {
+  } else if (result == VK_ERROR_OUT_OF_DATE_KHR) {
     return WindowSwapchainDiff::OutOfDate;
-  } else if (present_result == VK_SUCCESS) {
+  } else if (result == VK_SUCCESS) {
     return WindowSwapchainDiff::None;
   } else {
-    ASR_PANIC("failed to present swapchain image", present_result);
+    ASR_PANIC("failed to present swapchain image", result);
   }
 }
 

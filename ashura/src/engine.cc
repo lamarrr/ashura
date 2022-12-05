@@ -192,7 +192,7 @@ Engine::Engine(AppConfig const& cfg) {
 
   auto transparent_image =
       canvas_context.value().handle->recording_context.upload_image(
-          queue.value(), ImageDims{.width = 210, .height = 133, .nchannels = 4},
+          queue.value(), ImageDims{.width = 1920, .height = 1080, .nchannels = 4},
           sample_image);
 
   auto sampler = vk::create_image_sampler(transparent_image);
@@ -221,10 +221,11 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     gfx::Canvas& c = canvas.value();
 
     c.restart(vec2{1920, 1080});
-    c.brush.color = colors::CYAN;
-    c.draw_rect({0, 0}, {1920, 1080});
-    c.brush.color = colors::MAGENTA;
-    c.draw_rect({200, 200}, {200, 20});
+    c.brush.color = colors::TRANSPARENT;
+    c.clear();
+    //c.draw_rect({0, 0}, {1920, 1080});
+    c.brush.color = colors::GREEN;
+    c.draw_rect({.25 * 1920, .25 * 1080}, {.5 * 1920, .5 * 1080});
   };
 
   draw_content();

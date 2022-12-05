@@ -345,16 +345,21 @@ inline void transform_vertices_to_viewport(stx::Span<vertex> vertices,
                                            rect polygon_area,
                                            rect texture_area) {
   for (usize i = 0; i < vertices.size(); i++) {
+    vec2 position = vertices[i].position;
+
     // transform to -1 to +1 range with x pointing right and y pointing upwards
-    vec2 normalized = (2 * vertices[i].position / viewport_extent) - 1;
+    vec2 normalized = (2 * position / viewport_extent) - 1;
 
     // positions are specified with x pointing right and y pointing downwards
     vec2 flipped = normalized * vec2{1, -1};
 
     // transform vertex position into texture coordinates (within the polygon's
     // extent)
-    vec2 st =
-        (vertices[i].position - polygon_area.offset) / polygon_area.extent;
+    //
+    //
+    // TODO(lamarrr): texture coordinates have bottom-left origin
+    //
+    vec2 st = (position - polygon_area.offset) / polygon_area.extent;
 
     // map it into the portion of the texture we are interested in
     st = (texture_area.offset + st * texture_area.extent);
@@ -369,7 +374,6 @@ inline void transform_vertices_to_viewport(stx::Span<vertex> vertices,
 //
 /// Coordinates are specified in top-left origin space with x pointing to the
 /// right and y pointing downwards
-///
 ///
 struct Canvas {
   vec2 viewport_extent;
@@ -459,10 +463,15 @@ struct Canvas {
   Canvas& scale(f32 x, f32 y) { return scale(x, y, 1.0f); }
 
   Canvas& clear() {
-    vertex vertices[] = {{{0, 0}, {0, 0}},
-                         {{viewport_extent.x, 0}, {0, 0}},
-                         {viewport_extent, {0, 0}},
+    vertex vertices[] = {{{0, 0}, {0, 1}},
+                         {{viewport_extent.x, 0}, {1, 1}},
+                         {viewport_extent, {1, 0}},
                          {{0, viewport_extent.y}, {0, 0}}};
+
+    for (vertex& vertex : vertices) {
+      vertex.position = (2 * vertex.position / viewport_extent) - 1;
+      vertex.position = vertex.position * vec2{1, -1};
+    }
 
     draw_list.vertices.extend(vertices).unwrap();
 
@@ -470,6 +479,11 @@ struct Canvas {
                             {viewport_extent.x, 0},
                             viewport_extent,
                             {0, viewport_extent.y}};
+
+    for (vec2& position : clip_vertices) {
+      position = (2 * position / viewport_extent) - 1;
+      position = position * vec2{1, -1};
+    }
 
     draw_list.clip_vertices.extend(clip_vertices).unwrap();
 

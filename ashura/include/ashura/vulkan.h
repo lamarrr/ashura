@@ -589,31 +589,6 @@ inline VkSemaphore create_semaphore(VkDevice dev) {
   return semaphore;
 }
 
-inline VkResult present(VkQueue command_queue,
-                        stx::Span<VkSemaphore const> await_semaphores,
-                        stx::Span<VkSwapchainKHR const> swapchains,
-                        stx::Span<u32 const> swapchain_image_indexes) {
-  ASR_CHECK(swapchain_image_indexes.size() == swapchains.size(),
-            "swapchain and their image indices must be of the same size");
-
-  VkPresentInfoKHR present_info{
-      .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-      .pNext = nullptr,
-      .waitSemaphoreCount = AS_U32(await_semaphores.size()),
-      .pWaitSemaphores = await_semaphores.data(),
-      .swapchainCount = AS_U32(swapchains.size()),
-      .pSwapchains = swapchains.data(),
-      .pImageIndices = swapchain_image_indexes.data(),
-      .pResults = nullptr};
-
-  auto result = vkQueuePresentKHR(command_queue, &present_info);
-  ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
-                result == VK_ERROR_OUT_OF_DATE_KHR,
-            "Unable to present to swapchain");
-
-  return result;
-}
-
 // get memory requirements for an image based on it's type, usage mode, and
 // other properties
 inline VkMemoryRequirements get_memory_requirements(VkDevice dev,
@@ -3069,6 +3044,7 @@ struct RecordingContext {
   stx::Rc<ImageX*> upload_image(stx::Rc<CommandQueue*> const& queue,
                                 ImageDims dims, stx::Span<u8 const> data) {
     ASR_CHECK(data.size_bytes() == dims.size());
+    ASR_CHECK(dims.nchannels == 4);
 
     VkDevice dev = queue.handle->device.handle->device;
 
