@@ -224,8 +224,10 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.brush.color = colors::TRANSPARENT;
     c.clear();
     //c.draw_rect({0, 0}, {1920, 1080});
-    c.brush.color = colors::GREEN;
-    c.draw_rect({.25 * 1920, .25 * 1080}, {.5 * 1920, .5 * 1080});
+    c.brush.color = colors::MAGENTA.with_alpha(10);
+    c.brush.pattern = c.transparent_image.share();
+    c.draw_rect({0.25  * 1920, .25 * 1080}, {.25 * 1920 ,.25 * 1080 });
+    // c.draw_circle({0.25 * 1920, 0.25 * 1080}, 200, 2000);
   };
 
   draw_content();

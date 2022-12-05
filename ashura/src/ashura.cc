@@ -5,7 +5,7 @@
 int main(int, char*[]) {
   SDL_SetMainReady();
   asr::AppConfig cfg{.enable_validation_layers = true};
-  cfg.window_config.borderless = true;
+  cfg.window_config.borderless = false;
   asr::App app{std::move(cfg)};
 
   while (true) app.tick({});

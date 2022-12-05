@@ -17,6 +17,7 @@ layout(location = 0) out vec4 out_color;
 void main() {
   vec4 skin_color = texture(skin_texture, in_st).rgba;
   vec4 color = overlay.color + skin_color * (1 - overlay.color.a);
+  // TODO(lamarrr): we need to begin from a bottom-left origin
   float mask = texture(clip_mask, gl_FragCoord.xy / viewport.extent).r;
   out_color = mask * color;
 }

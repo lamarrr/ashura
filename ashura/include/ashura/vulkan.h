@@ -501,7 +501,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
-    u32 accessing_queue_family_index, VkImageUsageFlags image_usages,
+    VkImageUsageFlags image_usages,
     VkCompositeAlphaFlagBitsKHR alpha_channel_blending, VkBool32 clipped) {
   u32 desired_nbuffers = std::min(properties.capabilities.minImageCount + 1,
                                   properties.capabilities.maxImageCount);
@@ -531,8 +531,8 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
       // VK_SHARING_MODE_CONCURRENT: Images can be used across multiple queue
       // families without explicit ownership transfers.
       .imageSharingMode = accessing_queue_families_sharing_mode,
-      .queueFamilyIndexCount = 1,
-      .pQueueFamilyIndices = &accessing_queue_family_index,
+      .queueFamilyIndexCount = 0,
+      .pQueueFamilyIndices = nullptr,
       .preTransform = properties.capabilities.currentTransform,
       .compositeAlpha =
           alpha_channel_blending,  // how the alpha channel should be
@@ -574,19 +574,6 @@ inline stx::Vec<VkImage> get_swapchain_images(VkDevice dev,
                                        swapchain_images.data()));
 
   return swapchain_images;
-}
-
-// GPU-GPU synchronization primitive, cheap
-inline VkSemaphore create_semaphore(VkDevice dev) {
-  VkSemaphoreCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0};
-
-  VkSemaphore semaphore;
-  ASR_VK_CHECK(vkCreateSemaphore(dev, &create_info, nullptr, &semaphore));
-
-  return semaphore;
 }
 
 // get memory requirements for an image based on it's type, usage mode, and
@@ -1259,7 +1246,7 @@ struct SpanBuffer {
   }
 
   template <typename T>
-  void write(VkDevice dev, u32 family_index,
+  void write(VkDevice dev,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
              VkBufferUsageFlags usage, stx::Span<T const> span) {
     // TODO(lamarrr): handle less than
@@ -1273,8 +1260,8 @@ struct SpanBuffer {
           .size = span.size_bytes(),
           .usage = usage,
           .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-          .queueFamilyIndexCount = 1,
-          .pQueueFamilyIndices = &family_index};
+          .queueFamilyIndexCount = 0,
+          .pQueueFamilyIndices = nullptr};
 
       ASR_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
 
@@ -1324,22 +1311,17 @@ struct SpanBuffer {
   }
 };
 
-inline Buffer create_host_buffer(VkDevice dev,
-                                 CommandQueueFamilyInfo const& queue,
-                                 usize size_bytes, VkBufferUsageFlags usage) {
-  VkPhysicalDeviceMemoryProperties const& memory_properties =
-      queue.phy_device.handle->memory_properties;
-
-  u32 queue_families[] = {queue.index};
-
+inline Buffer create_host_buffer(
+    VkDevice dev, VkPhysicalDeviceMemoryProperties const& memory_properties,
+    usize size_bytes, VkBufferUsageFlags usage) {
   VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                  .pNext = nullptr,
                                  .flags = 0,
                                  .size = size_bytes,
                                  .usage = usage,
                                  .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                                 .queueFamilyIndexCount = 1,
-                                 .pQueueFamilyIndices = queue_families};
+                                 .queueFamilyIndexCount = 0,
+                                 .pQueueFamilyIndices = nullptr};
 
   VkBuffer buffer;
 
@@ -1414,28 +1396,26 @@ struct ImageX {
 
 // R only
 inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_image(
-    stx::Rc<CommandQueue*> const& queue, VkExtent2D extent,
-    VkImageUsageFlags usage, VkFormat format, VkImageAspectFlags image_aspect) {
-  VkDevice dev = queue.handle->device.handle->device;
-
-  VkImageCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .imageType = VK_IMAGE_TYPE_2D,
-      .format = format,
-      .extent =
-          VkExtent3D{
-              .width = extent.width, .height = extent.height, .depth = 1},
-      .mipLevels = 1,
-      .arrayLayers = 1,
-      .samples = VK_SAMPLE_COUNT_1_BIT,
-      .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = usage,
-      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-      .queueFamilyIndexCount = 1,
-      .pQueueFamilyIndices = &queue.handle->info.family.index,
-      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    VkDevice dev, VkPhysicalDeviceMemoryProperties const& memory_properties,
+    VkExtent2D extent, VkImageUsageFlags usage, VkFormat format,
+    VkImageAspectFlags image_aspect) {
+  VkImageCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                                .pNext = nullptr,
+                                .flags = 0,
+                                .imageType = VK_IMAGE_TYPE_2D,
+                                .format = format,
+                                .extent = VkExtent3D{.width = extent.width,
+                                                     .height = extent.height,
+                                                     .depth = 1},
+                                .mipLevels = 1,
+                                .arrayLayers = 1,
+                                .samples = VK_SAMPLE_COUNT_1_BIT,
+                                .tiling = VK_IMAGE_TILING_OPTIMAL,
+                                .usage = usage,
+                                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                                .queueFamilyIndexCount = 0,
+                                .pQueueFamilyIndices = nullptr,
+                                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
   VkImage image;
 
@@ -1446,9 +1426,8 @@ inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_image(
   vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
   u32 memory_type_index =
-      find_suitable_memory_type(
-          queue.handle->device.handle->phy_device.handle->memory_properties,
-          memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+      find_suitable_memory_type(memory_properties, memory_requirements,
+                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
@@ -1768,12 +1747,10 @@ struct DescriptorSets {
   }
 };
 
-inline Image create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
-                                        VkFormat swapchain_format,
-                                        VkExtent2D swapchain_extent,
-                                        VkSampleCountFlagBits sample_count) {
-  VkDevice dev = queue.handle->device.handle->device;
-
+inline Image create_msaa_color_resource(
+    VkDevice dev, VkPhysicalDeviceMemoryProperties const& memory_properties,
+    VkFormat swapchain_format, VkExtent2D swapchain_extent,
+    VkSampleCountFlagBits sample_count) {
   VkImageCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
       .pNext = nullptr,
@@ -1793,8 +1770,8 @@ inline Image create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
       .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-      .queueFamilyIndexCount = 1,
-      .pQueueFamilyIndices = &queue.handle->info.family.index,
+      .queueFamilyIndexCount = 0,
+      .pQueueFamilyIndices = nullptr,
       .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
   VkImage image;
@@ -1806,9 +1783,8 @@ inline Image create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
   vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
   u32 memory_type_index =
-      find_suitable_memory_type(
-          queue.handle->device.handle->phy_device.handle->memory_properties,
-          memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+      find_suitable_memory_type(memory_properties, memory_requirements,
+                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
@@ -1848,12 +1824,10 @@ inline Image create_msaa_color_resource(stx::Rc<CommandQueue*> const& queue,
   return Image{.image = image, .view = view, .memory = memory};
 }
 
-inline Image create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
-                                        VkFormat depth_format,
-                                        VkExtent2D swapchain_extent,
-                                        VkSampleCountFlagBits sample_count) {
-  VkDevice dev = queue.handle->device.handle->device;
-
+inline Image create_msaa_depth_resource(
+    VkDevice dev, VkPhysicalDeviceMemoryProperties const& memory_properties,
+    VkFormat depth_format, VkExtent2D swapchain_extent,
+    VkSampleCountFlagBits sample_count) {
   VkImageCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
       .pNext = nullptr,
@@ -1869,8 +1843,8 @@ inline Image create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
       .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-      .queueFamilyIndexCount = 1,
-      .pQueueFamilyIndices = &queue.handle->info.family.index,
+      .queueFamilyIndexCount = 0,
+      .pQueueFamilyIndices = nullptr,
       .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
   VkImage image;
@@ -1882,9 +1856,8 @@ inline Image create_msaa_depth_resource(stx::Rc<CommandQueue*> const& queue,
   vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
   u32 memory_type_index =
-      find_suitable_memory_type(
-          queue.handle->device.handle->phy_device.handle->memory_properties,
-          memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+      find_suitable_memory_type(memory_properties, memory_requirements,
+                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
@@ -2136,7 +2109,7 @@ struct SwapChain {
         dev, target_surface, preferred_extent, selected_format,
         selected_present_mode, properties,
         // not thread-safe since GPUs typically have one graphics queue
-        VK_SHARING_MODE_EXCLUSIVE, queue.handle->info.family.index,
+        VK_SHARING_MODE_EXCLUSIVE,
         // render target image
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
             VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -2156,9 +2129,11 @@ struct SwapChain {
     window_extent = awindow_extent;
     msaa_sample_count = amsaa_sample_count;
     msaa_color_image = create_msaa_color_resource(
-        queue, color_format.format, new_extent, msaa_sample_count);
+        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
+        color_format.format, new_extent, msaa_sample_count);
     msaa_depth_image = create_msaa_depth_resource(
-        queue, depth_format, new_extent, msaa_sample_count);
+        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
+        depth_format, new_extent, msaa_sample_count);
 
     for (VkImage image : images) {
       VkImageViewCreateInfo create_info{
@@ -2187,8 +2162,25 @@ struct SwapChain {
     }
 
     for (usize i = 0; i < MAX_FRAMES_INFLIGHT; i++) {
-      rendering_semaphores.push(create_semaphore(dev)).unwrap();
-      image_acquisition_semaphores.push(create_semaphore(dev)).unwrap();
+      VkSemaphoreCreateInfo semaphore_create_info{
+          .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0};
+
+      VkSemaphore rendering_semaphore;
+
+      ASR_VK_CHECK(vkCreateSemaphore(dev, &semaphore_create_info, nullptr,
+                                     &rendering_semaphore));
+
+      rendering_semaphores.push_inplace(rendering_semaphore).unwrap();
+
+      VkSemaphore image_acquisition_semaphore;
+
+      ASR_VK_CHECK(vkCreateSemaphore(dev, &semaphore_create_info, nullptr,
+                                     &image_acquisition_semaphore));
+
+      image_acquisition_semaphores.push_inplace(image_acquisition_semaphore)
+          .unwrap();
 
       VkFenceCreateInfo fence_create_info{
           .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -2214,7 +2206,7 @@ struct SwapChain {
         .flags = 0,
         .format = color_format.format,
         .samples = msaa_sample_count,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -2377,7 +2369,9 @@ struct SwapChain {
       VkFramebuffer framebuffer;
 
       auto [image, memory, view] = create_image(
-          queue, image_extent,
+          dev,
+          queue.handle->device.handle->phy_device.handle->memory_properties,
+          image_extent,
           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
           color_format.format, VK_IMAGE_ASPECT_COLOR_BIT);
 
@@ -2408,20 +2402,31 @@ struct SwapChain {
 
       ASR_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr, &fence));
 
+      VkSemaphoreCreateInfo semaphore_create_info{
+          .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0};
+
+      VkSemaphore semaphore;
+
+      ASR_VK_CHECK(
+          vkCreateSemaphore(dev, &semaphore_create_info, nullptr, &semaphore));
+
       clip =
           Clip{.image = Image{.image = image, .view = view, .memory = memory},
                .sampler = create_sampler(queue.handle->device, false),
                .framebuffer = framebuffer,
                .fence = fence,
-               .semaphore = create_semaphore(dev),
+               .semaphore = semaphore,
                .render_pass = render_pass};
     }
   }
 
   void destroy() {
     VkDevice dev = queue.handle->device.handle->device;
+
     // await idleness of the semaphores device, so we can destroy the
-    // semaphore and images whislt not in use.
+    // semaphore and images whilst not in use.
     // any part of the device could be using the semaphore
 
     ASR_VK_CHECK(vkDeviceWaitIdle(dev));
@@ -2459,7 +2464,7 @@ struct SwapChain {
       vkDestroyImageView(dev, image_view, nullptr);
     }
 
-    // swapchain image is automatically deleted along with the swapchain
+    // swapchain images are automatically deleted along with the swapchain
     vkDestroySwapchainKHR(dev, swapchain, nullptr);
   }
 };
@@ -3043,10 +3048,13 @@ struct RecordingContext {
 
   stx::Rc<ImageX*> upload_image(stx::Rc<CommandQueue*> const& queue,
                                 ImageDims dims, stx::Span<u8 const> data) {
+    VkDevice dev = queue.handle->device.handle->device;
+
+    VkPhysicalDeviceMemoryProperties const& memory_properties =
+        queue.handle->device.handle->phy_device.handle->memory_properties;
+
     ASR_CHECK(data.size_bytes() == dims.size());
     ASR_CHECK(dims.nchannels == 4);
-
-    VkDevice dev = queue.handle->device.handle->device;
 
     VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
 
@@ -3073,8 +3081,8 @@ struct RecordingContext {
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .queueFamilyIndexCount = 1,
-        .pQueueFamilyIndices = &queue.handle->info.family.index,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
     VkImage image;
@@ -3086,9 +3094,8 @@ struct RecordingContext {
     vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
     u32 memory_type_index =
-        find_suitable_memory_type(
-            queue.handle->device.handle->phy_device.handle->memory_properties,
-            memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+        find_suitable_memory_type(memory_properties, memory_requirements,
+                                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
             .unwrap();
 
     VkMemoryAllocateInfo alloc_info{
@@ -3125,9 +3132,8 @@ struct RecordingContext {
 
     ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
-    Buffer staging_buffer =
-        create_host_buffer(dev, queue.handle->info.family, dims.size(),
-                           VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer staging_buffer = create_host_buffer(
+        dev, memory_properties, dims.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     std::memcpy(staging_buffer.memory_map, data.data(), dims.size());
 

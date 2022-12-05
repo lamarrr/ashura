@@ -42,14 +42,14 @@ struct vertex {
 
 namespace gfx {
 
-inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
+inline void triangulate_convex_polygon(stx::Vec<u32>& indices, u32 first_index,
                                        stx::Span<vec2 const> polygon) {
   ASR_CHECK(polygon.size() >= 3, "polygon must have 3 or more points");
 
   for (u32 i = 2; i < polygon.size(); i++) {
-    indices.push(0).unwrap();
-    indices.push_inplace(i - 1).unwrap();
-    indices.push_inplace(i).unwrap();
+    indices.push_inplace(first_index).unwrap();
+    indices.push_inplace(first_index + (i - 1)).unwrap();
+    indices.push_inplace(first_index + i).unwrap();
   }
 }
 
@@ -615,13 +615,16 @@ struct Canvas {
     if (polygon.size() < 3 || area.extent.x == 0 || area.extent.y == 0)
       return *this;
 
+    // TODO(lamarrr): somehow, the vertices are still transformed and the area
+    // is cleared
+
     u32 start = AS_U32(draw_list.indices.size());
 
-    triangulate_convex_polygon(draw_list.indices, polygon);
+    u32 vertices_offset = AS_U32(draw_list.vertices.size());
+
+    triangulate_convex_polygon(draw_list.indices, vertices_offset, polygon);
 
     u32 nindices = AS_U32(draw_list.indices.size() - start);
-
-    usize vertices_offset = AS_U32(draw_list.vertices.size());
 
     for (usize i = 0; i < polygon.size(); i++) {
       draw_list.vertices.push(vertex{.position = polygon[i], .st = {0, 0}})
@@ -634,13 +637,17 @@ struct Canvas {
 
     u32 clip_start = AS_U32(draw_list.clip_indices.size());
 
-    triangulate_convex_polygon(draw_list.clip_indices, clip);
+    u32 clip_vertices_offset = AS_U32(draw_list.clip_vertices.size());
+
+    triangulate_convex_polygon(draw_list.clip_indices, clip_vertices_offset,
+                               clip);
 
     u32 nclip_indices = AS_U32(draw_list.clip_indices.size() - clip_start);
 
     draw_list.clip_vertices.extend(clip).unwrap();
 
-    for (vec2& pos : draw_list.clip_vertices) {
+    for (vec2& pos :
+         draw_list.clip_vertices.span().slice(clip_vertices_offset)) {
       pos = (2 * pos / viewport_extent) - 1;
       pos = pos * vec2{1, -1};
     }
@@ -810,16 +817,16 @@ struct CanvasContext {
     VkDevice dev = queue.handle->device.handle->device;
 
     transform_buffer = vk::create_host_buffer(
-        dev, queue.handle->info.family, sizeof(Transform),
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
+        sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-    overlay_buffer =
-        vk::create_host_buffer(dev, queue.handle->info.family, sizeof(Overlay),
-                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    overlay_buffer = vk::create_host_buffer(
+        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
+        sizeof(Overlay), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
-    viewport_buffer =
-        vk::create_host_buffer(dev, queue.handle->info.family, sizeof(Viewport),
-                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    viewport_buffer = vk::create_host_buffer(
+        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
+        sizeof(Viewport), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     auto vertex_input_attributes = vertex::attribute_descriptions();
 
@@ -880,10 +887,10 @@ struct CanvasContext {
         queue.handle->device.handle->phy_device.handle->memory_properties;
     vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
 
-    vertex_buffer.write(dev, family_info.index, memory_properties,
+    vertex_buffer.write(dev, memory_properties,
                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
-    index_buffer.write(dev, family_info.index, memory_properties,
-                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
+    index_buffer.write(dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                       indices);
   }
 
   void write_clip_vertices(stx::Span<vec2 const> vertices,
@@ -893,9 +900,9 @@ struct CanvasContext {
         queue.handle->device.handle->phy_device.handle->memory_properties;
     vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
 
-    clip_vertex_buffer.write(dev, family_info.index, memory_properties,
+    clip_vertex_buffer.write(dev, memory_properties,
                              VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
-    clip_index_buffer.write(dev, family_info.index, memory_properties,
+    clip_index_buffer.write(dev, memory_properties,
                             VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
   }
 
@@ -911,6 +918,67 @@ struct CanvasContext {
     VkDevice dev = device.handle->device;
 
     VkQueue queue = swapchain.queue.handle->info.queue;
+
+    // clear framebuffer
+    {
+      VkCommandBufferBeginInfo command_buffer_begin_info{
+          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+          .pNext = nullptr,
+          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+          .pInheritanceInfo = nullptr,
+      };
+
+      ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
+                                        &command_buffer_begin_info));
+
+      VkClearValue clear_values[] = {
+          {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}},
+          {.depthStencil =
+               VkClearDepthStencilValue{.depth = 1.0f, .stencil = 0}}};
+
+      VkRenderPassBeginInfo render_pass_begin_info{
+          .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+          .pNext = nullptr,
+          .renderPass = swapchain.render_pass,
+          .framebuffer = swapchain.framebuffers[swapchain_image_index],
+          .renderArea =
+              VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
+          .clearValueCount = AS_U32(std::size(clear_values)),
+          .pClearValues = clear_values};
+
+      vkCmdBeginRenderPass(recording_context.command_buffer,
+                           &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+      vkCmdEndRenderPass(recording_context.command_buffer);
+
+      ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
+
+      ASR_VK_CHECK(vkResetFences(
+          dev, 1,
+          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
+      VkSubmitInfo submit_info{
+          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+          .pNext = nullptr,
+          .waitSemaphoreCount = 0,
+          .pWaitSemaphores = nullptr,
+          .pWaitDstStageMask = nullptr,
+          .commandBufferCount = 1,
+          .pCommandBuffers = &recording_context.command_buffer,
+          .signalSemaphoreCount = 0,
+          .pSignalSemaphores = nullptr};
+
+      ASR_VK_CHECK(vkQueueSubmit(
+          queue, 1, &submit_info,
+          swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+
+      ASR_VK_CHECK(vkWaitForFences(
+          dev, 1,
+          &swapchain.rendering_fences[swapchain.next_frame_flight_index],
+          VK_TRUE, COMMAND_TIMEOUT));
+
+      ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
+    }
 
     for (DrawCommand const& draw_command : draw_list.commands) {
       {
@@ -969,7 +1037,8 @@ struct CanvasContext {
                              clip_index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdDrawIndexed(recording_context.clip_command_buffer,
-                         draw_command.nclip_indices, 1, 0, 0, 0);
+                         draw_command.nclip_indices, 1,
+                         draw_command.clip_indices_offset, 0, 0);
 
         vkCmdEndRenderPass(recording_context.clip_command_buffer);
 
@@ -1080,14 +1149,6 @@ struct CanvasContext {
 
       vkCmdSetScissor(recording_context.command_buffer, 0, 1, &scissor);
 
-      VkDeviceSize offset = 0;
-
-      vkCmdBindVertexBuffers(recording_context.command_buffer, 0, 1,
-                             &vertex_buffer.buffer, &offset);
-
-      vkCmdBindIndexBuffer(recording_context.command_buffer,
-                           index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-
       vkCmdBindDescriptorSets(
           recording_context.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
           recording_context.pipeline.layout, 0,
@@ -1098,8 +1159,16 @@ struct CanvasContext {
               .descriptor_sets.data(),
           0, nullptr);
 
+      VkDeviceSize offset = 0;
+
+      vkCmdBindVertexBuffers(recording_context.command_buffer, 0, 1,
+                             &vertex_buffer.buffer, &offset);
+
+      vkCmdBindIndexBuffer(recording_context.command_buffer,
+                           index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+
       vkCmdDrawIndexed(recording_context.command_buffer, draw_command.nindices,
-                       1, 0, 0, 0);
+                       1, draw_command.indices_offset, 0, 0);
 
       vkCmdEndRenderPass(recording_context.command_buffer);
 
