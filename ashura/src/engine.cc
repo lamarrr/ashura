@@ -209,6 +209,8 @@ Engine::Engine(AppConfig const& cfg) {
 };
 
 void Engine::tick(std::chrono::nanoseconds interval) {
+
+    // TODO(lamarrr): try getting window extent on each frame instead
   window.value().handle->tick(interval);
 
   auto draw_content = [&]() {

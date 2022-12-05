@@ -66,7 +66,7 @@ inline void circle(stx::Span<vec2> polygon, vec2 offset, f32 radius,
                    usize nsegments) {
   if (nsegments == 0 || radius <= 0.0f) return;
 
-  f32 step = 360.0f / nsegments;
+  f32 step = AS_F32((2 * M_PI) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
     polygon[i] = vec2{offset.x + radius - radius * std::cos(i * step),
@@ -78,7 +78,7 @@ inline void ellipse(stx::Span<vec2> polygon, vec2 offset, vec2 radius,
                     usize nsegments) {
   if (nsegments == 0 || radius.x <= 0.0f || radius.y <= 0.0f) return;
 
-  f32 step = 360.0f / nsegments;
+  f32 step = AS_F32((2 * M_PI) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
     polygon[i] = vec2{offset.x + radius.x - radius.x * std::cos(i * step),
@@ -86,16 +86,17 @@ inline void ellipse(stx::Span<vec2> polygon, vec2 offset, vec2 radius,
   }
 }
 
+/// {polygon.size() == nsegments * 4}
 inline void round_rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent,
                        vec4 radii, usize nsegments) {
-  // TODO(lamarrr): we should ideally do some subtraction to ensure both radii
-  // are contained within a dimension
+  if (nsegments == 0) return;
+
   radii.x = std::min(radii.x, std::min(extent.x, extent.y));
   radii.y = std::min(radii.y, std::min(extent.x, extent.y));
   radii.z = std::min(radii.z, std::min(extent.x, extent.y));
   radii.w = std::min(radii.w, std::min(extent.x, extent.y));
 
-  f32 step = 90.0f / nsegments;
+  f32 step = AS_F32((M_PI / 2) / nsegments);
 
   usize i = 0;
 
@@ -331,6 +332,23 @@ struct DrawList {
   stx::Vec<DrawCommand> commands{stx::os_allocator};
 };
 
+inline void transform_vertices_to_viewport(
+    stx::Span<vertex> vertices, vec2 viewport_extent, vec2 polygon_offset,
+    vec2 polygon_extent, vec2 texture_offset, vec2 texture_extent) {
+  for (usize i = 0; i < vertices.size(); i++) {
+    // positions are specified with x pointing right and y pointing downwards
+    vec2 position = vertices[i].position * vec2{1, -1};
+
+    // transform to -1 to +1 range with x pointing right and y pointing upwards
+    position = ((2 * position) / viewport_extent) - 1;
+
+    // transform vertex position into texture coordinates,
+    vec2 st = (vertices[i].position - polygon_offset) / polygon_extent;
+
+    vertices[i] = vertex{.position = position, .st = st};
+  }
+}
+
 // TODO(lamarrr): properly handle the case of zero sized indices and clip
 // indices
 //
@@ -365,7 +383,7 @@ struct Canvas {
     transform_state_stack.clear();
 
     clip.clear();
-    clip.resize(4, vec2{0.0f, 0.0f}).unwrap();
+    clip.resize(4).unwrap();
     polygons::rect(clip, vec2{0.0f, 0.0f}, extent);
 
     clip_state_stack.clear();
@@ -403,7 +421,7 @@ struct Canvas {
   Canvas& reset() {
     transform = mat4::identity();
     transform_state_stack.clear();
-    clip.resize(4, vec2{0.0f, 0.0f}).unwrap();
+    clip.resize(4).unwrap();
     polygons::rect(clip, {0.0f, 0.0f}, extent);
     clip_state_stack.clear();
     return *this;
@@ -432,8 +450,12 @@ struct Canvas {
   Canvas& clear() {
     u32 start = AS_U32(draw_list.vertices.size());
 
-    vec2 vertices[] = {
-        {0.0f, 0.0f}, {extent.x, 0.0f}, {extent.x, extent.y}, {0.0f, extent.y}};
+    vertex vertices[] = {{{0, 0}, {0, 0}},
+                         {{extent.x, 0}, {0, 0}},
+                         {{extent.x, extent.y}, {0, 0}},
+                         {{0.0f, extent.y}, {0, 0}}};
+
+    transform_vertices_to_viewport(vertices, {0, 0}, {extent.x, extent.y});
 
     draw_list.vertices.extend(vertices).unwrap();
 
@@ -680,6 +702,7 @@ struct Canvas {
 
   Canvas& draw_circle(vec2 offset, f32 radius, usize nsegments) {
     stx::Vec<vec2> points{stx::os_allocator};
+    points.resize(nsegments).unwrap();
     polygons::circle(points, offset, radius, nsegments);
 
     if (brush.fill) {
@@ -691,6 +714,7 @@ struct Canvas {
 
   Canvas& draw_ellipse(vec2 offset, vec2 radius, usize nsegments) {
     stx::Vec<vec2> points{stx::os_allocator};
+    points.resize(nsegments).unwrap();
     polygons::ellipse(points, offset, radius, nsegments);
 
     if (brush.fill) {
@@ -703,6 +727,7 @@ struct Canvas {
   Canvas& draw_round_rect(vec2 offset, vec2 extent, vec4 radii,
                           usize nsegments) {
     stx::Vec<vec2> points{stx::os_allocator};
+    points.resize(nsegments * 4).unwrap();
     polygons::round_rect(points, offset, extent, radii, nsegments);
 
     if (brush.fill) {
