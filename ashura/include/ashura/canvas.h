@@ -243,18 +243,6 @@ struct TextStyle {
   u32 word_spacing = 0;
 };
 
-struct Transform {
-  mat4 value = mat4::identity();
-};
-
-struct Overlay {
-  vec4 color{0.0f, 0.0f, 0.0f, 0.0f};
-};
-
-struct Viewport {
-  vec2 extent{0.0f, 0.0f};
-};
-
 namespace transforms {
 
 inline mat4 translate(vec3 t) {
@@ -317,8 +305,7 @@ struct Brush {
 struct DrawCommand {
   u32 indices_offset = 0;
   u32 nindices = 0;
-  u32 clip_indices_offset = 0;
-  u32 nclip_indices = 0;
+  rect clip_rect;
   mat4 transform = mat4::identity();
   Color color = colors::BLACK;
   Image texture;
@@ -327,16 +314,12 @@ struct DrawCommand {
 struct DrawList {
   stx::Vec<vertex> vertices{stx::os_allocator};
   stx::Vec<u32> indices{stx::os_allocator};
-  stx::Vec<vec2> clip_vertices{stx::os_allocator};
-  stx::Vec<u32> clip_indices{stx::os_allocator};
-  stx::Vec<DrawCommand> commands{stx::os_allocator};
+  stx::Vec<DrawCommand> cmds{stx::os_allocator};
 
   void clear() {
     vertices.clear();
     indices.clear();
-    clip_vertices.clear();
-    clip_indices.clear();
-    commands.clear();
+    cmds.clear();
   }
 };
 
@@ -382,8 +365,8 @@ struct Canvas {
   mat4 transform = mat4::identity();
   stx::Vec<mat4> transform_state_stack{stx::os_allocator};
 
-  stx::Vec<vec2> clip{stx::os_allocator};
-  stx::Vec<stx::Vec<vec2>> clip_state_stack{stx::os_allocator};
+  rect clip_rect;
+  stx::Vec<rect> clip_rect_stack{stx::os_allocator};
 
   Image transparent_image;
 
@@ -401,18 +384,16 @@ struct Canvas {
     transform = mat4::identity();
     transform_state_stack.clear();
 
-    clip.clear();
-    clip.resize(4).unwrap();
-    polygons::rect(clip, vec2{0.0f, 0.0f}, viewport_extent);
+    clip_rect = {{0, 0}, viewport_extent};
 
-    clip_state_stack.clear();
+    clip_rect_stack.clear();
     draw_list.clear();
   }
 
   // push state (transform and clips) on state stack
   Canvas& save() {
     transform_state_stack.push_inplace(transform).unwrap();
-    clip_state_stack.push(clip.copy(stx::os_allocator).unwrap()).unwrap();
+    clip_rect_stack.push_inplace(clip_rect).unwrap();
     return *this;
   }
 
@@ -420,13 +401,13 @@ struct Canvas {
   // pop state (transform and clips) stack and restore state
   Canvas& restore() {
     ASR_CHECK(!transform_state_stack.is_empty());
-    ASR_CHECK(!clip_state_stack.is_empty());
+    ASR_CHECK(!clip_rect_stack.is_empty());
 
     transform = *(transform_state_stack.end() - 1);
     transform_state_stack.erase(transform_state_stack.span().slice(1));
 
-    clip = (clip_state_stack.end() - 1)->copy(stx::os_allocator).unwrap();
-    clip_state_stack.erase(clip_state_stack.span().slice(1));
+    clip_rect = *(clip_rect_stack.end() - 1);
+    clip_rect_stack.erase(clip_rect_stack.span().slice(1));
 
     return *this;
   }
@@ -436,9 +417,8 @@ struct Canvas {
   Canvas& reset() {
     transform = mat4::identity();
     transform_state_stack.clear();
-    clip.resize(4).unwrap();
-    polygons::rect(clip, {0.0f, 0.0f}, viewport_extent);
-    clip_state_stack.clear();
+    clip_rect = {{0, 0}, viewport_extent};
+    clip_rect_stack.clear();
     return *this;
   }
 
@@ -463,6 +443,8 @@ struct Canvas {
   Canvas& scale(f32 x, f32 y) { return scale(x, y, 1.0f); }
 
   Canvas& clear() {
+    restart(viewport_extent);
+
     vertex vertices[] = {{{0, 0}, {0, 1}},
                          {{viewport_extent.x, 0}, {1, 1}},
                          {viewport_extent, {1, 0}},
@@ -475,70 +457,19 @@ struct Canvas {
 
     draw_list.vertices.extend(vertices).unwrap();
 
-    vec2 clip_vertices[] = {{0, 0},
-                            {viewport_extent.x, 0},
-                            viewport_extent,
-                            {0, viewport_extent.y}};
-
-    for (vec2& position : clip_vertices) {
-      position = (2 * position / viewport_extent) - 1;
-      position = position * vec2{1, -1};
-    }
-
-    draw_list.clip_vertices.extend(clip_vertices).unwrap();
-
     u32 indices[] = {0, 1, 2, 0, 2, 3};
 
     draw_list.indices.extend(indices).unwrap();
-    draw_list.clip_indices.extend(indices).unwrap();
 
-    draw_list.commands
+    draw_list.cmds
         .push(DrawCommand{.indices_offset = 0,
                           .nindices = AS_U32(std::size(indices)),
-                          .clip_indices_offset = 0,
-                          .nclip_indices = AS_U32(std::size(indices)),
+                          .clip_rect = clip_rect,
                           .transform = mat4::identity(),
                           .color = brush.color,
                           .texture = brush.pattern.share()})
         .unwrap();
 
-    return *this;
-  }
-
-  Canvas& clip_polygon(stx::Span<vec2 const> polygon_points) {
-    clip.extend(polygon_points).unwrap();
-    return *this;
-  }
-
-  Canvas& clip_rect(vec2 offset, vec2 extent) {
-    vec2 points[4];
-
-    polygons::rect(points, offset, extent);
-
-    clip.extend(points).unwrap();
-
-    return *this;
-  }
-
-  Canvas& clip_circle(vec2 center, f32 radius, usize nsegments) {
-    clip.clear();
-    clip.resize(nsegments).unwrap();
-    polygons::circle(clip, center, radius, nsegments);
-    return *this;
-  }
-
-  Canvas& clip_ellipse(vec2 center, vec2 radius, usize nsegments) {
-    clip.clear();
-    clip.resize(nsegments).unwrap();
-    polygons::ellipse(clip, center, radius, nsegments);
-    return *this;
-  }
-
-  Canvas& clip_round_rect(vec2 offset, vec2 extent, vec4 radii,
-                          usize nsegments) {
-    clip.clear();
-    clip.resize(nsegments * 4).unwrap();
-    polygons::round_rect(clip, offset, extent, radii, nsegments);
     return *this;
   }
 
@@ -597,7 +528,7 @@ struct Canvas {
       draw_list.clip_indices.push_inplace(index).unwrap();
     }
 
-    draw_list.commands
+    draw_list.cmds
         .push(DrawCommand{.indices_offset = start,
                           .nindices = nindices,
                           .clip_indices_offset = clip_start,
@@ -612,7 +543,8 @@ struct Canvas {
 
   Canvas& draw_convex_polygon_filled(stx::Span<vec2 const> polygon, rect area,
                                      rect texture_area) {
-    if (polygon.size() < 3 || area.extent.x == 0 || area.extent.y == 0)
+    if (polygon.size() < 3 || area.extent.x == 0 || area.extent.y == 0 ||
+        !clip_rect.overlaps(area))
       return *this;
 
     // TODO(lamarrr): somehow, the vertices are still transformed and the area
@@ -635,28 +567,10 @@ struct Canvas {
         draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
         texture_area);
 
-    u32 clip_start = AS_U32(draw_list.clip_indices.size());
-
-    u32 clip_vertices_offset = AS_U32(draw_list.clip_vertices.size());
-
-    triangulate_convex_polygon(draw_list.clip_indices, clip_vertices_offset,
-                               clip);
-
-    u32 nclip_indices = AS_U32(draw_list.clip_indices.size() - clip_start);
-
-    draw_list.clip_vertices.extend(clip).unwrap();
-
-    for (vec2& pos :
-         draw_list.clip_vertices.span().slice(clip_vertices_offset)) {
-      pos = (2 * pos / viewport_extent) - 1;
-      pos = pos * vec2{1, -1};
-    }
-
-    draw_list.commands
+    draw_list.cmds
         .push(DrawCommand{.indices_offset = start,
                           .nindices = nindices,
-                          .clip_indices_offset = clip_start,
-                          .nclip_indices = nclip_indices,
+                          .clip_rect = clip_rect,
                           .transform = transform,
                           .color = brush.color,
                           .texture = brush.pattern.share()})
@@ -708,7 +622,7 @@ struct Canvas {
     draw_list.clip_indices.push_inplace(index).unwrap();
   }
 
-  draw_list.commands
+  draw_list.cmds
       .push(DrawCommand{.indices_offset = start,
                         .nindices = AS_U32(std::size(indices)),
                         .clip_indices_offset = clip_start,
@@ -800,54 +714,47 @@ inline void sample(Canvas& canvas, Image& image) {
 }
 
 struct CanvasContext {
-  vk::Buffer transform_buffer;
-  vk::Buffer overlay_buffer;
-  vk::Buffer viewport_buffer;
+  stx::Vec<vk::SpanBuffer> vertex_buffers{stx::os_allocator};
+  stx::Vec<vk::SpanBuffer> index_buffers{stx::os_allocator};
 
-  vk::SpanBuffer vertex_buffer;
-  vk::SpanBuffer index_buffer;
-  vk::SpanBuffer clip_vertex_buffer;
-  vk::SpanBuffer clip_index_buffer;
+  // stx::Vec<stx::Vec<vk::DescriptorSets>> descriptor_sets{stx::os_allocator};
 
-  vk::RecordingContext recording_context;
+  vk::RecordingContext ctx;
 
   stx::Rc<vk::CommandQueue*> queue;
+
+  // TODO(lamarrr): keep a mapping of [vksampler, vkimageview] to
+  // vkdescriptorset, this won't work since it will end up retaining them for
+  // longer than necessary
 
   CanvasContext(stx::Rc<vk::CommandQueue*> aqueue) : queue{std::move(aqueue)} {
     VkDevice dev = queue.handle->device.handle->device;
 
-    transform_buffer = vk::create_host_buffer(
-        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
-        sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-    overlay_buffer = vk::create_host_buffer(
-        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
-        sizeof(Overlay), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-    viewport_buffer = vk::create_host_buffer(
-        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
-        sizeof(Viewport), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
     auto vertex_input_attributes = vertex::attribute_descriptions();
 
-    VkVertexInputAttributeDescription clip_vertex_input_attributes[]{
-        {.location = 0,
-         .binding = 0,
-         .format = VK_FORMAT_R32G32_SFLOAT,
-         .offset = 0}};
-
     vk::DescriptorSetSpec descriptor_set_specs[] = {
-        vk::DescriptorSetSpec{vk::DescriptorType::Buffer,
-                              vk::DescriptorType::Buffer,
-                              vk::DescriptorType::Buffer},
-        vk::DescriptorSetSpec{vk::DescriptorType::Sampler,
-                              vk::DescriptorType::Sampler}};
+        vk::DescriptorSetSpec{vk::DescriptorType::Sampler}};
 
-    recording_context.init(*queue.handle, vertex_shader_code,
-                           fragment_shader_code, clip_vertex_shader_code,
-                           clip_fragment_shader_code, vertex_input_attributes,
-                           sizeof(vertex), clip_vertex_input_attributes,
-                           sizeof(vec2), descriptor_set_specs);
+    ctx.init(*queue.handle, vertex_shader_code, fragment_shader_code,
+             vertex_input_attributes, sizeof(vertex), descriptor_set_specs);
+
+    for (u32 i = 0; i < vk::SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+      vertex_buffers.push(vk::SpanBuffer{}).unwrap();
+      index_buffers.push(vk::SpanBuffer{}).unwrap();
+    }
+
+    // for (u32 i = 0; i < vk::SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+    //   // TODO(lamarrr): this won't work since we need to keep multiple of
+    //   them
+    //   // per frame. alternative: each texture already has a descriptor set,
+    //   // which will be more efficient and reasonable
+    //   vk::DescriptorSetSpec specs[] = {
+    //       vk::DescriptorSetSpec{vk::DescriptorType::Sampler}};
+    //   vk::DescriptorSets sets;
+    //   sets.init(dev, specs);
+
+    //   // descriptor_sets.push(   );
+    // }
   }
 
   STX_MAKE_PINNED(CanvasContext)
@@ -855,286 +762,108 @@ struct CanvasContext {
   ~CanvasContext() {
     VkDevice dev = queue.handle->device.handle->device;
 
-    vertex_buffer.destroy(dev);
-    index_buffer.destroy(dev);
-    clip_vertex_buffer.destroy(dev);
-    clip_index_buffer.destroy(dev);
+    for (vk::SpanBuffer& buff : vertex_buffers) buff.destroy(dev);
 
-    transform_buffer.destroy(dev);
+    for (vk::SpanBuffer& buff : index_buffers) buff.destroy(dev);
 
-    overlay_buffer.destroy(dev);
-    viewport_buffer.destroy(dev);
-
-    recording_context.destroy(dev);
+    ctx.destroy(dev);
   }
 
-  void write_transform(Transform const& transform) {
-    transform_buffer.write(queue.handle->device.handle->device, &transform);
-  }
-
-  void write_overlay(Overlay const& overlay) {
-    overlay_buffer.write(queue.handle->device.handle->device, &overlay);
-  }
-
-  void write_viewport(Viewport const& viewport) {
-    viewport_buffer.write(queue.handle->device.handle->device, &viewport);
-  }
-
-  void write_vertices(stx::Span<vertex const> vertices,
-                      stx::Span<u32 const> indices) {
+  void __write_vertices(stx::Span<vertex const> vertices,
+                        stx::Span<u32 const> indices,
+                        u32 next_frame_flight_index) {
     VkDevice dev = queue.handle->device.handle->device;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
         queue.handle->device.handle->phy_device.handle->memory_properties;
+
     vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
 
-    vertex_buffer.write(dev, memory_properties,
-                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
-    index_buffer.write(dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                       indices);
-  }
+    vertex_buffers[next_frame_flight_index].write(
+        dev, memory_properties, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
 
-  void write_clip_vertices(stx::Span<vec2 const> vertices,
-                           stx::Span<u32 const> indices) {
-    VkDevice dev = queue.handle->device.handle->device;
-    VkPhysicalDeviceMemoryProperties const& memory_properties =
-        queue.handle->device.handle->phy_device.handle->memory_properties;
-    vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
-
-    clip_vertex_buffer.write(dev, memory_properties,
-                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
-    clip_index_buffer.write(dev, memory_properties,
-                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
+    index_buffers[next_frame_flight_index].write(
+        dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
   }
 
   void submit(vk::SwapChain const& swapchain, u32 swapchain_image_index,
               DrawList const& draw_list) {
-    ASR_CHECK(!draw_list.vertices.is_empty());
-    ASR_CHECK(!draw_list.indices.is_empty());
-    ASR_CHECK(!draw_list.clip_vertices.is_empty());
-    ASR_CHECK(!draw_list.clip_indices.is_empty());
-
     stx::Rc<vk::Device*> const& device = swapchain.queue.handle->device;
 
     VkDevice dev = device.handle->device;
 
     VkQueue queue = swapchain.queue.handle->info.queue;
 
-    // clear framebuffer
-    {
-      VkCommandBufferBeginInfo command_buffer_begin_info{
-          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-          .pNext = nullptr,
-          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-          .pInheritanceInfo = nullptr,
-      };
+    u32 frame = swapchain.next_frame_flight_index;
 
-      ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
-                                        &command_buffer_begin_info));
+    VkCommandBuffer cmd_buffer = ctx.cmd_buffers[frame];
 
-      VkClearValue clear_values[] = {
-          {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}},
-          {.depthStencil =
-               VkClearDepthStencilValue{.depth = 1.0f, .stencil = 0}}};
+    ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.rendering_fences[frame],
+                                 VK_TRUE, COMMAND_TIMEOUT));
 
-      VkRenderPassBeginInfo render_pass_begin_info{
-          .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-          .pNext = nullptr,
-          .renderPass = swapchain.render_pass,
-          .framebuffer = swapchain.framebuffers[swapchain_image_index],
-          .renderArea =
-              VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
-          .clearValueCount = AS_U32(std::size(clear_values)),
-          .pClearValues = clear_values};
+    ASR_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
 
-      vkCmdBeginRenderPass(recording_context.command_buffer,
-                           &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    __write_vertices(draw_list.vertices, draw_list.indices, frame);
 
-      vkCmdEndRenderPass(recording_context.command_buffer);
+    VkCommandBufferBeginInfo command_buffer_begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
 
-      ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
+    ASR_VK_CHECK(vkBeginCommandBuffer(cmd_buffer, &command_buffer_begin_info));
 
-      ASR_VK_CHECK(vkResetFences(
-          dev, 1,
-          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+    VkClearValue clear_values[] = {
+        {.color = VkClearColorValue{{0, 0, 0, 0}}},
+        {.depthStencil = VkClearDepthStencilValue{.depth = 1, .stencil = 0}}};
 
-      VkSubmitInfo submit_info{
-          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-          .pNext = nullptr,
-          .waitSemaphoreCount = 0,
-          .pWaitSemaphores = nullptr,
-          .pWaitDstStageMask = nullptr,
-          .commandBufferCount = 1,
-          .pCommandBuffers = &recording_context.command_buffer,
-          .signalSemaphoreCount = 0,
-          .pSignalSemaphores = nullptr};
+    VkRenderPassBeginInfo render_pass_begin_info{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .pNext = nullptr,
+        .renderPass = swapchain.render_pass,
+        .framebuffer = swapchain.framebuffers[swapchain_image_index],
+        .renderArea =
+            VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
+        .clearValueCount = AS_U32(std::size(clear_values)),
+        .pClearValues = clear_values};
 
-      ASR_VK_CHECK(vkQueueSubmit(
-          queue, 1, &submit_info,
-          swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+    vkCmdBeginRenderPass(cmd_buffer, &render_pass_begin_info,
+                         VK_SUBPASS_CONTENTS_INLINE);
 
-      ASR_VK_CHECK(vkWaitForFences(
-          dev, 1,
-          &swapchain.rendering_fences[swapchain.next_frame_flight_index],
-          VK_TRUE, COMMAND_TIMEOUT));
+    // allocate as many descriptor sets as the number of draw commands to be
+    // issued
 
-      ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
-    }
+    VkDeviceSize offset = 0;
 
-    for (DrawCommand const& draw_command : draw_list.commands) {
-      {
-        write_clip_vertices(draw_list.clip_vertices, draw_list.clip_indices);
+    vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer,
+                           &offset);
 
-        VkCommandBufferBeginInfo command_buffer_begin_info{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .pNext = nullptr,
-            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            .pInheritanceInfo = nullptr};
+    vkCmdBindIndexBuffer(cmd_buffer, index_buffers[frame].buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
 
-        ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.clip_command_buffer,
-                                          &command_buffer_begin_info));
+    vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      ctx.pipeline.pipeline);
 
-        VkClearValue clear_values[] = {
-            {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}}};
+    for (DrawCommand const& cmd : draw_list.cmds) {
+      vk::PushConstants push_constant{
+          .transform = cmd.transform,
+          .overlay = {cmd.color.r / 255.0f, cmd.color.g / 255.0f,
+                      cmd.color.b / 255.0f, cmd.color.a / 255.0f}};
 
-        VkRenderPassBeginInfo render_pass_begin_info{
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .pNext = nullptr,
-            .renderPass = swapchain.clip.render_pass,
-            .framebuffer = swapchain.clip.framebuffer,
-            .renderArea =
-                VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
-            .clearValueCount = AS_U32(std::size(clear_values)),
-            .pClearValues = clear_values};
+      vkCmdPushConstants(
+          cmd_buffer, ctx.pipeline.layout,
+          VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+          sizeof(vk::PushConstants), &push_constant);
 
-        vkCmdBeginRenderPass(recording_context.clip_command_buffer,
-                             &render_pass_begin_info,
-                             VK_SUBPASS_CONTENTS_INLINE);
+      vk::DescriptorBinding set0[] = {vk::DescriptorBinding::make_sampler(
+          cmd.texture.handle->image.handle->view, cmd.texture.handle->sampler)};
 
-        vkCmdBindPipeline(recording_context.clip_command_buffer,
-                          VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          recording_context.clip_pipeline.pipeline);
+      stx::Span<vk::DescriptorBinding const> sets[] = {set0};
 
-        VkViewport viewport{.x = 0.0f,
-                            .y = 0.0f,
-                            .width = AS_F32(swapchain.window_extent.width),
-                            .height = AS_F32(swapchain.window_extent.height),
-                            .minDepth = 0.0f,
-                            .maxDepth = 1.0f};
+      // check list contained in frame to see if there's a descriptor set
+      // pointing to the same resource
 
-        vkCmdSetViewport(recording_context.clip_command_buffer, 0, 1,
-                         &viewport);
-
-        VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
-
-        vkCmdSetScissor(recording_context.clip_command_buffer, 0, 1, &scissor);
-
-        VkDeviceSize offset = 0;
-
-        vkCmdBindVertexBuffers(recording_context.clip_command_buffer, 0, 1,
-                               &clip_vertex_buffer.buffer, &offset);
-
-        vkCmdBindIndexBuffer(recording_context.clip_command_buffer,
-                             clip_index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-
-        vkCmdDrawIndexed(recording_context.clip_command_buffer,
-                         draw_command.nclip_indices, 1,
-                         draw_command.clip_indices_offset, 0, 0);
-
-        vkCmdEndRenderPass(recording_context.clip_command_buffer);
-
-        ASR_VK_CHECK(vkEndCommandBuffer(recording_context.clip_command_buffer));
-
-        VkPipelineStageFlags wait_stages[] = {
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-
-        VkSubmitInfo submit_info{
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .pNext = nullptr,
-            .waitSemaphoreCount = 0,
-            .pWaitSemaphores = nullptr,
-            .pWaitDstStageMask = wait_stages,
-            .commandBufferCount = 1,
-            .pCommandBuffers = &recording_context.clip_command_buffer,
-            .signalSemaphoreCount = 0,
-            .pSignalSemaphores = nullptr};
-
-        ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.clip.fence));
-
-        ASR_VK_CHECK(
-            vkQueueSubmit(queue, 1, &submit_info, swapchain.clip.fence));
-
-        ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE,
-                                     COMMAND_TIMEOUT));
-
-        ASR_VK_CHECK(
-            vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
-      }
-
-      write_vertices(draw_list.vertices, draw_list.indices);
-
-      Transform transform{.value = draw_command.transform};
-
-      Overlay overlay{.color = {draw_command.color.r / 255.0f,
-                                draw_command.color.g / 255.0f,
-                                draw_command.color.b / 255.0f,
-                                draw_command.color.a / 255.0f}};
-
-      Viewport render_viewport{
-          .extent = vec2{AS_F32(swapchain.window_extent.width),
-                         AS_F32(swapchain.window_extent.height)}};
-
-      write_transform(transform);
-      write_overlay(overlay);
-      write_viewport(render_viewport);
-
-      vk::DescriptorBinding set0[] = {
-          vk::DescriptorBinding::make_buffer(transform_buffer.buffer),
-          vk::DescriptorBinding::make_buffer(overlay_buffer.buffer),
-          vk::DescriptorBinding::make_buffer(viewport_buffer.buffer)};
-
-      vk::DescriptorBinding set1[] = {
-          vk::DescriptorBinding::make_sampler(
-              draw_command.texture.handle->image.handle->view,
-              draw_command.texture.handle->sampler),
-          vk::DescriptorBinding::make_sampler(swapchain.clip.image.view,
-                                              swapchain.clip.sampler)};
-
-      stx::Span<vk::DescriptorBinding const> sets[] = {set0, set1};
-
-      recording_context.descriptor_sets[swapchain.next_frame_flight_index]
-          .write(sets);
-
-      VkCommandBufferBeginInfo command_buffer_begin_info{
-          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-          .pNext = nullptr,
-          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-          .pInheritanceInfo = nullptr,
-      };
-
-      ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
-                                        &command_buffer_begin_info));
-
-      VkClearValue clear_values[] = {
-          {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}},
-          {.depthStencil =
-               VkClearDepthStencilValue{.depth = 1.0f, .stencil = 0}}};
-
-      VkRenderPassBeginInfo render_pass_begin_info{
-          .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-          .pNext = nullptr,
-          .renderPass = swapchain.render_pass,
-          .framebuffer = swapchain.framebuffers[swapchain_image_index],
-          .renderArea =
-              VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
-          .clearValueCount = AS_U32(std::size(clear_values)),
-          .pClearValues = clear_values};
-
-      vkCmdBeginRenderPass(recording_context.command_buffer,
-                           &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-
-      vkCmdBindPipeline(recording_context.command_buffer,
-                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        recording_context.pipeline.pipeline);
+      ctx.descriptor_sets[frame].write(sets);
 
       VkViewport viewport{.x = 0.0f,
                           .y = 0.0f,
@@ -1143,65 +872,42 @@ struct CanvasContext {
                           .minDepth = 0.0f,
                           .maxDepth = 1.0f};
 
-      vkCmdSetViewport(recording_context.command_buffer, 0, 1, &viewport);
+      vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
 
-      VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
+      VkRect2D scissor{.offset = {AS_I32(cmd.clip_rect.offset.x),
+                                  AS_I32(cmd.clip_rect.offset.y)},
+                       .extent = {AS_U32(cmd.clip_rect.extent.x),
+                                  AS_U32(cmd.clip_rect.extent.y)}};
 
-      vkCmdSetScissor(recording_context.command_buffer, 0, 1, &scissor);
+      vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
 
       vkCmdBindDescriptorSets(
-          recording_context.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-          recording_context.pipeline.layout, 0,
-          AS_U32(recording_context
-                     .descriptor_sets[swapchain.next_frame_flight_index]
-                     .descriptor_sets.size()),
-          recording_context.descriptor_sets[swapchain.next_frame_flight_index]
-              .descriptor_sets.data(),
-          0, nullptr);
+          cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipeline.layout, 0,
+          AS_U32(ctx.descriptor_sets[frame].descriptor_sets.size()),
+          ctx.descriptor_sets[frame].descriptor_sets.data(), 0, nullptr);
 
-      VkDeviceSize offset = 0;
-
-      vkCmdBindVertexBuffers(recording_context.command_buffer, 0, 1,
-                             &vertex_buffer.buffer, &offset);
-
-      vkCmdBindIndexBuffer(recording_context.command_buffer,
-                           index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-
-      vkCmdDrawIndexed(recording_context.command_buffer, draw_command.nindices,
-                       1, draw_command.indices_offset, 0, 0);
-
-      vkCmdEndRenderPass(recording_context.command_buffer);
-
-      ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
-
-      ASR_VK_CHECK(vkResetFences(
-          dev, 1,
-          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
-
-      VkSubmitInfo submit_info{
-          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-          .pNext = nullptr,
-          .waitSemaphoreCount = 0,
-          .pWaitSemaphores = nullptr,
-          .pWaitDstStageMask = nullptr,
-          .commandBufferCount = 1,
-          .pCommandBuffers = &recording_context.command_buffer,
-          .signalSemaphoreCount = 0,
-          .pSignalSemaphores = nullptr};
-
-      ASR_VK_CHECK(vkQueueSubmit(
-          queue, 1, &submit_info,
-          swapchain.rendering_fences[swapchain.next_frame_flight_index]));
-
-      ASR_VK_CHECK(vkWaitForFences(
-          dev, 1,
-          &swapchain.rendering_fences[swapchain.next_frame_flight_index],
-          VK_TRUE, COMMAND_TIMEOUT));
-
-      ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
+      vkCmdDrawIndexed(cmd_buffer, cmd.nindices, 1, cmd.indices_offset, 0, 0);
     }
+
+    vkCmdEndRenderPass(cmd_buffer);
+
+    ASR_VK_CHECK(vkEndCommandBuffer(cmd_buffer));
+
+    VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &swapchain.image_acquisition_semaphores[frame],
+        .pWaitDstStageMask = nullptr,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmd_buffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &swapchain.rendering_semaphores[frame]};
+
+    ASR_VK_CHECK(vkQueueSubmit(queue, 1, &submit_info,
+                               swapchain.rendering_fences[frame]));
   }
 };
 
 }  // namespace gfx
-};  // namespace asr
+}  // namespace asr

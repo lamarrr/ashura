@@ -85,6 +85,19 @@ constexpr bool is_inside_triangle(vec2 p1, vec2 p2, vec2 p3, vec2 point) {
 struct rect {
   vec2 offset;
   vec2 extent;
+
+  constexpr auto bounds() const {
+    return std::make_tuple(offset.x, offset.x + extent.x, offset.y,
+                           offset.y + extent.y);
+  }
+
+  constexpr bool overlaps(rect other) const {
+    auto [x1_min, x1_max, y1_min, y1_max] = bounds();
+    auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+
+    return x1_min < x2_max && x1_max > x2_min && y2_max > y1_min &&
+           y2_min < y1_max;
+  }
 };
 
 struct vec3 {

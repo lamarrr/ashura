@@ -19,7 +19,9 @@
 #include "stx/result.h"
 #include "stx/span.h"
 #include "stx/vec.h"
+#include "vulkan/vk_enum_string_helper.h"
 #include "vulkan/vulkan.h"
+
 
 #define ASR_VK_CHECK(...)                             \
   do {                                                \
@@ -38,89 +40,49 @@ static constexpr u64 COMMAND_TIMEOUT =
 
 namespace vk {
 
-template <typename T>
-inline auto join_copy(stx::Span<T const> a, stx::Span<T const> b) {
-  stx::Vec<T> x{stx::os_allocator};
-  x.extend(a).unwrap();
-  x.extend(b).unwrap();
-  return x;
-}
-
-inline void ensure_validation_layers_supported(
-    stx::Span<char const* const> layers) {
-  u32 available_validation_layers_count;
-  vkEnumerateInstanceLayerProperties(&available_validation_layers_count,
-                                     nullptr);
-
-  stx::Vec<VkLayerProperties> available_validation_layers(stx::os_allocator);
-
-  available_validation_layers.resize(available_validation_layers_count)
-      .unwrap();
-
-  ASR_LOG("Available Vulkan Validation Layers:");
-
-  vkEnumerateInstanceLayerProperties(&available_validation_layers_count,
-                                     available_validation_layers.data());
-
-  for (VkLayerProperties const& layer : available_validation_layers) {
-    ASR_LOG("\t{} (spec version: {})", layer.layerName, layer.specVersion);
-  }
-
-  bool all_layers_available = true;
-
-  for (char const* req_layer : layers) {
-    if (available_validation_layers.span()
-            .which([&req_layer](VkLayerProperties const& available_layer) {
-              return std::string_view(req_layer) ==
-                     std::string_view(available_layer.layerName);
-            })
-            .is_empty()) {
-      all_layers_available = false;
-      ASR_LOG_WARN("Required validation layer `{}` is not available",
-                   std::string_view(req_layer));
-    }
-  }
-
-  ASR_CHECK(all_layers_available,
-            "One or more required validation layers are not available");
-}
-
 // NICE-TO-HAVE(lamarrr): versioning of extensions, know which one wasn't
 // available and adjust features to that
-inline void ensure_extensions_supported(stx::Span<char const* const> names) {
-  u32 available_vk_extensions_count = 0;
-  vkEnumerateInstanceExtensionProperties(
-      nullptr, &available_vk_extensions_count, nullptr);
-
-  stx::Vec<VkExtensionProperties> available_vk_extensions(stx::os_allocator);
-
-  available_vk_extensions.resize(available_vk_extensions_count).unwrap();
-
-  vkEnumerateInstanceExtensionProperties(
-      nullptr, &available_vk_extensions_count, available_vk_extensions.data());
-
-  ASR_LOG("Available Vulkan Extensions:");
-  for (auto extension : available_vk_extensions) {
-    ASR_LOG("\t{},  spec version: {}", extension.extensionName,
-            extension.specVersion);
-  }
-
+inline void ensure_extensions_supported(
+    stx::Span<VkExtensionProperties const> available_extentions,
+    stx::Span<char const* const> required_extensions) {
   bool all_available = true;
 
-  for (auto const name : names) {
-    if (available_vk_extensions.span()
-            .which([&name](VkExtensionProperties const& props) {
-              return std::string_view(name) ==
+  for (char const* required_extension : required_extensions) {
+    if (available_extentions
+            .which([required_extension](VkExtensionProperties const& props) {
+              return std::string_view(required_extension) ==
                      std::string_view(props.extensionName);
             })
             .is_empty()) {
       all_available = false;
       ASR_LOG_WARN("Required extension `{}` is not available",
-                   std::string_view(name));
+                   std::string_view(required_extension));
     }
   }
 
-  ASR_CHECK(all_available, "One or more required extensions are not available");
+  ASR_CHECK(all_available, "one or more required extensions are not available");
+}
+
+inline void ensure_validation_layers_supported(
+    stx::Span<VkLayerProperties const> available_validation_layers,
+    stx::Span<char const* const> required_layers) {
+  bool all_layers_available = true;
+
+  for (char const* required_layer : required_layers) {
+    if (available_validation_layers
+            .which([required_layer](VkLayerProperties const& available_layer) {
+              return std::string_view(required_layer) ==
+                     std::string_view(available_layer.layerName);
+            })
+            .is_empty()) {
+      all_layers_available = false;
+      ASR_LOG_WARN("Required validation layer `{}` is not available",
+                   std::string_view(required_layer));
+    }
+  }
+
+  ASR_CHECK(all_layers_available,
+            "one or more required validation layers are not available");
 }
 
 inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
@@ -134,6 +96,21 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
   // you can use comparisions like messageSeverity >=
   // VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT to see if they are
   // important or not
+
+  // typedef struct VkDebugUtilsMessengerCallbackDataEXT {
+  //     VkStructureType                              sType;
+  //     const void*                                  pNext;
+  //     VkDebugUtilsMessengerCallbackDataFlagsEXT    flags;
+  //     const char*                                  pMessageIdName;
+  //     int32_t                                      messageIdNumber;
+  //     const char*                                  pMessage;
+  //     uint32_t                                     queueLabelCount;
+  //     const VkDebugUtilsLabelEXT*                  pQueueLabels;
+  //     uint32_t                                     cmdBufLabelCount;
+  //     const VkDebugUtilsLabelEXT*                  pCmdBufLabels;
+  //     uint32_t                                     objectCount;
+  //     const VkDebugUtilsObjectNameInfoEXT*         pObjects;
+  // } VkDebugUtilsMessengerCallbackDataEXT;
 
   std::string hint;
   if (message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
@@ -177,8 +154,12 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
   return VK_FALSE;
 }
 
-inline VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_create_info() {
-  VkDebugUtilsMessengerCreateInfoEXT create_info{
+inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
+    stx::Span<char const* const> irequired_extensions,
+    stx::Span<char const* const> required_validation_layers,
+    char const* const application_name, u32 application_version,
+    char const* const engine_name, u32 engine_version) {
+  VkDebugUtilsMessengerCreateInfoEXT debug_utils_messenger_create_info{
       .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
       .pNext = nullptr,
       .flags = 0,
@@ -191,45 +172,60 @@ inline VkDebugUtilsMessengerCreateInfoEXT make_debug_messenger_create_info() {
       .pfnUserCallback = default_debug_callback,
       .pUserData = nullptr};
 
-  return create_info;
-}
+  static constexpr char const* DEBUG_EXTENSIONS[] = {
+      VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
-inline VkDebugUtilsMessengerEXT create_install_debug_messenger(
-    VkInstance instance, VkDebugUtilsMessengerCreateInfoEXT create_info =
-                             make_debug_messenger_create_info()) {
-  VkDebugUtilsMessengerEXT debug_messenger;
+  // debug message callback extension
+  stx::Vec<char const*> required_extensions{stx::os_allocator};
 
-  auto createDebugUtilsMessengerEXT =
-      reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
-          vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
+  required_extensions.extend(irequired_extensions).unwrap();
 
-  ASR_CHECK(createDebugUtilsMessengerEXT != nullptr,
-            "Unable to get process address for vkCreateDebugUtilsMessengerEXT");
+  if (!required_validation_layers.is_empty())
+    required_extensions.extend(DEBUG_EXTENSIONS).unwrap();
 
-  ASR_VK_CHECK(createDebugUtilsMessengerEXT(instance, &create_info, nullptr,
-                                            &debug_messenger));
+  u32 available_extensions_count = 0;
 
-  return debug_messenger;
-}
+  vkEnumerateInstanceExtensionProperties(nullptr, &available_extensions_count,
+                                         nullptr);
 
-inline void destroy_debug_messenger(VkInstance instance,
-                                    VkDebugUtilsMessengerEXT debug_messenger) {
-  auto func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
-      vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
+  stx::Vec<VkExtensionProperties> available_extensions(stx::os_allocator);
 
-  ASR_CHECK(func != nullptr, "Unable to destroy debug messenger");
+  available_extensions.resize(available_extensions_count).unwrap();
 
-  return func(instance, debug_messenger, nullptr);
-}
+  vkEnumerateInstanceExtensionProperties(nullptr, &available_extensions_count,
+                                         available_extensions.data());
 
-inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
-    stx::Span<char const* const> required_extensions,
-    stx::Span<char const* const> required_validation_layers,
-    VkDebugUtilsMessengerCreateInfoEXT debug_messenger_create_info,
-    char const* const application_name = "Ashura",
-    u32 application_version = VK_MAKE_VERSION(1, 0, 0),
-    char const* const engine_name = "Ashura Engine",
-    u32 engine_version = VK_MAKE_VERSION(1, 0, 0)) {
+  ASR_LOG("Available Vulkan Extensions:");
+
+  for (auto extension : available_extensions) {
+    ASR_LOG("\t{},  spec version: {}", extension.extensionName,
+            extension.specVersion);
+  }
+
+  u32 available_validation_layers_count;
+
+  ASR_VK_CHECK(vkEnumerateInstanceLayerProperties(
+      &available_validation_layers_count, nullptr));
+
+  stx::Vec<VkLayerProperties> available_validation_layers(stx::os_allocator);
+
+  available_validation_layers.resize(available_validation_layers_count)
+      .unwrap();
+
+  ASR_VK_CHECK(vkEnumerateInstanceLayerProperties(
+      &available_validation_layers_count, available_validation_layers.data()));
+
+  ASR_LOG("Available Vulkan Validation Layers:");
+
+  for (VkLayerProperties const& layer : available_validation_layers) {
+    ASR_LOG("\t{} (spec version: {})", layer.layerName, layer.specVersion);
+  }
+
+  ensure_extensions_supported(available_extensions, required_extensions);
+
+  ensure_validation_layers_supported(available_validation_layers,
+                                     required_validation_layers);
+
   // helps but not necessary
   VkApplicationInfo app_info{
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -242,53 +238,44 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   };
 
   VkInstanceCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pNext = nullptr,
+      .sType =
+          VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,  // debug messenger for when
+                                                   // the installed debug
+                                                   // messenger is uninstalled.
+      // this helps to debug issues with vkDestroyInstance and vkCreateInstance
+      // i.e. (before and after the debug messenger is installed)
+      .pNext = required_validation_layers.is_empty()
+                   ? nullptr
+                   : &debug_utils_messenger_create_info,
       .flags = 0,
-      .pApplicationInfo = &app_info,
-      .enabledLayerCount = 0,
-      .ppEnabledLayerNames = nullptr,
-      .enabledExtensionCount = 0,
-      .ppEnabledExtensionNames = nullptr};
+      .pApplicationInfo = &app_info,  // validation layers
+      .enabledLayerCount = AS_U32(required_validation_layers.size()),
+      .ppEnabledLayerNames = required_validation_layers.data(),
+      .enabledExtensionCount = AS_U32(required_extensions.size()),
+      .ppEnabledExtensionNames = required_extensions.data(),
+  };
 
-  static constexpr char const* DEBUG_EXTENSIONS[] = {
-      VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
+  VkInstance instance;
 
-  // debug message callback extension
-  auto extensions =
-      join_copy(required_extensions,
-                required_validation_layers.is_empty()
-                    ? stx::Span<char const* const>{}
-                    : stx::Span<char const* const>(DEBUG_EXTENSIONS));
+  ASR_VK_CHECK(vkCreateInstance(&create_info, nullptr, &instance));
 
-  create_info.enabledExtensionCount = AS_U32(extensions.size());
-  create_info.ppEnabledExtensionNames = extensions.data();
-
-  ensure_extensions_supported(extensions);
+  VkDebugUtilsMessengerEXT debug_utils_messenger;
 
   if (!required_validation_layers.is_empty()) {
-    // validation layers
-    ensure_validation_layers_supported(required_validation_layers);
-    create_info.enabledLayerCount = AS_U32(required_validation_layers.size());
-    create_info.ppEnabledLayerNames = required_validation_layers.data();
+    PFN_vkCreateDebugUtilsMessengerEXT createDebugUtilsMessengerEXT =
+        reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+            vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
 
-    // debug messenger for when the installed debug messenger is uninstalled.
-    // this helps to debug issues with vkDestroyInstance and vkCreateInstance
-    // i.e. (before and after the debug messenger is installed)
-    create_info.pNext = &debug_messenger_create_info;
+    ASR_CHECK(
+        createDebugUtilsMessengerEXT != nullptr,
+        "unable to get procedure address for vkCreateDebugUtilsMessengerEXT");
+
+    ASR_VK_CHECK(createDebugUtilsMessengerEXT(
+        instance, &debug_utils_messenger_create_info, nullptr,
+        &debug_utils_messenger));
   }
 
-  VkInstance vulkan_instance;
-  ASR_VK_CHECK(vkCreateInstance(&create_info, nullptr, &vulkan_instance));
-
-  VkDebugUtilsMessengerEXT messenger = nullptr;
-
-  if (!required_validation_layers.is_empty()) {
-    messenger = create_install_debug_messenger(vulkan_instance,
-                                               debug_messenger_create_info);
-  }
-
-  return std::make_pair(vulkan_instance, messenger);
+  return std::make_pair(instance, debug_utils_messenger);
 }
 
 //  to do anything on the GPU (render, draw, compute, allocate memory, create
@@ -315,7 +302,7 @@ inline stx::Vec<bool> get_command_queue_support(
     VkQueueFlagBits required_command_queue) {
   stx::Vec<bool> supports{stx::os_allocator};
 
-  for (auto const& fam_props : queue_families) {
+  for (VkQueueFamilyProperties const& fam_props : queue_families) {
     supports.push(fam_props.queueFlags & required_command_queue).unwrap();
   }
 
@@ -359,9 +346,11 @@ inline VkDevice create_logical_device(
       available_device_extensions.data()));
 
   ASR_LOG("Required Device Extensions: ");
+
   required_extensions.for_each([](char const* ext) { ASR_LOG("\t{}", ext); });
 
   ASR_LOG("Available Device Extensions: ");
+
   available_device_extensions.span().for_each([](VkExtensionProperties ext) {
     ASR_LOG("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
   });
@@ -396,16 +385,6 @@ inline VkDevice create_logical_device(
   return logical_device;
 }
 
-inline VkQueue get_command_queue(VkDevice dev, u32 queue_family_index,
-                                 u32 command_queue_index_in_family) {
-  VkQueue command_queue;
-  vkGetDeviceQueue(dev, queue_family_index, command_queue_index_in_family,
-                   &command_queue);
-  ASR_CHECK(command_queue != nullptr,
-            "Requested command queue not created on target device");
-  return command_queue;
-}
-
 struct SwapChainProperties {
   VkSurfaceCapabilitiesKHR capabilities;
   stx::Vec<VkSurfaceFormatKHR> supported_formats{stx::os_allocator};
@@ -414,7 +393,7 @@ struct SwapChainProperties {
 
 inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_dev,
                                                     VkSurfaceKHR surface) {
-  SwapChainProperties details{};
+  SwapChainProperties details;
 
   ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
       phy_dev, surface, &details.capabilities));
@@ -431,10 +410,12 @@ inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_dev,
       details.supported_formats.data()));
 
   u32 surface_presentation_modes_count;
+
   ASR_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
       phy_dev, surface, &surface_presentation_modes_count, nullptr));
 
   details.presentation_modes.resize(surface_presentation_modes_count).unwrap();
+
   ASR_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
       phy_dev, surface, &surface_presentation_modes_count,
       details.presentation_modes.data()));
@@ -602,312 +583,6 @@ inline stx::Option<u32> find_suitable_memory_type(
   return stx::None;
 }
 
-constexpr std::string_view format(VkFormat format) {
-  switch (format) {
-    ASR_ERRNUM_CASE(VK_FORMAT_UNDEFINED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R4G4_UNORM_PACK8)
-    ASR_ERRNUM_CASE(VK_FORMAT_R4G4B4A4_UNORM_PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_B4G4R4A4_UNORM_PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_R5G6B5_UNORM_PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_B5G6R5_UNORM_PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_R5G5B5A1_UNORM_PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_B5G5R5A1_UNORM_PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_A1R5G5B5_UNORM_PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8_SNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8_USCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8_SSCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8_SRGB)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8_SNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8_USCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8_SSCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8_SRGB)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8_SNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8_USCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8_SSCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8_SRGB)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8_SNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8_USCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8_SSCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8_SRGB)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8A8_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8A8_SNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8A8_USCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8A8_SSCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8A8_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8A8_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R8G8B8A8_SRGB)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8A8_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8A8_SNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8A8_USCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8A8_SSCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8A8_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8A8_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8A8_SRGB)
-    ASR_ERRNUM_CASE(VK_FORMAT_A8B8G8R8_UNORM_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A8B8G8R8_SNORM_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A8B8G8R8_USCALED_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A8B8G8R8_SSCALED_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A8B8G8R8_UINT_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A8B8G8R8_SINT_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A8B8G8R8_SRGB_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2R10G10B10_UNORM_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2R10G10B10_SNORM_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2R10G10B10_USCALED_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2R10G10B10_SSCALED_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2R10G10B10_UINT_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2R10G10B10_SINT_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2B10G10R10_UNORM_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2B10G10R10_SNORM_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2B10G10R10_USCALED_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2B10G10R10_SSCALED_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2B10G10R10_UINT_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_A2B10G10R10_SINT_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16_SNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16_USCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16_SSCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16_SNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16_USCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16_SSCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16_SNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16_USCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16_SSCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16A16_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16A16_SNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16A16_USCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16A16_SSCALED)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16A16_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16A16_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R16G16B16A16_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32G32_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32G32_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32G32_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32G32B32_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32G32B32_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32G32B32_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32G32B32A32_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32G32B32A32_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R32G32B32A32_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64G64_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64G64_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64G64_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64G64B64_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64G64B64_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64G64B64_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64G64B64A64_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64G64B64A64_SINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_R64G64B64A64_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_B10G11R11_UFLOAT_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_E5B9G9R9_UFLOAT_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_D16_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_X8_D24_UNORM_PACK32)
-    ASR_ERRNUM_CASE(VK_FORMAT_D32_SFLOAT)
-    ASR_ERRNUM_CASE(VK_FORMAT_S8_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_D16_UNORM_S8_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_D24_UNORM_S8_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_D32_SFLOAT_S8_UINT)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC1_RGB_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC1_RGB_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC1_RGBA_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC1_RGBA_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC2_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC2_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC3_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC3_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC4_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC4_SNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC5_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC5_SNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC6H_UFLOAT_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC6H_SFLOAT_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC7_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_BC7_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_EAC_R11_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_EAC_R11_SNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_EAC_R11G11_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_EAC_R11G11_SNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_4x4_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_4x4_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_5x4_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_5x4_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_5x5_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_5x5_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_6x5_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_6x5_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_6x6_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_6x6_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_8x5_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_8x5_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_8x6_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_8x6_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_8x8_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_8x8_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_10x5_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_10x5_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_10x6_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_10x6_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_10x8_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_10x8_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_10x10_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_10x10_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_12x10_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_12x10_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_12x12_UNORM_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_ASTC_12x12_SRGB_BLOCK)
-    ASR_ERRNUM_CASE(VK_FORMAT_G8B8G8R8_422_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_B8G8R8G8_422_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_G8_B8R8_2PLANE_420_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_G8_B8R8_2PLANE_422_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_R10X6_UNORM_PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_R10X6G10X6_UNORM_2PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G10X6B10X6G10X6R10X6_422_UNORM_4PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_B10X6G10X6R10X6G10X6_422_UNORM_4PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_R12X4_UNORM_PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_R12X4G12X4_UNORM_2PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_R12X4G12X4B12X4A12X4_UNORM_4PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G12X4B12X4G12X4R12X4_422_UNORM_4PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_B12X4G12X4R12X4G12X4_422_UNORM_4PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16)
-    ASR_ERRNUM_CASE(VK_FORMAT_G16B16G16R16_422_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_B16G16R16G16_422_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_G16_B16_R16_3PLANE_420_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_G16_B16R16_2PLANE_420_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_G16_B16_R16_3PLANE_422_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_G16_B16R16_2PLANE_422_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM)
-    ASR_ERRNUM_CASE(VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG)
-    ASR_ERRNUM_CASE(VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG)
-    ASR_ERRNUM_CASE(VK_FORMAT_PVRTC2_2BPP_UNORM_BLOCK_IMG)
-    ASR_ERRNUM_CASE(VK_FORMAT_PVRTC2_4BPP_UNORM_BLOCK_IMG)
-    ASR_ERRNUM_CASE(VK_FORMAT_PVRTC1_2BPP_SRGB_BLOCK_IMG)
-    ASR_ERRNUM_CASE(VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG)
-    ASR_ERRNUM_CASE(VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG)
-    ASR_ERRNUM_CASE(VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG)
-    default:
-      return "Unidentified Color Format Enum";
-  }
-}
-
-constexpr std::string_view format(VkResult error) {
-  switch (error) {
-    ASR_ERRNUM_CASE(VK_SUCCESS)
-    ASR_ERRNUM_CASE(VK_NOT_READY)
-    ASR_ERRNUM_CASE(VK_TIMEOUT)
-    ASR_ERRNUM_CASE(VK_EVENT_SET)
-    ASR_ERRNUM_CASE(VK_EVENT_RESET)
-    ASR_ERRNUM_CASE(VK_INCOMPLETE)
-    ASR_ERRNUM_CASE(VK_ERROR_OUT_OF_HOST_MEMORY)
-    ASR_ERRNUM_CASE(VK_ERROR_OUT_OF_DEVICE_MEMORY)
-    ASR_ERRNUM_CASE(VK_ERROR_INITIALIZATION_FAILED)
-    ASR_ERRNUM_CASE(VK_ERROR_DEVICE_LOST)
-    ASR_ERRNUM_CASE(VK_ERROR_MEMORY_MAP_FAILED)
-    ASR_ERRNUM_CASE(VK_ERROR_LAYER_NOT_PRESENT)
-    ASR_ERRNUM_CASE(VK_ERROR_EXTENSION_NOT_PRESENT)
-    ASR_ERRNUM_CASE(VK_ERROR_FEATURE_NOT_PRESENT)
-    ASR_ERRNUM_CASE(VK_ERROR_INCOMPATIBLE_DRIVER)
-    ASR_ERRNUM_CASE(VK_ERROR_TOO_MANY_OBJECTS)
-    ASR_ERRNUM_CASE(VK_ERROR_FORMAT_NOT_SUPPORTED)
-    ASR_ERRNUM_CASE(VK_ERROR_FRAGMENTED_POOL)
-    // ASR_ERRNUM_CASE( VK_ERROR_UNKNOWN)
-
-    // Provided by VK_VERSION_1_1
-    ASR_ERRNUM_CASE(VK_ERROR_OUT_OF_POOL_MEMORY)
-    ASR_ERRNUM_CASE(VK_ERROR_INVALID_EXTERNAL_HANDLE)
-
-    // Provided by VK_VERSION_1_2
-    ASR_ERRNUM_CASE(VK_ERROR_FRAGMENTATION_EXT)
-    // ASR_ERRNUM_CASE( VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS)
-
-    // Provided by VK_KHR_surface
-    ASR_ERRNUM_CASE(VK_ERROR_SURFACE_LOST_KHR)
-    ASR_ERRNUM_CASE(VK_ERROR_NATIVE_WINDOW_IN_USE_KHR)
-
-    // Provided by VK_KHR_swapchain
-    ASR_ERRNUM_CASE(VK_SUBOPTIMAL_KHR)
-    ASR_ERRNUM_CASE(VK_ERROR_OUT_OF_DATE_KHR)
-
-    // Provided by VK_KHR_display_swapchain
-    ASR_ERRNUM_CASE(VK_ERROR_INCOMPATIBLE_DISPLAY_KHR)
-
-    // Provided by VK_EXT_debug_report
-    ASR_ERRNUM_CASE(VK_ERROR_VALIDATION_FAILED_EXT)
-
-    // Provided by VK_NV_glsl_shader
-    ASR_ERRNUM_CASE(VK_ERROR_INVALID_SHADER_NV)
-
-    // Provided by VK_EXT_image_drm_format_modifier
-    // ASR_ERRNUM_CASE( VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT)
-
-    // Provided by VK_EXT_global_priority
-    ASR_ERRNUM_CASE(VK_ERROR_NOT_PERMITTED_EXT)
-
-    // Provided by VK_EXT_full_screen_exclusive
-    // ASR_ERRNUM_CASE( VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT)
-
-    // Provided by VK_KHR_deferred_host_operations
-    // ASR_ERRNUM_CASE( VK_THREAD_IDLE_KHR)
-    // ASR_ERRNUM_CASE( VK_THREAD_DONE_KHR)
-    // ASR_ERRNUM_CASE( VK_OPERATION_DEFERRED_KHR)
-    // ASR_ERRNUM_CASE( VK_OPERATION_NOT_DEFERRED_KHR)
-
-    // Provided by VK_EXT_pipeline_creation_cache_control
-    // ASR_ERRNUM_CASE( VK_PIPELINE_COMPILE_REQUIRED_EXT)
-
-    ASR_ERRNUM_CASE(VK_RESULT_MAX_ENUM)
-
-    default:
-      return "Unidentified Error Enum";
-  }
-}
-
 constexpr std::string_view format(VkPhysicalDeviceType type) {
   switch (type) {
     case VK_PHYSICAL_DEVICE_TYPE_CPU:
@@ -925,42 +600,29 @@ constexpr std::string_view format(VkPhysicalDeviceType type) {
   }
 }
 
-constexpr std::string_view format(VkColorSpaceKHR color_space) {
-  switch (color_space) {
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_DCI_P3_LINEAR_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_BT709_LINEAR_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_BT709_NONLINEAR_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_BT2020_LINEAR_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_HDR10_ST2084_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_DOLBYVISION_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_HDR10_HLG_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_PASS_THROUGH_EXT)
-    ASR_ERRNUM_CASE(VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT)
-    default:
-      return "Unidentified Color Space";
-  }
-}
-
 struct Instance {
   VkInstance instance = VK_NULL_HANDLE;
-  stx::Option<VkDebugUtilsMessengerEXT> debug_messenger = stx::None;
+  stx::Option<VkDebugUtilsMessengerEXT> debug_utils_messenger = stx::None;
 
   Instance(VkInstance ainstance,
-           stx::Option<VkDebugUtilsMessengerEXT> adebug_messenger)
-      : instance{ainstance}, debug_messenger{std::move(adebug_messenger)} {}
+           stx::Option<VkDebugUtilsMessengerEXT> adebug_utils_messenger)
+      : instance{ainstance},
+        debug_utils_messenger{std::move(adebug_utils_messenger)} {}
 
   STX_MAKE_PINNED(Instance)
 
   ~Instance() {
-    if (debug_messenger.is_some()) {
-      destroy_debug_messenger(instance, debug_messenger.value());
+    if (debug_utils_messenger.is_some()) {
+      PFN_vkDestroyDebugUtilsMessengerEXT func =
+          reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+              vkGetInstanceProcAddr(instance,
+                                    "vkDestroyDebugUtilsMessengerEXT"));
+
+      ASR_CHECK(func != nullptr, "unable to destroy debug messenger");
+
+      func(instance, debug_utils_messenger.value(), nullptr);
     }
+
     vkDestroyInstance(instance, nullptr);
   }
 };
@@ -1037,11 +699,15 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 
   for (VkPhysicalDevice dev : phy_devices) {
     VkPhysicalDeviceProperties device_properties;
-    VkPhysicalDeviceFeatures device_features;
-    VkPhysicalDeviceMemoryProperties memory_properties;
 
     vkGetPhysicalDeviceProperties(dev, &device_properties);
+
+    VkPhysicalDeviceFeatures device_features;
+
     vkGetPhysicalDeviceFeatures(dev, &device_features);
+
+    VkPhysicalDeviceMemoryProperties memory_properties;
+
     vkGetPhysicalDeviceMemoryProperties(dev, &memory_properties);
 
     devices
@@ -1105,15 +771,15 @@ inline stx::Rc<Instance*> create_instance(
     char const* app_name, u32 app_version, char const* engine_name,
     u32 engine_version, stx::Span<char const* const> required_extensions = {},
     stx::Span<char const* const> validation_layers = {}) {
-  auto [instance, messenger] =
-      create_vulkan_instance(required_extensions, validation_layers,
-                             make_debug_messenger_create_info(), app_name,
+  auto [instance, debug_utils_messenger] =
+      create_vulkan_instance(required_extensions, validation_layers, app_name,
                              app_version, engine_name, engine_version);
 
   return stx::rc::make_inplace<Instance>(
              stx::os_allocator, instance,
-             messenger == VK_NULL_HANDLE ? stx::None
-                                         : stx::make_some(std::move(messenger)))
+             debug_utils_messenger == VK_NULL_HANDLE
+                 ? stx::None
+                 : stx::make_some(std::move(debug_utils_messenger)))
       .unwrap();
 }
 
@@ -1157,8 +823,14 @@ inline stx::Rc<Device*> create_device(
     for (u32 queue_index_in_family = 0; queue_index_in_family < queue_count;
          queue_index_in_family++) {
       f32 priority = create_info.pQueuePriorities[i];
-      VkQueue command_queue = get_command_queue(dev, command_queue_family_index,
-                                                queue_index_in_family);
+
+      VkQueue command_queue;
+
+      vkGetDeviceQueue(dev, command_queue_family_index, queue_index_in_family,
+                       &command_queue);
+
+      ASR_CHECK(command_queue != nullptr,
+                "requested command queue not created on target device");
 
       command_queues
           .push(CommandQueueInfo{
@@ -1193,7 +865,7 @@ inline stx::Option<CommandQueue> get_command_queue(
 
   if (queue_s.is_empty()) return stx::None;
 
-  auto const& queue = queue_s[0];
+  CommandQueueInfo const& queue = queue_s[0];
 
   return stx::Some(CommandQueue{
       .info = CommandQueueInfo{.queue = queue.queue,
@@ -1249,7 +921,6 @@ struct SpanBuffer {
   void write(VkDevice dev,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
              VkBufferUsageFlags usage, stx::Span<T const> span) {
-    // TODO(lamarrr): handle less than
     if (span.size_bytes() != size) {
       vkDestroyBuffer(dev, buffer, nullptr);
 
@@ -1271,10 +942,13 @@ struct SpanBuffer {
 
       vkGetBufferMemoryRequirements(dev, buffer, &memory_requirements);
 
-      // TODO(lamarrr): fix memory leak
       if (memory_requirements.size <= memory_size) {
-        ASR_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
+        if (memory != VK_NULL_HANDLE) {
+          ASR_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
+        }
       } else {
+        vkFreeMemory(dev, memory, nullptr);
+
         u32 memory_type_index = vk::find_suitable_memory_type(
                                     memory_properties, memory_requirements,
                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -1293,7 +967,8 @@ struct SpanBuffer {
 
         ASR_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
 
-        ASR_VK_CHECK(vkMapMemory(dev, memory, 0, memory_size, 0, &memory_map));
+        ASR_VK_CHECK(
+            vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
       }
     }
 
@@ -1388,6 +1063,7 @@ struct ImageX {
 
   ~ImageX() {
     VkDevice dev = queue.handle->device.handle->device;
+    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyImageView(dev, view, nullptr);
     vkDestroyImage(dev, image, nullptr);
@@ -1476,6 +1152,8 @@ struct ImageSampler {
   STX_MAKE_PINNED(ImageSampler)
 
   ~ImageSampler() {
+    ASR_VK_CHECK(
+        vkDeviceWaitIdle(image.handle->queue.handle->device.handle->device));
     vkDestroySampler(image.handle->queue.handle->device.handle->device, sampler,
                      nullptr);
   }
@@ -1544,6 +1222,11 @@ struct DescriptorBinding {
     return DescriptorBinding{
         .type = DescriptorType::Sampler, .view = view, .sampler = sampler};
   }
+
+  constexpr bool operator==(DescriptorBinding const& other) const {
+    return type == other.type && buffer == other.buffer && view == other.view &&
+           sampler == other.sampler;
+  }
 };
 
 struct DescriptorSetSpec {
@@ -1556,16 +1239,21 @@ struct DescriptorSetSpec {
   explicit DescriptorSetSpec(stx::Span<DescriptorType const> abindings) {
     bindings.extend(abindings).unwrap();
   }
+
+  DescriptorSetSpec() {}
 };
 
-inline std::pair<stx::Vec<VkDescriptorSetLayout>, stx::Vec<VkDescriptorSet>>
-prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
-                        stx::Span<DescriptorSetSpec const> specs) {
-  stx::Vec<VkDescriptorSetLayout> layouts{stx::os_allocator};
+struct DescriptorSet {
+  VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+  VkDescriptorSet set = VK_NULL_HANDLE;
+  DescriptorSetSpec spec;
 
-  for (DescriptorSetSpec const& spec : specs) {
-    stx::Vec<VkDescriptorSetLayoutBinding> bindings{stx::os_allocator};
+  void init(VkDevice dev, VkDescriptorPool descriptor_pool,
+            DescriptorSetSpec aspec) {
+    spec = std::move(aspec);
+
     u32 binding_index = 0;
+    stx::Vec<VkDescriptorSetLayoutBinding> bindings{stx::os_allocator};
 
     for (DescriptorType type : spec.bindings) {
       VkDescriptorType vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1600,43 +1288,96 @@ prepare_descriptor_sets(VkDevice dev, VkDescriptorPool descriptor_pool,
         .pBindings = bindings.data(),
     };
 
-    VkDescriptorSetLayout layout;
-
     ASR_VK_CHECK(vkCreateDescriptorSetLayout(dev, &layout_create_info, nullptr,
                                              &layout));
 
-    layouts.push_inplace(layout).unwrap();
+    VkDescriptorSetAllocateInfo descriptor_set_alloc_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .descriptorPool = descriptor_pool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &layout};
+
+    ASR_VK_CHECK(
+        vkAllocateDescriptorSets(dev, &descriptor_set_alloc_info, &set));
   }
 
-  stx::Vec<VkDescriptorSet> descriptor_sets{stx::os_allocator};
+  void destroy(VkDevice dev, VkDescriptorPool descriptor_pool) {
+    vkDestroyDescriptorSetLayout(dev, layout, nullptr);
+    ASR_VK_CHECK(vkFreeDescriptorSets(dev, descriptor_pool, 1, &set));
+  }
 
-  VkDescriptorSetAllocateInfo descriptor_set_alloc_info{
-      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-      .pNext = nullptr,
-      .descriptorPool = descriptor_pool,
-      .descriptorSetCount = AS_U32(layouts.size()),
-      .pSetLayouts = layouts.data(),
-  };
+  void write(VkDevice dev, stx::Span<DescriptorBinding const> bindings) {
+    ASR_CHECK(bindings.size() == spec.bindings.size());
 
-  descriptor_sets.resize(layouts.size(), VK_NULL_HANDLE).unwrap();
+    for (u32 ibinding = 0; ibinding < AS_U32(bindings.size()); ibinding++) {
+      DescriptorBinding binding = bindings[ibinding];
 
-  ASR_VK_CHECK(vkAllocateDescriptorSets(dev, &descriptor_set_alloc_info,
-                                        descriptor_sets.data()));
+      ASR_CHECK(binding.type == spec.bindings[ibinding]);
 
-  return std::make_pair(std::move(layouts), std::move(descriptor_sets));
-}
+      switch (binding.type) {
+        case DescriptorType::Sampler: {
+          VkDescriptorImageInfo image_info{
+              .sampler = binding.sampler,
+              .imageView = binding.view,
+              .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+          VkWriteDescriptorSet write{
+              .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+              .pNext = nullptr,
+              .dstSet = set,
+              .dstBinding = ibinding,
+              .dstArrayElement = 0,
+              .descriptorCount = 1,
+              .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+              .pImageInfo = &image_info,
+              .pBufferInfo = nullptr,
+              .pTexelBufferView = nullptr,
+          };
+
+          vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
+
+        } break;
+
+        case DescriptorType::Buffer: {
+          VkDescriptorBufferInfo buffer_info{
+              .buffer = binding.buffer, .offset = 0, .range = VK_WHOLE_SIZE};
+
+          VkWriteDescriptorSet write{
+              .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+              .pNext = nullptr,
+              .dstSet = set,
+              .dstBinding = ibinding,
+              .dstArrayElement = 0,
+              .descriptorCount = 1,
+              .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+              .pImageInfo = nullptr,
+              .pBufferInfo = &buffer_info,
+              .pTexelBufferView = nullptr,
+          };
+
+          vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
+        } break;
+
+        default: {
+          ASR_UNREACHABLE();
+        }
+      }
+    }
+  }
+};
 
 struct DescriptorSets {
   VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
 
-  stx::Vec<VkDescriptorSetLayout> descriptor_set_layouts{stx::os_allocator};
-  stx::Vec<VkDescriptorSet> descriptor_sets{stx::os_allocator};
+  stx::Vec<VkDescriptorSetLayout> layouts{stx::os_allocator};
+  stx::Vec<VkDescriptorSet> sets{stx::os_allocator};
 
-  stx::Vec<DescriptorSetSpec> descriptor_sets_specs{stx::os_allocator};
+  stx::Vec<DescriptorSetSpec> specs{stx::os_allocator};
 
   VkDevice dev = VK_NULL_HANDLE;
 
-  void init(VkDevice adev, stx::Span<DescriptorSetSpec> spec) {
+  void init(VkDevice adev, stx::Span<DescriptorSetSpec> aspecs) {
     dev = adev;
 
     VkDescriptorPoolSize pool_sizes[] = {
@@ -1655,42 +1396,95 @@ struct DescriptorSets {
     ASR_VK_CHECK(vkCreateDescriptorPool(dev, &pool_create_info, nullptr,
                                         &descriptor_pool));
 
-    descriptor_sets_specs.extend_move(spec).unwrap();
+    specs.extend_move(aspecs).unwrap();
 
-    // TODO(lamarrr): make descriptor set visible to fragment shader
-    auto [descset_layouts, descsets] =
-        prepare_descriptor_sets(dev, descriptor_pool, descriptor_sets_specs);
+    for (DescriptorSetSpec const& spec : specs) {
+      stx::Vec<VkDescriptorSetLayoutBinding> bindings{stx::os_allocator};
+      u32 binding_index = 0;
 
-    descriptor_set_layouts = std::move(descset_layouts);
-    descriptor_sets = std::move(descsets);
+      for (DescriptorType type : spec.bindings) {
+        VkDescriptorType vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+        switch (type) {
+          case DescriptorType::Buffer:
+            vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            break;
+          case DescriptorType::Sampler:
+            vktype = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            break;
+          default:
+            ASR_UNREACHABLE();
+        }
+
+        bindings
+            .push(
+                VkDescriptorSetLayoutBinding{.binding = binding_index,
+                                             .descriptorType = vktype,
+                                             .descriptorCount = 1,
+                                             .stageFlags = VK_SHADER_STAGE_ALL,
+                                             .pImmutableSamplers = nullptr})
+            .unwrap();
+
+        binding_index++;
+      }
+
+      VkDescriptorSetLayoutCreateInfo layout_create_info{
+          .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0,
+          .bindingCount = AS_U32(bindings.size()),
+          .pBindings = bindings.data(),
+      };
+
+      VkDescriptorSetLayout layout;
+
+      ASR_VK_CHECK(vkCreateDescriptorSetLayout(dev, &layout_create_info,
+                                               nullptr, &layout));
+
+      layouts.push_inplace(layout).unwrap();
+    }
+
+    stx::Vec<VkDescriptorSet> descriptor_sets{stx::os_allocator};
+
+    VkDescriptorSetAllocateInfo descriptor_set_alloc_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .descriptorPool = descriptor_pool,
+        .descriptorSetCount = AS_U32(layouts.size()),
+        .pSetLayouts = layouts.data(),
+    };
+
+    sets.resize(layouts.size(), VK_NULL_HANDLE).unwrap();
+
+    ASR_VK_CHECK(
+        vkAllocateDescriptorSets(dev, &descriptor_set_alloc_info, sets.data()));
   }
 
   void destroy() {
-    for (VkDescriptorSetLayout layout : descriptor_set_layouts) {
+    for (VkDescriptorSetLayout layout : layouts) {
       vkDestroyDescriptorSetLayout(dev, layout, nullptr);
     }
 
-    ASR_VK_CHECK(vkFreeDescriptorSets(dev, descriptor_pool,
-                                      AS_U32(descriptor_sets.size()),
-                                      descriptor_sets.data()));
+    ASR_VK_CHECK(vkFreeDescriptorSets(dev, descriptor_pool, AS_U32(sets.size()),
+                                      sets.data()));
 
     vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
   }
 
-  void write(stx::Span<stx::Span<DescriptorBinding const> const> sets) {
-    ASR_CHECK(sets.size() == descriptor_sets_specs.size());
-    ASR_CHECK(sets.size() == descriptor_sets.size());
+  void write(stx::Span<stx::Span<DescriptorBinding const> const> asets) {
+    ASR_CHECK(asets.size() == specs.size());
+    ASR_CHECK(asets.size() == sets.size());
 
     for (u32 iset = 0; iset < AS_U32(sets.size()); iset++) {
-      stx::Span<DescriptorBinding const> set = sets[iset];
+      stx::Span<DescriptorBinding const> set = asets[iset];
 
-      ASR_CHECK(set.size() == descriptor_sets_specs[iset].bindings.size());
+      ASR_CHECK(set.size() == specs[iset].bindings.size());
 
-      for (u32 ibinding = 0; ibinding < AS_U32(sets[iset].size()); ibinding++) {
-        DescriptorBinding binding = sets[iset][ibinding];
+      for (u32 ibinding = 0; ibinding < AS_U32(asets[iset].size());
+           ibinding++) {
+        DescriptorBinding binding = asets[iset][ibinding];
 
-        ASR_CHECK(binding.type ==
-                  descriptor_sets_specs[iset].bindings[ibinding]);
+        ASR_CHECK(binding.type == specs[iset].bindings[ibinding]);
 
         switch (binding.type) {
           case DescriptorType::Sampler: {
@@ -1699,10 +1493,10 @@ struct DescriptorSets {
                 .imageView = binding.view,
                 .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
-            VkWriteDescriptorSet writes[] = {{
+            VkWriteDescriptorSet write{
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .pNext = nullptr,
-                .dstSet = descriptor_sets[iset],
+                .dstSet = sets[iset],
                 .dstBinding = ibinding,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
@@ -1710,10 +1504,9 @@ struct DescriptorSets {
                 .pImageInfo = &image_info,
                 .pBufferInfo = nullptr,
                 .pTexelBufferView = nullptr,
-            }};
+            };
 
-            vkUpdateDescriptorSets(dev, AS_U32(std::size(writes)), writes, 0,
-                                   nullptr);
+            vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
 
           } break;
 
@@ -1721,10 +1514,10 @@ struct DescriptorSets {
             VkDescriptorBufferInfo buffer_info{
                 .buffer = binding.buffer, .offset = 0, .range = VK_WHOLE_SIZE};
 
-            VkWriteDescriptorSet writes[] = {{
+            VkWriteDescriptorSet write{
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .pNext = nullptr,
-                .dstSet = descriptor_sets[iset],
+                .dstSet = sets[iset],
                 .dstBinding = ibinding,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
@@ -1732,10 +1525,9 @@ struct DescriptorSets {
                 .pImageInfo = nullptr,
                 .pBufferInfo = &buffer_info,
                 .pTexelBufferView = nullptr,
-            }};
+            };
 
-            vkUpdateDescriptorSets(dev, AS_U32(std::size(writes)), writes, 0,
-                                   nullptr);
+            vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
           } break;
 
           default: {
@@ -1971,7 +1763,7 @@ inline VkFormat find_supported_format(VkPhysicalDevice phy_dev,
     }
   }
 
-  ASR_UNREACHABLE();
+  ASR_PANIC("could not find any supported format");
 }
 
 inline VkFormat find_depth_format(VkPhysicalDevice phy_dev) {
@@ -2000,30 +1792,11 @@ inline VkFormat find_depth_format(VkPhysicalDevice phy_dev) {
 /// its images, nor its image views outside itself (the swapchain object).
 ///
 struct SwapChain {
-  struct Clip {
-    Image image;
-    VkSampler sampler = VK_NULL_HANDLE;
-    VkFramebuffer framebuffer = VK_NULL_HANDLE;
-    VkFence fence = VK_NULL_HANDLE;
-    VkSemaphore semaphore = VK_NULL_HANDLE;
-    VkRenderPass render_pass = VK_NULL_HANDLE;
-
-    void destroy(VkDevice dev) {
-      vkDestroySemaphore(dev, semaphore, nullptr);
-      vkDestroyFence(dev, fence, nullptr);
-      vkDestroyRenderPass(dev, render_pass, nullptr);
-      image.destroy(dev);
-      vkDestroySampler(dev, sampler, nullptr);
-      vkDestroyFramebuffer(dev, framebuffer, nullptr);
-    }
-  };
-
-  static constexpr u32 MAX_FRAMES_INFLIGHT = 2;
+  static constexpr u32 MAX_FRAMES_IN_FLIGHT = 2;
 
   // actually holds the images of the surface and used to present to the render
   // target image. when resizing is needed, the swapchain is destroyed and
   // recreated with the desired extents.
-  VkSwapchainKHR swapchain = VK_NULL_HANDLE;
   VkSurfaceFormatKHR color_format{
       .format = VK_FORMAT_R8G8B8A8_SRGB,
       .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};
@@ -2031,6 +1804,8 @@ struct SwapChain {
   VkPresentModeKHR present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
   VkExtent2D image_extent{.width = 0, .height = 0};
   VkExtent2D window_extent{.width = 0, .height = 0};
+
+  VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
 
   /// IMPORTANT: this is different from the image index obtained via
   /// `vkAcquireNextImageKHR`. this index is used for referencing semaphores
@@ -2048,19 +1823,17 @@ struct SwapChain {
   // swapchain)
   stx::Vec<VkImageView> image_views{stx::os_allocator};
 
+  stx::Vec<VkFramebuffer> framebuffers{stx::os_allocator};
+
   // the rendering semaphores correspond to the frame indexes and not the
   // swapchain images
   stx::Vec<VkSemaphore> rendering_semaphores{stx::os_allocator};
 
   stx::Vec<VkSemaphore> image_acquisition_semaphores{stx::os_allocator};
 
-  stx::Vec<VkFence> image_acquisition_fences{stx::os_allocator};
-
   stx::Vec<VkFence> rendering_fences{stx::os_allocator};
 
-  stx::Vec<VkFramebuffer> framebuffers{stx::os_allocator};
-
-  VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
+  stx::Vec<VkFence> image_acquisition_fences{stx::os_allocator};
 
   Image msaa_color_image;
 
@@ -2068,9 +1841,7 @@ struct SwapChain {
 
   VkRenderPass render_pass = VK_NULL_HANDLE;
 
-  VkRenderPass present_render_pass = VK_NULL_HANDLE;
-
-  Clip clip;
+  VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 
   stx::Rc<CommandQueue*> queue;
 
@@ -2092,8 +1863,8 @@ struct SwapChain {
 
     ASR_LOG("Device Supported Surface Formats:");
     for (VkSurfaceFormatKHR const& format : properties.supported_formats) {
-      ASR_LOG("\tFormat: {}, Color Space: {}", vk::format(format.format),
-              vk::format(format.colorSpace));
+      ASR_LOG("\tFormat: {}, Color Space: {}", string_VkFormat(format.format),
+              string_VkColorSpaceKHR(format.colorSpace));
     }
 
     // swapchain formats are device-dependent
@@ -2161,52 +1932,11 @@ struct SwapChain {
       image_views.push_inplace(view).unwrap();
     }
 
-    for (usize i = 0; i < MAX_FRAMES_INFLIGHT; i++) {
-      VkSemaphoreCreateInfo semaphore_create_info{
-          .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0};
-
-      VkSemaphore rendering_semaphore;
-
-      ASR_VK_CHECK(vkCreateSemaphore(dev, &semaphore_create_info, nullptr,
-                                     &rendering_semaphore));
-
-      rendering_semaphores.push_inplace(rendering_semaphore).unwrap();
-
-      VkSemaphore image_acquisition_semaphore;
-
-      ASR_VK_CHECK(vkCreateSemaphore(dev, &semaphore_create_info, nullptr,
-                                     &image_acquisition_semaphore));
-
-      image_acquisition_semaphores.push_inplace(image_acquisition_semaphore)
-          .unwrap();
-
-      VkFenceCreateInfo fence_create_info{
-          .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0};
-
-      VkFence image_acquisition_fence;
-
-      ASR_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr,
-                                 &image_acquisition_fence));
-
-      image_acquisition_fences.push_inplace(image_acquisition_fence).unwrap();
-
-      VkFence rendering_fence;
-
-      ASR_VK_CHECK(
-          vkCreateFence(dev, &fence_create_info, nullptr, &rendering_fence));
-
-      rendering_fences.push_inplace(rendering_fence).unwrap();
-    }
-
     VkAttachmentDescription color_attachment{
         .flags = 0,
         .format = color_format.format,
         .samples = msaa_sample_count,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -2309,116 +2039,45 @@ struct SwapChain {
       framebuffers.push_inplace(framebuffer).unwrap();
     }
 
-    {
-      VkRenderPass render_pass;
+    for (usize i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+      VkSemaphoreCreateInfo semaphore_create_info{
+          .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0};
 
-      {
-        VkAttachmentDescription color_attachment{
-            .flags = 0,
-            .format = color_format.format,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      VkSemaphore rendering_semaphore;
 
-        VkAttachmentDescription attachments[] = {color_attachment};
+      ASR_VK_CHECK(vkCreateSemaphore(dev, &semaphore_create_info, nullptr,
+                                     &rendering_semaphore));
 
-        VkAttachmentReference color_attachment_reference{
-            .attachment = 0,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+      rendering_semaphores.push_inplace(rendering_semaphore).unwrap();
 
-        VkSubpassDescription subpass{
-            .flags = 0,
-            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .inputAttachmentCount = 0,
-            .pInputAttachments = nullptr,
-            .colorAttachmentCount = 1,
-            .pColorAttachments = &color_attachment_reference,
-            .pResolveAttachments = nullptr,
-            .pDepthStencilAttachment = nullptr,
-            .preserveAttachmentCount = 0,
-            .pPreserveAttachments = nullptr};
+      VkSemaphore image_acquisition_semaphore;
 
-        VkSubpassDependency dependency{
-            .srcSubpass = VK_SUBPASS_EXTERNAL,
-            .dstSubpass = 0,
-            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask = 0,
-            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT};
+      ASR_VK_CHECK(vkCreateSemaphore(dev, &semaphore_create_info, nullptr,
+                                     &image_acquisition_semaphore));
 
-        VkRenderPassCreateInfo create_info{
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .attachmentCount = AS_U32(std::size(attachments)),
-            .pAttachments = attachments,
-            .subpassCount = 1,
-            .pSubpasses = &subpass,
-            .dependencyCount = 1,
-            .pDependencies = &dependency};
-
-        ASR_VK_CHECK(
-            vkCreateRenderPass(dev, &create_info, nullptr, &render_pass));
-      }
-
-      VkFramebuffer framebuffer;
-
-      auto [image, memory, view] = create_image(
-          dev,
-          queue.handle->device.handle->phy_device.handle->memory_properties,
-          image_extent,
-          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-          color_format.format, VK_IMAGE_ASPECT_COLOR_BIT);
-
-      {
-        VkImageView attachments[] = {view};
-
-        VkFramebufferCreateInfo create_info{
-            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .renderPass = render_pass,
-            .attachmentCount = AS_U32(std::size(attachments)),
-            .pAttachments = attachments,
-            .width = image_extent.width,
-            .height = image_extent.height,
-            .layers = 1};
-
-        ASR_VK_CHECK(
-            vkCreateFramebuffer(dev, &create_info, nullptr, &framebuffer));
-      }
+      image_acquisition_semaphores.push_inplace(image_acquisition_semaphore)
+          .unwrap();
 
       VkFenceCreateInfo fence_create_info{
           .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
           .pNext = nullptr,
           .flags = 0};
 
-      VkFence fence;
+      VkFence image_acquisition_fence;
 
-      ASR_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr, &fence));
+      ASR_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr,
+                                 &image_acquisition_fence));
 
-      VkSemaphoreCreateInfo semaphore_create_info{
-          .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0};
+      image_acquisition_fences.push_inplace(image_acquisition_fence).unwrap();
 
-      VkSemaphore semaphore;
+      VkFence rendering_fence;
 
       ASR_VK_CHECK(
-          vkCreateSemaphore(dev, &semaphore_create_info, nullptr, &semaphore));
+          vkCreateFence(dev, &fence_create_info, nullptr, &rendering_fence));
 
-      clip =
-          Clip{.image = Image{.image = image, .view = view, .memory = memory},
-               .sampler = create_sampler(queue.handle->device, false),
-               .framebuffer = framebuffer,
-               .fence = fence,
-               .semaphore = semaphore,
-               .render_pass = render_pass};
+      rendering_fences.push_inplace(rendering_fence).unwrap();
     }
   }
 
@@ -2431,11 +2090,7 @@ struct SwapChain {
 
     ASR_VK_CHECK(vkDeviceWaitIdle(dev));
 
-    clip.destroy(dev);
-
     vkDestroyRenderPass(dev, render_pass, nullptr);
-
-    vkDestroyRenderPass(dev, present_render_pass, nullptr);
 
     msaa_color_image.destroy(dev);
     msaa_depth_image.destroy(dev);
@@ -2486,11 +2141,8 @@ struct Surface {
 
   stx::Rc<Instance*> instance;
 
-  Surface(stx::Rc<Instance*> ainstance, VkSurfaceKHR asurface,
-          stx::Option<SwapChain> aswapchain)
-      : surface{asurface},
-        swapchain{std::move(aswapchain)},
-        instance{std::move(ainstance)} {}
+  Surface(stx::Rc<Instance*> ainstance, VkSurfaceKHR asurface)
+      : surface{asurface}, instance{std::move(ainstance)} {}
 
   STX_MAKE_PINNED(Surface)
 
@@ -2521,6 +2173,11 @@ struct Surface {
         queue.share(), surface, preferred_formats, preferred_present_modes,
         preferred_extent, window_extent, msaa_sample_count, alpha_compositing});
   }
+};
+
+struct PushConstants {
+  mat4 transform = mat4::identity();
+  vec4 overlay{0.0f, 0.0f, 0.0f, 0.0f};
 };
 
 struct Pipeline {
@@ -2559,14 +2216,21 @@ struct Pipeline {
     VkPipelineShaderStageCreateInfo stages[] = {vert_shader_stage,
                                                 frag_shader_stage};
 
+    static_assert(sizeof(PushConstants) % 4 == 0);
+
+    VkPushConstantRange push_constant{
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        .offset = 0,
+        .size = sizeof(PushConstants)};
+
     VkPipelineLayoutCreateInfo layout_create_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .setLayoutCount = AS_U32(descriptor_set_layout.size()),
         .pSetLayouts = descriptor_set_layout.data(),
-        .pushConstantRangeCount = 0,
-        .pPushConstantRanges = nullptr};
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &push_constant};
 
     ASR_VK_CHECK(
         vkCreatePipelineLayout(dev, &layout_create_info, nullptr, &layout));
@@ -2577,7 +2241,7 @@ struct Pipeline {
          .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
          .colorBlendOp = VK_BLEND_OP_ADD,
          .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
          .alphaBlendOp = VK_BLEND_OP_ADD,
          .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                            VK_COLOR_COMPONENT_B_BIT |
@@ -2717,225 +2381,28 @@ struct Pipeline {
   }
 };
 
-struct ClipPipeline {
-  VkPipeline pipeline = VK_NULL_HANDLE;
-  VkPipelineLayout layout = VK_NULL_HANDLE;
-
-  void build(
-      VkDevice dev, VkShaderModule vertex_shader,
-      VkShaderModule fragment_shader, VkRenderPass target_render_pass,
-      stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
-      u32 vertex_input_size) {
-    VkPipelineShaderStageCreateInfo vert_shader_stage{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = vertex_shader,
-        .pName = "main",
-        .pSpecializationInfo = nullptr};
-
-    VkPipelineShaderStageCreateInfo frag_shader_stage{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = fragment_shader,
-        .pName = "main",
-        .pSpecializationInfo = nullptr};
-
-    VkPipelineShaderStageCreateInfo stages[] = {vert_shader_stage,
-                                                frag_shader_stage};
-
-    VkPipelineLayoutCreateInfo layout_create_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .setLayoutCount = 0,
-        .pSetLayouts = nullptr,
-        .pushConstantRangeCount = 0,
-        .pPushConstantRanges = nullptr};
-
-    ASR_VK_CHECK(
-        vkCreatePipelineLayout(dev, &layout_create_info, nullptr, &layout));
-
-    VkPipelineColorBlendAttachmentState color_blend_attachment_states[] = {
-        {.blendEnable = VK_FALSE,
-         .srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-         .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-         .colorBlendOp = VK_BLEND_OP_ADD,
-         .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-         .alphaBlendOp = VK_BLEND_OP_ADD,
-         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                           VK_COLOR_COMPONENT_B_BIT |
-                           VK_COLOR_COMPONENT_A_BIT}};
-
-    VkPipelineColorBlendStateCreateInfo color_blend_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .logicOpEnable = VK_FALSE,
-        .logicOp = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1,
-        .pAttachments = color_blend_attachment_states,
-        .blendConstants = {0.0f, 0.0f, 0.0f, 0.0f}};
-
-    VkPipelineInputAssemblyStateCreateInfo input_assembly_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE};
-
-    VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .depthTestEnable = VK_FALSE,
-        .depthWriteEnable = VK_FALSE,
-        .depthCompareOp = VK_COMPARE_OP_NEVER,
-        .depthBoundsTestEnable = VK_FALSE,
-        .stencilTestEnable = VK_FALSE,
-        .front = VkStencilOpState{.failOp = VK_STENCIL_OP_KEEP,
-                                  .passOp = VK_STENCIL_OP_KEEP,
-                                  .depthFailOp = VK_STENCIL_OP_KEEP,
-                                  .compareOp = VK_COMPARE_OP_NEVER,
-                                  .compareMask = 0,
-                                  .writeMask = 0,
-                                  .reference = 0},
-        .back = VkStencilOpState{.failOp = VK_STENCIL_OP_KEEP,
-                                 .passOp = VK_STENCIL_OP_KEEP,
-                                 .depthFailOp = VK_STENCIL_OP_KEEP,
-                                 .compareOp = VK_COMPARE_OP_NEVER,
-                                 .compareMask = 0,
-                                 .writeMask = 0,
-                                 .reference = 0},
-        .minDepthBounds = 0.0f,
-        .maxDepthBounds = 1.0f};
-
-    VkPipelineMultisampleStateCreateInfo multisample_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        .sampleShadingEnable = VK_FALSE,
-        .minSampleShading = 0.0f,
-        .pSampleMask = nullptr,
-        .alphaToCoverageEnable = VK_FALSE,
-        .alphaToOneEnable = VK_FALSE};
-
-    VkPipelineRasterizationStateCreateInfo rasterization_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .depthClampEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_NONE,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE,
-        .depthBiasConstantFactor = 0.0f,
-        .depthBiasClamp = 0.0f,
-        .depthBiasSlopeFactor = 0.0f,
-        .lineWidth = 1.0f};
-
-    VkVertexInputBindingDescription vertex_binding_descriptions[] = {
-        {.binding = 0,
-         .stride = vertex_input_size,
-         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX}};
-
-    VkPipelineVertexInputStateCreateInfo vertex_input_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .vertexBindingDescriptionCount =
-            AS_U32(std::size(vertex_binding_descriptions)),
-        .pVertexBindingDescriptions = vertex_binding_descriptions,
-        .vertexAttributeDescriptionCount = AS_U32(vertex_input_attr.size()),
-        .pVertexAttributeDescriptions = vertex_input_attr.data()};
-
-    VkPipelineViewportStateCreateInfo viewport_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .viewportCount = 1,
-        .pViewports = nullptr,
-        .scissorCount = 1,
-        .pScissors = nullptr};
-
-    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT,
-                                       VK_DYNAMIC_STATE_SCISSOR};
-
-    VkPipelineDynamicStateCreateInfo dynamic_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .dynamicStateCount = AS_U32(std::size(dynamic_states)),
-        .pDynamicStates = dynamic_states};
-
-    VkGraphicsPipelineCreateInfo create_info{
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .stageCount = AS_U32(std::size(stages)),
-        .pStages = stages,
-        .pVertexInputState = &vertex_input_state,
-        .pInputAssemblyState = &input_assembly_state,
-        .pTessellationState = nullptr,
-        .pViewportState = &viewport_state,
-        .pRasterizationState = &rasterization_state,
-        .pMultisampleState = &multisample_state,
-        .pDepthStencilState = &depth_stencil_state,
-        .pColorBlendState = &color_blend_state,
-        .pDynamicState = &dynamic_state,
-        .layout = layout,
-        .renderPass = target_render_pass,
-        .subpass = 0,
-        .basePipelineHandle = VK_NULL_HANDLE,
-        .basePipelineIndex = 0};
-
-    ASR_VK_CHECK(vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &create_info,
-                                           nullptr, &pipeline));
-  }
-
-  void destroy(VkDevice dev) {
-    vkDestroyPipelineLayout(dev, layout, nullptr);
-    vkDestroyPipeline(dev, pipeline, nullptr);
-  }
-};
-
 struct RecordingContext {
-  VkCommandPool command_pool = VK_NULL_HANDLE;
-  VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-  VkCommandBuffer clip_command_buffer = VK_NULL_HANDLE;
-  VkCommandBuffer upload_command_buffer = VK_NULL_HANDLE;
+  VkCommandPool cmd_pool = VK_NULL_HANDLE;
+  stx::Vec<VkCommandBuffer> cmd_buffers{stx::os_allocator};
+  VkCommandBuffer upload_cmd_buffer = VK_NULL_HANDLE;
   VkShaderModule vertex_shader = VK_NULL_HANDLE;
   VkShaderModule fragment_shader = VK_NULL_HANDLE;
-  VkShaderModule clip_vertex_shader = VK_NULL_HANDLE;
-  VkShaderModule clip_fragment_shader = VK_NULL_HANDLE;
   VkFence upload_fence = VK_NULL_HANDLE;
   Pipeline pipeline;
-  ClipPipeline clip_pipeline;
   stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{
       stx::os_allocator};
   u32 vertex_input_size = 0;
-  stx::Vec<VkVertexInputAttributeDescription> clip_vertex_input_attr{
-      stx::os_allocator};
-  u32 clip_vertex_input_size = 0;
+
   //  each in-flight frame will ideally have one descriptor set
-  stx::Vec<DescriptorSets> descriptor_sets{stx::os_allocator};
+  // TODO(lamarrr): descriptor set layout for pipeline construction
+  // descriptor sets
+  stx::Vec<stx::Vec<DescriptorSets>> descriptor_sets{stx::os_allocator};
 
   void init(
       CommandQueue const& queue, stx::Span<u32 const> vertex_shader_code,
       stx::Span<u32 const> fragment_shader_code,
-      stx::Span<u32 const> clip_vertex_shader_code,
-      stx::Span<u32 const> clip_fragment_shader_code,
       stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
       u32 avertex_input_size,
-      stx::Span<VkVertexInputAttributeDescription const>
-          aclip_vertex_input_attr,
-      u32 aclip_vertex_input_size,
       stx::Span<DescriptorSetSpec const> descriptor_sets_specs) {
     VkDevice dev = queue.device.handle->device;
 
@@ -2955,32 +2422,27 @@ struct RecordingContext {
     };
 
     vertex_shader = create_shader(vertex_shader_code);
-    fragment_shader = create_shader(fragment_shader_code);
-    clip_vertex_shader = create_shader(clip_vertex_shader_code);
-    clip_fragment_shader = create_shader(clip_fragment_shader_code);
 
-    VkCommandPoolCreateInfo command_pool_create_info{
+    fragment_shader = create_shader(fragment_shader_code);
+
+    VkCommandPoolCreateInfo cmd_pool_create_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .pNext = nullptr,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         .queueFamilyIndex = queue.info.family.index};
 
-    ASR_VK_CHECK(vkCreateCommandPool(dev, &command_pool_create_info, nullptr,
-                                     &command_pool));
+    ASR_VK_CHECK(
+        vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
 
-    VkCommandBufferAllocateInfo command_buffer_allocate_info{
+    VkCommandBufferAllocateInfo cmd_buffer_allocate_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .pNext = nullptr,
-        .commandPool = command_pool,
+        .commandPool = cmd_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1};
 
-    ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &command_buffer_allocate_info,
-                                          &command_buffer));
-    ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &command_buffer_allocate_info,
-                                          &clip_command_buffer));
-    ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &command_buffer_allocate_info,
-                                          &upload_command_buffer));
+    ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffer_allocate_info,
+                                          &upload_cmd_buffer));
 
     VkFenceCreateInfo fence_create_info{
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -2993,10 +2455,7 @@ struct RecordingContext {
     vertex_input_attr.extend(avertex_input_attr).unwrap();
     vertex_input_size = avertex_input_size;
 
-    clip_vertex_input_attr.extend(aclip_vertex_input_attr).unwrap();
-    clip_vertex_input_size = aclip_vertex_input_size;
-
-    for (usize i = 0; i < SwapChain::MAX_FRAMES_INFLIGHT; i++) {
+    for (usize i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
       DescriptorSets sets;
 
       stx::Vec<DescriptorSetSpec> specs{stx::os_allocator};
@@ -3010,40 +2469,45 @@ struct RecordingContext {
       descriptor_sets.push(std::move(sets)).unwrap();
     }
 
-    stx::Vec<DescriptorSetSpec> clip_specs{stx::os_allocator};
+    cmd_buffers.resize(SwapChain::MAX_FRAMES_IN_FLIGHT).unwrap();
+
+    VkCommandBufferAllocateInfo cmd_buffers_allocate_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .commandPool = cmd_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = SwapChain::MAX_FRAMES_IN_FLIGHT};
+
+    ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info,
+                                          cmd_buffers.data()));
   }
 
   void on_swapchain_changed(VkDevice dev, SwapChain const& swapchain) {
-    pipeline.build(dev, vertex_shader, fragment_shader, swapchain.render_pass,
-                   swapchain.msaa_sample_count,
-                   descriptor_sets[swapchain.next_frame_flight_index]
-                       .descriptor_set_layouts,
-                   vertex_input_attr, vertex_input_size);
-    clip_pipeline.build(dev, clip_vertex_shader, clip_fragment_shader,
-                        swapchain.clip.render_pass, clip_vertex_input_attr,
-                        clip_vertex_input_size);
+    // NOTE: all descriptor sets have the same layout
+    pipeline.build(
+        dev, vertex_shader, fragment_shader, swapchain.render_pass,
+        swapchain.msaa_sample_count,
+        descriptor_sets[swapchain.next_frame_flight_index][0].layouts,
+        vertex_input_attr, vertex_input_size);
   }
 
   void destroy(VkDevice dev) {
     vkDestroyShaderModule(dev, vertex_shader, nullptr);
     vkDestroyShaderModule(dev, fragment_shader, nullptr);
-    vkDestroyShaderModule(dev, clip_vertex_shader, nullptr);
-    vkDestroyShaderModule(dev, clip_fragment_shader, nullptr);
 
-    vkFreeCommandBuffers(dev, command_pool, 1, &command_buffer);
-    vkFreeCommandBuffers(dev, command_pool, 1, &clip_command_buffer);
-    vkFreeCommandBuffers(dev, command_pool, 1, &upload_command_buffer);
+    vkFreeCommandBuffers(dev, cmd_pool, SwapChain::MAX_FRAMES_IN_FLIGHT,
+                         cmd_buffers.data());
+    vkFreeCommandBuffers(dev, cmd_pool, 1, &upload_cmd_buffer);
 
     vkDestroyFence(dev, upload_fence, nullptr);
 
-    vkDestroyCommandPool(dev, command_pool, nullptr);
+    vkDestroyCommandPool(dev, cmd_pool, nullptr);
 
     for (DescriptorSets& sets : descriptor_sets) {
       sets.destroy();
     }
 
     pipeline.destroy(dev);
-    clip_pipeline.destroy(dev);
   }
 
   stx::Rc<ImageX*> upload_image(stx::Rc<CommandQueue*> const& queue,
@@ -3137,14 +2601,14 @@ struct RecordingContext {
 
     std::memcpy(staging_buffer.memory_map, data.data(), dims.size());
 
-    VkCommandBufferBeginInfo command_buffer_begin_info{
+    VkCommandBufferBeginInfo cmd_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .pNext = nullptr,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo = nullptr};
 
-    ASR_VK_CHECK(vkBeginCommandBuffer(upload_command_buffer,
-                                      &command_buffer_begin_info));
+    ASR_VK_CHECK(
+        vkBeginCommandBuffer(upload_cmd_buffer, &cmd_buffer_begin_info));
 
     VkImageMemoryBarrier pre_upload_barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -3163,10 +2627,10 @@ struct RecordingContext {
                                     .baseArrayLayer = 0,
                                     .layerCount = 1}};
 
-    vkCmdPipelineBarrier(
-        upload_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0,
-        nullptr, 1, &pre_upload_barrier);
+    vkCmdPipelineBarrier(upload_cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, nullptr, 1,
+                         &pre_upload_barrier);
 
     VkBufferImageCopy copy{
         .bufferOffset = 0,
@@ -3181,7 +2645,7 @@ struct RecordingContext {
         .imageExtent =
             VkExtent3D{.width = dims.width, .height = dims.height, .depth = 1}};
 
-    vkCmdCopyBufferToImage(upload_command_buffer, staging_buffer.buffer, image,
+    vkCmdCopyBufferToImage(upload_cmd_buffer, staging_buffer.buffer, image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
     VkImageMemoryBarrier post_upload_barrier{
@@ -3201,12 +2665,12 @@ struct RecordingContext {
                                     .baseArrayLayer = 0,
                                     .layerCount = 1}};
 
-    vkCmdPipelineBarrier(upload_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+    vkCmdPipelineBarrier(upload_cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1,
                          &post_upload_barrier);
 
-    ASR_VK_CHECK(vkEndCommandBuffer(upload_command_buffer));
+    ASR_VK_CHECK(vkEndCommandBuffer(upload_cmd_buffer));
 
     VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                              .pNext = nullptr,
@@ -3214,7 +2678,7 @@ struct RecordingContext {
                              .pWaitSemaphores = nullptr,
                              .pWaitDstStageMask = nullptr,
                              .commandBufferCount = 1,
-                             .pCommandBuffers = &upload_command_buffer,
+                             .pCommandBuffers = &upload_cmd_buffer,
                              .signalSemaphoreCount = 0,
                              .pSignalSemaphores = nullptr};
 
@@ -3226,7 +2690,7 @@ struct RecordingContext {
     ASR_VK_CHECK(
         vkWaitForFences(dev, 1, &upload_fence, VK_TRUE, COMMAND_TIMEOUT));
 
-    ASR_VK_CHECK(vkResetCommandBuffer(upload_command_buffer, 0));
+    ASR_VK_CHECK(vkResetCommandBuffer(upload_cmd_buffer, 0));
 
     staging_buffer.destroy(dev);
 
