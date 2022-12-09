@@ -22,7 +22,6 @@
 #include "vulkan/vk_enum_string_helper.h"
 #include "vulkan/vulkan.h"
 
-
 #define ASR_VK_CHECK(...)                             \
   do {                                                \
     VkResult operation_result = (__VA_ARGS__);        \
@@ -618,7 +617,9 @@ struct Instance {
               vkGetInstanceProcAddr(instance,
                                     "vkDestroyDebugUtilsMessengerEXT"));
 
-      ASR_CHECK(func != nullptr, "unable to destroy debug messenger");
+      ASR_CHECK(func != nullptr,
+                "unable to get procedure address for "
+                "vkDestroyDebugUtilsMessengerEXT");
 
       func(instance, debug_utils_messenger.value(), nullptr);
     }
@@ -1243,129 +1244,6 @@ struct DescriptorSetSpec {
   DescriptorSetSpec() {}
 };
 
-struct DescriptorSet {
-  VkDescriptorSetLayout layout = VK_NULL_HANDLE;
-  VkDescriptorSet set = VK_NULL_HANDLE;
-  DescriptorSetSpec spec;
-
-  void init(VkDevice dev, VkDescriptorPool descriptor_pool,
-            DescriptorSetSpec aspec) {
-    spec = std::move(aspec);
-
-    u32 binding_index = 0;
-    stx::Vec<VkDescriptorSetLayoutBinding> bindings{stx::os_allocator};
-
-    for (DescriptorType type : spec.bindings) {
-      VkDescriptorType vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
-      switch (type) {
-        case DescriptorType::Buffer:
-          vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-          break;
-        case DescriptorType::Sampler:
-          vktype = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-          break;
-        default:
-          ASR_UNREACHABLE();
-      }
-
-      bindings
-          .push(VkDescriptorSetLayoutBinding{.binding = binding_index,
-                                             .descriptorType = vktype,
-                                             .descriptorCount = 1,
-                                             .stageFlags = VK_SHADER_STAGE_ALL,
-                                             .pImmutableSamplers = nullptr})
-          .unwrap();
-
-      binding_index++;
-    }
-
-    VkDescriptorSetLayoutCreateInfo layout_create_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .bindingCount = AS_U32(bindings.size()),
-        .pBindings = bindings.data(),
-    };
-
-    ASR_VK_CHECK(vkCreateDescriptorSetLayout(dev, &layout_create_info, nullptr,
-                                             &layout));
-
-    VkDescriptorSetAllocateInfo descriptor_set_alloc_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .pNext = nullptr,
-        .descriptorPool = descriptor_pool,
-        .descriptorSetCount = 1,
-        .pSetLayouts = &layout};
-
-    ASR_VK_CHECK(
-        vkAllocateDescriptorSets(dev, &descriptor_set_alloc_info, &set));
-  }
-
-  void destroy(VkDevice dev, VkDescriptorPool descriptor_pool) {
-    vkDestroyDescriptorSetLayout(dev, layout, nullptr);
-    ASR_VK_CHECK(vkFreeDescriptorSets(dev, descriptor_pool, 1, &set));
-  }
-
-  void write(VkDevice dev, stx::Span<DescriptorBinding const> bindings) {
-    ASR_CHECK(bindings.size() == spec.bindings.size());
-
-    for (u32 ibinding = 0; ibinding < AS_U32(bindings.size()); ibinding++) {
-      DescriptorBinding binding = bindings[ibinding];
-
-      ASR_CHECK(binding.type == spec.bindings[ibinding]);
-
-      switch (binding.type) {
-        case DescriptorType::Sampler: {
-          VkDescriptorImageInfo image_info{
-              .sampler = binding.sampler,
-              .imageView = binding.view,
-              .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
-          VkWriteDescriptorSet write{
-              .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-              .pNext = nullptr,
-              .dstSet = set,
-              .dstBinding = ibinding,
-              .dstArrayElement = 0,
-              .descriptorCount = 1,
-              .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-              .pImageInfo = &image_info,
-              .pBufferInfo = nullptr,
-              .pTexelBufferView = nullptr,
-          };
-
-          vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
-
-        } break;
-
-        case DescriptorType::Buffer: {
-          VkDescriptorBufferInfo buffer_info{
-              .buffer = binding.buffer, .offset = 0, .range = VK_WHOLE_SIZE};
-
-          VkWriteDescriptorSet write{
-              .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-              .pNext = nullptr,
-              .dstSet = set,
-              .dstBinding = ibinding,
-              .dstArrayElement = 0,
-              .descriptorCount = 1,
-              .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-              .pImageInfo = nullptr,
-              .pBufferInfo = &buffer_info,
-              .pTexelBufferView = nullptr,
-          };
-
-          vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
-        } break;
-
-        default: {
-          ASR_UNREACHABLE();
-        }
-      }
-    }
-  }
-};
 
 struct DescriptorSets {
   VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
@@ -1403,26 +1281,27 @@ struct DescriptorSets {
       u32 binding_index = 0;
 
       for (DescriptorType type : spec.bindings) {
-        VkDescriptorType vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        VkDescriptorType binding_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
         switch (type) {
           case DescriptorType::Buffer:
-            vktype = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            binding_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             break;
           case DescriptorType::Sampler:
-            vktype = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            binding_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             break;
           default:
             ASR_UNREACHABLE();
         }
 
         bindings
-            .push(
-                VkDescriptorSetLayoutBinding{.binding = binding_index,
-                                             .descriptorType = vktype,
-                                             .descriptorCount = 1,
-                                             .stageFlags = VK_SHADER_STAGE_ALL,
-                                             .pImmutableSamplers = nullptr})
+            .push(VkDescriptorSetLayoutBinding{
+                .binding = binding_index,
+                .descriptorType = binding_type,
+                .descriptorCount = 1,
+                .stageFlags =
+                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                .pImmutableSamplers = nullptr})
             .unwrap();
 
         binding_index++;
@@ -2392,18 +2271,14 @@ struct RecordingContext {
   stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{
       stx::os_allocator};
   u32 vertex_input_size = 0;
-
-  //  each in-flight frame will ideally have one descriptor set
-  // TODO(lamarrr): descriptor set layout for pipeline construction
-  // descriptor sets
-  stx::Vec<stx::Vec<DescriptorSets>> descriptor_sets{stx::os_allocator};
+  DescriptorSets descriptor_sets;
 
   void init(
       CommandQueue const& queue, stx::Span<u32 const> vertex_shader_code,
       stx::Span<u32 const> fragment_shader_code,
       stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
       u32 avertex_input_size,
-      stx::Span<DescriptorSetSpec const> descriptor_sets_specs) {
+      stx::Span<DescriptorSetSpec> adescriptor_sets_specs) {
     VkDevice dev = queue.device.handle->device;
 
     auto create_shader = [dev](stx::Span<u32 const> code) {
@@ -2455,18 +2330,52 @@ struct RecordingContext {
     vertex_input_attr.extend(avertex_input_attr).unwrap();
     vertex_input_size = avertex_input_size;
 
-    for (usize i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-      DescriptorSets sets;
+    descriptor_set_specs.extend_move(adescriptor_sets_specs).unwrap();
 
-      stx::Vec<DescriptorSetSpec> specs{stx::os_allocator};
+    for (DescriptorSetSpec const& spec : descriptor_set_specs) {
+      stx::Vec<VkDescriptorSetLayoutBinding> bindings{stx::os_allocator};
 
-      for (DescriptorSetSpec const& spec : descriptor_sets_specs) {
-        specs.push(DescriptorSetSpec{spec.bindings}).unwrap();
+      u32 ibinding = 0;
+
+      for (DescriptorType type : spec.bindings) {
+        VkDescriptorType binding_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+        switch (type) {
+          case DescriptorType::Buffer:
+            binding_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            break;
+          case DescriptorType::Sampler:
+            binding_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            break;
+          default:
+            ASR_UNREACHABLE();
+        }
+
+        VkDescriptorSetLayoutBinding binding{
+            .binding = ibinding,
+            .descriptorType = binding_type,
+            .descriptorCount = 1,
+            .stageFlags =
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT};
+
+        bindings.push_inplace(binding).unwrap();
+        ibinding++;
       }
 
-      sets.init(dev, specs);
+      VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{
+          .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0,
+          .bindingCount = AS_U32(bindings.size()),
+          .pBindings = bindings.data()};
 
-      descriptor_sets.push(std::move(sets)).unwrap();
+      VkDescriptorSetLayout descriptor_set_layout;
+
+      ASR_VK_CHECK(
+          vkCreateDescriptorSetLayout(dev, &descriptor_set_layout_create_info,
+                                      nullptr, &descriptor_set_layout));
+
+      descriptor_set_layouts.push_inplace(descriptor_set_layout).unwrap();
     }
 
     cmd_buffers.resize(SwapChain::MAX_FRAMES_IN_FLIGHT).unwrap();
@@ -2483,12 +2392,9 @@ struct RecordingContext {
   }
 
   void on_swapchain_changed(VkDevice dev, SwapChain const& swapchain) {
-    // NOTE: all descriptor sets have the same layout
-    pipeline.build(
-        dev, vertex_shader, fragment_shader, swapchain.render_pass,
-        swapchain.msaa_sample_count,
-        descriptor_sets[swapchain.next_frame_flight_index][0].layouts,
-        vertex_input_attr, vertex_input_size);
+    pipeline.build(dev, vertex_shader, fragment_shader, swapchain.render_pass,
+                   swapchain.msaa_sample_count, descriptor_set_layouts,
+                   vertex_input_attr, vertex_input_size);
   }
 
   void destroy(VkDevice dev) {
@@ -2503,8 +2409,8 @@ struct RecordingContext {
 
     vkDestroyCommandPool(dev, cmd_pool, nullptr);
 
-    for (DescriptorSets& sets : descriptor_sets) {
-      sets.destroy();
+    for (VkDescriptorSetLayout layout : descriptor_set_layouts) {
+      vkDestroyDescriptorSetLayout(dev, layout, nullptr);
     }
 
     pipeline.destroy(dev);
@@ -2518,7 +2424,7 @@ struct RecordingContext {
         queue.handle->device.handle->phy_device.handle->memory_properties;
 
     ASR_CHECK(data.size_bytes() == dims.size());
-    ASR_CHECK(dims.nchannels == 4);
+    ASR_CHECK(dims.nchannels == 4, "only 4-channel images presently supported");
 
     VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
 
@@ -2528,7 +2434,7 @@ struct RecordingContext {
     } else if (dims.nchannels == 1) {
       format = VK_FORMAT_R8_SRGB;
     } else {
-      ASR_PANIC("Image channels must either be 1, 3, or 4");
+      ASR_PANIC("image channels must either be 1, 3, or 4");
     }
 
     VkImageCreateInfo create_info{

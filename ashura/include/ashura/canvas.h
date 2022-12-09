@@ -717,15 +717,9 @@ struct CanvasContext {
   stx::Vec<vk::SpanBuffer> vertex_buffers{stx::os_allocator};
   stx::Vec<vk::SpanBuffer> index_buffers{stx::os_allocator};
 
-  // stx::Vec<stx::Vec<vk::DescriptorSets>> descriptor_sets{stx::os_allocator};
-
   vk::RecordingContext ctx;
 
   stx::Rc<vk::CommandQueue*> queue;
-
-  // TODO(lamarrr): keep a mapping of [vksampler, vkimageview] to
-  // vkdescriptorset, this won't work since it will end up retaining them for
-  // longer than necessary
 
   CanvasContext(stx::Rc<vk::CommandQueue*> aqueue) : queue{std::move(aqueue)} {
     VkDevice dev = queue.handle->device.handle->device;
@@ -742,19 +736,6 @@ struct CanvasContext {
       vertex_buffers.push(vk::SpanBuffer{}).unwrap();
       index_buffers.push(vk::SpanBuffer{}).unwrap();
     }
-
-    // for (u32 i = 0; i < vk::SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-    //   // TODO(lamarrr): this won't work since we need to keep multiple of
-    //   them
-    //   // per frame. alternative: each texture already has a descriptor set,
-    //   // which will be more efficient and reasonable
-    //   vk::DescriptorSetSpec specs[] = {
-    //       vk::DescriptorSetSpec{vk::DescriptorType::Sampler}};
-    //   vk::DescriptorSets sets;
-    //   sets.init(dev, specs);
-
-    //   // descriptor_sets.push(   );
-    // }
   }
 
   STX_MAKE_PINNED(CanvasContext)
@@ -830,9 +811,6 @@ struct CanvasContext {
     vkCmdBeginRenderPass(cmd_buffer, &render_pass_begin_info,
                          VK_SUBPASS_CONTENTS_INLINE);
 
-    // allocate as many descriptor sets as the number of draw commands to be
-    // issued
-
     VkDeviceSize offset = 0;
 
     vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer,
@@ -855,16 +833,6 @@ struct CanvasContext {
           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
           sizeof(vk::PushConstants), &push_constant);
 
-      vk::DescriptorBinding set0[] = {vk::DescriptorBinding::make_sampler(
-          cmd.texture.handle->image.handle->view, cmd.texture.handle->sampler)};
-
-      stx::Span<vk::DescriptorBinding const> sets[] = {set0};
-
-      // check list contained in frame to see if there's a descriptor set
-      // pointing to the same resource
-
-      ctx.descriptor_sets[frame].write(sets);
-
       VkViewport viewport{.x = 0.0f,
                           .y = 0.0f,
                           .width = AS_F32(swapchain.window_extent.width),
@@ -881,10 +849,7 @@ struct CanvasContext {
 
       vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
 
-      vkCmdBindDescriptorSets(
-          cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipeline.layout, 0,
-          AS_U32(ctx.descriptor_sets[frame].descriptor_sets.size()),
-          ctx.descriptor_sets[frame].descriptor_sets.data(), 0, nullptr);
+      // vkCmdBindDescriptorSets
 
       vkCmdDrawIndexed(cmd_buffer, cmd.nindices, 1, cmd.indices_offset, 0, 0);
     }
