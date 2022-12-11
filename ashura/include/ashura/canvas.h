@@ -984,12 +984,15 @@ struct CanvasContext {
 
     ASR_VK_CHECK(vkEndCommandBuffer(cmd_buffer));
 
+    VkPipelineStageFlags wait_stage =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
     VkSubmitInfo submit_info{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .pNext = nullptr,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &swapchain.image_acquisition_semaphores[frame],
-        .pWaitDstStageMask = nullptr,
+        .pWaitDstStageMask = &wait_stage,
         .commandBufferCount = 1,
         .pCommandBuffers = &cmd_buffer,
         .signalSemaphoreCount = 1,

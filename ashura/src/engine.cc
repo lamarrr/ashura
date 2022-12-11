@@ -219,9 +219,9 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
     gfx::Canvas& c = canvas.value();
 
-    c.restart(vec2{1920, 1080});
-    c.brush.color = colors::WHITE;
-    c.clear();
+   // c.restart(vec2{1920, 1080});
+   // c.brush.color = colors::WHITE;
+   // c.clear();
     c.brush.color = colors::MAGENTA;
     c.brush.pattern = c.transparent_image.share();
     c.draw_rect({0.25 * 1920, .25 * 1080}, {.25 * 1920, .25 * 1080});
