@@ -118,16 +118,11 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   VkSemaphore semaphore =
       swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
 
-  VkFence fence =
-      swapchain.image_acquisition_fences[swapchain.next_frame_flight_index];
-
-  ASR_VK_CHECK(vkResetFences(dev, 1, &fence));
-
   u32 next_swapchain_image_index = 0;
 
-  VkResult result =
-      vkAcquireNextImageKHR(dev, swapchain.swapchain, COMMAND_TIMEOUT,
-                            semaphore, fence, &next_swapchain_image_index);
+  VkResult result = vkAcquireNextImageKHR(
+      dev, swapchain.swapchain, COMMAND_TIMEOUT, semaphore, VK_NULL_HANDLE,
+      &next_swapchain_image_index);
 
   ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                 result == VK_ERROR_OUT_OF_DATE_KHR,

@@ -722,8 +722,6 @@ struct CanvasContext {
   stx::Rc<vk::CommandQueue*> queue;
 
   CanvasContext(stx::Rc<vk::CommandQueue*> aqueue) : queue{std::move(aqueue)} {
-    VkDevice dev = queue.handle->device.handle->device;
-
     std::array vertex_input_attributes = vertex::attribute_descriptions();
 
     vk::DescriptorSetSpec descriptor_set_specs[] = {
@@ -762,8 +760,6 @@ struct CanvasContext {
     VkPhysicalDeviceMemoryProperties const& memory_properties =
         queue.handle->device.handle->phy_device.handle->memory_properties;
 
-    vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
-
     vertex_buffers[next_frame_flight_index].write(
         dev, memory_properties, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
 
@@ -783,11 +779,6 @@ struct CanvasContext {
 
     VkCommandBuffer cmd_buffer = ctx.draw_cmd_buffers[frame];
 
-    ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.rendering_fences[frame],
-                                 VK_TRUE, COMMAND_TIMEOUT));
-
-    ASR_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
-
     __write_vertices(draw_list.vertices, draw_list.indices, frame);
 
     u32 nallocated_descriptor_sets = AS_U32(ctx.descriptor_sets[frame].size());
@@ -802,75 +793,95 @@ struct CanvasContext {
 
     u32 max_ndescriptor_sets = ctx.descriptor_pool_infos[frame].max_sets;
 
-    VkDescriptorSetAllocateInfo descriptor_set_allocate_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .pNext = nullptr,
-        .descriptorPool = ctx.descriptor_pools[frame],
-        .descriptorSetCount = AS_U32(ctx.descriptor_set_layouts.size()),
-        .pSetLayouts = ctx.descriptor_set_layouts.data()};
+    if (ndescriptor_sets_per_draw_call > 0) {
+      if (nrequired_descriptor_sets > nallocated_descriptor_sets) {
+        u32 nallocatable_combined_image_samplers = 0;
 
-    if (nrequired_descriptor_sets > nallocated_descriptor_sets) {
-      u32 nallocatable_combined_image_samplers = 0;
-
-      for (VkDescriptorPoolSize size : ctx.descriptor_pool_infos[frame].sizes) {
-        if (size.type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
-          nallocatable_combined_image_samplers = size.descriptorCount;
-          break;
+        for (VkDescriptorPoolSize size :
+             ctx.descriptor_pool_infos[frame].sizes) {
+          if (size.type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
+            nallocatable_combined_image_samplers = size.descriptorCount;
+            break;
+          }
         }
-      }
 
-      if (nrequired_descriptor_sets > max_ndescriptor_sets ||
-          nrequired_descriptor_sets > nallocatable_combined_image_samplers) {
-        ASR_VK_CHECK(
-            vkFreeDescriptorSets(dev, ctx.descriptor_pools[frame],
-                                 AS_U32(ctx.descriptor_sets[frame].size()),
-                                 ctx.descriptor_sets[frame].data()));
+        if (nrequired_descriptor_sets > max_ndescriptor_sets ||
+            nrequired_descriptor_sets > nallocatable_combined_image_samplers) {
+          if (!ctx.descriptor_sets[frame].is_empty()) {
+            ASR_VK_CHECK(
+                vkFreeDescriptorSets(dev, ctx.descriptor_pools[frame],
+                                     AS_U32(ctx.descriptor_sets[frame].size()),
+                                     ctx.descriptor_sets[frame].data()));
+          }
 
-        vkDestroyDescriptorPool(dev, ctx.descriptor_pools[frame], nullptr);
+          vkDestroyDescriptorPool(dev, ctx.descriptor_pools[frame], nullptr);
 
-        stx::Vec<VkDescriptorPoolSize> sizes{stx::os_allocator};
+          stx::Vec<VkDescriptorPoolSize> sizes{stx::os_allocator};
 
-        sizes
-            .push({.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                   .descriptorCount = nrequired_descriptor_sets})
-            .unwrap();
+          sizes
+              .push({.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                     .descriptorCount = nrequired_descriptor_sets})
+              .unwrap();
 
-        VkDescriptorPoolCreateInfo descriptor_pool_create_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            .maxSets = nrequired_descriptor_sets,
-            .poolSizeCount = AS_U32(sizes.size()),
-            .pPoolSizes = sizes.data()};
+          VkDescriptorPoolCreateInfo descriptor_pool_create_info{
+              .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+              .pNext = nullptr,
+              .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+              .maxSets = nrequired_descriptor_sets,
+              .poolSizeCount = AS_U32(sizes.size()),
+              .pPoolSizes = sizes.data()};
 
-        ASR_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
-                                            nullptr,
-                                            &ctx.descriptor_pools[frame]));
+          ASR_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
+                                              nullptr,
+                                              &ctx.descriptor_pools[frame]));
 
-        ctx.descriptor_pool_infos[frame] = vk::DescriptorPoolInfo{
-            .sizes = std::move(sizes), .max_sets = nrequired_descriptor_sets};
+          ctx.descriptor_pool_infos[frame] = vk::DescriptorPoolInfo{
+              .sizes = std::move(sizes), .max_sets = nrequired_descriptor_sets};
 
-        ctx.descriptor_sets[frame].resize(nrequired_descriptor_sets).unwrap();
+          ctx.descriptor_sets[frame].resize(nrequired_descriptor_sets).unwrap();
 
-        for (u32 i = 0; i < ndraw_calls; i++) {
-          ASR_VK_CHECK(
-              vkAllocateDescriptorSets(dev, &descriptor_set_allocate_info,
-                                       ctx.descriptor_sets[frame].data() +
-                                           i * ndescriptor_sets_per_draw_call));
-        }
-      } else {
-        ctx.descriptor_sets[frame].resize(nrequired_descriptor_sets).unwrap();
-        for (u32 i =
-                 nallocated_descriptor_sets / ndescriptor_sets_per_draw_call;
-             i < nrequired_descriptor_sets / ndescriptor_sets_per_draw_call;
-             i++) {
-          ASR_VK_CHECK(
-              vkAllocateDescriptorSets(dev, &descriptor_set_allocate_info,
-                                       ctx.descriptor_sets[frame].data() +
-                                           i * ndescriptor_sets_per_draw_call));
+          for (u32 i = 0; i < ndraw_calls; i++) {
+            VkDescriptorSetAllocateInfo descriptor_set_allocate_info{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .pNext = nullptr,
+                .descriptorPool = ctx.descriptor_pools[frame],
+                .descriptorSetCount = AS_U32(ctx.descriptor_set_layouts.size()),
+                .pSetLayouts = ctx.descriptor_set_layouts.data()};
+
+            ASR_VK_CHECK(vkAllocateDescriptorSets(
+                dev, &descriptor_set_allocate_info,
+                ctx.descriptor_sets[frame].data() +
+                    i * ndescriptor_sets_per_draw_call));
+          }
+        } else {
+          ctx.descriptor_sets[frame].resize(nrequired_descriptor_sets).unwrap();
+
+          VkDescriptorSetAllocateInfo descriptor_set_allocate_info{
+              .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+              .pNext = nullptr,
+              .descriptorPool = ctx.descriptor_pools[frame],
+              .descriptorSetCount = AS_U32(ctx.descriptor_set_layouts.size()),
+              .pSetLayouts = ctx.descriptor_set_layouts.data()};
+
+          for (u32 i =
+                   nallocated_descriptor_sets / ndescriptor_sets_per_draw_call;
+               i < nrequired_descriptor_sets / ndescriptor_sets_per_draw_call;
+               i++) {
+            ASR_VK_CHECK(vkAllocateDescriptorSets(
+                dev, &descriptor_set_allocate_info,
+                ctx.descriptor_sets[frame].data() +
+                    i * ndescriptor_sets_per_draw_call));
+          }
         }
       }
     }
+
+    ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.rendering_fences[frame],
+                                 VK_TRUE, COMMAND_TIMEOUT));
+
+    ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.rendering_fences[frame]));
+
+    ASR_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
 
     VkCommandBufferBeginInfo command_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,

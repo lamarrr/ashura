@@ -1942,22 +1942,27 @@ struct SwapChain {
       image_acquisition_semaphores.push_inplace(image_acquisition_semaphore)
           .unwrap();
 
-      VkFenceCreateInfo fence_create_info{
+      VkFenceCreateInfo image_acquisition_fence_create_info{
+          .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0};
+
+      VkFence image_acquisition_fence;
+
+      ASR_VK_CHECK(vkCreateFence(dev, &image_acquisition_fence_create_info,
+                                 nullptr, &image_acquisition_fence));
+
+      image_acquisition_fences.push_inplace(image_acquisition_fence).unwrap();
+
+      VkFenceCreateInfo rendering_fence_create_info{
           .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
           .pNext = nullptr,
           .flags = VK_FENCE_CREATE_SIGNALED_BIT};
 
-      VkFence image_acquisition_fence;
-
-      ASR_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr,
-                                 &image_acquisition_fence));
-
-      image_acquisition_fences.push_inplace(image_acquisition_fence).unwrap();
-
       VkFence rendering_fence;
 
-      ASR_VK_CHECK(
-          vkCreateFence(dev, &fence_create_info, nullptr, &rendering_fence));
+      ASR_VK_CHECK(vkCreateFence(dev, &rendering_fence_create_info, nullptr,
+                                 &rendering_fence));
 
       rendering_fences.push_inplace(rendering_fence).unwrap();
     }

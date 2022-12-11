@@ -100,10 +100,10 @@ Engine::Engine(AppConfig const& cfg) {
 
   stx::Vec phy_devices = vk::get_all_devices(vk_instance);
 
-  VkPhysicalDeviceType const device_preference[] = {
+  VkPhysicalDeviceType const device_preference[] = { VK_PHYSICAL_DEVICE_TYPE_CPU,
       VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
       VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
-      VK_PHYSICAL_DEVICE_TYPE_CPU};
+     };
 
   xlogger.info("Available Physical Devices:");
 
@@ -223,7 +223,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.brush.color = colors::TRANSPARENT;
     c.clear();
     // c.draw_rect({0, 0}, {1920, 1080});
-    c.brush.color = colors::MAGENTA.with_alpha(10);
+    c.brush.color = colors::MAGENTA;
     c.brush.pattern = c.transparent_image.share();
     c.draw_rect({0.25 * 1920, .25 * 1080}, {.25 * 1920, .25 * 1080});
     // c.draw_circle({0.25 * 1920, 0.25 * 1080}, 200, 2000);
@@ -263,10 +263,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
       continue;
     }
 
-    ASR_VK_CHECK(vkWaitForFences(
-        swapchain.queue.handle->device.handle->device, 1,
-        &swapchain.image_acquisition_fences[swapchain.next_frame_flight_index],
-        VK_TRUE, COMMAND_TIMEOUT));
 
     canvas_context.value().handle->submit(
         window.value().handle->surface_.value().handle->swapchain.value(),
