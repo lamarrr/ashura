@@ -28,7 +28,7 @@
     ASR_CHECK(operation_result == VK_SUCCESS,         \
               "Vulkan Operation: (" #__VA_ARGS__      \
               ")  failed! (VK_SUCCESS not returned)", \
-              operation_result);                      \
+              string_VkResult(operation_result));     \
   } while (false)
 
 namespace asr {
@@ -196,7 +196,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 
   ASR_LOG("Available Vulkan Extensions:");
 
-  for (auto extension : available_extensions) {
+  for (VkExtensionProperties extension : available_extensions) {
     ASR_LOG("\t{},  spec version: {}", extension.extensionName,
             extension.specVersion);
   }
@@ -725,10 +725,9 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 }
 
 inline std::string format(PhyDeviceInfo const& dev) {
-  auto const& properties = dev.properties;
   return fmt::format("Device(name: '{}', ID: {}, type: {}) ",
-                     properties.deviceName, properties.deviceID,
-                     ::asr::vk::format(properties.deviceType));
+                     dev.properties.deviceName, dev.properties.deviceID,
+                     ::asr::vk::format(dev.properties.deviceType));
 }
 
 // automatically destroyed once the device is destroyed
@@ -815,9 +814,9 @@ inline stx::Rc<Device*> create_device(
   stx::Vec<CommandQueueInfo> command_queues{stx::os_allocator};
 
   for (usize i = 0; i < command_queue_create_info.size(); i++) {
-    auto create_info = command_queue_create_info[i];
-    auto command_queue_family_index = create_info.queueFamilyIndex;
-    auto queue_count = create_info.queueCount;
+    VkDeviceQueueCreateInfo create_info = command_queue_create_info[i];
+    u32 command_queue_family_index = create_info.queueFamilyIndex;
+    u32 queue_count = create_info.queueCount;
     ASR_CHECK(command_queue_family_index <
               phy_dev.handle->family_properties.size());
 
@@ -1200,10 +1199,10 @@ inline stx::Rc<ImageSampler*> create_image_sampler(
       .unwrap();
 }
 
-enum class DescriptorType : u8 { Buffer, Sampler };
+enum class DescriptorType : u8 { UniformBuffer, CombinedImageSampler };
 
 struct DescriptorBinding {
-  DescriptorType type = DescriptorType::Buffer;
+  DescriptorType type = DescriptorType::UniformBuffer;
 
   // only valid if type is DescriptorType::Buffer
   VkBuffer buffer = VK_NULL_HANDLE;
@@ -1215,13 +1214,15 @@ struct DescriptorBinding {
   VkSampler sampler = VK_NULL_HANDLE;
 
   static constexpr DescriptorBinding make_buffer(VkBuffer buffer) {
-    return DescriptorBinding{.type = DescriptorType::Buffer, .buffer = buffer};
+    return DescriptorBinding{.type = DescriptorType::UniformBuffer,
+                             .buffer = buffer};
   }
 
   static constexpr DescriptorBinding make_sampler(VkImageView view,
                                                   VkSampler sampler) {
-    return DescriptorBinding{
-        .type = DescriptorType::Sampler, .view = view, .sampler = sampler};
+    return DescriptorBinding{.type = DescriptorType::CombinedImageSampler,
+                             .view = view,
+                             .sampler = sampler};
   }
 
   constexpr bool operator==(DescriptorBinding const& other) const {
@@ -1244,7 +1245,7 @@ struct DescriptorSetSpec {
   DescriptorSetSpec() {}
 };
 
-
+/*
 struct DescriptorSets {
   VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
 
@@ -1260,7 +1261,8 @@ struct DescriptorSets {
 
     VkDescriptorPoolSize pool_sizes[] = {
         {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 20},
-        {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 10}};
+        {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount =
+10}};
 
     VkDescriptorPoolCreateInfo pool_create_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -1417,6 +1419,7 @@ struct DescriptorSets {
     }
   }
 };
+*/
 
 inline Image create_msaa_color_resource(
     VkDevice dev, VkPhysicalDeviceMemoryProperties const& memory_properties,
@@ -1617,7 +1620,7 @@ inline VkPresentModeKHR select_swapchain_presentation_mode(
   ASR_CHECK(!available_presentation_modes.is_empty(),
             "no surface presentation mode available");
 
-  for (auto const& preferred_present_mode : preferred_present_modes) {
+  for (VkPresentModeKHR preferred_present_mode : preferred_present_modes) {
     if (!available_presentation_modes.find(preferred_present_mode).is_empty())
       return preferred_present_mode;
   }
@@ -1942,7 +1945,7 @@ struct SwapChain {
       VkFenceCreateInfo fence_create_info{
           .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
           .pNext = nullptr,
-          .flags = 0};
+          .flags = VK_FENCE_CREATE_SIGNALED_BIT};
 
       VkFence image_acquisition_fence;
 
@@ -2260,25 +2263,43 @@ struct Pipeline {
   }
 };
 
+struct DescriptorPoolInfo {
+  stx::Vec<VkDescriptorPoolSize> sizes;
+  u32 max_sets = 0;
+};
+
 struct RecordingContext {
   VkCommandPool cmd_pool = VK_NULL_HANDLE;
-  stx::Vec<VkCommandBuffer> cmd_buffers{stx::os_allocator};
+  stx::Vec<VkCommandBuffer> draw_cmd_buffers{stx::os_allocator};
   VkCommandBuffer upload_cmd_buffer = VK_NULL_HANDLE;
   VkShaderModule vertex_shader = VK_NULL_HANDLE;
   VkShaderModule fragment_shader = VK_NULL_HANDLE;
   VkFence upload_fence = VK_NULL_HANDLE;
-  Pipeline pipeline;
+  Pipeline pipeline{};
+  // one descriptor pool per frame in flight
+  stx::Vec<VkDescriptorPool> descriptor_pools{stx::os_allocator};
+  stx::Vec<DescriptorPoolInfo> descriptor_pool_infos{stx::os_allocator};
+  // specifications describing binding types/layouts for the descriptor sets
+  // used. we will have multiple of each
+  stx::Vec<DescriptorSetSpec> descriptor_set_specs{stx::os_allocator};
+  // the created layouts for each of the descriptor sets
+  stx::Vec<VkDescriptorSetLayout> descriptor_set_layouts{stx::os_allocator};
+  // the allocated descriptor sets, the first vec is for each frame in flight
+  // and the second vec contains the descriptor sets repeated for each of the
+  // draw calls. i.e. num_draw_calls x num_descriptor_sets_per_frame
+  stx::Vec<stx::Vec<VkDescriptorSet>> descriptor_sets{stx::os_allocator};
   stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{
       stx::os_allocator};
   u32 vertex_input_size = 0;
-  DescriptorSets descriptor_sets;
 
   void init(
       CommandQueue const& queue, stx::Span<u32 const> vertex_shader_code,
       stx::Span<u32 const> fragment_shader_code,
       stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
       u32 avertex_input_size,
-      stx::Span<DescriptorSetSpec> adescriptor_sets_specs) {
+      stx::Span<DescriptorSetSpec> adescriptor_sets_specs,
+      stx::Span<VkDescriptorPoolSize const> adescriptor_pool_sizes,
+      u32 max_descriptor_sets) {
     VkDevice dev = queue.device.handle->device;
 
     auto create_shader = [dev](stx::Span<u32 const> code) {
@@ -2341,10 +2362,10 @@ struct RecordingContext {
         VkDescriptorType binding_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
         switch (type) {
-          case DescriptorType::Buffer:
+          case DescriptorType::UniformBuffer:
             binding_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             break;
-          case DescriptorType::Sampler:
+          case DescriptorType::CombinedImageSampler:
             binding_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             break;
           default:
@@ -2378,7 +2399,7 @@ struct RecordingContext {
       descriptor_set_layouts.push_inplace(descriptor_set_layout).unwrap();
     }
 
-    cmd_buffers.resize(SwapChain::MAX_FRAMES_IN_FLIGHT).unwrap();
+    draw_cmd_buffers.resize(SwapChain::MAX_FRAMES_IN_FLIGHT).unwrap();
 
     VkCommandBufferAllocateInfo cmd_buffers_allocate_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -2388,7 +2409,38 @@ struct RecordingContext {
         .commandBufferCount = SwapChain::MAX_FRAMES_IN_FLIGHT};
 
     ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info,
-                                          cmd_buffers.data()));
+                                          draw_cmd_buffers.data()));
+
+    for (u32 i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+      stx::Vec<VkDescriptorPoolSize> pool_sizes{stx::os_allocator};
+      pool_sizes.extend(adescriptor_pool_sizes).unwrap();
+
+      VkDescriptorPoolCreateInfo descriptor_pool_create_info{
+          .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+          .maxSets = max_descriptor_sets,
+          .poolSizeCount = AS_U32(adescriptor_pool_sizes.size()),
+          .pPoolSizes = adescriptor_pool_sizes.data()};
+
+      VkDescriptorPool descriptor_pool;
+
+      ASR_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
+                                          nullptr, &descriptor_pool));
+
+      descriptor_pools.push_inplace(descriptor_pool).unwrap();
+
+      descriptor_pool_infos
+          .push(DescriptorPoolInfo{
+              .sizes = std::move(pool_sizes),
+              .max_sets = descriptor_pool_create_info.maxSets})
+          .unwrap();
+    }
+
+    for (usize i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+      descriptor_sets.push(stx::Vec<VkDescriptorSet>{stx::os_allocator})
+          .unwrap();
+    }
   }
 
   void on_swapchain_changed(VkDevice dev, SwapChain const& swapchain) {
@@ -2402,7 +2454,7 @@ struct RecordingContext {
     vkDestroyShaderModule(dev, fragment_shader, nullptr);
 
     vkFreeCommandBuffers(dev, cmd_pool, SwapChain::MAX_FRAMES_IN_FLIGHT,
-                         cmd_buffers.data());
+                         draw_cmd_buffers.data());
     vkFreeCommandBuffers(dev, cmd_pool, 1, &upload_cmd_buffer);
 
     vkDestroyFence(dev, upload_fence, nullptr);
@@ -2411,6 +2463,17 @@ struct RecordingContext {
 
     for (VkDescriptorSetLayout layout : descriptor_set_layouts) {
       vkDestroyDescriptorSetLayout(dev, layout, nullptr);
+    }
+
+    u32 frame_index = 0;
+    for (stx::Vec<VkDescriptorSet> const& set : descriptor_sets) {
+      vkFreeDescriptorSets(dev, descriptor_pools[frame_index],
+                           AS_U32(set.size()), set.data());
+      frame_index++;
+    }
+
+    for (VkDescriptorPool descriptor_pool : descriptor_pools) {
+      vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
     }
 
     pipeline.destroy(dev);

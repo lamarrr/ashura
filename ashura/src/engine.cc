@@ -63,8 +63,6 @@ Engine::Engine(AppConfig const& cfg) {
   stx::Vec<char const*> required_device_extensions{stx::os_allocator};
 
   required_device_extensions.push(VK_KHR_SWAPCHAIN_EXTENSION_NAME).unwrap();
-  required_device_extensions.push(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME)
-      .unwrap();
 
   stx::Vec<char const*> required_validation_layers{stx::os_allocator};
 

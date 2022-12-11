@@ -724,13 +724,18 @@ struct CanvasContext {
   CanvasContext(stx::Rc<vk::CommandQueue*> aqueue) : queue{std::move(aqueue)} {
     VkDevice dev = queue.handle->device.handle->device;
 
-    auto vertex_input_attributes = vertex::attribute_descriptions();
+    std::array vertex_input_attributes = vertex::attribute_descriptions();
 
     vk::DescriptorSetSpec descriptor_set_specs[] = {
-        vk::DescriptorSetSpec{vk::DescriptorType::Sampler}};
+        vk::DescriptorSetSpec{vk::DescriptorType::CombinedImageSampler}};
+
+    VkDescriptorPoolSize descriptor_pool_sizes[] = {
+        {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         .descriptorCount = 1}};
 
     ctx.init(*queue.handle, vertex_shader_code, fragment_shader_code,
-             vertex_input_attributes, sizeof(vertex), descriptor_set_specs);
+             vertex_input_attributes, sizeof(vertex), descriptor_set_specs,
+             descriptor_pool_sizes, 1);
 
     for (u32 i = 0; i < vk::SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
       vertex_buffers.push(vk::SpanBuffer{}).unwrap();
@@ -776,7 +781,7 @@ struct CanvasContext {
 
     u32 frame = swapchain.next_frame_flight_index;
 
-    VkCommandBuffer cmd_buffer = ctx.cmd_buffers[frame];
+    VkCommandBuffer cmd_buffer = ctx.draw_cmd_buffers[frame];
 
     ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.rendering_fences[frame],
                                  VK_TRUE, COMMAND_TIMEOUT));
@@ -784,6 +789,88 @@ struct CanvasContext {
     ASR_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
 
     __write_vertices(draw_list.vertices, draw_list.indices, frame);
+
+    u32 nallocated_descriptor_sets = AS_U32(ctx.descriptor_sets[frame].size());
+
+    u32 ndraw_calls = AS_U32(draw_list.cmds.size());
+
+    u32 ndescriptor_sets_per_draw_call =
+        AS_U32(ctx.descriptor_set_layouts.size());
+
+    u32 nrequired_descriptor_sets =
+        ndescriptor_sets_per_draw_call * ndraw_calls;
+
+    u32 max_ndescriptor_sets = ctx.descriptor_pool_infos[frame].max_sets;
+
+    VkDescriptorSetAllocateInfo descriptor_set_allocate_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .descriptorPool = ctx.descriptor_pools[frame],
+        .descriptorSetCount = AS_U32(ctx.descriptor_set_layouts.size()),
+        .pSetLayouts = ctx.descriptor_set_layouts.data()};
+
+    if (nrequired_descriptor_sets > nallocated_descriptor_sets) {
+      u32 nallocatable_combined_image_samplers = 0;
+
+      for (VkDescriptorPoolSize size : ctx.descriptor_pool_infos[frame].sizes) {
+        if (size.type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
+          nallocatable_combined_image_samplers = size.descriptorCount;
+          break;
+        }
+      }
+
+      if (nrequired_descriptor_sets > max_ndescriptor_sets ||
+          nrequired_descriptor_sets > nallocatable_combined_image_samplers) {
+        ASR_VK_CHECK(
+            vkFreeDescriptorSets(dev, ctx.descriptor_pools[frame],
+                                 AS_U32(ctx.descriptor_sets[frame].size()),
+                                 ctx.descriptor_sets[frame].data()));
+
+        vkDestroyDescriptorPool(dev, ctx.descriptor_pools[frame], nullptr);
+
+        stx::Vec<VkDescriptorPoolSize> sizes{stx::os_allocator};
+
+        sizes
+            .push({.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                   .descriptorCount = nrequired_descriptor_sets})
+            .unwrap();
+
+        VkDescriptorPoolCreateInfo descriptor_pool_create_info{
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+            .maxSets = nrequired_descriptor_sets,
+            .poolSizeCount = AS_U32(sizes.size()),
+            .pPoolSizes = sizes.data()};
+
+        ASR_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
+                                            nullptr,
+                                            &ctx.descriptor_pools[frame]));
+
+        ctx.descriptor_pool_infos[frame] = vk::DescriptorPoolInfo{
+            .sizes = std::move(sizes), .max_sets = nrequired_descriptor_sets};
+
+        ctx.descriptor_sets[frame].resize(nrequired_descriptor_sets).unwrap();
+
+        for (u32 i = 0; i < ndraw_calls; i++) {
+          ASR_VK_CHECK(
+              vkAllocateDescriptorSets(dev, &descriptor_set_allocate_info,
+                                       ctx.descriptor_sets[frame].data() +
+                                           i * ndescriptor_sets_per_draw_call));
+        }
+      } else {
+        ctx.descriptor_sets[frame].resize(nrequired_descriptor_sets).unwrap();
+        for (u32 i =
+                 nallocated_descriptor_sets / ndescriptor_sets_per_draw_call;
+             i < nrequired_descriptor_sets / ndescriptor_sets_per_draw_call;
+             i++) {
+          ASR_VK_CHECK(
+              vkAllocateDescriptorSets(dev, &descriptor_set_allocate_info,
+                                       ctx.descriptor_sets[frame].data() +
+                                           i * ndescriptor_sets_per_draw_call));
+        }
+      }
+    }
 
     VkCommandBufferBeginInfo command_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -822,7 +909,31 @@ struct CanvasContext {
     vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx.pipeline.pipeline);
 
-    for (DrawCommand const& cmd : draw_list.cmds) {
+    for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
+      VkDescriptorImageInfo image_info{
+          .sampler = draw_list.cmds[icmd].texture.handle->sampler,
+          .imageView = draw_list.cmds[icmd].texture.handle->image.handle->view,
+          .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+      VkWriteDescriptorSet write{
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .pNext = nullptr,
+          .dstSet = ctx.descriptor_sets[frame][icmd],
+          .dstBinding = 0,
+          .dstArrayElement = 0,
+          .descriptorCount = 1,
+          .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+          .pImageInfo = &image_info,
+          .pBufferInfo = nullptr,
+          .pTexelBufferView = nullptr,
+      };
+
+      vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
+    }
+
+    for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
+      DrawCommand const& cmd = draw_list.cmds[icmd];
+
       vk::PushConstants push_constant{
           .transform = cmd.transform,
           .overlay = {cmd.color.r / 255.0f, cmd.color.g / 255.0f,
@@ -849,7 +960,11 @@ struct CanvasContext {
 
       vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
 
-      // vkCmdBindDescriptorSets
+      vkCmdBindDescriptorSets(
+          cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipeline.layout, 0,
+          ndescriptor_sets_per_draw_call,
+          &ctx.descriptor_sets[frame][icmd * ndescriptor_sets_per_draw_call], 0,
+          nullptr);
 
       vkCmdDrawIndexed(cmd_buffer, cmd.nindices, 1, cmd.indices_offset, 0, 0);
     }

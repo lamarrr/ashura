@@ -8,7 +8,7 @@ layout(push_constant) uniform PushConstants {
 }
 push_constants;
 
-layout(set = 1, binding = 0) uniform sampler2D skin_texture;
+layout(set = 0, binding = 0) uniform sampler2D skin_texture;
 
 layout(location = 0) out vec4 out_color;
 
