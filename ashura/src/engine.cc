@@ -100,10 +100,10 @@ Engine::Engine(AppConfig const& cfg) {
 
   stx::Vec phy_devices = vk::get_all_devices(vk_instance);
 
-  VkPhysicalDeviceType const device_preference[] = { VK_PHYSICAL_DEVICE_TYPE_CPU,
+  VkPhysicalDeviceType const device_preference[] = {
       VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
       VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
-     };
+      VK_PHYSICAL_DEVICE_TYPE_CPU};
 
   xlogger.info("Available Physical Devices:");
 
@@ -220,13 +220,11 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     gfx::Canvas& c = canvas.value();
 
     c.restart(vec2{1920, 1080});
-    c.brush.color = colors::TRANSPARENT;
+    c.brush.color = colors::WHITE;
     c.clear();
-    // c.draw_rect({0, 0}, {1920, 1080});
     c.brush.color = colors::MAGENTA;
     c.brush.pattern = c.transparent_image.share();
     c.draw_rect({0.25 * 1920, .25 * 1080}, {.25 * 1920, .25 * 1080});
-    // c.draw_circle({0.25 * 1920, 0.25 * 1080}, 200, 2000);
   };
 
   draw_content();
@@ -262,7 +260,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       continue;
     }
-
 
     canvas_context.value().handle->submit(
         window.value().handle->surface_.value().handle->swapchain.value(),
