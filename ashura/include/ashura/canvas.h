@@ -443,8 +443,6 @@ struct Canvas {
   Canvas& scale(f32 x, f32 y) { return scale(x, y, 1.0f); }
 
   Canvas& clear() {
-    restart(viewport_extent);
-
     vertex vertices[] = {{{0, 0}, {0, 1}},
                          {{viewport_extent.x, 0}, {1, 1}},
                          {viewport_extent, {1, 0}},
@@ -464,7 +462,7 @@ struct Canvas {
     draw_list.cmds
         .push(DrawCommand{.indices_offset = 0,
                           .nindices = AS_U32(std::size(indices)),
-                          .clip_rect = clip_rect,
+                          .clip_rect = rect{{0, 0}, viewport_extent},
                           .transform = mat4::identity(),
                           .color = brush.color,
                           .texture = brush.pattern.share()})
@@ -911,15 +909,6 @@ struct CanvasContext {
 
     VkDeviceSize offset = 0;
 
-    vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer,
-                           &offset);
-
-    vkCmdBindIndexBuffer(cmd_buffer, index_buffers[frame].buffer, 0,
-                         VK_INDEX_TYPE_UINT32);
-
-    vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      ctx.pipeline.pipeline);
-
     for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
       VkDescriptorImageInfo image_info{
           .sampler = draw_list.cmds[icmd].texture.handle->sampler,
@@ -942,18 +931,17 @@ struct CanvasContext {
       vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
     }
 
+    vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      ctx.pipeline.pipeline);
+
+    vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer,
+                           &offset);
+
+    vkCmdBindIndexBuffer(cmd_buffer, index_buffers[frame].buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+
     for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
       DrawCommand const& cmd = draw_list.cmds[icmd];
-
-      vk::PushConstants push_constant{
-          .transform = cmd.transform,
-          .overlay = {cmd.color.r / 255.0f, cmd.color.g / 255.0f,
-                      cmd.color.b / 255.0f, cmd.color.a / 255.0f}};
-
-      vkCmdPushConstants(
-          cmd_buffer, ctx.pipeline.layout,
-          VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-          sizeof(vk::PushConstants), &push_constant);
 
       VkViewport viewport{.x = 0.0f,
                           .y = 0.0f,
@@ -970,6 +958,16 @@ struct CanvasContext {
                                   AS_U32(cmd.clip_rect.extent.y)}};
 
       vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
+
+      vk::PushConstants push_constant{
+          .transform = cmd.transform,
+          .overlay = {cmd.color.r / 255.0f, cmd.color.g / 255.0f,
+                      cmd.color.b / 255.0f, cmd.color.a / 255.0f}};
+
+      vkCmdPushConstants(
+          cmd_buffer, ctx.pipeline.layout,
+          VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+          sizeof(vk::PushConstants), &push_constant);
 
       vkCmdBindDescriptorSets(
           cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipeline.layout, 0,

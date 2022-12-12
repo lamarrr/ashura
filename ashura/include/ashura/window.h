@@ -179,6 +179,7 @@ struct Window {
     // forward event if refresh rate changed
   }
 
+  bool needs_resizing = false;
   stx::Rc<WindowApi*> api_;
   SDL_Window* window_ = nullptr;
   WindowID id_ = WindowID{0};

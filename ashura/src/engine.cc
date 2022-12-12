@@ -101,9 +101,9 @@ Engine::Engine(AppConfig const& cfg) {
   stx::Vec phy_devices = vk::get_all_devices(vk_instance);
 
   VkPhysicalDeviceType const device_preference[] = {
+      VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
       VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
-      VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
-      VK_PHYSICAL_DEVICE_TYPE_CPU};
+      VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU, VK_PHYSICAL_DEVICE_TYPE_CPU};
 
   xlogger.info("Available Physical Devices:");
 
@@ -208,6 +208,13 @@ Engine::Engine(AppConfig const& cfg) {
 };
 
 void Engine::tick(std::chrono::nanoseconds interval) {
+  // poll events to make the window not be marked as unresponsive.
+  // we also poll events from SDL's event queue until there are none left.
+  //
+  // any missed event should be rolled over to the next tick()
+  do {
+  } while (window_api.value().handle->poll_events());
+
   // TODO(lamarrr): try getting window extent on each frame instead
   window.value().handle->tick(interval);
 
@@ -219,12 +226,14 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
     gfx::Canvas& c = canvas.value();
 
-   // c.restart(vec2{1920, 1080});
-   // c.brush.color = colors::WHITE;
-   // c.clear();
+    c.restart(vec2{1920, 1080});
+    c.brush.color = colors::WHITE;
+    c.clear();
     c.brush.color = colors::MAGENTA;
     c.brush.pattern = c.transparent_image.share();
     c.draw_rect({0.25 * 1920, .25 * 1080}, {.25 * 1920, .25 * 1080});
+    c.brush.color = colors::GREEN.with_alpha(0);
+    c.draw_rect({0.4 * 1920, .4 * 1080}, {.125 * 1920, .125 * 1080});
   };
 
   draw_content();
@@ -238,6 +247,11 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   // presentation
 
   WindowSwapchainDiff swapchain_diff = WindowSwapchainDiff::None;
+
+  if (window.value().handle->needs_resizing) {
+    swapchain_diff = WindowSwapchainDiff::Extent;
+    window.value().handle->needs_resizing = false;
+  }
 
   do {
     if (swapchain_diff != WindowSwapchainDiff::None) {
@@ -265,6 +279,8 @@ void Engine::tick(std::chrono::nanoseconds interval) {
         window.value().handle->surface_.value().handle->swapchain.value(),
         next_swapchain_image_index, canvas.value().draw_list);
 
+    canvas.value().clear();
+
     swapchain_diff = window.value().handle->present(next_swapchain_image_index);
 
     // the frame semaphores and synchronization primitives are still used even
@@ -274,13 +290,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
         vk::SwapChain::MAX_FRAMES_IN_FLIGHT;
 
   } while (swapchain_diff != WindowSwapchainDiff::None);
-
-  // poll events to make the window not be marked as unresponsive.
-  // we also poll events from SDL's event queue until there are none left.
-  //
-  // any missed event should be rolled over to the next tick()
-  do {
-  } while (window_api.value().handle->poll_events());
 
   //   pipeline->dispatch_events(
   //   window->handle.handle->event_queue.mouse_button_events,

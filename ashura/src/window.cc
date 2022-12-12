@@ -82,13 +82,14 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
 
   VkSurfaceFormatKHR preferred_formats[] = {
       {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
+      {VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
       {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
       {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
       {VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}};
 
   VkPresentModeKHR preferred_present_modes[] = {
-      VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_FIFO_KHR,
-      VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR};
+      VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR,
+      VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_MAILBOX_KHR};
 
   VkSampleCountFlagBits msaa_sample_count =
       queue.handle->device.handle->phy_device.handle->get_max_sample_count();
@@ -99,7 +100,7 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
       VkExtent2D{.width = window_extent_.w, .height = window_extent_.h},
       msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
 
-  ASR_LOG_TRACE(
+  ASR_LOG(
       "recreated swapchain for logical/window/viewport extent: [{}, {}], "
       "physical/surface extent: [{}, {}]",
       width, height, surface_width, surface_height);
@@ -118,11 +119,13 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   VkSemaphore semaphore =
       swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
 
+  VkFence fence = VK_NULL_HANDLE;
+
   u32 next_swapchain_image_index = 0;
 
-  VkResult result = vkAcquireNextImageKHR(
-      dev, swapchain.swapchain, COMMAND_TIMEOUT, semaphore, VK_NULL_HANDLE,
-      &next_swapchain_image_index);
+  VkResult result =
+      vkAcquireNextImageKHR(dev, swapchain.swapchain, COMMAND_TIMEOUT,
+                            semaphore, fence, &next_swapchain_image_index);
 
   ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                 result == VK_ERROR_OUT_OF_DATE_KHR,

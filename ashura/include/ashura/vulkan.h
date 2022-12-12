@@ -921,6 +921,7 @@ struct SpanBuffer {
   void write(VkDevice dev,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
              VkBufferUsageFlags usage, stx::Span<T const> span) {
+    // TODO(lamarrr): handle zero-sized buffers
     if (span.size_bytes() != size) {
       vkDestroyBuffer(dev, buffer, nullptr);
 
@@ -1753,10 +1754,20 @@ struct SwapChain {
     VkSurfaceFormatKHR selected_format = select_swapchain_surface_formats(
         properties.supported_formats, preferred_formats);
 
+    spdlog::info(
+        "selected swapchain surface format: [format: {}, color space: {}]",
+        string_VkFormat(selected_format.format),
+        string_VkColorSpaceKHR(selected_format.colorSpace));
+
+    spdlog::info("Available swapchain presentation modes:");
+
     // TODO(lamarrr): log selections
     // swapchain presentation modes are device-dependent
     VkPresentModeKHR selected_present_mode = select_swapchain_presentation_mode(
         properties.presentation_modes, preferred_present_modes);
+
+    spdlog::info("selected swapchain presentation mode: {}",
+                  string_VkPresentModeKHR(selected_present_mode));
 
     auto [new_swapchain, new_extent] = create_swapchain(
         dev, target_surface, preferred_extent, selected_format,
@@ -2150,7 +2161,7 @@ struct Pipeline {
         .flags = 0,
         .depthTestEnable = VK_TRUE,
         .depthWriteEnable = VK_TRUE,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
         .depthBoundsTestEnable = VK_FALSE,
         .stencilTestEnable = VK_FALSE,
         .front = VkStencilOpState{.failOp = VK_STENCIL_OP_KEEP,
@@ -2163,7 +2174,7 @@ struct Pipeline {
         .back = VkStencilOpState{.failOp = VK_STENCIL_OP_KEEP,
                                  .passOp = VK_STENCIL_OP_KEEP,
                                  .depthFailOp = VK_STENCIL_OP_KEEP,
-                                 .compareOp = VK_COMPARE_OP_NEVER,
+                                 .compareOp = VK_COMPARE_OP_ALWAYS,
                                  .compareMask = 0,
                                  .writeMask = 0,
                                  .reference = 0},
