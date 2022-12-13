@@ -226,7 +226,8 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
     gfx::Canvas& c = canvas.value();
 
-    c.restart(vec2{1920, 1080});
+    c.restart({AS_F32(window.value().handle->window_extent_.w),
+               AS_F32(window.value().handle->window_extent_.h)});
     c.brush.color = colors::WHITE;
     c.clear();
     c.brush.color = colors::MAGENTA;
@@ -234,6 +235,10 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.draw_rect({0.25 * 1920, .25 * 1080}, {.25 * 1920, .25 * 1080});
     c.brush.color = colors::GREEN.with_alpha(0);
     c.draw_rect({0.4 * 1920, .4 * 1080}, {.125 * 1920, .125 * 1080});
+    c.brush.color = colors::CYAN;
+    c.draw_round_rect({0, 0}, {500, 200}, {100, 100, 100, 100}, 20);
+    c.brush.color = colors::BLUE;
+    c.draw_circle({200, 200}, 200, 20);
   };
 
   draw_content();
