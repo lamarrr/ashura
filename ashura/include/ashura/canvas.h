@@ -157,10 +157,6 @@ struct Shadow {
   Color color = colors::BLACK;
 };
 
-struct Filter {
-  // None by default
-};
-
 enum class TextAlign : u8 {
   // detect locale and other crap
   Start,
@@ -212,7 +208,7 @@ enum class FontWeight : u32 {
 // - easy resource specification
 // - caching so we don't have to reupload on every frame
 // - GPU texture/image
-
+//
 // requirements:
 // -
 struct TypefaceId {
@@ -298,8 +294,6 @@ struct Brush {
   f32 line_width = 1.0f;
   Image pattern;
   TextStyle text_style;
-  Filter filter;
-  Shadow shadow;
 };
 
 struct DrawCommand {
@@ -330,24 +324,17 @@ inline void transform_vertices_to_viewport(stx::Span<vertex> vertices,
   for (usize i = 0; i < vertices.size(); i++) {
     vec2 position = vertices[i].position;
 
-    // transform to -1 to +1 range with x pointing right and y pointing upwards
+    // transform to -1 to +1 range from x pointing right and y pointing upwards
     vec2 normalized = (2 * position / viewport_extent) - 1;
-
-    // positions are specified with x pointing right and y pointing downwards
-    vec2 flipped = normalized * vec2{1, -1};
 
     // transform vertex position into texture coordinates (within the polygon's
     // extent)
-    //
-    //
-    // TODO(lamarrr): texture coordinates have bottom-left origin
-    //
     vec2 st = (position - polygon_area.offset) / polygon_area.extent;
 
     // map it into the portion of the texture we are interested in
     st = (texture_area.offset + st * texture_area.extent);
 
-    vertices[i] = vertex{.position = flipped, .st = st};
+    vertices[i] = vertex{.position = normalized, .st = st};
   }
 }
 
@@ -356,7 +343,7 @@ inline void transform_vertices_to_viewport(stx::Span<vertex> vertices,
 //
 //
 /// Coordinates are specified in top-left origin space with x pointing to the
-/// right and y pointing downwards
+/// right and y pointing downwards. all specified in pixels.
 ///
 struct Canvas {
   vec2 viewport_extent;
@@ -472,8 +459,7 @@ struct Canvas {
   }
 
   Canvas& draw_polygon_line(stx::Span<vec2 const> line) {
-    /*
-    ASR_CHECK(line.size() >= 2);
+    // if(line.size() < )
 
     u32 start = AS_U32(draw_list.indices.size());
     u32 nindices = 0;
@@ -535,7 +521,6 @@ struct Canvas {
                           .color = brush.color,
                           .texture = brush.pattern.share()})
         .unwrap();
-        */
     return *this;
   }
 
@@ -544,9 +529,6 @@ struct Canvas {
     if (polygon.size() < 3 || area.extent.x == 0 || area.extent.y == 0 ||
         !clip_rect.overlaps(area))
       return *this;
-
-    // TODO(lamarrr): somehow, the vertices are still transformed and the area
-    // is cleared
 
     u32 start = AS_U32(draw_list.indices.size());
 
