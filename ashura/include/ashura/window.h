@@ -162,7 +162,7 @@ struct Window {
   WindowSwapchainDiff present(u32 next_swapchain_image_index);
 
   void on(WindowEvent event, stx::UniqueFn<void()> callback) {
-    event_listeners.emplace(event, std::move(callback));
+    event_listeners.push(std::make_pair(event, std::move(callback))).unwrap();
   }
 
   // use SDL_EVENT_DISPLAY
@@ -189,7 +189,8 @@ struct Window {
   std::thread::id init_thread_id_;
   stx::Option<stx::Unique<vk::Surface*>> surface_;
   u32 refresh_rate_ = 1;
-  std::map<WindowEvent, stx::UniqueFn<void()>> event_listeners;
+  stx::Vec<std::pair<WindowEvent, stx::UniqueFn<void()>>> event_listeners{
+      stx::os_allocator};
   stx::UniqueFn<void(MouseClickEvent const&)> mouse_click_listener =
       stx::fn::rc::make_unique_static([](MouseClickEvent const&) {});
   stx::UniqueFn<void(MouseMotionEvent const&)> mouse_motion_listener =

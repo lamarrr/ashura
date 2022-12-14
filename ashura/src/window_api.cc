@@ -69,14 +69,13 @@ bool WindowApi::poll_events() {
       case SDL_WINDOWEVENT: {
         Window* win = get_window_info(WindowID{event.window.windowID});
 
-        auto listener = win->event_listeners.find(
-            impl::sdl_window_event_to_asr(event.window.event));
+        WindowEvent win_event =
+            impl::sdl_window_event_to_asr(event.window.event);
 
-        if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-          win->needs_resizing = true;
-
-        if (listener != win->event_listeners.end()) {
-          listener->second.handle();
+        for (auto const& listener : win->event_listeners) {
+          if (listener.first == win_event) {
+            listener.second.handle();
+          }
         }
 
         return true;
