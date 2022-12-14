@@ -182,8 +182,7 @@ Engine::Engine(AppConfig const& cfg) {
       }).unwrap());
 
   window.value().handle->mouse_motion_listener =
-      stx::fn::rc::make_unique_static(
-          [](MouseMotionEvent const&) { ASR_LOG("mouse motion detected"); });
+      stx::fn::rc::make_unique_static([](MouseMotionEvent const&) {});
 
   u32 const transparent_image_data[1] = {0x00000000};
   // TODO(lamarrr): fill with zeros
@@ -205,6 +204,20 @@ Engine::Engine(AppConfig const& cfg) {
       stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
         std::exit(0);
       }).unwrap());
+
+  window.value().handle->on(
+      WindowEvent::Resized,
+      stx::fn::rc::make_unique_functor(
+          stx::os_allocator,
+          [win = window.value().handle]() { win->needs_resizing = true; })
+          .unwrap());
+
+  window.value().handle->on(
+      WindowEvent::SizeChanged,
+      stx::fn::rc::make_unique_functor(
+          stx::os_allocator,
+          [win = window.value().handle]() { win->needs_resizing = true; })
+          .unwrap());
 };
 
 void Engine::tick(std::chrono::nanoseconds interval) {
@@ -226,19 +239,18 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
     gfx::Canvas& c = canvas.value();
 
-    c.restart({AS_F32(window.value().handle->window_extent_.w),
-               AS_F32(window.value().handle->window_extent_.h)});
+    c.restart({AS_F32(extent.width), AS_F32(extent.height)});
     c.brush.color = colors::WHITE;
     c.clear();
     c.brush.color = colors::MAGENTA;
     c.brush.pattern = c.transparent_image.share();
-    c.draw_rect({0.25 * 1920, .25 * 1080}, {.25 * 1920, .25 * 1080});
+    c.draw_rect({0, 0}, {200, 100});
     c.brush.color = colors::GREEN.with_alpha(0);
     c.draw_rect({0.4 * 1920, .4 * 1080}, {.125 * 1920, .125 * 1080});
     c.brush.color = colors::CYAN;
-    c.draw_round_rect({0, 0}, {500, 200}, {100, 100, 100, 100}, 20);
-    c.brush.color = colors::BLUE;
-    c.draw_circle({200, 200}, 200, 20);
+    c.draw_round_rect({0, 0}, {500, 200}, {100, 100, 100, 100}, 200);
+    c.brush.color = colors::BLUE.with_alpha(127);
+    c.draw_circle({200, 200}, 200, 200);
   };
 
   draw_content();
@@ -252,11 +264,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   // presentation
 
   WindowSwapchainDiff swapchain_diff = WindowSwapchainDiff::None;
-
-  if (window.value().handle->needs_resizing) {
-    swapchain_diff = WindowSwapchainDiff::Extent;
-    window.value().handle->needs_resizing = false;
-  }
 
   do {
     if (swapchain_diff != WindowSwapchainDiff::None) {
