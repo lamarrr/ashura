@@ -42,25 +42,28 @@ struct vertex {
 
 namespace gfx {
 
-inline void triangulate_convex_polygon(stx::Vec<u32>& indices, u32 first_index,
+inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
+                                       u32 first_vertex_index,
                                        stx::Span<vec2 const> polygon) {
   ASR_CHECK(polygon.size() >= 3, "polygon must have 3 or more points");
 
   for (u32 i = 2; i < polygon.size(); i++) {
-    indices.push_inplace(first_index).unwrap();
-    indices.push_inplace(first_index + (i - 1)).unwrap();
-    indices.push_inplace(first_index + i).unwrap();
+    indices.push_inplace(first_vertex_index).unwrap();
+    indices.push_inplace(first_vertex_index + (i - 1)).unwrap();
+    indices.push_inplace(first_vertex_index + i).unwrap();
   }
 }
 
 inline void triangulate_line(stx::Vec<vertex>& ivertices,
-                             stx::Vec<u32>& iindices, u32 first_index,
+                             stx::Vec<u32>& iindices, u32 first_vertex_index,
                              stx::Span<vec2 const> points, float line_width) {
   // TODO(lamarrr): we need to handle the case where the p1 and p2 have x or y
   // equal as it will make the solution tend to nan/-nan
   if (points.size() < 2) return;
 
   bool has_previous_line = false;
+
+  u32 vertex_index = first_vertex_index;
 
   for (usize i = 1; i < points.size(); i++) {
     vec2 p1 = points[i - 1];
@@ -106,25 +109,30 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
                          {.position = t1, .st = {}},
                          {.position = t2, .st = {}}};
 
-    u32 indices[] = {first_index, first_index + 1, first_index + 3,
-                     first_index, first_index + 2, first_index + 3};
+    u32 indices[] = {vertex_index, vertex_index + 1, vertex_index + 3,
+                     vertex_index, vertex_index + 2, vertex_index + 3};
 
     ivertices.extend(vertices).unwrap();
     iindices.extend(indices).unwrap();
 
+    // TODO(lamarrr):separate the pass for connecting the line segments?
     // connect lines
     if (has_previous_line) {
-      // TODO(lamarrr): this will most likely be the source of the bug
-      u32 prev_first_index = first_index - 4;
+      u32 prev_line_vertex_index = vertex_index - 4;
 
-      u32 indices[] = {prev_first_index + 2, prev_first_index + 3,
-                       first_index,          prev_first_index + 2,
-                       prev_first_index + 3, first_index + 1};
+      u32 indices[] = {prev_line_vertex_index + 2,
+                       prev_line_vertex_index + 3,
+                       vertex_index,
+                       prev_line_vertex_index + 2,
+                       prev_line_vertex_index + 3,
+                       vertex_index + 1};
 
       iindices.extend(indices).unwrap();
     }
 
     has_previous_line = true;
+
+    vertex_index += 4;
   }
 }
 
@@ -550,24 +558,32 @@ struct Canvas {
 
     u32 nindices = AS_U32(draw_list.indices.size() - start);
 
-    std::cout << "===BEGIN" << std::endl;
-    for (vertex v : draw_list.vertices.span().slice(vertices_offset)) {
-      std::cout << "vertex: " << v.position.x << ", " << v.position.y
-                << std::endl;
-    }
-    std::cout << "===END" << std::endl;
-// print offsets, indices, etc.
+    /* std::cout << "===BEGIN" << std::endl;
+     for (vertex v : draw_list.vertices.span().slice(vertices_offset)) {
+       std::cout << "vertex: " << v.position.x << ", " << v.position.y
+                 << std::endl;
+     }
+     std::cout << "===END" << std::endl;
+     */
+    // print offsets, indices, etc.
     transform_vertices_to_viewport(
         draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
         texture_area);
-
-    std::cout << "===BEGIN" << std::endl;
+    /*
+    std::cout << "===BEGIN TX" << std::endl;
     for (vertex v : draw_list.vertices.span().slice(vertices_offset)) {
       std::cout << "vertex: " << v.position.x << ", " << v.position.y
                 << std::endl;
     }
-    std::cout << "===END" << std::endl;
+    std::cout << "===END TX" << std::endl;
 
+    std::cout << "vertices offest:" << vertices_offset << std::endl;
+
+    for (u32 i : draw_list.indices.span().slice(start)) {
+      std::cout << i << "[" << draw_list.vertices[i].position.x << ", "
+                << draw_list.vertices[i].position.y << "]" << std::endl;
+    }
+    */
     draw_list.cmds
         .push(DrawCommand{.indices_offset = start,
                           .nindices = nindices,
@@ -634,7 +650,11 @@ struct Canvas {
     if (brush.fill) {
       return draw_convex_polygon_filled(points, area, texture_area);
     } else {
-      vec2 opoints[] = {points[0], points[1], points[2], points[0]};
+      area.offset =
+          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
+      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
+      vec2 opoints[] = {points[0], points[1], points[2],
+                        points[3], points[0], points[1]};
       return draw_lines(opoints, area, texture_area);
     }
   }
@@ -647,12 +667,18 @@ struct Canvas {
     rect area{center - radius, 2 * vec2{radius, radius}};
     rect texture_area{{0, 0}, {1, 1}};
 
+    // TODO(lamarrr): add line width to the area if it is a line rendering.
     if (brush.fill) {
       return draw_convex_polygon_filled(points, area, texture_area);
     } else {
       if (!points.is_empty()) {
         points.push_inplace(points[0]).unwrap();
+        // TODO(lamarrr)
+        points.push_inplace(points[1]).unwrap();
       }
+      area.offset =
+          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
+      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
       return draw_lines(points, area, texture_area);
     }
   }
@@ -670,7 +696,11 @@ struct Canvas {
     } else {
       if (!points.is_empty()) {
         points.push_inplace(points[0]).unwrap();
+        points.push_inplace(points[1]).unwrap();
       }
+      area.offset =
+          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
+      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
       return draw_lines(points, area, texture_area);
     }
   }
@@ -689,7 +719,11 @@ struct Canvas {
     } else {
       if (!points.is_empty()) {
         points.push_inplace(points[0]).unwrap();
+        points.push_inplace(points[1]).unwrap();
       }
+      area.offset =
+          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
+      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
       return draw_lines(points, area, texture_area);
     }
   }

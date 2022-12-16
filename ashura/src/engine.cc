@@ -247,10 +247,16 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     //c.rotate(0, M_PI / 4, 0);
     //c.translate(1920/2, 1080/2);
     //c.scale(0.5f, 0.5f, 1.0f);
-    c.brush.color = colors::MAGENTA;
+    c.brush.color = colors::MAGENTA.with_alpha(0);
     c.brush.pattern = c.transparent_image.share();
     c.brush.fill = false;
-    c.draw_rect({0, 0}, {100, 100});
+    c.brush.line_width = 50;
+    c.draw_round_rect({100,100}, {500, 200}, {50, 50, 50, 50}, 200);
+    
+    //c.draw_rect({200, 200}, {250, 250});
+    
+    //c.draw_circle({150, 150}, 200, 6);
+
     /* c.brush.color = colors::GREEN.with_alpha(63);
     c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});
     c.brush.color = colors::CYAN.with_alpha(63);
