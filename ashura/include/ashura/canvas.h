@@ -114,6 +114,7 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
 
     // connect lines
     if (has_previous_line) {
+      // TODO(lamarrr): this will most likely be the source of the bug
       u32 prev_first_index = first_index - 4;
 
       u32 indices[] = {prev_first_index + 2, prev_first_index + 3,
@@ -555,12 +556,12 @@ struct Canvas {
                 << std::endl;
     }
     std::cout << "===END" << std::endl;
-
+// print offsets, indices, etc.
     transform_vertices_to_viewport(
         draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
         texture_area);
 
-        std::cout << "===BEGIN" << std::endl;
+    std::cout << "===BEGIN" << std::endl;
     for (vertex v : draw_list.vertices.span().slice(vertices_offset)) {
       std::cout << "vertex: " << v.position.x << ", " << v.position.y
                 << std::endl;
