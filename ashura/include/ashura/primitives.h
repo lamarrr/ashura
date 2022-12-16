@@ -104,6 +104,26 @@ struct vec3 {
   f32 x = 0.0f, y = 0.0f, z = 0.0f;
 };
 
+constexpr vec3 operator-(vec3 a, f32 b) {
+  return vec3{a.x - b, a.y - b, a.z - b};
+}
+
+constexpr vec3 operator-(f32 a, vec3 b) {
+  return vec3{a - b.x, a - b.y, a - b.z};
+}
+
+constexpr vec3 operator*(vec3 a, f32 b) {
+  return vec3{a.x * b, a.y * b, a.z * b};
+}
+
+constexpr vec3 operator*(f32 a, vec3 b) {
+  return vec3{a * b.x, a * b.y, a * b.z};
+}
+
+constexpr vec3 operator/(vec3 a, vec3 b) {
+  return vec3{a.x / b.x, a.y / b.y, a.z / b.z};
+}
+
 struct vec4 {
   f32 x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;
 };
@@ -124,6 +144,13 @@ struct mat4 {
                 vec4{.x = 0.0f, .y = 1.0f, .z = 0.0f, .w = 0.0f},
                 vec4{.x = 0.0f, .y = 0.0f, .z = 1.0f, .w = 0.0f},
                 vec4{.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f}};
+  }
+
+  constexpr mat4 transpose() const {
+    return mat4{vec4{data[0].x, data[1].x, data[2].x, data[3].x},
+                vec4{data[0].y, data[1].y, data[2].y, data[3].y},
+                vec4{data[0].z, data[1].z, data[2].z, data[3].z},
+                vec4{data[0].w, data[1].w, data[2].w, data[3].w}};
   }
 };
 

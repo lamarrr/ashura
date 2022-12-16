@@ -238,19 +238,31 @@ void Engine::tick(std::chrono::nanoseconds interval) {
                             .window_extent;
 
     gfx::Canvas& c = canvas.value();
+    static int x = 0;
+    static auto start = std::chrono::steady_clock::now();
 
     c.restart({AS_F32(extent.width), AS_F32(extent.height)});
     c.brush.color = colors::WHITE;
     c.clear();
+    //c.rotate(0, M_PI / 4, 0);
+    //c.translate(1920/2, 1080/2);
+    //c.scale(0.5f, 0.5f, 1.0f);
     c.brush.color = colors::MAGENTA;
     c.brush.pattern = c.transparent_image.share();
-    c.draw_rect({0, 0}, {200, 100});
-    c.brush.color = colors::GREEN.with_alpha(0);
-    c.draw_rect({0.4 * 1920, .4 * 1080}, {.125 * 1920, .125 * 1080});
-    c.brush.color = colors::CYAN;
-    c.draw_round_rect({0, 0}, {500, 200}, {100, 100, 100, 100}, 200);
+    c.brush.fill = false;
+    c.draw_rect({0, 0}, {100, 100});
+    /* c.brush.color = colors::GREEN.with_alpha(63);
+    c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});
+    c.brush.color = colors::CYAN.with_alpha(63);
+    // c.rotate(0, 0, 0);
+    float interval = std::chrono::duration_cast<std::chrono::milliseconds>(
+                         std::chrono::steady_clock::now() - start)
+                         .count();
+    // c.translate(0, -interval / 10000.0f);
+    c.draw_round_rect({0, 0}, {500, 200}, {50, 50, 50, 50}, 200);
     c.brush.color = colors::BLUE.with_alpha(127);
-    c.draw_circle({200, 200}, 200, 200);
+    c.draw_circle({0, 0}, 200, 200);
+    */
   };
 
   draw_content();
