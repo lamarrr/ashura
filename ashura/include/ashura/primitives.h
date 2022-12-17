@@ -98,6 +98,8 @@ struct rect {
     return x1_min < x2_max && x1_max > x2_min && y2_max > y1_min &&
            y2_min < y1_max;
   }
+
+  constexpr bool is_visible() const { return extent.x != 0 && extent.y != 0; }
 };
 
 struct vec3 {

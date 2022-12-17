@@ -16,6 +16,8 @@
 namespace asr {
 using namespace stx::literals;
 
+namespace gfx {
+
 struct vertex {
   vec2 position;
   vec2 st;
@@ -40,109 +42,13 @@ struct vertex {
   }
 };
 
-namespace gfx {
-
-inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
-                                       u32 first_vertex_index,
-                                       stx::Span<vec2 const> polygon) {
-  ASR_CHECK(polygon.size() >= 3, "polygon must have 3 or more points");
-
-  for (u32 i = 2; i < polygon.size(); i++) {
-    indices.push_inplace(first_vertex_index).unwrap();
-    indices.push_inplace(first_vertex_index + (i - 1)).unwrap();
-    indices.push_inplace(first_vertex_index + i).unwrap();
-  }
-}
-
-inline void triangulate_line(stx::Vec<vertex>& ivertices,
-                             stx::Vec<u32>& iindices, u32 first_vertex_index,
-                             stx::Span<vec2 const> points, float line_width) {
-  // TODO(lamarrr): we need to handle the case where the p1 and p2 have x or y
-  // equal as it will make the solution tend to nan/-nan
-  if (points.size() < 2) return;
-
-  bool has_previous_line = false;
-
-  u32 vertex_index = first_vertex_index;
-
-  for (usize i = 1; i < points.size(); i++) {
-    vec2 p1 = points[i - 1];
-    vec2 p2 = points[i];
-
-    // the angles are specified in clockwise direction to be compatible with the
-    // vulkan coordinate system
-    //
-    // get the angle of inclination of p2 to p1
-    vec2 d = p2 - p1;
-    f32 m = std::abs(d.y / d.x);
-    f32 alpha = std::atan(m);
-
-    // use direction of the points to get the actual overall angle of
-    // inclination of p2 to p1
-    if (d.x < 0 && d.y > 0) {
-      alpha = AS_F32(M_PI - alpha);
-    } else if (d.x < 0 && d.y < 0) {
-      alpha = AS_F32(M_PI + alpha);
-    } else if (d.x > 0 && d.y < 0) {
-      alpha = AS_F32(2 * M_PI - alpha);
-    } else {
-      // d.x >=0 && d.y >= 0
-    }
-
-    // line will be at a parallel angle
-    alpha = AS_F32(alpha + M_PI / 2);
-
-    f32 hw = line_width / 2;
-
-    vec2 f = vec2{hw * std::cos(alpha), hw * std::sin(alpha)};
-    vec2 g = vec2{hw * std::cos(AS_F32(M_PI + alpha)),
-                  hw * std::sin(AS_F32(M_PI + alpha))};
-
-    vec2 s1 = p1 + f;
-    vec2 s2 = p1 + g;
-
-    vec2 t1 = p2 + f;
-    vec2 t2 = p2 + g;
-
-    vertex vertices[] = {{.position = s1, .st = {}},
-                         {.position = s2, .st = {}},
-                         {.position = t1, .st = {}},
-                         {.position = t2, .st = {}}};
-
-    u32 indices[] = {vertex_index, vertex_index + 1, vertex_index + 3,
-                     vertex_index, vertex_index + 2, vertex_index + 3};
-
-    ivertices.extend(vertices).unwrap();
-    iindices.extend(indices).unwrap();
-
-    // TODO(lamarrr):separate the pass for connecting the line segments?
-    // connect lines
-    if (has_previous_line) {
-      u32 prev_line_vertex_index = vertex_index - 4;
-
-      u32 indices[] = {prev_line_vertex_index + 2,
-                       prev_line_vertex_index + 3,
-                       vertex_index,
-                       prev_line_vertex_index + 2,
-                       prev_line_vertex_index + 3,
-                       vertex_index + 1};
-
-      iindices.extend(indices).unwrap();
-    }
-
-    has_previous_line = true;
-
-    vertex_index += 4;
-  }
-}
-
 namespace polygons {
 
-inline void rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent) {
-  polygon[0] = offset;
-  polygon[1] = {offset.x + extent.x, offset.y};
-  polygon[2] = offset + extent;
-  polygon[3] = {offset.x, offset.y + extent.y};
+inline void rect(stx::Span<vec2> polygon, asr::rect area) {
+  polygon[0] = area.offset;
+  polygon[1] = {area.offset.x + area.extent.x, area.offset.y};
+  polygon[2] = area.offset + area.extent;
+  polygon[3] = {area.offset.x, area.offset.y + area.extent.y};
 }
 
 inline void circle(stx::Span<vec2> polygon, vec2 center, f32 radius,
@@ -157,40 +63,41 @@ inline void circle(stx::Span<vec2> polygon, vec2 center, f32 radius,
   }
 }
 
-inline void ellipse(stx::Span<vec2> polygon, vec2 center, vec2 radius,
+inline void ellipse(stx::Span<vec2> polygon, vec2 center, vec2 radii,
                     usize nsegments) {
-  if (nsegments == 0 || radius.x <= 0 || radius.y <= 0) return;
+  if (nsegments == 0 || radii.x <= 0 || radii.y <= 0) return;
 
   f32 step = AS_F32((2 * M_PI) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
-    polygon[i] = vec2{center.x + radius.x - radius.x * std::cos(i * step),
-                      center.y + radius.y - radius.y * std::sin(i * step)};
+    polygon[i] = vec2{center.x + radii.x - radii.x * std::cos(i * step),
+                      center.y + radii.y - radii.y * std::sin(i * step)};
   }
 }
 
 /// {polygon.size() == nsegments * 4}
-inline void round_rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent,
-                       vec4 radii, usize nsegments) {
+inline void round_rect(stx::Span<vec2> polygon, asr::rect area, vec4 radii,
+                       usize nsegments) {
   if (nsegments == 0) return;
 
-  radii.x = std::min(radii.x, std::min(extent.x, extent.y));
-  radii.y = std::min(radii.y, std::min(extent.x, extent.y));
-  radii.z = std::min(radii.z, std::min(extent.x, extent.y));
-  radii.w = std::min(radii.w, std::min(extent.x, extent.y));
+  radii.x = std::min(radii.x, std::min(area.extent.x, area.extent.y));
+  radii.y = std::min(radii.y, std::min(area.extent.x, area.extent.y));
+  radii.z = std::min(radii.z, std::min(area.extent.x, area.extent.y));
+  radii.w = std::min(radii.w, std::min(area.extent.x, area.extent.y));
 
   f32 step = AS_F32((M_PI / 2) / nsegments);
 
   usize i = 0;
 
-  vec2 xoffset{offset.x + radii.x, offset.y + radii.x};
+  vec2 xoffset{area.offset.x + radii.x, area.offset.y + radii.x};
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     polygon[i] = vec2{xoffset.x - radii.x * std::cos(segment * step),
                       xoffset.y - radii.x * std::sin(segment * step)};
   }
 
-  vec2 yoffset{offset.x + extent.x - radii.y, offset.y + radii.y};
+  vec2 yoffset{area.offset.x + area.extent.x - radii.y,
+               area.offset.y + radii.y};
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     polygon[i] =
@@ -198,7 +105,8 @@ inline void round_rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent,
              yoffset.y - radii.y * std::sin(AS_F32(M_PI / 2) + segment * step)};
   }
 
-  vec2 zoffset{offset.x + extent.x - radii.z, offset.y + extent.y - radii.z};
+  vec2 zoffset{area.offset.x + area.extent.x - radii.z,
+               area.offset.y + area.extent.y - radii.z};
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     polygon[i] =
@@ -206,7 +114,8 @@ inline void round_rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent,
              zoffset.y - radii.z * std::sin(AS_F32(M_PI) + segment * step)};
   }
 
-  vec2 woffset{offset.x + radii.w, offset.y + extent.y - radii.w};
+  vec2 woffset{area.offset.x + radii.w,
+               area.offset.y + area.extent.y - radii.w};
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     polygon[i] = vec2{
@@ -215,7 +124,7 @@ inline void round_rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent,
   }
 }
 
-};  // namespace polygons
+}  // namespace polygons
 
 struct TextMetrics {
   // x-direction
@@ -236,8 +145,7 @@ struct TextMetrics {
 };
 
 struct Shadow {
-  f32 offset_x = 0;
-  f32 offset_y = 0;
+  vec2 offset;
   f32 blur_radius = 0;
   Color color = colors::BLACK;
 };
@@ -296,18 +204,16 @@ enum class FontWeight : u32 {
 //
 // requirements:
 // -
-struct TypefaceId {
-  u64 id = 0;
-};
+// struct TypefaceId {
+//   u64 id = 0;
+// };
 
 // stored in vulkan context
 using Image = stx::Rc<vk::ImageSampler*>;
 
 struct Typeface;
 
-struct TypefaceRetainer;
-
-// TODO(lamarrr): embed font into a cpp file
+// TODO(lamarrr): embed default font into a cpp file
 //
 // on font loading
 //
@@ -423,12 +329,104 @@ inline void transform_vertices_to_viewport(stx::Span<vertex> vertices,
   }
 }
 
+inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
+                                       u32 first_vertex_index,
+                                       stx::Span<vec2 const> polygon) {
+  ASR_CHECK(polygon.size() >= 3, "polygon must have 3 or more points");
+
+  for (u32 i = 2; i < polygon.size(); i++) {
+    indices.push_inplace(first_vertex_index).unwrap();
+    indices.push_inplace(first_vertex_index + (i - 1)).unwrap();
+    indices.push_inplace(first_vertex_index + i).unwrap();
+  }
+}
+
+inline void triangulate_line(stx::Vec<vertex>& ivertices,
+                             stx::Vec<u32>& iindices, u32 first_vertex_index,
+                             stx::Span<vec2 const> points, f32 line_width) {
+  // TODO(lamarrr): we need to handle the case where the p1 and p2 have x or y
+  // equal as it will make the solution tend to nan/-nan
+  if (points.size() < 2) return;
+
+  bool has_previous_line = false;
+
+  u32 vertex_index = first_vertex_index;
+
+  for (usize i = 1; i < points.size(); i++) {
+    vec2 p1 = points[i - 1];
+    vec2 p2 = points[i];
+
+    // the angles are specified in clockwise direction to be compatible with the
+    // vulkan coordinate system
+    //
+    // get the angle of inclination of p2 to p1
+    vec2 d = p2 - p1;
+    f32 m = std::abs(d.y / d.x);
+    f32 alpha = std::atan(m);
+
+    // use direction of the points to get the actual overall angle of
+    // inclination of p2 to p1
+    if (d.x < 0 && d.y > 0) {
+      alpha = AS_F32(M_PI - alpha);
+    } else if (d.x < 0 && d.y < 0) {
+      alpha = AS_F32(M_PI + alpha);
+    } else if (d.x > 0 && d.y < 0) {
+      alpha = AS_F32(2 * M_PI - alpha);
+    } else {
+      // d.x >=0 && d.y >= 0
+    }
+
+    // line will be at a parallel angle
+    alpha = AS_F32(alpha + M_PI / 2);
+
+    f32 hw = line_width / 2;
+
+    vec2 f = vec2{hw * std::cos(alpha), hw * std::sin(alpha)};
+    vec2 g = vec2{hw * std::cos(AS_F32(M_PI + alpha)),
+                  hw * std::sin(AS_F32(M_PI + alpha))};
+
+    vec2 s1 = p1 + f;
+    vec2 s2 = p1 + g;
+
+    vec2 t1 = p2 + f;
+    vec2 t2 = p2 + g;
+
+    vertex vertices[] = {{.position = s1, .st = {}},
+                         {.position = s2, .st = {}},
+                         {.position = t1, .st = {}},
+                         {.position = t2, .st = {}}};
+
+    u32 indices[] = {vertex_index, vertex_index + 1, vertex_index + 3,
+                     vertex_index, vertex_index + 2, vertex_index + 3};
+
+    ivertices.extend(vertices).unwrap();
+    iindices.extend(indices).unwrap();
+
+    if (has_previous_line) {
+      u32 prev_line_vertex_index = vertex_index - 4;
+
+      u32 indices[] = {prev_line_vertex_index + 2,
+                       prev_line_vertex_index + 3,
+                       vertex_index,
+                       prev_line_vertex_index + 2,
+                       prev_line_vertex_index + 3,
+                       vertex_index + 1};
+
+      iindices.extend(indices).unwrap();
+    }
+
+    has_previous_line = true;
+
+    vertex_index += 4;
+  }
+}
+
 // TODO(lamarrr): properly handle the case of zero sized indices and clip
 // indices
 //
 //
 /// Coordinates are specified in top-left origin space with x pointing to the
-/// right and y pointing downwards. all specified in pixels.
+/// right and y pointing downwards.
 ///
 struct Canvas {
   vec2 viewport_extent;
@@ -472,14 +470,15 @@ struct Canvas {
   // save current transform and clip state
   // pop state (transform and clips) stack and restore state
   Canvas& restore() {
-    ASR_CHECK(!transform_state_stack.is_empty());
-    ASR_CHECK(!clip_rect_stack.is_empty());
+    if (!transform_state_stack.is_empty()) {
+      transform = *(transform_state_stack.end() - 1);
+      transform_state_stack.erase(transform_state_stack.span().slice(1));
+    }
 
-    transform = *(transform_state_stack.end() - 1);
-    transform_state_stack.erase(transform_state_stack.span().slice(1));
-
-    clip_rect = *(clip_rect_stack.end() - 1);
-    clip_rect_stack.erase(clip_rect_stack.span().slice(1));
+    if (!clip_rect_stack.is_empty()) {
+      clip_rect = *(clip_rect_stack.end() - 1);
+      clip_rect_stack.erase(clip_rect_stack.span().slice(1));
+    }
 
     return *this;
   }
@@ -544,10 +543,11 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& draw_lines(stx::Span<vec2 const> points, rect area,
-                     rect texture_area) {
-    if (area.extent.x == 0 || area.extent.y == 0 || !clip_rect.overlaps(area))
+  Canvas& draw_lines(stx::Span<vec2 const> points, rect area, rect texture_area,
+                     Image const& pattern) {
+    if (!area.is_visible() || !clip_rect.overlaps(area)) {
       return *this;
+    }
 
     u32 start = AS_U32(draw_list.indices.size());
 
@@ -558,49 +558,27 @@ struct Canvas {
 
     u32 nindices = AS_U32(draw_list.indices.size() - start);
 
-    /* std::cout << "===BEGIN" << std::endl;
-     for (vertex v : draw_list.vertices.span().slice(vertices_offset)) {
-       std::cout << "vertex: " << v.position.x << ", " << v.position.y
-                 << std::endl;
-     }
-     std::cout << "===END" << std::endl;
-     */
-    // print offsets, indices, etc.
     transform_vertices_to_viewport(
         draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
         texture_area);
-    /*
-    std::cout << "===BEGIN TX" << std::endl;
-    for (vertex v : draw_list.vertices.span().slice(vertices_offset)) {
-      std::cout << "vertex: " << v.position.x << ", " << v.position.y
-                << std::endl;
-    }
-    std::cout << "===END TX" << std::endl;
 
-    std::cout << "vertices offest:" << vertices_offset << std::endl;
-
-    for (u32 i : draw_list.indices.span().slice(start)) {
-      std::cout << i << "[" << draw_list.vertices[i].position.x << ", "
-                << draw_list.vertices[i].position.y << "]" << std::endl;
-    }
-    */
     draw_list.cmds
         .push(DrawCommand{.indices_offset = start,
                           .nindices = nindices,
                           .clip_rect = clip_rect,
                           .transform = transform,
                           .color = brush.color,
-                          .texture = brush.pattern.share()})
+                          .texture = pattern.share()})
         .unwrap();
 
     return *this;
   }
 
   Canvas& draw_convex_polygon_filled(stx::Span<vec2 const> polygon, rect area,
-                                     rect texture_area) {
-    if (polygon.size() < 3 || area.extent.x == 0 || area.extent.y == 0 ||
-        !clip_rect.overlaps(area))
+                                     rect texture_area, Image const& pattern) {
+    if (polygon.size() < 3 || !area.is_visible() || !clip_rect.overlaps(area)) {
       return *this;
+    }
 
     u32 start = AS_U32(draw_list.indices.size());
 
@@ -625,7 +603,7 @@ struct Canvas {
                           .clip_rect = clip_rect,
                           .transform = transform,
                           .color = brush.color,
-                          .texture = brush.pattern.share()})
+                          .texture = pattern.share()})
         .unwrap();
 
     return *this;
@@ -636,26 +614,26 @@ struct Canvas {
 
     rect area;
 
-    return draw_lines(points, area, {{0, 0}, {1, 1}});
+    return draw_lines(points, area, {{0, 0}, {1, 1}}, brush.pattern);
   }
 
-  Canvas& draw_rect(vec2 offset, vec2 extent) {
+  Canvas& draw_rect(rect area) {
     vec2 points[4];
 
-    polygons::rect(points, offset, extent);
+    polygons::rect(points, area);
 
-    rect area{offset, extent};
     rect texture_area{{0, 0}, {1, 1}};
 
     if (brush.fill) {
-      return draw_convex_polygon_filled(points, area, texture_area);
+      return draw_convex_polygon_filled(points, area, texture_area,
+                                        brush.pattern);
     } else {
       area.offset =
           area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
       area.extent = area.extent + vec2{brush.line_width, brush.line_width};
       vec2 opoints[] = {points[0], points[1], points[2],
                         points[3], points[0], points[1]};
-      return draw_lines(opoints, area, texture_area);
+      return draw_lines(opoints, area, texture_area, brush.pattern);
     }
   }
 
@@ -667,19 +645,20 @@ struct Canvas {
     rect area{center - radius, 2 * vec2{radius, radius}};
     rect texture_area{{0, 0}, {1, 1}};
 
-    // TODO(lamarrr): add line width to the area if it is a line rendering.
     if (brush.fill) {
-      return draw_convex_polygon_filled(points, area, texture_area);
+      return draw_convex_polygon_filled(points, area, texture_area,
+                                        brush.pattern);
     } else {
-      if (!points.is_empty()) {
+      if (points.size() > 0) {
         points.push_inplace(points[0]).unwrap();
-        // TODO(lamarrr)
+      }
+      if (points.size() > 1) {
         points.push_inplace(points[1]).unwrap();
       }
       area.offset =
           area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
       area.extent = area.extent + vec2{brush.line_width, brush.line_width};
-      return draw_lines(points, area, texture_area);
+      return draw_lines(points, area, texture_area, brush.pattern);
     }
   }
 
@@ -692,39 +671,43 @@ struct Canvas {
     rect texture_area{{0, 0}, {1, 1}};
 
     if (brush.fill) {
-      return draw_convex_polygon_filled(points, area, texture_area);
+      return draw_convex_polygon_filled(points, area, texture_area,
+                                        brush.pattern);
     } else {
-      if (!points.is_empty()) {
+      if (points.size() > 0) {
         points.push_inplace(points[0]).unwrap();
+      }
+      if (points.size() > 1) {
         points.push_inplace(points[1]).unwrap();
       }
       area.offset =
           area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
       area.extent = area.extent + vec2{brush.line_width, brush.line_width};
-      return draw_lines(points, area, texture_area);
+      return draw_lines(points, area, texture_area, brush.pattern);
     }
   }
 
-  Canvas& draw_round_rect(vec2 offset, vec2 extent, vec4 radii,
-                          usize nsegments) {
+  Canvas& draw_round_rect(rect area, vec4 radii, usize nsegments) {
     stx::Vec<vec2> points{stx::os_allocator};
     points.resize(nsegments * 4).unwrap();
-    polygons::round_rect(points, offset, extent, radii, nsegments);
+    polygons::round_rect(points, area, radii, nsegments);
 
-    rect area{offset, extent};
     rect texture_area{{0, 0}, {1, 1}};
 
     if (brush.fill) {
-      return draw_convex_polygon_filled(points, area, texture_area);
+      return draw_convex_polygon_filled(points, area, texture_area,
+                                        brush.pattern);
     } else {
-      if (!points.is_empty()) {
+      if (points.size() > 0) {
         points.push_inplace(points[0]).unwrap();
+      }
+      if (points.size() > 1) {
         points.push_inplace(points[1]).unwrap();
       }
       area.offset =
           area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
       area.extent = area.extent + vec2{brush.line_width, brush.line_width};
-      return draw_lines(points, area, texture_area);
+      return draw_lines(points, area, texture_area, brush.pattern);
     }
   }
 
@@ -732,24 +715,20 @@ struct Canvas {
   Canvas& draw_text(stx::StringView text, vec2 position);
 
   // Image API
-  Canvas& draw_image(Image const& image, vec2 offset);
-  Canvas& draw_image(Image const& image, vec2 offset, vec2 extent);
-  Canvas& draw_image(Image const& image, vec2 portion_offset, vec2 portion_size,
-                     vec2 dest_offset, vec2 dest_extent);
-};
+  Canvas& draw_image(Image const& image, rect area, rect image_portion,
+                     vec4 border_radii, u32 nsegments) {
+    stx::Vec<vec2> points{stx::os_allocator};
+    points.resize(nsegments * 4).unwrap();
+    polygons::round_rect(points, area, border_radii, nsegments);
+    return draw_convex_polygon_filled(points, area, image_portion, image);
+  }
 
-inline void sample(Canvas& canvas, Image& image) {
-  canvas.save()
-      .rotate(45, 0, 0)
-      .draw_circle({0, 0}, 20, 20)
-      .draw_image(image, {0.0, 0.0}, {20, 40})
-      .restore()
-      .scale(2, 2)
-      .draw_line({0, 0}, {200, 200})
-      .draw_text("Hello World, こんにちは世界", {10, 10})
-      .draw_rect({0, 0}, {20, 20})
-      .draw_round_rect({0, 0}, {20, 20}, {10, 10, 10, 10}, 20);
-}
+  Canvas& draw_image(Image const& image, rect area, vec4 border_radii,
+                     usize nsegments) {
+    rect texture_area{{0, 0}, {1, 1}};
+    return draw_image(image, area, texture_area, border_radii, nsegments);
+  }
+};
 
 struct CanvasContext {
   stx::Vec<vk::SpanBuffer> vertex_buffers{stx::os_allocator};
