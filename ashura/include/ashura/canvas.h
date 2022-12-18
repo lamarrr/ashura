@@ -1,20 +1,25 @@
 #pragma once
+#define STB_TRUETYPE_IMPLEMENTATION
 
 #include <array>
 #include <chrono>
 #include <cinttypes>
 #include <cmath>
 #include <iostream>
+#include <limits>
 
 #include "ashura/primitives.h"
 #include "ashura/shaders.h"
 #include "ashura/vulkan.h"
+#include "stb_truetype.h"
 #include "stx/string.h"
 #include "stx/vec.h"
 #include "vulkan/vulkan.h"
 
 namespace asr {
 using namespace stx::literals;
+
+namespace gfx {
 
 struct vertex {
   vec2 position;
@@ -40,31 +45,18 @@ struct vertex {
   }
 };
 
-namespace gfx {
-
-inline void triangulate_convex_polygon(stx::Vec<u32>& indices, u32 first_index,
-                                       stx::Span<vec2 const> polygon) {
-  ASR_CHECK(polygon.size() >= 3, "polygon must have 3 or more points");
-
-  for (u32 i = 2; i < polygon.size(); i++) {
-    indices.push_inplace(first_index).unwrap();
-    indices.push_inplace(first_index + (i - 1)).unwrap();
-    indices.push_inplace(first_index + i).unwrap();
-  }
-}
-
 namespace polygons {
 
-inline void rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent) {
-  polygon[0] = offset;
-  polygon[1] = {offset.x + extent.x, offset.y};
-  polygon[2] = offset + extent;
-  polygon[3] = {offset.x, offset.y + extent.y};
+inline void rect(stx::Span<vec2> polygon, asr::rect area) {
+  polygon[0] = area.offset;
+  polygon[1] = {area.offset.x + area.extent.x, area.offset.y};
+  polygon[2] = area.offset + area.extent;
+  polygon[3] = {area.offset.x, area.offset.y + area.extent.y};
 }
 
 inline void circle(stx::Span<vec2> polygon, vec2 center, f32 radius,
                    usize nsegments) {
-  if (nsegments == 0 || radius <= 0.0f) return;
+  if (nsegments == 0 || radius <= 0) return;
 
   f32 step = AS_F32((2 * M_PI) / nsegments);
 
@@ -74,91 +66,73 @@ inline void circle(stx::Span<vec2> polygon, vec2 center, f32 radius,
   }
 }
 
-inline void ellipse(stx::Span<vec2> polygon, vec2 center, vec2 radius,
+inline void ellipse(stx::Span<vec2> polygon, vec2 center, vec2 radii,
                     usize nsegments) {
-  if (nsegments == 0 || radius.x <= 0.0f || radius.y <= 0.0f) return;
+  if (nsegments == 0 || radii.x <= 0 || radii.y <= 0) return;
 
   f32 step = AS_F32((2 * M_PI) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
-    polygon[i] = vec2{center.x + radius.x - radius.x * std::cos(i * step),
-                      center.y + radius.y - radius.y * std::sin(i * step)};
+    polygon[i] = vec2{center.x + radii.x - radii.x * std::cos(i * step),
+                      center.y + radii.y - radii.y * std::sin(i * step)};
   }
 }
 
 /// {polygon.size() == nsegments * 4}
-inline void round_rect(stx::Span<vec2> polygon, vec2 offset, vec2 extent,
-                       vec4 radii, usize nsegments) {
+inline void round_rect(stx::Span<vec2> polygon, asr::rect area, vec4 radii,
+                       usize nsegments) {
   if (nsegments == 0) return;
 
-  radii.x = std::min(radii.x, std::min(extent.x, extent.y));
-  radii.y = std::min(radii.y, std::min(extent.x, extent.y));
-  radii.z = std::min(radii.z, std::min(extent.x, extent.y));
-  radii.w = std::min(radii.w, std::min(extent.x, extent.y));
+  radii.x = std::min(radii.x, std::min(area.extent.x, area.extent.y));
+  radii.y = std::min(radii.y, std::min(area.extent.x, area.extent.y));
+  radii.z = std::min(radii.z, std::min(area.extent.x, area.extent.y));
+  radii.w = std::min(radii.w, std::min(area.extent.x, area.extent.y));
 
   f32 step = AS_F32((M_PI / 2) / nsegments);
 
   usize i = 0;
 
-  vec2 xoffset{offset.x + radii.x, offset.y + radii.x};
+  vec2 xoffset{area.offset.x + radii.x, area.offset.y + radii.x};
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
-    polygon[i] = vec2{xoffset.y - radii.x * std::cos(segment * step),
-                      xoffset.x - radii.x * std::sin(segment * step)};
+    polygon[i] = vec2{xoffset.x - radii.x * std::cos(segment * step),
+                      xoffset.y - radii.x * std::sin(segment * step)};
   }
 
-  vec2 yoffset{offset.x + (extent.x - radii.y), offset.y + radii.y};
+  vec2 yoffset{area.offset.x + area.extent.x - radii.y,
+               area.offset.y + radii.y};
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
-    polygon[i] = vec2{yoffset.y - radii.y * std::cos(90.0f + segment * step),
-                      yoffset.x - radii.y * std::sin(90.0f + segment * step)};
+    polygon[i] =
+        vec2{yoffset.x - radii.y * std::cos(AS_F32(M_PI / 2) + segment * step),
+             yoffset.y - radii.y * std::sin(AS_F32(M_PI / 2) + segment * step)};
   }
 
-  vec2 zoffset{offset.x + (extent.x - radii.z),
-               offset.y + (extent.y - radii.z)};
+  vec2 zoffset{area.offset.x + area.extent.x - radii.z,
+               area.offset.y + area.extent.y - radii.z};
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
-    polygon[i] = vec2{zoffset.y - radii.z * std::cos(180.0f + segment * step),
-                      zoffset.x - radii.z * std::sin(180.0f + segment * step)};
+    polygon[i] =
+        vec2{zoffset.x - radii.z * std::cos(AS_F32(M_PI) + segment * step),
+             zoffset.y - radii.z * std::sin(AS_F32(M_PI) + segment * step)};
   }
 
-  vec2 woffset{offset.x + radii.w, offset.y + (extent.y - radii.w)};
+  vec2 woffset{area.offset.x + radii.w,
+               area.offset.y + area.extent.y - radii.w};
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
-    polygon[i] = vec2{woffset.y - radii.w * std::cos(270.0f + segment * step),
-                      woffset.x - radii.w * std::sin(270.0f + segment * step)};
+    polygon[i] = vec2{
+        woffset.x - radii.w * std::cos(AS_F32(M_PI * 3 / 2) + segment * step),
+        woffset.y - radii.w * std::sin(AS_F32(M_PI * 3 / 2) + segment * step)};
   }
 }
 
-};  // namespace polygons
-
-struct TextMetrics {
-  // x-direction
-  f32 width = 0.0f;
-  f32 actual_bounding_box_left = 0.0f;
-  f32 actual_bounding_box_right = 0.0f;
-
-  // y-direction
-  f32 font_bounding_box_ascent = 0.0f;
-  f32 font_bounding_box_descent = 0.0f;
-  f32 actual_bounding_box_ascent = 0.0f;
-  f32 actual_bounding_box_descent = 0.0f;
-  f32 ascent = 0.0f;
-  f32 descent = 0.0f;
-  f32 hanging_baseline = 0.0f;
-  f32 alphabetic_baseline = 0.0f;
-  f32 ideographic_baseline = 0.0f;
-};
+}  // namespace polygons
 
 struct Shadow {
-  f32 offset_x = 0.0f;
-  f32 offset_y = 0.0f;
-  f32 blur_radius = 0.0f;
+  vec2 offset;
+  f32 blur_radius = 0;
   Color color = colors::BLACK;
-};
-
-struct Filter {
-  // None by default
 };
 
 enum class TextAlign : u8 {
@@ -170,135 +144,98 @@ enum class TextAlign : u8 {
   Center
 };
 
-enum class TextBaseline : u8 {
-  Top,
-  Hanging,
-  Middle,
-  Alphabetic,
-  Ideographic,
-  Bottom
-};
-
 enum class TextDirection : u8 { Ltr, Rtl, Ttb, Btt };
 
 enum class FontKerning : u8 { Normal, None };
 
-enum class FontStretch : u8 {
-  UltraCondensed,
-  ExtraCondensed,
-  Condensed,
-  SemiCondensed,
-  Normal,
-  SemiExpanded,
-  Expanded,
-  ExtraExpanded,
-  UltraExpanded
-};
-
 enum class FontWeight : u32 {
-  Thin = 100U,
-  ExtraLight = 200U,
-  Light = 300U,
-  Normal = 400U,
-  Medium = 500U,
-  Semi = 600U,
-  Bold = 700U,
-  ExtraBold = 800U,
-  Black = 900U,
-  ExtraBlack = 950U
+  Thin = 100,
+  ExtraLight = 200,
+  Light = 300,
+  Normal = 400,
+  Medium = 500,
+  Semi = 600,
+  Bold = 700,
+  ExtraBold = 800,
+  Black = 900,
+  ExtraBlack = 950
 };
 
 // requirements:
 // - easy resource specification
 // - caching so we don't have to reupload on every frame
 // - GPU texture/image
-
+//
 // requirements:
 // -
-struct TypefaceId {
-  u64 id = 0;
-};
+// struct TypefaceId {
+//   u64 id = 0;
+// };
 
 // stored in vulkan context
 using Image = stx::Rc<vk::ImageSampler*>;
 
 struct Typeface;
 
-struct TypefaceRetainer;
-
-// TODO(lamarrr): embed font into a cpp file
+// TODO(lamarrr): embed default font into a cpp file
 //
 // on font loading
 //
 struct TextStyle {
   stx::String font_family = "SF Pro"_str;
   FontWeight font_weight = FontWeight::Normal;
-  u32 font_size = 10;
+  f32 font_height = 10;
+  f32 letter_spacing = 0;
+  f32 word_spacing = 0;
   TextAlign align = TextAlign::Start;
-  TextBaseline baseline = TextBaseline::Alphabetic;
   TextDirection direction = TextDirection::Ltr;
-  u32 letter_spacing = 0;
   FontKerning font_kerning = FontKerning::None;
-  FontStretch font_stretch = FontStretch::Normal;
-  u32 word_spacing = 0;
-};
-
-struct Transform {
-  mat4 value = mat4::identity();
-};
-
-struct Overlay {
-  vec4 color{0.0f, 0.0f, 0.0f, 0.0f};
-};
-
-struct Viewport {
-  vec2 extent{0.0f, 0.0f};
 };
 
 namespace transforms {
 
 inline mat4 translate(vec3 t) {
   return mat4{
-      vec4{1.0f, 0.0f, 0.0f, t.x},
-      vec4{0.0f, 1.0f, 0.0f, t.y},
-      vec4{0.0f, 0.0f, 1.0f, t.z},
-      vec4{0.0f, 0.0f, 0.0f, 1.0f},
+      vec4{1, 0, 0, t.x},
+      vec4{0, 1, 0, t.y},
+      vec4{0, 0, 1, t.z},
+      vec4{0, 0, 0, 1},
   };
 }
 
 inline mat4 scale(vec3 s) {
   return mat4{
-      vec4{s.x, 0.0f, 0.0f, 0.0f},
-      vec4{0.0f, s.y, 0.0f, 0.0f},
-      vec4{0.0f, 0.0f, s.z, 0.0f},
-      vec4{0.0f, 0.0f, 0.0f, 1.0f},
+      vec4{s.x, 0, 0, 0},
+      vec4{0, s.y, 0, 0},
+      vec4{0, 0, s.z, 0},
+      vec4{0, 0, 0, 1},
   };
 }
 
 inline mat4 rotate_x(f32 degree_radians) {
   return mat4{
-      vec4{1.0f, 0.0f, 0.0f, 0.0f},
-      vec4{0.0f, std::cos(degree_radians), -std::sin(degree_radians), 0.0f},
-      vec4{0.0f, std::sin(degree_radians), std::cos(degree_radians), 0.0f},
-      vec4{0.0f, 0.0f, 0.0f, 1.0f},
+      vec4{1, 0, 0, 0},
+      vec4{0, std::cos(degree_radians), -std::sin(degree_radians), 0},
+      vec4{0, std::sin(degree_radians), std::cos(degree_radians), 0},
+      vec4{0, 0, 0, 1},
   };
 }
 
 inline mat4 rotate_y(f32 degree_radians) {
   return mat4{
-      vec4{std::cos(degree_radians), 0.0f, std::sin(degree_radians), 0.0f},
-      vec4{0.0f, 1.0f, 0.0f, 0.0f},
-      vec4{-std::sin(degree_radians), 0, std::cos(degree_radians), 0.0f},
-      vec4{0.0f, 0.0f, 0.0f, 1.0f},
+      vec4{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
+      vec4{0, 1, 0, 0},
+      vec4{-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
+      vec4{0, 0, 0, 1},
   };
 }
 
 inline mat4 rotate_z(f32 degree_radians) {
   return mat4{
-      vec4{std::cos(degree_radians), -std::sin(degree_radians), 0.0f, 0.0f},
-      vec4{std::sin(degree_radians), std::cos(degree_radians), 0.0f, 0.0f},
-      vec4{0.0f, 0.0f, 1.0f, 0.0f},
-      vec4{0.0f, 0.0f, 0.0f, 1.0f},
+      vec4{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
+      vec4{std::sin(degree_radians), std::cos(degree_radians), 0, 0},
+      vec4{0, 0, 1, 0},
+      vec4{0, 0, 0, 1},
   };
 }
 
@@ -307,18 +244,15 @@ inline mat4 rotate_z(f32 degree_radians) {
 struct Brush {
   Color color = colors::BLACK;
   bool fill = true;
-  f32 line_width = 1.0f;
+  f32 line_width = 1;
   Image pattern;
   TextStyle text_style;
-  Filter filter;
-  Shadow shadow;
 };
 
 struct DrawCommand {
   u32 indices_offset = 0;
   u32 nindices = 0;
-  u32 clip_indices_offset = 0;
-  u32 nclip_indices = 0;
+  rect clip_rect;
   mat4 transform = mat4::identity();
   Color color = colors::BLACK;
   Image texture;
@@ -327,45 +261,225 @@ struct DrawCommand {
 struct DrawList {
   stx::Vec<vertex> vertices{stx::os_allocator};
   stx::Vec<u32> indices{stx::os_allocator};
-  stx::Vec<vec2> clip_vertices{stx::os_allocator};
-  stx::Vec<u32> clip_indices{stx::os_allocator};
-  stx::Vec<DrawCommand> commands{stx::os_allocator};
+  stx::Vec<DrawCommand> cmds{stx::os_allocator};
 
   void clear() {
     vertices.clear();
     indices.clear();
-    clip_vertices.clear();
-    clip_indices.clear();
-    commands.clear();
+    cmds.clear();
   }
 };
 
-inline void transform_vertices_to_viewport(stx::Span<vertex> vertices,
-                                           vec2 viewport_extent,
-                                           rect polygon_area,
-                                           rect texture_area) {
+constexpr vec2 normalize_for_viewport(vec2 position, vec2 viewport_extent) {
+  // transform to -1 to +1 range from x pointing right and y pointing upwards
+  return (2 * position / viewport_extent) - 1;
+}
+
+inline void transform_vertices_to_viewport_and_generate_texture_coordinates(
+    stx::Span<vertex> vertices, vec2 viewport_extent, rect polygon_area,
+    rect texture_area) {
   for (usize i = 0; i < vertices.size(); i++) {
     vec2 position = vertices[i].position;
 
-    // transform to -1 to +1 range with x pointing right and y pointing upwards
-    vec2 normalized = (2 * position / viewport_extent) - 1;
-
-    // positions are specified with x pointing right and y pointing downwards
-    vec2 flipped = normalized * vec2{1, -1};
+    vec2 normalized = normalize_for_viewport(position, viewport_extent);
 
     // transform vertex position into texture coordinates (within the polygon's
     // extent)
-    //
-    //
-    // TODO(lamarrr): texture coordinates have bottom-left origin
-    //
     vec2 st = (position - polygon_area.offset) / polygon_area.extent;
 
     // map it into the portion of the texture we are interested in
     st = (texture_area.offset + st * texture_area.extent);
 
-    vertices[i] = vertex{.position = flipped, .st = st};
+    vertices[i] = vertex{.position = normalized, .st = st};
   }
+}
+
+inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
+                                       u32 first_vertex_index,
+                                       stx::Span<vec2 const> polygon) {
+  ASR_CHECK(polygon.size() >= 3, "polygon must have 3 or more points");
+
+  for (u32 i = 2; i < polygon.size(); i++) {
+    indices.push_inplace(first_vertex_index).unwrap();
+    indices.push_inplace(first_vertex_index + (i - 1)).unwrap();
+    indices.push_inplace(first_vertex_index + i).unwrap();
+  }
+}
+
+inline void triangulate_line(stx::Vec<vertex>& ivertices,
+                             stx::Vec<u32>& iindices, u32 first_vertex_index,
+                             stx::Span<vec2 const> points, f32 line_width) {
+  if (points.size() < 2) return;
+
+  bool has_previous_line = false;
+
+  u32 vertex_index = first_vertex_index;
+
+  for (usize i = 1; i < points.size(); i++) {
+    vec2 p1 = points[i - 1];
+    vec2 p2 = points[i];
+
+    // the angles are specified in clockwise direction to be compatible with the
+    // vulkan coordinate system
+    //
+    // get the angle of inclination of p2 to p1
+    vec2 d = p2 - p1;
+    f32 m = std::abs(d.y / std::max(stx::f32_epsilon, d.x));
+    f32 alpha = std::atan(m);
+
+    // use direction of the points to get the actual overall angle of
+    // inclination of p2 to p1
+    if (d.x < 0 && d.y > 0) {
+      alpha = AS_F32(M_PI - alpha);
+    } else if (d.x < 0 && d.y < 0) {
+      alpha = AS_F32(M_PI + alpha);
+    } else if (d.x > 0 && d.y < 0) {
+      alpha = AS_F32(2 * M_PI - alpha);
+    } else {
+      // d.x >=0 && d.y >= 0
+    }
+
+    // line will be at a parallel angle
+    alpha = AS_F32(alpha + M_PI / 2);
+
+    f32 hw = line_width / 2;
+
+    vec2 f = vec2{hw * std::cos(alpha), hw * std::sin(alpha)};
+    vec2 g = vec2{hw * std::cos(AS_F32(M_PI + alpha)),
+                  hw * std::sin(AS_F32(M_PI + alpha))};
+
+    vec2 s1 = p1 + f;
+    vec2 s2 = p1 + g;
+
+    vec2 t1 = p2 + f;
+    vec2 t2 = p2 + g;
+
+    vertex vertices[] = {{.position = s1, .st = {}},
+                         {.position = s2, .st = {}},
+                         {.position = t1, .st = {}},
+                         {.position = t2, .st = {}}};
+
+    u32 indices[] = {vertex_index, vertex_index + 1, vertex_index + 3,
+                     vertex_index, vertex_index + 2, vertex_index + 3};
+
+    ivertices.extend(vertices).unwrap();
+    iindices.extend(indices).unwrap();
+
+    if (has_previous_line) {
+      u32 prev_line_vertex_index = vertex_index - 4;
+
+      u32 indices[] = {prev_line_vertex_index + 2,
+                       prev_line_vertex_index + 3,
+                       vertex_index,
+                       prev_line_vertex_index + 2,
+                       prev_line_vertex_index + 3,
+                       vertex_index + 1};
+
+      iindices.extend(indices).unwrap();
+    }
+
+    has_previous_line = true;
+
+    vertex_index += 4;
+  }
+}
+
+struct FontInfo {
+  u32 size = 40;
+  u32 atlas_width = 1024;
+  u32 atlas_height = 1024;
+  u32 oversample_x = 2;
+  u32 oversample_y = 2;
+  u32 first_char = ' ';
+  u32 char_count = '~' - ' ';
+};
+
+// TODO(lamarrr): hid stb header from this TU
+struct FontAtlas {
+  stx::Memory char_info_mem;
+
+  stbtt_packedchar const* char_info() const {
+    return static_cast<stbtt_packedchar const*>(char_info_mem.handle);
+  }
+};
+
+enum class FontLoadError { InitFailed, PackFailed };
+
+stx::Result<FontAtlas, FontLoadError> generate_font_atlas(
+    FontInfo const& info, stx::String const& font_data) {
+  stx::Memory atlas_data_mem =
+      stx::mem::allocate(stx::os_allocator,
+                         info.atlas_width * info.atlas_height)
+          .unwrap();
+
+  stx::Memory font_char_info_mem =
+      stx::mem::allocate(stx::os_allocator,
+                         sizeof(stbtt_packedchar) * info.char_count)
+          .unwrap();
+
+  stbtt_pack_context context;
+
+  if (stbtt_PackBegin(&context,
+                      static_cast<unsigned char*>(atlas_data_mem.handle),
+                      info.atlas_width, info.atlas_height, 0, 1, nullptr) == 0)
+    return stx::Err(FontLoadError::InitFailed);
+
+  stbtt_PackSetOversampling(&context, info.oversample_x, info.oversample_y);
+
+  if (stbtt_PackFontRange(
+          &context, reinterpret_cast<unsigned char const*>(font_data.c_str()),
+          0, info.size, info.first_char, info.char_count,
+          static_cast<stbtt_packedchar*>(font_char_info_mem.handle)) == 0) {
+    stbtt_PackEnd(&context);
+    return stx::Err(FontLoadError::PackFailed);
+  }
+
+  stbtt_PackEnd(&context);
+
+  return stx::Ok(FontAtlas{.char_info_mem = std::move(font_char_info_mem)});
+}
+
+// returns x placement of next glyph (assumes there's infinite space along the
+// x direction)
+f32 get_glyph_vertices(stx::Span<vertex> ivertices, stx::Span<u32> iindices,
+                       u32 first_vertex_index, FontAtlas const& atlas,
+                       FontInfo const& info, u32 character, vec2 offset,
+                       f32 height) {
+  u32 char_index = character - info.first_char;
+  stbtt_packedchar const* pchar = atlas.char_info() + char_index;
+
+  // draw text at position offset, area.offset accounts for
+  // ascent and descent of the character
+  rect area{.offset = {offset + vec2{pchar->xoff, pchar->yoff}},
+            .extent = {pchar->xoff2 - pchar->xoff, pchar->yoff2 - pchar->yoff}};
+
+  f32 scale = height / area.extent.y;
+
+  area.extent.x *= scale;
+  area.extent.y = height;
+
+  f32 s0 = pchar->x0 / info.atlas_width;
+  f32 t0 = pchar->y0 / info.atlas_height;
+  f32 s1 = pchar->x1 / info.atlas_width;
+  f32 t1 = pchar->y1 / info.atlas_height;
+
+  vertex vertices[] = {
+      {.position = area.offset, .st = {s0, t0}},
+      {.position = {area.offset.x + area.extent.x, area.offset.y},
+       .st = {s1, t0}},
+      {.position = area.offset + area.extent, .st = {s1, t1}},
+      {.position = {area.offset.x, area.offset.y + area.extent.y},
+       .st = {s0, t1}}};
+
+  ivertices.copy(vertices);
+
+  u32 indices[] = {first_vertex_index,     first_vertex_index + 1,
+                   first_vertex_index + 2, first_vertex_index,
+                   first_vertex_index + 2, first_vertex_index + 3};
+
+  iindices.copy(indices);
+
+  return scale * pchar->xadvance;
 }
 
 // TODO(lamarrr): properly handle the case of zero sized indices and clip
@@ -373,7 +487,7 @@ inline void transform_vertices_to_viewport(stx::Span<vertex> vertices,
 //
 //
 /// Coordinates are specified in top-left origin space with x pointing to the
-/// right and y pointing downwards
+/// right and y pointing downwards.
 ///
 struct Canvas {
   vec2 viewport_extent;
@@ -382,8 +496,8 @@ struct Canvas {
   mat4 transform = mat4::identity();
   stx::Vec<mat4> transform_state_stack{stx::os_allocator};
 
-  stx::Vec<vec2> clip{stx::os_allocator};
-  stx::Vec<stx::Vec<vec2>> clip_state_stack{stx::os_allocator};
+  rect clip_rect;
+  stx::Vec<rect> clip_rect_stack{stx::os_allocator};
 
   Image transparent_image;
 
@@ -401,32 +515,31 @@ struct Canvas {
     transform = mat4::identity();
     transform_state_stack.clear();
 
-    clip.clear();
-    clip.resize(4).unwrap();
-    polygons::rect(clip, vec2{0.0f, 0.0f}, viewport_extent);
+    clip_rect = {{0, 0}, viewport_extent};
 
-    clip_state_stack.clear();
+    clip_rect_stack.clear();
     draw_list.clear();
   }
 
   // push state (transform and clips) on state stack
   Canvas& save() {
     transform_state_stack.push_inplace(transform).unwrap();
-    clip_state_stack.push(clip.copy(stx::os_allocator).unwrap()).unwrap();
+    clip_rect_stack.push_inplace(clip_rect).unwrap();
     return *this;
   }
 
   // save current transform and clip state
   // pop state (transform and clips) stack and restore state
   Canvas& restore() {
-    ASR_CHECK(!transform_state_stack.is_empty());
-    ASR_CHECK(!clip_state_stack.is_empty());
+    if (!transform_state_stack.is_empty()) {
+      transform = *(transform_state_stack.end() - 1);
+      transform_state_stack.erase(transform_state_stack.span().slice(1));
+    }
 
-    transform = *(transform_state_stack.end() - 1);
-    transform_state_stack.erase(transform_state_stack.span().slice(1));
-
-    clip = (clip_state_stack.end() - 1)->copy(stx::os_allocator).unwrap();
-    clip_state_stack.erase(clip_state_stack.span().slice(1));
+    if (!clip_rect_stack.is_empty()) {
+      clip_rect = *(clip_rect_stack.end() - 1);
+      clip_rect_stack.erase(clip_rect_stack.span().slice(1));
+    }
 
     return *this;
   }
@@ -436,18 +549,19 @@ struct Canvas {
   Canvas& reset() {
     transform = mat4::identity();
     transform_state_stack.clear();
-    clip.resize(4).unwrap();
-    polygons::rect(clip, {0.0f, 0.0f}, viewport_extent);
-    clip_state_stack.clear();
+    clip_rect = {{0, 0}, viewport_extent};
+    clip_rect_stack.clear();
     return *this;
   }
 
   Canvas& translate(f32 x, f32 y, f32 z) {
-    transform = transforms::translate(vec3{x, y, z}) * transform;
+    vec3 translation =
+        2 * vec3{x, y, z} / vec3{viewport_extent.x, viewport_extent.y, 1};
+    transform = transforms::translate(translation) * transform;
     return *this;
   }
 
-  Canvas& translate(f32 x, f32 y) { return translate(x, y, 0.0f); }
+  Canvas& translate(f32 x, f32 y) { return translate(x, y, 0); }
 
   Canvas& rotate(f32 x, f32 y, f32 z) {
     transform = transforms::rotate_z(z) * transforms::rotate_y(y) *
@@ -460,7 +574,7 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& scale(f32 x, f32 y) { return scale(x, y, 1.0f); }
+  Canvas& scale(f32 x, f32 y) { return scale(x, y, 1); }
 
   Canvas& clear() {
     vertex vertices[] = {{{0, 0}, {0, 1}},
@@ -469,34 +583,20 @@ struct Canvas {
                          {{0, viewport_extent.y}, {0, 0}}};
 
     for (vertex& vertex : vertices) {
-      vertex.position = (2 * vertex.position / viewport_extent) - 1;
-      vertex.position = vertex.position * vec2{1, -1};
+      vertex.position =
+          normalize_for_viewport(vertex.position, viewport_extent);
     }
 
     draw_list.vertices.extend(vertices).unwrap();
 
-    vec2 clip_vertices[] = {{0, 0},
-                            {viewport_extent.x, 0},
-                            viewport_extent,
-                            {0, viewport_extent.y}};
-
-    for (vec2& position : clip_vertices) {
-      position = (2 * position / viewport_extent) - 1;
-      position = position * vec2{1, -1};
-    }
-
-    draw_list.clip_vertices.extend(clip_vertices).unwrap();
-
     u32 indices[] = {0, 1, 2, 0, 2, 3};
 
     draw_list.indices.extend(indices).unwrap();
-    draw_list.clip_indices.extend(indices).unwrap();
 
-    draw_list.commands
+    draw_list.cmds
         .push(DrawCommand{.indices_offset = 0,
                           .nindices = AS_U32(std::size(indices)),
-                          .clip_indices_offset = 0,
-                          .nclip_indices = AS_U32(std::size(indices)),
+                          .clip_rect = rect{{0, 0}, viewport_extent},
                           .transform = mat4::identity(),
                           .color = brush.color,
                           .texture = brush.pattern.share()})
@@ -505,118 +605,42 @@ struct Canvas {
     return *this;
   }
 
-  Canvas& clip_polygon(stx::Span<vec2 const> polygon_points) {
-    clip.extend(polygon_points).unwrap();
-    return *this;
-  }
-
-  Canvas& clip_rect(vec2 offset, vec2 extent) {
-    vec2 points[4];
-
-    polygons::rect(points, offset, extent);
-
-    clip.extend(points).unwrap();
-
-    return *this;
-  }
-
-  Canvas& clip_circle(vec2 center, f32 radius, usize nsegments) {
-    clip.clear();
-    clip.resize(nsegments).unwrap();
-    polygons::circle(clip, center, radius, nsegments);
-    return *this;
-  }
-
-  Canvas& clip_ellipse(vec2 center, vec2 radius, usize nsegments) {
-    clip.clear();
-    clip.resize(nsegments).unwrap();
-    polygons::ellipse(clip, center, radius, nsegments);
-    return *this;
-  }
-
-  Canvas& clip_round_rect(vec2 offset, vec2 extent, vec4 radii,
-                          usize nsegments) {
-    clip.clear();
-    clip.resize(nsegments * 4).unwrap();
-    polygons::round_rect(clip, offset, extent, radii, nsegments);
-    return *this;
-  }
-
-  Canvas& draw_polygon_line(stx::Span<vec2 const> line) {
-    /*
-    ASR_CHECK(line.size() >= 2);
+  Canvas& draw_lines(stx::Span<vec2 const> points, rect area, rect texture_area,
+                     Image const& pattern) {
+    if (!area.is_visible() || !clip_rect.overlaps(area)) {
+      return *this;
+    }
 
     u32 start = AS_U32(draw_list.indices.size());
-    u32 nindices = 0;
 
-    for (usize i = 0; i < line.size(); i++) {
-      usize j = (i + 1 == line.size()) ? 0UL : (i + 1);
+    u32 vertices_offset = AS_U32(draw_list.vertices.size());
 
-      vec2 p1 = line[i];
-      vec2 p2 = line[j];
+    triangulate_line(draw_list.vertices, draw_list.indices, vertices_offset,
+                     points, brush.line_width);
 
-      vec2 d = p2 - p1;
+    u32 nindices = AS_U32(draw_list.indices.size() - start);
 
-      {
-        f32 dot_product = dot(d, d);
-        if (dot_product > 0.0f) {
-          f32 inverse_length = 1 / std::sqrt(dot_product);
-          d.x *= inverse_length;
-          d.y *= inverse_length;
-        }
-      }
+    transform_vertices_to_viewport_and_generate_texture_coordinates(
+        draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
+        texture_area);
 
-      d.x *= brush.line_width * 0.5f;
-      d.y *= brush.line_width * 0.5f;
-
-      vec2 vertices[] = {{p1.x + d.y, p1.y - d.x},
-                         {p2.x + d.y, p2.y - d.x},
-                         {p2.x - d.y, p2.y + d.x},
-                         {p1.x - d.y, p1.y + d.x}};
-
-      u32 indices[] = {start,     start + 1, start + 2,
-                       start + 3, start + 4, start + 5};
-
-      draw_list.vertices.extend(vertices).unwrap();
-      draw_list.indices.extend(indices).unwrap();
-
-      nindices += AS_U32(std::size(indices));
-    }
-
-    u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
-
-    // triangulate_polygon(draw_list.clip_vertices, clip);
-
-    nclip_polygon_vertices =
-        AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
-
-    u32 clip_start = AS_U32(draw_list.clip_indices.size());
-
-    for (u32 index = clip_start; index < (clip_start + nclip_polygon_vertices);
-         index++) {
-      draw_list.clip_indices.push_inplace(index).unwrap();
-    }
-
-    draw_list.commands
+    draw_list.cmds
         .push(DrawCommand{.indices_offset = start,
                           .nindices = nindices,
-                          .clip_indices_offset = clip_start,
-                          .nclip_indices = nclip_polygon_vertices,
+                          .clip_rect = clip_rect,
                           .transform = transform,
                           .color = brush.color,
-                          .texture = brush.pattern.share()})
+                          .texture = pattern.share()})
         .unwrap();
-        */
+
     return *this;
   }
 
   Canvas& draw_convex_polygon_filled(stx::Span<vec2 const> polygon, rect area,
-                                     rect texture_area) {
-    if (polygon.size() < 3 || area.extent.x == 0 || area.extent.y == 0)
+                                     rect texture_area, Image const& pattern) {
+    if (polygon.size() < 3 || !area.is_visible() || !clip_rect.overlaps(area)) {
       return *this;
-
-    // TODO(lamarrr): somehow, the vertices are still transformed and the area
-    // is cleared
+    }
 
     u32 start = AS_U32(draw_list.indices.size());
 
@@ -631,106 +655,47 @@ struct Canvas {
           .unwrap();
     }
 
-    transform_vertices_to_viewport(
+    transform_vertices_to_viewport_and_generate_texture_coordinates(
         draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
         texture_area);
 
-    u32 clip_start = AS_U32(draw_list.clip_indices.size());
-
-    u32 clip_vertices_offset = AS_U32(draw_list.clip_vertices.size());
-
-    triangulate_convex_polygon(draw_list.clip_indices, clip_vertices_offset,
-                               clip);
-
-    u32 nclip_indices = AS_U32(draw_list.clip_indices.size() - clip_start);
-
-    draw_list.clip_vertices.extend(clip).unwrap();
-
-    for (vec2& pos :
-         draw_list.clip_vertices.span().slice(clip_vertices_offset)) {
-      pos = (2 * pos / viewport_extent) - 1;
-      pos = pos * vec2{1, -1};
-    }
-
-    draw_list.commands
+    draw_list.cmds
         .push(DrawCommand{.indices_offset = start,
                           .nindices = nindices,
-                          .clip_indices_offset = clip_start,
-                          .nclip_indices = nclip_indices,
+                          .clip_rect = clip_rect,
                           .transform = transform,
                           .color = brush.color,
-                          .texture = brush.pattern.share()})
+                          .texture = pattern.share()})
         .unwrap();
 
     return *this;
   }
 
   Canvas& draw_line(vec2 p1, vec2 p2) {
-    /*
-    vec2 d = p2 - p1;
+    vec2 points[] = {p1, p2};
 
-  {
-    f32 dot_product = dot(d, d);
-    if (dot_product > 0.0f) {
-      f32 inverse_length = 1 / std::sqrt(dot_product);
-      d.x *= inverse_length;
-      d.y *= inverse_length;
-    }
+    rect area;
+
+    return draw_lines(points, area, {{0, 0}, {1, 1}}, brush.pattern);
   }
 
-  d.x *= brush.line_width * 0.5f;
-  d.y *= brush.line_width * 0.5f;
-
-  vec2 vertices[] = {{p1.x + d.y, p1.y - d.x},
-                     {p2.x + d.y, p2.y - d.x},
-                     {p2.x - d.y, p2.y + d.x},
-                     {p1.x - d.y, p1.y + d.x}};
-
-  u32 start = AS_U32(draw_list.indices.size());
-
-  u32 indices[] = {start,     start + 1, start + 2,
-                   start + 3, start + 4, start + 5};
-
-  draw_list.vertices.extend(vertices).unwrap();
-  draw_list.indices.extend(indices).unwrap();
-
-  u32 nclip_polygon_vertices = AS_U32(draw_list.clip_vertices.size());
-
-  // triangulate_polygon(draw_list.clip_vertices, clip);
-
-  nclip_polygon_vertices =
-      AS_U32(draw_list.clip_vertices.size()) - nclip_polygon_vertices;
-
-  u32 clip_start = AS_U32(draw_list.clip_indices.size());
-
-  for (u32 index = clip_start; index < (clip_start + nclip_polygon_vertices);
-       index++) {
-    draw_list.clip_indices.push_inplace(index).unwrap();
-  }
-
-  draw_list.commands
-      .push(DrawCommand{.indices_offset = start,
-                        .nindices = AS_U32(std::size(indices)),
-                        .clip_indices_offset = clip_start,
-                        .nclip_indices = nclip_polygon_vertices,
-                        .transform = transform,
-                        .color = brush.color,
-                        .texture = brush.pattern.share()})
-      .unwrap();
-      */
-    return *this;
-  }
-
-  Canvas& draw_rect(vec2 offset, vec2 extent) {
+  Canvas& draw_rect(rect area) {
     vec2 points[4];
 
-    polygons::rect(points, offset, extent);
+    polygons::rect(points, area);
+
+    rect texture_area{{0, 0}, {1, 1}};
 
     if (brush.fill) {
-      return draw_convex_polygon_filled(points, {offset, extent},
-                                        {{0, 0}, {1, 1}});
+      return draw_convex_polygon_filled(points, area, texture_area,
+                                        brush.pattern);
     } else {
-      return draw_polygon_line(points);
+      area.offset =
+          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
+      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
+      vec2 opoints[] = {points[0], points[1], points[2],
+                        points[3], points[0], points[1]};
+      return draw_lines(opoints, area, texture_area, brush.pattern);
     }
   }
 
@@ -739,12 +704,23 @@ struct Canvas {
     points.resize(nsegments).unwrap();
     polygons::circle(points, center, radius, nsegments);
 
+    rect area{center - radius, 2 * vec2{radius, radius}};
+    rect texture_area{{0, 0}, {1, 1}};
+
     if (brush.fill) {
-      return draw_convex_polygon_filled(
-          points, {center - radius, 2 * vec2{radius, radius}},
-          {{0, 0}, {1, 1}});
+      return draw_convex_polygon_filled(points, area, texture_area,
+                                        brush.pattern);
     } else {
-      return draw_polygon_line(points);
+      if (points.size() > 0) {
+        points.push_inplace(points[0]).unwrap();
+      }
+      if (points.size() > 1) {
+        points.push_inplace(points[1]).unwrap();
+      }
+      area.offset =
+          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
+      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
+      return draw_lines(points, area, texture_area, brush.pattern);
     }
   }
 
@@ -753,101 +729,106 @@ struct Canvas {
     points.resize(nsegments).unwrap();
     polygons::ellipse(points, center, radius, nsegments);
 
+    rect area{center - radius, 2 * radius};
+    rect texture_area{{0, 0}, {1, 1}};
+
     if (brush.fill) {
-      return draw_convex_polygon_filled(points, {center - radius, 2 * radius},
-                                        {{0, 0}, {1, 1}});
+      return draw_convex_polygon_filled(points, area, texture_area,
+                                        brush.pattern);
     } else {
-      return draw_polygon_line(points);
+      if (points.size() > 0) {
+        points.push_inplace(points[0]).unwrap();
+      }
+      if (points.size() > 1) {
+        points.push_inplace(points[1]).unwrap();
+      }
+      area.offset =
+          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
+      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
+      return draw_lines(points, area, texture_area, brush.pattern);
     }
   }
 
-  Canvas& draw_round_rect(vec2 offset, vec2 extent, vec4 radii,
-                          usize nsegments) {
+  Canvas& draw_round_rect(rect area, vec4 radii, usize nsegments) {
     stx::Vec<vec2> points{stx::os_allocator};
     points.resize(nsegments * 4).unwrap();
-    polygons::round_rect(points, offset, extent, radii, nsegments);
+    polygons::round_rect(points, area, radii, nsegments);
+
+    rect texture_area{{0, 0}, {1, 1}};
 
     if (brush.fill) {
-      return draw_convex_polygon_filled(points, {offset, extent},
-                                        {{0, 0}, {1, 1}});
+      return draw_convex_polygon_filled(points, area, texture_area,
+                                        brush.pattern);
     } else {
-      return draw_polygon_line(points);
+      if (points.size() > 0) {
+        points.push_inplace(points[0]).unwrap();
+      }
+      if (points.size() > 1) {
+        points.push_inplace(points[1]).unwrap();
+      }
+      area.offset =
+          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
+      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
+      return draw_lines(points, area, texture_area, brush.pattern);
     }
   }
 
   // Text API
-  Canvas& draw_text(stx::StringView text, vec2 position);
+  Canvas& draw_text(stx::StringView text, vec2 position) {
+    brush.text_style.letter_spacing;
+    brush.text_style.align;
+    brush.text_style.direction;
+    brush.text_style.font_kerning;
+    brush.text_style.word_spacing;
+    brush.text_style.font_weight;
+    brush.text_style.font_height;
+
+    get_glyph_vertices();
+    normalize_for_viewport();
+  }
 
   // Image API
-  Canvas& draw_image(Image const& image, vec2 offset);
-  Canvas& draw_image(Image const& image, vec2 offset, vec2 extent);
-  Canvas& draw_image(Image const& image, vec2 portion_offset, vec2 portion_size,
-                     vec2 dest_offset, vec2 dest_extent);
+  Canvas& draw_image(Image const& image, rect area, rect image_portion,
+                     vec4 border_radii, usize nsegments) {
+    stx::Vec<vec2> points{stx::os_allocator};
+    points.resize(nsegments * 4).unwrap();
+    polygons::round_rect(points, area, border_radii, nsegments);
+    return draw_convex_polygon_filled(points, area, image_portion, image);
+  }
+
+  Canvas& draw_image(Image const& image, rect area, vec4 border_radii,
+                     usize nsegments) {
+    rect texture_area{{0, 0}, {1, 1}};
+    return draw_image(image, area, texture_area, border_radii, nsegments);
+  }
 };
 
-inline void sample(Canvas& canvas, Image& image) {
-  canvas.save()
-      .rotate(45, 0, 0)
-      .draw_circle({0, 0}, 20.0f, 20)
-      .draw_image(image, {0.0, 0.0}, {20, 40})
-      .restore()
-      .scale(2.0f, 2.0f)
-      .draw_line({0, 0}, {200, 200})
-      .draw_text("Hello World, こんにちは世界", {10.0f, 10.0f})
-      .draw_rect({0, 0}, {20, 20})
-      .draw_round_rect({0.0f, 0.0f}, {20.0f, 20.0f},
-                       {10.0f, 10.0f, 10.0f, 10.0f}, 20);
-}
-
 struct CanvasContext {
-  vk::Buffer transform_buffer;
-  vk::Buffer overlay_buffer;
-  vk::Buffer viewport_buffer;
+  stx::Vec<vk::SpanBuffer> vertex_buffers{stx::os_allocator};
+  stx::Vec<vk::SpanBuffer> index_buffers{stx::os_allocator};
 
-  vk::SpanBuffer vertex_buffer;
-  vk::SpanBuffer index_buffer;
-  vk::SpanBuffer clip_vertex_buffer;
-  vk::SpanBuffer clip_index_buffer;
-
-  vk::RecordingContext recording_context;
+  vk::RecordingContext ctx;
 
   stx::Rc<vk::CommandQueue*> queue;
 
   CanvasContext(stx::Rc<vk::CommandQueue*> aqueue) : queue{std::move(aqueue)} {
-    VkDevice dev = queue.handle->device.handle->device;
-
-    transform_buffer = vk::create_host_buffer(
-        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
-        sizeof(Transform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-    overlay_buffer = vk::create_host_buffer(
-        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
-        sizeof(Overlay), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-    viewport_buffer = vk::create_host_buffer(
-        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
-        sizeof(Viewport), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-    auto vertex_input_attributes = vertex::attribute_descriptions();
-
-    VkVertexInputAttributeDescription clip_vertex_input_attributes[]{
-        {.location = 0,
-         .binding = 0,
-         .format = VK_FORMAT_R32G32_SFLOAT,
-         .offset = 0}};
+    std::array vertex_input_attributes = vertex::attribute_descriptions();
 
     vk::DescriptorSetSpec descriptor_set_specs[] = {
-        vk::DescriptorSetSpec{vk::DescriptorType::Buffer,
-                              vk::DescriptorType::Buffer,
-                              vk::DescriptorType::Buffer},
-        vk::DescriptorSetSpec{vk::DescriptorType::Sampler,
-                              vk::DescriptorType::Sampler}};
+        vk::DescriptorSetSpec{vk::DescriptorType::CombinedImageSampler}};
 
-    recording_context.init(*queue.handle, vertex_shader_code,
-                           fragment_shader_code, clip_vertex_shader_code,
-                           clip_fragment_shader_code, vertex_input_attributes,
-                           sizeof(vertex), clip_vertex_input_attributes,
-                           sizeof(vec2), descriptor_set_specs);
+    VkDescriptorPoolSize descriptor_pool_sizes[] = {
+        {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         .descriptorCount = 1}};
+
+    ctx.init(*queue.handle, vertex_shader_code, fragment_shader_code,
+             vertex_input_attributes, sizeof(vertex), descriptor_set_specs,
+             descriptor_pool_sizes, 1);
+
+    for (u32 i = 0; i < vk::SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+      vertex_buffers.push(vk::SpanBuffer{}).unwrap();
+      index_buffers.push(vk::SpanBuffer{}).unwrap();
+    }
   }
 
   STX_MAKE_PINNED(CanvasContext)
@@ -855,353 +836,262 @@ struct CanvasContext {
   ~CanvasContext() {
     VkDevice dev = queue.handle->device.handle->device;
 
-    vertex_buffer.destroy(dev);
-    index_buffer.destroy(dev);
-    clip_vertex_buffer.destroy(dev);
-    clip_index_buffer.destroy(dev);
+    for (vk::SpanBuffer& buff : vertex_buffers) buff.destroy(dev);
 
-    transform_buffer.destroy(dev);
+    for (vk::SpanBuffer& buff : index_buffers) buff.destroy(dev);
 
-    overlay_buffer.destroy(dev);
-    viewport_buffer.destroy(dev);
-
-    recording_context.destroy(dev);
+    ctx.destroy(dev);
   }
 
-  void write_transform(Transform const& transform) {
-    transform_buffer.write(queue.handle->device.handle->device, &transform);
-  }
-
-  void write_overlay(Overlay const& overlay) {
-    overlay_buffer.write(queue.handle->device.handle->device, &overlay);
-  }
-
-  void write_viewport(Viewport const& viewport) {
-    viewport_buffer.write(queue.handle->device.handle->device, &viewport);
-  }
-
-  void write_vertices(stx::Span<vertex const> vertices,
-                      stx::Span<u32 const> indices) {
+  void __write_vertices(stx::Span<vertex const> vertices,
+                        stx::Span<u32 const> indices,
+                        u32 next_frame_flight_index) {
     VkDevice dev = queue.handle->device.handle->device;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
         queue.handle->device.handle->phy_device.handle->memory_properties;
-    vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
 
-    vertex_buffer.write(dev, memory_properties,
-                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
-    index_buffer.write(dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                       indices);
-  }
+    vertex_buffers[next_frame_flight_index].write(
+        dev, memory_properties, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
 
-  void write_clip_vertices(stx::Span<vec2 const> vertices,
-                           stx::Span<u32 const> indices) {
-    VkDevice dev = queue.handle->device.handle->device;
-    VkPhysicalDeviceMemoryProperties const& memory_properties =
-        queue.handle->device.handle->phy_device.handle->memory_properties;
-    vk::CommandQueueFamilyInfo const& family_info = queue.handle->info.family;
-
-    clip_vertex_buffer.write(dev, memory_properties,
-                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
-    clip_index_buffer.write(dev, memory_properties,
-                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
+    index_buffers[next_frame_flight_index].write(
+        dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
   }
 
   void submit(vk::SwapChain const& swapchain, u32 swapchain_image_index,
               DrawList const& draw_list) {
-    ASR_CHECK(!draw_list.vertices.is_empty());
-    ASR_CHECK(!draw_list.indices.is_empty());
-    ASR_CHECK(!draw_list.clip_vertices.is_empty());
-    ASR_CHECK(!draw_list.clip_indices.is_empty());
-
     stx::Rc<vk::Device*> const& device = swapchain.queue.handle->device;
 
     VkDevice dev = device.handle->device;
 
     VkQueue queue = swapchain.queue.handle->info.queue;
 
-    // clear framebuffer
-    {
-      VkCommandBufferBeginInfo command_buffer_begin_info{
-          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-          .pNext = nullptr,
-          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-          .pInheritanceInfo = nullptr,
-      };
+    u32 frame = swapchain.next_frame_flight_index;
 
-      ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
-                                        &command_buffer_begin_info));
+    VkCommandBuffer cmd_buffer = ctx.draw_cmd_buffers[frame];
 
-      VkClearValue clear_values[] = {
-          {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}},
-          {.depthStencil =
-               VkClearDepthStencilValue{.depth = 1.0f, .stencil = 0}}};
+    __write_vertices(draw_list.vertices, draw_list.indices, frame);
 
-      VkRenderPassBeginInfo render_pass_begin_info{
-          .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-          .pNext = nullptr,
-          .renderPass = swapchain.render_pass,
-          .framebuffer = swapchain.framebuffers[swapchain_image_index],
-          .renderArea =
-              VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
-          .clearValueCount = AS_U32(std::size(clear_values)),
-          .pClearValues = clear_values};
+    u32 nallocated_descriptor_sets = AS_U32(ctx.descriptor_sets[frame].size());
 
-      vkCmdBeginRenderPass(recording_context.command_buffer,
-                           &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    u32 ndraw_calls = AS_U32(draw_list.cmds.size());
 
-      vkCmdEndRenderPass(recording_context.command_buffer);
+    u32 ndescriptor_sets_per_draw_call =
+        AS_U32(ctx.descriptor_set_layouts.size());
 
-      ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
+    u32 nrequired_descriptor_sets =
+        ndescriptor_sets_per_draw_call * ndraw_calls;
 
-      ASR_VK_CHECK(vkResetFences(
-          dev, 1,
-          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+    u32 max_ndescriptor_sets = ctx.descriptor_pool_infos[frame].max_sets;
 
-      VkSubmitInfo submit_info{
-          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-          .pNext = nullptr,
-          .waitSemaphoreCount = 0,
-          .pWaitSemaphores = nullptr,
-          .pWaitDstStageMask = nullptr,
-          .commandBufferCount = 1,
-          .pCommandBuffers = &recording_context.command_buffer,
-          .signalSemaphoreCount = 0,
-          .pSignalSemaphores = nullptr};
+    if (ndescriptor_sets_per_draw_call > 0) {
+      if (nrequired_descriptor_sets > nallocated_descriptor_sets) {
+        u32 nallocatable_combined_image_samplers = 0;
 
-      ASR_VK_CHECK(vkQueueSubmit(
-          queue, 1, &submit_info,
-          swapchain.rendering_fences[swapchain.next_frame_flight_index]));
+        for (VkDescriptorPoolSize size :
+             ctx.descriptor_pool_infos[frame].sizes) {
+          if (size.type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
+            nallocatable_combined_image_samplers = size.descriptorCount;
+            break;
+          }
+        }
 
-      ASR_VK_CHECK(vkWaitForFences(
-          dev, 1,
-          &swapchain.rendering_fences[swapchain.next_frame_flight_index],
-          VK_TRUE, COMMAND_TIMEOUT));
+        if (nrequired_descriptor_sets > max_ndescriptor_sets ||
+            nrequired_descriptor_sets > nallocatable_combined_image_samplers) {
+          if (!ctx.descriptor_sets[frame].is_empty()) {
+            ASR_VK_CHECK(
+                vkFreeDescriptorSets(dev, ctx.descriptor_pools[frame],
+                                     AS_U32(ctx.descriptor_sets[frame].size()),
+                                     ctx.descriptor_sets[frame].data()));
+          }
 
-      ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
+          vkDestroyDescriptorPool(dev, ctx.descriptor_pools[frame], nullptr);
+
+          stx::Vec<VkDescriptorPoolSize> sizes{stx::os_allocator};
+
+          sizes
+              .push({.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                     .descriptorCount = nrequired_descriptor_sets})
+              .unwrap();
+
+          VkDescriptorPoolCreateInfo descriptor_pool_create_info{
+              .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+              .pNext = nullptr,
+              .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+              .maxSets = nrequired_descriptor_sets,
+              .poolSizeCount = AS_U32(sizes.size()),
+              .pPoolSizes = sizes.data()};
+
+          ASR_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
+                                              nullptr,
+                                              &ctx.descriptor_pools[frame]));
+
+          ctx.descriptor_pool_infos[frame] = vk::DescriptorPoolInfo{
+              .sizes = std::move(sizes), .max_sets = nrequired_descriptor_sets};
+
+          ctx.descriptor_sets[frame].resize(nrequired_descriptor_sets).unwrap();
+
+          for (u32 i = 0; i < ndraw_calls; i++) {
+            VkDescriptorSetAllocateInfo descriptor_set_allocate_info{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .pNext = nullptr,
+                .descriptorPool = ctx.descriptor_pools[frame],
+                .descriptorSetCount = AS_U32(ctx.descriptor_set_layouts.size()),
+                .pSetLayouts = ctx.descriptor_set_layouts.data()};
+
+            ASR_VK_CHECK(vkAllocateDescriptorSets(
+                dev, &descriptor_set_allocate_info,
+                ctx.descriptor_sets[frame].data() +
+                    i * ndescriptor_sets_per_draw_call));
+          }
+        } else {
+          ctx.descriptor_sets[frame].resize(nrequired_descriptor_sets).unwrap();
+
+          VkDescriptorSetAllocateInfo descriptor_set_allocate_info{
+              .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+              .pNext = nullptr,
+              .descriptorPool = ctx.descriptor_pools[frame],
+              .descriptorSetCount = AS_U32(ctx.descriptor_set_layouts.size()),
+              .pSetLayouts = ctx.descriptor_set_layouts.data()};
+
+          for (u32 i =
+                   nallocated_descriptor_sets / ndescriptor_sets_per_draw_call;
+               i < nrequired_descriptor_sets / ndescriptor_sets_per_draw_call;
+               i++) {
+            ASR_VK_CHECK(vkAllocateDescriptorSets(
+                dev, &descriptor_set_allocate_info,
+                ctx.descriptor_sets[frame].data() +
+                    i * ndescriptor_sets_per_draw_call));
+          }
+        }
+      }
     }
 
-    for (DrawCommand const& draw_command : draw_list.commands) {
-      {
-        write_clip_vertices(draw_list.clip_vertices, draw_list.clip_indices);
+    ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.rendering_fences[frame],
+                                 VK_TRUE, COMMAND_TIMEOUT));
 
-        VkCommandBufferBeginInfo command_buffer_begin_info{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .pNext = nullptr,
-            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            .pInheritanceInfo = nullptr};
+    ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.rendering_fences[frame]));
 
-        ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.clip_command_buffer,
-                                          &command_buffer_begin_info));
+    ASR_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
 
-        VkClearValue clear_values[] = {
-            {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}}};
+    VkCommandBufferBeginInfo command_buffer_begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
 
-        VkRenderPassBeginInfo render_pass_begin_info{
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .pNext = nullptr,
-            .renderPass = swapchain.clip.render_pass,
-            .framebuffer = swapchain.clip.framebuffer,
-            .renderArea =
-                VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
-            .clearValueCount = AS_U32(std::size(clear_values)),
-            .pClearValues = clear_values};
+    ASR_VK_CHECK(vkBeginCommandBuffer(cmd_buffer, &command_buffer_begin_info));
 
-        vkCmdBeginRenderPass(recording_context.clip_command_buffer,
-                             &render_pass_begin_info,
-                             VK_SUBPASS_CONTENTS_INLINE);
+    VkClearValue clear_values[] = {
+        {.color = VkClearColorValue{{0, 0, 0, 0}}},
+        {.depthStencil = VkClearDepthStencilValue{.depth = 1, .stencil = 0}}};
 
-        vkCmdBindPipeline(recording_context.clip_command_buffer,
-                          VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          recording_context.clip_pipeline.pipeline);
+    VkRenderPassBeginInfo render_pass_begin_info{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .pNext = nullptr,
+        .renderPass = swapchain.render_pass,
+        .framebuffer = swapchain.framebuffers[swapchain_image_index],
+        .renderArea =
+            VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
+        .clearValueCount = AS_U32(std::size(clear_values)),
+        .pClearValues = clear_values};
 
-        VkViewport viewport{.x = 0.0f,
-                            .y = 0.0f,
-                            .width = AS_F32(swapchain.window_extent.width),
-                            .height = AS_F32(swapchain.window_extent.height),
-                            .minDepth = 0.0f,
-                            .maxDepth = 1.0f};
+    vkCmdBeginRenderPass(cmd_buffer, &render_pass_begin_info,
+                         VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdSetViewport(recording_context.clip_command_buffer, 0, 1,
-                         &viewport);
+    VkDeviceSize offset = 0;
 
-        VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
+    for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
+      VkDescriptorImageInfo image_info{
+          .sampler = draw_list.cmds[icmd].texture.handle->sampler,
+          .imageView = draw_list.cmds[icmd].texture.handle->image.handle->view,
+          .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
-        vkCmdSetScissor(recording_context.clip_command_buffer, 0, 1, &scissor);
-
-        VkDeviceSize offset = 0;
-
-        vkCmdBindVertexBuffers(recording_context.clip_command_buffer, 0, 1,
-                               &clip_vertex_buffer.buffer, &offset);
-
-        vkCmdBindIndexBuffer(recording_context.clip_command_buffer,
-                             clip_index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-
-        vkCmdDrawIndexed(recording_context.clip_command_buffer,
-                         draw_command.nclip_indices, 1,
-                         draw_command.clip_indices_offset, 0, 0);
-
-        vkCmdEndRenderPass(recording_context.clip_command_buffer);
-
-        ASR_VK_CHECK(vkEndCommandBuffer(recording_context.clip_command_buffer));
-
-        VkPipelineStageFlags wait_stages[] = {
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-
-        VkSubmitInfo submit_info{
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .pNext = nullptr,
-            .waitSemaphoreCount = 0,
-            .pWaitSemaphores = nullptr,
-            .pWaitDstStageMask = wait_stages,
-            .commandBufferCount = 1,
-            .pCommandBuffers = &recording_context.clip_command_buffer,
-            .signalSemaphoreCount = 0,
-            .pSignalSemaphores = nullptr};
-
-        ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.clip.fence));
-
-        ASR_VK_CHECK(
-            vkQueueSubmit(queue, 1, &submit_info, swapchain.clip.fence));
-
-        ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.clip.fence, VK_TRUE,
-                                     COMMAND_TIMEOUT));
-
-        ASR_VK_CHECK(
-            vkResetCommandBuffer(recording_context.clip_command_buffer, 0));
-      }
-
-      write_vertices(draw_list.vertices, draw_list.indices);
-
-      Transform transform{.value = draw_command.transform};
-
-      Overlay overlay{.color = {draw_command.color.r / 255.0f,
-                                draw_command.color.g / 255.0f,
-                                draw_command.color.b / 255.0f,
-                                draw_command.color.a / 255.0f}};
-
-      Viewport render_viewport{
-          .extent = vec2{AS_F32(swapchain.window_extent.width),
-                         AS_F32(swapchain.window_extent.height)}};
-
-      write_transform(transform);
-      write_overlay(overlay);
-      write_viewport(render_viewport);
-
-      vk::DescriptorBinding set0[] = {
-          vk::DescriptorBinding::make_buffer(transform_buffer.buffer),
-          vk::DescriptorBinding::make_buffer(overlay_buffer.buffer),
-          vk::DescriptorBinding::make_buffer(viewport_buffer.buffer)};
-
-      vk::DescriptorBinding set1[] = {
-          vk::DescriptorBinding::make_sampler(
-              draw_command.texture.handle->image.handle->view,
-              draw_command.texture.handle->sampler),
-          vk::DescriptorBinding::make_sampler(swapchain.clip.image.view,
-                                              swapchain.clip.sampler)};
-
-      stx::Span<vk::DescriptorBinding const> sets[] = {set0, set1};
-
-      recording_context.descriptor_sets[swapchain.next_frame_flight_index]
-          .write(sets);
-
-      VkCommandBufferBeginInfo command_buffer_begin_info{
-          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      VkWriteDescriptorSet write{
+          .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
           .pNext = nullptr,
-          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-          .pInheritanceInfo = nullptr,
+          .dstSet = ctx.descriptor_sets[frame][icmd],
+          .dstBinding = 0,
+          .dstArrayElement = 0,
+          .descriptorCount = 1,
+          .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+          .pImageInfo = &image_info,
+          .pBufferInfo = nullptr,
+          .pTexelBufferView = nullptr,
       };
 
-      ASR_VK_CHECK(vkBeginCommandBuffer(recording_context.command_buffer,
-                                        &command_buffer_begin_info));
+      vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
+    }
 
-      VkClearValue clear_values[] = {
-          {.color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 0.0f}}},
-          {.depthStencil =
-               VkClearDepthStencilValue{.depth = 1.0f, .stencil = 0}}};
+    vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      ctx.pipeline.pipeline);
 
-      VkRenderPassBeginInfo render_pass_begin_info{
-          .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-          .pNext = nullptr,
-          .renderPass = swapchain.render_pass,
-          .framebuffer = swapchain.framebuffers[swapchain_image_index],
-          .renderArea =
-              VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
-          .clearValueCount = AS_U32(std::size(clear_values)),
-          .pClearValues = clear_values};
+    vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer,
+                           &offset);
 
-      vkCmdBeginRenderPass(recording_context.command_buffer,
-                           &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindIndexBuffer(cmd_buffer, index_buffers[frame].buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
 
-      vkCmdBindPipeline(recording_context.command_buffer,
-                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        recording_context.pipeline.pipeline);
+    for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
+      DrawCommand const& cmd = draw_list.cmds[icmd];
 
-      VkViewport viewport{.x = 0.0f,
-                          .y = 0.0f,
+      VkViewport viewport{.x = 0,
+                          .y = 0,
                           .width = AS_F32(swapchain.window_extent.width),
                           .height = AS_F32(swapchain.window_extent.height),
-                          .minDepth = 0.0f,
-                          .maxDepth = 1.0f};
+                          .minDepth = 0,
+                          .maxDepth = 1};
 
-      vkCmdSetViewport(recording_context.command_buffer, 0, 1, &viewport);
+      vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
 
-      VkRect2D scissor{.offset = {0, 0}, .extent = swapchain.window_extent};
+      VkRect2D scissor{.offset = {AS_I32(cmd.clip_rect.offset.x),
+                                  AS_I32(cmd.clip_rect.offset.y)},
+                       .extent = {AS_U32(cmd.clip_rect.extent.x),
+                                  AS_U32(cmd.clip_rect.extent.y)}};
 
-      vkCmdSetScissor(recording_context.command_buffer, 0, 1, &scissor);
+      vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
+
+      vk::PushConstants push_constant{
+          .transform = cmd.transform.transpose(),
+          .overlay = {cmd.color.r / 255.0f, cmd.color.g / 255.0f,
+                      cmd.color.b / 255.0f, cmd.color.a / 255.0f}};
+
+      vkCmdPushConstants(
+          cmd_buffer, ctx.pipeline.layout,
+          VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+          sizeof(vk::PushConstants), &push_constant);
 
       vkCmdBindDescriptorSets(
-          recording_context.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-          recording_context.pipeline.layout, 0,
-          AS_U32(recording_context
-                     .descriptor_sets[swapchain.next_frame_flight_index]
-                     .descriptor_sets.size()),
-          recording_context.descriptor_sets[swapchain.next_frame_flight_index]
-              .descriptor_sets.data(),
-          0, nullptr);
+          cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipeline.layout, 0,
+          ndescriptor_sets_per_draw_call,
+          &ctx.descriptor_sets[frame][icmd * ndescriptor_sets_per_draw_call], 0,
+          nullptr);
 
-      VkDeviceSize offset = 0;
-
-      vkCmdBindVertexBuffers(recording_context.command_buffer, 0, 1,
-                             &vertex_buffer.buffer, &offset);
-
-      vkCmdBindIndexBuffer(recording_context.command_buffer,
-                           index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-
-      vkCmdDrawIndexed(recording_context.command_buffer, draw_command.nindices,
-                       1, draw_command.indices_offset, 0, 0);
-
-      vkCmdEndRenderPass(recording_context.command_buffer);
-
-      ASR_VK_CHECK(vkEndCommandBuffer(recording_context.command_buffer));
-
-      ASR_VK_CHECK(vkResetFences(
-          dev, 1,
-          &swapchain.rendering_fences[swapchain.next_frame_flight_index]));
-
-      VkSubmitInfo submit_info{
-          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-          .pNext = nullptr,
-          .waitSemaphoreCount = 0,
-          .pWaitSemaphores = nullptr,
-          .pWaitDstStageMask = nullptr,
-          .commandBufferCount = 1,
-          .pCommandBuffers = &recording_context.command_buffer,
-          .signalSemaphoreCount = 0,
-          .pSignalSemaphores = nullptr};
-
-      ASR_VK_CHECK(vkQueueSubmit(
-          queue, 1, &submit_info,
-          swapchain.rendering_fences[swapchain.next_frame_flight_index]));
-
-      ASR_VK_CHECK(vkWaitForFences(
-          dev, 1,
-          &swapchain.rendering_fences[swapchain.next_frame_flight_index],
-          VK_TRUE, COMMAND_TIMEOUT));
-
-      ASR_VK_CHECK(vkResetCommandBuffer(recording_context.command_buffer, 0));
+      vkCmdDrawIndexed(cmd_buffer, cmd.nindices, 1, cmd.indices_offset, 0, 0);
     }
+
+    vkCmdEndRenderPass(cmd_buffer);
+
+    ASR_VK_CHECK(vkEndCommandBuffer(cmd_buffer));
+
+    VkPipelineStageFlags wait_stage =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+    VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &swapchain.image_acquisition_semaphores[frame],
+        .pWaitDstStageMask = &wait_stage,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmd_buffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &swapchain.rendering_semaphores[frame]};
+
+    ASR_VK_CHECK(vkQueueSubmit(queue, 1, &submit_info,
+                               swapchain.rendering_fences[frame]));
   }
 };
 
 }  // namespace gfx
-};  // namespace asr
+}  // namespace asr

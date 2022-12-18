@@ -62,18 +62,20 @@ WindowApi::WindowApi() {
 WindowApi::~WindowApi() { SDL_Quit(); }
 
 bool WindowApi::poll_events() {
-  SDL_Event event{};
+  SDL_Event event;
 
-  if (SDL_PollEvent(&event) == 1) {
+  if (SDL_PollEvent(&event)) {
     switch (event.type) {
       case SDL_WINDOWEVENT: {
         Window* win = get_window_info(WindowID{event.window.windowID});
 
-        auto listener = win->event_listeners.find(
-            impl::sdl_window_event_to_asr(event.window.event));
+        WindowEvent win_event =
+            impl::sdl_window_event_to_asr(event.window.event);
 
-        if (listener != win->event_listeners.end()) {
-          listener->second.handle();
+        for (auto const& listener : win->event_listeners) {
+          if (listener.first == win_event) {
+            listener.second.handle();
+          }
         }
 
         return true;

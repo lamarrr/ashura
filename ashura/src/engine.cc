@@ -101,9 +101,9 @@ Engine::Engine(AppConfig const& cfg) {
   stx::Vec phy_devices = vk::get_all_devices(vk_instance);
 
   VkPhysicalDeviceType const device_preference[] = {
+      VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
       VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
-      VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
-      VK_PHYSICAL_DEVICE_TYPE_CPU};
+      VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU, VK_PHYSICAL_DEVICE_TYPE_CPU};
 
   xlogger.info("Available Physical Devices:");
 
@@ -171,7 +171,7 @@ Engine::Engine(AppConfig const& cfg) {
                                  stx::os_allocator, xqueue.share())
                                  .unwrap());
 
-  canvas_context.value().handle->recording_context.on_swapchain_changed(
+  canvas_context.value().handle->ctx.on_swapchain_changed(
       queue.value().handle->device.handle->device,
       window.value().handle->surface_.value().handle->swapchain.value());
 
@@ -182,18 +182,16 @@ Engine::Engine(AppConfig const& cfg) {
       }).unwrap());
 
   window.value().handle->mouse_motion_listener =
-      stx::fn::rc::make_unique_static(
-          [](MouseMotionEvent const&) { ASR_LOG("mouse motion detected"); });
+      stx::fn::rc::make_unique_static([](MouseMotionEvent const&) {});
 
   u32 const transparent_image_data[1] = {0x00000000};
   // TODO(lamarrr): fill with zeros
   // auto transparent_image =
   // vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
 
-  auto transparent_image =
-      canvas_context.value().handle->recording_context.upload_image(
-          queue.value(), ImageDims{.width = 1920, .height = 1080, .nchannels = 4},
-          sample_image);
+  auto transparent_image = canvas_context.value().handle->ctx.upload_image(
+      queue.value(), ImageDims{.width = 1920, .height = 1080, .nchannels = 4},
+      sample_image);
 
   auto sampler = vk::create_image_sampler(transparent_image);
 
@@ -206,9 +204,30 @@ Engine::Engine(AppConfig const& cfg) {
       stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
         std::exit(0);
       }).unwrap());
+
+  window.value().handle->on(
+      WindowEvent::Resized,
+      stx::fn::rc::make_unique_functor(
+          stx::os_allocator,
+          [win = window.value().handle]() { win->needs_resizing = true; })
+          .unwrap());
+
+  window.value().handle->on(
+      WindowEvent::SizeChanged,
+      stx::fn::rc::make_unique_functor(
+          stx::os_allocator,
+          [win = window.value().handle]() { win->needs_resizing = true; })
+          .unwrap());
 };
 
 void Engine::tick(std::chrono::nanoseconds interval) {
+  // poll events to make the window not be marked as unresponsive.
+  // we also poll events from SDL's event queue until there are none left.
+  //
+  // any missed event should be rolled over to the next tick()
+  do {
+  } while (window_api.value().handle->poll_events());
+
   // TODO(lamarrr): try getting window extent on each frame instead
   window.value().handle->tick(interval);
 
@@ -219,15 +238,37 @@ void Engine::tick(std::chrono::nanoseconds interval) {
                             .window_extent;
 
     gfx::Canvas& c = canvas.value();
+    static int x = 0;
+    static auto start = std::chrono::steady_clock::now();
 
-    c.restart(vec2{1920, 1080});
-    c.brush.color = colors::TRANSPARENT;
+    c.restart({AS_F32(extent.width), AS_F32(extent.height)});
+    c.brush.color = colors::WHITE;
     c.clear();
-    //c.draw_rect({0, 0}, {1920, 1080});
-    c.brush.color = colors::MAGENTA.with_alpha(10);
+    // c.rotate(0, M_PI / 4, 0);
+    // c.translate(1920/2, 1080/2);
+    // c.scale(0.5f, 0.5f, 1.0f);
+    c.brush.color = colors::MAGENTA.with_alpha(0);
     c.brush.pattern = c.transparent_image.share();
-    c.draw_rect({0.25  * 1920, .25 * 1080}, {.25 * 1920 ,.25 * 1080 });
-    // c.draw_circle({0.25 * 1920, 0.25 * 1080}, 200, 2000);
+    c.brush.fill = false;
+    c.brush.line_width = 50;
+    //c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
+
+    // c.draw_rect({200, 200}, {250, 250});
+
+    c.draw_ellipse({150, 150}, {500, 200}, 60);
+
+    /* c.brush.color = colors::GREEN.with_alpha(63);
+    c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});
+    c.brush.color = colors::CYAN.with_alpha(63);
+    // c.rotate(0, 0, 0);
+    float interval = std::chrono::duration_cast<std::chrono::milliseconds>(
+                         std::chrono::steady_clock::now() - start)
+                         .count();
+    // c.translate(0, -interval / 10000.0f);
+    c.draw_round_rect({0, 0}, {500, 200}, {50, 50, 50, 50}, 200);
+    c.brush.color = colors::BLUE.with_alpha(127);
+    c.draw_circle({0, 0}, 200, 200);
+    */
   };
 
   draw_content();
@@ -245,7 +286,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   do {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       window.value().handle->recreate_swapchain(queue.value());
-      canvas_context.value().handle->recording_context.on_swapchain_changed(
+      canvas_context.value().handle->ctx.on_swapchain_changed(
           queue.value().handle->device.handle->device,
           window.value().handle->surface_.value().handle->swapchain.value());
 
@@ -264,14 +305,11 @@ void Engine::tick(std::chrono::nanoseconds interval) {
       continue;
     }
 
-    ASR_VK_CHECK(vkWaitForFences(
-        swapchain.queue.handle->device.handle->device, 1,
-        &swapchain.image_acquisition_fences[swapchain.next_frame_flight_index],
-        VK_TRUE, COMMAND_TIMEOUT));
-
     canvas_context.value().handle->submit(
         window.value().handle->surface_.value().handle->swapchain.value(),
         next_swapchain_image_index, canvas.value().draw_list);
+
+    canvas.value().clear();
 
     swapchain_diff = window.value().handle->present(next_swapchain_image_index);
 
@@ -279,16 +317,9 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     // if an error is returned
     swapchain.next_frame_flight_index =
         (swapchain.next_frame_flight_index + 1) %
-        vk::SwapChain::MAX_FRAMES_INFLIGHT;
+        vk::SwapChain::MAX_FRAMES_IN_FLIGHT;
 
   } while (swapchain_diff != WindowSwapchainDiff::None);
-
-  // poll events to make the window not be marked as unresponsive.
-  // we also poll events from SDL's event queue until there are none left.
-  //
-  // any missed event should be rolled over to the next tick()
-  do {
-  } while (window_api.value().handle->poll_events());
 
   //   pipeline->dispatch_events(
   //   window->handle.handle->event_queue.mouse_button_events,

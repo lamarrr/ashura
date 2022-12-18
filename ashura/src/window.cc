@@ -35,10 +35,9 @@ void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
                                          &surface) == SDL_TRUE,
                 "unable to create surface for window");
 
-  surface_ =
-      stx::Some(stx::rc::make_unique_inplace<vk::Surface>(
-                    stx::os_allocator, instance.share(), surface, stx::None)
-                    .unwrap());
+  surface_ = stx::Some(stx::rc::make_unique_inplace<vk::Surface>(
+                           stx::os_allocator, instance.share(), surface)
+                           .unwrap());
 }
 
 //
@@ -81,18 +80,16 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   SDL_Vulkan_GetDrawableSize(window_, &surface_width, &surface_height);
   surface_extent_ = Extent{u32_clamp(surface_width), u32_clamp(surface_height)};
 
-  ASR_LOG_TRACE("resizing window to logical({}, {}), physical({}, {})", width,
-                height, surface_width, surface_height);
-
   VkSurfaceFormatKHR preferred_formats[] = {
       {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
+      {VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
       {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
       {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
       {VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}};
 
   VkPresentModeKHR preferred_present_modes[] = {
-      VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_FIFO_KHR,
-      VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR};
+      VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR,
+      VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_MAILBOX_KHR};
 
   VkSampleCountFlagBits msaa_sample_count =
       queue.handle->device.handle->phy_device.handle->get_max_sample_count();
@@ -102,6 +99,11 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
       VkExtent2D{.width = surface_extent_.w, .height = surface_extent_.h},
       VkExtent2D{.width = window_extent_.w, .height = window_extent_.h},
       msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+
+  ASR_LOG(
+      "recreated swapchain for logical/window/viewport extent: [{}, {}], "
+      "physical/surface extent: [{}, {}]",
+      width, height, surface_width, surface_height);
 }
 
 std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
@@ -117,10 +119,7 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   VkSemaphore semaphore =
       swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
 
-  VkFence fence =
-      swapchain.image_acquisition_fences[swapchain.next_frame_flight_index];
-
-  ASR_VK_CHECK(vkResetFences(dev, 1, &fence));
+  VkFence fence = VK_NULL_HANDLE;
 
   u32 next_swapchain_image_index = 0;
 
@@ -163,21 +162,23 @@ WindowSwapchainDiff Window::present(u32 next_swapchain_image_index) {
   // delay the process so we don't submit more frames than the display's
   // refresh rate can keep up with and we thus save power.
   //
-  VkPresentInfoKHR present_info{.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-                                .pNext = nullptr,
-                                .waitSemaphoreCount = 0,
-                                .pWaitSemaphores = nullptr,
-                                .swapchainCount = 1,
-                                .pSwapchains = &swapchain.swapchain,
-                                .pImageIndices = &next_swapchain_image_index,
-                                .pResults = nullptr};
+  VkPresentInfoKHR present_info{
+      .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+      .pNext = nullptr,
+      .waitSemaphoreCount = 1,
+      .pWaitSemaphores =
+          &swapchain.rendering_semaphores[swapchain.next_frame_flight_index],
+      .swapchainCount = 1,
+      .pSwapchains = &swapchain.swapchain,
+      .pImageIndices = &next_swapchain_image_index,
+      .pResults = nullptr};
 
   VkResult result =
       vkQueuePresentKHR(swapchain.queue.handle->info.queue, &present_info);
 
   ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                 result == VK_ERROR_OUT_OF_DATE_KHR,
-            "failed to present to swapchain");
+            "failed to present swapchain image");
 
   if (result == VK_SUBOPTIMAL_KHR) {
     return WindowSwapchainDiff::Suboptimal;
@@ -194,7 +195,7 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
   // width and height here refer to the screen coordinates and not the
   // actual pixel coordinates (cc: Device Pixel Ratio)
 
-  auto window_flags = SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_VULKAN;
+  int window_flags = SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_VULKAN;
 
   if (cfg.type_hint == WindowTypeHint::Normal) {
   } else if (cfg.type_hint == WindowTypeHint::Popup) {
