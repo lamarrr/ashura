@@ -251,11 +251,11 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.brush.pattern = c.transparent_image.share();
     c.brush.fill = false;
     c.brush.line_width = 50;
-    c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
+    //c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
 
     // c.draw_rect({200, 200}, {250, 250});
 
-    // c.draw_circle({150, 150}, 200, 6);
+    c.draw_ellipse({150, 150}, {500, 200}, 60);
 
     /* c.brush.color = colors::GREEN.with_alpha(63);
     c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});

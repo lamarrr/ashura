@@ -1,14 +1,17 @@
 #pragma once
+#define STB_TRUETYPE_IMPLEMENTATION
 
 #include <array>
 #include <chrono>
 #include <cinttypes>
 #include <cmath>
 #include <iostream>
+#include <limits>
 
 #include "ashura/primitives.h"
 #include "ashura/shaders.h"
 #include "ashura/vulkan.h"
+#include "stb_truetype.h"
 #include "stx/string.h"
 #include "stx/vec.h"
 #include "vulkan/vulkan.h"
@@ -126,24 +129,6 @@ inline void round_rect(stx::Span<vec2> polygon, asr::rect area, vec4 radii,
 
 }  // namespace polygons
 
-struct TextMetrics {
-  // x-direction
-  f32 width = 0;
-  f32 actual_bounding_box_left = 0;
-  f32 actual_bounding_box_right = 0;
-
-  // y-direction
-  f32 font_bounding_box_ascent = 0;
-  f32 font_bounding_box_descent = 0;
-  f32 actual_bounding_box_ascent = 0;
-  f32 actual_bounding_box_descent = 0;
-  f32 ascent = 0;
-  f32 descent = 0;
-  f32 hanging_baseline = 0;
-  f32 alphabetic_baseline = 0;
-  f32 ideographic_baseline = 0;
-};
-
 struct Shadow {
   vec2 offset;
   f32 blur_radius = 0;
@@ -159,30 +144,9 @@ enum class TextAlign : u8 {
   Center
 };
 
-enum class TextBaseline : u8 {
-  Top,
-  Hanging,
-  Middle,
-  Alphabetic,
-  Ideographic,
-  Bottom
-};
-
 enum class TextDirection : u8 { Ltr, Rtl, Ttb, Btt };
 
 enum class FontKerning : u8 { Normal, None };
-
-enum class FontStretch : u8 {
-  UltraCondensed,
-  ExtraCondensed,
-  Condensed,
-  SemiCondensed,
-  Normal,
-  SemiExpanded,
-  Expanded,
-  ExtraExpanded,
-  UltraExpanded
-};
 
 enum class FontWeight : u32 {
   Thin = 100,
@@ -220,14 +184,12 @@ struct Typeface;
 struct TextStyle {
   stx::String font_family = "SF Pro"_str;
   FontWeight font_weight = FontWeight::Normal;
-  u32 font_size = 10;
+  f32 font_height = 10;
+  f32 letter_spacing = 0;
+  f32 word_spacing = 0;
   TextAlign align = TextAlign::Start;
-  TextBaseline baseline = TextBaseline::Alphabetic;
   TextDirection direction = TextDirection::Ltr;
-  u32 letter_spacing = 0;
   FontKerning font_kerning = FontKerning::None;
-  FontStretch font_stretch = FontStretch::Normal;
-  u32 word_spacing = 0;
 };
 
 namespace transforms {
@@ -308,15 +270,18 @@ struct DrawList {
   }
 };
 
-inline void transform_vertices_to_viewport(stx::Span<vertex> vertices,
-                                           vec2 viewport_extent,
-                                           rect polygon_area,
-                                           rect texture_area) {
+constexpr vec2 normalize_for_viewport(vec2 position, vec2 viewport_extent) {
+  // transform to -1 to +1 range from x pointing right and y pointing upwards
+  return (2 * position / viewport_extent) - 1;
+}
+
+inline void transform_vertices_to_viewport_and_generate_texture_coordinates(
+    stx::Span<vertex> vertices, vec2 viewport_extent, rect polygon_area,
+    rect texture_area) {
   for (usize i = 0; i < vertices.size(); i++) {
     vec2 position = vertices[i].position;
 
-    // transform to -1 to +1 range from x pointing right and y pointing upwards
-    vec2 normalized = (2 * position / viewport_extent) - 1;
+    vec2 normalized = normalize_for_viewport(position, viewport_extent);
 
     // transform vertex position into texture coordinates (within the polygon's
     // extent)
@@ -344,8 +309,6 @@ inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
 inline void triangulate_line(stx::Vec<vertex>& ivertices,
                              stx::Vec<u32>& iindices, u32 first_vertex_index,
                              stx::Span<vec2 const> points, f32 line_width) {
-  // TODO(lamarrr): we need to handle the case where the p1 and p2 have x or y
-  // equal as it will make the solution tend to nan/-nan
   if (points.size() < 2) return;
 
   bool has_previous_line = false;
@@ -361,7 +324,7 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
     //
     // get the angle of inclination of p2 to p1
     vec2 d = p2 - p1;
-    f32 m = std::abs(d.y / d.x);
+    f32 m = std::abs(d.y / std::max(stx::f32_epsilon, d.x));
     f32 alpha = std::atan(m);
 
     // use direction of the points to get the actual overall angle of
@@ -419,6 +382,104 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
 
     vertex_index += 4;
   }
+}
+
+struct FontInfo {
+  u32 size = 40;
+  u32 atlas_width = 1024;
+  u32 atlas_height = 1024;
+  u32 oversample_x = 2;
+  u32 oversample_y = 2;
+  u32 first_char = ' ';
+  u32 char_count = '~' - ' ';
+};
+
+// TODO(lamarrr): hid stb header from this TU
+struct FontAtlas {
+  stx::Memory char_info_mem;
+
+  stbtt_packedchar const* char_info() const {
+    return static_cast<stbtt_packedchar const*>(char_info_mem.handle);
+  }
+};
+
+enum class FontLoadError { InitFailed, PackFailed };
+
+stx::Result<FontAtlas, FontLoadError> generate_font_atlas(
+    FontInfo const& info, stx::String const& font_data) {
+  stx::Memory atlas_data_mem =
+      stx::mem::allocate(stx::os_allocator,
+                         info.atlas_width * info.atlas_height)
+          .unwrap();
+
+  stx::Memory font_char_info_mem =
+      stx::mem::allocate(stx::os_allocator,
+                         sizeof(stbtt_packedchar) * info.char_count)
+          .unwrap();
+
+  stbtt_pack_context context;
+
+  if (stbtt_PackBegin(&context,
+                      static_cast<unsigned char*>(atlas_data_mem.handle),
+                      info.atlas_width, info.atlas_height, 0, 1, nullptr) == 0)
+    return stx::Err(FontLoadError::InitFailed);
+
+  stbtt_PackSetOversampling(&context, info.oversample_x, info.oversample_y);
+
+  if (stbtt_PackFontRange(
+          &context, reinterpret_cast<unsigned char const*>(font_data.c_str()),
+          0, info.size, info.first_char, info.char_count,
+          static_cast<stbtt_packedchar*>(font_char_info_mem.handle)) == 0) {
+    stbtt_PackEnd(&context);
+    return stx::Err(FontLoadError::PackFailed);
+  }
+
+  stbtt_PackEnd(&context);
+
+  return stx::Ok(FontAtlas{.char_info_mem = std::move(font_char_info_mem)});
+}
+
+// returns x placement of next glyph (assumes there's infinite space along the
+// x direction)
+f32 get_glyph_vertices(stx::Span<vertex> ivertices, stx::Span<u32> iindices,
+                       u32 first_vertex_index, FontAtlas const& atlas,
+                       FontInfo const& info, u32 character, vec2 offset,
+                       f32 height) {
+  u32 char_index = character - info.first_char;
+  stbtt_packedchar const* pchar = atlas.char_info() + char_index;
+
+  // draw text at position offset, area.offset accounts for
+  // ascent and descent of the character
+  rect area{.offset = {offset + vec2{pchar->xoff, pchar->yoff}},
+            .extent = {pchar->xoff2 - pchar->xoff, pchar->yoff2 - pchar->yoff}};
+
+  f32 scale = height / area.extent.y;
+
+  area.extent.x *= scale;
+  area.extent.y = height;
+
+  f32 s0 = pchar->x0 / info.atlas_width;
+  f32 t0 = pchar->y0 / info.atlas_height;
+  f32 s1 = pchar->x1 / info.atlas_width;
+  f32 t1 = pchar->y1 / info.atlas_height;
+
+  vertex vertices[] = {
+      {.position = area.offset, .st = {s0, t0}},
+      {.position = {area.offset.x + area.extent.x, area.offset.y},
+       .st = {s1, t0}},
+      {.position = area.offset + area.extent, .st = {s1, t1}},
+      {.position = {area.offset.x, area.offset.y + area.extent.y},
+       .st = {s0, t1}}};
+
+  ivertices.copy(vertices);
+
+  u32 indices[] = {first_vertex_index,     first_vertex_index + 1,
+                   first_vertex_index + 2, first_vertex_index,
+                   first_vertex_index + 2, first_vertex_index + 3};
+
+  iindices.copy(indices);
+
+  return scale * pchar->xadvance;
 }
 
 // TODO(lamarrr): properly handle the case of zero sized indices and clip
@@ -522,7 +583,8 @@ struct Canvas {
                          {{0, viewport_extent.y}, {0, 0}}};
 
     for (vertex& vertex : vertices) {
-      vertex.position = (2 * vertex.position / viewport_extent) - 1;
+      vertex.position =
+          normalize_for_viewport(vertex.position, viewport_extent);
     }
 
     draw_list.vertices.extend(vertices).unwrap();
@@ -558,7 +620,7 @@ struct Canvas {
 
     u32 nindices = AS_U32(draw_list.indices.size() - start);
 
-    transform_vertices_to_viewport(
+    transform_vertices_to_viewport_and_generate_texture_coordinates(
         draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
         texture_area);
 
@@ -593,7 +655,7 @@ struct Canvas {
           .unwrap();
     }
 
-    transform_vertices_to_viewport(
+    transform_vertices_to_viewport_and_generate_texture_coordinates(
         draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
         texture_area);
 
@@ -712,11 +774,22 @@ struct Canvas {
   }
 
   // Text API
-  Canvas& draw_text(stx::StringView text, vec2 position);
+  Canvas& draw_text(stx::StringView text, vec2 position) {
+    brush.text_style.letter_spacing;
+    brush.text_style.align;
+    brush.text_style.direction;
+    brush.text_style.font_kerning;
+    brush.text_style.word_spacing;
+    brush.text_style.font_weight;
+    brush.text_style.font_height;
+
+    get_glyph_vertices();
+    normalize_for_viewport();
+  }
 
   // Image API
   Canvas& draw_image(Image const& image, rect area, rect image_portion,
-                     vec4 border_radii, u32 nsegments) {
+                     vec4 border_radii, usize nsegments) {
     stx::Vec<vec2> points{stx::os_allocator};
     points.resize(nsegments * 4).unwrap();
     polygons::round_rect(points, area, border_radii, nsegments);
