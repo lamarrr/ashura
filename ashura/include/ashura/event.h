@@ -27,7 +27,15 @@ enum class WindowEvent : u8 {
 
 enum class MouseButton : u8 { Primary, Secondary, Middle, A1, A2, A3, A4, A5 };
 
-enum class KeyModifier : u8 {};
+enum class KeyModifiers : u8 {
+  None = 0,
+  Alt = 1,
+  Ctrl = 2,
+  Shift = 4,
+  Meta = 8  // "⌘" present on mac systems
+};
+
+STX_DEFINE_ENUM_BIT_OPS(KeyModifiers)
 
 enum class MouseID : u32 {};
 
@@ -38,17 +46,17 @@ enum class MouseAction : u8 {
 
 struct MouseMotionEvent {
   MouseID mouse_id{};
-  OffsetI offset;
-  OffsetI translation;
+  offseti offset;
+  offseti translation;
 };
 
 struct MouseClickEvent {
   MouseID mouse_id{};
-  OffsetI offset;
+  offseti offset;
   u32 clicks = 0;
   MouseButton button = MouseButton::Primary;
   MouseAction action = MouseAction::Press;
-  KeyModifier modifier;  // TODO(lamarrr)
+  KeyModifiers modifiers = KeyModifiers::None;  // TODO(lamarrr)
 };
 
 struct Keyboard;

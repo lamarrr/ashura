@@ -68,17 +68,16 @@ void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
 //
 // the event queue should be cleared after publishing the eventas
 
-// TODO(lamarrr): do these need to be passed in everytime?
 void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   // if cause of change in swapchain is a change in extent, then mark
   // layout as dirty, otherwise maintain pipeline state
   int width = 0, height = 0;
   SDL_GetWindowSize(window_, &width, &height);
-  window_extent_ = Extent{u32_clamp(width), u32_clamp(height)};
+  window_extent_ = extent{u32_clamp(width), u32_clamp(height)};
 
   int surface_width = 0, surface_height = 0;
   SDL_Vulkan_GetDrawableSize(window_, &surface_width, &surface_height);
-  surface_extent_ = Extent{u32_clamp(surface_width), u32_clamp(surface_height)};
+  surface_extent_ = extent{u32_clamp(surface_width), u32_clamp(surface_height)};
 
   VkSurfaceFormatKHR preferred_formats[] = {
       {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
@@ -237,14 +236,14 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
   ASR_SDL_CHECK(window != nullptr, "unable to create window");
 
   cfg.min_extent.copy().match(
-      [&](Extent min_extent) {
+      [&](extent min_extent) {
         SDL_SetWindowMinimumSize(window, i32_clamp(min_extent.w),
                                  i32_clamp(min_extent.h));
       },
       []() {});
 
   cfg.max_extent.copy().match(
-      [&](Extent max_extent) {
+      [&](extent max_extent) {
         SDL_SetWindowMaximumSize(window, i32_clamp(max_extent.w),
                                  i32_clamp(max_extent.h));
       },

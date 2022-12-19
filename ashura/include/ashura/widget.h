@@ -31,38 +31,44 @@ struct Widget {
   virtual stx::Option<i64> get_z_index();
 
   // + handling floating, relative, sticky and fixed positioned elements
-  virtual RectF layout(vec2 allotted_extent);  // min, max, available
+  virtual rect layout(rect target);  // min, max, available
 
   // children layout??? or do we entirely allow self layout
   // + other properties that will make its rendering work well with other
   // widgets
-  virtual void draw(vec2 offset, vec2 extent);
+  virtual void draw(rect area);
 
   // called before children are drawn
-  virtual void pre_effect(vec2 offset, vec2 extent);
+  virtual void pre_effect(rect area);
 
   // called once children are drawn
-  virtual void post_effect(vec2 offset, vec2 extent);
+  virtual void post_effect(rect area);
 
-  virtual void tick(std::chrono::nanoseconds interval, Context &ctx);
+  virtual void tick(std::chrono::nanoseconds interval, Context &context);
 
-  /*=== EVENTS ===*/
+  /*=== EVENTS (https://www.w3.org/TR/uievents) ===*/
+  // TODO(lamarrr): ensure there is a separation between widget-specific and
+  // global events
 
-  virtual void on_enter_view();
-  virtual void on_leave_view();
+  virtual void on_enter_viewport();
+  virtual void on_leave_viewport();
 
-  virtual void on_click(MouseButton btn, vec2 pos);
-  virtual void on_double_click(MouseButton btn, vec2 pos);
-  virtual void on_mouse_scroll(vec2 translation, vec2 x, vec2 y);
-  virtual void on_mouse_move();
-  virtual void on_hover(Offset pos);
-  virtual void on_mouse_down();
-  virtual void on_mouse_up();
-  virtual void on_mouse_enter();
-  virtual void on_mouse_leave();
-  virtual void on_mouse_out();
-  virtual void on_mouse_over();
-  virtual void on_enter();
+  virtual void on_click(MouseButton button, vec2 position,
+                        KeyModifiers modifiers);
+  virtual void on_double_click(MouseButton button, vec2 position,
+                               KeyModifiers modifiers);
+  virtual void on_mouse_scroll(vec2 translation, vec2 previous_position,
+                               vec2 present_position, KeyModifiers modifiers);
+  virtual void on_mouse_move(vec2 previous_position, vec2 present_position,
+                             KeyModifiers modifiers);
+  virtual void on_hover(vec2 pos, KeyModifiers modifiers);
+  virtual void on_mouse_down(vec2 position, KeyModifiers modifiers);
+  virtual void on_mouse_up(KeyModifiers modifiers);
+  virtual void on_mouse_enter(KeyModifiers modifiers);
+  virtual void on_mouse_leave(KeyModifiers modifiers);
+  virtual void on_mouse_out(KeyModifiers modifiers);
+  virtual void on_mouse_over(KeyModifiers modifiers);
+  virtual void on_enter(KeyModifiers modifiers);
   virtual void on_tap();
   virtual void on_drag();
   virtual void on_drag_start();
@@ -71,7 +77,7 @@ struct Widget {
   virtual void on_drag_leave();
   virtual void on_drag_over();
   virtual void on_drop();
-  virtual void on_wheel();
+  virtual void on_wheel(KeyModifiers modifiers);
 
   virtual void on_touch_cancel();
   virtual void on_touch_end();
@@ -80,9 +86,9 @@ struct Widget {
   virtual void on_touch_enter();
   virtual void on_touch_leave();
 
-  virtual void on_key_down();
-  virtual void on_key_up();
-  virtual void on_keypressed();
+  virtual void on_key_down(KeyModifiers modifiers);
+  virtual void on_key_up(KeyModifiers modifiers);
+  virtual void on_keypressed(KeyModifiers modifiers);
 
   virtual void on_focus();
   virtual void on_focus_in();
@@ -94,20 +100,15 @@ struct Widget {
   virtual void on_cut();
   virtual void on_paste();
 
-  // scroll of this widget's content
-  virtual void on_scroll(vec2 translation, vec2 y);
-
   virtual void on_full_screen_change();
 
-  virtual void on_input();  // <- input widget
-
-  virtual void on_resize();
+  virtual void on_input(/*data*/);  // <- input widget
 
   // TODO(lamarrr): can this be simpler?
   virtual stx::String tooltip();
 
-  virtual void accessibility_navigate();
-  virtual void accessibility_info();
+  // virtual void accessibility_navigate();
+  // virtual void accessibility_info();
 
   virtual JsonObject save();
   virtual void restore(JsonObject const &);

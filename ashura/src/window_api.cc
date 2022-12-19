@@ -85,7 +85,7 @@ bool WindowApi::poll_events() {
       case SDL_MOUSEBUTTONUP: {
         MouseClickEvent mouse_event;
         mouse_event.mouse_id = MouseID{event.button.which};
-        mouse_event.offset = OffsetI{event.button.x, event.button.y};
+        mouse_event.offset = offseti{event.button.x, event.button.y};
         mouse_event.clicks = event.button.clicks;
 
         switch (event.button.button) {

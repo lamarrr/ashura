@@ -24,9 +24,9 @@ enum class WindowPosition : u8 { Centered };
 
 struct WindowConfig {
   stx::String title = "ashura"_str;
-  Extent extent{1920, 1080};  // TODO(lamarrr): GetDisplaySize
-  stx::Option<Extent> min_extent;
-  stx::Option<Extent> max_extent;
+  extent extent{1920, 1080};  // TODO(lamarrr): GetDisplaySize
+  stx::Option<asr::extent> min_extent;
+  stx::Option<asr::extent> max_extent;
   WindowTypeHint type_hint = WindowTypeHint::Normal;
   bool hidden = false;
   bool resizable = true;
@@ -70,7 +70,7 @@ STX_DEFINE_ENUM_BIT_OPS(WindowSwapchainDiff)
 // TODO(lamarrr): we don't need vecs in the parameter,only an allocator
 struct Window {
   Window(stx::Rc<WindowApi*> api, SDL_Window* window, WindowID id,
-         Extent extent, Extent surface_extent, WindowConfig cfg,
+         extent extent, asr::extent surface_extent, WindowConfig cfg,
          std::thread::id init_thread_id)
       : api_{std::move(api)},
         window_{window},
@@ -99,14 +99,14 @@ struct Window {
         .unwrap();
   }
 
-  void set_position(OffsetI pos) const;
+  void set_position(offseti pos) const;
 
   void center();
 
-  // variant, or centered?
-  OffsetI get_position() const;
+  // TODO(lamarrr): variant, or centered?
+  offseti get_position() const;
 
-  void set_icon(stx::Span<uint8_t const> rgba_pixels, Extent extent);
+  void set_icon(stx::Span<uint8_t const> rgba_pixels, extent extent);
 
   void make_bordered() const { SDL_SetWindowBordered(window_, SDL_TRUE); }
 
@@ -183,8 +183,8 @@ struct Window {
   stx::Rc<WindowApi*> api_;
   SDL_Window* window_ = nullptr;
   WindowID id_ = WindowID{0};
-  Extent window_extent_;
-  Extent surface_extent_;
+  extent window_extent_;
+  extent surface_extent_;
   WindowConfig cfg_;
   std::thread::id init_thread_id_;
   stx::Option<stx::Unique<vk::Surface*>> surface_;

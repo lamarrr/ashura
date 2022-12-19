@@ -42,9 +42,6 @@ add_subdirectory(third_party/fmt)
 add_subdirectory(third_party/spdlog)
 add_subdirectory(third_party/SDL)
 
-# TODO(lamarrr): check if skia binaries and header folder doesn't exists and
-# pull in
-
 set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/skia/libs)
 
 add_library(ashura_external_stb INTERFACE)

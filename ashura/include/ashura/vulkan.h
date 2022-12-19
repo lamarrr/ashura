@@ -740,7 +740,7 @@ struct CommandQueueInfo {
   // automatically destroyed once the device is destroyed
   VkQueue queue = VK_NULL_HANDLE;
   u32 create_index = 0;
-  f32 priority = 0.0f;
+  f32 priority = 0;
   CommandQueueFamilyInfo family;
 };
 
@@ -921,7 +921,7 @@ struct SpanBuffer {
   void write(VkDevice dev,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
              VkBufferUsageFlags usage, stx::Span<T const> span) {
-    // TODO(lamarrr): handle zero-sized buffers
+    ASR_CHECK(!span.is_empty());
     if (span.size_bytes() != size) {
       vkDestroyBuffer(dev, buffer, nullptr);
 
@@ -1071,78 +1071,6 @@ struct ImageX {
   }
 };
 
-// R only
-inline std::tuple<VkImage, VkDeviceMemory, VkImageView> create_image(
-    VkDevice dev, VkPhysicalDeviceMemoryProperties const& memory_properties,
-    VkExtent2D extent, VkImageUsageFlags usage, VkFormat format,
-    VkImageAspectFlags image_aspect) {
-  VkImageCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                                .pNext = nullptr,
-                                .flags = 0,
-                                .imageType = VK_IMAGE_TYPE_2D,
-                                .format = format,
-                                .extent = VkExtent3D{.width = extent.width,
-                                                     .height = extent.height,
-                                                     .depth = 1},
-                                .mipLevels = 1,
-                                .arrayLayers = 1,
-                                .samples = VK_SAMPLE_COUNT_1_BIT,
-                                .tiling = VK_IMAGE_TILING_OPTIMAL,
-                                .usage = usage,
-                                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                                .queueFamilyIndexCount = 0,
-                                .pQueueFamilyIndices = nullptr,
-                                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
-
-  VkImage image;
-
-  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
-
-  VkMemoryRequirements memory_requirements;
-
-  vkGetImageMemoryRequirements(dev, image, &memory_requirements);
-
-  u32 memory_type_index =
-      find_suitable_memory_type(memory_properties, memory_requirements,
-                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-          .unwrap();
-
-  VkMemoryAllocateInfo alloc_info{
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .pNext = nullptr,
-      .allocationSize = memory_requirements.size,
-      .memoryTypeIndex = memory_type_index};
-
-  VkDeviceMemory memory;
-
-  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
-
-  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
-
-  VkImageViewCreateInfo view_create_info{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .image = image,
-      .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = format,
-      .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                       .a = VK_COMPONENT_SWIZZLE_IDENTITY},
-      .subresourceRange = VkImageSubresourceRange{.aspectMask = image_aspect,
-                                                  .baseMipLevel = 0,
-                                                  .levelCount = 1,
-                                                  .baseArrayLayer = 0,
-                                                  .layerCount = 1}};
-
-  VkImageView view;
-
-  ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
-
-  return std::make_tuple(image, memory, view);
-}
-
 struct ImageSampler {
   VkSampler sampler = VK_NULL_HANDLE;
   stx::Rc<ImageX*> image;
@@ -1172,14 +1100,14 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device,
       .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
       .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
       .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-      .mipLodBias = 0.0f,
+      .mipLodBias = 0,
       .anisotropyEnable = enable_anisotropy,
       .maxAnisotropy = device.handle->phy_device.handle->properties.limits
                            .maxSamplerAnisotropy,
       .compareEnable = VK_FALSE,
       .compareOp = VK_COMPARE_OP_ALWAYS,
-      .minLod = 0.0f,
-      .maxLod = 0.0f,
+      .minLod = 0,
+      .maxLod = 0,
       .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
       .unnormalizedCoordinates = VK_FALSE};
 
@@ -1205,13 +1133,13 @@ enum class DescriptorType : u8 { UniformBuffer, CombinedImageSampler };
 struct DescriptorBinding {
   DescriptorType type = DescriptorType::UniformBuffer;
 
-  // only valid if type is DescriptorType::Buffer
+  // only valid if type is DescriptorType::UniformBuffer
   VkBuffer buffer = VK_NULL_HANDLE;
 
-  // only valid if type is DescriptorType::Sampler
+  // only valid if type is DescriptorType::CombinedImageSampler
   VkImageView view = VK_NULL_HANDLE;
 
-  // only valid if type is DescriptorType::Sampler
+  // only valid if type is DescriptorType::CombinedImageSampler
   VkSampler sampler = VK_NULL_HANDLE;
 
   static constexpr DescriptorBinding make_buffer(VkBuffer buffer) {
@@ -1246,182 +1174,6 @@ struct DescriptorSetSpec {
   DescriptorSetSpec() {}
 };
 
-/*
-struct DescriptorSets {
-  VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
-
-  stx::Vec<VkDescriptorSetLayout> layouts{stx::os_allocator};
-  stx::Vec<VkDescriptorSet> sets{stx::os_allocator};
-
-  stx::Vec<DescriptorSetSpec> specs{stx::os_allocator};
-
-  VkDevice dev = VK_NULL_HANDLE;
-
-  void init(VkDevice adev, stx::Span<DescriptorSetSpec> aspecs) {
-    dev = adev;
-
-    VkDescriptorPoolSize pool_sizes[] = {
-        {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 20},
-        {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount =
-10}};
-
-    VkDescriptorPoolCreateInfo pool_create_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets = 10,
-        .poolSizeCount = AS_U32(std::size(pool_sizes)),
-        .pPoolSizes = pool_sizes,
-    };
-
-    ASR_VK_CHECK(vkCreateDescriptorPool(dev, &pool_create_info, nullptr,
-                                        &descriptor_pool));
-
-    specs.extend_move(aspecs).unwrap();
-
-    for (DescriptorSetSpec const& spec : specs) {
-      stx::Vec<VkDescriptorSetLayoutBinding> bindings{stx::os_allocator};
-      u32 binding_index = 0;
-
-      for (DescriptorType type : spec.bindings) {
-        VkDescriptorType binding_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
-        switch (type) {
-          case DescriptorType::Buffer:
-            binding_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            break;
-          case DescriptorType::Sampler:
-            binding_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            break;
-          default:
-            ASR_UNREACHABLE();
-        }
-
-        bindings
-            .push(VkDescriptorSetLayoutBinding{
-                .binding = binding_index,
-                .descriptorType = binding_type,
-                .descriptorCount = 1,
-                .stageFlags =
-                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                .pImmutableSamplers = nullptr})
-            .unwrap();
-
-        binding_index++;
-      }
-
-      VkDescriptorSetLayoutCreateInfo layout_create_info{
-          .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0,
-          .bindingCount = AS_U32(bindings.size()),
-          .pBindings = bindings.data(),
-      };
-
-      VkDescriptorSetLayout layout;
-
-      ASR_VK_CHECK(vkCreateDescriptorSetLayout(dev, &layout_create_info,
-                                               nullptr, &layout));
-
-      layouts.push_inplace(layout).unwrap();
-    }
-
-    stx::Vec<VkDescriptorSet> descriptor_sets{stx::os_allocator};
-
-    VkDescriptorSetAllocateInfo descriptor_set_alloc_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .pNext = nullptr,
-        .descriptorPool = descriptor_pool,
-        .descriptorSetCount = AS_U32(layouts.size()),
-        .pSetLayouts = layouts.data(),
-    };
-
-    sets.resize(layouts.size(), VK_NULL_HANDLE).unwrap();
-
-    ASR_VK_CHECK(
-        vkAllocateDescriptorSets(dev, &descriptor_set_alloc_info, sets.data()));
-  }
-
-  void destroy() {
-    for (VkDescriptorSetLayout layout : layouts) {
-      vkDestroyDescriptorSetLayout(dev, layout, nullptr);
-    }
-
-    ASR_VK_CHECK(vkFreeDescriptorSets(dev, descriptor_pool, AS_U32(sets.size()),
-                                      sets.data()));
-
-    vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
-  }
-
-  void write(stx::Span<stx::Span<DescriptorBinding const> const> asets) {
-    ASR_CHECK(asets.size() == specs.size());
-    ASR_CHECK(asets.size() == sets.size());
-
-    for (u32 iset = 0; iset < AS_U32(sets.size()); iset++) {
-      stx::Span<DescriptorBinding const> set = asets[iset];
-
-      ASR_CHECK(set.size() == specs[iset].bindings.size());
-
-      for (u32 ibinding = 0; ibinding < AS_U32(asets[iset].size());
-           ibinding++) {
-        DescriptorBinding binding = asets[iset][ibinding];
-
-        ASR_CHECK(binding.type == specs[iset].bindings[ibinding]);
-
-        switch (binding.type) {
-          case DescriptorType::Sampler: {
-            VkDescriptorImageInfo image_info{
-                .sampler = binding.sampler,
-                .imageView = binding.view,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
-            VkWriteDescriptorSet write{
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .pNext = nullptr,
-                .dstSet = sets[iset],
-                .dstBinding = ibinding,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .pImageInfo = &image_info,
-                .pBufferInfo = nullptr,
-                .pTexelBufferView = nullptr,
-            };
-
-            vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
-
-          } break;
-
-          case DescriptorType::Buffer: {
-            VkDescriptorBufferInfo buffer_info{
-                .buffer = binding.buffer, .offset = 0, .range = VK_WHOLE_SIZE};
-
-            VkWriteDescriptorSet write{
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .pNext = nullptr,
-                .dstSet = sets[iset],
-                .dstBinding = ibinding,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .pImageInfo = nullptr,
-                .pBufferInfo = &buffer_info,
-                .pTexelBufferView = nullptr,
-            };
-
-            vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
-          } break;
-
-          default: {
-            ASR_UNREACHABLE();
-          }
-        }
-      }
-    }
-  }
-};
-*/
-
 inline Image create_msaa_color_resource(
     VkDevice dev, VkPhysicalDeviceMemoryProperties const& memory_properties,
     VkFormat swapchain_format, VkExtent2D swapchain_extent,
@@ -1441,7 +1193,6 @@ inline Image create_msaa_color_resource(
       .arrayLayers = 1,
       .samples = sample_count,
       .tiling = VK_IMAGE_TILING_OPTIMAL,
-
       .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
@@ -1767,7 +1518,7 @@ struct SwapChain {
         properties.presentation_modes, preferred_present_modes);
 
     spdlog::info("selected swapchain presentation mode: {}",
-                  string_VkPresentModeKHR(selected_present_mode));
+                 string_VkPresentModeKHR(selected_present_mode));
 
     auto [new_swapchain, new_extent] = create_swapchain(
         dev, target_surface, preferred_extent, selected_format,
@@ -2075,7 +1826,7 @@ struct Surface {
 
 struct PushConstants {
   mat4 transform = mat4::identity();
-  vec4 overlay{0.0f, 0.0f, 0.0f, 0.0f};
+  vec4 overlay{0, 0, 0, 0};
 };
 
 struct Pipeline {
@@ -2153,7 +1904,7 @@ struct Pipeline {
         .logicOp = VK_LOGIC_OP_COPY,
         .attachmentCount = AS_U32(std::size(color_blend_attachment_states)),
         .pAttachments = color_blend_attachment_states,
-        .blendConstants = {0.0f, 0.0f, 0.0f, 0.0f}};
+        .blendConstants = {0, 0, 0, 0}};
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
@@ -2178,8 +1929,8 @@ struct Pipeline {
                                  .compareMask = 0,
                                  .writeMask = 0,
                                  .reference = 0},
-        .minDepthBounds = 0.0f,
-        .maxDepthBounds = 1.0f};
+        .minDepthBounds = 0,
+        .maxDepthBounds = 1};
 
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
@@ -2194,7 +1945,7 @@ struct Pipeline {
         .flags = 0,
         .rasterizationSamples = msaa_sample_count,
         .sampleShadingEnable = VK_FALSE,
-        .minSampleShading = 1.0f,
+        .minSampleShading = 1,
         .pSampleMask = nullptr,
         .alphaToCoverageEnable = VK_FALSE,
         .alphaToOneEnable = VK_FALSE};
@@ -2209,10 +1960,10 @@ struct Pipeline {
         .cullMode = VK_CULL_MODE_NONE,
         .frontFace = VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
-        .depthBiasConstantFactor = 0.0f,
-        .depthBiasClamp = 0.0f,
-        .depthBiasSlopeFactor = 0.0f,
-        .lineWidth = 1.0f};
+        .depthBiasConstantFactor = 0,
+        .depthBiasClamp = 0,
+        .depthBiasSlopeFactor = 0,
+        .lineWidth = 1};
 
     VkVertexInputBindingDescription vertex_binding_descriptions[] = {
         {.binding = 0,
@@ -2496,21 +2247,23 @@ struct RecordingContext {
   }
 
   stx::Rc<ImageX*> upload_image(stx::Rc<CommandQueue*> const& queue,
-                                ImageDims dims, stx::Span<u8 const> data) {
+                                ImageDimensions dimensions,
+                                stx::Span<u8 const> data) {
     VkDevice dev = queue.handle->device.handle->device;
 
     VkPhysicalDeviceMemoryProperties const& memory_properties =
         queue.handle->device.handle->phy_device.handle->memory_properties;
 
-    ASR_CHECK(data.size_bytes() == dims.size());
-    ASR_CHECK(dims.nchannels == 4, "only 4-channel images presently supported");
+    ASR_CHECK(data.size_bytes() == dimensions.size());
+    ASR_CHECK(dimensions.nchannels == 4,
+              "only 4-channel images presently supported");
 
     VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
 
-    if (dims.nchannels == 4) {
-    } else if (dims.nchannels == 3) {
+    if (dimensions.nchannels == 4) {
+    } else if (dimensions.nchannels == 3) {
       format = VK_FORMAT_R8G8B8_SRGB;
-    } else if (dims.nchannels == 1) {
+    } else if (dimensions.nchannels == 1) {
       format = VK_FORMAT_R8_SRGB;
     } else {
       ASR_PANIC("image channels must either be 1, 3, or 4");
@@ -2522,8 +2275,9 @@ struct RecordingContext {
         .flags = 0,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
-        .extent =
-            VkExtent3D{.width = dims.width, .height = dims.height, .depth = 1},
+        .extent = VkExtent3D{.width = dimensions.width,
+                             .height = dimensions.height,
+                             .depth = 1},
         .mipLevels = 1,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -2581,10 +2335,11 @@ struct RecordingContext {
 
     ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
-    Buffer staging_buffer = create_host_buffer(
-        dev, memory_properties, dims.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer staging_buffer =
+        create_host_buffer(dev, memory_properties, dimensions.size(),
+                           VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
-    std::memcpy(staging_buffer.memory_map, data.data(), dims.size());
+    std::memcpy(staging_buffer.memory_map, data.data(), dimensions.size());
 
     VkCommandBufferBeginInfo cmd_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -2627,8 +2382,9 @@ struct RecordingContext {
                                      .baseArrayLayer = 0,
                                      .layerCount = 1},
         .imageOffset = VkOffset3D{.x = 0, .y = 0, .z = 0},
-        .imageExtent =
-            VkExtent3D{.width = dims.width, .height = dims.height, .depth = 1}};
+        .imageExtent = VkExtent3D{.width = dimensions.width,
+                                  .height = dimensions.height,
+                                  .depth = 1}};
 
     vkCmdCopyBufferToImage(upload_cmd_buffer, staging_buffer.buffer, image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);

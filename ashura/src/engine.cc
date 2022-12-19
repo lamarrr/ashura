@@ -90,7 +90,6 @@ Engine::Engine(AppConfig const& cfg) {
   stx::Vec window_required_instance_extensions =
       window.value().handle->get_required_instance_extensions();
 
-  // TODO(lamarrr): check for validation layers requirement
   stx::Rc<vk::Instance*> vk_instance = vk::create_instance(
       cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), cfg.name.c_str(),
       VK_MAKE_VERSION(cfg.version.major, cfg.version.minor, cfg.version.patch),
@@ -127,7 +126,7 @@ Engine::Engine(AppConfig const& cfg) {
   // rendering
   f32 queue_priorities[] = {// priority for command queue used for
                             // presentation, rendering, data transfer
-                            1.0f};
+                            1};
 
   stx::Rc graphics_command_queue_family =
       stx::rc::make(stx::os_allocator,
@@ -190,12 +189,13 @@ Engine::Engine(AppConfig const& cfg) {
   // vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
 
   auto transparent_image = canvas_context.value().handle->ctx.upload_image(
-      queue.value(), ImageDims{.width = 1920, .height = 1080, .nchannels = 4},
+      queue.value(),
+      ImageDimensions{.width = 1920, .height = 1080, .nchannels = 4},
       sample_image);
 
   auto sampler = vk::create_image_sampler(transparent_image);
 
-  canvas = stx::Some(gfx::Canvas{{0.0f, 0.0f}, sampler});
+  canvas = stx::Some(gfx::Canvas{{0, 0}, sampler});
 
   VkDevice dev = queue.value().handle->device.handle->device;
 
@@ -251,7 +251,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.brush.pattern = c.transparent_image.share();
     c.brush.fill = false;
     c.brush.line_width = 50;
-    //c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
+    // c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
 
     // c.draw_rect({200, 200}, {250, 250});
 
@@ -327,9 +327,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
   //   bool window_extent_changed =
   //   any_eq(window.value().handle->, WindowEvent::SizeChanged);
-
-  // TODO(lamarrr): ???
-  //   window->handle.handle->event_queue.clear();
 }
 
 }  // namespace asr

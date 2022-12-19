@@ -132,7 +132,7 @@ inline void round_rect(stx::Span<vec2> polygon, asr::rect area, vec4 radii,
 struct Shadow {
   vec2 offset;
   f32 blur_radius = 0;
-  Color color = colors::BLACK;
+  color color = colors::BLACK;
 };
 
 enum class TextAlign : u8 {
@@ -242,7 +242,7 @@ inline mat4 rotate_z(f32 degree_radians) {
 };  // namespace transforms
 
 struct Brush {
-  Color color = colors::BLACK;
+  color color = colors::BLACK;
   bool fill = true;
   f32 line_width = 1;
   Image pattern;
@@ -254,7 +254,7 @@ struct DrawCommand {
   u32 nindices = 0;
   rect clip_rect;
   mat4 transform = mat4::identity();
-  Color color = colors::BLACK;
+  color color = colors::BLACK;
   Image texture;
 };
 
@@ -482,10 +482,6 @@ f32 get_glyph_vertices(stx::Span<vertex> ivertices, stx::Span<u32> iindices,
   return scale * pchar->xadvance;
 }
 
-// TODO(lamarrr): properly handle the case of zero sized indices and clip
-// indices
-//
-//
 /// Coordinates are specified in top-left origin space with x pointing to the
 /// right and y pointing downwards.
 ///
