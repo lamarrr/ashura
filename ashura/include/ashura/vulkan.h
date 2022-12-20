@@ -1047,22 +1047,22 @@ struct Image {
   }
 };
 
-struct ImageX {
+struct ImageResource {
   VkImage image = VK_NULL_HANDLE;
   VkImageView view = VK_NULL_HANDLE;
   VkDeviceMemory memory = VK_NULL_HANDLE;
   stx::Rc<CommandQueue*> queue;
 
-  ImageX(VkImage aimage, VkImageView aview, VkDeviceMemory amemory,
-         stx::Rc<CommandQueue*> aqueue)
+  ImageResource(VkImage aimage, VkImageView aview, VkDeviceMemory amemory,
+                stx::Rc<CommandQueue*> aqueue)
       : image{aimage},
         view{aview},
         memory{amemory},
         queue{std::move(aqueue)} {};
 
-  STX_MAKE_PINNED(ImageX)
+  STX_MAKE_PINNED(ImageResource)
 
-  ~ImageX() {
+  ~ImageResource() {
     VkDevice dev = queue.handle->device.handle->device;
     ASR_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
@@ -1073,9 +1073,9 @@ struct ImageX {
 
 struct ImageSampler {
   VkSampler sampler = VK_NULL_HANDLE;
-  stx::Rc<ImageX*> image;
+  stx::Rc<ImageResource*> image;
 
-  ImageSampler(VkSampler asampler, stx::Rc<ImageX*> aimage)
+  ImageSampler(VkSampler asampler, stx::Rc<ImageResource*> aimage)
       : sampler{asampler}, image{std::move(aimage)} {}
 
   STX_MAKE_PINNED(ImageSampler)
@@ -1120,7 +1120,7 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device,
 }
 
 inline stx::Rc<ImageSampler*> create_image_sampler(
-    stx::Rc<ImageX*> const& image) {
+    stx::Rc<ImageResource*> const& image) {
   return stx::rc::make_inplace<ImageSampler>(
              stx::os_allocator,
              create_sampler(image.handle->queue.handle->device, VK_TRUE),
@@ -2246,9 +2246,9 @@ struct RecordingContext {
     pipeline.destroy(dev);
   }
 
-  stx::Rc<ImageX*> upload_image(stx::Rc<CommandQueue*> const& queue,
-                                ImageDimensions dimensions,
-                                stx::Span<u8 const> data) {
+  stx::Rc<ImageResource*> upload_image(stx::Rc<CommandQueue*> const& queue,
+                                       ImageDimensions dimensions,
+                                       stx::Span<u8 const> data) {
     VkDevice dev = queue.handle->device.handle->device;
 
     VkPhysicalDeviceMemoryProperties const& memory_properties =
@@ -2435,14 +2435,14 @@ struct RecordingContext {
 
     staging_buffer.destroy(dev);
 
-    return stx::rc::make_inplace<ImageX>(stx::os_allocator, image, view, memory,
-                                         queue.share())
+    return stx::rc::make_inplace<ImageResource>(stx::os_allocator, image, view,
+                                                memory, queue.share())
         .unwrap();
   }
 
-  stx::Rc<ImageX*> upload_font(stx::Rc<CommandQueue*> const& queue,
-                               extent extent, stx::Span<u8 const> data,
-                               color color) {
+  stx::Rc<ImageResource*> upload_font(stx::Rc<CommandQueue*> const& queue,
+                                      extent extent, stx::Span<u8 const> data,
+                                      color color) {
     usize target_size = static_cast<usize>(extent.w) * extent.h * 4;
     stx::Memory mem =
         stx::mem::allocate(stx::os_allocator, target_size).unwrap();
