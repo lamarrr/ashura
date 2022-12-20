@@ -164,6 +164,55 @@ constexpr bool operator==(mat4 const &a, mat4 const &b) {
          a.data[2] == b.data[2] && a.data[3] == b.data[3];
 }
 
+namespace transforms {
+
+inline mat4 translate(vec3 t) {
+  return {
+      vec4{1, 0, 0, t.x},
+      vec4{0, 1, 0, t.y},
+      vec4{0, 0, 1, t.z},
+      vec4{0, 0, 0, 1},
+  };
+}
+
+inline mat4 scale(vec3 s) {
+  return {
+      vec4{s.x, 0, 0, 0},
+      vec4{0, s.y, 0, 0},
+      vec4{0, 0, s.z, 0},
+      vec4{0, 0, 0, 1},
+  };
+}
+
+inline mat4 rotate_x(f32 degree_radians) {
+  return {
+      vec4{1, 0, 0, 0},
+      vec4{0, std::cos(degree_radians), -std::sin(degree_radians), 0},
+      vec4{0, std::sin(degree_radians), std::cos(degree_radians), 0},
+      vec4{0, 0, 0, 1},
+  };
+}
+
+inline mat4 rotate_y(f32 degree_radians) {
+  return {
+      vec4{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
+      vec4{0, 1, 0, 0},
+      vec4{-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
+      vec4{0, 0, 0, 1},
+  };
+}
+
+inline mat4 rotate_z(f32 degree_radians) {
+  return {
+      vec4{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
+      vec4{std::sin(degree_radians), std::cos(degree_radians), 0, 0},
+      vec4{0, 0, 1, 0},
+      vec4{0, 0, 0, 1},
+  };
+}
+
+}  // namespace transforms
+
 struct offset {
   u32 x = 0, y = 0;
 };

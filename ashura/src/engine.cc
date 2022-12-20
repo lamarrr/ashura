@@ -218,13 +218,10 @@ Engine::Engine(AppConfig const& cfg) {
                       otf_size};
 
   gfx::FontAtlasInfo info;
-  auto atlas = gfx::generate_atlas(info, otf_str).unwrap();
+  gfx::FontAtlas atlas = gfx::generate_atlas(info, otf_str).unwrap();
 
   canvas_context.value().handle->ctx.upload_font(
-      queue.value(), info.extent,
-      stx::Span{static_cast<u8 const*>(atlas.atlas_mem.handle),
-                static_cast<usize>(info.extent.w) * info.extent.h},
-      colors::CYAN);
+      queue.value(), info.extent, atlas.get_atlas(), colors::CYAN);
 
   auto transparent_image = canvas_context.value().handle->ctx.upload_image(
       queue.value(),

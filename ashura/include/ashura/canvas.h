@@ -2,11 +2,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 
 #include <array>
-#include <chrono>
 #include <cinttypes>
 #include <cmath>
-#include <iostream>
-#include <limits>
 
 #include "ashura/primitives.h"
 #include "ashura/shaders.h"
@@ -14,7 +11,6 @@
 #include "stb_truetype.h"
 #include "stx/string.h"
 #include "stx/vec.h"
-#include "vulkan/vulkan.h"
 
 namespace asr {
 using namespace stx::literals;
@@ -24,6 +20,63 @@ namespace gfx {
 struct vertex {
   vec2 position;
   vec2 st;
+};
+
+enum class TextAlign : u8 { Left, Right, Center };
+
+enum class WordWrap : u8 { None, Wrap };
+
+enum class TextDirection : u8 {
+  LeftToRight,
+  RightToLeft,
+  TopToBottom,
+  ButtomToTop
+};
+
+// stored in vulkan context
+using Image = stx::Rc<vk::ImageSampler*>;
+
+// TODO(lamarrr): embed default font into a cpp file
+//
+// on font loading
+//
+struct TextStyle {
+  f32 font_height = 10;
+  f32 letter_spacing = 0;
+  f32 word_spacing = 0;
+  TextDirection direction = TextDirection::LeftToRight;
+  TextAlign align = TextAlign::Left;
+  WordWrap word_wrap = WordWrap::None;
+};
+
+struct Brush {
+  color color = colors::BLACK;
+  bool fill = true;
+  f32 line_width = 1;
+  Image pattern;
+  TextStyle text_style;
+};
+
+struct DrawCommand {
+  u32 indices_offset = 0;
+  u32 nindices = 0;
+  rect clip_rect;
+  mat4 transform = mat4::identity();
+  color color = colors::BLACK;
+  vec4 texture_multiplier{1, 1, 1, 1};
+  Image texture;
+};
+
+struct DrawList {
+  stx::Vec<vertex> vertices{stx::os_allocator};
+  stx::Vec<u32> indices{stx::os_allocator};
+  stx::Vec<DrawCommand> cmds{stx::os_allocator};
+
+  void clear() {
+    vertices.clear();
+    indices.clear();
+    cmds.clear();
+  }
 };
 
 namespace polygons {
@@ -109,107 +162,6 @@ inline void round_rect(stx::Span<vec2> polygon, asr::rect area, vec4 radii,
 }
 
 }  // namespace polygons
-
-enum class TextAlign : u8 { Left, Right, Center };
-
-enum class TextDirection : u8 {
-  LeftToRight,
-  RightToLeft,
-  TopToBottom,
-  ButtomToTop
-};
-
-// stored in vulkan context
-using Image = stx::Rc<vk::ImageSampler*>;
-
-// TODO(lamarrr): embed default font into a cpp file
-//
-// on font loading
-//
-struct TextStyle {
-  f32 font_height = 10;
-  f32 letter_spacing = 0;
-  f32 word_spacing = 0;
-  TextDirection direction = TextDirection::LeftToRight;
-};
-
-namespace transforms {
-
-inline mat4 translate(vec3 t) {
-  return mat4{
-      vec4{1, 0, 0, t.x},
-      vec4{0, 1, 0, t.y},
-      vec4{0, 0, 1, t.z},
-      vec4{0, 0, 0, 1},
-  };
-}
-
-inline mat4 scale(vec3 s) {
-  return mat4{
-      vec4{s.x, 0, 0, 0},
-      vec4{0, s.y, 0, 0},
-      vec4{0, 0, s.z, 0},
-      vec4{0, 0, 0, 1},
-  };
-}
-
-inline mat4 rotate_x(f32 degree_radians) {
-  return mat4{
-      vec4{1, 0, 0, 0},
-      vec4{0, std::cos(degree_radians), -std::sin(degree_radians), 0},
-      vec4{0, std::sin(degree_radians), std::cos(degree_radians), 0},
-      vec4{0, 0, 0, 1},
-  };
-}
-
-inline mat4 rotate_y(f32 degree_radians) {
-  return mat4{
-      vec4{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
-      vec4{0, 1, 0, 0},
-      vec4{-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
-      vec4{0, 0, 0, 1},
-  };
-}
-
-inline mat4 rotate_z(f32 degree_radians) {
-  return mat4{
-      vec4{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
-      vec4{std::sin(degree_radians), std::cos(degree_radians), 0, 0},
-      vec4{0, 0, 1, 0},
-      vec4{0, 0, 0, 1},
-  };
-}
-
-};  // namespace transforms
-
-struct Brush {
-  color color = colors::BLACK;
-  bool fill = true;
-  f32 line_width = 1;
-  Image pattern;
-  TextStyle text_style;
-};
-
-struct DrawCommand {
-  u32 indices_offset = 0;
-  u32 nindices = 0;
-  rect clip_rect;
-  mat4 transform = mat4::identity();
-  color color = colors::BLACK;
-  Image texture;
-};
-
-struct DrawList {
-  stx::Vec<vertex> vertices{stx::os_allocator};
-  stx::Vec<u32> indices{stx::os_allocator};
-  stx::Vec<DrawCommand> cmds{stx::os_allocator};
-
-  void clear() {
-    vertices.clear();
-    indices.clear();
-    cmds.clear();
-  }
-};
 
 constexpr vec2 normalize_for_viewport(vec2 position, vec2 viewport_extent) {
   // transform to -1 to +1 range from x pointing right and y pointing upwards
@@ -325,7 +277,7 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
   }
 }
 
-struct FontAtlasInfo {
+struct TypefaceAtlasInfo {
   u32 font_size = 40;
   extent extent{1024, 1024};
   u32 oversample_x = 2;
@@ -334,23 +286,26 @@ struct FontAtlasInfo {
   u32 char_count = '~' - ' ';
 };
 
-struct FontAtlas {
-  stx::Memory packed_char_mem;
+struct TypefaceAtlas {
+  stx::Memory packed_glyphs_mem;
+  usize nchars = 0;
   stx::Memory atlas_mem;
+  usize natlas_pixels = 0;
 
-  stbtt_packedchar const* packed_char() const {
-    return static_cast<stbtt_packedchar const*>(packed_char_mem.handle);
+  stx::Span<stbtt_packedchar const> get_packed_glyphs() const {
+    return stx::Span{
+        static_cast<stbtt_packedchar const*>(packed_glyphs_mem.handle), nchars};
   }
 
-  u8 const* get_atlas() const {
-    return static_cast<u8 const*>(atlas_mem.handle);
+  stx::Span<u8 const> get_atlas() const {
+    return stx::Span{static_cast<u8 const*>(atlas_mem.handle), natlas_pixels};
   }
 };
 
-enum class FontLoadError { InitFailed, PackFailed };
+enum class TypefaceLoadError { PackFailed };
 
-stx::Result<FontAtlas, FontLoadError> generate_atlas(
-    FontAtlasInfo const& info, stx::String const& font_data) {
+stx::Result<TypefaceAtlas, TypefaceLoadError> generate_atlas(
+    TypefaceAtlasInfo const& info, stx::String const& font_data) {
   stx::Memory atlas_data_mem =
       stx::mem::allocate(stx::os_allocator, info.extent.w * info.extent.h)
           .unwrap();
@@ -364,8 +319,9 @@ stx::Result<FontAtlas, FontLoadError> generate_atlas(
 
   if (stbtt_PackBegin(&context,
                       static_cast<unsigned char*>(atlas_data_mem.handle),
-                      info.extent.w, info.extent.h, 0, 1, nullptr) == 0)
-    return stx::Err(FontLoadError::InitFailed);
+                      info.extent.w, info.extent.h, 0, 1, nullptr) == 0) {
+    return stx::Err(TypefaceLoadError::PackFailed);
+  }
 
   stbtt_PackSetOversampling(&context, info.oversample_x, info.oversample_y);
 
@@ -374,21 +330,26 @@ stx::Result<FontAtlas, FontLoadError> generate_atlas(
           0, info.font_size, info.first_char, info.char_count,
           static_cast<stbtt_packedchar*>(font_char_info_mem.handle)) == 0) {
     stbtt_PackEnd(&context);
-    return stx::Err(FontLoadError::PackFailed);
+    return stx::Err(TypefaceLoadError::PackFailed);
   }
 
   stbtt_PackEnd(&context);
 
-  return stx::Ok(FontAtlas{.packed_char_mem = std::move(font_char_info_mem),
-                           .atlas_mem = std::move(atlas_data_mem)});
+  return stx::Ok(TypefaceAtlas{
+      .packed_glyphs_mem = std::move(font_char_info_mem),
+      .nchars = info.char_count,
+      .atlas_mem = std::move(atlas_data_mem),
+      .natlas_pixels = static_cast<usize>(info.extent.w) * info.extent.h});
 }
 
 void generate_glyph_vertices(stx::Span<vertex> ivertices,
                              stx::Span<u32> iindices, u32 first_vertex_index,
-                             FontAtlas const& atlas, FontAtlasInfo const& info,
-                             u32 character, vec2 offset, f32 height) {
+                             TypefaceAtlas const& atlas,
+                             TypefaceAtlasInfo const& info, u32 character,
+                             vec2 offset, f32 height) {
+  // TODO(lamarrr): we might need to handle out of range characters
   u32 char_index = character - info.first_char;
-  stbtt_packedchar const& pchar = *(atlas.packed_char() + char_index);
+  stbtt_packedchar const& pchar = atlas.get_packed_glyphs()[char_index];
 
   // draw text at position offset, area.offset accounts for
   // ascent and descent of the character
@@ -424,16 +385,12 @@ void generate_glyph_vertices(stx::Span<vertex> ivertices,
   pchar.xadvance* scale;
 }
 
-struct UploadedFont {
-  FontAtlasInfo info;
-  FontAtlas atlas;
+struct Typeface {
+  TypefaceAtlasInfo info;
+  TypefaceAtlas atlas;
+  Image gpu_atlas;
 
-  struct Variant {
-    color color;
-    Image atlas;
-  };
-
-  stx::Vec<Variant> variants{stx::os_allocator};
+  vec2 layout(stx::StringView text, TextStyle const& style);
 };
 
 /// coordinates are specified in top-left origin space with x pointing to the
@@ -549,6 +506,7 @@ struct Canvas {
                           .clip_rect = rect{{0, 0}, viewport_extent},
                           .transform = mat4::identity(),
                           .color = brush.color,
+                          .texture_multiplier = {1, 1, 1, 1},
                           .texture = brush.pattern.share()})
         .unwrap();
 
@@ -580,6 +538,7 @@ struct Canvas {
                           .clip_rect = clip_rect,
                           .transform = transform,
                           .color = brush.color,
+                          .texture_multiplier = {1, 1, 1, 1},
                           .texture = pattern.share()})
         .unwrap();
 
@@ -615,6 +574,7 @@ struct Canvas {
                           .clip_rect = clip_rect,
                           .transform = transform,
                           .color = brush.color,
+                          .texture_multiplier = {1, 1, 1, 1},
                           .texture = pattern.share()})
         .unwrap();
 
@@ -725,21 +685,68 @@ struct Canvas {
 
   // Text API
   Canvas& draw_text(stx::StringView text, vec2 position,
-                    UploadedFont const& font) {
+                    Typeface const& typeface) {
     brush.text_style.letter_spacing;
     brush.text_style.align;
     brush.text_style.direction;
     brush.text_style.word_spacing;
     brush.text_style.font_height;
+    brush.text_style.word_wrap;
 
-    u32 num_spaces_in_tab = 4;
+    u32 nspaces_in_tab = 4;
 
-    // TODO(lamarrr): check how imgui generates fonts for different color texts
-    // TODO(lamarrr): we can't draw directly in most cases and might need to
+    vec2 offset = position;
+
+    usize normalize_start = draw_list.vertices.size();
+
+    // TODO(lamarrr): we can't draw directly in some cases and might need to
     // perform separate layout process?
 
-    get_glyph_vertices();
-    normalize_for_viewport();
+    u32 first_vertex_index = AS_U32(draw_list.vertices.size());
+    u32 indices_offset = AS_U32(draw_list.indices.size());
+
+    draw_list.vertices.resize(draw_list.vertices.size() + 4 * text.size());
+    draw_list.indices.resize(draw_list.indices.size() + 6 * text.size());
+
+    for (char c : text) {
+      switch (c) {
+        case ' ': {
+        }
+
+        case '\t': {
+        }
+
+        default: {
+          generate_glyph_vertices(
+              draw_list.vertices.span().slice(first_vertex_index),
+              draw_list.indices.span().slice(indices_offset),
+              first_vertex_index, typeface.atlas, typeface.info, c, offset,
+              brush.text_style.font_height);
+
+          for (vertex& vertex :
+               draw_list.vertices.span().slice(first_vertex_index)) {
+            vertex.position =
+                normalize_for_viewport(vertex.position, viewport_extent);
+          }
+
+          draw_list.cmds
+              .push(DrawCommand{.indices_offset = indices_offset,
+                                .nindices = 6,
+                                .clip_rect = rect{{0, 0}, viewport_extent},
+                                .transform = transform,
+                                .color = {0, 0, 0, 0},
+                                .texture_multiplier = {brush.color.r / 255.0f,
+                                                       brush.color.g / 255.0f,
+                                                       brush.color.b / 255.0f,
+                                                       brush.color.a / 255.0f},
+                                .texture = typeface.gpu_atlas.share()})
+              .unwrap();
+
+          first_vertex_index += 4;
+          indices_offset += 6;
+        }
+      }
+    }
   }
 
   // Image API
@@ -1017,7 +1024,8 @@ struct CanvasContext {
       vk::PushConstants push_constant{
           .transform = cmd.transform.transpose(),
           .overlay = {cmd.color.r / 255.0f, cmd.color.g / 255.0f,
-                      cmd.color.b / 255.0f, cmd.color.a / 255.0f}};
+                      cmd.color.b / 255.0f, cmd.color.a / 255.0f},
+          .texture_multiplier = cmd.texture_multiplier};
 
       vkCmdPushConstants(
           cmd_buffer, ctx.pipeline.layout,

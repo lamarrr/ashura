@@ -1827,6 +1827,7 @@ struct Surface {
 struct PushConstants {
   mat4 transform = mat4::identity();
   vec4 overlay{0, 0, 0, 0};
+  vec4 texture_multiplier{1, 1, 1, 1};
 };
 
 struct Pipeline {
@@ -2441,18 +2442,17 @@ struct RecordingContext {
   }
 
   stx::Rc<ImageResource*> upload_font(stx::Rc<CommandQueue*> const& queue,
-                                      extent extent, stx::Span<u8 const> data,
-                                      color color) {
+                                      extent extent, stx::Span<u8 const> data) {
     usize target_size = static_cast<usize>(extent.w) * extent.h * 4;
     stx::Memory mem =
         stx::mem::allocate(stx::os_allocator, target_size).unwrap();
     u8* pixels = static_cast<u8*>(mem.handle);
 
     for (usize i = 0; i < target_size; i += 4) {
-      pixels[i] = color.r;
-      pixels[i + 1] = color.g;
-      pixels[i + 2] = color.b;
-      pixels[i + 3] = AS_U8((color.a / 255.0f) * data[i / 4]);
+      pixels[i] = 255;
+      pixels[i + 1] = 255;
+      pixels[i + 2] = 255;
+      pixels[i + 3] = data[i / 4];
     }
 
     return upload_image(
