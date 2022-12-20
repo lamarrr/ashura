@@ -1,4 +1,4 @@
-add_library(ashura STATIC src/app.cc src/engine.cc src/window_api.cc
+add_library(ashura STATIC src/app.cc src/engine.cc src/stb_truetype.cc src/window_api.cc
                           src/widget.cc src/window.cc)
 
 target_include_directories(

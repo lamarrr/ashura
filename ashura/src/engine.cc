@@ -208,27 +208,23 @@ Engine::Engine(AppConfig const& cfg) {
   otf.seekg(0);
 
   stx::Memory otf_mem =
-      stx::mem::allocate(stx::os_allocator, otf_size + 1).unwrap();
+      stx::mem::allocate(stx::os_allocator, otf_size).unwrap();
 
   otf.read(static_cast<char*>(otf_mem.handle), otf_size);
-
-  static_cast<char*>(otf_mem.handle)[otf_size] = '\0';
 
   stx::String otf_str{static_cast<stx::ReadOnlyMemory>(std::move(otf_mem)),
                       otf_size};
 
-  gfx::FontAtlasInfo info;
-  gfx::FontAtlas atlas = gfx::generate_atlas(info, otf_str).unwrap();
-
-  canvas_context.value().handle->ctx.upload_font(
-      queue.value(), info.extent, atlas.get_atlas(), colors::CYAN);
+  TypefaceAtlasInfo info;
+  Typeface typeface =
+      canvas_context.value()
+          .handle->ctx.upload_typeface(queue.value(), otf_str, info)
+          .unwrap();
 
   auto transparent_image = canvas_context.value().handle->ctx.upload_image(
-      queue.value(),
-      ImageDimensions{.width = 1920, .height = 1080, .nchannels = 4},
-      sample_image);
+      queue.value(), extent{1920, 1080}, 4, sample_image);
 
-  auto sampler = vk::create_image_sampler(transparent_image);
+  gfx::Image sampler = vk::create_image_sampler(transparent_image);
 
   canvas = stx::Some(gfx::Canvas{{0, 0}, sampler});
 

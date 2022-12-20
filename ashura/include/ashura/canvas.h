@@ -1,52 +1,24 @@
 #pragma once
-#define STB_TRUETYPE_IMPLEMENTATION
 
 #include <array>
 #include <cinttypes>
 #include <cmath>
 
+#include "ashura/font.h"
+#include "ashura/image.h"
 #include "ashura/primitives.h"
 #include "ashura/shaders.h"
 #include "ashura/vulkan.h"
-#include "stb_truetype.h"
 #include "stx/string.h"
 #include "stx/vec.h"
 
 namespace asr {
-using namespace stx::literals;
 
 namespace gfx {
 
 struct vertex {
   vec2 position;
   vec2 st;
-};
-
-enum class TextAlign : u8 { Left, Right, Center };
-
-enum class WordWrap : u8 { None, Wrap };
-
-enum class TextDirection : u8 {
-  LeftToRight,
-  RightToLeft,
-  TopToBottom,
-  ButtomToTop
-};
-
-// stored in vulkan context
-using Image = stx::Rc<vk::ImageSampler*>;
-
-// TODO(lamarrr): embed default font into a cpp file
-//
-// on font loading
-//
-struct TextStyle {
-  f32 font_height = 10;
-  f32 letter_spacing = 0;
-  f32 word_spacing = 0;
-  TextDirection direction = TextDirection::LeftToRight;
-  TextAlign align = TextAlign::Left;
-  WordWrap word_wrap = WordWrap::None;
 };
 
 struct Brush {
@@ -277,79 +249,14 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
   }
 }
 
-struct TypefaceAtlasInfo {
-  u32 font_size = 40;
-  extent extent{1024, 1024};
-  u32 oversample_x = 2;
-  u32 oversample_y = 2;
-  u32 first_char = ' ';
-  u32 char_count = '~' - ' ';
-};
-
-struct TypefaceAtlas {
-  stx::Memory packed_glyphs_mem;
-  usize nchars = 0;
-  stx::Memory atlas_mem;
-  usize natlas_pixels = 0;
-
-  stx::Span<stbtt_packedchar const> get_packed_glyphs() const {
-    return stx::Span{
-        static_cast<stbtt_packedchar const*>(packed_glyphs_mem.handle), nchars};
-  }
-
-  stx::Span<u8 const> get_atlas() const {
-    return stx::Span{static_cast<u8 const*>(atlas_mem.handle), natlas_pixels};
-  }
-};
-
-enum class TypefaceLoadError { PackFailed };
-
-stx::Result<TypefaceAtlas, TypefaceLoadError> generate_atlas(
-    TypefaceAtlasInfo const& info, stx::String const& font_data) {
-  stx::Memory atlas_data_mem =
-      stx::mem::allocate(stx::os_allocator, info.extent.w * info.extent.h)
-          .unwrap();
-
-  stx::Memory font_char_info_mem =
-      stx::mem::allocate(stx::os_allocator,
-                         sizeof(stbtt_packedchar) * info.char_count)
-          .unwrap();
-
-  stbtt_pack_context context;
-
-  if (stbtt_PackBegin(&context,
-                      static_cast<unsigned char*>(atlas_data_mem.handle),
-                      info.extent.w, info.extent.h, 0, 1, nullptr) == 0) {
-    return stx::Err(TypefaceLoadError::PackFailed);
-  }
-
-  stbtt_PackSetOversampling(&context, info.oversample_x, info.oversample_y);
-
-  if (stbtt_PackFontRange(
-          &context, reinterpret_cast<unsigned char const*>(font_data.c_str()),
-          0, info.font_size, info.first_char, info.char_count,
-          static_cast<stbtt_packedchar*>(font_char_info_mem.handle)) == 0) {
-    stbtt_PackEnd(&context);
-    return stx::Err(TypefaceLoadError::PackFailed);
-  }
-
-  stbtt_PackEnd(&context);
-
-  return stx::Ok(TypefaceAtlas{
-      .packed_glyphs_mem = std::move(font_char_info_mem),
-      .nchars = info.char_count,
-      .atlas_mem = std::move(atlas_data_mem),
-      .natlas_pixels = static_cast<usize>(info.extent.w) * info.extent.h});
-}
-
-void generate_glyph_vertices(stx::Span<vertex> ivertices,
-                             stx::Span<u32> iindices, u32 first_vertex_index,
-                             TypefaceAtlas const& atlas,
-                             TypefaceAtlasInfo const& info, u32 character,
-                             vec2 offset, f32 height) {
+inline void generate_glyph_vertices(stx::Span<vertex> ivertices,
+                                    stx::Span<u32> iindices,
+                                    u32 first_vertex_index,
+                                    Typeface const& typeface, u32 character,
+                                    vec2 offset, f32 height) {
   // TODO(lamarrr): we might need to handle out of range characters
-  u32 char_index = character - info.first_char;
-  stbtt_packedchar const& pchar = atlas.get_packed_glyphs()[char_index];
+  u32 char_index = character - typeface.info.first_char;
+  stbtt_packedchar const& pchar = typeface.glyphs[char_index];
 
   // draw text at position offset, area.offset accounts for
   // ascent and descent of the character
@@ -361,10 +268,10 @@ void generate_glyph_vertices(stx::Span<vertex> ivertices,
   area.extent.x *= scale;
   area.extent.y = height;
 
-  f32 s0 = AS_F32(pchar.x0) / info.extent.w;
-  f32 t0 = AS_F32(pchar.y0) / info.extent.h;
-  f32 s1 = AS_F32(pchar.x1) / info.extent.w;
-  f32 t1 = AS_F32(pchar.y1) / info.extent.h;
+  f32 s0 = AS_F32(pchar.x0) / typeface.info.extent.w;
+  f32 t0 = AS_F32(pchar.y0) / typeface.info.extent.h;
+  f32 s1 = AS_F32(pchar.x1) / typeface.info.extent.w;
+  f32 t1 = AS_F32(pchar.y1) / typeface.info.extent.h;
 
   vertex vertices[] = {
       {.position = area.offset, .st = {s0, t0}},
@@ -382,16 +289,8 @@ void generate_glyph_vertices(stx::Span<vertex> ivertices,
 
   iindices.copy(indices);
 
-  pchar.xadvance* scale;
+  // TODO(lamarrr): pchar.xadvance* scale;
 }
-
-struct Typeface {
-  TypefaceAtlasInfo info;
-  TypefaceAtlas atlas;
-  Image gpu_atlas;
-
-  vec2 layout(stx::StringView text, TextStyle const& style);
-};
 
 /// coordinates are specified in top-left origin space with x pointing to the
 /// right and y pointing downwards.
@@ -705,11 +604,13 @@ struct Canvas {
     u32 first_vertex_index = AS_U32(draw_list.vertices.size());
     u32 indices_offset = AS_U32(draw_list.indices.size());
 
-    draw_list.vertices.resize(draw_list.vertices.size() + 4 * text.size());
-    draw_list.indices.resize(draw_list.indices.size() + 6 * text.size());
+    draw_list.vertices.resize(draw_list.vertices.size() + 4 * text.size())
+        .unwrap();
+    draw_list.indices.resize(draw_list.indices.size() + 6 * text.size())
+        .unwrap();
 
-    for (char c : text) {
-      switch (c) {
+    for (char character : text) {
+      switch (character) {
         case ' ': {
         }
 
@@ -720,7 +621,7 @@ struct Canvas {
           generate_glyph_vertices(
               draw_list.vertices.span().slice(first_vertex_index),
               draw_list.indices.span().slice(indices_offset),
-              first_vertex_index, typeface.atlas, typeface.info, c, offset,
+              first_vertex_index, typeface, character, offset,
               brush.text_style.font_height);
 
           for (vertex& vertex :
@@ -739,8 +640,11 @@ struct Canvas {
                                                        brush.color.g / 255.0f,
                                                        brush.color.b / 255.0f,
                                                        brush.color.a / 255.0f},
-                                .texture = typeface.gpu_atlas.share()})
+                                .texture = typeface.atlas.share()})
               .unwrap();
+
+          // TODO(lamarrr):
+          offset = offset + vec2{0, 0};
 
           first_vertex_index += 4;
           indices_offset += 6;

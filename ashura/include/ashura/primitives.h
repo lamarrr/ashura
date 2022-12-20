@@ -335,13 +335,12 @@ constexpr std::pair<i32, i32> i32_clamp(extent extent) {
 }
 
 struct ImageDimensions {
-  u32 width = 0;
-  u32 height = 0;
-  u32 nchannels = 4;
+  extent extent;
+  u32 nchannels = 0;
 
   constexpr usize size() const {
-    usize result = width;
-    result *= height;
+    usize result = extent.w;
+    result *= extent.h;
     result *= nchannels;
     return result;
   }

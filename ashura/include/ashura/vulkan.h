@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "ashura/font.h"
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
 #include "stx/backtrace.h"
@@ -2248,23 +2249,23 @@ struct RecordingContext {
   }
 
   stx::Rc<ImageResource*> upload_image(stx::Rc<CommandQueue*> const& queue,
-                                       ImageDimensions dimensions,
+                                       extent extent, u32 nchannels,
                                        stx::Span<u8 const> data) {
     VkDevice dev = queue.handle->device.handle->device;
 
     VkPhysicalDeviceMemoryProperties const& memory_properties =
         queue.handle->device.handle->phy_device.handle->memory_properties;
 
-    ASR_CHECK(data.size_bytes() == dimensions.size());
-    ASR_CHECK(dimensions.nchannels == 4,
-              "only 4-channel images presently supported");
+    ASR_CHECK(data.size_bytes() ==
+              static_cast<usize>(extent.w) * extent.h * nchannels);
+    ASR_CHECK(nchannels == 4, "only 4-channel images presently supported");
 
     VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
 
-    if (dimensions.nchannels == 4) {
-    } else if (dimensions.nchannels == 3) {
+    if (nchannels == 4) {
+    } else if (nchannels == 3) {
       format = VK_FORMAT_R8G8B8_SRGB;
-    } else if (dimensions.nchannels == 1) {
+    } else if (nchannels == 1) {
       format = VK_FORMAT_R8_SRGB;
     } else {
       ASR_PANIC("image channels must either be 1, 3, or 4");
@@ -2276,9 +2277,7 @@ struct RecordingContext {
         .flags = 0,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
-        .extent = VkExtent3D{.width = dimensions.width,
-                             .height = dimensions.height,
-                             .depth = 1},
+        .extent = VkExtent3D{.width = extent.w, .height = extent.h, .depth = 1},
         .mipLevels = 1,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -2337,10 +2336,10 @@ struct RecordingContext {
     ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
     Buffer staging_buffer =
-        create_host_buffer(dev, memory_properties, dimensions.size(),
+        create_host_buffer(dev, memory_properties, data.size_bytes(),
                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
-    std::memcpy(staging_buffer.memory_map, data.data(), dimensions.size());
+    std::memcpy(staging_buffer.memory_map, data.data(), data.size_bytes());
 
     VkCommandBufferBeginInfo cmd_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -2383,9 +2382,8 @@ struct RecordingContext {
                                      .baseArrayLayer = 0,
                                      .layerCount = 1},
         .imageOffset = VkOffset3D{.x = 0, .y = 0, .z = 0},
-        .imageExtent = VkExtent3D{.width = dimensions.width,
-                                  .height = dimensions.height,
-                                  .depth = 1}};
+        .imageExtent =
+            VkExtent3D{.width = extent.w, .height = extent.h, .depth = 1}};
 
     vkCmdCopyBufferToImage(upload_cmd_buffer, staging_buffer.buffer, image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
@@ -2441,24 +2439,63 @@ struct RecordingContext {
         .unwrap();
   }
 
-  stx::Rc<ImageResource*> upload_font(stx::Rc<CommandQueue*> const& queue,
-                                      extent extent, stx::Span<u8 const> data) {
-    usize target_size = static_cast<usize>(extent.w) * extent.h * 4;
-    stx::Memory mem =
-        stx::mem::allocate(stx::os_allocator, target_size).unwrap();
-    u8* pixels = static_cast<u8*>(mem.handle);
-
-    for (usize i = 0; i < target_size; i += 4) {
-      pixels[i] = 255;
-      pixels[i + 1] = 255;
-      pixels[i + 2] = 255;
-      pixels[i + 3] = data[i / 4];
+  stx::Result<Typeface, TypefaceLoadError> upload_typeface(
+      stx::Rc<vk::CommandQueue*> const& queue,
+      stx::Span<char const> raw_typeface_data, TypefaceAtlasInfo const& info) {
+    if (raw_typeface_data.is_empty()) {
+      return stx::Err(TypefaceLoadError::InvalidData);
     }
 
-    return upload_image(
-        queue,
-        ImageDimensions{.width = extent.w, .height = extent.h, .nchannels = 4},
-        stx::Span{pixels, target_size});
+    stx::Memory atlas_data_alpha8_mem =
+        stx::mem::allocate(stx::os_allocator,
+                           static_cast<usize>(info.extent.w) * info.extent.h)
+            .unwrap();
+
+    u8* atlas_data_alpha8 = static_cast<u8*>(atlas_data_alpha8_mem.handle);
+
+    stbtt_pack_context pack_context;
+
+    if (stbtt_PackBegin(
+            &pack_context,
+            static_cast<unsigned char*>(atlas_data_alpha8_mem.handle),
+            info.extent.w, info.extent.h, 0, 1, nullptr) == 0) {
+      return stx::Err(TypefaceLoadError::PackFailed);
+    }
+
+    stbtt_PackSetOversampling(&pack_context, info.oversample_x,
+                              info.oversample_y);
+
+    stx::Vec<stbtt_packedchar> glyphs{stx::os_allocator};
+    glyphs.resize(info.char_count).unwrap();
+
+    if (stbtt_PackFontRange(
+            &pack_context,
+            reinterpret_cast<unsigned char const*>(raw_typeface_data.data()), 0,
+            info.font_size, info.first_char, info.char_count,
+            glyphs.data()) == 0) {
+      stbtt_PackEnd(&pack_context);
+      return stx::Err(TypefaceLoadError::PackFailed);
+    }
+
+    stbtt_PackEnd(&pack_context);
+
+    usize target_size = static_cast<usize>(info.extent.w) * info.extent.h * 4;
+    stx::Memory pixels_data_rgba888_mem =
+        stx::mem::allocate(stx::os_allocator, target_size).unwrap();
+    u8* pixels_data_rgba888 = static_cast<u8*>(pixels_data_rgba888_mem.handle);
+
+    for (usize i = 0; i < target_size; i += 4) {
+      pixels_data_rgba888[i] = 255;
+      pixels_data_rgba888[i + 1] = 255;
+      pixels_data_rgba888[i + 2] = 255;
+      pixels_data_rgba888[i + 3] = atlas_data_alpha8[i / 4];
+    }
+
+    return stx::Ok(Typeface{.info = info,
+                            .glyphs = std::move(glyphs),
+                            .atlas = vk::create_image_sampler(upload_image(
+                                queue, info.extent, 4,
+                                stx::Span{pixels_data_rgba888, target_size}))});
   }
 };
 
