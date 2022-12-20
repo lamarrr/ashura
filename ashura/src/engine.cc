@@ -1,5 +1,7 @@
 #include "ashura/engine.h"
 
+#include <fstream>
+
 #include "ashura/canvas.h"
 #include "ashura/sample_image.h"
 #include "ashura/sdl_utils.h"
@@ -187,6 +189,42 @@ Engine::Engine(AppConfig const& cfg) {
   // TODO(lamarrr): fill with zeros
   // auto transparent_image =
   // vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
+
+  // TODO(lamarrr): things to handle:
+  //
+  // - font resizing (presently we use a fixed size font)
+  // - font scaling
+  // - font variants: coloring
+  // - font variants: font weights
+  //
+
+  std::ifstream otf(
+      "C:\\Users\\Basit\\OneDrive\\Desktop\\Fortnite-Font\\fortnite\\fortnite."
+      "otf",
+      std::ios_base::binary | std::ios_base::ate);
+  ASR_CHECK(otf.is_open());
+
+  usize otf_size = otf.tellg();
+  otf.seekg(0);
+
+  stx::Memory otf_mem =
+      stx::mem::allocate(stx::os_allocator, otf_size + 1).unwrap();
+
+  otf.read(static_cast<char*>(otf_mem.handle), otf_size);
+
+  static_cast<char*>(otf_mem.handle)[otf_size] = '\0';
+
+  stx::String otf_str{static_cast<stx::ReadOnlyMemory>(std::move(otf_mem)),
+                      otf_size};
+
+  gfx::FontAtlasInfo info;
+  auto atlas = gfx::generate_atlas(info, otf_str).unwrap();
+
+  canvas_context.value().handle->ctx.upload_font(
+      queue.value(), info.extent,
+      stx::Span{static_cast<u8 const*>(atlas.atlas_mem.handle),
+                static_cast<usize>(info.extent.w) * info.extent.h},
+      colors::CYAN);
 
   auto transparent_image = canvas_context.value().handle->ctx.upload_image(
       queue.value(),

@@ -10,7 +10,7 @@
 namespace asr {
 
 stx::Vec<char const*> Window::get_required_instance_extensions() const {
-  uint32_t ext_count = 0;
+  u32 ext_count = 0;
   stx::Vec<char const*> required_instance_extensions{stx::os_allocator};
 
   ASR_SDL_CHECK(
@@ -39,34 +39,6 @@ void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
                            stx::os_allocator, instance.share(), surface)
                            .unwrap());
 }
-
-//
-//
-// process and dispatch events
-// notify of window resize, minimize, and maximize
-// notify of pipeline render and layout dirtiness
-//
-//
-// poll events for polling budget
-//
-//
-// if resize event comes in (this should be the only event expected by the
-// window once it is all cleaned up and widgets idle):
-//    - recreate swapchain
-//    - notify widget pipeline of resize event
-//    - forward backing store to swapchain
-//
-// if swapchain needs recreation:
-//    - recreate swapchain
-//    - forward backing store to swapchain
-//
-// if forwarding backing store to swapchain:
-//    - if error occured during swapchain presentation: i.e. it becomes
-//    non-optimal or out of date, go to swapchain recreation
-//
-//
-//
-// the event queue should be cleared after publishing the eventas
 
 void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   // if cause of change in swapchain is a change in extent, then mark
@@ -251,7 +223,7 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
 
   SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-  uint32_t window_id = SDL_GetWindowID(window);
+  u32 window_id = SDL_GetWindowID(window);
 
   stx::Rc<Window*> win =
       stx::rc::make_inplace<Window>(stx::os_allocator, std::move(api), window,

@@ -24,25 +24,6 @@ namespace gfx {
 struct vertex {
   vec2 position;
   vec2 st;
-
-  static constexpr std::array<VkVertexInputAttributeDescription, 2>
-  attribute_descriptions() {
-    return {
-        VkVertexInputAttributeDescription{.location = 0,
-                                          .binding = 0,
-                                          .format = VK_FORMAT_R32G32_SFLOAT,
-                                          .offset = offsetof(vertex, position)},
-        VkVertexInputAttributeDescription{.location = 1,
-                                          .binding = 0,
-                                          .format = VK_FORMAT_R32G32_SFLOAT,
-                                          .offset = offsetof(vertex, st)}};
-  }
-
-  static constexpr VkVertexInputBindingDescription binding_description() {
-    return {.binding = 0,
-            .stride = sizeof(vertex),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX};
-  }
 };
 
 namespace polygons {
@@ -129,67 +110,27 @@ inline void round_rect(stx::Span<vec2> polygon, asr::rect area, vec4 radii,
 
 }  // namespace polygons
 
-struct Shadow {
-  vec2 offset;
-  f32 blur_radius = 0;
-  color color = colors::BLACK;
+enum class TextAlign : u8 { Left, Right, Center };
+
+enum class TextDirection : u8 {
+  LeftToRight,
+  RightToLeft,
+  TopToBottom,
+  ButtomToTop
 };
-
-enum class TextAlign : u8 {
-  // detect locale and other crap
-  Start,
-  End,
-  Left,
-  Right,
-  Center
-};
-
-enum class TextDirection : u8 { Ltr, Rtl, Ttb, Btt };
-
-enum class FontKerning : u8 { Normal, None };
-
-enum class FontWeight : u32 {
-  Thin = 100,
-  ExtraLight = 200,
-  Light = 300,
-  Normal = 400,
-  Medium = 500,
-  Semi = 600,
-  Bold = 700,
-  ExtraBold = 800,
-  Black = 900,
-  ExtraBlack = 950
-};
-
-// requirements:
-// - easy resource specification
-// - caching so we don't have to reupload on every frame
-// - GPU texture/image
-//
-// requirements:
-// -
-// struct TypefaceId {
-//   u64 id = 0;
-// };
 
 // stored in vulkan context
 using Image = stx::Rc<vk::ImageSampler*>;
-
-struct Typeface;
 
 // TODO(lamarrr): embed default font into a cpp file
 //
 // on font loading
 //
 struct TextStyle {
-  stx::String font_family = "SF Pro"_str;
-  FontWeight font_weight = FontWeight::Normal;
   f32 font_height = 10;
   f32 letter_spacing = 0;
   f32 word_spacing = 0;
-  TextAlign align = TextAlign::Start;
-  TextDirection direction = TextDirection::Ltr;
-  FontKerning font_kerning = FontKerning::None;
+  TextDirection direction = TextDirection::LeftToRight;
 };
 
 namespace transforms {
@@ -384,32 +325,34 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
   }
 }
 
-struct FontInfo {
-  u32 size = 40;
-  u32 atlas_width = 1024;
-  u32 atlas_height = 1024;
+struct FontAtlasInfo {
+  u32 font_size = 40;
+  extent extent{1024, 1024};
   u32 oversample_x = 2;
   u32 oversample_y = 2;
   u32 first_char = ' ';
   u32 char_count = '~' - ' ';
 };
 
-// TODO(lamarrr): hid stb header from this TU
 struct FontAtlas {
-  stx::Memory char_info_mem;
+  stx::Memory packed_char_mem;
+  stx::Memory atlas_mem;
 
-  stbtt_packedchar const* char_info() const {
-    return static_cast<stbtt_packedchar const*>(char_info_mem.handle);
+  stbtt_packedchar const* packed_char() const {
+    return static_cast<stbtt_packedchar const*>(packed_char_mem.handle);
+  }
+
+  u8 const* get_atlas() const {
+    return static_cast<u8 const*>(atlas_mem.handle);
   }
 };
 
 enum class FontLoadError { InitFailed, PackFailed };
 
-stx::Result<FontAtlas, FontLoadError> generate_font_atlas(
-    FontInfo const& info, stx::String const& font_data) {
+stx::Result<FontAtlas, FontLoadError> generate_atlas(
+    FontAtlasInfo const& info, stx::String const& font_data) {
   stx::Memory atlas_data_mem =
-      stx::mem::allocate(stx::os_allocator,
-                         info.atlas_width * info.atlas_height)
+      stx::mem::allocate(stx::os_allocator, info.extent.w * info.extent.h)
           .unwrap();
 
   stx::Memory font_char_info_mem =
@@ -421,14 +364,14 @@ stx::Result<FontAtlas, FontLoadError> generate_font_atlas(
 
   if (stbtt_PackBegin(&context,
                       static_cast<unsigned char*>(atlas_data_mem.handle),
-                      info.atlas_width, info.atlas_height, 0, 1, nullptr) == 0)
+                      info.extent.w, info.extent.h, 0, 1, nullptr) == 0)
     return stx::Err(FontLoadError::InitFailed);
 
   stbtt_PackSetOversampling(&context, info.oversample_x, info.oversample_y);
 
   if (stbtt_PackFontRange(
           &context, reinterpret_cast<unsigned char const*>(font_data.c_str()),
-          0, info.size, info.first_char, info.char_count,
+          0, info.font_size, info.first_char, info.char_count,
           static_cast<stbtt_packedchar*>(font_char_info_mem.handle)) == 0) {
     stbtt_PackEnd(&context);
     return stx::Err(FontLoadError::PackFailed);
@@ -436,32 +379,31 @@ stx::Result<FontAtlas, FontLoadError> generate_font_atlas(
 
   stbtt_PackEnd(&context);
 
-  return stx::Ok(FontAtlas{.char_info_mem = std::move(font_char_info_mem)});
+  return stx::Ok(FontAtlas{.packed_char_mem = std::move(font_char_info_mem),
+                           .atlas_mem = std::move(atlas_data_mem)});
 }
 
-// returns x placement of next glyph (assumes there's infinite space along the
-// x direction)
-f32 get_glyph_vertices(stx::Span<vertex> ivertices, stx::Span<u32> iindices,
-                       u32 first_vertex_index, FontAtlas const& atlas,
-                       FontInfo const& info, u32 character, vec2 offset,
-                       f32 height) {
+void generate_glyph_vertices(stx::Span<vertex> ivertices,
+                             stx::Span<u32> iindices, u32 first_vertex_index,
+                             FontAtlas const& atlas, FontAtlasInfo const& info,
+                             u32 character, vec2 offset, f32 height) {
   u32 char_index = character - info.first_char;
-  stbtt_packedchar const* pchar = atlas.char_info() + char_index;
+  stbtt_packedchar const& pchar = *(atlas.packed_char() + char_index);
 
   // draw text at position offset, area.offset accounts for
   // ascent and descent of the character
-  rect area{.offset = {offset + vec2{pchar->xoff, pchar->yoff}},
-            .extent = {pchar->xoff2 - pchar->xoff, pchar->yoff2 - pchar->yoff}};
+  rect area{.offset = {offset + vec2{pchar.xoff, pchar.yoff}},
+            .extent = {pchar.xoff2 - pchar.xoff, pchar.yoff2 - pchar.yoff}};
 
   f32 scale = height / area.extent.y;
 
   area.extent.x *= scale;
   area.extent.y = height;
 
-  f32 s0 = pchar->x0 / info.atlas_width;
-  f32 t0 = pchar->y0 / info.atlas_height;
-  f32 s1 = pchar->x1 / info.atlas_width;
-  f32 t1 = pchar->y1 / info.atlas_height;
+  f32 s0 = AS_F32(pchar.x0) / info.extent.w;
+  f32 t0 = AS_F32(pchar.y0) / info.extent.h;
+  f32 s1 = AS_F32(pchar.x1) / info.extent.w;
+  f32 t1 = AS_F32(pchar.y1) / info.extent.h;
 
   vertex vertices[] = {
       {.position = area.offset, .st = {s0, t0}},
@@ -479,10 +421,22 @@ f32 get_glyph_vertices(stx::Span<vertex> ivertices, stx::Span<u32> iindices,
 
   iindices.copy(indices);
 
-  return scale * pchar->xadvance;
+  pchar.xadvance* scale;
 }
 
-/// Coordinates are specified in top-left origin space with x pointing to the
+struct UploadedFont {
+  FontAtlasInfo info;
+  FontAtlas atlas;
+
+  struct Variant {
+    color color;
+    Image atlas;
+  };
+
+  stx::Vec<Variant> variants{stx::os_allocator};
+};
+
+/// coordinates are specified in top-left origin space with x pointing to the
 /// right and y pointing downwards.
 ///
 struct Canvas {
@@ -603,7 +557,7 @@ struct Canvas {
 
   Canvas& draw_lines(stx::Span<vec2 const> points, rect area, rect texture_area,
                      Image const& pattern) {
-    if (!area.is_visible() || !clip_rect.overlaps(area)) {
+    if (points.size() < 2 || !area.is_visible() || !clip_rect.overlaps(area)) {
       return *this;
     }
 
@@ -770,14 +724,19 @@ struct Canvas {
   }
 
   // Text API
-  Canvas& draw_text(stx::StringView text, vec2 position) {
+  Canvas& draw_text(stx::StringView text, vec2 position,
+                    UploadedFont const& font) {
     brush.text_style.letter_spacing;
     brush.text_style.align;
     brush.text_style.direction;
-    brush.text_style.font_kerning;
     brush.text_style.word_spacing;
-    brush.text_style.font_weight;
     brush.text_style.font_height;
+
+    u32 num_spaces_in_tab = 4;
+
+    // TODO(lamarrr): check how imgui generates fonts for different color texts
+    // TODO(lamarrr): we can't draw directly in most cases and might need to
+    // perform separate layout process?
 
     get_glyph_vertices();
     normalize_for_viewport();
@@ -808,7 +767,15 @@ struct CanvasContext {
   stx::Rc<vk::CommandQueue*> queue;
 
   CanvasContext(stx::Rc<vk::CommandQueue*> aqueue) : queue{std::move(aqueue)} {
-    std::array vertex_input_attributes = vertex::attribute_descriptions();
+    VkVertexInputAttributeDescription vertex_input_attributes[] = {
+        {.location = 0,
+         .binding = 0,
+         .format = VK_FORMAT_R32G32_SFLOAT,
+         .offset = offsetof(vertex, position)},
+        {.location = 1,
+         .binding = 0,
+         .format = VK_FORMAT_R32G32_SFLOAT,
+         .offset = offsetof(vertex, st)}};
 
     vk::DescriptorSetSpec descriptor_set_specs[] = {
         vk::DescriptorSetSpec{vk::DescriptorType::CombinedImageSampler}};

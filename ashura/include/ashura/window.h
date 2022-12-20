@@ -106,7 +106,7 @@ struct Window {
   // TODO(lamarrr): variant, or centered?
   offseti get_position() const;
 
-  void set_icon(stx::Span<uint8_t const> rgba_pixels, extent extent);
+  void set_icon(stx::Span<u8 const> rgba_pixels, extent extent);
 
   void make_bordered() const { SDL_SetWindowBordered(window_, SDL_TRUE); }
 

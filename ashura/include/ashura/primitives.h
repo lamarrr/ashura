@@ -60,28 +60,6 @@ constexpr f32 dot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; }
 
 constexpr f32 cross(vec2 a, vec2 b) { return a.x * b.y - b.x * a.y; }
 
-// check if a point is on the LEFT side of an edge
-constexpr bool is_inside(vec2 a, vec2 b, vec2 point) {
-  return (cross(a - b, point) + cross(b, a)) < 0;
-}
-
-// calculate intersection point of two lines
-constexpr vec2 intersection(vec2 a1, vec2 a2, vec2 b1, vec2 b2) {
-  return ((b1 - b2) * cross(a1, a2) - (a1 - a2) * cross(b1, b2)) *
-         (1 / cross(a1 - a2, b1 - b2));
-}
-
-constexpr bool is_inside_triangle(vec2 p1, vec2 p2, vec2 p3, vec2 point) {
-  vec2 a = p3 - p2;
-  vec2 b = p1 - p3;
-  vec2 c = p2 - p1;
-  vec2 ap = point - p1;
-  vec2 bp = point - p2;
-  vec2 cp = point - p3;
-
-  return cross(a, bp) >= 0 && cross(c, ap) >= 0 && cross(b, cp) >= 0;
-}
-
 struct rect {
   vec2 offset;
   vec2 extent;
@@ -159,38 +137,26 @@ struct mat4 {
 constexpr mat4 operator*(mat4 const &a, mat4 const &b) {
   return mat4{
       .data = {
-          vec4{dot(a.data[0],
-                   vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
-               dot(a.data[0],
-                   vec4{b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
-               dot(a.data[0],
-                   vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
-               dot(a.data[0],
-                   vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
-          vec4{dot(a.data[1],
-                   vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
-               dot(a.data[1],
-                   vec4{b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
-               dot(a.data[1],
-                   vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
-               dot(a.data[1],
-                   vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
-          vec4{dot(a.data[2],
-                   vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
-               dot(a.data[2],
-                   vec4{b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
-               dot(a.data[2],
-                   vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
-               dot(a.data[2],
-                   vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
-          vec4{dot(a.data[3],
-                   vec4{b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
-               dot(a.data[3],
-                   vec4{b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
-               dot(a.data[3],
-                   vec4{b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].x}),
-               dot(a.data[3],
-                   vec4{b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})}}};
+          {dot(a.data[0], {b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
+           dot(a.data[0], {b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
+           dot(a.data[0], {b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].z}),
+           dot(a.data[0],
+               {b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
+          {dot(a.data[1], {b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
+           dot(a.data[1], {b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
+           dot(a.data[1], {b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].z}),
+           dot(a.data[1],
+               {b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
+          {dot(a.data[2], {b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
+           dot(a.data[2], {b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
+           dot(a.data[2], {b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].z}),
+           dot(a.data[2],
+               {b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})},
+          {dot(a.data[3], {b.data[0].x, b.data[1].x, b.data[2].x, b.data[3].x}),
+           dot(a.data[3], {b.data[0].y, b.data[1].y, b.data[2].y, b.data[3].y}),
+           dot(a.data[3], {b.data[0].z, b.data[1].z, b.data[2].z, b.data[3].z}),
+           dot(a.data[3],
+               {b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})}}};
 }
 
 constexpr bool operator==(mat4 const &a, mat4 const &b) {
@@ -254,7 +220,7 @@ struct color {
   u8 r = 0, g = 0, b = 0, a = 255;
 
   static constexpr color from_rgb(u8 r, u8 g, u8 b) {
-    return color{.r = r, .g = g, .b = b, .a = 0xFF};
+    return color{.r = r, .g = g, .b = b, .a = 0xff};
   }
 
   constexpr color with_red(u8 nr) const {
@@ -278,22 +244,22 @@ struct color {
   constexpr bool is_visible() const { return !is_transparent(); }
 };
 
-constexpr bool operator==(color const &a, color const &b) {
+constexpr bool operator==(color a, color b) {
   return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
 }
 
-constexpr bool operator!=(color const &a, color const &b) { return !(a == b); }
+constexpr bool operator!=(color a, color b) { return !(a == b); }
 
 namespace colors {
 
 constexpr color TRANSPARENT{.r = 0x00, .g = 0x00, .b = 0x00, .a = 0x00};
-constexpr color WHITE = color::from_rgb(0xFF, 0xFF, 0xFF);
+constexpr color WHITE = color::from_rgb(0xff, 0xff, 0xff);
 constexpr color BLACK = color::from_rgb(0x00, 0x00, 0x00);
-constexpr color RED = color::from_rgb(0xFF, 0x00, 0x00);
-constexpr color BLUE = color::from_rgb(0x00, 0x00, 0xFF);
-constexpr color GREEN = color::from_rgb(0x00, 0xFF, 0x00);
-constexpr color CYAN = color::from_rgb(0x00, 0xFF, 0xFF);
-constexpr color MAGENTA = color::from_rgb(0xFF, 0x00, 0xFF);
+constexpr color RED = color::from_rgb(0xff, 0x00, 0x00);
+constexpr color BLUE = color::from_rgb(0x00, 0x00, 0xff);
+constexpr color GREEN = color::from_rgb(0x00, 0xff, 0x00);
+constexpr color CYAN = color::from_rgb(0x00, 0xff, 0xff);
+constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
 
 }  // namespace colors
 

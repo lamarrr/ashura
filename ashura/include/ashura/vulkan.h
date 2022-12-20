@@ -2439,6 +2439,27 @@ struct RecordingContext {
                                          queue.share())
         .unwrap();
   }
+
+  stx::Rc<ImageX*> upload_font(stx::Rc<CommandQueue*> const& queue,
+                               extent extent, stx::Span<u8 const> data,
+                               color color) {
+    usize target_size = static_cast<usize>(extent.w) * extent.h * 4;
+    stx::Memory mem =
+        stx::mem::allocate(stx::os_allocator, target_size).unwrap();
+    u8* pixels = static_cast<u8*>(mem.handle);
+
+    for (usize i = 0; i < target_size; i += 4) {
+      pixels[i] = color.r;
+      pixels[i + 1] = color.g;
+      pixels[i + 2] = color.b;
+      pixels[i + 3] = AS_U8((color.a / 255.0f) * data[i / 4]);
+    }
+
+    return upload_image(
+        queue,
+        ImageDimensions{.width = extent.w, .height = extent.h, .nchannels = 4},
+        stx::Span{pixels, target_size});
+  }
 };
 
 }  // namespace vk
