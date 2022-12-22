@@ -1,7 +1,10 @@
 #pragma once
+#include <filesystem>
+#include <string_view>
 
 #include "ashura/image.h"
 #include "ashura/primitives.h"
+#include "freetype/freetype.h"
 #include "stb_truetype.h"
 #include "stx/allocator.h"
 #include "stx/limits.h"
@@ -30,7 +33,7 @@ struct TextStyle {
 enum class TypefaceLoadError { PackFailed, InvalidData };
 
 namespace unicode_ranges {
-constexpr range BASIC_LATIN{0x020, 0x007F};  // ASCII
+constexpr range ENGLISH{0x020, 0x007F};  // a.k.a. LATIN ASCII
 constexpr range EMOTICONS{0x1F600, 0x1F64F};
 constexpr range CURRENCY_SYMBOLS{0x20A0, 0x20CF};
 constexpr range ARROWS{0x2190, 0x21FF};
@@ -65,7 +68,19 @@ constexpr range KATAKANA{0x30A0, 0x30FF};
     return character >= first_char && character < (first_char + char_count);
   }
 };
+*/
 
+struct GlyphPack {};
+
+struct Font {};
+enum class FontLoadError { InvalidPath };
+
+stx::Result<Font, FontLoadError> load_font(std::string_view path,
+                                           range unicode_range) {
+  if (!std::filesystem::exists(path)) {
+    return stx::Err(FontLoadError::I)
+  }
+}
 
 struct Typeface {
   TypefaceAtlasConfig config;
