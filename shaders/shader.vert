@@ -5,8 +5,7 @@ layout(location = 1) in vec2 in_st;
 
 layout(push_constant) uniform PushConstants {
   mat4 transform;
-  vec4 overlay;
-  vec4 texture_multiplier;
+  vec4 color;
 }
 push_constants;
 

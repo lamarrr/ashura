@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cinttypes>
 #include <cmath>
 
@@ -24,7 +23,7 @@ struct vertex {
 struct Brush {
   color color = colors::BLACK;
   bool fill = true;
-  f32 line_width = 1;
+  f32 line_thickness = 1;
   Image pattern;
   TextStyle text_style;
 };
@@ -35,7 +34,6 @@ struct DrawCommand {
   rect clip_rect;
   mat4 transform = mat4::identity();
   color color = colors::BLACK;
-  vec4 texture_multiplier{1, 1, 1, 1};
   Image texture;
 };
 
@@ -173,7 +171,7 @@ inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
 
 inline void triangulate_line(stx::Vec<vertex>& ivertices,
                              stx::Vec<u32>& iindices, u32 first_vertex_index,
-                             stx::Span<vec2 const> points, f32 line_width) {
+                             stx::Span<vec2 const> points, f32 line_thickness) {
   if (points.size() < 2) return;
 
   bool has_previous_line = false;
@@ -207,7 +205,7 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
     // line will be at a parallel angle
     alpha = AS_F32(alpha + M_PI / 2);
 
-    f32 hw = line_width / 2;
+    f32 hw = line_thickness / 2;
 
     vec2 f = vec2{hw * std::cos(alpha), hw * std::sin(alpha)};
     vec2 g = vec2{hw * std::cos(AS_F32(M_PI + alpha)),
@@ -255,7 +253,7 @@ inline void generate_glyph_vertices(stx::Span<vertex> ivertices,
                                     Typeface const& typeface, u32 character,
                                     vec2 offset, f32 height) {
   // TODO(lamarrr): we might need to handle out of range characters
-  u32 char_index = character - typeface.info.first_char;
+  u32 char_index = character - typeface.config.first_char;
   stbtt_packedchar const& pchar = typeface.glyphs[char_index];
 
   // draw text at position offset, area.offset accounts for
@@ -268,10 +266,10 @@ inline void generate_glyph_vertices(stx::Span<vertex> ivertices,
   area.extent.x *= scale;
   area.extent.y = height;
 
-  f32 s0 = AS_F32(pchar.x0) / typeface.info.extent.w;
-  f32 t0 = AS_F32(pchar.y0) / typeface.info.extent.h;
-  f32 s1 = AS_F32(pchar.x1) / typeface.info.extent.w;
-  f32 t1 = AS_F32(pchar.y1) / typeface.info.extent.h;
+  f32 s0 = AS_F32(pchar.x0) / typeface.config.atlas_extent.w;
+  f32 t0 = AS_F32(pchar.y0) / typeface.config.atlas_extent.h;
+  f32 s1 = AS_F32(pchar.x1) / typeface.config.atlas_extent.w;
+  f32 t1 = AS_F32(pchar.y1) / typeface.config.atlas_extent.h;
 
   vertex vertices[] = {
       {.position = area.offset, .st = {s0, t0}},
@@ -383,6 +381,8 @@ struct Canvas {
   Canvas& scale(f32 x, f32 y) { return scale(x, y, 1); }
 
   Canvas& clear() {
+    draw_list.clear();
+
     vertex vertices[] = {{{0, 0}, {0, 1}},
                          {{viewport_extent.x, 0}, {1, 1}},
                          {viewport_extent, {1, 0}},
@@ -405,7 +405,6 @@ struct Canvas {
                           .clip_rect = rect{{0, 0}, viewport_extent},
                           .transform = mat4::identity(),
                           .color = brush.color,
-                          .texture_multiplier = {1, 1, 1, 1},
                           .texture = brush.pattern.share()})
         .unwrap();
 
@@ -418,26 +417,25 @@ struct Canvas {
       return *this;
     }
 
-    u32 start = AS_U32(draw_list.indices.size());
+    u32 indices_offset = AS_U32(draw_list.indices.size());
 
     u32 vertices_offset = AS_U32(draw_list.vertices.size());
 
     triangulate_line(draw_list.vertices, draw_list.indices, vertices_offset,
-                     points, brush.line_width);
+                     points, brush.line_thickness);
 
-    u32 nindices = AS_U32(draw_list.indices.size() - start);
+    u32 nindices = AS_U32(draw_list.indices.size() - indices_offset);
 
     transform_vertices_to_viewport_and_generate_texture_coordinates(
         draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
         texture_area);
 
     draw_list.cmds
-        .push(DrawCommand{.indices_offset = start,
+        .push(DrawCommand{.indices_offset = indices_offset,
                           .nindices = nindices,
                           .clip_rect = clip_rect,
                           .transform = transform,
                           .color = brush.color,
-                          .texture_multiplier = {1, 1, 1, 1},
                           .texture = pattern.share()})
         .unwrap();
 
@@ -450,13 +448,13 @@ struct Canvas {
       return *this;
     }
 
-    u32 start = AS_U32(draw_list.indices.size());
+    u32 indices_offset = AS_U32(draw_list.indices.size());
 
     u32 vertices_offset = AS_U32(draw_list.vertices.size());
 
     triangulate_convex_polygon(draw_list.indices, vertices_offset, polygon);
 
-    u32 nindices = AS_U32(draw_list.indices.size() - start);
+    u32 nindices = AS_U32(draw_list.indices.size() - indices_offset);
 
     for (usize i = 0; i < polygon.size(); i++) {
       draw_list.vertices.push(vertex{.position = polygon[i], .st = {0, 0}})
@@ -468,12 +466,11 @@ struct Canvas {
         texture_area);
 
     draw_list.cmds
-        .push(DrawCommand{.indices_offset = start,
+        .push(DrawCommand{.indices_offset = indices_offset,
                           .nindices = nindices,
                           .clip_rect = clip_rect,
                           .transform = transform,
                           .color = brush.color,
-                          .texture_multiplier = {1, 1, 1, 1},
                           .texture = pattern.share()})
         .unwrap();
 
@@ -499,9 +496,10 @@ struct Canvas {
       return draw_convex_polygon_filled(points, area, texture_area,
                                         brush.pattern);
     } else {
-      area.offset =
-          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
-      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
+      area.offset = area.offset -
+                    vec2{brush.line_thickness / 2, brush.line_thickness / 2};
+      area.extent =
+          area.extent + vec2{brush.line_thickness, brush.line_thickness};
       vec2 opoints[] = {points[0], points[1], points[2],
                         points[3], points[0], points[1]};
       return draw_lines(opoints, area, texture_area, brush.pattern);
@@ -526,9 +524,10 @@ struct Canvas {
       if (points.size() > 1) {
         points.push_inplace(points[1]).unwrap();
       }
-      area.offset =
-          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
-      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
+      area.offset = area.offset -
+                    vec2{brush.line_thickness / 2, brush.line_thickness / 2};
+      area.extent =
+          area.extent + vec2{brush.line_thickness, brush.line_thickness};
       return draw_lines(points, area, texture_area, brush.pattern);
     }
   }
@@ -551,9 +550,10 @@ struct Canvas {
       if (points.size() > 1) {
         points.push_inplace(points[1]).unwrap();
       }
-      area.offset =
-          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
-      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
+      area.offset = area.offset -
+                    vec2{brush.line_thickness / 2, brush.line_thickness / 2};
+      area.extent =
+          area.extent + vec2{brush.line_thickness, brush.line_thickness};
       return draw_lines(points, area, texture_area, brush.pattern);
     }
   }
@@ -575,9 +575,10 @@ struct Canvas {
       if (points.size() > 1) {
         points.push_inplace(points[1]).unwrap();
       }
-      area.offset =
-          area.offset - vec2{brush.line_width / 2, brush.line_width / 2};
-      area.extent = area.extent + vec2{brush.line_width, brush.line_width};
+      area.offset = area.offset -
+                    vec2{brush.line_thickness / 2, brush.line_thickness / 2};
+      area.extent =
+          area.extent + vec2{brush.line_thickness, brush.line_thickness};
       return draw_lines(points, area, texture_area, brush.pattern);
     }
   }
@@ -635,11 +636,7 @@ struct Canvas {
                                 .nindices = 6,
                                 .clip_rect = rect{{0, 0}, viewport_extent},
                                 .transform = transform,
-                                .color = {0, 0, 0, 0},
-                                .texture_multiplier = {brush.color.r / 255.0f,
-                                                       brush.color.g / 255.0f,
-                                                       brush.color.b / 255.0f,
-                                                       brush.color.a / 255.0f},
+                                .color = brush.color,
                                 .texture = typeface.atlas.share()})
               .unwrap();
 
@@ -695,7 +692,7 @@ struct CanvasContext {
         {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
          .descriptorCount = 1}};
 
-    ctx.init(*queue.handle, vertex_shader_code, fragment_shader_code,
+    ctx.init(queue.share(), vertex_shader_code, fragment_shader_code,
              vertex_input_attributes, sizeof(vertex), descriptor_set_specs,
              descriptor_pool_sizes, 1);
 
@@ -714,7 +711,7 @@ struct CanvasContext {
 
     for (vk::SpanBuffer& buff : index_buffers) buff.destroy(dev);
 
-    ctx.destroy(dev);
+    ctx.destroy();
   }
 
   void __write_vertices(stx::Span<vertex const> vertices,
@@ -900,6 +897,9 @@ struct CanvasContext {
     vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx.pipeline.pipeline);
 
+    ASR_CHECK(vertex_buffers[frame].is_valid());
+    ASR_CHECK(index_buffers[frame].is_valid());
+
     vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer,
                            &offset);
 
@@ -927,9 +927,8 @@ struct CanvasContext {
 
       vk::PushConstants push_constant{
           .transform = cmd.transform.transpose(),
-          .overlay = {cmd.color.r / 255.0f, cmd.color.g / 255.0f,
-                      cmd.color.b / 255.0f, cmd.color.a / 255.0f},
-          .texture_multiplier = cmd.texture_multiplier};
+          .color = {cmd.color.r / 255.0f, cmd.color.g / 255.0f,
+                    cmd.color.b / 255.0f, cmd.color.a / 255.0f}};
 
       vkCmdPushConstants(
           cmd_buffer, ctx.pipeline.layout,

@@ -68,8 +68,9 @@ Engine::Engine(AppConfig const& cfg) {
 
   stx::Vec<char const*> required_validation_layers{stx::os_allocator};
 
-  if (cfg.enable_validation_layers)
+  if (cfg.enable_validation_layers) {
     required_validation_layers.push("VK_LAYER_KHRONOS_validation").unwrap();
+  }
 
   logger = stx::Some(
       impl::make_multi_threaded_logger("ashura", cfg.log_file.c_str()));
@@ -140,13 +141,12 @@ Engine::Engine(AppConfig const& cfg) {
   // perform extra manual checks
   // the user shouldn't have to touch handles
   VkDeviceQueueCreateInfo command_queue_create_infos[] = {
-      VkDeviceQueueCreateInfo{
-          .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0,
-          .queueFamilyIndex = graphics_command_queue_family.handle->index,
-          .queueCount = AS_U32(std::size(queue_priorities)),
-          .pQueuePriorities = queue_priorities}};
+      {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+       .pNext = nullptr,
+       .flags = 0,
+       .queueFamilyIndex = graphics_command_queue_family.handle->index,
+       .queueCount = AS_U32(std::size(queue_priorities)),
+       .pQueuePriorities = queue_priorities}};
 
   VkPhysicalDeviceFeatures required_features{};
 
@@ -173,7 +173,7 @@ Engine::Engine(AppConfig const& cfg) {
                                  .unwrap());
 
   canvas_context.value().handle->ctx.on_swapchain_changed(
-      queue.value().handle->device.handle->device,
+
       window.value().handle->surface_.value().handle->swapchain.value());
 
   window.value().handle->on(
@@ -215,20 +215,17 @@ Engine::Engine(AppConfig const& cfg) {
   stx::String otf_str{static_cast<stx::ReadOnlyMemory>(std::move(otf_mem)),
                       otf_size};
 
-  TypefaceAtlasInfo info;
-  Typeface typeface =
-      canvas_context.value()
-          .handle->ctx.upload_typeface(queue.value(), otf_str, info)
-          .unwrap();
+  TypefaceAtlasConfig cfg;
+  Typeface typeface = canvas_context.value()
+                          .handle->ctx.upload_typeface(otf_str, cfg)
+                          .unwrap();
 
   auto transparent_image = canvas_context.value().handle->ctx.upload_image(
-      queue.value(), extent{1920, 1080}, 4, sample_image);
+      extent{1920, 1080}, 4, sample_image);
 
-  gfx::Image sampler = vk::create_image_sampler(transparent_image);
+  Image sampler = vk::create_image_sampler(transparent_image);
 
   canvas = stx::Some(gfx::Canvas{{0, 0}, sampler});
-
-  VkDevice dev = queue.value().handle->device.handle->device;
 
   window.value().handle->on(
       WindowEvent::Close,
@@ -281,11 +278,9 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.brush.color = colors::MAGENTA.with_alpha(0);
     c.brush.pattern = c.transparent_image.share();
     c.brush.fill = false;
-    c.brush.line_width = 50;
+    c.brush.line_thickness = 50;
     // c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
-
     // c.draw_rect({200, 200}, {250, 250});
-
     c.draw_ellipse({150, 150}, {500, 200}, 60);
 
     /* c.brush.color = colors::GREEN.with_alpha(63);
@@ -318,7 +313,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       window.value().handle->recreate_swapchain(queue.value());
       canvas_context.value().handle->ctx.on_swapchain_changed(
-          queue.value().handle->device.handle->device,
           window.value().handle->surface_.value().handle->swapchain.value());
 
       draw_content();

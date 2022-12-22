@@ -29,6 +29,14 @@ execute_process(
   COMMAND git clone -b release-2.24.0 https://github.com/libsdl-org/SDL.git
           third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
+execute_process(
+  COMMAND git clone -b 6.0.0 https://github.com/harfbuzz/harfbuzz.git
+          third_party/harfbuzz WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+          
+execute_process(
+COMMAND git clone -b VER-2-12-1 https://github.com/freetype/freetype.git third_party/freetype WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+          
+
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
 
@@ -41,6 +49,8 @@ add_subdirectory(third_party/googletest)
 add_subdirectory(third_party/fmt)
 add_subdirectory(third_party/spdlog)
 add_subdirectory(third_party/SDL)
+add_subdirectory(third_party/harfbuzz)
+add_subdirectory(third_party/freetype)
 
 set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/skia/libs)
 

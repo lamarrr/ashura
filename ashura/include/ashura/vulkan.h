@@ -918,6 +918,11 @@ struct SpanBuffer {
     vkDestroyBuffer(dev, buffer, nullptr);
   }
 
+  bool is_valid() const {
+    return buffer != VK_NULL_HANDLE && memory != VK_NULL_HANDLE && size != 0 &&
+           memory_size != 0 && memory_map != nullptr;
+  }
+
   template <typename T>
   void write(VkDevice dev,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
@@ -1827,8 +1832,7 @@ struct Surface {
 
 struct PushConstants {
   mat4 transform = mat4::identity();
-  vec4 overlay{0, 0, 0, 0};
-  vec4 texture_multiplier{1, 1, 1, 1};
+  vec4 color{1, 1, 1, 1};
 };
 
 struct Pipeline {
@@ -2044,7 +2048,7 @@ struct RecordingContext {
   VkShaderModule vertex_shader = VK_NULL_HANDLE;
   VkShaderModule fragment_shader = VK_NULL_HANDLE;
   VkFence upload_fence = VK_NULL_HANDLE;
-  Pipeline pipeline{};
+  Pipeline pipeline;
   // one descriptor pool per frame in flight
   stx::Vec<VkDescriptorPool> descriptor_pools{stx::os_allocator};
   stx::Vec<DescriptorPoolInfo> descriptor_pool_infos{stx::os_allocator};
@@ -2060,16 +2064,20 @@ struct RecordingContext {
   stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{
       stx::os_allocator};
   u32 vertex_input_size = 0;
+  stx::Option<stx::Rc<CommandQueue*>> queue;
 
   void init(
-      CommandQueue const& queue, stx::Span<u32 const> vertex_shader_code,
+      stx::Rc<CommandQueue*> aqueue, stx::Span<u32 const> vertex_shader_code,
       stx::Span<u32 const> fragment_shader_code,
       stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
       u32 avertex_input_size,
       stx::Span<DescriptorSetSpec> adescriptor_sets_specs,
       stx::Span<VkDescriptorPoolSize const> adescriptor_pool_sizes,
       u32 max_descriptor_sets) {
-    VkDevice dev = queue.device.handle->device;
+    queue = stx::Some(std::move(aqueue));
+
+    CommandQueue& cqueue = *queue.value().handle;
+    VkDevice dev = cqueue.device.handle->device;
 
     auto create_shader = [dev](stx::Span<u32 const> code) {
       VkShaderModuleCreateInfo create_info{
@@ -2094,7 +2102,7 @@ struct RecordingContext {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .pNext = nullptr,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = queue.info.family.index};
+        .queueFamilyIndex = cqueue.info.family.index};
 
     ASR_VK_CHECK(
         vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
@@ -2212,18 +2220,23 @@ struct RecordingContext {
     }
   }
 
-  void on_swapchain_changed(VkDevice dev, SwapChain const& swapchain) {
-    pipeline.build(dev, vertex_shader, fragment_shader, swapchain.render_pass,
+  void on_swapchain_changed(SwapChain const& swapchain) {
+    pipeline.build(queue.value().handle->device.handle->device, vertex_shader,
+                   fragment_shader, swapchain.render_pass,
                    swapchain.msaa_sample_count, descriptor_set_layouts,
                    vertex_input_attr, vertex_input_size);
   }
 
-  void destroy(VkDevice dev) {
+  void destroy() {
+    VkDevice dev = queue.value().handle->device.handle->device;
+
     vkDestroyShaderModule(dev, vertex_shader, nullptr);
+
     vkDestroyShaderModule(dev, fragment_shader, nullptr);
 
     vkFreeCommandBuffers(dev, cmd_pool, SwapChain::MAX_FRAMES_IN_FLIGHT,
                          draw_cmd_buffers.data());
+
     vkFreeCommandBuffers(dev, cmd_pool, 1, &upload_cmd_buffer);
 
     vkDestroyFence(dev, upload_fence, nullptr);
@@ -2248,13 +2261,12 @@ struct RecordingContext {
     pipeline.destroy(dev);
   }
 
-  stx::Rc<ImageResource*> upload_image(stx::Rc<CommandQueue*> const& queue,
-                                       extent extent, u32 nchannels,
+  stx::Rc<ImageResource*> upload_image(extent extent, u32 nchannels,
                                        stx::Span<u8 const> data) {
-    VkDevice dev = queue.handle->device.handle->device;
-
+    CommandQueue& cqueue = *queue.value().handle;
+    VkDevice dev = cqueue.device.handle->device;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
-        queue.handle->device.handle->phy_device.handle->memory_properties;
+        cqueue.device.handle->phy_device.handle->memory_properties;
 
     ASR_CHECK(data.size_bytes() ==
               static_cast<usize>(extent.w) * extent.h * nchannels);
@@ -2425,7 +2437,7 @@ struct RecordingContext {
     ASR_VK_CHECK(vkResetFences(dev, 1, &upload_fence));
 
     ASR_VK_CHECK(
-        vkQueueSubmit(queue.handle->info.queue, 1, &submit_info, upload_fence));
+        vkQueueSubmit(cqueue.info.queue, 1, &submit_info, upload_fence));
 
     ASR_VK_CHECK(
         vkWaitForFences(dev, 1, &upload_fence, VK_TRUE, COMMAND_TIMEOUT));
@@ -2435,20 +2447,21 @@ struct RecordingContext {
     staging_buffer.destroy(dev);
 
     return stx::rc::make_inplace<ImageResource>(stx::os_allocator, image, view,
-                                                memory, queue.share())
+                                                memory, queue.value().share())
         .unwrap();
   }
 
+  // TODO(lamarrr): unicode_range argument = unicode_ranges::LATIN
   stx::Result<Typeface, TypefaceLoadError> upload_typeface(
-      stx::Rc<vk::CommandQueue*> const& queue,
-      stx::Span<char const> raw_typeface_data, TypefaceAtlasInfo const& info) {
+      stx::Span<char const> raw_typeface_data, TypefaceAtlasConfig const& cfg,
+      stx::Span<range const> unicode_ranges) {
     if (raw_typeface_data.is_empty()) {
       return stx::Err(TypefaceLoadError::InvalidData);
     }
 
     stx::Memory atlas_data_alpha8_mem =
         stx::mem::allocate(stx::os_allocator,
-                           static_cast<usize>(info.extent.w) * info.extent.h)
+                           static_cast<usize>(cfg.extent.w) * cfg.extent.h)
             .unwrap();
 
     u8* atlas_data_alpha8 = static_cast<u8*>(atlas_data_alpha8_mem.handle);
@@ -2458,20 +2471,20 @@ struct RecordingContext {
     if (stbtt_PackBegin(
             &pack_context,
             static_cast<unsigned char*>(atlas_data_alpha8_mem.handle),
-            info.extent.w, info.extent.h, 0, 1, nullptr) == 0) {
+            cfg.extent.w, cfg.extent.h, 0, 1, nullptr) == 0) {
       return stx::Err(TypefaceLoadError::PackFailed);
     }
 
-    stbtt_PackSetOversampling(&pack_context, info.oversample_x,
-                              info.oversample_y);
+    stbtt_PackSetOversampling(&pack_context, cfg.oversample_x,
+                              cfg.oversample_y);
 
     stx::Vec<stbtt_packedchar> glyphs{stx::os_allocator};
-    glyphs.resize(info.char_count).unwrap();
+    glyphs.resize(cfg.char_count).unwrap();
 
     if (stbtt_PackFontRange(
             &pack_context,
             reinterpret_cast<unsigned char const*>(raw_typeface_data.data()), 0,
-            info.font_size, info.first_char, info.char_count,
+            cfg.atlas_font_height, cfg.first_char, cfg.char_count,
             glyphs.data()) == 0) {
       stbtt_PackEnd(&pack_context);
       return stx::Err(TypefaceLoadError::PackFailed);
@@ -2479,7 +2492,7 @@ struct RecordingContext {
 
     stbtt_PackEnd(&pack_context);
 
-    usize target_size = static_cast<usize>(info.extent.w) * info.extent.h * 4;
+    usize target_size = static_cast<usize>(cfg.extent.w) * cfg.extent.h * 4;
     stx::Memory pixels_data_rgba888_mem =
         stx::mem::allocate(stx::os_allocator, target_size).unwrap();
     u8* pixels_data_rgba888 = static_cast<u8*>(pixels_data_rgba888_mem.handle);
@@ -2491,11 +2504,11 @@ struct RecordingContext {
       pixels_data_rgba888[i + 3] = atlas_data_alpha8[i / 4];
     }
 
-    return stx::Ok(Typeface{.info = info,
-                            .glyphs = std::move(glyphs),
-                            .atlas = vk::create_image_sampler(upload_image(
-                                queue, info.extent, 4,
-                                stx::Span{pixels_data_rgba888, target_size}))});
+    return stx::Ok(Typeface{
+        .config = cfg,
+        .glyphs = std::move(glyphs),
+        .atlas = vk::create_image_sampler(upload_image(
+            cfg.extent, 4, stx::Span{pixels_data_rgba888, target_size}))});
   }
 };
 

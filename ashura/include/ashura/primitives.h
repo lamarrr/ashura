@@ -265,6 +265,21 @@ constexpr bool operator==(extent a, extent b) {
 
 constexpr bool operator!=(extent a, extent b) { return !(a == b); }
 
+struct range {
+  u32 min = 0;
+  u32 max = 0;
+
+  constexpr bool contains(u32 value) const {
+    return value >= min && value <= max;
+  }
+};
+
+constexpr bool operator==(range a, range b) {
+  return a.min == b.min && a.max == b.max;
+}
+
+constexpr bool operator!=(range a, range b) { return !(a == b); }
+
 struct color {
   u8 r = 0, g = 0, b = 0, a = 255;
 
@@ -333,17 +348,5 @@ constexpr std::pair<i32, i32> i32_clamp(offset offset) {
 constexpr std::pair<i32, i32> i32_clamp(extent extent) {
   return std::make_pair(i32_clamp(extent.w), i32_clamp(extent.h));
 }
-
-struct ImageDimensions {
-  extent extent;
-  u32 nchannels = 0;
-
-  constexpr usize size() const {
-    usize result = extent.w;
-    result *= extent.h;
-    result *= nchannels;
-    return result;
-  }
-};
 
 }  // namespace asr

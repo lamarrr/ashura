@@ -7,7 +7,8 @@ target_include_directories(
   PRIVATE src)
 
 target_link_libraries(ashura stx::stx SDL2::SDL2  SDL2::SDL2main fmt::fmt    
-                      Vulkan::Vulkan spdlog::spdlog ashura_external_stb)
+                      Vulkan::Vulkan spdlog::spdlog ashura_external_stb
+                      harfbuzz)
 
 add_executable(ashura_test src/ashura.cc)
 target_link_libraries(ashura_test ashura)
