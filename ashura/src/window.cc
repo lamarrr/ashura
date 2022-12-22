@@ -67,8 +67,8 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
 
   surface_.value().handle->change_swapchain(
       queue, preferred_formats, preferred_present_modes,
-      VkExtent2D{.width = surface_extent_.w, .height = surface_extent_.h},
-      VkExtent2D{.width = window_extent_.w, .height = window_extent_.h},
+      VkExtent2D{.width = surface_extent_.width, .height = surface_extent_.height},
+      VkExtent2D{.width = window_extent_.width, .height = window_extent_.height},
       msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
 
   ASR_LOG(
@@ -200,8 +200,8 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
   }
 
   SDL_Window* window =
-      SDL_CreateWindow(cfg.title.c_str(), 0, 0, i32_clamp(cfg.extent.w),
-                       i32_clamp(cfg.extent.h), window_flags);
+      SDL_CreateWindow(cfg.title.c_str(), 0, 0, i32_clamp(cfg.extent.width),
+                       i32_clamp(cfg.extent.height), window_flags);
 
   // window creation shouldn't fail reliably, if it fails,
   // there's no point in the program proceeding
@@ -209,15 +209,15 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
 
   cfg.min_extent.copy().match(
       [&](extent min_extent) {
-        SDL_SetWindowMinimumSize(window, i32_clamp(min_extent.w),
-                                 i32_clamp(min_extent.h));
+        SDL_SetWindowMinimumSize(window, i32_clamp(min_extent.width),
+                                 i32_clamp(min_extent.height));
       },
       []() {});
 
   cfg.max_extent.copy().match(
       [&](extent max_extent) {
-        SDL_SetWindowMaximumSize(window, i32_clamp(max_extent.w),
-                                 i32_clamp(max_extent.h));
+        SDL_SetWindowMaximumSize(window, i32_clamp(max_extent.width),
+                                 i32_clamp(max_extent.height));
       },
       []() {});
 

@@ -246,21 +246,24 @@ constexpr bool operator==(offseti a, offseti b) {
 constexpr bool operator!=(offseti a, offseti b) { return !(a == b); }
 
 struct extent {
-  u32 w = 0, h = 0;
+  u32 width = 0, height = 0;
 
-  constexpr bool is_visible() const { return w != 0 && h != 0; }
+  constexpr bool is_visible() const { return width != 0 && height != 0; }
 
   constexpr extent constrain(extent other) const {
-    return extent{.w = std::min(w, other.w), .h = std::min(w, other.w)};
+    return extent{.width = std::min(width, other.width),
+                  .height = std::min(height, other.height)};
   }
+
+  constexpr u64 area() const { return AS_U64(width) * height; }
 };
 
 constexpr extent operator+(extent a, extent b) {
-  return extent{.w = a.w + b.w, .h = a.h + b.h};
+  return extent{.w = a.width + b.width, .h = a.h + b.h};
 }
 
 constexpr bool operator==(extent a, extent b) {
-  return a.w == b.w && a.h == b.h;
+  return a.width == b.width && a.height == b.height;
 }
 
 constexpr bool operator!=(extent a, extent b) { return !(a == b); }
@@ -346,7 +349,7 @@ constexpr std::pair<i32, i32> i32_clamp(offset offset) {
 }
 
 constexpr std::pair<i32, i32> i32_clamp(extent extent) {
-  return std::make_pair(i32_clamp(extent.w), i32_clamp(extent.h));
+  return std::make_pair(i32_clamp(extent.width), i32_clamp(extent.height));
 }
 
 }  // namespace asr
