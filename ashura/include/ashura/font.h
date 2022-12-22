@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string_view>
 
+#include "ashura/canvas.h"
 #include "ashura/image.h"
 #include "ashura/primitives.h"
 #include "ashura/vulkan.h"
@@ -44,17 +45,33 @@ constexpr range KATAKANA{0x30A0, 0x30FF};
 }  // namespace unicode_ranges
 
 struct Font {
-  hb_face_t* hbface;
+  static constexpr hb_tag_t KERNING_FEATURE =
+      HB_TAG('k', 'e', 'r', 'n');  // kerning operations
+  static constexpr hb_tag_t LIGATURE_FEATURE =
+      HB_TAG('l', 'i', 'g', 'a');  // standard ligature substitution
+  static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE =
+      HB_TAG('c', 'l', 'i', 'g');  // contextual ligature substitution
+
+  hb_face_t* hbface = nullptr;
+  hb_font_t* hbfont = nullptr;
+  hb_buffer_t* hbscratch_buffer = nullptr;
   FT_Library ftlib = nullptr;
   FT_Face ftface = nullptr;
 
-  Font(hb_face_t* ahbface, FT_Library aftlib, FT_Face aftface)
-      : hbface{ahbface}, ftlib{aftlib}, ftface{aftface} {}
+  Font(hb_face_t* ahbface, hb_font_t* ahbfont, FT_Library aftlib,
+       FT_Face aftface, hb_buffer_t* ahbscratch_buffer)
+      : hbface{ahbface},
+        hbfont{ahbfont},
+        ftlib{aftlib},
+        ftface{aftface},
+        hbscratch_buffer{ahbscratch_buffer} {}
 
   STX_MAKE_PINNED(Font)
 
   ~Font() {
     hb_face_destroy(hbface);
+    hb_font_destroy(hbfont);
+    hb_buffer_destroy(hbscratch_buffer);
     ASR_CHECK(FT_Done_Face(ftface) == 0);
     ASR_CHECK(FT_Done_FreeType(ftlib) == 0);
   }
@@ -83,6 +100,9 @@ stx::Result<stx::Rc<Font*>, FontLoadError> load_font(std::string_view path) {
   hb_face_t* hbface = hb_face_create(hbblob, 0);
   ASR_CHECK(hbface != nullptr);
 
+  hb_font_t* hbfont = hb_font_create(hbface);
+  ASR_CHECK(hbfont != nullptr);
+
   FT_Library ftlib = nullptr;
   ASR_CHECK(FT_Init_FreeType(&ftlib) == 0);
 
@@ -90,13 +110,17 @@ stx::Result<stx::Rc<Font*>, FontLoadError> load_font(std::string_view path) {
   ASR_CHECK(FT_New_Memory_Face(ftlib, static_cast<FT_Byte*>(memory.handle),
                                size, 0, &ftface) == 0);
 
-  return stx::Ok(
-      stx::rc::make_inplace<Font>(stx::os_allocator, hbface, ftlib, ftface)
-          .unwrap());
+  hb_buffer_t* hbscratch_buffer = hb_buffer_create();
+  ASR_CHECK(hbscratch_buffer != nullptr);
+
+  return stx::Ok(stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont,
+                                             hbscratch_buffer, ftlib, ftface)
+                     .unwrap());
 };
 
 enum class FontLoadError { InvalidPath };
 
+// stores codepoint glyphs for a font at a specific font height
 struct FontCache {
   struct Entry {
     u32 codepoint;
@@ -106,11 +130,14 @@ struct FontCache {
 
   stx::Vec<Entry> entries{stx::os_allocator};
   extent total_extent;
-  extent consumed_extent;
+  offset consume_cursor;
+  u32 row_height = 0;
+  u32 font_height = 20;
   stx::Option<stx::Rc<vk::ImageResource*>> atlas;
 
-  FontCache(vk::RecordingContext& ctx, extent atlas_extent)
-      : total_extent{atlas_extent} {
+  FontCache(vk::RecordingContext& ctx, extent atlas_extent,
+            u32 atlas_font_height)
+      : total_extent{atlas_extent}, font_height{atlas_font_height} {
     usize atlas_size = atlas_extent.area() * 4;
     stx::Memory atlas_memory =
         stx::mem::allocate(stx::os_allocator, atlas_size).unwrap();
@@ -120,16 +147,41 @@ struct FontCache {
     atlas = stx::Some(ctx.upload_image(atlas_extent, atlas_bytes));
   }
 
-  stx::Option<offset> add(vk::RecordingContext& ctx, stx::Span<u8 const> bitmap,
-                          extent glyph_extent) {
-    if (!glyph_extent.is_visible()) return stx::None;
-
+  stx::Option<offset> add(vk::RecordingContext& ctx, u32 codepoint,
+                          stx::Span<u8 const> bitmap, extent glyph_extent) {
+    ASR_CHECK(glyph_extent.is_visible());
     ASR_CHECK(bitmap.size_bytes() >= total_extent.area());
 
     offset glyph_offset;
 
-    // if no space left
-    if (glyph_offset.x == 0) return stx::None;
+    // note that the cursor is not advanced if there's no available space
+
+    // if we have space on the current row
+    if (consume_cursor.x + glyph_extent.width <= total_extent.width) {
+      if (consume_cursor.y + glyph_extent.height <= total_extent.height) {
+        consume_cursor.x += glyph_extent.width;
+        glyph_offset = consume_cursor;
+        row_height = std::max(row_height, glyph_extent.height);
+      } else {
+        // no space
+        return stx::None;
+      }
+    }
+    // try to wrap around to a new row and find space
+    else {
+      // if we have space with wrap around on the new row
+      if (glyph_extent.width <= total_extent.width &&
+          consume_cursor.y + row_height + glyph_extent.height <=
+              total_extent.height) {
+        glyph_offset = offset{0, consume_cursor.y + row_height};
+        consume_cursor.y += row_height;
+        row_height = glyph_extent.height;
+        consume_cursor.x = glyph_extent.width;
+      } else {
+        // no space
+        return stx::None;
+      }
+    }
 
     vk::CommandQueue& cqueue = *ctx.queue.value().handle;
     VkDevice dev = cqueue.device.handle->device;
@@ -247,48 +299,62 @@ struct FontCache {
     ASR_VK_CHECK(vkResetCommandBuffer(ctx.upload_cmd_buffer, 0));
 
     staging_buffer.destroy(dev);
+
+    entries
+        .push(Entry{.codepoint = codepoint,
+                    .offset = glyph_offset,
+                    .extent = glyph_extent})
+        .unwrap();
+
+    return stx::Some(offset{glyph_offset});
   }
 };
 
-struct FontRenderer {
-  FontCache cache;
+// special characters:
 
-  void pp(Font& font, vk::RecordingContext& ctx, extent atlas_extent,
-          u32 font_height) {
-    ASR_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
-  }
-};
+void render_text(std::string_view text, Font& font, FontCache& cache,
+                 vk::RecordingContext& ctx, extent atlas_extent,
+                 u32 font_height, hb_script_t script = HB_SCRIPT_LATIN,
+                 hb_language_t language = hb_language_from_string("en", 2),
+                 hb_direction_t direction = HB_DIRECTION_LTR) {
+  if (font_height != cache.font_height) ASR_LOG_WARN();
 
-/*
-hb_script_t script,
-                                           hb_language_t language,
-                                           hb_direction_t direction,
-                                           std::string_view utf8_text,
-                                           FontCache& cache
+  hb_font_set_scale(font.hbfont, 64 * font_height, 64 * font_height);
 
-*/
-{
-  const hb_tag_t KERNING = HB_TAG('k', 'e', 'r', 'n');  // kerning operations
-  const hb_tag_t LIGATURE =
-      HB_TAG('l', 'i', 'g', 'a');  // standard ligature substitution
-  const hb_tag_t CONTEXTUAL_LIGATURE =
-      HB_TAG('c', 'l', 'i', 'g');  // contextual ligature substitution
-
-  hb_buffer_t* hbbuffer = hb_buffer_create();
-  ASR_CHECK(hbbuffer != nullptr);
-
-  hb_buffer_set_script(buffer, script);
-  hb_buffer_set_language(buffer, language);
-  hb_buffer_add_utf8(hbbuffer, utf8_text.data(), utf8_text.size(), 0,
-                     utf8_text.size());
+  hb_buffer_reset(font.hbscratch_buffer);
+  hb_buffer_set_script(font.hbscratch_buffer, script);
+  hb_buffer_set_language(font.hbscratch_buffer, language);
+  hb_buffer_set_direction(font.hbscratch_buffer, text_direction);
+  hb_buffer_add_utf8(font.hbscratch_buffer, text.data(), text.size(), 0,
+                     text.size());
 
   hb_feature_t features[] = {
       {KERNING, true, 0, std::numeric_limits<unsigned int>::max()},
       {LIGATURE, true, 0, std::numeric_limits<unsigned int>::max()},
       {CONTEXTUAL_LIGATURE, true, 0, std::numeric_limits<unsigned int>::max()}};
 
-  hb_shape(font, buffer, features, std::size(features));
+  hb_shape(font.hbfont, font.hbscratch_buffer, features, std::size(features));
 
+  unsigned int glyph_count;
+  hb_glyph_info_t* glyph_info =
+      hb_buffer_get_glyph_infos(font.hbscratch_buffer, &glyph_count);
+  hb_glyph_position_t* glyph_pos =
+      hb_buffer_get_glyph_positions(font.hbscratch_buffer, &glyph_count);
+
+  ASR_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
+
+  for (usize i = 0; i < glyph_count; ++i) {
+    u32 codepoint = glyph_info[i].codepoint;
+    FT_Load_Glyph(ftface, codepoint, FT_LOAD_RENDER);
+    FT_Render_Glyph(ftface->glyph, FT_RENDER_MODE_NORMAL);
+    FT_Bitmap bitmap = ftface->glyph->bitmap;
+    auto buff = bitmap.buffer;
+    auto h = bitmap.rows;
+    auto w = bitmap.width;
+  }
+}
+
+{
   unsigned int glyph_count;
   hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buffer, &glyph_count);
   hb_glyph_position_t* glyph_pos =

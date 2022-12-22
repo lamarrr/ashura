@@ -2269,6 +2269,8 @@ struct RecordingContext {
 
     ASR_CHECK(data.size_bytes() == extent.area() * nchannels);
     ASR_CHECK(nchannels == 4, "only 4-channel images presently supported");
+    ASR_CHECK(extent.is_visible());
+    ASR_CHECK(nchannels != 0);
 
     VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
 
@@ -2449,65 +2451,7 @@ struct RecordingContext {
         .unwrap();
   }
 
-  // TODO(lamarrr): unicode_range argument = unicode_ranges::LATIN
-  /* stx::Result<Typeface, TypefaceLoadError> upload_typeface(
-       stx::Span<char const> raw_typeface_data, TypefaceAtlasConfig const& cfg,
-       stx::Span<range const> unicode_ranges) {
-     if (raw_typeface_data.is_empty()) {
-       return stx::Err(TypefaceLoadError::InvalidData);
-     }
-
-     stx::Memory atlas_data_alpha8_mem =
-         stx::mem::allocate(stx::os_allocator,
-                            static_cast<usize>(cfg.extent.w) * cfg.extent.h)
-             .unwrap();
-
-     u8* atlas_data_alpha8 = static_cast<u8*>(atlas_data_alpha8_mem.handle);
-
-     stbtt_pack_context pack_context;
-
-     if (stbtt_PackBegin(
-             &pack_context,
-             static_cast<unsigned char*>(atlas_data_alpha8_mem.handle),
-             cfg.extent.w, cfg.extent.h, 0, 1, nullptr) == 0) {
-       return stx::Err(TypefaceLoadError::PackFailed);
-     }
-
-     stbtt_PackSetOversampling(&pack_context, cfg.oversample_x,
-                               cfg.oversample_y);
-
-     stx::Vec<stbtt_packedchar> glyphs{stx::os_allocator};
-     glyphs.resize(cfg.char_count).unwrap();
-
-     if (stbtt_PackFontRange(
-             &pack_context,
-             reinterpret_cast<unsigned char const*>(raw_typeface_data.data()),
-   0, cfg.atlas_font_height, cfg.first_char, cfg.char_count, glyphs.data()) ==
-   0) { stbtt_PackEnd(&pack_context); return
-   stx::Err(TypefaceLoadError::PackFailed);
-     }
-
-     stbtt_PackEnd(&pack_context);
-
-     usize target_size = static_cast<usize>(cfg.extent.w) * cfg.extent.h * 4;
-     stx::Memory pixels_data_rgba888_mem =
-         stx::mem::allocate(stx::os_allocator, target_size).unwrap();
-     u8* pixels_data_rgba888 = static_cast<u8*>(pixels_data_rgba888_mem.handle);
-
-     for (usize i = 0; i < target_size; i += 4) {
-       pixels_data_rgba888[i] = 255;
-       pixels_data_rgba888[i + 1] = 255;
-       pixels_data_rgba888[i + 2] = 255;
-       pixels_data_rgba888[i + 3] = atlas_data_alpha8[i / 4];
-     }
-
-     return stx::Ok(Typeface{
-         .config = cfg,
-         .glyphs = std::move(glyphs),
-         .atlas = vk::create_image_sampler(upload_image(
-             cfg.extent, 4, stx::Span{pixels_data_rgba888, target_size}))});
-   }
-   */
+ 
 };
 
 }  // namespace vk
