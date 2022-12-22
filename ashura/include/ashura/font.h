@@ -110,8 +110,10 @@ stx::Result<stx::Rc<Font*>, FontLoadError> load_font(std::string_view path) {
 // stores codepoint glyphs for a font at a specific font height
 struct FontCacheEntry {
   u32 codepoint;
-  offset offset;
+  asr::offset offset;
   extent extent;
+  vec2 pos;
+  vec2 advance;
   f32 s0 = 0, s1 = 0, t0 = 0, t1 = 0;
 };
 
@@ -146,27 +148,36 @@ FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
     FT_ULong codepoint = FT_Get_First_Char(font.ftface, &agindex);
 
     while (agindex != 0) {
-      ASR_CHECK(FT_Load_Glyph(font.ftface, codepoint, 0) == 0);
-      u32 width = font.ftface->glyph->bitmap.width;
-      u32 height = font.ftface->glyph->bitmap.rows;
+      FT_Error error = FT_Load_Glyph(font.ftface, codepoint, 0);
 
-      offset offset{0, cache_extent.height};
+      if (error == 0) {
+        u32 width = font.ftface->glyph->bitmap.width;
+        u32 height = font.ftface->glyph->bitmap.rows;
 
-      cache_extent.width = std::max(cache_extent.width, width);
-      cache_extent.height += height;
+        offset offset{0, cache_extent.height};
 
-      font.ftface->glyph->bitmap_left;
-      font.ftface->glyph->bitmap_top;
+        cache_extent.width = std::max(cache_extent.width, width);
+        cache_extent.height += height;
 
-      cache_entries
-          .push(FontCacheEntry{.codepoint = codepoint,
-                               .offset = offset,
-                               .extent = {width, height},
-                               .s0 = 0,
-                               .s1 = 0,
-                               .t0 = 0,
-                               .t1 = 0})
-          .unwrap();
+        asr::offset pos{
+            AS_U32(font.ftface->glyph->bitmap_left),
+            AS_U32(font_height - (height + font.ftface->glyph->bitmap_top))};
+
+        vec2 advance{font.ftface->glyph->advance.x / 64.0f,
+                     font.ftface->glyph->advance.y / 64.0f};
+
+        cache_entries
+            .push(FontCacheEntry{.codepoint = codepoint,
+                                 .offset = offset,
+                                 .extent = {width, height},
+                                 .pos = pos,
+                                 .advance = advance,
+                                 .s0 = 0,
+                                 .s1 = 0,
+                                 .t0 = 0,
+                                 .t1 = 0})
+            .unwrap();
+      }
 
       codepoint = FT_Get_Next_Char(font.ftface, codepoint, &agindex);
     }
@@ -386,13 +397,16 @@ FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
 
 // special characters: space, tab
 // ' ' '\t'
-void draw_text(std::string_view text, Font& font, FontCache& cache,
-               vk::RecordingContext& ctx, TextStyle const& style,
-               u32 font_height, f32 max_width = stx::f32_max,
+void draw_text(Canvas& canvas, std::string_view text, Font& font,
+               FontCache& cache, vk::RecordingContext& ctx,
+               TextStyle const& style, u32 font_height,
+               f32 max_width = stx::f32_max,
                hb_script_t script = HB_SCRIPT_LATIN,
                hb_language_t language = hb_language_from_string("en", 2)) {
   ASR_CHECK(style.direction == HB_DIRECTION_LTR ||
             style.direction == HB_DIRECTION_RTL);
+
+  f32 font_scale = AS_F32(font_height) / cache.font_height;
 
   hb_font_set_scale(font.hbfont, 64 * cache.font_height,
                     64 * cache.font_height);
@@ -418,25 +432,47 @@ void draw_text(std::string_view text, Font& font, FontCache& cache,
   hb_glyph_position_t* glyph_pos =
       hb_buffer_get_glyph_positions(font.hbscratch_buffer, &nglyphs);
 
+  // TODO(lamarrr): consider: canvas.clip_rect
+  // do not render beyond clip rect
+  // apply transform to coordinates to see if any of the coordinates fall inside
+  // it, if not discard certain parts of the text
+
   for (usize i = 0; i < nglyphs; ++i) {
     u32 codepoint = glyph_info[i].codepoint;
 
-    stx::Span glyph =
-        cache.entries.span().which([codepoint](FontCacheEntry const& entry) {
-          return entry.codepoint == codepoint;
-        });
+    switch (codepoint) {
+      // space
+      case 0: {
+      } break;
 
-    if (!glyph.is_empty()) {
-      FontCacheEntry const& glyph = glyph[0];
-      glyph.extent;
-      glyph.s0;
-      glyph.s1;
-      glyph.t0;
-      glyph.t1;
-      // TODO(lamarrr): bearingX, bearingY,
-      // xAdvance
-    } else {
-      // draw rect
+        // tab
+      case 4: {
+      } break;
+
+      default: {
+        stx::Span glyph = cache.entries.span().which(
+            [codepoint](FontCacheEntry const& entry) {
+              return entry.codepoint == codepoint;
+            });
+
+        if (!glyph.is_empty()) {
+          FontCacheEntry const& glyph = glyph[0];
+          glyph.extent;
+          glyph.s0;
+          glyph.s1;
+          glyph.t0;
+          glyph.t1;
+          glyph.pos.x;
+          glyph.pos.y;
+
+          vec2 pos = font_scale * glyph.pos;
+          vec2 advance = font_scale * glyph.advance;
+
+          // xAdvance
+        } else {
+          // draw rect
+        }
+      } break;
     }
   }
 }
