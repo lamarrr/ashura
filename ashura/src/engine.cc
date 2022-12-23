@@ -190,14 +190,6 @@ Engine::Engine(AppConfig const& cfg) {
   // auto transparent_image =
   // vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
 
-  // TODO(lamarrr): things to handle:
-  //
-  // - font resizing (presently we use a fixed size font)
-  // - font scaling
-  // - font variants: coloring
-  // - font variants: font weights
-  //
-
   auto font = load_font(
                   "C:\\Users\\Basit\\OneDrive\\Desktop\\Fortnite-"
                   "Font\\fortnite\\fortnite."
