@@ -200,28 +200,23 @@ inline FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
       vk::create_host_buffer(dev, memory_properties, cache_extent.area() * 4,
                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
+  u8* out = static_cast<u8*>(cache_staging_buffer.memory_map);
+
   for (FontCacheEntry const& entry : cache_entries) {
     ASR_CHECK(FT_Load_Glyph(font.ftface, entry.codepoint, 0) == 0);
     ASR_CHECK(FT_Render_Glyph(font.ftface->glyph, FT_RENDER_MODE_NORMAL) == 0);
 
-    u8* out = static_cast<u8*>(cache_staging_buffer.memory_map);
-
-    for (usize j = entry.offset.y; j < entry.offset.y + entry.extent.height;
-         j++) {
-      // copy the glyph to the atlas
-      for (usize i = entry.offset.x; i < entry.offset.x + entry.extent.width;
-           i++) {
+    for (usize j = 0; j < entry.extent.height; j++) {
+      // copy the rendered glyph to the atlas
+      for (usize i = 0; i < entry.extent.width; i++) {
         out[0] = 0xFF;
         out[1] = 0xFF;
         out[2] = 0xFF;
-        out[3] = font.ftface->glyph->bitmap
-                     .buffer[(j - entry.offset.y) * entry.extent.width +
-                             (i - entry.offset.x)];
+        out[3] = font.ftface->glyph->bitmap.buffer[j * entry.extent.width + i];
         out += 4;
       }
-      // fill the unused portion of the slot with transparent pixels
-      for (usize i = entry.offset.x + entry.extent.width;
-           i < cache_extent.width; i++) {
+      // fill the unused portion of the row with transparent pixels
+      for (usize i = 0; i < (cache_extent.width - entry.extent.width); i++) {
         out[0] = 0xFF;
         out[1] = 0xFF;
         out[2] = 0xFF;
