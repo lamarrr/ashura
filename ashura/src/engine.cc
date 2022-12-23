@@ -198,27 +198,11 @@ Engine::Engine(AppConfig const& cfg) {
   // - font variants: font weights
   //
 
-  std::ifstream otf(
-      "C:\\Users\\Basit\\OneDrive\\Desktop\\Fortnite-Font\\fortnite\\fortnite."
-      "otf",
-      std::ios_base::binary | std::ios_base::ate);
-  ASR_CHECK(otf.is_open());
-
-  usize otf_size = otf.tellg();
-  otf.seekg(0);
-
-  stx::Memory otf_mem =
-      stx::mem::allocate(stx::os_allocator, otf_size).unwrap();
-
-  otf.read(static_cast<char*>(otf_mem.handle), otf_size);
-
-  stx::String otf_str{static_cast<stx::ReadOnlyMemory>(std::move(otf_mem)),
-                      otf_size};
-
-  TypefaceAtlasConfig cfg;
-  Typeface typeface = canvas_context.value()
-                          .handle->ctx.upload_typeface(otf_str, cfg)
-                          .unwrap();
+  auto font = load_font(
+                  "C:\\Users\\Basit\\OneDrive\\Desktop\\Fortnite-"
+                  "Font\\fortnite\\fortnite."
+                  "otf"_str)
+                  .unwrap();
 
   auto transparent_image = canvas_context.value().handle->ctx.upload_image(
       extent{1920, 1080}, 4, sample_image);
@@ -345,13 +329,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
         vk::SwapChain::MAX_FRAMES_IN_FLIGHT;
 
   } while (swapchain_diff != WindowSwapchainDiff::None);
-
-  //   pipeline->dispatch_events(
-  //   window->handle.handle->event_queue.mouse_button_events,
-  //   window->handle.handle->event_queue.window_events);
-
-  //   bool window_extent_changed =
-  //   any_eq(window.value().handle->, WindowEvent::SizeChanged);
 }
 
 }  // namespace asr

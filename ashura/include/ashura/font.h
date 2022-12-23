@@ -3,7 +3,6 @@
 #include <fstream>
 #include <string_view>
 
-#include "ashura/canvas.h"
 #include "ashura/image.h"
 #include "ashura/primitives.h"
 #include "ashura/vulkan.h"
@@ -22,13 +21,16 @@ enum class TextAlign : u8 { Left, Right, Center };
 enum class WordWrap : u8 { None, Wrap };
 
 struct TextStyle {
-  f32 font_height = 10;
-  f32 letter_spacing = 0;
-  f32 word_spacing = 0;
+  f32 font_height = 16;
+  f32 letter_spacing = 2;
+  u32 tab_size = 8;
+  f32 word_spacing = 4;
+  f32 line_height = 1.2f;  // multiplied by font_height
   hb_direction_t direction = HB_DIRECTION_LTR;
   TextAlign align = TextAlign::Left;
   WordWrap word_wrap = WordWrap::None;
-  u32 num_tab_spaces = 4;
+  bool use_kerning = true;
+  bool use_ligatures = true;
 };
 
 struct Font {
@@ -66,12 +68,15 @@ struct Font {
 
 enum class FontLoadError { InvalidPath };
 
-stx::Result<stx::Rc<Font*>, FontLoadError> load_font(std::string_view path) {
-  if (!std::filesystem::exists(path)) {
+// TODO(lamarrr): add load font from memory
+
+inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font(
+    stx::String const& path) {
+  if (!std::filesystem::exists(path.c_str())) {
     return stx::Err(FontLoadError::InvalidPath);
   }
 
-  std::ifstream stream{path, std::ios::ate | std::ios_base::binary};
+  std::ifstream stream{path.c_str(), std::ios::ate | std::ios_base::binary};
 
   usize size = stream.tellg();
   stream.seekg(0);
@@ -124,8 +129,8 @@ struct FontCache {
   Image atlas;
 };
 
-FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
-                         u32 font_height) {
+inline FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
+                                u32 font_height) {
   ASR_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
 
   vk::CommandQueue& cqueue = *ctx.queue.value().handle;
@@ -159,9 +164,9 @@ FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
         cache_extent.width = std::max(cache_extent.width, width);
         cache_extent.height += height;
 
-        asr::offset pos{
-            AS_U32(font.ftface->glyph->bitmap_left),
-            AS_U32(font_height - (height + font.ftface->glyph->bitmap_top))};
+        vec2 pos{
+            AS_F32(font.ftface->glyph->bitmap_left),
+            AS_F32(font_height - (height + font.ftface->glyph->bitmap_top))};
 
         vec2 advance{font.ftface->glyph->advance.x / 64.0f,
                      font.ftface->glyph->advance.y / 64.0f};
@@ -197,7 +202,7 @@ FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
 
   for (FontCacheEntry const& entry : cache_entries) {
     ASR_CHECK(FT_Load_Glyph(font.ftface, entry.codepoint, 0) == 0);
-    ASR_CHECK(FT_Render_Glyph(font.ftface, FT_RENDER_MODE_NORMAL) == 0);
+    ASR_CHECK(FT_Render_Glyph(font.ftface->glyph, FT_RENDER_MODE_NORMAL) == 0);
 
     u8* out = static_cast<u8*>(cache_staging_buffer.memory_map);
 
@@ -209,9 +214,9 @@ FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
         out[0] = 0xFF;
         out[1] = 0xFF;
         out[2] = 0xFF;
-        out[3] = font.ftface->glyph
-                     ->bitmap[(j - entry.offset.y) * entry.extent.width +
-                              (i - entry.offset.x)];
+        out[3] = font.ftface->glyph->bitmap
+                     .buffer[(j - entry.offset.y) * entry.extent.width +
+                             (i - entry.offset.x)];
         out += 4;
       }
       // fill the unused portion of the slot with transparent pixels
@@ -254,8 +259,8 @@ FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
   vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
   u32 memory_type_index =
-      find_suitable_memory_type(memory_properties, memory_requirements,
-                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+      vk::find_suitable_memory_type(memory_properties, memory_requirements,
+                                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
@@ -276,7 +281,7 @@ FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
       .flags = 0,
       .image = image,
       .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = format,
+      .format = VK_FORMAT_R8G8B8A8_SRGB,
       .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -376,14 +381,15 @@ FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
 
   ASR_VK_CHECK(vkResetFences(dev, 1, &ctx.upload_fence));
 
-  ASR_VK_CHECK(vkQueueSubmit(cqueue.info.queue, 1, &submit_info, upload_fence));
+  ASR_VK_CHECK(
+      vkQueueSubmit(cqueue.info.queue, 1, &submit_info, ctx.upload_fence));
 
   ASR_VK_CHECK(
       vkWaitForFences(dev, 1, &ctx.upload_fence, VK_TRUE, COMMAND_TIMEOUT));
 
   ASR_VK_CHECK(vkResetCommandBuffer(ctx.upload_cmd_buffer, 0));
 
-  staging_buffer.destroy(dev);
+  cache_staging_buffer.destroy(dev);
 
   return FontCache{
       .entries = std::move(cache_entries),
@@ -393,88 +399,6 @@ FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
           stx::rc::make_inplace<vk::ImageResource>(
               stx::os_allocator, image, view, memory, ctx.queue.value().share())
               .unwrap())};
-}
-
-// special characters: space, tab
-// ' ' '\t'
-void draw_text(Canvas& canvas, std::string_view text, Font& font,
-               FontCache& cache, vk::RecordingContext& ctx,
-               TextStyle const& style, u32 font_height,
-               f32 max_width = stx::f32_max,
-               hb_script_t script = HB_SCRIPT_LATIN,
-               hb_language_t language = hb_language_from_string("en", 2)) {
-  ASR_CHECK(style.direction == HB_DIRECTION_LTR ||
-            style.direction == HB_DIRECTION_RTL);
-
-  f32 font_scale = AS_F32(font_height) / cache.font_height;
-
-  hb_font_set_scale(font.hbfont, 64 * cache.font_height,
-                    64 * cache.font_height);
-  hb_buffer_reset(font.hbscratch_buffer);
-  hb_buffer_set_script(font.hbscratch_buffer, script);
-  hb_buffer_set_direction(font.hbscratch_buffer, style.direction);
-  hb_buffer_set_language(font.hbscratch_buffer, language);
-  hb_buffer_add_utf8(font.hbscratch_buffer, text.data(), text.size(), 0,
-                     text.size());
-
-  hb_feature_t features[] = {{Font::KERNING_FEATURE, true, 0,
-                              std::numeric_limits<unsigned int>::max()},
-                             {Font::LIGATURE_FEATURE, true, 0,
-                              std::numeric_limits<unsigned int>::max()},
-                             {Font::CONTEXTUAL_LIGATURE_FEATURE, true, 0,
-                              std::numeric_limits<unsigned int>::max()}};
-
-  hb_shape(font.hbfont, font.hbscratch_buffer, features, std::size(features));
-
-  unsigned int nglyphs;
-  hb_glyph_info_t* glyph_info =
-      hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
-  hb_glyph_position_t* glyph_pos =
-      hb_buffer_get_glyph_positions(font.hbscratch_buffer, &nglyphs);
-
-  // TODO(lamarrr): consider: canvas.clip_rect
-  // do not render beyond clip rect
-  // apply transform to coordinates to see if any of the coordinates fall inside
-  // it, if not discard certain parts of the text
-
-  for (usize i = 0; i < nglyphs; ++i) {
-    u32 codepoint = glyph_info[i].codepoint;
-
-    switch (codepoint) {
-      // space
-      case 0: {
-      } break;
-
-        // tab
-      case 4: {
-      } break;
-
-      default: {
-        stx::Span glyph = cache.entries.span().which(
-            [codepoint](FontCacheEntry const& entry) {
-              return entry.codepoint == codepoint;
-            });
-
-        if (!glyph.is_empty()) {
-          FontCacheEntry const& glyph = glyph[0];
-          glyph.extent;
-          glyph.s0;
-          glyph.s1;
-          glyph.t0;
-          glyph.t1;
-          glyph.pos.x;
-          glyph.pos.y;
-
-          vec2 pos = font_scale * glyph.pos;
-          vec2 advance = font_scale * glyph.advance;
-
-          // xAdvance
-        } else {
-          // draw rect
-        }
-      } break;
-    }
-  }
 }
 
 }  // namespace asr

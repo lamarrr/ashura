@@ -247,49 +247,6 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
   }
 }
 
-inline void generate_glyph_vertices(stx::Span<vertex> ivertices,
-                                    stx::Span<u32> iindices,
-                                    u32 first_vertex_index,
-                                    Typeface const& typeface, u32 character,
-                                    vec2 offset, f32 height) {
-  // TODO(lamarrr): we might need to handle out of range characters
-  u32 char_index = character - typeface.config.first_char;
-  stbtt_packedchar const& pchar = typeface.glyphs[char_index];
-
-  // draw text at position offset, area.offset accounts for
-  // ascent and descent of the character
-  rect area{.offset = {offset + vec2{pchar.xoff, pchar.yoff}},
-            .extent = {pchar.xoff2 - pchar.xoff, pchar.yoff2 - pchar.yoff}};
-
-  f32 scale = height / area.extent.y;
-
-  area.extent.x *= scale;
-  area.extent.y = height;
-
-  f32 s0 = AS_F32(pchar.x0) / typeface.config.atlas_extent.w;
-  f32 t0 = AS_F32(pchar.y0) / typeface.config.atlas_extent.h;
-  f32 s1 = AS_F32(pchar.x1) / typeface.config.atlas_extent.w;
-  f32 t1 = AS_F32(pchar.y1) / typeface.config.atlas_extent.h;
-
-  vertex vertices[] = {
-      {.position = area.offset, .st = {s0, t0}},
-      {.position = {area.offset.x + area.extent.x, area.offset.y},
-       .st = {s1, t0}},
-      {.position = area.offset + area.extent, .st = {s1, t1}},
-      {.position = {area.offset.x, area.offset.y + area.extent.y},
-       .st = {s0, t1}}};
-
-  ivertices.copy(vertices);
-
-  u32 indices[] = {first_vertex_index,     first_vertex_index + 1,
-                   first_vertex_index + 2, first_vertex_index,
-                   first_vertex_index + 2, first_vertex_index + 3};
-
-  iindices.copy(indices);
-
-  // TODO(lamarrr): pchar.xadvance* scale;
-}
-
 /// coordinates are specified in top-left origin space with x pointing to the
 /// right and y pointing downwards.
 ///
@@ -583,73 +540,6 @@ struct Canvas {
     }
   }
 
-  // Text API
-  Canvas& draw_text(stx::StringView text, vec2 position,
-                    Typeface const& typeface) {
-    brush.text_style.letter_spacing;
-    brush.text_style.align;
-    brush.text_style.direction;
-    brush.text_style.word_spacing;
-    brush.text_style.font_height;
-    brush.text_style.word_wrap;
-
-    u32 nspaces_in_tab = 4;
-
-    vec2 offset = position;
-
-    usize normalize_start = draw_list.vertices.size();
-
-    // TODO(lamarrr): we can't draw directly in some cases and might need to
-    // perform separate layout process?
-
-    u32 first_vertex_index = AS_U32(draw_list.vertices.size());
-    u32 indices_offset = AS_U32(draw_list.indices.size());
-
-    draw_list.vertices.resize(draw_list.vertices.size() + 4 * text.size())
-        .unwrap();
-    draw_list.indices.resize(draw_list.indices.size() + 6 * text.size())
-        .unwrap();
-
-    for (char character : text) {
-      switch (character) {
-        case ' ': {
-        }
-
-        case '\t': {
-        }
-
-        default: {
-          generate_glyph_vertices(
-              draw_list.vertices.span().slice(first_vertex_index),
-              draw_list.indices.span().slice(indices_offset),
-              first_vertex_index, typeface, character, offset,
-              brush.text_style.font_height);
-
-          for (vertex& vertex :
-               draw_list.vertices.span().slice(first_vertex_index)) {
-            vertex.position =
-                normalize_for_viewport(vertex.position, viewport_extent);
-          }
-
-          draw_list.cmds
-              .push(DrawCommand{.indices_offset = indices_offset,
-                                .nindices = 6,
-                                .clip_rect = rect{{0, 0}, viewport_extent},
-                                .transform = transform,
-                                .color = brush.color,
-                                .texture = typeface.atlas.share()})
-              .unwrap();
-
-          // TODO(lamarrr):
-          offset = offset + vec2{0, 0};
-
-          first_vertex_index += 4;
-          indices_offset += 6;
-        }
-      }
-    }
-  }
-
   // Image API
   Canvas& draw_image(Image const& image, rect area, rect image_portion,
                      vec4 border_radii, usize nsegments) {
@@ -663,6 +553,107 @@ struct Canvas {
                      usize nsegments) {
     rect texture_area{{0, 0}, {1, 1}};
     return draw_image(image, area, texture_area, border_radii, nsegments);
+  }
+
+  // Text API
+  // TODO(lamarrr): we need separate layout pass, use callbacks to perform
+  // certain actions on layout calculation
+  Canvas& draw_text(Font& font, FontCache& cache, std::string_view text,
+                    TextStyle const& style = {}, f32 max_width = stx::f32_max,
+                    hb_script_t script = HB_SCRIPT_LATIN,
+                    hb_language_t language = hb_language_from_string("en", 2)) {
+    ASR_CHECK(style.direction == HB_DIRECTION_LTR ||
+              style.direction == HB_DIRECTION_RTL);
+
+    f32 font_scale = AS_F32(style.font_height) / cache.font_height;
+
+    hb_font_set_scale(font.hbfont, 64 * cache.font_height,
+                      64 * cache.font_height);
+    hb_buffer_reset(font.hbscratch_buffer);
+    hb_buffer_set_script(font.hbscratch_buffer, script);
+    hb_buffer_set_direction(font.hbscratch_buffer, style.direction);
+    hb_buffer_set_language(font.hbscratch_buffer, language);
+    hb_buffer_add_utf8(font.hbscratch_buffer, text.data(), text.size(), 0,
+                       text.size());
+
+    hb_feature_t features[] = {
+        {Font::KERNING_FEATURE, style.use_kerning, 0,
+         std::numeric_limits<unsigned int>::max()},
+        {Font::LIGATURE_FEATURE, style.use_ligatures, 0,
+         std::numeric_limits<unsigned int>::max()},
+        {Font::CONTEXTUAL_LIGATURE_FEATURE, style.use_ligatures, 0,
+         std::numeric_limits<unsigned int>::max()}};
+
+    hb_shape(font.hbfont, font.hbscratch_buffer, features, std::size(features));
+
+    unsigned int nglyphs;
+    hb_glyph_info_t* glyph_info =
+        hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
+    // hb_glyph_position_t* glyph_pos =
+    //    hb_buffer_get_glyph_positions(font.hbscratch_buffer, &nglyphs);
+
+    // TODO(lamarrr): CONSIDER: canvas.clip_rect do not render beyond clip rect
+    // apply transform to coordinates to see if any of the coordinates fall
+    // inside it, if not discard certain parts of the text
+
+    // for each text (paragraph)
+    //
+    // if word wrap is enabled seek to the end of the word, calculate the extent
+    // of the word, if its x position doesn't exceed the max_width layout on
+    // that line, if not wrap to the next line.
+    //
+    // if word wrap is not enabled just
+    // keep drawing all the text and advancing
+    //
+    // if character is not space advance by advance.x + letter_spacing
+    //
+    // if character is space behave like a word_spacing * line_height character
+    // was there and draw nothing
+    //
+    // if character is tab, perform procedure for space style.num_tab_spaces
+    // times
+    //
+    // once all this layout is done, using the text align, align the text to the
+    // desired alignments
+    //
+    //
+    //
+    for (usize i = 0; i < nglyphs; ++i) {
+      u32 codepoint = glyph_info[i].codepoint;
+
+      switch (codepoint) {
+        // space
+        case 0: {
+        } break;
+
+          // tab
+        case 4: {
+        } break;
+
+        default: {
+          stx::Span glyph = cache.entries.span().which(
+              [codepoint](FontCacheEntry const& entry) {
+                return entry.codepoint == codepoint;
+              });
+
+          if (!glyph.is_empty()) {
+            FontCacheEntry const& g = glyph[0];
+            g.s0;
+            g.s1;
+            g.t0;
+            g.t1;
+            g.pos.y;
+
+            vec2 pos = font_scale * g.pos;
+            vec2 advance = font_scale * g.advance;
+
+            // xAdvance
+          } else {
+            // draw rect
+          }
+        } break;
+      }
+    }
   }
 };
 

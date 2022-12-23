@@ -259,7 +259,7 @@ struct extent {
 };
 
 constexpr extent operator+(extent a, extent b) {
-  return extent{.w = a.width + b.width, .h = a.h + b.h};
+  return extent{.width = a.width + b.width, .height = a.height + b.height};
 }
 
 constexpr bool operator==(extent a, extent b) {
