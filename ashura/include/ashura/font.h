@@ -93,7 +93,7 @@ inline stx::Rc<Font*> load_font_from_memory(stx::Span<char const> data) {
   ASR_CHECK(hbscratch_buffer != nullptr);
 
   return stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont,
-                                             hbscratch_buffer, ftlib, ftface)
+                                     hbscratch_buffer, ftlib, ftface)
       .unwrap();
 }
 
@@ -146,7 +146,7 @@ struct FontCache {
 };
 
 inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
-                                u32 font_height) {
+                             u32 font_height) {
   // *64 to convert font height to 26.6 pixel format
   ASR_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
 
