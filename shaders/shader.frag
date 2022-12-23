@@ -2,7 +2,7 @@
 
 layout(location = 0) in vec2 in_st;
 
-layout(push_constant) uniform PushConstants {
+layout(push_constant) uniform CanvasPushConstants {
   mat4 transform;
   vec4 color;
 }

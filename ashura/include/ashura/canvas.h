@@ -670,6 +670,12 @@ struct Canvas {
   }
 };
 
+struct CanvasPushConstants {
+  mat4 transform = mat4::identity();
+  vec4 color{1, 1, 1, 1};
+};
+
+// TODO(lamarrr): break this down and make it suitable for offscreen rendering
 struct CanvasContext {
   stx::Vec<vk::SpanBuffer> vertex_buffers{stx::os_allocator};
   stx::Vec<vk::SpanBuffer> index_buffers{stx::os_allocator};
@@ -690,14 +696,16 @@ struct CanvasContext {
          .offset = offsetof(vertex, st)}};
 
     vk::DescriptorSetSpec descriptor_set_specs[] = {
-        vk::DescriptorSetSpec{vk::DescriptorType::CombinedImageSampler}};
+        vk::DescriptorSetSpec{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}};
 
+    // initial size of the descriptor pool, will grow as needed
     VkDescriptorPoolSize descriptor_pool_sizes[] = {
         {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
          .descriptorCount = 1}};
 
     ctx.init(queue.share(), vertex_shader_code, fragment_shader_code,
-             vertex_input_attributes, sizeof(vertex), descriptor_set_specs,
+             vertex_input_attributes, sizeof(vertex),
+             sizeof(CanvasPushConstants), descriptor_set_specs,
              descriptor_pool_sizes, 1);
 
     for (u32 i = 0; i < vk::SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -892,8 +900,7 @@ struct CanvasContext {
           .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
           .pImageInfo = &image_info,
           .pBufferInfo = nullptr,
-          .pTexelBufferView = nullptr,
-      };
+          .pTexelBufferView = nullptr};
 
       vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
     }
@@ -929,7 +936,7 @@ struct CanvasContext {
 
       vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
 
-      vk::PushConstants push_constant{
+      CanvasPushConstants push_constant{
           .transform = cmd.transform.transpose(),
           .color = {cmd.color.r / 255.0f, cmd.color.g / 255.0f,
                     cmd.color.b / 255.0f, cmd.color.a / 255.0f}};
@@ -937,7 +944,7 @@ struct CanvasContext {
       vkCmdPushConstants(
           cmd_buffer, ctx.pipeline.layout,
           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-          sizeof(vk::PushConstants), &push_constant);
+          sizeof(CanvasPushConstants), &push_constant);
 
       vkCmdBindDescriptorSets(
           cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipeline.layout, 0,

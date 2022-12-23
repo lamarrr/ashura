@@ -420,4 +420,8 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
               .unwrap())};
 }
 
+//TODO(lamarrr): implement
+template<typename Fn>
+rect layout_text(f32 max_width, Fn& callback);
+
 }  // namespace asr

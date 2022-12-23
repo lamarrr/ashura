@@ -1133,28 +1133,26 @@ inline stx::Rc<ImageSampler*> create_image_sampler(
       .unwrap();
 }
 
-enum class DescriptorType : u8 { UniformBuffer, CombinedImageSampler };
-
 struct DescriptorBinding {
-  DescriptorType type = DescriptorType::UniformBuffer;
+  VkDescriptorType type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
-  // only valid if type is DescriptorType::UniformBuffer
+  // only valid if type is VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
   VkBuffer buffer = VK_NULL_HANDLE;
 
-  // only valid if type is DescriptorType::CombinedImageSampler
+  // only valid if type is VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
   VkImageView view = VK_NULL_HANDLE;
 
-  // only valid if type is DescriptorType::CombinedImageSampler
+  // only valid if type is VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
   VkSampler sampler = VK_NULL_HANDLE;
 
   static constexpr DescriptorBinding make_buffer(VkBuffer buffer) {
-    return DescriptorBinding{.type = DescriptorType::UniformBuffer,
+    return DescriptorBinding{.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                              .buffer = buffer};
   }
 
   static constexpr DescriptorBinding make_sampler(VkImageView view,
                                                   VkSampler sampler) {
-    return DescriptorBinding{.type = DescriptorType::CombinedImageSampler,
+    return DescriptorBinding{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                              .view = view,
                              .sampler = sampler};
   }
@@ -1166,13 +1164,14 @@ struct DescriptorBinding {
 };
 
 struct DescriptorSetSpec {
-  stx::Vec<DescriptorType> bindings{stx::os_allocator};
+  stx::Vec<VkDescriptorType> bindings{stx::os_allocator};
 
-  explicit DescriptorSetSpec(std::initializer_list<DescriptorType> abindings) {
+  explicit DescriptorSetSpec(
+      std::initializer_list<VkDescriptorType> abindings) {
     bindings.extend(abindings).unwrap();
   }
 
-  explicit DescriptorSetSpec(stx::Span<DescriptorType const> abindings) {
+  explicit DescriptorSetSpec(stx::Span<VkDescriptorType const> abindings) {
     bindings.extend(abindings).unwrap();
   }
 
@@ -1829,11 +1828,6 @@ struct Surface {
   }
 };
 
-struct PushConstants {
-  mat4 transform = mat4::identity();
-  vec4 color{1, 1, 1, 1};
-};
-
 struct Pipeline {
   VkPipeline pipeline = VK_NULL_HANDLE;
   VkPipelineLayout layout = VK_NULL_HANDLE;
@@ -1846,7 +1840,7 @@ struct Pipeline {
       VkSampleCountFlagBits amsaa_sample_count,
       stx::Span<VkDescriptorSetLayout const> descriptor_set_layout,
       stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
-      u32 vertex_input_size) {
+      u32 vertex_input_size, u32 push_constant_size) {
     msaa_sample_count = amsaa_sample_count;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
@@ -1870,12 +1864,12 @@ struct Pipeline {
     VkPipelineShaderStageCreateInfo stages[] = {vert_shader_stage,
                                                 frag_shader_stage};
 
-    static_assert(sizeof(PushConstants) % 4 == 0);
+    ASR_CHECK(push_constant_size % 4 == 0);
 
     VkPushConstantRange push_constant{
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         .offset = 0,
-        .size = sizeof(PushConstants)};
+        .size = push_constant_size};
 
     VkPipelineLayoutCreateInfo layout_create_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -2063,13 +2057,14 @@ struct RecordingContext {
   stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{
       stx::os_allocator};
   u32 vertex_input_size = 0;
+  u32 push_constant_size = 0;
   stx::Option<stx::Rc<CommandQueue*>> queue;
 
   void init(
       stx::Rc<CommandQueue*> aqueue, stx::Span<u32 const> vertex_shader_code,
       stx::Span<u32 const> fragment_shader_code,
       stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
-      u32 avertex_input_size,
+      u32 avertex_input_size, u32 apush_constant_size,
       stx::Span<DescriptorSetSpec> adescriptor_sets_specs,
       stx::Span<VkDescriptorPoolSize const> adescriptor_pool_sizes,
       u32 max_descriptor_sets) {
@@ -2126,6 +2121,7 @@ struct RecordingContext {
 
     vertex_input_attr.extend(avertex_input_attr).unwrap();
     vertex_input_size = avertex_input_size;
+    push_constant_size = apush_constant_size;
 
     descriptor_set_specs.extend_move(adescriptor_sets_specs).unwrap();
 
@@ -2134,23 +2130,10 @@ struct RecordingContext {
 
       u32 ibinding = 0;
 
-      for (DescriptorType type : spec.bindings) {
-        VkDescriptorType binding_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
-        switch (type) {
-          case DescriptorType::UniformBuffer:
-            binding_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            break;
-          case DescriptorType::CombinedImageSampler:
-            binding_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            break;
-          default:
-            ASR_UNREACHABLE();
-        }
-
+      for (VkDescriptorType type : spec.bindings) {
         VkDescriptorSetLayoutBinding binding{
             .binding = ibinding,
-            .descriptorType = binding_type,
+            .descriptorType = type,
             .descriptorCount = 1,
             .stageFlags =
                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT};
@@ -2219,11 +2202,13 @@ struct RecordingContext {
     }
   }
 
+  // TODO(lamarrr): to make suitable for offscreen rendering we need to remove
+  // swapchain dependencies, examine if this is possible
   void on_swapchain_changed(SwapChain const& swapchain) {
     pipeline.build(queue.value().handle->device.handle->device, vertex_shader,
                    fragment_shader, swapchain.render_pass,
                    swapchain.msaa_sample_count, descriptor_set_layouts,
-                   vertex_input_attr, vertex_input_size);
+                   vertex_input_attr, vertex_input_size, push_constant_size);
   }
 
   void destroy() {
@@ -2289,7 +2274,9 @@ struct RecordingContext {
         .flags = 0,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
-        .extent = VkExtent3D{.width = extent.width, .height = extent.height, .depth = 1},
+        .extent =
+            VkExtent3D{
+                .width = extent.width, .height = extent.height, .depth = 1},
         .mipLevels = 1,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -2394,8 +2381,8 @@ struct RecordingContext {
                                      .baseArrayLayer = 0,
                                      .layerCount = 1},
         .imageOffset = VkOffset3D{.x = 0, .y = 0, .z = 0},
-        .imageExtent =
-            VkExtent3D{.width = extent.width, .height = extent.height, .depth = 1}};
+        .imageExtent = VkExtent3D{
+            .width = extent.width, .height = extent.height, .depth = 1}};
 
     vkCmdCopyBufferToImage(upload_cmd_buffer, staging_buffer.buffer, image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
@@ -2450,8 +2437,6 @@ struct RecordingContext {
                                                 memory, queue.value().share())
         .unwrap();
   }
-
- 
 };
 
 }  // namespace vk
