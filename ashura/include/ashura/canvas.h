@@ -541,18 +541,30 @@ struct Canvas {
   }
 
   // Image API
-  Canvas& draw_image(Image const& image, rect area, rect image_portion,
-                     vec4 border_radii, usize nsegments) {
+  Canvas& draw_image(Image const& image, rect area, rect image_portion) {
+    vec2 points[4];
+    polygons::rect(points, area);
+    return draw_convex_polygon_filled(points, area, image_portion, image);
+  }
+
+  Canvas& draw_image(Image const& image, rect area) {
+    rect texture_area{{0, 0}, {1, 1}};
+    return draw_image(image, area, texture_area);
+  }
+
+  Canvas& draw_rounded_image(Image const& image, rect area, rect image_portion,
+                             vec4 border_radii, usize nsegments) {
     stx::Vec<vec2> points{stx::os_allocator};
     points.resize(nsegments * 4).unwrap();
     polygons::round_rect(points, area, border_radii, nsegments);
     return draw_convex_polygon_filled(points, area, image_portion, image);
   }
 
-  Canvas& draw_image(Image const& image, rect area, vec4 border_radii,
-                     usize nsegments) {
+  Canvas& draw_rounded_image(Image const& image, rect area, vec4 border_radii,
+                             usize nsegments) {
     rect texture_area{{0, 0}, {1, 1}};
-    return draw_image(image, area, texture_area, border_radii, nsegments);
+    return draw_rounded_image(image, area, texture_area, border_radii,
+                              nsegments);
   }
 
   // Text API

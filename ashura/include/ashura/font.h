@@ -207,6 +207,7 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
     }
   }
 
+  // now that we know the full atlas extent calculate texture coordinates
   for (FontCacheEntry& entry : cache_entries) {
     entry.s0 = AS_F32(entry.offset.x) / cache_extent.width;
     entry.s1 = AS_F32(entry.offset.x + entry.extent.width) / cache_extent.width;
@@ -214,6 +215,10 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
     entry.t1 =
         AS_F32(entry.offset.y + entry.extent.height) / cache_extent.height;
   }
+
+  // TODO-future(lamarrr): we should probably handle this instead of bailing out
+  // NOTE: vulkan doesn't allow zero-extent images
+  ASR_CHECK(cache_extent.is_visible());
 
   vk::Buffer cache_staging_buffer =
       vk::create_host_buffer(dev, memory_properties, cache_extent.area() * 4,
