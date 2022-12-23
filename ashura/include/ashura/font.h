@@ -68,9 +68,34 @@ struct Font {
 
 enum class FontLoadError { InvalidPath };
 
-// TODO(lamarrr): add load font from memory
+inline stx::Rc<Font*> load_font_from_memory(stx::Span<char const> data) {
+  hb_blob_t* hbblob = hb_blob_create(data.data(), data.size(),
+                                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+  ASR_CHECK(hbblob != nullptr);
 
-inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font(
+  hb_face_t* hbface = hb_face_create(hbblob, 0);
+  ASR_CHECK(hbface != nullptr);
+
+  hb_font_t* hbfont = hb_font_create(hbface);
+  ASR_CHECK(hbfont != nullptr);
+
+  FT_Library ftlib = nullptr;
+  ASR_CHECK(FT_Init_FreeType(&ftlib) == 0);
+
+  FT_Face ftface = nullptr;
+  ASR_CHECK(FT_New_Memory_Face(ftlib,
+                               reinterpret_cast<FT_Byte const*>(data.data()),
+                               data.size(), 0, &ftface) == 0);
+
+  hb_buffer_t* hbscratch_buffer = hb_buffer_create();
+  ASR_CHECK(hbscratch_buffer != nullptr);
+
+  return stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont,
+                                             hbscratch_buffer, ftlib, ftface)
+      .unwrap();
+}
+
+inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font_from_file(
     stx::String const& path) {
   if (!std::filesystem::exists(path.c_str())) {
     return stx::Err(FontLoadError::InvalidPath);
@@ -87,32 +112,10 @@ inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font(
 
   stream.close();
 
-  hb_blob_t* hbblob = hb_blob_create(static_cast<char*>(memory.handle), size,
-                                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
-  ASR_CHECK(hbblob != nullptr);
-
-  hb_face_t* hbface = hb_face_create(hbblob, 0);
-  ASR_CHECK(hbface != nullptr);
-
-  hb_font_t* hbfont = hb_font_create(hbface);
-  ASR_CHECK(hbfont != nullptr);
-
-  FT_Library ftlib = nullptr;
-  ASR_CHECK(FT_Init_FreeType(&ftlib) == 0);
-
-  FT_Face ftface = nullptr;
-  ASR_CHECK(FT_New_Memory_Face(ftlib, static_cast<FT_Byte*>(memory.handle),
-                               size, 0, &ftface) == 0);
-
-  hb_buffer_t* hbscratch_buffer = hb_buffer_create();
-  ASR_CHECK(hbscratch_buffer != nullptr);
-
-  return stx::Ok(stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont,
-                                             hbscratch_buffer, ftlib, ftface)
-                     .unwrap());
+  return stx::Ok(load_font_from_memory(
+      stx::Span{static_cast<char*>(memory.handle), size}));
 };
 
-// stores codepoint glyphs for a font at a specific font height
 struct FontCacheEntry {
   u32 codepoint;
   asr::offset offset;
