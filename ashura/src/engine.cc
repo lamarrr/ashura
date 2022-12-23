@@ -190,7 +190,7 @@ Engine::Engine(AppConfig const& cfg) {
   // auto transparent_image =
   // vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
 
-  auto font = load_font(
+  auto font = load_font_from_file(
                   "C:\\Users\\Basit\\OneDrive\\Desktop\\Fortnite-"
                   "Font\\fortnite\\fortnite."
                   "otf"_str)
