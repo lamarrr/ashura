@@ -25,11 +25,13 @@ struct TextStyle {
   f32 letter_spacing = 2;
   u32 tab_size = 8;
   f32 word_spacing = 4;
-  f32 line_height = 1.2f;  // multiplied by font_height
+  // multiplied by font_height
+  f32 line_height = 1.2f;
   hb_direction_t direction = HB_DIRECTION_LTR;
   TextAlign align = TextAlign::Left;
   WordWrap word_wrap = WordWrap::None;
   bool use_kerning = true;
+  //  use standard and contextual ligature substitution
   bool use_ligatures = true;
 };
 
@@ -117,23 +119,35 @@ inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font_from_file(
 };
 
 struct FontCacheEntry {
-  u32 codepoint;
+  // unicode codepoint
+  u32 codepoint = 0;
+  // offset into the atlas its glyph resides
   asr::offset offset;
+  // extent of the glyph in the atlas
   extent extent;
+  // defines offset from cursor position the glyph will be placed
   vec2 pos;
+  // advancement of the cursor after drawing this glyph
   vec2 advance;
+  // texture coordinates of this glyph in the atlas
   f32 s0 = 0, s1 = 0, t0 = 0, t1 = 0;
 };
 
+// stores codepoint glyphs for a font at a specific font height
+// this is a single-column atlas
 struct FontCache {
   stx::Vec<FontCacheEntry> entries{stx::os_allocator};
+  // overall extent of the atlas
   extent extent;
+  // font height at which the cache/atlas/glyphs will be rendered and cached
   u32 font_height = 40;
+  // atlas containing the glyphs
   Image atlas;
 };
 
-inline FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
+inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
                                 u32 font_height) {
+  // *64 to convert font height to 26.6 pixel format
   ASR_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
 
   vk::CommandQueue& cqueue = *ctx.queue.value().handle;
@@ -146,7 +160,8 @@ inline FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
   // we use column layout because writing the rendered glyphs to it will
   // be faster and loading from memory during rendering will be faster as
   // opposed to laying them all out on one row which will be extremely slow as
-  // unrelated pixel rows will be loaded into memory
+  // unrelated pixel rows will be loaded into memory during rendering leading to
+  // very high cache misses.
 
   extent cache_extent;
 
@@ -171,6 +186,7 @@ inline FontCache rasterize_font(Font& font, vk::RecordingContext& ctx,
             AS_F32(font.ftface->glyph->bitmap_left),
             AS_F32(font_height - (height + font.ftface->glyph->bitmap_top))};
 
+        // convert from 26.6 pixel format
         vec2 advance{font.ftface->glyph->advance.x / 64.0f,
                      font.ftface->glyph->advance.y / 64.0f};
 
