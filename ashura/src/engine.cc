@@ -232,7 +232,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   do {
   } while (window_api.value().handle->poll_events());
 
-  // TODO(lamarrr): try getting window extent on each frame instead
+  // TODO(lamarrr): try getting window extent on each frame instead?
   window.value().handle->tick(interval);
 
   auto draw_content = [&]() {
@@ -276,9 +276,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   draw_content();
   // only try to present if the pipeline has new changes or window was
   // resized
-
-  // TODO(lamarrr): make presentation happen after recreation, for the first
-  // iteration. and remove the created swapchain in the init method
 
   // only try to recreate swapchain if the present swapchain can't be used for
   // presentation

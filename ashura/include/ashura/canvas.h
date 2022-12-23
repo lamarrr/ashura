@@ -556,8 +556,9 @@ struct Canvas {
   }
 
   // Text API
-  // TODO(lamarrr): we need separate layout pass, use callbacks to perform
-  // certain actions on layout calculation
+  // TODO(lamarrr): we need separate layout pass so we can perform widget
+  // layout, use callbacks to perform certain actions on layout calculation.
+  //
   Canvas& draw_text(Font& font, FontCache& cache, std::string_view text,
                     TextStyle const& style = {}, f32 max_width = stx::f32_max,
                     hb_script_t script = HB_SCRIPT_LATIN,

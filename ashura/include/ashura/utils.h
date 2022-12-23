@@ -10,9 +10,6 @@
 #include "stx/panic.h"
 #include "stx/struct.h"
 
-// TODO(lamarrr): separate into log utils, error utils, iter utils, and enum
-// utils, object utils
-
 #define ASR_PANIC(...) ::stx::panic(__VA_ARGS__)
 
 #define ASR_CHECK(expr, ...)                \
