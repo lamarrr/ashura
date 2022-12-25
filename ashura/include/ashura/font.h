@@ -29,7 +29,7 @@ struct TextStyle {
   f32 line_height = 1.2f;
   hb_direction_t direction = HB_DIRECTION_LTR;
   TextAlign align = TextAlign::Left;
-  WordWrap word_wrap = WordWrap::None;
+  // WordWrap word_wrap = WordWrap::None;
   bool use_kerning = true;
   //  use standard and contextual ligature substitution
   bool use_ligatures = true;
@@ -71,8 +71,9 @@ struct Font {
 enum class FontLoadError { InvalidPath };
 
 inline stx::Rc<Font*> load_font_from_memory(stx::Span<char const> data) {
-  hb_blob_t* hbblob = hb_blob_create(data.data(), data.size(),
-                                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+  hb_blob_t* hbblob =
+      hb_blob_create(data.data(), static_cast<unsigned int>(data.size()),
+                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
   ASR_CHECK(hbblob != nullptr);
 
   hb_face_t* hbface = hb_face_create(hbblob, 0);
@@ -85,9 +86,9 @@ inline stx::Rc<Font*> load_font_from_memory(stx::Span<char const> data) {
   ASR_CHECK(FT_Init_FreeType(&ftlib) == 0);
 
   FT_Face ftface = nullptr;
-  ASR_CHECK(FT_New_Memory_Face(ftlib,
-                               reinterpret_cast<FT_Byte const*>(data.data()),
-                               data.size(), 0, &ftface) == 0);
+  ASR_CHECK(
+      FT_New_Memory_Face(ftlib, reinterpret_cast<FT_Byte const*>(data.data()),
+                         static_cast<FT_Long>(data.size()), 0, &ftface) == 0);
 
   hb_buffer_t* hbscratch_buffer = hb_buffer_create();
   ASR_CHECK(hbscratch_buffer != nullptr);
@@ -118,7 +119,7 @@ inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font_from_file(
       stx::Span{static_cast<char*>(memory.handle), size}));
 };
 
-struct FontCacheEntry {
+struct FontAtlasEntry {
   // unicode codepoint
   u32 codepoint = 0;
   // offset into the atlas its glyph resides
@@ -130,13 +131,13 @@ struct FontCacheEntry {
   // advancement of the cursor after drawing this glyph
   vec2 advance;
   // texture coordinates of this glyph in the atlas
-  f32 s0 = 0, s1 = 0, t0 = 0, t1 = 0;
+  f32 s0 = 0, t0 = 0, s1 = 0, t1 = 0;
 };
 
 // stores codepoint glyphs for a font at a specific font height
 // this is a single-column atlas
-struct FontCache {
-  stx::Vec<FontCacheEntry> entries{stx::os_allocator};
+struct FontAtlas {
+  stx::Vec<FontAtlasEntry> entries{stx::os_allocator};
   // overall extent of the atlas
   extent extent;
   // font height at which the cache/atlas/glyphs will be rendered and cached
@@ -145,9 +146,10 @@ struct FontCache {
   Image atlas;
 };
 
-inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
+inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
                              u32 font_height) {
   // *64 to convert font height to 26.6 pixel format
+  ASR_CHECK(font_height > 0);
   ASR_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
 
   vk::CommandQueue& cqueue = *ctx.queue.value().handle;
@@ -155,7 +157,7 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
   VkPhysicalDeviceMemoryProperties const& memory_properties =
       cqueue.device.handle->phy_device.handle->memory_properties;
 
-  stx::Vec<FontCacheEntry> cache_entries{stx::os_allocator};
+  stx::Vec<FontAtlasEntry> atlas_entries{stx::os_allocator};
 
   // we use column layout because writing the rendered glyphs to it will
   // be faster and loading from memory during rendering will be faster as
@@ -163,7 +165,9 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
   // unrelated pixel rows will be loaded into memory during rendering leading to
   // very high cache misses.
 
-  extent cache_extent;
+  extent atlas_extent;
+
+  stx::Vec<u32> codepoints{stx::os_allocator};
 
   {
     FT_UInt agindex;
@@ -171,62 +175,64 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
     FT_ULong codepoint = FT_Get_First_Char(font.ftface, &agindex);
 
     while (agindex != 0) {
-      FT_Error error = FT_Load_Glyph(font.ftface, codepoint, 0);
-
-      if (error == 0) {
-        u32 width = font.ftface->glyph->bitmap.width;
-        u32 height = font.ftface->glyph->bitmap.rows;
-
-        offset offset{0, cache_extent.height};
-
-        cache_extent.width = std::max(cache_extent.width, width);
-        cache_extent.height += height;
-
-        vec2 pos{
-            AS_F32(font.ftface->glyph->bitmap_left),
-            AS_F32(font_height - (height + font.ftface->glyph->bitmap_top))};
-
-        // convert from 26.6 pixel format
-        vec2 advance{font.ftface->glyph->advance.x / 64.0f,
-                     font.ftface->glyph->advance.y / 64.0f};
-
-        cache_entries
-            .push(FontCacheEntry{.codepoint = codepoint,
-                                 .offset = offset,
-                                 .extent = {width, height},
-                                 .pos = pos,
-                                 .advance = advance,
-                                 .s0 = 0,
-                                 .s1 = 0,
-                                 .t0 = 0,
-                                 .t1 = 0})
-            .unwrap();
-      }
-
+      codepoints.push_inplace(codepoint).unwrap();
       codepoint = FT_Get_Next_Char(font.ftface, codepoint, &agindex);
     }
   }
 
+  for (u32 codepoint : codepoints) {
+    FT_Error error = FT_Load_Glyph(font.ftface, codepoint, 0);
+
+    if (error == 0) {
+      u32 width = font.ftface->glyph->bitmap.width;
+      u32 height = font.ftface->glyph->bitmap.rows;
+
+      offset offset{0, atlas_extent.height};
+
+      atlas_extent.width = std::max(atlas_extent.width, width);
+      atlas_extent.height += height;
+
+      vec2 pos{AS_F32(font.ftface->glyph->bitmap_left),
+               AS_F32(font_height - (height + font.ftface->glyph->bitmap_top))};
+
+      // convert from 26.6 pixel format
+      vec2 advance{font.ftface->glyph->advance.x / 64.0f,
+                   font.ftface->glyph->advance.y / 64.0f};
+
+      atlas_entries
+          .push(FontAtlasEntry{.codepoint = codepoint,
+                               .offset = offset,
+                               .extent = {width, height},
+                               .pos = pos,
+                               .advance = advance,
+                               .s0 = 0,
+                               .t0 = 0,
+                               .s1 = 0,
+                               .t1 = 0})
+          .unwrap();
+    }
+  }
+
   // now that we know the full atlas extent calculate texture coordinates
-  for (FontCacheEntry& entry : cache_entries) {
-    entry.s0 = AS_F32(entry.offset.x) / cache_extent.width;
-    entry.s1 = AS_F32(entry.offset.x + entry.extent.width) / cache_extent.width;
-    entry.t0 = AS_F32(entry.offset.y) / cache_extent.height;
+  for (FontAtlasEntry& entry : atlas_entries) {
+    entry.s0 = AS_F32(entry.offset.x) / atlas_extent.width;
+    entry.s1 = AS_F32(entry.offset.x + entry.extent.width) / atlas_extent.width;
+    entry.t0 = AS_F32(entry.offset.y) / atlas_extent.height;
     entry.t1 =
-        AS_F32(entry.offset.y + entry.extent.height) / cache_extent.height;
+        AS_F32(entry.offset.y + entry.extent.height) / atlas_extent.height;
   }
 
   // TODO-future(lamarrr): we should probably handle this instead of bailing out
   // NOTE: vulkan doesn't allow zero-extent images
-  ASR_CHECK(cache_extent.is_visible());
+  ASR_CHECK(atlas_extent.is_visible());
 
   vk::Buffer cache_staging_buffer =
-      vk::create_host_buffer(dev, memory_properties, cache_extent.area() * 4,
+      vk::create_host_buffer(dev, memory_properties, atlas_extent.area() * 4,
                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
   u8* out = static_cast<u8*>(cache_staging_buffer.memory_map);
 
-  for (FontCacheEntry const& entry : cache_entries) {
+  for (FontAtlasEntry const& entry : atlas_entries) {
     ASR_CHECK(FT_Load_Glyph(font.ftface, entry.codepoint, 0) == 0);
     ASR_CHECK(FT_Render_Glyph(font.ftface->glyph, FT_RENDER_MODE_NORMAL) == 0);
 
@@ -240,7 +246,7 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
         out += 4;
       }
       // fill the unused portion of the row with transparent pixels
-      for (usize i = 0; i < (cache_extent.width - entry.extent.width); i++) {
+      for (usize i = 0; i < (atlas_extent.width - entry.extent.width); i++) {
         out[0] = 0xFF;
         out[1] = 0xFF;
         out[2] = 0xFF;
@@ -256,8 +262,8 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
       .flags = 0,
       .imageType = VK_IMAGE_TYPE_2D,
       .format = VK_FORMAT_R8G8B8A8_SRGB,
-      .extent = VkExtent3D{.width = cache_extent.width,
-                           .height = cache_extent.height,
+      .extent = VkExtent3D{.width = atlas_extent.width,
+                           .height = atlas_extent.height,
                            .depth = 1},
       .mipLevels = 1,
       .arrayLayers = 1,
@@ -357,8 +363,8 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
                                    .baseArrayLayer = 0,
                                    .layerCount = 1},
       .imageOffset = VkOffset3D{.x = 0, .y = 0, .z = 0},
-      .imageExtent = VkExtent3D{.width = cache_extent.width,
-                                .height = cache_extent.height,
+      .imageExtent = VkExtent3D{.width = atlas_extent.width,
+                                .height = atlas_extent.height,
                                 .depth = 1}};
 
   vkCmdCopyBufferToImage(ctx.upload_cmd_buffer, cache_staging_buffer.buffer,
@@ -410,9 +416,9 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
 
   cache_staging_buffer.destroy(dev);
 
-  return FontCache{
-      .entries = std::move(cache_entries),
-      .extent = cache_extent,
+  return FontAtlas{
+      .entries = std::move(atlas_entries),
+      .extent = atlas_extent,
       .font_height = font_height,
       .atlas = vk::create_image_sampler(
           stx::rc::make_inplace<vk::ImageResource>(
@@ -420,8 +426,8 @@ inline FontCache render_font(Font& font, vk::RecordingContext& ctx,
               .unwrap())};
 }
 
-//TODO(lamarrr): implement
-template<typename Fn>
+// TODO(lamarrr): implement
+template <typename Fn>
 rect layout_text(f32 max_width, Fn& callback);
 
 }  // namespace asr

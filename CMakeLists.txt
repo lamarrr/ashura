@@ -44,6 +44,12 @@ include(ExternalProject)
 
 find_package(Vulkan REQUIRED)
 
+set(FT_DISABLE_ZLIB ON CACHE BOOL ON)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL ON)
+set(FT_DISABLE_PNG ON CACHE BOOL ON)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL ON)
+set(FT_DISABLE_BROTLI ON CACHE BOOL ON)
+
 add_subdirectory(third_party/STX)
 add_subdirectory(third_party/googletest)
 add_subdirectory(third_party/fmt)

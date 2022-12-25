@@ -61,6 +61,8 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
   return stx::None;
 }
 
+stx::Rc<Font*>* font;
+FontAtlas* atlas;
 Engine::Engine(AppConfig const& cfg) {
   stx::Vec<char const*> required_device_extensions{stx::os_allocator};
 
@@ -168,7 +170,7 @@ Engine::Engine(AppConfig const& cfg) {
 
   window.value().handle->recreate_swapchain(xqueue);
 
-  canvas_context = stx::Some(stx::rc::make_inplace<gfx::CanvasContext>(
+  canvas_context = stx::Some(stx::rc::make_inplace<gfx::CanvasRenderingContext>(
                                  stx::os_allocator, xqueue.share())
                                  .unwrap());
 
@@ -190,11 +192,13 @@ Engine::Engine(AppConfig const& cfg) {
   // auto transparent_image =
   // vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
 
-  auto font = load_font_from_file(
-                  "C:\\Users\\Basit\\OneDrive\\Desktop\\Fortnite-"
-                  "Font\\fortnite\\fortnite."
-                  "otf"_str)
-                  .unwrap();
+  font = new stx::Rc<Font*>{
+      load_font_from_file(
+          R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\RobotoMono-Regular.ttf)"_str)
+          .unwrap()};
+
+  atlas = new FontAtlas{
+      render_font(*font->handle, canvas_context.value().handle->ctx, 40)};
 
   auto transparent_image = canvas_context.value().handle->ctx.upload_image(
       extent{1920, 1080}, 4, sample_image);
@@ -258,6 +262,8 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     // c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
     // c.draw_rect({200, 200}, {250, 250});
     c.draw_ellipse({150, 150}, {500, 200}, 60);
+    c.brush.color = colors::RED;
+    c.draw_text(*font->handle, *atlas, "HELLO SEKAI!", {0, 0});
 
     /* c.brush.color = colors::GREEN.with_alpha(63);
     c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});
