@@ -1,6 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <string_view>
 
 #include "ashura/image.h"
@@ -48,14 +49,16 @@ struct Font {
   hb_buffer_t* hbscratch_buffer = nullptr;
   FT_Library ftlib = nullptr;
   FT_Face ftface = nullptr;
+  stx::Memory font_data;
 
   Font(hb_face_t* ahbface, hb_font_t* ahbfont, hb_buffer_t* ahbscratch_buffer,
-       FT_Library aftlib, FT_Face aftface)
+       FT_Library aftlib, FT_Face aftface, stx::Memory afont_data)
       : hbface{ahbface},
         hbfont{ahbfont},
         hbscratch_buffer{ahbscratch_buffer},
         ftlib{aftlib},
-        ftface{aftface} {}
+        ftface{aftface},
+        font_data{std::move(afont_data)} {}
 
   STX_MAKE_PINNED(Font)
 
@@ -70,10 +73,10 @@ struct Font {
 
 enum class FontLoadError { InvalidPath };
 
-inline stx::Rc<Font*> load_font_from_memory(stx::Span<char const> data) {
-  hb_blob_t* hbblob =
-      hb_blob_create(data.data(), static_cast<unsigned int>(data.size()),
-                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
+  hb_blob_t* hbblob = hb_blob_create(static_cast<char*>(memory.handle),
+                                     static_cast<unsigned int>(size),
+                                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
   ASR_CHECK(hbblob != nullptr);
 
   hb_face_t* hbface = hb_face_create(hbblob, 0);
@@ -86,15 +89,16 @@ inline stx::Rc<Font*> load_font_from_memory(stx::Span<char const> data) {
   ASR_CHECK(FT_Init_FreeType(&ftlib) == 0);
 
   FT_Face ftface = nullptr;
-  ASR_CHECK(
-      FT_New_Memory_Face(ftlib, reinterpret_cast<FT_Byte const*>(data.data()),
-                         static_cast<FT_Long>(data.size()), 0, &ftface) == 0);
+  ASR_CHECK(FT_New_Memory_Face(ftlib,
+                               static_cast<FT_Byte const*>(memory.handle),
+                               static_cast<FT_Long>(size), 0, &ftface) == 0);
 
   hb_buffer_t* hbscratch_buffer = hb_buffer_create();
   ASR_CHECK(hbscratch_buffer != nullptr);
 
   return stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont,
-                                     hbscratch_buffer, ftlib, ftface)
+                                     hbscratch_buffer, ftlib, ftface,
+                                     std::move(memory))
       .unwrap();
 }
 
@@ -115,8 +119,7 @@ inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font_from_file(
 
   stream.close();
 
-  return stx::Ok(load_font_from_memory(
-      stx::Span{static_cast<char*>(memory.handle), size}));
+  return stx::Ok(load_font_from_memory(std::move(memory), size));
 };
 
 struct FontAtlasEntry {
@@ -167,49 +170,46 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
 
   extent atlas_extent;
 
-  stx::Vec<u32> codepoints{stx::os_allocator};
-
   {
     FT_UInt agindex;
 
     FT_ULong codepoint = FT_Get_First_Char(font.ftface, &agindex);
 
     while (agindex != 0) {
-      codepoints.push_inplace(codepoint).unwrap();
+      if (FT_Load_Glyph(font.ftface, codepoint, 0)) {
+        u32 width = font.ftface->glyph->bitmap.width;
+        u32 height = font.ftface->glyph->bitmap.rows;
+
+        std::cout << "width: " << width << " height: " << height << std::endl;
+
+        if (width != 0 && height != 0) {
+          offset offset{0, atlas_extent.height};
+
+          atlas_extent.width = std::max(atlas_extent.width, width);
+          atlas_extent.height += height;
+
+          vec2 pos{
+              AS_F32(font.ftface->glyph->bitmap_left),
+              AS_F32(font_height - (height + font.ftface->glyph->bitmap_top))};
+
+          // convert from 26.6 pixel format
+          vec2 advance{font.ftface->glyph->advance.x / 64.0f,
+                       font.ftface->glyph->advance.y / 64.0f};
+
+          atlas_entries
+              .push(FontAtlasEntry{.codepoint = AS_U32(codepoint),
+                                   .offset = offset,
+                                   .extent = {width, height},
+                                   .pos = pos,
+                                   .advance = advance,
+                                   .s0 = 0,
+                                   .t0 = 0,
+                                   .s1 = 0,
+                                   .t1 = 0})
+              .unwrap();
+        }
+      }
       codepoint = FT_Get_Next_Char(font.ftface, codepoint, &agindex);
-    }
-  }
-
-  for (u32 codepoint : codepoints) {
-    FT_Error error = FT_Load_Glyph(font.ftface, codepoint, 0);
-
-    if (error == 0) {
-      u32 width = font.ftface->glyph->bitmap.width;
-      u32 height = font.ftface->glyph->bitmap.rows;
-
-      offset offset{0, atlas_extent.height};
-
-      atlas_extent.width = std::max(atlas_extent.width, width);
-      atlas_extent.height += height;
-
-      vec2 pos{AS_F32(font.ftface->glyph->bitmap_left),
-               AS_F32(font_height - (height + font.ftface->glyph->bitmap_top))};
-
-      // convert from 26.6 pixel format
-      vec2 advance{font.ftface->glyph->advance.x / 64.0f,
-                   font.ftface->glyph->advance.y / 64.0f};
-
-      atlas_entries
-          .push(FontAtlasEntry{.codepoint = codepoint,
-                               .offset = offset,
-                               .extent = {width, height},
-                               .pos = pos,
-                               .advance = advance,
-                               .s0 = 0,
-                               .t0 = 0,
-                               .s1 = 0,
-                               .t1 = 0})
-          .unwrap();
     }
   }
 
@@ -224,7 +224,8 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
 
   // TODO-future(lamarrr): we should probably handle this instead of bailing out
   // NOTE: vulkan doesn't allow zero-extent images
-  ASR_CHECK(atlas_extent.is_visible());
+  atlas_extent.width = std::max<u32>(1, atlas_extent.width);
+  atlas_extent.height = std::max<u32>(1, atlas_extent.height);
 
   vk::Buffer cache_staging_buffer =
       vk::create_host_buffer(dev, memory_properties, atlas_extent.area() * 4,

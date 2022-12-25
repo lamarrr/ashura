@@ -347,10 +347,10 @@ struct Canvas {
     vec4 c{brush.color.r / 255.0f, brush.color.g / 255.0f,
            brush.color.b / 255.0f, brush.color.a / 255.0f};
 
-    vertex vertices[] = {{{0, 0}, {0, 1}, c},
-                         {{viewport_extent.x, 0}, {1, 1}, c},
-                         {viewport_extent, {1, 0}, c},
-                         {{0, viewport_extent.y}, {0, 0}, c}};
+    vertex vertices[] = {{{0, 0}, {0, 0}, c},
+                         {{viewport_extent.x, 0}, {1, 0}, c},
+                         {viewport_extent, {1, 1}, c},
+                         {{0, viewport_extent.y}, {0, 1}, c}};
 
     for (vertex& vertex : vertices) {
       vertex.position =
@@ -708,7 +708,8 @@ struct Canvas {
 
             vec2 pos = e.pos * font_scale;
 
-            vec2 p1{cursor.x + pos.x, cursor.y + vertical_line_padding + pos.y};
+            vec2 p1{position.x + cursor.x + pos.x,
+                    position.y + cursor.y + vertical_line_padding + pos.y};
             vec2 p2{p1.x + e.extent.width * font_scale, p1.y};
             vec2 p3{p2.x, p2.y + e.extent.height * font_scale};
             vec2 p4{p1.x, p3.y};
@@ -745,7 +746,8 @@ struct Canvas {
 
             cursor.x += font_scale * e.advance.x;
           } else {
-            vec2 p1{cursor.x, cursor.y + vertical_line_padding};
+            vec2 p1{position.x + cursor.x,
+                    position.y + cursor.y + vertical_line_padding};
             vec2 p2{p1.x + font_height, p1.y};
             vec2 p3{p2.x, p2.y + font_height};
             vec2 p4{p1.x, p3.y};

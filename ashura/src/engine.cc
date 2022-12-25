@@ -194,7 +194,7 @@ Engine::Engine(AppConfig const& cfg) {
 
   font = new stx::Rc<Font*>{
       load_font_from_file(
-          R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\RobotoMono-Regular.ttf)"_str)
+          R"(/home/lamar/Desktop/fonts/ttf/JetBrainsMono-Regular.ttf)"_str)
           .unwrap()};
 
   atlas = new FontAtlas{
@@ -261,9 +261,9 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.brush.line_thickness = 50;
     // c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
     // c.draw_rect({200, 200}, {250, 250});
-    c.draw_ellipse({150, 150}, {500, 200}, 60);
-    c.brush.color = colors::RED;
-    c.draw_text(*font->handle, *atlas, "HELLO SEKAI!", {0, 0});
+    //c.draw_ellipse({150, 150}, {500, 200}, 60);
+    //c.brush.color = colors::RED;
+    // c.draw_text(*font->handle, *atlas, "HELLO SEKAI!", {0, 0});
 
     /* c.brush.color = colors::GREEN.with_alpha(63);
     c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});
