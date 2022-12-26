@@ -329,8 +329,9 @@ struct Canvas {
   Canvas& translate(f32 x, f32 y) { return translate(x, y, 0); }
 
   Canvas& rotate(f32 x, f32 y, f32 z) {
-    transform = transforms::rotate_z(z) * transforms::rotate_y(y) *
-                transforms::rotate_x(x) * transform;
+    transform = transforms::rotate_z(AS_F32(M_PI * z / 180)) *
+                transforms::rotate_y(AS_F32(M_PI * y / 180)) *
+                transforms::rotate_x(AS_F32(M_PI * x / 180)) * transform;
     return *this;
   }
 
@@ -677,14 +678,17 @@ struct Canvas {
         }
 
         stx::Span word_glyphs{glyph_info + i, word_end - i};
+        std::cout << "word codepoints: ";
+        for (auto g : word_glyphs) {
+          std::cout << g.codepoint << ", ";
+        }
+        std::cout << std::endl;
 
         f32 word_width = 0;
 
         for (hb_glyph_info_t const& glyph : word_glyphs) {
-          stx::Span entry =
-              cache.entries.span().which([&glyph](FontAtlasEntry const& entry) {
-                return entry.codepoint == glyph.codepoint;
-              });
+          u32 glyph_index = glyph.codepoint;
+          stx::Span entry = cache.get(glyph_index);
           word_width +=
               entry.is_empty() ? font_height : font_scale * entry[0].advance.x;
           if (&glyph != word_glyphs.end() - 1) {
@@ -697,14 +701,15 @@ struct Canvas {
           cursor.y += line_height;
         }
 
+        std::cout << "WORD BEGIN" << std::endl;
+
         for (hb_glyph_info_t const& glyph : word_glyphs) {
-          stx::Span entry =
-              cache.entries.span().which([&glyph](FontAtlasEntry const& entry) {
-                return entry.codepoint == glyph.codepoint;
-              });
+          std::cout << "codepoint: " << glyph.codepoint << std::endl;
+          u32 glyph_index = glyph.codepoint;
+          stx::Span entry = cache.get(glyph_index);
 
           if (!entry.is_empty()) {
-            FontAtlasEntry const& e = entry[0];
+            Glyph const& e = entry[0];
 
             vec2 pos = e.pos * font_scale;
 
@@ -792,6 +797,8 @@ struct Canvas {
 
         i = word_end;
       }
+      std::cout << "WORD END" << std::endl;
+
     } else {
       // TODO(lamarrr): support RTL
       ASR_PANIC("RTL not supported yet");

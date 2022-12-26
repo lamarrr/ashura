@@ -67,8 +67,10 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
 
   surface_.value().handle->change_swapchain(
       queue, preferred_formats, preferred_present_modes,
-      VkExtent2D{.width = surface_extent_.width, .height = surface_extent_.height},
-      VkExtent2D{.width = window_extent_.width, .height = window_extent_.height},
+      VkExtent2D{.width = surface_extent_.width,
+                 .height = surface_extent_.height},
+      VkExtent2D{.width = window_extent_.width,
+                 .height = window_extent_.height},
       msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
 
   ASR_LOG(

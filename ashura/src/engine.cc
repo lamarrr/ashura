@@ -194,11 +194,11 @@ Engine::Engine(AppConfig const& cfg) {
 
   font = new stx::Rc<Font*>{
       load_font_from_file(
-          R"(/home/lamar/Desktop/fonts/ttf/JetBrainsMono-Regular.ttf)"_str)
+          R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\RobotoMono-Regular.ttf)"_str)
           .unwrap()};
 
   atlas = new FontAtlas{
-      render_font(*font->handle, canvas_context.value().handle->ctx, 40)};
+      render_font(*font->handle, canvas_context.value().handle->ctx, 50)};
 
   auto transparent_image = canvas_context.value().handle->ctx.upload_image(
       extent{1920, 1080}, 4, sample_image);
@@ -261,9 +261,17 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.brush.line_thickness = 50;
     // c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
     // c.draw_rect({200, 200}, {250, 250});
-    //c.draw_ellipse({150, 150}, {500, 200}, 60);
-    //c.brush.color = colors::RED;
-    // c.draw_text(*font->handle, *atlas, "HELLO SEKAI!", {0, 0});
+    // c.draw_ellipse({150, 150}, {500, 200}, 60);
+    c.brush.color = colors::WHITE;
+    TextStyle style{};
+    style.font_height = 40;
+    c.draw_text(*font->handle, *atlas, "HELLO SEKAI!", {20, 100},style);
+    //TODO(lamarrr): scaling doesn't work properly
+    // c.scale(0.5, 0.5);
+    // c.rotate(0, 0, 90);
+    // c.draw_image(atlas->atlas, rect{{0, 0},
+                                    // {atlas->extent.width * 1.0f,
+                                    //  atlas->extent.height * 1.0f}});
 
     /* c.brush.color = colors::GREEN.with_alpha(63);
     c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});

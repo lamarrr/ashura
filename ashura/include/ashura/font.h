@@ -1,7 +1,6 @@
 #pragma once
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <string_view>
 
 #include "ashura/image.h"
@@ -74,6 +73,7 @@ struct Font {
 enum class FontLoadError { InvalidPath };
 
 inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
+  std::cout << "size: " << size << std::endl;
   hb_blob_t* hbblob = hb_blob_create(static_cast<char*>(memory.handle),
                                      static_cast<unsigned int>(size),
                                      HB_MEMORY_MODE_READONLY, nullptr, nullptr);
@@ -85,16 +85,16 @@ inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
   hb_font_t* hbfont = hb_font_create(hbface);
   ASR_CHECK(hbfont != nullptr);
 
-  FT_Library ftlib = nullptr;
+  hb_buffer_t* hbscratch_buffer = hb_buffer_create();
+  ASR_CHECK(hbscratch_buffer != nullptr);
+
+  FT_Library ftlib;
   ASR_CHECK(FT_Init_FreeType(&ftlib) == 0);
 
-  FT_Face ftface = nullptr;
+  FT_Face ftface;
   ASR_CHECK(FT_New_Memory_Face(ftlib,
                                static_cast<FT_Byte const*>(memory.handle),
                                static_cast<FT_Long>(size), 0, &ftface) == 0);
-
-  hb_buffer_t* hbscratch_buffer = hb_buffer_create();
-  ASR_CHECK(hbscratch_buffer != nullptr);
 
   return stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont,
                                      hbscratch_buffer, ftlib, ftface,
@@ -122,7 +122,9 @@ inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font_from_file(
   return stx::Ok(load_font_from_memory(std::move(memory), size));
 };
 
-struct FontAtlasEntry {
+struct Glyph {
+  // the glyph index
+  u32 index = 0;
   // unicode codepoint
   u32 codepoint = 0;
   // offset into the atlas its glyph resides
@@ -140,13 +142,19 @@ struct FontAtlasEntry {
 // stores codepoint glyphs for a font at a specific font height
 // this is a single-column atlas
 struct FontAtlas {
-  stx::Vec<FontAtlasEntry> entries{stx::os_allocator};
+  // indices begin from 1
+  stx::Vec<Glyph> glyphs{stx::os_allocator};
   // overall extent of the atlas
   extent extent;
   // font height at which the cache/atlas/glyphs will be rendered and cached
   u32 font_height = 40;
   // atlas containing the glyphs
   Image atlas;
+
+  stx::Span<Glyph> get(u32 index) const {
+    if (index < 1 || index > glyphs.size()) return {};
+    return glyphs.span().slice(index - 1, 1);
+  }
 };
 
 inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
@@ -160,7 +168,7 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
   VkPhysicalDeviceMemoryProperties const& memory_properties =
       cqueue.device.handle->phy_device.handle->memory_properties;
 
-  stx::Vec<FontAtlasEntry> atlas_entries{stx::os_allocator};
+  stx::Vec<Glyph> glyphs{stx::os_allocator};
 
   // we use column layout because writing the rendered glyphs to it will
   // be faster and loading from memory during rendering will be faster as
@@ -168,58 +176,65 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
   // unrelated pixel rows will be loaded into memory during rendering leading to
   // very high cache misses.
 
-  extent atlas_extent;
-
   {
-    FT_UInt agindex;
+    FT_UInt glyph_index;
 
-    FT_ULong codepoint = FT_Get_First_Char(font.ftface, &agindex);
+    FT_ULong codepoint = FT_Get_First_Char(font.ftface, &glyph_index);
 
-    while (agindex != 0) {
-      if (FT_Load_Glyph(font.ftface, codepoint, 0)) {
+    while (glyph_index != 0) {
+      std::cout << "GOT CHAR: " << codepoint << " i=" << glyph_index << std::endl;
+      if (FT_Load_Glyph(font.ftface, codepoint, 0) == 0) {
         u32 width = font.ftface->glyph->bitmap.width;
         u32 height = font.ftface->glyph->bitmap.rows;
 
-        std::cout << "width: " << width << " height: " << height << std::endl;
+        vec2 pos{AS_F32(font.ftface->glyph->bitmap_left),
+                 AS_F32(font_height - font.ftface->glyph->bitmap_top)};
 
-        if (width != 0 && height != 0) {
-          offset offset{0, atlas_extent.height};
+        // convert from 26.6 pixel format
+        vec2 advance{font.ftface->glyph->advance.x / 64.0f,
+                     font.ftface->glyph->advance.y / 64.0f};
 
-          atlas_extent.width = std::max(atlas_extent.width, width);
-          atlas_extent.height += height;
-
-          vec2 pos{
-              AS_F32(font.ftface->glyph->bitmap_left),
-              AS_F32(font_height - (height + font.ftface->glyph->bitmap_top))};
-
-          // convert from 26.6 pixel format
-          vec2 advance{font.ftface->glyph->advance.x / 64.0f,
-                       font.ftface->glyph->advance.y / 64.0f};
-
-          atlas_entries
-              .push(FontAtlasEntry{.codepoint = AS_U32(codepoint),
-                                   .offset = offset,
-                                   .extent = {width, height},
-                                   .pos = pos,
-                                   .advance = advance,
-                                   .s0 = 0,
-                                   .t0 = 0,
-                                   .s1 = 0,
-                                   .t1 = 0})
-              .unwrap();
-        }
+        glyphs
+            .push(Glyph{.index = glyph_index,
+                        .codepoint = codepoint,
+                        .offset = {},
+                        .extent = {width, height},
+                        .pos = pos,
+                        .advance = advance,
+                        .s0 = 0,
+                        .t0 = 0,
+                        .s1 = 0,
+                        .t1 = 0})
+            .unwrap();
       }
-      codepoint = FT_Get_Next_Char(font.ftface, codepoint, &agindex);
+      codepoint = FT_Get_Next_Char(font.ftface, codepoint, &glyph_index);
     }
   }
 
+  glyphs.span().sort(
+      [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
+
+  extent atlas_extent;
+
+  // TODO(lamarrr): some glyphs don't exist, we might need to add a new bool to
+  // specify if it is valid or not? or else we'll have to horribly perform
+  // lookup across all the glyphs which is costly
+
   // now that we know the full atlas extent calculate texture coordinates
-  for (FontAtlasEntry& entry : atlas_entries) {
-    entry.s0 = AS_F32(entry.offset.x) / atlas_extent.width;
-    entry.s1 = AS_F32(entry.offset.x + entry.extent.width) / atlas_extent.width;
-    entry.t0 = AS_F32(entry.offset.y) / atlas_extent.height;
-    entry.t1 =
-        AS_F32(entry.offset.y + entry.extent.height) / atlas_extent.height;
+  for (Glyph& glyph : glyphs) {
+    // std::cout << "codepoint: " << codepoint << " w: " << width
+    //         << " h:" << height << std::endl;
+    offset offset{0, atlas_extent.height};
+    atlas_extent.width = std::max(atlas_extent.width, glyph.extent.width);
+    atlas_extent.height += glyph.extent.height + 1;
+
+    glyph.s0 = AS_F32(glyph.offset.x) / atlas_extent.width;
+    glyph.s1 = AS_F32(glyph.offset.x + glyph.extent.width) / atlas_extent.width;
+    glyph.t0 = AS_F32(glyph.offset.y) / atlas_extent.height;
+    glyph.t1 =
+        AS_F32(glyph.offset.y + glyph.extent.height) / atlas_extent.height;
+
+    std::cout << "glyph: " << glyph.index << std::endl;
   }
 
   // TODO-future(lamarrr): we should probably handle this instead of bailing out
@@ -233,27 +248,35 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
 
   u8* out = static_cast<u8*>(cache_staging_buffer.memory_map);
 
-  for (FontAtlasEntry const& entry : atlas_entries) {
-    ASR_CHECK(FT_Load_Glyph(font.ftface, entry.codepoint, 0) == 0);
+  for (Glyph const& glyph : glyphs) {
+    ASR_CHECK(FT_Load_Glyph(font.ftface, glyph.codepoint, 0) == 0);
     ASR_CHECK(FT_Render_Glyph(font.ftface->glyph, FT_RENDER_MODE_NORMAL) == 0);
 
-    for (usize j = 0; j < entry.extent.height; j++) {
+    for (usize j = 0; j < glyph.extent.height; j++) {
       // copy the rendered glyph to the atlas
-      for (usize i = 0; i < entry.extent.width; i++) {
+      for (usize i = 0; i < glyph.extent.width; i++) {
         out[0] = 0xFF;
         out[1] = 0xFF;
         out[2] = 0xFF;
-        out[3] = font.ftface->glyph->bitmap.buffer[j * entry.extent.width + i];
+        out[3] = font.ftface->glyph->bitmap.buffer[j * glyph.extent.width + i];
         out += 4;
       }
       // fill the unused portion of the row with transparent pixels
-      for (usize i = 0; i < (atlas_extent.width - entry.extent.width); i++) {
+      for (usize i = 0; i < (atlas_extent.width - glyph.extent.width); i++) {
         out[0] = 0xFF;
         out[1] = 0xFF;
         out[2] = 0xFF;
         out[3] = 0x00;
         out += 4;
       }
+    }
+
+    for (usize i = 0; i < atlas_extent.width; i++) {
+      out[0] = 0xFF;
+      out[1] = 0xFF;
+      out[2] = 0xFF;
+      out[3] = 0x00;
+      out += 4;
     }
   }
 
@@ -418,7 +441,7 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
   cache_staging_buffer.destroy(dev);
 
   return FontAtlas{
-      .entries = std::move(atlas_entries),
+      .glyphs = std::move(glyphs),
       .extent = atlas_extent,
       .font_height = font_height,
       .atlas = vk::create_image_sampler(
