@@ -8,6 +8,7 @@
 #include "ashura/primitives.h"
 #include "ashura/shaders.h"
 #include "ashura/vulkan.h"
+#include "fmt/format.h"
 #include "stx/string.h"
 #include "stx/vec.h"
 
@@ -624,6 +625,8 @@ struct Canvas {
     hb_glyph_info_t* glyph_info =
         hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
 
+    fmt::print("atlas extent: {},{}\n", cache.extent.width,
+               cache.extent.height);
     // TODO(lamarrr): CONSIDER: canvas.clip_rect do not render beyond clip
     // rect apply transform to coordinates to see if any of the coordinates
     // fall inside it, if not discard certain parts of the text
@@ -687,8 +690,7 @@ struct Canvas {
         f32 word_width = 0;
 
         for (hb_glyph_info_t const& glyph : word_glyphs) {
-          u32 glyph_index = glyph.codepoint;
-          stx::Span entry = cache.get(glyph_index);
+          stx::Span entry = cache.get(glyph.codepoint);
           word_width +=
               entry.is_empty() ? font_height : font_scale * entry[0].advance.x;
           if (&glyph != word_glyphs.end() - 1) {
@@ -703,11 +705,34 @@ struct Canvas {
 
         std::cout << "WORD BEGIN" << std::endl;
 
-        for (hb_glyph_info_t const& glyph : word_glyphs) {
-          std::cout << "codepoint: " << glyph.codepoint << std::endl;
-          u32 glyph_index = glyph.codepoint;
-          stx::Span entry = cache.get(glyph_index);
+        // TODO(lamarrr): remember multiple characters might point to same glyph
+        // index
 
+        for (hb_glyph_info_t const& glyph : word_glyphs) {
+          stx::Span entry = cache.get(glyph.codepoint);
+          std::cout << "Render codepoint=" << entry[0].codepoint
+                    << " index=" << entry[0].index << std::endl;
+
+          ASR_CHECK(glyph.codepoint == entry[0].index);
+
+          FT_Load_Glyph(font.ftface, glyph.codepoint, 0);
+          FT_Render_Glyph(font.ftface->glyph, FT_RENDER_MODE_NORMAL);
+          FT_Bitmap bitmap = font.ftface->glyph->bitmap;
+          auto buff = bitmap.buffer;
+          auto h = bitmap.rows;
+          auto w = bitmap.width;
+          for (size_t i = 0; i < h; i++) {
+            for (size_t j = 0; j < w; j++) {
+              int c = buff[i * w + j];
+              char ch = ' ';
+              if (c > 0 && c < 127) ch = '*';
+              if (c > 127) ch = '#';
+              std::cout << ch;
+            }
+            std::cout << std::endl;
+          }
+
+          std::cout << std::endl;
           if (!entry.is_empty()) {
             Glyph const& e = entry[0];
 
@@ -750,6 +775,12 @@ struct Canvas {
                 .unwrap();
 
             cursor.x += font_scale * e.advance.x;
+
+            fmt::print("offset={},{} extent={},{}\n", entry[0].offset.x,
+                       entry[0].offset.y, entry[0].extent.width,
+                       entry[0].extent.height);
+            fmt::print("s0={} t0={} s1={} t1={}\n", entry[0].s0, entry[0].t0,
+                       entry[0].s1, entry[0].t1);
           } else {
             vec2 p1{position.x + cursor.x,
                     position.y + cursor.y + vertical_line_padding};

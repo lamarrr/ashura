@@ -123,6 +123,7 @@ inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font_from_file(
 };
 
 struct Glyph {
+  bool is_valid = false;
   // the glyph index
   u32 index = 0;
   // unicode codepoint
@@ -151,9 +152,18 @@ struct FontAtlas {
   // atlas containing the glyphs
   Image atlas;
 
-  stx::Span<Glyph> get(u32 index) const {
-    if (index < 1 || index > glyphs.size()) return {};
-    return glyphs.span().slice(index - 1, 1);
+  stx::Span<Glyph> get(u32 glyph_index) const {
+    if (glyph_index < 1 || glyph_index > glyphs.size()) return {};
+    stx::Span glyph = glyphs.span().slice(glyph_index, 1);
+    if (!glyph.is_empty()) {
+      if (glyph[0].is_valid) {
+        return glyph;
+      } else {
+        return {};
+      }
+    } else {
+      return glyph;
+    }
   }
 };
 
@@ -175,15 +185,15 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
   // opposed to laying them all out on one row which will be extremely slow as
   // unrelated pixel rows will be loaded into memory during rendering leading to
   // very high cache misses.
-
   {
     FT_UInt glyph_index;
 
     FT_ULong codepoint = FT_Get_First_Char(font.ftface, &glyph_index);
 
     while (glyph_index != 0) {
-      std::cout << "GOT CHAR: " << codepoint << " i=" << glyph_index << std::endl;
-      if (FT_Load_Glyph(font.ftface, codepoint, 0) == 0) {
+      std::cout << "FT_Get_Next_Char-> codepoint=" << codepoint
+                << " i=" << glyph_index << std::endl;
+      if (FT_Load_Glyph(font.ftface, glyph_index, 0) == 0) {
         u32 width = font.ftface->glyph->bitmap.width;
         u32 height = font.ftface->glyph->bitmap.rows;
 
@@ -195,7 +205,8 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
                      font.ftface->glyph->advance.y / 64.0f};
 
         glyphs
-            .push(Glyph{.index = glyph_index,
+            .push(Glyph{.is_valid = true,
+                        .index = glyph_index,
                         .codepoint = codepoint,
                         .offset = {},
                         .extent = {width, height},
@@ -211,36 +222,78 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
     }
   }
 
+  Glyph* last = std::unique(
+      glyphs.begin(), glyphs.end(),
+      [](Glyph const& a, Glyph const& b) { return a.index == b.index; });
+
+  glyphs.resize(last - glyphs.begin()).unwrap();
+
   glyphs.span().sort(
       [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
 
-  extent atlas_extent;
+  usize iter = 0;
+  for (u32 next_index = 0; iter < glyphs.size(); next_index++, iter++) {
+    for (; next_index < glyphs[iter].index; next_index++) {
+      glyphs
+          .push(Glyph{.is_valid = false,
+                      .index = next_index,
+                      .codepoint = 0,
+                      .offset = {},
+                      .extent = {},
+                      .pos = {},
+                      .advance = {},
+                      .s0 = 0,
+                      .t0 = 0,
+                      .s1 = 0,
+                      .t1 = 0})
+          .unwrap();
+    }
+  }
+
+  glyphs.span().sort(
+      [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
+
+  VkImageFormatProperties image_properties;
+
+  ASR_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(
+      ctx.queue.value().handle->device.handle->phy_device.handle->phy_device,
+      VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
+      VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_properties));
+
+  extent max_extent{image_properties.maxExtent.width,
+                    image_properties.maxExtent.height};
 
   // TODO(lamarrr): some glyphs don't exist, we might need to add a new bool to
   // specify if it is valid or not? or else we'll have to horribly perform
   // lookup across all the glyphs which is costly
 
   // now that we know the full atlas extent calculate texture coordinates
-  for (Glyph& glyph : glyphs) {
-    // std::cout << "codepoint: " << codepoint << " w: " << width
-    //         << " h:" << height << std::endl;
-    offset offset{0, atlas_extent.height};
-    atlas_extent.width = std::max(atlas_extent.width, glyph.extent.width);
-    atlas_extent.height += glyph.extent.height + 1;
+  extent atlas_extent;
 
-    glyph.s0 = AS_F32(glyph.offset.x) / atlas_extent.width;
-    glyph.s1 = AS_F32(glyph.offset.x + glyph.extent.width) / atlas_extent.width;
-    glyph.t0 = AS_F32(glyph.offset.y) / atlas_extent.height;
-    glyph.t1 =
-        AS_F32(glyph.offset.y + glyph.extent.height) / atlas_extent.height;
-
-    std::cout << "glyph: " << glyph.index << std::endl;
+  {
+    offset cursor;
+    for (Glyph& glyph : glyphs) {
+      // std::cout << "codepoint: " << codepoint << " w: " << width
+      //         << " h:" << height << std::endl;
+      glyph.offset = offset{cursor.x, cursor.y};
+      atlas_extent.width = std::max(atlas_extent.width, glyph.extent.width);
+      atlas_extent.height += glyph.extent.height +
+                             1;  // with spacing to prevent spill between glyphs
+    }
   }
 
   // TODO-future(lamarrr): we should probably handle this instead of bailing out
   // NOTE: vulkan doesn't allow zero-extent images
   atlas_extent.width = std::max<u32>(1, atlas_extent.width);
   atlas_extent.height = std::max<u32>(1, atlas_extent.height);
+
+  for (Glyph& glyph : glyphs) {
+    glyph.s0 = AS_F32(glyph.offset.x) / atlas_extent.width;
+    glyph.s1 = AS_F32(glyph.offset.x + glyph.extent.width) / atlas_extent.width;
+    glyph.t0 = AS_F32(glyph.offset.y) / atlas_extent.height;
+    glyph.t1 =
+        AS_F32(glyph.offset.y + glyph.extent.height) / atlas_extent.height;
+  }
 
   vk::Buffer cache_staging_buffer =
       vk::create_host_buffer(dev, memory_properties, atlas_extent.area() * 4,
@@ -249,9 +302,27 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
   u8* out = static_cast<u8*>(cache_staging_buffer.memory_map);
 
   for (Glyph const& glyph : glyphs) {
-    ASR_CHECK(FT_Load_Glyph(font.ftface, glyph.codepoint, 0) == 0);
+    ASR_CHECK(FT_Load_Glyph(font.ftface, glyph.index, 0) == 0);
     ASR_CHECK(FT_Render_Glyph(font.ftface->glyph, FT_RENDER_MODE_NORMAL) == 0);
 
+    std::cout << "Prepared -> index=" << glyph.index
+              << " codepoint=" << glyph.codepoint << " y=" << glyph.offset.y
+              << std::endl;
+    FT_Bitmap bitmap = font.ftface->glyph->bitmap;
+    auto buff = bitmap.buffer;
+    auto h = bitmap.rows;
+    auto w = bitmap.width;
+    for (size_t i = 0; i < h; i++) {
+      for (size_t j = 0; j < w; j++) {
+        int c = buff[i * w + j];
+        char ch = ' ';
+        if (c > 0 && c < 127) ch = '*';
+        if (c > 127) ch = '#';
+        std::cout << ch;
+      }
+      std::cout << std::endl;
+    }
+    std::cout << std::endl;
     for (usize j = 0; j < glyph.extent.height; j++) {
       // copy the rendered glyph to the atlas
       for (usize i = 0; i < glyph.extent.width; i++) {
@@ -278,6 +349,21 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
       out[3] = 0x00;
       out += 4;
     }
+  }
+
+  u8* in = static_cast<u8*>(cache_staging_buffer.memory_map);
+
+  for (usize i = 0; i < atlas_extent.height; i++) {
+    for (usize j = 0; j < atlas_extent.width; j++) {
+      int c = in[3];
+      char ch = ' ';
+      if (c > 0 && c < 127) ch = '*';
+      if (c > 127) ch = '#';
+      std::cout << ch;
+      in += 4;
+    }
+    std::cout << "y=" << i;
+    std::cout << std::endl;
   }
 
   VkImageCreateInfo create_info{

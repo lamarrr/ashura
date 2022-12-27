@@ -194,7 +194,7 @@ Engine::Engine(AppConfig const& cfg) {
 
   font = new stx::Rc<Font*>{
       load_font_from_file(
-          R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\RobotoMono-Regular.ttf)"_str)
+          R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\OpenSans-Regular.ttf)"_str)
           .unwrap()};
 
   atlas = new FontAtlas{
