@@ -61,8 +61,7 @@ constexpr f32 dot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; }
 constexpr f32 cross(vec2 a, vec2 b) { return a.x * b.y - b.x * a.y; }
 
 struct rect {
-  vec2 offset;
-  vec2 extent;
+  vec2 offset, extent;
 
   constexpr auto bounds() const {
     return std::make_tuple(offset.x, offset.x + extent.x, offset.y,

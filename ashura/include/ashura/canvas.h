@@ -1,7 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <cinttypes>
 #include <cmath>
+#include <limits>
 
 #include "ashura/font.h"
 #include "ashura/image.h"
@@ -10,6 +12,7 @@
 #include "ashura/vulkan.h"
 #include "fmt/format.h"
 #include "stx/string.h"
+#include "stx/text.h"
 #include "stx/vec.h"
 
 namespace asr {
@@ -66,8 +69,8 @@ inline void circle(stx::Span<vec2> polygon, vec2 center, f32 radius,
   f32 step = AS_F32((2 * M_PI) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
-    polygon[i] = vec2{center.x + radius - radius * std::cos(i * step),
-                      center.y + radius - radius * std::sin(i * step)};
+    polygon[i] = vec2{center.x + radius + radius * std::cos(i * step),
+                      center.y + radius + radius * std::sin(i * step)};
   }
 }
 
@@ -78,8 +81,8 @@ inline void ellipse(stx::Span<vec2> polygon, vec2 center, vec2 radii,
   f32 step = AS_F32((2 * M_PI) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
-    polygon[i] = vec2{center.x + radii.x - radii.x * std::cos(i * step),
-                      center.y + radii.y - radii.y * std::sin(i * step)};
+    polygon[i] = vec2{center.x + radii.x + radii.x * std::cos(i * step),
+                      center.y + radii.y + radii.y * std::sin(i * step)};
   }
 }
 
@@ -587,6 +590,19 @@ struct Canvas {
                     f32 max_width = stx::f32_max,
                     hb_script_t script = HB_SCRIPT_LATIN,
                     hb_language_t language = hb_language_from_string("en", 2)) {
+    constexpr u32 SPACE = ' ';
+    constexpr u32 TAB = '\t';
+    constexpr u32 NEWLINE = '\n';
+    constexpr u32 RETURN = '\r';
+
+    hb_feature_t const features[] = {
+        {Font::KERNING_FEATURE, style.use_kerning, 0,
+         std::numeric_limits<unsigned int>::max()},
+        {Font::LIGATURE_FEATURE, style.use_ligatures, 0,
+         std::numeric_limits<unsigned int>::max()},
+        {Font::CONTEXTUAL_LIGATURE_FEATURE, style.use_ligatures, 0,
+         std::numeric_limits<unsigned int>::max()}};
+
     ASR_CHECK(style.direction == HB_DIRECTION_LTR ||
               style.direction == HB_DIRECTION_RTL);
 
@@ -602,99 +618,62 @@ struct Canvas {
 
     hb_font_set_scale(font.hbfont, 64 * cache.font_height,
                       64 * cache.font_height);
-    hb_buffer_reset(font.hbscratch_buffer);
-    hb_buffer_set_script(font.hbscratch_buffer, script);
-    hb_buffer_set_direction(font.hbscratch_buffer, style.direction);
-    hb_buffer_set_language(font.hbscratch_buffer, language);
-    hb_buffer_add_utf8(font.hbscratch_buffer, text.data(),
-                       static_cast<int>(text.size()), 0,
-                       static_cast<int>(text.size()));
 
-    hb_feature_t features[] = {
-        {Font::KERNING_FEATURE, style.use_kerning, 0,
-         std::numeric_limits<unsigned int>::max()},
-        {Font::LIGATURE_FEATURE, style.use_ligatures, 0,
-         std::numeric_limits<unsigned int>::max()},
-        {Font::CONTEXTUAL_LIGATURE_FEATURE, style.use_ligatures, 0,
-         std::numeric_limits<unsigned int>::max()}};
-
-    hb_shape(font.hbfont, font.hbscratch_buffer, features,
-             static_cast<unsigned int>(std::size(features)));
-
-    unsigned int nglyphs;
-    hb_glyph_info_t* glyph_info =
-        hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
-
-    fmt::print("atlas extent: {},{}\n", cache.extent.width,
-               cache.extent.height);
     // TODO(lamarrr): CONSIDER: canvas.clip_rect do not render beyond clip
     // rect apply transform to coordinates to see if any of the coordinates
     // fall inside it, if not discard certain parts of the text
     //
-    // for each text (paragraph)
     //
-    // if word wrap is enabled seek to the end of the word, calculate the
-    // extent of the word, if its x position doesn't exceed the max_width
-    // layout on that line, if not wrap to the next line.
+    // TODO(lamarrr): handle new line
     //
-    // if word wrap is not enabled just
-    // keep drawing all the text and advancing
     //
-    // if character is not space advance by advance.x + letter_spacing
+    // add bidi
     //
-    // if character is space behave like a word_spacing * line_height
-    // character was there and draw nothing
-    //
-    // if character is tab, perform procedure for space style.num_tab_spaces
-    // times
-    //
-    // once all this layout is done, using the text align, align the text to
-    // the desired alignments
-    //
+    // handle alignment based on language and ltr or rtl
     //
     //
 
-    u32 space_codepoint = FT_Get_Char_Index(font.ftface, ' ');
-
-    vec3 cursor;
+    vec2 cursor;
 
     if (style.direction == HB_DIRECTION_LTR) {
-      for (usize i = 0; i < nglyphs; i++) {
-        u32 codepoint = glyph_info[i].codepoint;
+      for (char const* iter = text.data(); iter < text.data() + text.size();
+           iter++) {
+        char const* word_start = iter;
 
-        if (codepoint == space_codepoint) {
-          if (cursor.x + letter_spacing <= max_width) {
-            cursor.x += word_spacing;
-            cursor.x = 0;
-          } else {
-            cursor.y += line_height;
-          }
-          continue;
-        }
-
-        usize word_end = i + 1;
-
-        for (; word_end < nglyphs; word_end++) {
-          if (glyph_info[word_end].codepoint == space_codepoint) {
+        u32 last_codepoint = 0;
+        for (; iter < text.data() + text.size();) {
+          last_codepoint = stx::utf8_next(iter);
+          if (last_codepoint == SPACE || last_codepoint == TAB) {
             break;
           }
         }
 
-        stx::Span word_glyphs{glyph_info + i, word_end - i};
-        std::cout << "word codepoints: ";
-        for (auto g : word_glyphs) {
-          std::cout << g.codepoint << ", ";
-        }
-        std::cout << std::endl;
+        usize word_size = iter - word_start;
+
+        hb_buffer_reset(font.hbscratch_buffer);
+        hb_buffer_set_script(font.hbscratch_buffer, script);
+        hb_buffer_set_direction(font.hbscratch_buffer, style.direction);
+        hb_buffer_set_language(font.hbscratch_buffer, language);
+        hb_buffer_add_utf8(font.hbscratch_buffer, word_start,
+                           static_cast<int>(word_size), 0,
+                           static_cast<int>(word_size));
+        hb_shape(font.hbfont, font.hbscratch_buffer, features,
+                 static_cast<unsigned int>(std::size(features)));
+
+        unsigned int nglyphs;
+        hb_glyph_info_t* glyph_info =
+            hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
 
         f32 word_width = 0;
 
-        for (hb_glyph_info_t const& glyph : word_glyphs) {
-          stx::Span entry = cache.get(glyph.codepoint);
-          word_width +=
-              entry.is_empty() ? font_height : font_scale * entry[0].advance.x;
-          if (&glyph != word_glyphs.end() - 1) {
-            word_width += letter_spacing;
+        for (usize i = 0; i < nglyphs; i++) {
+          u32 glyph_index = glyph_info[i].codepoint;
+          stx::Span glyph = cache.get(glyph_index);
+
+          if (!glyph.is_empty()) {
+            word_width += glyph[0].advance.x * font_scale + letter_spacing;
+          } else {
+            word_width += font_height + letter_spacing;
           }
         }
 
@@ -703,133 +682,60 @@ struct Canvas {
           cursor.y += line_height;
         }
 
-        std::cout << "WORD BEGIN" << std::endl;
+        for (usize i = 0; i < nglyphs; i++) {
+          u32 glyph_index = glyph_info[i].codepoint;
+          stx::Span glyph = cache.get(glyph_index);
+          glyph = glyph.is_empty() ? cache.glyphs.span().slice(0, 1) : glyph;
 
-        // TODO(lamarrr): remember multiple characters might point to same glyph
-        // index
+          Glyph const& g = glyph[0];
 
-        for (hb_glyph_info_t const& glyph : word_glyphs) {
-          stx::Span entry = cache.get(glyph.codepoint);
-          std::cout << "Render codepoint=" << entry[0].codepoint
-                    << " index=" << entry[0].index << std::endl;
+          vec2 pos = g.pos * font_scale;
 
-          ASR_CHECK(glyph.codepoint == entry[0].index);
+          vec2 p1{position.x + cursor.x + pos.x,
+                  position.y + cursor.y + pos.y + vertical_line_padding};
+          vec2 p2{p1.x + g.extent.width * font_scale, p1.y};
+          vec2 p3{p2.x, p2.y + g.extent.height * font_scale};
+          vec2 p4{p1.x, p3.y};
 
-          FT_Load_Glyph(font.ftface, glyph.codepoint, 0);
-          FT_Render_Glyph(font.ftface->glyph, FT_RENDER_MODE_NORMAL);
-          FT_Bitmap bitmap = font.ftface->glyph->bitmap;
-          auto buff = bitmap.buffer;
-          auto h = bitmap.rows;
-          auto w = bitmap.width;
-          for (size_t i = 0; i < h; i++) {
-            for (size_t j = 0; j < w; j++) {
-              int c = buff[i * w + j];
-              char ch = ' ';
-              if (c > 0 && c < 127) ch = '*';
-              if (c > 127) ch = '#';
-              std::cout << ch;
-            }
-            std::cout << std::endl;
+          vertex vertices[] = {
+              {.position = p1, .st = {g.s0, g.t0}, .color = color},
+              {.position = p2, .st = {g.s1, g.t0}, .color = color},
+              {.position = p3, .st = {g.s1, g.t1}, .color = color},
+              {.position = p4, .st = {g.s0, g.t1}, .color = color}};
+
+          for (vertex& vertex : vertices) {
+            vertex.position =
+                normalize_for_viewport(vertex.position, viewport_extent);
           }
 
-          std::cout << std::endl;
-          if (!entry.is_empty()) {
-            Glyph const& e = entry[0];
+          u32 indices_offset = AS_U32(draw_list.indices.size());
 
-            vec2 pos = e.pos * font_scale;
+          u32 vertices_offset = AS_U32(draw_list.vertices.size());
 
-            vec2 p1{position.x + cursor.x + pos.x,
-                    position.y + cursor.y + vertical_line_padding + pos.y};
-            vec2 p2{p1.x + e.extent.width * font_scale, p1.y};
-            vec2 p3{p2.x, p2.y + e.extent.height * font_scale};
-            vec2 p4{p1.x, p3.y};
+          u32 indices[] = {vertices_offset,     vertices_offset + 1,
+                           vertices_offset + 2, vertices_offset,
+                           vertices_offset + 2, vertices_offset + 3};
 
-            vertex vertices[] = {
-                {.position = p1, .st = {e.s0, e.t0}, .color = color},
-                {.position = p2, .st = {e.s1, e.t0}, .color = color},
-                {.position = p3, .st = {e.s1, e.t1}, .color = color},
-                {.position = p4, .st = {e.s0, e.t1}, .color = color}};
+          draw_list.indices.extend(indices).unwrap();
+          draw_list.vertices.extend(vertices).unwrap();
 
-            for (vertex& vertex : vertices) {
-              vertex.position =
-                  normalize_for_viewport(vertex.position, viewport_extent);
-            }
+          draw_list.cmds
+              .push(DrawCommand{.indices_offset = indices_offset,
+                                .nindices = 6,
+                                .clip_rect = clip_rect,
+                                .transform = transform,
+                                .texture = cache.atlas.share()})
+              .unwrap();
 
-            u32 indices_offset = AS_U32(draw_list.indices.size());
-
-            u32 vertices_offset = AS_U32(draw_list.vertices.size());
-
-            u32 indices[] = {vertices_offset,     vertices_offset + 1,
-                             vertices_offset + 2, vertices_offset,
-                             vertices_offset + 2, vertices_offset + 3};
-
-            draw_list.indices.extend(indices).unwrap();
-            draw_list.vertices.extend(vertices).unwrap();
-
-            draw_list.cmds
-                .push(DrawCommand{.indices_offset = indices_offset,
-                                  .nindices = 6,
-                                  .clip_rect = clip_rect,
-                                  .transform = transform,
-                                  .texture = cache.atlas.share()})
-                .unwrap();
-
-            cursor.x += font_scale * e.advance.x;
-
-            fmt::print("offset={},{} extent={},{}\n", entry[0].offset.x,
-                       entry[0].offset.y, entry[0].extent.width,
-                       entry[0].extent.height);
-            fmt::print("s0={} t0={} s1={} t1={}\n", entry[0].s0, entry[0].t0,
-                       entry[0].s1, entry[0].t1);
-          } else {
-            vec2 p1{position.x + cursor.x,
-                    position.y + cursor.y + vertical_line_padding};
-            vec2 p2{p1.x + font_height, p1.y};
-            vec2 p3{p2.x, p2.y + font_height};
-            vec2 p4{p1.x, p3.y};
-
-            vertex vertices[] = {
-                {.position = p1, .st = {0, 0}, .color = color},
-                {.position = p2, .st = {0, 0}, .color = color},
-                {.position = p3, .st = {0, 0}, .color = color},
-                {.position = p4, .st = {0, 0}, .color = color}};
-
-            for (vertex& vertex : vertices) {
-              vertex.position =
-                  normalize_for_viewport(vertex.position, viewport_extent);
-            }
-
-            u32 indices_offset = AS_U32(draw_list.indices.size());
-
-            u32 vertices_offset = AS_U32(draw_list.vertices.size());
-
-            u32 indices[] = {vertices_offset,     vertices_offset + 1,
-                             vertices_offset + 2, vertices_offset,
-                             vertices_offset + 2, vertices_offset + 3};
-
-            draw_list.indices.extend(indices).unwrap();
-            draw_list.vertices.extend(vertices).unwrap();
-
-            draw_list.cmds
-                .push(DrawCommand{.indices_offset = indices_offset,
-                                  .nindices = 6,
-                                  .clip_rect = clip_rect,
-                                  .transform = transform,
-                                  .texture = cache.atlas.share()})
-                .unwrap();
-
-            cursor.x += font_height;
-          }
-
-          if (&glyph != word_glyphs.end() - 1) {
-            cursor.x += letter_spacing;
-          }
+          cursor.x += font_scale * g.advance.x;
         }
 
-        i = word_end;
+        if (last_codepoint == SPACE) {
+          cursor.x += word_spacing;
+        } else if (last_codepoint == TAB) {
+          cursor.x += word_spacing * style.tab_size;
+        }
       }
-      std::cout << "WORD END" << std::endl;
-
     } else {
       // TODO(lamarrr): support RTL
       ASR_PANIC("RTL not supported yet");
@@ -851,7 +757,7 @@ struct CanvasRenderingContext {
 
   stx::Rc<vk::CommandQueue*> queue;
 
-  CanvasRenderingContext(stx::Rc<vk::CommandQueue*> aqueue)
+  explicit CanvasRenderingContext(stx::Rc<vk::CommandQueue*> aqueue)
       : queue{std::move(aqueue)} {
     VkVertexInputAttributeDescription vertex_input_attributes[] = {
         {.location = 0,

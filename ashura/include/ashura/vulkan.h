@@ -587,11 +587,11 @@ constexpr std::string_view format(VkPhysicalDeviceType type) {
     case VK_PHYSICAL_DEVICE_TYPE_CPU:
       return "CPU";
     case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
-      return "dGPU";
+      return "Discrete GPU";
     case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-      return "iGPU";
+      return "Integrated GPU";
     case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
-      return "vGPU";
+      return "Virtual GPU";
     case VK_PHYSICAL_DEVICE_TYPE_OTHER:
       return "other";
     default:
@@ -1190,9 +1190,7 @@ inline Image create_msaa_color_resource(
       .format = swapchain_format,
       .extent = VkExtent3D{.width = swapchain_extent.width,
                            .height = swapchain_extent.height,
-                           .depth = 1
-
-      },
+                           .depth = 1},
       .mipLevels = 1,
       .arrayLayers = 1,
       .samples = sample_count,

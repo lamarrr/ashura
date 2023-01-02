@@ -37,7 +37,7 @@ enum class KeyModifiers : u8 {
 
 STX_DEFINE_ENUM_BIT_OPS(KeyModifiers)
 
-enum class MouseID : u32 {};
+using MouseID = u32;
 
 enum class MouseAction : u8 {
   Press,
@@ -51,7 +51,7 @@ struct MouseMotionEvent {
 };
 
 struct MouseClickEvent {
-  MouseID mouse_id{};
+  MouseID mouse_id = 0;
   offseti offset;
   u32 clicks = 0;
   MouseButton button = MouseButton::Primary;

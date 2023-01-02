@@ -1,10 +1,13 @@
 #pragma once
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <string_view>
+#include <utility>
 
 #include "ashura/image.h"
 #include "ashura/primitives.h"
+#include "ashura/rect_pack.h"
 #include "ashura/vulkan.h"
 #include "freetype/freetype.h"
 #include "hb.h"
@@ -19,6 +22,16 @@ namespace asr {
 enum class TextAlign : u8 { Left, Right, Center };
 
 enum class WordWrap : u8 { None, Wrap };
+
+enum class TextDirection : u8 { LeftToRight, RightToLeft };
+
+struct TextRun {
+  char const* str;
+  usize size;
+  TextDirection direction;
+
+  TextRun subrun();
+};
 
 struct TextStyle {
   f32 font_height = 16;
@@ -70,10 +83,9 @@ struct Font {
   }
 };
 
-enum class FontLoadError { InvalidPath };
+enum class FontLoadError : u8 { InvalidPath };
 
 inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
-  std::cout << "size: " << size << std::endl;
   hb_blob_t* hbblob = hb_blob_create(static_cast<char*>(memory.handle),
                                      static_cast<unsigned int>(size),
                                      HB_MEMORY_MODE_READONLY, nullptr, nullptr);
@@ -120,7 +132,7 @@ inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font_from_file(
   stream.close();
 
   return stx::Ok(load_font_from_memory(std::move(memory), size));
-};
+}
 
 struct Glyph {
   bool is_valid = false;
@@ -153,17 +165,10 @@ struct FontAtlas {
   Image atlas;
 
   stx::Span<Glyph> get(u32 glyph_index) const {
-    if (glyph_index < 1 || glyph_index > glyphs.size()) return {};
+    if (glyph_index >= glyphs.size()) return {};
     stx::Span glyph = glyphs.span().slice(glyph_index, 1);
-    if (!glyph.is_empty()) {
-      if (glyph[0].is_valid) {
-        return glyph;
-      } else {
-        return {};
-      }
-    } else {
-      return glyph;
-    }
+    if (glyph.is_empty()) return glyph;
+    return glyph[0].is_valid ? glyph : glyph.slice(0, 0);
   }
 };
 
@@ -191,8 +196,6 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
     FT_ULong codepoint = FT_Get_First_Char(font.ftface, &glyph_index);
 
     while (glyph_index != 0) {
-      std::cout << "FT_Get_Next_Char-> codepoint=" << codepoint
-                << " i=" << glyph_index << std::endl;
       if (FT_Load_Glyph(font.ftface, glyph_index, 0) == 0) {
         u32 width = font.ftface->glyph->bitmap.width;
         u32 height = font.ftface->glyph->bitmap.rows;
@@ -228,142 +231,145 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
 
   glyphs.resize(last - glyphs.begin()).unwrap();
 
-  glyphs.span().sort(
-      [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
-
-  usize iter = 0;
-  for (u32 next_index = 0; iter < glyphs.size(); next_index++, iter++) {
-    for (; next_index < glyphs[iter].index; next_index++) {
-      glyphs
-          .push(Glyph{.is_valid = false,
-                      .index = next_index,
-                      .codepoint = 0,
-                      .offset = {},
-                      .extent = {},
-                      .pos = {},
-                      .advance = {},
-                      .s0 = 0,
-                      .t0 = 0,
-                      .s1 = 0,
-                      .t1 = 0})
-          .unwrap();
-    }
-  }
-
-  glyphs.span().sort(
-      [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
-
-  VkImageFormatProperties image_properties;
+  VkImageFormatProperties image_format_properties;
 
   ASR_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(
       ctx.queue.value().handle->device.handle->phy_device.handle->phy_device,
       VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
-      VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_properties));
+      VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties));
 
-  extent max_extent{image_properties.maxExtent.width,
-                    image_properties.maxExtent.height};
+  stx::Memory rects_mem =
+      stx::mem::allocate(stx::os_allocator, sizeof(stbrp_rect) * glyphs.size())
+          .unwrap();
 
-  // TODO(lamarrr): some glyphs don't exist, we might need to add a new bool to
-  // specify if it is valid or not? or else we'll have to horribly perform
-  // lookup across all the glyphs which is costly
+  stx::Span rects{static_cast<stbrp_rect*>(rects_mem.handle), glyphs.size()};
 
-  // now that we know the full atlas extent calculate texture coordinates
+  for (usize i = 0; i < glyphs.size(); i++) {
+    rects[i].glyph_index = glyphs[i].index;
+    rects[i].w = AS_I32(glyphs[i].extent.width);
+    rects[i].h = AS_I32(glyphs[i].extent.height);
+  }
+
+  stx::Memory nodes_memory =
+      stx::mem::allocate(
+          stx::os_allocator,
+          sizeof(stbrp_node) * image_format_properties.maxExtent.width)
+          .unwrap();
+
+  stbrp_context context;
+  stbrp_init_target(&context, image_format_properties.maxExtent.width,
+                    image_format_properties.maxExtent.height,
+                    static_cast<stbrp_node*>(nodes_memory.handle),
+                    image_format_properties.maxExtent.width);
+  stbrp_setup_allow_out_of_mem(&context, 0);
+  stbrp_setup_heuristic(&context, STBRP_HEURISTIC_Skyline_default);
+  ASR_CHECK(stbrp_pack_rects(&context, rects.data(), rects.size()));
+
   extent atlas_extent;
 
+  for (usize i = 0; i < rects.size(); i++) {
+    atlas_extent.width =
+        std::max<u32>(atlas_extent.width, rects[i].x + rects[i].w);
+    atlas_extent.height =
+        std::max<u32>(atlas_extent.height, rects[i].y + rects[i].h);
+  }
+
+  rects.sort([](stbrp_rect const& a, stbrp_rect const& b) {
+    return a.glyph_index < b.glyph_index;
+  });
+
+  glyphs.span().sort(
+      [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
+
+  for (usize i = 0; i < glyphs.size(); i++) {
+    u32 x = AS_U32(rects[i].x), y = AS_U32(rects[i].y), w = AS_U32(rects[i].w),
+        h = AS_U32(rects[i].h);
+    glyphs[i].offset = {x, y};
+    glyphs[i].extent = {w, h};
+    glyphs[i].s0 = AS_F32(x) / atlas_extent.width;
+    glyphs[i].s1 = AS_F32(x + w) / atlas_extent.width;
+    glyphs[i].t0 = AS_F32(y) / atlas_extent.height;
+    glyphs[i].t1 = AS_F32(y + h) / atlas_extent.height;
+  }
+
   {
-    offset cursor;
-    for (Glyph& glyph : glyphs) {
-      // std::cout << "codepoint: " << codepoint << " w: " << width
-      //         << " h:" << height << std::endl;
-      glyph.offset = offset{cursor.x, cursor.y};
-      atlas_extent.width = std::max(atlas_extent.width, glyph.extent.width);
-      atlas_extent.height += glyph.extent.height +
-                             1;  // with spacing to prevent spill between glyphs
+    usize iter = 0;
+    for (u32 next_index = 0; iter < glyphs.size(); next_index++, iter++) {
+      for (; next_index < glyphs[iter].index; next_index++) {
+        glyphs
+            .push(Glyph{.is_valid = false,
+                        .index = next_index,
+                        .codepoint = 0,
+                        .offset = {},
+                        .extent = {},
+                        .pos = {},
+                        .advance = {},
+                        .s0 = 0,
+                        .t0 = 0,
+                        .s1 = 0,
+                        .t1 = 0})
+            .unwrap();
+      }
     }
   }
+
+  glyphs.span().sort(
+      [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
 
   // TODO-future(lamarrr): we should probably handle this instead of bailing out
   // NOTE: vulkan doesn't allow zero-extent images
   atlas_extent.width = std::max<u32>(1, atlas_extent.width);
   atlas_extent.height = std::max<u32>(1, atlas_extent.height);
 
-  for (Glyph& glyph : glyphs) {
-    glyph.s0 = AS_F32(glyph.offset.x) / atlas_extent.width;
-    glyph.s1 = AS_F32(glyph.offset.x + glyph.extent.width) / atlas_extent.width;
-    glyph.t0 = AS_F32(glyph.offset.y) / atlas_extent.height;
-    glyph.t1 =
-        AS_F32(glyph.offset.y + glyph.extent.height) / atlas_extent.height;
-  }
+  // TODO(lamarrr): some glyphs don't exist, we might need to add a new bool to
+  // specify if it is valid or not? or else we'll have to horribly perform
+  // lookup across all the glyphs which is costly
 
-  vk::Buffer cache_staging_buffer =
+  // now that we know the full atlas extent calculate texture coordinates
+  //
+  // get width and height of atlas
+  // warn if atlas size too large
+  //
+  //
+
+  vk::Buffer atlas_staging_buffer =
       vk::create_host_buffer(dev, memory_properties, atlas_extent.area() * 4,
                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
-  u8* out = static_cast<u8*>(cache_staging_buffer.memory_map);
+  u8* buffer = static_cast<u8*>(atlas_staging_buffer.memory_map);
 
   for (Glyph const& glyph : glyphs) {
     ASR_CHECK(FT_Load_Glyph(font.ftface, glyph.index, 0) == 0);
     ASR_CHECK(FT_Render_Glyph(font.ftface->glyph, FT_RENDER_MODE_NORMAL) == 0);
 
-    std::cout << "Prepared -> index=" << glyph.index
-              << " codepoint=" << glyph.codepoint << " y=" << glyph.offset.y
-              << std::endl;
-    FT_Bitmap bitmap = font.ftface->glyph->bitmap;
-    auto buff = bitmap.buffer;
-    auto h = bitmap.rows;
-    auto w = bitmap.width;
-    for (size_t i = 0; i < h; i++) {
-      for (size_t j = 0; j < w; j++) {
-        int c = buff[i * w + j];
-        char ch = ' ';
-        if (c > 0 && c < 127) ch = '*';
-        if (c > 127) ch = '#';
-        std::cout << ch;
-      }
-      std::cout << std::endl;
-    }
-    std::cout << std::endl;
+    // TODO(lamarrr): fix indexing
     for (usize j = 0; j < glyph.extent.height; j++) {
       // copy the rendered glyph to the atlas
       for (usize i = 0; i < glyph.extent.width; i++) {
-        out[0] = 0xFF;
-        out[1] = 0xFF;
-        out[2] = 0xFF;
-        out[3] = font.ftface->glyph->bitmap.buffer[j * glyph.extent.width + i];
-        out += 4;
+        buffer[0] = 0xFF;
+        buffer[1] = 0xFF;
+        buffer[2] = 0xFF;
+        buffer[3] =
+            font.ftface->glyph->bitmap.buffer[j * glyph.extent.width + i];
+        buffer += 4;
       }
       // fill the unused portion of the row with transparent pixels
       for (usize i = 0; i < (atlas_extent.width - glyph.extent.width); i++) {
-        out[0] = 0xFF;
-        out[1] = 0xFF;
-        out[2] = 0xFF;
-        out[3] = 0x00;
-        out += 4;
+        buffer[0] = 0xFF;
+        buffer[1] = 0xFF;
+        buffer[2] = 0xFF;
+        buffer[3] = 0x00;
+        buffer += 4;
       }
     }
 
     for (usize i = 0; i < atlas_extent.width; i++) {
-      out[0] = 0xFF;
-      out[1] = 0xFF;
-      out[2] = 0xFF;
-      out[3] = 0x00;
-      out += 4;
+      buffer[0] = 0xFF;
+      buffer[1] = 0xFF;
+      buffer[2] = 0xFF;
+      buffer[3] = 0x00;
+      buffer += 4;
     }
-  }
-
-  u8* in = static_cast<u8*>(cache_staging_buffer.memory_map);
-
-  for (usize i = 0; i < atlas_extent.height; i++) {
-    for (usize j = 0; j < atlas_extent.width; j++) {
-      int c = in[3];
-      char ch = ' ';
-      if (c > 0 && c < 127) ch = '*';
-      if (c > 127) ch = '#';
-      std::cout << ch;
-      in += 4;
-    }
-    std::cout << "y=" << i;
-    std::cout << std::endl;
   }
 
   VkImageCreateInfo create_info{
@@ -477,7 +483,7 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
                                 .height = atlas_extent.height,
                                 .depth = 1}};
 
-  vkCmdCopyBufferToImage(ctx.upload_cmd_buffer, cache_staging_buffer.buffer,
+  vkCmdCopyBufferToImage(ctx.upload_cmd_buffer, atlas_staging_buffer.buffer,
                          image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
   VkImageMemoryBarrier post_upload_barrier{
@@ -524,7 +530,7 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
 
   ASR_VK_CHECK(vkResetCommandBuffer(ctx.upload_cmd_buffer, 0));
 
-  cache_staging_buffer.destroy(dev);
+  atlas_staging_buffer.destroy(dev);
 
   return FontAtlas{
       .glyphs = std::move(glyphs),

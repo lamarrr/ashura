@@ -1,14 +1,8 @@
 #pragma once
 
-#include <algorithm>
-#include <type_traits>
-
 #include "spdlog/spdlog.h"
-#include "stx/enum.h"
-#include "stx/limits.h"
 #include "stx/option.h"
 #include "stx/panic.h"
-#include "stx/struct.h"
 
 #define ASR_PANIC(...) ::stx::panic(__VA_ARGS__)
 

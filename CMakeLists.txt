@@ -32,10 +32,10 @@ execute_process(
 execute_process(
   COMMAND git clone -b 6.0.0 https://github.com/harfbuzz/harfbuzz.git
           third_party/harfbuzz WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-          
+
 execute_process(
-COMMAND git clone -b VER-2-12-1 https://github.com/freetype/freetype.git third_party/freetype WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-          
+  COMMAND git clone -b VER-2-12-1 https://github.com/freetype/freetype.git
+          third_party/freetype WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
@@ -44,11 +44,21 @@ include(ExternalProject)
 
 find_package(Vulkan REQUIRED)
 
-set(FT_DISABLE_ZLIB ON CACHE BOOL ON)
-set(FT_DISABLE_BZIP2 ON CACHE BOOL ON)
-set(FT_DISABLE_PNG ON CACHE BOOL ON)
-set(FT_DISABLE_HARFBUZZ ON CACHE BOOL ON)
-set(FT_DISABLE_BROTLI ON CACHE BOOL ON)
+set(FT_DISABLE_ZLIB
+    ON
+    CACHE BOOL ON)
+set(FT_DISABLE_BZIP2
+    ON
+    CACHE BOOL ON)
+set(FT_DISABLE_PNG
+    ON
+    CACHE BOOL ON)
+set(FT_DISABLE_HARFBUZZ
+    ON
+    CACHE BOOL ON)
+set(FT_DISABLE_BROTLI
+    ON
+    CACHE BOOL ON)
 
 add_subdirectory(third_party/STX)
 add_subdirectory(third_party/googletest)
