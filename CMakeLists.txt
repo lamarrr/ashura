@@ -9,33 +9,9 @@ execute_process(
   COMMAND git clone -b main https://github.com/lamarrr/STX.git third_party/STX
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
-execute_process(
-  COMMAND git clone -b master https://github.com/nothings/stb.git
-          third_party/stb WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
-execute_process(
-  COMMAND git clone -b v1.12.0 https://github.com/google/googletest.git
-          third_party/googletest WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
-execute_process(
-  COMMAND git clone -b 9.0.0 https://github.com/fmtlib/fmt.git third_party/fmt
-  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
-execute_process(
-  COMMAND git clone -b v1.10.0 https://github.com/gabime/spdlog.git
-          third_party/spdlog WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
-execute_process(
-  COMMAND git clone -b release-2.24.0 https://github.com/libsdl-org/SDL.git
-          third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
-execute_process(
-  COMMAND git clone -b 6.0.0 https://github.com/harfbuzz/harfbuzz.git
-          third_party/harfbuzz WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
-execute_process(
-  COMMAND git clone -b VER-2-12-1 https://github.com/freetype/freetype.git
-          third_party/freetype WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+# execute_process( COMMAND git clone -b master
+# https://github.com/nothings/stb.git third_party/stb WORKING_DIRECTORY
+# ${CMAKE_CURRENT_LIST_DIR})
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
@@ -43,30 +19,17 @@ include(add_project_library)
 include(ExternalProject)
 
 find_package(Vulkan REQUIRED)
-
-set(FT_DISABLE_ZLIB
-    ON
-    CACHE BOOL ON)
-set(FT_DISABLE_BZIP2
-    ON
-    CACHE BOOL ON)
-set(FT_DISABLE_PNG
-    ON
-    CACHE BOOL ON)
-set(FT_DISABLE_HARFBUZZ
-    ON
-    CACHE BOOL ON)
-set(FT_DISABLE_BROTLI
-    ON
-    CACHE BOOL ON)
+find_package(SDL2 REQUIRED)
+find_package(freetype REQUIRED)
+find_package(spdlog REQUIRED)
+find_package(harfbuzz REQUIRED)
+find_package(fmt REQUIRED)
+find_package(
+  ICU
+  COMPONENTS uc
+  REQUIRED)
 
 add_subdirectory(third_party/STX)
-add_subdirectory(third_party/googletest)
-add_subdirectory(third_party/fmt)
-add_subdirectory(third_party/spdlog)
-add_subdirectory(third_party/SDL)
-add_subdirectory(third_party/harfbuzz)
-add_subdirectory(third_party/freetype)
 
 set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/skia/libs)
 
