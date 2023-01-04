@@ -187,21 +187,21 @@ Engine::Engine(AppConfig const& cfg) {
   window.value().handle->mouse_motion_listener =
       stx::fn::rc::make_unique_static([](MouseMotionEvent const&) {});
 
-  u32 const transparent_image_data[1] = {0x00000000};
+  u8 const transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
   // TODO(lamarrr): fill with zeros
-  // auto transparent_image =
-  // vk::upload_rgba_image(xqueue, 1, 1, transparent_image_data);
+  auto transparent_image = canvas_context.value().handle->ctx.upload_image(
+      {1, 1}, 4, transparent_image_data);
 
   font = new stx::Rc<Font*>{
       load_font_from_file(
-          R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\OpenSans-Regular.ttf)"_str)
+          R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\RobotoMono-Regular.ttf)"_str)
           .unwrap()};
 
   atlas = new FontAtlas{
-      render_font(*font->handle, canvas_context.value().handle->ctx, 50)};
+      render_font(*font->handle, canvas_context.value().handle->ctx, 26)};
 
-  auto transparent_image = canvas_context.value().handle->ctx.upload_image(
-      extent{1920, 1080}, 4, sample_image);
+  // auto transparent_image = canvas_context.value().handle->ctx.upload_image(
+  // extent{1920, 1080}, 4, sample_image);
 
   Image sampler = vk::create_image_sampler(transparent_image);
 
@@ -226,7 +226,7 @@ Engine::Engine(AppConfig const& cfg) {
           stx::os_allocator,
           [win = window.value().handle]() { win->needs_resizing = true; })
           .unwrap());
-};
+}
 
 void Engine::tick(std::chrono::nanoseconds interval) {
   // poll events to make the window not be marked as unresponsive.
@@ -249,29 +249,48 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     static int x = 0;
     static auto start = std::chrono::steady_clock::now();
 
+    auto d = std::chrono::duration_cast<std::chrono::seconds>(
+                 std::chrono::steady_clock::now() - start)
+                 .count();
+
     c.restart({AS_F32(extent.width), AS_F32(extent.height)});
     c.brush.color = colors::WHITE;
     c.clear();
-    // c.rotate(0, M_PI / 4, 0);
+    TextStyle style{};
+    style.font_height = 26;
+    // c.rotate(0, 0, 30);
     // c.translate(1920/2, 1080/2);
     // c.scale(0.5f, 0.5f, 1.0f);
-    c.brush.color = colors::MAGENTA.with_alpha(0);
+    /*c.brush.color = colors::MAGENTA.with_alpha(0);
     c.brush.pattern = c.transparent_image.share();
     c.brush.fill = false;
-    c.brush.line_thickness = 50;
+    c.brush.line_thickness = 80;
     // c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
     // c.draw_rect({200, 200}, {250, 250});
     // c.draw_ellipse({150, 150}, {500, 200}, 60);
     c.brush.color = colors::WHITE;
-    TextStyle style{};
-    style.font_height = 40;
-    c.draw_text(*font->handle, *atlas, "HELLO SEKAI!", {20, 100},style);
-    //TODO(lamarrr): scaling doesn't work properly
+    style.font_height = 80;
+    c.draw_text(*font->handle, *atlas,
+                fmt::format("YOUR AGENTS.\n Starting in {}", d), {20, 100},
+                style, 500);
+*/
+    c.brush.fill = true;
+    c.brush.color = color::from_rgb(0xff, 0x46, 0x55);
+    c.draw_rect({{100, 500}, {300, 100}});
+    c.brush.line_thickness = 2;
+    c.brush.fill = false;
+    c.brush.color = color::from_rgb(0xbd, 0xbc, 0xb7);
+    c.draw_rect({{90, 490}, {320, 120}});
+    c.brush.color = colors::WHITE;
+    c.draw_text(*font->handle, *atlas,
+                fmt::format("Examples Dear ImGui Demo.\n Starting in {}", d), {100, 500},
+                style, 300);
+    // TODO(lamarrr): scaling doesn't work properly
     // c.scale(0.5, 0.5);
     // c.rotate(0, 0, 90);
     // c.draw_image(atlas->atlas, rect{{0, 0},
-                                    // {atlas->extent.width * 1.0f,
-                                    //  atlas->extent.height * 1.0f}});
+    // {atlas->extent.width * 1.0f,
+    //  atlas->extent.height * 1.0f}});
 
     /* c.brush.color = colors::GREEN.with_alpha(63);
     c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});
