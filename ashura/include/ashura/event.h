@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ashura/primitives.h"
+#include "stx/enum.h"
 
 namespace asr {
 
@@ -10,9 +11,9 @@ enum class WindowEvent : u8 {
   Hidden,
   Exposed,
   Moved,
-  // window size changed by user
+  /// window size changed by user
   Resized,
-  // window size changed by user or via window API
+  /// window size changed by user or via window API
   SizeChanged,
   Minimized,
   Maximized,
@@ -32,7 +33,8 @@ enum class KeyModifiers : u8 {
   Alt = 1,
   Ctrl = 2,
   Shift = 4,
-  Meta = 8  // "⌘" present on mac systems
+  /// "⌘" present on mac systems
+  Meta = 8
 };
 
 STX_DEFINE_ENUM_BIT_OPS(KeyModifiers)
@@ -45,7 +47,7 @@ enum class MouseAction : u8 {
 };
 
 struct MouseMotionEvent {
-  MouseID mouse_id{};
+  MouseID mouse_id = 0;
   offseti offset;
   offseti translation;
 };
