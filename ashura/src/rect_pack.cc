@@ -354,7 +354,7 @@ inline stbrp__findresult stbrp__skyline_pack_rectangle(stbrp_context *context,
   return res;
 }
 
-inline int32_t rect_height_compare(void const *a, void const *b) {
+inline int rect_height_compare(void const *a, void const *b) {
   stbrp_rect const *p = (stbrp_rect const *)a;
   stbrp_rect const *q = (stbrp_rect const *)b;
   if (p->h > q->h) return -1;
@@ -362,7 +362,7 @@ inline int32_t rect_height_compare(void const *a, void const *b) {
   return (p->w > q->w) ? -1 : (p->w < q->w);
 }
 
-inline int32_t rect_original_order(void const *a, void const *b) {
+inline int rect_original_order(void const *a, void const *b) {
   stbrp_rect const *p = (stbrp_rect const *)a;
   stbrp_rect const *q = (stbrp_rect const *)b;
   return (p->was_packed < q->was_packed) ? -1 : (p->was_packed > q->was_packed);
