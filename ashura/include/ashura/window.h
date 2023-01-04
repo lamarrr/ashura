@@ -68,7 +68,6 @@ STX_DEFINE_ENUM_BIT_OPS(WindowSwapchainDiff)
 
 // TODO(lamarrr): ensure render context is not copied from just anywhere and
 // they use references
-// TODO(lamarrr): we don't need vecs in the parameter,only an allocator
 struct Window {
   Window(stx::Rc<WindowApi*> api, SDL_Window* window, WindowID id,
          extent extent, asr::extent surface_extent, WindowConfig cfg,
