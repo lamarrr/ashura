@@ -4,6 +4,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 #include "ashura/font.h"
 #include "ashura/image.h"
@@ -157,7 +158,8 @@ inline void transform_vertices_to_viewport_and_generate_texture_coordinates(
     // map it into the portion of the texture we are interested in
     st = (texture_area.offset + st * texture_area.extent);
 
-    vertices[i] = vertex{.position = normalized, .st = st};
+    vertices[i] =
+        vertex{.position = normalized, .st = st, .color = vertices[i].color};
   }
 }
 
@@ -290,15 +292,15 @@ struct Canvas {
     draw_list.clear();
   }
 
-  // push state (transform and clips) on state stack
+  /// push state (transform and clips) on state stack
   Canvas& save() {
     transform_state_stack.push_inplace(transform).unwrap();
     clip_rect_stack.push_inplace(clip_rect).unwrap();
     return *this;
   }
 
-  // save current transform and clip state
-  // pop state (transform and clips) stack and restore state
+  /// save current transform and clip state
+  /// pop state (transform and clips) stack and restore state
   Canvas& restore() {
     if (!transform_state_stack.is_empty()) {
       transform = *(transform_state_stack.end() - 1);
@@ -313,8 +315,8 @@ struct Canvas {
     return *this;
   }
 
-  // reset the rendering context to its default state (transform
-  // and clips)
+  /// reset the rendering context to its default state (transform
+  /// and clips)
   Canvas& reset() {
     transform = mat4::identity();
     transform_state_stack.clear();
@@ -415,6 +417,9 @@ struct Canvas {
       return *this;
     }
 
+    vec4 color{brush.color.r / 255.0f, brush.color.g / 255.0f,
+               brush.color.b / 255.0f, brush.color.a / 255.0f};
+
     u32 indices_offset = AS_U32(draw_list.indices.size());
 
     u32 vertices_offset = AS_U32(draw_list.vertices.size());
@@ -424,18 +429,14 @@ struct Canvas {
     u32 nindices = AS_U32(draw_list.indices.size() - indices_offset);
 
     for (usize i = 0; i < polygon.size(); i++) {
-      draw_list.vertices.push(vertex{.position = polygon[i], .st = {0, 0}})
+      draw_list.vertices
+          .push(vertex{.position = polygon[i], .st = {0, 0}, .color = color})
           .unwrap();
     }
 
     transform_vertices_to_viewport_and_generate_texture_coordinates(
         draw_list.vertices.span().slice(vertices_offset), viewport_extent, area,
         texture_area);
-
-    for (vertex& vertex : draw_list.vertices) {
-      vertex.color = vec4{brush.color.r / 255.0f, brush.color.g / 255.0f,
-                          brush.color.b / 255.0f, brush.color.a / 255.0f};
-    }
 
     draw_list.cmds
         .push(DrawCommand{.indices_offset = indices_offset,
@@ -450,8 +451,7 @@ struct Canvas {
 
   Canvas& draw_line(vec2 p1, vec2 p2) {
     vec2 points[] = {p1, p2};
-
-    rect area;
+    rect area{p1, p2 - p1};
 
     return draw_lines(points, area, {{0, 0}, {1, 1}}, brush.pattern);
   }
@@ -554,7 +554,7 @@ struct Canvas {
     }
   }
 
-  // Image API
+  /// Image API
   Canvas& draw_image(Image const& image, rect area, rect image_portion) {
     vec2 points[4];
     polygons::rect(points, area);
@@ -632,12 +632,16 @@ struct Canvas {
     // handle alignment based on language and ltr or rtl
     //
     //
+    //
+    //
+    // TODO(lamarrr): properly handle spaces
+    //
 
     vec2 cursor;
 
     if (style.direction == HB_DIRECTION_LTR) {
-      for (char const* iter = text.data(); iter < text.data() + text.size();
-           iter++) {
+      for (char const* iter = text.data(); iter < text.data() + text.size();) {
+        // TODO(lamarrr): handle multiple spaces or tabs
         char const* word_start = iter;
 
         u32 last_codepoint = 0;

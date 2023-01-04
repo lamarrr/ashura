@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
+#include <limits>
 #include <string_view>
 #include <utility>
 
@@ -15,46 +17,46 @@
 #include "stx/limits.h"
 #include "stx/span.h"
 #include "stx/string.h"
+#include "stx/text.h"
 #include "stx/vec.h"
+#include "unicode/ubidi.h"
+#include "unicode/unistr.h"
+#include "unicode/uscript.h"
 
 namespace asr {
 
-enum class TextAlign : u8 { Left, Right, Center };
+enum class FontLoadError : u8 { InvalidPath };
 
-enum class WordWrap : u8 { None, Wrap };
+enum class TextAlign : u8 { Left, Right, Center };
 
 enum class TextDirection : u8 { LeftToRight, RightToLeft };
 
-struct TextRun {
-  char const* str;
-  usize size;
-  TextDirection direction;
-
-  TextRun subrun();
-};
+enum class TextOverflow : u8 { None, Clip, Ellipsis };
 
 struct TextStyle {
   f32 font_height = 16;
-  f32 letter_spacing = 2;
-  u32 tab_size = 8;
-  f32 word_spacing = 4;
-  // multiplied by font_height
+  /// multiplied by font_height
   f32 line_height = 1.2f;
-  hb_direction_t direction = HB_DIRECTION_LTR;
-  TextAlign align = TextAlign::Left;
-  // WordWrap word_wrap = WordWrap::None;
+  f32 letter_spacing = 2;
+  f32 word_spacing = 4;
+  u32 tab_size = 8;
   bool use_kerning = true;
-  //  use standard and contextual ligature substitution
+  ///  use standard and contextual ligature substitution
   bool use_ligatures = true;
+  bool underline = false;
+  bool strikethrough = false;
+  color foreground_color = colors::BLACK;
+  color background_color = colors::TRANSPARENT;
 };
 
 struct Font {
-  static constexpr hb_tag_t KERNING_FEATURE =
-      HB_TAG('k', 'e', 'r', 'n');  // kerning operations
-  static constexpr hb_tag_t LIGATURE_FEATURE =
-      HB_TAG('l', 'i', 'g', 'a');  // standard ligature substitution
+  // kerning operations
+  static constexpr hb_tag_t KERNING_FEATURE = HB_TAG('k', 'e', 'r', 'n');
+  // standard ligature substitution
+  static constexpr hb_tag_t LIGATURE_FEATURE = HB_TAG('l', 'i', 'g', 'a');
+  // contextual ligature substitution
   static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE =
-      HB_TAG('c', 'l', 'i', 'g');  // contextual ligature substitution
+      HB_TAG('c', 'l', 'i', 'g');
 
   hb_face_t* hbface = nullptr;
   hb_font_t* hbfont = nullptr;
@@ -82,8 +84,6 @@ struct Font {
     ASR_CHECK(FT_Done_FreeType(ftlib) == 0);
   }
 };
-
-enum class FontLoadError : u8 { InvalidPath };
 
 inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
   hb_blob_t* hbblob = hb_blob_create(static_cast<char*>(memory.handle),
@@ -136,32 +136,32 @@ inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font_from_file(
 
 struct Glyph {
   bool is_valid = false;
-  // the glyph index
+  /// the glyph index
   u32 index = 0;
-  // unicode codepoint
+  /// unicode codepoint
   u32 codepoint = 0;
-  // offset into the atlas its glyph resides
+  /// offset into the atlas its glyph resides
   asr::offset offset;
-  // extent of the glyph in the atlas
+  /// extent of the glyph in the atlas
   extent extent;
-  // defines offset from cursor position the glyph will be placed
+  /// defines offset from cursor position the glyph will be placed
   vec2 pos;
-  // advancement of the cursor after drawing this glyph
+  /// advancement of the cursor after drawing this glyph
   vec2 advance;
-  // texture coordinates of this glyph in the atlas
+  /// texture coordinates of this glyph in the atlas
   f32 s0 = 0, t0 = 0, s1 = 0, t1 = 0;
 };
 
-// stores codepoint glyphs for a font at a specific font height
-// this is a single-column atlas
+/// stores codepoint glyphs for a font at a specific font height
+/// this is a single-column atlas
 struct FontAtlas {
-  // indices begin from 1
+  /// indices begin from 1
   stx::Vec<Glyph> glyphs{stx::os_allocator};
-  // overall extent of the atlas
+  /// overall extent of the atlas
   extent extent;
-  // font height at which the cache/atlas/glyphs will be rendered and cached
+  /// font height at which the cache/atlas/glyphs will be rendered and cached
   u32 font_height = 40;
-  // atlas containing the glyphs
+  /// atlas containing the glyphs
   Image atlas;
 
   stx::Span<Glyph> get(u32 glyph_index) const {
@@ -174,7 +174,7 @@ struct FontAtlas {
 
 inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
                              u32 font_height) {
-  // *64 to convert font height to 26.6 pixel format
+  /// *64 to convert font height to 26.6 pixel format
   ASR_CHECK(font_height > 0);
   ASR_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
 
@@ -185,11 +185,6 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
 
   stx::Vec<Glyph> glyphs{stx::os_allocator};
 
-  // we use column layout because writing the rendered glyphs to it will
-  // be faster and loading from memory during rendering will be faster as
-  // opposed to laying them all out on one row which will be extremely slow as
-  // unrelated pixel rows will be loaded into memory during rendering leading to
-  // very high cache misses.
   {
     FT_UInt glyph_index;
 
@@ -246,8 +241,8 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
 
   for (usize i = 0; i < glyphs.size(); i++) {
     rects[i].glyph_index = glyphs[i].index;
-    rects[i].w = AS_I32(glyphs[i].extent.width);
-    rects[i].h = AS_I32(glyphs[i].extent.height);
+    rects[i].w = AS_I32(glyphs[i].extent.width + 2);
+    rects[i].h = AS_I32(glyphs[i].extent.height + 2);
   }
 
   stx::Memory nodes_memory =
@@ -263,7 +258,7 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
                     image_format_properties.maxExtent.width);
   stbrp_setup_allow_out_of_mem(&context, 0);
   stbrp_setup_heuristic(&context, STBRP_HEURISTIC_Skyline_default);
-  ASR_CHECK(stbrp_pack_rects(&context, rects.data(), rects.size()));
+  ASR_CHECK(stbrp_pack_rects(&context, rects.data(), AS_I32(rects.size())));
 
   extent atlas_extent;
 
@@ -282,10 +277,12 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
       [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
 
   for (usize i = 0; i < glyphs.size(); i++) {
-    u32 x = AS_U32(rects[i].x), y = AS_U32(rects[i].y), w = AS_U32(rects[i].w),
-        h = AS_U32(rects[i].h);
+    u32 x = AS_U32(rects[i].x) + 1;
+    u32 y = AS_U32(rects[i].y) + 1;
+    u32 w = glyphs[i].extent.width;
+    u32 h = glyphs[i].extent.height;
+
     glyphs[i].offset = {x, y};
-    glyphs[i].extent = {w, h};
     glyphs[i].s0 = AS_F32(x) / atlas_extent.width;
     glyphs[i].s1 = AS_F32(x + w) / atlas_extent.width;
     glyphs[i].t0 = AS_F32(y) / atlas_extent.height;
@@ -316,21 +313,9 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
   glyphs.span().sort(
       [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
 
-  // TODO-future(lamarrr): we should probably handle this instead of bailing out
   // NOTE: vulkan doesn't allow zero-extent images
   atlas_extent.width = std::max<u32>(1, atlas_extent.width);
   atlas_extent.height = std::max<u32>(1, atlas_extent.height);
-
-  // TODO(lamarrr): some glyphs don't exist, we might need to add a new bool to
-  // specify if it is valid or not? or else we'll have to horribly perform
-  // lookup across all the glyphs which is costly
-
-  // now that we know the full atlas extent calculate texture coordinates
-  //
-  // get width and height of atlas
-  // warn if atlas size too large
-  //
-  //
 
   vk::Buffer atlas_staging_buffer =
       vk::create_host_buffer(dev, memory_properties, atlas_extent.area() * 4,
@@ -338,37 +323,25 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
 
   u8* buffer = static_cast<u8*>(atlas_staging_buffer.memory_map);
 
+  std::memset(buffer, 0, atlas_staging_buffer.size);
+
   for (Glyph const& glyph : glyphs) {
     ASR_CHECK(FT_Load_Glyph(font.ftface, glyph.index, 0) == 0);
     ASR_CHECK(FT_Render_Glyph(font.ftface->glyph, FT_RENDER_MODE_NORMAL) == 0);
 
-    // TODO(lamarrr): fix indexing
-    for (usize j = 0; j < glyph.extent.height; j++) {
-      // copy the rendered glyph to the atlas
-      for (usize i = 0; i < glyph.extent.width; i++) {
-        buffer[0] = 0xFF;
-        buffer[1] = 0xFF;
-        buffer[2] = 0xFF;
-        buffer[3] =
-            font.ftface->glyph->bitmap.buffer[j * glyph.extent.width + i];
-        buffer += 4;
-      }
-      // fill the unused portion of the row with transparent pixels
-      for (usize i = 0; i < (atlas_extent.width - glyph.extent.width); i++) {
-        buffer[0] = 0xFF;
-        buffer[1] = 0xFF;
-        buffer[2] = 0xFF;
-        buffer[3] = 0x00;
-        buffer += 4;
-      }
-    }
+    u8* bitmap = font.ftface->glyph->bitmap.buffer;
 
-    for (usize i = 0; i < atlas_extent.width; i++) {
-      buffer[0] = 0xFF;
-      buffer[1] = 0xFF;
-      buffer[2] = 0xFF;
-      buffer[3] = 0x00;
-      buffer += 4;
+    // copy the rendered glyph to the atlas
+    for (usize j = glyph.offset.y; j < glyph.offset.y + glyph.extent.height;
+         j++) {
+      for (usize i = glyph.offset.x * 4;
+           i < (glyph.offset.x + glyph.extent.width) * 4; i += 4) {
+        buffer[j * atlas_extent.width * 4 + i + 0] = 0xFF;
+        buffer[j * atlas_extent.width * 4 + i + 1] = 0xFF;
+        buffer[j * atlas_extent.width * 4 + i + 2] = 0xFF;
+        buffer[j * atlas_extent.width * 4 + i + 3] = *bitmap;
+        bitmap++;
+      }
     }
   }
 
@@ -542,8 +515,143 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
               .unwrap())};
 }
 
-// TODO(lamarrr): implement
-template <typename Fn>
-rect layout_text(f32 max_width, Fn& callback);
+/// A text run is a sequence of characters sharing a single property set. Any
+/// change to the format, such as font style, foreground color, font family, or
+/// any other formatting effect, breaks the text run.
+struct TextRun {
+  usize size = 0;
+  usize font = 0;
+  TextStyle style;
+  // TextDirection direction = TextDirection::LeftToRight;
+};
+
+// TODO(lamarrr): we also need to separate by text direction script and language
+//
+// base direction
+// run direction
+// language
+// script
+//
+struct Paragraph {
+  /// utf-16 text
+  stx::Span<char const> text;
+  stx::Span<stx::Rc<Font*>> fonts;
+  stx::Span<TextRun const> runs;
+  TextAlign align = TextAlign::Left;
+  // hb_direction_t direction = HB_DIRECTION_LTR;
+  // TextDirection direction = TextDirection::LeftToRight;
+  // UScriptCode script = USCRIPT_LATIN;
+  // hb_script_t script = HB_SCRIPT_LATIN,
+  // hb_language_t language
+};
+
+inline vec2 layout_text(Font& font, FontAtlas& cache, std::string_view text,
+                        vec2 position, TextStyle const& style = {},
+                        f32 max_width = stx::f32_max,
+                        hb_script_t script = HB_SCRIPT_LATIN,
+                        hb_language_t language = hb_language_from_string("en",
+                                                                         2)) {
+  constexpr u32 SPACE = ' ';
+  constexpr u32 TAB = '\t';
+  constexpr u32 NEWLINE = '\n';
+  constexpr u32 RETURN = '\r';
+
+  hb_feature_t const features[] = {
+      {Font::KERNING_FEATURE, style.use_kerning, 0,
+       std::numeric_limits<unsigned int>::max()},
+      {Font::LIGATURE_FEATURE, style.use_ligatures, 0,
+       std::numeric_limits<unsigned int>::max()},
+      {Font::CONTEXTUAL_LIGATURE_FEATURE, style.use_ligatures, 0,
+       std::numeric_limits<unsigned int>::max()}};
+
+  ASR_CHECK(style.direction == HB_DIRECTION_LTR ||
+            style.direction == HB_DIRECTION_RTL);
+
+  f32 font_scale = AS_F32(style.font_height) / cache.font_height;
+  f32 font_height = style.font_height;
+  f32 line_height = style.line_height * font_height;
+  f32 vertical_line_space = line_height - font_height;
+  f32 vertical_line_padding = vertical_line_space / 2;
+  f32 letter_spacing = style.letter_spacing;
+  f32 word_spacing = style.word_spacing;
+
+  hb_font_set_scale(font.hbfont, 64 * cache.font_height,
+                    64 * cache.font_height);
+
+  vec2 extent;
+  vec2 cursor;
+
+  if (style.direction == HB_DIRECTION_LTR) {
+    for (char const* iter = text.data(); iter < text.data() + text.size();) {
+      // TODO(lamarrr): handle multiple spaces or tabs
+      char const* word_start = iter;
+
+      u32 last_codepoint = 0;
+      for (; iter < text.data() + text.size();) {
+        last_codepoint = stx::utf8_next(iter);
+        if (last_codepoint == SPACE || last_codepoint == TAB) {
+          break;
+        }
+      }
+
+      usize word_size = iter - word_start;
+
+      hb_buffer_reset(font.hbscratch_buffer);
+      hb_buffer_set_script(font.hbscratch_buffer, script);
+      hb_buffer_set_direction(font.hbscratch_buffer, style.direction);
+      hb_buffer_set_language(font.hbscratch_buffer, language);
+      hb_buffer_add_utf8(font.hbscratch_buffer, word_start,
+                         static_cast<int>(word_size), 0,
+                         static_cast<int>(word_size));
+      hb_shape(font.hbfont, font.hbscratch_buffer, features,
+               static_cast<unsigned int>(std::size(features)));
+
+      unsigned int nglyphs;
+      hb_glyph_info_t* glyph_info =
+          hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
+
+      f32 word_width = 0;
+
+      for (usize i = 0; i < nglyphs; i++) {
+        u32 glyph_index = glyph_info[i].codepoint;
+        stx::Span glyph = cache.get(glyph_index);
+
+        if (!glyph.is_empty()) {
+          word_width += glyph[0].advance.x * font_scale + letter_spacing;
+        } else {
+          word_width += font_height + letter_spacing;
+        }
+      }
+
+      if (cursor.x + word_width > max_width) {
+        cursor.x = 0;
+        cursor.y += line_height;
+      }
+
+      for (usize i = 0; i < nglyphs; i++) {
+        u32 glyph_index = glyph_info[i].codepoint;
+        stx::Span glyph = cache.get(glyph_index);
+        glyph = glyph.is_empty() ? cache.glyphs.span().slice(0, 1) : glyph;
+
+        Glyph const& g = glyph[0];
+        cursor.x += font_scale * g.advance.x;
+      }
+
+      if (last_codepoint == SPACE) {
+        cursor.x += word_spacing;
+      } else if (last_codepoint == TAB) {
+        cursor.x += word_spacing * style.tab_size;
+      }
+
+      extent.x = std::max(extent.x, cursor.x);
+      extent.y = std::max(extent.y, cursor.y);
+    }
+  } else {
+    // TODO(lamarrr): support RTL
+    ASR_PANIC("RTL not supported yet");
+  }
+
+  return extent;
+}
 
 }  // namespace asr
