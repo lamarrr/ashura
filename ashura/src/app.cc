@@ -9,7 +9,6 @@
 
 namespace asr {
 
-// TODO(lamarrr): handle should_quit
 void App::tick(std::chrono::nanoseconds interval) { engine_.tick(interval); }
 
 }  // namespace asr
