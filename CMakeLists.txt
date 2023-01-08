@@ -20,7 +20,7 @@ include(ExternalProject)
 
 find_package(Vulkan REQUIRED)
 find_package(SDL2 REQUIRED)
-find_package(freetype REQUIRED)
+find_package(Freetype REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(harfbuzz REQUIRED)
 find_package(fmt REQUIRED)

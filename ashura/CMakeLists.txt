@@ -23,7 +23,7 @@ target_link_libraries(
   spdlog::spdlog
   ashura_external_stb
   harfbuzz
-  freetype
+  Freetype::Freetype
   ICU::uc)
 
 add_executable(ashura_test src/ashura.cc)

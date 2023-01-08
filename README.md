@@ -15,4 +15,4 @@ What solutions do we provide to solve these problems?
 
 
 # Building
-```vcpkg install sdl2[core,vulkan] fmt freetype spdlog harfbuzz```
+```vcpkg install sdl2[core,vulkan]  libpng[apng] fmt freetype spdlog harfbuzz```
