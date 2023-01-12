@@ -581,112 +581,211 @@ struct Canvas {
                               nsegments);
   }
 
+  struct TextRow {
+    struct Glyph {
+      vec2 p1, p2, p3, p4;
+      f32 s0 = 0, s1 = 0, t0 = 0, t1 = 0;
+      vec4 color;
+    };
+    stx::Vec<Glyph> glyphs{stx::os_allocator};
+    // stx::Vec<f32> extra_space{stx::os_allocator};
+  };
+
   // Text API
   // TODO(lamarrr): we need separate layout pass so we can perform widget
   // layout, use callbacks to perform certain actions on layout calculation.
   //
-  Canvas& draw_text(Font& font, FontAtlas& cache, Paragraph const& paragraph,
-                    vec2 position, f32 max_width = stx::f32_max) {
+  Canvas& draw_text(
+      stx::Span<std::pair<stx::Rc<Font*>, stx::Rc<FontAtlas*>> const> fonts,
+      Paragraph const& paragraph, vec2 position, f32 max_width = stx::f32_max) {
     constexpr u32 SPACE = ' ';
     constexpr u32 TAB = '\t';
     constexpr u32 NEWLINE = '\n';
     constexpr u32 RETURN = '\r';
 
-    hb_feature_t const features[] = {
-        {Font::KERNING_FEATURE, style.use_kerning, 0,
-         std::numeric_limits<unsigned int>::max()},
-        {Font::LIGATURE_FEATURE, style.use_ligatures, 0,
-         std::numeric_limits<unsigned int>::max()},
-        {Font::CONTEXTUAL_LIGATURE_FEATURE, style.use_ligatures, 0,
-         std::numeric_limits<unsigned int>::max()}};
-
-    ASR_CHECK(style.direction == HB_DIRECTION_LTR ||
-              style.direction == HB_DIRECTION_RTL);
-
-    f32 font_scale = AS_F32(style.font_height) / cache.font_height;
-    f32 font_height = style.font_height;
-    f32 line_height = style.line_height * font_height;
-    f32 vertical_line_space = line_height - font_height;
-    f32 vertical_line_padding = vertical_line_space / 2;
-    f32 letter_spacing = style.letter_spacing;
-    f32 word_spacing = style.word_spacing;
-    vec4 color{brush.color.r / 255.0f, brush.color.g / 255.0f,
-               brush.color.b / 255.0f, brush.color.a / 255.0f};
-
-    hb_font_set_scale(font.hbfont, 64 * cache.font_height,
-                      64 * cache.font_height);
-
     // TODO(lamarrr): CONSIDER: canvas.clip_rect do not render beyond clip
     // rect apply transform to coordinates to see if any of the coordinates
     // fall inside it, if not discard certain parts of the text
     //
-    //
-    // TODO(lamarrr): handle new line
-    //
-    //
-    // add bidi
-    //
-    // handle alignment based on language and ltr or rtl
-    //
-    //
-    //
-    //
-    // TODO(lamarrr): properly handle spaces
-    //
+
+    // TODO-future(lamarrr): add bidi
+
+    // TODO(lamarrr): handle alignment based on language and ltr or rtl
+    // TODO(lamarrr): make all runs reference this
+
+    /*  stx::Vec<TextRun> runs{stx::os_allocator};
+      runs.extend(paragraph.runs).unwrap();
+
+      {
+        usize rtl_run_start = 0;
+        TextDirection previous_direction = TextDirection::LeftToRight;
+
+        for (usize i = 0; i < runs.size(); i++) {
+          TextDirection curr_direction = runs[i].direction;
+          if (previous_direction == TextDirection::LeftToRight &&
+              curr_direction == TextDirection::RightToLeft) {
+            rtl_run_start = i;
+          } else if ((previous_direction == TextDirection::RightToLeft ||
+                      i == runs.size() - 1) &&
+                     curr_direction == TextDirection::LeftToRight) {
+            std::reverse(runs.data() + rtl_run_start, runs.data() + 1 + 1);
+          }
+          previous_direction = curr_direction;
+        }
+      }
+      */
 
     vec2 cursor;
 
-    usize index = 0;
+    usize text_index = 0;
 
-    for (;;) {
-      stx::Span text = paragraph.text.slice(index, paragraph.runs[index].size);
-    }
+    TextRow rows;
 
-    for (char const* iter = text.data(); iter < text.data() + text.size();) {
-      // TODO(lamarrr): handle multiple spaces or tabs
-      char const* word_start = iter;
+    for (usize run_index = 0; run_index < paragraph.runs.size();) {
+      TextDirection run_pack_direction = paragraph.runs[run_index].direction;
+      TextDirection previous_run_direction = run_pack_direction;
+      usize next_run_index = run_index + 1;
+      for (; next_run_index < paragraph.runs.size(); next_run_index++) {
+        TextDirection curr_direction = paragraph.runs[next_run_index].direction;
 
-      u32 last_codepoint = 0;
-      for (; iter < text.data() + text.size();) {
-        last_codepoint = stx::utf8_next(iter);
-        if (last_codepoint == SPACE || last_codepoint == TAB) {
+        if (curr_direction != previous_run_direction) {
           break;
         }
+        previous_run_direction = curr_direction;
       }
 
-      usize word_size = iter - word_start;
+      for (usize i = 0; i < next_run_index - run_index; i++) {
+        TextRun const& run =
+            paragraph.runs[run_pack_direction == TextDirection::LeftToRight
+                               ? run_index + i
+                               : next_run_index - i - 1];
+        hb_feature_t const features[] = {
+            {Font::KERNING_FEATURE, run.style.use_kerning, 0,
+             std::numeric_limits<unsigned int>::max()},
+            {Font::LIGATURE_FEATURE, run.style.use_ligatures, 0,
+             std::numeric_limits<unsigned int>::max()},
+            {Font::CONTEXTUAL_LIGATURE_FEATURE, run.style.use_ligatures, 0,
+             std::numeric_limits<unsigned int>::max()}};
 
-      hb_buffer_reset(font.hbscratch_buffer);
-      hb_buffer_set_script(font.hbscratch_buffer, script);
-      hb_buffer_set_direction(font.hbscratch_buffer, style.direction);
-      hb_buffer_set_language(font.hbscratch_buffer, language);
-      hb_buffer_add_utf8(font.hbscratch_buffer, word_start,
-                         static_cast<int>(word_size), 0,
-                         static_cast<int>(word_size));
-      hb_shape(font.hbfont, font.hbscratch_buffer, features,
-               static_cast<unsigned int>(std::size(features)));
+        Font& font = *fonts[run.font].first.handle;
+        FontAtlas& cache = *fonts[run.font].second.handle;
 
-      unsigned int nglyphs;
-      hb_glyph_info_t* glyph_info =
-          hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
+        f32 font_scale = AS_F32(run.style.font_height) / cache.font_height;
+        f32 font_height = run.style.font_height;
+        f32 line_height = run.style.line_height * font_height;
+        f32 vertical_line_space = line_height - font_height;
+        f32 vertical_line_padding = vertical_line_space / 2;
+        f32 letter_spacing = run.style.letter_spacing;
+        f32 word_spacing = run.style.word_spacing;
 
-      f32 word_width = 0;
+        vec4 color{run.style.foreground_color.r / 255.0f,
+                   run.style.foreground_color.g / 255.0f,
+                   run.style.foreground_color.b / 255.0f,
+                   run.style.foreground_color.a / 255.0f};
 
-      for (usize i = 0; i < nglyphs; i++) {
-        u32 glyph_index = glyph_info[i].codepoint;
-        stx::Span glyph = cache.get(glyph_index);
+        char const* word_start = run.text.data();
+        char const* word_end = word_start;
+        char const* iter = word_start;
+        f32 word_width = 0;
 
-        if (!glyph.is_empty()) {
-          word_width += glyph[0].advance.x * font_scale + letter_spacing;
-        } else {
-          word_width += font_height + letter_spacing;
+        for (; word_end < run.text.end();) {
+          u32 num_spaces = 0;
+          bool ;
+
+          for (; word_end < run.text.end();) {
+            u32 codepoint = stx::utf8_next(word_end);
+            if (codepoint == SPACE) {
+              num_spaces = 1;
+              break;
+            } else if (codepoint == TAB) {
+              num_spaces = run.style.tab_size;
+              break;
+            }
+          }
+
+          // TODO(lamarrr): remove this switch and actually count the number of
+          // spaces
+          switch (AS_U32(*word_start)) {
+            // TODO(lamarrr):incorrect, remove this switch, the spacing is
+            // already calculated and no space or tab enters a word branch
+            case TAB:
+            case SPACE: {
+              cursor.x += word_spacing * num_spaces;
+            } break;
+            default: {
+              hb_font_set_scale(font.hbfont, 64 * cache.font_height,
+                                64 * cache.font_height);
+
+              hb_buffer_reset(font.hbscratch_buffer);
+              hb_buffer_set_script(font.hbscratch_buffer, run.script);
+              if (run.direction == TextDirection::LeftToRight) {
+                hb_buffer_set_direction(font.hbscratch_buffer,
+                                        HB_DIRECTION_LTR);
+              } else {
+                hb_buffer_set_direction(font.hbscratch_buffer,
+                                        HB_DIRECTION_RTL);
+              }
+              hb_buffer_set_language(font.hbscratch_buffer, run.language);
+              hb_buffer_add_utf8(font.hbscratch_buffer, word_start,
+                                 static_cast<int>(word_end - word_start), 0,
+                                 static_cast<int>(word_end - word_start));
+
+              hb_shape(font.hbfont, font.hbscratch_buffer, features,
+                       static_cast<unsigned int>(std::size(features)));
+
+              unsigned int nglyphs;
+              hb_glyph_info_t* glyph_info =
+                  hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
+
+              for (usize i = 0; i < nglyphs; i++) {
+                u32 glyph_index = glyph_info[i].codepoint;
+                stx::Span glyph = cache.get(glyph_index);
+
+                if (!glyph.is_empty()) {
+                  word_width +=
+                      glyph[0].advance.x * font_scale + letter_spacing;
+                } else {
+                  word_width += font_height + letter_spacing;
+                }
+              }
+
+              if (cursor.x + word_width > max_width) {
+                cursor.x = 0;
+                cursor.y += line_height;
+              }
+
+              // rows.push({
+              //
+              // });
+
+              cursor.x += word_spacing * num_spaces;
+
+            } break;
+          }
+
+          word_start = word_end;
         }
+
+        row.elements.push({});
       }
 
-      if (cursor.x + word_width > max_width) {
-        cursor.x = 0;
-        cursor.y += line_height;
-      }
+      run_index = next_run_index;
+    }
+
+    for (usize index = 0; index < paragraph.runs.size(); index++) {
+      // TODO(lamarrr): perform this until we finish the run
+      /* char const* iter = text.data();
+
+       u32 last_codepoint = 0;
+       for (; iter < text.data() + text.size();) {
+         last_codepoint = stx::utf8_next(iter);
+         if (last_codepoint == SPACE || last_codepoint == TAB) {
+           break;
+         }
+       }
+
+       usize word_size = iter - text.data();
+ */
 
       for (usize i = 0; i < nglyphs; i++) {
         u32 glyph_index = glyph_info[i].codepoint;
@@ -735,15 +834,8 @@ struct Canvas {
 
         cursor.x += font_scale * g.advance.x;
       }
-
-      if (last_codepoint == SPACE) {
-        cursor.x += word_spacing;
-      } else if (last_codepoint == TAB) {
-        cursor.x += word_spacing * style.tab_size;
-      }
     }
-    // TODO(lamarrr): support RTL
-    // ASR_PANIC("RTL not supported yet");
+
     return *this;
   }
 };
