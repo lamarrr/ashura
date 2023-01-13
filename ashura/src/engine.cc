@@ -284,11 +284,12 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     TextRun runs[] = {
         {.text = str,
          .font = 0,
-         .style = TextStyle{.font_height = 30,.foreground_color = colors::CYAN}},
+         .style =
+             TextStyle{.font_height = 30, .foreground_color = colors::CYAN}},
         {.text = str,
          .font = 0,
-         .style = TextStyle{.font_height = 8,
-                            .foreground_color = colors::MAGENTA}}};
+         .style =
+             TextStyle{.font_height = 8, .foreground_color = colors::MAGENTA}}};
     Paragraph paragraph{.runs = runs, .align = TextAlign::Right};
     c.draw_text(stx::Span{font, 1}, paragraph, {100, 500}, 300);
     // TODO(lamarrr): scaling doesn't work properly

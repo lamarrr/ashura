@@ -613,6 +613,8 @@ struct Canvas {
 
     // TODO(lamarrr): handle alignment based on language and ltr or rtl
     vec2 cursor;
+    // TODO(lamarrr): use for determining next cursor row position
+    f32 max_line_height = 0;
 
     stx::Vec<_TextLine> lines{stx::os_allocator};
     lines.push(_TextLine{}).unwrap();
@@ -683,13 +685,6 @@ struct Canvas {
 
           word_end = iter;
 
-          std::cout << "WORD BEGIN" << std::endl;
-          for (char const* i = word_start; i < word_end; i++) {
-            std::cout << *i;
-          }
-          std::cout << std::endl;
-          std::cout << "WORD END" << std::endl;
-
           // count number of spaces
           char const* space_iter = iter;
 
@@ -704,8 +699,6 @@ struct Canvas {
               break;
             }
           }
-
-          std::cout << "Num Spaces:" << nspaces << std::endl;
 
           hb_font_set_scale(font.hbfont, 64 * cache.font_height,
                             64 * cache.font_height);
@@ -740,12 +733,8 @@ struct Canvas {
             }
           }
 
-          fmt::print(
-              "cursor.x:{}, word_width: {}, max_width: {}, word_end: {}\n",
-              cursor.x, word_width, max_width, cursor.x + word_width);
           if (cursor.x + word_width > max_width) {
             // new line
-            std::cout << "moved to new line" << std::endl;
             lines.push(_TextLine{}).unwrap();
             cursor.x = 0;
             cursor.y += line_height;
@@ -792,34 +781,32 @@ struct Canvas {
       f32 line_width = line.glyphs[line.glyphs.size() - 1].end;
       f32 padding_space =
           max_width >= line_width ? (max_width - line_width) : 0;
-      vec2 inc;
+      vec2 increment;
 
       switch (paragraph.align) {
         case TextAlign::Left: {
         } break;
         case TextAlign::Right: {
-          inc.x = padding_space;
+          increment.x = padding_space;
         } break;
         case TextAlign::Center: {
-          inc.x = padding_space / 2;
+          increment.x = padding_space / 2;
         } break;
         default: {
         } break;
       }
-      fmt::print("line width: {}, max_width: {}\n", line_width, max_width);
-      std::cout << "wasted space: " << inc.x << ", " << inc.y << std::endl;
 
       for (_TextLine::Glyph const& g : line.glyphs) {
-        vertex vertices[] = {{.position = g.p1 + inc,
+        vertex vertices[] = {{.position = g.p1 + increment,
                               .st = {g.s0, g.t0},
                               .color = g.foreground_color},
-                             {.position = g.p2 + inc,
+                             {.position = g.p2 + increment,
                               .st = {g.s1, g.t0},
                               .color = g.foreground_color},
-                             {.position = g.p3 + inc,
+                             {.position = g.p3 + increment,
                               .st = {g.s1, g.t1},
                               .color = g.foreground_color},
-                             {.position = g.p4 + inc,
+                             {.position = g.p4 + increment,
                               .st = {g.s0, g.t1},
                               .color = g.foreground_color}};
 
