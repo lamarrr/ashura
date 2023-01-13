@@ -181,8 +181,7 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
                              color color) {
   if (points.size() < 2) return;
 
-  vec4 c{color.r / 255.0f, color.g / 255.0f, color.b / 255.0f,
-         color.a / 255.0f};
+  vec4 c = color.as_vec();
 
   f32 hw = line_thickness / 2;
 
@@ -259,6 +258,9 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
 
 /// coordinates are specified in top-left origin space with x pointing to the
 /// right and y pointing downwards.
+///
+/// TODO(lamarrr): implement culling
+///
 ///
 struct Canvas {
   vec2 viewport_extent;
@@ -351,8 +353,7 @@ struct Canvas {
   Canvas& clear() {
     draw_list.clear();
 
-    vec4 c{brush.color.r / 255.0f, brush.color.g / 255.0f,
-           brush.color.b / 255.0f, brush.color.a / 255.0f};
+    vec4 c = brush.color.as_vec();
 
     vertex vertices[] = {{{0, 0}, {0, 0}, c},
                          {{viewport_extent.x, 0}, {1, 0}, c},
@@ -417,8 +418,7 @@ struct Canvas {
       return *this;
     }
 
-    vec4 color{brush.color.r / 255.0f, brush.color.g / 255.0f,
-               brush.color.b / 255.0f, brush.color.a / 255.0f};
+    vec4 color = brush.color.as_vec();
 
     u32 indices_offset = AS_U32(draw_list.indices.size());
 
@@ -581,14 +581,16 @@ struct Canvas {
                               nsegments);
   }
 
-  struct TextRow {
+  struct _TextLine {
     struct Glyph {
       vec2 p1, p2, p3, p4;
-      f32 s0 = 0, s1 = 0, t0 = 0, t1 = 0;
-      vec4 color;
+      f32 s0 = 0, t0 = 0, s1 = 0, t1 = 0;
+      vec4 foreground_color;
+      vec4 background_color;
+      usize font = 0;
+      f32 end = 0;
     };
     stx::Vec<Glyph> glyphs{stx::os_allocator};
-    // stx::Vec<f32> extra_space{stx::os_allocator};
   };
 
   // Text API
@@ -596,12 +598,11 @@ struct Canvas {
   // layout, use callbacks to perform certain actions on layout calculation.
   //
   Canvas& draw_text(
-      stx::Span<std::pair<stx::Rc<Font*>, stx::Rc<FontAtlas*>> const> fonts,
-      Paragraph const& paragraph, vec2 position, f32 max_width = stx::f32_max) {
+      // TODO(lamarrr): give this a separate struct and a solid meaningful name
+      stx::Span<CachedFont const> fonts, Paragraph const& paragraph,
+      vec2 position, f32 max_width = stx::f32_max) {
     constexpr u32 SPACE = ' ';
     constexpr u32 TAB = '\t';
-    constexpr u32 NEWLINE = '\n';
-    constexpr u32 RETURN = '\r';
 
     // TODO(lamarrr): CONSIDER: canvas.clip_rect do not render beyond clip
     // rect apply transform to coordinates to see if any of the coordinates
@@ -611,47 +612,24 @@ struct Canvas {
     // TODO-future(lamarrr): add bidi
 
     // TODO(lamarrr): handle alignment based on language and ltr or rtl
-    // TODO(lamarrr): make all runs reference this
-
-    /*  stx::Vec<TextRun> runs{stx::os_allocator};
-      runs.extend(paragraph.runs).unwrap();
-
-      {
-        usize rtl_run_start = 0;
-        TextDirection previous_direction = TextDirection::LeftToRight;
-
-        for (usize i = 0; i < runs.size(); i++) {
-          TextDirection curr_direction = runs[i].direction;
-          if (previous_direction == TextDirection::LeftToRight &&
-              curr_direction == TextDirection::RightToLeft) {
-            rtl_run_start = i;
-          } else if ((previous_direction == TextDirection::RightToLeft ||
-                      i == runs.size() - 1) &&
-                     curr_direction == TextDirection::LeftToRight) {
-            std::reverse(runs.data() + rtl_run_start, runs.data() + 1 + 1);
-          }
-          previous_direction = curr_direction;
-        }
-      }
-      */
-
     vec2 cursor;
 
-    usize text_index = 0;
-
-    TextRow rows;
+    stx::Vec<_TextLine> lines{stx::os_allocator};
+    lines.push(_TextLine{}).unwrap();
 
     for (usize run_index = 0; run_index < paragraph.runs.size();) {
       TextDirection run_pack_direction = paragraph.runs[run_index].direction;
       TextDirection previous_run_direction = run_pack_direction;
       usize next_run_index = run_index + 1;
-      for (; next_run_index < paragraph.runs.size(); next_run_index++) {
-        TextDirection curr_direction = paragraph.runs[next_run_index].direction;
 
-        if (curr_direction != previous_run_direction) {
+      for (; next_run_index < paragraph.runs.size(); next_run_index++) {
+        TextDirection current_run_direction =
+            paragraph.runs[next_run_index].direction;
+
+        if (current_run_direction != previous_run_direction) {
           break;
         }
-        previous_run_direction = curr_direction;
+        previous_run_direction = current_run_direction;
       }
 
       for (usize i = 0; i < next_run_index - run_index; i++) {
@@ -667,8 +645,8 @@ struct Canvas {
             {Font::CONTEXTUAL_LIGATURE_FEATURE, run.style.use_ligatures, 0,
              std::numeric_limits<unsigned int>::max()}};
 
-        Font& font = *fonts[run.font].first.handle;
-        FontAtlas& cache = *fonts[run.font].second.handle;
+        Font const& font = *fonts[run.font].font.handle;
+        FontAtlas const& cache = fonts[run.font].atlas;
 
         f32 font_scale = AS_F32(run.style.font_height) / cache.font_height;
         f32 font_height = run.style.font_height;
@@ -678,135 +656,172 @@ struct Canvas {
         f32 letter_spacing = run.style.letter_spacing;
         f32 word_spacing = run.style.word_spacing;
 
-        vec4 color{run.style.foreground_color.r / 255.0f,
-                   run.style.foreground_color.g / 255.0f,
-                   run.style.foreground_color.b / 255.0f,
-                   run.style.foreground_color.a / 255.0f};
+        vec4 foreground_color = run.style.foreground_color.as_vec();
+        vec4 background_color = run.style.background_color.as_vec();
 
-        char const* word_start = run.text.data();
-        char const* word_end = word_start;
-        char const* iter = word_start;
-        f32 word_width = 0;
+        char const* iter = run.text.begin();
 
-        for (; word_end < run.text.end();) {
-          u32 num_spaces = 0;
-          bool ;
+        // for each word
+        for (; iter < run.text.end();) {
+          char const* word_start = iter;
+          char const* word_end = iter;
 
-          for (; word_end < run.text.end();) {
-            u32 codepoint = stx::utf8_next(word_end);
+          f32 word_width = 0;
+          u32 nspaces = 0;
+
+          // get characters for word
+          for (; iter < run.text.end();) {
+            u32 codepoint = stx::utf8_next(iter);
             if (codepoint == SPACE) {
-              num_spaces = 1;
+              nspaces = 1;
               break;
             } else if (codepoint == TAB) {
-              num_spaces = run.style.tab_size;
+              nspaces = run.style.tab_size;
               break;
             }
           }
 
-          // TODO(lamarrr): remove this switch and actually count the number of
-          // spaces
-          switch (AS_U32(*word_start)) {
-            // TODO(lamarrr):incorrect, remove this switch, the spacing is
-            // already calculated and no space or tab enters a word branch
-            case TAB:
-            case SPACE: {
-              cursor.x += word_spacing * num_spaces;
-            } break;
-            default: {
-              hb_font_set_scale(font.hbfont, 64 * cache.font_height,
-                                64 * cache.font_height);
+          word_end = iter;
 
-              hb_buffer_reset(font.hbscratch_buffer);
-              hb_buffer_set_script(font.hbscratch_buffer, run.script);
-              if (run.direction == TextDirection::LeftToRight) {
-                hb_buffer_set_direction(font.hbscratch_buffer,
-                                        HB_DIRECTION_LTR);
-              } else {
-                hb_buffer_set_direction(font.hbscratch_buffer,
-                                        HB_DIRECTION_RTL);
-              }
-              hb_buffer_set_language(font.hbscratch_buffer, run.language);
-              hb_buffer_add_utf8(font.hbscratch_buffer, word_start,
-                                 static_cast<int>(word_end - word_start), 0,
-                                 static_cast<int>(word_end - word_start));
+          std::cout << "WORD BEGIN" << std::endl;
+          for (char const* i = word_start; i < word_end; i++) {
+            std::cout << *i;
+          }
+          std::cout << std::endl;
+          std::cout << "WORD END" << std::endl;
 
-              hb_shape(font.hbfont, font.hbscratch_buffer, features,
-                       static_cast<unsigned int>(std::size(features)));
+          // count number of spaces
+          char const* space_iter = iter;
 
-              unsigned int nglyphs;
-              hb_glyph_info_t* glyph_info =
-                  hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
-
-              for (usize i = 0; i < nglyphs; i++) {
-                u32 glyph_index = glyph_info[i].codepoint;
-                stx::Span glyph = cache.get(glyph_index);
-
-                if (!glyph.is_empty()) {
-                  word_width +=
-                      glyph[0].advance.x * font_scale + letter_spacing;
-                } else {
-                  word_width += font_height + letter_spacing;
-                }
-              }
-
-              if (cursor.x + word_width > max_width) {
-                cursor.x = 0;
-                cursor.y += line_height;
-              }
-
-              // rows.push({
-              //
-              // });
-
-              cursor.x += word_spacing * num_spaces;
-
-            } break;
+          for (; space_iter < run.text.end();) {
+            iter = space_iter;
+            u32 codepoint = stx::utf8_next(space_iter);
+            if (codepoint == SPACE) {
+              nspaces += 1;
+            } else if (codepoint == TAB) {
+              nspaces += run.style.tab_size;
+            } else {
+              break;
+            }
           }
 
-          word_start = word_end;
-        }
+          std::cout << "Num Spaces:" << nspaces << std::endl;
 
-        row.elements.push({});
+          hb_font_set_scale(font.hbfont, 64 * cache.font_height,
+                            64 * cache.font_height);
+
+          hb_buffer_reset(font.hbscratch_buffer);
+          hb_buffer_set_script(font.hbscratch_buffer, run.script);
+          if (run.direction == TextDirection::LeftToRight) {
+            hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_LTR);
+          } else {
+            hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_RTL);
+          }
+          hb_buffer_set_language(font.hbscratch_buffer, run.language);
+          hb_buffer_add_utf8(font.hbscratch_buffer, word_start,
+                             static_cast<int>(word_end - word_start), 0,
+                             static_cast<int>(word_end - word_start));
+
+          hb_shape(font.hbfont, font.hbscratch_buffer, features,
+                   static_cast<unsigned int>(std::size(features)));
+
+          unsigned int nglyphs;
+          hb_glyph_info_t* glyph_info =
+              hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
+
+          for (usize i = 0; i < nglyphs; i++) {
+            u32 glyph_index = glyph_info[i].codepoint;
+            stx::Span glyph = cache.get(glyph_index);
+
+            if (!glyph.is_empty()) {
+              word_width += glyph[0].advance.x * font_scale;
+            } else {
+              word_width += cache.glyphs[0].advance.x * font_scale;
+            }
+          }
+
+          fmt::print(
+              "cursor.x:{}, word_width: {}, max_width: {}, word_end: {}\n",
+              cursor.x, word_width, max_width, cursor.x + word_width);
+          if (cursor.x + word_width > max_width) {
+            // new line
+            std::cout << "moved to new line" << std::endl;
+            lines.push(_TextLine{}).unwrap();
+            cursor.x = 0;
+            cursor.y += line_height;
+          }
+
+          for (usize i = 0; i < nglyphs; i++) {
+            u32 glyph_index = glyph_info[i].codepoint;
+            stx::Span glyph = cache.get(glyph_index);
+            glyph = glyph.is_empty() ? cache.glyphs.span().slice(0, 1) : glyph;
+
+            Glyph const& g = glyph[0];
+
+            vec2 pos = g.pos * font_scale;
+
+            vec2 p1{position.x + cursor.x + pos.x,
+                    position.y + cursor.y + pos.y + vertical_line_padding};
+            vec2 p2{p1.x + g.extent.width * font_scale, p1.y};
+            vec2 p3{p2.x, p2.y + g.extent.height * font_scale};
+            vec2 p4{p1.x, p3.y};
+
+            lines[lines.size() - 1]
+                .glyphs
+                .push(_TextLine::Glyph{p1, p2, p3, p4, g.s0, g.t0, g.s1, g.t1,
+                                       foreground_color, background_color,
+                                       run.font,
+                                       cursor.x + g.advance.x * font_scale})
+                .unwrap();
+
+            cursor.x += g.advance.x * font_scale;
+          }
+
+          // TODO(lamarrr): if newline omit the space
+          cursor.x += word_spacing * nspaces;
+        }
       }
 
       run_index = next_run_index;
     }
 
-    for (usize index = 0; index < paragraph.runs.size(); index++) {
-      // TODO(lamarrr): perform this until we finish the run
-      /* char const* iter = text.data();
+    for (_TextLine const& line : lines) {
+      if (line.glyphs.is_empty()) continue;
 
-       u32 last_codepoint = 0;
-       for (; iter < text.data() + text.size();) {
-         last_codepoint = stx::utf8_next(iter);
-         if (last_codepoint == SPACE || last_codepoint == TAB) {
-           break;
-         }
-       }
+      // TODO(lamarrr): this should use the word_width plus?? cursor.x
+      f32 line_width = line.glyphs[line.glyphs.size() - 1].end;
+      f32 padding_space =
+          max_width >= line_width ? (max_width - line_width) : 0;
+      vec2 inc;
 
-       usize word_size = iter - text.data();
- */
+      switch (paragraph.align) {
+        case TextAlign::Left: {
+        } break;
+        case TextAlign::Right: {
+          inc.x = padding_space;
+        } break;
+        case TextAlign::Center: {
+          inc.x = padding_space / 2;
+        } break;
+        default: {
+        } break;
+      }
+      fmt::print("line width: {}, max_width: {}\n", line_width, max_width);
+      std::cout << "wasted space: " << inc.x << ", " << inc.y << std::endl;
 
-      for (usize i = 0; i < nglyphs; i++) {
-        u32 glyph_index = glyph_info[i].codepoint;
-        stx::Span glyph = cache.get(glyph_index);
-        glyph = glyph.is_empty() ? cache.glyphs.span().slice(0, 1) : glyph;
-
-        Glyph const& g = glyph[0];
-
-        vec2 pos = g.pos * font_scale;
-
-        vec2 p1{position.x + cursor.x + pos.x,
-                position.y + cursor.y + pos.y + vertical_line_padding};
-        vec2 p2{p1.x + g.extent.width * font_scale, p1.y};
-        vec2 p3{p2.x, p2.y + g.extent.height * font_scale};
-        vec2 p4{p1.x, p3.y};
-
-        vertex vertices[] = {
-            {.position = p1, .st = {g.s0, g.t0}, .color = color},
-            {.position = p2, .st = {g.s1, g.t0}, .color = color},
-            {.position = p3, .st = {g.s1, g.t1}, .color = color},
-            {.position = p4, .st = {g.s0, g.t1}, .color = color}};
+      for (_TextLine::Glyph const& g : line.glyphs) {
+        vertex vertices[] = {{.position = g.p1 + inc,
+                              .st = {g.s0, g.t0},
+                              .color = g.foreground_color},
+                             {.position = g.p2 + inc,
+                              .st = {g.s1, g.t0},
+                              .color = g.foreground_color},
+                             {.position = g.p3 + inc,
+                              .st = {g.s1, g.t1},
+                              .color = g.foreground_color},
+                             {.position = g.p4 + inc,
+                              .st = {g.s0, g.t1},
+                              .color = g.foreground_color}};
 
         for (vertex& vertex : vertices) {
           vertex.position =
@@ -829,10 +844,8 @@ struct Canvas {
                               .nindices = 6,
                               .clip_rect = clip_rect,
                               .transform = transform,
-                              .texture = cache.atlas.share()})
+                              .texture = fonts[g.font].atlas.atlas.share()})
             .unwrap();
-
-        cursor.x += font_scale * g.advance.x;
       }
     }
 

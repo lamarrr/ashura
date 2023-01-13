@@ -61,8 +61,8 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
   return stx::None;
 }
 
-stx::Rc<Font*>* font;
-FontAtlas* atlas;
+CachedFont* font;
+
 Engine::Engine(AppConfig const& cfg) {
   stx::Vec<char const*> required_device_extensions{stx::os_allocator};
 
@@ -175,7 +175,6 @@ Engine::Engine(AppConfig const& cfg) {
                                  .unwrap());
 
   canvas_context.value().handle->ctx.on_swapchain_changed(
-
       window.value().handle->surface_.value().handle->swapchain.value());
 
   window.value().handle->on(
@@ -192,13 +191,11 @@ Engine::Engine(AppConfig const& cfg) {
   auto transparent_image = canvas_context.value().handle->ctx.upload_image(
       {1, 1}, 4, transparent_image_data);
 
-  font = new stx::Rc<Font*>{
+  font = new CachedFont{cache_font(
       load_font_from_file(
           R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\RobotoMono-Regular.ttf)"_str)
-          .unwrap()};
-
-  atlas = new FontAtlas{
-      render_font(*font->handle, canvas_context.value().handle->ctx, 26)};
+          .unwrap(),
+      canvas_context.value().handle->ctx, 26)};
 
   // auto transparent_image = canvas_context.value().handle->ctx.upload_image(
   // extent{1920, 1080}, 4, sample_image);
@@ -275,16 +272,25 @@ void Engine::tick(std::chrono::nanoseconds interval) {
                 style, 500);
 */
     c.brush.fill = true;
-    c.brush.color = color::from_rgb(0xff, 0x46, 0x55);
+    c.brush.color = {};
+    color::from_rgb(0xff, 0x46, 0x55);
     c.draw_rect({{100, 500}, {300, 100}});
     c.brush.line_thickness = 2;
     c.brush.fill = false;
     c.brush.color = color::from_rgb(0xbd, 0xbc, 0xb7);
     c.draw_rect({{90, 490}, {320, 120}});
     c.brush.color = colors::WHITE;
-    c.draw_text(*font->handle, *atlas,
-                fmt::format("Examples Dear ImGui Demo.\n Starting in {}", d), {100, 500},
-                style, 300);
+    auto str = fmt::format("Examples Dear ImGui Demo.\n Starting in {}", d);
+    TextRun runs[] = {
+        {.text = str,
+         .font = 0,
+         .style = TextStyle{.font_height = 30,.foreground_color = colors::CYAN}},
+        {.text = str,
+         .font = 0,
+         .style = TextStyle{.font_height = 8,
+                            .foreground_color = colors::MAGENTA}}};
+    Paragraph paragraph{.runs = runs, .align = TextAlign::Right};
+    c.draw_text(stx::Span{font, 1}, paragraph, {100, 500}, 300);
     // TODO(lamarrr): scaling doesn't work properly
     // c.scale(0.5, 0.5);
     // c.rotate(0, 0, 90);

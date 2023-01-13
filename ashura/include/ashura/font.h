@@ -172,8 +172,8 @@ struct FontAtlas {
   }
 };
 
-inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
-                             u32 font_height) {
+inline FontAtlas render_atlas(Font const& font, vk::RecordingContext& ctx,
+                              u32 font_height) {
   /// *64 to convert font height to 26.6 pixel format
   ASR_CHECK(font_height > 0);
   ASR_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
@@ -515,11 +515,23 @@ inline FontAtlas render_font(Font& font, vk::RecordingContext& ctx,
               .unwrap())};
 }
 
+struct CachedFont {
+  stx::Rc<Font*> font;
+  FontAtlas atlas;
+};
+
+inline CachedFont cache_font(stx::Rc<Font*> font,
+                             asr::vk::RecordingContext& ctx, u32 font_height) {
+  FontAtlas atlas = render_atlas(*font.handle, ctx, font_height);
+  return CachedFont{.font = std::move(font), .atlas = std::move(atlas)};
+}
+
 /// A text run is a sequence of characters sharing a single property set. Any
 /// change to the format, such as font style, foreground color, font family, or
 /// any other formatting effect, breaks the text run.
 struct TextRun {
-  usize size = 0;
+  /// utf-8 text
+  stx::Span<char const> text;
   usize font = 0;
   TextStyle style;
   TextDirection direction = TextDirection::LeftToRight;
@@ -527,19 +539,12 @@ struct TextRun {
   hb_language_t language = hb_language_from_string("en", 2);
 };
 
-// TODO(lamarrr): we also need to separate by text direction script and language
-//
-// language
-// script
-//
 struct Paragraph {
-  /// utf-8 text
-  stx::Span<char const> text;
-  stx::Span<stx::Rc<Font*>> fonts;
   stx::Span<TextRun const> runs;
   TextAlign align = TextAlign::Left;
 };
 
+/*
 inline vec2 layout_text(Font& font, FontAtlas& cache, std::string_view text,
                         vec2 position, Paragraph const& paragraph,
                         f32 max_width = stx::f32_max) {
@@ -643,5 +648,6 @@ inline vec2 layout_text(Font& font, FontAtlas& cache, std::string_view text,
 
   return extent;
 }
+*/
 
 }  // namespace asr

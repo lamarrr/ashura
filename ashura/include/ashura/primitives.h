@@ -308,6 +308,11 @@ struct color {
   constexpr bool is_transparent() const { return a == 0; }
 
   constexpr bool is_visible() const { return !is_transparent(); }
+
+  constexpr vec4 as_vec() const {
+    return vec4{
+        .x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
+  }
 };
 
 constexpr bool operator==(color a, color b) {
