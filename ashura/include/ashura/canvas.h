@@ -262,6 +262,9 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
 /// TODO(lamarrr): implement culling
 ///
 ///
+/// TODO(lamarrr): consider just using IDs for textures, this just architects,
+/// it doesn't really need the texture
+///
 struct Canvas {
   vec2 viewport_extent;
   Brush brush;
@@ -581,16 +584,26 @@ struct Canvas {
                               nsegments);
   }
 
-  struct _TextLine {
-    struct Glyph {
-      vec2 p1, p2, p3, p4;
-      f32 s0 = 0, t0 = 0, s1 = 0, t1 = 0;
-      vec4 foreground_color;
-      vec4 background_color;
-      usize font = 0;
-      f32 end = 0;
-    };
-    stx::Vec<Glyph> glyphs{stx::os_allocator};
+  struct TextLineGlyph {
+    // glyph index
+    u32 glyph = 0;
+    // run of the glyph
+    usize run = 0;
+    // x position of the glyph on the line
+    // f32 pos = 0;
+    // end x position of the glyph
+    // f32 end = 0;
+  };
+
+  struct TextLineWord {
+    usize glyph_count = 0;
+    // right spacing
+    f32 spacing = 0;
+  };
+
+  struct TextLine {
+    stx::Vec<TextLineGlyph> glyphs{stx::os_allocator};
+    stx::Vec<TextLineWord> words{stx::os_allocator};
   };
 
   // Text API
@@ -599,7 +612,7 @@ struct Canvas {
   //
   Canvas& draw_text(stx::Span<CachedFont const> fonts,
                     Paragraph const& paragraph, vec2 position,
-                    f32 max_width = stx::f32_max) {
+                    f32 max_line_width = stx::f32_max) {
     constexpr u32 SPACE = ' ';
     constexpr u32 TAB = '\t';
 
@@ -610,14 +623,12 @@ struct Canvas {
 
     // TODO-future(lamarrr): add bidi
 
-    // TODO(lamarrr): handle alignment based on language and ltr or rtl
-    vec2 cursor;
-    // TODO(lamarrr): use for determining next cursor row position
-    // f32 max_line_height = 0;
+    f32 line_width = 0;
 
-    stx::Vec<_TextLine> lines{stx::os_allocator};
-    lines.push(_TextLine{}).unwrap();
+    stx::Vec<TextLine> lines{stx::os_allocator};
+    lines.push(TextLine{}).unwrap();
 
+    // TODO(lamarrr): what if the text starts with space?
     for (usize run_index = 0; run_index < paragraph.runs.size();) {
       TextDirection run_pack_direction = paragraph.runs[run_index].direction;
       TextDirection previous_run_direction = run_pack_direction;
@@ -649,16 +660,9 @@ struct Canvas {
         Font const& font = *fonts[run.font].font.handle;
         FontAtlas const& cache = fonts[run.font].atlas;
 
-        f32 font_scale = AS_F32(run.style.font_height) / cache.font_height;
-        f32 font_height = run.style.font_height;
-        f32 line_height = run.style.line_height * font_height;
-        f32 vertical_line_space = line_height - font_height;
-        f32 vertical_line_padding = vertical_line_space / 2;
-        f32 letter_spacing = run.style.letter_spacing;
-        f32 word_spacing = run.style.word_spacing;
-
-        vec4 foreground_color = run.style.foreground_color.as_vec();
-        vec4 background_color = run.style.background_color.as_vec();
+        f32 run_font_scale = run.style.font_height / cache.font_height;
+        f32 run_word_spacing = run.style.word_spacing;
+        f32 run_letter_spacing = run.style.letter_spacing;
 
         char const* iter = run.text.begin();
 
@@ -668,7 +672,7 @@ struct Canvas {
           char const* word_end = iter;
 
           f32 word_width = 0;
-          u32 nspaces = 0;
+          usize nspaces = 0;
 
           // get characters for word
           for (; iter < run.text.end();) {
@@ -685,9 +689,7 @@ struct Canvas {
           word_end = iter;
 
           // count number of spaces
-          char const* space_iter = iter;
-
-          for (; space_iter < run.text.end();) {
+          for (char const* space_iter = iter; space_iter < run.text.end();) {
             iter = space_iter;
             u32 codepoint = stx::utf8_next(space_iter);
             if (codepoint == SPACE) {
@@ -726,119 +728,181 @@ struct Canvas {
             stx::Span glyph = cache.get(glyph_index);
 
             if (!glyph.is_empty()) {
-              word_width += glyph[0].advance.x * font_scale;
+              word_width += glyph[0].advance.x * run_font_scale;
             } else {
-              word_width += cache.glyphs[0].advance.x * font_scale;
+              word_width += cache.glyphs[0].advance.x * run_font_scale;
             }
           }
 
-          if (cursor.x + word_width > max_width) {
+          if (line_width + word_width + run_word_spacing * nspaces >
+              max_line_width) {
             // new line
-            lines.push(_TextLine{}).unwrap();
-            cursor.x = 0;
-            cursor.y += line_height;
+            lines.push(TextLine{}).unwrap();
+            line_width = 0;
           }
 
           for (usize i = 0; i < nglyphs; i++) {
-            // TODO(lamarrr): gather cursor x position and line
-            // height/font_height only so we can align texts along the overall
-            // baseline
             u32 glyph_index = glyph_info[i].codepoint;
             stx::Span glyph = cache.get(glyph_index);
+
+f32 end 
+            if(!glyph.is_empty()){
             glyph = glyph.is_empty() ? cache.glyphs.span().slice(0, 1) : glyph;
-
-            Glyph const& g = glyph[0];
-
-            vec2 pos = g.pos * font_scale;
-
-            vec2 p1{position.x + cursor.x + pos.x,
-                    position.y + cursor.y + pos.y + vertical_line_padding};
-            vec2 p2{p1.x + g.extent.width * font_scale, p1.y};
-            vec2 p3{p2.x, p2.y + g.extent.height * font_scale};
-            vec2 p4{p1.x, p3.y};
+            } else {
+            f32 end = line_width + glyph[0].advance.x * run_font_scale +
+                      run_letter_spacing;
+            }
 
             lines[lines.size() - 1]
                 .glyphs
-                .push(_TextLine::Glyph{p1, p2, p3, p4, g.s0, g.t0, g.s1, g.t1,
-                                       foreground_color, background_color,
-                                       run.font,
-                                       cursor.x + g.advance.x * font_scale})
+                .push(TextLineGlyph{
+                    .glyph = glyph_index, .run = run_index  // , .end = end
+                })
                 .unwrap();
 
-            cursor.x += g.advance.x * font_scale;
+            line_width = end;
           }
 
-          // TODO(lamarrr): if newline omit the space
-          cursor.x += word_spacing * nspaces;
+          line_width += run_word_spacing * nspaces;
 
-          // TODO(lamarrr): add cursor pos so we can shift the run to the
-          // baseline in case its size is smaller than the rest of the other
-          // runs
+          lines[lines.size() - 1]
+              .words
+              .push(TextLineWord{.glyph_count = nglyphs,
+                                 .spacing = run_word_spacing * nspaces})
+              .unwrap();
         }
       }
 
       run_index = next_run_index;
     }
 
-    for (_TextLine const& line : lines) {
-      if (line.glyphs.is_empty()) continue;
+    // cursor points to the top of the line
+    f32 cursor_y;
 
-      f32 line_width = line.glyphs[line.glyphs.size() - 1].end;
-      f32 padding_space =
-          max_width >= line_width ? (max_width - line_width) : 0;
-      vec2 increment;
+    for (TextLine const& line : lines) {
+      if (line.glyphs.is_empty() || line.words.is_empty()) continue;
 
-      switch (paragraph.align) {
-        case TextAlign::Left: {
-        } break;
-        case TextAlign::Right: {
-          increment.x = padding_space;
-        } break;
-        case TextAlign::Center: {
-          increment.x = padding_space / 2;
-        } break;
-        default: {
-        } break;
+      f32 line_height = 0;
+      f32 cursor_x = 0;
+
+      for (TextLineGlyph const& glyph : line.glyphs) {
+        TextStyle const& style = paragraph.runs[glyph.run].style;
+        line_height =
+            std::max(line_height, style.line_height * style.font_height);
       }
 
-      for (_TextLine::Glyph const& g : line.glyphs) {
-        vertex vertices[] = {{.position = g.p1 + increment,
-                              .st = {g.s0, g.t0},
-                              .color = g.foreground_color},
-                             {.position = g.p2 + increment,
-                              .st = {g.s1, g.t0},
-                              .color = g.foreground_color},
-                             {.position = g.p3 + increment,
-                              .st = {g.s1, g.t1},
-                              .color = g.foreground_color},
-                             {.position = g.p4 + increment,
-                              .st = {g.s0, g.t1},
-                              .color = g.foreground_color}};
+      // TODO(lamarrr): if right to left alignment add spacing before
+      // placement
+      if (paragraph.align == TextAlign::Right ||
+          paragraph.align == TextAlign::Center) {
+        usize word_index = 0;
+        f32 line_width = 0;
+        for (TextLineWord const& word : line.words) {
+          for (TextLineGlyph const& glyph :
+               line.glyphs.span().slice(word_index, word.glyph_count)) {
+            TextRun const& run = paragraph.runs[glyph.run];
+            f32 font_scale =
+                run.style.font_height / fonts[run.font].atlas.font_height;
+            stx::Span render_glyph = fonts[run.font].atlas.get(glyph.glyph);
 
-        for (vertex& vertex : vertices) {
-          vertex.position =
-              normalize_for_viewport(vertex.position, viewport_extent);
+            if (!render_glyph.is_empty()) {
+              line_width += render_glyph[0].advance.x * font_scale;
+            } else {
+              line_width +=
+                  fonts[run.font].atlas.glyphs[0].advance.x * font_scale;
+            }
+          }
+
+          line_width += (&word == line.words.end() - 1) ? 0 : word.spacing;
+
+          word_index += word.glyph_count;
         }
 
-        u32 indices_offset = AS_U32(draw_list.indices.size());
-
-        u32 vertices_offset = AS_U32(draw_list.vertices.size());
-
-        u32 indices[] = {vertices_offset,     vertices_offset + 1,
-                         vertices_offset + 2, vertices_offset,
-                         vertices_offset + 2, vertices_offset + 3};
-
-        draw_list.indices.extend(indices).unwrap();
-        draw_list.vertices.extend(vertices).unwrap();
-
-        draw_list.cmds
-            .push(DrawCommand{.indices_offset = indices_offset,
-                              .nindices = 6,
-                              .clip_rect = clip_rect,
-                              .transform = transform,
-                              .texture = fonts[g.font].atlas.atlas.share()})
-            .unwrap();
+        if (paragraph.align == TextAlign::Right) {
+          cursor_x =
+              max_line_width >= line_width ? (max_line_width - line_width) : 0;
+        } else {
+          cursor_x = max_line_width >= line_width
+                         ? (max_line_width - line_width) / 2
+                         : 0;
+        }
       }
+
+      usize word_index = 0;
+      for (TextLineWord const& word : line.words) {
+        for (TextLineGlyph const& glyph :
+             line.glyphs.span().slice(word_index, word.glyph_count)) {
+          TextRun const& run = paragraph.runs[glyph.run];
+          // TODO(lamarrr): we need to highlight
+          // spaces as well
+          f32 run_font_height = run.style.font_height;
+          f32 run_line_height = run.style.line_height * run_font_height;
+          // f32 vertical_line_space = line_height - font_height;
+          // f32 vertical_line_padding = vertical_line_space / 2;
+          // f32 letter_spacing = run.style.letter_spacing;
+
+          // TODO(lamarrr): align texts along the overall
+          // baseline
+          /*vec2 pos = g.pos * font_scale;
+
+          vec2 p1{position.x + cursor.x + pos.x,
+                  position.y + cursor.y + pos.y + vertical_line_padding};
+          vec2 p2{p1.x + g.extent.width * font_scale, p1.y};
+          vec2 p3{p2.x, p2.y + g.extent.height * font_scale};
+          vec2 p4{p1.x, p3.y};
+
+          p1, p2, p3, p4, g.s0, g.t0, g.s1, g.t1,
+                                    foreground_color, background_color,
+                                    run.font,
+                                    cursor.x + g.advance.x * font_scale
+          */
+
+          if (run.style.background_color.is_visible()) {
+            vec4 bg = run.style.background_color.as_vec();
+
+            vertex vertices[] = {{.position = p1, .st = {s0, t0}, .color = bg},
+                                 {.position = p2, .st = {s1, t0}, .color = bg},
+                                 {.position = p3, .st = {s1, t1}, .color = bg},
+                                 {.position = p4, .st = {s0, t1}, .color = bg}};
+          }
+
+          vec4 fg = run.style.foreground_color.as_vec();
+
+          vertex vertices[] = {{.position = p1, .st = {s0, t0}, .color = fg},
+                               {.position = p2, .st = {s1, t0}, .color = fg},
+                               {.position = p3, .st = {s1, t1}, .color = fg},
+                               {.position = p4, .st = {s0, t1}, .color = fg}};
+
+          for (vertex& vertex : vertices) {
+            vertex.position =
+                normalize_for_viewport(vertex.position, viewport_extent);
+          }
+
+          u32 indices_offset = AS_U32(draw_list.indices.size());
+
+          u32 vertices_offset = AS_U32(draw_list.vertices.size());
+
+          u32 indices[] = {vertices_offset,     vertices_offset + 1,
+                           vertices_offset + 2, vertices_offset,
+                           vertices_offset + 2, vertices_offset + 3};
+
+          draw_list.indices.extend(indices).unwrap();
+          draw_list.vertices.extend(vertices).unwrap();
+
+          draw_list.cmds
+              .push(DrawCommand{.indices_offset = indices_offset,
+                                .nindices = 6,
+                                .clip_rect = clip_rect,
+                                .transform = transform,
+                                .texture = fonts[run.font].atlas.atlas.share()})
+              .unwrap();
+        }
+
+        word_index += word.glyph_count;
+      }
+
+      cursor.x = 0;
+      cursor.y += line_height;
     }
 
     return *this;
