@@ -144,8 +144,10 @@ struct Glyph {
   asr::offset offset;
   /// extent of the glyph in the atlas
   extent extent;
-  /// defines offset from cursor position the glyph will be placed
-  vec2 pos;
+  /// defines x-offset from cursor position the glyph will be placed
+  f32 x = 0;
+  /// defines ascent from baseline of the text
+  f32 ascent = 0;
   /// advancement of the cursor after drawing this glyph
   vec2 advance;
   /// texture coordinates of this glyph in the atlas
@@ -195,9 +197,6 @@ inline FontAtlas render_atlas(Font const& font, vk::RecordingContext& ctx,
         u32 width = font.ftface->glyph->bitmap.width;
         u32 height = font.ftface->glyph->bitmap.rows;
 
-        vec2 pos{AS_F32(font.ftface->glyph->bitmap_left),
-                 AS_F32(font_height - font.ftface->glyph->bitmap_top)};
-
         // convert from 26.6 pixel format
         vec2 advance{font.ftface->glyph->advance.x / 64.0f,
                      font.ftface->glyph->advance.y / 64.0f};
@@ -208,7 +207,8 @@ inline FontAtlas render_atlas(Font const& font, vk::RecordingContext& ctx,
                         .codepoint = codepoint,
                         .offset = {},
                         .extent = {width, height},
-                        .pos = pos,
+                        .x = AS_F32(font.ftface->glyph->bitmap_left),
+                        .ascent = AS_F32(font.ftface->glyph->bitmap_top),
                         .advance = advance,
                         .s0 = 0,
                         .t0 = 0,
@@ -299,8 +299,8 @@ inline FontAtlas render_atlas(Font const& font, vk::RecordingContext& ctx,
                         .codepoint = 0,
                         .offset = {},
                         .extent = {},
-                        .pos = {},
-                        .advance = {},
+                        .x = 0,
+                        .ascent = 0,
                         .s0 = 0,
                         .t0 = 0,
                         .s1 = 0,

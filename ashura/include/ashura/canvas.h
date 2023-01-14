@@ -597,10 +597,9 @@ struct Canvas {
   // TODO(lamarrr): we need separate layout pass so we can perform widget
   // layout, use callbacks to perform certain actions on layout calculation.
   //
-  Canvas& draw_text(
-      // TODO(lamarrr): give this a separate struct and a solid meaningful name
-      stx::Span<CachedFont const> fonts, Paragraph const& paragraph,
-      vec2 position, f32 max_width = stx::f32_max) {
+  Canvas& draw_text(stx::Span<CachedFont const> fonts,
+                    Paragraph const& paragraph, vec2 position,
+                    f32 max_width = stx::f32_max) {
     constexpr u32 SPACE = ' ';
     constexpr u32 TAB = '\t';
 
@@ -614,7 +613,7 @@ struct Canvas {
     // TODO(lamarrr): handle alignment based on language and ltr or rtl
     vec2 cursor;
     // TODO(lamarrr): use for determining next cursor row position
-    f32 max_line_height = 0;
+    // f32 max_line_height = 0;
 
     stx::Vec<_TextLine> lines{stx::os_allocator};
     lines.push(_TextLine{}).unwrap();
@@ -741,6 +740,9 @@ struct Canvas {
           }
 
           for (usize i = 0; i < nglyphs; i++) {
+            // TODO(lamarrr): gather cursor x position and line
+            // height/font_height only so we can align texts along the overall
+            // baseline
             u32 glyph_index = glyph_info[i].codepoint;
             stx::Span glyph = cache.get(glyph_index);
             glyph = glyph.is_empty() ? cache.glyphs.span().slice(0, 1) : glyph;
@@ -768,6 +770,10 @@ struct Canvas {
 
           // TODO(lamarrr): if newline omit the space
           cursor.x += word_spacing * nspaces;
+
+          // TODO(lamarrr): add cursor pos so we can shift the run to the
+          // baseline in case its size is smaller than the rest of the other
+          // runs
         }
       }
 
@@ -777,7 +783,6 @@ struct Canvas {
     for (_TextLine const& line : lines) {
       if (line.glyphs.is_empty()) continue;
 
-      // TODO(lamarrr): this should use the word_width plus?? cursor.x
       f32 line_width = line.glyphs[line.glyphs.size() - 1].end;
       f32 padding_space =
           max_width >= line_width ? (max_width - line_width) : 0;
