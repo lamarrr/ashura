@@ -20,8 +20,6 @@ namespace asr {
 
 namespace gfx {
 
-using image = u64;
-
 struct vertex {
   vec2 position;
   vec2 st;
@@ -262,21 +260,11 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
 /// coordinates are specified in top-left origin space with x pointing to the
 /// right and y pointing downwards.
 ///
-/// TODO(lamarrr): implement culling
 ///
+/// NOTE: the canvas doesn't manage the lifetime of the handed over resources or
+/// images enum class resource_type: u8{ image, buffer};
 ///
-/// TODO(lamarrr): consider just using IDs for textures, this just architects,
-/// it doesn't really need the texture
-///
-/// THIS MEANS WE NEED TO RECONSIDER HOW LIFETIME IS HANDED OVER TO THE CANVAS
-/// WHICH CAN MAKE IT A BIT TOUGH.
-///
-/// NOTE: the canvas doesn't manage the lifetime of the handed over resources
-/// enum class resource_type: u8{ image, buffer};
-///
-/// NOTE: resource image with index 0 must be a transparent white image
-/// struct resource{ resource_type type = resource_type::image; u64 id = 0;  };
-///
+// TODO(lamarrr): implement command culling
 struct Canvas {
   vec2 viewport_extent;
   Brush brush;
@@ -286,8 +274,6 @@ struct Canvas {
 
   rect clip_rect;
   stx::Vec<rect> clip_rect_stack{stx::os_allocator};
-
-  image transparent_image = 0;
 
   DrawList draw_list;
 
@@ -596,6 +582,7 @@ struct Canvas {
   // TODO(lamarrr): we need separate layout pass so we can perform widget
   // layout, use callbacks to perform certain actions on layout calculation.
   //
+  // TODO(lamarrr): [future] add bidi
   Canvas& draw_text(stx::Span<CachedFont const> fonts,
                     Paragraph const& paragraph, vec2 position,
                     f32 max_line_width = stx::f32_max) {
@@ -607,8 +594,6 @@ struct Canvas {
     // rect apply transform to coordinates to see if any of the coordinates
     // fall inside it, if not discard certain parts of the text
     //
-
-    // TODO-future(lamarrr): add bidi
 
     stx::Vec<TextLine> lines{stx::os_allocator};
     lines.push(TextLine{}).unwrap();
@@ -657,7 +642,14 @@ struct Canvas {
           char const* word_end = iter;
 
           // TODO(lamarrr): this doesn't really work does it? how did we know
-          // the word width from here?
+          // the word width from here? especially with word_spacing taking
+          // place, we can try to actually check if it is a space and has word
+          // boundary, also, how does it work with spaces and how do spaces work
+          // with word_spacing
+          //
+          //
+          // NOTE!: NOt used-> word spacing is spaces
+          //
           f32 word_width = 0;
           usize nspaces = 0;
           bool is_line_break = false;
@@ -747,9 +739,7 @@ struct Canvas {
 
               lines[lines.size() - 1]
                   .glyphs
-                  .push(TextLineGlyph{
-                      .glyph = glyph_index, .run = run_index  // , .end = end
-                  })
+                  .push(TextLineGlyph{.glyph = glyph_index, .run = run_index})
                   .unwrap();
             }
 
@@ -760,7 +750,6 @@ struct Canvas {
                 .push(TextLineWord{.glyph_count = nglyphs,
                                    .spacing = run_word_spacing * nspaces})
                 .unwrap();
-
           } else {
             lines.push(TextLine{}).unwrap();
             line_width = 0;
@@ -787,8 +776,7 @@ struct Canvas {
       baseline += line_height;
 
       f32 cursor_x = 0;
-      // TODO(lamarrr): if right to left alignment add spacing before
-      // placement
+
       if (paragraph.align == TextAlign::Right ||
           paragraph.align == TextAlign::Center) {
         usize word_index = 0;
@@ -799,6 +787,7 @@ struct Canvas {
             TextRun const& run = paragraph.runs[glyph.run];
             f32 font_scale =
                 run.style.font_height / fonts[run.font].atlas.font_height;
+            f32 run_letter_spacing = run.style.letter_spacing;
             stx::Span render_glyph = fonts[run.font].atlas.get(glyph.glyph);
 
             if (!render_glyph.is_empty()) {
@@ -807,6 +796,8 @@ struct Canvas {
               line_width +=
                   fonts[run.font].atlas.glyphs[0].advance.x * font_scale;
             }
+
+            line_width += run_letter_spacing;
           }
 
           line_width += (&word == line.words.end() - 1) ? 0 : word.spacing;
@@ -816,58 +807,82 @@ struct Canvas {
 
         if (paragraph.align == TextAlign::Right) {
           cursor_x =
-              max_line_width >= line_width ? (max_line_width - line_width) : 0;
+              max_line_width > line_width ? (max_line_width - line_width) : 0;
         } else {
-          cursor_x = max_line_width >= line_width
+          cursor_x = max_line_width > line_width
                          ? (max_line_width - line_width) / 2
                          : 0;
         }
       }
 
-      usize word_index = 0;
+      usize line_glyph_index = 0;
       for (TextLineWord const& word : line.words) {
         for (TextLineGlyph const& glyph :
-             line.glyphs.span().slice(word_index, word.glyph_count)) {
+             line.glyphs.span().slice(line_glyph_index, word.glyph_count)) {
           TextRun const& run = paragraph.runs[glyph.run];
-          // TODO(lamarrr): we need to highlight
-          // spaces as well
-          f32 run_font_height = run.style.font_height;
-          f32 run_line_height = run.style.line_height * run_font_height;
-          // f32 vertical_line_space = line_height - font_height;
-          // f32 vertical_line_padding = vertical_line_space / 2;
-          // f32 letter_spacing = run.style.letter_spacing;
+          f32 font_scale =
+              run.style.font_height / fonts[run.font].atlas.font_height;
+          f32 run_letter_spacing = run.style.letter_spacing;
 
-          // TODO(lamarrr): align texts along the overall
-          // baseline
-          /*vec2 pos = g.pos * font_scale;
+          stx::Span render_glyph = fonts[run.font].atlas.get(glyph.glyph);
 
-          vec2 p1{position.x + cursor.x + pos.x,
-                  position.y + cursor.y + pos.y + vertical_line_padding};
-          vec2 p2{p1.x + g.extent.width * font_scale, p1.y};
-          vec2 p3{p2.x, p2.y + g.extent.height * font_scale};
-          vec2 p4{p1.x, p3.y};
+          if (render_glyph.is_empty()) {
+            render_glyph = fonts[run.font].atlas.glyphs.span().slice(0, 1);
+          }
 
-          p1, p2, p3, p4, g.s0, g.t0, g.s1, g.t1,
-                                    foreground_color, background_color,
-                                    run.font,
-                                    cursor.x + g.advance.x * font_scale
-          */
+          Glyph const& g = render_glyph[0];
 
           if (run.style.background_color.is_visible()) {
             vec4 bg = run.style.background_color.as_vec();
 
-            vertex vertices[] = {{.position = p1, .st = {s0, t0}, .color = bg},
-                                 {.position = p2, .st = {s1, t0}, .color = bg},
-                                 {.position = p3, .st = {s1, t1}, .color = bg},
-                                 {.position = p4, .st = {s0, t1}, .color = bg}};
+            vec2 p1{position.x + cursor_x,
+                    position.y + baseline - line_height};
+            vec2 p2{p1.x + g.advance.x * font_scale + run_letter_spacing, p1.y};
+            vec2 p3{p2.x, p2.y + line_height};
+            vec2 p4{p1.x, p3.y};
+
+            vertex vertices[] = {{.position = p1, .st = {}, .color = bg},
+                                 {.position = p2, .st = {}, .color = bg},
+                                 {.position = p3, .st = {}, .color = bg},
+                                 {.position = p4, .st = {}, .color = bg}};
+
+            for (vertex& vertex : vertices) {
+              vertex.position =
+                  normalize_for_viewport(vertex.position, viewport_extent);
+            }
+
+            u32 indices_offset = AS_U32(draw_list.indices.size());
+            u32 vertices_offset = AS_U32(draw_list.vertices.size());
+
+            u32 indices[] = {vertices_offset,     vertices_offset + 1,
+                             vertices_offset + 2, vertices_offset,
+                             vertices_offset + 2, vertices_offset + 3};
+
+            draw_list.indices.extend(indices).unwrap();
+            draw_list.vertices.extend(vertices).unwrap();
+
+            draw_list.cmds
+                .push(DrawCommand{.indices_offset = indices_offset,
+                                  .nindices = 6,
+                                  .clip_rect = clip_rect,
+                                  .transform = transform,
+                                  .texture = 0})
+                .unwrap();
           }
+
+          vec2 p1{position.x + cursor_x + g.x * font_scale,
+                  position.y + baseline - g.ascent * font_scale};
+          vec2 p2{p1.x + g.extent.width * font_scale, p1.y};
+          vec2 p3{p2.x, p2.y + g.extent.height * font_scale};
+          vec2 p4{p1.x, p3.y};
 
           vec4 fg = run.style.foreground_color.as_vec();
 
-          vertex vertices[] = {{.position = p1, .st = {s0, t0}, .color = fg},
-                               {.position = p2, .st = {s1, t0}, .color = fg},
-                               {.position = p3, .st = {s1, t1}, .color = fg},
-                               {.position = p4, .st = {s0, t1}, .color = fg}};
+          vertex vertices[] = {
+              {.position = p1, .st = {g.s0, g.t0}, .color = fg},
+              {.position = p2, .st = {g.s1, g.t0}, .color = fg},
+              {.position = p3, .st = {g.s1, g.t1}, .color = fg},
+              {.position = p4, .st = {g.s0, g.t1}, .color = fg}};
 
           for (vertex& vertex : vertices) {
             vertex.position =
@@ -875,7 +890,6 @@ struct Canvas {
           }
 
           u32 indices_offset = AS_U32(draw_list.indices.size());
-
           u32 vertices_offset = AS_U32(draw_list.vertices.size());
 
           u32 indices[] = {vertices_offset,     vertices_offset + 1,
@@ -890,22 +904,64 @@ struct Canvas {
                                 .nindices = 6,
                                 .clip_rect = clip_rect,
                                 .transform = transform,
-                                .texture = fonts[run.font].atlas.atlas.share()})
+                                .texture = fonts[run.font].atlas.atlas})
               .unwrap();
+
+          cursor_x += g.advance.x * font_scale + run_letter_spacing;
         }
 
         if (!(&word == line.words.end() - 1 &&
               (paragraph.align == TextAlign::Center ||
                paragraph.align == TextAlign::Right))) {
-          // TODO(lamarrr): chose color from word
-          // if background is visible draw spacing
+          TextRun const& run =
+              paragraph.runs
+                  [line.glyphs[line_glyph_index + word.glyph_count - 1].run];
+          color background_color = run.style.background_color;
+          if (background_color.is_visible()) {
+            vec4 bg = background_color.as_vec();
+
+            vec2 p1{position.x + cursor_x,
+                    position.y + baseline -
+                        line_height};
+            vec2 p2{p1.x + word.spacing, p1.y};
+            vec2 p3{p2.x, p2.y + line_height};
+            vec2 p4{p1.x, p3.y};
+
+            vertex vertices[] = {{.position = p1, .st = {}, .color = bg},
+                                 {.position = p2, .st = {}, .color = bg},
+                                 {.position = p3, .st = {}, .color = bg},
+                                 {.position = p4, .st = {}, .color = bg}};
+
+            for (vertex& vertex : vertices) {
+              vertex.position =
+                  normalize_for_viewport(vertex.position, viewport_extent);
+            }
+
+            u32 indices_offset = AS_U32(draw_list.indices.size());
+            u32 vertices_offset = AS_U32(draw_list.vertices.size());
+
+            u32 indices[] = {vertices_offset,     vertices_offset + 1,
+                             vertices_offset + 2, vertices_offset,
+                             vertices_offset + 2, vertices_offset + 3};
+
+            draw_list.indices.extend(indices).unwrap();
+            draw_list.vertices.extend(vertices).unwrap();
+
+            draw_list.cmds
+                .push(DrawCommand{.indices_offset = indices_offset,
+                                  .nindices = 6,
+                                  .clip_rect = clip_rect,
+                                  .transform = transform,
+                                  .texture = 0})
+                .unwrap();
+          }
+          cursor_x += word.spacing;
         }
 
-        word_index += word.glyph_count;
+        line_glyph_index += word.glyph_count;
       }
 
-      cursor.x = 0;
-      cursor.y += line_height;
+      cursor_x = 0;
     }
 
     return *this;

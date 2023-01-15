@@ -12,7 +12,7 @@
 #include "ashura/rect_pack.h"
 #include "ashura/vulkan.h"
 #include "freetype/freetype.h"
-#include "hb.h"
+#include "harfbuzz/hb.h"
 #include "stx/allocator.h"
 #include "stx/limits.h"
 #include "stx/span.h"
@@ -24,6 +24,7 @@
 #include "unicode/uscript.h"
 
 namespace asr {
+namespace gfx {
 
 enum class FontLoadError : u8 { InvalidPath };
 
@@ -51,11 +52,11 @@ struct TextStyle {
 };
 
 struct Font {
-  // kerning operations
+  /// kerning operations
   static constexpr hb_tag_t KERNING_FEATURE = HB_TAG('k', 'e', 'r', 'n');
-  // standard ligature substitution
+  /// standard ligature substitution
   static constexpr hb_tag_t LIGATURE_FEATURE = HB_TAG('l', 'i', 'g', 'a');
-  // contextual ligature substitution
+  /// contextual ligature substitution
   static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE =
       HB_TAG('c', 'l', 'i', 'g');
 
@@ -139,10 +140,10 @@ struct Glyph {
   bool is_valid = false;
   /// the glyph index
   u32 index = 0;
-  /// unicode codepoint
+  /// unicode codepoint this glyph represents
   u32 codepoint = 0;
   /// offset into the atlas its glyph resides
-  asr::offset offset;
+  offset offset;
   /// extent of the glyph in the atlas
   extent extent;
   /// defines x-offset from cursor position the glyph will be placed
@@ -156,18 +157,16 @@ struct Glyph {
 };
 
 /// stores codepoint glyphs for a font at a specific font height
-/// this is a single-column atlas
 struct FontAtlas {
-  /// indices begin from 1
   stx::Vec<Glyph> glyphs{stx::os_allocator};
   /// overall extent of the atlas
   extent extent;
   /// font height at which the cache/atlas/glyphs will be rendered and cached
   u32 font_height = 26;
-  /// atlas containing the glyphs
-  Image atlas;
+  /// atlas containing the packed glyphs
+  image atlas = 0;
 
-  stx::Span<Glyph> get(u32 glyph_index) const {
+  stx::Span<Glyph const> get(u32 glyph_index) const {
     if (glyph_index >= glyphs.size()) return {};
     stx::Span glyph = glyphs.span().slice(glyph_index, 1);
     if (glyph.is_empty()) return glyph;
@@ -175,6 +174,9 @@ struct FontAtlas {
   }
 };
 
+// stx::Fn
+// TODO(lamarrr): try to support colored fonts
+// TODO(lamarrr): this must always return an rgba colored atlas
 inline FontAtlas render_atlas(Font const& font, vk::RecordingContext& ctx,
                               u32 font_height) {
   /// *64 to convert font height to 26.6 pixel format
@@ -670,4 +672,5 @@ inline vec2 layout_text(Font& font, FontAtlas& cache, std::string_view text,
 }
 */
 
+}  // namespace gfx
 }  // namespace asr
