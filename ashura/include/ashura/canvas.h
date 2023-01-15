@@ -20,6 +20,8 @@ namespace asr {
 
 namespace gfx {
 
+u64 image = 0;
+
 struct vertex {
   vec2 position;
   vec2 st;
@@ -183,7 +185,7 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
 
   vec4 c = color.as_vec();
 
-  f32 hw = line_thickness / 2;
+  f32 half_line_thickness = line_thickness / 2;
 
   bool has_previous_line = false;
 
@@ -216,9 +218,10 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
     // line will be at a parallel angle
     alpha = AS_F32(alpha + M_PI / 2);
 
-    vec2 f = vec2{hw * std::cos(alpha), hw * std::sin(alpha)};
-    vec2 g = vec2{hw * std::cos(AS_F32(M_PI + alpha)),
-                  hw * std::sin(AS_F32(M_PI + alpha))};
+    vec2 f = vec2{half_line_thickness * std::cos(alpha),
+                  half_line_thickness * std::sin(alpha)};
+    vec2 g = vec2{half_line_thickness * std::cos(AS_F32(M_PI + alpha)),
+                  half_line_thickness * std::sin(AS_F32(M_PI + alpha))};
 
     vec2 s1 = p1 + f;
     vec2 s2 = p1 + g;
@@ -264,6 +267,15 @@ inline void triangulate_line(stx::Vec<vertex>& ivertices,
 ///
 /// TODO(lamarrr): consider just using IDs for textures, this just architects,
 /// it doesn't really need the texture
+///
+/// THIS MEANS WE NEED TO RECONSIDER HOW LIFETIME IS HANDED OVER TO THE CANVAS
+/// WHICH CAN MAKE IT A BIT TOUGH.
+///
+/// NOTE: the canvas doesn't manage the lifetime of the handed over resources
+/// enum class resource_type: u8{ image, buffer};
+///
+/// NOTE: resource image with index 0 must be a transparent white image
+/// struct resource{ resource_type type = resource_type::image; u64 id = 0;  };
 ///
 struct Canvas {
   vec2 viewport_extent;
@@ -593,9 +605,6 @@ struct Canvas {
                     f32 max_line_width = stx::f32_max) {
     // TODO(lamarrr): navigation hit-testing and caret
     /*
-
-
-
 https://unicode.org/reports/tr29/
 https://github.com/toptensoftware/RichTextKit/blob/main/Topten.RichTextKit/GraphemeClusterAlgorithm/GraphemeClusterAlgorithm.cs
 A grapheme cluster is a sequence of one or more Unicode code points that should
