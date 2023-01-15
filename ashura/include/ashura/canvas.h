@@ -584,28 +584,6 @@ struct Canvas {
                               nsegments);
   }
 
-  struct TextLineGlyph {
-    // glyph index
-    u32 glyph = 0;
-    // run of the glyph
-    usize run = 0;
-    // x position of the glyph on the line
-    // f32 pos = 0;
-    // end x position of the glyph
-    // f32 end = 0;
-  };
-
-  struct TextLineWord {
-    usize glyph_count = 0;
-    // right spacing
-    f32 spacing = 0;
-  };
-
-  struct TextLine {
-    stx::Vec<TextLineGlyph> glyphs{stx::os_allocator};
-    stx::Vec<TextLineWord> words{stx::os_allocator};
-  };
-
   // Text API
   // TODO(lamarrr): we need separate layout pass so we can perform widget
   // layout, use callbacks to perform certain actions on layout calculation.
@@ -613,9 +591,91 @@ struct Canvas {
   Canvas& draw_text(stx::Span<CachedFont const> fonts,
                     Paragraph const& paragraph, vec2 position,
                     f32 max_line_width = stx::f32_max) {
+    // TODO(lamarrr): navigation hit-testing and caret
+    /*
+
+
+
+https://unicode.org/reports/tr29/
+https://github.com/toptensoftware/RichTextKit/blob/main/Topten.RichTextKit/GraphemeClusterAlgorithm/GraphemeClusterAlgorithm.cs
+A grapheme cluster is a sequence of one or more Unicode code points that should
+be treated as a single unit by various processes: Text-editing software should
+generally allow placement of the cursor only at grapheme cluster boundaries.
+
+
+struct CaretPoint{Line, char}
+
+Navigation
+          /// <summary>
+/// No movement
+/// </summary>
+None,
+
+/// <summary>
+/// Move one character to the left
+/// </summary>
+CharacterLeft,
+
+/// <summary>
+/// Move one character to the right
+/// </summary>
+CharacterRight,
+
+/// <summary>
+/// Move up one line
+/// </summary>
+LineUp,
+
+/// <summary>
+/// Move down one line
+/// </summary>
+LineDown,
+
+/// <summary>
+/// Move left one word
+/// </summary>
+WordLeft,
+
+/// <summary>
+/// Move right one word
+/// </summary>
+WordRight,
+
+/// <summary>
+/// Move up one page
+/// </summary>
+PageUp,
+
+/// <summary>
+/// Move down one page
+/// </summary>
+PageDown,
+
+/// <summary>
+/// Move to the start of the line
+/// </summary>
+LineHome,
+
+/// <summary>
+/// Move to the end of the line
+/// </summary>
+LineEnd,
+
+/// <summary>
+/// Move to the top of the document
+/// </summary>
+DocumentHome,
+
+/// <summary>
+/// Move to the end of the document
+/// </summary>
+DocumentEnd,
+    */
     constexpr u32 SPACE = ' ';
     constexpr u32 TAB = '\t';
+    constexpr u32 NEWLINE = '\n';
 
+    // TODO(lamrrr): support newline and return breaking
     // TODO(lamarrr): CONSIDER: canvas.clip_rect do not render beyond clip
     // rect apply transform to coordinates to see if any of the coordinates
     // fall inside it, if not discard certain parts of the text
@@ -623,12 +683,10 @@ struct Canvas {
 
     // TODO-future(lamarrr): add bidi
 
-    f32 line_width = 0;
-
     stx::Vec<TextLine> lines{stx::os_allocator};
     lines.push(TextLine{}).unwrap();
 
-    // TODO(lamarrr): what if the text starts with space?
+    f32 line_width = 0;
     for (usize run_index = 0; run_index < paragraph.runs.size();) {
       TextDirection run_pack_direction = paragraph.runs[run_index].direction;
       TextDirection previous_run_direction = run_pack_direction;
@@ -671,8 +729,11 @@ struct Canvas {
           char const* word_start = iter;
           char const* word_end = iter;
 
+          // TODO(lamarrr): this doesn't really work does it? how did we know
+          // the word width from here?
           f32 word_width = 0;
           usize nspaces = 0;
+          bool is_line_break = false;
 
           // get characters for word
           for (; iter < run.text.end();) {
@@ -683,107 +744,112 @@ struct Canvas {
             } else if (codepoint == TAB) {
               nspaces = run.style.tab_size;
               break;
+            } else if (codepoint == NEWLINE) {
+              is_line_break = true;
+              break;
             }
           }
 
           word_end = iter;
 
-          // count number of spaces
-          for (char const* space_iter = iter; space_iter < run.text.end();) {
-            iter = space_iter;
-            u32 codepoint = stx::utf8_next(space_iter);
-            if (codepoint == SPACE) {
-              nspaces += 1;
-            } else if (codepoint == TAB) {
-              nspaces += run.style.tab_size;
-            } else {
-              break;
+          if (!is_line_break) {
+            // count number of spaces
+            for (char const* space_iter = iter; space_iter < run.text.end();) {
+              iter = space_iter;
+              u32 codepoint = stx::utf8_next(space_iter);
+              if (codepoint == SPACE) {
+                nspaces += 1;
+              } else if (codepoint == TAB) {
+                nspaces += run.style.tab_size;
+              } else {
+                break;
+              }
             }
-          }
 
-          hb_font_set_scale(font.hbfont, 64 * cache.font_height,
-                            64 * cache.font_height);
+            hb_font_set_scale(font.hbfont, 64 * cache.font_height,
+                              64 * cache.font_height);
 
-          hb_buffer_reset(font.hbscratch_buffer);
-          hb_buffer_set_script(font.hbscratch_buffer, run.script);
-          if (run.direction == TextDirection::LeftToRight) {
-            hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_LTR);
+            hb_buffer_reset(font.hbscratch_buffer);
+            hb_buffer_set_script(font.hbscratch_buffer, run.script);
+            if (run.direction == TextDirection::LeftToRight) {
+              hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_LTR);
+            } else {
+              hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_RTL);
+            }
+            hb_buffer_set_language(font.hbscratch_buffer, run.language);
+            hb_buffer_add_utf8(font.hbscratch_buffer, word_start,
+                               static_cast<int>(word_end - word_start), 0,
+                               static_cast<int>(word_end - word_start));
+
+            hb_shape(font.hbfont, font.hbscratch_buffer, features,
+                     static_cast<unsigned int>(std::size(features)));
+
+            unsigned int nglyphs;
+            hb_glyph_info_t* glyph_info =
+                hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
+
+            for (usize i = 0; i < nglyphs; i++) {
+              u32 glyph_index = glyph_info[i].codepoint;
+              stx::Span glyph = cache.get(glyph_index);
+
+              if (!glyph.is_empty()) {
+                word_width += glyph[0].advance.x * run_font_scale;
+              } else {
+                word_width += cache.glyphs[0].advance.x * run_font_scale;
+              }
+            }
+
+            if (line_width + word_width + run_word_spacing * nspaces >
+                max_line_width) {
+              // new line
+              lines.push(TextLine{}).unwrap();
+              line_width = 0;
+            }
+
+            for (usize i = 0; i < nglyphs; i++) {
+              u32 glyph_index = glyph_info[i].codepoint;
+              stx::Span glyph = cache.get(glyph_index);
+
+              if (!glyph.is_empty()) {
+                line_width +=
+                    glyph[0].advance.x * run_font_scale + run_letter_spacing;
+              } else {
+                line_width += cache.glyphs[0].advance.x * run_font_scale +
+                              run_letter_spacing;
+              }
+
+              lines[lines.size() - 1]
+                  .glyphs
+                  .push(TextLineGlyph{
+                      .glyph = glyph_index, .run = run_index  // , .end = end
+                  })
+                  .unwrap();
+            }
+
+            line_width += run_word_spacing * nspaces;
+
+            lines[lines.size() - 1]
+                .words
+                .push(TextLineWord{.glyph_count = nglyphs,
+                                   .spacing = run_word_spacing * nspaces})
+                .unwrap();
+
           } else {
-            hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_RTL);
-          }
-          hb_buffer_set_language(font.hbscratch_buffer, run.language);
-          hb_buffer_add_utf8(font.hbscratch_buffer, word_start,
-                             static_cast<int>(word_end - word_start), 0,
-                             static_cast<int>(word_end - word_start));
-
-          hb_shape(font.hbfont, font.hbscratch_buffer, features,
-                   static_cast<unsigned int>(std::size(features)));
-
-          unsigned int nglyphs;
-          hb_glyph_info_t* glyph_info =
-              hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
-
-          for (usize i = 0; i < nglyphs; i++) {
-            u32 glyph_index = glyph_info[i].codepoint;
-            stx::Span glyph = cache.get(glyph_index);
-
-            if (!glyph.is_empty()) {
-              word_width += glyph[0].advance.x * run_font_scale;
-            } else {
-              word_width += cache.glyphs[0].advance.x * run_font_scale;
-            }
-          }
-
-          if (line_width + word_width + run_word_spacing * nspaces >
-              max_line_width) {
-            // new line
             lines.push(TextLine{}).unwrap();
             line_width = 0;
           }
-
-          for (usize i = 0; i < nglyphs; i++) {
-            u32 glyph_index = glyph_info[i].codepoint;
-            stx::Span glyph = cache.get(glyph_index);
-
-f32 end 
-            if(!glyph.is_empty()){
-            glyph = glyph.is_empty() ? cache.glyphs.span().slice(0, 1) : glyph;
-            } else {
-            f32 end = line_width + glyph[0].advance.x * run_font_scale +
-                      run_letter_spacing;
-            }
-
-            lines[lines.size() - 1]
-                .glyphs
-                .push(TextLineGlyph{
-                    .glyph = glyph_index, .run = run_index  // , .end = end
-                })
-                .unwrap();
-
-            line_width = end;
-          }
-
-          line_width += run_word_spacing * nspaces;
-
-          lines[lines.size() - 1]
-              .words
-              .push(TextLineWord{.glyph_count = nglyphs,
-                                 .spacing = run_word_spacing * nspaces})
-              .unwrap();
         }
       }
 
       run_index = next_run_index;
     }
 
-    // cursor points to the top of the line
-    f32 cursor_y;
+    f32 baseline = 0;
 
     for (TextLine const& line : lines) {
       if (line.glyphs.is_empty() || line.words.is_empty()) continue;
 
       f32 line_height = 0;
-      f32 cursor_x = 0;
 
       for (TextLineGlyph const& glyph : line.glyphs) {
         TextStyle const& style = paragraph.runs[glyph.run].style;
@@ -791,6 +857,9 @@ f32 end
             std::max(line_height, style.line_height * style.font_height);
       }
 
+      baseline += line_height;
+
+      f32 cursor_x = 0;
       // TODO(lamarrr): if right to left alignment add spacing before
       // placement
       if (paragraph.align == TextAlign::Right ||
@@ -896,6 +965,13 @@ f32 end
                                 .transform = transform,
                                 .texture = fonts[run.font].atlas.atlas.share()})
               .unwrap();
+        }
+
+        if (!(&word == line.words.end() - 1 &&
+              (paragraph.align == TextAlign::Center ||
+               paragraph.align == TextAlign::Right))) {
+          // TODO(lamarrr): chose color from word
+          // if background is visible draw spacing
         }
 
         word_index += word.glyph_count;

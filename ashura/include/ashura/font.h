@@ -27,11 +27,12 @@ namespace asr {
 
 enum class FontLoadError : u8 { InvalidPath };
 
-enum class TextAlign : u8 { Left, Right, Center };
+enum class TextAlign : u8 { Left, Center, Right };
 
 enum class TextDirection : u8 { LeftToRight, RightToLeft };
 
-enum class TextOverflow : u8 { None, Clip, Ellipsis };
+// TODO(lamarrr): implement
+enum class TextOverflow : u8 { None, Ellipsis };
 
 struct TextStyle {
   f32 font_height = 16;
@@ -542,6 +543,25 @@ struct TextRun {
 struct Paragraph {
   stx::Span<TextRun const> runs;
   TextAlign align = TextAlign::Left;
+  TextOverflow overflow = TextOverflow::None;
+};
+
+struct TextLineGlyph {
+  // glyph index
+  u32 glyph = 0;
+  // run of the glyph
+  usize run = 0;
+};
+
+struct TextLineWord {
+  usize glyph_count = 0;
+  // right spacing
+  f32 spacing = 0;
+};
+
+struct TextLine {
+  stx::Vec<TextLineGlyph> glyphs{stx::os_allocator};
+  stx::Vec<TextLineWord> words{stx::os_allocator};
 };
 
 /*
