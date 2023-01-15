@@ -20,7 +20,7 @@ namespace asr {
 
 namespace gfx {
 
-u64 image = 0;
+using image = u64;
 
 struct vertex {
   vec2 position;
@@ -32,7 +32,7 @@ struct Brush {
   color color = colors::BLACK;
   bool fill = true;
   f32 line_thickness = 1;
-  Image pattern;
+  image texture = 0;
   TextStyle text_style;
 };
 
@@ -41,7 +41,7 @@ struct DrawCommand {
   u32 nindices = 0;
   rect clip_rect;
   mat4 transform = mat4::identity();
-  Image texture;
+  image texture = 0;
 };
 
 struct DrawList {
@@ -287,19 +287,15 @@ struct Canvas {
   rect clip_rect;
   stx::Vec<rect> clip_rect_stack{stx::os_allocator};
 
-  Image transparent_image;
+  image transparent_image = 0;
 
   DrawList draw_list;
 
-  Canvas(vec2 viewport_extent, Image const& atransparent_image)
-      : brush{.pattern = atransparent_image.share()},
-        transparent_image{atransparent_image.share()} {
-    restart(viewport_extent);
-  }
+  explicit Canvas(vec2 viewport_extent) { restart(viewport_extent); }
 
   void restart(vec2 new_viewport_extent) {
     viewport_extent = new_viewport_extent;
-    brush = Brush{.pattern = transparent_image.share()};
+    brush = Brush{};
     transform = mat4::identity();
     transform_state_stack.clear();
 
@@ -391,14 +387,14 @@ struct Canvas {
                           .nindices = AS_U32(std::size(indices)),
                           .clip_rect = rect{{0, 0}, viewport_extent},
                           .transform = mat4::identity(),
-                          .texture = brush.pattern.share()})
+                          .texture = brush.texture})
         .unwrap();
 
     return *this;
   }
 
   Canvas& draw_lines(stx::Span<vec2 const> points, rect area, rect texture_area,
-                     Image const& pattern) {
+                     image background_image) {
     if (points.size() < 2 || !area.is_visible() || !clip_rect.overlaps(area)) {
       return *this;
     }
@@ -421,14 +417,15 @@ struct Canvas {
                           .nindices = nindices,
                           .clip_rect = clip_rect,
                           .transform = transform,
-                          .texture = pattern.share()})
+                          .texture = background_image})
         .unwrap();
 
     return *this;
   }
 
   Canvas& draw_convex_polygon_filled(stx::Span<vec2 const> polygon, rect area,
-                                     rect texture_area, Image const& pattern) {
+                                     rect texture_area,
+                                     image background_image) {
     if (polygon.size() < 3 || !area.is_visible() || !clip_rect.overlaps(area)) {
       return *this;
     }
@@ -458,7 +455,7 @@ struct Canvas {
                           .nindices = nindices,
                           .clip_rect = clip_rect,
                           .transform = transform,
-                          .texture = pattern.share()})
+                          .texture = background_image})
         .unwrap();
 
     return *this;
@@ -468,7 +465,7 @@ struct Canvas {
     vec2 points[] = {p1, p2};
     rect area{p1, p2 - p1};
 
-    return draw_lines(points, area, {{0, 0}, {1, 1}}, brush.pattern);
+    return draw_lines(points, area, {{0, 0}, {1, 1}}, brush.texture);
   }
 
   Canvas& draw_rect(rect area) {
@@ -480,7 +477,7 @@ struct Canvas {
 
     if (brush.fill) {
       return draw_convex_polygon_filled(points, area, texture_area,
-                                        brush.pattern);
+                                        brush.texture);
     } else {
       area.offset = area.offset -
                     vec2{brush.line_thickness / 2, brush.line_thickness / 2};
@@ -488,7 +485,7 @@ struct Canvas {
           area.extent + vec2{brush.line_thickness, brush.line_thickness};
       vec2 opoints[] = {points[0], points[1], points[2],
                         points[3], points[0], points[1]};
-      return draw_lines(opoints, area, texture_area, brush.pattern);
+      return draw_lines(opoints, area, texture_area, brush.texture);
     }
   }
 
@@ -502,7 +499,7 @@ struct Canvas {
 
     if (brush.fill) {
       return draw_convex_polygon_filled(points, area, texture_area,
-                                        brush.pattern);
+                                        brush.texture);
     } else {
       if (points.size() > 0) {
         points.push_inplace(points[0]).unwrap();
@@ -514,7 +511,7 @@ struct Canvas {
                     vec2{brush.line_thickness / 2, brush.line_thickness / 2};
       area.extent =
           area.extent + vec2{brush.line_thickness, brush.line_thickness};
-      return draw_lines(points, area, texture_area, brush.pattern);
+      return draw_lines(points, area, texture_area, brush.texture);
     }
   }
 
@@ -528,7 +525,7 @@ struct Canvas {
 
     if (brush.fill) {
       return draw_convex_polygon_filled(points, area, texture_area,
-                                        brush.pattern);
+                                        brush.texture);
     } else {
       if (points.size() > 0) {
         points.push_inplace(points[0]).unwrap();
@@ -540,7 +537,7 @@ struct Canvas {
                     vec2{brush.line_thickness / 2, brush.line_thickness / 2};
       area.extent =
           area.extent + vec2{brush.line_thickness, brush.line_thickness};
-      return draw_lines(points, area, texture_area, brush.pattern);
+      return draw_lines(points, area, texture_area, brush.texture);
     }
   }
 
@@ -553,7 +550,7 @@ struct Canvas {
 
     if (brush.fill) {
       return draw_convex_polygon_filled(points, area, texture_area,
-                                        brush.pattern);
+                                        brush.texture);
     } else {
       if (points.size() > 0) {
         points.push_inplace(points[0]).unwrap();
@@ -565,35 +562,34 @@ struct Canvas {
                     vec2{brush.line_thickness / 2, brush.line_thickness / 2};
       area.extent =
           area.extent + vec2{brush.line_thickness, brush.line_thickness};
-      return draw_lines(points, area, texture_area, brush.pattern);
+      return draw_lines(points, area, texture_area, brush.texture);
     }
   }
 
   /// Image API
-  Canvas& draw_image(Image const& image, rect area, rect image_portion) {
+  Canvas& draw_image(image img, rect area, rect image_portion) {
     vec2 points[4];
     polygons::rect(points, area);
-    return draw_convex_polygon_filled(points, area, image_portion, image);
+    return draw_convex_polygon_filled(points, area, image_portion, img);
   }
 
-  Canvas& draw_image(Image const& image, rect area) {
+  Canvas& draw_image(image img, rect area) {
     rect texture_area{{0, 0}, {1, 1}};
-    return draw_image(image, area, texture_area);
+    return draw_image(img, area, texture_area);
   }
 
-  Canvas& draw_rounded_image(Image const& image, rect area, rect image_portion,
+  Canvas& draw_rounded_image(image img, rect area, rect image_portion,
                              vec4 border_radii, usize nsegments) {
     stx::Vec<vec2> points{stx::os_allocator};
     points.resize(nsegments * 4).unwrap();
     polygons::round_rect(points, area, border_radii, nsegments);
-    return draw_convex_polygon_filled(points, area, image_portion, image);
+    return draw_convex_polygon_filled(points, area, image_portion, img);
   }
 
-  Canvas& draw_rounded_image(Image const& image, rect area, vec4 border_radii,
+  Canvas& draw_rounded_image(image img, rect area, vec4 border_radii,
                              usize nsegments) {
     rect texture_area{{0, 0}, {1, 1}};
-    return draw_rounded_image(image, area, texture_area, border_radii,
-                              nsegments);
+    return draw_rounded_image(img, area, texture_area, border_radii, nsegments);
   }
 
   // Text API
@@ -603,88 +599,10 @@ struct Canvas {
   Canvas& draw_text(stx::Span<CachedFont const> fonts,
                     Paragraph const& paragraph, vec2 position,
                     f32 max_line_width = stx::f32_max) {
-    // TODO(lamarrr): navigation hit-testing and caret
-    /*
-https://unicode.org/reports/tr29/
-https://github.com/toptensoftware/RichTextKit/blob/main/Topten.RichTextKit/GraphemeClusterAlgorithm/GraphemeClusterAlgorithm.cs
-A grapheme cluster is a sequence of one or more Unicode code points that should
-be treated as a single unit by various processes: Text-editing software should
-generally allow placement of the cursor only at grapheme cluster boundaries.
-
-
-struct CaretPoint{Line, char}
-
-Navigation
-          /// <summary>
-/// No movement
-/// </summary>
-None,
-
-/// <summary>
-/// Move one character to the left
-/// </summary>
-CharacterLeft,
-
-/// <summary>
-/// Move one character to the right
-/// </summary>
-CharacterRight,
-
-/// <summary>
-/// Move up one line
-/// </summary>
-LineUp,
-
-/// <summary>
-/// Move down one line
-/// </summary>
-LineDown,
-
-/// <summary>
-/// Move left one word
-/// </summary>
-WordLeft,
-
-/// <summary>
-/// Move right one word
-/// </summary>
-WordRight,
-
-/// <summary>
-/// Move up one page
-/// </summary>
-PageUp,
-
-/// <summary>
-/// Move down one page
-/// </summary>
-PageDown,
-
-/// <summary>
-/// Move to the start of the line
-/// </summary>
-LineHome,
-
-/// <summary>
-/// Move to the end of the line
-/// </summary>
-LineEnd,
-
-/// <summary>
-/// Move to the top of the document
-/// </summary>
-DocumentHome,
-
-/// <summary>
-/// Move to the end of the document
-/// </summary>
-DocumentEnd,
-    */
     constexpr u32 SPACE = ' ';
     constexpr u32 TAB = '\t';
     constexpr u32 NEWLINE = '\n';
 
-    // TODO(lamrrr): support newline and return breaking
     // TODO(lamarrr): CONSIDER: canvas.clip_rect do not render beyond clip
     // rect apply transform to coordinates to see if any of the coordinates
     // fall inside it, if not discard certain parts of the text
