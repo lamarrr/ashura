@@ -614,6 +614,7 @@ struct Canvas {
         previous_run_direction = current_run_direction;
       }
 
+
       for (usize i = 0; i < next_run_index - run_index; i++) {
         TextRun const& run =
             paragraph.runs[run_pack_direction == TextDirection::LeftToRight
