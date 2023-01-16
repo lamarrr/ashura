@@ -591,13 +591,16 @@ struct Canvas {
     constexpr u32 NEWLINE = '\n';
     constexpr u32 RETURN = '\r';
 
-    // this is part of a word that is styled by its runs
+    // this is part of a word that is styled by its run
+    //
+    // TODO(lamarrr): how do we perform joining?
     struct RunSubWord {
-      // stx::Span<Run const> runs;
+      // usize run = 0;
       // stx::Span<char const> text;
       // bool is_word_end = false;
       // NOTE: spacing is unidirectional, only valid if is_word_end
       // usize nspaces = 0;
+      // is_word_end must be true if nline_breaks > 0
       // usize nline_breaks = 0;
     };
 
@@ -608,6 +611,12 @@ struct Canvas {
       // usize glyph_count = 0;
       // f32 spacing = 0; // how do we handle this?
       // bool last_on_line = false;
+      // f32 line_height = 0;
+    };
+
+    struct Glyph {
+      usize font = 0;
+      u32 glyph = 0;
     };
 
     stx::Vec<Line>* lines;
