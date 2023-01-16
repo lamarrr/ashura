@@ -533,8 +533,8 @@ inline CachedFont cache_font(stx::Rc<Font*> font,
 /// change to the format, such as font style, foreground color, font family, or
 /// any other formatting effect, breaks the text run.
 struct TextRun {
-  // text size in bytes
-  usize text_size = 0;
+  /// utf-8-encoded text
+  stx::Span<char const> text;
   usize font = 0;
   TextStyle style;
   TextDirection direction = TextDirection::LeftToRight;
@@ -543,136 +543,10 @@ struct TextRun {
 };
 
 struct Paragraph {
-  /// utf-8 text
-  stx::Span<char const> text;
   stx::Span<TextRun const> runs;
   TextAlign align = TextAlign::Left;
   TextOverflow overflow = TextOverflow::None;
 };
-
-struct TextLineGlyph {
-  // glyph index
-  u32 glyph = 0;
-  // run of the glyph
-  usize run = 0;
-};
-
-struct TextLineWord {
-  usize glyph_count = 0;
-  // right spacing
-  f32 spacing = 0;
-};
-
-struct TextLine {
-  stx::Vec<TextLineGlyph> glyphs{stx::os_allocator};
-  stx::Vec<TextLineWord> words{stx::os_allocator};
-};
-
-/*
-inline vec2 layout_text(Font& font, FontAtlas& cache, std::string_view text,
-                        vec2 position, Paragraph const& paragraph,
-                        f32 max_width = stx::f32_max) {
-  constexpr u32 SPACE = ' ';
-  constexpr u32 TAB = '\t';
-  constexpr u32 NEWLINE = '\n';
-  constexpr u32 RETURN = '\r';
-
-  hb_font_set_scale(font.hbfont, 64 * cache.font_height,
-                    64 * cache.font_height);
-
-  vec2 extent;
-  vec2 cursor;
-
-  hb_feature_t const features[] = {
-      {Font::KERNING_FEATURE, style.use_kerning, 0,
-       std::numeric_limits<unsigned int>::max()},
-      {Font::LIGATURE_FEATURE, style.use_ligatures, 0,
-       std::numeric_limits<unsigned int>::max()},
-      {Font::CONTEXTUAL_LIGATURE_FEATURE, style.use_ligatures, 0,
-       std::numeric_limits<unsigned int>::max()}};
-
-  ASR_CHECK(style.direction == HB_DIRECTION_LTR ||
-            style.direction == HB_DIRECTION_RTL);
-
-  f32 font_scale = AS_F32(style.font_height) / cache.font_height;
-  f32 font_height = style.font_height;
-  f32 line_height = style.line_height * font_height;
-  f32 vertical_line_space = line_height - font_height;
-  f32 vertical_line_padding = vertical_line_space / 2;
-  f32 letter_spacing = style.letter_spacing;
-  f32 word_spacing = style.word_spacing;
-
-  for (char const* iter = text.data(); iter < text.data() + text.size();) {
-    // TODO(lamarrr): handle multiple spaces or tabs
-    char const* word_start = iter;
-
-    u32 last_codepoint = 0;
-    for (; iter < text.data() + text.size();) {
-      last_codepoint = stx::utf8_next(iter);
-      if (last_codepoint == SPACE || last_codepoint == TAB) {
-        break;
-      }
-    }
-
-    usize word_size = iter - word_start;
-
-    hb_buffer_reset(font.hbscratch_buffer);
-    hb_buffer_set_script(font.hbscratch_buffer, script);
-    hb_buffer_set_direction(font.hbscratch_buffer, style.direction);
-    hb_buffer_set_language(font.hbscratch_buffer, language);
-    hb_buffer_add_utf8(font.hbscratch_buffer, word_start,
-                       static_cast<int>(word_size), 0,
-                       static_cast<int>(word_size));
-    hb_shape(font.hbfont, font.hbscratch_buffer, features,
-             static_cast<unsigned int>(std::size(features)));
-
-    unsigned int nglyphs;
-    hb_glyph_info_t* glyph_info =
-        hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
-
-    f32 word_width = 0;
-
-    for (usize i = 0; i < nglyphs; i++) {
-      u32 glyph_index = glyph_info[i].codepoint;
-      stx::Span glyph = cache.get(glyph_index);
-
-      if (!glyph.is_empty()) {
-        word_width += glyph[0].advance.x * font_scale + letter_spacing;
-      } else {
-        word_width += font_height + letter_spacing;
-      }
-    }
-
-    if (cursor.x + word_width > max_width) {
-      cursor.x = 0;
-      cursor.y += line_height;
-    }
-
-    for (usize i = 0; i < nglyphs; i++) {
-      u32 glyph_index = glyph_info[i].codepoint;
-      stx::Span glyph = cache.get(glyph_index);
-      glyph = glyph.is_empty() ? cache.glyphs.span().slice(0, 1) : glyph;
-
-      Glyph const& g = glyph[0];
-      cursor.x += font_scale * g.advance.x;
-    }
-
-    if (last_codepoint == SPACE) {
-      cursor.x += word_spacing;
-    } else if (last_codepoint == TAB) {
-      cursor.x += word_spacing * style.tab_size;
-    }
-
-    extent.x = std::max(extent.x, cursor.x);
-    extent.y = std::max(extent.y, cursor.y);
-  }
-  // TODO(lamarrr): support RTL
-  // ASR_PANIC("RTL not supported yet");
-  // }
-
-  return extent;
-}
-*/
 
 }  // namespace gfx
 }  // namespace asr
