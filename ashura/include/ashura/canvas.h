@@ -590,6 +590,53 @@ struct Canvas {
     constexpr u32 TAB = '\t';
     constexpr u32 NEWLINE = '\n';
 
+    {
+      if (paragraph.runs.is_empty()) return;
+
+      usize word_begin_run = 0;
+      char const* word_start = paragraph.text.begin();
+      TextDirection last_direction = TextDirection::LeftToRight;
+      // char const* word_end = word_start;
+      // usize word_end_run = 0;
+      usize text_index = 0;
+      f32 cursor_x = 0;
+
+      
+
+      for (;    ;  ) {
+        char const* iter = paragraph.text.begin();
+        bool is_word_end = false;
+        bool is_new_line = false;
+
+        for (; iter < run.text.end();) {
+          word_end = iter;
+          u32 codepoint = stx::utf8_next(iter);
+          if (codepoint == SPACE) {
+            is_word_end = true;
+            break;
+          } else if (codepoint == TAB) {
+            is_word_end = true;
+            break;
+          } else if (codepoint == NEWLINE) {
+            is_word_end = true;
+            is_new_line = true;
+            break;
+          }
+        }
+
+        if (is_word_end) {
+          stx::Span word_runs = paragraph.runs.slice(
+              word_begin_run, word_end_run - word_begin_run + 1);
+        }
+
+        if (run.direction == TextDirection::LeftToRight) {
+        } else {
+        }
+
+        text_index += run.text_size;
+      }
+    }
+
     // TODO(lamarrr): CONSIDER: canvas.clip_rect do not render beyond clip
     // rect apply transform to coordinates to see if any of the coordinates
     // fall inside it, if not discard certain parts of the text
@@ -613,7 +660,6 @@ struct Canvas {
         }
         previous_run_direction = current_run_direction;
       }
-
 
       for (usize i = 0; i < next_run_index - run_index; i++) {
         TextRun const& run =
@@ -836,8 +882,7 @@ struct Canvas {
           if (run.style.background_color.is_visible()) {
             vec4 bg = run.style.background_color.as_vec();
 
-            vec2 p1{position.x + cursor_x,
-                    position.y + baseline - line_height};
+            vec2 p1{position.x + cursor_x, position.y + baseline - line_height};
             vec2 p2{p1.x + g.advance.x * font_scale + run_letter_spacing, p1.y};
             vec2 p3{p2.x, p2.y + line_height};
             vec2 p4{p1.x, p3.y};
@@ -921,9 +966,7 @@ struct Canvas {
           if (background_color.is_visible()) {
             vec4 bg = background_color.as_vec();
 
-            vec2 p1{position.x + cursor_x,
-                    position.y + baseline -
-                        line_height};
+            vec2 p1{position.x + cursor_x, position.y + baseline - line_height};
             vec2 p2{p1.x + word.spacing, p1.y};
             vec2 p3{p2.x, p2.y + line_height};
             vec2 p4{p1.x, p3.y};

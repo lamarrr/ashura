@@ -533,8 +533,8 @@ inline CachedFont cache_font(stx::Rc<Font*> font,
 /// change to the format, such as font style, foreground color, font family, or
 /// any other formatting effect, breaks the text run.
 struct TextRun {
-  /// utf-8 text
-  stx::Span<char const> text;
+  // text size in bytes
+  usize text_size = 0;
   usize font = 0;
   TextStyle style;
   TextDirection direction = TextDirection::LeftToRight;
@@ -543,6 +543,8 @@ struct TextRun {
 };
 
 struct Paragraph {
+  /// utf-8 text
+  stx::Span<char const> text;
   stx::Span<TextRun const> runs;
   TextAlign align = TextAlign::Left;
   TextOverflow overflow = TextOverflow::None;
