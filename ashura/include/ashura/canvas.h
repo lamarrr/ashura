@@ -270,6 +270,7 @@ struct Canvas {
   Brush brush;
 
   mat4 transform = mat4::identity();
+  mat4 global_transform = mat4::identity();
   stx::Vec<mat4> transform_state_stack{stx::os_allocator};
 
   rect clip_rect;
@@ -578,76 +579,241 @@ struct Canvas {
     return draw_rounded_image(img, area, texture_area, border_radii, nsegments);
   }
 
+  Canvas& draw_glyph(...);
+
   // Text API
   // TODO(lamarrr): we need separate layout pass so we can perform widget
   // layout, use callbacks to perform certain actions on layout calculation.
   //
   // TODO(lamarrr): [future] add bidi
-  Canvas& draw_text(stx::Span<CachedFont const> fonts,
-                    Paragraph const& paragraph, vec2 position,
-                    f32 max_line_width = stx::f32_max) {
+  Canvas& draw_text(stx::Span<CachedFont const> fonts, Paragraph paragraph,
+                    vec2 position, f32 max_line_width = stx::f32_max) {
     constexpr u32 SPACE = ' ';
     constexpr u32 TAB = '\t';
     constexpr u32 NEWLINE = '\n';
     constexpr u32 RETURN = '\r';
 
+    // TODO(lamarrr): paragraph metrics
+    struct SubwordGlyph {
+      usize font = 0;
+      u32 glyph = 0;
+    };
+
     // this is part of a word that is styled by its run
     //
     // TODO(lamarrr): how do we perform joining?
     struct RunSubWord {
-      // usize run = 0;
-      // stx::Span<char const> text;
-      // bool is_word_end = false;
-      // NOTE: spacing is unidirectional, only valid if is_word_end
-      // usize nspaces = 0;
-      // is_word_end must be true if nline_breaks > 0
-      // usize nline_breaks = 0;
+      usize run = 0;
+      stx::Span<char const> text;
+      // NOTE: spacing is unidirectional
+      usize nspaces = 0;
+      usize nline_breaks = 0;
+      f32 width = 0;
+      usize glyph_start = 0;
+      usize nglyphs = 0;
     };
 
     // might not be needed?
     struct RenderWord {
-      // f32 width = 0; // might not be needed?
+      // might not be needed?
       // f32 max_height = 0; // might not be needed?
-      // usize glyph_count = 0;
       // f32 spacing = 0; // how do we handle this?
       // bool last_on_line = false;
       // f32 line_height = 0;
     };
 
-    struct Glyph {
-      usize font = 0;
-      u32 glyph = 0;
-    };
+    stx::Vec<RunSubWord>* subwords;
+    stx::Vec<SubwordGlyph>* glyphs;
 
-    stx::Vec<Line>* lines;
-    stx::Vec<RunSubWord>* words;
-
-    if (lines != nullptr) lines->clear();
-    if (words != nullptr) words->clear();
+    if (subwords != nullptr) subwords->clear();
+    if (glyphs != nullptr) glyphs->clear();
 
     // aakd لا إله يستحق العبادة إلا الله sssss
 
-    usize word_begin_run = 0;
-    char const* word_start = paragraph.text.begin();
-    TextDirection last_direction = TextDirection::LeftToRight;
-    f32 cursor_x = 0;
-    char const* iter = paragraph.text.begin();
-    usize word_run_start = 0;
+    for (usize i = 0; i < paragraph.runs.size(); i++) {
+      TextRun const& run = paragraph.runs[i];
 
-    for (; iter < paragraph.text.end();) {
-      bool is_new_line = false;
+      char const* iter = run.text.begin();
 
-      for (; iter < paragraph.text.end();) {
-        u32 codepoint = stx::utf8_next(iter);
-        if (codepoint == SPACE) {
-          break;
-        } else if (codepoint == TAB) {
-          break;
+      while (iter < run.text.end()) {
+        char const* subword_start = iter;
+        u32 codepoint = 0;
+        usize nspaces = 0;
+        usize nline_breaks = 0;
+        // TODO(lamarrr): support \r\n
+
+        while (iter < run.text.end()) {
+          codepoint = stx::utf8_next(iter);
+          if (codepoint == SPACE) {
+            nspaces = 1;
+            break;
+          } else if (codepoint == TAB) {
+            nspaces = run.style.tab_size;
+            break;
+          } else if (codepoint == NEWLINE) {
+            nline_breaks = 1;
+            break;
+          }
+          // else if(codepoint == "\r") { skip to next }
+        }
+
+        if (codepoint == SPACE || codepoint == TAB) {
+          for (char const* space_iter = iter; space_iter < run.text.end();) {
+            iter = space_iter;
+            u32 codepoint = stx::utf8_next(space_iter);
+            if (codepoint == SPACE) {
+              nspaces += 1;
+            } else if (codepoint == TAB) {
+              nspaces += run.style.tab_size;
+            } else {
+              break;
+            }
+          }
         } else if (codepoint == NEWLINE) {
-          is_new_line = true;
-          break;
+          for (char const* newline_iter = iter;
+               newline_iter < run.text.end();) {
+            iter = newline_iter;
+            u32 codepoint = stx::utf8_next(newline_iter);
+            if (codepoint == NEWLINE) {
+              nline_breaks += 1;
+            } else {
+              break;
+            }
+          }
+        }
+
+        subwords
+            ->push(RunSubWord{
+                .run = i,
+                .text = run.text.slice(subword_start - run.text.begin(),
+                                       iter - subword_start),
+                .nspaces = nspaces,
+                .nline_breaks = nline_breaks})
+            .unwrap();
+      }
+    }
+
+    usize subword_glyph_index = 0;
+
+    for (RunSubWord& subword : *subwords) {
+      TextRun const& run = paragraph.runs[subword.run];
+      Font const& font = *fonts[run.font].font.handle;
+      FontAtlas const& cache = fonts[run.font].atlas;
+
+      hb_feature_t const shaping_features[] = {
+          {Font::KERNING_FEATURE, run.style.use_kerning, 0,
+           std::numeric_limits<unsigned int>::max()},
+          {Font::LIGATURE_FEATURE, run.style.use_ligatures, 0,
+           std::numeric_limits<unsigned int>::max()},
+          {Font::CONTEXTUAL_LIGATURE_FEATURE, run.style.use_ligatures, 0,
+           std::numeric_limits<unsigned int>::max()}};
+
+      hb_font_set_scale(font.hbfont, 64 * cache.font_height,
+                        64 * cache.font_height);
+
+      hb_buffer_reset(font.hbscratch_buffer);
+      hb_buffer_set_script(font.hbscratch_buffer, run.script);
+      if (run.direction == TextDirection::LeftToRight) {
+        hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_LTR);
+      } else {
+        hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_RTL);
+      }
+      hb_buffer_set_language(font.hbscratch_buffer, run.language);
+      hb_buffer_add_utf8(font.hbscratch_buffer, subword.text.begin(),
+                         static_cast<int>(subword.text.size()), 0,
+                         static_cast<int>(subword.text.size()));
+
+      hb_shape(font.hbfont, font.hbscratch_buffer, shaping_features,
+               static_cast<unsigned int>(std::size(shaping_features)));
+
+      unsigned int nglyphs;
+      hb_glyph_info_t* glyph_info =
+          hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
+
+      f32 font_scale = run.style.font_height / cache.font_height;
+
+      f32 width = 0;
+
+      for (usize i = 0; i < nglyphs; i++) {
+        u32 glyph_index = glyph_info[i].codepoint;
+        stx::Span glyph = cache.get(glyph_index);
+
+        if (!glyph.is_empty()) {
+          width += glyph[0].advance.x * font_scale + run.style.letter_spacing;
+          glyphs->push(SubwordGlyph{.font = run.font, .glyph = glyph_index})
+              .unwrap();
+        } else {
+          width +=
+              cache.glyphs[0].advance.x * font_scale + run.style.letter_spacing;
+          glyphs->push(SubwordGlyph{.font = run.font, .glyph = 0}).unwrap();
         }
       }
+
+      subword.width = width;
+      subword.glyph_start = subword_glyph_index;
+      subword.nglyphs = nglyphs;
+      subword_glyph_index += nglyphs;
+    }
+
+    f32 baseline = 0;
+    f32 cursor_x = 0;
+
+    for (usize i = 0; i < subwords->size();) {
+      RunSubWord const& subword = (*subwords)[i];
+      TextRun const& run = paragraph.runs[subword.run];
+
+      // TODO(lamarrr): we need to use n=1, we also need to consider if the
+      // present word has a newline at the end of it
+      // usize j = i + 1;
+
+      f32 word_width = subword.width;
+      // get max line height for line
+
+      if (run.direction == TextDirection::LeftToRight) {
+        usize nline_breaks = 0;
+        for (; j < subwords->size(); j++) {
+          RunSubWord const& subword = (*subwords)[j];
+          word_width += subword.width;
+          if (subword.nline_breaks > 0 || subword.nspaces > 0) {
+            nline_breaks = subword.nline_breaks;
+            break;
+          }
+        }
+
+        if (nline_breaks > 0 || cursor_x + word_width > max_line_width) {
+          // is new line
+          // mark as on a new line
+        } else {
+          // mark as on same line
+        }
+
+      } else {
+        f32 width = 0;
+        for (; j < subwords->size(); j++) {
+          if (paragraph.runs[(*subwords)[j].run].direction !=
+              TextDirection::RightToLeft) {
+            break;
+          } else if ((*subwords)[j].nline_breaks > 0) {
+            width += (*subwords)[j].width;
+            j++;
+            break;
+          }
+        }
+
+        cursor_x + width;
+        // layout text
+      }
+
+      // for (; j < subwords->size(); j++) {
+      //   if (subwords->begin() + i == subwords->end() - 1 ||
+      //       subword.nline_breaks > 0 || cursor_x + subword.width) {
+      //     // run line
+      //     //
+      //     // TODO(height must be increased)
+      //   }
+      // }
+
+      i = j;
     }
 
     {
