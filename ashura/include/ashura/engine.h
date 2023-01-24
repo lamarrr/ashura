@@ -3,6 +3,7 @@
 #include <chrono>
 
 #include "ashura/app_config.h"
+#include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
 #include "ashura/version.h"
 #include "ashura/vulkan.h"
@@ -23,6 +24,7 @@ struct Engine {
   stx::Option<stx::Rc<vk::CommandQueue*>> queue;
   stx::Option<gfx::Canvas> canvas;
   stx::Option<stx::Rc<gfx::CanvasRenderingContext*>> canvas_context;
+  AssetBundle<stx::Rc<vk::ImageSampler*>> image_assets;
 
   // asset manager
   // plugins & systems

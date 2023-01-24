@@ -85,7 +85,7 @@ struct Window {
   ~Window() {
     // window should be destructed on the same thread that created it
     ASR_CHECK(init_thread_id_ == std::this_thread::get_id());
-    api_.handle->remove_window_info(id_);
+    api_->remove_window_info(id_);
     // delete window
     SDL_DestroyWindow(window_);
   }

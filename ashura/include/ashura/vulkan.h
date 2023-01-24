@@ -684,8 +684,8 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
     stx::Rc<Instance*> const& instance) {
   u32 devices_count = 0;
 
-  ASR_VK_CHECK(vkEnumeratePhysicalDevices(instance.handle->instance,
-                                          &devices_count, nullptr));
+  ASR_VK_CHECK(
+      vkEnumeratePhysicalDevices(instance->instance, &devices_count, nullptr));
 
   ASR_CHECK(devices_count != 0, "No Physical Device Found");
 
@@ -693,8 +693,8 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 
   phy_devices.resize(devices_count).unwrap();
 
-  ASR_VK_CHECK(vkEnumeratePhysicalDevices(instance.handle->instance,
-                                          &devices_count, phy_devices.data()));
+  ASR_VK_CHECK(vkEnumeratePhysicalDevices(instance->instance, &devices_count,
+                                          phy_devices.data()));
 
   stx::Vec<PhyDeviceInfo> devices{stx::os_allocator};
 
@@ -786,18 +786,18 @@ inline stx::Rc<Instance*> create_instance(
 // can also be used for transfer
 inline stx::Option<CommandQueueFamilyInfo> get_graphics_command_queue(
     stx::Rc<PhyDeviceInfo*> const& phy_dev) {
-  auto pos = std::find_if(phy_dev.handle->family_properties.begin(),
-                          phy_dev.handle->family_properties.end(),
+  auto pos = std::find_if(phy_dev->family_properties.begin(),
+                          phy_dev->family_properties.end(),
                           [](VkQueueFamilyProperties const& prop) -> bool {
                             return prop.queueFlags & VK_QUEUE_GRAPHICS_BIT;
                           });
 
-  if (pos == phy_dev.handle->family_properties.end()) {
+  if (pos == phy_dev->family_properties.end()) {
     return stx::None;
   }
 
   return stx::Some(CommandQueueFamilyInfo{
-      .index = AS_U32(pos - phy_dev.handle->family_properties.begin()),
+      .index = AS_U32(pos - phy_dev->family_properties.begin()),
       .phy_device = phy_dev.share()});
 }
 
@@ -808,8 +808,8 @@ inline stx::Rc<Device*> create_device(
     stx::Span<char const* const> required_validation_layers,
     VkPhysicalDeviceFeatures required_features) {
   VkDevice dev = create_logical_device(
-      phy_dev.handle->phy_device, required_extensions,
-      required_validation_layers, command_queue_create_info, required_features);
+      phy_dev->phy_device, required_extensions, required_validation_layers,
+      command_queue_create_info, required_features);
 
   stx::Vec<CommandQueueInfo> command_queues{stx::os_allocator};
 
@@ -817,8 +817,7 @@ inline stx::Rc<Device*> create_device(
     VkDeviceQueueCreateInfo create_info = command_queue_create_info[i];
     u32 command_queue_family_index = create_info.queueFamilyIndex;
     u32 queue_count = create_info.queueCount;
-    ASR_CHECK(command_queue_family_index <
-              phy_dev.handle->family_properties.size());
+    ASR_CHECK(command_queue_family_index < phy_dev->family_properties.size());
 
     for (u32 queue_index_in_family = 0; queue_index_in_family < queue_count;
          queue_index_in_family++) {
@@ -854,11 +853,10 @@ inline stx::Option<CommandQueue> get_command_queue(
     stx::Rc<Device*> const& device, CommandQueueFamilyInfo const& family,
     u32 command_queue_create_index) {
   // We shouldn't have to perform checks?
-  ASR_CHECK(device.handle->phy_device.handle->phy_device ==
-            family.phy_device.handle->phy_device);
+  ASR_CHECK(device->phy_device->phy_device == family.phy_device->phy_device);
 
-  stx::Span queue_s = device.handle->command_queues.span().which(
-      [&](CommandQueueInfo const& info) {
+  stx::Span queue_s =
+      device->command_queues.span().which([&](CommandQueueInfo const& info) {
         return info.family.index == family.index &&
                info.create_index == command_queue_create_index;
       });
@@ -1068,7 +1066,7 @@ struct ImageResource {
   STX_MAKE_PINNED(ImageResource)
 
   ~ImageResource() {
-    VkDevice dev = queue.handle->device.handle->device;
+    VkDevice dev = queue->device->device;
     ASR_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyImageView(dev, view, nullptr);
@@ -1086,10 +1084,8 @@ struct ImageSampler {
   STX_MAKE_PINNED(ImageSampler)
 
   ~ImageSampler() {
-    ASR_VK_CHECK(
-        vkDeviceWaitIdle(image.handle->queue.handle->device.handle->device));
-    vkDestroySampler(image.handle->queue.handle->device.handle->device, sampler,
-                     nullptr);
+    ASR_VK_CHECK(vkDeviceWaitIdle(image->queue->device->device));
+    vkDestroySampler(image->queue->device->device, sampler, nullptr);
   }
 };
 
@@ -1107,8 +1103,8 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device,
       .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
       .mipLodBias = 0,
       .anisotropyEnable = enable_anisotropy,
-      .maxAnisotropy = device.handle->phy_device.handle->properties.limits
-                           .maxSamplerAnisotropy,
+      .maxAnisotropy =
+          device->phy_device->properties.limits.maxSamplerAnisotropy,
       .compareEnable = VK_FALSE,
       .compareOp = VK_COMPARE_OP_ALWAYS,
       .minLod = 0,
@@ -1119,7 +1115,7 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device,
   VkSampler sampler;
 
   ASR_VK_CHECK(
-      vkCreateSampler(device.handle->device, &create_info, nullptr, &sampler));
+      vkCreateSampler(device->device, &create_info, nullptr, &sampler));
 
   return sampler;
 }
@@ -1127,8 +1123,7 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device,
 inline stx::Rc<ImageSampler*> create_image_sampler(
     stx::Rc<ImageResource*> const& image) {
   return stx::rc::make_inplace<ImageSampler>(
-             stx::os_allocator,
-             create_sampler(image.handle->queue.handle->device, VK_TRUE),
+             stx::os_allocator, create_sampler(image->queue->device, VK_TRUE),
              image.share())
       .unwrap();
 }
@@ -1488,9 +1483,8 @@ struct SwapChain {
             VkSampleCountFlagBits amsaa_sample_count,
             VkCompositeAlphaFlagBitsKHR alpha_compositing)
       : queue{std::move(aqueue)} {
-    VkPhysicalDevice phy_dev =
-        queue.handle->device.handle->phy_device.handle->phy_device;
-    VkDevice dev = queue.handle->device.handle->device;
+    VkPhysicalDevice phy_dev = queue->device->phy_device->phy_device;
+    VkDevice dev = queue->device->device;
 
     // the properties change every time we need to create a swapchain so we must
     // query for this every time
@@ -1546,11 +1540,11 @@ struct SwapChain {
     window_extent = awindow_extent;
     msaa_sample_count = amsaa_sample_count;
     msaa_color_image = create_msaa_color_resource(
-        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
-        color_format.format, new_extent, msaa_sample_count);
+        dev, queue->device->phy_device->memory_properties, color_format.format,
+        new_extent, msaa_sample_count);
     msaa_depth_image = create_msaa_depth_resource(
-        dev, queue.handle->device.handle->phy_device.handle->memory_properties,
-        depth_format, new_extent, msaa_sample_count);
+        dev, queue->device->phy_device->memory_properties, depth_format,
+        new_extent, msaa_sample_count);
 
     for (VkImage image : images) {
       VkImageViewCreateInfo create_info{
@@ -1733,7 +1727,7 @@ struct SwapChain {
   }
 
   void destroy() {
-    VkDevice dev = queue.handle->device.handle->device;
+    VkDevice dev = queue->device->device;
 
     // await idleness of the semaphores device, so we can destroy the
     // semaphore and images whilst not in use.
@@ -1804,7 +1798,7 @@ struct Surface {
       swapchain.value().destroy();
     }
 
-    vkDestroySurfaceKHR(instance.handle->instance, surface, nullptr);
+    vkDestroySurfaceKHR(instance->instance, surface, nullptr);
   }
 
   void change_swapchain(
@@ -2069,7 +2063,7 @@ struct RecordingContext {
     queue = stx::Some(std::move(aqueue));
 
     CommandQueue& cqueue = *queue.value().handle;
-    VkDevice dev = cqueue.device.handle->device;
+    VkDevice dev = cqueue.device->device;
 
     auto create_shader = [dev](stx::Span<u32 const> code) {
       VkShaderModuleCreateInfo create_info{
@@ -2203,14 +2197,14 @@ struct RecordingContext {
   // TODO(lamarrr): to make suitable for offscreen rendering we need to remove
   // swapchain dependencies, examine if this is possible
   void on_swapchain_changed(SwapChain const& swapchain) {
-    pipeline.build(queue.value().handle->device.handle->device, vertex_shader,
+    pipeline.build(queue.value()->device->device, vertex_shader,
                    fragment_shader, swapchain.render_pass,
                    swapchain.msaa_sample_count, descriptor_set_layouts,
                    vertex_input_attr, vertex_input_size, push_constant_size);
   }
 
   void destroy() {
-    VkDevice dev = queue.value().handle->device.handle->device;
+    VkDevice dev = queue.value()->device->device;
 
     vkDestroyShaderModule(dev, vertex_shader, nullptr);
 
@@ -2246,9 +2240,9 @@ struct RecordingContext {
   stx::Rc<ImageResource*> upload_image(extent extent, u32 nchannels,
                                        stx::Span<u8 const> data) {
     CommandQueue& cqueue = *queue.value().handle;
-    VkDevice dev = cqueue.device.handle->device;
+    VkDevice dev = cqueue.device->device;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
-        cqueue.device.handle->phy_device.handle->memory_properties;
+        cqueue.device->phy_device->memory_properties;
 
     ASR_CHECK(data.size_bytes() == extent.area() * nchannels);
     ASR_CHECK(nchannels == 4, "only 4-channel images presently supported");
@@ -2435,6 +2429,207 @@ struct RecordingContext {
                                                 memory, queue.value().share())
         .unwrap();
   }
+
+  /*
+  #include "ashura/vulkan.h"
+
+  inline FontAtlas render_atlas(Font const& font, vk::RecordingContext& ctx,
+                                u32 font_height) {
+    vk::CommandQueue& cqueue = *ctx.queue.value().handle;
+    VkDevice dev = cqueue.device->device;
+    VkPhysicalDeviceMemoryProperties const& memory_properties =
+        cqueue.device->phy_device->memory_properties;
+
+    VkImageFormatProperties image_format_properties;
+
+    ASR_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(
+        ctx.queue.value()->device->phy_device->phy_device,
+        VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties));
+
+    vk::Buffer atlas_staging_buffer =
+        vk::create_host_buffer(dev, memory_properties, atlas_extent.area() * 4,
+                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+    VkImageCreateInfo create_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .extent = VkExtent3D{.width = atlas_extent.width,
+                             .height = atlas_extent.height,
+                             .depth = 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+
+    VkImage image;
+
+    ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
+
+    VkMemoryRequirements memory_requirements;
+
+    vkGetImageMemoryRequirements(dev, image, &memory_requirements);
+
+    u32 memory_type_index =
+        vk::find_suitable_memory_type(memory_properties, memory_requirements,
+                                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+            .unwrap();
+
+    VkMemoryAllocateInfo alloc_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .allocationSize = memory_requirements.size,
+        .memoryTypeIndex = memory_type_index};
+
+    VkDeviceMemory memory;
+
+    ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+
+    ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
+
+    VkImageViewCreateInfo view_create_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .image = image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                         .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                         .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                         .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+        .subresourceRange =
+            VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                    .baseMipLevel = 0,
+                                    .levelCount = 1,
+                                    .baseArrayLayer = 0,
+                                    .layerCount = 1}};
+
+    VkImageView view;
+
+    ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+
+    VkCommandBufferBeginInfo cmd_buffer_begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr};
+
+    ASR_VK_CHECK(
+        vkBeginCommandBuffer(ctx.upload_cmd_buffer, &cmd_buffer_begin_info));
+
+    VkImageMemoryBarrier pre_upload_barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_NONE_KHR,
+        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image,
+        .subresourceRange =
+            VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                    .baseMipLevel = 0,
+                                    .levelCount = 1,
+                                    .baseArrayLayer = 0,
+                                    .layerCount = 1}};
+
+    vkCmdPipelineBarrier(ctx.upload_cmd_buffer,
+  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1,
+                         &pre_upload_barrier);
+
+    VkBufferImageCopy copy{
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource =
+            VkImageSubresourceLayers{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                     .mipLevel = 0,
+                                     .baseArrayLayer = 0,
+                                     .layerCount = 1},
+        .imageOffset = VkOffset3D{.x = 0, .y = 0, .z = 0},
+        .imageExtent = VkExtent3D{.width = atlas_extent.width,
+                                  .height = atlas_extent.height,
+                                  .depth = 1}};
+
+    vkCmdCopyBufferToImage(ctx.upload_cmd_buffer, atlas_staging_buffer.buffer,
+                           image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+  &copy);
+
+    VkImageMemoryBarrier post_upload_barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image,
+        .subresourceRange =
+            VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                    .baseMipLevel = 0,
+                                    .levelCount = 1,
+                                    .baseArrayLayer = 0,
+                                    .layerCount = 1}};
+
+    vkCmdPipelineBarrier(ctx.upload_cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1,
+                         &post_upload_barrier);
+
+    ASR_VK_CHECK(vkEndCommandBuffer(ctx.upload_cmd_buffer));
+
+    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .pNext = nullptr,
+                             .waitSemaphoreCount = 0,
+                             .pWaitSemaphores = nullptr,
+                             .pWaitDstStageMask = nullptr,
+                             .commandBufferCount = 1,
+                             .pCommandBuffers = &ctx.upload_cmd_buffer,
+                             .signalSemaphoreCount = 0,
+                             .pSignalSemaphores = nullptr};
+
+    ASR_VK_CHECK(vkResetFences(dev, 1, &ctx.upload_fence));
+
+    ASR_VK_CHECK(
+        vkQueueSubmit(cqueue.info.queue, 1, &submit_info, ctx.upload_fence));
+
+    ASR_VK_CHECK(
+        vkWaitForFences(dev, 1, &ctx.upload_fence, VK_TRUE, COMMAND_TIMEOUT));
+
+    ASR_VK_CHECK(vkResetCommandBuffer(ctx.upload_cmd_buffer, 0));
+
+    atlas_staging_buffer.destroy(dev);
+
+    return FontAtlas{
+        .glyphs = std::move(glyphs),
+        .extent = atlas_extent,
+        .font_height = font_height,
+        .atlas = vk::create_image_sampler(
+            stx::rc::make_inplace<vk::ImageResource>(
+                stx::os_allocator, image, view, memory,
+  ctx.queue.value().share()) .unwrap())};
+  }*/
+
+  void cache_font();
+
+  /* inline CachedFont cache_font(stx::Rc<Font*> font,
+                              asr::vk::RecordingContext& ctx, u32 font_height) {
+   FontAtlas atlas = render_atlas(*font.handle, ctx, font_height);
+   return CachedFont{.font = std::move(font), .atlas = std::move(atlas)};
+ }
+ */
 };
 
 }  // namespace vk

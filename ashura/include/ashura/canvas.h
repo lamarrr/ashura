@@ -593,37 +593,22 @@ struct Canvas {
     constexpr u32 NEWLINE = '\n';
     constexpr u32 RETURN = '\r';
 
-    // TODO(lamarrr): paragraph metrics
     struct SubwordGlyph {
       usize font = 0;
       u32 glyph = 0;
     };
 
     // this is part of a word that is styled by its run
-    //
-    // TODO(lamarrr): how do we perform joining?
     struct RunSubWord {
       usize run = 0;
       stx::Span<char const> text;
-      // NOTE: spacing is unidirectional
       usize nspaces = 0;
       usize nline_breaks = 0;
       f32 width = 0;
       usize glyph_start = 0;
       usize nglyphs = 0;
-      // usize line_index = 0;
-      usize nresolved_line_breaks = 0;
       bool is_wrapped = false;
     };
-
-    // might not be needed?
-    // struct RenderWord {
-    // might not be needed?
-    // f32 max_height = 0; // might not be needed?
-    // f32 spacing = 0; // how do we handle this?
-    // bool last_on_line = false;
-    // f32 line_height = 0;
-    // };
 
     stx::Vec<RunSubWord>* subwords;
     stx::Vec<SubwordGlyph>* glyphs;
@@ -691,17 +676,20 @@ struct Canvas {
               break;
             }
           }
-        } else if (codepoint == RETURN) {
+        } else if (codepoint == RETURN && nline_breaks > 0) {
+          // CRLF
+
           // TODO(lamarrr): finish
           for (char const* newline_iter = iter;
                newline_iter < run.text.end();) {
-            iter = newline_iter;
+            /*iter = newline_iter;
             u32 codepoint = stx::utf8_next(newline_iter);
-            if (codepoint == NEWLINE) {
+            if (codepoint == RETURN) {
+              // if( )
               nline_breaks += 1;
             } else {
               break;
-            }
+            }*/
           }
         }
 
@@ -715,8 +703,6 @@ struct Canvas {
             .unwrap();
       }
     }
-
-    usize subword_glyph_index = 0;
 
     for (RunSubWord& subword : *subwords) {
       TextRun const& run = paragraph.runs[subword.run];
@@ -757,6 +743,9 @@ struct Canvas {
 
       f32 width = 0;
 
+      subword.glyph_start = glyphs->size();
+      subword.nglyphs = nglyphs;
+
       for (usize i = 0; i < nglyphs; i++) {
         u32 glyph_index = glyph_info[i].codepoint;
         stx::Span glyph = cache.get(glyph_index);
@@ -773,57 +762,92 @@ struct Canvas {
       }
 
       subword.width = width;
-      subword.glyph_start = subword_glyph_index;
-      subword.nglyphs = nglyphs;
-      subword_glyph_index += nglyphs;
     }
 
-    // TODO(lamarrr): define another pass to determine line end and maximum line
-    // height to use for baseline
-    //
-    f32 cursor_x = 0;
-    usize line_index = 0;
+    {
+      f32 cursor_x = 0;
 
-    for (RunSubWord* iter = subwords->begin(); iter < subwords->end();) {
-      f32 word_width = 0;
-      RunSubWord* pcurr_subword = iter;
+      for (RunSubWord* iter = subwords->begin(); iter < subwords->end();) {
+        f32 word_width = 0;
+        RunSubWord* pcurr_subword = iter;
 
-      for (; pcurr_subword < subwords->end(); pcurr_subword++) {
-        word_width += pcurr_subword->width;
+        for (; pcurr_subword < subwords->end();) {
+          word_width += pcurr_subword->width;
 
-        // if end of word
-        if (pcurr_subword->nspaces > 0 || pcurr_subword->nline_breaks > 0 ||
-            pcurr_subword == subwords->end() - 1) {
-          // check if wrapping needed
-          if (cursor_x + word_width +
-                  pcurr_subword->nspaces *
-                      paragraph.runs[pcurr_subword->run].style.word_spacing >
-              max_line_width) {
-            line_index++;
-            pcurr_subword->is_wrapped = true;
-            for (RunSubWord* iter2 = iter; iter2 < pcurr_subword + 1; iter2++) {
-              iter2->line_index = line_index;
+          f32 spaced_word_width =
+              word_width +
+              pcurr_subword->nspaces *
+                  paragraph.runs[pcurr_subword->run].style.word_spacing;
+
+          // if end of word
+          if (pcurr_subword->nspaces > 0 || pcurr_subword->nline_breaks > 0 ||
+              pcurr_subword == subwords->end() - 1) {
+            // check if wrapping needed
+            if (cursor_x + spaced_word_width > max_line_width) {
+              iter->is_wrapped = true;
+              cursor_x = spaced_word_width;
+            } else {
+              cursor_x += spaced_word_width;
             }
-            cursor_x =
-                word_width +
-                pcurr_subword->nspaces *
-                    paragraph.runs[pcurr_subword->run].style.word_spacing;
+            pcurr_subword++;
+            break;
+          } else {
+            // continue until we reach end of word
+            pcurr_subword++;
           }
-          line_index += pcurr_subword->nline_breaks;
-          break;
-        } else {
-          pcurr_subword->line_index = line_index;
         }
-      }
 
-      iter = pcurr_subword + 1;
+        iter = pcurr_subword;
+      }
+    }
+
+    {
+      f32 baseline = 0;
+      usize nprev_line_breaks = 0;
+      for (RunSubWord* iter = subwords->begin(); iter < subwords->end();) {
+        RunSubWord* line_end = iter;
+
+        for (; line_end < subwords->end();) {
+          if (line_end->is_wrapped) {
+            break;
+          } else if (line_end->nline_breaks > 0) {
+            line_end++;
+            break;
+          }
+        }
+
+        f32 line_height = 0;
+        f32 line_width = 0;
+        for (RunSubWord* psubword = iter; psubword < line_end; psubword++) {
+          line_height = std::max(
+              line_height, paragraph.runs[psubword->run].style.line_height *
+                               paragraph.runs[psubword->run].style.font_height);
+          line_width += psubword->width +
+                        psubword->nspaces *
+                            paragraph.runs[psubword->run].style.word_spacing;
+        }
+
+        if (iter->is_wrapped) {
+          baseline += line_height;
+        }
+
+        baseline += nprev_line_breaks * line_height;
+
+        // layout all the text on the baseline
+        // if text direction is ltr, layout directly
+        // if text direction is rtl, get end of rtl and get rtl pack width, now
+        // layout along its end continue
+
+        iter = line_end;
+        nprev_line_breaks = (line_end - 1)->nline_breaks;
+      }
     }
 
     for (RunSubWord& s : *subwords) {
       fmt::print(
-          "glyph_start:{}, line_index:{}, nglyphs:{}, nline_breaks:{}, "
+          "glyph_start:{}, is_wrapped:{}, nglyphs:{}, nline_breaks:{}, "
           "nspaces:{}, run:{}, width:{}\n",
-          s.glyph_start, s.line_index, s.nglyphs, s.nline_breaks, s.nspaces,
+          s.glyph_start, s.is_wrapped, s.nglyphs, s.nline_breaks, s.nspaces,
           s.run, s.width);
     }
 
@@ -906,7 +930,8 @@ struct CanvasRenderingContext {
   }
 
   void submit(vk::SwapChain const& swapchain, u32 swapchain_image_index,
-              DrawList const& draw_list) {
+              DrawList const& draw_list,
+              AssetBundle<stx::Rc<vk::ImageSampler*>> const& bundle) {
     stx::Rc<vk::Device*> const& device = swapchain.queue->device;
 
     VkDevice dev = device->device;
@@ -1050,9 +1075,12 @@ struct CanvasRenderingContext {
     VkDeviceSize offset = 0;
 
     for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
+      vk::ImageSampler const& sampler =
+          *bundle.get(draw_list.cmds[icmd].texture).unwrap()->handle;
+
       VkDescriptorImageInfo image_info{
-          .sampler = draw_list.cmds[icmd].texture->sampler,
-          .imageView = draw_list.cmds[icmd].texture->image->view,
+          .sampler = sampler.sampler,
+          .imageView = sampler.image.handle->view,
           .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
       VkWriteDescriptorSet write{

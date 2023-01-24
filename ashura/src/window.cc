@@ -31,7 +31,7 @@ stx::Vec<char const*> Window::get_required_instance_extensions() const {
 void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
   VkSurfaceKHR surface;
 
-  ASR_SDL_CHECK(SDL_Vulkan_CreateSurface(window_, instance.handle->instance,
+  ASR_SDL_CHECK(SDL_Vulkan_CreateSurface(window_, instance->instance,
                                          &surface) == SDL_TRUE,
                 "unable to create surface for window");
 
@@ -63,9 +63,9 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
       VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_MAILBOX_KHR};
 
   VkSampleCountFlagBits msaa_sample_count =
-      queue.handle->device.handle->phy_device.handle->get_max_sample_count();
+      queue->device->phy_device->get_max_sample_count();
 
-  surface_.value().handle->change_swapchain(
+  surface_.value()->change_swapchain(
       queue, preferred_formats, preferred_present_modes,
       VkExtent2D{.width = surface_extent_.width,
                  .height = surface_extent_.height},
@@ -82,12 +82,12 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
 std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   ASR_CHECK(surface_.is_some(),
             "trying to present to swapchain without having surface attached");
-  ASR_CHECK(surface_.value().handle->swapchain.is_some(),
+  ASR_CHECK(surface_.value()->swapchain.is_some(),
             "trying to present to swapchain without having one");
 
-  vk::SwapChain& swapchain = surface_.value().handle->swapchain.value();
+  vk::SwapChain& swapchain = surface_.value()->swapchain.value();
 
-  VkDevice dev = swapchain.queue.handle->device.handle->device;
+  VkDevice dev = swapchain.queue->device->device;
 
   VkSemaphore semaphore =
       swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
@@ -121,13 +121,13 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
 WindowSwapchainDiff Window::present(u32 next_swapchain_image_index) {
   ASR_CHECK(surface_.is_some(),
             "trying to present to swapchain without having surface attached");
-  ASR_CHECK(surface_.value().handle->swapchain.is_some(),
+  ASR_CHECK(surface_.value()->swapchain.is_some(),
             "trying to present to swapchain without having one");
 
   // we submit multiple render commands (operating on the swapchain images) to
   // the GPU to prevent having to force a sync with the GPU (await_fence) when
   // it could be doing useful work.
-  vk::SwapChain& swapchain = surface_.value().handle->swapchain.value();
+  vk::SwapChain& swapchain = surface_.value()->swapchain.value();
 
   // we don't need to wait on presentation
   //
@@ -147,7 +147,7 @@ WindowSwapchainDiff Window::present(u32 next_swapchain_image_index) {
       .pResults = nullptr};
 
   VkResult result =
-      vkQueuePresentKHR(swapchain.queue.handle->info.queue, &present_info);
+      vkQueuePresentKHR(swapchain.queue->info.queue, &present_info);
 
   ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                 result == VK_ERROR_OUT_OF_DATE_KHR,
@@ -233,7 +233,7 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
                                     std::move(cfg), std::this_thread::get_id())
           .unwrap();
 
-  win.handle->api_.handle->add_window_info(win.handle->id_, win.handle);
+  win->api_->add_window_info(win->id_, win.handle);
 
   return win;
 }

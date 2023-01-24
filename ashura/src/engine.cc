@@ -8,6 +8,7 @@
 #include "ashura/shaders.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
+#include "ashura/asset_bundle.h"
 
 namespace asr {
 
@@ -61,7 +62,7 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
   return stx::None;
 }
 
-CachedFont* font;
+gfx::CachedFont* font;
 
 Engine::Engine(AppConfig const& cfg) {
   stx::Vec<char const*> required_device_extensions{stx::os_allocator};
@@ -93,14 +94,14 @@ Engine::Engine(AppConfig const& cfg) {
   xlogger.info("Created root window");
 
   stx::Vec window_required_instance_extensions =
-      window.value().handle->get_required_instance_extensions();
+      window.value()->get_required_instance_extensions();
 
   stx::Rc<vk::Instance*> vk_instance = vk::create_instance(
       cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), cfg.name.c_str(),
       VK_MAKE_VERSION(cfg.version.major, cfg.version.minor, cfg.version.patch),
       window_required_instance_extensions, required_validation_layers);
 
-  window.value().handle->attach_surface(vk_instance.share());
+  window.value()->attach_surface(vk_instance.share());
 
   stx::Vec phy_devices = vk::get_all_devices(vk_instance);
 
@@ -120,7 +121,7 @@ Engine::Engine(AppConfig const& cfg) {
       stx::rc::make(
           stx::os_allocator,
           select_device(phy_devices, device_preference,
-                        *window.value().handle->surface_.value().handle)
+                        *window.value()->surface_.value().handle)
               .expect("Unable to find any suitable rendering device")[0]
               .copy())
           .unwrap();
@@ -146,7 +147,7 @@ Engine::Engine(AppConfig const& cfg) {
       {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
        .pNext = nullptr,
        .flags = 0,
-       .queueFamilyIndex = graphics_command_queue_family.handle->index,
+       .queueFamilyIndex = graphics_command_queue_family->index,
        .queueCount = AS_U32(std::size(queue_priorities)),
        .pQueuePriorities = queue_priorities}};
 
@@ -168,56 +169,56 @@ Engine::Engine(AppConfig const& cfg) {
 
   queue = stx::Some(xqueue.share());
 
-  window.value().handle->recreate_swapchain(xqueue);
+  window.value()->recreate_swapchain(xqueue);
 
   canvas_context = stx::Some(stx::rc::make_inplace<gfx::CanvasRenderingContext>(
                                  stx::os_allocator, xqueue.share())
                                  .unwrap());
 
-  canvas_context.value().handle->ctx.on_swapchain_changed(
-      window.value().handle->surface_.value().handle->swapchain.value());
+  canvas_context.value()->ctx.on_swapchain_changed(
+      window.value()->surface_.value()->swapchain.value());
 
-  window.value().handle->on(
-      WindowEvent::Resized,
-      stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
-        ASR_LOG("resized");
-      }).unwrap());
+  window.value()->on(WindowEvent::Resized,
+                     stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
+                       ASR_LOG("resized");
+                     }).unwrap());
 
-  window.value().handle->mouse_motion_listener =
+  window.value()->mouse_motion_listener =
       stx::fn::rc::make_unique_static([](MouseMotionEvent const&) {});
 
   u8 const transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
   // TODO(lamarrr): fill with zeros
-  auto transparent_image = canvas_context.value().handle->ctx.upload_image(
+  auto transparent_image = canvas_context.value()->ctx.upload_image(
       {1, 1}, 4, transparent_image_data);
 
-  font = new CachedFont{cache_font(
+  font = new gfx::CachedFont{gfx::cache_font(
       load_font_from_file(
           R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\RobotoMono-Regular.ttf)"_str)
           .unwrap(),
-      canvas_context.value().handle->ctx, 26)};
+      canvas_context.value()->ctx, 26)};
 
-  // auto transparent_image = canvas_context.value().handle->ctx.upload_image(
+
+
+  // auto transparent_image = canvas_context.value()->ctx.upload_image(
   // extent{1920, 1080}, 4, sample_image);
 
-  Image sampler = vk::create_image_sampler(transparent_image);
+  gfx::image sampler = vk::create_image_sampler(transparent_image);
 
   canvas = stx::Some(gfx::Canvas{{0, 0}, sampler});
 
-  window.value().handle->on(
-      WindowEvent::Close,
-      stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
-        std::exit(0);
-      }).unwrap());
+  window.value()->on(WindowEvent::Close,
+                     stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
+                       std::exit(0);
+                     }).unwrap());
 
-  window.value().handle->on(
-      WindowEvent::Resized,
-      stx::fn::rc::make_unique_functor(
-          stx::os_allocator,
-          [win = window.value().handle]() { win->needs_resizing = true; })
-          .unwrap());
+  window.value()->on(WindowEvent::Resized, stx::fn::rc::make_unique_functor(
+                                               stx::os_allocator,
+                                               [win = window.value().handle]() {
+                                                 win->needs_resizing = true;
+                                               })
+                                               .unwrap());
 
-  window.value().handle->on(
+  window.value()->on(
       WindowEvent::SizeChanged,
       stx::fn::rc::make_unique_functor(
           stx::os_allocator,
@@ -231,16 +232,14 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   //
   // any missed event should be rolled over to the next tick()
   do {
-  } while (window_api.value().handle->poll_events());
+  } while (window_api.value()->poll_events());
 
   // TODO(lamarrr): try getting window extent on each frame instead?
-  window.value().handle->tick(interval);
+  window.value()->tick(interval);
 
   auto draw_content = [&]() {
-    VkExtent2D extent = window.value()
-                            .handle->surface_.value()
-                            .handle->swapchain.value()
-                            .window_extent;
+    VkExtent2D extent =
+        window.value()->surface_.value()->swapchain.value().window_extent;
 
     gfx::Canvas& c = canvas.value();
     static int x = 0;
@@ -280,18 +279,18 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.brush.color = color::from_rgb(0xbd, 0xbc, 0xb7);
     c.draw_rect({{90, 490}, {320, 120}});
     c.brush.color = colors::WHITE;
-    auto str = fmt::format("Examples Dear ImGui Demo.\n Starting in {}", d);
+    auto str = fmt::format("Examples Dear ImGui Demo.\n Starting in {}\t", d);
     TextRun runs[] = {
         {.text = str,
          .font = 0,
-         .style =
-             TextStyle{.font_height = 30, .foreground_color = colors::CYAN}},
+         .style = {.font_height = 30, .foreground_color = colors::CYAN}},
         {.text = str,
          .font = 0,
-         .style =
-             TextStyle{.font_height = 8, .foreground_color = colors::MAGENTA}}};
+         .style = {.font_height = 8, .foreground_color = colors::MAGENTA}}};
     Paragraph paragraph{.runs = runs, .align = TextAlign::Right};
     c.draw_text(stx::Span{font, 1}, paragraph, {100, 500}, 300);
+
+    image_assets.get(0).unwrap()->operator->()->sampler;
     // TODO(lamarrr): scaling doesn't work properly
     // c.scale(0.5, 0.5);
     // c.rotate(0, 0, 90);
@@ -324,18 +323,17 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
   do {
     if (swapchain_diff != WindowSwapchainDiff::None) {
-      window.value().handle->recreate_swapchain(queue.value());
-      canvas_context.value().handle->ctx.on_swapchain_changed(
-          window.value().handle->surface_.value().handle->swapchain.value());
+      window.value()->recreate_swapchain(queue.value());
+      canvas_context.value()->ctx.on_swapchain_changed(
+          window.value()->surface_.value()->swapchain.value());
 
       draw_content();
     }
 
     vk::SwapChain& swapchain =
-        window.value().handle->surface_.value().handle->swapchain.value();
+        window.value()->surface_.value()->swapchain.value();
 
-    auto [diff, next_swapchain_image_index] =
-        window.value().handle->acquire_image();
+    auto [diff, next_swapchain_image_index] = window.value()->acquire_image();
 
     swapchain_diff = diff;
 
@@ -343,13 +341,13 @@ void Engine::tick(std::chrono::nanoseconds interval) {
       continue;
     }
 
-    canvas_context.value().handle->submit(
-        window.value().handle->surface_.value().handle->swapchain.value(),
+    canvas_context.value()->submit(
+        window.value()->surface_.value()->swapchain.value(),
         next_swapchain_image_index, canvas.value().draw_list);
 
     canvas.value().clear();
 
-    swapchain_diff = window.value().handle->present(next_swapchain_image_index);
+    swapchain_diff = window.value()->present(next_swapchain_image_index);
 
     // the frame semaphores and synchronization primitives are still used even
     // if an error is returned
