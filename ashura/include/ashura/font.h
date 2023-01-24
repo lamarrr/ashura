@@ -24,7 +24,6 @@
 #include "unicode/uscript.h"
 
 namespace asr {
-namespace gfx {
 
 enum class FontLoadError : u8 { InvalidPath };
 
@@ -49,6 +48,25 @@ struct TextStyle {
   bool strikethrough = false;
   color foreground_color = colors::BLACK;
   color background_color = colors::TRANSPARENT;
+};
+
+/// A text run is a sequence of characters sharing a single property set. Any
+/// change to the format, such as font style, foreground color, font family, or
+/// any other formatting effect, breaks the text run.
+struct TextRun {
+  /// utf-8-encoded text
+  stx::Span<char const> text;
+  usize font = 0;
+  TextStyle style;
+  TextDirection direction = TextDirection::LeftToRight;
+  hb_script_t script = HB_SCRIPT_LATIN;
+  hb_language_t language = hb_language_from_string("en", 2);
+};
+
+struct Paragraph {
+  stx::Span<TextRun const> runs;
+  TextAlign align = TextAlign::Left;
+  TextOverflow overflow = TextOverflow::None;
 };
 
 struct Font {
@@ -136,6 +154,8 @@ inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font_from_file(
   return stx::Ok(load_font_from_memory(std::move(memory), size));
 }
 
+namespace gfx {
+
 struct Glyph {
   bool is_valid = false;
   /// the glyph index
@@ -174,7 +194,6 @@ struct FontAtlas {
   }
 };
 
-// stx::Fn
 // TODO(lamarrr): try to support colored fonts
 // TODO(lamarrr): this must always return an rgba colored atlas
 inline FontAtlas render_atlas(Font const& font, vk::RecordingContext& ctx,
@@ -184,9 +203,9 @@ inline FontAtlas render_atlas(Font const& font, vk::RecordingContext& ctx,
   ASR_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
 
   vk::CommandQueue& cqueue = *ctx.queue.value().handle;
-  VkDevice dev = cqueue.device.handle->device;
+  VkDevice dev = cqueue.device->device;
   VkPhysicalDeviceMemoryProperties const& memory_properties =
-      cqueue.device.handle->phy_device.handle->memory_properties;
+      cqueue.device->phy_device->memory_properties;
 
   stx::Vec<Glyph> glyphs{stx::os_allocator};
 
@@ -232,7 +251,7 @@ inline FontAtlas render_atlas(Font const& font, vk::RecordingContext& ctx,
   VkImageFormatProperties image_format_properties;
 
   ASR_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(
-      ctx.queue.value().handle->device.handle->phy_device.handle->phy_device,
+      ctx.queue.value()->device->phy_device->phy_device,
       VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
       VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties));
 
@@ -528,25 +547,6 @@ inline CachedFont cache_font(stx::Rc<Font*> font,
   FontAtlas atlas = render_atlas(*font.handle, ctx, font_height);
   return CachedFont{.font = std::move(font), .atlas = std::move(atlas)};
 }
-
-/// A text run is a sequence of characters sharing a single property set. Any
-/// change to the format, such as font style, foreground color, font family, or
-/// any other formatting effect, breaks the text run.
-struct TextRun {
-  /// utf-8-encoded text
-  stx::Span<char const> text;
-  usize font = 0;
-  TextStyle style;
-  TextDirection direction = TextDirection::LeftToRight;
-  hb_script_t script = HB_SCRIPT_LATIN;
-  hb_language_t language = hb_language_from_string("en", 2);
-};
-
-struct Paragraph {
-  stx::Span<TextRun const> runs;
-  TextAlign align = TextAlign::Left;
-  TextOverflow overflow = TextOverflow::None;
-};
 
 }  // namespace gfx
 }  // namespace asr
