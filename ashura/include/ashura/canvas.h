@@ -611,16 +611,19 @@ struct Canvas {
       f32 width = 0;
       usize glyph_start = 0;
       usize nglyphs = 0;
+      // usize line_index = 0;
+      usize nresolved_line_breaks = 0;
+      bool is_wrapped = false;
     };
 
     // might not be needed?
-    struct RenderWord {
-      // might not be needed?
-      // f32 max_height = 0; // might not be needed?
-      // f32 spacing = 0; // how do we handle this?
-      // bool last_on_line = false;
-      // f32 line_height = 0;
-    };
+    // struct RenderWord {
+    // might not be needed?
+    // f32 max_height = 0; // might not be needed?
+    // f32 spacing = 0; // how do we handle this?
+    // bool last_on_line = false;
+    // f32 line_height = 0;
+    // };
 
     stx::Vec<RunSubWord>* subwords;
     stx::Vec<SubwordGlyph>* glyphs;
@@ -640,7 +643,6 @@ struct Canvas {
         u32 codepoint = 0;
         usize nspaces = 0;
         usize nline_breaks = 0;
-        // TODO(lamarrr): support \r\n
 
         while (iter < run.text.end()) {
           codepoint = stx::utf8_next(iter);
@@ -653,8 +655,17 @@ struct Canvas {
           } else if (codepoint == NEWLINE) {
             nline_breaks = 1;
             break;
+          } else if (codepoint == RETURN) {
+            // only consider it as a newline if codepoint is return followed by
+            // newline
+            if (iter + 1 < run.text.end()) {
+              if (*(iter + 1) == NEWLINE) {
+                iter++;
+                nline_breaks = 1;
+                break;
+              }
+            }
           }
-          // else if(codepoint == "\r") { skip to next }
         }
 
         if (codepoint == SPACE || codepoint == TAB) {
@@ -670,6 +681,18 @@ struct Canvas {
             }
           }
         } else if (codepoint == NEWLINE) {
+          for (char const* newline_iter = iter;
+               newline_iter < run.text.end();) {
+            iter = newline_iter;
+            u32 codepoint = stx::utf8_next(newline_iter);
+            if (codepoint == NEWLINE) {
+              nline_breaks += 1;
+            } else {
+              break;
+            }
+          }
+        } else if (codepoint == RETURN) {
+          // TODO(lamarrr): finish
           for (char const* newline_iter = iter;
                newline_iter < run.text.end();) {
             iter = newline_iter;
@@ -755,445 +778,55 @@ struct Canvas {
       subword_glyph_index += nglyphs;
     }
 
-    f32 baseline = 0;
+    // TODO(lamarrr): define another pass to determine line end and maximum line
+    // height to use for baseline
+    //
     f32 cursor_x = 0;
+    usize line_index = 0;
 
-    for (usize i = 0; i < subwords->size();) {
-      RunSubWord const& subword = (*subwords)[i];
-      TextRun const& run = paragraph.runs[subword.run];
+    for (RunSubWord* iter = subwords->begin(); iter < subwords->end();) {
+      f32 word_width = 0;
+      RunSubWord* pcurr_subword = iter;
 
-      // TODO(lamarrr): we need to use n=1, we also need to consider if the
-      // present word has a newline at the end of it
-      // usize j = i + 1;
+      for (; pcurr_subword < subwords->end(); pcurr_subword++) {
+        word_width += pcurr_subword->width;
 
-      f32 word_width = subword.width;
-      // get max line height for line
-
-      if (run.direction == TextDirection::LeftToRight) {
-        usize nline_breaks = 0;
-        for (; j < subwords->size(); j++) {
-          RunSubWord const& subword = (*subwords)[j];
-          word_width += subword.width;
-          if (subword.nline_breaks > 0 || subword.nspaces > 0) {
-            nline_breaks = subword.nline_breaks;
-            break;
-          }
-        }
-
-        if (nline_breaks > 0 || cursor_x + word_width > max_line_width) {
-          // is new line
-          // mark as on a new line
-        } else {
-          // mark as on same line
-        }
-
-      } else {
-        f32 width = 0;
-        for (; j < subwords->size(); j++) {
-          if (paragraph.runs[(*subwords)[j].run].direction !=
-              TextDirection::RightToLeft) {
-            break;
-          } else if ((*subwords)[j].nline_breaks > 0) {
-            width += (*subwords)[j].width;
-            j++;
-            break;
-          }
-        }
-
-        cursor_x + width;
-        // layout text
-      }
-
-      // for (; j < subwords->size(); j++) {
-      //   if (subwords->begin() + i == subwords->end() - 1 ||
-      //       subword.nline_breaks > 0 || cursor_x + subword.width) {
-      //     // run line
-      //     //
-      //     // TODO(height must be increased)
-      //   }
-      // }
-
-      i = j;
-    }
-
-    {
-      // TODO(lamarrr): CONSIDER: canvas.clip_rect do not render beyond clip
-      // rect apply transform to coordinates to see if any of the coordinates
-      // fall inside it, if not discard certain parts of the text
-      //
-
-      stx::Vec<TextLine> lines{stx::os_allocator};
-      lines.push(TextLine{}).unwrap();
-
-      f32 line_width = 0;
-      for (usize run_index = 0; run_index < paragraph.runs.size();) {
-        TextDirection run_pack_direction = paragraph.runs[run_index].direction;
-        TextDirection previous_run_direction = run_pack_direction;
-        usize next_run_index = run_index + 1;
-
-        for (; next_run_index < paragraph.runs.size(); next_run_index++) {
-          TextDirection current_run_direction =
-              paragraph.runs[next_run_index].direction;
-
-          if (current_run_direction != previous_run_direction) {
-            break;
-          }
-          previous_run_direction = current_run_direction;
-        }
-
-        for (usize i = 0; i < next_run_index - run_index; i++) {
-          TextRun const& run =
-              paragraph.runs[run_pack_direction == TextDirection::LeftToRight
-                                 ? run_index + i
-                                 : next_run_index - i - 1];
-          hb_feature_t const features[] = {
-              {Font::KERNING_FEATURE, run.style.use_kerning, 0,
-               std::numeric_limits<unsigned int>::max()},
-              {Font::LIGATURE_FEATURE, run.style.use_ligatures, 0,
-               std::numeric_limits<unsigned int>::max()},
-              {Font::CONTEXTUAL_LIGATURE_FEATURE, run.style.use_ligatures, 0,
-               std::numeric_limits<unsigned int>::max()}};
-
-          Font const& font = *fonts[run.font].font.handle;
-          FontAtlas const& cache = fonts[run.font].atlas;
-
-          f32 run_font_scale = run.style.font_height / cache.font_height;
-          f32 run_word_spacing = run.style.word_spacing;
-          f32 run_letter_spacing = run.style.letter_spacing;
-
-          char const* iter = run.text.begin();
-
-          // for each word
-          for (; iter < run.text.end();) {
-            char const* word_start = iter;
-            char const* word_end = iter;
-
-            // TODO(lamarrr): this doesn't really work does it? how did we know
-            // the word width from here? especially with word_spacing taking
-            // place, we can try to actually check if it is a space and has word
-            // boundary, also, how does it work with spaces and how do spaces
-            // work with word_spacing
-            //
-            //
-            // NOTE!: NOt used-> word spacing is spaces
-            //
-            f32 word_width = 0;
-            usize nspaces = 0;
-            bool is_line_break = false;
-
-            // get characters for word
-            for (; iter < run.text.end();) {
-              u32 codepoint = stx::utf8_next(iter);
-              if (codepoint == SPACE) {
-                nspaces = 1;
-                break;
-              } else if (codepoint == TAB) {
-                nspaces = run.style.tab_size;
-                break;
-              } else if (codepoint == NEWLINE) {
-                is_line_break = true;
-                break;
-              }
+        // if end of word
+        if (pcurr_subword->nspaces > 0 || pcurr_subword->nline_breaks > 0 ||
+            pcurr_subword == subwords->end() - 1) {
+          // check if wrapping needed
+          if (cursor_x + word_width +
+                  pcurr_subword->nspaces *
+                      paragraph.runs[pcurr_subword->run].style.word_spacing >
+              max_line_width) {
+            line_index++;
+            pcurr_subword->is_wrapped = true;
+            for (RunSubWord* iter2 = iter; iter2 < pcurr_subword + 1; iter2++) {
+              iter2->line_index = line_index;
             }
-
-            word_end = iter;
-
-            if (!is_line_break) {
-              // count number of spaces
-              for (char const* space_iter = iter;
-                   space_iter < run.text.end();) {
-                iter = space_iter;
-                u32 codepoint = stx::utf8_next(space_iter);
-                if (codepoint == SPACE) {
-                  nspaces += 1;
-                } else if (codepoint == TAB) {
-                  nspaces += run.style.tab_size;
-                } else {
-                  break;
-                }
-              }
-
-              hb_font_set_scale(font.hbfont, 64 * cache.font_height,
-                                64 * cache.font_height);
-
-              hb_buffer_reset(font.hbscratch_buffer);
-              hb_buffer_set_script(font.hbscratch_buffer, run.script);
-              if (run.direction == TextDirection::LeftToRight) {
-                hb_buffer_set_direction(font.hbscratch_buffer,
-                                        HB_DIRECTION_LTR);
-              } else {
-                hb_buffer_set_direction(font.hbscratch_buffer,
-                                        HB_DIRECTION_RTL);
-              }
-              hb_buffer_set_language(font.hbscratch_buffer, run.language);
-              hb_buffer_add_utf8(font.hbscratch_buffer, word_start,
-                                 static_cast<int>(word_end - word_start), 0,
-                                 static_cast<int>(word_end - word_start));
-
-              hb_shape(font.hbfont, font.hbscratch_buffer, features,
-                       static_cast<unsigned int>(std::size(features)));
-
-              unsigned int nglyphs;
-              hb_glyph_info_t* glyph_info =
-                  hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
-
-              for (usize i = 0; i < nglyphs; i++) {
-                u32 glyph_index = glyph_info[i].codepoint;
-                stx::Span glyph = cache.get(glyph_index);
-
-                if (!glyph.is_empty()) {
-                  word_width += glyph[0].advance.x * run_font_scale;
-                } else {
-                  word_width += cache.glyphs[0].advance.x * run_font_scale;
-                }
-              }
-
-              if (line_width + word_width + run_word_spacing * nspaces >
-                  max_line_width) {
-                // new line
-                lines.push(TextLine{}).unwrap();
-                line_width = 0;
-              }
-
-              for (usize i = 0; i < nglyphs; i++) {
-                u32 glyph_index = glyph_info[i].codepoint;
-                stx::Span glyph = cache.get(glyph_index);
-
-                if (!glyph.is_empty()) {
-                  line_width +=
-                      glyph[0].advance.x * run_font_scale + run_letter_spacing;
-                } else {
-                  line_width += cache.glyphs[0].advance.x * run_font_scale +
-                                run_letter_spacing;
-                }
-
-                lines[lines.size() - 1]
-                    .glyphs
-                    .push(TextLineGlyph{.glyph = glyph_index, .run = run_index})
-                    .unwrap();
-              }
-
-              line_width += run_word_spacing * nspaces;
-
-              lines[lines.size() - 1]
-                  .words
-                  .push(TextLineWord{.glyph_count = nglyphs,
-                                     .spacing = run_word_spacing * nspaces})
-                  .unwrap();
-            } else {
-              lines.push(TextLine{}).unwrap();
-              line_width = 0;
-            }
-          }
-        }
-
-        run_index = next_run_index;
-      }
-
-      f32 baseline = 0;
-
-      for (TextLine const& line : lines) {
-        if (line.glyphs.is_empty() || line.words.is_empty()) continue;
-
-        f32 line_height = 0;
-
-        for (TextLineGlyph const& glyph : line.glyphs) {
-          TextStyle const& style = paragraph.runs[glyph.run].style;
-          line_height =
-              std::max(line_height, style.line_height * style.font_height);
-        }
-
-        baseline += line_height;
-
-        f32 cursor_x = 0;
-
-        if (paragraph.align == TextAlign::Right ||
-            paragraph.align == TextAlign::Center) {
-          usize word_index = 0;
-          f32 line_width = 0;
-          for (TextLineWord const& word : line.words) {
-            for (TextLineGlyph const& glyph :
-                 line.glyphs.span().slice(word_index, word.glyph_count)) {
-              TextRun const& run = paragraph.runs[glyph.run];
-              f32 font_scale =
-                  run.style.font_height / fonts[run.font].atlas.font_height;
-              f32 run_letter_spacing = run.style.letter_spacing;
-              stx::Span render_glyph = fonts[run.font].atlas.get(glyph.glyph);
-
-              if (!render_glyph.is_empty()) {
-                line_width += render_glyph[0].advance.x * font_scale;
-              } else {
-                line_width +=
-                    fonts[run.font].atlas.glyphs[0].advance.x * font_scale;
-              }
-
-              line_width += run_letter_spacing;
-            }
-
-            line_width += (&word == line.words.end() - 1) ? 0 : word.spacing;
-
-            word_index += word.glyph_count;
-          }
-
-          if (paragraph.align == TextAlign::Right) {
             cursor_x =
-                max_line_width > line_width ? (max_line_width - line_width) : 0;
-          } else {
-            cursor_x = max_line_width > line_width
-                           ? (max_line_width - line_width) / 2
-                           : 0;
+                word_width +
+                pcurr_subword->nspaces *
+                    paragraph.runs[pcurr_subword->run].style.word_spacing;
           }
+          line_index += pcurr_subword->nline_breaks;
+          break;
+        } else {
+          pcurr_subword->line_index = line_index;
         }
-
-        usize line_glyph_index = 0;
-        for (TextLineWord const& word : line.words) {
-          for (TextLineGlyph const& glyph :
-               line.glyphs.span().slice(line_glyph_index, word.glyph_count)) {
-            TextRun const& run = paragraph.runs[glyph.run];
-            f32 font_scale =
-                run.style.font_height / fonts[run.font].atlas.font_height;
-            f32 run_letter_spacing = run.style.letter_spacing;
-
-            stx::Span render_glyph = fonts[run.font].atlas.get(glyph.glyph);
-
-            if (render_glyph.is_empty()) {
-              render_glyph = fonts[run.font].atlas.glyphs.span().slice(0, 1);
-            }
-
-            Glyph const& g = render_glyph[0];
-
-            if (run.style.background_color.is_visible()) {
-              vec4 bg = run.style.background_color.as_vec();
-
-              vec2 p1{position.x + cursor_x,
-                      position.y + baseline - line_height};
-              vec2 p2{p1.x + g.advance.x * font_scale + run_letter_spacing,
-                      p1.y};
-              vec2 p3{p2.x, p2.y + line_height};
-              vec2 p4{p1.x, p3.y};
-
-              vertex vertices[] = {{.position = p1, .st = {}, .color = bg},
-                                   {.position = p2, .st = {}, .color = bg},
-                                   {.position = p3, .st = {}, .color = bg},
-                                   {.position = p4, .st = {}, .color = bg}};
-
-              for (vertex& vertex : vertices) {
-                vertex.position =
-                    normalize_for_viewport(vertex.position, viewport_extent);
-              }
-
-              u32 indices_offset = AS_U32(draw_list.indices.size());
-              u32 vertices_offset = AS_U32(draw_list.vertices.size());
-
-              u32 indices[] = {vertices_offset,     vertices_offset + 1,
-                               vertices_offset + 2, vertices_offset,
-                               vertices_offset + 2, vertices_offset + 3};
-
-              draw_list.indices.extend(indices).unwrap();
-              draw_list.vertices.extend(vertices).unwrap();
-
-              draw_list.cmds
-                  .push(DrawCommand{.indices_offset = indices_offset,
-                                    .nindices = 6,
-                                    .clip_rect = clip_rect,
-                                    .transform = transform,
-                                    .texture = 0})
-                  .unwrap();
-            }
-
-            vec2 p1{position.x + cursor_x + g.x * font_scale,
-                    position.y + baseline - g.ascent * font_scale};
-            vec2 p2{p1.x + g.extent.width * font_scale, p1.y};
-            vec2 p3{p2.x, p2.y + g.extent.height * font_scale};
-            vec2 p4{p1.x, p3.y};
-
-            vec4 fg = run.style.foreground_color.as_vec();
-
-            vertex vertices[] = {
-                {.position = p1, .st = {g.s0, g.t0}, .color = fg},
-                {.position = p2, .st = {g.s1, g.t0}, .color = fg},
-                {.position = p3, .st = {g.s1, g.t1}, .color = fg},
-                {.position = p4, .st = {g.s0, g.t1}, .color = fg}};
-
-            for (vertex& vertex : vertices) {
-              vertex.position =
-                  normalize_for_viewport(vertex.position, viewport_extent);
-            }
-
-            u32 indices_offset = AS_U32(draw_list.indices.size());
-            u32 vertices_offset = AS_U32(draw_list.vertices.size());
-
-            u32 indices[] = {vertices_offset,     vertices_offset + 1,
-                             vertices_offset + 2, vertices_offset,
-                             vertices_offset + 2, vertices_offset + 3};
-
-            draw_list.indices.extend(indices).unwrap();
-            draw_list.vertices.extend(vertices).unwrap();
-
-            draw_list.cmds
-                .push(DrawCommand{.indices_offset = indices_offset,
-                                  .nindices = 6,
-                                  .clip_rect = clip_rect,
-                                  .transform = transform,
-                                  .texture = fonts[run.font].atlas.atlas})
-                .unwrap();
-
-            cursor_x += g.advance.x * font_scale + run_letter_spacing;
-          }
-
-          if (!(&word == line.words.end() - 1 &&
-                (paragraph.align == TextAlign::Center ||
-                 paragraph.align == TextAlign::Right))) {
-            TextRun const& run =
-                paragraph.runs
-                    [line.glyphs[line_glyph_index + word.glyph_count - 1].run];
-            color background_color = run.style.background_color;
-            if (background_color.is_visible()) {
-              vec4 bg = background_color.as_vec();
-
-              vec2 p1{position.x + cursor_x,
-                      position.y + baseline - line_height};
-              vec2 p2{p1.x + word.spacing, p1.y};
-              vec2 p3{p2.x, p2.y + line_height};
-              vec2 p4{p1.x, p3.y};
-
-              vertex vertices[] = {{.position = p1, .st = {}, .color = bg},
-                                   {.position = p2, .st = {}, .color = bg},
-                                   {.position = p3, .st = {}, .color = bg},
-                                   {.position = p4, .st = {}, .color = bg}};
-
-              for (vertex& vertex : vertices) {
-                vertex.position =
-                    normalize_for_viewport(vertex.position, viewport_extent);
-              }
-
-              u32 indices_offset = AS_U32(draw_list.indices.size());
-              u32 vertices_offset = AS_U32(draw_list.vertices.size());
-
-              u32 indices[] = {vertices_offset,     vertices_offset + 1,
-                               vertices_offset + 2, vertices_offset,
-                               vertices_offset + 2, vertices_offset + 3};
-
-              draw_list.indices.extend(indices).unwrap();
-              draw_list.vertices.extend(vertices).unwrap();
-
-              draw_list.cmds
-                  .push(DrawCommand{.indices_offset = indices_offset,
-                                    .nindices = 6,
-                                    .clip_rect = clip_rect,
-                                    .transform = transform,
-                                    .texture = 0})
-                  .unwrap();
-            }
-            cursor_x += word.spacing;
-          }
-
-          line_glyph_index += word.glyph_count;
-        }
-
-        cursor_x = 0;
       }
+
+      iter = pcurr_subword + 1;
     }
+
+    for (RunSubWord& s : *subwords) {
+      fmt::print(
+          "glyph_start:{}, line_index:{}, nglyphs:{}, nline_breaks:{}, "
+          "nspaces:{}, run:{}, width:{}\n",
+          s.glyph_start, s.line_index, s.nglyphs, s.nline_breaks, s.nspaces,
+          s.run, s.width);
+    }
+
     return *this;
   }
 };
@@ -1249,7 +882,7 @@ struct CanvasRenderingContext {
   STX_MAKE_PINNED(CanvasRenderingContext)
 
   ~CanvasRenderingContext() {
-    VkDevice dev = queue.handle->device.handle->device;
+    VkDevice dev = queue->device->device;
 
     for (vk::SpanBuffer& buff : vertex_buffers) buff.destroy(dev);
 
@@ -1261,9 +894,9 @@ struct CanvasRenderingContext {
   void __write_vertices(stx::Span<vertex const> vertices,
                         stx::Span<u32 const> indices,
                         u32 next_frame_flight_index) {
-    VkDevice dev = queue.handle->device.handle->device;
+    VkDevice dev = queue->device->device;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
-        queue.handle->device.handle->phy_device.handle->memory_properties;
+        queue->device->phy_device->memory_properties;
 
     vertex_buffers[next_frame_flight_index].write(
         dev, memory_properties, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
@@ -1274,11 +907,11 @@ struct CanvasRenderingContext {
 
   void submit(vk::SwapChain const& swapchain, u32 swapchain_image_index,
               DrawList const& draw_list) {
-    stx::Rc<vk::Device*> const& device = swapchain.queue.handle->device;
+    stx::Rc<vk::Device*> const& device = swapchain.queue->device;
 
-    VkDevice dev = device.handle->device;
+    VkDevice dev = device->device;
 
-    VkQueue queue = swapchain.queue.handle->info.queue;
+    VkQueue queue = swapchain.queue->info.queue;
 
     u32 frame = swapchain.next_frame_flight_index;
 
@@ -1418,8 +1051,8 @@ struct CanvasRenderingContext {
 
     for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
       VkDescriptorImageInfo image_info{
-          .sampler = draw_list.cmds[icmd].texture.handle->sampler,
-          .imageView = draw_list.cmds[icmd].texture.handle->image.handle->view,
+          .sampler = draw_list.cmds[icmd].texture->sampler,
+          .imageView = draw_list.cmds[icmd].texture->image->view,
           .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
       VkWriteDescriptorSet write{
