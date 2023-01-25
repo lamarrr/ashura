@@ -10,6 +10,8 @@
 #include "stx/limits.h"
 #include "stx/option.h"
 
+#define RADIANS(...) AS_F32(M_PI *(__VA_ARGS__) / 180)
+
 namespace asr {
 
 using u8 = uint8_t;
@@ -27,6 +29,12 @@ using f64 = double;
 
 using usize = size_t;
 using isize = ptrdiff_t;
+
+using sint = int;
+using uint = unsigned int;
+
+using c8 = char;
+using uc8 = unsigned char;
 
 struct vec2 {
   f32 x = 0, y = 0;
@@ -179,18 +187,8 @@ constexpr vec2 transform(mat4 const &a, vec2 const &b) {
   return vec2{.x = prod.x, .y = prod.y};
 }
 
-constexpr vec2 transform(vec2 const &a, mat4 const &b) {
-  vec4 prod = b * vec4{a.x, a.y, 0, 1};
-  return vec2{.x = prod.x, .y = prod.y};
-}
-
 constexpr vec2 transform(mat4 const &a, vec3 const &b) {
   vec4 prod = a * vec4{b.x, b.y, b.z, 1};
-  return vec2{.x = prod.x, .y = prod.y};
-}
-
-constexpr vec2 transform(vec3 const &a, mat4 const &b) {
-  vec4 prod = b * vec4{a.x, a.y, a.z, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
