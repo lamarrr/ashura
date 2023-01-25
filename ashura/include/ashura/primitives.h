@@ -80,7 +80,7 @@ struct rect {
 };
 
 struct vec3 {
-  f32 x = 0, y = 0, z = 0;
+  f32 x = 0, y = 0, z = 0, ____pad = 0;
 };
 
 constexpr vec3 operator-(vec3 a, f32 b) {
