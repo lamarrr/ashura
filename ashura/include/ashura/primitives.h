@@ -160,6 +160,30 @@ constexpr mat4 operator*(mat4 const &a, mat4 const &b) {
                {b.data[0].w, b.data[1].w, b.data[2].w, b.data[3].w})}}};
 }
 
+constexpr vec4 operator*(mat4 const &a, vec4 const &b) {
+  return vec4{.x = dot(a.data[0], b),
+              .y = dot(a.data[1], b),
+              .z = dot(a.data[2], b),
+              .w = dot(a.data[3], b)};
+}
+
+constexpr vec4 operator*(vec4 const &a, mat4 const &b) {
+  return vec4{.x = dot(a, b.data[0]),
+              .y = dot(a, b.data[1]),
+              .z = dot(a, b.data[2]),
+              .w = dot(a, b.data[3])};
+}
+
+constexpr vec2 operator*(mat4 const &a, vec2 const &b) {
+  vec4 prod = a * vec4{b.x, b.y, 0, 1};
+  return vec2{.x = prod.x, .y = prod.y};
+}
+
+constexpr vec2 operator*(vec2 const &a, mat4 const &b) {
+  vec4 prod = b * vec4{a.x, a.y, 0, 1};
+  return vec2{.x = prod.x, .y = prod.y};
+}
+
 constexpr bool operator==(mat4 const &a, mat4 const &b) {
   return a.data[0] == b.data[0] && a.data[1] == b.data[1] &&
          a.data[2] == b.data[2] && a.data[3] == b.data[3];
@@ -167,7 +191,7 @@ constexpr bool operator==(mat4 const &a, mat4 const &b) {
 
 namespace transforms {
 
-inline mat4 translate(vec3 t) {
+constexpr mat4 translate(vec3 t) {
   return {
       vec4{1, 0, 0, t.x},
       vec4{0, 1, 0, t.y},
@@ -176,7 +200,7 @@ inline mat4 translate(vec3 t) {
   };
 }
 
-inline mat4 scale(vec3 s) {
+constexpr mat4 scale(vec3 s) {
   return {
       vec4{s.x, 0, 0, 0},
       vec4{0, s.y, 0, 0},
