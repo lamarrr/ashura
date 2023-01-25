@@ -174,13 +174,23 @@ constexpr vec4 operator*(vec4 const &a, mat4 const &b) {
               .w = dot(a, b.data[3])};
 }
 
-constexpr vec2 operator*(mat4 const &a, vec2 const &b) {
+constexpr vec2 transform(mat4 const &a, vec2 const &b) {
   vec4 prod = a * vec4{b.x, b.y, 0, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
-constexpr vec2 operator*(vec2 const &a, mat4 const &b) {
+constexpr vec2 transform(vec2 const &a, mat4 const &b) {
   vec4 prod = b * vec4{a.x, a.y, 0, 1};
+  return vec2{.x = prod.x, .y = prod.y};
+}
+
+constexpr vec2 transform(mat4 const &a, vec3 const &b) {
+  vec4 prod = a * vec4{b.x, b.y, b.z, 1};
+  return vec2{.x = prod.x, .y = prod.y};
+}
+
+constexpr vec2 transform(vec3 const &a, mat4 const &b) {
+  vec4 prod = b * vec4{a.x, a.y, a.z, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
