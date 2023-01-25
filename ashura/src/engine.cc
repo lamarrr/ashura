@@ -171,11 +171,11 @@ Engine::Engine(AppConfig const& cfg) {
 
   window.value()->recreate_swapchain(xqueue);
 
-  canvas_context = stx::Some(stx::rc::make_inplace<gfx::CanvasRenderingContext>(
+  renderer = stx::Some(stx::rc::make_inplace<gfx::CanvasRenderer>(
                                  stx::os_allocator, xqueue.share())
                                  .unwrap());
 
-  canvas_context.value()->ctx.on_swapchain_changed(
+  renderer.value()->ctx.on_swapchain_changed(
       window.value()->surface_.value()->swapchain.value());
 
   window.value()->on(WindowEvent::Resized,
@@ -324,7 +324,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   do {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       window.value()->recreate_swapchain(queue.value());
-      canvas_context.value()->ctx.on_swapchain_changed(
+      renderer.value()->ctx.on_swapchain_changed(
           window.value()->surface_.value()->swapchain.value());
 
       draw_content();
@@ -341,7 +341,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
       continue;
     }
 
-    canvas_context.value()->submit(
+    renderer.value()->submit(
         window.value()->surface_.value()->swapchain.value(),
         next_swapchain_image_index, canvas.value().draw_list);
 
