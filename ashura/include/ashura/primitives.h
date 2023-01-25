@@ -333,27 +333,4 @@ constexpr color CYAN = color::from_rgb(0x00, 0xff, 0xff);
 constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
 
 }  // namespace colors
-
-constexpr u32 u32_clamp(i64 value) {
-  return AS_U32(std::clamp<i64>(value, 0, stx::u32_max));
-}
-
-constexpr u32 u32_clamp(i32 value) { return AS_U32(std::max<i32>(value, 0)); }
-
-constexpr i32 i32_clamp(i64 value) {
-  return AS_I32(std::clamp<i64>(value, stx::i32_min, stx::i32_max));
-}
-
-constexpr i32 i32_clamp(u32 value) {
-  return AS_I32(std::min<u32>(value, stx::i32_max));
-}
-
-constexpr std::pair<i32, i32> i32_clamp(offset offset) {
-  return std::make_pair(i32_clamp(offset.x), i32_clamp(offset.y));
-}
-
-constexpr std::pair<i32, i32> i32_clamp(extent extent) {
-  return std::make_pair(i32_clamp(extent.width), i32_clamp(extent.height));
-}
-
 }  // namespace asr

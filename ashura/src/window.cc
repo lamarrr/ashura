@@ -45,11 +45,11 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   // layout as dirty, otherwise maintain pipeline state
   int width = 0, height = 0;
   SDL_GetWindowSize(window_, &width, &height);
-  window_extent_ = extent{u32_clamp(width), u32_clamp(height)};
+  window_extent_ = extent{AS_U32(width), AS_U32(height)};
 
   int surface_width = 0, surface_height = 0;
   SDL_Vulkan_GetDrawableSize(window_, &surface_width, &surface_height);
-  surface_extent_ = extent{u32_clamp(surface_width), u32_clamp(surface_height)};
+  surface_extent_ = extent{AS_U32(surface_width), AS_U32(surface_height)};
 
   VkSurfaceFormatKHR preferred_formats[] = {
       {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
@@ -202,8 +202,8 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
   }
 
   SDL_Window* window =
-      SDL_CreateWindow(cfg.title.c_str(), 0, 0, i32_clamp(cfg.extent.width),
-                       i32_clamp(cfg.extent.height), window_flags);
+      SDL_CreateWindow(cfg.title.c_str(), 0, 0, AS_I32(cfg.extent.width),
+                       AS_I32(cfg.extent.height), window_flags);
 
   // window creation shouldn't fail reliably, if it fails,
   // there's no point in the program proceeding
@@ -211,15 +211,15 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
 
   cfg.min_extent.copy().match(
       [&](extent min_extent) {
-        SDL_SetWindowMinimumSize(window, i32_clamp(min_extent.width),
-                                 i32_clamp(min_extent.height));
+        SDL_SetWindowMinimumSize(window, AS_I32(min_extent.width),
+                                 AS_I32(min_extent.height));
       },
       []() {});
 
   cfg.max_extent.copy().match(
       [&](extent max_extent) {
-        SDL_SetWindowMaximumSize(window, i32_clamp(max_extent.width),
-                                 i32_clamp(max_extent.height));
+        SDL_SetWindowMaximumSize(window, AS_I32(max_extent.width),
+                                 AS_I32(max_extent.height));
       },
       []() {});
 
