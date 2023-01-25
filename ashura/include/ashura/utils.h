@@ -48,18 +48,18 @@
 #define ASR_UNREACHABLE() \
   ASR_PANIC("Expected program execution to not reach this state")
 
-#define AS_U8(...) static_cast<u8>(__VA_ARGS__)
-#define AS_U16(...) static_cast<u16>(__VA_ARGS__)
-#define AS_U32(...) static_cast<u32>(__VA_ARGS__)
-#define AS_U64(...) static_cast<u64>(__VA_ARGS__)
+#define AS_U8(...) static_cast<asr::u8>(__VA_ARGS__)
+#define AS_U16(...) static_cast<asr::u16>(__VA_ARGS__)
+#define AS_U32(...) static_cast<asr::u32>(__VA_ARGS__)
+#define AS_U64(...) static_cast<asr::u64>(__VA_ARGS__)
 
-#define AS_I8(...) static_cast<i8>(__VA_ARGS__)
-#define AS_I16(...) static_cast<i16>(__VA_ARGS__)
-#define AS_I32(...) static_cast<i32>(__VA_ARGS__)
-#define AS_I64(...) static_cast<i64>(__VA_ARGS__)
+#define AS_I8(...) static_cast<asr::i8>(__VA_ARGS__)
+#define AS_I16(...) static_cast<asr::i16>(__VA_ARGS__)
+#define AS_I32(...) static_cast<asr::i32>(__VA_ARGS__)
+#define AS_I64(...) static_cast<asr::i64>(__VA_ARGS__)
 
-#define AS_F32(...) static_cast<f32>(__VA_ARGS__)
-#define AS_F64(...) static_cast<f64>(__VA_ARGS__)
+#define AS_F32(...) static_cast<asr::f32>(__VA_ARGS__)
+#define AS_F64(...) static_cast<asr::f64>(__VA_ARGS__)
 
 namespace asr {
 
