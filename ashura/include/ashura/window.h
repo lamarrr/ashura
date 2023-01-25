@@ -150,7 +150,7 @@ struct Window {
   void constrain(stx::Option<int> min_width, stx::Option<int> min_height,
                  stx::Option<int> max_width, stx::Option<int> max_height);
 
-  stx::Vec<char const*> get_required_instance_extensions() const;
+  stx::Vec<c8 const*> get_required_instance_extensions() const;
 
   // attach surface to window for presentation
   void attach_surface(stx::Rc<vk::Instance*> const& instance);

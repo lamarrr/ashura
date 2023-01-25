@@ -54,7 +54,7 @@ struct TextStyle {
 /// any other formatting effect, breaks the text run.
 struct TextRun {
   /// utf-8-encoded text
-  stx::Span<char const> text;
+  stx::Span<c8 const> text;
   usize font = 0;
   TextStyle style;
   TextDirection direction = TextDirection::LeftToRight;
@@ -105,9 +105,9 @@ struct Font {
 };
 
 inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
-  hb_blob_t* hbblob = hb_blob_create(static_cast<char*>(memory.handle),
-                                     static_cast<unsigned int>(size),
-                                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+  hb_blob_t* hbblob =
+      hb_blob_create(static_cast<c8*>(memory.handle), static_cast<uint>(size),
+                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
   ASR_CHECK(hbblob != nullptr);
 
   hb_face_t* hbface = hb_face_create(hbblob, 0);
@@ -339,7 +339,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
                           ? (FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR)
                           : (FT_LOAD_DEFAULT | FT_LOAD_RENDER)) == 0);
 
-    unsigned char pixel_mode = font.ftface->glyph->bitmap.pixel_mode;
+    uc8 pixel_mode = font.ftface->glyph->bitmap.pixel_mode;
 
     ASR_CHECK(pixel_mode == FT_PIXEL_MODE_GRAY ||
               pixel_mode == FT_PIXEL_MODE_BGRA);

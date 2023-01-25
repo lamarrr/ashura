@@ -43,10 +43,10 @@ namespace vk {
 // available and adjust features to that
 inline void ensure_extensions_supported(
     stx::Span<VkExtensionProperties const> available_extentions,
-    stx::Span<char const* const> required_extensions) {
+    stx::Span<c8 const* const> required_extensions) {
   bool all_available = true;
 
-  for (char const* required_extension : required_extensions) {
+  for (c8 const* required_extension : required_extensions) {
     if (available_extentions
             .which([required_extension](VkExtensionProperties const& props) {
               return std::string_view(required_extension) ==
@@ -64,10 +64,10 @@ inline void ensure_extensions_supported(
 
 inline void ensure_validation_layers_supported(
     stx::Span<VkLayerProperties const> available_validation_layers,
-    stx::Span<char const* const> required_layers) {
+    stx::Span<c8 const* const> required_layers) {
   bool all_layers_available = true;
 
-  for (char const* required_layer : required_layers) {
+  for (c8 const* required_layer : required_layers) {
     if (available_validation_layers
             .which([required_layer](VkLayerProperties const& available_layer) {
               return std::string_view(required_layer) ==
@@ -100,9 +100,9 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
   //     VkStructureType                              sType;
   //     const void*                                  pNext;
   //     VkDebugUtilsMessengerCallbackDataFlagsEXT    flags;
-  //     const char*                                  pMessageIdName;
+  //     const c8*                                  pMessageIdName;
   //     int32_t                                      messageIdNumber;
-  //     const char*                                  pMessage;
+  //     const c8*                                  pMessage;
   //     uint32_t                                     queueLabelCount;
   //     const VkDebugUtilsLabelEXT*                  pQueueLabels;
   //     uint32_t                                     cmdBufLabelCount;
@@ -154,10 +154,10 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
 }
 
 inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
-    stx::Span<char const* const> irequired_extensions,
-    stx::Span<char const* const> required_validation_layers,
-    char const* const application_name, u32 application_version,
-    char const* const engine_name, u32 engine_version) {
+    stx::Span<c8 const* const> irequired_extensions,
+    stx::Span<c8 const* const> required_validation_layers,
+    c8 const* const application_name, u32 application_version,
+    c8 const* const engine_name, u32 engine_version) {
   VkDebugUtilsMessengerCreateInfoEXT debug_utils_messenger_create_info{
       .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
       .pNext = nullptr,
@@ -171,11 +171,11 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
       .pfnUserCallback = default_debug_callback,
       .pUserData = nullptr};
 
-  static constexpr char const* DEBUG_EXTENSIONS[] = {
+  static constexpr c8 const* DEBUG_EXTENSIONS[] = {
       VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
   // debug message callback extension
-  stx::Vec<char const*> required_extensions{stx::os_allocator};
+  stx::Vec<c8 const*> required_extensions{stx::os_allocator};
 
   required_extensions.extend(irequired_extensions).unwrap();
 
@@ -326,8 +326,8 @@ inline stx::Vec<bool> get_surface_presentation_command_queue_support(
 }
 
 inline VkDevice create_logical_device(
-    VkPhysicalDevice phy_dev, stx::Span<char const* const> required_extensions,
-    stx::Span<char const* const> required_validation_layers,
+    VkPhysicalDevice phy_dev, stx::Span<c8 const* const> required_extensions,
+    stx::Span<c8 const* const> required_validation_layers,
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_infos,
     VkPhysicalDeviceFeatures const& required_features = {}) {
   u32 available_extensions_count;
@@ -346,7 +346,7 @@ inline VkDevice create_logical_device(
 
   ASR_LOG("Required Device Extensions: ");
 
-  required_extensions.for_each([](char const* ext) { ASR_LOG("\t{}", ext); });
+  required_extensions.for_each([](c8 const* ext) { ASR_LOG("\t{}", ext); });
 
   ASR_LOG("Available Device Extensions: ");
 
@@ -354,7 +354,7 @@ inline VkDevice create_logical_device(
     ASR_LOG("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
   });
 
-  ASR_CHECK(required_extensions.is_all([&](char const* ext) {
+  ASR_CHECK(required_extensions.is_all([&](c8 const* ext) {
     return !available_device_extensions.span()
                 .which([=](VkExtensionProperties a_ext) {
                   return std::string_view(ext) ==
@@ -768,9 +768,9 @@ struct Device {
 };
 
 inline stx::Rc<Instance*> create_instance(
-    char const* app_name, u32 app_version, char const* engine_name,
-    u32 engine_version, stx::Span<char const* const> required_extensions = {},
-    stx::Span<char const* const> validation_layers = {}) {
+    c8 const* app_name, u32 app_version, c8 const* engine_name,
+    u32 engine_version, stx::Span<c8 const* const> required_extensions = {},
+    stx::Span<c8 const* const> validation_layers = {}) {
   auto [instance, debug_utils_messenger] =
       create_vulkan_instance(required_extensions, validation_layers, app_name,
                              app_version, engine_name, engine_version);
@@ -804,8 +804,8 @@ inline stx::Option<CommandQueueFamilyInfo> get_graphics_command_queue(
 inline stx::Rc<Device*> create_device(
     stx::Rc<PhyDeviceInfo*> const& phy_dev,
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_info,
-    stx::Span<char const* const> required_extensions,
-    stx::Span<char const* const> required_validation_layers,
+    stx::Span<c8 const* const> required_extensions,
+    stx::Span<c8 const* const> required_validation_layers,
     VkPhysicalDeviceFeatures required_features) {
   VkDevice dev = create_logical_device(
       phy_dev->phy_device, required_extensions, required_validation_layers,
