@@ -103,6 +103,7 @@ constexpr vec3 operator/(vec3 a, vec3 b) {
   return vec3{a.x / b.x, a.y / b.y, a.z / b.z};
 }
 
+// column vector
 struct vec4 {
   f32 x = 0, y = 0, z = 0, w = 0;
 };
@@ -115,6 +116,7 @@ constexpr f32 dot(vec4 a, vec4 b) {
   return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
 
+// row-major
 struct mat4 {
   vec4 data[4];
 
