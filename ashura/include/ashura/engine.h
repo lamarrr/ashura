@@ -12,6 +12,7 @@
 #include "spdlog/logger.h"
 #include "stx/rc.h"
 #include "stx/string.h"
+#include "ashura/vulkan_canvas_renderer.h"
 
 namespace asr {
 
@@ -23,7 +24,7 @@ struct Engine {
   stx::Option<stx::Rc<Window*>> window;
   stx::Option<stx::Rc<vk::CommandQueue*>> queue;
   stx::Option<gfx::Canvas> canvas;
-  stx::Option<stx::Rc<gfx::CanvasRenderer*>> renderer;
+  stx::Option<stx::Rc<vk::CanvasRenderer*>> renderer;
   AssetBundle<stx::Rc<vk::ImageSampler*>> image_assets;
 
   // asset manager

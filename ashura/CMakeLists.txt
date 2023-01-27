@@ -5,8 +5,7 @@ add_library(
   src/stb_truetype.cc
   src/window_api.cc
   src/widget.cc
-  src/window.cc
-  src/rect_pack.cc)
+  src/window.cc)
 
 target_include_directories(
   ashura

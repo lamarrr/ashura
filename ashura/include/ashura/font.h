@@ -41,7 +41,7 @@ struct TextStyle {
   f32 word_spacing = 4;
   u32 tab_size = 8;
   bool use_kerning = true;
-  ///  use standard and contextual ligature substitution
+  /// use standard and contextual ligature substitution
   bool use_ligatures = true;
   bool underline = false;
   bool strikethrough = false;
@@ -127,9 +127,9 @@ inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
                                static_cast<FT_Byte const*>(memory.handle),
                                static_cast<FT_Long>(size), 0, &ftface) == 0);
 
-  return stx::rc::make(stx::os_allocator,
-                       Font{hbface, hbfont, hbscratch_buffer, ftlib, ftface,
-                            std::move(memory)})
+  return stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont,
+                                     hbscratch_buffer, ftlib, ftface,
+                                     std::move(memory))
       .unwrap();
 }
 
@@ -242,10 +242,10 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
   glyphs.resize(last - glyphs.begin()).unwrap();
 
   stx::Memory rects_mem =
-      stx::mem::allocate(stx::os_allocator, sizeof(stbrp_rect) * glyphs.size())
+      stx::mem::allocate(stx::os_allocator, sizeof(rp::rect) * glyphs.size())
           .unwrap();
 
-  stx::Span rects{static_cast<stbrp_rect*>(rects_mem.handle), glyphs.size()};
+  stx::Span rects{static_cast<rp::rect*>(rects_mem.handle), glyphs.size()};
 
   for (usize i = 0; i < glyphs.size(); i++) {
     rects[i].glyph_index = glyphs[i].index;
@@ -254,17 +254,13 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
   }
 
   stx::Memory nodes_memory =
-      stx::mem::allocate(stx::os_allocator,
-                         sizeof(stbrp_node) * max_extent.width)
+      stx::mem::allocate(stx::os_allocator, sizeof(rp::Node) * max_extent.width)
           .unwrap();
 
-  stbrp_context context;
-  stbrp_init_target(&context, max_extent.width, max_extent.height,
-                    static_cast<stbrp_node*>(nodes_memory.handle),
-                    max_extent.width);
-  stbrp_setup_allow_out_of_mem(&context, 0);
-  stbrp_setup_heuristic(&context, STBRP_HEURISTIC_Skyline_default);
-  ASR_CHECK(stbrp_pack_rects(&context, rects.data(), AS_I32(rects.size())));
+  rp::Context context = rp::init(max_extent.width, max_extent.height,
+                                 static_cast<rp::Node*>(nodes_memory.handle),
+                                 max_extent.width, false);
+  ASR_CHECK(rp::pack_rects(context, rects.data(), AS_I32(rects.size())));
 
   extent atlas_extent;
 
@@ -275,7 +271,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
         std::max<u32>(atlas_extent.height, rects[i].y + rects[i].h);
   }
 
-  rects.sort([](stbrp_rect const& a, stbrp_rect const& b) {
+  rects.sort([](rp::rect const& a, rp::rect const& b) {
     return a.glyph_index < b.glyph_index;
   });
 
@@ -385,6 +381,23 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
 struct CachedFont {
   stx::Rc<Font*> font;
   FontAtlas atlas;
+};
+
+struct SubwordGlyph {
+  usize font = 0;
+  u32 glyph = 0;
+};
+
+// this is part of a word that is styled by its run
+struct RunSubWord {
+  usize run = 0;
+  stx::Span<char const> text;
+  usize nspaces = 0;
+  usize nline_breaks = 0;
+  f32 width = 0;
+  usize glyph_start = 0;
+  usize nglyphs = 0;
+  bool is_wrapped = false;
 };
 
 }  // namespace gfx

@@ -2,13 +2,13 @@
 
 #include <fstream>
 
+#include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
 #include "ashura/sample_image.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/shaders.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
-#include "ashura/asset_bundle.h"
 
 namespace asr {
 
@@ -171,9 +171,9 @@ Engine::Engine(AppConfig const& cfg) {
 
   window.value()->recreate_swapchain(xqueue);
 
-  renderer = stx::Some(stx::rc::make_inplace<gfx::CanvasRenderer>(
-                                 stx::os_allocator, xqueue.share())
-                                 .unwrap());
+  renderer = stx::Some(stx::rc::make_inplace<vk::CanvasRenderer>(
+                           stx::os_allocator, xqueue.share())
+                           .unwrap());
 
   renderer.value()->ctx.on_swapchain_changed(
       window.value()->surface_.value()->swapchain.value());
@@ -188,23 +188,21 @@ Engine::Engine(AppConfig const& cfg) {
 
   u8 const transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
   // TODO(lamarrr): fill with zeros
-  auto transparent_image = canvas_context.value()->ctx.upload_image(
-      {1, 1}, 4, transparent_image_data);
+  auto transparent_image =
+      renderer.value()->ctx.upload_image({1, 1}, 4, transparent_image_data);
 
   font = new gfx::CachedFont{gfx::cache_font(
       load_font_from_file(
           R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\RobotoMono-Regular.ttf)"_str)
           .unwrap(),
-      canvas_context.value()->ctx, 26)};
-
-
+      renderer.value()->ctx, 26)};
 
   // auto transparent_image = canvas_context.value()->ctx.upload_image(
   // extent{1920, 1080}, 4, sample_image);
 
   gfx::image sampler = vk::create_image_sampler(transparent_image);
 
-  canvas = stx::Some(gfx::Canvas{{0, 0}, sampler});
+  canvas = stx::Some(gfx::Canvas{{0, 0}});
 
   window.value()->on(WindowEvent::Close,
                      stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
