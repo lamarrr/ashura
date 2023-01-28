@@ -506,7 +506,7 @@ struct Canvas {
       return draw_convex_polygon_filled(vertices, area, brush.texture);
     } else {
       area.offset = area.offset - brush.line_thickness / 2;
-      area.extent = area.extent + vec2::splat(brush.line_thickness);
+      area.extent = area.extent + brush.line_thickness;
       vertex opoints[] = {vertices[0], vertices[1], vertices[2],
                           vertices[3], vertices[0], vertices[1]};
       return draw_lines(opoints, area, texture_area, brush.texture);
@@ -621,7 +621,7 @@ struct Canvas {
                          transform, brush.color.as_vec(), image_portion,
                          vertices);
 
-    return draw_convex_polygon_filled(vertices, area, brush.texture);
+    return draw_convex_polygon_filled(vertices, area, img);
   }
 
   Canvas& draw_rounded_image(image img, rect area, vec4 border_radii,
@@ -637,8 +637,10 @@ struct Canvas {
     vec2 extent{font_scale * glyph.extent.width,
                 font_scale * glyph.extent.height};
 
+    // TODO(lamarrr): this needs to cover the whole text
     if (run.style.background_color.is_visible()) {
       brush.color = run.style.background_color;
+      brush.fill = true;
       draw_rect(rect{
           .offset = baseline - vec2{0, line_height},
           .extent = vec2{advance.x + run.style.letter_spacing, line_height}});
