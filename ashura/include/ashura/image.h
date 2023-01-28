@@ -11,6 +11,10 @@ using image = u64;
 struct RgbaImageBuffer {
   stx::Memory memory;
   extent extent;
+
+  stx::Span<u8 const> span() const {
+    return stx::Span{static_cast<u8*>(memory.handle), extent.area() * 4};
+  }
 };
 
 }  // namespace gfx
