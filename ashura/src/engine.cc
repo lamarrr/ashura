@@ -7,6 +7,7 @@
 #include "ashura/sample_image.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/shaders.h"
+#include "ashura/vulkan_recording_context.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
@@ -186,21 +187,21 @@ Engine::Engine(AppConfig const& cfg) {
   window.value()->mouse_motion_listener =
       stx::fn::rc::make_unique_static([](MouseMotionEvent const&) {});
 
-  u8 const transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
-  // TODO(lamarrr): fill with zeros
+  u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
   auto transparent_image =
       renderer.value()->ctx.upload_image({1, 1}, 4, transparent_image_data);
 
-  font = new gfx::CachedFont{gfx::cache_font(
+  gfx::image transparent_image_id =
+      image_bundle.add(vk::create_image_sampler(transparent_image));
+
+  ASR_CHECK(transparent_image_id == 0);
+
+  font = new gfx::CachedFont{renderer.value()->ctx.cache_font(
+      image_bundle,
       load_font_from_file(
-          R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\RobotoMono-Regular.ttf)"_str)
+          R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura\assets\fonts\JetBrainsMono-Regular.ttf)"_str)
           .unwrap(),
-      renderer.value()->ctx, 26)};
-
-  // auto transparent_image = canvas_context.value()->ctx.upload_image(
-  // extent{1920, 1080}, 4, sample_image);
-
-  gfx::image sampler = vk::create_image_sampler(transparent_image);
+      26)};
 
   canvas = stx::Some(gfx::Canvas{{0, 0}});
 
@@ -269,26 +270,30 @@ void Engine::tick(std::chrono::nanoseconds interval) {
                 style, 500);
 */
     c.brush.fill = true;
-    c.brush.color = {};
-    color::from_rgb(0xff, 0x46, 0x55);
+    c.brush.color = colors::GREEN;
     c.draw_rect({{100, 500}, {300, 100}});
     c.brush.line_thickness = 2;
     c.brush.fill = false;
-    c.brush.color = color::from_rgb(0xbd, 0xbc, 0xb7);
+    c.brush.color = colors::RED;
     c.draw_rect({{90, 490}, {320, 120}});
     c.brush.color = colors::WHITE;
     auto str = fmt::format("Examples Dear ImGui Demo.\n Starting in {}\t", d);
-    TextRun runs[] = {
-        {.text = str,
-         .font = 0,
-         .style = {.font_height = 30, .foreground_color = colors::CYAN}},
-        {.text = str,
-         .font = 0,
-         .style = {.font_height = 8, .foreground_color = colors::MAGENTA}}};
+    TextRun runs[] = {{.text = str,
+                       .font = 0,
+                       .style = {.font_height = 30,
+                                 .foreground_color = colors::CYAN,
+                                 .background_color = colors::BLACK}},
+                      {.text = str,
+                       .font = 0,
+                       .style = {.font_height = 8,
+                                 .foreground_color = colors::MAGENTA,
+                                 .background_color = colors::GREEN}}};
     Paragraph paragraph{.runs = runs, .align = TextAlign::Right};
-    c.draw_text(stx::Span{font, 1}, paragraph, {100, 500}, 300);
+    stx::Vec<gfx::RunSubWord> subwords{stx::os_allocator};
+    stx::Vec<gfx::SubwordGlyph> glyphs{stx::os_allocator};
+    c.draw_text(paragraph, stx::Span{font, 1}, {100, 500}, subwords, glyphs);
 
-    image_assets.get(0).unwrap()->operator->()->sampler;
+    // image_assets.get(0).unwrap()->operator->()->sampler;
     // TODO(lamarrr): scaling doesn't work properly
     // c.scale(0.5, 0.5);
     // c.rotate(0, 0, 90);
@@ -341,7 +346,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
     renderer.value()->submit(
         window.value()->surface_.value()->swapchain.value(),
-        next_swapchain_image_index, canvas.value().draw_list);
+        next_swapchain_image_index, canvas.value().draw_list, image_bundle);
 
     canvas.value().clear();
 
