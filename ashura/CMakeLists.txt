@@ -1,11 +1,5 @@
-add_library(
-  ashura STATIC
-  src/app.cc
-  src/engine.cc
-  src/stb_truetype.cc
-  src/window_api.cc
-  src/widget.cc
-  src/window.cc)
+add_library(ashura STATIC src/app.cc src/engine.cc src/window_api.cc
+                          src/widget.cc src/window.cc)
 
 target_include_directories(
   ashura
@@ -22,8 +16,7 @@ target_link_libraries(
   spdlog::spdlog
   ashura_external_stb
   harfbuzz
-  Freetype::Freetype
-  ICU::uc)
+  Freetype::Freetype)
 
 add_executable(ashura_test src/ashura.cc)
 target_link_libraries(ashura_test ashura)
