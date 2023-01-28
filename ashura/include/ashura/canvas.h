@@ -462,10 +462,12 @@ struct Canvas {
     triangulate_convex_polygon(draw_list.indices, vertices_offset,
                                AS_U32(polygon.size()));
 
-    u32 nindices = AS_U32(draw_list.indices.size() - indices_offset);
+    draw_list.vertices.extend(polygon).unwrap();
 
     normalize_for_viewport(draw_list.vertices.span().slice(vertices_offset),
                            viewport_extent);
+
+    u32 nindices = AS_U32(draw_list.indices.size() - indices_offset);
 
     draw_list.cmds
         .push(DrawCommand{.indices_offset = indices_offset,
