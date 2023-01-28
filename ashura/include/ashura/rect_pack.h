@@ -215,7 +215,7 @@ struct FindResult {
 inline FindResult skyline_find_best_pos(Context &context, i32 width,
                                         i32 height) {
   i32 best_waste = (1 << 30), best_x, best_y = (1 << 30);
-  FindResult fr;
+  FindResult find_result;
   Node **prev, *node, *tail, **best = nullptr;
 
   // align to multiple of context.align
@@ -225,9 +225,9 @@ inline FindResult skyline_find_best_pos(Context &context, i32 width,
 
   // if it can't possibly fit, bail immediately
   if (width > context.width || height > context.height) {
-    fr.prev_link = nullptr;
-    fr.x = fr.y = 0;
-    return fr;
+    find_result.prev_link = nullptr;
+    find_result.x = find_result.y = 0;
+    return find_result;
   }
 
   node = context.active_head;
@@ -311,10 +311,10 @@ inline FindResult skyline_find_best_pos(Context &context, i32 width,
     }
   }
 
-  fr.prev_link = best;
-  fr.x = best_x;
-  fr.y = best_y;
-  return fr;
+  find_result.prev_link = best;
+  find_result.x = best_x;
+  find_result.y = best_y;
+  return find_result;
 }
 
 inline FindResult skyline_pack_rectangle(Context &context, i32 width,
@@ -504,10 +504,11 @@ inline bool pack_rects(Context &context, rect *rects, i32 num_rects) {
     if (rects[i].w == 0 || rects[i].h == 0) {
       rects[i].x = rects[i].y = 0;  // empty rect needs no space
     } else {
-      FindResult fr = skyline_pack_rectangle(context, rects[i].w, rects[i].h);
-      if (fr.prev_link) {
-        rects[i].x = AS_I32(fr.x);
-        rects[i].y = AS_I32(fr.y);
+      FindResult find_result =
+          skyline_pack_rectangle(context, rects[i].w, rects[i].h);
+      if (find_result.prev_link) {
+        rects[i].x = AS_I32(find_result.x);
+        rects[i].y = AS_I32(find_result.y);
       } else {
         rects[i].x = rects[i].y = stx::i32_max;
       }
