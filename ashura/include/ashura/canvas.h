@@ -195,9 +195,9 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> vertices,
   u32 vertex_index = first_vertex_index;
 
   for (usize i = 1; i < vertices.size(); i++) {
+    vec4 color = vertices[i].color;
     vec2 p0 = vertices[i - 1].position;
     vec2 p1 = vertices[i].position;
-    vec4 color = vertices[i].color;
 
     // the angles are specified in clockwise direction to be compatible with the
     // vulkan coordinate system
