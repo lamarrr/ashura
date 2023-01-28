@@ -416,14 +416,8 @@ struct RecordingContext {
         .unwrap();
   }
 
-  stx::Rc<gfx::CachedFont*> cache_font(
-      AssetBundle<stx::Rc<ImageSampler*>>& bundle, stx::Rc<Font*> font,
-      std::pair<gfx::FontAtlas, gfx::RgbaImageBuffer> atlas) {
-    vk::CommandQueue& cqueue = *queue.value().handle;
-    VkDevice dev = cqueue.device->device;
-    VkPhysicalDeviceMemoryProperties const& memory_properties =
-        cqueue.device->phy_device->memory_properties;
-
+  gfx::CachedFont cache_font(AssetBundle<stx::Rc<ImageSampler*>>& bundle,
+                             stx::Rc<Font*> font, u32 font_height) {
     VkImageFormatProperties image_format_properties;
 
     ASR_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(
@@ -431,182 +425,17 @@ struct RecordingContext {
         VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT,
         0, &image_format_properties));
 
-    vk::Buffer atlas_staging_buffer = vk::create_host_buffer(
-        dev, memory_properties, atlas.first.extent.area() * 4,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-
-    atlas_staging_buffer.write(queue.value()->device->device,
-                               atlas.second.memory.handle);
-
-    VkImageCreateInfo create_info{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
-        .extent = VkExtent3D{.width = atlas.first.extent.width,
-                             .height = atlas.first.extent.height,
-                             .depth = 1},
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .queueFamilyIndexCount = 0,
-        .pQueueFamilyIndices = nullptr,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
-
-    VkImage image;
-
-    ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
-
-    VkMemoryRequirements memory_requirements;
-
-    vkGetImageMemoryRequirements(dev, image, &memory_requirements);
-
-    u32 memory_type_index =
-        vk::find_suitable_memory_type(memory_properties, memory_requirements,
-                                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-            .unwrap();
-
-    VkMemoryAllocateInfo alloc_info{
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext = nullptr,
-        .allocationSize = memory_requirements.size,
-        .memoryTypeIndex = memory_type_index};
-
-    VkDeviceMemory memory;
-
-    ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
-
-    ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
-
-    VkImageViewCreateInfo view_create_info{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .image = image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
-        .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                         .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                         .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                         .a = VK_COMPONENT_SWIZZLE_IDENTITY},
-        .subresourceRange =
-            VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                    .baseMipLevel = 0,
-                                    .levelCount = 1,
-                                    .baseArrayLayer = 0,
-                                    .layerCount = 1}};
-
-    VkImageView view;
-
-    ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
-
-    VkCommandBufferBeginInfo cmd_buffer_begin_info{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext = nullptr,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = nullptr};
-
-    ASR_VK_CHECK(
-        vkBeginCommandBuffer(upload_cmd_buffer, &cmd_buffer_begin_info));
-
-    VkImageMemoryBarrier pre_upload_barrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext = nullptr,
-        .srcAccessMask = VK_ACCESS_NONE_KHR,
-        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image,
-        .subresourceRange =
-            VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                    .baseMipLevel = 0,
-                                    .levelCount = 1,
-                                    .baseArrayLayer = 0,
-                                    .layerCount = 1}};
-
-    vkCmdPipelineBarrier(upload_cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1,
-                         &pre_upload_barrier);
-
-    VkBufferImageCopy copy{
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageSubresource =
-            VkImageSubresourceLayers{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                     .mipLevel = 0,
-                                     .baseArrayLayer = 0,
-                                     .layerCount = 1},
-        .imageOffset = VkOffset3D{.x = 0, .y = 0, .z = 0},
-        .imageExtent = VkExtent3D{.width = atlas.first.extent.width,
-                                  .height = atlas.first.extent.height,
-                                  .depth = 1}};
-
-    vkCmdCopyBufferToImage(upload_cmd_buffer, atlas_staging_buffer.buffer,
-                           image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                           &copy);
-
-    VkImageMemoryBarrier post_upload_barrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext = nullptr,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image,
-        .subresourceRange =
-            VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                    .baseMipLevel = 0,
-                                    .levelCount = 1,
-                                    .baseArrayLayer = 0,
-                                    .layerCount = 1}};
-
-    vkCmdPipelineBarrier(upload_cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                         VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1,
-                         &post_upload_barrier);
-
-    ASR_VK_CHECK(vkEndCommandBuffer(upload_cmd_buffer));
-
-    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                             .pNext = nullptr,
-                             .waitSemaphoreCount = 0,
-                             .pWaitSemaphores = nullptr,
-                             .pWaitDstStageMask = nullptr,
-                             .commandBufferCount = 1,
-                             .pCommandBuffers = &upload_cmd_buffer,
-                             .signalSemaphoreCount = 0,
-                             .pSignalSemaphores = nullptr};
-
-    ASR_VK_CHECK(vkResetFences(dev, 1, &upload_fence));
-
-    ASR_VK_CHECK(
-        vkQueueSubmit(cqueue.info.queue, 1, &submit_info, upload_fence));
-
-    ASR_VK_CHECK(
-        vkWaitForFences(dev, 1, &upload_fence, VK_TRUE, COMMAND_TIMEOUT));
-
-    ASR_VK_CHECK(vkResetCommandBuffer(upload_cmd_buffer, 0));
-
-    atlas_staging_buffer.destroy(dev);
+    auto [atlas, image_buffer] =
+        gfx::render_atlas(*font.handle, font_height,
+                          extent{image_format_properties.maxExtent.width,
+                                 image_format_properties.maxExtent.height});
 
     u64 id = bundle.add(create_image_sampler(
-        stx::rc::make_inplace<ImageResource>(stx::os_allocator, image, view,
-                                             memory, queue.value())
-            .unwrap()));
+        upload_image(image_buffer.extent, 4, image_buffer.span())));
 
-    return stx::rc::make_inplace<gfx::CachedFont>(
-               stx::os_allocator, std::move(font), std::move(atlas.first))
-        .unwrap();
+    atlas.image = id;
+
+    return gfx::CachedFont{.font = std::move(font), .atlas = std::move(atlas)};
   }
 };
 
