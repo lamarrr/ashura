@@ -8,8 +8,6 @@
 #include "ashura/font.h"
 #include "ashura/image.h"
 #include "ashura/primitives.h"
-#include "fmt/format.h"
-#include "stx/string.h"
 #include "stx/text.h"
 #include "stx/vec.h"
 
