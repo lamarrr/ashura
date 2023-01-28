@@ -808,18 +808,18 @@ struct Canvas {
 
       for (RunSubWord* iter = subwords.begin(); iter < subwords.end();) {
         f32 word_width = 0;
-        RunSubWord* psubword = iter;
+        RunSubWord* subword = iter;
 
-        for (; psubword < subwords.end();) {
-          word_width += psubword->width;
+        for (; subword < subwords.end();) {
+          word_width += subword->width;
 
           f32 spaced_word_width =
-              word_width + psubword->nspaces *
-                               paragraph.runs[psubword->run].style.word_spacing;
+              word_width + subword->nspaces *
+                               paragraph.runs[subword->run].style.word_spacing;
 
           // if end of word
-          if (psubword->nspaces > 0 || psubword->nline_breaks > 0 ||
-              psubword == subwords.end() - 1) {
+          if (subword->nspaces > 0 || subword->nline_breaks > 0 ||
+              subword == subwords.end() - 1) {
             // check if wrapping needed
             if (cursor_x + spaced_word_width > max_line_width) {
               iter->is_wrapped = true;
@@ -827,15 +827,15 @@ struct Canvas {
             } else {
               cursor_x += spaced_word_width;
             }
-            psubword++;
+            subword++;
             break;
           } else {
             // continue until we reach end of word
-            psubword++;
+            subword++;
           }
         }
 
-        iter = psubword;
+        iter = subword;
       }
     }
 
@@ -856,13 +856,22 @@ struct Canvas {
 
         f32 line_height = 0;
         f32 line_width = 0;
-        for (RunSubWord* psubword = iter; psubword < line_end; psubword++) {
+        for (RunSubWord* subword = iter; subword < line_end; subword++) {
           line_height = std::max(
-              line_height, paragraph.runs[psubword->run].style.line_height *
-                               paragraph.runs[psubword->run].style.font_height);
-          line_width += psubword->width +
-                        psubword->nspaces *
-                            paragraph.runs[psubword->run].style.word_spacing;
+              line_height, paragraph.runs[subword->run].style.line_height *
+                               paragraph.runs[subword->run].style.font_height);
+          line_width += subword->width +
+                        subword->nspaces *
+                            paragraph.runs[subword->run].style.word_spacing;
+        }
+
+        // TODO(lamarrr): add alignment
+        f32 alignment = 0;
+
+        if (paragraph.align == TextAlign::Center) {
+          alignment = (std::max(line_width, max_line_width) - line_width) / 2;
+        } else if (paragraph.align == TextAlign::Right) {
+          alignment = std::max(line_width, max_line_width) - line_width;
         }
 
         if (iter->is_wrapped) {
@@ -873,43 +882,41 @@ struct Canvas {
 
         f32 cursor_x = 0;
 
-        for (RunSubWord* psubword = iter; psubword < line_end;) {
-          if (paragraph.runs[psubword->run].direction ==
+        for (RunSubWord* subword = iter; subword < line_end;) {
+          if (paragraph.runs[subword->run].direction ==
               TextDirection::LeftToRight) {
-            TextRun const& run = paragraph.runs[psubword->run];
+            TextRun const& run = paragraph.runs[subword->run];
             FontAtlas const& atlas = fonts[run.font].atlas;
 
             f32 font_scale = run.style.font_height / atlas.font_height;
-            f32 letter_spacing =
-                paragraph.runs[psubword->run].style.letter_spacing;
+            f32 letter_spacing = run.style.letter_spacing;
+            f32 word_spacing = run.style.word_spacing;
 
-            for (SubwordGlyph const& glyph : glyphs.span().slice(
-                     psubword->glyph_start, psubword->nglyphs)) {
+            for (SubwordGlyph const& glyph :
+                 glyphs.span().slice(subword->glyph_start, subword->nglyphs)) {
               Glyph const& g = atlas.glyphs[glyph.glyph];
-              f32 advance = g.advance.x * font_scale;
-
-              // TODO(lamarrr): baseline vector
-              draw_glyph(g, {}, font_scale, run, atlas.atlas);
-
-              cursor_x += advance + letter_spacing;
+              vec2 advance = g.advance * font_scale;
+              draw_glyph(g, run, atlas.image,
+                         position + vec2{cursor_x, baseline}, font_scale,
+                         line_height);
+              cursor_x += advance.x + letter_spacing;
             }
 
             if (run.style.background_color.is_visible() &&
-                psubword->nspaces > 0) {
-              for (usize i = 0; i < psubword->nspaces; i++) {
-                // draw spacing
-                brush.color = run.style.background_color;
-                draw_rect(rect{{}, {}});
-                cursor_x += run.style.word_spacing;
-              }
-            } else {
-              cursor_x += psubword->nspaces * run.style.word_spacing;
+                subword->nspaces > 0) {
+              brush.color = run.style.background_color;
+              brush.fill = true;
+              draw_rect(rect{
+                  .offset = position + vec2{cursor_x, baseline - line_height},
+                  .extent =
+                      vec2{word_spacing * subword->nspaces, line_height}});
             }
 
-            psubword++;
+            cursor_x += subword->nspaces * word_spacing;
+            subword++;
           } else {
             f32 rtl_width = 0;
-            RunSubWord* rtl_end = psubword + 1;
+            RunSubWord* rtl_end = subword + 1;
             for (; rtl_end < line_end; rtl_end++) {
               if (paragraph.runs[rtl_end->run].direction ==
                   TextDirection::LeftToRight) {
@@ -923,24 +930,24 @@ struct Canvas {
             }
 
             f32 rtl_cursor_x = cursor_x + rtl_width;
-            for (RunSubWord* sb = psubword; sb < rtl_end; sb++) {
+            for (RunSubWord* sb = subword; sb < rtl_end; sb++) {
               TextRun const& run = paragraph.runs[sb->run];
               FontAtlas const& atlas = fonts[run.font].atlas;
 
               f32 font_scale = run.style.font_height / atlas.font_height;
-              f32 letter_spacing = paragraph.runs[sb->run].style.letter_spacing;
+              f32 letter_spacing = run.style.letter_spacing;
+              f32 word_spacing = run.style.word_spacing;
 
               if (run.style.background_color.is_visible() && sb->nspaces > 0) {
-                for (usize i = 0; i < sb->nspaces; i++) {
-                  // draw spacing
-                  brush.color = run.style.background_color;
-                  draw_rect(rect{{}, {}});
-                  rtl_cursor_x -= run.style.word_spacing;
-                }
-              } else {
-                rtl_cursor_x -= sb->nspaces * run.style.word_spacing;
+                brush.color = run.style.background_color;
+                brush.fill = true;
+                draw_rect(rect{
+                    .offset =
+                        position + vec2{rtl_cursor_x, baseline - line_height},
+                    .extent = vec2{word_spacing * sb->nspaces, line_height}});
               }
 
+              rtl_cursor_x -= sb->nspaces * word_spacing;
               rtl_cursor_x -= sb->width;
 
               f32 glyph_cursor_x = rtl_cursor_x;
@@ -948,15 +955,16 @@ struct Canvas {
               for (SubwordGlyph const& glyph :
                    glyphs.span().slice(sb->glyph_start, sb->nglyphs)) {
                 Glyph const& g = atlas.glyphs[glyph.glyph];
-                f32 advance = g.advance.x * font_scale;
-                draw_glyph(g, {}, font_scale, run, atlas.atlas);
-
-                glyph_cursor_x += advance + letter_spacing;
+                vec2 advance = g.advance * font_scale;
+                draw_glyph(g, run, atlas.image,
+                           position + vec2{glyph_cursor_x, baseline},
+                           font_scale, line_height);
+                glyph_cursor_x += advance.x + letter_spacing;
               }
             }
 
             cursor_x += rtl_width;
-            psubword = rtl_end;
+            subword = rtl_end;
           }
         }
 
