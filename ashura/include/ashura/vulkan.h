@@ -896,7 +896,7 @@ struct Buffer {
         .pNext = nullptr,
         .memory = memory,
         .offset = 0,
-        .size = VK_WHOLE_SIZE,
+        .size = VK_WHOLE_SIZE
     };
 
     ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
