@@ -2,8 +2,6 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
-#include <limits>
 #include <string_view>
 #include <utility>
 
@@ -14,13 +12,10 @@
 #include "harfbuzz/hb.h"
 #include "stx/allocator.h"
 #include "stx/limits.h"
+#include "stx/memory.h"
 #include "stx/span.h"
 #include "stx/string.h"
-#include "stx/text.h"
 #include "stx/vec.h"
-#include "unicode/ubidi.h"
-#include "unicode/unistr.h"
-#include "unicode/uscript.h"
 
 namespace asr {
 
@@ -35,12 +30,14 @@ enum class TextOverflow : u8 { None, Ellipsis };
 
 struct TextStyle {
   f32 font_height = 16;
+
   /// multiplied by font_height
   f32 line_height = 1.2f;
   f32 letter_spacing = 2;
   f32 word_spacing = 4;
   u32 tab_size = 8;
   bool use_kerning = true;
+
   /// use standard and contextual ligature substitution
   bool use_ligatures = true;
   bool underline = false;
@@ -71,8 +68,10 @@ struct Paragraph {
 struct Font {
   /// kerning operations
   static constexpr hb_tag_t KERNING_FEATURE = HB_TAG('k', 'e', 'r', 'n');
+
   /// standard ligature substitution
   static constexpr hb_tag_t LIGATURE_FEATURE = HB_TAG('l', 'i', 'g', 'a');
+
   /// contextual ligature substitution
   static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE =
       HB_TAG('c', 'l', 'i', 'g');
@@ -157,20 +156,28 @@ namespace gfx {
 
 struct Glyph {
   bool is_valid = false;
+
   /// the glyph index
   u32 index = 0;
+
   /// unicode codepoint this glyph represents
   u32 codepoint = 0;
+
   /// offset into the atlas its glyph resides
   offset offset;
+
   /// extent of the glyph in the atlas
   extent extent;
+
   /// defines x-offset from cursor position the glyph will be placed
   f32 x = 0;
+
   /// defines ascent from baseline of the text
   f32 ascent = 0;
+
   /// advancement of the cursor after drawing this glyph
   vec2 advance;
+
   /// texture coordinates of this glyph in the atlas
   f32 s0 = 0, t0 = 0, s1 = 0, t1 = 0;
 };
@@ -178,12 +185,15 @@ struct Glyph {
 /// stores codepoint glyphs for a font at a specific font height
 struct FontAtlas {
   stx::Vec<Glyph> glyphs{stx::os_allocator};
+
   /// overall extent of the atlas
   extent extent;
+
   /// font height at which the cache/atlas/glyphs will be rendered and cached
   u32 font_height = 26;
+
   /// atlas containing the packed glyphs
-  image atlas = 0;
+  image image = 0;
 
   stx::Span<Glyph const> get(u32 glyph_index) const {
     if (glyph_index >= glyphs.size()) return {};
@@ -374,7 +384,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
       FontAtlas{.glyphs = std::move(glyphs),
                 .extent = atlas_extent,
                 .font_height = font_height,
-                .atlas = 0},
+                .image = 0},
       RgbaImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent});
 }
 
@@ -388,10 +398,10 @@ struct SubwordGlyph {
   u32 glyph = 0;
 };
 
-// this is part of a word that is styled by its run
+/// this is part of a word that is styled by its run
 struct RunSubWord {
-  usize run = 0;
   stx::Span<char const> text;
+  usize run = 0;
   usize nspaces = 0;
   usize nline_breaks = 0;
   f32 width = 0;
