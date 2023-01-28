@@ -4,6 +4,7 @@
 #include "ashura/primitives.h"
 #include "ashura/shaders.h"
 #include "ashura/vulkan.h"
+#include "ashura/vulkan_recording_context.h"
 
 namespace asr {
 namespace vk {
@@ -82,7 +83,7 @@ struct CanvasRenderer {
 
   void submit(vk::SwapChain const& swapchain, u32 swapchain_image_index,
               gfx::DrawList const& draw_list,
-              AssetBundle<stx::Rc<vk::ImageSampler*>> const& bundle) {
+              AssetBundle<stx::Rc<vk::ImageSampler*>>& bundle) {
     stx::Rc<vk::Device*> const& device = swapchain.queue->device;
 
     VkDevice dev = device->device;
