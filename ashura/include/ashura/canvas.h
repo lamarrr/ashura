@@ -488,15 +488,16 @@ struct Canvas {
                .st = {},
                .color = color}};
 
-    rect area{p1, p2 - p1};
+    rect area{.offset = p1, .extent = p2 - p1};
 
-    return draw_lines(points, area, {{0, 0}, {1, 1}}, brush.texture);
+    return draw_lines(points, area, rect{.offset = {0, 0}, .extent = {1, 1}},
+                      brush.texture);
   }
 
   Canvas& draw_rect(rect area) {
     vertex vertices[4];
 
-    rect texture_area{{0, 0}, {1, 1}};
+    rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
     polygons::rect(area.offset, area.extent, transform, brush.color.as_vec(),
                    texture_area, vertices);
@@ -516,11 +517,11 @@ struct Canvas {
     stx::Vec<vertex> vertices{stx::os_allocator};
     vertices.resize(nsegments).unwrap();
 
-    rect texture_area{{0, 0}, {1, 1}};
+    rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
     polygons::circle(position, radius, nsegments, transform,
                      brush.color.as_vec(), texture_area, vertices);
 
-    rect area{position, vec2::splat(2 * radius)};
+    rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
     if (brush.fill) {
       return draw_convex_polygon_filled(vertices, area, brush.texture);
@@ -543,12 +544,12 @@ struct Canvas {
     stx::Vec<vertex> vertices{stx::os_allocator};
     vertices.resize(nsegments).unwrap();
 
-    rect texture_area{{0, 0}, {1, 1}};
+    rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
     polygons::ellipse(position, radii, nsegments, transform,
                       brush.color.as_vec(), texture_area, vertices);
 
-    rect area{position, 2 * radii};
+    rect area{.offset = position, .extent = 2 * radii};
 
     if (brush.fill) {
       return draw_convex_polygon_filled(vertices, area, brush.texture);
@@ -571,7 +572,7 @@ struct Canvas {
     stx::Vec<vertex> vertices{stx::os_allocator};
     vertices.resize(nsegments * 4).unwrap();
 
-    rect texture_area{{0, 0}, {1, 1}};
+    rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
     polygons::round_rect(area.offset, area.extent, radii, nsegments, transform,
                          brush.color.as_vec(), texture_area, vertices);
@@ -595,7 +596,7 @@ struct Canvas {
 
   Canvas& draw_image(image img, rect area, f32 s0, f32 t0, f32 s1, f32 t1) {
     vertex vertices[4];
-    rect texture_area{{0, 0}, {1, 1}};
+    rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
     polygons::rect(area.offset, area.extent, transform, brush.color.as_vec(),
                    texture_area, vertices);
@@ -604,7 +605,7 @@ struct Canvas {
     vertices[2].st = vec2{s1, t1};
     vertices[3].st = vec2{s0, t1};
 
-    return draw_convex_polygon_filled(vertices, area, brush.texture);
+    return draw_convex_polygon_filled(vertices, area, img);
   }
 
   Canvas& draw_image(image img, rect area) {
@@ -625,7 +626,7 @@ struct Canvas {
 
   Canvas& draw_rounded_image(image img, rect area, vec4 border_radii,
                              usize nsegments) {
-    rect texture_area{{0, 0}, {1, 1}};
+    rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
     return draw_rounded_image(img, area, texture_area, border_radii, nsegments);
   }
 
@@ -638,14 +639,16 @@ struct Canvas {
 
     if (run.style.background_color.is_visible()) {
       brush.color = run.style.background_color;
-      draw_rect(rect{baseline - vec2{0, line_height},
-                     {advance.x + run.style.letter_spacing, line_height}});
+      draw_rect(rect{
+          .offset = baseline - vec2{0, line_height},
+          .extent = vec2{advance.x + run.style.letter_spacing, line_height}});
     }
 
     if (run.style.foreground_color.is_visible()) {
       brush.color = run.style.foreground_color;
-      draw_image(atlas, rect{baseline - vec2{0, ascent}, extent}, glyph.s0,
-                 glyph.t0, glyph.s1, glyph.t1);
+      draw_image(atlas,
+                 rect{.offset = baseline - vec2{0, ascent}, .extent = extent},
+                 glyph.s0, glyph.t0, glyph.s1, glyph.t1);
     }
 
     return *this;
@@ -731,9 +734,9 @@ struct Canvas {
 
         subwords
             .push(
-                RunSubWord{.run = i,
-                           .text = run.text.slice(word_start - run.text.begin(),
+                RunSubWord{.text = run.text.slice(word_start - run.text.begin(),
                                                   word_end - word_start),
+                           .run = i,
                            .nspaces = nspaces,
                            .nline_breaks = nline_breaks})
             .unwrap();
