@@ -308,7 +308,7 @@ struct Canvas {
     transform_state_stack.clear();
     global_transform = mat4::identity();
     global_transform_state_stack.clear();
-    clip_rect = {{0, 0}, viewport_extent};
+    clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent};
     clip_rect_stack.clear();
     draw_list.clear();
   }
@@ -341,7 +341,7 @@ struct Canvas {
     transform_state_stack.clear();
     global_transform = mat4::identity();
     global_transform_state_stack.clear();
-    clip_rect = {{0, 0}, viewport_extent};
+    clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent};
     clip_rect_stack.clear();
     return *this;
   }
@@ -389,10 +389,11 @@ struct Canvas {
 
     vec4 color = brush.color.as_vec();
 
-    vertex vertices[] = {{{0, 0}, {0, 0}, color},
-                         {{viewport_extent.x, 0}, {1, 0}, color},
-                         {viewport_extent, {1, 1}, color},
-                         {{0, viewport_extent.y}, {0, 1}, color}};
+    vertex vertices[] = {
+        {.position = {0, 0}, .st = {0, 0}, .color = color},
+        {.position = {viewport_extent.x, 0}, .st = {1, 0}, .color = color},
+        {.position = viewport_extent, .st = {1, 1}, .color = color},
+        {.position = {0, viewport_extent.y}, .st = {0, 1}, .color = color}};
 
     normalize_for_viewport(vertices, viewport_extent);
 
@@ -403,11 +404,12 @@ struct Canvas {
     draw_list.indices.extend(indices).unwrap();
 
     draw_list.cmds
-        .push(DrawCommand{.indices_offset = 0,
-                          .nindices = AS_U32(std::size(indices)),
-                          .clip_rect = rect{{0, 0}, viewport_extent},
-                          .transform = mat4::identity(),
-                          .texture = brush.texture})
+        .push(DrawCommand{
+            .indices_offset = 0,
+            .nindices = AS_U32(std::size(indices)),
+            .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent},
+            .transform = mat4::identity(),
+            .texture = brush.texture})
         .unwrap();
 
     return *this;
