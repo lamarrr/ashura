@@ -90,7 +90,7 @@ struct rect {
 };
 
 struct vec3 {
-  f32 x = 0, y = 0, z = 0, ____pad = 0;
+  f32 x = 0, y = 0, z = 0, ____padding = 0;
 
   static constexpr vec3 splat(f32 v) { return vec3{.x = v, .y = v, .z = v}; }
 };
