@@ -163,15 +163,11 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
 }  // namespace polygons
 
-constexpr vec2 normalize_for_viewport(vec2 position, vec2 viewport_extent) {
-  // transform to -1 to +1 range from x pointing right and y pointing upwards
-  return (2 * position / viewport_extent) - 1;
-}
-
-inline void normalize_for_viewport(stx::Span<vertex> vertices,
-                                   vec2 viewport_extent) {
+constexpr void normalize_for_viewport(stx::Span<vertex> vertices,
+                                      vec2 viewport_extent) {
   for (vertex& v : vertices) {
-    v.position = normalize_for_viewport(v.position, viewport_extent);
+    // transform to -1 to +1 range from x pointing right and y pointing upwards
+    v.position = (2 * v.position / viewport_extent) - 1;
   }
 }
 
