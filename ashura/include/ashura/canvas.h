@@ -637,7 +637,6 @@ struct Canvas {
     vec2 extent{font_scale * glyph.extent.width,
                 font_scale * glyph.extent.height};
 
-    // TODO(lamarrr): this needs to cover the whole text
     if (run.style.background_color.is_visible()) {
       brush.color = run.style.background_color;
       brush.fill = true;
@@ -648,6 +647,7 @@ struct Canvas {
 
     if (run.style.foreground_color.is_visible()) {
       brush.color = run.style.foreground_color;
+      baseline.y -= (line_height - run.style.font_height) / 2;
       draw_image(atlas,
                  rect{.offset = baseline - vec2{0, ascent}, .extent = extent},
                  glyph.s0, glyph.t0, glyph.s1, glyph.t1);
@@ -661,9 +661,9 @@ struct Canvas {
   //
   // TODO(lamarrr): [future] add bidi
   Canvas& draw_text(Paragraph paragraph, stx::Span<CachedFont const> fonts,
-                    vec2 position, stx::Vec<RunSubWord>& subwords,
-                    stx::Vec<SubwordGlyph>& glyphs,
-                    f32 max_line_width = stx::f32_max) {
+                    vec2 position, f32 max_line_width,
+                    stx::Vec<RunSubWord>& subwords,
+                    stx::Vec<SubwordGlyph>& glyphs) {
     constexpr u32 SPACE = ' ';
     constexpr u32 TAB = '\t';
     constexpr u32 NEWLINE = '\n';
@@ -673,6 +673,7 @@ struct Canvas {
     glyphs.clear();
 
     // aakd لا إله يستحق العبادة إلا الله sssss
+    // TODO(lamarrr): arabic text is rendering but weird
 
     for (usize i = 0; i < paragraph.runs.size(); i++) {
       TextRun const& run = paragraph.runs[i];
@@ -685,51 +686,59 @@ struct Canvas {
         char const* seeker = word_start;
         char const* word_end = seeker;
 
+        u32 codepoint = 0;
         for (; seeker < run.text.end();) {
-          u32 codepoint = stx::utf8_next(seeker);
-          if (codepoint == RETURN) {
-            word_end = seeker - 1;
-            if (seeker + 1 < run.text.end()) {
-              if (*(seeker + 1) == NEWLINE) {
-                seeker++;
-                nline_breaks++;
-              }
+          codepoint = stx::utf8_next(seeker);
+          if (codepoint == RETURN || codepoint == NEWLINE || codepoint == TAB ||
+              codepoint == SPACE) {
+            break;
+          }
+        }
+
+        word_end = seeker;
+
+        if (codepoint == RETURN) {
+          word_end = seeker - 1;
+          if (seeker + 1 < run.text.end()) {
+            if (*(seeker + 1) == NEWLINE) {
+              seeker++;
+              nline_breaks++;
             }
-          } else if (codepoint == SPACE) {
-            word_end = seeker - 1;
-            nspaces++;
-            for (char const* iter = seeker; iter < run.text.end();) {
-              seeker = iter;
-              u32 codepoint = stx::utf8_next(iter);
-              if (codepoint == SPACE) {
-                nspaces++;
-              } else {
-                break;
-              }
+          }
+        } else if (codepoint == SPACE) {
+          word_end = seeker - 1;
+          nspaces++;
+          for (char const* iter = seeker; iter < run.text.end();) {
+            seeker = iter;
+            u32 codepoint = stx::utf8_next(iter);
+            if (codepoint == SPACE) {
+              nspaces++;
+            } else {
+              break;
             }
-          } else if (codepoint == TAB) {
-            word_end = seeker - 1;
-            nspaces += run.style.tab_size;
-            for (char const* iter = seeker; iter < run.text.end();) {
-              seeker = iter;
-              u32 codepoint = stx::utf8_next(iter);
-              if (codepoint == TAB) {
-                nspaces += run.style.tab_size;
-              } else {
-                break;
-              }
+          }
+        } else if (codepoint == TAB) {
+          word_end = seeker - 1;
+          nspaces += run.style.tab_size;
+          for (char const* iter = seeker; iter < run.text.end();) {
+            seeker = iter;
+            u32 codepoint = stx::utf8_next(iter);
+            if (codepoint == TAB) {
+              nspaces += run.style.tab_size;
+            } else {
+              break;
             }
-          } else if (codepoint == NEWLINE) {
-            word_end = seeker - 1;
-            nline_breaks++;
-            for (char const* iter = seeker; iter < run.text.end();) {
-              seeker = iter;
-              u32 codepoint = stx::utf8_next(iter);
-              if (codepoint == NEWLINE) {
-                nline_breaks++;
-              } else {
-                break;
-              }
+          }
+        } else if (codepoint == NEWLINE) {
+          word_end = seeker - 1;
+          nline_breaks++;
+          for (char const* iter = seeker; iter < run.text.end();) {
+            seeker = iter;
+            u32 codepoint = stx::utf8_next(iter);
+            if (codepoint == NEWLINE) {
+              nline_breaks++;
+            } else {
+              break;
             }
           }
         }
@@ -844,13 +853,13 @@ struct Canvas {
     {
       f32 baseline = 0;
       usize nprev_line_breaks = 0;
+      bool line_wraps = false;
       for (RunSubWord* iter = subwords.begin(); iter < subwords.end();) {
         RunSubWord* line_end = iter;
 
-        for (; line_end < subwords.end();) {
-          if (line_end->is_wrapped) {
-            break;
-          } else if (line_end->nline_breaks > 0) {
+        for (; line_end < subwords.end(); line_end++) {
+          if (line_end->is_wrapped || line_end->nline_breaks > 0) {
+            line_wraps = line_end->is_wrapped;
             line_end++;
             break;
           }
@@ -876,12 +885,9 @@ struct Canvas {
           alignment = std::max(line_width, max_line_width) - line_width;
         }
 
-        if (iter->is_wrapped) {
-          baseline += line_height;
-        }
-
         baseline += nprev_line_breaks * line_height;
 
+        // TODO(lamarrr): account for descent
         f32 cursor_x = 0;
 
         for (RunSubWord* subword = iter; subword < line_end;) {
@@ -972,16 +978,13 @@ struct Canvas {
 
         iter = line_end;
         nprev_line_breaks = (line_end - 1)->nline_breaks;
+        if (line_wraps) {
+          if (nprev_line_breaks == 0) {
+            nprev_line_breaks = 1;
+          }
+        }
       }
     }
-
-    // for (RunSubWord& s : subwords) {
-    //   fmt::print(
-    //       "glyph_start:{}, is_wrapped:{}, nglyphs:{}, nline_breaks:{}, "
-    //       "nspaces:{}, run:{}, width:{}\n",
-    //       s.glyph_start, s.is_wrapped, s.nglyphs, s.nline_breaks, s.nspaces,
-    //       s.run, s.width);
-    // }
 
     return *this;
   }

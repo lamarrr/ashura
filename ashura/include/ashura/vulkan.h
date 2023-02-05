@@ -884,6 +884,7 @@ struct Buffer {
   void* memory_map = nullptr;
 
   void destroy(VkDevice dev) {
+    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyBuffer(dev, buffer, nullptr);
   }
@@ -891,13 +892,11 @@ struct Buffer {
   void write(VkDevice dev, void const* data) {
     std::memcpy(memory_map, data, size);
 
-    VkMappedMemoryRange range{
-        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-        .pNext = nullptr,
-        .memory = memory,
-        .offset = 0,
-        .size = VK_WHOLE_SIZE
-    };
+    VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                              .pNext = nullptr,
+                              .memory = memory,
+                              .offset = 0,
+                              .size = VK_WHOLE_SIZE};
 
     ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
   }
@@ -911,6 +910,7 @@ struct SpanBuffer {
   void* memory_map = nullptr;
 
   void destroy(VkDevice dev) {
+    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyBuffer(dev, buffer, nullptr);
   }
@@ -926,6 +926,7 @@ struct SpanBuffer {
              VkBufferUsageFlags usage, stx::Span<T const> span) {
     ASR_CHECK(!span.is_empty());
     if (span.size_bytes() != size) {
+      ASR_VK_CHECK(vkDeviceWaitIdle(dev));
       vkDestroyBuffer(dev, buffer, nullptr);
 
       VkBufferCreateInfo create_info{
@@ -1044,6 +1045,7 @@ struct Image {
   VkDeviceMemory memory = VK_NULL_HANDLE;
 
   void destroy(VkDevice dev) {
+    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyImageView(dev, view, nullptr);
     vkDestroyImage(dev, image, nullptr);
@@ -2016,6 +2018,7 @@ struct Pipeline {
   }
 
   void destroy(VkDevice dev) {
+    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
     vkDestroyPipelineLayout(dev, layout, nullptr);
     vkDestroyPipeline(dev, pipeline, nullptr);
   }

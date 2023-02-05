@@ -192,6 +192,8 @@ struct RecordingContext {
   void destroy() {
     VkDevice dev = queue.value()->device->device;
 
+    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+
     vkDestroyShaderModule(dev, vertex_shader, nullptr);
 
     vkDestroyShaderModule(dev, fragment_shader, nullptr);

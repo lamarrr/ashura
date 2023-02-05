@@ -196,12 +196,25 @@ Engine::Engine(AppConfig const& cfg) {
 
   ASR_CHECK(transparent_image_id == 0);
 
-  font = new gfx::CachedFont{renderer.value()->ctx.cache_font(
-      image_bundle,
-      load_font_from_file(
-          R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura\assets\fonts\JetBrainsMono-Regular.ttf)"_str)
-          .unwrap(),
-      26)};
+  font = new gfx::CachedFont[]{
+      renderer.value()->ctx.cache_font(
+          image_bundle,
+          load_font_from_file(
+              R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura\assets\fonts\JetBrainsMono-Regular.ttf)"_str)
+              .unwrap(),
+          26),
+      renderer.value()->ctx.cache_font(
+          image_bundle,
+          load_font_from_file(
+              R"(C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf)"_str)
+              .unwrap(),
+          26),
+      renderer.value()->ctx.cache_font(
+          image_bundle,
+          load_font_from_file(
+              R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\NotoSansArabic-Regular.ttf)"_str)
+              .unwrap(),
+          26)};
 
   canvas = stx::Some(gfx::Canvas{{0, 0}});
 
@@ -251,47 +264,76 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.restart({AS_F32(extent.width), AS_F32(extent.height)});
     c.brush.color = colors::WHITE;
     c.clear();
-    TextStyle style{};
-    style.font_height = 26;
-    // c.rotate(0, 0, 30);
-    // c.translate(1920/2, 1080/2);
-    // c.scale(0.5f, 0.5f, 1.0f);
-    /*c.brush.color = colors::MAGENTA.with_alpha(0);
-    c.brush.pattern = c.transparent_image.share();
-    c.brush.fill = false;
-    c.brush.line_thickness = 80;
     // c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
     // c.draw_rect({200, 200}, {250, 250});
     // c.draw_ellipse({150, 150}, {500, 200}, 60);
-    c.brush.color = colors::WHITE;
-    style.font_height = 80;
-    c.draw_text(*font->handle, *atlas,
-                fmt::format("YOUR AGENTS.\n Starting in {}", d), {20, 100},
-                style, 500);
-*/
+    // c.rotate(0, 0, 30);
     c.brush.fill = true;
     c.brush.color = colors::GREEN;
-    c.draw_rect({{100, 500}, {300, 100}});
+    c.draw_rect({{800, 800}, {300, 100}});
     c.brush.line_thickness = 2;
     c.brush.fill = false;
     c.brush.color = colors::RED;
     c.draw_rect({{90, 490}, {320, 120}});
     c.brush.color = colors::WHITE;
-    auto str = fmt::format("Examples Dear ImGui Demo.\n Starting in {}\t", d);
-    TextRun runs[] = {{.text = str,
-                       .font = 0,
-                       .style = {.font_height = 30,
-                                 .foreground_color = colors::CYAN,
-                                 .background_color = colors::BLACK}},
-                      {.text = str,
-                       .font = 0,
-                       .style = {.font_height = 8,
-                                 .foreground_color = colors::MAGENTA,
-                                 .background_color = colors::GREEN}}};
+    auto str = fmt::format(
+        "Hello World! Examples Ashura Engine Demo.\n Starting in {}", d);
+    char arstr[] = {0xd8, 0xb5, 0xd8, 0xa8, 0xd9, 0x8a, 0};
+    char emojis[] = {
+        0xf0, 0x9f, 0x98, 0x80, 0x20, 0xf0, 0x9f, 0x98, 0x83, 0x20, 0xf0, 0x9f,
+        0x98, 0x84, 0x20, 0xf0, 0x9f, 0x98, 0x81, 0x20, 0xf0, 0x9f, 0x98, 0x86,
+        0x20, 0xf0, 0x9f, 0x98, 0x85, 0x20, 0xf0, 0x9f, 0x98, 0x82, 0x20, 0xf0,
+        0x9f, 0xa4, 0xa3, 0x20, 0xf0, 0x9f, 0xa5, 0xb2, 0x20, 0xf0, 0x9f, 0xa5,
+        0xb9, 0x20, 0xe2, 0x98, 0xba, 0xef, 0xb8, 0x8f, 0x20, 0xf0, 0x9f, 0x98,
+        0x8a, 0x20, 0xf0, 0x9f, 0x98, 0x87, 0x20, 0xf0, 0x9f, 0x99, 0x82, 0x20,
+        0xf0, 0x9f, 0x99, 0x83, 0x20, 0xf0, 0x9f, 0x98, 0x89, 0x20, 0xf0, 0x9f,
+        0x98, 0x8c, 0x20, 0xf0, 0x9f, 0x98, 0x8d, 0x20, 0};
+    TextRun runs[] = {
+        {.text = str,
+         .font = 0,
+         .style = {.font_height = 30,
+                   .foreground_color = colors::CYAN,
+                   .background_color = colors::BLACK}},
+        {.text = str,
+         .font = 0,
+         .style = {.font_height = 18,
+                   .foreground_color = colors::BLACK,
+                   .background_color = color::from_rgb(0x33, 0x33, 0x33)}},
+        {.text = arstr,
+         .font = 2,
+         .style = {.font_height = 30,
+                   .foreground_color = colors::RED,
+                   .background_color = colors::WHITE},
+         .direction = TextDirection::RightToLeft,
+         .script = HB_SCRIPT_ARABIC,
+         .language = hb_language_from_string("ar", -1)},
+        {.text = emojis,
+         .font = 1,
+         .style =
+             {
+                 .font_height = 20,
+                 .letter_spacing = 0,
+                 .word_spacing = 15,
+                 .foreground_color = colors::WHITE,
+                 .background_color = colors::BLACK,
+             }},
+        {.text = "Face with "
+                 "Tears "
+                 "of "
+                 "Joy",
+         .font = 1,
+         .style = {
+             .font_height = 50,
+             .letter_spacing = 0,
+             .word_spacing = 15,
+             .foreground_color = colors::WHITE,
+             .background_color = colors::BLACK,
+         }}};
     Paragraph paragraph{.runs = runs, .align = TextAlign::Right};
     stx::Vec<gfx::RunSubWord> subwords{stx::os_allocator};
     stx::Vec<gfx::SubwordGlyph> glyphs{stx::os_allocator};
-    c.draw_text(paragraph, stx::Span{font, 1}, {100, 500}, subwords, glyphs);
+    c.draw_text(paragraph, stx::Span{font, 3}, {100, 500}, 300, subwords,
+                glyphs);
 
     // image_assets.get(0).unwrap()->operator->()->sampler;
     // TODO(lamarrr): scaling doesn't work properly

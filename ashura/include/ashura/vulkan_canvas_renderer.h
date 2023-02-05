@@ -122,6 +122,7 @@ struct CanvasRenderer {
 
         if (nrequired_descriptor_sets > max_ndescriptor_sets ||
             nrequired_descriptor_sets > nallocatable_combined_image_samplers) {
+          ASR_VK_CHECK(vkDeviceWaitIdle(dev));
           if (!ctx.descriptor_sets[frame].is_empty()) {
             ASR_VK_CHECK(
                 vkFreeDescriptorSets(dev, ctx.descriptor_pools[frame],

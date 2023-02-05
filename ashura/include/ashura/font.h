@@ -354,10 +354,11 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
 
     // copy the rendered glyph to the atlas
     if (pixel_mode == FT_PIXEL_MODE_GRAY) {
-      for (usize j = glyph.offset.y; j < glyph.offset.y + glyph.extent.height;
-           j++) {
+      for (usize j = glyph.offset.y;
+           j < glyph.offset.y + font.ftface->glyph->bitmap.rows; j++) {
         for (usize i = glyph.offset.x * 4;
-             i < (glyph.offset.x + glyph.extent.width) * 4; i += 4) {
+             i < (glyph.offset.x + font.ftface->glyph->bitmap.width) * 4;
+             i += 4) {
           buffer[j * atlas_extent.width * 4 + i + 0] = 0xFF;
           buffer[j * atlas_extent.width * 4 + i + 1] = 0xFF;
           buffer[j * atlas_extent.width * 4 + i + 2] = 0xFF;
@@ -366,10 +367,11 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
         }
       }
     } else if (pixel_mode == FT_PIXEL_MODE_BGRA) {
-      for (usize j = glyph.offset.y; j < glyph.offset.y + glyph.extent.height;
-           j++) {
+      for (usize j = glyph.offset.y;
+           j < glyph.offset.y + font.ftface->glyph->bitmap.rows; j++) {
         for (usize i = glyph.offset.x * 4;
-             i < (glyph.offset.x + glyph.extent.width) * 4; i += 4) {
+             i < (glyph.offset.x + font.ftface->glyph->bitmap.width) * 4;
+             i += 4) {
           buffer[j * atlas_extent.width * 4 + i + 0] = bitmap[2];
           buffer[j * atlas_extent.width * 4 + i + 1] = bitmap[1];
           buffer[j * atlas_extent.width * 4 + i + 2] = bitmap[0];
