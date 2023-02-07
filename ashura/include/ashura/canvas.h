@@ -182,22 +182,22 @@ inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
   }
 }
 
-inline void triangulate_line(vec2 position, stx::Span<vertex const> vertices,
+inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
                              vec2 extent, mat4 const& transform,
                              f32 line_thickness, asr::rect texture_area,
                              u32 first_vertex_index,
-                             stx::Vec<vertex>& ivertices,
-                             stx::Vec<u32>& iindices) {
-  if (vertices.size() < 2) return;
+                             stx::Vec<vertex>& out_vertices,
+                             stx::Vec<u32>& out_indices) {
+  if (in_vertices.size() < 2) return;
 
   bool has_previous_line = false;
 
   u32 vertex_index = first_vertex_index;
 
-  for (usize i = 1; i < vertices.size(); i++) {
-    vec4 color = vertices[i].color;
-    vec2 p0 = vertices[i - 1].position;
-    vec2 p1 = vertices[i].position;
+  for (usize i = 1; i < in_vertices.size(); i++) {
+    vec4 color = in_vertices[i].color;
+    vec2 p0 = in_vertices[i - 1].position;
+    vec2 p1 = in_vertices[i].position;
 
     // the angles are specified in clockwise direction to be compatible with the
     // vulkan coordinate system
@@ -254,8 +254,8 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> vertices,
     u32 indices[] = {vertex_index, vertex_index + 1, vertex_index + 3,
                      vertex_index, vertex_index + 2, vertex_index + 3};
 
-    ivertices.extend(vertices).unwrap();
-    iindices.extend(indices).unwrap();
+    out_vertices.extend(vertices).unwrap();
+    out_indices.extend(indices).unwrap();
 
     if (has_previous_line) {
       u32 prev_line_vertex_index = vertex_index - 4;
@@ -267,7 +267,7 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> vertices,
                        prev_line_vertex_index + 3,
                        vertex_index + 1};
 
-      iindices.extend(indices).unwrap();
+      out_indices.extend(indices).unwrap();
     }
 
     has_previous_line = true;

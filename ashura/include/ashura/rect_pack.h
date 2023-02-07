@@ -516,7 +516,8 @@ inline bool pack_rects(Context &context, rect *rects, i32 num_rects) {
   }
 
   // unsort
-  std::qsort(rects, num_rects, sizeof(rects[0]), rect_original_order);
+  std::qsort(rects, static_cast<size_t>(num_rects), sizeof(rects[0]),
+             rect_original_order);
 
   // set was_packed flags and all_rects_packed status
   for (i32 i = 0; i < num_rects; ++i) {
