@@ -165,6 +165,8 @@ struct Window {
     event_listeners.push(std::make_pair(event, std::move(callback))).unwrap();
   }
 
+  /* TODO(lamarrr): repeat all widget events */
+
   // use SDL_EVENT_DISPLAY
   void on_refresh_rate_changed();
   // keyboard
