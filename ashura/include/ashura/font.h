@@ -33,7 +33,7 @@ struct TextStyle {
 
   /// multiplied by font_height
   f32 line_height = 1.2f;
-  f32 letter_spacing = 2;
+  f32 letter_spacing = 1;
   f32 word_spacing = 4;
   u32 tab_size = 8;
   bool use_kerning = true;
@@ -41,7 +41,7 @@ struct TextStyle {
   /// use standard and contextual ligature substitution
   bool use_ligatures = true;
   bool underline = false;
-  bool strikethrough = false;
+  bool strikethrough = false;  // TODO(lamarrr): implement
   color foreground_color = colors::BLACK;
   color background_color = colors::TRANSPARENT;
 };
