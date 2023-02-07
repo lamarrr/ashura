@@ -678,12 +678,12 @@ struct Canvas {
     for (usize i = 0; i < paragraph.runs.size(); i++) {
       TextRun const& run = paragraph.runs[i];
 
-      for (char const* word_start = run.text.begin();
-           word_start < run.text.end();) {
+      for (char const* word_begin = run.text.begin();
+           word_begin < run.text.end();) {
         usize nspaces = 0;
         usize nline_breaks = 0;
 
-        char const* seeker = word_start;
+        char const* seeker = word_begin;
         char const* word_end = seeker;
 
         u32 codepoint = 0;
@@ -743,16 +743,20 @@ struct Canvas {
           }
         }
 
+        fmt::print(
+            "text: {}, nspaces: {}, nline_breaks: {}\n",
+            std::basic_string_view{word_begin, (size_t)(word_end - word_begin)},
+            nspaces, nline_breaks);
         subwords
             .push(
-                RunSubWord{.text = run.text.slice(word_start - run.text.begin(),
-                                                  word_end - word_start),
+                RunSubWord{.text = run.text.slice(word_begin - run.text.begin(),
+                                                  word_end - word_begin),
                            .run = i,
                            .nspaces = nspaces,
                            .nline_breaks = nline_breaks})
             .unwrap();
 
-        word_start = seeker;
+        word_begin = seeker;
       }
     }
 
@@ -822,26 +826,47 @@ struct Canvas {
         RunSubWord* subword = iter;
 
         for (; subword < subwords.end();) {
-          word_width += subword->width;
-
           f32 spaced_word_width =
-              word_width + subword->nspaces *
-                               paragraph.runs[subword->run].style.word_spacing;
+              subword->width +
+              subword->nspaces *
+                  paragraph.runs[subword->run].style.word_spacing;
 
+          fmt::print(
+              " run: {}, text: {}, cursor_x: {}, spaced_word_width: {}, "
+              "max_line_width: {}\n",
+              subword->run,
+              std::string_view{subword->text.data(), subword->text.size()},
+              cursor_x, spaced_word_width, max_line_width);
+
+          // TODO(lamarrr): check this function again, are we calculating at tge
+          // correct point?
+          //
           // if end of word
           if (subword->nspaces > 0 || subword->nline_breaks > 0 ||
               subword == subwords.end() - 1) {
             // check if wrapping needed
             if (cursor_x + spaced_word_width > max_line_width) {
+              fmt::print("is_wrapped: true\n");
               iter->is_wrapped = true;
               cursor_x = spaced_word_width;
+              if (subword->nline_breaks > 0) {
+                cursor_x = 0;
+              }
+              fmt::print("adjusted cursor_x: {}\n", cursor_x);
             } else {
-              cursor_x += spaced_word_width;
+              fmt::print("is_wrapped: false\n");
+              if (subword->nline_breaks > 0) {
+                cursor_x = 0;
+              } else {
+                cursor_x += spaced_word_width;
+              }
             }
             subword++;
             break;
           } else {
+            fmt::print("is_wrapped: false\n");
             // continue until we reach end of word
+            cursor_x += spaced_word_width;
             subword++;
           }
         }
@@ -853,28 +878,43 @@ struct Canvas {
     {
       f32 baseline = 0;
       usize nprev_line_breaks = 0;
-      bool line_wraps = false;
       for (RunSubWord* iter = subwords.begin(); iter < subwords.end();) {
-        RunSubWord* line_end = iter;
+        RunSubWord* line_begin = iter;
+        RunSubWord* line_end = iter + 1;
+        usize nline_breaks = 0;
 
-        for (; line_end < subwords.end(); line_end++) {
-          if (line_end->is_wrapped || line_end->nline_breaks > 0) {
-            line_wraps = line_end->is_wrapped;
-            line_end++;
-            break;
+        if (line_begin->is_wrapped && nprev_line_breaks == 0) {
+          nprev_line_breaks = 1;
+        }
+
+        if (line_begin->nline_breaks == 0) {
+          for (; line_end < subwords.end();) {
+            if (line_end->nline_breaks > 0) {
+              nline_breaks = line_end->nline_breaks;
+              line_end++;
+              break;
+            } else if (line_end->is_wrapped) {
+              break;
+            } else {
+              line_end++;
+            }
           }
         }
 
         f32 line_height = 0;
         f32 line_width = 0;
-        for (RunSubWord* subword = iter; subword < line_end; subword++) {
+
+        // TODO(lamarrr): account for descent
+        for (RunSubWord* subword = line_begin; subword < line_end; subword++) {
           line_height = std::max(
               line_height, paragraph.runs[subword->run].style.line_height *
                                paragraph.runs[subword->run].style.font_height);
           line_width += subword->width +
                         subword->nspaces *
                             paragraph.runs[subword->run].style.word_spacing;
+          // get max descent
         }
+        fmt::print("line_width: {}\n", line_width);
 
         // TODO(lamarrr): add alignment
         f32 alignment = 0;
@@ -887,10 +927,12 @@ struct Canvas {
 
         baseline += nprev_line_breaks * line_height;
 
-        // TODO(lamarrr): account for descent
+        fmt::print("is_wrapped: {}, nprev_line_breaks: {}\n",
+                   line_begin->is_wrapped, nprev_line_breaks);
+
         f32 cursor_x = 0;
 
-        for (RunSubWord* subword = iter; subword < line_end;) {
+        for (RunSubWord* subword = line_begin; subword < line_end;) {
           if (paragraph.runs[subword->run].direction ==
               TextDirection::LeftToRight) {
             TextRun const& run = paragraph.runs[subword->run];
@@ -900,10 +942,17 @@ struct Canvas {
             f32 letter_spacing = run.style.letter_spacing;
             f32 word_spacing = run.style.word_spacing;
 
+            usize i = 0;
             for (SubwordGlyph const& glyph :
                  glyphs.span().slice(subword->glyph_start, subword->nglyphs)) {
               Glyph const& g = atlas.glyphs[glyph.glyph];
               vec2 advance = g.advance * font_scale;
+              fmt::print(
+                  "cursor_x: {}, baseline: {}, run: {}, glyph: {}, text: {}, "
+                  " max_line_width: {}\n",
+                  cursor_x, baseline, subword->run, g.index,
+                  std::string_view{subword->text.data(), subword->text.size()},
+                  max_line_width);
               draw_glyph(g, run, atlas.image,
                          position + vec2{cursor_x, baseline}, font_scale,
                          line_height);
@@ -924,7 +973,9 @@ struct Canvas {
             subword++;
           } else {
             f32 rtl_width = 0;
+            RunSubWord* rtl_begin = subword;
             RunSubWord* rtl_end = subword + 1;
+
             for (; rtl_end < line_end; rtl_end++) {
               if (paragraph.runs[rtl_end->run].direction ==
                   TextDirection::LeftToRight) {
@@ -938,30 +989,33 @@ struct Canvas {
             }
 
             f32 rtl_cursor_x = cursor_x + rtl_width;
-            for (RunSubWord* sb = subword; sb < rtl_end; sb++) {
-              TextRun const& run = paragraph.runs[sb->run];
+            for (RunSubWord* rtl_iter = rtl_begin; rtl_iter < rtl_end;
+                 rtl_iter++) {
+              TextRun const& run = paragraph.runs[rtl_iter->run];
               FontAtlas const& atlas = fonts[run.font].atlas;
 
               f32 font_scale = run.style.font_height / atlas.font_height;
               f32 letter_spacing = run.style.letter_spacing;
               f32 word_spacing = run.style.word_spacing;
 
-              if (run.style.background_color.is_visible() && sb->nspaces > 0) {
+              if (run.style.background_color.is_visible() &&
+                  rtl_iter->nspaces > 0) {
                 brush.color = run.style.background_color;
                 brush.fill = true;
                 draw_rect(rect{
                     .offset =
                         position + vec2{rtl_cursor_x, baseline - line_height},
-                    .extent = vec2{word_spacing * sb->nspaces, line_height}});
+                    .extent =
+                        vec2{word_spacing * rtl_iter->nspaces, line_height}});
               }
 
-              rtl_cursor_x -= sb->nspaces * word_spacing;
-              rtl_cursor_x -= sb->width;
+              rtl_cursor_x -= rtl_iter->nspaces * word_spacing;
+              rtl_cursor_x -= rtl_iter->width;
 
               f32 glyph_cursor_x = rtl_cursor_x;
 
-              for (SubwordGlyph const& glyph :
-                   glyphs.span().slice(sb->glyph_start, sb->nglyphs)) {
+              for (SubwordGlyph const& glyph : glyphs.span().slice(
+                       rtl_iter->glyph_start, rtl_iter->nglyphs)) {
                 Glyph const& g = atlas.glyphs[glyph.glyph];
                 vec2 advance = g.advance * font_scale;
                 draw_glyph(g, run, atlas.image,
@@ -976,13 +1030,8 @@ struct Canvas {
           }
         }
 
+        nprev_line_breaks = nline_breaks;
         iter = line_end;
-        nprev_line_breaks = (line_end - 1)->nline_breaks;
-        if (line_wraps) {
-          if (nprev_line_breaks == 0) {
-            nprev_line_breaks = 1;
-          }
-        }
       }
     }
 
