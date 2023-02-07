@@ -29,9 +29,6 @@ using isize = ptrdiff_t;
 
 using uint = unsigned int;
 
-using c8 = char;
-using uc8 = unsigned char;
-
 struct vec2 {
   f32 x = 0, y = 0;
 
