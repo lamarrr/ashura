@@ -986,6 +986,10 @@ struct Canvas {
             RunSubWord* rtl_begin = subword;
             RunSubWord* rtl_end = subword + 1;
 
+            rtl_width += rtl_begin->width +
+                         rtl_begin->nspaces *
+                             paragraph.runs[rtl_begin->run].style.word_spacing;
+
             for (; rtl_end < line_end; rtl_end++) {
               if (paragraph.runs[rtl_end->run].direction ==
                   TextDirection::LeftToRight) {
