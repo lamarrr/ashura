@@ -1022,6 +1022,18 @@ struct Canvas {
               }
 
               rtl_cursor_x -= rtl_iter->nspaces * word_spacing;
+
+              if (run.style.background_color.is_visible() &&
+                  rtl_iter->nspaces > 0) {
+                brush.color = run.style.background_color;
+                brush.fill = true;
+                draw_rect(rect{
+                    .offset =
+                        position + vec2{rtl_cursor_x, baseline - line_height},
+                    .extent =
+                        vec2{word_spacing * rtl_iter->nspaces, line_height}});
+              }
+
               rtl_cursor_x -= rtl_iter->width;
 
               f32 glyph_cursor_x = rtl_cursor_x;
