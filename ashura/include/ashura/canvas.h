@@ -631,7 +631,8 @@ struct Canvas {
   }
 
   Canvas& draw_glyph(Glyph const& glyph, TextRun const& run, image atlas,
-                     vec2 baseline, f32 font_scale, f32 line_height) {
+                     vec2 baseline, f32 font_scale, f32 line_height,
+                     f32 vert_spacing) {
     f32 ascent = font_scale * glyph.ascent;
     vec2 advance = font_scale * glyph.advance;
     vec2 extent{font_scale * glyph.extent.width,
@@ -647,7 +648,7 @@ struct Canvas {
 
     if (run.style.foreground_color.is_visible()) {
       brush.color = run.style.foreground_color;
-      baseline.y -= (line_height - run.style.font_height) / 2;
+      baseline.y -= vert_spacing;
       draw_image(atlas,
                  rect{.offset = baseline - vec2{0, ascent}, .extent = extent},
                  glyph.s0, glyph.t0, glyph.s1, glyph.t1);
@@ -904,7 +905,8 @@ struct Canvas {
         f32 line_height = 0;
         f32 line_width = 0;
 
-        // TODO(lamarrr): account for descent
+        f32 max_ascent = 0;
+
         for (RunSubWord* subword = line_begin; subword < line_end; subword++) {
           line_height = std::max(
               line_height, paragraph.runs[subword->run].style.line_height *
@@ -912,11 +914,19 @@ struct Canvas {
           line_width += subword->width +
                         subword->nspaces *
                             paragraph.runs[subword->run].style.word_spacing;
-          // get max descent
-        }
-        fmt::print("line_width: {}\n", line_width);
 
+          TextRun const& run = paragraph.runs[subword->run];
+          Font const& font = *fonts[run.font].font.handle;
+          FontAtlas const& atlas = fonts[run.font].atlas;
+          f32 font_scale = run.style.font_height / atlas.font_height;
+          for (SubwordGlyph const& glyph :
+               glyphs.span().slice(subword->glyph_start, subword->nglyphs)) {
+            max_ascent = std::max(
+                max_ascent, atlas.glyphs[glyph.glyph].ascent * font_scale);
+          }
+        }
         // TODO(lamarrr): add alignment
+        f32 vert_spacing = std::max(line_height - max_ascent, 0.0f) / 2;
         f32 alignment = 0;
 
         if (paragraph.align == TextAlign::Center) {
@@ -955,7 +965,7 @@ struct Canvas {
                   max_line_width);
               draw_glyph(g, run, atlas.image,
                          position + vec2{cursor_x, baseline}, font_scale,
-                         line_height);
+                         line_height, vert_spacing);
               cursor_x += advance.x + letter_spacing;
             }
 
@@ -1020,7 +1030,7 @@ struct Canvas {
                 vec2 advance = g.advance * font_scale;
                 draw_glyph(g, run, atlas.image,
                            position + vec2{glyph_cursor_x, baseline},
-                           font_scale, line_height);
+                           font_scale, line_height, vert_spacing);
                 glyph_cursor_x += advance.x + letter_spacing;
               }
             }
