@@ -839,9 +839,6 @@ struct Canvas {
               std::string_view{subword->text.data(), subword->text.size()},
               cursor_x, spaced_word_width, max_line_width);
 
-          // TODO(lamarrr): check this function again, are we calculating at tge
-          // correct point?
-          //
           // if end of word
           if (subword->nspaces > 0 || subword->nline_breaks > 0 ||
               subword == subwords.end() - 1) {
