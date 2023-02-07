@@ -35,8 +35,14 @@ target_include_directories(ashura_external_stb
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)
-elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-  add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic)
+else()
+  if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
+    add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic)
+  else()
+    if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+      add_compile_options(/Wall)
+    endif()
+  endif()
 endif()
 
 # add_subdirectory(assets)
