@@ -225,8 +225,8 @@ struct RecordingContext {
     pipeline.destroy(dev);
   }
 
-  stx::Rc<ImageResource*> upload_image(extent extent, u32 nchannels,
-                                       stx::Span<u8 const> data) {
+  stx::Rc<ImageResource*> upload_image(stx::Span<u8 const> data, extent extent,
+                                       u32 nchannels) {
     CommandQueue& cqueue = *queue.value().handle;
     VkDevice dev = cqueue.device->device;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
