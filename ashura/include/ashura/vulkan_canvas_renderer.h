@@ -9,19 +9,19 @@
 namespace asr {
 namespace vk {
 
-// TODO(lamarrr): break this down and make it suitable for offscreen rendering
-//
-//
 struct CanvasRenderer {
-  stx::Vec<vk::SpanBuffer> vertex_buffers{stx::os_allocator};
-  stx::Vec<vk::SpanBuffer> index_buffers{stx::os_allocator};
+  usize max_nframes_in_flight = 2;
+  stx::Vec<SpanBuffer> vertex_buffers{stx::os_allocator};
+  stx::Vec<SpanBuffer> index_buffers{stx::os_allocator};
 
-  vk::RecordingContext ctx;
+  RecordingContext ctx;
 
-  stx::Rc<vk::CommandQueue*> queue;
+  stx::Rc<CommandQueue*> queue;
 
-  explicit CanvasRenderer(stx::Rc<vk::CommandQueue*> aqueue)
-      : queue{std::move(aqueue)} {
+  explicit CanvasRenderer(stx::Rc<CommandQueue*> aqueue,
+                          usize amax_nframes_in_flight)
+      : queue{std::move(aqueue)},
+        max_nframes_in_flight{amax_nframes_in_flight} {
     VkVertexInputAttributeDescription vertex_input_attributes[] = {
         {.location = 0,
          .binding = 0,
@@ -36,8 +36,8 @@ struct CanvasRenderer {
          .format = VK_FORMAT_R32G32B32A32_SFLOAT,
          .offset = offsetof(vertex, color)}};
 
-    vk::DescriptorSetSpec descriptor_set_specs[] = {
-        vk::DescriptorSetSpec{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}};
+    DescriptorSetSpec descriptor_set_specs[] = {
+        DescriptorSetSpec{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}};
 
     // initial size of the descriptor pool, will grow as needed
     VkDescriptorPoolSize descriptor_pool_sizes[] = {
@@ -49,9 +49,9 @@ struct CanvasRenderer {
              sizeof(gfx::CanvasPushConstants), descriptor_set_specs,
              descriptor_pool_sizes, 1);
 
-    for (u32 i = 0; i < vk::SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-      vertex_buffers.push(vk::SpanBuffer{}).unwrap();
-      index_buffers.push(vk::SpanBuffer{}).unwrap();
+    for (u32 i = 0; i < amax_nframes_in_flight; i++) {
+      vertex_buffers.push(SpanBuffer{}).unwrap();
+      index_buffers.push(SpanBuffer{}).unwrap();
     }
   }
 
@@ -60,9 +60,9 @@ struct CanvasRenderer {
   ~CanvasRenderer() {
     VkDevice dev = queue->device->device;
 
-    for (vk::SpanBuffer& buff : vertex_buffers) buff.destroy(dev);
+    for (SpanBuffer& buff : vertex_buffers) buff.destroy(dev);
 
-    for (vk::SpanBuffer& buff : index_buffers) buff.destroy(dev);
+    for (SpanBuffer& buff : index_buffers) buff.destroy(dev);
 
     ctx.destroy();
   }
@@ -81,16 +81,18 @@ struct CanvasRenderer {
         dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
   }
 
-  void submit(vk::SwapChain const& swapchain, u32 swapchain_image_index,
-              gfx::DrawList const& draw_list,
-              AssetBundle<stx::Rc<vk::ImageSampler*>>& bundle) {
-    stx::Rc<vk::Device*> const& device = swapchain.queue->device;
+  void submit(VkExtent2D viewport_extent, u32 swapchain_image_index,
+              VkExtent2D image_extent, u32 frame, VkFence render_fence,
+              VkSemaphore image_acquisition_semaphore,
+              VkSemaphore render_semaphore, VkRenderPass render_pass,
+              VkFramebuffer framebuffer, gfx::DrawList const& draw_list,
+              AssetBundle<stx::Rc<ImageSampler*>>& bundle) {
+    ASR_CHECK(frame < max_nframes_in_flight);
+    stx::Rc<Device*> const& device = queue->device;
 
     VkDevice dev = device->device;
 
-    VkQueue queue = swapchain.queue->info.queue;
-
-    u32 frame = swapchain.next_frame_flight_index;
+    VkQueue queue = this->queue->info.queue;
 
     VkCommandBuffer cmd_buffer = ctx.draw_cmd_buffers[frame];
 
@@ -151,7 +153,7 @@ struct CanvasRenderer {
                                               nullptr,
                                               &ctx.descriptor_pools[frame]));
 
-          ctx.descriptor_pool_infos[frame] = vk::DescriptorPoolInfo{
+          ctx.descriptor_pool_infos[frame] = DescriptorPoolInfo{
               .sizes = std::move(sizes), .max_sets = nrequired_descriptor_sets};
 
           ctx.descriptor_sets[frame].resize(nrequired_descriptor_sets).unwrap();
@@ -192,10 +194,10 @@ struct CanvasRenderer {
       }
     }
 
-    ASR_VK_CHECK(vkWaitForFences(dev, 1, &swapchain.rendering_fences[frame],
-                                 VK_TRUE, COMMAND_TIMEOUT));
+    ASR_VK_CHECK(
+        vkWaitForFences(dev, 1, &render_fence, VK_TRUE, COMMAND_TIMEOUT));
 
-    ASR_VK_CHECK(vkResetFences(dev, 1, &swapchain.rendering_fences[frame]));
+    ASR_VK_CHECK(vkResetFences(dev, 1, &render_fence));
 
     ASR_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
 
@@ -215,10 +217,9 @@ struct CanvasRenderer {
     VkRenderPassBeginInfo render_pass_begin_info{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .pNext = nullptr,
-        .renderPass = swapchain.render_pass,
-        .framebuffer = swapchain.framebuffers[swapchain_image_index],
-        .renderArea =
-            VkRect2D{.offset = {0, 0}, .extent = swapchain.image_extent},
+        .renderPass = render_pass,
+        .framebuffer = framebuffer,
+        .renderArea = VkRect2D{.offset = {0, 0}, .extent = image_extent},
         .clearValueCount = AS_U32(std::size(clear_values)),
         .pClearValues = clear_values};
 
@@ -228,7 +229,7 @@ struct CanvasRenderer {
     VkDeviceSize offset = 0;
 
     for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
-      vk::ImageSampler const& sampler =
+      ImageSampler const& sampler =
           *bundle.get(draw_list.cmds[icmd].texture).unwrap()->handle;
 
       VkDescriptorImageInfo image_info{
@@ -268,8 +269,8 @@ struct CanvasRenderer {
 
       VkViewport viewport{.x = 0,
                           .y = 0,
-                          .width = AS_F32(swapchain.window_extent.width),
-                          .height = AS_F32(swapchain.window_extent.height),
+                          .width = AS_F32(viewport_extent.width),
+                          .height = AS_F32(viewport_extent.height),
                           .minDepth = 0,
                           .maxDepth = 1};
 
@@ -306,23 +307,19 @@ struct CanvasRenderer {
     VkPipelineStageFlags wait_stage =
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    VkSubmitInfo submit_info{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext = nullptr,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &swapchain.image_acquisition_semaphores[frame],
-        .pWaitDstStageMask = &wait_stage,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmd_buffer,
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &swapchain.rendering_semaphores[frame]};
+    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .pNext = nullptr,
+                             .waitSemaphoreCount = 1,
+                             .pWaitSemaphores = &image_acquisition_semaphore,
+                             .pWaitDstStageMask = &wait_stage,
+                             .commandBufferCount = 1,
+                             .pCommandBuffers = &cmd_buffer,
+                             .signalSemaphoreCount = 1,
+                             .pSignalSemaphores = &render_semaphore};
 
-    ASR_VK_CHECK(vkQueueSubmit(queue, 1, &submit_info,
-                               swapchain.rendering_fences[frame]));
+    ASR_VK_CHECK(vkQueueSubmit(queue, 1, &submit_info, render_fence));
   }
 };
-
-struct SwapChainCanvasRenderer {};
 
 }  // namespace vk
 }  // namespace asr
