@@ -648,9 +648,9 @@ struct Canvas {
 
     if (run.style.foreground_color.is_visible()) {
       brush.color = run.style.foreground_color;
-      baseline.y -= vert_spacing;
       draw_image(atlas,
-                 rect{.offset = baseline - vec2{0, ascent}, .extent = extent},
+                 rect{.offset = baseline - vec2{0, vert_spacing + ascent},
+                      .extent = extent},
                  glyph.s0, glyph.t0, glyph.s1, glyph.t1);
     }
 
