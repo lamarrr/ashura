@@ -381,7 +381,27 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
       }
     }
   }
-
+  /*
+  static int f = 0;
+  f++;
+  std::ofstream out{"font_dump" + std::to_string(f) + ".txt"};
+  out << atlas_extent.width << " " << atlas_extent.height << "\n";
+  out << "===RGBA PACKED FONT BEGIN==="
+      << "\n"
+      << "\n";
+  for (size_t i = 0; i < atlas_extent.height; i++) {
+    for (size_t j = 0; j < atlas_extent.width; j++) {
+      out << (int)buffer[i * atlas_extent.width * 4 + j + 0] << ", "
+                << (int)buffer[i * atlas_extent.width * 4 + j + 1] << ", "
+                << (int)buffer[i * atlas_extent.width * 4 + j + 2] << ", "
+                << (int)buffer[i * atlas_extent.width * 4 + j + 3] << ", ";
+    }
+    out << "\n";
+  }
+  out << "===RGBA PACKED FONT END==="
+      << "\n"
+      << "\n";
+      */
   return std::make_pair(
       FontAtlas{.glyphs = std::move(glyphs),
                 .extent = atlas_extent,
