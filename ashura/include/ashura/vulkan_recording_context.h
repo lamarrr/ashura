@@ -433,7 +433,7 @@ struct RecordingContext {
                                  image_format_properties.maxExtent.height});
 
     u64 id = bundle.add(create_image_sampler(
-        upload_image(image_buffer.extent, 4, image_buffer.span())));
+        upload_image(image_buffer.span(), image_buffer.extent, 4)));
 
     atlas.image = id;
 
