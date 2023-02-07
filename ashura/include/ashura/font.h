@@ -249,7 +249,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
       glyphs.begin(), glyphs.end(),
       [](Glyph const& a, Glyph const& b) { return a.index == b.index; });
 
-  glyphs.resize(last - glyphs.begin()).unwrap();
+  glyphs.resize(static_cast<size_t>(last - glyphs.begin())).unwrap();
 
   stx::Memory rects_mem =
       stx::mem::allocate(stx::os_allocator, sizeof(rp::rect) * glyphs.size())
