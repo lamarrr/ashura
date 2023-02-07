@@ -208,7 +208,7 @@ Engine::Engine(AppConfig const& cfg) {
           load_font_from_file(
               R"(C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf)"_str)
               .unwrap(),
-          26),
+          50),
       renderer.value()->ctx.cache_font(
           image_bundle,
           load_font_from_file(
@@ -278,8 +278,11 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.brush.color = colors::WHITE;
     auto str = fmt::format(
         "Hello World! Examples Ashura Engine Demo.\n Starting in {}", d);
-    char arstr[] = {0};
-    //{0xd8, 0xb5, 0xd8, 0xa8, 0xd9, 0x8a, 0};
+    char arstr[] ={0}; /*{0xd9, 0x84, 0xd8, 0xa7, 0x20, 0xd8, 0xa5, 0xd9, 0x84, 0xd9,
+                    0x87, 0x20, 0xd8, 0xa5, 0xd9, 0x84, 0xd8, 0xa7, 0x20, 0xd8,
+                    0xa7, 0xd9, 0x84, 0xd9, 0x84, 0xd9, 0x87, 0x20, 0xd9, 0x88,
+                    0xd8, 0xa7, 0xd9, 0x84, 0xd9, 0x84, 0xd9, 0x87, 0x20, 0xd8,
+                    0xa3, 0xd9, 0x83, 0xd8, 0xa8, 0xd8, 0xb1, 0};*/
     char emojis[] = {
         0xf0, 0x9f, 0x98, 0x80, 0x20, 0xf0, 0x9f, 0x98, 0x83, 0x20, 0xf0, 0x9f,
         0x98, 0x84, 0x20, 0xf0, 0x9f, 0x98, 0x81, 0x20, 0xf0, 0x9f, 0x98, 0x86,
@@ -303,6 +306,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
         {.text = arstr,
          .font = 2,
          .style = {.font_height = 30,
+                   .letter_spacing = 0,
                    .foreground_color = colors::RED,
                    .background_color = colors::WHITE},
          .direction = TextDirection::RightToLeft,
@@ -333,7 +337,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     Paragraph paragraph{.runs = runs, .align = TextAlign::Right};
     stx::Vec<gfx::RunSubWord> subwords{stx::os_allocator};
     stx::Vec<gfx::SubwordGlyph> glyphs{stx::os_allocator};
-    c.draw_text(paragraph, stx::Span{font, 3}, {100, 500}, 300, subwords,
+    c.draw_text(paragraph, stx::Span{font, 3}, {100, 500},/*300*/ 500, subwords,
                 glyphs);
 
     // image_assets.get(0).unwrap()->operator->()->sampler;
