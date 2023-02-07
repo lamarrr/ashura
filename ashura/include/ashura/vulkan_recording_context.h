@@ -20,14 +20,18 @@ struct RecordingContext {
   VkShaderModule fragment_shader = VK_NULL_HANDLE;
   VkFence upload_fence = VK_NULL_HANDLE;
   Pipeline pipeline;
+
   // one descriptor pool per frame in flight
   stx::Vec<VkDescriptorPool> descriptor_pools{stx::os_allocator};
   stx::Vec<DescriptorPoolInfo> descriptor_pool_infos{stx::os_allocator};
+
   // specifications describing binding types/layouts for the descriptor sets
   // used. we will have multiple of each
   stx::Vec<DescriptorSetSpec> descriptor_set_specs{stx::os_allocator};
+
   // the created layouts for each of the descriptor sets
   stx::Vec<VkDescriptorSetLayout> descriptor_set_layouts{stx::os_allocator};
+
   // the allocated descriptor sets, the first vec is for each frame in flight
   // and the second vec contains the descriptor sets repeated for each of the
   // draw calls. i.e. num_draw_calls x num_descriptor_sets_per_frame
