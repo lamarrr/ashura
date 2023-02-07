@@ -64,6 +64,7 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
 }
 
 gfx::CachedFont* font;
+gfx::image img;
 
 Engine::Engine(AppConfig const& cfg) {
   stx::Vec<char const*> required_device_extensions{stx::os_allocator};
@@ -194,6 +195,11 @@ Engine::Engine(AppConfig const& cfg) {
   gfx::image transparent_image_id =
       image_bundle.add(vk::create_image_sampler(transparent_image));
 
+  auto sample_img =
+      renderer.value()->ctx.upload_image(sample_image, {1920, 1080}, 4);
+
+  img = image_bundle.add(vk::create_image_sampler(sample_img));
+
   ASR_CHECK(transparent_image_id == 0);
 
   font = new gfx::CachedFont[]{
@@ -212,7 +218,7 @@ Engine::Engine(AppConfig const& cfg) {
       renderer.value()->ctx.cache_font(
           image_bundle,
           load_font_from_file(
-              R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\NotoSansArabic-Regular.ttf)"_str)
+              R"(C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe Arabic Regular\Adobe Arabic Regular.ttf)"_str)
               .unwrap(),
           26)};
 
@@ -246,7 +252,6 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   do {
   } while (window_api.value()->poll_events());
 
-  // TODO(lamarrr): try getting window extent on each frame instead?
   window.value()->tick(interval);
 
   auto draw_content = [&]() {
@@ -264,17 +269,13 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.restart({AS_F32(extent.width), AS_F32(extent.height)});
     c.brush.color = colors::WHITE;
     c.clear();
-    // c.draw_round_rect({{100, 100}, {500, 200}}, {50, 50, 50, 50}, 200);
-    // c.draw_rect({200, 200}, {250, 250});
-    // c.draw_ellipse({150, 150}, {500, 200}, 60);
-    // c.rotate(0, 0, 30);
     c.brush.fill = true;
     c.brush.color = colors::GREEN;
     c.draw_rect({{800, 800}, {300, 100}});
     c.brush.line_thickness = 2;
     c.brush.fill = false;
     c.brush.color = colors::RED;
-    c.draw_rect({{90, 490}, {320, 120}});
+    c.draw_rect({{90, 400}, {320, 120}});
     c.brush.color = colors::WHITE;
     auto str = fmt::format(
         "Hello World! Examples Ashura Engine Demo.\n Starting in {}", d);
@@ -296,6 +297,8 @@ void Engine::tick(std::chrono::nanoseconds interval) {
         {.text = str,
          .font = 0,
          .style = {.font_height = 30,
+                   .letter_spacing = 1,
+                   .word_spacing = 16,
                    .foreground_color = colors::CYAN,
                    .background_color = colors::BLACK}},
         {.text = str,
@@ -307,8 +310,8 @@ void Engine::tick(std::chrono::nanoseconds interval) {
          .font = 2,
          .style = {.font_height = 30,
                    .letter_spacing = 0,
-                   .foreground_color = colors::RED,
-                   .background_color = colors::WHITE},
+                   .foreground_color = colors::BLACK,
+                   .background_color = colors::GREEN},
          .direction = TextDirection::RightToLeft,
          .script = HB_SCRIPT_ARABIC,
          .language = hb_language_from_string("ar", -1)},
@@ -340,25 +343,13 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.draw_text(paragraph, stx::Span{font, 3}, {100, 500}, /*300*/ 500,
                 subwords, glyphs);
 
-    // TODO(lamarrr): scaling doesn't work properly
-    // c.scale(0.5, 0.5);
-    // c.rotate(0, 0, 90);
     // c.draw_image(atlas->atlas, rect{{0, 0},
     // {atlas->extent.width * 1.0f,
     //  atlas->extent.height * 1.0f}});
-
-    // c.brush.color = colors::GREEN.with_alpha(63);
-    // c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});
-    // c.brush.color = colors::CYAN.with_alpha(63);
-    // c.rotate(0, 0, 0);
-    // float interval = std::chrono::duration_cast<std::chrono::milliseconds>(
-    //                     std::chrono::steady_clock::now() - start)
-    //                     .count();
-    // c.translate(0, -interval / 10000.0f);
-    // c.draw_round_rect({0, 0}, {500, 200}, {50, 50, 50, 50}, 200);
     c.brush.color = colors::BLUE.with_alpha(127);
     c.brush.fill = true;
     c.scale(4, 4);
+    c.brush.texture = img;
     c.draw_round_rect({{0, 0}, {100, 100}}, {25, 25, 25, 25}, 360);
   };
 
