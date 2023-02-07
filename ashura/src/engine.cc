@@ -189,7 +189,7 @@ Engine::Engine(AppConfig const& cfg) {
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
   auto transparent_image =
-      renderer.value()->ctx.upload_image({1, 1}, 4, transparent_image_data);
+      renderer.value()->ctx.upload_image(transparent_image_data, {1, 1}, 4);
 
   gfx::image transparent_image_id =
       image_bundle.add(vk::create_image_sampler(transparent_image));
@@ -278,11 +278,11 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.brush.color = colors::WHITE;
     auto str = fmt::format(
         "Hello World! Examples Ashura Engine Demo.\n Starting in {}", d);
-    char arstr[] ={0}; /*{0xd9, 0x84, 0xd8, 0xa7, 0x20, 0xd8, 0xa5, 0xd9, 0x84, 0xd9,
+    char arstr[] = {0xd9, 0x84, 0xd8, 0xa7, 0x20, 0xd8, 0xa5, 0xd9, 0x84, 0xd9,
                     0x87, 0x20, 0xd8, 0xa5, 0xd9, 0x84, 0xd8, 0xa7, 0x20, 0xd8,
                     0xa7, 0xd9, 0x84, 0xd9, 0x84, 0xd9, 0x87, 0x20, 0xd9, 0x88,
                     0xd8, 0xa7, 0xd9, 0x84, 0xd9, 0x84, 0xd9, 0x87, 0x20, 0xd8,
-                    0xa3, 0xd9, 0x83, 0xd8, 0xa8, 0xd8, 0xb1, 0};*/
+                    0xa3, 0xd9, 0x83, 0xd8, 0xa8, 0xd8, 0xb1, 0};
     char emojis[] = {
         0xf0, 0x9f, 0x98, 0x80, 0x20, 0xf0, 0x9f, 0x98, 0x83, 0x20, 0xf0, 0x9f,
         0x98, 0x84, 0x20, 0xf0, 0x9f, 0x98, 0x81, 0x20, 0xf0, 0x9f, 0x98, 0x86,
@@ -337,10 +337,9 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     Paragraph paragraph{.runs = runs, .align = TextAlign::Right};
     stx::Vec<gfx::RunSubWord> subwords{stx::os_allocator};
     stx::Vec<gfx::SubwordGlyph> glyphs{stx::os_allocator};
-    c.draw_text(paragraph, stx::Span{font, 3}, {100, 500},/*300*/ 500, subwords,
-                glyphs);
+    c.draw_text(paragraph, stx::Span{font, 3}, {100, 500}, /*300*/ 500,
+                subwords, glyphs);
 
-    // image_assets.get(0).unwrap()->operator->()->sampler;
     // TODO(lamarrr): scaling doesn't work properly
     // c.scale(0.5, 0.5);
     // c.rotate(0, 0, 90);
@@ -348,18 +347,19 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     // {atlas->extent.width * 1.0f,
     //  atlas->extent.height * 1.0f}});
 
-    /* c.brush.color = colors::GREEN.with_alpha(63);
-    c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});
-    c.brush.color = colors::CYAN.with_alpha(63);
+    // c.brush.color = colors::GREEN.with_alpha(63);
+    // c.draw_rect({0, 0}, {.1257 * 1920, .125 * 1080});
+    // c.brush.color = colors::CYAN.with_alpha(63);
     // c.rotate(0, 0, 0);
-    float interval = std::chrono::duration_cast<std::chrono::milliseconds>(
-                         std::chrono::steady_clock::now() - start)
-                         .count();
+    // float interval = std::chrono::duration_cast<std::chrono::milliseconds>(
+    //                     std::chrono::steady_clock::now() - start)
+    //                     .count();
     // c.translate(0, -interval / 10000.0f);
-    c.draw_round_rect({0, 0}, {500, 200}, {50, 50, 50, 50}, 200);
+    // c.draw_round_rect({0, 0}, {500, 200}, {50, 50, 50, 50}, 200);
     c.brush.color = colors::BLUE.with_alpha(127);
-    c.draw_circle({0, 0}, 200, 200);
-    */
+    c.brush.fill = true;
+    c.scale(4, 4);
+    c.draw_round_rect({{0, 0}, {100, 100}}, {25, 25, 25, 25}, 360);
   };
 
   draw_content();
