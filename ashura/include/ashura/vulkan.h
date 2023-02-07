@@ -1080,28 +1080,29 @@ struct ImageResource {
 // use a single sampler for multiple images
 struct ImageSampler {
   VkSampler sampler = VK_NULL_HANDLE;
-  stx::Rc<ImageResource*> image;
+  stx::Rc<CommandQueue*> queue;
 
-  ImageSampler(VkSampler asampler, stx::Rc<ImageResource*> aimage)
-      : sampler{asampler}, image{std::move(aimage)} {}
+  ImageSampler(VkSampler asampler, stx::Rc<CommandQueue*> aqueue)
+      : sampler{asampler}, queue{std::move(aqueue)} {}
 
   STX_MAKE_PINNED(ImageSampler)
 
   ~ImageSampler() {
-    ASR_VK_CHECK(vkDeviceWaitIdle(image->queue->device->device));
-    vkDestroySampler(image->queue->device->device, sampler, nullptr);
+    ASR_VK_CHECK(vkDeviceWaitIdle(queue->device->device));
+    vkDestroySampler(queue->device->device, sampler, nullptr);
   }
 };
 
-inline VkSampler create_sampler(stx::Rc<Device*> const& device,
+inline VkSampler create_sampler(stx::Rc<Device*> const& device, VkFilter filter,
+                                VkSamplerMipmapMode mipmap,
                                 VkBool32 enable_anisotropy) {
   VkSamplerCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
       .pNext = nullptr,
       .flags = 0,
-      .magFilter = VK_FILTER_LINEAR,
-      .minFilter = VK_FILTER_LINEAR,
-      .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+      .magFilter = filter,
+      .minFilter = filter,
+      .mipmapMode = mipmap,
       .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
       .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
       .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
