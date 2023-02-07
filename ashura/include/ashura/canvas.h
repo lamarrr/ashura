@@ -922,6 +922,7 @@ struct Canvas {
                 max_ascent, atlas.glyphs[glyph.glyph].ascent * font_scale);
           }
         }
+
         // TODO(lamarrr): add alignment
         f32 vert_spacing = std::max(line_height - max_ascent, 0.0f) / 2;
         f32 alignment = 0;
