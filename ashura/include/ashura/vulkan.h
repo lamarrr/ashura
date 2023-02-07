@@ -954,11 +954,11 @@ struct SpanBuffer {
       } else {
         vkFreeMemory(dev, memory, nullptr);
 
-        u32 memory_type_index = vk::find_suitable_memory_type(
-                                    memory_properties, memory_requirements,
-                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-                                    .unwrap();
+        u32 memory_type_index =
+            find_suitable_memory_type(memory_properties, memory_requirements,
+                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+                .unwrap();
 
         VkMemoryAllocateInfo alloc_info{
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
