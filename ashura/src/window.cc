@@ -199,9 +199,9 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
     window_flags |= SDL_WINDOW_ALWAYS_ON_TOP;
   }
 
-  SDL_Window* window =
-      SDL_CreateWindow(cfg.title.c_str(), 0, 0, AS_I32(cfg.extent.width),
-                       AS_I32(cfg.extent.height), window_flags);
+  SDL_Window* window = SDL_CreateWindow(
+      cfg.title.c_str(), 0, 0, AS_I32(std::max<u32>(cfg.extent.width, 1)),
+      AS_I32(std::max<u32>(cfg.extent.height, 1)), window_flags);
 
   // window creation shouldn't fail reliably, if it fails,
   // there's no point in the program proceeding
