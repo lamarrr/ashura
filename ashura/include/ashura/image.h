@@ -1,6 +1,7 @@
 #pragma once
 #include "ashura/primitives.h"
 #include "stx/memory.h"
+#include "stx/span.h"
 
 namespace asr {
 namespace gfx {
