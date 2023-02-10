@@ -44,6 +44,8 @@ struct TextStyle {
   bool strikethrough = false;  // TODO(lamarrr): implement
   color foreground_color = colors::BLACK;
   color background_color = colors::TRANSPARENT;
+  color underline_color = colors::TRANSPARENT;
+  f32 underline_line_width = 1;
 };
 
 /// A text run is a sequence of characters sharing a single property set. Any
@@ -51,7 +53,7 @@ struct TextStyle {
 /// any other formatting effect, breaks the text run.
 struct TextRun {
   /// utf-8-encoded text
-  stx::Span<c8 const> text;
+  stx::Span<char const> text;
   usize font = 0;
   TextStyle style;
   TextDirection direction = TextDirection::LeftToRight;
@@ -105,7 +107,7 @@ struct Font {
 
 inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
   hb_blob_t* hbblob =
-      hb_blob_create(static_cast<c8*>(memory.handle), static_cast<uint>(size),
+      hb_blob_create(static_cast<char*>(memory.handle), static_cast<uint>(size),
                      HB_MEMORY_MODE_READONLY, nullptr, nullptr);
   ASR_CHECK(hbblob != nullptr);
 
@@ -345,7 +347,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
                           ? (FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR)
                           : (FT_LOAD_DEFAULT | FT_LOAD_RENDER)) == 0);
 
-    uc8 pixel_mode = font.ftface->glyph->bitmap.pixel_mode;
+    uchar pixel_mode = font.ftface->glyph->bitmap.pixel_mode;
 
     ASR_CHECK(pixel_mode == FT_PIXEL_MODE_GRAY ||
               pixel_mode == FT_PIXEL_MODE_BGRA);
@@ -430,6 +432,13 @@ struct RunSubWord {
   usize glyph_start = 0;
   usize nglyphs = 0;
   bool is_wrapped = false;
+};
+
+struct TextLayout {
+  f32 width = 0;
+  f32 height = 0;
+  f32 min_width = 0;
+  f32 min_height = 0;
 };
 
 }  // namespace gfx
