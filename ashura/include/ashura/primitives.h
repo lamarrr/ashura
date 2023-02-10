@@ -7,7 +7,7 @@
 #include "stx/limits.h"
 #include "stx/option.h"
 
-#define RADIANS(...) AS_F32(M_PI *(__VA_ARGS__) / 180)
+#define RADIANS(...) AS_F32(::asr::pi *(__VA_ARGS__) / 180)
 
 namespace asr {
 
@@ -27,7 +27,10 @@ using f64 = double;
 using usize = size_t;
 using isize = ptrdiff_t;
 
+using uchar = unsigned char;
 using uint = unsigned int;
+
+constexpr f32 pi = 3.14159265358979323846f;
 
 struct vec2 {
   f32 x = 0, y = 0;

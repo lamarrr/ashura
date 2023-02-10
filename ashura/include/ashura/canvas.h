@@ -71,7 +71,7 @@ inline void circle(vec2 position, f32 radius, usize nsegments,
                    stx::Span<vertex> polygon) {
   if (nsegments == 0 || radius <= 0) return;
 
-  f32 step = AS_F32((2 * M_PI) / nsegments);
+  f32 step = AS_F32((2 * pi) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
     vec2 p = radius + radius * vec2{std::cos(i * step), std::sin(i * step)};
@@ -88,7 +88,7 @@ inline void ellipse(vec2 position, vec2 radii, usize nsegments,
                     stx::Span<vertex> polygon) {
   if (nsegments == 0 || radii.x <= 0 || radii.y <= 0) return;
 
-  f32 step = AS_F32((2 * M_PI) / nsegments);
+  f32 step = AS_F32((2 * pi) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
     vec2 p = radii + radii * vec2{std::cos(i * step), std::sin(i * step)};
@@ -110,7 +110,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
   radii.z = std::min(radii.z, std::min(extent.x, extent.y));
   radii.w = std::min(radii.w, std::min(extent.x, extent.y));
 
-  f32 step = AS_F32((M_PI / 2) / nsegments);
+  f32 step = AS_F32((pi / 2) / nsegments);
 
   usize i = 0;
 
@@ -127,8 +127,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     vec2 p = vec2{radii.w, extent.y - radii.w} +
-             radii.w * vec2{std::cos(AS_F32(M_PI / 2) + segment * step),
-                            std::sin(AS_F32(M_PI / 2) + segment * step)};
+             radii.w * vec2{std::cos(AS_F32(pi / 2) + segment * step),
+                            std::sin(AS_F32(pi / 2) + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -138,8 +138,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
   }
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
-    vec2 p = radii.x + radii.x * vec2{std::cos(AS_F32(M_PI) + segment * step),
-                                      std::sin(AS_F32(M_PI) + segment * step)};
+    vec2 p = radii.x + radii.x * vec2{std::cos(AS_F32(pi) + segment * step),
+                                      std::sin(AS_F32(pi) + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -150,8 +150,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     vec2 p = vec2{extent.x - radii.y, radii.y} +
-             radii.y * vec2{std::cos(AS_F32(M_PI * 3) / 2 + segment * step),
-                            std::sin(AS_F32(M_PI * 3) / 2 + segment * step)};
+             radii.y * vec2{std::cos(AS_F32(pi * 3) / 2 + segment * step),
+                            std::sin(AS_F32(pi * 3) / 2 + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -210,22 +210,21 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
     // use direction of the points to get the actual overall angle of
     // inclination of p2 to p1
     if (d.x < 0 && d.y > 0) {
-      alpha = AS_F32(M_PI - alpha);
+      alpha = AS_F32(pi - alpha);
     } else if (d.x < 0 && d.y < 0) {
-      alpha = AS_F32(M_PI + alpha);
+      alpha = AS_F32(pi + alpha);
     } else if (d.x > 0 && d.y < 0) {
-      alpha = AS_F32(2 * M_PI - alpha);
+      alpha = AS_F32(2 * pi - alpha);
     } else {
       // d.x >=0 && d.y >= 0
     }
 
     // line will be at a parallel angle
-    alpha = AS_F32(alpha + M_PI / 2);
+    alpha = AS_F32(alpha + pi / 2);
 
     vec2 f = line_thickness / 2 * vec2{std::cos(alpha), std::sin(alpha)};
-    vec2 g =
-        line_thickness / 2 *
-        vec2{std::cos(AS_F32(M_PI + alpha)), std::sin(AS_F32(M_PI + alpha))};
+    vec2 g = line_thickness / 2 *
+             vec2{std::cos(AS_F32(pi + alpha)), std::sin(AS_F32(pi + alpha))};
 
     vec2 m0 = p0 + f;
     vec2 m1 = p0 + g;
@@ -670,6 +669,7 @@ struct Canvas {
     constexpr u32 NEWLINE = '\n';
     constexpr u32 RETURN = '\r';
 
+    // TODO(lamarrr): implement underline
     subwords.clear();
     glyphs.clear();
 
@@ -744,10 +744,10 @@ struct Canvas {
           }
         }
 
-        fmt::print(
-            "text: {}, nspaces: {}, nline_breaks: {}\n",
-            std::basic_string_view{word_begin, (size_t)(word_end - word_begin)},
-            nspaces, nline_breaks);
+        fmt::print("text: {}, nspaces: {}, nline_breaks: {}\n",
+                   std::basic_string_view{
+                       word_begin, static_cast<usize>(word_end - word_begin)},
+                   nspaces, nline_breaks);
         subwords
             .push(
                 RunSubWord{.text = run.text.slice(word_begin - run.text.begin(),
