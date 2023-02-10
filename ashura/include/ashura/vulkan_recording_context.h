@@ -184,13 +184,21 @@ struct RecordingContext {
     }
   }
 
-  // TODO(lamarrr): to make suitable for offscreen rendering we need to remove
-  // swapchain dependencies, examine if this is possible
-  void on_swapchain_changed(SwapChain const& swapchain) {
+  void rebuild(VkRenderPass target_render_pass,
+               VkSampleCountFlagBits msaa_sample_count) {
+    VkDevice dev = queue.value()->device->device;
+    if (pipeline.layout != nullptr) {
+      vkDestroyPipelineLayout(dev, pipeline.layout, nullptr);
+    }
+
+    if (pipeline.pipeline != nullptr) {
+      vkDestroyPipeline(dev, pipeline.pipeline, nullptr);
+    }
+
     pipeline.build(queue.value()->device->device, vertex_shader,
-                   fragment_shader, swapchain.render_pass,
-                   swapchain.msaa_sample_count, descriptor_set_layouts,
-                   vertex_input_attr, vertex_input_size, push_constant_size);
+                   fragment_shader, target_render_pass, msaa_sample_count,
+                   descriptor_set_layouts, vertex_input_attr, vertex_input_size,
+                   push_constant_size);
   }
 
   void destroy() {
