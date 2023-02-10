@@ -90,15 +90,15 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   VkDevice dev = swapchain.queue->device->device;
 
   VkSemaphore semaphore =
-      swapchain.image_acquisition_semaphores[swapchain.next_frame_flight_index];
+      swapchain.image_acquisition_semaphores[swapchain.frame];
 
   VkFence fence = VK_NULL_HANDLE;
 
-  u32 next_swapchain_image_index = 0;
+  u32 swapchain_image_index = 0;
 
   VkResult result =
       vkAcquireNextImageKHR(dev, swapchain.swapchain, COMMAND_TIMEOUT,
-                            semaphore, fence, &next_swapchain_image_index);
+                            semaphore, fence, &swapchain_image_index);
 
   ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                 result == VK_ERROR_OUT_OF_DATE_KHR,
@@ -106,19 +106,18 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
 
   if (result == VK_SUBOPTIMAL_KHR) {
     return std::make_pair(WindowSwapchainDiff::Suboptimal,
-                          next_swapchain_image_index);
+                          swapchain_image_index);
   } else if (result == VK_ERROR_OUT_OF_DATE_KHR) {
     return std::make_pair(WindowSwapchainDiff::OutOfDate,
-                          next_swapchain_image_index);
+                          swapchain_image_index);
   } else if (result == VK_SUCCESS) {
-    return std::make_pair(WindowSwapchainDiff::None,
-                          next_swapchain_image_index);
+    return std::make_pair(WindowSwapchainDiff::None, swapchain_image_index);
   } else {
     ASR_PANIC("failed to acquire swapchain image", result);
   }
 }
 
-WindowSwapchainDiff Window::present(u32 next_swapchain_image_index) {
+WindowSwapchainDiff Window::present(u32 swapchain_image_index) {
   ASR_CHECK(surface_.is_some(),
             "trying to present to swapchain without having surface attached");
   ASR_CHECK(surface_.value()->swapchain.is_some(),
@@ -139,11 +138,10 @@ WindowSwapchainDiff Window::present(u32 next_swapchain_image_index) {
       .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
       .pNext = nullptr,
       .waitSemaphoreCount = 1,
-      .pWaitSemaphores =
-          &swapchain.rendering_semaphores[swapchain.next_frame_flight_index],
+      .pWaitSemaphores = &swapchain.render_semaphores[swapchain.frame],
       .swapchainCount = 1,
       .pSwapchains = &swapchain.swapchain,
-      .pImageIndices = &next_swapchain_image_index,
+      .pImageIndices = &swapchain_image_index,
       .pResults = nullptr};
 
   VkResult result =
