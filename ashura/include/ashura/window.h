@@ -150,7 +150,7 @@ struct Window {
   void constrain(stx::Option<int> min_width, stx::Option<int> min_height,
                  stx::Option<int> max_width, stx::Option<int> max_height);
 
-  stx::Vec<c8 const*> get_required_instance_extensions() const;
+  stx::Vec<char const*> get_required_instance_extensions() const;
 
   // attach surface to window for presentation
   void attach_surface(stx::Rc<vk::Instance*> const& instance);
@@ -159,11 +159,13 @@ struct Window {
 
   std::pair<WindowSwapchainDiff, u32> acquire_image();
 
-  WindowSwapchainDiff present(u32 next_swapchain_image_index);
+  WindowSwapchainDiff present(u32 swapchain_image_index);
 
   void on(WindowEvent event, stx::UniqueFn<void()> callback) {
     event_listeners.push(std::make_pair(event, std::move(callback))).unwrap();
   }
+
+  // on keypressed
 
   /* TODO(lamarrr): repeat all widget events */
 
