@@ -1124,10 +1124,12 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device, VkFilter filter,
 }
 
 inline stx::Rc<ImageSampler*> create_image_sampler(
-    stx::Rc<ImageResource*> const& image) {
+    stx::Rc<Device*> const& device, VkFilter filter, VkSamplerMipmapMode mipmap,
+    VkBool32 enable_anisotropy) {
   return stx::rc::make_inplace<ImageSampler>(
-             stx::os_allocator, create_sampler(image->queue->device, VK_TRUE),
-             image.share())
+             stx::os_allocator,
+             create_sampler(device, filter, mipmap, enable_anisotropy),
+             device.share())
       .unwrap();
 }
 
