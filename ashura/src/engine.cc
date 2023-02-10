@@ -367,16 +367,15 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   do {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       window.value()->recreate_swapchain(queue.value());
-      renderer.value()->ctx.on_swapchain_changed(
-          window.value()->surface_.value()->swapchain.value());
-
+      auto& swp = window.value()->surface_.value()->swapchain.value();
+      renderer.value()->ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
       draw_content();
     }
 
     vk::SwapChain& swapchain =
         window.value()->surface_.value()->swapchain.value();
 
-    auto [diff, next_swapchain_image_index] = window.value()->acquire_image();
+    auto [diff, swapchain_image_index] = window.value()->acquire_image();
 
     swapchain_diff = diff;
 
@@ -384,19 +383,26 @@ void Engine::tick(std::chrono::nanoseconds interval) {
       continue;
     }
 
+    auto& swp = window.value()->surface_.value()->swapchain.value();
+
+    gfx::DrawList const& draw_list = canvas.value().draw_list;
+
     renderer.value()->submit(
-        window.value()->surface_.value()->swapchain.value(),
-        next_swapchain_image_index, canvas.value().draw_list, image_bundle);
+        swp.window_extent, swp.image_extent, swapchain_image_index, swp.frame,
+        swp.render_fences[swapchain.frame],
+        swp.image_acquisition_semaphores[swp.frame],
+        swp.render_semaphores[swp.frame], swp.render_pass,
+        swp.framebuffers[swapchain_image_index], (*sampler)->sampler,
+        draw_list.cmds, draw_list.vertices, draw_list.indices, image_bundle);
 
     canvas.value().clear();
 
-    swapchain_diff = window.value()->present(next_swapchain_image_index);
+    swapchain_diff = window.value()->present(swapchain_image_index);
 
     // the frame semaphores and synchronization primitives are still used even
     // if an error is returned
-    swapchain.next_frame_flight_index =
-        (swapchain.next_frame_flight_index + 1) %
-        vk::SwapChain::MAX_FRAMES_IN_FLIGHT;
+    swapchain.frame =
+        (swapchain.frame + 1) % vk::SwapChain::MAX_FRAMES_IN_FLIGHT;
 
   } while (swapchain_diff != WindowSwapchainDiff::None);
 }
