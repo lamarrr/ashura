@@ -422,7 +422,7 @@ struct RecordingContext {
         .unwrap();
   }
 
-  gfx::CachedFont cache_font(AssetBundle<stx::Rc<ImageSampler*>>& bundle,
+  gfx::CachedFont cache_font(AssetBundle<stx::Rc<ImageResource*>>& bundle,
                              stx::Rc<Font*> font, u32 font_height) {
     VkImageFormatProperties image_format_properties;
 
@@ -436,8 +436,8 @@ struct RecordingContext {
                           extent{image_format_properties.maxExtent.width,
                                  image_format_properties.maxExtent.height});
 
-    u64 id = bundle.add(create_image_sampler(
-        upload_image(image_buffer.span(), image_buffer.extent, 4)));
+    u64 id =
+        bundle.add(upload_image(image_buffer.span(), image_buffer.extent, 4));
 
     atlas.image = id;
 

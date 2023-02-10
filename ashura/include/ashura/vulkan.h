@@ -1078,16 +1078,16 @@ struct ImageResource {
 
 struct ImageSampler {
   VkSampler sampler = VK_NULL_HANDLE;
-  stx::Rc<CommandQueue*> queue;
+  stx::Rc<Device*> device;
 
-  ImageSampler(VkSampler asampler, stx::Rc<CommandQueue*> aqueue)
-      : sampler{asampler}, queue{std::move(aqueue)} {}
+  ImageSampler(VkSampler asampler, stx::Rc<Device*> adevice)
+      : sampler{asampler}, device{std::move(adevice)} {}
 
   STX_MAKE_PINNED(ImageSampler)
 
   ~ImageSampler() {
-    ASR_VK_CHECK(vkDeviceWaitIdle(queue->device->device));
-    vkDestroySampler(queue->device->device, sampler, nullptr);
+    ASR_VK_CHECK(vkDeviceWaitIdle(device->device));
+    vkDestroySampler(device->device, sampler, nullptr);
   }
 };
 

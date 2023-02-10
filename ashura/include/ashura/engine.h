@@ -25,7 +25,7 @@ struct Engine {
   stx::Option<stx::Rc<vk::CommandQueue*>> queue;
   stx::Option<gfx::Canvas> canvas;
   stx::Option<stx::Rc<vk::CanvasRenderer*>> renderer;
-  AssetBundle<stx::Rc<vk::ImageSampler*>> image_bundle;
+  AssetBundle<stx::Rc<vk::ImageResource*>> image_bundle;
 
   // asset manager
   // plugins & systems
