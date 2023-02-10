@@ -1076,8 +1076,6 @@ struct ImageResource {
   }
 };
 
-// TODO(lamarrr): separate this from the image object, this will enable us to
-// use a single sampler for multiple images
 struct ImageSampler {
   VkSampler sampler = VK_NULL_HANDLE;
   stx::Rc<CommandQueue*> queue;

@@ -58,7 +58,7 @@ struct MouseClickEvent {
   u32 clicks = 0;
   MouseButton button = MouseButton::Primary;
   MouseAction action = MouseAction::Press;
-  KeyModifiers modifiers = KeyModifiers::None;  // TODO(lamarrr)
+  KeyModifiers modifiers = KeyModifiers::None;
 };
 
 struct Keyboard;
