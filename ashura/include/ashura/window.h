@@ -24,8 +24,8 @@ enum class WindowTypeHint : u8 { Normal, Utility, Tooltip, Popup };
 enum class WindowPosition : u8 { Centered };
 
 struct WindowConfig {
-  stx::String title = "ashura"_str;
-  extent extent{1920, 1080};  // TODO(lamarrr): GetDisplaySize
+  stx::String title = "Ashura"_str;
+  extent extent;
   stx::Option<asr::extent> min_extent;
   stx::Option<asr::extent> max_extent;
   WindowTypeHint type_hint = WindowTypeHint::Normal;
