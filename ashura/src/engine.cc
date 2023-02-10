@@ -65,6 +65,7 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
 
 gfx::CachedFont* font;
 gfx::image img;
+stx::Rc<vk::ImageSampler*>* sampler;
 
 Engine::Engine(AppConfig const& cfg) {
   stx::Vec<char const*> required_device_extensions{stx::os_allocator};
@@ -174,7 +175,8 @@ Engine::Engine(AppConfig const& cfg) {
   window.value()->recreate_swapchain(xqueue);
 
   renderer = stx::Some(stx::rc::make_inplace<vk::CanvasRenderer>(
-                           stx::os_allocator, xqueue.share())
+                           stx::os_allocator, xqueue.share(),
+                           vk::SwapChain::MAX_FRAMES_IN_FLIGHT)
                            .unwrap());
 
   renderer.value()->ctx.on_swapchain_changed(
@@ -189,18 +191,18 @@ Engine::Engine(AppConfig const& cfg) {
       stx::fn::rc::make_unique_static([](MouseMotionEvent const&) {});
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
-  auto transparent_image =
-      renderer.value()->ctx.upload_image(transparent_image_data, {1, 1}, 4);
 
-  gfx::image transparent_image_id =
-      image_bundle.add(vk::create_image_sampler(transparent_image));
+  gfx::image transparent_image = image_bundle.add(
+      renderer.value()->ctx.upload_image(transparent_image_data, {1, 1}, 4));
 
-  auto sample_img =
-      renderer.value()->ctx.upload_image(sample_image, {1920, 1080}, 4);
+  img = image_bundle.add(
+      renderer.value()->ctx.upload_image(sample_image, {1920, 1080}, 4));
 
-  img = image_bundle.add(vk::create_image_sampler(sample_img));
+  ASR_CHECK(transparent_image == 0);
 
-  ASR_CHECK(transparent_image_id == 0);
+  sampler = new stx::Rc<vk::ImageSampler*>{
+      vk::create_image_sampler(queue.value()->device, VK_FILTER_LINEAR,
+                               VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_TRUE)};
 
   font = new gfx::CachedFont[]{
       renderer.value()->ctx.cache_font(
@@ -346,7 +348,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     // c.draw_image(atlas->atlas, rect{{0, 0},
     // {atlas->extent.width * 1.0f,
     //  atlas->extent.height * 1.0f}});
-    c.brush.color = colors::BLUE.with_alpha(127);
+    c.brush.color = colors::WHITE.with_alpha(255);
     c.brush.fill = true;
     c.scale(4, 4);
     c.brush.texture = img;
