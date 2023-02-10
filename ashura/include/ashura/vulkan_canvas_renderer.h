@@ -1,5 +1,8 @@
 #pragma once
 
+#include <utility>
+
+#include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
 #include "ashura/primitives.h"
 #include "ashura/shaders.h"
@@ -10,7 +13,7 @@ namespace asr {
 namespace vk {
 
 struct CanvasRenderer {
-  usize max_nframes_in_flight = 2;
+  usize max_nframes_in_flight = 0;
   stx::Vec<SpanBuffer> vertex_buffers{stx::os_allocator};
   stx::Vec<SpanBuffer> index_buffers{stx::os_allocator};
 
@@ -68,26 +71,28 @@ struct CanvasRenderer {
   }
 
   void __write_vertices(stx::Span<vertex const> vertices,
-                        stx::Span<u32 const> indices,
-                        u32 next_frame_flight_index) {
+                        stx::Span<u32 const> indices, u32 frame) {
     VkDevice dev = queue->device->device;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
         queue->device->phy_device->memory_properties;
 
-    vertex_buffers[next_frame_flight_index].write(
+    vertex_buffers[frame].write(
         dev, memory_properties, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
 
-    index_buffers[next_frame_flight_index].write(
+    index_buffers[frame].write(
         dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
   }
 
-  void submit(VkExtent2D viewport_extent, u32 swapchain_image_index,
-              VkExtent2D image_extent, u32 frame, VkFence render_fence,
+  void submit(VkExtent2D viewport_extent, VkExtent2D image_extent,
+              u32 swapchain_image_index, u32 frame, VkFence render_fence,
               VkSemaphore image_acquisition_semaphore,
               VkSemaphore render_semaphore, VkRenderPass render_pass,
-              VkFramebuffer framebuffer, gfx::DrawList const& draw_list,
-              AssetBundle<stx::Rc<ImageSampler*>>& bundle) {
+              VkFramebuffer framebuffer, VkSampler texture_sampler,
+              stx::Span<gfx::DrawCommand const> cmds,
+              stx::Span<vertex const> vertices, stx::Span<u32 const> indices,
+              AssetBundle<stx::Rc<ImageResource*>> const& image_bundle) {
     ASR_CHECK(frame < max_nframes_in_flight);
+
     stx::Rc<Device*> const& device = queue->device;
 
     VkDevice dev = device->device;
@@ -96,11 +101,11 @@ struct CanvasRenderer {
 
     VkCommandBuffer cmd_buffer = ctx.draw_cmd_buffers[frame];
 
-    __write_vertices(draw_list.vertices, draw_list.indices, frame);
+    __write_vertices(vertices, indices, frame);
 
     u32 nallocated_descriptor_sets = AS_U32(ctx.descriptor_sets[frame].size());
 
-    u32 ndraw_calls = AS_U32(draw_list.cmds.size());
+    u32 ndraw_calls = AS_U32(cmds.size());
 
     u32 ndescriptor_sets_per_draw_call =
         AS_U32(ctx.descriptor_set_layouts.size());
@@ -228,13 +233,13 @@ struct CanvasRenderer {
 
     VkDeviceSize offset = 0;
 
-    for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
-      ImageSampler const& sampler =
-          *bundle.get(draw_list.cmds[icmd].texture).unwrap()->handle;
+    for (usize icmd = 0; icmd < cmds.size(); icmd++) {
+      ImageResource const& image =
+          *image_bundle.get(cmds[icmd].texture).unwrap()->handle;
 
       VkDescriptorImageInfo image_info{
-          .sampler = sampler.sampler,
-          .imageView = sampler.image.handle->view,
+          .sampler = texture_sampler,
+          .imageView = image.view,
           .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
       VkWriteDescriptorSet write{
@@ -264,8 +269,8 @@ struct CanvasRenderer {
     vkCmdBindIndexBuffer(cmd_buffer, index_buffers[frame].buffer, 0,
                          VK_INDEX_TYPE_UINT32);
 
-    for (usize icmd = 0; icmd < draw_list.cmds.size(); icmd++) {
-      gfx::DrawCommand const& cmd = draw_list.cmds[icmd];
+    for (usize icmd = 0; icmd < cmds.size(); icmd++) {
+      gfx::DrawCommand const& cmd = cmds[icmd];
 
       VkViewport viewport{.x = 0,
                           .y = 0,
