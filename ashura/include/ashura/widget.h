@@ -40,7 +40,7 @@ struct Widget {
 
   // + handling floating, relative, sticky and fixed positioned elements
   // min, max, available
-  virtual rect layout(rect target);
+  virtual rect layout(rect target, stx::Span<rect> children_allocation);
 
   // children layout??? or do we entirely allow self layout
   // + other properties that will make its rendering work well with other
@@ -48,10 +48,10 @@ struct Widget {
   virtual void draw(gfx::Canvas &canvas, rect area);
 
   // called before children are drawn
-  virtual void pre_effect(gfx::Canvas &canvas, rect area);
+  virtual void pre_effect(gfx::Canvas &canvas, rect area, usize child);
 
   // called once children are drawn
-  virtual void post_effect(gfx::Canvas &canvas, rect area);
+  virtual void post_effect(gfx::Canvas &canvas, rect area, usize child);
 
   //
   virtual void tick(WidgetContext &context, std::chrono::nanoseconds interval);
@@ -67,29 +67,31 @@ struct Widget {
   virtual void on_leave_viewport();
 
   //
-  virtual void on_click(MouseButton button, vec2 position,
-                        KeyModifiers modifiers);
+  virtual void on_click(MouseButton button, KeyModifiers modifiers,
+                        vec2 position);
 
   //
-  virtual void on_double_click(MouseButton button, vec2 position,
-                               KeyModifiers modifiers);
+  virtual void on_double_click(MouseButton button, KeyModifiers modifiers,
+                               vec2 position);
 
   //
-  virtual void on_mouse_scroll(vec2 translation, vec2 previous_position,
-                               vec2 present_position, KeyModifiers modifiers);
+  virtual void on_mouse_scroll(KeyModifiers modifiers, vec2 translation,
+                               vec2 previous_position, vec2 current_position);
 
   //
-  virtual void on_mouse_move(vec2 previous_position, vec2 present_position,
-                             KeyModifiers modifiers);
+  virtual void on_mouse_move(KeyModifiers modifiers, vec2 previous_position,
+                             vec2 current_position);
 
   //
-  virtual void on_hover(vec2 pos, KeyModifiers modifiers);
+  virtual void on_hover(KeyModifiers modifiers, vec2 position);
 
   //
-  virtual void on_mouse_down(vec2 position, KeyModifiers modifiers);
+  virtual void on_mouse_down(KeyModifiers modifiers, vec2 position);
 
   //
   virtual void on_mouse_up(KeyModifiers modifiers);
+
+  //
   virtual void on_mouse_enter(KeyModifiers modifiers);
 
   //
@@ -129,9 +131,6 @@ struct Widget {
   virtual void on_drop();
 
   //
-  virtual void on_wheel(KeyModifiers modifiers);
-
-  //
   virtual void on_touch_cancel();
 
   //
@@ -150,15 +149,6 @@ struct Widget {
   virtual void on_touch_leave();
 
   //
-  virtual void on_key_down(KeyModifiers modifiers);
-
-  //
-  virtual void on_key_up(KeyModifiers modifiers);
-
-  //
-  virtual void on_keypressed(KeyModifiers modifiers);
-
-  //
   virtual void on_focus();
 
   //
@@ -170,11 +160,14 @@ struct Widget {
   //
   virtual void on_select();
 
-  // global: virtual void on_copy();
-  // global: virtual void on_cut();
-  // global: virtual void on_paste();
+  //
+  virtual void on_key_down(KeyModifiers modifiers);
 
-  // global: virtual void on_full_screen_change();
+  //
+  virtual void on_key_up(KeyModifiers modifiers);
+
+  //
+  virtual void on_keypressed(KeyModifiers modifiers);
 
   //
   virtual void on_input(/*data*/);  // <- input widget
