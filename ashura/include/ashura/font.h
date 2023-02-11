@@ -45,7 +45,7 @@ struct TextStyle {
   color foreground_color = colors::BLACK;
   color background_color = colors::TRANSPARENT;
   color underline_color = colors::TRANSPARENT;
-  f32 underline_line_width = 1;
+  f32 underline_thickness = 1;
 };
 
 /// A text run is a sequence of characters sharing a single property set. Any
