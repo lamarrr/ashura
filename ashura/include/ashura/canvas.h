@@ -669,11 +669,9 @@ struct Canvas {
     constexpr u32 NEWLINE = '\n';
     constexpr u32 RETURN = '\r';
 
-    // TODO(lamarrr): implement underline
     subwords.clear();
     glyphs.clear();
 
-    // aakd لا إله يستحق العبادة إلا الله sssss
     // TODO(lamarrr): arabic text is rendering but weird
 
     for (usize i = 0; i < paragraph.runs.size(); i++) {
@@ -744,10 +742,6 @@ struct Canvas {
           }
         }
 
-        fmt::print("text: {}, nspaces: {}, nline_breaks: {}\n",
-                   std::basic_string_view{
-                       word_begin, static_cast<usize>(word_end - word_begin)},
-                   nspaces, nline_breaks);
         subwords
             .push(
                 RunSubWord{.text = run.text.slice(word_begin - run.text.begin(),
@@ -832,27 +826,17 @@ struct Canvas {
               subword->nspaces *
                   paragraph.runs[subword->run].style.word_spacing;
 
-          fmt::print(
-              " run: {}, text: {}, cursor_x: {}, spaced_word_width: {}, "
-              "max_line_width: {}\n",
-              subword->run,
-              std::string_view{subword->text.data(), subword->text.size()},
-              cursor_x, spaced_word_width, max_line_width);
-
           // if end of word
           if (subword->nspaces > 0 || subword->nline_breaks > 0 ||
               subword == subwords.end() - 1) {
             // check if wrapping needed
             if (cursor_x + spaced_word_width > max_line_width) {
-              fmt::print("is_wrapped: true\n");
               iter->is_wrapped = true;
               cursor_x = spaced_word_width;
               if (subword->nline_breaks > 0) {
                 cursor_x = 0;
               }
-              fmt::print("adjusted cursor_x: {}\n", cursor_x);
             } else {
-              fmt::print("is_wrapped: false\n");
               if (subword->nline_breaks > 0) {
                 cursor_x = 0;
               } else {
@@ -862,7 +846,6 @@ struct Canvas {
             subword++;
             break;
           } else {
-            fmt::print("is_wrapped: false\n");
             // continue until we reach end of word
             cursor_x += spaced_word_width;
             subword++;
@@ -876,9 +859,9 @@ struct Canvas {
     {
       f32 baseline = 0;
       usize nprev_line_breaks = 0;
-      for (RunSubWord* iter = subwords.begin(); iter < subwords.end();) {
-        RunSubWord* line_begin = iter;
-        RunSubWord* line_end = iter + 1;
+      for (RunSubWord const* iter = subwords.begin(); iter < subwords.end();) {
+        RunSubWord const* line_begin = iter;
+        RunSubWord const* line_end = iter + 1;
         usize nline_breaks = 0;
 
         if (line_begin->is_wrapped && nprev_line_breaks == 0) {
@@ -904,7 +887,8 @@ struct Canvas {
 
         f32 max_ascent = 0;
 
-        for (RunSubWord* subword = line_begin; subword < line_end; subword++) {
+        for (RunSubWord const* subword = line_begin; subword < line_end;
+             subword++) {
           line_height = std::max(
               line_height, paragraph.runs[subword->run].style.line_height *
                                paragraph.runs[subword->run].style.font_height);
@@ -935,12 +919,9 @@ struct Canvas {
 
         baseline += nprev_line_breaks * line_height;
 
-        fmt::print("is_wrapped: {}, nprev_line_breaks: {}\n",
-                   line_begin->is_wrapped, nprev_line_breaks);
-
         f32 cursor_x = 0;
 
-        for (RunSubWord* subword = line_begin; subword < line_end;) {
+        for (RunSubWord const* subword = line_begin; subword < line_end;) {
           if (paragraph.runs[subword->run].direction ==
               TextDirection::LeftToRight) {
             TextRun const& run = paragraph.runs[subword->run];
@@ -949,18 +930,12 @@ struct Canvas {
             f32 font_scale = run.style.font_height / atlas.font_height;
             f32 letter_spacing = run.style.letter_spacing;
             f32 word_spacing = run.style.word_spacing;
+            f32 init_cursor_x = cursor_x;
 
-            usize i = 0;
             for (SubwordGlyph const& glyph :
                  glyphs.span().slice(subword->glyph_start, subword->nglyphs)) {
               Glyph const& g = atlas.glyphs[glyph.glyph];
               vec2 advance = g.advance * font_scale;
-              fmt::print(
-                  "cursor_x: {}, baseline: {}, run: {}, glyph: {}, text: {}, "
-                  " max_line_width: {}\n",
-                  cursor_x, baseline, subword->run, g.index,
-                  std::string_view{subword->text.data(), subword->text.size()},
-                  max_line_width);
               draw_glyph(g, run, atlas.image,
                          position + vec2{cursor_x, baseline}, font_scale,
                          line_height, vert_spacing);
@@ -977,12 +952,21 @@ struct Canvas {
                       vec2{word_spacing * subword->nspaces, line_height}});
             }
 
+            if (run.style.underline_color.is_visible()) {
+              brush.color = run.style.underline_color;
+              brush.fill = true;
+              draw_rect(rect{.offset = position + vec2{init_cursor_x, baseline},
+                             .extent = vec2{subword->width +
+                                                subword->nspaces * word_spacing,
+                                            run.style.underline_thickness}});
+            }
+
             cursor_x += subword->nspaces * word_spacing;
             subword++;
           } else {
             f32 rtl_width = 0;
-            RunSubWord* rtl_begin = subword;
-            RunSubWord* rtl_end = subword + 1;
+            RunSubWord const* rtl_begin = subword;
+            RunSubWord const* rtl_end = subword + 1;
 
             rtl_width += rtl_begin->width +
                          rtl_begin->nspaces *
@@ -1001,7 +985,7 @@ struct Canvas {
             }
 
             f32 rtl_cursor_x = cursor_x + rtl_width;
-            for (RunSubWord* rtl_iter = rtl_begin; rtl_iter < rtl_end;
+            for (RunSubWord const* rtl_iter = rtl_begin; rtl_iter < rtl_end;
                  rtl_iter++) {
               TextRun const& run = paragraph.runs[rtl_iter->run];
               FontAtlas const& atlas = fonts[run.font].atlas;
@@ -1031,7 +1015,7 @@ struct Canvas {
                     .offset =
                         position + vec2{rtl_cursor_x, baseline - line_height},
                     .extent =
-                        vec2{word_spacing * rtl_iter->nspaces, line_height}});
+                        vec2{rtl_iter->nspaces * word_spacing, line_height}});
               }
 
               rtl_cursor_x -= rtl_iter->width;
@@ -1046,6 +1030,16 @@ struct Canvas {
                            position + vec2{glyph_cursor_x, baseline},
                            font_scale, line_height, vert_spacing);
                 glyph_cursor_x += advance.x + letter_spacing;
+              }
+
+              if (run.style.underline_color.is_visible()) {
+                brush.color = run.style.underline_color;
+                brush.fill = true;
+                draw_rect(rect{
+                    .offset = position + vec2{rtl_cursor_x, baseline},
+                    .extent =
+                        vec2{rtl_iter->width + rtl_iter->nspaces * word_spacing,
+                             run.style.underline_thickness}});
               }
             }
 
