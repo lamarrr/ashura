@@ -25,7 +25,7 @@ enum class WindowPosition : u8 { Centered };
 
 struct WindowConfig {
   stx::String title = "Ashura"_str;
-  extent extent;
+  extent extent{1920, 1080};
   stx::Option<asr::extent> min_extent;
   stx::Option<asr::extent> max_extent;
   WindowTypeHint type_hint = WindowTypeHint::Normal;
@@ -174,6 +174,10 @@ struct Window {
   // keyboard
   // mouse
   // controller
+  // global: virtual void on_copy();
+  // global: virtual void on_cut();
+  // global: virtual void on_paste();
+  // global: virtual void on_full_screen_change();
 
   void tick(std::chrono::nanoseconds) {
     SDL_DisplayMode display_mode;
