@@ -179,8 +179,8 @@ Engine::Engine(AppConfig const& cfg) {
                            vk::SwapChain::MAX_FRAMES_IN_FLIGHT)
                            .unwrap());
 
-  renderer.value()->ctx.on_swapchain_changed(
-      window.value()->surface_.value()->swapchain.value());
+  auto& swp = window.value()->surface_.value()->swapchain.value();
+  renderer.value()->ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
 
   window.value()->on(WindowEvent::Resized,
                      stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
@@ -307,38 +307,37 @@ void Engine::tick(std::chrono::nanoseconds interval) {
          .font = 0,
          .style = {.font_height = 18,
                    .foreground_color = colors::BLACK,
-                   .background_color = color::from_rgb(0x33, 0x33, 0x33)}},
+                   .background_color = color::from_rgb(0x33, 0x33, 0x33),
+                   .underline_color = colors::GREEN,
+                   .underline_thickness = 1}},
         {.text = arstr,
          .font = 2,
          .style = {.font_height = 30,
                    .letter_spacing = 0,
                    .foreground_color = colors::BLACK,
-                   .background_color = colors::GREEN},
+                   .background_color = colors::GREEN,
+                   .underline_color = colors::MAGENTA,
+                   .underline_thickness = 1},
          .direction = TextDirection::RightToLeft,
          .script = HB_SCRIPT_ARABIC,
          .language = hb_language_from_string("ar", -1)},
         {.text = emojis,
          .font = 1,
-         .style =
-             {
-                 .font_height = 20,
-                 .letter_spacing = 0,
-                 .word_spacing = 15,
-                 .foreground_color = colors::WHITE,
-                 .background_color = colors::BLACK,
-             }},
+         .style = {.font_height = 20,
+                   .letter_spacing = 0,
+                   .word_spacing = 15,
+                   .foreground_color = colors::WHITE,
+                   .background_color = colors::BLACK.with_alpha(0)}},
         {.text = "Face with "
                  "Tears "
                  "of "
                  "Joy",
          .font = 1,
-         .style = {
-             .font_height = 50,
-             .letter_spacing = 0,
-             .word_spacing = 15,
-             .foreground_color = colors::WHITE,
-             .background_color = colors::BLACK,
-         }}};
+         .style = {.font_height = 50,
+                   .letter_spacing = 0,
+                   .word_spacing = 15,
+                   .foreground_color = colors::WHITE,
+                   .background_color = colors::BLACK}}};
     Paragraph paragraph{.runs = runs, .align = TextAlign::Right};
     stx::Vec<gfx::RunSubWord> subwords{stx::os_allocator};
     stx::Vec<gfx::SubwordGlyph> glyphs{stx::os_allocator};
