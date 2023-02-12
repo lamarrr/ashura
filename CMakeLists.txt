@@ -24,6 +24,7 @@ find_package(Freetype REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(harfbuzz REQUIRED)
 find_package(fmt REQUIRED)
+find_package(simdjson CONFIG REQUIRED)
 
 add_subdirectory(third_party/STX)
 

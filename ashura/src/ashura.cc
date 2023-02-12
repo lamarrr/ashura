@@ -4,9 +4,9 @@
 
 int main(int, char*[]) {
   SDL_SetMainReady();
-  asr::AppConfig cfg{.enable_validation_layers = true};
+  ash::AppConfig cfg{.enable_validation_layers = true};
   cfg.window_config.borderless = false;
-  asr::App app{std::move(cfg)};
+  ash::App app{std::move(cfg)};
 
   while (true) app.tick({});
 

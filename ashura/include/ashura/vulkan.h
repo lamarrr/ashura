@@ -22,16 +22,16 @@
 #include "vulkan/vk_enum_string_helper.h"
 #include "vulkan/vulkan.h"
 
-#define ASR_VK_CHECK(...)                             \
+#define ASH_VK_CHECK(...)                             \
   do {                                                \
     VkResult operation_result = (__VA_ARGS__);        \
-    ASR_CHECK(operation_result == VK_SUCCESS,         \
+    ASH_CHECK(operation_result == VK_SUCCESS,         \
               "Vulkan Operation: (" #__VA_ARGS__      \
               ")  failed! (VK_SUCCESS not returned)", \
               string_VkResult(operation_result));     \
   } while (false)
 
-namespace asr {
+namespace ash {
 using namespace std::chrono_literals;
 
 static constexpr u64 COMMAND_TIMEOUT =
@@ -54,12 +54,12 @@ inline void ensure_extensions_supported(
             })
             .is_empty()) {
       all_available = false;
-      ASR_LOG_WARN("Required extension `{}` is not available",
+      ASH_LOG_WARN("Required extension `{}` is not available",
                    std::string_view(required_extension));
     }
   }
 
-  ASR_CHECK(all_available, "one or more required extensions are not available");
+  ASH_CHECK(all_available, "one or more required extensions are not available");
 }
 
 inline void ensure_validation_layers_supported(
@@ -75,12 +75,12 @@ inline void ensure_validation_layers_supported(
             })
             .is_empty()) {
       all_layers_available = false;
-      ASR_LOG_WARN("Required validation layer `{}` is not available",
+      ASH_LOG_WARN("Required validation layer `{}` is not available",
                    std::string_view(required_layer));
     }
   }
 
-  ASR_CHECK(all_layers_available,
+  ASH_CHECK(all_layers_available,
             "one or more required validation layers are not available");
 }
 
@@ -127,22 +127,22 @@ inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
   bool const is_general =
       message_type == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT;
   if (hint.empty()) {
-    ASR_LOG_IF(is_general, "[Validation Layer Message] {}",
+    ASH_LOG_IF(is_general, "[Validation Layer Message] {}",
                callback_data->pMessage);
-    ASR_LOG_WARN_IF(!is_general, "[Validation Layer Message] {}",
+    ASH_LOG_WARN_IF(!is_general, "[Validation Layer Message] {}",
                     callback_data->pMessage);
   } else {
-    ASR_LOG_IF(is_general, "[Validation Layer Message, Hints=\"{}\"] {}", hint,
+    ASH_LOG_IF(is_general, "[Validation Layer Message, Hints=\"{}\"] {}", hint,
                callback_data->pMessage);
-    ASR_LOG_WARN_IF(!is_general, "[Validation Layer Message, Hints=\"{}\"] {}",
+    ASH_LOG_WARN_IF(!is_general, "[Validation Layer Message, Hints=\"{}\"] {}",
                     hint, callback_data->pMessage);
   }
 
   if (!is_general) {
-    ASR_LOG("Call Stack:");
+    ASH_LOG("Call Stack:");
     stx::backtrace::trace(
         stx::fn::make_static([](stx::backtrace::Frame frame, int) {
-          ASR_LOG("\t=> {}", frame.symbol.copy().match(
+          ASH_LOG("\t=> {}", frame.symbol.copy().match(
                                  [](auto sym) { return sym.raw(); },
                                  []() { return std::string_view("unknown"); }));
           return false;
@@ -194,16 +194,16 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   vkEnumerateInstanceExtensionProperties(nullptr, &available_extensions_count,
                                          available_extensions.data());
 
-  ASR_LOG("Available Vulkan Extensions:");
+  ASH_LOG("Available Vulkan Extensions:");
 
   for (VkExtensionProperties extension : available_extensions) {
-    ASR_LOG("\t{},  spec version: {}", extension.extensionName,
+    ASH_LOG("\t{},  spec version: {}", extension.extensionName,
             extension.specVersion);
   }
 
   u32 available_validation_layers_count;
 
-  ASR_VK_CHECK(vkEnumerateInstanceLayerProperties(
+  ASH_VK_CHECK(vkEnumerateInstanceLayerProperties(
       &available_validation_layers_count, nullptr));
 
   stx::Vec<VkLayerProperties> available_validation_layers(stx::os_allocator);
@@ -211,13 +211,13 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   available_validation_layers.resize(available_validation_layers_count)
       .unwrap();
 
-  ASR_VK_CHECK(vkEnumerateInstanceLayerProperties(
+  ASH_VK_CHECK(vkEnumerateInstanceLayerProperties(
       &available_validation_layers_count, available_validation_layers.data()));
 
-  ASR_LOG("Available Vulkan Validation Layers:");
+  ASH_LOG("Available Vulkan Validation Layers:");
 
   for (VkLayerProperties const& layer : available_validation_layers) {
-    ASR_LOG("\t{} (spec version: {})", layer.layerName, layer.specVersion);
+    ASH_LOG("\t{} (spec version: {})", layer.layerName, layer.specVersion);
   }
 
   ensure_extensions_supported(available_extensions, required_extensions);
@@ -256,7 +256,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 
   VkInstance instance;
 
-  ASR_VK_CHECK(vkCreateInstance(&create_info, nullptr, &instance));
+  ASH_VK_CHECK(vkCreateInstance(&create_info, nullptr, &instance));
 
   VkDebugUtilsMessengerEXT debug_utils_messenger;
 
@@ -265,11 +265,11 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
         reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
             vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
 
-    ASR_CHECK(
+    ASH_CHECK(
         createDebugUtilsMessengerEXT != nullptr,
         "unable to get procedure address for vkCreateDebugUtilsMessengerEXT");
 
-    ASR_VK_CHECK(createDebugUtilsMessengerEXT(
+    ASH_VK_CHECK(createDebugUtilsMessengerEXT(
         instance, &debug_utils_messenger_create_info, nullptr,
         &debug_utils_messenger));
   }
@@ -317,7 +317,7 @@ inline stx::Vec<bool> get_surface_presentation_command_queue_support(
 
   for (u32 i = 0; i < AS_U32(queue_families.size()); i++) {
     VkBool32 surface_presentation_supported;
-    ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(
+    ASH_VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(
         phy_dev, i, surface, &surface_presentation_supported));
     supports.push_inplace(surface_presentation_supported == VK_TRUE).unwrap();
   }
@@ -331,7 +331,7 @@ inline VkDevice create_logical_device(
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_infos,
     VkPhysicalDeviceFeatures const& required_features = {}) {
   u32 available_extensions_count;
-  ASR_VK_CHECK(vkEnumerateDeviceExtensionProperties(
+  ASH_VK_CHECK(vkEnumerateDeviceExtensionProperties(
       phy_dev, nullptr, &available_extensions_count, nullptr));
 
   // device specific extensions
@@ -340,21 +340,21 @@ inline VkDevice create_logical_device(
 
   available_device_extensions.resize(available_extensions_count).unwrap();
 
-  ASR_VK_CHECK(vkEnumerateDeviceExtensionProperties(
+  ASH_VK_CHECK(vkEnumerateDeviceExtensionProperties(
       phy_dev, nullptr, &available_extensions_count,
       available_device_extensions.data()));
 
-  ASR_LOG("Required Device Extensions: ");
+  ASH_LOG("Required Device Extensions: ");
 
-  required_extensions.for_each([](char const* ext) { ASR_LOG("\t{}", ext); });
+  required_extensions.for_each([](char const* ext) { ASH_LOG("\t{}", ext); });
 
-  ASR_LOG("Available Device Extensions: ");
+  ASH_LOG("Available Device Extensions: ");
 
   available_device_extensions.span().for_each([](VkExtensionProperties ext) {
-    ASR_LOG("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
+    ASH_LOG("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
   });
 
-  ASR_CHECK(required_extensions.is_all([&](char const* ext) {
+  ASH_CHECK(required_extensions.is_all([&](char const* ext) {
     return !available_device_extensions.span()
                 .which([=](VkExtensionProperties a_ext) {
                   return std::string_view(ext) ==
@@ -378,7 +378,7 @@ inline VkDevice create_logical_device(
 
   VkDevice logical_device;
 
-  ASR_VK_CHECK(
+  ASH_VK_CHECK(
       vkCreateDevice(phy_dev, &device_create_info, nullptr, &logical_device));
 
   return logical_device;
@@ -394,28 +394,28 @@ inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_dev,
                                                     VkSurfaceKHR surface) {
   SwapChainProperties details;
 
-  ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+  ASH_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
       phy_dev, surface, &details.capabilities));
 
   u32 supported_surface_formats_count = 0;
 
-  ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+  ASH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
       phy_dev, surface, &supported_surface_formats_count, nullptr));
 
   details.supported_formats.resize(supported_surface_formats_count).unwrap();
 
-  ASR_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+  ASH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
       phy_dev, surface, &supported_surface_formats_count,
       details.supported_formats.data()));
 
   u32 surface_presentation_modes_count;
 
-  ASR_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
+  ASH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
       phy_dev, surface, &surface_presentation_modes_count, nullptr));
 
   details.presentation_modes.resize(surface_presentation_modes_count).unwrap();
 
-  ASR_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
+  ASH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
       phy_dev, surface, &surface_presentation_modes_count,
       details.presentation_modes.data()));
 
@@ -424,11 +424,11 @@ inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_dev,
 
 inline bool is_swapchain_adequate(SwapChainProperties const& properties) {
   // we use any available for selecting devices
-  ASR_CHECK(!properties.supported_formats.is_empty(),
+  ASH_CHECK(!properties.supported_formats.is_empty(),
             "Physical Device does not support any window surface "
             "format");
 
-  ASR_CHECK(!properties.presentation_modes.is_empty(),
+  ASH_CHECK(!properties.presentation_modes.is_empty(),
             "Physical Device does not support any window surface "
             "presentation mode");
 
@@ -536,7 +536,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
   };
 
   VkSwapchainKHR swapchain;
-  ASR_VK_CHECK(vkCreateSwapchainKHR(dev, &create_info, nullptr, &swapchain));
+  ASH_VK_CHECK(vkCreateSwapchainKHR(dev, &create_info, nullptr, &swapchain));
 
   return std::make_pair(swapchain, selected_extent);
 }
@@ -545,12 +545,12 @@ inline stx::Vec<VkImage> get_swapchain_images(VkDevice dev,
                                               VkSwapchainKHR swapchain) {
   u32 image_count;
 
-  ASR_VK_CHECK(vkGetSwapchainImagesKHR(dev, swapchain, &image_count, nullptr));
+  ASH_VK_CHECK(vkGetSwapchainImagesKHR(dev, swapchain, &image_count, nullptr));
 
   stx::Vec<VkImage> swapchain_images{stx::os_allocator};
   swapchain_images.resize(image_count).unwrap();
 
-  ASR_VK_CHECK(vkGetSwapchainImagesKHR(dev, swapchain, &image_count,
+  ASH_VK_CHECK(vkGetSwapchainImagesKHR(dev, swapchain, &image_count,
                                        swapchain_images.data()));
 
   return swapchain_images;
@@ -617,7 +617,7 @@ struct Instance {
               vkGetInstanceProcAddr(instance,
                                     "vkDestroyDebugUtilsMessengerEXT"));
 
-      ASR_CHECK(func != nullptr,
+      ASH_CHECK(func != nullptr,
                 "unable to get procedure address for "
                 "vkDestroyDebugUtilsMessengerEXT");
 
@@ -684,16 +684,16 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
     stx::Rc<Instance*> const& instance) {
   u32 devices_count = 0;
 
-  ASR_VK_CHECK(
+  ASH_VK_CHECK(
       vkEnumeratePhysicalDevices(instance->instance, &devices_count, nullptr));
 
-  ASR_CHECK(devices_count != 0, "No Physical Device Found");
+  ASH_CHECK(devices_count != 0, "No Physical Device Found");
 
   stx::Vec<VkPhysicalDevice> phy_devices{stx::os_allocator};
 
   phy_devices.resize(devices_count).unwrap();
 
-  ASR_VK_CHECK(vkEnumeratePhysicalDevices(instance->instance, &devices_count,
+  ASH_VK_CHECK(vkEnumeratePhysicalDevices(instance->instance, &devices_count,
                                           phy_devices.data()));
 
   stx::Vec<PhyDeviceInfo> devices{stx::os_allocator};
@@ -727,7 +727,7 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 inline std::string format(PhyDeviceInfo const& dev) {
   return fmt::format("Device(name: '{}', ID: {}, type: {}) ",
                      dev.properties.deviceName, dev.properties.deviceID,
-                     ::asr::vk::format(dev.properties.deviceType));
+                     ::ash::vk::format(dev.properties.deviceType));
 }
 
 // automatically destroyed once the device is destroyed
@@ -817,7 +817,7 @@ inline stx::Rc<Device*> create_device(
     VkDeviceQueueCreateInfo create_info = command_queue_create_info[i];
     u32 command_queue_family_index = create_info.queueFamilyIndex;
     u32 queue_count = create_info.queueCount;
-    ASR_CHECK(command_queue_family_index < phy_dev->family_properties.size());
+    ASH_CHECK(command_queue_family_index < phy_dev->family_properties.size());
 
     for (u32 queue_index_in_family = 0; queue_index_in_family < queue_count;
          queue_index_in_family++) {
@@ -828,7 +828,7 @@ inline stx::Rc<Device*> create_device(
       vkGetDeviceQueue(dev, command_queue_family_index, queue_index_in_family,
                        &command_queue);
 
-      ASR_CHECK(command_queue != nullptr,
+      ASH_CHECK(command_queue != nullptr,
                 "requested command queue not created on target device");
 
       command_queues
@@ -853,7 +853,7 @@ inline stx::Option<CommandQueue> get_command_queue(
     stx::Rc<Device*> const& device, CommandQueueFamilyInfo const& family,
     u32 command_queue_create_index) {
   // We shouldn't have to perform checks?
-  ASR_CHECK(device->phy_device->phy_device == family.phy_device->phy_device);
+  ASH_CHECK(device->phy_device->phy_device == family.phy_device->phy_device);
 
   stx::Span queue_s =
       device->command_queues.span().which([&](CommandQueueInfo const& info) {
@@ -884,7 +884,7 @@ struct Buffer {
   void* memory_map = nullptr;
 
   void destroy(VkDevice dev) {
-    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyBuffer(dev, buffer, nullptr);
   }
@@ -898,7 +898,7 @@ struct Buffer {
                               .offset = 0,
                               .size = VK_WHOLE_SIZE};
 
-    ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+    ASH_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
   }
 };
 
@@ -910,7 +910,7 @@ struct SpanBuffer {
   void* memory_map = nullptr;
 
   void destroy(VkDevice dev) {
-    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyBuffer(dev, buffer, nullptr);
   }
@@ -924,9 +924,9 @@ struct SpanBuffer {
   void write(VkDevice dev,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
              VkBufferUsageFlags usage, stx::Span<T const> span) {
-    ASR_CHECK(!span.is_empty());
+    ASH_CHECK(!span.is_empty());
     if (span.size_bytes() != size) {
-      ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+      ASH_VK_CHECK(vkDeviceWaitIdle(dev));
       vkDestroyBuffer(dev, buffer, nullptr);
 
       VkBufferCreateInfo create_info{
@@ -939,7 +939,7 @@ struct SpanBuffer {
           .queueFamilyIndexCount = 0,
           .pQueueFamilyIndices = nullptr};
 
-      ASR_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
+      ASH_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
 
       size = span.size_bytes();
 
@@ -949,7 +949,7 @@ struct SpanBuffer {
 
       if (memory_requirements.size <= memory_size) {
         if (memory != VK_NULL_HANDLE) {
-          ASR_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
+          ASH_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
         }
       } else {
         vkFreeMemory(dev, memory, nullptr);
@@ -966,13 +966,13 @@ struct SpanBuffer {
             .allocationSize = memory_requirements.size,
             .memoryTypeIndex = memory_type_index};
 
-        ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+        ASH_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
 
         memory_size = memory_requirements.size;
 
-        ASR_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
+        ASH_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
 
-        ASR_VK_CHECK(
+        ASH_VK_CHECK(
             vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
       }
     }
@@ -986,7 +986,7 @@ struct SpanBuffer {
                                 .offset = 0,
                                 .size = VK_WHOLE_SIZE};
 
-      ASR_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
+      ASH_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
     }
   }
 };
@@ -1005,7 +1005,7 @@ inline Buffer create_host_buffer(
 
   VkBuffer buffer;
 
-  ASR_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
+  ASH_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
 
   VkDeviceMemory memory;
 
@@ -1025,13 +1025,13 @@ inline Buffer create_host_buffer(
       .allocationSize = memory_requirements.size,
       .memoryTypeIndex = memory_type_index};
 
-  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+  ASH_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
 
-  ASR_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
+  ASH_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
 
   void* memory_map;
 
-  ASR_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
+  ASH_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
 
   return Buffer{.buffer = buffer,
                 .memory = memory,
@@ -1045,7 +1045,7 @@ struct Image {
   VkDeviceMemory memory = VK_NULL_HANDLE;
 
   void destroy(VkDevice dev) {
-    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyImageView(dev, view, nullptr);
     vkDestroyImage(dev, image, nullptr);
@@ -1069,7 +1069,7 @@ struct ImageResource {
 
   ~ImageResource() {
     VkDevice dev = queue->device->device;
-    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyImageView(dev, view, nullptr);
     vkDestroyImage(dev, image, nullptr);
@@ -1086,7 +1086,7 @@ struct ImageSampler {
   STX_MAKE_PINNED(ImageSampler)
 
   ~ImageSampler() {
-    ASR_VK_CHECK(vkDeviceWaitIdle(device->device));
+    ASH_VK_CHECK(vkDeviceWaitIdle(device->device));
     vkDestroySampler(device->device, sampler, nullptr);
   }
 };
@@ -1117,7 +1117,7 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device, VkFilter filter,
 
   VkSampler sampler;
 
-  ASR_VK_CHECK(
+  ASH_VK_CHECK(
       vkCreateSampler(device->device, &create_info, nullptr, &sampler));
 
   return sampler;
@@ -1204,7 +1204,7 @@ inline Image create_msaa_color_resource(
 
   VkImage image;
 
-  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
+  ASH_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
 
   VkMemoryRequirements memory_requirements;
 
@@ -1223,9 +1223,9 @@ inline Image create_msaa_color_resource(
 
   VkDeviceMemory memory;
 
-  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+  ASH_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
 
-  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
+  ASH_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
 
   VkImageViewCreateInfo view_create_info{
       .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -1247,7 +1247,7 @@ inline Image create_msaa_color_resource(
 
   VkImageView view;
 
-  ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+  ASH_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
   return Image{.image = image, .view = view, .memory = memory};
 }
@@ -1277,7 +1277,7 @@ inline Image create_msaa_depth_resource(
 
   VkImage image;
 
-  ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
+  ASH_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
 
   VkMemoryRequirements memory_requirements;
 
@@ -1296,9 +1296,9 @@ inline Image create_msaa_depth_resource(
 
   VkDeviceMemory memory;
 
-  ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+  ASH_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
 
-  ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
+  ASH_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
 
   VkImageViewCreateInfo view_create_info{
       .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -1320,7 +1320,7 @@ inline Image create_msaa_depth_resource(
 
   VkImageView view;
 
-  ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+  ASH_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
   return Image{.image = image, .view = view, .memory = memory};
 }
@@ -1329,7 +1329,7 @@ inline Image create_msaa_depth_resource(
 inline VkSurfaceFormatKHR select_swapchain_surface_formats(
     stx::Span<VkSurfaceFormatKHR const> formats,
     stx::Span<VkSurfaceFormatKHR const> preferred_formats) {
-  ASR_CHECK(!formats.is_empty(),
+  ASH_CHECK(!formats.is_empty(),
             "no window surface format supported by physical device");
 
   for (VkSurfaceFormatKHR preferred_format : preferred_formats) {
@@ -1342,7 +1342,7 @@ inline VkSurfaceFormatKHR select_swapchain_surface_formats(
       return preferred_format;
   }
 
-  ASR_PANIC("unable to find any of the preferred swapchain surface formats");
+  ASH_PANIC("unable to find any of the preferred swapchain surface formats");
 }
 
 inline VkPresentModeKHR select_swapchain_presentation_mode(
@@ -1371,7 +1371,7 @@ inline VkPresentModeKHR select_swapchain_presentation_mode(
   /// allows you to avoid tearing with significantly less latency issues
   /// than standard vertical sync that uses double buffering.
 
-  ASR_CHECK(!available_presentation_modes.is_empty(),
+  ASH_CHECK(!available_presentation_modes.is_empty(),
             "no surface presentation mode available");
 
   for (VkPresentModeKHR preferred_present_mode : preferred_present_modes) {
@@ -1379,7 +1379,7 @@ inline VkPresentModeKHR select_swapchain_presentation_mode(
       return preferred_present_mode;
   }
 
-  ASR_PANIC("unable to find any of the preferred presentation modes");
+  ASH_PANIC("unable to find any of the preferred presentation modes");
 }
 
 inline VkFormat find_supported_format(VkPhysicalDevice phy_dev,
@@ -1399,7 +1399,7 @@ inline VkFormat find_supported_format(VkPhysicalDevice phy_dev,
     }
   }
 
-  ASR_PANIC("could not find any supported format");
+  ASH_PANIC("could not find any supported format");
 }
 
 inline VkFormat find_depth_format(VkPhysicalDevice phy_dev) {
@@ -1496,9 +1496,9 @@ struct SwapChain {
     SwapChainProperties properties =
         get_swapchain_properties(phy_dev, target_surface);
 
-    ASR_LOG("Device Supported Surface Formats:");
+    ASH_LOG("Device Supported Surface Formats:");
     for (VkSurfaceFormatKHR const& format : properties.supported_formats) {
-      ASR_LOG("\tFormat: {}, Color Space: {}", string_VkFormat(format.format),
+      ASH_LOG("\tFormat: {}, Color Space: {}", string_VkFormat(format.format),
               string_VkColorSpaceKHR(format.colorSpace));
     }
 
@@ -1572,7 +1572,7 @@ struct SwapChain {
 
       VkImageView view;
 
-      ASR_VK_CHECK(vkCreateImageView(dev, &create_info, nullptr, &view));
+      ASH_VK_CHECK(vkCreateImageView(dev, &create_info, nullptr, &view));
 
       image_views.push_inplace(view).unwrap();
     }
@@ -1658,7 +1658,7 @@ struct SwapChain {
         .dependencyCount = 1,
         .pDependencies = &dependency};
 
-    ASR_VK_CHECK(vkCreateRenderPass(dev, &render_pass_create_info, nullptr,
+    ASH_VK_CHECK(vkCreateRenderPass(dev, &render_pass_create_info, nullptr,
                                     &render_pass));
 
     for (usize i = 0; i < images.size(); i++) {
@@ -1678,7 +1678,7 @@ struct SwapChain {
           .height = image_extent.height,
           .layers = 1};
 
-      ASR_VK_CHECK(
+      ASH_VK_CHECK(
           vkCreateFramebuffer(dev, &create_info, nullptr, &framebuffer));
 
       framebuffers.push_inplace(framebuffer).unwrap();
@@ -1692,14 +1692,14 @@ struct SwapChain {
 
       VkSemaphore rendering_semaphore;
 
-      ASR_VK_CHECK(vkCreateSemaphore(dev, &semaphore_create_info, nullptr,
+      ASH_VK_CHECK(vkCreateSemaphore(dev, &semaphore_create_info, nullptr,
                                      &rendering_semaphore));
 
       render_semaphores.push_inplace(rendering_semaphore).unwrap();
 
       VkSemaphore image_acquisition_semaphore;
 
-      ASR_VK_CHECK(vkCreateSemaphore(dev, &semaphore_create_info, nullptr,
+      ASH_VK_CHECK(vkCreateSemaphore(dev, &semaphore_create_info, nullptr,
                                      &image_acquisition_semaphore));
 
       image_acquisition_semaphores.push_inplace(image_acquisition_semaphore)
@@ -1712,7 +1712,7 @@ struct SwapChain {
 
       VkFence image_acquisition_fence;
 
-      ASR_VK_CHECK(vkCreateFence(dev, &image_acquisition_fence_create_info,
+      ASH_VK_CHECK(vkCreateFence(dev, &image_acquisition_fence_create_info,
                                  nullptr, &image_acquisition_fence));
 
       image_acquisition_fences.push_inplace(image_acquisition_fence).unwrap();
@@ -1724,7 +1724,7 @@ struct SwapChain {
 
       VkFence rendering_fence;
 
-      ASR_VK_CHECK(vkCreateFence(dev, &rendering_fence_create_info, nullptr,
+      ASH_VK_CHECK(vkCreateFence(dev, &rendering_fence_create_info, nullptr,
                                  &rendering_fence));
 
       render_fences.push_inplace(rendering_fence).unwrap();
@@ -1738,7 +1738,7 @@ struct SwapChain {
     // semaphore and images whilst not in use.
     // any part of the device could be using the semaphore
 
-    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
 
     vkDestroyRenderPass(dev, render_pass, nullptr);
 
@@ -1861,7 +1861,7 @@ struct Pipeline {
     VkPipelineShaderStageCreateInfo stages[] = {vert_shader_stage,
                                                 frag_shader_stage};
 
-    ASR_CHECK(push_constant_size % 4 == 0);
+    ASH_CHECK(push_constant_size % 4 == 0);
 
     VkPushConstantRange push_constant{
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -1877,7 +1877,7 @@ struct Pipeline {
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &push_constant};
 
-    ASR_VK_CHECK(
+    ASH_VK_CHECK(
         vkCreatePipelineLayout(dev, &layout_create_info, nullptr, &layout));
 
     VkPipelineColorBlendAttachmentState color_blend_attachment_states[] = {
@@ -2016,12 +2016,12 @@ struct Pipeline {
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = 0};
 
-    ASR_VK_CHECK(vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &create_info,
+    ASH_VK_CHECK(vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &create_info,
                                            nullptr, &pipeline));
   }
 
   void destroy(VkDevice dev) {
-    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkDestroyPipelineLayout(dev, layout, nullptr);
     vkDestroyPipeline(dev, pipeline, nullptr);
   }
@@ -2033,4 +2033,4 @@ struct DescriptorPoolInfo {
 };
 
 }  // namespace vk
-}  // namespace asr
+}  // namespace ash

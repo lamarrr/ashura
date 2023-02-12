@@ -7,9 +7,9 @@
 #include "stx/limits.h"
 #include "stx/option.h"
 
-#define RADIANS(...) AS_F32(::asr::pi *(__VA_ARGS__) / 180)
+#define RADIANS(...) AS_F32(::ash::pi *(__VA_ARGS__) / 180)
 
-namespace asr {
+namespace ash {
 
 using u8 = uint8_t;
 using u16 = uint16_t;
@@ -115,7 +115,7 @@ constexpr vec3 operator/(vec3 a, vec3 b) {
   return vec3{a.x / b.x, a.y / b.y, a.z / b.z};
 }
 
-// column vector
+/// column vector
 struct vec4 {
   f32 x = 0, y = 0, z = 0, w = 0;
 
@@ -138,7 +138,7 @@ struct vertex {
   vec4 color;
 };
 
-// row-major
+/// row-major
 struct mat4 {
   vec4 rows[4];
 
@@ -315,6 +315,58 @@ constexpr bool operator==(extent a, extent b) {
 
 constexpr bool operator!=(extent a, extent b) { return !(a == b); }
 
+/// advantages of this constraint model? sizing can be
+/// - relative (`scale` = relative size)
+/// - absolute (`scale` = 0, `bias` = absolute size) or both
+///
+/// you can also automatically have constrained layout effects
+/// - padding (+ve `bias`)
+/// - absolute min/max (`min`, `max`)
+/// - relative min/max (`min_rel`, `max_rel`)
+///
+struct constraint {
+  /// removing or deducting from the target size
+  f32 bias = 0;
+
+  /// scaling the target size
+  f32 scale = 0.0f;
+
+  /// clamping the target size, i.e. value should be between 20px and 600px
+  f32 min = stx::f32_min;
+  f32 max = stx::f32_max;
+
+  /// relatively clamps the values of the result
+  /// i.e. result should be between 50% and 75% of the allotted value.
+  /// by default, the `min` = 0% and `max` = 100% of the allotted
+  /// extent. `min` and `max` must be in [0.0, 1.0] and `max` >= `min`.
+  /// max must be <= 1.0 if in a constrained context.
+  f32 min_rel = 0;
+  f32 max_rel = 1;
+
+  static constexpr constraint relative(f32 scale) {
+    return constraint{.bias = 0,
+                      .scale = scale,
+                      .min = stx::f32_min,
+                      .max = stx::f32_max,
+                      .min_rel = 0,
+                      .max_rel = 1};
+  }
+
+  static constexpr constraint absolute(f32 value) {
+    return constraint{.bias = 0,
+                      .scale = value,
+                      .min = stx::f32_min,
+                      .max = stx::f32_max,
+                      .min_rel = 0,
+                      .max_rel = 1};
+  }
+
+  constexpr f32 resolve(f32 value) const {
+    return std::clamp(std::clamp(bias + value * scale, min, max),
+                      min_rel * value, max_rel * value);
+  }
+};
+
 struct color {
   u8 r = 0, g = 0, b = 0, a = 0;
 
@@ -367,4 +419,4 @@ constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
 
 }  // namespace colors
 
-}  // namespace asr
+}  // namespace ash

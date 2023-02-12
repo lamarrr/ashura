@@ -11,7 +11,7 @@
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
-namespace asr {
+namespace ash {
 
 namespace impl {
 
@@ -184,7 +184,7 @@ Engine::Engine(AppConfig const& cfg) {
 
   window.value()->on(WindowEvent::Resized,
                      stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
-                       ASR_LOG("resized");
+                       ASH_LOG("resized");
                      }).unwrap());
 
   window.value()->mouse_motion_listener =
@@ -198,7 +198,7 @@ Engine::Engine(AppConfig const& cfg) {
   img = image_bundle.add(
       renderer.value()->ctx.upload_image(sample_image, {1920, 1080}, 4));
 
-  ASR_CHECK(transparent_image == 0);
+  ASH_CHECK(transparent_image == 0);
 
   sampler = new stx::Rc<vk::ImageSampler*>{
       vk::create_image_sampler(queue.value()->device, VK_FILTER_LINEAR,
@@ -406,4 +406,4 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   } while (swapchain_diff != WindowSwapchainDiff::None);
 }
 
-}  // namespace asr
+}  // namespace ash

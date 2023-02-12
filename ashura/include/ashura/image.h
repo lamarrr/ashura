@@ -3,7 +3,7 @@
 #include "stx/memory.h"
 #include "stx/span.h"
 
-namespace asr {
+namespace ash {
 namespace gfx {
 
 /// NOTE: resource image with index 0 must be a transparent white image
@@ -19,4 +19,4 @@ struct RgbaImageBuffer {
 };
 
 }  // namespace gfx
-}  // namespace asr
+}  // namespace ash

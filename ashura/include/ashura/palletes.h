@@ -1,9 +1,9 @@
 
 #pragma once
 
-#include "asr/primitives.h"
+#include "ashura/primitives.h"
 
-namespace asr {
+namespace ash {
 
 // ios default system colors
 namespace ios {
@@ -367,4 +367,4 @@ constexpr color BLACK = color::from_rgb(0x00, 0x00, 0x00);
 
 }  // namespace material
 
-}  // namespace asr
+}  // namespace ash

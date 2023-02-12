@@ -14,7 +14,7 @@
 #include "stx/string.h"
 #include "ashura/vulkan_canvas_renderer.h"
 
-namespace asr {
+namespace ash {
 
 struct Engine {
   Engine(AppConfig const& cfg);
@@ -33,4 +33,4 @@ struct Engine {
   void tick(std::chrono::nanoseconds interval);
 };
 
-}  // namespace asr
+}  // namespace ash

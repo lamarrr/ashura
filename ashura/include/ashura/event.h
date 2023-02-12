@@ -3,7 +3,7 @@
 #include "ashura/primitives.h"
 #include "stx/enum.h"
 
-namespace asr {
+namespace ash {
 
 enum class WindowEvent : u8 {
   None,
@@ -71,4 +71,4 @@ struct Controller;
 
 struct PointerLock;
 
-}  // namespace asr
+}  // namespace ash

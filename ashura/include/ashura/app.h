@@ -7,7 +7,7 @@
 
 #include "ashura/engine.h"
 
-namespace asr {
+namespace ash {
 
 struct App {
   STX_MAKE_PINNED(App)
@@ -22,4 +22,4 @@ struct App {
   Engine engine_;
 };
 
-}  // namespace asr
+}  // namespace ash

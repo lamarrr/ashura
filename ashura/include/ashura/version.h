@@ -1,7 +1,7 @@
 #pragma once
 #include "ashura/primitives.h"
 
-namespace asr {
+namespace ash {
 
 struct Version {
   u8 major = 0;
@@ -9,4 +9,4 @@ struct Version {
   u8 patch = 0;
 };
 
-}  // namespace asr
+}  // namespace ash

@@ -17,7 +17,7 @@
 #include "stx/string.h"
 #include "stx/vec.h"
 
-namespace asr {
+namespace ash {
 
 enum class FontLoadError : u8 { InvalidPath };
 
@@ -100,8 +100,8 @@ struct Font {
     hb_face_destroy(hbface);
     hb_font_destroy(hbfont);
     hb_buffer_destroy(hbscratch_buffer);
-    ASR_CHECK(FT_Done_Face(ftface) == 0);
-    ASR_CHECK(FT_Done_FreeType(ftlib) == 0);
+    ASH_CHECK(FT_Done_Face(ftface) == 0);
+    ASH_CHECK(FT_Done_FreeType(ftlib) == 0);
   }
 };
 
@@ -109,22 +109,22 @@ inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
   hb_blob_t* hbblob =
       hb_blob_create(static_cast<char*>(memory.handle), static_cast<uint>(size),
                      HB_MEMORY_MODE_READONLY, nullptr, nullptr);
-  ASR_CHECK(hbblob != nullptr);
+  ASH_CHECK(hbblob != nullptr);
 
   hb_face_t* hbface = hb_face_create(hbblob, 0);
-  ASR_CHECK(hbface != nullptr);
+  ASH_CHECK(hbface != nullptr);
 
   hb_font_t* hbfont = hb_font_create(hbface);
-  ASR_CHECK(hbfont != nullptr);
+  ASH_CHECK(hbfont != nullptr);
 
   hb_buffer_t* hbscratch_buffer = hb_buffer_create();
-  ASR_CHECK(hbscratch_buffer != nullptr);
+  ASH_CHECK(hbscratch_buffer != nullptr);
 
   FT_Library ftlib;
-  ASR_CHECK(FT_Init_FreeType(&ftlib) == 0);
+  ASH_CHECK(FT_Init_FreeType(&ftlib) == 0);
 
   FT_Face ftface;
-  ASR_CHECK(FT_New_Memory_Face(ftlib,
+  ASH_CHECK(FT_New_Memory_Face(ftlib,
                                static_cast<FT_Byte const*>(memory.handle),
                                static_cast<FT_Long>(size), 0, &ftface) == 0);
 
@@ -209,8 +209,8 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
                                                           u32 font_height,
                                                           extent max_extent) {
   /// *64 to convert font height to 26.6 pixel format
-  ASR_CHECK(font_height > 0);
-  ASR_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
+  ASH_CHECK(font_height > 0);
+  ASH_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
 
   stx::Vec<Glyph> glyphs{stx::os_allocator};
 
@@ -272,7 +272,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
   rp::Context context = rp::init(max_extent.width, max_extent.height,
                                  static_cast<rp::Node*>(nodes_memory.handle),
                                  max_extent.width, false);
-  ASR_CHECK(rp::pack_rects(context, rects.data(), AS_I32(rects.size())));
+  ASH_CHECK(rp::pack_rects(context, rects.data(), AS_I32(rects.size())));
 
   extent atlas_extent;
 
@@ -341,7 +341,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
   bool const is_colored_font = FT_HAS_COLOR(font.ftface);
 
   for (Glyph const& glyph : glyphs) {
-    ASR_CHECK(
+    ASH_CHECK(
         FT_Load_Glyph(font.ftface, glyph.index,
                       is_colored_font
                           ? (FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR)
@@ -349,7 +349,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
 
     uchar pixel_mode = font.ftface->glyph->bitmap.pixel_mode;
 
-    ASR_CHECK(pixel_mode == FT_PIXEL_MODE_GRAY ||
+    ASH_CHECK(pixel_mode == FT_PIXEL_MODE_GRAY ||
               pixel_mode == FT_PIXEL_MODE_BGRA);
 
     u8* bitmap = font.ftface->glyph->bitmap.buffer;
@@ -442,4 +442,4 @@ struct TextLayout {
 };
 
 }  // namespace gfx
-}  // namespace asr
+}  // namespace ash

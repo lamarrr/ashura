@@ -9,7 +9,7 @@
 #include "ashura/vulkan.h"
 #include "ashura/vulkan_recording_context.h"
 
-namespace asr {
+namespace ash {
 namespace vk {
 
 struct CanvasRenderer {
@@ -91,7 +91,7 @@ struct CanvasRenderer {
               stx::Span<gfx::DrawCommand const> cmds,
               stx::Span<vertex const> vertices, stx::Span<u32 const> indices,
               AssetBundle<stx::Rc<ImageResource*>> const& image_bundle) {
-    ASR_CHECK(frame < max_nframes_in_flight);
+    ASH_CHECK(frame < max_nframes_in_flight);
 
     stx::Rc<Device*> const& device = queue->device;
 
@@ -129,9 +129,9 @@ struct CanvasRenderer {
 
         if (nrequired_descriptor_sets > max_ndescriptor_sets ||
             nrequired_descriptor_sets > nallocatable_combined_image_samplers) {
-          ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+          ASH_VK_CHECK(vkDeviceWaitIdle(dev));
           if (!ctx.descriptor_sets[frame].is_empty()) {
-            ASR_VK_CHECK(
+            ASH_VK_CHECK(
                 vkFreeDescriptorSets(dev, ctx.descriptor_pools[frame],
                                      AS_U32(ctx.descriptor_sets[frame].size()),
                                      ctx.descriptor_sets[frame].data()));
@@ -154,7 +154,7 @@ struct CanvasRenderer {
               .poolSizeCount = AS_U32(sizes.size()),
               .pPoolSizes = sizes.data()};
 
-          ASR_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
+          ASH_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
                                               nullptr,
                                               &ctx.descriptor_pools[frame]));
 
@@ -171,7 +171,7 @@ struct CanvasRenderer {
                 .descriptorSetCount = AS_U32(ctx.descriptor_set_layouts.size()),
                 .pSetLayouts = ctx.descriptor_set_layouts.data()};
 
-            ASR_VK_CHECK(vkAllocateDescriptorSets(
+            ASH_VK_CHECK(vkAllocateDescriptorSets(
                 dev, &descriptor_set_allocate_info,
                 ctx.descriptor_sets[frame].data() +
                     i * ndescriptor_sets_per_draw_call));
@@ -190,7 +190,7 @@ struct CanvasRenderer {
                    nallocated_descriptor_sets / ndescriptor_sets_per_draw_call;
                i < nrequired_descriptor_sets / ndescriptor_sets_per_draw_call;
                i++) {
-            ASR_VK_CHECK(vkAllocateDescriptorSets(
+            ASH_VK_CHECK(vkAllocateDescriptorSets(
                 dev, &descriptor_set_allocate_info,
                 ctx.descriptor_sets[frame].data() +
                     i * ndescriptor_sets_per_draw_call));
@@ -199,12 +199,12 @@ struct CanvasRenderer {
       }
     }
 
-    ASR_VK_CHECK(
+    ASH_VK_CHECK(
         vkWaitForFences(dev, 1, &render_fence, VK_TRUE, COMMAND_TIMEOUT));
 
-    ASR_VK_CHECK(vkResetFences(dev, 1, &render_fence));
+    ASH_VK_CHECK(vkResetFences(dev, 1, &render_fence));
 
-    ASR_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
+    ASH_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
 
     VkCommandBufferBeginInfo command_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -213,7 +213,7 @@ struct CanvasRenderer {
         .pInheritanceInfo = nullptr,
     };
 
-    ASR_VK_CHECK(vkBeginCommandBuffer(cmd_buffer, &command_buffer_begin_info));
+    ASH_VK_CHECK(vkBeginCommandBuffer(cmd_buffer, &command_buffer_begin_info));
 
     VkClearValue clear_values[] = {
         {.color = VkClearColorValue{{0, 0, 0, 0}}},
@@ -260,8 +260,8 @@ struct CanvasRenderer {
     vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx.pipeline.pipeline);
 
-    ASR_CHECK(vertex_buffers[frame].is_valid());
-    ASR_CHECK(index_buffers[frame].is_valid());
+    ASH_CHECK(vertex_buffers[frame].is_valid());
+    ASH_CHECK(index_buffers[frame].is_valid());
 
     vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer,
                            &offset);
@@ -307,7 +307,7 @@ struct CanvasRenderer {
 
     vkCmdEndRenderPass(cmd_buffer);
 
-    ASR_VK_CHECK(vkEndCommandBuffer(cmd_buffer));
+    ASH_VK_CHECK(vkEndCommandBuffer(cmd_buffer));
 
     VkPipelineStageFlags wait_stage =
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -322,9 +322,9 @@ struct CanvasRenderer {
                              .signalSemaphoreCount = 1,
                              .pSignalSemaphores = &render_semaphore};
 
-    ASR_VK_CHECK(vkQueueSubmit(queue, 1, &submit_info, render_fence));
+    ASH_VK_CHECK(vkQueueSubmit(queue, 1, &submit_info, render_fence));
   }
 };
 
 }  // namespace vk
-}  // namespace asr
+}  // namespace ash

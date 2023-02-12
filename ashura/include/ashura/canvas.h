@@ -11,7 +11,7 @@
 #include "stx/text.h"
 #include "stx/vec.h"
 
-namespace asr {
+namespace ash {
 namespace gfx {
 
 struct Brush {
@@ -44,7 +44,7 @@ struct DrawList {
 namespace polygons {
 
 inline void rect(vec2 position, vec2 extent, mat4 const& transform, vec4 color,
-                 asr::rect texture_area, stx::Span<vertex> polygon) {
+                 ash::rect texture_area, stx::Span<vertex> polygon) {
   vec2 p2 = vec2{extent.x, 0};
   vec2 p3 = extent;
   vec2 p4 = vec2{0, extent.y};
@@ -55,19 +55,19 @@ inline void rect(vec2 position, vec2 extent, mat4 const& transform, vec4 color,
   vec2 st3 = texture_area.offset + p4 / extent * texture_area.extent;
 
   polygon[0] = vertex{.position = position, .st = st0, .color = color};
-  polygon[1] = vertex{.position = position + asr::transform(transform, p2),
+  polygon[1] = vertex{.position = position + ash::transform(transform, p2),
                       .st = st1,
                       .color = color};
-  polygon[2] = vertex{.position = position + asr::transform(transform, p3),
+  polygon[2] = vertex{.position = position + ash::transform(transform, p3),
                       .st = st2,
                       .color = color};
-  polygon[3] = vertex{.position = position + asr::transform(transform, p4),
+  polygon[3] = vertex{.position = position + ash::transform(transform, p4),
                       .st = st3,
                       .color = color};
 }
 
 inline void circle(vec2 position, f32 radius, usize nsegments,
-                   mat4 const& transform, vec4 color, asr::rect texture_area,
+                   mat4 const& transform, vec4 color, ash::rect texture_area,
                    stx::Span<vertex> polygon) {
   if (nsegments == 0 || radius <= 0) return;
 
@@ -77,14 +77,14 @@ inline void circle(vec2 position, f32 radius, usize nsegments,
     vec2 p = radius + radius * vec2{std::cos(i * step), std::sin(i * step)};
     vec2 st = texture_area.offset + p / (radius * 2) * texture_area.extent;
 
-    polygon[i] = vertex{.position = position + asr::transform(transform, p),
+    polygon[i] = vertex{.position = position + ash::transform(transform, p),
                         .st = st,
                         .color = color};
   }
 }
 
 inline void ellipse(vec2 position, vec2 radii, usize nsegments,
-                    mat4 const& transform, vec4 color, asr::rect texture_area,
+                    mat4 const& transform, vec4 color, ash::rect texture_area,
                     stx::Span<vertex> polygon) {
   if (nsegments == 0 || radii.x <= 0 || radii.y <= 0) return;
 
@@ -93,7 +93,7 @@ inline void ellipse(vec2 position, vec2 radii, usize nsegments,
   for (usize i = 0; i < nsegments; i++) {
     vec2 p = radii + radii * vec2{std::cos(i * step), std::sin(i * step)};
     vec2 st = texture_area.offset + p / (2 * radii) * texture_area.extent;
-    polygon[i] = vertex{.position = position + asr::transform(transform, p),
+    polygon[i] = vertex{.position = position + ash::transform(transform, p),
                         .st = st,
                         .color = color};
   }
@@ -102,7 +102,7 @@ inline void ellipse(vec2 position, vec2 radii, usize nsegments,
 /// {polygon.size() == nsegments * 4}
 inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
                        mat4 const& transform, vec4 color,
-                       asr::rect texture_area, stx::Span<vertex> polygon) {
+                       ash::rect texture_area, stx::Span<vertex> polygon) {
   if (nsegments == 0) return;
 
   radii.x = std::min(radii.x, std::min(extent.x, extent.y));
@@ -120,7 +120,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
-    polygon[i] = vertex{.position = position + asr::transform(transform, p),
+    polygon[i] = vertex{.position = position + ash::transform(transform, p),
                         .st = st,
                         .color = color};
   }
@@ -132,7 +132,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
-    polygon[i] = vertex{.position = position + asr::transform(transform, p),
+    polygon[i] = vertex{.position = position + ash::transform(transform, p),
                         .st = st,
                         .color = color};
   }
@@ -143,7 +143,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
-    polygon[i] = vertex{.position = position + asr::transform(transform, p),
+    polygon[i] = vertex{.position = position + ash::transform(transform, p),
                         .st = st,
                         .color = color};
   }
@@ -155,7 +155,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
-    polygon[i] = vertex{.position = position + asr::transform(transform, p),
+    polygon[i] = vertex{.position = position + ash::transform(transform, p),
                         .st = st,
                         .color = color};
   }
@@ -173,7 +173,7 @@ constexpr void normalize_for_viewport(stx::Span<vertex> vertices,
 
 inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
                                        u32 first_vertex_index, u32 nvertices) {
-  ASR_CHECK(nvertices >= 3, "polygon must have 3 or more points");
+  ASH_CHECK(nvertices >= 3, "polygon must have 3 or more points");
 
   for (u32 i = 2; i < nvertices; i++) {
     indices.push_inplace(first_vertex_index).unwrap();
@@ -184,7 +184,7 @@ inline void triangulate_convex_polygon(stx::Vec<u32>& indices,
 
 inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
                              vec2 extent, mat4 const& transform,
-                             f32 line_thickness, asr::rect texture_area,
+                             f32 line_thickness, ash::rect texture_area,
                              u32 first_vertex_index,
                              stx::Vec<vertex>& out_vertices,
                              stx::Vec<u32>& out_indices) {
@@ -237,16 +237,16 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
     vec2 st2 = texture_area.offset + n0 / extent * texture_area.extent;
     vec2 st3 = texture_area.offset + n1 / extent * texture_area.extent;
 
-    vertex vertices[] = {{.position = position + asr::transform(transform, m0),
+    vertex vertices[] = {{.position = position + ash::transform(transform, m0),
                           .st = st0,
                           .color = color},
-                         {.position = position + asr::transform(transform, m1),
+                         {.position = position + ash::transform(transform, m1),
                           .st = st1,
                           .color = color},
-                         {.position = position + asr::transform(transform, n0),
+                         {.position = position + ash::transform(transform, n0),
                           .st = st2,
                           .color = color},
-                         {.position = position + asr::transform(transform, n1),
+                         {.position = position + ash::transform(transform, n1),
                           .st = st3,
                           .color = color}};
 
@@ -483,7 +483,7 @@ struct Canvas {
     vec4 color = brush.color.as_vec();
     vertex points[] = {
         vertex{.position = p1, .st = {}, .color = color},
-        vertex{.position = p1 + asr::transform(transform, p2 - p1),
+        vertex{.position = p1 + ash::transform(transform, p2 - p1),
                .st = {},
                .color = color}};
 
@@ -1067,4 +1067,4 @@ struct CanvasPushConstants {
 };
 
 }  // namespace gfx
-}  // namespace asr
+}  // namespace ash

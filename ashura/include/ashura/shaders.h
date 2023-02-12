@@ -1,7 +1,7 @@
 #pragma once
 #include "ashura/primitives.h"
 
-namespace asr {
+namespace ash {
 namespace gfx {
 
 // glslangValidator -V -x shader.vert -o shader.vert.spv
@@ -107,4 +107,4 @@ static constexpr u32 const fragment_shader_code[] = {
     0x00000017, 0x000100fd, 0x00010038};
 
 }  // namespace gfx
-}  // namespace asr
+}  // namespace ash

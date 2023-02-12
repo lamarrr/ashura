@@ -16,7 +16,7 @@
 #include "stx/rc.h"
 #include "stx/string.h"
 
-namespace asr {
+namespace ash {
 using namespace stx::literals;
 
 enum class WindowTypeHint : u8 { Normal, Utility, Tooltip, Popup };
@@ -26,8 +26,8 @@ enum class WindowPosition : u8 { Centered };
 struct WindowConfig {
   stx::String title = "Ashura"_str;
   extent extent{1920, 1080};
-  stx::Option<asr::extent> min_extent;
-  stx::Option<asr::extent> max_extent;
+  stx::Option<ash::extent> min_extent;
+  stx::Option<ash::extent> max_extent;
   WindowTypeHint type_hint = WindowTypeHint::Normal;
   bool hidden = false;
   bool resizable = true;
@@ -70,7 +70,7 @@ STX_DEFINE_ENUM_BIT_OPS(WindowSwapchainDiff)
 // they use references
 struct Window {
   Window(stx::Rc<WindowApi*> api, SDL_Window* window, WindowID id,
-         extent extent, asr::extent surface_extent, WindowConfig cfg,
+         extent extent, ash::extent surface_extent, WindowConfig cfg,
          std::thread::id init_thread_id)
       : api_{std::move(api)},
         window_{window},
@@ -84,7 +84,7 @@ struct Window {
 
   ~Window() {
     // window should be destructed on the same thread that created it
-    ASR_CHECK(init_thread_id_ == std::this_thread::get_id());
+    ASH_CHECK(init_thread_id_ == std::this_thread::get_id());
     api_->remove_window_info(id_);
     // delete window
     SDL_DestroyWindow(window_);
@@ -127,16 +127,16 @@ struct Window {
   void flash();
 
   void make_fullscreen() const {
-    ASR_CHECK(SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP) ==
+    ASH_CHECK(SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP) ==
               0);
   }
 
   void make_nonfullscreen_exclusive() const {
-    ASR_CHECK(SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN) == 0);
+    ASH_CHECK(SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN) == 0);
   }
 
   void make_windowed() const {
-    ASR_CHECK(SDL_SetWindowFullscreen(window_, 0) == 0);
+    ASH_CHECK(SDL_SetWindowFullscreen(window_, 0) == 0);
   }
 
   // void enable_hit_testing();
@@ -181,7 +181,7 @@ struct Window {
 
   void tick(std::chrono::nanoseconds) {
     SDL_DisplayMode display_mode;
-    ASR_CHECK(SDL_GetWindowDisplayMode(window_, &display_mode) == 0,
+    ASH_CHECK(SDL_GetWindowDisplayMode(window_, &display_mode) == 0,
               "Unable to get window display mode");
     refresh_rate_ = AS_U32(display_mode.refresh_rate);
     // forward event if refresh rate changed
@@ -207,4 +207,4 @@ struct Window {
 
 stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg);
 
-}  // namespace asr
+}  // namespace ash

@@ -7,8 +7,8 @@
 #include "spdlog/spdlog.h"
 #include "stx/vec.h"
 
-namespace asr {
+namespace ash {
 
 void App::tick(std::chrono::nanoseconds interval) { engine_.tick(interval); }
 
-}  // namespace asr
+}  // namespace ash

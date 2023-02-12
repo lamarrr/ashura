@@ -9,7 +9,7 @@
 #include "stx/span.h"
 #include "stx/vec.h"
 
-namespace asr {
+namespace ash {
 namespace vk {
 
 struct RecordingContext {
@@ -65,7 +65,7 @@ struct RecordingContext {
 
       VkShaderModule shader;
 
-      ASR_VK_CHECK(vkCreateShaderModule(dev, &create_info, nullptr, &shader));
+      ASH_VK_CHECK(vkCreateShaderModule(dev, &create_info, nullptr, &shader));
 
       return shader;
     };
@@ -80,7 +80,7 @@ struct RecordingContext {
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         .queueFamilyIndex = cqueue.info.family.index};
 
-    ASR_VK_CHECK(
+    ASH_VK_CHECK(
         vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
 
     VkCommandBufferAllocateInfo cmd_buffer_allocate_info{
@@ -90,7 +90,7 @@ struct RecordingContext {
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1};
 
-    ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffer_allocate_info,
+    ASH_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffer_allocate_info,
                                           &upload_cmd_buffer));
 
     VkFenceCreateInfo fence_create_info{
@@ -98,7 +98,7 @@ struct RecordingContext {
         .pNext = nullptr,
         .flags = 0};
 
-    ASR_VK_CHECK(
+    ASH_VK_CHECK(
         vkCreateFence(dev, &fence_create_info, nullptr, &upload_fence));
 
     vertex_input_attr.extend(avertex_input_attr).unwrap();
@@ -133,7 +133,7 @@ struct RecordingContext {
 
       VkDescriptorSetLayout descriptor_set_layout;
 
-      ASR_VK_CHECK(
+      ASH_VK_CHECK(
           vkCreateDescriptorSetLayout(dev, &descriptor_set_layout_create_info,
                                       nullptr, &descriptor_set_layout));
 
@@ -149,7 +149,7 @@ struct RecordingContext {
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = SwapChain::MAX_FRAMES_IN_FLIGHT};
 
-    ASR_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info,
+    ASH_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info,
                                           draw_cmd_buffers.data()));
 
     for (u32 i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -166,7 +166,7 @@ struct RecordingContext {
 
       VkDescriptorPool descriptor_pool;
 
-      ASR_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
+      ASH_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
                                           nullptr, &descriptor_pool));
 
       descriptor_pools.push_inplace(descriptor_pool).unwrap();
@@ -204,7 +204,7 @@ struct RecordingContext {
   void destroy() {
     VkDevice dev = queue.value()->device->device;
 
-    ASR_VK_CHECK(vkDeviceWaitIdle(dev));
+    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
 
     vkDestroyShaderModule(dev, vertex_shader, nullptr);
 
@@ -244,10 +244,10 @@ struct RecordingContext {
     VkPhysicalDeviceMemoryProperties const& memory_properties =
         cqueue.device->phy_device->memory_properties;
 
-    ASR_CHECK(data.size_bytes() == extent.area() * nchannels);
-    ASR_CHECK(nchannels == 4, "only 4-channel images presently supported");
-    ASR_CHECK(extent.is_visible());
-    ASR_CHECK(nchannels != 0);
+    ASH_CHECK(data.size_bytes() == extent.area() * nchannels);
+    ASH_CHECK(nchannels == 4, "only 4-channel images presently supported");
+    ASH_CHECK(extent.is_visible());
+    ASH_CHECK(nchannels != 0);
 
     VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
 
@@ -257,7 +257,7 @@ struct RecordingContext {
     } else if (nchannels == 1) {
       format = VK_FORMAT_R8_SRGB;
     } else {
-      ASR_PANIC("image channels must either be 1, 3, or 4");
+      ASH_PANIC("image channels must either be 1, 3, or 4");
     }
 
     VkImageCreateInfo create_info{
@@ -281,7 +281,7 @@ struct RecordingContext {
 
     VkImage image;
 
-    ASR_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
+    ASH_VK_CHECK(vkCreateImage(dev, &create_info, nullptr, &image));
 
     VkMemoryRequirements memory_requirements;
 
@@ -300,9 +300,9 @@ struct RecordingContext {
 
     VkDeviceMemory memory;
 
-    ASR_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+    ASH_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
 
-    ASR_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
+    ASH_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
 
     VkImageViewCreateInfo view_create_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -324,7 +324,7 @@ struct RecordingContext {
 
     VkImageView view;
 
-    ASR_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
+    ASH_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
     Buffer staging_buffer =
         create_host_buffer(dev, memory_properties, data.size_bytes(),
@@ -338,7 +338,7 @@ struct RecordingContext {
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo = nullptr};
 
-    ASR_VK_CHECK(
+    ASH_VK_CHECK(
         vkBeginCommandBuffer(upload_cmd_buffer, &cmd_buffer_begin_info));
 
     VkImageMemoryBarrier pre_upload_barrier{
@@ -401,7 +401,7 @@ struct RecordingContext {
                          VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1,
                          &post_upload_barrier);
 
-    ASR_VK_CHECK(vkEndCommandBuffer(upload_cmd_buffer));
+    ASH_VK_CHECK(vkEndCommandBuffer(upload_cmd_buffer));
 
     VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                              .pNext = nullptr,
@@ -413,15 +413,15 @@ struct RecordingContext {
                              .signalSemaphoreCount = 0,
                              .pSignalSemaphores = nullptr};
 
-    ASR_VK_CHECK(vkResetFences(dev, 1, &upload_fence));
+    ASH_VK_CHECK(vkResetFences(dev, 1, &upload_fence));
 
-    ASR_VK_CHECK(
+    ASH_VK_CHECK(
         vkQueueSubmit(cqueue.info.queue, 1, &submit_info, upload_fence));
 
-    ASR_VK_CHECK(
+    ASH_VK_CHECK(
         vkWaitForFences(dev, 1, &upload_fence, VK_TRUE, COMMAND_TIMEOUT));
 
-    ASR_VK_CHECK(vkResetCommandBuffer(upload_cmd_buffer, 0));
+    ASH_VK_CHECK(vkResetCommandBuffer(upload_cmd_buffer, 0));
 
     staging_buffer.destroy(dev);
 
@@ -434,7 +434,7 @@ struct RecordingContext {
                              stx::Rc<Font*> font, u32 font_height) {
     VkImageFormatProperties image_format_properties;
 
-    ASR_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(
+    ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(
         queue.value()->device->phy_device->phy_device, VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT,
         0, &image_format_properties));
@@ -454,4 +454,4 @@ struct RecordingContext {
 };
 
 }  // namespace vk
-}  // namespace asr
+}  // namespace ash

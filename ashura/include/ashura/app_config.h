@@ -6,7 +6,7 @@
 #include "ashura/window.h"
 #include "stx/string.h"
 
-namespace asr {
+namespace ash {
 using namespace stx::literals;
 
 // refresh rate and various other settings
@@ -20,4 +20,4 @@ struct AppConfig {
   // asset dir, shader dir, etc
 };
 
-}  // namespace asr
+}  // namespace ash

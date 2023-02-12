@@ -7,20 +7,20 @@
 #include "SDL_vulkan.h"
 #include "ashura/sdl_utils.h"
 
-namespace asr {
+namespace ash {
 
 stx::Vec<char const*> Window::get_required_instance_extensions() const {
   u32 ext_count = 0;
   stx::Vec<char const*> required_instance_extensions{stx::os_allocator};
 
-  ASR_SDL_CHECK(
+  ASH_SDL_CHECK(
       SDL_Vulkan_GetInstanceExtensions(window_, &ext_count, nullptr) ==
           SDL_TRUE,
       "unable to get number of window's required Vulkan instance extensions");
 
   required_instance_extensions.resize(ext_count).unwrap();
 
-  ASR_SDL_CHECK(
+  ASH_SDL_CHECK(
       SDL_Vulkan_GetInstanceExtensions(
           window_, &ext_count, required_instance_extensions.data()) == SDL_TRUE,
       "unable to get window's required Vulkan instance extensions");
@@ -31,7 +31,7 @@ stx::Vec<char const*> Window::get_required_instance_extensions() const {
 void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
   VkSurfaceKHR surface;
 
-  ASR_SDL_CHECK(SDL_Vulkan_CreateSurface(window_, instance->instance,
+  ASH_SDL_CHECK(SDL_Vulkan_CreateSurface(window_, instance->instance,
                                          &surface) == SDL_TRUE,
                 "unable to create surface for window");
 
@@ -73,16 +73,16 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
                  .height = window_extent_.height},
       msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
 
-  ASR_LOG(
+  ASH_LOG(
       "recreated swapchain for logical/window/viewport extent: [{}, {}], "
       "physical/surface extent: [{}, {}]",
       width, height, surface_width, surface_height);
 }
 
 std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
-  ASR_CHECK(surface_.is_some(),
+  ASH_CHECK(surface_.is_some(),
             "trying to present to swapchain without having surface attached");
-  ASR_CHECK(surface_.value()->swapchain.is_some(),
+  ASH_CHECK(surface_.value()->swapchain.is_some(),
             "trying to present to swapchain without having one");
 
   vk::SwapChain& swapchain = surface_.value()->swapchain.value();
@@ -100,7 +100,7 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
       vkAcquireNextImageKHR(dev, swapchain.swapchain, COMMAND_TIMEOUT,
                             semaphore, fence, &swapchain_image_index);
 
-  ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
+  ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                 result == VK_ERROR_OUT_OF_DATE_KHR,
             "failed to acquire swapchain image");
 
@@ -113,14 +113,14 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   } else if (result == VK_SUCCESS) {
     return std::make_pair(WindowSwapchainDiff::None, swapchain_image_index);
   } else {
-    ASR_PANIC("failed to acquire swapchain image", result);
+    ASH_PANIC("failed to acquire swapchain image", result);
   }
 }
 
 WindowSwapchainDiff Window::present(u32 swapchain_image_index) {
-  ASR_CHECK(surface_.is_some(),
+  ASH_CHECK(surface_.is_some(),
             "trying to present to swapchain without having surface attached");
-  ASR_CHECK(surface_.value()->swapchain.is_some(),
+  ASH_CHECK(surface_.value()->swapchain.is_some(),
             "trying to present to swapchain without having one");
 
   // we submit multiple render commands (operating on the swapchain images) to
@@ -147,7 +147,7 @@ WindowSwapchainDiff Window::present(u32 swapchain_image_index) {
   VkResult result =
       vkQueuePresentKHR(swapchain.queue->info.queue, &present_info);
 
-  ASR_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
+  ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                 result == VK_ERROR_OUT_OF_DATE_KHR,
             "failed to present swapchain image");
 
@@ -158,7 +158,7 @@ WindowSwapchainDiff Window::present(u32 swapchain_image_index) {
   } else if (result == VK_SUCCESS) {
     return WindowSwapchainDiff::None;
   } else {
-    ASR_PANIC("failed to present swapchain image", result);
+    ASH_PANIC("failed to present swapchain image", result);
   }
 }
 
@@ -205,7 +205,7 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
 
   // window creation shouldn't fail reliably, if it fails,
   // there's no point in the program proceeding
-  ASR_SDL_CHECK(window != nullptr, "unable to create window");
+  ASH_SDL_CHECK(window != nullptr, "unable to create window");
 
   cfg.min_extent.copy().match(
       [&](extent min_extent) {
@@ -236,4 +236,4 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
   return win;
 }
 
-}  // namespace asr
+}  // namespace ash

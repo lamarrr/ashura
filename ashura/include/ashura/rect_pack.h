@@ -98,7 +98,7 @@
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
 
-namespace asr {
+namespace ash {
 namespace rp {
 
 struct rect {
@@ -164,7 +164,7 @@ inline i32 skyline_find_min_y(Context &c, Node *first, i32 x0, i32 width,
 
   (void)c;
 
-  ASR_CHECK(first->x <= x0);
+  ASH_CHECK(first->x <= x0);
 
 #if 0
    // skip in case we're past the node
@@ -172,10 +172,10 @@ inline i32 skyline_find_min_y(Context &c, Node *first, i32 x0, i32 width,
       ++node;
 #else
   // we ended up handling this in the caller for efficiency
-  ASR_CHECK(node->next->x > x0);
+  ASH_CHECK(node->next->x > x0);
 #endif
 
-  ASR_CHECK(node->x <= x0);
+  ASH_CHECK(node->x <= x0);
 
   min_y = 0;
   waste_area = 0;
@@ -221,7 +221,7 @@ inline FindResult skyline_find_best_pos(Context &context, i32 width,
   // align to multiple of context.align
   width = (width + context.align - 1);
   width -= width % context.align;
-  ASR_CHECK(width % context.align == 0);
+  ASH_CHECK(width % context.align == 0);
 
   // if it can't possibly fit, bail immediately
   if (width > context.width || height > context.height) {
@@ -287,20 +287,20 @@ inline FindResult skyline_find_best_pos(Context &context, i32 width,
     while (tail) {
       i32 xpos = tail->x - width;
       i32 y, waste;
-      ASR_CHECK(xpos >= 0);
+      ASH_CHECK(xpos >= 0);
       // find the left position that matches this
       while (node->next->x <= xpos) {
         prev = &node->next;
         node = node->next;
       }
-      ASR_CHECK(node->next->x > xpos && node->x <= xpos);
+      ASH_CHECK(node->next->x > xpos && node->x <= xpos);
       y = skyline_find_min_y(context, node, xpos, width, &waste);
       if (y + height <= context.height) {
         if (y <= best_y) {
           if (y < best_y || waste < best_waste ||
               (waste == best_waste && xpos < best_x)) {
             best_x = xpos;
-            ASR_CHECK(y <= best_y);
+            ASH_CHECK(y <= best_y);
             best_y = y;
             best_waste = waste;
             best = prev;
@@ -372,10 +372,10 @@ inline FindResult skyline_pack_rectangle(Context &context, i32 width,
 #ifdef _DEBUG
   cur = context.active_head;
   while (cur->x < context.width) {
-    ASR_CHECK(cur->x < cur->next->x);
+    ASH_CHECK(cur->x < cur->next->x);
     cur = cur->next;
   }
-  ASR_CHECK(cur->next == nullptr);
+  ASH_CHECK(cur->next == nullptr);
 
   {
     i32 count = 0;
@@ -389,7 +389,7 @@ inline FindResult skyline_pack_rectangle(Context &context, i32 width,
       cur = cur->next;
       ++count;
     }
-    ASR_CHECK(count == context.num_nodes + 2);
+    ASH_CHECK(count == context.num_nodes + 2);
   }
 #endif
 
@@ -531,4 +531,4 @@ inline bool pack_rects(Context &context, rect *rects, i32 num_rects) {
 }
 
 }  // namespace rp
-}  // namespace asr
+}  // namespace ash

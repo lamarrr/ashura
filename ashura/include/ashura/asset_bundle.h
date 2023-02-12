@@ -8,7 +8,7 @@
 #include "stx/result.h"
 #include "stx/void.h"
 
-namespace asr {
+namespace ash {
 
 enum class AssetBundleError : u8 { InvalidId };
 
@@ -40,4 +40,4 @@ struct AssetBundle {
   u64 next_ = 0;
 };
 
-}  // namespace asr
+}  // namespace ash

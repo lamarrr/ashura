@@ -10,7 +10,7 @@
 #include "stx/rc.h"
 #include "stx/vec.h"
 
-namespace asr {
+namespace ash {
 
 enum class WindowID : u32 {};
 
@@ -33,7 +33,7 @@ struct WindowApi {
 
   Window *get_window_info(WindowID id) {
     auto window_entry_pos = windows_info_.find(id);
-    ASR_CHECK(window_entry_pos != windows_info_.end());
+    ASH_CHECK(window_entry_pos != windows_info_.end());
 
     return window_entry_pos->second;
   }
@@ -42,7 +42,7 @@ struct WindowApi {
   // 'add_window_info' method
   void remove_window_info(WindowID id) {
     auto pos = windows_info_.find(id);
-    ASR_CHECK(pos != windows_info_.end());
+    ASH_CHECK(pos != windows_info_.end());
     windows_info_.erase(pos);
   }
 
@@ -55,4 +55,4 @@ struct WindowApi {
   std::map<WindowID, Window *> windows_info_;
 };
 
-}  // namespace asr
+}  // namespace ash

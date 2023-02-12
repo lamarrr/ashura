@@ -16,7 +16,8 @@ target_link_libraries(
   spdlog::spdlog
   ashura_external_stb
   harfbuzz
-  Freetype::Freetype)
+  Freetype::Freetype
+  simdjson::simdjson)
 
 add_executable(ashura_test src/ashura.cc)
 target_link_libraries(ashura_test ashura)

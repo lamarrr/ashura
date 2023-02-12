@@ -11,10 +11,10 @@
 #include "ashura/utils.h"
 #include "ashura/window.h"
 
-namespace asr {
+namespace ash {
 
 namespace impl {
-inline WindowEvent sdl_window_event_to_asr(u8 win_event_type) {
+inline WindowEvent sdl_window_event_to_ash(u8 win_event_type) {
   switch (win_event_type) {
     case SDL_WINDOWEVENT_NONE:
       return WindowEvent::None;
@@ -55,7 +55,7 @@ inline WindowEvent sdl_window_event_to_asr(u8 win_event_type) {
 }  // namespace impl
 
 WindowApi::WindowApi() {
-  ASR_SDL_CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) == 0,
+  ASH_SDL_CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) == 0,
                 "Unable to initialize SDL");
 }
 
@@ -70,7 +70,7 @@ bool WindowApi::poll_events() {
         Window* win = get_window_info(WindowID{event.window.windowID});
 
         WindowEvent win_event =
-            impl::sdl_window_event_to_asr(event.window.event);
+            impl::sdl_window_event_to_ash(event.window.event);
 
         for (auto const& listener : win->event_listeners) {
           if (listener.first == win_event) {
@@ -177,4 +177,4 @@ bool WindowApi::poll_events() {
   }
 }
 
-}  // namespace asr
+}  // namespace ash
