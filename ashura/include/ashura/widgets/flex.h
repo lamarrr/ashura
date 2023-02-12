@@ -10,25 +10,18 @@ namespace ash {
 
 struct FlexProps {
   Direction direction = Direction::Row;
-
   Wrap wrap = Wrap::Wrap;
-
   MainAlign main_align = MainAlign::Start;
-
   CrossAlign cross_align = CrossAlign::Start;
-
   Fit main_fit = Fit::Shrink;
-
   Fit cross_fit = Fit::Shrink;
-
   constraint width;
-
   constraint height;
 };
 
 struct Flex : public Widget {
-  Flex(FlexProps aprops, std::initializer_list<WidgetImpl> achildren)
-      : props{aprops} {
+  Flex(FlexProps iprops, std::initializer_list<WidgetImpl> achildren)
+      : props{iprops} {
     children.extend(achildren).unwrap();
   }
 
@@ -53,16 +46,12 @@ struct Flex : public Widget {
 
   virtual WidgetInfo get_debug_info() override {}
 
-  virtual rect layout(rect target, stx::Span<rect> children_allocation) {
-    for (WidgetImpl child : children) {
-      // child->layout(        )
-    }
-    return {};
-  }
+  // TODO(lamarrr):
+  virtual ash::layout layout(rect area);
 
   virtual simdjson::dom::element save(simdjson::dom::parser& parser) {
     std::string data = fmt::format(
-        R"({
+        fmt::runtime(R"({
     direction : {},
     wrap: {},
     main_align: {},
@@ -80,19 +69,18 @@ struct Flex : public Widget {
     height_min: {},
     height_max: {},
     height_min_rel: {},
-    height_max_rel: {}})",
-        stx::enum_uv(props.direction), stx::enum_uv(props.wrap),
-        stx::enum_uv(props.main_align), stx::enum_uv(props.cross_align),
-        stx::enum_uv(props.main_fit), stx::enum_uv(props.cross_fit),
-        props.width.bias, props.width.scale, props.width.min, props.width.max,
-        props.width.min_rel, props.width.max_rel, props.height.bias,
-        props.height.scale, props.height.min, props.height.max,
-        props.height.min_rel, props.height.max_rel);
+    height_max_rel: {}})"),
+        AS_U32(props.direction), AS_U32(props.wrap), AS_U32(props.main_align),
+        AS_U32(props.cross_align), AS_U32(props.main_fit),
+        AS_U32(props.cross_fit), props.width.bias, props.width.scale,
+        props.width.min, props.width.max, props.width.min_rel,
+        props.width.max_rel, props.height.bias, props.height.scale,
+        props.height.min, props.height.max, props.height.min_rel,
+        props.height.max_rel);
 
     return parser.parse(data.data(), data.size());
   }
 
-  //
   virtual void restore(simdjson::dom::element const& element) {
     props.direction = AS(Direction, AS_U8(element["direction"].get_uint64()));
     props.wrap = AS(Wrap, AS_U8(element["wrap"].get_uint64()));
