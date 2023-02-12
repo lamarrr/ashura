@@ -323,7 +323,6 @@ constexpr bool operator!=(extent a, extent b) { return !(a == b); }
 /// - padding (+ve `bias`)
 /// - absolute min/max (`min`, `max`)
 /// - relative min/max (`min_rel`, `max_rel`)
-///
 struct constraint {
   /// removing or deducting from the target size
   f32 bias = 0;
@@ -353,8 +352,8 @@ struct constraint {
   }
 
   static constexpr constraint absolute(f32 value) {
-    return constraint{.bias = 0,
-                      .scale = value,
+    return constraint{.bias = value,
+                      .scale = 1,
                       .min = stx::f32_min,
                       .max = stx::f32_max,
                       .min_rel = 0,
