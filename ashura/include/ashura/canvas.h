@@ -681,13 +681,13 @@ struct Canvas {
            word_begin < run.text.end();) {
         usize nspaces = 0;
         usize nline_breaks = 0;
-
         char const* seeker = word_begin;
         char const* word_end = seeker;
-
         u32 codepoint = 0;
+
         for (; seeker < run.text.end();) {
           codepoint = stx::utf8_next(seeker);
+
           if (codepoint == RETURN || codepoint == NEWLINE || codepoint == TAB ||
               codepoint == SPACE) {
             break;
@@ -698,6 +698,7 @@ struct Canvas {
 
         if (codepoint == RETURN) {
           word_end = seeker - 1;
+
           if (seeker + 1 < run.text.end()) {
             if (*(seeker + 1) == NEWLINE) {
               seeker++;
@@ -707,9 +708,11 @@ struct Canvas {
         } else if (codepoint == SPACE) {
           word_end = seeker - 1;
           nspaces++;
+
           for (char const* iter = seeker; iter < run.text.end();) {
             seeker = iter;
             u32 codepoint = stx::utf8_next(iter);
+
             if (codepoint == SPACE) {
               nspaces++;
             } else {
@@ -719,6 +722,7 @@ struct Canvas {
         } else if (codepoint == TAB) {
           word_end = seeker - 1;
           nspaces += run.style.tab_size;
+
           for (char const* iter = seeker; iter < run.text.end();) {
             seeker = iter;
             u32 codepoint = stx::utf8_next(iter);
@@ -731,9 +735,11 @@ struct Canvas {
         } else if (codepoint == NEWLINE) {
           word_end = seeker - 1;
           nline_breaks++;
+
           for (char const* iter = seeker; iter < run.text.end();) {
             seeker = iter;
             u32 codepoint = stx::utf8_next(iter);
+
             if (codepoint == NEWLINE) {
               nline_breaks++;
             } else {
@@ -771,6 +777,7 @@ struct Canvas {
 
       hb_buffer_reset(font.hbscratch_buffer);
       hb_buffer_set_script(font.hbscratch_buffer, run.script);
+
       if (run.direction == TextDirection::LeftToRight) {
         hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_LTR);
       } else {
@@ -859,6 +866,7 @@ struct Canvas {
     {
       f32 baseline = 0;
       usize nprev_line_breaks = 0;
+
       for (RunSubWord const* iter = subwords.begin(); iter < subwords.end();) {
         RunSubWord const* line_begin = iter;
         RunSubWord const* line_end = iter + 1;
@@ -882,24 +890,24 @@ struct Canvas {
           }
         }
 
-        f32 line_height = 0;
         f32 line_width = 0;
-
+        f32 line_height = 0;
         f32 max_ascent = 0;
 
         for (RunSubWord const* subword = line_begin; subword < line_end;
              subword++) {
-          line_height = std::max(
-              line_height, paragraph.runs[subword->run].style.line_height *
-                               paragraph.runs[subword->run].style.font_height);
           line_width += subword->width +
                         subword->nspaces *
                             paragraph.runs[subword->run].style.word_spacing;
+          line_height = std::max(
+              line_height, paragraph.runs[subword->run].style.line_height *
+                               paragraph.runs[subword->run].style.font_height);
 
           TextRun const& run = paragraph.runs[subword->run];
           Font const& font = *fonts[run.font].font.handle;
           FontAtlas const& atlas = fonts[run.font].atlas;
           f32 font_scale = run.style.font_height / atlas.font_height;
+
           for (SubwordGlyph const& glyph :
                glyphs.span().slice(subword->glyph_start, subword->nglyphs)) {
             max_ascent = std::max(
@@ -985,6 +993,7 @@ struct Canvas {
             }
 
             f32 rtl_cursor_x = cursor_x + rtl_width;
+
             for (RunSubWord const* rtl_iter = rtl_begin; rtl_iter < rtl_end;
                  rtl_iter++) {
               TextRun const& run = paragraph.runs[rtl_iter->run];
@@ -992,7 +1001,8 @@ struct Canvas {
 
               f32 font_scale = run.style.font_height / atlas.font_height;
               f32 letter_spacing = run.style.letter_spacing;
-              f32 word_spacing = run.style.word_spacing;
+              f32 spacing = rtl_iter->nspaces * run.style.word_spacing;
+              rtl_cursor_x -= spacing;
 
               if (run.style.background_color.is_visible() &&
                   rtl_iter->nspaces > 0) {
@@ -1001,12 +1011,9 @@ struct Canvas {
                 draw_rect(rect{
                     .offset =
                         position + vec2{rtl_cursor_x, baseline - line_height},
-                    .extent =
-                        vec2{word_spacing * rtl_iter->nspaces, line_height}});
+                    .extent = vec2{spacing, line_height}});
               }
 
-              rtl_cursor_x -= rtl_iter->nspaces * word_spacing;
-
               if (run.style.background_color.is_visible() &&
                   rtl_iter->nspaces > 0) {
                 brush.color = run.style.background_color;
@@ -1014,8 +1021,7 @@ struct Canvas {
                 draw_rect(rect{
                     .offset =
                         position + vec2{rtl_cursor_x, baseline - line_height},
-                    .extent =
-                        vec2{rtl_iter->nspaces * word_spacing, line_height}});
+                    .extent = vec2{spacing, line_height}});
               }
 
               rtl_cursor_x -= rtl_iter->width;
@@ -1035,11 +1041,10 @@ struct Canvas {
               if (run.style.underline_color.is_visible()) {
                 brush.color = run.style.underline_color;
                 brush.fill = true;
-                draw_rect(rect{
-                    .offset = position + vec2{rtl_cursor_x, baseline},
-                    .extent =
-                        vec2{rtl_iter->width + rtl_iter->nspaces * word_spacing,
-                             run.style.underline_thickness}});
+                draw_rect(
+                    rect{.offset = position + vec2{rtl_cursor_x, baseline},
+                         .extent = vec2{rtl_iter->width + spacing,
+                                        run.style.underline_thickness}});
               }
             }
 
