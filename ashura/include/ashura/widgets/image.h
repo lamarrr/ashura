@@ -35,6 +35,7 @@ struct ImageProps {
   ImageSource source;
   constraint width;
   constraint height;
+  bool resize_on_load = true;
   vec4 border_radius;
   stx::Option<extent> aspect_ratio;
 };
