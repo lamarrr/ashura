@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <string>
+#include <utility>
 
 #include "ashura/widget.h"
 #include "fmt/format.h"
@@ -8,68 +10,59 @@
 
 namespace ash {
 
-struct FlexProps {
-  Direction direction = Direction::Row;
-  Wrap wrap = Wrap::Wrap;
-  MainAlign main_align = MainAlign::Start;
-  CrossAlign cross_align = CrossAlign::Start;
-  Fit main_fit = Fit::Shrink;
-  Fit cross_fit = Fit::Shrink;
-  constraint width;
-  constraint height;
-};
-
 struct Flex : public Widget {
-  Flex(FlexProps iprops, std::initializer_list<WidgetImpl> achildren)
-      : props{iprops} {
-    children.extend(achildren).unwrap();
+  template <typename... DerivedWidget>
+  Flex(FlexProps iprops, DerivedWidget... ichildren) : props{iprops} {
+    (children.push(new DerivedWidget{std::move(ichildren)}).unwrap(), ...);
   }
 
   virtual ~Flex() override {
-    for (WidgetImpl child : children) {
-      delete child.impl;
+    for (Widget* child : children) {
+      delete child;
     }
   }
 
-  void update_children(stx::Span<WidgetImpl const> new_children) {
-    for (WidgetImpl child : children) {
-      delete child.impl;
+  void update_children(stx::Span<Widget* const> new_children) {
+    for (Widget* child : children) {
+      delete child;
     }
 
     children.clear();
     children.extend(new_children).unwrap();
   }
 
-  virtual stx::Span<WidgetImpl const> get_children() override {
-    return children;
+  virtual stx::Span<Widget* const> get_children() override { return children; }
+
+  virtual WidgetInfo get_debug_info() override { return {}; }
+
+  virtual Layout layout(rect area) {
+    return Layout{
+        .flex = props,
+        .area = rect{.offset = area.offset,
+                     .extent = vec2{props.width.resolve(area.extent.x),
+                                    props.height.resolve(area.extent.y)}}};
   }
 
-  virtual WidgetInfo get_debug_info() override {}
-
-  // TODO(lamarrr):
-  virtual ash::layout layout(rect area);
-
   virtual simdjson::dom::element save(simdjson::dom::parser& parser) {
-    std::string data = fmt::format(
-        fmt::runtime(R"({
-    direction : {},
-    wrap: {},
-    main_align: {},
-    cross_align: {},
-    main_fit: {},
-    cross_fit: {},
-    width_bias: {},
-    width_scale: {},
-    width_min: {},
-    width_max: {},
-    width_min_rel: {},
-    width_max_rel: {},
-    height_bias: {},
-    height_scale: {},
-    height_min: {},
-    height_max: {},
-    height_min_rel: {},
-    height_max_rel: {}})"),
+    std::string json = fmt::format(
+        fmt::runtime(R"({{"direction" : {},
+    "wrap": {},
+    "main_align": {},
+    "cross_align": {},
+    "main_fit": {},
+    "cross_fit": {},
+    "width_bias": {},
+    "width_scale": {},
+    "width_min": {},
+    "width_max": {},
+    "width_min_rel": {},
+    "width_max_rel": {},
+    "height_bias": {},
+    "height_scale": {},
+    "height_min": {},
+    "height_max": {},
+    "height_min_rel": {},
+    "height_max_rel": {}}})"),
         AS_U32(props.direction), AS_U32(props.wrap), AS_U32(props.main_align),
         AS_U32(props.cross_align), AS_U32(props.main_fit),
         AS_U32(props.cross_fit), props.width.bias, props.width.scale,
@@ -78,7 +71,7 @@ struct Flex : public Widget {
         props.height.min, props.height.max, props.height.min_rel,
         props.height.max_rel);
 
-    return parser.parse(data.data(), data.size());
+    return parser.parse(json.data(), json.size());
   }
 
   virtual void restore(simdjson::dom::element const& element) {
@@ -104,7 +97,7 @@ struct Flex : public Widget {
   }
 
   FlexProps props;
-  stx::Vec<WidgetImpl> children{stx::os_allocator};
+  stx::Vec<Widget*> children{stx::os_allocator};
 };
 
 }  // namespace ash
