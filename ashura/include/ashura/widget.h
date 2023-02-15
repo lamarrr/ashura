@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <chrono>
 #include <type_traits>
 #include <utility>
@@ -21,6 +22,8 @@ enum class Direction : u8 { Row, Column };
 
 enum class Wrap : u8 { None, Wrap };
 
+enum class Position : u8 { Relative, Static };
+
 /// main-axis alignment
 /// affects how free space is used on the main axis
 /// main-axis for row flex is x
@@ -41,19 +44,71 @@ enum class CrossAlign : u8 { Start, End, Center, Stretch };
 
 enum class Fit : u8 { Shrink, Expand };
 
-struct layout {
-  constraint x, y, width, height;
+struct FlexProps {
+  Direction direction = Direction::Row;
+  Wrap wrap = Wrap::Wrap;
+  MainAlign main_align = MainAlign::Start;
+  CrossAlign cross_align = CrossAlign::Start;
+  Fit main_fit = Fit::Shrink;
+  Fit cross_fit = Fit::Shrink;
+  constraint width;
+  constraint height;
+
+  constexpr vec2 fit(vec2 span, vec2 initial_extent) const {
+    vec2 extent;
+
+    if (main_fit == Fit::Shrink) {
+      if (direction == Direction::Row) {
+        extent.x = std::min(span.x, initial_extent.x);
+      } else {
+        extent.y = std::min(span.y, initial_extent.y);
+      }
+    } else {
+      // expand
+      if (direction == Direction::Row) {
+        extent.x = initial_extent.x;
+      } else {
+        extent.y = initial_extent.y;
+      }
+    }
+
+    if (cross_fit == Fit::Shrink) {
+      if (direction == Direction::Row) {
+        extent.y = std::min(span.y, initial_extent.y);
+      } else {
+        extent.x = std::min(span.x, initial_extent.x);
+      }
+    } else {
+      // expand
+      if (direction == Direction::Row) {
+        extent.y = initial_extent.y;
+      } else {
+        extent.x = initial_extent.x;
+      }
+    }
+
+    return extent;
+  }
 };
 
-struct WidgetInfo {
-  std::string_view id;
-  std::string_view type;
+struct Layout {
+  FlexProps flex;
+  rect area;
+  Position position = Position::Relative;
 };
-
-struct WidgetContext {};
 
 // TODO(lamarrr): we need to pass in a zoom level to the rendering widget? so
 // that widgets like text can shape their glyphs properly
+
+struct WidgetInfo {
+  std::string_view type;
+};
+
+struct WidgetContext {
+  // plugins
+  // renderer context
+  // asset bundles
+};
 
 struct WidgetImpl;
 
@@ -64,12 +119,10 @@ struct WidgetImpl;
 struct Widget {
   constexpr Widget() {}
 
-  STX_MAKE_PINNED(Widget)
-
   constexpr virtual ~Widget() {}
 
   //
-  constexpr virtual stx::Span<WidgetImpl const> get_children() { return {}; }
+  constexpr virtual stx::Span<Widget *const> get_children() { return {}; }
 
   //
   constexpr virtual WidgetInfo get_debug_info() { return {}; }
@@ -81,37 +134,24 @@ struct Widget {
   constexpr virtual stx::Option<i64> get_z_index() { return stx::None; }
 
   //
-  constexpr virtual ash::layout layout(rect area) { return {}; }
+  constexpr virtual Layout layout(rect area) { return Layout{}; }
 
   // children layout??? or do we entirely allow self layout
   // + other properties that will make its rendering work well with other
   // widgets
-  constexpr virtual void draw(gfx::Canvas &canvas, rect area) {
-    (void)canvas;
-    (void)area;
-  }
+  constexpr virtual void draw(gfx::Canvas &canvas, rect area) {}
 
   // called before children are drawn
   constexpr virtual void pre_draw(gfx::Canvas &canvas, rect area, usize child) {
-    (void)canvas;
-    (void)area;
-    (void)child;
   }
 
   // called once children are drawn
   constexpr virtual void post_draw(gfx::Canvas &canvas, rect area,
-                                   usize child) {
-    (void)canvas;
-    (void)area;
-    (void)child;
-  }
+                                   usize child) {}
 
   //
   constexpr virtual void tick(WidgetContext &context,
-                              std::chrono::nanoseconds interval) {
-    (void)context;
-    (void)interval;
-  }
+                              std::chrono::nanoseconds interval) {}
 
   //
   constexpr virtual void on_launch() {}
@@ -146,7 +186,7 @@ struct Widget {
   constexpr virtual void on_hover(KeyModifiers modifiers, vec2 position) {}
 
   //
- constexpr virtual void on_mouse_down(KeyModifiers modifiers, vec2 position) {}
+  constexpr virtual void on_mouse_down(KeyModifiers modifiers, vec2 position) {}
 
   //
   constexpr virtual void on_mouse_up(KeyModifiers modifiers) {}
@@ -245,16 +285,27 @@ struct Widget {
   }
 
   //
-  virtual void restore(simdjson::dom::element const &element) { (void)element; }
+  virtual void restore(simdjson::dom::element const &element) {}
+
+  // position of the widget on the viewport. typically calculated on every
+  // frame.
+  rect area;
 };
 
 struct WidgetImpl {
-  constexpr WidgetImpl(Widget *widget) : impl{widget} {}
-
-  template <typename DerivedWidget,
-            STX_ENABLE_IF(!std::is_pointer_v<DerivedWidget>)>
+  template <typename DerivedWidget>
   constexpr WidgetImpl(DerivedWidget widget)
-      : WidgetImpl{new DerivedWidget{std::move(widget)}} {}
+      : impl{new DerivedWidget{std::move(widget)}} {
+    static_assert(std::is_base_of_v<Widget, DerivedWidget>);
+  }
+
+  constexpr WidgetImpl() {}
+
+  static constexpr WidgetImpl make(Widget *impl) {
+    WidgetImpl w;
+    w.impl = impl;
+    return w;
+  }
 
   constexpr WidgetImpl(WidgetImpl const &) = default;
 
@@ -272,5 +323,7 @@ struct WidgetImpl {
 
   Widget *impl = nullptr;
 };
+
+static_assert(sizeof(WidgetImpl) == sizeof(Widget *));
 
 }  // namespace ash
