@@ -9,10 +9,6 @@ execute_process(
   COMMAND git clone -b main https://github.com/lamarrr/STX.git third_party/STX
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
-execute_process(
-  COMMAND git clone -b master https://github.com/nothings/stb.git
-          third_party/stb WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
 
@@ -25,14 +21,12 @@ find_package(spdlog REQUIRED)
 find_package(harfbuzz REQUIRED)
 find_package(fmt REQUIRED)
 find_package(simdjson CONFIG REQUIRED)
+find_package(GTest REQUIRED)
+find_package(Stb REQUIRED)
 
 add_subdirectory(third_party/STX)
 
 set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/skia/libs)
-
-add_library(ashura_external_stb INTERFACE)
-target_include_directories(ashura_external_stb
-                           INTERFACE ${CMAKE_CURRENT_LIST_DIR}/third_party/stb)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)
@@ -41,7 +35,7 @@ else()
     add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-      #add_compile_options(/Wall)
+      # add_compile_options(/Wall)
     endif()
   endif()
 endif()

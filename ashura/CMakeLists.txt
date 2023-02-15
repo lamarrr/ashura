@@ -14,10 +14,12 @@ target_link_libraries(
   fmt::fmt
   Vulkan::Vulkan
   spdlog::spdlog
-  ashura_external_stb
   harfbuzz
   Freetype::Freetype
   simdjson::simdjson)
 
-add_executable(ashura_test src/ashura.cc)
-target_link_libraries(ashura_test ashura)
+add_executable(ashura_main src/ashura.cc)
+target_link_libraries(ashura_main ashura)
+
+add_executable(ashura_test tests/layout.cc)
+target_link_libraries(ashura_test ashura GTest::gtest GTest::gtest_main)
