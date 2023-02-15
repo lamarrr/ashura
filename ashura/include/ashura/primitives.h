@@ -328,7 +328,7 @@ struct constraint {
   f32 bias = 0;
 
   /// scaling the target size
-  f32 scale = 0.0f;
+  f32 scale = 0;
 
   /// clamping the target size, i.e. value should be between 20px and 600px
   f32 min = stx::f32_min;
