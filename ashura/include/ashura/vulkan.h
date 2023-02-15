@@ -957,7 +957,7 @@ struct SpanBuffer {
         u32 memory_type_index =
             find_suitable_memory_type(memory_properties, memory_requirements,
                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+                                          VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
                 .unwrap();
 
         VkMemoryAllocateInfo alloc_info{
@@ -1016,7 +1016,7 @@ inline Buffer create_host_buffer(
   u32 memory_type_index =
       find_suitable_memory_type(memory_properties, memory_requirements,
                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+                                    VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
