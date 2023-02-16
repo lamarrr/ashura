@@ -190,20 +190,10 @@ inline vec2 perform_children_layout(Layout const &layout,
           }
         }
       } else if (layout.flex.main_align == MainAlign::SpaceBetween) {
-        // correct
-
         f32 new_offset = layout.flex.direction == Direction::Row
-                             ? layout.area.offset.x
-                             : layout.area.offset.y;
+                             ? (*present_block_start)->area.offset.x
+                             : (*present_block_start)->area.offset.y;
 
-        // TODO(lamarrr): why?
-        if (layout.flex.direction == Direction::Row) {
-          new_offset += (*present_block_start)->area.offset.x;
-        } else {
-          new_offset += (*present_block_start)->area.offset.y;
-        }
-
-        // correct
         // there's always atleast one element in a block
         for (Widget *const *block_it = present_block_start + 1;
              block_it < next_child_it; block_it++) {
