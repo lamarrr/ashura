@@ -129,7 +129,7 @@ struct Widget {
   constexpr virtual Visibility get_visibility() { return Visibility::Shown; }
 
   //
-  constexpr virtual stx::Option<i64> get_z_index() { return stx::None; }
+  constexpr virtual i64 get_z_index(i64 z_index) { return z_index; }
 
   //
   constexpr virtual Layout layout(rect area) { return Layout{}; }
