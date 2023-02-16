@@ -110,8 +110,6 @@ struct WidgetContext {
   // asset bundles
 };
 
-struct WidgetImpl;
-
 /// SEE: (https://www.w3.org/TR/uievents)
 //
 // TODO(lamarrr): should we go recursive?
