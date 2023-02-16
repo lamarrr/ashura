@@ -229,7 +229,6 @@ inline vec2 perform_children_layout(Layout const &layout,
         // TODO(lamarrr): re-check
         for (Widget *const *block_it = present_block_start; block_it < child_it;
              block_it++) {
-          // correct
           if (layout.flex.direction == Direction::Row) {
             (*block_it)->area.offset.x = new_offset;
             new_offset += (*block_it)->area.extent.x + main_space_evenly;
@@ -251,13 +250,11 @@ inline vec2 perform_children_layout(Layout const &layout,
 
       if (layout.flex.wrap == Wrap::None) {
         if (layout.flex.direction == Direction::Row) {
-          // TODO(lamarrr): don't we need to add the offsets?
           cursor.x += (*child_it)->area.extent.x;
         } else {
           cursor.y += (*child_it)->area.extent.y;
         }
       } else {
-        // correct
         // move to the next row/column
         if (layout.flex.direction == Direction::Row) {
           cursor.x = layout.area.offset.x;
@@ -276,9 +273,6 @@ inline vec2 perform_children_layout(Layout const &layout,
       max_block_element_height = 0;
 
     } else {
-      // correct
-      // no wrapping nor alignment needed
-      // TODO(lamarrr): don't we need to add the offsets?
       if (layout.flex.direction == Direction::Row) {
         cursor.x += (*child_it)->area.extent.x;
       } else {
