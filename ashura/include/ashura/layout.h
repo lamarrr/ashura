@@ -133,10 +133,11 @@ inline vec2 perform_children_layout(Layout const &layout,
           } else {
             // re-layout the child to the max block width
             if ((*block_it)->area.extent.x != max_block_element_width) {
-              perform_layout(*child_it,
-                             rect{.offset = cursor,
+              perform_layout(*block_it,
+                             rect{.offset = new_offset,
                                   .extent = vec2{max_block_element_width,
                                                  layout.area.extent.y}});
+              new_offset.y += (*block_it)->area.extent.y;
             }
           }
         } else {
