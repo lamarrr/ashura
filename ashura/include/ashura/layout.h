@@ -149,14 +149,15 @@ inline vec2 perform_children_layout(Layout const &layout,
 
       // child_it is last element in block
       if (layout.flex.direction == Direction::Row) {
-        main_space = layout.area.extent.x - ((cursor.x - layout.area.offset.x) +
-                                             (*child_it)->area.extent.x);
+        main_space = layout.area.extent.x -
+                     (((*child_it)->area.offset.x - layout.area.offset.x) +
+                      (*child_it)->area.extent.x);
       } else {
-        main_space = layout.area.extent.y - ((cursor.y - layout.area.offset.y) +
-                                             (*child_it)->area.extent.y);
+        main_space = layout.area.extent.y -
+                     (((*child_it)->area.offset.y - layout.area.offset.y) +
+                      (*child_it)->area.extent.y);
       }
 
-      // correct
       usize nblock_children = next_child_it - present_block_start;
 
       if (layout.flex.main_align == MainAlign::End) {
