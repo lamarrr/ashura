@@ -1,8 +1,10 @@
+#pragma once
 
 #include <string>
 #include <utility>
 
 #include "ashura/primitives.h"
+#include "stx/span.h"
 
 namespace ash {
 
@@ -13,11 +15,15 @@ constexpr char base64_chars[] =
 
 inline bool is_base64(char c) { return isalnum(c) || (c == '+') || (c == '/'); }
 
-std::string encode(const char* bytes_to_encode, u64 in_len) {
-  std::string ret;
-  i64 i = 0;
+std::string base64_encode(stx::Span<char const> data) {
+  usize in_len = data.size();
+  char const* bytes_to_encode = data.data();
+
   char char_array_3[3];
   char char_array_4[4];
+  i64 i = 0;
+
+  std::string ret;
 
   while (in_len--) {
     char_array_3[i++] = *(bytes_to_encode++);
@@ -30,14 +36,16 @@ std::string encode(const char* bytes_to_encode, u64 in_len) {
       char_array_4[3] = char_array_3[2] & 0x3f;
 
       for (i = 0; (i < 4); i++) {
-        ret += base64_chars[char_array_4[i]];
+        ret.push_back(base64_chars[char_array_4[i]]);
       }
       i = 0;
     }
   }
 
   if (i != 0) {
-    for (i64 j = i; j < 3; j++) char_array_3[j] = '\0';
+    for (i64 j = i; j < 3; j++) {
+      char_array_3[j] = '\0';
+    }
 
     char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
     char_array_4[1] =
@@ -46,19 +54,27 @@ std::string encode(const char* bytes_to_encode, u64 in_len) {
         ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
     char_array_4[3] = char_array_3[2] & 0x3f;
 
-    for (i64 j = 0; (j < i + 1); j++) ret += base64_chars[char_array_4[j]];
+    for (i64 j = 0; (j < i + 1); j++) {
+      ret += base64_chars[char_array_4[j]];
+    }
 
-    while ((i++ < 3)) ret += '=';
+    while ((i++ < 3)) {
+      ret.push_back('=');
+    }
   }
 
   return ret;
 }
 
-std::string decode(const char* encoded_string, i64 in_len) {
-  i64 i = 0;
-  i64 in = 0;
+std::string base64_decode(stx::Span<char const> enc) {
+  char const* encoded_string = enc.data();
+  usize in_len = enc.size();
+
   char char_array_4[4];
   char char_array_3[3];
+  i64 i = 0;
+  i64 in = 0;
+
   std::string ret;
 
   while (in_len-- && (encoded_string[in] != '=') &&
@@ -77,7 +93,7 @@ std::string decode(const char* encoded_string, i64 in_len) {
       char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
       for (i = 0; (i < 3); i++) {
-        ret += char_array_3[i];
+        ret.push_back(char_array_3[i]);
       }
       i = 0;
     }
@@ -98,7 +114,7 @@ std::string decode(const char* encoded_string, i64 in_len) {
     char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
     for (i64 j = 0; (j < i - 1); j++) {
-      ret += char_array_3[j];
+      ret.push_back(char_array_3[j]);
     }
   }
 
