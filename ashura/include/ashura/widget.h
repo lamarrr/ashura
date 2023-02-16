@@ -134,9 +134,7 @@ struct Widget {
   //
   constexpr virtual Layout layout(rect area) { return Layout{}; }
 
-  // children layout??? or do we entirely allow self layout
-  // + other properties that will make its rendering work well with other
-  // widgets
+  //
   constexpr virtual void draw(gfx::Canvas &canvas, rect area) {}
 
   // called before children are drawn
