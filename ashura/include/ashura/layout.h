@@ -22,6 +22,7 @@ inline void perform_layout(Widget *widget, rect allotted_area) {
 /// NOTE: we always dictate the offset for the children unless their
 /// position is Static which makes them independent of the flex's layout and
 /// do not participate in it
+/// TODO(lamarrr): implement layout for Position::Static widgets
 inline vec2 perform_children_layout(Layout const &layout,
                                     stx::Span<Widget *const> children) {
   if (children.is_empty()) return layout.area.extent;
