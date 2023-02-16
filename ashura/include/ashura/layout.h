@@ -91,23 +91,18 @@ inline vec2 perform_children_layout(Layout const &layout,
         // determine cross-axis span
         if (layout.flex.cross_align == CrossAlign::Start) {
           if (layout.flex.direction == Direction::Row) {
-            // TODO(lamarrr): is calculating from this offset correct?
-            span.y = std::max(span.y, (cursor.y - layout.area.offset.y) +
-                                          (*block_it)->area.extent.y);
+            span.y = std::max(span.y, cursor.y + (*block_it)->area.extent.y);
           } else {
-            span.x = std::max(span.x, (cursor.x - layout.area.offset.x) +
-                                          (*block_it)->area.extent.x);
+            span.x = std::max(span.x, cursor.x + (*block_it)->area.extent.x);
           }
         }
 
         // determine main-axis span
         if (layout.flex.main_align == MainAlign::Start) {
           if (layout.flex.direction == Direction::Row) {
-            span.x = std::max(span.x, (cursor.x - layout.area.offset.x) +
-                                          (*block_it)->area.extent.x);
+            span.x = std::max(span.x, cursor.x + (*block_it)->area.extent.x);
           } else {
-            span.y = std::max(span.y, (cursor.y - layout.area.offset.y) +
-                                          (*block_it)->area.extent.y);
+            span.y = std::max(span.y, cursor.y + (*block_it)->area.extent.y);
           }
         }
 
