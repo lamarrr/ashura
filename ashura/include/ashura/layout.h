@@ -254,12 +254,12 @@ inline vec2 perform_children_layout(Layout const &layout,
         }
 
         present_block_start = child_it + 1;
-      }
 
-      // we are now at the end of the block, we thus need to reset the max
-      // block width and height
-      max_block_element_width = 0;
-      max_block_element_height = 0;
+        // we are now at the end of the block, we thus need to reset the max
+        // block width and height
+        max_block_element_width = 0;
+        max_block_element_height = 0;
+      }
 
     } else {
       if (layout.flex.direction == Direction::Row) {
