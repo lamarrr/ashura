@@ -212,11 +212,10 @@ inline vec2 perform_children_layout(Layout const &layout,
 
       } else if (layout.flex.main_align == MainAlign::SpaceEvenly) {
         f32 main_space_evenly = main_space / (nblock_children + 1);
-        // TODO(lamarrr): add previous offset
-        // this should ideally be the start of the block
-        (*present_block_start)->area.offset;
-        f32 new_offset = main_space_evenly;
-        // TODO(lamarrr): re-check
+        f32 new_offset = layout.flex.direction == Direction::Row
+                             ? (*present_block_start)->area.offset.x
+                             : (*present_block_start)->area.offset.y;
+        new_offset += main_space_evenly;
         for (Widget *const *block_it = present_block_start; block_it < child_it;
              block_it++) {
           if (layout.flex.direction == Direction::Row) {
