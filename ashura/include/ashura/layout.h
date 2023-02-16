@@ -120,13 +120,15 @@ inline vec2 perform_children_layout(Layout const &layout,
             (*block_it)->area.offset.x += cross_space;
           }
         } else if (layout.flex.cross_align == CrossAlign::Stretch) {
+          vec2 new_offset = (*present_block_start)->area.offset;
           if (layout.flex.direction == Direction::Row) {
             // re-layout the child to the max block height
             if ((*block_it)->area.extent.y != max_block_element_height) {
-              perform_layout(*child_it,
-                             rect{.offset = cursor,
+              perform_layout(*block_it,
+                             rect{.offset = new_offset,
                                   .extent = vec2{layout.area.extent.x,
                                                  max_block_element_height}});
+              new_offset.x += (*block_it)->area.extent.x;
             }
           } else {
             // re-layout the child to the max block width
