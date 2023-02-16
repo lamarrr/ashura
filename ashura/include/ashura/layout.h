@@ -83,8 +83,6 @@ inline vec2 perform_children_layout(Layout const &layout,
       for (Widget *const *block_it = present_block_start;
            block_it < next_child_it; block_it++) {
         // cross-axis alignment
-        // TODO(lamarrr): this is incorrect, we need to actually get the end of
-        // the block
         f32 cross_space =
             layout.flex.direction == Direction::Row
                 ? (max_block_element_height - (*block_it)->area.extent.y)
