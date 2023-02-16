@@ -7,7 +7,7 @@
 
 using namespace ash;
 
-TEST(LayoutTest, Basic) {
+TEST(LayoutTest, Start) {
   Flex flex{FlexProps{.width = constraint{.scale = 1},
                       .height = constraint{.scale = 1}},
             Widget{},
@@ -16,7 +16,7 @@ TEST(LayoutTest, Basic) {
             Image{ImageProps{.width = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
-  perform_layout(WidgetImpl::make(&flex),
+  perform_layout(&flex,
                  rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
   EXPECT_EQ(flex.area.offset.x, 50);
