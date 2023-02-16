@@ -171,13 +171,10 @@ inline vec2 perform_children_layout(Layout const &layout,
           }
         }
       } else if (layout.flex.main_align == MainAlign::SpaceAround) {
-        // correct
-        f32 main_space_around = main_space / nblock_children;
-        main_space_around /= 2;
+        f32 main_space_around = (main_space / nblock_children) / 2;
         f32 new_offset = layout.flex.direction == Direction::Row
-                             ? layout.area.offset.x
-                             : layout.area.offset.y;
-        // TODO(lamarrr): we are probably ignoring offsets where we shouldn't be
+                             ? (*present_block_start)->area.offset.x
+                             : (*present_block_start)->area.offset.y;
         for (Widget *const *block_it = present_block_start;
              block_it < next_child_it; next_child_it++) {
           new_offset += main_space_around;
