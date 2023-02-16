@@ -348,38 +348,37 @@ struct Canvas {
   Canvas& translate(f32 x, f32 y) {
     vec3 translation =
         2 * vec3{x, y, 1} / vec3{viewport_extent.x, viewport_extent.y, 1};
-    transform = transforms::translate(translation) * transform;
+    transform = ::ash::translate(translation) * transform;
     return *this;
   }
 
   Canvas& global_translate(f32 x, f32 y) {
     vec3 translation =
         2 * vec3{x, y, 1} / vec3{viewport_extent.x, viewport_extent.y, 1};
-    global_transform = transforms::translate(translation) * global_transform;
+    global_transform = ::ash::translate(translation) * global_transform;
     return *this;
   }
 
   Canvas& rotate(f32 x, f32 y, f32 z) {
-    transform = transforms::rotate_z(RADIANS(z)) *
-                transforms::rotate_y(RADIANS(y)) *
-                transforms::rotate_x(RADIANS(x)) * transform;
+    transform = ::ash::rotate_z(RADIANS(z)) * ::ash::rotate_y(RADIANS(y)) *
+                ::ash::rotate_x(RADIANS(x)) * transform;
     return *this;
   }
 
   Canvas& global_rotate(f32 x, f32 y, f32 z) {
-    global_transform = transforms::rotate_z(RADIANS(z)) *
-                       transforms::rotate_y(RADIANS(y)) *
-                       transforms::rotate_x(RADIANS(x)) * global_transform;
+    global_transform = ::ash::rotate_z(RADIANS(z)) *
+                       ::ash::rotate_y(RADIANS(y)) *
+                       ::ash::rotate_x(RADIANS(x)) * global_transform;
     return *this;
   }
 
   Canvas& scale(f32 x, f32 y) {
-    transform = transforms::scale(vec3{x, y, 1}) * transform;
+    transform = ::ash::scale(vec3{x, y, 1}) * transform;
     return *this;
   }
 
   Canvas& global_scale(f32 x, f32 y) {
-    global_transform = transforms::scale(vec3{x, y, 1}) * global_transform;
+    global_transform = ::ash::scale(vec3{x, y, 1}) * global_transform;
     return *this;
   }
 
