@@ -38,10 +38,24 @@ TEST(LayoutTest, Basic) {
   EXPECT_EQ(flex.get_children()[2]->area.offset.y, 50);
   EXPECT_EQ(flex.get_children()[2]->area.extent.x, 200);
   EXPECT_EQ(flex.get_children()[2]->area.extent.y, 200);
+}
+
+TEST(ImageTest, SerializationDeserialization) {
+  Image im{ImageProps{.width = constraint{.bias = 100},
+                      .height = constraint{.bias = 100},
+                      .border_radius = vec4{1, 2, 3, 4},
+                      .alt = stx::string::make_static("Hello")}};
 
   simdjson::dom::parser p;
-  flex.restore(flex.save(p));
-  flex.children[1]->restore(flex.children[1]->save(p));
+  im.restore(im.save(p));
+
+  EXPECT_EQ(im.props.alt, "Hello");
+  EXPECT_EQ(im.props.width.bias, 100);
+  EXPECT_EQ(im.props.height.bias, 100);
+  EXPECT_EQ(im.props.border_radius, (vec4{1, 2, 3, 4}));
+}
+
+  std::variant<int, float> x;
 }
 
 TEST(LayoutTest, Space) {
