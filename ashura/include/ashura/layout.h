@@ -114,11 +114,10 @@ inline vec2 perform_children_layout(Layout const &layout,
             (*block_it)->area.offset.x += cross_space_center;
           }
         } else if (layout.flex.cross_align == CrossAlign::End) {
-          f32 cross_space_end = cross_space;
           if (layout.flex.direction == Direction::Row) {
-            (*block_it)->area.offset.y += cross_space_end;
+            (*block_it)->area.offset.y += cross_space;
           } else {
-            (*block_it)->area.offset.x += cross_space_end;
+            (*block_it)->area.offset.x += cross_space;
           }
         } else if (layout.flex.cross_align == CrossAlign::Stretch) {
           if (layout.flex.direction == Direction::Row) {
