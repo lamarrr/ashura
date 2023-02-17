@@ -6,6 +6,7 @@
 #include <utility>
 #include <variant>
 
+#include "ashura/base64.h"
 #include "ashura/image.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
@@ -17,7 +18,7 @@ namespace ash {
 
 // RGBA image
 struct MemoryImageSource {
-  stx::Vec<u8 const> pixels{stx::os_allocator};
+  stx::Vec<u8> pixels{stx::os_allocator};
   extent extent;
 };
 
@@ -111,12 +112,18 @@ struct Image : public Widget {
   virtual void on_hover(KeyModifiers modifiers, vec2 position) override {}
 
   virtual simdjson::dom::element save(simdjson::dom::parser& parser) override {
-    std::string_view source;
+    std::string source;
     std::string_view source_type;
+    extent extent;
 
     if (std::holds_alternative<MemoryImageSource>(props.source)) {
-      // source = std::get<MemoryImageSource>(props.source);
+      MemoryImageSource& memory_source =
+          std::get<MemoryImageSource>(props.source);
+      stx::Span pixels = memory_source.pixels.span();
+      source = base64_encode(stx::Span{
+          reinterpret_cast<char const*>(pixels.data()), pixels.size()});
       source_type = "memory";
+      extent = memory_source.extent;
     } else if (std::holds_alternative<FileImageSource>(props.source)) {
       source = std::get<FileImageSource>(props.source).path;
       source_type = "file";
@@ -128,6 +135,8 @@ struct Image : public Widget {
     std::string json = fmt::format(
         fmt::runtime(R"({{"source": "{}",
     "source_type": "{}",
+    "extent_width": {},
+    "extent_height": {},
     "width_bias": {},
     "width_scale": {},
     "width_min": {},
@@ -148,12 +157,12 @@ struct Image : public Widget {
     "aspect_ratio": {},
     "resize_on_load": {},
     "alt": "{}"}})"),
-        source, source_type, props.width.bias, props.width.scale,
-        props.width.min, props.width.max, props.width.min_rel,
-        props.width.max_rel, props.height.bias, props.height.scale,
-        props.height.min, props.height.max, props.height.min_rel,
-        props.height.max_rel, props.border_radius.x, props.border_radius.y,
-        props.border_radius.z, props.border_radius.w,
+        source, source_type, extent.width, extent.height, props.width.bias,
+        props.width.scale, props.width.min, props.width.max,
+        props.width.min_rel, props.width.max_rel, props.height.bias,
+        props.height.scale, props.height.min, props.height.max,
+        props.height.min_rel, props.height.max_rel, props.border_radius.x,
+        props.border_radius.y, props.border_radius.z, props.border_radius.w,
         props.aspect_ratio.is_some(), props.aspect_ratio.copy().unwrap_or(1.0f),
         props.resize_on_load, std::string_view{props.alt});
 
@@ -163,10 +172,15 @@ struct Image : public Widget {
   virtual void restore(simdjson::dom::element const& element) override {
     std::string_view source = element["source"].get_string();
     std::string_view source_type = element["source_type"].get_string();
+    extent extent{.width = AS_U32(element["extent_width"].get_uint64()),
+                  .height = AS_U32(element["extent_height"].get_uint64())};
 
     if (source_type == "memory") {
-      // parse
-      // TODO(lamarrr): how do we encode this?
+      std::string enc = base64_decode(source);
+      stx::Vec<u8> pixels{stx::os_allocator};
+      pixels.extend(stx::Span{enc}.as_u8()).unwrap();
+      props.source =
+          MemoryImageSource{.pixels = std::move(pixels), .extent = extent};
     } else if (source_type == "file") {
       props.source = FileImageSource{
           .path = stx::string::make(stx::os_allocator, source).unwrap()};
