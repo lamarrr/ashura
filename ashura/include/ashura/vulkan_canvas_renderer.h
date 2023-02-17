@@ -235,14 +235,13 @@ struct CanvasRenderer {
         .pNext = nullptr,
         .renderPass = render_pass,
         .framebuffer = framebuffer,
-        .renderArea = VkRect2D{.offset = {0, 0}, .extent = image_extent},
+        .renderArea =
+            VkRect2D{.offset = VkOffset2D{0, 0}, .extent = image_extent},
         .clearValueCount = AS_U32(std::size(clear_values)),
         .pClearValues = clear_values};
 
     vkCmdBeginRenderPass(cmd_buffer, &render_pass_begin_info,
                          VK_SUBPASS_CONTENTS_INLINE);
-
-    VkDeviceSize offset = 0;
 
     for (usize icmd = 0; icmd < cmds.size(); icmd++) {
       ImageResource const& image =
