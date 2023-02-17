@@ -206,13 +206,6 @@ constexpr vec2 transform(mat4 const &a, vec3 const &b) {
   return vec2{.x = prod.x, .y = prod.y};
 }
 
-constexpr bool operator==(mat4 const &a, mat4 const &b) {
-  return a.rows[0] == b.rows[0] && a.rows[1] == b.rows[1] &&
-         a.rows[2] == b.rows[2] && a.rows[3] == b.rows[3];
-}
-
-namespace transforms {
-
 constexpr mat4 translate(vec3 t) {
   return {
       vec4{1, 0, 0, t.x},
@@ -257,8 +250,6 @@ inline mat4 rotate_z(f32 degree_radians) {
       vec4{0, 0, 0, 1},
   };
 }
-
-}  // namespace transforms
 
 struct offset {
   u32 x = 0, y = 0;
