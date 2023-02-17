@@ -9,6 +9,6 @@
 
 namespace ash {
 
-void App::tick(std::chrono::nanoseconds interval) { engine_.tick(interval); }
+void App::tick(std::chrono::nanoseconds interval) { engine.tick(interval); }
 
 }  // namespace ash
