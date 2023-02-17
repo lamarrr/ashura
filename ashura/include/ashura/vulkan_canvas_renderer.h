@@ -85,19 +85,6 @@ struct CanvasRenderer {
     ctx.destroy();
   }
 
-  void __write_vertices(stx::Span<vertex const> vertices,
-                        stx::Span<u32 const> indices, u32 frame) {
-    VkDevice dev = queue->device->device;
-    VkPhysicalDeviceMemoryProperties const& memory_properties =
-        queue->device->phy_device->memory_properties;
-
-    vertex_buffers[frame].write(
-        dev, memory_properties, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertices);
-
-    index_buffers[frame].write(
-        dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indices);
-  }
-
   void submit(VkExtent2D viewport_extent, VkExtent2D image_extent,
               u32 swapchain_image_index, u32 frame, VkFence render_fence,
               VkSemaphore image_acquisition_semaphore,
@@ -110,13 +97,22 @@ struct CanvasRenderer {
 
     stx::Rc<Device*> const& device = queue->device;
 
+    VkPhysicalDeviceMemoryProperties const& memory_properties =
+        queue->device->phy_device->memory_properties;
+
     VkDevice dev = device->device;
 
     VkQueue queue = this->queue->info.queue;
 
     VkCommandBuffer cmd_buffer = ctx.draw_cmd_buffers[frame];
 
-    __write_vertices(vertices, indices, frame);
+    vertex_buffers[frame].write(dev, memory_properties,
+                                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                vertices.as_u8());
+
+    index_buffers[frame].write(dev, memory_properties,
+                               VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                               indices.as_u8());
 
     u32 nallocated_descriptor_sets = AS_U32(ctx.descriptor_sets[frame].size());
 
