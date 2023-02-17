@@ -3,6 +3,8 @@
 
 #include "ashura/widgets/flex.h"
 #include "ashura/widgets/image.h"
+#include "ashura/widget_system.h"
+#include "ashura/palletes.h"
 #include "gtest/gtest.h"
 
 using namespace ash;
