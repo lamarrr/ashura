@@ -1027,17 +1027,15 @@ struct SpanBuffer {
       }
     }
 
-    if (!span.is_empty()) {
-      memcpy(memory_map, span.data(), span.size_bytes());
+    memcpy(memory_map, span.data(), span.size());
 
-      VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                                .pNext = nullptr,
-                                .memory = memory,
-                                .offset = 0,
-                                .size = VK_WHOLE_SIZE};
+    VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                              .pNext = nullptr,
+                              .memory = memory,
+                              .offset = 0,
+                              .size = VK_WHOLE_SIZE};
 
-      ASH_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
-    }
+    ASH_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
   }
 };
 
