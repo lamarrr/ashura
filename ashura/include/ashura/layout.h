@@ -122,6 +122,7 @@ inline vec2 perform_children_layout(Layout const &layout,
           }
         } else if (layout.flex.cross_align == CrossAlign::Stretch) {
           vec2 new_offset = (*present_block_start)->area.offset;
+
           if (layout.flex.direction == Direction::Row) {
             // re-layout the child to the max block height
             if ((*block_it)->area.extent.y != max_block_element_height) {
@@ -163,6 +164,7 @@ inline vec2 perform_children_layout(Layout const &layout,
 
       if (layout.flex.main_align == MainAlign::End) {
         f32 main_space_end = main_space;
+
         for (Widget *const *block_it = present_block_start;
              block_it < next_child_it; block_it++) {
           if (layout.flex.direction == Direction::Row) {
@@ -176,6 +178,7 @@ inline vec2 perform_children_layout(Layout const &layout,
         f32 new_offset = layout.flex.direction == Direction::Row
                              ? (*present_block_start)->area.offset.x
                              : (*present_block_start)->area.offset.y;
+
         for (Widget *const *block_it = present_block_start;
              block_it < next_child_it; block_it++) {
           new_offset += main_space_around;
@@ -216,6 +219,7 @@ inline vec2 perform_children_layout(Layout const &layout,
                              ? (*present_block_start)->area.offset.x
                              : (*present_block_start)->area.offset.y;
         new_offset += main_space_evenly;
+
         for (Widget *const *block_it = present_block_start; block_it < child_it;
              block_it++) {
           if (layout.flex.direction == Direction::Row) {
@@ -260,7 +264,6 @@ inline vec2 perform_children_layout(Layout const &layout,
         max_block_element_width = 0;
         max_block_element_height = 0;
       }
-
     } else {
       if (layout.flex.direction == Direction::Row) {
         cursor.x += (*child_it)->area.extent.x;
