@@ -21,7 +21,7 @@ cd ${PATH_TO_ASHURA} && mkdir build && cd build
 ```
 
 ```bash
-cmake .. -DCMAKE_TOOLCHAIN_FILE="${PATH_TO_VCPKG}\scripts\buildsystems\vcpkg.cmake"
+cmake .. -DCMAKE_TOOLCHAIN_FILE="${PATH_TO_VCPKG}/scripts/buildsystems/vcpkg.cmake"
 ```
 
 ```bash
