@@ -12,7 +12,7 @@ namespace ash {
 struct App {
   STX_MAKE_PINNED(App)
 
-  App(AppConfig cfg) : cfg_{std::move(cfg)}, engine_{cfg} {}
+  explicit App(AppConfig cfg) : cfg_{std::move(cfg)}, engine_{cfg} {}
 
   void tick(std::chrono::nanoseconds interval);
 
