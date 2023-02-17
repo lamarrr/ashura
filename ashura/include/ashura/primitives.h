@@ -64,7 +64,7 @@ constexpr vec2 operator-(f32 a, vec2 b) { return vec2{a - b.x, a - b.y}; }
 
 constexpr bool operator==(vec2 a, vec2 b) { return a.x == b.x && a.y == b.y; }
 
-constexpr bool operator!=(vec2 a, vec2 b) { return !(a == b); }
+constexpr bool operator!=(vec2 a, vec2 b) { return a.x != b.x || a.y != b.y; }
 
 constexpr f32 dot(vec2 a, vec2 b) { return a.x * b.x + a.y * b.y; }
 
@@ -403,7 +403,9 @@ constexpr bool operator==(color a, color b) {
   return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
 }
 
-constexpr bool operator!=(color a, color b) { return !(a == b); }
+constexpr bool operator!=(color a, color b) {
+  return a.r != b.r || a.g != b.g || a.b != b.b || a.a != b.a;
+}
 
 namespace colors {
 
