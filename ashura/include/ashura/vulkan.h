@@ -983,7 +983,7 @@ struct SpanBuffer {
           .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
           .pNext = nullptr,
           .flags = 0,
-          .size = span.size_bytes(),
+          .size = span.size(),
           .usage = usage,
           .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
           .queueFamilyIndexCount = 0,
@@ -991,7 +991,7 @@ struct SpanBuffer {
 
       ASH_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
 
-      size = span.size_bytes();
+      size = span.size();
 
       VkMemoryRequirements memory_requirements;
 
