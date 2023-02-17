@@ -270,8 +270,7 @@ struct CanvasRenderer {
     vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                       ctx.pipeline.pipeline);
 
-    ASH_CHECK(vertex_buffers[frame].is_valid());
-    ASH_CHECK(index_buffers[frame].is_valid());
+    VkDeviceSize offset = 0;
 
     vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer,
                            &offset);
