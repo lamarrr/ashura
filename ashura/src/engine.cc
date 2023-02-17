@@ -256,7 +256,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
   window.value()->tick(interval);
 
-  auto draw_content = [&]() {
+  auto record_draw_commands = [&]() {
     VkExtent2D extent =
         window.value()->surface_.value()->swapchain.value().window_extent;
 
@@ -354,7 +354,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     c.draw_round_rect({{0, 0}, {100, 100}}, {25, 25, 25, 25}, 360);
   };
 
-  draw_content();
+  record_draw_commands();
   // only try to present if the pipeline has new changes or window was
   // resized
 
@@ -368,7 +368,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
       window.value()->recreate_swapchain(queue.value());
       auto& swp = window.value()->surface_.value()->swapchain.value();
       renderer.value()->ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
-      draw_content();
+      record_draw_commands();
     }
 
     vk::SwapChain& swapchain =
