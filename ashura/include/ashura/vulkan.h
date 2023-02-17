@@ -880,8 +880,8 @@ inline stx::Option<CommandQueue> get_command_queue(
 struct Buffer {
   VkBuffer buffer = VK_NULL_HANDLE;
   VkDeviceMemory memory = VK_NULL_HANDLE;
-  usize size = 0;
   void* memory_map = nullptr;
+  usize size = 0;
 
   void destroy(VkDevice dev) {
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
@@ -905,9 +905,9 @@ struct Buffer {
 struct SpanBuffer {
   VkBuffer buffer = VK_NULL_HANDLE;
   VkDeviceMemory memory = VK_NULL_HANDLE;
+  void* memory_map = nullptr;
   usize size = 0;
   usize memory_size = 0;
-  void* memory_map = nullptr;
 
   void destroy(VkDevice dev) {
     vkUnmapMemory(dev, memory);
