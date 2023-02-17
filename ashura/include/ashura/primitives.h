@@ -128,6 +128,10 @@ constexpr bool operator==(vec4 a, vec4 b) {
   return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }
 
+constexpr bool operator!=(vec4 a, vec4 b) {
+  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
+}
+
 constexpr f32 dot(vec4 a, vec4 b) {
   return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
@@ -194,6 +198,16 @@ constexpr vec4 operator*(vec4 const &a, mat4 const &b) {
               .y = dot(a, b.rows[1]),
               .z = dot(a, b.rows[2]),
               .w = dot(a, b.rows[3])};
+}
+
+constexpr bool operator==(mat4 const &a, mat4 const &b) {
+  return a.rows[0] == b.rows[0] && a.rows[1] == b.rows[1] &&
+         a.rows[2] == b.rows[2] && a.rows[3] == b.rows[3];
+}
+
+constexpr bool operator!=(mat4 const &a, mat4 const &b) {
+  return a.rows[0] != b.rows[0] || a.rows[1] != b.rows[1] ||
+         a.rows[2] != b.rows[2] || a.rows[3] != b.rows[3];
 }
 
 constexpr vec2 transform(mat4 const &a, vec2 const &b) {
