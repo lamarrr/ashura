@@ -290,10 +290,10 @@ struct CanvasRenderer {
 
       vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
 
-      VkRect2D scissor{.offset = {AS_I32(cmd.clip_rect.offset.x),
-                                  AS_I32(cmd.clip_rect.offset.y)},
-                       .extent = {AS_U32(cmd.clip_rect.extent.x),
-                                  AS_U32(cmd.clip_rect.extent.y)}};
+      VkRect2D scissor{.offset = VkOffset2D{AS_I32(cmd.clip_rect.offset.x),
+                                            AS_I32(cmd.clip_rect.offset.y)},
+                       .extent = VkExtent2D{AS_U32(cmd.clip_rect.extent.x),
+                                            AS_U32(cmd.clip_rect.extent.y)}};
 
       vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
 
