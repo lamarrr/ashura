@@ -18,6 +18,15 @@ struct AppConfig {
   stx::String log_file = "log.txt"_str;
   WindowConfig window_config;
   // asset dir, shader dir, etc
+
+  AppConfig copy() const {
+    return AppConfig{
+        .name = stx::string::make(stx::os_allocator, name).unwrap(),
+        .version = version,
+        .enable_validation_layers = enable_validation_layers,
+        .log_file = stx::string::make(stx::os_allocator, log_file).unwrap(),
+        .window_config = window_config.copy()};
+  }
 };
 
 }  // namespace ash
