@@ -916,11 +916,56 @@ struct SpanBuffer {
   }
 
   bool is_valid() const {
-    return buffer != VK_NULL_HANDLE && memory != VK_NULL_HANDLE && size != 0 &&
-           memory_size != 0 && memory_map != nullptr;
+    return buffer != VK_NULL_HANDLE && memory != VK_NULL_HANDLE &&
+           memory_map != nullptr && size != 0 && memory_size != 0;
   }
 
-  template <typename T>
+  void init(VkDevice dev,
+            VkPhysicalDeviceMemoryProperties const& memory_properties,
+            VkBufferUsageFlags usage) {
+    size = 0;
+
+    VkBufferCreateInfo create_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .size = 1,
+        .usage = usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr};
+
+    ASH_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
+
+    VkMemoryRequirements memory_requirements;
+
+    vkGetBufferMemoryRequirements(dev, buffer, &memory_requirements);
+
+    if (memory != VK_NULL_HANDLE) {
+      ASH_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
+    }
+
+    u32 memory_type_index =
+        find_suitable_memory_type(memory_properties, memory_requirements,
+                                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                      VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
+            .unwrap();
+
+    VkMemoryAllocateInfo alloc_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .allocationSize = memory_requirements.size,
+        .memoryTypeIndex = memory_type_index};
+
+    ASH_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
+
+    memory_size = memory_requirements.size;
+
+    ASH_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
+
+    ASH_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
+  }
+
   void write(VkDevice dev,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
              VkBufferUsageFlags usage, stx::Span<T const> span) {

@@ -52,9 +52,24 @@ struct CanvasRenderer {
              sizeof(gfx::CanvasPushConstants), descriptor_set_specs,
              descriptor_pool_sizes, 1);
 
+    VkDevice dev = queue->device->device;
+    VkPhysicalDeviceMemoryProperties const& memory_properties =
+        queue->device->phy_device->memory_properties;
+
     for (u32 i = 0; i < amax_nframes_in_flight; i++) {
-      vertex_buffers.push(SpanBuffer{}).unwrap();
-      index_buffers.push(SpanBuffer{}).unwrap();
+      SpanBuffer vertex_buffer;
+
+      vertex_buffer.init(dev, memory_properties,
+                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+
+      vertex_buffers.push_inplace(vertex_buffer).unwrap();
+
+      SpanBuffer index_buffer;
+
+      index_buffer.init(dev, memory_properties,
+                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+
+      index_buffers.push_inplace(index_buffer).unwrap();
     }
   }
 
