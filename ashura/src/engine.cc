@@ -382,19 +382,15 @@ void Engine::tick(std::chrono::nanoseconds interval) {
       continue;
     }
 
-    auto& swp = window.value()->surface_.value()->swapchain.value();
-
     gfx::DrawList const& draw_list = canvas.value().draw_list;
 
     renderer.value()->submit(
-        swp.window_extent, swp.image_extent, swapchain_image_index, swp.frame,
-        swp.render_fences[swapchain.frame],
-        swp.image_acquisition_semaphores[swp.frame],
-        swp.render_semaphores[swp.frame], swp.render_pass,
-        swp.framebuffers[swapchain_image_index], (*sampler)->sampler,
+        swapchain.window_extent, swapchain.image_extent, swapchain_image_index,
+        swapchain.frame, swapchain.render_fences[swapchain.frame],
+        swapchain.image_acquisition_semaphores[swapchain.frame],
+        swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
+        swapchain.framebuffers[swapchain_image_index], (*sampler)->sampler,
         draw_list.cmds, draw_list.vertices, draw_list.indices, image_bundle);
-
-    canvas.value().clear();
 
     swapchain_diff = window.value()->present(swapchain_image_index);
 
