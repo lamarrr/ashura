@@ -910,6 +910,7 @@ struct SpanBuffer {
   void* memory_map = nullptr;
 
   void destroy(VkDevice dev) {
+    vkUnmapMemory(dev, memory);
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyBuffer(dev, buffer, nullptr);
