@@ -19,11 +19,11 @@ namespace impl {
 static stx::Rc<spdlog::logger*> make_multi_threaded_logger(
     std::string name, std::string file_path) {
   stx::Vec<spdlog::sink_ptr> sinks{stx::os_allocator};
-  /* sinks
-       .push(std::make_shared<spdlog::sinks::basic_file_sink_mt>(
-           std::move(file_path)))
-       .unwrap();
- */
+  sinks
+      .push(std::make_shared<spdlog::sinks::basic_file_sink_mt>(
+          std::move(file_path)))
+      .unwrap();
+
   sinks.push(std::make_shared<spdlog::sinks::stdout_color_sink_mt>()).unwrap();
 
   return stx::rc::make_inplace<spdlog::logger>(
