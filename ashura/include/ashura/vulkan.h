@@ -969,9 +969,13 @@ struct SpanBuffer {
 
   void write(VkDevice dev,
              VkPhysicalDeviceMemoryProperties const& memory_properties,
-             VkBufferUsageFlags usage, stx::Span<T const> span) {
-    ASH_CHECK(!span.is_empty());
-    if (span.size_bytes() != size) {
+             VkBufferUsageFlags usage, stx::Span<u8 const> span) {
+    if (span.is_empty()) {
+      size = 0;
+      return;
+    }
+
+    if (span.size() != size) {
       ASH_VK_CHECK(vkDeviceWaitIdle(dev));
       vkDestroyBuffer(dev, buffer, nullptr);
 
