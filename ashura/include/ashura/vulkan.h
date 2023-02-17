@@ -1204,11 +1204,6 @@ struct DescriptorBinding {
                              .view = view,
                              .sampler = sampler};
   }
-
-  constexpr bool operator==(DescriptorBinding const& other) const {
-    return type == other.type && buffer == other.buffer && view == other.view &&
-           sampler == other.sampler;
-  }
 };
 
 struct DescriptorSetSpec {
