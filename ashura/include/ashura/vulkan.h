@@ -1083,8 +1083,8 @@ inline Buffer create_host_buffer(
 
   return Buffer{.buffer = buffer,
                 .memory = memory,
-                .size = size_bytes,
-                .memory_map = memory_map};
+                .memory_map = memory_map,
+                .size = size_bytes};
 }
 
 struct Image {
