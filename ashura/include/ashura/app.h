@@ -12,14 +12,14 @@ namespace ash {
 struct App {
   STX_MAKE_PINNED(App)
 
-  explicit App(AppConfig cfg) : cfg_{std::move(cfg)}, engine_{cfg} {}
+  explicit App(AppConfig icfg) : cfg{icfg.copy()}, engine{icfg} {}
 
   void tick(std::chrono::nanoseconds interval);
 
   ~App() {}
 
-  AppConfig cfg_;
-  Engine engine_;
+  AppConfig cfg;
+  Engine engine;
 };
 
 }  // namespace ash
