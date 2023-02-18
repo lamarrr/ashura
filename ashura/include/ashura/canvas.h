@@ -283,6 +283,11 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
 /// images
 ///
 // TODO(lamarrr): implement command culling
+//
+// In order to implement command culling we might need to remove global
+// transform
+//
+//
 struct Canvas {
   vec2 viewport_extent;
   Brush brush;
