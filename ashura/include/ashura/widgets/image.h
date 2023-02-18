@@ -67,6 +67,10 @@ enum class ImageState : u8 {
 struct Image : public Widget {
   explicit Image(ImageProps image_props) : props{std::move(image_props)} {}
 
+  virtual WidgetInfo get_info() override {
+    return WidgetInfo{.type = "Image", .id = Widget::id};
+  }
+
   virtual Layout layout(rect area) override {
     f32 width = props.width.resolve(area.extent.x);
     f32 height = props.height.resolve(area.extent.y);

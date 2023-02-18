@@ -667,7 +667,8 @@ struct Canvas {
   Canvas& draw_text(Paragraph paragraph, stx::Span<CachedFont const> fonts,
                     vec2 position, f32 max_line_width,
                     stx::Vec<RunSubWord>& subwords,
-                    stx::Vec<SubwordGlyph>& glyphs) {
+                    stx::Vec<SubwordGlyph>& glyphs, TextLayout& layout,
+                    bool skip_drawing) {
     constexpr u32 SPACE = ' ';
     constexpr u32 TAB = '\t';
     constexpr u32 NEWLINE = '\n';

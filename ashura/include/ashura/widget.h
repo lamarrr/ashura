@@ -1,9 +1,13 @@
 #pragma once
 #include <algorithm>
 #include <chrono>
+#include <functional>
+#include <map>
+#include <string>
 #include <type_traits>
 #include <utility>
 
+#include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
 #include "ashura/event.h"
 #include "ashura/primitives.h"
@@ -16,7 +20,7 @@
 
 namespace ash {
 
-enum class Visibility : u8 { Shown, Hidden };
+enum class Visibility : u8 { Visible, Hidden };
 
 enum class Direction : u8 { Row, Column };
 
@@ -102,12 +106,32 @@ struct Layout {
 
 struct WidgetInfo {
   std::string_view type;
+  u64 id = 0;
+};
+
+struct Plugin {
+  virtual constexpr void on_startup();
+
+  virtual constexpr void tick(std::chrono::nanoseconds interval);
+
+  virtual constexpr void on_exit();
+
+  virtual constexpr std::string_view get_id();
+
+  template <typename T>
+  T *as() {
+    T *ptr = dynamic_cast<T *>(this);
+    ASH_CHECK(ptr != nullptr);
+    return ptr;
+  }
+
+  virtual constexpr ~Plugin() {}
 };
 
 struct WidgetContext {
-  // plugins
   // renderer context
   // asset bundles
+  std::map<std::string, Plugin *, std::less<>> plugins;
 };
 
 /// SEE: (https://www.w3.org/TR/uievents)
@@ -123,10 +147,12 @@ struct Widget {
   constexpr virtual stx::Span<Widget *const> get_children() { return {}; }
 
   //
-  constexpr virtual WidgetInfo get_debug_info() { return {}; }
+  constexpr virtual WidgetInfo get_info() {
+    return WidgetInfo{.type = "Widget", .id = id};
+  }
 
   //
-  constexpr virtual Visibility get_visibility() { return Visibility::Shown; }
+  constexpr virtual Visibility get_visibility() { return Visibility::Visible; }
 
   //
   constexpr virtual i64 get_z_index(i64 z_index) { return z_index; }
@@ -138,19 +164,20 @@ struct Widget {
   constexpr virtual void draw(gfx::Canvas &canvas, rect area) {}
 
   // called before children are drawn
-  constexpr virtual void pre_draw(gfx::Canvas &canvas, rect area, usize child) {
-  }
+  // constexpr virtual void pre_draw(gfx::Canvas &canvas, usize child) {}
 
   // called once children are drawn
-  constexpr virtual void post_draw(gfx::Canvas &canvas, rect area,
-                                   usize child) {}
+  // constexpr virtual void post_draw(gfx::Canvas &canvas, usize child) {}
 
   //
   constexpr virtual void tick(WidgetContext &context,
                               std::chrono::nanoseconds interval) {}
 
   //
-  constexpr virtual void on_launch() {}
+  constexpr virtual void on_launch(WidgetContext &context) {}
+
+  //
+  constexpr virtual void on_exit(WidgetContext &context) {}
 
   //
   constexpr virtual void on_enter_viewport() {}
@@ -159,8 +186,8 @@ struct Widget {
   constexpr virtual void on_leave_viewport() {}
 
   //
-  constexpr virtual void on_click(MouseButton button, KeyModifiers modifiers,
-                                  vec2 position) {}
+  constexpr virtual void on_click(MouseButton button, u32 nclicks,
+                                  KeyModifiers modifiers, vec2 position) {}
 
   //
   constexpr virtual void on_double_click(MouseButton button,
@@ -266,7 +293,8 @@ struct Widget {
   constexpr virtual void on_keypressed(KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_input(/*data*/) {}  // <- input widget
+  // constexpr virtual void on_input(stx::Span<char const> data) {
+  // }  // <- input widget
 
   // TODO(lamarrr): can this be simpler?
   // virtual void raise_tooltip(){}
@@ -275,6 +303,7 @@ struct Widget {
   // virtual void accessibility_navigate(){}
   // virtual void accessibility_info(){}
 
+  // TODO(lamarrr): we need a widget build tree
   //
   virtual simdjson::dom::element save(simdjson::dom::parser &parser) {
     return parser.parse("{}", 2);
@@ -286,6 +315,7 @@ struct Widget {
   // position of the widget on the viewport. typically calculated on every
   // frame.
   rect area;
+  u64 id = 0;
 };
 
 struct WidgetImpl {
@@ -319,7 +349,5 @@ struct WidgetImpl {
 
   Widget *impl = nullptr;
 };
-
-static_assert(sizeof(WidgetImpl) == sizeof(Widget *));
 
 }  // namespace ash
