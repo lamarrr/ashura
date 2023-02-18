@@ -221,7 +221,7 @@ constexpr vec2 transform(mat4 const &a, vec3 const &b) {
 }
 
 constexpr mat4 translate(vec3 t) {
-  return {
+  return mat4{
       vec4{1, 0, 0, t.x},
       vec4{0, 1, 0, t.y},
       vec4{0, 0, 1, t.z},
@@ -230,7 +230,7 @@ constexpr mat4 translate(vec3 t) {
 }
 
 constexpr mat4 scale(vec3 s) {
-  return {
+  return mat4{
       vec4{s.x, 0, 0, 0},
       vec4{0, s.y, 0, 0},
       vec4{0, 0, s.z, 0},
@@ -239,7 +239,7 @@ constexpr mat4 scale(vec3 s) {
 }
 
 inline mat4 rotate_x(f32 degree_radians) {
-  return {
+  return mat4{
       vec4{1, 0, 0, 0},
       vec4{0, std::cos(degree_radians), -std::sin(degree_radians), 0},
       vec4{0, std::sin(degree_radians), std::cos(degree_radians), 0},
@@ -248,7 +248,7 @@ inline mat4 rotate_x(f32 degree_radians) {
 }
 
 inline mat4 rotate_y(f32 degree_radians) {
-  return {
+  return mat4{
       vec4{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
       vec4{0, 1, 0, 0},
       vec4{-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
@@ -257,7 +257,7 @@ inline mat4 rotate_y(f32 degree_radians) {
 }
 
 inline mat4 rotate_z(f32 degree_radians) {
-  return {
+  return mat4{
       vec4{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
       vec4{std::sin(degree_radians), std::cos(degree_radians), 0, 0},
       vec4{0, 0, 1, 0},
