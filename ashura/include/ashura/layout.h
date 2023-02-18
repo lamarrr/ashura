@@ -6,29 +6,29 @@
 
 namespace ash {
 
-inline vec2 perform_children_layout(Layout const &layout,
-                                    stx::Span<Widget *const> children);
+constexpr vec2 perform_children_layout(Layout const &layout,
+                                       stx::Span<Widget *const> children);
 
-inline void perform_layout(Widget *widget, rect allotted_area) {
-  Layout layout = widget->layout(allotted_area);
+constexpr void perform_layout(Widget &widget, rect allotted_area) {
+  Layout layout = widget.layout(allotted_area);
 
-  vec2 span = perform_children_layout(layout, widget->get_children());
+  vec2 span = perform_children_layout(layout, widget.get_children());
 
   vec2 extent = layout.flex.fit(span, allotted_area.extent);
 
-  widget->area = rect{.offset = layout.area.offset, .extent = extent};
+  widget.area = rect{.offset = layout.area.offset, .extent = extent};
 }
 
 /// NOTE: we always dictate the offset for the children unless their
 /// position is Static which makes them independent of the flex's layout and
 /// do not participate in it
 /// TODO(lamarrr): implement layout for Position::Static widgets
-inline vec2 perform_children_layout(Layout const &layout,
-                                    stx::Span<Widget *const> children) {
+constexpr vec2 perform_children_layout(Layout const &layout,
+                                       stx::Span<Widget *const> children) {
   if (children.is_empty()) return layout.area.extent;
 
   for (Widget *child : children) {
-    perform_layout(child, layout.area);
+    perform_layout(*child, layout.area);
   }
 
   vec2 cursor;
@@ -126,7 +126,7 @@ inline vec2 perform_children_layout(Layout const &layout,
           if (layout.flex.direction == Direction::Row) {
             // re-layout the child to the max block height
             if ((*block_it)->area.extent.y != max_block_element_height) {
-              perform_layout(*block_it,
+              perform_layout(**block_it,
                              rect{.offset = new_offset,
                                   .extent = vec2{layout.area.extent.x,
                                                  max_block_element_height}});
@@ -135,7 +135,7 @@ inline vec2 perform_children_layout(Layout const &layout,
           } else {
             // re-layout the child to the max block width
             if ((*block_it)->area.extent.x != max_block_element_width) {
-              perform_layout(*block_it,
+              perform_layout(**block_it,
                              rect{.offset = new_offset,
                                   .extent = vec2{max_block_element_width,
                                                  layout.area.extent.y}});
