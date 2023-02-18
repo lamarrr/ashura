@@ -1,10 +1,10 @@
 
 #include "ashura/layout.h"
 
+#include "ashura/palletes.h"
+#include "ashura/widget_system.h"
 #include "ashura/widgets/flex.h"
 #include "ashura/widgets/image.h"
-#include "ashura/widget_system.h"
-#include "ashura/palletes.h"
 #include "gtest/gtest.h"
 
 using namespace ash;
@@ -18,7 +18,7 @@ TEST(LayoutTest, Start) {
             Image{ImageProps{.width = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
-  perform_layout(&flex,
+  perform_layout(flex,
                  rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
   EXPECT_EQ(flex.area.offset.x, 50);
@@ -69,7 +69,7 @@ TEST(LayoutTest, SpaceAround) {
             Image{ImageProps{.width = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
-  perform_layout(&flex,
+  perform_layout(flex,
                  rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
   f32 space = (1920 - 300) / 6;
@@ -111,7 +111,7 @@ TEST(LayoutTest, SpaceEvenly) {
             Image{ImageProps{.width = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
-  perform_layout(&flex,
+  perform_layout(flex,
                  rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
   f32 x = 50;
@@ -153,7 +153,7 @@ TEST(LayoutTest, SpaceBetween) {
             Image{ImageProps{.width = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
-  perform_layout(&flex,
+  perform_layout(flex,
                  rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
   f32 x = 50;
