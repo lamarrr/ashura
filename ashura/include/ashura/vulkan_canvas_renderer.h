@@ -49,8 +49,8 @@ struct CanvasRenderer {
 
     ctx.init(queue.share(), gfx::vertex_shader_code, gfx::fragment_shader_code,
              vertex_input_attributes, sizeof(vertex),
-             sizeof(gfx::CanvasPushConstants), descriptor_set_specs,
-             descriptor_pool_sizes, 1);
+             sizeof(gfx::CanvasPushConstants), amax_nframes_in_flight,
+             descriptor_set_specs, descriptor_pool_sizes, 1);
 
     VkDevice dev = queue->device->device;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
