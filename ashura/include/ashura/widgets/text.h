@@ -24,10 +24,10 @@ struct Text : public Widget {
 
   virtual void draw(gfx::Canvas& canvas, rect area) override {
     // TODO(lamarrr): script and others
-    TextRun runs = {{.text = text, .font = 0, .style = style}};
+    TextRun runs[] = {{.text = text, .font = 0, .style = style}};
     Paragraph paragraph{
         .runs = runs, .align = TextAlign::Left, .overflow = TextOverflow::None};
-    canvas.draw
+    // canvas.draw
   }
 
   virtual void tick(WidgetContext& context,
