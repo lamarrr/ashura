@@ -224,7 +224,13 @@ Engine::Engine(AppConfig const& cfg) {
           load_font_from_file(
               R"(C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe Arabic Regular\Adobe Arabic Regular.ttf)"_str)
               .unwrap(),
-          26)};
+          26),
+      renderer.value()->ctx.cache_font(
+          image_bundle,
+          load_font_from_file(
+              R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\MaterialIcons-Regular.ttf)"_str)
+              .unwrap(),
+          50)};
 
   canvas = stx::Some(gfx::Canvas{{0, 0}});
 
@@ -339,11 +345,18 @@ void Engine::tick(std::chrono::nanoseconds interval) {
                    .letter_spacing = 0,
                    .word_spacing = 15,
                    .foreground_color = colors::WHITE,
-                   .background_color = colors::BLACK}}};
+                   .background_color = colors::BLACK}},
+        {.text = "verified",
+         .font = 3,
+         .style = {.font_height = 50,
+                   .letter_spacing = 0,
+                   .word_spacing = 15,
+                   .foreground_color = color::from_rgb(29, 155, 240),
+                   .background_color = colors::WHITE}}};
     Paragraph paragraph{.runs = runs, .align = TextAlign::Right};
     stx::Vec<gfx::RunSubWord> subwords{stx::os_allocator};
     stx::Vec<gfx::SubwordGlyph> glyphs{stx::os_allocator};
-    c.draw_text(paragraph, stx::Span{font, 3}, {100, 500}, /*300*/ 500,
+    c.draw_text(paragraph, stx::Span{font, 4}, {100, 500}, /*300*/ 500,
                 subwords, glyphs);
 
     // c.draw_image(atlas->atlas, rect{{0, 0},
