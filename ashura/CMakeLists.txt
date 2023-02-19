@@ -1,5 +1,5 @@
 add_library(ashura STATIC src/app.cc src/engine.cc src/window_api.cc
-                          src/widget.cc src/window.cc)
+                          src/widget.cc src/window.cc src/rengoku.cc)
 
 target_include_directories(
   ashura
