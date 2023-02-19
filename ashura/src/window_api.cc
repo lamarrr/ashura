@@ -122,7 +122,15 @@ bool WindowApi::poll_events() {
       }
 
       case SDL_MOUSEMOTION: {
-        MouseMotionEvent mouse_event;
+        for (auto& listener : get_window_info(WindowID{event.motion.windowID})
+                                  ->mouse_motion_listeners) {
+          listener.handle(MouseMotionEvent{
+              .mouse_id = MouseID{event.motion.which},
+              .offset = offseti{event.motion.x, event.motion.y},
+              .translation = offseti{event.motion.xrel, event.motion.yrel}});
+        }
+        return true;
+      }
 
         mouse_event.mouse_id = MouseID{event.motion.which};
         mouse_event.offset.x = event.motion.x;
