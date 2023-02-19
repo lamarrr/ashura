@@ -70,30 +70,30 @@ struct Window {
   Window(stx::Rc<WindowApi*> api, SDL_Window* window, WindowID id,
          extent extent, ash::extent surface_extent, WindowConfig cfg,
          std::thread::id init_thread_id)
-      : api_{std::move(api)},
-        window_{window},
-        id_{id},
-        window_extent_{extent},
-        surface_extent_{surface_extent},
-        cfg_{std::move(cfg)},
-        init_thread_id_{init_thread_id} {}
+      : api{std::move(api)},
+        window{window},
+        id{id},
+        window_extent{extent},
+        surface_extent{surface_extent},
+        cfg{std::move(cfg)},
+        init_thread_id{init_thread_id} {}
 
   STX_MAKE_PINNED(Window)
 
   ~Window() {
     // window should be destructed on the same thread that created it
-    ASH_CHECK(init_thread_id_ == std::this_thread::get_id());
-    api_->remove_window_info(id_);
+    ASH_CHECK(init_thread_id == std::this_thread::get_id());
+    api->remove_window_info(id);
     // delete window
-    SDL_DestroyWindow(window_);
+    SDL_DestroyWindow(window);
   }
 
   void set_title(stx::String const& title) const {
-    SDL_SetWindowTitle(window_, title.c_str());
+    SDL_SetWindowTitle(window, title.c_str());
   }
 
   stx::String get_title() const {
-    return stx::string::make(stx::os_allocator, SDL_GetWindowTitle(window_))
+    return stx::string::make(stx::os_allocator, SDL_GetWindowTitle(window))
         .unwrap();
   }
 
@@ -106,42 +106,42 @@ struct Window {
 
   void set_icon(stx::Span<u8 const> rgba_pixels, extent extent);
 
-  void make_bordered() const { SDL_SetWindowBordered(window_, SDL_TRUE); }
+  void make_bordered() const { SDL_SetWindowBordered(window, SDL_TRUE); }
 
-  void make_borderless() const { SDL_SetWindowBordered(window_, SDL_FALSE); }
+  void make_borderless() const { SDL_SetWindowBordered(window, SDL_FALSE); }
 
-  void show() const { SDL_ShowWindow(window_); }
+  void show() const { SDL_ShowWindow(window); }
 
-  void hide() const { SDL_HideWindow(window_); }
+  void hide() const { SDL_HideWindow(window); }
 
-  void raise() const { SDL_RaiseWindow(window_); }
+  void raise() const { SDL_RaiseWindow(window); }
 
-  void maximize() const { SDL_MaximizeWindow(window_); }
+  void maximize() const { SDL_MaximizeWindow(window); }
 
-  void minimize() const { SDL_MinimizeWindow(window_); }
+  void minimize() const { SDL_MinimizeWindow(window); }
 
-  void restore() const { SDL_RestoreWindow(window_); }
+  void restore() const { SDL_RestoreWindow(window); }
 
   void flash();
 
   void make_fullscreen() const {
-    ASH_CHECK(SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP) ==
+    ASH_CHECK(SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP) ==
               0);
   }
 
   void make_nonfullscreen_exclusive() const {
-    ASH_CHECK(SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN) == 0);
+    ASH_CHECK(SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN) == 0);
   }
 
   void make_windowed() const {
-    ASH_CHECK(SDL_SetWindowFullscreen(window_, 0) == 0);
+    ASH_CHECK(SDL_SetWindowFullscreen(window, 0) == 0);
   }
 
   // void enable_hit_testing();
 
-  void make_resizable() const { SDL_SetWindowResizable(window_, SDL_TRUE); }
+  void make_resizable() const { SDL_SetWindowResizable(window, SDL_TRUE); }
 
-  void make_unresizable() const { SDL_SetWindowResizable(window_, SDL_FALSE); }
+  void make_unresizable() const { SDL_SetWindowResizable(window, SDL_FALSE); }
 
   void resize();
 
@@ -159,48 +159,45 @@ struct Window {
 
   WindowSwapchainDiff present(u32 swapchain_image_index);
 
-  void on(WindowEvent event, stx::UniqueFn<void()> callback) {
-    event_listeners.push(std::make_pair(event, std::move(callback))).unwrap();
+  void on(WindowEvent event, stx::UniqueFn<void()> action) {
+    event_listeners.push(std::make_pair(event, std::move(action))).unwrap();
   }
+
+  void on_key_down(stx::UniqueFn<void(Key, KeyModifiers)>);
+
+  void on_key_up(stx::UniqueFn<void(Key, KeyModifiers)>);
 
   // on keypressed
 
   /* TODO(lamarrr): repeat all widget events */
 
-  // use SDL_EVENT_DISPLAY
-  void on_refresh_rate_changed();
-  // keyboard
-  // mouse
-  // controller
   // global: virtual void on_copy();
   // global: virtual void on_cut();
   // global: virtual void on_paste();
   // global: virtual void on_full_screen_change();
 
-  void tick(std::chrono::nanoseconds) {
-    SDL_DisplayMode display_mode;
-    ASH_CHECK(SDL_GetWindowDisplayMode(window_, &display_mode) == 0,
-              "Unable to get window display mode");
-    refresh_rate_ = AS_U32(display_mode.refresh_rate);
-    // forward event if refresh rate changed
-  }
+  void tick(std::chrono::nanoseconds) {}
 
-  bool needs_resizing = false;
-  stx::Rc<WindowApi*> api_;
-  SDL_Window* window_ = nullptr;
-  WindowID id_ = WindowID{0};
-  extent window_extent_;
-  extent surface_extent_;
-  WindowConfig cfg_;
-  std::thread::id init_thread_id_;
-  stx::Option<stx::Unique<vk::Surface*>> surface_;
-  u32 refresh_rate_ = 1;
+  stx::Rc<WindowApi*> api;
+  SDL_Window* window = nullptr;
+  WindowID id{0};
+  extent window_extent;
+  extent surface_extent;
+  WindowConfig cfg;
+  std::thread::id init_thread_id;
+  stx::Option<stx::Unique<vk::Surface*>> surface;
+  bool needs_resizing =
+      false;  // TODO(lamarrr): this is written to but never read
   stx::Vec<std::pair<WindowEvent, stx::UniqueFn<void()>>> event_listeners{
       stx::os_allocator};
-  stx::UniqueFn<void(MouseClickEvent const&)> mouse_click_listener =
-      stx::fn::rc::make_unique_static([](MouseClickEvent const&) {});
-  stx::UniqueFn<void(MouseMotionEvent const&)> mouse_motion_listener =
-      stx::fn::rc::make_unique_static([](MouseMotionEvent const&) {});
+  stx::Vec<stx::UniqueFn<void(MouseClickEvent)>> mouse_click_listeners{
+      stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>> mouse_motion_listeners{
+      stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>> key_down_listeners{
+      stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>> key_up_listeners{
+      stx::os_allocator};
 };
 
 stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg);
