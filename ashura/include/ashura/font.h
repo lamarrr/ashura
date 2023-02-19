@@ -106,9 +106,8 @@ struct Font {
 };
 
 inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
-  hb_blob_t* hbblob =
-      hb_blob_create(static_cast<char*>(memory.handle), static_cast<uint>(size),
-                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+  hb_blob_t* hbblob = hb_blob_create(AS(char*, memory.handle), AS(uint, size),
+                                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
   ASH_CHECK(hbblob != nullptr);
 
   hb_face_t* hbface = hb_face_create(hbblob, 0);
@@ -124,9 +123,8 @@ inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
   ASH_CHECK(FT_Init_FreeType(&ftlib) == 0);
 
   FT_Face ftface;
-  ASH_CHECK(FT_New_Memory_Face(ftlib,
-                               static_cast<FT_Byte const*>(memory.handle),
-                               static_cast<FT_Long>(size), 0, &ftface) == 0);
+  ASH_CHECK(FT_New_Memory_Face(ftlib, AS(FT_Byte const*, memory.handle),
+                               AS(FT_Long, size), 0, &ftface) == 0);
 
   return stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont,
                                      hbscratch_buffer, ftlib, ftface,
@@ -147,7 +145,7 @@ inline stx::Result<stx::Rc<Font*>, FontLoadError> load_font_from_file(
 
   stx::Memory memory = stx::mem::allocate(stx::os_allocator, size).unwrap();
 
-  stream.read(static_cast<char*>(memory.handle), size);
+  stream.read(AS(char*, memory.handle), size);
 
   stream.close();
 
@@ -251,13 +249,13 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
       glyphs.begin(), glyphs.end(),
       [](Glyph const& a, Glyph const& b) { return a.index == b.index; });
 
-  glyphs.resize(static_cast<size_t>(last - glyphs.begin())).unwrap();
+  glyphs.resize(AS(size_t, last - glyphs.begin())).unwrap();
 
   stx::Memory rects_mem =
       stx::mem::allocate(stx::os_allocator, sizeof(rp::rect) * glyphs.size())
           .unwrap();
 
-  stx::Span rects{static_cast<rp::rect*>(rects_mem.handle), glyphs.size()};
+  stx::Span rects{AS(rp::rect*, rects_mem.handle), glyphs.size()};
 
   for (usize i = 0; i < glyphs.size(); i++) {
     rects[i].glyph_index = glyphs[i].index;
@@ -269,9 +267,9 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
       stx::mem::allocate(stx::os_allocator, sizeof(rp::Node) * max_extent.width)
           .unwrap();
 
-  rp::Context context = rp::init(max_extent.width, max_extent.height,
-                                 static_cast<rp::Node*>(nodes_memory.handle),
-                                 max_extent.width, false);
+  rp::Context context =
+      rp::init(max_extent.width, max_extent.height,
+               AS(rp::Node*, nodes_memory.handle), max_extent.width, false);
   ASH_CHECK(rp::pack_rects(context, rects.data(), AS_I32(rects.size())));
 
   extent atlas_extent;
@@ -334,7 +332,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
   stx::Memory buffer_mem =
       stx::mem::allocate(stx::os_allocator, atlas_extent.area() * 4).unwrap();
 
-  u8* buffer = static_cast<u8*>(buffer_mem.handle);
+  u8* buffer = AS(u8*, buffer_mem.handle);
 
   std::memset(buffer, 0, atlas_extent.area() * 4);
 
