@@ -25,6 +25,7 @@ struct WidgetSystem {
   }
 
   constexpr void launch(WidgetContext& context) {
+    if (root == nullptr) return;
     launch_recursive(*root, context);
   }
 
@@ -37,6 +38,7 @@ struct WidgetSystem {
   }
 
   constexpr void exit(WidgetContext& context) {
+    if (root == nullptr) return;
     exit_recursive(*root, context);
   }
 
@@ -61,9 +63,10 @@ struct WidgetSystem {
     }
   }
 
-  constexpr void tick(WidgetContext& context, gfx::Canvas& canvas,
-                      std::chrono::nanoseconds interval, vec2 viewport_extent) {
+  void tick(WidgetContext& context, gfx::Canvas& canvas,
+            std::chrono::nanoseconds interval, vec2 viewport_extent) {
     // TODO(lamarrr): pump gathered events
+    if (root == nullptr) return;
 
     tick_recursive(*root, context, interval);
     perform_layout(*root,
