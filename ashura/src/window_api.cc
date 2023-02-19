@@ -136,15 +136,26 @@ bool WindowApi::poll_events() {
         return true;
       }
 
-        get_window_info(WindowID{event.button.windowID})
-            ->mouse_motion_listener.handle(mouse_event);
-
+      case SDL_KEYDOWN: {
+        for (auto& listener : get_window_info(WindowID{event.key.windowID})
+                                  ->key_down_listeners) {
+          listener.handle(event.key.keysym.sym,
+                          AS(KeyModifiers, event.key.keysym.mod));
+        }
         return true;
       }
 
-      case SDL_MOUSEWHEEL: {
+      case SDL_KEYUP: {
+        for (auto& listener :
+             get_window_info(WindowID{event.key.windowID})->key_up_listeners) {
+          listener.handle(event.key.keysym.sym,
+                          AS(KeyModifiers, event.key.keysym.mod));
+        }
         return true;
       }
+
+        /* Touch events */
+        /* Gesture events */
 
         // TODO(lamarrr): forward other events
         // case SDL_CLIPBOARDUPDATE
@@ -154,14 +165,11 @@ bool WindowApi::poll_events() {
         // case SDL_DROPBEGIN
         // case SDL_DROPCOMPLETE
 
-        // TODO(lamarrr): add requestkeyoardinput
-        // SDL_KEYDOWN
-        // SDL_KEYUP,
         // SDL_TEXTEDITING,
         // SDL_TEXTINPUT,
         // SDL_KEYMAPCHANGED,
 
-        // Future
+        // TODO(lamarrr): Consider:
         // SDL_CONTROLLERAXISMOTION
         // SDL_CONTROLLERBUTTONDOWN
         // SDL_CONTROLLERBUTTONUP
