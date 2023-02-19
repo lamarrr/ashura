@@ -266,7 +266,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
   auto record_draw_commands = [&]() {
     VkExtent2D extent =
-        window.value()->surface_.value()->swapchain.value().window_extent;
+        window.value()->surface.value()->swapchain.value().window_extent;
 
     gfx::Canvas& c = canvas.value();
     static int x = 0;
