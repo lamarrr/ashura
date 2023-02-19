@@ -10,6 +10,7 @@
 #include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
 #include "ashura/event.h"
+#include "ashura/plugin.h"
 #include "ashura/primitives.h"
 #include "simdjson.h"
 #include "stx/fn.h"
