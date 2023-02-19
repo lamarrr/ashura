@@ -14,7 +14,7 @@
 namespace ash {
 
 namespace impl {
-inline WindowEvent sdl_window_event_to_ash(u8 win_event_type) {
+constexpr WindowEvent sdl_window_event_to_ash(u8 win_event_type) {
   switch (win_event_type) {
     case SDL_WINDOWEVENT_NONE:
       return WindowEvent::None;
