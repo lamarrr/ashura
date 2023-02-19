@@ -790,11 +790,11 @@ struct Canvas {
       }
       hb_buffer_set_language(font.hbscratch_buffer, run.language);
       hb_buffer_add_utf8(font.hbscratch_buffer, subword.text.begin(),
-                         static_cast<int>(subword.text.size()), 0,
-                         static_cast<int>(subword.text.size()));
+                         AS(int, subword.text.size()), 0,
+                         AS(int, subword.text.size()));
 
       hb_shape(font.hbfont, font.hbscratch_buffer, shaping_features,
-               static_cast<uint>(std::size(shaping_features)));
+               AS(uint, std::size(shaping_features)));
 
       uint nglyphs;
       hb_glyph_info_t* glyph_info =
