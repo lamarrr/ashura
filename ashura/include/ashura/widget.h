@@ -158,10 +158,10 @@ struct Widget {
   constexpr virtual void draw(gfx::Canvas &canvas, rect area) {}
 
   // called before children are drawn
-  // constexpr virtual void pre_draw(gfx::Canvas &canvas, usize child) {}
+  constexpr virtual void pre_draw(gfx::Canvas &canvas, Widget &child) {}
 
   // called once children are drawn
-  // constexpr virtual void post_draw(gfx::Canvas &canvas, usize child) {}
+  constexpr virtual void post_draw(gfx::Canvas &canvas, Widget &child) {}
 
   //
   constexpr virtual void tick(WidgetContext &context,
