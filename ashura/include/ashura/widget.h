@@ -177,30 +177,29 @@ struct Widget {
   constexpr virtual void on_leave_viewport() {}
 
   //
-  constexpr virtual void on_click(MouseButton button, u32 nclicks,
-                                  KeyModifiers modifiers, vec2 position) {}
+  constexpr virtual void on_click(MouseButton button, vec2 position,
+                                  u32 nclicks, KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_double_click(MouseButton button,
-                                         KeyModifiers modifiers,
-                                         vec2 position) {}
+  constexpr virtual void on_double_click(MouseButton button, vec2 position,
+                                         KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_scroll(KeyModifiers modifiers,
+  constexpr virtual void on_mouse_scroll(vec2 previous_position,
+                                         vec2 current_position,
                                          vec2 translation,
-                                         vec2 previous_position,
-                                         vec2 current_position) {}
+                                         KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_move(KeyModifiers modifiers,
-                                       vec2 previous_position,
-                                       vec2 current_position) {}
+  constexpr virtual void on_mouse_move(vec2 previous_position,
+                                       vec2 current_position,
+                                       KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_hover(KeyModifiers modifiers, vec2 position) {}
+  constexpr virtual void on_hover(vec2 position, KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_down(KeyModifiers modifiers, vec2 position) {}
+  constexpr virtual void on_mouse_down(vec2 position, KeyModifiers modifiers) {}
 
   //
   constexpr virtual void on_mouse_up(KeyModifiers modifiers) {}
