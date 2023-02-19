@@ -124,7 +124,7 @@ Engine::Engine(AppConfig const& cfg) {
       stx::rc::make(
           stx::os_allocator,
           select_device(phy_devices, device_preference,
-                        *window.value()->surface_.value().handle)
+                        *window.value()->surface.value().handle)
               .expect("Unable to find any suitable rendering device")[0]
               .copy())
           .unwrap();
@@ -179,7 +179,7 @@ Engine::Engine(AppConfig const& cfg) {
                            vk::SwapChain::MAX_FRAMES_IN_FLIGHT)
                            .unwrap());
 
-  auto& swp = window.value()->surface_.value()->swapchain.value();
+  auto& swp = window.value()->surface.value()->swapchain.value();
   renderer.value()->ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
 
   window.value()->on(WindowEvent::Resized,
@@ -187,8 +187,10 @@ Engine::Engine(AppConfig const& cfg) {
                        ASH_LOG("resized");
                      }).unwrap());
 
-  window.value()->mouse_motion_listener =
-      stx::fn::rc::make_unique_static([](MouseMotionEvent const&) {});
+  window.value()
+      ->mouse_motion_listeners
+      .push(stx::fn::rc::make_unique_static([](MouseMotionEvent) {}))
+      .unwrap();
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -366,13 +368,13 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   do {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       window.value()->recreate_swapchain(queue.value());
-      auto& swp = window.value()->surface_.value()->swapchain.value();
+      auto& swp = window.value()->surface.value()->swapchain.value();
       renderer.value()->ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
       record_draw_commands();
     }
 
     vk::SwapChain& swapchain =
-        window.value()->surface_.value()->swapchain.value();
+        window.value()->surface.value()->swapchain.value();
 
     auto [diff, swapchain_image_index] = window.value()->acquire_image();
 
