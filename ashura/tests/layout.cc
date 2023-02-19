@@ -3,8 +3,15 @@
 
 #include "ashura/palletes.h"
 #include "ashura/widget_system.h"
+#include "ashura/widgets/box.h"
+#include "ashura/widgets/button.h"
 #include "ashura/widgets/flex.h"
+#include "ashura/widgets/grid.h"
 #include "ashura/widgets/image.h"
+#include "ashura/widgets/padding.h"
+#include "ashura/widgets/stack.h"
+#include "ashura/widgets/text.h"
+#include "ashura/widgets/window.h"
 #include "gtest/gtest.h"
 
 using namespace ash;
