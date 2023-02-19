@@ -5,12 +5,7 @@
 
 namespace ash {
 
-enum class AnimationStatus: u8{
-Completed,
-Forward,
-Dismissed,
-Reversed
-};
+enum class AnimationStatus : u8 { Completed, Forward, Dismissed, Reversed };
 
 // https://api.flutter.dev/flutter/animation/Animation-class.html
 struct Animation {
@@ -18,7 +13,7 @@ struct Animation {
   usize nrepeats = 0;
   f32 speed = 1;
   bool auto_reverses = false;
-  f32 value =0;
+  f32 value = 0;
 
   virtual f32 tick(std::chrono::nanoseconds interval, f32 previous);
 };
