@@ -109,29 +109,20 @@ struct WidgetInfo {
   u64 id = 0;
 };
 
-struct Plugin {
-  virtual constexpr void on_startup();
-
-  virtual constexpr void tick(std::chrono::nanoseconds interval);
-
-  virtual constexpr void on_exit();
-
-  virtual constexpr std::string_view get_id();
-
-  template <typename T>
-  T *as() {
-    T *ptr = dynamic_cast<T *>(this);
-    ASH_CHECK(ptr != nullptr);
-    return ptr;
-  }
-
-  virtual constexpr ~Plugin() {}
-};
-
 struct WidgetContext {
   // renderer context
   // asset bundles
   std::map<std::string, Plugin *, std::less<>> plugins;
+
+  template <typename T>
+  stx::Option<T *> get_plugin(std::string_view id) const {
+    auto pos = plugins.find(id);
+    if (pos != plugins.end()) {
+      return stx::Some(pos->second->as<T>());
+    } else {
+      return stx::None;
+    }
+  }
 };
 
 /// SEE: (https://www.w3.org/TR/uievents)
