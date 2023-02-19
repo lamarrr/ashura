@@ -67,17 +67,16 @@ bool WindowApi::poll_events() {
   if (SDL_PollEvent(&event)) {
     switch (event.type) {
       case SDL_WINDOWEVENT: {
-        Window* win = get_window_info(WindowID{event.window.windowID});
-
         WindowEvent win_event =
             impl::sdl_window_event_to_ash(event.window.event);
 
-        for (auto const& listener : win->event_listeners) {
+        for (auto const& listener :
+             get_window_info(WindowID{event.window.windowID})
+                 ->event_listeners) {
           if (listener.first == win_event) {
             listener.second.handle();
           }
         }
-
         return true;
       }
 
