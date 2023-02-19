@@ -273,19 +273,6 @@ struct Widget {
   //
   constexpr virtual void on_select() {}
 
-  //
-  constexpr virtual void on_key_down(KeyModifiers modifiers) {}
-
-  //
-  constexpr virtual void on_key_up(KeyModifiers modifiers) {}
-
-  //
-  constexpr virtual void on_keypressed(KeyModifiers modifiers) {}
-
-  //
-  // constexpr virtual void on_input(stx::Span<char const> data) {
-  // }  // <- input widget
-
   // TODO(lamarrr): can this be simpler?
   // virtual void raise_tooltip(){}
   // virtual void lower_tooltip(){}
