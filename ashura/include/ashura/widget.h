@@ -149,6 +149,9 @@ struct Widget {
   constexpr virtual i64 get_z_index(i64 z_index) { return z_index; }
 
   //
+  constexpr virtual mat4 get_transform() { return mat4::identity(); }
+
+  //
   constexpr virtual Layout layout(rect area) { return Layout{}; }
 
   //
