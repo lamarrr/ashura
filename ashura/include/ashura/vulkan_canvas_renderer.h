@@ -104,7 +104,7 @@ struct CanvasRenderer {
 
     VkQueue queue = this->queue->info.queue;
 
-    VkCommandBuffer cmd_buffer = ctx.draw_cmd_buffers[frame];
+    VkCommandBuffer cmd_buffer = ctx.cmd_buffers[frame];
 
     vertex_buffers[frame].write(dev, memory_properties,
                                 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
