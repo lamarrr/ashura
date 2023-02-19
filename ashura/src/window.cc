@@ -10,19 +10,18 @@
 namespace ash {
 
 stx::Vec<char const*> Window::get_required_instance_extensions() const {
-  u32 ext_count = 0;
+  u32 ext_count;
   stx::Vec<char const*> required_instance_extensions{stx::os_allocator};
 
   ASH_SDL_CHECK(
-      SDL_Vulkan_GetInstanceExtensions(window_, &ext_count, nullptr) ==
-          SDL_TRUE,
+      SDL_Vulkan_GetInstanceExtensions(window, &ext_count, nullptr) == SDL_TRUE,
       "unable to get number of window's required Vulkan instance extensions");
 
   required_instance_extensions.resize(ext_count).unwrap();
 
   ASH_SDL_CHECK(
       SDL_Vulkan_GetInstanceExtensions(
-          window_, &ext_count, required_instance_extensions.data()) == SDL_TRUE,
+          window, &ext_count, required_instance_extensions.data()) == SDL_TRUE,
       "unable to get window's required Vulkan instance extensions");
 
   return required_instance_extensions;
@@ -31,25 +30,25 @@ stx::Vec<char const*> Window::get_required_instance_extensions() const {
 void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
   VkSurfaceKHR surface;
 
-  ASH_SDL_CHECK(SDL_Vulkan_CreateSurface(window_, instance->instance,
+  ASH_SDL_CHECK(SDL_Vulkan_CreateSurface(window, instance->instance,
                                          &surface) == SDL_TRUE,
                 "unable to create surface for window");
 
-  surface_ = stx::Some(stx::rc::make_unique_inplace<vk::Surface>(
-                           stx::os_allocator, instance.share(), surface)
-                           .unwrap());
+  this->surface = stx::Some(stx::rc::make_unique_inplace<vk::Surface>(
+                                stx::os_allocator, instance.share(), surface)
+                                .unwrap());
 }
 
 void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   // if cause of change in swapchain is a change in extent, then mark
   // layout as dirty, otherwise maintain pipeline state
-  int width = 0, height = 0;
-  SDL_GetWindowSize(window_, &width, &height);
-  window_extent_ = extent{AS_U32(width), AS_U32(height)};
+  int width, height;
+  SDL_GetWindowSize(window, &width, &height);
+  window_extent = extent{AS_U32(width), AS_U32(height)};
 
-  int surface_width = 0, surface_height = 0;
-  SDL_Vulkan_GetDrawableSize(window_, &surface_width, &surface_height);
-  surface_extent_ = extent{AS_U32(surface_width), AS_U32(surface_height)};
+  int surface_width, surface_height;
+  SDL_Vulkan_GetDrawableSize(window, &surface_width, &surface_height);
+  surface_extent = extent{AS_U32(surface_width), AS_U32(surface_height)};
 
   VkSurfaceFormatKHR preferred_formats[] = {
       {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
@@ -65,12 +64,11 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
   VkSampleCountFlagBits msaa_sample_count =
       queue->device->phy_device->get_max_sample_count();
 
-  surface_.value()->change_swapchain(
+  surface.value()->change_swapchain(
       queue, preferred_formats, preferred_present_modes,
-      VkExtent2D{.width = surface_extent_.width,
-                 .height = surface_extent_.height},
-      VkExtent2D{.width = window_extent_.width,
-                 .height = window_extent_.height},
+      VkExtent2D{.width = surface_extent.width,
+                 .height = surface_extent.height},
+      VkExtent2D{.width = window_extent.width, .height = window_extent.height},
       msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
 
   ASH_LOG(
@@ -80,12 +78,12 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
 }
 
 std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
-  ASH_CHECK(surface_.is_some(),
+  ASH_CHECK(surface.is_some(),
             "trying to present to swapchain without having surface attached");
-  ASH_CHECK(surface_.value()->swapchain.is_some(),
+  ASH_CHECK(surface.value()->swapchain.is_some(),
             "trying to present to swapchain without having one");
 
-  vk::SwapChain& swapchain = surface_.value()->swapchain.value();
+  vk::SwapChain& swapchain = surface.value()->swapchain.value();
 
   VkDevice dev = swapchain.queue->device->device;
 
@@ -118,15 +116,15 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
 }
 
 WindowSwapchainDiff Window::present(u32 swapchain_image_index) {
-  ASH_CHECK(surface_.is_some(),
+  ASH_CHECK(surface.is_some(),
             "trying to present to swapchain without having surface attached");
-  ASH_CHECK(surface_.value()->swapchain.is_some(),
+  ASH_CHECK(surface.value()->swapchain.is_some(),
             "trying to present to swapchain without having one");
 
   // we submit multiple render commands (operating on the swapchain images) to
   // the GPU to prevent having to force a sync with the GPU (await_fence) when
   // it could be doing useful work.
-  vk::SwapChain& swapchain = surface_.value()->swapchain.value();
+  vk::SwapChain& swapchain = surface.value()->swapchain.value();
 
   // we don't need to wait on presentation
   //
@@ -231,7 +229,7 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
                                     std::move(cfg), std::this_thread::get_id())
           .unwrap();
 
-  win->api_->add_window_info(win->id_, win.handle);
+  win->api->add_window_info(win->id, win.handle);
 
   return win;
 }
