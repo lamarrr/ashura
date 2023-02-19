@@ -82,10 +82,10 @@ bool WindowApi::poll_events() {
 
       case SDL_MOUSEBUTTONDOWN:
       case SDL_MOUSEBUTTONUP: {
-        MouseClickEvent mouse_event;
-        mouse_event.mouse_id = MouseID{event.button.which};
-        mouse_event.offset = offseti{event.button.x, event.button.y};
-        mouse_event.clicks = event.button.clicks;
+        MouseClickEvent mouse_event{
+            .mouse_id = MouseID{event.button.which},
+            .offset = offseti{event.button.x, event.button.y},
+            .clicks = event.button.clicks};
 
         switch (event.button.button) {
           case SDL_BUTTON_LEFT:
@@ -114,9 +114,10 @@ bool WindowApi::poll_events() {
             return true;
         }
 
-        get_window_info(WindowID{event.button.windowID})
-            ->mouse_click_listener.handle(mouse_event);
-
+        for (auto& listener : get_window_info(WindowID{event.button.windowID})
+                                  ->mouse_click_listeners) {
+          listener.handle(mouse_event);
+        }
         return true;
       }
 
