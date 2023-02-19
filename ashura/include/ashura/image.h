@@ -14,7 +14,7 @@ struct RgbaImageBuffer {
   extent extent;
 
   stx::Span<u8 const> span() const {
-    return stx::Span{static_cast<u8*>(memory.handle), extent.area() * 4};
+    return stx::Span{AS(u8*, memory.handle), extent.area() * 4};
   }
 };
 
