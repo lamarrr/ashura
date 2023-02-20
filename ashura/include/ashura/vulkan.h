@@ -481,8 +481,8 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
     VkSharingMode accessing_queue_families_sharing_mode,
-    VkImageUsageFlags image_usages,
-    VkCompositeAlphaFlagBitsKHR alpha_channel_blending, VkBool32 clipped) {
+    VkImageUsageFlags image_usages, VkCompositeAlphaFlagBitsKHR alpha_blending,
+    VkBool32 clipped) {
   u32 desired_nbuffers = std::min(properties.capabilities.minImageCount + 1,
                                   properties.capabilities.maxImageCount);
 
@@ -514,10 +514,9 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
       .queueFamilyIndexCount = 0,
       .pQueueFamilyIndices = nullptr,
       .preTransform = properties.capabilities.currentTransform,
-      .compositeAlpha =
-          alpha_channel_blending,  // how the alpha channel should be
-                                   // used for blending with other
-                                   // windows in the window system
+      .compositeAlpha = alpha_blending,  // how the alpha channel should be
+                                         // used for blending with other
+                                         // windows in the window system
       .presentMode = present_mode,
       // clipped specifies whether the Vulkan implementation is allowed to
       // discard rendering operations that affect regions of the surface that
@@ -744,27 +743,25 @@ struct CommandQueueInfo {
   CommandQueueFamilyInfo family;
 };
 
-struct Device;
-
-struct CommandQueue {
-  CommandQueueInfo info;
-  stx::Rc<Device*> device;
-};
-
 struct Device {
-  VkDevice device = VK_NULL_HANDLE;
-  stx::Rc<PhyDeviceInfo*> phy_device;
+  VkDevice dev = VK_NULL_HANDLE;
+  stx::Rc<PhyDeviceInfo*> phy_dev;
   stx::Vec<CommandQueueInfo> command_queues{stx::os_allocator};
 
   Device(VkDevice adevice, stx::Rc<PhyDeviceInfo*> aphy_device,
          stx::Vec<CommandQueueInfo> acommand_queues)
-      : device{adevice},
-        phy_device{std::move(aphy_device)},
+      : dev{adevice},
+        phy_dev{std::move(aphy_device)},
         command_queues{std::move(acommand_queues)} {}
 
   STX_MAKE_PINNED(Device)
 
-  ~Device() { vkDestroyDevice(device, nullptr); }
+  ~Device() { vkDestroyDevice(dev, nullptr); }
+};
+
+struct CommandQueue {
+  CommandQueueInfo info;
+  stx::Rc<Device*> device;
 };
 
 inline stx::Rc<Instance*> create_instance(
@@ -853,7 +850,7 @@ inline stx::Option<CommandQueue> get_command_queue(
     stx::Rc<Device*> const& device, CommandQueueFamilyInfo const& family,
     u32 command_queue_create_index) {
   // We shouldn't have to perform checks?
-  ASH_CHECK(device->phy_device->phy_device == family.phy_device->phy_device);
+  ASH_CHECK(device->phy_dev->phy_device == family.phy_device->phy_device);
 
   stx::Span queue_s =
       device->command_queues.span().which([&](CommandQueueInfo const& info) {
@@ -882,14 +879,15 @@ struct Buffer {
   VkDeviceMemory memory = VK_NULL_HANDLE;
   void* memory_map = nullptr;
   usize size = 0;
+  VkDevice dev = VK_NULL_HANDLE;
 
-  void destroy(VkDevice dev) {
+  void destroy() {
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyBuffer(dev, buffer, nullptr);
   }
 
-  void write(VkDevice dev, void const* data) {
+  void write(void const* data) {
     std::memcpy(memory_map, data, size);
 
     VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
@@ -908,8 +906,10 @@ struct SpanBuffer {
   void* memory_map = nullptr;
   usize size = 0;
   usize memory_size = 0;
+  VkBufferUsageFlags usage = 0;
+  VkDevice dev = VK_NULL_HANDLE;
 
-  void destroy(VkDevice dev) {
+  void destroy() {
     vkUnmapMemory(dev, memory);
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
@@ -918,13 +918,16 @@ struct SpanBuffer {
 
   bool is_valid() const {
     return buffer != VK_NULL_HANDLE && memory != VK_NULL_HANDLE &&
-           memory_map != nullptr && size != 0 && memory_size != 0;
+           memory_map != nullptr && size != 0 && memory_size != 0 &&
+           dev != VK_NULL_HANDLE;
   }
 
-  void init(VkDevice dev,
+  void init(VkDevice adev,
             VkPhysicalDeviceMemoryProperties const& memory_properties,
-            VkBufferUsageFlags usage) {
+            VkBufferUsageFlags ausage) {
+    dev = adev;
     size = 0;
+    usage = ausage;
 
     VkBufferCreateInfo create_info{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -967,9 +970,8 @@ struct SpanBuffer {
     ASH_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
   }
 
-  void write(VkDevice dev,
-             VkPhysicalDeviceMemoryProperties const& memory_properties,
-             VkBufferUsageFlags usage, stx::Span<u8 const> span) {
+  void write(VkPhysicalDeviceMemoryProperties const& memory_properties,
+             stx::Span<u8 const> span) {
     if (span.is_empty()) {
       size = 0;
       return;
@@ -1084,15 +1086,17 @@ inline Buffer create_host_buffer(
   return Buffer{.buffer = buffer,
                 .memory = memory,
                 .memory_map = memory_map,
-                .size = size_bytes};
+                .size = size_bytes,
+                .dev = dev};
 }
 
 struct Image {
   VkImage image = VK_NULL_HANDLE;
   VkImageView view = VK_NULL_HANDLE;
   VkDeviceMemory memory = VK_NULL_HANDLE;
+  VkDevice dev = VK_NULL_HANDLE;
 
-  void destroy(VkDevice dev) {
+  void destroy() {
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyImageView(dev, view, nullptr);
@@ -1116,7 +1120,7 @@ struct ImageResource {
   STX_MAKE_PINNED(ImageResource)
 
   ~ImageResource() {
-    VkDevice dev = queue->device->device;
+    VkDevice dev = queue->device->dev;
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyImageView(dev, view, nullptr);
@@ -1124,18 +1128,13 @@ struct ImageResource {
   }
 };
 
-struct ImageSampler {
+struct Sampler {
   VkSampler sampler = VK_NULL_HANDLE;
-  stx::Rc<Device*> device;
+  VkDevice dev = VK_NULL_HANDLE;
 
-  ImageSampler(VkSampler asampler, stx::Rc<Device*> adevice)
-      : sampler{asampler}, device{std::move(adevice)} {}
-
-  STX_MAKE_PINNED(ImageSampler)
-
-  ~ImageSampler() {
-    ASH_VK_CHECK(vkDeviceWaitIdle(device->device));
-    vkDestroySampler(device->device, sampler, nullptr);
+  void destroy() {
+    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
+    vkDestroySampler(dev, sampler, nullptr);
   }
 };
 
@@ -1154,8 +1153,7 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device, VkFilter filter,
       .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
       .mipLodBias = 0,
       .anisotropyEnable = enable_anisotropy,
-      .maxAnisotropy =
-          device->phy_device->properties.limits.maxSamplerAnisotropy,
+      .maxAnisotropy = device->phy_dev->properties.limits.maxSamplerAnisotropy,
       .compareEnable = VK_FALSE,
       .compareOp = VK_COMPARE_OP_ALWAYS,
       .minLod = 0,
@@ -1165,20 +1163,17 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device, VkFilter filter,
 
   VkSampler sampler;
 
-  ASH_VK_CHECK(
-      vkCreateSampler(device->device, &create_info, nullptr, &sampler));
+  ASH_VK_CHECK(vkCreateSampler(device->dev, &create_info, nullptr, &sampler));
 
   return sampler;
 }
 
-inline stx::Rc<ImageSampler*> create_image_sampler(
-    stx::Rc<Device*> const& device, VkFilter filter, VkSamplerMipmapMode mipmap,
-    VkBool32 enable_anisotropy) {
-  return stx::rc::make_inplace<ImageSampler>(
-             stx::os_allocator,
-             create_sampler(device, filter, mipmap, enable_anisotropy),
-             device.share())
-      .unwrap();
+inline Sampler create_sampler2(stx::Rc<Device*> const& device, VkFilter filter,
+                               VkSamplerMipmapMode mipmap,
+                               VkBool32 enable_anisotropy) {
+  return Sampler{
+      .sampler = create_sampler(device, filter, mipmap, enable_anisotropy),
+      .dev = device->dev};
 }
 
 struct DescriptorBinding {
@@ -1292,7 +1287,7 @@ inline Image create_msaa_color_resource(
 
   ASH_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
-  return Image{.image = image, .view = view, .memory = memory};
+  return Image{.image = image, .view = view, .memory = memory, .dev = dev};
 }
 
 inline Image create_msaa_depth_resource(
@@ -1365,7 +1360,7 @@ inline Image create_msaa_depth_resource(
 
   ASH_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
-  return Image{.image = image, .view = view, .memory = memory};
+  return Image{.image = image, .view = view, .memory = memory, .dev = dev};
 }
 
 // choose a specific swapchain format available on the surface
@@ -1471,7 +1466,7 @@ inline VkFormat find_depth_format(VkPhysicalDevice phy_dev) {
 /// its images, nor its image views outside itself (the swapchain object).
 ///
 struct SwapChain {
-  static constexpr u32 MAX_FRAMES_IN_FLIGHT = 2;
+  static constexpr u32 DEFAULT_MAX_FRAMES_IN_FLIGHT = 2;
 
   // actually holds the images of the surface and used to present to the render
   // target image. when resizing is needed, the swapchain is destroyed and
@@ -1522,22 +1517,23 @@ struct SwapChain {
 
   VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 
-  stx::Rc<CommandQueue*> queue;
+  VkDevice dev = VK_NULL_HANDLE;
 
-  SwapChain(stx::Rc<CommandQueue*> aqueue, VkSurfaceKHR target_surface,
+// TODO(lamarrr): add max_nframes argument
+  void init(VkPhysicalDevice phy,
+            VkPhysicalDeviceMemoryProperties const& memory_properties,
+            VkDevice adev, VkSurfaceKHR target_surface,
             stx::Span<VkSurfaceFormatKHR const> preferred_formats,
             stx::Span<VkPresentModeKHR const> preferred_present_modes,
             VkExtent2D preferred_extent, VkExtent2D awindow_extent,
             VkSampleCountFlagBits amsaa_sample_count,
-            VkCompositeAlphaFlagBitsKHR alpha_compositing)
-      : queue{std::move(aqueue)} {
-    VkPhysicalDevice phy_dev = queue->device->phy_device->phy_device;
-    VkDevice dev = queue->device->device;
+            VkCompositeAlphaFlagBitsKHR alpha_blending) {
+    dev = adev;
 
     // the properties change every time we need to create a swapchain so we must
     // query for this every time
     SwapChainProperties properties =
-        get_swapchain_properties(phy_dev, target_surface);
+        get_swapchain_properties(phy, target_surface);
 
     ASH_LOG("Device Supported Surface Formats:");
     for (VkSurfaceFormatKHR const& format : properties.supported_formats) {
@@ -1572,7 +1568,7 @@ struct SwapChain {
         // render target image
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
             VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-        alpha_compositing,
+        alpha_blending,
         // we don't care about the color of pixels that are obscured, for
         // example because another window is in front of them. Unless you really
         // need to be able to read these pixels back and get predictable
@@ -1582,17 +1578,16 @@ struct SwapChain {
     swapchain = new_swapchain;
     images = get_swapchain_images(dev, swapchain);
     color_format = selected_format;
-    depth_format = find_depth_format(phy_dev);
+    depth_format = find_depth_format(phy);
     present_mode = selected_present_mode;
     image_extent = new_extent;
     window_extent = awindow_extent;
     msaa_sample_count = amsaa_sample_count;
-    msaa_color_image = create_msaa_color_resource(
-        dev, queue->device->phy_device->memory_properties, color_format.format,
-        new_extent, msaa_sample_count);
+    msaa_color_image =
+        create_msaa_color_resource(dev, memory_properties, color_format.format,
+                                   new_extent, msaa_sample_count);
     msaa_depth_image = create_msaa_depth_resource(
-        dev, queue->device->phy_device->memory_properties, depth_format,
-        new_extent, msaa_sample_count);
+        dev, memory_properties, depth_format, new_extent, msaa_sample_count);
 
     for (VkImage image : images) {
       VkImageViewCreateInfo create_info{
@@ -1727,7 +1722,7 @@ struct SwapChain {
       framebuffers.push_inplace(framebuffer).unwrap();
     }
 
-    for (usize i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (usize i = 0; i < DEFAULT_MAX_FRAMES_IN_FLIGHT; i++) {
       VkSemaphoreCreateInfo semaphore_create_info{
           .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
           .pNext = nullptr,
@@ -1775,8 +1770,6 @@ struct SwapChain {
   }
 
   void destroy() {
-    VkDevice dev = queue->device->device;
-
     // await idleness of the semaphores device, so we can destroy the
     // semaphore and images whilst not in use.
     // any part of the device could be using the semaphore
@@ -1785,8 +1778,8 @@ struct SwapChain {
 
     vkDestroyRenderPass(dev, render_pass, nullptr);
 
-    msaa_color_image.destroy(dev);
-    msaa_depth_image.destroy(dev);
+    msaa_color_image.destroy();
+    msaa_depth_image.destroy();
 
     for (VkFramebuffer framebuffer : framebuffers) {
       vkDestroyFramebuffer(dev, framebuffer, nullptr);
@@ -1832,21 +1825,16 @@ struct Surface {
   //
   stx::Option<SwapChain> swapchain;
 
-  stx::Rc<Instance*> instance;
+  VkInstance instance = VK_NULL_HANDLE;
 
-  Surface(stx::Rc<Instance*> ainstance, VkSurfaceKHR asurface)
-      : surface{asurface}, instance{std::move(ainstance)} {}
-
-  STX_MAKE_PINNED(Surface)
-
-  ~Surface() {
+  void destroy() {
     // we need to ensure the swapchain is destroyed before the surface (if not
     // already destroyed)
     if (swapchain.is_some()) {
       swapchain.value().destroy();
     }
 
-    vkDestroySurfaceKHR(instance->instance, surface, nullptr);
+    vkDestroySurfaceKHR(instance, surface, nullptr);
   }
 
   void change_swapchain(
@@ -1855,16 +1843,22 @@ struct Surface {
       stx::Span<VkPresentModeKHR const> preferred_present_modes,
       VkExtent2D preferred_extent, VkExtent2D window_extent,
       VkSampleCountFlagBits msaa_sample_count,
-      VkCompositeAlphaFlagBitsKHR alpha_compositing) {
+      VkCompositeAlphaFlagBitsKHR alpha_blending) {
     // don't want to have two existing at once
     if (swapchain.is_some()) {
       swapchain.value().destroy();
       swapchain = stx::None;
     }
 
-    swapchain = stx::Some(SwapChain{
-        queue.share(), surface, preferred_formats, preferred_present_modes,
-        preferred_extent, window_extent, msaa_sample_count, alpha_compositing});
+    SwapChain new_swapchain;
+
+    new_swapchain.init(queue->device->phy_dev->phy_device,
+                       queue->device->phy_dev->memory_properties,
+                       queue->device->dev, surface, preferred_formats,
+                       preferred_present_modes, preferred_extent, window_extent,
+                       msaa_sample_count, alpha_blending);
+
+    swapchain = stx::Some(std::move(new_swapchain));
   }
 };
 
@@ -1873,14 +1867,16 @@ struct Pipeline {
   VkPipelineLayout layout = VK_NULL_HANDLE;
   VkRenderPass target_render_pass = VK_NULL_HANDLE;
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
+  VkDevice dev = VK_NULL_HANDLE;
 
   void build(
-      VkDevice dev, VkShaderModule vertex_shader,
+      VkDevice adev, VkShaderModule vertex_shader,
       VkShaderModule fragment_shader, VkRenderPass target_render_pass,
       VkSampleCountFlagBits amsaa_sample_count,
       stx::Span<VkDescriptorSetLayout const> descriptor_set_layout,
       stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
       u32 vertex_input_size, u32 push_constant_size) {
+    dev = adev;
     msaa_sample_count = amsaa_sample_count;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
@@ -2063,7 +2059,7 @@ struct Pipeline {
                                            nullptr, &pipeline));
   }
 
-  void destroy(VkDevice dev) {
+  void destroy() {
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkDestroyPipelineLayout(dev, layout, nullptr);
     vkDestroyPipeline(dev, pipeline, nullptr);
