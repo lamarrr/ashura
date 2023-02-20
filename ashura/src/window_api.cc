@@ -97,6 +97,12 @@ bool WindowApi::poll_events() {
           case SDL_BUTTON_MIDDLE:
             mouse_event.button = MouseButton::Middle;
             break;
+          case SDL_BUTTON_X1:
+            mouse_event.button = MouseButton::A1;
+            break;
+          case SDL_BUTTON_X2:
+            mouse_event.button = MouseButton::A2;
+            break;
           default:
             return true;
         }
