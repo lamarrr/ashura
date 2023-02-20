@@ -80,9 +80,8 @@ struct MouseClickEvent {
   MouseID mouse_id = 0;
   offseti offset;
   u32 clicks = 0;
-  MouseButton button = MouseButton::Primary;
+  MouseButton button = MouseButton::None;
   MouseAction action = MouseAction::Press;
-  KeyModifiers modifiers = KeyModifiers::None;
 };
 
 using Key = SDL_Keycode;
