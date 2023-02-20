@@ -93,6 +93,7 @@ struct Image : public Widget {
       case ImageState::Loading: {
       } break;
       case ImageState::Loaded: {
+        canvas.save();
         canvas.brush.fill = true;
         canvas.brush.texture = image;
         if (props.border_radius == vec4{0, 0, 0, 0}) {
@@ -100,7 +101,7 @@ struct Image : public Widget {
         } else {
           canvas.draw_round_rect(area, props.border_radius, 360);
         }
-        canvas.brush.texture = 0;
+        canvas.restore();
         // draw alt text?
       } break;
       case ImageState::LoadFailed: {
