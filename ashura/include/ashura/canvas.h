@@ -784,14 +784,17 @@ struct Canvas {
                         64 * atlas.font_height);
 
       hb_buffer_reset(font.hbscratch_buffer);
-      hb_buffer_set_script(font.hbscratch_buffer, run.script);
+      hb_buffer_set_script(font.hbscratch_buffer, AS(hb_script_t, run.script));
 
       if (run.direction == TextDirection::LeftToRight) {
         hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_LTR);
       } else {
         hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_RTL);
       }
-      hb_buffer_set_language(font.hbscratch_buffer, run.language);
+      hb_buffer_set_language(
+          font.hbscratch_buffer,
+          hb_language_from_string(run.language.data(),
+                                  AS(int, run.language.size())));
       hb_buffer_add_utf8(font.hbscratch_buffer, subword.text.begin(),
                          AS(int, subword.text.size()), 0,
                          AS(int, subword.text.size()));
