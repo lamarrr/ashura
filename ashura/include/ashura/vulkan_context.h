@@ -298,10 +298,11 @@ struct RecordingContext {
   u32 vertex_input_size = 0;
   u32 push_constant_size = 0;
   usize max_nframes_in_flight = 0;
-  stx::Option<stx::Rc<CommandQueue*>> queue;
+  u32 queue_family = 0;
+  VkDevice dev = VK_NULL_HANDLE;
 
   void init(
-      stx::Rc<CommandQueue*> aqueue, stx::Span<u32 const> vertex_shader_code,
+      VkDevice adev, u32 aqueue_family, stx::Span<u32 const> vertex_shader_code,
       stx::Span<u32 const> fragment_shader_code,
       stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
       u32 avertex_input_size, u32 apush_constant_size,
@@ -309,12 +310,11 @@ struct RecordingContext {
       stx::Span<DescriptorSetSpec> adescriptor_sets_specs,
       stx::Span<VkDescriptorPoolSize const> adescriptor_pool_sizes,
       u32 max_descriptor_sets) {
-    queue = stx::Some(std::move(aqueue));
+    dev = adev;
 
-    CommandQueue& cqueue = *queue.value().handle;
-    VkDevice dev = cqueue.device->device;
+    queue_family = aqueue_family;
 
-    auto create_shader = [dev](stx::Span<u32 const> code) {
+    auto create_shader = [this](stx::Span<u32 const> code) {
       VkShaderModuleCreateInfo create_info{
           .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
           .pNext = nullptr,
@@ -337,7 +337,7 @@ struct RecordingContext {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .pNext = nullptr,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = cqueue.info.family.index};
+        .queueFamilyIndex = queue_family};
 
     ASH_VK_CHECK(
         vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
@@ -388,7 +388,7 @@ struct RecordingContext {
         .pNext = nullptr,
         .commandPool = cmd_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = max_nframes_in_flight};
+        .commandBufferCount = AS_U32(max_nframes_in_flight)};
 
     ASH_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info,
                                           cmd_buffers.data()));
@@ -427,7 +427,6 @@ struct RecordingContext {
 
   void rebuild(VkRenderPass target_render_pass,
                VkSampleCountFlagBits msaa_sample_count) {
-    VkDevice dev = queue.value()->device->device;
     if (pipeline.layout != nullptr) {
       vkDestroyPipelineLayout(dev, pipeline.layout, nullptr);
     }
@@ -436,22 +435,19 @@ struct RecordingContext {
       vkDestroyPipeline(dev, pipeline.pipeline, nullptr);
     }
 
-    pipeline.build(queue.value()->device->device, vertex_shader,
-                   fragment_shader, target_render_pass, msaa_sample_count,
-                   descriptor_set_layouts, vertex_input_attr, vertex_input_size,
-                   push_constant_size);
+    pipeline.build(dev, vertex_shader, fragment_shader, target_render_pass,
+                   msaa_sample_count, descriptor_set_layouts, vertex_input_attr,
+                   vertex_input_size, push_constant_size);
   }
 
   void destroy() {
-    VkDevice dev = queue.value()->device->device;
-
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
 
     vkDestroyShaderModule(dev, vertex_shader, nullptr);
 
     vkDestroyShaderModule(dev, fragment_shader, nullptr);
 
-    vkFreeCommandBuffers(dev, cmd_pool, max_nframes_in_flight,
+    vkFreeCommandBuffers(dev, cmd_pool, AS_U32(max_nframes_in_flight),
                          cmd_buffers.data());
 
     vkDestroyCommandPool(dev, cmd_pool, nullptr);
@@ -471,7 +467,7 @@ struct RecordingContext {
       vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
     }
 
-    pipeline.destroy(dev);
+    pipeline.destroy();
   }
 };
 
