@@ -251,11 +251,12 @@ struct UploadContext {
         .unwrap();
   }
 
-  stx::Rc<ImageResource*> cache_font(stx::Rc<Font*> font, u32 font_height) {
+  std::pair<stx::Rc<ImageResource*>, gfx::FontAtlas> cache_font(
+      stx::Rc<Font*> font, u32 font_height) {
     VkImageFormatProperties image_format_properties;
 
     ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(
-        queue.value()->device->phy_device->phy_device, VK_FORMAT_R8G8B8A8_SRGB,
+        queue.value()->device->phy_dev->phy_device, VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT,
         0, &image_format_properties));
 
@@ -264,11 +265,9 @@ struct UploadContext {
                           extent{image_format_properties.maxExtent.width,
                                  image_format_properties.maxExtent.height});
 
-    return upload_image(image_buffer.span(), image_buffer.extent, 4);
-    // u64 id = bundle.add();
-    // atlas.image = id;
-    // return gfx::CachedFont{.font = std::move(font), .atlas =
-    // std::move(atlas)};
+    return std::make_pair(
+        upload_image(image_buffer.span(), image_buffer.extent, 4),
+        std::move(atlas));
   }
 };
 
@@ -475,6 +474,15 @@ struct RecordingContext {
     pipeline.destroy(dev);
   }
 };
+
+inline gfx::CachedFont cache_font(UploadContext& context,
+                                  AssetBundle<stx::Rc<ImageResource*>>& bundle,
+                                  stx::Rc<Font*> font, u32 font_height) {
+  auto [image, atlas] = context.cache_font(font.share(), font_height);
+  gfx::image texture = bundle.add(std::move(image));
+  atlas.image = texture;
+  return gfx::CachedFont{.font = std::move(font), .atlas = std::move(atlas)};
+}
 
 }  // namespace vk
 }  // namespace ash
