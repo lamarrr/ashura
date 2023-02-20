@@ -275,6 +275,13 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
   }
 }
 
+struct CanvasState {
+  mat4 transform = mat4::identity();
+  mat4 global_transform = mat4::identity();
+  rect clip_rect;
+  Brush brush;
+};
+
 /// coordinates are specified in top-left origin space with x pointing to the
 /// right and y pointing downwards (Vulkan Coordinate System).
 ///
@@ -293,48 +300,42 @@ struct Canvas {
   Brush brush;
 
   mat4 transform = mat4::identity();
-  stx::Vec<mat4> transform_state_stack{stx::os_allocator};
-
   mat4 global_transform = mat4::identity();
-  stx::Vec<mat4> global_transform_state_stack{stx::os_allocator};
-
   rect clip_rect;
-  stx::Vec<rect> clip_rect_stack{stx::os_allocator};
+
+  stx::Vec<CanvasState> state_stack{stx::os_allocator};
 
   DrawList draw_list;
-
-  explicit Canvas(vec2 viewport_extent) { restart(viewport_extent); }
 
   void restart(vec2 new_viewport_extent) {
     viewport_extent = new_viewport_extent;
     brush = Brush{};
     transform = mat4::identity();
-    transform_state_stack.clear();
     global_transform = mat4::identity();
-    global_transform_state_stack.clear();
     clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent};
-    clip_rect_stack.clear();
+    state_stack.clear();
     draw_list.clear();
   }
 
   /// push state (transform and clips) on state stack
   Canvas& save() {
-    transform_state_stack.push_inplace(transform).unwrap();
-    global_transform_state_stack.push_inplace(global_transform).unwrap();
-    clip_rect_stack.push_inplace(clip_rect).unwrap();
+    state_stack
+        .push(CanvasState{.transform = transform,
+                          .global_transform = global_transform,
+                          .clip_rect = clip_rect,
+                          .brush = brush})
+        .unwrap();
     return *this;
   }
 
   /// save current transform and clip state
   /// pop state (transform and clips) stack and restore state
   Canvas& restore() {
-    transform = transform_state_stack.pop().unwrap_or(mat4{transform});
-
-    global_transform =
-        global_transform_state_stack.pop().unwrap_or(mat4{global_transform});
-
-    clip_rect = clip_rect_stack.pop().unwrap_or(rect{clip_rect});
-
+    CanvasState state = state_stack.pop().unwrap_or(CanvasState{});
+    transform = state.transform;
+    global_transform = state.global_transform;
+    clip_rect = state.clip_rect;
+    brush = state.brush;
     return *this;
   }
 
@@ -342,11 +343,9 @@ struct Canvas {
   /// and clips)
   Canvas& reset() {
     transform = mat4::identity();
-    transform_state_stack.clear();
     global_transform = mat4::identity();
-    global_transform_state_stack.clear();
     clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent};
-    clip_rect_stack.clear();
+    state_stack.clear();
     return *this;
   }
 
@@ -642,19 +641,23 @@ struct Canvas {
                 font_scale * glyph.extent.height};
 
     if (run.style.background_color.is_visible()) {
+      save();
       brush.color = run.style.background_color;
       brush.fill = true;
       draw_rect(rect{
           .offset = baseline - vec2{0, line_height},
           .extent = vec2{advance.x + run.style.letter_spacing, line_height}});
+      restore();
     }
 
     if (run.style.foreground_color.is_visible()) {
+      save();
       brush.color = run.style.foreground_color;
       draw_image(atlas,
                  rect{.offset = baseline - vec2{0, vert_spacing + ascent},
                       .extent = extent},
                  glyph.s0, glyph.t0, glyph.s1, glyph.t1);
+      restore();
     }
 
     return *this;
@@ -957,21 +960,25 @@ struct Canvas {
 
             if (run.style.background_color.is_visible() &&
                 subword->nspaces > 0) {
+              save();
               brush.color = run.style.background_color;
               brush.fill = true;
               draw_rect(rect{
                   .offset = position + vec2{cursor_x, baseline - line_height},
                   .extent =
                       vec2{word_spacing * subword->nspaces, line_height}});
+              restore();
             }
 
             if (run.style.underline_color.is_visible()) {
+              save();
               brush.color = run.style.underline_color;
               brush.fill = true;
               draw_rect(rect{.offset = position + vec2{init_cursor_x, baseline},
                              .extent = vec2{subword->width +
                                                 subword->nspaces * word_spacing,
                                             run.style.underline_thickness}});
+              restore();
             }
 
             cursor_x += subword->nspaces * word_spacing;
@@ -1011,22 +1018,26 @@ struct Canvas {
 
               if (run.style.background_color.is_visible() &&
                   rtl_iter->nspaces > 0) {
+                save();
                 brush.color = run.style.background_color;
                 brush.fill = true;
                 draw_rect(rect{
                     .offset =
                         position + vec2{rtl_cursor_x, baseline - line_height},
                     .extent = vec2{spacing, line_height}});
+                restore();
               }
 
               if (run.style.background_color.is_visible() &&
                   rtl_iter->nspaces > 0) {
+                save();
                 brush.color = run.style.background_color;
                 brush.fill = true;
                 draw_rect(rect{
                     .offset =
                         position + vec2{rtl_cursor_x, baseline - line_height},
                     .extent = vec2{spacing, line_height}});
+                restore();
               }
 
               rtl_cursor_x -= rtl_iter->width;
