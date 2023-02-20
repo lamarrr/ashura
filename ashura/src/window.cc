@@ -11,11 +11,12 @@ namespace ash {
 
 stx::Vec<char const*> Window::get_required_instance_extensions() const {
   u32 ext_count;
-  stx::Vec<char const*> required_instance_extensions{stx::os_allocator};
 
   ASH_SDL_CHECK(
       SDL_Vulkan_GetInstanceExtensions(window, &ext_count, nullptr) == SDL_TRUE,
       "unable to get number of window's required Vulkan instance extensions");
+
+  stx::Vec<char const*> required_instance_extensions{stx::os_allocator};
 
   required_instance_extensions.resize(ext_count).unwrap();
 
@@ -28,15 +29,19 @@ stx::Vec<char const*> Window::get_required_instance_extensions() const {
 }
 
 void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
+  this->instance = stx::Some(instance.share());
+
   VkSurfaceKHR surface;
 
   ASH_SDL_CHECK(SDL_Vulkan_CreateSurface(window, instance->instance,
                                          &surface) == SDL_TRUE,
                 "unable to create surface for window");
 
-  this->surface = stx::Some(stx::rc::make_unique_inplace<vk::Surface>(
-                                stx::os_allocator, instance.share(), surface)
-                                .unwrap());
+  this->surface = stx::Some(
+      stx::rc::make_unique(
+          stx::os_allocator,
+          vk::Surface{.surface = surface, .instance = instance->instance})
+          .unwrap());
 }
 
 void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
@@ -62,7 +67,7 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
       VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_MAILBOX_KHR};
 
   VkSampleCountFlagBits msaa_sample_count =
-      queue->device->phy_device->get_max_sample_count();
+      queue->device->phy_dev->get_max_sample_count();
 
   surface.value()->change_swapchain(
       queue, preferred_formats, preferred_present_modes,
@@ -85,8 +90,6 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
 
   vk::SwapChain& swapchain = surface.value()->swapchain.value();
 
-  VkDevice dev = swapchain.queue->device->device;
-
   VkSemaphore semaphore =
       swapchain.image_acquisition_semaphores[swapchain.frame];
 
@@ -95,7 +98,7 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   u32 swapchain_image_index = 0;
 
   VkResult result =
-      vkAcquireNextImageKHR(dev, swapchain.swapchain, COMMAND_TIMEOUT,
+      vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain, COMMAND_TIMEOUT,
                             semaphore, fence, &swapchain_image_index);
 
   ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
@@ -115,7 +118,7 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   }
 }
 
-WindowSwapchainDiff Window::present(u32 swapchain_image_index) {
+WindowSwapchainDiff Window::present(VkQueue queue, u32 swapchain_image_index) {
   ASH_CHECK(surface.is_some(),
             "trying to present to swapchain without having surface attached");
   ASH_CHECK(surface.value()->swapchain.is_some(),
@@ -142,8 +145,7 @@ WindowSwapchainDiff Window::present(u32 swapchain_image_index) {
       .pImageIndices = &swapchain_image_index,
       .pResults = nullptr};
 
-  VkResult result =
-      vkQueuePresentKHR(swapchain.queue->info.queue, &present_info);
+  VkResult result = vkQueuePresentKHR(queue, &present_info);
 
   ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                 result == VK_ERROR_OUT_OF_DATE_KHR,
