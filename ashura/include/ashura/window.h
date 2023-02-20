@@ -17,14 +17,13 @@
 #include "stx/string.h"
 
 namespace ash {
-using namespace stx::literals;
 
 enum class WindowTypeHint : u8 { Normal, Utility, Tooltip, Popup };
 
 enum class WindowPosition : u8 { Centered };
 
 struct WindowConfig {
-  stx::String title = "Ashura"_str;
+  stx::String title = stx::string::make_static("Ashura");
   extent extent{1920, 1080};
   stx::Option<ash::extent> min_extent;
   stx::Option<ash::extent> max_extent;
@@ -83,8 +82,13 @@ struct Window {
   ~Window() {
     // window should be destructed on the same thread that created it
     ASH_CHECK(init_thread_id == std::this_thread::get_id());
+
+    if (surface.is_some()) {
+      surface.value()->destroy();
+    }
+
     api->remove_window_info(id);
-    // delete window
+
     SDL_DestroyWindow(window);
   }
 
@@ -157,7 +161,7 @@ struct Window {
 
   std::pair<WindowSwapchainDiff, u32> acquire_image();
 
-  WindowSwapchainDiff present(u32 swapchain_image_index);
+  WindowSwapchainDiff present(VkQueue queue, u32 swapchain_image_index);
 
   void on(WindowEvent event, stx::UniqueFn<void()> action) {
     event_listeners.push(std::make_pair(event, std::move(action))).unwrap();
@@ -186,6 +190,7 @@ struct Window {
   WindowConfig cfg;
   std::thread::id init_thread_id;
   stx::Option<stx::Unique<vk::Surface*>> surface;
+  stx::Option<stx::Rc<vk::Instance*>> instance;
   bool needs_resizing =
       false;  // TODO(lamarrr): this is written to but never read
   stx::Vec<std::pair<WindowEvent, stx::UniqueFn<void()>>> event_listeners{
