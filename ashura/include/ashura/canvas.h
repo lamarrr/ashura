@@ -1058,12 +1058,14 @@ struct Canvas {
               }
 
               if (run.style.underline_color.is_visible()) {
+                save();
                 brush.color = run.style.underline_color;
                 brush.fill = true;
                 draw_rect(
                     rect{.offset = position + vec2{rtl_cursor_x, baseline},
                          .extent = vec2{rtl_iter->width + spacing,
                                         run.style.underline_thickness}});
+                restore();
               }
             }
 
