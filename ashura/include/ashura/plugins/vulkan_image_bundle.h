@@ -3,10 +3,14 @@
 #include <string_view>
 
 #include "ashura/asset_bundle.h"
+#include "ashura/image.h"
 #include "ashura/plugin.h"
 #include "ashura/plugins/image_bundle.h"
+#include "ashura/primitives.h"
 #include "ashura/vulkan.h"
+#include "ashura/vulkan_context.h"
 #include "stx/rc.h"
+#include "stx/span.h"
 
 namespace ash {
 
