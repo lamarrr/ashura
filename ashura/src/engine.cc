@@ -7,7 +7,7 @@
 #include "ashura/sample_image.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/shaders.h"
-#include "ashura/vulkan_recording_context.h"
+#include "ashura/vulkan_context.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
@@ -15,7 +15,6 @@ namespace ash {
 
 namespace impl {
 
-// TODO(lamarrr): take a quick look at UE log file content and structure
 static stx::Rc<spdlog::logger*> make_multi_threaded_logger(
     std::string name, std::string file_path) {
   stx::Vec<spdlog::sink_ptr> sinks{stx::os_allocator};
@@ -65,7 +64,7 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
 
 gfx::CachedFont* font;
 gfx::image img;
-stx::Rc<vk::ImageSampler*>* sampler;
+vk::Sampler* sampler;
 
 Engine::Engine(AppConfig const& cfg) {
   stx::Vec<char const*> required_device_extensions{stx::os_allocator};
@@ -174,13 +173,12 @@ Engine::Engine(AppConfig const& cfg) {
 
   window.value()->recreate_swapchain(xqueue);
 
-  renderer = stx::Some(stx::rc::make_inplace<vk::CanvasRenderer>(
-                           stx::os_allocator, xqueue.share(),
-                           vk::SwapChain::MAX_FRAMES_IN_FLIGHT)
-                           .unwrap());
+  renderer.init(xqueue.share(), vk::SwapChain::DEFAULT_MAX_FRAMES_IN_FLIGHT);
 
   auto& swp = window.value()->surface.value()->swapchain.value();
-  renderer.value()->ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
+  renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
+
+  upload_context.init(xqueue.share());
 
   window.value()->on(WindowEvent::Resized,
                      stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
@@ -192,47 +190,55 @@ Engine::Engine(AppConfig const& cfg) {
       .push(stx::fn::rc::make_unique_static([](MouseMotionEvent) {}))
       .unwrap();
 
+  window.value()
+      ->mouse_click_listeners
+      .push(stx::fn::rc::make_unique_static([](MouseClickEvent event) {
+        std::cout << "click" << std::endl;
+        if (event.action == MouseAction::Press &&
+            event.button == MouseButton::A2)
+          std::exit(0);
+      }))
+      .unwrap();
+
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
   gfx::image transparent_image = image_bundle.add(
-      renderer.value()->ctx.upload_image(transparent_image_data, {1, 1}, 4));
+      upload_context.upload_image(transparent_image_data, {1, 1}, 4));
 
   img = image_bundle.add(
-      renderer.value()->ctx.upload_image(sample_image, {1920, 1080}, 4));
+      upload_context.upload_image(sample_image, {1920, 1080}, 4));
 
   ASH_CHECK(transparent_image == 0);
 
-  sampler = new stx::Rc<vk::ImageSampler*>{
-      vk::create_image_sampler(queue.value()->device, VK_FILTER_LINEAR,
-                               VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_TRUE)};
+  sampler = new vk::Sampler{
+      vk::create_sampler2(queue.value()->device, VK_FILTER_LINEAR,
+                          VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_TRUE)};
 
   font = new gfx::CachedFont[]{
-      renderer.value()->ctx.cache_font(
-          image_bundle,
+      vk::cache_font(
+          upload_context, image_bundle,
           load_font_from_file(
               R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura\assets\fonts\JetBrainsMono-Regular.ttf)"_str)
               .unwrap(),
           26),
-      renderer.value()->ctx.cache_font(
-          image_bundle,
+      vk::cache_font(
+          upload_context, image_bundle,
           load_font_from_file(
               R"(C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf)"_str)
               .unwrap(),
           50),
-      renderer.value()->ctx.cache_font(
-          image_bundle,
+      vk::cache_font(
+          upload_context, image_bundle,
           load_font_from_file(
               R"(C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe Arabic Regular\Adobe Arabic Regular.ttf)"_str)
               .unwrap(),
           26),
-      renderer.value()->ctx.cache_font(
-          image_bundle,
+      vk::cache_font(
+          upload_context, image_bundle,
           load_font_from_file(
               R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\MaterialIcons-Regular.ttf)"_str)
               .unwrap(),
           50)};
-
-  canvas = stx::Some(gfx::Canvas{{0, 0}});
 
   window.value()->on(WindowEvent::Close,
                      stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
@@ -268,7 +274,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     VkExtent2D extent =
         window.value()->surface.value()->swapchain.value().window_extent;
 
-    gfx::Canvas& c = canvas.value();
+    gfx::Canvas& c = canvas;
     static int x = 0;
     static auto start = std::chrono::steady_clock::now();
 
@@ -327,8 +333,8 @@ void Engine::tick(std::chrono::nanoseconds interval) {
                    .underline_color = colors::MAGENTA,
                    .underline_thickness = 1},
          .direction = TextDirection::RightToLeft,
-         .script = HB_SCRIPT_ARABIC,
-         .language = hb_language_from_string("ar", -1)},
+         .script = Script::Latin,
+         .language = languages::ARABIC},
         {.text = emojis,
          .font = 1,
          .style = {.font_height = 20,
@@ -382,7 +388,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       window.value()->recreate_swapchain(queue.value());
       auto& swp = window.value()->surface.value()->swapchain.value();
-      renderer.value()->ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
+      renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
       record_draw_commands();
     }
 
@@ -397,22 +403,23 @@ void Engine::tick(std::chrono::nanoseconds interval) {
       continue;
     }
 
-    gfx::DrawList const& draw_list = canvas.value().draw_list;
+    gfx::DrawList const& draw_list = canvas.draw_list;
 
-    renderer.value()->submit(
+    renderer.submit(
         swapchain.window_extent, swapchain.image_extent, swapchain_image_index,
         swapchain.frame, swapchain.render_fences[swapchain.frame],
         swapchain.image_acquisition_semaphores[swapchain.frame],
         swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
-        swapchain.framebuffers[swapchain_image_index], (*sampler)->sampler,
+        swapchain.framebuffers[swapchain_image_index], sampler->sampler,
         draw_list.cmds, draw_list.vertices, draw_list.indices, image_bundle);
 
-    swapchain_diff = window.value()->present(swapchain_image_index);
+    swapchain_diff = window.value()->present(queue.value()->info.queue,
+                                             swapchain_image_index);
 
     // the frame semaphores and synchronization primitives are still used even
     // if an error is returned
     swapchain.frame =
-        (swapchain.frame + 1) % vk::SwapChain::MAX_FRAMES_IN_FLIGHT;
+        (swapchain.frame + 1) % vk::SwapChain::DEFAULT_MAX_FRAMES_IN_FLIGHT;
 
   } while (swapchain_diff != WindowSwapchainDiff::None);
 }
