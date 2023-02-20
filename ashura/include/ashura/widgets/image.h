@@ -114,7 +114,7 @@ struct Image : public Widget {
   virtual void tick(WidgetContext& context,
                     std::chrono::nanoseconds interval) override {}
 
-  virtual void on_hover(KeyModifiers modifiers, vec2 position) override {}
+  virtual void on_hover(vec2 position, KeyModifiers modifiers) override {}
 
   virtual simdjson::dom::element save(simdjson::dom::parser& parser) override {
     std::string source;
