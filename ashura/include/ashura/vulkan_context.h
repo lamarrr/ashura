@@ -20,7 +20,7 @@ struct UploadContext {
 
   void init(stx::Rc<CommandQueue*> aqueue) {
     queue = stx::Some(std::move(aqueue));
-    VkDevice dev = queue.value()->device->device;
+    VkDevice dev = queue.value()->device->dev;
 
     VkCommandPoolCreateInfo cmd_pool_create_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -50,7 +50,7 @@ struct UploadContext {
   }
 
   void destroy() {
-    VkDevice dev = queue.value()->device->device;
+    VkDevice dev = queue.value()->device->dev;
 
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
 
@@ -64,9 +64,9 @@ struct UploadContext {
   stx::Rc<ImageResource*> upload_image(stx::Span<u8 const> data, extent extent,
                                        u32 nchannels) {
     CommandQueue& cqueue = *queue.value().handle;
-    VkDevice dev = cqueue.device->device;
+    VkDevice dev = cqueue.device->dev;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
-        cqueue.device->phy_device->memory_properties;
+        cqueue.device->phy_dev->memory_properties;
 
     ASH_CHECK(data.size_bytes() == extent.area() * nchannels);
     ASH_CHECK(nchannels == 4, "only 4-channel images presently supported");
@@ -154,7 +154,7 @@ struct UploadContext {
         create_host_buffer(dev, memory_properties, data.size_bytes(),
                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
-    staging_buffer.write(queue.value()->device->device, data.data());
+    staging_buffer.write(data.data());
 
     VkCommandBufferBeginInfo cmd_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -244,7 +244,7 @@ struct UploadContext {
 
     ASH_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
 
-    staging_buffer.destroy(dev);
+    staging_buffer.destroy();
 
     return stx::rc::make_inplace<ImageResource>(stx::os_allocator, image, view,
                                                 memory, queue.value().share())
