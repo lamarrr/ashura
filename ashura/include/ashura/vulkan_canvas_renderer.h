@@ -7,7 +7,7 @@
 #include "ashura/primitives.h"
 #include "ashura/shaders.h"
 #include "ashura/vulkan.h"
-#include "ashura/vulkan_recording_context.h"
+#include "ashura/vulkan_context.h"
 
 namespace ash {
 namespace vk {
@@ -19,12 +19,12 @@ struct CanvasRenderer {
 
   RecordingContext ctx;
 
-  stx::Rc<CommandQueue*> queue;
+  stx::Option<stx::Rc<CommandQueue*>> queue;
 
-  explicit CanvasRenderer(stx::Rc<CommandQueue*> aqueue,
-                          usize amax_nframes_in_flight)
-      : queue{std::move(aqueue)},
-        max_nframes_in_flight{amax_nframes_in_flight} {
+  void init(stx::Rc<CommandQueue*> aqueue, usize amax_nframes_in_flight) {
+    queue = stx::Some(std::move(aqueue));
+    max_nframes_in_flight = amax_nframes_in_flight;
+
     VkVertexInputAttributeDescription vertex_input_attributes[] = {
         {.location = 0,
          .binding = 0,
@@ -47,14 +47,15 @@ struct CanvasRenderer {
         {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
          .descriptorCount = 1}};
 
-    ctx.init(queue.share(), gfx::vertex_shader_code, gfx::fragment_shader_code,
-             vertex_input_attributes, sizeof(vertex),
+    VkDevice dev = queue.value()->device->dev;
+
+    ctx.init(dev, queue.value()->info.family.index, gfx::vertex_shader_code,
+             gfx::fragment_shader_code, vertex_input_attributes, sizeof(vertex),
              sizeof(gfx::CanvasPushConstants), amax_nframes_in_flight,
              descriptor_set_specs, descriptor_pool_sizes, 1);
 
-    VkDevice dev = queue->device->device;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
-        queue->device->phy_device->memory_properties;
+        queue.value()->device->phy_dev->memory_properties;
 
     for (u32 i = 0; i < amax_nframes_in_flight; i++) {
       SpanBuffer vertex_buffer;
@@ -73,14 +74,12 @@ struct CanvasRenderer {
     }
   }
 
-  STX_MAKE_PINNED(CanvasRenderer)
+  void destroy() {
+    VkDevice dev = queue.value()->device->dev;
 
-  ~CanvasRenderer() {
-    VkDevice dev = queue->device->device;
+    for (SpanBuffer& buff : vertex_buffers) buff.destroy();
 
-    for (SpanBuffer& buff : vertex_buffers) buff.destroy(dev);
-
-    for (SpanBuffer& buff : index_buffers) buff.destroy(dev);
+    for (SpanBuffer& buff : index_buffers) buff.destroy();
 
     ctx.destroy();
   }
@@ -95,24 +94,20 @@ struct CanvasRenderer {
               AssetBundle<stx::Rc<ImageResource*>> const& image_bundle) {
     ASH_CHECK(frame < max_nframes_in_flight);
 
-    stx::Rc<Device*> const& device = queue->device;
+    stx::Rc<Device*> const& device = queue.value()->device;
 
     VkPhysicalDeviceMemoryProperties const& memory_properties =
-        queue->device->phy_device->memory_properties;
+        queue.value()->device->phy_dev->memory_properties;
 
-    VkDevice dev = device->device;
+    VkDevice dev = device->dev;
 
-    VkQueue queue = this->queue->info.queue;
+    VkQueue queue = this->queue.value()->info.queue;
 
     VkCommandBuffer cmd_buffer = ctx.cmd_buffers[frame];
 
-    vertex_buffers[frame].write(dev, memory_properties,
-                                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                vertices.as_u8());
+    vertex_buffers[frame].write(memory_properties, vertices.as_u8());
 
-    index_buffers[frame].write(dev, memory_properties,
-                               VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                               indices.as_u8());
+    index_buffers[frame].write(memory_properties, indices.as_u8());
 
     u32 nallocated_descriptor_sets = AS_U32(ctx.descriptor_sets[frame].size());
 
