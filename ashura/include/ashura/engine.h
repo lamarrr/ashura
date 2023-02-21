@@ -9,19 +9,20 @@
 #include "ashura/version.h"
 #include "ashura/vulkan.h"
 #include "ashura/vulkan_canvas_renderer.h"
+#include "ashura/widget.h"
 #include "ashura/window.h"
 #include "ashura/window_api.h"
 #include "spdlog/logger.h"
 #include "stx/rc.h"
+#include "stx/scheduler.h"
 #include "stx/string.h"
-
 
 namespace ash {
 
 struct Engine {
   Engine(AppConfig const& cfg);
 
-  ~Engine(){
+  ~Engine() {
     renderer.destroy();
     upload_context.destroy();
   }
@@ -34,9 +35,8 @@ struct Engine {
   vk::CanvasRenderer renderer;
   vk::UploadContext upload_context;
   AssetBundle<stx::Rc<vk::ImageResource*>> image_bundle;
-
-  // asset manager
-  // plugins & systems
+  stx::TaskScheduler task_scheduler;
+  WidgetContext widget_context;
 
   void tick(std::chrono::nanoseconds interval);
 };
