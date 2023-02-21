@@ -6,10 +6,9 @@
 #include "ashura/plugin.h"
 #include "ashura/primitives.h"
 #include "stx/span.h"
+#include "stx/void.h"
 
 namespace ash {
-
-enum class ImageBundleError { None, InvalidId };
 
 struct ImageBundle : public Plugin {
   virtual constexpr void on_startup() override {}
@@ -20,9 +19,13 @@ struct ImageBundle : public Plugin {
 
   virtual constexpr std::string_view get_id() override { return "ImageBundle"; }
 
-  virtual gfx::image add(stx::Span<u8 const> pixels, extent extent);
+  virtual gfx::image add(stx::Span<u8 const> pixels, extent extent) {
+    return 0;
+  }
 
-  virtual ImageBundleError remove(gfx::image image);
+  virtual stx::Result<stx::Void, AssetBundleError> remove(gfx::image image) {
+    return stx::Ok(stx::Void{});
+  }
 
   virtual constexpr ~ImageBundle() override {}
 };

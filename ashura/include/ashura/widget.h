@@ -13,11 +13,15 @@
 #include "ashura/plugin.h"
 #include "ashura/primitives.h"
 #include "simdjson.h"
+#include "spdlog/logger.h"
+#include "stx/async.h"
 #include "stx/fn.h"
 #include "stx/option.h"
+#include "stx/scheduler.h"
 #include "stx/span.h"
 #include "stx/string.h"
 #include "stx/vec.h"
+
 
 namespace ash {
 
@@ -110,10 +114,30 @@ struct WidgetInfo {
   u64 id = 0;
 };
 
+// add window controller class
 struct WidgetContext {
-  // renderer context
-  // asset bundles
   std::map<std::string, Plugin *, std::less<>> plugins;
+  stx::TaskScheduler *task_scheduler = nullptr;
+  spdlog::logger *logger = nullptr;
+
+  ~WidgetContext() {
+    for (auto &entry : plugins) {
+      delete entry.second;
+    }
+  }
+
+  void register_plugin(Plugin *plugin) {
+    std::string_view id = plugin->get_id();
+    auto [it, inserted] = plugins.emplace(id, plugin);
+    if (inserted) return;
+    usize index = 1;
+    while (!inserted) {
+      auto [it, was_inserted] =
+          plugins.emplace(std::format("{} ({})", id, index), plugin);
+      index++;
+      inserted = was_inserted;
+    }
+  }
 
   template <typename T>
   stx::Option<T *> get_plugin(std::string_view id) const {
@@ -126,10 +150,6 @@ struct WidgetContext {
   }
 };
 
-/// SEE: (https://www.w3.org/TR/uievents)
-//
-// TODO(lamarrr): should we go recursive?
-//
 struct Widget {
   constexpr Widget() {}
 
@@ -175,107 +195,119 @@ struct Widget {
   constexpr virtual void on_exit(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_enter_viewport() {}
+  constexpr virtual void on_enter_viewport(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_leave_viewport() {}
+  constexpr virtual void on_leave_viewport(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_click(MouseButton button, vec2 position,
-                                  u32 nclicks, KeyModifiers modifiers) {}
+  constexpr virtual void on_click(WidgetContext &context, MouseButton button,
+                                  vec2 position, u32 nclicks,
+                                  KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_double_click(MouseButton button, vec2 position,
+  constexpr virtual void on_double_click(WidgetContext &context,
+                                         MouseButton button, vec2 position,
                                          KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_scroll(vec2 previous_position,
+  constexpr virtual void on_mouse_scroll(WidgetContext &context,
+                                         vec2 previous_position,
                                          vec2 current_position,
                                          vec2 translation,
                                          KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_move(vec2 previous_position,
+  constexpr virtual void on_mouse_move(WidgetContext &context,
+                                       vec2 previous_position,
                                        vec2 current_position,
                                        KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_hover(vec2 position, KeyModifiers modifiers) {}
+  constexpr virtual void on_hover(WidgetContext &context, vec2 position,
+                                  KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_down(vec2 position, KeyModifiers modifiers) {}
+  constexpr virtual void on_mouse_down(WidgetContext &context, vec2 position,
+                                       KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_up(KeyModifiers modifiers) {}
+  constexpr virtual void on_mouse_up(WidgetContext &context,
+                                     KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_enter(KeyModifiers modifiers) {}
+  constexpr virtual void on_mouse_enter(WidgetContext &context,
+                                        KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_leave(KeyModifiers modifiers) {}
+  constexpr virtual void on_mouse_leave(WidgetContext &context,
+                                        KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_out(KeyModifiers modifiers) {}
+  constexpr virtual void on_mouse_out(WidgetContext &context,
+                                      KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_mouse_over(KeyModifiers modifiers) {}
+  constexpr virtual void on_mouse_over(WidgetContext &context,
+                                       KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_enter(KeyModifiers modifiers) {}
+  constexpr virtual void on_enter(WidgetContext &context,
+                                  KeyModifiers modifiers) {}
 
   //
-  constexpr virtual void on_tap() {}
+  constexpr virtual void on_tap(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_drag() {}
+  constexpr virtual void on_drag(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_drag_start() {}
+  constexpr virtual void on_drag_start(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_drag_end() {}
+  constexpr virtual void on_drag_end(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_drag_enter() {}
+  constexpr virtual void on_drag_enter(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_drag_leave() {}
+  constexpr virtual void on_drag_leave(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_drag_over() {}
+  constexpr virtual void on_drag_over(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_drop() {}
+  constexpr virtual void on_drop(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_touch_cancel() {}
+  constexpr virtual void on_touch_cancel(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_touch_end() {}
+  constexpr virtual void on_touch_end(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_touch_move() {}
+  constexpr virtual void on_touch_move(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_touch_start() {}
+  constexpr virtual void on_touch_start(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_touch_enter() {}
+  constexpr virtual void on_touch_enter(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_touch_leave() {}
+  constexpr virtual void on_touch_leave(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_focus() {}
+  constexpr virtual void on_focus(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_focus_in() {}
+  constexpr virtual void on_focus_in(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_focus_out() {}
+  constexpr virtual void on_focus_out(WidgetContext &context) {}
 
   //
-  constexpr virtual void on_select() {}
+  constexpr virtual void on_select(WidgetContext &context) {}
 
   // TODO(lamarrr): can this be simpler?
   // virtual void raise_tooltip(){}
@@ -286,12 +318,14 @@ struct Widget {
 
   // TODO(lamarrr): we need a widget build tree
   //
-  virtual simdjson::dom::element save(simdjson::dom::parser &parser) {
+  virtual simdjson::dom::element save(WidgetContext &context,
+                                      simdjson::dom::parser &parser) {
     return parser.parse("{}", 2);
   }
 
   //
-  virtual void restore(simdjson::dom::element const &element) {}
+  virtual void restore(WidgetContext &context,
+                       simdjson::dom::element const &element) {}
 
   // position of the widget on the viewport. typically calculated on every
   // frame.

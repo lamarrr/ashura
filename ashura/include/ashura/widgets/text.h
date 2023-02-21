@@ -36,9 +36,9 @@ struct Text : public Widget {
   // on_mouse_down
   // on_mouse_up
 
-  virtual simdjson::dom::element save(simdjson::dom::parser& parser) override {}
+  virtual simdjson::dom::element save(WidgetContext & context,simdjson::dom::parser& parser) override {}
 
-  virtual void restore(simdjson::dom::element const& element) override {}
+  virtual void restore(WidgetContext & context,simdjson::dom::element const& element) override {}
 
   TextStyle style;
   stx::String text;

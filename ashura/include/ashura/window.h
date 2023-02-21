@@ -157,7 +157,8 @@ struct Window {
   // attach surface to window for presentation
   void attach_surface(stx::Rc<vk::Instance*> const& instance);
 
-  void recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue);
+  void recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
+                          spdlog::logger& logger);
 
   std::pair<WindowSwapchainDiff, u32> acquire_image();
 

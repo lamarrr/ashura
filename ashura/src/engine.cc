@@ -1,7 +1,9 @@
 #include "ashura/engine.h"
 
+#include <chrono>
 #include <fstream>
 
+#include "ashura/animation.h"
 #include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
 #include "ashura/sample_image.h"
@@ -66,7 +68,9 @@ gfx::CachedFont* font;
 gfx::image img;
 vk::Sampler* sampler;
 
-Engine::Engine(AppConfig const& cfg) {
+Engine::Engine(AppConfig const& cfg)
+    : task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()} {
+  widget_context.task_scheduler = &task_scheduler;
   stx::Vec<char const*> required_device_extensions{stx::os_allocator};
 
   required_device_extensions.push(VK_KHR_SWAPCHAIN_EXTENSION_NAME).unwrap();
@@ -101,7 +105,7 @@ Engine::Engine(AppConfig const& cfg) {
   stx::Rc<vk::Instance*> vk_instance = vk::create_instance(
       cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), cfg.name.c_str(),
       VK_MAKE_VERSION(cfg.version.major, cfg.version.minor, cfg.version.patch),
-      window_required_instance_extensions, required_validation_layers);
+      window_required_instance_extensions, required_validation_layers, xlogger);
 
   window.value()->attach_surface(vk_instance.share());
 
@@ -159,7 +163,7 @@ Engine::Engine(AppConfig const& cfg) {
 
   stx::Rc<vk::Device*> device = vk::create_device(
       phy_device, command_queue_create_infos, required_device_extensions,
-      required_validation_layers, required_features);
+      required_validation_layers, required_features, xlogger);
 
   stx::Rc<vk::CommandQueue*> xqueue =
       stx::rc::make_inplace<vk::CommandQueue>(
@@ -171,19 +175,26 @@ Engine::Engine(AppConfig const& cfg) {
 
   queue = stx::Some(xqueue.share());
 
-  window.value()->recreate_swapchain(xqueue);
+  window.value()->recreate_swapchain(xqueue, xlogger);
+  auto& swp = window.value()->surface.value()->swapchain.value();
+
+  xlogger.info(
+      "recreated swapchain for logical/window/viewport extent: [{}, {}], "
+      "physical/surface extent: [{}, {}]",
+      swp.window_extent.width, swp.window_extent.height, swp.image_extent.width,
+      swp.image_extent.height);
 
   renderer.init(xqueue.share(), vk::SwapChain::DEFAULT_MAX_FRAMES_IN_FLIGHT);
 
-  auto& swp = window.value()->surface.value()->swapchain.value();
   renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
 
   upload_context.init(xqueue.share());
 
-  window.value()->on(WindowEvent::Resized,
-                     stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
-                       ASH_LOG("resized");
-                     }).unwrap());
+  window.value()->on(
+      WindowEvent::Resized,
+      stx::fn::rc::make_unique_functor(stx::os_allocator, [this]() {
+        logger.value()->info("RESIZED");
+      }).unwrap());
 
   window.value()
       ->mouse_motion_listeners
@@ -251,6 +262,9 @@ Engine::Engine(AppConfig const& cfg) {
                                                  win->needs_resizing = true;
                                                })
                                                .unwrap());
+
+  widget_context.register_plugin(
+      new VulkanImageBundle{image_bundle, upload_context});
 
   window.value()->on(
       WindowEvent::SizeChanged,
@@ -333,7 +347,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
                    .underline_color = colors::MAGENTA,
                    .underline_thickness = 1},
          .direction = TextDirection::RightToLeft,
-         .script = Script::Latin,
+         .script = Script::Arabic,
          .language = languages::ARABIC},
         {.text = emojis,
          .font = 1,
@@ -386,8 +400,13 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
   do {
     if (swapchain_diff != WindowSwapchainDiff::None) {
-      window.value()->recreate_swapchain(queue.value());
+      window.value()->recreate_swapchain(queue.value(), *logger.value().handle);
       auto& swp = window.value()->surface.value()->swapchain.value();
+      logger.value()->info(
+          "recreated swapchain for logical/window/viewport extent: [{}, {}], "
+          "physical/surface extent: [{}, {}]",
+          swp.window_extent.width, swp.window_extent.height,
+          swp.image_extent.width, swp.image_extent.height);
       renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
       record_draw_commands();
     }

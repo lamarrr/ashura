@@ -49,7 +49,7 @@ struct Flex : public Widget {
                                     props.height.resolve(area.extent.y)}}};
   }
 
-  virtual simdjson::dom::element save(simdjson::dom::parser& parser) {
+  virtual simdjson::dom::element save(WidgetContext & context, simdjson::dom::parser& parser) {
     stx::Vec<u64> children_ids{stx::os_allocator};
     for (Widget* child : children) {
       children_ids.push_inplace(child->id).unwrap();
@@ -91,7 +91,7 @@ struct Flex : public Widget {
     return parser.parse(json.data(), json.size());
   }
 
-  virtual void restore(simdjson::dom::element const& element) {
+  virtual void restore(WidgetContext & context,simdjson::dom::element const& element) {
     children.clear();
 
     Widget::id = element["id"].get_uint64();

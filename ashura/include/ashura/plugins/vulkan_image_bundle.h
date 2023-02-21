@@ -11,28 +11,34 @@
 #include "ashura/vulkan_context.h"
 #include "stx/rc.h"
 #include "stx/span.h"
+#include "stx/void.h"
 
 namespace ash {
 
-struct VulkanImageBundle : public Plugin {
+struct VulkanImageBundle : public ImageBundle {
+  VulkanImageBundle(AssetBundle<stx::Rc<vk::ImageResource *>> &ibundle,
+                    vk::UploadContext &iupload_context)
+      : bundle{&ibundle}, upload_context{&iupload_context} {}
+
   virtual constexpr void on_startup() override {}
 
   virtual constexpr void tick(std::chrono::nanoseconds interval) override {}
 
   virtual constexpr void on_exit() override {}
 
-  virtual constexpr std::string_view get_id() override {
-    return "VulkanImageBundle";
-  }
-
   virtual constexpr ~VulkanImageBundle() override {}
 
-  virtual gfx::image add(stx::Span<u8 const> pixels, extent extent);
+  virtual gfx::image add(stx::Span<u8 const> pixels, extent extent) override {
+    return bundle->add(upload_context->upload_image(pixels, extent, 4));
+  }
 
-  virtual ImageBundleError remove(gfx::image image);
+  virtual stx::Result<stx::Void, AssetBundleError> remove(
+      gfx::image image) override {
+    return bundle->remove(image);
+  }
 
   AssetBundle<stx::Rc<vk::ImageResource *>> *bundle = nullptr;
-  vk::RecordingContext *recording_context = nullptr;
+  vk::UploadContext *upload_context = nullptr;
 };
 
 }  // namespace ash

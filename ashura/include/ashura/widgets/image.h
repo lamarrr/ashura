@@ -1,5 +1,6 @@
 #pragma once
 
+#define STB_IMAGE_IMPLEMENTATION
 #include <algorithm>
 #include <string>
 #include <string_view>
@@ -8,9 +9,12 @@
 
 #include "ashura/base64.h"
 #include "ashura/image.h"
+#include "ashura/plugins/image_bundle.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
+#include "stb_image.h"
 #include "stx/option.h"
+#include "stx/scheduler/scheduling/schedule.h"
 #include "stx/span.h"
 #include "stx/string.h"
 
@@ -57,6 +61,8 @@ enum class ImageState : u8 {
   LoadFailed
 };
 
+enum class ImageLoadError : u8 { InvalidPath, UnsupportedChannels };
+
 /// Usage Needs
 ///
 /// - Add image to asset bundle and upload to GPU for fast transfers (i.e. zero
@@ -102,7 +108,6 @@ struct Image : public Widget {
           canvas.draw_round_rect(area, props.border_radius, 360);
         }
         canvas.restore();
-        // draw alt text?
       } break;
       case ImageState::LoadFailed: {
       } break;
@@ -112,11 +117,112 @@ struct Image : public Widget {
   }
 
   virtual void tick(WidgetContext& context,
-                    std::chrono::nanoseconds interval) override {}
+                    std::chrono::nanoseconds interval) override {
+    ImageBundle* bundle =
+        context.get_plugin<ImageBundle>("ImageBundle").unwrap();
 
-  virtual void on_hover(vec2 position, KeyModifiers modifiers) override {}
+    switch (state) {
+      case ImageState::Inactive: {
+        if (std::holds_alternative<MemoryImageSource>(props.source)) {
+          MemoryImageSource const& source =
+              std::get<MemoryImageSource>(props.source);
+          image = bundle->add(source.pixels, source.extent);
+          state = ImageState::Loaded;
+        } else if (std::holds_alternative<FileImageSource>(props.source)) {
+          image_load_future = stx::Some(stx::sched::fn(
+              *context.task_scheduler,
+              [path = std::get<FileImageSource>(props.source)
+                          .path.copy(stx::os_allocator)
+                          .unwrap()]()
+                  -> stx::Result<RgbaImageBuffer, ImageLoadError> {
+                if (!std::filesystem::exists(path.c_str()))
+                  return stx::Err(ImageLoadError::InvalidPath);
 
-  virtual simdjson::dom::element save(simdjson::dom::parser& parser) override {
+                std::ifstream stream{path.c_str(),
+                                     std::ios::ate | std::ios::binary};
+
+                ASH_CHECK(stream.is_open());
+
+                stx::Vec<u8> bytes{stx::os_allocator};
+
+                bytes.resize(stream.tellg()).unwrap();
+
+                stream.seekg(0);
+
+                stream.read(reinterpret_cast<char*>(bytes.data()),
+                            bytes.size());
+
+                int width, height, nchannels;
+
+                stbi_uc* pixels = stbi_load_from_memory(
+                    reinterpret_cast<stbi_uc*>(bytes.data()),
+                    AS(int, bytes.size()), &width, &height, &nchannels, 4);
+
+                ASH_CHECK(pixels != nullptr);
+
+                if (nchannels == 1) {
+                  ASH_PANIC("unimplemented");
+                } else if (nchannels == 3) {
+                  stx::Memory memory =
+                      stx::mem::allocate(stx::os_allocator, width * height * 4)
+                          .unwrap();
+                  u8* output = AS(u8*, memory.handle);
+
+                  for (usize i = 0; i < height; i++) {
+                    for (usize j = 0; j < width; j++) {
+                      output[i * width * 4 + j] = pixels[i * width * 3 + j];
+                      output[i * width * 4 + j + 1] =
+                          pixels[i * width * 3 + j + 1];
+                      output[i * width * 4 + j + 2] =
+                          pixels[i * width * 3 + j + 2];
+                      output[i * width * 4 + j + 3] = 0xFF;
+                      pixels += 3;
+                      output += 4;
+                    }
+                  }
+                  return stx::Ok(RgbaImageBuffer{
+                      .memory = std::move(memory),
+                      .extent = extent{AS_U32(width), AS_U32(height)}});
+                } else if (nchannels == 4) {
+                  return stx::Ok(RgbaImageBuffer{
+                      .memory = stx::Memory{stx::os_allocator, pixels},
+                      .extent = extent{AS_U32(width), AS_U32(height)}});
+                } else {
+                  return stx::Err(ImageLoadError::UnsupportedChannels);
+                }
+              },
+              stx::INTERACTIVE_PRIORITY, stx::TaskTraceInfo{}));
+          state = ImageState::Loading;
+        } else if (std::holds_alternative<NetworkImageSource>(props.source)) {
+          ASH_PANIC("unimplemented");
+        }
+      } break;
+      case ImageState::Loading: {
+        if (image_load_future.value().is_done()) {
+          stx::Result load_result = image_load_future.value().move().unwrap();
+
+          if (load_result.is_ok()) {
+            RgbaImageBuffer& buffer = load_result.value();
+            bundle->add(buffer.span(), buffer.extent);
+            state = ImageState::Loaded;
+          } else {
+            state = ImageState::LoadFailed;
+          }
+
+          image_load_future = stx::None;
+        }
+      } break;
+
+      case ImageState::Loaded:
+      case ImageState::LoadFailed:
+      default: {
+        break;
+      }
+    }
+  }
+
+  virtual simdjson::dom::element save(WidgetContext& context,
+                                      simdjson::dom::parser& parser) override {
     std::string source;
     std::string_view source_type;
     extent extent;
@@ -174,7 +280,19 @@ struct Image : public Widget {
     return parser.parse(json.data(), json.size());
   }
 
-  virtual void restore(simdjson::dom::element const& element) override {
+  virtual void restore(WidgetContext& context,
+                       simdjson::dom::element const& element) override {
+    if (image_load_future.is_some()) {
+      image_load_future.value().request_cancel();
+      image_load_future = stx::None;
+    }
+
+    if (state == ImageState::Loaded) {
+      ImageBundle* bundle =
+          context.get_plugin<ImageBundle>("ImageBundle").unwrap();
+      (void)bundle->remove(image);
+    }
+
     std::string_view source = element["source"].get_string();
     std::string_view source_type = element["source_type"].get_string();
     extent extent{.width = AS_U32(element["extent_width"].get_uint64()),
@@ -222,11 +340,15 @@ struct Image : public Widget {
     props.alt =
         stx::string::make(stx::os_allocator, element["alt"].get_string())
             .unwrap();
+
+    state = ImageState::Inactive;
   }
 
   ImageProps props;
   ImageState state = ImageState::Inactive;
   gfx::image image = 0;
+  stx::Option<stx::Future<stx::Result<RgbaImageBuffer, ImageLoadError>>>
+      image_load_future;
 };
 
 }  // namespace ash

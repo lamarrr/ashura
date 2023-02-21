@@ -43,7 +43,7 @@ namespace vk {
 // available and adjust features to that
 inline void ensure_extensions_supported(
     stx::Span<VkExtensionProperties const> available_extentions,
-    stx::Span<char const* const> required_extensions) {
+    stx::Span<char const* const> required_extensions, spdlog::logger& logger) {
   bool all_available = true;
 
   for (char const* required_extension : required_extensions) {
@@ -54,8 +54,8 @@ inline void ensure_extensions_supported(
             })
             .is_empty()) {
       all_available = false;
-      ASH_LOG_WARN("Required extension `{}` is not available",
-                   std::string_view(required_extension));
+      logger.warn("Required extension `{}` is not available",
+                  required_extension);
     }
   }
 
@@ -64,7 +64,7 @@ inline void ensure_extensions_supported(
 
 inline void ensure_validation_layers_supported(
     stx::Span<VkLayerProperties const> available_validation_layers,
-    stx::Span<char const* const> required_layers) {
+    stx::Span<char const* const> required_layers, spdlog::logger& logger) {
   bool all_layers_available = true;
 
   for (char const* required_layer : required_layers) {
@@ -75,8 +75,8 @@ inline void ensure_validation_layers_supported(
             })
             .is_empty()) {
       all_layers_available = false;
-      ASH_LOG_WARN("Required validation layer `{}` is not available",
-                   std::string_view(required_layer));
+      logger.warn("Required validation layer `{}` is not available",
+                  required_layer);
     }
   }
 
@@ -84,70 +84,32 @@ inline void ensure_validation_layers_supported(
             "one or more required validation layers are not available");
 }
 
-inline VkBool32 VKAPI_ATTR VKAPI_CALL default_debug_callback(
-    [[maybe_unused]] VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
-    VkDebugUtilsMessageTypeFlagsEXT message_type,
-    VkDebugUtilsMessengerCallbackDataEXT const* callback_data,
-    [[maybe_unused]] void* user_data) {
-  // VK_DEBUG_UTILS_MESSAGE_SEVERITY_*_BIT_EXT are bit flags that indicate if
-  // the message is important enough to show
+inline VkBool32 VKAPI_ATTR VKAPI_CALL
+debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+               VkDebugUtilsMessageTypeFlagsEXT message_type,
+               VkDebugUtilsMessengerCallbackDataEXT const* callback_data,
+               void* user_data) {
+  spdlog::logger& logger = *AS(spdlog::logger*, user_data);
 
-  // you can use comparisions like messageSeverity >=
-  // VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT to see if they are
-  // important or not
+  // callback_data->pObjects;
+  // callback_data->objectCount;
 
-  // typedef struct VkDebugUtilsMessengerCallbackDataEXT {
-  //     VkStructureType                              sType;
-  //     const void*                                  pNext;
-  //     VkDebugUtilsMessengerCallbackDataFlagsEXT    flags;
-  //     const char*                                  pMessageIdName;
-  //     int32_t                                      messageIdNumber;
-  //     const char*                                  pMessage;
-  //     uint32_t                                     queueLabelCount;
-  //     const VkDebugUtilsLabelEXT*                  pQueueLabels;
-  //     uint32_t                                     cmdBufLabelCount;
-  //     const VkDebugUtilsLabelEXT*                  pCmdBufLabels;
-  //     uint32_t                                     objectCount;
-  //     const VkDebugUtilsObjectNameInfoEXT*         pObjects;
-  // } VkDebugUtilsMessengerCallbackDataEXT;
-
-  std::string hint;
-  if (message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
-    hint +=
-        "Specification violation or possible mistake "
-        "detected";
-  }
-
-  if (message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) {
-    hint += std::string(hint.empty() ? "" : ", ") +
-            "Potential non-optimal use of Vulkan "
-            "detected";
-  }
-
-  bool const is_general =
-      message_type == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT;
-  if (hint.empty()) {
-    ASH_LOG_IF(is_general, "[Validation Layer Message] {}",
-               callback_data->pMessage);
-    ASH_LOG_WARN_IF(!is_general, "[Validation Layer Message] {}",
-                    callback_data->pMessage);
+  if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+    logger.error("[Validation Layer] (Message ID: ({}) {}, type: {}) {}",
+                 callback_data->messageIdNumber, callback_data->pMessageIdName,
+                 string_VkDebugUtilsMessageSeverityFlagsEXT(message_severity),
+                 callback_data->pMessage);
+  } else if (message_severity &
+             VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+    logger.warn("[Validation Layer] (Message ID: ({}) {}, type: {}) {}",
+                callback_data->messageIdNumber, callback_data->pMessageIdName,
+                string_VkDebugUtilsMessageSeverityFlagsEXT(message_severity),
+                callback_data->pMessage);
   } else {
-    ASH_LOG_IF(is_general, "[Validation Layer Message, Hints=\"{}\"] {}", hint,
-               callback_data->pMessage);
-    ASH_LOG_WARN_IF(!is_general, "[Validation Layer Message, Hints=\"{}\"] {}",
-                    hint, callback_data->pMessage);
-  }
-
-  if (!is_general) {
-    ASH_LOG("Call Stack:");
-    stx::backtrace::trace(
-        stx::fn::make_static([](stx::backtrace::Frame frame, int) {
-          ASH_LOG("\t=> {}", frame.symbol.copy().match(
-                                 [](auto sym) { return sym.raw(); },
-                                 []() { return std::string_view("unknown"); }));
-          return false;
-        }),
-        2);
+    logger.info("[Validation Layer] (Message ID: ({}) {}, type: {}) {}",
+                callback_data->messageIdNumber, callback_data->pMessageIdName,
+                string_VkDebugUtilsMessageSeverityFlagsEXT(message_severity),
+                callback_data->pMessage);
   }
 
   return VK_FALSE;
@@ -157,19 +119,20 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
     stx::Span<char const* const> irequired_extensions,
     stx::Span<char const* const> required_validation_layers,
     char const* const application_name, u32 application_version,
-    char const* const engine_name, u32 engine_version) {
+    char const* const engine_name, u32 engine_version, spdlog::logger& logger) {
   VkDebugUtilsMessengerCreateInfoEXT debug_utils_messenger_create_info{
       .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
       .pNext = nullptr,
       .flags = 0,
       .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
       .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
                      VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                      VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-      .pfnUserCallback = default_debug_callback,
-      .pUserData = nullptr};
+      .pfnUserCallback = debug_callback,
+      .pUserData = &logger};
 
   static constexpr char const* DEBUG_EXTENSIONS[] = {
       VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
@@ -194,11 +157,11 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   vkEnumerateInstanceExtensionProperties(nullptr, &available_extensions_count,
                                          available_extensions.data());
 
-  ASH_LOG("Available Vulkan Extensions:");
+  logger.info("Available Vulkan Extensions:");
 
   for (VkExtensionProperties extension : available_extensions) {
-    ASH_LOG("\t{},  spec version: {}", extension.extensionName,
-            extension.specVersion);
+    logger.info("\t{},  spec version: {}", extension.extensionName,
+                extension.specVersion);
   }
 
   u32 available_validation_layers_count;
@@ -214,16 +177,17 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   ASH_VK_CHECK(vkEnumerateInstanceLayerProperties(
       &available_validation_layers_count, available_validation_layers.data()));
 
-  ASH_LOG("Available Vulkan Validation Layers:");
+  logger.info("Available Vulkan Validation Layers:");
 
   for (VkLayerProperties const& layer : available_validation_layers) {
-    ASH_LOG("\t{} (spec version: {})", layer.layerName, layer.specVersion);
+    logger.info("\t{} (spec version: {})", layer.layerName, layer.specVersion);
   }
 
-  ensure_extensions_supported(available_extensions, required_extensions);
+  ensure_extensions_supported(available_extensions, required_extensions,
+                              logger);
 
   ensure_validation_layers_supported(available_validation_layers,
-                                     required_validation_layers);
+                                     required_validation_layers, logger);
 
   // helps but not necessary
   VkApplicationInfo app_info{
@@ -237,17 +201,18 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   };
 
   VkInstanceCreateInfo create_info{
-      .sType =
-          VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,  // debug messenger for when
-                                                   // the installed debug
-                                                   // messenger is uninstalled.
+      // debug messenger for when
+      // the installed debug
+      // messenger is uninstalled.
+      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
       // this helps to debug issues with vkDestroyInstance and vkCreateInstance
       // i.e. (before and after the debug messenger is installed)
       .pNext = required_validation_layers.is_empty()
                    ? nullptr
                    : &debug_utils_messenger_create_info,
       .flags = 0,
-      .pApplicationInfo = &app_info,  // validation layers
+      .pApplicationInfo = &app_info,
+      // validation layers
       .enabledLayerCount = AS_U32(required_validation_layers.size()),
       .ppEnabledLayerNames = required_validation_layers.data(),
       .enabledExtensionCount = AS_U32(required_extensions.size()),
@@ -329,7 +294,7 @@ inline VkDevice create_logical_device(
     VkPhysicalDevice phy_dev, stx::Span<char const* const> required_extensions,
     stx::Span<char const* const> required_validation_layers,
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_infos,
-    VkPhysicalDeviceFeatures const& required_features = {}) {
+    VkPhysicalDeviceFeatures const& required_features, spdlog::logger& logger) {
   u32 available_extensions_count;
   ASH_VK_CHECK(vkEnumerateDeviceExtensionProperties(
       phy_dev, nullptr, &available_extensions_count, nullptr));
@@ -344,14 +309,16 @@ inline VkDevice create_logical_device(
       phy_dev, nullptr, &available_extensions_count,
       available_device_extensions.data()));
 
-  ASH_LOG("Required Device Extensions: ");
+  logger.info("Required Device Extensions: ");
 
-  required_extensions.for_each([](char const* ext) { ASH_LOG("\t{}", ext); });
+  required_extensions.for_each(
+      [&logger](char const* ext) { logger.info("\t{}", ext); });
 
-  ASH_LOG("Available Device Extensions: ");
+  logger.info("Available Device Extensions: ");
 
-  available_device_extensions.span().for_each([](VkExtensionProperties ext) {
-    ASH_LOG("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
+  available_device_extensions.span().for_each([&logger](
+                                                  VkExtensionProperties ext) {
+    logger.info("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
   });
 
   ASH_CHECK(required_extensions.is_all([&](char const* ext) {
@@ -766,11 +733,11 @@ struct CommandQueue {
 
 inline stx::Rc<Instance*> create_instance(
     char const* app_name, u32 app_version, char const* engine_name,
-    u32 engine_version, stx::Span<char const* const> required_extensions = {},
-    stx::Span<char const* const> validation_layers = {}) {
+    u32 engine_version, stx::Span<char const* const> required_extensions,
+    stx::Span<char const* const> validation_layers, spdlog::logger& logger) {
   auto [instance, debug_utils_messenger] =
       create_vulkan_instance(required_extensions, validation_layers, app_name,
-                             app_version, engine_name, engine_version);
+                             app_version, engine_name, engine_version, logger);
 
   return stx::rc::make_inplace<Instance>(
              stx::os_allocator, instance,
@@ -803,10 +770,10 @@ inline stx::Rc<Device*> create_device(
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_info,
     stx::Span<char const* const> required_extensions,
     stx::Span<char const* const> required_validation_layers,
-    VkPhysicalDeviceFeatures required_features) {
+    VkPhysicalDeviceFeatures required_features, spdlog::logger& logger) {
   VkDevice dev = create_logical_device(
       phy_dev->phy_device, required_extensions, required_validation_layers,
-      command_queue_create_info, required_features);
+      command_queue_create_info, required_features, logger);
 
   stx::Vec<CommandQueueInfo> command_queues{stx::os_allocator};
 
@@ -1519,7 +1486,7 @@ struct SwapChain {
 
   VkDevice dev = VK_NULL_HANDLE;
 
-// TODO(lamarrr): add max_nframes argument
+  // TODO(lamarrr): add max_nframes argument
   void init(VkPhysicalDevice phy,
             VkPhysicalDeviceMemoryProperties const& memory_properties,
             VkDevice adev, VkSurfaceKHR target_surface,
@@ -1527,7 +1494,8 @@ struct SwapChain {
             stx::Span<VkPresentModeKHR const> preferred_present_modes,
             VkExtent2D preferred_extent, VkExtent2D awindow_extent,
             VkSampleCountFlagBits amsaa_sample_count,
-            VkCompositeAlphaFlagBitsKHR alpha_blending) {
+            VkCompositeAlphaFlagBitsKHR alpha_blending,
+            spdlog::logger& logger) {
     dev = adev;
 
     // the properties change every time we need to create a swapchain so we must
@@ -1535,30 +1503,31 @@ struct SwapChain {
     SwapChainProperties properties =
         get_swapchain_properties(phy, target_surface);
 
-    ASH_LOG("Device Supported Surface Formats:");
+    logger.info("Device Supported Surface Formats:");
     for (VkSurfaceFormatKHR const& format : properties.supported_formats) {
-      ASH_LOG("\tFormat: {}, Color Space: {}", string_VkFormat(format.format),
-              string_VkColorSpaceKHR(format.colorSpace));
+      logger.info("\tFormat: {}, Color Space: {}",
+                  string_VkFormat(format.format),
+                  string_VkColorSpaceKHR(format.colorSpace));
     }
 
     // swapchain formats are device-dependent
     VkSurfaceFormatKHR selected_format = select_swapchain_surface_formats(
         properties.supported_formats, preferred_formats);
 
-    spdlog::info(
+    logger.info(
         "selected swapchain surface format: [format: {}, color space: {}]",
         string_VkFormat(selected_format.format),
         string_VkColorSpaceKHR(selected_format.colorSpace));
 
-    spdlog::info("Available swapchain presentation modes:");
+    logger.info("Available swapchain presentation modes:");
 
     // TODO(lamarrr): log selections
     // swapchain presentation modes are device-dependent
     VkPresentModeKHR selected_present_mode = select_swapchain_presentation_mode(
         properties.presentation_modes, preferred_present_modes);
 
-    spdlog::info("selected swapchain presentation mode: {}",
-                 string_VkPresentModeKHR(selected_present_mode));
+    logger.info("selected swapchain presentation mode: {}",
+                string_VkPresentModeKHR(selected_present_mode));
 
     auto [new_swapchain, new_extent] = create_swapchain(
         dev, target_surface, preferred_extent, selected_format,
@@ -1843,7 +1812,7 @@ struct Surface {
       stx::Span<VkPresentModeKHR const> preferred_present_modes,
       VkExtent2D preferred_extent, VkExtent2D window_extent,
       VkSampleCountFlagBits msaa_sample_count,
-      VkCompositeAlphaFlagBitsKHR alpha_blending) {
+      VkCompositeAlphaFlagBitsKHR alpha_blending, spdlog::logger& logger) {
     // don't want to have two existing at once
     if (swapchain.is_some()) {
       swapchain.value().destroy();
@@ -1856,7 +1825,7 @@ struct Surface {
                        queue->device->phy_dev->memory_properties,
                        queue->device->dev, surface, preferred_formats,
                        preferred_present_modes, preferred_extent, window_extent,
-                       msaa_sample_count, alpha_blending);
+                       msaa_sample_count, alpha_blending, logger);
 
     swapchain = stx::Some(std::move(new_swapchain));
   }

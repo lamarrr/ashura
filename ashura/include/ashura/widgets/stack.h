@@ -47,9 +47,9 @@ struct Stack : public Widget {
 
   constexpr virtual Layout layout(rect area);
 
-  virtual simdjson::dom::element save(simdjson::dom::parser& parser);
+  virtual simdjson::dom::element save(WidgetContext & context,simdjson::dom::parser& parser);
 
-  virtual void restore(simdjson::dom::element const& element);
+  virtual void restore(WidgetContext & context,simdjson::dom::element const& element);
 
   Alignment alignment = Alignment::TopLeft;
   stx::Vec<Widget*> children{stx::os_allocator};

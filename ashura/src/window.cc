@@ -44,7 +44,8 @@ void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
           .unwrap());
 }
 
-void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
+void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
+                                spdlog::logger& logger) {
   // if cause of change in swapchain is a change in extent, then mark
   // layout as dirty, otherwise maintain pipeline state
   int width, height;
@@ -74,12 +75,7 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue) {
       VkExtent2D{.width = surface_extent.width,
                  .height = surface_extent.height},
       VkExtent2D{.width = window_extent.width, .height = window_extent.height},
-      msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
-
-  ASH_LOG(
-      "recreated swapchain for logical/window/viewport extent: [{}, {}], "
-      "physical/surface extent: [{}, {}]",
-      width, height, surface_width, surface_height);
+      msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, logger);
 }
 
 std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
