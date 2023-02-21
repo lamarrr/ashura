@@ -9,6 +9,8 @@ namespace gfx {
 /// NOTE: resource image with index 0 must be a transparent white image
 using image = u64;
 
+}  // namespace gfx
+
 struct RgbaImageBuffer {
   stx::Memory memory;
   extent extent;
@@ -18,5 +20,4 @@ struct RgbaImageBuffer {
   }
 };
 
-}  // namespace gfx
 }  // namespace ash
