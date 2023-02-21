@@ -3,7 +3,7 @@ add_library(ashura STATIC src/app.cc src/engine.cc src/window_api.cc
 
 target_include_directories(
   ashura
-  PUBLIC include
+  PUBLIC include ${Stb_INCLUDE_DIR}
   PRIVATE src)
 
 target_link_libraries(
