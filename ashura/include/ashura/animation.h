@@ -5,44 +5,41 @@
 
 namespace ash {
 
-enum class AnimationStatus : u8 { Completed, Forward, Dismissed, Reversed };
-
-// https://api.flutter.dev/flutter/animation/Animation-class.html
 struct Animation {
-  f32 delay = 0;
-  usize nrepeats = 0;
-  f32 speed = 1;
-  bool auto_reverses = false;
-  f32 value = 0;
+  f32 duration = 0;
+  f32 begin = 0, end = 0;
 
-  virtual f32 tick(std::chrono::nanoseconds interval, f32 previous);
+  virtual f32 tick(f32 timepoint) { return 0; }
 };
 
-struct Linear : public Animation {};
+struct Linear : public Animation {
+  virtual f32 tick(f32 timepoint) override {
+    return Animation::end * timepoint / Animation::duration + Animation::begin;
+  }
+};
 
 struct EaseIn : public Animation {
-  f32 duration = 0;
+  virtual f32 tick(f32 timepoint) override {
+    return Animation::end * (timepoint /= Animation::duration) * timepoint +
+           Animation::begin;
+  }
 };
 
 struct EaseOut : public Animation {
-  f32 duration = 0;
+  virtual f32 tick(f32 timepoint) override {
+    return -Animation::end * (timepoint /= Animation::duration) *
+               (timepoint - 2) +
+           Animation::begin;
+  }
 };
 
 struct EaseInOut : public Animation {
-  f32 duration = 0;
-};
-
-struct SpringAnimation : public Animation {
-  f32 response = 0;
-  f32 damping = 0;
-  f32 blend_duration = 0;
-};
-
-// https://api.flutter.dev/flutter/animation/Tween-class.html
-template <typename T>
-struct Tween {
-  T begin;
-  T end;
+  virtual f32 tick(f32 timepoint) override {
+    if ((timepoint /= Animation::duration / 2) < 1)
+      return Animation::end / 2 * timepoint * timepoint + Animation::begin;
+    return -Animation::end / 2 * ((--timepoint) * (timepoint - 2) - 1) +
+           Animation::begin;
+  }
 };
 
 }  // namespace ash
