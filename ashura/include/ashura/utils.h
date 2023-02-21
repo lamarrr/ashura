@@ -18,20 +18,20 @@
 #define ASH_UNREACHABLE() \
   ASH_PANIC("Expected program execution to not reach this state")
 
-#define AS_U8(...) static_cast<ash::u8>(__VA_ARGS__)
-#define AS_U16(...) static_cast<ash::u16>(__VA_ARGS__)
-#define AS_U32(...) static_cast<ash::u32>(__VA_ARGS__)
-#define AS_U64(...) static_cast<ash::u64>(__VA_ARGS__)
-
-#define AS_I8(...) static_cast<ash::i8>(__VA_ARGS__)
-#define AS_I16(...) static_cast<ash::i16>(__VA_ARGS__)
-#define AS_I32(...) static_cast<ash::i32>(__VA_ARGS__)
-#define AS_I64(...) static_cast<ash::i64>(__VA_ARGS__)
-
-#define AS_F32(...) static_cast<ash::f32>(__VA_ARGS__)
-#define AS_F64(...) static_cast<ash::f64>(__VA_ARGS__)
-
 #define AS(type, ...) static_cast<type>(__VA_ARGS__)
+
+#define AS_U8(...) AS(::ash::u8, __VA_ARGS__)
+#define AS_U16(...) AS(::ash::u16, __VA_ARGS__)
+#define AS_U32(...) AS(::ash::u32, __VA_ARGS__)
+#define AS_U64(...) AS(::ash::u64, __VA_ARGS__)
+
+#define AS_I8(...) AS(::ash::i8, __VA_ARGS__)
+#define AS_I16(...) AS(::ash::i16, __VA_ARGS__)
+#define AS_I32(...) AS(::ash::i32, __VA_ARGS__)
+#define AS_I64(...) AS(::ash::i64, __VA_ARGS__)
+
+#define AS_F32(...) AS(::ash::f32, __VA_ARGS__)
+#define AS_F64(...) AS(::ash::f64, __VA_ARGS__)
 
 namespace ash {
 
