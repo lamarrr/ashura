@@ -22,4 +22,13 @@ struct blur_effect {
   ash::extent offset;
 };
 
+// bloom
+// chromatic aberration
+// depth of field
+// shadow mapping
+// particle effects
+// bokeh effect
+// hdr support
+// global illumination
+
 }  // namespace rgk
