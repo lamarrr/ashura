@@ -164,7 +164,7 @@ struct Window {
 
   WindowSwapchainDiff present(VkQueue queue, u32 swapchain_image_index);
 
-  void on(WindowEvent event, stx::UniqueFn<void()> action) {
+  void on(WindowEvents event, stx::UniqueFn<void(WindowEvents)> action) {
     event_listeners.push(std::make_pair(event, std::move(action))).unwrap();
   }
 
@@ -192,10 +192,8 @@ struct Window {
   std::thread::id init_thread_id;
   stx::Option<stx::Unique<vk::Surface*>> surface;
   stx::Option<stx::Rc<vk::Instance*>> instance;
-  bool needs_resizing =
-      false;  // TODO(lamarrr): this is written to but never read
-  stx::Vec<std::pair<WindowEvent, stx::UniqueFn<void()>>> event_listeners{
-      stx::os_allocator};
+  stx::Vec<std::pair<WindowEvents, stx::UniqueFn<void(WindowEvents)>>>
+      event_listeners{stx::os_allocator};
   stx::Vec<stx::UniqueFn<void(MouseClickEvent)>> mouse_click_listeners{
       stx::os_allocator};
   stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>> mouse_motion_listeners{
