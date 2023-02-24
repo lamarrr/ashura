@@ -7,7 +7,6 @@
 #include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
 #include "ashura/palletes.h"
-#include "ashura/sample_image.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/shaders.h"
 #include "ashura/vulkan_context.h"
@@ -224,9 +223,6 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
 
   gfx::image transparent_image = image_bundle.add(
       upload_context.upload_image(transparent_image_data, {1, 1}, 4));
-
-  img = image_bundle.add(
-      upload_context.upload_image(sample_image, {1920, 1080}, 4));
 
   ASH_CHECK(transparent_image == 0);
 
