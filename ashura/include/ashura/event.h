@@ -6,26 +6,28 @@
 
 namespace ash {
 
-enum class WindowEvent : u8 {
-  None,
-  Shown,
-  Hidden,
-  Exposed,
-  Moved,
+enum class WindowEvents : u32 {
+  None = 0,
+  Shown = 1,
+  Hidden = 1 << 1,
+  Exposed = 1 << 2,
+  Moved = 1 << 3,
   /// window size changed by user
-  Resized,
+  Resized = 1 << 4,
   /// window size changed by user or via window API
-  SizeChanged,
-  Minimized,
-  Maximized,
-  Restored,
-  Enter,
-  Leave,
-  FocusGained,
-  FocusLost,
-  Close,
-  TakeFocus
+  SizeChanged = 1 << 5,
+  Minimized = 1 << 6,
+  Maximized = 1 << 7,
+  Restored = 1 << 8,
+  Enter = 1 << 9,
+  Leave = 1 << 10,
+  FocusGained = 1 << 11,
+  FocusLost = 1 << 12,
+  Close = 1 << 13,
+  TakeFocus = 1 << 14
 };
+
+STX_DEFINE_ENUM_BIT_OPS(WindowEvents)
 
 enum class MouseButton : u8 {
   None = 0,
