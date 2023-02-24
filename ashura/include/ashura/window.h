@@ -200,6 +200,8 @@ struct Window {
       stx::os_allocator};
   stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>> mouse_motion_listeners{
       stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>> mouse_wheel_listeners{
+      stx::os_allocator};
   stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>> key_down_listeners{
       stx::os_allocator};
   stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>> key_up_listeners{
