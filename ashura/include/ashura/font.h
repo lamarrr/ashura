@@ -461,9 +461,6 @@ struct Glyph {
   /// the glyph index
   u32 index = 0;
 
-  /// unicode codepoint this glyph represents
-  u32 codepoint = 0;
-
   /// offset into the atlas its glyph resides
   offset offset;
 
