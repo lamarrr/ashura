@@ -204,7 +204,7 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
     //
     // get the angle of inclination of p2 to p1
     vec2 d = p1 - p0;
-    f32 grad = std::abs(d.y / std::max(stx::f32_epsilon, d.x));
+    f32 grad = std::abs(d.y / std::max(stx::F32_EPSILON, d.x));
     f32 alpha = std::atan(grad);
 
     // use direction of the points to get the actual overall angle of
@@ -773,10 +773,10 @@ struct Canvas {
       FontAtlas const& atlas = fonts[run.font].atlas;
 
       hb_feature_t const shaping_features[] = {
-          {Font::KERNING_FEATURE, run.style.use_kerning, 0, stx::u_max},
-          {Font::LIGATURE_FEATURE, run.style.use_ligatures, 0, stx::u_max},
+          {Font::KERNING_FEATURE, run.style.use_kerning, 0, stx::U_MAX},
+          {Font::LIGATURE_FEATURE, run.style.use_ligatures, 0, stx::U_MAX},
           {Font::CONTEXTUAL_LIGATURE_FEATURE, run.style.use_ligatures, 0,
-           stx::u_max}};
+           stx::U_MAX}};
 
       fmt::print("language: {}\n", run.language);
 
