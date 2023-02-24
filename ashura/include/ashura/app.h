@@ -12,7 +12,8 @@ namespace ash {
 struct App {
   STX_MAKE_PINNED(App)
 
-  explicit App(AppConfig icfg) : cfg{icfg.copy()}, engine{icfg} {}
+  explicit App(AppConfig icfg, Widget* widget)
+      : cfg{icfg.copy()}, engine{icfg, widget} {}
 
   void tick(std::chrono::nanoseconds interval);
 
