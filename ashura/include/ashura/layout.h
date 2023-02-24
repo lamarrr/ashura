@@ -31,6 +31,8 @@ constexpr vec2 perform_children_layout(Layout const &layout,
     perform_layout(*child, layout.area);
   }
 
+  // TODO(lamarrr): handle position
+
   vec2 cursor;
 
   // some alignments like center, evenly, end, space around, and space
