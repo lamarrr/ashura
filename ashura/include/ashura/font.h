@@ -491,7 +491,7 @@ struct FontAtlas {
   u32 font_height = 26;
 
   /// atlas containing the packed glyphs
-  image image = 0;
+  image texture = 0;
 
   stx::Span<Glyph const> get(u32 glyph_index) const {
     if (glyph_index >= glyphs.size()) return {};
@@ -527,11 +527,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
         glyphs
             .push(Glyph{.is_valid = true,
                         .index = glyph_index,
-                        .codepoint = codepoint,
-                        .offset = {},
-                        .extent = {width, height},
-                        .x = AS_F32(font.ftface->glyph->bitmap_left),
-                        .ascent = AS_F32(font.ftface->glyph->bitmap_top),
+                        .offset = offset{},
                         .advance = advance,
                         .s0 = 0,
                         .t0 = 0,
@@ -606,7 +602,6 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
         glyphs
             .push(Glyph{.is_valid = false,
                         .index = next_index,
-                        .codepoint = 0,
                         .offset = {},
                         .extent = {},
                         .x = 0,
@@ -684,7 +679,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
       FontAtlas{.glyphs = std::move(glyphs),
                 .extent = atlas_extent,
                 .font_height = font_height,
-                .image = 0},
+                .texture = 0},
       RgbaImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent});
 }
 
