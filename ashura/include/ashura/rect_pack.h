@@ -507,8 +507,8 @@ inline bool pack_rects(Context &context, rect *rects, i32 num_rects) {
       FindResult find_result =
           skyline_pack_rectangle(context, rects[i].w, rects[i].h);
       if (find_result.prev_link) {
-        rects[i].x = AS_I32(find_result.x);
-        rects[i].y = AS_I32(find_result.y);
+        rects[i].x = AS(i32, find_result.x);
+        rects[i].y = AS(i32, find_result.y);
       } else {
         rects[i].x = rects[i].y = stx::i32_max;
       }
