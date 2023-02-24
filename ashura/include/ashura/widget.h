@@ -22,7 +22,6 @@
 #include "stx/string.h"
 #include "stx/vec.h"
 
-
 namespace ash {
 
 enum class Visibility : u8 { Visible, Hidden };
@@ -150,6 +149,10 @@ struct WidgetContext {
   }
 };
 
+// TODO(lamarrr): we might need request detach so child widgets can request to
+// be removed and remove all callbacks they may have attached or cancel tasks
+// they have pending.
+// consider: having tokens that de-register themselves once deleted
 struct Widget {
   constexpr Widget() {}
 
@@ -179,10 +182,12 @@ struct Widget {
   constexpr virtual void draw(gfx::Canvas &canvas, rect area) {}
 
   // called before children are drawn
-  constexpr virtual void pre_draw(gfx::Canvas &canvas, Widget &child) {}
+  constexpr virtual void pre_draw(gfx::Canvas &canvas, Widget &child,
+                                  rect area) {}
 
   // called once children are drawn
-  constexpr virtual void post_draw(gfx::Canvas &canvas, Widget &child) {}
+  constexpr virtual void post_draw(gfx::Canvas &canvas, Widget &child,
+                                   rect area) {}
 
   //
   constexpr virtual void tick(WidgetContext &context,
@@ -200,60 +205,19 @@ struct Widget {
   //
   constexpr virtual void on_leave_viewport(WidgetContext &context) {}
 
-  //
   constexpr virtual void on_click(WidgetContext &context, MouseButton button,
-                                  vec2 position, u32 nclicks,
-                                  KeyModifiers modifiers) {}
+                                  vec2 screen_position, vec2 position,
+                                  u32 nclicks) {}
 
-  //
-  constexpr virtual void on_double_click(WidgetContext &context,
-                                         MouseButton button, vec2 position,
-                                         KeyModifiers modifiers) {}
-
-  //
-  constexpr virtual void on_mouse_scroll(WidgetContext &context,
-                                         vec2 previous_position,
-                                         vec2 current_position,
-                                         vec2 translation,
-                                         KeyModifiers modifiers) {}
-
-  //
   constexpr virtual void on_mouse_move(WidgetContext &context,
-                                       vec2 previous_position,
-                                       vec2 current_position,
-                                       KeyModifiers modifiers) {}
+                                       vec2 screen_position, vec2 position,
+                                       vec2 translation) {}
 
-  //
-  constexpr virtual void on_hover(WidgetContext &context, vec2 position,
-                                  KeyModifiers modifiers) {}
-
-  //
-  constexpr virtual void on_mouse_down(WidgetContext &context, vec2 position,
-                                       KeyModifiers modifiers) {}
-
-  //
-  constexpr virtual void on_mouse_up(WidgetContext &context,
-                                     KeyModifiers modifiers) {}
-
-  //
   constexpr virtual void on_mouse_enter(WidgetContext &context,
-                                        KeyModifiers modifiers) {}
+                                        vec2 screen_position, vec2 position) {}
 
-  //
   constexpr virtual void on_mouse_leave(WidgetContext &context,
-                                        KeyModifiers modifiers) {}
-
-  //
-  constexpr virtual void on_mouse_out(WidgetContext &context,
-                                      KeyModifiers modifiers) {}
-
-  //
-  constexpr virtual void on_mouse_over(WidgetContext &context,
-                                       KeyModifiers modifiers) {}
-
-  //
-  constexpr virtual void on_enter(WidgetContext &context,
-                                  KeyModifiers modifiers) {}
+                                        vec2 screen_position) {}
 
   //
   constexpr virtual void on_tap(WidgetContext &context) {}
@@ -297,26 +261,11 @@ struct Widget {
   //
   constexpr virtual void on_touch_leave(WidgetContext &context) {}
 
-  //
-  constexpr virtual void on_focus(WidgetContext &context) {}
-
-  //
-  constexpr virtual void on_focus_in(WidgetContext &context) {}
-
-  //
-  constexpr virtual void on_focus_out(WidgetContext &context) {}
-
-  //
-  constexpr virtual void on_select(WidgetContext &context) {}
-
   // TODO(lamarrr): can this be simpler?
   // virtual void raise_tooltip(){}
   // virtual void lower_tooltip(){}
 
-  // virtual void accessibility_navigate(){}
-  // virtual void accessibility_info(){}
-
-  // TODO(lamarrr): we need a widget build tree
+  // TODO(lamarrr): we need a widget build tree???
   //
   virtual simdjson::dom::element save(WidgetContext &context,
                                       simdjson::dom::parser &parser) {
