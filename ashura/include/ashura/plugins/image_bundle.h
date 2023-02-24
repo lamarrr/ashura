@@ -10,6 +10,7 @@
 
 namespace ash {
 
+// TODO(lamarrr): we need widget context for getting other plugins
 struct ImageBundle : public Plugin {
   virtual constexpr void on_startup() override {}
 
