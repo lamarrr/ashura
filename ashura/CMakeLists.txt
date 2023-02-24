@@ -3,7 +3,7 @@ add_library(ashura STATIC src/app.cc src/engine.cc src/window_api.cc
 
 target_include_directories(
   ashura
-  PUBLIC include ${Stb_INCLUDE_DIR}
+  PUBLIC include ${JPEG_INCLUDE_DIR}
   PRIVATE src)
 
 target_link_libraries(
@@ -16,7 +16,11 @@ target_link_libraries(
   spdlog::spdlog
   harfbuzz
   Freetype::Freetype
-  simdjson::simdjson)
+  simdjson::simdjson
+  WebP::webp
+  WebP::webpdecoder
+  ${JPEG_LIBRARIES}
+  PNG::PNG)
 
 add_executable(ashura_main src/ashura.cc)
 target_link_libraries(ashura_main ashura)
