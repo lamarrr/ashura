@@ -14,42 +14,42 @@
 namespace ash {
 
 namespace impl {
-constexpr WindowEvent sdl_window_event_to_ash(u8 win_event_type) {
-  switch (win_event_type) {
+constexpr WindowEvents sdl_window_event_to_ash(u8 type) {
+  switch (type) {
     case SDL_WINDOWEVENT_NONE:
-      return WindowEvent::None;
+      return WindowEvents::None;
     case SDL_WINDOWEVENT_SHOWN:
-      return WindowEvent::Shown;
+      return WindowEvents::Shown;
     case SDL_WINDOWEVENT_HIDDEN:
-      return WindowEvent::Hidden;
+      return WindowEvents::Hidden;
     case SDL_WINDOWEVENT_EXPOSED:
-      return WindowEvent::Exposed;
+      return WindowEvents::Exposed;
     case SDL_WINDOWEVENT_MOVED:
-      return WindowEvent::Moved;
+      return WindowEvents::Moved;
     case SDL_WINDOWEVENT_RESIZED:
-      return WindowEvent::Resized;
+      return WindowEvents::Resized;
     case SDL_WINDOWEVENT_SIZE_CHANGED:
-      return WindowEvent::SizeChanged;
+      return WindowEvents::SizeChanged;
     case SDL_WINDOWEVENT_MINIMIZED:
-      return WindowEvent::Minimized;
+      return WindowEvents::Minimized;
     case SDL_WINDOWEVENT_MAXIMIZED:
-      return WindowEvent::Maximized;
+      return WindowEvents::Maximized;
     case SDL_WINDOWEVENT_RESTORED:
-      return WindowEvent::Restored;
+      return WindowEvents::Restored;
     case SDL_WINDOWEVENT_ENTER:
-      return WindowEvent::Enter;
+      return WindowEvents::Enter;
     case SDL_WINDOWEVENT_LEAVE:
-      return WindowEvent::Leave;
+      return WindowEvents::Leave;
     case SDL_WINDOWEVENT_FOCUS_GAINED:
-      return WindowEvent::FocusGained;
+      return WindowEvents::FocusGained;
     case SDL_WINDOWEVENT_FOCUS_LOST:
-      return WindowEvent::FocusLost;
+      return WindowEvents::FocusLost;
     case SDL_WINDOWEVENT_CLOSE:
-      return WindowEvent::Close;
+      return WindowEvents::Close;
     case SDL_WINDOWEVENT_TAKE_FOCUS:
-      return WindowEvent::TakeFocus;
+      return WindowEvents::TakeFocus;
     default:
-      return WindowEvent::None;
+      return WindowEvents::None;
   }
 }
 }  // namespace impl
@@ -67,14 +67,14 @@ bool WindowApi::poll_events() {
   if (SDL_PollEvent(&event)) {
     switch (event.type) {
       case SDL_WINDOWEVENT: {
-        WindowEvent win_event =
+        WindowEvents win_event =
             impl::sdl_window_event_to_ash(event.window.event);
 
         for (auto const& listener :
              get_window_info(WindowID{event.window.windowID})
                  ->event_listeners) {
-          if (listener.first == win_event) {
-            listener.second.handle();
+          if ((listener.first & win_event) != WindowEvents::None) {
+            listener.second.handle(win_event);
           }
         }
         return true;
