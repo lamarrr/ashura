@@ -401,6 +401,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
 
   WindowSwapchainDiff swapchain_diff = WindowSwapchainDiff::None;
 
+  // TODO(lamarrr): restructure this part and make it more sane
   do {
     if (swapchain_diff != WindowSwapchainDiff::None) {
       window.value()->recreate_swapchain(queue.value(), *logger.value().handle);
