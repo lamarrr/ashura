@@ -280,6 +280,8 @@ constexpr bool operator!=(offset a, offset b) { return !(a == b); }
 
 struct offseti {
   i64 x = 0, y = 0;
+
+  constexpr vec2 as_vec() const { return vec2{AS(f32, x), AS(f32, y)}; }
 };
 
 constexpr offseti operator+(offseti a, offseti b) {
