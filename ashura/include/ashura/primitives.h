@@ -7,7 +7,7 @@
 #include "stx/limits.h"
 #include "stx/option.h"
 
-#define RADIANS(...) AS_F32(::ash::pi *(__VA_ARGS__) / 180)
+#define RADIANS(...) AS(f32, ::ash::pi *(__VA_ARGS__) / 180)
 
 namespace ash {
 
@@ -90,29 +90,29 @@ struct rect {
 };
 
 struct vec3 {
-  f32 x = 0, y = 0, z = 0, ____padding = 0;
+  f32 x = 0, y = 0, z = 0, __padding = 0;
 
   static constexpr vec3 splat(f32 v) { return vec3{.x = v, .y = v, .z = v}; }
 };
 
 constexpr vec3 operator-(vec3 a, f32 b) {
-  return vec3{a.x - b, a.y - b, a.z - b};
+  return vec3{a.x - b, a.y - b, a.z - b, a.__padding - b};
 }
 
 constexpr vec3 operator-(f32 a, vec3 b) {
-  return vec3{a - b.x, a - b.y, a - b.z};
+  return vec3{a - b.x, a - b.y, a - b.z, a - b.__padding};
 }
 
 constexpr vec3 operator*(vec3 a, f32 b) {
-  return vec3{a.x * b, a.y * b, a.z * b};
+  return vec3{a.x * b, a.y * b, a.z * b, a.__padding * b};
 }
 
 constexpr vec3 operator*(f32 a, vec3 b) {
-  return vec3{a * b.x, a * b.y, a * b.z};
+  return vec3{a * b.x, a * b.y, a * b.z, a * b.__padding};
 }
 
 constexpr vec3 operator/(vec3 a, vec3 b) {
-  return vec3{a.x / b.x, a.y / b.y, a.z / b.z};
+  return vec3{a.x / b.x, a.y / b.y, a.z / b.z, a.__padding / b.__padding};
 }
 
 /// column vector
@@ -135,12 +135,6 @@ constexpr bool operator!=(vec4 a, vec4 b) {
 constexpr f32 dot(vec4 a, vec4 b) {
   return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
-
-struct vertex {
-  vec2 position;
-  vec2 st;
-  vec4 color;
-};
 
 /// row-major
 struct mat4 {
@@ -307,7 +301,7 @@ struct extent {
                   .height = std::min(height, other.height)};
   }
 
-  constexpr u64 area() const { return AS_U64(width) * height; }
+  constexpr u64 area() const { return AS(u64, width) * height; }
 };
 
 constexpr extent operator+(extent a, extent b) {
@@ -424,5 +418,11 @@ constexpr color CYAN = color::from_rgb(0x00, 0xff, 0xff);
 constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
 
 }  // namespace colors
+
+struct vertex {
+  vec2 position;
+  vec2 st;
+  vec4 color;
+};
 
 }  // namespace ash
