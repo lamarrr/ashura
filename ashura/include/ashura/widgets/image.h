@@ -164,8 +164,12 @@ struct Image : public Widget {
 
           if (load_result.is_ok()) {
             RgbaImageBuffer& buffer = load_result.value();
-            bundle->add(buffer.span(), buffer.extent);
+            image = bundle->add(buffer.span(), buffer.extent);
             state = ImageState::Loaded;
+            if (props.resize_on_load) {
+              props.width = constraint{.bias = AS(f32, buffer.extent.width)};
+              props.height = constraint{.bias = AS(f32, buffer.extent.height)};
+            }
           } else {
             state = ImageState::LoadFailed;
           }
