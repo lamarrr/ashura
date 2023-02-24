@@ -86,6 +86,11 @@ struct rect {
            y2_min < y1_max;
   }
 
+  constexpr bool contains(vec2 point) const {
+    return offset.x <= point.x && offset.y <= point.y &&
+           (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
+  }
+
   constexpr bool is_visible() const { return extent.x != 0 && extent.y != 0; }
 };
 
