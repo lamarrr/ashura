@@ -17,7 +17,6 @@ struct AppConfig {
   bool enable_validation_layers = false;
   stx::String log_file = "log.txt"_str;
   WindowConfig window_config;
-  // asset dir, shader dir, etc
 
   AppConfig copy() const {
     return AppConfig{
