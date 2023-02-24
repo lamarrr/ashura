@@ -141,6 +141,14 @@ bool WindowApi::poll_events() {
       }
 
       case SDL_MOUSEWHEEL: {
+        for (auto& listener : get_window_info(WindowID{event.wheel.windowID})
+                                  ->mouse_wheel_listeners) {
+          listener.handle(MouseWheelEvent{
+              .mouse_id = MouseID{event.wheel.which},
+              .position = vec2{AS(f32, event.wheel.mouseX),
+                               AS(f32, event.wheel.mouseY)},
+              .translation = vec2{event.wheel.preciseX, event.wheel.preciseY}});
+        }
         return true;
       }
 
