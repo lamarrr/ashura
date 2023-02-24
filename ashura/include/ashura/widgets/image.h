@@ -187,6 +187,15 @@ struct Image : public Widget {
     }
   }
 
+  virtual void on_mouse_enter(WidgetContext& context, vec2 screen_position,
+                              vec2 position) override {
+    spdlog::info("mouse over");
+  }
+
+  virtual void on_mouse_leave(WidgetContext& context, vec2 screen_position) {
+    spdlog::info("mouse leave");
+  }
+
   virtual simdjson::dom::element save(WidgetContext& context,
                                       simdjson::dom::parser& parser) override {
     std::string source;
