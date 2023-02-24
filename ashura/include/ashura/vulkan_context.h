@@ -369,7 +369,7 @@ struct RecordingContext {
           .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
           .pNext = nullptr,
           .flags = 0,
-          .bindingCount = AS_U32(bindings.size()),
+          .bindingCount = AS(u32, bindings.size()),
           .pBindings = bindings.data()};
 
       VkDescriptorSetLayout descriptor_set_layout;
@@ -388,7 +388,7 @@ struct RecordingContext {
         .pNext = nullptr,
         .commandPool = cmd_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = AS_U32(max_nframes_in_flight)};
+        .commandBufferCount = AS(u32, max_nframes_in_flight)};
 
     ASH_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info,
                                           cmd_buffers.data()));
@@ -402,7 +402,7 @@ struct RecordingContext {
           .pNext = nullptr,
           .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
           .maxSets = max_descriptor_sets,
-          .poolSizeCount = AS_U32(adescriptor_pool_sizes.size()),
+          .poolSizeCount = AS(u32, adescriptor_pool_sizes.size()),
           .pPoolSizes = adescriptor_pool_sizes.data()};
 
       VkDescriptorPool descriptor_pool;
@@ -447,7 +447,7 @@ struct RecordingContext {
 
     vkDestroyShaderModule(dev, fragment_shader, nullptr);
 
-    vkFreeCommandBuffers(dev, cmd_pool, AS_U32(max_nframes_in_flight),
+    vkFreeCommandBuffers(dev, cmd_pool, AS(u32, max_nframes_in_flight),
                          cmd_buffers.data());
 
     vkDestroyCommandPool(dev, cmd_pool, nullptr);
@@ -459,7 +459,7 @@ struct RecordingContext {
     u32 frame_index = 0;
     for (stx::Vec<VkDescriptorSet> const& set : descriptor_sets) {
       vkFreeDescriptorSets(dev, descriptor_pools[frame_index],
-                           AS_U32(set.size()), set.data());
+                           AS(u32, set.size()), set.data());
       frame_index++;
     }
 
@@ -476,7 +476,7 @@ inline gfx::CachedFont cache_font(UploadContext& context,
                                   stx::Rc<Font*> font, u32 font_height) {
   auto [image, atlas] = context.cache_font(font.share(), font_height);
   gfx::image texture = bundle.add(std::move(image));
-  atlas.image = texture;
+  atlas.texture = texture;
   return gfx::CachedFont{.font = std::move(font), .atlas = std::move(atlas)};
 }
 
