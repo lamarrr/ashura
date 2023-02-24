@@ -50,11 +50,11 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
   // layout as dirty, otherwise maintain pipeline state
   int width, height;
   SDL_GetWindowSize(window, &width, &height);
-  window_extent = extent{AS_U32(width), AS_U32(height)};
+  window_extent = extent{AS(u32, width), AS(u32, height)};
 
   int surface_width, surface_height;
   SDL_Vulkan_GetDrawableSize(window, &surface_width, &surface_height);
-  surface_extent = extent{AS_U32(surface_width), AS_U32(surface_height)};
+  surface_extent = extent{AS(u32, surface_width), AS(u32, surface_height)};
 
   VkSurfaceFormatKHR preferred_formats[] = {
       {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
@@ -94,7 +94,7 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
   u32 swapchain_image_index = 0;
 
   VkResult result =
-      vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain, COMMAND_TIMEOUT,
+      vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain, UI_COMMAND_TIMEOUT,
                             semaphore, fence, &swapchain_image_index);
 
   ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
@@ -196,8 +196,8 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
   }
 
   SDL_Window* window = SDL_CreateWindow(
-      cfg.title.c_str(), 0, 0, AS_I32(std::max<u32>(cfg.extent.width, 1)),
-      AS_I32(std::max<u32>(cfg.extent.height, 1)), window_flags);
+      cfg.title.c_str(), 0, 0, AS(i32, std::max<u32>(cfg.extent.width, 1)),
+      AS(i32, std::max<u32>(cfg.extent.height, 1)), window_flags);
 
   // window creation shouldn't fail reliably, if it fails,
   // there's no point in the program proceeding
@@ -205,15 +205,15 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
 
   cfg.min_extent.copy().match(
       [&](extent min_extent) {
-        SDL_SetWindowMinimumSize(window, AS_I32(min_extent.width),
-                                 AS_I32(min_extent.height));
+        SDL_SetWindowMinimumSize(window, AS(i32, min_extent.width),
+                                 AS(i32, min_extent.height));
       },
       []() {});
 
   cfg.max_extent.copy().match(
       [&](extent max_extent) {
-        SDL_SetWindowMaximumSize(window, AS_I32(max_extent.width),
-                                 AS_I32(max_extent.height));
+        SDL_SetWindowMaximumSize(window, AS(i32, max_extent.width),
+                                 AS(i32, max_extent.height));
       },
       []() {});
 
