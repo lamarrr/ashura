@@ -258,6 +258,12 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
           load_font_from_file(
               R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\MaterialIcons-Regular.ttf)"_str)
               .unwrap(),
+          50),
+      vk::cache_font(
+          upload_context, image_bundle,
+          load_font_from_file(
+              R"(C:\Users\Basit\OneDrive\Desktop\gen-shin-gothic-monospace-bold\Gen Shin Gothic Monospace Bold\Gen Shin Gothic Monospace Bold.ttf)"_str)
+              .unwrap(),
           50)};
 
   widget_context.register_plugin(
