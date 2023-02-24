@@ -1,6 +1,5 @@
 #pragma once
 
-#define STB_IMAGE_IMPLEMENTATION
 #include <algorithm>
 #include <string>
 #include <string_view>
@@ -9,10 +8,10 @@
 
 #include "ashura/base64.h"
 #include "ashura/image.h"
+#include "ashura/image_decoder.h"
 #include "ashura/plugins/image_bundle.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
-#include "stb_image.h"
 #include "stx/option.h"
 #include "stx/scheduler/scheduling/schedule.h"
 #include "stx/span.h"
@@ -60,8 +59,6 @@ enum class ImageState : u8 {
   /// a failure occured while loading the image
   LoadFailed
 };
-
-enum class ImageLoadError : u8 { InvalidPath, UnsupportedChannels };
 
 /// Usage Needs
 ///
@@ -143,53 +140,17 @@ struct Image : public Widget {
 
                 ASH_CHECK(stream.is_open());
 
-                stx::Vec<u8> bytes{stx::os_allocator};
+                usize file_size = stream.tellg();
 
-                bytes.resize(stream.tellg()).unwrap();
+                stx::Memory memory =
+                    stx::mem::allocate(stx::os_allocator, file_size).unwrap();
 
                 stream.seekg(0);
 
-                stream.read(reinterpret_cast<char*>(bytes.data()),
-                            bytes.size());
+                stream.read(AS(char*, memory.handle), file_size);
 
-                int width, height, nchannels;
-
-                stbi_uc* pixels = stbi_load_from_memory(
-                    reinterpret_cast<stbi_uc*>(bytes.data()),
-                    AS(int, bytes.size()), &width, &height, &nchannels, 4);
-
-                ASH_CHECK(pixels != nullptr);
-
-                if (nchannels == 1) {
-                  ASH_PANIC("unimplemented");
-                } else if (nchannels == 3) {
-                  stx::Memory memory =
-                      stx::mem::allocate(stx::os_allocator, width * height * 4)
-                          .unwrap();
-                  u8* output = AS(u8*, memory.handle);
-
-                  for (usize i = 0; i < height; i++) {
-                    for (usize j = 0; j < width; j++) {
-                      output[i * width * 4 + j] = pixels[i * width * 3 + j];
-                      output[i * width * 4 + j + 1] =
-                          pixels[i * width * 3 + j + 1];
-                      output[i * width * 4 + j + 2] =
-                          pixels[i * width * 3 + j + 2];
-                      output[i * width * 4 + j + 3] = 0xFF;
-                      pixels += 3;
-                      output += 4;
-                    }
-                  }
-                  return stx::Ok(RgbaImageBuffer{
-                      .memory = std::move(memory),
-                      .extent = extent{AS_U32(width), AS_U32(height)}});
-                } else if (nchannels == 4) {
-                  return stx::Ok(RgbaImageBuffer{
-                      .memory = stx::Memory{stx::os_allocator, pixels},
-                      .extent = extent{AS_U32(width), AS_U32(height)}});
-                } else {
-                  return stx::Err(ImageLoadError::UnsupportedChannels);
-                }
+                return decode_image(
+                    stx::Span{AS(u8 const*, memory.handle), file_size});
               },
               stx::INTERACTIVE_PRIORITY, stx::TaskTraceInfo{}));
           state = ImageState::Loading;
