@@ -16,6 +16,7 @@ struct CanvasRenderer {
   usize max_nframes_in_flight = 0;
   stx::Vec<SpanBuffer> vertex_buffers{stx::os_allocator};
   stx::Vec<SpanBuffer> index_buffers{stx::os_allocator};
+  vk::Sampler texture_sampler;
 
   RecordingContext ctx;
 
@@ -72,6 +73,10 @@ struct CanvasRenderer {
 
       index_buffers.push_inplace(index_buffer).unwrap();
     }
+
+    texture_sampler =
+        vk::create_sampler(queue.value()->device, VK_FILTER_LINEAR,
+                            VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_TRUE);
   }
 
   void destroy() {
@@ -88,8 +93,7 @@ struct CanvasRenderer {
               u32 swapchain_image_index, u32 frame, VkFence render_fence,
               VkSemaphore image_acquisition_semaphore,
               VkSemaphore render_semaphore, VkRenderPass render_pass,
-              VkFramebuffer framebuffer, VkSampler texture_sampler,
-              stx::Span<gfx::DrawCommand const> cmds,
+              VkFramebuffer framebuffer, stx::Span<gfx::DrawCommand const> cmds,
               stx::Span<vertex const> vertices, stx::Span<u32 const> indices,
               AssetBundle<stx::Rc<ImageResource*>> const& image_bundle) {
     ASH_CHECK(frame < max_nframes_in_flight);
@@ -244,7 +248,7 @@ struct CanvasRenderer {
           *image_bundle.get(cmds[icmd].texture).unwrap()->handle;
 
       VkDescriptorImageInfo image_info{
-          .sampler = texture_sampler,
+          .sampler = texture_sampler.sampler,
           .imageView = image.view,
           .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 

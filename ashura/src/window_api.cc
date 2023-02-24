@@ -73,6 +73,7 @@ bool WindowApi::poll_events() {
         for (auto const& listener :
              get_window_info(WindowID{event.window.windowID})
                  ->event_listeners) {
+                  spdlog::info("win event: {}", (int)event.window.event);
           if ((listener.first & win_event) != WindowEvents::None) {
             listener.second.handle(win_event);
           }

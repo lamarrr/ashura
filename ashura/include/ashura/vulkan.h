@@ -409,12 +409,12 @@ inline VkExtent2D select_swapchain_extent(
   //
   //
   //
-  // if {capabilities.currentExtent} is already set (value other than u32_max)
+  // if {capabilities.currentExtent} is already set (value other than U32_MAX)
   // then we are not allowed to choose the extent and we must use the provided
   // extent. otherwise, we a range of extents will be provided that we must
   // clamp to.
-  if (capabilities.currentExtent.width != stx::u32_max ||
-      capabilities.currentExtent.height != stx::u32_max) {
+  if (capabilities.currentExtent.width != stx::U32_MAX ||
+      capabilities.currentExtent.height != stx::U32_MAX) {
     return capabilities.currentExtent;
   } else {
     VkExtent2D target_extent{desired_extent.width, desired_extent.height};
@@ -438,7 +438,7 @@ inline u32 select_swapchain_image_count(
       // no limit on the number of swapchain images
       capabilities.maxImageCount == 0
           ? std::clamp(desired_nbuffers, capabilities.minImageCount,
-                       stx::u32_max)
+                       stx::U32_MAX)
           : std::clamp(desired_nbuffers, capabilities.minImageCount,
                        capabilities.maxImageCount);
 }
@@ -1088,9 +1088,9 @@ struct Sampler {
   }
 };
 
-inline VkSampler create_sampler(stx::Rc<Device*> const& device, VkFilter filter,
-                                VkSamplerMipmapMode mipmap,
-                                VkBool32 enable_anisotropy) {
+inline Sampler create_sampler(stx::Rc<Device*> const& device, VkFilter filter,
+                              VkSamplerMipmapMode mipmap,
+                              VkBool32 enable_anisotropy) {
   VkSamplerCreateInfo create_info{
       .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
       .pNext = nullptr,
@@ -1115,15 +1115,7 @@ inline VkSampler create_sampler(stx::Rc<Device*> const& device, VkFilter filter,
 
   ASH_VK_CHECK(vkCreateSampler(device->dev, &create_info, nullptr, &sampler));
 
-  return sampler;
-}
-
-inline Sampler create_sampler2(stx::Rc<Device*> const& device, VkFilter filter,
-                               VkSamplerMipmapMode mipmap,
-                               VkBool32 enable_anisotropy) {
-  return Sampler{
-      .sampler = create_sampler(device, filter, mipmap, enable_anisotropy),
-      .dev = device->dev};
+  return Sampler{.sampler = sampler, .dev = device->dev};
 }
 
 struct DescriptorBinding {

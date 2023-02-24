@@ -64,10 +64,6 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
   return stx::None;
 }
 
-gfx::CachedFont* font;
-gfx::image img;
-vk::Sampler* sampler;
-
 Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
     : task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()},
       root_widget{iroot_widget},
@@ -226,42 +222,40 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
 
   ASH_CHECK(transparent_image == 0);
 
-  sampler = new vk::Sampler{
-      vk::create_sampler2(queue.value()->device, VK_FILTER_LINEAR,
-                          VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_TRUE)};
-
-  font = new gfx::CachedFont[]{
-      vk::cache_font(
-          upload_context, image_bundle,
-          load_font_from_file(
-              R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura\assets\fonts\JetBrainsMono-Regular.ttf)"_str)
-              .unwrap(),
-          26),
-      vk::cache_font(
-          upload_context, image_bundle,
-          load_font_from_file(
-              R"(C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf)"_str)
-              .unwrap(),
-          50),
-      vk::cache_font(
-          upload_context, image_bundle,
-          load_font_from_file(
-              R"(C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe Arabic Regular\Adobe Arabic Regular.ttf)"_str)
-              .unwrap(),
-          26),
-      vk::cache_font(
-          upload_context, image_bundle,
-          load_font_from_file(
-              R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\MaterialIcons-Regular.ttf)"_str)
-              .unwrap(),
-          50),
-      vk::cache_font(
-          upload_context, image_bundle,
-          load_font_from_file(
-              R"(C:\Users\Basit\OneDrive\Desktop\gen-shin-gothic-monospace-bold\Gen Shin Gothic Monospace Bold\Gen Shin Gothic Monospace Bold.ttf)"_str)
-              .unwrap(),
-          50)};
-
+  /*
+  gfx::CachedFont* font;
+  gfx::image img;
+    font = new gfx::CachedFont[]{
+        vk::cache_font(
+            upload_context, image_bundle,
+            load_font_from_file(
+                R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura\assets\fonts\JetBrainsMono-Regular.ttf)"_str)
+                .unwrap(),
+            26),
+        vk::cache_font(
+            upload_context, image_bundle,
+            load_font_from_file(
+                R"(C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf)"_str)
+                .unwrap(),
+            50),
+        vk::cache_font(
+            upload_context, image_bundle,
+            load_font_from_file(
+                R"(C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
+  Arabic Regular\Adobe Arabic Regular.ttf)"_str) .unwrap(), 26), vk::cache_font(
+            upload_context, image_bundle,
+            load_font_from_file(
+                R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\MaterialIcons-Regular.ttf)"_str)
+                .unwrap(),
+            50),
+        vk::cache_font(
+            upload_context, image_bundle,
+            load_font_from_file(
+                R"(C:\Users\Basit\OneDrive\Desktop\gen-shin-gothic-monospace-bold\Gen
+  Shin Gothic Monospace Bold\Gen Shin Gothic Monospace Bold.ttf)"_str)
+                .unwrap(),
+            50)};
+  */
   widget_context.register_plugin(
       new VulkanImageBundle{image_bundle, upload_context});
 
@@ -286,6 +280,18 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
                 })
                 .unwrap())
       .unwrap();
+
+  window.value()->on(
+      WindowEvents::All,
+      stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents
+                                                                     events) {
+        if ((events & WindowEvents::Leave) != WindowEvents::None) {
+          widget_system.mouse_motion_event = stx::Some(MouseMotionEvent{
+              .mouse_id = 0,
+              .position = vec2{stx::F32_MIN, stx::F32_MIN},
+              .translation = vec2{stx::F32_MIN, stx::F32_MIN}});
+        }
+      }).unwrap());
 
   // TODO(lamarrr): attach debug widgets: FPS stats, memory usage, etc
   widget_system.launch(widget_context);
@@ -355,8 +361,8 @@ void Engine::tick(std::chrono::nanoseconds interval) {
         swapchain.frame, swapchain.render_fences[swapchain.frame],
         swapchain.image_acquisition_semaphores[swapchain.frame],
         swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
-        swapchain.framebuffers[swapchain_image_index], sampler->sampler,
-        draw_list.cmds, draw_list.vertices, draw_list.indices, image_bundle);
+        swapchain.framebuffers[swapchain_image_index], draw_list.cmds,
+        draw_list.vertices, draw_list.indices, image_bundle);
 
     swapchain_diff = window.value()->present(queue.value()->info.queue,
                                              swapchain_image_index);

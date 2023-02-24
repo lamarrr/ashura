@@ -510,7 +510,7 @@ inline bool pack_rects(Context &context, rect *rects, i32 num_rects) {
         rects[i].x = AS(i32, find_result.x);
         rects[i].y = AS(i32, find_result.y);
       } else {
-        rects[i].x = rects[i].y = stx::i32_max;
+        rects[i].x = rects[i].y = stx::I32_MAX;
       }
     }
   }
@@ -522,7 +522,7 @@ inline bool pack_rects(Context &context, rect *rects, i32 num_rects) {
   // set was_packed flags and all_rects_packed status
   for (i32 i = 0; i < num_rects; ++i) {
     rects[i].was_packed =
-        !(rects[i].x == stx::i32_max && rects[i].y == stx::i32_max);
+        !(rects[i].x == stx::I32_MAX && rects[i].y == stx::I32_MAX);
     if (!rects[i].was_packed) all_rects_packed = 0;
   }
 

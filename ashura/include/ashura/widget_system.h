@@ -57,15 +57,17 @@ struct WidgetSystem {
                         Widget const* last_hit_widget,
                         bool& last_hit_widget_is_alive, Widget& widget,
                         Widget* parent, i64 z_index) {
-    z_index = widget.get_z_index(z_index);
+    if (widget.get_visibility() == Visibility::Visible) {
+      z_index = widget.get_z_index(z_index);
 
-    entries
-        .push(WidgetDrawEntry{
-            .widget = &widget,
-            .parent = parent,
-            .z_index = z_index,
-            .tranformed_area = rect{.offset = vec2{}, .extent = vec2{}}})
-        .unwrap();
+      entries
+          .push(WidgetDrawEntry{
+              .widget = &widget,
+              .parent = parent,
+              .z_index = z_index,
+              .tranformed_area = rect{.offset = vec2{}, .extent = vec2{}}})
+          .unwrap();
+    }
 
     if (last_hit_widget == &widget) {
       last_hit_widget_is_alive = true;
@@ -93,8 +95,7 @@ struct WidgetSystem {
       for (WidgetDrawEntry const* iter = entries.end();
            iter > entries.begin();) {
         iter--;
-        if (iter->widget->get_visibility() == Visibility::Visible &&
-            iter->tranformed_area.contains(event.position)) {
+        if (iter->tranformed_area.contains(event.position)) {
           iter->widget->on_click(context, event.button, event.position,
                                  event.position - iter->tranformed_area.offset,
                                  event.clicks);
@@ -113,8 +114,7 @@ struct WidgetSystem {
       for (WidgetDrawEntry const* iter = entries.end();
            iter > entries.begin();) {
         iter--;
-        if (iter->widget->get_visibility() == Visibility::Visible &&
-            iter->tranformed_area.contains(event.position)) {
+        if (iter->tranformed_area.contains(event.position)) {
           if (iter->widget != last_hit_widget) {
             iter->widget->on_mouse_enter(
                 context, event.position,
@@ -162,21 +162,19 @@ struct WidgetSystem {
 
   void draw_widgets(WidgetContext& context, gfx::Canvas& canvas) {
     for (WidgetDrawEntry& entry : entries) {
-      if (entry.widget->get_visibility() == Visibility::Visible) {
-        canvas.save();
-        canvas.transform = entry.widget->get_transform() * canvas.transform;
-        if (entry.parent) {
-          entry.parent->pre_draw(canvas, *entry.widget, entry.widget->area);
-        }
-        entry.widget->draw(canvas, entry.widget->area);
-        if (entry.parent) {
-          entry.parent->post_draw(canvas, *entry.widget, entry.widget->area);
-        }
-        entry.tranformed_area = rect{
-            .offset = transform(canvas.transform, entry.widget->area.offset),
-            .extent = transform(canvas.transform, entry.widget->area.extent)};
-        canvas.restore();
+      canvas.save();
+      canvas.transform = entry.widget->get_transform() * canvas.transform;
+      if (entry.parent) {
+        entry.parent->pre_draw(canvas, *entry.widget, entry.widget->area);
       }
+      entry.widget->draw(canvas, entry.widget->area);
+      if (entry.parent) {
+        entry.parent->post_draw(canvas, *entry.widget, entry.widget->area);
+      }
+      entry.tranformed_area = rect{
+          .offset = transform(canvas.transform, entry.widget->area.offset),
+          .extent = transform(canvas.transform, entry.widget->area.extent)};
+      canvas.restore();
     }
   }
 

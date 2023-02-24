@@ -337,8 +337,8 @@ struct constraint {
   f32 scale = 0;
 
   /// clamping the target size, i.e. value should be between 20px and 600px
-  f32 min = stx::f32_min;
-  f32 max = stx::f32_max;
+  f32 min = stx::F32_MIN;
+  f32 max = stx::F32_MAX;
 
   /// relatively clamps the values of the result
   /// i.e. result should be between 50% and 75% of the allotted value.
@@ -351,8 +351,8 @@ struct constraint {
   static constexpr constraint relative(f32 scale) {
     return constraint{.bias = 0,
                       .scale = scale,
-                      .min = stx::f32_min,
-                      .max = stx::f32_max,
+                      .min = stx::F32_MIN,
+                      .max = stx::F32_MAX,
                       .min_rel = 0,
                       .max_rel = 1};
   }
@@ -360,8 +360,8 @@ struct constraint {
   static constexpr constraint absolute(f32 value) {
     return constraint{.bias = value,
                       .scale = 1,
-                      .min = stx::f32_min,
-                      .max = stx::f32_max,
+                      .min = stx::F32_MIN,
+                      .max = stx::F32_MAX,
                       .min_rel = 0,
                       .max_rel = 1};
   }

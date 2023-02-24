@@ -6,7 +6,7 @@
 
 int main(int, char*[]) {
   SDL_SetMainReady();
-  ash::AppConfig cfg{.enable_validation_layers = true};
+  ash::AppConfig cfg{.enable_validation_layers = false};
   cfg.window_config.borderless = false;
   ash::App app{
       std::move(cfg),

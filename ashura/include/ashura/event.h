@@ -24,7 +24,8 @@ enum class WindowEvents : u32 {
   FocusGained = 1 << 11,
   FocusLost = 1 << 12,
   Close = 1 << 13,
-  TakeFocus = 1 << 14
+  TakeFocus = 1 << 14,
+  All = (1 << 15) - 1
 };
 
 STX_DEFINE_ENUM_BIT_OPS(WindowEvents)
