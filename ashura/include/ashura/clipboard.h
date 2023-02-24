@@ -1,7 +1,13 @@
+#pragma once
 
+namespace ash {
 
-struct ClipBoard{
+struct ClipBoard {
+  void get_text();
 
-void gettext();
-//has text
+  void set_text();
+
+  bool has_text();
 };
+
+}  // namespace ash
