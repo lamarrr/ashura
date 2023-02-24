@@ -10,6 +10,7 @@
 #include "ashura/vulkan.h"
 #include "ashura/vulkan_canvas_renderer.h"
 #include "ashura/widget.h"
+#include "ashura/widget_system.h"
 #include "ashura/window.h"
 #include "ashura/window_api.h"
 #include "spdlog/logger.h"
@@ -20,9 +21,10 @@
 namespace ash {
 
 struct Engine {
-  Engine(AppConfig const& cfg);
+  Engine(AppConfig const& cfg, Widget* root_widget);
 
   ~Engine() {
+    delete root_widget;
     renderer.destroy();
     upload_context.destroy();
   }
@@ -37,6 +39,8 @@ struct Engine {
   AssetBundle<stx::Rc<vk::ImageResource*>> image_bundle;
   stx::TaskScheduler task_scheduler;
   WidgetContext widget_context;
+  Widget* root_widget = nullptr;
+  WidgetSystem widget_system;
 
   void tick(std::chrono::nanoseconds interval);
 };
