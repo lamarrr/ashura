@@ -34,8 +34,8 @@
 namespace ash {
 using namespace std::chrono_literals;
 
-static constexpr u64 COMMAND_TIMEOUT =
-    AS_U64(std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
+static constexpr u64 UI_COMMAND_TIMEOUT =
+    AS(u64, std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
 
 namespace vk {
 
@@ -213,9 +213,9 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
       .flags = 0,
       .pApplicationInfo = &app_info,
       // validation layers
-      .enabledLayerCount = AS_U32(required_validation_layers.size()),
+      .enabledLayerCount = AS(u32, required_validation_layers.size()),
       .ppEnabledLayerNames = required_validation_layers.data(),
-      .enabledExtensionCount = AS_U32(required_extensions.size()),
+      .enabledExtensionCount = AS(u32, required_extensions.size()),
       .ppEnabledExtensionNames = required_extensions.data(),
   };
 
@@ -280,7 +280,7 @@ inline stx::Vec<bool> get_surface_presentation_command_queue_support(
     VkSurfaceKHR surface) {
   stx::Vec<bool> supports{stx::os_allocator};
 
-  for (u32 i = 0; i < AS_U32(queue_families.size()); i++) {
+  for (u32 i = 0; i < AS(u32, queue_families.size()); i++) {
     VkBool32 surface_presentation_supported;
     ASH_VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(
         phy_dev, i, surface, &surface_presentation_supported));
@@ -335,11 +335,11 @@ inline VkDevice create_logical_device(
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
       .pNext = nullptr,
       .flags = 0,
-      .queueCreateInfoCount = AS_U32(command_queue_create_infos.size()),
+      .queueCreateInfoCount = AS(u32, command_queue_create_infos.size()),
       .pQueueCreateInfos = command_queue_create_infos.data(),
-      .enabledLayerCount = AS_U32(required_validation_layers.size()),
+      .enabledLayerCount = AS(u32, required_validation_layers.size()),
       .ppEnabledLayerNames = required_validation_layers.data(),
-      .enabledExtensionCount = AS_U32(required_extensions.size()),
+      .enabledExtensionCount = AS(u32, required_extensions.size()),
       .ppEnabledExtensionNames = required_extensions.data(),
       .pEnabledFeatures = &required_features};
 
@@ -542,27 +542,10 @@ inline stx::Option<u32> find_suitable_memory_type(
     if ((memory_properties.memoryTypes[i].propertyFlags &
          required_properties) == required_properties &&
         (memory_requirements.memoryTypeBits & (1 << i))) {
-      return stx::Some(AS_U32(i));
+      return stx::Some(AS(u32, i));
     }
   }
   return stx::None;
-}
-
-constexpr std::string_view format(VkPhysicalDeviceType type) {
-  switch (type) {
-    case VK_PHYSICAL_DEVICE_TYPE_CPU:
-      return "CPU";
-    case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
-      return "Discrete GPU";
-    case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-      return "Integrated GPU";
-    case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
-      return "Virtual GPU";
-    case VK_PHYSICAL_DEVICE_TYPE_OTHER:
-      return "other";
-    default:
-      return "unidentified Device Type";
-  }
 }
 
 struct Instance {
@@ -691,9 +674,9 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 }
 
 inline std::string format(PhyDeviceInfo const& dev) {
-  return fmt::format("Device(name: '{}', ID: {}, type: {}) ",
+  return std::format("Device(name: '{}', ID: {}, type: {}) ",
                      dev.properties.deviceName, dev.properties.deviceID,
-                     ::ash::vk::format(dev.properties.deviceType));
+                     string_VkPhysicalDeviceType(dev.properties.deviceType));
 }
 
 // automatically destroyed once the device is destroyed
@@ -761,7 +744,7 @@ inline stx::Option<CommandQueueFamilyInfo> get_graphics_command_queue(
   }
 
   return stx::Some(CommandQueueFamilyInfo{
-      .index = AS_U32(pos - phy_dev->family_properties.begin()),
+      .index = AS(u32, pos - phy_dev->family_properties.begin()),
       .phy_device = phy_dev.share()});
 }
 
@@ -798,7 +781,7 @@ inline stx::Rc<Device*> create_device(
       command_queues
           .push(CommandQueueInfo{
               .queue = command_queue,
-              .create_index = AS_U32(i),
+              .create_index = AS(u32, i),
               .priority = priority,
               .family =
                   CommandQueueFamilyInfo{.index = command_queue_family_index,
@@ -1658,7 +1641,7 @@ struct SwapChain {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .attachmentCount = AS_U32(std::size(attachments)),
+        .attachmentCount = AS(u32, std::size(attachments)),
         .pAttachments = attachments,
         .subpassCount = 1,
         .pSubpasses = &subpass,
@@ -1679,7 +1662,7 @@ struct SwapChain {
           .pNext = nullptr,
           .flags = 0,
           .renderPass = render_pass,
-          .attachmentCount = AS_U32(std::size(attachments)),
+          .attachmentCount = AS(u32, std::size(attachments)),
           .pAttachments = attachments,
           .width = image_extent.width,
           .height = image_extent.height,
@@ -1880,7 +1863,7 @@ struct Pipeline {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .setLayoutCount = AS_U32(descriptor_set_layout.size()),
+        .setLayoutCount = AS(u32, descriptor_set_layout.size()),
         .pSetLayouts = descriptor_set_layout.data(),
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &push_constant};
@@ -1906,7 +1889,7 @@ struct Pipeline {
         .flags = 0,
         .logicOpEnable = VK_FALSE,
         .logicOp = VK_LOGIC_OP_COPY,
-        .attachmentCount = AS_U32(std::size(color_blend_attachment_states)),
+        .attachmentCount = AS(u32, std::size(color_blend_attachment_states)),
         .pAttachments = color_blend_attachment_states,
         .blendConstants = {0, 0, 0, 0}};
 
@@ -1979,9 +1962,9 @@ struct Pipeline {
         .pNext = nullptr,
         .flags = 0,
         .vertexBindingDescriptionCount =
-            AS_U32(std::size(vertex_binding_descriptions)),
+            AS(u32, std::size(vertex_binding_descriptions)),
         .pVertexBindingDescriptions = vertex_binding_descriptions,
-        .vertexAttributeDescriptionCount = AS_U32(vertex_input_attr.size()),
+        .vertexAttributeDescriptionCount = AS(u32, vertex_input_attr.size()),
         .pVertexAttributeDescriptions = vertex_input_attr.data()};
 
     VkPipelineViewportStateCreateInfo viewport_state{
@@ -2000,14 +1983,14 @@ struct Pipeline {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .dynamicStateCount = AS_U32(std::size(dynamic_states)),
+        .dynamicStateCount = AS(u32, std::size(dynamic_states)),
         .pDynamicStates = dynamic_states};
 
     VkGraphicsPipelineCreateInfo create_info{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .stageCount = AS_U32(std::size(stages)),
+        .stageCount = AS(u32, std::size(stages)),
         .pStages = stages,
         .pVertexInputState = &vertex_input_state,
         .pInputAssemblyState = &input_assembly_state,

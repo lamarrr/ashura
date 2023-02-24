@@ -109,12 +109,12 @@ struct CanvasRenderer {
 
     index_buffers[frame].write(memory_properties, indices.as_u8());
 
-    u32 nallocated_descriptor_sets = AS_U32(ctx.descriptor_sets[frame].size());
+    u32 nallocated_descriptor_sets = AS(u32, ctx.descriptor_sets[frame].size());
 
-    u32 ndraw_calls = AS_U32(cmds.size());
+    u32 ndraw_calls = AS(u32, cmds.size());
 
     u32 ndescriptor_sets_per_draw_call =
-        AS_U32(ctx.descriptor_set_layouts.size());
+        AS(u32, ctx.descriptor_set_layouts.size());
 
     u32 nrequired_descriptor_sets =
         ndescriptor_sets_per_draw_call * ndraw_calls;
@@ -139,7 +139,7 @@ struct CanvasRenderer {
           if (!ctx.descriptor_sets[frame].is_empty()) {
             ASH_VK_CHECK(
                 vkFreeDescriptorSets(dev, ctx.descriptor_pools[frame],
-                                     AS_U32(ctx.descriptor_sets[frame].size()),
+                                     AS(u32, ctx.descriptor_sets[frame].size()),
                                      ctx.descriptor_sets[frame].data()));
           }
 
@@ -157,7 +157,7 @@ struct CanvasRenderer {
               .pNext = nullptr,
               .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
               .maxSets = nrequired_descriptor_sets,
-              .poolSizeCount = AS_U32(sizes.size()),
+              .poolSizeCount = AS(u32, sizes.size()),
               .pPoolSizes = sizes.data()};
 
           ASH_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
@@ -174,7 +174,8 @@ struct CanvasRenderer {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .pNext = nullptr,
                 .descriptorPool = ctx.descriptor_pools[frame],
-                .descriptorSetCount = AS_U32(ctx.descriptor_set_layouts.size()),
+                .descriptorSetCount =
+                    AS(u32, ctx.descriptor_set_layouts.size()),
                 .pSetLayouts = ctx.descriptor_set_layouts.data()};
 
             ASH_VK_CHECK(vkAllocateDescriptorSets(
@@ -189,7 +190,7 @@ struct CanvasRenderer {
               .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
               .pNext = nullptr,
               .descriptorPool = ctx.descriptor_pools[frame],
-              .descriptorSetCount = AS_U32(ctx.descriptor_set_layouts.size()),
+              .descriptorSetCount = AS(u32, ctx.descriptor_set_layouts.size()),
               .pSetLayouts = ctx.descriptor_set_layouts.data()};
 
           for (u32 i =
@@ -206,7 +207,7 @@ struct CanvasRenderer {
     }
 
     ASH_VK_CHECK(
-        vkWaitForFences(dev, 1, &render_fence, VK_TRUE, COMMAND_TIMEOUT));
+        vkWaitForFences(dev, 1, &render_fence, VK_TRUE, UI_COMMAND_TIMEOUT));
 
     ASH_VK_CHECK(vkResetFences(dev, 1, &render_fence));
 
@@ -232,7 +233,7 @@ struct CanvasRenderer {
         .framebuffer = framebuffer,
         .renderArea =
             VkRect2D{.offset = VkOffset2D{0, 0}, .extent = image_extent},
-        .clearValueCount = AS_U32(std::size(clear_values)),
+        .clearValueCount = AS(u32, std::size(clear_values)),
         .pClearValues = clear_values};
 
     vkCmdBeginRenderPass(cmd_buffer, &render_pass_begin_info,
@@ -278,17 +279,17 @@ struct CanvasRenderer {
 
       VkViewport viewport{.x = 0,
                           .y = 0,
-                          .width = AS_F32(viewport_extent.width),
-                          .height = AS_F32(viewport_extent.height),
+                          .width = AS(f32, viewport_extent.width),
+                          .height = AS(f32, viewport_extent.height),
                           .minDepth = 0,
                           .maxDepth = 1};
 
       vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
 
-      VkRect2D scissor{.offset = VkOffset2D{AS_I32(cmd.clip_rect.offset.x),
-                                            AS_I32(cmd.clip_rect.offset.y)},
-                       .extent = VkExtent2D{AS_U32(cmd.clip_rect.extent.x),
-                                            AS_U32(cmd.clip_rect.extent.y)}};
+      VkRect2D scissor{.offset = VkOffset2D{AS(i32, cmd.clip_rect.offset.x),
+                                            AS(i32, cmd.clip_rect.offset.y)},
+                       .extent = VkExtent2D{AS(u32, cmd.clip_rect.extent.x),
+                                            AS(u32, cmd.clip_rect.extent.y)}};
 
       vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
 
