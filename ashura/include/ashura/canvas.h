@@ -778,6 +778,8 @@ struct Canvas {
           {Font::CONTEXTUAL_LIGATURE_FEATURE, run.style.use_ligatures, 0,
            stx::u_max}};
 
+      fmt::print("language: {}\n", run.language);
+
       hb_font_set_scale(font.hbfont, 64 * atlas.font_height,
                         64 * atlas.font_height);
 
@@ -814,6 +816,9 @@ struct Canvas {
       for (usize i = 0; i < nglyphs; i++) {
         u32 glyph_index = glyph_info[i].codepoint;
         stx::Span glyph = atlas.get(glyph_index);
+
+        // TODO(lamarrr): we seem to be getting an extra glyph index 0
+        fmt::print("glyph index: {}\n", glyph_index);
 
         if (!glyph.is_empty()) {
           width += glyph[0].advance.x * font_scale + run.style.letter_spacing;
