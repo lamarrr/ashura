@@ -99,6 +99,7 @@ struct Image : public Widget {
         canvas.save();
         canvas.brush.fill = true;
         canvas.brush.texture = image;
+        canvas.brush.color = colors::WHITE;
         if (props.border_radius == vec4{0, 0, 0, 0}) {
           canvas.draw_rect(area);
         } else {
