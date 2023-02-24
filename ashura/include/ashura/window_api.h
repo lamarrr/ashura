@@ -17,8 +17,6 @@ enum class WindowID : u32 {};
 struct Window;
 
 // not thread-safe, only one instance should be possible
-// TODO(lamarrr): setup loggers, this needs a window api logger
-
 // this also dispatches events to the created windows
 struct WindowApi {
   WindowApi();
