@@ -71,7 +71,7 @@ inline void circle(vec2 position, f32 radius, usize nsegments,
                    stx::Span<vertex> polygon) {
   if (nsegments == 0 || radius <= 0) return;
 
-  f32 step = AS_F32((2 * pi) / nsegments);
+  f32 step = AS(f32, (2 * pi) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
     vec2 p = radius + radius * vec2{std::cos(i * step), std::sin(i * step)};
@@ -88,7 +88,7 @@ inline void ellipse(vec2 position, vec2 radii, usize nsegments,
                     stx::Span<vertex> polygon) {
   if (nsegments == 0 || radii.x <= 0 || radii.y <= 0) return;
 
-  f32 step = AS_F32((2 * pi) / nsegments);
+  f32 step = AS(f32, (2 * pi) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
     vec2 p = radii + radii * vec2{std::cos(i * step), std::sin(i * step)};
@@ -110,7 +110,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
   radii.z = std::min(radii.z, std::min(extent.x, extent.y));
   radii.w = std::min(radii.w, std::min(extent.x, extent.y));
 
-  f32 step = AS_F32((pi / 2) / nsegments);
+  f32 step = AS(f32, (pi / 2) / nsegments);
 
   usize i = 0;
 
@@ -127,8 +127,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     vec2 p = vec2{radii.w, extent.y - radii.w} +
-             radii.w * vec2{std::cos(AS_F32(pi / 2) + segment * step),
-                            std::sin(AS_F32(pi / 2) + segment * step)};
+             radii.w * vec2{std::cos(AS(f32, pi / 2) + segment * step),
+                            std::sin(AS(f32, pi / 2) + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -138,8 +138,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
   }
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
-    vec2 p = radii.x + radii.x * vec2{std::cos(AS_F32(pi) + segment * step),
-                                      std::sin(AS_F32(pi) + segment * step)};
+    vec2 p = radii.x + radii.x * vec2{std::cos(AS(f32, pi) + segment * step),
+                                      std::sin(AS(f32, pi) + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -150,8 +150,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     vec2 p = vec2{extent.x - radii.y, radii.y} +
-             radii.y * vec2{std::cos(AS_F32(pi * 3) / 2 + segment * step),
-                            std::sin(AS_F32(pi * 3) / 2 + segment * step)};
+             radii.y * vec2{std::cos(AS(f32, pi * 3) / 2 + segment * step),
+                            std::sin(AS(f32, pi * 3) / 2 + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -210,21 +210,21 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
     // use direction of the points to get the actual overall angle of
     // inclination of p2 to p1
     if (d.x < 0 && d.y > 0) {
-      alpha = AS_F32(pi - alpha);
+      alpha = AS(f32, pi - alpha);
     } else if (d.x < 0 && d.y < 0) {
-      alpha = AS_F32(pi + alpha);
+      alpha = AS(f32, pi + alpha);
     } else if (d.x > 0 && d.y < 0) {
-      alpha = AS_F32(2 * pi - alpha);
+      alpha = AS(f32, 2 * pi - alpha);
     } else {
       // d.x >=0 && d.y >= 0
     }
 
     // line will be at a parallel angle
-    alpha = AS_F32(alpha + pi / 2);
+    alpha = AS(f32, alpha + pi / 2);
 
     vec2 f = line_thickness / 2 * vec2{std::cos(alpha), std::sin(alpha)};
     vec2 g = line_thickness / 2 *
-             vec2{std::cos(AS_F32(pi + alpha)), std::sin(AS_F32(pi + alpha))};
+             vec2{std::cos(AS(f32, pi + alpha)), std::sin(AS(f32, pi + alpha))};
 
     vec2 m0 = p0 + f;
     vec2 m1 = p0 + g;
@@ -298,7 +298,6 @@ struct CanvasState {
 struct Canvas {
   vec2 viewport_extent;
   Brush brush;
-
   mat4 transform = mat4::identity();
   mat4 global_transform = mat4::identity();
   rect clip_rect;
@@ -407,7 +406,7 @@ struct Canvas {
     draw_list.cmds
         .push(DrawCommand{
             .indices_offset = 0,
-            .nindices = AS_U32(std::size(indices)),
+            .nindices = AS(u32, std::size(indices)),
             .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent},
             .transform = mat4::identity(),
             .texture = brush.texture})
@@ -422,9 +421,9 @@ struct Canvas {
       return *this;
     }
 
-    u32 indices_offset = AS_U32(draw_list.indices.size());
+    u32 indices_offset = AS(u32, draw_list.indices.size());
 
-    u32 vertices_offset = AS_U32(draw_list.vertices.size());
+    u32 vertices_offset = AS(u32, draw_list.vertices.size());
 
     // the input texture coordinates are not used since we need to regenerate
     // them for the line thickness
@@ -432,7 +431,7 @@ struct Canvas {
                      brush.line_thickness, texture_area, vertices_offset,
                      draw_list.vertices, draw_list.indices);
 
-    u32 nindices = AS_U32(draw_list.indices.size() - indices_offset);
+    u32 nindices = AS(u32, draw_list.indices.size() - indices_offset);
 
     normalize_for_viewport(draw_list.vertices.span().slice(vertices_offset),
                            viewport_extent);
@@ -456,19 +455,19 @@ struct Canvas {
 
     vec4 color = brush.color.as_vec();
 
-    u32 indices_offset = AS_U32(draw_list.indices.size());
+    u32 indices_offset = AS(u32, draw_list.indices.size());
 
-    u32 vertices_offset = AS_U32(draw_list.vertices.size());
+    u32 vertices_offset = AS(u32, draw_list.vertices.size());
 
     triangulate_convex_polygon(draw_list.indices, vertices_offset,
-                               AS_U32(polygon.size()));
+                               AS(u32, polygon.size()));
 
     draw_list.vertices.extend(polygon).unwrap();
 
     normalize_for_viewport(draw_list.vertices.span().slice(vertices_offset),
                            viewport_extent);
 
-    u32 nindices = AS_U32(draw_list.indices.size() - indices_offset);
+    u32 nindices = AS(u32, draw_list.indices.size() - indices_offset);
 
     draw_list.cmds
         .push(DrawCommand{.indices_offset = indices_offset,
@@ -954,7 +953,7 @@ struct Canvas {
                  glyphs.span().slice(subword->glyph_start, subword->nglyphs)) {
               Glyph const& g = atlas.glyphs[glyph.glyph];
               vec2 advance = g.advance * font_scale;
-              draw_glyph(g, run, atlas.image,
+              draw_glyph(g, run, atlas.texture,
                          position + vec2{cursor_x, baseline}, font_scale,
                          line_height, vert_spacing);
               cursor_x += advance.x + letter_spacing;
@@ -1050,7 +1049,7 @@ struct Canvas {
                        rtl_iter->glyph_start, rtl_iter->nglyphs)) {
                 Glyph const& g = atlas.glyphs[glyph.glyph];
                 vec2 advance = g.advance * font_scale;
-                draw_glyph(g, run, atlas.image,
+                draw_glyph(g, run, atlas.texture,
                            position + vec2{glyph_cursor_x, baseline},
                            font_scale, line_height, vert_spacing);
                 glyph_cursor_x += advance.x + letter_spacing;
