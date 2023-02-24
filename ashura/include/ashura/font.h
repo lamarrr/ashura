@@ -630,44 +630,46 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
   bool const is_colored_font = FT_HAS_COLOR(font.ftface);
 
   for (Glyph const& glyph : glyphs) {
-    ASH_CHECK(
-        FT_Load_Glyph(font.ftface, glyph.index,
-                      is_colored_font
-                          ? (FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR)
-                          : (FT_LOAD_DEFAULT | FT_LOAD_RENDER)) == 0);
+    if (glyph.is_valid) {
+      ASH_CHECK(
+          FT_Load_Glyph(font.ftface, glyph.index,
+                        is_colored_font
+                            ? (FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR)
+                            : (FT_LOAD_DEFAULT | FT_LOAD_RENDER)) == 0);
 
-    uchar pixel_mode = font.ftface->glyph->bitmap.pixel_mode;
+      uchar pixel_mode = font.ftface->glyph->bitmap.pixel_mode;
 
-    ASH_CHECK(pixel_mode == FT_PIXEL_MODE_GRAY ||
-              pixel_mode == FT_PIXEL_MODE_BGRA);
+      ASH_CHECK(pixel_mode == FT_PIXEL_MODE_GRAY ||
+                pixel_mode == FT_PIXEL_MODE_BGRA);
 
-    u8* bitmap = font.ftface->glyph->bitmap.buffer;
+      u8* bitmap = font.ftface->glyph->bitmap.buffer;
 
-    // copy the rendered glyph to the atlas
-    if (pixel_mode == FT_PIXEL_MODE_GRAY) {
-      for (usize j = glyph.offset.y;
-           j < glyph.offset.y + font.ftface->glyph->bitmap.rows; j++) {
-        for (usize i = glyph.offset.x * 4;
-             i < (glyph.offset.x + font.ftface->glyph->bitmap.width) * 4;
-             i += 4) {
-          buffer[j * atlas_extent.width * 4 + i + 0] = 0xFF;
-          buffer[j * atlas_extent.width * 4 + i + 1] = 0xFF;
-          buffer[j * atlas_extent.width * 4 + i + 2] = 0xFF;
-          buffer[j * atlas_extent.width * 4 + i + 3] = *bitmap;
-          bitmap++;
+      // copy the rendered glyph to the atlas
+      if (pixel_mode == FT_PIXEL_MODE_GRAY) {
+        for (usize j = glyph.offset.y;
+             j < glyph.offset.y + font.ftface->glyph->bitmap.rows; j++) {
+          for (usize i = glyph.offset.x * 4;
+               i < (glyph.offset.x + font.ftface->glyph->bitmap.width) * 4;
+               i += 4) {
+            buffer[j * atlas_extent.width * 4 + i + 0] = 0xFF;
+            buffer[j * atlas_extent.width * 4 + i + 1] = 0xFF;
+            buffer[j * atlas_extent.width * 4 + i + 2] = 0xFF;
+            buffer[j * atlas_extent.width * 4 + i + 3] = *bitmap;
+            bitmap++;
+          }
         }
-      }
-    } else if (pixel_mode == FT_PIXEL_MODE_BGRA) {
-      for (usize j = glyph.offset.y;
-           j < glyph.offset.y + font.ftface->glyph->bitmap.rows; j++) {
-        for (usize i = glyph.offset.x * 4;
-             i < (glyph.offset.x + font.ftface->glyph->bitmap.width) * 4;
-             i += 4) {
-          buffer[j * atlas_extent.width * 4 + i + 0] = bitmap[2];
-          buffer[j * atlas_extent.width * 4 + i + 1] = bitmap[1];
-          buffer[j * atlas_extent.width * 4 + i + 2] = bitmap[0];
-          buffer[j * atlas_extent.width * 4 + i + 3] = bitmap[3];
-          bitmap += 4;
+      } else if (pixel_mode == FT_PIXEL_MODE_BGRA) {
+        for (usize j = glyph.offset.y;
+             j < glyph.offset.y + font.ftface->glyph->bitmap.rows; j++) {
+          for (usize i = glyph.offset.x * 4;
+               i < (glyph.offset.x + font.ftface->glyph->bitmap.width) * 4;
+               i += 4) {
+            buffer[j * atlas_extent.width * 4 + i + 0] = bitmap[2];
+            buffer[j * atlas_extent.width * 4 + i + 1] = bitmap[1];
+            buffer[j * atlas_extent.width * 4 + i + 2] = bitmap[0];
+            buffer[j * atlas_extent.width * 4 + i + 3] = bitmap[3];
+            bitmap += 4;
+          }
         }
       }
     }
