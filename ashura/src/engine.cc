@@ -194,9 +194,15 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
   upload_context.init(xqueue.share());
 
   window.value()->on(
-      WindowEvent::Resized,
-      stx::fn::rc::make_unique_functor(stx::os_allocator, [this]() {
-        logger.value()->info("RESIZED");
+      WindowEvents::Close,
+      stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) {
+        std::exit(0);
+      }).unwrap());
+
+  window.value()->on(
+      WindowEvents::Resized | WindowEvents::SizeChanged,
+      stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents) {
+        logger.value()->info("WINDOW RESIZED");
       }).unwrap());
 
   window.value()
@@ -207,7 +213,7 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
   window.value()
       ->mouse_click_listeners
       .push(stx::fn::rc::make_unique_static([](MouseClickEvent event) {
-        std::cout << "click" << std::endl;
+        std::cout << "clicks: " << event.clicks << std::endl;
         if (event.action == MouseAction::Press &&
             event.button == MouseButton::A2)
           std::exit(0);
@@ -254,27 +260,33 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
               .unwrap(),
           50)};
 
-  window.value()->on(WindowEvent::Close,
-                     stx::fn::rc::make_unique_functor(stx::os_allocator, []() {
-                       std::exit(0);
-                     }).unwrap());
-
-  window.value()->on(WindowEvent::Resized, stx::fn::rc::make_unique_functor(
-                                               stx::os_allocator,
-                                               [win = window.value().handle]() {
-                                                 win->needs_resizing = true;
-                                               })
-                                               .unwrap());
-
   widget_context.register_plugin(
       new VulkanImageBundle{image_bundle, upload_context});
 
-  window.value()->on(
-      WindowEvent::SizeChanged,
-      stx::fn::rc::make_unique_functor(
-          stx::os_allocator,
-          [win = window.value().handle]() { win->needs_resizing = true; })
-          .unwrap());
+  window.value()
+      ->mouse_click_listeners
+      .push(stx::fn::rc::make_unique_functor(stx::os_allocator,
+                                             [this](MouseClickEvent event) {
+                                               widget_system.mouse_click_event =
+                                                   stx::Some(
+                                                       MouseClickEvent{event});
+                                             })
+                .unwrap())
+      .unwrap();
+
+  window.value()
+      ->mouse_motion_listeners
+      .push(stx::fn::rc::make_unique_functor(
+                stx::os_allocator,
+                [this](MouseMotionEvent event) {
+                  widget_system.mouse_motion_event =
+                      stx::Some(MouseMotionEvent{event});
+                })
+                .unwrap())
+      .unwrap();
+
+  // TODO(lamarrr): attach debug widgets: FPS stats, memory usage, etc
+  widget_system.launch(widget_context);
 }
 
 void Engine::tick(std::chrono::nanoseconds interval) {
