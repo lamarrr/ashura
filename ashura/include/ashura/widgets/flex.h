@@ -49,7 +49,8 @@ struct Flex : public Widget {
                                     props.height.resolve(area.extent.y)}}};
   }
 
-  virtual simdjson::dom::element save(WidgetContext & context, simdjson::dom::parser& parser) {
+  virtual simdjson::dom::element save(WidgetContext& context,
+                                      simdjson::dom::parser& parser) {
     stx::Vec<u64> children_ids{stx::os_allocator};
     for (Widget* child : children) {
       children_ids.push_inplace(child->id).unwrap();
@@ -79,9 +80,9 @@ struct Flex : public Widget {
     "height_min_rel": {},
     "height_max_rel": {},
     "children": [{}]}})"),
-        info.id, info.type, AS_U32(props.direction), AS_U32(props.wrap),
-        AS_U32(props.main_align), AS_U32(props.cross_align),
-        AS_U32(props.main_fit), AS_U32(props.cross_fit), props.width.bias,
+        info.id, info.type, AS(u32, props.direction), AS(u32, props.wrap),
+        AS(u32, props.main_align), AS(u32, props.cross_align),
+        AS(u32, props.main_fit), AS(u32, props.cross_fit), props.width.bias,
         props.width.scale, props.width.min, props.width.max,
         props.width.min_rel, props.width.max_rel, props.height.bias,
         props.height.scale, props.height.min, props.height.max,
@@ -91,29 +92,31 @@ struct Flex : public Widget {
     return parser.parse(json.data(), json.size());
   }
 
-  virtual void restore(WidgetContext & context,simdjson::dom::element const& element) {
+  virtual void restore(WidgetContext& context,
+                       simdjson::dom::element const& element) {
     children.clear();
 
     Widget::id = element["id"].get_uint64();
-    props.direction = AS(Direction, AS_U8(element["direction"].get_uint64()));
-    props.wrap = AS(Wrap, AS_U8(element["wrap"].get_uint64()));
-    props.main_align = AS(MainAlign, AS_U8(element["main_align"].get_uint64()));
+    props.direction = AS(Direction, AS(u8, element["direction"].get_uint64()));
+    props.wrap = AS(Wrap, AS(u8, element["wrap"].get_uint64()));
+    props.main_align =
+        AS(MainAlign, AS(u8, element["main_align"].get_uint64()));
     props.cross_align =
-        AS(CrossAlign, AS_U8(element["cross_align"].get_uint64()));
-    props.main_fit = AS(Fit, AS_U8(element["main_fit"].get_uint64()));
-    props.cross_fit = AS(Fit, AS_U8(element["cross_fit"].get_uint64()));
-    props.width.bias = AS_F32(element["width_bias"].get_double());
-    props.width.scale = AS_F32(element["width_scale"].get_double());
-    props.width.min = AS_F32(element["width_min"].get_double());
-    props.width.max = AS_F32(element["width_max"].get_double());
-    props.width.min_rel = AS_F32(element["width_min_rel"].get_double());
-    props.width.max_rel = AS_F32(element["width_max_rel"].get_double());
-    props.height.bias = AS_F32(element["height_bias"].get_double());
-    props.height.scale = AS_F32(element["height_scale"].get_double());
-    props.height.min = AS_F32(element["height_min"].get_double());
-    props.height.max = AS_F32(element["height_max"].get_double());
-    props.height.min_rel = AS_F32(element["height_min_rel"].get_double());
-    props.height.max_rel = AS_F32(element["height_max_rel"].get_double());
+        AS(CrossAlign, AS(u8, element["cross_align"].get_uint64()));
+    props.main_fit = AS(Fit, AS(u8, element["main_fit"].get_uint64()));
+    props.cross_fit = AS(Fit, AS(u8, element["cross_fit"].get_uint64()));
+    props.width.bias = AS(f32, element["width_bias"].get_double());
+    props.width.scale = AS(f32, element["width_scale"].get_double());
+    props.width.min = AS(f32, element["width_min"].get_double());
+    props.width.max = AS(f32, element["width_max"].get_double());
+    props.width.min_rel = AS(f32, element["width_min_rel"].get_double());
+    props.width.max_rel = AS(f32, element["width_max_rel"].get_double());
+    props.height.bias = AS(f32, element["height_bias"].get_double());
+    props.height.scale = AS(f32, element["height_scale"].get_double());
+    props.height.min = AS(f32, element["height_min"].get_double());
+    props.height.max = AS(f32, element["height_max"].get_double());
+    props.height.min_rel = AS(f32, element["height_min_rel"].get_double());
+    props.height.max_rel = AS(f32, element["height_max_rel"].get_double());
     simdjson::dom::array children_array = element["children"].get_array();
 
     for (simdjson::dom::array::iterator it = children_array.begin();
