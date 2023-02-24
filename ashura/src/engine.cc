@@ -6,6 +6,7 @@
 #include "ashura/animation.h"
 #include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
+#include "ashura/palletes.h"
 #include "ashura/sample_image.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/shaders.h"
@@ -68,8 +69,10 @@ gfx::CachedFont* font;
 gfx::image img;
 vk::Sampler* sampler;
 
-Engine::Engine(AppConfig const& cfg)
-    : task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()} {
+Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
+    : task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()},
+      root_widget{iroot_widget},
+      widget_system{*root_widget} {
   widget_context.task_scheduler = &task_scheduler;
   stx::Vec<char const*> required_device_extensions{stx::os_allocator};
 
@@ -102,7 +105,7 @@ Engine::Engine(AppConfig const& cfg)
   stx::Vec window_required_instance_extensions =
       window.value()->get_required_instance_extensions();
 
-  stx::Rc<vk::Instance*> vk_instance = vk::create_instance(
+  stx::Rc vk_instance = vk::create_instance(
       cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), cfg.name.c_str(),
       VK_MAKE_VERSION(cfg.version.major, cfg.version.minor, cfg.version.patch),
       window_required_instance_extensions, required_validation_layers, xlogger);
@@ -154,7 +157,7 @@ Engine::Engine(AppConfig const& cfg)
        .pNext = nullptr,
        .flags = 0,
        .queueFamilyIndex = graphics_command_queue_family->index,
-       .queueCount = AS_U32(std::size(queue_priorities)),
+       .queueCount = AS(u32, std::size(queue_priorities)),
        .pQueuePriorities = queue_priorities}};
 
   VkPhysicalDeviceFeatures required_features{};
