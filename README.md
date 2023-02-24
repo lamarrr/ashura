@@ -13,7 +13,7 @@ What solutions do we provide to solve these problems?
 # Building
 
 ```bash
-vcpkg install vulkan sdl2[core,vulkan] freetype libpng[apng] harfbuzz fmt stb spdlog simdjson gtest
+vcpkg install vulkan sdl2[core,vulkan] freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest
 ```
 
 ```bash
