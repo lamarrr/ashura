@@ -84,7 +84,7 @@ bool WindowApi::poll_events() {
       case SDL_MOUSEBUTTONUP: {
         MouseClickEvent mouse_event{
             .mouse_id = MouseID{event.button.which},
-            .offset = offseti{event.button.x, event.button.y},
+            .position = vec2{AS(f32, event.button.x), AS(f32, event.button.y)},
             .clicks = event.button.clicks};
 
         switch (event.button.button) {
@@ -132,8 +132,10 @@ bool WindowApi::poll_events() {
                                   ->mouse_motion_listeners) {
           listener.handle(MouseMotionEvent{
               .mouse_id = MouseID{event.motion.which},
-              .offset = offseti{event.motion.x, event.motion.y},
-              .translation = offseti{event.motion.xrel, event.motion.yrel}});
+              .position =
+                  vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)},
+              .translation = vec2{AS(f32, event.motion.xrel),
+                                  AS(f32, event.motion.yrel)}});
         }
         return true;
       }
@@ -191,7 +193,6 @@ bool WindowApi::poll_events() {
         return true;
       }
     }
-
   } else {
     return false;
   }
