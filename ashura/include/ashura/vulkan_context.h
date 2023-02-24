@@ -240,7 +240,7 @@ struct UploadContext {
 
     ASH_VK_CHECK(vkQueueSubmit(cqueue.info.queue, 1, &submit_info, fence));
 
-    ASH_VK_CHECK(vkWaitForFences(dev, 1, &fence, VK_TRUE, COMMAND_TIMEOUT));
+    ASH_VK_CHECK(vkWaitForFences(dev, 1, &fence, VK_TRUE, UI_COMMAND_TIMEOUT));
 
     ASH_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
 
