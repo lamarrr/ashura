@@ -19,10 +19,12 @@ find_package(SDL2 REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(harfbuzz REQUIRED)
 find_package(fmt REQUIRED)
-find_package(Stb REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
+find_package(WebP CONFIG REQUIRED)
+find_package(JPEG REQUIRED)
+find_package(PNG REQUIRED)
 
 add_subdirectory(third_party/STX)
 
