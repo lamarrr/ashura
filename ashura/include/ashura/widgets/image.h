@@ -256,8 +256,8 @@ struct Image : public Widget {
 
     std::string_view source = element["source"].get_string();
     std::string_view source_type = element["source_type"].get_string();
-    extent extent{.width = AS_U32(element["extent_width"].get_uint64()),
-                  .height = AS_U32(element["extent_height"].get_uint64())};
+    extent extent{.width = AS(u32, element["extent_width"].get_uint64()),
+                  .height = AS(u32, element["extent_height"].get_uint64())};
 
     if (source_type == "memory") {
       std::string enc = base64_decode(source);
@@ -273,26 +273,26 @@ struct Image : public Widget {
           .uri = stx::string::make(stx::os_allocator, source).unwrap()};
     }
 
-    props.width.bias = AS_F32(element["width_bias"].get_double());
-    props.width.scale = AS_F32(element["width_scale"].get_double());
-    props.width.min = AS_F32(element["width_min"].get_double());
-    props.width.max = AS_F32(element["width_max"].get_double());
-    props.width.min_rel = AS_F32(element["width_min_rel"].get_double());
-    props.width.max_rel = AS_F32(element["width_max_rel"].get_double());
-    props.height.bias = AS_F32(element["height_bias"].get_double());
-    props.height.scale = AS_F32(element["height_scale"].get_double());
-    props.height.min = AS_F32(element["height_min"].get_double());
-    props.height.max = AS_F32(element["height_max"].get_double());
-    props.height.min_rel = AS_F32(element["height_min_rel"].get_double());
-    props.height.max_rel = AS_F32(element["height_max_rel"].get_double());
-    props.border_radius.x = AS_F32(element["border_radius_x"].get_double());
-    props.border_radius.y = AS_F32(element["border_radius_y"].get_double());
-    props.border_radius.z = AS_F32(element["border_radius_z"].get_double());
-    props.border_radius.w = AS_F32(element["border_radius_w"].get_double());
+    props.width.bias = AS(f32, element["width_bias"].get_double());
+    props.width.scale = AS(f32, element["width_scale"].get_double());
+    props.width.min = AS(f32, element["width_min"].get_double());
+    props.width.max = AS(f32, element["width_max"].get_double());
+    props.width.min_rel = AS(f32, element["width_min_rel"].get_double());
+    props.width.max_rel = AS(f32, element["width_max_rel"].get_double());
+    props.height.bias = AS(f32, element["height_bias"].get_double());
+    props.height.scale = AS(f32, element["height_scale"].get_double());
+    props.height.min = AS(f32, element["height_min"].get_double());
+    props.height.max = AS(f32, element["height_max"].get_double());
+    props.height.min_rel = AS(f32, element["height_min_rel"].get_double());
+    props.height.max_rel = AS(f32, element["height_max_rel"].get_double());
+    props.border_radius.x = AS(f32, element["border_radius_x"].get_double());
+    props.border_radius.y = AS(f32, element["border_radius_y"].get_double());
+    props.border_radius.z = AS(f32, element["border_radius_z"].get_double());
+    props.border_radius.w = AS(f32, element["border_radius_w"].get_double());
 
     if (element["has_aspect_ratio"].get_bool()) {
       props.aspect_ratio =
-          stx::Some(AS_F32(element["aspect_ratio"].get_double()));
+          stx::Some(AS(f32, element["aspect_ratio"].get_double()));
     } else {
       props.aspect_ratio = stx::None;
     }
