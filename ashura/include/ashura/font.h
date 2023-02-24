@@ -550,8 +550,8 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
 
   for (usize i = 0; i < glyphs.size(); i++) {
     rects[i].glyph_index = glyphs[i].index;
-    rects[i].w = AS_I32(glyphs[i].extent.width + 2);
-    rects[i].h = AS_I32(glyphs[i].extent.height + 2);
+    rects[i].w = AS(i32, glyphs[i].extent.width + 2);
+    rects[i].h = AS(i32, glyphs[i].extent.height + 2);
   }
 
   stx::Memory nodes_memory =
@@ -561,7 +561,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
   rp::Context context =
       rp::init(max_extent.width, max_extent.height,
                AS(rp::Node*, nodes_memory.handle), max_extent.width, false);
-  ASH_CHECK(rp::pack_rects(context, rects.data(), AS_I32(rects.size())));
+  ASH_CHECK(rp::pack_rects(context, rects.data(), AS(i32, rects.size())));
 
   extent atlas_extent;
 
@@ -580,21 +580,22 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
       [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
 
   for (usize i = 0; i < glyphs.size(); i++) {
-    u32 x = AS_U32(rects[i].x) + 1;
-    u32 y = AS_U32(rects[i].y) + 1;
+    u32 x = AS(u32, rects[i].x) + 1;
+    u32 y = AS(u32, rects[i].y) + 1;
     u32 w = glyphs[i].extent.width;
     u32 h = glyphs[i].extent.height;
 
     glyphs[i].offset = {x, y};
-    glyphs[i].s0 = AS_F32(x) / atlas_extent.width;
-    glyphs[i].s1 = AS_F32(x + w) / atlas_extent.width;
-    glyphs[i].t0 = AS_F32(y) / atlas_extent.height;
-    glyphs[i].t1 = AS_F32(y + h) / atlas_extent.height;
+    glyphs[i].s0 = AS(f32, x) / atlas_extent.width;
+    glyphs[i].s1 = AS(f32, x + w) / atlas_extent.width;
+    glyphs[i].t0 = AS(f32, y) / atlas_extent.height;
+    glyphs[i].t1 = AS(f32, y + h) / atlas_extent.height;
   }
 
   {
     usize iter = 0;
-    for (u32 next_index = 0; iter < glyphs.size(); next_index++, iter++) {
+    usize nglyphs = glyphs.size();
+    for (u32 next_index = 0; iter < nglyphs; next_index++, iter++) {
       for (; next_index < glyphs[iter].index; next_index++) {
         glyphs
             .push(Glyph{.is_valid = false,
