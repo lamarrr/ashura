@@ -86,6 +86,12 @@ struct MouseClickEvent {
   MouseAction action = MouseAction::Press;
 };
 
+struct MouseWheelEvent {
+  MouseID mouse_id = 0;
+  vec2 position;
+  vec2 translation;
+};
+
 using Key = SDL_Keycode;
 
 namespace keys {
