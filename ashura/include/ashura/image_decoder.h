@@ -21,13 +21,11 @@ enum class ImageLoadError : u8 {
 
 inline stx::Result<RgbaImageBuffer, ImageLoadError> decode_webp(
     stx::Span<u8 const> data) {
-  spdlog::info("decoding webp");
   int width, height;
 
   if (!WebPGetInfo(data.data(), data.size(), &width, &height)) {
     return stx::Err(ImageLoadError::InvalidData);
   }
-  spdlog::info("got info");
 
   stx::Memory memory =
       stx::mem::allocate(stx::os_allocator, width * height * 4).unwrap();
@@ -38,8 +36,6 @@ inline stx::Result<RgbaImageBuffer, ImageLoadError> decode_webp(
                          width * 4) == nullptr) {
     return stx::Err(ImageLoadError::InvalidData);
   }
-
-  spdlog::info("decoded");
 
   return stx::Ok(
       RgbaImageBuffer{.memory = std::move(memory),
@@ -213,7 +209,6 @@ inline stx::Result<RgbaImageBuffer, ImageLoadError> decode_image(
     return decode_jpg(bytes);
   } else if (bytes.slice(0, std::size(PNG_MAGIC))
                  .equals(stx::Span{PNG_MAGIC})) {
-    spdlog::info("decoding png");
     return decode_png(bytes);
   } else if (bytes.slice(0, std::size(WEBP_MAGIC1))
                  .equals(stx::Span{WEBP_MAGIC1}) &&
