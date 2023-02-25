@@ -8,14 +8,15 @@ int main(int, char*[]) {
   SDL_SetMainReady();
   ash::AppConfig cfg{.enable_validation_layers = false};
   cfg.window_config.borderless = false;
-  ash::App app{
-      std::move(cfg),
-      new ash::Image{ash::ImageProps{
-          .source =
-              ash::FileImageSource{
-                  .path = stx::string::make_static(
-                      R"(C:\Users\Basit\OneDrive\Desktop\xxval.jpg)")},
-          .resize_on_load = true}}};
+  ash::App app{std::move(cfg),
+               new ash::Image{ash::ImageProps{
+                   .source =
+                       ash::FileImageSource{
+                           .path = stx::string::make_static(
+                               R"(C:\Users\Basit\OneDrive\Desktop\luffy.jfif)")},
+                   .border_radius = ash::vec4{20, 20, 20, 20},
+                   .aspect_ratio = stx::Some(1.0f),
+                   .resize_on_load = true}}};
   std::chrono::steady_clock::time_point last_tick =
       std::chrono::steady_clock::now();
   while (true) {

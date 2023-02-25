@@ -54,16 +54,18 @@ inline void rect(vec2 position, vec2 extent, mat4 const& transform, vec4 color,
   vec2 st2 = texture_area.offset + p3 / extent * texture_area.extent;
   vec2 st3 = texture_area.offset + p4 / extent * texture_area.extent;
 
-  polygon[0] = vertex{.position = position, .st = st0, .color = color};
-  polygon[1] = vertex{.position = position + ash::transform(transform, p2),
-                      .st = st1,
-                      .color = color};
-  polygon[2] = vertex{.position = position + ash::transform(transform, p3),
-                      .st = st2,
-                      .color = color};
-  polygon[3] = vertex{.position = position + ash::transform(transform, p4),
-                      .st = st3,
-                      .color = color};
+  vertex vertices[] = {{.position = position, .st = st0, .color = color},
+                       {.position = position + ash::transform(transform, p2),
+                        .st = st1,
+                        .color = color},
+                       {.position = position + ash::transform(transform, p3),
+                        .st = st2,
+                        .color = color},
+                       {.position = position + ash::transform(transform, p4),
+                        .st = st3,
+                        .color = color}};
+
+  polygon.copy(vertices);
 }
 
 inline void circle(vec2 position, f32 radius, usize nsegments,
@@ -453,8 +455,6 @@ struct Canvas {
       return *this;
     }
 
-    vec4 color = brush.color.as_vec();
-
     u32 indices_offset = AS(u32, draw_list.indices.size());
 
     u32 vertices_offset = AS(u32, draw_list.vertices.size());
@@ -594,22 +594,19 @@ struct Canvas {
     }
   }
 
-  Canvas& draw_image(image img, rect area, f32 s0, f32 t0, f32 s1, f32 t1) {
+  Canvas& draw_image(image img, rect area, f32 s0, f32 t0, f32 s1, f32 t1,
+                     color color = colors::WHITE) {
     vertex vertices[4];
-    rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
+    rect texture_area{.offset = {s0, t0}, .extent = {s1 - s0, t1 - t0}};
 
-    polygons::rect(area.offset, area.extent, transform, brush.color.as_vec(),
+    polygons::rect(area.offset, area.extent, transform, color.as_vec(),
                    texture_area, vertices);
-    vertices[0].st = vec2{s0, t0};
-    vertices[1].st = vec2{s1, t0};
-    vertices[2].st = vec2{s1, t1};
-    vertices[3].st = vec2{s0, t1};
 
-    return draw_convex_polygon_filled(vertices, area, img);
+return    draw_convex_polygon_filled(vertices, area, img);
   }
 
-  Canvas& draw_image(image img, rect area) {
-    return draw_image(img, area, 0, 0, 1, 1);
+  Canvas& draw_image(image img, rect area, color color = colors::WHITE) {
+    return draw_image(img, area, 0, 0, 1, 1, color);
   }
 
   Canvas& draw_rounded_image(image img, rect area, rect image_portion,
@@ -618,10 +615,10 @@ struct Canvas {
     vertices.resize(nsegments * 4).unwrap();
 
     polygons::round_rect(area.offset, area.extent, border_radii, nsegments,
-                         transform, brush.color.as_vec(), image_portion,
+                         transform, colors::WHITE.as_vec(), image_portion,
                          vertices);
 
-    return draw_convex_polygon_filled(vertices, area, img);
+   return draw_convex_polygon_filled(vertices, area, img);
   }
 
   Canvas& draw_rounded_image(image img, rect area, vec4 border_radii,
@@ -654,7 +651,7 @@ struct Canvas {
       draw_image(atlas,
                  rect{.offset = baseline - vec2{0, vert_spacing + ascent},
                       .extent = extent},
-                 glyph.s0, glyph.t0, glyph.s1, glyph.t1);
+                 glyph.s0, glyph.t0, glyph.s1, glyph.t1, brush.color);
       restore();
     }
 
@@ -986,6 +983,8 @@ struct Canvas {
                                             run.style.underline_thickness}});
               restore();
             }
+
+            // TODO(lamarrr): implement strikethrough
 
             cursor_x += subword->nspaces * word_spacing;
             subword++;

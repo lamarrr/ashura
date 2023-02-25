@@ -96,16 +96,38 @@ struct Image : public Widget {
       case ImageState::Loading: {
       } break;
       case ImageState::Loaded: {
-        canvas.save();
-        canvas.brush.fill = true;
-        canvas.brush.texture = image;
-        canvas.brush.color = colors::WHITE;
-        if (props.border_radius == vec4{0, 0, 0, 0}) {
-          canvas.draw_rect(area);
-        } else {
-          canvas.draw_round_rect(area, props.border_radius, 360);
+        f32 s0 = 0;
+        f32 s1 = 1;
+        f32 t0 = 0;
+        f32 t1 = 1;
+
+        if (props.aspect_ratio.is_some()) {
+          f32 aspect_ratio = props.aspect_ratio.value();
+
+          vec2 clipped_extent{std::min(image_extent.height * aspect_ratio,
+                                       AS(f32, image_extent.width)),
+                              std::min(image_extent.width / aspect_ratio,
+                                       AS(f32, image_extent.height))};
+
+          vec2 original_extent{AS(f32, image_extent.width),
+                               AS(f32, image_extent.height)};
+
+          vec2 space = original_extent - clipped_extent;
+
+          s0 = (space.x / 2) / original_extent.x;
+          s1 = (space.x / 2 + clipped_extent.x) / original_extent.x;
+          t0 = (space.y / 2) / original_extent.y;
+          t1 = (space.y / 2 + clipped_extent.y) / original_extent.y;
         }
-        canvas.restore();
+
+        if (props.border_radius == vec4{0, 0, 0, 0}) {
+          canvas.draw_image(image, area, s0, t0, s1, t1);
+        } else {
+          canvas.draw_rounded_image(
+              image, area,
+              rect{.offset = vec2{s0, t0}, .extent = vec2{s1 - s0, t1 - t0}},
+              props.border_radius, 360);
+        }
       } break;
       case ImageState::LoadFailed: {
       } break;
@@ -171,6 +193,7 @@ struct Image : public Widget {
               props.width = constraint{.bias = AS(f32, buffer.extent.width)};
               props.height = constraint{.bias = AS(f32, buffer.extent.height)};
             }
+            image_extent = buffer.extent;
           } else {
             state = ImageState::LoadFailed;
           }
@@ -188,11 +211,12 @@ struct Image : public Widget {
   }
 
   virtual void on_mouse_enter(WidgetContext& context, vec2 screen_position,
-                              vec2 position) override {
+                              quad quad) override {
     spdlog::info("mouse over");
   }
 
-  virtual void on_mouse_leave(WidgetContext& context, vec2 screen_position) {
+  virtual void on_mouse_leave(WidgetContext& context,
+                              stx::Option<vec2> screen_position) {
     spdlog::info("mouse leave");
   }
 
@@ -200,7 +224,7 @@ struct Image : public Widget {
                                       simdjson::dom::parser& parser) override {
     std::string source;
     std::string_view source_type;
-    extent extent;
+    ash::extent extent;
 
     if (std::holds_alternative<MemoryImageSource>(props.source)) {
       MemoryImageSource& memory_source =
@@ -270,8 +294,9 @@ struct Image : public Widget {
 
     std::string_view source = element["source"].get_string();
     std::string_view source_type = element["source_type"].get_string();
-    extent extent{.width = AS(u32, element["extent_width"].get_uint64()),
-                  .height = AS(u32, element["extent_height"].get_uint64())};
+    ash::extent extent{
+        .width = AS(u32, element["extent_width"].get_uint64()),
+        .height = AS(u32, element["extent_height"].get_uint64())};
 
     if (source_type == "memory") {
       std::string enc = base64_decode(source);
@@ -322,6 +347,7 @@ struct Image : public Widget {
   ImageProps props;
   ImageState state = ImageState::Inactive;
   gfx::image image = 0;
+  extent image_extent;
   stx::Option<stx::Future<stx::Result<RgbaImageBuffer, ImageLoadError>>>
       image_load_future;
 };

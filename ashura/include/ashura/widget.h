@@ -206,18 +206,18 @@ struct Widget {
   constexpr virtual void on_leave_viewport(WidgetContext &context) {}
 
   constexpr virtual void on_click(WidgetContext &context, MouseButton button,
-                                  vec2 screen_position, vec2 position,
-                                  u32 nclicks) {}
+                                  vec2 screen_position, 
+                                  u32 nclicks, quad quad) {}
 
   constexpr virtual void on_mouse_move(WidgetContext &context,
-                                       vec2 screen_position, vec2 position,
-                                       vec2 translation) {}
+                                       vec2 screen_position,
+                                       vec2 translation,  quad quad) {}
 
   constexpr virtual void on_mouse_enter(WidgetContext &context,
-                                        vec2 screen_position, vec2 position) {}
+                                        vec2 screen_position, quad quad) {}
 
-  constexpr virtual void on_mouse_leave(WidgetContext &context,
-                                        vec2 screen_position) {}
+  virtual void on_mouse_leave(WidgetContext &context,
+                              stx::Option<vec2> screen_position) {}
 
   //
   constexpr virtual void on_tap(WidgetContext &context) {}

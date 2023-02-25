@@ -261,12 +261,11 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
 
   window.value()
       ->mouse_click_listeners
-      .push(stx::fn::rc::make_unique_functor(stx::os_allocator,
-                                             [this](MouseClickEvent event) {
-                                               widget_system.mouse_click_event =
-                                                   stx::Some(
-                                                       MouseClickEvent{event});
-                                             })
+      .push(stx::fn::rc::make_unique_functor(
+                stx::os_allocator,
+                [this](MouseClickEvent event) {
+                  widget_system.events.push_inplace(event).unwrap();
+                })
                 .unwrap())
       .unwrap();
 
@@ -275,8 +274,7 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
       .push(stx::fn::rc::make_unique_functor(
                 stx::os_allocator,
                 [this](MouseMotionEvent event) {
-                  widget_system.mouse_motion_event =
-                      stx::Some(MouseMotionEvent{event});
+                  widget_system.events.push_inplace(event).unwrap();
                 })
                 .unwrap())
       .unwrap();
@@ -286,10 +284,7 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
       stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents
                                                                      events) {
         if ((events & WindowEvents::Leave) != WindowEvents::None) {
-          widget_system.mouse_motion_event = stx::Some(MouseMotionEvent{
-              .mouse_id = 0,
-              .position = vec2{stx::F32_MIN, stx::F32_MIN},
-              .translation = vec2{stx::F32_MIN, stx::F32_MIN}});
+          widget_system.events.push_inplace(events).unwrap();
         }
       }).unwrap());
 
@@ -306,9 +301,9 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   } while (window_api.value()->poll_events());
 
   window.value()->tick(interval);
-  widget_system.assign_ids();
   widget_system.pump_events(widget_context);
   widget_system.tick_widgets(widget_context, interval);
+  widget_system.assign_ids();
 
   auto record_draw_commands = [&]() {
     VkExtent2D extent =

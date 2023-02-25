@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "ashura/utils.h"
+#include "fmt/format.h"
 #include "stx/limits.h"
 #include "stx/option.h"
 
@@ -31,6 +32,8 @@ using uchar = unsigned char;
 using uint = unsigned int;
 
 constexpr f32 pi = 3.14159265358979323846f;
+
+constexpr f32 abs(f32 x) { return x >= 0 ? x : -x; }
 
 struct vec2 {
   f32 x = 0, y = 0;
@@ -92,6 +95,34 @@ struct rect {
   }
 
   constexpr bool is_visible() const { return extent.x != 0 && extent.y != 0; }
+};
+
+struct tri {
+  vec2 p1, p2, p3;
+
+  constexpr f32 sign() const {
+    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+  }
+
+  constexpr bool contains(vec2 point) const {
+    f32 sign1 = tri{point, p1, p2}.sign();
+    f32 sign2 = tri{point, p2, p3}.sign();
+    f32 sign3 = tri{point, p3, p1}.sign();
+
+    bool has_neg = (sign1 < 0) || (sign2 < 0) || (sign3 < 0);
+    bool has_pos = (sign1 > 0) || (sign2 > 0) || (sign3 > 0);
+
+    return !(has_neg && has_pos);
+  }
+};
+
+struct quad {
+  vec2 p1, p2, p3, p4;
+
+  constexpr bool contains(vec2 point) const {
+    return tri{.p1 = p1, .p2 = p2, .p3 = p3}.contains(point) ||
+           tri{.p1 = p1, .p2 = p3, .p3 = p4}.contains(point);
+  }
 };
 
 struct vec3 {
@@ -433,3 +464,44 @@ struct vertex {
 };
 
 }  // namespace ash
+
+template <>
+struct fmt::formatter<ash::vec2> {
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext &ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(ash::vec2 const &v, FormatContext &ctx) {
+    return fmt::format_to(ctx.out(), "vec2{{{}, {}}}", v.x, v.y);
+  }
+};
+
+template <>
+struct fmt::formatter<ash::rect> {
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext &ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(ash::rect const &v, FormatContext &ctx) {
+    return fmt::format_to(ctx.out(), "rect{{.offset = {},  .extent = {}}}",
+                          v.offset, v.extent);
+  }
+};
+
+template <>
+struct fmt::formatter<ash::vec4> {
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext &ctx) {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(ash::vec4 const &v, FormatContext &ctx) {
+    return fmt::format_to(ctx.out(), "vec4{{{}, {}, {}, {}}}", v.x, v.y, v.z,
+                          v.w);
+  }
+};
