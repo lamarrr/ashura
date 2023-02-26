@@ -60,6 +60,7 @@ inline void ensure_extensions_supported(
   }
 
   ASH_CHECK(all_available, "one or more required extensions are not available");
+  logger.info("All required extensions are supported!");
 }
 
 inline void ensure_validation_layers_supported(
@@ -82,6 +83,7 @@ inline void ensure_validation_layers_supported(
 
   ASH_CHECK(all_layers_available,
             "one or more required validation layers are not available");
+  logger.info("All required validation layers are supported!");
 }
 
 inline VkBool32 VKAPI_ATTR VKAPI_CALL
@@ -160,7 +162,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   logger.info("Available Vulkan Extensions:");
 
   for (VkExtensionProperties extension : available_extensions) {
-    logger.info("\t{},  spec version: {}", extension.extensionName,
+    logger.info("\t{} (spec version: {})", extension.extensionName,
                 extension.specVersion);
   }
 
@@ -180,7 +182,13 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
   logger.info("Available Vulkan Validation Layers:");
 
   for (VkLayerProperties const& layer : available_validation_layers) {
-    logger.info("\t{} (spec version: {})", layer.layerName, layer.specVersion);
+    logger.info(
+        "\t{} (spec version: {}.{}.{} api-variant-{}, implementation version: "
+        "{})",
+        layer.layerName, VK_API_VERSION_MAJOR(layer.specVersion),
+        VK_API_VERSION_MINOR(layer.specVersion),
+        VK_API_VERSION_PATCH(layer.specVersion),
+        VK_API_VERSION_VARIANT(layer.specVersion), layer.implementationVersion);
   }
 
   ensure_extensions_supported(available_extensions, required_extensions,
@@ -190,15 +198,13 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
                                      required_validation_layers, logger);
 
   // helps but not necessary
-  VkApplicationInfo app_info{
-      .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-      .pNext = nullptr,
-      .pApplicationName = application_name,
-      .applicationVersion = application_version,
-      .pEngineName = engine_name,
-      .engineVersion = engine_version,
-      .apiVersion = VK_API_VERSION_1_3,
-  };
+  VkApplicationInfo app_info{.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+                             .pNext = nullptr,
+                             .pApplicationName = application_name,
+                             .applicationVersion = application_version,
+                             .pEngineName = engine_name,
+                             .engineVersion = engine_version,
+                             .apiVersion = VK_API_VERSION_1_3};
 
   VkInstanceCreateInfo create_info{
       // debug messenger for when
