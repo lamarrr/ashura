@@ -9,13 +9,16 @@ execute_process(
   COMMAND git clone -b main https://github.com/lamarrr/STX.git third_party/STX
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
+execute_process(
+  COMMAND git clone -b main https://github.com/libsdl-org/SDL.git
+          third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
 
 include(ExternalProject)
 
 find_package(Vulkan REQUIRED)
-find_package(SDL2 REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(harfbuzz REQUIRED)
 find_package(fmt REQUIRED)
@@ -27,6 +30,7 @@ find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 
 add_subdirectory(third_party/STX)
+add_subdirectory(third_party/SDL)
 
 set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/skia/libs)
 

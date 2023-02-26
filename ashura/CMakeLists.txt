@@ -9,8 +9,7 @@ target_include_directories(
 target_link_libraries(
   ashura
   stx::stx
-  SDL2::SDL2
-  SDL2::SDL2main
+  SDL3::SDL3
   fmt::fmt
   Vulkan::Vulkan
   spdlog::spdlog

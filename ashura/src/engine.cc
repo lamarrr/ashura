@@ -98,7 +98,7 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
   xlogger.info("Created root window");
 
   stx::Vec window_required_instance_extensions =
-      window.value()->get_required_instance_extensions();
+      window_api.value()->get_required_instance_extensions();
 
   stx::Rc vk_instance = vk::create_instance(
       cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), cfg.name.c_str(),
@@ -189,13 +189,13 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
   upload_context.init(xqueue.share());
 
   window.value()->on(
-      WindowEvents::Close,
+      WindowEvents::CloseRequested,
       stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) {
         std::exit(0);
       }).unwrap());
 
   window.value()->on(
-      WindowEvents::Resized | WindowEvents::SizeChanged,
+      WindowEvents::Resized | WindowEvents::PixelSizeChanged,
       stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents) {
         logger.value()->info("WINDOW RESIZED");
       }).unwrap());
@@ -283,7 +283,7 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
       WindowEvents::All,
       stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents
                                                                      events) {
-        if ((events & WindowEvents::Leave) != WindowEvents::None) {
+        if ((events & WindowEvents::MouseLeave) != WindowEvents::None) {
           widget_system.events.push_inplace(events).unwrap();
         }
       }).unwrap());

@@ -7,7 +7,7 @@
 #include <utility>
 #include <variant>
 
-#include "SDL.h"
+#include "SDL3/SDL.h"
 #include "ashura/primitives.h"
 #include "ashura/vulkan.h"
 #include "ashura/window.h"
@@ -129,16 +129,12 @@ struct Window {
   void flash();
 
   void make_fullscreen() const {
-    ASH_CHECK(SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP) ==
-              0);
-  }
-
-  void make_nonfullscreen_exclusive() const {
-    ASH_CHECK(SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN) == 0);
+    // SDL_SetWindowFullscreenMode()
+    ASH_CHECK(SDL_SetWindowFullscreen(window, SDL_TRUE) == 0);
   }
 
   void make_windowed() const {
-    ASH_CHECK(SDL_SetWindowFullscreen(window, 0) == 0);
+    ASH_CHECK(SDL_SetWindowFullscreen(window, SDL_FALSE) == 0);
   }
 
   // void enable_hit_testing();
@@ -151,8 +147,6 @@ struct Window {
 
   void constrain(stx::Option<int> min_width, stx::Option<int> min_height,
                  stx::Option<int> max_width, stx::Option<int> max_height);
-
-  stx::Vec<char const*> get_required_instance_extensions() const;
 
   // attach surface to window for presentation
   void attach_surface(stx::Rc<vk::Instance*> const& instance);

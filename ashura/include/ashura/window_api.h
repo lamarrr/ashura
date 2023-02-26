@@ -47,6 +47,8 @@ struct WindowApi {
   // polls for events, returns true if an event occured, otherwise false
   bool poll_events();
 
+  stx::Vec<char const *> get_required_instance_extensions() const;
+
   // this implies that we need to detach the handle from here first
   //
   // also ensure all api calls occur on the main thread.

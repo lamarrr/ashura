@@ -1,11 +1,10 @@
-#define SDL_MAIN_HANDLED
-#include "SDL2/SDL.h"
+#include "SDL3/SDL.h"
 #include "ashura/app.h"
 #include "ashura/widget.h"
 #include "ashura/widgets/image.h"
 
 int main(int, char*[]) {
-  SDL_SetMainReady();
+  // SDL_SetMainReady();
   ash::AppConfig cfg{.enable_validation_layers = false};
   cfg.window_config.borderless = false;
   ash::App app{std::move(cfg),

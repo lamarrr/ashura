@@ -3,30 +3,11 @@
 
 #include <thread>
 
-#include "SDL.h"
-#include "SDL_vulkan.h"
+#include "SDL3/SDL.h"
+#include "SDL3/SDL_vulkan.h"
 #include "ashura/sdl_utils.h"
 
 namespace ash {
-
-stx::Vec<char const*> Window::get_required_instance_extensions() const {
-  u32 ext_count;
-
-  ASH_SDL_CHECK(
-      SDL_Vulkan_GetInstanceExtensions(window, &ext_count, nullptr) == SDL_TRUE,
-      "unable to get number of window's required Vulkan instance extensions");
-
-  stx::Vec<char const*> required_instance_extensions{stx::os_allocator};
-
-  required_instance_extensions.resize(ext_count).unwrap();
-
-  ASH_SDL_CHECK(
-      SDL_Vulkan_GetInstanceExtensions(
-          window, &ext_count, required_instance_extensions.data()) == SDL_TRUE,
-      "unable to get window's required Vulkan instance extensions");
-
-  return required_instance_extensions;
-}
 
 void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
   this->instance = stx::Some(instance.share());
@@ -53,7 +34,7 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
   window_extent = extent{AS(u32, width), AS(u32, height)};
 
   int surface_width, surface_height;
-  SDL_Vulkan_GetDrawableSize(window, &surface_width, &surface_height);
+  SDL_GetWindowSizeInPixels(window, &surface_width, &surface_height);
   surface_extent = extent{AS(u32, surface_width), AS(u32, surface_height)};
 
   VkSurfaceFormatKHR preferred_formats[] = {
@@ -93,9 +74,9 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
 
   u32 swapchain_image_index = 0;
 
-  VkResult result =
-      vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain, UI_COMMAND_TIMEOUT,
-                            semaphore, fence, &swapchain_image_index);
+  VkResult result = vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain,
+                                          UI_COMMAND_TIMEOUT, semaphore, fence,
+                                          &swapchain_image_index);
 
   ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                 result == VK_ERROR_OUT_OF_DATE_KHR,
@@ -162,7 +143,7 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
   // width and height here refer to the screen coordinates and not the
   // actual pixel coordinates (cc: Device Pixel Ratio)
 
-  int window_flags = SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_VULKAN;
+  int window_flags = SDL_WINDOW_VULKAN;
 
   if (cfg.type_hint == WindowTypeHint::Normal) {
   } else if (cfg.type_hint == WindowTypeHint::Popup) {
@@ -175,8 +156,6 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
 
   if (cfg.hidden) {
     window_flags |= SDL_WINDOW_HIDDEN;
-  } else {
-    window_flags |= SDL_WINDOW_SHOWN;
   }
 
   if (cfg.resizable) {

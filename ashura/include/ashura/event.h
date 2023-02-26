@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SDL2/SDL_keycode.h"
+#include "SDL3/SDL_keycode.h"
 #include "ashura/primitives.h"
 #include "stx/enum.h"
 
@@ -15,15 +15,15 @@ enum class WindowEvents : u32 {
   /// window size changed by user
   Resized = 1 << 4,
   /// window size changed by user or via window API
-  SizeChanged = 1 << 5,
+  PixelSizeChanged = 1 << 5,
   Minimized = 1 << 6,
   Maximized = 1 << 7,
   Restored = 1 << 8,
-  Enter = 1 << 9,
-  Leave = 1 << 10,
+  MouseEnter = 1 << 9,
+  MouseLeave = 1 << 10,
   FocusGained = 1 << 11,
   FocusLost = 1 << 12,
-  Close = 1 << 13,
+  CloseRequested = 1 << 13,
   TakeFocus = 1 << 14,
   All = (1 << 15) - 1
 };
@@ -45,23 +45,23 @@ enum class MouseButton : u8 {
 STX_DEFINE_ENUM_BIT_OPS(MouseButton)
 
 enum class KeyModifiers : u16 {
-  None = KMOD_NONE,
-  LeftShift = KMOD_LSHIFT,
-  RightShift = KMOD_RSHIFT,
-  LeftCtrl = KMOD_LCTRL,
-  RightCtrl = KMOD_RCTRL,
-  LeftAlt = KMOD_LALT,
-  RightAlt = KMOD_RALT,
-  LeftWin = KMOD_LGUI,
-  RightWin = KMOD_RGUI,
-  Num = KMOD_NUM,
-  Caps = KMOD_CAPS,
-  AltGr = KMOD_MODE,
-  ScrollLock = KMOD_SCROLL,
-  Ctrl = KMOD_CTRL,
-  Shift = KMOD_SHIFT,
-  Alt = KMOD_ALT,
-  Gui = KMOD_GUI
+  None = SDL_KMOD_NONE,
+  LeftShift = SDL_KMOD_LSHIFT,
+  RightShift = SDL_KMOD_RSHIFT,
+  LeftCtrl = SDL_KMOD_LCTRL,
+  RightCtrl = SDL_KMOD_RCTRL,
+  LeftAlt = SDL_KMOD_LALT,
+  RightAlt = SDL_KMOD_RALT,
+  LeftWin = SDL_KMOD_LGUI,
+  RightWin = SDL_KMOD_RGUI,
+  Num = SDL_KMOD_NUM,
+  Caps = SDL_KMOD_CAPS,
+  AltGr = SDL_KMOD_MODE,
+  ScrollLock = SDL_KMOD_SCROLL,
+  Ctrl = SDL_KMOD_CTRL,
+  Shift = SDL_KMOD_SHIFT,
+  Alt = SDL_KMOD_ALT,
+  Gui = SDL_KMOD_GUI
 };
 
 STX_DEFINE_ENUM_BIT_OPS(KeyModifiers)

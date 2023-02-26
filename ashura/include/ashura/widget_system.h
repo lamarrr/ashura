@@ -131,7 +131,7 @@ struct WidgetSystem {
         last_hit_widget_is_alive = hit_widget != nullptr;
 
       } else if (std::holds_alternative<WindowEvents>(e)) {
-        if ((std::get<WindowEvents>(e) & WindowEvents::Leave) !=
+        if ((std::get<WindowEvents>(e) & WindowEvents::MouseLeave) !=
             WindowEvents::None) {
           if (last_hit_widget != nullptr && last_hit_widget_is_alive) {
             last_hit_widget->on_mouse_leave(context, stx::None);
