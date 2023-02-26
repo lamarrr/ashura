@@ -9,10 +9,6 @@ execute_process(
   COMMAND git clone -b main https://github.com/lamarrr/STX.git third_party/STX
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 
-execute_process(
-  COMMAND git clone -b main https://github.com/libsdl-org/SDL.git
-          third_party/SDL WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
 
@@ -28,9 +24,9 @@ find_package(GTest REQUIRED)
 find_package(WebP CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
+find_package(SDL3 REQUIRED)
 
 add_subdirectory(third_party/STX)
-add_subdirectory(third_party/SDL)
 
 set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/skia/libs)
 
