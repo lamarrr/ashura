@@ -13,7 +13,7 @@ using image = u64;
 
 struct RgbaImageBuffer {
   stx::Memory memory;
-  extent extent;
+  ash::extent extent;
 
   stx::Span<u8 const> span() const {
     return stx::Span{AS(u8*, memory.handle), extent.area() * 4};

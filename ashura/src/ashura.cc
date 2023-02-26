@@ -13,7 +13,7 @@ int main(int, char*[]) {
                    .source =
                        ash::FileImageSource{
                            .path = stx::string::make_static(
-                               R"(C:\Users\Basit\OneDrive\Desktop\luffy.jfif)")},
+                               R"(/home/lamar/Pictures/wallpaperbetter.jpg)")},
                    .border_radius = ash::vec4{20, 20, 20, 20},
                    .aspect_ratio = stx::Some(1.0f),
                    .resize_on_load = true}}};

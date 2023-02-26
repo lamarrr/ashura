@@ -13,7 +13,7 @@ struct WidgetDrawEntry {
   Widget* parent = nullptr;
   usize parent_index = 0;
   i64 z_index = 0;
-  quad quad;
+  ash::quad quad;
 };
 
 // TODO(lamarrr): more window events pumping to widgets, how?

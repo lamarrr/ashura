@@ -15,7 +15,7 @@ namespace ash {
 namespace gfx {
 
 struct Brush {
-  color color = colors::BLACK;
+  ash::color color = colors::BLACK;
   bool fill = true;
   f32 line_thickness = 1;
   image texture = 0;

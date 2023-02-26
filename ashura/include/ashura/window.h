@@ -24,7 +24,7 @@ enum class WindowPosition : u8 { Centered };
 
 struct WindowConfig {
   stx::String title = stx::string::make_static("Ashura");
-  extent extent{1920, 1080};
+  ash::extent extent{1920, 1080};
   stx::Option<ash::extent> min_extent;
   stx::Option<ash::extent> max_extent;
   WindowTypeHint type_hint = WindowTypeHint::Normal;

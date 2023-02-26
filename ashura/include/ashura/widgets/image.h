@@ -22,7 +22,7 @@ namespace ash {
 // RGBA image
 struct MemoryImageSource {
   stx::Vec<u8> pixels{stx::os_allocator};
-  extent extent;
+  ash::extent extent;
 };
 
 struct FileImageSource {

@@ -462,10 +462,10 @@ struct Glyph {
   u32 index = 0;
 
   /// offset into the atlas its glyph resides
-  offset offset;
+  ash::offset offset;
 
   /// extent of the glyph in the atlas
-  extent extent;
+  ash::extent extent;
 
   /// defines x-offset from cursor position the glyph will be placed
   f32 x = 0;
@@ -485,7 +485,7 @@ struct FontAtlas {
   stx::Vec<Glyph> glyphs{stx::os_allocator};
 
   /// overall extent of the atlas
-  extent extent;
+  ash::extent extent;
 
   /// font height at which the cache/atlas/glyphs will be rendered and cached
   u32 font_height = 26;
@@ -604,6 +604,7 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
                         .extent = {},
                         .x = 0,
                         .ascent = 0,
+                        .advance = {},
                         .s0 = 0,
                         .t0 = 0,
                         .s1 = 0,

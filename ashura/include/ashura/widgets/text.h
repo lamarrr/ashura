@@ -40,8 +40,8 @@ struct Text : public Widget {
 
   virtual void restore(WidgetContext & context,simdjson::dom::element const& element) override {}
 
-  TextStyle style;
   stx::String text;
+  TextStyle style;
   gfx::Canvas layout_canvas{vec2{0, 0}};
 };
 
