@@ -5,14 +5,14 @@ project(Ashura)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-execute_process(
-  COMMAND git clone -b main https://github.com/lamarrr/STX.git third_party/STX
-  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(add_project_library)
 
-include(ExternalProject)
+include(add_project_library)
+include(FetchContent)
+
+FetchContent_Declare(stx GIT_REPOSITORY https://github.com/lamarrr/STX.git GIT_TAG main)
+
+FetchContent_MakeAvailable(stx)
 
 find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
@@ -25,8 +25,6 @@ find_package(WebP CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
-
-add_subdirectory(third_party/STX)
 
 set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/skia/libs)
 
