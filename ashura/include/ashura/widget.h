@@ -132,7 +132,7 @@ struct WidgetContext {
     usize index = 1;
     while (!inserted) {
       auto [it, was_inserted] =
-          plugins.emplace(std::format("{} ({})", id, index), plugin);
+          plugins.emplace(fmt::format("{} ({})", id, index), plugin);
       index++;
       inserted = was_inserted;
     }

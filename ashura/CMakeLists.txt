@@ -22,6 +22,9 @@ target_link_libraries(
   ${JPEG_LIBRARIES}
   PNG::PNG)
 
+set_target_properties(ashura PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED
+                                                        ON)
+
 add_executable(ashura_main src/ashura.cc)
 target_link_libraries(ashura_main ashura)
 
