@@ -220,6 +220,14 @@ struct Image : public Widget {
     spdlog::info("mouse leave");
   }
 
+  constexpr virtual void on_click(WidgetContext& context, MouseButton button,
+                                  vec2 screen_position, u32 nclicks,
+                                  quad quad) {
+    props.border_radius =
+        vec4{props.border_radius.x + 10, props.border_radius.y + 10,
+             props.border_radius.z + 10, props.border_radius.w + 10};
+  }
+
   virtual simdjson::dom::element save(WidgetContext& context,
                                       simdjson::dom::parser& parser) override {
     std::string source;

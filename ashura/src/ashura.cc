@@ -12,8 +12,8 @@ int main(int, char*[]) {
                    .source =
                        ash::FileImageSource{
                            .path = stx::string::make_static(
-                               R"(/home/lamar/Pictures/wallpaperbetter.jpg)")},
-                   .border_radius = ash::vec4{20, 20, 20, 20},
+                               R"(/home/lamar/Desktop/eren.jpg)")},
+                   .border_radius = ash::vec4{200, 200, 200, 200},
                    .aspect_ratio = stx::Some(1.0f),
                    .resize_on_load = true}}};
   std::chrono::steady_clock::time_point last_tick =

@@ -76,7 +76,7 @@ inline void circle(vec2 position, f32 radius, usize nsegments,
   f32 step = AS(f32, (2 * pi) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
-    vec2 p = radius + radius * vec2{std::cos(i * step), std::sin(i * step)};
+    vec2 p = radius + radius* vec2{std::cos(i * step), std::sin(i * step)};
     vec2 st = texture_area.offset + p / (radius * 2) * texture_area.extent;
 
     polygon[i] = vertex{.position = position + ash::transform(transform, p),
@@ -93,7 +93,7 @@ inline void ellipse(vec2 position, vec2 radii, usize nsegments,
   f32 step = AS(f32, (2 * pi) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
-    vec2 p = radii + radii * vec2{std::cos(i * step), std::sin(i * step)};
+    vec2 p = radii + radii* vec2{std::cos(i * step), std::sin(i * step)};
     vec2 st = texture_area.offset + p / (2 * radii) * texture_area.extent;
     polygon[i] = vertex{.position = position + ash::transform(transform, p),
                         .st = st,
@@ -102,15 +102,16 @@ inline void ellipse(vec2 position, vec2 radii, usize nsegments,
 }
 
 /// {polygon.size() == nsegments * 4}
+// TODO(lamarrr): clamp border radius from going berserk
 inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
                        mat4 const& transform, vec4 color,
                        ash::rect texture_area, stx::Span<vertex> polygon) {
   if (nsegments == 0) return;
 
-  radii.x = std::min(radii.x, std::min(extent.x, extent.y));
-  radii.y = std::min(radii.y, std::min(extent.x, extent.y));
-  radii.z = std::min(radii.z, std::min(extent.x, extent.y));
-  radii.w = std::min(radii.w, std::min(extent.x, extent.y));
+  radii.x = std::max(0.0f, std::min(radii.x, std::min(extent.x, extent.y)));
+  radii.y = std::max(0.0f, std::min(radii.y, std::min(extent.x, extent.y)));
+  radii.z = std::max(0.0f, std::min(radii.z, std::min(extent.x, extent.y)));
+  radii.w = std::max(0.0f, std::min(radii.w, std::min(extent.x, extent.y)));
 
   f32 step = AS(f32, (pi / 2) / nsegments);
 
@@ -118,7 +119,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     vec2 p = (extent - radii.z) +
-             radii.z * vec2{std::cos(segment * step), std::sin(segment * step)};
+             radii.z* vec2{std::cos(segment * step), std::sin(segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -129,8 +130,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     vec2 p = vec2{radii.w, extent.y - radii.w} +
-             radii.w * vec2{std::cos(AS(f32, pi / 2) + segment * step),
-                            std::sin(AS(f32, pi / 2) + segment * step)};
+             radii.w* vec2{std::cos(AS(f32, pi / 2) + segment * step),
+                           std::sin(AS(f32, pi / 2) + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -140,8 +141,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
   }
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
-    vec2 p = radii.x + radii.x * vec2{std::cos(AS(f32, pi) + segment * step),
-                                      std::sin(AS(f32, pi) + segment * step)};
+    vec2 p = radii.x + radii.x* vec2{std::cos(AS(f32, pi) + segment * step),
+                                     std::sin(AS(f32, pi) + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -152,8 +153,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     vec2 p = vec2{extent.x - radii.y, radii.y} +
-             radii.y * vec2{std::cos(AS(f32, pi * 3) / 2 + segment * step),
-                            std::sin(AS(f32, pi * 3) / 2 + segment * step)};
+             radii.y* vec2{std::cos(AS(f32, pi * 3) / 2 + segment * step),
+                           std::sin(AS(f32, pi * 3) / 2 + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -602,7 +603,7 @@ struct Canvas {
     polygons::rect(area.offset, area.extent, transform, color.as_vec(),
                    texture_area, vertices);
 
-return    draw_convex_polygon_filled(vertices, area, img);
+    return draw_convex_polygon_filled(vertices, area, img);
   }
 
   Canvas& draw_image(image img, rect area, color color = colors::WHITE) {
@@ -618,7 +619,7 @@ return    draw_convex_polygon_filled(vertices, area, img);
                          transform, colors::WHITE.as_vec(), image_portion,
                          vertices);
 
-   return draw_convex_polygon_filled(vertices, area, img);
+    return draw_convex_polygon_filled(vertices, area, img);
   }
 
   Canvas& draw_rounded_image(image img, rect area, vec4 border_radii,
