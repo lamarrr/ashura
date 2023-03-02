@@ -3,12 +3,15 @@
 
 #include "ashura/image.h"
 #include "ashura/primitives.h"
+#include "stx/span.h"
+
+extern "C" {
 #include "jerror.h"
 #include "jpeglib.h"
 #include "png.h"
-#include "stx/span.h"
 #include "webp/decode.h"
 #include "webp/types.h"
+}
 
 namespace ash {
 

@@ -10,7 +10,10 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(add_project_library)
 include(FetchContent)
 
-FetchContent_Declare(stx GIT_REPOSITORY https://github.com/lamarrr/STX.git GIT_TAG main)
+FetchContent_Declare(
+  stx
+  GIT_REPOSITORY https://github.com/lamarrr/STX.git
+  GIT_TAG main)
 
 FetchContent_MakeAvailable(stx)
 
@@ -25,8 +28,17 @@ find_package(WebP CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
-
-set(SKIA_LIBRARIES_DIR ${CMAKE_CURRENT_LIST_DIR}/skia/libs)
+find_package(Opus CONFIG REQUIRED)
+find_package(
+  FFmpeg
+  COMPONENTS avcodec
+             avformat
+             avutil
+             avdevice
+             avfilter
+             swscale
+             swresample
+  REQUIRED)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)

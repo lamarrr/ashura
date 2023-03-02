@@ -89,13 +89,10 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
   window_api =
       stx::Some(stx::rc::make_inplace<WindowApi>(stx::os_allocator).unwrap());
 
-  xlogger.info("Initialized Window API");
   xlogger.info("Creating root window");
 
   window = stx::Some(
       create_window(window_api.value().share(), cfg.window_config.copy()));
-
-  xlogger.info("Created root window");
 
   stx::Vec window_required_instance_extensions =
       window_api.value()->get_required_instance_extensions();
@@ -117,8 +114,10 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
   xlogger.info("Available Physical Devices:");
 
   for (vk::PhyDeviceInfo const& device : phy_devices) {
-    xlogger.info("\t{}", vk::format(device));
     // TODO(lamarrr): log graphics families on devices and other properties
+    xlogger.info("Device(name: '{}', ID: {}, type: {})",
+                 device.properties.deviceName, device.properties.deviceID,
+                 string_VkPhysicalDeviceType(device.properties.deviceType));
   }
 
   stx::Rc<vk::PhyDeviceInfo*> phy_device =
@@ -130,7 +129,10 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
               .copy())
           .unwrap();
 
-  xlogger.info("Selected Physical Device: {}", vk::format(*phy_device.handle));
+  xlogger.info("Selected Physical Device: Device(name: '{}', ID: {}, type: {})",
+               phy_device->properties.deviceName,
+               phy_device->properties.deviceID,
+               string_VkPhysicalDeviceType(phy_device->properties.deviceType));
 
   // we might need multiple command queues, one for data transfer and one for
   // rendering
@@ -315,6 +317,11 @@ void Engine::tick(std::chrono::nanoseconds interval) {
     widget_system.draw_widgets(widget_context, canvas);
   };
 
+  // only record if swapchain visible,
+  // if extent is zero, do not present, record, or recreate swapchain, or
+  // acquire swapchain image, or submit to renderer
+  // do not increase the frame flight indices as well since the sync primitves
+  // aren't used
   record_draw_commands();
   // only try to present if the pipeline has new changes or window was
   // resized

@@ -7,6 +7,7 @@ extern "C" {
 #include "libavutil/dict.h"
 #include "libavutil/file.h"
 #include "libavutil/mathematics.h"
+#include "libavutil/opt.h"
 }
 
 #include "SDL3/SDL.h"
@@ -19,73 +20,218 @@ struct buffer_data {
   int32_t left;
 };
 
-int get_format_from_sample_fmt(const char **fmt,
-                               enum AVSampleFormat sample_fmt) {
-  int i;
-  struct sample_fmt_entry {
-    enum AVSampleFormat sample_fmt;
-    const char *fmt_be, *fmt_le;
-  } sample_fmt_entries[] = {
-      {AV_SAMPLE_FMT_U8, "u8", "u8"},
-      {AV_SAMPLE_FMT_S16, "s16be", "s16le"},
-      {AV_SAMPLE_FMT_S32, "s32be", "s32le"},
-      {AV_SAMPLE_FMT_FLT, "f32be", "f32le"},
-      {AV_SAMPLE_FMT_DBL, "f64be", "f64le"},
-  };
-  *fmt = NULL;
-
-  for (i = 0; i < FF_ARRAY_ELEMS(sample_fmt_entries); i++) {
-    struct sample_fmt_entry *entry = &sample_fmt_entries[i];
-    if (sample_fmt == entry->sample_fmt) {
-      *fmt = AV_NE(entry->fmt_be, entry->fmt_le);
-      return 0;
-    }
-  }
-
-  fprintf(stderr, "sample format %s is not supported as output format\n",
-          av_get_sample_fmt_name(sample_fmt));
-  return -1;
+void __print_err(int err, char const *file, int line) {
+  char buff[128];
+  int e = av_strerror(err, buff, 128);
+  spdlog::error("error: {} [{}:{}]", buff, file, line);
 }
 
-void decode(AVCodecContext *dec_ctx, AVPacket *pkt, AVFrame *frame) {
-  int i, ch;
-  int ret, data_size;
+#define print_err(err) __print_err(err, __FILE__, __LINE__)
 
-  /* send the packet with the compressed data to the decoder */
-  ret = avcodec_send_packet(dec_ctx, pkt);
-  if (ret < 0) {
-    char buf[64];
+/**
+ * Open an input file and the required decoder.
+ * @param      filename             File to be opened
+ * @param[out] input_fmt_ctx Format context of opened file
+ * @param[out] input_codec_ctx  Codec context of opened file
+ * @return Error code (0 if successful)
+ */
+int open_input_file(AVFormatContext **input_fmt_ctx,
+                    AVCodecContext **decoder_ctx, AVIOContext *io) {
+  AVCodecContext *avctx;
+  const AVCodec *input_codec;
+  const AVStream *stream;
+  int error;
 
-    int rec = av_strerror(ret, buf, 64);
+  /* Open the input file to read from it. */
+  *input_fmt_ctx = avformat_alloc_context();
+  (*input_fmt_ctx)->pb = io;
 
-    spdlog::info("recognized?: {}   error: {}", rec, buf);
-    fprintf(stderr, "Error submitting the packet to the decoder\n");
-    exit(1);
+  if ((error = avformat_open_input(input_fmt_ctx, nullptr, NULL, NULL)) < 0) {
+    print_err(error);
+    *input_fmt_ctx = NULL;
+    return error;
   }
 
-  /* read all the output frames (in general there may be any number of them */
-  while (ret >= 0) {
-    ret = avcodec_receive_frame(dec_ctx, frame);
-    spdlog::info("sample format: {}", (int)frame->format);
+  spdlog::info("opened formats");
 
-    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-      return;
-    else if (ret < 0) {
-      fprintf(stderr, "Error during decoding\n");
-      exit(1);
-    }
-    data_size = av_get_bytes_per_sample(dec_ctx->sample_fmt);
-    if (data_size < 0) {
-      /* This should not occur, checking just for paranoia */
-      fprintf(stderr, "Failed to calculate data size\n");
-      exit(1);
-    }
-    for (i = 0; i < frame->nb_samples; i++)
-      for (ch = 0; ch < dec_ctx->ch_layout.nb_channels; ch++) {
-        // fwrite( 1, data_size, outfile);
-        // fwrite(frame->data[ch] + data_size*i,  1,    data_size, )
-      }
+  /* Get information on the input file (number of streams etc.). */
+  if ((error = avformat_find_stream_info(*input_fmt_ctx, NULL)) < 0) {
+    print_err(error);
+    avformat_close_input(input_fmt_ctx);
+    return error;
   }
+
+  /* Make sure that there is only one stream in the input file. */
+  if ((*input_fmt_ctx)->nb_streams != 1) {
+    spdlog::warn("Expected one audio input stream, but found {}",
+                 (*input_fmt_ctx)->nb_streams);
+  }
+
+
+  // av
+  // for(int i = 0; i <((*input_fmt_ctx)->nb_streams; i++){
+  // if(((*input_fmt_ctx)->streams[i]->)
+  // }
+
+// TODO(lamarrr): proper stream selection
+  ASH_CHECK((*input_fmt_ctx)->nb_streams > 0);
+
+  stream = (*input_fmt_ctx)->streams[0];
+
+  /* Find a decoder for the audio stream. */
+  if (!(input_codec = avcodec_find_decoder(stream->codecpar->codec_id))) {
+    fprintf(stderr, "Could not find input codec\n");
+    avformat_close_input(input_fmt_ctx);
+    return AVERROR_EXIT;
+  }
+
+  /* Allocate a new decoding context. */
+  avctx = avcodec_alloc_context3(input_codec);
+  if (!avctx) {
+    fprintf(stderr, "Could not allocate a decoding context\n");
+    avformat_close_input(input_fmt_ctx);
+    return AVERROR(ENOMEM);
+  }
+
+  /* Initialize the stream parameters with demuxer information. */
+  error = avcodec_parameters_to_context(avctx, stream->codecpar);
+  if (error < 0) {
+    avformat_close_input(input_fmt_ctx);
+    avcodec_free_context(&avctx);
+    return error;
+  }
+
+  /* Open the decoder for the audio stream to use it later. */
+  if ((error = avcodec_open2(avctx, input_codec, NULL)) < 0) {
+    print_err(error);
+    avcodec_free_context(&avctx);
+    avformat_close_input(input_fmt_ctx);
+    return error;
+  }
+
+  /* Set the packet timebase for the decoder. */
+  avctx->pkt_timebase = stream->time_base;
+
+  /* Save the decoder context for easier access later. */
+  *decoder_ctx = avctx;
+
+  return 0;
+}
+
+/**
+ * Decode one audio frame from the input file.
+ * @param      frame                Audio frame to be decoded
+ * @param      input_fmt_ctx Format context of the input file
+ * @param      input_codec_ctx  Codec context of the input file
+ * @param[out] data_present         Indicates whether data has been decoded
+ * @param[out] finished             Indicates whether the end of file has
+ *                                  been reached and all data has been
+ *                                  decoded. If this flag is false, there
+ *                                  is more data to be decoded, i.e., this
+ *                                  function has to be called again.
+ * @return Error code (0 if successful)
+ */
+static int decode_audio_frame(AVFrame *frame, AVFormatContext *input_fmt_ctx,
+                              AVCodecContext *input_codec_ctx,
+                              int *data_present, int *finished) {
+  /* Packet used for temporary storage. */
+  AVPacket *input_packet = av_packet_alloc();
+  ASH_CHECK(input_packet != nullptr);
+
+  *data_present = 0;
+  *finished = 0;
+  int error;
+  /* Read one audio frame from the input file into a temporary packet. */
+  if ((error = av_read_frame(input_fmt_ctx, input_packet)) < 0) {
+    /* If we are at the end of the file, flush the decoder below. */
+    if (error == AVERROR_EOF)
+      *finished = 1;
+    else {
+      print_err(error);
+      av_packet_free(&input_packet);
+      return error;
+    }
+  }
+
+  /* Send the audio frame stored in the temporary packet to the decoder.
+   * The input audio stream decoder is used to do this. */
+  if ((error = avcodec_send_packet(input_codec_ctx, input_packet)) < 0) {
+    print_err(error);
+    av_packet_free(&input_packet);
+    return error;
+  }
+
+  /* Receive one frame from the decoder. */
+  error = avcodec_receive_frame(input_codec_ctx, frame);
+  print_err(error);
+  /* If the decoder asks for more data to be able to decode a frame,
+   * return indicating that no data is present. */
+  if (error == AVERROR(EAGAIN)) {
+    error = 0;
+    av_packet_free(&input_packet);
+    return error;
+    /* If the end of the input file is reached, stop decoding. */
+  } else if (error == AVERROR_EOF) {
+    *finished = 1;
+    error = 0;
+    av_packet_free(&input_packet);
+    return error;
+  } else if (error < 0) {
+    print_err(error);
+    av_packet_free(&input_packet);
+    return error;
+    /* Default case: Return decoded data. */
+  } else {
+    *data_present = 1;
+    av_packet_free(&input_packet);
+    return error;
+  }
+}
+
+/**
+ * Read one audio frame from the input file, decode, convert and store
+ * it in the FIFO buffer.
+ * @param      fifo                 Buffer used for temporary storage
+ * @param      fmt_ctx Format context of the input file
+ * @param      codec_ctx  Codec context of the input file
+ * @param      output_codec_context Codec context of the output file
+ * @param      resampler_context    Resample context for the conversion
+ * @param[out] finished             Indicates whether the end of file has
+ *                                  been reached and all data has been
+ *                                  decoded. If this flag is false,
+ *                                  there is more data to be decoded,
+ *                                  i.e., this function has to be called
+ *                                  again.
+ * @return Error code (0 if successful)
+ */
+int read_decode(AVFormatContext *fmt_ctx, AVCodecContext *codec_ctx,
+                int *finished) {
+  /* Temporary storage of the input samples of the frame read from the file. */
+  AVFrame *input_frame = av_frame_alloc();
+  ASH_CHECK(input_frame != nullptr);
+
+  /* Temporary storage for the converted input samples. */
+  uint8_t **converted_input_samples = NULL;
+  int data_present;
+  int ret = AVERROR_EXIT;
+
+  /* Decode one frame worth of audio samples. */
+  if (decode_audio_frame(input_frame, fmt_ctx, codec_ctx, &data_present,
+                         finished)) {
+    av_frame_free(&input_frame);
+    print_err(ret);
+    return ret;
+  }
+  /* If we are at the end of the file and there are no more samples
+   * in the decoder which are delayed, we are actually finished.
+   * This must not be treated as an error. */
+  if (*finished) {
+    ret = 0;
+    av_frame_free(&input_frame);
+    return ret;
+  }
+
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -102,84 +248,95 @@ int main(int argc, char *argv[]) {
   file.read((char *)mp3, mp3_size);
   file.close();
 
-  AVCodec const *codec;
-  AVCodecContext *context = NULL;
+  unsigned char *iobuff =
+      (unsigned char *)av_malloc(mp3_size + AV_INPUT_BUFFER_PADDING_SIZE);
 
-  printf("Audio encoding\n");
+  buffer_data b{.src = mp3, .left = mp3_size};
 
-  AVDictionary *dict = NULL;
-  codec = avcodec_find_decoder(AV_CODEC_ID_AAC);
-  if (!codec) {
-    fprintf(stderr, "codec not found\n");
-    exit(1);
-  }
+  auto cb = [](void *opaque, uint8_t *buff, int size) {
+    buffer_data *bd = (buffer_data *)opaque;
+    spdlog::info("ptr: {}  request size: {} left: {}", (void *)bd->src, size,
+                 bd->left);
+    if (bd->left == 0) return AVERROR_EOF;
 
-  context = avcodec_alloc_context3(codec);
+    size = std::min(size, bd->left);
 
-  if (avcodec_open2(context, codec, &dict) < 0) {
-    fprintf(stderr, "could not open codec\n");
-    exit(1);
-  }
+    /* copy internal buffer data to buf */
+    memcpy(buff, bd->src, size);
+    bd->src += size;
+    bd->left -= size;
 
-  uint8_t out[44];
-  AVCodecParserContext *parser = av_parser_init(codec->id);
+    return size;
+  };
 
-  AVFrame *decoded_frame = av_frame_alloc();
-  ASH_CHECK(decoded_frame != nullptr);
-
-  AVPacket *packet = av_packet_alloc();
-  auto mp3_dec = mp3;
-  auto mp3_size_dec = mp3_size;
-
-  while (mp3_size_dec > 0) {
-    int read =
-        av_parser_parse2(parser, context, &packet->data, &packet->size, mp3_dec,
-                         mp3_size_dec, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
-    mp3_dec += read;
-    mp3_size_dec -= read;
-
-    if (packet->size != 0) {
-      decode(context, packet, decoded_frame);
-    }
-  }
-
-  AVFormatContext *fmt_ctx = avformat_alloc_context();
-  ASH_CHECK(fmt_ctx != nullptr);
-  AVDictionary *meta;
-
-  unsigned char *iobuff = (unsigned char *)av_malloc(4096);
-
-  buffer_data b;
-
-  b.src = mp3;
-  b.left = mp3_size;
-
-  // avformat_find_stream_info()
-  AVIOContext *io = avio_alloc_context(
-      iobuff, 4096, 0, &b,
-      [](void *opaque, uint8_t *buff, int size) {
-        buffer_data *bd = (buffer_data *)opaque;
-        spdlog::info("ptr: {}  request size: {} left: {}", (void *)bd->src,
-                     size, bd->left);
-        if (bd->left == 0) return AVERROR_EOF;
-
-        size = std::min(size, bd->left);
-
-        /* copy internal buffer data to buf */
-        memcpy(buff, bd->src, size);
-        bd->src += size;
-        bd->left -= size;
-
-        return size;
-      },
-      nullptr, nullptr);
+  AVIOContext *io =
+      avio_alloc_context(iobuff, mp3_size + AV_INPUT_BUFFER_PADDING_SIZE, 0, &b,
+                         cb, nullptr, nullptr);
   ASH_CHECK(io != nullptr);
-  fmt_ctx->pb = io;
 
-  ASH_CHECK(avformat_open_input(&fmt_ctx, nullptr, nullptr, nullptr) == 0);
-  char *title;
-  av_dict_get_string(fmt_ctx->metadata, &title, '=', ',');
-  spdlog::info("title: {}", title);
+  AVFormatContext *fmt_ctx;
+  AVCodecContext *codec_ctx;
+  ASH_CHECK(open_input_file(&fmt_ctx, &codec_ctx, io) == 0);
+  spdlog::info("read headers, decoding...");
+  int done;
+  int err  = read_decode(fmt_ctx, codec_ctx, &done);
+  print_err(err);
+  ASH_CHECK(err == 0);
+
+  // AVCodec const *codec;
+  // AVCodecContext *context = NULL;
+
+  // printf("Audio encoding\n");
+
+  // AVDictionary *dict = NULL;
+  // codec = avcodec_find_decoder(AV_CODEC_ID_AAC);
+  // if (!codec) {
+  //   fprintf(stderr, "codec not found\n");
+  //   exit(1);
+  // }
+
+  // context = avcodec_alloc_context3(codec);
+
+  // if (avcodec_open2(context, codec, &dict) < 0) {
+  //   fprintf(stderr, "could not open codec\n");
+  //   exit(1);
+  // }
+
+  // uint8_t out[44];
+  // AVCodecParserContext *parser = av_parser_init(codec->id);
+
+  // AVFrame *decoded_frame = av_frame_alloc();
+  // ASH_CHECK(decoded_frame != nullptr);
+
+  // AVPacket *packet = av_packet_alloc();
+  // auto mp3_dec = mp3;
+  // auto mp3_size_dec = mp3_size;
+
+  // while (mp3_size_dec > 0) {
+  //   int read =
+  //       av_parser_parse2(parser, context, &packet->data, &packet->size,
+  //       mp3_dec,
+  //                        mp3_size_dec, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+  //   mp3_dec += read;
+  //   mp3_size_dec -= read;
+
+  //   if (packet->size != 0) {
+  //     decode(context, packet, decoded_frame);
+  //   }
+  // }
+
+  // AVFormatContext *fmt_ctx = avformat_alloc_context();
+  // ASH_CHECK(fmt_ctx != nullptr);
+  // AVDictionary *meta;
+
+  // // avformat_find_stream_info()
+
+  // fmt_ctx->pb = io;
+
+  // ASH_CHECK(avformat_open_input(&fmt_ctx, nullptr, nullptr, nullptr) == 0);
+  // char *title;
+  // av_dict_get_string(fmt_ctx->metadata, &title, '=', ',');
+  // spdlog::info("title: {}", title);
 
   // int len = avcodec_decode_audio3(c, (short *)out, &out_size, &avpkt);
   // ASH_CHECK(len > 0);

@@ -3,7 +3,7 @@ add_library(ashura STATIC src/app.cc src/engine.cc src/window_api.cc
 
 target_include_directories(
   ashura
-  PUBLIC include ${JPEG_INCLUDE_DIR}
+  PUBLIC include ${JPEG_INCLUDE_DIR} ${FFMPEG_INCLUDE_DIRS}
   PRIVATE src)
 
 target_link_libraries(
@@ -19,7 +19,11 @@ target_link_libraries(
   WebP::webp
   WebP::webpdecoder
   ${JPEG_LIBRARIES}
-  PNG::PNG)
+  PNG::PNG
+  Opus::opus
+  ${FFMPEG_LIBRARIES})
+
+target_link_directories(ashura PUBLIC ${FFMPEG_LIBRARY_DIRS})
 
 set_target_properties(ashura PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED
                                                         ON)
