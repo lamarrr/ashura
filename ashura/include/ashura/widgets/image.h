@@ -67,6 +67,8 @@ enum class ImageState : u8 {
 /// - once the image arrives, get a reference to it
 /// - Update widget state to show that the image is loading
 ///
+static f32 rotation = 0;
+
 struct Image : public Widget {
   explicit Image(ImageProps image_props) : props{std::move(image_props)} {}
 
@@ -100,6 +102,7 @@ struct Image : public Widget {
         f32 s1 = 1;
         f32 t0 = 0;
         f32 t1 = 1;
+        canvas.rotate(rotation, rotation, 0);
 
         if (props.aspect_ratio.is_some()) {
           f32 aspect_ratio = props.aspect_ratio.value();
@@ -171,7 +174,7 @@ struct Image : public Widget {
                 stream.seekg(0);
 
                 stream.read(AS(char*, memory.handle), file_size);
-
+                spdlog::info("decided");
                 return decode_image(
                     stx::Span{AS(u8 const*, memory.handle), file_size});
               },
@@ -184,8 +187,9 @@ struct Image : public Widget {
       case ImageState::Loading: {
         if (image_load_future.value().is_done()) {
           stx::Result load_result = image_load_future.value().move().unwrap();
-
+          // TODO(lamarrr): log trace and error
           if (load_result.is_ok()) {
+            spdlog::info("loaded image successfully");
             RgbaImageBuffer& buffer = load_result.value();
             image = bundle->add(buffer.span(), buffer.extent);
             state = ImageState::Loaded;
@@ -195,6 +199,7 @@ struct Image : public Widget {
             }
             image_extent = buffer.extent;
           } else {
+            spdlog::error("failed to load image");
             state = ImageState::LoadFailed;
           }
 
@@ -223,9 +228,13 @@ struct Image : public Widget {
   constexpr virtual void on_click(WidgetContext& context, MouseButton button,
                                   vec2 screen_position, u32 nclicks,
                                   quad quad) {
-    props.border_radius =
-        vec4{props.border_radius.x + 10, props.border_radius.y + 10,
-             props.border_radius.z + 10, props.border_radius.w + 10};
+    if (button == MouseButton::Secondary) {
+      props.border_radius =
+          vec4{props.border_radius.x + 10, props.border_radius.y + 10,
+               props.border_radius.z + 10, props.border_radius.w + 10};
+    } else {
+      rotation += 5;
+    }
   }
 
   virtual simdjson::dom::element save(WidgetContext& context,

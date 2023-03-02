@@ -678,12 +678,7 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 
   return devices;
 }
-
-inline std::string format(PhyDeviceInfo const& dev) {
-  return fmt::format("Device(name: '{}', ID: {}, type: {}) ",
-                     dev.properties.deviceName, dev.properties.deviceID,
-                     string_VkPhysicalDeviceType(dev.properties.deviceType));
-}
+ 
 
 // automatically destroyed once the device is destroyed
 struct CommandQueueFamilyInfo {
