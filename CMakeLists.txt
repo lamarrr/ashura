@@ -15,8 +15,15 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/lamarrr/STX.git
   GIT_TAG main)
 
-FetchContent_MakeAvailable(stx)
+FetchContent_Declare(
+  aom
+  GIT_REPOSITORY https://aomedia.googlesource.com/aom
+  GIT_TAG v3.6.0)
 
+FetchContent_MakeAvailable(stx)
+FetchContent_MakeAvailable(aom)
+
+find_program(NASM nasm REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(harfbuzz REQUIRED)
