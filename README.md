@@ -12,6 +12,9 @@ What solutions do we provide to solve these problems?
 
 # Building
 
+- Install NASM https://www.nasm.us/ via website, apt-get or winget
+
+
 ```bash
 vcpkg install vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest
 ```
