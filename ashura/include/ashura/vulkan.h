@@ -449,7 +449,7 @@ inline u32 select_swapchain_image_count(
                        capabilities.maxImageCount);
 }
 
-inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
+inline std::tuple<VkSwapchainKHR, VkExtent2D, bool> create_swapchain(
     VkDevice dev, VkSurfaceKHR surface, VkExtent2D preferred_extent,
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
     SwapChainProperties const& properties,
@@ -461,6 +461,10 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
 
   VkExtent2D selected_extent =
       select_swapchain_extent(properties.capabilities, preferred_extent);
+
+  if (selected_extent.width == 0 || selected_extent.height == 0)
+    return std::make_tuple(VkSwapchainKHR{VK_NULL_HANDLE}, VkExtent2D{0, 0},
+                           false);
 
   VkSwapchainCreateInfoKHR create_info{
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -510,7 +514,7 @@ inline std::pair<VkSwapchainKHR, VkExtent2D> create_swapchain(
   VkSwapchainKHR swapchain;
   ASH_VK_CHECK(vkCreateSwapchainKHR(dev, &create_info, nullptr, &swapchain));
 
-  return std::make_pair(swapchain, selected_extent);
+  return std::make_tuple(swapchain, selected_extent, true);
 }
 
 inline stx::Vec<VkImage> get_swapchain_images(VkDevice dev,
@@ -678,7 +682,6 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 
   return devices;
 }
- 
 
 // automatically destroyed once the device is destroyed
 struct CommandQueueFamilyInfo {
@@ -1409,7 +1412,7 @@ inline VkFormat find_depth_format(VkPhysicalDevice phy_dev) {
 /// its images, nor its image views outside itself (the swapchain object).
 ///
 struct SwapChain {
-  static constexpr u32 DEFAULT_MAX_FRAMES_IN_FLIGHT = 2;
+  u32 max_nframes_in_flight = 0;
 
   // actually holds the images of the surface and used to present to the render
   // target image. when resizing is needed, the swapchain is destroyed and
@@ -1463,15 +1466,17 @@ struct SwapChain {
   VkDevice dev = VK_NULL_HANDLE;
 
   // TODO(lamarrr): add max_nframes argument
-  void init(VkPhysicalDevice phy,
+  bool init(VkPhysicalDevice phy,
             VkPhysicalDeviceMemoryProperties const& memory_properties,
             VkDevice adev, VkSurfaceKHR target_surface,
+            u32 amax_nframes_in_flight,
             stx::Span<VkSurfaceFormatKHR const> preferred_formats,
             stx::Span<VkPresentModeKHR const> preferred_present_modes,
             VkExtent2D preferred_extent, VkExtent2D awindow_extent,
             VkSampleCountFlagBits amsaa_sample_count,
             VkCompositeAlphaFlagBitsKHR alpha_blending,
             spdlog::logger& logger) {
+    max_nframes_in_flight = amax_nframes_in_flight;
     dev = adev;
 
     // the properties change every time we need to create a swapchain so we must
@@ -1497,7 +1502,6 @@ struct SwapChain {
 
     logger.info("Available swapchain presentation modes:");
 
-    // TODO(lamarrr): log selections
     // swapchain presentation modes are device-dependent
     VkPresentModeKHR selected_present_mode = select_swapchain_presentation_mode(
         properties.presentation_modes, preferred_present_modes);
@@ -1505,7 +1509,7 @@ struct SwapChain {
     logger.info("selected swapchain presentation mode: {}",
                 string_VkPresentModeKHR(selected_present_mode));
 
-    auto [new_swapchain, new_extent] = create_swapchain(
+    auto [new_swapchain, new_extent, is_visible_extent] = create_swapchain(
         dev, target_surface, preferred_extent, selected_format,
         selected_present_mode, properties,
         // not thread-safe since GPUs typically have one graphics queue
@@ -1520,14 +1524,20 @@ struct SwapChain {
         // results, you'll get the best performance by enabling clipping.
         VK_TRUE);
 
+    logger.info("selected swapchain extent : {}, {}", new_extent.width,
+                new_extent.height);
+
+    if (!is_visible_extent) return false;
+
     swapchain = new_swapchain;
-    images = get_swapchain_images(dev, swapchain);
     color_format = selected_format;
-    depth_format = find_depth_format(phy);
     present_mode = selected_present_mode;
     image_extent = new_extent;
     window_extent = awindow_extent;
     msaa_sample_count = amsaa_sample_count;
+    depth_format = find_depth_format(phy);
+
+    images = get_swapchain_images(dev, swapchain);
     msaa_color_image =
         create_msaa_color_resource(dev, memory_properties, color_format.format,
                                    new_extent, msaa_sample_count);
@@ -1667,7 +1677,7 @@ struct SwapChain {
       framebuffers.push_inplace(framebuffer).unwrap();
     }
 
-    for (usize i = 0; i < DEFAULT_MAX_FRAMES_IN_FLIGHT; i++) {
+    for (usize i = 0; i < max_nframes_in_flight; i++) {
       VkSemaphoreCreateInfo semaphore_create_info{
           .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
           .pNext = nullptr,
@@ -1712,6 +1722,8 @@ struct SwapChain {
 
       render_fences.push_inplace(rendering_fence).unwrap();
     }
+
+    return true;
   }
 
   void destroy() {
@@ -1770,6 +1782,8 @@ struct Surface {
   //
   stx::Option<SwapChain> swapchain;
 
+  bool is_zero_sized_swapchain = true;
+
   VkInstance instance = VK_NULL_HANDLE;
 
   void destroy() {
@@ -1783,7 +1797,7 @@ struct Surface {
   }
 
   void change_swapchain(
-      stx::Rc<CommandQueue*> const& queue,
+      stx::Rc<CommandQueue*> const& queue, u32 max_nframes_in_flight,
       stx::Span<VkSurfaceFormatKHR const> preferred_formats,
       stx::Span<VkPresentModeKHR const> preferred_present_modes,
       VkExtent2D preferred_extent, VkExtent2D window_extent,
@@ -1797,13 +1811,18 @@ struct Surface {
 
     SwapChain new_swapchain;
 
-    new_swapchain.init(queue->device->phy_dev->phy_device,
-                       queue->device->phy_dev->memory_properties,
-                       queue->device->dev, surface, preferred_formats,
-                       preferred_present_modes, preferred_extent, window_extent,
-                       msaa_sample_count, alpha_blending, logger);
+    if (!new_swapchain.init(queue->device->phy_dev->phy_device,
+                            queue->device->phy_dev->memory_properties,
+                            queue->device->dev, surface, max_nframes_in_flight,
+                            preferred_formats, preferred_present_modes,
+                            preferred_extent, window_extent, msaa_sample_count,
+                            alpha_blending, logger)) {
+      is_zero_sized_swapchain = true;
+      return;
+    }
 
     swapchain = stx::Some(std::move(new_swapchain));
+    is_zero_sized_swapchain = false;
   }
 };
 
@@ -1816,13 +1835,14 @@ struct Pipeline {
 
   void build(
       VkDevice adev, VkShaderModule vertex_shader,
-      VkShaderModule fragment_shader, VkRenderPass target_render_pass,
+      VkShaderModule fragment_shader, VkRenderPass atarget_render_pass,
       VkSampleCountFlagBits amsaa_sample_count,
       stx::Span<VkDescriptorSetLayout const> descriptor_set_layout,
       stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
       u32 vertex_input_size, u32 push_constant_size) {
     dev = adev;
     msaa_sample_count = amsaa_sample_count;
+    target_render_pass = atarget_render_pass;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,

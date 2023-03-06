@@ -61,7 +61,7 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
       msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, logger);
 }
 
-std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
+std::pair<SwapChainState, u32> Window::acquire_image() {
   ASH_CHECK(surface.is_some(),
             "trying to present to swapchain without having surface attached");
   ASH_CHECK(surface.value()->swapchain.is_some(),
@@ -85,19 +85,17 @@ std::pair<WindowSwapchainDiff, u32> Window::acquire_image() {
             "failed to acquire swapchain image");
 
   if (result == VK_SUBOPTIMAL_KHR) {
-    return std::make_pair(WindowSwapchainDiff::Suboptimal,
-                          swapchain_image_index);
+    return std::make_pair(SwapChainState::Suboptimal, swapchain_image_index);
   } else if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-    return std::make_pair(WindowSwapchainDiff::OutOfDate,
-                          swapchain_image_index);
+    return std::make_pair(SwapChainState::OutOfDate, swapchain_image_index);
   } else if (result == VK_SUCCESS) {
-    return std::make_pair(WindowSwapchainDiff::None, swapchain_image_index);
+    return std::make_pair(SwapChainState::Ok, swapchain_image_index);
   } else {
     ASH_PANIC("failed to acquire swapchain image", result);
   }
 }
 
-WindowSwapchainDiff Window::present(VkQueue queue, u32 swapchain_image_index) {
+SwapChainState Window::present(VkQueue queue, u32 swapchain_image_index) {
   ASH_CHECK(surface.is_some(),
             "trying to present to swapchain without having surface attached");
   ASH_CHECK(surface.value()->swapchain.is_some(),
@@ -131,11 +129,11 @@ WindowSwapchainDiff Window::present(VkQueue queue, u32 swapchain_image_index) {
             "failed to present swapchain image");
 
   if (result == VK_SUBOPTIMAL_KHR) {
-    return WindowSwapchainDiff::Suboptimal;
+    return SwapChainState::Suboptimal;
   } else if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-    return WindowSwapchainDiff::OutOfDate;
+    return SwapChainState::OutOfDate;
   } else if (result == VK_SUCCESS) {
-    return WindowSwapchainDiff::None;
+    return SwapChainState::Ok;
   } else {
     ASH_PANIC("failed to present swapchain image", result);
   }

@@ -16,6 +16,7 @@
 #include "stx/rc.h"
 #include "stx/string.h"
 
+
 namespace ash {
 
 enum class WindowTypeHint : u8 { Normal, Utility, Tooltip, Popup };
@@ -51,19 +52,19 @@ struct WindowConfig {
   }
 };
 
-enum class WindowSwapchainDiff : u8 {
-  None = 0,
+enum class SwapChainState : u8 {
+  Ok = 0,
   // the window's extent and surface (framebuffer) extent has changed
-  Extent = 1,
+  ExtentChanged = 1,
   // the window swapchain can still be used for presentation but is not optimal
   // for presentation in its present state
   Suboptimal = 2,
   // the window swapchain is now out of date and needs to be changed
   OutOfDate = 4,
-  All = Extent | Suboptimal | OutOfDate
+  All = 7
 };
 
-STX_DEFINE_ENUM_BIT_OPS(WindowSwapchainDiff)
+STX_DEFINE_ENUM_BIT_OPS(SwapChainState)
 
 struct Window {
   Window(stx::Rc<WindowApi*> api, SDL_Window* window, WindowID id,
@@ -152,11 +153,11 @@ struct Window {
   void attach_surface(stx::Rc<vk::Instance*> const& instance);
 
   void recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
-                          spdlog::logger& logger);
+                          u32 max_nframes_in_flight, spdlog::logger& logger);
 
-  std::pair<WindowSwapchainDiff, u32> acquire_image();
+  std::pair<SwapChainState, u32> acquire_image();
 
-  WindowSwapchainDiff present(VkQueue queue, u32 swapchain_image_index);
+  SwapChainState present(VkQueue queue, u32 swapchain_image_index);
 
   void on(WindowEvents event, stx::UniqueFn<void(WindowEvents)> action) {
     event_listeners.push(std::make_pair(event, std::move(action))).unwrap();

@@ -306,6 +306,7 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   window.value()->tick(interval);
   widget_system.pump_events(widget_context);
   widget_system.tick_widgets(widget_context, interval);
+  // new widgets could have been added
   widget_system.assign_ids();
 
   auto record_draw_commands = [&]() {
@@ -323,59 +324,69 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   // acquire swapchain image, or submit to renderer
   // do not increase the frame flight indices as well since the sync primitves
   // aren't used
-  record_draw_commands();
+  if (!window.value()->surface.value()->is_zero_sized_swapchain) {
+    record_draw_commands();
+  }
   // only try to present if the pipeline has new changes or window was
   // resized
 
   // only try to recreate swapchain if the present swapchain can't be used for
   // presentation
 
-  WindowSwapchainDiff swapchain_diff = WindowSwapchainDiff::None;
+  // TODO(lamarrr): re-think this structure
+  SwapChainState swapchain_state = SwapChainState::Ok;
 
   // TODO(lamarrr): restructure this part and make it more sane
   do {
-    if (swapchain_diff != WindowSwapchainDiff::None) {
-      window.value()->recreate_swapchain(queue.value(), *logger.value().handle);
-      auto& swp = window.value()->surface.value()->swapchain.value();
-      logger.value()->info(
-          "recreated swapchain for logical/window/viewport extent: [{}, {}], "
-          "physical/surface extent: [{}, {}]",
-          swp.window_extent.width, swp.window_extent.height,
-          swp.image_extent.width, swp.image_extent.height);
-      renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
-      record_draw_commands();
+    if (swapchain_state != SwapChainState::Ok) {
+      window.value()->recreate_swapchain(
+          queue.value(), DEFAULT_MAX_FRAMES_IN_FLIGHT, *logger.value().handle);
+      // TODO(lamarrr): fix
+      if (!window.value()->surface.value()->is_zero_sized_swapchain) {
+        auto& swp = window.value()->surface.value()->swapchain.value();
+        logger.value()->info(
+            "recreated swapchain for logical/window/viewport extent: [{}, {}], "
+            "physical/surface extent: [{}, {}]",
+            swp.window_extent.width, swp.window_extent.height,
+            swp.image_extent.width, swp.image_extent.height);
+        renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
+        record_draw_commands();
+      }
     }
 
-    vk::SwapChain& swapchain =
-        window.value()->surface.value()->swapchain.value();
+    if (!window.value()->surface.value()->is_zero_sized_swapchain) {
+      vk::SwapChain& swapchain =
+          window.value()->surface.value()->swapchain.value();
 
-    auto [diff, swapchain_image_index] = window.value()->acquire_image();
+      auto [state, swapchain_image_index] = window.value()->acquire_image();
 
-    swapchain_diff = diff;
+      swapchain_state = state;
 
-    if (swapchain_diff != WindowSwapchainDiff::None) {
-      continue;
+      if (swapchain_state != SwapChainState::Ok) {
+        continue;
+      }
+
+      gfx::DrawList const& draw_list = canvas.draw_list;
+
+      renderer.submit(
+          swapchain.window_extent, swapchain.image_extent,
+          swapchain_image_index, swapchain.frame,
+          swapchain.render_fences[swapchain.frame],
+          swapchain.image_acquisition_semaphores[swapchain.frame],
+          swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
+          swapchain.framebuffers[swapchain_image_index], draw_list.cmds,
+          draw_list.vertices, draw_list.indices, image_bundle);
+
+      swapchain_state = window.value()->present(queue.value()->info.queue,
+                                                swapchain_image_index);
+
+      // the frame semaphores and synchronization primitives are still used even
+      // if an error is returned
+      swapchain.frame = (swapchain.frame + 1) % swapchain.max_nframes_in_flight;
+    } else {
+      swapchain_state = SwapChainState::Ok;
     }
-
-    gfx::DrawList const& draw_list = canvas.draw_list;
-
-    renderer.submit(
-        swapchain.window_extent, swapchain.image_extent, swapchain_image_index,
-        swapchain.frame, swapchain.render_fences[swapchain.frame],
-        swapchain.image_acquisition_semaphores[swapchain.frame],
-        swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
-        swapchain.framebuffers[swapchain_image_index], draw_list.cmds,
-        draw_list.vertices, draw_list.indices, image_bundle);
-
-    swapchain_diff = window.value()->present(queue.value()->info.queue,
-                                             swapchain_image_index);
-
-    // the frame semaphores and synchronization primitives are still used even
-    // if an error is returned
-    swapchain.frame =
-        (swapchain.frame + 1) % vk::SwapChain::DEFAULT_MAX_FRAMES_IN_FLIGHT;
-
-  } while (swapchain_diff != WindowSwapchainDiff::None);
+  } while (swapchain_state != SwapChainState::Ok);
 }
 
 }  // namespace ash

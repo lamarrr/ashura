@@ -53,10 +53,10 @@ struct WidgetSystem {
     }
   }
 
-  void __push_recursive(stx::Vec<WidgetDrawEntry>& entries,
-                        Widget const* last_hit_widget,
-                        bool& last_hit_widget_is_alive, Widget& widget,
-                        Widget* parent, i64 z_index) {
+  static void __push_recursive(stx::Vec<WidgetDrawEntry>& entries,
+                               Widget const* last_hit_widget,
+                               bool& last_hit_widget_is_alive, Widget& widget,
+                               Widget* parent, i64 z_index) {
     if (widget.get_visibility() == Visibility::Visible) {
       z_index = widget.get_z_index(z_index);
 
