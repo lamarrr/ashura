@@ -913,7 +913,6 @@ struct Canvas {
                                paragraph.runs[subword->run].style.font_height);
 
           TextRun const& run = paragraph.runs[subword->run];
-          Font const& font = *fonts[run.font].font.handle;
           FontAtlas const& atlas = fonts[run.font].atlas;
           f32 font_scale = run.style.font_height / atlas.font_height;
 
