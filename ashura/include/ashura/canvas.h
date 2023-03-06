@@ -292,11 +292,8 @@ struct CanvasState {
 /// NOTE: the canvas doesn't manage the lifetime of the handed over resources or
 /// images
 ///
-// TODO(lamarrr): implement command culling
-//
-// In order to implement command culling we might need to remove global
-// transform
-//
+// In order to implement command culling we might need to sync with or remove
+// global transform
 //
 struct Canvas {
   vec2 viewport_extent;
