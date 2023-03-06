@@ -25,7 +25,9 @@ void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
           .unwrap());
 }
 
+// TODO(lamarrr): return enum to signify zero extent
 void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
+                                u32 max_nframes_in_flight,
                                 spdlog::logger& logger) {
   // if cause of change in swapchain is a change in extent, then mark
   // layout as dirty, otherwise maintain pipeline state
@@ -52,7 +54,7 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
       queue->device->phy_dev->get_max_sample_count();
 
   surface.value()->change_swapchain(
-      queue, preferred_formats, preferred_present_modes,
+      queue, max_nframes_in_flight, preferred_formats, preferred_present_modes,
       VkExtent2D{.width = surface_extent.width,
                  .height = surface_extent.height},
       VkExtent2D{.width = window_extent.width, .height = window_extent.height},

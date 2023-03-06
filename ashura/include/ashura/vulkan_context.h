@@ -297,7 +297,7 @@ struct RecordingContext {
       stx::os_allocator};
   u32 vertex_input_size = 0;
   u32 push_constant_size = 0;
-  usize max_nframes_in_flight = 0;
+  u32 max_nframes_in_flight = 0;
   u32 queue_family = 0;
   VkDevice dev = VK_NULL_HANDLE;
 
@@ -306,12 +306,14 @@ struct RecordingContext {
       stx::Span<u32 const> fragment_shader_code,
       stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
       u32 avertex_input_size, u32 apush_constant_size,
-      usize max_nframes_in_flight,
+      u32 amax_nframes_in_flight,
       stx::Span<DescriptorSetSpec> adescriptor_sets_specs,
       stx::Span<VkDescriptorPoolSize const> adescriptor_pool_sizes,
       u32 max_descriptor_sets) {
     dev = adev;
-
+    max_nframes_in_flight = amax_nframes_in_flight;
+    vertex_input_size = avertex_input_size;
+    push_constant_size = apush_constant_size;
     queue_family = aqueue_family;
 
     auto create_shader = [this](stx::Span<u32 const> code) {
@@ -343,8 +345,6 @@ struct RecordingContext {
         vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
 
     vertex_input_attr.extend(avertex_input_attr).unwrap();
-    vertex_input_size = avertex_input_size;
-    push_constant_size = apush_constant_size;
 
     descriptor_set_specs.extend_move(adescriptor_sets_specs).unwrap();
 

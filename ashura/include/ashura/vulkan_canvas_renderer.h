@@ -80,8 +80,6 @@ struct CanvasRenderer {
   }
 
   void destroy() {
-    VkDevice dev = queue.value()->device->dev;
-
     for (SpanBuffer& buff : vertex_buffers) buff.destroy();
 
     for (SpanBuffer& buff : index_buffers) buff.destroy();

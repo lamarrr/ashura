@@ -21,6 +21,8 @@
 namespace ash {
 
 struct Engine {
+  static constexpr u32 DEFAULT_MAX_FRAMES_IN_FLIGHT = 2;
+
   Engine(AppConfig const& cfg, Widget* root_widget);
 
   ~Engine() {

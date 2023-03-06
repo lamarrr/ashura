@@ -175,7 +175,8 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
 
   queue = stx::Some(xqueue.share());
 
-  window.value()->recreate_swapchain(xqueue, xlogger);
+  window.value()->recreate_swapchain(xqueue, DEFAULT_MAX_FRAMES_IN_FLIGHT,
+                                     xlogger);
   auto& swp = window.value()->surface.value()->swapchain.value();
 
   xlogger.info(
@@ -184,7 +185,7 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
       swp.window_extent.width, swp.window_extent.height, swp.image_extent.width,
       swp.image_extent.height);
 
-  renderer.init(xqueue.share(), vk::SwapChain::DEFAULT_MAX_FRAMES_IN_FLIGHT);
+  renderer.init(xqueue.share(), DEFAULT_MAX_FRAMES_IN_FLIGHT);
 
   renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
 
