@@ -28,7 +28,10 @@ target_link_libraries(
   aom_encoder_app_util
   webm
   opus
-  vorbis)
+  vorbis
+  vorbisenc
+  vorbisfile
+  Ogg::ogg)
 
 target_link_directories(ashura PUBLIC ${FFMPEG_LIBRARY_DIRS})
 
