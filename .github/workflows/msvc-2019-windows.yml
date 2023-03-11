@@ -1,0 +1,127 @@
+name: msvc-2019:windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-2019
+
+    strategy:
+      matrix:
+        build_mode: ["Release", "Debug"]
+
+    steps:
+    - uses: actions/checkout@v2
+
+   # NASM
+    - name: Restore cached NASM
+      id: cache-nasm-restore
+      uses: actions/cache@v2
+      with:
+        path: C:/nasm
+        key: ${{ runner.os }}-nasm-${{ hashFiles('**/nasm_version') }}
+        restore-keys: ${{ runner.os }}-nasm-
+
+    - name: Install NASM
+      if: steps.cache-nasm-restore.outputs.cache-hit != 'true'
+      uses: ilammy/setup-nasm@v1
+      with:
+        version: '2.15.05'
+        install-dir: C:/nasm
+
+    - name: Save NASM
+      if: steps.cache-nasm-restore.outputs.cache-hit != 'true'
+      id: cache-nasm-save
+      uses: actions/cache@v2
+      with:
+        path: C:/nasm
+        key: ${{ runner.os }}-nasm-${{ hashFiles('**/nasm_version') }}
+    
+    # Vulkan SDK    
+    - name: Prepare Vulkan SDK
+      uses: humbletim/setup-vulkan-sdk@v1.2.0
+      with:
+        vulkan-query-version: 1.3.239.0
+        vulkan-components: Vulkan-Headers, Vulkan-Loader
+        vulkan-use-cache: true
+
+    # SDL3
+    - name: Restore cached SDL
+      id: cache-sdl-restore
+      uses: actions/cache@v2
+      with:
+        path: |
+          C:/SDL
+        key: ${{ runner.os }}-sdl-${{ hashFiles('**/CMakeLists.txt') }}
+
+    - name: Install SDL3
+      if: steps.cache-sdl-restore.outputs.cache-hit != 'true'
+      run: |
+        git clone https://github.com/libsdl-org/SDL.git && cd SDL && cmake -DSDL_STATIC -Bbuild && cmake --build build --config Release && cmake --install build --config Release
+
+    - name: Save SDL3
+      if: steps.cache-sdl-restore.outputs.cache-hit != 'true'
+      id: cache-sdl-save
+      uses: actions/cache@v2
+      with:
+        path: |
+          C:/SDL
+        key: ${{ runner.os }}-sdl-${{ hashFiles('**/CMakeLists.txt') }}
+
+    # VCPKG
+    - name: Restore cached vcpkg
+      id: cache-vcpkg-restore
+      uses: actions/cache@v3
+      with:
+        path: |
+          C:/vcpkg
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+
+    - name: Install vcpkg
+      if: steps.cache-vcpkg-restore.outputs.cache-hit != 'true'
+      run: |
+        git clone https://github.com/microsoft/vcpkg.git && cd vcpkg && ./bootstrap-vcpkg.bat
+
+    - name: Save vcpkg
+      if: steps.cache-vcpkg-restore.outputs.cache-hit != 'true'
+      id: cache-vcpkg-save
+      uses: actions/cache@v3
+      with:
+        path: |
+          C:/vcpkg
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+
+    # VCPKG DEPENDENCIES
+    - name: Restore vcpkg dependencies cache
+      id: cache-depend-restore
+      uses: actions/cache@v2
+      with:
+        path: vcpkg/packages
+        key: ${{ runner.os }}-dependencies-${{ hashFiles('vcpkg.json') }}
+
+    - name: Install vcpkg dependencies
+      if: steps.cache-depend-restore.outputs.cache-hit != 'true'
+      run: |
+        cd vcpkg
+        .\vcpkg.exe install --triplet x64-windows vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest
+
+    - name: Save vcpkg dependencies cache
+      if: steps.cache-depend-restore.outputs.cache-hit != 'true'
+      id: cache-depend-save
+      uses: actions/cache@v2
+      with:
+        path: vcpkg/packages
+        key: ${{ runner.os }}-dependencies-${{ hashFiles('vcpkg.json') }}
+    
+    #CMAKE
+    - name: Configure Build Directory
+      run: |
+        mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+
+    - name: CMake Build
+      run: cmake --build build --config ${{matrix.build_mode}}
+    
