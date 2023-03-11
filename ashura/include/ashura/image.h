@@ -11,9 +11,29 @@ using image = u64;
 
 }  // namespace gfx
 
-struct RgbaImageBuffer {
+enum class ImageFormat : u8 { Gray, Alpha, Rgb, Rgba,  Bgra };
+
+inline u8 nsource_channels_for_format(ImageFormat fmt) {
+  switch (fmt) {
+    case ImageFormat::Gray:
+      return 1;
+    case ImageFormat::Alpha:
+      return 1;
+    case ImageFormat::Rgb:
+      return 3;
+    case ImageFormat::Rgba:
+      return 4;
+    case ImageFormat::Bgra:
+      return 4;
+    default:
+      ASH_UNREACHABLE();
+  }
+}
+
+struct ImageBuffer {
   stx::Memory memory;
   ash::extent extent;
+  ImageFormat format = ImageFormat::Rgba;
 
   stx::Span<u8 const> span() const {
     return stx::Span{AS(u8*, memory.handle), extent.area() * 4};

@@ -20,8 +20,20 @@ FetchContent_Declare(
   GIT_REPOSITORY https://aomedia.googlesource.com/aom
   GIT_TAG v3.6.0)
 
+FetchContent_Declare(
+  opus
+  GIT_REPOSITORY https://github.com/xiph/opus.git
+  GIT_TAG v1.3.1)
+
+FetchContent_Declare(
+  vorbis
+  GIT_REPOSITORY https://github.com/xiph/vorbis.git
+  GIT_TAG v1.3.7)
+
 FetchContent_MakeAvailable(stx)
 FetchContent_MakeAvailable(aom)
+FetchContent_MakeAvailable(opus)
+FetchContent_MakeAvailable(vorbis)
 
 find_program(NASM nasm REQUIRED)
 find_package(Vulkan REQUIRED)

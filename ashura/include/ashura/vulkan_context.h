@@ -62,34 +62,27 @@ struct UploadContext {
   }
 
   stx::Rc<ImageResource*> upload_image(stx::Span<u8 const> data, extent extent,
-                                       u32 nchannels) {
+                                       ImageFormat format) {
     CommandQueue& cqueue = *queue.value().handle;
     VkDevice dev = cqueue.device->dev;
     VkPhysicalDeviceMemoryProperties const& memory_properties =
         cqueue.device->phy_dev->memory_properties;
 
-    ASH_CHECK(data.size_bytes() == extent.area() * nchannels);
-    ASH_CHECK(nchannels == 4, "only 4-channel images presently supported");
     ASH_CHECK(extent.is_visible());
-    ASH_CHECK(nchannels != 0);
+    u8 nsource_channels = nsource_channels_for_format(format);
+    ASH_CHECK(data.size_bytes() == extent.area() * nsource_channels);
 
-    VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
-
-    if (nchannels == 4) {
-    } else if (nchannels == 3) {
-      format = VK_FORMAT_R8G8B8_SRGB;
-    } else if (nchannels == 1) {
-      format = VK_FORMAT_R8_SRGB;
-    } else {
-      ASH_PANIC("image channels must either be 1, 3, or 4");
-    }
+    // use rgba8888 for everything else
+    VkFormat target_format = format == ImageFormat::Bgra
+                                 ? VK_FORMAT_B8G8R8A8_UNORM
+                                 : VK_FORMAT_R8G8B8A8_UNORM;
 
     VkImageCreateInfo create_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
         .imageType = VK_IMAGE_TYPE_2D,
-        .format = format,
+        .format = target_format,
         .extent =
             VkExtent3D{
                 .width = extent.width, .height = extent.height, .depth = 1},
@@ -134,7 +127,7 @@ struct UploadContext {
         .flags = 0,
         .image = image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = format,
+        .format = target_format,
         .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                          .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                          .b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -151,10 +144,11 @@ struct UploadContext {
     ASH_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
     Buffer staging_buffer =
-        create_host_buffer(dev, memory_properties, data.size_bytes(),
+        create_host_buffer(dev, memory_properties, extent.area() * 4,
                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
-    staging_buffer.write(data.data());
+    // TODO(lamarrr): perform memcpy or necessary operation
+    // staging_buffer.write(data.data());
 
     VkCommandBufferBeginInfo cmd_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -256,7 +250,7 @@ struct UploadContext {
     VkImageFormatProperties image_format_properties;
 
     ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(
-        queue.value()->device->phy_dev->phy_device, VK_FORMAT_R8G8B8A8_SRGB,
+        queue.value()->device->phy_dev->phy_device, VK_FORMAT_B8G8R8A8_UNORM,
         VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT,
         0, &image_format_properties));
 
@@ -265,9 +259,9 @@ struct UploadContext {
                           extent{image_format_properties.maxExtent.width,
                                  image_format_properties.maxExtent.height});
 
-    return std::make_pair(
-        upload_image(image_buffer.span(), image_buffer.extent, 4),
-        std::move(atlas));
+    return std::make_pair(upload_image(image_buffer.span(), image_buffer.extent,
+                                       image_buffer.format),
+                          std::move(atlas));
   }
 };
 

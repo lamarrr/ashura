@@ -1,24 +1,29 @@
-- multithreaded
-- works on win, ios, linux, ps5
+Ashura (temporary codename) is an advanced 2D GUI and Basic 3D Framework for use in GUI applications and games
 
-What problems do we intend to solve?
-
-- fast, easy and flexible advanced GUI
-- multiplatform
-- flexible for games and UI
-- accessibility
-
-What solutions do we provide to solve these problems?
+# Goals
+- Multithreaded
+- Supports on win, ios, linux, ps5
+- Portability
+- Super Duper Fast
+- Minimal resource usage
+- Low mental overhead
+- Flexible system and Widgets
+- Usable for games and UI
+- Ease of Integration of Accessibility features
 
 # Building
 
-- Install NASM https://www.nasm.us/ via website, apt-get or winget
+- Install NASM via https://www.nasm.us/, apt-get on linux, homebrew on mac, or winget on windows
+- Install vcpkg via https://vcpkg.io/en/index.html
+- Install MSVC, Clang, or GCC with C++20 support
+- Install CMake at least version 3.1
 
-
+- Install dependencies via vcpkg:
 ```bash
-vcpkg install vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest
+vcpkg install vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg
 ```
 
+- build the project using (where ${PATH_TO_ASHURA} is replaced with the path to this project and ${PATH_TO_VCPKG} is replaced with the path to your vcpkg installation): 
 ```bash
 cd ${PATH_TO_ASHURA} && mkdir build && cd build
 ```

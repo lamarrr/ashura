@@ -173,6 +173,17 @@ constexpr f32 dot(vec4 a, vec4 b) {
 }
 
 /// row-major
+struct mat3 {
+  vec3 rows[3];
+
+  static constexpr mat3 identity() {
+    return mat3{vec3{.x = 1, .y = 0, .z = 0, .__padding = 0},
+                vec3{.x = 0, .y = 1, .z = 0, .__padding = 0},
+                vec3{.x = 0, .y = 0, .z = 1, .__padding = 0}};
+  }
+};
+
+/// row-major
 struct mat4 {
   vec4 rows[4];
 
@@ -294,6 +305,36 @@ inline mat4 rotate_z(f32 degree_radians) {
       vec4{0, 0, 0, 1},
   };
 }
+
+struct quaternion {
+  f32 x = 0, y = 0, z = 0, w = 0;
+
+  static constexpr quaternion from_euler(vec3 x) { return {}; }
+
+  constexpr vec3 to_euler() const { return {}; }
+
+  constexpr quaternion normalized() const { return {}; }
+};
+
+constexpr bool operator==(quaternion a, quaternion b) {
+  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+}
+
+constexpr bool operator!=(quaternion a, quaternion b) {
+  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
+}
+
+constexpr quaternion operator+(quaternion a, quaternion b) { return {}; }
+
+constexpr quaternion operator-(quaternion a, quaternion b) { return {}; }
+
+constexpr quaternion operator*(quaternion a, f32 b) { return {}; }
+
+constexpr quaternion operator*(f32 a, quaternion b) { return {}; }
+
+constexpr quaternion operator*(quaternion a, quaternion b) { return {}; }
+
+constexpr quaternion dot(quaternion a, quaternion b) { return {}; }
 
 struct offset {
   u32 x = 0, y = 0;

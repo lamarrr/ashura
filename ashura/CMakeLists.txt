@@ -5,6 +5,7 @@ target_include_directories(
   ashura
   PUBLIC include ${JPEG_INCLUDE_DIR} $<TARGET_PROPERTY:aom,INCLUDE_DIRECTORIES>
          $<TARGET_PROPERTY:webm,INCLUDE_DIRECTORIES>
+         $<TARGET_PROPERTY:aom_common_app_util,INCLUDE_DIRECTORIES>
   PRIVATE src)
 
 target_link_libraries(
@@ -22,7 +23,12 @@ target_link_libraries(
   ${JPEG_LIBRARIES}
   PNG::PNG
   aom
-  webm)
+  aom_common_app_util
+  aom_decoder_app_util
+  aom_encoder_app_util
+  webm
+  opus
+  vorbis)
 
 target_link_directories(ashura PUBLIC ${FFMPEG_LIBRARY_DIRS})
 

@@ -16,13 +16,17 @@ extern "C" {
 namespace ash {
 
 enum class ImageLoadError : u8 {
+  /// the image path provided is invalid
   InvalidPath,
+  /// detected image but image seems to be corrupted
   InvalidData,
+  /// image contains unsupported channel types
   UnsupportedChannels,
+  /// the image file format is unsupported
   UnsupportedFormat
 };
 
-inline stx::Result<RgbaImageBuffer, ImageLoadError> decode_webp(
+inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(
     stx::Span<u8 const> data) {
   int width, height;
 
@@ -40,9 +44,9 @@ inline stx::Result<RgbaImageBuffer, ImageLoadError> decode_webp(
     return stx::Err(ImageLoadError::InvalidData);
   }
 
-  return stx::Ok(
-      RgbaImageBuffer{.memory = std::move(memory),
-                      .extent = extent{AS(u32, width), AS(u32, height)}});
+  return stx::Ok(ImageBuffer{.memory = std::move(memory),
+                             .extent = extent{AS(u32, width), AS(u32, height)},
+                             .format = ImageFormat::Rgba});
 }
 
 inline void png_stream_reader(png_structp png_ptr, unsigned char* out,
@@ -53,7 +57,7 @@ inline void png_stream_reader(png_structp png_ptr, unsigned char* out,
   *input = input->slice(nbytes_to_read);
 }
 
-inline stx::Result<RgbaImageBuffer, ImageLoadError> decode_png(
+inline stx::Result<ImageBuffer, ImageLoadError> decode_png(
     stx::Span<u8 const> data) {
   // skip magic number
   data = data.slice(8);
@@ -131,11 +135,12 @@ inline stx::Result<RgbaImageBuffer, ImageLoadError> decode_png(
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  return stx::Ok(RgbaImageBuffer{.memory = std::move(pixels_mem),
-                                 .extent = extent{width, height}});
+  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem),
+                             .extent = extent{width, height},
+                             .format = ImageFormat::Rgba});
 }
 
-inline stx::Result<RgbaImageBuffer, ImageLoadError> decode_jpg(
+inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(
     stx::Span<u8 const> bytes) {
   jpeg_decompress_struct info;
   jpeg_error_mgr error_mgr;
@@ -194,11 +199,12 @@ inline stx::Result<RgbaImageBuffer, ImageLoadError> decode_jpg(
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  return stx::Ok(RgbaImageBuffer{.memory = std::move(pixels_mem),
-                                 .extent = extent{width, height}});
+  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem),
+                             .extent = extent{width, height},
+                             .format = ImageFormat::Rgba});
 }
 
-inline stx::Result<RgbaImageBuffer, ImageLoadError> decode_image(
+inline stx::Result<ImageBuffer, ImageLoadError> decode_image(
     stx::Span<u8 const> bytes) {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 

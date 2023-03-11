@@ -368,6 +368,7 @@ struct Paragraph {
   TextOverflow overflow = TextOverflow::None;
 };
 
+// TODO(lamarrr): if glyph is colored do not apply multiplier
 struct Font {
   /// kerning operations
   static constexpr hb_tag_t KERNING_FEATURE = HB_TAG('k', 'e', 'r', 'n');
@@ -384,10 +385,12 @@ struct Font {
   hb_buffer_t* hbscratch_buffer = nullptr;
   FT_Library ftlib = nullptr;
   FT_Face ftface = nullptr;
+  bool has_color = false;
   stx::Memory font_data;
 
   Font(hb_face_t* ahbface, hb_font_t* ahbfont, hb_buffer_t* ahbscratch_buffer,
-       FT_Library aftlib, FT_Face aftface, stx::Memory afont_data)
+       FT_Library aftlib, FT_Face aftface, bool has_color,
+       stx::Memory afont_data)
       : hbface{ahbface},
         hbfont{ahbfont},
         hbscratch_buffer{ahbscratch_buffer},
@@ -429,7 +432,7 @@ inline stx::Rc<Font*> load_font_from_memory(stx::Memory memory, usize size) {
 
   return stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont,
                                      hbscratch_buffer, ftlib, ftface,
-                                     std::move(memory))
+                                     FT_HAS_COLOR(ftface), std::move(memory))
       .unwrap();
 }
 
@@ -501,9 +504,9 @@ struct FontAtlas {
   }
 };
 
-inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
-                                                          u32 font_height,
-                                                          extent max_extent) {
+inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
+                                                      u32 font_height,
+                                                      extent max_extent) {
   /// *64 to convert font height to 26.6 pixel format
   ASH_CHECK(font_height > 0);
   ASH_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
@@ -548,6 +551,8 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
 
   stx::Span rects{AS(rp::rect*, rects_mem.handle), glyphs.size()};
 
+  // TODO(lamarrr): a lot of the fonts might be aligned to a single row. align
+  // to center along x and y.
   for (usize i = 0; i < glyphs.size(); i++) {
     rects[i].glyph_index = glyphs[i].index;
     rects[i].w = AS(i32, glyphs[i].extent.width + 2);
@@ -628,13 +633,16 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
 
   std::memset(buffer, 0, atlas_extent.area() * 4);
 
-  bool const is_colored_font = FT_HAS_COLOR(font.ftface);
+  // TODO(lamarrr): fix up
+  font.has_color;
+  // it rarely happens that a font will contain both colored and gray fonts, if
+  // it happens, at least do something reasonable by converting between both
 
   for (Glyph const& glyph : glyphs) {
     if (glyph.is_valid) {
       ASH_CHECK(
           FT_Load_Glyph(font.ftface, glyph.index,
-                        is_colored_font
+                        font.has_color
                             ? (FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR)
                             : (FT_LOAD_DEFAULT | FT_LOAD_RENDER)) == 0);
 
@@ -676,12 +684,14 @@ inline std::pair<FontAtlas, RgbaImageBuffer> render_atlas(Font const& font,
     }
   }
 
+  // one gray image buffer and one bgra image buffer
+
   return std::make_pair(
       FontAtlas{.glyphs = std::move(glyphs),
                 .extent = atlas_extent,
                 .font_height = font_height,
                 .texture = 0},
-      RgbaImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent});
+      ImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent});
 }
 
 struct CachedFont {
