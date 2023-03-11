@@ -61,7 +61,7 @@ jobs:
     - name: Install SDL3
       if: steps.cache-sdl-restore.outputs.cache-hit != 'true'
       run: |
-        git clone https://github.com/libsdl-org/SDL.git && cd SDL && cmake -DSDL_STATIC -Bbuild && cmake --build build --config Release && cmake --install build --config Release
+        git clone https://github.com/libsdl-org/SDL.git && cd SDL && cmake -DSDL_STATIC=ON -Bbuild && cmake --build build --config Release && cmake --install build --config Release
 
     - name: Save SDL3
       if: steps.cache-sdl-restore.outputs.cache-hit != 'true'
