@@ -220,8 +220,8 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
-  gfx::image transparent_image = image_bundle.add(
-      upload_context.upload_image(transparent_image_data, {1, 1}, 4));
+  gfx::image transparent_image = image_bundle.add(upload_context.upload_image(
+      transparent_image_data, {1, 1}, ImageFormat::Rgba));
 
   ASH_CHECK(transparent_image == 0);
 

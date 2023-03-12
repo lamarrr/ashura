@@ -1,10 +1,10 @@
 add_library(ashura STATIC src/app.cc src/engine.cc src/window_api.cc
                           src/widget.cc src/window.cc src/rengoku.cc)
 
+# $<TARGET_PROPERTY:webm,INCLUDE_DIRECTORIES>
 target_include_directories(
   ashura
   PUBLIC include ${JPEG_INCLUDE_DIR} $<TARGET_PROPERTY:aom,INCLUDE_DIRECTORIES>
-         $<TARGET_PROPERTY:webm,INCLUDE_DIRECTORIES>
          $<TARGET_PROPERTY:aom_common_app_util,INCLUDE_DIRECTORIES>
   PRIVATE src)
 
@@ -26,7 +26,6 @@ target_link_libraries(
   aom_common_app_util
   aom_decoder_app_util
   aom_encoder_app_util
-  webm
   opus
   vorbis
   vorbisenc

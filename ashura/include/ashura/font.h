@@ -551,8 +551,6 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
 
   stx::Span rects{AS(rp::rect*, rects_mem.handle), glyphs.size()};
 
-  // TODO(lamarrr): a lot of the fonts might be aligned to a single row. align
-  // to center along x and y.
   for (usize i = 0; i < glyphs.size(); i++) {
     rects[i].glyph_index = glyphs[i].index;
     rects[i].w = AS(i32, glyphs[i].extent.width + 2);
@@ -568,7 +566,8 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
                AS(rp::Node*, nodes_memory.handle), max_extent.width, false);
   ASH_CHECK(rp::pack_rects(context, rects.data(), AS(i32, rects.size())));
 
-  extent atlas_extent;
+  // NOTE: vulkan doesn't allow zero-extent images
+  extent atlas_extent{1, 1};
 
   for (usize i = 0; i < rects.size(); i++) {
     atlas_extent.width =
@@ -591,10 +590,13 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
     u32 h = glyphs[i].extent.height;
 
     glyphs[i].offset = {x, y};
-    glyphs[i].s0 = AS(f32, x) / atlas_extent.width;
-    glyphs[i].s1 = AS(f32, x + w) / atlas_extent.width;
-    glyphs[i].t0 = AS(f32, y) / atlas_extent.height;
-    glyphs[i].t1 = AS(f32, y + h) / atlas_extent.height;
+    // TODO(lamarrr): 0.5f offset to prevent texture bleeding when sampling
+    // borders
+    // https://gamedev.stackexchange.com/questions/46963/how-to-avoid-texture-bleeding-in-a-texture-atlas
+    glyphs[i].s0 = (AS(f32, x) + 0.5f) / atlas_extent.width;
+    glyphs[i].s1 = (AS(f32, x + w) - 0.5f) / atlas_extent.width;
+    glyphs[i].t0 = (AS(f32, y) + 0.5f) / atlas_extent.height;
+    glyphs[i].t1 = (AS(f32, y + h) - 0.5f) / atlas_extent.height;
   }
 
   {
@@ -622,10 +624,6 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
   glyphs.span().sort(
       [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
 
-  // NOTE: vulkan doesn't allow zero-extent images
-  atlas_extent.width = std::max<u32>(1, atlas_extent.width);
-  atlas_extent.height = std::max<u32>(1, atlas_extent.height);
-
   stx::Memory buffer_mem =
       stx::mem::allocate(stx::os_allocator, atlas_extent.area() * 4).unwrap();
 
@@ -633,8 +631,6 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
 
   std::memset(buffer, 0, atlas_extent.area() * 4);
 
-  // TODO(lamarrr): fix up
-  font.has_color;
   // it rarely happens that a font will contain both colored and gray fonts, if
   // it happens, at least do something reasonable by converting between both
 
@@ -646,12 +642,13 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
                             ? (FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR)
                             : (FT_LOAD_DEFAULT | FT_LOAD_RENDER)) == 0);
 
-      uchar pixel_mode = font.ftface->glyph->bitmap.pixel_mode;
+      FT_Pixel_Mode pixel_mode =
+          AS(FT_Pixel_Mode, font.ftface->glyph->bitmap.pixel_mode);
 
       ASH_CHECK(pixel_mode == FT_PIXEL_MODE_GRAY ||
                 pixel_mode == FT_PIXEL_MODE_BGRA);
 
-      u8* bitmap = font.ftface->glyph->bitmap.buffer;
+      u8 const* bitmap = font.ftface->glyph->bitmap.buffer;
 
       // copy the rendered glyph to the atlas
       if (pixel_mode == FT_PIXEL_MODE_GRAY) {
@@ -670,28 +667,22 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
       } else if (pixel_mode == FT_PIXEL_MODE_BGRA) {
         for (usize j = glyph.offset.y;
              j < glyph.offset.y + font.ftface->glyph->bitmap.rows; j++) {
-          for (usize i = glyph.offset.x * 4;
-               i < (glyph.offset.x + font.ftface->glyph->bitmap.width) * 4;
-               i += 4) {
-            buffer[j * atlas_extent.width * 4 + i + 0] = bitmap[2];
-            buffer[j * atlas_extent.width * 4 + i + 1] = bitmap[1];
-            buffer[j * atlas_extent.width * 4 + i + 2] = bitmap[0];
-            buffer[j * atlas_extent.width * 4 + i + 3] = bitmap[3];
-            bitmap += 4;
-          }
+          u8 const* begin = bitmap + j * font.ftface->glyph->bitmap.width * 4 +
+                            glyph.offset.x * 4;
+          u8 const* end = begin + glyph.extent.width * 4;
+          buffer = std::copy(begin, end, buffer);
         }
       }
     }
   }
 
-  // one gray image buffer and one bgra image buffer
-
-  return std::make_pair(
-      FontAtlas{.glyphs = std::move(glyphs),
-                .extent = atlas_extent,
-                .font_height = font_height,
-                .texture = 0},
-      ImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent});
+  return std::make_pair(FontAtlas{.glyphs = std::move(glyphs),
+                                  .extent = atlas_extent,
+                                  .font_height = font_height,
+                                  .texture = 0},
+                        ImageBuffer{.memory = std::move(buffer_mem),
+                                    .extent = atlas_extent,
+                                    .format = ImageFormat::Bgra});
 }
 
 struct CachedFont {

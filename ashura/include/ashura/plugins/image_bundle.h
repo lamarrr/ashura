@@ -20,7 +20,8 @@ struct ImageBundle : public Plugin {
 
   virtual constexpr std::string_view get_id() override { return "ImageBundle"; }
 
-  virtual gfx::image add(stx::Span<u8 const> pixels, extent extent) {
+  virtual gfx::image add(stx::Span<u8 const> pixels, extent extent,
+                         ImageFormat format) {
     return 0;
   }
 

@@ -19,10 +19,8 @@
 
 namespace ash {
 
-// RGBA image
 struct MemoryImageSource {
-  stx::Vec<u8> pixels{stx::os_allocator};
-  ash::extent extent;
+  ImageBuffer buffer;
 };
 
 struct FileImageSource {
@@ -149,7 +147,8 @@ struct Image : public Widget {
         if (std::holds_alternative<MemoryImageSource>(props.source)) {
           MemoryImageSource const& source =
               std::get<MemoryImageSource>(props.source);
-          image = bundle->add(source.pixels, source.extent);
+          image = bundle->add(source.buffer.span(), source.buffer.extent,
+                              source.buffer.format);
           state = ImageState::Loaded;
         } else if (std::holds_alternative<FileImageSource>(props.source)) {
           image_load_future = stx::Some(stx::sched::fn(
@@ -157,7 +156,7 @@ struct Image : public Widget {
               [path = std::get<FileImageSource>(props.source)
                           .path.copy(stx::os_allocator)
                           .unwrap()]()
-                  -> stx::Result<RgbaImageBuffer, ImageLoadError> {
+                  -> stx::Result<ImageBuffer, ImageLoadError> {
                 if (!std::filesystem::exists(path.c_str()))
                   return stx::Err(ImageLoadError::InvalidPath);
 
@@ -190,8 +189,8 @@ struct Image : public Widget {
           // TODO(lamarrr): log trace and error
           if (load_result.is_ok()) {
             spdlog::info("loaded image successfully");
-            RgbaImageBuffer& buffer = load_result.value();
-            image = bundle->add(buffer.span(), buffer.extent);
+            ImageBuffer& buffer = load_result.value();
+            image = bundle->add(buffer.span(), buffer.extent, buffer.format);
             state = ImageState::Loaded;
             if (props.resize_on_load) {
               props.width = constraint{.bias = AS(f32, buffer.extent.width)};
@@ -243,14 +242,15 @@ struct Image : public Widget {
     std::string_view source_type;
     ash::extent extent;
 
+    // T0D0(lamarrr): format
     if (std::holds_alternative<MemoryImageSource>(props.source)) {
       MemoryImageSource& memory_source =
           std::get<MemoryImageSource>(props.source);
-      stx::Span pixels = memory_source.pixels.span();
+      stx::Span pixels = memory_source.buffer.span();
       source = base64_encode(stx::Span{
           reinterpret_cast<char const*>(pixels.data()), pixels.size()});
       source_type = "memory";
-      extent = memory_source.extent;
+      extent = memory_source.buffer.extent;
     } else if (std::holds_alternative<FileImageSource>(props.source)) {
       source = std::get<FileImageSource>(props.source).path;
       source_type = "file";
@@ -316,11 +316,12 @@ struct Image : public Widget {
         .height = AS(u32, element["extent_height"].get_uint64())};
 
     if (source_type == "memory") {
+      // TODO(lamarrr): fix up
       std::string enc = base64_decode(source);
       stx::Vec<u8> pixels{stx::os_allocator};
       pixels.extend(stx::Span{enc}.as_u8()).unwrap();
-      props.source =
-          MemoryImageSource{.pixels = std::move(pixels), .extent = extent};
+      // props.source =
+      //     MemoryImageSource{.buffer pixels = std::move(pixels), .extent = extent};
     } else if (source_type == "file") {
       props.source = FileImageSource{
           .path = stx::string::make(stx::os_allocator, source).unwrap()};
@@ -365,7 +366,7 @@ struct Image : public Widget {
   ImageState state = ImageState::Inactive;
   gfx::image image = 0;
   extent image_extent;
-  stx::Option<stx::Future<stx::Result<RgbaImageBuffer, ImageLoadError>>>
+  stx::Option<stx::Future<stx::Result<ImageBuffer, ImageLoadError>>>
       image_load_future;
 };
 

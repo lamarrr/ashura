@@ -147,9 +147,15 @@ constexpr vec3 operator*(f32 a, vec3 b) {
   return vec3{a * b.x, a * b.y, a * b.z, a * b.__padding};
 }
 
+constexpr vec3 operator*(vec3 a, vec3 b) {
+  return vec3{a.x * b.x, a.y * b.y, a.z * b.z, a.__padding * b.__padding};
+}
+
 constexpr vec3 operator/(vec3 a, vec3 b) {
   return vec3{a.x / b.x, a.y / b.y, a.z / b.z, a.__padding / b.__padding};
 }
+
+constexpr f32 dot(vec3 a, vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 
 /// column vector
 struct vec4 {
@@ -182,6 +188,13 @@ struct mat3 {
                 vec3{.x = 0, .y = 0, .z = 1, .__padding = 0}};
   }
 };
+
+constexpr vec3 operator*(mat3 const &a, vec3 const &b) {
+  return vec3{.x = dot(a.rows[0], b),
+              .y = dot(a.rows[1], b),
+              .z = dot(a.rows[2], b),
+              .__padding = 0};
+}
 
 /// row-major
 struct mat4 {

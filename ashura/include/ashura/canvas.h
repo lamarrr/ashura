@@ -76,7 +76,7 @@ inline void circle(vec2 position, f32 radius, usize nsegments,
   f32 step = AS(f32, (2 * pi) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
-    vec2 p = radius + radius* vec2{std::cos(i * step), std::sin(i * step)};
+    vec2 p = radius + radius * vec2{std::cos(i * step), std::sin(i * step)};
     vec2 st = texture_area.offset + p / (radius * 2) * texture_area.extent;
 
     polygon[i] = vertex{.position = position + ash::transform(transform, p),
@@ -93,7 +93,7 @@ inline void ellipse(vec2 position, vec2 radii, usize nsegments,
   f32 step = AS(f32, (2 * pi) / nsegments);
 
   for (usize i = 0; i < nsegments; i++) {
-    vec2 p = radii + radii* vec2{std::cos(i * step), std::sin(i * step)};
+    vec2 p = radii + radii * vec2{std::cos(i * step), std::sin(i * step)};
     vec2 st = texture_area.offset + p / (2 * radii) * texture_area.extent;
     polygon[i] = vertex{.position = position + ash::transform(transform, p),
                         .st = st,
@@ -119,7 +119,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     vec2 p = (extent - radii.z) +
-             radii.z* vec2{std::cos(segment * step), std::sin(segment * step)};
+             radii.z * vec2{std::cos(segment * step), std::sin(segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -130,8 +130,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     vec2 p = vec2{radii.w, extent.y - radii.w} +
-             radii.w* vec2{std::cos(AS(f32, pi / 2) + segment * step),
-                           std::sin(AS(f32, pi / 2) + segment * step)};
+             radii.w * vec2{std::cos(AS(f32, pi / 2) + segment * step),
+                            std::sin(AS(f32, pi / 2) + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -141,8 +141,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
   }
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
-    vec2 p = radii.x + radii.x* vec2{std::cos(AS(f32, pi) + segment * step),
-                                     std::sin(AS(f32, pi) + segment * step)};
+    vec2 p = radii.x + radii.x * vec2{std::cos(AS(f32, pi) + segment * step),
+                                      std::sin(AS(f32, pi) + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -153,8 +153,8 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++) {
     vec2 p = vec2{extent.x - radii.y, radii.y} +
-             radii.y* vec2{std::cos(AS(f32, pi * 3) / 2 + segment * step),
-                           std::sin(AS(f32, pi * 3) / 2 + segment * step)};
+             radii.y * vec2{std::cos(AS(f32, pi * 3) / 2 + segment * step),
+                            std::sin(AS(f32, pi * 3) / 2 + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -627,7 +627,7 @@ struct Canvas {
 
   Canvas& draw_glyph(Glyph const& glyph, TextRun const& run, image atlas,
                      vec2 baseline, f32 font_scale, f32 line_height,
-                     f32 vert_spacing) {
+                     f32 vert_spacing, bool has_color) {
     f32 ascent = font_scale * glyph.ascent;
     vec2 advance = font_scale * glyph.advance;
     vec2 extent{font_scale * glyph.extent.width,
@@ -645,7 +645,7 @@ struct Canvas {
 
     if (run.style.foreground_color.is_visible()) {
       save();
-      brush.color = run.style.foreground_color;
+      brush.color = has_color ? colors::WHITE : run.style.foreground_color;
       draw_image(atlas,
                  rect{.offset = baseline - vec2{0, vert_spacing + ascent},
                       .extent = extent},
@@ -764,7 +764,7 @@ struct Canvas {
 
     for (RunSubWord& subword : subwords) {
       TextRun const& run = paragraph.runs[subword.run];
-      Font const& font = *fonts[run.font].font.handle;
+      Font const& font = *fonts[run.font].font;
       FontAtlas const& atlas = fonts[run.font].atlas;
 
       hb_feature_t const shaping_features[] = {
@@ -942,6 +942,7 @@ struct Canvas {
               TextDirection::LeftToRight) {
             TextRun const& run = paragraph.runs[subword->run];
             FontAtlas const& atlas = fonts[run.font].atlas;
+            Font const& font = *fonts[run.font].font;
 
             f32 font_scale = run.style.font_height / atlas.font_height;
             f32 letter_spacing = run.style.letter_spacing;
@@ -954,7 +955,7 @@ struct Canvas {
               vec2 advance = g.advance * font_scale;
               draw_glyph(g, run, atlas.texture,
                          position + vec2{cursor_x, baseline}, font_scale,
-                         line_height, vert_spacing);
+                         line_height, vert_spacing, font.has_color);
               cursor_x += advance.x + letter_spacing;
             }
 
@@ -1012,6 +1013,7 @@ struct Canvas {
                  rtl_iter++) {
               TextRun const& run = paragraph.runs[rtl_iter->run];
               FontAtlas const& atlas = fonts[run.font].atlas;
+              Font const& font = *fonts[run.font].font;
 
               f32 font_scale = run.style.font_height / atlas.font_height;
               f32 letter_spacing = run.style.letter_spacing;
@@ -1052,7 +1054,7 @@ struct Canvas {
                 vec2 advance = g.advance * font_scale;
                 draw_glyph(g, run, atlas.texture,
                            position + vec2{glyph_cursor_x, baseline},
-                           font_scale, line_height, vert_spacing);
+                           font_scale, line_height, vert_spacing, font.has_color);
                 glyph_cursor_x += advance.x + letter_spacing;
               }
 
