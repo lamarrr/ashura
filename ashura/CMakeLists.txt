@@ -1,11 +1,13 @@
 add_library(ashura STATIC src/app.cc src/engine.cc src/window_api.cc
                           src/widget.cc src/window.cc src/rengoku.cc)
 
-# $<TARGET_PROPERTY:webm,INCLUDE_DIRECTORIES>
 target_include_directories(
   ashura
-  PUBLIC include ${JPEG_INCLUDE_DIR} $<TARGET_PROPERTY:aom,INCLUDE_DIRECTORIES>
+  PUBLIC include
+         ${JPEG_INCLUDE_DIR}
          $<TARGET_PROPERTY:aom_common_app_util,INCLUDE_DIRECTORIES>
+         $<TARGET_PROPERTY:aom,INCLUDE_DIRECTORIES>
+         $<TARGET_PROPERTY:webm,INCLUDE_DIRECTORIES>
   PRIVATE src)
 
 target_link_libraries(
