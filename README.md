@@ -18,6 +18,8 @@ Ashura (temporary codename) is an advanced 2D GUI and Basic 3D Framework for use
 - Install MSVC, Clang, or GCC with C++20 support
 - Install CMake at least version 3.1
 
+--- install SDL 3 with SDL_STATIC=ON
+
 - Install dependencies via vcpkg:
 ```bash
 vcpkg install vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg
