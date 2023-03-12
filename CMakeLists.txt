@@ -20,16 +20,6 @@ FetchContent_Declare(
   GIT_REPOSITORY https://aomedia.googlesource.com/aom
   GIT_TAG v3.6.0)
 
-FetchContent_Declare(
-  opus
-  GIT_REPOSITORY https://github.com/xiph/opus.git
-  GIT_TAG v1.3.1)
-
-FetchContent_Declare(
-  vorbis
-  GIT_REPOSITORY https://github.com/xiph/vorbis.git
-  GIT_TAG v1.3.7)
-
 find_program(NASM nasm REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
@@ -43,11 +33,11 @@ find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
 find_package(Ogg CONFIG REQUIRED)
+find_package(Vorbis CONFIG REQUIRED)
+find_package(Opus CONFIG REQUIRED)
 
 FetchContent_MakeAvailable(stx)
 FetchContent_MakeAvailable(aom)
-FetchContent_MakeAvailable(opus)
-FetchContent_MakeAvailable(vorbis)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)

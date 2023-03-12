@@ -25,13 +25,14 @@ target_link_libraries(
   ${JPEG_LIBRARIES}
   PNG::PNG
   aom
+  webm
   aom_common_app_util
   aom_decoder_app_util
   aom_encoder_app_util
-  opus
-  vorbis
-  vorbisenc
-  vorbisfile
+  Opus::opus
+  Vorbis::vorbis
+  Vorbis::vorbisenc
+  Vorbis::vorbisfile
   Ogg::ogg)
 
 target_link_directories(ashura PUBLIC ${FFMPEG_LIBRARY_DIRS})
