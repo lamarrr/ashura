@@ -11,8 +11,9 @@
 #include "common/tools_common.h"
 #include "common/video_reader.h"
 #include "common/webmdec.h"
-#include "third_party/libwebm/mkvparser/mkvparser.h"
-#include "third_party/libwebm/mkvparser/mkvreader.h"
+#include "webm/callback.h"
+#include "webm/reader.h"
+#include "webm/webm_parser.h"
 
 namespace ash {
 constexpr mat3 make_yuv2rgb_color_matrix(f32 kr, f32 kb) {
@@ -97,9 +98,9 @@ constexpr mat3 ypbpr2rgb_coefficients[16] = {
 
 constexpr void yuv2rgb_bp12(mat3 const &coefficient, u8 y, u8 u, u8 v,
                             u8 *rgba) {
-  vec3 rgb = coefficient *
-             vec3{AS(f32, y) - 16, AS(f32, u) - 128, AS(f32, v) - 128} *
-             vec3{255, 255, 255};
+  vec3 rgb =
+      coefficient *vec3{AS(f32, y) - 16, AS(f32, u) - 128, AS(f32, v) - 128} *
+      vec3{255, 255, 255};
   rgba[0] = ASH_U8_CLAMP(rgb.x);
   rgba[1] = ASH_U8_CLAMP(rgb.y);
   rgba[2] = ASH_U8_CLAMP(rgb.z);
@@ -108,9 +109,8 @@ constexpr void yuv2rgb_bp12(mat3 const &coefficient, u8 y, u8 u, u8 v,
 
 constexpr void yuv2rgb_bp16(mat3 const &coefficient, u16 y, u16 u, u16 v,
                             u8 *rgba) {
-  vec3 rgb = coefficient *
-             vec3{AS(f32, y) - 16 * 257, AS(f32, u) - 128 * 257,
-                  AS(f32, v) - 128 * 257} *
+  vec3 rgb = coefficient *vec3{AS(f32, y) - 16 * 257, AS(f32, u) - 128 * 257,
+                               AS(f32, v) - 128 * 257} *
              vec3{255, 255, 255};
   rgba[0] = ASH_U8_CLAMP(rgb.x);
   rgba[1] = ASH_U8_CLAMP(rgb.y);
@@ -506,34 +506,6 @@ void yuv_444_16_to_rgb(aom_image_t const *img, u8 *rgba) {
 
 namespace webm {
 
-struct MkvByteStream : public mkvparser::IMkvReader {
-  virtual ~MkvByteStream() {}
-
-  virtual int Read(long long position, long length, uchar *buffer) {
-    if (position < 0 || length < 0) return -1;
-    if (length == 0) return 0;
-    if (position < 0) return -1;
-    if (position >= this->buffer.size()) return -1;
-    if (length > this->buffer.size()) return -1;
-
-    std::copy(this->buffer.data(), this->buffer.data() + length, buffer);
-
-    return 0;
-  }
-
-  virtual int Length(long long *total, long long *available) {
-    *total = buffer.size();
-    *available = buffer.size();
-    return 0;
-  }
-
-  void append(stx::Span<char const> buffer) { this->buffer = buffer; }
-
-  void swap(stx::Span<char const> buffer) { this->buffer = buffer; }
-
-  stx::Span<char const> buffer;
-};
-
 enum class AudioCodec : u8 { None, Opus, Vorbis, Unrecognized };
 
 enum class VideoCodec : u8 { None, AV1, VP8, VP9, Unrecognized };
@@ -560,154 +532,113 @@ enum class VideoCodec : u8 { None, AV1, VP8, VP9, Unrecognized };
 //   long track_index = 0;
 // };
 
-// NOTE: video res may change across segments
-struct DecodeContext {
-  int target_video_track_index = 0;
-  MkvByteStream *reader = nullptr;
-  mkvparser::Segment *segment = nullptr;
-  mkvparser::Cluster const *cluster = nullptr;
-  mkvparser::Block const *block = nullptr;
-  mkvparser::BlockEntry const *block_entry = nullptr;
-  bool reached_end_of_stream = 0;
-  int block_frame_index = 0;
-  stx::Memory frame_buffer_mem;
-  usize frame_buffer_mem_size = 0;
-  usize frame_buffer_size = 0;
-  // for every call to read_frame()
-  i64 timestamp_ns = 0;
-  bool is_key_frame = 0;
-};
+// stx::Result<mkvparser::Segment *, int> try_parse_segment(
+//     mkvparser::IMkvReader &reader, long long &segment_start) {
+//   // try to read a segment from the EBML document
+//   mkvparser::Segment *segment;
+//   long long read =
+//       mkvparser::Segment::CreateInstance(&reader, segment_start, segment);
+//   if (read < 0) {
+//     return stx::Err(AS(int, read));
+//   }
 
-constexpr int E_NOT_WEBM = -2048;
+//   segment_start += read;
 
-// Workflow:
-// - receive video stream
-// - try to parse header, if there's no valid header or an error occured, we
-// return a negative value, if successful we return 0
-// - pos is advanced by the number of bytes read. it is still incremented even
-// if an error occured.
-int try_parse_header(mkvparser::IMkvReader &reader, long long &pos) {
-  uchar bytes[4];
-  constexpr uchar const webm_magic_number[] = {0x1A, 0x45, 0xDF, 0xa3};
+//   int status = segment->Load();
+//   if (status < 0) {
+//     return stx::Err(AS(int, status));
+//   }
 
-  if (reader.Read(0, 4, bytes) < 0) return E_NOT_WEBM;
+//   return stx::Ok(AS(mkvparser::Segment *, segment));
+// mkvparser::Tracks const *tracks = ctx.segment->GetTracks();
+//
+// if (strncmp(codec_id, "V_AV1", 5) == 0) {
+//   ctx.info.video_codec = VideoCodec::AV1;
+// } else if (strncmp(codec_id, "V_VP9", 5) == 0) {
+//   ctx.info.video_codec = VideoCodec::VP9;
+// } else if (strncmp(codec_id, "V_VP8", 5) == 0) {
+//   ctx.info.video_codec = VideoCodec::VP8;
+// } else {
+//   ctx.info.video_codec = VideoCodec::Unrecognized;
+//   // log
+// }
+// if (strncmp(codec_id, "A_VORBIS", 8) == 0) {
+//   ctx.info.audio_codec = AudioCodec::Vorbis;
+// } else if (strncmp(codec_id, "A_OPUS", 6) == 0) {
+//   ctx.info.audio_codec = AudioCodec::Opus;
+// } else {
+//   ctx.info.audio_codec = AudioCodec::Unrecognized;
+//   // log
+// }
+// for (unsigned long i = 0; i < tracks->GetTracksCount(); ++i) {
+//   mkvparser::Track const *track = tracks->GetTrackByIndex(i);
+//   if (track->GetType() == mkvparser::Track::kVideo) {
+//     mkvparser::VideoTrack const *video_track =
+//         AS(mkvparser::VideoTrack const *, track);
+//     ctx.info.video_tracks
+//         .push(VideoTrackInfo{
+//             .name_utf8 = video_track->GetNameAsUTF8(),
+//             .codec = video_track->GetCodecId(),
+//             .codec_name_utf8 = video_track->GetCodecNameAsUTF8(),
+//             .language = video_track->GetLanguage(),
+//             .width = AS(u32, video_track->GetWidth()),
+//             .height = AS(u32, video_track->GetHeight()),
+//             .framerate = video_track->GetFrameRate(),
+//             .track_index = video_track->GetNumber()})
+//         .unwrap();
+//   }
 
-  // must be matroksa container
-  if (!stx::Span{bytes}.equals<uchar const>(webm_magic_number))
-    return E_NOT_WEBM;
+//   if (track->GetType() == mkvparser::Track::kAudio) {
+//     mkvparser::AudioTrack const *audio_track =
+//         AS(mkvparser::AudioTrack const *, track);
+//     ctx.info.audio_tracks
+//         .push(AudioTrackInfo{
+//             .name_utf8 = audio_track->GetNameAsUTF8(),
+//             .codec = audio_track->GetCodecId(),
+//             .codec_name_utf8 = audio_track->GetCodecNameAsUTF8(),
+//             .language = audio_track->GetLanguage(),
+//             .nchannels = audio_track->GetChannels(),
+//             .bit_depth = audio_track->GetBitDepth(),
+//             .sample_rate = audio_track->GetSamplingRate(),
+//             .track_index = audio_track->GetNumber()})
+//         .unwrap();
+//   }
+// }
 
-  mkvparser::EBMLHeader header;
+// // Chapters are a way to set predefined points to jump to in video or
+// audio. mkvparser::Chapters const *chapters = ctx.segment->GetChapters();
 
-  return header.Parse(&reader, pos);
-}
+// for (int i = 0; i < chapters->GetEditionCount(); i++) {
+//   mkvparser::Chapters::Edition const *edition = chapters->GetEdition(i);
+//   for (int j = 0; j < edition->GetAtomCount(); j++) {
+//     mkvparser::Chapters::Atom const *atom = edition->GetAtom(j);
+//     atom->GetStartTime(chapters);
+//     atom->GetStartTimecode();
+//     atom->GetStopTime(chapters);
+//     atom->GetStopTimecode();
+//     atom->GetStringUID();
+//     atom->GetUID();
+//     for (int k = 0; k < atom->GetDisplayCount(); k++) {
+//       mkvparser::Chapters::Display const *display = atom->GetDisplay(k);
+//       display->GetCountry();
+//       display->GetLanguage();
+//       display->GetString();
+//     }
+//   }
+// }
 
-stx::Result<mkvparser::Segment *, int> try_parse_segment(
-    mkvparser::IMkvReader &reader, long long &segment_start) {
-  // try to read a segment from the EBML document
-  mkvparser::Segment *segment;
-  long long read =
-      mkvparser::Segment::CreateInstance(&reader, segment_start, segment);
-  if (read < 0) {
-    return stx::Err(AS(int, read));
-  }
+// mkvparser::Tags const *tags = ctx.segment->GetTags();
+// for (int i = 0; i < tags->GetTagCount(); i++) {
+//   mkvparser::Tags::Tag const *tag = tags->GetTag(i);
+//   for (int j = 0; j < tag->GetSimpleTagCount(); j++) {
+//     mkvparser::Tags::SimpleTag const *simple_tag = tag->GetSimpleTag(j);
+//     simple_tag->GetTagName();
+//     simple_tag->GetTagString();
+//   }
+// }
 
-  segment_start += read;
-
-  int status = segment->Load();
-  if (status < 0) {
-    return stx::Err(AS(int, status));
-  }
-
-  return stx::Ok(AS(mkvparser::Segment *, segment));
-  // mkvparser::Tracks const *tracks = ctx.segment->GetTracks();
-  //
-  // if (strncmp(codec_id, "V_AV1", 5) == 0) {
-  //   ctx.info.video_codec = VideoCodec::AV1;
-  // } else if (strncmp(codec_id, "V_VP9", 5) == 0) {
-  //   ctx.info.video_codec = VideoCodec::VP9;
-  // } else if (strncmp(codec_id, "V_VP8", 5) == 0) {
-  //   ctx.info.video_codec = VideoCodec::VP8;
-  // } else {
-  //   ctx.info.video_codec = VideoCodec::Unrecognized;
-  //   // log
-  // }
-  // if (strncmp(codec_id, "A_VORBIS", 8) == 0) {
-  //   ctx.info.audio_codec = AudioCodec::Vorbis;
-  // } else if (strncmp(codec_id, "A_OPUS", 6) == 0) {
-  //   ctx.info.audio_codec = AudioCodec::Opus;
-  // } else {
-  //   ctx.info.audio_codec = AudioCodec::Unrecognized;
-  //   // log
-  // }
-  // for (unsigned long i = 0; i < tracks->GetTracksCount(); ++i) {
-  //   mkvparser::Track const *track = tracks->GetTrackByIndex(i);
-  //   if (track->GetType() == mkvparser::Track::kVideo) {
-  //     mkvparser::VideoTrack const *video_track =
-  //         AS(mkvparser::VideoTrack const *, track);
-  //     ctx.info.video_tracks
-  //         .push(VideoTrackInfo{
-  //             .name_utf8 = video_track->GetNameAsUTF8(),
-  //             .codec = video_track->GetCodecId(),
-  //             .codec_name_utf8 = video_track->GetCodecNameAsUTF8(),
-  //             .language = video_track->GetLanguage(),
-  //             .width = AS(u32, video_track->GetWidth()),
-  //             .height = AS(u32, video_track->GetHeight()),
-  //             .framerate = video_track->GetFrameRate(),
-  //             .track_index = video_track->GetNumber()})
-  //         .unwrap();
-  //   }
-
-  //   if (track->GetType() == mkvparser::Track::kAudio) {
-  //     mkvparser::AudioTrack const *audio_track =
-  //         AS(mkvparser::AudioTrack const *, track);
-  //     ctx.info.audio_tracks
-  //         .push(AudioTrackInfo{
-  //             .name_utf8 = audio_track->GetNameAsUTF8(),
-  //             .codec = audio_track->GetCodecId(),
-  //             .codec_name_utf8 = audio_track->GetCodecNameAsUTF8(),
-  //             .language = audio_track->GetLanguage(),
-  //             .nchannels = audio_track->GetChannels(),
-  //             .bit_depth = audio_track->GetBitDepth(),
-  //             .sample_rate = audio_track->GetSamplingRate(),
-  //             .track_index = audio_track->GetNumber()})
-  //         .unwrap();
-  //   }
-  // }
-
-  // // Chapters are a way to set predefined points to jump to in video or
-  // audio. mkvparser::Chapters const *chapters = ctx.segment->GetChapters();
-
-  // for (int i = 0; i < chapters->GetEditionCount(); i++) {
-  //   mkvparser::Chapters::Edition const *edition = chapters->GetEdition(i);
-  //   for (int j = 0; j < edition->GetAtomCount(); j++) {
-  //     mkvparser::Chapters::Atom const *atom = edition->GetAtom(j);
-  //     atom->GetStartTime(chapters);
-  //     atom->GetStartTimecode();
-  //     atom->GetStopTime(chapters);
-  //     atom->GetStopTimecode();
-  //     atom->GetStringUID();
-  //     atom->GetUID();
-  //     for (int k = 0; k < atom->GetDisplayCount(); k++) {
-  //       mkvparser::Chapters::Display const *display = atom->GetDisplay(k);
-  //       display->GetCountry();
-  //       display->GetLanguage();
-  //       display->GetString();
-  //     }
-  //   }
-  // }
-
-  // mkvparser::Tags const *tags = ctx.segment->GetTags();
-  // for (int i = 0; i < tags->GetTagCount(); i++) {
-  //   mkvparser::Tags::Tag const *tag = tags->GetTag(i);
-  //   for (int j = 0; j < tag->GetSimpleTagCount(); j++) {
-  //     mkvparser::Tags::SimpleTag const *simple_tag = tag->GetSimpleTag(j);
-  //     simple_tag->GetTagName();
-  //     simple_tag->GetTagString();
-  //   }
-  // }
-
-  // get_first_cluster(webm_ctx);
-}
+// get_first_cluster(webm_ctx);
+// }
 
 int decoder_init(DecodeContext &context, usize frame_size_bytes) {
   aom_codec_iface_t *decoder = aom_codec_av1_dx();
@@ -781,80 +712,80 @@ int decoder_init(DecodeContext &context, usize frame_size_bytes) {
 // Segment
 // EBML Header
 // Segment
-int read_frame(DecodeContext &dec_ctx, long &bytes_read) {
-  bytes_read = 0;
-  // This check is needed for frame parallel decoding, in which case this
-  // function could be called even after it has reached end of input stream.
-  if (dec_ctx.reached_end_of_stream) {
-    return 1;
-  }
+// int read_frame(DecodeContext &dec_ctx, long &bytes_read) {
+//   bytes_read = 0;
+//   // This check is needed for frame parallel decoding, in which case this
+//   // function could be called even after it has reached end of input stream.
+//   if (dec_ctx.reached_end_of_stream) {
+//     return 1;
+//   }
 
-  mkvparser::Segment *segment = dec_ctx.segment;
-  mkvparser::Cluster const *cluster = dec_ctx.cluster;
-  mkvparser::Block const *block = dec_ctx.block;
-  mkvparser::BlockEntry const *block_entry = dec_ctx.block_entry;
+//   mkvparser::Segment *segment = dec_ctx.segment;
+//   mkvparser::Cluster const *cluster = dec_ctx.cluster;
+//   mkvparser::Block const *block = dec_ctx.block;
+//   mkvparser::BlockEntry const *block_entry = dec_ctx.block_entry;
 
-  // each frame belongs to a block_entry which
-  // belongs to a block which belongs to a cluster
-  bool block_entry_eos = false;
-  do {
-    long status = 0;
-    bool get_new_block = false;
-    if (block_entry == nullptr && !block_entry_eos) {
-      status = cluster->GetFirst(block_entry);
-      get_new_block = true;
-    } else if (block_entry_eos || block_entry->EOS()) {
-      cluster = segment->GetNext(cluster);
-      if (cluster == nullptr || cluster->EOS()) {
-        bytes_read = 0;
-        dec_ctx.reached_end_of_stream = true;
-        return 1;
-      }
-      status = cluster->GetFirst(block_entry);
-      block_entry_eos = false;
-      get_new_block = true;
-    } else if (block == nullptr ||
-               dec_ctx.block_frame_index == block->GetFrameCount() ||
-               block->GetTrackNumber() != dec_ctx.target_video_track_index) {
-      status = cluster->GetNext(block_entry, block_entry);
-      if (block_entry == nullptr || block_entry->EOS()) {
-        block_entry_eos = true;
-        continue;
-      }
-      get_new_block = true;
-    }
-    if (status || block_entry == nullptr) {
-      return -1;
-    }
-    if (get_new_block) {
-      block = block_entry->GetBlock();
-      if (block == nullptr) return -1;
-      dec_ctx.block_frame_index = 0;
-    }
-  } while (block_entry_eos ||
-           block->GetTrackNumber() != dec_ctx.target_video_track_index);
+//   // each frame belongs to a block_entry which
+//   // belongs to a block which belongs to a cluster
+//   bool block_entry_eos = false;
+//   do {
+//     long status = 0;
+//     bool get_new_block = false;
+//     if (block_entry == nullptr && !block_entry_eos) {
+//       status = cluster->GetFirst(block_entry);
+//       get_new_block = true;
+//     } else if (block_entry_eos || block_entry->EOS()) {
+//       cluster = segment->GetNext(cluster);
+//       if (cluster == nullptr || cluster->EOS()) {
+//         bytes_read = 0;
+//         dec_ctx.reached_end_of_stream = true;
+//         return 1;
+//       }
+//       status = cluster->GetFirst(block_entry);
+//       block_entry_eos = false;
+//       get_new_block = true;
+//     } else if (block == nullptr ||
+//                dec_ctx.block_frame_index == block->GetFrameCount() ||
+//                block->GetTrackNumber() != dec_ctx.target_video_track_index) {
+//       status = cluster->GetNext(block_entry, block_entry);
+//       if (block_entry == nullptr || block_entry->EOS()) {
+//         block_entry_eos = true;
+//         continue;
+//       }
+//       get_new_block = true;
+//     }
+//     if (status || block_entry == nullptr) {
+//       return -1;
+//     }
+//     if (get_new_block) {
+//       block = block_entry->GetBlock();
+//       if (block == nullptr) return -1;
+//       dec_ctx.block_frame_index = 0;
+//     }
+//   } while (block_entry_eos ||
+//            block->GetTrackNumber() != dec_ctx.target_video_track_index);
 
-  dec_ctx.cluster = cluster;
-  dec_ctx.block_entry = block_entry;
-  dec_ctx.block = block;
+//   dec_ctx.cluster = cluster;
+//   dec_ctx.block_entry = block_entry;
+//   dec_ctx.block = block;
 
-  mkvparser::Block::Frame const &frame =
-      block->GetFrame(dec_ctx.block_frame_index);
-  dec_ctx.block_frame_index++;
-  if (frame.len > static_cast<long>(dec_ctx.frame_buffer_mem_size)) {
-    stx::mem::reallocate(dec_ctx.frame_buffer_mem, frame.len).unwrap();
-    dec_ctx.frame_buffer_mem_size = frame.len;
-    dec_ctx.frame_buffer_size = frame.len;
-  }
-  bytes_read = frame.len;
-  dec_ctx.timestamp_ns = block->GetTime(cluster);
-  dec_ctx.is_key_frame = block->IsKey();
+//   mkvparser::Block::Frame const &frame =
+//       block->GetFrame(dec_ctx.block_frame_index);
+//   dec_ctx.block_frame_index++;
+//   if (frame.len > static_cast<long>(dec_ctx.frame_buffer_mem_size)) {
+//     stx::mem::reallocate(dec_ctx.frame_buffer_mem, frame.len).unwrap();
+//     dec_ctx.frame_buffer_mem_size = frame.len;
+//     dec_ctx.frame_buffer_size = frame.len;
+//   }
+//   bytes_read = frame.len;
+//   dec_ctx.timestamp_ns = block->GetTime(cluster);
+//   dec_ctx.is_key_frame = block->IsKey();
 
-  return frame.Read(dec_ctx.reader,
-                    AS(uchar *, dec_ctx.frame_buffer_mem.handle))
-             ? -1
-             : 0;
-}
+//   return frame.Read(dec_ctx.reader,
+//                     AS(uchar *, dec_ctx.frame_buffer_mem.handle))
+//              ? -1
+//              : 0;
+// }
 
 }  // namespace webm
 }  // namespace ash
