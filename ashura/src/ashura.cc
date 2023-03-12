@@ -864,6 +864,8 @@ int main(int argc, char **argv) {
 
   std::ifstream stream{argv[1], std::ios::binary | std::ios::ate};
 
+  ASH_CHECK(stream.is_open());
+
   stx::Vec<char> bytes{stx::os_allocator};
   bytes.resize(stream.tellg()).unwrap();
   stream.seekg(0);

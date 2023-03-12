@@ -38,6 +38,7 @@ find_package(Opus CONFIG REQUIRED)
 
 FetchContent_MakeAvailable(stx)
 FetchContent_MakeAvailable(aom)
+add_subdirectory(libwebm_parser)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)

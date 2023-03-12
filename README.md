@@ -12,7 +12,7 @@ Ashura (temporary codename) is an advanced 2D GUI and Basic 3D Framework for use
 - Ease of Integration of Accessibility features
 
 # Building
-
+- Install Vulkan SDK via https://vulkan.lunarg.com/sdk/home or https://vulkan.lunarg.com/doc/view/latest/linux/getting_started_ubuntu.html
 - Install NASM via https://www.nasm.us/, apt-get on linux, homebrew on mac, or winget on windows
 - Install vcpkg via https://vcpkg.io/en/index.html
 - Install MSVC, Clang, or GCC with C++20 support
@@ -22,7 +22,7 @@ Ashura (temporary codename) is an advanced 2D GUI and Basic 3D Framework for use
 
 - Install dependencies via vcpkg:
 ```bash
-vcpkg install vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg
+vcpkg install freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg
 ```
 
 - build the project using (where ${PATH_TO_ASHURA} is replaced with the path to this project and ${PATH_TO_VCPKG} is replaced with the path to your vcpkg installation): 

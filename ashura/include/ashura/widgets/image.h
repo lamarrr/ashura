@@ -32,10 +32,10 @@ struct NetworkImageSource {
 };
 
 using ImageSource =
-    std::variant<MemoryImageSource, FileImageSource, NetworkImageSource>;
+    std::variant<MemoryImageSource, FileImageSource, NetworkImageSource, stx::NoneType>;
 
 struct ImageProps {
-  ImageSource source;
+  ImageSource source = stx::None;
   constraint width;
   constraint height;
   vec4 border_radius;

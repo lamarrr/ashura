@@ -25,6 +25,7 @@ target_link_libraries(
   ${JPEG_LIBRARIES}
   PNG::PNG
   aom
+  webm_parser
   webm
   aom_common_app_util
   aom_decoder_app_util
