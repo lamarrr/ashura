@@ -30,11 +30,6 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/xiph/vorbis.git
   GIT_TAG v1.3.7)
 
-FetchContent_MakeAvailable(stx)
-FetchContent_MakeAvailable(aom)
-FetchContent_MakeAvailable(opus)
-FetchContent_MakeAvailable(vorbis)
-
 find_program(NASM nasm REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
@@ -48,6 +43,11 @@ find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
 find_package(Ogg CONFIG REQUIRED)
+
+FetchContent_MakeAvailable(stx)
+FetchContent_MakeAvailable(aom)
+FetchContent_MakeAvailable(opus)
+FetchContent_MakeAvailable(vorbis)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)
