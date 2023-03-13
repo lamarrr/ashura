@@ -35,6 +35,8 @@ find_package(SDL3 REQUIRED)
 find_package(Ogg CONFIG REQUIRED)
 find_package(Vorbis CONFIG REQUIRED)
 find_package(Opus CONFIG REQUIRED)
+find_package(libavif CONFIG REQUIRED)
+find_package(FFMPEG REQUIRED)
 
 FetchContent_MakeAvailable(stx)
 FetchContent_MakeAvailable(aom)

@@ -34,8 +34,11 @@ target_link_libraries(
   Vorbis::vorbis
   Vorbis::vorbisenc
   Vorbis::vorbisfile
-  Ogg::ogg)
+  Ogg::ogg
+  avif
+  ${FFMPEG_LIBRARIES})
 
+target_include_directories(ashura PUBLIC ${FFMPEG_INCLUDE_DIRS})
 target_link_directories(ashura PUBLIC ${FFMPEG_LIBRARY_DIRS})
 
 set_target_properties(ashura PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED

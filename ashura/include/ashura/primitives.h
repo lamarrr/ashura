@@ -322,11 +322,11 @@ inline mat4 rotate_z(f32 degree_radians) {
 struct quaternion {
   f32 x = 0, y = 0, z = 0, w = 0;
 
-  static constexpr quaternion from_euler(vec3 x) { return {}; }
+  // static constexpr quaternion from_euler(vec3 x) { return {}; }
 
-  constexpr vec3 to_euler() const { return {}; }
+  // constexpr vec3 to_euler() const { return {}; }
 
-  constexpr quaternion normalized() const { return {}; }
+  // constexpr quaternion normalized() const { return {}; }
 };
 
 constexpr bool operator==(quaternion a, quaternion b) {
@@ -337,17 +337,17 @@ constexpr bool operator!=(quaternion a, quaternion b) {
   return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
 }
 
-constexpr quaternion operator+(quaternion a, quaternion b) { return {}; }
+// constexpr quaternion operator+(quaternion a, quaternion b) { return {}; }
 
-constexpr quaternion operator-(quaternion a, quaternion b) { return {}; }
+// constexpr quaternion operator-(quaternion a, quaternion b) { return {}; }
 
-constexpr quaternion operator*(quaternion a, f32 b) { return {}; }
+// constexpr quaternion operator*(quaternion a, f32 b) { return {}; }
 
-constexpr quaternion operator*(f32 a, quaternion b) { return {}; }
+// constexpr quaternion operator*(f32 a, quaternion b) { return {}; }
 
-constexpr quaternion operator*(quaternion a, quaternion b) { return {}; }
+// constexpr quaternion operator*(quaternion a, quaternion b) { return {}; }
 
-constexpr quaternion dot(quaternion a, quaternion b) { return {}; }
+// constexpr quaternion dot(quaternion a, quaternion b) { return {}; }
 
 struct offset {
   u32 x = 0, y = 0;
@@ -511,9 +511,13 @@ constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
 
 }  // namespace colors
 
+// a 2d shader vertex
 struct vertex {
+  /// point in 2d space
   vec2 position;
+  /// texture coordinates
   vec2 st;
+  /// encoded in the target's color space
   vec4 color;
 };
 

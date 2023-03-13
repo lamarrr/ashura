@@ -11,7 +11,9 @@ using image = u64;
 
 }  // namespace gfx
 
-enum class ImageFormat : u8 { Gray, Alpha, Rgb, Rgba,  Bgra };
+enum class ImageFormat : u8 { Gray, Alpha, Rgb, Rgba, Bgra };
+
+enum class ColorSpace : u8 { Rgb, Srgb, AdobeRgb, Dp3, DciP3, Yuv };
 
 inline u8 nsource_channels_for_format(ImageFormat fmt) {
   switch (fmt) {

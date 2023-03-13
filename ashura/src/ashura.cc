@@ -18,13 +18,12 @@
 #include "webm/webm_parser.h"
 
 extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/imgutils.h>
-#include <libavutil/samplefmt.h>
-#include <libavutil/timestamp.h>
-
+#include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
+#include "libavutil/imgutils.h"
+#include "libavutil/samplefmt.h"
+#include "libavutil/timestamp.h"
+#include "libswscale/swscale.h"
 }
 
 using namespace ash;
@@ -63,18 +62,88 @@ int main(int argc, char **argv) {
   st = ctx->streams[stream_idx];
   LP;
 
+  void *iter = nullptr;
+  const AVCodec *codec = nullptr;
+
+  auto ver = avformat_version();
+  spdlog::info("version: {}.{}.{}", AV_VERSION_MAJOR(ver),
+               AV_VERSION_MINOR(ver), AV_VERSION_MICRO(ver));
+
+  do {
+    codec = av_codec_iterate(&iter);
+    if (codec != nullptr) {
+      spdlog::info("name: {}, long name: {}", codec->name, codec->long_name);
+    }
+  } while (codec != nullptr);
+
   auto *co = avcodec_find_decoder(st->codecpar->codec_id);
   ASH_CHECK(co != nullptr);
   spdlog::info("codec name: {}, long name: {}", co->name, co->long_name);
 
-  AVCodecContext *coctx = avcodec_alloc_context3(co);
-  ASH_CHECK(coctx != nullptr);
+  AVCodecContext *cctx = avcodec_alloc_context3(co);
+  ASH_CHECK(cctx != nullptr);
   LP;
 
-  ASH_CHECK(avcodec_parameters_to_context(coctx, st->codecpar) >= 0);
+  ASH_CHECK(avcodec_parameters_to_context(cctx, st->codecpar) >= 0);
   LP;
-  ASH_CHECK(avcodec_open2(coctx, co, nullptr) >= 0);
+  ASH_CHECK(avcodec_open2(cctx, co, nullptr) >= 0);
   LP;
+
+  AVFrame *frame = av_frame_alloc();
+  ASH_CHECK(frame != nullptr);
+
+  AVPacket *packet = av_packet_alloc();
+  ASH_CHECK(packet != nullptr);
+
+  bool done = false;
+  while (av_read_frame(ctx, packet) >= 0) {
+    int err = avcodec_send_packet(cctx, packet);
+
+    if (err < 0) {
+      spdlog::error("error: {}", err);
+      break;
+    }
+
+    while (err >= 0) {
+      err = avcodec_receive_frame(cctx, frame);
+      if (err < 0) {
+        if (err == AVERROR_EOF) {
+          done = true;
+          break;
+        }
+        if (err == AVERROR(EAGAIN)) break;
+      }
+
+      spdlog::info("decoded frame with format: {}",
+                   av_get_pix_fmt_name((AVPixelFormat)frame->format));
+
+      SwsContext *context = sws_getContext(
+          frame->width, frame->height, (AVPixelFormat)frame->format,
+          frame->width, frame->height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
+      u8 *rgb = new u8[frame->width * frame->height * 3];
+      u8 *planes[] = {rgb};
+      int strides[] = {3 * frame->width};
+      sws_scale(context, frame->data, frame->linesize, 0, frame->height, planes,
+                strides);
+
+      av_frame_unref(frame);
+    }
+
+    if (done) {
+      spdlog::info("finished decoding");
+      break;
+    }
+  }
+
+  int width = cctx->width;
+  int height = cctx->height;
+  AVPixelFormat fmt = cctx->pix_fmt;
+  ASH_CHECK(fmt != AV_PIX_FMT_NONE);
+
+  u8 *dst_data[4] = {0, 0, 0, 0};
+  int line_sizes[4] = {0, 0, 0, 0};
+  int img_read = av_image_alloc(dst_data, line_sizes, width, height, fmt, 1);
+  ASH_CHECK(img_read >= 0);
 
   AppConfig cfg{.enable_validation_layers = false};
   cfg.window_config.borderless = false;
