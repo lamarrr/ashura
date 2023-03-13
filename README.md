@@ -1,9 +1,9 @@
-Ashura (temporary codename) is an advanced 2D GUI and Basic 3D Framework for use in GUI applications and games
+# Ashura (ReGui) <img src="https://github.com/lamarrr/workflows/msvc-2019-windows-x64.yml/badge.svg">
+Ashura is an advanced 2D Retained-Mode GUI and Basic 3D Framework for use in GUI applications and games.
 
-# Goals
-- Multithreaded
-- Supports on win, ios, linux, ps5
-- Portability
+## Features
+- Multithreaded:
+- Portability: Supports Windows, iOS, Linux, Nintendo Switch
 - Super Duper Fast
 - Minimal resource usage
 - Low mental overhead
@@ -11,9 +11,13 @@ Ashura (temporary codename) is an advanced 2D GUI and Basic 3D Framework for use
 - Usable for games and UI
 - Ease of Integration of Accessibility features
 
-# Building
-- Install Vulkan SDK via https://vulkan.lunarg.com/sdk/home or https://vulkan.lunarg.com/doc/view/latest/linux/getting_started_ubuntu.html
-- Install NASM via https://www.nasm.us/, apt-get on linux, homebrew on mac, or winget on windows
+## Documentation
+
+## Examples
+
+
+## Building
+- Install Vulkan SDK via https://vulkan.lunarg.com/sdk/home or https://vulkan.lunarg.com/doc/view/latest/linux/getting_started_ubuntu.html whilst making sure it is discoverable by find_package by having exported targets
 - Install vcpkg via https://vcpkg.io/en/index.html
 - Install MSVC, Clang, or GCC with C++20 support
 - Install CMake at least version 3.1
@@ -37,3 +41,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE="${PATH_TO_VCPKG}/scripts/buildsystems/vcpkg.cma
 ```bash
 cmake --build .
 ```
+
+## Contributing
+
+## License
