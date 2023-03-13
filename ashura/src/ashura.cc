@@ -11,7 +11,9 @@
 #include "common/tools_common.h"
 #include "common/video_reader.h"
 #include "common/webmdec.h"
+#include "webm/buffer_reader.h"
 #include "webm/callback.h"
+#include "webm/file_reader.h"
 #include "webm/reader.h"
 #include "webm/webm_parser.h"
 
@@ -98,9 +100,9 @@ constexpr mat3 ypbpr2rgb_coefficients[16] = {
 
 constexpr void yuv2rgb_bp12(mat3 const &coefficient, u8 y, u8 u, u8 v,
                             u8 *rgba) {
-  vec3 rgb =
-      coefficient *vec3{AS(f32, y) - 16, AS(f32, u) - 128, AS(f32, v) - 128} *
-      vec3{255, 255, 255};
+  vec3 rgb = coefficient *
+             vec3{AS(f32, y) - 16, AS(f32, u) - 128, AS(f32, v) - 128} *
+             vec3{255, 255, 255};
   rgba[0] = ASH_U8_CLAMP(rgb.x);
   rgba[1] = ASH_U8_CLAMP(rgb.y);
   rgba[2] = ASH_U8_CLAMP(rgb.z);
@@ -109,8 +111,9 @@ constexpr void yuv2rgb_bp12(mat3 const &coefficient, u8 y, u8 u, u8 v,
 
 constexpr void yuv2rgb_bp16(mat3 const &coefficient, u16 y, u16 u, u16 v,
                             u8 *rgba) {
-  vec3 rgb = coefficient *vec3{AS(f32, y) - 16 * 257, AS(f32, u) - 128 * 257,
-                               AS(f32, v) - 128 * 257} *
+  vec3 rgb = coefficient *
+             vec3{AS(f32, y) - 16 * 257, AS(f32, u) - 128 * 257,
+                  AS(f32, v) - 128 * 257} *
              vec3{255, 255, 255};
   rgba[0] = ASH_U8_CLAMP(rgb.x);
   rgba[1] = ASH_U8_CLAMP(rgb.y);
@@ -127,18 +130,25 @@ constexpr void yuv2rgb_bp16(mat3 const &coefficient, u16 y, u16 u, u16 v,
 // AOM_IMG_FMT_NV12
 //
 void yuv_420_12_to_rgb(aom_image_t const *img, u8 *rgba) {
+  int PLANE_U = (img->fmt & AOM_IMG_FMT_UV_FLIP) == AOM_IMG_FMT_UV_FLIP
+                    ? AOM_PLANE_V
+                    : AOM_PLANE_U;
+  int PLANE_V = (img->fmt & AOM_IMG_FMT_UV_FLIP) == AOM_IMG_FMT_UV_FLIP
+                    ? AOM_PLANE_U
+                    : AOM_PLANE_V;
+
   u8 const *y_plane = img->planes[AOM_PLANE_Y];
-  u8 const *u_plane = img->planes[AOM_PLANE_U];
-  u8 const *v_plane = img->planes[AOM_PLANE_V];
+  u8 const *u_plane = img->planes[PLANE_U];
+  u8 const *v_plane = img->planes[PLANE_V];
   int y_stride = img->stride[AOM_PLANE_Y];
-  int u_stride = img->stride[AOM_PLANE_U];
-  int v_stride = img->stride[AOM_PLANE_V];
+  int u_stride = img->stride[PLANE_U];
+  int v_stride = img->stride[PLANE_V];
   int y_width = aom_img_plane_width(img, AOM_PLANE_Y);
-  int u_width = aom_img_plane_width(img, AOM_PLANE_U);
-  int v_width = aom_img_plane_width(img, AOM_PLANE_V);
+  int u_width = aom_img_plane_width(img, PLANE_U);
+  int v_width = aom_img_plane_width(img, PLANE_V);
   int y_height = aom_img_plane_height(img, AOM_PLANE_Y);
-  int u_height = aom_img_plane_height(img, AOM_PLANE_U);
-  int v_height = aom_img_plane_height(img, AOM_PLANE_V);
+  int u_height = aom_img_plane_height(img, PLANE_U);
+  int v_height = aom_img_plane_height(img, PLANE_V);
 
   ASH_CHECK(u_width == v_width);
   ASH_CHECK(y_width == 2 * u_width);
@@ -310,18 +320,25 @@ void yuv_444_12_to_rgb(aom_image_t const *img, u8 *rgba) {
 // AOM_IMG_FMT_YV1216
 //
 void yuv_420_16_to_rgb(aom_image_t const *img, u8 *rgba) {
+  int PLANE_U = (img->fmt & AOM_IMG_FMT_UV_FLIP) == AOM_IMG_FMT_UV_FLIP
+                    ? AOM_PLANE_V
+                    : AOM_PLANE_U;
+  int PLANE_V = (img->fmt & AOM_IMG_FMT_UV_FLIP) == AOM_IMG_FMT_UV_FLIP
+                    ? AOM_PLANE_U
+                    : AOM_PLANE_V;
+
   u8 const *y_plane = img->planes[AOM_PLANE_Y];
-  u8 const *u_plane = img->planes[AOM_PLANE_U];
-  u8 const *v_plane = img->planes[AOM_PLANE_V];
+  u8 const *u_plane = img->planes[PLANE_U];
+  u8 const *v_plane = img->planes[PLANE_V];
   int y_stride = img->stride[AOM_PLANE_Y];
-  int u_stride = img->stride[AOM_PLANE_U];
-  int v_stride = img->stride[AOM_PLANE_V];
+  int u_stride = img->stride[PLANE_U];
+  int v_stride = img->stride[PLANE_V];
   int y_width = aom_img_plane_width(img, AOM_PLANE_Y);
-  int u_width = aom_img_plane_width(img, AOM_PLANE_U);
-  int v_width = aom_img_plane_width(img, AOM_PLANE_V);
+  int u_width = aom_img_plane_width(img, PLANE_U);
+  int v_width = aom_img_plane_width(img, PLANE_V);
   int y_height = aom_img_plane_height(img, AOM_PLANE_Y);
-  int u_height = aom_img_plane_height(img, AOM_PLANE_U);
-  int v_height = aom_img_plane_height(img, AOM_PLANE_V);
+  int u_height = aom_img_plane_height(img, PLANE_U);
+  int v_height = aom_img_plane_height(img, PLANE_V);
 
   ASH_CHECK(u_width == v_width);
   ASH_CHECK(y_width == 2 * u_width);
@@ -504,199 +521,9 @@ void yuv_444_16_to_rgb(aom_image_t const *img, u8 *rgba) {
   }
 }
 
-namespace webm {
-
-enum class AudioCodec : u8 { None, Opus, Vorbis, Unrecognized };
-
-enum class VideoCodec : u8 { None, AV1, VP8, VP9, Unrecognized };
-
-// struct VideoTrackInfo {
-//   char const *name_utf8 = nullptr;
-//   char const *codec = nullptr;
-//   char const *codec_name_utf8 = nullptr;
-//   char const *language = nullptr;
-//   u32 width = 0;
-//   u32 height = 0;
-//   double framerate = 0;
-//   long track_index = 0;
-// };
-
-// struct AudioTrackInfo {
-//   char const *name_utf8 = nullptr;
-//   char const *codec = nullptr;
-//   char const *codec_name_utf8 = nullptr;
-//   char const *language = nullptr;
-//   long long nchannels = 0;
-//   long long bit_depth = 0;
-//   double sample_rate = 0;
-//   long track_index = 0;
-// };
-
-// stx::Result<mkvparser::Segment *, int> try_parse_segment(
-//     mkvparser::IMkvReader &reader, long long &segment_start) {
-//   // try to read a segment from the EBML document
-//   mkvparser::Segment *segment;
-//   long long read =
-//       mkvparser::Segment::CreateInstance(&reader, segment_start, segment);
-//   if (read < 0) {
-//     return stx::Err(AS(int, read));
-//   }
-
-//   segment_start += read;
-
-//   int status = segment->Load();
-//   if (status < 0) {
-//     return stx::Err(AS(int, status));
-//   }
-
-//   return stx::Ok(AS(mkvparser::Segment *, segment));
-// mkvparser::Tracks const *tracks = ctx.segment->GetTracks();
-//
-// if (strncmp(codec_id, "V_AV1", 5) == 0) {
-//   ctx.info.video_codec = VideoCodec::AV1;
-// } else if (strncmp(codec_id, "V_VP9", 5) == 0) {
-//   ctx.info.video_codec = VideoCodec::VP9;
-// } else if (strncmp(codec_id, "V_VP8", 5) == 0) {
-//   ctx.info.video_codec = VideoCodec::VP8;
-// } else {
-//   ctx.info.video_codec = VideoCodec::Unrecognized;
-//   // log
-// }
-// if (strncmp(codec_id, "A_VORBIS", 8) == 0) {
-//   ctx.info.audio_codec = AudioCodec::Vorbis;
-// } else if (strncmp(codec_id, "A_OPUS", 6) == 0) {
-//   ctx.info.audio_codec = AudioCodec::Opus;
-// } else {
-//   ctx.info.audio_codec = AudioCodec::Unrecognized;
-//   // log
-// }
-// for (unsigned long i = 0; i < tracks->GetTracksCount(); ++i) {
-//   mkvparser::Track const *track = tracks->GetTrackByIndex(i);
-//   if (track->GetType() == mkvparser::Track::kVideo) {
-//     mkvparser::VideoTrack const *video_track =
-//         AS(mkvparser::VideoTrack const *, track);
-//     ctx.info.video_tracks
-//         .push(VideoTrackInfo{
-//             .name_utf8 = video_track->GetNameAsUTF8(),
-//             .codec = video_track->GetCodecId(),
-//             .codec_name_utf8 = video_track->GetCodecNameAsUTF8(),
-//             .language = video_track->GetLanguage(),
-//             .width = AS(u32, video_track->GetWidth()),
-//             .height = AS(u32, video_track->GetHeight()),
-//             .framerate = video_track->GetFrameRate(),
-//             .track_index = video_track->GetNumber()})
-//         .unwrap();
-//   }
-
-//   if (track->GetType() == mkvparser::Track::kAudio) {
-//     mkvparser::AudioTrack const *audio_track =
-//         AS(mkvparser::AudioTrack const *, track);
-//     ctx.info.audio_tracks
-//         .push(AudioTrackInfo{
-//             .name_utf8 = audio_track->GetNameAsUTF8(),
-//             .codec = audio_track->GetCodecId(),
-//             .codec_name_utf8 = audio_track->GetCodecNameAsUTF8(),
-//             .language = audio_track->GetLanguage(),
-//             .nchannels = audio_track->GetChannels(),
-//             .bit_depth = audio_track->GetBitDepth(),
-//             .sample_rate = audio_track->GetSamplingRate(),
-//             .track_index = audio_track->GetNumber()})
-//         .unwrap();
-//   }
-// }
+}  // namespace ash
 
 // // Chapters are a way to set predefined points to jump to in video or
-// audio. mkvparser::Chapters const *chapters = ctx.segment->GetChapters();
-
-// for (int i = 0; i < chapters->GetEditionCount(); i++) {
-//   mkvparser::Chapters::Edition const *edition = chapters->GetEdition(i);
-//   for (int j = 0; j < edition->GetAtomCount(); j++) {
-//     mkvparser::Chapters::Atom const *atom = edition->GetAtom(j);
-//     atom->GetStartTime(chapters);
-//     atom->GetStartTimecode();
-//     atom->GetStopTime(chapters);
-//     atom->GetStopTimecode();
-//     atom->GetStringUID();
-//     atom->GetUID();
-//     for (int k = 0; k < atom->GetDisplayCount(); k++) {
-//       mkvparser::Chapters::Display const *display = atom->GetDisplay(k);
-//       display->GetCountry();
-//       display->GetLanguage();
-//       display->GetString();
-//     }
-//   }
-// }
-
-// mkvparser::Tags const *tags = ctx.segment->GetTags();
-// for (int i = 0; i < tags->GetTagCount(); i++) {
-//   mkvparser::Tags::Tag const *tag = tags->GetTag(i);
-//   for (int j = 0; j < tag->GetSimpleTagCount(); j++) {
-//     mkvparser::Tags::SimpleTag const *simple_tag = tag->GetSimpleTag(j);
-//     simple_tag->GetTagName();
-//     simple_tag->GetTagString();
-//   }
-// }
-
-// get_first_cluster(webm_ctx);
-// }
-
-int decoder_init(DecodeContext &context, usize frame_size_bytes) {
-  aom_codec_iface_t *decoder = aom_codec_av1_dx();
-  decoder->name;
-  aom_codec_ctx_t codec;
-  aom_codec_dec_init(&codec, decoder, nullptr, 0);
-  if (aom_codec_decode(&codec, AS(u8 const *, context.frame_buffer_mem.handle),
-                       frame_size_bytes, nullptr)) {
-    aom_codec_error_detail(&codec);
-    return -1;
-  }
-
-  aom_codec_iter_t iter = nullptr;
-  aom_image_t *img = aom_codec_get_frame(&codec, &iter);
-  if (img == nullptr) return -1;
-  int y_width = aom_img_plane_width(img, AOM_PLANE_Y);
-  int y_height = aom_img_plane_width(img, AOM_PLANE_Y);
-
-  ImageBuffer buffer{
-      .memory = stx::mem::allocate(stx::os_allocator,
-                                   AS(usize, y_width) * AS(usize, y_height) * 4)
-                    .unwrap(),
-      .extent = extent{.width = AS(u32, y_width), .height = AS(u32, y_height)},
-      .format = ImageFormat::Rgba};
-
-  switch (img->fmt) {
-    case AOM_IMG_FMT_NONE:
-      break;
-    case AOM_IMG_FMT_YV12:
-    case AOM_IMG_FMT_I420:
-    case AOM_IMG_FMT_AOMI420:
-    case AOM_IMG_FMT_AOMYV12:
-    case AOM_IMG_FMT_NV12: {
-      yuv_420_12_to_rgb(img, AS(u8 *, buffer.memory.handle));
-    } break;
-    case AOM_IMG_FMT_I422: {
-      yuv_422_12_to_rgb(img, AS(u8 *, buffer.memory.handle));
-    } break;
-    case AOM_IMG_FMT_I444: {
-      yuv_444_12_to_rgb(img, AS(u8 *, buffer.memory.handle));
-    } break;
-    case AOM_IMG_FMT_I42016:
-    case AOM_IMG_FMT_YV1216: {
-      yuv_420_16_to_rgb(img, AS(u8 *, buffer.memory.handle));
-    } break;
-    case AOM_IMG_FMT_I42216: {
-      yuv_422_16_to_rgb(img, AS(u8 *, buffer.memory.handle));
-    } break;
-    case AOM_IMG_FMT_I44416: {
-      yuv_444_16_to_rgb(img, AS(u8 *, buffer.memory.handle));
-    } break;
-    default: {
-      return -1;
-    }
-  }
-
-  return 0;
-}
 
 // As an example, a simple Matroska file consisting of a single EBML Document
 // could be represented like this:
@@ -712,83 +539,151 @@ int decoder_init(DecodeContext &context, usize frame_size_bytes) {
 // Segment
 // EBML Header
 // Segment
-// int read_frame(DecodeContext &dec_ctx, long &bytes_read) {
-//   bytes_read = 0;
-//   // This check is needed for frame parallel decoding, in which case this
-//   // function could be called even after it has reached end of input stream.
-//   if (dec_ctx.reached_end_of_stream) {
-//     return 1;
-//   }
+/*
+A block element is a basic element that contains the encoded data for one frame
+of video or audio21. A block element has a timestamp that indicates its position
+in the presentation time21. A block element can also have optional flags that
+indicate its keyframe status, invisible status, discardable status and lacing
+type21.
 
-//   mkvparser::Segment *segment = dec_ctx.segment;
-//   mkvparser::Cluster const *cluster = dec_ctx.cluster;
-//   mkvparser::Block const *block = dec_ctx.block;
-//   mkvparser::BlockEntry const *block_entry = dec_ctx.block_entry;
+A blockgroup element is a container element that can contain one or more block
+elements as well as additional information about them21. A blockgroup element
+can have optional sub-elements such as duration, reference priority, reference
+block, codec state and discard padding21.
 
-//   // each frame belongs to a block_entry which
-//   // belongs to a block which belongs to a cluster
-//   bool block_entry_eos = false;
-//   do {
-//     long status = 0;
-//     bool get_new_block = false;
-//     if (block_entry == nullptr && !block_entry_eos) {
-//       status = cluster->GetFirst(block_entry);
-//       get_new_block = true;
-//     } else if (block_entry_eos || block_entry->EOS()) {
-//       cluster = segment->GetNext(cluster);
-//       if (cluster == nullptr || cluster->EOS()) {
-//         bytes_read = 0;
-//         dec_ctx.reached_end_of_stream = true;
-//         return 1;
-//       }
-//       status = cluster->GetFirst(block_entry);
-//       block_entry_eos = false;
-//       get_new_block = true;
-//     } else if (block == nullptr ||
-//                dec_ctx.block_frame_index == block->GetFrameCount() ||
-//                block->GetTrackNumber() != dec_ctx.target_video_track_index) {
-//       status = cluster->GetNext(block_entry, block_entry);
-//       if (block_entry == nullptr || block_entry->EOS()) {
-//         block_entry_eos = true;
-//         continue;
-//       }
-//       get_new_block = true;
-//     }
-//     if (status || block_entry == nullptr) {
-//       return -1;
-//     }
-//     if (get_new_block) {
-//       block = block_entry->GetBlock();
-//       if (block == nullptr) return -1;
-//       dec_ctx.block_frame_index = 0;
-//     }
-//   } while (block_entry_eos ||
-//            block->GetTrackNumber() != dec_ctx.target_video_track_index);
+The main difference between block and blockgroup elements is that a blockgroup
+element can provide more information about the blocks it contains, such as their
+dependencies, durations and codec states21. A blockgroup element can also group
+multiple blocks together into a single logical unit21.
 
-//   dec_ctx.cluster = cluster;
-//   dec_ctx.block_entry = block_entry;
-//   dec_ctx.block = block;
+However, not all blocks need to be contained in a blockgroup element. For
+example, webm files only use block elements for video tracks and do not use any
+of the sub-elements of blockgroup elements2. Mkv files can use either block or
+blockgroup elements depending on the codec and muxer settings3.
+*/
 
-//   mkvparser::Block::Frame const &frame =
-//       block->GetFrame(dec_ctx.block_frame_index);
-//   dec_ctx.block_frame_index++;
-//   if (frame.len > static_cast<long>(dec_ctx.frame_buffer_mem_size)) {
-//     stx::mem::reallocate(dec_ctx.frame_buffer_mem, frame.len).unwrap();
-//     dec_ctx.frame_buffer_mem_size = frame.len;
-//     dec_ctx.frame_buffer_size = frame.len;
-//   }
-//   bytes_read = frame.len;
-//   dec_ctx.timestamp_ns = block->GetTime(cluster);
-//   dec_ctx.is_key_frame = block->IsKey();
+using namespace webm;
+using namespace ash;
 
-//   return frame.Read(dec_ctx.reader,
-//                     AS(uchar *, dec_ctx.frame_buffer_mem.handle))
-//              ? -1
-//              : 0;
-// }
+class XCallback : public Callback {
+ public:
+  virtual Status OnTrackEntry(const ElementMetadata &metadata,
+                              const TrackEntry &track_entry) {
+    spdlog::info("codec: {}", track_entry.codec_id.value());
+    return Status{Status::kOkCompleted};
+  }
 
-}  // namespace webm
-}  // namespace ash
+  virtual Status OnBlockBegin(const ElementMetadata &metadata,
+                              const Block &block, Action *action) override {
+    spdlog::info("block begin");
+    // "V_AV1", "V_VP9", "V_VP8"
+    // "A_VORBIS", "A_OPUS"
+    *action = Action::kRead;
+    return Status{Status::kOkCompleted};
+  }
+
+  virtual Status OnFrame(const FrameMetadata &f, Reader *reader,
+                         std::uint64_t *bytes_remaining) override {
+    if (*bytes_remaining == 0) return Status(Status::kOkCompleted);
+    nframes++;
+    u8 *out = new u8[f.size];
+    u64 read = 0;
+    Status status = reader->Read(*bytes_remaining, out, &read);
+    ASH_CHECK(status.code == Status::kOkCompleted);
+    ASH_CHECK(read == f.size);
+    ASH_CHECK(*bytes_remaining == f.size);
+
+    spdlog::info(
+        "[block: {}, frame position: {}, nframes: {}] bytes_remaining: {}, "
+        "read: {}",
+        (int)f.parent_element.id, f.position, nframes, *bytes_remaining, read);
+
+    *bytes_remaining = 0;
+
+    aom_codec_stream_info_t info;
+    info.is_annexb = false;
+    auto err = aom_codec_peek_stream_info(decoder, out, f.size, &info);
+    if (err == AOM_CODEC_OK) {
+      err = aom_codec_decode(codec, out, f.size, nullptr);
+      if (err != AOM_CODEC_OK) {
+        char const *s = aom_codec_error_detail(codec);
+        spdlog::error("video decode failed: {} {}", (int)err,
+                      s == nullptr ? "" : s);
+      } else {
+        spdlog::info("video decode succeeded");
+        aom_codec_iter_t iter = nullptr;
+        aom_image_t *img = aom_codec_get_frame(codec, &iter);
+        if (img != nullptr) {
+          spdlog::info(
+              "y_w: {}, u_w: {}, v_w: {}, y_h: {}, u_h: {}, "
+              "v_h: "
+              "{}, fmt: {}, "
+              "mt: {}, bps: {} ",
+              aom_img_plane_width(img, AOM_PLANE_Y),
+              aom_img_plane_width(img, AOM_PLANE_U),
+              aom_img_plane_width(img, AOM_PLANE_V),
+              aom_img_plane_height(img, AOM_PLANE_Y),
+              aom_img_plane_height(img, AOM_PLANE_U),
+              aom_img_plane_height(img, AOM_PLANE_V), (int)img->fmt,
+              (int)img->mc, img->bps);
+
+          // ImageBuffer buffer{
+          //     .memory = stx::mem::allocate(stx::os_allocator,
+          //                                  AS(usize, y_width) * AS(usize,
+          //                                  y_height) * 4)
+          //                   .unwrap(),
+          //     .extent = extent{.width = AS(u32, y_width), .height = AS(u32,
+          //     y_height)}, .format = ImageFormat::Rgba};
+
+          // switch (img->fmt) {
+          //   case AOM_IMG_FMT_NONE:
+          //     break;
+          //   case AOM_IMG_FMT_YV12:
+          //   case AOM_IMG_FMT_I420:
+          //   case AOM_IMG_FMT_AOMI420:
+          //   case AOM_IMG_FMT_AOMYV12: {
+          //     yuv_420_12_to_rgb(img, AS(u8 *, buffer.memory.handle));
+          //   } break;
+          //   case AOM_IMG_FMT_NV12: { // interleaved
+          // } break;
+          //   case AOM_IMG_FMT_I422: {
+          //     yuv_422_12_to_rgb(img, AS(u8 *, buffer.memory.handle));
+          //   } break;
+          //   case AOM_IMG_FMT_I444: {
+          //     yuv_444_12_to_rgb(img, AS(u8 *, buffer.memory.handle));
+          //   } break;
+          //   case AOM_IMG_FMT_I42016:
+          //   case AOM_IMG_FMT_YV1216: {
+          //     yuv_420_16_to_rgb(img, AS(u8 *, buffer.memory.handle));
+          //   } break;
+          //   case AOM_IMG_FMT_I42216: {
+          //     yuv_422_16_to_rgb(img, AS(u8 *, buffer.memory.handle));
+          //   } break;
+          //   case AOM_IMG_FMT_I44416: {
+          //     yuv_444_16_to_rgb(img, AS(u8 *, buffer.memory.handle));
+          //   } break;
+          //   default: {
+          //     return -1;
+          //   }
+          // }
+        }
+      }
+    } else {
+      char const *s = aom_codec_error_detail(codec);
+      spdlog::info("non-av1 frame found: {} {}", (int)err,
+                   s == nullptr ? "" : s);
+    }
+
+    delete[] out;
+
+    return Status{Status::kOkCompleted};
+  }
+
+  aom_codec_ctx_t *codec = nullptr;
+  aom_codec_iface_t *decoder = nullptr;
+  u64 nframes = 0;
+  WebmParser parser;
+};
 
 int main(int argc, char **argv) {
   ASH_CHECK(argc == 2);
@@ -802,25 +697,31 @@ int main(int argc, char **argv) {
   stream.seekg(0);
   stream.read(bytes.data(), bytes.size());
 
-  ash::webm::MkvByteStream bstream;
-  bstream.buffer = bytes;
-  long long pos = 0;
-  int error = 0;
-  error = ash::webm::try_parse_header(bstream, pos);
+  aom_codec_iface_t *decoder = aom_codec_av1_dx();
+  decoder->name;
+  decoder->abi_version;
+  aom_codec_ctx_t codec;
+  aom_codec_dec_init(&codec, decoder, nullptr, 0);
 
-  if (error < 0) {
-    spdlog::error("error: {}", error);
-    return 0;
+  FileReader reader{std::fopen(argv[1], "rb")};
+  XCallback callback;
+  callback.codec = &codec;
+  callback.decoder = decoder;
+  WebmParser parser;
+  Status status{Status::kOkPartial};
+  while (status.code == Status::kOkPartial) {
+    status = parser.Feed(&callback, &reader);
+    spdlog::info("status: {}", status.code);
   }
+  spdlog::info("final status: {}", status.code);
 
-  ash::AppConfig cfg{.enable_validation_layers = false};
+  AppConfig cfg{.enable_validation_layers = false};
   cfg.window_config.borderless = false;
-  ash::App app{
+  App app{
       std::move(cfg),
-      new ash::Image{ash::ImageProps{
-          .source =
-              ash::FileImageSource{.path = stx::string::make_static(argv[1])},
-          .border_radius = ash::vec4{200, 200, 200, 200},
+      new Image{ImageProps{
+          .source = FileImageSource{.path = stx::string::make_static(argv[1])},
+          .border_radius = vec4{200, 200, 200, 200},
           .aspect_ratio = stx::Some(1.0f),
           .resize_on_load = true}}};
   std::chrono::steady_clock::time_point last_tick =
