@@ -11,15 +11,15 @@ using image = u64;
 
 }  // namespace gfx
 
-enum class ImageFormat : u8 { Gray, Alpha, Rgb, Rgba, Bgra };
+enum class ImageFormat : u8 { Alpha, Antialiasing, Gray, Rgb, Rgba, Bgra };
 
 enum class ColorSpace : u8 { Rgb, Srgb, AdobeRgb, Dp3, DciP3, Yuv };
 
 inline u8 nsource_channels_for_format(ImageFormat fmt) {
   switch (fmt) {
-    case ImageFormat::Gray:
-      return 1;
     case ImageFormat::Alpha:
+    case ImageFormat::Antialiasing:
+    case ImageFormat::Gray:
       return 1;
     case ImageFormat::Rgb:
       return 3;
