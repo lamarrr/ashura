@@ -3,11 +3,7 @@ add_library(ashura STATIC src/app.cc src/engine.cc src/window_api.cc
 
 target_include_directories(
   ashura
-  PUBLIC include
-         ${JPEG_INCLUDE_DIR}
-         $<TARGET_PROPERTY:aom_common_app_util,INCLUDE_DIRECTORIES>
-         $<TARGET_PROPERTY:aom,INCLUDE_DIRECTORIES>
-         $<TARGET_PROPERTY:webm,INCLUDE_DIRECTORIES>
+  PUBLIC include ${JPEG_INCLUDE_DIR}
   PRIVATE src)
 
 target_link_libraries(
@@ -24,17 +20,6 @@ target_link_libraries(
   WebP::webpdecoder
   ${JPEG_LIBRARIES}
   PNG::PNG
-  aom
-  webm_parser
-  webm
-  aom_common_app_util
-  aom_decoder_app_util
-  aom_encoder_app_util
-  Opus::opus
-  Vorbis::vorbis
-  Vorbis::vorbisenc
-  Vorbis::vorbisfile
-  Ogg::ogg
   avif
   ${FFMPEG_LIBRARIES})
 
