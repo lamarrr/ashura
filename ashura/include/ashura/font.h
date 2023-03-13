@@ -624,12 +624,18 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
   glyphs.span().sort(
       [](Glyph const& a, Glyph const& b) { return a.index < b.index; });
 
-  stx::Memory buffer_mem =
-      stx::mem::allocate(stx::os_allocator, atlas_extent.area() * 4).unwrap();
+  ImageFormat format =
+      font.has_color ? ImageFormat::Bgra : ImageFormat::Antialiasing;
+
+  usize nchannels = font.has_color ? 4 : 1;
+
+  usize size = atlas_extent.area() * nchannels;
+
+  stx::Memory buffer_mem = stx::mem::allocate(stx::os_allocator, size).unwrap();
 
   u8* buffer = AS(u8*, buffer_mem.handle);
 
-  std::memset(buffer, 0, atlas_extent.area() * 4);
+  std::memset(buffer, 0, size);
 
   // it rarely happens that a font will contain both colored and gray fonts, if
   // it happens, at least do something reasonable by converting between both
@@ -650,28 +656,26 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
 
       u8 const* bitmap = font.ftface->glyph->bitmap.buffer;
 
+      usize stride = glyph.extent.width * nchannels;
+
       // copy the rendered glyph to the atlas
-      if (pixel_mode == FT_PIXEL_MODE_GRAY) {
-        for (usize j = glyph.offset.y;
-             j < glyph.offset.y + font.ftface->glyph->bitmap.rows; j++) {
-          for (usize i = glyph.offset.x * 4;
-               i < (glyph.offset.x + font.ftface->glyph->bitmap.width) * 4;
-               i += 4) {
-            buffer[j * atlas_extent.width * 4 + i + 0] = 0xFF;
-            buffer[j * atlas_extent.width * 4 + i + 1] = 0xFF;
-            buffer[j * atlas_extent.width * 4 + i + 2] = 0xFF;
-            buffer[j * atlas_extent.width * 4 + i + 3] = *bitmap;
-            bitmap++;
-          }
+      if (pixel_mode == FT_PIXEL_MODE_GRAY && !font.has_color) {
+        for (usize j = glyph.offset.y; j < glyph.offset.y + glyph.extent.height;
+             j++) {
+          u8* out = buffer + j * stride + glyph.offset.x;
+          std::copy(bitmap, bitmap + glyph.extent.width, out);
+          bitmap += font.ftface->glyph->bitmap.pitch;
         }
-      } else if (pixel_mode == FT_PIXEL_MODE_BGRA) {
-        for (usize j = glyph.offset.y;
-             j < glyph.offset.y + font.ftface->glyph->bitmap.rows; j++) {
-          u8 const* begin = bitmap + j * font.ftface->glyph->bitmap.width * 4 +
-                            glyph.offset.x * 4;
-          u8 const* end = begin + glyph.extent.width * 4;
-          buffer = std::copy(begin, end, buffer);
+      } else if (pixel_mode == FT_PIXEL_MODE_BGRA && font.has_color) {
+        for (usize j = glyph.offset.y; j < glyph.offset.y + glyph.extent.height;
+             j++) {
+          u8* out = buffer + j * stride + glyph.offset.x * 4;
+          std::copy(bitmap, bitmap + stride, out);
+          bitmap += font.ftface->glyph->bitmap.pitch;
         }
+      } else {
+        // TODO(lamarrr): log warning about multi-image font
+        spdlog::warn("multi-colored font detected");
       }
     }
   }
@@ -682,7 +686,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const& font,
                                   .texture = 0},
                         ImageBuffer{.memory = std::move(buffer_mem),
                                     .extent = atlas_extent,
-                                    .format = ImageFormat::Bgra});
+                                    .format = format});
 }
 
 struct CachedFont {
