@@ -1465,7 +1465,6 @@ struct SwapChain {
 
   VkDevice dev = VK_NULL_HANDLE;
 
-  // TODO(lamarrr): add max_nframes argument
   bool init(VkPhysicalDevice phy,
             VkPhysicalDeviceMemoryProperties const& memory_properties,
             VkDevice adev, VkSurfaceKHR target_surface,

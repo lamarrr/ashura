@@ -25,7 +25,6 @@ void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
           .unwrap());
 }
 
-// TODO(lamarrr): return enum to signify zero extent
 void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
                                 u32 max_nframes_in_flight,
                                 spdlog::logger& logger) {

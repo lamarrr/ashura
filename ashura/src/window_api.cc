@@ -200,7 +200,6 @@ bool WindowApi::poll_events() {
         // SDL_TEXTINPUT,
         // SDL_KEYMAPCHANGED,
 
-        // TODO(lamarrr): Consider:
         // SDL_CONTROLLERAXISMOTION
         // SDL_CONTROLLERBUTTONDOWN
         // SDL_CONTROLLERBUTTONUP

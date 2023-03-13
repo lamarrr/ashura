@@ -232,7 +232,7 @@ struct Image : public Widget {
           vec4{props.border_radius.x + 10, props.border_radius.y + 10,
                props.border_radius.z + 10, props.border_radius.w + 10};
     } else {
-      rotation += 5;
+      rotation += 1;
     }
   }
 

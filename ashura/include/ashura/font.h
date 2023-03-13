@@ -368,7 +368,6 @@ struct Paragraph {
   TextOverflow overflow = TextOverflow::None;
 };
 
-// TODO(lamarrr): if glyph is colored do not apply multiplier
 struct Font {
   /// kerning operations
   static constexpr hb_tag_t KERNING_FEATURE = HB_TAG('k', 'e', 'r', 'n');
