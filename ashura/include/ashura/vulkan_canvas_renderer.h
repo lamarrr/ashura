@@ -13,7 +13,7 @@ namespace ash {
 namespace vk {
 
 struct CanvasRenderer {
-  usize max_nframes_in_flight = 0;
+  u32 max_nframes_in_flight = 0;
   stx::Vec<SpanBuffer> vertex_buffers{stx::os_allocator};
   stx::Vec<SpanBuffer> index_buffers{stx::os_allocator};
   vk::Sampler texture_sampler;
@@ -22,7 +22,7 @@ struct CanvasRenderer {
 
   stx::Option<stx::Rc<CommandQueue*>> queue;
 
-  void init(stx::Rc<CommandQueue*> aqueue, usize amax_nframes_in_flight) {
+  void init(stx::Rc<CommandQueue*> aqueue, u32 amax_nframes_in_flight) {
     queue = stx::Some(std::move(aqueue));
     max_nframes_in_flight = amax_nframes_in_flight;
 
@@ -76,7 +76,7 @@ struct CanvasRenderer {
 
     texture_sampler =
         vk::create_sampler(queue.value()->device, VK_FILTER_LINEAR,
-                            VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_TRUE);
+                           VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_TRUE);
   }
 
   void destroy() {
