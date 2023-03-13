@@ -1,21 +1,7 @@
 #include "SDL3/SDL.h"
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
-#include "aom/internal/aom_codec_internal.h"
-#include "aom_ports/mem_ops.h"
 #include "ashura/app.h"
 #include "ashura/widget.h"
 #include "ashura/widgets/image.h"
-#include "common/ivfdec.h"
-#include "common/obudec.h"
-#include "common/tools_common.h"
-#include "common/video_reader.h"
-#include "common/webmdec.h"
-#include "webm/buffer_reader.h"
-#include "webm/callback.h"
-#include "webm/file_reader.h"
-#include "webm/reader.h"
-#include "webm/webm_parser.h"
 
 extern "C" {
 #include "libavcodec/avcodec.h"
@@ -34,7 +20,7 @@ using namespace ash;
   } while (0)
 
 int main(int argc, char **argv) {
-  ASH_CHECK(argc == 2);
+  ASH_CHECK(argc == 3);
 
   std::ifstream stream{argv[1], std::ios::binary | std::ios::ate};
 
@@ -150,7 +136,7 @@ int main(int argc, char **argv) {
   App app{
       std::move(cfg),
       new Image{ImageProps{
-          .source = FileImageSource{.path = stx::string::make_static(argv[1])},
+          .source = FileImageSource{.path = stx::string::make_static(argv[2])},
           .border_radius = vec4{200, 200, 200, 200},
           .aspect_ratio = stx::Some(1.0f),
           .resize_on_load = true}}};
