@@ -15,12 +15,6 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/lamarrr/STX.git
   GIT_TAG main)
 
-FetchContent_Declare(
-  aom
-  GIT_REPOSITORY https://aomedia.googlesource.com/aom
-  GIT_TAG v3.6.0)
-
-find_program(NASM nasm REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(harfbuzz REQUIRED)
@@ -32,15 +26,10 @@ find_package(WebP CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
-find_package(Ogg CONFIG REQUIRED)
-find_package(Vorbis CONFIG REQUIRED)
-find_package(Opus CONFIG REQUIRED)
 find_package(libavif CONFIG REQUIRED)
 find_package(FFMPEG REQUIRED)
 
 FetchContent_MakeAvailable(stx)
-FetchContent_MakeAvailable(aom)
-add_subdirectory(libwebm_parser)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)
