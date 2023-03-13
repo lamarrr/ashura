@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <utility>
 
 #include "ashura/asset_bundle.h"
@@ -147,8 +148,68 @@ struct UploadContext {
         create_host_buffer(dev, memory_properties, extent.area() * 4,
                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
-    // TODO(lamarrr): perform memcpy or necessary operation
-    // staging_buffer.write(data.data());
+    u8 const* in = data.begin();
+    u8 const* in_end = data.end();
+    u8* out = AS(u8*, staging_buffer.memory_map);
+
+    switch (format) {
+      case ImageFormat::Alpha: {
+        for (usize i = 0; i < extent.area(); i++) {
+          out[0] = 0x00;
+          out[1] = 0x00;
+          out[2] = 0x00;
+          out[3] = *in;
+          out += 4;
+          in++;
+        }
+      } break;
+
+      case ImageFormat::Antialiasing: {
+        for (usize i = 0; i < extent.area(); i++) {
+          out[0] = 0xFF;
+          out[1] = 0xFF;
+          out[2] = 0xFF;
+          out[3] = *in;
+          out += 4;
+          in++;
+        }
+      } break;
+
+      case ImageFormat::Gray: {
+        for (usize i = 0; i < extent.area(); i++) {
+          out[0] = *in;
+          out[1] = *in;
+          out[2] = *in;
+          out[3] = *in;
+          out += 4;
+          in++;
+        }
+      } break;
+
+      case ImageFormat::Rgb: {
+        for (usize i = 0; i < extent.area(); i++) {
+          out[0] = in[0];
+          out[1] = in[1];
+          out[2] = in[2];
+          out[3] = 0xFF;
+          out += 4;
+          in += 3;
+        }
+      } break;
+
+      case ImageFormat::Rgba: {
+        std::copy(in, in_end, out);
+      } break;
+
+      case ImageFormat::Bgra: {
+        std::copy(in, in_end, out);
+      } break;
+
+      default: {
+        // TODO(lamarrr): log warning
+        spdlog::warn("unsupported image format encountered, ignoring");
+      } break;
+    }
 
     VkCommandBufferBeginInfo cmd_buffer_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
