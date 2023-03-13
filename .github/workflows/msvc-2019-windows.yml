@@ -96,28 +96,30 @@ jobs:
         key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
 
     # VCPKG DEPENDENCIES
-    - name: Restore vcpkg dependencies cache
-      id: cache-depend-restore
-      uses: actions/cache@v2
-      with:
-        path: vcpkg/packages
-        key: ${{ runner.os }}-dependencies-${{ hashFiles('vcpkg.json') }}
+    #- name: Restore vcpkg dependencies cache
+    #  id: cache-depend-restore
+    #  uses: actions/cache@v2
+    #  with:
+    #    path: vcpkg/packages
+    #    key: ${{ runner.os }}-dependencies-${{ hashFiles('vcpkg.json') }}
 
     - name: Install vcpkg dependencies
-      if: steps.cache-depend-restore.outputs.cache-hit != 'true'
+    # if: steps.cache-depend-restore.outputs.cache-hit != 'true'
       run: |
         cd vcpkg
         .\vcpkg.exe install --triplet x64-windows vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg
-
-    - name: Save vcpkg dependencies cache
-      if: steps.cache-depend-restore.outputs.cache-hit != 'true'
-      id: cache-depend-save
-      uses: actions/cache@v2
-      with:
-        path: vcpkg/packages
-        key: ${{ runner.os }}-dependencies-${{ hashFiles('vcpkg.json') }}
+        
+        
+    #- name: Save vcpkg dependencies cache
+    #  if: steps.cache-depend-restore.outputs.cache-hit != 'true'
+    #  id: cache-depend-save
+    #  uses: actions/cache@v2
+    #  with:
+    #    path: vcpkg/packages
+    #    key: ${{ runner.os }}-dependencies-${{ hashFiles('vcpkg.json') }}
     
-    #CMAKE
+    
+    # CMAKE
     - name: Configure Build Directory
       run: |
         mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
