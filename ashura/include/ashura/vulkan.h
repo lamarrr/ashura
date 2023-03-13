@@ -23,7 +23,8 @@
 #include "vulkan/vulkan.h"
 
 #define ASH_VK_CHECK(...)                             \
-  do {                                                \
+  do                                                  \
+  {                                                   \
     VkResult operation_result = (__VA_ARGS__);        \
     ASH_CHECK(operation_result == VK_SUCCESS,         \
               "Vulkan Operation: (" #__VA_ARGS__      \
@@ -31,28 +32,33 @@
               string_VkResult(operation_result));     \
   } while (false)
 
-namespace ash {
+namespace ash
+{
 using namespace std::chrono_literals;
 
 static constexpr u64 UI_COMMAND_TIMEOUT =
     AS(u64, std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
 
-namespace vk {
+namespace vk
+{
 
 // NICE-TO-HAVE(lamarrr): versioning of extensions, know which one wasn't
 // available and adjust features to that
 inline void ensure_extensions_supported(
     stx::Span<VkExtensionProperties const> available_extentions,
-    stx::Span<char const* const> required_extensions, spdlog::logger& logger) {
+    stx::Span<char const *const> required_extensions, spdlog::logger &logger)
+{
   bool all_available = true;
 
-  for (char const* required_extension : required_extensions) {
+  for (char const *required_extension : required_extensions)
+  {
     if (available_extentions
-            .which([required_extension](VkExtensionProperties const& props) {
+            .which([required_extension](VkExtensionProperties const &props) {
               return std::string_view(required_extension) ==
                      std::string_view(props.extensionName);
             })
-            .is_empty()) {
+            .is_empty())
+    {
       all_available = false;
       logger.warn("Required extension `{}` is not available",
                   required_extension);
@@ -65,16 +71,19 @@ inline void ensure_extensions_supported(
 
 inline void ensure_validation_layers_supported(
     stx::Span<VkLayerProperties const> available_validation_layers,
-    stx::Span<char const* const> required_layers, spdlog::logger& logger) {
+    stx::Span<char const *const> required_layers, spdlog::logger &logger)
+{
   bool all_layers_available = true;
 
-  for (char const* required_layer : required_layers) {
+  for (char const *required_layer : required_layers)
+  {
     if (available_validation_layers
-            .which([required_layer](VkLayerProperties const& available_layer) {
+            .which([required_layer](VkLayerProperties const &available_layer) {
               return std::string_view(required_layer) ==
                      std::string_view(available_layer.layerName);
             })
-            .is_empty()) {
+            .is_empty())
+    {
       all_layers_available = false;
       logger.warn("Required validation layer `{}` is not available",
                   required_layer);
@@ -87,27 +96,33 @@ inline void ensure_validation_layers_supported(
 }
 
 inline VkBool32 VKAPI_ATTR VKAPI_CALL
-debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
-               VkDebugUtilsMessageTypeFlagsEXT message_type,
-               VkDebugUtilsMessengerCallbackDataEXT const* callback_data,
-               void* user_data) {
-  spdlog::logger& logger = *AS(spdlog::logger*, user_data);
+    debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
+                   VkDebugUtilsMessageTypeFlagsEXT             message_type,
+                   VkDebugUtilsMessengerCallbackDataEXT const *callback_data,
+                   void                                       *user_data)
+{
+  spdlog::logger &logger = *AS(spdlog::logger *, user_data);
 
   // callback_data->pObjects;
   // callback_data->objectCount;
 
-  if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+  if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+  {
     logger.error("[Validation Layer] (Message ID: ({}) {}, type: {}) {}",
                  callback_data->messageIdNumber, callback_data->pMessageIdName,
                  string_VkDebugUtilsMessageSeverityFlagsEXT(message_severity),
                  callback_data->pMessage);
-  } else if (message_severity &
-             VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+  }
+  else if (message_severity &
+           VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+  {
     logger.warn("[Validation Layer] (Message ID: ({}) {}, type: {}) {}",
                 callback_data->messageIdNumber, callback_data->pMessageIdName,
                 string_VkDebugUtilsMessageSeverityFlagsEXT(message_severity),
                 callback_data->pMessage);
-  } else {
+  }
+  else
+  {
     logger.info("[Validation Layer] (Message ID: ({}) {}, type: {}) {}",
                 callback_data->messageIdNumber, callback_data->pMessageIdName,
                 string_VkDebugUtilsMessageSeverityFlagsEXT(message_severity),
@@ -118,14 +133,15 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
 }
 
 inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
-    stx::Span<char const* const> irequired_extensions,
-    stx::Span<char const* const> required_validation_layers,
-    char const* const application_name, u32 application_version,
-    char const* const engine_name, u32 engine_version, spdlog::logger& logger) {
+    stx::Span<char const *const> irequired_extensions,
+    stx::Span<char const *const> required_validation_layers,
+    char const *const application_name, u32 application_version,
+    char const *const engine_name, u32 engine_version, spdlog::logger &logger)
+{
   VkDebugUtilsMessengerCreateInfoEXT debug_utils_messenger_create_info{
-      .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-      .pNext = nullptr,
-      .flags = 0,
+      .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+      .pNext           = nullptr,
+      .flags           = 0,
       .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
                          VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
@@ -134,13 +150,13 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
                      VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                      VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
       .pfnUserCallback = debug_callback,
-      .pUserData = &logger};
+      .pUserData       = &logger};
 
-  static constexpr char const* DEBUG_EXTENSIONS[] = {
+  static constexpr char const *DEBUG_EXTENSIONS[] = {
       VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
   // debug message callback extension
-  stx::Vec<char const*> required_extensions{stx::os_allocator};
+  stx::Vec<char const *> required_extensions{stx::os_allocator};
 
   required_extensions.extend(irequired_extensions).unwrap();
 
@@ -161,7 +177,8 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 
   logger.info("Available Vulkan Extensions:");
 
-  for (VkExtensionProperties extension : available_extensions) {
+  for (VkExtensionProperties extension : available_extensions)
+  {
     logger.info("\t{} (spec version: {})", extension.extensionName,
                 extension.specVersion);
   }
@@ -181,7 +198,8 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 
   logger.info("Available Vulkan Validation Layers:");
 
-  for (VkLayerProperties const& layer : available_validation_layers) {
+  for (VkLayerProperties const &layer : available_validation_layers)
+  {
     logger.info(
         "\t{} (spec version: {}.{}.{} api-variant-{}, implementation version: "
         "{})",
@@ -198,13 +216,13 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
                                      required_validation_layers, logger);
 
   // helps but not necessary
-  VkApplicationInfo app_info{.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                             .pNext = nullptr,
-                             .pApplicationName = application_name,
+  VkApplicationInfo app_info{.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+                             .pNext              = nullptr,
+                             .pApplicationName   = application_name,
                              .applicationVersion = application_version,
-                             .pEngineName = engine_name,
-                             .engineVersion = engine_version,
-                             .apiVersion = VK_API_VERSION_1_3};
+                             .pEngineName        = engine_name,
+                             .engineVersion      = engine_version,
+                             .apiVersion         = VK_API_VERSION_1_3};
 
   VkInstanceCreateInfo create_info{
       // debug messenger for when
@@ -213,15 +231,13 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
       .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
       // this helps to debug issues with vkDestroyInstance and vkCreateInstance
       // i.e. (before and after the debug messenger is installed)
-      .pNext = required_validation_layers.is_empty()
-                   ? nullptr
-                   : &debug_utils_messenger_create_info,
-      .flags = 0,
+      .pNext            = required_validation_layers.is_empty() ? nullptr : &debug_utils_messenger_create_info,
+      .flags            = 0,
       .pApplicationInfo = &app_info,
       // validation layers
-      .enabledLayerCount = AS(u32, required_validation_layers.size()),
-      .ppEnabledLayerNames = required_validation_layers.data(),
-      .enabledExtensionCount = AS(u32, required_extensions.size()),
+      .enabledLayerCount       = AS(u32, required_validation_layers.size()),
+      .ppEnabledLayerNames     = required_validation_layers.data(),
+      .enabledExtensionCount   = AS(u32, required_extensions.size()),
       .ppEnabledExtensionNames = required_extensions.data(),
   };
 
@@ -231,7 +247,8 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 
   VkDebugUtilsMessengerEXT debug_utils_messenger;
 
-  if (!required_validation_layers.is_empty()) {
+  if (!required_validation_layers.is_empty())
+  {
     PFN_vkCreateDebugUtilsMessengerEXT createDebugUtilsMessengerEXT =
         reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
             vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
@@ -251,7 +268,8 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
 //  to do anything on the GPU (render, draw, compute, allocate memory, create
 //  texture, etc.) we use command queues
 inline stx::Vec<VkQueueFamilyProperties> get_queue_families(
-    VkPhysicalDevice dev) {
+    VkPhysicalDevice dev)
+{
   u32 queue_families_count;
 
   vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_families_count, nullptr);
@@ -269,10 +287,12 @@ inline stx::Vec<VkQueueFamilyProperties> get_queue_families(
 
 inline stx::Vec<bool> get_command_queue_support(
     stx::Span<VkQueueFamilyProperties const> queue_families,
-    VkQueueFlagBits required_command_queue) {
+    VkQueueFlagBits                          required_command_queue)
+{
   stx::Vec<bool> supports{stx::os_allocator};
 
-  for (VkQueueFamilyProperties const& fam_props : queue_families) {
+  for (VkQueueFamilyProperties const &fam_props : queue_families)
+  {
     supports.push(fam_props.queueFlags & required_command_queue).unwrap();
   }
 
@@ -281,12 +301,14 @@ inline stx::Vec<bool> get_command_queue_support(
 
 // find the device's queue family capable of supporting surface presentation
 inline stx::Vec<bool> get_surface_presentation_command_queue_support(
-    VkPhysicalDevice phy_dev,
+    VkPhysicalDevice                         phy_dev,
     stx::Span<VkQueueFamilyProperties const> queue_families,
-    VkSurfaceKHR surface) {
+    VkSurfaceKHR                             surface)
+{
   stx::Vec<bool> supports{stx::os_allocator};
 
-  for (u32 i = 0; i < AS(u32, queue_families.size()); i++) {
+  for (u32 i = 0; i < AS(u32, queue_families.size()); i++)
+  {
     VkBool32 surface_presentation_supported;
     ASH_VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(
         phy_dev, i, surface, &surface_presentation_supported));
@@ -297,10 +319,11 @@ inline stx::Vec<bool> get_surface_presentation_command_queue_support(
 }
 
 inline VkDevice create_logical_device(
-    VkPhysicalDevice phy_dev, stx::Span<char const* const> required_extensions,
-    stx::Span<char const* const> required_validation_layers,
+    VkPhysicalDevice phy_dev, stx::Span<char const *const> required_extensions,
+    stx::Span<char const *const>             required_validation_layers,
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_infos,
-    VkPhysicalDeviceFeatures const& required_features, spdlog::logger& logger) {
+    VkPhysicalDeviceFeatures const &required_features, spdlog::logger &logger)
+{
   u32 available_extensions_count;
   ASH_VK_CHECK(vkEnumerateDeviceExtensionProperties(
       phy_dev, nullptr, &available_extensions_count, nullptr));
@@ -318,7 +341,7 @@ inline VkDevice create_logical_device(
   logger.info("Required Device Extensions: ");
 
   required_extensions.for_each(
-      [&logger](char const* ext) { logger.info("\t{}", ext); });
+      [&logger](char const *ext) { logger.info("\t{}", ext); });
 
   logger.info("Available Device Extensions: ");
 
@@ -327,7 +350,7 @@ inline VkDevice create_logical_device(
     logger.info("\t{} (spec version: {})", ext.extensionName, ext.specVersion);
   });
 
-  ASH_CHECK(required_extensions.is_all([&](char const* ext) {
+  ASH_CHECK(required_extensions.is_all([&](char const *ext) {
     return !available_device_extensions.span()
                 .which([=](VkExtensionProperties a_ext) {
                   return std::string_view(ext) ==
@@ -338,16 +361,16 @@ inline VkDevice create_logical_device(
             "Can't find all required extensions");
 
   VkDeviceCreateInfo device_create_info{
-      .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .queueCreateInfoCount = AS(u32, command_queue_create_infos.size()),
-      .pQueueCreateInfos = command_queue_create_infos.data(),
-      .enabledLayerCount = AS(u32, required_validation_layers.size()),
-      .ppEnabledLayerNames = required_validation_layers.data(),
-      .enabledExtensionCount = AS(u32, required_extensions.size()),
+      .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+      .pNext                   = nullptr,
+      .flags                   = 0,
+      .queueCreateInfoCount    = AS(u32, command_queue_create_infos.size()),
+      .pQueueCreateInfos       = command_queue_create_infos.data(),
+      .enabledLayerCount       = AS(u32, required_validation_layers.size()),
+      .ppEnabledLayerNames     = required_validation_layers.data(),
+      .enabledExtensionCount   = AS(u32, required_extensions.size()),
       .ppEnabledExtensionNames = required_extensions.data(),
-      .pEnabledFeatures = &required_features};
+      .pEnabledFeatures        = &required_features};
 
   VkDevice logical_device;
 
@@ -357,14 +380,16 @@ inline VkDevice create_logical_device(
   return logical_device;
 }
 
-struct SwapChainProperties {
-  VkSurfaceCapabilitiesKHR capabilities;
+struct SwapChainProperties
+{
+  VkSurfaceCapabilitiesKHR     capabilities;
   stx::Vec<VkSurfaceFormatKHR> supported_formats{stx::os_allocator};
-  stx::Vec<VkPresentModeKHR> presentation_modes{stx::os_allocator};
+  stx::Vec<VkPresentModeKHR>   presentation_modes{stx::os_allocator};
 };
 
 inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_dev,
-                                                    VkSurfaceKHR surface) {
+                                                    VkSurfaceKHR     surface)
+{
   SwapChainProperties details;
 
   ASH_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
@@ -395,7 +420,8 @@ inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_dev,
   return details;
 }
 
-inline bool is_swapchain_adequate(SwapChainProperties const& properties) {
+inline bool is_swapchain_adequate(SwapChainProperties const &properties)
+{
   // we use any available for selecting devices
   ASH_CHECK(!properties.supported_formats.is_empty(),
             "Physical Device does not support any window surface "
@@ -409,7 +435,8 @@ inline bool is_swapchain_adequate(SwapChainProperties const& properties) {
 }
 
 inline VkExtent2D select_swapchain_extent(
-    VkSurfaceCapabilitiesKHR const& capabilities, VkExtent2D desired_extent) {
+    VkSurfaceCapabilitiesKHR const &capabilities, VkExtent2D desired_extent)
+{
   // this, unlike the window dimensions is in pixels and is the rendered to
   // area
   //
@@ -420,9 +447,12 @@ inline VkExtent2D select_swapchain_extent(
   // extent. otherwise, we a range of extents will be provided that we must
   // clamp to.
   if (capabilities.currentExtent.width != stx::U32_MAX ||
-      capabilities.currentExtent.height != stx::U32_MAX) {
+      capabilities.currentExtent.height != stx::U32_MAX)
+  {
     return capabilities.currentExtent;
-  } else {
+  }
+  else
+  {
     VkExtent2D target_extent{desired_extent.width, desired_extent.height};
 
     target_extent.width =
@@ -439,23 +469,24 @@ inline VkExtent2D select_swapchain_extent(
 // select number of images to have on the swap chain based on device
 // capabilities. i.e. double buffering, triple buffering.
 inline u32 select_swapchain_image_count(
-    VkSurfaceCapabilitiesKHR const& capabilities, u32 desired_nbuffers) {
+    VkSurfaceCapabilitiesKHR const &capabilities, u32 desired_nbuffers)
+{
   return
       // no limit on the number of swapchain images
-      capabilities.maxImageCount == 0
-          ? std::clamp(desired_nbuffers, capabilities.minImageCount,
-                       stx::U32_MAX)
-          : std::clamp(desired_nbuffers, capabilities.minImageCount,
-                       capabilities.maxImageCount);
+      capabilities.maxImageCount == 0 ? std::clamp(desired_nbuffers, capabilities.minImageCount,
+                                                   stx::U32_MAX) :
+                                        std::clamp(desired_nbuffers, capabilities.minImageCount,
+                                                   capabilities.maxImageCount);
 }
 
 inline std::tuple<VkSwapchainKHR, VkExtent2D, bool> create_swapchain(
     VkDevice dev, VkSurfaceKHR surface, VkExtent2D preferred_extent,
     VkSurfaceFormatKHR surface_format, VkPresentModeKHR present_mode,
-    SwapChainProperties const& properties,
-    VkSharingMode accessing_queue_families_sharing_mode,
+    SwapChainProperties const &properties,
+    VkSharingMode              accessing_queue_families_sharing_mode,
     VkImageUsageFlags image_usages, VkCompositeAlphaFlagBitsKHR alpha_blending,
-    VkBool32 clipped) {
+    VkBool32 clipped)
+{
   u32 desired_nbuffers = std::min(properties.capabilities.minImageCount + 1,
                                   properties.capabilities.maxImageCount);
 
@@ -467,18 +498,18 @@ inline std::tuple<VkSwapchainKHR, VkExtent2D, bool> create_swapchain(
                            false);
 
   VkSwapchainCreateInfoKHR create_info{
-      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-      .pNext = nullptr,
-      .flags = 0,
+      .sType   = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+      .pNext   = nullptr,
+      .flags   = 0,
       .surface = surface,
       // number of images to use for buffering on the swapchain
-      .minImageCount = select_swapchain_image_count(properties.capabilities,
-                                                    desired_nbuffers),
-      .imageFormat = surface_format.format,
-      .imageColorSpace = surface_format.colorSpace,
-      .imageExtent = selected_extent,
-      .imageArrayLayers = 1,  // 2 for stereoscopic rendering
-      .imageUsage = image_usages,
+      .minImageCount    = select_swapchain_image_count(properties.capabilities,
+                                                       desired_nbuffers),
+      .imageFormat      = surface_format.format,
+      .imageColorSpace  = surface_format.colorSpace,
+      .imageExtent      = selected_extent,
+      .imageArrayLayers = 1,        // 2 for stereoscopic rendering
+      .imageUsage       = image_usages,
       // under normal circumstances command queues on the same queue family can
       // access data without data race issues
       //
@@ -487,13 +518,13 @@ inline std::tuple<VkSwapchainKHR, VkExtent2D, bool> create_swapchain(
       // another queue family. This option offers the best performance.
       // VK_SHARING_MODE_CONCURRENT: Images can be used across multiple queue
       // families without explicit ownership transfers.
-      .imageSharingMode = accessing_queue_families_sharing_mode,
+      .imageSharingMode      = accessing_queue_families_sharing_mode,
       .queueFamilyIndexCount = 0,
-      .pQueueFamilyIndices = nullptr,
-      .preTransform = properties.capabilities.currentTransform,
-      .compositeAlpha = alpha_blending,  // how the alpha channel should be
-                                         // used for blending with other
-                                         // windows in the window system
+      .pQueueFamilyIndices   = nullptr,
+      .preTransform          = properties.capabilities.currentTransform,
+      .compositeAlpha        = alpha_blending,        // how the alpha channel should be
+                                                      // used for blending with other
+                                                      // windows in the window system
       .presentMode = present_mode,
       // clipped specifies whether the Vulkan implementation is allowed to
       // discard rendering operations that affect regions of the surface that
@@ -507,7 +538,7 @@ inline std::tuple<VkSwapchainKHR, VkExtent2D, bool> create_swapchain(
       // any clipping will occur, but allows more efficient presentation methods
       // to be used on some platforms. If set to VK_FALSE, presentable images
       // associated with the swapchain will own all of the pixels they contain.
-      .clipped = clipped,
+      .clipped      = clipped,
       .oldSwapchain = VK_NULL_HANDLE,
   };
 
@@ -517,8 +548,9 @@ inline std::tuple<VkSwapchainKHR, VkExtent2D, bool> create_swapchain(
   return std::make_tuple(swapchain, selected_extent, true);
 }
 
-inline stx::Vec<VkImage> get_swapchain_images(VkDevice dev,
-                                              VkSwapchainKHR swapchain) {
+inline stx::Vec<VkImage> get_swapchain_images(VkDevice       dev,
+                                              VkSwapchainKHR swapchain)
+{
   u32 image_count;
 
   ASH_VK_CHECK(vkGetSwapchainImagesKHR(dev, swapchain, &image_count, nullptr));
@@ -535,7 +567,8 @@ inline stx::Vec<VkImage> get_swapchain_images(VkDevice dev,
 // get memory requirements for an image based on it's type, usage mode, and
 // other properties
 inline VkMemoryRequirements get_memory_requirements(VkDevice dev,
-                                                    VkImage image) {
+                                                    VkImage  image)
+{
   VkMemoryRequirements memory_requirements;
   vkGetImageMemoryRequirements(dev, image, &memory_requirements);
   return memory_requirements;
@@ -543,34 +576,41 @@ inline VkMemoryRequirements get_memory_requirements(VkDevice dev,
 
 // returns index of the heap on the physical device, could be RAM, SWAP, or VRAM
 inline stx::Option<u32> find_suitable_memory_type(
-    VkPhysicalDeviceMemoryProperties const& memory_properties,
-    VkMemoryRequirements const& memory_requirements,
-    VkMemoryPropertyFlags required_properties) {
+    VkPhysicalDeviceMemoryProperties const &memory_properties,
+    VkMemoryRequirements const             &memory_requirements,
+    VkMemoryPropertyFlags                   required_properties)
+{
   // different types of memory exist within the graphics card heap memory.
   // this can affect performance.
-  for (u32 i = 0; i < memory_properties.memoryTypeCount; i++) {
+  for (u32 i = 0; i < memory_properties.memoryTypeCount; i++)
+  {
     if ((memory_properties.memoryTypes[i].propertyFlags &
          required_properties) == required_properties &&
-        (memory_requirements.memoryTypeBits & (1 << i))) {
+        (memory_requirements.memoryTypeBits & (1 << i)))
+    {
       return stx::Some(AS(u32, i));
     }
   }
   return stx::None;
 }
 
-struct Instance {
-  VkInstance instance = VK_NULL_HANDLE;
+struct Instance
+{
+  VkInstance                            instance              = VK_NULL_HANDLE;
   stx::Option<VkDebugUtilsMessengerEXT> debug_utils_messenger = stx::None;
 
-  Instance(VkInstance ainstance,
-           stx::Option<VkDebugUtilsMessengerEXT> adebug_utils_messenger)
-      : instance{ainstance},
-        debug_utils_messenger{std::move(adebug_utils_messenger)} {}
+  Instance(VkInstance                            ainstance,
+           stx::Option<VkDebugUtilsMessengerEXT> adebug_utils_messenger) :
+      instance{ainstance},
+      debug_utils_messenger{std::move(adebug_utils_messenger)}
+  {}
 
   STX_MAKE_PINNED(Instance)
 
-  ~Instance() {
-    if (debug_utils_messenger.is_some()) {
+  ~Instance()
+  {
+    if (debug_utils_messenger.is_some())
+    {
       PFN_vkDestroyDebugUtilsMessengerEXT func =
           reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
               vkGetInstanceProcAddr(instance,
@@ -587,15 +627,17 @@ struct Instance {
   }
 };
 
-struct PhyDeviceInfo {
-  VkPhysicalDevice phy_device = VK_NULL_HANDLE;
-  VkPhysicalDeviceProperties properties{};
-  VkPhysicalDeviceFeatures features{};
-  VkPhysicalDeviceMemoryProperties memory_properties{};
+struct PhyDeviceInfo
+{
+  VkPhysicalDevice                  phy_device = VK_NULL_HANDLE;
+  VkPhysicalDeviceProperties        properties{};
+  VkPhysicalDeviceFeatures          features{};
+  VkPhysicalDeviceMemoryProperties  memory_properties{};
   stx::Vec<VkQueueFamilyProperties> family_properties{stx::os_allocator};
-  stx::Rc<Instance*> instance;
+  stx::Rc<Instance *>               instance;
 
-  PhyDeviceInfo copy() const {
+  PhyDeviceInfo copy() const
+  {
     stx::Vec<VkQueueFamilyProperties> nfamily_properties{stx::os_allocator};
 
     nfamily_properties.extend(family_properties).unwrap();
@@ -608,39 +650,52 @@ struct PhyDeviceInfo {
                          instance.share()};
   }
 
-  bool has_geometry_shader() const { return features.geometryShader; }
+  bool has_geometry_shader() const
+  {
+    return features.geometryShader;
+  }
 
-  bool has_transfer_command_queue_family() const {
+  bool has_transfer_command_queue_family() const
+  {
     return family_properties.span().is_any(
-        [](VkQueueFamilyProperties const& prop) -> bool {
+        [](VkQueueFamilyProperties const &prop) -> bool {
           return prop.queueFlags & VK_QUEUE_TRANSFER_BIT;
         });
   }
 
-  bool has_graphics_command_queue_family() const {
+  bool has_graphics_command_queue_family() const
+  {
     return family_properties.span().is_any(
-        [](VkQueueFamilyProperties const& prop) -> bool {
+        [](VkQueueFamilyProperties const &prop) -> bool {
           return prop.queueFlags & VK_QUEUE_GRAPHICS_BIT;
         });
   }
 
-  VkSampleCountFlagBits get_max_sample_count() const {
+  VkSampleCountFlagBits get_max_sample_count() const
+  {
     VkSampleCountFlags counts = properties.limits.framebufferColorSampleCounts &
                                 properties.limits.framebufferDepthSampleCounts;
 
-    if (counts & VK_SAMPLE_COUNT_64_BIT) return VK_SAMPLE_COUNT_64_BIT;
-    if (counts & VK_SAMPLE_COUNT_32_BIT) return VK_SAMPLE_COUNT_32_BIT;
-    if (counts & VK_SAMPLE_COUNT_16_BIT) return VK_SAMPLE_COUNT_16_BIT;
-    if (counts & VK_SAMPLE_COUNT_8_BIT) return VK_SAMPLE_COUNT_8_BIT;
-    if (counts & VK_SAMPLE_COUNT_4_BIT) return VK_SAMPLE_COUNT_4_BIT;
-    if (counts & VK_SAMPLE_COUNT_2_BIT) return VK_SAMPLE_COUNT_2_BIT;
+    if (counts & VK_SAMPLE_COUNT_64_BIT)
+      return VK_SAMPLE_COUNT_64_BIT;
+    if (counts & VK_SAMPLE_COUNT_32_BIT)
+      return VK_SAMPLE_COUNT_32_BIT;
+    if (counts & VK_SAMPLE_COUNT_16_BIT)
+      return VK_SAMPLE_COUNT_16_BIT;
+    if (counts & VK_SAMPLE_COUNT_8_BIT)
+      return VK_SAMPLE_COUNT_8_BIT;
+    if (counts & VK_SAMPLE_COUNT_4_BIT)
+      return VK_SAMPLE_COUNT_4_BIT;
+    if (counts & VK_SAMPLE_COUNT_2_BIT)
+      return VK_SAMPLE_COUNT_2_BIT;
 
     return VK_SAMPLE_COUNT_1_BIT;
   }
 };
 
 inline stx::Vec<PhyDeviceInfo> get_all_devices(
-    stx::Rc<Instance*> const& instance) {
+    stx::Rc<Instance *> const &instance)
+{
   u32 devices_count = 0;
 
   ASH_VK_CHECK(
@@ -657,7 +712,8 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 
   stx::Vec<PhyDeviceInfo> devices{stx::os_allocator};
 
-  for (VkPhysicalDevice dev : phy_devices) {
+  for (VkPhysicalDevice dev : phy_devices)
+  {
     VkPhysicalDeviceProperties device_properties;
 
     vkGetPhysicalDeviceProperties(dev, &device_properties);
@@ -671,12 +727,12 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
     vkGetPhysicalDeviceMemoryProperties(dev, &memory_properties);
 
     devices
-        .push(PhyDeviceInfo{.phy_device = dev,
-                            .properties = device_properties,
-                            .features = device_features,
+        .push(PhyDeviceInfo{.phy_device        = dev,
+                            .properties        = device_properties,
+                            .features          = device_features,
                             .memory_properties = memory_properties,
                             .family_properties = get_queue_families(dev),
-                            .instance = instance.share()})
+                            .instance          = instance.share()})
         .unwrap();
   }
 
@@ -684,94 +740,106 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(
 }
 
 // automatically destroyed once the device is destroyed
-struct CommandQueueFamilyInfo {
-  u32 index = 0;
-  stx::Rc<PhyDeviceInfo*> phy_device;
+struct CommandQueueFamilyInfo
+{
+  u32                      index = 0;
+  stx::Rc<PhyDeviceInfo *> phy_device;
 };
 
-struct CommandQueueInfo {
+struct CommandQueueInfo
+{
   // automatically destroyed once the device is destroyed
-  VkQueue queue = VK_NULL_HANDLE;
-  u32 create_index = 0;
-  f32 priority = 0;
+  VkQueue                queue        = VK_NULL_HANDLE;
+  u32                    create_index = 0;
+  f32                    priority     = 0;
   CommandQueueFamilyInfo family;
 };
 
-struct Device {
-  VkDevice dev = VK_NULL_HANDLE;
-  stx::Rc<PhyDeviceInfo*> phy_dev;
+struct Device
+{
+  VkDevice                   dev = VK_NULL_HANDLE;
+  stx::Rc<PhyDeviceInfo *>   phy_dev;
   stx::Vec<CommandQueueInfo> command_queues{stx::os_allocator};
 
-  Device(VkDevice adevice, stx::Rc<PhyDeviceInfo*> aphy_device,
-         stx::Vec<CommandQueueInfo> acommand_queues)
-      : dev{adevice},
-        phy_dev{std::move(aphy_device)},
-        command_queues{std::move(acommand_queues)} {}
+  Device(VkDevice adevice, stx::Rc<PhyDeviceInfo *> aphy_device,
+         stx::Vec<CommandQueueInfo> acommand_queues) :
+      dev{adevice},
+      phy_dev{std::move(aphy_device)},
+      command_queues{std::move(acommand_queues)}
+  {}
 
   STX_MAKE_PINNED(Device)
 
-  ~Device() { vkDestroyDevice(dev, nullptr); }
+  ~Device()
+  {
+    vkDestroyDevice(dev, nullptr);
+  }
 };
 
-struct CommandQueue {
-  CommandQueueInfo info;
-  stx::Rc<Device*> device;
+struct CommandQueue
+{
+  CommandQueueInfo  info;
+  stx::Rc<Device *> device;
 };
 
-inline stx::Rc<Instance*> create_instance(
-    char const* app_name, u32 app_version, char const* engine_name,
-    u32 engine_version, stx::Span<char const* const> required_extensions,
-    stx::Span<char const* const> validation_layers, spdlog::logger& logger) {
+inline stx::Rc<Instance *> create_instance(
+    char const *app_name, u32 app_version, char const *engine_name,
+    u32 engine_version, stx::Span<char const *const> required_extensions,
+    stx::Span<char const *const> validation_layers, spdlog::logger &logger)
+{
   auto [instance, debug_utils_messenger] =
       create_vulkan_instance(required_extensions, validation_layers, app_name,
                              app_version, engine_name, engine_version, logger);
 
   return stx::rc::make_inplace<Instance>(
              stx::os_allocator, instance,
-             debug_utils_messenger == VK_NULL_HANDLE
-                 ? stx::None
-                 : stx::make_some(std::move(debug_utils_messenger)))
+             debug_utils_messenger == VK_NULL_HANDLE ? stx::None : stx::make_some(std::move(debug_utils_messenger)))
       .unwrap();
 }
 
 // can also be used for transfer
 inline stx::Option<CommandQueueFamilyInfo> get_graphics_command_queue(
-    stx::Rc<PhyDeviceInfo*> const& phy_dev) {
+    stx::Rc<PhyDeviceInfo *> const &phy_dev)
+{
   auto pos = std::find_if(phy_dev->family_properties.begin(),
                           phy_dev->family_properties.end(),
-                          [](VkQueueFamilyProperties const& prop) -> bool {
+                          [](VkQueueFamilyProperties const &prop) -> bool {
                             return prop.queueFlags & VK_QUEUE_GRAPHICS_BIT;
                           });
 
-  if (pos == phy_dev->family_properties.end()) {
+  if (pos == phy_dev->family_properties.end())
+  {
     return stx::None;
   }
 
   return stx::Some(CommandQueueFamilyInfo{
-      .index = AS(u32, pos - phy_dev->family_properties.begin()),
+      .index      = AS(u32, pos - phy_dev->family_properties.begin()),
       .phy_device = phy_dev.share()});
 }
 
-inline stx::Rc<Device*> create_device(
-    stx::Rc<PhyDeviceInfo*> const& phy_dev,
+inline stx::Rc<Device *> create_device(
+    stx::Rc<PhyDeviceInfo *> const          &phy_dev,
     stx::Span<VkDeviceQueueCreateInfo const> command_queue_create_info,
-    stx::Span<char const* const> required_extensions,
-    stx::Span<char const* const> required_validation_layers,
-    VkPhysicalDeviceFeatures required_features, spdlog::logger& logger) {
+    stx::Span<char const *const>             required_extensions,
+    stx::Span<char const *const>             required_validation_layers,
+    VkPhysicalDeviceFeatures required_features, spdlog::logger &logger)
+{
   VkDevice dev = create_logical_device(
       phy_dev->phy_device, required_extensions, required_validation_layers,
       command_queue_create_info, required_features, logger);
 
   stx::Vec<CommandQueueInfo> command_queues{stx::os_allocator};
 
-  for (usize i = 0; i < command_queue_create_info.size(); i++) {
-    VkDeviceQueueCreateInfo create_info = command_queue_create_info[i];
-    u32 command_queue_family_index = create_info.queueFamilyIndex;
-    u32 queue_count = create_info.queueCount;
+  for (usize i = 0; i < command_queue_create_info.size(); i++)
+  {
+    VkDeviceQueueCreateInfo create_info                = command_queue_create_info[i];
+    u32                     command_queue_family_index = create_info.queueFamilyIndex;
+    u32                     queue_count                = create_info.queueCount;
     ASH_CHECK(command_queue_family_index < phy_dev->family_properties.size());
 
     for (u32 queue_index_in_family = 0; queue_index_in_family < queue_count;
-         queue_index_in_family++) {
+         queue_index_in_family++)
+    {
       f32 priority = create_info.pQueuePriorities[i];
 
       VkQueue command_queue;
@@ -784,11 +852,11 @@ inline stx::Rc<Device*> create_device(
 
       command_queues
           .push(CommandQueueInfo{
-              .queue = command_queue,
+              .queue        = command_queue,
               .create_index = AS(u32, i),
-              .priority = priority,
+              .priority     = priority,
               .family =
-                  CommandQueueFamilyInfo{.index = command_queue_family_index,
+                  CommandQueueFamilyInfo{.index      = command_queue_family_index,
                                          .phy_device = phy_dev.share()},
           })
           .unwrap();
@@ -801,97 +869,106 @@ inline stx::Rc<Device*> create_device(
 }
 
 inline stx::Option<CommandQueue> get_command_queue(
-    stx::Rc<Device*> const& device, CommandQueueFamilyInfo const& family,
-    u32 command_queue_create_index) {
+    stx::Rc<Device *> const &device, CommandQueueFamilyInfo const &family,
+    u32 command_queue_create_index)
+{
   // We shouldn't have to perform checks?
   ASH_CHECK(device->phy_dev->phy_device == family.phy_device->phy_device);
 
   stx::Span queue_s =
-      device->command_queues.span().which([&](CommandQueueInfo const& info) {
+      device->command_queues.span().which([&](CommandQueueInfo const &info) {
         return info.family.index == family.index &&
                info.create_index == command_queue_create_index;
       });
 
-  if (queue_s.is_empty()) return stx::None;
+  if (queue_s.is_empty())
+    return stx::None;
 
-  CommandQueueInfo const& queue = queue_s[0];
+  CommandQueueInfo const &queue = queue_s[0];
 
   return stx::Some(CommandQueue{
-      .info = CommandQueueInfo{.queue = queue.queue,
-                               .create_index = queue.create_index,
-                               .priority = queue.priority,
-                               .family =
+      .info   = CommandQueueInfo{.queue        = queue.queue,
+                                 .create_index = queue.create_index,
+                                 .priority     = queue.priority,
+                                 .family =
                                    CommandQueueFamilyInfo{
-                                       .index = queue.family.index,
-                                       .phy_device =
+                                         .index = queue.family.index,
+                                         .phy_device =
                                            queue.family.phy_device.share()}},
       .device = device.share()});
 }
 
-struct Buffer {
-  VkBuffer buffer = VK_NULL_HANDLE;
-  VkDeviceMemory memory = VK_NULL_HANDLE;
-  void* memory_map = nullptr;
-  usize size = 0;
-  VkDevice dev = VK_NULL_HANDLE;
+struct Buffer
+{
+  VkBuffer       buffer     = VK_NULL_HANDLE;
+  VkDeviceMemory memory     = VK_NULL_HANDLE;
+  void          *memory_map = nullptr;
+  usize          size       = 0;
+  VkDevice       dev        = VK_NULL_HANDLE;
 
-  void destroy() {
+  void destroy()
+  {
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyBuffer(dev, buffer, nullptr);
   }
 
-  void write(void const* data) {
+  void write(void const *data)
+  {
     std::memcpy(memory_map, data, size);
 
-    VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                              .pNext = nullptr,
+    VkMappedMemoryRange range{.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                              .pNext  = nullptr,
                               .memory = memory,
                               .offset = 0,
-                              .size = VK_WHOLE_SIZE};
+                              .size   = VK_WHOLE_SIZE};
 
     ASH_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
   }
 };
 
-struct SpanBuffer {
-  VkBuffer buffer = VK_NULL_HANDLE;
-  VkDeviceMemory memory = VK_NULL_HANDLE;
-  void* memory_map = nullptr;
-  usize size = 0;
-  usize memory_size = 0;
-  VkBufferUsageFlags usage = 0;
-  VkDevice dev = VK_NULL_HANDLE;
+struct SpanBuffer
+{
+  VkBuffer           buffer      = VK_NULL_HANDLE;
+  VkDeviceMemory     memory      = VK_NULL_HANDLE;
+  void              *memory_map  = nullptr;
+  usize              size        = 0;
+  usize              memory_size = 0;
+  VkBufferUsageFlags usage       = 0;
+  VkDevice           dev         = VK_NULL_HANDLE;
 
-  void destroy() {
+  void destroy()
+  {
     vkUnmapMemory(dev, memory);
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyBuffer(dev, buffer, nullptr);
   }
 
-  bool is_valid() const {
+  bool is_valid() const
+  {
     return buffer != VK_NULL_HANDLE && memory != VK_NULL_HANDLE &&
            memory_map != nullptr && size != 0 && memory_size != 0 &&
            dev != VK_NULL_HANDLE;
   }
 
-  void init(VkDevice adev,
-            VkPhysicalDeviceMemoryProperties const& memory_properties,
-            VkBufferUsageFlags ausage) {
-    dev = adev;
-    size = 0;
+  void init(VkDevice                                adev,
+            VkPhysicalDeviceMemoryProperties const &memory_properties,
+            VkBufferUsageFlags                      ausage)
+  {
+    dev   = adev;
+    size  = 0;
     usage = ausage;
 
     VkBufferCreateInfo create_info{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .size = 1,
-        .usage = usage,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext                 = nullptr,
+        .flags                 = 0,
+        .size                  = 1,
+        .usage                 = usage,
+        .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = 0,
-        .pQueueFamilyIndices = nullptr};
+        .pQueueFamilyIndices   = nullptr};
 
     ASH_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
 
@@ -899,7 +976,8 @@ struct SpanBuffer {
 
     vkGetBufferMemoryRequirements(dev, buffer, &memory_requirements);
 
-    if (memory != VK_NULL_HANDLE) {
+    if (memory != VK_NULL_HANDLE)
+    {
       ASH_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
     }
 
@@ -910,9 +988,9 @@ struct SpanBuffer {
             .unwrap();
 
     VkMemoryAllocateInfo alloc_info{
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext = nullptr,
-        .allocationSize = memory_requirements.size,
+        .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext           = nullptr,
+        .allocationSize  = memory_requirements.size,
         .memoryTypeIndex = memory_type_index};
 
     ASH_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
@@ -924,26 +1002,29 @@ struct SpanBuffer {
     ASH_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
   }
 
-  void write(VkPhysicalDeviceMemoryProperties const& memory_properties,
-             stx::Span<u8 const> span) {
-    if (span.is_empty()) {
+  void write(VkPhysicalDeviceMemoryProperties const &memory_properties,
+             stx::Span<u8 const>                     span)
+  {
+    if (span.is_empty())
+    {
       size = 0;
       return;
     }
 
-    if (span.size() != size) {
+    if (span.size() != size)
+    {
       ASH_VK_CHECK(vkDeviceWaitIdle(dev));
       vkDestroyBuffer(dev, buffer, nullptr);
 
       VkBufferCreateInfo create_info{
-          .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0,
-          .size = span.size(),
-          .usage = usage,
-          .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+          .sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+          .pNext                 = nullptr,
+          .flags                 = 0,
+          .size                  = span.size(),
+          .usage                 = usage,
+          .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
           .queueFamilyIndexCount = 0,
-          .pQueueFamilyIndices = nullptr};
+          .pQueueFamilyIndices   = nullptr};
 
       ASH_VK_CHECK(vkCreateBuffer(dev, &create_info, nullptr, &buffer));
 
@@ -953,11 +1034,15 @@ struct SpanBuffer {
 
       vkGetBufferMemoryRequirements(dev, buffer, &memory_requirements);
 
-      if (memory_requirements.size <= memory_size) {
-        if (memory != VK_NULL_HANDLE) {
+      if (memory_requirements.size <= memory_size)
+      {
+        if (memory != VK_NULL_HANDLE)
+        {
           ASH_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
         }
-      } else {
+      }
+      else
+      {
         vkFreeMemory(dev, memory, nullptr);
 
         u32 memory_type_index =
@@ -967,9 +1052,9 @@ struct SpanBuffer {
                 .unwrap();
 
         VkMemoryAllocateInfo alloc_info{
-            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .pNext = nullptr,
-            .allocationSize = memory_requirements.size,
+            .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .pNext           = nullptr,
+            .allocationSize  = memory_requirements.size,
             .memoryTypeIndex = memory_type_index};
 
         ASH_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
@@ -985,27 +1070,28 @@ struct SpanBuffer {
 
     memcpy(memory_map, span.data(), span.size());
 
-    VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                              .pNext = nullptr,
+    VkMappedMemoryRange range{.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                              .pNext  = nullptr,
                               .memory = memory,
                               .offset = 0,
-                              .size = VK_WHOLE_SIZE};
+                              .size   = VK_WHOLE_SIZE};
 
     ASH_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
   }
 };
 
 inline Buffer create_host_buffer(
-    VkDevice dev, VkPhysicalDeviceMemoryProperties const& memory_properties,
-    usize size_bytes, VkBufferUsageFlags usage) {
-  VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                                 .pNext = nullptr,
-                                 .flags = 0,
-                                 .size = size_bytes,
-                                 .usage = usage,
-                                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    VkDevice dev, VkPhysicalDeviceMemoryProperties const &memory_properties,
+    usize size_bytes, VkBufferUsageFlags usage)
+{
+  VkBufferCreateInfo create_info{.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                                 .pNext                 = nullptr,
+                                 .flags                 = 0,
+                                 .size                  = size_bytes,
+                                 .usage                 = usage,
+                                 .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
                                  .queueFamilyIndexCount = 0,
-                                 .pQueueFamilyIndices = nullptr};
+                                 .pQueueFamilyIndices   = nullptr};
 
   VkBuffer buffer;
 
@@ -1024,33 +1110,35 @@ inline Buffer create_host_buffer(
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .pNext = nullptr,
-      .allocationSize = memory_requirements.size,
+      .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext           = nullptr,
+      .allocationSize  = memory_requirements.size,
       .memoryTypeIndex = memory_type_index};
 
   ASH_VK_CHECK(vkAllocateMemory(dev, &alloc_info, nullptr, &memory));
 
   ASH_VK_CHECK(vkBindBufferMemory(dev, buffer, memory, 0));
 
-  void* memory_map;
+  void *memory_map;
 
   ASH_VK_CHECK(vkMapMemory(dev, memory, 0, VK_WHOLE_SIZE, 0, &memory_map));
 
-  return Buffer{.buffer = buffer,
-                .memory = memory,
+  return Buffer{.buffer     = buffer,
+                .memory     = memory,
                 .memory_map = memory_map,
-                .size = size_bytes,
-                .dev = dev};
+                .size       = size_bytes,
+                .dev        = dev};
 }
 
-struct Image {
-  VkImage image = VK_NULL_HANDLE;
-  VkImageView view = VK_NULL_HANDLE;
+struct Image
+{
+  VkImage        image  = VK_NULL_HANDLE;
+  VkImageView    view   = VK_NULL_HANDLE;
   VkDeviceMemory memory = VK_NULL_HANDLE;
-  VkDevice dev = VK_NULL_HANDLE;
+  VkDevice       dev    = VK_NULL_HANDLE;
 
-  void destroy() {
+  void destroy()
+  {
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyImageView(dev, view, nullptr);
@@ -1058,22 +1146,24 @@ struct Image {
   }
 };
 
-struct ImageResource {
-  VkImage image = VK_NULL_HANDLE;
-  VkImageView view = VK_NULL_HANDLE;
-  VkDeviceMemory memory = VK_NULL_HANDLE;
-  stx::Rc<CommandQueue*> queue;
+struct ImageResource
+{
+  VkImage                 image  = VK_NULL_HANDLE;
+  VkImageView             view   = VK_NULL_HANDLE;
+  VkDeviceMemory          memory = VK_NULL_HANDLE;
+  stx::Rc<CommandQueue *> queue;
 
   ImageResource(VkImage aimage, VkImageView aview, VkDeviceMemory amemory,
-                stx::Rc<CommandQueue*> aqueue)
-      : image{aimage},
-        view{aview},
-        memory{amemory},
-        queue{std::move(aqueue)} {};
+                stx::Rc<CommandQueue *> aqueue) :
+      image{aimage},
+      view{aview},
+      memory{amemory},
+      queue{std::move(aqueue)} {};
 
   STX_MAKE_PINNED(ImageResource)
 
-  ~ImageResource() {
+  ~ImageResource()
+  {
     VkDevice dev = queue->device->dev;
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
@@ -1082,37 +1172,40 @@ struct ImageResource {
   }
 };
 
-struct Sampler {
+struct Sampler
+{
   VkSampler sampler = VK_NULL_HANDLE;
-  VkDevice dev = VK_NULL_HANDLE;
+  VkDevice  dev     = VK_NULL_HANDLE;
 
-  void destroy() {
+  void destroy()
+  {
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkDestroySampler(dev, sampler, nullptr);
   }
 };
 
-inline Sampler create_sampler(stx::Rc<Device*> const& device, VkFilter filter,
+inline Sampler create_sampler(stx::Rc<Device *> const &device, VkFilter filter,
                               VkSamplerMipmapMode mipmap,
-                              VkBool32 enable_anisotropy) {
+                              VkBool32            enable_anisotropy)
+{
   VkSamplerCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .magFilter = filter,
-      .minFilter = filter,
-      .mipmapMode = mipmap,
-      .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-      .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-      .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-      .mipLodBias = 0,
-      .anisotropyEnable = enable_anisotropy,
-      .maxAnisotropy = device->phy_dev->properties.limits.maxSamplerAnisotropy,
-      .compareEnable = VK_FALSE,
-      .compareOp = VK_COMPARE_OP_ALWAYS,
-      .minLod = 0,
-      .maxLod = 0,
-      .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+      .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+      .pNext                   = nullptr,
+      .flags                   = 0,
+      .magFilter               = filter,
+      .minFilter               = filter,
+      .mipmapMode              = mipmap,
+      .addressModeU            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+      .addressModeV            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+      .addressModeW            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+      .mipLodBias              = 0,
+      .anisotropyEnable        = enable_anisotropy,
+      .maxAnisotropy           = device->phy_dev->properties.limits.maxSamplerAnisotropy,
+      .compareEnable           = VK_FALSE,
+      .compareOp               = VK_COMPARE_OP_ALWAYS,
+      .minLod                  = 0,
+      .maxLod                  = 0,
+      .borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
       .unnormalizedCoordinates = VK_FALSE};
 
   VkSampler sampler;
@@ -1122,7 +1215,8 @@ inline Sampler create_sampler(stx::Rc<Device*> const& device, VkFilter filter,
   return Sampler{.sampler = sampler, .dev = device->dev};
 }
 
-struct DescriptorBinding {
+struct DescriptorBinding
+{
   VkDescriptorType type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
   // only valid if type is VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
@@ -1134,57 +1228,64 @@ struct DescriptorBinding {
   // only valid if type is VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
   VkSampler sampler = VK_NULL_HANDLE;
 
-  static constexpr DescriptorBinding make_buffer(VkBuffer buffer) {
-    return DescriptorBinding{.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+  static constexpr DescriptorBinding make_buffer(VkBuffer buffer)
+  {
+    return DescriptorBinding{.type   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                              .buffer = buffer};
   }
 
   static constexpr DescriptorBinding make_sampler(VkImageView view,
-                                                  VkSampler sampler) {
-    return DescriptorBinding{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                             .view = view,
+                                                  VkSampler   sampler)
+  {
+    return DescriptorBinding{.type    = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                             .view    = view,
                              .sampler = sampler};
   }
 };
 
-struct DescriptorSetSpec {
+struct DescriptorSetSpec
+{
   stx::Vec<VkDescriptorType> bindings{stx::os_allocator};
 
   explicit DescriptorSetSpec(
-      std::initializer_list<VkDescriptorType> abindings) {
+      std::initializer_list<VkDescriptorType> abindings)
+  {
     bindings.extend(abindings).unwrap();
   }
 
-  explicit DescriptorSetSpec(stx::Span<VkDescriptorType const> abindings) {
+  explicit DescriptorSetSpec(stx::Span<VkDescriptorType const> abindings)
+  {
     bindings.extend(abindings).unwrap();
   }
 
-  DescriptorSetSpec() {}
+  DescriptorSetSpec()
+  {}
 };
 
 inline Image create_msaa_color_resource(
-    VkDevice dev, VkPhysicalDeviceMemoryProperties const& memory_properties,
+    VkDevice dev, VkPhysicalDeviceMemoryProperties const &memory_properties,
     VkFormat swapchain_format, VkExtent2D swapchain_extent,
-    VkSampleCountFlagBits sample_count) {
+    VkSampleCountFlagBits sample_count)
+{
   VkImageCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .imageType = VK_IMAGE_TYPE_2D,
-      .format = swapchain_format,
-      .extent = VkExtent3D{.width = swapchain_extent.width,
-                           .height = swapchain_extent.height,
-                           .depth = 1},
-      .mipLevels = 1,
+      .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .pNext       = nullptr,
+      .flags       = 0,
+      .imageType   = VK_IMAGE_TYPE_2D,
+      .format      = swapchain_format,
+      .extent      = VkExtent3D{.width  = swapchain_extent.width,
+                                .height = swapchain_extent.height,
+                                .depth  = 1},
+      .mipLevels   = 1,
       .arrayLayers = 1,
-      .samples = sample_count,
-      .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+      .samples     = sample_count,
+      .tiling      = VK_IMAGE_TILING_OPTIMAL,
+      .usage       = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 0,
-      .pQueueFamilyIndices = nullptr,
-      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+      .pQueueFamilyIndices   = nullptr,
+      .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED};
 
   VkImage image;
 
@@ -1200,9 +1301,9 @@ inline Image create_msaa_color_resource(
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .pNext = nullptr,
-      .allocationSize = memory_requirements.size,
+      .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext           = nullptr,
+      .allocationSize  = memory_requirements.size,
       .memoryTypeIndex = memory_type_index};
 
   VkDeviceMemory memory;
@@ -1212,22 +1313,22 @@ inline Image create_msaa_color_resource(
   ASH_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
 
   VkImageViewCreateInfo view_create_info{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .image = image,
-      .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = swapchain_format,
+      .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .pNext      = nullptr,
+      .flags      = 0,
+      .image      = image,
+      .viewType   = VK_IMAGE_VIEW_TYPE_2D,
+      .format     = swapchain_format,
       .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .a = VK_COMPONENT_SWIZZLE_IDENTITY},
       .subresourceRange =
-          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                  .baseMipLevel = 0,
-                                  .levelCount = 1,
+          VkImageSubresourceRange{.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                                  .baseMipLevel   = 0,
+                                  .levelCount     = 1,
                                   .baseArrayLayer = 0,
-                                  .layerCount = 1}};
+                                  .layerCount     = 1}};
 
   VkImageView view;
 
@@ -1237,27 +1338,28 @@ inline Image create_msaa_color_resource(
 }
 
 inline Image create_msaa_depth_resource(
-    VkDevice dev, VkPhysicalDeviceMemoryProperties const& memory_properties,
+    VkDevice dev, VkPhysicalDeviceMemoryProperties const &memory_properties,
     VkFormat depth_format, VkExtent2D swapchain_extent,
-    VkSampleCountFlagBits sample_count) {
+    VkSampleCountFlagBits sample_count)
+{
   VkImageCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .imageType = VK_IMAGE_TYPE_2D,
-      .format = depth_format,
-      .extent = VkExtent3D{.width = swapchain_extent.width,
-                           .height = swapchain_extent.height,
-                           .depth = 1},
-      .mipLevels = 1,
-      .arrayLayers = 1,
-      .samples = sample_count,
-      .tiling = VK_IMAGE_TILING_OPTIMAL,
-      .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+      .pNext                 = nullptr,
+      .flags                 = 0,
+      .imageType             = VK_IMAGE_TYPE_2D,
+      .format                = depth_format,
+      .extent                = VkExtent3D{.width  = swapchain_extent.width,
+                                          .height = swapchain_extent.height,
+                                          .depth  = 1},
+      .mipLevels             = 1,
+      .arrayLayers           = 1,
+      .samples               = sample_count,
+      .tiling                = VK_IMAGE_TILING_OPTIMAL,
+      .usage                 = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+      .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
       .queueFamilyIndexCount = 0,
-      .pQueueFamilyIndices = nullptr,
-      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+      .pQueueFamilyIndices   = nullptr,
+      .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED};
 
   VkImage image;
 
@@ -1273,9 +1375,9 @@ inline Image create_msaa_depth_resource(
           .unwrap();
 
   VkMemoryAllocateInfo alloc_info{
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .pNext = nullptr,
-      .allocationSize = memory_requirements.size,
+      .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext           = nullptr,
+      .allocationSize  = memory_requirements.size,
       .memoryTypeIndex = memory_type_index};
 
   VkDeviceMemory memory;
@@ -1285,22 +1387,22 @@ inline Image create_msaa_depth_resource(
   ASH_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
 
   VkImageViewCreateInfo view_create_info{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .image = image,
-      .viewType = VK_IMAGE_VIEW_TYPE_2D,
-      .format = depth_format,
+      .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .pNext      = nullptr,
+      .flags      = 0,
+      .image      = image,
+      .viewType   = VK_IMAGE_VIEW_TYPE_2D,
+      .format     = depth_format,
       .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
                                        .a = VK_COMPONENT_SWIZZLE_IDENTITY},
       .subresourceRange =
-          VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-                                  .baseMipLevel = 0,
-                                  .levelCount = 1,
+          VkImageSubresourceRange{.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT,
+                                  .baseMipLevel   = 0,
+                                  .levelCount     = 1,
                                   .baseArrayLayer = 0,
-                                  .layerCount = 1}};
+                                  .layerCount     = 1}};
 
   VkImageView view;
 
@@ -1312,11 +1414,13 @@ inline Image create_msaa_depth_resource(
 // choose a specific swapchain format available on the surface
 inline VkSurfaceFormatKHR select_swapchain_surface_formats(
     stx::Span<VkSurfaceFormatKHR const> formats,
-    stx::Span<VkSurfaceFormatKHR const> preferred_formats) {
+    stx::Span<VkSurfaceFormatKHR const> preferred_formats)
+{
   ASH_CHECK(!formats.is_empty(),
             "no window surface format supported by physical device");
 
-  for (VkSurfaceFormatKHR preferred_format : preferred_formats) {
+  for (VkSurfaceFormatKHR preferred_format : preferred_formats)
+  {
     if (!formats
              .which([&](VkSurfaceFormatKHR format) {
                return preferred_format.colorSpace == format.colorSpace &&
@@ -1331,7 +1435,8 @@ inline VkSurfaceFormatKHR select_swapchain_surface_formats(
 
 inline VkPresentModeKHR select_swapchain_presentation_mode(
     stx::Span<VkPresentModeKHR const> available_presentation_modes,
-    stx::Span<VkPresentModeKHR const> preferred_present_modes) noexcept {
+    stx::Span<VkPresentModeKHR const> preferred_present_modes) noexcept
+{
   /// - VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application
   /// are transferred to the screen right away, which may result in tearing.
   ///
@@ -1358,7 +1463,8 @@ inline VkPresentModeKHR select_swapchain_presentation_mode(
   ASH_CHECK(!available_presentation_modes.is_empty(),
             "no surface presentation mode available");
 
-  for (VkPresentModeKHR preferred_present_mode : preferred_present_modes) {
+  for (VkPresentModeKHR preferred_present_mode : preferred_present_modes)
+  {
     if (!available_presentation_modes.find(preferred_present_mode).is_empty())
       return preferred_present_mode;
   }
@@ -1366,19 +1472,24 @@ inline VkPresentModeKHR select_swapchain_presentation_mode(
   ASH_PANIC("unable to find any of the preferred presentation modes");
 }
 
-inline VkFormat find_supported_format(VkPhysicalDevice phy_dev,
+inline VkFormat find_supported_format(VkPhysicalDevice          phy_dev,
                                       stx::Span<VkFormat const> candidates,
-                                      VkImageTiling tiling,
-                                      VkFormatFeatureFlags features) {
-  for (VkFormat format : candidates) {
+                                      VkImageTiling             tiling,
+                                      VkFormatFeatureFlags      features)
+{
+  for (VkFormat format : candidates)
+  {
     VkFormatProperties props;
     vkGetPhysicalDeviceFormatProperties(phy_dev, format, &props);
 
     if (tiling == VK_IMAGE_TILING_LINEAR &&
-        (props.linearTilingFeatures & features) == features) {
+        (props.linearTilingFeatures & features) == features)
+    {
       return format;
-    } else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
-               (props.optimalTilingFeatures & features) == features) {
+    }
+    else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
+             (props.optimalTilingFeatures & features) == features)
+    {
       return format;
     }
   }
@@ -1386,7 +1497,8 @@ inline VkFormat find_supported_format(VkPhysicalDevice phy_dev,
   ASH_PANIC("could not find any supported format");
 }
 
-inline VkFormat find_depth_format(VkPhysicalDevice phy_dev) {
+inline VkFormat find_depth_format(VkPhysicalDevice phy_dev)
+{
   VkFormat formats[] = {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT,
                         VK_FORMAT_D24_UNORM_S8_UINT};
 
@@ -1411,19 +1523,20 @@ inline VkFormat find_depth_format(VkPhysicalDevice phy_dev) {
 /// reference to the surface) we thus can't hold a reference to the swapchain,
 /// its images, nor its image views outside itself (the swapchain object).
 ///
-struct SwapChain {
+struct SwapChain
+{
   u32 max_nframes_in_flight = 0;
 
   // actually holds the images of the surface and used to present to the render
   // target image. when resizing is needed, the swapchain is destroyed and
   // recreated with the desired extents.
   VkSurfaceFormatKHR color_format{
-      .format = VK_FORMAT_R8G8B8A8_SRGB,
+      .format     = VK_FORMAT_R8G8B8A8_SRGB,
       .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};
-  VkFormat depth_format = VK_FORMAT_D32_SFLOAT;
+  VkFormat         depth_format = VK_FORMAT_D32_SFLOAT;
   VkPresentModeKHR present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-  VkExtent2D image_extent{.width = 0, .height = 0};
-  VkExtent2D window_extent{.width = 0, .height = 0};
+  VkExtent2D       image_extent{.width = 0, .height = 0};
+  VkExtent2D       window_extent{.width = 0, .height = 0};
 
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
 
@@ -1465,18 +1578,19 @@ struct SwapChain {
 
   VkDevice dev = VK_NULL_HANDLE;
 
-  bool init(VkPhysicalDevice phy,
-            VkPhysicalDeviceMemoryProperties const& memory_properties,
+  bool init(VkPhysicalDevice                        phy,
+            VkPhysicalDeviceMemoryProperties const &memory_properties,
             VkDevice adev, VkSurfaceKHR target_surface,
-            u32 amax_nframes_in_flight,
+            u32                                 amax_nframes_in_flight,
             stx::Span<VkSurfaceFormatKHR const> preferred_formats,
-            stx::Span<VkPresentModeKHR const> preferred_present_modes,
+            stx::Span<VkPresentModeKHR const>   preferred_present_modes,
             VkExtent2D preferred_extent, VkExtent2D awindow_extent,
-            VkSampleCountFlagBits amsaa_sample_count,
+            VkSampleCountFlagBits       amsaa_sample_count,
             VkCompositeAlphaFlagBitsKHR alpha_blending,
-            spdlog::logger& logger) {
+            spdlog::logger             &logger)
+  {
     max_nframes_in_flight = amax_nframes_in_flight;
-    dev = adev;
+    dev                   = adev;
 
     // the properties change every time we need to create a swapchain so we must
     // query for this every time
@@ -1484,7 +1598,8 @@ struct SwapChain {
         get_swapchain_properties(phy, target_surface);
 
     logger.info("Device Supported Surface Formats:");
-    for (VkSurfaceFormatKHR const& format : properties.supported_formats) {
+    for (VkSurfaceFormatKHR const &format : properties.supported_formats)
+    {
       logger.info("\tFormat: {}, Color Space: {}",
                   string_VkFormat(format.format),
                   string_VkColorSpaceKHR(format.colorSpace));
@@ -1526,15 +1641,16 @@ struct SwapChain {
     logger.info("selected swapchain extent : {}, {}", new_extent.width,
                 new_extent.height);
 
-    if (!is_visible_extent) return false;
+    if (!is_visible_extent)
+      return false;
 
-    swapchain = new_swapchain;
-    color_format = selected_format;
-    present_mode = selected_present_mode;
-    image_extent = new_extent;
-    window_extent = awindow_extent;
+    swapchain         = new_swapchain;
+    color_format      = selected_format;
+    present_mode      = selected_present_mode;
+    image_extent      = new_extent;
+    window_extent     = awindow_extent;
     msaa_sample_count = amsaa_sample_count;
-    depth_format = find_depth_format(phy);
+    depth_format      = find_depth_format(phy);
 
     images = get_swapchain_images(dev, swapchain);
     msaa_color_image =
@@ -1543,24 +1659,25 @@ struct SwapChain {
     msaa_depth_image = create_msaa_depth_resource(
         dev, memory_properties, depth_format, new_extent, msaa_sample_count);
 
-    for (VkImage image : images) {
+    for (VkImage image : images)
+    {
       VkImageViewCreateInfo create_info{
-          .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0,
-          .image = image,
-          .viewType = VK_IMAGE_VIEW_TYPE_2D,
-          .format = color_format.format,
+          .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+          .pNext      = nullptr,
+          .flags      = 0,
+          .image      = image,
+          .viewType   = VK_IMAGE_VIEW_TYPE_2D,
+          .format     = color_format.format,
           .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
                                            .a = VK_COMPONENT_SWIZZLE_IDENTITY},
           .subresourceRange =
-              VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                      .baseMipLevel = 0,
-                                      .levelCount = 1,
+              VkImageSubresourceRange{.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                                      .baseMipLevel   = 0,
+                                      .levelCount     = 1,
                                       .baseArrayLayer = 0,
-                                      .layerCount = 1}};
+                                      .layerCount     = 1}};
 
       VkImageView view;
 
@@ -1570,37 +1687,37 @@ struct SwapChain {
     }
 
     VkAttachmentDescription color_attachment{
-        .flags = 0,
-        .format = color_format.format,
-        .samples = msaa_sample_count,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .flags          = 0,
+        .format         = color_format.format,
+        .samples        = msaa_sample_count,
+        .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
 
     VkAttachmentDescription depth_attachment{
-        .flags = 0,
-        .format = depth_format,
-        .samples = msaa_sample_count,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .flags          = 0,
+        .format         = depth_format,
+        .samples        = msaa_sample_count,
+        .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
 
     VkAttachmentDescription color_attachment_resolve{
-        .flags = 0,
-        .format = color_format.format,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .flags          = 0,
+        .format         = color_format.format,
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR};
 
     VkAttachmentDescription attachments[] = {color_attachment, depth_attachment,
                                              color_attachment_resolve};
@@ -1610,26 +1727,26 @@ struct SwapChain {
 
     VkAttachmentReference depth_attachment_reference{
         .attachment = 1,
-        .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
 
     VkAttachmentReference color_attachment_resolve_reference{
         .attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
 
     VkSubpassDescription subpass{
-        .flags = 0,
-        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-        .inputAttachmentCount = 0,
-        .pInputAttachments = nullptr,
-        .colorAttachmentCount = 1,
-        .pColorAttachments = &color_attachment_reference,
-        .pResolveAttachments = &color_attachment_resolve_reference,
+        .flags                   = 0,
+        .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .inputAttachmentCount    = 0,
+        .pInputAttachments       = nullptr,
+        .colorAttachmentCount    = 1,
+        .pColorAttachments       = &color_attachment_reference,
+        .pResolveAttachments     = &color_attachment_resolve_reference,
         .pDepthStencilAttachment = &depth_attachment_reference,
         .preserveAttachmentCount = 0,
-        .pPreserveAttachments = nullptr};
+        .pPreserveAttachments    = nullptr};
 
     VkSubpassDependency dependency{
-        .srcSubpass = VK_SUBPASS_EXTERNAL,
-        .dstSubpass = 0,
+        .srcSubpass   = VK_SUBPASS_EXTERNAL,
+        .dstSubpass   = 0,
         .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
                         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
         .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
@@ -1640,35 +1757,36 @@ struct SwapChain {
         .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT};
 
     VkRenderPassCreateInfo render_pass_create_info{
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
+        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .pNext           = nullptr,
+        .flags           = 0,
         .attachmentCount = AS(u32, std::size(attachments)),
-        .pAttachments = attachments,
-        .subpassCount = 1,
-        .pSubpasses = &subpass,
+        .pAttachments    = attachments,
+        .subpassCount    = 1,
+        .pSubpasses      = &subpass,
         .dependencyCount = 1,
-        .pDependencies = &dependency};
+        .pDependencies   = &dependency};
 
     ASH_VK_CHECK(vkCreateRenderPass(dev, &render_pass_create_info, nullptr,
                                     &render_pass));
 
-    for (usize i = 0; i < images.size(); i++) {
+    for (usize i = 0; i < images.size(); i++)
+    {
       VkFramebuffer framebuffer;
 
       VkImageView attachments[] = {msaa_color_image.view, msaa_depth_image.view,
                                    image_views[i]};
 
       VkFramebufferCreateInfo create_info{
-          .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0,
-          .renderPass = render_pass,
+          .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+          .pNext           = nullptr,
+          .flags           = 0,
+          .renderPass      = render_pass,
           .attachmentCount = AS(u32, std::size(attachments)),
-          .pAttachments = attachments,
-          .width = image_extent.width,
-          .height = image_extent.height,
-          .layers = 1};
+          .pAttachments    = attachments,
+          .width           = image_extent.width,
+          .height          = image_extent.height,
+          .layers          = 1};
 
       ASH_VK_CHECK(
           vkCreateFramebuffer(dev, &create_info, nullptr, &framebuffer));
@@ -1676,7 +1794,8 @@ struct SwapChain {
       framebuffers.push_inplace(framebuffer).unwrap();
     }
 
-    for (usize i = 0; i < max_nframes_in_flight; i++) {
+    for (usize i = 0; i < max_nframes_in_flight; i++)
+    {
       VkSemaphoreCreateInfo semaphore_create_info{
           .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
           .pNext = nullptr,
@@ -1725,7 +1844,8 @@ struct SwapChain {
     return true;
   }
 
-  void destroy() {
+  void destroy()
+  {
     // await idleness of the semaphores device, so we can destroy the
     // semaphore and images whilst not in use.
     // any part of the device could be using the semaphore
@@ -1737,27 +1857,33 @@ struct SwapChain {
     msaa_color_image.destroy();
     msaa_depth_image.destroy();
 
-    for (VkFramebuffer framebuffer : framebuffers) {
+    for (VkFramebuffer framebuffer : framebuffers)
+    {
       vkDestroyFramebuffer(dev, framebuffer, nullptr);
     }
 
-    for (VkFence fence : render_fences) {
+    for (VkFence fence : render_fences)
+    {
       vkDestroyFence(dev, fence, nullptr);
     }
 
-    for (VkFence fence : image_acquisition_fences) {
+    for (VkFence fence : image_acquisition_fences)
+    {
       vkDestroyFence(dev, fence, nullptr);
     }
 
-    for (VkSemaphore semaphore : render_semaphores) {
+    for (VkSemaphore semaphore : render_semaphores)
+    {
       vkDestroySemaphore(dev, semaphore, nullptr);
     }
 
-    for (VkSemaphore semaphore : image_acquisition_semaphores) {
+    for (VkSemaphore semaphore : image_acquisition_semaphores)
+    {
       vkDestroySemaphore(dev, semaphore, nullptr);
     }
 
-    for (VkImageView image_view : image_views) {
+    for (VkImageView image_view : image_views)
+    {
       vkDestroyImageView(dev, image_view, nullptr);
     }
 
@@ -1766,7 +1892,8 @@ struct SwapChain {
   }
 };
 
-struct Surface {
+struct Surface
+{
   // only a pointer to metadata, does not contain data itself, resilient to
   // resizing
   VkSurfaceKHR surface = VK_NULL_HANDLE;
@@ -1785,10 +1912,12 @@ struct Surface {
 
   VkInstance instance = VK_NULL_HANDLE;
 
-  void destroy() {
+  void destroy()
+  {
     // we need to ensure the swapchain is destroyed before the surface (if not
     // already destroyed)
-    if (swapchain.is_some()) {
+    if (swapchain.is_some())
+    {
       swapchain.value().destroy();
     }
 
@@ -1796,14 +1925,16 @@ struct Surface {
   }
 
   void change_swapchain(
-      stx::Rc<CommandQueue*> const& queue, u32 max_nframes_in_flight,
+      stx::Rc<CommandQueue *> const &queue, u32 max_nframes_in_flight,
       stx::Span<VkSurfaceFormatKHR const> preferred_formats,
-      stx::Span<VkPresentModeKHR const> preferred_present_modes,
+      stx::Span<VkPresentModeKHR const>   preferred_present_modes,
       VkExtent2D preferred_extent, VkExtent2D window_extent,
-      VkSampleCountFlagBits msaa_sample_count,
-      VkCompositeAlphaFlagBitsKHR alpha_blending, spdlog::logger& logger) {
+      VkSampleCountFlagBits       msaa_sample_count,
+      VkCompositeAlphaFlagBitsKHR alpha_blending, spdlog::logger &logger)
+  {
     // don't want to have two existing at once
-    if (swapchain.is_some()) {
+    if (swapchain.is_some())
+    {
       swapchain.value().destroy();
       swapchain = stx::None;
     }
@@ -1815,50 +1946,53 @@ struct Surface {
                             queue->device->dev, surface, max_nframes_in_flight,
                             preferred_formats, preferred_present_modes,
                             preferred_extent, window_extent, msaa_sample_count,
-                            alpha_blending, logger)) {
+                            alpha_blending, logger))
+    {
       is_zero_sized_swapchain = true;
       return;
     }
 
-    swapchain = stx::Some(std::move(new_swapchain));
+    swapchain               = stx::Some(std::move(new_swapchain));
     is_zero_sized_swapchain = false;
   }
 };
 
-struct Pipeline {
-  VkPipeline pipeline = VK_NULL_HANDLE;
-  VkPipelineLayout layout = VK_NULL_HANDLE;
-  VkRenderPass target_render_pass = VK_NULL_HANDLE;
-  VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
-  VkDevice dev = VK_NULL_HANDLE;
+struct Pipeline
+{
+  VkPipeline            pipeline           = VK_NULL_HANDLE;
+  VkPipelineLayout      layout             = VK_NULL_HANDLE;
+  VkRenderPass          target_render_pass = VK_NULL_HANDLE;
+  VkSampleCountFlagBits msaa_sample_count  = VK_SAMPLE_COUNT_1_BIT;
+  VkDevice              dev                = VK_NULL_HANDLE;
 
   void build(
       VkDevice adev, VkShaderModule vertex_shader,
       VkShaderModule fragment_shader, VkRenderPass atarget_render_pass,
-      VkSampleCountFlagBits amsaa_sample_count,
-      stx::Span<VkDescriptorSetLayout const> descriptor_set_layout,
+      VkSampleCountFlagBits                              amsaa_sample_count,
+      stx::Span<VkDescriptorSetLayout const>             descriptor_set_layout,
       stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr,
-      u32 vertex_input_size, u32 push_constant_size) {
-    dev = adev;
-    msaa_sample_count = amsaa_sample_count;
+      u32 vertex_input_size, u32 push_constant_size)
+  {
+    dev                = adev;
+    msaa_sample_count  = amsaa_sample_count;
     target_render_pass = atarget_render_pass;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = vertex_shader,
-        .pName = "main",
+        .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .pNext               = nullptr,
+        .flags               = 0,
+        .stage               = VK_SHADER_STAGE_VERTEX_BIT,
+        .module              = vertex_shader,
+        .pName               = "main",
         .pSpecializationInfo = nullptr};
 
     VkPipelineShaderStageCreateInfo frag_shader_stage{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = fragment_shader,
-        .pName = "main",
+        .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .pNext               = nullptr,
+        .flags               = 0,
+        .stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .module              = fragment_shader,
+        .pName               = "main",
         .pSpecializationInfo = nullptr};
 
     VkPipelineShaderStageCreateInfo stages[] = {vert_shader_stage,
@@ -1868,105 +2002,105 @@ struct Pipeline {
 
     VkPushConstantRange push_constant{
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        .offset = 0,
-        .size = push_constant_size};
+        .offset     = 0,
+        .size       = push_constant_size};
 
     VkPipelineLayoutCreateInfo layout_create_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .setLayoutCount = AS(u32, descriptor_set_layout.size()),
-        .pSetLayouts = descriptor_set_layout.data(),
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .pNext                  = nullptr,
+        .flags                  = 0,
+        .setLayoutCount         = AS(u32, descriptor_set_layout.size()),
+        .pSetLayouts            = descriptor_set_layout.data(),
         .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &push_constant};
+        .pPushConstantRanges    = &push_constant};
 
     ASH_VK_CHECK(
         vkCreatePipelineLayout(dev, &layout_create_info, nullptr, &layout));
 
     VkPipelineColorBlendAttachmentState color_blend_attachment_states[] = {
-        {.blendEnable = VK_TRUE,
+        {.blendEnable         = VK_TRUE,
          .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
          .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-         .colorBlendOp = VK_BLEND_OP_ADD,
+         .colorBlendOp        = VK_BLEND_OP_ADD,
          .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
          .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-         .alphaBlendOp = VK_BLEND_OP_ADD,
-         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+         .alphaBlendOp        = VK_BLEND_OP_ADD,
+         .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                            VK_COLOR_COMPONENT_B_BIT |
                            VK_COLOR_COMPONENT_A_BIT}};
 
     VkPipelineColorBlendStateCreateInfo color_blend_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .logicOpEnable = VK_FALSE,
-        .logicOp = VK_LOGIC_OP_COPY,
+        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .pNext           = nullptr,
+        .flags           = 0,
+        .logicOpEnable   = VK_FALSE,
+        .logicOp         = VK_LOGIC_OP_COPY,
         .attachmentCount = AS(u32, std::size(color_blend_attachment_states)),
-        .pAttachments = color_blend_attachment_states,
-        .blendConstants = {0, 0, 0, 0}};
+        .pAttachments    = color_blend_attachment_states,
+        .blendConstants  = {0, 0, 0, 0}};
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .depthTestEnable = VK_TRUE,
-        .depthWriteEnable = VK_TRUE,
-        .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .pNext                 = nullptr,
+        .flags                 = 0,
+        .depthTestEnable       = VK_TRUE,
+        .depthWriteEnable      = VK_TRUE,
+        .depthCompareOp        = VK_COMPARE_OP_LESS_OR_EQUAL,
         .depthBoundsTestEnable = VK_FALSE,
-        .stencilTestEnable = VK_FALSE,
-        .front = VkStencilOpState{.failOp = VK_STENCIL_OP_KEEP,
-                                  .passOp = VK_STENCIL_OP_KEEP,
-                                  .depthFailOp = VK_STENCIL_OP_KEEP,
-                                  .compareOp = VK_COMPARE_OP_NEVER,
-                                  .compareMask = 0,
-                                  .writeMask = 0,
-                                  .reference = 0},
-        .back = VkStencilOpState{.failOp = VK_STENCIL_OP_KEEP,
-                                 .passOp = VK_STENCIL_OP_KEEP,
-                                 .depthFailOp = VK_STENCIL_OP_KEEP,
-                                 .compareOp = VK_COMPARE_OP_ALWAYS,
-                                 .compareMask = 0,
-                                 .writeMask = 0,
-                                 .reference = 0},
-        .minDepthBounds = 0,
-        .maxDepthBounds = 1};
+        .stencilTestEnable     = VK_FALSE,
+        .front                 = VkStencilOpState{.failOp      = VK_STENCIL_OP_KEEP,
+                                                  .passOp      = VK_STENCIL_OP_KEEP,
+                                                  .depthFailOp = VK_STENCIL_OP_KEEP,
+                                                  .compareOp   = VK_COMPARE_OP_NEVER,
+                                                  .compareMask = 0,
+                                                  .writeMask   = 0,
+                                                  .reference   = 0},
+        .back                  = VkStencilOpState{.failOp      = VK_STENCIL_OP_KEEP,
+                                                  .passOp      = VK_STENCIL_OP_KEEP,
+                                                  .depthFailOp = VK_STENCIL_OP_KEEP,
+                                                  .compareOp   = VK_COMPARE_OP_ALWAYS,
+                                                  .compareMask = 0,
+                                                  .writeMask   = 0,
+                                                  .reference   = 0},
+        .minDepthBounds        = 0,
+        .maxDepthBounds        = 1};
 
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .pNext                  = nullptr,
+        .flags                  = 0,
+        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
         .primitiveRestartEnable = VK_FALSE};
 
     VkPipelineMultisampleStateCreateInfo multisample_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .rasterizationSamples = msaa_sample_count,
-        .sampleShadingEnable = VK_FALSE,
-        .minSampleShading = 1,
-        .pSampleMask = nullptr,
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .pNext                 = nullptr,
+        .flags                 = 0,
+        .rasterizationSamples  = msaa_sample_count,
+        .sampleShadingEnable   = VK_FALSE,
+        .minSampleShading      = 1,
+        .pSampleMask           = nullptr,
         .alphaToCoverageEnable = VK_FALSE,
-        .alphaToOneEnable = VK_FALSE};
+        .alphaToOneEnable      = VK_FALSE};
 
     VkPipelineRasterizationStateCreateInfo rasterization_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .depthClampEnable = VK_FALSE,
+        .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .pNext                   = nullptr,
+        .flags                   = 0,
+        .depthClampEnable        = VK_FALSE,
         .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_NONE,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE,
+        .polygonMode             = VK_POLYGON_MODE_FILL,
+        .cullMode                = VK_CULL_MODE_NONE,
+        .frontFace               = VK_FRONT_FACE_CLOCKWISE,
+        .depthBiasEnable         = VK_FALSE,
         .depthBiasConstantFactor = 0,
-        .depthBiasClamp = 0,
-        .depthBiasSlopeFactor = 0,
-        .lineWidth = 1};
+        .depthBiasClamp          = 0,
+        .depthBiasSlopeFactor    = 0,
+        .lineWidth               = 1};
 
     VkVertexInputBindingDescription vertex_binding_descriptions[] = {
-        {.binding = 0,
-         .stride = vertex_input_size,
+        {.binding   = 0,
+         .stride    = vertex_input_size,
          .inputRate = VK_VERTEX_INPUT_RATE_VERTEX}};
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state{
@@ -1975,65 +2109,67 @@ struct Pipeline {
         .flags = 0,
         .vertexBindingDescriptionCount =
             AS(u32, std::size(vertex_binding_descriptions)),
-        .pVertexBindingDescriptions = vertex_binding_descriptions,
+        .pVertexBindingDescriptions      = vertex_binding_descriptions,
         .vertexAttributeDescriptionCount = AS(u32, vertex_input_attr.size()),
-        .pVertexAttributeDescriptions = vertex_input_attr.data()};
+        .pVertexAttributeDescriptions    = vertex_input_attr.data()};
 
     VkPipelineViewportStateCreateInfo viewport_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
+        .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .pNext         = nullptr,
+        .flags         = 0,
         .viewportCount = 1,
-        .pViewports = nullptr,
-        .scissorCount = 1,
-        .pScissors = nullptr};
+        .pViewports    = nullptr,
+        .scissorCount  = 1,
+        .pScissors     = nullptr};
 
     VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT,
                                        VK_DYNAMIC_STATE_SCISSOR};
 
     VkPipelineDynamicStateCreateInfo dynamic_state{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
+        .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .pNext             = nullptr,
+        .flags             = 0,
         .dynamicStateCount = AS(u32, std::size(dynamic_states)),
-        .pDynamicStates = dynamic_states};
+        .pDynamicStates    = dynamic_states};
 
     VkGraphicsPipelineCreateInfo create_info{
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .stageCount = AS(u32, std::size(stages)),
-        .pStages = stages,
-        .pVertexInputState = &vertex_input_state,
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext               = nullptr,
+        .flags               = 0,
+        .stageCount          = AS(u32, std::size(stages)),
+        .pStages             = stages,
+        .pVertexInputState   = &vertex_input_state,
         .pInputAssemblyState = &input_assembly_state,
-        .pTessellationState = nullptr,
-        .pViewportState = &viewport_state,
+        .pTessellationState  = nullptr,
+        .pViewportState      = &viewport_state,
         .pRasterizationState = &rasterization_state,
-        .pMultisampleState = &multisample_state,
-        .pDepthStencilState = &depth_stencil_state,
-        .pColorBlendState = &color_blend_state,
-        .pDynamicState = &dynamic_state,
-        .layout = layout,
-        .renderPass = target_render_pass,
-        .subpass = 0,
-        .basePipelineHandle = VK_NULL_HANDLE,
-        .basePipelineIndex = 0};
+        .pMultisampleState   = &multisample_state,
+        .pDepthStencilState  = &depth_stencil_state,
+        .pColorBlendState    = &color_blend_state,
+        .pDynamicState       = &dynamic_state,
+        .layout              = layout,
+        .renderPass          = target_render_pass,
+        .subpass             = 0,
+        .basePipelineHandle  = VK_NULL_HANDLE,
+        .basePipelineIndex   = 0};
 
     ASH_VK_CHECK(vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &create_info,
                                            nullptr, &pipeline));
   }
 
-  void destroy() {
+  void destroy()
+  {
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkDestroyPipelineLayout(dev, layout, nullptr);
     vkDestroyPipeline(dev, pipeline, nullptr);
   }
 };
 
-struct DescriptorPoolInfo {
+struct DescriptorPoolInfo
+{
   stx::Vec<VkDescriptorPoolSize> sizes;
-  u32 max_sets = 0;
+  u32                            max_sets = 0;
 };
 
-}  // namespace vk
-}  // namespace ash
+}        // namespace vk
+}        // namespace ash

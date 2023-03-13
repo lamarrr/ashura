@@ -7,8 +7,12 @@
 #include "spdlog/spdlog.h"
 #include "stx/vec.h"
 
-namespace ash {
+namespace ash
+{
 
-void App::tick(std::chrono::nanoseconds interval) { engine.tick(interval); }
+void App::tick(std::chrono::nanoseconds interval)
+{
+  engine.tick(interval);
+}
 
-}  // namespace ash
+}        // namespace ash

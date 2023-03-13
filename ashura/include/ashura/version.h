@@ -1,10 +1,12 @@
 #pragma once
 #include "ashura/primitives.h"
 
-namespace ash {
+namespace ash
+{
 
-struct Version {
+struct Version
+{
   u8 major = 0, minor = 0, patch = 0;
 };
 
-}  // namespace ash
+}        // namespace ash

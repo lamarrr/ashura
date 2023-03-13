@@ -10,26 +10,32 @@
 #include "stx/rc.h"
 #include "stx/vec.h"
 
-namespace ash {
+namespace ash
+{
 
-enum class WindowID : u32 {};
+enum class WindowID : u32
+{
+};
 
 struct Window;
 
 // not thread-safe, only one instance should be possible
 // this also dispatches events to the created windows
-struct WindowApi {
+struct WindowApi
+{
   WindowApi();
 
   STX_MAKE_PINNED(WindowApi)
 
   ~WindowApi();
 
-  void add_window_info(WindowID id, Window *win) {
+  void add_window_info(WindowID id, Window *win)
+  {
     windows_info_.emplace(id, win);
   }
 
-  Window *get_window_info(WindowID id) {
+  Window *get_window_info(WindowID id)
+  {
     auto window_entry_pos = windows_info_.find(id);
     ASH_CHECK(window_entry_pos != windows_info_.end());
 
@@ -38,7 +44,8 @@ struct WindowApi {
 
   // must be a valid window registered with this api and added with the
   // 'add_window_info' method
-  void remove_window_info(WindowID id) {
+  void remove_window_info(WindowID id)
+  {
     auto pos = windows_info_.find(id);
     ASH_CHECK(pos != windows_info_.end());
     windows_info_.erase(pos);
@@ -55,4 +62,4 @@ struct WindowApi {
   std::map<WindowID, Window *> windows_info_;
 };
 
-}  // namespace ash
+}        // namespace ash

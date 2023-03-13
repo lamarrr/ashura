@@ -4,7 +4,8 @@
 #include "stx/panic.h"
 
 #define ASH_SDL_CHECK(expr, additional_context_message)              \
-  do {                                                               \
+  do                                                                 \
+  {                                                                  \
     if (!(expr))                                                     \
       ::stx::panic(additional_context_message ". SDL's Last Error:", \
                    ::std::string_view(::SDL_GetError()));            \

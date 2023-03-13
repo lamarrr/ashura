@@ -6,9 +6,11 @@
 
 #define ASH_PANIC(...) ::stx::panic(__VA_ARGS__)
 
-#define ASH_CHECK(expr, ...)                \
-  do {                                      \
-    if (!(expr)) ::stx::panic(__VA_ARGS__); \
+#define ASH_CHECK(expr, ...)     \
+  do                             \
+  {                              \
+    if (!(expr))                 \
+      ::stx::panic(__VA_ARGS__); \
   } while (false)
 
 #define ASH_ERRNUM_CASE(x) \
@@ -34,20 +36,23 @@
 #define AS_F64(...) AS(::ash::f64, __VA_ARGS__)
 
 #define ASH_U8_CLAMP(...) \
-  ((__VA_ARGS__) < 0      \
-       ? (::ash::u8)0     \
-       : ((__VA_ARGS__) > 255 ? (::ash::u8)255 : (::ash::u8)(__VA_ARGS__)))
+  ((__VA_ARGS__) < 0 ? (::ash::u8) 0 : ((__VA_ARGS__) > 255 ? (::ash::u8) 255 : (::ash::u8)(__VA_ARGS__)))
 
-namespace ash {
+namespace ash
+{
 
 template <typename Target, typename Source>
-STX_FORCE_INLINE stx::Option<Target *> upcast(Source &source) {
+STX_FORCE_INLINE stx::Option<Target *> upcast(Source &source)
+{
   Target *ptr = dynamic_cast<Target *>(&source);
-  if (ptr == nullptr) {
+  if (ptr == nullptr)
+  {
     return stx::None;
-  } else {
+  }
+  else
+  {
     return stx::Some(static_cast<Target *>(ptr));
   }
 }
 
-}  // namespace ash
+}        // namespace ash

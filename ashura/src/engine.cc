@@ -13,12 +13,15 @@
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
-namespace ash {
+namespace ash
+{
 
-namespace impl {
+namespace impl
+{
 
-static stx::Rc<spdlog::logger*> make_multi_threaded_logger(
-    std::string name, std::string file_path) {
+static stx::Rc<spdlog::logger *> make_multi_threaded_logger(
+    std::string name, std::string file_path)
+{
   stx::Vec<spdlog::sink_ptr> sinks{stx::os_allocator};
   sinks
       .push(std::make_shared<spdlog::sinks::basic_file_sink_mt>(
@@ -31,15 +34,17 @@ static stx::Rc<spdlog::logger*> make_multi_threaded_logger(
              stx::os_allocator, std::move(name), sinks.begin(), sinks.end())
       .unwrap();
 }
-}  // namespace impl
+}        // namespace impl
 
 inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
     stx::Span<vk::PhyDeviceInfo const> const phy_devices,
-    stx::Span<VkPhysicalDeviceType const> preferred_device_types,
-    vk::Surface const& target_surface) {
-  for (VkPhysicalDeviceType type : preferred_device_types) {
+    stx::Span<VkPhysicalDeviceType const>    preferred_device_types,
+    vk::Surface const                       &target_surface)
+{
+  for (VkPhysicalDeviceType type : preferred_device_types)
+  {
     if (stx::Span selected =
-            phy_devices.which([&](vk::PhyDeviceInfo const& dev) -> bool {
+            phy_devices.which([&](vk::PhyDeviceInfo const &dev) -> bool {
               return dev.properties.deviceType == type &&
                      // can use shaders (fragment and vertex)
                      dev.has_geometry_shader() &&
@@ -56,7 +61,8 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
                           .find(true)
                           .is_empty();
             });
-        !selected.is_empty()) {
+        !selected.is_empty())
+    {
       return stx::Some(std::move(selected));
     }
   }
@@ -64,25 +70,27 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>> select_device(
   return stx::None;
 }
 
-Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
-    : task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()},
-      root_widget{iroot_widget},
-      widget_system{*root_widget} {
+Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
+    task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()},
+    root_widget{iroot_widget},
+    widget_system{*root_widget}
+{
   widget_context.task_scheduler = &task_scheduler;
-  stx::Vec<char const*> required_device_extensions{stx::os_allocator};
+  stx::Vec<char const *> required_device_extensions{stx::os_allocator};
 
   required_device_extensions.push(VK_KHR_SWAPCHAIN_EXTENSION_NAME).unwrap();
 
-  stx::Vec<char const*> required_validation_layers{stx::os_allocator};
+  stx::Vec<char const *> required_validation_layers{stx::os_allocator};
 
-  if (cfg.enable_validation_layers) {
+  if (cfg.enable_validation_layers)
+  {
     required_validation_layers.push("VK_LAYER_KHRONOS_validation").unwrap();
   }
 
   logger = stx::Some(
       impl::make_multi_threaded_logger("ashura", cfg.log_file.c_str()));
 
-  auto& xlogger = *logger.value().handle;
+  auto &xlogger = *logger.value().handle;
 
   xlogger.info("Initializing Window API");
 
@@ -113,14 +121,15 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
 
   xlogger.info("Available Physical Devices:");
 
-  for (vk::PhyDeviceInfo const& device : phy_devices) {
+  for (vk::PhyDeviceInfo const &device : phy_devices)
+  {
     // TODO(lamarrr): log graphics families on devices and other properties
     xlogger.info("Device(name: '{}', ID: {}, type: {})",
                  device.properties.deviceName, device.properties.deviceID,
                  string_VkPhysicalDeviceType(device.properties.deviceType));
   }
 
-  stx::Rc<vk::PhyDeviceInfo*> phy_device =
+  stx::Rc<vk::PhyDeviceInfo *> phy_device =
       stx::rc::make(
           stx::os_allocator,
           select_device(phy_devices, device_preference,
@@ -150,22 +159,22 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
   // perform extra manual checks
   // the user shouldn't have to touch handles
   VkDeviceQueueCreateInfo command_queue_create_infos[] = {
-      {.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-       .pNext = nullptr,
-       .flags = 0,
+      {.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+       .pNext            = nullptr,
+       .flags            = 0,
        .queueFamilyIndex = graphics_command_queue_family->index,
-       .queueCount = AS(u32, std::size(queue_priorities)),
+       .queueCount       = AS(u32, std::size(queue_priorities)),
        .pQueuePriorities = queue_priorities}};
 
   VkPhysicalDeviceFeatures required_features{};
 
   required_features.samplerAnisotropy = VK_TRUE;
 
-  stx::Rc<vk::Device*> device = vk::create_device(
+  stx::Rc<vk::Device *> device = vk::create_device(
       phy_device, command_queue_create_infos, required_device_extensions,
       required_validation_layers, required_features, xlogger);
 
-  stx::Rc<vk::CommandQueue*> xqueue =
+  stx::Rc<vk::CommandQueue *> xqueue =
       stx::rc::make_inplace<vk::CommandQueue>(
           stx::os_allocator,
           vk::get_command_queue(device, *graphics_command_queue_family.handle,
@@ -177,7 +186,7 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
 
   window.value()->recreate_swapchain(xqueue, DEFAULT_MAX_FRAMES_IN_FLIGHT,
                                      xlogger);
-  auto& swp = window.value()->surface.value()->swapchain.value();
+  auto &swp = window.value()->surface.value()->swapchain.value();
 
   xlogger.info(
       "recreated swapchain for logical/window/viewport extent: [{}, {}], "
@@ -286,7 +295,8 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
       WindowEvents::All,
       stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents
                                                                      events) {
-        if ((events & WindowEvents::MouseLeave) != WindowEvents::None) {
+        if ((events & WindowEvents::MouseLeave) != WindowEvents::None)
+        {
           widget_system.events.push_inplace(events).unwrap();
         }
       }).unwrap());
@@ -295,12 +305,14 @@ Engine::Engine(AppConfig const& cfg, Widget* iroot_widget)
   widget_system.launch(widget_context);
 }
 
-void Engine::tick(std::chrono::nanoseconds interval) {
+void Engine::tick(std::chrono::nanoseconds interval)
+{
   // poll events to make the window not be marked as unresponsive.
   // poll events from SDL's event queue until there are none left.
   //
   task_scheduler.tick(interval);
-  do {
+  do
+  {
   } while (window_api.value()->poll_events());
 
   window.value()->tick(interval);
@@ -324,7 +336,8 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   // acquire swapchain image, or submit to renderer
   // do not increase the frame flight indices as well since the sync primitves
   // aren't used
-  if (!window.value()->surface.value()->is_zero_sized_swapchain) {
+  if (!window.value()->surface.value()->is_zero_sized_swapchain)
+  {
     record_draw_commands();
   }
   // only try to present if the pipeline has new changes or window was
@@ -337,13 +350,16 @@ void Engine::tick(std::chrono::nanoseconds interval) {
   SwapChainState swapchain_state = SwapChainState::Ok;
 
   // TODO(lamarrr): restructure this part and make it more sane
-  do {
-    if (swapchain_state != SwapChainState::Ok) {
+  do
+  {
+    if (swapchain_state != SwapChainState::Ok)
+    {
       window.value()->recreate_swapchain(
           queue.value(), DEFAULT_MAX_FRAMES_IN_FLIGHT, *logger.value().handle);
       // TODO(lamarrr): fix
-      if (!window.value()->surface.value()->is_zero_sized_swapchain) {
-        auto& swp = window.value()->surface.value()->swapchain.value();
+      if (!window.value()->surface.value()->is_zero_sized_swapchain)
+      {
+        auto &swp = window.value()->surface.value()->swapchain.value();
         logger.value()->info(
             "recreated swapchain for logical/window/viewport extent: [{}, {}], "
             "physical/surface extent: [{}, {}]",
@@ -354,19 +370,21 @@ void Engine::tick(std::chrono::nanoseconds interval) {
       }
     }
 
-    if (!window.value()->surface.value()->is_zero_sized_swapchain) {
-      vk::SwapChain& swapchain =
+    if (!window.value()->surface.value()->is_zero_sized_swapchain)
+    {
+      vk::SwapChain &swapchain =
           window.value()->surface.value()->swapchain.value();
 
       auto [state, swapchain_image_index] = window.value()->acquire_image();
 
       swapchain_state = state;
 
-      if (swapchain_state != SwapChainState::Ok) {
+      if (swapchain_state != SwapChainState::Ok)
+      {
         continue;
       }
 
-      gfx::DrawList const& draw_list = canvas.draw_list;
+      gfx::DrawList const &draw_list = canvas.draw_list;
 
       renderer.submit(
           swapchain.window_extent, swapchain.image_extent,
@@ -383,10 +401,12 @@ void Engine::tick(std::chrono::nanoseconds interval) {
       // the frame semaphores and synchronization primitives are still used even
       // if an error is returned
       swapchain.frame = (swapchain.frame + 1) % swapchain.max_nframes_in_flight;
-    } else {
+    }
+    else
+    {
       swapchain_state = SwapChainState::Ok;
     }
   } while (swapchain_state != SwapChainState::Ok);
 }
 
-}  // namespace ash
+}        // namespace ash

@@ -1,8 +1,10 @@
 #pragma once
 
-namespace ash {
+namespace ash
+{
 
-struct ClipBoard {
+struct ClipBoard
+{
   void get_text();
 
   void set_text();
@@ -10,4 +12,4 @@ struct ClipBoard {
   bool has_text();
 };
 
-}  // namespace ash
+}        // namespace ash

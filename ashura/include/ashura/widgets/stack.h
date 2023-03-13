@@ -4,9 +4,11 @@
 #include "ashura/widget.h"
 #include "stx/vec.h"
 
-namespace ash {
+namespace ash
+{
 
-enum class Alignment : u8 {
+enum class Alignment : u8
+{
   TopLeft,
   TopCenter,
   TopRight,
@@ -18,20 +20,25 @@ enum class Alignment : u8 {
   BottomRight
 };
 
-struct Stack : public Widget {
+struct Stack : public Widget
+{
   template <typename... DerivedWidget>
   explicit Stack(Alignment ialignment, DerivedWidget... ichildren);
 
-  virtual ~Stack() override {
-    for (Widget* child : children) {
+  virtual ~Stack() override
+  {
+    for (Widget *child : children)
+    {
       delete child;
     }
   }
 
-// update_children(DerivedWidget...)
+  // update_children(DerivedWidget...)
 
-  void update_children(stx::Span<Widget* const> new_children) {
-    for (Widget* child : children) {
+  void update_children(stx::Span<Widget *const> new_children)
+  {
+    for (Widget *child : children)
+    {
       delete child;
     }
 
@@ -39,20 +46,24 @@ struct Stack : public Widget {
     children.extend(new_children).unwrap();
   }
 
-  virtual stx::Span<Widget* const> get_children() override { return children; }
+  virtual stx::Span<Widget *const> get_children() override
+  {
+    return children;
+  }
 
-  constexpr virtual WidgetInfo get_info() override {
+  constexpr virtual WidgetInfo get_info() override
+  {
     return WidgetInfo{.type = "Stack", .id = Widget::id};
   }
 
   constexpr virtual Layout layout(rect area);
 
-  virtual simdjson::dom::element save(WidgetContext & context,simdjson::dom::parser& parser);
+  virtual simdjson::dom::element save(WidgetContext &context, simdjson::dom::parser &parser);
 
-  virtual void restore(WidgetContext & context,simdjson::dom::element const& element);
+  virtual void restore(WidgetContext &context, simdjson::dom::element const &element);
 
-  Alignment alignment = Alignment::TopLeft;
-  stx::Vec<Widget*> children{stx::os_allocator};
+  Alignment          alignment = Alignment::TopLeft;
+  stx::Vec<Widget *> children{stx::os_allocator};
 };
 
-}  // namespace ash
+}        // namespace ash

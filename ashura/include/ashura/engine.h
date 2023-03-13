@@ -18,33 +18,36 @@
 #include "stx/scheduler.h"
 #include "stx/string.h"
 
-namespace ash {
+namespace ash
+{
 
-struct Engine {
+struct Engine
+{
   static constexpr u32 DEFAULT_MAX_FRAMES_IN_FLIGHT = 2;
 
-  Engine(AppConfig const& cfg, Widget* root_widget);
+  Engine(AppConfig const &cfg, Widget *root_widget);
 
-  ~Engine() {
+  ~Engine()
+  {
     delete root_widget;
     renderer.destroy();
     upload_context.destroy();
   }
 
-  stx::Option<stx::Rc<spdlog::logger*>> logger;
-  stx::Option<stx::Rc<WindowApi*>> window_api;
-  stx::Option<stx::Rc<Window*>> window;
-  stx::Option<stx::Rc<vk::CommandQueue*>> queue;
-  gfx::Canvas canvas;
-  vk::CanvasRenderer renderer;
-  vk::UploadContext upload_context;
-  AssetBundle<stx::Rc<vk::ImageResource*>> image_bundle;
-  stx::TaskScheduler task_scheduler;
-  WidgetContext widget_context;
-  Widget* root_widget = nullptr;
-  WidgetSystem widget_system;
+  stx::Option<stx::Rc<spdlog::logger *>>    logger;
+  stx::Option<stx::Rc<WindowApi *>>         window_api;
+  stx::Option<stx::Rc<Window *>>            window;
+  stx::Option<stx::Rc<vk::CommandQueue *>>  queue;
+  gfx::Canvas                               canvas;
+  vk::CanvasRenderer                        renderer;
+  vk::UploadContext                         upload_context;
+  AssetBundle<stx::Rc<vk::ImageResource *>> image_bundle;
+  stx::TaskScheduler                        task_scheduler;
+  WidgetContext                             widget_context;
+  Widget                                   *root_widget = nullptr;
+  WidgetSystem                              widget_system;
 
   void tick(std::chrono::nanoseconds interval);
 };
 
-}  // namespace ash
+}        // namespace ash

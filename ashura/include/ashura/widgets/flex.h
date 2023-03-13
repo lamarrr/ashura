@@ -8,26 +8,34 @@
 #include "fmt/format.h"
 #include "stx/vec.h"
 
-namespace ash {
+namespace ash
+{
 
-struct Flex : public Widget {
+struct Flex : public Widget
+{
   template <typename... DerivedWidget>
-  Flex(FlexProps iprops, DerivedWidget... ichildren) : props{iprops} {
+  Flex(FlexProps iprops, DerivedWidget... ichildren) :
+      props{iprops}
+  {
     (children.push(new DerivedWidget{std::move(ichildren)}).unwrap(), ...);
   }
 
   // TODO(lamarrr): add span overload
 
-  virtual ~Flex() override {
-    for (Widget* child : children) {
+  virtual ~Flex() override
+  {
+    for (Widget *child : children)
+    {
       delete child;
     }
   }
 
   // update_children(DerivedWidget...)
 
-  void update_children(stx::Span<Widget* const> new_children) {
-    for (Widget* child : children) {
+  void update_children(stx::Span<Widget *const> new_children)
+  {
+    for (Widget *child : children)
+    {
       delete child;
     }
 
@@ -35,13 +43,18 @@ struct Flex : public Widget {
     children.extend(new_children).unwrap();
   }
 
-  virtual stx::Span<Widget* const> get_children() override { return children; }
+  virtual stx::Span<Widget *const> get_children() override
+  {
+    return children;
+  }
 
-  virtual WidgetInfo get_info() override {
+  virtual WidgetInfo get_info() override
+  {
     return WidgetInfo{.type = "Flex", .id = Widget::id};
   }
 
-  virtual Layout layout(rect area) {
+  virtual Layout layout(rect area)
+  {
     return Layout{
         .flex = props,
         .area = rect{.offset = area.offset,
@@ -49,10 +62,12 @@ struct Flex : public Widget {
                                     props.height.resolve(area.extent.y)}}};
   }
 
-  virtual simdjson::dom::element save(WidgetContext& context,
-                                      simdjson::dom::parser& parser) {
+  virtual simdjson::dom::element save(WidgetContext         &context,
+                                      simdjson::dom::parser &parser)
+  {
     stx::Vec<u64> children_ids{stx::os_allocator};
-    for (Widget* child : children) {
+    for (Widget *child : children)
+    {
       children_ids.push_inplace(child->id).unwrap();
     }
 
@@ -92,42 +107,44 @@ struct Flex : public Widget {
     return parser.parse(json.data(), json.size());
   }
 
-  virtual void restore(WidgetContext& context,
-                       simdjson::dom::element const& element) {
+  virtual void restore(WidgetContext                &context,
+                       simdjson::dom::element const &element)
+  {
     children.clear();
 
-    Widget::id = element["id"].get_uint64();
+    Widget::id      = element["id"].get_uint64();
     props.direction = AS(Direction, AS(u8, element["direction"].get_uint64()));
-    props.wrap = AS(Wrap, AS(u8, element["wrap"].get_uint64()));
+    props.wrap      = AS(Wrap, AS(u8, element["wrap"].get_uint64()));
     props.main_align =
         AS(MainAlign, AS(u8, element["main_align"].get_uint64()));
     props.cross_align =
         AS(CrossAlign, AS(u8, element["cross_align"].get_uint64()));
-    props.main_fit = AS(Fit, AS(u8, element["main_fit"].get_uint64()));
-    props.cross_fit = AS(Fit, AS(u8, element["cross_fit"].get_uint64()));
-    props.width.bias = AS(f32, element["width_bias"].get_double());
-    props.width.scale = AS(f32, element["width_scale"].get_double());
-    props.width.min = AS(f32, element["width_min"].get_double());
-    props.width.max = AS(f32, element["width_max"].get_double());
-    props.width.min_rel = AS(f32, element["width_min_rel"].get_double());
-    props.width.max_rel = AS(f32, element["width_max_rel"].get_double());
-    props.height.bias = AS(f32, element["height_bias"].get_double());
-    props.height.scale = AS(f32, element["height_scale"].get_double());
-    props.height.min = AS(f32, element["height_min"].get_double());
-    props.height.max = AS(f32, element["height_max"].get_double());
-    props.height.min_rel = AS(f32, element["height_min_rel"].get_double());
-    props.height.max_rel = AS(f32, element["height_max_rel"].get_double());
+    props.main_fit                      = AS(Fit, AS(u8, element["main_fit"].get_uint64()));
+    props.cross_fit                     = AS(Fit, AS(u8, element["cross_fit"].get_uint64()));
+    props.width.bias                    = AS(f32, element["width_bias"].get_double());
+    props.width.scale                   = AS(f32, element["width_scale"].get_double());
+    props.width.min                     = AS(f32, element["width_min"].get_double());
+    props.width.max                     = AS(f32, element["width_max"].get_double());
+    props.width.min_rel                 = AS(f32, element["width_min_rel"].get_double());
+    props.width.max_rel                 = AS(f32, element["width_max_rel"].get_double());
+    props.height.bias                   = AS(f32, element["height_bias"].get_double());
+    props.height.scale                  = AS(f32, element["height_scale"].get_double());
+    props.height.min                    = AS(f32, element["height_min"].get_double());
+    props.height.max                    = AS(f32, element["height_max"].get_double());
+    props.height.min_rel                = AS(f32, element["height_min_rel"].get_double());
+    props.height.max_rel                = AS(f32, element["height_max_rel"].get_double());
     simdjson::dom::array children_array = element["children"].get_array();
 
     for (simdjson::dom::array::iterator it = children_array.begin();
-         it < children_array.end(); it++) {
+         it < children_array.end(); it++)
+    {
       simdjson::dom::element child = *it;
       child.get_uint64();
     }
   }
 
-  FlexProps props;
-  stx::Vec<Widget*> children{stx::os_allocator};
+  FlexProps          props;
+  stx::Vec<Widget *> children{stx::os_allocator};
 };
 
-}  // namespace ash
+}        // namespace ash

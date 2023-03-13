@@ -7,9 +7,11 @@
 #include "SDL3/SDL_vulkan.h"
 #include "ashura/sdl_utils.h"
 
-namespace ash {
+namespace ash
+{
 
-void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
+void Window::attach_surface(stx::Rc<vk::Instance *> const &instance)
+{
   this->instance = stx::Some(instance.share());
 
   VkSurfaceKHR surface;
@@ -25,9 +27,10 @@ void Window::attach_surface(stx::Rc<vk::Instance*> const& instance) {
           .unwrap());
 }
 
-void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
-                                u32 max_nframes_in_flight,
-                                spdlog::logger& logger) {
+void Window::recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue,
+                                u32                                max_nframes_in_flight,
+                                spdlog::logger                    &logger)
+{
   // if cause of change in swapchain is a change in extent, then mark
   // layout as dirty, otherwise maintain pipeline state
   int width, height;
@@ -74,19 +77,20 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue*> const& queue,
 
   surface.value()->change_swapchain(
       queue, max_nframes_in_flight, preferred_formats, preferred_present_modes,
-      VkExtent2D{.width = surface_extent.width,
+      VkExtent2D{.width  = surface_extent.width,
                  .height = surface_extent.height},
       VkExtent2D{.width = window_extent.width, .height = window_extent.height},
       msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, logger);
 }
 
-std::pair<SwapChainState, u32> Window::acquire_image() {
+std::pair<SwapChainState, u32> Window::acquire_image()
+{
   ASH_CHECK(surface.is_some(),
             "trying to present to swapchain without having surface attached");
   ASH_CHECK(surface.value()->swapchain.is_some(),
             "trying to present to swapchain without having one");
 
-  vk::SwapChain& swapchain = surface.value()->swapchain.value();
+  vk::SwapChain &swapchain = surface.value()->swapchain.value();
 
   VkSemaphore semaphore =
       swapchain.image_acquisition_semaphores[swapchain.frame];
@@ -103,18 +107,26 @@ std::pair<SwapChainState, u32> Window::acquire_image() {
                 result == VK_ERROR_OUT_OF_DATE_KHR,
             "failed to acquire swapchain image");
 
-  if (result == VK_SUBOPTIMAL_KHR) {
+  if (result == VK_SUBOPTIMAL_KHR)
+  {
     return std::make_pair(SwapChainState::Suboptimal, swapchain_image_index);
-  } else if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+  }
+  else if (result == VK_ERROR_OUT_OF_DATE_KHR)
+  {
     return std::make_pair(SwapChainState::OutOfDate, swapchain_image_index);
-  } else if (result == VK_SUCCESS) {
+  }
+  else if (result == VK_SUCCESS)
+  {
     return std::make_pair(SwapChainState::Ok, swapchain_image_index);
-  } else {
+  }
+  else
+  {
     ASH_PANIC("failed to acquire swapchain image", result);
   }
 }
 
-SwapChainState Window::present(VkQueue queue, u32 swapchain_image_index) {
+SwapChainState Window::present(VkQueue queue, u32 swapchain_image_index)
+{
   ASH_CHECK(surface.is_some(),
             "trying to present to swapchain without having surface attached");
   ASH_CHECK(surface.value()->swapchain.is_some(),
@@ -123,7 +135,7 @@ SwapChainState Window::present(VkQueue queue, u32 swapchain_image_index) {
   // we submit multiple render commands (operating on the swapchain images) to
   // the GPU to prevent having to force a sync with the GPU (await_fence) when
   // it could be doing useful work.
-  vk::SwapChain& swapchain = surface.value()->swapchain.value();
+  vk::SwapChain &swapchain = surface.value()->swapchain.value();
 
   // we don't need to wait on presentation
   //
@@ -132,14 +144,14 @@ SwapChainState Window::present(VkQueue queue, u32 swapchain_image_index) {
   // refresh rate can keep up with and we thus save power.
   //
   VkPresentInfoKHR present_info{
-      .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-      .pNext = nullptr,
+      .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+      .pNext              = nullptr,
       .waitSemaphoreCount = 1,
-      .pWaitSemaphores = &swapchain.render_semaphores[swapchain.frame],
-      .swapchainCount = 1,
-      .pSwapchains = &swapchain.swapchain,
-      .pImageIndices = &swapchain_image_index,
-      .pResults = nullptr};
+      .pWaitSemaphores    = &swapchain.render_semaphores[swapchain.frame],
+      .swapchainCount     = 1,
+      .pSwapchains        = &swapchain.swapchain,
+      .pImageIndices      = &swapchain_image_index,
+      .pResults           = nullptr};
 
   VkResult result = vkQueuePresentKHR(queue, &present_info);
 
@@ -147,53 +159,73 @@ SwapChainState Window::present(VkQueue queue, u32 swapchain_image_index) {
                 result == VK_ERROR_OUT_OF_DATE_KHR,
             "failed to present swapchain image");
 
-  if (result == VK_SUBOPTIMAL_KHR) {
+  if (result == VK_SUBOPTIMAL_KHR)
+  {
     return SwapChainState::Suboptimal;
-  } else if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+  }
+  else if (result == VK_ERROR_OUT_OF_DATE_KHR)
+  {
     return SwapChainState::OutOfDate;
-  } else if (result == VK_SUCCESS) {
+  }
+  else if (result == VK_SUCCESS)
+  {
     return SwapChainState::Ok;
-  } else {
+  }
+  else
+  {
     ASH_PANIC("failed to present swapchain image", result);
   }
 }
 
-stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
+stx::Rc<Window *> create_window(stx::Rc<WindowApi *> api, WindowConfig cfg)
+{
   // width and height here refer to the screen coordinates and not the
   // actual pixel coordinates (cc: Device Pixel Ratio)
 
   int window_flags = SDL_WINDOW_VULKAN;
 
-  if (cfg.type_hint == WindowTypeHint::Normal) {
-  } else if (cfg.type_hint == WindowTypeHint::Popup) {
+  if (cfg.type_hint == WindowTypeHint::Normal)
+  {
+  }
+  else if (cfg.type_hint == WindowTypeHint::Popup)
+  {
     window_flags |= SDL_WINDOW_POPUP_MENU;
-  } else if (cfg.type_hint == WindowTypeHint::Tooltip) {
+  }
+  else if (cfg.type_hint == WindowTypeHint::Tooltip)
+  {
     window_flags |= SDL_WINDOW_TOOLTIP;
-  } else if (cfg.type_hint == WindowTypeHint::Utility) {
+  }
+  else if (cfg.type_hint == WindowTypeHint::Utility)
+  {
     window_flags |= SDL_WINDOW_UTILITY;
   }
 
-  if (cfg.hidden) {
+  if (cfg.hidden)
+  {
     window_flags |= SDL_WINDOW_HIDDEN;
   }
 
-  if (cfg.resizable) {
+  if (cfg.resizable)
+  {
     window_flags |= SDL_WINDOW_RESIZABLE;
   }
 
-  if (cfg.borderless) {
+  if (cfg.borderless)
+  {
     window_flags |= SDL_WINDOW_BORDERLESS;
   }
 
-  if (cfg.fullscreen) {
+  if (cfg.fullscreen)
+  {
     window_flags |= SDL_WINDOW_FULLSCREEN;
   }
 
-  if (cfg.always_on_top) {
+  if (cfg.always_on_top)
+  {
     window_flags |= SDL_WINDOW_ALWAYS_ON_TOP;
   }
 
-  SDL_Window* window = SDL_CreateWindow(
+  SDL_Window *window = SDL_CreateWindow(
       cfg.title.c_str(), AS(i32, std::max<u32>(cfg.extent.width, 1)),
       AS(i32, std::max<u32>(cfg.extent.height, 1)), window_flags);
 
@@ -219,7 +251,7 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
 
   u32 window_id = SDL_GetWindowID(window);
 
-  stx::Rc<Window*> win =
+  stx::Rc<Window *> win =
       stx::rc::make_inplace<Window>(stx::os_allocator, std::move(api), window,
                                     WindowID{window_id}, cfg.extent, cfg.extent,
                                     std::move(cfg), std::this_thread::get_id())
@@ -230,4 +262,4 @@ stx::Rc<Window*> create_window(stx::Rc<WindowApi*> api, WindowConfig cfg) {
   return win;
 }
 
-}  // namespace ash
+}        // namespace ash

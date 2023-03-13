@@ -13,33 +13,42 @@
 #include "stx/span.h"
 #include "stx/void.h"
 
-namespace ash {
+namespace ash
+{
 
-struct VulkanImageBundle : public ImageBundle {
+struct VulkanImageBundle : public ImageBundle
+{
   VulkanImageBundle(AssetBundle<stx::Rc<vk::ImageResource *>> &ibundle,
-                    vk::UploadContext &iupload_context)
-      : bundle{&ibundle}, upload_context{&iupload_context} {}
+                    vk::UploadContext                         &iupload_context) :
+      bundle{&ibundle}, upload_context{&iupload_context}
+  {}
 
-  virtual constexpr void on_startup() override {}
+  virtual constexpr void on_startup() override
+  {}
 
-  virtual constexpr void tick(std::chrono::nanoseconds interval) override {}
+  virtual constexpr void tick(std::chrono::nanoseconds interval) override
+  {}
 
-  virtual constexpr void on_exit() override {}
+  virtual constexpr void on_exit() override
+  {}
 
-  virtual constexpr ~VulkanImageBundle() override {}
+  virtual constexpr ~VulkanImageBundle() override
+  {}
 
   virtual gfx::image add(stx::Span<u8 const> pixels, extent extent,
-                         ImageFormat format) override {
+                         ImageFormat format) override
+  {
     return bundle->add(upload_context->upload_image(pixels, extent, format));
   }
 
   virtual stx::Result<stx::Void, AssetBundleError> remove(
-      gfx::image image) override {
+      gfx::image image) override
+  {
     return bundle->remove(image);
   }
 
-  AssetBundle<stx::Rc<vk::ImageResource *>> *bundle = nullptr;
-  vk::UploadContext *upload_context = nullptr;
+  AssetBundle<stx::Rc<vk::ImageResource *>> *bundle         = nullptr;
+  vk::UploadContext                         *upload_context = nullptr;
 };
 
-}  // namespace ash
+}        // namespace ash

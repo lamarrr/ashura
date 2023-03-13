@@ -16,13 +16,14 @@
 
 using namespace ash;
 
-TEST(LayoutTest, Start) {
-  Flex flex{FlexProps{.width = constraint{.scale = 1},
+TEST(LayoutTest, Start)
+{
+  Flex flex{FlexProps{.width  = constraint{.scale = 1},
                       .height = constraint{.scale = 1}},
             Widget{},
-            Image{ImageProps{.width = constraint{.bias = 100},
+            Image{ImageProps{.width  = constraint{.bias = 100},
                              .height = constraint{.bias = 100}}},
-            Image{ImageProps{.width = constraint{.bias = 200},
+            Image{ImageProps{.width  = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
   perform_layout(flex,
@@ -49,12 +50,13 @@ TEST(LayoutTest, Start) {
   EXPECT_EQ(flex.get_children()[2]->area.extent.y, 200);
 }
 
-TEST(ImageTest, SerializationDeserialization) {
-  Image im{ImageProps{.width = constraint{.bias = 100},
-                      .height = constraint{.bias = 100},
-                      .border_radius = vec4{1, 2, 3, 4},
-                      .alt = stx::string::make_static("Hello")}};
-  WidgetContext c;
+TEST(ImageTest, SerializationDeserialization)
+{
+  Image                 im{ImageProps{.width         = constraint{.bias = 100},
+                                      .height        = constraint{.bias = 100},
+                                      .border_radius = vec4{1, 2, 3, 4},
+                                      .alt           = stx::string::make_static("Hello")}};
+  WidgetContext         c;
   simdjson::dom::parser p;
   im.restore(c, im.save(c, p));
 
@@ -64,23 +66,24 @@ TEST(ImageTest, SerializationDeserialization) {
   EXPECT_EQ(im.props.border_radius, (vec4{1, 2, 3, 4}));
 }
 
-TEST(LayoutTest, SpaceAround) {
-  Flex flex{FlexProps{.direction = Direction::Row,
-                      .main_align = MainAlign::SpaceAround,
+TEST(LayoutTest, SpaceAround)
+{
+  Flex flex{FlexProps{.direction   = Direction::Row,
+                      .main_align  = MainAlign::SpaceAround,
                       .cross_align = CrossAlign::Center,
-                      .width = constraint{.scale = 1},
-                      .height = constraint{.scale = 1}},
+                      .width       = constraint{.scale = 1},
+                      .height      = constraint{.scale = 1}},
             Widget{},
-            Image{ImageProps{.width = constraint{.bias = 100},
+            Image{ImageProps{.width  = constraint{.bias = 100},
                              .height = constraint{.bias = 100}}},
-            Image{ImageProps{.width = constraint{.bias = 200},
+            Image{ImageProps{.width  = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
   perform_layout(flex,
                  rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
   f32 space = (1920 - 300) / 6;
-  f32 x = 50;
+  f32 x     = 50;
 
   EXPECT_EQ(flex.area.offset.x, x);
   EXPECT_EQ(flex.area.offset.y, 50);
@@ -106,22 +109,23 @@ TEST(LayoutTest, SpaceAround) {
   EXPECT_EQ(flex.get_children()[2]->area.extent.y, 200);
 }
 
-TEST(LayoutTest, SpaceEvenly) {
-  Flex flex{FlexProps{.direction = Direction::Row,
-                      .main_align = MainAlign::SpaceEvenly,
+TEST(LayoutTest, SpaceEvenly)
+{
+  Flex flex{FlexProps{.direction   = Direction::Row,
+                      .main_align  = MainAlign::SpaceEvenly,
                       .cross_align = CrossAlign::Center,
-                      .width = constraint{.scale = 1},
-                      .height = constraint{.scale = 1}},
+                      .width       = constraint{.scale = 1},
+                      .height      = constraint{.scale = 1}},
             Widget{},
-            Image{ImageProps{.width = constraint{.bias = 100},
+            Image{ImageProps{.width  = constraint{.bias = 100},
                              .height = constraint{.bias = 100}}},
-            Image{ImageProps{.width = constraint{.bias = 200},
+            Image{ImageProps{.width  = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
   perform_layout(flex,
                  rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
-  f32 x = 50;
+  f32 x     = 50;
   f32 space = (1920 - 300) / 4.0f;
 
   EXPECT_EQ(flex.area.offset.x, x);
@@ -148,22 +152,23 @@ TEST(LayoutTest, SpaceEvenly) {
   EXPECT_EQ(flex.get_children()[2]->area.extent.y, 200);
 }
 
-TEST(LayoutTest, SpaceBetween) {
-  Flex flex{FlexProps{.direction = Direction::Row,
-                      .main_align = MainAlign::SpaceBetween,
+TEST(LayoutTest, SpaceBetween)
+{
+  Flex flex{FlexProps{.direction   = Direction::Row,
+                      .main_align  = MainAlign::SpaceBetween,
                       .cross_align = CrossAlign::Center,
-                      .width = constraint{.scale = 1},
-                      .height = constraint{.scale = 1}},
+                      .width       = constraint{.scale = 1},
+                      .height      = constraint{.scale = 1}},
             Widget{},
-            Image{ImageProps{.width = constraint{.bias = 100},
+            Image{ImageProps{.width  = constraint{.bias = 100},
                              .height = constraint{.bias = 100}}},
-            Image{ImageProps{.width = constraint{.bias = 200},
+            Image{ImageProps{.width  = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
   perform_layout(flex,
                  rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
-  f32 x = 50;
+  f32 x     = 50;
   f32 space = (1920 - 300) / 2;
 
   EXPECT_EQ(flex.area.offset.x, x);

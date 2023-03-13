@@ -7,20 +7,24 @@
 
 #include "ashura/engine.h"
 
-namespace ash {
+namespace ash
+{
 
-struct App {
+struct App
+{
   STX_MAKE_PINNED(App)
 
-  explicit App(AppConfig icfg, Widget* widget)
-      : cfg{icfg.copy()}, engine{icfg, widget} {}
+  explicit App(AppConfig icfg, Widget *widget) :
+      cfg{icfg.copy()}, engine{icfg, widget}
+  {}
 
   void tick(std::chrono::nanoseconds interval);
 
-  ~App() {}
+  ~App()
+  {}
 
   AppConfig cfg;
-  Engine engine;
+  Engine    engine;
 };
 
-}  // namespace ash
+}        // namespace ash
