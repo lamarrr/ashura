@@ -8,28 +8,26 @@ Ashura is a 2D Retained-Mode GUI and Basic 3D Framework for use in GUI applicati
 - Minimal resource usage
 - Low mental overhead
 - Flexible system and Widgets
-- Usable for games and UI
+- Usable for games and apps
 - Ease of Integration of Accessibility features
 
 ## Documentation
 
 ## Examples
 
-
-## Building
-- Install Vulkan SDK via https://vulkan.lunarg.com/sdk/home or https://vulkan.lunarg.com/doc/view/latest/linux/getting_started_ubuntu.html whilst making sure it is discoverable by find_package by having exported targets
+# Dependencies
+- Install Vulkan SDK via apt, homebrew, https://vulkan.lunarg.com/sdk/home, or https://vulkan.lunarg.com/doc/view/latest/linux/getting_started_ubuntu.html. Make sure it is discoverable by CMake's find_package by having exported targets
 - Install vcpkg via https://vcpkg.io/en/index.html
 - Install MSVC, Clang, or GCC with C++20 support
-- Install CMake at least version 3.1
-
---- install SDL 3 with SDL_STATIC=ON
-
+- Install CMake (>= 3.1)
+- Install [SDL 3](https://github.com/libsdl-org/SDL) with SDL_STATIC=ON to generate the SDL3-static target
 - Install dependencies via vcpkg:
 ```bash
-vcpkg install freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg
+vcpkg install vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg ffmpeg
 ```
 
-- build the project using (where ${PATH_TO_ASHURA} is replaced with the path to this project and ${PATH_TO_VCPKG} is replaced with the path to your vcpkg installation): 
+## Building
+- Build the project using (where ${PATH_TO_ASHURA} is replaced with the path to this project and ${PATH_TO_VCPKG} is replaced with the path to your vcpkg installation): 
 ```bash
 cd ${PATH_TO_ASHURA} && mkdir build && cd build
 ```
