@@ -99,26 +99,24 @@ constexpr mat3 ypbpr2rgb_coefficients[16] = {
 };
 
 constexpr void yuv2rgb_bp12(mat3 const &coefficient, u8 y, u8 u, u8 v,
-                            u8 *rgba) {
-  vec3 rgb = coefficient *
-             vec3{AS(f32, y) - 16, AS(f32, u) - 128, AS(f32, v) - 128} *
-             vec3{255, 255, 255};
-  rgba[0] = ASH_U8_CLAMP(rgb.x);
-  rgba[1] = ASH_U8_CLAMP(rgb.y);
-  rgba[2] = ASH_U8_CLAMP(rgb.z);
-  rgba[3] = 255;
+                            u8 *rgb) {
+  vec3 r = coefficient *
+           vec3{AS(f32, y) - 16, AS(f32, u) - 128, AS(f32, v) - 128} *
+           vec3{255, 255, 255};
+  rgb[0] = ASH_U8_CLAMP(r.x);
+  rgb[1] = ASH_U8_CLAMP(r.y);
+  rgb[2] = ASH_U8_CLAMP(r.z);
 }
 
 constexpr void yuv2rgb_bp16(mat3 const &coefficient, u16 y, u16 u, u16 v,
-                            u8 *rgba) {
-  vec3 rgb = coefficient *
-             vec3{AS(f32, y) - 16 * 257, AS(f32, u) - 128 * 257,
-                  AS(f32, v) - 128 * 257} *
-             vec3{255, 255, 255};
-  rgba[0] = ASH_U8_CLAMP(rgb.x);
-  rgba[1] = ASH_U8_CLAMP(rgb.y);
-  rgba[2] = ASH_U8_CLAMP(rgb.z);
-  rgba[3] = 255;
+                            u8 *rgb) {
+  vec3 r = coefficient *
+           vec3{AS(f32, y) - 16 * 257, AS(f32, u) - 128 * 257,
+                AS(f32, v) - 128 * 257} *
+           vec3{255, 255, 255};
+  rgb[0] = ASH_U8_CLAMP(r.x);
+  rgb[1] = ASH_U8_CLAMP(r.y);
+  rgb[2] = ASH_U8_CLAMP(r.z);
 }
 
 // planar format meaning y, u, and v stored in separate arrays
@@ -127,9 +125,8 @@ constexpr void yuv2rgb_bp16(mat3 const &coefficient, u16 y, u16 u, u16 v,
 // AOM_IMG_FMT_I420
 // AOM_IMG_FMT_AOMI420
 // AOM_IMG_FMT_AOMYV12
-// AOM_IMG_FMT_NV12
 //
-void yuv_420_12_to_rgb(aom_image_t const *img, u8 *rgba) {
+void yuv_420_12_to_rgb(aom_image_t const *img, u8 *rgb) {
   int PLANE_U = (img->fmt & AOM_IMG_FMT_UV_FLIP) == AOM_IMG_FMT_UV_FLIP
                     ? AOM_PLANE_V
                     : AOM_PLANE_U;
@@ -187,30 +184,100 @@ void yuv_420_12_to_rgb(aom_image_t const *img, u8 *rgba) {
       u8 u1_3 = u0_3;
       u8 v1_3 = v0_3;
 
-      yuv2rgb_bp12(coefficient, y0_0, u0_0, v0_0, rgba);
-      yuv2rgb_bp12(coefficient, y0_1, u0_1, v0_1, rgba + 4);
-      yuv2rgb_bp12(coefficient, y0_2, u0_2, v0_2, rgba + 8);
-      yuv2rgb_bp12(coefficient, y0_3, u0_3, v0_3, rgba + 12);
-      yuv2rgb_bp12(coefficient, y1_0, u1_0, v1_0, rgba + y_width);
-      yuv2rgb_bp12(coefficient, y1_1, u1_1, v1_1, rgba + y_width + 4);
-      yuv2rgb_bp12(coefficient, y1_2, u1_2, v1_2, rgba + y_width + 8);
-      yuv2rgb_bp12(coefficient, y1_3, u1_3, v1_3, rgba + y_width + 12);
+      yuv2rgb_bp12(coefficient, y0_0, u0_0, v0_0, rgb);
+      yuv2rgb_bp12(coefficient, y0_1, u0_1, v0_1, rgb + 3);
+      yuv2rgb_bp12(coefficient, y0_2, u0_2, v0_2, rgb + 6);
+      yuv2rgb_bp12(coefficient, y0_3, u0_3, v0_3, rgb + 6);
+      yuv2rgb_bp12(coefficient, y1_0, u1_0, v1_0, rgb + 3 * y_width);
+      yuv2rgb_bp12(coefficient, y1_1, u1_1, v1_1, rgb + 3 * y_width + 3);
+      yuv2rgb_bp12(coefficient, y1_2, u1_2, v1_2, rgb + 3 * y_width + 6);
+      yuv2rgb_bp12(coefficient, y1_3, u1_3, v1_3, rgb + 3 * y_width + 9);
 
       y_plane += 4;
       u_plane += 2;
       v_plane += 2;
-      rgba += 4 * 4;
+      rgb += 4 * 3;
     }
 
     y_plane += (y_stride - y_width) + y_stride;
     u_plane += (u_stride - u_width);
     u_plane += (u_stride - u_width);
-    rgba += y_width * 4;
+    rgb += y_width * 3;
+  }
+}
+
+// AOM_IMG_FMT_NV12
+void yuv_420_nv12_to_rgb(aom_image_t const *img, u8 *rgb) {
+  u8 const *y_plane = img->planes[AOM_PLANE_Y];
+  u8 const *uv_plane = img->planes[AOM_PLANE_U];
+  int y_stride = img->stride[AOM_PLANE_Y];
+  int uv_stride = img->stride[AOM_PLANE_U];
+  int y_width = aom_img_plane_width(img, AOM_PLANE_Y);
+  int u_width = aom_img_plane_width(img, AOM_PLANE_U);
+  int v_width = aom_img_plane_width(img, AOM_PLANE_V);
+  int y_height = aom_img_plane_height(img, AOM_PLANE_Y);
+  int u_height = aom_img_plane_height(img, AOM_PLANE_U);
+  int v_height = aom_img_plane_height(img, AOM_PLANE_V);
+
+  ASH_CHECK(u_width == v_width);
+  ASH_CHECK(y_width == 2 * u_width);
+  ASH_CHECK(u_height == v_height);
+  ASH_CHECK(y_height == 2 * u_height);
+
+  mat3 coefficient = ypbpr2rgb_coefficients[img->fmt];
+
+  for (usize j = 0; j < y_height / 2; j++) {
+    for (usize i = 0; i < y_width / 4; i++) {
+      u8 y0_0 = y_plane[0];
+      u8 y0_1 = y_plane[1];
+      u8 y0_2 = y_plane[2];
+      u8 y0_3 = y_plane[3];
+
+      u8 y1_0 = (y_plane + y_stride)[0];
+      u8 y1_1 = (y_plane + y_stride)[1];
+      u8 y1_2 = (y_plane + y_stride)[2];
+      u8 y1_3 = (y_plane + y_stride)[3];
+
+      u8 u0_0 = uv_plane[0];
+      u8 v0_0 = uv_plane[1];
+      u8 u0_1 = u0_0;
+      u8 v0_1 = v0_0;
+      u8 u0_2 = uv_plane[2];
+      u8 v0_2 = uv_plane[3];
+      u8 u0_3 = u0_2;
+      u8 v0_3 = v0_2;
+
+      u8 u1_0 = u0_0;
+      u8 v1_0 = v0_0;
+      u8 u1_1 = u0_1;
+      u8 v1_1 = v0_1;
+      u8 u1_2 = u0_2;
+      u8 v1_2 = v0_2;
+      u8 u1_3 = u0_3;
+      u8 v1_3 = v0_3;
+
+      yuv2rgb_bp12(coefficient, y0_0, u0_0, v0_0, rgb);
+      yuv2rgb_bp12(coefficient, y0_1, u0_1, v0_1, rgb + 3);
+      yuv2rgb_bp12(coefficient, y0_2, u0_2, v0_2, rgb + 6);
+      yuv2rgb_bp12(coefficient, y0_3, u0_3, v0_3, rgb + 6);
+      yuv2rgb_bp12(coefficient, y1_0, u1_0, v1_0, rgb + 3 * y_width);
+      yuv2rgb_bp12(coefficient, y1_1, u1_1, v1_1, rgb + 3 * y_width + 3);
+      yuv2rgb_bp12(coefficient, y1_2, u1_2, v1_2, rgb + 3 * y_width + 6);
+      yuv2rgb_bp12(coefficient, y1_3, u1_3, v1_3, rgb + 3 * y_width + 9);
+
+      y_plane += 4;
+      uv_plane += 2 * 2;
+      rgb += 4 * 3;
+    }
+
+    y_plane += (y_stride - y_width) + y_stride;
+    uv_plane += uv_stride - (u_width + v_width);
+    rgb += y_width * 3;
   }
 }
 
 // AOM_IMG_FMT_I422
-void yuv_422_12_to_rgb(aom_image_t const *img, u8 *rgba) {
+void yuv_422_12_to_rgb(aom_image_t const *img, u8 *rgb) {
   u8 const *y_plane = img->planes[AOM_PLANE_Y];
   u8 const *u_plane = img->planes[AOM_PLANE_U];
   u8 const *v_plane = img->planes[AOM_PLANE_V];
@@ -261,30 +328,30 @@ void yuv_422_12_to_rgb(aom_image_t const *img, u8 *rgba) {
       u8 u1_3 = u1_2;
       u8 v1_3 = v1_2;
 
-      yuv2rgb_bp12(coefficient, y0_0, u0_0, v0_0, rgba);
-      yuv2rgb_bp12(coefficient, y0_1, u0_1, v0_1, rgba + 4);
-      yuv2rgb_bp12(coefficient, y0_2, u0_2, v0_2, rgba + 8);
-      yuv2rgb_bp12(coefficient, y0_3, u0_3, v0_3, rgba + 12);
-      yuv2rgb_bp12(coefficient, y1_0, u1_0, v1_0, rgba + y_width);
-      yuv2rgb_bp12(coefficient, y1_1, u1_1, v1_1, rgba + y_width + 4);
-      yuv2rgb_bp12(coefficient, y1_2, u1_2, v1_2, rgba + y_width + 8);
-      yuv2rgb_bp12(coefficient, y1_3, u1_3, v1_3, rgba + y_width + 12);
+      yuv2rgb_bp12(coefficient, y0_0, u0_0, v0_0, rgb);
+      yuv2rgb_bp12(coefficient, y0_1, u0_1, v0_1, rgb + 3);
+      yuv2rgb_bp12(coefficient, y0_2, u0_2, v0_2, rgb + 6);
+      yuv2rgb_bp12(coefficient, y0_3, u0_3, v0_3, rgb + 9);
+      yuv2rgb_bp12(coefficient, y1_0, u1_0, v1_0, rgb + 3 * y_width);
+      yuv2rgb_bp12(coefficient, y1_1, u1_1, v1_1, rgb + 3 * y_width + 3);
+      yuv2rgb_bp12(coefficient, y1_2, u1_2, v1_2, rgb + 3 * y_width + 6);
+      yuv2rgb_bp12(coefficient, y1_3, u1_3, v1_3, rgb + 3 * y_width + 9);
 
       y_plane += 4;
       u_plane += 2;
       v_plane += 2;
-      rgba += 4 * 4;
+      rgb += 4 * 3;
     }
 
     y_plane += (y_stride - y_width) + y_stride;
     u_plane += (u_stride - u_width) + u_stride;
     u_plane += (u_stride - u_width) + v_stride;
-    rgba += y_width * 4;
+    rgb += y_width * 3;
   }
 }
 
 // AOM_IMG_FMT_I444
-void yuv_444_12_to_rgb(aom_image_t const *img, u8 *rgba) {
+void yuv_444_12_to_rgb(aom_image_t const *img, u8 *rgb) {
   u8 const *y_plane = img->planes[AOM_PLANE_Y];
   u8 const *u_plane = img->planes[AOM_PLANE_U];
   u8 const *v_plane = img->planes[AOM_PLANE_V];
@@ -311,7 +378,7 @@ void yuv_444_12_to_rgb(aom_image_t const *img, u8 *rgba) {
       u8 u = u_plane[j * u_stride + i];
       u8 v = v_plane[j * v_stride + i];
 
-      yuv2rgb_bp12(coefficient, y, u, v, rgba + j * y_width * 4 + i * 4);
+      yuv2rgb_bp12(coefficient, y, u, v, rgb + j * y_width * 3 + i * 3);
     }
   }
 }
@@ -319,7 +386,7 @@ void yuv_444_12_to_rgb(aom_image_t const *img, u8 *rgba) {
 // AOM_IMG_FMT_I42016
 // AOM_IMG_FMT_YV1216
 //
-void yuv_420_16_to_rgb(aom_image_t const *img, u8 *rgba) {
+void yuv_420_16_to_rgb(aom_image_t const *img, u8 *rgb) {
   int PLANE_U = (img->fmt & AOM_IMG_FMT_UV_FLIP) == AOM_IMG_FMT_UV_FLIP
                     ? AOM_PLANE_V
                     : AOM_PLANE_U;
@@ -381,30 +448,30 @@ void yuv_420_16_to_rgb(aom_image_t const *img, u8 *rgba) {
       u16 u1_3 = u0_3;
       u16 v1_3 = v0_3;
 
-      yuv2rgb_bp16(coefficient, y0_0, u0_0, v0_0, rgba);
-      yuv2rgb_bp16(coefficient, y0_1, u0_1, v0_1, rgba + 4);
-      yuv2rgb_bp16(coefficient, y0_2, u0_2, v0_2, rgba + 8);
-      yuv2rgb_bp16(coefficient, y0_3, u0_3, v0_3, rgba + 12);
-      yuv2rgb_bp16(coefficient, y1_0, u1_0, v1_0, rgba + y_width);
-      yuv2rgb_bp16(coefficient, y1_1, u1_1, v1_1, rgba + y_width + 4);
-      yuv2rgb_bp16(coefficient, y1_2, u1_2, v1_2, rgba + y_width + 8);
-      yuv2rgb_bp16(coefficient, y1_3, u1_3, v1_3, rgba + y_width + 12);
+      yuv2rgb_bp16(coefficient, y0_0, u0_0, v0_0, rgb);
+      yuv2rgb_bp16(coefficient, y0_1, u0_1, v0_1, rgb + 3);
+      yuv2rgb_bp16(coefficient, y0_2, u0_2, v0_2, rgb + 6);
+      yuv2rgb_bp16(coefficient, y0_3, u0_3, v0_3, rgb + 9);
+      yuv2rgb_bp16(coefficient, y1_0, u1_0, v1_0, rgb + y_width);
+      yuv2rgb_bp16(coefficient, y1_1, u1_1, v1_1, rgb + y_width + 3);
+      yuv2rgb_bp16(coefficient, y1_2, u1_2, v1_2, rgb + y_width + 6);
+      yuv2rgb_bp16(coefficient, y1_3, u1_3, v1_3, rgb + y_width + 9);
 
       y_plane += 4 * 2;
       u_plane += 2 * 2;
       v_plane += 2 * 2;
-      rgba += 4 * 4;
+      rgb += 4 * 3;
     }
 
     y_plane += (y_stride - y_width * 2) + y_stride;
     u_plane += (u_stride - u_width * 2);
     v_plane += (v_stride - v_width * 2);
-    rgba += y_width * 4;
+    rgb += y_width * 3;
   }
 }
 
 // AOM_IMG_FMT_I42216
-void yuv_422_16_to_rgb(aom_image_t const *img, u8 *rgba) {
+void yuv_422_16_to_rgb(aom_image_t const *img, u8 *rgb) {
   u8 const *y_plane = img->planes[AOM_PLANE_Y];
   u8 const *u_plane = img->planes[AOM_PLANE_U];
   u8 const *v_plane = img->planes[AOM_PLANE_V];
@@ -463,30 +530,30 @@ void yuv_422_16_to_rgb(aom_image_t const *img, u8 *rgba) {
       u16 u1_3 = u1_2;
       u16 v1_3 = v1_2;
 
-      yuv2rgb_bp16(coefficient, y0_0, u0_0, v0_0, rgba);
-      yuv2rgb_bp16(coefficient, y0_1, u0_1, v0_1, rgba + 4);
-      yuv2rgb_bp16(coefficient, y0_2, u0_2, v0_2, rgba + 8);
-      yuv2rgb_bp16(coefficient, y0_3, u0_3, v0_3, rgba + 12);
-      yuv2rgb_bp16(coefficient, y1_0, u1_0, v1_0, rgba + y_width);
-      yuv2rgb_bp16(coefficient, y1_1, u1_1, v1_1, rgba + y_width + 4);
-      yuv2rgb_bp16(coefficient, y1_2, u1_2, v1_2, rgba + y_width + 8);
-      yuv2rgb_bp16(coefficient, y1_3, u1_3, v1_3, rgba + y_width + 12);
+      yuv2rgb_bp16(coefficient, y0_0, u0_0, v0_0, rgb);
+      yuv2rgb_bp16(coefficient, y0_1, u0_1, v0_1, rgb + 3);
+      yuv2rgb_bp16(coefficient, y0_2, u0_2, v0_2, rgb + 6);
+      yuv2rgb_bp16(coefficient, y0_3, u0_3, v0_3, rgb + 9);
+      yuv2rgb_bp16(coefficient, y1_0, u1_0, v1_0, rgb + y_width);
+      yuv2rgb_bp16(coefficient, y1_1, u1_1, v1_1, rgb + y_width + 3);
+      yuv2rgb_bp16(coefficient, y1_2, u1_2, v1_2, rgb + y_width + 6);
+      yuv2rgb_bp16(coefficient, y1_3, u1_3, v1_3, rgb + y_width + 9);
 
       y_plane += 4 * 2;
       u_plane += 2 * 2;
       v_plane += 2 * 2;
-      rgba += 4 * 4;
+      rgb += 4 * 3;
     }
 
     y_plane += (y_stride - y_width * 2) + y_stride;
     u_plane += (u_stride - u_width * 2) + u_stride;
     u_plane += (u_stride - u_width * 2) + v_stride;
-    rgba += y_width * 4;
+    rgb += y_width * 3;
   }
 }
 
 // AOM_IMG_FMT_I44416
-void yuv_444_16_to_rgb(aom_image_t const *img, u8 *rgba) {
+void yuv_444_16_to_rgb(aom_image_t const *img, u8 *rgb) {
   u8 const *y_plane = img->planes[AOM_PLANE_Y];
   u8 const *u_plane = img->planes[AOM_PLANE_U];
   u8 const *v_plane = img->planes[AOM_PLANE_V];
@@ -516,7 +583,7 @@ void yuv_444_16_to_rgb(aom_image_t const *img, u8 *rgba) {
       u16 v = AS(u16, v_plane[j * v_stride + i + 1]) << 8 |
               v_plane[j * v_stride + i];
 
-      yuv2rgb_bp16(coefficient, y, u, v, rgba + j * y_width * 4 + i * 4);
+      yuv2rgb_bp16(coefficient, y, u, v, rgb + j * y_width * 3 + i * 3);
     }
   }
 }
@@ -633,7 +700,7 @@ class XCallback : public Callback {
           //                                  y_height) * 4)
           //                   .unwrap(),
           //     .extent = extent{.width = AS(u32, y_width), .height = AS(u32,
-          //     y_height)}, .format = ImageFormat::Rgba};
+          //     y_height)}, .format = ImageFormat::rgb};
 
           // switch (img->fmt) {
           //   case AOM_IMG_FMT_NONE:
@@ -685,8 +752,16 @@ class XCallback : public Callback {
   WebmParser parser;
 };
 
+extern "C" {
+#include "libavformat/avformat.h"
+}
+
 int main(int argc, char **argv) {
   ASH_CHECK(argc == 2);
+
+  auto *co = avcodec_find_decoder(AV_CODEC_ID_AV1);
+  ASH_CHECK(co != nullptr);
+  spdlog::info("codec name: {}, long name: {}", co->name, co->long_name);
 
   std::ifstream stream{argv[1], std::ios::binary | std::ios::ate};
 
