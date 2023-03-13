@@ -1,5 +1,5 @@
 # Ashura (ReGui) <img src="https://github.com/lamarrr/ashura/actions/workflows/msvc-2019-windows-x64.yml/badge.svg">
-Ashura is an advanced 2D Retained-Mode GUI and Basic 3D Framework for use in GUI applications and games.
+Ashura is a 2D Retained-Mode GUI and Basic 3D Framework for use in GUI applications and games.
 
 ## Features
 - Multithreaded:
