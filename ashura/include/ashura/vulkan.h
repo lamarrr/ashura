@@ -225,17 +225,11 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
                              .apiVersion         = VK_API_VERSION_1_3};
 
   VkInstanceCreateInfo create_info{
-      // debug messenger for when
-      // the installed debug
-      // messenger is uninstalled.
-      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      // this helps to debug issues with vkDestroyInstance and vkCreateInstance
-      // i.e. (before and after the debug messenger is installed)
-      .pNext            = required_validation_layers.is_empty() ? nullptr : &debug_utils_messenger_create_info,
-      .flags            = 0,
-      .pApplicationInfo = &app_info,
-      // validation layers
-      .enabledLayerCount       = AS(u32, required_validation_layers.size()),
+      .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,                                                      // debug messenger for when the installed debug messenger is uninstalled.
+      .pNext                   = required_validation_layers.is_empty() ? nullptr : &debug_utils_messenger_create_info,        // this helps to debug issues with vkDestroyInstance and vkCreateInstance i.e. (before and after the debug messenger is installed)
+      .flags                   = 0,
+      .pApplicationInfo        = &app_info,
+      .enabledLayerCount       = AS(u32, required_validation_layers.size()),        // validation layers
       .ppEnabledLayerNames     = required_validation_layers.data(),
       .enabledExtensionCount   = AS(u32, required_extensions.size()),
       .ppEnabledExtensionNames = required_extensions.data(),
@@ -1217,16 +1211,10 @@ inline Sampler create_sampler(stx::Rc<Device *> const &device, VkFilter filter,
 
 struct DescriptorBinding
 {
-  VkDescriptorType type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
-  // only valid if type is VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-  VkBuffer buffer = VK_NULL_HANDLE;
-
-  // only valid if type is VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-  VkImageView view = VK_NULL_HANDLE;
-
-  // only valid if type is VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-  VkSampler sampler = VK_NULL_HANDLE;
+  VkDescriptorType type    = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  VkBuffer         buffer  = VK_NULL_HANDLE;        // only valid if type is VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+  VkImageView      view    = VK_NULL_HANDLE;        // only valid if type is VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+  VkSampler        sampler = VK_NULL_HANDLE;        // only valid if type is VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
 
   static constexpr DescriptorBinding make_buffer(VkBuffer buffer)
   {
@@ -1525,21 +1513,6 @@ inline VkFormat find_depth_format(VkPhysicalDevice phy_dev)
 ///
 struct SwapChain
 {
-  u32 max_nframes_in_flight = 0;
-
-  // actually holds the images of the surface and used to present to the render
-  // target image. when resizing is needed, the swapchain is destroyed and
-  // recreated with the desired extents.
-  VkSurfaceFormatKHR color_format{
-      .format     = VK_FORMAT_R8G8B8A8_SRGB,
-      .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};
-  VkFormat         depth_format = VK_FORMAT_D32_SFLOAT;
-  VkPresentModeKHR present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-  VkExtent2D       image_extent{.width = 0, .height = 0};
-  VkExtent2D       window_extent{.width = 0, .height = 0};
-
-  VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
-
   /// IMPORTANT: this is different from the image index obtained via
   /// `vkAcquireNextImageKHR`. this index is used for referencing semaphores
   /// used for submitting and querying rendering operations. this value is
@@ -1547,36 +1520,28 @@ struct SwapChain
   /// `vkAcquireNextImageKHR` which depends on the presentation mode being used
   /// (determines how the images are used, in what order and whether they
   /// repeat). a.k.a. frame_flight_index
-  u32 frame = 0;
-
-  // the images in the swapchain
-  stx::Vec<VkImage> images{stx::os_allocator};
-
-  // the image views pointing to a part of a whole texture (images in the
-  // swapchain)
-  stx::Vec<VkImageView> image_views{stx::os_allocator};
-
+  u32                frame                 = 0;
+  u32                max_nframes_in_flight = 0;
+  VkSurfaceFormatKHR color_format{
+      .format     = VK_FORMAT_R8G8B8A8_UNORM,
+      .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};        // actually holds the images of the surface and used to present to the render target image. when resizing is needed, the swapchain is destroyed and recreated with the desired extents.
+  VkFormat                depth_format = VK_FORMAT_D32_SFLOAT;
+  VkPresentModeKHR        present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+  VkExtent2D              image_extent{.width = 0, .height = 0};
+  VkExtent2D              window_extent{.width = 0, .height = 0};
+  VkSampleCountFlagBits   msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
+  stx::Vec<VkImage>       images{stx::os_allocator};             // the images in the swapchain
+  stx::Vec<VkImageView>   image_views{stx::os_allocator};        // the image views pointing to a part of a whole texture (images in the swapchain)
   stx::Vec<VkFramebuffer> framebuffers{stx::os_allocator};
-
-  // the rendering semaphores correspond to the frame indexes and not the
-  // swapchain images
-  stx::Vec<VkSemaphore> render_semaphores{stx::os_allocator};
-
-  stx::Vec<VkSemaphore> image_acquisition_semaphores{stx::os_allocator};
-
-  stx::Vec<VkFence> render_fences{stx::os_allocator};
-
-  stx::Vec<VkFence> image_acquisition_fences{stx::os_allocator};
-
-  Image msaa_color_image;
-
-  Image msaa_depth_image;
-
-  VkRenderPass render_pass = VK_NULL_HANDLE;
-
-  VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-
-  VkDevice dev = VK_NULL_HANDLE;
+  stx::Vec<VkSemaphore>   render_semaphores{stx::os_allocator};        // the rendering semaphores correspond to the frame indexes and not the swapchain images
+  stx::Vec<VkSemaphore>   image_acquisition_semaphores{stx::os_allocator};
+  stx::Vec<VkFence>       render_fences{stx::os_allocator};
+  stx::Vec<VkFence>       image_acquisition_fences{stx::os_allocator};
+  Image                   msaa_color_image;
+  Image                   msaa_depth_image;
+  VkRenderPass            render_pass = VK_NULL_HANDLE;
+  VkSwapchainKHR          swapchain   = VK_NULL_HANDLE;
+  VkDevice                dev         = VK_NULL_HANDLE;
 
   bool init(VkPhysicalDevice                        phy,
             VkPhysicalDeviceMemoryProperties const &memory_properties,
@@ -1658,6 +1623,7 @@ struct SwapChain
                                    new_extent, msaa_sample_count);
     msaa_depth_image = create_msaa_depth_resource(
         dev, memory_properties, depth_format, new_extent, msaa_sample_count);
+    max_nframes_in_flight = std::min(AS(u32, images.size()), max_nframes_in_flight);
 
     for (VkImage image : images)
     {
@@ -1907,10 +1873,8 @@ struct Surface
   // resources.
   //
   stx::Option<SwapChain> swapchain;
-
-  bool is_zero_sized_swapchain = true;
-
-  VkInstance instance = VK_NULL_HANDLE;
+  bool                   is_zero_sized_swapchain = true;
+  VkInstance             instance                = VK_NULL_HANDLE;
 
   void destroy()
   {

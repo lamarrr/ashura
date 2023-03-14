@@ -333,15 +333,13 @@ struct CanvasState
 //
 struct Canvas
 {
-  vec2  viewport_extent;
-  Brush brush;
-  mat4  transform        = mat4::identity();
-  mat4  global_transform = mat4::identity();
-  rect  clip_rect;
-
+  vec2                  viewport_extent;
+  Brush                 brush;
+  mat4                  transform        = mat4::identity();
+  mat4                  global_transform = mat4::identity();
+  rect                  clip_rect;
   stx::Vec<CanvasState> state_stack{stx::os_allocator};
-
-  DrawList draw_list;
+  DrawList              draw_list;
 
   void restart(vec2 new_viewport_extent)
   {

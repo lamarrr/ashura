@@ -25,31 +25,37 @@ int main(int argc, char **argv)
 {
   ASH_CHECK(argc == 3);
 
-  std::ifstream stream{argv[1], std::ios::binary | std::ios::ate};
+  // std::ifstream stream{argv[1], std::ios::binary | std::ios::ate};
 
-  ASH_CHECK(stream.is_open());
+  // ASH_CHECK(stream.is_open());
 
-  stx::Vec<char> bytes{stx::os_allocator};
-  bytes.resize(stream.tellg()).unwrap();
-  stream.seekg(0);
-  stream.read(bytes.data(), bytes.size());
+  // stx::Vec<char> bytes{stx::os_allocator};
+  // bytes.resize(stream.tellg()).unwrap();
+  // stream.seekg(0);
+  // stream.read(bytes.data(), bytes.size());
 
-  stream.close();
+  // stream.close();
 
   LP;
-  AVFormatContext *ctx = nullptr;
-  ASH_CHECK(avformat_open_input(&ctx, argv[1], nullptr, nullptr) >= 0);
+  AVFormatContext *fmt_ctx = nullptr;
+  ASH_CHECK(avformat_open_input(&fmt_ctx, argv[1], nullptr, nullptr) >= 0);
   LP;
-  ASH_CHECK(avformat_find_stream_info(ctx, nullptr) >= 0);
+  ASH_CHECK(avformat_find_stream_info(fmt_ctx, nullptr) >= 0);
   LP;
-  AVStream *st;
 
-  int stream_idx =
-      av_find_best_stream(ctx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-  ASH_CHECK(stream_idx >= 0);
+  int video_stream_index =
+      av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+  ASH_CHECK(video_stream_index >= 0);
   LP;
-  st = ctx->streams[stream_idx];
+  AVStream *video_stream = fmt_ctx->streams[video_stream_index];
   LP;
+
+  // int audio_stream_idx =
+  //     av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
+  // ASH_CHECK(audio_stream_idx >= 0);
+  // LP;
+  // AVStream *audio_stream = fmt_ctx->streams[audio_stream_idx];
+  // LP;
 
   void          *iter  = nullptr;
   const AVCodec *codec = nullptr;
@@ -67,18 +73,29 @@ int main(int argc, char **argv)
     }
   } while (codec != nullptr);
 
-  auto *co = avcodec_find_decoder(st->codecpar->codec_id);
-  ASH_CHECK(co != nullptr);
-  spdlog::info("codec name: {}, long name: {}", co->name, co->long_name);
+  auto *video_codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
+  ASH_CHECK(video_codec != nullptr);
+  spdlog::info("video codec name: {}, long name: {}", video_codec->name, video_codec->long_name);
 
-  AVCodecContext *cctx = avcodec_alloc_context3(co);
-  ASH_CHECK(cctx != nullptr);
-  LP;
+  // auto *audio_codec = avcodec_find_decoder(audio_stream->codecpar->codec_id);
+  // ASH_CHECK(audio_codec != nullptr);
+  // spdlog::info("audio codec name: {}, long name: {}", audio_codec->name, audio_codec->long_name);
 
-  ASH_CHECK(avcodec_parameters_to_context(cctx, st->codecpar) >= 0);
+  AVCodecContext *video_codec_ctx = avcodec_alloc_context3(video_codec);
+  ASH_CHECK(video_codec_ctx != nullptr);
   LP;
-  ASH_CHECK(avcodec_open2(cctx, co, nullptr) >= 0);
+  // AVCodecContext *audio_codec_ctx = avcodec_alloc_context3(audio_codec);
+  // ASH_CHECK(audio_codec_ctx != nullptr);
+  // LP;
+
+  ASH_CHECK(avcodec_parameters_to_context(video_codec_ctx, video_stream->codecpar) >= 0);
   LP;
+  // ASH_CHECK(avcodec_parameters_to_context(audio_codec_ctx, audio_stream->codecpar) >= 0);
+  // LP;
+  ASH_CHECK(avcodec_open2(video_codec_ctx, video_codec, nullptr) >= 0);
+  LP;
+  // ASH_CHECK(avcodec_open2(audio_codec_ctx, audio_codec, nullptr) >= 0);
+  // LP;
 
   AVFrame *frame = av_frame_alloc();
   ASH_CHECK(frame != nullptr);
@@ -87,9 +104,12 @@ int main(int argc, char **argv)
   ASH_CHECK(packet != nullptr);
 
   bool done = false;
-  while (av_read_frame(ctx, packet) >= 0)
+
+  while (av_read_frame(fmt_ctx, packet) == 0)
   {
-    int err = avcodec_send_packet(cctx, packet);
+    spdlog::info("got frame, sending packet");
+    int err = avcodec_send_packet(video_codec_ctx, packet);
+    spdlog::info("sent packet");
 
     if (err < 0)
     {
@@ -99,16 +119,26 @@ int main(int argc, char **argv)
 
     while (err >= 0)
     {
-      err = avcodec_receive_frame(cctx, frame);
+      spdlog::info("decoding frame");
+      err = avcodec_receive_frame(video_codec_ctx, frame);
       if (err < 0)
       {
         if (err == AVERROR_EOF)
         {
+          spdlog::info("eof");
           done = true;
           break;
         }
-        if (err == AVERROR(EAGAIN))
+        else if (err == AVERROR(EAGAIN))
+        {
+          spdlog::info("finished images from frame");
           break;
+        }
+        else
+        {
+          spdlog::error("got error: {}", (int) err);
+          return -1;
+        }
       }
 
       spdlog::info("decoded frame with format: {}",
@@ -123,7 +153,10 @@ int main(int argc, char **argv)
       sws_scale(context, frame->data, frame->linesize, 0, frame->height, planes,
                 strides);
 
+      // TODO(lamarrr): is this necessary?
       av_frame_unref(frame);
+
+      delete[] rgb;
     }
 
     if (done)
@@ -133,15 +166,15 @@ int main(int argc, char **argv)
     }
   }
 
-  int           width  = cctx->width;
-  int           height = cctx->height;
-  AVPixelFormat fmt    = cctx->pix_fmt;
+  int           width  = video_codec_ctx->width;
+  int           height = video_codec_ctx->height;
+  AVPixelFormat fmt    = video_codec_ctx->pix_fmt;
   ASH_CHECK(fmt != AV_PIX_FMT_NONE);
 
-  u8 *dst_data[4]   = {0, 0, 0, 0};
-  int line_sizes[4] = {0, 0, 0, 0};
-  int img_read      = av_image_alloc(dst_data, line_sizes, width, height, fmt, 1);
-  ASH_CHECK(img_read >= 0);
+  av_packet_free(&packet);
+  av_frame_free(&frame);
+  avcodec_free_context(&video_codec_ctx);
+  avformat_close_input(&fmt_ctx);
 
   AppConfig cfg{.enable_validation_layers = false};
   cfg.window_config.borderless = false;

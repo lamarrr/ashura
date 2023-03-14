@@ -352,34 +352,22 @@ struct UploadContext
 
 struct RecordingContext
 {
-  VkCommandPool             cmd_pool = VK_NULL_HANDLE;
-  stx::Vec<VkCommandBuffer> cmd_buffers{stx::os_allocator};
-  VkShaderModule            vertex_shader   = VK_NULL_HANDLE;
-  VkShaderModule            fragment_shader = VK_NULL_HANDLE;
-  Pipeline                  pipeline;
-
-  // one descriptor pool per frame in flight
-  stx::Vec<VkDescriptorPool>   descriptor_pools{stx::os_allocator};
-  stx::Vec<DescriptorPoolInfo> descriptor_pool_infos{stx::os_allocator};
-
-  // specifications describing binding types/layouts for the descriptor sets
-  // used. we will have multiple of each
-  stx::Vec<DescriptorSetSpec> descriptor_set_specs{stx::os_allocator};
-
-  // the created layouts for each of the descriptor sets
-  stx::Vec<VkDescriptorSetLayout> descriptor_set_layouts{stx::os_allocator};
-
-  // the allocated descriptor sets, the first vec is for each frame in flight
-  // and the second vec contains the descriptor sets repeated for each of the
-  // draw calls. i.e. num_draw_calls x num_descriptor_sets_per_frame
-  stx::Vec<stx::Vec<VkDescriptorSet>>         descriptor_sets{stx::os_allocator};
-  stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{
-      stx::os_allocator};
-  u32      vertex_input_size     = 0;
-  u32      push_constant_size    = 0;
-  u32      max_nframes_in_flight = 0;
-  u32      queue_family          = 0;
-  VkDevice dev                   = VK_NULL_HANDLE;
+  VkCommandPool                               cmd_pool = VK_NULL_HANDLE;
+  stx::Vec<VkCommandBuffer>                   cmd_buffers{stx::os_allocator};
+  VkShaderModule                              vertex_shader   = VK_NULL_HANDLE;
+  VkShaderModule                              fragment_shader = VK_NULL_HANDLE;
+  Pipeline                                    pipeline;
+  stx::Vec<VkDescriptorPool>                  descriptor_pools{stx::os_allocator};        // one descriptor pool per frame in flight
+  stx::Vec<DescriptorPoolInfo>                descriptor_pool_infos{stx::os_allocator};
+  stx::Vec<DescriptorSetSpec>                 descriptor_set_specs{stx::os_allocator};          // specifications describing binding types/layouts for the descriptor sets used. we will have multiple of each
+  stx::Vec<VkDescriptorSetLayout>             descriptor_set_layouts{stx::os_allocator};        // the created layouts for each of the descriptor sets
+  stx::Vec<stx::Vec<VkDescriptorSet>>         descriptor_sets{stx::os_allocator};               // the allocated descriptor sets, the first vec is for each frame in flight and the second vec contains the descriptor sets repeated for each of the draw calls. i.e. num_draw_calls x num_descriptor_sets_per_frame
+  stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{stx::os_allocator};
+  u32                                         vertex_input_size     = 0;
+  u32                                         push_constant_size    = 0;
+  u32                                         max_nframes_in_flight = 0;
+  u32                                         queue_family          = 0;
+  VkDevice                                    dev                   = VK_NULL_HANDLE;
 
   void init(
       VkDevice adev, u32 aqueue_family, stx::Span<u32 const> vertex_shader_code,

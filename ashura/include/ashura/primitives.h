@@ -552,15 +552,10 @@ constexpr bool operator!=(extent a, extent b)
 /// - relative min/max (`min_rel`, `max_rel`)
 struct constraint
 {
-  /// removing or deducting from the target size
-  f32 bias = 0;
-
-  /// scaling the target size
-  f32 scale = 0;
-
-  /// clamping the target size, i.e. value should be between 20px and 600px
-  f32 min = stx::F32_MIN;
-  f32 max = stx::F32_MAX;
+  f32 bias  = 0;                   /// removing or deducting from the target size
+  f32 scale = 0;                   /// scaling the target size
+  f32 min   = stx::F32_MIN;        /// clamps the target size, i.e. value should be at least 20px
+  f32 max   = stx::F32_MAX;        /// clamps the target size, i.e. value should be at most 100px
 
   /// relatively clamps the values of the result
   /// i.e. result should be between 50% and 75% of the allotted value.

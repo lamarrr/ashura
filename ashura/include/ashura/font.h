@@ -350,17 +350,13 @@ enum class TextOverflow : u8
 
 struct TextStyle
 {
-  f32 font_height = 16;
-
-  /// multiplied by font_height
-  f32  line_height    = 1.2f;
-  f32  letter_spacing = 1;
-  f32  word_spacing   = 4;
-  u32  tab_size       = 8;
-  bool use_kerning    = true;
-
-  /// use standard and contextual ligature substitution
-  bool  use_ligatures       = true;
+  f32   font_height         = 16;
+  f32   line_height         = 1.2f;        /// multiplied by font_height
+  f32   letter_spacing      = 1;
+  f32   word_spacing        = 4;
+  u32   tab_size            = 8;
+  bool  use_kerning         = true;
+  bool  use_ligatures       = true;        /// use standard and contextual ligature substitution
   bool  underline           = false;
   bool  strikethrough       = false;        // TODO(lamarrr): implement
   color foreground_color    = colors::BLACK;
@@ -374,8 +370,7 @@ struct TextStyle
 /// any other formatting effect, breaks the text run.
 struct TextRun
 {
-  /// utf-8-encoded text
-  stx::Span<char const> text;
+  stx::Span<char const> text;        /// utf-8-encoded text
   usize                 font = 0;
   TextStyle             style;
   TextDirection         direction = TextDirection::LeftToRight;
@@ -392,15 +387,9 @@ struct Paragraph
 
 struct Font
 {
-  /// kerning operations
-  static constexpr hb_tag_t KERNING_FEATURE = HB_TAG('k', 'e', 'r', 'n');
-
-  /// standard ligature substitution
-  static constexpr hb_tag_t LIGATURE_FEATURE = HB_TAG('l', 'i', 'g', 'a');
-
-  /// contextual ligature substitution
-  static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE =
-      HB_TAG('c', 'l', 'i', 'g');
+  static constexpr hb_tag_t KERNING_FEATURE             = HB_TAG('k', 'e', 'r', 'n');        /// kerning operations
+  static constexpr hb_tag_t LIGATURE_FEATURE            = HB_TAG('l', 'i', 'g', 'a');        /// standard ligature substitution
+  static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE = HB_TAG('c', 'l', 'i', 'g');        /// contextual ligature substitution
 
   hb_face_t   *hbface           = nullptr;
   hb_font_t   *hbfont           = nullptr;
@@ -488,43 +477,23 @@ namespace gfx
 
 struct Glyph
 {
-  bool is_valid = false;
-
-  /// the glyph index
-  u32 index = 0;
-
-  /// offset into the atlas its glyph resides
-  ash::offset offset;
-
-  /// extent of the glyph in the atlas
-  ash::extent extent;
-
-  /// defines x-offset from cursor position the glyph will be placed
-  f32 x = 0;
-
-  /// defines ascent from baseline of the text
-  f32 ascent = 0;
-
-  /// advancement of the cursor after drawing this glyph
-  vec2 advance;
-
-  /// texture coordinates of this glyph in the atlas
-  f32 s0 = 0, t0 = 0, s1 = 0, t1 = 0;
+  bool        is_valid = false;
+  u32         index    = 0;                          /// the glyph index
+  ash::offset offset;                                /// offset into the atlas its glyph resides
+  ash::extent extent;                                /// extent of the glyph in the atlas
+  f32         x      = 0;                            /// defines x-offset from cursor position the glyph will be placed
+  f32         ascent = 0;                            /// defines ascent from baseline of the text
+  vec2        advance;                               /// advancement of the cursor after drawing this glyph
+  f32         s0 = 0, t0 = 0, s1 = 0, t1 = 0;        /// texture coordinates of this glyph in the atlas
 };
 
 /// stores codepoint glyphs for a font at a specific font height
 struct FontAtlas
 {
   stx::Vec<Glyph> glyphs{stx::os_allocator};
-
-  /// overall extent of the atlas
-  ash::extent extent;
-
-  /// font height at which the cache/atlas/glyphs will be rendered and cached
-  u32 font_height = 26;
-
-  /// atlas containing the packed glyphs
-  image texture = 0;
+  ash::extent     extent;                  /// overall extent of the atlas
+  u32             font_height = 26;        /// font height at which the cache/atlas/glyphs will be rendered and cached
+  image           texture     = 0;         /// atlas containing the packed glyphs
 
   stx::Span<Glyph const> get(u32 glyph_index) const
   {
