@@ -107,63 +107,69 @@ int main(int argc, char **argv)
 
   while (av_read_frame(fmt_ctx, packet) == 0)
   {
-    spdlog::info("got frame, sending packet");
-    int err = avcodec_send_packet(video_codec_ctx, packet);
-    spdlog::info("sent packet");
-
-    if (err < 0)
+    if (packet->stream_index == video_stream_index)
     {
-      spdlog::error("error: {}", err);
-      break;
-    }
+      spdlog::info("got video frame, sending packet");
+      int err = avcodec_send_packet(video_codec_ctx, packet);
+      spdlog::info("sent packet");
 
-    while (err >= 0)
-    {
-      spdlog::info("decoding frame");
-      err = avcodec_receive_frame(video_codec_ctx, frame);
       if (err < 0)
       {
-        if (err == AVERROR_EOF)
-        {
-          spdlog::info("eof");
-          done = true;
-          break;
-        }
-        else if (err == AVERROR(EAGAIN))
-        {
-          spdlog::info("finished images from frame");
-          break;
-        }
-        else
-        {
-          spdlog::error("got error: {}", (int) err);
-          return -1;
-        }
+        spdlog::error("error: {}", err);
+        break;
       }
 
-      spdlog::info("decoded frame with format: {}",
-                   av_get_pix_fmt_name((AVPixelFormat) frame->format));
+      while (err >= 0)
+      {
+        spdlog::info("requesting image frame from video frame");
+        err = avcodec_receive_frame(video_codec_ctx, frame);
+        spdlog::info("got image frame");
 
-      SwsContext *context = sws_getContext(
-          frame->width, frame->height, (AVPixelFormat) frame->format,
-          frame->width, frame->height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
-      u8 *rgb       = new u8[frame->width * frame->height * 3];
-      u8 *planes[]  = {rgb};
-      int strides[] = {3 * frame->width};
-      sws_scale(context, frame->data, frame->linesize, 0, frame->height, planes,
-                strides);
+        if (err < 0)
+        {
+          if (err == AVERROR_EOF)
+          {
+            spdlog::info("eof");
+            done = true;
+            break;
+          }
+          else if (err == AVERROR(EAGAIN))
+          {
+            spdlog::info("finished image frames from video frame");
+            break;
+          }
+          else
+          {
+            spdlog::error("got error: {}", (int) err);
+            return -1;
+          }
+        }
 
-      // TODO(lamarrr): is this necessary?
-      av_frame_unref(frame);
+        spdlog::info("decoded image frame with format: {}",
+                     av_get_pix_fmt_name((AVPixelFormat) frame->format));
 
-      delete[] rgb;
+        SwsContext *context = sws_getContext(
+            frame->width, frame->height, (AVPixelFormat) frame->format,
+            frame->width, frame->height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
+        u8 *rgb       = new u8[frame->width * frame->height * 3];
+        u8 *planes[]  = {rgb};
+        int strides[] = {3 * frame->width};
+        sws_scale(context, frame->data, frame->linesize, 0, frame->height, planes,
+                  strides);
+
+        // TODO(lamarrr): is this necessary?
+        av_frame_unref(frame);
+
+        delete[] rgb;
+      }
+
+      if (done)
+      {
+        spdlog::info("finished decoding");
+        break;
+      }
     }
-
-    if (done)
-    {
-      spdlog::info("finished decoding");
-      break;
-    }
+    // else if(packet->stream_index == /*audio_stream_index*/)
   }
 
   int           width  = video_codec_ctx->width;
