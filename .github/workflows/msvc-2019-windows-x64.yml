@@ -8,32 +8,32 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2019
+    runs-on: windows-2022
 
     strategy:
       matrix:
         build_mode: ["Release", "Debug"]
 
     steps:
-    - uses: actions/checkout@v3
-   
-    - name: Install Vulkan SDK
-      run:  wget https://sdk.lunarg.com/sdk/download/1.3.239.0/windows/VulkanSDK-1.3.239.0-Installer.exe -o vulkan_installer.exe && ./vulkan_installer.exe --accept-licenses --default-answer --confirm-command install
+      - uses: actions/checkout@v3
 
-    - name: Install SDL3
-      run: git clone https://github.com/libsdl-org/SDL.git && cd SDL && mkdir build && cd build && cmake .. -DSDL_STATIC=ON && cmake --build . --config Release --target install
+      - name: Install Vulkan SDK
+        run: wget https://sdk.lunarg.com/sdk/download/1.3.239.0/windows/VulkanSDK-1.3.239.0-Installer.exe -o vulkan_installer.exe && ./vulkan_installer.exe --accept-licenses --default-answer --confirm-command install
 
-    - name: Install vcpkg
-      run: git clone https://github.com/microsoft/vcpkg.git && cd vcpkg && ./bootstrap-vcpkg.bat
+      - name: Install SDL3
+        run: git clone https://github.com/libsdl-org/SDL.git && cd SDL && mkdir build && cd build && cmake .. -DSDL_STATIC=ON && cmake --build . --config Release --target install
 
-    - name: Install dependencies via vcpkg
-      run: cd vcpkg && .\vcpkg.exe install --triplet x64-windows vulkan freetype harfbuzz libpng[apng] fmt spdlog simdjson libwebp libjpeg-turbo libpng gtest libavif ffmpeg abseil
+      - name: Install vcpkg
+        run: git clone https://github.com/microsoft/vcpkg.git && cd vcpkg && ./bootstrap-vcpkg.bat
 
-    - name: Configure Build Directory
-      run: mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE="../vcpkg/scripts/buildsystems/vcpkg.cmake" -DSTX_ENABLE_BACKTRACE=ON
+      - name: Install dependencies via vcpkg
+        run: cd vcpkg && .\vcpkg.exe install --triplet x64-windows vulkan freetype harfbuzz libpng[apng] fmt spdlog simdjson libwebp libjpeg-turbo libpng gtest libavif ffmpeg abseil
 
-    - name: Build Ashura
-      run: cd build && cmake --build . --config ${{matrix.build_mode}}
-      
-    - name: Run Ashura Test
-      run: cd build/ashura/${{matrix.build_mode}}/ && ./ashura_test.exe
+      - name: Configure Build Directory
+        run: mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE="../vcpkg/scripts/buildsystems/vcpkg.cmake" -DSTX_ENABLE_BACKTRACE=ON
+
+      - name: Build Ashura
+        run: cd build && cmake --build . --config ${{matrix.build_mode}}
+
+      - name: Run Ashura Test
+        run: cd build/ashura/${{matrix.build_mode}}/ && ./ashura_test.exe
