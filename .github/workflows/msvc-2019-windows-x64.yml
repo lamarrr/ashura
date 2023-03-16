@@ -15,7 +15,7 @@ jobs:
         build_mode: ["Release", "Debug"]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
    # NASM
     - name: Restore cached NASM
@@ -107,7 +107,7 @@ jobs:
       if: steps.cache-depend-restore.outputs.cache-hit != 'true'
       run: |
         cd vcpkg
-        .\vcpkg.exe install --triplet x64-windows vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg
+        .\vcpkg.exe install --triplet x64-windows vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg ffmpeg
 
     - name: Save vcpkg dependencies cache
       if: steps.cache-depend-restore.outputs.cache-hit != 'true'
@@ -124,4 +124,3 @@ jobs:
 
     - name: CMake Build
       run: cmake --build build --config ${{matrix.build_mode}}
-    
