@@ -107,7 +107,7 @@ jobs:
       if: steps.cache-depend-restore.outputs.cache-hit != 'true'
       run: |
         cd vcpkg
-        .\vcpkg.exe install --triplet x64-windows vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg ffmpeg
+        .\vcpkg.exe install --triplet x64-windows vulkan freetype harfbuzz libpng[apng] fmt spdlog simdjson libwebp libjpeg-turbo libpng gtest libavif ffmpeg
 
     - name: Save vcpkg dependencies cache
       if: steps.cache-depend-restore.outputs.cache-hit != 'true'
