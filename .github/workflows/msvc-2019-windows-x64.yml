@@ -120,7 +120,7 @@ jobs:
     #CMAKE
     - name: Configure Build Directory
       run: |
-        mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE="../vcpkg/scripts/buildsystems/vcpkg.cmake"
 
     - name: CMake Build
       run: cmake --build build --config ${{matrix.build_mode}}
