@@ -187,8 +187,7 @@ struct WidgetContext
     usize index = 1;
     while (!inserted)
     {
-      auto [it, was_inserted] =
-          plugins.emplace(fmt::format("{} ({})", id, index), plugin);
+      auto [it, was_inserted] = plugins.emplace(fmt::format("{} ({})", id, index), plugin);
       index++;
       inserted = was_inserted;
     }
@@ -262,18 +261,15 @@ struct Widget
   {}
 
   // called before children are drawn
-  constexpr virtual void pre_draw(gfx::Canvas &canvas, Widget &child,
-                                  rect area)
+  constexpr virtual void pre_draw(gfx::Canvas &canvas, Widget &child, rect area)
   {}
 
   // called once children are drawn
-  constexpr virtual void post_draw(gfx::Canvas &canvas, Widget &child,
-                                   rect area)
+  constexpr virtual void post_draw(gfx::Canvas &canvas, Widget &child, rect area)
   {}
 
   //
-  constexpr virtual void tick(WidgetContext           &context,
-                              std::chrono::nanoseconds interval)
+  constexpr virtual void tick(WidgetContext &context, std::chrono::nanoseconds interval)
   {}
 
   //
@@ -293,21 +289,18 @@ struct Widget
   {}
 
   constexpr virtual void on_click(WidgetContext &context, MouseButton button,
-                                  vec2 screen_position,
-                                  u32 nclicks, quad quad)
+                                  vec2 screen_position, u32 nclicks, quad quad)
   {}
 
-  constexpr virtual void on_mouse_move(WidgetContext &context,
-                                       vec2           screen_position,
+  constexpr virtual void on_mouse_move(WidgetContext &context, vec2 screen_position,
                                        vec2 translation, quad quad)
   {}
 
-  constexpr virtual void on_mouse_enter(WidgetContext &context,
-                                        vec2 screen_position, quad quad)
+  constexpr virtual void on_mouse_enter(WidgetContext &context, vec2 screen_position,
+                                        quad quad)
   {}
 
-  virtual void on_mouse_leave(WidgetContext    &context,
-                              stx::Option<vec2> screen_position)
+  virtual void on_mouse_leave(WidgetContext &context, stx::Option<vec2> screen_position)
   {}
 
   //
@@ -372,15 +365,13 @@ struct Widget
 
   // TODO(lamarrr): we need a widget build tree???
   //
-  virtual simdjson::dom::element save(WidgetContext         &context,
-                                      simdjson::dom::parser &parser)
+  virtual simdjson::dom::element save(WidgetContext &context, simdjson::dom::parser &parser)
   {
     return parser.parse("{}", 2);
   }
 
   //
-  virtual void restore(WidgetContext                &context,
-                       simdjson::dom::element const &element)
+  virtual void restore(WidgetContext &context, simdjson::dom::element const &element)
   {}
 
   // position of the widget on the viewport. typically calculated on every
@@ -392,8 +383,7 @@ struct Widget
 struct WidgetImpl
 {
   template <typename DerivedWidget>
-  constexpr WidgetImpl(DerivedWidget widget) :
-      impl{new DerivedWidget{std::move(widget)}}
+  constexpr WidgetImpl(DerivedWidget widget) : impl{new DerivedWidget{std::move(widget)}}
   {
     static_assert(std::is_base_of_v<Widget, DerivedWidget>);
   }

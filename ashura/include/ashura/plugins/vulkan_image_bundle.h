@@ -35,14 +35,12 @@ struct VulkanImageBundle : public ImageBundle
   virtual constexpr ~VulkanImageBundle() override
   {}
 
-  virtual gfx::image add(stx::Span<u8 const> pixels, extent extent,
-                         ImageFormat format) override
+  virtual gfx::image add(ImageView view) override
   {
-    return bundle->add(upload_context->upload_image(pixels, extent, format));
+    return bundle->add(upload_context->upload_image(view));
   }
 
-  virtual stx::Result<stx::Void, AssetBundleError> remove(
-      gfx::image image) override
+  virtual stx::Result<stx::Void, AssetBundleError> remove(gfx::image image) override
   {
     return bundle->remove(image);
   }

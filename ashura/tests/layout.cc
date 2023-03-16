@@ -18,16 +18,14 @@ using namespace ash;
 
 TEST(LayoutTest, Start)
 {
-  Flex flex{FlexProps{.width  = constraint{.scale = 1},
-                      .height = constraint{.scale = 1}},
+  Flex flex{FlexProps{.width = constraint{.scale = 1}, .height = constraint{.scale = 1}},
             Widget{},
             Image{ImageProps{.width  = constraint{.bias = 100},
                              .height = constraint{.bias = 100}}},
             Image{ImageProps{.width  = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
-  perform_layout(flex,
-                 rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
+  perform_layout(flex, rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
   EXPECT_EQ(flex.area.offset.x, 50);
   EXPECT_EQ(flex.area.offset.y, 50);
@@ -79,8 +77,7 @@ TEST(LayoutTest, SpaceAround)
             Image{ImageProps{.width  = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
-  perform_layout(flex,
-                 rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
+  perform_layout(flex, rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
   f32 space = (1920 - 300) / 6;
   f32 x     = 50;
@@ -122,8 +119,7 @@ TEST(LayoutTest, SpaceEvenly)
             Image{ImageProps{.width  = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
-  perform_layout(flex,
-                 rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
+  perform_layout(flex, rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
   f32 x     = 50;
   f32 space = (1920 - 300) / 4.0f;
@@ -165,8 +161,7 @@ TEST(LayoutTest, SpaceBetween)
             Image{ImageProps{.width  = constraint{.bias = 200},
                              .height = constraint{.bias = 200}}}};
 
-  perform_layout(flex,
-                 rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
+  perform_layout(flex, rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
   f32 x     = 50;
   f32 space = (1920 - 300) / 2;

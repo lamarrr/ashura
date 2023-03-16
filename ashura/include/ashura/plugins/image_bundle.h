@@ -28,8 +28,7 @@ struct ImageBundle : public Plugin
     return "ImageBundle";
   }
 
-  virtual gfx::image add(stx::Span<u8 const> pixels, extent extent,
-                         ImageFormat format)
+  virtual gfx::image add(ImageView view)
   {
     return 0;
   }

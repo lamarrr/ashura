@@ -29,8 +29,7 @@ struct EaseIn : public Animation
 {
   virtual f32 tick(f32 timepoint) override
   {
-    return Animation::end * (timepoint /= Animation::duration) * timepoint +
-           Animation::begin;
+    return Animation::end * (timepoint /= Animation::duration) * timepoint + Animation::begin;
   }
 };
 
@@ -38,8 +37,7 @@ struct EaseOut : public Animation
 {
   virtual f32 tick(f32 timepoint) override
   {
-    return -Animation::end * (timepoint /= Animation::duration) *
-               (timepoint - 2) +
+    return -Animation::end * (timepoint /= Animation::duration) * (timepoint - 2) +
            Animation::begin;
   }
 };
@@ -50,8 +48,7 @@ struct EaseInOut : public Animation
   {
     if ((timepoint /= Animation::duration / 2) < 1)
       return Animation::end / 2 * timepoint * timepoint + Animation::begin;
-    return -Animation::end / 2 * ((--timepoint) * (timepoint - 2) - 1) +
-           Animation::begin;
+    return -Animation::end / 2 * ((--timepoint) * (timepoint - 2) - 1) + Animation::begin;
   }
 };
 

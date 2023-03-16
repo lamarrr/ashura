@@ -21,8 +21,7 @@ struct WidgetDrawEntry
 // TODO(lamarrr): more window events pumping to widgets, how?
 struct WidgetSystem
 {
-  explicit WidgetSystem(Widget &iroot) :
-      root{&iroot}
+  explicit WidgetSystem(Widget &iroot) : root{&iroot}
   {}
 
   static void __assign_ids_recursive(Widget &widget, u64 &id)
@@ -67,19 +66,16 @@ struct WidgetSystem
   }
 
   static void __push_recursive(stx::Vec<WidgetDrawEntry> &entries,
-                               Widget const              *last_hit_widget,
-                               bool &last_hit_widget_is_alive, Widget &widget,
-                               Widget *parent, i64 z_index)
+                               Widget const *last_hit_widget, bool &last_hit_widget_is_alive,
+                               Widget &widget, Widget *parent, i64 z_index)
   {
     if (widget.get_visibility() == Visibility::Visible)
     {
       z_index = widget.get_z_index(z_index);
 
       entries
-          .push(WidgetDrawEntry{.widget  = &widget,
-                                .parent  = parent,
-                                .z_index = z_index,
-                                .quad    = quad{}})
+          .push(WidgetDrawEntry{
+              .widget = &widget, .parent = parent, .z_index = z_index, .quad = quad{}})
           .unwrap();
     }
 
@@ -90,8 +86,8 @@ struct WidgetSystem
 
     for (Widget *child : widget.get_children())
     {
-      __push_recursive(entries, last_hit_widget, last_hit_widget_is_alive,
-                       *child, &widget, z_index + 1);
+      __push_recursive(entries, last_hit_widget, last_hit_widget_is_alive, *child, &widget,
+                       z_index + 1);
     }
   }
 
@@ -119,14 +115,13 @@ struct WidgetSystem
       {
         MouseClickEvent event = std::get<MouseClickEvent>(e);
 
-        for (WidgetDrawEntry const *iter = entries.end();
-             iter > entries.begin();)
+        for (WidgetDrawEntry const *iter = entries.end(); iter > entries.begin();)
         {
           iter--;
           if (iter->quad.contains(event.position))
           {
-            iter->widget->on_click(context, event.button, event.position,
-                                   event.clicks, iter->quad);
+            iter->widget->on_click(context, event.button, event.position, event.clicks,
+                                   iter->quad);
             break;
           }
         }
@@ -137,8 +132,7 @@ struct WidgetSystem
 
         Widget *hit_widget = nullptr;
 
-        for (WidgetDrawEntry const *iter = entries.end();
-             iter > entries.begin();)
+        for (WidgetDrawEntry const *iter = entries.end(); iter > entries.begin();)
         {
           iter--;
           if (iter->quad.contains(event.position))
@@ -149,8 +143,8 @@ struct WidgetSystem
             }
             else
             {
-              iter->widget->on_mouse_move(context, event.position,
-                                          event.translation, iter->quad);
+              iter->widget->on_mouse_move(context, event.position, event.translation,
+                                          iter->quad);
             }
             hit_widget = iter->widget;
             break;
@@ -160,8 +154,7 @@ struct WidgetSystem
         if (last_hit_widget != nullptr && last_hit_widget_is_alive &&
             last_hit_widget != hit_widget)
         {
-          last_hit_widget->on_mouse_leave(context,
-                                          stx::Some(vec2{event.position}));
+          last_hit_widget->on_mouse_leave(context, stx::Some(vec2{event.position}));
         }
 
         last_hit_widget          = hit_widget;
@@ -169,8 +162,7 @@ struct WidgetSystem
       }
       else if (std::holds_alternative<WindowEvents>(e))
       {
-        if ((std::get<WindowEvents>(e) & WindowEvents::MouseLeave) !=
-            WindowEvents::None)
+        if ((std::get<WindowEvents>(e) & WindowEvents::MouseLeave) != WindowEvents::None)
         {
           if (last_hit_widget != nullptr && last_hit_widget_is_alive)
           {
@@ -191,15 +183,13 @@ struct WidgetSystem
 
   void perform_widget_layout(vec2 viewport_extent)
   {
-    ash::perform_layout(*root,
-                        rect{.offset = vec2{0, 0}, .extent = viewport_extent});
+    ash::perform_layout(*root, rect{.offset = vec2{0, 0}, .extent = viewport_extent});
   }
 
   void rebuild_draw_entries()
   {
     entries.clear();
-    __push_recursive(entries, last_hit_widget, last_hit_widget_is_alive, *root,
-                     nullptr, 0);
+    __push_recursive(entries, last_hit_widget, last_hit_widget_is_alive, *root, nullptr, 0);
     entries.span().sort([](WidgetDrawEntry const &a, WidgetDrawEntry const &b) {
       return a.z_index < b.z_index;
     });
@@ -223,22 +213,20 @@ struct WidgetSystem
       }
       entry.quad =
           quad{.p1 = transform(canvas.transform, entry.widget->area.offset),
-               .p2 = transform(canvas.transform,
-                               entry.widget->area.offset +
-                                   vec2{entry.widget->area.extent.x, 0}),
-               .p3 = transform(canvas.transform, entry.widget->area.offset +
-                                                     entry.widget->area.extent),
-               .p4 = transform(canvas.transform,
-                               entry.widget->area.offset +
-                                   vec2{0, entry.widget->area.extent.y})};
+               .p2 = transform(canvas.transform, entry.widget->area.offset +
+                                                     vec2{entry.widget->area.extent.x, 0}),
+               .p3 = transform(canvas.transform,
+                               entry.widget->area.offset + entry.widget->area.extent),
+               .p4 = transform(canvas.transform, entry.widget->area.offset +
+                                                     vec2{0, entry.widget->area.extent.y})};
 
       canvas.restore();
     }
   }
 
-  Widget *root = nullptr;
-  stx::Vec<std::variant<MouseClickEvent, MouseMotionEvent, WindowEvents>>
-          events{stx::os_allocator};
+  Widget                                                                 *root = nullptr;
+  stx::Vec<std::variant<MouseClickEvent, MouseMotionEvent, WindowEvents>> events{
+      stx::os_allocator};
   Widget *last_hit_widget          = nullptr;
   bool    last_hit_widget_is_alive = false;
   // sorted by z-index

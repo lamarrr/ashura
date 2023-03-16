@@ -5,6 +5,7 @@
 
 namespace ash
 {
+
 namespace gfx
 {
 
@@ -13,14 +14,28 @@ using image = u64;
 
 }        // namespace gfx
 
+// NOTE: pixels are not stored in endian order but in byte by byte interleaving. i.e. for
+// RGBA bytes 0 -> R, 1 -> G, 2 -> B, 3 -> A i.e. [r, g, b, a, r, g, b, a]
 enum class ImageFormat : u8
 {
-  Alpha,
-  Antialiasing,
-  Gray,
-  Rgb,
-  Rgba,
-  Bgra
+  Alpha,               // A8
+  Antialiasing,        // A8
+  Gray,                // A8
+  Rgb,                 // R8G8B8
+  Rgba,                // R8G8B8A8
+  Bgra                 // B8G8R8A8
+};
+
+/// channels are interleaved and samples are stored in native-endian order
+enum class PcmFormat : u8
+{
+  U8,
+  S8,
+  U16,
+  S16,
+  U32,
+  S32,
+  F32
 };
 
 enum class ColorSpace : u8
@@ -33,7 +48,7 @@ enum class ColorSpace : u8
   Yuv
 };
 
-inline u8 nsource_channels_for_format(ImageFormat fmt)
+inline u8 nchannels(ImageFormat fmt)
 {
   switch (fmt)
   {
@@ -52,6 +67,13 @@ inline u8 nsource_channels_for_format(ImageFormat fmt)
   }
 }
 
+struct ImageView
+{
+  stx::Span<u8 const> data;
+  ash::extent         extent;
+  ImageFormat         format = ImageFormat::Rgba;
+};
+
 struct ImageBuffer
 {
   stx::Memory memory;
@@ -61,6 +83,11 @@ struct ImageBuffer
   stx::Span<u8 const> span() const
   {
     return stx::Span{AS(u8 *, memory.handle), extent.area() * 4};
+  }
+
+  operator ImageView() const
+  {
+    return ImageView{.data = span(), .extent = extent, .format = format};
   }
 };
 

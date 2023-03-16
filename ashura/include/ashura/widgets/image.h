@@ -91,15 +91,13 @@ struct Image : public Widget
     if (props.aspect_ratio.is_some())
     {
       f32 aspect_ratio = props.aspect_ratio.value();
-      return Layout{
-          .area = rect{.offset = vec2{0, 0},
-                       .extent = vec2{std::min(height * aspect_ratio, width),
-                                      std::min(width / aspect_ratio, height)}}};
+      return Layout{.area = rect{.offset = vec2{0, 0},
+                                 .extent = vec2{std::min(height * aspect_ratio, width),
+                                                std::min(width / aspect_ratio, height)}}};
     }
     else
     {
-      return Layout{
-          .area = rect{.offset = area.offset, .extent = vec2{width, height}}};
+      return Layout{.area = rect{.offset = area.offset, .extent = vec2{width, height}}};
     }
   }
 
@@ -127,13 +125,11 @@ struct Image : public Widget
         {
           f32 aspect_ratio = props.aspect_ratio.value();
 
-          vec2 clipped_extent{std::min(image_extent.height * aspect_ratio,
-                                       AS(f32, image_extent.width)),
-                              std::min(image_extent.width / aspect_ratio,
-                                       AS(f32, image_extent.height))};
+          vec2 clipped_extent{
+              std::min(image_extent.height * aspect_ratio, AS(f32, image_extent.width)),
+              std::min(image_extent.width / aspect_ratio, AS(f32, image_extent.height))};
 
-          vec2 original_extent{AS(f32, image_extent.width),
-                               AS(f32, image_extent.height)};
+          vec2 original_extent{AS(f32, image_extent.width), AS(f32, image_extent.height)};
 
           vec2 space = original_extent - clipped_extent;
 
@@ -150,8 +146,7 @@ struct Image : public Widget
         else
         {
           canvas.draw_rounded_image(
-              image, area,
-              rect{.offset = vec2{s0, t0}, .extent = vec2{s1 - s0, t1 - t0}},
+              image, area, rect{.offset = vec2{s0, t0}, .extent = vec2{s1 - s0, t1 - t0}},
               props.border_radius, 360);
         }
       }
@@ -167,11 +162,9 @@ struct Image : public Widget
     }
   }
 
-  virtual void tick(WidgetContext           &context,
-                    std::chrono::nanoseconds interval) override
+  virtual void tick(WidgetContext &context, std::chrono::nanoseconds interval) override
   {
-    ImageBundle *bundle =
-        context.get_plugin<ImageBundle>("ImageBundle").unwrap();
+    ImageBundle *bundle = context.get_plugin<ImageBundle>("ImageBundle").unwrap();
 
     switch (state)
     {
@@ -179,11 +172,9 @@ struct Image : public Widget
       {
         if (std::holds_alternative<MemoryImageSource>(props.source))
         {
-          MemoryImageSource const &source =
-              std::get<MemoryImageSource>(props.source);
-          image = bundle->add(source.buffer.span(), source.buffer.extent,
-                              source.buffer.format);
-          state = ImageState::Loaded;
+          MemoryImageSource const &source = std::get<MemoryImageSource>(props.source);
+          image                           = bundle->add(source.buffer);
+          state                           = ImageState::Loaded;
         }
         else if (std::holds_alternative<FileImageSource>(props.source))
         {
@@ -191,13 +182,11 @@ struct Image : public Widget
               *context.task_scheduler,
               [path = std::get<FileImageSource>(props.source)
                           .path.copy(stx::os_allocator)
-                          .unwrap()]()
-                  -> stx::Result<ImageBuffer, ImageLoadError> {
+                          .unwrap()]() -> stx::Result<ImageBuffer, ImageLoadError> {
                 if (!std::filesystem::exists(path.c_str()))
                   return stx::Err(ImageLoadError::InvalidPath);
 
-                std::ifstream stream{path.c_str(),
-                                     std::ios::ate | std::ios::binary};
+                std::ifstream stream{path.c_str(), std::ios::ate | std::ios::binary};
 
                 ASH_CHECK(stream.is_open());
 
@@ -210,8 +199,7 @@ struct Image : public Widget
 
                 stream.read(AS(char *, memory.handle), file_size);
                 spdlog::info("decided");
-                return decode_image(
-                    stx::Span{AS(u8 const *, memory.handle), file_size});
+                return decode_image(stx::Span{AS(u8 const *, memory.handle), file_size});
               },
               stx::INTERACTIVE_PRIORITY, stx::TaskTraceInfo{}));
           state             = ImageState::Loading;
@@ -232,7 +220,7 @@ struct Image : public Widget
           {
             spdlog::info("loaded image successfully");
             ImageBuffer &buffer = load_result.value();
-            image               = bundle->add(buffer.span(), buffer.extent, buffer.format);
+            image               = bundle->add(buffer);
             state               = ImageState::Loaded;
             if (props.resize_on_load)
             {
@@ -267,21 +255,18 @@ struct Image : public Widget
     spdlog::info("mouse over");
   }
 
-  virtual void on_mouse_leave(WidgetContext    &context,
-                              stx::Option<vec2> screen_position)
+  virtual void on_mouse_leave(WidgetContext &context, stx::Option<vec2> screen_position)
   {
     spdlog::info("mouse leave");
   }
 
   constexpr virtual void on_click(WidgetContext &context, MouseButton button,
-                                  vec2 screen_position, u32 nclicks,
-                                  quad quad)
+                                  vec2 screen_position, u32 nclicks, quad quad)
   {
     if (button == MouseButton::Secondary)
     {
-      props.border_radius =
-          vec4{props.border_radius.x + 10, props.border_radius.y + 10,
-               props.border_radius.z + 10, props.border_radius.w + 10};
+      props.border_radius = vec4{props.border_radius.x + 10, props.border_radius.y + 10,
+                                 props.border_radius.z + 10, props.border_radius.w + 10};
     }
     else
     {
@@ -299,13 +284,12 @@ struct Image : public Widget
     // T0D0(lamarrr): format
     if (std::holds_alternative<MemoryImageSource>(props.source))
     {
-      MemoryImageSource &memory_source =
-          std::get<MemoryImageSource>(props.source);
-      stx::Span pixels = memory_source.buffer.span();
-      source           = base64_encode(stx::Span{
-          reinterpret_cast<char const *>(pixels.data()), pixels.size()});
-      source_type      = "memory";
-      extent           = memory_source.buffer.extent;
+      MemoryImageSource &memory_source = std::get<MemoryImageSource>(props.source);
+      stx::Span          pixels        = memory_source.buffer.span();
+      source                           = base64_encode(
+          stx::Span{reinterpret_cast<char const *>(pixels.data()), pixels.size()});
+      source_type = "memory";
+      extent      = memory_source.buffer.extent;
     }
     else if (std::holds_alternative<FileImageSource>(props.source))
     {
@@ -344,13 +328,13 @@ struct Image : public Widget
     "resize_on_load": {},
     "alt": "{}"}})"),
         source, source_type, extent.width, extent.height, props.width.bias,
-        props.width.scale, props.width.min, props.width.max,
-        props.width.min_rel, props.width.max_rel, props.height.bias,
-        props.height.scale, props.height.min, props.height.max,
-        props.height.min_rel, props.height.max_rel, props.border_radius.x,
-        props.border_radius.y, props.border_radius.z, props.border_radius.w,
-        props.aspect_ratio.is_some(), props.aspect_ratio.copy().unwrap_or(1.0f),
-        props.resize_on_load, std::string_view{props.alt});
+        props.width.scale, props.width.min, props.width.max, props.width.min_rel,
+        props.width.max_rel, props.height.bias, props.height.scale, props.height.min,
+        props.height.max, props.height.min_rel, props.height.max_rel,
+        props.border_radius.x, props.border_radius.y, props.border_radius.z,
+        props.border_radius.w, props.aspect_ratio.is_some(),
+        props.aspect_ratio.copy().unwrap_or(1.0f), props.resize_on_load,
+        std::string_view{props.alt});
 
     return parser.parse(json.data(), json.size());
   }
@@ -366,16 +350,14 @@ struct Image : public Widget
 
     if (state == ImageState::Loaded)
     {
-      ImageBundle *bundle =
-          context.get_plugin<ImageBundle>("ImageBundle").unwrap();
+      ImageBundle *bundle = context.get_plugin<ImageBundle>("ImageBundle").unwrap();
       (void) bundle->remove(image);
     }
 
     std::string_view source      = element["source"].get_string();
     std::string_view source_type = element["source_type"].get_string();
-    ash::extent      extent{
-             .width  = AS(u32, element["extent_width"].get_uint64()),
-             .height = AS(u32, element["extent_height"].get_uint64())};
+    ash::extent      extent{.width  = AS(u32, element["extent_width"].get_uint64()),
+                            .height = AS(u32, element["extent_height"].get_uint64())};
 
     if (source_type == "memory")
     {
@@ -388,8 +370,8 @@ struct Image : public Widget
     }
     else if (source_type == "file")
     {
-      props.source = FileImageSource{
-          .path = stx::string::make(stx::os_allocator, source).unwrap()};
+      props.source =
+          FileImageSource{.path = stx::string::make(stx::os_allocator, source).unwrap()};
     }
     else if (source_type == "network")
     {
@@ -416,8 +398,7 @@ struct Image : public Widget
 
     if (element["has_aspect_ratio"].get_bool())
     {
-      props.aspect_ratio =
-          stx::Some(AS(f32, element["aspect_ratio"].get_double()));
+      props.aspect_ratio = stx::Some(AS(f32, element["aspect_ratio"].get_double()));
     }
     else
     {
@@ -426,18 +407,16 @@ struct Image : public Widget
 
     props.resize_on_load = element["resize_on_load"].get_bool();
     props.alt =
-        stx::string::make(stx::os_allocator, element["alt"].get_string())
-            .unwrap();
+        stx::string::make(stx::os_allocator, element["alt"].get_string()).unwrap();
 
     state = ImageState::Inactive;
   }
 
-  ImageProps props;
-  ImageState state = ImageState::Inactive;
-  gfx::image image = 0;
-  extent     image_extent;
-  stx::Option<stx::Future<stx::Result<ImageBuffer, ImageLoadError>>>
-      image_load_future;
+  ImageProps                                                         props;
+  ImageState                                                         state = ImageState::Inactive;
+  gfx::image                                                         image = 0;
+  extent                                                             image_extent;
+  stx::Option<stx::Future<stx::Result<ImageBuffer, ImageLoadError>>> image_load_future;
 };
 
 }        // namespace ash

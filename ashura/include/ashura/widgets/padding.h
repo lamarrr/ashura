@@ -15,8 +15,7 @@ struct Padding : public Widget
 {
   template <typename DerivedWidget>
   constexpr Padding(EdgeInsets iedge_insets, DerivedWidget ichild) :
-      edge_insets{iedge_insets},
-      child{new DerivedWidget{std::move(ichild)}}
+      edge_insets{iedge_insets}, child{new DerivedWidget{std::move(ichild)}}
   {}
 
   constexpr virtual ~Padding() override
@@ -43,7 +42,8 @@ struct Padding : public Widget
 
   constexpr virtual Layout layout(rect area);
 
-  virtual simdjson::dom::element save(WidgetContext &context, simdjson::dom::parser &parser);
+  virtual simdjson::dom::element save(WidgetContext         &context,
+                                      simdjson::dom::parser &parser);
 
   virtual void restore(WidgetContext &context, simdjson::dom::element const &element);
 

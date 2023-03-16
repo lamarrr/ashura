@@ -22,12 +22,11 @@ struct AppConfig
 
   AppConfig copy() const
   {
-    return AppConfig{
-        .name                     = stx::string::make(stx::os_allocator, name).unwrap(),
-        .version                  = version,
-        .enable_validation_layers = enable_validation_layers,
-        .log_file                 = stx::string::make(stx::os_allocator, log_file).unwrap(),
-        .window_config            = window_config.copy()};
+    return AppConfig{.name    = stx::string::make(stx::os_allocator, name).unwrap(),
+                     .version = version,
+                     .enable_validation_layers = enable_validation_layers,
+                     .log_file      = stx::string::make(stx::os_allocator, log_file).unwrap(),
+                     .window_config = window_config.copy()};
   }
 };
 

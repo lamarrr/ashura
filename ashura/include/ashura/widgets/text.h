@@ -14,8 +14,7 @@ struct Text : public Widget
   {}
 
   Text(TextStyle istyle, std::string_view itext) :
-      text{stx::string::make(stx::os_allocator, itext).unwrap()},
-      style{istyle}
+      text{stx::string::make(stx::os_allocator, itext).unwrap()}, style{istyle}
   {}
 
   virtual WidgetInfo get_info() override
@@ -37,17 +36,18 @@ struct Text : public Widget
     // canvas.draw
   }
 
-  virtual void tick(WidgetContext           &context,
-                    std::chrono::nanoseconds interval) override
+  virtual void tick(WidgetContext &context, std::chrono::nanoseconds interval) override
   {}
 
   // on_mouse_down
   // on_mouse_up
 
-  virtual simdjson::dom::element save(WidgetContext &context, simdjson::dom::parser &parser) override
+  virtual simdjson::dom::element save(WidgetContext         &context,
+                                      simdjson::dom::parser &parser) override
   {}
 
-  virtual void restore(WidgetContext &context, simdjson::dom::element const &element) override
+  virtual void restore(WidgetContext                &context,
+                       simdjson::dom::element const &element) override
   {}
 
   stx::String text;

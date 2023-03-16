@@ -58,7 +58,8 @@ struct Stack : public Widget
 
   constexpr virtual Layout layout(rect area);
 
-  virtual simdjson::dom::element save(WidgetContext &context, simdjson::dom::parser &parser);
+  virtual simdjson::dom::element save(WidgetContext         &context,
+                                      simdjson::dom::parser &parser);
 
   virtual void restore(WidgetContext &context, simdjson::dom::element const &element);
 

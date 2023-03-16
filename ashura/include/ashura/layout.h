@@ -25,8 +25,7 @@ constexpr void perform_layout(Widget &widget, rect allotted_area)
 /// position is Static which makes them independent of the flex's layout and
 /// do not participate in it
 /// TODO(lamarrr): implement layout for Position::Static widgets
-constexpr vec2 perform_children_layout(Layout const            &layout,
-                                       stx::Span<Widget *const> children)
+constexpr vec2 perform_children_layout(Layout const &layout, stx::Span<Widget *const> children)
 {
   if (children.is_empty())
     return layout.area.extent;
@@ -77,10 +76,8 @@ constexpr vec2 perform_children_layout(Layout const            &layout,
        child_it < children.end(); child_it++)
   {
     (*child_it)->area.offset = layout.area.offset + cursor;
-    max_block_element_width =
-        std::max(max_block_element_width, (*child_it)->area.extent.x);
-    max_block_element_height =
-        std::max(max_block_element_height, (*child_it)->area.extent.y);
+    max_block_element_width  = std::max(max_block_element_width, (*child_it)->area.extent.x);
+    max_block_element_height = std::max(max_block_element_height, (*child_it)->area.extent.y);
 
     Widget *const *next_child_it = child_it + 1;
 
@@ -98,12 +95,12 @@ constexpr vec2 perform_children_layout(Layout const            &layout,
         next_child_it == children.end())
     {
       // each block will have at least one widget
-      for (Widget *const *block_it = present_block_start;
-           block_it < next_child_it; block_it++)
+      for (Widget *const *block_it = present_block_start; block_it < next_child_it; block_it++)
       {
         // cross-axis alignment
-        f32 cross_space =
-            layout.flex.direction == Direction::Row ? (max_block_element_height - (*block_it)->area.extent.y) : (max_block_element_width - (*block_it)->area.extent.x);
+        f32 cross_space = layout.flex.direction == Direction::Row ?
+                              (max_block_element_height - (*block_it)->area.extent.y) :
+                              (max_block_element_width - (*block_it)->area.extent.x);
 
         // determine cross-axis span
         if (layout.flex.cross_align == CrossAlign::Start)
@@ -163,10 +160,9 @@ constexpr vec2 perform_children_layout(Layout const            &layout,
             // re-layout the child to the max block height
             if ((*block_it)->area.extent.y != max_block_element_height)
             {
-              perform_layout(**block_it,
-                             rect{.offset = new_offset,
-                                  .extent = vec2{layout.area.extent.x,
-                                                 max_block_element_height}});
+              perform_layout(**block_it, rect{.offset = new_offset,
+                                              .extent = vec2{layout.area.extent.x,
+                                                             max_block_element_height}});
               new_offset.x += (*block_it)->area.extent.x;
             }
           }
@@ -175,10 +171,9 @@ constexpr vec2 perform_children_layout(Layout const            &layout,
             // re-layout the child to the max block width
             if ((*block_it)->area.extent.x != max_block_element_width)
             {
-              perform_layout(**block_it,
-                             rect{.offset = new_offset,
-                                  .extent = vec2{max_block_element_width,
-                                                 layout.area.extent.y}});
+              perform_layout(**block_it, rect{.offset = new_offset,
+                                              .extent = vec2{max_block_element_width,
+                                                             layout.area.extent.y}});
               new_offset.y += (*block_it)->area.extent.y;
             }
           }
@@ -194,15 +189,15 @@ constexpr vec2 perform_children_layout(Layout const            &layout,
       // child_it is last element in block
       if (layout.flex.direction == Direction::Row)
       {
-        main_space = layout.area.extent.x -
-                     (((*child_it)->area.offset.x - layout.area.offset.x) +
-                      (*child_it)->area.extent.x);
+        main_space =
+            layout.area.extent.x -
+            (((*child_it)->area.offset.x - layout.area.offset.x) + (*child_it)->area.extent.x);
       }
       else
       {
-        main_space = layout.area.extent.y -
-                     (((*child_it)->area.offset.y - layout.area.offset.y) +
-                      (*child_it)->area.extent.y);
+        main_space =
+            layout.area.extent.y -
+            (((*child_it)->area.offset.y - layout.area.offset.y) + (*child_it)->area.extent.y);
       }
 
       usize nblock_children = next_child_it - present_block_start;
@@ -211,8 +206,8 @@ constexpr vec2 perform_children_layout(Layout const            &layout,
       {
         f32 main_space_end = main_space;
 
-        for (Widget *const *block_it = present_block_start;
-             block_it < next_child_it; block_it++)
+        for (Widget *const *block_it = present_block_start; block_it < next_child_it;
+             block_it++)
         {
           if (layout.flex.direction == Direction::Row)
           {
@@ -227,10 +222,12 @@ constexpr vec2 perform_children_layout(Layout const            &layout,
       else if (layout.flex.main_align == MainAlign::SpaceAround)
       {
         f32 main_space_around = main_space / (nblock_children * 2);
-        f32 new_offset        = layout.flex.direction == Direction::Row ? (*present_block_start)->area.offset.x : (*present_block_start)->area.offset.y;
+        f32 new_offset        = layout.flex.direction == Direction::Row ?
+                                    (*present_block_start)->area.offset.x :
+                                    (*present_block_start)->area.offset.y;
 
-        for (Widget *const *block_it = present_block_start;
-             block_it < next_child_it; block_it++)
+        for (Widget *const *block_it = present_block_start; block_it < next_child_it;
+             block_it++)
         {
           new_offset += main_space_around;
           if (layout.flex.direction == Direction::Row)
@@ -247,11 +244,13 @@ constexpr vec2 perform_children_layout(Layout const            &layout,
       }
       else if (layout.flex.main_align == MainAlign::SpaceBetween)
       {
-        f32 new_offset = layout.flex.direction == Direction::Row ? (*present_block_start)->area.offset.x : (*present_block_start)->area.offset.y;
+        f32 new_offset = layout.flex.direction == Direction::Row ?
+                             (*present_block_start)->area.offset.x :
+                             (*present_block_start)->area.offset.y;
 
         // there's always atleast one element in a block
-        for (Widget *const *block_it = present_block_start + 1;
-             block_it < next_child_it; block_it++)
+        for (Widget *const *block_it = present_block_start + 1; block_it < next_child_it;
+             block_it++)
         {
           // this expression is in the block scope due to possible
           // division-by-zero if it only has one element, this loop will
@@ -274,11 +273,12 @@ constexpr vec2 perform_children_layout(Layout const            &layout,
       else if (layout.flex.main_align == MainAlign::SpaceEvenly)
       {
         f32 main_space_evenly = main_space / (nblock_children + 1);
-        f32 new_offset        = layout.flex.direction == Direction::Row ? (*present_block_start)->area.offset.x : (*present_block_start)->area.offset.y;
+        f32 new_offset        = layout.flex.direction == Direction::Row ?
+                                    (*present_block_start)->area.offset.x :
+                                    (*present_block_start)->area.offset.y;
         new_offset += main_space_evenly;
 
-        for (Widget *const *block_it = present_block_start; block_it < child_it;
-             block_it++)
+        for (Widget *const *block_it = present_block_start; block_it < child_it; block_it++)
         {
           if (layout.flex.direction == Direction::Row)
           {

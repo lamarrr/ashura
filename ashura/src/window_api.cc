@@ -60,8 +60,7 @@ constexpr WindowEvents sdl_window_event_to_ash(u32 type)
 
 WindowApi::WindowApi()
 {
-  ASH_SDL_CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) == 0,
-                "Unable to initialize SDL");
+  ASH_SDL_CHECK(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) == 0, "Unable to initialize SDL");
 }
 
 WindowApi::~WindowApi()
@@ -93,12 +92,10 @@ bool WindowApi::poll_events()
       case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
       case SDL_EVENT_WINDOW_TAKE_FOCUS:
       {
-        WindowEvents win_event =
-            impl::sdl_window_event_to_ash(event.window.type);
+        WindowEvents win_event = impl::sdl_window_event_to_ash(event.window.type);
 
         for (auto const &listener :
-             get_window_info(WindowID{event.window.windowID})
-                 ->event_listeners)
+             get_window_info(WindowID{event.window.windowID})->event_listeners)
         {
           spdlog::info("win event: {}", (int) event.type);
           if ((listener.first & win_event) != WindowEvents::None)
@@ -112,10 +109,10 @@ bool WindowApi::poll_events()
       case SDL_EVENT_MOUSE_BUTTON_DOWN:
       case SDL_EVENT_MOUSE_BUTTON_UP:
       {
-        MouseClickEvent mouse_event{
-            .mouse_id = MouseID{event.button.which},
-            .position = vec2{AS(f32, event.button.x), AS(f32, event.button.y)},
-            .clicks   = event.button.clicks};
+        MouseClickEvent mouse_event{.mouse_id = MouseID{event.button.which},
+                                    .position =
+                                        vec2{AS(f32, event.button.x), AS(f32, event.button.y)},
+                                    .clicks = event.button.clicks};
 
         switch (event.button.button)
         {
@@ -152,8 +149,8 @@ bool WindowApi::poll_events()
             return true;
         }
 
-        for (auto &listener : get_window_info(WindowID{event.button.windowID})
-                                  ->mouse_click_listeners)
+        for (auto &listener :
+             get_window_info(WindowID{event.button.windowID})->mouse_click_listeners)
         {
           listener.handle(mouse_event);
         }
@@ -162,28 +159,25 @@ bool WindowApi::poll_events()
 
       case SDL_EVENT_MOUSE_MOTION:
       {
-        for (auto &listener : get_window_info(WindowID{event.motion.windowID})
-                                  ->mouse_motion_listeners)
+        for (auto &listener :
+             get_window_info(WindowID{event.motion.windowID})->mouse_motion_listeners)
         {
           listener.handle(MouseMotionEvent{
-              .mouse_id = MouseID{event.motion.which},
-              .position =
-                  vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)},
-              .translation = vec2{AS(f32, event.motion.xrel),
-                                  AS(f32, event.motion.yrel)}});
+              .mouse_id    = MouseID{event.motion.which},
+              .position    = vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)},
+              .translation = vec2{AS(f32, event.motion.xrel), AS(f32, event.motion.yrel)}});
         }
         return true;
       }
 
       case SDL_EVENT_MOUSE_WHEEL:
       {
-        for (auto &listener : get_window_info(WindowID{event.wheel.windowID})
-                                  ->mouse_wheel_listeners)
+        for (auto &listener :
+             get_window_info(WindowID{event.wheel.windowID})->mouse_wheel_listeners)
         {
           listener.handle(MouseWheelEvent{
               .mouse_id    = MouseID{event.wheel.which},
-              .position    = vec2{AS(f32, event.wheel.mouseX),
-                               AS(f32, event.wheel.mouseY)},
+              .position    = vec2{AS(f32, event.wheel.mouseX), AS(f32, event.wheel.mouseY)},
               .translation = vec2{event.wheel.x, event.wheel.y}});
         }
         return true;
@@ -191,22 +185,19 @@ bool WindowApi::poll_events()
 
       case SDL_EVENT_KEY_DOWN:
       {
-        for (auto &listener : get_window_info(WindowID{event.key.windowID})
-                                  ->key_down_listeners)
+        for (auto &listener :
+             get_window_info(WindowID{event.key.windowID})->key_down_listeners)
         {
-          listener.handle(event.key.keysym.sym,
-                          AS(KeyModifiers, event.key.keysym.mod));
+          listener.handle(event.key.keysym.sym, AS(KeyModifiers, event.key.keysym.mod));
         }
         return true;
       }
 
       case SDL_EVENT_KEY_UP:
       {
-        for (auto &listener :
-             get_window_info(WindowID{event.key.windowID})->key_up_listeners)
+        for (auto &listener : get_window_info(WindowID{event.key.windowID})->key_up_listeners)
         {
-          listener.handle(event.key.keysym.sym,
-                          AS(KeyModifiers, event.key.keysym.mod));
+          listener.handle(event.key.keysym.sym, AS(KeyModifiers, event.key.keysym.mod));
         }
         return true;
       }
@@ -253,18 +244,16 @@ stx::Vec<char const *> WindowApi::get_required_instance_extensions() const
 {
   u32 ext_count;
 
-  ASH_SDL_CHECK(
-      SDL_Vulkan_GetInstanceExtensions(&ext_count, nullptr) == SDL_TRUE,
-      "unable to get number of window's required Vulkan instance extensions");
+  ASH_SDL_CHECK(SDL_Vulkan_GetInstanceExtensions(&ext_count, nullptr) == SDL_TRUE,
+                "unable to get number of window's required Vulkan instance extensions");
 
   stx::Vec<char const *> required_instance_extensions{stx::os_allocator};
 
   required_instance_extensions.resize(ext_count).unwrap();
 
-  ASH_SDL_CHECK(
-      SDL_Vulkan_GetInstanceExtensions(
-          &ext_count, required_instance_extensions.data()) == SDL_TRUE,
-      "unable to get window's required Vulkan instance extensions");
+  ASH_SDL_CHECK(SDL_Vulkan_GetInstanceExtensions(
+                    &ext_count, required_instance_extensions.data()) == SDL_TRUE,
+                "unable to get window's required Vulkan instance extensions");
 
   return required_instance_extensions;
 }

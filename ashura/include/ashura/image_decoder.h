@@ -29,8 +29,7 @@ enum class ImageLoadError : u8
   UnsupportedFormat
 };
 
-inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(
-    stx::Span<u8 const> data)
+inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(stx::Span<u8 const> data)
 {
   int width, height;
 
@@ -39,13 +38,12 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(
     return stx::Err(ImageLoadError::InvalidData);
   }
 
-  stx::Memory memory =
-      stx::mem::allocate(stx::os_allocator, width * height * 4).unwrap();
+  stx::Memory memory = stx::mem::allocate(stx::os_allocator, width * height * 4).unwrap();
 
   u8 *pixels = AS(u8 *, memory.handle);
 
-  if (WebPDecodeRGBAInto(data.data(), data.size(), pixels, width * height * 4,
-                         width * 4) == nullptr)
+  if (WebPDecodeRGBAInto(data.data(), data.size(), pixels, width * height * 4, width * 4) ==
+      nullptr)
   {
     return stx::Err(ImageLoadError::InvalidData);
   }
@@ -55,17 +53,14 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(
                              .format = ImageFormat::Rgba});
 }
 
-inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
-                              usize nbytes_to_read)
+inline void png_stream_reader(png_structp png_ptr, unsigned char *out, usize nbytes_to_read)
 {
-  stx::Span<u8 const> *input =
-      AS(stx::Span<u8 const> *, png_get_io_ptr(png_ptr));
+  stx::Span<u8 const> *input = AS(stx::Span<u8 const> *, png_get_io_ptr(png_ptr));
   stx::Span{out, nbytes_to_read}.copy(*input);
   *input = input->slice(nbytes_to_read);
 }
 
-inline stx::Result<ImageBuffer, ImageLoadError> decode_png(
-    stx::Span<u8 const> data)
+inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> data)
 {
   // skip magic number
   data = data.slice(8);
@@ -90,8 +85,8 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(
   int color_type;
   int bit_depth;
 
-  u32 status = png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth,
-                            &color_type, nullptr, nullptr, nullptr);
+  u32 status = png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type,
+                            nullptr, nullptr, nullptr);
 
   if (status != 1)
     return stx::Err(ImageLoadError::InvalidData);
@@ -115,8 +110,7 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(
   stx::Memory pixels_mem =
       stx::mem::allocate(stx::os_allocator, width * height * 4UL).unwrap();
 
-  stx::Memory row_mem =
-      stx::mem::allocate(stx::os_allocator, width * ncomponents).unwrap();
+  stx::Memory row_mem = stx::mem::allocate(stx::os_allocator, width * ncomponents).unwrap();
 
   u8 *output = AS(u8 *, pixels_mem.handle);
   u8 *row    = AS(u8 *, row_mem.handle);
@@ -162,8 +156,7 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(
                              .format = ImageFormat::Rgba});
 }
 
-inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(
-    stx::Span<u8 const> bytes)
+inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> bytes)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -184,11 +177,9 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(
     return stx::Err(ImageLoadError::UnsupportedChannels);
   }
 
-  stx::Memory row_mem =
-      stx::mem::allocate(stx::os_allocator, width * ncomponents).unwrap();
+  stx::Memory row_mem = stx::mem::allocate(stx::os_allocator, width * ncomponents).unwrap();
 
-  stx::Memory pixels_mem =
-      stx::mem::allocate(stx::os_allocator, height * width * 4).unwrap();
+  stx::Memory pixels_mem = stx::mem::allocate(stx::os_allocator, height * width * 4).unwrap();
 
   u8 *row    = AS(u8 *, row_mem.handle);
   u8 *pixels = AS(u8 *, pixels_mem.handle);
@@ -237,14 +228,13 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(
 }
 
 // TODO(lamarrr): support avif
-inline stx::Result<ImageBuffer, ImageLoadError> decode_image(
-    stx::Span<u8 const> bytes)
+inline stx::Result<ImageBuffer, ImageLoadError> decode_image(stx::Span<u8 const> bytes)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 
   constexpr u8 PNG_MAGIC[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
 
-  // RIFF[file size: 4 bytes]WEBP
+  // RIFF-[file size: 4 bytes]-WEBP
   constexpr u8 WEBP_MAGIC1[] = {'R', 'I', 'F', 'F'};
   constexpr u8 WEBP_MAGIC2[] = {'W', 'E', 'B', 'P'};
 
@@ -252,15 +242,12 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_image(
   {
     return decode_jpg(bytes);
   }
-  else if (bytes.slice(0, std::size(PNG_MAGIC))
-               .equals(stx::Span{PNG_MAGIC}))
+  else if (bytes.slice(0, std::size(PNG_MAGIC)).equals(stx::Span{PNG_MAGIC}))
   {
     return decode_png(bytes);
   }
-  else if (bytes.slice(0, std::size(WEBP_MAGIC1))
-               .equals(stx::Span{WEBP_MAGIC1}) &&
-           bytes.slice(8, std::size(WEBP_MAGIC2))
-               .equals(stx::Span{WEBP_MAGIC2}))
+  else if (bytes.slice(0, std::size(WEBP_MAGIC1)).equals(stx::Span{WEBP_MAGIC1}) &&
+           bytes.slice(8, std::size(WEBP_MAGIC2)).equals(stx::Span{WEBP_MAGIC2}))
   {
     return decode_webp(bytes);
   }

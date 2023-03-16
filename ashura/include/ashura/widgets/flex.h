@@ -55,11 +55,10 @@ struct Flex : public Widget
 
   virtual Layout layout(rect area)
   {
-    return Layout{
-        .flex = props,
-        .area = rect{.offset = area.offset,
-                     .extent = vec2{props.width.resolve(area.extent.x),
-                                    props.height.resolve(area.extent.y)}}};
+    return Layout{.flex = props,
+                  .area = rect{.offset = area.offset,
+                               .extent = vec2{props.width.resolve(area.extent.x),
+                                              props.height.resolve(area.extent.y)}}};
   }
 
   virtual simdjson::dom::element save(WidgetContext         &context,
@@ -96,29 +95,24 @@ struct Flex : public Widget
     "height_max_rel": {},
     "children": [{}]}})"),
         info.id, info.type, AS(u32, props.direction), AS(u32, props.wrap),
-        AS(u32, props.main_align), AS(u32, props.cross_align),
-        AS(u32, props.main_fit), AS(u32, props.cross_fit), props.width.bias,
-        props.width.scale, props.width.min, props.width.max,
-        props.width.min_rel, props.width.max_rel, props.height.bias,
-        props.height.scale, props.height.min, props.height.max,
-        props.height.min_rel, props.height.max_rel,
-        fmt::join(children_ids, ", "));
+        AS(u32, props.main_align), AS(u32, props.cross_align), AS(u32, props.main_fit),
+        AS(u32, props.cross_fit), props.width.bias, props.width.scale, props.width.min,
+        props.width.max, props.width.min_rel, props.width.max_rel, props.height.bias,
+        props.height.scale, props.height.min, props.height.max, props.height.min_rel,
+        props.height.max_rel, fmt::join(children_ids, ", "));
 
     return parser.parse(json.data(), json.size());
   }
 
-  virtual void restore(WidgetContext                &context,
-                       simdjson::dom::element const &element)
+  virtual void restore(WidgetContext &context, simdjson::dom::element const &element)
   {
     children.clear();
 
-    Widget::id      = element["id"].get_uint64();
-    props.direction = AS(Direction, AS(u8, element["direction"].get_uint64()));
-    props.wrap      = AS(Wrap, AS(u8, element["wrap"].get_uint64()));
-    props.main_align =
-        AS(MainAlign, AS(u8, element["main_align"].get_uint64()));
-    props.cross_align =
-        AS(CrossAlign, AS(u8, element["cross_align"].get_uint64()));
+    Widget::id                          = element["id"].get_uint64();
+    props.direction                     = AS(Direction, AS(u8, element["direction"].get_uint64()));
+    props.wrap                          = AS(Wrap, AS(u8, element["wrap"].get_uint64()));
+    props.main_align                    = AS(MainAlign, AS(u8, element["main_align"].get_uint64()));
+    props.cross_align                   = AS(CrossAlign, AS(u8, element["cross_align"].get_uint64()));
     props.main_fit                      = AS(Fit, AS(u8, element["main_fit"].get_uint64()));
     props.cross_fit                     = AS(Fit, AS(u8, element["cross_fit"].get_uint64()));
     props.width.bias                    = AS(f32, element["width_bias"].get_double());

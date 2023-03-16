@@ -16,20 +16,17 @@ void Window::attach_surface(stx::Rc<vk::Instance *> const &instance)
 
   VkSurfaceKHR surface;
 
-  ASH_SDL_CHECK(SDL_Vulkan_CreateSurface(window, instance->instance,
-                                         &surface) == SDL_TRUE,
+  ASH_SDL_CHECK(SDL_Vulkan_CreateSurface(window, instance->instance, &surface) == SDL_TRUE,
                 "unable to create surface for window");
 
   this->surface = stx::Some(
-      stx::rc::make_unique(
-          stx::os_allocator,
-          vk::Surface{.surface = surface, .instance = instance->instance})
+      stx::rc::make_unique(stx::os_allocator,
+                           vk::Surface{.surface = surface, .instance = instance->instance})
           .unwrap());
 }
 
 void Window::recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue,
-                                u32                                max_nframes_in_flight,
-                                spdlog::logger                    &logger)
+                                u32 max_nframes_in_flight, spdlog::logger &logger)
 {
   // if cause of change in swapchain is a change in extent, then mark
   // layout as dirty, otherwise maintain pipeline state
@@ -72,13 +69,11 @@ void Window::recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue,
       VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR,
       VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_MAILBOX_KHR};
 
-  VkSampleCountFlagBits msaa_sample_count =
-      queue->device->phy_dev->get_max_sample_count();
+  VkSampleCountFlagBits msaa_sample_count = queue->device->phy_dev->get_max_sample_count();
 
   surface.value()->change_swapchain(
       queue, max_nframes_in_flight, preferred_formats, preferred_present_modes,
-      VkExtent2D{.width  = surface_extent.width,
-                 .height = surface_extent.height},
+      VkExtent2D{.width = surface_extent.width, .height = surface_extent.height},
       VkExtent2D{.width = window_extent.width, .height = window_extent.height},
       msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, logger);
 }
@@ -92,16 +87,15 @@ std::pair<SwapChainState, u32> Window::acquire_image()
 
   vk::SwapChain &swapchain = surface.value()->swapchain.value();
 
-  VkSemaphore semaphore =
-      swapchain.image_acquisition_semaphores[swapchain.frame];
+  VkSemaphore semaphore = swapchain.image_acquisition_semaphores[swapchain.frame];
 
   VkFence fence = VK_NULL_HANDLE;
 
   u32 swapchain_image_index = 0;
 
-  VkResult result = vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain,
-                                          UI_COMMAND_TIMEOUT, semaphore, fence,
-                                          &swapchain_image_index);
+  VkResult result =
+      vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain, UI_COMMAND_TIMEOUT, semaphore,
+                            fence, &swapchain_image_index);
 
   ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                 result == VK_ERROR_OUT_OF_DATE_KHR,
@@ -143,15 +137,15 @@ SwapChainState Window::present(VkQueue queue, u32 swapchain_image_index)
   // delay the process so we don't submit more frames than the display's
   // refresh rate can keep up with and we thus save power.
   //
-  VkPresentInfoKHR present_info{
-      .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-      .pNext              = nullptr,
-      .waitSemaphoreCount = 1,
-      .pWaitSemaphores    = &swapchain.render_semaphores[swapchain.frame],
-      .swapchainCount     = 1,
-      .pSwapchains        = &swapchain.swapchain,
-      .pImageIndices      = &swapchain_image_index,
-      .pResults           = nullptr};
+  VkPresentInfoKHR present_info{.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+                                .pNext              = nullptr,
+                                .waitSemaphoreCount = 1,
+                                .pWaitSemaphores =
+                                    &swapchain.render_semaphores[swapchain.frame],
+                                .swapchainCount = 1,
+                                .pSwapchains    = &swapchain.swapchain,
+                                .pImageIndices  = &swapchain_image_index,
+                                .pResults       = nullptr};
 
   VkResult result = vkQueuePresentKHR(queue, &present_info);
 
@@ -185,8 +179,7 @@ stx::Rc<Window *> create_window(stx::Rc<WindowApi *> api, WindowConfig cfg)
   int window_flags = SDL_WINDOW_VULKAN;
 
   if (cfg.type_hint == WindowTypeHint::Normal)
-  {
-  }
+  {}
   else if (cfg.type_hint == WindowTypeHint::Popup)
   {
     window_flags |= SDL_WINDOW_POPUP_MENU;
@@ -225,9 +218,9 @@ stx::Rc<Window *> create_window(stx::Rc<WindowApi *> api, WindowConfig cfg)
     window_flags |= SDL_WINDOW_ALWAYS_ON_TOP;
   }
 
-  SDL_Window *window = SDL_CreateWindow(
-      cfg.title.c_str(), AS(i32, std::max<u32>(cfg.extent.width, 1)),
-      AS(i32, std::max<u32>(cfg.extent.height, 1)), window_flags);
+  SDL_Window *window =
+      SDL_CreateWindow(cfg.title.c_str(), AS(i32, std::max<u32>(cfg.extent.width, 1)),
+                       AS(i32, std::max<u32>(cfg.extent.height, 1)), window_flags);
 
   // window creation shouldn't fail reliably, if it fails,
   // there's no point in the program proceeding

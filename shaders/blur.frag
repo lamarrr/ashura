@@ -28,20 +28,20 @@ void main()
   {
     for (int i = 1; i < 5; ++i)
     {
-      result += texture(image, in_st + vec2(texture_offset.x * i, 0)).rgb *
-                uniforms.weight[i];
-      result += texture(image, in_st - vec2(texture_offset.x * i, 0)).rgb *
-                uniforms.weight[i];
+      result +=
+          texture(image, in_st + vec2(texture_offset.x * i, 0)).rgb * uniforms.weight[i];
+      result +=
+          texture(image, in_st - vec2(texture_offset.x * i, 0)).rgb * uniforms.weight[i];
     }
   }
   else
   {
     for (int i = 1; i < 5; ++i)
     {
-      result += texture(image, in_st + vec2(0, texture_offset.y * i)).rgb *
-                uniforms.weight[i];
-      result += texture(image, in_st - vec2(0, texture_offset.y * i)).rgb *
-                uniforms.weight[i];
+      result +=
+          texture(image, in_st + vec2(0, texture_offset.y * i)).rgb * uniforms.weight[i];
+      result +=
+          texture(image, in_st - vec2(0, texture_offset.y * i)).rgb * uniforms.weight[i];
     }
   }
 

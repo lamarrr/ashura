@@ -17,8 +17,7 @@
   case x:                  \
     return #x;
 
-#define ASH_UNREACHABLE() \
-  ASH_PANIC("Expected program execution to not reach this state")
+#define ASH_UNREACHABLE() ASH_PANIC("Expected program execution to not reach this state")
 
 #define AS(type, ...) static_cast<type>(__VA_ARGS__)
 
@@ -35,8 +34,9 @@
 #define AS_F32(...) AS(::ash::f32, __VA_ARGS__)
 #define AS_F64(...) AS(::ash::f64, __VA_ARGS__)
 
-#define ASH_U8_CLAMP(...) \
-  ((__VA_ARGS__) < 0 ? (::ash::u8) 0 : ((__VA_ARGS__) > 255 ? (::ash::u8) 255 : (::ash::u8)(__VA_ARGS__)))
+#define ASH_U8_CLAMP(...)              \
+  ((__VA_ARGS__) < 0 ? (::ash::u8) 0 : \
+                       ((__VA_ARGS__) > 255 ? (::ash::u8) 255 : (::ash::u8)(__VA_ARGS__)))
 
 namespace ash
 {

@@ -9,10 +9,9 @@
 namespace ash
 {
 
-constexpr char base64_chars[] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "abcdefghijklmnopqrstuvwxyz"
-    "0123456789+/";
+constexpr char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                "abcdefghijklmnopqrstuvwxyz"
+                                "0123456789+/";
 
 inline bool is_base64(char c)
 {
@@ -36,10 +35,8 @@ std::string base64_encode(stx::Span<char const> data)
     if (i == 3)
     {
       char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-      char_array_4[1] =
-          ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-      char_array_4[2] =
-          ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+      char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+      char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
       char_array_4[3] = char_array_3[2] & 0x3f;
 
       for (i = 0; (i < 4); i++)
@@ -58,10 +55,8 @@ std::string base64_encode(stx::Span<char const> data)
     }
 
     char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-    char_array_4[1] =
-        ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-    char_array_4[2] =
-        ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+    char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+    char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
     char_array_4[3] = char_array_3[2] & 0x3f;
 
     for (i64 j = 0; (j < i + 1); j++)
@@ -90,8 +85,7 @@ std::string base64_decode(stx::Span<char const> enc)
 
   std::string ret;
 
-  while (in_len-- && (encoded_string[in] != '=') &&
-         is_base64(encoded_string[in]))
+  while (in_len-- && (encoded_string[in] != '=') && is_base64(encoded_string[in]))
   {
     char_array_4[i++] = encoded_string[in];
     in++;
@@ -99,14 +93,11 @@ std::string base64_decode(stx::Span<char const> enc)
     {
       for (i = 0; i < 4; i++)
       {
-        char_array_4[i] =
-            AS(char, strchr(base64_chars, char_array_4[i]) - base64_chars);
+        char_array_4[i] = AS(char, strchr(base64_chars, char_array_4[i]) - base64_chars);
       }
 
-      char_array_3[0] =
-          (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-      char_array_3[1] =
-          ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+      char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+      char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
       char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
       for (i = 0; (i < 3); i++)
@@ -126,13 +117,11 @@ std::string base64_decode(stx::Span<char const> enc)
 
     for (i64 j = 0; j < 4; j++)
     {
-      char_array_4[j] =
-          AS(char, strchr(base64_chars, char_array_4[j]) - base64_chars);
+      char_array_4[j] = AS(char, strchr(base64_chars, char_array_4[j]) - base64_chars);
     }
 
     char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-    char_array_3[1] =
-        ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+    char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
     char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
     for (i64 j = 0; (j < i - 1); j++)

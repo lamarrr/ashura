@@ -135,8 +135,7 @@ struct rect
 
   constexpr auto bounds() const
   {
-    return std::make_tuple(offset.x, offset.x + extent.x, offset.y,
-                           offset.y + extent.y);
+    return std::make_tuple(offset.x, offset.x + extent.x, offset.y, offset.y + extent.y);
   }
 
   constexpr bool overlaps(rect other) const
@@ -144,14 +143,13 @@ struct rect
     auto [x1_min, x1_max, y1_min, y1_max] = bounds();
     auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
-    return x1_min < x2_max && x1_max > x2_min && y2_max > y1_min &&
-           y2_min < y1_max;
+    return x1_min < x2_max && x1_max > x2_min && y2_max > y1_min && y2_min < y1_max;
   }
 
   constexpr bool contains(vec2 point) const
   {
-    return offset.x <= point.x && offset.y <= point.y &&
-           (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
+    return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x &&
+           (offset.y + extent.y) >= point.y;
   }
 
   constexpr bool is_visible() const
@@ -279,10 +277,8 @@ struct mat3
 
 constexpr vec3 operator*(mat3 const &a, vec3 const &b)
 {
-  return vec3{.x         = dot(a.rows[0], b),
-              .y         = dot(a.rows[1], b),
-              .z         = dot(a.rows[2], b),
-              .__padding = 0};
+  return vec3{
+      .x = dot(a.rows[0], b), .y = dot(a.rows[1], b), .z = dot(a.rows[2], b), .__padding = 0};
 }
 
 /// row-major
@@ -292,10 +288,8 @@ struct mat4
 
   static constexpr mat4 identity()
   {
-    return mat4{vec4{.x = 1, .y = 0, .z = 0, .w = 0},
-                vec4{.x = 0, .y = 1, .z = 0, .w = 0},
-                vec4{.x = 0, .y = 0, .z = 1, .w = 0},
-                vec4{.x = 0, .y = 0, .z = 0, .w = 1}};
+    return mat4{vec4{.x = 1, .y = 0, .z = 0, .w = 0}, vec4{.x = 0, .y = 1, .z = 0, .w = 0},
+                vec4{.x = 0, .y = 0, .z = 1, .w = 0}, vec4{.x = 0, .y = 0, .z = 0, .w = 1}};
   }
 
   constexpr mat4 transpose() const
@@ -310,27 +304,22 @@ struct mat4
 constexpr mat4 operator*(mat4 const &a, mat4 const &b)
 {
   return mat4{
-      .rows = {
-          {dot(a.rows[0], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
-           dot(a.rows[0], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
-           dot(a.rows[0], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
-           dot(a.rows[0],
-               {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})},
-          {dot(a.rows[1], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
-           dot(a.rows[1], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
-           dot(a.rows[1], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
-           dot(a.rows[1],
-               {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})},
-          {dot(a.rows[2], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
-           dot(a.rows[2], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
-           dot(a.rows[2], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
-           dot(a.rows[2],
-               {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})},
-          {dot(a.rows[3], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
-           dot(a.rows[3], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
-           dot(a.rows[3], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
-           dot(a.rows[3],
-               {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})}}};
+      .rows = {{dot(a.rows[0], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
+                dot(a.rows[0], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
+                dot(a.rows[0], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
+                dot(a.rows[0], {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})},
+               {dot(a.rows[1], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
+                dot(a.rows[1], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
+                dot(a.rows[1], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
+                dot(a.rows[1], {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})},
+               {dot(a.rows[2], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
+                dot(a.rows[2], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
+                dot(a.rows[2], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
+                dot(a.rows[2], {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})},
+               {dot(a.rows[3], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
+                dot(a.rows[3], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
+                dot(a.rows[3], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
+                dot(a.rows[3], {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})}}};
 }
 
 constexpr vec4 operator*(mat4 const &a, vec4 const &b)
@@ -351,14 +340,14 @@ constexpr vec4 operator*(vec4 const &a, mat4 const &b)
 
 constexpr bool operator==(mat4 const &a, mat4 const &b)
 {
-  return a.rows[0] == b.rows[0] && a.rows[1] == b.rows[1] &&
-         a.rows[2] == b.rows[2] && a.rows[3] == b.rows[3];
+  return a.rows[0] == b.rows[0] && a.rows[1] == b.rows[1] && a.rows[2] == b.rows[2] &&
+         a.rows[3] == b.rows[3];
 }
 
 constexpr bool operator!=(mat4 const &a, mat4 const &b)
 {
-  return a.rows[0] != b.rows[0] || a.rows[1] != b.rows[1] ||
-         a.rows[2] != b.rows[2] || a.rows[3] != b.rows[3];
+  return a.rows[0] != b.rows[0] || a.rows[1] != b.rows[1] || a.rows[2] != b.rows[2] ||
+         a.rows[3] != b.rows[3];
 }
 
 constexpr vec2 transform(mat4 const &a, vec2 const &b)
@@ -552,10 +541,10 @@ constexpr bool operator!=(extent a, extent b)
 /// - relative min/max (`min_rel`, `max_rel`)
 struct constraint
 {
-  f32 bias  = 0;                   /// removing or deducting from the target size
-  f32 scale = 0;                   /// scaling the target size
-  f32 min   = stx::F32_MIN;        /// clamps the target size, i.e. value should be at least 20px
-  f32 max   = stx::F32_MAX;        /// clamps the target size, i.e. value should be at most 100px
+  f32 bias  = 0;                 /// removing or deducting from the target size
+  f32 scale = 0;                 /// scaling the target size
+  f32 min = stx::F32_MIN;        /// clamps the target size, i.e. value should be at least 20px
+  f32 max = stx::F32_MAX;        /// clamps the target size, i.e. value should be at most 100px
 
   /// relatively clamps the values of the result
   /// i.e. result should be between 50% and 75% of the allotted value.
@@ -587,8 +576,8 @@ struct constraint
 
   constexpr f32 resolve(f32 value) const
   {
-    return std::clamp(std::clamp(bias + value * scale, min, max),
-                      min_rel * value, max_rel * value);
+    return std::clamp(std::clamp(bias + value * scale, min, max), min_rel * value,
+                      max_rel * value);
   }
 };
 
@@ -633,8 +622,7 @@ struct color
 
   constexpr vec4 as_vec() const
   {
-    return vec4{
-        .x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
+    return vec4{.x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
   }
 };
 
@@ -703,8 +691,8 @@ struct fmt::formatter<ash::rect>
   template <typename FormatContext>
   auto format(ash::rect const &v, FormatContext &ctx)
   {
-    return fmt::format_to(ctx.out(), "rect{{.offset = {},  .extent = {}}}",
-                          v.offset, v.extent);
+    return fmt::format_to(ctx.out(), "rect{{.offset = {},  .extent = {}}}", v.offset,
+                          v.extent);
   }
 };
 
@@ -720,7 +708,6 @@ struct fmt::formatter<ash::vec4>
   template <typename FormatContext>
   auto format(ash::vec4 const &v, FormatContext &ctx)
   {
-    return fmt::format_to(ctx.out(), "vec4{{{}, {}, {}, {}}}", v.x, v.y, v.z,
-                          v.w);
+    return fmt::format_to(ctx.out(), "vec4{{{}, {}, {}, {}}}", v.x, v.y, v.z, v.w);
   }
 };
