@@ -50,8 +50,8 @@ struct DrawList
 namespace polygons
 {
 
-inline void rect(vec2 position, vec2 extent, mat4 const &transform, vec4 color,
-                 ash::rect texture_area, stx::Span<vertex> polygon)
+inline void rect(vec2 position, vec2 extent, mat4 const &transform, vec4 color, ash::rect texture_area,
+                 stx::Span<vertex> polygon)
 {
   vec2 p2 = vec2{extent.x, 0};
   vec2 p3 = extent;
@@ -62,17 +62,16 @@ inline void rect(vec2 position, vec2 extent, mat4 const &transform, vec4 color,
   vec2 st2 = texture_area.offset + p3 / extent * texture_area.extent;
   vec2 st3 = texture_area.offset + p4 / extent * texture_area.extent;
 
-  vertex vertices[] = {
-      {.position = position, .st = st0, .color = color},
-      {.position = position + ash::transform(transform, p2), .st = st1, .color = color},
-      {.position = position + ash::transform(transform, p3), .st = st2, .color = color},
-      {.position = position + ash::transform(transform, p4), .st = st3, .color = color}};
+  vertex vertices[] = {{.position = position, .st = st0, .color = color},
+                       {.position = position + ash::transform(transform, p2), .st = st1, .color = color},
+                       {.position = position + ash::transform(transform, p3), .st = st2, .color = color},
+                       {.position = position + ash::transform(transform, p4), .st = st3, .color = color}};
 
   polygon.copy(vertices);
 }
 
-inline void circle(vec2 position, f32 radius, usize nsegments, mat4 const &transform,
-                   vec4 color, ash::rect texture_area, stx::Span<vertex> polygon)
+inline void circle(vec2 position, f32 radius, usize nsegments, mat4 const &transform, vec4 color, ash::rect texture_area,
+                   stx::Span<vertex> polygon)
 {
   if (nsegments == 0 || radius <= 0)
     return;
@@ -84,13 +83,12 @@ inline void circle(vec2 position, f32 radius, usize nsegments, mat4 const &trans
     vec2 p  = radius + radius * vec2{std::cos(i * step), std::sin(i * step)};
     vec2 st = texture_area.offset + p / (radius * 2) * texture_area.extent;
 
-    polygon[i] =
-        vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
+    polygon[i] = vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
   }
 }
 
-inline void ellipse(vec2 position, vec2 radii, usize nsegments, mat4 const &transform,
-                    vec4 color, ash::rect texture_area, stx::Span<vertex> polygon)
+inline void ellipse(vec2 position, vec2 radii, usize nsegments, mat4 const &transform, vec4 color, ash::rect texture_area,
+                    stx::Span<vertex> polygon)
 {
   if (nsegments == 0 || radii.x <= 0 || radii.y <= 0)
     return;
@@ -99,18 +97,16 @@ inline void ellipse(vec2 position, vec2 radii, usize nsegments, mat4 const &tran
 
   for (usize i = 0; i < nsegments; i++)
   {
-    vec2 p  = radii + radii * vec2{std::cos(i * step), std::sin(i * step)};
-    vec2 st = texture_area.offset + p / (2 * radii) * texture_area.extent;
-    polygon[i] =
-        vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
+    vec2 p     = radii + radii * vec2{std::cos(i * step), std::sin(i * step)};
+    vec2 st    = texture_area.offset + p / (2 * radii) * texture_area.extent;
+    polygon[i] = vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
   }
 }
 
 /// {polygon.size() == nsegments * 4}
 // TODO(lamarrr): clamp border radius from going berserk
-inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
-                       mat4 const &transform, vec4 color, ash::rect texture_area,
-                       stx::Span<vertex> polygon)
+inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments, mat4 const &transform, vec4 color,
+                       ash::rect texture_area, stx::Span<vertex> polygon)
 {
   if (nsegments == 0)
     return;
@@ -126,48 +122,40 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments,
 
   for (usize segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p = (extent - radii.z) +
-             radii.z * vec2{std::cos(segment * step), std::sin(segment * step)};
+    vec2 p = (extent - radii.z) + radii.z * vec2{std::cos(segment * step), std::sin(segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
-    polygon[i] =
-        vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
+    polygon[i] = vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
   }
 
   for (usize segment = 0; segment < nsegments; segment++, i++)
   {
     vec2 p = vec2{radii.w, extent.y - radii.w} +
-             radii.w * vec2{std::cos(AS(f32, pi / 2) + segment * step),
-                            std::sin(AS(f32, pi / 2) + segment * step)};
+             radii.w * vec2{std::cos(AS(f32, pi / 2) + segment * step), std::sin(AS(f32, pi / 2) + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
-    polygon[i] =
-        vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
+    polygon[i] = vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
   }
 
   for (usize segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p = radii.x + radii.x * vec2{std::cos(AS(f32, pi) + segment * step),
-                                      std::sin(AS(f32, pi) + segment * step)};
+    vec2 p = radii.x + radii.x * vec2{std::cos(AS(f32, pi) + segment * step), std::sin(AS(f32, pi) + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
-    polygon[i] =
-        vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
+    polygon[i] = vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
   }
 
   for (usize segment = 0; segment < nsegments; segment++, i++)
   {
     vec2 p = vec2{extent.x - radii.y, radii.y} +
-             radii.y * vec2{std::cos(AS(f32, pi * 3) / 2 + segment * step),
-                            std::sin(AS(f32, pi * 3) / 2 + segment * step)};
+             radii.y * vec2{std::cos(AS(f32, pi * 3) / 2 + segment * step), std::sin(AS(f32, pi * 3) / 2 + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
-    polygon[i] =
-        vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
+    polygon[i] = vertex{.position = position + ash::transform(transform, p), .st = st, .color = color};
   }
 }
 
@@ -182,8 +170,7 @@ constexpr void normalize_for_viewport(stx::Span<vertex> vertices, vec2 viewport_
   }
 }
 
-inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 first_vertex_index,
-                                       u32 nvertices)
+inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 first_vertex_index, u32 nvertices)
 {
   ASH_CHECK(nvertices >= 3, "polygon must have 3 or more points");
 
@@ -195,9 +182,8 @@ inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 first_vertex_
   }
 }
 
-inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices, vec2 extent,
-                             mat4 const &transform, f32 line_thickness, ash::rect texture_area,
-                             u32 first_vertex_index, stx::Vec<vertex> &out_vertices,
+inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices, vec2 extent, mat4 const &transform,
+                             f32 line_thickness, ash::rect texture_area, u32 first_vertex_index, stx::Vec<vertex> &out_vertices,
                              stx::Vec<u32> &out_indices)
 {
   if (in_vertices.size() < 2)
@@ -244,8 +230,7 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
     alpha = AS(f32, alpha + pi / 2);
 
     vec2 f = line_thickness / 2 * vec2{std::cos(alpha), std::sin(alpha)};
-    vec2 g = line_thickness / 2 *
-             vec2{std::cos(AS(f32, pi + alpha)), std::sin(AS(f32, pi + alpha))};
+    vec2 g = line_thickness / 2 * vec2{std::cos(AS(f32, pi + alpha)), std::sin(AS(f32, pi + alpha))};
 
     vec2 m0 = p0 + f;
     vec2 m1 = p0 + g;
@@ -258,14 +243,12 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
     vec2 st2 = texture_area.offset + n0 / extent * texture_area.extent;
     vec2 st3 = texture_area.offset + n1 / extent * texture_area.extent;
 
-    vertex vertices[] = {
-        {.position = position + ash::transform(transform, m0), .st = st0, .color = color},
-        {.position = position + ash::transform(transform, m1), .st = st1, .color = color},
-        {.position = position + ash::transform(transform, n0), .st = st2, .color = color},
-        {.position = position + ash::transform(transform, n1), .st = st3, .color = color}};
+    vertex vertices[] = {{.position = position + ash::transform(transform, m0), .st = st0, .color = color},
+                         {.position = position + ash::transform(transform, m1), .st = st1, .color = color},
+                         {.position = position + ash::transform(transform, n0), .st = st2, .color = color},
+                         {.position = position + ash::transform(transform, n1), .st = st3, .color = color}};
 
-    u32 indices[] = {vertex_index, vertex_index + 1, vertex_index + 3,
-                     vertex_index, vertex_index + 2, vertex_index + 3};
+    u32 indices[] = {vertex_index, vertex_index + 1, vertex_index + 3, vertex_index, vertex_index + 2, vertex_index + 3};
 
     out_vertices.extend(vertices).unwrap();
     out_indices.extend(indices).unwrap();
@@ -274,9 +257,8 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
     {
       u32 prev_line_vertex_index = vertex_index - 4;
 
-      u32 indices[] = {
-          prev_line_vertex_index + 2, prev_line_vertex_index + 3, vertex_index,
-          prev_line_vertex_index + 2, prev_line_vertex_index + 3, vertex_index + 1};
+      u32 indices[] = {prev_line_vertex_index + 2, prev_line_vertex_index + 3, vertex_index,
+                       prev_line_vertex_index + 2, prev_line_vertex_index + 3, vertex_index + 1};
 
       out_indices.extend(indices).unwrap();
     }
@@ -330,10 +312,7 @@ struct Canvas
   Canvas &save()
   {
     state_stack
-        .push(CanvasState{.transform        = transform,
-                          .global_transform = global_transform,
-                          .clip_rect        = clip_rect,
-                          .brush            = brush})
+        .push(CanvasState{.transform = transform, .global_transform = global_transform, .clip_rect = clip_rect, .brush = brush})
         .unwrap();
     return *this;
   }
@@ -377,15 +356,13 @@ struct Canvas
 
   Canvas &rotate(f32 x, f32 y, f32 z)
   {
-    transform = ash::rotate_z(RADIANS(z)) * ash::rotate_y(RADIANS(y)) *
-                ash::rotate_x(RADIANS(x)) * transform;
+    transform = ash::rotate_z(RADIANS(z)) * ash::rotate_y(RADIANS(y)) * ash::rotate_x(RADIANS(x)) * transform;
     return *this;
   }
 
   Canvas &global_rotate(f32 x, f32 y, f32 z)
   {
-    global_transform = ash::rotate_z(RADIANS(z)) * ash::rotate_y(RADIANS(y)) *
-                       ash::rotate_x(RADIANS(x)) * global_transform;
+    global_transform = ash::rotate_z(RADIANS(z)) * ash::rotate_y(RADIANS(y)) * ash::rotate_x(RADIANS(x)) * global_transform;
     return *this;
   }
 
@@ -431,8 +408,7 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_lines(stx::Span<vertex const> points, rect area, rect texture_area,
-                     image background_image)
+  Canvas &draw_lines(stx::Span<vertex const> points, rect area, rect texture_area, image background_image)
   {
     if (points.size() < 2 || !area.is_visible() || !clip_rect.overlaps(area))
     {
@@ -445,8 +421,8 @@ struct Canvas
 
     // the input texture coordinates are not used since we need to regenerate
     // them for the line thickness
-    triangulate_line(area.offset, points, area.extent, transform, brush.line_thickness,
-                     texture_area, vertices_offset, draw_list.vertices, draw_list.indices);
+    triangulate_line(area.offset, points, area.extent, transform, brush.line_thickness, texture_area, vertices_offset,
+                     draw_list.vertices, draw_list.indices);
 
     u32 nindices = AS(u32, draw_list.indices.size() - indices_offset);
 
@@ -463,8 +439,7 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_convex_polygon_filled(stx::Span<vertex const> polygon, rect area,
-                                     image background_image)
+  Canvas &draw_convex_polygon_filled(stx::Span<vertex const> polygon, rect area, image background_image)
   {
     if (polygon.size() < 3 || !area.is_visible() || !clip_rect.overlaps(area))
     {
@@ -497,9 +472,8 @@ struct Canvas
   Canvas &draw_line(vec2 p1, vec2 p2)
   {
     vec4   color    = brush.color.as_vec();
-    vertex points[] = {
-        vertex{.position = p1, .st = {}, .color = color},
-        vertex{.position = p1 + ash::transform(transform, p2 - p1), .st = {}, .color = color}};
+    vertex points[] = {vertex{.position = p1, .st = {}, .color = color},
+                       vertex{.position = p1 + ash::transform(transform, p2 - p1), .st = {}, .color = color}};
 
     rect area{.offset = p1, .extent = p2 - p1};
 
@@ -512,8 +486,7 @@ struct Canvas
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
-    polygons::rect(area.offset, area.extent, transform, brush.color.as_vec(), texture_area,
-                   vertices);
+    polygons::rect(area.offset, area.extent, transform, brush.color.as_vec(), texture_area, vertices);
 
     if (brush.fill)
     {
@@ -523,8 +496,7 @@ struct Canvas
     {
       area.offset      = area.offset - brush.line_thickness / 2;
       area.extent      = area.extent + brush.line_thickness;
-      vertex opoints[] = {vertices[0], vertices[1], vertices[2],
-                          vertices[3], vertices[0], vertices[1]};
+      vertex opoints[] = {vertices[0], vertices[1], vertices[2], vertices[3], vertices[0], vertices[1]};
       return draw_lines(opoints, area, texture_area, brush.texture);
     }
   }
@@ -535,8 +507,7 @@ struct Canvas
     vertices.resize(nsegments).unwrap();
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
-    polygons::circle(position, radius, nsegments, transform, brush.color.as_vec(),
-                     texture_area, vertices);
+    polygons::circle(position, radius, nsegments, transform, brush.color.as_vec(), texture_area, vertices);
 
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
@@ -567,8 +538,7 @@ struct Canvas
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
-    polygons::ellipse(position, radii, nsegments, transform, brush.color.as_vec(),
-                      texture_area, vertices);
+    polygons::ellipse(position, radii, nsegments, transform, brush.color.as_vec(), texture_area, vertices);
 
     rect area{.offset = position, .extent = 2 * radii};
 
@@ -599,8 +569,7 @@ struct Canvas
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
-    polygons::round_rect(area.offset, area.extent, radii, nsegments, transform,
-                         brush.color.as_vec(), texture_area, vertices);
+    polygons::round_rect(area.offset, area.extent, radii, nsegments, transform, brush.color.as_vec(), texture_area, vertices);
 
     if (brush.fill)
     {
@@ -622,14 +591,12 @@ struct Canvas
     }
   }
 
-  Canvas &draw_image(image img, rect area, f32 s0, f32 t0, f32 s1, f32 t1,
-                     color color = colors::WHITE)
+  Canvas &draw_image(image img, rect area, f32 s0, f32 t0, f32 s1, f32 t1, color color = colors::WHITE)
   {
     vertex vertices[4];
     rect   texture_area{.offset = {s0, t0}, .extent = {s1 - s0, t1 - t0}};
 
-    polygons::rect(area.offset, area.extent, transform, color.as_vec(), texture_area,
-                   vertices);
+    polygons::rect(area.offset, area.extent, transform, color.as_vec(), texture_area, vertices);
 
     return draw_convex_polygon_filled(vertices, area, img);
   }
@@ -639,14 +606,13 @@ struct Canvas
     return draw_image(img, area, 0, 0, 1, 1, color);
   }
 
-  Canvas &draw_rounded_image(image img, rect area, rect image_portion, vec4 border_radii,
-                             usize nsegments)
+  Canvas &draw_rounded_image(image img, rect area, rect image_portion, vec4 border_radii, usize nsegments)
   {
     stx::Vec<vertex> vertices{stx::os_allocator};
     vertices.resize(nsegments * 4).unwrap();
 
-    polygons::round_rect(area.offset, area.extent, border_radii, nsegments, transform,
-                         colors::WHITE.as_vec(), image_portion, vertices);
+    polygons::round_rect(area.offset, area.extent, border_radii, nsegments, transform, colors::WHITE.as_vec(), image_portion,
+                         vertices);
 
     return draw_convex_polygon_filled(vertices, area, img);
   }
@@ -657,8 +623,8 @@ struct Canvas
     return draw_rounded_image(img, area, texture_area, border_radii, nsegments);
   }
 
-  Canvas &draw_glyph(Glyph const &glyph, TextRun const &run, image atlas, vec2 baseline,
-                     f32 font_scale, f32 line_height, f32 vert_spacing, bool has_color)
+  Canvas &draw_glyph(Glyph const &glyph, TextRun const &run, image atlas, vec2 baseline, f32 font_scale, f32 line_height,
+                     f32 vert_spacing, bool has_color)
   {
     f32  ascent  = font_scale * glyph.ascent;
     vec2 advance = font_scale * glyph.advance;
@@ -669,8 +635,8 @@ struct Canvas
       save();
       brush.color = run.style.background_color;
       brush.fill  = true;
-      draw_rect(rect{.offset = baseline - vec2{0, line_height},
-                     .extent = vec2{advance.x + run.style.letter_spacing, line_height}});
+      draw_rect(
+          rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{advance.x + run.style.letter_spacing, line_height}});
       restore();
     }
 
@@ -678,9 +644,8 @@ struct Canvas
     {
       save();
       brush.color = has_color ? colors::WHITE : run.style.foreground_color;
-      draw_image(atlas,
-                 rect{.offset = baseline - vec2{0, vert_spacing + ascent}, .extent = extent},
-                 glyph.s0, glyph.t0, glyph.s1, glyph.t1, brush.color);
+      draw_image(atlas, rect{.offset = baseline - vec2{0, vert_spacing + ascent}, .extent = extent}, glyph.s0, glyph.t0,
+                 glyph.s1, glyph.t1, brush.color);
       restore();
     }
 
@@ -691,10 +656,9 @@ struct Canvas
   // layout, use callbacks to perform certain actions on layout calculation.
   //
   // TODO(lamarrr): [future] add bidi
-  Canvas &draw_text(Paragraph paragraph, stx::Span<CachedFont const> fonts, vec2 position,
-                    f32 max_line_width, stx::Vec<RunSubWord> &subwords,
-                    stx::Vec<SubwordGlyph> &glyphs /*, TextLayout& layout,
-                     bool skip_drawing*/
+  Canvas &draw_text(Paragraph paragraph, stx::Span<CachedFont const> fonts, vec2 position, f32 max_line_width,
+                    stx::Vec<RunSubWord> &subwords, stx::Vec<SubwordGlyph> &glyphs /*, TextLayout& layout,
+                                                     bool skip_drawing*/
   )
   {
     constexpr u32 SPACE   = ' ';
@@ -723,8 +687,7 @@ struct Canvas
         {
           codepoint = stx::utf8_next(seeker);
 
-          if (codepoint == RETURN || codepoint == NEWLINE || codepoint == TAB ||
-              codepoint == SPACE)
+          if (codepoint == RETURN || codepoint == NEWLINE || codepoint == TAB || codepoint == SPACE)
           {
             break;
           }
@@ -806,11 +769,10 @@ struct Canvas
         }
 
         subwords
-            .push(RunSubWord{
-                .text = run.text.slice(word_begin - run.text.begin(), word_end - word_begin),
-                .run  = i,
-                .nspaces      = nspaces,
-                .nline_breaks = nline_breaks})
+            .push(RunSubWord{.text         = run.text.slice(word_begin - run.text.begin(), word_end - word_begin),
+                             .run          = i,
+                             .nspaces      = nspaces,
+                             .nline_breaks = nline_breaks})
             .unwrap();
 
         word_begin = seeker;
@@ -823,10 +785,9 @@ struct Canvas
       Font const      &font  = *fonts[run.font].font;
       FontAtlas const &atlas = fonts[run.font].atlas;
 
-      hb_feature_t const shaping_features[] = {
-          {Font::KERNING_FEATURE, run.style.use_kerning, 0, stx::U_MAX},
-          {Font::LIGATURE_FEATURE, run.style.use_ligatures, 0, stx::U_MAX},
-          {Font::CONTEXTUAL_LIGATURE_FEATURE, run.style.use_ligatures, 0, stx::U_MAX}};
+      hb_feature_t const shaping_features[] = {{Font::KERNING_FEATURE, run.style.use_kerning, 0, stx::U_MAX},
+                                               {Font::LIGATURE_FEATURE, run.style.use_ligatures, 0, stx::U_MAX},
+                                               {Font::CONTEXTUAL_LIGATURE_FEATURE, run.style.use_ligatures, 0, stx::U_MAX}};
 
       fmt::print("language: {}\n", run.language);
 
@@ -843,14 +804,11 @@ struct Canvas
       {
         hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_RTL);
       }
-      hb_buffer_set_language(
-          font.hbscratch_buffer,
-          hb_language_from_string(run.language.data(), AS(int, run.language.size())));
-      hb_buffer_add_utf8(font.hbscratch_buffer, subword.text.begin(),
-                         AS(int, subword.text.size()), 0, AS(int, subword.text.size()));
+      hb_buffer_set_language(font.hbscratch_buffer, hb_language_from_string(run.language.data(), AS(int, run.language.size())));
+      hb_buffer_add_utf8(font.hbscratch_buffer, subword.text.begin(), AS(int, subword.text.size()), 0,
+                         AS(int, subword.text.size()));
 
-      hb_shape(font.hbfont, font.hbscratch_buffer, shaping_features,
-               AS(uint, std::size(shaping_features)));
+      hb_shape(font.hbfont, font.hbscratch_buffer, shaping_features, AS(uint, std::size(shaping_features)));
 
       uint             nglyphs;
       hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
@@ -895,13 +853,10 @@ struct Canvas
 
         for (; subword < subwords.end();)
         {
-          f32 spaced_word_width =
-              subword->width +
-              subword->nspaces * paragraph.runs[subword->run].style.word_spacing;
+          f32 spaced_word_width = subword->width + subword->nspaces * paragraph.runs[subword->run].style.word_spacing;
 
           // if end of word
-          if (subword->nspaces > 0 || subword->nline_breaks > 0 ||
-              subword == subwords.end() - 1)
+          if (subword->nspaces > 0 || subword->nline_breaks > 0 || subword == subwords.end() - 1)
           {
             // check if wrapping needed
             if (cursor_x + spaced_word_width > max_line_width)
@@ -981,18 +936,15 @@ struct Canvas
 
         for (RunSubWord const *subword = line_begin; subword < line_end; subword++)
         {
-          line_width += subword->width +
-                        subword->nspaces * paragraph.runs[subword->run].style.word_spacing;
-          line_height =
-              std::max(line_height, paragraph.runs[subword->run].style.line_height *
-                                        paragraph.runs[subword->run].style.font_height);
+          line_width += subword->width + subword->nspaces * paragraph.runs[subword->run].style.word_spacing;
+          line_height = std::max(line_height, paragraph.runs[subword->run].style.line_height *
+                                                  paragraph.runs[subword->run].style.font_height);
 
           TextRun const   &run        = paragraph.runs[subword->run];
           FontAtlas const &atlas      = fonts[run.font].atlas;
           f32              font_scale = run.style.font_height / atlas.font_height;
 
-          for (SubwordGlyph const &glyph :
-               glyphs.span().slice(subword->glyph_start, subword->nglyphs))
+          for (SubwordGlyph const &glyph : glyphs.span().slice(subword->glyph_start, subword->nglyphs))
           {
             max_ascent = std::max(max_ascent, atlas.glyphs[glyph.glyph].ascent * font_scale);
           }
@@ -1028,13 +980,12 @@ struct Canvas
             f32 word_spacing   = run.style.word_spacing;
             f32 init_cursor_x  = cursor_x;
 
-            for (SubwordGlyph const &glyph :
-                 glyphs.span().slice(subword->glyph_start, subword->nglyphs))
+            for (SubwordGlyph const &glyph : glyphs.span().slice(subword->glyph_start, subword->nglyphs))
             {
               Glyph const &g       = atlas.glyphs[glyph.glyph];
               vec2         advance = g.advance * font_scale;
-              draw_glyph(g, run, atlas.texture, position + vec2{cursor_x, baseline},
-                         font_scale, line_height, vert_spacing, font.has_color);
+              draw_glyph(g, run, atlas.texture, position + vec2{cursor_x, baseline}, font_scale, line_height, vert_spacing,
+                         font.has_color);
               cursor_x += advance.x + letter_spacing;
             }
 
@@ -1054,8 +1005,7 @@ struct Canvas
               brush.color = run.style.underline_color;
               brush.fill  = true;
               draw_rect(rect{.offset = position + vec2{init_cursor_x, baseline},
-                             .extent = vec2{subword->width + subword->nspaces * word_spacing,
-                                            run.style.underline_thickness}});
+                             .extent = vec2{subword->width + subword->nspaces * word_spacing, run.style.underline_thickness}});
               restore();
             }
 
@@ -1070,9 +1020,7 @@ struct Canvas
             RunSubWord const *rtl_begin = subword;
             RunSubWord const *rtl_end   = subword + 1;
 
-            rtl_width +=
-                rtl_begin->width +
-                rtl_begin->nspaces * paragraph.runs[rtl_begin->run].style.word_spacing;
+            rtl_width += rtl_begin->width + rtl_begin->nspaces * paragraph.runs[rtl_begin->run].style.word_spacing;
 
             for (; rtl_end < line_end; rtl_end++)
             {
@@ -1082,9 +1030,7 @@ struct Canvas
               }
               else
               {
-                rtl_width +=
-                    rtl_end->width +
-                    rtl_end->nspaces * paragraph.runs[rtl_end->run].style.word_spacing;
+                rtl_width += rtl_end->width + rtl_end->nspaces * paragraph.runs[rtl_end->run].style.word_spacing;
               }
             }
 
@@ -1125,13 +1071,12 @@ struct Canvas
 
               f32 glyph_cursor_x = rtl_cursor_x;
 
-              for (SubwordGlyph const &glyph :
-                   glyphs.span().slice(rtl_iter->glyph_start, rtl_iter->nglyphs))
+              for (SubwordGlyph const &glyph : glyphs.span().slice(rtl_iter->glyph_start, rtl_iter->nglyphs))
               {
                 Glyph const &g       = atlas.glyphs[glyph.glyph];
                 vec2         advance = g.advance * font_scale;
-                draw_glyph(g, run, atlas.texture, position + vec2{glyph_cursor_x, baseline},
-                           font_scale, line_height, vert_spacing, font.has_color);
+                draw_glyph(g, run, atlas.texture, position + vec2{glyph_cursor_x, baseline}, font_scale, line_height,
+                           vert_spacing, font.has_color);
                 glyph_cursor_x += advance.x + letter_spacing;
               }
 
@@ -1140,9 +1085,8 @@ struct Canvas
                 save();
                 brush.color = run.style.underline_color;
                 brush.fill  = true;
-                draw_rect(rect{
-                    .offset = position + vec2{rtl_cursor_x, baseline},
-                    .extent = vec2{rtl_iter->width + spacing, run.style.underline_thickness}});
+                draw_rect(rect{.offset = position + vec2{rtl_cursor_x, baseline},
+                               .extent = vec2{rtl_iter->width + spacing, run.style.underline_thickness}});
                 restore();
               }
             }

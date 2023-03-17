@@ -350,18 +350,18 @@ enum class TextOverflow : u8
 
 struct TextStyle
 {
-  f32   font_height      = 16;
-  f32   line_height      = 1.2f;        /// multiplied by font_height
-  f32   letter_spacing   = 1;
-  f32   word_spacing     = 4;
-  u32   tab_size         = 8;
-  bool  use_kerning      = true;
-  bool  use_ligatures    = true;        /// use standard and contextual ligature substitution
-  bool  underline        = false;
-  bool  strikethrough    = false;        // TODO(lamarrr): implement
-  color foreground_color = colors::BLACK;
-  color background_color = colors::TRANSPARENT;
-  color underline_color  = colors::TRANSPARENT;
+  f32   font_height         = 16;
+  f32   line_height         = 1.2f;        /// multiplied by font_height
+  f32   letter_spacing      = 1;
+  f32   word_spacing        = 4;
+  u32   tab_size            = 8;
+  bool  use_kerning         = true;
+  bool  use_ligatures       = true;        /// use standard and contextual ligature substitution
+  bool  underline           = false;
+  bool  strikethrough       = false;        // TODO(lamarrr): implement
+  color foreground_color    = colors::BLACK;
+  color background_color    = colors::TRANSPARENT;
+  color underline_color     = colors::TRANSPARENT;
   f32   underline_thickness = 1;
 };
 
@@ -387,10 +387,8 @@ struct Paragraph
 
 struct Font
 {
-  static constexpr hb_tag_t KERNING_FEATURE =
-      HB_TAG('k', 'e', 'r', 'n');        /// kerning operations
-  static constexpr hb_tag_t LIGATURE_FEATURE =
-      HB_TAG('l', 'i', 'g', 'a');        /// standard ligature substitution
+  static constexpr hb_tag_t KERNING_FEATURE  = HB_TAG('k', 'e', 'r', 'n');        /// kerning operations
+  static constexpr hb_tag_t LIGATURE_FEATURE = HB_TAG('l', 'i', 'g', 'a');        /// standard ligature substitution
   static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE =
       HB_TAG('c', 'l', 'i', 'g');        /// contextual ligature substitution
 
@@ -402,8 +400,8 @@ struct Font
   bool         has_color        = false;
   stx::Memory  font_data;
 
-  Font(hb_face_t *ahbface, hb_font_t *ahbfont, hb_buffer_t *ahbscratch_buffer,
-       FT_Library aftlib, FT_Face aftface, bool has_color, stx::Memory afont_data) :
+  Font(hb_face_t *ahbface, hb_font_t *ahbfont, hb_buffer_t *ahbscratch_buffer, FT_Library aftlib, FT_Face aftface,
+       bool has_color, stx::Memory afont_data) :
       hbface{ahbface},
       hbfont{ahbfont},
       hbscratch_buffer{ahbscratch_buffer},
@@ -426,8 +424,7 @@ struct Font
 
 inline stx::Rc<Font *> load_font_from_memory(stx::Memory memory, usize size)
 {
-  hb_blob_t *hbblob = hb_blob_create(AS(char *, memory.handle), AS(uint, size),
-                                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+  hb_blob_t *hbblob = hb_blob_create(AS(char *, memory.handle), AS(uint, size), HB_MEMORY_MODE_READONLY, nullptr, nullptr);
   ASH_CHECK(hbblob != nullptr);
 
   hb_face_t *hbface = hb_face_create(hbblob, 0);
@@ -443,11 +440,10 @@ inline stx::Rc<Font *> load_font_from_memory(stx::Memory memory, usize size)
   ASH_CHECK(FT_Init_FreeType(&ftlib) == 0);
 
   FT_Face ftface;
-  ASH_CHECK(FT_New_Memory_Face(ftlib, AS(FT_Byte const *, memory.handle), AS(FT_Long, size), 0,
-                               &ftface) == 0);
+  ASH_CHECK(FT_New_Memory_Face(ftlib, AS(FT_Byte const *, memory.handle), AS(FT_Long, size), 0, &ftface) == 0);
 
-  return stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont, hbscratch_buffer,
-                                     ftlib, ftface, FT_HAS_COLOR(ftface), std::move(memory))
+  return stx::rc::make_inplace<Font>(stx::os_allocator, hbface, hbfont, hbscratch_buffer, ftlib, ftface, FT_HAS_COLOR(ftface),
+                                     std::move(memory))
       .unwrap();
 }
 
@@ -481,9 +477,9 @@ struct Glyph
   u32         index    = 0;        /// the glyph index
   ash::offset offset;              /// offset into the atlas its glyph resides
   ash::extent extent;              /// extent of the glyph in the atlas
-  f32         x = 0;        /// defines x-offset from cursor position the glyph will be placed
-  f32         ascent = 0;        /// defines ascent from baseline of the text
-  vec2        advance;           /// advancement of the cursor after drawing this glyph
+  f32         x      = 0;          /// defines x-offset from cursor position the glyph will be placed
+  f32         ascent = 0;          /// defines ascent from baseline of the text
+  vec2        advance;             /// advancement of the cursor after drawing this glyph
   f32         s0 = 0, t0 = 0, s1 = 0,
       t1 = 0;        /// texture coordinates of this glyph in the atlas
 };
@@ -492,10 +488,10 @@ struct Glyph
 struct FontAtlas
 {
   stx::Vec<Glyph> glyphs{stx::os_allocator};
-  ash::extent     extent;        /// overall extent of the atlas
-  u32 font_height = 26;          /// font height at which the cache/atlas/glyphs will be
-                                 /// rendered and cached
-  image texture = 0;             /// atlas containing the packed glyphs
+  ash::extent     extent;                  /// overall extent of the atlas
+  u32             font_height = 26;        /// font height at which the cache/atlas/glyphs will be
+                                           /// rendered and cached
+  image texture = 0;                       /// atlas containing the packed glyphs
 
   stx::Span<Glyph const> get(u32 glyph_index) const
   {
@@ -508,8 +504,7 @@ struct FontAtlas
   }
 };
 
-inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const &font, u32 font_height,
-                                                      extent max_extent)
+inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const &font, u32 font_height, extent max_extent)
 {
   /// *64 to convert font height to 26.6 pixel format
   ASH_CHECK(font_height > 0);
@@ -530,8 +525,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const &font, u32 font
         u32 height = font.ftface->glyph->bitmap.rows;
 
         // convert from 26.6 pixel format
-        vec2 advance{font.ftface->glyph->advance.x / 64.0f,
-                     font.ftface->glyph->advance.y / 64.0f};
+        vec2 advance{font.ftface->glyph->advance.x / 64.0f, font.ftface->glyph->advance.y / 64.0f};
 
         glyphs
             .push(Glyph{.is_valid = true,
@@ -551,8 +545,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const &font, u32 font
     }
   }
 
-  stx::Memory rects_mem =
-      stx::mem::allocate(stx::os_allocator, sizeof(rp::rect) * glyphs.size()).unwrap();
+  stx::Memory rects_mem = stx::mem::allocate(stx::os_allocator, sizeof(rp::rect) * glyphs.size()).unwrap();
 
   stx::Span rects{AS(rp::rect *, rects_mem.handle), glyphs.size()};
 
@@ -563,11 +556,10 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const &font, u32 font
     rects[i].h           = AS(i32, glyphs[i].extent.height + 2);
   }
 
-  stx::Memory nodes_memory =
-      stx::mem::allocate(stx::os_allocator, sizeof(rp::Node) * max_extent.width).unwrap();
+  stx::Memory nodes_memory = stx::mem::allocate(stx::os_allocator, sizeof(rp::Node) * max_extent.width).unwrap();
 
-  rp::Context context = rp::init(max_extent.width, max_extent.height,
-                                 AS(rp::Node *, nodes_memory.handle), max_extent.width, false);
+  rp::Context context =
+      rp::init(max_extent.width, max_extent.height, AS(rp::Node *, nodes_memory.handle), max_extent.width, false);
   ASH_CHECK(rp::pack_rects(context, rects.data(), AS(i32, rects.size())));
 
   // NOTE: vulkan doesn't allow zero-extent images
@@ -579,8 +571,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const &font, u32 font
     atlas_extent.height = std::max<u32>(atlas_extent.height, rects[i].y + rects[i].h);
   }
 
-  rects.sort(
-      [](rp::rect const &a, rp::rect const &b) { return a.glyph_index < b.glyph_index; });
+  rects.sort([](rp::rect const &a, rp::rect const &b) { return a.glyph_index < b.glyph_index; });
 
   glyphs.span().sort([](Glyph const &a, Glyph const &b) { return a.index < b.index; });
 
@@ -647,9 +638,8 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const &font, u32 font
     if (glyph.is_valid)
     {
       ASH_CHECK(FT_Load_Glyph(font.ftface, glyph.index,
-                              font.has_color ?
-                                  (FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR) :
-                                  (FT_LOAD_DEFAULT | FT_LOAD_RENDER)) == 0);
+                              font.has_color ? (FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR) :
+                                               (FT_LOAD_DEFAULT | FT_LOAD_RENDER)) == 0);
 
       FT_Pixel_Mode pixel_mode = AS(FT_Pixel_Mode, font.ftface->glyph->bitmap.pixel_mode);
 
@@ -687,10 +677,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const &font, u32 font
   }
 
   return std::make_pair(
-      FontAtlas{.glyphs      = std::move(glyphs),
-                .extent      = atlas_extent,
-                .font_height = font_height,
-                .texture     = 0},
+      FontAtlas{.glyphs = std::move(glyphs), .extent = atlas_extent, .font_height = font_height, .texture = 0},
       ImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent, .format = format});
 }
 

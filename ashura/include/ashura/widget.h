@@ -288,16 +288,13 @@ struct Widget
   constexpr virtual void on_leave_viewport(WidgetContext &context)
   {}
 
-  constexpr virtual void on_click(WidgetContext &context, MouseButton button,
-                                  vec2 screen_position, u32 nclicks, quad quad)
+  constexpr virtual void on_click(WidgetContext &context, MouseButton button, vec2 screen_position, u32 nclicks, quad quad)
   {}
 
-  constexpr virtual void on_mouse_move(WidgetContext &context, vec2 screen_position,
-                                       vec2 translation, quad quad)
+  constexpr virtual void on_mouse_move(WidgetContext &context, vec2 screen_position, vec2 translation, quad quad)
   {}
 
-  constexpr virtual void on_mouse_enter(WidgetContext &context, vec2 screen_position,
-                                        quad quad)
+  constexpr virtual void on_mouse_enter(WidgetContext &context, vec2 screen_position, quad quad)
   {}
 
   virtual void on_mouse_leave(WidgetContext &context, stx::Option<vec2> screen_position)
@@ -383,7 +380,8 @@ struct Widget
 struct WidgetImpl
 {
   template <typename DerivedWidget>
-  constexpr WidgetImpl(DerivedWidget widget) : impl{new DerivedWidget{std::move(widget)}}
+  constexpr WidgetImpl(DerivedWidget widget) :
+      impl{new DerivedWidget{std::move(widget)}}
   {
     static_assert(std::is_base_of_v<Widget, DerivedWidget>);
   }

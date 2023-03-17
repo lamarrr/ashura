@@ -19,25 +19,20 @@ namespace ash
 namespace impl
 {
 
-static stx::Rc<spdlog::logger *> make_multi_threaded_logger(std::string name,
-                                                            std::string file_path)
+static stx::Rc<spdlog::logger *> make_multi_threaded_logger(std::string name, std::string file_path)
 {
   stx::Vec<spdlog::sink_ptr> sinks{stx::os_allocator};
-  sinks.push(std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::move(file_path)))
-      .unwrap();
+  sinks.push(std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::move(file_path))).unwrap();
 
   sinks.push(std::make_shared<spdlog::sinks::stdout_color_sink_mt>()).unwrap();
 
-  return stx::rc::make_inplace<spdlog::logger>(stx::os_allocator, std::move(name),
-                                               sinks.begin(), sinks.end())
-      .unwrap();
+  return stx::rc::make_inplace<spdlog::logger>(stx::os_allocator, std::move(name), sinks.begin(), sinks.end()).unwrap();
 }
 }        // namespace impl
 
 inline stx::Option<stx::Span<vk::PhyDeviceInfo const>>
     select_device(stx::Span<vk::PhyDeviceInfo const> const phy_devices,
-                  stx::Span<VkPhysicalDeviceType const>    preferred_device_types,
-                  vk::Surface const                       &target_surface)
+                  stx::Span<VkPhysicalDeviceType const> preferred_device_types, vk::Surface const &target_surface)
 {
   for (VkPhysicalDeviceType type : preferred_device_types)
   {
@@ -51,8 +46,8 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>>
                  // or data
                  dev.has_transfer_command_queue_family() &&
                  // can be used for presenting to a specific surface
-                 !vk::get_surface_presentation_command_queue_support(
-                      dev.phy_device, dev.family_properties, target_surface.surface)
+                 !vk::get_surface_presentation_command_queue_support(dev.phy_device, dev.family_properties,
+                                                                     target_surface.surface)
                       .span()
                       .find(true)
                       .is_empty();
@@ -67,9 +62,7 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>>
 }
 
 Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
-    task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()},
-    root_widget{iroot_widget},
-    widget_system{*root_widget}
+    task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()}, root_widget{iroot_widget}, widget_system{*root_widget}
 {
   widget_context.task_scheduler = &task_scheduler;
   stx::Vec<char const *> required_device_extensions{stx::os_allocator};
@@ -95,43 +88,37 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   window = stx::Some(create_window(window_api.value().share(), cfg.window_config.copy()));
 
-  stx::Vec window_required_instance_extensions =
-      window_api.value()->get_required_instance_extensions();
+  stx::Vec window_required_instance_extensions = window_api.value()->get_required_instance_extensions();
 
-  stx::Rc vk_instance = vk::create_instance(
-      cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), cfg.name.c_str(),
-      VK_MAKE_VERSION(cfg.version.major, cfg.version.minor, cfg.version.patch),
-      window_required_instance_extensions, required_validation_layers, xlogger);
+  stx::Rc vk_instance = vk::create_instance(cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), cfg.name.c_str(),
+                                            VK_MAKE_VERSION(cfg.version.major, cfg.version.minor, cfg.version.patch),
+                                            window_required_instance_extensions, required_validation_layers, xlogger);
 
   window.value()->attach_surface(vk_instance.share());
 
   stx::Vec phy_devices = vk::get_all_devices(vk_instance);
 
-  VkPhysicalDeviceType const device_preference[] = {
-      VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
-      VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU, VK_PHYSICAL_DEVICE_TYPE_CPU};
+  VkPhysicalDeviceType const device_preference[] = {VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
+                                                    VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
+                                                    VK_PHYSICAL_DEVICE_TYPE_CPU};
 
   xlogger.info("Available Physical Devices:");
 
   for (vk::PhyDeviceInfo const &device : phy_devices)
   {
     // TODO(lamarrr): log graphics families on devices and other properties
-    xlogger.info("Device(name: '{}', ID: {}, type: {})", device.properties.deviceName,
-                 device.properties.deviceID,
+    xlogger.info("Device(name: '{}', ID: {}, type: {})", device.properties.deviceName, device.properties.deviceID,
                  string_VkPhysicalDeviceType(device.properties.deviceType));
   }
 
   stx::Rc<vk::PhyDeviceInfo *> phy_device =
-      stx::rc::make(stx::os_allocator,
-                    select_device(phy_devices, device_preference,
-                                  *window.value()->surface.value().handle)
-                        .expect("Unable to find any suitable rendering device")[0]
-                        .copy())
+      stx::rc::make(stx::os_allocator, select_device(phy_devices, device_preference, *window.value()->surface.value().handle)
+                                           .expect("Unable to find any suitable rendering device")[0]
+                                           .copy())
           .unwrap();
 
-  xlogger.info("Selected Physical Device: Device(name: '{}', ID: {}, type: {})",
-               phy_device->properties.deviceName, phy_device->properties.deviceID,
-               string_VkPhysicalDeviceType(phy_device->properties.deviceType));
+  xlogger.info("Selected Physical Device: Device(name: '{}', ID: {}, type: {})", phy_device->properties.deviceName,
+               phy_device->properties.deviceID, string_VkPhysicalDeviceType(phy_device->properties.deviceType));
 
   // we might need multiple command queues, one for data transfer and one for
   // rendering
@@ -140,34 +127,31 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
                             1};
 
   stx::Rc graphics_command_queue_family =
-      stx::rc::make(stx::os_allocator, vk::get_graphics_command_queue(phy_device)
-                                           .expect("Unable to get graphics command queue"))
+      stx::rc::make(stx::os_allocator,
+                    vk::get_graphics_command_queue(phy_device).expect("Unable to get graphics command queue"))
           .unwrap();
 
   // we can accept queue family struct here instead and thus not have to
   // perform extra manual checks
   // the user shouldn't have to touch handles
-  VkDeviceQueueCreateInfo command_queue_create_infos[] = {
-      {.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-       .pNext            = nullptr,
-       .flags            = 0,
-       .queueFamilyIndex = graphics_command_queue_family->index,
-       .queueCount       = AS(u32, std::size(queue_priorities)),
-       .pQueuePriorities = queue_priorities}};
+  VkDeviceQueueCreateInfo command_queue_create_infos[] = {{.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                                                           .pNext            = nullptr,
+                                                           .flags            = 0,
+                                                           .queueFamilyIndex = graphics_command_queue_family->index,
+                                                           .queueCount       = AS(u32, std::size(queue_priorities)),
+                                                           .pQueuePriorities = queue_priorities}};
 
   VkPhysicalDeviceFeatures required_features{};
 
   required_features.samplerAnisotropy = VK_TRUE;
 
-  stx::Rc<vk::Device *> device =
-      vk::create_device(phy_device, command_queue_create_infos, required_device_extensions,
-                        required_validation_layers, required_features, xlogger);
+  stx::Rc<vk::Device *> device = vk::create_device(phy_device, command_queue_create_infos, required_device_extensions,
+                                                   required_validation_layers, required_features, xlogger);
 
   stx::Rc<vk::CommandQueue *> xqueue =
-      stx::rc::make_inplace<vk::CommandQueue>(
-          stx::os_allocator,
-          vk::get_command_queue(device, *graphics_command_queue_family.handle, 0)
-              .expect("Failed to create graphics command queue"))
+      stx::rc::make_inplace<vk::CommandQueue>(stx::os_allocator,
+                                              vk::get_command_queue(device, *graphics_command_queue_family.handle, 0)
+                                                  .expect("Failed to create graphics command queue"))
           .unwrap();
 
   queue = stx::Some(xqueue.share());
@@ -177,8 +161,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   xlogger.info("recreated swapchain for logical/window/viewport extent: [{}, {}], "
                "physical/surface extent: [{}, {}]",
-               swp.window_extent.width, swp.window_extent.height, swp.image_extent.width,
-               swp.image_extent.height);
+               swp.window_extent.width, swp.window_extent.height, swp.image_extent.width, swp.image_extent.height);
 
   renderer.init(xqueue.share(), DEFAULT_MAX_FRAMES_IN_FLIGHT);
 
@@ -187,18 +170,14 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   upload_context.init(xqueue.share());
 
   window.value()->on(WindowEvents::CloseRequested,
-                     stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) {
-                       std::exit(0);
-                     }).unwrap());
+                     stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) { std::exit(0); }).unwrap());
 
   window.value()->on(WindowEvents::Resized | WindowEvents::PixelSizeChanged,
                      stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents) {
                        logger.value()->info("WINDOW RESIZED");
                      }).unwrap());
 
-  window.value()
-      ->mouse_motion_listeners.push(stx::fn::rc::make_unique_static([](MouseMotionEvent) {}))
-      .unwrap();
+  window.value()->mouse_motion_listeners.push(stx::fn::rc::make_unique_static([](MouseMotionEvent) {})).unwrap();
 
   window.value()
       ->mouse_click_listeners
@@ -211,8 +190,8 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
-  gfx::image transparent_image = image_bundle.add(upload_context.upload_image(ImageView{
-      .data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba}));
+  gfx::image transparent_image = image_bundle.add(
+      upload_context.upload_image(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba}));
 
   ASH_CHECK(transparent_image == 0);
 
@@ -254,32 +233,24 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   window.value()
       ->mouse_click_listeners
-      .push(
-          stx::fn::rc::make_unique_functor(stx::os_allocator,
-                                           [this](MouseClickEvent event) {
-                                             widget_system.events.push_inplace(event).unwrap();
-                                           })
-              .unwrap())
+      .push(stx::fn::rc::make_unique_functor(
+                stx::os_allocator, [this](MouseClickEvent event) { widget_system.events.push_inplace(event).unwrap(); })
+                .unwrap())
       .unwrap();
 
   window.value()
       ->mouse_motion_listeners
-      .push(
-          stx::fn::rc::make_unique_functor(stx::os_allocator,
-                                           [this](MouseMotionEvent event) {
-                                             widget_system.events.push_inplace(event).unwrap();
-                                           })
-              .unwrap())
+      .push(stx::fn::rc::make_unique_functor(
+                stx::os_allocator, [this](MouseMotionEvent event) { widget_system.events.push_inplace(event).unwrap(); })
+                .unwrap())
       .unwrap();
 
-  window.value()->on(
-      WindowEvents::All,
-      stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents events) {
-        if ((events & WindowEvents::MouseLeave) != WindowEvents::None)
-        {
-          widget_system.events.push_inplace(events).unwrap();
-        }
-      }).unwrap());
+  window.value()->on(WindowEvents::All, stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents events) {
+                                          if ((events & WindowEvents::MouseLeave) != WindowEvents::None)
+                                          {
+                                            widget_system.events.push_inplace(events).unwrap();
+                                          }
+                                        }).unwrap());
 
   // TODO(lamarrr): attach debug widgets: FPS stats, memory usage, etc
   widget_system.launch(widget_context);
@@ -333,17 +304,15 @@ void Engine::tick(std::chrono::nanoseconds interval)
   {
     if (swapchain_state != SwapChainState::Ok)
     {
-      window.value()->recreate_swapchain(queue.value(), DEFAULT_MAX_FRAMES_IN_FLIGHT,
-                                         *logger.value().handle);
+      window.value()->recreate_swapchain(queue.value(), DEFAULT_MAX_FRAMES_IN_FLIGHT, *logger.value().handle);
       // TODO(lamarrr): fix
       if (!window.value()->surface.value()->is_zero_sized_swapchain)
       {
         auto &swp = window.value()->surface.value()->swapchain.value();
-        logger.value()->info(
-            "recreated swapchain for logical/window/viewport extent: [{}, {}], "
-            "physical/surface extent: [{}, {}]",
-            swp.window_extent.width, swp.window_extent.height, swp.image_extent.width,
-            swp.image_extent.height);
+        logger.value()->info("recreated swapchain for logical/window/viewport extent: [{}, {}], "
+                             "physical/surface extent: [{}, {}]",
+                             swp.window_extent.width, swp.window_extent.height, swp.image_extent.width,
+                             swp.image_extent.height);
         renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
         record_draw_commands();
       }
@@ -364,15 +333,13 @@ void Engine::tick(std::chrono::nanoseconds interval)
 
       gfx::DrawList const &draw_list = canvas.draw_list;
 
-      renderer.submit(swapchain.window_extent, swapchain.image_extent, swapchain_image_index,
-                      swapchain.frame, swapchain.render_fences[swapchain.frame],
-                      swapchain.image_acquisition_semaphores[swapchain.frame],
+      renderer.submit(swapchain.window_extent, swapchain.image_extent, swapchain_image_index, swapchain.frame,
+                      swapchain.render_fences[swapchain.frame], swapchain.image_acquisition_semaphores[swapchain.frame],
                       swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
-                      swapchain.framebuffers[swapchain_image_index], draw_list.cmds,
-                      draw_list.vertices, draw_list.indices, image_bundle);
+                      swapchain.framebuffers[swapchain_image_index], draw_list.cmds, draw_list.vertices, draw_list.indices,
+                      image_bundle);
 
-      swapchain_state =
-          window.value()->present(queue.value()->info.queue, swapchain_image_index);
+      swapchain_state = window.value()->present(queue.value()->info.queue, swapchain_image_index);
 
       // the frame semaphores and synchronization primitives are still used even
       // if an error is returned

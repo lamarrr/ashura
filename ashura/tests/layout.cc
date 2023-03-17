@@ -18,12 +18,9 @@ using namespace ash;
 
 TEST(LayoutTest, Start)
 {
-  Flex flex{FlexProps{.width = constraint{.scale = 1}, .height = constraint{.scale = 1}},
-            Widget{},
-            Image{ImageProps{.width  = constraint{.bias = 100},
-                             .height = constraint{.bias = 100}}},
-            Image{ImageProps{.width  = constraint{.bias = 200},
-                             .height = constraint{.bias = 200}}}};
+  Flex flex{FlexProps{.width = constraint{.scale = 1}, .height = constraint{.scale = 1}}, Widget{},
+            Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
+            Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
 
   perform_layout(flex, rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
@@ -71,11 +68,8 @@ TEST(LayoutTest, SpaceAround)
                       .cross_align = CrossAlign::Center,
                       .width       = constraint{.scale = 1},
                       .height      = constraint{.scale = 1}},
-            Widget{},
-            Image{ImageProps{.width  = constraint{.bias = 100},
-                             .height = constraint{.bias = 100}}},
-            Image{ImageProps{.width  = constraint{.bias = 200},
-                             .height = constraint{.bias = 200}}}};
+            Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
+            Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
 
   perform_layout(flex, rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
@@ -113,11 +107,8 @@ TEST(LayoutTest, SpaceEvenly)
                       .cross_align = CrossAlign::Center,
                       .width       = constraint{.scale = 1},
                       .height      = constraint{.scale = 1}},
-            Widget{},
-            Image{ImageProps{.width  = constraint{.bias = 100},
-                             .height = constraint{.bias = 100}}},
-            Image{ImageProps{.width  = constraint{.bias = 200},
-                             .height = constraint{.bias = 200}}}};
+            Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
+            Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
 
   perform_layout(flex, rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 
@@ -155,11 +146,8 @@ TEST(LayoutTest, SpaceBetween)
                       .cross_align = CrossAlign::Center,
                       .width       = constraint{.scale = 1},
                       .height      = constraint{.scale = 1}},
-            Widget{},
-            Image{ImageProps{.width  = constraint{.bias = 100},
-                             .height = constraint{.bias = 100}}},
-            Image{ImageProps{.width  = constraint{.bias = 200},
-                             .height = constraint{.bias = 200}}}};
+            Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
+            Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
 
   perform_layout(flex, rect{.offset = vec2{50, 50}, .extent = vec2{1920, 1080}});
 

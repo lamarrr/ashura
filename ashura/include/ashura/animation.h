@@ -37,8 +37,7 @@ struct EaseOut : public Animation
 {
   virtual f32 tick(f32 timepoint) override
   {
-    return -Animation::end * (timepoint /= Animation::duration) * (timepoint - 2) +
-           Animation::begin;
+    return -Animation::end * (timepoint /= Animation::duration) * (timepoint - 2) + Animation::begin;
   }
 };
 

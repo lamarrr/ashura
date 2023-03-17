@@ -80,8 +80,8 @@ STX_DEFINE_ENUM_BIT_OPS(SwapChainState)
 
 struct Window
 {
-  Window(stx::Rc<WindowApi *> api, SDL_Window *window, WindowID id, extent extent,
-         ash::extent surface_extent, WindowConfig cfg, std::thread::id init_thread_id) :
+  Window(stx::Rc<WindowApi *> api, SDL_Window *window, WindowID id, extent extent, ash::extent surface_extent, WindowConfig cfg,
+         std::thread::id init_thread_id) :
       api{std::move(api)},
       window{window},
       id{id},
@@ -194,14 +194,13 @@ struct Window
 
   void resize();
 
-  void constrain(stx::Option<int> min_width, stx::Option<int> min_height,
-                 stx::Option<int> max_width, stx::Option<int> max_height);
+  void constrain(stx::Option<int> min_width, stx::Option<int> min_height, stx::Option<int> max_width,
+                 stx::Option<int> max_height);
 
   // attach surface to window for presentation
   void attach_surface(stx::Rc<vk::Instance *> const &instance);
 
-  void recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue, u32 max_nframes_in_flight,
-                          spdlog::logger &logger);
+  void recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue, u32 max_nframes_in_flight, spdlog::logger &logger);
 
   std::pair<SwapChainState, u32> acquire_image();
 
@@ -237,13 +236,12 @@ struct Window
   std::thread::id                                                      init_thread_id;
   stx::Option<stx::Unique<vk::Surface *>>                              surface;
   stx::Option<stx::Rc<vk::Instance *>>                                 instance;
-  stx::Vec<std::pair<WindowEvents, stx::UniqueFn<void(WindowEvents)>>> event_listeners{
-      stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void(MouseClickEvent)>>   mouse_click_listeners{stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>>  mouse_motion_listeners{stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>>   mouse_wheel_listeners{stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>> key_down_listeners{stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>> key_up_listeners{stx::os_allocator};
+  stx::Vec<std::pair<WindowEvents, stx::UniqueFn<void(WindowEvents)>>> event_listeners{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseClickEvent)>>                       mouse_click_listeners{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>>                      mouse_motion_listeners{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>>                       mouse_wheel_listeners{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_down_listeners{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_up_listeners{stx::os_allocator};
 };
 
 stx::Rc<Window *> create_window(stx::Rc<WindowApi *> api, WindowConfig cfg);

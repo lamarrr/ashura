@@ -363,8 +363,7 @@ inline FindResult skyline_pack_rectangle(Context &context, i32 width, i32 height
   //    1. it failed
   //    2. the best node doesn't fit (we don't always check this)
   //    3. we're out of memory
-  if (res.prev_link == nullptr || res.y + height > context.height ||
-      context.free_head == nullptr)
+  if (res.prev_link == nullptr || res.y + height > context.height || context.free_head == nullptr)
   {
     res.prev_link = nullptr;
     return res;

@@ -34,14 +34,14 @@ struct VideoStream
   AVCodecContext  *audio_codec_ctx = nullptr;
   SwsContext      *scale_ctx       = nullptr;
   SwrContext      *resample_ctx    = nullptr;
-  u8              *image_frame     = nullptr;                // might change
-  extent           image_extent;                             // might change
-  ImageFormat      image_fmt     = ImageFormat::Rgba;        // might change
-  u8              *audio_samples = nullptr;                  // interleaved channel audio
-  u32              nchannels     = 0;                        // set to output device config
-  u32              nsamples      = 0;                        // set to output device config
-  u32              sample_rate   = 48000;                    // set to output device config
-  PcmFormat        audio_fmt     = PcmFormat::S16;           // set to output device config
+  u8              *image_frame     = nullptr;
+  extent           image_extent;
+  ImageFormat      image_fmt     = ImageFormat::Rgba;
+  u8              *audio_samples = nullptr;               // interleaved channels i.e. [L, R, L, R, ...]
+  u32              nchannels     = 0;                     // set to output device config
+  u32              nsamples      = 0;                     // set to output device config
+  u32              sample_rate   = 48000;                 // set to output device config
+  PcmFormat        audio_fmt     = PcmFormat::S16;        // set to output device config
 
   VideoStream(char const *path)
   {
@@ -106,8 +106,8 @@ struct VideoStream
     AVCodec const *codec = nullptr;
 
     uint version = avformat_version();
-    spdlog::info("ffmpeg avformat version: {}.{}.{}", AV_VERSION_MAJOR(version),
-                 AV_VERSION_MINOR(version), AV_VERSION_MICRO(version));
+    spdlog::info("ffmpeg avformat version: {}.{}.{}", AV_VERSION_MAJOR(version), AV_VERSION_MINOR(version),
+                 AV_VERSION_MICRO(version));
 
     do
     {
@@ -137,7 +137,6 @@ int main(int argc, char **argv)
   // bytes.resize(stream.tellg()).unwrap();
   // stream.seekg(0);
   // stream.read(bytes.data(), bytes.size());
-
   // stream.close();
 
   spdlog::info("System theme: {}", (int) SDL_GetSystemTheme());
@@ -159,8 +158,7 @@ int main(int argc, char **argv)
     ASH_CHECK(SDL_GetAudioDeviceSpec(i, 0, &spec) == 0);
 
     spec.callback;
-    spdlog::info("channels: {}, format: {}, samplerate: {}, nsamples: {}", spec.channels,
-                 spec.format, spec.freq, spec.samples);
+    spdlog::info("channels: {}, format: {}, samplerate: {}, nsamples: {}", spec.channels, spec.format, spec.freq, spec.samples);
 
     spec.padding;
     spec.silence;
@@ -173,8 +171,8 @@ int main(int argc, char **argv)
   SDL_AudioSpec spec;
   // might be different from getaudiodevices
   ASH_CHECK(SDL_GetDefaultAudioInfo(&name, &spec, 0) == 0);
-  spdlog::info("default device: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}",
-               name, spec.channels, spec.format, spec.freq, spec.samples);
+  spdlog::info("default device: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}", name, spec.channels, spec.format,
+               spec.freq, spec.samples);
   SDL_free(name);
 
   auto start = std::chrono::steady_clock::now();
@@ -192,15 +190,13 @@ int main(int argc, char **argv)
 
   // av_seek_frame()
 
-  int video_stream_index =
-      av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+  int video_stream_index = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
   ASH_CHECK(video_stream_index >= 0);
   LP;
   AVStream *video_stream = fmt_ctx->streams[video_stream_index];
   LP;
 
-  int audio_stream_index =
-      av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
+  int audio_stream_index = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
   ASH_CHECK(audio_stream_index >= 0);
   LP;
   AVStream *audio_stream = fmt_ctx->streams[audio_stream_index];
@@ -210,8 +206,7 @@ int main(int argc, char **argv)
   const AVCodec *codec = nullptr;
 
   auto ver = avformat_version();
-  spdlog::info("version: {}.{}.{}", AV_VERSION_MAJOR(ver), AV_VERSION_MINOR(ver),
-               AV_VERSION_MICRO(ver));
+  spdlog::info("version: {}.{}.{}", AV_VERSION_MAJOR(ver), AV_VERSION_MINOR(ver), AV_VERSION_MICRO(ver));
 
   do
   {
@@ -224,13 +219,11 @@ int main(int argc, char **argv)
 
   auto *video_codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
   ASH_CHECK(video_codec != nullptr);
-  spdlog::info("video codec name: {}, long name: {}", video_codec->name,
-               video_codec->long_name);
+  spdlog::info("video codec name: {}, long name: {}", video_codec->name, video_codec->long_name);
 
   auto *audio_codec = avcodec_find_decoder(audio_stream->codecpar->codec_id);
   ASH_CHECK(audio_codec != nullptr);
-  spdlog::info("audio codec name: {}, long name: {}", audio_codec->name,
-               audio_codec->long_name);
+  spdlog::info("audio codec name: {}, long name: {}", audio_codec->name, audio_codec->long_name);
 
   AVCodecContext *video_codec_ctx = avcodec_alloc_context3(video_codec);
   ASH_CHECK(video_codec_ctx != nullptr);
@@ -299,12 +292,11 @@ int main(int argc, char **argv)
         // spdlog::info("decoded image frame with format: {}",
         // av_get_pix_fmt_name((AVPixelFormat) frame->format));
 
-        SwsContext *context =
-            sws_getContext(frame->width, frame->height, (AVPixelFormat) frame->format,
-                           frame->width, frame->height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
-        u8 *rgb       = new u8[frame->width * frame->height * 3];
-        u8 *planes[]  = {rgb};
-        int strides[] = {3 * frame->width};
+        SwsContext *context   = sws_getContext(frame->width, frame->height, (AVPixelFormat) frame->format, frame->width,
+                                               frame->height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
+        u8         *rgb       = new u8[frame->width * frame->height * 3];
+        u8         *planes[]  = {rgb};
+        int         strides[] = {3 * frame->width};
         sws_scale(context, frame->data, frame->linesize, 0, frame->height, planes, strides);
 
         sws_freeContext(context);
@@ -375,21 +367,17 @@ int main(int argc, char **argv)
 
         // TODO(lamarrr) Check SDL for supported audio formats
         SwrContext *sw_context = nullptr;
-        ASH_CHECK(swr_alloc_set_opts2(&sw_context, &frame->ch_layout, target_format,
-                                      frame->sample_rate, &frame->ch_layout,
-                                      (AVSampleFormat) frame->format, frame->sample_rate, 0,
-                                      nullptr) == 0);
+        ASH_CHECK(swr_alloc_set_opts2(&sw_context, &frame->ch_layout, target_format, frame->sample_rate, &frame->ch_layout,
+                                      (AVSampleFormat) frame->format, frame->sample_rate, 0, nullptr) == 0);
         ASH_CHECK(swr_init(sw_context) == 0);
         LP;
         // NOTE: interleaved single plane
-        usize samples_buffer_size =
-            av_samples_get_buffer_size(nullptr, frame->ch_layout.nb_channels,
-                                       frame->nb_samples, (AVSampleFormat) frame->format, 1);
-        u8 *samples = (u8 *) malloc(samples_buffer_size);
+        usize samples_buffer_size = av_samples_get_buffer_size(nullptr, frame->ch_layout.nb_channels, frame->nb_samples,
+                                                               (AVSampleFormat) frame->format, 1);
+        u8   *samples             = (u8 *) malloc(samples_buffer_size);
         ASH_CHECK(samples != nullptr);
         LP;
-        ASH_CHECK(swr_convert(sw_context, &samples, frame->nb_samples,
-                              const_cast<u8 const **>(frame->data),
+        ASH_CHECK(swr_convert(sw_context, &samples, frame->nb_samples, const_cast<u8 const **>(frame->data),
                               frame->nb_samples) == frame->nb_samples);
         LP;
         free(samples);
@@ -425,17 +413,14 @@ int main(int argc, char **argv)
   avcodec_free_context(&audio_codec_ctx);
   avformat_close_input(&fmt_ctx);
 
-  spdlog::info("finished in {} seconds", std::chrono::duration_cast<std::chrono::seconds>(
-                                             std::chrono::steady_clock::now() - start)
-                                             .count());
+  spdlog::info("finished in {} seconds",
+               std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count());
 
   AppConfig cfg{.enable_validation_layers = false};
   cfg.window_config.borderless = false;
-  App                                   app{std::move(cfg),
-          new Image{
-              ImageProps{.source = FileImageSource{.path = stx::string::make_static(argv[2])},
-                                                           .border_radius = vec4{200, 200, 200, 200},
-                                                           .resize_on_load = true}}};
+  App                                   app{std::move(cfg), new Image{ImageProps{.source         = FileImageSource{.path = stx::string::make_static(argv[2])},
+                                                                                 .border_radius  = vec4{200, 200, 200, 200},
+                                                                                 .resize_on_load = true}}};
   std::chrono::steady_clock::time_point last_tick = std::chrono::steady_clock::now();
   while (true)
   {
