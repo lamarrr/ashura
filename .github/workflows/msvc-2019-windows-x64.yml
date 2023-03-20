@@ -27,7 +27,7 @@ jobs:
         run: git clone https://github.com/microsoft/vcpkg.git && cd vcpkg && ./bootstrap-vcpkg.bat
 
       - name: Install dependencies via vcpkg
-        run: cd vcpkg && .\vcpkg.exe install --triplet x64-windows vulkan freetype harfbuzz libpng[apng] fmt spdlog simdjson libwebp libjpeg-turbo libpng gtest libavif ffmpeg abseil
+        run: cd vcpkg && .\vcpkg.exe install --triplet x64-windows freetype harfbuzz libpng[apng] fmt spdlog simdjson libwebp libjpeg-turbo libpng gtest libavif ffmpeg abseil
 
       - name: Configure Build Directory
         run: mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE="../vcpkg/scripts/buildsystems/vcpkg.cmake" -DSTX_ENABLE_BACKTRACE=ON
