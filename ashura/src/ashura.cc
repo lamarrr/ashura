@@ -16,230 +16,602 @@ extern "C"
 }
 
 using namespace ash;
+using Clock        = std::chrono::steady_clock;
+using timepoint    = Clock::time_point;
+using nanoseconds  = std::chrono::nanoseconds;
+using milliseconds = std::chrono::milliseconds;
+using seconds      = std::chrono::seconds;
 
-#define LP                                                        \
-  do                                                              \
-  {                                                               \
-    /* spdlog::info("reached log point on line #{}", __LINE__);*/ \
-  } while (0)
+constexpr nanoseconds SYNC_THRESHOLD   = milliseconds{10};
+constexpr nanoseconds NOSYNC_THRESHOLD = seconds{10};
+constexpr nanoseconds MAX_FRAME_DELAY  = seconds{1};
 
-struct VideoStream
+enum class Error : i64
 {
-  // TODO(lamarrr): handle endianness used in SDL and ffmpeg
-  stx::Allocator   allocator       = stx::os_allocator;
-  AVPacket        *packet          = nullptr;
-  AVFrame         *frame           = nullptr;
-  AVFormatContext *format_ctx      = nullptr;
-  AVCodecContext  *video_codec_ctx = nullptr;
-  AVCodecContext  *audio_codec_ctx = nullptr;
-  SwsContext      *scale_ctx       = nullptr;
-  SwrContext      *resample_ctx    = nullptr;
-  u8              *image_frame     = nullptr;
-  extent           image_extent;
-  ImageFormat      image_fmt     = ImageFormat::Rgba;
-  u8              *audio_samples = nullptr;               // interleaved channels i.e. [L, R, L, R, ...]
-  u32              nchannels     = 0;                     // set to output device config
-  u32              nsamples      = 0;                     // set to output device config
-  u32              sample_rate   = 48000;                 // set to output device config
-  PcmFormat        audio_fmt     = PcmFormat::S16;        // set to output device config
+  Ok           = 0,
+  Eof          = AVERROR(EOF),
+  NeedsPackets = AVERROR(EAGAIN),
+  Invalid      = AVERROR(EINVAL)
+};
 
-  VideoStream(char const *path)
+struct AudioDeviceInfo
+{
+  stx::String   name;
+  SDL_AudioSpec spec{.freq = 48000, .format = AUDIO_S16SYS, .channels = 2, .samples = 4800, .size = 4800 * 2, .callback = nullptr, .userdata = nullptr};
+
+  static stx::Vec<AudioDeviceInfo> enumerate()
   {
-    packet = av_packet_alloc();
-    ASH_CHECK(packet != nullptr);
+    stx::Vec<AudioDeviceInfo> devices{stx::os_allocator};
 
-    frame = av_frame_alloc();
-    ASH_CHECK(frame != nullptr);
-  }
-
-  ~VideoStream()
-  {
-    if (packet != nullptr)
+    for (int i = 0; i < SDL_GetNumAudioDevices(false); i++)
     {
-      av_packet_free(&packet);
-    }
+      char const   *device_name = SDL_GetAudioDeviceName(i, false);
+      SDL_AudioSpec spec;
+      int           err = SDL_GetAudioDeviceSpec(i, false, &spec);
 
-    if (frame != nullptr)
-    {
-      av_frame_free(&frame);
-    }
-
-    if (format_ctx != nullptr)
-    {
-      avformat_close_input(&format_ctx);
-    }
-
-    if (video_codec_ctx != nullptr)
-    {
-      avcodec_free_context(&video_codec_ctx);
-    }
-
-    if (audio_codec_ctx != nullptr)
-    {
-      avcodec_free_context(&audio_codec_ctx);
-    }
-
-    if (scale_ctx != nullptr)
-    {
-      sws_freeContext(scale_ctx);
-    }
-
-    if (resample_ctx != nullptr)
-    {
-      swr_free(&resample_ctx);
-    }
-
-    if (image_frame != nullptr)
-    {
-      allocator.handle->deallocate(image_frame);
-    }
-
-    if (audio_samples != nullptr)
-    {
-      allocator.handle->deallocate(audio_samples);
-    }
-  }
-
-  void dump_info()
-  {
-    void          *iter  = nullptr;
-    AVCodec const *codec = nullptr;
-
-    uint version = avformat_version();
-    spdlog::info("ffmpeg avformat version: {}.{}.{}", AV_VERSION_MAJOR(version), AV_VERSION_MINOR(version),
-                 AV_VERSION_MICRO(version));
-
-    do
-    {
-      codec = av_codec_iterate(&iter);
-      if (codec != nullptr)
+      if (err != 0)
       {
-        spdlog::info("name: {}, long name: {}", codec->name, codec->long_name);
+        continue;
       }
-    } while (codec != nullptr);
+
+      devices.push(AudioDeviceInfo{
+                       .name = stx::string::make(stx::os_allocator, device_name).unwrap(),
+                       .spec = spec})
+          .unwrap();
+    }
+
+    return devices;
+  }
+
+  static stx::Option<AudioDeviceInfo> get_default()
+  {
+    char         *device_name = nullptr;
+    SDL_AudioSpec spec;
+    int           err = SDL_GetDefaultAudioInfo(&device_name, &spec, false);
+
+    if (err != 0)
+    {
+      return stx::None;
+    }
+
+    AudioDeviceInfo info{
+        .name = device_name == nullptr ? stx::string::make_static("") : stx::string::make(stx::os_allocator, device_name).unwrap(),
+        .spec = spec};
+
+    SDL_free(device_name);
+
+    return stx::Some(std::move(info));
   }
 };
 
-struct AudioDevice
-{};
+struct VideoFrame
+{
+  stx::Option<ImageBuffer> image;
+  nanoseconds              pts{0};
 
+  void fit(int width, int height)
+  {
+    extent target_extent{width, height};
+    if (image.is_none())
+    {
+      image = stx::Some(ImageBuffer{
+          .memory = stx::mem::allocate(stx::os_allocator, target_extent.area() * 3).unwrap(),
+          .extent = target_extent,
+          .format = ImageFormat::Rgb});
+    }
+    else
+    {
+      if (image.value().extent != target_extent)
+      {
+        stx::mem::reallocate(image.value().memory, target_extent.area() * 3).unwrap();
+        image.value().extent = target_extent;
+      }
+    }
+  }
+};
+
+// Demuxer runs on main thread, fetches raw streams/packets from the files and dispatches them to the decoder threads
+//
+// the audio/video decode thread decodes audio/video frames, performs conversions/resampling and sends them to the renderer/audio device
+//
+struct Decoder
+{
+  stx::SpinLock        lock;
+  AVCodecContext      *ctx    = nullptr;
+  AVStream            *stream = nullptr;
+  AVFrame             *frame  = nullptr;
+  stx::Vec<AVPacket *> packets{stx::os_allocator};
+
+  void push_packet(AVPacket *packet)
+  {
+    AVPacket *dst = av_packet_alloc();
+    ASH_CHECK(dst != nullptr);
+    av_packet_move_ref(dst, packet);
+    {
+      stx::LockGuard guard{lock};
+      packets.push_inplace(dst).unwrap();
+    }
+  }
+
+  // bool /*Error*/ try_send_packet()
+  // {
+  //   AVPacket *packet;
+  //   {
+  //     stx::LockGuard guard{lock};
+  //     if (!packets.is_empty())
+  //     {
+  //       packet = packets[0];
+  //       packets.erase(packets.span().slice(0, 1));
+  //     }
+  //     else
+  //       return;
+  //   }
+
+  //   int err = avcodec_send_packet(ctx, packet);
+  //   av_packet_unref(packet);
+  //   av_packet_free(&packet);
+
+  //   if (err < 0)
+  //   {
+  //   }
+  // }
+
+  void destroy()
+  {
+    avcodec_free_context(&ctx);
+    av_frame_free(&frame);
+    for (AVPacket *packet : packets)
+    {
+      av_packet_free(&packet);
+    }
+  }
+};
+
+struct VideoDemuxer
+{
+  AVFormatContext *ctx    = nullptr;
+  AVPacket        *packet = nullptr;
+
+  void open(char const *path)
+  {
+    ASH_CHECK(avformat_open_input(&ctx, path, nullptr, nullptr) >= 0);
+    // checks if codec or file format is supported
+    ASH_CHECK(avformat_find_stream_info(ctx, nullptr) >= 0);
+  }
+
+  void destroy()
+  {
+    avformat_close_input(&ctx);
+    av_packet_free(&packet);
+  }
+
+  stx::Option<Decoder> make_decoder(AVMediaType media_type) const
+  {
+    int stream_index = av_find_best_stream(ctx, media_type, -1, -1, nullptr, 0);
+
+    if (stream_index < 0)
+    {
+      return stx::None;
+    }
+
+    AVStream *stream = ctx->streams[stream_index];
+
+    if (stream == nullptr)
+    {
+      return stx::None;
+    }
+
+    AVCodec const *codec = avcodec_find_decoder(stream->codecpar->codec_id);
+
+    if (codec == nullptr)
+    {
+      return stx::None;
+    }
+
+    AVCodecContext *codec_context = avcodec_alloc_context3(codec);
+
+    ASH_CHECK(codec_context != nullptr);
+    ASH_CHECK(avcodec_parameters_to_context(codec_context, stream->codecpar) >= 0);
+    ASH_CHECK(avcodec_open2(codec_context, codec, nullptr) >= 0);
+
+    AVFrame *frame = av_frame_alloc();
+    ASH_CHECK(frame != nullptr);
+
+    return stx::Some(Decoder{.ctx = codec_context, .stream = stream, .frame = frame});
+  }
+
+  stx::Option<Decoder> make_video_decoder() const
+  {
+    return make_decoder(AVMEDIA_TYPE_VIDEO);
+  }
+
+  stx::Option<Decoder> make_audio_decoder() const
+  {
+    return make_decoder(AVMEDIA_TYPE_AUDIO);
+  }
+
+  stx::Option<Decoder> make_subtitle_decoder() const
+  {
+    return make_decoder(AVMEDIA_TYPE_SUBTITLE);
+  }
+
+  int read_frame(stx::Span<Decoder *const> decoders)
+  {
+    int err = av_read_frame(ctx, packet);
+    if (err < 0)
+    {
+      return err;
+    }
+
+    for (Decoder *decoder : decoders)
+    {
+      if (packet->stream_index == decoder->stream->index)
+      {
+        decoder->push_packet(packet);
+        break;
+      }
+    }
+
+    return 0;
+  }
+};
+
+struct ResamplerConfig
+{
+  AVSampleFormat  src_fmt         = AV_SAMPLE_FMT_NONE;
+  AVSampleFormat  dst_fmt         = AV_SAMPLE_FMT_NONE;
+  int             src_sample_rate = 0;
+  int             dst_sample_rate = 0;
+  AVChannelLayout channel_layout  = AV_CHANNEL_LAYOUT_MONO;
+
+  bool operator==(ResamplerConfig const &other) const
+  {
+    return src_fmt == other.src_fmt && dst_fmt == other.dst_fmt && src_sample_rate == other.src_sample_rate && dst_sample_rate == other.dst_sample_rate && (av_channel_layout_compare(&channel_layout, &other.channel_layout) == 0);
+  }
+
+  bool operator!=(ResamplerConfig const &other) const
+  {
+    return !(*this == other);
+  }
+};
+
+struct VideoDecoder
+{
+  Decoder     decoder;
+  nanoseconds last_frame_pts{0};
+  nanoseconds last_frame_delay{0};
+  nanoseconds total_delays{0};
+  timepoint   begin_timepoint;
+
+  nanoseconds get_frame_delay() const
+  {
+    f32 time_base   = ratio{.numerator = decoder.stream->time_base.num, .denominator = decoder.stream->time_base.den}.as_f32();
+    f32 extra_delay = decoder.frame->repeat_pict * time_base / 2;
+    f32 delay       = time_base + extra_delay;
+    return nanoseconds{AS(nanoseconds::rep, nanoseconds{seconds{1}}.count() * delay)};
+  }
+
+  Error decode_frame()
+  {
+    // stx::LockGuard guard{lock};
+    int err = avcodec_receive_frame(decoder.ctx, decoder.frame);
+    if (err < 0)
+    {
+      return AS(Error, err);
+    }
+    // av_frame_unref(frame);
+    // frame->width;
+    return Error::Ok;
+  }
+
+  template <typename... T>
+  void schedule_refresh(T...);
+
+  // frame is a newly decoded frame
+  void refresh(/*Ctx &ctx,*/ VideoFrame &frame, std::atomic<nanoseconds::rep> const &audio_clock)
+  {
+    nanoseconds delay = frame.pts - ctx.last_frame_pts;
+
+    if (delay <= nanoseconds{0} || delay >= MAX_FRAME_DELAY)
+    {
+      // means delay is incorrect
+      delay = ctx.last_frame_delay;
+    }
+
+    ctx.last_frame_pts         = frame.pts;
+    ctx.last_frame_delay       = delay;
+    nanoseconds diff           = frame.pts - nanoseconds{audio_clock.load(std::memory_order_relaxed)};
+    nanoseconds sync_threshold = delay > SYNC_THRESHOLD ? delay : SYNC_THRESHOLD;
+
+    if (std::chrono::abs(diff) < NOSYNC_THRESHOLD)
+    {
+      if (std::chrono::abs(diff) <= -sync_threshold)
+      {
+        delay = nanoseconds{0};
+      }
+      else if (diff >= sync_threshold)
+      {
+        delay *= 2;
+      }
+    }
+
+    ctx.total_delays += delay;
+    nanoseconds time_passed  = std::chrono::steady_clock::now() - ctx.begin_timepoint;
+    nanoseconds actual_delay = ctx.total_delays - time_passed;
+
+    if (actual_delay.count() < 0)
+    {
+      actual_delay = milliseconds{10};
+    }
+
+    schedule_refresh(frame, actual_delay);
+    // video_display()
+  }
+};
+
+struct AudioDecoder
+{
+  Decoder                       decoder;
+  std::atomic<nanoseconds::rep> clock;
+
+  void decode_frame()
+  {
+    AVPacket *packet;
+    f32       clock_f = 0;
+    // TODO: WE CAN'T SET TO ZERO
+    if (packet->pts != AV_NOPTS_VALUE)
+    {
+      clock_f = ratio{.numerator = decoder.stream->time_base.num, .denominator = decoder.stream->time_base.den}.as_f32() * packet->pts;
+    }
+
+    avcodec_send_packet(decoder.ctx, packet);
+    avcodec_receive_frame(decoder.ctx, decoder.frame);
+    int n   = 2 * decoder.ctx->channels;        // why 2?
+    f32 pts = clock_f;
+    decoder.frame->clock_f += decoder.frame->pkt_duration;
+    // f32 pts =
+  }
+};
+
+// TODO(lamarrr): we are not using timepoints, why?
+struct AudioDevice
+{
+  SDL_AudioDeviceID id = 0;
+  AudioDeviceInfo   info;
+  SwrContext       *resampler = nullptr;
+  ResamplerConfig   resampler_cfg;
+  AudioDecoder     *decoder = nullptr;
+  std::atomic<f32>  volume  = 1;
+
+  // will be called on a different thread, use SDL_LockAudioDevice and SDL_UnlockAudioDevice to prevent it from running. i.e syncing
+  static void audio_callback(void *userdata, u8 *stream, int len)
+  {
+    AudioDevice *This   = AS(AudioDevice *, userdata);
+    f32          volume = This->volume.load(std::memory_order_relaxed);
+
+    This->decoder->decode_frame();
+
+    ResamplerConfig target_cfg{
+        .src_fmt         = AS(AVSampleFormat, This->decoder->decoder.frame->format),
+        .dst_fmt         = AV_SAMPLE_FMT_NONE,
+        .src_sample_rate = This->decoder->decoder.frame->sample_rate,
+        .dst_sample_rate = This->info.spec.freq,
+        .channel_layout  = This->decoder->decoder.frame->ch_layout};
+
+    switch (This->info.spec.format)
+    {
+      case AUDIO_U8:
+      {
+        target_cfg.dst_fmt = AV_SAMPLE_FMT_U8;
+      }
+      break;
+      case AUDIO_S16SYS:
+      {
+        target_cfg.dst_fmt = AV_SAMPLE_FMT_S16;
+      }
+      break;
+      case AUDIO_S32SYS:
+      {
+        target_cfg.dst_fmt = AV_SAMPLE_FMT_S32;
+      }
+      break;
+      case AUDIO_F32SYS:
+      {
+        target_cfg.dst_fmt = AV_SAMPLE_FMT_FLT;
+      }
+      break;
+      default:
+        break;
+    }
+
+    switch (This->info.spec.channels)
+    {
+      case 1:
+      {
+        target_cfg.channel_layout = AV_CHANNEL_LAYOUT_MONO;
+      }
+      break;
+      case 2:
+      {
+        target_cfg.channel_layout = AV_CHANNEL_LAYOUT_STEREO;
+      }
+      break;
+      case 4:
+      {
+        target_cfg.channel_layout = AV_CHANNEL_LAYOUT_QUAD;
+      }
+      break;
+      case 6:
+      {
+        target_cfg.channel_layout = AV_CHANNEL_LAYOUT_HEXAGONAL;
+      }
+      break;
+      case 8:
+      {
+        target_cfg.channel_layout = AV_CHANNEL_LAYOUT_OCTAGONAL;
+      }
+      break;
+      case 16:
+      {
+        target_cfg.channel_layout = AV_CHANNEL_LAYOUT_HEXADECAGONAL;
+      }
+      break;
+      default:
+      {
+        spdlog::warn("Unsupported number of channels encountered");
+        // TODO(lamarrr): fill with silence and return?
+      }
+      break;
+    }
+
+    // TODO(lamarrr): vital bug: the frame size will not be equal to the buffer size
+    if (This->resampler_cfg != target_cfg)
+    {
+      if (This->resampler != nullptr)
+      {
+        swr_free(&This->resampler);
+        This->resampler = nullptr;
+      }
+
+      ASH_CHECK(swr_alloc_set_opts2(&This->resampler, &target_cfg.channel_layout,
+                                    target_cfg.dst_fmt,
+                                    target_cfg.dst_sample_rate, &This->decoder->decoder.frame->ch_layout,
+                                    target_cfg.src_fmt, target_cfg.src_sample_rate, 0, nullptr) == 0);
+      ASH_CHECK(swr_init(This->resampler) == 0);
+      // av_get_sample_fmt_name((AVSampleFormat) frame->format),
+      // av_get_sample_fmt_name(target_format));
+    }
+
+    // av_samples_get_buffer_size
+
+    ASH_CHECK(swr_convert(This->resampler, &stream, This->info.spec.samples, &This->decoder->decoder.frame->data[0], This->decoder->decoder.frame->nb_samples) == 0);
+
+    av_frame_unref(This->decoder->decoder.frame);
+
+    // if (volume == 0)
+    // {
+    //   std::fill(stream, stream + len, 0);
+    //   return;
+    // }
+  }
+
+  void play()
+  {
+    int err = SDL_PlayAudioDevice(id);
+    ASH_CHECK(err == 0);
+  }
+
+  void pause()
+  {
+    int err = SDL_PauseAudioDevice(id);
+    ASH_CHECK(err == 0);
+  }
+
+  static stx::Option<stx::Rc<AudioDevice *>> open(AudioDeviceInfo const &info, u8 nchannels)
+  {
+    stx::Rc       dev = stx::rc::make_inplace<AudioDevice>(stx::os_allocator).unwrap();
+    SDL_AudioSpec desired_spec{info.spec};
+    desired_spec.userdata = dev.handle;
+    desired_spec.callback = audio_callback;
+    desired_spec.channels = nchannels;
+
+    switch (desired_spec.format)
+    {
+      case AUDIO_U8:
+      case AUDIO_S16SYS:
+      case AUDIO_S32SYS:
+      case AUDIO_F32SYS:
+        break;
+      default:
+      {
+        desired_spec.format = AUDIO_S16SYS;
+      }
+      break;
+    }
+
+    // desired_spec.size is modified to the hardware buffer size
+    u32 id = SDL_OpenAudioDevice(dev->info.name.c_str(), 0, &desired_spec, &dev->info.spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
+    if (id == 0)
+    {
+      return stx::None;
+    }
+    dev->info.name = info.name.copy(stx::os_allocator).unwrap();
+    dev->id        = id;
+    // TODO(lamarrr): dev->decoder;
+    return stx::Some(std::move(dev));
+  }
+
+  void close()
+  {
+    SDL_CloseAudioDevice(id);
+  }
+};
+
+//   void dump_info()
+//   {
+//     void          *iter  = nullptr;
+//     AVCodec const *codec = nullptr;
+//     uint version = avformat_version();
+//     spdlog::info("ffmpeg avformat version: {}.{}.{}", AV_VERSION_MAJOR(version), AV_VERSION_MINOR(version),
+//                  AV_VERSION_MICRO(version));
+//     do
+//     {
+//       codec = av_codec_iterate(&iter);
+//       if (codec != nullptr)
+//       {
+//         spdlog::info("name: {}, long name: {}", codec->name, codec->long_name);
+//       }
+//     } while (codec != nullptr);
+//   }
+/*
+Design of Video Widget and System
+
+
+
+Video Widget
+gets: video source
+performs:
+  - widget resizing
+  - seeking, playing, pausing, volume adjustment
+
+
+Video Stream
+performs demuxing, stream selection, and decoding
+all this is performed on a separate dedicated worker thread
+streams audio to AudioDevice
+streams pictures to Vulkan Backend
+it will have as many images as the number of frames so we don't block the vulkan backend or cause data races whilst writing to the images ???? might not be possible?
+sdl audio device requires a callback so it can request for audio frames whenever and that would mean we'd have to use the silence value of the sdl spec when we don't have audio samples available
+
+subtitle
+*/
 int main(int argc, char **argv)
 {
   ASH_CHECK(argc == 3);
   // TODO(lamarrr): refactor this out of window api
   ASH_CHECK(SDL_Init(SDL_INIT_EVERYTHING) == 0);
 
-  // std::ifstream stream{argv[1], std::ios::binary | std::ios::ate};
-
-  // ASH_CHECK(stream.is_open());
-
-  // stx::Vec<char> bytes{stx::os_allocator};
-  // bytes.resize(stream.tellg()).unwrap();
-  // stream.seekg(0);
-  // stream.read(bytes.data(), bytes.size());
-  // stream.close();
-
   spdlog::info("System theme: {}", (int) SDL_GetSystemTheme());
 
-  // might return -1
-  for (int i = 0; i < SDL_GetNumAudioDrivers(); i++)
+  stx::Vec devices = AudioDeviceInfo::enumerate();
+  for (AudioDeviceInfo const &dev : devices)
   {
-    spdlog::info("audio driver: {}", SDL_GetAudioDriver(i));
+    spdlog::info("name: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}",
+                 dev.name.c_str(),
+                 dev.spec.channels, dev.spec.format, dev.spec.freq, dev.spec.samples);
   }
 
-  for (int i = 0; i < SDL_GetNumAudioDevices(0); i++)
-  {
-    char const *dev_name = SDL_GetAudioDeviceName(i, 0);
-    spdlog::info("audio device: {}", dev_name);
+  AudioDeviceInfo dev = AudioDeviceInfo::get_default().unwrap();
+  spdlog::info("default device: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}", dev.name.c_str(), dev.spec.channels, dev.spec.format,
+               dev.spec.freq, dev.spec.samples);
 
-    SDL_AudioSpec     spec;
-    SDL_AudioDeviceID id;
-
-    ASH_CHECK(SDL_GetAudioDeviceSpec(i, 0, &spec) == 0);
-
-    spec.callback;
-    spdlog::info("channels: {}, format: {}, samplerate: {}, nsamples: {}", spec.channels, spec.format, spec.freq, spec.samples);
-
-    spec.padding;
-    spec.silence;
-    spec.size;
-    spec.userdata;
-  }
-  // SDL_PlayAudioDevice();
-  // SDL_CloseAudioDevice();
-  char         *name = nullptr;
-  SDL_AudioSpec spec;
-  // might be different from getaudiodevices
-  ASH_CHECK(SDL_GetDefaultAudioInfo(&name, &spec, 0) == 0);
-  spdlog::info("default device: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}", name, spec.channels, spec.format,
-               spec.freq, spec.samples);
-  SDL_free(name);
-
-  auto start = std::chrono::steady_clock::now();
-
-  LP;
-  AVFormatContext *fmt_ctx = nullptr;
   // fmt_ctx->ctx_flags       = AVFMT_FLAG_CUSTOM_IO;
-  // fmt_ctx->duration;
   // fmt_ctx->chapters;
   // fmt_ctx->metadata;
-  ASH_CHECK(avformat_open_input(&fmt_ctx, argv[1], nullptr, nullptr) >= 0);
-  LP;
-  ASH_CHECK(avformat_find_stream_info(fmt_ctx, nullptr) >= 0);
-  LP;
-
-  // av_seek_frame()
-
-  int video_stream_index = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-  ASH_CHECK(video_stream_index >= 0);
-  LP;
-  AVStream *video_stream = fmt_ctx->streams[video_stream_index];
-  LP;
-
-  int audio_stream_index = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
-  ASH_CHECK(audio_stream_index >= 0);
-  LP;
-  AVStream *audio_stream = fmt_ctx->streams[audio_stream_index];
-  LP;
-
-  void          *iter  = nullptr;
-  const AVCodec *codec = nullptr;
-
-  auto ver = avformat_version();
-  spdlog::info("version: {}.{}.{}", AV_VERSION_MAJOR(ver), AV_VERSION_MINOR(ver), AV_VERSION_MICRO(ver));
-
-  do
-  {
-    codec = av_codec_iterate(&iter);
-    if (codec != nullptr)
-    {
-      spdlog::info("name: {}, long name: {}", codec->name, codec->long_name);
-    }
-  } while (codec != nullptr);
-
-  auto *video_codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
-  ASH_CHECK(video_codec != nullptr);
-  spdlog::info("video codec name: {}, long name: {}", video_codec->name, video_codec->long_name);
-
-  auto *audio_codec = avcodec_find_decoder(audio_stream->codecpar->codec_id);
-  ASH_CHECK(audio_codec != nullptr);
-  spdlog::info("audio codec name: {}, long name: {}", audio_codec->name, audio_codec->long_name);
-
-  AVCodecContext *video_codec_ctx = avcodec_alloc_context3(video_codec);
-  ASH_CHECK(video_codec_ctx != nullptr);
-  LP;
-  AVCodecContext *audio_codec_ctx = avcodec_alloc_context3(audio_codec);
-  ASH_CHECK(audio_codec_ctx != nullptr);
-  LP;
-
-  ASH_CHECK(avcodec_parameters_to_context(video_codec_ctx, video_stream->codecpar) >= 0);
-  LP;
-  ASH_CHECK(avcodec_parameters_to_context(audio_codec_ctx, audio_stream->codecpar) >= 0);
-  LP;
-  ASH_CHECK(avcodec_open2(video_codec_ctx, video_codec, nullptr) >= 0);
-  LP;
-  ASH_CHECK(avcodec_open2(audio_codec_ctx, audio_codec, nullptr) >= 0);
-  LP;
+  // spdlog::info("video codec name: {}, long name: {}", video_codec->name, video_codec->long_name);
+  // av_dump_format(fmt_ctx, video_stream_index,)
+  // AV_DISPOSITION_ATTACHED_PIC contains album art
+  //
 
   AVFrame *frame = av_frame_alloc();
   ASH_CHECK(frame != nullptr);
@@ -249,172 +621,44 @@ int main(int argc, char **argv)
 
   bool done = false;
 
-  while (av_read_frame(fmt_ctx, packet) == 0)
-  {
-    if (packet->stream_index == video_stream_index)
-    {
-      // spdlog::info("got video frame, sending packet");
-      int err = avcodec_send_packet(video_codec_ctx, packet);
-      // spdlog::info("sent packet");
+  SwsContext *context = sws_getContext(frame->width, frame->height, (AVPixelFormat) frame->format, frame->width,
+                                       frame->height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
+  // sws_getCachedContext() - instead of reallocating, check if it can be reused
+  u8 *rgb       = new u8[frame->width * frame->height * 3];
+  u8 *planes[]  = {rgb};
+  int strides[] = {3 * frame->width};
+  sws_scale(context, frame->data, frame->linesize, 0, frame->height, planes, strides);
 
-      if (err < 0)
-      {
-        // spdlog::error("error: {}", err);
-        break;
-      }
+  sws_freeContext(context);
 
-      while (err >= 0)
-      {
-        // spdlog::info("requesting image frame from video frame");
-        err = avcodec_receive_frame(video_codec_ctx, frame);
-        // spdlog::info("got image frame");
+  // TODO(lamarrr): does this mean it could be multi-threaded? and another
+  // thread could be using it?
+  av_frame_unref(frame);
 
-        if (err < 0)
-        {
-          if (err == AVERROR_EOF)
-          {
-            // spdlog::info("eof");
-            done = true;
-            break;
-          }
-          else if (err == AVERROR(EAGAIN))
-          {
-            // spdlog::info("finished image frames from video frame");
-            break;
-          }
-          else
-          {
-            // spdlog::error("got error: {}", (int) err);
-            return -1;
-          }
-        }
+  //   // spdlog::info("requesting audio samples from audio frame");
+  //   err = avcodec_receive_frame(audio_codec_ctx, frame);
+  //   // spdlog::info("got audio samples");
 
-        // spdlog::info("decoded image frame with format: {}",
-        // av_get_pix_fmt_name((AVPixelFormat) frame->format));
-
-        SwsContext *context   = sws_getContext(frame->width, frame->height, (AVPixelFormat) frame->format, frame->width,
-                                               frame->height, AV_PIX_FMT_RGB24, 0, 0, 0, 0);
-        u8         *rgb       = new u8[frame->width * frame->height * 3];
-        u8         *planes[]  = {rgb};
-        int         strides[] = {3 * frame->width};
-        sws_scale(context, frame->data, frame->linesize, 0, frame->height, planes, strides);
-
-        sws_freeContext(context);
-
-        // TODO(lamarrr): does this mean it could be multi-threaded? and another
-        // thread could be using it?
-        av_frame_unref(frame);
-
-        delete[] rgb;
-      }
-
-      if (done)
-      {
-        // spdlog::info("finished decoding");
-        break;
-      }
-    }
-    else if (packet->stream_index == audio_stream_index)
-    {
-      // spdlog::info("got audio frame, sending packet");
-      int err = avcodec_send_packet(audio_codec_ctx, packet);
-      // spdlog::info("sent packet");
-
-      if (err < 0)
-      {
-        // spdlog::error("error: {}", err);
-        break;
-      }
-
-      while (err >= 0)
-      {
-        // spdlog::info("requesting audio samples from audio frame");
-        err = avcodec_receive_frame(audio_codec_ctx, frame);
-        // spdlog::info("got audio samples");
-
-        if (err < 0)
-        {
-          if (err == AVERROR_EOF)
-          {
-            // spdlog::info("eof");
-            done = true;
-            break;
-          }
-          else if (err == AVERROR(EAGAIN))
-          {
-            // spdlog::info("finished audio samples from audio frame");
-            break;
-          }
-          else
-          {
-            // spdlog::error("got error: {}", (int) err);
-            return -1;
-          }
-        }
-        // NOTE(lamarrr): SDL stereo is interleaved
-        // TODO(lamarrr) frame->format might be -1 meaning unknown AvPixelFormat
-        // for images and AvSampleFormat for audio spdlog::info("decoded audio
-        // samples with format: {}, nsamples: {}, sample rate: {}, nchannels:
-        // {}",
-        //              av_get_sample_fmt_name((AVSampleFormat) frame->format),
-        //              frame->nb_samples, frame->sample_rate,
-        //              frame->ch_layout.nb_channels);
-
-        // AV_SAMPLE_FMT_*_P are not interleaved but planar
-        // AV_SAMPLE_FMT_* are interleaved
-
-        AVSampleFormat target_format = AV_SAMPLE_FMT_S16;
-
-        // TODO(lamarrr) Check SDL for supported audio formats
-        SwrContext *sw_context = nullptr;
-        ASH_CHECK(swr_alloc_set_opts2(&sw_context, &frame->ch_layout, target_format, frame->sample_rate, &frame->ch_layout,
-                                      (AVSampleFormat) frame->format, frame->sample_rate, 0, nullptr) == 0);
-        ASH_CHECK(swr_init(sw_context) == 0);
-        LP;
-        // NOTE: interleaved single plane
-        usize samples_buffer_size = av_samples_get_buffer_size(nullptr, frame->ch_layout.nb_channels, frame->nb_samples,
-                                                               (AVSampleFormat) frame->format, 1);
-        u8   *samples             = (u8 *) malloc(samples_buffer_size);
-        ASH_CHECK(samples != nullptr);
-        LP;
-        ASH_CHECK(swr_convert(sw_context, &samples, frame->nb_samples, const_cast<u8 const **>(frame->data),
-                              frame->nb_samples) == frame->nb_samples);
-        LP;
-        free(samples);
-        LP;
-        // spdlog::info("converted audio from: {}, to: {}",
-        // av_get_sample_fmt_name((AVSampleFormat) frame->format),
-        // av_get_sample_fmt_name(target_format));
-        LP;
-        swr_free(&sw_context);
-        LP;
-        // TODO(lamarrr): does this mean it could be multi-threaded? and another
-        // thread could be using it?
-        av_frame_unref(frame);
-        LP;
-      }
-
-      if (done)
-      {
-        // spdlog::info("finished decoding");
-        break;
-      }
-    }
-  }
-
-  int           width  = video_codec_ctx->width;
-  int           height = video_codec_ctx->height;
-  AVPixelFormat fmt    = video_codec_ctx->pix_fmt;
-  ASH_CHECK(fmt != AV_PIX_FMT_NONE);
-
-  av_packet_free(&packet);
-  av_frame_free(&frame);
-  avcodec_free_context(&video_codec_ctx);
-  avcodec_free_context(&audio_codec_ctx);
-  avformat_close_input(&fmt_ctx);
-
-  spdlog::info("finished in {} seconds",
-               std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count());
+  //   if (err < 0)
+  //   {
+  //     if (err == AVERROR_EOF)
+  //     {
+  //       // spdlog::info("eof");
+  //       done = true;
+  //       break;
+  //     }
+  //     else if (err == AVERROR(EAGAIN))
+  //     {
+  //       // spdlog::info("finished audio samples from audio frame");
+  //       break;
+  //     }
+  //     else
+  //     {
+  //       // spdlog::error("got error: {}", (int) err);
+  //       return -1;
+  //     }
+  //   }
+  // }
 
   AppConfig cfg{.enable_validation_layers = false};
   cfg.window_config.borderless = false;
