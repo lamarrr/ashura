@@ -1,0 +1,5 @@
+Checks: "clang-diagnostic-*,clang-analyzer-*,google-*,readability-*"
+WarningsAsErrors: ""
+HeaderFilterRegex: ""
+AnalyzeTemporaryDtors: false
+FormatStyle: file
