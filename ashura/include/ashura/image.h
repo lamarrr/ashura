@@ -26,18 +26,6 @@ enum class ImageFormat : u8
   Bgra                 // B8G8R8A8
 };
 
-/// channels are interleaved and samples are stored in native-endian order
-enum class PcmFormat : u8
-{
-  U8,
-  S8,
-  U16,
-  S16,
-  U32,
-  S32,
-  F32
-};
-
 enum class ColorSpace : u8
 {
   Rgb,
