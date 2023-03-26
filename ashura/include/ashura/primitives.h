@@ -626,6 +626,17 @@ constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
 
 }        // namespace colors
 
+struct ratio
+{
+  i32 numerator   = 0;
+  i32 denominator = 1;
+
+  constexpr f32 as_f32() const
+  {
+    return AS(f32, numerator) / AS(f32, denominator);
+  }
+};
+
 // a 2d shader vertex
 struct vertex
 {
