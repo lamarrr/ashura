@@ -15,7 +15,154 @@ extern "C"
 #include "libswscale/swscale.h"
 }
 
+/* The volume ranges from 0 - 128 */
+#define ADJUST_VOLUME(sample, volume) ((sample) = ((sample) * (volume)) / SDL_MIX_MAXVOLUME)
+#define ADJUST_VOLUME_U8(sample, volume) ((sample) = ((((sample) -128) * (volume)) / SDL_MIX_MAXVOLUME) + 128)
+
 using namespace ash;
+
+void Ashura_SDL_ScaleAudioFormat(u8 *samples, SDL_AudioFormat format, usize len, u8 vol)
+{
+  i32 volume = vol;
+  // note that for multiplication performed in ADJUST_VOLUME* the results will not overflow and will need clipping if the target size is larger than or equal to the volume type size (32-bit, i32)
+
+  if (volume == 0)
+  {
+    std::memset(samples, 0, len);
+    return;
+  }
+  else if (volume > 128)
+  {
+    volume = 128;
+  }
+
+  switch (format)
+  {
+    case AUDIO_U8:
+    {
+      while (len--)
+      {
+        ADJUST_VOLUME_U8(*samples, volume);
+        ++samples;
+      }
+    }
+    break;
+
+    case AUDIO_S8:
+    {
+      i8 *samples8 = (i8 *) samples;
+      while (len--)
+      {
+        ADJUST_VOLUME(*samples8, volume);
+        ++samples8;
+      }
+    }
+    break;
+
+    case AUDIO_S16LSB:
+    {
+      len /= 2;
+      while (len--)
+      {
+        i16 sample = SDL_SwapLE16(*(i16 *) samples);
+        ADJUST_VOLUME(sample, volume);
+        *(i16 *) samples = SDL_SwapLE16(sample);
+        samples += 2;
+      }
+    }
+    break;
+
+    case AUDIO_S16MSB:
+    {
+      len /= 2;
+      while (len--)
+      {
+        i16 sample = SDL_SwapBE16(*(i16 *) samples);
+        ADJUST_VOLUME(sample, volume);
+        *(i16 *) samples = SDL_SwapBE16(sample);
+        samples += 2;
+      }
+    }
+    break;
+
+    case AUDIO_S32LSB:
+    {
+      u32 *src32 = (u32 *) samples;
+      len /= 4;
+      while (len--)
+      {
+        i64 sample = (i64) ((i32) SDL_SwapLE32(*src32));
+        ADJUST_VOLUME(sample, volume);
+        if (sample > stx::I32_MAX)
+        {
+          sample = stx::I32_MAX;
+        }
+        else if (sample < stx::I32_MIN)
+        {
+          sample = stx::I32_MIN;
+        }
+        *src32 = SDL_SwapLE32((u32) ((i32) sample));
+        src32++;
+      }
+    }
+    break;
+
+    case AUDIO_S32MSB:
+    {
+      u32 *src32 = (u32 *) samples;
+      len /= 4;
+      while (len--)
+      {
+        i64 sample = (i64) ((i32) SDL_SwapBE32(*src32));
+        ADJUST_VOLUME(sample, volume);
+        if (sample > stx::I32_MAX)
+        {
+          sample = stx::I32_MAX;
+        }
+        else if (sample < stx::I32_MIN)
+        {
+          sample = stx::I32_MIN;
+        }
+        *src32 = SDL_SwapBE32((u32) ((i32) sample));
+        src32++;
+      }
+    }
+    break;
+
+    case AUDIO_F32LSB:
+    {
+      float  scale = (float) volume / (float) SDL_MIX_MAXVOLUME;
+      float *src32 = (float *) samples;
+      len /= 4;
+      while (len--)
+      {
+        float sample = SDL_SwapFloatLE(*src32) * scale;
+        *src32       = SDL_SwapFloatLE(sample);
+        src32++;
+      }
+    }
+    break;
+
+    case AUDIO_F32MSB:
+    {
+      float  scale = (float) volume / (float) SDL_MIX_MAXVOLUME;
+      float *src32 = (float *) samples;
+      len /= 4;
+      while (len--)
+      {
+        float sample = SDL_SwapFloatBE(*src32) * scale;
+        *src32       = SDL_SwapFloatBE((float) sample);
+        src32++;
+      }
+    }
+    break;
+
+    default:
+      ASH_PANIC("unrecognized audio format passed");
+      break;
+  }
+}
+
 using Clock        = std::chrono::steady_clock;
 using timepoint    = Clock::time_point;
 using nanoseconds  = std::chrono::nanoseconds;
@@ -33,6 +180,11 @@ enum class Error : i64
   NeedsPackets = AVERROR(EAGAIN),
   Invalid      = AVERROR(EINVAL)
 };
+
+constexpr nanoseconds timebase_to_ns(AVRational timebase)
+{
+  return nanoseconds{AS(nanoseconds::rep, nanoseconds{seconds{1}}.count() * AS(f32, timebase.num) / AS(f32, timebase.den))};
+}
 
 struct AudioDeviceInfo
 {
@@ -285,10 +437,10 @@ struct VideoDecoder
 
   nanoseconds get_frame_delay() const
   {
-    f32 time_base   = ratio{.numerator = decoder.stream->time_base.num, .denominator = decoder.stream->time_base.den}.as_f32();
-    f32 extra_delay = decoder.frame->repeat_pict * time_base / 2;
-    f32 delay       = time_base + extra_delay;
-    return nanoseconds{AS(nanoseconds::rep, nanoseconds{seconds{1}}.count() * delay)};
+    nanoseconds timebase    = timebase_to_ns(decoder.stream->time_base);
+    nanoseconds extra_delay = decoder.frame->repeat_pict * timebase;
+    nanoseconds delay       = timebase + extra_delay;
+    return delay;
   }
 
   Error decode_frame()
@@ -336,6 +488,7 @@ struct VideoDecoder
     }
 
     ctx.total_delays += delay;
+    // TODO(lamarrr): is this needed and avoidable? why can't we use the pts instead?
     nanoseconds time_passed  = std::chrono::steady_clock::now() - ctx.begin_timepoint;
     nanoseconds actual_delay = ctx.total_delays - time_passed;
 
@@ -353,27 +506,8 @@ struct AudioDecoder
 {
   Decoder                       decoder;
   std::atomic<nanoseconds::rep> clock;
-
-  void decode_frame()
-  {
-    AVPacket *packet;
-    f32       clock_f = 0;
-    // TODO: WE CAN'T SET TO ZERO
-    if (packet->pts != AV_NOPTS_VALUE)
-    {
-      clock_f = ratio{.numerator = decoder.stream->time_base.num, .denominator = decoder.stream->time_base.den}.as_f32() * packet->pts;
-    }
-
-    avcodec_send_packet(decoder.ctx, packet);
-    avcodec_receive_frame(decoder.ctx, decoder.frame);
-    int n   = 2 * decoder.ctx->channels;        // why 2?
-    f32 pts = clock_f;
-    decoder.frame->clock_f += decoder.frame->pkt_duration;
-    // f32 pts =
-  }
 };
 
-// TODO(lamarrr): we are not using timepoints, why?
 struct AudioDevice
 {
   SDL_AudioDeviceID id = 0;
@@ -381,15 +515,21 @@ struct AudioDevice
   SwrContext       *resampler = nullptr;
   ResamplerConfig   resampler_cfg;
   AudioDecoder     *decoder = nullptr;
-  std::atomic<f32>  volume  = 1;
+  std::atomic<u8>   volume  = 128; /* ranges from 0 to 128 */
 
-  // will be called on a different thread, use SDL_LockAudioDevice and SDL_UnlockAudioDevice to prevent it from running. i.e syncing
+  // will be called on a different thread, use SDL_LockAudioDevice and SDL_UnlockAudioDevice to prevent it from running
   static void audio_callback(void *userdata, u8 *stream, int len)
   {
     AudioDevice *This   = AS(AudioDevice *, userdata);
     f32          volume = This->volume.load(std::memory_order_relaxed);
 
-    This->decoder->decode_frame();
+    AVPacket   *packet;
+    nanoseconds clock{0};
+
+    if (packet->pts != AV_NOPTS_VALUE)
+    {
+      timebase_to_ns(packet->time_base) * packet->pts;
+    }
 
     ResamplerConfig target_cfg{
         .src_fmt         = AS(AVSampleFormat, This->decoder->decoder.frame->format),
@@ -486,13 +626,12 @@ struct AudioDevice
 
     ASH_CHECK(swr_convert(This->resampler, &stream, This->info.spec.samples, &This->decoder->decoder.frame->data[0], This->decoder->decoder.frame->nb_samples) == 0);
 
+    clock += nanoseconds{AS(nanoseconds::rep, nanoseconds{seconds{1}}.count() * AS(f32, This->decoder->decoder.frame->nb_samples) / AS(f32, This->decoder->decoder.frame->sample_rate))};
+
     av_frame_unref(This->decoder->decoder.frame);
 
-    // if (volume == 0)
-    // {
-    //   std::fill(stream, stream + len, 0);
-    //   return;
-    // }
+    Ashura_SDL_ScaleAudioFormat(stream, This->info.spec.format, len, This->volume.load(std::memory_order_relaxed));
+    This->decoder->clock.store(clock.count(), std::memory_order_relaxed);
   }
 
   void play()
