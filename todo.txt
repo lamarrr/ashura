@@ -77,3 +77,6 @@ DocumentHome,
 /// </summary>
 DocumentEnd,
     */
+
+
+    av_get_sample_fmt_name

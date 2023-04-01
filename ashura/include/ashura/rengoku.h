@@ -27,6 +27,7 @@ struct blur_effect
 };
 
 // bloom
+// fog
 // chromatic aberration
 // depth of field
 // shadow mapping

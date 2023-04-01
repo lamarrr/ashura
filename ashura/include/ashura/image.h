@@ -55,6 +55,25 @@ inline u8 nchannels(ImageFormat fmt)
   }
 }
 
+inline u8 nchannel_bytes(ImageFormat fmt)
+{
+  switch (fmt)
+  {
+    case ImageFormat::Alpha:
+    case ImageFormat::Antialiasing:
+    case ImageFormat::Gray:
+      return 1;
+    case ImageFormat::Rgb:
+      return 3;
+    case ImageFormat::Rgba:
+      return 4;
+    case ImageFormat::Bgra:
+      return 4;
+    default:
+      ASH_UNREACHABLE();
+  }
+}
+
 struct ImageView
 {
   stx::Span<u8 const> data;
@@ -70,7 +89,12 @@ struct ImageBuffer
 
   stx::Span<u8 const> span() const
   {
-    return stx::Span{AS(u8 *, memory.handle), extent.area() * 4};
+    return stx::Span{AS(u8 const *, memory.handle), extent.area() * nchannel_bytes(format)};
+  }
+
+  stx::Span<u8> span()
+  {
+    return stx::Span{AS(u8 *, memory.handle), extent.area() * nchannel_bytes(format)};
   }
 
   operator ImageView() const
