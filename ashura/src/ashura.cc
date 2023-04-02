@@ -243,11 +243,7 @@ struct VideoFrame
     }
     else
     {
-      if (image.value().extent.area() != extent.area())
-      {
-        stx::mem::reallocate(image.value().memory, extent.area() * 3).unwrap();
-      }
-      image.value().extent = extent;
+      image.value().resize(extent);
     }
   }
 };
@@ -391,13 +387,12 @@ struct ResamplerConfig
 struct VideoDecodeContext
 {
   VideoFrame    frame;
-  stx::SpinLock lock;
+  stx::SpinLock lock;        // locks the frame
   SwsContext   *rescaler = nullptr;
   nanoseconds   last_frame_pts{0};
   nanoseconds   last_frame_delay{0};
   nanoseconds   total_delays{0};
-  // nanoseconds   clock{0};
-  timepoint begin_timepoint;
+  timepoint     begin_timepoint;
 
   VideoDecodeContext(timepoint ibegin_timepoint) :
       begin_timepoint{ibegin_timepoint}
@@ -409,14 +404,6 @@ struct VideoDecodeContext
   {
     sws_freeContext(rescaler);
   }
-
-  // void sync(DecodeContext const &ctx)
-  // {
-  //   nanoseconds timebase    = timebase_to_ns(ctx.stream->time_base);
-  //   nanoseconds extra_delay = ctx.frame->repeat_pict * timebase / 2;
-  //   nanoseconds delay       = timebase + extra_delay;
-  //   clock += delay;
-  // }
 
   void store_frame(AVFrame const *in)
   {
@@ -431,7 +418,8 @@ struct VideoDecodeContext
     lock.unlock();
   }
 
-  // TODO(lamarrr): how is the frame repeat_pict read?
+  void tick(nanoseconds interval);
+
   nanoseconds refresh(nanoseconds audio_frame_timepoint, timepoint current_timepoint)
   {
     nanoseconds delay = frame.pts - last_frame_pts;
@@ -787,7 +775,7 @@ struct AudioDevice
   static stx::Option<stx::Rc<AudioDevice *>> open(AudioDeviceInfo const &info, u8 nchannels,
                                                   stx::Rc<DecodeContext *> const &ctx)
   {
-    stx::Rc dev = stx::rc::make_inplace<AudioDevice>(stx::os_allocator, AS(SDL_AudioDeviceID, 0), AudioDeviceInfo{}, nullptr, ResamplerConfig{}, ctx.share(), stx::make_promise<void>(stx::os_allocator).unwrap()).unwrap();
+    stx::Rc dev = stx::rc::make_inplace<AudioDevice>(stx::os_allocator, AS(SDL_AudioDeviceID, 0), AudioDeviceInfo{}, stx::make_promise<void>(stx::os_allocator).unwrap(), ctx.share(), nullptr, ResamplerConfig{}).unwrap();
 
     SDL_AudioSpec desired_spec;
     desired_spec.freq     = info.spec.freq;
@@ -864,6 +852,32 @@ void dump_ffmpeg_info()
 // sdl audio device requires a callback so it can request for audio frames whenever and that would mean we'd have to use the silence value of the sdl spec when we don't have audio samples available
 //
 // subtitle
+//
+//
+//
+// WE NEED A TEXTURE UPDATE PROXY
+//
+//
+//
+//
+//
+// struct Video: public Widget{
+//
+// void tick(){
+//
+// if(frame_needs_refresh()){
+//
+// refresh_frame();
+//
+// }
+//
+// }
+//
+// };
+//
+//
+//
+//
 //
 int main(int argc, char **argv)
 {
@@ -971,9 +985,9 @@ int main(int argc, char **argv)
 
           while ((error = avcodec_receive_frame(video_decode_ctx->ctx, video_decode_ctx->frame)) == 0)
           {
-            // TODO(lamarrr): handle EOF
-            ctx->store_frame(video_decode_ctx->frame);
-            std::this_thread::sleep_for(ctx->refresh(nanoseconds{audio_device->decode_ctx.clock.load(std::memory_order_relaxed)}, Clock::now()));
+              ctx->store_frame(video_decode_ctx->frame);
+              std::this_thread::sleep_for(ctx->refresh(nanoseconds{audio_device->decode_ctx.clock.load(std::memory_order_relaxed)}, Clock::now()));
+            
           }
 
           if (error == AVERROR(EAGAIN))

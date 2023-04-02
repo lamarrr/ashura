@@ -15,12 +15,31 @@ namespace ash
 namespace vk
 {
 
-struct UploadContext
+struct ManagedImage
 {
-  VkCommandPool                        cmd_pool   = VK_NULL_HANDLE;
-  VkCommandBuffer                      cmd_buffer = VK_NULL_HANDLE;
-  VkFence                              fence      = VK_NULL_HANDLE;
+  vk::Image  image;
+  VkFormat   format = VK_FORMAT_R8G8B8A8_UNORM;
+  VkExtent2D extent;
+};
+
+struct ImageUpload
+{
+  vk::Buffer   staging_buffer;
+  ManagedImage image;
+  gfx::image   id = 0;
+};
+
+struct ImageManager
+{
+  VkCommandPool                        cmd_pool    = VK_NULL_HANDLE;
+  VkCommandBuffer                      cmd_buffer  = VK_NULL_HANDLE;
+  VkFence                              fence       = VK_NULL_HANDLE;
+  VkFence                              usage_fence = VK_NULL_HANDLE;
   stx::Option<stx::Rc<CommandQueue *>> queue;
+  stx::Vec<ImageUpload>                pending_uploads{stx::os_allocator};
+  stx::Vec<gfx::image>                 pending_deletes{stx::os_allocator};
+  std::map<gfx::image, ManagedImage>   images;
+  u64                                  next_image_id = 0;
 
   void init(stx::Rc<CommandQueue *> aqueue)
   {
@@ -45,6 +64,7 @@ struct UploadContext
     VkFenceCreateInfo fence_create_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .pNext = nullptr, .flags = 0};
 
     ASH_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr, &fence));
+    ASH_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr, &usage_fence));
   }
 
   void destroy()
@@ -58,19 +78,24 @@ struct UploadContext
     vkDestroyCommandPool(dev, cmd_pool, nullptr);
 
     vkDestroyFence(dev, fence, nullptr);
+    vkDestroyFence(dev, usage_fence, nullptr);
   }
 
-  stx::Rc<ImageResource *> upload_image(ImageView image_view)
+  gfx::image add(ImageView image_view)
   {
+    gfx::image id = next_image_id;
+    next_image_id++;
+
     CommandQueue                           &cqueue            = *queue.value().handle;
     VkDevice                                dev               = cqueue.device->dev;
     VkPhysicalDeviceMemoryProperties const &memory_properties = cqueue.device->phy_dev->memory_properties;
 
     ASH_CHECK(image_view.extent.is_visible());
+
     u8 nsource_channels = nchannels(image_view.format);
     ASH_CHECK(image_view.data.size_bytes() == image_view.extent.area() * nsource_channels);
 
-    // use rgba8888 for everything else
+    // use RGBA8888 for everything else
     VkFormat target_format = image_view.format == ImageFormat::Bgra ? VK_FORMAT_B8G8R8A8_UNORM : VK_FORMAT_R8G8B8A8_UNORM;
 
     VkImageCreateInfo create_info{
@@ -209,10 +234,48 @@ struct UploadContext
 
       default:
       {
-        // TODO(lamarrr): log warning
-        spdlog::warn("unsupported image format encountered, ignoring");
+        ASH_UNREACHABLE();
       }
       break;
+    }
+
+    pending_uploads.push(
+                       ImageUpload{.staging_buffer = staging_buffer,
+                                   .image          = ManagedImage{.image  = Image{.image = image, .view = view, .memory = memory},
+                                                                  .format = target_format,
+                                                                  .extent = VkExtent2D{.width = image_view.extent.width, .height = image_view.extent.height}},
+                                   .id             = id})
+        .unwrap();
+
+    return id;
+  }
+
+  void remove(gfx::image image)
+  {
+    stx::Span pending = pending_uploads.span().which([image](ImageUpload const &u) {
+      return u.id == image;
+    });
+
+    if (!pending.is_empty())
+    {
+      pending_uploads.erase(pending);
+      return;
+    }
+
+    auto pos = images.find(image);
+    ASH_CHECK(pos != images.end());
+
+    pending_deletes.push_inplace(image).unwrap();
+  }
+
+  void flush_uploads()
+  {
+    CommandQueue &cqueue = *queue.value().handle;
+    VkDevice      dev    = cqueue.device->dev;
+
+    if (pending_uploads.is_empty())
+    {
+      return;
     }
 
     VkCommandBufferBeginInfo cmd_buffer_begin_info{.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -222,45 +285,48 @@ struct UploadContext
 
     ASH_VK_CHECK(vkBeginCommandBuffer(cmd_buffer, &cmd_buffer_begin_info));
 
-    VkImageMemoryBarrier pre_upload_barrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = VK_ACCESS_NONE_KHR,
-        .dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image,
-        .subresourceRange    = VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
+    for (ImageUpload const &upload : pending_uploads)
+    {
+      VkImageMemoryBarrier pre_upload_barrier{
+          .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+          .pNext               = nullptr,
+          .srcAccessMask       = VK_ACCESS_NONE_KHR,
+          .dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+          .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+          .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .image               = upload.image.image.image,
+          .subresourceRange    = VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
 
-    vkCmdPipelineBarrier(cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, nullptr, 1, &pre_upload_barrier);
+      vkCmdPipelineBarrier(cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                           VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, nullptr, 1, &pre_upload_barrier);
 
-    VkBufferImageCopy copy{
-        .bufferOffset      = 0,
-        .bufferRowLength   = 0,
-        .bufferImageHeight = 0,
-        .imageSubresource  = VkImageSubresourceLayers{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .mipLevel = 0, .baseArrayLayer = 0, .layerCount = 1},
-        .imageOffset       = VkOffset3D{.x = 0, .y = 0, .z = 0},
-        .imageExtent       = VkExtent3D{.width = image_view.extent.width, .height = image_view.extent.height, .depth = 1}};
+      VkBufferImageCopy copy{
+          .bufferOffset      = 0,
+          .bufferRowLength   = 0,
+          .bufferImageHeight = 0,
+          .imageSubresource  = VkImageSubresourceLayers{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .mipLevel = 0, .baseArrayLayer = 0, .layerCount = 1},
+          .imageOffset       = VkOffset3D{.x = 0, .y = 0, .z = 0},
+          .imageExtent       = VkExtent3D{.width = upload.image.extent.width, .height = upload.image.extent.height, .depth = 1}};
 
-    vkCmdCopyBufferToImage(cmd_buffer, staging_buffer.buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+      vkCmdCopyBufferToImage(cmd_buffer, upload.staging_buffer.buffer, upload.image.image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
-    VkImageMemoryBarrier post_upload_barrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-        .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image,
-        .subresourceRange    = VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
+      VkImageMemoryBarrier post_upload_barrier{
+          .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+          .pNext               = nullptr,
+          .srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+          .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+          .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+          .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .image               = upload.image.image.image,
+          .subresourceRange    = VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
 
-    vkCmdPipelineBarrier(cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                         VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &post_upload_barrier);
+      vkCmdPipelineBarrier(cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                           VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &post_upload_barrier);
+    }
 
     ASH_VK_CHECK(vkEndCommandBuffer(cmd_buffer));
 
@@ -282,12 +348,40 @@ struct UploadContext
 
     ASH_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
 
-    staging_buffer.destroy();
+    for (ImageUpload &upload : pending_uploads)
+    {
+      upload.staging_buffer.destroy();
+      images.emplace(upload.id, upload.image);
+    }
 
-    return stx::rc::make_inplace<ImageResource>(stx::os_allocator, image, view, memory, queue.value().share()).unwrap();
+    pending_uploads.clear();
   }
 
-  std::pair<stx::Rc<ImageResource *>, gfx::FontAtlas> cache_font(stx::Rc<Font *> font, u32 font_height)
+  // checks if deleted resources are not in use before deleting them
+  void flush_deletes()
+  {
+    if (pending_deletes.is_empty())
+    {
+      return;
+    }
+
+    VkResult status = vkGetFenceStatus(queue.value()->device->dev, usage_fence);
+
+    ASH_CHECK(status == VK_SUCCESS || status == VK_NOT_READY);
+
+    if (status == VK_SUCCESS)
+    {
+      for (gfx::image image : pending_deletes)
+      {
+        auto pos = images.find(image);
+        pos->second.image.destroy();
+      }
+
+      pending_deletes.clear();
+    }
+  }
+
+  gfx::FontAtlas cache_font(stx::Rc<Font *> font, u32 font_height)
   {
     VkImageFormatProperties image_format_properties;
 
@@ -298,7 +392,9 @@ struct UploadContext
     auto [atlas, image_buffer] = gfx::render_atlas(
         *font.handle, font_height, extent{image_format_properties.maxExtent.width, image_format_properties.maxExtent.height});
 
-    return std::make_pair(upload_image(image_buffer), std::move(atlas));
+    atlas.texture = add(image_buffer);
+
+    return std::move(atlas);
   }
 };
 
@@ -484,15 +580,6 @@ struct RecordingContext
     pipeline.destroy();
   }
 };
-
-inline gfx::CachedFont cache_font(UploadContext &context, AssetBundle<stx::Rc<ImageResource *>> &bundle, stx::Rc<Font *> font,
-                                  u32 font_height)
-{
-  auto [image, atlas] = context.cache_font(font.share(), font_height);
-  gfx::image texture  = bundle.add(std::move(image));
-  atlas.texture       = texture;
-  return gfx::CachedFont{.font = std::move(font), .atlas = std::move(atlas)};
-}
 
 }        // namespace vk
 }        // namespace ash

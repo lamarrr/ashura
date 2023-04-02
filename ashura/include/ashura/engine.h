@@ -31,7 +31,7 @@ struct Engine
   {
     delete root_widget;
     renderer.destroy();
-    upload_context.destroy();
+    manager.destroy();
   }
 
   stx::Option<stx::Rc<spdlog::logger *>>    logger;
@@ -40,8 +40,7 @@ struct Engine
   stx::Option<stx::Rc<vk::CommandQueue *>>  queue;
   gfx::Canvas                               canvas;
   vk::CanvasRenderer                        renderer;
-  vk::UploadContext                         upload_context;
-  AssetBundle<stx::Rc<vk::ImageResource *>> image_bundle;
+  vk::ImageManager                          manager;
   stx::TaskScheduler                        task_scheduler;
   WidgetContext                             widget_context;
   Widget                                   *root_widget = nullptr;

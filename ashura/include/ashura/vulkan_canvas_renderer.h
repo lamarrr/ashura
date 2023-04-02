@@ -78,7 +78,7 @@ struct CanvasRenderer
   void submit(VkExtent2D viewport_extent, VkExtent2D image_extent, u32 swapchain_image_index, u32 frame, VkFence render_fence,
               VkSemaphore image_acquisition_semaphore, VkSemaphore render_semaphore, VkRenderPass render_pass,
               VkFramebuffer framebuffer, stx::Span<gfx::DrawCommand const> cmds, stx::Span<vertex const> vertices,
-              stx::Span<u32 const> indices, AssetBundle<stx::Rc<ImageResource *>> const &image_bundle)
+              stx::Span<u32 const> indices, ImageManager const &image_manager)
   {
     ASH_CHECK(frame < max_nframes_in_flight);
 
@@ -216,10 +216,11 @@ struct CanvasRenderer
 
     for (usize icmd = 0; icmd < cmds.size(); icmd++)
     {
-      ImageResource const &image = *image_bundle.get(cmds[icmd].texture).unwrap()->handle;
+      auto pos = image_manager.images.find(cmds[icmd].texture);
+      ASH_CHECK(pos != image_manager.images.end());
 
       VkDescriptorImageInfo image_info{
-          .sampler = texture_sampler.sampler, .imageView = image.view, .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+          .sampler = texture_sampler.sampler, .imageView = pos->second.image.view, .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
       VkWriteDescriptorSet write{.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                  .pNext            = nullptr,

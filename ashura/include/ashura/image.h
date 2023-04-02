@@ -101,6 +101,18 @@ struct ImageBuffer
   {
     return ImageView{.data = span(), .extent = extent, .format = format};
   }
+
+  void resize(ash::extent new_extent)
+  {
+    if (extent != new_extent)
+    {
+      if (extent.area() != new_extent.area())
+      {
+        stx::mem::reallocate(memory, new_extent.area() * nchannel_bytes(format)).unwrap();
+      }
+      extent = new_extent;
+    }
+  }
 };
 
 }        // namespace ash

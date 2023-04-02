@@ -167,7 +167,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
 
-  upload_context.init(xqueue.share());
+  manager.init(xqueue.share());
 
   window.value()->on(WindowEvents::CloseRequested,
                      stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) { std::exit(0); }).unwrap());
@@ -190,8 +190,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
-  gfx::image transparent_image = image_bundle.add(
-      upload_context.upload_image(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba}));
+  gfx::image transparent_image = manager.add(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba});
 
   ASH_CHECK(transparent_image == 0);
 
@@ -229,7 +228,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
                 .unwrap(),
             50)};
   */
-  widget_context.register_plugin(new VulkanImageBundle{image_bundle, upload_context});
+  widget_context.register_plugin(new VulkanImageBundle{manager});
 
   window.value()
       ->mouse_click_listeners
@@ -271,6 +270,8 @@ void Engine::tick(std::chrono::nanoseconds interval)
   widget_system.tick_widgets(widget_context, interval);
   // new widgets could have been added
   widget_system.assign_ids();
+  manager.flush_deletes();
+  manager.flush_uploads();
 
   auto record_draw_commands = [&]() {
     VkExtent2D extent = window.value()->surface.value()->swapchain.value().window_extent;
@@ -337,7 +338,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
                       swapchain.render_fences[swapchain.frame], swapchain.image_acquisition_semaphores[swapchain.frame],
                       swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
                       swapchain.framebuffers[swapchain_image_index], draw_list.cmds, draw_list.vertices, draw_list.indices,
-                      image_bundle);
+                      manager);
 
       swapchain_state = window.value()->present(queue.value()->info.queue, swapchain_image_index);
 

@@ -998,28 +998,6 @@ struct Image
   }
 };
 
-struct ImageResource
-{
-  VkImage                 image  = VK_NULL_HANDLE;
-  VkImageView             view   = VK_NULL_HANDLE;
-  VkDeviceMemory          memory = VK_NULL_HANDLE;
-  stx::Rc<CommandQueue *> queue;
-
-  ImageResource(VkImage aimage, VkImageView aview, VkDeviceMemory amemory, stx::Rc<CommandQueue *> aqueue) :
-      image{aimage}, view{aview}, memory{amemory}, queue{std::move(aqueue)} {};
-
-  STX_MAKE_PINNED(ImageResource)
-
-  ~ImageResource()
-  {
-    VkDevice dev = queue->device->dev;
-    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
-    vkFreeMemory(dev, memory, nullptr);
-    vkDestroyImageView(dev, view, nullptr);
-    vkDestroyImage(dev, image, nullptr);
-  }
-};
-
 struct Sampler
 {
   VkSampler sampler = VK_NULL_HANDLE;

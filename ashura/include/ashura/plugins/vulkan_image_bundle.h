@@ -18,9 +18,8 @@ namespace ash
 
 struct VulkanImageBundle : public ImageBundle
 {
-  VulkanImageBundle(AssetBundle<stx::Rc<vk::ImageResource *>> &ibundle,
-                    vk::UploadContext                         &iupload_context) :
-      bundle{&ibundle}, upload_context{&iupload_context}
+  VulkanImageBundle(vk::ImageManager &imgr) :
+      mgr{&imgr}
   {}
 
   virtual constexpr void on_startup() override
@@ -37,16 +36,15 @@ struct VulkanImageBundle : public ImageBundle
 
   virtual gfx::image add(ImageView view) override
   {
-    return bundle->add(upload_context->upload_image(view));
+    return mgr->add(view);
   }
 
-  virtual stx::Result<stx::Void, AssetBundleError> remove(gfx::image image) override
+  virtual void remove(gfx::image image) override
   {
-    return bundle->remove(image);
+    mgr->remove(image);
   }
 
-  AssetBundle<stx::Rc<vk::ImageResource *>> *bundle         = nullptr;
-  vk::UploadContext                         *upload_context = nullptr;
+  vk::ImageManager *mgr = nullptr;
 };
 
 }        // namespace ash

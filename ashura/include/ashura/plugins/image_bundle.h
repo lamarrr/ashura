@@ -33,9 +33,8 @@ struct ImageBundle : public Plugin
     return 0;
   }
 
-  virtual stx::Result<stx::Void, AssetBundleError> remove(gfx::image image)
+  virtual void remove(gfx::image image)
   {
-    return stx::Ok(stx::Void{});
   }
 
   virtual constexpr ~ImageBundle() override
