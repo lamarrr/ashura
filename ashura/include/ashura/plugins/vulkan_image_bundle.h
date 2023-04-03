@@ -18,7 +18,7 @@ namespace ash
 
 struct VulkanImageBundle : public ImageBundle
 {
-  VulkanImageBundle(vk::ImageManager &imgr) :
+  VulkanImageBundle(vk::RenderResourceManager &imgr) :
       mgr{&imgr}
   {}
 
@@ -34,9 +34,14 @@ struct VulkanImageBundle : public ImageBundle
   virtual constexpr ~VulkanImageBundle() override
   {}
 
-  virtual gfx::image add(ImageView view) override
+  virtual gfx::image add(ImageView view, bool is_real_time) override
   {
-    return mgr->add(view);
+    return mgr->add(view, is_real_time);
+  }
+
+  virtual void update(gfx::image image, ImageView view)
+  {
+    mgr->update(image, view);
   }
 
   virtual void remove(gfx::image image) override
@@ -44,7 +49,7 @@ struct VulkanImageBundle : public ImageBundle
     mgr->remove(image);
   }
 
-  vk::ImageManager *mgr = nullptr;
+  vk::RenderResourceManager *mgr = nullptr;
 };
 
 }        // namespace ash

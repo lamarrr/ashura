@@ -40,7 +40,7 @@ struct Engine
   stx::Option<stx::Rc<vk::CommandQueue *>>  queue;
   gfx::Canvas                               canvas;
   vk::CanvasRenderer                        renderer;
-  vk::ImageManager                          manager;
+  vk::RenderResourceManager                          manager;
   stx::TaskScheduler                        task_scheduler;
   WidgetContext                             widget_context;
   Widget                                   *root_widget = nullptr;

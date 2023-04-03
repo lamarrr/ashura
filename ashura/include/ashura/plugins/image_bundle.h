@@ -28,9 +28,13 @@ struct ImageBundle : public Plugin
     return "ImageBundle";
   }
 
-  virtual gfx::image add(ImageView view)
+  virtual gfx::image add(ImageView view, bool is_real_time)
   {
     return 0;
+  }
+
+  virtual void update(gfx::image image, ImageView view)
+  {
   }
 
   virtual void remove(gfx::image image)

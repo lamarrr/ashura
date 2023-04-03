@@ -34,7 +34,7 @@ namespace ash
 {
 using namespace std::chrono_literals;
 
-static constexpr u64 UI_COMMAND_TIMEOUT = AS(u64, std::chrono::duration_cast<std::chrono::nanoseconds>(1min).count());
+static constexpr u64 VULKAN_TIMEOUT = stx::U64_MAX;
 
 namespace vk
 {
@@ -784,6 +784,11 @@ struct Buffer
   usize          size       = 0;
   VkDevice       dev        = VK_NULL_HANDLE;
 
+  stx::Span<u8> span() const
+  {
+    return stx::Span<u8>{AS(u8 *, memory_map), size};
+  }
+
   void destroy()
   {
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
@@ -802,7 +807,7 @@ struct Buffer
   }
 };
 
-struct SpanBuffer
+struct FlexBuffer
 {
   VkBuffer           buffer      = VK_NULL_HANDLE;
   VkDeviceMemory     memory      = VK_NULL_HANDLE;

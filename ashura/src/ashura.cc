@@ -23,11 +23,10 @@ using nanoseconds  = std::chrono::nanoseconds;
 using milliseconds = std::chrono::milliseconds;
 using seconds      = std::chrono::seconds;
 
-constexpr u8          MIN_VOLUME       = 0;
-constexpr u8          MAX_VOLUME       = 255;
-constexpr nanoseconds SYNC_THRESHOLD   = milliseconds{10};
-constexpr nanoseconds NOSYNC_THRESHOLD = seconds{10};
-constexpr nanoseconds MAX_FRAME_DELAY  = seconds{1};
+constexpr u8          MIN_VOLUME      = 0;
+constexpr u8          MAX_VOLUME      = 255;
+constexpr nanoseconds SYNC_THRESHOLD  = milliseconds{16};
+constexpr nanoseconds MAX_FRAME_DELAY = seconds{1};
 
 enum class Error : i64
 {
@@ -174,7 +173,7 @@ void Ashura_SDL_ScaleAudioFormat(stx::Span<u8> samples, SDL_AudioFormat format, 
 
 constexpr nanoseconds timebase_to_ns(AVRational timebase)
 {
-  return nanoseconds{AS(nanoseconds::rep, nanoseconds{seconds{1}}.count() * AS(f32, timebase.num) / AS(f32, timebase.den))};
+  return nanoseconds{AS(nanoseconds::rep, 1'000'000'000 * AS(f32, timebase.num) / AS(f32, timebase.den))};
 }
 
 struct AudioDeviceInfo
@@ -229,21 +228,26 @@ struct AudioDeviceInfo
 
 struct VideoFrame
 {
-  stx::Option<ImageBuffer> image;
-  nanoseconds              pts{0};
+  ash::extent extent;
+  u8         *pixels = nullptr;
+  nanoseconds pts{0};
 
-  void fit(extent extent)
+  void fit(ash::extent new_extent)
   {
-    if (image.is_none())
+    if (new_extent != extent)
     {
-      image = stx::Some(ImageBuffer{
-          .memory = stx::mem::allocate(stx::os_allocator, extent.area() * 3).unwrap(),
-          .extent = extent,
-          .format = ImageFormat::Rgb});
-    }
-    else
-    {
-      image.value().resize(extent);
+      if (pixels != nullptr)
+      {
+        av_freep(pixels);
+        pixels = nullptr;
+      }
+      int linesizes[4] = {AS(int, new_extent.area()) * 3, 0, 0, 0};
+      u8 *planes[4]    = {nullptr, nullptr, nullptr, nullptr};
+
+      int nbytes = av_image_alloc(planes, linesizes, new_extent.width, new_extent.height, AV_PIX_FMT_RGB24, 1);
+      ASH_CHECK(nbytes >= 0);
+      pixels = planes[0];
+      extent = new_extent;
     }
   }
 };
@@ -389,13 +393,14 @@ struct VideoDecodeContext
   VideoFrame    frame;
   stx::SpinLock lock;        // locks the frame
   SwsContext   *rescaler = nullptr;
+  nanoseconds   timebase{0};
   nanoseconds   last_frame_pts{0};
-  nanoseconds   last_frame_delay{0};
-  nanoseconds   total_delays{0};
+  nanoseconds   last_frame_pts_interval{0};
+  nanoseconds   frame_timer{0};
   timepoint     begin_timepoint;
 
-  VideoDecodeContext(timepoint ibegin_timepoint) :
-      begin_timepoint{ibegin_timepoint}
+  VideoDecodeContext(timepoint ibegin_timepoint, nanoseconds itimebase) :
+      begin_timepoint{ibegin_timepoint}, timebase{itimebase}
   {}
 
   STX_MAKE_PINNED(VideoDecodeContext)
@@ -407,36 +412,43 @@ struct VideoDecodeContext
 
   void store_frame(AVFrame const *in)
   {
-    frame.pts = timebase_to_ns(in->time_base) * in->pts;
+    ASH_CHECK(in->pts != AV_NOPTS_VALUE);
+    frame.pts = timebase * in->pts;
     rescaler  = sws_getCachedContext(rescaler, in->width, in->height, AS(AVPixelFormat, in->format), in->width, in->height, AV_PIX_FMT_RGB24, 0, nullptr, nullptr, nullptr);
     ASH_CHECK(rescaler != nullptr);
+
     lock.lock();
+
     frame.fit(extent{AS(u32, in->width), AS(u32, in->height)});
-    u8 *planes[]  = {frame.image.value().span().data()};
-    int strides[] = {in->width * 3};
+
+    u8 *planes[4]  = {frame.pixels, nullptr, nullptr, nullptr};
+    int strides[4] = {in->width * 3, 0, 0, 0};
+
     sws_scale(rescaler, in->data, in->linesize, 0, in->height, planes, strides);
+
     lock.unlock();
   }
 
   void tick(nanoseconds interval);
 
-  nanoseconds refresh(nanoseconds audio_frame_timepoint, timepoint current_timepoint)
+  nanoseconds refresh(nanoseconds audio_pts, timepoint current_timepoint)
   {
-    nanoseconds delay = frame.pts - last_frame_pts;
+    nanoseconds pts_interval = frame.pts - last_frame_pts;
 
-    if (delay <= nanoseconds{0} || delay >= MAX_FRAME_DELAY)
+    if (pts_interval <= nanoseconds{0} || pts_interval >= MAX_FRAME_DELAY)
     {
       // means delay is incorrect, we thus guess the frame delay by using the previous one
-      delay = last_frame_delay;
+      pts_interval = last_frame_pts_interval;
     }
 
-    last_frame_pts   = frame.pts;
-    last_frame_delay = delay;
+    last_frame_pts          = frame.pts;
+    last_frame_pts_interval = pts_interval;
 
-    nanoseconds diff           = frame.pts - audio_frame_timepoint;                      // time difference between present audio and video frames
-    nanoseconds sync_threshold = delay > SYNC_THRESHOLD ? delay : SYNC_THRESHOLD;        // Skip or repeat the frame. Take delay into account we still doesn't "know if this is the best guess."
+    nanoseconds diff           = frame.pts - audio_pts;                                                // time difference between present audio and video frames
+    nanoseconds sync_threshold = pts_interval > SYNC_THRESHOLD ? pts_interval : SYNC_THRESHOLD;        // skip or repeat the frame. Take delay into account we still doesn't "know if this is the best guess."
+    nanoseconds delay          = pts_interval;
 
-    if (std::chrono::abs(diff) < NOSYNC_THRESHOLD)
+    if (std::chrono::abs(diff) < seconds{10})
     {
       if (diff <= -sync_threshold)        // video frame is lagging behind audio frame, speed up
       {
@@ -448,11 +460,11 @@ struct VideoDecodeContext
       }
     }
 
-    total_delays += delay;
+    frame_timer += delay;
 
     // now sync to actual clock
     nanoseconds time_passed  = current_timepoint - begin_timepoint;
-    nanoseconds actual_delay = total_delays - time_passed;        // time remaining
+    nanoseconds actual_delay = frame_timer - time_passed;        // time remaining
 
     // really skip instead
     if (actual_delay < SYNC_THRESHOLD)
@@ -601,7 +613,8 @@ struct AudioDevice
 
         usize nsamples_written = (bytes_to_write / This->info.spec.channels) / av_get_bytes_per_sample(sample_fmt);
 
-        clock += nanoseconds{AS(nanoseconds::rep, nanoseconds{seconds{1}}.count() * AS(f32, nsamples_written) / AS(f32, This->info.spec.freq))};
+        clock = nanoseconds{This->decode_ctx.clock.load(std::memory_order_relaxed)};
+        clock += nanoseconds{AS(nanoseconds::rep, 1'000'000'000 * AS(f32, nsamples_written) / AS(f32, This->info.spec.freq))};
       }
       else
       {
@@ -609,7 +622,7 @@ struct AudioDevice
         if (This->ctx->packets.is_empty())
         {
           This->ctx->lock.unlock();
-          continue;
+          break;
         }
 
         AVPacket *packet = This->ctx->packets[0];
@@ -618,7 +631,7 @@ struct AudioDevice
 
         if (packet->pts != AV_NOPTS_VALUE)
         {
-          clock = timebase_to_ns(packet->time_base) * packet->pts;
+          clock = timebase_to_ns(This->ctx->stream->time_base) * packet->pts;
         }
 
         error = avcodec_send_packet(This->ctx->ctx, packet);
@@ -628,7 +641,7 @@ struct AudioDevice
         if (error != 0)
         {
           fill_silence(stream, This->info.spec.format);
-          return;
+          break;
         }
 
         error = avcodec_receive_frame(This->ctx->ctx, This->ctx->frame);
@@ -640,7 +653,7 @@ struct AudioDevice
             This->promise.notify_completed();
           }
           fill_silence(stream, This->info.spec.format);
-          return;
+          break;
         }
 
         ResamplerConfig target_cfg{
@@ -668,7 +681,7 @@ struct AudioDevice
           {
             fill_silence(stream, This->info.spec.format);
             ASH_LOG_FFMPEG_ERR(error);
-            return;
+            break;
           }
 
           This->decode_ctx.resampler_cfg = target_cfg;
@@ -679,7 +692,7 @@ struct AudioDevice
           {
             fill_silence(stream, This->info.spec.format);
             ASH_LOG_FFMPEG_ERR(error);
-            return;
+            break;
           }
         }
 
@@ -690,7 +703,7 @@ struct AudioDevice
           error = max_nsamples;
           fill_silence(stream, This->info.spec.format);
           ASH_LOG_FFMPEG_ERR(error);
-          return;
+          break;
         }
 
         int max_buffer_size = av_samples_get_buffer_size(nullptr, This->info.spec.channels, max_nsamples, target_cfg.dst_fmt, 1);
@@ -700,7 +713,7 @@ struct AudioDevice
           error = max_buffer_size;
           fill_silence(stream, This->info.spec.format);
           ASH_LOG_FFMPEG_ERR(error);
-          return;
+          break;
         }
 
         This->decode_ctx.samples.resize(max_buffer_size).unwrap();
@@ -716,7 +729,7 @@ struct AudioDevice
           error = nsamples;
           fill_silence(stream, This->info.spec.format);
           ASH_LOG_FFMPEG_ERR(error);
-          return;
+          break;
         }
 
         int buffer_size = av_samples_get_buffer_size(nullptr, This->info.spec.channels, nsamples, target_cfg.dst_fmt, 1);
@@ -726,7 +739,7 @@ struct AudioDevice
           error = buffer_size;
           fill_silence(stream, This->info.spec.format);
           ASH_LOG_FFMPEG_ERR(error);
-          return;
+          break;
         }
 
         This->decode_ctx.samples.resize(buffer_size).unwrap();
@@ -742,7 +755,7 @@ struct AudioDevice
 
         usize nsamples_written = (bytes_to_write / This->info.spec.channels) / av_get_bytes_per_sample(target_cfg.dst_fmt);
 
-        clock += nanoseconds{AS(nanoseconds::rep, nanoseconds{seconds{1}}.count() * AS(f32, nsamples_written) / AS(f32, This->info.spec.freq))};
+        clock += nanoseconds{AS(nanoseconds::rep, 1'000'000'000 * AS(f32, nsamples_written) / AS(f32, This->info.spec.freq))};
       }
     }
 
@@ -879,6 +892,12 @@ void dump_ffmpeg_info()
 //
 //
 //
+
+struct Video : public Widget
+{
+  // TODO(LAMARRR): RESET USAGE FENCE? re-think fences
+};
+
 int main(int argc, char **argv)
 {
   ASH_CHECK(argc == 3);
@@ -958,7 +977,7 @@ int main(int argc, char **argv)
   std::thread video_decode_thread{
       [video_decode_ctx = video_decode_ctx.share(),
        audio_device     = audio_device.share(),
-       promise = promise.share(), ctx = stx::rc::make_inplace<VideoDecodeContext>(stx::os_allocator, Clock::now()).unwrap()]() {
+       promise = promise.share(), ctx = stx::rc::make_inplace<VideoDecodeContext>(stx::os_allocator, Clock::now(), timebase_to_ns(video_decode_ctx->stream->time_base)).unwrap()]() {
         int error = 0;
 
         while (error >= 0 && promise.fetch_cancel_request() == stx::CancelState::Executing)
@@ -985,20 +1004,24 @@ int main(int argc, char **argv)
 
           while ((error = avcodec_receive_frame(video_decode_ctx->ctx, video_decode_ctx->frame)) == 0)
           {
-              ctx->store_frame(video_decode_ctx->frame);
-              std::this_thread::sleep_for(ctx->refresh(nanoseconds{audio_device->decode_ctx.clock.load(std::memory_order_relaxed)}, Clock::now()));
-            
+            ctx->store_frame(video_decode_ctx->frame);
+            nanoseconds delay = ctx->refresh(nanoseconds{audio_device->decode_ctx.clock.load(std::memory_order_relaxed)}, Clock::now());
+            spdlog::info("sleeping for: {}ms", delay.count() / 1'000'000);
+            auto begin = Clock::now();
+            while ((Clock::now() - begin) < delay)
+              std::this_thread::yield();
           }
 
           if (error == AVERROR(EAGAIN))
           {
+            error = 0;
           }
           else if (error == AVERROR(EOF))
           {
           }
           else
           {
-            // log
+            ASH_LOG_FFMPEG_ERR(error);
             break;
           }
         }
@@ -1015,8 +1038,6 @@ int main(int argc, char **argv)
         }
       }};
 
-  demuxer_thread.join();
-  video_decode_thread.join();
   // fmt_ctx->ctx_flags       = AVFMT_FLAG_CUSTOM_IO;
   // fmt_ctx->chapters;
   // fmt_ctx->metadata;
@@ -1040,6 +1061,8 @@ int main(int argc, char **argv)
     last_tick = present;
   }
 
+  demuxer_thread.join();
+  video_decode_thread.join();
   SDL_Quit();
   return 0;
 }

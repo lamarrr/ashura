@@ -86,7 +86,7 @@ std::pair<SwapChainState, u32> Window::acquire_image()
   u32 swapchain_image_index = 0;
 
   VkResult result =
-      vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain, UI_COMMAND_TIMEOUT, semaphore, fence, &swapchain_image_index);
+      vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain, VULKAN_TIMEOUT, semaphore, fence, &swapchain_image_index);
 
   ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR,
             "failed to acquire swapchain image");

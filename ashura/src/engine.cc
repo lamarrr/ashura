@@ -190,7 +190,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
-  gfx::image transparent_image = manager.add(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba});
+  gfx::image transparent_image = manager.add(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba}, false);
 
   ASH_CHECK(transparent_image == 0);
 
@@ -271,7 +271,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
   // new widgets could have been added
   widget_system.assign_ids();
   manager.flush_deletes();
-  manager.flush_uploads();
+  manager.submit_uploads();
 
   auto record_draw_commands = [&]() {
     VkExtent2D extent = window.value()->surface.value()->swapchain.value().window_extent;

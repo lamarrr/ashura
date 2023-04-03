@@ -173,7 +173,7 @@ struct Image : public Widget
         if (std::holds_alternative<MemoryImageSource>(props.source))
         {
           MemoryImageSource const &source = std::get<MemoryImageSource>(props.source);
-          image                           = bundle->add(source.buffer);
+          image                           = bundle->add(source.buffer, false);
           state                           = ImageState::Loaded;
         }
         else if (std::holds_alternative<FileImageSource>(props.source))
@@ -220,7 +220,7 @@ struct Image : public Widget
           {
             spdlog::info("loaded image successfully");
             ImageBuffer &buffer = load_result.value();
-            image               = bundle->add(buffer);
+            image               = bundle->add(buffer, false);
             state               = ImageState::Loaded;
             if (props.resize_on_load)
             {

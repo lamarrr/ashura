@@ -17,8 +17,8 @@ namespace vk
 struct CanvasRenderer
 {
   u32                                  max_nframes_in_flight = 0;
-  stx::Vec<SpanBuffer>                 vertex_buffers{stx::os_allocator};
-  stx::Vec<SpanBuffer>                 index_buffers{stx::os_allocator};
+  stx::Vec<FlexBuffer>                 vertex_buffers{stx::os_allocator};
+  stx::Vec<FlexBuffer>                 index_buffers{stx::os_allocator};
   vk::Sampler                          texture_sampler;
   RecordingContext                     ctx;
   stx::Option<stx::Rc<CommandQueue *>> queue;
@@ -48,13 +48,13 @@ struct CanvasRenderer
 
     for (u32 i = 0; i < amax_nframes_in_flight; i++)
     {
-      SpanBuffer vertex_buffer;
+      FlexBuffer vertex_buffer;
 
       vertex_buffer.init(dev, memory_properties, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
       vertex_buffers.push_inplace(vertex_buffer).unwrap();
 
-      SpanBuffer index_buffer;
+      FlexBuffer index_buffer;
 
       index_buffer.init(dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
@@ -66,10 +66,10 @@ struct CanvasRenderer
 
   void destroy()
   {
-    for (SpanBuffer &buff : vertex_buffers)
+    for (FlexBuffer &buff : vertex_buffers)
       buff.destroy();
 
-    for (SpanBuffer &buff : index_buffers)
+    for (FlexBuffer &buff : index_buffers)
       buff.destroy();
 
     ctx.destroy();
@@ -78,7 +78,7 @@ struct CanvasRenderer
   void submit(VkExtent2D viewport_extent, VkExtent2D image_extent, u32 swapchain_image_index, u32 frame, VkFence render_fence,
               VkSemaphore image_acquisition_semaphore, VkSemaphore render_semaphore, VkRenderPass render_pass,
               VkFramebuffer framebuffer, stx::Span<gfx::DrawCommand const> cmds, stx::Span<vertex const> vertices,
-              stx::Span<u32 const> indices, ImageManager const &image_manager)
+              stx::Span<u32 const> indices, RenderResourceManager const &image_manager)
   {
     ASH_CHECK(frame < max_nframes_in_flight);
 
@@ -186,7 +186,7 @@ struct CanvasRenderer
       }
     }
 
-    ASH_VK_CHECK(vkWaitForFences(dev, 1, &render_fence, VK_TRUE, UI_COMMAND_TIMEOUT));
+    ASH_VK_CHECK(vkWaitForFences(dev, 1, &render_fence, VK_TRUE, VULKAN_TIMEOUT));
 
     ASH_VK_CHECK(vkResetFences(dev, 1, &render_fence));
 
