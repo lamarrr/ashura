@@ -50,7 +50,7 @@ struct Context
     stx::Span plugin = plugins.span().which([name](Plugin *plugin) { return plugin->get_name() == name; });
     if (!plugin.is_empty())
     {
-      return stx::Some(plugin[0]->as<T>());
+      return stx::Some(plugin[0]->template as<T>());
     }
     else
     {
