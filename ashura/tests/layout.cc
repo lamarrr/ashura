@@ -51,7 +51,7 @@ TEST(ImageTest, SerializationDeserialization)
                                       .height        = constraint{.bias = 100},
                                       .border_radius = vec4{1, 2, 3, 4},
                                       .alt           = stx::string::make_static("Hello")}};
-  WidgetContext         c;
+  Context         c;
   simdjson::dom::parser p;
   im.restore(c, im.save(c, p));
 

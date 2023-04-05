@@ -14,16 +14,16 @@ namespace ash
 // TODO(lamarrr): we need widget context for getting other plugins
 struct ImageBundle : public Plugin
 {
-  virtual constexpr void on_startup() override
+  virtual constexpr void on_startup(Context& context) override
   {}
 
-  virtual constexpr void tick(std::chrono::nanoseconds interval) override
+  virtual constexpr void tick(Context& context,std::chrono::nanoseconds interval) override
   {}
 
-  virtual constexpr void on_exit() override
+  virtual constexpr void on_exit(Context& context) override
   {}
 
-  virtual constexpr std::string_view get_id() override
+  virtual constexpr std::string_view get_name() override
   {
     return "ImageBundle";
   }

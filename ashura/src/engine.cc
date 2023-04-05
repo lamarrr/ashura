@@ -3,6 +3,7 @@
 #include <chrono>
 #include <fstream>
 
+#include "ashura/window_manager.h"
 #include "ashura/animation.h"
 #include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
@@ -65,6 +66,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
     task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()}, root_widget{iroot_widget}, widget_system{*root_widget}
 {
   widget_context.task_scheduler = &task_scheduler;
+  widget_context.clipboard      = &clipboard;
   stx::Vec<char const *> required_device_extensions{stx::os_allocator};
 
   required_device_extensions.push(VK_KHR_SWAPCHAIN_EXTENSION_NAME).unwrap();
@@ -82,19 +84,17 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   xlogger.info("Initializing Window API");
 
-  window_api = stx::Some(stx::rc::make_inplace<WindowApi>(stx::os_allocator).unwrap());
+  root_window = stx::Some(WindowManager::create(cfg.name.c_str(), WindowType::Normal, WindowCreateFlags::FullScreen, {}));
 
   xlogger.info("Creating root window");
 
-  window = stx::Some(create_window(window_api.value().share(), cfg.window_config.copy()));
-
-  stx::Vec window_required_instance_extensions = window_api.value()->get_required_instance_extensions();
+  stx::Vec required_window_instance_extensions = BackendWindow::get_required_instance_extensions();
 
   stx::Rc vk_instance = vk::create_instance(cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), cfg.name.c_str(),
                                             VK_MAKE_VERSION(cfg.version.major, cfg.version.minor, cfg.version.patch),
-                                            window_required_instance_extensions, required_validation_layers, xlogger);
+                                            required_window_instance_extensions, required_validation_layers, xlogger);
 
-  window.value()->attach_surface(vk_instance.share());
+  root_window.value()->attach_surface(vk_instance.share());
 
   stx::Vec phy_devices = vk::get_all_devices(vk_instance);
 
@@ -112,7 +112,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   }
 
   stx::Rc<vk::PhyDeviceInfo *> phy_device =
-      stx::rc::make(stx::os_allocator, select_device(phy_devices, device_preference, *window.value()->surface.value().handle)
+      stx::rc::make(stx::os_allocator, select_device(phy_devices, device_preference, *root_window.value()->surface.value())
                                            .expect("Unable to find any suitable rendering device")[0]
                                            .copy())
           .unwrap();
@@ -156,8 +156,8 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   queue = stx::Some(xqueue.share());
 
-  window.value()->recreate_swapchain(xqueue, DEFAULT_MAX_FRAMES_IN_FLIGHT, xlogger);
-  auto &swp = window.value()->surface.value()->swapchain.value();
+  root_window.value()->recreate_swapchain(xqueue, DEFAULT_MAX_FRAMES_IN_FLIGHT, xlogger);
+  auto &swp = root_window.value()->surface.value()->swapchain.value();
 
   xlogger.info("recreated swapchain for logical/window/viewport extent: [{}, {}], "
                "physical/surface extent: [{}, {}]",
@@ -169,24 +169,21 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   manager.init(xqueue.share());
 
-  window.value()->on(WindowEvents::CloseRequested,
-                     stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) { std::exit(0); }).unwrap());
+  root_window.value()->on(WindowEvents::CloseRequested,
+                  stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) { std::exit(0); }).unwrap());
 
-  window.value()->on(WindowEvents::Resized | WindowEvents::PixelSizeChanged,
-                     stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents) {
-                       logger.value()->info("WINDOW RESIZED");
-                     }).unwrap());
+  root_window.value()->on(WindowEvents::Resized | WindowEvents::PixelSizeChanged,
+                  stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents) {
+                    logger.value()->info("WINDOW RESIZED");
+                  }).unwrap());
 
-  window.value()->mouse_motion_listeners.push(stx::fn::rc::make_unique_static([](MouseMotionEvent) {})).unwrap();
+  root_window.value()->on_mouse_motion(stx::fn::rc::make_unique_static([](MouseMotionEvent) {}));
 
-  window.value()
-      ->mouse_click_listeners
-      .push(stx::fn::rc::make_unique_static([](MouseClickEvent event) {
-        std::cout << "clicks: " << event.clicks << std::endl;
-        if (event.action == MouseAction::Press && event.button == MouseButton::A2)
-          std::exit(0);
-      }))
-      .unwrap();
+  root_window.value()->on_mouse_click(stx::fn::rc::make_unique_static([](MouseClickEvent event) {
+    std::cout << "clicks: " << event.clicks << std::endl;
+    if (event.action == MouseAction::Press && event.button == MouseButton::A2)
+      std::exit(0);
+  }));
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -230,26 +227,20 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   */
   widget_context.register_plugin(new VulkanImageBundle{manager});
 
-  window.value()
-      ->mouse_click_listeners
-      .push(stx::fn::rc::make_unique_functor(
-                stx::os_allocator, [this](MouseClickEvent event) { widget_system.events.push_inplace(event).unwrap(); })
-                .unwrap())
-      .unwrap();
+  root_window.value()->on_mouse_click(stx::fn::rc::make_unique_functor(
+                                  stx::os_allocator, [this](MouseClickEvent event) { widget_system.events.push_inplace(event).unwrap(); })
+                                  .unwrap());
 
-  window.value()
-      ->mouse_motion_listeners
-      .push(stx::fn::rc::make_unique_functor(
-                stx::os_allocator, [this](MouseMotionEvent event) { widget_system.events.push_inplace(event).unwrap(); })
-                .unwrap())
-      .unwrap();
+  root_window.value()->on_mouse_motion(stx::fn::rc::make_unique_functor(
+                                   stx::os_allocator, [this](MouseMotionEvent event) { widget_system.events.push_inplace(event).unwrap(); })
+                                   .unwrap());
 
-  window.value()->on(WindowEvents::All, stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents events) {
-                                          if ((events & WindowEvents::MouseLeave) != WindowEvents::None)
-                                          {
-                                            widget_system.events.push_inplace(events).unwrap();
-                                          }
-                                        }).unwrap());
+  root_window.value()->on(WindowEvents::All, stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents events) {
+                                       if ((events & WindowEvents::MouseLeave) != WindowEvents::None)
+                                       {
+                                         widget_system.events.push_inplace(events).unwrap();
+                                       }
+                                     }).unwrap());
 
   // TODO(lamarrr): attach debug widgets: FPS stats, memory usage, etc
   widget_system.launch(widget_context);
@@ -263,9 +254,9 @@ void Engine::tick(std::chrono::nanoseconds interval)
   task_scheduler.tick(interval);
   do
   {
-  } while (window_api.value()->poll_events());
+  } while (WindowManager::poll_events());
 
-  window.value()->tick(interval);
+  // root_window->tick(interval);
   widget_system.pump_events(widget_context);
   widget_system.tick_widgets(widget_context, interval);
   // new widgets could have been added
@@ -274,7 +265,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
   manager.submit_uploads();
 
   auto record_draw_commands = [&]() {
-    VkExtent2D extent = window.value()->surface.value()->swapchain.value().window_extent;
+    VkExtent2D extent = root_window.value()->surface.value()->swapchain.value().window_extent;
     vec2       viewport_extent{AS(f32, extent.width), AS(f32, extent.height)};
     canvas.restart(viewport_extent);
     widget_system.perform_widget_layout(viewport_extent);
@@ -287,7 +278,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
   // acquire swapchain image, or submit to renderer
   // do not increase the frame flight indices as well since the sync primitves
   // aren't used
-  if (!window.value()->surface.value()->is_zero_sized_swapchain)
+  if (!root_window.value()->surface.value()->is_zero_sized_swapchain)
   {
     record_draw_commands();
   }
@@ -305,11 +296,11 @@ void Engine::tick(std::chrono::nanoseconds interval)
   {
     if (swapchain_state != SwapChainState::Ok)
     {
-      window.value()->recreate_swapchain(queue.value(), DEFAULT_MAX_FRAMES_IN_FLIGHT, *logger.value().handle);
+      root_window.value()->recreate_swapchain(queue.value(), DEFAULT_MAX_FRAMES_IN_FLIGHT, *logger.value().handle);
       // TODO(lamarrr): fix
-      if (!window.value()->surface.value()->is_zero_sized_swapchain)
+      if (!root_window.value()->surface.value()->is_zero_sized_swapchain)
       {
-        auto &swp = window.value()->surface.value()->swapchain.value();
+        auto &swp = root_window.value()->surface.value()->swapchain.value();
         logger.value()->info("recreated swapchain for logical/window/viewport extent: [{}, {}], "
                              "physical/surface extent: [{}, {}]",
                              swp.window_extent.width, swp.window_extent.height, swp.image_extent.width,
@@ -319,11 +310,11 @@ void Engine::tick(std::chrono::nanoseconds interval)
       }
     }
 
-    if (!window.value()->surface.value()->is_zero_sized_swapchain)
+    if (!root_window.value()->surface.value()->is_zero_sized_swapchain)
     {
-      vk::SwapChain &swapchain = window.value()->surface.value()->swapchain.value();
+      vk::SwapChain &swapchain = root_window.value()->surface.value()->swapchain.value();
 
-      auto [state, swapchain_image_index] = window.value()->acquire_image();
+      auto [state, swapchain_image_index] = root_window.value()->acquire_image();
 
       swapchain_state = state;
 
@@ -340,7 +331,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
                       swapchain.framebuffers[swapchain_image_index], draw_list.cmds, draw_list.vertices, draw_list.indices,
                       manager);
 
-      swapchain_state = window.value()->present(queue.value()->info.queue, swapchain_image_index);
+      swapchain_state = root_window.value()->present(queue.value()->info.queue, swapchain_image_index);
 
       // the frame semaphores and synchronization primitives are still used even
       // if an error is returned

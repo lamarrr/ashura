@@ -42,10 +42,10 @@ struct Padding : public Widget
 
   constexpr virtual Layout layout(rect area);
 
-  virtual simdjson::dom::element save(WidgetContext         &context,
+  virtual simdjson::dom::element save(Context         &context,
                                       simdjson::dom::parser &parser);
 
-  virtual void restore(WidgetContext &context, simdjson::dom::element const &element);
+  virtual void restore(Context &context, simdjson::dom::element const &element);
 
   EdgeInsets edge_insets;
   Widget    *child = nullptr;

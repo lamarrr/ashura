@@ -22,13 +22,13 @@ struct VulkanImageBundle : public ImageBundle
       mgr{&imgr}
   {}
 
-  virtual constexpr void on_startup() override
+  virtual constexpr void on_startup(Context &context) override
   {}
 
-  virtual constexpr void tick(std::chrono::nanoseconds interval) override
+  virtual constexpr void tick(Context &context, std::chrono::nanoseconds interval) override
   {}
 
-  virtual constexpr void on_exit() override
+  virtual constexpr void on_exit(Context &context) override
   {}
 
   virtual constexpr ~VulkanImageBundle() override

@@ -162,7 +162,7 @@ struct Image : public Widget
     }
   }
 
-  virtual void tick(WidgetContext &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
   {
     ImageBundle *bundle = context.get_plugin<ImageBundle>("ImageBundle").unwrap();
 
@@ -254,18 +254,18 @@ struct Image : public Widget
     }
   }
 
-  virtual void on_mouse_enter(WidgetContext &context, vec2 screen_position,
+  virtual void on_mouse_enter(Context &context, vec2 screen_position,
                               quad quad) override
   {
     spdlog::info("mouse over");
   }
 
-  virtual void on_mouse_leave(WidgetContext &context, stx::Option<vec2> screen_position)
+  virtual void on_mouse_leave(Context &context, stx::Option<vec2> screen_position)
   {
     spdlog::info("mouse leave");
   }
 
-  constexpr virtual void on_click(WidgetContext &context, MouseButton button,
+  constexpr virtual void on_click(Context &context, MouseButton button,
                                   vec2 screen_position, u32 nclicks, quad quad)
   {
     if (button == MouseButton::Secondary)
@@ -279,7 +279,7 @@ struct Image : public Widget
     }
   }
 
-  virtual simdjson::dom::element save(WidgetContext         &context,
+  virtual simdjson::dom::element save(Context         &context,
                                       simdjson::dom::parser &parser) override
   {
     std::string      source;
@@ -344,7 +344,7 @@ struct Image : public Widget
     return parser.parse(json.data(), json.size());
   }
 
-  virtual void restore(WidgetContext                &context,
+  virtual void restore(Context                &context,
                        simdjson::dom::element const &element) override
   {
     if (image_load_future.is_some())

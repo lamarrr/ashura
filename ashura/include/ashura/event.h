@@ -7,6 +7,8 @@
 namespace ash
 {
 
+using window_id = i32;
+
 enum class WindowEvents : u32
 {
   None    = 0,
@@ -365,12 +367,32 @@ constexpr Key CALL      = SDLK_CALL;
 constexpr Key ENDCALL   = SDLK_ENDCALL;
 };        // namespace keys
 
-struct ClipBoardEvent;        // on_update only
+struct ClipBoardEvent;        // TODO(lamarrr): on_update only
 
-struct DeviceOrientationEvent;
+struct DeviceOrientationEvent;        // TODO(lamarrr)
 
-struct Controller;
+struct PointerLock;        // TODO(lamarrr)
 
-struct PointerLock;
+struct AudioDeviceEvent
+{
+  u32  device_id  = 0;
+  bool is_capture = false;
+};
+
+struct WindowEventListeners
+{
+  stx::Vec<std::pair<WindowEvents, stx::UniqueFn<void(WindowEvents)>>> general{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseClickEvent)>>                       mouse_click{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>>                      mouse_motion{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>>                       mouse_wheel{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_down{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_up{stx::os_allocator};
+};
+
+struct GlobalEventListeners
+{
+  stx::Vec<stx::UniqueFn<void(AudioDeviceEvent)>> audio_event{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void()>>                 system_theme{stx::os_allocator};
+};
 
 }        // namespace ash

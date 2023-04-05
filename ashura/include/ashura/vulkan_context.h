@@ -69,6 +69,14 @@ struct RenderResourceManager
 
     ASH_VK_CHECK(vkDeviceWaitIdle(dev));
 
+    for (auto &entry : images)
+    {
+      entry.second.needs_delete = true;
+    }
+
+    flush_deletes();
+    images = {};
+
     vkFreeCommandBuffers(dev, cmd_pool, 1, &cmd_buffer);
 
     vkDestroyCommandPool(dev, cmd_pool, nullptr);
