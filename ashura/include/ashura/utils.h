@@ -54,4 +54,6 @@ STX_FORCE_INLINE stx::Option<Target *> upcast(Source &source)
   }
 }
 
+#define ASH_DECLARE_LOGGER(logger_name)
+
 }        // namespace ash

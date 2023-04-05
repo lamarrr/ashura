@@ -160,7 +160,6 @@ struct Layout
 struct WidgetInfo
 {
   std::string_view type;
-  u64              id = 0;
 };
 
 // add window controller class
@@ -229,7 +228,7 @@ struct Widget
   //
   constexpr virtual WidgetInfo get_info()
   {
-    return WidgetInfo{.type = "Widget", .id = id};
+    return WidgetInfo{.type = "Widget"};
   }
 
   //

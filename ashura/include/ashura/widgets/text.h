@@ -19,7 +19,7 @@ struct Text : public Widget
 
   virtual WidgetInfo get_info() override
   {
-    return WidgetInfo{.type = "Text", .id = Widget::id};
+    return WidgetInfo{.type = "Text"};
   }
 
   virtual Layout layout(rect area) override

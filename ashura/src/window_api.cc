@@ -220,6 +220,15 @@ bool WindowApi::poll_events()
         // SDL_CONTROLLERTOUCHPADUP
         // SDL_CONTROLLERSENSORUPDATE
 
+        SDL_EVENT_AUDIO_DEVICE_ADDED;
+        SDL_EVENT_AUDIO_DEVICE_REMOVED;
+        SDL_EVENT_SYSTEM_THEME_CHANGED;
+        SDL_EVENT_DISPLAY_ORIENTATION;          // Display orientation has changed to data1
+        SDL_EVENT_DISPLAY_CONNECTED;            // Display has been added to the system
+        SDL_EVENT_DISPLAY_DISCONNECTED;         // Display has been removed from the system
+        SDL_EVENT_DISPLAY_MOVED;                // Display has changed position
+        SDL_EVENT_DISPLAY_SCALE_CHANGED;        // Display has changed desktop display scale
+
       default:
       {
         return true;

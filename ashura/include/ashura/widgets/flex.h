@@ -50,7 +50,7 @@ struct Flex : public Widget
 
   virtual WidgetInfo get_info() override
   {
-    return WidgetInfo{.type = "Flex", .id = Widget::id};
+    return WidgetInfo{.type = "Flex"};
   }
 
   virtual Layout layout(rect area)
@@ -94,7 +94,7 @@ struct Flex : public Widget
     "height_min_rel": {},
     "height_max_rel": {},
     "children": [{}]}})"),
-        info.id, info.type, AS(u32, props.direction), AS(u32, props.wrap),
+        Widget::id, info.type, AS(u32, props.direction), AS(u32, props.wrap),
         AS(u32, props.main_align), AS(u32, props.cross_align), AS(u32, props.main_fit),
         AS(u32, props.cross_fit), props.width.bias, props.width.scale, props.width.min,
         props.width.max, props.width.min_rel, props.width.max_rel, props.height.bias,

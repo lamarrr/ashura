@@ -15,7 +15,7 @@ namespace ash
 namespace vk
 {
 
-struct ManagedImage
+struct RenderImage
 {
   vk::Image               image;
   ImageFormat             format         = ImageFormat::Rgba;
@@ -35,7 +35,7 @@ struct RenderResourceManager
   VkCommandBuffer                      cmd_buffer = VK_NULL_HANDLE;
   VkFence                              fence      = VK_NULL_HANDLE;
   stx::Option<stx::Rc<CommandQueue *>> queue;
-  std::map<gfx::image, ManagedImage>   images;
+  std::map<gfx::image, RenderImage>    images;
   u64                                  next_image_id = 0;
 
   void init(stx::Rc<CommandQueue *> aqueue)
@@ -236,16 +236,16 @@ struct RenderResourceManager
 
     copy_pixels(image_view, staging_buffer.span());
 
-    images.emplace(id, ManagedImage{.image          = Image{.image = image, .view = view, .memory = memory, .dev = dev},
-                                    .format         = image_view.format,
-                                    .backend_format = target_format,
-                                    .layout         = VK_IMAGE_LAYOUT_UNDEFINED,
-                                    .dst_layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                    .extent         = image_view.extent,
-                                    .staging_buffer = stx::Some(std::move(staging_buffer)),
-                                    .needs_upload   = true,
-                                    .needs_delete   = false,
-                                    .is_real_time   = is_real_time});
+    images.emplace(id, RenderImage{.image          = Image{.image = image, .view = view, .memory = memory, .dev = dev},
+                                   .format         = image_view.format,
+                                   .backend_format = target_format,
+                                   .layout         = VK_IMAGE_LAYOUT_UNDEFINED,
+                                   .dst_layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   .extent         = image_view.extent,
+                                   .staging_buffer = stx::Some(std::move(staging_buffer)),
+                                   .needs_upload   = true,
+                                   .needs_delete   = false,
+                                   .is_real_time   = is_real_time});
 
     return id;
   }
@@ -307,7 +307,7 @@ struct RenderResourceManager
 
     ASH_VK_CHECK(vkBeginCommandBuffer(cmd_buffer, &cmd_buffer_begin_info));
 
-    for (auto &entry : images)
+    for (auto const &entry : images)
     {
       if (entry.second.needs_upload)
       {
@@ -425,9 +425,7 @@ struct RenderResourceManager
   {
     VkImageFormatProperties image_format_properties;
 
-    ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device, VK_FORMAT_B8G8R8A8_UNORM,
-                                                          VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT,
-                                                          0, &image_format_properties));
+    ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties));
 
     auto [atlas, image_buffer] = gfx::render_atlas(font, font_height, extent{image_format_properties.maxExtent.width, image_format_properties.maxExtent.height});
 

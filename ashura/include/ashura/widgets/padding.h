@@ -37,7 +37,7 @@ struct Padding : public Widget
 
   constexpr virtual WidgetInfo get_info() override
   {
-    return WidgetInfo{.type = "Padding", .id = Widget::id};
+    return WidgetInfo{.type = "Padding"};
   }
 
   constexpr virtual Layout layout(rect area);

@@ -53,7 +53,7 @@ struct Stack : public Widget
 
   constexpr virtual WidgetInfo get_info() override
   {
-    return WidgetInfo{.type = "Stack", .id = Widget::id};
+    return WidgetInfo{.type = "Stack"};
   }
 
   constexpr virtual Layout layout(rect area);

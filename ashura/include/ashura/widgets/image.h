@@ -81,7 +81,7 @@ struct Image : public Widget
 
   virtual WidgetInfo get_info() override
   {
-    return WidgetInfo{.type = "Image", .id = Widget::id};
+    return WidgetInfo{.type = "Image"};
   }
 
   virtual Layout layout(rect area) override
@@ -186,20 +186,25 @@ struct Image : public Widget
                 if (!std::filesystem::exists(path.c_str()))
                   return stx::Err(ImageLoadError::InvalidPath);
 
-                std::ifstream stream{path.c_str(), std::ios::ate | std::ios::binary};
+                std::FILE *file = std::fopen(path.c_str(), "rb");
+                ASH_CHECK(file != nullptr);
 
-                ASH_CHECK(stream.is_open());
+                ASH_CHECK(std::fseek(file, 0, SEEK_END) == 0);
 
-                usize file_size = stream.tellg();
+                long file_size = std::ftell(file);
+                ASH_CHECK(file_size >= 0);
 
                 stx::Memory memory =
                     stx::mem::allocate(stx::os_allocator, file_size).unwrap();
 
-                stream.seekg(0);
+                ASH_CHECK(std::fseek(file, 0, SEEK_SET) == 0);
 
-                stream.read(AS(char *, memory.handle), file_size);
+                ASH_CHECK(std::fread(memory.handle, 1, file_size, file) == file_size);
+
+                ASH_CHECK(std::fclose(file) == 0);
+
                 spdlog::info("decided");
-                return decode_image(stx::Span{AS(u8 const *, memory.handle), file_size});
+                return decode_image(stx::Span{AS(u8 const *, memory.handle), AS(usize, file_size)});
               },
               stx::INTERACTIVE_PRIORITY, stx::TaskTraceInfo{}));
           state             = ImageState::Loading;

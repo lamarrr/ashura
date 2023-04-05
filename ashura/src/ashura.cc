@@ -51,9 +51,9 @@ enum class Error : i64
     }                                                                                                                         \
   } while (0)
 
-// The volume ranges from 0 to 255
-#define ASH_ADJUST_VOLUME(sample, volume) ((sample) = ((sample) *AS(i64, (volume))) / AS(i64, MAX_VOLUME))
-#define ASH_ADJUST_VOLUME_U8(sample, volume) ((sample) = ((((sample) -AS(i32, 128)) * AS(i32, volume)) / AS(i32, MAX_VOLUME)) + AS(i32, 128))
+// volume ranges from 0 to 255
+#define ASH_ADJUST_VOLUME(sample, volume) ((sample) = ((sample) *AS(::ash::i64, (volume))) / AS(::ash::i64, MAX_VOLUME))
+#define ASH_ADJUST_VOLUME_U8(sample, volume) ((sample) = ((((sample) -AS(::ash::i32, 128)) * AS(::ash::i32, volume)) / AS(::ash::i32, MAX_VOLUME)) + AS(::ash::i32, 128))
 
 constexpr void fill_silence(stx::Span<u8> samples, SDL_AudioFormat format)
 {
@@ -173,7 +173,7 @@ void Ashura_SDL_ScaleAudioFormat(stx::Span<u8> samples, SDL_AudioFormat format, 
 
 constexpr nanoseconds timebase_to_ns(AVRational timebase)
 {
-  return nanoseconds{AS(nanoseconds::rep, 1'000'000'000 * AS(f32, timebase.num) / AS(f32, timebase.den))};
+  return nanoseconds{AS(nanoseconds::rep, 1'000'000'000LL * AS(f32, timebase.num) / AS(f32, timebase.den))};
 }
 
 struct AudioDeviceInfo
@@ -288,44 +288,103 @@ struct DecodeContext
 
 struct VideoDemuxer
 {
-  AVFormatContext *ctx    = nullptr;
-  AVPacket        *packet = nullptr;
+  static constexpr int AVIO_BUFFER_SIZE = 4096;
+  AVIOContext         *io_ctx           = nullptr;
+  AVFormatContext     *fmt_ctx          = nullptr;
+  AVPacket            *packet           = nullptr;
+  FILE                *file             = nullptr;
 
-  VideoDemuxer(AVFormatContext *ictx,
-               AVPacket        *ipacket) :
-      ctx{ictx}, packet{ipacket}
+  VideoDemuxer(AVIOContext *iio_ctx, AVFormatContext *ictx, AVPacket *ipacket, FILE *ifile) :
+      io_ctx{iio_ctx}, fmt_ctx{ictx}, packet{ipacket}, file{ifile}
   {}
 
   STX_MAKE_PINNED(VideoDemuxer)
 
   ~VideoDemuxer()
   {
-    avformat_close_input(&ctx);
+    fclose(file);
+    av_freep(io_ctx->buf_ptr);
+    avio_context_free(&io_ctx);
+    avformat_close_input(&fmt_ctx);
     av_packet_free(&packet);
   }
 
-  static stx::Rc<VideoDemuxer *> open(char const *path)
+  static int packet_file_read_callback(void *opaque, u8 *buffer, int buffer_size)
   {
-    AVFormatContext *ctx = nullptr;
-    ASH_CHECK(avformat_open_input(&ctx, path, nullptr, nullptr) >= 0);
-    // checks if codec or file format is supported
-    ASH_CHECK(avformat_find_stream_info(ctx, nullptr) >= 0);
+    // AVERROR(EAGAIN);
+    std::FILE *file = AS(VideoDemuxer *, opaque)->file;
+
+    usize read = std::fread(buffer, 1, buffer_size, file);
+
+    if (std::ferror(file))
+    {
+      return AVERROR_UNKNOWN;
+    }
+
+    if (read == 0)
+    {
+      ASH_CHECK(std::feof(file));
+      return AVERROR_EOF;
+    }
+
+    return AS(int, read);
+  }
+
+  static i64 packet_file_seek_callback(void *opaque, i64 offset, int whence)
+  {
+    return std::fseek(AS(VideoDemuxer *, opaque)->file, AS(long, offset), whence);
+  }
+
+  static int packet_memory_read_callback(void *opaque, u8 *buf, int buf_size)
+  {
+  }
+
+  static stx::Option<stx::Rc<VideoDemuxer *>> from_file(char const *path)
+  {
+    if (!std::filesystem::exists(path))
+    {
+      return stx::None;
+    }
+
+    FILE *file = fopen(path, "rb");
+    ASH_CHECK(file != nullptr);
+
+    void *avio_buffer = av_malloc(AVIO_BUFFER_SIZE);
+    ASH_CHECK(avio_buffer != nullptr);
+
+    stx::Rc demuxer = stx::rc::make_inplace<VideoDemuxer>(stx::os_allocator, nullptr, nullptr, nullptr, nullptr).unwrap();
+
+    AVIOContext *io_ctx = avio_alloc_context(AS(uchar *, avio_buffer), AVIO_BUFFER_SIZE, 0, demuxer.handle, packet_file_read_callback, nullptr, nullptr /* packet_file_seek_callbackcan be null if seeking not supported, TODO(lamarrr): check if av_seek_frame requires this*/);
+    ASH_CHECK(io_ctx != nullptr);
+
+    AVFormatContext *fmt_ctx = avformat_alloc_context();
+    ASH_CHECK(fmt_ctx != nullptr);
+    fmt_ctx->pb = io_ctx;
+
     AVPacket *packet = av_packet_alloc();
     ASH_CHECK(packet != nullptr);
 
-    return stx::rc::make_inplace<VideoDemuxer>(stx::os_allocator, ctx, packet).unwrap();
+    demuxer->file    = file;
+    demuxer->io_ctx  = io_ctx;
+    demuxer->fmt_ctx = fmt_ctx;
+    demuxer->packet  = packet;
+
+    ASH_CHECK(avformat_open_input(&fmt_ctx, nullptr, nullptr, nullptr) >= 0);
+    ASH_CHECK(avformat_find_stream_info(fmt_ctx, nullptr) >= 0);
+
+    return stx::Some(std::move(demuxer));
   }
 
   stx::Option<stx::Rc<DecodeContext *>> make_decoder(AVMediaType media_type) const
   {
-    int stream_index = av_find_best_stream(ctx, media_type, -1, -1, nullptr, 0);
+    int stream_index = av_find_best_stream(fmt_ctx, media_type, -1, -1, nullptr, 0);
 
     if (stream_index < 0)
     {
       return stx::None;
     }
 
-    AVStream *stream = ctx->streams[stream_index];
+    AVStream *stream = fmt_ctx->streams[stream_index];
 
     if (stream == nullptr)
     {
@@ -339,16 +398,16 @@ struct VideoDemuxer
       return stx::None;
     }
 
-    AVCodecContext *codec_context = avcodec_alloc_context3(codec);
+    AVCodecContext *codec_ctx = avcodec_alloc_context3(codec);
 
-    ASH_CHECK(codec_context != nullptr);
-    ASH_CHECK(avcodec_parameters_to_context(codec_context, stream->codecpar) >= 0);
-    ASH_CHECK(avcodec_open2(codec_context, codec, nullptr) >= 0);
+    ASH_CHECK(codec_ctx != nullptr);
+    ASH_CHECK(avcodec_parameters_to_context(codec_ctx, stream->codecpar) >= 0);
+    ASH_CHECK(avcodec_open2(codec_ctx, codec, nullptr) >= 0);
 
     AVFrame *frame = av_frame_alloc();
     ASH_CHECK(frame != nullptr);
 
-    return stx::Some(stx::rc::make_inplace<DecodeContext>(stx::os_allocator, codec_context, stream, frame).unwrap());
+    return stx::Some(stx::rc::make_inplace<DecodeContext>(stx::os_allocator, codec_ctx, stream, frame).unwrap());
   }
 
   stx::Option<stx::Rc<DecodeContext *>> make_video_decoder() const
@@ -410,21 +469,21 @@ struct VideoDecodeContext
     sws_freeContext(rescaler);
   }
 
-  void store_frame(AVFrame const *in)
+  void store_frame(AVFrame const *src)
   {
-    ASH_CHECK(in->pts != AV_NOPTS_VALUE);
-    frame.pts = timebase * in->pts;
-    rescaler  = sws_getCachedContext(rescaler, in->width, in->height, AS(AVPixelFormat, in->format), in->width, in->height, AV_PIX_FMT_RGB24, 0, nullptr, nullptr, nullptr);
+    ASH_CHECK(src->pts != AV_NOPTS_VALUE);
+    frame.pts = timebase * src->pts;
+    rescaler  = sws_getCachedContext(rescaler, src->width, src->height, AS(AVPixelFormat, src->format), src->width, src->height, AV_PIX_FMT_RGB24, 0, nullptr, nullptr, nullptr);
     ASH_CHECK(rescaler != nullptr);
 
     lock.lock();
 
-    frame.fit(extent{AS(u32, in->width), AS(u32, in->height)});
+    frame.fit(extent{AS(u32, src->width), AS(u32, src->height)});
 
     u8 *planes[4]  = {frame.pixels, nullptr, nullptr, nullptr};
-    int strides[4] = {in->width * 3, 0, 0, 0};
+    int strides[4] = {src->width * 3, 0, 0, 0};
 
-    sws_scale(rescaler, in->data, in->linesize, 0, in->height, planes, strides);
+    sws_scale(rescaler, src->data, src->linesize, 0, src->height, planes, strides);
 
     lock.unlock();
   }
@@ -614,7 +673,7 @@ struct AudioDevice
         usize nsamples_written = (bytes_to_write / This->info.spec.channels) / av_get_bytes_per_sample(sample_fmt);
 
         clock = nanoseconds{This->decode_ctx.clock.load(std::memory_order_relaxed)};
-        clock += nanoseconds{AS(nanoseconds::rep, 1'000'000'000 * AS(f32, nsamples_written) / AS(f32, This->info.spec.freq))};
+        clock += nanoseconds{AS(nanoseconds::rep, 1'000'000'000LL * AS(f32, nsamples_written) / AS(f32, This->info.spec.freq))};
       }
       else
       {
@@ -755,7 +814,7 @@ struct AudioDevice
 
         usize nsamples_written = (bytes_to_write / This->info.spec.channels) / av_get_bytes_per_sample(target_cfg.dst_fmt);
 
-        clock += nanoseconds{AS(nanoseconds::rep, 1'000'000'000 * AS(f32, nsamples_written) / AS(f32, This->info.spec.freq))};
+        clock += nanoseconds{AS(nanoseconds::rep, 1'000'000'000LL * AS(f32, nsamples_written) / AS(f32, This->info.spec.freq))};
       }
     }
 
@@ -867,13 +926,6 @@ void dump_ffmpeg_info()
 // subtitle
 //
 //
-//
-// WE NEED A TEXTURE UPDATE PROXY
-//
-//
-//
-//
-//
 // struct Video: public Widget{
 //
 // void tick(){
@@ -893,9 +945,158 @@ void dump_ffmpeg_info()
 //
 //
 
+enum class VideoState
+{
+  Idle
+};
+
+// TODO(lamarrr): make loading audio/video optional
+struct VideoContext
+{
+  stx::Rc<AudioDevice *>        audio_device;
+  stx::Rc<VideoDemuxer *>       demuxer;
+  stx::Rc<DecodeContext *>      audio_decode_ctx;
+  stx::Rc<DecodeContext *>      video_decode_ctx;
+  stx::Rc<VideoDecodeContext *> video_decode_ctx2;
+  gfx::image                    image = 0;
+};
+
+struct VideoPlayer;
+
+enum class VideoSessionError
+{
+  NotLoaded
+};
+
+enum class SeekType
+{
+  Exact,
+  Forward,
+  Backward
+};
+
+struct VideoSession
+{
+  u64          id = 0;
+  stx::String  path;
+  VideoPlayer *player = nullptr;
+
+  template <typename T>
+  using Result = stx::Result<T, VideoSessionError>;
+
+  // TODO(lamarrr): we might not be able to tell yet as this is async
+  Result<stx::Vec<usize>> get_video_streams();
+
+  Result<stx::Vec<usize>> get_audio_streams();
+
+  Result<stx::Vec<usize>> get_subtitles();
+
+  Result<nanoseconds> get_duration();
+
+  Result<nanoseconds> get_time();
+
+  Result<usize> get_frame();
+
+  Result<stx::Void> load();
+
+  Result<stx::Void> play(usize video_stream, usize audio_stream);
+
+  Result<stx::Void> select_subtitle(usize);
+
+  Result<stx::Void> pause();
+
+  Result<stx::Void> stop();
+
+  Result<stx::Void> seek_time(nanoseconds timepoint, SeekType seek = SeekType::Exact);
+
+  Result<stx::Void> seek_frame(usize frame, SeekType seek = SeekType::Exact);
+
+  Result<gfx::image> get_image();
+
+  Result<gfx::image> get_preview_image();
+
+  Result<gfx::image> get_subtitle();
+
+  Result<stx::Void> seek_preview_at_time(nanoseconds timepoint);
+
+  Result<stx::Void> seek_preview_at_frame(usize frame);
+
+  Result<stx::Void> set_volume(u8 volume);
+
+  Result<stx::Void> mute()
+  {
+    return set_volume(0);
+  }
+
+  Result<bool> is_loaded();
+
+  Result<bool> is_playing();
+
+  Result<bool> is_play_ended();
+};
+
+struct VideoPlayer : public Plugin
+{
+  virtual void on_startup()
+  {}
+
+  virtual void tick(std::chrono::nanoseconds interval)
+  {}
+
+  virtual void on_exit()
+  {}
+
+  virtual std::string_view get_id()
+  {}
+
+  stx::Rc<VideoSession *> create_session(std::string_view source)
+  {
+    stx::Rc session = stx::rc::make_inplace<VideoSession>(stx::os_allocator, next_session_id, stx::string::make(stx::os_allocator, source).unwrap(), this).unwrap();
+    sessions.emplace(next_session_id, session.share());
+    next_session_id++;
+    return session;
+  }
+
+  u64                                    next_session_id = 0;
+  std::map<u64, stx::Rc<VideoSession *>> sessions;
+  stx::Option<std::thread>               demuxer_thread;
+  stx::Option<std::thread>               video_decode_thread;
+};
+
 struct Video : public Widget
 {
-  // TODO(LAMARRR): RESET USAGE FENCE? re-think fences
+  Video()
+  {}
+
+  explicit Video(std::string_view source)
+  {}
+
+  virtual ~Video() override
+  {}
+
+  virtual WidgetInfo get_info() override
+  {
+    return WidgetInfo{.type = "Video"};
+  }
+
+  virtual Layout layout(rect area) override
+  {
+  }
+
+  virtual void tick(WidgetContext &context, std::chrono::nanoseconds interval) override
+  {
+  }
+
+  void fullscreen();
+
+  void exclusive_fullscreen();
+
+  void non_fullscreen();
+
+  VideoState state         = VideoState::Idle;
+  bool       show_controls = true;
+
+  stx::Option<VideoContext> context;
 };
 
 int main(int argc, char **argv)
@@ -920,7 +1121,7 @@ int main(int argc, char **argv)
 
   dump_ffmpeg_info();
 
-  stx::Rc      demuxer          = VideoDemuxer::open(argv[1]);
+  stx::Rc      demuxer          = VideoDemuxer::from_file(argv[1]).unwrap();
   stx::Rc      audio_decode_ctx = demuxer->make_audio_decoder().unwrap();
   stx::Rc      video_decode_ctx = demuxer->make_video_decoder().unwrap();
   stx::Promise promise          = stx::make_promise<void>(stx::os_allocator).unwrap();
@@ -938,7 +1139,7 @@ int main(int argc, char **argv)
 
     while (error >= 0 && promise.fetch_cancel_request() == stx::CancelState::Executing)
     {
-      error = av_read_frame(demuxer->ctx, demuxer->packet);
+      error = av_read_frame(demuxer->fmt_ctx, demuxer->packet);
       if (error >= 0)
       {
         AVPacket *packet = av_packet_alloc();
@@ -1006,7 +1207,7 @@ int main(int argc, char **argv)
           {
             ctx->store_frame(video_decode_ctx->frame);
             nanoseconds delay = ctx->refresh(nanoseconds{audio_device->decode_ctx.clock.load(std::memory_order_relaxed)}, Clock::now());
-            spdlog::info("sleeping for: {}ms", delay.count() / 1'000'000);
+            spdlog::info("sleeping for: {}ms", delay.count() / 1'000'000LL);
             auto begin = Clock::now();
             while ((Clock::now() - begin) < delay)
               std::this_thread::yield();
@@ -1038,18 +1239,9 @@ int main(int argc, char **argv)
         }
       }};
 
-  // fmt_ctx->ctx_flags       = AVFMT_FLAG_CUSTOM_IO;
   // fmt_ctx->chapters;
   // fmt_ctx->metadata;
   // AV_DISPOSITION_ATTACHED_PIC contains album art
-  SDL_EVENT_AUDIO_DEVICE_ADDED;
-  SDL_EVENT_AUDIO_DEVICE_REMOVED;
-  SDL_EVENT_SYSTEM_THEME_CHANGED;
-  SDL_EVENT_DISPLAY_ORIENTATION;          // Display orientation has changed to data1
-  SDL_EVENT_DISPLAY_CONNECTED;            // Display has been added to the system
-  SDL_EVENT_DISPLAY_DISCONNECTED;         // Display has been removed from the system
-  SDL_EVENT_DISPLAY_MOVED;                // Display has changed position
-  SDL_EVENT_DISPLAY_SCALE_CHANGED;        // Display has changed desktop display scale
 
   AppConfig cfg{.enable_validation_layers = false, .window_config = WindowConfig{.borderless = true}};
   App       app{std::move(cfg), new Image{ImageProps{.source = FileImageSource{.path = stx::string::make_static(argv[2])}, .border_radius = vec4{200, 200, 200, 200}, .resize_on_load = true}}};

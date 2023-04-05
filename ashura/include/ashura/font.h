@@ -1,7 +1,7 @@
 #pragma once
 #include <algorithm>
+#include <cstdio>
 #include <filesystem>
-#include <fstream>
 #include <string_view>
 #include <utility>
 
@@ -387,10 +387,9 @@ struct Paragraph
 
 struct Font
 {
-  static constexpr hb_tag_t KERNING_FEATURE  = HB_TAG('k', 'e', 'r', 'n');        /// kerning operations
-  static constexpr hb_tag_t LIGATURE_FEATURE = HB_TAG('l', 'i', 'g', 'a');        /// standard ligature substitution
-  static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE =
-      HB_TAG('c', 'l', 'i', 'g');        /// contextual ligature substitution
+  static constexpr hb_tag_t KERNING_FEATURE             = HB_TAG('k', 'e', 'r', 'n');        /// kerning operations
+  static constexpr hb_tag_t LIGATURE_FEATURE            = HB_TAG('l', 'i', 'g', 'a');        /// standard ligature substitution
+  static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE = HB_TAG('c', 'l', 'i', 'g');        /// contextual ligature substitution
 
   hb_face_t   *hbface           = nullptr;
   hb_font_t   *hbfont           = nullptr;
@@ -454,18 +453,23 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_file(stx::Stri
     return stx::Err(FontLoadError::InvalidPath);
   }
 
-  std::ifstream stream{path.c_str(), std::ios::ate | std::ios_base::binary};
+  std::FILE *file = std::fopen(path.c_str(), "rb");
+  ASH_CHECK(file != nullptr);
 
-  usize size = stream.tellg();
-  stream.seekg(0);
+  ASH_CHECK(std::fseek(file, 0, SEEK_END) == 0);
 
-  stx::Memory memory = stx::mem::allocate(stx::os_allocator, size).unwrap();
+  long file_size = std::ftell(file);
+  ASH_CHECK(file_size >= 0);
 
-  stream.read(AS(char *, memory.handle), size);
+  stx::Memory memory = stx::mem::allocate(stx::os_allocator, file_size).unwrap();
 
-  stream.close();
+  ASH_CHECK(std::fseek(file, 0, SEEK_SET) == 0);
 
-  return stx::Ok(load_font_from_memory(std::move(memory), size));
+  ASH_CHECK(std::fread(memory.handle, 1, file_size, file) == file_size);
+
+  ASH_CHECK(std::fclose(file) == 0);
+
+  return stx::Ok(load_font_from_memory(std::move(memory), file_size));
 }
 
 namespace gfx
@@ -474,14 +478,13 @@ namespace gfx
 struct Glyph
 {
   bool        is_valid = false;
-  u32         index    = 0;        /// the glyph index
-  ash::offset offset;              /// offset into the atlas its glyph resides
-  ash::extent extent;              /// extent of the glyph in the atlas
-  f32         x      = 0;          /// defines x-offset from cursor position the glyph will be placed
-  f32         ascent = 0;          /// defines ascent from baseline of the text
-  vec2        advance;             /// advancement of the cursor after drawing this glyph
-  f32         s0 = 0, t0 = 0, s1 = 0,
-      t1 = 0;        /// texture coordinates of this glyph in the atlas
+  u32         index    = 0;                          /// the glyph index
+  ash::offset offset;                                /// offset into the atlas its glyph resides
+  ash::extent extent;                                /// extent of the glyph in the atlas
+  f32         x      = 0;                            /// defines x-offset from cursor position the glyph will be placed
+  f32         ascent = 0;                            /// defines ascent from baseline of the text
+  vec2        advance;                               /// advancement of the cursor after drawing this glyph
+  f32         s0 = 0, t0 = 0, s1 = 0, t1 = 0;        /// texture coordinates of this glyph in the atlas
 };
 
 /// stores codepoint glyphs for a font at a specific font height
@@ -496,10 +499,14 @@ struct FontAtlas
   stx::Span<Glyph const> get(u32 glyph_index) const
   {
     if (glyph_index >= glyphs.size())
+    {
       return {};
+    }
     stx::Span glyph = glyphs.span().slice(glyph_index, 1);
     if (glyph.is_empty())
+    {
       return glyph;
+    }
     return glyph[0].is_valid ? glyph : glyph.slice(0, 0);
   }
 };
@@ -558,8 +565,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const &font, u32 font
 
   stx::Memory nodes_memory = stx::mem::allocate(stx::os_allocator, sizeof(rp::Node) * max_extent.width).unwrap();
 
-  rp::Context context =
-      rp::init(max_extent.width, max_extent.height, AS(rp::Node *, nodes_memory.handle), max_extent.width, false);
+  rp::Context context = rp::init(max_extent.width, max_extent.height, AS(rp::Node *, nodes_memory.handle), max_extent.width, false);
   ASH_CHECK(rp::pack_rects(context, rects.data(), AS(i32, rects.size())));
 
   // NOTE: vulkan doesn't allow zero-extent images
