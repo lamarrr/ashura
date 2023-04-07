@@ -36,17 +36,17 @@ struct Text : public Widget
     // canvas.draw
   }
 
-  virtual void tick(WidgetContext &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
   {}
 
   // on_mouse_down
   // on_mouse_up
 
-  virtual simdjson::dom::element save(WidgetContext         &context,
+  virtual simdjson::dom::element save(Context         &context,
                                       simdjson::dom::parser &parser) override
   {}
 
-  virtual void restore(WidgetContext                &context,
+  virtual void restore(Context                &context,
                        simdjson::dom::element const &element) override
   {}
 

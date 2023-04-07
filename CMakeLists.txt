@@ -38,7 +38,28 @@ else()
     add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-      # add_compile_options(/Wall)
+      add_compile_options(
+        /Wall
+        /wd5045
+        /wd5264
+        /wd4514
+        /wd4061
+        /wd4583
+        /wd4820
+        /wd4426
+        /wd4625
+        /wd4623
+        /wd4626
+        /wd4868
+        /wd4100
+        /wd4458
+        /wd4456
+        /wd5039
+        /wd5246
+        /wd5026
+        /wd5027
+        /wd5204
+        /wd4996)
     endif()
   endif()
 endif()

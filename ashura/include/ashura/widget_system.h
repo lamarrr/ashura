@@ -36,7 +36,7 @@ struct WidgetSystem
     }
   }
 
-  static void __launch_recursive(Widget &widget, WidgetContext &context)
+  static void __launch_recursive(Widget &widget, Context &context)
   {
     widget.on_launch(context);
 
@@ -46,7 +46,7 @@ struct WidgetSystem
     }
   }
 
-  static void __exit_recursive(Widget &widget, WidgetContext &context)
+  static void __exit_recursive(Widget &widget, Context &context)
   {
     widget.on_exit(context);
 
@@ -56,7 +56,7 @@ struct WidgetSystem
     }
   }
 
-  static void __tick_recursive(Widget &widget, WidgetContext &context, std::chrono::nanoseconds interval)
+  static void __tick_recursive(Widget &widget, Context &context, std::chrono::nanoseconds interval)
   {
     widget.tick(context, interval);
     for (Widget *child : widget.get_children())
@@ -86,12 +86,12 @@ struct WidgetSystem
     }
   }
 
-  void launch(WidgetContext &context)
+  void launch(Context &context)
   {
     __launch_recursive(*root, context);
   }
 
-  void exit(WidgetContext &context)
+  void exit(Context &context)
   {
     __exit_recursive(*root, context);
   }
@@ -102,7 +102,7 @@ struct WidgetSystem
     __assign_ids_recursive(*root, id);
   }
 
-  void pump_events(WidgetContext &context)
+  void pump_events(Context &context)
   {
     for (auto const &e : events)
     {
@@ -168,7 +168,7 @@ struct WidgetSystem
     events.clear();
   }
 
-  void tick_widgets(WidgetContext &context, std::chrono::nanoseconds interval)
+  void tick_widgets(Context &context, std::chrono::nanoseconds interval)
   {
     __tick_recursive(*root, context, interval);
   }
@@ -185,7 +185,7 @@ struct WidgetSystem
     entries.span().sort([](WidgetDrawEntry const &a, WidgetDrawEntry const &b) { return a.z_index < b.z_index; });
   }
 
-  void draw_widgets(WidgetContext &context, gfx::Canvas &canvas)
+  void draw_widgets(Context &context, gfx::Canvas &canvas)
   {
     // what we need to do is to check within the rotated rect
     for (WidgetDrawEntry &entry : entries)

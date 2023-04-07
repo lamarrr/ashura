@@ -10,6 +10,11 @@ struct ClipBoard
   void set_text();
 
   bool has_text();
+
+  // TODO(lamarrr)
+  // virtual void on_copy();
+  // virtual void on_cut();
+  // virtual void on_paste();
 };
 
 }        // namespace ash

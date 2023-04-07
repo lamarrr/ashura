@@ -1,9 +1,12 @@
 #pragma once
+#include "ashura/primitives.h"
 #include <chrono>
 #include <string_view>
 
 namespace ash
 {
+
+struct Context;
 
 struct Plugin
 {
@@ -15,22 +18,23 @@ struct Plugin
     return ptr;
   }
 
-  virtual constexpr void on_startup()
+  virtual constexpr void on_startup(Context &context)
   {}
 
-  virtual constexpr void tick(std::chrono::nanoseconds interval)
+  virtual constexpr void tick(Context &context, std::chrono::nanoseconds interval)
   {}
 
-  virtual constexpr void on_exit()
+  virtual constexpr void on_exit(Context &context)
   {}
 
-  virtual constexpr std::string_view get_id()
+  virtual constexpr std::string_view get_name()
   {
     return "Plugin";
   }
 
   virtual constexpr ~Plugin()
   {}
+
 };
 
 }        // namespace ash

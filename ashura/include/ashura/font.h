@@ -400,12 +400,13 @@ struct Font
   stx::Memory  font_data;
 
   Font(hb_face_t *ahbface, hb_font_t *ahbfont, hb_buffer_t *ahbscratch_buffer, FT_Library aftlib, FT_Face aftface,
-       bool has_color, stx::Memory afont_data) :
+       bool ahas_color, stx::Memory afont_data) :
       hbface{ahbface},
       hbfont{ahbfont},
       hbscratch_buffer{ahbscratch_buffer},
       ftlib{aftlib},
       ftface{aftface},
+      has_color{ahas_color},
       font_data{std::move(afont_data)}
   {}
 
@@ -446,7 +447,7 @@ inline stx::Rc<Font *> load_font_from_memory(stx::Memory memory, usize size)
       .unwrap();
 }
 
-inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_file(stx::String const &path)
+inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_file(stx::CStringView path)
 {
   if (!std::filesystem::exists(path.c_str()))
   {

@@ -6,11 +6,15 @@
 
 #define ASH_PANIC(...) ::stx::panic(__VA_ARGS__)
 
+#define ASH_UNIMPLEMENTED() ASH_PANIC("Reached unimplemented code path. submit a bug report!")
+
 #define ASH_CHECK(expr, ...)     \
   do                             \
   {                              \
     if (!(expr))                 \
+    {                            \
       ::stx::panic(__VA_ARGS__); \
+    }                            \
   } while (false)
 
 #define ASH_ERRNUM_CASE(x) \
@@ -53,7 +57,5 @@ STX_FORCE_INLINE stx::Option<Target *> upcast(Source &source)
     return stx::Some(static_cast<Target *>(ptr));
   }
 }
-
-#define ASH_DECLARE_LOGGER(logger_name)
 
 }        // namespace ash

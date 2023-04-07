@@ -2,22 +2,27 @@
 
 #include "SDL3/SDL_keycode.h"
 #include "ashura/primitives.h"
+#include "stx/allocator.h"
 #include "stx/enum.h"
+#include "stx/fn.h"
+#include "stx/vec.h"
 
 namespace ash
 {
 
+using WindowID      = u32;
+using MouseID       = u32;
+using AudioDeviceID = u32;
+
 enum class WindowEvents : u32
 {
-  None    = 0,
-  Shown   = 1,
-  Hidden  = 1 << 1,
-  Exposed = 1 << 2,
-  Moved   = 1 << 3,
-  /// window size changed by user
-  Resized = 1 << 4,
-  /// window size changed by user or via window API
-  PixelSizeChanged = 1 << 5,
+  None             = 0,
+  Shown            = 1,
+  Hidden           = 1 << 1,
+  Exposed          = 1 << 2,
+  Moved            = 1 << 3,
+  Resized          = 1 << 4,        // window size changed by user
+  PixelSizeChanged = 1 << 5,        // window size changed by user or via window API
   Minimized        = 1 << 6,
   Maximized        = 1 << 7,
   Restored         = 1 << 8,
@@ -69,8 +74,6 @@ enum class KeyModifiers : u16
 };
 
 STX_DEFINE_ENUM_BIT_OPS(KeyModifiers)
-
-using MouseID = u32;
 
 enum class MouseAction : u8
 {
@@ -365,12 +368,32 @@ constexpr Key CALL      = SDLK_CALL;
 constexpr Key ENDCALL   = SDLK_ENDCALL;
 };        // namespace keys
 
-struct ClipBoardEvent;        // on_update only
+struct ClipBoardEvent;        // TODO(lamarrr): on_update only
 
-struct DeviceOrientationEvent;
+struct DeviceOrientationEvent;        // TODO(lamarrr)
 
-struct Controller;
+struct PointerLock;        // TODO(lamarrr)
 
-struct PointerLock;
+struct AudioDeviceEvent
+{
+  AudioDeviceID device_id  = 0;
+  bool          is_capture = false;
+};
+
+struct WindowEventListeners
+{
+  stx::Vec<std::pair<WindowEvents, stx::UniqueFn<void(WindowEvents)>>> general{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseClickEvent)>>                       mouse_click{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>>                      mouse_motion{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>>                       mouse_wheel{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_down{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_up{stx::os_allocator};
+};
+
+struct GlobalEventListeners
+{
+  stx::Vec<stx::UniqueFn<void(AudioDeviceEvent)>> audio_event{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void()>>                 system_theme{stx::os_allocator};
+};
 
 }        // namespace ash

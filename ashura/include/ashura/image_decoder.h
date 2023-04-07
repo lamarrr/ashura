@@ -84,7 +84,9 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
   u32 status = png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, nullptr, nullptr, nullptr);
 
   if (status != 1)
+  {
     return stx::Err(ImageLoadError::InvalidData);
+  }
 
   usize ncomponents = 0;
 
@@ -156,8 +158,18 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> b
   jpeg_create_decompress(&info);
 
   jpeg_mem_src(&info, bytes.data(), AS(unsigned long, bytes.size()));
-  int return_code = jpeg_read_header(&info, true);
-  jpeg_start_decompress(&info);
+
+  if (jpeg_read_header(&info, true) != JPEG_HEADER_OK)
+  {
+    jpeg_destroy_decompress(&info);
+    return stx::Err(ImageLoadError::InvalidData);
+  }
+
+  if (!jpeg_start_decompress(&info))
+  {
+    jpeg_destroy_decompress(&info);
+    return stx::Err(ImageLoadError::InvalidData);
+  }
 
   u32 width       = info.output_width;
   u32 height      = info.output_height;

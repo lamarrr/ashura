@@ -335,18 +335,14 @@ struct VideoDemuxer
     return std::fseek(AS(VideoDemuxer *, opaque)->file, AS(long, offset), whence);
   }
 
-  static int packet_memory_read_callback(void *opaque, u8 *buf, int buf_size)
+  static stx::Option<stx::Rc<VideoDemuxer *>> from_file(stx::CStringView path)
   {
-  }
-
-  static stx::Option<stx::Rc<VideoDemuxer *>> from_file(char const *path)
-  {
-    if (!std::filesystem::exists(path))
+    if (!std::filesystem::exists(path.c_str()))
     {
       return stx::None;
     }
 
-    FILE *file = fopen(path, "rb");
+    std::FILE *file = std::fopen(path.c_str(), "rb");
     ASH_CHECK(file != nullptr);
 
     void *avio_buffer = av_malloc(AVIO_BUFFER_SIZE);
@@ -844,8 +840,7 @@ struct AudioDevice
     ASH_CHECK(err == 0);
   }
 
-  static stx::Option<stx::Rc<AudioDevice *>> open(AudioDeviceInfo const &info, u8 nchannels,
-                                                  stx::Rc<DecodeContext *> const &ctx)
+  static stx::Option<stx::Rc<AudioDevice *>> open(AudioDeviceInfo const &info, u8 nchannels, stx::Rc<DecodeContext *> const &ctx)
   {
     stx::Rc dev = stx::rc::make_inplace<AudioDevice>(stx::os_allocator, AS(SDL_AudioDeviceID, 0), AudioDeviceInfo{}, stx::make_promise<void>(stx::os_allocator).unwrap(), ctx.share(), nullptr, ResamplerConfig{}).unwrap();
 
@@ -925,40 +920,10 @@ void dump_ffmpeg_info()
 //
 // subtitle
 //
-//
-// struct Video: public Widget{
-//
-// void tick(){
-//
-// if(frame_needs_refresh()){
-//
-// refresh_frame();
-//
-// }
-//
-// }
-//
-// };
-//
-//
-//
-//
-//
 
 enum class VideoState
 {
-  Idle
-};
-
-// TODO(lamarrr): make loading audio/video optional
-struct VideoContext
-{
-  stx::Rc<AudioDevice *>        audio_device;
-  stx::Rc<VideoDemuxer *>       demuxer;
-  stx::Rc<DecodeContext *>      audio_decode_ctx;
-  stx::Rc<DecodeContext *>      video_decode_ctx;
-  stx::Rc<VideoDecodeContext *> video_decode_ctx2;
-  gfx::image                    image = 0;
+  NotLoaded
 };
 
 struct VideoPlayer;
@@ -975,14 +940,26 @@ enum class SeekType
   Backward
 };
 
+// TODO(lamarrr): make loading audio/video optional
+struct VideoSessionData
+{
+  stx::Rc<VideoDemuxer *>             demuxer;
+  stx::Rc<DecodeContext *>            audio_decode_ctx;
+  stx::Rc<DecodeContext *>            video_decode_ctx;
+  stx::Rc<VideoDecodeContext *>       video_decode_ctx2;
+  gfx::image                          image = 0;
+  stx::Option<stx::Rc<AudioDevice *>> audio_device;
+};
+
 struct VideoSession
 {
-  u64          id = 0;
-  stx::String  path;
-  VideoPlayer *player = nullptr;
-
   template <typename T>
   using Result = stx::Result<T, VideoSessionError>;
+
+  u64                           id = 0;
+  stx::String                   path;
+  VideoPlayer                  *player = nullptr;
+  stx::Option<VideoSessionData> data;
 
   // TODO(lamarrr): we might not be able to tell yet as this is async
   Result<stx::Vec<usize>> get_video_streams();
@@ -996,8 +973,6 @@ struct VideoSession
   Result<nanoseconds> get_time();
 
   Result<usize> get_frame();
-
-  Result<stx::Void> load();
 
   Result<stx::Void> play(usize video_stream, usize audio_stream);
 
@@ -1021,46 +996,54 @@ struct VideoSession
 
   Result<stx::Void> seek_preview_at_frame(usize frame);
 
-  Result<stx::Void> set_volume(u8 volume);
+  Result<stx::Void> set_volume(u8 volume)
+  {
+  }
 
   Result<stx::Void> mute()
   {
     return set_volume(0);
   }
 
-  Result<bool> is_loaded();
-
   Result<bool> is_playing();
 
   Result<bool> is_play_ended();
 };
 
+// TODO(lamarrr): handle audio device defaulting and updating
 struct VideoPlayer : public Plugin
 {
-  virtual void on_startup()
+  virtual void on_startup(Context &context)
+  {
+    task_scheduler = context.task_scheduler;
+    // open the audio device, handle audio device changing
+  }
+
+  virtual void tick(Context &context, std::chrono::nanoseconds interval)
   {}
 
-  virtual void tick(std::chrono::nanoseconds interval)
+  virtual void on_exit(Context &context)
   {}
 
-  virtual void on_exit()
-  {}
-
-  virtual std::string_view get_id()
-  {}
+  virtual std::string_view get_name()
+  {
+  }
 
   stx::Rc<VideoSession *> create_session(std::string_view source)
   {
+    // TODO(lamarrr): do not do demuxing or stream seeking on main thread, it is not clear how long that will take
     stx::Rc session = stx::rc::make_inplace<VideoSession>(stx::os_allocator, next_session_id, stx::string::make(stx::os_allocator, source).unwrap(), this).unwrap();
     sessions.emplace(next_session_id, session.share());
     next_session_id++;
+    // preferably don't use locks on the data? at leas the video session
     return session;
   }
 
   u64                                    next_session_id = 0;
   std::map<u64, stx::Rc<VideoSession *>> sessions;
-  stx::Option<std::thread>               demuxer_thread;
-  stx::Option<std::thread>               video_decode_thread;
+  stx::Option<stx::Future<void>>         demuxer_promise;
+  stx::Option<stx::Future<void>>         video_decode_promise;
+  stx::TaskScheduler                    *task_scheduler = nullptr;
 };
 
 struct Video : public Widget
@@ -1083,7 +1066,7 @@ struct Video : public Widget
   {
   }
 
-  virtual void tick(WidgetContext &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
   {
   }
 
@@ -1093,10 +1076,7 @@ struct Video : public Widget
 
   void non_fullscreen();
 
-  VideoState state         = VideoState::Idle;
-  bool       show_controls = true;
-
-  stx::Option<VideoContext> context;
+  bool show_controls = true;
 };
 
 int main(int argc, char **argv)
@@ -1243,7 +1223,7 @@ int main(int argc, char **argv)
   // fmt_ctx->metadata;
   // AV_DISPOSITION_ATTACHED_PIC contains album art
 
-  AppConfig cfg{.enable_validation_layers = false, .window_config = WindowConfig{.borderless = true}};
+  AppConfig cfg{.enable_validation_layers = false};
   App       app{std::move(cfg), new Image{ImageProps{.source = FileImageSource{.path = stx::string::make_static(argv[2])}, .border_radius = vec4{200, 200, 200, 200}, .resize_on_load = true}}};
   timepoint last_tick = Clock::now();
   while (true)

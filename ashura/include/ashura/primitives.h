@@ -455,7 +455,7 @@ constexpr bool operator!=(offset a, offset b)
 
 struct offseti
 {
-  i64 x = 0, y = 0;
+  i32 x = 0, y = 0;
 
   constexpr vec2 as_vec() const
   {
@@ -626,63 +626,12 @@ constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
 
 }        // namespace colors
 
-// a 2d shader vertex
+/// a 2d shader vertex
 struct vertex
 {
-  /// point in 2d space
-  vec2 position;
-  /// texture coordinates
-  vec2 st;
-  /// encoded in the target's color space
-  vec4 color;
+  vec2 position;        // point in 2d space
+  vec2 st;              // texture coordinates
+  vec4 color;           // color of the vertex encoded in the target's color space
 };
 
 }        // namespace ash
-
-template <>
-struct fmt::formatter<ash::vec2>
-{
-  template <typename ParseContext>
-  constexpr auto parse(ParseContext &ctx)
-  {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(ash::vec2 const &v, FormatContext &ctx)
-  {
-    return fmt::format_to(ctx.out(), "vec2{{{}, {}}}", v.x, v.y);
-  }
-};
-
-template <>
-struct fmt::formatter<ash::rect>
-{
-  template <typename ParseContext>
-  constexpr auto parse(ParseContext &ctx)
-  {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(ash::rect const &v, FormatContext &ctx)
-  {
-    return fmt::format_to(ctx.out(), "rect{{.offset = {},  .extent = {}}}", v.offset, v.extent);
-  }
-};
-
-template <>
-struct fmt::formatter<ash::vec4>
-{
-  template <typename ParseContext>
-  constexpr auto parse(ParseContext &ctx)
-  {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(ash::vec4 const &v, FormatContext &ctx)
-  {
-    return fmt::format_to(ctx.out(), "vec4{{{}, {}, {}, {}}}", v.x, v.y, v.z, v.w);
-  }
-};

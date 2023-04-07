@@ -7,17 +7,14 @@
 #include <type_traits>
 #include <utility>
 
-#include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
+#include "ashura/context.h"
 #include "ashura/event.h"
-#include "ashura/plugin.h"
 #include "ashura/primitives.h"
 #include "simdjson.h"
-#include "spdlog/logger.h"
 #include "stx/async.h"
 #include "stx/fn.h"
 #include "stx/option.h"
-#include "stx/scheduler.h"
 #include "stx/span.h"
 #include "stx/string.h"
 #include "stx/vec.h"
@@ -162,50 +159,6 @@ struct WidgetInfo
   std::string_view type;
 };
 
-// add window controller class
-struct WidgetContext
-{
-  std::map<std::string, Plugin *, std::less<>> plugins;
-  stx::TaskScheduler                          *task_scheduler = nullptr;
-  spdlog::logger                              *logger         = nullptr;
-
-  ~WidgetContext()
-  {
-    for (auto &entry : plugins)
-    {
-      delete entry.second;
-    }
-  }
-
-  void register_plugin(Plugin *plugin)
-  {
-    std::string_view id = plugin->get_id();
-    auto [it, inserted] = plugins.emplace(id, plugin);
-    if (inserted)
-      return;
-    usize index = 1;
-    while (!inserted)
-    {
-      auto [it, was_inserted] = plugins.emplace(fmt::format("{} ({})", id, index), plugin);
-      index++;
-      inserted = was_inserted;
-    }
-  }
-
-  template <typename T>
-  stx::Option<T *> get_plugin(std::string_view id) const
-  {
-    auto pos = plugins.find(id);
-    if (pos != plugins.end())
-    {
-      return stx::Some(pos->second->as<T>());
-    }
-    else
-    {
-      return stx::None;
-    }
-  }
-};
 
 // TODO(lamarrr): we might need request detach so child widgets can request to
 // be removed and remove all callbacks they may have attached or cancel tasks
@@ -268,91 +221,91 @@ struct Widget
   {}
 
   //
-  constexpr virtual void tick(WidgetContext &context, std::chrono::nanoseconds interval)
+  constexpr virtual void tick(Context &context, std::chrono::nanoseconds interval)
   {}
 
   //
-  constexpr virtual void on_launch(WidgetContext &context)
+  constexpr virtual void on_launch(Context &context)
   {}
 
   //
-  constexpr virtual void on_exit(WidgetContext &context)
+  constexpr virtual void on_exit(Context &context)
   {}
 
   //
-  constexpr virtual void on_enter_viewport(WidgetContext &context)
+  constexpr virtual void on_enter_viewport(Context &context)
   {}
 
   //
-  constexpr virtual void on_leave_viewport(WidgetContext &context)
+  constexpr virtual void on_leave_viewport(Context &context)
   {}
 
-  constexpr virtual void on_click(WidgetContext &context, MouseButton button, vec2 screen_position, u32 nclicks, quad quad)
+  constexpr virtual void on_click(Context &context, MouseButton button, vec2 screen_position, u32 nclicks, quad quad)
   {}
 
-  constexpr virtual void on_mouse_move(WidgetContext &context, vec2 screen_position, vec2 translation, quad quad)
+  constexpr virtual void on_mouse_move(Context &context, vec2 screen_position, vec2 translation, quad quad)
   {}
 
-  constexpr virtual void on_mouse_enter(WidgetContext &context, vec2 screen_position, quad quad)
+  constexpr virtual void on_mouse_enter(Context &context, vec2 screen_position, quad quad)
   {}
 
-  virtual void on_mouse_leave(WidgetContext &context, stx::Option<vec2> screen_position)
-  {}
-
-  //
-  constexpr virtual void on_tap(WidgetContext &context)
+  virtual void on_mouse_leave(Context &context, stx::Option<vec2> screen_position)
   {}
 
   //
-  constexpr virtual void on_drag(WidgetContext &context)
+  constexpr virtual void on_tap(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag_start(WidgetContext &context)
+  constexpr virtual void on_drag(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag_end(WidgetContext &context)
+  constexpr virtual void on_drag_start(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag_enter(WidgetContext &context)
+  constexpr virtual void on_drag_end(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag_leave(WidgetContext &context)
+  constexpr virtual void on_drag_enter(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag_over(WidgetContext &context)
+  constexpr virtual void on_drag_leave(Context &context)
   {}
 
   //
-  constexpr virtual void on_drop(WidgetContext &context)
+  constexpr virtual void on_drag_over(Context &context)
   {}
 
   //
-  constexpr virtual void on_touch_cancel(WidgetContext &context)
+  constexpr virtual void on_drop(Context &context)
   {}
 
   //
-  constexpr virtual void on_touch_end(WidgetContext &context)
+  constexpr virtual void on_touch_cancel(Context &context)
   {}
 
   //
-  constexpr virtual void on_touch_move(WidgetContext &context)
+  constexpr virtual void on_touch_end(Context &context)
   {}
 
   //
-  constexpr virtual void on_touch_start(WidgetContext &context)
+  constexpr virtual void on_touch_move(Context &context)
   {}
 
   //
-  constexpr virtual void on_touch_enter(WidgetContext &context)
+  constexpr virtual void on_touch_start(Context &context)
   {}
 
   //
-  constexpr virtual void on_touch_leave(WidgetContext &context)
+  constexpr virtual void on_touch_enter(Context &context)
+  {}
+
+  //
+  constexpr virtual void on_touch_leave(Context &context)
   {}
 
   // TODO(lamarrr): can this be simpler?
@@ -361,13 +314,13 @@ struct Widget
 
   // TODO(lamarrr): we need a widget build tree???
   //
-  virtual simdjson::dom::element save(WidgetContext &context, simdjson::dom::parser &parser)
+  virtual simdjson::dom::element save(Context &context, simdjson::dom::parser &parser)
   {
     return parser.parse("{}", 2);
   }
 
   //
-  virtual void restore(WidgetContext &context, simdjson::dom::element const &element)
+  virtual void restore(Context &context, simdjson::dom::element const &element)
   {}
 
   // position of the widget on the viewport. typically calculated on every
