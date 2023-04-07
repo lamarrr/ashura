@@ -1,11 +1,15 @@
 #pragma once
 
 #include <algorithm>
+#include <map>
 #include <utility>
 
-#include "ashura/asset_bundle.h"
 #include "ashura/font.h"
+#include "ashura/image.h"
+#include "ashura/primitives.h"
+#include "ashura/utils.h"
 #include "ashura/vulkan.h"
+#include "stx/option.h"
 #include "stx/rc.h"
 #include "stx/span.h"
 #include "stx/vec.h"
@@ -255,6 +259,8 @@ struct RenderResourceManager
                                    .needs_delete   = false,
                                    .is_real_time   = is_real_time});
 
+    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Created {}{} {}x{} image #{} with format={} and size={} bytes", is_real_time ? "" : "non-", "real-time", image_view.extent.width, image_view.extent.height, id, string_VkFormat(target_format), memory_requirements.size);
+
     return id;
   }
 
@@ -285,6 +291,7 @@ struct RenderResourceManager
     auto pos = images.find(image);
     ASH_CHECK(pos != images.end());
     pos->second.needs_delete = true;
+    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Marked image: {} as ready for deletion");
   }
 
   void submit_uploads()
@@ -392,6 +399,8 @@ struct RenderResourceManager
         entry.second.layout = entry.second.dst_layout;
       }
     }
+
+    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Uploaded pending images");
   }
 
   void flush_deletes()
@@ -427,6 +436,8 @@ struct RenderResourceManager
       }
       images.erase(it);
     }
+
+    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Deleted pending images");
   }
 
   gfx::FontAtlas cache_font(Font const &font, u32 font_height)

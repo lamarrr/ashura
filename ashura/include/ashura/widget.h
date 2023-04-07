@@ -7,7 +7,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
 #include "ashura/context.h"
 #include "ashura/event.h"

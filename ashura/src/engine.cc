@@ -3,33 +3,26 @@
 #include <chrono>
 #include <fstream>
 
-#include "ashura/window_manager.h"
 #include "ashura/animation.h"
-#include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
+#include "ashura/loggers.h"
 #include "ashura/palletes.h"
+#include "ashura/plugins/font_loader.h"
+#include "ashura/plugins/font_manager.h"
+#include "ashura/plugins/image_loader.h"
+#include "ashura/plugins/image_manager.h"
+#include "ashura/plugins/vulkan_font_manager.h"
+#include "ashura/plugins/vulkan_image_manager.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/shaders.h"
 #include "ashura/vulkan_context.h"
+#include "ashura/window_manager.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
+
 namespace ash
 {
-
-namespace impl
-{
-
-static stx::Rc<spdlog::logger *> make_multi_threaded_logger(std::string name, std::string file_path)
-{
-  stx::Vec<spdlog::sink_ptr> sinks{stx::os_allocator};
-  sinks.push(std::make_shared<spdlog::sinks::basic_file_sink_mt>(std::move(file_path))).unwrap();
-
-  sinks.push(std::make_shared<spdlog::sinks::stdout_color_sink_mt>()).unwrap();
-
-  return stx::rc::make_inplace<spdlog::logger>(stx::os_allocator, std::move(name), sinks.begin(), sinks.end()).unwrap();
-}
-}        // namespace impl
 
 inline stx::Option<stx::Span<vk::PhyDeviceInfo const>>
     select_device(stx::Span<vk::PhyDeviceInfo const> const phy_devices,
@@ -65,8 +58,8 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>>
 Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
     task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()}, root_widget{iroot_widget}, widget_system{*root_widget}
 {
-  widget_context.task_scheduler = &task_scheduler;
-  widget_context.clipboard      = &clipboard;
+  ctx.task_scheduler = &task_scheduler;
+  ctx.clipboard      = &clipboard;
   stx::Vec<char const *> required_device_extensions{stx::os_allocator};
 
   required_device_extensions.push(VK_KHR_SWAPCHAIN_EXTENSION_NAME).unwrap();
@@ -78,21 +71,17 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
     required_validation_layers.push("VK_LAYER_KHRONOS_validation").unwrap();
   }
 
-  logger = stx::Some(impl::make_multi_threaded_logger("ashura", cfg.log_file.c_str()));
+  ASH_LOG_INFO(Init, "Initializing Window API");
 
-  auto &xlogger = *logger.value().handle;
+  root_window = stx::Some(WindowManager::create(cfg.name.c_str(), cfg.root_window_type, cfg.root_window_create_flags, cfg.root_window_extent));
 
-  xlogger.info("Initializing Window API");
+  ASH_LOG_INFO(Init, "Creating root window");
 
-  root_window = stx::Some(WindowManager::create(cfg.name.c_str(), WindowType::Normal, WindowCreateFlags::FullScreen, {}));
-
-  xlogger.info("Creating root window");
-
-  stx::Vec required_window_instance_extensions = BackendWindow::get_required_instance_extensions();
+  stx::Vec required_window_instance_extensions = Window::get_required_instance_extensions();
 
   stx::Rc vk_instance = vk::create_instance(cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), cfg.name.c_str(),
                                             VK_MAKE_VERSION(cfg.version.major, cfg.version.minor, cfg.version.patch),
-                                            required_window_instance_extensions, required_validation_layers, xlogger);
+                                            required_window_instance_extensions, required_validation_layers);
 
   root_window.value()->attach_surface(vk_instance.share());
 
@@ -102,12 +91,12 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
                                                     VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
                                                     VK_PHYSICAL_DEVICE_TYPE_CPU};
 
-  xlogger.info("Available Physical Devices:");
+  ASH_LOG_INFO(Init, "Available Physical Devices:");
 
   for (vk::PhyDeviceInfo const &device : phy_devices)
   {
     // TODO(lamarrr): log graphics families on devices and other properties
-    xlogger.info("Device(name: '{}', ID: {}, type: {})", device.properties.deviceName, device.properties.deviceID,
+    ASH_LOG_INFO(Init, "Device(name: '{}', ID: {}, type: {})", device.properties.deviceName, device.properties.deviceID,
                  string_VkPhysicalDeviceType(device.properties.deviceType));
   }
 
@@ -117,7 +106,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
                                            .copy())
           .unwrap();
 
-  xlogger.info("Selected Physical Device: Device(name: '{}', ID: {}, type: {})", phy_device->properties.deviceName,
+  ASH_LOG_INFO(Init, "Selected Physical Device: Device(name: '{}', ID: {}, type: {})", phy_device->properties.deviceName,
                phy_device->properties.deviceID, string_VkPhysicalDeviceType(phy_device->properties.deviceType));
 
   // we might need multiple command queues, one for data transfer and one for
@@ -146,7 +135,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   required_features.samplerAnisotropy = VK_TRUE;
 
   stx::Rc<vk::Device *> device = vk::create_device(phy_device, command_queue_create_infos, required_device_extensions,
-                                                   required_validation_layers, required_features, xlogger);
+                                                   required_validation_layers, required_features);
 
   stx::Rc<vk::CommandQueue *> xqueue =
       stx::rc::make_inplace<vk::CommandQueue>(stx::os_allocator,
@@ -156,11 +145,11 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   queue = stx::Some(xqueue.share());
 
-  root_window.value()->recreate_swapchain(xqueue, DEFAULT_MAX_FRAMES_IN_FLIGHT, xlogger);
+  root_window.value()->recreate_swapchain(xqueue, DEFAULT_MAX_FRAMES_IN_FLIGHT);
   auto &swp = root_window.value()->surface.value()->swapchain.value();
 
-  xlogger.info("recreated swapchain for logical/window/viewport extent: [{}, {}], "
-               "physical/surface extent: [{}, {}]",
+  ASH_LOG_INFO(Init, "recreated swapchain for logical/window/viewport extent: [{}, {}], "
+                     "physical/surface extent: [{}, {}]",
                swp.window_extent.width, swp.window_extent.height, swp.image_extent.width, swp.image_extent.height);
 
   renderer.init(xqueue.share(), DEFAULT_MAX_FRAMES_IN_FLIGHT);
@@ -170,12 +159,12 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   manager.init(xqueue.share());
 
   root_window.value()->on(WindowEvents::CloseRequested,
-                  stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) { std::exit(0); }).unwrap());
+                          stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) { std::exit(0); }).unwrap());
 
   root_window.value()->on(WindowEvents::Resized | WindowEvents::PixelSizeChanged,
-                  stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents) {
-                    logger.value()->info("WINDOW RESIZED");
-                  }).unwrap());
+                          stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) {
+                            ASH_LOG_INFO(Init, "WINDOW RESIZED");
+                          }).unwrap());
 
   root_window.value()->on_mouse_motion(stx::fn::rc::make_unique_static([](MouseMotionEvent) {}));
 
@@ -190,6 +179,8 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   gfx::image transparent_image = manager.add(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba}, false);
 
   ASH_CHECK(transparent_image == 0);
+
+  root_window.value()->set_icon(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba});
 
   /*
   gfx::CachedFont* font;
@@ -225,25 +216,32 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
                 .unwrap(),
             50)};
   */
-  widget_context.register_plugin(new VulkanImageBundle{manager});
+  ctx.register_plugin(new VulkanImageManager{manager});
+  ctx.register_plugin(new ImageLoader{});
 
   root_window.value()->on_mouse_click(stx::fn::rc::make_unique_functor(
-                                  stx::os_allocator, [this](MouseClickEvent event) { widget_system.events.push_inplace(event).unwrap(); })
-                                  .unwrap());
+                                          stx::os_allocator, [this](MouseClickEvent event) { widget_system.events.push_inplace(event).unwrap(); })
+                                          .unwrap());
 
   root_window.value()->on_mouse_motion(stx::fn::rc::make_unique_functor(
-                                   stx::os_allocator, [this](MouseMotionEvent event) { widget_system.events.push_inplace(event).unwrap(); })
-                                   .unwrap());
+                                           stx::os_allocator, [this](MouseMotionEvent event) { widget_system.events.push_inplace(event).unwrap(); })
+                                           .unwrap());
 
   root_window.value()->on(WindowEvents::All, stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents events) {
-                                       if ((events & WindowEvents::MouseLeave) != WindowEvents::None)
-                                       {
-                                         widget_system.events.push_inplace(events).unwrap();
-                                       }
-                                     }).unwrap());
+                                               if ((events & WindowEvents::MouseLeave) != WindowEvents::None)
+                                               {
+                                                 widget_system.events.push_inplace(events).unwrap();
+                                               }
+                                             }).unwrap());
 
   // TODO(lamarrr): attach debug widgets: FPS stats, memory usage, etc
-  widget_system.launch(widget_context);
+  widget_system.launch(ctx);
+
+  for (Plugin *plugin : ctx.plugins)
+  {
+    plugin->on_startup(ctx);
+    ASH_LOG_INFO(Plugins, "Initialized plugin: {} (type: {})", plugin->get_name(), typeid(*plugin).name());
+  }
 }
 
 void Engine::tick(std::chrono::nanoseconds interval)
@@ -256,9 +254,11 @@ void Engine::tick(std::chrono::nanoseconds interval)
   {
   } while (WindowManager::poll_events());
 
+  // TODO(lamarrr): tick plugins
   // root_window->tick(interval);
-  widget_system.pump_events(widget_context);
-  widget_system.tick_widgets(widget_context, interval);
+  ctx.tick(interval);
+  widget_system.pump_events(ctx);
+  widget_system.tick_widgets(ctx, interval);
   // new widgets could have been added
   widget_system.assign_ids();
   manager.flush_deletes();
@@ -270,7 +270,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
     canvas.restart(viewport_extent);
     widget_system.perform_widget_layout(viewport_extent);
     widget_system.rebuild_draw_entries();
-    widget_system.draw_widgets(widget_context, canvas);
+    widget_system.draw_widgets(ctx, canvas);
   };
 
   // only record if swapchain visible,
@@ -296,15 +296,15 @@ void Engine::tick(std::chrono::nanoseconds interval)
   {
     if (swapchain_state != SwapChainState::Ok)
     {
-      root_window.value()->recreate_swapchain(queue.value(), DEFAULT_MAX_FRAMES_IN_FLIGHT, *logger.value().handle);
+      root_window.value()->recreate_swapchain(queue.value(), DEFAULT_MAX_FRAMES_IN_FLIGHT);
       // TODO(lamarrr): fix
       if (!root_window.value()->surface.value()->is_zero_sized_swapchain)
       {
         auto &swp = root_window.value()->surface.value()->swapchain.value();
-        logger.value()->info("recreated swapchain for logical/window/viewport extent: [{}, {}], "
+        ASH_LOG_INFO(Window, "recreated swapchain for logical/window/viewport extent: [{}, {}], "
                              "physical/surface extent: [{}, {}]",
-                             swp.window_extent.width, swp.window_extent.height, swp.image_extent.width,
-                             swp.image_extent.height);
+                     swp.window_extent.width, swp.window_extent.height, swp.image_extent.width,
+                     swp.image_extent.height);
         renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
         record_draw_commands();
       }

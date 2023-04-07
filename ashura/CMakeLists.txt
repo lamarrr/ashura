@@ -1,4 +1,4 @@
-add_library(ashura STATIC src/app.cc src/engine.cc src/widget.cc src/rengoku.cc)
+add_library(ashura STATIC src/app.cc src/engine.cc src/widget.cc src/rengoku.cc src/loggers.cc)
 
 target_include_directories(
   ashura

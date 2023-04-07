@@ -335,14 +335,14 @@ struct VideoDemuxer
     return std::fseek(AS(VideoDemuxer *, opaque)->file, AS(long, offset), whence);
   }
 
-  static stx::Option<stx::Rc<VideoDemuxer *>> from_file(char const *path)
+  static stx::Option<stx::Rc<VideoDemuxer *>> from_file(stx::CStringView path)
   {
-    if (!std::filesystem::exists(path))
+    if (!std::filesystem::exists(path.c_str()))
     {
       return stx::None;
     }
 
-    FILE *file = fopen(path, "rb");
+    std::FILE *file = std::fopen(path.c_str(), "rb");
     ASH_CHECK(file != nullptr);
 
     void *avio_buffer = av_malloc(AVIO_BUFFER_SIZE);
@@ -840,8 +840,7 @@ struct AudioDevice
     ASH_CHECK(err == 0);
   }
 
-  static stx::Option<stx::Rc<AudioDevice *>> open(AudioDeviceInfo const &info, u8 nchannels,
-                                                  stx::Rc<DecodeContext *> const &ctx)
+  static stx::Option<stx::Rc<AudioDevice *>> open(AudioDeviceInfo const &info, u8 nchannels, stx::Rc<DecodeContext *> const &ctx)
   {
     stx::Rc dev = stx::rc::make_inplace<AudioDevice>(stx::os_allocator, AS(SDL_AudioDeviceID, 0), AudioDeviceInfo{}, stx::make_promise<void>(stx::os_allocator).unwrap(), ctx.share(), nullptr, ResamplerConfig{}).unwrap();
 

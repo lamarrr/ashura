@@ -848,8 +848,7 @@ struct Canvas
 
       for (RunSubWord *iter = subwords.begin(); iter < subwords.end();)
       {
-        f32         word_width = 0;
-        RunSubWord *subword    = iter;
+        RunSubWord *subword = iter;
 
         for (; subword < subwords.end();)
         {

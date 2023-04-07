@@ -1,24 +1,29 @@
 #pragma once
 #include <chrono>
+#include <cstdio>
+#include <filesystem>
 #include <string_view>
 
-#include "ashura/asset_bundle.h"
 #include "ashura/image.h"
+#include "ashura/image_decoder.h"
 #include "ashura/plugin.h"
-#include "ashura/plugins/image_bundle.h"
+#include "ashura/plugins/image_manager.h"
 #include "ashura/primitives.h"
 #include "ashura/vulkan.h"
 #include "ashura/vulkan_context.h"
+#include "stx/memory.h"
 #include "stx/rc.h"
+#include "stx/scheduler.h"
+#include "stx/scheduler/scheduling/schedule.h"
 #include "stx/span.h"
 #include "stx/void.h"
 
 namespace ash
 {
 
-struct VulkanImageBundle : public ImageBundle
+struct VulkanImageManager : public ImageManager
 {
-  VulkanImageBundle(vk::RenderResourceManager &imgr) :
+  VulkanImageManager(vk::RenderResourceManager &imgr) :
       mgr{&imgr}
   {}
 
@@ -31,7 +36,7 @@ struct VulkanImageBundle : public ImageBundle
   virtual constexpr void on_exit(Context &context) override
   {}
 
-  virtual constexpr ~VulkanImageBundle() override
+  virtual constexpr ~VulkanImageManager() override
   {}
 
   virtual gfx::image add(ImageView view, bool is_real_time) override

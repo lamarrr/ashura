@@ -9,7 +9,9 @@
 #include "ashura/base64.h"
 #include "ashura/image.h"
 #include "ashura/image_decoder.h"
-#include "ashura/plugins/image_bundle.h"
+#include "ashura/loggers.h"
+#include "ashura/plugins/image_loader.h"
+#include "ashura/plugins/image_manager.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
 #include "stx/option.h"
@@ -35,8 +37,7 @@ struct NetworkImageSource
   stx::String uri;
 };
 
-using ImageSource =
-    std::variant<MemoryImageSource, FileImageSource, NetworkImageSource, stx::NoneType>;
+using ImageSource = std::variant<MemoryImageSource, FileImageSource, NetworkImageSource, stx::NoneType>;
 
 struct ImageProps
 {
@@ -66,7 +67,7 @@ enum class ImageState : u8
 
 /// Usage Needs
 ///
-/// - Add image to asset bundle and upload to GPU for fast transfers (i.e. zero
+/// - Add image to asset manager and upload to GPU for fast transfers (i.e. zero
 /// copy over PCIE from CPU to GPU during rendering)
 /// - once the image arrives, get a reference to it
 /// - Update widget state to show that the image is loading
@@ -164,7 +165,8 @@ struct Image : public Widget
 
   virtual void tick(Context &context, std::chrono::nanoseconds interval) override
   {
-    ImageBundle *bundle = context.get_plugin<ImageBundle>("ImageBundle").unwrap();
+    ImageManager *mgr    = context.get_plugin<ImageManager>("ImageManager").unwrap();
+    ImageLoader  *loader = context.get_plugin<ImageLoader>("ImageLoader").unwrap();
 
     switch (state)
     {
@@ -173,45 +175,17 @@ struct Image : public Widget
         if (std::holds_alternative<MemoryImageSource>(props.source))
         {
           MemoryImageSource const &source = std::get<MemoryImageSource>(props.source);
-          image                           = bundle->add(source.buffer, false);
+          image                           = mgr->add(source.buffer, false);
           state                           = ImageState::Loaded;
         }
         else if (std::holds_alternative<FileImageSource>(props.source))
         {
-          image_load_future = stx::Some(stx::sched::fn(
-              *context.task_scheduler,
-              [path = std::get<FileImageSource>(props.source)
-                          .path.copy(stx::os_allocator)
-                          .unwrap()]() -> stx::Result<ImageBuffer, ImageLoadError> {
-                if (!std::filesystem::exists(path.c_str()))
-                  return stx::Err(ImageLoadError::InvalidPath);
-
-                std::FILE *file = std::fopen(path.c_str(), "rb");
-                ASH_CHECK(file != nullptr);
-
-                ASH_CHECK(std::fseek(file, 0, SEEK_END) == 0);
-
-                long file_size = std::ftell(file);
-                ASH_CHECK(file_size >= 0);
-
-                stx::Memory memory =
-                    stx::mem::allocate(stx::os_allocator, file_size).unwrap();
-
-                ASH_CHECK(std::fseek(file, 0, SEEK_SET) == 0);
-
-                ASH_CHECK(std::fread(memory.handle, 1, file_size, file) == file_size);
-
-                ASH_CHECK(std::fclose(file) == 0);
-
-                spdlog::info("decided");
-                return decode_image(stx::Span{AS(u8 const *, memory.handle), AS(usize, file_size)});
-              },
-              stx::INTERACTIVE_PRIORITY, stx::TaskTraceInfo{}));
+          image_load_future = stx::Some(loader->load_from_path(std::get<FileImageSource>(props.source).path));
           state             = ImageState::Loading;
         }
         else if (std::holds_alternative<NetworkImageSource>(props.source))
         {
-          ASH_PANIC("unimplemented");
+          ASH_UNIMPLEMENTED();
         }
       }
       break;
@@ -220,12 +194,10 @@ struct Image : public Widget
         if (image_load_future.value().is_done())
         {
           stx::Result load_result = image_load_future.value().move().unwrap();
-          // TODO(lamarrr): log trace and error
           if (load_result.is_ok())
           {
-            spdlog::info("loaded image successfully");
             ImageBuffer &buffer = load_result.value();
-            image               = bundle->add(buffer, false);
+            image               = mgr->add(buffer, false);
             state               = ImageState::Loaded;
             if (props.resize_on_load)
             {
@@ -236,7 +208,6 @@ struct Image : public Widget
           }
           else
           {
-            spdlog::error("failed to load image");
             state = ImageState::LoadFailed;
           }
 
@@ -254,8 +225,7 @@ struct Image : public Widget
     }
   }
 
-  virtual void on_mouse_enter(Context &context, vec2 screen_position,
-                              quad quad) override
+  virtual void on_mouse_enter(Context &context, vec2 screen_position, quad quad) override
   {
     spdlog::info("mouse over");
   }
@@ -265,8 +235,7 @@ struct Image : public Widget
     spdlog::info("mouse leave");
   }
 
-  constexpr virtual void on_click(Context &context, MouseButton button,
-                                  vec2 screen_position, u32 nclicks, quad quad)
+  constexpr virtual void on_click(Context &context, MouseButton button, vec2 screen_position, u32 nclicks, quad quad)
   {
     if (button == MouseButton::Secondary)
     {
@@ -279,8 +248,7 @@ struct Image : public Widget
     }
   }
 
-  virtual simdjson::dom::element save(Context         &context,
-                                      simdjson::dom::parser &parser) override
+  virtual simdjson::dom::element save(Context &context, simdjson::dom::parser &parser) override
   {
     std::string      source;
     std::string_view source_type;
@@ -291,19 +259,18 @@ struct Image : public Widget
     {
       MemoryImageSource &memory_source = std::get<MemoryImageSource>(props.source);
       stx::Span          pixels        = memory_source.buffer.span();
-      source                           = base64_encode(
-          stx::Span{reinterpret_cast<char const *>(pixels.data()), pixels.size()});
-      source_type = "memory";
-      extent      = memory_source.buffer.extent;
+      source                           = base64_encode(stx::Span{reinterpret_cast<char const *>(pixels.data()), pixels.size()});
+      source_type                      = "memory";
+      extent                           = memory_source.buffer.extent;
     }
     else if (std::holds_alternative<FileImageSource>(props.source))
     {
-      source      = std::get<FileImageSource>(props.source).path;
+      source      = std::get<FileImageSource>(props.source).path.c_str();
       source_type = "file";
     }
     else if (std::holds_alternative<NetworkImageSource>(props.source))
     {
-      source      = std::get<NetworkImageSource>(props.source).uri;
+      source      = std::get<NetworkImageSource>(props.source).uri.c_str();
       source_type = "network";
     }
 
@@ -339,13 +306,12 @@ struct Image : public Widget
         props.border_radius.x, props.border_radius.y, props.border_radius.z,
         props.border_radius.w, props.aspect_ratio.is_some(),
         props.aspect_ratio.copy().unwrap_or(1.0f), props.resize_on_load,
-        std::string_view{props.alt});
+        std::string_view{props.alt.c_str()});
 
     return parser.parse(json.data(), json.size());
   }
 
-  virtual void restore(Context                &context,
-                       simdjson::dom::element const &element) override
+  virtual void restore(Context &context, simdjson::dom::element const &element) override
   {
     if (image_load_future.is_some())
     {
@@ -355,14 +321,13 @@ struct Image : public Widget
 
     if (state == ImageState::Loaded)
     {
-      ImageBundle *bundle = context.get_plugin<ImageBundle>("ImageBundle").unwrap();
-      (void) bundle->remove(image);
+      ImageManager *mgr = context.get_plugin<ImageManager>("ImageManager").unwrap();
+      mgr->remove(image);
     }
 
     std::string_view source      = element["source"].get_string();
     std::string_view source_type = element["source_type"].get_string();
-    ash::extent      extent{.width  = AS(u32, element["extent_width"].get_uint64()),
-                            .height = AS(u32, element["extent_height"].get_uint64())};
+    ash::extent      extent{.width = AS(u32, element["extent_width"].get_uint64()), .height = AS(u32, element["extent_height"].get_uint64())};
 
     if (source_type == "memory")
     {
@@ -375,13 +340,11 @@ struct Image : public Widget
     }
     else if (source_type == "file")
     {
-      props.source =
-          FileImageSource{.path = stx::string::make(stx::os_allocator, source).unwrap()};
+      props.source = FileImageSource{.path = stx::string::make(stx::os_allocator, source).unwrap()};
     }
     else if (source_type == "network")
     {
-      props.source = NetworkImageSource{
-          .uri = stx::string::make(stx::os_allocator, source).unwrap()};
+      props.source = NetworkImageSource{.uri = stx::string::make(stx::os_allocator, source).unwrap()};
     }
 
     props.width.bias      = AS(f32, element["width_bias"].get_double());
@@ -411,10 +374,8 @@ struct Image : public Widget
     }
 
     props.resize_on_load = element["resize_on_load"].get_bool();
-    props.alt =
-        stx::string::make(stx::os_allocator, element["alt"].get_string()).unwrap();
-
-    state = ImageState::Inactive;
+    props.alt            = stx::string::make(stx::os_allocator, element["alt"].get_string()).unwrap();
+    state                = ImageState::Inactive;
   }
 
   ImageProps                                                         props;

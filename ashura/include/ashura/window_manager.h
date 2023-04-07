@@ -2,7 +2,6 @@
 #pragma once
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_vulkan.h"
-#include "ashura/backend_window.h"
 #include "ashura/primitives.h"
 #include "ashura/window.h"
 #include <map>
@@ -12,7 +11,7 @@ namespace ash
 
 struct WindowManager
 {
-  static stx::Rc<BackendWindow *> create(char const *title, WindowType type, WindowCreateFlags flags, ash::extent extent)
+  static stx::Rc<Window *> create(char const *title, WindowType type, WindowCreateFlags flags, ash::extent extent)
   {
     // width and height here refer to the screen coordinates and not the
     // actual pixel coordinates (SEE: Device Pixel Ratio)
@@ -71,9 +70,9 @@ struct WindowManager
     u32 window_id = SDL_GetWindowID(window);
     ASH_SDL_CHECK(window_id != 0);
 
-    stx::Rc w = stx::rc::make_inplace<BackendWindow>(stx::os_allocator, window).unwrap();
+    stx::Rc w = stx::rc::make_inplace<Window>(stx::os_allocator, window).unwrap();
 
-    SDL_SetWindowData(w->window, "impl", w.handle);
+    SDL_SetWindowData(window, "handle", w.handle);
 
     return std::move(w);
   }
@@ -121,11 +120,12 @@ struct WindowManager
     }
   }
 
-  static BackendWindow *get_window(u32 id)
+  static Window *get_window(u32 id)
   {
+    // TODO(lamarrr): allow other window types without handles
     SDL_Window *win = SDL_GetWindowFromID(id);
     ASH_SDL_CHECK(win != nullptr);
-    BackendWindow *bwin = AS(BackendWindow *, SDL_GetWindowData(win, "impl"));
+    Window *bwin = AS(Window *, SDL_GetWindowData(win, "handle"));
     ASH_SDL_CHECK(bwin != nullptr);
     return bwin;
   }

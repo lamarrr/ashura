@@ -2,24 +2,27 @@
 
 #include "SDL3/SDL_keycode.h"
 #include "ashura/primitives.h"
+#include "stx/allocator.h"
 #include "stx/enum.h"
+#include "stx/fn.h"
+#include "stx/vec.h"
 
 namespace ash
 {
 
-using window_id = i32;
+using WindowID      = u32;
+using MouseID       = u32;
+using AudioDeviceID = u32;
 
 enum class WindowEvents : u32
 {
-  None    = 0,
-  Shown   = 1,
-  Hidden  = 1 << 1,
-  Exposed = 1 << 2,
-  Moved   = 1 << 3,
-  /// window size changed by user
-  Resized = 1 << 4,
-  /// window size changed by user or via window API
-  PixelSizeChanged = 1 << 5,
+  None             = 0,
+  Shown            = 1,
+  Hidden           = 1 << 1,
+  Exposed          = 1 << 2,
+  Moved            = 1 << 3,
+  Resized          = 1 << 4,        // window size changed by user
+  PixelSizeChanged = 1 << 5,        // window size changed by user or via window API
   Minimized        = 1 << 6,
   Maximized        = 1 << 7,
   Restored         = 1 << 8,
@@ -71,8 +74,6 @@ enum class KeyModifiers : u16
 };
 
 STX_DEFINE_ENUM_BIT_OPS(KeyModifiers)
-
-using MouseID = u32;
 
 enum class MouseAction : u8
 {
@@ -375,8 +376,8 @@ struct PointerLock;        // TODO(lamarrr)
 
 struct AudioDeviceEvent
 {
-  u32  device_id  = 0;
-  bool is_capture = false;
+  AudioDeviceID device_id  = 0;
+  bool          is_capture = false;
 };
 
 struct WindowEventListeners

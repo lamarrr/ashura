@@ -15,7 +15,7 @@ struct App
   STX_MAKE_PINNED(App)
 
   explicit App(AppConfig icfg, Widget *widget) :
-      cfg{icfg.copy()}, engine{icfg, widget}
+      cfg{icfg}, engine{icfg, widget}
   {}
 
   void tick(std::chrono::nanoseconds interval);

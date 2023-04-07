@@ -2,7 +2,6 @@
 
 #include <utility>
 
-#include "ashura/asset_bundle.h"
 #include "ashura/canvas.h"
 #include "ashura/primitives.h"
 #include "ashura/shaders.h"
@@ -17,8 +16,8 @@ namespace vk
 struct CanvasRenderer
 {
   u32                                  max_nframes_in_flight = 0;
-  stx::Vec<FlexBuffer>                 vertex_buffers{stx::os_allocator};
-  stx::Vec<FlexBuffer>                 index_buffers{stx::os_allocator};
+  stx::Vec<VecBuffer>                 vertex_buffers{stx::os_allocator};
+  stx::Vec<VecBuffer>                 index_buffers{stx::os_allocator};
   vk::Sampler                          texture_sampler;
   RecordingContext                     ctx;
   stx::Option<stx::Rc<CommandQueue *>> queue;
@@ -48,13 +47,13 @@ struct CanvasRenderer
 
     for (u32 i = 0; i < amax_nframes_in_flight; i++)
     {
-      FlexBuffer vertex_buffer;
+      VecBuffer vertex_buffer;
 
       vertex_buffer.init(dev, memory_properties, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
       vertex_buffers.push_inplace(vertex_buffer).unwrap();
 
-      FlexBuffer index_buffer;
+      VecBuffer index_buffer;
 
       index_buffer.init(dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
@@ -66,11 +65,15 @@ struct CanvasRenderer
 
   void destroy()
   {
-    for (FlexBuffer &buff : vertex_buffers)
+    for (VecBuffer &buff : vertex_buffers)
+    {
       buff.destroy();
+    }
 
-    for (FlexBuffer &buff : index_buffers)
+    for (VecBuffer &buff : index_buffers)
+    {
       buff.destroy();
+    }
 
     ctx.destroy();
   }
