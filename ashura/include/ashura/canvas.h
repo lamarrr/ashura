@@ -21,7 +21,7 @@ struct Brush
   ash::color color          = colors::BLACK;
   bool       fill           = true;
   f32        line_thickness = 1;
-  image      texture        = 0;
+  image      texture        = WHITE_IMAGE;
 };
 
 struct DrawCommand
@@ -50,8 +50,7 @@ struct DrawList
 namespace polygons
 {
 
-inline void rect(vec2 position, vec2 extent, mat4 const &transform, vec4 color, ash::rect texture_area,
-                 stx::Span<vertex> polygon)
+inline void rect(vec2 position, vec2 extent, mat4 const &transform, vec4 color, ash::rect texture_area, stx::Span<vertex> polygon)
 {
   vec2 p2 = vec2{extent.x, 0};
   vec2 p3 = extent;
@@ -70,11 +69,12 @@ inline void rect(vec2 position, vec2 extent, mat4 const &transform, vec4 color, 
   polygon.copy(vertices);
 }
 
-inline void circle(vec2 position, f32 radius, usize nsegments, mat4 const &transform, vec4 color, ash::rect texture_area,
-                   stx::Span<vertex> polygon)
+inline void circle(vec2 position, f32 radius, usize nsegments, mat4 const &transform, vec4 color, ash::rect texture_area, stx::Span<vertex> polygon)
 {
   if (nsegments == 0 || radius <= 0)
+  {
     return;
+  }
 
   f32 step = AS(f32, (2 * pi) / nsegments);
 
@@ -87,11 +87,12 @@ inline void circle(vec2 position, f32 radius, usize nsegments, mat4 const &trans
   }
 }
 
-inline void ellipse(vec2 position, vec2 radii, usize nsegments, mat4 const &transform, vec4 color, ash::rect texture_area,
-                    stx::Span<vertex> polygon)
+inline void ellipse(vec2 position, vec2 radii, usize nsegments, mat4 const &transform, vec4 color, ash::rect texture_area, stx::Span<vertex> polygon)
 {
   if (nsegments == 0 || radii.x <= 0 || radii.y <= 0)
+  {
     return;
+  }
 
   f32 step = AS(f32, (2 * pi) / nsegments);
 
@@ -105,11 +106,12 @@ inline void ellipse(vec2 position, vec2 radii, usize nsegments, mat4 const &tran
 
 /// {polygon.size() == nsegments * 4}
 // TODO(lamarrr): clamp border radius from going berserk
-inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments, mat4 const &transform, vec4 color,
-                       ash::rect texture_area, stx::Span<vertex> polygon)
+inline void round_rect(vec2 position, vec2 extent, vec4 radii, usize nsegments, mat4 const &transform, vec4 color, ash::rect texture_area, stx::Span<vertex> polygon)
 {
   if (nsegments == 0)
+  {
     return;
+  }
 
   radii.x = std::max(0.0f, std::min(radii.x, std::min(extent.x, extent.y)));
   radii.y = std::max(0.0f, std::min(radii.y, std::min(extent.x, extent.y)));
@@ -172,7 +174,10 @@ constexpr void normalize_for_viewport(stx::Span<vertex> vertices, vec2 viewport_
 
 inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 first_vertex_index, u32 nvertices)
 {
-  ASH_CHECK(nvertices >= 3, "polygon must have 3 or more points");
+  if (nvertices < 3)
+  {
+    return;
+  }
 
   for (u32 i = 2; i < nvertices; i++)
   {
@@ -187,7 +192,9 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
                              stx::Vec<u32> &out_indices)
 {
   if (in_vertices.size() < 2)
+  {
     return;
+  }
 
   bool has_previous_line = false;
 
@@ -295,7 +302,7 @@ struct Canvas
   mat4                  global_transform = mat4::identity();
   rect                  clip_rect;
   stx::Vec<CanvasState> state_stack{stx::os_allocator};
-  DrawList              draw_list;
+  DrawList              draw_list;        // TODO(lamarrr): add multiple draw lists so we can draw beyond 4 million triangles
 
   void restart(vec2 new_viewport_extent)
   {
@@ -311,9 +318,7 @@ struct Canvas
   /// push state (transform and clips) on state stack
   Canvas &save()
   {
-    state_stack
-        .push(CanvasState{.transform = transform, .global_transform = global_transform, .clip_rect = clip_rect, .brush = brush})
-        .unwrap();
+    state_stack.push(CanvasState{.transform = transform, .global_transform = global_transform, .clip_rect = clip_rect, .brush = brush}).unwrap();
     return *this;
   }
 
@@ -421,8 +426,7 @@ struct Canvas
 
     // the input texture coordinates are not used since we need to regenerate
     // them for the line thickness
-    triangulate_line(area.offset, points, area.extent, transform, brush.line_thickness, texture_area, vertices_offset,
-                     draw_list.vertices, draw_list.indices);
+    triangulate_line(area.offset, points, area.extent, transform, brush.line_thickness, texture_area, vertices_offset, draw_list.vertices, draw_list.indices);
 
     u32 nindices = AS(u32, draw_list.indices.size() - indices_offset);
 
@@ -611,8 +615,7 @@ struct Canvas
     stx::Vec<vertex> vertices{stx::os_allocator};
     vertices.resize(nsegments * 4).unwrap();
 
-    polygons::round_rect(area.offset, area.extent, border_radii, nsegments, transform, colors::WHITE.as_vec(), image_portion,
-                         vertices);
+    polygons::round_rect(area.offset, area.extent, border_radii, nsegments, transform, colors::WHITE.as_vec(), image_portion, vertices);
 
     return draw_convex_polygon_filled(vertices, area, img);
   }
@@ -635,8 +638,7 @@ struct Canvas
       save();
       brush.color = run.style.background_color;
       brush.fill  = true;
-      draw_rect(
-          rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{advance.x + run.style.letter_spacing, line_height}});
+      draw_rect(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{advance.x + run.style.letter_spacing, line_height}});
       restore();
     }
 
@@ -644,8 +646,7 @@ struct Canvas
     {
       save();
       brush.color = has_color ? colors::WHITE : run.style.foreground_color;
-      draw_image(atlas, rect{.offset = baseline - vec2{0, vert_spacing + ascent}, .extent = extent}, glyph.s0, glyph.t0,
-                 glyph.s1, glyph.t1, brush.color);
+      draw_image(atlas, rect{.offset = baseline - vec2{0, vert_spacing + ascent}, .extent = extent}, glyph.s0, glyph.t0, glyph.s1, glyph.t1, brush.color);
       restore();
     }
 

@@ -12,6 +12,8 @@ namespace gfx
 /// NOTE: resource image with index 0 must be a transparent white image
 using image = u64;
 
+constexpr image WHITE_IMAGE = 0;
+
 }        // namespace gfx
 
 // NOTE: pixels are not stored in endian order but in byte by byte interleaving. i.e. for
