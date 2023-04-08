@@ -143,13 +143,10 @@ struct Image : public Widget
         if (props.border_radius == vec4{0, 0, 0, 0})
         {
           canvas.draw_image(image, area, s0, t0, s1, t1);
+          return;
         }
-        else
-        {
-          canvas.draw_rounded_image(
-              image, area, rect{.offset = vec2{s0, t0}, .extent = vec2{s1 - s0, t1 - t0}},
-              props.border_radius, 360);
-        }
+
+        canvas.draw_rounded_image(image, area, rect{.offset = vec2{s0, t0}, .extent = vec2{s1 - s0, t1 - t0}}, props.border_radius, 360);
       }
       break;
       case ImageState::LoadFailed:

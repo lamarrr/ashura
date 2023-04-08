@@ -20,7 +20,6 @@
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
-
 namespace ash
 {
 
@@ -325,7 +324,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
 
       gfx::DrawList const &draw_list = canvas.draw_list;
 
-      renderer.submit(swapchain.window_extent, swapchain.image_extent, swapchain_image_index, swapchain.frame,
+      renderer.submit(swapchain.window_extent, swapchain.image_extent, swapchain.frame,
                       swapchain.render_fences[swapchain.frame], swapchain.image_acquisition_semaphores[swapchain.frame],
                       swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
                       swapchain.framebuffers[swapchain_image_index], draw_list.cmds, draw_list.vertices, draw_list.indices,
