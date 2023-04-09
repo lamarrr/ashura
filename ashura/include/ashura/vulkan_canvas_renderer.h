@@ -95,9 +95,20 @@ struct CanvasRenderer
 
     VkCommandBuffer cmd_buffer = ctx.cmd_buffers[frame];
 
+    auto begin = std::chrono::steady_clock::now();
     vertex_buffers[frame].write(memory_properties, vertices.as_u8());
 
     index_buffers[frame].write(memory_properties, indices.as_u8());
+    auto end = std::chrono::steady_clock::now();
+
+    spdlog::info("wrote vertices and indices in {} ms", (end - begin).count() / 1'000'000.0f);
+
+    spdlog::info("indices memory size: {} bytes", index_buffers[frame].memory_size);
+    spdlog::info("vertices memory size: {} bytes", vertex_buffers[frame].memory_size);
+    spdlog::info("indices size: {} bytes", indices.size_bytes());
+    spdlog::info("vertices size: {} bytes", vertices.size_bytes());
+    spdlog::info("nindices {}", indices.size());
+    spdlog::info("nvertices {}", vertices.size());
 
     u32 nallocated_descriptor_sets = AS(u32, ctx.descriptor_sets[frame].size());
 
