@@ -59,6 +59,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 {
   ctx.task_scheduler = &task_scheduler;
   ctx.clipboard      = &clipboard;
+  ctx.window_manager = &window_manager;
   stx::Vec<char const *> required_device_extensions{stx::os_allocator};
 
   required_device_extensions.push(VK_KHR_SWAPCHAIN_EXTENSION_NAME).unwrap();
@@ -72,7 +73,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   ASH_LOG_INFO(Init, "Initializing Window API");
 
-  root_window = stx::Some(WindowManager::create(cfg.name.c_str(), cfg.root_window_type, cfg.root_window_create_flags, cfg.root_window_extent));
+  root_window = stx::Some(window_manager.create_window(cfg.name.c_str(), cfg.root_window_type, cfg.root_window_create_flags, cfg.root_window_extent));
 
   ASH_LOG_INFO(Init, "Creating root window");
 
@@ -95,8 +96,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   for (vk::PhyDeviceInfo const &device : phy_devices)
   {
     // TODO(lamarrr): log graphics families on devices and other properties
-    ASH_LOG_INFO(Init, "Device(name: '{}', ID: {}, type: {})", device.properties.deviceName, device.properties.deviceID,
-                 string_VkPhysicalDeviceType(device.properties.deviceType));
+    ASH_LOG_INFO(Init, "Device(name: '{}', ID: {}, type: {})", device.properties.deviceName, device.properties.deviceID, string_VkPhysicalDeviceType(device.properties.deviceType));
   }
 
   stx::Rc<vk::PhyDeviceInfo *> phy_device =
@@ -147,8 +147,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   root_window.value()->recreate_swapchain(xqueue, DEFAULT_MAX_FRAMES_IN_FLIGHT);
   auto &swp = root_window.value()->surface.value()->swapchain.value();
 
-  ASH_LOG_INFO(Init, "recreated swapchain for logical/window/viewport extent: [{}, {}], "
-                     "physical/surface extent: [{}, {}]",
+  ASH_LOG_INFO(Init, "recreated swapchain for logical/window/viewport extent: [{}, {}], physical/surface extent: [{}, {}]",
                swp.window_extent.width, swp.window_extent.height, swp.image_extent.width, swp.image_extent.height);
 
   renderer.init(xqueue.share(), DEFAULT_MAX_FRAMES_IN_FLIGHT);
@@ -170,12 +169,14 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   root_window.value()->on_mouse_click(stx::fn::rc::make_unique_static([](MouseClickEvent event) {
     std::cout << "clicks: " << event.clicks << std::endl;
     if (event.action == MouseAction::Press && event.button == MouseButton::A2)
+    {
       std::exit(0);
+    }
   }));
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
-  gfx::image transparent_image = manager.add(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba}, false);
+  gfx::image transparent_image = manager.add_image(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba}, false);
 
   ASH_CHECK(transparent_image == 0);
 
@@ -234,12 +235,12 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
                                              }).unwrap());
 
   // TODO(lamarrr): attach debug widgets: FPS stats, memory usage, etc
-  widget_system.launch(ctx);
+  widget_system.on_startup(ctx);
 
   for (Plugin *plugin : ctx.plugins)
   {
     plugin->on_startup(ctx);
-    ASH_LOG_INFO(Plugins, "Initialized plugin: {} (type: {})", plugin->get_name(), typeid(*plugin).name());
+    ASH_LOG_INFO(Context, "Initialized plugin: {} (type: {})", plugin->get_name(), typeid(*plugin).name());
   }
 }
 
@@ -251,7 +252,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
   task_scheduler.tick(interval);
   do
   {
-  } while (WindowManager::poll_events());
+  } while (ctx.poll_events());
 
   // TODO(lamarrr): tick plugins
   // root_window->tick(interval);

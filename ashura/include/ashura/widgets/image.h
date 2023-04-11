@@ -22,11 +22,6 @@
 namespace ash
 {
 
-struct MemoryImageSource
-{
-  ImageBuffer buffer;
-};
-
 struct FileImageSource
 {
   stx::String path;
@@ -37,7 +32,7 @@ struct NetworkImageSource
   stx::String uri;
 };
 
-using ImageSource = std::variant<MemoryImageSource, FileImageSource, NetworkImageSource, stx::NoneType>;
+using ImageSource = std::variant<ImageBuffer, FileImageSource, NetworkImageSource, stx::NoneType>;
 
 struct ImageProps
 {
@@ -169,15 +164,15 @@ struct Image : public Widget
     {
       case ImageState::Inactive:
       {
-        if (std::holds_alternative<MemoryImageSource>(props.source))
+        if (std::holds_alternative<ImageBuffer>(props.source))
         {
-          MemoryImageSource const &source = std::get<MemoryImageSource>(props.source);
-          image                           = mgr->add(source.buffer, false);
-          state                           = ImageState::Loaded;
+          ImageBuffer const &source = std::get<ImageBuffer>(props.source);
+          image                     = mgr->add(source, false);
+          state                     = ImageState::Loaded;
         }
         else if (std::holds_alternative<FileImageSource>(props.source))
         {
-          image_load_future = stx::Some(loader->load_from_path(std::get<FileImageSource>(props.source).path));
+          image_load_future = stx::Some(loader->load_from_file(std::get<FileImageSource>(props.source).path));
           state             = ImageState::Loading;
         }
         else if (std::holds_alternative<NetworkImageSource>(props.source))
@@ -252,13 +247,12 @@ struct Image : public Widget
     ash::extent      extent;
 
     // T0D0(lamarrr): format
-    if (std::holds_alternative<MemoryImageSource>(props.source))
+    if (std::holds_alternative<ImageBuffer>(props.source))
     {
-      MemoryImageSource &memory_source = std::get<MemoryImageSource>(props.source);
-      stx::Span          pixels        = memory_source.buffer.span();
-      source                           = base64_encode(stx::Span{reinterpret_cast<char const *>(pixels.data()), pixels.size()});
-      source_type                      = "memory";
-      extent                           = memory_source.buffer.extent;
+      ImageBuffer &src = std::get<ImageBuffer>(props.source);
+      source           = base64_encode(src.span().as_char());
+      source_type      = "memory";
+      extent           = src.extent;
     }
     else if (std::holds_alternative<FileImageSource>(props.source))
     {

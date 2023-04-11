@@ -83,6 +83,18 @@ struct ImageView
   ImageFormat         format = ImageFormat::Rgba;
 };
 
+struct ImageViewMut
+{
+  stx::Span<u8> data;
+  ash::extent   extent;
+  ImageFormat   format = ImageFormat::Rgba;
+
+  constexpr operator ImageView() const
+  {
+    return ImageView{.data = data, .extent = extent, .format = format};
+  }
+};
+
 struct ImageBuffer
 {
   stx::Memory memory;
@@ -102,6 +114,11 @@ struct ImageBuffer
   operator ImageView() const
   {
     return ImageView{.data = span(), .extent = extent, .format = format};
+  }
+
+  operator ImageViewMut()
+  {
+    return ImageViewMut{.data = span(), .extent = extent, .format = format};
   }
 
   void resize(ash::extent new_extent)

@@ -683,12 +683,9 @@ inline stx::Rc<Instance *> create_instance(char const *app_name, u32 app_version
                                            stx::Span<char const *const> required_extensions,
                                            stx::Span<char const *const> validation_layers)
 {
-  auto [instance, debug_utils_messenger] = create_vulkan_instance(required_extensions, validation_layers, app_name, app_version,
-                                                                  engine_name, engine_version);
+  auto [instance, debug_utils_messenger] = create_vulkan_instance(required_extensions, validation_layers, app_name, app_version, engine_name, engine_version);
 
-  return stx::rc::make_inplace<Instance>(
-             stx::os_allocator, instance,
-             debug_utils_messenger == VK_NULL_HANDLE ? stx::None : stx::make_some(std::move(debug_utils_messenger)))
+  return stx::rc::make_inplace<Instance>(stx::os_allocator, instance, debug_utils_messenger == VK_NULL_HANDLE ? stx::None : stx::make_some(std::move(debug_utils_messenger)))
       .unwrap();
 }
 
@@ -768,8 +765,7 @@ inline stx::Option<CommandQueue> get_command_queue(stx::Rc<Device *> const &devi
       CommandQueue{.info   = CommandQueueInfo{.queue        = queue.queue,
                                               .create_index = queue.create_index,
                                               .priority     = queue.priority,
-                                              .family       = CommandQueueFamilyInfo{.index      = queue.family.index,
-                                                                                     .phy_device = queue.family.phy_device.share()}},
+                                              .family       = CommandQueueFamilyInfo{.index = queue.family.index, .phy_device = queue.family.phy_device.share()}},
                    .device = device.share()});
 }
 
@@ -797,8 +793,7 @@ struct Buffer
   {
     std::memcpy(memory_map, data, size);
 
-    VkMappedMemoryRange range{
-        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, .pNext = nullptr, .memory = memory, .offset = 0, .size = VK_WHOLE_SIZE};
+    VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, .pNext = nullptr, .memory = memory, .offset = 0, .size = VK_WHOLE_SIZE};
 
     ASH_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
   }
@@ -942,8 +937,8 @@ struct VecBuffer
   }
 };
 
-inline Buffer create_host_buffer(VkDevice dev, VkPhysicalDeviceMemoryProperties const &memory_properties, usize size_bytes,
-                                 VkBufferUsageFlags usage)
+inline Buffer create_host_visible_buffer(VkDevice dev, VkPhysicalDeviceMemoryProperties const &memory_properties, usize size_bytes,
+                                         VkBufferUsageFlags usage)
 {
   VkBufferCreateInfo create_info{.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                  .pNext                 = nullptr,

@@ -36,13 +36,13 @@ struct WidgetSystem
     }
   }
 
-  static void __launch_recursive(Widget &widget, Context &context)
+  static void __startup_recursive(Widget &widget, Context &context)
   {
-    widget.on_launch(context);
+    widget.on_startup(context);
 
     for (Widget *child : widget.get_children())
     {
-      __launch_recursive(*child, context);
+      __startup_recursive(*child, context);
     }
   }
 
@@ -86,9 +86,9 @@ struct WidgetSystem
     }
   }
 
-  void launch(Context &context)
+  void on_startup(Context &context)
   {
-    __launch_recursive(*root, context);
+    __startup_recursive(*root, context);
   }
 
   void exit(Context &context)

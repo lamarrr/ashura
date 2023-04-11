@@ -41,7 +41,7 @@ struct ImageLoader : public Plugin
   virtual constexpr ~ImageLoader() override
   {}
 
-  stx::Future<stx::Result<ImageBuffer, ImageLoadError>> load_from_path(std::string_view path)
+  stx::Future<stx::Result<ImageBuffer, ImageLoadError>> load_from_file(std::string_view path)
   {
     ASH_LOG_INFO(ImageLoader, "Loading image from path: {}", path);
     return stx::sched::fn(

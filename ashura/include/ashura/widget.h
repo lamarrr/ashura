@@ -225,7 +225,7 @@ struct Widget
   {}
 
   //
-  constexpr virtual void on_launch(Context &context)
+  constexpr virtual void on_startup(Context &context)
   {}
 
   //

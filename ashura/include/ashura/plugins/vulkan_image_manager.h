@@ -41,7 +41,7 @@ struct VulkanImageManager : public ImageManager
 
   virtual gfx::image add(ImageView view, bool is_real_time) override
   {
-    return mgr->add(view, is_real_time);
+    return mgr->add_image(view, is_real_time);
   }
 
   virtual void update(gfx::image image, ImageView view)

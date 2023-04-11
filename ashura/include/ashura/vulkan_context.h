@@ -12,10 +12,12 @@
 #include "stx/option.h"
 #include "stx/rc.h"
 #include "stx/span.h"
+#include "stx/spinlock.h"
 #include "stx/vec.h"
 
 namespace ash
 {
+
 namespace vk
 {
 
@@ -173,7 +175,7 @@ struct RenderResourceManager
     }
   }
 
-  gfx::image add(ImageView image_view, bool is_real_time)
+  gfx::image add_image(ImageView image_view, bool is_real_time)
   {
     gfx::image id = next_image_id;
     next_image_id++;
@@ -244,9 +246,11 @@ struct RenderResourceManager
 
     ASH_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
-    Buffer staging_buffer = create_host_buffer(dev, memory_properties, image_view.extent.area() * 4, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer staging_buffer = create_host_visible_buffer(dev, memory_properties, image_view.extent.area() * 4, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
+    auto begin = std::chrono::steady_clock::now();
     copy_pixels(image_view, staging_buffer.span());
+    spdlog::info("blitted image #{} in {} ms", id, (std::chrono::steady_clock::now() - begin).count() / 1'000'000.0f);
 
     images.emplace(id, RenderImage{.image          = Image{.image = image, .view = view, .memory = memory, .dev = dev},
                                    .format         = image_view.format,
@@ -279,7 +283,7 @@ struct RenderResourceManager
     else
     {
       CommandQueue const &queue          = *this->queue.value();
-      vk::Buffer          staging_buffer = create_host_buffer(queue.device->dev, queue.device->phy_dev->memory_properties, view.extent.area() * 4, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+      vk::Buffer          staging_buffer = create_host_visible_buffer(queue.device->dev, queue.device->phy_dev->memory_properties, view.extent.area() * 4, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
       copy_pixels(view, staging_buffer.span());
       pos->second.staging_buffer = stx::Some(std::move(staging_buffer));
     }
@@ -448,7 +452,7 @@ struct RenderResourceManager
 
     auto [atlas, image_buffer] = gfx::render_atlas(font, font_height, extent{image_format_properties.maxExtent.width, image_format_properties.maxExtent.height});
 
-    atlas.texture = add(image_buffer, false);
+    atlas.texture = add_image(image_buffer, false);
 
     return std::move(atlas);
   }

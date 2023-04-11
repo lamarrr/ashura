@@ -88,15 +88,18 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
     return stx::Err(ImageLoadError::InvalidData);
   }
 
-  usize ncomponents = 0;
+  usize       ncomponents = 0;
+  ImageFormat fmt         = ImageFormat::Rgb;
 
   if (color_type == PNG_COLOR_TYPE_RGB)
   {
     ncomponents = 3;
+    fmt         = ImageFormat::Rgb;
   }
   else if (color_type == PNG_COLOR_TYPE_RGBA)
   {
     ncomponents = 4;
+    fmt         = ImageFormat::Rgba;
   }
   else
   {
@@ -104,50 +107,19 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
     return stx::Err(ImageLoadError::UnsupportedChannels);
   }
 
-  stx::Memory pixels_mem = stx::mem::allocate(stx::os_allocator, width * height * 4UL).unwrap();
+  stx::Memory pixels_mem = stx::mem::allocate(stx::os_allocator, width * height * ncomponents).unwrap();
 
-  stx::Memory row_mem = stx::mem::allocate(stx::os_allocator, width * ncomponents).unwrap();
+  u8 *pixels = AS(u8 *, pixels_mem.handle);
 
-  u8 *output = AS(u8 *, pixels_mem.handle);
-  u8 *row    = AS(u8 *, row_mem.handle);
-
-  for (usize i = 0; i < height; i++)
+  for (u32 i = 0; i < height; i++)
   {
-    png_read_row(png_ptr, row, nullptr);
-
-    u8 const *input = row;
-
-    if (ncomponents == 3)
-    {
-      for (usize i = 0; i < width; i++)
-      {
-        output[0] = input[0];
-        output[1] = input[1];
-        output[2] = input[2];
-        output[3] = 0xFF;
-
-        input += 3;
-        output += 4;
-      }
-    }
-    else if (ncomponents == 4)
-    {
-      for (usize i = 0; i < width * 4; i++)
-      {
-        output[0] = input[i];
-        output++;
-      }
-    }
-    else
-    {
-      png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-      return stx::Err(ImageLoadError::UnsupportedChannels);
-    }
+    png_read_row(png_ptr, pixels, nullptr);
+    pixels += width * ncomponents;
   }
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = extent{width, height}, .format = ImageFormat::Rgba});
+  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = extent{width, height}, .format = fmt});
 }
 
 inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> bytes)
@@ -171,62 +143,39 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> b
     return stx::Err(ImageLoadError::InvalidData);
   }
 
-  u32 width       = info.output_width;
-  u32 height      = info.output_height;
-  u32 ncomponents = info.num_components;
+  u32         width       = info.output_width;
+  u32         height      = info.output_height;
+  u32         ncomponents = info.num_components;
+  ImageFormat fmt         = ImageFormat::Rgb;
 
-  if (ncomponents != 3 && ncomponents != 4)
+  if (ncomponents == 3)
+  {
+    fmt = ImageFormat::Rgb;
+  }
+  else if (ncomponents == 4)
+  {
+    fmt = ImageFormat::Rgba;
+  }
+  else
   {
     jpeg_destroy_decompress(&info);
     return stx::Err(ImageLoadError::UnsupportedChannels);
   }
 
-  stx::Memory row_mem = stx::mem::allocate(stx::os_allocator, width * ncomponents).unwrap();
+  stx::Memory pixels_mem = stx::mem::allocate(stx::os_allocator, height * width * ncomponents).unwrap();
 
-  stx::Memory pixels_mem = stx::mem::allocate(stx::os_allocator, height * width * 4).unwrap();
-
-  u8 *row    = AS(u8 *, row_mem.handle);
   u8 *pixels = AS(u8 *, pixels_mem.handle);
 
   while (info.output_scanline < height)
   {
-    u8 *scanlines[] = {row};
-    jpeg_read_scanlines(&info, scanlines, 1);
-
-    if (ncomponents == 3)
-    {
-      u8 const *input = row;
-      for (usize i = 0; i < width; i++)
-      {
-        pixels[0] = input[0];
-        pixels[1] = input[1];
-        pixels[2] = input[2];
-        pixels[3] = 0xFF;
-
-        input += 3;
-        pixels += 4;
-      }
-    }
-    else if (ncomponents == 4)
-    {
-      u8 const *input = row;
-      for (usize i = 0; i < width * 4; i++)
-      {
-        pixels[0] = input[i];
-        pixels++;
-      }
-    }
-    else
-    {
-      jpeg_destroy_decompress(&info);
-      return stx::Err(ImageLoadError::UnsupportedChannels);
-    }
+    u8 *scanlines[] = {pixels};
+    pixels += jpeg_read_scanlines(&info, scanlines, 1) * width * ncomponents;
   }
 
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = extent{width, height}, .format = ImageFormat::Rgba});
+  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = extent{width, height}, .format = fmt});
 }
 
 // TODO(lamarrr): support avif

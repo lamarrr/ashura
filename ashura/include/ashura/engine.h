@@ -34,6 +34,7 @@ struct Engine
   }
 
   // TODO(lamarrr): move all into engine ctx?
+  WindowManager window_manager;
   stx::Option<stx::Rc<Window *>>           root_window;
   stx::Option<stx::Rc<vk::CommandQueue *>> queue;
   gfx::Canvas                              canvas;
