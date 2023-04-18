@@ -32,11 +32,12 @@ enum class SystemTheme
 // not thread-safe! ensure all api calls occur on the main thread.
 struct Context
 {
-  stx::Vec<Plugin *>  plugins{stx::os_allocator};
-  stx::TaskScheduler *task_scheduler = nullptr;
-  ClipBoard          *clipboard      = nullptr;
-  WindowManager      *window_manager = nullptr;
-  SystemTheme         theme          = SystemTheme::Unknown;
+  stx::Vec<Plugin *>   plugins{stx::os_allocator};
+  stx::TaskScheduler  *task_scheduler = nullptr;
+  ClipBoard           *clipboard      = nullptr;
+  WindowManager       *window_manager = nullptr;
+  SystemTheme          theme          = SystemTheme::Unknown;
+  GlobalEventListeners event_listeners;
   // TODO(lamarrr): expose current window here
 
   Context()
