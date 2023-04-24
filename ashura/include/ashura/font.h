@@ -493,8 +493,7 @@ struct FontAtlas
 {
   stx::Vec<Glyph> glyphs{stx::os_allocator};
   ash::extent     extent;                  /// overall extent of the atlas
-  u32             font_height = 26;        /// font height at which the cache/atlas/glyphs will be
-                                           /// rendered and cached
+  u32             font_height = 26;        /// font height at which the cache/atlas/glyphs will be rendered and cached
   image texture = 0;                       /// atlas containing the packed glyphs
 
   stx::Span<Glyph const> get(u32 glyph_index) const

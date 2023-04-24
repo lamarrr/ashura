@@ -520,7 +520,7 @@ struct Canvas
   Canvas &draw_circle(vec2 position, f32 radius, u32 nsegments)
   {
     stx::Vec<vertex> vertices{stx::os_allocator};
-    vertices.resize(nsegments).unwrap();
+    vertices.unsafe_resize_uninitialized(nsegments).unwrap();
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
     polygons::circle(position, radius, nsegments, transform, brush.color.as_vec(), texture_area, vertices);
@@ -550,7 +550,7 @@ struct Canvas
   Canvas &draw_ellipse(vec2 position, vec2 radii, u32 nsegments)
   {
     stx::Vec<vertex> vertices{stx::os_allocator};
-    vertices.resize(nsegments).unwrap();
+    vertices.unsafe_resize_uninitialized(nsegments).unwrap();
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
@@ -581,7 +581,7 @@ struct Canvas
   Canvas &draw_round_rect(rect area, vec4 radii, u32 nsegments)
   {
     stx::Vec<vertex> vertices{stx::os_allocator};
-    vertices.resize(nsegments * 4).unwrap();
+    vertices.unsafe_resize_uninitialized(nsegments * 4).unwrap();
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
@@ -625,7 +625,7 @@ struct Canvas
   Canvas &draw_rounded_image(image img, rect area, rect image_portion, vec4 border_radii, u32 nsegments)
   {
     stx::Vec<vertex> vertices{stx::os_allocator};
-    vertices.resize(nsegments * 4).unwrap();
+    vertices.unsafe_resize_uninitialized(nsegments * 4).unwrap();
 
     polygons::round_rect(area.offset, area.extent, border_radii, nsegments, transform, colors::WHITE.as_vec(), image_portion, vertices);
 

@@ -17,12 +17,13 @@ extern "C"
 }
 
 using namespace ash;
-
 using Clock        = std::chrono::steady_clock;        // monotonic system clock
 using timepoint    = Clock::time_point;
 using nanoseconds  = std::chrono::nanoseconds;
 using milliseconds = std::chrono::milliseconds;
 using seconds      = std::chrono::seconds;
+
+/*
 
 constexpr u8          MIN_VOLUME            = 0;
 constexpr u8          MAX_VOLUME            = 255;
@@ -252,7 +253,7 @@ struct VideoDecodeContext
   // main/presentation only
   // returns delay from next frame, every call to this function updates the frame.
   // this function should only be called again after the returned duration has passed.
-  nanoseconds tick(nanoseconds audio_pts, timepoint current_timepoint)
+  nanoseconds tick(stx::Option<nanoseconds> audio_pts, timepoint current_timepoint)
   {
     // TODO(lamarrr): update frame
     // try lock if not available, continue
@@ -270,20 +271,23 @@ struct VideoDecodeContext
 
     last_frame_pts          = frame_pts;
     last_frame_pts_interval = pts_interval;
+    nanoseconds delay       = pts_interval;
 
-    nanoseconds diff           = frame_pts - audio_pts;                                                // time difference between present audio and video frames
-    nanoseconds sync_threshold = pts_interval > SYNC_THRESHOLD ? pts_interval : SYNC_THRESHOLD;        // skip or repeat the frame. Take delay into account we still doesn't "know if this is the best guess."
-    nanoseconds delay          = pts_interval;
-
-    if (std::chrono::abs(diff) < NO_SYNC_THRESHOLD)
+    if (audio_pts.is_some())
     {
-      if (diff <= -sync_threshold)        // video frame is lagging behind audio frame, speed up
+      nanoseconds diff           = frame_pts - audio_pts.value();                                        // time difference between present audio and video frames
+      nanoseconds sync_threshold = pts_interval > SYNC_THRESHOLD ? pts_interval : SYNC_THRESHOLD;        // skip or repeat the frame. Take delay into account we still doesn't "know if this is the best guess."
+
+      if (std::chrono::abs(diff) < NO_SYNC_THRESHOLD)
       {
-        delay = nanoseconds{0};
-      }
-      else if (diff >= sync_threshold)        // audio frame is lagging behind video frame, slow down
-      {
-        delay = 2 * delay;
+        if (diff <= -sync_threshold)        // video frame is lagging behind audio frame, speed up
+        {
+          delay = nanoseconds{0};
+        }
+        else if (diff >= sync_threshold)        // audio frame is lagging behind video frame, slow down
+        {
+          delay = 2 * delay;
+        }
       }
     }
 
@@ -299,29 +303,11 @@ struct VideoDecodeContext
       actual_delay = SYNC_THRESHOLD;
     }
 
-    last_frame_pts_timepoint.store(AS(nanoseconds, Clock::now() - begin_timepoint).count(), std::memory_order_relaxed);
+    last_frame_pts_timepoint.store(AS(nanoseconds, current_timepoint - begin_timepoint).count(), std::memory_order_relaxed);
 
     return actual_delay;
   }
 };
-
-enum class SyncBase
-{
-  Video,
-  Audio
-};
-
-inline nanoseconds get_master_clock_time(SyncBase sync, VideoDecodeContext const *video, AudioDecodeContext const *audio)
-{
-  if (sync == SyncBase::Video)
-  {
-    return video->get_clock_time();
-  }
-  else
-  {
-    return nanoseconds{audio->clock.load(std::memory_order_relaxed)};
-  }
-}
 
 enum class DemuxError : u8
 {
@@ -440,7 +426,7 @@ struct VideoDemuxer
 
     stx::Rc demuxer = stx::rc::make_inplace<VideoDemuxer>(stx::os_allocator, nullptr, nullptr, nullptr, nullptr, stx::string::make(stx::os_allocator, path).unwrap()).unwrap();
 
-    AVIOContext *io_ctx = avio_alloc_context(AS(uchar *, avio_buffer), AVIO_BUFFER_SIZE, 0, demuxer.handle, packet_file_read_callback, nullptr, packet_file_seek_callback /* can be null if seeking not supported, TODO(lamarrr): check if av_seek_frame requires this*/);
+    AVIOContext *io_ctx = avio_alloc_context(AS(uchar *, avio_buffer), AVIO_BUFFER_SIZE, 0, demuxer.handle, packet_file_read_callback, nullptr, packet_file_seek_callback);  // packet_file_seek_callback: can be null if seeking not supported, TODO(lamarrr): check if av_seek_frame requires this
     ASH_CHECK(io_ctx != nullptr);
 
     AVFormatContext *fmt_ctx = avformat_alloc_context();
@@ -462,7 +448,7 @@ struct VideoDemuxer
       return stx::Err(DemuxError::StreamNotFound);
     }
 
-    ASH_LOG_INFO(MediaPlayer, "Found Stream(s) in Media File {}. Dumping Metadata.", path);
+    ASH_LOG_INFO(MediaPlayer, "Found Stream(s) in Media File {}. Dumping Metadata.", std::string_view{path});
 
     AVDictionaryEntry *prev = nullptr;
     do
@@ -781,67 +767,6 @@ struct AudioDevice
     return stx::Some(std::move(dev));
   }
 };
-
-inline usize synchronize_audio(u8 *samples, usize samples_size, nanoseconds pts, SyncBase sync, VideoDecodeContext const *video, AudioDecodeContext *audio,
-                               f32 audio_diff_average_coeff, u32 sample_rate)
-{
-  if (sync != SyncBase::Audio)
-  {
-    nanoseconds ref_clock        = get_master_clock_time(sync, video, audio);
-    usize       bytes_per_sample = av_get_bytes_per_sample((AVSampleFormat) audio->stream->codecpar->format) * audio->stream->codecpar->channels;
-    nanoseconds diff             = nanoseconds{audio->clock.load(std::memory_order_relaxed)} - ref_clock;
-    f32         average_diff     = 0;
-
-    if (diff < NO_SYNC_THRESHOLD)
-    {
-      audio->diff_cummulative = diff.count() + audio_diff_average_coeff * audio->diff_cummulative;
-      if (audio->diff_average_count < NAUDIO_DIFF_AVERAGES)
-      {
-        audio->diff_average_count++;
-      }
-      else
-      {
-        f32 average_diff = audio->diff_cummulative + (1 - audio->diff_average_coeff);
-
-        if (std::abs(average_diff) >= audio->diff_threshold /**NOT SET*/)
-        {
-          usize wanted_size = samples_size + (diff.count() * sample_rate) / 1'000'000'000UL * bytes_per_sample;        // todo(lamarrr): not correct
-          usize min_size    = samples_size * ((100 - MAX_SAMPLE_CORRECTION) / 100);
-          usize max_size    = samples_size * ((100 + MAX_SAMPLE_CORRECTION) / 100);
-
-          wanted_size = std::clamp(wanted_size, min_size, max_size);
-
-          if (wanted_size < samples_size)
-          {
-            samples_size = wanted_size;
-          }
-          else if (wanted_size > samples_size)
-          {
-            usize ntrailing   = wanted_size - samples_size;
-            u8   *samples_end = samples + samples_size - bytes_per_sample;
-            u8   *q           = samples_end + bytes_per_sample;
-
-            while (ntrailing > 0)
-            {
-              memcpy(q, samples_end, bytes_per_sample);
-              q += bytes_per_sample;
-              ntrailing -= bytes_per_sample;
-            }
-
-            samples_size = wanted_size;
-          }
-        }
-      }
-    }
-    else
-    {
-      audio->diff_average_count = 0;
-      audio->diff_cummulative   = 0;
-    }
-  }
-
-  return samples_size;
-}
 
 struct MediaPlayerAudioSource : public AudioSource
 {
@@ -1395,13 +1320,14 @@ struct Video : public Widget
 
   bool show_controls = true;
 };
+*/
 
 int main(int argc, char **argv)
 {
   ASH_CHECK(argc == 3);
   ASH_CHECK(SDL_Init(SDL_INIT_EVERYTHING) == 0);
-
   spdlog::info("System theme: {}", (int) SDL_GetSystemTheme());
+/*
 
   stx::Vec devices = AudioDeviceInfo::enumerate();
   for (AudioDeviceInfo const &dev : devices)
@@ -1539,7 +1465,7 @@ int main(int argc, char **argv)
           spdlog::info("video decode thread completed");
         }
       }};
-
+*/
   // fmt_ctx->chapters;
   // fmt_ctx->metadata;
   // AV_DISPOSITION_ATTACHED_PIC contains album art
@@ -1554,8 +1480,8 @@ int main(int argc, char **argv)
     last_tick = present;
   }
 
-  demuxer_thread.join();
-  video_decode_thread.join();
+  // demuxer_thread.join();
+  // video_decode_thread.join();
   SDL_Quit();
   return 0;
 }
