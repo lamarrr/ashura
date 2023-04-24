@@ -24,10 +24,13 @@ using nanoseconds  = std::chrono::nanoseconds;
 using milliseconds = std::chrono::milliseconds;
 using seconds      = std::chrono::seconds;
 
-constexpr u8          MIN_VOLUME      = 0;
-constexpr u8          MAX_VOLUME      = 255;
-constexpr nanoseconds SYNC_THRESHOLD  = milliseconds{16};
-constexpr nanoseconds MAX_FRAME_DELAY = seconds{1};
+constexpr u8          MIN_VOLUME            = 0;
+constexpr u8          MAX_VOLUME            = 255;
+constexpr nanoseconds SYNC_THRESHOLD        = milliseconds{16};
+constexpr nanoseconds NO_SYNC_THRESHOLD     = seconds{10};
+constexpr nanoseconds MAX_FRAME_DELAY       = seconds{1};
+constexpr u32         NAUDIO_DIFF_AVERAGES  = 20;
+constexpr u8          MAX_SAMPLE_CORRECTION = 10;
 
 #define ASH_LOG_FFMPEG_ERR(err_exp)                                                                                           \
   do                                                                                                                          \
@@ -153,14 +156,19 @@ struct AudioDecodeContext
   stx::SpinLock                 packets_lock;                      // lock for packets
   stx::Vec<AVPacket *>          packets{stx::os_allocator};        // accessed on decoder and demuxer thread
   AVFrame                      *frame = nullptr;                   // accessed only on decoder thread
-  std::atomic<nanoseconds::rep> clock{0};                          // accessed on main thread and decoder thread
+  std::atomic<nanoseconds::rep> clock{0};                          // accessed on main/presentation and decoder thread
   stx::Vec<u8>                  samples{stx::os_allocator};        // usually in the target device's sample format, accessed on decoder thread
   usize                         bytes_consumed = 0;                // portion of samples consumed, accessed only on decoder thread
   SwrContext                   *resampler      = nullptr;          // accessed only on decoder thread
   ResamplerConfig               resampler_cfg;                     // accessed only on decoder thread
+  f32                           diff_cummulative   = 0;
+  f32                           diff_average_coeff = 0;
+  usize                         diff_average_count = 0;
+  f32                           diff_threshold     = 0;
+  timepoint                     begin_timepoint;
 
-  AudioDecodeContext(AVCodecContext *icodec, AVStream *istream, AVFrame *iframe, SwrContext *iresampler, ResamplerConfig iresampler_cfg) :
-      codec{icodec}, stream{istream}, frame{iframe}, resampler{iresampler}, resampler_cfg{iresampler_cfg}
+  AudioDecodeContext(AVCodecContext *icodec, AVStream *istream, AVFrame *iframe, SwrContext *iresampler, ResamplerConfig iresampler_cfg, timepoint ibegin_timepoint) :
+      codec{icodec}, stream{istream}, frame{iframe}, resampler{iresampler}, resampler_cfg{iresampler_cfg}, begin_timepoint{ibegin_timepoint}
   {}
 
   STX_MAKE_PINNED(AudioDecodeContext)
@@ -179,20 +187,20 @@ struct AudioDecodeContext
 
 struct VideoDecodeContext
 {
-  AVCodecContext             *codec  = nullptr;                  // accessed only on decoder thread
-  AVStream                   *stream = nullptr;                  // accessed only on demuxer thread
-  stx::SpinLock               packets_lock;                      // locks the packets
-  stx::Vec<AVPacket *>        packets{stx::os_allocator};        // accessed on demuxer and decoder thread
-  AVFrame                    *frame = nullptr;                   // accessed only on decoder thread
-  stx::SpinLock               rgb_frame_lock;                    // locks rgb_frame
-  RgbVideoFrame               rgb_frame;                         // accessed on decoder thread and main thread
-  SwsContext                 *rescaler = nullptr;                // only accessed on decoder thread
-  nanoseconds                 timebase{0};                       // only accessed on main thread, only written to once
-  nanoseconds                 last_frame_pts{0};                 // accessed only on main thread
-  nanoseconds                 last_frame_pts_interval{0};        // accessed only on main thread
-  std::atomic<timepoint::rep> last_frame_timepoint{0};           // TODO(lamarrr)
-  nanoseconds                 frame_timer{0};                    // accessed only on main thread
-  timepoint                   begin_timepoint;                   // accessed only on main thread, only written to once
+  AVCodecContext               *codec  = nullptr;                   // accessed only on decoder thread
+  AVStream                     *stream = nullptr;                   // accessed only on demuxer thread
+  stx::SpinLock                 packets_lock;                       // locks the packets
+  stx::Vec<AVPacket *>          packets{stx::os_allocator};         // accessed on demuxer and decoder thread
+  AVFrame                      *frame = nullptr;                    // accessed only on decoder thread
+  stx::SpinLock                 rgb_frame_lock;                     // locks rgb_frame
+  RgbVideoFrame                 rgb_frame;                          // accessed on decoder thread and main/presentation
+  SwsContext                   *rescaler = nullptr;                 // only accessed on decoder thread
+  nanoseconds                   timebase{0};                        // only accessed on main/presentation, only written to once
+  nanoseconds                   last_frame_pts{0};                  // accessed only on main/presentation
+  nanoseconds                   last_frame_pts_interval{0};         // accessed only on main/presentation
+  std::atomic<nanoseconds::rep> last_frame_pts_timepoint{0};        // duration from begin_timepoint, accessed on audio thread, and main/presentation
+  nanoseconds                   frame_timer{0};                     // accessed only on main/presentation
+  timepoint                     begin_timepoint;                    // accessed only on main/presentation, only written to once
 
   VideoDecodeContext(AVCodecContext *icodec, AVStream *istream, AVFrame *iframe, timepoint ibegin_timepoint) :
       codec{icodec}, stream{istream}, frame{iframe}, begin_timepoint{ibegin_timepoint}, timebase{timebase_to_ns(istream->time_base)}
@@ -209,6 +217,16 @@ struct VideoDecodeContext
     {
       av_packet_free(&packet);
     }
+  }
+
+  // interval between video frames, unlike audio samples, can be really long, so we need a more fine-grained clock.
+  // i.e. a 30fps video has 33 ms intervals which can be large if the audio is trying to sync to it. some frames might also be
+  // repeated and span over multiple cycles.
+  nanoseconds get_clock_time() const
+  {
+    timepoint last_frame_pts_timepoint = begin_timepoint + nanoseconds{this->last_frame_pts_timepoint.load(std::memory_order_relaxed)};
+    timepoint now                      = Clock::now();
+    return last_frame_pts + (now - last_frame_pts_timepoint);
   }
 
   // accessed only on decoder thread
@@ -231,13 +249,18 @@ struct VideoDecodeContext
     rgb_frame_lock.unlock();
   }
 
-  // main thread only
-  // returns delay from next frame, every call to this function updates the frame, todo(lamarrr): is this avoidable?
+  // main/presentation only
+  // returns delay from next frame, every call to this function updates the frame.
+  // this function should only be called again after the returned duration has passed.
   nanoseconds tick(nanoseconds audio_pts, timepoint current_timepoint)
   {
     // TODO(lamarrr): update frame
     // try lock if not available, continue
-    nanoseconds pts_interval = rgb_frame.pts - last_frame_pts;
+    rgb_frame_lock.lock();
+    nanoseconds frame_pts = rgb_frame.pts;
+    rgb_frame_lock.unlock();
+
+    nanoseconds pts_interval = frame_pts - last_frame_pts;
 
     if (pts_interval <= nanoseconds{0} || pts_interval >= MAX_FRAME_DELAY)
     {
@@ -245,14 +268,14 @@ struct VideoDecodeContext
       pts_interval = last_frame_pts_interval;
     }
 
-    last_frame_pts          = rgb_frame.pts;
+    last_frame_pts          = frame_pts;
     last_frame_pts_interval = pts_interval;
 
-    nanoseconds diff           = rgb_frame.pts - audio_pts;                                            // time difference between present audio and video frames
+    nanoseconds diff           = frame_pts - audio_pts;                                                // time difference between present audio and video frames
     nanoseconds sync_threshold = pts_interval > SYNC_THRESHOLD ? pts_interval : SYNC_THRESHOLD;        // skip or repeat the frame. Take delay into account we still doesn't "know if this is the best guess."
     nanoseconds delay          = pts_interval;
 
-    if (std::chrono::abs(diff) < seconds{10})
+    if (std::chrono::abs(diff) < NO_SYNC_THRESHOLD)
     {
       if (diff <= -sync_threshold)        // video frame is lagging behind audio frame, speed up
       {
@@ -276,29 +299,27 @@ struct VideoDecodeContext
       actual_delay = SYNC_THRESHOLD;
     }
 
-    clock.store((current_timepoint - begin_timepoint).count(), std::memory_order_relaxed);
+    last_frame_pts_timepoint.store(AS(nanoseconds, Clock::now() - begin_timepoint).count(), std::memory_order_relaxed);
 
     return actual_delay;
   }
 };
 
-enum class Sync
+enum class SyncBase
 {
-  VideoBase,
-  AudioBase
+  Video,
+  Audio
 };
 
-inline nanoseconds get_master_clock(Sync sync, VideoDecodeContext const *vid, AudioDecodeContext const *aud)
+inline nanoseconds get_master_clock_time(SyncBase sync, VideoDecodeContext const *video, AudioDecodeContext const *audio)
 {
-  ASH_CHECK(vid != nullptr || aud != nullptr);
-
-  if (sync == Sync::VideoBase)
+  if (sync == SyncBase::Video)
   {
-    vid->last_frame_pts;
+    return video->get_clock_time();
   }
   else
   {
-    return nanoseconds{aud->clock.load(std::memory_order_relaxed)};
+    return nanoseconds{audio->clock.load(std::memory_order_relaxed)};
   }
 }
 
@@ -316,7 +337,7 @@ struct DecodeContext
   AVFrame        *frame  = nullptr;
 };
 
-// Demuxer runs on main thread, fetches raw streams/packets from the files and dispatches them to the decoders
+// Demuxer runs on main/presentation, fetches raw streams/packets from the files and dispatches them to the decoders
 //
 // the audio/video decode thread decodes audio/video frames, performs conversions/resampling and sends them to the renderer/audio device
 //
@@ -761,6 +782,67 @@ struct AudioDevice
   }
 };
 
+inline usize synchronize_audio(u8 *samples, usize samples_size, nanoseconds pts, SyncBase sync, VideoDecodeContext const *video, AudioDecodeContext *audio,
+                               f32 audio_diff_average_coeff, u32 sample_rate)
+{
+  if (sync != SyncBase::Audio)
+  {
+    nanoseconds ref_clock        = get_master_clock_time(sync, video, audio);
+    usize       bytes_per_sample = av_get_bytes_per_sample((AVSampleFormat) audio->stream->codecpar->format) * audio->stream->codecpar->channels;
+    nanoseconds diff             = nanoseconds{audio->clock.load(std::memory_order_relaxed)} - ref_clock;
+    f32         average_diff     = 0;
+
+    if (diff < NO_SYNC_THRESHOLD)
+    {
+      audio->diff_cummulative = diff.count() + audio_diff_average_coeff * audio->diff_cummulative;
+      if (audio->diff_average_count < NAUDIO_DIFF_AVERAGES)
+      {
+        audio->diff_average_count++;
+      }
+      else
+      {
+        f32 average_diff = audio->diff_cummulative + (1 - audio->diff_average_coeff);
+
+        if (std::abs(average_diff) >= audio->diff_threshold /**NOT SET*/)
+        {
+          usize wanted_size = samples_size + (diff.count() * sample_rate) / 1'000'000'000UL * bytes_per_sample;        // todo(lamarrr): not correct
+          usize min_size    = samples_size * ((100 - MAX_SAMPLE_CORRECTION) / 100);
+          usize max_size    = samples_size * ((100 + MAX_SAMPLE_CORRECTION) / 100);
+
+          wanted_size = std::clamp(wanted_size, min_size, max_size);
+
+          if (wanted_size < samples_size)
+          {
+            samples_size = wanted_size;
+          }
+          else if (wanted_size > samples_size)
+          {
+            usize ntrailing   = wanted_size - samples_size;
+            u8   *samples_end = samples + samples_size - bytes_per_sample;
+            u8   *q           = samples_end + bytes_per_sample;
+
+            while (ntrailing > 0)
+            {
+              memcpy(q, samples_end, bytes_per_sample);
+              q += bytes_per_sample;
+              ntrailing -= bytes_per_sample;
+            }
+
+            samples_size = wanted_size;
+          }
+        }
+      }
+    }
+    else
+    {
+      audio->diff_average_count = 0;
+      audio->diff_cummulative   = 0;
+    }
+  }
+
+  return samples_size;
+}
+
 struct MediaPlayerAudioSource : public AudioSource
 {
   stx::Promise<void>            promise;
@@ -994,7 +1076,7 @@ struct MediaPlayerAudioSource : public AudioSource
           break;
         }
 
-        ctx->samples.resize(max_buffer_size).unwrap();
+        ctx->samples.unsafe_resize_uninitialized(max_buffer_size).unwrap();
 
         u8 *out = ctx->samples.data();
 
@@ -1018,7 +1100,7 @@ struct MediaPlayerAudioSource : public AudioSource
           break;
         }
 
-        ctx->samples.resize(buffer_size).unwrap();
+        ctx->samples.unsafe_resize_uninitialized(buffer_size).unwrap();
 
         usize bytes_left     = stream.size() - bytes_written;
         usize bytes_to_write = std::min(bytes_left, AS(usize, buffer_size));
@@ -1133,7 +1215,7 @@ struct MediaVideoFrame
 // - Lyrics
 // - ID3 tag extraction
 //
-// TODO(lamarrr): main thread should be used for demuxing and another thread for decoding
+// TODO(lamarrr): main/presentation should be used for demuxing and another thread for decoding
 //
 struct MediaPlayer : public Plugin
 {
@@ -1178,7 +1260,7 @@ struct MediaPlayer : public Plugin
 
   stx::Result<media_session, DemuxError> create_session(stx::CStringView source)
   {
-    // TODO(lamarrr): do not do demuxing or stream seeking on main thread, it is not clear how long that will take
+    // TODO(lamarrr): do not do demuxing or stream seeking on main/presentation, it is not clear how long that will take
     media_session session_id = next_session_id;
     TRY_OK(demuxer, VideoDemuxer::from_file(source));
     next_session_id++;
