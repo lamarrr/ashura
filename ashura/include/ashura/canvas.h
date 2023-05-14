@@ -107,7 +107,6 @@ inline void ellipse(vec2 position, vec2 radii, u32 nsegments, mat4 const &transf
 }
 
 /// outputs nsegments*4 vertices
-// TODO(lamarrr): clamp border radius from going berserk
 inline void round_rect(vec2 position, vec2 extent, vec4 radii, u32 nsegments, mat4 const &transform, vec4 color, ash::rect texture_area, stx::Span<vertex> polygon)
 {
   if (nsegments == 0)
@@ -115,10 +114,10 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, u32 nsegments, ma
     return;
   }
 
-  radii.x = std::max(0.0f, std::min(radii.x, std::min(extent.x, extent.y)));
-  radii.y = std::max(0.0f, std::min(radii.y, std::min(extent.x, extent.y)));
-  radii.z = std::max(0.0f, std::min(radii.z, std::min(extent.x, extent.y)));
-  radii.w = std::max(0.0f, std::min(radii.w, std::min(extent.x, extent.y)));
+  radii.x = std::max(0.0f, std::min(radii.x, std::min((extent.x - radii.x) / 2.0f, extent.y / 2.0f)));
+  radii.y = std::max(0.0f, std::min(radii.y, std::min((extent.x - radii.y) / 2.0f, extent.y / 2.0f)));
+  radii.z = std::max(0.0f, std::min(radii.z, std::min((extent.x - radii.z) / 2.0f, extent.y / 2.0f)));
+  radii.w = std::max(0.0f, std::min(radii.w, std::min((extent.x - radii.w) / 2.0f, extent.y / 2.0f)));
 
   f32 step = AS(f32, (pi / 2) / nsegments);
 
