@@ -33,7 +33,7 @@ jobs:
         run: cd vcpkg && .\vcpkg.exe install --triplet x64-windows vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg ffmpeg libavif
 
       - name: Configure Build Directory
-        run: mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE="../vcpkg/scripts/buildsystems/vcpkg.cmake" -DSTX_ENABLE_BACKTRACE=ON
+        run: mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE="../vcpkg/scripts/buildsystems/vcpkg.cmake" -DSTX_ENABLE_BACKTRACE=OFF
 
       - name: Build Ashura
         run: cd build && cmake --build . --config ${{matrix.build_mode}}
