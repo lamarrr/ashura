@@ -37,9 +37,9 @@ struct DrawCommand
 
 struct DrawList
 {
-  stx::Vec<vertex>      vertices{stx::os_allocator};
-  stx::Vec<u32>         indices{stx::os_allocator};
-  stx::Vec<DrawCommand> cmds{stx::os_allocator};
+  stx::Vec<vertex>      vertices;
+  stx::Vec<u32>         indices;
+  stx::Vec<DrawCommand> cmds;
 
   void clear()
   {
@@ -308,7 +308,7 @@ struct Canvas
   mat4                  transform        = mat4::identity();
   mat4                  global_transform = mat4::identity();
   rect                  clip_rect;
-  stx::Vec<CanvasState> state_stack{stx::os_allocator};
+  stx::Vec<CanvasState> state_stack;
   DrawList              draw_list;
 
   void restart(vec2 new_viewport_extent)
@@ -519,7 +519,7 @@ struct Canvas
 
   Canvas &draw_circle(vec2 position, f32 radius, u32 nsegments)
   {
-    stx::Vec<vertex> vertices{stx::os_allocator};
+    stx::Vec<vertex> vertices;
     vertices.unsafe_resize_uninitialized(nsegments).unwrap();
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
@@ -549,7 +549,7 @@ struct Canvas
 
   Canvas &draw_ellipse(vec2 position, vec2 radii, u32 nsegments)
   {
-    stx::Vec<vertex> vertices{stx::os_allocator};
+    stx::Vec<vertex> vertices;
     vertices.unsafe_resize_uninitialized(nsegments).unwrap();
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
@@ -580,7 +580,7 @@ struct Canvas
 
   Canvas &draw_round_rect(rect area, vec4 radii, u32 nsegments)
   {
-    stx::Vec<vertex> vertices{stx::os_allocator};
+    stx::Vec<vertex> vertices;
     vertices.unsafe_resize_uninitialized(nsegments * 4).unwrap();
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
@@ -624,7 +624,7 @@ struct Canvas
 
   Canvas &draw_rounded_image(image img, rect area, rect image_portion, vec4 border_radii, u32 nsegments)
   {
-    stx::Vec<vertex> vertices{stx::os_allocator};
+    stx::Vec<vertex> vertices;
     vertices.unsafe_resize_uninitialized(nsegments * 4).unwrap();
 
     polygons::round_rect(area.offset, area.extent, border_radii, nsegments, transform, colors::WHITE.as_vec(), image_portion, vertices);

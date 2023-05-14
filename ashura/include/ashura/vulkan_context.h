@@ -461,21 +461,21 @@ struct RenderResourceManager
 struct RecordingContext
 {
   VkCommandPool                cmd_pool = VK_NULL_HANDLE;
-  stx::Vec<VkCommandBuffer>    cmd_buffers{stx::os_allocator};
+  stx::Vec<VkCommandBuffer>    cmd_buffers;
   VkShaderModule               vertex_shader   = VK_NULL_HANDLE;
   VkShaderModule               fragment_shader = VK_NULL_HANDLE;
   Pipeline                     pipeline;
-  stx::Vec<VkDescriptorPool>   descriptor_pools{stx::os_allocator};        // one descriptor pool per frame in flight
-  stx::Vec<DescriptorPoolInfo> descriptor_pool_infos{stx::os_allocator};
-  stx::Vec<DescriptorSetSpec>  descriptor_set_specs{stx::os_allocator};                 // specifications describing binding types/layouts
-                                                                                        // for the descriptor sets used. we will have
-                                                                                        // multiple of each
-  stx::Vec<VkDescriptorSetLayout>     descriptor_set_layouts{stx::os_allocator};        // the created layouts for each of the descriptor sets
-  stx::Vec<stx::Vec<VkDescriptorSet>> descriptor_sets{stx::os_allocator};               // the allocated descriptor sets, the first vec is for
-                                                                                        // each frame in flight and the second vec contains the
-                                                                                        // descriptor sets repeated for each of the draw calls.
-                                                                                        // i.e. num_draw_calls x num_descriptor_sets_per_frame
-  stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr{stx::os_allocator};
+  stx::Vec<VkDescriptorPool>   descriptor_pools;        // one descriptor pool per frame in flight
+  stx::Vec<DescriptorPoolInfo> descriptor_pool_infos;
+  stx::Vec<DescriptorSetSpec>  descriptor_set_specs;                 // specifications describing binding types/layouts
+                                                                     // for the descriptor sets used. we will have
+                                                                     // multiple of each
+  stx::Vec<VkDescriptorSetLayout>     descriptor_set_layouts;        // the created layouts for each of the descriptor sets
+  stx::Vec<stx::Vec<VkDescriptorSet>> descriptor_sets;               // the allocated descriptor sets, the first vec is for
+                                                                     // each frame in flight and the second vec contains the
+                                                                     // descriptor sets repeated for each of the draw calls.
+                                                                     // i.e. num_draw_calls x num_descriptor_sets_per_frame
+  stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr;
   u32                                         vertex_input_size     = 0;
   u32                                         push_constant_size    = 0;
   u32                                         max_nframes_in_flight = 0;
@@ -525,7 +525,7 @@ struct RecordingContext
 
     for (DescriptorSetSpec const &spec : descriptor_set_specs)
     {
-      stx::Vec<VkDescriptorSetLayoutBinding> bindings{stx::os_allocator};
+      stx::Vec<VkDescriptorSetLayoutBinding> bindings;
 
       u32 ibinding = 0;
 
@@ -565,7 +565,7 @@ struct RecordingContext
 
     for (usize i = 0; i < max_nframes_in_flight; i++)
     {
-      stx::Vec<VkDescriptorPoolSize> pool_sizes{stx::os_allocator};
+      stx::Vec<VkDescriptorPoolSize> pool_sizes;
       pool_sizes.extend(adescriptor_pool_sizes).unwrap();
 
       VkDescriptorPoolCreateInfo descriptor_pool_create_info{.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -588,7 +588,7 @@ struct RecordingContext
 
     for (usize i = 0; i < max_nframes_in_flight; i++)
     {
-      descriptor_sets.push(stx::Vec<VkDescriptorSet>{stx::os_allocator}).unwrap();
+      descriptor_sets.push(stx::Vec<VkDescriptorSet>{}).unwrap();
     }
   }
 

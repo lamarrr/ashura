@@ -17,13 +17,13 @@ extern "C"
 }
 
 using namespace ash;
-using Clock        = std::chrono::steady_clock;        // monotonic system clock
-using timepoint    = Clock::time_point;
-using nanoseconds  = std::chrono::nanoseconds;
-using milliseconds = std::chrono::milliseconds;
-using seconds      = std::chrono::seconds;
 
-/*
+using Clock         = std::chrono::steady_clock;        // monotonic system clock
+using timepoint     = Clock::time_point;
+using nanoseconds   = std::chrono::nanoseconds;
+using milliseconds  = std::chrono::milliseconds;
+using seconds       = std::chrono::seconds;
+using media_session = u64;
 
 constexpr u8          MIN_VOLUME            = 0;
 constexpr u8          MAX_VOLUME            = 255;
@@ -32,6 +32,23 @@ constexpr nanoseconds NO_SYNC_THRESHOLD     = seconds{10};
 constexpr nanoseconds MAX_FRAME_DELAY       = seconds{1};
 constexpr u32         NAUDIO_DIFF_AVERAGES  = 20;
 constexpr u8          MAX_SAMPLE_CORRECTION = 10;
+
+enum class MediaError : u8
+{
+  InvalidPath,
+  NoStream,
+  NoVideoStream,
+  NoAudioStream,
+  VideoCodecNotSupported,
+  AudioCodecNotSupported
+};
+
+enum class Seek : u8
+{
+  Exact,
+  Forward,
+  Backward
+};
 
 #define ASH_LOG_FFMPEG_ERR(err_exp)                                                                                           \
   do                                                                                                                          \
@@ -67,17 +84,17 @@ constexpr void fill_silence(stx::Span<u8> samples, SDL_AudioFormat format)
 {
   switch (format)
   {
-    case AUDIO_U8:
+    case SDL_AUDIO_U8:
       samples.fill(128);
       break;
 
-    case AUDIO_S8:
-    case AUDIO_S16LSB:
-    case AUDIO_S16MSB:
-    case AUDIO_S32LSB:
-    case AUDIO_S32MSB:
-    case AUDIO_F32LSB:
-    case AUDIO_F32MSB:
+    case SDL_AUDIO_S8:
+    case SDL_AUDIO_S16LSB:
+    case SDL_AUDIO_S16MSB:
+    case SDL_AUDIO_S32LSB:
+    case SDL_AUDIO_S32MSB:
+    case SDL_AUDIO_F32LSB:
+    case SDL_AUDIO_F32MSB:
       samples.fill(0);
       break;
 
@@ -139,7 +156,7 @@ struct RgbVideoFrame
       u8 *planes[4]    = {nullptr, nullptr, nullptr, nullptr};
 
       /// NOTE: FFMPEG will segfault if you use a custom allocated memory that doesn't meet its alignment/size requirements
-      /// as it will perform some aligned SIMD operations (if supported, as in most cases)
+      /// as it will perform some aligned/packed SIMD operations (if supported, as in most cases)
       int nbytes = av_image_alloc(planes, linesizes, new_extent.width, new_extent.height, AV_PIX_FMT_RGB24, 1);
       ASH_CHECK(nbytes >= 0);
       pixels = planes[0];
@@ -152,20 +169,16 @@ struct RgbVideoFrame
 // TODO(lamarrr): add a flush packet and/or is_completed marker
 struct AudioDecodeContext
 {
-  AVCodecContext               *codec  = nullptr;                  // accessed only on the audio thread
-  AVStream                     *stream = nullptr;                  // accessed only on demuxer thread
-  stx::SpinLock                 packets_lock;                      // lock for packets
-  stx::Vec<AVPacket *>          packets{stx::os_allocator};        // accessed on decoder and demuxer thread
-  AVFrame                      *frame = nullptr;                   // accessed only on decoder thread
-  std::atomic<nanoseconds::rep> clock{0};                          // accessed on main/presentation and decoder thread
-  stx::Vec<u8>                  samples{stx::os_allocator};        // usually in the target device's sample format, accessed on decoder thread
-  usize                         bytes_consumed = 0;                // portion of samples consumed, accessed only on decoder thread
-  SwrContext                   *resampler      = nullptr;          // accessed only on decoder thread
-  ResamplerConfig               resampler_cfg;                     // accessed only on decoder thread
-  f32                           diff_cummulative   = 0;
-  f32                           diff_average_coeff = 0;
-  usize                         diff_average_count = 0;
-  f32                           diff_threshold     = 0;
+  AVCodecContext               *codec  = nullptr;                // accessed only on the audio thread
+  AVStream                     *stream = nullptr;                // accessed only on demuxer thread
+  stx::SpinLock                 packets_lock;                    // lock for packets
+  stx::Vec<AVPacket *>          packets;                         // accessed on decoder and demuxer thread
+  AVFrame                      *frame = nullptr;                 // accessed only on decoder thread
+  std::atomic<nanoseconds::rep> clock = 0;                       // accessed on main/presentation and decoder thread
+  stx::Vec<u8>                  samples;                         // usually in the target device's sample format, accessed on decoder thread
+  usize                         bytes_consumed = 0;              // portion of samples consumed, accessed only on decoder thread
+  SwrContext                   *resampler      = nullptr;        // accessed only on decoder thread
+  ResamplerConfig               resampler_cfg;                   // accessed only on decoder thread
   timepoint                     begin_timepoint;
 
   AudioDecodeContext(AVCodecContext *icodec, AVStream *istream, AVFrame *iframe, SwrContext *iresampler, ResamplerConfig iresampler_cfg, timepoint ibegin_timepoint) :
@@ -191,20 +204,20 @@ struct VideoDecodeContext
   AVCodecContext               *codec  = nullptr;                   // accessed only on decoder thread
   AVStream                     *stream = nullptr;                   // accessed only on demuxer thread
   stx::SpinLock                 packets_lock;                       // locks the packets
-  stx::Vec<AVPacket *>          packets{stx::os_allocator};         // accessed on demuxer and decoder thread
+  stx::Vec<AVPacket *>          packets;                            // accessed on demuxer and decoder thread
   AVFrame                      *frame = nullptr;                    // accessed only on decoder thread
   stx::SpinLock                 rgb_frame_lock;                     // locks rgb_frame
-  RgbVideoFrame                 rgb_frame;                          // accessed on decoder thread and main/presentation
+  RgbVideoFrame                 rgb_frame;                          // accessed on decoder thread and main/presentation thread
   SwsContext                   *rescaler = nullptr;                 // only accessed on decoder thread
   nanoseconds                   timebase{0};                        // only accessed on main/presentation, only written to once
   nanoseconds                   last_frame_pts{0};                  // accessed only on main/presentation
   nanoseconds                   last_frame_pts_interval{0};         // accessed only on main/presentation
   std::atomic<nanoseconds::rep> last_frame_pts_timepoint{0};        // duration from begin_timepoint, accessed on audio thread, and main/presentation
   nanoseconds                   frame_timer{0};                     // accessed only on main/presentation
-  timepoint                     begin_timepoint;                    // accessed only on main/presentation, only written to once
+  timepoint                     begin_timepoint;                    // accessed only on main/presentation, immutable
 
   VideoDecodeContext(AVCodecContext *icodec, AVStream *istream, AVFrame *iframe, timepoint ibegin_timepoint) :
-      codec{icodec}, stream{istream}, frame{iframe}, begin_timepoint{ibegin_timepoint}, timebase{timebase_to_ns(istream->time_base)}
+      codec{icodec}, stream{istream}, frame{iframe}, timebase{timebase_to_ns(istream->time_base)}, begin_timepoint{ibegin_timepoint}
   {}
 
   STX_MAKE_PINNED(VideoDecodeContext)
@@ -250,9 +263,9 @@ struct VideoDecodeContext
     rgb_frame_lock.unlock();
   }
 
-  // main/presentation only
-  // returns delay from next frame, every call to this function updates the frame.
-  // this function should only be called again after the returned duration has passed.
+  // accessed on main/presentation thread only
+  // returns delay from next frame given the current decoded frame.
+  // this function should ideally not be called again until the returned duration has passed.
   nanoseconds tick(stx::Option<nanoseconds> audio_pts, timepoint current_timepoint)
   {
     // TODO(lamarrr): update frame
@@ -303,17 +316,10 @@ struct VideoDecodeContext
       actual_delay = SYNC_THRESHOLD;
     }
 
-    last_frame_pts_timepoint.store(AS(nanoseconds, current_timepoint - begin_timepoint).count(), std::memory_order_relaxed);
+    last_frame_pts_timepoint.store((current_timepoint - begin_timepoint).count(), std::memory_order_relaxed);
 
     return actual_delay;
   }
-};
-
-enum class DemuxError : u8
-{
-  InvalidPath,
-  StreamNotFound,
-  CodecNotSupported
 };
 
 struct DecodeContext
@@ -411,13 +417,12 @@ struct VideoDemuxer
     }
   }
 
-  static stx::Result<stx::Rc<VideoDemuxer *>, DemuxError> from_file(stx::CStringView path)
+  //  if (!std::filesystem::exists(path.c_str()))
+  //     {
+  //       return stx::Err(MediaError::InvalidPath);
+  //     }
+  static stx::Option<stx::Rc<VideoDemuxer *>> from_file(stx::CStringView path)
   {
-    if (!std::filesystem::exists(path.c_str()))
-    {
-      return stx::Err(DemuxError::InvalidPath);
-    }
-
     std::FILE *file = std::fopen(path.c_str(), "rb");
     ASH_CHECK(file != nullptr);
 
@@ -426,7 +431,7 @@ struct VideoDemuxer
 
     stx::Rc demuxer = stx::rc::make_inplace<VideoDemuxer>(stx::os_allocator, nullptr, nullptr, nullptr, nullptr, stx::string::make(stx::os_allocator, path).unwrap()).unwrap();
 
-    AVIOContext *io_ctx = avio_alloc_context(AS(uchar *, avio_buffer), AVIO_BUFFER_SIZE, 0, demuxer.handle, packet_file_read_callback, nullptr, packet_file_seek_callback);  // packet_file_seek_callback: can be null if seeking not supported, TODO(lamarrr): check if av_seek_frame requires this
+    AVIOContext *io_ctx = avio_alloc_context(AS(uchar *, avio_buffer), AVIO_BUFFER_SIZE, 0, demuxer.handle, packet_file_read_callback, nullptr, packet_file_seek_callback);        // packet_file_seek_callback: can be null if seeking not supported, TODO(lamarrr): check if av_seek_frame requires this
     ASH_CHECK(io_ctx != nullptr);
 
     AVFormatContext *fmt_ctx = avformat_alloc_context();
@@ -445,7 +450,7 @@ struct VideoDemuxer
 
     if (avformat_find_stream_info(fmt_ctx, nullptr) < 0)
     {
-      return stx::Err(DemuxError::StreamNotFound);
+      return stx::None;
     }
 
     ASH_LOG_INFO(MediaPlayer, "Found Stream(s) in Media File {}. Dumping Metadata.", std::string_view{path});
@@ -463,7 +468,7 @@ struct VideoDemuxer
     for (uint i = 0; i < fmt_ctx->nb_streams; i++)
     {
       AVStream *stream = fmt_ctx->streams[i];
-      ASH_LOG_INFO(MediaPlayer, "Dumping Metadata for Media File -> {} Stream: {}, type={}, codec={}", path, i, av_get_media_type_string(stream->codecpar->codec_type), avcodec_get_name(stream->codecpar->codec_id));
+      ASH_LOG_INFO(MediaPlayer, "Dumping Metadata for Media File -> {} Stream: {}, type={}, codec={}", std::string_view{path}, i, av_get_media_type_string(stream->codecpar->codec_type), avcodec_get_name(stream->codecpar->codec_id));
       AVDictionaryEntry *prev = nullptr;
       do
       {
@@ -475,16 +480,16 @@ struct VideoDemuxer
       } while (prev != nullptr);
     }
 
-    return stx::Ok(std::move(demuxer));
+    return stx::Some(std::move(demuxer));
   }
 
-  static stx::Result<DecodeContext, DemuxError> __make_decoder_for_stream(std::string_view source, AVStream *stream)
+  static stx::Option<DecodeContext> make_decoder_for_stream(std::string_view source, AVStream *stream)
   {
     AVCodec const *codec = avcodec_find_decoder(stream->codecpar->codec_id);
 
     if (codec == nullptr)
     {
-      return stx::Err(DemuxError::CodecNotSupported);
+      return stx::None;
     }
 
     AVCodecContext *codec_ctx = avcodec_alloc_context3(codec);
@@ -496,52 +501,40 @@ struct VideoDemuxer
     AVFrame *frame = av_frame_alloc();
     ASH_CHECK(frame != nullptr);
 
-    return stx::Ok(DecodeContext{.codec = codec_ctx, .stream = stream, .frame = frame});
+    return stx::Some(DecodeContext{.codec = codec_ctx, .stream = stream, .frame = frame});
   }
 
-  stx::Result<DecodeContext, DemuxError> __make_decoder(AVMediaType media_type) const
+  stx::Option<DecodeContext> make_decoder(AVMediaType media_type) const
   {
     int stream_index = av_find_best_stream(fmt_ctx, media_type, -1, -1, nullptr, 0);
 
     if (stream_index < 0)
     {
-      return stx::Err(DemuxError::StreamNotFound);
+      return stx::None;
     }
 
     AVStream *stream = fmt_ctx->streams[stream_index];
 
     if (stream == nullptr)
     {
-      return stx::Err(DemuxError::StreamNotFound);
+      return stx::None;
     }
 
-    return __make_decoder_for_stream(path, stream);
+    return make_decoder_for_stream(path, stream);
   }
-
-  stx::Result<stx::Rc<AudioDecodeContext *>, DemuxError> make_audio_decoder() const
-  {
-    // return make_decoder(AVMEDIA_TYPE_AUDIO);
-  }
-
-  stx::Result<stx::Rc<VideoDecodeContext *>, DemuxError> make_video_decoder() const
-  {
-    // return make_decoder(AVMEDIA_TYPE_VIDEO);
-  }
-
-  stx::Result<stx::Rc<DecodeContext *>, DemuxError> make_subtitle_decoder() const
-  {
-    // return make_decoder(AVMEDIA_TYPE_SUBTITLE);
-  }
+  // AVMEDIA_TYPE_AUDIO
+  // AVMEDIA_TYPE_VIDEO
+  // AVMEDIA_TYPE_SUBTITLE
 };
 
 struct AudioDeviceInfo
 {
   stx::String   name;
-  SDL_AudioSpec spec{.freq = 48000, .format = AUDIO_S16SYS, .channels = 2, .samples = 4800, .size = 4800 * 2, .callback = nullptr, .userdata = nullptr};
+  SDL_AudioSpec spec{.freq = 48000, .format = SDL_AUDIO_S16SYS, .channels = 2, .samples = 4800, .size = 4800 * 2, .callback = nullptr, .userdata = nullptr};
 
   static stx::Vec<AudioDeviceInfo> enumerate()
   {
-    stx::Vec<AudioDeviceInfo> devices{stx::os_allocator};
+    stx::Vec<AudioDeviceInfo> devices;
 
     for (int i = 0; i < SDL_GetNumAudioDevices(false); i++)
     {
@@ -587,7 +580,7 @@ struct AudioSource
   virtual ~AudioSource()                         = 0;
 };
 
-struct AudioSourceInfo
+struct AudioSourceEntry
 {
   stx::Rc<AudioSource *> source;
   bool                   is_open = true;
@@ -595,11 +588,11 @@ struct AudioSourceInfo
 
 struct AudioDevice
 {
-  SDL_AudioDeviceID         id = 0;
-  AudioDeviceInfo           info;
-  bool                      is_playing = false;
-  stx::SpinLock             audio_sources_lock;
-  stx::Vec<AudioSourceInfo> audio_sources{stx::os_allocator};
+  SDL_AudioDeviceID          id = 0;
+  AudioDeviceInfo            info;
+  bool                       is_playing = false;
+  stx::SpinLock              audio_sources_lock;
+  stx::Vec<AudioSourceEntry> audio_sources;
 
   AudioDevice(SDL_AudioDeviceID iid, AudioDeviceInfo iinfo) :
       id{iid}, info{std::move(iinfo)}
@@ -615,7 +608,7 @@ struct AudioDevice
   void add_source(stx::Rc<AudioSource *> source)
   {
     audio_sources_lock.lock();
-    audio_sources.push(AudioSourceInfo{.source = std::move(source), .is_open = true}).unwrap();
+    audio_sources.push(AudioSourceEntry{.source = std::move(source), .is_open = true}).unwrap();
     audio_sources_lock.unlock();
   }
 
@@ -628,12 +621,12 @@ struct AudioDevice
     fill_silence(stream, This->info.spec.format);
 
     This->audio_sources_lock.lock();
-    for (AudioSourceInfo &info : This->audio_sources)
+    for (AudioSourceEntry &info : This->audio_sources)
     {
       info.is_open = info.source->mix(stream, This->info.spec);
     }
 
-    auto [open, closed] = This->audio_sources.span().partition([](AudioSourceInfo const &src) { return src.is_open; });
+    auto [open, closed] = This->audio_sources.span().partition([](AudioSourceEntry const &src) { return src.is_open; });
     (void) open;
 
     if (!closed.is_empty())
@@ -666,17 +659,17 @@ struct AudioDevice
     // FFMPEG only supports these, better not to support others
     switch (spec.format)
     {
-      case AUDIO_U8:
-      case AUDIO_S16SYS:
-      case AUDIO_S32SYS:
-      case AUDIO_F32SYS:
+      case SDL_AUDIO_U8:
+      case SDL_AUDIO_S16SYS:
+      case SDL_AUDIO_S32SYS:
+      case SDL_AUDIO_F32SYS:
       {
         out.format = spec.format;
       }
       break;
       default:
       {
-        out.format = AUDIO_S16SYS;
+        out.format = SDL_AUDIO_S16SYS;
       }
       break;
     }
@@ -792,22 +785,22 @@ struct MediaPlayerAudioSource : public AudioSource
 
     switch (spec.format)
     {
-      case AUDIO_U8:
+      case SDL_AUDIO_U8:
       {
         sample_fmt = AV_SAMPLE_FMT_U8;
       }
       break;
-      case AUDIO_S16SYS:
+      case SDL_AUDIO_S16SYS:
       {
         sample_fmt = AV_SAMPLE_FMT_S16;
       }
       break;
-      case AUDIO_S32SYS:
+      case SDL_AUDIO_S32SYS:
       {
         sample_fmt = AV_SAMPLE_FMT_S32;
       }
       break;
-      case AUDIO_F32SYS:
+      case SDL_AUDIO_F32SYS:
       {
         sample_fmt = AV_SAMPLE_FMT_FLT;
       }
@@ -1077,26 +1070,6 @@ struct MediaPlayerAudioSource : public AudioSource
 // subtitle
 //
 
-enum class MediaSessionError : u8
-{
-  Loading
-};
-
-enum class SeekType : u8
-{
-  Exact,
-  Forward,
-  Backward
-};
-
-enum class MediaType : u8
-{
-  Audio,
-  Video
-};
-
-using media_session = u64;
-
 // TODO(lamarrr): make loading audio/video optional
 struct MediaSession
 {
@@ -1108,7 +1081,7 @@ struct MediaSession
 
 struct Lyrics
 {
-  stx::Vec<std::string_view> content{stx::os_allocator};
+  stx::Vec<std::string_view> content;
   stx::String                data;
 };
 
@@ -1145,7 +1118,7 @@ struct MediaVideoFrame
 struct MediaPlayer : public Plugin
 {
   template <typename T>
-  using Result = stx::Result<T, MediaSessionError>;
+  using Result = stx::Result<T, MediaError>;
 
   static void dump_supported_codecs()
   {
@@ -1183,9 +1156,9 @@ struct MediaPlayer : public Plugin
     return "MediaPlayer";
   }
 
-  stx::Result<media_session, DemuxError> create_session(stx::CStringView source)
+  stx::Result<media_session, MediaError> create_session(stx::CStringView source)
   {
-    // TODO(lamarrr): do not do demuxing or stream seeking on main/presentation, it is not clear how long that will take
+    // TODO(lamarrr): !!!!!!!!!do not do demuxing or stream seeking on main/presentation, it is not clear how long that will take
     media_session session_id = next_session_id;
     TRY_OK(demuxer, VideoDemuxer::from_file(source));
     next_session_id++;
@@ -1247,7 +1220,7 @@ struct MediaPlayer : public Plugin
 
   Result<stx::Void> stop(media_session session);
 
-  Result<stx::Void> seek_time(media_session session, nanoseconds timepoint, SeekType seek = SeekType::Exact)
+  Result<stx::Void> seek_time(media_session session, nanoseconds timepoint, Seek seek = Seek::Exact)
   {
     auto pos = sessions.find(session);
     ASH_CHECK(pos != sessions.end());
@@ -1265,7 +1238,7 @@ struct MediaPlayer : public Plugin
     }
   }
 
-  Result<stx::Void> seek_frame(media_session session, usize frame, SeekType seek = SeekType::Exact);
+  Result<stx::Void> seek_frame(media_session session, usize frame, Seek seek = Seek::Exact);
 
   Result<stx::Void> seek_preview_at_time(media_session session, nanoseconds timepoint);
 
@@ -1320,14 +1293,12 @@ struct Video : public Widget
 
   bool show_controls = true;
 };
-*/
 
 int main(int argc, char **argv)
 {
   ASH_CHECK(argc == 3);
   ASH_CHECK(SDL_Init(SDL_INIT_EVERYTHING) == 0);
   spdlog::info("System theme: {}", (int) SDL_GetSystemTheme());
-/*
 
   stx::Vec devices = AudioDeviceInfo::enumerate();
   for (AudioDeviceInfo const &dev : devices)
@@ -1465,7 +1436,6 @@ int main(int argc, char **argv)
           spdlog::info("video decode thread completed");
         }
       }};
-*/
   // fmt_ctx->chapters;
   // fmt_ctx->metadata;
   // AV_DISPOSITION_ATTACHED_PIC contains album art

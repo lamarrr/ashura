@@ -64,7 +64,7 @@ struct Stack : public Widget
   virtual void restore(Context &context, simdjson::dom::element const &element);
 
   Alignment          alignment = Alignment::TopLeft;
-  stx::Vec<Widget *> children{stx::os_allocator};
+  stx::Vec<Widget *> children;
 };
 
 }        // namespace ash

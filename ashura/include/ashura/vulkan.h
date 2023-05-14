@@ -134,7 +134,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT>
   static constexpr char const *DEBUG_EXTENSIONS[] = {VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 
   // debug message callback extension
-  stx::Vec<char const *> required_extensions{stx::os_allocator};
+  stx::Vec<char const *> required_extensions;
 
   required_extensions.extend(irequired_extensions).unwrap();
 
@@ -147,7 +147,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT>
 
   ASH_VK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &available_extensions_count, nullptr));
 
-  stx::Vec<VkExtensionProperties> available_extensions(stx::os_allocator);
+  stx::Vec<VkExtensionProperties> available_extensions;
 
   available_extensions.resize(available_extensions_count).unwrap();
 
@@ -164,7 +164,7 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT>
 
   ASH_VK_CHECK(vkEnumerateInstanceLayerProperties(&available_validation_layers_count, nullptr));
 
-  stx::Vec<VkLayerProperties> available_validation_layers(stx::os_allocator);
+  stx::Vec<VkLayerProperties> available_validation_layers;
 
   available_validation_layers.resize(available_validation_layers_count).unwrap();
 
@@ -238,7 +238,7 @@ inline stx::Vec<VkQueueFamilyProperties> get_queue_families(VkPhysicalDevice dev
 
   vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_families_count, nullptr);
 
-  stx::Vec<VkQueueFamilyProperties> queue_families_properties(stx::os_allocator);
+  stx::Vec<VkQueueFamilyProperties> queue_families_properties;
 
   queue_families_properties.resize(queue_families_count).unwrap();
 
@@ -250,7 +250,7 @@ inline stx::Vec<VkQueueFamilyProperties> get_queue_families(VkPhysicalDevice dev
 inline stx::Vec<bool> get_command_queue_support(stx::Span<VkQueueFamilyProperties const> queue_families,
                                                 VkQueueFlagBits                          required_command_queue)
 {
-  stx::Vec<bool> supports{stx::os_allocator};
+  stx::Vec<bool> supports;
 
   for (VkQueueFamilyProperties const &fam_props : queue_families)
   {
@@ -265,7 +265,7 @@ inline stx::Vec<bool> get_surface_presentation_command_queue_support(VkPhysicalD
                                                                      stx::Span<VkQueueFamilyProperties const> queue_families,
                                                                      VkSurfaceKHR                             surface)
 {
-  stx::Vec<bool> supports{stx::os_allocator};
+  stx::Vec<bool> supports;
 
   for (u32 i = 0; i < AS(u32, queue_families.size()); i++)
   {
@@ -286,7 +286,7 @@ inline VkDevice create_logical_device(VkPhysicalDevice phy_dev, stx::Span<char c
   ASH_VK_CHECK(vkEnumerateDeviceExtensionProperties(phy_dev, nullptr, &available_extensions_count, nullptr));
 
   // device specific extensions
-  stx::Vec<VkExtensionProperties> available_device_extensions{stx::os_allocator};
+  stx::Vec<VkExtensionProperties> available_device_extensions;
 
   available_device_extensions.resize(available_extensions_count).unwrap();
 
@@ -330,8 +330,8 @@ inline VkDevice create_logical_device(VkPhysicalDevice phy_dev, stx::Span<char c
 struct SwapChainProperties
 {
   VkSurfaceCapabilitiesKHR     capabilities;
-  stx::Vec<VkSurfaceFormatKHR> supported_formats{stx::os_allocator};
-  stx::Vec<VkPresentModeKHR>   presentation_modes{stx::os_allocator};
+  stx::Vec<VkSurfaceFormatKHR> supported_formats;
+  stx::Vec<VkPresentModeKHR>   presentation_modes;
 };
 
 inline SwapChainProperties get_swapchain_properties(VkPhysicalDevice phy_dev, VkSurfaceKHR surface)
@@ -479,7 +479,7 @@ inline stx::Vec<VkImage> get_swapchain_images(VkDevice dev, VkSwapchainKHR swapc
 
   ASH_VK_CHECK(vkGetSwapchainImagesKHR(dev, swapchain, &image_count, nullptr));
 
-  stx::Vec<VkImage> swapchain_images{stx::os_allocator};
+  stx::Vec<VkImage> swapchain_images;
   swapchain_images.resize(image_count).unwrap();
 
   ASH_VK_CHECK(vkGetSwapchainImagesKHR(dev, swapchain, &image_count, swapchain_images.data()));
@@ -546,12 +546,12 @@ struct PhyDeviceInfo
   VkPhysicalDeviceProperties        properties{};
   VkPhysicalDeviceFeatures          features{};
   VkPhysicalDeviceMemoryProperties  memory_properties{};
-  stx::Vec<VkQueueFamilyProperties> family_properties{stx::os_allocator};
+  stx::Vec<VkQueueFamilyProperties> family_properties;
   stx::Rc<Instance *>               instance;
 
   PhyDeviceInfo copy() const
   {
-    stx::Vec<VkQueueFamilyProperties> nfamily_properties{stx::os_allocator};
+    stx::Vec<VkQueueFamilyProperties> nfamily_properties;
 
     nfamily_properties.extend(family_properties).unwrap();
 
@@ -604,13 +604,13 @@ inline stx::Vec<PhyDeviceInfo> get_all_devices(stx::Rc<Instance *> const &instan
 
   ASH_CHECK(devices_count != 0, "No Physical Device Found");
 
-  stx::Vec<VkPhysicalDevice> phy_devices{stx::os_allocator};
+  stx::Vec<VkPhysicalDevice> phy_devices;
 
   phy_devices.resize(devices_count).unwrap();
 
   ASH_VK_CHECK(vkEnumeratePhysicalDevices(instance->instance, &devices_count, phy_devices.data()));
 
-  stx::Vec<PhyDeviceInfo> devices{stx::os_allocator};
+  stx::Vec<PhyDeviceInfo> devices;
 
   for (VkPhysicalDevice dev : phy_devices)
   {
@@ -659,7 +659,7 @@ struct Device
 {
   VkDevice                   dev = VK_NULL_HANDLE;
   stx::Rc<PhyDeviceInfo *>   phy_dev;
-  stx::Vec<CommandQueueInfo> command_queues{stx::os_allocator};
+  stx::Vec<CommandQueueInfo> command_queues;
 
   Device(VkDevice adevice, stx::Rc<PhyDeviceInfo *> aphy_device, stx::Vec<CommandQueueInfo> acommand_queues) :
       dev{adevice}, phy_dev{std::move(aphy_device)}, command_queues{std::move(acommand_queues)}
@@ -713,7 +713,7 @@ inline stx::Rc<Device *> create_device(stx::Rc<PhyDeviceInfo *> const          &
   VkDevice dev = create_logical_device(phy_dev->phy_device, required_extensions, required_validation_layers,
                                        command_queue_create_info, required_features);
 
-  stx::Vec<CommandQueueInfo> command_queues{stx::os_allocator};
+  stx::Vec<CommandQueueInfo> command_queues;
 
   for (usize i = 0; i < command_queue_create_info.size(); i++)
   {
@@ -1058,7 +1058,7 @@ struct DescriptorBinding
 
 struct DescriptorSetSpec
 {
-  stx::Vec<VkDescriptorType> bindings{stx::os_allocator};
+  stx::Vec<VkDescriptorType> bindings;
 
   explicit DescriptorSetSpec(std::initializer_list<VkDescriptorType> abindings)
   {
@@ -1327,15 +1327,15 @@ struct SwapChain
   VkExtent2D            image_extent{.width = 0, .height = 0};
   VkExtent2D            window_extent{.width = 0, .height = 0};
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
-  stx::Vec<VkImage>     images{stx::os_allocator};             // the images in the swapchain
-  stx::Vec<VkImageView> image_views{stx::os_allocator};        // the image views pointing to a part of a whole texture
-                                                               // (images in the swapchain)
-  stx::Vec<VkFramebuffer> framebuffers{stx::os_allocator};
-  stx::Vec<VkSemaphore>   render_semaphores{stx::os_allocator};        // the rendering semaphores correspond to the frame
-                                                                       // indexes and not the swapchain images
-  stx::Vec<VkSemaphore> image_acquisition_semaphores{stx::os_allocator};
-  stx::Vec<VkFence>     render_fences{stx::os_allocator};
-  stx::Vec<VkFence>     image_acquisition_fences{stx::os_allocator};
+  stx::Vec<VkImage>     images;             // the images in the swapchain
+  stx::Vec<VkImageView> image_views;        // the image views pointing to a part of a whole texture
+                                            // (images in the swapchain)
+  stx::Vec<VkFramebuffer> framebuffers;
+  stx::Vec<VkSemaphore>   render_semaphores;        // the rendering semaphores correspond to the frame
+                                                    // indexes and not the swapchain images
+  stx::Vec<VkSemaphore> image_acquisition_semaphores;
+  stx::Vec<VkFence>     render_fences;
+  stx::Vec<VkFence>     image_acquisition_fences;
   Image                 msaa_color_image;
   Image                 msaa_depth_image;
   VkRenderPass          render_pass = VK_NULL_HANDLE;

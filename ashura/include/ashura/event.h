@@ -382,18 +382,18 @@ struct AudioDeviceEvent
 
 struct WindowEventListeners
 {
-  stx::Vec<std::pair<WindowEvents, stx::UniqueFn<void(WindowEvents)>>> general{stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void(MouseClickEvent)>>                       mouse_click{stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>>                      mouse_motion{stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>>                       mouse_wheel{stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_down{stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_up{stx::os_allocator};
+  stx::Vec<std::pair<WindowEvents, stx::UniqueFn<void(WindowEvents)>>> general;
+  stx::Vec<stx::UniqueFn<void(MouseClickEvent)>>                       mouse_click;
+  stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>>                      mouse_motion;
+  stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>>                       mouse_wheel;
+  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_down;
+  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_up;
 };
 
 struct GlobalEventListeners
 {
-  stx::Vec<stx::UniqueFn<void(AudioDeviceEvent)>> audio_event{stx::os_allocator};
-  stx::Vec<stx::UniqueFn<void()>>                 system_theme{stx::os_allocator};
+  stx::Vec<stx::UniqueFn<void(AudioDeviceEvent)>> audio_event;
+  stx::Vec<stx::UniqueFn<void()>>                 system_theme;
 };
 
 }        // namespace ash

@@ -491,10 +491,10 @@ struct Glyph
 /// stores codepoint glyphs for a font at a specific font height
 struct FontAtlas
 {
-  stx::Vec<Glyph> glyphs{stx::os_allocator};
+  stx::Vec<Glyph> glyphs;
   ash::extent     extent;                  /// overall extent of the atlas
   u32             font_height = 26;        /// font height at which the cache/atlas/glyphs will be rendered and cached
-  image texture = 0;                       /// atlas containing the packed glyphs
+  image           texture     = 0;         /// atlas containing the packed glyphs
 
   stx::Span<Glyph const> get(u32 glyph_index) const
   {
@@ -517,7 +517,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_atlas(Font const &font, u32 font
   ASH_CHECK(font_height > 0);
   ASH_CHECK(FT_Set_Char_Size(font.ftface, 0, font_height * 64, 72, 72) == 0);
 
-  stx::Vec<Glyph> glyphs{stx::os_allocator};
+  stx::Vec<Glyph> glyphs;
 
   {
     FT_UInt glyph_index;

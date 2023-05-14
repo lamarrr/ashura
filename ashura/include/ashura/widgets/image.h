@@ -324,7 +324,7 @@ struct Image : public Widget
     {
       // TODO(lamarrr): fix up
       std::string  enc = base64_decode(source);
-      stx::Vec<u8> pixels{stx::os_allocator};
+      stx::Vec<u8> pixels;
       pixels.extend(stx::Span{enc}.as_u8()).unwrap();
       // props.source =
       //     MemoryImageSource{.buffer pixels = std::move(pixels), .extent = extent};

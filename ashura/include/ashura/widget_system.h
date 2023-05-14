@@ -211,11 +211,11 @@ struct WidgetSystem
   }
 
   Widget                                                                 *root = nullptr;
-  stx::Vec<std::variant<MouseClickEvent, MouseMotionEvent, WindowEvents>> events{stx::os_allocator};
+  stx::Vec<std::variant<MouseClickEvent, MouseMotionEvent, WindowEvents>> events;
   Widget                                                                 *last_hit_widget          = nullptr;
   bool                                                                    last_hit_widget_is_alive = false;
   // sorted by z-index
-  stx::Vec<WidgetDrawEntry> entries{stx::os_allocator};
+  stx::Vec<WidgetDrawEntry> entries;
 };
 
 }        // namespace ash

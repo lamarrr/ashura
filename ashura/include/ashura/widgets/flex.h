@@ -64,7 +64,7 @@ struct Flex : public Widget
   virtual simdjson::dom::element save(Context         &context,
                                       simdjson::dom::parser &parser)
   {
-    stx::Vec<u64> children_ids{stx::os_allocator};
+    stx::Vec<u64> children_ids;
     for (Widget *child : children)
     {
       children_ids.push_inplace(child->id).unwrap();
@@ -138,7 +138,7 @@ struct Flex : public Widget
   }
 
   FlexProps          props;
-  stx::Vec<Widget *> children{stx::os_allocator};
+  stx::Vec<Widget *> children;
 };
 
 }        // namespace ash

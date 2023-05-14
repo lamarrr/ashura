@@ -99,8 +99,8 @@ TextRun runs[]   = {
                           .word_spacing     = 15,
                           .foreground_color = color::from_rgb(29, 155, 240)}}};
 Paragraph                   paragraph{.runs = runs, .align = TextAlign::Right};
-stx::Vec<gfx::RunSubWord>   subwords{stx::os_allocator};
-stx::Vec<gfx::SubwordGlyph> glyphs{stx::os_allocator};
+stx::Vec<gfx::RunSubWord>   subwords;
+stx::Vec<gfx::SubwordGlyph> glyphs;
 c.draw_text(paragraph, stx::Span{font, 5}, {100, 500}, 300, subwords, glyphs);
 
 c.brush.color = colors::WHITE.with_alpha(255);

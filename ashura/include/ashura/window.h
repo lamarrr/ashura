@@ -75,7 +75,7 @@ struct Window
 
     ASH_SDL_CHECK(SDL_Vulkan_GetInstanceExtensions(&ext_count, nullptr) == SDL_TRUE);
 
-    stx::Vec<char const *> required_instance_extensions{stx::os_allocator};
+    stx::Vec<char const *> required_instance_extensions;
 
     required_instance_extensions.resize(ext_count).unwrap();
 

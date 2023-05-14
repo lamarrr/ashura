@@ -60,11 +60,11 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   ctx.task_scheduler = &task_scheduler;
   ctx.clipboard      = &clipboard;
   ctx.window_manager = &window_manager;
-  stx::Vec<char const *> required_device_extensions{stx::os_allocator};
+  stx::Vec<char const *> required_device_extensions;
 
   required_device_extensions.push(VK_KHR_SWAPCHAIN_EXTENSION_NAME).unwrap();
 
-  stx::Vec<char const *> required_validation_layers{stx::os_allocator};
+  stx::Vec<char const *> required_validation_layers;
 
   if (cfg.enable_validation_layers)
   {

@@ -16,8 +16,8 @@ namespace vk
 struct CanvasRenderer
 {
   u32                                  max_nframes_in_flight = 0;
-  stx::Vec<VecBuffer>                  vertex_buffers{stx::os_allocator};
-  stx::Vec<VecBuffer>                  index_buffers{stx::os_allocator};
+  stx::Vec<VecBuffer>                  vertex_buffers;
+  stx::Vec<VecBuffer>                  index_buffers;
   vk::Sampler                          texture_sampler;
   RecordingContext                     ctx;
   stx::Option<stx::Rc<CommandQueue *>> queue;
@@ -134,7 +134,7 @@ struct CanvasRenderer
 
           vkDestroyDescriptorPool(dev, ctx.descriptor_pools[frame], nullptr);
 
-          stx::Vec<VkDescriptorPoolSize> sizes{stx::os_allocator};
+          stx::Vec<VkDescriptorPoolSize> sizes;
 
           sizes.push({.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = nrequired_descriptor_sets}).unwrap();
 
