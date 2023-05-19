@@ -36,11 +36,19 @@ constexpr u8          MAX_SAMPLE_CORRECTION = 10;
 enum class MediaError : u8
 {
   InvalidPath,
+  InvalidSession,
   NoStream,
   NoVideoStream,
   NoAudioStream,
   VideoCodecNotSupported,
   AudioCodecNotSupported
+};
+
+enum class DemuxError : u8
+{
+  InvalidPath,
+  NoStream,
+  CodecNotSupported
 };
 
 enum class Seek : u8
@@ -417,12 +425,13 @@ struct VideoDemuxer
     }
   }
 
-  //  if (!std::filesystem::exists(path.c_str()))
-  //     {
-  //       return stx::Err(MediaError::InvalidPath);
-  //     }
-  static stx::Option<stx::Rc<VideoDemuxer *>> from_file(stx::CStringView path)
+  static stx::Result<stx::Rc<VideoDemuxer *>, DemuxError> from_file(stx::CStringView path)
   {
+    if (!std::filesystem::exists(path.c_str()))
+    {
+      return stx::Err(DemuxError::InvalidPath);
+    }
+
     std::FILE *file = std::fopen(path.c_str(), "rb");
     ASH_CHECK(file != nullptr);
 
@@ -431,7 +440,7 @@ struct VideoDemuxer
 
     stx::Rc demuxer = stx::rc::make_inplace<VideoDemuxer>(stx::os_allocator, nullptr, nullptr, nullptr, nullptr, stx::string::make(stx::os_allocator, path).unwrap()).unwrap();
 
-    AVIOContext *io_ctx = avio_alloc_context(AS(uchar *, avio_buffer), AVIO_BUFFER_SIZE, 0, demuxer.handle, packet_file_read_callback, nullptr, packet_file_seek_callback);        // packet_file_seek_callback: can be null if seeking not supported, TODO(lamarrr): check if av_seek_frame requires this
+    AVIOContext *io_ctx = avio_alloc_context(AS(uchar *, avio_buffer), AVIO_BUFFER_SIZE, 0, demuxer.handle, packet_file_read_callback, nullptr, packet_file_seek_callback);
     ASH_CHECK(io_ctx != nullptr);
 
     AVFormatContext *fmt_ctx = avformat_alloc_context();
@@ -450,7 +459,7 @@ struct VideoDemuxer
 
     if (avformat_find_stream_info(fmt_ctx, nullptr) < 0)
     {
-      return stx::None;
+      return stx::Err(DemuxError::NoStream);
     }
 
     ASH_LOG_INFO(MediaPlayer, "Found Stream(s) in Media File {}. Dumping Metadata.", std::string_view{path});
@@ -480,16 +489,16 @@ struct VideoDemuxer
       } while (prev != nullptr);
     }
 
-    return stx::Some(std::move(demuxer));
+    return stx::Ok(std::move(demuxer));
   }
 
-  static stx::Option<DecodeContext> make_decoder_for_stream(std::string_view source, AVStream *stream)
+  static stx::Result<DecodeContext, DemuxError> make_decoder_for_stream(std::string_view source, AVStream *stream)
   {
     AVCodec const *codec = avcodec_find_decoder(stream->codecpar->codec_id);
 
     if (codec == nullptr)
     {
-      return stx::None;
+      return stx::Err(DemuxError::CodecNotSupported);
     }
 
     AVCodecContext *codec_ctx = avcodec_alloc_context3(codec);
@@ -501,30 +510,30 @@ struct VideoDemuxer
     AVFrame *frame = av_frame_alloc();
     ASH_CHECK(frame != nullptr);
 
-    return stx::Some(DecodeContext{.codec = codec_ctx, .stream = stream, .frame = frame});
+    return stx::Ok(DecodeContext{.codec = codec_ctx, .stream = stream, .frame = frame});
   }
 
-  stx::Option<DecodeContext> make_decoder(AVMediaType media_type) const
+  // AVMEDIA_TYPE_AUDIO
+  // AVMEDIA_TYPE_VIDEO
+  // AVMEDIA_TYPE_SUBTITLE
+  stx::Result<DecodeContext, DemuxError> make_decoder(AVMediaType media_type) const
   {
     int stream_index = av_find_best_stream(fmt_ctx, media_type, -1, -1, nullptr, 0);
 
     if (stream_index < 0)
     {
-      return stx::None;
+      return stx::Err(DemuxError::NoStream);
     }
 
     AVStream *stream = fmt_ctx->streams[stream_index];
 
     if (stream == nullptr)
     {
-      return stx::None;
+      return stx::Err(DemuxError::NoStream);
     }
 
     return make_decoder_for_stream(path, stream);
   }
-  // AVMEDIA_TYPE_AUDIO
-  // AVMEDIA_TYPE_VIDEO
-  // AVMEDIA_TYPE_SUBTITLE
 };
 
 struct AudioDeviceInfo
@@ -574,8 +583,7 @@ struct AudioDeviceInfo
 
 struct AudioSource
 {
-  /// NOTE: this is called from a separate thread, the user can thus synchronize the invocation
-  /// of this source to it's availability to signal whether to close it
+  /// NOTE: this is called from a separate thread, the user should return true if its still open
   virtual bool mix(stx::Span<u8>, SDL_AudioSpec) = 0;
   virtual ~AudioSource()                         = 0;
 };
@@ -1073,10 +1081,11 @@ struct MediaPlayerAudioSource : public AudioSource
 // TODO(lamarrr): make loading audio/video optional
 struct MediaSession
 {
-  stx::Rc<VideoDemuxer *>                    demuxer;
+  stx::String                                path;
+  stx::Option<stx::Rc<VideoDemuxer *>>       demuxer;
   stx::Option<stx::Rc<AudioDecodeContext *>> audio_decode_ctx;
   stx::Option<stx::Rc<VideoDecodeContext *>> video_decode_ctx;
-  gfx::image                                 image = 0;
+  stx::Option<gfx::image>                    image;
 };
 
 struct Lyrics
@@ -1156,63 +1165,27 @@ struct MediaPlayer : public Plugin
     return "MediaPlayer";
   }
 
-  stx::Result<media_session, MediaError> create_session(stx::CStringView source)
+  media_session create_session(stx::CStringView source)
   {
-    // TODO(lamarrr): !!!!!!!!!do not do demuxing or stream seeking on main/presentation, it is not clear how long that will take
     media_session session_id = next_session_id;
-    TRY_OK(demuxer, VideoDemuxer::from_file(source));
     next_session_id++;
-    // sessions.emplace(session_id, MediaSession{});
-    // preferably don't use locks on the data? at leas the video session
-    return stx::Ok(AS(media_session, session_id));
+    sessions.emplace(session_id, MediaSession{.path = stx::string::make(stx::os_allocator, source).unwrap()});
+    return session_id;
   }
-
-  Result<bool> is_playing(media_session session);
-
-  Result<bool> is_play_ended(media_session session);
-
-  Result<bool> has_audio(media_session session);
-
-  Result<bool> has_video(media_session session);
-
-  // TODO(lamarrr): we might not be able to tell yet as this is async
-  Result<stx::Vec<usize>> get_audio_streams(media_session session)
-  {
-    auto pos = sessions.find(session);
-    ASH_CHECK(pos != sessions.end());
-
-    pos->second.demuxer->fmt_ctx->streams[0]->metadata;
-    pos->second.demuxer->fmt_ctx->nb_streams;
-  }
-
-  Result<stx::Vec<usize>> get_subtitles(media_session session);
-
-  Result<stx::Vec<usize>> get_chapters(media_session session);
-
-  Result<nanoseconds> get_duration(media_session session);
-
-  Result<nanoseconds> get_current_time(media_session session);
-
-  Result<usize> get_current_frame(media_session session);
-
-  Result<MediaVideoFrame> get_image(media_session session);
-
-  Result<MediaVideoFrame> get_preview_image(media_session session);
-
-  Result<MediaVideoFrame> get_subtitle_image(media_session session);
-
-  Result<MediaVideoFrame> get_album_art(media_session session);
-
-  Result<Lyrics> get_lyrics(media_session session);
 
   Result<stx::Void> play(media_session session, usize video_stream, usize audio_stream)
   {
+    // TODO(lamarrr): this has nothing to do with audio
     if (audio_device.is_some())
     {
       if (!audio_device.value()->is_playing)
       {
         audio_device.value()->play();
       }
+    }
+    else
+    {
+      audio_device = AudioDevice::open_default();
     }
   }
 
@@ -1247,6 +1220,53 @@ struct MediaPlayer : public Plugin
   Result<stx::Void> set_volume(media_session session, u8 volume);
 
   Result<stx::Void> set_autoplay(media_session session, bool autoplay);
+
+  Result<bool> is_playing(media_session session)
+  {
+  }
+
+  // if has audio, check that the audio frame index is equal to number of audio frames - 1,
+  // else if picture only, check that the frame index is equal to the number of picture frames
+  Result<bool> is_play_ended(media_session session);
+
+  // if has audio stream return true
+  Result<bool> has_audio(media_session session);
+
+  // if has video/picture stream return true
+  Result<bool> has_video(media_session session);
+
+  // TODO(lamarrr): we might not be able to tell yet as this is async
+  // TODO(lamarrr): return metadata along with it
+  //
+  // returns the audio streams found in the media file
+  Result<stx::Vec<usize>> get_audio_streams(media_session session)
+  {
+    auto pos = sessions.find(session);
+    ASH_CHECK(pos != sessions.end());
+
+    pos->second.demuxer->fmt_ctx->streams[0]->metadata;
+    pos->second.demuxer->fmt_ctx->nb_streams;
+  }
+
+  Result<stx::Vec<usize>> get_subtitles(media_session session);
+
+  Result<stx::Vec<usize>> get_chapters(media_session session);
+
+  Result<nanoseconds> get_duration(media_session session);
+
+  Result<nanoseconds> get_current_time(media_session session);
+
+  Result<usize> get_current_frame(media_session session);
+
+  Result<MediaVideoFrame> get_image(media_session session);
+
+  Result<MediaVideoFrame> get_preview_image(media_session session);
+
+  Result<MediaVideoFrame> get_subtitle_image(media_session session);
+
+  Result<MediaVideoFrame> get_album_art(media_session session);
+
+  Result<Lyrics> get_lyrics(media_session session);
 
   Result<stx::Void> select_audio(media_session session, usize);
 

@@ -19,12 +19,15 @@ struct material
   ash::gfx::image metalic           = 0;
   ash::gfx::image roughness         = 0;
   ash::gfx::image ambient_occlusion = 0;
+  ash::gfx::image emissive          = 0;
 };
 
 struct blur_effect
 {
   ash::extent offset;
 };
+
+// Perlin noise for cloud generation
 
 // bloom
 // fog
