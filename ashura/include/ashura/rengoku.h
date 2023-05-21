@@ -28,6 +28,8 @@ struct blur_effect
 };
 
 // Perlin noise for cloud generation
+// standard character mesh with bones
+// vulkan full screen exclusive
 
 // bloom
 // fog

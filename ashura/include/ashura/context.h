@@ -327,7 +327,6 @@ struct Context
           SDL_EVENT_DISPLAY_CONNECTED;            // Display has been added to the system
           SDL_EVENT_DISPLAY_DISCONNECTED;         // Display has been removed from the system
           SDL_EVENT_DISPLAY_MOVED;                // Display has changed position
-          SDL_EVENT_DISPLAY_SCALE_CHANGED;        // Display has changed desktop display scale
 
         default:
         {

@@ -3,6 +3,7 @@
 #include "ashura/widget.h"
 #include "ashura/widgets/image.h"
 #include "stx/try_some.h"
+#include <thread>
 
 extern "C"
 {
@@ -33,25 +34,39 @@ constexpr nanoseconds MAX_FRAME_DELAY       = seconds{1};
 constexpr u32         NAUDIO_DIFF_AVERAGES  = 20;
 constexpr u8          MAX_SAMPLE_CORRECTION = 10;
 
+enum class DemuxError : u8
+{
+  PathDoesNotExist,
+  StreamNotFound,
+  CodecNotSupported
+};
+
 enum class MediaError : u8
 {
-  InvalidPath,
-  InvalidSession,
-  NoStream,
-  NoVideoStream,
-  NoAudioStream,
+  PathDoesNotExist,
+  InvalidSessionId,
+  Buffering,
+  NoStreamFound,
+  NoVideoStreamFound,
+  NoAudioStreamFound,
   VideoCodecNotSupported,
   AudioCodecNotSupported
 };
 
-enum class DemuxError : u8
-{
-  InvalidPath,
-  NoStream,
-  CodecNotSupported
+
+enum class MediaProperties{
+
 };
 
-enum class Seek : u8
+enum class MediaRequest
+{
+  None,
+  Play,
+  Pause,
+  Stop
+};
+
+enum class MediaSeek : u8
 {
   Exact,
   Forward,
@@ -115,17 +130,17 @@ constexpr void fill_silence(stx::Span<u8> samples, SDL_AudioFormat format)
 
 struct ResamplerConfig
 {
-  AVSampleFormat  src_fmt            = AV_SAMPLE_FMT_NONE;
+  AVSampleFormat  fmt                = AV_SAMPLE_FMT_NONE;
   AVSampleFormat  dst_fmt            = AV_SAMPLE_FMT_NONE;
-  int             src_sample_rate    = 0;
+  int             sample_rate        = 0;
   int             dst_sample_rate    = 0;
-  AVChannelLayout src_channel_layout = AV_CHANNEL_LAYOUT_MONO;
+  AVChannelLayout channel_layout     = AV_CHANNEL_LAYOUT_MONO;
   AVChannelLayout dst_channel_layout = AV_CHANNEL_LAYOUT_MONO;
 
   bool operator==(ResamplerConfig const &other) const
   {
-    return src_fmt == other.src_fmt && dst_fmt == other.dst_fmt && src_sample_rate == other.src_sample_rate && dst_sample_rate == other.dst_sample_rate &&
-           (av_channel_layout_compare(&src_channel_layout, &other.src_channel_layout) == 0) && (av_channel_layout_compare(&dst_channel_layout, &other.dst_channel_layout) == 0);
+    return fmt == other.fmt && dst_fmt == other.dst_fmt && sample_rate == other.sample_rate && dst_sample_rate == other.dst_sample_rate &&
+           (av_channel_layout_compare(&channel_layout, &other.channel_layout) == 0) && (av_channel_layout_compare(&dst_channel_layout, &other.dst_channel_layout) == 0);
   }
 
   bool operator!=(ResamplerConfig const &other) const
@@ -189,6 +204,10 @@ struct AudioDecodeContext
   ResamplerConfig               resampler_cfg;                   // accessed only on decoder thread
   timepoint                     begin_timepoint;
 
+  /** COMMANDS **/
+  stx::SpinLock cmd_lock;
+  bool          pause_requested = false;
+
   AudioDecodeContext(AVCodecContext *icodec, AVStream *istream, AVFrame *iframe, SwrContext *iresampler, ResamplerConfig iresampler_cfg, timepoint ibegin_timepoint) :
       codec{icodec}, stream{istream}, frame{iframe}, resampler{iresampler}, resampler_cfg{iresampler_cfg}, begin_timepoint{ibegin_timepoint}
   {}
@@ -204,6 +223,18 @@ struct AudioDecodeContext
     {
       av_packet_free(&packet);
     }
+  }
+
+  void play()
+  {
+    stx::LockGuard guard{cmd_lock};
+    pause_requested = false;
+  }
+
+  void pause()
+  {
+    stx::LockGuard guard{cmd_lock};
+    pause_requested = true;
   }
 };
 
@@ -224,6 +255,10 @@ struct VideoDecodeContext
   nanoseconds                   frame_timer{0};                     // accessed only on main/presentation
   timepoint                     begin_timepoint;                    // accessed only on main/presentation, immutable
 
+                                                                    /** COMMANDS **/
+  stx::SpinLock cmd_lock;
+  bool          pause_requested = false;
+
   VideoDecodeContext(AVCodecContext *icodec, AVStream *istream, AVFrame *iframe, timepoint ibegin_timepoint) :
       codec{icodec}, stream{istream}, frame{iframe}, timebase{timebase_to_ns(istream->time_base)}, begin_timepoint{ibegin_timepoint}
   {}
@@ -239,6 +274,18 @@ struct VideoDecodeContext
     {
       av_packet_free(&packet);
     }
+  }
+
+  void play()
+  {
+    stx::LockGuard guard{cmd_lock};
+    pause_requested = false;
+  }
+
+  void pause()
+  {
+    stx::LockGuard guard{cmd_lock};
+    pause_requested = true;
   }
 
   // interval between video frames, unlike audio samples, can be really long, so we need a more fine-grained clock.
@@ -429,7 +476,7 @@ struct VideoDemuxer
   {
     if (!std::filesystem::exists(path.c_str()))
     {
-      return stx::Err(DemuxError::InvalidPath);
+      return stx::Err(DemuxError::PathDoesNotExist);
     }
 
     std::FILE *file = std::fopen(path.c_str(), "rb");
@@ -459,7 +506,7 @@ struct VideoDemuxer
 
     if (avformat_find_stream_info(fmt_ctx, nullptr) < 0)
     {
-      return stx::Err(DemuxError::NoStream);
+      return stx::Err(DemuxError::StreamNotFound);
     }
 
     ASH_LOG_INFO(MediaPlayer, "Found Stream(s) in Media File {}. Dumping Metadata.", std::string_view{path});
@@ -522,14 +569,14 @@ struct VideoDemuxer
 
     if (stream_index < 0)
     {
-      return stx::Err(DemuxError::NoStream);
+      return stx::Err(DemuxError::StreamNotFound);
     }
 
     AVStream *stream = fmt_ctx->streams[stream_index];
 
     if (stream == nullptr)
     {
-      return stx::Err(DemuxError::NoStream);
+      return stx::Err(DemuxError::StreamNotFound);
     }
 
     return make_decoder_for_stream(path, stream);
@@ -648,6 +695,10 @@ struct AudioDevice
 
   void play()
   {
+    if (is_playing)
+    {
+      return;
+    }
     int err = SDL_PlayAudioDevice(id);
     ASH_CHECK(err == 0);
     is_playing = true;
@@ -884,164 +935,169 @@ struct MediaPlayerAudioSource : public AudioSource
 
     stx::CancelState expected_state = stx::CancelState::Executing;
 
-    while (is_open && bytes_written < stream.size() && (expected_state = promise.fetch_cancel_request()) != stx::CancelState::Canceled)
-    {
-      if (ctx->bytes_consumed != ctx->samples.size())
+    ctx->cmd_lock.lock();
+    bool needs_pause = ctx->pause_requested;
+    ctx->cmd_lock.unlock();
+
+    if (!needs_pause)
+      while (is_open && bytes_written < stream.size() && (expected_state = promise.fetch_cancel_request()) != stx::CancelState::Canceled)
       {
-        usize bytes_left     = stream.size() - bytes_written;
-        usize bytes_to_write = std::min(bytes_left, AS(usize, ctx->samples.size() - ctx->bytes_consumed));
-
-        ASH_SDL_CHECK(SDL_MixAudioFormat(stream.data() + bytes_written, ctx->samples.data() + ctx->bytes_consumed, spec.format, bytes_to_write, volume) == 0);
-        bytes_written += bytes_to_write;
-        ctx->bytes_consumed += bytes_to_write;
-
-        usize nsamples_written = (bytes_to_write / spec.channels) / av_get_bytes_per_sample(sample_fmt);
-
-        ctx->clock.fetch_add(AS(nanoseconds::rep, 1'000'000'000LL * AS(f32, nsamples_written) / AS(f32, spec.freq)), std::memory_order_relaxed);
-      }
-      else
-      {
-        ctx->packets_lock.lock();
-        if (ctx->packets.is_empty())
+        if (ctx->bytes_consumed != ctx->samples.size())
         {
+          usize bytes_left     = stream.size() - bytes_written;
+          usize bytes_to_write = std::min(bytes_left, AS(usize, ctx->samples.size() - ctx->bytes_consumed));
+
+          ASH_SDL_CHECK(SDL_MixAudioFormat(stream.data() + bytes_written, ctx->samples.data() + ctx->bytes_consumed, spec.format, bytes_to_write, volume) == 0);
+          bytes_written += bytes_to_write;
+          ctx->bytes_consumed += bytes_to_write;
+
+          usize nsamples_written = (bytes_to_write / spec.channels) / av_get_bytes_per_sample(sample_fmt);
+
+          ctx->clock.fetch_add(AS(nanoseconds::rep, 1'000'000'000LL * AS(f32, nsamples_written) / AS(f32, spec.freq)), std::memory_order_relaxed);
+        }
+        else
+        {
+          ctx->packets_lock.lock();
+          if (ctx->packets.is_empty())
+          {
+            ctx->packets_lock.unlock();
+            break;
+          }
+
+          AVPacket *packet = ctx->packets[0];
+          ctx->packets.erase(ctx->packets.span().slice(0, 1));
           ctx->packets_lock.unlock();
-          break;
-        }
 
-        AVPacket *packet = ctx->packets[0];
-        ctx->packets.erase(ctx->packets.span().slice(0, 1));
-        ctx->packets_lock.unlock();
+          nanoseconds pts{ctx->clock.load(std::memory_order_relaxed)};
 
-        nanoseconds pts{ctx->clock.load(std::memory_order_relaxed)};
-
-        if (packet->pts != AV_NOPTS_VALUE)
-        {
-          pts = timebase_resolve(ctx->stream->time_base, packet->pts);
-        }
-
-        error = avcodec_send_packet(ctx->codec, packet);
-
-        av_packet_free(&packet);
-
-        if (error != 0)
-        {
-          is_open = false;
-          if (error != AVERROR(EOF))
+          if (packet->pts != AV_NOPTS_VALUE)
           {
-            ASH_LOG_FFMPEG_ERR(error);
+            pts = timebase_resolve(ctx->stream->time_base, packet->pts);
           }
-          break;
-        }
 
-        error = avcodec_receive_frame(ctx->codec, ctx->frame);
+          error = avcodec_send_packet(ctx->codec, packet);
 
-        if (error != 0)
-        {
-          if (error == AVERROR(EAGAIN))
-          {
-            continue;
-          }
-          else
+          av_packet_free(&packet);
+
+          if (error != 0)
           {
             is_open = false;
-            ASH_LOG_FFMPEG_ERR(error);
+            if (error != AVERROR(EOF))
+            {
+              ASH_LOG_FFMPEG_ERR(error);
+            }
             break;
           }
-        }
 
-        ResamplerConfig target_cfg{
-            .src_fmt            = AS(AVSampleFormat, ctx->frame->format),
-            .dst_fmt            = sample_fmt,
-            .src_sample_rate    = ctx->frame->sample_rate,
-            .dst_sample_rate    = spec.freq,
-            .src_channel_layout = ctx->frame->ch_layout,
-            .dst_channel_layout = channel_layout};
-
-        if (ctx->resampler_cfg != target_cfg || ctx->resampler == nullptr)
-        {
-          if (ctx->resampler != nullptr)
-          {
-            swr_free(&ctx->resampler);
-          }
-
-          error = swr_alloc_set_opts2(&ctx->resampler, &target_cfg.dst_channel_layout, target_cfg.dst_fmt, target_cfg.dst_sample_rate,
-                                      &ctx->frame->ch_layout, target_cfg.src_fmt, target_cfg.src_sample_rate, 0, nullptr);
+          error = avcodec_receive_frame(ctx->codec, ctx->frame);
 
           if (error != 0)
           {
-            ASH_LOG_FFMPEG_ERR(error);
-            break;
+            if (error == AVERROR(EAGAIN))
+            {
+              continue;
+            }
+            else
+            {
+              is_open = false;
+              ASH_LOG_FFMPEG_ERR(error);
+              break;
+            }
           }
 
-          ctx->resampler_cfg = target_cfg;
+          ResamplerConfig target_cfg{
+              .fmt                = AS(AVSampleFormat, ctx->frame->format),
+              .dst_fmt            = sample_fmt,
+              .sample_rate        = ctx->frame->sample_rate,
+              .dst_sample_rate    = spec.freq,
+              .channel_layout     = ctx->frame->ch_layout,
+              .dst_channel_layout = channel_layout};
 
-          error = swr_init(ctx->resampler);
-
-          if (error != 0)
+          if (ctx->resampler_cfg != target_cfg || ctx->resampler == nullptr)
           {
+            if (ctx->resampler != nullptr)
+            {
+              swr_free(&ctx->resampler);
+            }
+
+            error = swr_alloc_set_opts2(&ctx->resampler, &target_cfg.dst_channel_layout, target_cfg.dst_fmt, target_cfg.dst_sample_rate,
+                                        &ctx->frame->ch_layout, target_cfg.fmt, target_cfg.sample_rate, 0, nullptr);
+
+            if (error != 0)
+            {
+              ASH_LOG_FFMPEG_ERR(error);
+              break;
+            }
+
+            ctx->resampler_cfg = target_cfg;
+
+            error = swr_init(ctx->resampler);
+
+            if (error != 0)
+            {
+              ASH_LOG_FFMPEG_ERR(error);
+              break;
+            }
+          }
+
+          int max_nsamples = swr_get_out_samples(ctx->resampler, ctx->frame->nb_samples);
+
+          if (max_nsamples < 0)
+          {
+            error = max_nsamples;
             ASH_LOG_FFMPEG_ERR(error);
             break;
           }
+
+          int max_buffer_size = av_samples_get_buffer_size(nullptr, spec.channels, max_nsamples, target_cfg.dst_fmt, 1);
+
+          if (max_buffer_size < 0)
+          {
+            error = max_buffer_size;
+            ASH_LOG_FFMPEG_ERR(error);
+            break;
+          }
+
+          ctx->samples.unsafe_resize_uninitialized(max_buffer_size).unwrap();
+
+          u8 *out = ctx->samples.data();
+
+          int nsamples = swr_convert(ctx->resampler, &out, max_nsamples, (u8 const **) ctx->frame->data, ctx->frame->nb_samples);
+
+          av_frame_unref(ctx->frame);
+
+          if (nsamples < 0)
+          {
+            error = nsamples;
+            ASH_LOG_FFMPEG_ERR(error);
+            break;
+          }
+
+          int buffer_size = av_samples_get_buffer_size(nullptr, spec.channels, nsamples, target_cfg.dst_fmt, 1);
+
+          if (buffer_size < 0)
+          {
+            error = buffer_size;
+            ASH_LOG_FFMPEG_ERR(error);
+            break;
+          }
+
+          ctx->samples.unsafe_resize_uninitialized(buffer_size).unwrap();
+
+          usize bytes_left     = stream.size() - bytes_written;
+          usize bytes_to_write = std::min(bytes_left, AS(usize, buffer_size));
+
+          ASH_SDL_CHECK(SDL_MixAudioFormat(stream.data() + bytes_written, ctx->samples.data(), spec.format, bytes_to_write, volume) == 0);
+
+          ctx->bytes_consumed = bytes_to_write;
+
+          bytes_written += bytes_to_write;
+
+          usize nsamples_written = (bytes_to_write / spec.channels) / av_get_bytes_per_sample(target_cfg.dst_fmt);
+
+          ctx->clock.store(pts.count() + AS(nanoseconds::rep, 1'000'000'000LL * AS(f32, nsamples_written) / AS(f32, spec.freq)), std::memory_order_relaxed);
         }
-
-        int max_nsamples = swr_get_out_samples(ctx->resampler, ctx->frame->nb_samples);
-
-        if (max_nsamples < 0)
-        {
-          error = max_nsamples;
-          ASH_LOG_FFMPEG_ERR(error);
-          break;
-        }
-
-        int max_buffer_size = av_samples_get_buffer_size(nullptr, spec.channels, max_nsamples, target_cfg.dst_fmt, 1);
-
-        if (max_buffer_size < 0)
-        {
-          error = max_buffer_size;
-          ASH_LOG_FFMPEG_ERR(error);
-          break;
-        }
-
-        ctx->samples.unsafe_resize_uninitialized(max_buffer_size).unwrap();
-
-        u8 *out = ctx->samples.data();
-
-        int nsamples = swr_convert(ctx->resampler, &out, max_nsamples, (u8 const **) ctx->frame->data, ctx->frame->nb_samples);
-
-        av_frame_unref(ctx->frame);
-
-        if (nsamples < 0)
-        {
-          error = nsamples;
-          ASH_LOG_FFMPEG_ERR(error);
-          break;
-        }
-
-        int buffer_size = av_samples_get_buffer_size(nullptr, spec.channels, nsamples, target_cfg.dst_fmt, 1);
-
-        if (buffer_size < 0)
-        {
-          error = buffer_size;
-          ASH_LOG_FFMPEG_ERR(error);
-          break;
-        }
-
-        ctx->samples.unsafe_resize_uninitialized(buffer_size).unwrap();
-
-        usize bytes_left     = stream.size() - bytes_written;
-        usize bytes_to_write = std::min(bytes_left, AS(usize, buffer_size));
-
-        ASH_SDL_CHECK(SDL_MixAudioFormat(stream.data() + bytes_written, ctx->samples.data(), spec.format, bytes_to_write, volume) == 0);
-
-        ctx->bytes_consumed = bytes_to_write;
-
-        bytes_written += bytes_to_write;
-
-        usize nsamples_written = (bytes_to_write / spec.channels) / av_get_bytes_per_sample(target_cfg.dst_fmt);
-
-        ctx->clock.store(pts.count() + AS(nanoseconds::rep, 1'000'000'000LL * AS(f32, nsamples_written) / AS(f32, spec.freq)), std::memory_order_relaxed);
       }
-    }
 
     if (expected_state == stx::CancelState::Canceled)
     {
@@ -1078,14 +1134,23 @@ struct MediaPlayerAudioSource : public AudioSource
 // subtitle
 //
 
-// TODO(lamarrr): make loading audio/video optional
-struct MediaSession
+
+
+struct MediaContext
 {
-  stx::String                                path;
-  stx::Option<stx::Rc<VideoDemuxer *>>       demuxer;
   stx::Option<stx::Rc<AudioDecodeContext *>> audio_decode_ctx;
   stx::Option<stx::Rc<VideoDecodeContext *>> video_decode_ctx;
-  stx::Option<gfx::image>                    image;
+  stx::Option<stx::Rc<std::thread *>>        video_decode_thread;
+};
+
+struct MediaSession
+{
+  stx::String                          path;
+  std::thread                          demux_thread;
+  stx::Option<stx::Rc<VideoDemuxer *>> demuxer;
+  stx::Option<gfx::image>              image;
+
+  bool is_buffering = true;
 };
 
 struct Lyrics
@@ -1165,7 +1230,25 @@ struct MediaPlayer : public Plugin
     return "MediaPlayer";
   }
 
-  media_session create_session(stx::CStringView source)
+  bool __try_open_audio_dev()
+  {
+    if (audio_device.is_some())
+    {
+      return true;
+    }
+    audio_device = AudioDevice::open_default();
+    return audio_device.is_some();
+  }
+
+  void __begin_audio_dev_play()
+  {
+    if (__try_open_audio_dev() && !audio_device.value()->is_playing)
+    {
+      audio_device.value()->play();
+    }
+  }
+
+  media_session create_session(std::string_view source)
   {
     media_session session_id = next_session_id;
     next_session_id++;
@@ -1173,27 +1256,54 @@ struct MediaPlayer : public Plugin
     return session_id;
   }
 
+  void begin_buffering();
+
+  bool is_buffered();
+
   Result<stx::Void> play(media_session session, usize video_stream, usize audio_stream)
   {
-    // TODO(lamarrr): this has nothing to do with audio
-    if (audio_device.is_some())
+    auto it = sessions.find(session);
+    if (it == sessions.end())
     {
-      if (!audio_device.value()->is_playing)
-      {
-        audio_device.value()->play();
-      }
+      return stx::Err(MediaError::InvalidSessionId);
     }
-    else
+
+    if (it->second.audio_decode_ctx.is_some())
     {
-      audio_device = AudioDevice::open_default();
+      __begin_audio_dev_play();
+      it->second.audio_decode_ctx.value()->play();
     }
+
+    if (it->second.video_decode_ctx.is_some())
+    {
+      it->second.video_decode_ctx.value()->play();
+    }
+
+    return stx::Ok(stx::Void{});
   }
 
-  Result<stx::Void> pause(media_session session);
+  Result<stx::Void> pause(media_session session)
+  {
+    auto it = sessions.find(session);
+    if (it == sessions.end())
+    {
+      return stx::Err(MediaError::InvalidSession);
+    }
 
-  Result<stx::Void> stop(media_session session);
+    if (it->second.audio_decode_ctx.is_some())
+    {
+      it->second.audio_decode_ctx.value()->pause();
+    }
 
-  Result<stx::Void> seek_time(media_session session, nanoseconds timepoint, Seek seek = Seek::Exact)
+    if (it->second.video_decode_ctx.is_some())
+    {
+      it->second.video_decode_ctx.value()->pause();
+    }
+
+    return stx::Ok(stx::Void{});
+  }
+
+  Result<stx::Void> seek_time(media_session session, nanoseconds timepoint, MediaSeek seek = MediaSeek::Exact)
   {
     auto pos = sessions.find(session);
     ASH_CHECK(pos != sessions.end());
@@ -1211,7 +1321,7 @@ struct MediaPlayer : public Plugin
     }
   }
 
-  Result<stx::Void> seek_frame(media_session session, usize frame, Seek seek = Seek::Exact);
+  Result<stx::Void> seek_frame(media_session session, usize frame, MediaSeek seek = MediaSeek::Exact);
 
   Result<stx::Void> seek_preview_at_time(media_session session, nanoseconds timepoint);
 
