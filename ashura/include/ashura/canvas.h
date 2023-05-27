@@ -104,8 +104,8 @@ inline void ellipse(vec2 position, vec2 radii, u32 nsegments, mat4 const &transf
   }
 }
 
-/// outputs nsegments*4 vertices
 // TODO(lamarrr): clamp border radius from going berserk
+/// outputs nsegments*4 vertices
 inline void round_rect(vec2 position, vec2 extent, vec4 radii, u32 nsegments, mat4 const &transform, vec4 color, ash::rect texture_area, stx::Span<vertex> polygon)
 {
   if (nsegments == 0)
@@ -283,6 +283,10 @@ struct CanvasState
   Brush brush;
 };
 
+// In order to implement command culling we might need to sync with or remove
+// global transform
+//
+//
 /// coordinates are specified in top-left origin space with x pointing to the
 /// right and y pointing downwards (Vulkan Coordinate System).
 ///
@@ -294,11 +298,6 @@ struct CanvasState
 /// - some graphics frameworks, i.e. vulkan only allow u32 indices so we have to split up the draw calls across multiple draw list batches
 /// - the canvas doesn't manage the lifetime of the handed over resources or images
 ///
-// In order to implement command culling we might need to sync with or remove
-// global transform
-//
-//
-
 struct Canvas
 {
   vec2                  viewport_extent;
@@ -662,15 +661,10 @@ struct Canvas
     return *this;
   }
 
-  // TODO(lamarrr): we need separate layout pass so we can perform widget
-  // layout, use callbacks to perform certain actions on layout calculation.
-  //
-  // TODO(lamarrr): [future] add bidi
-  Canvas &draw_text(stx::Span<GlyphPlacement const> placements, stx::Span<FontAtlas const> fonts, vec2 position){
-
-
-
-    
+  Canvas &draw_text(stx::Span<GlyphLayout const> glyph_placements, stx::Span<LineStrokePlacement const> stroke_placements,
+                    stx::Span<FontAtlas const> fonts, vec2 position)
+  {
+    return *this;
   }
 };
 

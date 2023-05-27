@@ -13,5 +13,6 @@ ASH_DECLARE_LOGGER(Window);
 ASH_DECLARE_LOGGER(Context);
 ASH_DECLARE_LOGGER(ImageLoader);
 ASH_DECLARE_LOGGER(MediaPlayer);
+ASH_DECLARE_LOGGER(FontRenderer);
 
 }        // namespace ash

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ashura/font.h"
+#include "ashura/text.h"
 #include "ashura/widget.h"
 
 namespace ash

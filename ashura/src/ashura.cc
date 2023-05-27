@@ -1,6 +1,7 @@
 #include "SDL3/SDL.h"
 #include "ashura/app.h"
 #include "ashura/widget.h"
+#include "ashura/text.h"
 #include "ashura/widgets/image.h"
 #include "stx/try_some.h"
 #include <thread>
