@@ -583,7 +583,7 @@ inline bool pack_rects(Context &context, rect *rects, i32 num_rects)
   }
 
   // return the all_rects_packed status
-  return all_rects_packed;
+  return AS(bool, all_rects_packed);
 }
 
 }        // namespace rect_packer

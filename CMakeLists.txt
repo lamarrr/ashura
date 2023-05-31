@@ -59,7 +59,9 @@ else()
         /wd5026
         /wd5027
         /wd5204
-        /wd4996)
+        /wd4996
+        /wd4710
+        /wd4711)
     endif()
   endif()
 endif()
