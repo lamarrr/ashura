@@ -8,7 +8,7 @@
 #include "stx/limits.h"
 #include "stx/option.h"
 
-#define RADIANS(...) AS(f32, ::ash::pi *(__VA_ARGS__) / 180)
+#define ASH_RADIANS(...) AS(f32, ::ash::PI *(__VA_ARGS__) / 180)
 
 namespace ash
 {
@@ -32,7 +32,7 @@ using isize = ptrdiff_t;
 using uchar = unsigned char;
 using uint  = unsigned int;
 
-constexpr f32 pi = 3.14159265358979323846f;
+constexpr f32 PI = 3.14159265358979323846f;
 
 constexpr f32 abs(f32 x)
 {

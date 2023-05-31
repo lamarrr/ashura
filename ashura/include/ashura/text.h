@@ -320,15 +320,16 @@ struct TextStyle
   color background_color        = colors::TRANSPARENT;
   color underline_color         = colors::BLACK;
   f32   underline_thickness     = 0;
-  color strikethrough_color     = colors::BLACK;        // TODO(lamarrr): implement
-  f32   strikethrough_thickness = 0;                    // TODO(lamarrr): implement
-  f32   letter_spacing          = 1;
-  f32   word_spacing            = 4;
-  f32   line_height             = 1.2f;         /// will be multiplied by font_height
-  u32   tab_size                = 8;
-  bool  underline_wiggle        = false;        // TODO(lamarrr): implement
-  bool  use_kerning             = true;
-  bool  use_ligatures           = true;         /// use standard and contextual ligature substitution
+  color strikethrough_color     = colors::BLACK;
+  f32   strikethrough_thickness = 0;
+  color stroke_color            = colors::TRANSPARENT;
+  vec2  stroke_offset;
+  f32   letter_spacing    = 1;
+  f32   word_spacing      = 4;
+  f32   line_height_ratio = 1.2f;        /// will be multiplied by font_height
+  u32   tab_size          = 8;
+  bool  use_kerning       = true;
+  bool  use_ligatures     = true;        /// use standard and contextual ligature substitution
 };
 
 enum class TextDirection : u8
@@ -340,12 +341,13 @@ enum class TextDirection : u8
 /// A text run is a sequence of characters sharing a single property set i.e. font style, foreground color, font family etc.
 struct TextRun
 {
-  stx::Span<char const> text;        /// utf-8-encoded text, Span because string view doesnt support non-string types
-  std::string_view      font;        /// ASCII. postscript name of font or family name of font joined with style. font is matched using our custom font matching rules
-  TextStyle             style;
-  TextDirection         direction = TextDirection::LeftToRight;
-  Script                script    = Script::Latin;
-  std::string_view      language  = languages::ENGLISH;
+  stx::Span<char const>             text;                  /// utf-8-encoded text, Span because string view doesnt support non-string types
+  TextStyle                         style;
+  std::string_view                  font;                  /// ASCII specified name of font
+  stx::Span<std::string_view const> fallback_fonts;        /// font to fallback to if specified font is not available
+  TextDirection                     direction = TextDirection::LeftToRight;
+  Script                            script    = Script::Latin;
+  std::string_view                  language  = languages::ENGLISH;
 };
 
 enum class TextAlign : u8
@@ -355,7 +357,6 @@ enum class TextAlign : u8
   Right
 };
 
-// TODO(lamarrr): implement
 enum class TextOverflow : u8
 {
   Wrap,
@@ -365,16 +366,9 @@ enum class TextOverflow : u8
 struct Paragraph
 {
   stx::Span<TextRun const> runs;
-  std::string_view         default_font;
   TextAlign                align    = TextAlign::Left;
   TextOverflow             overflow = TextOverflow::Wrap;
   std::string_view         ellipsis = "...";
-};
-
-struct FontGlyph
-{
-  usize font  = 0;
-  u32   glyph = 0;
 };
 
 /// this is part of a word that is styled by a run
@@ -382,6 +376,7 @@ struct RunSubWord
 {
   stx::Span<char const> text;
   usize                 run          = 0;
+  usize                 font         = 0;
   usize                 nspaces      = 0;
   usize                 nline_breaks = 0;
   f32                   width        = 0;
@@ -392,19 +387,25 @@ struct RunSubWord
 
 struct GlyphLayout
 {
-  vec2      position;        /// offset from paragraph position
-  FontGlyph glyph;
+  u32   glyph = 0;
+  usize run   = 0;
+  usize font  = 0;
+  vec2  baseline;
+  f32   line_height  = 0;
+  f32   vert_spacing = 0;
 };
 
-struct StrokeLayout
+struct SpaceLayout
 {
-  vec2  position;
   usize run = 0;
+  vec2  baseline;
+  f32   line_height = 0;
+  f32   width       = 0;
 };
 
 struct TextConstraint
 {
-  f32 min_width  = 0;        /// width of smallest word
+  f32 min_width  = 0;        /// width of paragraph when allocated a zero max-width
   f32 min_height = 0;        /// corresponding height of the text when the paragraph is at maximum width
   f32 max_width  = 0;        /// width when the paragraph laid out on a single line without wrapping. this assumes there is infinite space
   f32 max_height = 0;        /// height when the paragraph is at minimum width.
@@ -412,29 +413,34 @@ struct TextConstraint
 
 struct TextLayout
 {
-  TextConstraint         constraint;
-  stx::Vec<RunSubWord>   subwords;
-  stx::Vec<FontGlyph>    glyphs;
-  stx::Vec<GlyphLayout>  glyphs_layout;
-  stx::Vec<StrokeLayout> strokes_layout;
+  TextConstraint        constraint;
+  stx::Vec<RunSubWord>  subwords;
+  stx::Vec<u32>         glyph_indices;
+  stx::Vec<GlyphLayout> glyph_layouts;
+  stx::Vec<SpaceLayout> space_layouts;
 
   // TODO(lamarrr): [future] add bidi
-  /**
-   * @brief performs layout of the paragraph
-   *
-   * @return the width and height of the paragraph
-   */
-  vec2 layout(Paragraph paragraph, FontBundle const &bundle, f32 max_line_width)
+  /// @brief performs layout of the paragraph
+  ///
+  /// @return the width and height of the paragraph
+  vec2 layout(Paragraph paragraph, stx::Span<BundledFont const> const font_bundle, f32 max_line_width)
   {
     constexpr u32 SPACE   = ' ';
     constexpr u32 TAB     = '\t';
     constexpr u32 NEWLINE = '\n';
     constexpr u32 RETURN  = '\r';
 
-    glyphs_layout.clear();
-    strokes_layout.clear();
     subwords.clear();
-    glyphs.clear();
+    glyph_indices.clear();
+    glyph_layouts.clear();
+    space_layouts.clear();
+
+    vec2 span;
+
+    if (font_bundle.is_empty())
+    {
+      return span;
+    }
 
     for (usize i = 0; i < paragraph.runs.size(); i++)
     {
@@ -546,40 +552,67 @@ struct TextLayout
 
     for (RunSubWord &subword : subwords)
     {
-      TextRun const   &run   = paragraph.runs[subword.run];
-      Font const      &font  = fonts[run.font];
-      FontAtlas const &atlas = atlases[run.font];
+      TextRun const &run    = paragraph.runs[subword.run];
+      stx::Span      font_s = font_bundle.which([&](BundledFont const &f) {
+        return f.name == run.font;
+      });
 
-      hb_feature_t const shaping_features[] = {{Font::KERNING_FEATURE, run.style.use_kerning, 0, stx::U_MAX},
-                                               {Font::LIGATURE_FEATURE, run.style.use_ligatures, 0, stx::U_MAX},
-                                               {Font::CONTEXTUAL_LIGATURE_FEATURE, run.style.use_ligatures, 0, stx::U_MAX}};
+      if (font_s.is_empty())
+      {
+        for (std::string_view fallback : run.fallback_fonts)
+        {
+          font_s = font_bundle.which([&](BundledFont const &f) {
+            return f.name == fallback;
+          });
 
-      hb_font_set_scale(font.hbfont, 64 * atlas.font_height, 64 * atlas.font_height);
+          if (!font_s.is_empty())
+          {
+            break;
+          }
+        }
+      }
 
-      hb_buffer_reset(font.hbscratch_buffer);
-      hb_buffer_set_script(font.hbscratch_buffer, AS(hb_script_t, run.script));
+      if (font_s.is_empty())
+      {
+        font_s = font_bundle.slice(0, 1);
+      }
+
+      usize font_index = font_s.begin() - font_bundle.begin();
+
+      Font const      &font  = *font_bundle[font_index].font;
+      FontAtlas const &atlas = font_bundle[font_index].atlas;
+
+      hb_feature_t shaping_features[] = {{.tag = Font::KERNING_FEATURE, .value = run.style.use_kerning, .start = 0, .end = stx::U_MAX},
+                                         {.tag = Font::LIGATURE_FEATURE, .value = run.style.use_ligatures, .start = 0, .end = stx::U_MAX},
+                                         {.tag = Font::CONTEXTUAL_LIGATURE_FEATURE, .value = run.style.use_ligatures, .start = 0, .end = stx::U_MAX}};
+
+      hb_font_set_scale(font.hb_font, 64 * atlas.font_height, 64 * atlas.font_height);
+
+      hb_buffer_reset(font.hb_scratch_buffer);
+      hb_buffer_set_script(font.hb_scratch_buffer, AS(hb_script_t, run.script));
 
       if (run.direction == TextDirection::LeftToRight)
       {
-        hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_LTR);
+        hb_buffer_set_direction(font.hb_scratch_buffer, HB_DIRECTION_LTR);
       }
       else
       {
-        hb_buffer_set_direction(font.hbscratch_buffer, HB_DIRECTION_RTL);
+        hb_buffer_set_direction(font.hb_scratch_buffer, HB_DIRECTION_RTL);
       }
-      hb_buffer_set_language(font.hbscratch_buffer, hb_language_from_string(run.language.data(), AS(int, run.language.size())));
-      hb_buffer_add_utf8(font.hbscratch_buffer, subword.text.begin(), AS(int, subword.text.size()), 0, AS(int, subword.text.size()));
+      hb_buffer_set_language(font.hb_scratch_buffer, hb_language_from_string(run.language.data(), AS(int, run.language.size())));
+      hb_buffer_add_utf8(font.hb_scratch_buffer, subword.text.begin(), AS(int, subword.text.size()), 0, AS(int, subword.text.size()));
 
-      hb_shape(font.hbfont, font.hbscratch_buffer, shaping_features, AS(uint, std::size(shaping_features)));
+      hb_shape(font.hb_font, font.hb_scratch_buffer, shaping_features, AS(uint, std::size(shaping_features)));
 
       uint             nglyphs;
-      hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(font.hbscratch_buffer, &nglyphs);
+      hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(font.hb_scratch_buffer, &nglyphs);
 
       f32 font_scale = run.style.font_height / atlas.font_height;
 
       f32 width = 0;
 
-      subword.glyph_start = glyphs.size();
+      subword.font        = font_index;
+      subword.glyph_start = glyph_indices.size();
       subword.nglyphs     = nglyphs;
 
       for (usize i = 0; i < nglyphs; i++)
@@ -587,24 +620,23 @@ struct TextLayout
         u32       glyph_index = glyph_info[i].codepoint;
         stx::Span glyph       = atlas.get(glyph_index);
 
-        // TODO(lamarrr): we seem to be getting an extra glyph index 0
         if (!glyph.is_empty())
         {
           width += glyph[0].advance.x * font_scale + run.style.letter_spacing;
-          glyphs.push(FontGlyph{.font = run.font, .glyph = glyph_index}).unwrap();
+          glyph_indices.push_inplace(glyph_index).unwrap();
         }
-        else
+        // try to use glyph at index 0, this is usually the invalid character replacement glyph
+        else if (!atlas.glyphs.is_empty())
         {
           width += atlas.glyphs[0].advance.x * font_scale + run.style.letter_spacing;
-          glyphs.push(FontGlyph{.font = run.font, .glyph = 0}).unwrap();
+          glyph_indices.push_inplace(0).unwrap();
         }
       }
 
       subword.width = width;
     }
 
-    // perform wrapping of text
-    // TODO(lamarrr): perform wrapping of word if text is characters are too long to contain on a single line
+    // wrap text to new line if its width exceeds the maximum line width
     {
       f32 cursor_x = 0;
 
@@ -655,7 +687,7 @@ struct TextLayout
       }
     }
 
-    // add new line to wraps if there's no previous newline
+    // wraps if there's no previous line break
     {
       f32   baseline          = 0;
       usize nprev_line_breaks = 0;
@@ -666,6 +698,7 @@ struct TextLayout
         RunSubWord const *line_end     = iter + 1;
         usize             nline_breaks = 0;
 
+        // find out where the line ends
         if (line_begin->is_wrapped && nprev_line_breaks == 0)
         {
           nprev_line_breaks = 1;
@@ -699,29 +732,32 @@ struct TextLayout
         for (RunSubWord const *subword = line_begin; subword < line_end; subword++)
         {
           line_width += subword->width + subword->nspaces * paragraph.runs[subword->run].style.word_spacing;
-          line_height = std::max(line_height, paragraph.runs[subword->run].style.line_height * paragraph.runs[subword->run].style.font_height);
+          line_height = std::max(line_height, paragraph.runs[subword->run].style.line_height_ratio * paragraph.runs[subword->run].style.font_height);
 
           TextRun const   &run        = paragraph.runs[subword->run];
-          FontAtlas const &atlas      = atlases[run.font];
+          FontAtlas const &atlas      = font_bundle[subword->font].atlas;
           f32              font_scale = run.style.font_height / atlas.font_height;
 
-          for (FontGlyph const &glyph : glyphs.span().slice(subword->glyph_start, subword->nglyphs))
+          for (u32 glyph_index : glyph_indices.span().slice(subword->glyph_start, subword->nglyphs))
           {
-            max_ascent = std::max(max_ascent, atlas.glyphs[glyph.glyph].ascent * font_scale);
+            max_ascent = std::max(max_ascent, atlas.glyphs[glyph_index].ascent * font_scale);
           }
         }
 
-        // TODO(lamarrr): add alignment
-        f32 vert_spacing = std::max(line_height - max_ascent, 0.0f) / 2;
-        f32 alignment    = 0;
+        span.x = std::max(span.x, paragraph.align == TextAlign::Left ? line_width : max_line_width);
+        span.y += line_height;
+
+        // TODO(lamarrr): implement ellipsis wrapping
+        f32 vert_spacing   = std::max(line_height - max_ascent, 0.0f) / 2;
+        f32 line_alignment = 0;
 
         if (paragraph.align == TextAlign::Center)
         {
-          alignment = (std::max(line_width, max_line_width) - line_width) / 2;
+          line_alignment = (std::max(line_width, max_line_width) - line_width) / 2;
         }
         else if (paragraph.align == TextAlign::Right)
         {
-          alignment = std::max(line_width, max_line_width) - line_width;
+          line_alignment = std::max(line_width, max_line_width) - line_width;
         }
 
         baseline += nprev_line_breaks * line_height;
@@ -733,41 +769,30 @@ struct TextLayout
           if (paragraph.runs[subword->run].direction == TextDirection::LeftToRight)
           {
             TextRun const   &run   = paragraph.runs[subword->run];
-            FontAtlas const &atlas = atlases[run.font];
-            Font const      &font  = fonts[run.font];
+            Font const      &font  = *font_bundle[subword->font].font;
+            FontAtlas const &atlas = font_bundle[subword->font].atlas;
 
             f32 font_scale     = run.style.font_height / atlas.font_height;
             f32 letter_spacing = run.style.letter_spacing;
             f32 word_spacing   = run.style.word_spacing;
             f32 init_cursor_x  = cursor_x;
 
-            for (FontGlyph const &glyph : glyphs.span().slice(subword->glyph_start, subword->nglyphs))
+            for (u32 glyph_index : glyph_indices.span().slice(subword->glyph_start, subword->nglyphs))
             {
-              Glyph const &g       = atlas.glyphs[glyph.glyph];
-              vec2         advance = g.advance * font_scale;
-              draw_glyph(g, run, atlas.texture, position + vec2{cursor_x, baseline}, font_scale, line_height, vert_spacing, font.has_color);
+              Glyph const &glyph   = atlas.glyphs[glyph_index];
+              vec2         advance = glyph.advance * font_scale;
+              glyph_layouts.push(GlyphLayout{
+                                     .glyph        = glyph_index,
+                                     .run          = subword->run,
+                                     .font         = subword->font,
+                                     .baseline     = vec2{line_alignment + cursor_x, baseline},
+                                     .line_height  = line_height,
+                                     .vert_spacing = vert_spacing})
+                  .unwrap();
               cursor_x += advance.x + letter_spacing;
             }
 
-            if (run.style.background_color.is_visible() && subword->nspaces > 0)
-            {
-              save();
-              brush.color = run.style.background_color;
-              brush.fill  = true;
-              draw_rect(rect{.offset = position + vec2{cursor_x, baseline - line_height}, .extent = vec2{word_spacing * subword->nspaces, line_height}});
-              restore();
-            }
-
-            if (run.style.underline_color.is_visible())
-            {
-              save();
-              brush.color = run.style.underline_color;
-              brush.fill  = true;
-              draw_rect(rect{.offset = position + vec2{init_cursor_x, baseline}, .extent = vec2{subword->width + subword->nspaces * word_spacing, run.style.underline_thickness}});
-              restore();
-            }
-
-            // TODO(lamarrr): implement strikethrough
+            space_layouts.push(SpaceLayout{.run = subword->run, .baseline = vec2{line_alignment + cursor_x, baseline}, .line_height = line_height, .width = subword->nspaces * word_spacing}).unwrap();
 
             cursor_x += subword->nspaces * word_spacing;
             subword++;
@@ -797,51 +822,33 @@ struct TextLayout
             for (RunSubWord const *rtl_iter = rtl_begin; rtl_iter < rtl_end; rtl_iter++)
             {
               TextRun const   &run   = paragraph.runs[rtl_iter->run];
-              FontAtlas const &atlas = atlases[run.font];
-              Font const      &font  = fonts[run.font];
+              Font const      &font  = *font_bundle[rtl_iter->font].font;
+              FontAtlas const &atlas = font_bundle[rtl_iter->font].atlas;
 
               f32 font_scale     = run.style.font_height / atlas.font_height;
               f32 letter_spacing = run.style.letter_spacing;
               f32 spacing        = rtl_iter->nspaces * run.style.word_spacing;
               rtl_cursor_x -= spacing;
 
-              if (run.style.background_color.is_visible() && rtl_iter->nspaces > 0)
-              {
-                save();
-                brush.color = run.style.background_color;
-                brush.fill  = true;
-                draw_rect(rect{.offset = position + vec2{rtl_cursor_x, baseline - line_height}, .extent = vec2{spacing, line_height}});
-                restore();
-              }
-
-              if (run.style.background_color.is_visible() && rtl_iter->nspaces > 0)
-              {
-                save();
-                brush.color = run.style.background_color;
-                brush.fill  = true;
-                draw_rect(rect{.offset = position + vec2{rtl_cursor_x, baseline - line_height}, .extent = vec2{spacing, line_height}});
-                restore();
-              }
+              space_layouts.push(SpaceLayout{.run = rtl_iter->run, .baseline = vec2{line_alignment + rtl_cursor_x, baseline}, .line_height = line_height, .width = spacing}).unwrap();
 
               rtl_cursor_x -= rtl_iter->width;
 
               f32 glyph_cursor_x = rtl_cursor_x;
 
-              for (FontGlyph const &glyph : glyphs.span().slice(rtl_iter->glyph_start, rtl_iter->nglyphs))
+              for (u32 glyph_index : glyph_indices.span().slice(rtl_iter->glyph_start, rtl_iter->nglyphs))
               {
-                Glyph const &g       = atlas.glyphs[glyph.glyph];
-                vec2         advance = g.advance * font_scale;
-                draw_glyph(g, run, atlas.texture, position + vec2{glyph_cursor_x, baseline}, font_scale, line_height, vert_spacing, font.has_color);
+                Glyph const &glyph   = atlas.glyphs[glyph_index];
+                vec2         advance = glyph.advance * font_scale;
+                glyph_layouts.push(GlyphLayout{
+                                       .glyph        = glyph_index,
+                                       .run          = subword->run,
+                                       .font         = subword->font,
+                                       .baseline     = vec2{line_alignment + glyph_cursor_x, baseline},
+                                       .line_height  = line_height,
+                                       .vert_spacing = vert_spacing})
+                    .unwrap();
                 glyph_cursor_x += advance.x + letter_spacing;
-              }
-
-              if (run.style.underline_color.is_visible())
-              {
-                save();
-                brush.color = run.style.underline_color;
-                brush.fill  = true;
-                draw_rect(rect{.offset = position + vec2{rtl_cursor_x, baseline}, .extent = vec2{rtl_iter->width + spacing, run.style.underline_thickness}});
-                restore();
               }
             }
 
@@ -854,12 +861,14 @@ struct TextLayout
         iter              = line_end;
       }
     }
+
+    return span;
   }
 
-  void calculate_constraint(Paragraph paragraph, FontBundle const &font_bundle)
+  void calculate_constraint(Paragraph paragraph, stx::Span<BundledFont const> font_bundle)
   {
     vec2 min              = layout(paragraph, font_bundle, 0);
-    vec2 max              = layout(paragraph, font_bundle, stx::F32_MAX);
+    vec2 max              = layout(paragraph, font_bundle, 1'024'000);
     constraint.min_width  = min.x;
     constraint.min_height = max.y;
     constraint.max_width  = max.y;

@@ -100,7 +100,7 @@
 
 namespace ash
 {
-namespace rp
+namespace rect_packer
 {
 
 struct rect
@@ -586,5 +586,5 @@ inline bool pack_rects(Context &context, rect *rects, i32 num_rects)
   return all_rects_packed;
 }
 
-}        // namespace rp
+}        // namespace rect_packer
 }        // namespace ash
