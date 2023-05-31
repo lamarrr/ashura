@@ -28,6 +28,7 @@ find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
 find_package(libavif CONFIG REQUIRED)
 find_package(FFMPEG REQUIRED)
+find_package(curl REQUIRED)
 
 FetchContent_MakeAvailable(stx)
 

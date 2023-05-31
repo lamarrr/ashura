@@ -20,6 +20,7 @@ target_link_libraries(
   ${JPEG_LIBRARIES}
   PNG::PNG
   avif
+  libcurl
   ${FFMPEG_LIBRARIES})
 
 target_include_directories(ashura PUBLIC ${FFMPEG_INCLUDE_DIRS})
