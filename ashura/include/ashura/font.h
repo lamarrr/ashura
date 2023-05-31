@@ -148,7 +148,7 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_memory(stx::Me
   return stx::Ok(stx::rc::make_inplace<Font>(stx::os_allocator, stx::CStringView{FT_Get_Postscript_Name(ft_face)},
                                              ft_face->family_name != nullptr ? stx::CStringView{ft_face->family_name} : stx::CStringView{},
                                              ft_face->style_name != nullptr ? stx::CStringView{ft_face->style_name} : stx::CStringView{},
-                                             hb_face, hb_font, hb_scratch_buffer, ft_lib, ft_face, ft_stroker, FT_HAS_COLOR(ft_face), std::move(memory))
+                                             hb_blob, hb_face, hb_font, hb_scratch_buffer, ft_lib, ft_face, ft_stroker, FT_HAS_COLOR(ft_face), std::move(memory))
                      .unwrap());
 }
 

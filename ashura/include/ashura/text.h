@@ -629,7 +629,7 @@ struct TextLayout
         else if (!atlas.glyphs.is_empty())
         {
           width += atlas.glyphs[0].advance.x * font_scale + run.style.letter_spacing;
-          glyph_indices.push_inplace(0).unwrap();
+          glyph_indices.push(0).unwrap();
         }
       }
 
