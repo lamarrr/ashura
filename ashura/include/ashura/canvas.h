@@ -126,7 +126,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, u32 nsegments, ma
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p = vec2{radii.w, extent.y - radii.w} + radii.w *vec2{std::cos(AS(f32, PI / 2) + segment * step), std::sin(AS(f32, PI / 2) + segment * step)};
+    vec2 p = vec2{radii.w, extent.y - radii.w} + radii.w *vec2{std::cos(PI / 2 + segment * step), std::sin(PI / 2 + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -135,7 +135,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, u32 nsegments, ma
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p = radii.x + radii.x *vec2{std::cos(AS(f32, PI) + segment * step), std::sin(AS(f32, PI) + segment * step)};
+    vec2 p = radii.x + radii.x *vec2{std::cos(PI + segment * step), std::sin(PI + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -144,7 +144,7 @@ inline void round_rect(vec2 position, vec2 extent, vec4 radii, u32 nsegments, ma
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p = vec2{extent.x - radii.y, radii.y} + radii.y *vec2{std::cos(AS(f32, PI * 3) / 2 + segment * step), std::sin(AS(f32, PI * 3) / 2 + segment * step)};
+    vec2 p = vec2{extent.x - radii.y, radii.y} + radii.y *vec2{std::cos(PI * 3.0f / 2.0f + segment * step), std::sin(PI * 3.0f / 2.0f + segment * step)};
 
     vec2 st = texture_area.offset + p / extent * texture_area.extent;
 
@@ -227,7 +227,7 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
     alpha = alpha + PI / 2;
 
     vec2 f = thickness / 2 * vec2{std::cos(alpha), std::sin(alpha)};
-    vec2 g = thickness / 2 * vec2{std::cos(AS(f32, PI + alpha)), std::sin(AS(f32, PI + alpha))};
+    vec2 g = thickness / 2 * vec2{std::cos(PI + alpha), std::sin(PI + alpha)};
 
     vec2 m0 = p0 + f;
     vec2 m1 = p0 + g;
