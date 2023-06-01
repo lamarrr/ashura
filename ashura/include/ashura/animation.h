@@ -6,6 +6,7 @@
 namespace ash
 {
 
+// TODO(lamarrr): fix this, allow generic animation types with different types of animation bases
 struct Animation
 {
   f32 duration = 0;

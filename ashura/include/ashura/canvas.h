@@ -395,6 +395,18 @@ struct Canvas
     return *this;
   }
 
+  Canvas &transform(mat4 const &t)
+  {
+    state.transform = t * state.transform;
+    return *this;
+  }
+
+  Canvas &global_transform(mat4 const &t)
+  {
+    state.global_transform = t * state.global_transform;
+    return *this;
+  }
+
   Canvas &clear(color clear_color, image texture = WHITE_IMAGE)
   {
     draw_list.clear();

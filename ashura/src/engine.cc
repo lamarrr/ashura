@@ -271,7 +271,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
     canvas.begin(viewport_extent);
     widget_system.perform_widget_layout(viewport_extent);
     widget_system.rebuild_draw_entries();
-    widget_system.draw_widgets(ctx, canvas);
+    widget_system.draw_widgets(ctx, canvas, mat4::identity());
   };
 
   // only record if swapchain visible,
