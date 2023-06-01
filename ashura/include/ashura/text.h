@@ -744,9 +744,6 @@ struct TextLayout
           }
         }
 
-        span.x = std::max(span.x, paragraph.align == TextAlign::Left ? line_width : max_line_width);
-        span.y += line_height;
-
         // TODO(lamarrr): implement ellipsis wrapping
         f32 vert_spacing   = std::max(line_height - max_ascent, 0.0f) / 2;
         f32 line_alignment = 0;
@@ -760,7 +757,13 @@ struct TextLayout
           line_alignment = std::max(line_width, max_line_width) - line_width;
         }
 
+        span.x = std::max(span.x, line_width + line_alignment);
+
         baseline += nprev_line_breaks * line_height;
+
+        // TODO(lamarrr): this is probably incorrect
+        // also, is the newline rendered if there is nothing on it. i.e. after this iteration is a empty newline considered
+        span.y = baseline;
 
         f32 cursor_x = 0;
 
@@ -769,13 +772,11 @@ struct TextLayout
           if (paragraph.runs[subword->run].direction == TextDirection::LeftToRight)
           {
             TextRun const   &run   = paragraph.runs[subword->run];
-            Font const      &font  = *font_bundle[subword->font].font;
             FontAtlas const &atlas = font_bundle[subword->font].atlas;
 
             f32 font_scale     = run.style.font_height / atlas.font_height;
             f32 letter_spacing = run.style.letter_spacing;
             f32 word_spacing   = run.style.word_spacing;
-            f32 init_cursor_x  = cursor_x;
 
             for (u32 glyph_index : glyph_indices.span().slice(subword->glyph_start, subword->nglyphs))
             {
@@ -822,7 +823,6 @@ struct TextLayout
             for (RunSubWord const *rtl_iter = rtl_begin; rtl_iter < rtl_end; rtl_iter++)
             {
               TextRun const   &run   = paragraph.runs[rtl_iter->run];
-              Font const      &font  = *font_bundle[rtl_iter->font].font;
               FontAtlas const &atlas = font_bundle[rtl_iter->font].atlas;
 
               f32 font_scale     = run.style.font_height / atlas.font_height;

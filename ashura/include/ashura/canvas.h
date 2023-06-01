@@ -268,8 +268,8 @@ inline void triangulate_line(vec2 position, stx::Span<vertex const> in_vertices,
 
 struct CanvasState
 {
-  mat4 transform        = mat4::identity();
-  mat4 global_transform = mat4::identity();
+  mat4 transform        = mat4::identity();        // local object transform, applies to local coordinates of the objects
+  mat4 global_transform = mat4::identity();        // global scene transform, applies to the global coordinate of the objects
   rect clip_rect;
 };
 
@@ -291,18 +291,14 @@ struct CanvasState
 struct Canvas
 {
   vec2                  viewport_extent;
-  mat4                  transform        = mat4::identity();        // local object transform, applies to individual objects
-  mat4                  global_transform = mat4::identity();        // global scene transform, applies to all objects in the scene, this is the first transform applied to the objects
-  rect                  clip_rect;
+  CanvasState           state;
   stx::Vec<CanvasState> state_stack;
   DrawList              draw_list;
 
   Canvas &begin(vec2 new_viewport_extent)
   {
-    viewport_extent  = new_viewport_extent;
-    transform        = mat4::identity();
-    global_transform = mat4::identity();
-    clip_rect        = rect{.offset = {0, 0}, .extent = viewport_extent};
+    viewport_extent = new_viewport_extent;
+    state           = CanvasState{.clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     draw_list.clear();
     return *this;
@@ -311,7 +307,7 @@ struct Canvas
   /// push state (transform and clips) on state stack
   Canvas &save()
   {
-    state_stack.push(CanvasState{.transform = transform, .global_transform = global_transform, .clip_rect = clip_rect}).unwrap();
+    state_stack.push_inplace(state).unwrap();
     return *this;
   }
 
@@ -319,10 +315,7 @@ struct Canvas
   /// pop state (transform and clips) stack and restore state
   Canvas &restore()
   {
-    CanvasState state = state_stack.pop().unwrap_or(CanvasState{});
-    transform         = state.transform;
-    global_transform  = state.global_transform;
-    clip_rect         = state.clip_rect;
+    state = state_stack.pop().unwrap_or(CanvasState{.clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}});
     return *this;
   }
 
@@ -330,9 +323,7 @@ struct Canvas
   /// and clips)
   Canvas &reset()
   {
-    transform        = mat4::identity();
-    global_transform = mat4::identity();
-    clip_rect        = rect{.offset = {0, 0}, .extent = viewport_extent};
+    state = CanvasState{.clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     return *this;
   }
@@ -340,38 +331,38 @@ struct Canvas
   Canvas &translate(f32 x, f32 y)
   {
     vec3 translation = 2 * vec3{x, y, 1} / vec3{viewport_extent.x, viewport_extent.y, 1};
-    transform        = ash::translate(translation) * transform;
+    state.transform  = ash::translate(translation) * state.transform;
     return *this;
   }
 
   Canvas &global_translate(f32 x, f32 y)
   {
-    vec3 translation = 2 * vec3{x, y, 1} / vec3{viewport_extent.x, viewport_extent.y, 1};
-    global_transform = ash::translate(translation) * global_transform;
+    vec3 translation       = 2 * vec3{x, y, 1} / vec3{viewport_extent.x, viewport_extent.y, 1};
+    state.global_transform = ash::translate(translation) * state.global_transform;
     return *this;
   }
 
   Canvas &rotate(f32 x, f32 y, f32 z)
   {
-    transform = ash::rotate_z(ASH_RADIANS(z)) * ash::rotate_y(ASH_RADIANS(y)) * ash::rotate_x(ASH_RADIANS(x)) * transform;
+    state.transform = ash::rotate_z(ASH_RADIANS(z)) * ash::rotate_y(ASH_RADIANS(y)) * ash::rotate_x(ASH_RADIANS(x)) * state.transform;
     return *this;
   }
 
   Canvas &global_rotate(f32 x, f32 y, f32 z)
   {
-    global_transform = ash::rotate_z(ASH_RADIANS(z)) * ash::rotate_y(ASH_RADIANS(y)) * ash::rotate_x(ASH_RADIANS(x)) * global_transform;
+    state.global_transform = ash::rotate_z(ASH_RADIANS(z)) * ash::rotate_y(ASH_RADIANS(y)) * ash::rotate_x(ASH_RADIANS(x)) * state.global_transform;
     return *this;
   }
 
   Canvas &scale(f32 x, f32 y)
   {
-    transform = ash::scale(vec3{x, y, 1}) * transform;
+    state.transform = ash::scale(vec3{x, y, 1}) * state.transform;
     return *this;
   }
 
   Canvas &global_scale(f32 x, f32 y)
   {
-    global_transform = ash::scale(vec3{x, y, 1}) * global_transform;
+    state.global_transform = ash::scale(vec3{x, y, 1}) * state.global_transform;
     return *this;
   }
 
@@ -417,7 +408,7 @@ struct Canvas
 
     // the input texture coordinates are not used since we need to regenerate
     // them for the line thickness
-    triangulate_line(area.offset, points, area.extent, transform, thickness, texture_area, draw_list.vertices, draw_list.indices);
+    triangulate_line(area.offset, points, area.extent, state.transform, thickness, texture_area, draw_list.vertices, draw_list.indices);
 
     usize curr_nvertices = draw_list.vertices.size();
     usize curr_nindices  = draw_list.indices.size();
@@ -429,8 +420,8 @@ struct Canvas
 
     draw_list.cmds.push(DrawCommand{.nvertices = nvertices,
                                     .nindices  = nindices,
-                                    .clip_rect = clip_rect,
-                                    .transform = global_transform,
+                                    .clip_rect = state.clip_rect,
+                                    .transform = state.global_transform,
                                     .texture   = texture})
         .unwrap();
 
@@ -462,8 +453,8 @@ struct Canvas
     draw_list.cmds
         .push(DrawCommand{.nvertices = nvertices,
                           .nindices  = nindices,
-                          .clip_rect = clip_rect,
-                          .transform = global_transform,
+                          .clip_rect = state.clip_rect,
+                          .transform = state.global_transform,
                           .texture   = texture})
         .unwrap();
 
@@ -474,7 +465,7 @@ struct Canvas
   {
     vec4   color_v  = color.as_vec();
     vertex points[] = {{.position = p1, .st = {}, .color = color_v},
-                       {.position = p1 + ash::transform(transform, p2 - p1), .st = {}, .color = color_v}};
+                       {.position = p1 + ash::transform(state.transform, p2 - p1), .st = {}, .color = color_v}};
 
     rect area{.offset = p1, .extent = p2 - p1};
 
@@ -487,7 +478,7 @@ struct Canvas
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
-    polygons::rect(area.offset, area.extent, transform, color.as_vec(), texture_area, vertices);
+    polygons::rect(area.offset, area.extent, state.transform, color.as_vec(), texture_area, vertices);
 
     return draw_convex_polygon_filled(vertices, area, texture);
   }
@@ -498,7 +489,7 @@ struct Canvas
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
-    polygons::rect(area.offset, area.extent, transform, color.as_vec(), texture_area, vertices);
+    polygons::rect(area.offset, area.extent, state.transform, color.as_vec(), texture_area, vertices);
 
     area.offset = area.offset - thickness / 2;
     area.extent = area.extent + thickness;
@@ -514,7 +505,7 @@ struct Canvas
     vertices.unsafe_resize_uninitialized(nsegments).unwrap();
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
-    polygons::circle(position, radius, nsegments, transform, color.as_vec(), texture_area, vertices);
+    polygons::circle(position, radius, nsegments, state.transform, color.as_vec(), texture_area, vertices);
 
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
@@ -527,7 +518,7 @@ struct Canvas
     vertices.unsafe_resize_uninitialized(nsegments).unwrap();
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
-    polygons::circle(position, radius, nsegments, transform, color.as_vec(), texture_area, vertices);
+    polygons::circle(position, radius, nsegments, state.transform, color.as_vec(), texture_area, vertices);
 
     rect area{.offset = position - vec2{thickness / 2, thickness / 2}, .extent = vec2::splat(2 * radius) + vec2{thickness, thickness}};
 
@@ -550,7 +541,7 @@ struct Canvas
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
-    polygons::ellipse(position, radii, nsegments, transform, color.as_vec(), texture_area, vertices);
+    polygons::ellipse(position, radii, nsegments, state.transform, color.as_vec(), texture_area, vertices);
 
     rect area{.offset = position, .extent = 2 * radii};
 
@@ -564,7 +555,7 @@ struct Canvas
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
-    polygons::ellipse(position, radii, nsegments, transform, color.as_vec(), texture_area, vertices);
+    polygons::ellipse(position, radii, nsegments, state.transform, color.as_vec(), texture_area, vertices);
 
     rect area{.offset = position - vec2::splat(thickness / 2), .extent = (2 * radii) + vec2::splat(thickness)};
 
@@ -587,7 +578,7 @@ struct Canvas
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
-    polygons::round_rect(area.offset, area.extent, radii, nsegments, transform, color.as_vec(), texture_area, vertices);
+    polygons::round_rect(area.offset, area.extent, radii, nsegments, state.transform, color.as_vec(), texture_area, vertices);
 
     return draw_convex_polygon_filled(vertices, area, texture);
   }
@@ -599,7 +590,7 @@ struct Canvas
 
     rect texture_area{.offset = {0, 0}, .extent = {1, 1}};
 
-    polygons::round_rect(area.offset, area.extent, radii, nsegments, transform, color.as_vec(), texture_area, vertices);
+    polygons::round_rect(area.offset, area.extent, radii, nsegments, state.transform, color.as_vec(), texture_area, vertices);
 
     if (vertices.size() > 0)
     {
@@ -621,7 +612,7 @@ struct Canvas
     vertex vertices[4];
     rect   texture_area{.offset = {s0, t0}, .extent = {s1 - s0, t1 - t0}};
 
-    polygons::rect(area.offset, area.extent, transform, tint.as_vec(), texture_area, vertices);
+    polygons::rect(area.offset, area.extent, state.transform, tint.as_vec(), texture_area, vertices);
 
     return draw_convex_polygon_filled(vertices, area, img);
   }
@@ -636,7 +627,7 @@ struct Canvas
     stx::Vec<vertex> vertices;
     vertices.unsafe_resize_uninitialized(nsegments * 4).unwrap();
 
-    polygons::round_rect(area.offset, area.extent, border_radii, nsegments, transform, tint.as_vec(), image_portion, vertices);
+    polygons::round_rect(area.offset, area.extent, border_radii, nsegments, state.transform, tint.as_vec(), image_portion, vertices);
 
     return draw_convex_polygon_filled(vertices, area, img);
   }
