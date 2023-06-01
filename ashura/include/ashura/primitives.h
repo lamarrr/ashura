@@ -340,13 +340,13 @@ constexpr bool operator!=(mat4 const &a, mat4 const &b)
 
 constexpr vec2 transform(mat4 const &a, vec2 const &b)
 {
-  vec4 prod = a * vec4{b.x, b.y, 0, 1};
+  vec4 prod = a *vec4{b.x, b.y, 0, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
 constexpr vec2 transform(mat4 const &a, vec3 const &b)
 {
-  vec4 prod = a * vec4{b.x, b.y, b.z, 1};
+  vec4 prod = a *vec4{b.x, b.y, b.z, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
@@ -626,11 +626,16 @@ constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
 
 }        // namespace colors
 
+struct rect_uv
+{
+  vec2 uv0, uv1;
+};
+
 /// a 2d shader vertex
 struct vertex
 {
   vec2 position;        // point in 2d space
-  vec2 st;              // texture coordinates
+  vec2 uv;              // texture coordinates
   vec4 color;           // color of the vertex encoded in the target's color space
 };
 
