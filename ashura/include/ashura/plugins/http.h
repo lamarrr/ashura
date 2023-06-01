@@ -4,15 +4,18 @@
 #include <map>
 
 #include "ashura/utils.h"
-#include "curl/curl.h"
 #include "fmt/format.h"
 #include "stx/async.h"
-#include "stx/option.h"
-#include "stx/span.h"
-#include "stx/spinlock.h"
 #include "stx/string.h"
-#include "stx/task/priority.h"
 #include "stx/vec.h"
+
+#ifndef NOMINMAX
+#  define NOMINMAX
+#  include "curl/curl.h"
+#  undef NOMINMAX
+#else
+#  include "curl/curl.h"
+#endif
 
 #define ASH_CURLE_ENSURE(code_expression, ...) \
   do                                           \
