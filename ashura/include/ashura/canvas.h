@@ -744,7 +744,7 @@ struct Canvas
 
 struct CanvasPushConstants
 {
-  mat4 transform = mat4::identity();
+  mat4 transform;
 };
 
 }        // namespace gfx
