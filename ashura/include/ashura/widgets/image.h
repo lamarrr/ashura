@@ -98,6 +98,11 @@ struct Image : public Widget
     }
   }
 
+  virtual mat4 get_transform() override
+  {
+    return rotate_x(rotation * PI / 180) * rotate_y(rotation * PI / 180);
+  }
+
   virtual void draw(gfx::Canvas &canvas, rect area) override
   {
     switch (state)
@@ -113,7 +118,6 @@ struct Image : public Widget
       case ImageState::Loaded:
       {
         rect_uv texture_region{.uv0 = {0, 0}, .uv1 = {1, 1}};
-        canvas.rotate(rotation, rotation, 0);
 
         if (props.aspect_ratio.is_some())
         {

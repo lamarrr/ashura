@@ -319,7 +319,7 @@ struct Canvas
   DrawList              draw_list;
   stx::Vec<vertex>      scratch;        // scratch/temporary buffer for storing generating vertices before storing in the draw list
 
-  Canvas &begin(vec2 viewport_extent)
+  Canvas &restart(vec2 viewport_extent)
   {
     this->viewport_extent = viewport_extent;
     state                 = CanvasState{.clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
@@ -330,7 +330,7 @@ struct Canvas
 
   mat4 make_transform(vec2 position) const
   {
-    return ash::translate(vec3::splat(-1))                                            /// normalize to vulkan viewport coordinate range -1 to 1
+    return ash::translate(vec3{-1, -1, 0})                                            /// normalize to vulkan viewport coordinate range -1 to 1
            * ash::scale(vec3{2 / viewport_extent.x, 2 / viewport_extent.y, 0})        /// normalize to 0 to 2 coordinate range
            * state.global_transform                                                   /// apply global coordinate transform
            * ash::translate(vec3{position.x, position.y, 0})                          /// apply viewport positioning

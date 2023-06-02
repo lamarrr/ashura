@@ -268,7 +268,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
   auto record_draw_commands = [&]() {
     VkExtent2D extent = root_window.value()->surface.value()->swapchain.value().window_extent;
     vec2       viewport_extent{AS(f32, extent.width), AS(f32, extent.height)};
-    canvas.begin(viewport_extent);
+    canvas.restart(viewport_extent);
     widget_system.perform_widget_layout(viewport_extent);
     widget_system.rebuild_draw_entries();
     widget_system.draw_widgets(ctx, canvas, mat4::identity());
