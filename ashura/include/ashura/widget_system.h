@@ -11,10 +11,8 @@ namespace ash
 
 struct WidgetDrawEntry
 {
-  Widget   *widget       = nullptr;
-  Widget   *parent       = nullptr;
-  usize     parent_index = 0;
-  i64       z_index      = 0;
+  Widget   *widget  = nullptr;
+  i64       z_index = 0;
   ash::quad quad;
 };
 
@@ -72,7 +70,7 @@ struct WidgetSystem
     {
       z_index = widget.get_z_index(z_index);
 
-      entries.push(WidgetDrawEntry{.widget = &widget, .parent = parent, .z_index = z_index, .quad = quad{}}).unwrap();
+      entries.push(WidgetDrawEntry{.widget = &widget, .z_index = z_index, .quad = quad{}}).unwrap();
     }
 
     if (last_hit_widget == &widget)
@@ -185,28 +183,19 @@ struct WidgetSystem
     entries.span().sort([](WidgetDrawEntry const &a, WidgetDrawEntry const &b) { return a.z_index < b.z_index; });
   }
 
-  void draw_widgets(Context &context, gfx::Canvas &canvas)
+  void draw_widgets(Context &context, gfx::Canvas &canvas, mat4 const &global_transform)
   {
-    // what we need to do is to check within the rotated rect
     for (WidgetDrawEntry &entry : entries)
     {
-      canvas.save();
-      canvas.transform = entry.widget->get_transform() * canvas.transform;
-      if (entry.parent)
-      {
-        entry.parent->pre_draw(canvas, *entry.widget, entry.widget->area);
-      }
+      canvas.reset();
+      mat4 widget_transform = entry.widget->get_transform();
+      canvas.transform(widget_transform);
+      canvas.global_transform(global_transform);
       entry.widget->draw(canvas, entry.widget->area);
-      if (entry.parent)
-      {
-        entry.parent->post_draw(canvas, *entry.widget, entry.widget->area);
-      }
-      entry.quad = quad{.p1 = transform(canvas.transform, entry.widget->area.offset),
-                        .p2 = transform(canvas.transform, entry.widget->area.offset + vec2{entry.widget->area.extent.x, 0}),
-                        .p3 = transform(canvas.transform, entry.widget->area.offset + entry.widget->area.extent),
-                        .p4 = transform(canvas.transform, entry.widget->area.offset + vec2{0, entry.widget->area.extent.y})};
-
-      canvas.restore();
+      entry.quad = quad{.p1 = transform(global_transform * widget_transform, entry.widget->area.offset),
+                        .p2 = transform(global_transform * widget_transform, entry.widget->area.offset + vec2{entry.widget->area.extent.x, 0}),
+                        .p3 = transform(global_transform * widget_transform, entry.widget->area.offset + entry.widget->area.extent),
+                        .p4 = transform(global_transform * widget_transform, entry.widget->area.offset + vec2{0, entry.widget->area.extent.y})};
     }
   }
 

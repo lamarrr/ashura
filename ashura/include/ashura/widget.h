@@ -144,11 +144,12 @@ struct FlexProps
   }
 };
 
+// TODO(lamarrr): i.e. a number floating on a picture
 struct Layout
 {
-  FlexProps flex;
-  rect      area;
-  Position  position = Position::Relative;
+  FlexProps flex;                                 // flex properties used for layout
+  rect      area;                                 // initial area to use, final area will be determined by flex flayout
+  Position  position = Position::Relative;        // determines if widget should be positioned relative to parent and flow along with its other children or pop out into its own area
 };
 
 // TODO(lamarrr): we need to pass in a zoom level to the rendering widget? so
@@ -158,7 +159,6 @@ struct WidgetInfo
 {
   std::string_view type;
 };
-
 
 // TODO(lamarrr): we might need request detach so child widgets can request to
 // be removed and remove all callbacks they may have attached or cancel tasks
@@ -177,6 +177,8 @@ struct Widget
   {
     return {};
   }
+
+  // TODO(lamarrr): get_flex_children and get_static_children()
 
   //
   constexpr virtual WidgetInfo get_info()
@@ -212,14 +214,6 @@ struct Widget
   constexpr virtual void draw(gfx::Canvas &canvas, rect area)
   {}
 
-  // called before children are drawn
-  constexpr virtual void pre_draw(gfx::Canvas &canvas, Widget &child, rect area)
-  {}
-
-  // called once children are drawn
-  constexpr virtual void post_draw(gfx::Canvas &canvas, Widget &child, rect area)
-  {}
-
   //
   constexpr virtual void tick(Context &context, std::chrono::nanoseconds interval)
   {}
@@ -240,16 +234,16 @@ struct Widget
   constexpr virtual void on_leave_viewport(Context &context)
   {}
 
-  constexpr virtual void on_click(Context &context, MouseButton button, vec2 screen_position, u32 nclicks, quad quad)
+  constexpr virtual void on_click(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
   {}
 
-  constexpr virtual void on_mouse_move(Context &context, vec2 screen_position, vec2 translation, quad quad)
+  constexpr virtual void on_mouse_move(Context &context, vec2 mouse_position, vec2 translation, quad quad)
   {}
 
-  constexpr virtual void on_mouse_enter(Context &context, vec2 screen_position, quad quad)
+  constexpr virtual void on_mouse_enter(Context &context, vec2 mouse_position, quad quad)
   {}
 
-  virtual void on_mouse_leave(Context &context, stx::Option<vec2> screen_position)
+  virtual void on_mouse_leave(Context &context, stx::Option<vec2> mouse_position)
   {}
 
   //
@@ -323,10 +317,8 @@ struct Widget
   virtual void restore(Context &context, simdjson::dom::element const &element)
   {}
 
-  // position of the widget on the viewport. typically calculated on every
-  // frame.
-  rect area;
-  u64  id = 0;
+  rect area;          // position of the widget on the viewport. calculated on every frame
+  u64  id = 0;        // id used to recognise the widget. changes from frame to frame??? // TODO(lamarrr)
 };
 
 struct WidgetImpl

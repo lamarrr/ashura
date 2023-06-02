@@ -183,38 +183,12 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   root_window.value()->set_icon(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba});
 
   /*
-  gfx::CachedFont* font;
-  gfx::image img;
-    font = new gfx::CachedFont[]{
-        vk::cache_font(
-            upload_context, image_bundle,
-            load_font_from_file(
-                R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura\assets\fonts\JetBrainsMono-Regular.ttf)"_str)
-                .unwrap(),
-            26),
-        vk::cache_font(
-            upload_context, image_bundle,
-            load_font_from_file(
-                R"(C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf)"_str)
-                .unwrap(),
-            50),
-        vk::cache_font(
-            upload_context, image_bundle,
-            load_font_from_file(
-                R"(C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
-  Arabic Regular\Adobe Arabic Regular.ttf)"_str) .unwrap(), 26), vk::cache_font(
-            upload_context, image_bundle,
-            load_font_from_file(
-                R"(C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\MaterialIcons-Regular.ttf)"_str)
-                .unwrap(),
-            50),
-        vk::cache_font(
-            upload_context, image_bundle,
-            load_font_from_file(
-                R"(C:\Users\Basit\OneDrive\Desktop\gen-shin-gothic-monospace-bold\Gen
-  Shin Gothic Monospace Bold\Gen Shin Gothic Monospace Bold.ttf)"_str)
-                .unwrap(),
-            50)};
+ C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf
+C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
+  Arabic Regular\Adobe Arabic Regular.ttf
+  C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\MaterialIcons-Regular.ttf
+      C:\Users\Basit\OneDrive\Desktop\gen-shin-gothic-monospace-bold\Gen
+  Shin Gothic Monospace Bold\Gen Shin Gothic Monospace Bold.ttf
   */
   ctx.register_plugin(new VulkanImageManager{manager});
   ctx.register_plugin(new ImageLoader{});
@@ -233,6 +207,33 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
                                                  widget_system.events.push_inplace(events).unwrap();
                                                }
                                              }).unwrap());
+
+  for (FontSpec const &spec : cfg.fonts)
+  {
+    ASH_LOG_INFO(Init, "Loading font: {} from file: {}", spec.name.view(), spec.path.view());
+    stx::Result result = load_font_from_file(spec.path);
+
+    if (result.is_ok())
+    {
+      ASH_LOG_INFO(Init, "Loaded font: {} from file: {}", spec.name.view(), spec.path.view());
+      auto [atlas, image_buffer] = render_font_atlas(*result.value(), spec.atlas_font_height, spec.max_atlas_extent);
+      atlas.texture              = manager.add_image(image_buffer, false);
+      stx::Option<FontStrokeAtlas> stroke_atlas_o;
+
+      if (spec.stroke_thickness != 0)
+      {
+        auto [stroke_atlas, stroke_image_buffer] = render_font_stroke_atlas(*result.value(), spec.atlas_font_height, spec.stroke_thickness, spec.max_atlas_extent);
+        stroke_atlas.texture                     = manager.add_image(stroke_image_buffer, false);
+        stroke_atlas_o                           = stx::Some(std::move(stroke_atlas));
+      }
+
+      font_bundle.push(BundledFont{.name = spec.name.copy(stx::os_allocator).unwrap(), .font = std::move(result.value()), .atlas = std::move(atlas), .stroke_atlas = std::move(stroke_atlas_o)}).unwrap();
+    }
+    else
+    {
+      ASH_LOG_ERR(Init, "Failed to load font: {} from file: {}, error: {}", spec.name.view(), spec.path.view(), AS(i64, result.err()));
+    }
+  }
 
   // TODO(lamarrr): attach debug widgets: FPS stats, memory usage, etc
   widget_system.on_startup(ctx);
@@ -270,7 +271,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
     canvas.restart(viewport_extent);
     widget_system.perform_widget_layout(viewport_extent);
     widget_system.rebuild_draw_entries();
-    widget_system.draw_widgets(ctx, canvas);
+    widget_system.draw_widgets(ctx, canvas, mat4::identity());
   };
 
   // only record if swapchain visible,

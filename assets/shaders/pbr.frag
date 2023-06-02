@@ -2,7 +2,7 @@
 #define PI 3.1415926535897932384626433832795
 
 layout(location = 0) in vec3 in_world_position;
-layout(location = 1) in vec2 in_st;
+layout(location = 1) in vec2 in_uv;
 
 layout(set = 0, binding = 0) uniform Uniforms
 {
@@ -67,11 +67,11 @@ float geometry_smith(vec3 n, vec3 v, vec3 l, float roughness)
 
 void main()
 {
-  vec3  albedo            = pow(texture(albedo_map, in_st).rgb, vec3(2.2));
-  vec3  normal            = texture(normal_map, in_st).rgb;
-  float metallic          = texture(metallic_map, in_st).r;
-  float roughness         = texture(roughness_map, in_st).r;
-  float ambient_occlusion = texture(ambient_occlusion_map, in_st).r;
+  vec3  albedo            = pow(texture(albedo_map, in_uv).rgb, vec3(2.2));
+  vec3  normal            = texture(normal_map, in_uv).rgb;
+  float metallic          = texture(metallic_map, in_uv).r;
+  float roughness         = texture(roughness_map, in_uv).r;
+  float ambient_occlusion = texture(ambient_occlusion_map, in_uv).r;
 
   vec3 n = normalize(normal);
   vec3 v = normalize(uniforms.camera_position.xyz - in_world_position);

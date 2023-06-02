@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ashura/font.h"
+#include "ashura/text.h"
 #include "ashura/widget.h"
 
 namespace ash
@@ -10,11 +11,11 @@ namespace ash
 struct Text : public Widget
 {
   explicit Text(std::string_view itext) :
-      text{stx::string::make(stx::os_allocator, itext).unwrap()}, style{}
+      text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{}
   {}
 
-  Text(TextStyle istyle, std::string_view itext) :
-      text{stx::string::make(stx::os_allocator, itext).unwrap()}, style{istyle}
+  Text(TextProps iprops, std::string_view itext) :
+      text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{iprops}
   {}
 
   virtual WidgetInfo get_info() override
@@ -30,9 +31,6 @@ struct Text : public Widget
   virtual void draw(gfx::Canvas &canvas, rect area) override
   {
     // TODO(lamarrr): script and others
-    TextRun   runs[] = {{.text = text, .font = 0, .style = style}};
-    Paragraph paragraph{
-        .runs = runs, .align = TextAlign::Left, .overflow = TextOverflow::None};
     // canvas.draw
   }
 
@@ -51,8 +49,7 @@ struct Text : public Widget
   {}
 
   stx::String text;
-  TextStyle   style;
-  gfx::Canvas layout_canvas{vec2{0, 0}};
+  TextProps   props;
 };
 
 }        // namespace ash

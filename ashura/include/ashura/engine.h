@@ -5,6 +5,7 @@
 #include "ashura/app_config.h"
 #include "ashura/canvas.h"
 #include "ashura/clipboard.h"
+#include "ashura/font.h"
 #include "ashura/plugins/vulkan_image_manager.h"
 #include "ashura/version.h"
 #include "ashura/vulkan.h"
@@ -34,7 +35,7 @@ struct Engine
   }
 
   // TODO(lamarrr): move all into engine ctx?
-  WindowManager window_manager;
+  WindowManager                            window_manager;
   stx::Option<stx::Rc<Window *>>           root_window;
   stx::Option<stx::Rc<vk::CommandQueue *>> queue;
   gfx::Canvas                              canvas;
@@ -45,6 +46,7 @@ struct Engine
   Widget                                  *root_widget = nullptr;
   WidgetSystem                             widget_system;
   ClipBoard                                clipboard;
+  stx::Vec<BundledFont>                    font_bundle;
 
   void tick(std::chrono::nanoseconds interval);
 };

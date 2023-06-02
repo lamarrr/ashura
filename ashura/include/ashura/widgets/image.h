@@ -42,6 +42,7 @@ struct ImageProps
   vec4             border_radius;
   stx::Option<f32> aspect_ratio;
   bool             resize_on_load = true;
+  color            tint           = colors::WHITE;
   stx::String      alt;
 };
 
@@ -97,6 +98,11 @@ struct Image : public Widget
     }
   }
 
+  virtual mat4 get_transform() override
+  {
+    return rotate_x(rotation * PI / 180) * rotate_y(rotation * PI / 180);
+  }
+
   virtual void draw(gfx::Canvas &canvas, rect area) override
   {
     switch (state)
@@ -111,11 +117,7 @@ struct Image : public Widget
       break;
       case ImageState::Loaded:
       {
-        f32 s0 = 0;
-        f32 s1 = 1;
-        f32 t0 = 0;
-        f32 t1 = 1;
-        canvas.rotate(rotation, rotation, 0);
+        rect_uv texture_region{.uv0 = {0, 0}, .uv1 = {1, 1}};
 
         if (props.aspect_ratio.is_some())
         {
@@ -129,19 +131,19 @@ struct Image : public Widget
 
           vec2 space = original_extent - clipped_extent;
 
-          s0 = (space.x / 2) / original_extent.x;
-          s1 = (space.x / 2 + clipped_extent.x) / original_extent.x;
-          t0 = (space.y / 2) / original_extent.y;
-          t1 = (space.y / 2 + clipped_extent.y) / original_extent.y;
+          texture_region.uv0.x = (space.x / 2) / original_extent.x;
+          texture_region.uv1.x = (space.x / 2 + clipped_extent.x) / original_extent.x;
+          texture_region.uv0.y = (space.y / 2) / original_extent.y;
+          texture_region.uv1.y = (space.y / 2 + clipped_extent.y) / original_extent.y;
         }
 
         if (props.border_radius == vec4{0, 0, 0, 0})
         {
-          canvas.draw_image(image, area, s0, t0, s1, t1);
+          canvas.draw_image(image, area, texture_region, props.tint);
           return;
         }
 
-        canvas.draw_rounded_image(image, area, rect{.offset = vec2{s0, t0}, .extent = vec2{s1 - s0, t1 - t0}}, props.border_radius, 360);
+        canvas.draw_rounded_image(image, area, props.border_radius, 360, texture_region, props.tint);
       }
       break;
       case ImageState::LoadFailed:
