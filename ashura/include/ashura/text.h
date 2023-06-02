@@ -429,11 +429,10 @@ struct TextLayout
   /// @return the width and height of the paragraph
   vec2 layout(Paragraph const &paragraph, stx::Span<BundledFont const> const font_bundle, f32 max_line_width)
   {
-    constexpr u32 SPACE                    = ' ';
-    constexpr u32 TAB                      = '\t';
-    constexpr u32 NEWLINE                  = '\n';
-    constexpr u32 RETURN                   = '\r';
-    constexpr u32 UNICODE_REPLACEMENT_CHAR = 0xFFFD;
+    constexpr u32 SPACE   = ' ';
+    constexpr u32 TAB     = '\t';
+    constexpr u32 NEWLINE = '\n';
+    constexpr u32 RETURN  = '\r';
 
     subwords.clear();
     glyph_indices.clear();
@@ -547,6 +546,7 @@ struct TextLayout
 
         subwords
             .push(RunSubWord{.text         = run.text.slice(word_begin - run.text.begin(), word_end - word_begin),
+                             .props        = props,
                              .run          = i,
                              .nspaces      = nspaces,
                              .nline_breaks = nline_breaks})
@@ -558,16 +558,13 @@ struct TextLayout
 
     for (RunSubWord &subword : subwords)
     {
-      TextRun const &run   = paragraph.runs[subword.run];
-      TextProps      props = run.props.is_some() ? run.props.value() : paragraph.props;
-
       stx::Span font_s = font_bundle.which([&](BundledFont const &f) {
-        return f.name == props.font;
+        return f.name == subword.props.font;
       });
 
       if (font_s.is_empty())
       {
-        for (std::string_view fallback : props.fallback_fonts)
+        for (std::string_view fallback : subword.props.fallback_fonts)
         {
           font_s = font_bundle.which([&](BundledFont const &f) {
             return f.name == fallback;
@@ -585,22 +582,22 @@ struct TextLayout
         font_s = font_bundle.slice(0, 1);
       }
 
-      usize font_index = font_s.begin() - font_bundle.begin();
+      usize font_index = AS(usize, font_s.begin() - font_bundle.begin());
 
       Font const      &font              = *font_bundle[font_index].font;
       FontAtlas const &atlas             = font_bundle[font_index].atlas;
       stx::Span        replacement_glyph = atlas.get(0);        // use glyph at index 0 as replacement glyph, this is usually the invalid character replacement glyph
 
-      hb_feature_t shaping_features[] = {{.tag = Font::KERNING_FEATURE, .value = props.use_kerning, .start = 0, .end = stx::U_MAX},
-                                         {.tag = Font::LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX},
-                                         {.tag = Font::CONTEXTUAL_LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX}};
+      hb_feature_t shaping_features[] = {{.tag = Font::KERNING_FEATURE, .value = subword.props.use_kerning, .start = 0, .end = stx::U_MAX},
+                                         {.tag = Font::LIGATURE_FEATURE, .value = subword.props.use_ligatures, .start = 0, .end = stx::U_MAX},
+                                         {.tag = Font::CONTEXTUAL_LIGATURE_FEATURE, .value = subword.props.use_ligatures, .start = 0, .end = stx::U_MAX}};
 
       hb_font_set_scale(font.hb_font, 64 * atlas.font_height, 64 * atlas.font_height);
 
       hb_buffer_reset(font.hb_scratch_buffer);
-      hb_buffer_set_script(font.hb_scratch_buffer, AS(hb_script_t, props.script));
+      hb_buffer_set_script(font.hb_scratch_buffer, AS(hb_script_t, subword.props.script));
 
-      if (props.direction == TextDirection::LeftToRight)
+      if (subword.props.direction == TextDirection::LeftToRight)
       {
         hb_buffer_set_direction(font.hb_scratch_buffer, HB_DIRECTION_LTR);
       }
@@ -608,7 +605,7 @@ struct TextLayout
       {
         hb_buffer_set_direction(font.hb_scratch_buffer, HB_DIRECTION_RTL);
       }
-      hb_buffer_set_language(font.hb_scratch_buffer, hb_language_from_string(props.language.data(), AS(int, props.language.size())));
+      hb_buffer_set_language(font.hb_scratch_buffer, hb_language_from_string(subword.props.language.data(), AS(int, subword.props.language.size())));
       hb_buffer_add_utf8(font.hb_scratch_buffer, subword.text.begin(), AS(int, subword.text.size()), 0, AS(int, subword.text.size()));
       hb_shape(font.hb_font, font.hb_scratch_buffer, shaping_features, AS(uint, std::size(shaping_features)));
 
@@ -616,12 +613,11 @@ struct TextLayout
       hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(font.hb_scratch_buffer, &nglyphs);
 
       f32 width      = 0;
-      f32 font_scale = props.font_height / atlas.font_height;
+      f32 font_scale = subword.props.font_height / atlas.font_height;
 
       subword.font        = font_index;
       subword.glyph_start = glyph_indices.size();
       subword.nglyphs     = nglyphs;
-      subword.props       = props;
 
       for (usize i = 0; i < nglyphs; i++)
       {
@@ -630,12 +626,12 @@ struct TextLayout
 
         if (!glyph.is_empty())
         {
-          width += glyph[0].advance.x * font_scale + props.letter_spacing;
+          width += glyph[0].advance.x * font_scale + subword.props.letter_spacing;
           glyph_indices.push_inplace(glyph_index).unwrap();
         }
         else if (!replacement_glyph.is_empty())
         {
-          width += replacement_glyph[0].advance.x * font_scale + props.letter_spacing;
+          width += replacement_glyph[0].advance.x * font_scale + subword.props.letter_spacing;
           glyph_indices.push_inplace(replacement_glyph[0].index).unwrap();
         }
       }
@@ -741,7 +737,6 @@ struct TextLayout
           line_width += subword->width + subword->nspaces * subword->props.word_spacing;
           line_height = std::max(line_height, subword->props.line_height * subword->props.font_height);
 
-          TextRun const   &run        = paragraph.runs[subword->run];
           FontAtlas const &atlas      = font_bundle[subword->font].atlas;
           f32              font_scale = subword->props.font_height / atlas.font_height;
 
@@ -778,7 +773,6 @@ struct TextLayout
         {
           if (subword->props.direction == TextDirection::LeftToRight)
           {
-            TextRun const   &run   = paragraph.runs[subword->run];
             FontAtlas const &atlas = font_bundle[subword->font].atlas;
 
             f32 font_scale     = subword->props.font_height / atlas.font_height;
@@ -830,7 +824,6 @@ struct TextLayout
 
             for (RunSubWord const *rtl_iter = rtl_begin; rtl_iter < rtl_end; rtl_iter++)
             {
-              TextRun const   &run   = paragraph.runs[rtl_iter->run];
               FontAtlas const &atlas = font_bundle[rtl_iter->font].atlas;
 
               f32 font_scale     = rtl_iter->props.font_height / atlas.font_height;
