@@ -36,22 +36,22 @@ enum class FontLoadError : u8
 struct Glyph
 {
   bool    is_valid = false;
-  u32     index    = 0;        // the glyph index
-  offset  offset;              // offset into the atlas its glyph resides
-  extent  extent;              // extent of the glyph in the atlas
-  f32     x      = 0;          // defines x-offset from cursor position the glyph will be placed
-  f32     ascent = 0;          // defines ascent from baseline of the text
-  vec2    advance;             // advancement of the cursor after drawing this glyph
-  rect_uv uv;                  // texture coordinates of this glyph in the atlas
+  u32     index    = 0;          // the glyph index
+  offset  offset;                // offset into the atlas its glyph resides
+  extent  extent;                // extent of the glyph in the atlas
+  f32     x      = 0;            // defines x-offset from cursor position the glyph will be placed
+  f32     ascent = 0;            // defines ascent from baseline of the text
+  vec2    advance;               // advancement of the cursor after drawing this glyph
+  rect_uv texture_region;        // texture coordinates of this glyph in the atlas
 };
 
 struct GlyphStroke
 {
   bool    is_valid = false;
-  u32     index    = 0;        // the glyph index
-  offset  offset;              // offset into the atlas its glyph resides
-  extent  extent;              // extent of the glyph in the atlas
-  rect_uv uv;                  // texture coordinates of this glyph in the atlas
+  u32     index    = 0;          // the glyph index
+  offset  offset;                // offset into the atlas its glyph resides
+  extent  extent;                // extent of the glyph in the atlas
+  rect_uv texture_region;        // texture coordinates of this glyph in the atlas
 };
 
 struct Font
@@ -236,14 +236,14 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
         vec2 advance{font.ft_face->glyph->advance.x / 64.0f, font.ft_face->glyph->advance.y / 64.0f};
 
         glyphs
-            .push(Glyph{.is_valid = true,
-                        .index    = glyph_index,
-                        .offset   = offset{},
-                        .extent   = extent{width, height},
-                        .x        = AS(f32, font.ft_face->glyph->bitmap_left),
-                        .ascent   = AS(f32, font.ft_face->glyph->bitmap_top),
-                        .advance  = advance,
-                        .uv       = {}})
+            .push(Glyph{.is_valid       = true,
+                        .index          = glyph_index,
+                        .offset         = offset{},
+                        .extent         = extent{width, height},
+                        .x              = AS(f32, font.ft_face->glyph->bitmap_left),
+                        .ascent         = AS(f32, font.ft_face->glyph->bitmap_top),
+                        .advance        = advance,
+                        .texture_region = {}})
             .unwrap();
       }
       codepoint = FT_Get_Next_Char(font.ft_face, codepoint, &glyph_index);
@@ -291,10 +291,10 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
     glyphs[i].offset = offset{x, y};
     // TODO(lamarrr): 0.5f offset to prevent texture bleeding when sampling borders
     // https://gamedev.stackexchange.com/questions/46963/how-to-avoid-texture-bleeding-in-a-texture-atlas
-    glyphs[i].uv.uv0.x = (AS(f32, x) + 0.5f) / atlas_extent.width;
-    glyphs[i].uv.uv1.x = (AS(f32, x + w) - 0.5f) / atlas_extent.width;
-    glyphs[i].uv.uv0.y = (AS(f32, y) + 0.5f) / atlas_extent.height;
-    glyphs[i].uv.uv1.y = (AS(f32, y + h) - 0.5f) / atlas_extent.height;
+    glyphs[i].texture_region.uv0.x = (AS(f32, x) + 0.5f) / atlas_extent.width;
+    glyphs[i].texture_region.uv1.x = (AS(f32, x + w) - 0.5f) / atlas_extent.width;
+    glyphs[i].texture_region.uv0.y = (AS(f32, y) + 0.5f) / atlas_extent.height;
+    glyphs[i].texture_region.uv1.y = (AS(f32, y + h) - 0.5f) / atlas_extent.height;
   }
 
   {
@@ -305,14 +305,14 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
       for (; next_index < glyphs[iter].index; next_index++)
       {
         glyphs
-            .push(Glyph{.is_valid = false,
-                        .index    = next_index,
-                        .offset   = {},
-                        .extent   = {},
-                        .x        = 0,
-                        .ascent   = 0,
-                        .advance  = {},
-                        .uv       = {}})
+            .push(Glyph{.is_valid       = false,
+                        .index          = next_index,
+                        .offset         = {},
+                        .extent         = {},
+                        .x              = 0,
+                        .ascent         = 0,
+                        .advance        = {},
+                        .texture_region = {}})
             .unwrap();
       }
     }
@@ -424,11 +424,11 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
         u32 height = AS(u32, (bounding_box.yMax - bounding_box.yMin) >> 6);
 
         strokes
-            .push(GlyphStroke{.is_valid = true,
-                              .index    = glyph_index,
-                              .offset   = offset{},
-                              .extent   = extent{width, height},
-                              .uv       = {}})
+            .push(GlyphStroke{.is_valid       = true,
+                              .index          = glyph_index,
+                              .offset         = offset{},
+                              .extent         = extent{width, height},
+                              .texture_region = {}})
             .unwrap();
       }
       codepoint = FT_Get_Next_Char(font.ft_face, codepoint, &glyph_index);
@@ -476,10 +476,10 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
     strokes[i].offset = offset{x, y};
     // TODO(lamarrr): 0.5f offset to prevent texture bleeding when sampling borders
     // https://gamedev.stackexchange.com/questions/46963/how-to-avoid-texture-bleeding-in-a-texture-atlas
-    strokes[i].uv.uv0.x = (AS(f32, x) + 0.5f) / atlas_extent.width;
-    strokes[i].uv.uv1.x = (AS(f32, x + w) - 0.5f) / atlas_extent.width;
-    strokes[i].uv.uv0.y = (AS(f32, y) + 0.5f) / atlas_extent.height;
-    strokes[i].uv.uv1.y = (AS(f32, y + h) - 0.5f) / atlas_extent.height;
+    strokes[i].texture_region.uv0.x = (AS(f32, x) + 0.5f) / atlas_extent.width;
+    strokes[i].texture_region.uv1.x = (AS(f32, x + w) - 0.5f) / atlas_extent.width;
+    strokes[i].texture_region.uv0.y = (AS(f32, y) + 0.5f) / atlas_extent.height;
+    strokes[i].texture_region.uv1.y = (AS(f32, y + h) - 0.5f) / atlas_extent.height;
   }
 
   {
@@ -490,11 +490,11 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
       for (; next_index < strokes[iter].index; next_index++)
       {
         strokes
-            .push(GlyphStroke{.is_valid = false,
-                              .index    = next_index,
-                              .offset   = {},
-                              .extent   = {},
-                              .uv       = {}})
+            .push(GlyphStroke{.is_valid       = false,
+                              .index          = next_index,
+                              .offset         = {},
+                              .extent         = {},
+                              .texture_region = {}})
             .unwrap();
       }
     }

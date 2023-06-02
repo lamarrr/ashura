@@ -610,89 +610,89 @@ struct Canvas
     return draw_rounded_image(img, area, border_radii, nsegments, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
-  Canvas &draw_glyph(Glyph const &glyph, TextRun const &run, FontAtlas const &atlas, vec2 baseline, f32 line_height, f32 vert_spacing)
+  Canvas &draw_glyph(Glyph const &glyph, TextProps const &props, FontAtlas const &atlas, vec2 baseline, f32 line_height, f32 vert_spacing)
   {
-    f32  font_scale = run.style.font_height / atlas.font_height;
+    f32  font_scale = props.font_height / atlas.font_height;
     f32  ascent     = font_scale * glyph.ascent;
     vec2 advance    = font_scale * glyph.advance;
     vec2 extent{font_scale * glyph.extent.width, font_scale * glyph.extent.height};
 
-    if (run.style.background_color.is_visible())
+    if (props.background_color.is_visible())
     {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{advance.x + run.style.letter_spacing, line_height}}, run.style.background_color);
+      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{advance.x + props.letter_spacing, line_height}}, props.background_color);
     }
 
-    if (run.style.foreground_color.is_visible())
+    if (props.foreground_color.is_visible())
     {
-      draw_image(atlas.texture, rect{.offset = baseline - vec2{0, vert_spacing + ascent}, .extent = extent}, glyph.uv, atlas.has_color ? colors::WHITE : run.style.foreground_color);
+      draw_image(atlas.texture, rect{.offset = baseline - vec2{0, vert_spacing + ascent}, .extent = extent}, glyph.texture_region, atlas.has_color ? colors::WHITE : props.foreground_color);
     }
 
-    if (run.style.underline_color.is_visible() && run.style.underline_thickness != 0)
+    if (props.underline_color.is_visible() && props.underline_thickness != 0)
     {
-      draw_rect_filled(rect{.offset = baseline, .extent = vec2{advance.x + run.style.letter_spacing, run.style.underline_thickness}}, run.style.underline_color);
+      draw_rect_filled(rect{.offset = baseline, .extent = vec2{advance.x + props.letter_spacing, props.underline_thickness}}, props.underline_color);
     }
 
-    if (run.style.strikethrough_color.is_visible() && run.style.strikethrough_thickness != 0)
+    if (props.strikethrough_color.is_visible() && props.strikethrough_thickness != 0)
     {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height / 2 + run.style.strikethrough_thickness / 2}, .extent = vec2{advance.x + run.style.letter_spacing, run.style.strikethrough_thickness}}, run.style.strikethrough_color);
+      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height / 2 + props.strikethrough_thickness / 2}, .extent = vec2{advance.x + props.letter_spacing, props.strikethrough_thickness}}, props.strikethrough_color);
     }
 
     return *this;
   }
 
-  Canvas &draw_glyph(Glyph const &glyph, GlyphStroke const &stroke, TextRun const &run, FontAtlas const &atlas, FontStrokeAtlas const &stroke_atlas, vec2 baseline, f32 line_height, f32 vert_spacing)
+  Canvas &draw_glyph(Glyph const &glyph, GlyphStroke const &stroke, TextProps const &props, FontAtlas const &atlas, FontStrokeAtlas const &stroke_atlas, vec2 baseline, f32 line_height, f32 vert_spacing)
   {
-    f32  font_scale = run.style.font_height / atlas.font_height;
+    f32  font_scale = props.font_height / atlas.font_height;
     f32  ascent     = font_scale * glyph.ascent;
     vec2 advance    = font_scale * glyph.advance;
     vec2 glyph_extent{font_scale * glyph.extent.width, font_scale * glyph.extent.height};
     vec2 stroke_extent{font_scale * stroke.extent.width, font_scale * stroke.extent.height};
 
-    if (run.style.background_color.is_visible())
+    if (props.background_color.is_visible())
     {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{advance.x + run.style.letter_spacing, line_height}}, run.style.background_color);
+      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{advance.x + props.letter_spacing, line_height}}, props.background_color);
     }
 
-    if (run.style.stroke_color.is_visible())
+    if (props.stroke_color.is_visible())
     {
       // position stroke center on the center of the glyph by default
       vec2 stroke_alignment = (stroke_extent - glyph_extent) / 2;
-      draw_image(stroke_atlas.texture, rect{.offset = (baseline - vec2{0, vert_spacing + ascent}) - stroke_alignment + run.style.stroke_offset, .extent = stroke_extent}, stroke.uv, run.style.stroke_color);
+      draw_image(stroke_atlas.texture, rect{.offset = (baseline - vec2{0, vert_spacing + ascent}) - stroke_alignment + props.stroke_translation, .extent = stroke_extent}, stroke.texture_region, props.stroke_color);
     }
 
-    if (run.style.foreground_color.is_visible())
+    if (props.foreground_color.is_visible())
     {
-      draw_image(atlas.texture, rect{.offset = baseline - vec2{0, vert_spacing + ascent}, .extent = glyph_extent}, glyph.uv, run.style.foreground_color);
+      draw_image(atlas.texture, rect{.offset = baseline - vec2{0, vert_spacing + ascent}, .extent = glyph_extent}, glyph.texture_region, props.foreground_color);
     }
 
-    if (run.style.underline_color.is_visible() && run.style.underline_thickness != 0)
+    if (props.underline_color.is_visible() && props.underline_thickness != 0)
     {
-      draw_rect_filled(rect{.offset = baseline, .extent = vec2{advance.x + run.style.letter_spacing, run.style.underline_thickness}}, run.style.underline_color);
+      draw_rect_filled(rect{.offset = baseline, .extent = vec2{advance.x + props.letter_spacing, props.underline_thickness}}, props.underline_color);
     }
 
-    if (run.style.strikethrough_color.is_visible() && run.style.strikethrough_thickness != 0)
+    if (props.strikethrough_color.is_visible() && props.strikethrough_thickness != 0)
     {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height / 2 + run.style.strikethrough_thickness / 2}, .extent = vec2{advance.x + run.style.letter_spacing, run.style.strikethrough_thickness}}, run.style.strikethrough_color);
+      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height / 2 + props.strikethrough_thickness / 2}, .extent = vec2{advance.x + props.letter_spacing, props.strikethrough_thickness}}, props.strikethrough_color);
     }
 
     return *this;
   }
 
-  Canvas &draw_space(TextRun const &run, vec2 baseline, f32 line_height, f32 width)
+  Canvas &draw_space(TextProps const &props, vec2 baseline, f32 line_height, f32 width)
   {
-    if (run.style.background_color.is_visible())
+    if (props.background_color.is_visible())
     {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{width, line_height}}, run.style.background_color);
+      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{width, line_height}}, props.background_color);
     }
 
-    if (run.style.underline_color.is_visible() && run.style.underline_thickness != 0)
+    if (props.underline_color.is_visible() && props.underline_thickness != 0)
     {
-      draw_rect_filled(rect{.offset = baseline, .extent = vec2{width, run.style.underline_thickness}}, run.style.underline_color);
+      draw_rect_filled(rect{.offset = baseline, .extent = vec2{width, props.underline_thickness}}, props.underline_color);
     }
 
-    if (run.style.strikethrough_color.is_visible() && run.style.strikethrough_thickness != 0)
+    if (props.strikethrough_color.is_visible() && props.strikethrough_thickness != 0)
     {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height / 2 + run.style.strikethrough_thickness / 2}, .extent = vec2{width, run.style.strikethrough_thickness}}, run.style.strikethrough_color);
+      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height / 2 + props.strikethrough_thickness / 2}, .extent = vec2{width, props.strikethrough_thickness}}, props.strikethrough_color);
     }
 
     return *this;
@@ -702,39 +702,36 @@ struct Canvas
   {
     for (SpaceLayout const &space_layout : layout.space_layouts)
     {
-      draw_space(paragraph.runs[space_layout.run], position + space_layout.baseline, space_layout.line_height, space_layout.width);
+      draw_space(layout.subwords[space_layout.subword].props, position + space_layout.baseline_position, space_layout.line_height, space_layout.width);
     }
 
     for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
     {
-      if (paragraph.runs[glyph_layout.run].style.stroke_color.is_visible() && font_bundle[glyph_layout.font].stroke_atlas.is_some())
+      TextProps props = layout.subwords[glyph_layout.subword].props;
+
+      if (props.stroke_color.is_visible() && font_bundle[glyph_layout.font].stroke_atlas.is_some())
       {
         draw_glyph(font_bundle[glyph_layout.font].atlas.glyphs[glyph_layout.glyph],
                    font_bundle[glyph_layout.font].stroke_atlas.value().strokes[glyph_layout.glyph],
-                   paragraph.runs[glyph_layout.run],
+                   props,
                    font_bundle[glyph_layout.font].atlas,
                    font_bundle[glyph_layout.font].stroke_atlas.value(),
-                   position + glyph_layout.baseline,
+                   position + glyph_layout.baseline_position,
                    glyph_layout.line_height,
                    glyph_layout.vert_spacing);
       }
       else
       {
         draw_glyph(font_bundle[glyph_layout.font].atlas.glyphs[glyph_layout.glyph],
-                   paragraph.runs[glyph_layout.run],
+                   props,
                    font_bundle[glyph_layout.font].atlas,
-                   position + glyph_layout.baseline, glyph_layout.line_height,
+                   position + glyph_layout.baseline_position, glyph_layout.line_height,
                    glyph_layout.vert_spacing);
       }
     }
 
     return *this;
   }
-};
-
-struct CanvasPushConstants
-{
-  mat4 transform;
 };
 
 }        // namespace gfx

@@ -11,11 +11,11 @@ namespace ash
 struct Text : public Widget
 {
   explicit Text(std::string_view itext) :
-      text{stx::string::make(stx::os_allocator, itext).unwrap()}, style{}
+      text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{}
   {}
 
-  Text(TextStyle istyle, std::string_view itext) :
-      text{stx::string::make(stx::os_allocator, itext).unwrap()}, style{istyle}
+  Text(TextProps iprops, std::string_view itext) :
+      text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{iprops}
   {}
 
   virtual WidgetInfo get_info() override
@@ -49,8 +49,7 @@ struct Text : public Widget
   {}
 
   stx::String text;
-  TextStyle   style;
-  gfx::Canvas layout_canvas{vec2{0, 0}};
+  TextProps   props;
 };
 
 }        // namespace ash

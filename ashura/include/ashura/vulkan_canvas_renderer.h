@@ -13,6 +13,11 @@ namespace ash
 namespace vk
 {
 
+struct CanvasPushConstants
+{
+  mat4 transform;
+};
+
 struct CanvasRenderer
 {
   u32                                  max_nframes_in_flight = 0;
@@ -40,7 +45,7 @@ struct CanvasRenderer
     VkDevice dev = queue.value()->device->dev;
 
     ctx.init(dev, queue.value()->info.family.index, gfx::vertex_shader_code, gfx::fragment_shader_code, vertex_input_attributes,
-             sizeof(vertex), sizeof(gfx::CanvasPushConstants), amax_nframes_in_flight, descriptor_set_specs,
+             sizeof(vertex), sizeof(CanvasPushConstants), amax_nframes_in_flight, descriptor_set_specs,
              descriptor_pool_sizes, 1);
 
     VkPhysicalDeviceMemoryProperties const &memory_properties = queue.value()->device->phy_dev->memory_properties;
@@ -255,9 +260,9 @@ struct CanvasRenderer
 
       vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
 
-      gfx::CanvasPushConstants push_constants{.transform = cmd.transform.transpose()};
+      CanvasPushConstants push_constants{.transform = cmd.transform.transpose()};
 
-      vkCmdPushConstants(cmd_buffer, ctx.pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(gfx::CanvasPushConstants), &push_constants);
+      vkCmdPushConstants(cmd_buffer, ctx.pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(CanvasPushConstants), &push_constants);
 
       vkCmdBindDescriptorSets(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx.pipeline.layout, 0, ndescriptor_sets_per_draw_call,
                               &ctx.descriptor_sets[frame][icmd * ndescriptor_sets_per_draw_call], 0, nullptr);
