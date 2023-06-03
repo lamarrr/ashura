@@ -328,6 +328,7 @@ struct TextProps
   color                             background_color        = colors::TRANSPARENT;
   color                             underline_color         = colors::BLACK;
   f32                               underline_thickness     = 0;
+  bool                              wavy_underline          = false;        // TODO(lamarrr): implement
   color                             strikethrough_color     = colors::BLACK;
   f32                               strikethrough_thickness = 0;
   color                             stroke_color            = colors::TRANSPARENT;
@@ -372,8 +373,15 @@ struct Paragraph
   std::string_view         ellipsis = "...";
 };
 
+// used for backgrounds, strikethrough, and underline
+struct TextRunArea
+{
+  vec2 baseline_position;
+  f32  line_height = 0;
+};
+
 /// this is part of a word that is styled by a run
-struct RunSubWord
+struct TextRunSubWord
 {
   stx::Span<char const> text;
   TextProps             props;
@@ -385,6 +393,7 @@ struct RunSubWord
   usize                 glyph_start  = 0;
   usize                 nglyphs      = 0;
   bool                  is_wrapped   = false;
+  TextRunArea           area;
 };
 
 struct GlyphLayout
@@ -398,15 +407,6 @@ struct GlyphLayout
   f32   vert_spacing = 0;
 };
 
-struct SpaceLayout
-{
-  usize run     = 0;
-  usize subword = 0;
-  vec2  baseline_position;
-  f32   line_height = 0;
-  f32   width       = 0;
-};
-
 struct TextConstraint
 {
   f32 min_width  = 0;        /// width of paragraph when allocated a zero max-width
@@ -417,11 +417,11 @@ struct TextConstraint
 
 struct TextLayout
 {
-  TextConstraint        constraint;
-  stx::Vec<RunSubWord>  subwords;
-  stx::Vec<u32>         glyph_indices;
-  stx::Vec<GlyphLayout> glyph_layouts;
-  stx::Vec<SpaceLayout> space_layouts;
+  TextConstraint           constraint;
+  stx::Vec<TextRunSubWord> subwords;
+  stx::Vec<u32>            glyph_indices;
+  stx::Vec<GlyphLayout>    glyph_layouts;
+  stx::Vec<TextRunArea>    area_layouts;
 
   // TODO(lamarrr): [future] add bidi
   /// @brief performs layout of the paragraph
@@ -437,7 +437,7 @@ struct TextLayout
     subwords.clear();
     glyph_indices.clear();
     glyph_layouts.clear();
-    space_layouts.clear();
+    area_layouts.clear();
 
     vec2 span;
 
@@ -545,18 +545,18 @@ struct TextLayout
         }
 
         subwords
-            .push(RunSubWord{.text         = run.text.slice(word_begin - run.text.begin(), word_end - word_begin),
-                             .props        = props,
-                             .run          = i,
-                             .nspaces      = nspaces,
-                             .nline_breaks = nline_breaks})
+            .push(TextRunSubWord{.text         = run.text.slice(word_begin - run.text.begin(), word_end - word_begin),
+                                 .props        = props,
+                                 .run          = i,
+                                 .nspaces      = nspaces,
+                                 .nline_breaks = nline_breaks})
             .unwrap();
 
         word_begin = seeker;
       }
     }
 
-    for (RunSubWord &subword : subwords)
+    for (TextRunSubWord &subword : subwords)
     {
       stx::Span font_s = font_bundle.which([&](BundledFont const &f) {
         return f.name == subword.props.font;
@@ -643,9 +643,9 @@ struct TextLayout
     {
       f32 cursor_x = 0;
 
-      for (RunSubWord *iter = subwords.begin(); iter < subwords.end();)
+      for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
       {
-        RunSubWord *subword = iter;
+        TextRunSubWord *subword = iter;
 
         for (; subword < subwords.end();)
         {
@@ -695,11 +695,11 @@ struct TextLayout
       f32   baseline_y        = 0;
       usize nprev_line_breaks = 0;
 
-      for (RunSubWord const *iter = subwords.begin(); iter < subwords.end();)
+      for (TextRunSubWord const *iter = subwords.begin(); iter < subwords.end();)
       {
-        RunSubWord const *line_begin   = iter;
-        RunSubWord const *line_end     = iter + 1;
-        usize             nline_breaks = 0;
+        TextRunSubWord const *line_begin   = iter;
+        TextRunSubWord const *line_end     = iter + 1;
+        usize                 nline_breaks = 0;
 
         // find out where the line ends
         if (line_begin->is_wrapped && nprev_line_breaks == 0)
@@ -732,7 +732,7 @@ struct TextLayout
         f32 line_height = 0;
         f32 max_ascent  = 0;
 
-        for (RunSubWord const *subword = line_begin; subword < line_end; subword++)
+        for (TextRunSubWord const *subword = line_begin; subword < line_end; subword++)
         {
           line_width += subword->width + subword->nspaces * subword->props.word_spacing;
           line_height = std::max(line_height, subword->props.line_height * subword->props.font_height);
@@ -769,15 +769,16 @@ struct TextLayout
 
         f32 cursor_x = 0;
 
-        for (RunSubWord const *subword = line_begin; subword < line_end;)
+        for (TextRunSubWord const *subword = line_begin; subword < line_end;)
         {
           if (subword->props.direction == TextDirection::LeftToRight)
           {
             FontAtlas const &atlas = font_bundle[subword->font].atlas;
 
-            f32 font_scale     = subword->props.font_height / atlas.font_height;
-            f32 letter_spacing = subword->props.letter_spacing;
-            f32 word_spacing   = subword->props.word_spacing;
+            f32 font_scale       = subword->props.font_height / atlas.font_height;
+            f32 letter_spacing   = subword->props.letter_spacing;
+            f32 word_spacing     = subword->props.word_spacing;
+            f32 run_area_begin_x = cursor_x;
 
             for (u32 glyph_index : glyph_indices.span().slice(subword->glyph_start, subword->nglyphs))
             {
@@ -795,16 +796,16 @@ struct TextLayout
               cursor_x += advance.x + letter_spacing;
             }
 
-            space_layouts.push(SpaceLayout{.run = subword->run, .subword = AS(usize, subword - subwords.begin()), .baseline_position = vec2{line_alignment + cursor_x, baseline_y}, .line_height = line_height, .width = subword->nspaces * word_spacing}).unwrap();
+            area_layouts.push(TextRunArea{.run = subword->run, .subword = AS(usize, subword - subwords.begin()), .baseline_position = vec2{line_alignment + run_area_begin_x, baseline_y}, .line_height = line_height, .width = subword->width + subword->nspaces * word_spacing}).unwrap();
 
             cursor_x += subword->nspaces * word_spacing;
             subword++;
           }
           else
           {
-            f32               rtl_width = 0;
-            RunSubWord const *rtl_begin = subword;
-            RunSubWord const *rtl_end   = subword + 1;
+            f32                   rtl_width = 0;
+            TextRunSubWord const *rtl_begin = subword;
+            TextRunSubWord const *rtl_end   = subword + 1;
 
             rtl_width += rtl_begin->width + rtl_begin->nspaces * rtl_begin->props.word_spacing;
 
@@ -822,7 +823,7 @@ struct TextLayout
 
             f32 rtl_cursor_x = cursor_x + rtl_width;
 
-            for (RunSubWord const *rtl_iter = rtl_begin; rtl_iter < rtl_end; rtl_iter++)
+            for (TextRunSubWord const *rtl_iter = rtl_begin; rtl_iter < rtl_end; rtl_iter++)
             {
               FontAtlas const &atlas = font_bundle[rtl_iter->font].atlas;
 

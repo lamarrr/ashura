@@ -610,6 +610,8 @@ struct Canvas
     return draw_rounded_image(img, area, border_radii, nsegments, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
+  Canvas &draw_sine_wave(f32 thickness, rect area, color color);
+
   Canvas &draw_text(Paragraph const &paragraph, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, vec2 const position)
   {
     // draw empty spaces background
