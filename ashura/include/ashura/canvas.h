@@ -693,14 +693,14 @@ struct Canvas
     {
       TextProps const &props = layout.subwords[space_layout.subword].props;
 
-      if (props.strikethrough_color.is_visible() && props.strikethrough_thickness != 0)
+      if (props.strikethrough_color.is_visible() && props.strikethrough_thickness > 0)
       {
         vec2 offset = position + space_layout.baseline_position - vec2{0, space_layout.line_height / 2 + props.strikethrough_thickness / 2};
         vec2 extent = vec2{space_layout.width, props.strikethrough_thickness};
         draw_rect_filled(rect{.offset = offset, .extent = extent}, props.strikethrough_color);
       }
 
-      if (props.underline_color.is_visible() && props.underline_thickness != 0)
+      if (props.underline_color.is_visible() && props.underline_thickness > 0)
       {
         vec2 offset = position + space_layout.baseline_position;
         vec2 extent = vec2{space_layout.width, props.underline_thickness};

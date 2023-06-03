@@ -34,7 +34,7 @@ constexpr nanoseconds NO_SYNC_THRESHOLD     = seconds{10};
 constexpr nanoseconds MAX_FRAME_DELAY       = seconds{1};
 constexpr u32         NAUDIO_DIFF_AVERAGES  = 20;
 constexpr u8          MAX_SAMPLE_CORRECTION = 10;
-
+/*
 enum class DemuxError : u8
 {
   PathDoesNotExist,
@@ -1422,9 +1422,10 @@ struct Video : public Widget
 
   bool show_controls = true;
 };
-
+*/
 int main(int argc, char **argv)
 {
+  /*
   // ASH_CHECK(argc == 3);
   ASH_CHECK(SDL_Init(SDL_INIT_EVERYTHING) == 0);
   spdlog::info("System theme: {}", (int) SDL_GetSystemTheme());
@@ -1567,7 +1568,13 @@ int main(int argc, char **argv)
   // fmt_ctx->chapters;
   // fmt_ctx->metadata;
   // AV_DISPOSITION_ATTACHED_PIC contains album art
-  AppConfig cfg{.enable_validation_layers = false};
+  */
+
+  FontSpec fonts[] = {
+      {.name = "Roboto", .path = R"(C:\Users\Basit\Documents\workspace\oss\ashura\assets\fonts\Roboto\Roboto-Regular.ttf)", .stroke_thickness = 5}};
+
+  AppConfig cfg{.enable_validation_layers = false, .fonts = fonts};
+
   App       app{std::move(cfg), new Image{ImageProps{.source = FileImageSource{.path = R"(C:\Users\Basit\Pictures\1288647.png)"}, .border_radius = vec4{20, 20, 20, 20}, .aspect_ratio = stx::Some(2.0f), .resize_on_load = true}}};
   timepoint last_tick = Clock::now();
   while (true)
