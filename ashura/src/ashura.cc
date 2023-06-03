@@ -27,7 +27,6 @@ using milliseconds  = std::chrono::milliseconds;
 using seconds       = std::chrono::seconds;
 using media_session = u64;
 
-/*
 constexpr u8          MIN_VOLUME            = 0;
 constexpr u8          MAX_VOLUME            = 255;
 constexpr nanoseconds SYNC_THRESHOLD        = milliseconds{16};
@@ -55,8 +54,8 @@ enum class MediaError : u8
   AudioCodecNotSupported
 };
 
-
-enum class MediaProperties{
+enum class MediaProperties
+{
 
 };
 
@@ -1136,8 +1135,6 @@ struct MediaPlayerAudioSource : public AudioSource
 // subtitle
 //
 
-
-
 struct MediaContext
 {
   stx::Option<stx::Rc<AudioDecodeContext *>> audio_decode_ctx;
@@ -1425,153 +1422,151 @@ struct Video : public Widget
 
   bool show_controls = true;
 };
-*/
+
 int main(int argc, char **argv)
 {
   // ASH_CHECK(argc == 3);
   ASH_CHECK(SDL_Init(SDL_INIT_EVERYTHING) == 0);
   spdlog::info("System theme: {}", (int) SDL_GetSystemTheme());
-  /*
-    stx::Vec devices = AudioDeviceInfo::enumerate();
-    for (AudioDeviceInfo const &dev : devices)
+  stx::Vec devices = AudioDeviceInfo::enumerate();
+  for (AudioDeviceInfo const &dev : devices)
+  {
+    spdlog::info("name: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}",
+                 dev.name.c_str(),
+                 dev.spec.channels, dev.spec.format, dev.spec.freq, dev.spec.samples);
+  }
+
+  AudioDeviceInfo dev_info = AudioDeviceInfo::get_default().unwrap();
+  spdlog::info("default device: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}", dev_info.name.c_str(), dev_info.spec.channels, dev_info.spec.format,
+               dev_info.spec.freq, dev_info.spec.samples);
+
+  MediaPlayer::dump_supported_codecs();
+
+  stx::Rc      demuxer          = VideoDemuxer::from_file(argv[1]).unwrap();
+  stx::Rc      audio_decode_ctx = demuxer->make_audio_decoder().unwrap();
+  stx::Rc      video_decode_ctx = demuxer->make_video_decoder().unwrap();
+  stx::Promise promise          = stx::make_promise<void>(stx::os_allocator).unwrap();
+  stx::Rc      audio_dev        = AudioDevice::open(dev_info).unwrap();
+
+  spdlog::info("opened device: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}, size: {}, silence: {}", dev_info.name.c_str(), dev_info.spec.channels,
+               dev_info.spec.format, dev_info.spec.freq, dev_info.spec.samples, audio_dev->info.spec.size, (int) audio_dev->info.spec.silence);
+
+  auto audio_src = stx::rc::make_inplace<MediaPlayerAudioSource>(stx::os_allocator, stx::make_promise<void>(stx::os_allocator).unwrap(),
+                                                                 audio_decode_ctx.share())
+                       .unwrap();
+  audio_dev->add_source(stx::transmute(static_cast<AudioSource *>(audio_src.handle), audio_src.share()));
+  audio_dev->play();
+  audio_src->volume.store(25, std::memory_order_relaxed);
+
+  std::thread demuxer_thread{[demuxer = demuxer.share(), promise = promise.share(), video_decode_ctx = video_decode_ctx.share(), audio_decode_ctx = audio_decode_ctx.share()]() {
+    spdlog::info("demuxer thread running");
+
+    int error = 0;
+
+    while (error >= 0 && promise.fetch_cancel_request() == stx::CancelState::Executing)
     {
-      spdlog::info("name: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}",
-                   dev.name.c_str(),
-                   dev.spec.channels, dev.spec.format, dev.spec.freq, dev.spec.samples);
-    }
-
-    AudioDeviceInfo dev_info = AudioDeviceInfo::get_default().unwrap();
-    spdlog::info("default device: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}", dev_info.name.c_str(), dev_info.spec.channels, dev_info.spec.format,
-                 dev_info.spec.freq, dev_info.spec.samples);
-
-    MediaPlayer::dump_supported_codecs();
-
-    stx::Rc      demuxer          = VideoDemuxer::from_file(argv[1]).unwrap();
-    stx::Rc      audio_decode_ctx = demuxer->make_audio_decoder().unwrap();
-    stx::Rc      video_decode_ctx = demuxer->make_video_decoder().unwrap();
-    stx::Promise promise          = stx::make_promise<void>(stx::os_allocator).unwrap();
-    stx::Rc      audio_dev        = AudioDevice::open(dev_info).unwrap();
-
-    spdlog::info("opened device: {}, channels: {}, format: {}, samplerate: {}, nsamples: {}, size: {}, silence: {}", dev_info.name.c_str(), dev_info.spec.channels,
-                 dev_info.spec.format, dev_info.spec.freq, dev_info.spec.samples, audio_dev->info.spec.size, (int) audio_dev->info.spec.silence);
-
-    auto audio_src = stx::rc::make_inplace<MediaPlayerAudioSource>(stx::os_allocator, stx::make_promise<void>(stx::os_allocator).unwrap(),
-                                                                   audio_decode_ctx.share())
-                         .unwrap();
-    audio_dev->add_source(stx::transmute(static_cast<AudioSource *>(audio_src.handle), audio_src.share()));
-    audio_dev->play();
-    audio_src->volume.store(25, std::memory_order_relaxed);
-
-    std::thread demuxer_thread{[demuxer = demuxer.share(), promise = promise.share(), video_decode_ctx = video_decode_ctx.share(), audio_decode_ctx = audio_decode_ctx.share()]() {
-      spdlog::info("demuxer thread running");
-
-      int error = 0;
-
-      while (error >= 0 && promise.fetch_cancel_request() == stx::CancelState::Executing)
+      error = av_read_frame(demuxer->fmt_ctx, demuxer->packet);
+      if (error >= 0)
       {
-        error = av_read_frame(demuxer->fmt_ctx, demuxer->packet);
-        if (error >= 0)
+        AVPacket *packet = av_packet_alloc();
+        ASH_CHECK(packet != nullptr);
+        av_packet_move_ref(packet, demuxer->packet);
+        if (packet->stream_index == video_decode_ctx->stream->index)
         {
-          AVPacket *packet = av_packet_alloc();
-          ASH_CHECK(packet != nullptr);
-          av_packet_move_ref(packet, demuxer->packet);
-          if (packet->stream_index == video_decode_ctx->stream->index)
-          {
-            video_decode_ctx->lock.lock();
-            video_decode_ctx->packets.push_inplace(packet).unwrap();
-            video_decode_ctx->lock.unlock();
-          }
-          else if (packet->stream_index == audio_decode_ctx->stream->index)
-          {
-            audio_decode_ctx->lock.lock();
-            audio_decode_ctx->packets.push_inplace(packet).unwrap();
-            audio_decode_ctx->lock.unlock();
-          }
-          else
-          {
-          }
+          video_decode_ctx->lock.lock();
+          video_decode_ctx->packets.push_inplace(packet).unwrap();
+          video_decode_ctx->lock.unlock();
+        }
+        else if (packet->stream_index == audio_decode_ctx->stream->index)
+        {
+          audio_decode_ctx->lock.lock();
+          audio_decode_ctx->packets.push_inplace(packet).unwrap();
+          audio_decode_ctx->lock.unlock();
+        }
+        else
+        {
         }
       }
+    }
 
-      if (promise.fetch_cancel_request() == stx::CancelState::Canceled)
-      {
-        promise.notify_canceled();
-        spdlog::info("demuxer thread canceled");
-      }
-      else
-      {
-        promise.notify_completed();
-        spdlog::info("demuxer thread completed");
-      }
-    }};
+    if (promise.fetch_cancel_request() == stx::CancelState::Canceled)
+    {
+      promise.notify_canceled();
+      spdlog::info("demuxer thread canceled");
+    }
+    else
+    {
+      promise.notify_completed();
+      spdlog::info("demuxer thread completed");
+    }
+  }};
 
-    std::thread video_decode_thread{
-        [video_decode_ctx = video_decode_ctx.share(),
-         audio_ctx        = media_ctx.share(),
-         promise = promise.share(), ctx = stx::rc::make_inplace<VideoDecodeContext>(stx::os_allocator, Clock::now(), timebase_to_ns(video_decode_ctx->stream->time_base)).unwrap()]() {
-          int error = 0;
+  std::thread video_decode_thread{
+      [video_decode_ctx = video_decode_ctx.share(),
+       audio_ctx        = media_ctx.share(),
+       promise = promise.share(), ctx = stx::rc::make_inplace<VideoDecodeContext>(stx::os_allocator, Clock::now(), timebase_to_ns(video_decode_ctx->stream->time_base)).unwrap()]() {
+        int error = 0;
 
-          while (error >= 0 && promise.fetch_cancel_request() == stx::CancelState::Executing)
+        while (error >= 0 && promise.fetch_cancel_request() == stx::CancelState::Executing)
+        {
+          video_decode_ctx->lock.lock();
+          if (video_decode_ctx->packets.is_empty())
           {
-            video_decode_ctx->lock.lock();
-            if (video_decode_ctx->packets.is_empty())
-            {
-              video_decode_ctx->lock.unlock();
-              continue;
-            }
-
-            AVPacket *packet = video_decode_ctx->packets[0];
-            video_decode_ctx->packets.erase(video_decode_ctx->packets.span().slice(0, 1));
             video_decode_ctx->lock.unlock();
-
-            error = avcodec_send_packet(video_decode_ctx->codec, packet);
-
-            av_packet_free(&packet);
-
-            if (error != 0)
-            {
-              // handle error
-            }
-
-            while ((error = avcodec_receive_frame(video_decode_ctx->codec, video_decode_ctx->frame)) == 0)
-            {
-              ctx->load_frame(video_decode_ctx->frame);
-              nanoseconds delay = ctx->refresh(nanoseconds{audio_ctx->decode_ctx.clock.load(std::memory_order_relaxed)}, Clock::now());
-              spdlog::info("sleeping for: {}ms", delay.count() / 1'000'000LL);
-              auto begin = Clock::now();
-              while ((Clock::now() - begin) < delay)
-                std::this_thread::yield();
-            }
-
-            if (error == AVERROR(EAGAIN))
-            {
-              error = 0;
-            }
-            else if (error == AVERROR(EOF))
-            {
-            }
-            else
-            {
-              ASH_LOG_FFMPEG_ERR(error);
-              break;
-            }
+            continue;
           }
 
-          if (promise.fetch_cancel_request() == stx::CancelState::Canceled)
+          AVPacket *packet = video_decode_ctx->packets[0];
+          video_decode_ctx->packets.erase(video_decode_ctx->packets.span().slice(0, 1));
+          video_decode_ctx->lock.unlock();
+
+          error = avcodec_send_packet(video_decode_ctx->codec, packet);
+
+          av_packet_free(&packet);
+
+          if (error != 0)
           {
-            promise.notify_canceled();
-            spdlog::info("video decode thread canceled");
+            // handle error
+          }
+
+          while ((error = avcodec_receive_frame(video_decode_ctx->codec, video_decode_ctx->frame)) == 0)
+          {
+            ctx->load_frame(video_decode_ctx->frame);
+            nanoseconds delay = ctx->refresh(nanoseconds{audio_ctx->decode_ctx.clock.load(std::memory_order_relaxed)}, Clock::now());
+            spdlog::info("sleeping for: {}ms", delay.count() / 1'000'000LL);
+            auto begin = Clock::now();
+            while ((Clock::now() - begin) < delay)
+              std::this_thread::yield();
+          }
+
+          if (error == AVERROR(EAGAIN))
+          {
+            error = 0;
+          }
+          else if (error == AVERROR(EOF))
+          {
           }
           else
           {
-            promise.notify_completed();
-            spdlog::info("video decode thread completed");
+            ASH_LOG_FFMPEG_ERR(error);
+            break;
           }
-        }};
-    // fmt_ctx->chapters;
-    // fmt_ctx->metadata;
-    // AV_DISPOSITION_ATTACHED_PIC contains album art
-  */
+        }
+
+        if (promise.fetch_cancel_request() == stx::CancelState::Canceled)
+        {
+          promise.notify_canceled();
+          spdlog::info("video decode thread canceled");
+        }
+        else
+        {
+          promise.notify_completed();
+          spdlog::info("video decode thread completed");
+        }
+      }};
+  // fmt_ctx->chapters;
+  // fmt_ctx->metadata;
+  // AV_DISPOSITION_ATTACHED_PIC contains album art
   AppConfig cfg{.enable_validation_layers = false};
   App       app{std::move(cfg), new Image{ImageProps{.source = FileImageSource{.path = R"(C:\Users\Basit\Pictures\1288647.png)"}, .border_radius = vec4{20, 20, 20, 20}, .aspect_ratio = stx::Some(2.0f), .resize_on_load = true}}};
   timepoint last_tick = Clock::now();
