@@ -610,129 +610,67 @@ struct Canvas
     return draw_rounded_image(img, area, border_radii, nsegments, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
-  Canvas &draw_sine_wave(f32 thickness, rect area, color color);
-
   Canvas &draw_text(Paragraph const &paragraph, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, vec2 const position)
   {
-
-// TODO(lamarrr): when rendering glyphs and strokes we need to use the x offset of the glyph as well. this is probably why the arabic text rendering looked weird
-
-
-    // draw empty spaces background
-    for (SpaceLayout const &space_layout : layout.space_layouts)
+    for (TextRunSubWord const &subword : layout.subwords)
     {
-      TextProps const &props = layout.subwords[space_layout.subword].props;
+      TextProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
 
       if (props.background_color.is_visible())
       {
-        vec2 offset = position + space_layout.baseline_position - vec2{0, space_layout.line_height};
-        vec2 extent = vec2{space_layout.width, space_layout.line_height};
-        draw_rect_filled(rect{.offset = offset, .extent = extent}, props.background_color);
+        draw_rect_filled(rect{.offset = position + subword.area.offset, .extent = subword.area.extent}, props.background_color);
       }
     }
 
-    // draw glyph backgrounds
     for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
     {
-      TextProps const &props      = layout.subwords[glyph_layout.subword].props;
-      f32              font_scale = props.font_height / font_bundle[glyph_layout.font].atlas.font_height;
-      vec2             advance    = font_scale * font_bundle[glyph_layout.font].atlas.glyphs[glyph_layout.glyph].advance;
+      TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
+      FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
 
-      if (props.background_color.is_visible())
+      if (props.stroke_color.is_visible() && font_bundle[glyph_layout.font].stroke_atlas.is_some())
       {
-        vec2 offset = position + glyph_layout.baseline_position - vec2{0, glyph_layout.line_height};
-        vec2 extent = vec2{advance.x + props.letter_spacing, glyph_layout.line_height};
-        draw_rect_filled(rect{.offset = offset, .extent = extent}, props.background_color);
+        FontStrokeAtlas const &stroke_atlas  = font_bundle[glyph_layout.font].stroke_atlas.value();
+        f32                    glyph_scale   = props.font_height / atlas.font_height;
+        vec2                   extent        = glyph_scale * stroke_atlas.strokes[glyph_layout.glyph].extent.to_vec();
+        vec2                   stroke_offset = (atlas.glyphs[glyph_layout.glyph].extent.to_vec() - stroke_atlas.strokes[glyph_layout.glyph].extent.to_vec()) / 2;
+        stroke_offset                        = glyph_scale * stroke_offset + props.stroke_offset;
+
+        draw_image(stroke_atlas.texture,
+                   rect{.offset = position + glyph_layout.offset + stroke_offset, .extent = extent},
+                   stroke_atlas.strokes[glyph_layout.glyph].texture_region,
+                   props.stroke_color);
       }
     }
 
-    // draw glyph strokes
     for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
     {
-      TextProps const &props = layout.subwords[glyph_layout.subword].props;
+      TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
+      FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
 
-      if (props.stroke_color.is_transparent() || font_bundle[glyph_layout.font].stroke_atlas.is_none())
+      if (props.foreground_color.is_visible() && props.font_height > 0)
       {
-        continue;
+        draw_image(atlas.texture,
+                   rect{.offset = position + glyph_layout.offset, .extent = glyph_layout.extent},
+                   atlas.glyphs[glyph_layout.glyph].texture_region,
+                   props.foreground_color);
       }
-
-      FontAtlas const       &atlas        = font_bundle[glyph_layout.font].atlas;
-      FontStrokeAtlas const &stroke_atlas = font_bundle[glyph_layout.font].stroke_atlas.value();
-      f32                    font_scale   = props.font_height / atlas.font_height;
-      Glyph const           &glyph        = atlas.glyphs[glyph_layout.glyph];
-      GlyphStroke const     &stroke       = stroke_atlas.strokes[glyph_layout.glyph];
-      f32                    ascent       = font_scale * glyph.ascent;
-      vec2                   glyph_extent{font_scale * glyph.extent.width, font_scale * glyph.extent.height};
-      vec2                   extent{font_scale * stroke.extent.width, font_scale * stroke.extent.height};
-
-      // position stroke center on the center of the glyph by default
-      vec2 stroke_alignment = (extent - glyph_extent) / 2;
-      vec2 offset           = (position + glyph_layout.baseline_position - vec2{0, glyph_layout.vert_spacing + ascent}) - stroke_alignment + props.stroke_offset;
-      draw_image(stroke_atlas.texture, rect{.offset = offset, .extent = extent}, stroke.texture_region, props.stroke_color);
     }
 
-    // draw glyphs
-    for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
+    for (TextRunSubWord const &subword : layout.subwords)
     {
-      TextProps const &props = layout.subwords[glyph_layout.subword].props;
-
-      if (props.foreground_color.is_transparent())
-      {
-        continue;
-      }
-
-      FontAtlas const &atlas      = font_bundle[glyph_layout.font].atlas;
-      f32              font_scale = props.font_height / atlas.font_height;
-      Glyph const     &glyph      = atlas.glyphs[glyph_layout.glyph];
-      f32              ascent     = font_scale * glyph.ascent;
-      vec2             advance    = font_scale * glyph.advance;
-      vec2             offset     = position + glyph_layout.baseline_position - vec2{0, glyph_layout.vert_spacing + ascent};
-      vec2             extent{font_scale * glyph.extent.width, font_scale * glyph.extent.height};
-
-      draw_image(atlas.texture, rect{.offset = offset, .extent = extent}, glyph.texture_region, props.foreground_color);
-    }
-
-    // draw underline and strike throughs for spaces
-    for (SpaceLayout const &space_layout : layout.space_layouts)
-    {
-      TextProps const &props = layout.subwords[space_layout.subword].props;
+      TextProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
 
       if (props.strikethrough_color.is_visible() && props.strikethrough_thickness > 0)
       {
-        vec2 offset = position + space_layout.baseline_position - vec2{0, space_layout.line_height / 2 + props.strikethrough_thickness / 2};
-        vec2 extent = vec2{space_layout.width, props.strikethrough_thickness};
-        draw_rect_filled(rect{.offset = offset, .extent = extent}, props.strikethrough_color);
+        vec2 pos = position + subword.area.line_top;
+        pos.y += (subword.area.baseline.y - subword.area.line_top.y) / 2;
+        pos.y -= props.strikethrough_thickness / 2;
+        draw_rect_filled(rect{.offset = pos, .extent = vec2{subword.area.extent.x, props.strikethrough_thickness}}, props.strikethrough_color);
       }
 
       if (props.underline_color.is_visible() && props.underline_thickness > 0)
       {
-        vec2 offset = position + space_layout.baseline_position;
-        vec2 extent = vec2{space_layout.width, props.underline_thickness};
-        draw_rect_filled(rect{.offset = offset, .extent = extent}, props.underline_color);
-      }
-    }
-
-    // draw underline and strike throughs for glyphs
-    for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
-    {
-      TextProps const &props      = layout.subwords[glyph_layout.subword].props;
-      FontAtlas const &atlas      = font_bundle[glyph_layout.font].atlas;
-      f32              font_scale = props.font_height / atlas.font_height;
-      Glyph const     &glyph      = atlas.glyphs[glyph_layout.glyph];
-      vec2             advance    = font_scale * glyph.advance;
-
-      if (props.strikethrough_color.is_visible() && props.strikethrough_thickness > 0)
-      {
-        vec2 offset = position + glyph_layout.baseline_position - vec2{0, glyph_layout.line_height / 2 + props.strikethrough_thickness / 2};
-        vec2 extent = vec2{advance.x + props.letter_spacing, props.strikethrough_thickness};
-        draw_rect_filled(rect{.offset = offset, .extent = extent}, props.strikethrough_color);
-      }
-
-      if (props.underline_color.is_visible() && props.underline_thickness > 0)
-      {
-        vec2 offset = position + glyph_layout.baseline_position;
-        vec2 extent = vec2{advance.x + props.letter_spacing, props.underline_thickness};
-        draw_rect_filled(rect{.offset = offset, .extent = extent}, props.underline_color);
+        draw_rect_filled(rect{.offset = position + subword.area.baseline, .extent = vec2{subword.area.extent.x, props.underline_thickness}}, props.underline_color);
       }
     }
 

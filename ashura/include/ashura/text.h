@@ -388,6 +388,7 @@ struct TextRunSubWord
   stx::Span<char const> text;
   usize                 run            = 0;
   usize                 font           = 0;
+  f32                   glyph_scale    = 0;
   usize                 nspace_chars   = 0;
   usize                 nnewline_chars = 0;
   usize                 nline_breaks   = 0;
@@ -414,9 +415,7 @@ struct TextLayout
   stx::Vec<GlyphLayout>    glyph_layouts;
 
   // TODO(lamarrr): [future] add bidi
-  /// @brief performs layout of the paragraph
-  ///
-  /// @return the width and height of the paragraph
+  /// performs layout of the paragraph and returns the width and height of the paragraph
   vec2 layout(Paragraph const &paragraph, stx::Span<BundledFont const> const font_bundle, f32 max_line_width)
   {
     constexpr u32 SPACE   = ' ';
@@ -439,7 +438,7 @@ struct TextLayout
     for (usize i = 0; i < paragraph.runs.size(); i++)
     {
       TextRun const   &run   = paragraph.runs[i];
-      TextProps const &props = run.props.is_some() ? run.props.value() : paragraph.props;
+      TextProps const &props = run.props.as_cref().unwrap_or(paragraph.props);
 
       for (char const *word_begin = run.text.begin(); word_begin < run.text.end();)
       {
@@ -632,7 +631,8 @@ struct TextLayout
         }
       }
 
-      subword.width = width;
+      subword.glyph_scale = glyph_scale;
+      subword.width       = width;
     }
 
     // wrap text to new line if its width exceeds the maximum line width
@@ -645,6 +645,8 @@ struct TextLayout
       // if it has a newline, the wrapping doesn't count as a line break
       //
       f32 cursor_x = 0;
+
+      // TODO(lamarrr): calculate nline_breaks
 
       for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
       {
@@ -695,8 +697,7 @@ struct TextLayout
     }
 
     {
-      f32   line_top              = 0;
-      usize nprevious_line_breaks = 0;
+      f32 line_top = 0;
 
       for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
       {
@@ -721,34 +722,28 @@ struct TextLayout
 
         for (TextRunSubWord const *subword = line_begin; subword < line_end; subword++)
         {
-          TextProps const &props       = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
-          FontAtlas const &atlas       = font_bundle[subword->font].atlas;
-          f32              glyph_scale = props.font_height / atlas.font_height;
+          TextProps const &props = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
+          FontAtlas const &atlas = font_bundle[subword->font].atlas;
 
           line_width += subword->width + subword->nspace_chars * props.word_spacing;
           line_height = std::max(line_height, props.line_height * props.font_height);
 
-          max_ascent  = std::max(max_ascent, glyph_scale * atlas.ascent);
-          max_descent = std::max(max_descent, glyph_scale * atlas.descent);
-        }
-
-        if (nprevious_line_breaks > 1)
-        {
-          line_top += (nprevious_line_breaks - 1) * line_height;
+          max_ascent  = std::max(max_ascent, subword->glyph_scale * atlas.ascent);
+          max_descent = std::max(max_descent, subword->glyph_scale * atlas.descent);
         }
 
         f32 line_vertical_padding = std::max((line_height - (max_ascent + max_descent)) / 2, 0.0f);
         f32 baseline_y            = line_top + line_vertical_padding + max_ascent;
 
-        f32 line_horizontal_alignment = 0;
+        f32 line_alignment_x = 0;
 
         if (paragraph.align == TextAlign::Center)
         {
-          line_horizontal_alignment = (std::max(line_width, max_line_width) - line_width) / 2;
+          line_alignment_x = std::max(max_line_width - line_width, 0.0f) / 2;
         }
         else if (paragraph.align == TextAlign::Right)
         {
-          line_horizontal_alignment = std::max(line_width, max_line_width) - line_width;
+          line_alignment_x = std::max(max_line_width - line_width, 0.0f);
         }
 
         f32 cursor_x = 0;
@@ -758,28 +753,27 @@ struct TextLayout
           TextProps const &props = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
           if (props.direction == TextDirection::LeftToRight)
           {
-            FontAtlas const &atlas       = font_bundle[subword->font].atlas;
-            f32              glyph_scale = props.font_height / atlas.font_height;
+            FontAtlas const &atlas = font_bundle[subword->font].atlas;
 
-            subword->area.offset   = vec2{line_horizontal_alignment + cursor_x, line_top};
+            subword->area.offset   = vec2{line_alignment_x + cursor_x, line_top};
             subword->area.extent   = vec2{subword->width + subword->nspace_chars * props.word_spacing, line_height};
-            subword->area.baseline = vec2{line_horizontal_alignment + cursor_x, baseline_y};
-            subword->area.line_top = vec2{line_horizontal_alignment + cursor_x, baseline_y - glyph_scale * atlas.ascent};
+            subword->area.baseline = vec2{line_alignment_x + cursor_x, baseline_y};
+            subword->area.line_top = vec2{line_alignment_x + cursor_x, baseline_y - subword->glyph_scale * atlas.ascent};
 
             for (u32 glyph_index : glyph_indices.span().slice(subword->glyphs_begin, subword->nglyphs))
             {
               Glyph const &glyph  = atlas.glyphs[glyph_index];
-              vec2         offset = vec2{line_horizontal_alignment + cursor_x + glyph.bearing.x, baseline_y - glyph.bearing.y};
+              vec2         offset = vec2{line_alignment_x + cursor_x + glyph.bearing.x, baseline_y - glyph.bearing.y};
 
               glyph_layouts.push(GlyphLayout{
                                      .offset = offset,
-                                     .extent = glyph_scale * glyph.extent.to_vec(),
+                                     .extent = subword->glyph_scale * glyph.extent.to_vec(),
                                      .run    = subword->run,
                                      .font   = subword->font,
                                      .glyph  = glyph_index})
                   .unwrap();
 
-              cursor_x += glyph_scale * glyph.advance.x + props.letter_spacing;
+              cursor_x += subword->glyph_scale * glyph.advance.x + props.letter_spacing;
             }
 
             cursor_x += subword->nspace_chars * props.word_spacing;
@@ -792,6 +786,7 @@ struct TextLayout
             TextRunSubWord *rtl_end   = subword + 1;
 
             TextProps const &props = paragraph.runs[rtl_begin->run].props.as_cref().unwrap_or(paragraph.props);
+
             rtl_width += rtl_begin->width + rtl_begin->nspace_chars * props.word_spacing;
 
             for (; rtl_end < line_end; rtl_end++)
@@ -811,33 +806,32 @@ struct TextLayout
 
             for (TextRunSubWord *rtl_iter = rtl_begin; rtl_iter < rtl_end; rtl_iter++)
             {
-              TextProps const &props       = paragraph.runs[rtl_iter->run].props.as_cref().unwrap_or(paragraph.props);
-              FontAtlas const &atlas       = font_bundle[rtl_iter->font].atlas;
-              f32              glyph_scale = props.font_height / atlas.font_height;
+              TextProps const &props = paragraph.runs[rtl_iter->run].props.as_cref().unwrap_or(paragraph.props);
+              FontAtlas const &atlas = font_bundle[rtl_iter->font].atlas;
 
               rtl_cursor_x -= rtl_iter->width + rtl_iter->nspace_chars * props.word_spacing;
 
-              rtl_iter->area.offset   = vec2{line_horizontal_alignment + rtl_cursor_x, line_top};
+              rtl_iter->area.offset   = vec2{line_alignment_x + rtl_cursor_x, line_top};
               rtl_iter->area.extent   = vec2{rtl_iter->width + rtl_iter->nspace_chars * props.word_spacing, line_height};
-              rtl_iter->area.baseline = vec2{line_horizontal_alignment + rtl_cursor_x, baseline_y};
-              rtl_iter->area.line_top = vec2{line_horizontal_alignment + cursor_x, baseline_y - glyph_scale * atlas.ascent};
+              rtl_iter->area.baseline = vec2{line_alignment_x + rtl_cursor_x, baseline_y};
+              rtl_iter->area.line_top = vec2{line_alignment_x + cursor_x, baseline_y - rtl_iter->glyph_scale * atlas.ascent};
 
               f32 glyph_cursor_x = rtl_cursor_x;
 
               for (u32 glyph_index : glyph_indices.span().slice(rtl_iter->glyphs_begin, rtl_iter->nglyphs))
               {
                 Glyph const &glyph  = atlas.glyphs[glyph_index];
-                vec2         offset = vec2{line_horizontal_alignment + glyph_cursor_x + glyph.bearing.x, baseline_y - glyph.bearing.y};
+                vec2         offset = vec2{line_alignment_x + glyph_cursor_x + glyph.bearing.x, baseline_y - glyph.bearing.y};
 
                 glyph_layouts.push(GlyphLayout{
                                        .offset = offset,
-                                       .extent = glyph_scale * glyph.extent.to_vec(),
+                                       .extent = rtl_iter->glyph_scale * glyph.extent.to_vec(),
                                        .run    = subword->run,
                                        .font   = subword->font,
                                        .glyph  = glyph_index})
                     .unwrap();
 
-                glyph_cursor_x += glyph_scale * glyph.advance.x + props.letter_spacing;
+                glyph_cursor_x += rtl_iter->glyph_scale * glyph.advance.x + props.letter_spacing;
               }
             }
 
@@ -846,14 +840,11 @@ struct TextLayout
           }
         }
 
-        span.x = std::max(span.x, line_horizontal_alignment + line_width);
+        line_top += nline_breaks * line_height;
 
-        // note that this means trailing newlines will be ignored
-        span.y = line_top + line_height;
+        span.x = std::max(span.x, line_alignment_x + line_width);
 
-        line_top += line_height;
-
-        nprevious_line_breaks = nline_breaks;
+        span.y = line_top;
 
         iter = line_end;
       }
