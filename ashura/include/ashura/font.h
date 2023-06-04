@@ -33,14 +33,17 @@ enum class FontLoadError : u8
   UnrecognizedFontName
 };
 
+/// see: https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
+///
+/// NOTE: using stubs enables us to perform fast linear lookups of glyph indices by ensuring the array is filled and sorted by glyph index from 0 -> nglyphs_found_in_font-1
 struct Glyph
 {
   bool    is_valid = false;
   u32     index    = 0;          // the glyph index
-  offset  offset;                // offset into the atlas its glyph resides
+  offset  offset;                // offset into the atlas this glyph is placed
   extent  extent;                // extent of the glyph in the atlas
-  f32     x      = 0;            // defines x-offset from cursor position the glyph will be placed
-  f32     ascent = 0;            // defines ascent from baseline of the text
+  vec2    bearing;               // offset from cursor baseline to start drawing glyph from
+  f32     descent = 0;           // distance from baseline to the bottom of the glyph
   vec2    advance;               // advancement of the cursor after drawing this glyph
   rect_uv texture_region;        // texture coordinates of this glyph in the atlas
 };
@@ -182,9 +185,9 @@ struct FontStrokeAtlas
 {
   stx::Vec<GlyphStroke> strokes;
   extent                extent;                 // overall extent of the atlas
-  f32                   font_height = 0;        // font height at which the cache/atlas/glyphs will be rendered and cached
-  f32                   thickness   = 0;
-  gfx::image            texture     = 0;        // atlas containing the packed glyphs
+  f32                   font_height = 0;        // font height at which the cache/atlas/glyphs has been rendered
+  f32                   thickness   = 0;        // thickness of the glyph strokes
+  gfx::image            texture     = 0;        // texture containing the packed glyphs
 };
 
 /// stores codepoint glyphs for a font at a specific font height
@@ -193,6 +196,8 @@ struct FontAtlas
   stx::Vec<Glyph> glyphs;
   extent          extent;                 // overall extent of the atlas
   f32             font_height = 0;        // font height at which the cache/atlas/glyphs will be rendered and cached
+  f32             ascent      = 0;
+  f32             descent     = 0;
   gfx::image      texture     = 0;        // atlas containing the packed glyphs
   bool            has_color   = false;
 
@@ -233,15 +238,18 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
         u32 height = font.ft_face->glyph->bitmap.rows;
 
         // convert from 26.6 pixel format
+        vec2 bearing{font.ft_face->glyph->metrics.horiBearingX / 64.0f, font.ft_face->glyph->metrics.horiBearingY / 64.0f};
         vec2 advance{font.ft_face->glyph->advance.x / 64.0f, font.ft_face->glyph->advance.y / 64.0f};
+
+        f32 descent = std::min(AS(f32, height) - bearing.y, 0.0f);
 
         glyphs
             .push(Glyph{.is_valid       = true,
                         .index          = glyph_index,
                         .offset         = offset{},
                         .extent         = extent{width, height},
-                        .x              = AS(f32, font.ft_face->glyph->bitmap_left),
-                        .ascent         = AS(f32, font.ft_face->glyph->bitmap_top),
+                        .bearing        = bearing,
+                        .descent        = descent,
                         .advance        = advance,
                         .texture_region = {}})
             .unwrap();
@@ -309,8 +317,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
                         .index          = next_index,
                         .offset         = {},
                         .extent         = {},
-                        .x              = 0,
-                        .ascent         = 0,
+                        .bearing        = {},
                         .advance        = {},
                         .texture_region = {}})
             .unwrap();
@@ -378,7 +385,13 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
 
   ASH_LOG_INFO(FontRenderer, "Finished rendering CPU atlas for font: {}", font.postscript_name.c_str());
 
-  return std::make_pair(FontAtlas{.glyphs = std::move(glyphs), .extent = atlas_extent, .font_height = font_height, .texture = 0, .has_color = font.has_color},
+  return std::make_pair(FontAtlas{.glyphs      = std::move(glyphs),
+                                  .extent      = atlas_extent,
+                                  .font_height = font_height,
+                                  .ascent      = font.ft_face->size->metrics.ascender / 64.0f,
+                                  .descent     = font.ft_face->size->metrics.descender / -64.0f,
+                                  .texture     = 0,
+                                  .has_color   = font.has_color},
                         ImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent, .format = format});
 }
 
@@ -564,7 +577,11 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
 
   ASH_LOG_INFO(FontRenderer, "Finished rendering CPU glyph stroke atlas for font: {}", font.postscript_name.c_str());
 
-  return std::make_pair(FontStrokeAtlas{.strokes = std::move(strokes), .extent = atlas_extent, .font_height = font_height, .thickness = stroke_thickness, .texture = 0},
+  return std::make_pair(FontStrokeAtlas{.strokes     = std::move(strokes),
+                                        .extent      = atlas_extent,
+                                        .font_height = font_height,
+                                        .thickness   = stroke_thickness,
+                                        .texture     = 0},
                         ImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent, .format = format});
 }
 

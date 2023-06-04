@@ -321,23 +321,23 @@ enum class TextDirection : u8
 
 struct TextProps
 {
-  std::string_view                  font;
-  stx::Span<std::string_view const> fallback_fonts;        /// font to fallback to if specified font is not available
-  f32                               font_height             = 16;
+  std::string_view                  font;                                /// name to use to match the font
+  stx::Span<std::string_view const> fallback_fonts;                      /// font to fallback to if specified font is not available
+  f32                               font_height             = 16;        /// px
   color                             foreground_color        = colors::BLACK;
   color                             background_color        = colors::TRANSPARENT;
   color                             underline_color         = colors::BLACK;
-  f32                               underline_thickness     = 0;
+  f32                               underline_thickness     = 0;            /// px
   bool                              wavy_underline          = false;        // TODO(lamarrr): implement
   color                             strikethrough_color     = colors::BLACK;
-  f32                               strikethrough_thickness = 0;
-  color                             stroke_color            = colors::TRANSPARENT;
-  vec2                              stroke_translation;
-  f32                               letter_spacing = 1;
-  f32                               word_spacing   = 4;
-  f32                               line_height    = 1.2f;        /// will be multiplied by font_height
+  f32                               strikethrough_thickness = 0;            /// px
+  color                             stroke_color            = colors::BLACK;
+  vec2                              stroke_offset;                          /// px
+  f32                               letter_spacing = 1;                     /// px
+  f32                               word_spacing   = 4;                     /// px
+  f32                               line_height    = 1.2f;                  /// will be multiplied by font_height
   TextDirection                     direction      = TextDirection::LeftToRight;
-  u32                               tab_size       = 8;
+  u32                               tab_size       = 8;                     /// number of spaces to replace a tab with
   Script                            script         = Script::Latin;
   std::string_view                  language       = languages::ENGLISH;
   bool                              use_kerning    = true;
@@ -358,6 +358,7 @@ enum class TextAlign : u8
   Right
 };
 
+// TODO(lamarrr): implement ellipsis overflow wrapping
 enum class TextOverflow : u8
 {
   Wrap,
@@ -368,16 +369,16 @@ struct Paragraph
 {
   stx::Span<TextRun const> runs;
   TextProps                props;
-  TextAlign                align    = TextAlign::Left;
-  TextOverflow             overflow = TextOverflow::Wrap;
-  std::string_view         ellipsis = "...";
+  TextAlign                align = TextAlign::Left;
+  // TextOverflow             overflow = TextOverflow::Wrap;
+  // std::string_view         ellipsis = "...";
 };
 
-// used for backgrounds, strikethrough, and underline
 struct TextRunArea
 {
-  vec2 baseline_position;
-  f32  line_height = 0;
+  vec2 bottom;
+  f32  vertical_glyph_spacing = 0;        // spacing of the glyph to the text run area
+  f32  line_height            = 0;        // height of the line the text run belongs to
 };
 
 /// this is part of a word that is styled by a run
@@ -389,7 +390,7 @@ struct TextRunSubWord
   usize                 nspaces      = 0;
   usize                 nline_breaks = 0;
   f32                   width        = 0;
-  usize                 glyph_start  = 0;
+  usize                 glyphs_begin = 0;
   usize                 nglyphs      = 0;
   bool                  is_wrapped   = false;
   TextRunArea           area;
@@ -397,21 +398,9 @@ struct TextRunSubWord
 
 struct GlyphLayout
 {
-  u32   glyph   = 0;
-  usize subword = 0;
-  usize run     = 0;
-  usize font    = 0;
-  vec2  baseline_position;
-  f32   line_height  = 0;
-  f32   vert_spacing = 0;
-};
-
-struct TextConstraint
-{
-  f32 min_width  = 0;        /// width of paragraph when allocated a zero max-width
-  f32 min_height = 0;        /// corresponding height of the text when the paragraph is at maximum width
-  f32 max_width  = 0;        /// width when the paragraph laid out on a single line without wrapping. this assumes there is infinite space
-  f32 max_height = 0;        /// height when the paragraph is at minimum width.
+  u32   glyph               = 0;
+  usize run_subword         = 0;
+  f32   baseline_position_x = 0;
 };
 
 struct TextLayout
@@ -437,6 +426,7 @@ struct TextLayout
 
     vec2 span;
 
+    // there's no layout to perform without a font
     if (font_bundle.is_empty())
     {
       return span;
@@ -558,6 +548,7 @@ struct TextLayout
         return f.name == props.font;
       });
 
+      // if font not found, check if fallback font is found
       if (font_s.is_empty())
       {
         for (std::string_view fallback : props.fallback_fonts)
@@ -573,16 +564,18 @@ struct TextLayout
         }
       }
 
+      // if no font or fallback font is found use the first font in the bundle
       if (font_s.is_empty())
       {
         font_s = font_bundle.slice(0, 1);
       }
 
-      usize font_index = AS(usize, font_s.begin() - font_bundle.begin());
+      usize            font_index = AS(usize, font_s.begin() - font_bundle.begin());
+      Font const      &font       = *font_bundle[font_index].font;
+      FontAtlas const &atlas      = font_bundle[font_index].atlas;
 
-      Font const      &font              = *font_bundle[font_index].font;
-      FontAtlas const &atlas             = font_bundle[font_index].atlas;
-      stx::Span        replacement_glyph = atlas.get(0);        // use glyph at index 0 as replacement glyph, this is usually the invalid character replacement glyph
+      // use glyph at index 0 as replacement glyph, this is usually the invalid character replacement glyph
+      stx::Span replacement_glyph = atlas.get(0);
 
       hb_feature_t shaping_features[] = {{.tag = Font::KERNING_FEATURE, .value = props.use_kerning, .start = 0, .end = stx::U_MAX},
                                          {.tag = Font::LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX},
@@ -601,19 +594,21 @@ struct TextLayout
       {
         hb_buffer_set_direction(font.hb_scratch_buffer, HB_DIRECTION_RTL);
       }
+
       hb_buffer_set_language(font.hb_scratch_buffer, hb_language_from_string(props.language.data(), AS(int, props.language.size())));
       hb_buffer_add_utf8(font.hb_scratch_buffer, subword.text.begin(), AS(int, subword.text.size()), 0, AS(int, subword.text.size()));
       hb_shape(font.hb_font, font.hb_scratch_buffer, shaping_features, AS(uint, std::size(shaping_features)));
 
       uint             nglyphs;
       hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(font.hb_scratch_buffer, &nglyphs);
+      ASH_CHECK(!(glyph_info != nullptr && nglyphs > 0));
 
       f32 width      = 0;
       f32 font_scale = props.font_height / atlas.font_height;
 
-      subword.font        = font_index;
-      subword.glyph_start = glyph_indices.size();
-      subword.nglyphs     = nglyphs;
+      subword.font         = font_index;
+      subword.glyphs_begin = glyph_indices.size();
+      subword.nglyphs      = nglyphs;
 
       for (usize i = 0; i < nglyphs; i++)
       {
@@ -689,7 +684,7 @@ struct TextLayout
 
     // wraps if there's no previous line break
     {
-      f32   baseline_y        = 0;
+      f32   line_top       = 0;
       usize nprev_line_breaks = 0;
 
       for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
@@ -728,6 +723,7 @@ struct TextLayout
         f32 line_width  = 0;
         f32 line_height = 0;
         f32 max_ascent  = 0;
+        // how to calculate baseline????
 
         for (TextRunSubWord const *subword = line_begin; subword < line_end; subword++)
         {
@@ -738,13 +734,14 @@ struct TextLayout
           FontAtlas const &atlas      = font_bundle[subword->font].atlas;
           f32              font_scale = props.font_height / atlas.font_height;
 
-          for (u32 glyph_index : glyph_indices.span().slice(subword->glyph_start, subword->nglyphs))
+          for (u32 glyph_index : glyph_indices.span().slice(subword->glyphs_begin, subword->nglyphs))
           {
             max_ascent = std::max(max_ascent, atlas.glyphs[glyph_index].ascent * font_scale);
           }
         }
 
-        // TODO(lamarrr): implement ellipsis wrapping
+        // ensures each run is placed such that its line_height
+        // does centering make sense? shouldn't we be more rigid???
         f32 vert_spacing   = std::max(line_height - max_ascent, 0.0f) / 2;
         f32 line_alignment = 0;
 
@@ -759,11 +756,10 @@ struct TextLayout
 
         span.x = std::max(span.x, line_width + line_alignment);
 
-        baseline_y += nprev_line_breaks * line_height;
+        line_bottom += nprev_line_breaks * line_height;
 
-        // TODO(lamarrr): this is probably incorrect
-        // also, is the newline rendered if there is nothing on it. i.e. after this iteration is a empty newline considered
-        span.y = baseline_y;
+        // ensures the newline is considered as part of the paragraph's height irregardless of whether there is a text below it or not
+        span.y = line_bottom + nline_breaks * line_height;
 
         f32 cursor_x = 0;
 
@@ -778,19 +774,16 @@ struct TextLayout
 
             subword->area.baseline_position = vec2{line_alignment + cursor_x, baseline_y};
             subword->area.line_height       = line_height;
+            subword->area.vert_spacing      = vert_spacing;
 
-            for (u32 glyph_index : glyph_indices.span().slice(subword->glyph_start, subword->nglyphs))
+            for (u32 glyph_index : glyph_indices.span().slice(subword->glyphs_begin, subword->nglyphs))
             {
               Glyph const &glyph   = atlas.glyphs[glyph_index];
               vec2         advance = glyph.advance * font_scale;
               glyph_layouts.push(GlyphLayout{
                                      .glyph             = glyph_index,
-                                     .subword           = AS(usize, subword - subwords.begin()),
-                                     .run               = subword->run,
-                                     .font              = subword->font,
-                                     .baseline_position = vec2{line_alignment + cursor_x, baseline_y},
-                                     .line_height       = line_height,
-                                     .vert_spacing      = vert_spacing})
+                                     .run_subword       = AS(usize, subword - subwords.begin()),
+                                     .baseline_position = vec2{line_alignment + cursor_x, baseline_y}})
                   .unwrap();
               cursor_x += advance.x + props.letter_spacing;
             }
@@ -832,21 +825,18 @@ struct TextLayout
 
               rtl_iter->area.baseline_position = vec2{line_alignment + rtl_cursor_x, baseline_y};
               rtl_iter->area.line_height       = line_height;
+              rtl_iter->area.vert_spacing      = vert_spacing;
 
               f32 glyph_cursor_x = rtl_cursor_x;
 
-              for (u32 glyph_index : glyph_indices.span().slice(rtl_iter->glyph_start, rtl_iter->nglyphs))
+              for (u32 glyph_index : glyph_indices.span().slice(rtl_iter->glyphs_begin, rtl_iter->nglyphs))
               {
                 Glyph const &glyph   = atlas.glyphs[glyph_index];
                 vec2         advance = glyph.advance * font_scale;
                 glyph_layouts.push(GlyphLayout{
                                        .glyph             = glyph_index,
-                                       .subword           = AS(usize, rtl_iter - subwords.begin()),
-                                       .run               = subword->run,
-                                       .font              = subword->font,
-                                       .baseline_position = vec2{line_alignment + glyph_cursor_x, baseline_y},
-                                       .line_height       = line_height,
-                                       .vert_spacing      = vert_spacing})
+                                       .run_subword       = AS(usize, rtl_iter - subwords.begin()),
+                                       .baseline_position = vec2{line_alignment + glyph_cursor_x, baseline_y}})
                     .unwrap();
                 glyph_cursor_x += advance.x + props.letter_spacing;
               }
@@ -862,14 +852,9 @@ struct TextLayout
       }
     }
 
-    return span;
-  }
+    glyph_indices.clear();
 
-  TextConstraint calculate_constraint(Paragraph const &paragraph, stx::Span<BundledFont const> font_bundle)
-  {
-    vec2 min = layout(paragraph, font_bundle, 0);
-    vec2 max = layout(paragraph, font_bundle, 1'024'000'000);
-    return TextConstraint{.min_width = min.x, .min_height = max.y, .max_width = max.x, .max_height = min.y};
+    return span;
   }
 };
 

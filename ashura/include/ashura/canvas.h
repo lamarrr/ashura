@@ -614,6 +614,10 @@ struct Canvas
 
   Canvas &draw_text(Paragraph const &paragraph, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, vec2 const position)
   {
+
+// TODO(lamarrr): when rendering glyphs and strokes we need to use the x offset of the glyph as well. this is probably why the arabic text rendering looked weird
+
+
     // draw empty spaces background
     for (SpaceLayout const &space_layout : layout.space_layouts)
     {
@@ -663,7 +667,7 @@ struct Canvas
 
       // position stroke center on the center of the glyph by default
       vec2 stroke_alignment = (extent - glyph_extent) / 2;
-      vec2 offset           = (position + glyph_layout.baseline_position - vec2{0, glyph_layout.vert_spacing + ascent}) - stroke_alignment + props.stroke_translation;
+      vec2 offset           = (position + glyph_layout.baseline_position - vec2{0, glyph_layout.vert_spacing + ascent}) - stroke_alignment + props.stroke_offset;
       draw_image(stroke_atlas.texture, rect{.offset = offset, .extent = extent}, stroke.texture_region, props.stroke_color);
     }
 
