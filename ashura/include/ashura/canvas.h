@@ -411,7 +411,7 @@ struct Canvas
   {
     draw_list.clear();
 
-    vec4 color = clear_color.as_vec();
+    vec4 color = clear_color.to_vec();
 
     vertex vertices[] = {{.position = {0, 0}, .uv = {0, 0}, .color = color},
                          {.position = {viewport_extent.x, 0}, .uv = {1, 0}, .color = color},
@@ -507,7 +507,7 @@ struct Canvas
 
   Canvas &draw_line(vec2 begin, vec2 end, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    vec4   color_v  = color.as_vec();
+    vec4   color_v  = color.to_vec();
     vertex points[] = {{.position = {}, .uv = {}, .color = color_v},
                        {.position = end - begin, .uv = {}, .color = color_v}};
 
@@ -518,7 +518,7 @@ struct Canvas
 
   Canvas &draw_rect_filled(rect area, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    polygons::rect(area.extent, color.as_vec(), texture_region, __reserve_convex_polygon(4, area, texture));
+    polygons::rect(area.extent, color.to_vec(), texture_region, __reserve_convex_polygon(4, area, texture));
     return *this;
   }
 
@@ -526,7 +526,7 @@ struct Canvas
   {
     vertex line[4];
 
-    polygons::rect(area.extent, color.as_vec(), texture_region, line);
+    polygons::rect(area.extent, color.to_vec(), texture_region, line);
 
     area.offset = area.offset - thickness / 2;
     area.extent = area.extent + thickness;
@@ -537,7 +537,7 @@ struct Canvas
   Canvas &draw_circle_filled(vec2 position, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
-    polygons::circle(radius, nsegments, color.as_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
+    polygons::circle(radius, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
     return *this;
   }
 
@@ -545,7 +545,7 @@ struct Canvas
   {
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    polygons::circle(radius, nsegments, color.as_vec(), texture_region, scratch);
+    polygons::circle(radius, nsegments, color.to_vec(), texture_region, scratch);
 
     rect area{.offset = position - vec2{thickness / 2, thickness / 2}, .extent = vec2::splat(2 * radius) + vec2{thickness, thickness}};
 
@@ -555,7 +555,7 @@ struct Canvas
   Canvas &draw_ellipse_filled(vec2 position, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = 2 * radii};
-    polygons::ellipse(radii, nsegments, color.as_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
+    polygons::ellipse(radii, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
     return *this;
   }
 
@@ -563,7 +563,7 @@ struct Canvas
   {
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    polygons::ellipse(radii, nsegments, color.as_vec(), texture_region, scratch);
+    polygons::ellipse(radii, nsegments, color.to_vec(), texture_region, scratch);
 
     rect area{.offset = position - vec2::splat(thickness / 2), .extent = (2 * radii) + vec2::splat(thickness)};
 
@@ -572,7 +572,7 @@ struct Canvas
 
   Canvas &draw_round_rect_filled(rect area, vec4 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    polygons::round_rect(area.extent, radii, nsegments, color.as_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, texture));
+    polygons::round_rect(area.extent, radii, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, texture));
     return *this;
   }
 
@@ -580,7 +580,7 @@ struct Canvas
   {
     scratch.unsafe_resize_uninitialized(nsegments * 4).unwrap();
 
-    polygons::round_rect(area.extent, radii, nsegments, color.as_vec(), texture_region, scratch);
+    polygons::round_rect(area.extent, radii, nsegments, color.to_vec(), texture_region, scratch);
 
     area.offset = area.offset - vec2::splat(thickness / 2);
     area.extent = area.extent + vec2::splat(thickness);
@@ -590,7 +590,7 @@ struct Canvas
 
   Canvas &draw_image(image img, rect area, rect_uv texture_region, color tint = colors::WHITE)
   {
-    polygons::rect(area.extent, tint.as_vec(), texture_region, __reserve_convex_polygon(4, area, img));
+    polygons::rect(area.extent, tint.to_vec(), texture_region, __reserve_convex_polygon(4, area, img));
     return *this;
   }
 
@@ -601,7 +601,7 @@ struct Canvas
 
   Canvas &draw_rounded_image(image img, rect area, vec4 border_radii, u32 nsegments, rect_uv texture_region, color tint = colors::WHITE)
   {
-    polygons::round_rect(area.extent, border_radii, nsegments, tint.as_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, img));
+    polygons::round_rect(area.extent, border_radii, nsegments, tint.to_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, img));
     return *this;
   }
 

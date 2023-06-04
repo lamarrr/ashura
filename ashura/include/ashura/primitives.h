@@ -436,6 +436,11 @@ constexpr bool operator!=(quaternion a, quaternion b)
 struct offset
 {
   u32 x = 0, y = 0;
+
+  constexpr vec2 to_vec() const
+  {
+    return vec2{.x = AS(f32, x), .y = AS(f32, y)};
+  }
 };
 
 constexpr offset operator+(offset a, offset b)
@@ -500,6 +505,11 @@ struct extent
   constexpr u64 area() const
   {
     return AS(u64, width) * height;
+  }
+
+  constexpr vec2 to_vec() const
+  {
+    return vec2{.x = AS(f32, width), .y = AS(f32, height)};
   }
 };
 
@@ -596,7 +606,7 @@ struct color
     return !is_transparent();
   }
 
-  constexpr vec4 as_vec() const
+  constexpr vec4 to_vec() const
   {
     return vec4{.x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
   }
