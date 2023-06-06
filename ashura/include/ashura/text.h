@@ -635,12 +635,8 @@ struct TextLayout
       subword.width       = width;
     }
 
-    // wrap text to new line if its width exceeds the maximum line width
+    // wrap words to new line if its width exceeds the maximum line width
     {
-      // TODO(lamarrr): this isn't correct as we are breaking at runs instead of actual words??? breaking should only happen at newlines or spaces
-      // or are we doing something different here?
-      // we can't break text because of difference in color for example
-
       //
       // if it has a newline, the wrapping doesn't count as a line break
       //
@@ -654,17 +650,17 @@ struct TextLayout
 
         for (; subword < subwords.end();)
         {
-          TextProps const &props             = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
-          f32              spaced_word_width = subword->width + subword->nspace_chars * props.word_spacing;
+          TextProps const &props         = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
+          f32              subword_width = subword->width + subword->nspace_chars * props.word_spacing;
 
-          // if possible end of word
+          // if end of word
           if (subword->nspace_chars > 0 || subword->nnewline_chars > 0 || subword == subwords.end() - 1)
           {
             // check if wrapping needed
-            if (cursor_x + spaced_word_width > max_line_width)
+            if (cursor_x + subword_width > max_line_width)
             {
               iter->is_wrapped = true;
-              cursor_x         = spaced_word_width;
+              cursor_x         = subword_width;        // TODO(lamarrr): this isn't correct
               if (subword->nnewline_chars > 0)
               {
                 cursor_x = 0;
@@ -678,7 +674,7 @@ struct TextLayout
               }
               else
               {
-                cursor_x += spaced_word_width;
+                cursor_x += subword_width;
               }
             }
             subword++;
@@ -687,12 +683,49 @@ struct TextLayout
           else
           {
             // continue until we reach end of word
-            cursor_x += spaced_word_width;
+            cursor_x += subword_width;
             subword++;
           }
         }
 
         iter = subword;
+      }
+
+      for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
+      {
+        TextRunSubWord  *word_begin = iter;
+        TextProps const &props      = paragraph.runs[word_begin->run].props.as_cref().unwrap_or(paragraph.props);
+        f32              word_width = word_begin->width + word_begin->nspace_chars * props.word_spacing;
+
+        TextRunSubWord *word_end = word_begin + 1;
+
+        if (word_begin->nspace_chars == 0 && word_begin->nnewline_chars == 0)
+        {
+          for (; word_end < subwords.end();)
+          {
+            TextProps const &props = paragraph.runs[word_end->run].props.as_cref().unwrap_or(paragraph.props);
+            word_width += word_end->width + word_end->nspace_chars * props.word_spacing;
+            if (word_end->nspace_chars > 0 || word_end->nnewline_chars > 0)
+            {
+              word_end++;
+              break;
+            }
+            else
+            {
+              word_end++;
+            }
+          }
+        }
+
+        if (cursor_x + word_width > max_line_width)
+        {
+          word_begin->is_wrapped = true;
+          cursor_x               = word_width;
+        }
+        else
+        {
+          cursor_x += word_width;
+        }
       }
     }
 

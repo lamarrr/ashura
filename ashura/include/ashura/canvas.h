@@ -627,7 +627,7 @@ struct Canvas
       TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
       FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
 
-      if (props.stroke_color.is_visible() && font_bundle[glyph_layout.font].stroke_atlas.is_some())
+      if (props.stroke_color.is_visible() && props.font_height > 0 && font_bundle[glyph_layout.font].stroke_atlas.is_some())
       {
         FontStrokeAtlas const &stroke_atlas  = font_bundle[glyph_layout.font].stroke_atlas.value();
         f32                    glyph_scale   = props.font_height / atlas.font_height;
