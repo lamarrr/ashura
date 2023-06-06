@@ -159,14 +159,16 @@ struct Image : public Widget
 
     char const *str     = "Hello, World! ";
     char        arstr[] = {0x27, 0xd8, 0xa8, 0xd9, 0x90, 0xd8, 0xb3, 0xd9, 0x92, 0xd9, 0x85, 0xd9, 0x90, 0x20, 0xd9, 0xb1, 0xd9, 0x84, 0xd9, 0x84, 0xd9, 0x8e, 0xd9, 0x91, 0xd9, 0xb0, 0xd9, 0x87, 0xd9, 0x90, 0x20, 0xd9, 0xb1, 0xd9, 0x84, 0xd8, 0xb1, 0xd9, 0x8e, 0xd9, 0x91, 0xd8, 0xad, 0xd9, 0x92, 0xd9, 0x85, 0xd9, 0x8e, 0xd9, 0xb0, 0xd9, 0x86, 0xd9, 0x90, 0x20, 0xd9, 0xb1, 0xd9, 0x84, 0xd8, 0xb1, 0xd9, 0x8e, 0xd9, 0x91, 0xd8, 0xad, 0xd9, 0x90, 0xd9, 0x8a, 0xd9, 0x85, 0xd9, 0x90};
+    char        jpstr[] = {0xe4, 0xba, 0xba, 0xe7, 0x9a, 0x86, 0xe7, 0x94, 0x9f, 0xe8, 0x80, 0x8c};
 
     TextRun runs[] = {
         {.text = {str, strlen(str)}},
-        {.text = arstr, .props = stx::Some(TextProps{.font = "Arabic", .font_height = 26, .foreground_color = colors::GREEN, .stroke_color = colors::BLACK.with_alpha(125),.line_height = 2.0f, .direction = TextDirection::RightToLeft, .script = Script::Arabic, .language = languages::ARABIC})}};
+        {.text = arstr, .props = stx::Some(TextProps{.font = "Arabic", .font_height = 26, .foreground_color = colors::GREEN, .stroke_color = colors::BLACK.with_alpha(200), .letter_spacing = 0, .word_spacing = 10, .line_height = 2.0f, .direction = TextDirection::RightToLeft, .script = Script::Arabic, .language = languages::ARABIC})},
+        {.text = jpstr, .props = stx::Some(TextProps{.font = "JP", .font_height = 26, .foreground_color = colors::YELLOW, .stroke_color = colors::BLACK.with_alpha(200), .word_spacing = 10, .line_height = 2.0f, .direction = TextDirection::LeftToRight, .script = Script::Hiragana, .language = languages::JAPANESE})}};
 
     Paragraph p{
         .runs  = runs,
-        .props = TextProps{.font = "Roboto", .font_height = 26, .foreground_color = colors::WHITE, .stroke_color = colors::BLACK.with_alpha(125)}};
+        .props = TextProps{.font = "Roboto", .font_height = 26, .foreground_color = colors::WHITE, .stroke_color = colors::BLACK.with_alpha(200)}};
 
     TextLayout layout;
     layout.layout(p, context.font_bundle, area.extent.x);
@@ -174,7 +176,8 @@ struct Image : public Widget
     canvas.draw_text(p, layout, context.font_bundle, area.offset + vec2{20, 20});
   }
 
-  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual void
+      tick(Context &context, std::chrono::nanoseconds interval) override
   {
     ImageManager *mgr    = context.get_plugin<ImageManager>("ImageManager").unwrap();
     ImageLoader  *loader = context.get_plugin<ImageLoader>("ImageLoader").unwrap();

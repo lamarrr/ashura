@@ -105,7 +105,7 @@ namespace rect_packer
 
 struct rect
 {
-  u32 glyph_index = 0;
+  usize glyph_index = 0;
 
   // input:
   i32 w = 0, h = 0;

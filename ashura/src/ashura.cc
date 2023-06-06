@@ -1573,7 +1573,7 @@ int main(int argc, char **argv)
   FontSpec fonts[] = {
       {.name = "Roboto", .path = R"(C:\Users\Basit\Documents\workspace\oss\ashura\assets\fonts\Roboto\Roboto-Regular.ttf)", .stroke_thickness = 2.5},
       {.name = "Arabic", .path = R"(C:\Users\Basit\Desktop\IBM_Plex_Sans_Arabic\IBMPlexSansArabic-Regular.ttf)", .stroke_thickness = 2.5},
-      
+      {.name = "JP", .path = R"(C:\Users\Basit\Desktop\Noto_Sans_HK\NotoSansHK-Regular.otf)", .stroke_thickness = 2.5,.max_atlas_extent = {8000,8000}},
       };
 
   AppConfig cfg{.enable_validation_layers = false, .fonts = fonts};

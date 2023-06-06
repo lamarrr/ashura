@@ -633,6 +633,7 @@ constexpr color BLUE    = color::from_rgb(0x00, 0x00, 0xff);
 constexpr color GREEN   = color::from_rgb(0x00, 0xff, 0x00);
 constexpr color CYAN    = color::from_rgb(0x00, 0xff, 0xff);
 constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
+constexpr color YELLOW  = color::from_rgb(0xff, 0xff, 0x00);
 
 }        // namespace colors
 

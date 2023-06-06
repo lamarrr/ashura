@@ -374,6 +374,13 @@ struct Paragraph
   // std::string_view         ellipsis = "...";
 };
 
+struct TextRunGlyph
+{
+  u32  index = 0;        // glyph index in font
+  vec2 offset;           // offset from initial font glyph position
+  vec2 advance;          // advance to use
+};
+
 struct TextRunArea
 {
   vec2 offset;
@@ -414,20 +421,21 @@ struct GlyphLayout
 struct TextLayout
 {
   stx::Vec<TextRunSubWord> subwords;
-  stx::Vec<u32>            glyph_indices;
+  stx::Vec<TextRunGlyph>   glyphs;
   stx::Vec<GlyphLayout>    glyph_layouts;
 
   // TODO(lamarrr): [future] add bidi
   /// performs layout of the paragraph and returns the width and height of the paragraph
   vec2 layout(Paragraph const &paragraph, stx::Span<BundledFont const> const font_bundle, f32 max_line_width)
   {
-    constexpr u32 SPACE   = ' ';
-    constexpr u32 TAB     = '\t';
-    constexpr u32 NEWLINE = '\n';
-    constexpr u32 RETURN  = '\r';
+    constexpr u32 SPACE    = ' ';
+    constexpr u32 TAB      = '\t';
+    constexpr u32 NEWLINE  = '\n';
+    constexpr u32 RETURN   = '\r';
+    constexpr u32 ELLIPSIS = 0x2026;
 
     subwords.clear();
-    glyph_indices.clear();
+    glyphs.clear();
     glyph_layouts.clear();
 
     vec2 span;
@@ -582,9 +590,6 @@ struct TextLayout
       Font const      &font       = *font_bundle[font_index].font;
       FontAtlas const &atlas      = font_bundle[font_index].atlas;
 
-      // use glyph at index 0 as replacement glyph, this is usually the invalid character replacement glyph
-      stx::Span replacement_glyph = atlas.get(0);
-
       hb_feature_t shaping_features[] = {{.tag = Font::KERNING_FEATURE, .value = props.use_kerning, .start = 0, .end = stx::U_MAX},
                                          {.tag = Font::LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX},
                                          {.tag = Font::CONTEXTUAL_LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX}};
@@ -619,32 +624,34 @@ struct TextLayout
       f32 glyph_scale = props.font_height / atlas.font_height;
 
       subword.font         = font_index;
-      subword.glyphs_begin = glyph_indices.size();
+      subword.glyphs_begin = glyphs.size();
 
       for (usize i = 0; i < nglyphs; i++)
       {
         u32       glyph_index = glyph_info[i].codepoint;
+        vec2      offset      = vec2{glyph_pos[i].x_offset / 64.0f, -glyph_pos[i].y_offset / 64.0f};
+        vec2      advance     = vec2{glyph_pos[i].x_advance / 64.0f, glyph_pos[i].y_advance / 64.0f};
         stx::Span glyph       = atlas.get(glyph_index);
 
         if (!glyph.is_empty())
         {
-          fmt::print("direction: {}, cmp: {} -> {}, {} -> {},  {} -> {}, {} -> {}\n", (int) props.direction,
-                     glyph_pos[i].x_advance / 64.0f,
-                     glyph[0].advance.x * glyph_scale,
-                     glyph_pos[i].y_advance / 64.0f,
-                     glyph[0].advance.y * glyph_scale,
-                     glyph_pos[i].x_offset / 64.0f,
-                     glyph[0].bearing.x * glyph_scale,
-                     glyph_pos[i].y_offset / 64.0f,
-                     glyph[0].bearing.y * glyph_scale);
-          width += glyph_scale * glyph[0].advance.x + props.letter_spacing;
-          glyph_indices.push_inplace(glyph_index).unwrap();
+          width += glyph_scale * advance.x + props.letter_spacing;
+          glyphs.push_inplace(TextRunGlyph{
+                                  .index   = glyph_index,
+                                  .offset  = offset,
+                                  .advance = advance})
+              .unwrap();
           subword.nglyphs++;
         }
-        else if (!replacement_glyph.is_empty())
+        // use glyph at index 0 as replacement glyph, this is usually the invalid character replacement glyph
+        else if (!atlas.glyphs.is_empty())
         {
-          width += glyph_scale * replacement_glyph[0].advance.x + props.letter_spacing;
-          glyph_indices.push_inplace(replacement_glyph[0].index).unwrap();
+          width += glyph_scale * advance.x + props.letter_spacing;
+          glyphs.push_inplace(TextRunGlyph{
+                                  .index   = 0,
+                                  .offset  = offset,
+                                  .advance = advance})
+              .unwrap();
           subword.nglyphs++;
         }
         else
@@ -789,20 +796,21 @@ struct TextLayout
             subword->area.baseline = vec2{line_alignment_x + cursor_x, baseline_y};
             subword->area.line_top = vec2{line_alignment_x + cursor_x, baseline_y - subword->glyph_scale * atlas.ascent};
 
-            for (u32 glyph_index : glyph_indices.span().slice(subword->glyphs_begin, subword->nglyphs))
+            for (TextRunGlyph const &run_glyph : glyphs.span().slice(subword->glyphs_begin, subword->nglyphs))
             {
-              Glyph const &glyph  = atlas.glyphs[glyph_index];
+              Glyph const &glyph  = atlas.glyphs[run_glyph.index];
               vec2         offset = vec2{line_alignment_x + cursor_x + subword->glyph_scale * glyph.bearing.x, baseline_y - subword->glyph_scale * glyph.bearing.y};
+              offset              = offset + run_glyph.offset;
 
               glyph_layouts.push(GlyphLayout{
                                      .offset = offset,
                                      .extent = subword->glyph_scale * glyph.extent.to_vec(),
                                      .run    = subword->run,
                                      .font   = subword->font,
-                                     .glyph  = glyph_index})
+                                     .glyph  = run_glyph.index})
                   .unwrap();
 
-              cursor_x += subword->glyph_scale * glyph.advance.x + props.letter_spacing;
+              cursor_x += subword->glyph_scale * run_glyph.advance.x + props.letter_spacing;
             }
 
             cursor_x += subword->nspace_chars * props.word_spacing;
@@ -847,20 +855,21 @@ struct TextLayout
 
               f32 glyph_cursor_x = rtl_cursor_x;
 
-              for (u32 glyph_index : glyph_indices.span().slice(rtl_iter->glyphs_begin, rtl_iter->nglyphs))
+              for (TextRunGlyph const &run_glyph : glyphs.span().slice(rtl_iter->glyphs_begin, rtl_iter->nglyphs))
               {
-                Glyph const &glyph  = atlas.glyphs[glyph_index];
+                Glyph const &glyph  = atlas.glyphs[run_glyph.index];
                 vec2         offset = vec2{line_alignment_x + glyph_cursor_x + rtl_iter->glyph_scale * glyph.bearing.x, baseline_y - rtl_iter->glyph_scale * glyph.bearing.y};
+                offset              = offset + run_glyph.offset;
 
                 glyph_layouts.push(GlyphLayout{
                                        .offset = offset,
                                        .extent = rtl_iter->glyph_scale * glyph.extent.to_vec(),
                                        .run    = rtl_iter->run,
                                        .font   = rtl_iter->font,
-                                       .glyph  = glyph_index})
+                                       .glyph  = run_glyph.index})
                     .unwrap();
 
-                glyph_cursor_x += rtl_iter->glyph_scale * glyph.advance.x + props.letter_spacing;
+                glyph_cursor_x += rtl_iter->glyph_scale * run_glyph.advance.x + props.letter_spacing;
               }
             }
 
@@ -879,7 +888,7 @@ struct TextLayout
       }
     }
 
-    glyph_indices.clear();
+    glyphs.clear();
 
     return span;
   }
