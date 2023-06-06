@@ -76,12 +76,12 @@ struct Image : public Widget
       props{std::move(image_props)}
   {}
 
-  virtual WidgetInfo get_info() override
+  virtual WidgetInfo get_info(Context &context) override
   {
     return WidgetInfo{.type = "Image"};
   }
 
-  virtual Layout layout(rect area) override
+  virtual Layout layout(Context &context, rect area) override
   {
     f32 width  = props.width.resolve(area.extent.x);
     f32 height = props.height.resolve(area.extent.y);
@@ -98,12 +98,12 @@ struct Image : public Widget
     }
   }
 
-  virtual mat4 get_transform() override
+  virtual mat4 get_transform(Context &context) override
   {
     return rotate_x(rotation * PI / 180) * rotate_y(rotation * PI / 180);
   }
 
-  virtual void draw(gfx::Canvas &canvas, rect area) override
+  virtual void draw(Context &context, gfx::Canvas &canvas, rect area) override
   {
     switch (state)
     {
@@ -140,10 +140,11 @@ struct Image : public Widget
         if (props.border_radius == vec4{0, 0, 0, 0})
         {
           canvas.draw_image(image, area, texture_region, props.tint);
-          return;
         }
-
-        canvas.draw_rounded_image(image, area, props.border_radius, 360, texture_region, props.tint);
+        else
+        {
+          canvas.draw_rounded_image(image, area, props.border_radius, 360, texture_region, props.tint);
+        }
       }
       break;
       case ImageState::LoadFailed:
@@ -155,6 +156,22 @@ struct Image : public Widget
       }
       break;
     }
+
+    char const *str     = "Hello, World! ";
+    char        arstr[] = {0x27, 0xd8, 0xa8, 0xd9, 0x90, 0xd8, 0xb3, 0xd9, 0x92, 0xd9, 0x85, 0xd9, 0x90, 0x20, 0xd9, 0xb1, 0xd9, 0x84, 0xd9, 0x84, 0xd9, 0x8e, 0xd9, 0x91, 0xd9, 0xb0, 0xd9, 0x87, 0xd9, 0x90, 0x20, 0xd9, 0xb1, 0xd9, 0x84, 0xd8, 0xb1, 0xd9, 0x8e, 0xd9, 0x91, 0xd8, 0xad, 0xd9, 0x92, 0xd9, 0x85, 0xd9, 0x8e, 0xd9, 0xb0, 0xd9, 0x86, 0xd9, 0x90, 0x20, 0xd9, 0xb1, 0xd9, 0x84, 0xd8, 0xb1, 0xd9, 0x8e, 0xd9, 0x91, 0xd8, 0xad, 0xd9, 0x90, 0xd9, 0x8a, 0xd9, 0x85, 0xd9, 0x90};
+
+    TextRun runs[] = {
+        {.text = {str, strlen(str)}},
+        {.text = arstr, .props = stx::Some(TextProps{.font = "Arabic", .font_height = 26, .foreground_color = colors::GREEN, .stroke_color = colors::BLACK.with_alpha(125),.line_height = 2.0f, .direction = TextDirection::RightToLeft, .script = Script::Arabic, .language = languages::ARABIC})}};
+
+    Paragraph p{
+        .runs  = runs,
+        .props = TextProps{.font = "Roboto", .font_height = 26, .foreground_color = colors::WHITE, .stroke_color = colors::BLACK.with_alpha(125)}};
+
+    TextLayout layout;
+    layout.layout(p, context.font_bundle, area.extent.x);
+
+    canvas.draw_text(p, layout, context.font_bundle, area.offset + vec2{20, 20});
   }
 
   virtual void tick(Context &context, std::chrono::nanoseconds interval) override

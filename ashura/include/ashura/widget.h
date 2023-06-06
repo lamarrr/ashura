@@ -173,7 +173,7 @@ struct Widget
   {}
 
   //
-  constexpr virtual stx::Span<Widget *const> get_children()
+  constexpr virtual stx::Span<Widget *const> get_children(Context &context)
   {
     return {};
   }
@@ -181,37 +181,37 @@ struct Widget
   // TODO(lamarrr): get_flex_children and get_static_children()
 
   //
-  constexpr virtual WidgetInfo get_info()
+  constexpr virtual WidgetInfo get_info(Context &context)
   {
     return WidgetInfo{.type = "Widget"};
   }
 
   //
-  constexpr virtual Visibility get_visibility()
+  constexpr virtual Visibility get_visibility(Context &context)
   {
     return Visibility::Visible;
   }
 
   //
-  constexpr virtual i64 get_z_index(i64 z_index)
+  constexpr virtual i64 get_z_index(Context &context, i64 z_index)
   {
     return z_index;
   }
 
   //
-  constexpr virtual mat4 get_transform()
+  constexpr virtual mat4 get_transform(Context &context)
   {
     return mat4::identity();
   }
 
   //
-  constexpr virtual Layout layout(rect area)
+  constexpr virtual Layout layout(Context &context, rect area)
   {
     return Layout{};
   }
 
   //
-  constexpr virtual void draw(gfx::Canvas &canvas, rect area)
+  constexpr virtual void draw(Context &context, gfx::Canvas &canvas, rect area)
   {}
 
   //

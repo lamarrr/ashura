@@ -331,7 +331,7 @@ struct TextProps
   bool                              wavy_underline          = false;        // TODO(lamarrr): implement
   color                             strikethrough_color     = colors::BLACK;
   f32                               strikethrough_thickness = 0;            /// px
-  color                             stroke_color            = colors::BLACK;
+  color                             stroke_color            = colors::TRANSPARENT;
   vec2                              stroke_offset;                          /// px
   f32                               letter_spacing = 1;                     /// px
   f32                               word_spacing   = 4;                     /// px
@@ -589,7 +589,7 @@ struct TextLayout
                                          {.tag = Font::LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX},
                                          {.tag = Font::CONTEXTUAL_LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX}};
 
-      hb_font_set_scale(font.hb_font, 64 * atlas.font_height, 64 * atlas.font_height);
+      hb_font_set_scale(font.hb_font, 64 * props.font_height, 64 * props.font_height);
 
       hb_buffer_reset(font.hb_scratch_buffer);
       hb_buffer_set_script(font.hb_scratch_buffer, AS(hb_script_t, props.script));
@@ -607,9 +607,13 @@ struct TextLayout
       hb_buffer_add_utf8(font.hb_scratch_buffer, subword.text.begin(), AS(int, subword.text.size()), 0, AS(int, subword.text.size()));
       hb_shape(font.hb_font, font.hb_scratch_buffer, shaping_features, AS(uint, std::size(shaping_features)));
 
-      uint             nglyphs;
-      hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(font.hb_scratch_buffer, &nglyphs);
-      ASH_CHECK(!(glyph_info != nullptr && nglyphs > 0));
+      uint                 nglyphs;
+      hb_glyph_info_t     *glyph_info = hb_buffer_get_glyph_infos(font.hb_scratch_buffer, &nglyphs);
+      uint                 nglyph_pos;
+      hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(font.hb_scratch_buffer, &nglyph_pos);
+      ASH_CHECK(!(glyph_info == nullptr && nglyphs > 0));
+      ASH_CHECK(!(glyph_pos == nullptr && nglyph_pos > 0));
+      ASH_CHECK(nglyph_pos == nglyphs);
 
       f32 width       = 0;
       f32 glyph_scale = props.font_height / atlas.font_height;
@@ -624,6 +628,15 @@ struct TextLayout
 
         if (!glyph.is_empty())
         {
+          fmt::print("direction: {}, cmp: {} -> {}, {} -> {},  {} -> {}, {} -> {}\n", (int) props.direction,
+                     glyph_pos[i].x_advance / 64.0f,
+                     glyph[0].advance.x * glyph_scale,
+                     glyph_pos[i].y_advance / 64.0f,
+                     glyph[0].advance.y * glyph_scale,
+                     glyph_pos[i].x_offset / 64.0f,
+                     glyph[0].bearing.x * glyph_scale,
+                     glyph_pos[i].y_offset / 64.0f,
+                     glyph[0].bearing.y * glyph_scale);
           width += glyph_scale * glyph[0].advance.x + props.letter_spacing;
           glyph_indices.push_inplace(glyph_index).unwrap();
           subword.nglyphs++;
@@ -692,9 +705,23 @@ struct TextLayout
     }
 
     {
-        // resolve line breaks using word wrapping and newline breaks. if it has a newline, the wrapping doesn't count as a line break
-        // TODO(lamarrr): calculate nline_breaks
+      // resolve line breaks using word wrapping and newline breaks. if it has a newline, the wrapping doesn't count as a line break
+      for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end(); iter++)
+      {
+        if (iter->nnewline_chars > 0)
+        {
+          iter->nline_breaks = iter->nnewline_chars;
+        }
 
+        if (iter->is_wrapped)
+        {
+          TextRunSubWord *previous = iter - 1;
+          if (previous >= subwords.begin() && previous->nnewline_chars == 0)
+          {
+            previous->nline_breaks = 1;
+          }
+        }
+      }
     }
 
     /** Line Layout and Glyph Placement */
@@ -765,7 +792,7 @@ struct TextLayout
             for (u32 glyph_index : glyph_indices.span().slice(subword->glyphs_begin, subword->nglyphs))
             {
               Glyph const &glyph  = atlas.glyphs[glyph_index];
-              vec2         offset = vec2{line_alignment_x + cursor_x + glyph.bearing.x, baseline_y - glyph.bearing.y};
+              vec2         offset = vec2{line_alignment_x + cursor_x + subword->glyph_scale * glyph.bearing.x, baseline_y - subword->glyph_scale * glyph.bearing.y};
 
               glyph_layouts.push(GlyphLayout{
                                      .offset = offset,
@@ -823,13 +850,13 @@ struct TextLayout
               for (u32 glyph_index : glyph_indices.span().slice(rtl_iter->glyphs_begin, rtl_iter->nglyphs))
               {
                 Glyph const &glyph  = atlas.glyphs[glyph_index];
-                vec2         offset = vec2{line_alignment_x + glyph_cursor_x + glyph.bearing.x, baseline_y - glyph.bearing.y};
+                vec2         offset = vec2{line_alignment_x + glyph_cursor_x + rtl_iter->glyph_scale * glyph.bearing.x, baseline_y - rtl_iter->glyph_scale * glyph.bearing.y};
 
                 glyph_layouts.push(GlyphLayout{
                                        .offset = offset,
                                        .extent = rtl_iter->glyph_scale * glyph.extent.to_vec(),
-                                       .run    = subword->run,
-                                       .font   = subword->font,
+                                       .run    = rtl_iter->run,
+                                       .font   = rtl_iter->font,
                                        .glyph  = glyph_index})
                     .unwrap();
 
@@ -842,11 +869,11 @@ struct TextLayout
           }
         }
 
+        span.y = line_top + line_height + (nline_breaks > 1 ? (nline_breaks - 1) * line_height : 0.0f);
+
         line_top += nline_breaks * line_height;
 
         span.x = std::max(span.x, line_alignment_x + line_width);
-
-        span.y = line_top;
 
         iter = line_end;
       }

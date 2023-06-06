@@ -1571,7 +1571,10 @@ int main(int argc, char **argv)
   */
 
   FontSpec fonts[] = {
-      {.name = "Roboto", .path = R"(C:\Users\Basit\Documents\workspace\oss\ashura\assets\fonts\Roboto\Roboto-Regular.ttf)", .stroke_thickness = 5}};
+      {.name = "Roboto", .path = R"(C:\Users\Basit\Documents\workspace\oss\ashura\assets\fonts\Roboto\Roboto-Regular.ttf)", .stroke_thickness = 2.5},
+      {.name = "Arabic", .path = R"(C:\Users\Basit\Desktop\IBM_Plex_Sans_Arabic\IBMPlexSansArabic-Regular.ttf)", .stroke_thickness = 2.5},
+      
+      };
 
   AppConfig cfg{.enable_validation_layers = false, .fonts = fonts};
 

@@ -18,17 +18,17 @@ struct Text : public Widget
       text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{iprops}
   {}
 
-  virtual WidgetInfo get_info() override
+  virtual WidgetInfo get_info(Context & context) override
   {
     return WidgetInfo{.type = "Text"};
   }
 
-  virtual Layout layout(rect area) override
+  virtual Layout layout(Context & context, rect area) override
   {
     //
   }
 
-  virtual void draw(gfx::Canvas &canvas, rect area) override
+  virtual void draw(Context & context,gfx::Canvas &canvas, rect area) override
   {
     // TODO(lamarrr): script and others
     // canvas.draw

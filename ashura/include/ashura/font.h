@@ -220,7 +220,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
 {
   ASH_LOG_INFO(FontRenderer, "Rendering CPU atlas for font: {}, Enumerating glyph indices...", font.postscript_name.c_str());
   // *64 to convert font height to 26.6 pixel format
-  font_height = std::min(font_height, 1.0f);
+  font_height = std::max(font_height, 1.0f);
   ASH_CHECK(FT_Set_Char_Size(font.ft_face, 0, AS(FT_F26Dot6, font_height * 64), 72, 72) == 0);
 
   stx::Vec<Glyph> glyphs;
@@ -241,7 +241,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
         vec2 bearing{font.ft_face->glyph->metrics.horiBearingX / 64.0f, font.ft_face->glyph->metrics.horiBearingY / 64.0f};
         vec2 advance{font.ft_face->glyph->advance.x / 64.0f, font.ft_face->glyph->advance.y / 64.0f};
 
-        f32 descent = std::min(AS(f32, height) - bearing.y, 0.0f);
+        f32 descent = std::max(AS(f32, height) - bearing.y, 0.0f);
 
         glyphs
             .push(Glyph{.is_valid       = true,
@@ -341,7 +341,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
 
   std::memset(buffer, 0, size);
 
-  usize stride = atlas_extent.width * nchannels;
+  usize atlas_stride = atlas_extent.width * nchannels;
 
   for (Glyph const &glyph : glyphs)
   {
@@ -364,15 +364,16 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
         continue;
       }
 
-      u8 const *bitmap = font.ft_face->glyph->bitmap.buffer;
+      u8 const *bitmap        = font.ft_face->glyph->bitmap.buffer;
+      usize     bitmap_stride = font.ft_face->glyph->bitmap.width * nchannels;
 
       // copy the rendered glyph to the atlas
       if ((pixel_mode == FT_PIXEL_MODE_GRAY && !font.has_color) || (pixel_mode == FT_PIXEL_MODE_BGRA && font.has_color))
       {
         for (usize j = glyph.offset.y; j < glyph.offset.y + glyph.extent.height; j++)
         {
-          u8 *out = buffer + j * stride + glyph.offset.x * nchannels;
-          std::copy(bitmap, bitmap + stride, out);
+          u8 *out = buffer + j * atlas_stride + glyph.offset.x * nchannels;
+          std::copy(bitmap, bitmap + bitmap_stride, out);
           bitmap += font.ft_face->glyph->bitmap.pitch;
         }
       }
@@ -399,7 +400,7 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
 {
   ASH_LOG_INFO(FontRenderer, "Rendering CPU stroke atlas for font: {}, Enumerating glyph indices...", font.postscript_name.c_str());
   // *64 to convert font height to 26.6 pixel format
-  font_height = std::min(font_height, 1.0f);
+  font_height = std::max(font_height, 1.0f);
   ASH_CHECK(FT_Set_Char_Size(font.ft_face, 0, AS(FT_F26Dot6, font_height * 64), 72, 72) == 0);
 
   stx::Vec<GlyphStroke> strokes;
@@ -429,7 +430,7 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
         }
 
         FT_BBox bounding_box;
-        FT_Glyph_Get_CBox(glyph, FT_GLYPH_BBOX_PIXELS, &bounding_box);
+        FT_Glyph_Get_CBox(glyph, FT_GLYPH_BBOX_GRIDFIT, &bounding_box);
 
         FT_Done_Glyph(glyph);
 
@@ -529,7 +530,7 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
 
   std::memset(buffer, 0, size);
 
-  usize stride = atlas_extent.width * nchannels;
+  usize atlas_stride = atlas_extent.width * nchannels;
 
   for (GlyphStroke const &stroke : strokes)
   {
@@ -557,8 +558,9 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
 
       ASH_CHECK(FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, nullptr, true) == 0);
 
-      FT_BitmapGlyph bitmap_glyph = reinterpret_cast<FT_BitmapGlyph>(glyph);
-      u8 const      *bitmap       = reinterpret_cast<u8 const *>(bitmap_glyph->bitmap.buffer);
+      FT_BitmapGlyph bitmap_glyph  = reinterpret_cast<FT_BitmapGlyph>(glyph);
+      u8 const      *bitmap        = reinterpret_cast<u8 const *>(bitmap_glyph->bitmap.buffer);
+      usize          bitmap_stride = bitmap_glyph->bitmap.width * nchannels;
 
       ASH_CHECK(stroke.extent.width >= bitmap_glyph->bitmap.width);
       ASH_CHECK(stroke.extent.height >= bitmap_glyph->bitmap.rows);
@@ -566,8 +568,8 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
       // copy the rendered glyph to the atlas
       for (usize j = stroke.offset.y; j < stroke.offset.y + stroke.extent.height; j++)
       {
-        u8 *out = buffer + j * stride + stroke.offset.x * nchannels;
-        std::copy(bitmap, bitmap + stride, out);
+        u8 *out = buffer + j * atlas_stride + stroke.offset.x * nchannels;
+        std::copy(bitmap, bitmap + bitmap_stride, out);
         bitmap += bitmap_glyph->bitmap.pitch;
       }
 

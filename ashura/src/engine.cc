@@ -235,6 +235,8 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
     }
   }
 
+  ctx.font_bundle = font_bundle;
+
   // TODO(lamarrr): attach debug widgets: FPS stats, memory usage, etc
   widget_system.on_startup(ctx);
 
@@ -261,7 +263,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
   widget_system.pump_events(ctx);
   widget_system.tick_widgets(ctx, interval);
   // new widgets could have been added
-  widget_system.assign_ids();
+  widget_system.assign_ids(ctx);
   manager.flush_deletes();
   manager.submit_uploads();
 
@@ -269,8 +271,8 @@ void Engine::tick(std::chrono::nanoseconds interval)
     VkExtent2D extent = root_window.value()->surface.value()->swapchain.value().window_extent;
     vec2       viewport_extent{AS(f32, extent.width), AS(f32, extent.height)};
     canvas.restart(viewport_extent);
-    widget_system.perform_widget_layout(viewport_extent);
-    widget_system.rebuild_draw_entries();
+    widget_system.perform_widget_layout(ctx, viewport_extent);
+    widget_system.rebuild_draw_entries(ctx);
     widget_system.draw_widgets(ctx, canvas, mat4::identity());
   };
 

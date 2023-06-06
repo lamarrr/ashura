@@ -43,17 +43,17 @@ struct Flex : public Widget
     children.extend(new_children).unwrap();
   }
 
-  virtual stx::Span<Widget *const> get_children() override
+  virtual stx::Span<Widget *const> get_children(Context &context) override
   {
     return children;
   }
 
-  virtual WidgetInfo get_info() override
+  virtual WidgetInfo get_info(Context &context) override
   {
     return WidgetInfo{.type = "Flex"};
   }
 
-  virtual Layout layout(rect area)
+  virtual Layout layout(Context &context, rect area)
   {
     return Layout{.flex = props,
                   .area = rect{.offset = area.offset,
@@ -61,7 +61,7 @@ struct Flex : public Widget
                                               props.height.resolve(area.extent.y)}}};
   }
 
-  virtual simdjson::dom::element save(Context         &context,
+  virtual simdjson::dom::element save(Context               &context,
                                       simdjson::dom::parser &parser)
   {
     stx::Vec<u64> children_ids;
@@ -70,7 +70,7 @@ struct Flex : public Widget
       children_ids.push_inplace(child->id).unwrap();
     }
 
-    WidgetInfo info = Widget::get_info();
+    WidgetInfo info = Widget::get_info(context);
 
     std::string json = fmt::format(
         fmt::runtime(R"({{"id": {},
