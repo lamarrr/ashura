@@ -176,8 +176,7 @@ struct Image : public Widget
     canvas.draw_text(p, layout, context.font_bundle, area.offset + vec2{20, 20});
   }
 
-  virtual void
-      tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
   {
     ImageManager *mgr    = context.get_plugin<ImageManager>("ImageManager").unwrap();
     ImageLoader  *loader = context.get_plugin<ImageLoader>("ImageLoader").unwrap();
