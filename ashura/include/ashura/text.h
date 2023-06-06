@@ -337,7 +337,7 @@ struct TextProps
   f32                               word_spacing   = 4;                     /// px
   f32                               line_height    = 1.2f;                  /// will be multiplied by font_height
   TextDirection                     direction      = TextDirection::LeftToRight;
-  u32                               tab_size       = 8;                     /// number of spaces to replace a tab with
+  usize                             tab_size       = 8;                     /// number of spaces to replace a tab with
   Script                            script         = Script::Latin;
   std::string_view                  language       = languages::ENGLISH;
   bool                              use_kerning    = true;
@@ -382,7 +382,10 @@ struct TextRunArea
   vec2 line_top;
 };
 
-/// this is part of a word that is styled by a run
+/// this is part of a word that is styled by a run. i.e. a word: 'Goog', could have 'G' as red, 'oo' as yellow, and 'g' as blue,
+/// 'G' will be a run subword, 'oo' is another run subword, and 'g' will be another subword as they have different properties
+/// determined by the run they belong to, although part of the same word.
+///
 struct TextRunSubWord
 {
   stx::Span<char const> text;
@@ -435,6 +438,7 @@ struct TextLayout
       return span;
     }
 
+    /** Word Tokenization */
     for (usize i = 0; i < paragraph.runs.size(); i++)
     {
       TextRun const   &run   = paragraph.runs[i];
@@ -544,6 +548,7 @@ struct TextLayout
       }
     }
 
+    /** Font Resolution and Word Shaping */
     for (TextRunSubWord &subword : subwords)
     {
       TextProps const &props  = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
@@ -567,7 +572,7 @@ struct TextLayout
         }
       }
 
-      // if no font or fallback font is found use the first font in the bundle
+      // if no font or fallback font is found use the first font in the bundle. NOTE that we already ensured there's at least one font in the bundle
       if (font_s.is_empty())
       {
         font_s = font_bundle.slice(0, 1);
@@ -629,67 +634,19 @@ struct TextLayout
           glyph_indices.push_inplace(replacement_glyph[0].index).unwrap();
           subword.nglyphs++;
         }
+        else
+        {
+          // can't find a replacement glyph, we'll pretend as if there's nothing there
+        }
       }
 
       subword.glyph_scale = glyph_scale;
       subword.width       = width;
     }
 
-    // wrap words to new line if its width exceeds the maximum line width
+    /** Word Wrapping and Line Breaking */
     {
-      //
-      // if it has a newline, the wrapping doesn't count as a line break
-      //
       f32 cursor_x = 0;
-
-      // TODO(lamarrr): calculate nline_breaks
-
-      for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
-      {
-        TextRunSubWord *subword = iter;
-
-        for (; subword < subwords.end();)
-        {
-          TextProps const &props         = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
-          f32              subword_width = subword->width + subword->nspace_chars * props.word_spacing;
-
-          // if end of word
-          if (subword->nspace_chars > 0 || subword->nnewline_chars > 0 || subword == subwords.end() - 1)
-          {
-            // check if wrapping needed
-            if (cursor_x + subword_width > max_line_width)
-            {
-              iter->is_wrapped = true;
-              cursor_x         = subword_width;        // TODO(lamarrr): this isn't correct
-              if (subword->nnewline_chars > 0)
-              {
-                cursor_x = 0;
-              }
-            }
-            else
-            {
-              if (subword->nnewline_chars > 0)
-              {
-                cursor_x = 0;
-              }
-              else
-              {
-                cursor_x += subword_width;
-              }
-            }
-            subword++;
-            break;
-          }
-          else
-          {
-            // continue until we reach end of word
-            cursor_x += subword_width;
-            subword++;
-          }
-        }
-
-        iter = subword;
-      }
 
       for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
       {
@@ -705,6 +662,8 @@ struct TextLayout
           {
             TextProps const &props = paragraph.runs[word_end->run].props.as_cref().unwrap_or(paragraph.props);
             word_width += word_end->width + word_end->nspace_chars * props.word_spacing;
+
+            // if at last subword
             if (word_end->nspace_chars > 0 || word_end->nnewline_chars > 0)
             {
               word_end++;
@@ -717,6 +676,7 @@ struct TextLayout
           }
         }
 
+        // wrap word to new line if its width exceeds the maximum line width
         if (cursor_x + word_width > max_line_width)
         {
           word_begin->is_wrapped = true;
@@ -726,9 +686,18 @@ struct TextLayout
         {
           cursor_x += word_width;
         }
+
+        iter = word_end;
       }
     }
 
+    {
+        // resolve line breaks using word wrapping and newline breaks. if it has a newline, the wrapping doesn't count as a line break
+        // TODO(lamarrr): calculate nline_breaks
+
+    }
+
+    /** Line Layout and Glyph Placement */
     {
       f32 line_top = 0;
 
