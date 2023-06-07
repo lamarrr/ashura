@@ -157,25 +157,25 @@ struct Image : public Widget
       break;
     }
 
-    char const *str       = "Hello, World! ";
+    char const *str       = "Full Squads Hunt The Movement Player...";
     char        arstr[]   = {0x27, 0xd8, 0xa8, 0xd9, 0x90, 0xd8, 0xb3, 0xd9, 0x92, 0xd9, 0x85, 0xd9, 0x90, 0x20, 0xd9, 0xb1, 0xd9, 0x84, 0xd9, 0x84, 0xd9, 0x8e, 0xd9, 0x91, 0xd9, 0xb0, 0xd9, 0x87, 0xd9, 0x90, 0x20, 0xd9, 0xb1, 0xd9, 0x84, 0xd8, 0xb1, 0xd9, 0x8e, 0xd9, 0x91, 0xd8, 0xad, 0xd9, 0x92, 0xd9, 0x85, 0xd9, 0x8e, 0xd9, 0xb0, 0xd9, 0x86, 0xd9, 0x90, 0x20, 0xd9, 0xb1, 0xd9, 0x84, 0xd8, 0xb1, 0xd9, 0x8e, 0xd9, 0x91, 0xd8, 0xad, 0xd9, 0x90, 0xd9, 0x8a, 0xd9, 0x85, 0xd9, 0x90};
     char        jpstr[]   = {0xe4, 0xba, 0xba, 0xe7, 0x9a, 0x86, 0xe7, 0x94, 0x9f, 0xe8, 0x80, 0x8c};
-    char const  iconstr[] = "volume_up";
+    char const  iconstr[] = "verified";
 
     TextRun runs[] = {
-        {.text = {iconstr, strlen(iconstr)}, .props = stx::Some(TextProps{.font = "MaterialIcons", .font_height = 26, .foreground_color = colors::WHITE, .background_color = colors::MAGENTA, .stroke_color = colors::BLACK.with_alpha(200)})},
+        {.text = {iconstr, strlen(iconstr)}, .props = stx::Some(TextProps{.font = "MaterialIcons", .font_height = 26, .foreground_color = color::from_rgb(29, 155, 240)})},
         {.text = {str, strlen(str)}},
         {.text = arstr, .props = stx::Some(TextProps{.font = "Arabic", .font_height = 26, .foreground_color = colors::GREEN, .stroke_color = colors::BLACK.with_alpha(200), .letter_spacing = 0, .word_spacing = 10, .line_height = 2.0f, .direction = TextDirection::RightToLeft, .script = Script::Arabic, .language = languages::ARABIC})},
         {.text = jpstr, .props = stx::Some(TextProps{.font = "JP", .font_height = 26, .foreground_color = colors::YELLOW, .stroke_color = colors::BLACK.with_alpha(200), .word_spacing = 10, .line_height = 2.0f, .direction = TextDirection::LeftToRight, .script = Script::Hiragana, .language = languages::JAPANESE})}};
 
     Paragraph p{
         .runs  = runs,
-        .props = TextProps{.font = "Roboto", .font_height = 26, .foreground_color = colors::WHITE, .stroke_color = colors::BLACK.with_alpha(200)}};
+        .props = TextProps{.font = "Roboto", .font_height = 26, .foreground_color = colors::WHITE, .background_color = colors::BLACK, .stroke_color = colors::BLACK.with_alpha(200)}};
 
     TextLayout layout;
     layout.layout(p, context.font_bundle, area.extent.x);
 
-    canvas.draw_text(p, layout, context.font_bundle, area.offset + vec2{20, 20});
+    canvas.shear_x(0.25, 0.25).draw_text(p, layout, context.font_bundle, area.offset + vec2{20, 20});
   }
 
   virtual void tick(Context &context, std::chrono::nanoseconds interval) override

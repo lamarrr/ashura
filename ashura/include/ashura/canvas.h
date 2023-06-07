@@ -395,6 +395,42 @@ struct Canvas
     return *this;
   }
 
+  Canvas &shear_x(f32 y_shear, f32 z_shear)
+  {
+    state.transform = ash::shear_x(y_shear, z_shear) * state.transform;
+    return *this;
+  }
+
+  Canvas &global_shear_x(f32 y_shear, f32 z_shear)
+  {
+    state.global_transform = ash::shear_x(y_shear, z_shear) * state.global_transform;
+    return *this;
+  }
+
+  Canvas &shear_y(f32 x_shear, f32 z_shear)
+  {
+    state.transform = ash::shear_x(x_shear, z_shear) * state.transform;
+    return *this;
+  }
+
+  Canvas &global_shear_y(f32 x_shear, f32 z_shear)
+  {
+    state.global_transform = ash::shear_x(x_shear, z_shear) * state.global_transform;
+    return *this;
+  }
+
+  Canvas &shear_z(f32 x_shear, f32 y_shear)
+  {
+    state.transform = ash::shear_z(x_shear, y_shear) * state.transform;
+    return *this;
+  }
+
+  Canvas &global_shear_z(f32 x_shear, f32 y_shear)
+  {
+    state.global_transform = ash::shear_z(x_shear, y_shear) * state.global_transform;
+    return *this;
+  }
+
   Canvas &transform(mat4 const &t)
   {
     state.transform = t * state.transform;

@@ -199,7 +199,7 @@ struct FontAtlas
   gfx::image      texture     = 0;        // atlas containing the packed glyphs
   bool            has_color   = false;
 
-  stx::Span<Glyph const> get(u32 glyph_index) const
+  stx::Span<Glyph const> get(usize glyph_index) const
   {
     if (glyph_index >= glyphs.size())
     {

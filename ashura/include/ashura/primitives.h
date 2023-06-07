@@ -400,6 +400,36 @@ inline mat4 rotate_z(f32 degree_radians)
   };
 }
 
+inline mat4 shear_x(f32 y_shear, f32 z_shear)
+{
+  return mat4{
+      vec4{1, y_shear, z_shear, 0},
+      vec4{0, 1, 0, 0},
+      vec4{0, 0, 1, 0},
+      vec4{0, 0, 0, 1},
+  };
+}
+
+inline mat4 shear_y(f32 x_shear, f32 z_shear)
+{
+  return mat4{
+      vec4{1, 0, 0, 0},
+      vec4{x_shear, 1, z_shear, 0},
+      vec4{0, 0, 1, 0},
+      vec4{0, 0, 0, 1},
+  };
+}
+
+inline mat4 shear_z(f32 x_shear, f32 y_shear)
+{
+  return mat4{
+      vec4{1, 0, 0, 0},
+      vec4{0, 1, 0, 0},
+      vec4{x_shear, y_shear, 1, 0},
+      vec4{0, 0, 0, 1},
+  };
+}
+
 struct quaternion
 {
   f32 x = 0, y = 0, z = 0, w = 0;
