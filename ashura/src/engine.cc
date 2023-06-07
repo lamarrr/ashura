@@ -19,8 +19,6 @@
 #include "ashura/window_manager.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
-#include "stx/scheduler/scheduling/await.h"
-#include "stx/scheduler/scheduling/schedule.h"
 
 #define TIMER_BEGIN(name) ::std::chrono::steady_clock::time_point name##_TIMER_Begin = ::std::chrono::steady_clock::now()
 #define TIMER_END(name, str) ASH_LOG_INFO(FontRenderer, "Timer: {}, Task: {}, took: {}ms", #name, str, (::std::chrono::steady_clock::now() - name##_TIMER_Begin).count() / 1'000'000.0f)
@@ -214,65 +212,40 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
                                              }).unwrap());
   TIMER_BEGIN(AllFontLoad);
 
-  stx::Vec<stx::Future<std::tuple<FontSpec const *, stx::Option<stx::Rc<Font *>>, stx::Option<FontAtlas>, stx::Option<FontStrokeAtlas>>>> atlas_futures;
-
   for (FontSpec const &spec : cfg.fonts)
   {
-    atlas_futures.push(stx::sched::fn(
-                           *ctx.task_scheduler, [&spec]() {
-                             ASH_LOG_INFO(Init, "Loading font: {} from file: {}", spec.name.view(), spec.path.view());
+    TIMER_BEGIN(FontLoadFromFile);
+    ASH_LOG_INFO(Init, "Loading font: {} from file: {}", spec.name.view(), spec.path.view());
+    stx::Result result = load_font_from_file(spec.path);
+    TIMER_END(FontLoadFromFile, "Rendering Font");
 
-                             stx::Option<stx::Rc<Font *>> font;
-                             stx::Option<FontAtlas>       font_atlas;
-                             stx::Option<FontStrokeAtlas> stroke_atlas;
-                             TIMER_BEGIN(FontLoadIt);
+    if (result.is_ok())
+    {
+      TIMER_BEGIN(FontGlyphRender);
+      ASH_LOG_INFO(Init, "Loaded font: {} from file: {}", spec.name.view(), spec.path.view());
+      auto [atlas, image_buffer] = render_font_atlas(*result.value(), spec.atlas_font_height, spec.max_atlas_extent);
+      atlas.texture              = manager.add_image(image_buffer, false);
+      stx::Option<FontStrokeAtlas> stroke_atlas_o;
+      TIMER_END(FontGlyphRender, "Rendering Font");
 
-                             stx::Result result = load_font_from_file(spec.path);
+      if (spec.stroke_thickness != 0)
+      {
+        TIMER_BEGIN(FontStrokeRender);
+        auto [stroke_atlas, stroke_image_buffer] = render_font_stroke_atlas(*result.value(), spec.atlas_font_height, spec.stroke_thickness, spec.max_atlas_extent);
+        stroke_atlas.texture                     = manager.add_image(stroke_image_buffer, false);
+        stroke_atlas_o                           = stx::Some(std::move(stroke_atlas));
+        TIMER_END(FontStrokeRender, "Rendering Font");
+      }
 
-                             if (result.is_ok())
-                             {
-                               ASH_LOG_INFO(Init, "Loaded font: {} from file: {}", spec.name.view(), spec.path.view());
-                               auto [atlas, image_buffer] = render_font_atlas(*result.value(), spec.atlas_font_height, spec.max_atlas_extent);
-
-                               if (spec.stroke_thickness != 0)
-                               {
-                                 auto [stroke_atlas_tmp, stroke_image_buffer] = render_font_stroke_atlas(*result.value(), spec.atlas_font_height, spec.stroke_thickness, spec.max_atlas_extent);
-                                 stroke_atlas                                 = stx::Some(std::move(stroke_atlas_tmp));
-                               }
-
-                               font = stx::Some(std::move(result.value()));
-                             }
-                             else
-                             {
-                               ASH_LOG_ERR(Init, "Failed to load font: {} from file: {}, error: {}", spec.name.view(), spec.path.view(), AS(i64, result.err()));
-                             }
-
-                             TIMER_END(FontLoadIt, "Rendering Font");
-
-                             return std::make_tuple(&spec, std::move(font), std::move(font_atlas), std::move(stroke_atlas));
-                           },
-                           stx::INTERACTIVE_PRIORITY, stx::TaskTraceInfo{}))
-        .unwrap();
+      font_bundle.push(BundledFont{.name = spec.name.copy(stx::os_allocator).unwrap(), .font = std::move(result.value()), .atlas = std::move(atlas), .stroke_atlas = std::move(stroke_atlas_o)}).unwrap();
+    }
+    else
+    {
+      ASH_LOG_ERR(Init, "Failed to load font: {} from file: {}, error: {}", spec.name.view(), spec.path.view(), AS(i64, result.err()));
+    }
   }
 
   TIMER_END(AllFontLoad, "All Font Rendering");
-
-  // TODO(lamarrr): we need a await on thread mechanism with polling
-  for (auto &atlas_future : atlas_futures)
-  {
-    if (std::get<1>(atlas_future).  )
-      atlas_future.first.move().match([&](std::tuple<FontSpec const *, stx::Option<FontAtlas>, stx::Option<FontStrokeAtlas>> result) {
-        atlas_future.second = true;
-        if (std::get<1>(result).is_some())
-        {
-          std::get<1>(result).t
-              stroke_atlas.texture = manager.add_image(stroke_image_buffer, false);
-          atlas.texture            = manager.add_image(image_buffer, false);
-          font_bundle.push(BundledFont{.name = spec.name.copy(stx::os_allocator).unwrap(), .font = std::move(result.value()), .atlas = std::move(atlas), .stroke_atlas = std::move(stroke_atlas_o)}).unwrap();
-        }
-      },
-                                      [](stx::FutureError) {});
-  }
 
   ctx.font_bundle = font_bundle;
 

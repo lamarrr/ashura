@@ -175,7 +175,7 @@ struct Image : public Widget
     TextLayout layout;
     layout.layout(p, context.font_bundle, area.extent.x);
 
-    canvas.shear_x(0.25, 0.25).draw_text(p, layout, context.font_bundle, area.offset + vec2{20, 20});
+    canvas.draw_text(p, layout, context.font_bundle, area.offset + vec2{20, 20});
   }
 
   virtual void tick(Context &context, std::chrono::nanoseconds interval) override

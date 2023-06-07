@@ -596,26 +596,26 @@ struct TextLayout
 
       hb_font_set_scale(font.hb_font, 64 * props.font_height, 64 * props.font_height);
 
-      hb_buffer_reset(font.hb_scratch_buffer);
-      hb_buffer_set_script(font.hb_scratch_buffer, AS(hb_script_t, props.script));
+      hb_buffer_reset(font.hb_buffer);
+      hb_buffer_set_script(font.hb_buffer, AS(hb_script_t, props.script));
 
       if (props.direction == TextDirection::LeftToRight)
       {
-        hb_buffer_set_direction(font.hb_scratch_buffer, HB_DIRECTION_LTR);
+        hb_buffer_set_direction(font.hb_buffer, HB_DIRECTION_LTR);
       }
       else
       {
-        hb_buffer_set_direction(font.hb_scratch_buffer, HB_DIRECTION_RTL);
+        hb_buffer_set_direction(font.hb_buffer, HB_DIRECTION_RTL);
       }
 
-      hb_buffer_set_language(font.hb_scratch_buffer, hb_language_from_string(props.language.data(), AS(int, props.language.size())));
-      hb_buffer_add_utf8(font.hb_scratch_buffer, subword.text.begin(), AS(int, subword.text.size()), 0, AS(int, subword.text.size()));
-      hb_shape(font.hb_font, font.hb_scratch_buffer, shaping_features, AS(uint, std::size(shaping_features)));
+      hb_buffer_set_language(font.hb_buffer, hb_language_from_string(props.language.data(), AS(int, props.language.size())));
+      hb_buffer_add_utf8(font.hb_buffer, subword.text.begin(), AS(int, subword.text.size()), 0, AS(int, subword.text.size()));
+      hb_shape(font.hb_font, font.hb_buffer, shaping_features, AS(uint, std::size(shaping_features)));
 
       uint                 nglyphs;
-      hb_glyph_info_t     *glyph_info = hb_buffer_get_glyph_infos(font.hb_scratch_buffer, &nglyphs);
+      hb_glyph_info_t     *glyph_info = hb_buffer_get_glyph_infos(font.hb_buffer, &nglyphs);
       uint                 nglyph_pos;
-      hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(font.hb_scratch_buffer, &nglyph_pos);
+      hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(font.hb_buffer, &nglyph_pos);
       ASH_CHECK(!(glyph_info == nullptr && nglyphs > 0));
       ASH_CHECK(!(glyph_pos == nullptr && nglyph_pos > 0));
       ASH_CHECK(nglyph_pos == nglyphs);
