@@ -159,21 +159,21 @@ struct rect
 
 struct tri
 {
-  vec2 p1, p2, p3;
+  vec2 p0, p1, p2;
 
   constexpr f32 sign() const
   {
-    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+    return (p0.x - p2.x) * (p1.y - p2.y) - (p1.x - p2.x) * (p0.y - p2.y);
   }
 
   constexpr bool contains(vec2 point) const
   {
+    f32 sign0 = tri{point, p0, p1}.sign();
     f32 sign1 = tri{point, p1, p2}.sign();
-    f32 sign2 = tri{point, p2, p3}.sign();
-    f32 sign3 = tri{point, p3, p1}.sign();
+    f32 sign2 = tri{point, p2, p0}.sign();
 
-    bool has_neg = (sign1 < 0) || (sign2 < 0) || (sign3 < 0);
-    bool has_pos = (sign1 > 0) || (sign2 > 0) || (sign3 > 0);
+    bool has_neg = (sign0 < 0) || (sign1 < 0) || (sign2 < 0);
+    bool has_pos = (sign0 > 0) || (sign1 > 0) || (sign2 > 0);
 
     return !(has_neg && has_pos);
   }
@@ -181,11 +181,11 @@ struct tri
 
 struct quad
 {
-  vec2 p1, p2, p3, p4;
+  vec2 p0, p1, p2, p3;
 
   constexpr bool contains(vec2 point) const
   {
-    return tri{.p1 = p1, .p2 = p2, .p3 = p3}.contains(point) || tri{.p1 = p1, .p2 = p3, .p3 = p4}.contains(point);
+    return tri{.p0 = p0, .p1 = p1, .p2 = p2}.contains(point) || tri{.p0 = p0, .p1 = p2, .p2 = p3}.contains(point);
   }
 };
 

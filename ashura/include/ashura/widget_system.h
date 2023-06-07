@@ -183,19 +183,26 @@ struct WidgetSystem
     entries.span().sort([](WidgetDrawEntry const &a, WidgetDrawEntry const &b) { return a.z_index < b.z_index; });
   }
 
-  void draw_widgets(Context &context, gfx::Canvas &canvas, mat4 const &global_transform)
+  void draw_widgets(Context &context, vec2 viewport_extent, gfx::Canvas &canvas, mat4 const &global_transform)
   {
+    rect viewport_rect{.offset = {0, 0}, .extent = viewport_extent};
     for (WidgetDrawEntry &entry : entries)
     {
-      canvas.reset();
       mat4 widget_transform = entry.widget->get_transform(context);
-      canvas.transform(widget_transform);
-      canvas.global_transform(global_transform);
-      entry.widget->draw(context, canvas, entry.widget->area);
-      entry.quad = quad{.p1 = transform(global_transform * widget_transform, entry.widget->area.offset),
-                        .p2 = transform(global_transform * widget_transform, entry.widget->area.offset + vec2{entry.widget->area.extent.x, 0}),
-                        .p3 = transform(global_transform * widget_transform, entry.widget->area.offset + entry.widget->area.extent),
-                        .p4 = transform(global_transform * widget_transform, entry.widget->area.offset + vec2{0, entry.widget->area.extent.y})};
+      entry.quad            = quad{.p0 = transform(global_transform * widget_transform, entry.widget->area.offset),
+                                   .p1 = transform(global_transform * widget_transform, entry.widget->area.offset + vec2{entry.widget->area.extent.x, 0}),
+                                   .p2 = transform(global_transform * widget_transform, entry.widget->area.offset + entry.widget->area.extent),
+                                   .p3 = transform(global_transform * widget_transform, entry.widget->area.offset + vec2{0, entry.widget->area.extent.y})};
+      if (viewport_rect.contains(entry.quad.p0) ||
+          viewport_rect.contains(entry.quad.p1) ||
+          viewport_rect.contains(entry.quad.p2) ||
+          viewport_rect.contains(entry.quad.p3))
+      {
+        canvas.reset();
+        canvas.transform(widget_transform);
+        canvas.global_transform(global_transform);
+        entry.widget->draw(context, canvas, entry.widget->area);
+      }
     }
   }
 
