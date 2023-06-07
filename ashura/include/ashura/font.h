@@ -217,15 +217,6 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
   // *64 to convert font height to 26.6 pixel format
   font_height = std::max(font_height, 1.0f);
 
-  hb_face_t *hb_face = hb_face_create(font.hb_blob, 0);
-  ASH_CHECK(hb_face != nullptr);
-
-  hb_font_t *hb_font = hb_font_create(hb_face);
-  ASH_CHECK(hb_font != nullptr);
-
-  hb_buffer_t *hb_buffer = hb_buffer_create();
-  ASH_CHECK(hb_buffer != nullptr);
-
   FT_Library ft_lib;
   ASH_CHECK(FT_Init_FreeType(&ft_lib) == 0);
 
@@ -390,9 +381,6 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
   f32 ascent  = ft_face->size->metrics.ascender / 64.0f;
   f32 descent = ft_face->size->metrics.descender / -64.0f;
 
-  hb_face_destroy(hb_face);
-  hb_font_destroy(hb_font);
-  hb_buffer_destroy(hb_buffer);
   ASH_CHECK(FT_Done_Face(ft_face) == 0);
   ASH_CHECK(FT_Done_FreeType(ft_lib) == 0);
 
@@ -411,15 +399,6 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
   ASH_LOG_INFO(FontRenderer, "Rendering CPU stroke atlas for font: {}, Enumerating glyph indices...", font.postscript_name.c_str());
   // *64 to convert font height to 26.6 pixel format
   font_height = std::max(font_height, 1.0f);
-
-  hb_face_t *hb_face = hb_face_create(font.hb_blob, 0);
-  ASH_CHECK(hb_face != nullptr);
-
-  hb_font_t *hb_font = hb_font_create(hb_face);
-  ASH_CHECK(hb_font != nullptr);
-
-  hb_buffer_t *hb_buffer = hb_buffer_create();
-  ASH_CHECK(hb_buffer != nullptr);
 
   FT_Library ft_lib;
   ASH_CHECK(FT_Init_FreeType(&ft_lib) == 0);
@@ -597,9 +576,6 @@ inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font con
 
   ASH_LOG_INFO(FontRenderer, "Finished rendering CPU glyph stroke atlas for font: {}", font.postscript_name.c_str());
 
-  hb_face_destroy(hb_face);
-  hb_font_destroy(hb_font);
-  hb_buffer_destroy(hb_buffer);
   ASH_CHECK(FT_Done_Face(ft_face) == 0);
   FT_Stroker_Done(ft_stroker);
   ASH_CHECK(FT_Done_FreeType(ft_lib) == 0);
