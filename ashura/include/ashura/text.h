@@ -423,10 +423,11 @@ struct TextLayout
   stx::Vec<TextRunSubWord> subwords;
   stx::Vec<TextRunGlyph>   glyphs;
   stx::Vec<GlyphLayout>    glyph_layouts;
+  vec2                     span;
 
   // TODO(lamarrr): [future] add bidi
   /// performs layout of the paragraph and returns the width and height of the paragraph
-  vec2 layout(Paragraph const &paragraph, stx::Span<BundledFont const> const font_bundle, f32 max_line_width)
+  void layout(Paragraph const &paragraph, stx::Span<BundledFont const> const font_bundle, f32 max_line_width)
   {
     constexpr u32 SPACE    = ' ';
     constexpr u32 TAB      = '\t';
@@ -437,13 +438,12 @@ struct TextLayout
     subwords.clear();
     glyphs.clear();
     glyph_layouts.clear();
-
-    vec2 span;
+    span = {};
 
     // there's no layout to perform without a font
     if (font_bundle.is_empty())
     {
-      return span;
+      return;
     }
 
     /** Word Tokenization */
@@ -889,8 +889,6 @@ struct TextLayout
     }
 
     glyphs.clear();
-
-    return span;
   }
 };
 

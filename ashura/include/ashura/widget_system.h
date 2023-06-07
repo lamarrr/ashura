@@ -189,14 +189,9 @@ struct WidgetSystem
     for (WidgetDrawEntry &entry : entries)
     {
       mat4 widget_transform = entry.widget->get_transform(context);
-      entry.quad            = quad{.p0 = transform(global_transform * widget_transform, entry.widget->area.offset),
-                                   .p1 = transform(global_transform * widget_transform, entry.widget->area.offset + vec2{entry.widget->area.extent.x, 0}),
-                                   .p2 = transform(global_transform * widget_transform, entry.widget->area.offset + entry.widget->area.extent),
-                                   .p3 = transform(global_transform * widget_transform, entry.widget->area.offset + vec2{0, entry.widget->area.extent.y})};
-      if (viewport_rect.contains(entry.quad.p0) ||
-          viewport_rect.contains(entry.quad.p1) ||
-          viewport_rect.contains(entry.quad.p2) ||
-          viewport_rect.contains(entry.quad.p3))
+      entry.quad            = transform(global_transform * widget_transform, entry.widget->area);
+
+      if (viewport_rect.contains(entry.quad))
       {
         canvas.reset();
         canvas.transform(widget_transform);

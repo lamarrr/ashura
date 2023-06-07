@@ -129,34 +129,6 @@ constexpr f32 cross(vec2 a, vec2 b)
   return a.x * b.y - b.x * a.y;
 }
 
-struct rect
-{
-  vec2 offset, extent;
-
-  constexpr auto bounds() const
-  {
-    return std::make_tuple(offset.x, offset.x + extent.x, offset.y, offset.y + extent.y);
-  }
-
-  constexpr bool overlaps(rect other) const
-  {
-    auto [x1_min, x1_max, y1_min, y1_max] = bounds();
-    auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
-
-    return x1_min < x2_max && x1_max > x2_min && y2_max > y1_min && y2_min < y1_max;
-  }
-
-  constexpr bool contains(vec2 point) const
-  {
-    return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
-  }
-
-  constexpr bool is_visible() const
-  {
-    return extent.x != 0 && extent.y != 0;
-  }
-};
-
 struct tri
 {
   vec2 p0, p1, p2;
@@ -186,6 +158,68 @@ struct quad
   constexpr bool contains(vec2 point) const
   {
     return tri{.p0 = p0, .p1 = p1, .p2 = p2}.contains(point) || tri{.p0 = p0, .p1 = p2, .p2 = p3}.contains(point);
+  }
+};
+
+struct rect
+{
+  vec2 offset, extent;
+
+  constexpr auto bounds() const
+  {
+    return std::make_tuple(offset.x, offset.x + extent.x, offset.y, offset.y + extent.y);
+  }
+
+  constexpr bool overlaps(rect other) const
+  {
+    auto [x1_min, x1_max, y1_min, y1_max] = bounds();
+    auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+
+    return x1_min < x2_max && x1_max > x2_min && y2_max > y1_min && y2_min < y1_max;
+  }
+
+  constexpr bool contains(vec2 point) const
+  {
+    return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
+  }
+
+  constexpr bool contains(quad const &quad) const
+  {
+    return contains(quad.p0) || contains(quad.p1) || contains(quad.p2) || contains(quad.p3);
+  }
+
+  constexpr bool is_visible() const
+  {
+    return extent.x != 0 && extent.y != 0;
+  }
+
+  constexpr vec2 top_left() const
+  {
+    return offset;
+  }
+
+  constexpr vec2 top_right() const
+  {
+    return offset + vec2{extent.x, 0};
+  }
+
+  constexpr vec2 bottom_left() const
+  {
+    return offset + vec2{0, extent.y};
+  }
+
+  constexpr vec2 bottom_right() const
+  {
+    return offset + extent;
+  }
+
+  constexpr quad to_quad() const
+  {
+    return quad{
+        .p0 = top_left(),
+        .p1 = top_right(),
+        .p2 = bottom_right(),
+        .p3 = bottom_left()};
   }
 };
 
@@ -348,6 +382,14 @@ constexpr vec2 transform(mat4 const &a, vec3 const &b)
 {
   vec4 prod = a *vec4{b.x, b.y, b.z, 1};
   return vec2{.x = prod.x, .y = prod.y};
+}
+
+constexpr quad transform(mat4 const &a, rect const &b)
+{
+  return quad{.p0 = transform(a, b.top_left()),
+              .p1 = transform(a, b.top_right()),
+              .p2 = transform(a, b.bottom_right()),
+              .p3 = transform(a, b.bottom_left())};
 }
 
 constexpr mat4 translate(vec3 t)

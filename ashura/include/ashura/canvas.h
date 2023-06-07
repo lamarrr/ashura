@@ -319,6 +319,12 @@ struct Canvas
   DrawList              draw_list;
   stx::Vec<vertex>      scratch;        // scratch/temporary buffer for storing generating vertices before storing in the draw list
 
+  bool viewport_contains(rect area) const
+  {
+    return rect{.offset = {}, .extent = viewport_extent}
+        .contains(ash::transform(state.global_transform * state.transform, area));
+  }
+
   Canvas &restart(vec2 viewport_extent)
   {
     this->viewport_extent = viewport_extent;
@@ -443,6 +449,13 @@ struct Canvas
     return *this;
   }
 
+  /// Not affected by transforms
+  Canvas &clip(rect clip_rect)
+  {
+    state.clip_rect = clip_rect;
+    return *this;
+  }
+
   Canvas &clear(color clear_color, image texture = WHITE_IMAGE)
   {
     draw_list.clear();
@@ -473,7 +486,7 @@ struct Canvas
 
   Canvas &draw_path(stx::Span<vertex const> points, rect area, rect_uv texture_region, image texture, f32 thickness, bool should_close)
   {
-    if (points.size() < 2 || !area.is_visible())
+    if (points.size() < 2 || !area.is_visible() || !viewport_contains(area))
     {
       return *this;
     }
@@ -531,7 +544,7 @@ struct Canvas
 
   Canvas &draw_convex_polygon_filled(stx::Span<vertex const> polygon, rect area, image texture)
   {
-    if (polygon.size() < 3 || !area.is_visible())
+    if (polygon.size() < 3 || !area.is_visible() || !viewport_contains(area))
     {
       return *this;
     }
@@ -549,17 +562,32 @@ struct Canvas
 
     rect area{.offset = begin, .extent = end - begin};
 
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     return draw_path(points, area, texture_region, texture, thickness, false);
   }
 
   Canvas &draw_rect_filled(rect area, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     polygons::rect(area.extent, color.to_vec(), texture_region, __reserve_convex_polygon(4, area, texture));
     return *this;
   }
 
   Canvas &draw_rect_stroke(rect area, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     vertex line[4];
 
     polygons::rect(area.extent, color.to_vec(), texture_region, line);
@@ -573,17 +601,27 @@ struct Canvas
   Canvas &draw_circle_filled(vec2 position, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     polygons::circle(radius, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
     return *this;
   }
 
   Canvas &draw_circle_stroke(vec2 position, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    rect area{.offset = position - vec2{thickness / 2, thickness / 2}, .extent = vec2::splat(2 * radius) + vec2{thickness, thickness}};
+
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
     polygons::circle(radius, nsegments, color.to_vec(), texture_region, scratch);
-
-    rect area{.offset = position - vec2{thickness / 2, thickness / 2}, .extent = vec2::splat(2 * radius) + vec2{thickness, thickness}};
 
     return draw_path(scratch, area, texture_region, texture, thickness, true);
   }
@@ -591,63 +629,108 @@ struct Canvas
   Canvas &draw_ellipse_filled(vec2 position, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = 2 * radii};
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     polygons::ellipse(radii, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
     return *this;
   }
 
   Canvas &draw_ellipse_stroke(vec2 position, vec2 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    rect area{.offset = position - vec2::splat(thickness / 2), .extent = (2 * radii) + vec2::splat(thickness)};
+
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
     polygons::ellipse(radii, nsegments, color.to_vec(), texture_region, scratch);
-
-    rect area{.offset = position - vec2::splat(thickness / 2), .extent = (2 * radii) + vec2::splat(thickness)};
 
     return draw_path(scratch, area, texture_region, texture, thickness, true);
   }
 
   Canvas &draw_round_rect_filled(rect area, vec4 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     polygons::round_rect(area.extent, radii, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, texture));
     return *this;
   }
 
   Canvas &draw_round_rect_stroke(rect area, vec4 radii, color color, f32 thickness, u32 nsegments, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    area.offset = area.offset - vec2::splat(thickness / 2);
+    area.extent = area.extent + vec2::splat(thickness);
+
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     scratch.unsafe_resize_uninitialized(nsegments * 4).unwrap();
 
     polygons::round_rect(area.extent, radii, nsegments, color.to_vec(), texture_region, scratch);
-
-    area.offset = area.offset - vec2::splat(thickness / 2);
-    area.extent = area.extent + vec2::splat(thickness);
 
     return draw_path(scratch, area, texture_region, texture, thickness, true);
   }
 
   Canvas &draw_image(image img, rect area, rect_uv texture_region, color tint = colors::WHITE)
   {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     polygons::rect(area.extent, tint.to_vec(), texture_region, __reserve_convex_polygon(4, area, img));
     return *this;
   }
 
   Canvas &draw_image(image img, rect area, color tint = colors::WHITE)
   {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     return draw_image(img, area, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
   Canvas &draw_rounded_image(image img, rect area, vec4 border_radii, u32 nsegments, rect_uv texture_region, color tint = colors::WHITE)
   {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     polygons::round_rect(area.extent, border_radii, nsegments, tint.to_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, img));
     return *this;
   }
 
   Canvas &draw_rounded_image(image img, rect area, vec4 border_radii, u32 nsegments, color tint = colors::WHITE)
   {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     return draw_rounded_image(img, area, border_radii, nsegments, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
   Canvas &draw_text(Paragraph const &paragraph, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, vec2 const position)
   {
+    if (!viewport_contains(rect{.offset = position, .extent = layout.span}))
+    {
+      return *this;
+    }
+
     for (TextRunSubWord const &subword : layout.subwords)
     {
       TextProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);

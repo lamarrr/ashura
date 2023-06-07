@@ -20,6 +20,9 @@
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
+#define TIMER_BEGIN(name) ::std::chrono::steady_clock::time_point name##_TIMER_Begin = ::std::chrono::steady_clock::now()
+#define TIMER_END(name, str) ASH_LOG_INFO(FontRenderer, "Timer: {}, Task: {}, took: {}ms", #name, str, (::std::chrono::steady_clock::now() - name##_TIMER_Begin).count() / 1'000'000.0f)
+
 namespace ash
 {
 
@@ -207,9 +210,11 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
                                                  widget_system.events.push_inplace(events).unwrap();
                                                }
                                              }).unwrap());
+  TIMER_BEGIN(AllFontLoad);
 
   for (FontSpec const &spec : cfg.fonts)
   {
+    TIMER_BEGIN(FontLoadIt);
     ASH_LOG_INFO(Init, "Loading font: {} from file: {}", spec.name.view(), spec.path.view());
     stx::Result result = load_font_from_file(spec.path);
 
@@ -233,7 +238,11 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
     {
       ASH_LOG_ERR(Init, "Failed to load font: {} from file: {}, error: {}", spec.name.view(), spec.path.view(), AS(i64, result.err()));
     }
+
+    TIMER_END(FontLoadIt, "Rendering Font");
   }
+
+  TIMER_END(AllFontLoad, "All Font Rendering");
 
   ctx.font_bundle = font_bundle;
 
