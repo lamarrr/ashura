@@ -46,22 +46,17 @@ struct Stack : public Widget
     children.extend(new_children).unwrap();
   }
 
-  virtual stx::Span<Widget *const> get_children() override
+  virtual stx::Span<Widget *const> get_children(Context &context) override
   {
     return children;
   }
 
-  constexpr virtual WidgetInfo get_info() override
+  constexpr virtual WidgetInfo get_info(Context &context) override
   {
     return WidgetInfo{.type = "Stack"};
   }
 
-  constexpr virtual Layout layout(rect area);
-
-  virtual simdjson::dom::element save(Context         &context,
-                                      simdjson::dom::parser &parser);
-
-  virtual void restore(Context &context, simdjson::dom::element const &element);
+  constexpr virtual Layout layout(Context &context, rect area);
 
   Alignment          alignment = Alignment::TopLeft;
   stx::Vec<Widget *> children;

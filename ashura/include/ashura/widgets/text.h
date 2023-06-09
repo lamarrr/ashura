@@ -18,17 +18,17 @@ struct Text : public Widget
       text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{iprops}
   {}
 
-  virtual WidgetInfo get_info(Context & context) override
+  virtual WidgetInfo get_info(Context &context) override
   {
     return WidgetInfo{.type = "Text"};
   }
 
-  virtual Layout layout(Context & context, rect area) override
+  virtual Layout layout(Context &context, rect area) override
   {
     //
   }
 
-  virtual void draw(Context & context,gfx::Canvas &canvas, rect area) override
+  virtual void draw(Context &context, gfx::Canvas &canvas, rect area) override
   {
     // TODO(lamarrr): script and others
     // canvas.draw
@@ -39,15 +39,6 @@ struct Text : public Widget
 
   // on_mouse_down
   // on_mouse_up
-
-  virtual simdjson::dom::element save(Context         &context,
-                                      simdjson::dom::parser &parser) override
-  {}
-
-  virtual void restore(Context                &context,
-                       simdjson::dom::element const &element) override
-  {}
-
   stx::String text;
   TextProps   props;
 };

@@ -11,7 +11,6 @@
 #include "ashura/context.h"
 #include "ashura/event.h"
 #include "ashura/primitives.h"
-#include "simdjson.h"
 #include "stx/async.h"
 #include "stx/fn.h"
 #include "stx/option.h"
@@ -305,18 +304,6 @@ struct Widget
   // TODO(lamarrr): can this be simpler?
   // virtual void raise_tooltip(){}
   // virtual void lower_tooltip(){}
-
-  // TODO(lamarrr): we need a widget build tree???
-  //
-  virtual simdjson::dom::element save(Context &context, simdjson::dom::parser &parser)
-  {
-    return parser.parse("{}", 2);
-  }
-
-  //
-  virtual void restore(Context &context, simdjson::dom::element const &element)
-  {}
-
   rect area;          // position of the widget on the viewport. calculated on every frame
   u64  id = 0;        // id used to recognise the widget. changes from frame to frame??? // TODO(lamarrr)
 };
