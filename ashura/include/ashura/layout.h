@@ -26,7 +26,9 @@ constexpr void perform_layout(Context &context, Widget &widget, rect allotted_ar
 constexpr vec2 perform_children_layout(Context &context, Layout const &layout, stx::Span<Widget *const> children)
 {
   if (children.is_empty())
+  {
     return layout.area.extent;
+  }
 
   for (Widget *child : children)
   {
