@@ -635,7 +635,7 @@ struct TextLayout
 
         if (!glyph.is_empty())
         {
-          width += glyph_scale * advance.x + props.letter_spacing;
+          width += advance.x + props.letter_spacing;
           glyphs.push_inplace(TextRunGlyph{
                                   .index   = glyph_index,
                                   .offset  = offset,
@@ -646,7 +646,7 @@ struct TextLayout
         // use glyph at index 0 as replacement glyph, this is usually the invalid character replacement glyph
         else if (!atlas.glyphs.is_empty())
         {
-          width += glyph_scale * advance.x + props.letter_spacing;
+          width += advance.x + props.letter_spacing;
           glyphs.push_inplace(TextRunGlyph{
                                   .index   = 0,
                                   .offset  = offset,
@@ -810,7 +810,7 @@ struct TextLayout
                                      .glyph  = run_glyph.index})
                   .unwrap();
 
-              cursor_x += subword->glyph_scale * run_glyph.advance.x + props.letter_spacing;
+              cursor_x += run_glyph.advance.x + props.letter_spacing;
             }
 
             cursor_x += subword->nspace_chars * props.word_spacing;
@@ -869,7 +869,7 @@ struct TextLayout
                                        .glyph  = run_glyph.index})
                     .unwrap();
 
-                glyph_cursor_x += rtl_iter->glyph_scale * run_glyph.advance.x + props.letter_spacing;
+                glyph_cursor_x += run_glyph.advance.x + props.letter_spacing;
               }
             }
 

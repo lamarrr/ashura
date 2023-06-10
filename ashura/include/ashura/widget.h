@@ -84,8 +84,8 @@ struct FlexProps
   CrossAlign cross_align = CrossAlign::Start;
   Fit        main_fit    = Fit::Shrink;
   Fit        cross_fit   = Fit::Shrink;
-  constraint width;
-  constraint height;
+  constraint width       = constraint{.scale = 1};
+  constraint height      = constraint{.scale = 1};
 
   constexpr vec2 fit(vec2 span, vec2 initial_extent) const
   {
