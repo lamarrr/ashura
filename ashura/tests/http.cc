@@ -1,4 +1,4 @@
-#include "ashura/plugins/http.h"
+#include "ashura/plugins/http_client.h"
 #include "stx/scheduler.h"
 #include "stx/scheduler/scheduling/await.h"
 #include "gtest/gtest.h"

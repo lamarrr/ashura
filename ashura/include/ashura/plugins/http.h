@@ -3,7 +3,9 @@
 #include <chrono>
 #include <map>
 
+#include "ashura/primitives.h"
 #include "ashura/utils.h"
+#include "ashura/plugin.h"
 #include "fmt/format.h"
 #include "stx/async.h"
 #include "stx/string.h"
@@ -17,7 +19,7 @@
 #  include "curl/curl.h"
 #endif
 
-#define ASH_CURLE_ENSURE(code_expression, ...) \
+#define ASH_CURLE_CHECK(code_expression, ...) \
   do                                           \
   {                                            \
     if ((code_expression) > 0)                 \
@@ -26,7 +28,7 @@
     }                                          \
   } while (false)
 
-#define ASH_CURLM_ENSURE(code_expression, ...) \
+#define ASH_CURLM_CHECK(code_expression, ...) \
   do                                           \
   {                                            \
     if ((code_expression) > 0)                 \
@@ -37,7 +39,7 @@
 
 namespace ash
 {
-namespace http
+namespace HttpClient
 {
 // Overloading the operator>> to convert CURLcode to a string representation
 inline std::string operator>>(stx::ReportQuery, CURLcode code)
@@ -48,11 +50,11 @@ inline std::string operator>>(stx::ReportQuery, CURLcode code)
 // Overloading the operator>> to convert CURLMcode to a string representation
 inline std::string operator>>(stx::ReportQuery, CURLMcode code)
 {
-  return fmt::format("CURLMcode{}", static_cast<int>(code));
+  return fmt::format("CURLMcode{}", AS(int, code));
 }
 
 // Enum to represent HTTP request methods
-enum class HttpMethod : uint8_t
+enum class HttpMethod : u8
 {
   Get,
   Head
@@ -61,32 +63,32 @@ enum class HttpMethod : uint8_t
 // Struct to represent an HTTP request
 struct HttpRequest
 {
-  stx::String                        url = stx::string::make_static("https://fast.com");
+  stx::String                        url = "https://fast.com";
   std::map<stx::String, stx::String> headers;
   HttpMethod                         method           = HttpMethod::Get;
-  uint32_t                           maximumRedirects = 69;
+  u32                                maximumRedirects = CURLOPT_MAXREDIRS;
 };
 
 // Struct to represent an HTTP response
 struct HttpResponse
 {
-  uint64_t                 code{0};
-  stx::Vec<uint8_t>        header;
-  stx::Vec<uint8_t>        content;
+  uint64_t                 code = 0;
+  stx::Vec<u8>             header;
+  stx::Vec<u8>             content;
   std::chrono::nanoseconds totalTime{0};
   stx::String              effectiveUrl;
-  uint64_t                 uploaded{0};
-  uint64_t                 downloaded{0};
+  u64                      uploaded{0};
+  u64                      downloaded{0};
 };
 
 struct Progress
 {
-  uint64_t              bytesSent           = 0;
-  uint64_t              bytesReceived       = 0;
-  uint64_t              uploadSpeed         = 0;
-  uint64_t              downloadSpeed       = 0;
-  stx::Option<uint64_t> contentUploadSize   = stx::None;
-  stx::Option<uint64_t> contentDownloadSize = stx::None;
+  u64              bytesSent     = 0;
+  u64              bytesReceived = 0;
+  u64              uploadSpeed   = 0;
+  u64              downloadSpeed = 0;
+  stx::Option<u64> contentUploadSize;
+  stx::Option<u64> contentDownloadSize;
 };
 
 struct ProgressMonitorState
@@ -161,7 +163,7 @@ struct CurlMultiHandle
   ~CurlMultiHandle()
   {
     // curl_multi_cleanup closes connections associated with the multi-handle
-    ASH_CURLM_ENSURE(curl_multi_cleanup(multi));
+    ASH_CURLM_CHECK(curl_multi_cleanup(multi));
   }
 };
 
@@ -182,8 +184,8 @@ struct CurlEasyHandle
   STX_DISABLE_COPY(CurlEasyHandle)
   STX_DISABLE_MOVE(CurlEasyHandle)
 
-  CURL                      *easy;
-  curl_slist                *header;
+  CURL                      *easy   = nullptr;
+  curl_slist                *header = nullptr;
   stx::Rc<CurlMultiHandle *> parent;
 
   CurlEasyHandle(CURL *easy_easy, curl_slist *easy_header,
@@ -193,7 +195,7 @@ struct CurlEasyHandle
 
   ~CurlEasyHandle()
   {
-    ASH_CURLM_ENSURE(curl_multi_remove_handle(parent.handle->multi, easy));
+    ASH_CURLM_CHECK(curl_multi_remove_handle(parent.handle->multi, easy));
     curl_easy_cleanup(easy);
     curl_slist_free_all(header);
   }
@@ -201,32 +203,32 @@ struct CurlEasyHandle
 struct TaskInfo
 {
   stx::Rc<CurlEasyHandle *>  easy;
-  stx::Vec<uint8_t>          header;
-  stx::Vec<uint8_t>          content;
+  stx::Vec<u8>               header;
+  stx::Vec<u8>               content;
   stx::Promise<HttpResponse> promise;
   ProgressUpdater            updater;
   stx::FutureStatus          last_status_poll = stx::FutureStatus::Executing;
 };
 
-size_t curl_header_write_function(uint8_t const *bytes, size_t unit_size,
-                                  size_t nmemb, TaskInfo *task_info)
+inline size_t curl_header_write_function(u8 const *bytes, size_t unit_size,
+                                         size_t nmemb, TaskInfo *task_info)
 {
   size_t total_size = nmemb * unit_size;
 
   for (size_t i = 0; i < total_size; i++)
   {
-    task_info->header.push(static_cast<uint8_t>(bytes[i])).unwrap();
+    task_info->header.push_inplace(bytes[i]).unwrap();
   }
 
   return total_size;
 }
 
-size_t curl_content_write_function(uint8_t const *bytes, size_t unit_size,
-                                   size_t nmemb, TaskInfo *task_info)
+inline size_t curl_content_write_function(u8 const *bytes, size_t unit_size,
+                                          size_t nmemb, TaskInfo *task_info)
 {
   size_t total_size = nmemb * unit_size;
 
-  auto             &promise = task_info->promise;
+  stx::Promise<HttpResponse>  &promise = task_info->promise;
   stx::RequestProxy request_proxy{promise};
 
   auto cancel_request  = request_proxy.fetch_cancel_request();
@@ -246,7 +248,7 @@ size_t curl_content_write_function(uint8_t const *bytes, size_t unit_size,
 
   for (size_t i = 0; i < total_size; i++)
   {
-    task_info->content.push(static_cast<uint8_t>(bytes[i])).unwrap();
+    task_info->content.push(static_cast<u8>(bytes[i])).unwrap();
   }
 
   return total_size;
@@ -277,29 +279,28 @@ struct Task
         break;
 
       case HttpMethod::Head:
-        ASH_CURLE_ENSURE(curl_easy_setopt(easy_handle->easy, CURLOPT_NOBODY, 1L));
+        ASH_CURLE_CHECK(curl_easy_setopt(easy_handle->easy, CURLOPT_NOBODY, 1L));
         break;
     }
-    auto const &url    = request.url;
-    auto const &header = request.headers;
+    stx::String const                        &url    = request.url;
+    std::map<stx::String, stx::String> const &header = request.headers;
 
-    ASH_CURLE_ENSURE(curl_easy_setopt(easy_handle->easy, CURLOPT_URL, url.c_str()));
+    ASH_CURLE_CHECK(curl_easy_setopt(easy_handle->easy, CURLOPT_URL, url.c_str()));
 
     for (const auto &[key, value] : header)
     {
       stx::String joined = stx::string::join(allocator, "", key, ":", value).unwrap();
 
-      auto *new_header = curl_slist_append(easy_handle->header, joined.c_str());
-      if (new_header == nullptr)
-        stx::panic();
+      curl_slist *new_header = curl_slist_append(easy_handle->header, joined.c_str());
+      ASH_CHECK(new_header);
 
       easy_handle->header = new_header;
     }
 
-    ASH_CURLE_ENSURE(curl_easy_setopt(easy_handle->easy, CURLOPT_HTTPHEADER,
+    ASH_CURLE_CHECK(curl_easy_setopt(easy_handle->easy, CURLOPT_HTTPHEADER,
                                       easy_handle->header));
 
-    ASH_CURLE_ENSURE(curl_easy_setopt(easy_handle->easy, CURLOPT_VERBOSE, 1L));
+    ASH_CURLE_CHECK(curl_easy_setopt(easy_handle->easy, CURLOPT_VERBOSE, 1L));
 
     curl_easy_setopt(easy_handle->easy, CURLOPT_FOLLOWLOCATION, 1);
     curl_easy_setopt(easy_handle->easy, CURLOPT_MAXREDIRS, request.maximumRedirects);
@@ -309,33 +310,32 @@ struct Task
 
   static void begin_request(CURL *easy, CURLM *multi, TaskInfo *info_addr)
   {
-    ASH_CURLE_ENSURE(curl_easy_setopt(easy, CURLOPT_WRITEDATA, info_addr));
-    ASH_CURLE_ENSURE(curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION,
+    ASH_CURLE_CHECK(curl_easy_setopt(easy, CURLOPT_WRITEDATA, info_addr));
+    ASH_CURLE_CHECK(curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION,
                                       impl::curl_content_write_function));
-    ASH_CURLE_ENSURE(curl_easy_setopt(easy, CURLOPT_HEADERDATA, info_addr));
-    ASH_CURLE_ENSURE(curl_easy_setopt(easy, CURLOPT_HEADERFUNCTION,
+    ASH_CURLE_CHECK(curl_easy_setopt(easy, CURLOPT_HEADERDATA, info_addr));
+    ASH_CURLE_CHECK(curl_easy_setopt(easy, CURLOPT_HEADERFUNCTION,
                                       impl::curl_header_write_function));
-    ASH_CURLM_ENSURE(curl_multi_add_handle(multi, easy));
+    ASH_CURLM_CHECK(curl_multi_add_handle(multi, easy));
   }
-
-  void retrieve_progress_info(CURL *easy, CURLINFO info, uint64_t &value)
+  void retrieve_progress_info(CURL *easy, CURLINFO info, u64 &value)
   {
     curl_off_t curl_value;
-    ASH_CURLE_ENSURE(curl_easy_getinfo(easy, info, &curl_value));
-    value = static_cast<uint64_t>(curl_value);
+    AS_U64(curl_easy_getinfo(easy, info, &curl_value));
+    value = static_cast<u64>(curl_value);
   }
 
-  void retrieve_optional_progress_info(CURL *easy, CURLINFO info, stx::Option<uint64_t> &value)
+  void retrieve_optional_progress_info(CURL *easy, CURLINFO info, stx::Option<u64> &value)
   {
     curl_off_t curl_value;
-    ASH_CURLE_ENSURE(curl_easy_getinfo(easy, info, &curl_value));
+    ASH_CURLE_CHECK(curl_easy_getinfo(easy, info, &curl_value));
     if (curl_value == -1)
     {
       value = stx::None;
     }
     else
     {
-      value = stx::Some(static_cast<uint64_t>(curl_value));
+      value = stx::Some(AS_U64(curl_value));
     }
   }
 
@@ -367,8 +367,8 @@ struct Task
 
     TRY_OK(task_info,
            stx::rc::make_unique_inplace<TaskInfo>(
-               allocator, std::move(easy), stx::Vec<uint8_t>{allocator},
-               stx::Vec<uint8_t>{allocator}, std::move(promise),
+               allocator, std::move(easy), stx::Vec<u8>{allocator},
+               stx::Vec<u8>{allocator}, std::move(promise),
                std::move(updater.second)));
 
     begin_request(task_info.handle->easy.handle->easy,
@@ -388,7 +388,7 @@ struct Task
 
     // get status and more completion info
     char const *effective_url = nullptr;
-    ASH_CURLE_ENSURE(
+    ASH_CURLE_CHECK(
         curl_easy_getinfo(easy, CURLINFO_EFFECTIVE_URL, &effective_url));
 
     if (effective_url != nullptr)
@@ -398,26 +398,26 @@ struct Task
     }
 
     curl_off_t total_time = 0;
-    ASH_CURLE_ENSURE(
+    ASH_CURLE_CHECK(
         curl_easy_getinfo(easy, CURLINFO_TOTAL_TIME_T, &total_time));
     response.totalTime = std::chrono::microseconds(total_time);
 
     curl_off_t total_downloaded = 0;
     curl_off_t total_uploaded   = 0;
 
-    ASH_CURLE_ENSURE(curl_easy_getinfo(easy, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T,
+    ASH_CURLE_CHECK(curl_easy_getinfo(easy, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T,
                                        &total_downloaded));
-    ASH_CURLE_ENSURE(curl_easy_getinfo(easy, CURLINFO_CONTENT_LENGTH_UPLOAD_T,
+    ASH_CURLE_CHECK(curl_easy_getinfo(easy, CURLINFO_CONTENT_LENGTH_UPLOAD_T,
                                        &total_uploaded));
 
     response.downloaded = total_downloaded;
     response.uploaded   = total_uploaded;
 
     long response_code = 0;
-    ASH_CURLE_ENSURE(
+    ASH_CURLE_CHECK(
         curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE, &response_code));
 
-    response.code = uint64_t{static_cast<uint64_t>(response_code)};
+    response.code = u64{static_cast<u64>(response_code)};
 
     response.header  = std::move(info.handle->header);
     response.content = std::move(info.handle->content);
@@ -432,7 +432,7 @@ struct Client
 {
   STX_MAKE_PINNED(Client)
 
-  Client(stx::Allocator allocator) :
+  explicit Client(stx::Allocator allocator) :
       multi_{impl::make_curl_multi_handle(allocator).unwrap()},
       tasks_{allocator},
       lock_{},
@@ -446,7 +446,7 @@ struct Client
   // tasks can be submitted from multiple threads
   std::tuple<stx::Future<HttpResponse>, ProgressMonitor> get(
       stx::String url, std::map<stx::String, stx::String> header = {},
-      uint32_t max_redirects = 69)
+      u32 max_redirects = 69)
   {
     stx::LockGuard guard{lock_};
     auto [task, monitor, future] =
@@ -463,7 +463,7 @@ struct Client
 
   std::tuple<stx::Future<HttpResponse>, ProgressMonitor> head(
       stx::String url, std::map<stx::String, stx::String> header = {},
-      uint32_t max_redirects = 69)
+      u32 max_redirects = 69)
   {
     stx::LockGuard guard{lock_};
     auto [task, monitor, future] =
@@ -509,14 +509,14 @@ struct Client
           task.info.handle->promise.fetch_suspend_request() ==
               stx::SuspendState::Executing)
       {
-        ASH_CURLE_ENSURE(curl_easy_pause(task.info.handle->easy.handle->easy,
+        ASH_CURLE_CHECK(curl_easy_pause(task.info.handle->easy.handle->easy,
                                          CURLPAUSE_CONT));
         task.info.handle->promise.notify_executing();
       }
     }
 
     int num_running_handles = 0;
-    ASH_CURLM_ENSURE(
+    ASH_CURLM_CHECK(
         curl_multi_perform(multi_.handle->multi, &num_running_handles));
 
     int            num_messages_in_queue = 0;

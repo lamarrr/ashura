@@ -5,7 +5,7 @@ target_include_directories(
   PUBLIC include ${JPEG_INCLUDE_DIR}
   PRIVATE src)
 
-target_link_libraries(
+  target_link_libraries(
   ashura
   stx::stx
   SDL3::SDL3-static
@@ -13,6 +13,7 @@ target_link_libraries(
   Vulkan::Vulkan
   spdlog::spdlog
   harfbuzz
+  CURL::libcurl
   Freetype::Freetype
   simdjson::simdjson
   WebP::webp
@@ -20,7 +21,6 @@ target_link_libraries(
   ${JPEG_LIBRARIES}
   PNG::PNG
   avif
-  libcurl
   ${FFMPEG_LIBRARIES})
 
 target_include_directories(ashura PUBLIC ${FFMPEG_INCLUDE_DIRS})
