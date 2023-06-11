@@ -17,6 +17,18 @@ namespace ash
 namespace gfx
 {
 
+#define ASH_NORMALIZE2F_OVER_ZERO(VX, VY) \
+  do                                      \
+  {                                       \
+    float d2 = VX * VX + VY * VY;         \
+    if (d2 > 0.0f)                        \
+    {                                     \
+      float inv_len = 1 / std::sqrtf(d2); \
+      VX *= inv_len;                      \
+      VY *= inv_len;                      \
+    }                                     \
+  } while (0)
+
 namespace polygons
 {
 
@@ -269,6 +281,64 @@ inline void triangulate_line(stx::Span<vertex const> in_points, vec2 extent, f32
   }
 }
 
+// TODO: Thickness anti-aliased lines cap are missing their AA fringe.
+// We avoid using the ImVec2 math operators here to reduce cost to a minimum for debug/non-inlined builds.
+inline void AddPolyline(stx::Span<vertex const> points, vec2 extent, f32 thickness, rect_uv texture_region, stx::Vec<vertex> &out_vertices, stx::Vec<u32> &out_indices, bool close)
+{
+  if (points.size() < 2)
+  {
+    return;
+  }
+
+  usize count     = close ? points.size() : points.size() - 1;
+  usize idx_count = count * 6;
+  usize vtx_count = count * 4;
+
+  u32 vertex_index = 0;
+
+  for (usize i0 = 0; i0 < count; i0++)
+  {
+    usize         i1 = (i0 + 1) == points.size() ? 0 : i0 + 1;
+    vertex const &p0 = points[i0];
+    vertex const &p1 = points[i1];
+
+    f32 dx = p1.position.x - p0.position.x;
+    f32 dy = p1.position.y - p0.position.y;
+    ASH_NORMALIZE2F_OVER_ZERO(dx, dy);
+    dx *= (thickness * 0.5f);
+    dy *= (thickness * 0.5f);
+
+    vec2 a{p0.position.x + dy, p0.position.y - dx};
+    vec2 b{p1.position.x + dy, p1.position.y - dx};
+    vec2 c{p1.position.x - dy, p1.position.y + dx};
+    vec2 d{p0.position.x - dy, p0.position.y + dx};
+
+    vec2 a_uv = texture_region.uv0 + a / extent * (texture_region.uv1 - texture_region.uv0);
+    vec2 b_uv = texture_region.uv0 + b / extent * (texture_region.uv1 - texture_region.uv0);
+    vec2 c_uv = texture_region.uv0 + c / extent * (texture_region.uv1 - texture_region.uv0);
+    vec2 d_uv = texture_region.uv0 + d / extent * (texture_region.uv1 - texture_region.uv0);
+
+    vertex vertices[] = {
+        {.position = a, .uv = a_uv, .color = p0.color},
+        {.position = b, .uv = b_uv, .color = p1.color},
+        {.position = c, .uv = c_uv, .color = p1.color},
+        {.position = d, .uv = d_uv, .color = p0.color}};
+
+    u32 indices[] = {
+        vertex_index,
+        vertex_index + 1,
+        vertex_index + 2,
+        vertex_index,
+        vertex_index + 2,
+        vertex_index + 3};
+
+    vertex_index += 4;
+
+    out_vertices.extend(vertices).unwrap();
+    out_indices.extend(indices).unwrap();
+  }
+}
+
 struct DrawCommand
 {
   u32   nvertices = 0;
@@ -496,7 +566,7 @@ struct Canvas
 
     // the input texture coordinates are not used since we need to regenerate
     // them for the line thickness
-    triangulate_line(points, area.extent, thickness, texture_region, draw_list.vertices, draw_list.indices, should_close);
+    AddPolyline(points, area.extent, thickness, texture_region, draw_list.vertices, draw_list.indices, should_close);
 
     usize curr_nvertices = draw_list.vertices.size();
     usize curr_nindices  = draw_list.indices.size();
@@ -590,10 +660,10 @@ struct Canvas
 
     vertex line[4];
 
-    polygons::rect(area.extent, color.to_vec(), texture_region, line);
+    area.offset = area.offset + thickness / 2;
+    area.extent = area.extent - thickness;
 
-    area.offset = area.offset - thickness / 2;
-    area.extent = area.extent + thickness;
+    polygons::rect(area.extent, color.to_vec(), texture_region, line);
 
     return draw_path(line, area, texture_region, texture, thickness, true);
   }
@@ -612,7 +682,7 @@ struct Canvas
 
   Canvas &draw_circle_stroke(vec2 position, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    rect area{.offset = position - vec2{thickness / 2, thickness / 2}, .extent = vec2::splat(2 * radius) + vec2{thickness, thickness}};
+    rect area{.offset = position + thickness / 2, .extent = 2 * radius - vec2{thickness, thickness}};
 
     if (!viewport_contains(area))
     {
@@ -640,7 +710,7 @@ struct Canvas
 
   Canvas &draw_ellipse_stroke(vec2 position, vec2 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    rect area{.offset = position - vec2::splat(thickness / 2), .extent = (2 * radii) + vec2::splat(thickness)};
+    rect area{.offset = position + thickness / 2, .extent = (2 * radii) - vec2::splat(thickness)};
 
     if (!viewport_contains(area))
     {
@@ -667,8 +737,8 @@ struct Canvas
 
   Canvas &draw_round_rect_stroke(rect area, vec4 radii, color color, f32 thickness, u32 nsegments, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    area.offset = area.offset - vec2::splat(thickness / 2);
-    area.extent = area.extent + vec2::splat(thickness);
+    area.offset = area.offset + thickness / 2;
+    area.extent = area.extent - thickness;
 
     if (!viewport_contains(area))
     {

@@ -113,7 +113,19 @@ struct WidgetSystem
           iter--;
           if (iter->quad.contains(event.position))
           {
-            iter->widget->on_click(context, event.button, event.position, event.clicks, iter->quad);
+            switch (event.action)
+            {
+              case MouseAction::Press:
+                iter->widget->on_mouse_down(context, event.button, event.position, event.clicks, iter->quad);
+                break;
+
+              case MouseAction::Release:
+                iter->widget->on_mouse_up(context, event.button, event.position, event.clicks, iter->quad);
+                break;
+
+              default:
+                break;
+            }
             break;
           }
         }

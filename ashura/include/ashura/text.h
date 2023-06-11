@@ -323,7 +323,7 @@ struct TextProps
 {
   std::string_view                  font;                                /// name to use to match the font
   stx::Span<std::string_view const> fallback_fonts;                      /// font to fallback to if specified font is not available
-  f32                               font_height             = 16;        /// px
+  f32                               font_height             = 20;        /// px
   color                             foreground_color        = colors::BLACK;
   color                             background_color        = colors::TRANSPARENT;
   color                             underline_color         = colors::BLACK;

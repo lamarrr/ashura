@@ -13,7 +13,7 @@ namespace ash
 
 struct Flex : public Widget
 {
-  template <typename... DerivedWidget>
+  template <WidgetImpl... DerivedWidget>
   Flex(FlexProps iprops, DerivedWidget... ichildren) :
       props{iprops}
   {

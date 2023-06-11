@@ -9,11 +9,7 @@ namespace ash
 
 struct Text : public Widget
 {
-  explicit Text(std::string_view itext) :
-      text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{}
-  {}
-
-  Text(std::string_view itext, TextProps iprops) :
+  explicit Text(std::string_view itext, TextProps iprops = TextProps{}) :
       text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{iprops}
   {}
 

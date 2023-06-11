@@ -221,6 +221,26 @@ struct rect
         .p2 = bottom_right(),
         .p3 = bottom_left()};
   }
+
+  constexpr rect with_offset(vec2 new_offset) const
+  {
+    return rect{.offset = new_offset, .extent = extent};
+  }
+
+  constexpr rect with_offset(f32 x, f32 y) const
+  {
+    return rect{.offset = vec2{x, y}, .extent = extent};
+  }
+
+  constexpr rect with_extent(vec2 new_extent) const
+  {
+    return rect{.offset = offset, .extent = new_extent};
+  }
+
+  constexpr rect with_extent(f32 w, f32 h) const
+  {
+    return rect{.offset = offset, .extent = vec2{w, h}};
+  }
 };
 
 struct vec3

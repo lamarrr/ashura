@@ -170,7 +170,6 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   root_window.value()->on_mouse_motion(stx::fn::rc::make_unique_static([](MouseMotionEvent) {}));
 
   root_window.value()->on_mouse_click(stx::fn::rc::make_unique_static([](MouseClickEvent event) {
-    std::cout << "clicks: " << event.clicks << std::endl;
     if (event.action == MouseAction::Press && event.button == MouseButton::A2)
     {
       std::exit(0);

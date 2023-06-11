@@ -233,7 +233,10 @@ struct Widget
   constexpr virtual void on_leave_viewport(Context &context)
   {}
 
-  constexpr virtual void on_click(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
+  constexpr virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
+  {}
+
+  constexpr virtual void on_mouse_up(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
   {}
 
   constexpr virtual void on_mouse_move(Context &context, vec2 mouse_position, vec2 translation, quad quad)
@@ -308,34 +311,34 @@ struct Widget
   u64  id = 0;        // id used to recognise the widget. changes from frame to frame??? // TODO(lamarrr)
 };
 
-struct WidgetImpl
+struct WidgetPtr
 {
   template <typename DerivedWidget>
-  constexpr WidgetImpl(DerivedWidget widget) :
+  constexpr WidgetPtr(DerivedWidget widget) :
       impl{new DerivedWidget{std::move(widget)}}
   {
     static_assert(std::is_base_of_v<Widget, DerivedWidget>);
   }
 
-  constexpr WidgetImpl()
+  constexpr WidgetPtr()
   {}
 
-  static constexpr WidgetImpl make(Widget *impl)
+  static constexpr WidgetPtr make(Widget *impl)
   {
-    WidgetImpl w;
+    WidgetPtr w;
     w.impl = impl;
     return w;
   }
 
-  constexpr WidgetImpl(WidgetImpl const &) = default;
+  constexpr WidgetPtr(WidgetPtr const &) = default;
 
-  constexpr WidgetImpl(WidgetImpl &&) = default;
+  constexpr WidgetPtr(WidgetPtr &&) = default;
 
-  constexpr WidgetImpl &operator=(WidgetImpl const &) = default;
+  constexpr WidgetPtr &operator=(WidgetPtr const &) = default;
 
-  constexpr WidgetImpl &operator=(WidgetImpl &&) = default;
+  constexpr WidgetPtr &operator=(WidgetPtr &&) = default;
 
-  constexpr ~WidgetImpl() = default;
+  constexpr ~WidgetPtr() = default;
 
   constexpr Widget *operator->() const
   {
@@ -349,5 +352,8 @@ struct WidgetImpl
 
   Widget *impl = nullptr;
 };
+
+template <typename T>
+concept WidgetImpl = std::is_base_of_v<Widget, T>;
 
 }        // namespace ash
