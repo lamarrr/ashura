@@ -11,7 +11,6 @@
 #include "ashura/context.h"
 #include "ashura/event.h"
 #include "ashura/primitives.h"
-#include "simdjson.h"
 #include "stx/async.h"
 #include "stx/fn.h"
 #include "stx/option.h"
@@ -85,8 +84,8 @@ struct FlexProps
   CrossAlign cross_align = CrossAlign::Start;
   Fit        main_fit    = Fit::Shrink;
   Fit        cross_fit   = Fit::Shrink;
-  constraint width;
-  constraint height;
+  constraint width       = constraint{.scale = 1};
+  constraint height      = constraint{.scale = 1};
 
   constexpr vec2 fit(vec2 span, vec2 initial_extent) const
   {
@@ -173,7 +172,7 @@ struct Widget
   {}
 
   //
-  constexpr virtual stx::Span<Widget *const> get_children()
+  constexpr virtual stx::Span<Widget *const> get_children(Context &context)
   {
     return {};
   }
@@ -181,37 +180,37 @@ struct Widget
   // TODO(lamarrr): get_flex_children and get_static_children()
 
   //
-  constexpr virtual WidgetInfo get_info()
+  constexpr virtual WidgetInfo get_info(Context &context)
   {
     return WidgetInfo{.type = "Widget"};
   }
 
   //
-  constexpr virtual Visibility get_visibility()
+  constexpr virtual Visibility get_visibility(Context &context)
   {
     return Visibility::Visible;
   }
 
   //
-  constexpr virtual i64 get_z_index(i64 z_index)
+  constexpr virtual i64 get_z_index(Context &context, i64 z_index)
   {
     return z_index;
   }
 
   //
-  constexpr virtual mat4 get_transform()
+  constexpr virtual mat4 get_transform(Context &context)
   {
     return mat4::identity();
   }
 
   //
-  constexpr virtual Layout layout(rect area)
+  constexpr virtual Layout layout(Context &context, rect area)
   {
     return Layout{};
   }
 
   //
-  constexpr virtual void draw(gfx::Canvas &canvas, rect area)
+  constexpr virtual void draw(Context &context, gfx::Canvas &canvas, rect area)
   {}
 
   //
@@ -305,18 +304,6 @@ struct Widget
   // TODO(lamarrr): can this be simpler?
   // virtual void raise_tooltip(){}
   // virtual void lower_tooltip(){}
-
-  // TODO(lamarrr): we need a widget build tree???
-  //
-  virtual simdjson::dom::element save(Context &context, simdjson::dom::parser &parser)
-  {
-    return parser.parse("{}", 2);
-  }
-
-  //
-  virtual void restore(Context &context, simdjson::dom::element const &element)
-  {}
-
   rect area;          // position of the widget on the viewport. calculated on every frame
   u64  id = 0;        // id used to recognise the widget. changes from frame to frame??? // TODO(lamarrr)
 };

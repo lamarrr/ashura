@@ -129,6 +129,38 @@ constexpr f32 cross(vec2 a, vec2 b)
   return a.x * b.y - b.x * a.y;
 }
 
+struct tri
+{
+  vec2 p0, p1, p2;
+
+  constexpr f32 sign() const
+  {
+    return (p0.x - p2.x) * (p1.y - p2.y) - (p1.x - p2.x) * (p0.y - p2.y);
+  }
+
+  constexpr bool contains(vec2 point) const
+  {
+    f32 sign0 = tri{point, p0, p1}.sign();
+    f32 sign1 = tri{point, p1, p2}.sign();
+    f32 sign2 = tri{point, p2, p0}.sign();
+
+    bool has_neg = (sign0 < 0) || (sign1 < 0) || (sign2 < 0);
+    bool has_pos = (sign0 > 0) || (sign1 > 0) || (sign2 > 0);
+
+    return !(has_neg && has_pos);
+  }
+};
+
+struct quad
+{
+  vec2 p0, p1, p2, p3;
+
+  constexpr bool contains(vec2 point) const
+  {
+    return tri{.p0 = p0, .p1 = p1, .p2 = p2}.contains(point) || tri{.p0 = p0, .p1 = p2, .p2 = p3}.contains(point);
+  }
+};
+
 struct rect
 {
   vec2 offset, extent;
@@ -151,41 +183,43 @@ struct rect
     return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
   }
 
+  constexpr bool contains(quad const &quad) const
+  {
+    return contains(quad.p0) || contains(quad.p1) || contains(quad.p2) || contains(quad.p3);
+  }
+
   constexpr bool is_visible() const
   {
     return extent.x != 0 && extent.y != 0;
   }
-};
 
-struct tri
-{
-  vec2 p1, p2, p3;
-
-  constexpr f32 sign() const
+  constexpr vec2 top_left() const
   {
-    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+    return offset;
   }
 
-  constexpr bool contains(vec2 point) const
+  constexpr vec2 top_right() const
   {
-    f32 sign1 = tri{point, p1, p2}.sign();
-    f32 sign2 = tri{point, p2, p3}.sign();
-    f32 sign3 = tri{point, p3, p1}.sign();
-
-    bool has_neg = (sign1 < 0) || (sign2 < 0) || (sign3 < 0);
-    bool has_pos = (sign1 > 0) || (sign2 > 0) || (sign3 > 0);
-
-    return !(has_neg && has_pos);
+    return offset + vec2{extent.x, 0};
   }
-};
 
-struct quad
-{
-  vec2 p1, p2, p3, p4;
-
-  constexpr bool contains(vec2 point) const
+  constexpr vec2 bottom_left() const
   {
-    return tri{.p1 = p1, .p2 = p2, .p3 = p3}.contains(point) || tri{.p1 = p1, .p2 = p3, .p3 = p4}.contains(point);
+    return offset + vec2{0, extent.y};
+  }
+
+  constexpr vec2 bottom_right() const
+  {
+    return offset + extent;
+  }
+
+  constexpr quad to_quad() const
+  {
+    return quad{
+        .p0 = top_left(),
+        .p1 = top_right(),
+        .p2 = bottom_right(),
+        .p3 = bottom_left()};
   }
 };
 
@@ -350,6 +384,14 @@ constexpr vec2 transform(mat4 const &a, vec3 const &b)
   return vec2{.x = prod.x, .y = prod.y};
 }
 
+constexpr quad transform(mat4 const &a, rect const &b)
+{
+  return quad{.p0 = transform(a, b.top_left()),
+              .p1 = transform(a, b.top_right()),
+              .p2 = transform(a, b.bottom_right()),
+              .p3 = transform(a, b.bottom_left())};
+}
+
 constexpr mat4 translate(vec3 t)
 {
   return mat4{
@@ -400,6 +442,36 @@ inline mat4 rotate_z(f32 degree_radians)
   };
 }
 
+inline mat4 shear_x(f32 y_shear, f32 z_shear)
+{
+  return mat4{
+      vec4{1, y_shear, z_shear, 0},
+      vec4{0, 1, 0, 0},
+      vec4{0, 0, 1, 0},
+      vec4{0, 0, 0, 1},
+  };
+}
+
+inline mat4 shear_y(f32 x_shear, f32 z_shear)
+{
+  return mat4{
+      vec4{1, 0, 0, 0},
+      vec4{x_shear, 1, z_shear, 0},
+      vec4{0, 0, 1, 0},
+      vec4{0, 0, 0, 1},
+  };
+}
+
+inline mat4 shear_z(f32 x_shear, f32 y_shear)
+{
+  return mat4{
+      vec4{1, 0, 0, 0},
+      vec4{0, 1, 0, 0},
+      vec4{x_shear, y_shear, 1, 0},
+      vec4{0, 0, 0, 1},
+  };
+}
+
 struct quaternion
 {
   f32 x = 0, y = 0, z = 0, w = 0;
@@ -436,6 +508,11 @@ constexpr bool operator!=(quaternion a, quaternion b)
 struct offset
 {
   u32 x = 0, y = 0;
+
+  constexpr vec2 to_vec() const
+  {
+    return vec2{.x = AS(f32, x), .y = AS(f32, y)};
+  }
 };
 
 constexpr offset operator+(offset a, offset b)
@@ -500,6 +577,11 @@ struct extent
   constexpr u64 area() const
   {
     return AS(u64, width) * height;
+  }
+
+  constexpr vec2 to_vec() const
+  {
+    return vec2{.x = AS(f32, width), .y = AS(f32, height)};
   }
 };
 
@@ -596,7 +678,7 @@ struct color
     return !is_transparent();
   }
 
-  constexpr vec4 as_vec() const
+  constexpr vec4 to_vec() const
   {
     return vec4{.x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
   }
@@ -623,6 +705,7 @@ constexpr color BLUE    = color::from_rgb(0x00, 0x00, 0xff);
 constexpr color GREEN   = color::from_rgb(0x00, 0xff, 0x00);
 constexpr color CYAN    = color::from_rgb(0x00, 0xff, 0xff);
 constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
+constexpr color YELLOW  = color::from_rgb(0xff, 0xff, 0x00);
 
 }        // namespace colors
 

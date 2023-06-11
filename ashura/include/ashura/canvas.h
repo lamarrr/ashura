@@ -319,6 +319,12 @@ struct Canvas
   DrawList              draw_list;
   stx::Vec<vertex>      scratch;        // scratch/temporary buffer for storing generating vertices before storing in the draw list
 
+  bool viewport_contains(rect area) const
+  {
+    return rect{.offset = {}, .extent = viewport_extent}
+        .contains(ash::transform(state.global_transform * state.transform, area));
+  }
+
   Canvas &restart(vec2 viewport_extent)
   {
     this->viewport_extent = viewport_extent;
@@ -395,6 +401,42 @@ struct Canvas
     return *this;
   }
 
+  Canvas &shear_x(f32 y_shear, f32 z_shear)
+  {
+    state.transform = ash::shear_x(y_shear, z_shear) * state.transform;
+    return *this;
+  }
+
+  Canvas &global_shear_x(f32 y_shear, f32 z_shear)
+  {
+    state.global_transform = ash::shear_x(y_shear, z_shear) * state.global_transform;
+    return *this;
+  }
+
+  Canvas &shear_y(f32 x_shear, f32 z_shear)
+  {
+    state.transform = ash::shear_x(x_shear, z_shear) * state.transform;
+    return *this;
+  }
+
+  Canvas &global_shear_y(f32 x_shear, f32 z_shear)
+  {
+    state.global_transform = ash::shear_x(x_shear, z_shear) * state.global_transform;
+    return *this;
+  }
+
+  Canvas &shear_z(f32 x_shear, f32 y_shear)
+  {
+    state.transform = ash::shear_z(x_shear, y_shear) * state.transform;
+    return *this;
+  }
+
+  Canvas &global_shear_z(f32 x_shear, f32 y_shear)
+  {
+    state.global_transform = ash::shear_z(x_shear, y_shear) * state.global_transform;
+    return *this;
+  }
+
   Canvas &transform(mat4 const &t)
   {
     state.transform = t * state.transform;
@@ -407,11 +449,18 @@ struct Canvas
     return *this;
   }
 
+  /// Not affected by transforms
+  Canvas &clip(rect clip_rect)
+  {
+    state.clip_rect = clip_rect;
+    return *this;
+  }
+
   Canvas &clear(color clear_color, image texture = WHITE_IMAGE)
   {
     draw_list.clear();
 
-    vec4 color = clear_color.as_vec();
+    vec4 color = clear_color.to_vec();
 
     vertex vertices[] = {{.position = {0, 0}, .uv = {0, 0}, .color = color},
                          {.position = {viewport_extent.x, 0}, .uv = {1, 0}, .color = color},
@@ -437,7 +486,7 @@ struct Canvas
 
   Canvas &draw_path(stx::Span<vertex const> points, rect area, rect_uv texture_region, image texture, f32 thickness, bool should_close)
   {
-    if (points.size() < 2 || !area.is_visible())
+    if (points.size() < 2 || !area.is_visible() || !viewport_contains(area))
     {
       return *this;
     }
@@ -495,7 +544,7 @@ struct Canvas
 
   Canvas &draw_convex_polygon_filled(stx::Span<vertex const> polygon, rect area, image texture)
   {
-    if (polygon.size() < 3 || !area.is_visible())
+    if (polygon.size() < 3 || !area.is_visible() || !viewport_contains(area))
     {
       return *this;
     }
@@ -507,26 +556,41 @@ struct Canvas
 
   Canvas &draw_line(vec2 begin, vec2 end, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    vec4   color_v  = color.as_vec();
+    vec4   color_v  = color.to_vec();
     vertex points[] = {{.position = {}, .uv = {}, .color = color_v},
                        {.position = end - begin, .uv = {}, .color = color_v}};
 
     rect area{.offset = begin, .extent = end - begin};
+
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
 
     return draw_path(points, area, texture_region, texture, thickness, false);
   }
 
   Canvas &draw_rect_filled(rect area, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    polygons::rect(area.extent, color.as_vec(), texture_region, __reserve_convex_polygon(4, area, texture));
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
+    polygons::rect(area.extent, color.to_vec(), texture_region, __reserve_convex_polygon(4, area, texture));
     return *this;
   }
 
   Canvas &draw_rect_stroke(rect area, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     vertex line[4];
 
-    polygons::rect(area.extent, color.as_vec(), texture_region, line);
+    polygons::rect(area.extent, color.to_vec(), texture_region, line);
 
     area.offset = area.offset - thickness / 2;
     area.extent = area.extent + thickness;
@@ -537,17 +601,27 @@ struct Canvas
   Canvas &draw_circle_filled(vec2 position, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
-    polygons::circle(radius, nsegments, color.as_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
+    polygons::circle(radius, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
     return *this;
   }
 
   Canvas &draw_circle_stroke(vec2 position, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    rect area{.offset = position - vec2{thickness / 2, thickness / 2}, .extent = vec2::splat(2 * radius) + vec2{thickness, thickness}};
+
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    polygons::circle(radius, nsegments, color.as_vec(), texture_region, scratch);
-
-    rect area{.offset = position - vec2{thickness / 2, thickness / 2}, .extent = vec2::splat(2 * radius) + vec2{thickness, thickness}};
+    polygons::circle(radius, nsegments, color.to_vec(), texture_region, scratch);
 
     return draw_path(scratch, area, texture_region, texture, thickness, true);
   }
@@ -555,178 +629,167 @@ struct Canvas
   Canvas &draw_ellipse_filled(vec2 position, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = 2 * radii};
-    polygons::ellipse(radii, nsegments, color.as_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
+    polygons::ellipse(radii, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
     return *this;
   }
 
   Canvas &draw_ellipse_stroke(vec2 position, vec2 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    rect area{.offset = position - vec2::splat(thickness / 2), .extent = (2 * radii) + vec2::splat(thickness)};
+
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    polygons::ellipse(radii, nsegments, color.as_vec(), texture_region, scratch);
-
-    rect area{.offset = position - vec2::splat(thickness / 2), .extent = (2 * radii) + vec2::splat(thickness)};
+    polygons::ellipse(radii, nsegments, color.to_vec(), texture_region, scratch);
 
     return draw_path(scratch, area, texture_region, texture, thickness, true);
   }
 
   Canvas &draw_round_rect_filled(rect area, vec4 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    polygons::round_rect(area.extent, radii, nsegments, color.as_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, texture));
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
+    polygons::round_rect(area.extent, radii, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, texture));
     return *this;
   }
 
   Canvas &draw_round_rect_stroke(rect area, vec4 radii, color color, f32 thickness, u32 nsegments, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    scratch.unsafe_resize_uninitialized(nsegments * 4).unwrap();
-
-    polygons::round_rect(area.extent, radii, nsegments, color.as_vec(), texture_region, scratch);
-
     area.offset = area.offset - vec2::splat(thickness / 2);
     area.extent = area.extent + vec2::splat(thickness);
+
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
+    scratch.unsafe_resize_uninitialized(nsegments * 4).unwrap();
+
+    polygons::round_rect(area.extent, radii, nsegments, color.to_vec(), texture_region, scratch);
 
     return draw_path(scratch, area, texture_region, texture, thickness, true);
   }
 
   Canvas &draw_image(image img, rect area, rect_uv texture_region, color tint = colors::WHITE)
   {
-    polygons::rect(area.extent, tint.as_vec(), texture_region, __reserve_convex_polygon(4, area, img));
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
+    polygons::rect(area.extent, tint.to_vec(), texture_region, __reserve_convex_polygon(4, area, img));
     return *this;
   }
 
   Canvas &draw_image(image img, rect area, color tint = colors::WHITE)
   {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     return draw_image(img, area, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
   Canvas &draw_rounded_image(image img, rect area, vec4 border_radii, u32 nsegments, rect_uv texture_region, color tint = colors::WHITE)
   {
-    polygons::round_rect(area.extent, border_radii, nsegments, tint.as_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, img));
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
+    polygons::round_rect(area.extent, border_radii, nsegments, tint.to_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, img));
     return *this;
   }
 
   Canvas &draw_rounded_image(image img, rect area, vec4 border_radii, u32 nsegments, color tint = colors::WHITE)
   {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
     return draw_rounded_image(img, area, border_radii, nsegments, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
-  Canvas &draw_glyph(Glyph const &glyph, TextProps const &props, FontAtlas const &atlas, vec2 baseline, f32 line_height, f32 vert_spacing)
+  Canvas &draw_text(Paragraph const &paragraph, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, vec2 const position)
   {
-    f32  font_scale = props.font_height / atlas.font_height;
-    f32  ascent     = font_scale * glyph.ascent;
-    vec2 advance    = font_scale * glyph.advance;
-    vec2 extent{font_scale * glyph.extent.width, font_scale * glyph.extent.height};
-
-    if (props.background_color.is_visible())
+    if (!viewport_contains(rect{.offset = position, .extent = layout.span}))
     {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{advance.x + props.letter_spacing, line_height}}, props.background_color);
+      return *this;
     }
 
-    if (props.foreground_color.is_visible())
+    for (TextRunSubWord const &subword : layout.subwords)
     {
-      draw_image(atlas.texture, rect{.offset = baseline - vec2{0, vert_spacing + ascent}, .extent = extent}, glyph.texture_region, atlas.has_color ? colors::WHITE : props.foreground_color);
-    }
+      TextProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
 
-    if (props.underline_color.is_visible() && props.underline_thickness != 0)
-    {
-      draw_rect_filled(rect{.offset = baseline, .extent = vec2{advance.x + props.letter_spacing, props.underline_thickness}}, props.underline_color);
-    }
-
-    if (props.strikethrough_color.is_visible() && props.strikethrough_thickness != 0)
-    {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height / 2 + props.strikethrough_thickness / 2}, .extent = vec2{advance.x + props.letter_spacing, props.strikethrough_thickness}}, props.strikethrough_color);
-    }
-
-    return *this;
-  }
-
-  Canvas &draw_glyph(Glyph const &glyph, GlyphStroke const &stroke, TextProps const &props, FontAtlas const &atlas, FontStrokeAtlas const &stroke_atlas, vec2 baseline, f32 line_height, f32 vert_spacing)
-  {
-    f32  font_scale = props.font_height / atlas.font_height;
-    f32  ascent     = font_scale * glyph.ascent;
-    vec2 advance    = font_scale * glyph.advance;
-    vec2 glyph_extent{font_scale * glyph.extent.width, font_scale * glyph.extent.height};
-    vec2 stroke_extent{font_scale * stroke.extent.width, font_scale * stroke.extent.height};
-
-    if (props.background_color.is_visible())
-    {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{advance.x + props.letter_spacing, line_height}}, props.background_color);
-    }
-
-    if (props.stroke_color.is_visible())
-    {
-      // position stroke center on the center of the glyph by default
-      vec2 stroke_alignment = (stroke_extent - glyph_extent) / 2;
-      draw_image(stroke_atlas.texture, rect{.offset = (baseline - vec2{0, vert_spacing + ascent}) - stroke_alignment + props.stroke_translation, .extent = stroke_extent}, stroke.texture_region, props.stroke_color);
-    }
-
-    if (props.foreground_color.is_visible())
-    {
-      draw_image(atlas.texture, rect{.offset = baseline - vec2{0, vert_spacing + ascent}, .extent = glyph_extent}, glyph.texture_region, props.foreground_color);
-    }
-
-    if (props.underline_color.is_visible() && props.underline_thickness != 0)
-    {
-      draw_rect_filled(rect{.offset = baseline, .extent = vec2{advance.x + props.letter_spacing, props.underline_thickness}}, props.underline_color);
-    }
-
-    if (props.strikethrough_color.is_visible() && props.strikethrough_thickness != 0)
-    {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height / 2 + props.strikethrough_thickness / 2}, .extent = vec2{advance.x + props.letter_spacing, props.strikethrough_thickness}}, props.strikethrough_color);
-    }
-
-    return *this;
-  }
-
-  Canvas &draw_space(TextProps const &props, vec2 baseline, f32 line_height, f32 width)
-  {
-    if (props.background_color.is_visible())
-    {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{width, line_height}}, props.background_color);
-    }
-
-    if (props.underline_color.is_visible() && props.underline_thickness != 0)
-    {
-      draw_rect_filled(rect{.offset = baseline, .extent = vec2{width, props.underline_thickness}}, props.underline_color);
-    }
-
-    if (props.strikethrough_color.is_visible() && props.strikethrough_thickness != 0)
-    {
-      draw_rect_filled(rect{.offset = baseline - vec2{0, line_height / 2 + props.strikethrough_thickness / 2}, .extent = vec2{width, props.strikethrough_thickness}}, props.strikethrough_color);
-    }
-
-    return *this;
-  }
-
-  Canvas &draw_text(Paragraph const &paragraph, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, vec2 position)
-  {
-    for (SpaceLayout const &space_layout : layout.space_layouts)
-    {
-      draw_space(layout.subwords[space_layout.subword].props, position + space_layout.baseline_position, space_layout.line_height, space_layout.width);
+      if (props.background_color.is_visible())
+      {
+        draw_rect_filled(rect{.offset = position + subword.area.offset, .extent = subword.area.extent}, props.background_color);
+      }
     }
 
     for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
     {
-      TextProps props = layout.subwords[glyph_layout.subword].props;
+      TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
+      FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
 
-      if (props.stroke_color.is_visible() && font_bundle[glyph_layout.font].stroke_atlas.is_some())
+      if (props.stroke_color.is_visible() && props.font_height > 0 && font_bundle[glyph_layout.font].stroke_atlas.is_some())
       {
-        draw_glyph(font_bundle[glyph_layout.font].atlas.glyphs[glyph_layout.glyph],
-                   font_bundle[glyph_layout.font].stroke_atlas.value().strokes[glyph_layout.glyph],
-                   props,
-                   font_bundle[glyph_layout.font].atlas,
-                   font_bundle[glyph_layout.font].stroke_atlas.value(),
-                   position + glyph_layout.baseline_position,
-                   glyph_layout.line_height,
-                   glyph_layout.vert_spacing);
+        FontStrokeAtlas const &stroke_atlas  = font_bundle[glyph_layout.font].stroke_atlas.value();
+        f32                    glyph_scale   = props.font_height / atlas.font_height;
+        vec2                   extent        = glyph_scale * stroke_atlas.strokes[glyph_layout.glyph].extent.to_vec();
+        vec2                   stroke_offset = (atlas.glyphs[glyph_layout.glyph].extent.to_vec() - stroke_atlas.strokes[glyph_layout.glyph].extent.to_vec()) / 2;
+        stroke_offset                        = glyph_scale * stroke_offset + props.stroke_offset;
+
+        draw_image(stroke_atlas.texture,
+                   rect{.offset = position + glyph_layout.offset + stroke_offset, .extent = extent},
+                   stroke_atlas.strokes[glyph_layout.glyph].texture_region,
+                   props.stroke_color);
       }
-      else
+    }
+
+    for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
+    {
+      TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
+      FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
+
+      if (props.foreground_color.is_visible() && props.font_height > 0)
       {
-        draw_glyph(font_bundle[glyph_layout.font].atlas.glyphs[glyph_layout.glyph],
-                   props,
-                   font_bundle[glyph_layout.font].atlas,
-                   position + glyph_layout.baseline_position, glyph_layout.line_height,
-                   glyph_layout.vert_spacing);
+        draw_image(atlas.texture,
+                   rect{.offset = position + glyph_layout.offset, .extent = glyph_layout.extent},
+                   atlas.glyphs[glyph_layout.glyph].texture_region,
+                   props.foreground_color);
+      }
+    }
+
+    for (TextRunSubWord const &subword : layout.subwords)
+    {
+      TextProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
+
+      if (props.strikethrough_color.is_visible() && props.strikethrough_thickness > 0)
+      {
+        vec2 pos = position + subword.area.line_top;
+        pos.y += (subword.area.baseline.y - subword.area.line_top.y) / 2;
+        pos.y -= props.strikethrough_thickness / 2;
+        draw_rect_filled(rect{.offset = pos, .extent = vec2{subword.area.extent.x, props.strikethrough_thickness}}, props.strikethrough_color);
+      }
+
+      if (props.underline_color.is_visible() && props.underline_thickness > 0)
+      {
+        draw_rect_filled(rect{.offset = position + subword.area.baseline, .extent = vec2{subword.area.extent.x, props.underline_thickness}}, props.underline_color);
       }
     }
 

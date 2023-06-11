@@ -30,22 +30,17 @@ struct Padding : public Widget
     child = new DerivedWidget{std::move(ichild)};
   }
 
-  constexpr virtual stx::Span<Widget *const> get_children() override
+  constexpr virtual stx::Span<Widget *const> get_children(Context &context) override
   {
     return stx::Span{&child, 1};
   }
 
-  constexpr virtual WidgetInfo get_info() override
+  constexpr virtual WidgetInfo get_info(Context &context) override
   {
     return WidgetInfo{.type = "Padding"};
   }
 
   constexpr virtual Layout layout(rect area);
-
-  virtual simdjson::dom::element save(Context         &context,
-                                      simdjson::dom::parser &parser);
-
-  virtual void restore(Context &context, simdjson::dom::element const &element);
 
   EdgeInsets edge_insets;
   Widget    *child = nullptr;

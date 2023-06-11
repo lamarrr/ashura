@@ -20,6 +20,9 @@
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
+#define TIMER_BEGIN(name) ::std::chrono::steady_clock::time_point name##_TIMER_Begin = ::std::chrono::steady_clock::now()
+#define TIMER_END(name, str) ASH_LOG_INFO(FontRenderer, "Timer: {}, Task: {}, took: {}ms", #name, str, (::std::chrono::steady_clock::now() - name##_TIMER_Begin).count() / 1'000'000.0f)
+
 namespace ash
 {
 
@@ -207,24 +210,31 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
                                                  widget_system.events.push_inplace(events).unwrap();
                                                }
                                              }).unwrap());
+  TIMER_BEGIN(AllFontLoad);
 
   for (FontSpec const &spec : cfg.fonts)
   {
+    TIMER_BEGIN(FontLoadFromFile);
     ASH_LOG_INFO(Init, "Loading font: {} from file: {}", spec.name.view(), spec.path.view());
     stx::Result result = load_font_from_file(spec.path);
+    TIMER_END(FontLoadFromFile, "Rendering Font");
 
     if (result.is_ok())
     {
+      TIMER_BEGIN(FontGlyphRender);
       ASH_LOG_INFO(Init, "Loaded font: {} from file: {}", spec.name.view(), spec.path.view());
       auto [atlas, image_buffer] = render_font_atlas(*result.value(), spec.atlas_font_height, spec.max_atlas_extent);
       atlas.texture              = manager.add_image(image_buffer, false);
       stx::Option<FontStrokeAtlas> stroke_atlas_o;
+      TIMER_END(FontGlyphRender, "Rendering Font");
 
       if (spec.stroke_thickness != 0)
       {
+        TIMER_BEGIN(FontStrokeRender);
         auto [stroke_atlas, stroke_image_buffer] = render_font_stroke_atlas(*result.value(), spec.atlas_font_height, spec.stroke_thickness, spec.max_atlas_extent);
         stroke_atlas.texture                     = manager.add_image(stroke_image_buffer, false);
         stroke_atlas_o                           = stx::Some(std::move(stroke_atlas));
+        TIMER_END(FontStrokeRender, "Rendering Font");
       }
 
       font_bundle.push(BundledFont{.name = spec.name.copy(stx::os_allocator).unwrap(), .font = std::move(result.value()), .atlas = std::move(atlas), .stroke_atlas = std::move(stroke_atlas_o)}).unwrap();
@@ -234,6 +244,10 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
       ASH_LOG_ERR(Init, "Failed to load font: {} from file: {}, error: {}", spec.name.view(), spec.path.view(), AS(i64, result.err()));
     }
   }
+
+  TIMER_END(AllFontLoad, "All Font Rendering");
+
+  ctx.font_bundle = font_bundle;
 
   // TODO(lamarrr): attach debug widgets: FPS stats, memory usage, etc
   widget_system.on_startup(ctx);
@@ -261,7 +275,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
   widget_system.pump_events(ctx);
   widget_system.tick_widgets(ctx, interval);
   // new widgets could have been added
-  widget_system.assign_ids();
+  widget_system.assign_ids(ctx);
   manager.flush_deletes();
   manager.submit_uploads();
 
@@ -269,9 +283,9 @@ void Engine::tick(std::chrono::nanoseconds interval)
     VkExtent2D extent = root_window.value()->surface.value()->swapchain.value().window_extent;
     vec2       viewport_extent{AS(f32, extent.width), AS(f32, extent.height)};
     canvas.restart(viewport_extent);
-    widget_system.perform_widget_layout(viewport_extent);
-    widget_system.rebuild_draw_entries();
-    widget_system.draw_widgets(ctx, canvas, mat4::identity());
+    widget_system.perform_widget_layout(ctx, viewport_extent);
+    widget_system.rebuild_draw_entries(ctx);
+    widget_system.draw_widgets(ctx, viewport_extent, canvas, mat4::identity());
   };
 
   // only record if swapchain visible,

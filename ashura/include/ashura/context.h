@@ -6,6 +6,7 @@
 
 #include "SDL3/SDL.h"
 #include "ashura/event.h"
+#include "ashura/font.h"
 #include "ashura/loggers.h"
 #include "ashura/plugin.h"
 #include "ashura/primitives.h"
@@ -32,12 +33,13 @@ enum class SystemTheme
 // not thread-safe! ensure all api calls occur on the main thread.
 struct Context
 {
-  stx::Vec<Plugin *>   plugins;
-  stx::TaskScheduler  *task_scheduler = nullptr;
-  ClipBoard           *clipboard      = nullptr;
-  WindowManager       *window_manager = nullptr;
-  SystemTheme          theme          = SystemTheme::Unknown;
-  GlobalEventListeners event_listeners;
+  stx::Vec<Plugin *>           plugins;
+  stx::TaskScheduler          *task_scheduler = nullptr;
+  ClipBoard                   *clipboard      = nullptr;
+  WindowManager               *window_manager = nullptr;
+  SystemTheme                  theme          = SystemTheme::Unknown;
+  GlobalEventListeners         event_listeners;
+  stx::Span<BundledFont const> font_bundle;
   // TODO(lamarrr): expose current window here
 
   Context()
@@ -323,10 +325,10 @@ struct Context
 
           SDL_EVENT_AUDIO_DEVICE_ADDED;
           SDL_EVENT_AUDIO_DEVICE_REMOVED;
-          SDL_EVENT_DISPLAY_ORIENTATION;          // Display orientation has changed to data1
-          SDL_EVENT_DISPLAY_CONNECTED;            // Display has been added to the system
-          SDL_EVENT_DISPLAY_DISCONNECTED;         // Display has been removed from the system
-          SDL_EVENT_DISPLAY_MOVED;                // Display has changed position
+          SDL_EVENT_DISPLAY_ORIENTATION;         // Display orientation has changed to data1
+          SDL_EVENT_DISPLAY_CONNECTED;           // Display has been added to the system
+          SDL_EVENT_DISPLAY_DISCONNECTED;        // Display has been removed from the system
+          SDL_EVENT_DISPLAY_MOVED;               // Display has changed position
 
         default:
         {
