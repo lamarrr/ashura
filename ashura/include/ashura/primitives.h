@@ -39,6 +39,11 @@ constexpr f32 abs(f32 x)
   return x >= 0 ? x : -x;
 }
 
+constexpr f32 epsilon_clamp(f32 x)
+{
+  return abs(x) > stx::F32_EPSILON ? x : stx::F32_EPSILON;
+}
+
 struct vec2
 {
   f32 x = 0, y = 0;
@@ -46,6 +51,11 @@ struct vec2
   static constexpr vec2 splat(f32 v)
   {
     return vec2{.x = v, .y = v};
+  }
+
+  constexpr vec2 epsilon_clamp() const
+  {
+    return vec2{.x = ::ash::epsilon_clamp(x), .y = ::ash::epsilon_clamp(y)};
   }
 };
 
@@ -245,7 +255,7 @@ struct rect
 
 struct vec3
 {
-  f32 x = 0, y = 0, z = 0, __padding = 0;
+  f32 x = 0, y = 0, z = 0, __padding__;
 
   static constexpr vec3 splat(f32 v)
   {
@@ -255,32 +265,32 @@ struct vec3
 
 constexpr vec3 operator-(vec3 a, f32 b)
 {
-  return vec3{a.x - b, a.y - b, a.z - b, a.__padding - b};
+  return vec3{a.x - b, a.y - b, a.z - b};
 }
 
 constexpr vec3 operator-(f32 a, vec3 b)
 {
-  return vec3{a - b.x, a - b.y, a - b.z, a - b.__padding};
+  return vec3{a - b.x, a - b.y, a - b.z};
 }
 
 constexpr vec3 operator*(vec3 a, f32 b)
 {
-  return vec3{a.x * b, a.y * b, a.z * b, a.__padding * b};
+  return vec3{a.x * b, a.y * b, a.z * b};
 }
 
 constexpr vec3 operator*(f32 a, vec3 b)
 {
-  return vec3{a * b.x, a * b.y, a * b.z, a * b.__padding};
+  return vec3{a * b.x, a * b.y, a * b.z};
 }
 
 constexpr vec3 operator*(vec3 a, vec3 b)
 {
-  return vec3{a.x * b.x, a.y * b.y, a.z * b.z, a.__padding * b.__padding};
+  return vec3{a.x * b.x, a.y * b.y, a.z * b.z};
 }
 
 constexpr vec3 operator/(vec3 a, vec3 b)
 {
-  return vec3{a.x / b.x, a.y / b.y, a.z / b.z, a.__padding / b.__padding};
+  return vec3{a.x / b.x, a.y / b.y, a.z / b.z};
 }
 
 constexpr f32 dot(vec3 a, vec3 b)
@@ -321,15 +331,15 @@ struct mat3
 
   static constexpr mat3 identity()
   {
-    return mat3{vec3{.x = 1, .y = 0, .z = 0, .__padding = 0},
-                vec3{.x = 0, .y = 1, .z = 0, .__padding = 0},
-                vec3{.x = 0, .y = 0, .z = 1, .__padding = 0}};
+    return mat3{vec3{.x = 1, .y = 0, .z = 0},
+                vec3{.x = 0, .y = 1, .z = 0},
+                vec3{.x = 0, .y = 0, .z = 1}};
   }
 };
 
 constexpr vec3 operator*(mat3 const &a, vec3 const &b)
 {
-  return vec3{.x = dot(a.rows[0], b), .y = dot(a.rows[1], b), .z = dot(a.rows[2], b), .__padding = 0};
+  return vec3{.x = dot(a.rows[0], b), .y = dot(a.rows[1], b), .z = dot(a.rows[2], b)};
 }
 
 /// row-major

@@ -103,7 +103,7 @@ inline void round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4 color, rect_
   {
     vec2 p = (extent - radii.z) + radii.z *vec2{std::cos(segment * step), std::sin(segment * step)};
 
-    vec2 uv = texture_region.uv0 + p / extent * (texture_region.uv1 - texture_region.uv0);
+    vec2 uv = texture_region.uv0 + p / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
 
     polygon[i] = vertex{.position = p, .uv = uv, .color = color};
   }
@@ -112,7 +112,7 @@ inline void round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4 color, rect_
   {
     vec2 p = vec2{radii.w, extent.y - radii.w} + radii.w *vec2{std::cos(PI / 2 + segment * step), std::sin(PI / 2 + segment * step)};
 
-    vec2 uv = texture_region.uv0 + p / extent * (texture_region.uv1 - texture_region.uv0);
+    vec2 uv = texture_region.uv0 + p / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
 
     polygon[i] = vertex{.position = p, .uv = uv, .color = color};
   }
@@ -121,7 +121,7 @@ inline void round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4 color, rect_
   {
     vec2 p = radii.x + radii.x *vec2{std::cos(PI + segment * step), std::sin(PI + segment * step)};
 
-    vec2 uv = texture_region.uv0 + p / extent * (texture_region.uv1 - texture_region.uv0);
+    vec2 uv = texture_region.uv0 + p / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
 
     polygon[i] = vertex{.position = p, .uv = uv, .color = color};
   }
@@ -130,7 +130,7 @@ inline void round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4 color, rect_
   {
     vec2 p = vec2{extent.x - radii.y, radii.y} + radii.y *vec2{std::cos(PI * 3.0f / 2.0f + segment * step), std::sin(PI * 3.0f / 2.0f + segment * step)};
 
-    vec2 uv = texture_region.uv0 + p / extent * (texture_region.uv1 - texture_region.uv0);
+    vec2 uv = texture_region.uv0 + p / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
 
     polygon[i] = vertex{.position = p, .uv = uv, .color = color};
   }
@@ -162,7 +162,7 @@ inline void add_line_stroke(vec2 p0, vec2 p1, f32 thickness, vec2 extent, vec4 c
   //
   // get the angle of inclination of p2 to p1
   vec2 d     = p1 - p0;
-  f32  grad  = std::abs(d.y / std::max(stx::F32_EPSILON, d.x));
+  f32  grad  = std::abs(d.y / epsilon_clamp(d.x));
   f32  alpha = std::atan(grad);
 
   // use direction of the points to get the actual overall angle of
@@ -196,10 +196,10 @@ inline void add_line_stroke(vec2 p0, vec2 p1, f32 thickness, vec2 extent, vec4 c
   vec2 p1_0 = p1 + f;
   vec2 p1_1 = p1 + g;
 
-  vec2 p0_0_uv = texture_region.uv0 + p0_0 / extent * (texture_region.uv1 - texture_region.uv0);
-  vec2 p0_1_uv = texture_region.uv0 + p0_1 / extent * (texture_region.uv1 - texture_region.uv0);
-  vec2 p1_0_uv = texture_region.uv0 + p1_0 / extent * (texture_region.uv1 - texture_region.uv0);
-  vec2 p1_1_uv = texture_region.uv0 + p1_1 / extent * (texture_region.uv1 - texture_region.uv0);
+  vec2 p0_0_uv = texture_region.uv0 + p0_0 / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
+  vec2 p0_1_uv = texture_region.uv0 + p0_1 / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
+  vec2 p1_0_uv = texture_region.uv0 + p1_0 / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
+  vec2 p1_1_uv = texture_region.uv0 + p1_1 / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
 
   vertex vertices[] = {{.position = p0_0, .uv = p0_0_uv, .color = color},
                        {.position = p0_1, .uv = p0_1_uv, .color = color},
@@ -281,64 +281,6 @@ inline void triangulate_line(stx::Span<vertex const> in_points, vec2 extent, f32
   }
 }
 
-// TODO: Thickness anti-aliased lines cap are missing their AA fringe.
-// We avoid using the ImVec2 math operators here to reduce cost to a minimum for debug/non-inlined builds.
-inline void AddPolyline(stx::Span<vertex const> points, vec2 extent, f32 thickness, rect_uv texture_region, stx::Vec<vertex> &out_vertices, stx::Vec<u32> &out_indices, bool close)
-{
-  if (points.size() < 2)
-  {
-    return;
-  }
-
-  usize count     = close ? points.size() : points.size() - 1;
-  usize idx_count = count * 6;
-  usize vtx_count = count * 4;
-
-  u32 vertex_index = 0;
-
-  for (usize i0 = 0; i0 < count; i0++)
-  {
-    usize         i1 = (i0 + 1) == points.size() ? 0 : i0 + 1;
-    vertex const &p0 = points[i0];
-    vertex const &p1 = points[i1];
-
-    f32 dx = p1.position.x - p0.position.x;
-    f32 dy = p1.position.y - p0.position.y;
-    ASH_NORMALIZE2F_OVER_ZERO(dx, dy);
-    dx *= (thickness * 0.5f);
-    dy *= (thickness * 0.5f);
-
-    vec2 a{p0.position.x + dy, p0.position.y - dx};
-    vec2 b{p1.position.x + dy, p1.position.y - dx};
-    vec2 c{p1.position.x - dy, p1.position.y + dx};
-    vec2 d{p0.position.x - dy, p0.position.y + dx};
-
-    vec2 a_uv = texture_region.uv0 + a / extent * (texture_region.uv1 - texture_region.uv0);
-    vec2 b_uv = texture_region.uv0 + b / extent * (texture_region.uv1 - texture_region.uv0);
-    vec2 c_uv = texture_region.uv0 + c / extent * (texture_region.uv1 - texture_region.uv0);
-    vec2 d_uv = texture_region.uv0 + d / extent * (texture_region.uv1 - texture_region.uv0);
-
-    vertex vertices[] = {
-        {.position = a, .uv = a_uv, .color = p0.color},
-        {.position = b, .uv = b_uv, .color = p1.color},
-        {.position = c, .uv = c_uv, .color = p1.color},
-        {.position = d, .uv = d_uv, .color = p0.color}};
-
-    u32 indices[] = {
-        vertex_index,
-        vertex_index + 1,
-        vertex_index + 2,
-        vertex_index,
-        vertex_index + 2,
-        vertex_index + 3};
-
-    vertex_index += 4;
-
-    out_vertices.extend(vertices).unwrap();
-    out_indices.extend(indices).unwrap();
-  }
-}
-
 struct DrawCommand
 {
   u32   nvertices = 0;
@@ -406,11 +348,12 @@ struct Canvas
 
   mat4 make_transform(vec2 position) const
   {
-    return ash::translate(vec3{-1, -1, 0})                                            /// normalize to vulkan viewport coordinate range -1 to 1
-           * ash::scale(vec3{2 / viewport_extent.x, 2 / viewport_extent.y, 0})        /// normalize to 0 to 2 coordinate range
-           * state.global_transform                                                   /// apply global coordinate transform
-           * ash::translate(vec3{position.x, position.y, 0})                          /// apply viewport positioning
-           * state.transform;                                                         /// apply local coordinate transform
+    vec2 viewport_extent_clamped = viewport_extent.epsilon_clamp();
+    return ash::translate(vec3{-1, -1, 0})                                                            /// normalize to vulkan viewport coordinate range -1 to 1
+           * ash::scale(vec3{2 / viewport_extent_clamped.x, 2 / viewport_extent_clamped.y, 0})        /// normalize to 0 to 2 coordinate range
+           * state.global_transform                                                                   /// apply global coordinate transform
+           * ash::translate(vec3{position.x, position.y, 0})                                          /// apply viewport positioning
+           * state.transform;                                                                         /// apply local coordinate transform
   }
 
   /// push state (transform and clips) on state stack
@@ -566,7 +509,7 @@ struct Canvas
 
     // the input texture coordinates are not used since we need to regenerate
     // them for the line thickness
-    AddPolyline(points, area.extent, thickness, texture_region, draw_list.vertices, draw_list.indices, should_close);
+    triangulate_line(points, area.extent, thickness, texture_region, draw_list.vertices, draw_list.indices, should_close);
 
     usize curr_nvertices = draw_list.vertices.size();
     usize curr_nindices  = draw_list.indices.size();
