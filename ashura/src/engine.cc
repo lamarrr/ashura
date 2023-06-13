@@ -342,7 +342,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
       renderer.submit(swapchain.window_extent, swapchain.image_extent, swapchain.frame,
                       swapchain.render_fences[swapchain.frame], swapchain.image_acquisition_semaphores[swapchain.frame],
                       swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
-                      swapchain.framebuffers[swapchain_image_index], draw_list.cmds, draw_list.vertices, draw_list.indices,
+                      swapchain.framebuffers[swapchain_image_index], draw_list.commands, draw_list.vertices, draw_list.indices,
                       manager);
 
       swapchain_state = root_window.value()->present(queue.value()->info.queue, swapchain_image_index);

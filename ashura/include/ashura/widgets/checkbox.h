@@ -43,7 +43,7 @@ struct CheckBox : public Widget
       canvas.draw_round_rect_stroke(area, vec4::splat(props.border_radius), props.active_box_color, 2, 2);
       canvas.save();
       canvas.scale(props.extent * .65f, props.extent * .65f);
-      canvas.draw_path(checkmark_path, area.with_extent({1, 1}), {}, 0, 5 / props.extent, false);
+      canvas.draw_path(checkmark_path, area.with_extent({1, 1}), 5 / props.extent, true);
       canvas.restore();
     }
     else

@@ -150,9 +150,6 @@ struct Image : public Widget
       }
       break;
     }
-
-    canvas.draw_round_rect_stroke(rect{{100, 100}, {400, 400}}, vec4::splat(25), colors::GREEN, 20, nsegments*10);
-    // canvas.draw_circle_stroke(  {100,100}, 200, 10, colors::CYAN, 5  );
   }
 
   virtual void tick(Context &context, std::chrono::nanoseconds interval) override

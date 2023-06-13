@@ -17,77 +17,64 @@ namespace ash
 namespace gfx
 {
 
-#define ASH_NORMALIZE2F_OVER_ZERO(VX, VY) \
-  do                                      \
-  {                                       \
-    float d2 = VX * VX + VY * VY;         \
-    if (d2 > 0.0f)                        \
-    {                                     \
-      float inv_len = 1 / std::sqrtf(d2); \
-      VX *= inv_len;                      \
-      VY *= inv_len;                      \
-    }                                     \
-  } while (0)
-
-namespace polygons
+namespace paths
 {
 
-inline void rect(vec2 extent, vec4 color, rect_uv texture_region, stx::Span<vertex> out_polygon)
+inline stx::Span<vertex> rect(vec2 extent, vec4 color, vec2 offset, stx::Span<vertex> polygon)
 {
-  vec2 p2 = vec2{extent.x, 0};
-  vec2 p3 = extent;
-  vec2 p4 = vec2{0, extent.y};
+  vertex vertices[] = {{.position = offset, .uv = {}, .color = color},
+                       {.position = offset + vec2{extent.x, 0}, .uv = {}, .color = color},
+                       {.position = offset + extent, .uv = {}, .color = color},
+                       {.position = offset + vec2{0, extent.y}, .uv = {}, .color = color}};
 
-  vertex vertices[] = {{.position = {}, .uv = texture_region.uv0, .color = color},
-                       {.position = p2, .uv = vec2{texture_region.uv1.x, texture_region.uv0.y}, .color = color},
-                       {.position = p3, .uv = texture_region.uv1, .color = color},
-                       {.position = p4, .uv = vec2{texture_region.uv0.x, texture_region.uv1.y}, .color = color}};
+  polygon.copy(vertices);
 
-  out_polygon.copy(vertices);
+  return polygon;
 }
 
-inline void circle(f32 radius, u32 nsegments, vec4 color, rect_uv texture_region, stx::Span<vertex> out_polygon)
+inline stx::Span<vertex> circle(f32 radius, u32 nsegments, vec4 color, vec2 offset, stx::Span<vertex> polygon)
 {
   if (nsegments == 0 || radius <= 0)
   {
-    return;
+    return {};
   }
 
   f32 step = (2 * PI) / nsegments;
 
   for (u32 i = 0; i < nsegments; i++)
   {
-    vec2 p                       = radius + radius *vec2{std::cos(i * step), std::sin(i * step)};
-    vec2                      uv = texture_region.uv0 + p / (radius * 2) * (texture_region.uv1 - texture_region.uv0);
-
-    out_polygon[i] = vertex{.position = p, .uv = uv, .color = color};
+    vec2 p     = radius + radius *vec2{std::cos(i * step), std::sin(i * step)};
+    polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
+
+  return polygon;
 }
 
-inline void ellipse(vec2 radii, u32 nsegments, vec4 color, rect_uv texture_region, stx::Span<vertex> polygon)
+inline stx::Span<vertex> ellipse(vec2 radii, u32 nsegments, vec4 color, vec2 offset, stx::Span<vertex> polygon)
 {
   if (nsegments == 0 || radii.x <= 0 || radii.y <= 0)
   {
-    return;
+    return {};
   }
 
   f32 step = (2 * PI) / nsegments;
 
   for (u32 i = 0; i < nsegments; i++)
   {
-    vec2 p                     = radii + radii *vec2{std::cos(i * step), std::sin(i * step)};
-    vec2                    uv = texture_region.uv0 + p / (2 * radii) * (texture_region.uv1 - texture_region.uv0);
-    polygon[i]                 = vertex{.position = p, .uv = uv, .color = color};
+    vec2 p     = radii + radii *vec2{std::cos(i * step), std::sin(i * step)};
+    polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
+
+  return polygon;
 }
 
 // TODO(lamarrr): clamp border radius from going berserk
 /// outputs nsegments*4 vertices
-inline void round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4 color, rect_uv texture_region, stx::Span<vertex> polygon)
+inline stx::Span<vertex> round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4 color, vec2 offset, stx::Span<vertex> polygon)
 {
   if (nsegments == 0)
   {
-    return;
+    return {};
   }
 
   radii.x = std::max(0.0f, std::min(radii.x, std::min(extent.x, extent.y)));
@@ -97,46 +84,46 @@ inline void round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4 color, rect_
 
   f32 step = (PI / 2) / nsegments;
 
-  usize i = 0;
+  u32 i = 0;
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p = (extent - radii.z) + radii.z *vec2{std::cos(segment * step), std::sin(segment * step)};
-
-    vec2 uv = texture_region.uv0 + p / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
-
-    polygon[i] = vertex{.position = p, .uv = uv, .color = color};
+    vec2 p     = (extent - radii.z) + radii.z *vec2{std::cos(segment * step), std::sin(segment * step)};
+    polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p = vec2{radii.w, extent.y - radii.w} + radii.w *vec2{std::cos(PI / 2 + segment * step), std::sin(PI / 2 + segment * step)};
-
-    vec2 uv = texture_region.uv0 + p / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
-
-    polygon[i] = vertex{.position = p, .uv = uv, .color = color};
+    vec2 p     = vec2{radii.w, extent.y - radii.w} + radii.w *vec2{std::cos(PI / 2 + segment * step), std::sin(PI / 2 + segment * step)};
+    polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p = radii.x + radii.x *vec2{std::cos(PI + segment * step), std::sin(PI + segment * step)};
-
-    vec2 uv = texture_region.uv0 + p / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
-
-    polygon[i] = vertex{.position = p, .uv = uv, .color = color};
+    vec2 p     = radii.x + radii.x *vec2{std::cos(PI + segment * step), std::sin(PI + segment * step)};
+    polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p = vec2{extent.x - radii.y, radii.y} + radii.y *vec2{std::cos(PI * 3.0f / 2.0f + segment * step), std::sin(PI * 3.0f / 2.0f + segment * step)};
-
-    vec2 uv = texture_region.uv0 + p / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
-
-    polygon[i] = vertex{.position = p, .uv = uv, .color = color};
+    vec2 p     = vec2{extent.x - radii.y, radii.y} + radii.y *vec2{std::cos(PI * 3.0f / 2.0f + segment * step), std::sin(PI * 3.0f / 2.0f + segment * step)};
+    polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
+
+  return polygon;
 }
 
-}        // namespace polygons
+inline stx::Span<vertex> interpolate_uvs(stx::Span<vertex> path, vec2 extent, rect_uv texture_region)
+{
+  for (vertex &v : path)
+  {
+    v.uv = texture_region.uv0 + v.position / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
+  }
+
+  return path;
+}
+
+}        // namespace paths
 
 // outputs (n-2)*3 indices
 inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 nvertices)
@@ -155,14 +142,14 @@ inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 nvertices)
 }
 
 // line joint is a bevel joint
-inline void add_line_stroke(vec2 p0, vec2 p1, f32 thickness, vec2 extent, vec4 color, rect_uv texture_region, stx::Vec<vertex> &out)
+inline void add_line_stroke(vec2 p0, vec2 p1, f32 thickness, vec4 color, stx::Vec<vertex> &out)
 {
   // the angles are specified in clockwise direction to be compatible with the
   // vulkan coordinate system
   //
   // get the angle of inclination of p2 to p1
   vec2 d     = p1 - p0;
-  f32  grad  = std::abs(d.y / epsilon_clamp(d.x));
+  f32  grad  = abs(d.y / epsilon_clamp(d.x));
   f32  alpha = std::atan(grad);
 
   // use direction of the points to get the actual overall angle of
@@ -196,21 +183,16 @@ inline void add_line_stroke(vec2 p0, vec2 p1, f32 thickness, vec2 extent, vec4 c
   vec2 p1_0 = p1 + f;
   vec2 p1_1 = p1 + g;
 
-  vec2 p0_0_uv = texture_region.uv0 + p0_0 / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
-  vec2 p0_1_uv = texture_region.uv0 + p0_1 / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
-  vec2 p1_0_uv = texture_region.uv0 + p1_0 / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
-  vec2 p1_1_uv = texture_region.uv0 + p1_1 / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
-
-  vertex vertices[] = {{.position = p0_0, .uv = p0_0_uv, .color = color},
-                       {.position = p0_1, .uv = p0_1_uv, .color = color},
-                       {.position = p1_0, .uv = p1_0_uv, .color = color},
-                       {.position = p1_1, .uv = p1_1_uv, .color = color}};
+  vertex vertices[] = {{.position = p0_0, .uv = {}, .color = color},
+                       {.position = p0_1, .uv = {}, .color = color},
+                       {.position = p1_0, .uv = {}, .color = color},
+                       {.position = p1_1, .uv = {}, .color = color}};
 
   out.extend(vertices).unwrap();
 }
 
 // line joint is a bevel joint, it is the most efficient since it re-uses existing vertices and doesn't require generating new vertices
-inline void triangulate_line(stx::Span<vertex const> in_points, vec2 extent, f32 thickness, rect_uv texture_region, stx::Vec<vertex> &out_vertices, stx::Vec<u32> &out_indices, bool should_close)
+inline void triangulate_line(stx::Span<vertex const> in_points, f32 thickness, stx::Vec<vertex> &out_vertices, stx::Vec<u32> &out_indices, bool should_close)
 {
   if (in_points.size() < 2)
   {
@@ -227,7 +209,7 @@ inline void triangulate_line(stx::Span<vertex const> in_points, vec2 extent, f32
     vec2 p0    = in_points[i - 1].position;
     vec2 p1    = in_points[i].position;
 
-    add_line_stroke(p0, p1, thickness, extent, color, texture_region, out_vertices);
+    add_line_stroke(p0, p1, thickness, color, out_vertices);
 
     // weave the line triangles
     u32 indices[] = {vertex_index, vertex_index + 1, vertex_index + 3, vertex_index, vertex_index + 2, vertex_index + 3};
@@ -257,7 +239,7 @@ inline void triangulate_line(stx::Span<vertex const> in_points, vec2 extent, f32
     vec2 p0    = in_points[in_points.size() - 1].position;
     vec2 p1    = in_points[0].position;
 
-    add_line_stroke(p0, p1, thickness, extent, color, texture_region, out_vertices);
+    add_line_stroke(p0, p1, thickness, color, out_vertices);
 
     // weave the line triangles
     u32 indices[] = {vertex_index, vertex_index + 1, vertex_index + 3, vertex_index, vertex_index + 2, vertex_index + 3};
@@ -294,21 +276,21 @@ struct DrawList
 {
   stx::Vec<vertex>      vertices;
   stx::Vec<u32>         indices;
-  stx::Vec<DrawCommand> cmds;
+  stx::Vec<DrawCommand> commands;
 
   void clear()
   {
     vertices.clear();
     indices.clear();
-    cmds.clear();
+    commands.clear();
   }
 };
 
 struct CanvasState
 {
-  mat4 transform        = mat4::identity();        // local object transform, applies to local coordinates of the objects
-  mat4 global_transform = mat4::identity();        // global scene transform, applies to the global coordinate of the objects
-  rect clip_rect;                                  // determines visible area of the rendering operation
+  mat4 transform;               // local object transform, applies to local coordinates of the objects
+  mat4 global_transform;        // global scene transform, applies to the global coordinate of the objects
+  rect clip_rect;               // determines visible area of the rendering operation
 };
 
 /// Coordinates are specified in top-left origin absolute pixel coordinates with x pointing to the
@@ -340,7 +322,7 @@ struct Canvas
   Canvas &restart(vec2 viewport_extent)
   {
     this->viewport_extent = viewport_extent;
-    state                 = CanvasState{.clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
+    state                 = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     draw_list.clear();
     return *this;
@@ -366,14 +348,14 @@ struct Canvas
   /// pop state (transform and clips) stack and restore state
   Canvas &restore()
   {
-    state = state_stack.pop().unwrap_or(CanvasState{.clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}});
+    state = state_stack.pop().unwrap_or(CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}});
     return *this;
   }
 
   /// reset the rendering context to its default state (transform and clips)
   Canvas &reset()
   {
-    state = CanvasState{.clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
+    state = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     return *this;
   }
@@ -486,7 +468,7 @@ struct Canvas
 
     draw_list.indices.extend(indices).unwrap();
 
-    draw_list.cmds
+    draw_list.commands
         .push(DrawCommand{.nvertices = AS(u32, std::size(vertices)),
                           .nindices  = AS(u32, std::size(indices)),
                           .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent},
@@ -497,9 +479,9 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_path(stx::Span<vertex const> points, rect area, rect_uv texture_region, image texture, f32 thickness, bool should_close)
+  Canvas &draw_path(stx::Span<vertex const> points, rect area, f32 thickness, bool should_close, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = vec2{0, 0}, .uv1 = vec2{1, 1}})
   {
-    if (points.size() < 2 || !area.is_visible() || !viewport_contains(area))
+    if (points.size() < 2)
     {
       return *this;
     }
@@ -507,9 +489,8 @@ struct Canvas
     usize prev_nvertices = draw_list.vertices.size();
     usize prev_nindices  = draw_list.indices.size();
 
-    // the input texture coordinates are not used since we need to regenerate
-    // them for the line thickness
-    triangulate_line(points, area.extent, thickness, texture_region, draw_list.vertices, draw_list.indices, should_close);
+    triangulate_line(points, thickness, draw_list.vertices, draw_list.indices, should_close);
+    paths::interpolate_uvs(draw_list.vertices.span().slice(prev_nvertices), area.extent, texture_region);
 
     usize curr_nvertices = draw_list.vertices.size();
     usize curr_nindices  = draw_list.indices.size();
@@ -517,17 +498,17 @@ struct Canvas
     u32 nvertices = AS(u32, curr_nvertices - prev_nvertices);
     u32 nindices  = AS(u32, curr_nindices - prev_nindices);
 
-    draw_list.cmds.push(DrawCommand{.nvertices = nvertices,
-                                    .nindices  = nindices,
-                                    .clip_rect = state.clip_rect,
-                                    .transform = make_transform(area.offset),
-                                    .texture   = texture})
+    draw_list.commands.push(DrawCommand{.nvertices = nvertices,
+                                        .nindices  = nindices,
+                                        .clip_rect = state.clip_rect,
+                                        .transform = make_transform(area.offset),
+                                        .texture   = texture})
         .unwrap();
 
     return *this;
   }
 
-  stx::Span<vertex> __reserve_convex_polygon(u32 npoints, rect area, image texture)
+  stx::Span<vertex> reserve_convex_polygon(u32 npoints, vec2 position, image texture)
   {
     ASH_CHECK(npoints >= 3, "A polygon consists of at least 3 points");
 
@@ -544,43 +525,28 @@ struct Canvas
     u32 nvertices = AS(u32, curr_nvertices - prev_nvertices);
     u32 nindices  = AS(u32, curr_nindices - prev_nindices);
 
-    draw_list.cmds
+    draw_list.commands
         .push(DrawCommand{.nvertices = nvertices,
                           .nindices  = nindices,
                           .clip_rect = state.clip_rect,
-                          .transform = make_transform(area.offset),
+                          .transform = make_transform(position),
                           .texture   = texture})
         .unwrap();
 
     return polygon;
   }
 
-  Canvas &draw_convex_polygon_filled(stx::Span<vertex const> polygon, rect area, image texture)
+  // texture coordinates are assumed to already be filled and area of viewport known
+  Canvas &draw_convex_polygon_filled(stx::Span<vertex const> polygon, vec2 position, image texture)
   {
-    if (polygon.size() < 3 || !area.is_visible() || !viewport_contains(area))
+    if (polygon.size() < 3)
     {
       return *this;
     }
 
-    __reserve_convex_polygon(AS(u32, polygon.size()), area, texture).copy(polygon);
+    reserve_convex_polygon(AS(u32, polygon.size()), position, texture).copy(polygon);
 
     return *this;
-  }
-
-  Canvas &draw_line(vec2 begin, vec2 end, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
-  {
-    vec4   color_v  = color.to_vec();
-    vertex points[] = {{.position = {}, .uv = {}, .color = color_v},
-                       {.position = end - begin, .uv = {}, .color = color_v}};
-
-    rect area{.offset = begin, .extent = end - begin};
-
-    if (!viewport_contains(area))
-    {
-      return *this;
-    }
-
-    return draw_path(points, area, texture_region, texture, thickness, false);
   }
 
   Canvas &draw_rect_filled(rect area, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
@@ -590,7 +556,10 @@ struct Canvas
       return *this;
     }
 
-    polygons::rect(area.extent, color.to_vec(), texture_region, __reserve_convex_polygon(4, area, texture));
+    paths::interpolate_uvs(paths::rect(area.extent, color.to_vec(), vec2{0, 0}, reserve_convex_polygon(4, area.offset, texture)),
+                           area.extent,
+                           texture_region);
+
     return *this;
   }
 
@@ -603,29 +572,30 @@ struct Canvas
 
     vertex line[4];
 
-    area.offset = area.offset + thickness / 2;
-    area.extent = area.extent - thickness;
+    paths::rect(area.extent - thickness, color.to_vec(), vec2::splat(thickness / 2), line);
 
-    polygons::rect(area.extent, color.to_vec(), texture_region, line);
-
-    return draw_path(line, area, texture_region, texture, thickness, true);
+    return draw_path(line, area, thickness, true, texture, texture_region);
   }
 
   Canvas &draw_circle_filled(vec2 position, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
+
     if (!viewport_contains(area))
     {
       return *this;
     }
 
-    polygons::circle(radius, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
+    paths::interpolate_uvs(paths::circle(radius, nsegments, color.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments, position, texture)),
+                           area.extent,
+                           texture_region);
+
     return *this;
   }
 
   Canvas &draw_circle_stroke(vec2 position, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    rect area{.offset = position + thickness / 2, .extent = 2 * radius - vec2{thickness, thickness}};
+    rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
     if (!viewport_contains(area))
     {
@@ -634,26 +604,30 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    polygons::circle(radius, nsegments, color.to_vec(), texture_region, scratch);
+    paths::circle(radius - thickness, nsegments, color.to_vec(), vec2::splat(thickness / 2), scratch);
 
-    return draw_path(scratch, area, texture_region, texture, thickness, true);
+    return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
 
   Canvas &draw_ellipse_filled(vec2 position, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = 2 * radii};
+
     if (!viewport_contains(area))
     {
       return *this;
     }
 
-    polygons::ellipse(radii, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments, area, texture));
+    paths::interpolate_uvs(paths::ellipse(radii, nsegments, color.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments, area.offset, texture)),
+                           area.extent,
+                           texture_region);
+
     return *this;
   }
 
   Canvas &draw_ellipse_stroke(vec2 position, vec2 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    rect area{.offset = position + thickness / 2, .extent = (2 * radii) - vec2::splat(thickness)};
+    rect area{.offset = position, .extent = 2 * radii};
 
     if (!viewport_contains(area))
     {
@@ -662,9 +636,9 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    polygons::ellipse(radii, nsegments, color.to_vec(), texture_region, scratch);
+    paths::ellipse(radii - thickness, nsegments, color.to_vec(), vec2::splat(thickness / 2), scratch);
 
-    return draw_path(scratch, area, texture_region, texture, thickness, true);
+    return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
 
   Canvas &draw_round_rect_filled(rect area, vec4 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
@@ -674,15 +648,15 @@ struct Canvas
       return *this;
     }
 
-    polygons::round_rect(area.extent, radii, nsegments, color.to_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, texture));
+    paths::interpolate_uvs(paths::round_rect(area.extent, radii, nsegments, color.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments * 4, area.offset, texture)),
+                           area.extent,
+                           texture_region);
+
     return *this;
   }
 
   Canvas &draw_round_rect_stroke(rect area, vec4 radii, color color, f32 thickness, u32 nsegments, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    area.offset = area.offset + thickness / 2;
-    area.extent = area.extent - thickness;
-
     if (!viewport_contains(area))
     {
       return *this;
@@ -690,9 +664,9 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments * 4).unwrap();
 
-    polygons::round_rect(area.extent, radii, nsegments, color.to_vec(), texture_region, scratch);
+    paths::round_rect(area.extent - thickness, radii, nsegments, color.to_vec(), vec2::splat(thickness / 2), scratch);
 
-    return draw_path(scratch, area, texture_region, texture, thickness, true);
+    return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
 
   Canvas &draw_image(image img, rect area, rect_uv texture_region, color tint = colors::WHITE)
@@ -702,17 +676,15 @@ struct Canvas
       return *this;
     }
 
-    polygons::rect(area.extent, tint.to_vec(), texture_region, __reserve_convex_polygon(4, area, img));
+    paths::interpolate_uvs(paths::rect(area.extent, tint.to_vec(), vec2{0, 0}, reserve_convex_polygon(4, area.offset, img)),
+                           area.extent,
+                           texture_region);
+
     return *this;
   }
 
   Canvas &draw_image(image img, rect area, color tint = colors::WHITE)
   {
-    if (!viewport_contains(area))
-    {
-      return *this;
-    }
-
     return draw_image(img, area, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
@@ -723,17 +695,15 @@ struct Canvas
       return *this;
     }
 
-    polygons::round_rect(area.extent, border_radii, nsegments, tint.to_vec(), texture_region, __reserve_convex_polygon(nsegments * 4, area, img));
+    paths::interpolate_uvs(paths::round_rect(area.extent, border_radii, nsegments, tint.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments * 4, area.offset, img)),
+                           area.extent,
+                           texture_region);
+
     return *this;
   }
 
   Canvas &draw_rounded_image(image img, rect area, vec4 border_radii, u32 nsegments, color tint = colors::WHITE)
   {
-    if (!viewport_contains(area))
-    {
-      return *this;
-    }
-
     return draw_rounded_image(img, area, border_radii, nsegments, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
@@ -777,14 +747,28 @@ struct Canvas
     for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
     {
       TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
+      Font const      &font  = *font_bundle[glyph_layout.font].font;
       FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
 
-      if (props.foreground_color.is_visible() && props.font_height > 0)
+      if (props.font_height > 0)
       {
-        draw_image(atlas.texture,
-                   rect{.offset = position + glyph_layout.offset, .extent = glyph_layout.extent},
-                   atlas.glyphs[glyph_layout.glyph].texture_region,
-                   props.foreground_color);
+        if (!font.has_color)
+        {
+          if (props.foreground_color.is_visible())
+          {
+            draw_image(atlas.texture,
+                       rect{.offset = position + glyph_layout.offset, .extent = glyph_layout.extent},
+                       atlas.glyphs[glyph_layout.glyph].texture_region,
+                       props.foreground_color);
+          }
+        }
+        else
+        {
+          draw_image(atlas.texture,
+                     rect{.offset = position + glyph_layout.offset, .extent = glyph_layout.extent},
+                     atlas.glyphs[glyph_layout.glyph].texture_region,
+                     colors::WHITE);
+        }
       }
     }
 

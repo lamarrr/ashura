@@ -59,34 +59,14 @@ struct vec2
   }
 };
 
-constexpr vec2 operator*(vec2 a, f32 b)
+constexpr bool operator==(vec2 a, vec2 b)
 {
-  return vec2{a.x * b, a.y * b};
+  return a.x == b.x && a.y == b.y;
 }
 
-constexpr vec2 operator*(f32 a, vec2 b)
+constexpr bool operator!=(vec2 a, vec2 b)
 {
-  return b * a;
-}
-
-constexpr vec2 operator*(vec2 a, vec2 b)
-{
-  return vec2{a.x * b.x, a.y * b.y};
-}
-
-constexpr vec2 operator/(vec2 a, vec2 b)
-{
-  return vec2{a.x / b.x, a.y / b.y};
-}
-
-constexpr vec2 operator/(vec2 a, f32 b)
-{
-  return vec2{a.x / b, a.y / b};
-}
-
-constexpr vec2 operator/(f32 a, vec2 b)
-{
-  return vec2{a / b.x, a / b.y};
+  return a.x != b.x || a.y != b.y;
 }
 
 constexpr vec2 operator+(vec2 a, vec2 b)
@@ -119,14 +99,82 @@ constexpr vec2 operator-(f32 a, vec2 b)
   return vec2{a - b.x, a - b.y};
 }
 
-constexpr bool operator==(vec2 a, vec2 b)
+constexpr vec2 operator*(vec2 a, vec2 b)
 {
-  return a.x == b.x && a.y == b.y;
+  return vec2{a.x * b.x, a.y * b.y};
 }
 
-constexpr bool operator!=(vec2 a, vec2 b)
+constexpr vec2 operator*(vec2 a, f32 b)
 {
-  return a.x != b.x || a.y != b.y;
+  return vec2{a.x * b, a.y * b};
+}
+
+constexpr vec2 operator*(f32 a, vec2 b)
+{
+  return b * a;
+}
+
+constexpr vec2 operator/(vec2 a, vec2 b)
+{
+  return vec2{a.x / b.x, a.y / b.y};
+}
+
+constexpr vec2 operator/(vec2 a, f32 b)
+{
+  return vec2{a.x / b, a.y / b};
+}
+
+constexpr vec2 operator/(f32 a, vec2 b)
+{
+  return vec2{a / b.x, a / b.y};
+}
+
+constexpr vec2 &operator+=(vec2 &a, vec2 b)
+{
+  a = a + b;
+  return a;
+}
+
+constexpr vec2 &operator+=(vec2 &a, f32 b)
+{
+  a = a + b;
+  return a;
+}
+
+constexpr vec2 &operator-=(vec2 &a, vec2 b)
+{
+  a = a - b;
+  return a;
+}
+
+constexpr vec2 &operator-=(vec2 &a, f32 b)
+{
+  a = a - b;
+  return a;
+}
+
+constexpr vec2 &operator*=(vec2 &a, vec2 b)
+{
+  a = a * b;
+  return a;
+}
+
+constexpr vec2 &operator*=(vec2 &a, f32 b)
+{
+  a = a * b;
+  return a;
+}
+
+constexpr vec2 &operator/=(vec2 &a, vec2 b)
+{
+  a = a / b;
+  return a;
+}
+
+constexpr vec2 &operator/=(vec2 &a, f32 b)
+{
+  a = a / b;
+  return a;
 }
 
 constexpr f32 dot(vec2 a, vec2 b)
