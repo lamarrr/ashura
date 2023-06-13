@@ -68,8 +68,6 @@ inline stx::Span<vertex> ellipse(vec2 radii, u32 nsegments, vec4 color, vec2 off
   return polygon;
 }
 
-// TODO(lamarrr): clamp border radius from going berserk
-/// outputs nsegments*4 vertices
 inline stx::Span<vertex> round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4 color, vec2 offset, stx::Span<vertex> polygon)
 {
   if (nsegments == 0)
@@ -77,10 +75,13 @@ inline stx::Span<vertex> round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4
     return {};
   }
 
-  radii.x = std::max(0.0f, std::min(radii.x, std::min(extent.x, extent.y)));
-  radii.y = std::max(0.0f, std::min(radii.y, std::min(extent.x, extent.y)));
-  radii.z = std::max(0.0f, std::min(radii.z, std::min(extent.x, extent.y)));
-  radii.w = std::max(0.0f, std::min(radii.w, std::min(extent.x, extent.y)));
+  f32 max_radius   = std::min(extent.x, extent.y);
+  radii.x          = std::min(radii.x, max_radius);
+  radii.y          = std::min(radii.y, max_radius - radii.x);
+  f32 max_radius_z = std::min(max_radius - radii.x, max_radius - radii.y);
+  radii.z          = std::min(radii.z, max_radius_z);
+  f32 max_radius_w = std::min(max_radius_z, max_radius - radii.z);
+  radii.w          = std::min(radii.w, max_radius_w);
 
   f32 step = (PI / 2) / nsegments;
 
@@ -125,7 +126,7 @@ inline stx::Span<vertex> interpolate_uvs(stx::Span<vertex> path, vec2 extent, re
 
 }        // namespace paths
 
-// outputs (n-2)*3 indices
+/// outputs (n-2)*3 indices
 inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 nvertices)
 {
   if (nvertices < 3)
@@ -141,7 +142,7 @@ inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 nvertices)
   }
 }
 
-// line joint is a bevel joint
+/// line joint is a bevel joint
 inline void add_line_stroke(vec2 p0, vec2 p1, f32 thickness, vec4 color, stx::Vec<vertex> &out)
 {
   // the angles are specified in clockwise direction to be compatible with the
