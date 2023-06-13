@@ -28,17 +28,17 @@ int main(int argc, char **argv)
   AppConfig cfg{.enable_validation_layers = false, .fonts = fonts};
 
   App       app{std::move(cfg),
-          new Flex{FlexProps{},
-                   CheckBox{},
-                   Slider{},
-                   Text{"verified", TextProps{.font = "MaterialIcons", .foreground_color = colors::YELLOW}},
-                   Text{"User5346", TextProps{.font = "Roboto", .foreground_color = colors::WHITE}},
-                   Text{"explicit", TextProps{.font = "MaterialIcons", .foreground_color = colors::WHITE}},
-                   Image{ImageProps{
-                             .source         = FileImageSource{.path = R"(C:\Users\Basit\Pictures\1288647.png)"},
-                             .border_radius  = vec4{20, 20, 20, 20},
-                             .aspect_ratio   = stx::Some(2.0f),
-                             .resize_on_load = true}}}};
+          Flex{FlexProps{},
+               CheckBox{},
+               Slider{},
+               Text{"verified", TextProps{.font = "MaterialIcons", .foreground_color = colors::YELLOW}},
+               Text{"User5346", TextProps{.font = "Roboto", .foreground_color = colors::WHITE}},
+               Text{"explicit", TextProps{.font = "MaterialIcons", .foreground_color = colors::WHITE}},
+               Image{ImageProps{
+                         .source         = FileImageSource{.path = R"(C:\Users\Basit\Pictures\1288647.png)"},
+                         .border_radius  = vec4{20, 20, 20, 20},
+                         .aspect_ratio   = stx::Some(2.0f),
+                         .resize_on_load = true}}}};
   timepoint last_tick = Clock::now();
   while (true)
   {

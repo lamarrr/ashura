@@ -9,11 +9,12 @@ namespace ash
 
 struct CheckBoxProps
 {
-  color inactive_box_color     = material::GRAY_600;
-  color active_box_color       = material::BLUE_A700;
-  color active_checkmark_color = material::BLACK;
-  f32   extent                 = 20;
-  f32   border_radius          = 4;
+  color box_color         = material::BLUE_A700;
+  color outline_color     = material::GRAY_600;
+  color checkmark_color   = material::BLACK;
+  f32   extent            = 20;
+  f32   border_radius     = 2.5;
+  f32   outline_thickness = 1;
 };
 
 struct CheckBox : public Widget
@@ -32,23 +33,22 @@ struct CheckBox : public Widget
 
   virtual void draw(Context &context, gfx::Canvas &canvas, rect area)
   {
-    // TODO(lamarrr): change to normal rectangle and use black as checkmark color
     vertex checkmark_path[] = {
-        {.position = {0, 0.5}, .color = props.active_box_color.to_vec()},
-        {.position = {0.35, 1}, .color = props.active_box_color.to_vec()},
-        {.position = {1, 0}, .color = props.active_box_color.to_vec()}};
+        {.position = {0.125, 0.5}, .color = props.checkmark_color.to_vec()},
+        {.position = {0.374, 0.75}, .color = props.checkmark_color.to_vec()},
+        {.position = {0.775, 0.25}, .color = props.checkmark_color.to_vec()}};
 
     if (value)
     {
-      canvas.draw_round_rect_stroke(area, vec4::splat(props.border_radius), props.active_box_color, 2, 2);
+      canvas.draw_round_rect_filled(area, vec4::splat(props.border_radius), 10, props.box_color);
       canvas.save();
-      canvas.scale(props.extent * .65f, props.extent * .65f);
-      canvas.draw_path(checkmark_path, area.with_extent({1, 1}), 5 / props.extent, true);
+      canvas.scale(props.extent, props.extent);
+      canvas.draw_path(checkmark_path, area, 0.125f, false);
       canvas.restore();
     }
     else
     {
-      canvas.draw_round_rect_stroke(area, vec4::splat(props.border_radius), props.active_box_color, 2, 360);
+      canvas.draw_round_rect_stroke(area, vec4::splat(props.border_radius), 10, props.outline_color, props.outline_thickness);
     }
   }
 
@@ -57,6 +57,7 @@ struct CheckBox : public Widget
     if (button == MouseButton::Primary)
     {
       value = !value;
+      on_changed(value);
     }
   }
 

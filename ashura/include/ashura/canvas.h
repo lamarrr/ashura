@@ -68,13 +68,9 @@ inline stx::Span<vertex> ellipse(vec2 radii, u32 nsegments, vec4 color, vec2 off
   return polygon;
 }
 
+// outputs 8 + nsegments * 4 vertices
 inline stx::Span<vertex> round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4 color, vec2 offset, stx::Span<vertex> polygon)
 {
-  if (nsegments == 0)
-  {
-    return {};
-  }
-
   f32 max_radius   = std::min(extent.x, extent.y);
   radii.x          = std::min(radii.x, max_radius);
   radii.y          = std::min(radii.y, max_radius - radii.x);
@@ -83,9 +79,12 @@ inline stx::Span<vertex> round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4
   f32 max_radius_w = std::min(max_radius_z, max_radius - radii.z);
   radii.w          = std::min(radii.w, max_radius_w);
 
-  f32 step = (PI / 2) / nsegments;
+  f32 step = nsegments == 0 ? 0.0f : (PI / 2) / nsegments;
 
   u32 i = 0;
+
+  polygon[i] = vertex{.position = offset + extent - vec2{0, radii.z}, .uv = {}, .color = color};
+  i++;
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
@@ -93,11 +92,23 @@ inline stx::Span<vertex> round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
+  polygon[i] = vertex{.position = offset + extent - vec2{radii.z, 0}, .uv = {}, .color = color};
+  i++;
+
+  polygon[i] = vertex{.position = offset + vec2{radii.w, extent.y}, .uv = {}, .color = color};
+  i++;
+
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
     vec2 p     = vec2{radii.w, extent.y - radii.w} + radii.w *vec2{std::cos(PI / 2 + segment * step), std::sin(PI / 2 + segment * step)};
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
+
+  polygon[i] = vertex{.position = offset + vec2{0, extent.y - radii.w}, .uv = {}, .color = color};
+  i++;
+
+  polygon[i] = vertex{.position = offset + vec2{0, radii.x}, .uv = {}, .color = color};
+  i++;
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
@@ -105,11 +116,19 @@ inline stx::Span<vertex> round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
+  polygon[i] = vertex{.position = offset + vec2{radii.x, 0}, .uv = {}, .color = color};
+  i++;
+
+  polygon[i] = vertex{.position = offset + vec2{extent.x - radii.y, 0}, .uv = {}, .color = color};
+  i++;
+
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
     vec2 p     = vec2{extent.x - radii.y, radii.y} + radii.y *vec2{std::cos(PI * 3.0f / 2.0f + segment * step), std::sin(PI * 3.0f / 2.0f + segment * step)};
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
+
+  polygon[i] = vertex{.position = offset + vec2{extent.x, radii.y}, .uv = {}, .color = color};
 
   return polygon;
 }
@@ -649,21 +668,21 @@ struct Canvas
       return *this;
     }
 
-    paths::interpolate_uvs(paths::round_rect(area.extent, radii, nsegments, color.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments * 4, area.offset, texture)),
+    paths::interpolate_uvs(paths::round_rect(area.extent, radii, nsegments, color.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments * 4 + 8, area.offset, texture)),
                            area.extent,
                            texture_region);
 
     return *this;
   }
 
-  Canvas &draw_round_rect_stroke(rect area, vec4 radii, color color, f32 thickness, u32 nsegments, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_round_rect_stroke(rect area, vec4 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     if (!viewport_contains(area))
     {
       return *this;
     }
 
-    scratch.unsafe_resize_uninitialized(nsegments * 4).unwrap();
+    scratch.unsafe_resize_uninitialized(nsegments * 4 + 8).unwrap();
 
     paths::round_rect(area.extent - thickness, radii, nsegments, color.to_vec(), vec2::splat(thickness / 2), scratch);
 
@@ -696,7 +715,7 @@ struct Canvas
       return *this;
     }
 
-    paths::interpolate_uvs(paths::round_rect(area.extent, border_radii, nsegments, tint.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments * 4, area.offset, img)),
+    paths::interpolate_uvs(paths::round_rect(area.extent, border_radii, nsegments, tint.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments * 4 + 8, area.offset, img)),
                            area.extent,
                            texture_region);
 

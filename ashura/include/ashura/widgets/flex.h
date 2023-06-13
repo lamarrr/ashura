@@ -14,13 +14,14 @@ namespace ash
 struct Flex : public Widget
 {
   template <WidgetImpl... DerivedWidget>
-  Flex(FlexProps iprops, DerivedWidget... ichildren) :
+  explicit Flex(FlexProps iprops, DerivedWidget... ichildren) :
       props{iprops}
   {
     (children.push(new DerivedWidget{std::move(ichildren)}).unwrap(), ...);
   }
 
-  // TODO(lamarrr): add span overload
+  STX_DISABLE_COPY(Flex)
+  STX_DEFAULT_MOVE(Flex)
 
   virtual ~Flex() override
   {

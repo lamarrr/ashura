@@ -25,6 +25,11 @@ struct Engine
 {
   static constexpr u32 DEFAULT_MAX_FRAMES_IN_FLIGHT = 2;
 
+  template <WidgetImpl DerivedWidget>
+  Engine(AppConfig const &cfg, DerivedWidget &&root_widget) :
+      Engine{cfg, new DerivedWidget{std::move(root_widget)}}
+  {}
+
   Engine(AppConfig const &cfg, Widget *root_widget);
 
   ~Engine()
