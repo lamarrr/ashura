@@ -311,6 +311,36 @@ struct vec3
   }
 };
 
+constexpr bool operator==(vec3 a, vec3 b)
+{
+  return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+constexpr bool operator!=(vec3 a, vec3 b)
+{
+  return a.x != b.x || a.y != b.y || a.z != b.z;
+}
+
+constexpr vec3 operator+(vec3 a, vec3 b)
+{
+  return vec3{a.x + b.x, a.y + b.y, a.z + b.z};
+}
+
+constexpr vec3 operator+(vec3 a, f32 b)
+{
+  return vec3{a.x + b, a.y + b, a.z + b};
+}
+
+constexpr vec3 operator+(f32 a, vec3 b)
+{
+  return vec3{a + b.x, a + b.y, a + b.z};
+}
+
+constexpr vec3 operator-(vec3 a, vec3 b)
+{
+  return vec3{a.x - b.x, a.y - b.y, a.z - b.z};
+}
+
 constexpr vec3 operator-(vec3 a, f32 b)
 {
   return vec3{a.x - b, a.y - b, a.z - b};
@@ -319,6 +349,11 @@ constexpr vec3 operator-(vec3 a, f32 b)
 constexpr vec3 operator-(f32 a, vec3 b)
 {
   return vec3{a - b.x, a - b.y, a - b.z};
+}
+
+constexpr vec3 operator*(vec3 a, vec3 b)
+{
+  return vec3{a.x * b.x, a.y * b.y, a.z * b.z};
 }
 
 constexpr vec3 operator*(vec3 a, f32 b)
@@ -331,14 +366,19 @@ constexpr vec3 operator*(f32 a, vec3 b)
   return vec3{a * b.x, a * b.y, a * b.z};
 }
 
-constexpr vec3 operator*(vec3 a, vec3 b)
-{
-  return vec3{a.x * b.x, a.y * b.y, a.z * b.z};
-}
-
 constexpr vec3 operator/(vec3 a, vec3 b)
 {
   return vec3{a.x / b.x, a.y / b.y, a.z / b.z};
+}
+
+constexpr vec3 operator/(vec3 a, f32 b)
+{
+  return vec3{a.x / b, a.y / b, a.z / b};
+}
+
+constexpr vec3 operator/(f32 a, vec3 b)
+{
+  return vec3{a / b.x, a / b.y, a / b.z};
 }
 
 constexpr f32 dot(vec3 a, vec3 b)
@@ -365,6 +405,66 @@ constexpr bool operator==(vec4 a, vec4 b)
 constexpr bool operator!=(vec4 a, vec4 b)
 {
   return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
+}
+
+constexpr vec4 operator+(vec4 a, vec4 b)
+{
+  return vec4{a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
+}
+
+constexpr vec4 operator+(vec4 a, f32 b)
+{
+  return vec4{a.x + b, a.y + b, a.z + b, a.w + b};
+}
+
+constexpr vec4 operator+(f32 a, vec4 b)
+{
+  return vec4{a + b.x, a + b.y, a + b.z, a + b.w};
+}
+
+constexpr vec4 operator-(vec4 a, vec4 b)
+{
+  return vec4{a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
+}
+
+constexpr vec4 operator-(vec4 a, f32 b)
+{
+  return vec4{a.x - b, a.y - b, a.z - b, a.w - b};
+}
+
+constexpr vec4 operator-(f32 a, vec4 b)
+{
+  return vec4{a - b.x, a - b.y, a - b.z, a - b.w};
+}
+
+constexpr vec4 operator*(vec4 a, vec4 b)
+{
+  return vec4{a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
+}
+
+constexpr vec4 operator*(vec4 a, f32 b)
+{
+  return vec4{a.x * b, a.y * b, a.z * b, a.w * b};
+}
+
+constexpr vec4 operator*(f32 a, vec4 b)
+{
+  return vec4{a * b.x, a * b.y, a * b.z, a * b.w};
+}
+
+constexpr vec4 operator/(vec4 a, vec4 b)
+{
+  return vec4{a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w};
+}
+
+constexpr vec4 operator/(vec4 a, f32 b)
+{
+  return vec4{a.x / b, a.y / b, a.z / b, a.w / b};
+}
+
+constexpr vec4 operator/(f32 a, vec4 b)
+{
+  return vec4{a / b.x, a / b.y, a / b.z, a / b.w};
 }
 
 constexpr f32 dot(vec4 a, vec4 b)
