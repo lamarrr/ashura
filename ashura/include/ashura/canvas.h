@@ -375,13 +375,13 @@ struct Canvas
 
   Canvas &rotate(f32 x, f32 y, f32 z)
   {
-    state.transform = ash::rotate_z(ASH_RADIANS(z)) * ash::rotate_y(ASH_RADIANS(y)) * ash::rotate_x(ASH_RADIANS(x)) * state.transform;
+    state.transform = ash::rotate_z(ASH_TO_RADIANS(z)) * ash::rotate_y(ASH_TO_RADIANS(y)) * ash::rotate_x(ASH_TO_RADIANS(x)) * state.transform;
     return *this;
   }
 
   Canvas &global_rotate(f32 x, f32 y, f32 z)
   {
-    state.global_transform = ash::rotate_z(ASH_RADIANS(z)) * ash::rotate_y(ASH_RADIANS(y)) * ash::rotate_x(ASH_RADIANS(x)) * state.global_transform;
+    state.global_transform = ash::rotate_z(ASH_TO_RADIANS(z)) * ash::rotate_y(ASH_TO_RADIANS(y)) * ash::rotate_x(ASH_TO_RADIANS(x)) * state.global_transform;
     return *this;
   }
 

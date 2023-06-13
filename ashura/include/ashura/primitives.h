@@ -8,7 +8,7 @@
 #include "stx/limits.h"
 #include "stx/option.h"
 
-#define ASH_RADIANS(...) AS(f32, ::ash::PI *(__VA_ARGS__) / 180)
+#define ASH_TO_RADIANS(...) AS(f32, ::ash::PI *(__VA_ARGS__) / 180)
 
 namespace ash
 {
@@ -826,6 +826,11 @@ struct color
     return color{.r = r, .g = g, .b = b, .a = 0xff};
   }
 
+  static constexpr color from_rgba(u8 r, u8 g, u8 b, u8 a)
+  {
+    return color{.r = r, .g = g, .b = b, .a = a};
+  }
+
   constexpr color with_red(u8 nr) const
   {
     return color{.r = nr, .g = g, .b = b, .a = a};
@@ -875,15 +880,15 @@ constexpr bool operator!=(color a, color b)
 namespace colors
 {
 
-constexpr color TRANSPARENT{.r = 0x00, .g = 0x00, .b = 0x00, .a = 0x00};
-constexpr color WHITE   = color::from_rgb(0xff, 0xff, 0xff);
-constexpr color BLACK   = color::from_rgb(0x00, 0x00, 0x00);
-constexpr color RED     = color::from_rgb(0xff, 0x00, 0x00);
-constexpr color BLUE    = color::from_rgb(0x00, 0x00, 0xff);
-constexpr color GREEN   = color::from_rgb(0x00, 0xff, 0x00);
-constexpr color CYAN    = color::from_rgb(0x00, 0xff, 0xff);
-constexpr color MAGENTA = color::from_rgb(0xff, 0x00, 0xff);
-constexpr color YELLOW  = color::from_rgb(0xff, 0xff, 0x00);
+constexpr color TRANSPARENT = color::from_rgba(0x00, 0x00, 0x00, 0x00);
+constexpr color WHITE       = color::from_rgb(0xff, 0xff, 0xff);
+constexpr color BLACK       = color::from_rgb(0x00, 0x00, 0x00);
+constexpr color RED         = color::from_rgb(0xff, 0x00, 0x00);
+constexpr color BLUE        = color::from_rgb(0x00, 0x00, 0xff);
+constexpr color GREEN       = color::from_rgb(0x00, 0xff, 0x00);
+constexpr color CYAN        = color::from_rgb(0x00, 0xff, 0xff);
+constexpr color MAGENTA     = color::from_rgb(0xff, 0x00, 0xff);
+constexpr color YELLOW      = color::from_rgb(0xff, 0xff, 0x00);
 
 }        // namespace colors
 
