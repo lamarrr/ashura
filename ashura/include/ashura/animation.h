@@ -38,6 +38,8 @@ struct TweenAnimation : public virtual Animation<T>
   virtual ~TweenAnimation() override
   {}
 
+  virtual T tick( Tween<T> tween, nanoseconds duration, nanoseconds timepoint );
+
   Tween<T>    tween;
   nanoseconds duration{0};
 };
@@ -131,7 +133,6 @@ enum class AnimationState : u8
   Completed
 };
 
-template <typename T>
 struct AnimationProps
 {
   nanoseconds        delay              = nanoseconds{0};
@@ -143,24 +144,23 @@ struct AnimationProps
 template <typename T>
 struct AnimationController
 {
-  AnimationProps<T> props;
-  AnimationState    state__     = AnimationState::Paused;
-  usize             iteration__ = 1;
+  Twe
+  AnimationProps props;
+  AnimationState    state     = AnimationState::Paused;
+  usize             iteration = 1;
 
   /// reset the animation
-  virtual void reset() = 0;
+    void reset(){}
 
   /// pause the animation
-  virtual void pause() = 0;
+    void pause() {}
 
   /// reverse the animation
-  virtual void reverse() = 0;
+    void reverse() {}
 
   /// drive the animation to completion
-  virtual void finish() = 0;
+    void finish() {}
 
-  /// get the state of the animation
-  virtual AnimationState get_state() = 0;
 };
 
 namespace animation

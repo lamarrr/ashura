@@ -15,6 +15,7 @@
 #include "fmt/format.h"
 #include "stx/option.h"
 #include "stx/scheduler.h"
+#include "ashura/theme.h"
 
 namespace ash
 {

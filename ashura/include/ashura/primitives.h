@@ -45,7 +45,7 @@ constexpr f32 epsilon_clamp(f32 x)
   return abs(x) > stx::F32_EPSILON ? x : stx::F32_EPSILON;
 }
 
-// WARNING: the only integral type you should be using this for is i64.
+// WARNING: the only non-floating-point integral type you should be using this for is i64.
 template <typename T>
 constexpr T lerp(T begin, T end, f32 percentage)
 {
