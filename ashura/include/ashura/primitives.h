@@ -40,6 +40,11 @@ constexpr f32 abs(f32 x)
   return x >= 0 ? x : -x;
 }
 
+constexpr bool epsilon_equal(f32 a, f32 b)
+{
+  return abs(b - a) <= stx::F32_EPSILON;
+}
+
 constexpr f32 epsilon_clamp(f32 x)
 {
   return abs(x) > stx::F32_EPSILON ? x : stx::F32_EPSILON;
