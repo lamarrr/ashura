@@ -233,6 +233,7 @@ struct Widget
   constexpr virtual void on_leave_viewport(Context &context)
   {}
 
+  // TODO(lamarrr): on mouse up and on mouse down aren't same as dragging
   constexpr virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
   {}
 

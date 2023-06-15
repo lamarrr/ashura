@@ -133,7 +133,7 @@ inline stx::Span<vertex> round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4
   return polygon;
 }
 
-inline stx::Span<vertex> interpolate_uvs(stx::Span<vertex> path, vec2 extent, rect_uv texture_region)
+inline stx::Span<vertex> interpolate_uvs(stx::Span<vertex> path, vec2 extent, texture_rect texture_region)
 {
   for (vertex &v : path)
   {
@@ -499,7 +499,7 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_path(stx::Span<vertex const> points, rect area, f32 thickness, bool should_close, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = vec2{0, 0}, .uv1 = vec2{1, 1}})
+  Canvas &draw_path(stx::Span<vertex const> points, rect area, f32 thickness, bool should_close, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = vec2{0, 0}, .uv1 = vec2{1, 1}})
   {
     if (points.size() < 2)
     {
@@ -569,7 +569,7 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_rect_filled(rect area, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_rect_filled(rect area, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     if (!viewport_contains(area))
     {
@@ -583,7 +583,7 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_rect_stroke(rect area, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_rect_stroke(rect area, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     if (!viewport_contains(area))
     {
@@ -597,7 +597,7 @@ struct Canvas
     return draw_path(line, area, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_circle_filled(vec2 position, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_circle_filled(vec2 position, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
@@ -613,7 +613,7 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_circle_stroke(vec2 position, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_circle_stroke(vec2 position, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
@@ -629,7 +629,7 @@ struct Canvas
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_ellipse_filled(vec2 position, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_ellipse_filled(vec2 position, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = 2 * radii};
 
@@ -645,7 +645,7 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_ellipse_stroke(vec2 position, vec2 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_ellipse_stroke(vec2 position, vec2 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = 2 * radii};
 
@@ -661,7 +661,7 @@ struct Canvas
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_round_rect_filled(rect area, vec4 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_round_rect_filled(rect area, vec4 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     if (!viewport_contains(area))
     {
@@ -675,7 +675,7 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_round_rect_stroke(rect area, vec4 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, rect_uv texture_region = rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_round_rect_stroke(rect area, vec4 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     if (!viewport_contains(area))
     {
@@ -689,7 +689,7 @@ struct Canvas
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_image(image img, rect area, rect_uv texture_region, color tint = colors::WHITE)
+  Canvas &draw_image(image img, rect area, texture_rect texture_region, color tint = colors::WHITE)
   {
     if (!viewport_contains(area))
     {
@@ -705,10 +705,10 @@ struct Canvas
 
   Canvas &draw_image(image img, rect area, color tint = colors::WHITE)
   {
-    return draw_image(img, area, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
+    return draw_image(img, area, texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
-  Canvas &draw_rounded_image(image img, rect area, vec4 border_radii, u32 nsegments, rect_uv texture_region, color tint = colors::WHITE)
+  Canvas &draw_rounded_image(image img, rect area, vec4 border_radii, u32 nsegments, texture_rect texture_region, color tint = colors::WHITE)
   {
     if (!viewport_contains(area))
     {
@@ -724,7 +724,7 @@ struct Canvas
 
   Canvas &draw_rounded_image(image img, rect area, vec4 border_radii, u32 nsegments, color tint = colors::WHITE)
   {
-    return draw_rounded_image(img, area, border_radii, nsegments, rect_uv{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
+    return draw_rounded_image(img, area, border_radii, nsegments, texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
   Canvas &draw_text(Paragraph const &paragraph, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, vec2 const position)

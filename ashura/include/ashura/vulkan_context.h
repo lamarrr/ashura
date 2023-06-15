@@ -6,6 +6,7 @@
 
 #include "ashura/font.h"
 #include "ashura/image.h"
+#include "ashura/loggers.h"
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
 #include "ashura/vulkan.h"
@@ -249,7 +250,7 @@ struct RenderResourceManager
 
     auto begin = std::chrono::steady_clock::now();
     copy_pixels(image_view, staging_buffer.span());
-    spdlog::info("blitted image #{} in {} ms", id, (std::chrono::steady_clock::now() - begin).count() / 1'000'000.0f);
+    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Copied Image #{} to Host Visible Staging Buffer in {} ms", id, (std::chrono::steady_clock::now() - begin).count() / 1'000'000.0f);
 
     images.emplace(id, RenderImage{.image          = Image{.image = image, .view = view, .memory = memory, .dev = dev},
                                    .format         = image_view.format,
@@ -262,7 +263,7 @@ struct RenderResourceManager
                                    .needs_delete   = false,
                                    .is_real_time   = is_real_time});
 
-    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Created {}{} {}x{} image #{} with format={} and size={} bytes", is_real_time ? "" : "non-", "real-time", image_view.extent.width, image_view.extent.height, id, string_VkFormat(target_format), memory_requirements.size);
+    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Created {}{} {}x{} Image #{} with format={} and size={} bytes", is_real_time ? "" : "non-", "real-time", image_view.extent.width, image_view.extent.height, id, string_VkFormat(target_format), memory_requirements.size);
 
     return id;
   }

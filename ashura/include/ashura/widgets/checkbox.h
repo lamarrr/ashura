@@ -57,11 +57,11 @@ struct CheckBox : public Widget
     if (button == MouseButton::Primary)
     {
       value = !value;
-      on_changed(value);
+      on_changed(context, value);
     }
   }
 
-  virtual void on_changed(bool new_value)
+  virtual void on_changed(Context &context, bool new_value)
   {}
 
   CheckBoxProps props;

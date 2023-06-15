@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 
 #include "ashura/utils.h"
@@ -42,6 +43,13 @@ constexpr f32 abs(f32 x)
 constexpr f32 epsilon_clamp(f32 x)
 {
   return abs(x) > stx::F32_EPSILON ? x : stx::F32_EPSILON;
+}
+
+// WARNING: the only integral type you should be using this for is i64.
+template <typename T>
+constexpr T lerp(T begin, T end, f32 percentage)
+{
+  return begin + AS(T, (end - begin) * percentage);
 }
 
 struct vec2
@@ -209,6 +217,7 @@ struct tri
   }
 };
 
+// each coordinate is an edge of the quad
 struct quad
 {
   vec2 p0, p1, p2, p3;
@@ -230,10 +239,10 @@ struct rect
 
   constexpr bool overlaps(rect other) const
   {
-    auto [x1_min, x1_max, y1_min, y1_max] = bounds();
-    auto [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+    auto [x0_min, x0_max, y0_min, y0_max] = bounds();
+    auto [x1_min, x1_max, y1_min, y1_max] = other.bounds();
 
-    return x1_min < x2_max && x1_max > x2_min && y2_max > y1_min && y2_min < y1_max;
+    return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min && y1_min < y0_max;
   }
 
   constexpr bool contains(vec2 point) const
@@ -877,6 +886,15 @@ constexpr bool operator!=(color a, color b)
   return a.r != b.r || a.g != b.g || a.b != b.b || a.a != b.a;
 }
 
+template <>
+constexpr color lerp<color>(color begin, color end, f32 percentage)
+{
+  return color{.r = AS(u8, std::clamp<i64>(lerp<i64>(begin.r, end.r, percentage), 0, 255)),
+               .g = AS(u8, std::clamp<i64>(lerp<i64>(begin.g, end.g, percentage), 0, 255)),
+               .b = AS(u8, std::clamp<i64>(lerp<i64>(begin.b, end.b, percentage), 0, 255)),
+               .a = AS(u8, std::clamp<i64>(lerp<i64>(begin.a, end.a, percentage), 0, 255))};
+}
+
 namespace colors
 {
 
@@ -892,7 +910,7 @@ constexpr color YELLOW      = color::from_rgb(0xff, 0xff, 0x00);
 
 }        // namespace colors
 
-struct rect_uv
+struct texture_rect
 {
   vec2 uv0, uv1;
 };
@@ -904,5 +922,11 @@ struct vertex
   vec2 uv;              // texture coordinates
   vec4 color;           // color of the vertex encoded in the target's color space
 };
+
+using Clock        = std::chrono::steady_clock;        // monotonic system clock
+using timepoint    = Clock::time_point;
+using nanoseconds  = std::chrono::nanoseconds;
+using milliseconds = std::chrono::milliseconds;
+using seconds      = std::chrono::seconds;
 
 }        // namespace ash

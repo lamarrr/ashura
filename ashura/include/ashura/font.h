@@ -38,21 +38,21 @@ enum class FontLoadError : u8
 /// NOTE: using stubs enables us to perform fast linear lookups of glyph indices by ensuring the array is filled and sorted by glyph index from 0 -> nglyphs_found_in_font-1
 struct Glyph
 {
-  bool    is_valid = false;
-  offset  offset;                // offset into the atlas this glyph is placed
-  extent  extent;                // extent of the glyph in the atlas
-  vec2    bearing;               // offset from cursor baseline to start drawing glyph from
-  f32     descent = 0;           // distance from baseline to the bottom of the glyph
-  vec2    advance;               // advancement of the cursor after drawing this glyph
-  rect_uv texture_region;        // texture coordinates of this glyph in the atlas
+  bool         is_valid = false;
+  offset       offset;                // offset into the atlas this glyph is placed
+  extent       extent;                // extent of the glyph in the atlas
+  vec2         bearing;               // offset from cursor baseline to start drawing glyph from
+  f32          descent = 0;           // distance from baseline to the bottom of the glyph
+  vec2         advance;               // advancement of the cursor after drawing this glyph
+  texture_rect texture_region;        // texture coordinates of this glyph in the atlas
 };
 
 struct GlyphStroke
 {
-  bool    is_valid = false;
-  offset  offset;                // offset into the atlas its glyph resides
-  extent  extent;                // extent of the glyph in the atlas
-  rect_uv texture_region;        // texture coordinates of this glyph in the atlas
+  bool         is_valid = false;
+  offset       offset;                // offset into the atlas its glyph resides
+  extent       extent;                // extent of the glyph in the atlas
+  texture_rect texture_region;        // texture coordinates of this glyph in the atlas
 };
 
 struct Font

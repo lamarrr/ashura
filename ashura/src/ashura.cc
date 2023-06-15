@@ -5,17 +5,12 @@
 #include "ashura/widgets/checkbox.h"
 #include "ashura/widgets/flex.h"
 #include "ashura/widgets/image.h"
+#include "ashura/widgets/radio.h"
 #include "ashura/widgets/slider.h"
 #include "ashura/widgets/text.h"
 #include "stx/try_some.h"
 
 using namespace ash;
-
-using Clock        = std::chrono::steady_clock;        // monotonic system clock
-using timepoint    = Clock::time_point;
-using nanoseconds  = std::chrono::nanoseconds;
-using milliseconds = std::chrono::milliseconds;
-using seconds      = std::chrono::seconds;
 
 int main(int argc, char **argv)
 {
@@ -27,19 +22,23 @@ int main(int argc, char **argv)
 
   AppConfig cfg{.enable_validation_layers = false, .fonts = fonts};
 
-  App       app{std::move(cfg),
+  RadioContext ctx{8};
+  App          app{std::move(cfg),
           Flex{FlexProps{},
                CheckBox{},
                Slider{},
+               Radio<int>(5, ctx),
+               Radio<int>(6, ctx),
+               Radio<int>(8, ctx),
                Text{"verified", TextProps{.font = "MaterialIcons", .foreground_color = colors::YELLOW}},
                Text{"User5346", TextProps{.font = "Roboto", .foreground_color = colors::WHITE}},
                Text{"explicit", TextProps{.font = "MaterialIcons", .foreground_color = colors::WHITE}},
                Image{ImageProps{
-                         .source         = FileImageSource{.path = R"(C:\Users\Basit\Pictures\1288647.png)"},
-                         .border_radius  = vec4{20, 20, 20, 20},
-                         .aspect_ratio   = stx::Some(2.0f),
-                         .resize_on_load = true}}}};
-  timepoint last_tick = Clock::now();
+                            .source         = FileImageSource{.path = R"(C:\Users\Basit\Pictures\1248279.jpg)"},
+                            .border_radius  = vec4{20, 20, 20, 20},
+                            .aspect_ratio   = stx::Some(2.0f),
+                            .resize_on_load = true}}}};
+  timepoint    last_tick = Clock::now();
   while (true)
   {
     timepoint present = Clock::now();

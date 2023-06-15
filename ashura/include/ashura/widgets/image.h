@@ -111,7 +111,7 @@ struct Image : public Widget
       break;
       case ImageState::Loaded:
       {
-        rect_uv texture_region{.uv0 = {0, 0}, .uv1 = {1, 1}};
+        texture_rect texture_region{.uv0 = {0, 0}, .uv1 = {1, 1}};
 
         if (props.aspect_ratio.is_some())
         {
