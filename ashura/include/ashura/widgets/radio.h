@@ -41,9 +41,9 @@ struct RadioContext
 
 struct RadioProps
 {
-  color active_color   = material::BLUE_A700;
-  color inactive_color = material::GRAY_600;
-  f32   radius         = 15;
+  color active_color   = material::GRAY_300;
+  color inactive_color = material::BLUE_A700;
+  f32   radius         = 12.5;
 };
 
 template <typename RadioValue>
@@ -52,11 +52,21 @@ struct Radio : public Widget
   static_assert(stx::equality_comparable<RadioValue>);
 
   Radio(RadioValue ivalue, RadioContext<RadioValue> iradio_context, RadioProps iprops = {}) :
-      value{std::move(ivalue)}, radio_context{std::move(iradio_context)}, props{iprops}, radius_animation{animation::make_linear(Tween<f32>{}, nanoseconds{1})}, color_animation{animation::make_linear(Tween<color>{}, nanoseconds{1})}
+      value{std::move(ivalue)}, radio_context{std::move(iradio_context)}, props{iprops}
   {
     if (radio_context.data->value == value)
     {
       is_active = true;
+      tween     = Tween{props.inactive_color, props.active_color};
+      animation.restart(milliseconds{200}, milliseconds{200}, 1);
+      animation.finish();
+    }
+    else
+    {
+      is_active = false;
+      tween     = Tween{props.active_color, props.inactive_color};
+      animation.restart(milliseconds{200}, milliseconds{200}, 1);
+      animation.finish();
     }
   }
 
@@ -82,18 +92,15 @@ struct Radio : public Widget
     {
       on_changed(context, radio_context.data->value);
     }
+
+    animation.tick(interval);
   }
 
   constexpr virtual void draw(Context &context, gfx::Canvas &canvas, rect area) override
   {
-    if (is_active)
-    {
-      canvas.draw_circle_filled(area.offset, props.radius, 180, props.active_color);
-    }
-    else
-    {
-      canvas.draw_circle_stroke(area.offset, props.radius, 180, props.inactive_color, 1.5);
-    }
+    f32 inner_radius = props.radius * 0.6f;
+    canvas.draw_circle_filled(area.offset, props.radius, 180, props.inactive_color);
+    canvas.draw_circle_filled(area.offset + props.radius - inner_radius, inner_radius, 180, animation.animate(color_curve, tween));
   }
 
   constexpr virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad) override
@@ -110,12 +117,16 @@ struct Radio : public Widget
     {
       is_active = true;
       on_selected(context);
+      tween = Tween{props.inactive_color, props.active_color};
     }
     else if (is_active)
     {
       is_active = false;
       on_deselected(context);
+      tween = Tween{props.active_color, props.inactive_color};
     }
+
+    animation.restart(milliseconds{200}, milliseconds{200}, 1);
   }
 
   virtual void on_selected(Context &context)
@@ -124,12 +135,14 @@ struct Radio : public Widget
   virtual void on_deselected(Context &context)
   {}
 
-  RadioValue                       value;
-  bool                             is_active = false;
-  RadioContext<RadioValue>         radio_context;
-  RadioProps                       props;
-  stx::Rc<TweenAnimation<f32> *>   radius_animation;
-  stx::Rc<TweenAnimation<color> *> color_animation;
+  RadioValue               value;
+  bool                     is_active = false;
+  RadioContext<RadioValue> radio_context;
+  RadioProps               props;
+  EaseIn                   radius_curve;
+  EaseIn                   color_curve;
+  Tween<color>             tween;
+  Animation                animation;
 };
 
 }        // namespace ash

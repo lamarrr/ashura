@@ -11,7 +11,7 @@ struct CheckBoxProps
 {
   color box_color         = material::BLUE_A700;
   color outline_color     = material::GRAY_600;
-  color checkmark_color   = material::BLACK;
+  color checkmark_color   = material::GRAY_300;
   f32   extent            = 20;
   f32   border_radius     = 2.5;
   f32   outline_thickness = 1;

@@ -233,7 +233,11 @@ struct Widget
   constexpr virtual void on_leave_viewport(Context &context)
   {}
 
-  constexpr virtual bool hit_test(Context &context, vec2 mouse_position);
+  // TODO(lamarrr): this needs to happen before mouse selection?
+  constexpr virtual bool hit_test(Context &context, vec2 mouse_position)
+  {
+    return false;
+  }
 
   // TODO(lamarrr): on mouse up and on mouse down aren't same as dragging
   constexpr virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)

@@ -5,12 +5,6 @@
 
 namespace ash
 {
-
-struct EdgeInsets
-{
-  f32 left = 0, top = 0, right = 0, bottom = 0;
-};
-
 struct Padding : public Widget
 {
   template <typename DerivedWidget>

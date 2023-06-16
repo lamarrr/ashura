@@ -7,166 +7,229 @@ namespace ash
 template <typename T>
 struct Tween
 {
-  T begin;
-  T end;
+  T a;
+  T b;
 
-  constexpr T lerp(f32 percentage)
+  constexpr T lerp(f32 t) const
   {
-    return ash::lerp(begin, end, percentage);
+    return ash::lerp(a, b, t);
   }
 };
 
-namespace curves
-{
-
-constexpr f32 ease_in(f32 percentage)
-{
-  return percentage * percentage;
-}
-
-constexpr f32 ease_out(f32 percentage)
-{
-  return 1 - (1 - percentage) * (1 - percentage);
-}
-
-constexpr f32 ease_in_out(f32 percentage)
-{
-  return lerp(ease_in(percentage), ease_out(percentage), percentage);
-}
-
-};        // namespace curves
-
-template <typename T>
+// SEE: https://www.youtube.com/watch?v=jvPPXbo87ds
 struct AnimationCurve
 {
-  virtual ~AnimationCurve() override
+  virtual ~AnimationCurve()
   {}
 
-  /// drive the animation.
-  /// timepoint is the time passed since the animation started.
-  /// time is tracked by an external clock source.
-  virtual T forward(Tween<T> tween, nanoseconds duration, nanoseconds timepoint) = 0;
-
-  virtual T backward(Tween<T> tween, nanoseconds duration, nanoseconds timepoint) = 0;
+  virtual f32 tick(f32 t) = 0;
 };
 
-template <typename T>
-struct Linear final : public AnimationCurve<T>
+struct Linear final : public AnimationCurve
 {
   virtual ~Linear() override
   {}
 
-  virtual T forward(Tween<T> tween, nanoseconds duration, nanoseconds timepoint) override
+  virtual f32 tick(f32 t) override
   {
-    f32 percentage = AS(f32, timepoint.count()) / this->duration.count();
-    return this->tween.lerp(percentage);
+    return t;
   }
 };
 
-template <typename T>
-struct EaseIn final : public AnimationCurve<T>
+struct EaseIn final : public AnimationCurve
 {
   virtual ~EaseIn() override
   {}
 
-  virtual T forward(Tween<T> tween, nanoseconds duration, nanoseconds timepoint) override
+  virtual f32 tick(f32 t) override
   {
-    f32 percentage = AS(f32, timepoint.count()) / this->duration.count();
-    return this->tween.lerp(curves::ease_in(percentage));
+    return t * t;
   }
 };
 
-template <typename T>
-struct EaseOut final : public AnimationCurve<T>
+struct EaseOut final : public AnimationCurve
 {
   virtual ~EaseOut() override
   {}
 
-  virtual T forward(Tween<T> tween, nanoseconds duration, nanoseconds timepoint) override
+  virtual f32 tick(f32 t) override
   {
-    f32 percentage = AS(f32, timepoint.count()) / this->duration.count();
-    return this->tween.lerp(curves::ease_out(percentage));
+    return 1 - (1 - t) * (1 - t);
   }
 };
 
-template <typename T>
-struct EaseInOut final : public AnimationCurve<T>
+struct EaseInOut final : public AnimationCurve
 {
   virtual ~EaseInOut() override
   {}
 
-  virtual T forward(Tween<T> tween, nanoseconds duration, nanoseconds timepoint) override
+  virtual f32 tick(f32 t) override
   {
-    f32 percentage = AS(f32, timepoint.count()) / this->duration.count();
-    return this->tween.lerp(curves::ease_in_out(percentage));
+    return lerp(t * t, 1 - (1 - t) * (1 - t), t);
   }
 };
 
 enum class AnimationDirection : u8
 {
   Forward,
-  Rewind,
-  Static,
-  Alternate
+  Reverse,
 };
 
 enum class AnimationState : u8
 {
   Paused,
   Forward,
-  Backward,
+  Reversing,
   Completed
 };
 
-struct AnimationProps
-{
-  nanoseconds        duration          = nanoseconds{0};
-  nanoseconds        delay             = nanoseconds{0};
-  usize              iterations        = 1;
-  AnimationDirection direction         = AnimationDirection::Forward;
-  nanoseconds        current_timepoint = nanoseconds{0};
-  timepoint          begin;
-};
+// TODO(lamarrr): Splines, Bezier Curves, Hermite Curves, Catmull-Rom curves, B-Spline
 
-// TODO(lamarrr): combined animations move from a to b then c to d -> combined duration, multiple tweens
-// TODO(lamarrr): compound animations move from a to b then b to c -> total duration, single tween
-
-template <typename T>
 struct Animation
 {
-  AnimationProps               props;
-  AnimationState               state           = AnimationState::Paused;
-  usize                        iterations_done = 0;
-  stx::Rc<AnimationCurve<T> *> curve;
+  /// CONFIGURATION
+  nanoseconds        duration         = nanoseconds{0};
+  nanoseconds        reverse_duration = nanoseconds{0};
+  usize              iterations       = 1;
+  AnimationDirection direction        = AnimationDirection::Forward;
 
-  /// reset the animation
-  void reset()
-  {}
+  /// INTERNAL STATE
+  usize iterations_done = 0;
+  f32   t               = 0;
+  f32   speed           = 1;        // higher spead means faster time to completion than specified duration
+
+  constexpr void restart(
+      nanoseconds duration,
+      nanoseconds reverse_duration,
+      usize       iterations)
+  {
+    this->duration         = duration;
+    this->reverse_duration = reverse_duration;
+    this->iterations       = iterations;
+    this->direction        = AnimationDirection::Forward;
+    this->iterations_done  = 0;
+    this->t                = 0;
+    this->speed            = 1;
+  }
+
+  constexpr AnimationState get_state() const
+  {
+    switch (direction)
+    {
+      case AnimationDirection::Forward:
+        if (epsilon_equal(t, 1) && iterations_done == iterations)
+        {
+          return AnimationState::Completed;
+        }
+        else if (epsilon_equal(speed, 0))
+        {
+          return AnimationState::Paused;
+        }
+        else
+        {
+          return AnimationState::Forward;
+        }
+        break;
+
+      case AnimationDirection::Reverse:
+        if (epsilon_equal(t, 0) && iterations_done == iterations)
+        {
+          return AnimationState::Completed;
+        }
+        else if (epsilon_equal(speed, 0))
+        {
+          return AnimationState::Paused;
+        }
+        else
+        {
+          return AnimationState::Reversing;
+        }
+        break;
+
+      default:
+        return AnimationState::Paused;
+    }
+  }
 
   /// pause the animation
-  void pause()
-  {}
+  constexpr void pause()
+  {
+    speed = 0;
+  }
 
-  /// rewind the animation
-  void rewind()
-  {}
+  /// resume the animation
+  constexpr void resume()
+  {
+    if (epsilon_equal(speed, 0))
+    {
+      speed = 1;
+    }
+  }
+
+  /// reverse the animation's direction
+  constexpr void reverse()
+  {
+    direction = AnimationDirection::Reverse;
+  }
 
   /// drive the animation to completion
-  void finish()
-  {}
+  constexpr void finish()
+  {
+    switch (direction)
+    {
+      case AnimationDirection::Forward:
+        t = 1;
+        break;
 
-  T tick(nanoseconds timepoint);
+      case AnimationDirection::Reverse:
+        t = 0;
+        break;
+    }
+  }
+
+  constexpr bool is_completed() const
+  {
+    return get_state() == AnimationState::Completed;
+  }
+
+  void tick(nanoseconds interval)
+  {
+    if (is_completed())
+    {
+      return;
+    }
+
+    f32   step_duration   = (direction == AnimationDirection::Forward ? duration : reverse_duration).count();
+    f32   step            = speed * AS(f32, interval.count()) / epsilon_clamp(step_duration);
+    usize step_iterations = AS(usize, step);
+    step                  = step - AS(f32, AS(i64, step));
+
+    if (iterations_done + step_iterations >= iterations)
+    {
+      finish();
+      iterations_done = iterations;
+    }
+    else
+    {
+      switch (direction)
+      {
+        case AnimationDirection::Forward:
+          t = std::min(t + step, 1.0f);
+          break;
+
+        case AnimationDirection::Reverse:
+          t = std::max(t - step, 0.0f);
+          break;
+      }
+      iterations_done += step_iterations;
+    }
+  }
+
+  template <typename T>
+  T animate(AnimationCurve &curve, Tween<T> const &tween) const
+  {
+    return tween.lerp(curve.tick(t));
+  }
 };
-
-namespace animation
-{
-
-template <typename T>
-stx::Rc<Animation<T> *> make_linear(Tween<T> tween, nanoseconds duration)
-{
-  return stx::cast<Animation<T> *>(stx::rc::make_inplace<LinearAnimation<T>>(stx::os_allocator, tween, duration).unwrap());
-}
-
-}        // namespace animation
 
 }        // namespace ash

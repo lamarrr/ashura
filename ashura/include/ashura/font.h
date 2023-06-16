@@ -24,7 +24,7 @@
 
 namespace ash
 {
-constexpr extent DEFAULT_MAX_FONT_ATLAS_EXTENT = extent{1920, 1080};
+constexpr extent DEFAULT_MAX_FONT_ATLAS_EXTENT = extent{3840, 3840};
 
 enum class FontLoadError : u8
 {

@@ -33,6 +33,12 @@ using isize = ptrdiff_t;
 using uchar = unsigned char;
 using uint  = unsigned int;
 
+using Clock        = std::chrono::steady_clock;        // monotonic system clock
+using timepoint    = Clock::time_point;
+using nanoseconds  = std::chrono::nanoseconds;
+using milliseconds = std::chrono::milliseconds;
+using seconds      = std::chrono::seconds;
+
 constexpr f32 PI = 3.14159265358979323846f;
 
 constexpr f32 abs(f32 x)
@@ -52,9 +58,9 @@ constexpr f32 epsilon_clamp(f32 x)
 
 // WARNING: the only non-floating-point integral type you should be using this for is i64.
 template <typename T>
-constexpr T lerp(T begin, T end, f32 percentage)
+constexpr T lerp(T a, T b, f32 t)
 {
-  return begin + AS(T, (end - begin) * percentage);
+  return AS(T, a + (b - a) * t);
 }
 
 struct vec2
@@ -312,6 +318,16 @@ struct rect
   constexpr rect with_extent(f32 w, f32 h) const
   {
     return rect{.offset = offset, .extent = vec2{w, h}};
+  }
+
+  constexpr rect with_center(vec2 center) const
+  {
+    return rect{.offset = center - extent / 2, .extent = extent};
+  }
+
+  constexpr rect with_center(f32 cx, f32 cy) const
+  {
+    return with_center(vec2{cx, cy});
   }
 };
 
@@ -892,12 +908,12 @@ constexpr bool operator!=(color a, color b)
 }
 
 template <>
-constexpr color lerp<color>(color begin, color end, f32 percentage)
+constexpr color lerp<color>(color a, color b, f32 t)
 {
-  return color{.r = AS(u8, std::clamp<i64>(lerp<i64>(begin.r, end.r, percentage), 0, 255)),
-               .g = AS(u8, std::clamp<i64>(lerp<i64>(begin.g, end.g, percentage), 0, 255)),
-               .b = AS(u8, std::clamp<i64>(lerp<i64>(begin.b, end.b, percentage), 0, 255)),
-               .a = AS(u8, std::clamp<i64>(lerp<i64>(begin.a, end.a, percentage), 0, 255))};
+  return color{.r = AS(u8, std::clamp<i64>(lerp<i64>(a.r, b.r, t), 0, 255)),
+               .g = AS(u8, std::clamp<i64>(lerp<i64>(a.g, b.g, t), 0, 255)),
+               .b = AS(u8, std::clamp<i64>(lerp<i64>(a.b, b.b, t), 0, 255)),
+               .a = AS(u8, std::clamp<i64>(lerp<i64>(a.a, b.a, t), 0, 255))};
 }
 
 namespace colors
@@ -928,10 +944,9 @@ struct vertex
   vec4 color;           // color of the vertex encoded in the target's color space
 };
 
-using Clock        = std::chrono::steady_clock;        // monotonic system clock
-using timepoint    = Clock::time_point;
-using nanoseconds  = std::chrono::nanoseconds;
-using milliseconds = std::chrono::milliseconds;
-using seconds      = std::chrono::seconds;
+struct EdgeInsets
+{
+  f32 left = 0, top = 0, right = 0, bottom = 0;
+};
 
 }        // namespace ash
