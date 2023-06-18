@@ -23,7 +23,7 @@ struct Slider : public Widget
   Slider(SliderProps iprops = SliderProps{}) :
       props{iprops}
   {
-    thumb_tween = Tween{props.thumb_radius * 0.75f, props.thumb_radius * 0.5f };
+    thumb_tween = Tween{props.thumb_radius * 0.75f, props.thumb_radius * 0.5f};
     thumb_animation.restart(milliseconds{200}, milliseconds{200}, 1);
     thumb_animation.finish();
   }

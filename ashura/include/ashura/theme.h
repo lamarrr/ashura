@@ -26,13 +26,7 @@ struct ThemeData
 };
 
 template <>
-struct Tween<ThemeData>
-{
-  ThemeData begin;
-  ThemeData end;
-
-  constexpr ThemeData lerp(f32 percentage);
-};
+constexpr ThemeData lerp<ThemeData>(ThemeData const &a, ThemeData const &b, f32 percentage);
 
 struct Theme
 {

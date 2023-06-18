@@ -19,7 +19,7 @@ Context ctx;
 
 TEST(LayoutTest, Start)
 {
-  Flex flex{FlexProps{}, Widget{},
+  FlexBox flex{FlexProps{}, Widget{},
             Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
             Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
 
@@ -48,7 +48,7 @@ TEST(LayoutTest, Start)
 
 TEST(LayoutTest, SpaceAround)
 {
-  Flex flex{FlexProps{.direction   = Direction::Row,
+  FlexBox flex{FlexProps{.direction   = Direction::Row,
                       .main_align  = MainAlign::SpaceAround,
                       .cross_align = CrossAlign::Center},
             Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
@@ -86,7 +86,7 @@ TEST(LayoutTest, SpaceAround)
 
 TEST(LayoutTest, SpaceEvenly)
 {
-  Flex flex{FlexProps{.direction   = Direction::Row,
+  FlexBox flex{FlexProps{.direction   = Direction::Row,
                       .main_align  = MainAlign::SpaceEvenly,
                       .cross_align = CrossAlign::Center},
             Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
@@ -123,7 +123,7 @@ TEST(LayoutTest, SpaceEvenly)
 
 TEST(LayoutTest, SpaceBetween)
 {
-  Flex flex{FlexProps{.direction   = Direction::Row,
+  FlexBox flex{FlexProps{.direction   = Direction::Row,
                       .main_align  = MainAlign::SpaceBetween,
                       .cross_align = CrossAlign::Center},
             Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},

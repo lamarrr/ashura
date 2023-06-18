@@ -51,12 +51,12 @@ struct Stack : public Widget
     return children;
   }
 
-  constexpr virtual WidgetInfo get_info(Context &context) override
+  virtual WidgetInfo get_info(Context &context) override
   {
     return WidgetInfo{.type = "Stack"};
   }
 
-  constexpr virtual Layout layout(Context &context, rect area);
+  virtual Layout layout(Context &context, rect area);
 
   Alignment          alignment = Alignment::TopLeft;
   stx::Vec<Widget *> children;

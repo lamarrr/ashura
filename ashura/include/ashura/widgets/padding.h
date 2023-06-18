@@ -8,28 +8,28 @@ namespace ash
 struct Padding : public Widget
 {
   template <typename DerivedWidget>
-  constexpr Padding(EdgeInsets iedge_insets, DerivedWidget ichild) :
+  Padding(EdgeInsets iedge_insets, DerivedWidget ichild) :
       edge_insets{iedge_insets}, child{new DerivedWidget{std::move(ichild)}}
   {}
 
-  constexpr virtual ~Padding() override
+  virtual ~Padding() override
   {
     delete child;
   }
 
   template <typename DerivedWidget>
-  constexpr void update_child(DerivedWidget ichild)
+  void update_child(DerivedWidget ichild)
   {
     delete child;
     child = new DerivedWidget{std::move(ichild)};
   }
 
-  constexpr virtual stx::Span<Widget *const> get_children(Context &context) override
+  virtual stx::Span<Widget *const> get_children(Context &context) override
   {
     return stx::Span{&child, 1};
   }
 
-  constexpr virtual WidgetInfo get_info(Context &context) override
+  virtual WidgetInfo get_info(Context &context) override
   {
     return WidgetInfo{.type = "Padding"};
   }

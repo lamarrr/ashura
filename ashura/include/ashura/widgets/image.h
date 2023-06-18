@@ -69,6 +69,7 @@ int nsegments = 2;
 /// - once the image arrives, get a reference to it
 /// - Update widget state to show that the image is loading
 ///
+// TODO(lamarrr): this is a static image. no unloading is presently done. do that ONCE props change
 struct Image : public Widget
 {
   explicit Image(ImageProps image_props) :

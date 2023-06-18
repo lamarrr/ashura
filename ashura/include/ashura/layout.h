@@ -27,7 +27,7 @@ constexpr vec2 perform_children_layout(Context &context, Layout const &layout, s
 {
   if (children.is_empty())
   {
-    return layout.area.extent;
+    return layout.area.extent;        // TODO(lamarrr)???
   }
 
   for (Widget *child : children)

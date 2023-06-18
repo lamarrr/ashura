@@ -84,8 +84,6 @@ struct FlexProps
   CrossAlign cross_align = CrossAlign::Start;
   Fit        main_fit    = Fit::Shrink;
   Fit        cross_fit   = Fit::Shrink;
-  constraint width       = constraint{.scale = 1};
-  constraint height      = constraint{.scale = 1};
 
   constexpr vec2 fit(vec2 span, vec2 initial_extent) const
   {
@@ -146,10 +144,11 @@ struct FlexProps
 // TODO(lamarrr): i.e. a number floating on a picture
 struct Layout
 {
-  FlexProps flex;                                 // flex properties used for layout
-  rect      area;                                 // initial area to use, final area will be determined by flex flayout
-  Position  position = Position::Relative;        // determines if widget should be positioned relative to parent and flow along with its other children or pop out into its own area
+  FlexProps flex;        // flex properties used for layout
+  rect      area;        // initial area to use, final area will be determined by flex flayout
+  // Position  position = Position::Relative;        // determines if widget should be positioned relative to parent and flow along with its other children or pop out into its own area
 };
+// This would mean position static widget will not have their z_indexes depend on the parent widget's???
 
 // TODO(lamarrr): we need to pass in a zoom level to the rendering widget? so
 // that widgets like text can shape their glyphs properly
@@ -165,199 +164,174 @@ struct WidgetInfo
 // consider: having tokens that de-register themselves once deleted
 struct Widget
 {
-  constexpr Widget()
+  Widget()
   {}
 
-  constexpr virtual ~Widget()
+  virtual ~Widget()
   {}
 
-  //
-  constexpr virtual stx::Span<Widget *const> get_children(Context &context)
+  /// get the widget's children, if it has children, they are laid out relative to the widget's offset
+  virtual stx::Span<Widget *const> get_children(Context &context)
   {
     return {};
   }
 
-  // TODO(lamarrr): get_flex_children and get_static_children()
+  // TODO(lamarrr): what if we want to position child relative to the parent? positioning to 0,0 isn't a good idea
+  virtual stx::Span<Widget *const> get_static_children(Context &context)
+  {
+    return {};
+  }
 
   //
-  constexpr virtual WidgetInfo get_info(Context &context)
+  virtual WidgetInfo get_info(Context &context)
   {
     return WidgetInfo{.type = "Widget"};
   }
 
-  //
-  constexpr virtual Visibility get_visibility(Context &context)
+  /// called at the beginning of the application
+  virtual void on_startup(Context &context)
+  {}
+
+  /// called at application exit
+  virtual void on_exit(Context &context)
+  {}
+
+  /// returns the visibility of this widget. an invisible widget will not be drawn nor receive mouse/touch events
+  virtual Visibility get_visibility(Context &context)
   {
     return Visibility::Visible;
   }
 
-  //
-  constexpr virtual i64 get_z_index(Context &context, i64 z_index)
+  /// returns the desired z_index of this widget given the hierarchy assigned z_index.
+  virtual i64 get_z_index(Context &context, i64 z_index)
   {
     return z_index;
   }
 
-  //
-  constexpr virtual mat4 get_transform(Context &context)
+  /// returns the rect placement transform of this widget. this will be used in positioning the widget
+  virtual mat4 get_transform(Context &context)
   {
     return mat4::identity();
   }
 
-  //
-  constexpr virtual Layout layout(Context &context, rect area)
+  /// called when layout of the widget is required
+  /// area is the widget's assigned area
+  virtual Layout layout(Context &context, rect area)
   {
     return Layout{};
   }
 
   //
-  constexpr virtual void draw(Context &context, gfx::Canvas &canvas, rect area)
+  virtual void draw(Context &context, gfx::Canvas &canvas, rect area)
+  {}
+
+  /// called on every frame. interval is the time passed since the last call to this tick method
+  /// state changes, animations, task dispatch and lightweight processing related to the GUI should happen here
+  virtual void tick(Context &context, std::chrono::nanoseconds interval)
   {}
 
   //
-  constexpr virtual void tick(Context &context, std::chrono::nanoseconds interval)
+  virtual void on_enter_viewport(Context &context)
   {}
 
   //
-  constexpr virtual void on_startup(Context &context)
+  virtual void on_leave_viewport(Context &context)
   {}
 
-  //
-  constexpr virtual void on_exit(Context &context)
-  {}
-
-  //
-  constexpr virtual void on_enter_viewport(Context &context)
-  {}
-
-  //
-  constexpr virtual void on_leave_viewport(Context &context)
-  {}
-
-  // TODO(lamarrr): this needs to happen before mouse selection?
-  constexpr virtual bool hit_test(Context &context, vec2 mouse_position)
+  // TODO(lamarrr): this needs to happen before mouse actions as some widgets .i.e. text don't need to intercept or receive mouse events
+  virtual bool hit_test(Context &context, vec2 mouse_position)
   {
     return false;
   }
 
-  // TODO(lamarrr): on mouse up and on mouse down aren't same as dragging
-  constexpr virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
+  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
   {}
 
-  constexpr virtual void on_mouse_up(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
+  virtual void on_mouse_up(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
   {}
 
-  constexpr virtual void on_mouse_move(Context &context, vec2 mouse_position, vec2 translation, quad quad)
+  virtual void on_mouse_move(Context &context, vec2 mouse_position, vec2 translation, quad quad)
   {}
 
-  constexpr virtual void on_mouse_enter(Context &context, vec2 mouse_position, quad quad)
+  virtual void on_mouse_enter(Context &context, vec2 mouse_position, quad quad)
   {}
 
   virtual void on_mouse_leave(Context &context, stx::Option<vec2> mouse_position)
   {}
 
+  // signifies that this widget is about to be dragged
+  // return true if this widget allows dragging
+  virtual bool on_drag_start(Context &context)
+  {}
+
+  // gives the drag position of the widget,
+  /**
+   * @brief
+   *
+   * @param context
+   * @param global_position: current global drag position
+   * @param local_position: current position relative to its initial position
+   * @param delta: difference between this drah update and the last drag update
+   */
+  virtual void on_drag_update(Context &context, vec2 global_position, vec2 local_position, vec2 delta)
+  {}
+
+  // signifies that the dragging of this widget has been canceled. i.e. released to an area without a widget that accepts the drag event
+  virtual void on_drag_canceled(Context &context)
+  {}
+
+  // the drag operation has been performed
+  virtual void on_drag_end(Context &context)
+  {}
+
+  // this widget has begun receiving drag data, i.e. it has been dragged onto
   //
-  constexpr virtual void on_tap(Context &context)
+  // returns true if widget accepts drag events
+  virtual bool on_drag_enter(Context &context)
+  {}
+
+  /// this widget has previously begun receiving drag data, but the mouse is still dragging within it
+  virtual void on_drag_over(Context &context)
+  {}
+
+  /// the drag event has left this widget
+  virtual void on_drag_leave(Context &context)
+  {}
+
+  // drop of media file/item outside the context of the application
+  virtual void on_drop(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag(Context &context)
+  virtual void on_tap(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag_start(Context &context)
+  virtual void on_touch_cancel(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag_end(Context &context)
+  virtual void on_touch_end(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag_enter(Context &context)
+  virtual void on_touch_move(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag_leave(Context &context)
+  virtual void on_touch_start(Context &context)
   {}
 
   //
-  constexpr virtual void on_drag_over(Context &context)
+  virtual void on_touch_enter(Context &context)
   {}
 
   //
-  constexpr virtual void on_drop(Context &context)
+  virtual void on_touch_leave(Context &context)
   {}
 
-  //
-  constexpr virtual void on_touch_cancel(Context &context)
-  {}
-
-  //
-  constexpr virtual void on_touch_end(Context &context)
-  {}
-
-  //
-  constexpr virtual void on_touch_move(Context &context)
-  {}
-
-  //
-  constexpr virtual void on_touch_start(Context &context)
-  {}
-
-  //
-  constexpr virtual void on_touch_enter(Context &context)
-  {}
-
-  //
-  constexpr virtual void on_touch_leave(Context &context)
-  {}
-
-  // TODO(lamarrr): can this be simpler?
-  // virtual void raise_tooltip(){}
-  // virtual void lower_tooltip(){}
   rect area;          // position of the widget on the viewport. calculated on every frame
-  u64  id = 0;        // id used to recognise the widget. changes from frame to frame??? // TODO(lamarrr)
-};
-
-struct WidgetPtr
-{
-  template <typename DerivedWidget>
-  constexpr WidgetPtr(DerivedWidget widget) :
-      impl{new DerivedWidget{std::move(widget)}}
-  {
-    static_assert(std::is_base_of_v<Widget, DerivedWidget>);
-  }
-
-  constexpr WidgetPtr()
-  {}
-
-  static constexpr WidgetPtr make(Widget *impl)
-  {
-    WidgetPtr w;
-    w.impl = impl;
-    return w;
-  }
-
-  constexpr WidgetPtr(WidgetPtr const &) = default;
-
-  constexpr WidgetPtr(WidgetPtr &&) = default;
-
-  constexpr WidgetPtr &operator=(WidgetPtr const &) = default;
-
-  constexpr WidgetPtr &operator=(WidgetPtr &&) = default;
-
-  constexpr ~WidgetPtr() = default;
-
-  constexpr Widget *operator->() const
-  {
-    return impl;
-  }
-
-  constexpr operator Widget *() const
-  {
-    return impl;
-  }
-
-  Widget *impl = nullptr;
+  u64  id = 0;        // id used to recognise the widget. changed on every frame
 };
 
 template <typename T>

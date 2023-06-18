@@ -214,7 +214,7 @@ inline void add_line_stroke(vec2 p0, vec2 p1, f32 thickness, vec4 color, stx::Ve
 // line joint is a bevel joint, it is the most efficient since it re-uses existing vertices and doesn't require generating new vertices
 inline void triangulate_line(stx::Span<vertex const> in_points, f32 thickness, stx::Vec<vertex> &out_vertices, stx::Vec<u32> &out_indices, bool should_close)
 {
-  if (in_points.size() < 2)
+  if (in_points.size() < 2 || thickness == 0)
   {
     return;
   }
@@ -501,7 +501,7 @@ struct Canvas
 
   Canvas &draw_path(stx::Span<vertex const> points, rect area, f32 thickness, bool should_close, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = vec2{0, 0}, .uv1 = vec2{1, 1}})
   {
-    if (points.size() < 2)
+    if (points.size() < 2 || thickness == 0)
     {
       return *this;
     }
@@ -585,7 +585,7 @@ struct Canvas
 
   Canvas &draw_rect_stroke(rect area, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    if (!viewport_contains(area))
+    if (!viewport_contains(area) || thickness == 0)
     {
       return *this;
     }
@@ -617,7 +617,7 @@ struct Canvas
   {
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
-    if (!viewport_contains(area))
+    if (!viewport_contains(area) || thickness == 0)
     {
       return *this;
     }
@@ -649,7 +649,7 @@ struct Canvas
   {
     rect area{.offset = position, .extent = 2 * radii};
 
-    if (!viewport_contains(area))
+    if (!viewport_contains(area) || thickness == 0)
     {
       return *this;
     }
@@ -677,7 +677,7 @@ struct Canvas
 
   Canvas &draw_round_rect_stroke(rect area, vec4 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    if (!viewport_contains(area))
+    if (!viewport_contains(area) || thickness == 0)
     {
       return *this;
     }

@@ -58,7 +58,7 @@ constexpr f32 epsilon_clamp(f32 x)
 
 // WARNING: the only non-floating-point integral type you should be using this for is i64.
 template <typename T>
-constexpr T lerp(T a, T b, f32 t)
+constexpr T lerp(T const &a, T const &b, f32 t)
 {
   return AS(T, a + (b - a) * t);
 }
@@ -838,7 +838,7 @@ struct constraint
 
   static constexpr constraint absolute(f32 value)
   {
-    return constraint{.bias = value, .scale = 1, .min = stx::F32_MIN, .max = stx::F32_MAX, .min_rel = 0, .max_rel = 1};
+    return constraint{.bias = value, .scale = 0, .min = stx::F32_MIN, .max = stx::F32_MAX, .min_rel = 0, .max_rel = 1};
   }
 
   constexpr f32 resolve(f32 value) const
@@ -908,7 +908,7 @@ constexpr bool operator!=(color a, color b)
 }
 
 template <>
-constexpr color lerp<color>(color a, color b, f32 t)
+constexpr color lerp<color>(color const &a, color const &b, f32 t)
 {
   return color{.r = AS(u8, std::clamp<i64>(lerp<i64>(a.r, b.r, t), 0, 255)),
                .g = AS(u8, std::clamp<i64>(lerp<i64>(a.g, b.g, t), 0, 255)),

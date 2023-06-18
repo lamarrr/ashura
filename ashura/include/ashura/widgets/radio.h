@@ -82,7 +82,7 @@ struct Radio : public Widget
     return Layout{.area = allotted.with_extent(props.radius * 2, props.radius * 2)};
   }
 
-  constexpr virtual void tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
   {
     if (radio_context.data->value == value && !is_active)
     {
@@ -96,14 +96,14 @@ struct Radio : public Widget
     animation.tick(interval);
   }
 
-  constexpr virtual void draw(Context &context, gfx::Canvas &canvas, rect area) override
+  virtual void draw(Context &context, gfx::Canvas &canvas, rect area) override
   {
     f32 inner_radius = props.radius * 0.6f;
-    canvas.draw_circle_filled(area.offset, props.radius, 180, props.inactive_color);
-    canvas.draw_circle_filled(area.offset + props.radius - inner_radius, inner_radius, 180, animation.animate(color_curve, tween));
+    canvas.draw_circle_filled(area.offset, props.radius, 180, props.inactive_color)
+        .draw_circle_filled(area.offset + props.radius - inner_radius, inner_radius, 180, animation.animate(color_curve, tween));
   }
 
-  constexpr virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad) override
+  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad) override
   {
     if (button == MouseButton::Primary)
     {
