@@ -4,6 +4,7 @@
 
 #include "ashura/canvas.h"
 #include "ashura/layout.h"
+#include "ashura/uuid.h"
 #include "ashura/widget.h"
 
 namespace ash
@@ -11,9 +12,8 @@ namespace ash
 
 struct WidgetDrawEntry
 {
-  Widget   *widget  = nullptr;
-  i64       z_index = 0;
-  ash::quad quad;
+  Widget *widget  = nullptr;
+  i64     z_index = 0;
 };
 
 // TODO(lamarrr): more window events pumping to widgets, how?
@@ -23,14 +23,16 @@ struct WidgetSystem
       root{&iroot}
   {}
 
-  static void __assign_ids_recursive(Context &context, Widget &widget, u64 &id)
+  static void __assign_ids_recursive(Context &context, Widget &widget, UuidGenerator &generator)
   {
-    widget.id = id;
+    if (widget.id.is_none())
+    {
+      widget.id = stx::Some(generator.generate());
+    }
 
     for (Widget *child : widget.get_children(context))
     {
-      id++;
-      __assign_ids_recursive(context, *child, id);
+      __assign_ids_recursive(context, *child, generator);
     }
   }
 
@@ -63,24 +65,18 @@ struct WidgetSystem
     }
   }
 
-  static void __push_recursive(Context &context, stx::Vec<WidgetDrawEntry> &entries, Widget const *last_hit_widget,
-                               bool &last_hit_widget_is_alive, Widget &widget, Widget *parent, i64 z_index)
+  static void __push_recursive(Context &context, stx::Vec<WidgetDrawEntry> &entries, Widget &widget, Widget *parent, i64 z_index)
   {
     if (widget.get_visibility(context) == Visibility::Visible)
     {
       z_index = widget.get_z_index(context, z_index);
 
-      entries.push(WidgetDrawEntry{.widget = &widget, .z_index = z_index, .quad = quad{}}).unwrap();
-    }
-
-    if (last_hit_widget == &widget)
-    {
-      last_hit_widget_is_alive = true;
+      entries.push(WidgetDrawEntry{.widget = &widget, .z_index = z_index}).unwrap();
     }
 
     for (Widget *child : widget.get_children(context))
     {
-      __push_recursive(context, entries, last_hit_widget, last_hit_widget_is_alive, *child, &widget, z_index + 1);
+      __push_recursive(context, entries, *child, &widget, z_index + 1);
     }
   }
 
@@ -94,10 +90,28 @@ struct WidgetSystem
     __exit_recursive(context, *root);
   }
 
-  void assign_ids(Context &context)
+  void assign_ids(Context &context, UuidGenerator &generator)
   {
-    u64 id = 0;
-    __assign_ids_recursive(context, *root, id);
+    __assign_ids_recursive(context, *root, generator);
+  }
+
+  Widget *find_widget(Context &context, Widget *current, uuid id)
+  {
+    if (current->id.value() == id)
+    {
+      return current;
+    }
+
+    for (Widget *child : current->get_children(context))
+    {
+      Widget *found = find_widget(context, child, id);
+      if (found != nullptr)
+      {
+        return found;
+      }
+    }
+
+    return nullptr;
   }
 
   void pump_events(Context &context)
@@ -111,16 +125,16 @@ struct WidgetSystem
         for (WidgetDrawEntry const *iter = entries.end(); iter > entries.begin();)
         {
           iter--;
-          if (iter->quad.contains(event.position))
+          if (iter->widget->transformed_area.contains(event.position))
           {
             switch (event.action)
             {
               case MouseAction::Press:
-                iter->widget->on_mouse_down(context, event.button, event.position, event.clicks, iter->quad);
+                iter->widget->on_mouse_down(context, event.button, event.position, event.clicks);
                 break;
 
               case MouseAction::Release:
-                iter->widget->on_mouse_up(context, event.button, event.position, event.clicks, iter->quad);
+                iter->widget->on_mouse_up(context, event.button, event.position, event.clicks);
                 break;
 
               default:
@@ -134,42 +148,48 @@ struct WidgetSystem
       {
         MouseMotionEvent event = std::get<MouseMotionEvent>(e);
 
-        Widget *hit_widget = nullptr;
+        stx::Option<uuid> hit_widget;
 
         for (WidgetDrawEntry const *iter = entries.end(); iter > entries.begin();)
         {
           iter--;
-          if (iter->quad.contains(event.position))
+          if (iter->widget->transformed_area.contains(event.position))
           {
-            if (iter->widget != last_hit_widget)
+            if (last_hit_widget.is_none() || iter->widget->id.value() != last_hit_widget.value())
             {
-              iter->widget->on_mouse_enter(context, event.position, iter->quad);
+              iter->widget->on_mouse_enter(context, event.position);
             }
             else
             {
-              iter->widget->on_mouse_move(context, event.position, event.translation, iter->quad);
+              iter->widget->on_mouse_move(context, event.position, event.translation);
             }
-            hit_widget = iter->widget;
+            hit_widget = stx::Some(iter->widget->id.copy().unwrap());
             break;
           }
         }
 
-        if (last_hit_widget != nullptr && last_hit_widget_is_alive && last_hit_widget != hit_widget)
+        if (last_hit_widget.is_some() && (hit_widget.is_none() || hit_widget.value() != last_hit_widget.value()))
         {
-          last_hit_widget->on_mouse_leave(context, stx::Some(vec2{event.position}));
+          Widget *plast_hit_widget = find_widget(context, root, last_hit_widget.value());
+          if (plast_hit_widget != nullptr)
+          {
+            plast_hit_widget->on_mouse_leave(context, stx::Some(vec2{event.position}));
+          }
         }
 
-        last_hit_widget          = hit_widget;
-        last_hit_widget_is_alive = hit_widget != nullptr;
+        last_hit_widget = hit_widget;
       }
       else if (std::holds_alternative<WindowEvents>(e))
       {
         if ((std::get<WindowEvents>(e) & WindowEvents::MouseLeave) != WindowEvents::None)
         {
-          if (last_hit_widget != nullptr && last_hit_widget_is_alive)
+          if (last_hit_widget.is_some())
           {
-            last_hit_widget->on_mouse_leave(context, stx::None);
-            last_hit_widget = nullptr;
+            Widget *plast_hit_widget = find_widget(context, root, last_hit_widget.value());
+            if (plast_hit_widget != nullptr)
+            {
+              plast_hit_widget->on_mouse_leave(context, stx::None);
+            }
           }
         }
       }
@@ -191,7 +211,7 @@ struct WidgetSystem
   void rebuild_draw_entries(Context &context)
   {
     entries.clear();
-    __push_recursive(context, entries, last_hit_widget, last_hit_widget_is_alive, *root, nullptr, 0);
+    __push_recursive(context, entries, *root, nullptr, 0);
     entries.span().sort([](WidgetDrawEntry const &a, WidgetDrawEntry const &b) { return a.z_index < b.z_index; });
   }
 
@@ -200,25 +220,20 @@ struct WidgetSystem
     rect viewport_rect{.offset = {0, 0}, .extent = viewport_extent};
     for (WidgetDrawEntry &entry : entries)
     {
-      mat4 widget_transform = entry.widget->get_transform(context);
-      entry.quad            = transform(global_transform * widget_transform, entry.widget->area);
-
-      if (viewport_rect.contains(entry.quad))
+      if (viewport_rect.contains(entry.widget->transformed_area))
       {
         canvas.reset();
-        canvas.transform(widget_transform);
+        canvas.transform(entry.widget->get_transform(context));
         canvas.global_transform(global_transform);
-        entry.widget->draw(context, canvas, entry.widget->area);
+        entry.widget->draw(context, canvas);
       }
     }
   }
 
   Widget                                                                 *root = nullptr;
   stx::Vec<std::variant<MouseClickEvent, MouseMotionEvent, WindowEvents>> events;
-  Widget                                                                 *last_hit_widget          = nullptr;
-  bool                                                                    last_hit_widget_is_alive = false;
-  // sorted by z-index
-  stx::Vec<WidgetDrawEntry> entries;
+  stx::Option<uuid>                                                       last_hit_widget;
+  stx::Vec<WidgetDrawEntry>                                               entries;        // sorted by z-index
 };
 
 }        // namespace ash

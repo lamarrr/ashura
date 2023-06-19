@@ -96,14 +96,14 @@ struct Radio : public Widget
     animation.tick(interval);
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas, rect area) override
+  virtual void draw(Context &context, gfx::Canvas &canvas) override
   {
     f32 inner_radius = props.radius * 0.6f;
     canvas.draw_circle_filled(area.offset, props.radius, 180, props.inactive_color)
         .draw_circle_filled(area.offset + props.radius - inner_radius, inner_radius, 180, animation.animate(color_curve, tween));
   }
 
-  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad) override
+  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks) override
   {
     if (button == MouseButton::Primary)
     {

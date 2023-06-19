@@ -51,7 +51,7 @@ struct Switch : public Widget
     animation.tick(interval);
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas, rect area) override
+  virtual void draw(Context &context, gfx::Canvas &canvas) override
   {
     f32 inner_radius = props.radius * 0.6f;
     canvas.draw_circle_filled(area.offset, props.radius, 180, props.inactive_color);

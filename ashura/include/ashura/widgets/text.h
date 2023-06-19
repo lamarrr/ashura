@@ -33,7 +33,7 @@ struct Text : public Widget
     return Layout{.area = rect{.offset = area.offset, .extent = text_layout.span}};
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas, rect area) override
+  virtual void draw(Context &context, gfx::Canvas &canvas) override
   {
     TextRun runs[] = {
         TextRun{.text = text}};

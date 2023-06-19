@@ -34,9 +34,9 @@ struct Padding : public Widget
     return WidgetInfo{.type = "Padding"};
   }
 
-  virtual Layout layout(rect area)
-  {
-  }
+  // virtual Layout layout(rect area)override
+  // {
+  // }
 
   EdgeInsets edge_insets;
   Widget    *child = nullptr;

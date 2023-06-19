@@ -333,7 +333,7 @@ struct TextProps
   f32                               strikethrough_thickness = 0;            /// px
   color                             stroke_color            = colors::TRANSPARENT;
   vec2                              stroke_offset;                          /// px
-  f32                               letter_spacing = 1;                     /// px
+  f32                               letter_spacing = 0;                     /// px
   f32                               word_spacing   = 4;                     /// px
   f32                               line_height    = 1.2f;                  /// will be multiplied by font_height
   TextDirection                     direction      = TextDirection::LeftToRight;

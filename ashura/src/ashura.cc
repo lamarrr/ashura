@@ -1,6 +1,7 @@
 #include "SDL3/SDL.h"
 #include "ashura/app.h"
 #include "ashura/text.h"
+#include "ashura/uuid.h"
 #include "ashura/widget.h"
 #include "ashura/widgets/box.h"
 #include "ashura/widgets/checkbox.h"
@@ -29,22 +30,22 @@ int main(int argc, char **argv)
           FlexBox{FlexBoxProps{},
                   CheckBox{},
                   Slider{},
-                  Box{BoxProps{.width            = constraint::absolute(200),
-                                        .height           = constraint::absolute(200),
-                                        .background_color = colors::WHITE,
-                                        .border_thickness = 2,
-                                        .border_color     = colors::YELLOW,
-                                        .border_radius    = {20, 20, 20, 20}},
-                      Text{"Click Me!", TextProps{.foreground_color = colors::MAGENTA}}},
+                  /* Box{BoxProps{.width            = constraint::absolute(200),
+                                         .height           = constraint::absolute(200),
+                                         .background_color = colors::WHITE,
+                                         .border_thickness = 2,
+                                         .border_color     = colors::YELLOW,
+                                         .border_radius    = {20, 20, 20, 20}},
+                       Text{"Click Me!", TextProps{.foreground_color = colors::MAGENTA}}},*/
                   Radio(5, ctx),
                   Radio(6, ctx),
                   Radio(8, ctx),
                   Text{"verified", TextProps{.font = "MaterialIcons", .foreground_color = colors::YELLOW}},
-                  Text{"Edgy Ashura ", TextProps{.font = "Roboto", .foreground_color = colors::CYAN}},
-                  Text{"Engine ", TextProps{.font = "RobotoMono", .foreground_color = colors::GREEN}},
+                  Text{R"(Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum)", TextProps{.font = "Roboto", .foreground_color = material::BLUE_500, .background_color = material::GRAY_100}},
+                  Text{R"(I didn't wanna say anything, but this game seems lame)", TextProps{.font = "Roboto", .font_height = 30, .foreground_color = material::BLUE_500, .background_color = material::GRAY_100}},
                   Text{"explicit", TextProps{.font = "MaterialIcons", .foreground_color = colors::WHITE}},
                   Image{ImageProps{
-                               .source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\pxfuel.jpg)"},
+                               .source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\wallpaperflare.com_wallpaper.jpg)"},
                                .border_radius  = vec4{20, 20, 20, 20},
                                .aspect_ratio   = stx::Some(2.0f),
                                .resize_on_load = true}}}};

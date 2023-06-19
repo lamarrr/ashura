@@ -7,6 +7,7 @@
 #include "ashura/clipboard.h"
 #include "ashura/font.h"
 #include "ashura/plugins/vulkan_image_manager.h"
+#include "ashura/uuid.h"
 #include "ashura/version.h"
 #include "ashura/vulkan.h"
 #include "ashura/vulkan_canvas_renderer.h"
@@ -40,6 +41,7 @@ struct Engine
   }
 
   // TODO(lamarrr): move all into engine ctx?
+  stx::Rc<UuidGenerator *>                 uuid_generator;
   WindowManager                            window_manager;
   stx::Option<stx::Rc<Window *>>           root_window;
   stx::Option<stx::Rc<vk::CommandQueue *>> queue;

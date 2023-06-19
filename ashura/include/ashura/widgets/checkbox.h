@@ -31,7 +31,7 @@ struct CheckBox : public Widget
     return Layout{.area = allotted.with_extent(props.extent, props.extent)};
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas, rect area)
+  virtual void draw(Context &context, gfx::Canvas &canvas) override
   {
     vertex checkmark_path[] = {
         {.position = {0.125, 0.5}, .color = props.checkmark_color.to_vec()},
@@ -52,7 +52,7 @@ struct CheckBox : public Widget
     }
   }
 
-  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
+  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks) override
   {
     if (button == MouseButton::Primary)
     {

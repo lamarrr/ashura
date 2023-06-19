@@ -17,7 +17,8 @@ constexpr void perform_layout(Context &context, Widget &widget, rect allotted_ar
 
   vec2 extent = layout.flex.fit(span, allotted_area.extent);
 
-  widget.area = rect{.offset = layout.area.offset, .extent = extent};
+  widget.area             = rect{.offset = layout.area.offset, .extent = extent};
+  widget.transformed_area = ash::transform(widget.get_transform(context), widget.area);
 }
 
 /// NOTE: we always dictate the offset for the children unless their position is Static which makes them independent of the flex's layout and
@@ -320,6 +321,11 @@ constexpr vec2 perform_children_layout(Context &context, Layout const &layout, s
         cursor.y += (*child_it)->area.extent.y;
       }
     }
+  }
+
+  for (Widget *const child : children)
+  {
+    child->transformed_area = ash::transform(child->get_transform(context), child->area);
   }
 
   return span;

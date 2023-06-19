@@ -61,7 +61,6 @@ enum class ImageState : u8
   LoadFailed
 };
 
-int nsegments = 2;
 /// Usage Needs
 ///
 /// - Add image to asset manager and upload to GPU for fast transfers (i.e. zero
@@ -98,7 +97,7 @@ struct Image : public Widget
     }
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas, rect area) override
+  virtual void draw(Context &context, gfx::Canvas &canvas) override
   {
     switch (state)
     {
@@ -213,11 +212,6 @@ struct Image : public Widget
         break;
       }
     }
-  }
-
-  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
-  {
-    nsegments++;
   }
 
   ImageProps                                                         props;

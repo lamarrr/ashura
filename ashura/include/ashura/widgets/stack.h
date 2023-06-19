@@ -56,7 +56,7 @@ struct Stack : public Widget
     return WidgetInfo{.type = "Stack"};
   }
 
-  virtual Layout layout(Context &context, rect area);
+  virtual Layout layout(Context &context, rect area) override;
 
   Alignment          alignment = Alignment::TopLeft;
   stx::Vec<Widget *> children;

@@ -58,7 +58,10 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>>
 }
 
 Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
-    task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()}, root_widget{iroot_widget}, widget_system{*root_widget}
+    uuid_generator{stx::rc::make_inplace<UuidGenerator>(stx::os_allocator, Clock::now()).unwrap()},
+    task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()},
+    root_widget{iroot_widget},
+    widget_system{*root_widget}
 {
   ctx.task_scheduler = &task_scheduler;
   ctx.clipboard      = &clipboard;
@@ -274,7 +277,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
   widget_system.pump_events(ctx);
   widget_system.tick_widgets(ctx, interval);
   // new widgets could have been added
-  widget_system.assign_ids(ctx);
+  widget_system.assign_ids(ctx, *uuid_generator);
   manager.flush_deletes();
   manager.submit_uploads();
 

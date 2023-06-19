@@ -45,7 +45,7 @@ struct Box : public Widget
     return children;
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas, rect area) override
+  virtual void draw(Context &context, gfx::Canvas &canvas) override
   {
     canvas        //.draw_round_rect_filled(rect{.offset = area.offset + props.border_thickness, .extent = area.extent - props.border_thickness}, props.border_radius, 360, props.background_color)
         .draw_round_rect_stroke(area, props.border_radius, 360, props.border_color, props.border_thickness);

@@ -11,6 +11,7 @@
 #include "ashura/context.h"
 #include "ashura/event.h"
 #include "ashura/primitives.h"
+#include "ashura/uuid.h"
 #include "stx/async.h"
 #include "stx/fn.h"
 #include "stx/option.h"
@@ -158,6 +159,12 @@ struct WidgetInfo
   std::string_view type;
 };
 
+struct DragData
+{
+  virtual ~DragData()
+  {}
+};
+
 // TODO(lamarrr): we might need request detach so child widgets can request to
 // be removed and remove all callbacks they may have attached or cancel tasks
 // they have pending.
@@ -177,7 +184,14 @@ struct Widget
   }
 
   // TODO(lamarrr): what if we want to position child relative to the parent? positioning to 0,0 isn't a good idea
-  virtual stx::Span<Widget *const> get_static_children(Context &context)
+  virtual stx::Span<Widget *const> get_flex_children(Context &context)
+  {
+    return {};
+  }
+
+  /// all floating children will be laid out to the left and stack on each other,
+  /// no flex layout rules will be applied to them
+  virtual stx::Span<Widget *const> get_floating_children(Context &context)
   {
     return {};
   }
@@ -222,7 +236,7 @@ struct Widget
   }
 
   //
-  virtual void draw(Context &context, gfx::Canvas &canvas, rect area)
+  virtual void draw(Context &context, gfx::Canvas &canvas)
   {}
 
   /// called on every frame. interval is the time passed since the last call to this tick method
@@ -244,16 +258,17 @@ struct Widget
     return false;
   }
 
-  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
+  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks)
   {}
 
-  virtual void on_mouse_up(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad)
+  virtual void on_mouse_up(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks)
   {}
 
-  virtual void on_mouse_move(Context &context, vec2 mouse_position, vec2 translation, quad quad)
+  // TODO(lamarrr): how do we fix translation and zooming? i.e. positioning once transform is applied
+  virtual void on_mouse_move(Context &context, vec2 mouse_position, vec2 translation)
   {}
 
-  virtual void on_mouse_enter(Context &context, vec2 mouse_position, quad quad)
+  virtual void on_mouse_enter(Context &context, vec2 mouse_position)
   {}
 
   virtual void on_mouse_leave(Context &context, stx::Option<vec2> mouse_position)
@@ -262,7 +277,9 @@ struct Widget
   // signifies that this widget is about to be dragged
   // return true if this widget allows dragging
   virtual bool on_drag_start(Context &context)
-  {}
+  {
+    return false;
+  }
 
   // gives the drag position of the widget,
   /**
@@ -286,9 +303,11 @@ struct Widget
 
   // this widget has begun receiving drag data, i.e. it has been dragged onto
   //
-  // returns true if widget accepts drag events
+  // returns true if widget can accept this drag event
   virtual bool on_drag_enter(Context &context)
-  {}
+  {
+    return false;
+  }
 
   /// this widget has previously begun receiving drag data, but the mouse is still dragging within it
   virtual void on_drag_over(Context &context)
@@ -330,8 +349,9 @@ struct Widget
   virtual void on_touch_leave(Context &context)
   {}
 
-  rect area;          // position of the widget on the viewport. calculated on every frame
-  u64  id = 0;        // id used to recognise the widget. changed on every frame
+  stx::Option<uuid> id;                      // id used to recognise the widget. checked every frame. if one is not present or removed. a value is assigned.
+  rect              area;                    // area of the widget on the viewport. calculated on every frame
+  quad              transformed_area;        // transformed area of the widget on the viewport. calculated on every frame
 };
 
 template <typename T>
