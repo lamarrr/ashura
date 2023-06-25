@@ -71,12 +71,12 @@ struct vec2
   {
     return vec2{.x = v, .y = v};
   }
-
-  constexpr vec2 epsilon_clamp() const
-  {
-    return vec2{.x = ::ash::epsilon_clamp(x), .y = ::ash::epsilon_clamp(y)};
-  }
 };
+
+constexpr vec2 epsilon_clamp(vec2 a)
+{
+  return vec2{.x = epsilon_clamp(a.x), .y = epsilon_clamp(a.y)};
+}
 
 constexpr bool operator==(vec2 a, vec2 b)
 {

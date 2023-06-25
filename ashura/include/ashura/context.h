@@ -43,6 +43,7 @@ struct Context
   stx::Span<BundledFont const> font_bundle;
   // TODO(lamarrr): expose current window here
   // TODO(lamarrr): viewport rect
+  // TODO(lamarrr): find_widget()
 
   Context()
   {}

@@ -344,30 +344,12 @@ struct Widget
 template <typename T>
 concept WidgetImpl = std::is_base_of_v<Widget, T>;
 
-enum class Position
-{
-  Static,         // normal layout positioning, child is laid out relative to the parent.
-  Floating        // positioned outside the normal layout context, child is laid out non-relative to the parent.
-};
-
 // TODO(lamarrr): what if we want a widget to be at the edge of its parent?
 
 // TODO(lamarrr): in layout we were performing layout twice. some widgets will
 // TODO(lamarrr): we need re-calculable offsets so we can shift the parents around without shifting the children
 // this is important for layout.
 // this might mean we need to totally remove the concept of area. storing transformed area might not be needed?
-struct XWidget
-{
-  virtual EdgeInsets get_margin(Context &ctx)                       = 0;        //
-  virtual vec2       get_extent(Context &ctx, vec2 allotted_extent) = 0;        // padding must be added to the extent
-  virtual Position   get_position(Context &ctx)                     = 0;
-  virtual vec2       get_offset(Context &ctx, vec2 extent)          = 0;        // only called if position is not Position::Static
-
-  virtual void layout(rect allotted_area) = 0;                                  // layout self and children to the offset provided
-
-  rect area;
-  quad transformed_area;
-};
 
 // has the advantage that children wouldn't need extra attributes for specific kind of placements
 //
