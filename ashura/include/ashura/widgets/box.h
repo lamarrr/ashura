@@ -35,23 +35,23 @@ struct Box : public Widget
   STX_DISABLE_COPY(Box)
   STX_DEFAULT_MOVE(Box)
 
-  virtual Layout layout(Context &context, rect allotted) override
+  virtual Layout layout(Context &ctx, rect allotted) override
   {
-    return Layout{.flex = FlexProps{.main_fit = Fit::Expand, .cross_fit = Fit::Expand}, .area = allotted.with_extent(props.width.resolve(allotted.extent.x) + props.border_thickness * 2, props.height.resolve(allotted.extent.y) + props.border_thickness * 2)};
+    return Layout{.area = allotted.with_extent(props.width.resolve(allotted.extent.x) + props.border_thickness * 2, props.height.resolve(allotted.extent.y) + props.border_thickness * 2)};
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &context) override
+  virtual stx::Span<Widget *const> get_flex_children(Context &ctx) override
   {
     return children;
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas) override
+  virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
-    canvas        //.draw_round_rect_filled(rect{.offset = area.offset + props.border_thickness, .extent = area.extent - props.border_thickness}, props.border_radius, 360, props.background_color)
+    canvas.draw_round_rect_filled(rect{.offset = area.offset + props.border_thickness, .extent = area.extent - props.border_thickness}, props.border_radius, 360, props.background_color)
         .draw_round_rect_stroke(area, props.border_radius, 360, props.border_color, props.border_thickness);
   }
 
-  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
   }
 

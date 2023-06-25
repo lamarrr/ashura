@@ -42,6 +42,7 @@ struct Context
   GlobalEventListeners         event_listeners;
   stx::Span<BundledFont const> font_bundle;
   // TODO(lamarrr): expose current window here
+  // TODO(lamarrr): viewport rect
 
   Context()
   {}

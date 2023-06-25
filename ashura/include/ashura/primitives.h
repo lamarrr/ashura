@@ -540,6 +540,16 @@ struct mat4
   }
 };
 
+constexpr bool operator==(mat4 const &a, mat4 const &b)
+{
+  return a.rows[0] == b.rows[0] && a.rows[1] == b.rows[1] && a.rows[2] == b.rows[2] && a.rows[3] == b.rows[3];
+}
+
+constexpr bool operator!=(mat4 const &a, mat4 const &b)
+{
+  return a.rows[0] != b.rows[0] || a.rows[1] != b.rows[1] || a.rows[2] != b.rows[2] || a.rows[3] != b.rows[3];
+}
+
 constexpr mat4 operator*(mat4 const &a, mat4 const &b)
 {
   return mat4{.rows = {{dot(a.rows[0], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
@@ -568,16 +578,6 @@ constexpr vec4 operator*(mat4 const &a, vec4 const &b)
 constexpr vec4 operator*(vec4 const &a, mat4 const &b)
 {
   return vec4{.x = dot(a, b.rows[0]), .y = dot(a, b.rows[1]), .z = dot(a, b.rows[2]), .w = dot(a, b.rows[3])};
-}
-
-constexpr bool operator==(mat4 const &a, mat4 const &b)
-{
-  return a.rows[0] == b.rows[0] && a.rows[1] == b.rows[1] && a.rows[2] == b.rows[2] && a.rows[3] == b.rows[3];
-}
-
-constexpr bool operator!=(mat4 const &a, mat4 const &b)
-{
-  return a.rows[0] != b.rows[0] || a.rows[1] != b.rows[1] || a.rows[2] != b.rows[2] || a.rows[3] != b.rows[3];
 }
 
 constexpr vec2 transform(mat4 const &a, vec2 const &b)
@@ -723,11 +723,6 @@ struct offset
   }
 };
 
-constexpr offset operator+(offset a, offset b)
-{
-  return offset{.x = a.x + b.x, .y = a.y + b.y};
-}
-
 constexpr bool operator==(offset a, offset b)
 {
   return a.x == b.x && a.y == b.y;
@@ -736,6 +731,11 @@ constexpr bool operator==(offset a, offset b)
 constexpr bool operator!=(offset a, offset b)
 {
   return !(a == b);
+}
+
+constexpr offset operator+(offset a, offset b)
+{
+  return offset{.x = a.x + b.x, .y = a.y + b.y};
 }
 
 struct offseti
@@ -748,16 +748,6 @@ struct offseti
   }
 };
 
-constexpr offseti operator+(offseti a, offseti b)
-{
-  return offseti{.x = a.x + b.x, .y = a.y + b.y};
-}
-
-constexpr offseti operator-(offseti a, offseti b)
-{
-  return offseti{.x = a.x - b.x, .y = a.y - b.y};
-}
-
 constexpr bool operator==(offseti a, offseti b)
 {
   return a.x == b.x && a.y == b.y;
@@ -766,6 +756,16 @@ constexpr bool operator==(offseti a, offseti b)
 constexpr bool operator!=(offseti a, offseti b)
 {
   return !(a == b);
+}
+
+constexpr offseti operator+(offseti a, offseti b)
+{
+  return offseti{.x = a.x + b.x, .y = a.y + b.y};
+}
+
+constexpr offseti operator-(offseti a, offseti b)
+{
+  return offseti{.x = a.x - b.x, .y = a.y - b.y};
 }
 
 struct extent
@@ -793,11 +793,6 @@ struct extent
   }
 };
 
-constexpr extent operator+(extent a, extent b)
-{
-  return extent{.width = a.width + b.width, .height = a.height + b.height};
-}
-
 constexpr bool operator==(extent a, extent b)
 {
   return a.width == b.width && a.height == b.height;
@@ -808,6 +803,12 @@ constexpr bool operator!=(extent a, extent b)
   return !(a == b);
 }
 
+constexpr extent operator+(extent a, extent b)
+{
+  return extent{.width = a.width + b.width, .height = a.height + b.height};
+}
+
+// TODO(lamarrr): remove this???
 /// advantages of this constraint model? sizing can be
 /// - relative (`scale` = relative size)
 /// - absolute (`scale` = 0, `bias` = absolute size) or both
@@ -947,6 +948,21 @@ struct vertex
 struct EdgeInsets
 {
   f32 left = 0, top = 0, right = 0, bottom = 0;
+
+  static constexpr EdgeInsets all(f32 v)
+  {
+    return EdgeInsets{.left = v, .top = v, .right = v, .bottom = v};
+  }
 };
+
+constexpr bool operator==(EdgeInsets const &a, EdgeInsets const &b)
+{
+  return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
+}
+
+constexpr bool operator!=(EdgeInsets const &a, EdgeInsets const &b)
+{
+  return a.left != b.left || a.top != b.top || a.right != b.right || a.bottom != b.bottom;
+}
 
 }        // namespace ash

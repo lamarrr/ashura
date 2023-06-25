@@ -31,12 +31,12 @@ struct Slider : public Widget
   virtual ~Slider() override
   {}
 
-  virtual Layout layout(Context &context, rect allotted) override
+  virtual Layout layout(Context &ctx, rect allotted) override
   {
     return Layout{.area = rect{.offset = allotted.offset, .extent = vec2{allotted.extent.x, props.thumb_radius * 2}}};
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas) override
+  virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     f32 percentage = (props.value - props.min) / (props.max - props.min);
 
@@ -61,13 +61,13 @@ struct Slider : public Widget
     canvas.draw_circle_filled(inner_thumb_offset, inner_thumb_radius, 360, props.track_color);
   }
 
-  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
     thumb_animation.tick(interval);
   }
 
   // TODO(lamarrr): mouse_position is already **inverted** by global zoom and pan matrix???
-  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks) override
+  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
   {
     if (button == MouseButton::Primary)
     {
@@ -77,7 +77,7 @@ struct Slider : public Widget
     }
   }
 
-  virtual void on_mouse_up(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks) override
+  virtual void on_mouse_up(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
   {
     if (button == MouseButton::Primary && mouse_focused)
     {
@@ -85,7 +85,7 @@ struct Slider : public Widget
     }
   }
 
-  virtual void on_mouse_move(Context &context, vec2 mouse_position, vec2 translation) override
+  virtual void on_mouse_move(Context &ctx, vec2 mouse_position, vec2 translation) override
   {
     if (mouse_focused)
     {
@@ -94,13 +94,13 @@ struct Slider : public Widget
     }
   }
 
-  virtual void on_mouse_enter(Context &context, vec2 mouse_position) override
+  virtual void on_mouse_enter(Context &ctx, vec2 mouse_position) override
   {
     thumb_tween = Tween{props.thumb_radius * 0.5f, props.thumb_radius * 0.75f};
     thumb_animation.restart(milliseconds{200}, milliseconds{200}, 1);
   }
 
-  virtual void on_mouse_leave(Context &context, stx::Option<vec2> mouse_position) override
+  virtual void on_mouse_leave(Context &ctx, stx::Option<vec2> mouse_position) override
   {
     if (mouse_focused && mouse_position.is_none())
     {
@@ -110,13 +110,13 @@ struct Slider : public Widget
     thumb_animation.restart(milliseconds{200}, milliseconds{200}, 1);
   }
 
-  virtual void on_changed(Context &context, f32 new_value)
+  virtual void on_changed(Context &ctx, f32 new_value)
   {}
 
-  virtual void on_change_start(Context &context, f32 present_value)
+  virtual void on_change_start(Context &ctx, f32 present_value)
   {}
 
-  virtual void on_change_end(Context &context, f32 present_value)
+  virtual void on_change_end(Context &ctx, f32 present_value)
   {}
 
   SliderProps props;

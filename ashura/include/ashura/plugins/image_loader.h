@@ -22,15 +22,15 @@ struct ImageLoader : public Plugin
 {
   ImageLoader() = default;
 
-  virtual constexpr void on_startup(Context &context) override
+  virtual constexpr void on_startup(Context &ctx) override
   {
     task_scheduler = context.task_scheduler;
   }
 
-  virtual constexpr void tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual constexpr void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {}
 
-  virtual constexpr void on_exit(Context &context) override
+  virtual constexpr void on_exit(Context &ctx) override
   {}
 
   virtual constexpr std::string_view get_name() override

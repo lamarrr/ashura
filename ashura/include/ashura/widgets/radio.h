@@ -12,31 +12,31 @@ namespace ash
 {
 // TODO(lamarrr): disabling
 template <typename RadioValue>
-struct RadioContextData
+struct RadioStateData
 {
   RadioValue value;
 };
 
 template <typename RadioValue>
-struct RadioContext
+struct RadioState
 {
-  explicit RadioContext(RadioValue value) :
-      data{stx::rc::make(stx::os_allocator, RadioContextData{.value = std::move(value)}).unwrap()}
+  explicit RadioState(RadioValue value) :
+      data{stx::rc::make(stx::os_allocator, RadioStateData{.value = std::move(value)}).unwrap()}
   {}
 
-  RadioContext(RadioContext const &other) :
+  RadioState(RadioState const &other) :
       data{other.data.share()}
   {}
 
-  RadioContext &operator=(RadioContext const &other)
+  RadioState &operator=(RadioState const &other)
   {
     data = other.data.share();
     return *this;
   }
 
-  STX_DEFAULT_MOVE(RadioContext)
+  STX_DEFAULT_MOVE(RadioState)
 
-  stx::Rc<RadioContextData<RadioValue> *> data;
+  stx::Rc<RadioStateData<RadioValue> *> data;
 };
 
 struct RadioProps
@@ -51,10 +51,10 @@ struct Radio : public Widget
 {
   static_assert(stx::equality_comparable<RadioValue>);
 
-  Radio(RadioValue ivalue, RadioContext<RadioValue> iradio_context, RadioProps iprops = {}) :
-      value{std::move(ivalue)}, radio_context{std::move(iradio_context)}, props{iprops}
+  Radio(RadioValue ivalue, RadioState<RadioValue> iradio_state, RadioProps iprops = {}) :
+      value{std::move(ivalue)}, state{std::move(iradio_state)}, props{iprops}
   {
-    if (radio_context.data->value == value)
+    if (state.data->value == value)
     {
       is_active = true;
       tween     = Tween{props.inactive_color, props.active_color};
@@ -77,72 +77,72 @@ struct Radio : public Widget
   {
   }
 
-  virtual Layout layout(Context &context, rect allotted) override
+  virtual Layout layout(Context &ctx, rect allotted) override
   {
     return Layout{.area = allotted.with_extent(props.radius * 2, props.radius * 2)};
   }
 
-  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
-    if (radio_context.data->value == value && !is_active)
+    if (state.data->value == value && !is_active)
     {
-      on_changed(context, radio_context.data->value);
+      on_changed(ctx, state.data->value);
     }
-    else if (radio_context.data->value != value && is_active)
+    else if (state.data->value != value && is_active)
     {
-      on_changed(context, radio_context.data->value);
+      on_changed(ctx, state.data->value);
     }
 
     animation.tick(interval);
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas) override
+  virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     f32 inner_radius = props.radius * 0.6f;
     canvas.draw_circle_filled(area.offset, props.radius, 180, props.inactive_color)
         .draw_circle_filled(area.offset + props.radius - inner_radius, inner_radius, 180, animation.animate(color_curve, tween));
   }
 
-  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks) override
+  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
   {
     if (button == MouseButton::Primary)
     {
-      radio_context.data->value = value;
+      state.data->value = value;
     }
   }
 
-  virtual void on_changed(Context &context, RadioValue const &new_value)
+  virtual void on_changed(Context &ctx, RadioValue const &new_value)
   {
     if (new_value == value)
     {
       is_active = true;
-      on_selected(context);
+      on_selected(ctx);
       tween = Tween{props.inactive_color, props.active_color};
     }
     else if (is_active)
     {
       is_active = false;
-      on_deselected(context);
+      on_deselected(ctx);
       tween = Tween{props.active_color, props.inactive_color};
     }
 
     animation.restart(milliseconds{200}, milliseconds{200}, 1);
   }
 
-  virtual void on_selected(Context &context)
+  virtual void on_selected(Context &ctx)
   {}
 
-  virtual void on_deselected(Context &context)
+  virtual void on_deselected(Context &ctx)
   {}
 
-  RadioValue               value;
-  bool                     is_active = false;
-  RadioContext<RadioValue> radio_context;
-  RadioProps               props;
-  EaseIn                   radius_curve;
-  EaseIn                   color_curve;
-  Tween<color>             tween;
-  Animation                animation;
+  RadioValue             value;
+  bool                   is_active = false;
+  RadioState<RadioValue> state;
+  RadioProps             props;
+  EaseIn                 radius_curve;
+  EaseIn                 color_curve;
+  Tween<color>           tween;
+  Animation              animation;
 };
 
 }        // namespace ash

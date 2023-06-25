@@ -67,17 +67,17 @@ struct FlexBox : public Widget
     children.extend(new_children).unwrap();
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &context) override
+  virtual stx::Span<Widget *const> get_flex_children(Context &ctx) override
   {
     return children;
   }
 
-  virtual WidgetInfo get_info(Context &context) override
+  virtual WidgetInfo get_info(Context &ctx) override
   {
     return WidgetInfo{.type = "Flex"};
   }
 
-  virtual Layout layout(Context &context, rect area) override
+  virtual Layout layout(Context &ctx, rect area) override
   {
     return Layout{.flex = props.to_flex_props(),
                   .area = rect{.offset = area.offset,

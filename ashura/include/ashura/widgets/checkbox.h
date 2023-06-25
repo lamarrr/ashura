@@ -26,17 +26,17 @@ struct CheckBox : public Widget
   virtual ~CheckBox() override
   {}
 
-  virtual Layout layout(Context &context, rect allotted) override
+  virtual Layout layout(Context &ctx, rect allotted) override
   {
     return Layout{.area = allotted.with_extent(props.extent, props.extent)};
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas) override
+  virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     vertex checkmark_path[] = {
-        {.position = {0.125, 0.5}, .color = props.checkmark_color.to_vec()},
-        {.position = {0.374, 0.75}, .color = props.checkmark_color.to_vec()},
-        {.position = {0.775, 0.25}, .color = props.checkmark_color.to_vec()}};
+        {.position = {0.125f, 0.5f}, .color = props.checkmark_color.to_vec()},
+        {.position = {0.374f, 0.75f}, .color = props.checkmark_color.to_vec()},
+        {.position = {0.775f, 0.25f}, .color = props.checkmark_color.to_vec()}};
 
     if (value)
     {
@@ -52,7 +52,7 @@ struct CheckBox : public Widget
     }
   }
 
-  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks) override
+  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
   {
     if (button == MouseButton::Primary)
     {
@@ -61,7 +61,7 @@ struct CheckBox : public Widget
     }
   }
 
-  virtual void on_changed(Context &context, bool new_value)
+  virtual void on_changed(Context &ctx, bool new_value)
   {}
 
   CheckBoxProps props;

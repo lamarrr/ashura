@@ -75,21 +75,20 @@ struct Image : public Widget
       props{std::move(image_props)}
   {}
 
-  virtual WidgetInfo get_info(Context &context) override
+  virtual WidgetInfo get_info(Context &ctx) override
   {
     return WidgetInfo{.type = "Image"};
   }
 
-  virtual Layout layout(Context &context, rect area) override
+  virtual Layout layout(Context &ctx, rect area) override
   {
     f32 width  = props.width.resolve(area.extent.x);
     f32 height = props.height.resolve(area.extent.y);
     if (props.aspect_ratio.is_some())
     {
       f32 aspect_ratio = props.aspect_ratio.value();
-      return Layout{.area = rect{.offset = vec2{0, 0},
-                                 .extent = vec2{std::min(height * aspect_ratio, width),
-                                                std::min(width / aspect_ratio, height)}}};
+      return Layout{.area = area.with_extent(std::min(height * aspect_ratio, width),
+                                             std::min(width / aspect_ratio, height))};
     }
     else
     {
@@ -97,7 +96,7 @@ struct Image : public Widget
     }
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas) override
+  virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     switch (state)
     {
@@ -152,10 +151,10 @@ struct Image : public Widget
     }
   }
 
-  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
-    ImageManager *mgr    = context.get_plugin<ImageManager>("ImageManager").unwrap();
-    ImageLoader  *loader = context.get_plugin<ImageLoader>("ImageLoader").unwrap();
+    ImageManager *mgr    = ctx.get_plugin<ImageManager>("ImageManager").unwrap();
+    ImageLoader  *loader = ctx.get_plugin<ImageLoader>("ImageLoader").unwrap();
 
     switch (state)
     {

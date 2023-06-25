@@ -13,12 +13,12 @@ struct Text : public Widget
       text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{iprops}
   {}
 
-  virtual WidgetInfo get_info(Context &context) override
+  virtual WidgetInfo get_info(Context &ctx) override
   {
     return WidgetInfo{.type = "Text"};
   }
 
-  virtual Layout layout(Context &context, rect area) override
+  virtual Layout layout(Context &ctx, rect area) override
   {
     TextRun runs[] = {
         TextRun{.text = text}};
@@ -28,12 +28,12 @@ struct Text : public Widget
         .props = props,
         .align = TextAlign::Left};
 
-    text_layout.layout(paragraph, context.font_bundle, area.extent.x);
+    text_layout.layout(paragraph, ctx.font_bundle, area.extent.x);
 
-    return Layout{.area = rect{.offset = area.offset, .extent = text_layout.span}};
+    return Layout{.area = area.with_extent(text_layout.span)};
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas) override
+  virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     TextRun runs[] = {
         TextRun{.text = text}};
@@ -46,7 +46,7 @@ struct Text : public Widget
     canvas.draw_text(paragraph, text_layout, context.font_bundle, area.offset);
   }
 
-  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {}
 
   stx::String text;

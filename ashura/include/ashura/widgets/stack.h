@@ -46,17 +46,17 @@ struct Stack : public Widget
     children.extend(new_children).unwrap();
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &context) override
+  virtual stx::Span<Widget *const> get_flex_children(Context &ctx) override
   {
     return children;
   }
 
-  virtual WidgetInfo get_info(Context &context) override
+  virtual WidgetInfo get_info(Context &ctx) override
   {
     return WidgetInfo{.type = "Stack"};
   }
 
-  virtual Layout layout(Context &context, rect area) override;
+  virtual Layout layout(Context &ctx, rect area) override;
 
   Alignment          alignment = Alignment::TopLeft;
   stx::Vec<Widget *> children;

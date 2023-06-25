@@ -186,6 +186,7 @@ struct FontStrokeAtlas
 };
 
 /// stores codepoint glyphs for a font at a specific font height
+// TODO(lamarrr): change to SDF text rendering
 struct FontAtlas
 {
   stx::Vec<Glyph> glyphs;

@@ -32,12 +32,12 @@ struct Switch : public Widget
   {
   }
 
-  virtual Layout layout(Context &context, rect allotted) override
+  virtual Layout layout(Context &ctx, rect allotted) override
   {
     return Layout{.area = allotted.with_extent(props.radius * 2, props.radius * 2)};
   }
 
-  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
     if (radio_context.data->value == value && !is_active)
     {
@@ -51,14 +51,14 @@ struct Switch : public Widget
     animation.tick(interval);
   }
 
-  virtual void draw(Context &context, gfx::Canvas &canvas) override
+  virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     f32 inner_radius = props.radius * 0.6f;
     canvas.draw_circle_filled(area.offset, props.radius, 180, props.inactive_color);
     canvas.draw_circle_filled(area.offset + props.radius - inner_radius, inner_radius, 180, animation.animate(color_curve, tween));
   }
 
-  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad) override
+  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad) override
   {
     if (button == MouseButton::Primary)
     {
@@ -66,7 +66,7 @@ struct Switch : public Widget
     }
   }
 
-  virtual void on_changed(Context &context, RadioValue const &new_value)
+  virtual void on_changed(Context &ctx, RadioValue const &new_value)
   {
     if (new_value == value)
     {
@@ -84,10 +84,10 @@ struct Switch : public Widget
     animation.restart(milliseconds{200}, milliseconds{200}, 1);
   }
 
-  virtual void on_selected(Context &context)
+  virtual void on_selected(Context &ctx)
   {}
 
-  virtual void on_deselected(Context &context)
+  virtual void on_deselected(Context &ctx)
   {}
 
   bool        value = true;

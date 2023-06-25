@@ -629,6 +629,9 @@ struct Canvas
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
 
+  Canvas& draw_arc_filled();
+  Canvas& draw_arc_stroke();
+
   Canvas &draw_ellipse_filled(vec2 position, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     rect area{.offset = position, .extent = 2 * radii};

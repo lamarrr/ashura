@@ -5,6 +5,8 @@
 
 namespace ash
 {
+
+// TODO(lamarrr): replace single element with vector
 struct Padding : public Widget
 {
   template <typename DerivedWidget>
@@ -24,12 +26,12 @@ struct Padding : public Widget
     child = new DerivedWidget{std::move(ichild)};
   }
 
-  virtual stx::Span<Widget *const> get_children(Context &context) override
+  virtual stx::Span<Widget *const> get_flex_children(Context &ctx) override
   {
     return stx::Span{&child, 1};
   }
 
-  virtual WidgetInfo get_info(Context &context) override
+  virtual WidgetInfo get_info(Context &ctx) override
   {
     return WidgetInfo{.type = "Padding"};
   }

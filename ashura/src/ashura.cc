@@ -25,26 +25,26 @@ int main(int argc, char **argv)
 
   AppConfig cfg{.enable_validation_layers = false, .fonts = fonts};
 
-  RadioContext ctx{8};
+  RadioState state{8};
   App          app{std::move(cfg),
           FlexBox{FlexBoxProps{},
                   CheckBox{},
                   Slider{},
-                  /* Box{BoxProps{.width            = constraint::absolute(200),
+                   Box{BoxProps{.width            = constraint::absolute(200),
                                          .height           = constraint::absolute(200),
                                          .background_color = colors::WHITE,
                                          .border_thickness = 2,
-                                         .border_color     = colors::YELLOW,
-                                         .border_radius    = {20, 20, 20, 20}},
-                       Text{"Click Me!", TextProps{.foreground_color = colors::MAGENTA}}},*/
-                  Radio(5, ctx),
-                  Radio(6, ctx),
-                  Radio(8, ctx),
+                                         .border_color     = colors::GREEN,
+                                         .border_radius    = {5, 5, 5, 5}},
+                       Text{"Click Me!", TextProps{.foreground_color = colors::RED}}},
+                  Radio(5, state),
+                  Radio(6, state),
+                  Radio(8, state),/*
                   Text{"verified", TextProps{.font = "MaterialIcons", .foreground_color = colors::YELLOW}},
                   Text{R"(Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum)", TextProps{.font = "Roboto", .foreground_color = material::BLUE_500, .background_color = material::GRAY_100}},
                   Text{R"(I didn't wanna say anything, but this game seems lame)", TextProps{.font = "Roboto", .font_height = 30, .foreground_color = material::BLUE_500, .background_color = material::GRAY_100}},
-                  Text{"explicit", TextProps{.font = "MaterialIcons", .foreground_color = colors::WHITE}},
-                  Image{ImageProps{
+                  Text{"explicit", TextProps{.font = "MaterialIcons", .foreground_color = colors::GREEN}},
+              */    Image{ImageProps{
                                .source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\wallpaperflare.com_wallpaper.jpg)"},
                                .border_radius  = vec4{20, 20, 20, 20},
                                .aspect_ratio   = stx::Some(2.0f),

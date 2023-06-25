@@ -40,12 +40,6 @@ enum class Wrap : u8
   Wrap
 };
 
-enum class Position : u8
-{
-  Relative,
-  Static
-};
-
 /// main-axis alignment
 /// affects how free space is used on the main axis
 /// main-axis for row flex is x
@@ -145,11 +139,10 @@ struct FlexProps
 // TODO(lamarrr): i.e. a number floating on a picture
 struct Layout
 {
-  FlexProps flex;        // flex properties used for layout
-  rect      area;        // initial area to use, final area will be determined by flex flayout
-  // Position  position = Position::Relative;        // determines if widget should be positioned relative to parent and flow along with its other children or pop out into its own area
+  FlexProps  flex;        /// flex properties used for layout
+  rect       area;        /// initial area to use, final area will be determined by flex flayout
+  EdgeInsets padding;
 };
-// This would mean position static widget will not have their z_indexes depend on the parent widget's???
 
 // TODO(lamarrr): we need to pass in a zoom level to the rendering widget? so
 // that widgets like text can shape their glyphs properly
@@ -177,106 +170,100 @@ struct Widget
   virtual ~Widget()
   {}
 
-  /// get the widget's children, if it has children, they are laid out relative to the widget's offset
-  virtual stx::Span<Widget *const> get_children(Context &context)
-  {
-    return {};
-  }
-
   // TODO(lamarrr): what if we want to position child relative to the parent? positioning to 0,0 isn't a good idea
-  virtual stx::Span<Widget *const> get_flex_children(Context &context)
+  virtual stx::Span<Widget *const> get_flex_children(Context &ctx)
   {
     return {};
   }
 
   /// all floating children will be laid out to the left and stack on each other,
   /// no flex layout rules will be applied to them
-  virtual stx::Span<Widget *const> get_floating_children(Context &context)
+  virtual stx::Span<Widget *const> get_floating_children(Context &ctx)
   {
     return {};
   }
 
   //
-  virtual WidgetInfo get_info(Context &context)
+  virtual WidgetInfo get_info(Context &ctx)
   {
     return WidgetInfo{.type = "Widget"};
   }
 
   /// called at the beginning of the application
-  virtual void on_startup(Context &context)
+  virtual void on_startup(Context &ctx)
   {}
 
   /// called at application exit
-  virtual void on_exit(Context &context)
+  virtual void on_exit(Context &ctx)
   {}
 
   /// returns the visibility of this widget. an invisible widget will not be drawn nor receive mouse/touch events
-  virtual Visibility get_visibility(Context &context)
+  virtual Visibility get_visibility(Context &ctx)
   {
     return Visibility::Visible;
   }
 
   /// returns the desired z_index of this widget given the hierarchy assigned z_index.
-  virtual i64 get_z_index(Context &context, i64 z_index)
+  virtual i64 get_z_index(Context &ctx, i64 z_index)
   {
     return z_index;
   }
 
   /// returns the rect placement transform of this widget. this will be used in positioning the widget
-  virtual mat4 get_transform(Context &context)
+  virtual mat4 get_transform(Context &ctx)
   {
     return mat4::identity();
   }
 
   /// called when layout of the widget is required
   /// area is the widget's assigned area
-  virtual Layout layout(Context &context, rect area)
+  virtual Layout layout(Context &ctx, rect area)
   {
     return Layout{};
   }
 
   //
-  virtual void draw(Context &context, gfx::Canvas &canvas)
+  virtual void draw(Context &ctx, gfx::Canvas &canvas)
   {}
 
   /// called on every frame. interval is the time passed since the last call to this tick method
   /// state changes, animations, task dispatch and lightweight processing related to the GUI should happen here
-  virtual void tick(Context &context, std::chrono::nanoseconds interval)
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval)
   {}
 
   //
-  virtual void on_enter_viewport(Context &context)
+  virtual void on_enter_viewport(Context &ctx)
   {}
 
   //
-  virtual void on_leave_viewport(Context &context)
+  virtual void on_leave_viewport(Context &ctx)
   {}
 
   // TODO(lamarrr): this needs to happen before mouse actions as some widgets .i.e. text don't need to intercept or receive mouse events
-  virtual bool hit_test(Context &context, vec2 mouse_position)
+  virtual bool hit_test(Context &ctx, vec2 mouse_position)
   {
     return false;
   }
 
-  virtual void on_mouse_down(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks)
+  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks)
   {}
 
-  virtual void on_mouse_up(Context &context, MouseButton button, vec2 mouse_position, u32 nclicks)
+  virtual void on_mouse_up(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks)
   {}
 
   // TODO(lamarrr): how do we fix translation and zooming? i.e. positioning once transform is applied
-  virtual void on_mouse_move(Context &context, vec2 mouse_position, vec2 translation)
+  virtual void on_mouse_move(Context &ctx, vec2 mouse_position, vec2 translation)
   {}
 
-  virtual void on_mouse_enter(Context &context, vec2 mouse_position)
+  virtual void on_mouse_enter(Context &ctx, vec2 mouse_position)
   {}
 
-  virtual void on_mouse_leave(Context &context, stx::Option<vec2> mouse_position)
+  virtual void on_mouse_leave(Context &ctx, stx::Option<vec2> mouse_position)
   {}
 
   // signifies that this widget is about to be dragged
   // return true if this widget allows dragging
-  virtual bool on_drag_start(Context &context)
+  virtual bool on_drag_start(Context &ctx)
   {
     return false;
   }
@@ -290,63 +277,63 @@ struct Widget
    * @param local_position: current position relative to its initial position
    * @param delta: difference between this drah update and the last drag update
    */
-  virtual void on_drag_update(Context &context, vec2 global_position, vec2 local_position, vec2 delta)
+  virtual void on_drag_update(Context &ctx, vec2 global_position, vec2 local_position, vec2 delta)
   {}
 
   // signifies that the dragging of this widget has been canceled. i.e. released to an area without a widget that accepts the drag event
-  virtual void on_drag_canceled(Context &context)
+  virtual void on_drag_canceled(Context &ctx)
   {}
 
   // the drag operation has been performed
-  virtual void on_drag_end(Context &context)
+  virtual void on_drag_end(Context &ctx)
   {}
 
   // this widget has begun receiving drag data, i.e. it has been dragged onto
   //
   // returns true if widget can accept this drag event
-  virtual bool on_drag_enter(Context &context)
+  virtual bool on_drag_enter(Context &ctx)
   {
     return false;
   }
 
   /// this widget has previously begun receiving drag data, but the mouse is still dragging within it
-  virtual void on_drag_over(Context &context)
+  virtual void on_drag_over(Context &ctx)
   {}
 
   /// the drag event has left this widget
-  virtual void on_drag_leave(Context &context)
+  virtual void on_drag_leave(Context &ctx)
   {}
 
   // drop of media file/item outside the context of the application
-  virtual void on_drop(Context &context)
+  virtual void on_drop(Context &ctx)
   {}
 
   //
-  virtual void on_tap(Context &context)
+  virtual void on_tap(Context &ctx)
   {}
 
   //
-  virtual void on_touch_cancel(Context &context)
+  virtual void on_touch_cancel(Context &ctx)
   {}
 
   //
-  virtual void on_touch_end(Context &context)
+  virtual void on_touch_end(Context &ctx)
   {}
 
   //
-  virtual void on_touch_move(Context &context)
+  virtual void on_touch_move(Context &ctx)
   {}
 
   //
-  virtual void on_touch_start(Context &context)
+  virtual void on_touch_start(Context &ctx)
   {}
 
   //
-  virtual void on_touch_enter(Context &context)
+  virtual void on_touch_enter(Context &ctx)
   {}
 
   //
-  virtual void on_touch_leave(Context &context)
+  virtual void on_touch_leave(Context &ctx)
   {}
 
   stx::Option<uuid> id;                      // id used to recognise the widget. checked every frame. if one is not present or removed. a value is assigned.
@@ -356,5 +343,55 @@ struct Widget
 
 template <typename T>
 concept WidgetImpl = std::is_base_of_v<Widget, T>;
+
+enum class Position
+{
+  Static,         // normal layout positioning, child is laid out relative to the parent.
+  Floating        // positioned outside the normal layout context, child is laid out non-relative to the parent.
+};
+
+// TODO(lamarrr): what if we want a widget to be at the edge of its parent?
+
+// TODO(lamarrr): in layout we were performing layout twice. some widgets will
+// TODO(lamarrr): we need re-calculable offsets so we can shift the parents around without shifting the children
+// this is important for layout.
+// this might mean we need to totally remove the concept of area. storing transformed area might not be needed?
+struct XWidget
+{
+  virtual EdgeInsets get_margin(Context &ctx)                       = 0;        //
+  virtual vec2       get_extent(Context &ctx, vec2 allotted_extent) = 0;        // padding must be added to the extent
+  virtual Position   get_position(Context &ctx)                     = 0;
+  virtual vec2       get_offset(Context &ctx, vec2 extent)          = 0;        // only called if position is not Position::Static
+
+  virtual void layout(rect allotted_area) = 0;                                  // layout self and children to the offset provided
+
+  rect area;
+  quad transformed_area;
+};
+
+// has the advantage that children wouldn't need extra attributes for specific kind of placements
+//
+struct SWidget
+{
+  /**
+   * @brief
+   *
+   * @param ctx
+   * @param children_sizes: sizes of the child widgets
+   * @param children_positions: layout positions of the children widget on the view
+   * @param allocated_size: the size allocated to this widget
+   * @return this widget's extent
+   */
+  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) = 0;
+
+  /**
+   * @brief allocate sizes to the child widgets
+   *
+   * @param ctx
+   * @param children_allocation
+   * @param allocated_size
+   */
+  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation) = 0;
+};
 
 }        // namespace ash

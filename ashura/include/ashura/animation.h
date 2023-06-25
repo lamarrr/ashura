@@ -1,4 +1,5 @@
 #pragma once
+#include "ashura/curve.h"
 #include "ashura/primitives.h"
 
 namespace ash
@@ -13,59 +14,6 @@ struct Tween
   constexpr T lerp(f32 t) const
   {
     return ash::lerp(a, b, t);
-  }
-};
-
-// SEE: https://www.youtube.com/watch?v=jvPPXbo87ds
-struct AnimationCurve
-{
-  virtual ~AnimationCurve()
-  {}
-
-  virtual f32 tick(f32 t) = 0;
-};
-
-struct Linear final : public AnimationCurve
-{
-  virtual ~Linear() override
-  {}
-
-  virtual f32 tick(f32 t) override
-  {
-    return t;
-  }
-};
-
-struct EaseIn final : public AnimationCurve
-{
-  virtual ~EaseIn() override
-  {}
-
-  virtual f32 tick(f32 t) override
-  {
-    return t * t;
-  }
-};
-
-struct EaseOut final : public AnimationCurve
-{
-  virtual ~EaseOut() override
-  {}
-
-  virtual f32 tick(f32 t) override
-  {
-    return 1 - (1 - t) * (1 - t);
-  }
-};
-
-struct EaseInOut final : public AnimationCurve
-{
-  virtual ~EaseInOut() override
-  {}
-
-  virtual f32 tick(f32 t) override
-  {
-    return lerp(t * t, 1 - (1 - t) * (1 - t), t);
   }
 };
 
@@ -226,9 +174,9 @@ struct Animation
   }
 
   template <typename T>
-  T animate(AnimationCurve &curve, Tween<T> const &tween) const
+  T animate(Curve &curve, Tween<T> const &tween) const
   {
-    return tween.lerp(curve.tick(t));
+    return tween.lerp(curve(t));
   }
 };
 

@@ -1233,7 +1233,7 @@ struct MediaPlayer : public Plugin
     } while (codec != nullptr);
   }
 
-  virtual void on_startup(Context &context)
+  virtual void on_startup(Context &ctx)
   {
     task_scheduler = context.task_scheduler;
     // open the audio device, handle audio device changing
@@ -1242,11 +1242,11 @@ struct MediaPlayer : public Plugin
     audio_device = AudioDevice::open_default();
   }
 
-  virtual void tick(Context &context, std::chrono::nanoseconds interval)
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval)
   {
   }
 
-  virtual void on_exit(Context &context)
+  virtual void on_exit(Context &ctx)
   {}
 
   virtual std::string_view get_name()
@@ -1619,16 +1619,16 @@ struct Video : public Widget
   virtual ~Video() override
   {}
 
-  virtual WidgetInfo get_info(Context &context) override
+  virtual WidgetInfo get_info(Context &ctx) override
   {
     return WidgetInfo{.type = "Video"};
   }
 
-  virtual Layout layout(Context &context, rect area) override
+  virtual Layout layout(Context &ctx, rect area) override
   {
   }
 
-  virtual void tick(Context &context, std::chrono::nanoseconds interval) override
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
   }
 

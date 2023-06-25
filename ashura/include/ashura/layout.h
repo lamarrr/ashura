@@ -7,36 +7,46 @@
 namespace ash
 {
 
-constexpr vec2 perform_children_layout(Context &context, Layout const &layout, stx::Span<Widget *const> children);
+constexpr void perform_floating_children_layout(Context &ctx, Layout const &layout, stx::Span<Widget *const> children);
 
-constexpr void perform_layout(Context &context, Widget &widget, rect allotted_area)
+constexpr vec2 perform_flex_children_layout(Context &ctx, Layout const &layout, stx::Span<Widget *const> children);
+
+constexpr void perform_layout(Context &ctx, Widget &widget, rect allotted_area)
 {
-  Layout layout = widget.layout(context, allotted_area);
+  Layout layout = widget.layout(ctx, allotted_area);
 
-  vec2 span = perform_children_layout(context, layout, widget.get_children(context));
+  stx::Span flex_children     = widget.get_flex_children(ctx);
+  stx::Span floating_children = widget.get_floating_children(ctx);
 
-  vec2 extent = layout.flex.fit(span, allotted_area.extent);
+  vec2 span = perform_flex_children_layout(ctx, layout, flex_children);
+  perform_floating_children_layout(ctx, layout, floating_children);
+
+  vec2 extent = flex_children.is_empty() ? layout.area.extent : layout.flex.fit(span, allotted_area.extent);
 
   widget.area             = rect{.offset = layout.area.offset, .extent = extent};
-  widget.transformed_area = ash::transform(widget.get_transform(context), widget.area);
+  widget.transformed_area = ash::transform(widget.get_transform(ctx), widget.area);
 }
 
-/// NOTE: we always dictate the offset for the children unless their position is Static which makes them independent of the flex's layout and
-/// do not participate in it
-/// TODO(lamarrr): implement layout for Position::Static widgets
-constexpr vec2 perform_children_layout(Context &context, Layout const &layout, stx::Span<Widget *const> children)
+constexpr void perform_floating_children_layout(Context &ctx, Layout const &layout, stx::Span<Widget *const> children)
 {
-  if (children.is_empty())
-  {
-    return layout.area.extent;        // TODO(lamarrr)???
-  }
-
   for (Widget *child : children)
   {
-    perform_layout(context, *child, layout.area);
+    perform_layout(ctx, *child, layout.area);
   }
 
-  // TODO(lamarrr): handle position
+  for (Widget *const child : children)
+  {
+    child->transformed_area = ash::transform(child->get_transform(ctx), child->area);
+  }
+}
+
+constexpr vec2 perform_flex_children_layout(Context &ctx, Layout const &layout, stx::Span<Widget *const> children)
+{
+  // TODO(lamarrr): after peforming the layout and adjusting their offsets, we need to re-perform the layout and ensure the children's offset are correct.
+  for (Widget *child : children)
+  {
+    perform_layout(ctx, *child, layout.area);
+  }
 
   vec2 cursor;
 
@@ -148,7 +158,7 @@ constexpr vec2 perform_children_layout(Context &context, Layout const &layout, s
             // re-layout the child to the max block height
             if ((*block_it)->area.extent.y != max_block_element_height)
             {
-              perform_layout(context, **block_it, rect{.offset = new_offset, .extent = vec2{layout.area.extent.x, max_block_element_height}});
+              perform_layout(ctx, **block_it, rect{.offset = new_offset, .extent = vec2{layout.area.extent.x, max_block_element_height}});
               new_offset.x += (*block_it)->area.extent.x;
             }
           }
@@ -157,7 +167,7 @@ constexpr vec2 perform_children_layout(Context &context, Layout const &layout, s
             // re-layout the child to the max block width
             if ((*block_it)->area.extent.x != max_block_element_width)
             {
-              perform_layout(context, **block_it, rect{.offset = new_offset, .extent = vec2{max_block_element_width, layout.area.extent.y}});
+              perform_layout(ctx, **block_it, rect{.offset = new_offset, .extent = vec2{max_block_element_width, layout.area.extent.y}});
               new_offset.y += (*block_it)->area.extent.y;
             }
           }
@@ -325,7 +335,8 @@ constexpr vec2 perform_children_layout(Context &context, Layout const &layout, s
 
   for (Widget *const child : children)
   {
-    child->transformed_area = ash::transform(child->get_transform(context), child->area);
+    perform_layout(ctx, *child, child->area);
+    child->transformed_area = ash::transform(child->get_transform(ctx), child->area);
   }
 
   return span;
