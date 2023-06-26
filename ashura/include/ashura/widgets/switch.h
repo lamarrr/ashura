@@ -32,9 +32,9 @@ struct Switch : public Widget
   {
   }
 
-  virtual Layout layout(Context &ctx, rect allotted) override
+  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    return Layout{.area = allotted.with_extent(props.radius * 2, props.radius * 2)};
+    return vec2{props.radius * 2, props.radius * 2};
   }
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override

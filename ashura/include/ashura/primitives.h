@@ -813,10 +813,7 @@ constexpr extent operator+(extent a, extent b)
 /// - relative (`scale` = relative size)
 /// - absolute (`scale` = 0, `bias` = absolute size) or both
 ///
-/// you can also automatically have constrained layout effects
-/// - padding (+ve `bias`)
 /// - absolute min/max (`min`, `max`)
-/// - relative min/max (`min_rel`, `max_rel`)
 struct constraint
 {
   f32 bias  = 0;                   /// removing or deducting from the target size
@@ -824,27 +821,64 @@ struct constraint
   f32 min   = stx::F32_MIN;        /// clamps the target size, i.e. value should be at least 20px
   f32 max   = stx::F32_MAX;        /// clamps the target size, i.e. value should be at most 100px
 
-  /// relatively clamps the values of the result
-  /// i.e. result should be between 50% and 75% of the allotted value.
-  /// by default, the `min` = 0% and `max` = 100% of the allotted
-  /// extent. `min` and `max` must be in [0.0, 1.0] and `max` >= `min`.
-  /// max must be <= 1.0 if in a constrained context.
-  f32 min_rel = 0;
-  f32 max_rel = 1;
-
   static constexpr constraint relative(f32 scale)
   {
-    return constraint{.bias = 0, .scale = scale, .min = stx::F32_MIN, .max = stx::F32_MAX, .min_rel = 0, .max_rel = 1};
+    return constraint{.bias = 0, .scale = scale, .min = stx::F32_MIN, .max = stx::F32_MAX};
   }
 
   static constexpr constraint absolute(f32 value)
   {
-    return constraint{.bias = value, .scale = 0, .min = stx::F32_MIN, .max = stx::F32_MAX, .min_rel = 0, .max_rel = 1};
+    return constraint{.bias = value, .scale = 0, .min = stx::F32_MIN, .max = stx::F32_MAX};
+  }
+
+  constexpr constraint with_min(f32 v) const
+  {
+    return constraint{.bias = bias, .scale = scale, .min = v, .max = max};
+  }
+
+  constexpr constraint with_max(f32 v) const
+  {
+    return constraint{.bias = bias, .scale = scale, .min = min, .max = v};
   }
 
   constexpr f32 resolve(f32 value) const
   {
-    return std::clamp(std::clamp(bias + value * scale, min, max), min_rel * value, max_rel * value);
+    return std::clamp(bias + value * scale, min, max);
+  }
+};
+
+struct SizeConstraint
+{
+  constraint width, height;
+
+  static constexpr SizeConstraint relative(f32 w, f32 h)
+  {
+    return SizeConstraint{.width = constraint::relative(w), .height = constraint::relative(h)};
+  }
+
+  static constexpr SizeConstraint absolute(f32 w, f32 h)
+  {
+    return SizeConstraint{.width = constraint::absolute(w), .height = constraint::absolute(h)};
+  }
+
+  constexpr SizeConstraint with_min(f32 w, f32 h) const
+  {
+    return SizeConstraint{.width = width.with_min(w), .height = height.with_min(h)};
+  }
+
+  constexpr SizeConstraint with_max(f32 w, f32 h) const
+  {
+    return SizeConstraint{.width = width.with_max(w), .height = height.with_max(h)};
+  }
+
+  constexpr vec2 resolve(f32 w, f32 h) const
+  {
+    return vec2{width.resolve(w), height.resolve(h)};
+  }
+
+  constexpr vec2 resolve(vec2 wh) const
+  {
+    return resolve(wh.x, wh.y);
   }
 };
 

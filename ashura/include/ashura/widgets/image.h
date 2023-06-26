@@ -80,19 +80,19 @@ struct Image : public Widget
     return WidgetInfo{.type = "Image"};
   }
 
-  virtual Layout layout(Context &ctx, rect area) override
+  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
     f32 width  = props.width.resolve(area.extent.x);
     f32 height = props.height.resolve(area.extent.y);
     if (props.aspect_ratio.is_some())
     {
       f32 aspect_ratio = props.aspect_ratio.value();
-      return Layout{.area = area.with_extent(std::min(height * aspect_ratio, width),
-                                             std::min(width / aspect_ratio, height))};
+      return vec2{std::min(height * aspect_ratio, width),
+                  std::min(width / aspect_ratio, height)};
     }
     else
     {
-      return Layout{.area = rect{.offset = area.offset, .extent = vec2{width, height}}};
+      return vec2{width, height};
     }
   }
 

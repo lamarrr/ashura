@@ -26,9 +26,9 @@ struct CheckBox : public Widget
   virtual ~CheckBox() override
   {}
 
-  virtual Layout layout(Context &ctx, rect allotted) override
+  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    return Layout{.area = allotted.with_extent(props.extent, props.extent)};
+    return vec2{props.extent, props.extent};
   }
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
@@ -57,7 +57,7 @@ struct CheckBox : public Widget
     if (button == MouseButton::Primary)
     {
       value = !value;
-      on_changed(context, value);
+      on_changed(ctx, value);
     }
   }
 

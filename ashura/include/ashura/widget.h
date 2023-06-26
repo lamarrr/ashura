@@ -28,122 +28,6 @@ enum class Visibility : u8
   Hidden
 };
 
-enum class Direction : u8
-{
-  Row,
-  Column
-};
-
-enum class Wrap : u8
-{
-  None,
-  Wrap
-};
-
-/// main-axis alignment
-/// affects how free space is used on the main axis
-/// main-axis for row flex is x
-/// main-axis for column flex is y
-enum class MainAlign : u8
-{
-  Start,
-  End,
-  SpaceBetween,
-  SpaceAround,
-  SpaceEvenly
-};
-
-/// cross-axis alignment
-/// affects how free space is used on the cross axis
-/// cross-axis for row flex is y
-/// cross-axis for column flex is x
-enum class CrossAlign : u8
-{
-  Start,
-  End,
-  Center,
-  Stretch
-};
-
-enum class Fit : u8
-{
-  Shrink,
-  Expand
-};
-
-struct FlexProps
-{
-  Direction  direction   = Direction::Row;
-  Wrap       wrap        = Wrap::Wrap;
-  MainAlign  main_align  = MainAlign::Start;
-  CrossAlign cross_align = CrossAlign::Start;
-  Fit        main_fit    = Fit::Shrink;
-  Fit        cross_fit   = Fit::Shrink;
-
-  constexpr vec2 fit(vec2 span, vec2 initial_extent) const
-  {
-    vec2 extent;
-
-    if (main_fit == Fit::Shrink)
-    {
-      if (direction == Direction::Row)
-      {
-        extent.x = std::min(span.x, initial_extent.x);
-      }
-      else
-      {
-        extent.y = std::min(span.y, initial_extent.y);
-      }
-    }
-    else
-    {
-      // expand
-      if (direction == Direction::Row)
-      {
-        extent.x = initial_extent.x;
-      }
-      else
-      {
-        extent.y = initial_extent.y;
-      }
-    }
-
-    if (cross_fit == Fit::Shrink)
-    {
-      if (direction == Direction::Row)
-      {
-        extent.y = std::min(span.y, initial_extent.y);
-      }
-      else
-      {
-        extent.x = std::min(span.x, initial_extent.x);
-      }
-    }
-    else
-    {
-      // expand
-      if (direction == Direction::Row)
-      {
-        extent.y = initial_extent.y;
-      }
-      else
-      {
-        extent.x = initial_extent.x;
-      }
-    }
-
-    return extent;
-  }
-};
-
-// TODO(lamarrr): i.e. a number floating on a picture
-struct Layout
-{
-  FlexProps  flex;        /// flex properties used for layout
-  rect       area;        /// initial area to use, final area will be determined by flex flayout
-  EdgeInsets padding;
-};
-
 // TODO(lamarrr): we need to pass in a zoom level to the rendering widget? so
 // that widgets like text can shape their glyphs properly
 
@@ -171,14 +55,7 @@ struct Widget
   {}
 
   // TODO(lamarrr): what if we want to position child relative to the parent? positioning to 0,0 isn't a good idea
-  virtual stx::Span<Widget *const> get_flex_children(Context &ctx)
-  {
-    return {};
-  }
-
-  /// all floating children will be laid out to the left and stack on each other,
-  /// no flex layout rules will be applied to them
-  virtual stx::Span<Widget *const> get_floating_children(Context &ctx)
+  virtual stx::Span<Widget *const> get_children(Context &ctx)
   {
     return {};
   }
@@ -215,11 +92,29 @@ struct Widget
     return mat4::identity();
   }
 
-  /// called when layout of the widget is required
-  /// area is the widget's assigned area
-  virtual Layout layout(Context &ctx, rect area)
+  // TODO(lamarrr): what if we want a widget to be at the edge of its parent?
+
+  // TODO(lamarrr): in layout we were performing layout twice. some widgets will
+  // TODO(lamarrr): we need re-calculable offsets so we can shift the parents around without shifting the children
+  // this is important for layout.
+  // this might mean we need to totally remove the concept of area. storing transformed area might not be needed?
+
+  // has the advantage that children wouldn't need extra attributes for specific kind of placements
+  //
+
+  /// allocate sizes to the child widgets
+  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation)
+  {}
+
+  /// @brief
+  /// @param ctx
+  /// @param allocated_size: the size allocated to this widget
+  /// @param children_sizes: sizes of the child widgets
+  /// @param children_positions: layout positions of the children widget on the parent
+  /// @return this widget's extent
+  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions)
   {
-    return Layout{};
+    return vec2{0, 0};
   }
 
   //
@@ -343,37 +238,5 @@ struct Widget
 
 template <typename T>
 concept WidgetImpl = std::is_base_of_v<Widget, T>;
-
-// TODO(lamarrr): what if we want a widget to be at the edge of its parent?
-
-// TODO(lamarrr): in layout we were performing layout twice. some widgets will
-// TODO(lamarrr): we need re-calculable offsets so we can shift the parents around without shifting the children
-// this is important for layout.
-// this might mean we need to totally remove the concept of area. storing transformed area might not be needed?
-
-// has the advantage that children wouldn't need extra attributes for specific kind of placements
-//
-struct SWidget
-{
-  /**
-   * @brief
-   *
-   * @param ctx
-   * @param children_sizes: sizes of the child widgets
-   * @param children_positions: layout positions of the children widget on the view
-   * @param allocated_size: the size allocated to this widget
-   * @return this widget's extent
-   */
-  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) = 0;
-
-  /**
-   * @brief allocate sizes to the child widgets
-   *
-   * @param ctx
-   * @param children_allocation
-   * @param allocated_size
-   */
-  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation) = 0;
-};
 
 }        // namespace ash

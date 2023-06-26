@@ -31,9 +31,9 @@ struct Slider : public Widget
   virtual ~Slider() override
   {}
 
-  virtual Layout layout(Context &ctx, rect allotted) override
+  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    return Layout{.area = rect{.offset = allotted.offset, .extent = vec2{allotted.extent.x, props.thumb_radius * 2}}};
+    return vec2{allocated_size.x, props.thumb_radius * 2};
   }
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
