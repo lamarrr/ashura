@@ -583,15 +583,74 @@ struct mat3
 
   static constexpr mat3 identity()
   {
-    return mat3{vec3{.x = 1, .y = 0, .z = 0},
-                vec3{.x = 0, .y = 1, .z = 0},
-                vec3{.x = 0, .y = 0, .z = 1}};
+    return mat3{.rows = {{.x = 1, .y = 0, .z = 0},
+                         {.x = 0, .y = 1, .z = 0},
+                         {.x = 0, .y = 0, .z = 1}}};
+  }
+
+  constexpr mat3 transpose() const
+  {
+    return mat3{.rows = {{rows[0].x, rows[1].x, rows[2].x},
+                         {rows[0].y, rows[1].y, rows[2].y},
+                         {rows[0].z, rows[1].z, rows[2].z}}};
+  }
+
+  constexpr vec3 &operator[](usize i)
+  {
+    return rows[i];
+  }
+
+  constexpr vec3 const &operator[](usize i) const
+  {
+    return rows[i];
   }
 };
 
+constexpr mat3 operator*(mat3 a, f32 b)
+{
+  return mat3{.rows = {a[0] * b,
+                       a[1] * b,
+                       a[2] * b}};
+}
+
+constexpr mat3 operator*(f32 a, mat3 b)
+{
+  return mat3{.rows = {a * b[0],
+                       a * b[1],
+                       a * b[2]}};
+}
+
 constexpr vec3 operator*(mat3 const &a, vec3 const &b)
 {
-  return vec3{.x = dot(a.rows[0], b), .y = dot(a.rows[1], b), .z = dot(a.rows[2], b)};
+  return vec3{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b)};
+}
+
+constexpr f32 determinant(mat3 const &a)
+{
+  return a[0].x * a[1].y * a[2].z -
+         a[0].x * a[1].z * a[2].y -
+         a[0].y * a[1].x * a[2].z +
+         a[0].y * a[1].z * a[2].x +
+         a[0].z * a[1].x * a[2].y -
+         a[0].z * a[1].y * a[2].x;
+}
+
+constexpr mat3 adjoint(mat3 const &a)
+{
+  return mat3{.rows = {{a[1].y * a[2].z - a[1].z * a[2].y,
+                        a[0].z * a[2].y - a[0].y * a[2].z,
+                        a[0].y * a[1].z - a[0].z * a[1].y},
+                       {a[1].z * a[2].x - a[1].x * a[2].z,
+                        a[0].x * a[2].z - a[0].z * a[2].x,
+                        a[0].z * a[1].x - a[0].x * a[1].z},
+                       {a[1].x * a[2].y - a[1].y * a[2].x,
+                        a[0].y * a[2].x - a[0].x * a[2].y,
+                        a[0].x * a[1].y - a[0].y * a[1].x}}};
+}
+
+constexpr mat3 inverse(mat3 const &a)
+{
+  return 1 / determinant(a) * adjoint(a);
 }
 
 /// row-major
@@ -601,47 +660,140 @@ struct mat4
 
   static constexpr mat4 identity()
   {
-    return mat4{vec4{.x = 1, .y = 0, .z = 0, .w = 0}, vec4{.x = 0, .y = 1, .z = 0, .w = 0},
-                vec4{.x = 0, .y = 0, .z = 1, .w = 0}, vec4{.x = 0, .y = 0, .z = 0, .w = 1}};
+    return mat4{.rows = {{.x = 1, .y = 0, .z = 0, .w = 0},
+                         {.x = 0, .y = 1, .z = 0, .w = 0},
+                         {.x = 0, .y = 0, .z = 1, .w = 0},
+                         {.x = 0, .y = 0, .z = 0, .w = 1}}};
   }
 
   constexpr mat4 transpose() const
   {
-    return mat4{vec4{rows[0].x, rows[1].x, rows[2].x, rows[3].x},
-                vec4{rows[0].y, rows[1].y, rows[2].y, rows[3].y},
-                vec4{rows[0].z, rows[1].z, rows[2].z, rows[3].z},
-                vec4{rows[0].w, rows[1].w, rows[2].w, rows[3].w}};
+    return mat4{.rows = {{rows[0].x, rows[1].x, rows[2].x, rows[3].x},
+                         {rows[0].y, rows[1].y, rows[2].y, rows[3].y},
+                         {rows[0].z, rows[1].z, rows[2].z, rows[3].z},
+                         {rows[0].w, rows[1].w, rows[2].w, rows[3].w}}};
+  }
+
+  constexpr vec4 &operator[](usize i)
+  {
+    return rows[i];
+  }
+
+  constexpr vec4 const &operator[](usize i) const
+  {
+    return rows[i];
   }
 };
 
+constexpr mat4 operator*(mat4 a, f32 b)
+{
+  return mat4{.rows = {a[0] * b,
+                       a[1] * b,
+                       a[2] * b,
+                       a[3] * b}};
+}
+
+constexpr mat4 operator*(f32 a, mat4 b)
+{
+  return mat4{.rows = {a * b[0],
+                       a * b[1],
+                       a * b[2],
+                       a * b[3]}};
+}
+
+constexpr f32 determinant(mat4 const &a)
+{
+  return a[0].x * (a[1].y * a[2].z * a[3].w +
+                   a[1].z * a[2].w * a[3].y +
+                   a[1].w * a[2].y * a[3].z -
+                   a[1].w * a[2].z * a[3].y -
+                   a[1].z * a[2].y * a[3].w -
+                   a[1].y * a[2].w * a[3].z) -
+         a[1].x * (a[0].y * a[2].z * a[3].w +
+                   a[0].z * a[2].w * a[3].y +
+                   a[0].w * a[2].y * a[3].z -
+                   a[0].w * a[2].z * a[3].y -
+                   a[0].z * a[2].y * a[3].w -
+                   a[0].y * a[2].w * a[3].z) +
+         a[2].x * (a[0].y * a[1].z * a[3].w +
+                   a[0].z * a[1].w * a[3].y +
+                   a[0].w * a[1].y * a[3].z -
+                   a[0].w * a[1].z * a[3].y -
+                   a[0].z * a[1].y * a[3].w -
+                   a[0].y * a[1].w * a[3].z) -
+         a[3].x * (a[0].y * a[1].z * a[2].w +
+                   a[0].z * a[1].w * a[2].y +
+                   a[0].w * a[1].y * a[2].z -
+                   a[0].w * a[1].z * a[2].y -
+                   a[0].z * a[1].y * a[2].w -
+                   a[0].y * a[1].w * a[2].z);
+}
+
+constexpr mat4 adjoint(mat4 const &a)
+{
+  // TODO(lamarrr): complete from https://semath.info/src/inverse-cofactor-ex4.html
+  return mat4{.rows = {{a[1].y * a[2].z * a[3].w +
+                            a[1].z * a[2].w * a[3].y +
+                            a[1].w * a[2].y * a[3].z -
+                            a[1].w * a[2].z * a[3].y -
+                            a[1].w * a[2].y * a[3].w -
+                            a[1].y * a[2].w * a[3].z,
+                        -a[0].y * a[2].z * a[3].w -
+                            a[0].z * a[2].w * a[3].y -
+                            a[0].w * a[2].y * a[3].z +
+                            a[0].w * a[2].z * a[3].y +
+                            a[0].z * a[2].y * a[3].w +
+                            a[0].y * a[2].w * a[3].z,
+                        a[0].y * a[1].z * a[3].w +
+                            a[0].z * a[1].w * a[3].y +
+                            a[0].w * a[1].y * a[3].z -
+                            a[0].w * a[1].z * a[3].y -
+                            a[0].z * a[1].y * a[3].w -
+                            a[0].y * a[1].w * a[3].z,
+                        -a[0].y * a[1].z * a[2].w -
+                            a[0].z * a[1].w * a[2].y -
+                            a[0].w * a[1].y * a[2].z +
+                            a[0].w * a[1].z * a[2].y +
+                            a[0].z * a[1].y * a[2].w +
+                            a[0].y * a[1].w * a[2].z},
+                       {},
+                       {},
+                       {}}};
+}
+
+constexpr mat4 inverse(mat4 const &a)
+{
+  return 1 / determinant(a) * adjoint(a);
+}
+
 constexpr bool operator==(mat4 const &a, mat4 const &b)
 {
-  return a.rows[0] == b.rows[0] && a.rows[1] == b.rows[1] && a.rows[2] == b.rows[2] && a.rows[3] == b.rows[3];
+  return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
 }
 
 constexpr bool operator!=(mat4 const &a, mat4 const &b)
 {
-  return a.rows[0] != b.rows[0] || a.rows[1] != b.rows[1] || a.rows[2] != b.rows[2] || a.rows[3] != b.rows[3];
+  return a[0] != b[0] || a[1] != b[1] || a[2] != b[2] || a[3] != b[3];
 }
 
 constexpr mat4 operator*(mat4 const &a, mat4 const &b)
 {
-  return mat4{.rows = {{dot(a.rows[0], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
-                        dot(a.rows[0], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
-                        dot(a.rows[0], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
-                        dot(a.rows[0], {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})},
-                       {dot(a.rows[1], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
-                        dot(a.rows[1], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
-                        dot(a.rows[1], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
-                        dot(a.rows[1], {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})},
-                       {dot(a.rows[2], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
-                        dot(a.rows[2], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
-                        dot(a.rows[2], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
-                        dot(a.rows[2], {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})},
-                       {dot(a.rows[3], {b.rows[0].x, b.rows[1].x, b.rows[2].x, b.rows[3].x}),
-                        dot(a.rows[3], {b.rows[0].y, b.rows[1].y, b.rows[2].y, b.rows[3].y}),
-                        dot(a.rows[3], {b.rows[0].z, b.rows[1].z, b.rows[2].z, b.rows[3].z}),
-                        dot(a.rows[3], {b.rows[0].w, b.rows[1].w, b.rows[2].w, b.rows[3].w})}}};
+  return mat4{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x, b[3].x}),
+                        dot(a[0], {b[0].y, b[1].y, b[2].y, b[3].y}),
+                        dot(a[0], {b[0].z, b[1].z, b[2].z, b[3].z}),
+                        dot(a[0], {b[0].w, b[1].w, b[2].w, b[3].w})},
+                       {dot(a[1], {b[0].x, b[1].x, b[2].x, b[3].x}),
+                        dot(a[1], {b[0].y, b[1].y, b[2].y, b[3].y}),
+                        dot(a[1], {b[0].z, b[1].z, b[2].z, b[3].z}),
+                        dot(a[1], {b[0].w, b[1].w, b[2].w, b[3].w})},
+                       {dot(a[2], {b[0].x, b[1].x, b[2].x, b[3].x}),
+                        dot(a[2], {b[0].y, b[1].y, b[2].y, b[3].y}),
+                        dot(a[2], {b[0].z, b[1].z, b[2].z, b[3].z}),
+                        dot(a[2], {b[0].w, b[1].w, b[2].w, b[3].w})},
+                       {dot(a[3], {b[0].x, b[1].x, b[2].x, b[3].x}),
+                        dot(a[3], {b[0].y, b[1].y, b[2].y, b[3].y}),
+                        dot(a[3], {b[0].z, b[1].z, b[2].z, b[3].z}),
+                        dot(a[3], {b[0].w, b[1].w, b[2].w, b[3].w})}}};
 }
 
 constexpr vec4 operator*(mat4 const &a, vec4 const &b)
@@ -668,10 +820,11 @@ constexpr vec2 transform(mat4 const &a, vec3 const &b)
 
 constexpr quad transform(mat4 const &a, rect const &b)
 {
-  return quad{.p0 = transform(a, b.top_left()),
-              .p1 = transform(a, b.top_right()),
-              .p2 = transform(a, b.bottom_right()),
-              .p3 = transform(a, b.bottom_left())};
+  return quad{
+      .p0 = transform(a, b.top_left()),
+      .p1 = transform(a, b.top_right()),
+      .p2 = transform(a, b.bottom_right()),
+      .p3 = transform(a, b.bottom_left())};
 }
 
 constexpr mat4 translate(vec3 t)
