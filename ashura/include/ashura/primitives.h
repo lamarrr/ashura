@@ -256,6 +256,25 @@ struct rect
     return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min && y1_min < y0_max;
   }
 
+  /// @brief NOTE: returns 0-extent rect if there's no intersection
+  /// @param other
+  /// @return
+  constexpr rect intersect(rect other) const
+  {
+    auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
+    auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
+
+    if (!overlaps(other))
+    {
+      return rect{.offset = offset, .extent = vec2{0, 0}};
+    }
+
+    vec2 offset{std::max(x1_min, x2_min), std::max(y1_min, y2_min)};
+    vec2 extent{std::min(x1_max, x2_max) - offset.x, std::min(y1_max, y2_max) - offset.y};
+
+    return rect{.offset = offset, .extent = extent};
+  }
+
   constexpr bool contains(vec2 point) const
   {
     return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
