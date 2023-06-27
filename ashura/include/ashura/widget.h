@@ -31,7 +31,7 @@ enum class Visibility : u8
 // TODO(lamarrr): we need to pass in a zoom level to the rendering widget? so
 // that widgets like text can shape their glyphs properly
 
-struct WidgetInfo
+struct WidgetDebugInfo
 {
   std::string_view type;
 };
@@ -46,6 +46,9 @@ struct DragData
 // be removed and remove all callbacks they may have attached or cancel tasks
 // they have pending.
 // consider: having tokens that de-register themselves once deleted
+
+/// @brief Base widget class. All widget types must inherit from this struct.
+/// all methods are already implemented with reasonable defaults.
 struct Widget
 {
   Widget()
@@ -54,79 +57,139 @@ struct Widget
   virtual ~Widget()
   {}
 
-  // TODO(lamarrr): what if we want to position child relative to the parent? positioning to 0,0 isn't a good idea
+  /// @brief get child widgets
+  /// @param ctx
+  /// @return
   virtual stx::Span<Widget *const> get_children(Context &ctx)
   {
     return {};
   }
 
-  //
-  virtual WidgetInfo get_info(Context &ctx)
+  /// @brief get debug and logging information
+  /// @param ctx
+  /// @return
+  virtual WidgetDebugInfo get_debug_info(Context &ctx)
   {
-    return WidgetInfo{.type = "Widget"};
+    return WidgetDebugInfo{.type = "Widget"};
   }
 
-  /// called at the beginning of the application
-  virtual void on_startup(Context &ctx)
-  {}
-
-  /// called at application exit
-  virtual void on_exit(Context &ctx)
-  {}
-
-  /// returns the visibility of this widget. an invisible widget will not be drawn nor receive mouse/touch events
-  virtual Visibility get_visibility(Context &ctx)
+  /// @brief returns the visibility of this widget. an invisible widget will not be drawn nor receive mouse/touch events.
+  /// parents can decide the visibility of eacg child
+  /// @param ctx
+  /// @param allocated_visibility
+  /// @param[out] children_allocation visibility assigned to children
+  /// @return
+  virtual Visibility get_visibility(Context &ctx, Visibility allocated_visibility, stx::Span<Visibility> children_allocation)
   {
-    return Visibility::Visible;
+    children_allocation.fill(allocated_visibility);
+    return allocated_visibility;
   }
 
-  /// returns the desired z_index of this widget given the hierarchy assigned z_index.
-  virtual i64 get_z_index(Context &ctx, i64 z_index)
+  /// @brief returns the z-index of itself and assigns z-indices to its children
+  /// @param ctx
+  /// @param allocated_z_index
+  /// @param[out] children_allocation z-index assigned to children
+  /// @return
+  virtual i64 z_stack(Context &ctx, i64 allocated_z_index, stx::Span<i64> children_allocation)
   {
-    return z_index;
+    children_allocation.fill(allocated_z_index + 1);
+    return allocated_z_index;
   }
 
-  /// returns the rect placement transform of this widget. this will be used in positioning the widget
-  virtual mat4 get_transform(Context &ctx)
-  {
-    return mat4::identity();
-  }
-
-  // TODO(lamarrr): what if we want a widget to be at the edge of its parent?
-
-  // TODO(lamarrr): in layout we were performing layout twice. some widgets will
   // TODO(lamarrr): we need re-calculable offsets so we can shift the parents around without shifting the children
-  // this is important for layout.
+  // this is important for cursors, drag and drop?
   // this might mean we need to totally remove the concept of area. storing transformed area might not be needed?
 
-  // has the advantage that children wouldn't need extra attributes for specific kind of placements
-  //
-
-  /// allocate sizes to the child widgets
-  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation)
-  {}
-
-  /// @brief
+  /// @brief distributes the size allocated to it to its child widgets.
+  /// unlike CSS. has the advantage that children wouldn't need extra attributes for specific kind of placements i.e. relative, absolute, etc.
   /// @param ctx
-  /// @param allocated_size: the size allocated to this widget
-  /// @param children_sizes: sizes of the child widgets
-  /// @param children_positions: layout positions of the children widget on the parent
-  /// @return this widget's extent
-  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions)
+  /// @param allocated_size the size allocated to this widget
+  /// @param[out] children_allocation sizes allocated to the children.
+  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation)
+  {
+    children_allocation.fill(vec2{0, 0});
+  }
+
+  /// @brief fits itself around its children and positions child widgets along/relative to itself (i.e. position {0, 0} means the child will be placed on the top left of the parent)
+  /// @param ctx
+  /// @param allocated_size the size allocated to this widget. the widget can decide to disregard or fit to this as needed.
+  /// @param children_sizes sizes of the child widgets
+  /// @param[out] children_positions positions of the children widget on the parent
+  /// @return this widget's fitted extent
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions)
   {
     return vec2{0, 0};
   }
 
-  //
-  virtual void draw(Context &ctx, gfx::Canvas &canvas)
-  {}
+  /// @brief this is used for absolute positioning of the widget
+  /// @param ctx
+  /// @param allocated_position the allocated absolute position of this widget
+  /// @return
+  virtual vec2 position(Context &ctx, vec2 size, vec2 allocated_position)
+  {
+    return allocated_position;
+  }
 
-  /// called on every frame. interval is the time passed since the last call to this tick method
-  /// state changes, animations, task dispatch and lightweight processing related to the GUI should happen here
+  /// returns the rect placement transform of this widget. this will be used in positioning the widget
+
+  /// @brief
+  /// @param ctx
+  /// @param allocated_transform
+  /// @param children_allocation
+  /// @return
+  // TODO(lamarrr): we need the transforms to be applied in a visually consistent manner.
+  // i.e. the transforms should fall in-line with the parent's transform.
+  // This would mean the transforms would occur along????
+  //
+  // we need chained transforms. transform 1 will be from the parent down to the children and these transforms will be about the parents origin.
+  // the parent's transform would be about it's own local axis.
+  //
+  // transforms must only be 2d and not apply to 3d?
+  // virtual mat4 transform(Context &ctx, mat4 const &allocated_transform, stx::Span<mat4> children_allocation)
+  // {
+  //   // TODO(lamarrr): should we use this for positioning instead?
+  //   children_allocation.fill(allocated_transform);
+  //   return allocated_transform;
+  // }
+
+  // TODO(lamarrrr): might need transforms (scale + translation)
+  /// @brief this is used for clipping widget views. the provided clip is relative to the root widget's axis (0, 0).
+  /// this can be used for nested viewports where there are multiple intersecting clips.
+  /// transforms do not apply to the clip rects. this is used for visibility testing and eventually actual vertex culling.
+  /// a nested viewport for example can therefore use the intersection of its allocated clip and it's own viewport clip and assign that to its children,
+  /// whilst using the allocated clip on itself.
+  /// clips are not affected by transforms.
+  /// @param ctx
+  /// @param allocated_clip
+  /// @param children_allocation
+  /// @return
+  virtual rect clip(Context &ctx, rect allocated_clip, stx::Span<rect> children_allocation)
+  {
+    children_allocation.fill(allocated_clip);
+    return allocated_clip;
+  }
+
+  /// @brief record draw commands needed to render this widget. this method is only called if the widget passes the visibility tests.
+  /// this is called on every frame.
+  /// @param ctx
+  /// @param canvas
+  ///
+  ///
+  /// TODO(lamarrr): text transform about point?
+  virtual void draw(Context &ctx, gfx::Canvas &canvas)
+  {
+    // TODO(lamarrr): the whole widget tree will be rendered and clipped as necessary
+  }
+
+  /// @brief called on every frame. used for state changes, animations, task dispatch and lightweight processing related to the GUI.
+  /// heavy-weight and non-sub-millisecond tasks should be dispatched to a Plugin/Subsystem that would handle that. i.e. using the multi-tasking system.
+  /// @param ctx
+  /// @param interval time passed since last call to this method
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval)
   {}
 
-  //
+  /// TODO(lamarrr): we can store on-viewport-hit here?
+  /// we might also need on-viewed which means when it is actually rendered?
   virtual void on_enter_viewport(Context &ctx)
   {}
 
@@ -156,6 +219,8 @@ struct Widget
   virtual void on_mouse_leave(Context &ctx, stx::Option<vec2> mouse_position)
   {}
 
+  // virtual bool on_mouse_wheel(Context& ctx, vec2 translation, vec2 mouse_position?). propagates up
+
   // signifies that this widget is about to be dragged
   // return true if this widget allows dragging
   virtual bool on_drag_start(Context &ctx)
@@ -164,14 +229,11 @@ struct Widget
   }
 
   // gives the drag position of the widget,
-  /**
-   * @brief
-   *
-   * @param context
-   * @param global_position: current global drag position
-   * @param local_position: current position relative to its initial position
-   * @param delta: difference between this drah update and the last drag update
-   */
+  /// @brief
+  /// @param ctx
+  /// @param global_position current global drag position
+  /// @param local_position current position relative to its initial position
+  /// @param delta difference between this drah update and the last drag update
   virtual void on_drag_update(Context &ctx, vec2 global_position, vec2 local_position, vec2 delta)
   {}
 
@@ -231,9 +293,9 @@ struct Widget
   virtual void on_touch_leave(Context &ctx)
   {}
 
-  stx::Option<uuid> id;                      // id used to recognise the widget. checked every frame. if one is not present or removed. a value is assigned.
-  rect              area;                    // area of the widget on the viewport. calculated on every frame
-  quad              transformed_area;        // transformed area of the widget on the viewport. calculated on every frame
+  stx::Option<uuid> id;        // id used to recognise the widget. checked every frame. if one is not present or removed. a value is assigned.
+  rect              area;
+  rect              transformed_area;
 };
 
 template <typename T>
