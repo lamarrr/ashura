@@ -31,9 +31,9 @@ struct Padding : public Widget
     return stx::Span{&child, 1};
   }
 
-  virtual WidgetInfo get_info(Context &ctx) override
+  virtual WidgetDebugInfo get_debug_info(Context &ctx) override
   {
-    return WidgetInfo{.type = "Padding"};
+    return WidgetDebugInfo{.type = "Padding"};
   }
 
   // virtual Layout layout(rect area)override

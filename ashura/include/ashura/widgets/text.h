@@ -13,12 +13,12 @@ struct Text : public Widget
       text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{iprops}
   {}
 
-  virtual WidgetInfo get_info(Context &ctx) override
+  virtual WidgetDebugInfo get_debug_info(Context &ctx) override
   {
-    return WidgetInfo{.type = "Text"};
+    return WidgetDebugInfo{.type = "Text"};
   }
 
-  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
     TextRun runs[] = {
         TextRun{.text = text}};

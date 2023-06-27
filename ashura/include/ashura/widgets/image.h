@@ -75,12 +75,12 @@ struct Image : public Widget
       props{std::move(image_props)}
   {}
 
-  virtual WidgetInfo get_info(Context &ctx) override
+  virtual WidgetDebugInfo get_debug_info(Context &ctx) override
   {
-    return WidgetInfo{.type = "Image"};
+    return WidgetDebugInfo{.type = "Image"};
   }
 
-  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
     f32 width  = props.width.resolve(area.extent.x);
     f32 height = props.height.resolve(area.extent.y);

@@ -89,9 +89,9 @@ struct Stack : public Widget
     return children;
   }
 
-  virtual WidgetInfo get_info(Context &ctx) override
+  virtual WidgetDebugInfo get_debug_info(Context &ctx) override
   {
-    return WidgetInfo{.type = "Stack"};
+    return WidgetDebugInfo{.type = "Stack"};
   }
 
   virtual Layout layout(Context &ctx, rect area) override;

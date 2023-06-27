@@ -31,7 +31,7 @@ struct Slider : public Widget
   virtual ~Slider() override
   {}
 
-  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
     return vec2{allocated_size.x, props.thumb_radius * 2};
   }
@@ -49,16 +49,12 @@ struct Slider : public Widget
 
     canvas.draw_round_rect_filled(track_area, vec4::splat(props.track_height / 2), 360, props.track_color);
 
-    f32 thumb_center_x     = track_area.offset.x + percentage * track_area.extent.x;
-    f32 thumb_center_y     = area.offset.y + area.extent.y / 2;
-    f32 outer_thumb_radius = props.thumb_radius;
-    f32 inner_thumb_radius = thumb_animation.animate(thumb_animation_curve, thumb_tween);
+    vec2 thumb_center{track_area.offset.x + percentage * track_area.extent.x, area.offset.y + area.extent.y / 2};
+    f32  outer_thumb_radius = props.thumb_radius;
+    f32  inner_thumb_radius = thumb_animation.animate(thumb_animation_curve, thumb_tween);
 
-    vec2 outer_thumb_offset{thumb_center_x - outer_thumb_radius, thumb_center_y - outer_thumb_radius};
-    vec2 inner_thumb_offset{thumb_center_x - inner_thumb_radius, thumb_center_y - inner_thumb_radius};
-
-    canvas.draw_circle_filled(outer_thumb_offset, outer_thumb_radius, 360, props.thumb_color);
-    canvas.draw_circle_filled(inner_thumb_offset, inner_thumb_radius, 360, props.track_color);
+    canvas.draw_circle_filled(thumb_center, outer_thumb_radius, 360, props.thumb_color);
+    canvas.draw_circle_filled(thumb_center, inner_thumb_radius, 360, props.track_color);
   }
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override

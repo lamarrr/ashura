@@ -26,7 +26,7 @@ struct CheckBox : public Widget
   virtual ~CheckBox() override
   {}
 
-  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
     return vec2{props.extent, props.extent};
   }
