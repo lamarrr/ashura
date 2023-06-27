@@ -137,7 +137,7 @@ inline stx::Span<vertex> interpolate_uvs(stx::Span<vertex> path, vec2 extent, te
 {
   for (vertex &v : path)
   {
-    v.uv = texture_region.uv0 + v.position / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
+    v.uv = texture_region.uv0 + v.position / epsilon_clamp(extent) * (texture_region.uv1 - texture_region.uv0);
   }
 
   return path;
@@ -350,7 +350,7 @@ struct Canvas
 
   mat4 make_transform(vec2 position) const
   {
-    vec2 viewport_extent_clamped = viewport_extent.epsilon_clamp();
+    vec2 viewport_extent_clamped = epsilon_clamp(viewport_extent);
     return ash::translate(vec3{-1, -1, 0})                                                            /// normalize to vulkan viewport coordinate range -1 to 1
            * ash::scale(vec3{2 / viewport_extent_clamped.x, 2 / viewport_extent_clamped.y, 0})        /// normalize to 0 to 2 coordinate range
            * state.global_transform                                                                   /// apply global coordinate transform
@@ -597,8 +597,9 @@ struct Canvas
     return draw_path(line, area, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_circle_filled(vec2 position, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_circle_filled(vec2 center, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    vec2 position = center - radius;
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
     if (!viewport_contains(area))
@@ -613,8 +614,9 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_circle_stroke(vec2 position, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_circle_stroke(vec2 center, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    vec2 position = center - radius;
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
     if (!viewport_contains(area) || thickness == 0)
@@ -629,11 +631,12 @@ struct Canvas
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
 
-  Canvas& draw_arc_filled();
-  Canvas& draw_arc_stroke();
+  Canvas &draw_arc_filled();
+  Canvas &draw_arc_stroke();
 
-  Canvas &draw_ellipse_filled(vec2 position, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_ellipse_filled(vec2 center, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    vec2 position = center - radii;
     rect area{.offset = position, .extent = 2 * radii};
 
     if (!viewport_contains(area))
@@ -648,8 +651,9 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_ellipse_stroke(vec2 position, vec2 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_ellipse_stroke(vec2 center, vec2 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    vec2 position = center - radii;
     rect area{.offset = position, .extent = 2 * radii};
 
     if (!viewport_contains(area) || thickness == 0)
