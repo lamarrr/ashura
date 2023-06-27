@@ -30,55 +30,16 @@ struct WidgetSystem
       widget.id = stx::Some(generator.generate());
     }
 
-    for (Widget *child : widget.get_flex_children(ctx))
+    for (Widget *child : widget.get_children(ctx))
     {
       __assign_ids_recursive(ctx, *child, generator);
-    }
-
-    for (Widget *child : widget.get_floating_children(ctx))
-    {
-      __assign_ids_recursive(ctx, *child, generator);
-    }
-  }
-
-  static void __startup_recursive(Context &ctx, Widget &widget)
-  {
-    widget.on_startup(ctx);
-
-    for (Widget *child : widget.get_flex_children(ctx))
-    {
-      __startup_recursive(ctx, *child);
-    }
-
-    for (Widget *child : widget.get_floating_children(ctx))
-    {
-      __startup_recursive(ctx, *child);
-    }
-  }
-
-  static void __exit_recursive(Context &ctx, Widget &widget)
-  {
-    widget.on_exit(ctx);
-
-    for (Widget *child : widget.get_flex_children(ctx))
-    {
-      __exit_recursive(ctx, *child);
-    }
-
-    for (Widget *child : widget.get_floating_children(ctx))
-    {
-      __exit_recursive(ctx, *child);
     }
   }
 
   static void __tick_recursive(Context &ctx, Widget &widget, std::chrono::nanoseconds interval)
   {
     widget.tick(ctx, interval);
-    for (Widget *child : widget.get_flex_children(ctx))
-    {
-      __tick_recursive(ctx, *child, interval);
-    }
-    for (Widget *child : widget.get_floating_children(ctx))
+    for (Widget *child : widget.get_children(ctx))
     {
       __tick_recursive(ctx, *child, interval);
     }
@@ -93,25 +54,10 @@ struct WidgetSystem
       entries.push(WidgetDrawEntry{.widget = &widget, .z_index = z_index}).unwrap();
     }
 
-    for (Widget *child : widget.get_flex_children(ctx))
+    for (Widget *child : widget.get_children(ctx))
     {
       __push_recursive(ctx, entries, *child, &widget, z_index + 1);
     }
-
-    for (Widget *child : widget.get_floating_children(ctx))
-    {
-      __push_recursive(ctx, entries, *child, &widget, z_index + 1);
-    }
-  }
-
-  void on_startup(Context &ctx)
-  {
-    __startup_recursive(ctx, *root);
-  }
-
-  void exit(Context &ctx)
-  {
-    __exit_recursive(ctx, *root);
   }
 
   void assign_ids(Context &ctx, UuidGenerator &generator)
@@ -126,16 +72,7 @@ struct WidgetSystem
       return current;
     }
 
-    for (Widget *child : current->get_flex_children(ctx))
-    {
-      Widget *found = find_widget(ctx, child, id);
-      if (found != nullptr)
-      {
-        return found;
-      }
-    }
-
-    for (Widget *child : current->get_floating_children(ctx))
+    for (Widget *child : current->get_children(ctx))
     {
       Widget *found = find_widget(ctx, child, id);
       if (found != nullptr)
