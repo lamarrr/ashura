@@ -521,6 +521,61 @@ constexpr f32 dot(vec4 a, vec4 b)
   return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
 
+struct mat2
+{
+  vec2 rows[2];
+
+  static constexpr mat2 identity()
+  {
+    return mat2{.rows = {{.x = 1, .y = 0},
+                         {.x = 0, .y = 1}}};
+  }
+
+  constexpr mat2 transpose() const
+  {
+    return mat2{.rows = {{rows[0].x, rows[1].x},
+                         {rows[0].y, rows[1].y}}};
+  }
+
+  constexpr vec2 &operator[](usize i)
+  {
+    return rows[i];
+  }
+
+  constexpr vec2 const &operator[](usize i) const
+  {
+    return rows[i];
+  }
+};
+
+constexpr mat2 operator*(mat2 a, f32 b)
+{
+  return mat2{.rows = {a[0] * b,
+                       a[1] * b}};
+}
+
+constexpr mat2 operator*(f32 a, mat2 b)
+{
+  return mat2{.rows = {a * b[0],
+                       a * b[1]}};
+}
+
+constexpr f32 determinant(mat2 a)
+{
+  return a[0].x * a[1].y - a[1].x * a[0].y;
+}
+
+constexpr mat2 adjoint(mat2 a)
+{
+  return mat2{.rows = {{a[1].y, -a[0].y},
+                       {-a[1].x, a[0].x}}};
+}
+
+constexpr mat2 inverse(mat2 a)
+{
+  return 1 / determinant(a) * adjoint(a);
+}
+
 /// row-major
 struct mat3
 {
