@@ -9,54 +9,88 @@ namespace ash
 
 struct LayoutEntry
 {
-  vec2            extent;
-  stx::Span<vec2> children_positions;
-  stx::Span<vec2> children_sizes;
+  Widget               *widget = nullptr;        /// widget represented by this entry
+  stx::Vec<vec2>        children_allocations;
+  stx::Vec<vec2>        children_sizes;
+  stx::Vec<vec2>        children_positions;
+  stx::Vec<LayoutEntry> children;
 };
-
-struct LayoutTree
-{};
 
 struct RenderEntry
 {
   Widget *widget  = nullptr;
   i64     z_index = 0;
+  rect    clip;        // TODO(lamarrr): figure out how viewport scaling will work, because this 
 };
 
-struct RenderTree
+struct WidgetTree
 {
-  stx::Vec<RenderEntry> entries;
-};
+  LayoutEntry           layout_root;
+  stx::Vec<RenderEntry> render_entries;
 
-inline vec2 perform_layout(Context &ctx, Widget &widget, vec2 allocated_size)
-{
-  stx::Span<Widget *const> children = widget.get_children(ctx);
-
-  stx::Vec<vec2> children_allocations;
-  children_allocations.resize(children.size()).unwrap();
-
-  stx::Vec<vec2> children_sizes;
-  children_sizes.resize(children.size()).unwrap();
-
-  stx::Vec<vec2> children_positions;
-  children_positions.resize(children.size()).unwrap();
-
-  widget.allocate_size(ctx, allocated_size, children_allocations);
-
-  for (usize i = 0; i < children.size(); i++)
+  void __build_layout_recursive(Context &ctx, LayoutEntry &entry, Widget &widget)
   {
-    children_sizes[i] = perform_layout(ctx, *children[i], children_allocations[i]);
+    entry.widget        = &widget;
+    stx::Span children  = widget.get_children(ctx);
+    usize     nchildren = children.size();
+    entry.children_allocations.resize(nchildren).unwrap();
+    entry.children_sizes.resize(nchildren).unwrap();
+    entry.children_positions.resize(nchildren).unwrap();
+    entry.children.resize(nchildren).unwrap();
+
+    for (usize i = 0; i < nchildren; i++)
+    {
+      __build_layout_recursive(ctx, entry.children[i], *children[i]);
+    }
   }
 
-  vec2 extent = widget.layout(ctx, allocated_size, children_sizes, children_positions);
+  vec2 __fit_recursive(Context &ctx, LayoutEntry &entry, vec2 allocated_size)
+  {
+    entry.widget->allocate_size(ctx, allocated_size, entry.children_allocations);
+    stx::Span children = entry.widget->get_children(ctx);
 
-  // use children_positions
-  // for (Widget *const child : children)
-  // {
-  //   perform_layout(ctx, *child, child->area);
-  //   child->transformed_area = ash::transform(child->get_transform(ctx), child->area);
-  // }
+    for (usize i = 0; i < entry.children.size(); i++)
+    {
+      entry.children_sizes[i] = __fit_recursive(ctx, entry.children[i], entry.children_allocations[i]);
+    }
 
-  return extent;
-}
+    vec2 extent = entry.widget->fit(ctx, allocated_size, entry.children_sizes, entry.children_positions);
+
+    //   stx::Span children =  entry.widget->get_children(ctx);
+    // for(usize i = 0; i < entry.children.size(); i++){
+    // }
+
+    // use children_positions
+    // for (Widget *const child : children)
+    // {
+    //   perform_layout(ctx, *child, child->area);
+    //   child->transformed_area = ash::transform(child->get_transform(ctx), child->area);
+    // }
+
+    entry.widget->area.extent = extent;
+    return extent;
+  }
+
+  void __position_recursive(Context &ctx, LayoutEntry &entry, vec2 position)
+  {
+    entry.widget->area.offset = position;
+    for (usize i = 0; i < entry.children.size(); i++)
+    {
+      __position_recursive(ctx, entry.children[i], position + entry.children_positions[i]);
+    }
+  }
+
+ void __build_render_recursive(Context &ctx,RenderEntry & entry, LayoutEntry & layout_entry  ){
+  if(layout_entry.widget->g)
+
+  }
+
+  void layout(Context &ctx, Widget &root, vec2 position, vec2 allocated_size)
+  {
+    __build_layout_recursive(ctx, layout_root, root);
+    __fit_recursive(ctx, layout_root, allocated_size);
+    __position_recursive(ctx, layout_root, vec2{0, 0});
+  }
+};
+
 }        // namespace ash
