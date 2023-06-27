@@ -798,12 +798,12 @@ constexpr mat4 operator*(mat4 const &a, mat4 const &b)
 
 constexpr vec4 operator*(mat4 const &a, vec4 const &b)
 {
-  return vec4{.x = dot(a.rows[0], b), .y = dot(a.rows[1], b), .z = dot(a.rows[2], b), .w = dot(a.rows[3], b)};
+  return vec4{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b), .w = dot(a[3], b)};
 }
 
 constexpr vec4 operator*(vec4 const &a, mat4 const &b)
 {
-  return vec4{.x = dot(a, b.rows[0]), .y = dot(a, b.rows[1]), .z = dot(a, b.rows[2]), .w = dot(a, b.rows[3])};
+  return vec4{.x = dot(a, b[0]), .y = dot(a, b[1]), .z = dot(a, b[2]), .w = dot(a, b[3])};
 }
 
 constexpr vec2 transform(mat4 const &a, vec2 const &b)
@@ -827,84 +827,95 @@ constexpr quad transform(mat4 const &a, rect const &b)
       .p3 = transform(a, b.bottom_left())};
 }
 
+constexpr vec2 transform2d(mat3 const &a, vec2 const &b)
+{
+  vec3 prod = a *vec3{b.x, b.y, 1};
+  return vec2{prod.x, prod.y};
+}
+
+constexpr mat3 translate2d(vec2 t)
+{
+  return mat3{.rows = {{1, 0, t.x},
+                       {0, 1, t.y},
+                       {0, 0, 1}}};
+}
+
 constexpr mat4 translate(vec3 t)
 {
-  return mat4{
-      vec4{1, 0, 0, t.x},
-      vec4{0, 1, 0, t.y},
-      vec4{0, 0, 1, t.z},
-      vec4{0, 0, 0, 1},
-  };
+  return mat4{.rows = {{1, 0, 0, t.x},
+                       {0, 1, 0, t.y},
+                       {0, 0, 1, t.z},
+                       {0, 0, 0, 1}}};
 }
 
 constexpr mat4 scale(vec3 s)
 {
-  return mat4{
-      vec4{s.x, 0, 0, 0},
-      vec4{0, s.y, 0, 0},
-      vec4{0, 0, s.z, 0},
-      vec4{0, 0, 0, 1},
-  };
+  return mat4{.rows = {{s.x, 0, 0, 0},
+                       {0, s.y, 0, 0},
+                       {0, 0, s.z, 0},
+                       {0, 0, 0, 1}}};
+}
+
+constexpr mat3 scale2d(vec2 s)
+{
+  return mat3{.rows = {{s.x, 0, 0},
+                       {0, s.y, 0},
+                       {0, 0, 1}}};
 }
 
 inline mat4 rotate_x(f32 degree_radians)
 {
-  return mat4{
-      vec4{1, 0, 0, 0},
-      vec4{0, std::cos(degree_radians), -std::sin(degree_radians), 0},
-      vec4{0, std::sin(degree_radians), std::cos(degree_radians), 0},
-      vec4{0, 0, 0, 1},
-  };
+  return mat4{.rows = {{1, 0, 0, 0},
+                       {0, std::cos(degree_radians), -std::sin(degree_radians), 0},
+                       {0, std::sin(degree_radians), std::cos(degree_radians), 0},
+                       {0, 0, 0, 1}}};
 }
 
 inline mat4 rotate_y(f32 degree_radians)
 {
-  return mat4{
-      vec4{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
-      vec4{0, 1, 0, 0},
-      vec4{-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
-      vec4{0, 0, 0, 1},
-  };
+  return mat4{.rows = {{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
+                       {0, 1, 0, 0},
+                       {-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
+                       {0, 0, 0, 1}}};
 }
 
 inline mat4 rotate_z(f32 degree_radians)
 {
-  return mat4{
-      vec4{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
-      vec4{std::sin(degree_radians), std::cos(degree_radians), 0, 0},
-      vec4{0, 0, 1, 0},
-      vec4{0, 0, 0, 1},
-  };
+  return mat4{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
+                       {std::sin(degree_radians), std::cos(degree_radians), 0, 0},
+                       {0, 0, 1, 0},
+                       {0, 0, 0, 1}}};
+}
+
+inline mat3 rotate2d(f32 degree_radians)
+{
+  return mat3{.rows = {{1, 0, 0},
+                       {0, std::cos(degree_radians), -std::sin(degree_radians)},
+                       {0, std::sin(degree_radians), std::cos(degree_radians)}}};
 }
 
 inline mat4 shear_x(f32 y_shear, f32 z_shear)
 {
-  return mat4{
-      vec4{1, y_shear, z_shear, 0},
-      vec4{0, 1, 0, 0},
-      vec4{0, 0, 1, 0},
-      vec4{0, 0, 0, 1},
-  };
+  return mat4{.rows = {{1, y_shear, z_shear, 0},
+                       {0, 1, 0, 0},
+                       {0, 0, 1, 0},
+                       {0, 0, 0, 1}}};
 }
 
 inline mat4 shear_y(f32 x_shear, f32 z_shear)
 {
-  return mat4{
-      vec4{1, 0, 0, 0},
-      vec4{x_shear, 1, z_shear, 0},
-      vec4{0, 0, 1, 0},
-      vec4{0, 0, 0, 1},
-  };
+  return mat4{.rows = {{1, 0, 0, 0},
+                       {x_shear, 1, z_shear, 0},
+                       {0, 0, 1, 0},
+                       {0, 0, 0, 1}}};
 }
 
 inline mat4 shear_z(f32 x_shear, f32 y_shear)
 {
-  return mat4{
-      vec4{1, 0, 0, 0},
-      vec4{0, 1, 0, 0},
-      vec4{x_shear, y_shear, 1, 0},
-      vec4{0, 0, 0, 1},
-  };
+  return mat4{.rows = {{1, 0, 0, 0},
+                       {0, 1, 0, 0},
+                       {x_shear, y_shear, 1, 0},
+                       {0, 0, 0, 1}}};
 }
 
 struct quaternion
