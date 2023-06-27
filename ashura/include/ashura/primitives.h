@@ -1237,4 +1237,16 @@ constexpr bool operator!=(EdgeInsets const &a, EdgeInsets const &b)
   return a.left != b.left || a.top != b.top || a.right != b.right || a.bottom != b.bottom;
 }
 
+struct slice
+{
+  usize offset = 0;
+  usize size   = 0;
+};
+
+struct WidgetTransform
+{
+  vec2 scale;
+  vec2 translation;
+};
+
 }        // namespace ash
