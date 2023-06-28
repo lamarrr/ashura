@@ -280,11 +280,6 @@ struct rect
     return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
   }
 
-  constexpr bool contains(quad const &quad) const
-  {
-    return contains(quad.p0) || contains(quad.p1) || contains(quad.p2) || contains(quad.p3);
-  }
-
   constexpr bool is_visible() const
   {
     return extent.x != 0 && extent.y != 0;
