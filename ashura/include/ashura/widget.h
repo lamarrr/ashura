@@ -267,9 +267,8 @@ struct Widget
   virtual void on_touch_leave(Context &ctx)
   {}
 
-  stx::Option<uuid> id;        // id used to recognise the widget. checked every frame. if one is not present or removed. a value is assigned.
-  rect              area;
-  rect              transformed_area;
+  stx::Option<uuid> id;          /// id used to recognise the widget. checked every frame. if one is not present or removed. a new uuid is generated and assigned.
+  rect              area;        ///
 };
 
 template <typename T>
