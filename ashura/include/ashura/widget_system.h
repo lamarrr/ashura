@@ -65,25 +65,6 @@ struct WidgetSystem
     __assign_ids_recursive(ctx, *root, generator);
   }
 
-  Widget *find_widget(Context &ctx, Widget *current, uuid id)
-  {
-    if (current->id.value() == id)
-    {
-      return current;
-    }
-
-    for (Widget *child : current->get_children(ctx))
-    {
-      Widget *found = find_widget(ctx, child, id);
-      if (found != nullptr)
-      {
-        return found;
-      }
-    }
-
-    return nullptr;
-  }
-
   void pump_events(Context &ctx)
   {
     for (auto const &e : events)
