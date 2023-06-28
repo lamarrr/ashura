@@ -40,6 +40,8 @@ struct DragData
 {
   virtual ~DragData()
   {}
+
+  stx::Option<uuid> source;
 };
 
 // TODO(lamarrr): we might need request detach so child widgets can request to
