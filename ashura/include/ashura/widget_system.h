@@ -45,21 +45,6 @@ struct WidgetSystem
     }
   }
 
-  static void __push_recursive(Context &ctx, stx::Vec<WidgetDrawEntry> &entries, Widget &widget, Widget *parent, i64 z_index)
-  {
-    if (widget.get_visibility(ctx) == Visibility::Visible)
-    {
-      z_index = widget.get_z_index(ctx, z_index);
-
-      entries.push(WidgetDrawEntry{.widget = &widget, .z_index = z_index}).unwrap();
-    }
-
-    for (Widget *child : widget.get_children(ctx))
-    {
-      __push_recursive(ctx, entries, *child, &widget, z_index + 1);
-    }
-  }
-
   void assign_ids(Context &ctx, UuidGenerator &generator)
   {
     __assign_ids_recursive(ctx, *root, generator);
