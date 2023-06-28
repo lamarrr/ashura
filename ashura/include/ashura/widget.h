@@ -203,12 +203,11 @@ struct Widget
     return false;
   }
 
-  // gives the drag position of the widget,
-  /// @brief
+  /// @brief called when theres a drag position update
   /// @param ctx
   /// @param global_position current global drag position
   /// @param local_position current position relative to its initial position
-  /// @param delta difference between this drah update and the last drag update
+  /// @param delta difference between this drag update and the last drag update position
   virtual void on_drag_update(Context &ctx, vec2 global_position, vec2 local_position, vec2 delta)
   {}
 
