@@ -10,12 +10,12 @@
 #include "ashura/loggers.h"
 #include "ashura/plugin.h"
 #include "ashura/primitives.h"
+#include "ashura/theme.h"
 #include "ashura/window.h"
 #include "ashura/window_manager.h"
 #include "fmt/format.h"
 #include "stx/option.h"
 #include "stx/scheduler.h"
-#include "ashura/theme.h"
 
 namespace ash
 {
@@ -41,9 +41,40 @@ struct Context
   SystemTheme                  theme          = SystemTheme::Unknown;
   GlobalEventListeners         event_listeners;
   stx::Span<BundledFont const> font_bundle;
-  // TODO(lamarrr): expose current window here
-  // TODO(lamarrr): viewport rect
-  // TODO(lamarrr): find_widget()
+  f32                          text_scale_factor = 1;        // TODO(lamarrr)
+  f32                          viewport_scale    = 1;        // transformed viewport
+  vec2                         viewport_translate;           // TODO(lamarrr): viewport rect
+  Widget                      *root = nullptr;               // TODO(lamarrr): find_widget() IMPORTANT!!!
+  // TODO(lamarrr): expose current window here???
+
+  static Widget *__find_widget_recursive(Context &ctx, Widget *widget, uuid id)
+  {
+    if (widget->id.contains(id))
+    {
+      return widget;
+    }
+
+    for (Widget *child : widget->get_children(ctx))
+    {
+      Widget *found = __find_widget_recursive(ctx, child, id);
+      if (found != nullptr)
+      {
+        return found;
+      }
+    }
+
+    return nullptr;
+  }
+
+  stx::Option<Widget *> find_widget(uuid id)
+  {
+    Widget *found = __find_widget_recursive(*this, root, id);
+    if (found != nullptr)
+    {
+      return stx::Some(AS(Widget *, found));
+    }
+    return stx::None;
+  }
 
   Context()
   {}
