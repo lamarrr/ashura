@@ -61,7 +61,7 @@ struct WidgetSystem
         for (WidgetDrawEntry const *iter = entries.end(); iter > entries.begin();)
         {
           iter--;
-          if (iter->widget->transformed_area.contains(event.position))
+          if (iter->widget->area.contains(event.position))
           {
             switch (event.action)
             {
@@ -89,7 +89,7 @@ struct WidgetSystem
         for (WidgetDrawEntry const *iter = entries.end(); iter > entries.begin();)
         {
           iter--;
-          if (iter->widget->transformed_area.contains(event.position))
+          if (iter->widget->area.contains(event.position))
           {
             if (last_hit_widget.is_none() || iter->widget->id.value() != last_hit_widget.value())
             {
@@ -106,11 +106,7 @@ struct WidgetSystem
 
         if (last_hit_widget.is_some() && (hit_widget.is_none() || hit_widget.value() != last_hit_widget.value()))
         {
-          Widget *plast_hit_widget = find_widget(ctx, root, last_hit_widget.value());
-          if (plast_hit_widget != nullptr)
-          {
-            plast_hit_widget->on_mouse_leave(ctx, stx::Some(vec2{event.position}));
-          }
+          ctx.find_widget(last_hit_widget.value()).match([&](Widget *plast_hit_widget) { plast_hit_widget->on_mouse_leave(ctx, stx::Some(vec2{event.position})); }, []() {});
         }
 
         last_hit_widget = hit_widget;
@@ -121,11 +117,8 @@ struct WidgetSystem
         {
           if (last_hit_widget.is_some())
           {
-            Widget *plast_hit_widget = find_widget(ctx, root, last_hit_widget.value());
-            if (plast_hit_widget != nullptr)
-            {
-              plast_hit_widget->on_mouse_leave(ctx, stx::None);
-            }
+            ctx.find_widget(last_hit_widget.value()).match([&](Widget *plast_hit_widget) { plast_hit_widget->on_mouse_leave(ctx, stx::None); }, []() {});
+            last_hit_widget = stx::None;
           }
         }
       }
@@ -156,7 +149,7 @@ struct WidgetSystem
     rect viewport_rect{.offset = {0, 0}, .extent = viewport_extent};
     for (WidgetDrawEntry &entry : entries)
     {
-      if (viewport_rect.contains(entry.widget->transformed_area))
+      if (viewport_rect.overlaps(entry.widget->area))
       {
         canvas.reset();
         canvas.transform(entry.widget->get_transform(ctx));
