@@ -287,7 +287,7 @@ struct DrawCommand
 {
   u32   nvertices = 0;
   u32   nindices  = 0;
-  rect  clip_rect;
+  rect  scissor;
   mat4  transform;
   image texture = WHITE_IMAGE;
 };
@@ -310,7 +310,7 @@ struct CanvasState
 {
   mat4 transform;               // local object transform, applies to local coordinates of the objects
   mat4 global_transform;        // global scene transform, applies to the global coordinate of the objects
-  rect clip_rect;               // determines visible area of the rendering operation
+  rect scissor;                 // determines visible area of the rendering operation
 };
 
 /// Coordinates are specified in top-left origin absolute pixel coordinates with x pointing to the
@@ -342,7 +342,7 @@ struct Canvas
   Canvas &restart(vec2 viewport_extent)
   {
     this->viewport_extent = viewport_extent;
-    state                 = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
+    state                 = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     draw_list.clear();
     return *this;
@@ -358,24 +358,24 @@ struct Canvas
            * state.transform;                                                                         /// apply local coordinate transform
   }
 
-  /// push state (transform and clips) on state stack
+  /// push state (transform and scissor) on state stack
   Canvas &save()
   {
     state_stack.push_inplace(state).unwrap();
     return *this;
   }
 
-  /// pop state (transform and clips) stack and restore state
+  /// pop state (transform and scissor) stack and restore state
   Canvas &restore()
   {
-    state = state_stack.pop().unwrap_or(CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}});
+    state = state_stack.pop().unwrap_or(CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}});
     return *this;
   }
 
-  /// reset the rendering context to its default state (transform and clips)
+  /// reset the rendering context to its default state (transform and scissor)
   Canvas &reset()
   {
-    state = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
+    state = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     return *this;
   }
@@ -465,9 +465,9 @@ struct Canvas
   }
 
   /// Not affected by transforms
-  Canvas &clip(rect clip_rect)
+  Canvas &scissor(rect scissor)
   {
-    state.clip_rect = clip_rect;
+    state.scissor = scissor;
     return *this;
   }
 
@@ -491,7 +491,7 @@ struct Canvas
     draw_list.commands
         .push(DrawCommand{.nvertices = AS(u32, std::size(vertices)),
                           .nindices  = AS(u32, std::size(indices)),
-                          .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent},
+                          .scissor   = rect{.offset = {0, 0}, .extent = viewport_extent},
                           .transform = mat4::identity(),
                           .texture   = texture})
         .unwrap();
@@ -520,7 +520,7 @@ struct Canvas
 
     draw_list.commands.push(DrawCommand{.nvertices = nvertices,
                                         .nindices  = nindices,
-                                        .clip_rect = state.clip_rect,
+                                        .scissor   = state.scissor,
                                         .transform = make_transform(area.offset),
                                         .texture   = texture})
         .unwrap();
@@ -548,7 +548,7 @@ struct Canvas
     draw_list.commands
         .push(DrawCommand{.nvertices = nvertices,
                           .nindices  = nindices,
-                          .clip_rect = state.clip_rect,
+                          .scissor   = state.scissor,
                           .transform = make_transform(position),
                           .texture   = texture})
         .unwrap();
