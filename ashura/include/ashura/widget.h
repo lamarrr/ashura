@@ -163,13 +163,15 @@ struct Widget
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval)
   {}
 
-  /// TODO(lamarrr): we can store on-viewport-hit here?
-  /// we might also need on-viewed which means when it is actually rendered?
-  virtual void on_enter_viewport(Context &ctx)
+  /// @brief called on every frame the widget is viewed on the viewport.
+  /// @param ctx
+  virtual void on_view_hit(Context &ctx)
   {}
 
-  //
-  virtual void on_leave_viewport(Context &ctx)
+  /// @brief called on every frame that the widget is not seen on the viewport
+  /// this can be because it has hidden visibility, is clipped away, or parent positioned out of the visible region
+  /// @param ctx
+  virtual void on_view_miss(Context &ctx)
   {}
 
   // TODO(lamarrr): this needs to happen before mouse actions as some widgets .i.e. text don't need to intercept or receive mouse events
