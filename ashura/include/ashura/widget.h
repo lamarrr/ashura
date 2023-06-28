@@ -73,29 +73,6 @@ struct Widget
     return WidgetDebugInfo{.type = "Widget"};
   }
 
-  /// @brief returns the visibility of this widget. an invisible widget will not be drawn nor receive mouse/touch events.
-  /// parents can decide the visibility of eacg child
-  /// @param ctx
-  /// @param allocated_visibility
-  /// @param[out] children_allocation visibility assigned to children
-  /// @return
-  virtual Visibility get_visibility(Context &ctx, Visibility allocated_visibility, stx::Span<Visibility> children_allocation)
-  {
-    children_allocation.fill(allocated_visibility);
-    return allocated_visibility;
-  }
-
-  /// @brief returns the z-index of itself and assigns z-indices to its children
-  /// @param ctx
-  /// @param allocated_z_index
-  /// @param[out] children_allocation z-index assigned to children
-  /// @return
-  virtual i64 z_stack(Context &ctx, i64 allocated_z_index, stx::Span<i64> children_allocation)
-  {
-    children_allocation.fill(allocated_z_index + 1);
-    return allocated_z_index;
-  }
-
   // TODO(lamarrr): we need re-calculable offsets so we can shift the parents around without shifting the children
   // this is important for cursors, drag and drop?
   // this might mean we need to totally remove the concept of area. storing transformed area might not be needed?
@@ -125,43 +102,42 @@ struct Widget
   /// @param ctx
   /// @param allocated_position the allocated absolute position of this widget
   /// @return
-  virtual vec2 position(Context &ctx, vec2 size, vec2 allocated_position)
+  virtual vec2 position(Context &ctx, vec2 allocated_position)
   {
     return allocated_position;
   }
 
-  /// returns the rect placement transform of this widget. this will be used in positioning the widget
-
-  /// @brief
+  /// @brief returns the visibility of this widget. an invisible widget will not be drawn nor receive mouse/touch events.
+  /// parents can decide the visibility of eacg child
   /// @param ctx
-  /// @param allocated_transform
-  /// @param children_allocation
+  /// @param allocated_visibility
+  /// @param[out] children_allocation visibility assigned to children
   /// @return
-  // TODO(lamarrr): we need the transforms to be applied in a visually consistent manner.
-  // i.e. the transforms should fall in-line with the parent's transform.
-  // This would mean the transforms would occur along????
-  //
-  // we need chained transforms. transform 1 will be from the parent down to the children and these transforms will be about the parents origin.
-  // the parent's transform would be about it's own local axis.
-  //
-  // transforms must only be 2d and not apply to 3d?
-  // virtual mat4 transform(Context &ctx, mat4 const &allocated_transform, stx::Span<mat4> children_allocation)
-  // {
-  //   // TODO(lamarrr): should we use this for positioning instead?
-  //   children_allocation.fill(allocated_transform);
-  //   return allocated_transform;
-  // }
+  virtual Visibility get_visibility(Context &ctx, Visibility allocated_visibility, stx::Span<Visibility> children_allocation)
+  {
+    children_allocation.fill(allocated_visibility);
+    return allocated_visibility;
+  }
 
-  // TODO(lamarrrr): might need transforms (scale + translation)
+  /// @brief returns the z-index of itself and assigns z-indices to its children
+  /// @param ctx
+  /// @param allocated_z_index
+  /// @param[out] children_allocation z-index assigned to children
+  /// @return
+  virtual i64 z_stack(Context &ctx, i64 allocated_z_index, stx::Span<i64> children_allocation)
+  {
+    children_allocation.fill(allocated_z_index + 1);
+    return allocated_z_index;
+  }
+
   /// @brief this is used for clipping widget views. the provided clip is relative to the root widget's axis (0, 0).
   /// this can be used for nested viewports where there are multiple intersecting clips.
   /// transforms do not apply to the clip rects. this is used for visibility testing and eventually actual vertex culling.
   /// a nested viewport for example can therefore use the intersection of its allocated clip and it's own viewport clip and assign that to its children,
   /// whilst using the allocated clip on itself.
-  /// clips are not affected by transforms.
   /// @param ctx
   /// @param allocated_clip
-  /// @param children_allocation
+  /// @param[out] children_allocation
   /// @return
   virtual rect clip(Context &ctx, rect allocated_clip, stx::Span<rect> children_allocation)
   {
@@ -175,7 +151,6 @@ struct Widget
   /// @param canvas
   ///
   ///
-  /// TODO(lamarrr): text transform about point?
   virtual void draw(Context &ctx, gfx::Canvas &canvas)
   {
     // TODO(lamarrr): the whole widget tree will be rendered and clipped as necessary
