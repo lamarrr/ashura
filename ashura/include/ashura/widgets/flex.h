@@ -53,7 +53,7 @@ struct Flex : public Widget
   explicit Flex(FlexProps iprops, DerivedWidget... ichildren) :
       props{iprops}
   {
-    update_children(ichildren...);
+    update_children(std::move(ichildren)...);
   }
 
   STX_DISABLE_COPY(Flex)
