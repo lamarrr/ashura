@@ -1213,7 +1213,7 @@ struct AudioMetaData
 //
 // TODO(lamarrr): main/presentation should be used for demuxing and another thread for decoding
 //
-struct MediaPlayer : public Plugin
+struct MediaPlayer : public Subsystem
 {
   template <typename T>
   using Result = stx::Result<T, MediaError>;
