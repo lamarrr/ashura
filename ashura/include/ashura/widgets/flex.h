@@ -123,11 +123,12 @@ struct Flex : public Widget
       {
         block_main_axis_extent  = children_sizes[i].x;
         block_cross_axis_extent = children_sizes[i].y;
+        children_positions[i].y = cross_axis_cursor;
+
         for (; iblock_end < children_sizes.size(); iblock_end++)
         {
           if (props.wrap == Wrap::None || props.wrap == Wrap::Wrap && block_main_axis_extent + children_sizes[iblock_end].x <= frame.x)
           {
-            children_positions[iblock_end].x = block_main_axis_extent;
             children_positions[iblock_end].y = cross_axis_cursor;
             block_main_axis_extent += children_sizes[iblock_end].x;
             block_cross_axis_extent = std::max(block_cross_axis_extent, children_sizes[iblock_end].y);
@@ -147,12 +148,13 @@ struct Flex : public Widget
       {
         block_main_axis_extent  = children_sizes[i].y;
         block_cross_axis_extent = children_sizes[i].x;
+        children_positions[i].x = cross_axis_cursor;
+
         for (; iblock_end < children_sizes.size(); iblock_end++)
         {
           if (props.wrap == Wrap::None || props.wrap == Wrap::Wrap && block_main_axis_extent + children_sizes[iblock_end].y <= frame.y)
           {
             children_positions[iblock_end].x = cross_axis_cursor;
-            children_positions[iblock_end].y = block_main_axis_extent;
             block_main_axis_extent += children_sizes[iblock_end].y;
             block_cross_axis_extent = std::max(block_cross_axis_extent, children_sizes[iblock_end].x);
           }
@@ -178,14 +180,14 @@ struct Flex : public Widget
           {
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].y += (children_sizes[iblock].y - block_cross_axis_extent) / 2;
+              children_positions[iblock].y += (block_cross_axis_extent - children_sizes[iblock].y) / 2;
             }
           }
           else
           {
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].x += (children_sizes[iblock].x - block_cross_axis_extent) / 2;
+              children_positions[iblock].x += (block_cross_axis_extent - children_sizes[iblock].x) / 2;
             }
           }
           break;
@@ -195,14 +197,14 @@ struct Flex : public Widget
           {
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].y += children_sizes[iblock].y - block_cross_axis_extent;
+              children_positions[iblock].y += block_cross_axis_extent - children_sizes[iblock].y;
             }
           }
           else
           {
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].x += children_sizes[iblock].x - block_cross_axis_extent;
+              children_positions[iblock].x += block_cross_axis_extent - children_sizes[iblock].x;
             }
           }
           break;
@@ -218,15 +220,24 @@ struct Flex : public Widget
         switch (props.main_align)
         {
           case MainAlign::Start:
-            break;
+          {
+            f32 main_axis_spacing_cursor = 0;
+            for (usize iblock = i; iblock < iblock_end; iblock++)
+            {
+              children_positions[iblock].x = main_axis_spacing_cursor;
+              main_axis_spacing_cursor += children_sizes[iblock].x;
+            }
+          }
+          break;
 
           case MainAlign::SpaceAround:
           {
             f32 spacing                  = block_main_axis_spacing / (nblock_children * 2);
-            f32 main_axis_spacing_cursor = spacing;
+            f32 main_axis_spacing_cursor = 0;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].x += spacing;
+              main_axis_spacing_cursor += spacing;
+              children_positions[iblock].x = main_axis_spacing_cursor;
               main_axis_spacing_cursor += children_sizes[iblock].x + spacing;
             }
           }
@@ -235,10 +246,10 @@ struct Flex : public Widget
           case MainAlign::SpaceBetween:
           {
             f32 spacing                  = block_main_axis_spacing / (nblock_children - 1);
-            f32 main_axis_spacing_cursor = spacing;
-            for (usize iblock = i + 1; iblock < iblock_end; iblock++)
+            f32 main_axis_spacing_cursor = 0;
+            for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].x += spacing;
+              children_positions[iblock].x = main_axis_spacing_cursor;
               main_axis_spacing_cursor += children_sizes[iblock].x + spacing;
             }
           }
@@ -250,18 +261,22 @@ struct Flex : public Widget
             f32 main_axis_spacing_cursor = spacing;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].x += spacing;
+              children_positions[iblock].x = main_axis_spacing_cursor;
               main_axis_spacing_cursor += children_sizes[iblock].x + spacing;
             }
           }
           break;
 
           case MainAlign::End:
+          {
+            f32 main_axis_spacing_cursor = block_main_axis_spacing;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].x += block_main_axis_spacing;
+              children_positions[iblock].x = main_axis_spacing_cursor;
+              main_axis_spacing_cursor += children_sizes[iblock].x;
             }
-            break;
+          }
+          break;
 
           default:
             break;
@@ -272,15 +287,24 @@ struct Flex : public Widget
         switch (props.main_align)
         {
           case MainAlign::Start:
-            break;
+          {
+            f32 main_axis_spacing_cursor = 0;
+            for (usize iblock = i; iblock < iblock_end; iblock++)
+            {
+              children_positions[iblock].y = main_axis_spacing_cursor;
+              main_axis_spacing_cursor += children_sizes[iblock].y;
+            }
+          }
+          break;
 
           case MainAlign::SpaceAround:
           {
             f32 spacing                  = block_main_axis_spacing / (nblock_children * 2);
-            f32 main_axis_spacing_cursor = spacing;
+            f32 main_axis_spacing_cursor = 0;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].y += spacing;
+              main_axis_spacing_cursor += spacing;
+              children_positions[iblock].y = main_axis_spacing_cursor;
               main_axis_spacing_cursor += children_sizes[iblock].y + spacing;
             }
           }
@@ -289,10 +313,10 @@ struct Flex : public Widget
           case MainAlign::SpaceBetween:
           {
             f32 spacing                  = block_main_axis_spacing / (nblock_children - 1);
-            f32 main_axis_spacing_cursor = spacing;
-            for (usize iblock = i + 1; iblock < iblock_end; iblock++)
+            f32 main_axis_spacing_cursor = 0;
+            for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].y += spacing;
+              children_positions[iblock].y = main_axis_spacing_cursor;
               main_axis_spacing_cursor += children_sizes[iblock].y + spacing;
             }
           }
@@ -304,18 +328,22 @@ struct Flex : public Widget
             f32 main_axis_spacing_cursor = spacing;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].y += spacing;
+              children_positions[iblock].y = main_axis_spacing_cursor;
               main_axis_spacing_cursor += children_sizes[iblock].y + spacing;
             }
           }
           break;
 
           case MainAlign::End:
+          {
+            f32 main_axis_spacing_cursor = block_main_axis_spacing;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].y += block_main_axis_spacing;
+              children_positions[iblock].y = main_axis_spacing_cursor;
+              main_axis_spacing_cursor += children_sizes[iblock].y;
             }
-            break;
+          }
+          break;
 
           default:
             break;
