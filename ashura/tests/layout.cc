@@ -14,18 +14,18 @@
 
 using namespace ash;
 
-Context     ctx;
-gfx::Canvas canvas;
-WidgetTree  tree;
+Context    ctx;
+WidgetTree tree;
 
-TEST(LayoutTest, Start)
+TEST(FlexLayout, Start)
 {
   Flex flex{
       FlexProps{}, Widget{},
       Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
       Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
 
-  tree.update(ctx, canvas, flex, vec2{1920, 1080}, rect{.offset = {0, 0}, .extent = {1920, 1080}}, vec2{1920, 1080});
+  tree.build(ctx, flex);
+  tree.layout(ctx, vec2{1920, 1080});
 
   EXPECT_EQ(flex.area.offset.x, 0);
   EXPECT_EQ(flex.area.offset.y, 0);
@@ -50,7 +50,7 @@ TEST(LayoutTest, Start)
   EXPECT_EQ(children[2]->area.extent.y, 200);
 }
 
-TEST(LayoutTest, SpaceAround)
+TEST(FlexLayout, SpaceAround)
 {
   Flex flex{
       FlexProps{
@@ -60,7 +60,8 @@ TEST(LayoutTest, SpaceAround)
       Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
       Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
 
-  tree.update(ctx, canvas, flex, vec2{1920, 1080}, rect{.offset = {0, 0}, .extent = {1920, 1080}}, vec2{1920, 1080});
+  tree.build(ctx, flex);
+  tree.layout(ctx, vec2{1920, 1080});
 
   f32 space = (1920 - 300) / 6;
   f32 x     = 0;
@@ -91,7 +92,7 @@ TEST(LayoutTest, SpaceAround)
   EXPECT_EQ(children[2]->area.extent.y, 200);
 }
 
-TEST(LayoutTest, SpaceEvenly)
+TEST(FlexLayout, SpaceEvenly)
 {
   Flex flex{
       FlexProps{.direction   = Direction::H,
@@ -100,7 +101,8 @@ TEST(LayoutTest, SpaceEvenly)
       Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
       Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
 
-  tree.update(ctx, canvas, flex, vec2{1920, 1080}, rect{.offset = {0, 0}, .extent = {1920, 1080}}, vec2{1920, 1080});
+  tree.build(ctx, flex);
+  tree.layout(ctx, vec2{1920, 1080});
 
   f32 x     = 0;
   f32 space = (1920 - 300) / 4.0f;
@@ -131,7 +133,7 @@ TEST(LayoutTest, SpaceEvenly)
   EXPECT_EQ(children[2]->area.extent.y, 200);
 }
 
-TEST(LayoutTest, SpaceBetween)
+TEST(FlexLayout, SpaceBetween)
 {
   Flex flex{
       FlexProps{.direction   = Direction::H,
@@ -140,7 +142,8 @@ TEST(LayoutTest, SpaceBetween)
       Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
       Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
 
-  tree.update(ctx, canvas, flex, vec2{1920, 1080}, rect{.offset = {0, 0}, .extent = {1920, 1080}}, vec2{1920, 1080});
+  tree.build(ctx, flex);
+  tree.layout(ctx, vec2{1920, 1080});
 
   f32 x     = 0;
   f32 space = (1920 - 300) / 2;
