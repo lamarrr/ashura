@@ -114,6 +114,10 @@ struct Context
 
   void tick(std::chrono::nanoseconds interval)
   {
+    for (Subsystem *subsystem : subsystems)
+    {
+      subsystem->tick(*this, interval);
+    }
   }
 
   // virtual void on_full_screen_change();
