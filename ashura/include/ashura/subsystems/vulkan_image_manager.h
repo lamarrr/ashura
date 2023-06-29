@@ -6,8 +6,8 @@
 
 #include "ashura/image.h"
 #include "ashura/image_decoder.h"
-#include "ashura/plugin.h"
-#include "ashura/plugins/image_manager.h"
+#include "ashura/subsystem.h"
+#include "ashura/subsystems/image_manager.h"
 #include "ashura/primitives.h"
 #include "ashura/vulkan.h"
 #include "ashura/vulkan_context.h"
