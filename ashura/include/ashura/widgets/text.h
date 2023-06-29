@@ -28,7 +28,7 @@ struct Text : public Widget
         .props = props,
         .align = TextAlign::Left};
 
-    text_layout.layout(paragraph, ctx.font_bundle, area.extent.x);
+    text_layout.layout(paragraph, ctx.font_bundle, allocated_size.x);
 
     return text_layout.span;
   }

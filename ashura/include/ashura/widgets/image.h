@@ -10,8 +10,8 @@
 #include "ashura/image.h"
 #include "ashura/image_decoder.h"
 #include "ashura/loggers.h"
-#include "ashura/plugins/image_loader.h"
-#include "ashura/plugins/image_manager.h"
+#include "ashura/subsystems/image_loader.h"
+#include "ashura/subsystems/image_manager.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
 #include "stx/option.h"
@@ -89,8 +89,8 @@ struct Image : public Widget
 
   virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    f32 width  = props.width.resolve(area.extent.x);
-    f32 height = props.height.resolve(area.extent.y);
+    f32 width  = props.width.resolve(allocated_size.x);
+    f32 height = props.height.resolve(allocated_size.y);
     if (props.aspect_ratio.is_some())
     {
       f32 aspect_ratio = props.aspect_ratio.value();
@@ -160,8 +160,8 @@ struct Image : public Widget
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
-    ImageManager *mgr    = ctx.get_plugin<ImageManager>("ImageManager").unwrap();
-    ImageLoader  *loader = ctx.get_plugin<ImageLoader>("ImageLoader").unwrap();
+    ImageManager *mgr    = ctx.get_subsystem<ImageManager>("ImageManager").unwrap();
+    ImageLoader  *loader = ctx.get_subsystem<ImageLoader>("ImageLoader").unwrap();
 
     switch (state)
     {

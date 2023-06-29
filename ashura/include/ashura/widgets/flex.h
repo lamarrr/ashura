@@ -116,7 +116,6 @@ struct Flex : public Widget
       usize iblock_end              = i + 1;
       f32   block_main_axis_extent  = 0;
       f32   block_cross_axis_extent = 0;
-      f32   block_main_axis_cursor  = 0;
       f32   block_main_axis_spacing = 0;
 
       if (props.direction == Direction::H)

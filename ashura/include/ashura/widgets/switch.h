@@ -20,7 +20,7 @@ struct SwitchProps
 
 struct Switch : public Widget
 {
-  Switch(bool ivalue, SwitchProps ipros = {}) :
+  explicit Switch(bool ivalue = false, SwitchProps ipros = {}) :
       value{ivalue}, props{iprops}
   {
   }
