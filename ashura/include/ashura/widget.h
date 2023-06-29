@@ -279,4 +279,23 @@ struct Widget
 template <typename T>
 concept WidgetImpl = std::is_base_of_v<Widget, T>;
 
+inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id)
+{
+  if (widget.id.contains(id))
+  {
+    return &widget;
+  }
+
+  for (Widget *child : widget.get_children(ctx))
+  {
+    Widget *found = __find_widget_recursive(ctx, *child, id);
+    if (found != nullptr)
+    {
+      return found;
+    }
+  }
+
+  return nullptr;
+}
+
 }        // namespace ash
