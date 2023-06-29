@@ -187,6 +187,9 @@ struct FontStrokeAtlas
 
 /// stores codepoint glyphs for a font at a specific font height
 // TODO(lamarrr): change to SDF text rendering
+
+
+/// @brief For info on SDF Text Rendering, See: https://www.youtube.com/watch?v=1b5hIMqz_wM
 struct FontAtlas
 {
   stx::Vec<Glyph> glyphs;
@@ -593,7 +596,7 @@ struct FontSpec
 {
   stx::String name;                          // name to use to recognise the font
   stx::String path;                          // local file system path of the typeface resource
-  f32         atlas_font_height = 26;        // font height to render and cache the font atlas' glyphs at
+  f32         atlas_font_height = 64;        // font height to render and cache the font atlas' glyphs at
   f32         stroke_thickness  = 0;
   extent      max_atlas_extent  = DEFAULT_MAX_FONT_ATLAS_EXTENT;
 };
