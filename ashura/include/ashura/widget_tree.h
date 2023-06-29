@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "ashura/canvas.h"
+#include "ashura/uuid.h"
 #include "ashura/widget.h"
 
 namespace ash
@@ -33,6 +35,7 @@ struct WidgetTree
 
   static void __build_child_recursive(Context &ctx, WidgetElement &element, Widget &widget)
   {
+    // NOTE: we are trying to re-use the widget tree memory allocations
     stx::Span children  = widget.get_children(ctx);
     usize     nchildren = children.size();
     element.widget      = &widget;
@@ -42,7 +45,18 @@ struct WidgetTree
     element.children_visibility.resize(nchildren).unwrap();
     element.children_z_indices.resize(nchildren).unwrap();
     element.children_clips.resize(nchildren).unwrap();
-    element.children.resize(nchildren).unwrap();
+    if (element.children.size() > nchildren)
+    {
+      element.children.erase(element.children.span().slice(nchildren));
+    }
+    else
+    {
+      usize additional = nchildren - element.children.size();
+      for (usize i = 0; i < additional; i++)
+      {
+        element.children.push(WidgetElement{}).unwrap();
+      }
+    }
 
     for (usize i = 0; i < nchildren; i++)
     {
@@ -83,22 +97,19 @@ struct WidgetTree
 
     if (visibility == Visibility::Visible && clip.overlaps(view_region) && view_region.overlaps(element.widget->area))
     {
-      element.widget->on_enter_view(ctx);
+      element.widget->on_view_hit(ctx);
       render_elements.push(WidgetRenderElement{.widget = element.widget, .z_index = z_index, .clip = clip}).unwrap();
     }
     else
     {
-      element.widget->on_leave_view(ctx);
+      element.widget->on_view_miss(ctx);
     }
 
     for (usize i = 0; i < children.size(); i++)
     {
-      __build_render_recursive(ctx, element, element.children_visibility[i], element.children_z_indices[i], element.children_clips[i], view_region);
+      __build_render_recursive(ctx, element.children[i], element.children_visibility[i], element.children_z_indices[i], element.children_clips[i], view_region);
     }
   }
-
-  // TODO(lamarrr): figure out how viewport will work, because this
-  // viewport must be centered on scale
 
   /// @brief
   /// @param ctx
@@ -107,29 +118,39 @@ struct WidgetTree
   /// @param allocated_size size allocated to the root widget
   /// @param view_region region the logical viewport is focusing on
   /// @param viewport_size the physical viewport extent
-  void update(Context &ctx, gfx::Canvas &canvas, Widget &root_widget, vec2 allocated_size, rect view_region, vec2 viewport_size)
+  void build(Context &ctx, Widget &root_widget)
   {
     __build_child_recursive(ctx, root, root_widget);
+  }
+
+  void layout(Context &ctx, vec2 allocated_size)
+  {
     __fit_recursive(ctx, root, allocated_size);
     __absolute_position_recursive(ctx, root, vec2{0, 0});
+  }
+
+  void render(Context &ctx, gfx::Canvas &canvas, rect view_region, vec2 viewport_size)
+  {
     render_elements.clear();
     __build_render_recursive(ctx, root, Visibility::Visible, 0, root.widget->area, view_region);
     render_elements.span().sort([](WidgetRenderElement const &a, WidgetRenderElement const &b) { return a.z_index < b.z_index; });
 
-    vec2 zoom2d = viewport_size / view_region.extent;
-    vec3 zoom{zoom2d.x, zoom2d.y, 1};
-    vec3 translation{-view_region.offset.x, -view_region.offset.y, 0};
+    vec2 scale       = viewport_size / view_region.extent;
+    vec2 translation = 0 - view_region.offset;
 
     canvas
         .restart(viewport_size)
-        .global_transform(ash::translate(translation))
-        .global_transform(ash::scale(zoom));
+        .global_translate(translation.x, translation.y)
+        .global_scale(scale.x, scale.y);
 
     for (WidgetRenderElement const &element : render_elements)
     {
+      rect scissor;
+      scissor.offset = (element.clip.offset - view_region.offset) * scale;
+      scissor.extent = element.clip.extent * scale;
       canvas
           .save()
-          .clip(element.clip);        // TODO(lamarrr): calculate actual clip based on viewport positioning and scale. transform clip
+          .scissor(scissor);
       element.widget->draw(ctx, canvas);
       canvas.restore();
     }
@@ -137,7 +158,7 @@ struct WidgetTree
 
   Widget *hit(Context &ctx, vec2 position) const
   {
-    for (usize i = render_elements.size(); i > 0; i--)
+    for (usize i = render_elements.size(); i > 0;)
     {
       i--;
       if (render_elements[i].widget->area.contains(position) && render_elements[i].widget->hit_test(ctx, position))
