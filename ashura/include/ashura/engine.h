@@ -52,6 +52,7 @@ struct Engine
   Context                                  ctx;
   Widget                                  *root_widget = nullptr;
   WidgetSystem                             widget_system;
+  WidgetTree                               widget_tree;
   ClipBoard                                clipboard;
   stx::Vec<BundledFont>                    font_bundle;
 
