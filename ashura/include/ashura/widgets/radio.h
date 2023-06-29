@@ -100,7 +100,8 @@ struct Radio : public Widget
   {
     f32  inner_radius = props.radius * 0.6f;
     vec2 center       = area.offset + props.radius;
-    canvas.draw_circle_filled(center, props.radius, 180, props.inactive_color)
+    canvas
+        .draw_circle_filled(center, props.radius, 180, props.inactive_color)
         .draw_circle_filled(center, inner_radius, 180, animation.animate(color_curve, tween));
   }
 

@@ -26,7 +26,7 @@ struct Padding : public Widget
     child = new DerivedWidget{std::move(ichild)};
   }
 
-  virtual stx::Span<Widget *const> get_flex_children(Context &ctx) override
+  virtual stx::Span<Widget *const> get_children(Context &ctx) override
   {
     return stx::Span{&child, 1};
   }

@@ -47,14 +47,14 @@ struct Slider : public Widget
     track_area.offset.y -= props.track_height / 2;
     track_area.extent.y = props.track_height;
 
-    canvas.draw_round_rect_filled(track_area, vec4::splat(props.track_height / 2), 360, props.track_color);
-
     vec2 thumb_center{track_area.offset.x + percentage * track_area.extent.x, area.offset.y + area.extent.y / 2};
     f32  outer_thumb_radius = props.thumb_radius;
     f32  inner_thumb_radius = thumb_animation.animate(thumb_animation_curve, thumb_tween);
 
-    canvas.draw_circle_filled(thumb_center, outer_thumb_radius, 360, props.thumb_color);
-    canvas.draw_circle_filled(thumb_center, inner_thumb_radius, 360, props.track_color);
+    canvas
+        .draw_round_rect_filled(track_area, vec4::splat(props.track_height / 2), 360, props.track_color)
+        .draw_circle_filled(thumb_center, outer_thumb_radius, 360, props.thumb_color)
+        .draw_circle_filled(thumb_center, inner_thumb_radius, 360, props.track_color);
   }
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override

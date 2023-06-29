@@ -69,11 +69,18 @@ enum class ImageState : u8
 /// - Update widget state to show that the image is loading
 ///
 // TODO(lamarrr): this is a static image. no unloading is presently done. do that ONCE props change
+//
+// TODO(lamarrrr): resource multiple deletion with move???
+//
+//
 struct Image : public Widget
 {
   explicit Image(ImageProps image_props) :
       props{std::move(image_props)}
   {}
+
+  STX_DISABLE_COPY(Image)
+  STX_DEFAULT_MOVE(Image)
 
   virtual WidgetDebugInfo get_debug_info(Context &ctx) override
   {
