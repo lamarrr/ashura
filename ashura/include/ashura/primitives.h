@@ -1051,18 +1051,15 @@ constexpr extent operator+(extent a, extent b)
   return extent{.width = a.width + b.width, .height = a.height + b.height};
 }
 
-// TODO(lamarrr): remove this???
-/// advantages of this constraint model? sizing can be
-/// - relative (`scale` = relative size)
-/// - absolute (`scale` = 0, `bias` = absolute size) or both
-///
-/// - absolute min/max (`min`, `max`)
+/// Simple Layout Constraint Model
 struct constraint
 {
-  f32 bias  = 0;                   /// removing or deducting from the target size
-  f32 scale = 0;                   /// scaling the target size
-  f32 min   = stx::F32_MIN;        /// clamps the target size, i.e. value should be at least 20px
-  f32 max   = stx::F32_MAX;        /// clamps the target size, i.e. value should be at most 100px
+  f32 bias  = 0;                   /// adding or subtracting from the source size, i.e. value should be source size - 20px
+  f32 scale = 0;                   /// scales the source size, i.e. value should be 0.5 of source size
+  f32 min   = stx::F32_MIN;        /// clamps the source size, i.e. value should be at least 20px
+  f32 max   = stx::F32_MAX;        /// clamps the source size, i.e. value should be at most 100px
+  f32 minr  = 0;                   /// clamps the source size relatively. i.e. value should be at least 0.5 of source size
+  f32 maxr  = 1;                   /// clamps the source size relatively. i.e. value should be at most 0.5 of source size
 
   static constexpr constraint relative(f32 scale)
   {
@@ -1076,17 +1073,17 @@ struct constraint
 
   constexpr constraint with_min(f32 v) const
   {
-    return constraint{.bias = bias, .scale = scale, .min = v, .max = max};
+    return constraint{.bias = bias, .scale = scale, .min = v, .max = max, .minr = minr, .maxr = maxr};
   }
 
   constexpr constraint with_max(f32 v) const
   {
-    return constraint{.bias = bias, .scale = scale, .min = min, .max = v};
+    return constraint{.bias = bias, .scale = scale, .min = min, .max = v, .minr = minr, .maxr = maxr};
   }
 
   constexpr f32 resolve(f32 value) const
   {
-    return std::clamp(bias + value * scale, min, max);
+    return std::clamp(std::clamp(bias + value * scale, min, max), minr * value, maxr * value);
   }
 };
 
