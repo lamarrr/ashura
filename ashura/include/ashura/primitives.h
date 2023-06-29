@@ -256,6 +256,11 @@ struct rect
     return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min && y1_min < y0_max;
   }
 
+  constexpr bool overlaps(quad const &quad) const
+  {
+    return contains(quad.p0) || contains(quad.p1) || contains(quad.p2) || contains(quad.p3);
+  }
+
   /// @brief NOTE: returns 0-extent rect if there's no intersection
   /// @param other
   /// @return

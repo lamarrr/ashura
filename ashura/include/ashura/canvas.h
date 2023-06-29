@@ -336,7 +336,7 @@ struct Canvas
   bool viewport_contains(rect area) const
   {
     return rect{.offset = {}, .extent = viewport_extent}
-        .contains(ash::transform(state.global_transform * state.transform, area));
+        .overlaps(ash::transform(state.global_transform * state.transform, area));
   }
 
   Canvas &restart(vec2 viewport_extent)
