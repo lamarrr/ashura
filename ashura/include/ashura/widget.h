@@ -160,7 +160,7 @@ struct Widget
   }
 
   /// @brief called on every frame. used for state changes, animations, task dispatch and lightweight processing related to the GUI.
-  /// heavy-weight and non-sub-millisecond tasks should be dispatched to a Plugin/Subsystem that would handle that. i.e. using the multi-tasking system.
+  /// heavy-weight and non-sub-millisecond tasks should be dispatched to a Subsystem that would handle that. i.e. using the multi-tasking system.
   /// @param ctx
   /// @param interval time passed since last call to this method
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval)
