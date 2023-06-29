@@ -7,12 +7,12 @@
 #include "ashura/canvas.h"
 #include "ashura/loggers.h"
 #include "ashura/palletes.h"
-#include "ashura/plugins/font_loader.h"
-#include "ashura/plugins/font_manager.h"
-#include "ashura/plugins/image_loader.h"
-#include "ashura/plugins/image_manager.h"
-#include "ashura/plugins/vulkan_font_manager.h"
-#include "ashura/plugins/vulkan_image_manager.h"
+#include "ashura/subsystems/font_loader.h"
+#include "ashura/subsystems/font_manager.h"
+#include "ashura/subsystems/image_loader.h"
+#include "ashura/subsystems/image_manager.h"
+#include "ashura/subsystems/vulkan_font_manager.h"
+#include "ashura/subsystems/vulkan_image_manager.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/shaders.h"
 #include "ashura/vulkan_context.h"
@@ -60,12 +60,13 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>>
 Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
     uuid_generator{stx::rc::make_inplace<UuidGenerator>(stx::os_allocator, Clock::now()).unwrap()},
     task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()},
-    root_widget{iroot_widget},
-    widget_system{*root_widget}
+    root_widget{iroot_widget}
 {
   ctx.task_scheduler = &task_scheduler;
   ctx.clipboard      = &clipboard;
   ctx.window_manager = &window_manager;
+  ctx.root           = root_widget;
+
   stx::Vec<char const *> required_device_extensions;
 
   required_device_extensions.push(VK_KHR_SWAPCHAIN_EXTENSION_NAME).unwrap();
@@ -195,8 +196,8 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
       C:\Users\Basit\OneDrive\Desktop\gen-shin-gothic-monospace-bold\Gen
   Shin Gothic Monospace Bold\Gen Shin Gothic Monospace Bold.ttf
   */
-  ctx.register_plugin(new VulkanImageManager{manager});
-  ctx.register_plugin(new ImageLoader{});
+  ctx.register_subsystem(new VulkanImageManager{manager});
+  ctx.register_subsystem(new ImageLoader{});
 
   root_window.value()->on_mouse_click(stx::fn::rc::make_unique_functor(
                                           stx::os_allocator, [this](MouseClickEvent event) { widget_system.events.push_inplace(event).unwrap(); })
@@ -252,12 +253,11 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
   ctx.font_bundle = font_bundle;
 
   // TODO(lamarrr): attach debug widgets: FPS stats, memory usage, etc
-  widget_system.on_startup(ctx);
 
-  for (Plugin *plugin : ctx.plugins)
+  for (Subsystem *subsystem : ctx.subsystems)
   {
-    plugin->on_startup(ctx);
-    ASH_LOG_INFO(Context, "Initialized plugin: {} (type: {})", plugin->get_name(), typeid(*plugin).name());
+    subsystem->on_startup(ctx);
+    ASH_LOG_INFO(Context, "Initialized subsystem: {} (type: {})", subsystem->get_name(), typeid(*subsystem).name());
   }
 }
 
@@ -271,23 +271,22 @@ void Engine::tick(std::chrono::nanoseconds interval)
   {
   } while (ctx.poll_events());
 
-  // TODO(lamarrr): tick plugins
+  // TODO(lamarrr): tick subsystems
   // root_window->tick(interval);
   ctx.tick(interval);
-  widget_system.pump_events(ctx);
-  widget_system.tick_widgets(ctx, interval);
+  widget_system.pump_widget_events(widget_tree, ctx); // TODO(lamarrr): transform mouse position using view_region
+  widget_system.tick_widgets(ctx, *root_widget, interval);
   // new widgets could have been added
-  widget_system.assign_ids(ctx, *uuid_generator);
+  widget_system.assign_widget_uuids(ctx, *root_widget, *uuid_generator);
+  widget_tree.build(ctx, *root_widget);
   manager.flush_deletes();
   manager.submit_uploads();
 
   auto record_draw_commands = [&]() {
     VkExtent2D extent = root_window.value()->surface.value()->swapchain.value().window_extent;
     vec2       viewport_extent{AS(f32, extent.width), AS(f32, extent.height)};
-    canvas.restart(viewport_extent);
-    widget_system.perform_widget_layout(ctx, viewport_extent);
-    widget_system.rebuild_draw_entries(ctx);
-    widget_system.draw_widgets(ctx, viewport_extent, canvas, mat4::identity());
+    widget_tree.layout(ctx, viewport_extent);
+    widget_tree.render(ctx, canvas, rect{.offset = {}, .extent = viewport_extent}, viewport_extent);
   };
 
   // only record if swapchain visible,
