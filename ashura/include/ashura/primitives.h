@@ -706,6 +706,41 @@ constexpr mat4 operator*(f32 a, mat4 b)
                        a * b[3]}};
 }
 
+constexpr bool operator==(mat4 const &a, mat4 const &b)
+{
+  return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
+}
+
+constexpr bool operator!=(mat4 const &a, mat4 const &b)
+{
+  return a[0] != b[0] || a[1] != b[1] || a[2] != b[2] || a[3] != b[3];
+}
+
+constexpr mat4 operator*(mat4 const &a, mat4 const &b)
+{
+  return mat4{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x, b[3].x}),
+                        dot(a[0], {b[0].y, b[1].y, b[2].y, b[3].y}),
+                        dot(a[0], {b[0].z, b[1].z, b[2].z, b[3].z}),
+                        dot(a[0], {b[0].w, b[1].w, b[2].w, b[3].w})},
+                       {dot(a[1], {b[0].x, b[1].x, b[2].x, b[3].x}),
+                        dot(a[1], {b[0].y, b[1].y, b[2].y, b[3].y}),
+                        dot(a[1], {b[0].z, b[1].z, b[2].z, b[3].z}),
+                        dot(a[1], {b[0].w, b[1].w, b[2].w, b[3].w})},
+                       {dot(a[2], {b[0].x, b[1].x, b[2].x, b[3].x}),
+                        dot(a[2], {b[0].y, b[1].y, b[2].y, b[3].y}),
+                        dot(a[2], {b[0].z, b[1].z, b[2].z, b[3].z}),
+                        dot(a[2], {b[0].w, b[1].w, b[2].w, b[3].w})},
+                       {dot(a[3], {b[0].x, b[1].x, b[2].x, b[3].x}),
+                        dot(a[3], {b[0].y, b[1].y, b[2].y, b[3].y}),
+                        dot(a[3], {b[0].z, b[1].z, b[2].z, b[3].z}),
+                        dot(a[3], {b[0].w, b[1].w, b[2].w, b[3].w})}}};
+}
+
+constexpr vec4 operator*(mat4 const &a, vec4 const &b)
+{
+  return vec4{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b), .w = dot(a[3], b)};
+}
+
 constexpr f32 determinant(mat4 const &a)
 {
   return a[0].x * (a[1].y * a[2].z * a[3].w +
@@ -769,46 +804,6 @@ constexpr mat4 adjoint(mat4 const &a)
 constexpr mat4 inverse(mat4 const &a)
 {
   return 1 / determinant(a) * adjoint(a);
-}
-
-constexpr bool operator==(mat4 const &a, mat4 const &b)
-{
-  return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
-}
-
-constexpr bool operator!=(mat4 const &a, mat4 const &b)
-{
-  return a[0] != b[0] || a[1] != b[1] || a[2] != b[2] || a[3] != b[3];
-}
-
-constexpr mat4 operator*(mat4 const &a, mat4 const &b)
-{
-  return mat4{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x, b[3].x}),
-                        dot(a[0], {b[0].y, b[1].y, b[2].y, b[3].y}),
-                        dot(a[0], {b[0].z, b[1].z, b[2].z, b[3].z}),
-                        dot(a[0], {b[0].w, b[1].w, b[2].w, b[3].w})},
-                       {dot(a[1], {b[0].x, b[1].x, b[2].x, b[3].x}),
-                        dot(a[1], {b[0].y, b[1].y, b[2].y, b[3].y}),
-                        dot(a[1], {b[0].z, b[1].z, b[2].z, b[3].z}),
-                        dot(a[1], {b[0].w, b[1].w, b[2].w, b[3].w})},
-                       {dot(a[2], {b[0].x, b[1].x, b[2].x, b[3].x}),
-                        dot(a[2], {b[0].y, b[1].y, b[2].y, b[3].y}),
-                        dot(a[2], {b[0].z, b[1].z, b[2].z, b[3].z}),
-                        dot(a[2], {b[0].w, b[1].w, b[2].w, b[3].w})},
-                       {dot(a[3], {b[0].x, b[1].x, b[2].x, b[3].x}),
-                        dot(a[3], {b[0].y, b[1].y, b[2].y, b[3].y}),
-                        dot(a[3], {b[0].z, b[1].z, b[2].z, b[3].z}),
-                        dot(a[3], {b[0].w, b[1].w, b[2].w, b[3].w})}}};
-}
-
-constexpr vec4 operator*(mat4 const &a, vec4 const &b)
-{
-  return vec4{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b), .w = dot(a[3], b)};
-}
-
-constexpr vec4 operator*(vec4 const &a, mat4 const &b)
-{
-  return vec4{.x = dot(a, b[0]), .y = dot(a, b[1]), .z = dot(a, b[2]), .w = dot(a, b[3])};
 }
 
 constexpr vec2 transform(mat4 const &a, vec2 const &b)
