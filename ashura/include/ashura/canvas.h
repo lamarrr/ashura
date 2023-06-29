@@ -616,7 +616,7 @@ struct Canvas
 
   Canvas &draw_circle_stroke(vec2 center, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    vec2 position = center - radius;
+    vec2 position = center - radius + thickness / 2;
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
     if (!viewport_contains(area) || thickness == 0)
