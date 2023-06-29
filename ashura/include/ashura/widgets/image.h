@@ -10,8 +10,8 @@
 #include "ashura/image.h"
 #include "ashura/image_decoder.h"
 #include "ashura/loggers.h"
-#include "ashura/plugins/image_loader.h"
-#include "ashura/plugins/image_manager.h"
+#include "ashura/subsystems/image_loader.h"
+#include "ashura/subsystems/image_manager.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
 #include "stx/option.h"
@@ -69,30 +69,37 @@ enum class ImageState : u8
 /// - Update widget state to show that the image is loading
 ///
 // TODO(lamarrr): this is a static image. no unloading is presently done. do that ONCE props change
+//
+// TODO(lamarrrr): resource multiple deletion with move???
+//
+//
 struct Image : public Widget
 {
   explicit Image(ImageProps image_props) :
       props{std::move(image_props)}
   {}
 
-  virtual WidgetInfo get_info(Context &ctx) override
+  STX_DISABLE_COPY(Image)
+  STX_DEFAULT_MOVE(Image)
+
+  virtual WidgetDebugInfo get_debug_info(Context &ctx) override
   {
-    return WidgetInfo{.type = "Image"};
+    return WidgetDebugInfo{.type = "Image"};
   }
 
-  virtual Layout layout(Context &ctx, rect area) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    f32 width  = props.width.resolve(area.extent.x);
-    f32 height = props.height.resolve(area.extent.y);
+    f32 width  = props.width.resolve(allocated_size.x);
+    f32 height = props.height.resolve(allocated_size.y);
     if (props.aspect_ratio.is_some())
     {
       f32 aspect_ratio = props.aspect_ratio.value();
-      return Layout{.area = area.with_extent(std::min(height * aspect_ratio, width),
-                                             std::min(width / aspect_ratio, height))};
+      return vec2{std::min(height * aspect_ratio, width),
+                  std::min(width / aspect_ratio, height)};
     }
     else
     {
-      return Layout{.area = rect{.offset = area.offset, .extent = vec2{width, height}}};
+      return vec2{width, height};
     }
   }
 
@@ -153,8 +160,8 @@ struct Image : public Widget
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
-    ImageManager *mgr    = ctx.get_plugin<ImageManager>("ImageManager").unwrap();
-    ImageLoader  *loader = ctx.get_plugin<ImageLoader>("ImageLoader").unwrap();
+    ImageManager *mgr    = ctx.get_subsystem<ImageManager>("ImageManager").unwrap();
+    ImageLoader  *loader = ctx.get_subsystem<ImageLoader>("ImageLoader").unwrap();
 
     switch (state)
     {

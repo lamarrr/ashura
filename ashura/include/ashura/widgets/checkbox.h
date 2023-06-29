@@ -10,25 +10,33 @@ namespace ash
 struct CheckBoxProps
 {
   color box_color         = material::BLUE_A700;
-  color outline_color     = material::GRAY_600;
   color checkmark_color   = material::GRAY_300;
   f32   extent            = 20;
   f32   border_radius     = 2.5;
   f32   outline_thickness = 1;
 };
 
+// TODO(lamarrr): disabling, default value
 struct CheckBox : public Widget
 {
-  CheckBox(CheckBoxProps iprops = CheckBoxProps{}) :
-      props{iprops}
+  using Callback = stx::RcFn<void(CheckBox &, Context &, bool)>;
+
+  static void default_on_changed(CheckBox &checkbox, Context &ctx, bool new_value)
   {}
+
+  CheckBox(Callback ion_changed = stx::fn::rc::make_static(default_on_changed), bool default_value = false, CheckBoxProps iprops = CheckBoxProps{}) :
+      on_changed{std::move(ion_changed)}, value{default_value}, props{iprops}
+  {}
+
+  STX_DISABLE_COPY(CheckBox)
+  STX_DEFAULT_MOVE(CheckBox)
 
   virtual ~CheckBox() override
   {}
 
-  virtual Layout layout(Context &ctx, rect allotted) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    return Layout{.area = allotted.with_extent(props.extent, props.extent)};
+    return vec2{props.extent, props.extent};
   }
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
@@ -40,7 +48,8 @@ struct CheckBox : public Widget
 
     if (value)
     {
-      canvas.draw_round_rect_filled(area, vec4::splat(props.border_radius), 10, props.box_color)
+      canvas
+          .draw_round_rect_filled(area, vec4::splat(props.border_radius), 10, props.box_color)
           .save()
           .scale(props.extent, props.extent)
           .draw_path(checkmark_path, area, 0.125f, false)
@@ -48,7 +57,7 @@ struct CheckBox : public Widget
     }
     else
     {
-      canvas.draw_round_rect_stroke(area, vec4::splat(props.border_radius), 10, props.outline_color, props.outline_thickness);
+      canvas.draw_round_rect_stroke(area, vec4::splat(props.border_radius), 10, props.box_color, props.outline_thickness);
     }
   }
 
@@ -57,15 +66,13 @@ struct CheckBox : public Widget
     if (button == MouseButton::Primary)
     {
       value = !value;
-      on_changed(context, value);
+      on_changed.handle(*this, ctx, value);
     }
   }
 
-  virtual void on_changed(Context &ctx, bool new_value)
-  {}
-
-  CheckBoxProps props;
+  Callback      on_changed;
   bool          value = false;
+  CheckBoxProps props;
 };
 
 }        // namespace ash

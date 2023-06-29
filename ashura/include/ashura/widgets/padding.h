@@ -26,14 +26,14 @@ struct Padding : public Widget
     child = new DerivedWidget{std::move(ichild)};
   }
 
-  virtual stx::Span<Widget *const> get_flex_children(Context &ctx) override
+  virtual stx::Span<Widget *const> get_children(Context &ctx) override
   {
     return stx::Span{&child, 1};
   }
 
-  virtual WidgetInfo get_info(Context &ctx) override
+  virtual WidgetDebugInfo get_debug_info(Context &ctx) override
   {
-    return WidgetInfo{.type = "Padding"};
+    return WidgetDebugInfo{.type = "Padding"};
   }
 
   // virtual Layout layout(rect area)override

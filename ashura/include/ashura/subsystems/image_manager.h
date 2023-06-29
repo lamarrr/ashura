@@ -3,7 +3,7 @@
 #include <string_view>
 
 #include "ashura/image.h"
-#include "ashura/plugin.h"
+#include "ashura/subsystem.h"
 #include "ashura/primitives.h"
 #include "stx/span.h"
 #include "stx/void.h"
@@ -11,8 +11,8 @@
 namespace ash
 {
 
-// TODO(lamarrr): we need widget context for getting other plugins
-struct ImageManager : public Plugin
+// TODO(lamarrr): we need widget context for getting other subsystems
+struct ImageManager : public Subsystem
 {
   virtual constexpr void on_startup(Context &ctx) override
   {}

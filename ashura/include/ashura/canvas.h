@@ -137,7 +137,7 @@ inline stx::Span<vertex> interpolate_uvs(stx::Span<vertex> path, vec2 extent, te
 {
   for (vertex &v : path)
   {
-    v.uv = texture_region.uv0 + v.position / extent.epsilon_clamp() * (texture_region.uv1 - texture_region.uv0);
+    v.uv = texture_region.uv0 + v.position / epsilon_clamp(extent) * (texture_region.uv1 - texture_region.uv0);
   }
 
   return path;
@@ -287,7 +287,7 @@ struct DrawCommand
 {
   u32   nvertices = 0;
   u32   nindices  = 0;
-  rect  clip_rect;
+  rect  scissor;
   mat4  transform;
   image texture = WHITE_IMAGE;
 };
@@ -310,7 +310,7 @@ struct CanvasState
 {
   mat4 transform;               // local object transform, applies to local coordinates of the objects
   mat4 global_transform;        // global scene transform, applies to the global coordinate of the objects
-  rect clip_rect;               // determines visible area of the rendering operation
+  rect scissor;                 // determines visible area of the rendering operation
 };
 
 /// Coordinates are specified in top-left origin absolute pixel coordinates with x pointing to the
@@ -336,13 +336,13 @@ struct Canvas
   bool viewport_contains(rect area) const
   {
     return rect{.offset = {}, .extent = viewport_extent}
-        .contains(ash::transform(state.global_transform * state.transform, area));
+        .overlaps(ash::transform(state.global_transform * state.transform, area));
   }
 
   Canvas &restart(vec2 viewport_extent)
   {
     this->viewport_extent = viewport_extent;
-    state                 = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
+    state                 = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     draw_list.clear();
     return *this;
@@ -350,7 +350,7 @@ struct Canvas
 
   mat4 make_transform(vec2 position) const
   {
-    vec2 viewport_extent_clamped = viewport_extent.epsilon_clamp();
+    vec2 viewport_extent_clamped = epsilon_clamp(viewport_extent);
     return ash::translate(vec3{-1, -1, 0})                                                            /// normalize to vulkan viewport coordinate range -1 to 1
            * ash::scale(vec3{2 / viewport_extent_clamped.x, 2 / viewport_extent_clamped.y, 0})        /// normalize to 0 to 2 coordinate range
            * state.global_transform                                                                   /// apply global coordinate transform
@@ -358,24 +358,24 @@ struct Canvas
            * state.transform;                                                                         /// apply local coordinate transform
   }
 
-  /// push state (transform and clips) on state stack
+  /// push state (transform and scissor) on state stack
   Canvas &save()
   {
     state_stack.push_inplace(state).unwrap();
     return *this;
   }
 
-  /// pop state (transform and clips) stack and restore state
+  /// pop state (transform and scissor) stack and restore state
   Canvas &restore()
   {
-    state = state_stack.pop().unwrap_or(CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}});
+    state = state_stack.pop().unwrap_or(CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}});
     return *this;
   }
 
-  /// reset the rendering context to its default state (transform and clips)
+  /// reset the rendering context to its default state (transform and scissor)
   Canvas &reset()
   {
-    state = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent}};
+    state = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     return *this;
   }
@@ -465,9 +465,9 @@ struct Canvas
   }
 
   /// Not affected by transforms
-  Canvas &clip(rect clip_rect)
+  Canvas &scissor(rect scissor)
   {
-    state.clip_rect = clip_rect;
+    state.scissor = scissor;
     return *this;
   }
 
@@ -491,7 +491,7 @@ struct Canvas
     draw_list.commands
         .push(DrawCommand{.nvertices = AS(u32, std::size(vertices)),
                           .nindices  = AS(u32, std::size(indices)),
-                          .clip_rect = rect{.offset = {0, 0}, .extent = viewport_extent},
+                          .scissor   = rect{.offset = {0, 0}, .extent = viewport_extent},
                           .transform = mat4::identity(),
                           .texture   = texture})
         .unwrap();
@@ -520,7 +520,7 @@ struct Canvas
 
     draw_list.commands.push(DrawCommand{.nvertices = nvertices,
                                         .nindices  = nindices,
-                                        .clip_rect = state.clip_rect,
+                                        .scissor   = state.scissor,
                                         .transform = make_transform(area.offset),
                                         .texture   = texture})
         .unwrap();
@@ -548,7 +548,7 @@ struct Canvas
     draw_list.commands
         .push(DrawCommand{.nvertices = nvertices,
                           .nindices  = nindices,
-                          .clip_rect = state.clip_rect,
+                          .scissor   = state.scissor,
                           .transform = make_transform(position),
                           .texture   = texture})
         .unwrap();
@@ -597,8 +597,9 @@ struct Canvas
     return draw_path(line, area, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_circle_filled(vec2 position, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_circle_filled(vec2 center, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    vec2 position = center - radius;
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
     if (!viewport_contains(area))
@@ -613,8 +614,9 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_circle_stroke(vec2 position, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_circle_stroke(vec2 center, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    vec2 position = center - radius + thickness / 2;
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
 
     if (!viewport_contains(area) || thickness == 0)
@@ -629,11 +631,12 @@ struct Canvas
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
 
-  Canvas& draw_arc_filled();
-  Canvas& draw_arc_stroke();
+  Canvas &draw_arc_filled();
+  Canvas &draw_arc_stroke();
 
-  Canvas &draw_ellipse_filled(vec2 position, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_ellipse_filled(vec2 center, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    vec2 position = center - radii;
     rect area{.offset = position, .extent = 2 * radii};
 
     if (!viewport_contains(area))
@@ -648,8 +651,9 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_ellipse_stroke(vec2 position, vec2 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_ellipse_stroke(vec2 center, vec2 radii, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
+    vec2 position = center - radii;
     rect area{.offset = position, .extent = 2 * radii};
 
     if (!viewport_contains(area) || thickness == 0)

@@ -7,7 +7,7 @@
 #include "ashura/context.h"
 #include "ashura/image.h"
 #include "ashura/image_decoder.h"
-#include "ashura/plugin.h"
+#include "ashura/subsystem.h"
 #include "ashura/primitives.h"
 #include "stx/async.h"
 #include "stx/memory.h"
@@ -18,13 +18,13 @@
 namespace ash
 {
 
-struct ImageLoader : public Plugin
+struct ImageLoader : public Subsystem
 {
   ImageLoader() = default;
 
   virtual constexpr void on_startup(Context &ctx) override
   {
-    task_scheduler = context.task_scheduler;
+    task_scheduler = ctx.task_scheduler;
   }
 
   virtual constexpr void tick(Context &ctx, std::chrono::nanoseconds interval) override

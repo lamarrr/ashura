@@ -8,14 +8,15 @@
 #include "ashura/event.h"
 #include "ashura/font.h"
 #include "ashura/loggers.h"
-#include "ashura/plugin.h"
 #include "ashura/primitives.h"
+#include "ashura/subsystem.h"
+#include "ashura/theme.h"
+#include "ashura/uuid.h"
 #include "ashura/window.h"
 #include "ashura/window_manager.h"
 #include "fmt/format.h"
 #include "stx/option.h"
 #include "stx/scheduler.h"
-#include "ashura/theme.h"
 
 namespace ash
 {
@@ -30,20 +31,49 @@ enum class SystemTheme
   Dark    = SDL_SYSTEM_THEME_DARK
 };
 
+struct Context;
+struct Widget;
+
+inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id);
+
 // add window controller class
 // not thread-safe! ensure all api calls occur on the main thread.
 struct Context
 {
-  stx::Vec<Plugin *>           plugins;
+  stx::Vec<Subsystem *>        subsystems;
   stx::TaskScheduler          *task_scheduler = nullptr;
   ClipBoard                   *clipboard      = nullptr;
   WindowManager               *window_manager = nullptr;
   SystemTheme                  theme          = SystemTheme::Unknown;
   GlobalEventListeners         event_listeners;
   stx::Span<BundledFont const> font_bundle;
-  // TODO(lamarrr): expose current window here
-  // TODO(lamarrr): viewport rect
-  // TODO(lamarrr): find_widget()
+  f32                          text_scale_factor = 1;        // TODO(lamarrr)
+  f32                          viewport_scale    = 1;        // transformed viewport
+  vec2                         viewport_translate;           // TODO(lamarrr): viewport rect
+  Widget                      *root = nullptr;               // TODO(lamarrr): find_widget() IMPORTANT!!!
+  // TODO(lamarrr): expose current window here???
+
+  stx::Option<Widget *> find_widget(uuid id)
+  {
+    Widget *found = __find_widget_recursive(*this, *root, id);
+    if (found != nullptr)
+    {
+      return stx::Some(AS(Widget *, found));
+    }
+    return stx::None;
+  }
+
+  template <typename T>
+  stx::Option<T *> find_ancestor_of_type(uuid id);
+
+  template <typename T>
+  stx::Option<T *> find_ancestor_of_type();
+
+  template <typename T>
+  stx::Option<T *> find_descendant_of_type(uuid id);
+
+  template <typename T>
+  stx::Option<T *> find_descendant_of_type();
 
   Context()
   {}
@@ -52,26 +82,26 @@ struct Context
 
   ~Context()
   {
-    for (Plugin *plugin : plugins)
+    for (Subsystem *subsystem : subsystems)
     {
-      ASH_LOG_INFO(Context, "Destroying plugin: {} (type: {})", plugin->get_name(), typeid(*plugin).name());
-      delete plugin;
+      ASH_LOG_INFO(Context, "Destroying subsystem: {} (type: {})", subsystem->get_name(), typeid(*subsystem).name());
+      delete subsystem;
     }
   }
 
-  void register_plugin(Plugin *plugin)
+  void register_subsystem(Subsystem *subsystem)
   {
-    plugins.push_inplace(plugin).unwrap();
-    ASH_LOG_INFO(Context, "Registered plugin: {} (type: {})", plugin->get_name(), typeid(*plugin).name());
+    subsystems.push_inplace(subsystem).unwrap();
+    ASH_LOG_INFO(Context, "Registered subsystem: {} (type: {})", subsystem->get_name(), typeid(*subsystem).name());
   }
 
   template <typename T>
-  stx::Option<T *> get_plugin(std::string_view name) const
+  stx::Option<T *> get_subsystem(std::string_view name) const
   {
-    stx::Span plugin = plugins.span().which([name](Plugin *plugin) { return plugin->get_name() == name; });
-    if (!plugin.is_empty())
+    stx::Span subsystem = subsystems.span().which([name](Subsystem *subsystem) { return subsystem->get_name() == name; });
+    if (!subsystem.is_empty())
     {
-      return stx::Some(plugin[0]->template as<T>());
+      return stx::Some(subsystem[0]->template as<T>());
     }
     else
     {
@@ -83,6 +113,10 @@ struct Context
 
   void tick(std::chrono::nanoseconds interval)
   {
+    for (Subsystem *subsystem : subsystems)
+    {
+      subsystem->tick(*this, interval);
+    }
   }
 
   // virtual void on_full_screen_change();

@@ -8,13 +8,13 @@ namespace ash
 
 struct Context;
 
-struct Plugin
+struct Subsystem
 {
   template <typename T>
   T *as()
   {
     T *ptr = dynamic_cast<T *>(this);
-    ASH_CHECK(ptr != nullptr, "Invalid Plugin Type provided");
+    ASH_CHECK(ptr != nullptr, "Invalid Subsystem Type provided");
     return ptr;
   }
 
@@ -29,12 +29,11 @@ struct Plugin
 
   virtual constexpr std::string_view get_name()
   {
-    return "Plugin";
+    return "Subsystem";
   }
 
-  virtual constexpr ~Plugin()
+  virtual constexpr ~Subsystem()
   {}
-
 };
 
 }        // namespace ash
