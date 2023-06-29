@@ -6,7 +6,7 @@
 #include "ashura/canvas.h"
 #include "ashura/clipboard.h"
 #include "ashura/font.h"
-#include "ashura/plugins/vulkan_image_manager.h"
+#include "ashura/subsystems/vulkan_image_manager.h"
 #include "ashura/uuid.h"
 #include "ashura/version.h"
 #include "ashura/vulkan.h"
