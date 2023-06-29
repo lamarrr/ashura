@@ -54,8 +54,9 @@ struct Switch : public Widget
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     f32 inner_radius = props.radius * 0.6f;
-    canvas.draw_circle_filled(area.offset, props.radius, 180, props.inactive_color);
-    canvas.draw_circle_filled(area.offset + props.radius - inner_radius, inner_radius, 180, animation.animate(color_curve, tween));
+    canvas
+        .draw_circle_filled(area.offset, props.radius, 180, props.inactive_color)
+        .draw_circle_filled(area.offset + props.radius - inner_radius, inner_radius, 180, animation.animate(color_curve, tween));
   }
 
   virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad) override
