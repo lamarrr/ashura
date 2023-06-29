@@ -348,6 +348,11 @@ struct rect
   {
     return with_center(vec2{cx, cy});
   }
+
+  constexpr rect centered() const
+  {
+    return with_center(offset);
+  }
 };
 
 struct vec3
