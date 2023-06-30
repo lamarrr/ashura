@@ -1,5 +1,6 @@
 #include "SDL3/SDL.h"
 #include "ashura/app.h"
+#include "ashura/hvk.h"
 #include "ashura/text.h"
 #include "ashura/uuid.h"
 #include "ashura/widget.h"
@@ -24,7 +25,7 @@ int main(int argc, char **argv)
       {.name = "RobotoMono", .path = R"(C:\Users\Basit\Documents\workspace\oss\ashura\ashura\assets\fonts\RobotoMono\RobotoMono-Regular.ttf)", .stroke_thickness = 2.5},
       {.name = "MaterialIcons", .path = R"(C:\Users\Basit\Documents\workspace\oss\ashura\ashura\assets\fonts\MaterialIcons\MaterialIcons-Regular.ttf)", .stroke_thickness = 0}};
 
-  AppConfig cfg{.enable_validation_layers = false, .fonts = fonts};
+  AppConfig cfg{.enable_validation_layers = true, .fonts = fonts};
 
   RadioState state{8};
   App        app{std::move(cfg),

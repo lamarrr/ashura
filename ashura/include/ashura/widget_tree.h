@@ -154,6 +154,8 @@ struct WidgetTree
       element.widget->draw(ctx, canvas);
       canvas.restore();
     }
+
+    spdlog::info("rendering {} commands, {} vertices, {} indices", canvas.draw_list.commands.size(),  canvas.draw_list.vertices.size(), canvas.draw_list.indices.size());
   }
 
   Widget *hit(Context &ctx, vec2 position) const

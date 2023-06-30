@@ -195,9 +195,9 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT>
                              .apiVersion         = VK_API_VERSION_1_3};
 
   VkInstanceCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,        // debug messenger for when
-                                                              // the installed debug
-                                                              // messenger is uninstalled.
+      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,                                            // debug messenger for when
+                                                                                                  // the installed debug
+                                                                                                  // messenger is uninstalled.
       .pNext = required_validation_layers.is_empty() ? nullptr :
                                                        &debug_utils_messenger_create_info,        // this helps to debug issues
                                                                                                   // with vkDestroyInstance and
@@ -1327,9 +1327,9 @@ struct SwapChain
   VkExtent2D            image_extent{.width = 0, .height = 0};
   VkExtent2D            window_extent{.width = 0, .height = 0};
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
-  stx::Vec<VkImage>     images;             // the images in the swapchain
-  stx::Vec<VkImageView> image_views;        // the image views pointing to a part of a whole texture
-                                            // (images in the swapchain)
+  stx::Vec<VkImage>     images;                     // the images in the swapchain
+  stx::Vec<VkImageView> image_views;                // the image views pointing to a part of a whole texture
+                                                    // (images in the swapchain)
   stx::Vec<VkFramebuffer> framebuffers;
   stx::Vec<VkSemaphore>   render_semaphores;        // the rendering semaphores correspond to the frame
                                                     // indexes and not the swapchain images
@@ -1338,7 +1338,7 @@ struct SwapChain
   stx::Vec<VkFence>     image_acquisition_fences;
   Image                 msaa_color_image;
   Image                 msaa_depth_image;
-  VkRenderPass          render_pass = VK_NULL_HANDLE;
+  VkRenderPass          render_pass = VK_NULL_HANDLE;        // Render Passes describe the outputs, attachments, depth, and msaa process
   VkSwapchainKHR        swapchain   = VK_NULL_HANDLE;
   VkDevice              dev         = VK_NULL_HANDLE;
 

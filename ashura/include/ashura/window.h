@@ -317,7 +317,7 @@ struct Window
     // VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT;
     // VK_COLOR_SPACE_DCI_P3_LINEAR_EXT;
 
-    VkPresentModeKHR preferred_present_modes[] = {VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR,
+    VkPresentModeKHR preferred_present_modes[] = {VK_PRESENT_MODE_IMMEDIATE_KHR,VK_PRESENT_MODE_FIFO_KHR,  VK_PRESENT_MODE_FIFO_RELAXED_KHR,
                                                   VK_PRESENT_MODE_MAILBOX_KHR};
 
     VkSampleCountFlagBits msaa_sample_count = queue->device->phy_dev->get_max_sample_count();

@@ -59,8 +59,28 @@ struct EaseInOut final : public Curve
   }
 };
 
-struct Quadratic;
-struct Cubic;
-struct Bezier;
+struct Quadratic final : public Curve
+{};
+
+struct Cubic final : public Curve
+{};
+
+struct Bezier final : public Curve
+{
+  f32 p0 = 0;
+  f32 p1 = 1;
+  f32 p2 = 2;
+
+  virtual ~Bezier() override
+  {}
+
+  virtual f32 operator()(f32 t) override
+  {
+    return lerp(lerp(p0, p1, t), lerp(p1, p2, t), t);
+  }
+};
+
+struct Spline final : public Curve
+{};
 
 };        // namespace ash

@@ -20,15 +20,20 @@ struct Text : public Widget
 
   virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    TextRun runs[] = {
-        TextRun{.text = text}};
+    if (needs_relayout)
+    {
+      spdlog::info("re-laid out text");
+      TextRun runs[] = {
+          TextRun{.text = text}};
 
-    Paragraph paragraph{
-        .runs  = runs,
-        .props = props,
-        .align = TextAlign::Left};
+      Paragraph paragraph{
+          .runs  = runs,
+          .props = props,
+          .align = TextAlign::Left};
 
-    text_layout.layout(paragraph, ctx.font_bundle, allocated_size.x);
+      text_layout.layout(paragraph, ctx.font_bundle, allocated_size.x);
+      needs_relayout = false;
+    }
 
     return text_layout.span;
   }
@@ -52,6 +57,7 @@ struct Text : public Widget
   stx::String text;
   TextProps   props;
   TextLayout  text_layout;
+  bool        needs_relayout = true;
 };
 
 }        // namespace ash
