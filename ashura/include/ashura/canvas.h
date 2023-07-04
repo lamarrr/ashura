@@ -39,7 +39,25 @@ inline stx::Span<vertex> rect(vec2 extent, vec4 color, vec2 offset, stx::Span<ve
   return polygon;
 }
 
-inline stx::Span<vertex> circle(f32 radius, u32 nsegments, vec4 color, vec2 offset, stx::Span<vertex> polygon)
+inline stx::Span<vertex> arc(vec2 offset, f32 radius, f32 begin, f32 end, u32 nsegments, vec4 color, stx::Span<vertex> polygon)
+{
+  begin = ASH_TO_RADIANS(begin);
+  end   = ASH_TO_RADIANS(end);
+
+  if (nsegments < 1 || radius <= 0)
+  {
+    return {};
+  }
+
+  for (u32 i = 0; i < nsegments; i++)
+  {
+    f32  angle = lerp(begin, end, AS(f32, i / (nsegments - 1)));
+    vec2 p     = radius + radius *vec2{std::cos(angle), std::sin(angle)};
+    polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
+  }
+
+  return polygon;
+}
 {
   if (nsegments == 0 || radius <= 0)
   {
@@ -645,8 +663,22 @@ struct Canvas
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_arc_filled();
-  Canvas &draw_arc_stroke();
+  Canvas &draw_arc_stroke(vec2 center, f32 radius, f32 begin, f32 end, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  {
+    vec2 position = center - radius - thickness / 2;
+    rect area{.offset = position, .extent = vec2::splat(2 * radius + thickness)};
+
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
+    paths::lerp_uvs(paths::arc(vec2::splat(thickness / 2), radius, begin, end, nsegments, color.to_vec(),
+                               reserve_convex_polygon(nsegments, position, texture)),
+                    area.extent, texture_region);
+
+    return *this;
+  }
 
   Canvas &draw_ellipse_filled(vec2 center, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
