@@ -609,15 +609,15 @@ struct CanvasPipelineManager
                                                        .pipeline        = stx::None});
 
     next_pipeline_id++;
-      }
+  }
 
   /// re-build pipelines to meet renderpass specification
   void rebuild_for_renderpass(VkRenderPass target_render_pass, VkSampleCountFlagBits msaa_sample_count)
   {
     static constexpr VkVertexInputAttributeDescription vertex_input_attributes[] = {
-          {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(vertex, position)},
-          {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(vertex, uv)},
-          {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(vertex, color)}};
+        {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(vertex, position)},
+        {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(vertex, uv)},
+        {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(vertex, color)}};
 
     VkDescriptorSetLayout descriptor_sets_layout[NIMAGES_PER_DRAWCALL];
     stx::Span{descriptor_sets_layout}.fill(descriptor_set_layout);
@@ -653,7 +653,7 @@ struct CanvasPipelineManager
     for (auto &p : pipelines)
     {
       p.second.destroy(dev);
-  }
+    }
   }
 };
 
