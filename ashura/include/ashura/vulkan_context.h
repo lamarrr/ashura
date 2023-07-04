@@ -212,6 +212,7 @@ struct RenderResourceManager
     }
   }
 
+  /// image will uploaded and be available for use before next frame
   gfx::image add_image(ImageView image_view, bool is_real_time)
   {
     gfx::image id = next_image_id;
@@ -224,8 +225,26 @@ struct RenderResourceManager
     ASH_CHECK(image_view.extent.is_visible());
     ASH_CHECK(image_view.data.size_bytes() == image_view.extent.area() * nchannel_bytes(image_view.format));
 
-    // use RGBA8888 for everything else
-    VkFormat target_format = image_view.format == ImageFormat::Bgra ? VK_FORMAT_B8G8R8A8_UNORM : VK_FORMAT_R8G8B8A8_UNORM;
+    VkFormat target_format = VK_FORMAT_R8G8B8A8_UNORM;
+
+    switch (image_view.format)
+    {
+      case ImageFormat::Rgba8888:
+      case ImageFormat::Rgb888:
+        target_format = VK_FORMAT_R8G8B8A8_UNORM;
+        break;
+
+      case ImageFormat::Bgra8888:
+        target_format = VK_FORMAT_B8G8R8A8_UNORM;
+        break;
+
+      case ImageFormat::R8:
+        target_format = VK_FORMAT_R8_UNORM;
+        break;
+
+      default:
+        ASH_UNREACHABLE();
+    }
 
     VkImageCreateInfo create_info{
         .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
