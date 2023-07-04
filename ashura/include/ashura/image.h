@@ -16,16 +16,16 @@ constexpr image WHITE_IMAGE = 0;
 
 }        // namespace gfx
 
-// NOTE: pixels are not stored in endian order but in byte by byte interleaving. i.e. for
-// RGBA bytes 0 -> R, 1 -> G, 2 -> B, 3 -> A i.e. [r, g, b, a, r, g, b, a]
 enum class ImageFormat : u8
 {
-  Alpha,               // A8
-  Antialiasing,        // A8
-  Gray,                // A8
-  Rgb,                 // R8G8B8
-  Rgba,                // R8G8B8A8
-  Bgra                 // B8G8R8A8
+  /// R8G8B8A8 image, stored on GPU as is
+  Rgba8888,
+  /// B8G8R8A8 image, stored on GPU as is
+  Bgra8888,
+  /// R8G8B8 image, stored on GPU as R8G8B8A8 with alpha = 255
+  Rgb888,
+  /// R8 image, stored on GPU as is
+  R8
 };
 
 enum class ColorSpace : u8
@@ -34,43 +34,21 @@ enum class ColorSpace : u8
   Srgb,
   AdobeRgb,
   Dp3,
-  DciP3,
-  Yuv
+  DciP3
 };
-
-inline u8 nchannels(ImageFormat fmt)
-{
-  switch (fmt)
-  {
-    case ImageFormat::Alpha:
-    case ImageFormat::Antialiasing:
-    case ImageFormat::Gray:
-      return 1;
-    case ImageFormat::Rgb:
-      return 3;
-    case ImageFormat::Rgba:
-      return 4;
-    case ImageFormat::Bgra:
-      return 4;
-    default:
-      ASH_UNREACHABLE();
-  }
-}
 
 inline u8 nchannel_bytes(ImageFormat fmt)
 {
   switch (fmt)
   {
-    case ImageFormat::Alpha:
-    case ImageFormat::Antialiasing:
-    case ImageFormat::Gray:
-      return 1;
-    case ImageFormat::Rgb:
+    case ImageFormat::Rgba8888:
+      return 4;
+    case ImageFormat::Bgra8888:
+      return 4;
+    case ImageFormat::Rgb888:
       return 3;
-    case ImageFormat::Rgba:
-      return 4;
-    case ImageFormat::Bgra:
-      return 4;
+    case ImageFormat::R8:
+      return 1;
     default:
       ASH_UNREACHABLE();
   }
@@ -80,14 +58,14 @@ struct ImageView
 {
   stx::Span<u8 const> data;
   ash::extent         extent;
-  ImageFormat         format = ImageFormat::Rgba;
+  ImageFormat         format = ImageFormat::Rgba8888;
 };
 
 struct ImageViewMut
 {
   stx::Span<u8> data;
   ash::extent   extent;
-  ImageFormat   format = ImageFormat::Rgba;
+  ImageFormat   format = ImageFormat::Rgba8888;
 
   constexpr operator ImageView() const
   {
@@ -99,7 +77,7 @@ struct ImageBuffer
 {
   stx::Memory memory;
   ash::extent extent;
-  ImageFormat format = ImageFormat::Rgba;
+  ImageFormat format = ImageFormat::Rgba8888;
 
   stx::Span<u8 const> span() const
   {
