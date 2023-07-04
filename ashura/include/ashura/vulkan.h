@@ -560,7 +560,7 @@ struct PhyDeviceInfo
 
   bool has_geometry_shader() const
   {
-    return features.geometryShader;
+    return features.geometryShader != 0;
   }
 
   bool has_transfer_command_queue_family() const
@@ -817,12 +817,6 @@ struct VecBuffer
     vkDestroyBuffer(dev, buffer, nullptr);
   }
 
-  bool is_valid() const
-  {
-    return buffer != VK_NULL_HANDLE && memory != VK_NULL_HANDLE && memory_map != nullptr && size != 0 && memory_size != 0 &&
-           dev != VK_NULL_HANDLE;
-  }
-
   void init(VkDevice adev, VkPhysicalDeviceMemoryProperties const &memory_properties, VkBufferUsageFlags ausage)
   {
     dev   = adev;
@@ -930,8 +924,7 @@ struct VecBuffer
 
     memcpy(memory_map, span.data(), span.size());
 
-    VkMappedMemoryRange range{
-        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, .pNext = nullptr, .memory = memory, .offset = 0, .size = VK_WHOLE_SIZE};
+    VkMappedMemoryRange range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, .pNext = nullptr, .memory = memory, .offset = 0, .size = VK_WHOLE_SIZE};
 
     ASH_VK_CHECK(vkFlushMappedMemoryRanges(dev, 1, &range));
   }
@@ -1078,13 +1071,12 @@ inline Image create_msaa_color_resource(VkDevice dev, VkPhysicalDeviceMemoryProp
                                         VkFormat swapchain_format, VkExtent2D swapchain_extent,
                                         VkSampleCountFlagBits sample_count)
 {
-  VkImageCreateInfo create_info{.sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                                .pNext     = nullptr,
-                                .flags     = 0,
-                                .imageType = VK_IMAGE_TYPE_2D,
-                                .format    = swapchain_format,
-                                .extent =
-                                    VkExtent3D{.width = swapchain_extent.width, .height = swapchain_extent.height, .depth = 1},
+  VkImageCreateInfo create_info{.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                                .pNext                 = nullptr,
+                                .flags                 = 0,
+                                .imageType             = VK_IMAGE_TYPE_2D,
+                                .format                = swapchain_format,
+                                .extent                = VkExtent3D{.width = swapchain_extent.width, .height = swapchain_extent.height, .depth = 1},
                                 .mipLevels             = 1,
                                 .arrayLayers           = 1,
                                 .samples               = sample_count,
@@ -1141,13 +1133,12 @@ inline Image create_msaa_color_resource(VkDevice dev, VkPhysicalDeviceMemoryProp
 inline Image create_msaa_depth_resource(VkDevice dev, VkPhysicalDeviceMemoryProperties const &memory_properties,
                                         VkFormat depth_format, VkExtent2D swapchain_extent, VkSampleCountFlagBits sample_count)
 {
-  VkImageCreateInfo create_info{.sType     = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                                .pNext     = nullptr,
-                                .flags     = 0,
-                                .imageType = VK_IMAGE_TYPE_2D,
-                                .format    = depth_format,
-                                .extent =
-                                    VkExtent3D{.width = swapchain_extent.width, .height = swapchain_extent.height, .depth = 1},
+  VkImageCreateInfo create_info{.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                                .pNext                 = nullptr,
+                                .flags                 = 0,
+                                .imageType             = VK_IMAGE_TYPE_2D,
+                                .format                = depth_format,
+                                .extent                = VkExtent3D{.width = swapchain_extent.width, .height = swapchain_extent.height, .depth = 1},
                                 .mipLevels             = 1,
                                 .arrayLayers           = 1,
                                 .samples               = sample_count,
@@ -1166,8 +1157,7 @@ inline Image create_msaa_depth_resource(VkDevice dev, VkPhysicalDeviceMemoryProp
 
   vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
-  u32 memory_type_index =
-      find_suitable_memory_type(memory_properties, memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT).unwrap();
+  u32 memory_type_index = find_suitable_memory_type(memory_properties, memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT).unwrap();
 
   VkMemoryAllocateInfo alloc_info{.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
                                   .pNext           = nullptr,
@@ -1187,12 +1177,8 @@ inline Image create_msaa_depth_resource(VkDevice dev, VkPhysicalDeviceMemoryProp
       .image            = image,
       .viewType         = VK_IMAGE_VIEW_TYPE_2D,
       .format           = depth_format,
-      .components       = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                             .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                             .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                             .a = VK_COMPONENT_SWIZZLE_IDENTITY},
-      .subresourceRange = VkImageSubresourceRange{
-          .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
+      .components       = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY, .g = VK_COMPONENT_SWIZZLE_IDENTITY, .b = VK_COMPONENT_SWIZZLE_IDENTITY, .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+      .subresourceRange = VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
 
   VkImageView view;
 
@@ -1202,8 +1188,7 @@ inline Image create_msaa_depth_resource(VkDevice dev, VkPhysicalDeviceMemoryProp
 }
 
 // choose a specific swapchain format available on the surface
-inline VkSurfaceFormatKHR select_swapchain_surface_formats(stx::Span<VkSurfaceFormatKHR const> formats,
-                                                           stx::Span<VkSurfaceFormatKHR const> preferred_formats)
+inline VkSurfaceFormatKHR select_swapchain_surface_formats(stx::Span<VkSurfaceFormatKHR const> formats, stx::Span<VkSurfaceFormatKHR const> preferred_formats)
 {
   ASH_CHECK(!formats.is_empty(), "no window surface format supported by physical device");
 
@@ -1464,11 +1449,9 @@ struct SwapChain
 
     VkAttachmentReference color_attachment_reference{.attachment = 0, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
 
-    VkAttachmentReference depth_attachment_reference{.attachment = 1,
-                                                     .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+    VkAttachmentReference depth_attachment_reference{.attachment = 1, .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
 
-    VkAttachmentReference color_attachment_resolve_reference{.attachment = 2,
-                                                             .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    VkAttachmentReference color_attachment_resolve_reference{.attachment = 2, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
 
     VkSubpassDescription subpass{.flags                   = 0,
                                  .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1703,8 +1686,7 @@ struct Pipeline
 
     ASH_CHECK(push_constant_size % 4 == 0);
 
-    VkPushConstantRange push_constant{
-        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, .offset = 0, .size = push_constant_size};
+    VkPushConstantRange push_constant{.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, .offset = 0, .size = push_constant_size};
 
     VkPipelineLayoutCreateInfo layout_create_info{.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
                                                   .pNext                  = nullptr,
@@ -1724,8 +1706,7 @@ struct Pipeline
          .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
          .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
          .alphaBlendOp        = VK_BLEND_OP_ADD,
-         .colorWriteMask =
-             VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT}};
+         .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT}};
 
     VkPipelineColorBlendStateCreateInfo color_blend_state{.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
                                                           .pNext           = nullptr,
@@ -1736,8 +1717,7 @@ struct Pipeline
                                                           .pAttachments    = color_blend_attachment_states,
                                                           .blendConstants  = {0, 0, 0, 0}};
 
-    VkPipelineDepthStencilStateCreateInfo depth_stencil_state{.sType =
-                                                                  VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_state{.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
                                                               .pNext                 = nullptr,
                                                               .flags                 = 0,
                                                               .depthTestEnable       = VK_TRUE,
@@ -1762,8 +1742,7 @@ struct Pipeline
                                                               .minDepthBounds        = 0,
                                                               .maxDepthBounds        = 1};
 
-    VkPipelineInputAssemblyStateCreateInfo input_assembly_state{.sType =
-                                                                    VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_state{.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
                                                                 .pNext                  = nullptr,
                                                                 .flags                  = 0,
                                                                 .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -1779,8 +1758,7 @@ struct Pipeline
                                                            .alphaToCoverageEnable = VK_FALSE,
                                                            .alphaToOneEnable      = VK_FALSE};
 
-    VkPipelineRasterizationStateCreateInfo rasterization_state{.sType =
-                                                                   VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+    VkPipelineRasterizationStateCreateInfo rasterization_state{.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
                                                                .pNext                   = nullptr,
                                                                .flags                   = 0,
                                                                .depthClampEnable        = VK_FALSE,
@@ -1795,7 +1773,7 @@ struct Pipeline
                                                                .lineWidth               = 1};
 
     VkVertexInputBindingDescription vertex_binding_descriptions[] = {
-        {.binding = 0, .stride = vertex_input_size, .inputRate = VK_VERTEX_INPUT_RATE_VERTEX}};
+        {.binding = 0, .stride = vertex_input_stride, .inputRate = VK_VERTEX_INPUT_RATE_VERTEX}};
 
     VkPipelineVertexInputStateCreateInfo vertex_input_state{
         .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -1851,12 +1829,6 @@ struct Pipeline
     vkDestroyPipelineLayout(dev, layout, nullptr);
     vkDestroyPipeline(dev, pipeline, nullptr);
   }
-};
-
-struct DescriptorPoolInfo
-{
-  stx::Vec<VkDescriptorPoolSize> sizes;
-  u32                            max_sets = 0;
 };
 
 }        // namespace vk
