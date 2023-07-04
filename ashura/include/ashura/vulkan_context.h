@@ -24,7 +24,7 @@ namespace vk
 struct RenderImage
 {
   Image               image;
-  ImageFormat         format         = ImageFormat::Rgba;
+  ImageFormat         format         = ImageFormat::Rgba8888;
   VkFormat            backend_format = VK_FORMAT_R8G8B8A8_UNORM;
   VkImageLayout       layout         = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImageLayout       dst_layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -34,6 +34,16 @@ struct RenderImage
   bool                needs_upload   = false;
   bool                needs_delete   = false;
   bool                is_real_time   = false;
+
+  void destroy(VkDescriptorPool descriptor_pool)
+  {
+    image.destroy();
+    if (staging_buffer.is_some())
+    {
+      staging_buffer.value().destroy();
+    }
+    ASH_VK_CHECK(vkFreeDescriptorSets(image.dev, descriptor_pool, 1, &descriptor_set));
+  }
 };
 
 struct RenderResourceManager
