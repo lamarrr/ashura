@@ -174,20 +174,13 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_file(stx::CStr
   return load_font_from_memory(std::move(memory), file_size);
 }
 
-struct FontStrokeAtlas
-{
-  stx::Vec<GlyphStroke> strokes;
-  extent                extent;                 // overall extent of the atlas
-  f32                   font_height = 0;        // font height at which the cache/atlas/glyphs has been rendered
-  f32                   thickness   = 0;        // thickness of the glyph strokes
-  gfx::image            texture     = 0;        // texture containing the packed glyphs
-};
-
 /// stores codepoint glyphs for a font at a specific font height
-// TODO(lamarrr): change to SDF text rendering
-
-
-/// @brief For info on SDF Text Rendering, See: https://www.youtube.com/watch?v=1b5hIMqz_wM
+/// For info on SDF Text Rendering, See: https://www.youtube.com/watch?v=1b5hIMqz_wM
+///
+/// In SDFs each pixel is encoded with its distance to the edge of a shape.
+/// The inner portion of the glyph has a value at the midpoint of the text, i.e. encoded 127 + distance away from the glyph boundary.
+/// The outer portion of the glyph however is encoded with a value lower than the midpoint. i.e. encoded 0-127.
+///
 struct FontAtlas
 {
   stx::Vec<Glyph> glyphs;
@@ -196,7 +189,6 @@ struct FontAtlas
   f32             ascent      = 0;
   f32             descent     = 0;
   gfx::image      texture     = 0;        // atlas containing the packed glyphs
-  bool            has_color   = false;
 
   stx::Span<Glyph const> get(usize glyph_index) const
   {
@@ -204,11 +196,14 @@ struct FontAtlas
     {
       return {};
     }
+
     stx::Span glyph = glyphs.span().slice(glyph_index, 1);
+
     if (glyph.is_empty())
     {
       return glyph;
     }
+
     return glyph[0].is_valid ? glyph : glyph.slice(0, 0);
   }
 };
@@ -232,12 +227,13 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
   {
     if (FT_Load_Glyph(ft_face, glyph_index, 0) == 0)
     {
-      u32 width  = ft_face->glyph->bitmap.width;
-      u32 height = ft_face->glyph->bitmap.rows;
+      FT_GlyphSlot slot   = ft_face->glyph;
+      u32          width  = slot->bitmap.width;
+      u32          height = slot->bitmap.rows;
 
       // convert from 26.6 pixel format
-      vec2 bearing{ft_face->glyph->metrics.horiBearingX / 64.0f, ft_face->glyph->metrics.horiBearingY / 64.0f};
-      vec2 advance{ft_face->glyph->advance.x / 64.0f, ft_face->glyph->advance.y / 64.0f};
+      vec2 bearing{slot->metrics.horiBearingX / 64.0f, slot->metrics.horiBearingY / 64.0f};
+      vec2 advance{slot->advance.x / 64.0f, slot->advance.y / 64.0f};
 
       f32 descent = std::max(AS(f32, height) - bearing.y, 0.0f);
 
@@ -258,6 +254,7 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
                       .offset         = {},
                       .extent         = {},
                       .bearing        = {},
+                      .descent        = 0,
                       .advance        = {},
                       .texture_region = {}})
           .unwrap();
@@ -282,6 +279,9 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
   stx::Memory nodes_memory = stx::mem::allocate(stx::os_allocator, sizeof(rect_packer::Node) * max_extent.width).unwrap();
 
   rect_packer::Context context = rect_packer::init(max_extent.width, max_extent.height, AS(rect_packer::Node *, nodes_memory.handle), max_extent.width, false);
+
+  u32 used_area = 0;
+
   if (!rect_packer::pack_rects(context, rects.data(), AS(i32, rects.size())))
   {
     ASH_LOG_WARN(FontRenderer, "Not all glyphs were packed into atlas for font: {}", font.postscript_name.c_str());
@@ -291,6 +291,10 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
       {
         pack_rect.x = 0;
         pack_rect.y = 0;
+      }
+      else
+      {
+        used_area += pack_rect.w * pack_rect.h;
       }
     }
   }
@@ -320,65 +324,58 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
     glyphs[i].texture_region.uv1.y = AS(f32, y + h) / atlas_extent.height;
   }
 
-  ASH_LOG_INFO(FontRenderer, "Finished packing placement rectangles for font: {}, rendering {}x{} CPU atlas...", font.postscript_name.c_str(), atlas_extent.width, atlas_extent.height);
+  u32 total_area         = atlas_extent.width * atlas_extent.height;
+  f32 packing_efficiency = AS(f32, used_area) / total_area;
 
-  ImageFormat format = font.has_color ? ImageFormat::Bgra : ImageFormat::Antialiasing;
+  ASH_LOG_INFO(FontRenderer, "Finished packing placement rectangles for font: {} with {}% efficiency, rendering {}x{} CPU atlas...", packing_efficiency, font.postscript_name.c_str(), atlas_extent.width, atlas_extent.height);
 
-  usize nchannels = font.has_color ? 4 : 1;
-
-  usize atlas_size = atlas_extent.area() * nchannels;
+  usize atlas_size = atlas_extent.area();
 
   stx::Memory buffer_mem = stx::mem::allocate(stx::os_allocator, atlas_size).unwrap();
 
   u8 *buffer = AS(u8 *, buffer_mem.handle);
 
-  std::memset(buffer, 0, atlas_size);
+  stx::Span{buffer, atlas_size}.fill(0);
 
-  usize atlas_stride = atlas_extent.width * nchannels;
+  usize atlas_stride = atlas_extent.width;
 
   for (usize glyph_index = 0; glyph_index < glyphs.size(); glyph_index++)
   {
     Glyph const &glyph = glyphs[glyph_index];
     if (glyph.is_valid)
     {
-      if (FT_Load_Glyph(ft_face, glyph_index, font.has_color ? (FT_LOAD_DEFAULT | FT_LOAD_RENDER | FT_LOAD_COLOR) : (FT_LOAD_DEFAULT | FT_LOAD_RENDER)) != 0)
+      if (FT_Load_Glyph(ft_face, glyph_index, FT_LOAD_DEFAULT) != 0)
       {
-        ASH_LOG_ERR(FontRenderer, "Failed to render glyph at index: {} for font: {}", glyph_index, font.postscript_name.c_str());
+        ASH_LOG_ERR(FontRenderer, "Failed to Load glyph at index: {} for font: {}", glyph_index, font.postscript_name.c_str());
         continue;
       }
 
-      ASH_CHECK(glyph.extent.width >= ft_face->glyph->bitmap.width);
-      ASH_CHECK(glyph.extent.height >= ft_face->glyph->bitmap.rows);
+      FT_GlyphSlot slot = ft_face->glyph;
 
-      FT_Pixel_Mode pixel_mode = AS(FT_Pixel_Mode, ft_face->glyph->bitmap.pixel_mode);
-
-      if (pixel_mode != FT_PIXEL_MODE_GRAY && pixel_mode != FT_PIXEL_MODE_BGRA)
+      if (FT_Render_Glyph(slot, FT_RENDER_MODE_SDF) != 0)
       {
-        ASH_LOG_ERR(FontRenderer, "Encountered unsupported pixel mode: {} for font: {}", AS(i32, pixel_mode), font.postscript_name.c_str());
+        ASH_LOG_ERR(FontRenderer, "Failed to render SDF glyph at index: {} for font: {}", glyph_index, font.postscript_name.c_str());
         continue;
       }
 
-      u8 const *bitmap        = ft_face->glyph->bitmap.buffer;
-      usize     bitmap_stride = ft_face->glyph->bitmap.width * nchannels;
+      ASH_CHECK(slot->bitmap.pixel_mode == FT_PIXEL_MODE_GRAY);
+      ASH_CHECK(glyph.extent.width >= slot->bitmap.width);
+      ASH_CHECK(glyph.extent.height >= slot->bitmap.rows);
+
+      u8 const *bitmap           = slot->bitmap.buffer;
+      usize     bitmap_row_bytes = slot->bitmap.width;
 
       // copy the rendered glyph to the atlas
-      if ((pixel_mode == FT_PIXEL_MODE_GRAY && !font.has_color) || (pixel_mode == FT_PIXEL_MODE_BGRA && font.has_color))
+      for (usize j = glyph.offset.y; j < glyph.offset.y + glyph.extent.height; j++)
       {
-        for (usize j = glyph.offset.y; j < glyph.offset.y + glyph.extent.height; j++)
-        {
-          u8 *out = buffer + j * atlas_stride + glyph.offset.x * nchannels;
-          std::copy(bitmap, bitmap + bitmap_stride, out);
-          bitmap += ft_face->glyph->bitmap.pitch;
-        }
-      }
-      else
-      {
-        ASH_LOG_ERR(FontRenderer, "Unsupported multi-colored font detected in font {}. some glyphs will be missing!", font.postscript_name.c_str());
+        u8 *out = buffer + j * atlas_stride + glyph.offset.x;
+        std::copy(bitmap, bitmap + bitmap_row_bytes, out);
+        bitmap += slot->bitmap.pitch;
       }
     }
   }
 
-  ASH_LOG_INFO(FontRenderer, "Finished rendering CPU atlas for font: {}", font.postscript_name.c_str());
+  ASH_LOG_INFO(FontRenderer, "Finished rendering CPU SDF atlas for font: {}", font.postscript_name.c_str());
 
   f32 ascent  = ft_face->size->metrics.ascender / 64.0f;
   f32 descent = ft_face->size->metrics.descender / -64.0f;
@@ -391,220 +388,23 @@ inline std::pair<FontAtlas, ImageBuffer> render_font_atlas(Font const &font, f32
                                   .font_height = font_height,
                                   .ascent      = ascent,
                                   .descent     = descent,
-                                  .texture     = 0,
-                                  .has_color   = font.has_color},
-                        ImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent, .format = format});
-}
-
-inline std::pair<FontStrokeAtlas, ImageBuffer> render_font_stroke_atlas(Font const &font, f32 font_height, f32 stroke_thickness, extent max_extent)
-{
-  ASH_LOG_INFO(FontRenderer, "Rendering CPU stroke atlas for font: {}, Enumerating glyph indices...", font.postscript_name.c_str());
-  // *64 to convert font height to 26.6 pixel format
-  font_height = std::max(font_height, 1.0f);
-
-  FT_Library ft_lib;
-  ASH_CHECK(FT_Init_FreeType(&ft_lib) == 0);
-
-  FT_Face ft_face;
-
-  ASH_CHECK(FT_New_Memory_Face(ft_lib, AS(FT_Byte const *, font.font_data.handle), AS(FT_Long, font.font_data_size), 0, &ft_face) == 0);
-  ASH_CHECK(FT_Set_Char_Size(ft_face, 0, AS(FT_F26Dot6, font_height * 64), 72, 72) == 0);
-
-  FT_Stroker ft_stroker;
-  ASH_CHECK(FT_Stroker_New(ft_lib, &ft_stroker) == 0);
-  FT_Stroker_Set(ft_stroker, AS(FT_Fixed, stroke_thickness * 64), FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
-
-  stx::Vec<GlyphStroke> strokes;
-
-  {
-    for (usize glyph_index = 0; glyph_index < ft_face->num_glyphs; glyph_index++)
-    {
-      if (FT_Load_Glyph(ft_face, glyph_index, 0) == 0)
-      {
-        FT_Glyph glyph;
-
-        if (FT_Get_Glyph(ft_face->glyph, &glyph) != 0)
-        {
-          continue;
-        }
-
-        if (FT_Glyph_StrokeBorder(&glyph, ft_stroker, false, true) != 0)
-        {
-          continue;
-        }
-
-        FT_BBox bounding_box;
-        FT_Glyph_Get_CBox(glyph, FT_GLYPH_BBOX_GRIDFIT, &bounding_box);
-
-        FT_Done_Glyph(glyph);
-
-        u32 width  = AS(u32, (bounding_box.xMax - bounding_box.xMin) >> 6);
-        u32 height = AS(u32, (bounding_box.yMax - bounding_box.yMin) >> 6);
-
-        strokes
-            .push(GlyphStroke{.is_valid       = true,
-                              .offset         = {},
-                              .extent         = extent{width, height},
-                              .texture_region = {}})
-            .unwrap();
-      }
-      else
-      {
-        strokes
-            .push(GlyphStroke{.is_valid       = false,
-                              .offset         = {},
-                              .extent         = {},
-                              .texture_region = {}})
-            .unwrap();
-      }
-    }
-  }
-
-  ASH_LOG_INFO(FontRenderer, "Packing {} placement rectangles for font: {}", strokes.size(), font.postscript_name.c_str());
-
-  stx::Memory rects_mem = stx::mem::allocate(stx::os_allocator, sizeof(rect_packer::rect) * strokes.size()).unwrap();
-
-  stx::Span rects{AS(rect_packer::rect *, rects_mem.handle), strokes.size()};
-
-  for (usize i = 0; i < strokes.size(); i++)
-  {
-    rects[i].glyph_index = i;
-    rects[i].x           = 0;
-    rects[i].y           = 0;
-    rects[i].w           = AS(i32, strokes[i].extent.width + 2);
-    rects[i].h           = AS(i32, strokes[i].extent.height + 2);
-  }
-
-  stx::Memory nodes_memory = stx::mem::allocate(stx::os_allocator, sizeof(rect_packer::Node) * max_extent.width).unwrap();
-
-  rect_packer::Context context = rect_packer::init(max_extent.width, max_extent.height, AS(rect_packer::Node *, nodes_memory.handle), max_extent.width, false);
-  if (!rect_packer::pack_rects(context, rects.data(), AS(i32, rects.size())))
-  {
-    ASH_LOG_WARN(FontRenderer, "Not all glyph strokes were packed into stroke atlas for font: {}", font.postscript_name.c_str());
-    for (rect_packer::rect &pack_rect : rects)
-    {
-      if (!pack_rect.was_packed)
-      {
-        pack_rect.x = 0;
-        pack_rect.y = 0;
-      }
-    }
-  }
-
-  // NOTE: vulkan doesn't allow zero-extent images
-  extent atlas_extent{1, 1};
-
-  for (usize i = 0; i < rects.size(); i++)
-  {
-    atlas_extent.width  = std::max<u32>(atlas_extent.width, rects[i].x + rects[i].w);
-    atlas_extent.height = std::max<u32>(atlas_extent.height, rects[i].y + rects[i].h);
-  }
-
-  for (usize i = 0; i < strokes.size(); i++)
-  {
-    u32 x = AS(u32, rects[i].x) + 1;
-    u32 y = AS(u32, rects[i].y) + 1;
-    u32 w = strokes[i].extent.width;
-    u32 h = strokes[i].extent.height;
-
-    strokes[i].offset               = offset{x, y};
-    strokes[i].texture_region.uv0.x = AS(f32, x) / atlas_extent.width;
-    strokes[i].texture_region.uv1.x = AS(f32, x + w) / atlas_extent.width;
-    strokes[i].texture_region.uv0.y = AS(f32, y) / atlas_extent.height;
-    strokes[i].texture_region.uv1.y = AS(f32, y + h) / atlas_extent.height;
-  }
-
-  ASH_LOG_INFO(FontRenderer, "Finished packing placement rectangles for font: {}, rendering {}x{} CPU glyph stroke atlas...", font.postscript_name.c_str(), atlas_extent.width, atlas_extent.height);
-
-  ImageFormat format = ImageFormat::Antialiasing;
-
-  usize nchannels = 1;
-
-  usize atlas_size = atlas_extent.area() * nchannels;
-
-  stx::Memory buffer_mem = stx::mem::allocate(stx::os_allocator, atlas_size).unwrap();
-
-  u8 *buffer = AS(u8 *, buffer_mem.handle);
-
-  std::memset(buffer, 0, atlas_size);
-
-  usize atlas_stride = atlas_extent.width * nchannels;
-
-  for (usize glyph_index = 0; glyph_index < strokes.size(); glyph_index++)
-  {
-    GlyphStroke const &stroke = strokes[glyph_index];
-    if (stroke.is_valid)
-    {
-      if (FT_Load_Glyph(ft_face, glyph_index, FT_LOAD_DEFAULT) != 0)
-      {
-        ASH_LOG_ERR(FontRenderer, "Failed to load glyph stroke at index: {} for font: {}", glyph_index, font.postscript_name.c_str());
-        continue;
-      }
-
-      FT_Glyph glyph;
-
-      if (FT_Get_Glyph(ft_face->glyph, &glyph) != 0)
-      {
-        ASH_LOG_ERR(FontRenderer, "Failed to get stroke glyph at index: {} for font: {}", glyph_index, font.postscript_name.c_str());
-        continue;
-      }
-
-      if (FT_Glyph_StrokeBorder(&glyph, ft_stroker, false, true) != 0)
-      {
-        ASH_LOG_ERR(FontRenderer, "Failed to render glyph stroke at index: {} for font: {}", glyph_index, font.postscript_name.c_str());
-        continue;
-      }
-
-      ASH_CHECK(FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, nullptr, true) == 0);
-
-      FT_BitmapGlyph bitmap_glyph  = reinterpret_cast<FT_BitmapGlyph>(glyph);
-      u8 const      *bitmap        = reinterpret_cast<u8 const *>(bitmap_glyph->bitmap.buffer);
-      usize          bitmap_stride = bitmap_glyph->bitmap.width * nchannels;
-
-      ASH_CHECK(stroke.extent.width >= bitmap_glyph->bitmap.width);
-      ASH_CHECK(stroke.extent.height >= bitmap_glyph->bitmap.rows);
-
-      // copy the rendered glyph to the atlas
-      for (usize j = stroke.offset.y; j < stroke.offset.y + stroke.extent.height; j++)
-      {
-        u8 *out = buffer + j * atlas_stride + stroke.offset.x * nchannels;
-        std::copy(bitmap, bitmap + bitmap_stride, out);
-        bitmap += bitmap_glyph->bitmap.pitch;
-      }
-
-      FT_Done_Glyph(glyph);
-    }
-  }
-
-  ASH_LOG_INFO(FontRenderer, "Finished rendering CPU glyph stroke atlas for font: {}", font.postscript_name.c_str());
-
-  ASH_CHECK(FT_Done_Face(ft_face) == 0);
-  FT_Stroker_Done(ft_stroker);
-  ASH_CHECK(FT_Done_FreeType(ft_lib) == 0);
-
-  return std::make_pair(FontStrokeAtlas{.strokes     = std::move(strokes),
-                                        .extent      = atlas_extent,
-                                        .font_height = font_height,
-                                        .thickness   = stroke_thickness,
-                                        .texture     = 0},
-                        ImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent, .format = format});
+                                  .texture     = 0},
+                        ImageBuffer{.memory = std::move(buffer_mem), .extent = atlas_extent, .format = ImageFormat::R8});
 }
 
 struct FontSpec
 {
   stx::String name;                          // name to use to recognise the font
   stx::String path;                          // local file system path of the typeface resource
-  f32         atlas_font_height = 64;        // font height to render and cache the font atlas' glyphs at
-  f32         stroke_thickness  = 0;
+  f32         atlas_font_height = 48;        // font height to render and cache the font atlas' glyphs at
   extent      max_atlas_extent  = DEFAULT_MAX_FONT_ATLAS_EXTENT;
 };
 
 struct BundledFont
 {
-  stx::String                  name;        // name to use to recognise the font
-  stx::Rc<Font *>              font;
-  FontAtlas                    atlas;
-  stx::Option<FontStrokeAtlas> stroke_atlas;
+  stx::String     name;        // name to use to recognise and match the font
+  stx::Rc<Font *> font;
+  FontAtlas       atlas;
 };
 
 }        // namespace ash
