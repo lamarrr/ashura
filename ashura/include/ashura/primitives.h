@@ -806,25 +806,25 @@ constexpr mat4 inverse(mat4 const &a)
   return 1 / determinant(a) * adjoint(a);
 }
 
-constexpr vec2 transform(mat4 const &a, vec2 const &b)
+constexpr vec2 transform3d(mat4 const &a, vec2 const &b)
 {
   vec4 prod = a *vec4{b.x, b.y, 0, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
-constexpr vec2 transform(mat4 const &a, vec3 const &b)
+constexpr vec2 transform3d(mat4 const &a, vec3 const &b)
 {
   vec4 prod = a *vec4{b.x, b.y, b.z, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
-constexpr quad transform(mat4 const &a, rect const &b)
+constexpr quad transform2d(mat3 const &a, rect const &b)
 {
   return quad{
-      .p0 = transform(a, b.top_left()),
-      .p1 = transform(a, b.top_right()),
-      .p2 = transform(a, b.bottom_right()),
-      .p3 = transform(a, b.bottom_left())};
+      .p0 = transform2d(a, b.top_left()),
+      .p1 = transform2d(a, b.top_right()),
+      .p2 = transform2d(a, b.bottom_right()),
+      .p3 = transform2d(a, b.bottom_left())};
 }
 
 constexpr vec2 transform2d(mat3 const &a, vec2 const &b)
@@ -840,19 +840,16 @@ constexpr mat3 translate2d(vec2 t)
                        {0, 0, 1}}};
 }
 
-constexpr mat4 translate(vec3 t)
+constexpr mat3 translate2d(f32 tx, f32 ty)
+{
+  return translate2d(vec2{tx, ty});
+}
+
+constexpr mat4 translate3d(vec3 t)
 {
   return mat4{.rows = {{1, 0, 0, t.x},
                        {0, 1, 0, t.y},
                        {0, 0, 1, t.z},
-                       {0, 0, 0, 1}}};
-}
-
-constexpr mat4 scale(vec3 s)
-{
-  return mat4{.rows = {{s.x, 0, 0, 0},
-                       {0, s.y, 0, 0},
-                       {0, 0, s.z, 0},
                        {0, 0, 0, 1}}};
 }
 
@@ -863,27 +860,16 @@ constexpr mat3 scale2d(vec2 s)
                        {0, 0, 1}}};
 }
 
-inline mat4 rotate_x(f32 degree_radians)
+constexpr mat3 scale2d(f32 sx, f32 sy)
 {
-  return mat4{.rows = {{1, 0, 0, 0},
-                       {0, std::cos(degree_radians), -std::sin(degree_radians), 0},
-                       {0, std::sin(degree_radians), std::cos(degree_radians), 0},
-                       {0, 0, 0, 1}}};
+  return scale2d(vec2{sx, sy});
 }
 
-inline mat4 rotate_y(f32 degree_radians)
+constexpr mat4 scale3d(vec3 s)
 {
-  return mat4{.rows = {{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
-                       {0, 1, 0, 0},
-                       {-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
-                       {0, 0, 0, 1}}};
-}
-
-inline mat4 rotate_z(f32 degree_radians)
-{
-  return mat4{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
-                       {std::sin(degree_radians), std::cos(degree_radians), 0, 0},
-                       {0, 0, 1, 0},
+  return mat4{.rows = {{s.x, 0, 0, 0},
+                       {0, s.y, 0, 0},
+                       {0, 0, s.z, 0},
                        {0, 0, 0, 1}}};
 }
 
@@ -894,7 +880,45 @@ inline mat3 rotate2d(f32 degree_radians)
                        {0, std::sin(degree_radians), std::cos(degree_radians)}}};
 }
 
-inline mat4 shear_x(f32 y_shear, f32 z_shear)
+inline mat4 rotate3d_x(f32 degree_radians)
+{
+  return mat4{.rows = {{1, 0, 0, 0},
+                       {0, std::cos(degree_radians), -std::sin(degree_radians), 0},
+                       {0, std::sin(degree_radians), std::cos(degree_radians), 0},
+                       {0, 0, 0, 1}}};
+}
+
+inline mat4 rotate3d_y(f32 degree_radians)
+{
+  return mat4{.rows = {{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
+                       {0, 1, 0, 0},
+                       {-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
+                       {0, 0, 0, 1}}};
+}
+
+inline mat4 rotate3d_z(f32 degree_radians)
+{
+  return mat4{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
+                       {std::sin(degree_radians), std::cos(degree_radians), 0, 0},
+                       {0, 0, 1, 0},
+                       {0, 0, 0, 1}}};
+}
+
+constexpr mat3 shear2d_x(f32 x_shear)
+{
+  return mat3{.rows = {{1, 0, 0},
+                       {x_shear, 1, 0},
+                       {0, 0, 1}}};
+}
+
+constexpr mat3 shear2d_y(f32 y_shear)
+{
+  return mat3{.rows = {{1, y_shear, 0},
+                       {0, 1, 0},
+                       {0, 0, 1}}};
+}
+
+constexpr mat4 shear3d_x(f32 y_shear, f32 z_shear)
 {
   return mat4{.rows = {{1, y_shear, z_shear, 0},
                        {0, 1, 0, 0},
@@ -902,7 +926,7 @@ inline mat4 shear_x(f32 y_shear, f32 z_shear)
                        {0, 0, 0, 1}}};
 }
 
-inline mat4 shear_y(f32 x_shear, f32 z_shear)
+constexpr mat4 shear3d_y(f32 x_shear, f32 z_shear)
 {
   return mat4{.rows = {{1, 0, 0, 0},
                        {x_shear, 1, z_shear, 0},
@@ -910,7 +934,7 @@ inline mat4 shear_y(f32 x_shear, f32 z_shear)
                        {0, 0, 0, 1}}};
 }
 
-inline mat4 shear_z(f32 x_shear, f32 y_shear)
+constexpr mat4 shear3d_z(f32 x_shear, f32 y_shear)
 {
   return mat4{.rows = {{1, 0, 0, 0},
                        {0, 1, 0, 0},
