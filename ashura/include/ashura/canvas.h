@@ -7,6 +7,7 @@
 
 #include "ashura/font.h"
 #include "ashura/image.h"
+#include "ashura/pipeline.h"
 #include "ashura/primitives.h"
 #include "ashura/text.h"
 #include "stx/text.h"
@@ -14,6 +15,12 @@
 
 namespace ash
 {
+
+constexpr u32 NIMAGES_PER_DRAWCALL = 8;
+constexpr u32 PUSH_CONSTANT_SIZE   = 128;
+
+static_assert(PUSH_CONSTANT_SIZE % 4 == 0);
+
 namespace gfx
 {
 
@@ -285,11 +292,21 @@ inline void triangulate_line(stx::Span<vertex const> in_points, f32 thickness, s
 
 struct DrawCommand
 {
-  u32   nvertices = 0;
-  u32   nindices  = 0;
-  rect  scissor;
-  mat4  transform;
-  image texture = WHITE_IMAGE;
+  std::string_view pipeline;                                      /// ID of pipeline to use for rendering
+  u32              nvertices  = 0;                                /// number of vertices for this draw call. offset is automatically determined
+  u32              nindices   = 0;                                /// number of indices for this draw call. offset is automatically determined
+  u32              ninstances = 1;                                /// number of instances used for instanced rendering
+  irect            scissor;                                       /// determines visible area of the rendering operation, in framebuffer coordinates (0, 0) -> viewport_extent
+  image            textures[NIMAGES_PER_DRAWCALL]    = {};        /// textures bounded to each descriptor set, 8-max
+  u8               push_constant[PUSH_CONSTANT_SIZE] = {};        /// push constant used for draw call. maximum size of PUSH_CONSTANT_SIZE bytes
+
+  template <typename T>
+  DrawCommand with_push_constant(T const &constant) const
+  {
+    static_assert(sizeof(T) <= PUSH_CONSTANT_SIZE);
+    stx::Span{push_constant}.as_u8().copy(stx::Span{&constant, 1}.as_u8());
+    return *this;
+  }
 };
 
 struct DrawList
