@@ -27,7 +27,7 @@ namespace gfx
 namespace paths
 {
 
-inline stx::Span<vertex> rect(vec2 extent, vec4 color, vec2 offset, stx::Span<vertex> polygon)
+inline stx::Span<vertex> rect(vec2 offset, vec2 extent, vec4 color, stx::Span<vertex> polygon)
 {
   vertex vertices[] = {{.position = offset, .uv = {}, .color = color},
                        {.position = offset + vec2{extent.x, 0}, .uv = {}, .color = color},
@@ -58,6 +58,8 @@ inline stx::Span<vertex> arc(vec2 offset, f32 radius, f32 begin, f32 end, u32 ns
 
   return polygon;
 }
+
+inline stx::Span<vertex> circle(vec2 offset, f32 radius, u32 nsegments, vec4 color, stx::Span<vertex> polygon)
 {
   if (nsegments == 0 || radius <= 0)
   {
@@ -75,7 +77,7 @@ inline stx::Span<vertex> arc(vec2 offset, f32 radius, f32 begin, f32 end, u32 ns
   return polygon;
 }
 
-inline stx::Span<vertex> ellipse(vec2 radii, u32 nsegments, vec4 color, vec2 offset, stx::Span<vertex> polygon)
+inline stx::Span<vertex> ellipse(vec2 offset, vec2 radii, u32 nsegments, vec4 color, stx::Span<vertex> polygon)
 {
   if (nsegments == 0 || radii.x <= 0 || radii.y <= 0)
   {
@@ -94,7 +96,7 @@ inline stx::Span<vertex> ellipse(vec2 radii, u32 nsegments, vec4 color, vec2 off
 }
 
 // outputs 8 + nsegments * 4 vertices
-inline stx::Span<vertex> round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4 color, vec2 offset, stx::Span<vertex> polygon)
+inline stx::Span<vertex> round_rect(vec2 offset, vec2 extent, vec4 radii, u32 nsegments, vec4 color, stx::Span<vertex> polygon)
 {
   f32 max_radius   = std::min(extent.x, extent.y);
   radii.x          = std::min(radii.x, max_radius);
@@ -608,9 +610,8 @@ struct Canvas
       return *this;
     }
 
-    paths::interpolate_uvs(paths::rect(area.extent, color.to_vec(), vec2{0, 0}, reserve_convex_polygon(4, area.offset, texture)),
-                           area.extent,
-                           texture_region);
+    paths::lerp_uvs(paths::rect(vec2{0, 0}, area.extent, color.to_vec(), reserve_convex_polygon(4, area.offset, texture)),
+                    area.extent, texture_region);
 
     return *this;
   }
@@ -639,9 +640,8 @@ struct Canvas
       return *this;
     }
 
-    paths::interpolate_uvs(paths::circle(radius, nsegments, color.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments, position, texture)),
-                           area.extent,
-                           texture_region);
+    paths::lerp_uvs(paths::circle(vec2{0, 0}, radius, nsegments, color.to_vec(), reserve_convex_polygon(nsegments, position, texture)),
+                    area.extent, texture_region);
 
     return *this;
   }
@@ -747,9 +747,8 @@ struct Canvas
       return *this;
     }
 
-    paths::interpolate_uvs(paths::rect(area.extent, tint.to_vec(), vec2{0, 0}, reserve_convex_polygon(4, area.offset, img)),
-                           area.extent,
-                           texture_region);
+    paths::lerp_uvs(paths::rect(vec2{0, 0}, area.extent, tint.to_vec(), reserve_convex_polygon(4, area.offset, img)),
+                    area.extent, texture_region);
 
     return *this;
   }
@@ -766,9 +765,8 @@ struct Canvas
       return *this;
     }
 
-    paths::interpolate_uvs(paths::round_rect(area.extent, border_radii, nsegments, tint.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments * 4 + 8, area.offset, img)),
-                           area.extent,
-                           texture_region);
+    paths::lerp_uvs(paths::round_rect(vec2{0, 0}, area.extent, border_radii, nsegments, tint.to_vec(), reserve_convex_polygon(nsegments * 4 + 8, area.offset, img)),
+                    area.extent, texture_region);
 
     return *this;
   }
