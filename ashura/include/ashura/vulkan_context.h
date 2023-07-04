@@ -172,49 +172,19 @@ struct RenderResourceManager
 
     switch (view.format)
     {
-      case ImageFormat::Alpha:
+      case ImageFormat::Rgba8888:
       {
-        for (usize i = 0; i < view.extent.area(); i++)
-        {
-          out[0] = 0x00;
-          out[1] = 0x00;
-          out[2] = 0x00;
-          out[3] = *in;
-          out += 4;
-          in++;
-        }
+        dst.copy(view.data);
       }
       break;
 
-      case ImageFormat::Antialiasing:
+      case ImageFormat::Bgra8888:
       {
-        for (usize i = 0; i < view.extent.area(); i++)
-        {
-          out[0] = 0xFF;
-          out[1] = 0xFF;
-          out[2] = 0xFF;
-          out[3] = *in;
-          out += 4;
-          in++;
-        }
+        dst.copy(view.data);
       }
       break;
 
-      case ImageFormat::Gray:
-      {
-        for (usize i = 0; i < view.extent.area(); i++)
-        {
-          out[0] = *in;
-          out[1] = *in;
-          out[2] = *in;
-          out[3] = 0xFF;
-          out += 4;
-          in++;
-        }
-      }
-      break;
-
-      case ImageFormat::Rgb:
+      case ImageFormat::Rgb888:
       {
         for (usize i = 0; i < view.extent.area(); i++)
         {
@@ -228,13 +198,7 @@ struct RenderResourceManager
       }
       break;
 
-      case ImageFormat::Rgba:
-      {
-        dst.copy(view.data);
-      }
-      break;
-
-      case ImageFormat::Bgra:
+      case ImageFormat::R8:
       {
         dst.copy(view.data);
       }
