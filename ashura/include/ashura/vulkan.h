@@ -757,7 +757,9 @@ inline stx::Option<CommandQueue> get_command_queue(stx::Rc<Device *> const &devi
   });
 
   if (queue_s.is_empty())
+  {
     return stx::None;
+  }
 
   CommandQueueInfo const &queue = queue_s[0];
 
@@ -1217,7 +1219,7 @@ struct SwapChain
   /// (determines how the images are used, in what order and whether they
   /// repeat). a.k.a. frame_flight_index
   u32                     frame                 = 0;
-  u32                     max_nframes_in_flight = 0;
+  u32                     max_nframes_in_flight = 0;        // can be smaller or equal to the number of images on the swapchain but never larger
   VkSurfaceFormatKHR      color_format{.format = VK_FORMAT_R8G8B8A8_UNORM, .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};
   VkFormat                depth_format = VK_FORMAT_D32_SFLOAT;
   VkPresentModeKHR        present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
@@ -1258,8 +1260,8 @@ struct SwapChain
     // swapchain formats are device-dependent
     VkSurfaceFormatKHR selected_format = select_swapchain_surface_formats(properties.supported_formats, preferred_formats);
 
-    ASH_LOG_INFO(Vulkan, "Selected swapchain surface config with format: {} and color space: {}", string_VkFormat(selected_format.format),
-                 string_VkColorSpaceKHR(selected_format.colorSpace));
+    ASH_LOG_INFO(Vulkan, "Selected swapchain surface config with format: {} and color space: {}, and {} swapchain images", string_VkFormat(selected_format.format),
+                 string_VkColorSpaceKHR(selected_format.colorSpace), max_nframes_in_flight);
 
     ASH_LOG_INFO(Vulkan, "Available swapchain presentation modes:");
 
@@ -1269,7 +1271,7 @@ struct SwapChain
     ASH_LOG_INFO(Vulkan, "Selected swapchain presentation mode: {}", string_VkPresentModeKHR(selected_present_mode));
 
     auto [new_swapchain, new_extent, is_visible_extent] = create_swapchain(
-        dev, target_surface, preferred_extent, selected_format, selected_present_mode, properties,
+        dev, target_surface, preferred_extent, selected_format, max_nframes_in_flight, selected_present_mode, properties,
         // not thread-safe since GPUs typically have one graphics queue
         VK_SHARING_MODE_EXCLUSIVE,
         // render target image
@@ -1325,6 +1327,7 @@ struct SwapChain
       image_views.push_inplace(view).unwrap();
     }
 
+    // TODO(lamarrr): we can diff this and only rebuild the pipeline if any of the arguments changes
     VkAttachmentDescription color_attachment{.flags          = 0,
                                              .format         = color_format.format,
                                              .samples        = msaa_sample_count,
@@ -1536,7 +1539,7 @@ struct Surface
   {
     // don't want to have two existing at once
     swapchain.match(SwapChain::destroy, []() {});
-      swapchain = stx::None;
+    swapchain = stx::None;
 
     SwapChain new_swapchain;
 
