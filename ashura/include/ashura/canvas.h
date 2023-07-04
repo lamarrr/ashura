@@ -606,7 +606,7 @@ struct Canvas
 
     vertex line[4];
 
-    paths::rect(area.extent - thickness, color.to_vec(), vec2::splat(thickness / 2), line);
+    paths::rect(vec2::splat(thickness / 2), area.extent - thickness, color.to_vec(), line);
 
     return draw_path(line, area, thickness, true, texture, texture_region);
   }
@@ -630,8 +630,8 @@ struct Canvas
 
   Canvas &draw_circle_stroke(vec2 center, f32 radius, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
-    vec2 position = center - radius + thickness / 2;
-    rect area{.offset = position, .extent = vec2::splat(2 * radius)};
+    vec2 position = center - radius - thickness / 2;
+    rect area{.offset = position, .extent = vec2::splat(2 * radius + thickness)};
 
     if (!viewport_contains(area) || thickness == 0)
     {
@@ -640,7 +640,7 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    paths::circle(radius - thickness, nsegments, color.to_vec(), vec2::splat(thickness / 2), scratch);
+    paths::circle(vec2::splat(thickness / 2), radius - thickness, nsegments, color.to_vec(), scratch);
 
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
@@ -658,9 +658,8 @@ struct Canvas
       return *this;
     }
 
-    paths::interpolate_uvs(paths::ellipse(radii, nsegments, color.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments, area.offset, texture)),
-                           area.extent,
-                           texture_region);
+    paths::lerp_uvs(paths::ellipse(vec2{0, 0}, radii, nsegments, color.to_vec(), reserve_convex_polygon(nsegments, area.offset, texture)),
+                    area.extent, texture_region);
 
     return *this;
   }
@@ -677,7 +676,7 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    paths::ellipse(radii - thickness, nsegments, color.to_vec(), vec2::splat(thickness / 2), scratch);
+    paths::ellipse(vec2::splat(thickness / 2), radii - thickness, nsegments, color.to_vec(), scratch);
 
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
@@ -689,9 +688,8 @@ struct Canvas
       return *this;
     }
 
-    paths::interpolate_uvs(paths::round_rect(area.extent, radii, nsegments, color.to_vec(), vec2{0, 0}, reserve_convex_polygon(nsegments * 4 + 8, area.offset, texture)),
-                           area.extent,
-                           texture_region);
+    paths::lerp_uvs(paths::round_rect(vec2{0, 0}, area.extent, radii, nsegments, color.to_vec(), reserve_convex_polygon(nsegments * 4 + 8, area.offset, texture)),
+                    area.extent, texture_region);
 
     return *this;
   }
@@ -705,7 +703,7 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments * 4 + 8).unwrap();
 
-    paths::round_rect(area.extent - thickness, radii, nsegments, color.to_vec(), vec2::splat(thickness / 2), scratch);
+    paths::round_rect(vec2::splat(thickness / 2), area.extent - thickness, radii, nsegments, color.to_vec(), scratch);
 
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
