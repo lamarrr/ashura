@@ -164,7 +164,9 @@ inline stx::Span<vertex> lerp_uvs(stx::Span<vertex> path, vec2 extent, texture_r
 {
   for (vertex &v : path)
   {
-    v.uv = texture_region.uv0 + v.position / epsilon_clamp(extent) * (texture_region.uv1 - texture_region.uv0);
+    vec2 t = v.position / epsilon_clamp(extent);
+    v.uv.x = lerp(texture_region.uv0.x, texture_region.uv1.x, t.x);
+    v.uv.y = lerp(texture_region.uv0.y, texture_region.uv1.y, t.y);
   }
 
   return path;
@@ -407,14 +409,14 @@ struct Canvas
   /// pop state (transform and scissor) stack and restore state
   Canvas &restore()
   {
-    state = state_stack.pop().unwrap_or(CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}});
+    state = state_stack.pop().unwrap_or(CanvasState{.transform = mat3::identity(), .global_transform = mat3::identity(), .scissor = irect{.offset = {0, 0}, .extent = extent::from(viewport_extent)}});
     return *this;
   }
 
   /// reset the rendering context to its default state (transform and scissor)
   Canvas &reset()
   {
-    state = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}};
+    state = CanvasState{.transform = mat3::identity(), .global_transform = mat3::identity(), .scissor = irect{.offset = {0, 0}, .extent = extent::from(viewport_extent)}};
     state_stack.clear();
     return *this;
   }
