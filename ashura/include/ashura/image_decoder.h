@@ -31,23 +31,33 @@ enum class ImageLoadError : u8
 
 inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(stx::Span<u8 const> data)
 {
-  int width, height;
+  WebPBitstreamFeatures features;
 
-  if (!WebPGetInfo(data.data(), data.size(), &width, &height))
+  if (WebPGetFeatures(data.data(), data.size(), &features) != VP8_STATUS_OK)
   {
     return stx::Err(ImageLoadError::InvalidData);
   }
 
-  stx::Memory memory = stx::mem::allocate(stx::os_allocator, width * height * 4).unwrap();
+  stx::Memory memory = stx::mem::allocate(stx::os_allocator, AS(usize, features.width * features.height * features.has_alpha ? 4 : 3)).unwrap();
 
   u8 *pixels = AS(u8 *, memory.handle);
 
-  if (WebPDecodeRGBAInto(data.data(), data.size(), pixels, width * height * 4, width * 4) == nullptr)
+  if (features.has_alpha)
   {
-    return stx::Err(ImageLoadError::InvalidData);
+    if (WebPDecodeRGBAInto(data.data(), data.size(), pixels, features.width * features.height * 4, features.width * 4) == nullptr)
+    {
+      return stx::Err(ImageLoadError::InvalidData);
+    }
+  }
+  else
+  {
+    if (WebPDecodeRGBInto(data.data(), data.size(), pixels, features.width * features.height * 3, features.width * 3) == nullptr)
+    {
+      return stx::Err(ImageLoadError::InvalidData);
+    }
   }
 
-  return stx::Ok(ImageBuffer{.memory = std::move(memory), .extent = extent{AS(u32, width), AS(u32, height)}, .format = ImageFormat::Rgba});
+  return stx::Ok(ImageBuffer{.memory = std::move(memory), .extent = extent{AS(u32, features.width), AS(u32, features.height)}, .format = features.has_alpha ? ImageFormat::Rgba8888 : ImageFormat::Rgb888});
 }
 
 inline void png_stream_reader(png_structp png_ptr, unsigned char *out, usize nbytes_to_read)
