@@ -319,7 +319,7 @@ struct RenderResourceManager
     ASH_VK_CHECK(vkAllocateDescriptorSets(dev, &descriptor_set_allocate_info, &descriptor_set));
 
     {
-      VkDescriptorImageInfo image_info{.sampler = sampler.sampler, .imageView = view, .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      VkDescriptorImageInfo image_info{.sampler = sampler, .imageView = view, .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
       VkWriteDescriptorSet write{.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                  .pNext            = nullptr,
@@ -511,17 +511,12 @@ struct RenderResourceManager
 
     ASH_VK_CHECK(vkQueueWaitIdle(queue.value()->info.queue));
 
+    // stable iterator
     for (auto it = images.begin(); it != images.end(); it++)
     {
       if (it->second.needs_delete)
       {
-        ASH_CHECK(vkFreeDescriptorSets(queue.value()->device->dev, descriptor_pool, 1, &it->second.descriptor_set) == VK_SUCCESS);
-        it->second.image.destroy();
-        if (it->second.staging_buffer.is_some())
-        {
-          it->second.staging_buffer.value().destroy();
-          it->second.staging_buffer = stx::None;
-        }
+        it->second.destroy(descriptor_pool);
       }
       images.erase(it);
     }
