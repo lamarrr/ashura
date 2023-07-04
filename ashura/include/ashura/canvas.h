@@ -495,12 +495,14 @@ struct Canvas
 
     draw_list.indices.extend(indices).unwrap();
 
-    draw_list.commands
-        .push(DrawCommand{.nvertices = AS(u32, std::size(vertices)),
-                          .nindices  = AS(u32, std::size(indices)),
-                          .scissor   = rect{.offset = {0, 0}, .extent = viewport_extent},
-                          .transform = mat4::identity(),
-                          .texture   = texture})
+    draw_list.commands.push(DrawCommand{
+                                .pipeline   = DEFAULT_SHAPE_PIPELINE,
+                                .nvertices  = AS(u32, std::size(vertices)),
+                                .nindices   = AS(u32, std::size(indices)),
+                                .ninstances = 1,
+                                .scissor    = irect{.offset = {0, 0}, .extent = extent::from(viewport_extent)},
+                                .textures   = {texture}}
+                                .with_push_constant(make_transform(vec2{0, 0}).transpose()))
         .unwrap();
 
     return *this;
@@ -525,11 +527,14 @@ struct Canvas
     u32 nvertices = AS(u32, curr_nvertices - prev_nvertices);
     u32 nindices  = AS(u32, curr_nindices - prev_nindices);
 
-    draw_list.commands.push(DrawCommand{.nvertices = nvertices,
-                                        .nindices  = nindices,
-                                        .scissor   = state.scissor,
-                                        .transform = make_transform(area.offset),
-                                        .texture   = texture})
+    draw_list.commands.push(DrawCommand{
+                                .pipeline   = DEFAULT_SHAPE_PIPELINE,
+                                .nvertices  = nvertices,
+                                .nindices   = nindices,
+                                .ninstances = 1,
+                                .scissor    = state.scissor,
+                                .textures   = {texture}}
+                                .with_push_constant(make_transform(area.offset).transpose()))
         .unwrap();
 
     return *this;
