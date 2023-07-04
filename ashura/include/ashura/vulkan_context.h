@@ -544,23 +544,25 @@ struct RenderResourceManager
 ///
 struct CanvasPipeline
 {
-  VkShaderModule vertex_shader   = VK_NULL_HANDLE;
-  VkShaderModule fragment_shader = VK_NULL_HANDLE;
-  Pipeline       pipeline;
+  VkShaderModule        vertex_shader   = VK_NULL_HANDLE;
+  VkShaderModule        fragment_shader = VK_NULL_HANDLE;
+  stx::Option<Pipeline> pipeline;
 
-  void destroy()
+  void destroy(VkDevice dev)
   {
-    vkDestroyShaderModule(pipeline.dev, vertex_shader, nullptr);
-    vkDestroyShaderModule(pipeline.dev, fragment_shader, nullptr);
-    pipeline.destroy();
+    vkDestroyShaderModule(dev, vertex_shader, nullptr);
+    vkDestroyShaderModule(dev, fragment_shader, nullptr);
+    pipeline.match(Pipeline::destroy, []() {});
   }
 };
 
+/// pipelines are static and can not be removed once added
 struct CanvasPipelineManager
 {
   std::map<gfx::pipeline, CanvasPipeline> pipelines;
   VkDescriptorSetLayout                   descriptor_set_layout = VK_NULL_HANDLE;
   VkDevice                                dev                   = VK_NULL_HANDLE;
+  u64                                     next_pipeline_id      = 0;
 
   void init(VkDevice adev)
   {
