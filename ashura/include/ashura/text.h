@@ -667,7 +667,6 @@ struct TextLayout
     /** Word Wrapping and Line Breaking */
     {
       f32 cursor_x = 0;
-
       for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
       {
         TextRunSubWord  *word_begin = iter;
@@ -701,6 +700,10 @@ struct TextLayout
         {
           word_begin->is_wrapped = true;
           cursor_x               = word_width;
+        }
+        else if ((word_end - 1)->nnewline_chars > 0)
+        {
+          cursor_x = 0;
         }
         else
         {
