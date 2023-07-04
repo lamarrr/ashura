@@ -317,14 +317,14 @@ struct Window
     // VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT;
     // VK_COLOR_SPACE_DCI_P3_LINEAR_EXT;
 
-    VkPresentModeKHR preferred_present_modes[] = {VK_PRESENT_MODE_IMMEDIATE_KHR,VK_PRESENT_MODE_FIFO_KHR,  VK_PRESENT_MODE_FIFO_RELAXED_KHR,
+    VkPresentModeKHR preferred_present_modes[] = {VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR,
                                                   VK_PRESENT_MODE_MAILBOX_KHR};
 
-    VkSampleCountFlagBits msaa_sample_count = queue->device->phy_dev->get_max_sample_count();
+    VkSampleCountFlagBits max_msaa_sample_count = queue->device->phy_dev->get_max_sample_count();
 
     surface.value()->change_swapchain(queue, max_nframes_in_flight, preferred_formats, preferred_present_modes,
                                       VkExtent2D{.width = AS(u32, surface_width), .height = AS(u32, surface_height)},
-                                      VkExtent2D{.width = AS(u32, width), .height = AS(u32, height)}, msaa_sample_count,
+                                      VkExtent2D{.width = AS(u32, width), .height = AS(u32, height)}, max_msaa_sample_count,
                                       VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
   }
 
