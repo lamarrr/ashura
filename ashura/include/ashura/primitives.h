@@ -788,42 +788,42 @@ constexpr f32 determinant(mat4 const &a)
                    a[0].y * a[1].w * a[2].z);
 }
 
-constexpr mat4 adjoint(mat4 const &a)
-{
-  // TODO(lamarrr): complete from https://semath.info/src/inverse-cofactor-ex4.html
-  return mat4{.rows = {{a[1].y * a[2].z * a[3].w +
-                            a[1].z * a[2].w * a[3].y +
-                            a[1].w * a[2].y * a[3].z -
-                            a[1].w * a[2].z * a[3].y -
-                            a[1].w * a[2].y * a[3].w -
-                            a[1].y * a[2].w * a[3].z,
-                        -a[0].y * a[2].z * a[3].w -
-                            a[0].z * a[2].w * a[3].y -
-                            a[0].w * a[2].y * a[3].z +
-                            a[0].w * a[2].z * a[3].y +
-                            a[0].z * a[2].y * a[3].w +
-                            a[0].y * a[2].w * a[3].z,
-                        a[0].y * a[1].z * a[3].w +
-                            a[0].z * a[1].w * a[3].y +
-                            a[0].w * a[1].y * a[3].z -
-                            a[0].w * a[1].z * a[3].y -
-                            a[0].z * a[1].y * a[3].w -
-                            a[0].y * a[1].w * a[3].z,
-                        -a[0].y * a[1].z * a[2].w -
-                            a[0].z * a[1].w * a[2].y -
-                            a[0].w * a[1].y * a[2].z +
-                            a[0].w * a[1].z * a[2].y +
-                            a[0].z * a[1].y * a[2].w +
-                            a[0].y * a[1].w * a[2].z},
-                       {},
-                       {},
-                       {}}};
-}
+// constexpr mat4 adjoint(mat4 const &a)
+// {
+//   // TODO(lamarrr): complete from https://semath.info/src/inverse-cofactor-ex4.html
+//   return mat4{.rows = {{a[1].y * a[2].z * a[3].w +
+//                             a[1].z * a[2].w * a[3].y +
+//                             a[1].w * a[2].y * a[3].z -
+//                             a[1].w * a[2].z * a[3].y -
+//                             a[1].w * a[2].y * a[3].w -
+//                             a[1].y * a[2].w * a[3].z,
+//                         -a[0].y * a[2].z * a[3].w -
+//                             a[0].z * a[2].w * a[3].y -
+//                             a[0].w * a[2].y * a[3].z +
+//                             a[0].w * a[2].z * a[3].y +
+//                             a[0].z * a[2].y * a[3].w +
+//                             a[0].y * a[2].w * a[3].z,
+//                         a[0].y * a[1].z * a[3].w +
+//                             a[0].z * a[1].w * a[3].y +
+//                             a[0].w * a[1].y * a[3].z -
+//                             a[0].w * a[1].z * a[3].y -
+//                             a[0].z * a[1].y * a[3].w -
+//                             a[0].y * a[1].w * a[3].z,
+//                         -a[0].y * a[1].z * a[2].w -
+//                             a[0].z * a[1].w * a[2].y -
+//                             a[0].w * a[1].y * a[2].z +
+//                             a[0].w * a[1].z * a[2].y +
+//                             a[0].z * a[1].y * a[2].w +
+//                             a[0].y * a[1].w * a[2].z},
+//                        {},
+//                        {},
+//                        {}}};
+//}
 
-constexpr mat4 inverse(mat4 const &a)
-{
-  return 1 / determinant(a) * adjoint(a);
-}
+// constexpr mat4 inverse(mat4 const &a)
+// {
+//   return 1 / determinant(a) * adjoint(a);
+// }
 
 constexpr vec2 transform3d(mat4 const &a, vec2 const &b)
 {
