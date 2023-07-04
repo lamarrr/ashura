@@ -1555,20 +1555,15 @@ struct Surface
 
 struct Pipeline
 {
-  VkPipeline            pipeline           = VK_NULL_HANDLE;
-  VkPipelineLayout      layout             = VK_NULL_HANDLE;
-  VkRenderPass          target_render_pass = VK_NULL_HANDLE;
-  VkSampleCountFlagBits msaa_sample_count  = VK_SAMPLE_COUNT_1_BIT;
-  VkDevice              dev                = VK_NULL_HANDLE;
+  VkPipeline       pipeline = VK_NULL_HANDLE;
+  VkPipelineLayout layout   = VK_NULL_HANDLE;
+  VkDevice         dev      = VK_NULL_HANDLE;
 
-  void build(VkDevice adev, VkShaderModule vertex_shader, VkShaderModule fragment_shader, VkRenderPass atarget_render_pass,
-             VkSampleCountFlagBits amsaa_sample_count, stx::Span<VkDescriptorSetLayout const> descriptor_set_layout,
-             stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr, u32 vertex_input_size,
-             u32 push_constant_size)
+  void build(VkDevice adev, VkShaderModule vertex_shader, VkShaderModule fragment_shader, VkRenderPass target_render_pass,
+             VkSampleCountFlagBits msaa_sample_count, stx::Span<VkDescriptorSetLayout const> descriptor_set_layout,
+             stx::Span<VkVertexInputAttributeDescription const> vertex_input_attr, u32 vertex_input_stride, u32 push_constant_size)
   {
-    dev                = adev;
-    msaa_sample_count  = amsaa_sample_count;
-    target_render_pass = atarget_render_pass;
+    dev = adev;
 
     VkPipelineShaderStageCreateInfo vert_shader_stage{.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                                                       .pNext               = nullptr,
