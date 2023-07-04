@@ -557,12 +557,14 @@ struct Canvas
     u32 nvertices = AS(u32, curr_nvertices - prev_nvertices);
     u32 nindices  = AS(u32, curr_nindices - prev_nindices);
 
-    draw_list.commands
-        .push(DrawCommand{.nvertices = nvertices,
-                          .nindices  = nindices,
-                          .scissor   = state.scissor,
-                          .transform = make_transform(position),
-                          .texture   = texture})
+    draw_list.commands.push(DrawCommand{
+                                .pipeline   = DEFAULT_SHAPE_PIPELINE,
+                                .nvertices  = nvertices,
+                                .nindices   = nindices,
+                                .ninstances = 1,
+                                .scissor    = state.scissor,
+                                .textures   = {texture}}
+                                .with_push_constant(make_transform(position).transpose()))
         .unwrap();
 
     return polygon;
