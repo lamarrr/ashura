@@ -643,6 +643,12 @@ constexpr mat3 operator*(mat3 const &a, mat3 const &b)
                         dot(a[2], {b[0].z, b[1].z, b[2].z})}}};
 }
 
+constexpr vec2 transform2d(mat3 const &a, vec2 const &b)
+{
+  vec3 c = a *vec3{b.x, b.y, 0};
+  return vec2{c.x, c.y};
+}
+
 constexpr f32 determinant(mat3 const &a)
 {
   return a[0].x * a[1].y * a[2].z -
