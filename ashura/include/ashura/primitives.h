@@ -630,6 +630,19 @@ constexpr vec3 operator*(mat3 const &a, vec3 const &b)
   return vec3{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b)};
 }
 
+constexpr mat3 operator*(mat3 const &a, mat3 const &b)
+{
+  return mat3{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x}),
+                        dot(a[0], {b[0].y, b[1].y, b[2].y}),
+                        dot(a[0], {b[0].z, b[1].z, b[2].z})},
+                       {dot(a[1], {b[0].x, b[1].x, b[2].x}),
+                        dot(a[1], {b[0].y, b[1].y, b[2].y}),
+                        dot(a[1], {b[0].z, b[1].z, b[2].z})},
+                       {dot(a[2], {b[0].x, b[1].x, b[2].x}),
+                        dot(a[2], {b[0].y, b[1].y, b[2].y}),
+                        dot(a[2], {b[0].z, b[1].z, b[2].z})}}};
+}
+
 constexpr f32 determinant(mat3 const &a)
 {
   return a[0].x * a[1].y * a[2].z -
