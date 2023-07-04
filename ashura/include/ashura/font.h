@@ -70,13 +70,12 @@ struct Font
   hb_buffer_t     *hb_buffer = nullptr;
   FT_Library       ft_lib    = nullptr;
   FT_Face          ft_face   = nullptr;
-  bool             has_color = false;
   stx::Memory      font_data;
   usize            font_data_size = 0;
 
   Font(stx::CStringView ipostscript_name, stx::CStringView ifamily_name, stx::CStringView istyle_name, hb_blob_t *ihb_blob,
        hb_face_t *ihb_face, hb_font_t *ihb_font, hb_buffer_t *ihb_buffer, FT_Library ift_lib, FT_Face ift_face,
-       bool ihas_color, stx::Memory ifont_data, usize ifont_data_size) :
+       stx::Memory ifont_data, usize ifont_data_size) :
       postscript_name{ipostscript_name},
       family_name{ifamily_name},
       style_name{istyle_name},
@@ -86,7 +85,6 @@ struct Font
       hb_buffer{ihb_buffer},
       ft_lib{ift_lib},
       ft_face{ift_face},
-      has_color{ihas_color},
       font_data{std::move(ifont_data)},
       font_data_size{ifont_data_size}
   {}
@@ -146,7 +144,7 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_memory(stx::Me
   return stx::Ok(stx::rc::make_inplace<Font>(stx::os_allocator, stx::CStringView{FT_Get_Postscript_Name(ft_face)},
                                              ft_face->family_name != nullptr ? stx::CStringView{ft_face->family_name} : stx::CStringView{},
                                              ft_face->style_name != nullptr ? stx::CStringView{ft_face->style_name} : stx::CStringView{},
-                                             hb_blob, hb_face, hb_font, hb_buffer, ft_lib, ft_face, FT_HAS_COLOR(ft_face), std::move(memory), size)
+                                             hb_blob, hb_face, hb_font, hb_buffer, ft_lib, ft_face, std::move(memory), size)
                      .unwrap());
 }
 
