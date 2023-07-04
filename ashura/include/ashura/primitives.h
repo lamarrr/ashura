@@ -1046,6 +1046,12 @@ constexpr extent operator+(extent a, extent b)
   return extent{.width = a.width + b.width, .height = a.height + b.height};
 }
 
+struct irect
+{
+  ioffset offset;
+  extent  extent;
+};
+
 /// Simple Layout Constraint Model
 struct constraint
 {
