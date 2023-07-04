@@ -429,7 +429,7 @@ inline std::tuple<VkSwapchainKHR, VkExtent2D, bool>
       .flags   = 0,
       .surface = surface,
       // number of images to use for buffering on the swapchain
-      .minImageCount    = select_swapchain_image_count(properties.capabilities, desired_nbuffers),
+      .minImageCount    = select_swapchain_image_count(properties.capabilities, preferred_nbuffers),
       .imageFormat      = surface_format.format,
       .imageColorSpace  = surface_format.colorSpace,
       .imageExtent      = selected_extent,
