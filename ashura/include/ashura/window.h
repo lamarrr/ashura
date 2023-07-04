@@ -170,13 +170,13 @@ struct Window
 
     switch (image.format)
     {
-      case ImageFormat::Rgba:
+      case ImageFormat::Rgba8888:
         fmt = SDL_PIXELFORMAT_RGBA8888;
         break;
-      case ImageFormat::Bgra:
+      case ImageFormat::Bgra8888:
         fmt = SDL_PIXELFORMAT_RGBA8888;
         break;
-      case ImageFormat::Rgb:
+      case ImageFormat::Rgb888:
         fmt = SDL_PIXELFORMAT_RGB888;
         break;
       default:
