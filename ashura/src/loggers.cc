@@ -7,6 +7,7 @@ ASH_DEFINE_LOGGER(Init);
 ASH_DEFINE_LOGGER(Vulkan)
 ASH_DEFINE_LOGGER(Vulkan_ValidationLayer);
 ASH_DEFINE_LOGGER(Vulkan_RenderResourceManager);
+ASH_DEFINE_LOGGER(Vulkan_CanvasPipelineManager);
 ASH_DEFINE_LOGGER(Window);
 ASH_DEFINE_LOGGER(Context);
 ASH_DEFINE_LOGGER(ImageLoader);
