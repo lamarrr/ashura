@@ -128,16 +128,16 @@ struct Window
     return extent{.width = AS(u32, w), .height = AS(u32, h)};
   }
 
-  void set_position(offseti pos)
+  void set_position(ioffset pos)
   {
     ASH_SDL_CHECK(SDL_SetWindowPosition(window, AS(int, pos.x), AS(int, pos.y)) == 0);
   }
 
-  offseti get_position()
+  ioffset get_position()
   {
     int x, y;
     ASH_SDL_CHECK(SDL_GetWindowPosition(window, &x, &y) == 0);
-    return offseti{.x = AS(i32, x), .y = AS(i32, y)};
+    return ioffset{.x = AS(i32, x), .y = AS(i32, y)};
   }
 
   void set_min_size(extent min)
