@@ -923,9 +923,7 @@ struct quaternion
   f32 x = 0, y = 0, z = 0, w = 0;
 
   // static constexpr quaternion from_euler(vec3 x) { return {}; }
-
   // constexpr vec3 to_euler() const { return {}; }
-
   // constexpr quaternion normalized() const { return {}; }
 };
 
@@ -940,15 +938,10 @@ constexpr bool operator!=(quaternion a, quaternion b)
 }
 
 // constexpr quaternion operator+(quaternion a, quaternion b) { return {}; }
-
 // constexpr quaternion operator-(quaternion a, quaternion b) { return {}; }
-
 // constexpr quaternion operator*(quaternion a, f32 b) { return {}; }
-
 // constexpr quaternion operator*(f32 a, quaternion b) { return {}; }
-
 // constexpr quaternion operator*(quaternion a, quaternion b) { return {}; }
-
 // constexpr quaternion dot(quaternion a, quaternion b) { return {}; }
 
 struct offset
