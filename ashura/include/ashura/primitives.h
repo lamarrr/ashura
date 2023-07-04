@@ -9,7 +9,7 @@
 #include "stx/limits.h"
 #include "stx/option.h"
 
-#define ASH_TO_RADIANS(...) AS(f32, ::ash::PI *(__VA_ARGS__) / 180)
+#define ASH_TO_RADIANS(...) AS(f32, ::ash::PI *(__VA_ARGS__) / 180.0f)
 
 namespace ash
 {
