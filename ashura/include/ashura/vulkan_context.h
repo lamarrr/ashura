@@ -601,36 +601,48 @@ struct CanvasPipelineManager
         .codeSize = spec.fragment_shader.size_bytes(),
         .pCode    = spec.fragment_shader.data()};
     ASH_VK_CHECK(vkCreateShaderModule(dev, &fragment_shader_module_create_info, nullptr, &fragment_shader));
-  }
 
-  void rebuild_all(VkRenderPass target_render_pass, VkSampleCountFlagBits msaa_sample_count)
-  {
-    for (auto &p : pipelines)
-    {
-      auto       &pipeline = p.second.pipeline;
-      auto const &spec     = p.second;
+    pipelines.emplace(next_pipeline_id, CanvasPipeline{.vertex_shader   = vertex_shader,
+                                                       .fragment_shader = fragment_shader,
+                                                       .pipeline        = stx::None});
 
-      if (pipeline.is_valid())
-      {
-        pipeline.destroy();
+    next_pipeline_id++;
       }
 
-      VkDescriptorSetLayout descriptor_sets_layout[NIMAGES_PER_DRAWCALL];
-
-      VkVertexInputAttributeDescription vertex_input_attributes[] = {
+  /// re-build pipelines to meet renderpass specification
+  void rebuild_for_renderpass(VkRenderPass target_render_pass, VkSampleCountFlagBits msaa_sample_count)
+  {
+    static constexpr VkVertexInputAttributeDescription vertex_input_attributes[] = {
           {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(vertex, position)},
           {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(vertex, uv)},
           {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(vertex, color)}};
 
+    VkDescriptorSetLayout descriptor_sets_layout[NIMAGES_PER_DRAWCALL];
+    stx::Span{descriptor_sets_layout}.fill(descriptor_set_layout);
+
+    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
+
+    for (auto &p : pipelines)
+    {
+      ASH_LOG_INFO(Vulkan_CanvasPipelineManager, "Rebuilding Pipeline #{}", p.first);
+      p.second.pipeline.match(Pipeline::destroy, []() {});
+      p.second.pipeline = stx::None;
+
+      Pipeline pipeline;
+
       pipeline.build(dev,
-                     spec.vertex_shader,
-                     spec.fragment_shader,
+                     p.second.vertex_shader,
+                     p.second.fragment_shader,
                      target_render_pass,
                      msaa_sample_count,
-                     stx::Span{descriptor_sets_layout}.fill(descriptor_set_layout),
+                     descriptor_sets_layout,
                      vertex_input_attributes,
                      sizeof(vertex),
                      PUSH_CONSTANT_SIZE);
+
+      p.second.pipeline = stx::Some(std::move(pipeline));
+
+      ASH_LOG_INFO(Vulkan_CanvasPipelineManager, "Rebuilt Pipeline #{}", p.first);
     }
   }
 
@@ -638,100 +650,8 @@ struct CanvasPipelineManager
   {
     for (auto &p : pipelines)
     {
-      p.second.destroy();
-    }
+      p.second.destroy(dev);
   }
-};
-
-struct RecordingContext
-{
-  VkCommandPool                               cmd_pool = VK_NULL_HANDLE;
-  stx::Vec<VkCommandBuffer>                   cmd_buffers;
-  VkShaderModule                              vertex_shader   = VK_NULL_HANDLE;
-  VkShaderModule                              fragment_shader = VK_NULL_HANDLE;
-  Pipeline                                    pipeline;
-  stx::Span<VkDescriptorSetLayout const>      descriptor_set_layouts;
-  stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr;
-  u32                                         vertex_input_size     = 0;
-  u32                                         push_constant_size    = 0;
-  u32                                         max_nframes_in_flight = 0;
-  u32                                         queue_family          = 0;
-  VkDevice                                    dev                   = VK_NULL_HANDLE;
-
-  void init(VkDevice adev, u32 aqueue_family, stx::Span<u32 const> vertex_shader_code,
-            stx::Span<u32 const> fragment_shader_code, stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
-            u32 avertex_input_size, u32 apush_constant_size, u32 amax_nframes_in_flight, stx::Span<VkDescriptorSetLayout const> adescriptor_set_layouts)
-  {
-    dev                    = adev;
-    max_nframes_in_flight  = amax_nframes_in_flight;
-    vertex_input_size      = avertex_input_size;
-    push_constant_size     = apush_constant_size;
-    queue_family           = aqueue_family;
-    descriptor_set_layouts = adescriptor_set_layouts;
-
-    auto create_shader = [this](stx::Span<u32 const> code) {
-      VkShaderModuleCreateInfo create_info{.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-                                           .pNext    = nullptr,
-                                           .flags    = 0,
-                                           .codeSize = code.size_bytes(),
-                                           .pCode    = code.data()};
-
-      VkShaderModule shader;
-
-      ASH_VK_CHECK(vkCreateShaderModule(dev, &create_info, nullptr, &shader));
-
-      return shader;
-    };
-
-    vertex_shader = create_shader(vertex_shader_code);
-
-    fragment_shader = create_shader(fragment_shader_code);
-
-    VkCommandPoolCreateInfo cmd_pool_create_info{.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                                                 .pNext            = nullptr,
-                                                 .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-                                                 .queueFamilyIndex = queue_family};
-
-    ASH_VK_CHECK(vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
-
-    vertex_input_attr.extend(avertex_input_attr).unwrap();
-
-    cmd_buffers.resize(max_nframes_in_flight).unwrap();
-
-    VkCommandBufferAllocateInfo cmd_buffers_allocate_info{.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                                                          .pNext              = nullptr,
-                                                          .commandPool        = cmd_pool,
-                                                          .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                                                          .commandBufferCount = AS(u32, max_nframes_in_flight)};
-
-    ASH_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info, cmd_buffers.data()));
-  }
-
-  // re-build pipeline to meet renderpass specification
-  void rebuild_pipeline_for_renderpass(VkRenderPass target_render_pass, VkSampleCountFlagBits msaa_sample_count)
-  {
-    if (pipeline.is_valid())
-    {
-      pipeline.destroy();
-    }
-
-    pipeline.build(dev, vertex_shader, fragment_shader, target_render_pass, msaa_sample_count, descriptor_set_layouts,
-                   vertex_input_attr, vertex_input_size, push_constant_size);
-  }
-
-  void destroy()
-  {
-    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
-
-    vkDestroyShaderModule(dev, vertex_shader, nullptr);
-
-    vkDestroyShaderModule(dev, fragment_shader, nullptr);
-
-    vkFreeCommandBuffers(dev, cmd_pool, AS(u32, max_nframes_in_flight), cmd_buffers.data());
-
-    vkDestroyCommandPool(dev, cmd_pool, nullptr);
-
-    pipeline.destroy();
   }
 };
 
