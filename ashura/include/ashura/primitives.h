@@ -976,7 +976,7 @@ constexpr offset operator+(offset a, offset b)
   return offset{.x = a.x + b.x, .y = a.y + b.y};
 }
 
-struct offseti
+struct ioffset
 {
   i32 x = 0, y = 0;
 
@@ -986,24 +986,24 @@ struct offseti
   }
 };
 
-constexpr bool operator==(offseti a, offseti b)
+constexpr bool operator==(ioffset a, ioffset b)
 {
   return a.x == b.x && a.y == b.y;
 }
 
-constexpr bool operator!=(offseti a, offseti b)
+constexpr bool operator!=(ioffset a, ioffset b)
 {
   return !(a == b);
 }
 
-constexpr offseti operator+(offseti a, offseti b)
+constexpr ioffset operator+(ioffset a, ioffset b)
 {
-  return offseti{.x = a.x + b.x, .y = a.y + b.y};
+  return ioffset{.x = a.x + b.x, .y = a.y + b.y};
 }
 
-constexpr offseti operator-(offseti a, offseti b)
+constexpr ioffset operator-(ioffset a, ioffset b)
 {
-  return offseti{.x = a.x - b.x, .y = a.y - b.y};
+  return ioffset{.x = a.x - b.x, .y = a.y - b.y};
 }
 
 struct extent
