@@ -43,9 +43,9 @@ struct RenderResourceManager
   VkCommandPool                        cmd_pool              = VK_NULL_HANDLE;
   VkCommandBuffer                      cmd_buffer            = VK_NULL_HANDLE;
   VkFence                              fence                 = VK_NULL_HANDLE;
-  VkDescriptorPool                     descriptor_pool       = VK_NULL_HANDLE;        // one descriptor pool per frame in flight
+  VkDescriptorPool                     descriptor_pool       = VK_NULL_HANDLE;
   VkDescriptorSetLayout                descriptor_set_layout = VK_NULL_HANDLE;
-  Sampler                              sampler;                                       /// ideally list of samplers of different types
+  VkSampler                            sampler               = VK_NULL_HANDLE;        // ideally list of samplers of different types
   stx::Option<stx::Rc<CommandQueue *>> queue;
   std::map<gfx::image, RenderImage>    images;
   u64                                  next_image_id = 0;
@@ -84,7 +84,7 @@ struct RenderResourceManager
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext        = nullptr,
         .flags        = 0,
-        .bindingCount = std::size(descriptor_set_bindings),
+        .bindingCount = AS(u32, std::size(descriptor_set_bindings)),
         .pBindings    = descriptor_set_bindings,
     };
 
@@ -96,12 +96,31 @@ struct RenderResourceManager
                                                            .pNext         = nullptr,
                                                            .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
                                                            .maxSets       = NMAX_IMAGE_DESCRIPTOR_SETS,
-                                                           .poolSizeCount = std::size(descriptor_pool_sizes),
+                                                           .poolSizeCount = AS(u32, std::size(descriptor_pool_sizes)),
                                                            .pPoolSizes    = descriptor_pool_sizes};
 
     ASH_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info, nullptr, &descriptor_pool));
 
-    sampler = vk::create_sampler(queue.value()->device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_TRUE);
+    VkSamplerCreateInfo sampler_create_info{.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                                            .pNext                   = nullptr,
+                                            .flags                   = 0,
+                                            .magFilter               = VK_FILTER_LINEAR,
+                                            .minFilter               = VK_FILTER_LINEAR,
+                                            .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+                                            .addressModeU            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                            .addressModeV            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                            .addressModeW            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                            .mipLodBias              = 0,
+                                            .anisotropyEnable        = VK_TRUE,
+                                            .maxAnisotropy           = queue.value()->device->phy_dev->properties.limits.maxSamplerAnisotropy,
+                                            .compareEnable           = VK_FALSE,
+                                            .compareOp               = VK_COMPARE_OP_ALWAYS,
+                                            .minLod                  = 0,
+                                            .maxLod                  = 0,
+                                            .borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+                                            .unnormalizedCoordinates = VK_FALSE};
+
+    ASH_VK_CHECK(vkCreateSampler(dev, &sampler_create_info, nullptr, &sampler));
   }
 
   void destroy()
@@ -128,7 +147,7 @@ struct RenderResourceManager
 
     vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
 
-    sampler.destroy();
+    vkDestroySampler(dev, sampler, nullptr);
   }
 
   // BGRA input => BGRA output
