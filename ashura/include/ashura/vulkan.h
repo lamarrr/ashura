@@ -402,12 +402,12 @@ inline VkExtent2D select_swapchain_extent(VkSurfaceCapabilitiesKHR const &capabi
 
 // select number of images to have on the swap chain based on device
 // capabilities. i.e. double buffering, triple buffering.
-inline u32 select_swapchain_image_count(VkSurfaceCapabilitiesKHR const &capabilities, u32 desired_nbuffers)
+inline u32 select_swapchain_image_count(VkSurfaceCapabilitiesKHR const &capabilities, u32 preferred_nbuffers)
 {
   return
       // no limit on the number of swapchain images
-      capabilities.maxImageCount == 0 ? std::clamp(desired_nbuffers, capabilities.minImageCount, stx::U32_MAX) :
-                                        std::clamp(desired_nbuffers, capabilities.minImageCount, capabilities.maxImageCount);
+      capabilities.maxImageCount == 0 ? std::clamp(preferred_nbuffers, capabilities.minImageCount, stx::U32_MAX) :
+                                        std::clamp(preferred_nbuffers, capabilities.minImageCount, capabilities.maxImageCount);
 }
 
 inline std::tuple<VkSwapchainKHR, VkExtent2D, bool>
