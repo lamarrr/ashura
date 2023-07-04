@@ -35,7 +35,7 @@ enum class FontLoadError : u8
 
 /// see: https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
 ///
-/// NOTE: using stubs enables us to perform fast linear lookups of glyph indices by ensuring the array is filled and sorted by glyph index from 0 -> nglyphs_found_in_font-1
+/// NOTE: using stubs enables us to perform fast constant lookups of glyph indices by ensuring the array is filled and sorted by glyph index from 0 -> nglyphs_found_in_font-1
 struct Glyph
 {
   bool         is_valid = false;
