@@ -89,17 +89,17 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
   }
 
   usize       ncomponents = 0;
-  ImageFormat fmt         = ImageFormat::Rgb;
+  ImageFormat fmt         = ImageFormat::Rgba8888;
 
   if (color_type == PNG_COLOR_TYPE_RGB)
   {
     ncomponents = 3;
-    fmt         = ImageFormat::Rgb;
+    fmt         = ImageFormat::Rgb888;
   }
   else if (color_type == PNG_COLOR_TYPE_RGBA)
   {
     ncomponents = 4;
-    fmt         = ImageFormat::Rgba;
+    fmt         = ImageFormat::Rgba8888;
   }
   else
   {
@@ -146,15 +146,15 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> b
   u32         width       = info.output_width;
   u32         height      = info.output_height;
   u32         ncomponents = info.num_components;
-  ImageFormat fmt         = ImageFormat::Rgb;
+  ImageFormat fmt         = ImageFormat::Rgba8888;
 
   if (ncomponents == 3)
   {
-    fmt = ImageFormat::Rgb;
+    fmt = ImageFormat::Rgb888;
   }
   else if (ncomponents == 4)
   {
-    fmt = ImageFormat::Rgba;
+    fmt = ImageFormat::Rgba8888;
   }
   else
   {
