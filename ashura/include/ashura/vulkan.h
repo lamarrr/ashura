@@ -411,17 +411,17 @@ inline u32 select_swapchain_image_count(VkSurfaceCapabilitiesKHR const &capabili
 }
 
 inline std::tuple<VkSwapchainKHR, VkExtent2D, bool>
-    create_swapchain(VkDevice dev, VkSurfaceKHR surface, VkExtent2D preferred_extent, VkSurfaceFormatKHR surface_format,
+    create_swapchain(VkDevice dev, VkSurfaceKHR surface, VkExtent2D preferred_extent, VkSurfaceFormatKHR surface_format, u32 preferred_nbuffers,
                      VkPresentModeKHR present_mode, SwapChainProperties const &properties,
                      VkSharingMode accessing_queue_families_sharing_mode, VkImageUsageFlags image_usages,
                      VkCompositeAlphaFlagBitsKHR alpha_blending, VkBool32 clipped)
 {
-  u32 desired_nbuffers = std::min(properties.capabilities.minImageCount + 1, properties.capabilities.maxImageCount);
-
   VkExtent2D selected_extent = select_swapchain_extent(properties.capabilities, preferred_extent);
 
   if (selected_extent.width == 0 || selected_extent.height == 0)
+  {
     return std::make_tuple(VkSwapchainKHR{VK_NULL_HANDLE}, VkExtent2D{0, 0}, false);
+  }
 
   VkSwapchainCreateInfoKHR create_info{
       .sType   = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
