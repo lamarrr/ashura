@@ -1010,6 +1010,11 @@ struct extent
 {
   u32 width = 0, height = 0;
 
+  static constexpr extent from(vec2 wh)
+  {
+    return extent{AS(u32, wh.x), AS(u32, wh.y)};
+  }
+
   constexpr bool is_visible() const
   {
     return width != 0 && height != 0;
