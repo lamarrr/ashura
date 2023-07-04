@@ -68,6 +68,11 @@ struct Slider : public Widget
     thumb_animation.tick(interval);
   }
 
+  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
+  {
+    return true;
+  }
+
   // TODO(lamarrr): mouse_position is already **inverted** by global zoom and pan matrix???
   virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
   {

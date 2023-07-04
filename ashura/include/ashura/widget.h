@@ -180,7 +180,7 @@ struct Widget
   // TODO(lamarrr): this needs to happen before mouse actions as some widgets .i.e. text don't need to intercept or receive mouse events
   virtual bool hit_test(Context &ctx, vec2 mouse_position)
   {
-    return true;
+    return false;
   }
 
   virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks)

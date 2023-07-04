@@ -99,8 +99,9 @@ struct Radio : public Widget
     //   canvas.draw_rect_filled(rect{{1, 1}, {(f32) i, (f32) i}}, colors::CYAN);
     // }
     canvas
-        .draw_circle_stroke(center, props.radius, 180, props.color, 1)
-        .draw_circle_filled(center, inner_radius, 180, animation.animate(color_curve, tween));
+  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
+  {
+    return true;
   }
 
   virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override

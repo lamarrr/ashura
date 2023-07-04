@@ -59,6 +59,10 @@ struct CheckBox : public Widget
     {
       canvas.draw_round_rect_stroke(area, vec4::splat(props.border_radius), 10, props.box_color, props.outline_thickness);
     }
+
+  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
+  {
+    return true;
   }
 
   virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
