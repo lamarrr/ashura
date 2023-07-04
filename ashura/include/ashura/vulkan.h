@@ -1523,26 +1523,20 @@ struct Surface
   {
     // we need to ensure the swapchain is destroyed before the surface (if not
     // already destroyed)
-    if (swapchain.is_some())
-    {
-      swapchain.value().destroy();
-    }
+    swapchain.match(SwapChain::destroy, []() {});
+    swapchain = stx::None;
 
     vkDestroySurfaceKHR(instance, surface, nullptr);
   }
 
   void change_swapchain(stx::Rc<CommandQueue *> const &queue, u32 max_nframes_in_flight,
-                        stx::Span<VkSurfaceFormatKHR const> preferred_formats,
-                        stx::Span<VkPresentModeKHR const> preferred_present_modes, VkExtent2D preferred_extent,
-                        VkExtent2D window_extent, VkSampleCountFlagBits msaa_sample_count,
+                        stx::Span<VkSurfaceFormatKHR const> preferred_formats, stx::Span<VkPresentModeKHR const> preferred_present_modes,
+                        VkExtent2D preferred_extent, VkExtent2D window_extent, VkSampleCountFlagBits msaa_sample_count,
                         VkCompositeAlphaFlagBitsKHR alpha_blending)
   {
     // don't want to have two existing at once
-    if (swapchain.is_some())
-    {
-      swapchain.value().destroy();
+    swapchain.match(SwapChain::destroy, []() {});
       swapchain = stx::None;
-    }
 
     SwapChain new_swapchain;
 
