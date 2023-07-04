@@ -1202,6 +1202,10 @@ inline VkFormat find_depth_format(VkPhysicalDevice phy_dev)
 /// impossible to do correctly with ref-counting, since we are not holding a
 /// reference to the surface) we thus can't hold a reference to the swapchain,
 /// its images, nor its image views outside itself (the swapchain object).
+//
+/// actually holds the images of the  surface and used to present to the
+/// render target image. when resizing is needed, the swapchain is
+/// destroyed and recreated with the desired extents.
 ///
 struct SwapChain
 {
@@ -1212,34 +1216,26 @@ struct SwapChain
   /// `vkAcquireNextImageKHR` which depends on the presentation mode being used
   /// (determines how the images are used, in what order and whether they
   /// repeat). a.k.a. frame_flight_index
-  u32                frame                 = 0;
-  u32                max_nframes_in_flight = 0;
-  VkSurfaceFormatKHR color_format{.format     = VK_FORMAT_R8G8B8A8_UNORM,
-                                  .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};        // actually holds the images of the
-                                                                                          // surface and used to present to the
-                                                                                          // render target image. when resizing
-                                                                                          // is needed, the swapchain is
-                                                                                          // destroyed and recreated with the
-                                                                                          // desired extents.
-  VkFormat              depth_format = VK_FORMAT_D32_SFLOAT;
-  VkPresentModeKHR      present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-  VkExtent2D            image_extent{.width = 0, .height = 0};
-  VkExtent2D            window_extent{.width = 0, .height = 0};
-  VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
-  stx::Vec<VkImage>     images;                     // the images in the swapchain
-  stx::Vec<VkImageView> image_views;                // the image views pointing to a part of a whole texture
-                                                    // (images in the swapchain)
+  u32                     frame                 = 0;
+  u32                     max_nframes_in_flight = 0;
+  VkSurfaceFormatKHR      color_format{.format = VK_FORMAT_R8G8B8A8_UNORM, .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR};
+  VkFormat                depth_format = VK_FORMAT_D32_SFLOAT;
+  VkPresentModeKHR        present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+  VkExtent2D              image_extent{.width = 0, .height = 0};
+  VkExtent2D              window_extent{.width = 0, .height = 0};
+  VkSampleCountFlagBits   msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
+  stx::Vec<VkImage>       images;                   // the images in the swapchain, which image is used and the order they are used for frame is determined by the presentation mode
+  stx::Vec<VkImageView>   image_views;              // the image views pointing to a part of a whole texture  (images in the swapchain)
   stx::Vec<VkFramebuffer> framebuffers;
-  stx::Vec<VkSemaphore>   render_semaphores;        // the rendering semaphores correspond to the frame
-                                                    // indexes and not the swapchain images
-  stx::Vec<VkSemaphore> image_acquisition_semaphores;
-  stx::Vec<VkFence>     render_fences;
-  stx::Vec<VkFence>     image_acquisition_fences;
-  Image                 msaa_color_image;
-  Image                 msaa_depth_image;
-  VkRenderPass          render_pass = VK_NULL_HANDLE;        // Render Passes describe the outputs, attachments, depth, and msaa process
-  VkSwapchainKHR        swapchain   = VK_NULL_HANDLE;
-  VkDevice              dev         = VK_NULL_HANDLE;
+  stx::Vec<VkSemaphore>   render_semaphores;        // the rendering semaphores correspond to the frame indexes and not the swapchain images
+  stx::Vec<VkSemaphore>   image_acquisition_semaphores;
+  stx::Vec<VkFence>       render_fences;
+  stx::Vec<VkFence>       image_acquisition_fences;
+  Image                   msaa_color_image;
+  Image                   msaa_depth_image;
+  VkRenderPass            render_pass = VK_NULL_HANDLE;        // Render Passes describe the outputs, attachments, depth, and msaa process
+  VkSwapchainKHR          swapchain   = VK_NULL_HANDLE;
+  VkDevice                dev         = VK_NULL_HANDLE;
 
   bool init(VkPhysicalDevice phy, VkPhysicalDeviceMemoryProperties const &memory_properties, VkDevice adev,
             VkSurfaceKHR target_surface, u32 amax_nframes_in_flight, stx::Span<VkSurfaceFormatKHR const> preferred_formats,
