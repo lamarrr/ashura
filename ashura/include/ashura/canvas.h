@@ -325,9 +325,9 @@ struct DrawList
 
 struct CanvasState
 {
-  mat4 transform;               // local object transform, applies to local coordinates of the objects
-  mat4 global_transform;        // global scene transform, applies to the global coordinate of the objects
-  rect scissor;                 // determines visible area of the rendering operation
+  mat3  transform;               // local object transform, applies to local coordinates of the objects
+  mat3  global_transform;        // global scene transform, applies to the global coordinate of the objects
+  irect scissor;
 };
 
 /// Coordinates are specified in top-left origin absolute pixel coordinates with x pointing to the
@@ -353,26 +353,28 @@ struct Canvas
   bool viewport_contains(rect area) const
   {
     return rect{.offset = {}, .extent = viewport_extent}
-        .overlaps(ash::transform(state.global_transform * state.transform, area));
+        .overlaps(transform2d(state.global_transform * state.transform, area));
   }
 
   Canvas &restart(vec2 viewport_extent)
   {
     this->viewport_extent = viewport_extent;
-    state                 = CanvasState{.transform = mat4::identity(), .global_transform = mat4::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}};
+    state                 = CanvasState{.transform        = mat3::identity(),
+                                        .global_transform = mat3::identity(),
+                                        .scissor          = irect{.offset = {0, 0}, .extent = extent::from(viewport_extent)}};
     state_stack.clear();
     draw_list.clear();
     return *this;
   }
 
-  mat4 make_transform(vec2 position) const
+  mat3 make_transform(vec2 position) const
   {
     vec2 viewport_extent_clamped = epsilon_clamp(viewport_extent);
-    return ash::translate(vec3{-1, -1, 0})                                                            /// normalize to vulkan viewport coordinate range -1 to 1
-           * ash::scale(vec3{2 / viewport_extent_clamped.x, 2 / viewport_extent_clamped.y, 0})        /// normalize to 0 to 2 coordinate range
-           * state.global_transform                                                                   /// apply global coordinate transform
-           * ash::translate(vec3{position.x, position.y, 0})                                          /// apply viewport positioning
-           * state.transform;                                                                         /// apply local coordinate transform
+    return translate2d(-1, -1)                                                            /// normalize to vulkan viewport coordinate range -1 to 1
+           * scale2d(2 / viewport_extent_clamped.x, 2 / viewport_extent_clamped.y)        /// normalize to 0 to 2 coordinate range
+           * state.global_transform                                                       /// apply global coordinate transform
+           * translate2d(position.x, position.y)                                          /// apply viewport positioning
+           * state.transform;                                                             /// apply local coordinate transform
   }
 
   /// push state (transform and scissor) on state stack
@@ -397,92 +399,80 @@ struct Canvas
     return *this;
   }
 
-  Canvas &translate(f32 x, f32 y)
+  Canvas &translate(f32 tx, f32 ty)
   {
-    state.transform = ash::translate(vec3{x, y, 1}) * state.transform;
+    state.transform = translate2d(tx, ty) * state.transform;
     return *this;
   }
 
-  Canvas &global_translate(f32 x, f32 y)
+  Canvas &global_translate(f32 tx, f32 ty)
   {
-    state.global_transform = ash::translate(vec3{x, y, 1}) * state.global_transform;
+    state.global_transform = translate2d(tx, ty) * state.global_transform;
     return *this;
   }
 
-  Canvas &rotate(f32 x, f32 y, f32 z)
+  Canvas &rotate(f32 angle)
   {
-    state.transform = ash::rotate_z(ASH_TO_RADIANS(z)) * ash::rotate_y(ASH_TO_RADIANS(y)) * ash::rotate_x(ASH_TO_RADIANS(x)) * state.transform;
+    state.transform = rotate2d(ASH_TO_RADIANS(angle)) * state.transform;
     return *this;
   }
 
-  Canvas &global_rotate(f32 x, f32 y, f32 z)
+  Canvas &global_rotate(f32 angle)
   {
-    state.global_transform = ash::rotate_z(ASH_TO_RADIANS(z)) * ash::rotate_y(ASH_TO_RADIANS(y)) * ash::rotate_x(ASH_TO_RADIANS(x)) * state.global_transform;
+    state.global_transform = rotate2d(ASH_TO_RADIANS(angle)) * state.global_transform;
     return *this;
   }
 
   Canvas &scale(f32 x, f32 y)
   {
-    state.transform = ash::scale(vec3{x, y, 1}) * state.transform;
+    state.transform = scale2d(x, y) * state.transform;
     return *this;
   }
 
   Canvas &global_scale(f32 x, f32 y)
   {
-    state.global_transform = ash::scale(vec3{x, y, 1}) * state.global_transform;
+    state.global_transform = scale2d(x, y) * state.global_transform;
     return *this;
   }
 
-  Canvas &shear_x(f32 y_shear, f32 z_shear)
+  Canvas &shear_x(f32 shear)
   {
-    state.transform = ash::shear_x(y_shear, z_shear) * state.transform;
+    state.transform = shear2d_x(shear) * state.transform;
     return *this;
   }
 
-  Canvas &global_shear_x(f32 y_shear, f32 z_shear)
+  Canvas &global_shear_x(f32 shear)
   {
-    state.global_transform = ash::shear_x(y_shear, z_shear) * state.global_transform;
+    state.global_transform = shear2d_x(shear) * state.global_transform;
     return *this;
   }
 
-  Canvas &shear_y(f32 x_shear, f32 z_shear)
+  Canvas &shear_y(f32 shear)
   {
-    state.transform = ash::shear_x(x_shear, z_shear) * state.transform;
+    state.transform = shear2d_y(shear) * state.transform;
     return *this;
   }
 
-  Canvas &global_shear_y(f32 x_shear, f32 z_shear)
+  Canvas &global_shear_y(f32 shear)
   {
-    state.global_transform = ash::shear_x(x_shear, z_shear) * state.global_transform;
+    state.global_transform = shear2d_y(shear) * state.global_transform;
     return *this;
   }
 
-  Canvas &shear_z(f32 x_shear, f32 y_shear)
-  {
-    state.transform = ash::shear_z(x_shear, y_shear) * state.transform;
-    return *this;
-  }
-
-  Canvas &global_shear_z(f32 x_shear, f32 y_shear)
-  {
-    state.global_transform = ash::shear_z(x_shear, y_shear) * state.global_transform;
-    return *this;
-  }
-
-  Canvas &transform(mat4 const &t)
+  Canvas &transform(mat3 const &t)
   {
     state.transform = t * state.transform;
     return *this;
   }
 
-  Canvas &global_transform(mat4 const &t)
+  Canvas &global_transform(mat3 const &t)
   {
     state.global_transform = t * state.global_transform;
     return *this;
   }
 
   /// Not affected by transforms
-  Canvas &scissor(rect scissor)
+  Canvas &scissor(irect scissor)
   {
     state.scissor = scissor;
     return *this;
