@@ -140,7 +140,7 @@ inline stx::Span<vertex> round_rect(vec2 extent, vec4 radii, u32 nsegments, vec4
   return polygon;
 }
 
-inline stx::Span<vertex> interpolate_uvs(stx::Span<vertex> path, vec2 extent, texture_rect texture_region)
+inline stx::Span<vertex> lerp_uvs(stx::Span<vertex> path, vec2 extent, texture_rect texture_region)
 {
   for (vertex &v : path)
   {
@@ -519,7 +519,7 @@ struct Canvas
     usize prev_nindices  = draw_list.indices.size();
 
     triangulate_line(points, thickness, draw_list.vertices, draw_list.indices, should_close);
-    paths::interpolate_uvs(draw_list.vertices.span().slice(prev_nvertices), area.extent, texture_region);
+    paths::lerp_uvs(draw_list.vertices.span().slice(prev_nvertices), area.extent, texture_region);
 
     usize curr_nvertices = draw_list.vertices.size();
     usize curr_nindices  = draw_list.indices.size();
