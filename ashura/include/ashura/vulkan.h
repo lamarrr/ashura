@@ -784,7 +784,6 @@ struct Buffer
 
   void destroy()
   {
-    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyBuffer(dev, buffer, nullptr);
   }
@@ -812,7 +811,6 @@ struct VecBuffer
   void destroy()
   {
     vkUnmapMemory(dev, memory);
-    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyBuffer(dev, buffer, nullptr);
   }
@@ -981,7 +979,6 @@ struct Image
 
   void destroy()
   {
-    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkFreeMemory(dev, memory, nullptr);
     vkDestroyImageView(dev, view, nullptr);
     vkDestroyImage(dev, image, nullptr);
@@ -1825,7 +1822,6 @@ struct Pipeline
 
   void destroy()
   {
-    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
     vkDestroyPipelineLayout(dev, layout, nullptr);
     vkDestroyPipeline(dev, pipeline, nullptr);
   }
