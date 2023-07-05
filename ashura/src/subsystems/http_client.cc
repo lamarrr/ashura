@@ -270,7 +270,7 @@ void Task::finish(stx::Allocator allocator)
   info.handle->promise.notify_completed(std::move(response));
 }
 
-void Client::tick()
+void Client::tick(Context &ctx, std::chrono::nanoseconds interval)
 {
   stx::LockGuard guard{lock_};
 

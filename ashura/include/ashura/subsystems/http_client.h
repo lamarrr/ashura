@@ -223,7 +223,7 @@ struct Task
   void finish(stx::Allocator allocator);
 };
 
-struct Client
+struct Client : public Subsystem
 {
   STX_MAKE_PINNED(Client)
 
@@ -268,7 +268,18 @@ struct Client
     return std::make_tuple(std::move(future), std::move(monitor));
   }
 
-  void tick();
+  virtual constexpr void on_startup(Context &ctx) override
+  {}
+
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override;
+
+  virtual std::string_view get_name() override
+  {
+    return "HttpClientSubsystem";
+  }
+
+  virtual constexpr void on_exit(Context &ctx) override
+  {}
 
   stx::Rc<CurlMultiHandle *> multi_;
   stx::Vec<Task>             tasks_;
