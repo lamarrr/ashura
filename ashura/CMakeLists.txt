@@ -1,4 +1,4 @@
-add_library(ashura STATIC src/app.cc src/engine.cc src/widget.cc src/rengoku.cc src/loggers.cc)
+add_library(ashura STATIC src/app.cc src/engine.cc src/widget.cc src/rengoku.cc src/loggers.cc src/subsystems/http_client.cc)
 
 target_include_directories(
   ashura
@@ -13,6 +13,7 @@ target_link_libraries(
   Vulkan::Vulkan
   spdlog::spdlog
   harfbuzz
+  CURL::libcurl
   Freetype::Freetype
   simdjson::simdjson
   WebP::webp
