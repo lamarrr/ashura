@@ -178,13 +178,13 @@ TEST(FlexLayout, SpaceBetween)
 
 TEST(FlexLayout, HttpClient)
 {
-  ash::HttpClient::Client client{stx::os_allocator};
+  HttpClient client{stx::os_allocator};
   stx::TaskScheduler scheduler{stx::os_allocator, std::chrono::steady_clock::now()};
   auto [response, monitor] = client.get(stx::string::make_static("https://github.com"));
 
     stx::Future<void> a = stx::sched::await(
       scheduler,
-      [](stx::Future<ash::HttpClient::HttpResponse> response) {
+      [](stx::Future<HttpResponse> response) {
         auto httpResponse = response.ref().unwrap();
         EXPECT_EQ(httpResponse->code, 200);
         EXPECT_FALSE(httpResponse->header.is_empty());
