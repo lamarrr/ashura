@@ -2,6 +2,7 @@
 #include "ashura/primitives.h"
 #include "stx/memory.h"
 #include "stx/span.h"
+#include "stx/try_ok.h"
 
 namespace ash
 {
@@ -79,6 +80,17 @@ struct ImageBuffer
   ash::extent extent;
   ImageFormat format = ImageFormat::Rgba8888;
 
+  static stx::Result<ImageBuffer, stx::AllocError> make(ash::extent extent, ImageFormat format)
+  {
+    TRY_OK(memory, stx::mem::allocate(stx::os_allocator, extent.area() * nchannel_bytes(format)));
+    return stx::Ok(ImageBuffer{.memory = std::move(memory), .extent = extent, .format = format});
+  }
+
+  u32 pitch() const
+  {
+    return extent.width * nchannel_bytes(format);
+  }
+
   stx::Span<u8 const> span() const
   {
     return stx::Span{AS(u8 const *, memory.handle), extent.area() * nchannel_bytes(format)};
@@ -87,6 +99,16 @@ struct ImageBuffer
   stx::Span<u8> span()
   {
     return stx::Span{AS(u8 *, memory.handle), extent.area() * nchannel_bytes(format)};
+  }
+
+  u8 const *data() const
+  {
+    return AS(u8 *, memory.handle);
+  }
+
+  u8 *data()
+  {
+    return AS(u8 *, memory.handle);
   }
 
   operator ImageView() const

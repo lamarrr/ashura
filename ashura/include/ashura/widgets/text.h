@@ -20,20 +20,15 @@ struct Text : public Widget
 
   virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    if (needs_relayout)
-    {
-      spdlog::info("re-laid out text");
-      TextRun runs[] = {
-          TextRun{.text = text}};
+    TextRun runs[] = {
+        TextRun{.text = text}};
 
-      Paragraph paragraph{
-          .runs  = runs,
-          .props = props,
-          .align = TextAlign::Left};
+    Paragraph paragraph{
+        .runs  = runs,
+        .props = props,
+        .align = TextAlign::Left};
 
-      text_layout.layout(paragraph, ctx.font_bundle, allocated_size.x);
-      needs_relayout = false;
-    }
+    text_layout.layout(paragraph, ctx.font_bundle, allocated_size.x);
 
     return text_layout.span;
   }

@@ -38,10 +38,7 @@ struct RenderImage
   void destroy(VkDescriptorPool descriptor_pool)
   {
     image.destroy();
-    if (staging_buffer.is_some())
-    {
-      staging_buffer.value().destroy();
-    }
+    staging_buffer.match(&Buffer::destroy, []() {});
     ASH_VK_CHECK(vkFreeDescriptorSets(image.dev, descriptor_pool, 1, &descriptor_set));
   }
 };
@@ -552,17 +549,16 @@ struct CanvasPipeline
   {
     vkDestroyShaderModule(dev, vertex_shader, nullptr);
     vkDestroyShaderModule(dev, fragment_shader, nullptr);
-    pipeline.match(Pipeline::destroy, []() {});
+    pipeline.match(&Pipeline::destroy, []() {});
   }
 };
 
 /// pipelines are static and can not be removed once added
 struct CanvasPipelineManager
 {
-  std::map<gfx::pipeline, CanvasPipeline> pipelines;
-  VkDescriptorSetLayout                   descriptor_set_layout = VK_NULL_HANDLE;
-  VkDevice                                dev                   = VK_NULL_HANDLE;
-  u64                                     next_pipeline_id      = 0;
+  std::map<std::string, CanvasPipeline, std::less<>> pipelines;
+  VkDescriptorSetLayout                              descriptor_set_layout = VK_NULL_HANDLE;
+  VkDevice                                           dev                   = VK_NULL_HANDLE;
 
   void init(VkDevice adev)
   {
@@ -604,11 +600,9 @@ struct CanvasPipelineManager
         .pCode    = spec.fragment_shader.data()};
     ASH_VK_CHECK(vkCreateShaderModule(dev, &fragment_shader_module_create_info, nullptr, &fragment_shader));
 
-    pipelines.emplace(next_pipeline_id, CanvasPipeline{.vertex_shader   = vertex_shader,
-                                                       .fragment_shader = fragment_shader,
-                                                       .pipeline        = stx::None});
-
-    next_pipeline_id++;
+    pipelines.emplace(spec.name, CanvasPipeline{.vertex_shader   = vertex_shader,
+                                                .fragment_shader = fragment_shader,
+                                                .pipeline        = stx::None});
   }
 
   /// re-build pipelines to meet renderpass specification
@@ -627,7 +621,7 @@ struct CanvasPipelineManager
     for (auto &p : pipelines)
     {
       ASH_LOG_INFO(Vulkan_CanvasPipelineManager, "Rebuilding Pipeline #{}", p.first);
-      p.second.pipeline.match(Pipeline::destroy, []() {});
+      p.second.pipeline.match(&Pipeline::destroy, []() {});
       p.second.pipeline = stx::None;
 
       Pipeline pipeline;

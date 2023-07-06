@@ -14,6 +14,6 @@ layout(push_constant) uniform GlyphProps {
 layout(location = 0) out vec2 out_uv;
 
 void main() {
-    gl_Position = vec4(transpose(props.transform) * vec3(in_position, 0.f), 1.0f);
+    gl_Position = vec4(props.transform * vec3(in_position, 1.0f), 1.0f);
     out_uv = in_uv;
 }

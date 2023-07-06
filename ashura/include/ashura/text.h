@@ -11,6 +11,9 @@
 namespace ash
 {
 
+/// @brief to work around this, replace all tabs with the the number of equivalent spaces you'd like
+constexpr u32 DEFAULT_TAB_SIZE = 8;
+
 // BCP-47 language codes
 namespace languages
 {
@@ -319,29 +322,30 @@ enum class TextDirection : u8
   RightToLeft
 };
 
+// TODO(lamarrr): letter and word spacing are presently incorrect
+// we should probably remove tab size
 struct TextProps
 {
-  std::string_view                  font;                                /// name to use to match the font
-  stx::Span<std::string_view const> fallback_fonts;                      /// font to fallback to if specified font is not available
-  f32                               font_height             = 20;        /// px
-  color                             foreground_color        = colors::BLACK;
-  color                             background_color        = colors::TRANSPARENT;
+  std::string_view                  font;                         /// name to use to match the font
+  stx::Span<std::string_view const> fallback_fonts;               /// font to fallback to if specified font is not available
+  f32                               font_height      = 20;        /// px
+  color                             foreground_color = colors::BLACK;
+  color                             background_color = colors::TRANSPARENT;
+  color                             outline_color    = colors::TRANSPARENT;
+  vec2                              outline_offset;                         /// px
   color                             underline_color         = colors::BLACK;
   f32                               underline_thickness     = 0;            /// px
   bool                              wavy_underline          = false;        // TODO(lamarrr): implement
   color                             strikethrough_color     = colors::BLACK;
   f32                               strikethrough_thickness = 0;            /// px
-  color                             stroke_color            = colors::TRANSPARENT;
-  vec2                              stroke_offset;                          /// px
-  f32                               letter_spacing = 0;                     /// px
-  f32                               word_spacing   = 4;                     /// px
-  f32                               line_height    = 1.2f;                  /// will be multiplied by font_height
-  TextDirection                     direction      = TextDirection::LeftToRight;
-  usize                             tab_size       = 8;                     /// number of spaces to replace a tab with
-  Script                            script         = Script::Latin;
-  std::string_view                  language       = languages::ENGLISH;
-  bool                              use_kerning    = true;
-  bool                              use_ligatures  = true;        /// use standard and contextual font ligature substitution
+  f32                               letter_spacing          = 0;            /// px. additional letter spacing
+  f32                               word_spacing            = 0;            /// px. additional word spacing
+  f32                               line_height             = 1.2f;         /// will be multiplied by font_height
+  TextDirection                     direction               = TextDirection::LeftToRight;
+  Script                            script                  = Script::Latin;
+  std::string_view                  language                = languages::ENGLISH;
+  bool                              use_kerning             = true;
+  bool                              use_ligatures           = true;        /// use standard and contextual font ligature substitution
 };
 
 /// A text run is a sequence of characters sharing a single property i.e. foreground color, font family etc.
@@ -420,6 +424,10 @@ struct GlyphLayout
 
 struct TextLayout
 {
+  static constexpr hb_tag_t KERNING_FEATURE             = HB_TAG('k', 'e', 'r', 'n');        // kerning operations
+  static constexpr hb_tag_t LIGATURE_FEATURE            = HB_TAG('l', 'i', 'g', 'a');        // standard ligature substitution
+  static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE = HB_TAG('c', 'l', 'i', 'g');        // contextual ligature substitution
+
   stx::Vec<TextRunSubWord> subwords;
   stx::Vec<TextRunGlyph>   glyphs;
   stx::Vec<GlyphLayout>    glyph_layouts;
@@ -590,9 +598,9 @@ struct TextLayout
       Font const      &font       = *font_bundle[font_index].font;
       FontAtlas const &atlas      = font_bundle[font_index].atlas;
 
-      hb_feature_t shaping_features[] = {{.tag = Font::KERNING_FEATURE, .value = props.use_kerning, .start = 0, .end = stx::U_MAX},
-                                         {.tag = Font::LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX},
-                                         {.tag = Font::CONTEXTUAL_LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX}};
+      hb_feature_t shaping_features[] = {{.tag = KERNING_FEATURE, .value = props.use_kerning, .start = 0, .end = stx::U_MAX},
+                                         {.tag = LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX},
+                                         {.tag = CONTEXTUAL_LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX}};
 
       hb_font_set_scale(font.hb_font, 64 * props.font_height, 64 * props.font_height);
 
@@ -608,6 +616,7 @@ struct TextLayout
         hb_buffer_set_direction(font.hb_buffer, HB_DIRECTION_RTL);
       }
 
+      // TODO(lamarrr): actually use the spaces in text shaping
       hb_buffer_set_language(font.hb_buffer, hb_language_from_string(props.language.data(), AS(int, props.language.size())));
       hb_buffer_add_utf8(font.hb_buffer, subword.text.begin(), AS(int, subword.text.size()), 0, AS(int, subword.text.size()));
       hb_shape(font.hb_font, font.hb_buffer, shaping_features, AS(uint, std::size(shaping_features)));
@@ -626,6 +635,7 @@ struct TextLayout
       subword.font         = font_index;
       subword.glyphs_begin = glyphs.size();
 
+      // TODO(lamarrr): invalid glyphs might still have advances
       for (usize i = 0; i < nglyphs; i++)
       {
         u32       glyph_index = glyph_info[i].codepoint;
@@ -646,6 +656,7 @@ struct TextLayout
         // use glyph at index 0 as replacement glyph, this is usually the invalid character replacement glyph
         else if (!atlas.glyphs.is_empty())
         {
+          // HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT
           width += advance.x + props.letter_spacing;
           glyphs.push_inplace(TextRunGlyph{
                                   .index   = 0,
@@ -758,6 +769,9 @@ struct TextLayout
         f32 line_height = 0;
         f32 max_ascent  = 0;
         f32 max_descent = 0;
+
+        // TODO(lamarrr): when positioning the glyphs we also need to use the spread factor
+        // scale the spread by the
 
         for (TextRunSubWord const *subword = line_begin; subword < line_end; subword++)
         {

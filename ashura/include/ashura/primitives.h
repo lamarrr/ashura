@@ -643,12 +643,6 @@ constexpr mat3 operator*(mat3 const &a, mat3 const &b)
                         dot(a[2], {b[0].z, b[1].z, b[2].z})}}};
 }
 
-constexpr vec2 transform2d(mat3 const &a, vec2 const &b)
-{
-  vec3 c = a *vec3{b.x, b.y, 0};
-  return vec2{c.x, c.y};
-}
-
 constexpr f32 determinant(mat3 const &a)
 {
   return a[0].x * a[1].y * a[2].z -
@@ -837,6 +831,12 @@ constexpr vec2 transform3d(mat4 const &a, vec3 const &b)
   return vec2{.x = prod.x, .y = prod.y};
 }
 
+constexpr vec2 transform2d(mat3 const &a, vec2 const &b)
+{
+  vec3 prod = a *vec3{b.x, b.y, 0};
+  return vec2{prod.x, prod.y};
+}
+
 constexpr quad transform2d(mat3 const &a, rect const &b)
 {
   return quad{
@@ -844,12 +844,6 @@ constexpr quad transform2d(mat3 const &a, rect const &b)
       .p1 = transform2d(a, b.top_right()),
       .p2 = transform2d(a, b.bottom_right()),
       .p3 = transform2d(a, b.bottom_left())};
-}
-
-constexpr vec2 transform2d(mat3 const &a, vec2 const &b)
-{
-  vec3 prod = a *vec3{b.x, b.y, 1};
-  return vec2{prod.x, prod.y};
 }
 
 constexpr mat3 translate2d(vec2 t)
@@ -1280,17 +1274,5 @@ constexpr bool operator!=(EdgeInsets const &a, EdgeInsets const &b)
 {
   return a.left != b.left || a.top != b.top || a.right != b.right || a.bottom != b.bottom;
 }
-
-struct slice
-{
-  usize offset = 0;
-  usize size   = 0;
-};
-
-struct WidgetTransform
-{
-  vec2 scale;
-  vec2 translation;
-};
 
 }        // namespace ash

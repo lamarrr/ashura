@@ -1526,7 +1526,7 @@ struct Surface
   {
     // we need to ensure the swapchain is destroyed before the surface (if not
     // already destroyed)
-    swapchain.match(SwapChain::destroy, []() {});
+    swapchain.match(&SwapChain::destroy, []() {});
     swapchain = stx::None;
 
     vkDestroySurfaceKHR(instance, surface, nullptr);
@@ -1538,7 +1538,7 @@ struct Surface
                         VkCompositeAlphaFlagBitsKHR alpha_blending)
   {
     // don't want to have two existing at once
-    swapchain.match(SwapChain::destroy, []() {});
+    swapchain.match(&SwapChain::destroy, []() {});
     swapchain = stx::None;
 
     SwapChain new_swapchain;

@@ -7,14 +7,14 @@
 #include "ashura/canvas.h"
 #include "ashura/loggers.h"
 #include "ashura/palletes.h"
+#include "ashura/sdl_utils.h"
+#include "ashura/shaders.h"
 #include "ashura/subsystems/font_loader.h"
 #include "ashura/subsystems/font_manager.h"
 #include "ashura/subsystems/image_loader.h"
 #include "ashura/subsystems/image_manager.h"
 #include "ashura/subsystems/vulkan_font_manager.h"
 #include "ashura/subsystems/vulkan_image_manager.h"
-#include "ashura/sdl_utils.h"
-#include "ashura/shaders.h"
 #include "ashura/vulkan_context.h"
 #include "ashura/window_manager.h"
 #include "spdlog/sinks/basic_file_sink.h"
@@ -157,11 +157,18 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   ASH_LOG_INFO(Init, "recreated swapchain for logical/window/viewport extent: [{}, {}], physical/surface extent: [{}, {}]",
                swp.window_extent.width, swp.window_extent.height, swp.image_extent.width, swp.image_extent.height);
 
-  renderer.init(xqueue.share(), DEFAULT_MAX_FRAMES_IN_FLIGHT);
+  render_resource_manager.init(xqueue.share());
+  pipeline_manager.init(xqueue->device->dev);
 
-  renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
+  renderer.init(xqueue->device->dev, xqueue->info.queue, xqueue->info.family.index,
+                xqueue->device->phy_dev->memory_properties, DEFAULT_MAX_FRAMES_IN_FLIGHT);
 
-  manager.init(xqueue.share());
+  for (CanvasPipelineSpec const &spec : cfg.pipelines)
+  {
+    pipeline_manager.add_pipeline(spec);
+  }
+
+  pipeline_manager.rebuild_for_renderpass(swp.render_pass, swp.msaa_sample_count);
 
   root_window.value()->on(WindowEvents::CloseRequested,
                           stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) { std::exit(0); }).unwrap());
@@ -182,11 +189,11 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
-  gfx::image transparent_image = manager.add_image(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba}, false);
+  gfx::image transparent_image = render_resource_manager.add_image(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba8888}, false);
 
   ASH_CHECK(transparent_image == 0);
 
-  root_window.value()->set_icon(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba});
+  root_window.value()->set_icon(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba8888});
 
   /*
  C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf
@@ -196,7 +203,7 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
       C:\Users\Basit\OneDrive\Desktop\gen-shin-gothic-monospace-bold\Gen
   Shin Gothic Monospace Bold\Gen Shin Gothic Monospace Bold.ttf
   */
-  ctx.register_subsystem(new VulkanImageManager{manager});
+  ctx.register_subsystem(new VulkanImageManager{render_resource_manager});
   ctx.register_subsystem(new ImageLoader{});
 
   root_window.value()->on_mouse_click(stx::fn::rc::make_unique_functor(
@@ -227,20 +234,8 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
       TIMER_BEGIN(FontGlyphRender);
       ASH_LOG_INFO(Init, "Loaded font: {} from file: {}", spec.name.view(), spec.path.view());
       auto [atlas, image_buffer] = render_font_atlas(*result.value(), spec.atlas_font_height, spec.max_atlas_extent);
-      atlas.texture              = manager.add_image(image_buffer, false);
-      stx::Option<FontStrokeAtlas> stroke_atlas_o;
-      TIMER_END(FontGlyphRender, "Rendering Font");
-
-      if (spec.stroke_thickness != 0)
-      {
-        TIMER_BEGIN(FontStrokeRender);
-        auto [stroke_atlas, stroke_image_buffer] = render_font_stroke_atlas(*result.value(), spec.atlas_font_height, spec.stroke_thickness, spec.max_atlas_extent);
-        stroke_atlas.texture                     = manager.add_image(stroke_image_buffer, false);
-        stroke_atlas_o                           = stx::Some(std::move(stroke_atlas));
-        TIMER_END(FontStrokeRender, "Rendering Font");
-      }
-
-      font_bundle.push(BundledFont{.name = spec.name.copy(stx::os_allocator).unwrap(), .font = std::move(result.value()), .atlas = std::move(atlas), .stroke_atlas = std::move(stroke_atlas_o)}).unwrap();
+      atlas.texture              = render_resource_manager.add_image(image_buffer, false);
+      font_bundle.push(BundledFont{.name = spec.name.copy(stx::os_allocator).unwrap(), .font = std::move(result.value()), .atlas = std::move(atlas)}).unwrap();
     }
     else
     {
@@ -274,13 +269,13 @@ void Engine::tick(std::chrono::nanoseconds interval)
   // TODO(lamarrr): tick subsystems
   // root_window->tick(interval);
   ctx.tick(interval);
-  widget_system.pump_widget_events(widget_tree, ctx); // TODO(lamarrr): transform mouse position using view_region
+  widget_system.pump_widget_events(widget_tree, ctx);        // TODO(lamarrr): transform mouse position using view_region
   widget_system.tick_widgets(ctx, *root_widget, interval);
   // new widgets could have been added
   widget_system.assign_widget_uuids(ctx, *root_widget, *uuid_generator);
   widget_tree.build(ctx, *root_widget);
-  manager.flush_deletes();
-  manager.submit_uploads();
+  render_resource_manager.execute_deletes();
+  render_resource_manager.submit_uploads();
 
   auto record_draw_commands = [&]() {
     VkExtent2D extent = root_window.value()->surface.value()->swapchain.value().window_extent;
@@ -321,7 +316,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
                              "physical/surface extent: [{}, {}]",
                      swp.window_extent.width, swp.window_extent.height, swp.image_extent.width,
                      swp.image_extent.height);
-        renderer.ctx.rebuild(swp.render_pass, swp.msaa_sample_count);
+        pipeline_manager.rebuild_for_renderpass(swp.render_pass, swp.msaa_sample_count);
         record_draw_commands();
       }
     }
@@ -345,7 +340,8 @@ void Engine::tick(std::chrono::nanoseconds interval)
                       swapchain.render_fences[swapchain.frame], swapchain.image_acquisition_semaphores[swapchain.frame],
                       swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
                       swapchain.framebuffers[swapchain_image_index], draw_list.commands, draw_list.vertices, draw_list.indices,
-                      manager);
+                      pipeline_manager,
+                      render_resource_manager);
 
       swapchain_state = root_window.value()->present(queue.value()->info.queue, swapchain_image_index);
 

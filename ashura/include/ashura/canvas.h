@@ -315,19 +315,21 @@ inline void triangulate_line(stx::Span<vertex const> in_points, f32 thickness, s
 struct DrawCommand
 {
   std::string_view pipeline;                                      /// ID of pipeline to use for rendering
-  u32              nvertices  = 0;                                /// number of vertices for this draw call. offset is automatically determined
-  u32              nindices   = 0;                                /// number of indices for this draw call. offset is automatically determined
-  u32              ninstances = 1;                                /// number of instances used for instanced rendering
-  irect            scissor;                                       /// determines visible area of the rendering operation, in framebuffer coordinates (0, 0) -> viewport_extent
+  u32              nvertices      = 0;                            /// number of vertices for this draw call. offset is automatically determined
+  u32              nindices       = 0;                            /// number of indices for this draw call. offset is automatically determined
+  u32              first_instance = 0;                            /// first instance used for instanced rendering
+  u32              ninstances     = 1;                            /// number of instances used for instanced rendering
+  rect             scissor;                                       /// determines visible area of the rendering operation, in framebuffer coordinates (0, 0) -> viewport_extent
   image            textures[NIMAGES_PER_DRAWCALL]    = {};        /// textures bounded to each descriptor set, 8-max
   u8               push_constant[PUSH_CONSTANT_SIZE] = {};        /// push constant used for draw call. maximum size of PUSH_CONSTANT_SIZE bytes
 
   template <typename T>
-  DrawCommand with_push_constant(T const &constant) const
+  DrawCommand with_push_constant(T const &constant)
   {
     static_assert(sizeof(T) <= PUSH_CONSTANT_SIZE);
-    stx::Span{push_constant}.as_u8().copy(stx::Span{&constant, 1}.as_u8());
-    return *this;
+    DrawCommand copy{*this};
+    stx::Span{copy.push_constant}.as_u8().copy(stx::Span{&constant, 1}.as_u8());
+    return copy;
   }
 };
 
@@ -347,9 +349,9 @@ struct DrawList
 
 struct CanvasState
 {
-  mat3  transform;               // local object transform, applies to local coordinates of the objects
-  mat3  global_transform;        // global scene transform, applies to the global coordinate of the objects
-  irect scissor;
+  mat3 transform;               // local object transform, applies to local coordinates of the objects
+  mat3 global_transform;        // global scene transform, applies to the global coordinate of the objects
+  rect scissor;
 };
 
 /// Coordinates are specified in top-left origin absolute pixel coordinates with x pointing to the
@@ -383,7 +385,7 @@ struct Canvas
     this->viewport_extent = viewport_extent;
     state                 = CanvasState{.transform        = mat3::identity(),
                                         .global_transform = mat3::identity(),
-                                        .scissor          = irect{.offset = {0, 0}, .extent = extent::from(viewport_extent)}};
+                                        .scissor          = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     draw_list.clear();
     return *this;
@@ -392,11 +394,13 @@ struct Canvas
   mat3 make_transform(vec2 position) const
   {
     vec2 viewport_extent_clamped = epsilon_clamp(viewport_extent);
-    return translate2d(-1, -1)                                                            /// normalize to vulkan viewport coordinate range -1 to 1
-           * scale2d(2 / viewport_extent_clamped.x, 2 / viewport_extent_clamped.y)        /// normalize to 0 to 2 coordinate range
-           * state.global_transform                                                       /// apply global coordinate transform
-           * translate2d(position.x, position.y)                                          /// apply viewport positioning
-           * state.transform;                                                             /// apply local coordinate transform
+
+    mat3 t = state.transform;                                                                  /// apply local coordinate transform
+    t      = translate2d(position.x, position.y) * t;                                          /// apply positioning
+    t      = state.global_transform * t;                                                       /// apply global coordinate transform
+    t      = scale2d(2 / viewport_extent_clamped.x, 2 / viewport_extent_clamped.y) * t;        /// normalize to 0 to 2 coordinate range
+    t      = translate2d(-1, -1) * t;                                                          /// normalize from [0, 2] to vulkan viewport coordinate range [-1, 1]
+    return t;
   }
 
   /// push state (transform and scissor) on state stack
@@ -409,14 +413,14 @@ struct Canvas
   /// pop state (transform and scissor) stack and restore state
   Canvas &restore()
   {
-    state = state_stack.pop().unwrap_or(CanvasState{.transform = mat3::identity(), .global_transform = mat3::identity(), .scissor = irect{.offset = {0, 0}, .extent = extent::from(viewport_extent)}});
+    state = state_stack.pop().unwrap_or(CanvasState{.transform = mat3::identity(), .global_transform = mat3::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}});
     return *this;
   }
 
   /// reset the rendering context to its default state (transform and scissor)
   Canvas &reset()
   {
-    state = CanvasState{.transform = mat3::identity(), .global_transform = mat3::identity(), .scissor = irect{.offset = {0, 0}, .extent = extent::from(viewport_extent)}};
+    state = CanvasState{.transform = mat3::identity(), .global_transform = mat3::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     return *this;
   }
@@ -494,7 +498,7 @@ struct Canvas
   }
 
   /// Not affected by transforms
-  Canvas &scissor(irect scissor)
+  Canvas &scissor(rect scissor)
   {
     state.scissor = scissor;
     return *this;
@@ -521,8 +525,9 @@ struct Canvas
                                 .pipeline   = DEFAULT_SHAPE_PIPELINE,
                                 .nvertices  = AS(u32, std::size(vertices)),
                                 .nindices   = AS(u32, std::size(indices)),
+                                .first_instance = 0,
                                 .ninstances = 1,
-                                .scissor    = irect{.offset = {0, 0}, .extent = extent::from(viewport_extent)},
+                                .scissor    = rect{.offset = {0, 0}, .extent = viewport_extent},
                                 .textures   = {texture}}
                                 .with_push_constant(make_transform(vec2{0, 0}).transpose()))
         .unwrap();
@@ -553,6 +558,7 @@ struct Canvas
                                 .pipeline   = DEFAULT_SHAPE_PIPELINE,
                                 .nvertices  = nvertices,
                                 .nindices   = nindices,
+                                .first_instance = 0,
                                 .ninstances = 1,
                                 .scissor    = state.scissor,
                                 .textures   = {texture}}
@@ -583,6 +589,7 @@ struct Canvas
                                 .pipeline   = DEFAULT_SHAPE_PIPELINE,
                                 .nvertices  = nvertices,
                                 .nindices   = nindices,
+                                .first_instance = 0,
                                 .ninstances = 1,
                                 .scissor    = state.scissor,
                                 .textures   = {texture}}
@@ -660,7 +667,7 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    paths::circle(vec2::splat(thickness / 2), radius - thickness, nsegments, color.to_vec(), scratch);
+    paths::circle(vec2::splat(thickness / 2), radius, nsegments, color.to_vec(), scratch);
 
     return draw_path(scratch, area, thickness, true, texture, texture_region);
   }
@@ -785,6 +792,8 @@ struct Canvas
       return *this;
     }
 
+    // TODO(lamarrr): save() translate() transform() restore()
+    // its local axis is actually around the origin of this text block?
     for (TextRunSubWord const &subword : layout.subwords)
     {
       TextProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
@@ -795,25 +804,25 @@ struct Canvas
       }
     }
 
-    for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
-    {
-      TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
-      FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
+    // for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
+    // {
+    //   TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
+    //   FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
 
-      if (props.stroke_color.is_visible() && props.font_height > 0 && font_bundle[glyph_layout.font].stroke_atlas.is_some())
-      {
-        FontStrokeAtlas const &stroke_atlas  = font_bundle[glyph_layout.font].stroke_atlas.value();
-        f32                    glyph_scale   = props.font_height / atlas.font_height;
-        vec2                   extent        = glyph_scale * stroke_atlas.strokes[glyph_layout.glyph].extent.to_vec();
-        vec2                   stroke_offset = (atlas.glyphs[glyph_layout.glyph].extent.to_vec() - stroke_atlas.strokes[glyph_layout.glyph].extent.to_vec()) / 2;
-        stroke_offset                        = glyph_scale * stroke_offset + props.stroke_offset;
+    //   if (props.stroke_color.is_visible() && props.font_height > 0 && font_bundle[glyph_layout.font].stroke_atlas.is_some())
+    //   {
+    //     FontStrokeAtlas const &stroke_atlas  = font_bundle[glyph_layout.font].stroke_atlas.value();
+    //     f32                    glyph_scale   = props.font_height / atlas.font_height;
+    //     vec2                   extent        = glyph_scale * stroke_atlas.strokes[glyph_layout.glyph].extent.to_vec();
+    //     vec2                   stroke_offset = (atlas.glyphs[glyph_layout.glyph].extent.to_vec() - stroke_atlas.strokes[glyph_layout.glyph].extent.to_vec()) / 2;
+    //     stroke_offset                        = glyph_scale * stroke_offset + props.stroke_offset;
 
-        draw_image(stroke_atlas.texture,
-                   rect{.offset = position + glyph_layout.offset + stroke_offset, .extent = extent},
-                   stroke_atlas.strokes[glyph_layout.glyph].texture_region,
-                   props.stroke_color);
-      }
-    }
+    //     draw_image(stroke_atlas.texture,
+    //                rect{.offset = position + glyph_layout.offset + stroke_offset, .extent = extent},
+    //                stroke_atlas.strokes[glyph_layout.glyph].texture_region,
+    //                props.stroke_color);
+    //   }
+    // }
 
     for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
     {
@@ -823,22 +832,12 @@ struct Canvas
 
       if (props.font_height > 0)
       {
-        if (!font.has_color)
-        {
-          if (props.foreground_color.is_visible())
-          {
-            draw_image(atlas.texture,
-                       rect{.offset = position + glyph_layout.offset, .extent = glyph_layout.extent},
-                       atlas.glyphs[glyph_layout.glyph].texture_region,
-                       props.foreground_color);
-          }
-        }
-        else
+        if (props.foreground_color.is_visible())
         {
           draw_image(atlas.texture,
                      rect{.offset = position + glyph_layout.offset, .extent = glyph_layout.extent},
                      atlas.glyphs[glyph_layout.glyph].texture_region,
-                     colors::WHITE);
+                     props.foreground_color);
         }
       }
     }
