@@ -1,5 +1,3 @@
-
-
 #include "ashura/palletes.h"
 #include "ashura/widget_tree.h"
 #include "ashura/widgets/box.h"
