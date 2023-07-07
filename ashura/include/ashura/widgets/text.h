@@ -9,7 +9,7 @@ namespace ash
 
 struct Text : public Widget
 {
-  explicit Text(std::string_view itext, TextProps iprops = TextProps{}) :
+  explicit Text(std::string_view itext, RunProps iprops = RunProps{}) :
       text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{iprops}
   {}
 
@@ -50,7 +50,7 @@ struct Text : public Widget
   {}
 
   stx::String text;
-  TextProps   props;
+  RunProps   props;
   TextLayout  text_layout;
   bool        needs_relayout = true;
 };

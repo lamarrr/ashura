@@ -122,7 +122,7 @@ I'm invincible, niggas can't beat me
 Aye, what's the principle? Pimping ain't easy
 I'm invincible, niggas can't beat me
 )",
-                                                                                                                                                                           TextProps{.font = "RobotoMono", .foreground_color = material::WHITE, .letter_spacing = 0, .word_spacing = 16}},
+                                                                                                                                                                           RunProps{.font = "RobotoMono", .foreground_color = material::WHITE, .letter_spacing = 0, .word_spacing = 16}},
               CheckBox{},
               Slider{},
               Box{BoxProps{.width            = constraint::absolute(200),
@@ -131,13 +131,13 @@ I'm invincible, niggas can't beat me
                                   .border_thickness = 2,
                                   .border_color     = colors::GREEN,
                                   .border_radius    = {5, 5, 5, 5}},
-                  Text{"Click Me!", TextProps{.foreground_color = colors::RED}}},
+                  Text{"Click Me!", RunProps{.foreground_color = colors::RED}}},
               Radio(5, state),
               Radio(6, state),
               Radio(8, state),
-              Text{"verified", TextProps{.font = "MaterialIcons", .foreground_color = colors::YELLOW}},
-              Text{R"(I didn't wanna say anything, but this game seems lame)", TextProps{.font = "Roboto", .font_height = 30, .foreground_color = material::BLUE_500, .background_color = material::GRAY_100}},
-              Text{"explicit", TextProps{.font = "MaterialIcons", .foreground_color = colors::GREEN}},
+              Text{"verified", RunProps{.font = "MaterialIcons", .foreground_color = colors::YELLOW}},
+              Text{R"(I didn't wanna say anything, but this game seems lame)", RunProps{.font = "Roboto", .font_height = 30, .foreground_color = material::BLUE_500, .background_color = material::GRAY_100}},
+              Text{"explicit", RunProps{.font = "MaterialIcons", .foreground_color = colors::GREEN}},
               Image{ImageProps{.source = FileImageSource{.path = R"(C:\Users\Basit\Desktop\wallpaperflare.com_wallpaper.jpg)"}, .border_radius = vec4{20, 20, 20, 20}, .aspect_ratio = stx::Some(2.0f), .resize_on_load = true}}}};
   timepoint  last_tick = Clock::now();
   while (true)

@@ -796,7 +796,7 @@ struct Canvas
     // its local axis is actually around the origin of this text block?
     for (TextRunSubWord const &subword : layout.subwords)
     {
-      TextProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
+      RunProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
 
       if (props.background_color.is_visible())
       {
@@ -824,41 +824,41 @@ struct Canvas
     //   }
     // }
 
-    for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
-    {
-      TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
-      Font const      &font  = *font_bundle[glyph_layout.font].font;
-      FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
+    // for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
+    // {
+    //   TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
+    //   Font const      &font  = *font_bundle[glyph_layout.font].font;
+    //   FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
 
-      if (props.font_height > 0)
-      {
-        if (props.foreground_color.is_visible())
-        {
-          draw_image(atlas.texture,
-                     rect{.offset = position + glyph_layout.offset, .extent = glyph_layout.extent},
-                     atlas.glyphs[glyph_layout.glyph].texture_region,
-                     props.foreground_color);
-        }
-      }
-    }
+    //   if (props.font_height > 0)
+    //   {
+    //     if (props.foreground_color.is_visible())
+    //     {
+    //       draw_image(atlas.texture,
+    //                  rect{.offset = position + glyph_layout.offset, .extent = glyph_layout.extent},
+    //                  atlas.glyphs[glyph_layout.glyph].texture_region,
+    //                  props.foreground_color);
+    //     }
+    //   }
+    // }
 
-    for (TextRunSubWord const &subword : layout.subwords)
-    {
-      TextProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
+    // for (TextRunSubWord const &subword : layout.subwords)
+    // {
+    //   TextProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
 
-      if (props.strikethrough_color.is_visible() && props.strikethrough_thickness > 0)
-      {
-        vec2 pos = position + subword.area.line_top;
-        pos.y += (subword.area.baseline.y - subword.area.line_top.y) / 2;
-        pos.y -= props.strikethrough_thickness / 2;
-        draw_rect_filled(rect{.offset = pos, .extent = vec2{subword.area.extent.x, props.strikethrough_thickness}}, props.strikethrough_color);
-      }
+    //   if (props.strikethrough_color.is_visible() && props.strikethrough_thickness > 0)
+    //   {
+    //     vec2 pos = position + subword.area.line_top;
+    //     pos.y += (subword.area.baseline.y - subword.area.line_top.y) / 2;
+    //     pos.y -= props.strikethrough_thickness / 2;
+    //     draw_rect_filled(rect{.offset = pos, .extent = vec2{subword.area.extent.x, props.strikethrough_thickness}}, props.strikethrough_color);
+    //   }
 
-      if (props.underline_color.is_visible() && props.underline_thickness > 0)
-      {
-        draw_rect_filled(rect{.offset = position + subword.area.baseline, .extent = vec2{subword.area.extent.x, props.underline_thickness}}, props.underline_color);
-      }
-    }
+    //   if (props.underline_color.is_visible() && props.underline_thickness > 0)
+    //   {
+    //     draw_rect_filled(rect{.offset = position + subword.area.baseline, .extent = vec2{subword.area.extent.x, props.underline_thickness}}, props.underline_color);
+    //   }
+    // }
 
     return *this;
   }

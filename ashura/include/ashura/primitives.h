@@ -248,6 +248,16 @@ struct rect
     return std::make_tuple(offset.x, offset.x + extent.x, offset.y, offset.y + extent.y);
   }
 
+  constexpr vec2 min() const
+  {
+    return offset;
+  }
+
+  constexpr vec2 max() const
+  {
+    return offset + extent;
+  }
+
   constexpr bool overlaps(rect other) const
   {
     auto [x0_min, x0_max, y0_min, y0_max] = bounds();
@@ -1080,6 +1090,32 @@ constexpr extent operator+(extent a, extent b)
 {
   return extent{.width = a.width + b.width, .height = a.height + b.height};
 }
+
+constexpr offset operator+(offset a, extent b)
+{
+  return offset{.x = a.x + b.width, .y = a.y + b.height};
+}
+
+constexpr offset operator+(extent a, offset b)
+{
+  return offset{.x = a.width + b.x, .y = a.height + b.y};
+}
+
+struct urect
+{
+  offset offset;
+  extent extent;
+
+  constexpr ash::offset min() const
+  {
+    return this->offset;
+  }
+
+  constexpr ash::offset max() const
+  {
+    return this->offset + extent;
+  }
+};
 
 struct irect
 {
