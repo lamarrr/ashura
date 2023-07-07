@@ -1,4 +1,5 @@
-add_library(ashura STATIC src/app.cc src/engine.cc src/widget.cc src/rengoku.cc src/loggers.cc)
+add_library(ashura STATIC src/app.cc src/engine.cc src/widget.cc src/rengoku.cc
+                          src/loggers.cc)
 
 target_include_directories(
   ashura
@@ -20,7 +21,9 @@ target_link_libraries(
   ${JPEG_LIBRARIES}
   PNG::PNG
   avif
-  ${FFMPEG_LIBRARIES})
+  ${FFMPEG_LIBRARIES}
+  SheenBidi::SheenBidi
+  )
 
 target_include_directories(ashura PUBLIC ${FFMPEG_INCLUDE_DIRS})
 target_link_directories(ashura PUBLIC ${FFMPEG_LIBRARY_DIRS})
