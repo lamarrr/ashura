@@ -256,7 +256,7 @@ inline void generate_sdf_from_mono(u8 const *const src, u32 const src_pitch, u32
         for (i64 jfield = std::max(jsrc - sdf_spread, (i64) 0); jfield < std::min(jsrc + sdf_spread + 1, (i64) width); jfield++)
         {
           u8 const neighbor_is_inside = (src[ifield * src_pitch + (jfield / 8)] >> (7 - (jfield % 8))) & 1;
-          if (neighbor_is_inside != is_inside)
+          if (neighbor_is_inside != is_inside) [[likely]]
           {
             i64 const neighbor_square_distance = (ifield - isrc) * (ifield - isrc) + (jfield - jsrc) * (jfield - jsrc);
             square_distance                    = std::min(square_distance, neighbor_square_distance);
