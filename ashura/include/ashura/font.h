@@ -279,6 +279,8 @@ inline void generate_sdf_from_mono(u8 const *const src, u32 const src_pitch, u32
 
 inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font const &font, FontSpec const spec)
 {
+  // NOTE: all *64 or << 6, /64 or >> 6 are to convert to and from 26.6 pixel format used in Freetype and Harfbuzz metrics
+
   if (!spec.ranges.is_empty())
   {
     ASH_LOG_INFO(FontRenderer, "Font: {}'s Needed Unicode Ranges: ", font.postscript_name.c_str());
@@ -294,7 +296,6 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
   FT_Face ft_face;
   ASH_CHECK(FT_New_Memory_Face(ft_lib, font.data.data(), AS(FT_Long, font.data.size()), font.selected_face, &ft_face) == 0);
 
-  // *64 / << 6 to convert to 26.6 pixel format
   ASH_CHECK(FT_Set_Char_Size(ft_face, 0, spec.font_height << 6, 72, 72) == 0);
 
   stx::Vec<Glyph> glyphs;
