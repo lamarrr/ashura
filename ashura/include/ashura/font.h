@@ -299,16 +299,14 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
 
   stx::Vec<Glyph> glyphs;
 
-  // the first glyph is selected if the glyph for the replacement codepoint is not found
-  u32 const replacement_glyph = FT_Get_Char_Index(ft_face, HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);
-  f32 const ascent            = ft_face->size->metrics.ascender / 64.0f;
-  f32 const descent           = ft_face->size->metrics.descender / -64.0f;
+  u32 const nglyphs           = (u32) ft_face->num_glyphs;
+  u32 const replacement_glyph = FT_Get_Char_Index(ft_face, HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);        // glyph index 0 is selected if the glyph for the replacement codepoint is not found
+  f32 const ascent            = (ft_face->size->metrics.ascender / 64.0f) / spec.font_height;
+  f32 const descent           = (ft_face->size->metrics.descender / -64.0f) / spec.font_height;
 
-  ASH_LOG_INFO(FontRenderer, "Fetching Glyph Metrics For Font: {}", font.postscript_name.c_str());
+  ASH_LOG_INFO(FontRenderer, "Fetching {} Glyph Metrics For Font: {}", nglyphs, font.postscript_name.c_str());
 
-  usize const nglyphs = ft_face->num_glyphs;
-
-  for (usize glyph_index = 0; glyph_index < nglyphs; glyph_index++)
+  for (u32 glyph_index = 0; glyph_index < nglyphs; glyph_index++)
   {
     bool const is_needed = glyph_index == replacement_glyph ? true : spec.ranges.is_empty();
 
@@ -319,11 +317,11 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
       GlyphMetrics metrics;
 
       // convert from 26.6 pixel format
-      metrics.bearing.x = slot->metrics.horiBearingX / 64.0f;
-      metrics.bearing.y = slot->metrics.horiBearingY / 64.0f;
-      metrics.advance   = slot->metrics.horiAdvance / 64.0f;
-      metrics.extent.x  = slot->metrics.width / 64.0f;
-      metrics.extent.y  = slot->metrics.width / 64.0f;
+      metrics.bearing.x = (slot->metrics.horiBearingX / 64.0f) / spec.font_height;
+      metrics.bearing.y = (slot->metrics.horiBearingY / 64.0f) / spec.font_height;
+      metrics.advance   = (slot->metrics.horiAdvance / 64.0f) / spec.font_height;
+      metrics.extent.x  = (slot->metrics.width / 64.0f) / spec.font_height;
+      metrics.extent.y  = (slot->metrics.width / 64.0f) / spec.font_height;
       metrics.descent   = std::max(metrics.extent.x - metrics.bearing.y, 0.0f);
 
       // bin offsets are determined after binning and during rect packing
