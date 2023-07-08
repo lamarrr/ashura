@@ -163,6 +163,7 @@ struct FontAtlasBin
   usize      used_area = 0;
 };
 
+/// Metrics are normalized
 struct GlyphMetrics
 {
   vec2 bearing;            // offset from cursor baseline to start drawing glyph from
