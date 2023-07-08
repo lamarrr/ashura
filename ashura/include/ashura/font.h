@@ -177,12 +177,12 @@ struct GlyphMetrics
 /// NOTE: using stubs enables us to perform fast constant lookups of glyph indices by ensuring the array is filled and sorted by glyph index from 0 -> nglyphs_found_in_font-1
 struct Glyph
 {
-  bool         is_valid  = false;
-  bool         is_needed = false;
-  GlyphMetrics metrics;
-  u32          bin = 0;
-  urect        cache_area;        // area in the atlas this glyph's cache data is placed
-  texture_rect bin_region;        // texture coordinates of this glyph in the atlas bin
+  bool         is_valid  = false;        // if the glyph was found in the font and loaded successfully
+  bool         is_needed = false;        // if the texture is a texture that is needed. i.e. if the unicode ranges are empty then this is always true, otherwise it is set to true if the config unicode ranges contains it, note that special glyphs like replacement unicode codepoint glyph (0xFFFD) will always be true
+  GlyphMetrics metrics;                  // normalized font metrics
+  u32          bin = 0;                  // atlas bin this glyph belongs to
+  urect        bin_area;                 // area in the atlas this glyph's cache data is placed
+  texture_rect bin_region;               // normalized texture coordinates of this glyph in the atlas bin
 };
 
 /// stores codepoint glyphs for a font at a specific font height
