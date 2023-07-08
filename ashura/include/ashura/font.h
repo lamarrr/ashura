@@ -198,11 +198,11 @@ struct Glyph
 struct FontAtlas
 {
   stx::Vec<Glyph>        glyphs;
-  u32                    replacement_glyph = 0;
+  u32                    replacement_glyph = 0;        // glyph for the replacement glyph 0xFFFD if found, otherwise glyph index 0
   u32                    font_height       = 0;        // font height at which the this atlas was rendered
-  u32                    sdf_spread        = 0;        // signed distance field spread factor
-  f32                    ascent            = 0;        // maximum ascent of the font's glyphs
-  f32                    descent           = 0;        // maximum descent of the font's glyphs
+  f32                    sdf_spread        = 0;        // normalized signed distance field spread factor
+  f32                    ascent            = 0;        // normalized maximum ascent of the font's glyphs
+  f32                    descent           = 0;        // normalized maximum descent of the font's glyphs
   stx::Vec<FontAtlasBin> bins;
 };
 
@@ -536,7 +536,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
                             .glyphs            = std::move(glyphs),
                             .replacement_glyph = replacement_glyph,
                             .font_height       = spec.font_height,
-                            .sdf_spread        = spec.sdf_props.spread,
+                            .sdf_spread        = spec.sdf.spread / (f32) spec.font_height,
                             .ascent            = ascent,
                             .descent           = descent},
                         std::move(bin_buffers));
