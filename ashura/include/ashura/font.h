@@ -360,51 +360,52 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
     }
   }
 
-  usize nloaded_glyphs = 0;
+  u32 nloaded_glyphs = 0;
 
   for (Glyph const &glyph : glyphs)
   {
-    if (glyph.is_valid && glyph.is_needed)
+    if (glyph.is_valid && glyph.is_needed) [[likely]]
     {
-      nloaded_glyphs++:
+      nloaded_glyphs++;
     }
   }
 
   ASH_LOG_INFO(FontRenderer, "Bin Packing Glyphs For Font: {}", font.postscript_name.c_str());
-
-  stx::Vec<rect_packer::rect> rects;
-  rects.unsafe_resize_uninitialized(nloaded_glyphs).unwrap();
-
-  for (usize glyph_index = 0, irect = 0; glyph_index < glyphs.size(); glyph_index++)
-  {
-    Glyph &glyph = glyphs[glyph_index];
-    if (glyph.is_valid && glyph.is_needed) [[likely]]
-    {
-      rects[irect].glyph_index = glyph_index;
-      rects[irect].x           = 0;
-      rects[irect].y           = 0;
-
-      // added padding to avoid texture spilling due to accumulated uv interpolation errors
-      rects[irect].w = AS(i32, glyphs[glyph_index].cache_area.extent.width + 2);
-      rects[irect].h = AS(i32, glyphs[glyph_index].cache_area.extent.height + 2);
-      irect++;
-    }
-  }
-
-  stx::Vec<rect_packer::Node> nodes;
-  nodes.unsafe_resize_uninitialized(spec.max_atlas_bin_extent.width).unwrap();
-
-  rect_packer::Context pack_context = rect_packer::init(spec.max_atlas_bin_extent.width,
-                                                        spec.max_atlas_bin_extent.height,
-                                                        nodes.data(),
-                                                        spec.max_atlas_bin_extent.width,
-                                                        true);
 
   stx::Vec<FontAtlasBin> bins;
   usize                  total_used_area = 0;
   usize                  total_area      = 0;
 
   {
+    stx::Vec<rect_packer::rect> rects;
+    rects.unsafe_resize_uninitialized(nloaded_glyphs).unwrap();
+
+    for (u32 glyph_index = 0, irect = 0; glyph_index < nglyphs; glyph_index++)
+    {
+      Glyph const &glyph = glyphs[glyph_index];
+      // only assign packing rects to the valid and needed glyphs
+      if (glyph.is_valid && glyph.is_needed) [[likely]]
+      {
+        rects[irect].glyph_index = glyph_index;
+        rects[irect].x           = 0;
+        rects[irect].y           = 0;
+
+        // added padding to avoid texture spilling due to accumulated uv interpolation errors
+        rects[irect].w = AS(i32, glyphs[glyph_index].bin_area.extent.width + 2);
+        rects[irect].h = AS(i32, glyphs[glyph_index].bin_area.extent.height + 2);
+        irect++;
+      }
+    }
+
+    stx::Vec<rect_packer::Node> nodes;
+    nodes.unsafe_resize_uninitialized(spec.max_atlas_bin_extent.width).unwrap();
+
+    rect_packer::Context pack_context = rect_packer::init(spec.max_atlas_bin_extent.width,
+                                                          spec.max_atlas_bin_extent.height,
+                                                          nodes.data(),
+                                                          spec.max_atlas_bin_extent.width,
+                                                          true);
+
     u32                          bin            = 0;
     stx::Span<rect_packer::rect> unpacked_rects = rects;
     bool                         was_all_packed = rects.is_empty();
@@ -429,12 +430,12 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
 
       for (rect_packer::rect const &rect : just_packed)
       {
-        Glyph &glyph              = glyphs[rect.glyph_index];
-        glyph.cache_area.offset.x = AS(u32, rect.x) + 1;
-        glyph.cache_area.offset.y = AS(u32, rect.y) + 1;
-        glyph.bin                 = bin;
-        glyph.bin_region.uv0      = glyph.cache_area.min().to_vec() / bin_extent.to_vec();
-        glyph.bin_region.uv1      = glyph.cache_area.max().to_vec() / bin_extent.to_vec();
+        Glyph &glyph            = glyphs[rect.glyph_index];
+        glyph.bin_area.offset.x = AS(u32, rect.x) + 1;
+        glyph.bin_area.offset.y = AS(u32, rect.y) + 1;
+        glyph.bin               = bin;
+        glyph.bin_region.uv0    = glyph.bin_area.min().to_vec() / bin_extent.to_vec();
+        glyph.bin_region.uv1    = glyph.bin_area.max().to_vec() / bin_extent.to_vec();
       }
 
       bins.push(FontAtlasBin{.texture = gfx::WHITE_IMAGE, .extent = bin_extent, .used_area = used_area}).unwrap();
@@ -455,8 +456,8 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
                "Finished Bin Packing Glyphs For Font: {} Into {} Bins With {} Efficiency (Wasted Area = {}, Used Area = {}, Total Area = {}) ",
                font.postscript_name.c_str(), bins.size(), packing_efficiency, total_wasted_area, total_used_area, total_area);
 
-  u32 const upscaled_font_height = spec.sdf_props.upscale_factor * spec.font_height;
-  u32 const upscaled_spread      = spec.sdf_props.upscale_factor * spec.sdf_props.spread;
+  u32 const upscaled_font_height = spec.sdf.upscale_factor * spec.font_height;
+  u32 const upscaled_spread      = spec.sdf.upscale_factor * spec.sdf.spread;
 
   ASH_CHECK(FT_Set_Char_Size(ft_face, 0, upscaled_font_height << 6, 72, 72) == 0);
 
@@ -479,7 +480,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
     bin_buffers.push(std::move(buffer)).unwrap();
   }
 
-  for (usize glyph_index = 0; glyph_index < glyphs.size(); glyph_index++)
+  for (u32 glyph_index = 0; glyph_index < nglyphs; glyph_index++)
   {
     Glyph const &glyph = glyphs[glyph_index];
     if (glyph.is_valid && glyph.is_needed) [[likely]]
@@ -514,15 +515,13 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
 
       ImageBuffer &bin_buffer = bin_buffers[glyph.bin];
 
-      u8 *out = bin_buffer.data() + glyph.offset.y * bin_buffer.pitch() + glyph.offset.x;
-
       stbir_resize_uint8(scratch_buffer.data(),
                          upscaled_sdf_width,
                          upscaled_sdf_height,
                          upscaled_sdf_width,
-                         out,
-                         glyph.cache_area.extent.width,
-                         glyph.cache_area.extent.height,
+                         bin_buffer.subspan(glyph.bin_area.offset).data(),
+                         glyph.bin_area.extent.width,
+                         glyph.bin_area.extent.height,
                          bin_buffer.pitch(),
                          1);
     }
