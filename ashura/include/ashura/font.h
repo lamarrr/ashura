@@ -46,7 +46,7 @@ struct Font
 
   Font(stx::String ipostscript_name, stx::String ifamily_name, stx::String istyle_name,
        hb_blob_t *ihb_blob, hb_face_t *ihb_face, hb_font_t *ihb_font, hb_buffer_t *ihb_buffer,
-       stx::Vec<u8> idata, u32 infaces, u32 iselected_face) :
+       u32 infaces, u32 iselected_face, stx::Vec<u8> idata) :
       postscript_name{std::move(ipostscript_name)},
       family_name{std::move(ifamily_name)},
       style_name{std::move(istyle_name)},
@@ -54,9 +54,9 @@ struct Font
       hb_face{ihb_face},
       hb_font{ihb_font},
       hb_buffer{ihb_buffer},
-      data{std::move(idata)},
       nfaces{infaces},
-      selected_face{iselected_face}
+      selected_face{iselected_face},
+      data{std::move(idata)}
   {}
 
   STX_MAKE_PINNED(Font)
@@ -121,7 +121,7 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_memory(stx::Ve
   ASH_CHECK(FT_Done_FreeType(ft_lib) == 0);
 
   return stx::Ok(stx::rc::make_inplace<Font>(stx::os_allocator, std::move(postscript_name), std::move(family_name), std::move(style_name),
-                                             hb_blob, hb_face, hb_font, hb_buffer, std::move(data), nfaces, selected_face)
+                                             hb_blob, hb_face, hb_font, hb_buffer, nfaces, selected_face, std::move(data))
                      .unwrap());
 }
 
