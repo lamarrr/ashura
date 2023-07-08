@@ -1,20 +1,24 @@
 #pragma once
 
+#include <string_view>
+
+extern "C"
+{
 #include "SBAlgorithm.h"
+#include "SBLine.h"
 #include "SBParagraph.h"
+#include "SBScriptLocator.h"
+}
+
 #include "ashura/font.h"
 #include "ashura/primitives.h"
 #include "harfbuzz/hb.h"
 #include "stx/span.h"
 #include "stx/text.h"
 #include "stx/vec.h"
-#include <string_view>
 
 namespace ash
 {
-
-/// @brief to work around this, replace all tabs with the the number of equivalent spaces you'd like
-constexpr u32 DEFAULT_TAB_SIZE = 8;
 
 enum class TextDirection : u8
 {
@@ -23,37 +27,35 @@ enum class TextDirection : u8
 };
 
 // TODO(lamarrr): letter and word spacing are presently incorrectly used
-struct RunProps
+struct TextStyle
 {
-  std::string_view                  font                    = {};        // name to use to match the font. if font is not found or empty the fallback fonts are tried.
-  stx::Span<std::string_view const> fallback_fonts          = {};        // font to fallback to if specified font is not available. if none of the specified fallback fonts are found the first font in the font bundle will be used
-  f32                               font_height             = 20;        // px
-  color                             foreground_color        = colors::BLACK;
-  color                             background_color        = colors::TRANSPARENT;
-  color                             outline_color           = colors::BLACK;
-  f32                               outline_thickness       = 0;                                 // px. TODO(lamarrr): outline spread??? we can also scale by px sdf_spread/outline_width
-  color                             shadow_color            = colors::TRANSPARENT;
-  f32                               shadow_scale            = 1;                                 // relative. multiplied by font_height
-  vec2                              shadow_offset           = vec2{0, 0};                        // px. offset from center of glyph
-  color                             underline_color         = colors::BLACK;
-  f32                               underline_thickness     = 0;                                 // px
-  color                             strikethrough_color     = colors::BLACK;
-  f32                               strikethrough_thickness = 0;                                 // px
-  f32                               letter_spacing          = 0;                                 // px. additional letter spacing, can be negative
-  f32                               word_spacing            = 0;                                 // px. additional word spacing, can be negative
-  f32                               line_height             = 1.2f;                              // relative. multiplied by font_height
-  TextDirection                     direction               = TextDirection::LeftToRight;        // default text direction
-  bool                              use_kerning             = true;                              // use provided font kerning
-  bool                              use_ligatures           = true;                              // use standard and contextual font ligature substitution
-  std::string_view                  language                = {};                                // locale language. if empty, the machine's locale will be retrieved and used
-  std::string_view                  script                  = {};                                // script to use for the glyph run. if set this will override script detection
+  std::string_view                  font                    = {};                         // name to use to match the font. if font is not found or empty the fallback fonts are tried.
+  stx::Span<std::string_view const> fallback_fonts          = {};                         // font to fallback to if {font} is not available. if none of the specified fallback fonts are found the first font in the font bundle will be used
+  f32                               font_height             = 20;                         // px
+  color                             foreground_color        = colors::BLACK;              //
+  color                             background_color        = colors::TRANSPARENT;        //
+  color                             outline_color           = colors::BLACK;              //
+  f32                               outline_thickness       = 0;                          // px. TODO(lamarrr): outline spread??? we can also scale by px sdf_spread/outline_width
+  color                             shadow_color            = colors::BLACK;              //
+  f32                               shadow_scale            = 0;                          // relative. multiplied by font_height
+  vec2                              shadow_offset           = vec2{0, 0};                 // px. offset from center of glyph
+  color                             underline_color         = colors::BLACK;              //
+  f32                               underline_thickness     = 0;                          // px
+  color                             strikethrough_color     = colors::BLACK;              //
+  f32                               strikethrough_thickness = 0;                          // px
+  f32                               letter_spacing          = 0;                          // px. additional letter spacing, can be negative
+  f32                               word_spacing            = 0;                          // px. additional word spacing, can be negative
+  f32                               line_height             = 1.2f;                       // relative. multiplied by font_height
+  bool                              use_kerning             = true;                       // use provided font kerning
+  bool                              use_ligatures           = true;                       // use standard and contextual font ligature substitution
 };
 
-/// A text run is a sequence of characters sharing a single property i.e. foreground color, font family etc.
+/// A text run is a sequence of characters sharing a single property i.e. foreground color, font etc.
 struct TextRun
 {
-  stx::Span<char const> text;        /// utf-8-encoded text, Span because string view doesnt support non-string types
-  stx::Option<RunProps> props;
+  usize     offset = 0;        // offset from the previous run in the run list
+  usize     size   = 0;        // size of this run
+  TextStyle style;             // run properties. if not set the paragraph's run properties are used instead
 };
 
 enum class TextAlign : u8
@@ -63,29 +65,18 @@ enum class TextAlign : u8
   Right
 };
 
-// TODO(lamarrr): implement ellipsis overflow wrapping
-enum class TextOverflow : u8
+struct TextBlock
 {
-  Wrap,
-  Ellipsis
+  std::string_view         text;                                          // utf-8-encoded text, Span because string view doesnt support non-string types
+  stx::Span<TextRun const> runs;                                          // parts of text not styled by a run will use the paragraphs run style
+  TextStyle                style;                                         // run styling
+  TextDirection            direction = TextDirection::LeftToRight;        // base text direction
+  TextAlign                align     = TextAlign::Left;                   // text alignment
+  // TODO(lamarrr): ellipsis overflow wrap
 };
 
-struct Paragraph
-{
-  stx::Span<TextRun const> runs;
-  RunProps                 props;
-  TextAlign                align = TextAlign::Left;
-  // TextOverflow             overflow = TextOverflow::Wrap;
-  // std::string_view         ellipsis = "...";
-};
-
-struct TextRunGlyph
-{
-  u32  index = 0;          // glyph index in font
-  vec2 offset;             // context-dependent text shaping offset from normal font glyph position
-  f32  advance = 0;        // horizontal advance to use
-};
-
+/// Area occupied by a text run
+/// All coordinates are relative to the paragraph
 struct TextRunArea
 {
   vec2 offset;
@@ -94,6 +85,8 @@ struct TextRunArea
   vec2 line_top;
 };
 
+/// Placement of glyph.
+/// All coordinates are relative to the paragraph
 struct GlyphLayout
 {
   vec2  offset;
@@ -103,25 +96,31 @@ struct GlyphLayout
   u32   glyph = 0;
 };
 
+// TODO(lamarrr): include trailing whitespace width
+struct TextRunGlyph
+{
+  u32  index = 0;          // glyph index in font
+  vec2 offset;             // context-dependent text shaping offset from normal font glyph position
+  f32  advance = 0;        // horizontal-layout advance
+};
+
 /// this is part of a word that is styled by a run. i.e. a word: 'Goog', could have 'G' as red, 'oo' as yellow, and 'g' as blue,
 /// 'G' will be a run subword, 'oo' is another run subword, and 'g' will be another subword as they have different properties
 /// determined by the run they belong to, although part of the same word.
 ///
 struct TextRunSubWord
 {
-  stx::Span<char const> text;
-  usize                 run         = 0;
-  usize                 font        = 0;
-  f32                   glyph_scale = 0;
-  // usize                 nspace_chars   = 0;
-  // bool        has_spacing  = false;
-  usize       nnewline_chars = 0;
-  usize       nline_breaks   = 0;
-  f32         width          = 0;        /// width of all the letters excluding the trailing white spaces
-  usize       glyphs_begin   = 0;
-  usize       nglyphs        = 0;
-  bool        is_wrapped     = false;
-  TextRunArea area;
+  stx::Span<char const> text;                          // slice of the text contents of this subword
+  usize                 run            = 0;            // the text run this subword belongs to
+  usize                 font           = 0;            // resolved font index in the font bundle
+  f32                   width          = 0;            // px. width of all the letters including trailing tabs and spaces
+  bool                  has_spacing    = false;        // whether this run subword has spacing at its end, this means it has a number of trailing tabs and spaces
+  usize                 nnewline_chars = 0;            // number of newline characters
+  usize                 nline_breaks   = 0;            // resolved line breaks (after wrapping)
+  usize                 glyphs_begin   = 0;            // begin offset of this subword's glyphs in the global glyph array. enables us to not have to have a Vec for each subword
+  usize                 nglyphs        = 0;            // number of glyphs belonging to this subword
+  bool                  is_wrapped     = false;        // if subword is wrapped (i.e. it would exceed the max line width if it is not placed on a new line)
+  TextRunArea           area;                          // laid out area of this run subword
 };
 
 struct TextLayout
@@ -132,17 +131,13 @@ struct TextLayout
 
   stx::Vec<TextRunSubWord> subwords;
   stx::Vec<TextRunGlyph>   glyphs;
-  stx::Vec<GlyphLayout>    glyph_layouts;
-  vec2                     span;
+  stx::Vec<GlyphLayout>    glyph_layouts;        // laid out glyphs
+  vec2                     span;                 // normal extent the text spans. might be more than the provided max_line_width at layout time
 
   // TODO(lamarrr): [future] add bidi
-  /// performs layout of the paragraph and returns the width and height of the paragraph
-  void layout(Paragraph const &paragraph, stx::Span<BundledFont const> const font_bundle, f32 max_line_width)
+  /// performs layout of the paragraph
+  void layout(TextBlock const &block, stx::Span<BundledFont const> const font_bundle, f32 const max_line_width)
   {
-    constexpr u32 SPACE    = ' ';
-    constexpr u32 TAB      = '\t';
-    constexpr u32 NEWLINE  = '\n';
-    constexpr u32 RETURN   = '\r';
     constexpr u32 ELLIPSIS = 0x2026;
 
     subwords.clear();
@@ -156,125 +151,105 @@ struct TextLayout
       return;
     }
 
-    hb_unicode_funcs_t *hb_funcs = hb_unicode_funcs_get_default();
-    ASH_CHECK(hb_funcs != nullptr);
+    SBLevel const       block_base_level      = block.direction == TextDirection::LeftToRight ? SBLevelDefaultLTR : SBLevelDefaultRTL;
+    SBCodepointSequence sb_codepoint_sequence = {SBStringEncodingUTF8, (void *) block.text.data(), block.text.size()};
+    SBAlgorithmRef      sb_algorithm          = SBAlgorithmCreate(&sb_codepoint_sequence);
+    ASH_CHECK(sb_algorithm != nullptr);
 
-    /** Word Tokenization */
-    for (usize i = 0; i < paragraph.runs.size(); i++)
+    SBScriptLocatorRef sb_script_locator = SBScriptLocatorCreate();
+    ASH_CHECK(sb_script_locator != nullptr);
+
+    SBScriptLocatorLoadCodepoints(sb_script_locator, &sb_codepoint_sequence);
+    SBScriptAgent const *sb_script_agent = SBScriptLocatorGetAgent(sb_script_locator);
+
+    for (SBUInteger paragraph_begin = 0; paragraph_begin < block.text.size();)
     {
-      TextRun const  &run   = paragraph.runs[i];
-      RunProps const &props = run.props.as_cref().unwrap_or(paragraph.props);
-  // hb_script_get_horizontal_direction
+      SBParagraphRef sb_paragraph = SBAlgorithmCreateParagraph(sb_algorithm, paragraph_begin, stx::U32_MAX, block_base_level);
+      ASH_CHECK(sb_paragraph != nullptr);
 
-      for (char const *word_begin = run.text.begin(); word_begin < run.text.end();)
+      SBUInteger const paragraph_length     = SBParagraphGetLength(sb_paragraph);
+      SBLevel const    paragraph_base_level = SBParagraphGetBaseLevel(sb_paragraph);
+
+      SBLineRef const sb_line = SBParagraphCreateLine(sb_paragraph, paragraph_begin, paragraph_length);
+      ASH_CHECK(sb_line != nullptr);
+
+      SBRun const *const sb_level_runs   = SBLineGetRunsPtr(sb_line);
+      SBUInteger const   run_count = SBLineGetRunCount(sb_line);
+
+      SBLevel      previous_level     = paragraph_base_level;
+      SBScript     previous_script    = SBScriptNil;
+      usize        previous_run_style = 0;        // run styles are always at least of size 1 with the last one being the text block's
+
+
+      SBRun const *current_sb_level_run     = sb_level_runs;
+
+      for (SBUInteger iparagraph = 0; iparagraph < paragraph_length; iparagraph++)
       {
-        usize       nspace_chars   = 0;
-        usize       nnewline_chars = 0;
-        char const *seeker         = word_begin;
-        char const *word_end       = seeker;
-        u32         codepoint      = 0;
+        usize run_style   = 0;
+        usize text_offset = paragraph_begin + iparagraph;
 
-        for (; seeker < run.text.end();)
+        if (!(text_offset >= sb_script_agent->offset && text_offset < (sb_script_agent->offset + sb_script_agent->length))) [[unlikely]]
         {
-          codepoint = stx::utf8_next(seeker);
+          ASH_CHECK(SBScriptLocatorMoveNext(sb_script_locator) == SBTrue);
+        }
 
-          if (codepoint == RETURN || codepoint == NEWLINE || codepoint == TAB || codepoint == SPACE)
+        if (!(iparagraph >= current_sb_level_run->offset && iparagraph < (current_sb_level_run->offset + current_sb_level_run->length))) [[unlikely]]
+        {
+          current_sb_level_run++;
+        }
+
+        SBScript script = sb_script_agent->script;
+        SBLevel  level  = current_sb_level_run->level;
+
+        for (SBUInteger irun = 0; irun < run_count; irun++)
+        {
+          if (iparagraph >= current_sb_level_run[irun].offset && iparagraph < (current_sb_level_run[irun].offset + current_sb_level_run[irun].length))
           {
+            level = sb_runs[irun].level;
             break;
           }
         }
 
-        word_end = seeker;
-
-        if (codepoint == RETURN)
+        while ()
         {
-          word_end = seeker - 1;
-
-          if (seeker + 1 < run.text.end())
+          if (iparagraph >= sb_script_agent->offset && iparagraph < (sb_script_agent->offset + sb_script_agent->length))
           {
-            if (*(seeker + 1) == NEWLINE)
-            {
-              seeker++;
-              nnewline_chars++;
-            }
-          }
-        }
-        else if (codepoint == SPACE)
-        {
-          word_end = seeker - 1;
-          nspace_chars++;
+            script = sb_script_agent->script;
 
-          for (char const *iter = seeker; iter < run.text.end();)
-          {
-            seeker        = iter;
-            u32 codepoint = stx::utf8_next(iter);
-
-            if (codepoint == SPACE)
-            {
-              nspace_chars++;
-            }
-            else
-            {
-              break;
-            }
-          }
-        }
-        else if (codepoint == TAB)
-        {
-          word_end = seeker - 1;
-          nspace_chars += props.tab_size;
-
-          for (char const *iter = seeker; iter < run.text.end();)
-          {
-            seeker        = iter;
-            u32 codepoint = stx::utf8_next(iter);
-            if (codepoint == TAB)
-            {
-              nspace_chars += props.tab_size;
-            }
-            else
-            {
-              break;
-            }
-          }
-        }
-        else if (codepoint == NEWLINE)
-        {
-          word_end = seeker - 1;
-          nnewline_chars++;
-
-          for (char const *iter = seeker; iter < run.text.end();)
-          {
-            seeker        = iter;
-            u32 codepoint = stx::utf8_next(iter);
-
-            if (codepoint == NEWLINE)
-            {
-              nnewline_chars++;
-            }
-            else
-            {
-              break;
-            }
+            break;
           }
         }
 
-        subwords
-            .push(TextRunSubWord{.text           = run.text.slice(word_begin - run.text.begin(), word_end - word_begin),
-                                 .run            = i,
-                                 .nspace_chars   = nspace_chars,
-                                 .nnewline_chars = nnewline_chars})
-            .unwrap();
+        for (usize irun_style = 0; irun_style < block.runs.size(); irun_style++)
+        {
+          if (iparagraph >= block.runs[irun_style].offset && iparagraph < (block.runs[irun_style].offset + block.runs[irun_style].size))
+          {
+            run_style = irun_style;
+            break;
+          }
+        }
 
-        word_begin = seeker;
+        if (level != previous_level || script != previous_script || run_style != previous_run_style)
+        {
+          //
+        }
       }
+
+      SBLineRelease(sb_line);
+      SBParagraphRelease(sb_paragraph);
+
+      // count line breaks and offset by that
+      paragraph_begin += paragraph_length;
     }
+
+    SBScriptLocatorRelease(sb_script_locator);
+    SBAlgorithmRelease(sb_algorithm);
 
     /** Font Resolution and Word Shaping */
     for (TextRunSubWord &subword : subwords)
     {
-      RunProps const &props  = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
-      stx::Span       font_s = font_bundle.which([&](BundledFont const &f) {
+      TextStyle const &props  = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
+      stx::Span        font_s = font_bundle.which([&](BundledFont const &f) {
         return f.name == props.font;
       });
 
@@ -386,9 +361,9 @@ struct TextLayout
       f32 cursor_x = 0;
       for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
       {
-        TextRunSubWord *word_begin = iter;
-        RunProps const &props      = paragraph.runs[word_begin->run].props.as_cref().unwrap_or(paragraph.props);
-        f32             word_width = word_begin->width + word_begin->nspace_chars * props.word_spacing;
+        TextRunSubWord  *word_begin = iter;
+        TextStyle const &props      = paragraph.runs[word_begin->run].props.as_cref().unwrap_or(paragraph.props);
+        f32              word_width = word_begin->width + word_begin->nspace_chars * props.word_spacing;
 
         TextRunSubWord *word_end = word_begin + 1;
 
@@ -396,7 +371,7 @@ struct TextLayout
         {
           for (; word_end < subwords.end();)
           {
-            RunProps const &props = paragraph.runs[word_end->run].props.as_cref().unwrap_or(paragraph.props);
+            TextStyle const &props = paragraph.runs[word_end->run].props.as_cref().unwrap_or(paragraph.props);
             word_width += word_end->width + word_end->nspace_chars * props.word_spacing;
 
             // if at last subword
@@ -481,7 +456,7 @@ struct TextLayout
 
         for (TextRunSubWord const *subword = line_begin; subword < line_end; subword++)
         {
-          RunProps const  &props = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
+          TextStyle const &props = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
           FontAtlas const &atlas = font_bundle[subword->font].atlas;
 
           line_width += subword->width + subword->nspace_chars * props.word_spacing;
@@ -509,7 +484,7 @@ struct TextLayout
 
         for (TextRunSubWord *subword = line_begin; subword < line_end;)
         {
-          RunProps const &props = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
+          TextStyle const &props = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
           if (props.direction == TextDirection::LeftToRight)
           {
             FontAtlas const &atlas = font_bundle[subword->font].atlas;
@@ -545,13 +520,13 @@ struct TextLayout
             TextRunSubWord *rtl_begin = subword;
             TextRunSubWord *rtl_end   = subword + 1;
 
-            RunProps const &props = paragraph.runs[rtl_begin->run].props.as_cref().unwrap_or(paragraph.props);
+            TextStyle const &props = paragraph.runs[rtl_begin->run].props.as_cref().unwrap_or(paragraph.props);
 
             rtl_width += rtl_begin->width + rtl_begin->nspace_chars * props.word_spacing;
 
             for (; rtl_end < line_end; rtl_end++)
             {
-              RunProps const &props = paragraph.runs[rtl_end->run].props.as_cref().unwrap_or(paragraph.props);
+              TextStyle const &props = paragraph.runs[rtl_end->run].props.as_cref().unwrap_or(paragraph.props);
               if (props.direction == TextDirection::LeftToRight)
               {
                 break;
@@ -566,7 +541,7 @@ struct TextLayout
 
             for (TextRunSubWord *rtl_iter = rtl_begin; rtl_iter < rtl_end; rtl_iter++)
             {
-              RunProps const  &props = paragraph.runs[rtl_iter->run].props.as_cref().unwrap_or(paragraph.props);
+              TextStyle const &props = paragraph.runs[rtl_iter->run].props.as_cref().unwrap_or(paragraph.props);
               FontAtlas const &atlas = font_bundle[rtl_iter->font].atlas;
 
               rtl_cursor_x -= rtl_iter->width + rtl_iter->nspace_chars * props.word_spacing;
