@@ -221,14 +221,14 @@ struct BundledFont
 
 struct FontSpec
 {
-  stx::String              name;                                                       // name to use in font matching
-  stx::String              path;                                                       // local file system path of the typeface resource
-  bool                     use_caching = true;                                         // whether to try to load or save font atlas from the cache directory. the font is identified in the cache directory by its postscript name, which is different from its font matching name
-  u32                      face        = 0;                                            // font face to use
-  u32                      font_height = 64;                                           // the height at which the SDF texture is cached at
-  SdfProps                 sdf_props;                                                  // properties to use for SDF generation
-  extent                   max_atlas_bin_extent = DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
-  stx::Span<unicode_range> ranges;                                                     // unicode character ranges of font to load. if set only the specified scripts will be loaded
+  stx::String                    name;                                                       // name to use in font matching
+  stx::String                    path;                                                       // local file system path of the typeface resource
+  bool                           use_caching          = true;                                // whether to try to load or save font atlas from the cache directory. the font is identified in the cache directory by its postscript name, which is different from its font matching name
+  u32                            face                 = 0;                                   // font face to use
+  u32                            font_height          = 64;                                  // the height at which the SDF texture is cached at
+  SdfProps                       sdf                  = {};                                  // properties to use for SDF generation
+  extent                         max_atlas_bin_extent = DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
+  stx::Span<unicode_range const> ranges               = {};                                  // unicode character ranges of font to load. if set only the specified scripts will be loaded
 };
 
 /// Generates 8-bit Signed Distance Field from a 1-bit Alpha Image.
