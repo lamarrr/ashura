@@ -111,6 +111,16 @@ struct ImageBuffer
     return AS(u8 *, memory.handle);
   }
 
+  stx::Span<u8> subspan(offset offset)
+  {
+    return span().slice(offset.y * pitch() + offset.x);
+  }
+
+  stx::Span<u8 const> subspan(offset offset) const
+  {
+    return span().slice(offset.y * pitch() + offset.x);
+  }
+
   operator ImageView() const
   {
     return ImageView{.data = span(), .extent = extent, .format = format};
