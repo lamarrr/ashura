@@ -321,17 +321,17 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
       metrics.extent.y  = slot->metrics.width / 64.0f;
       metrics.descent   = std::max(metrics.extent.x - metrics.bearing.y, 0.0f);
 
-      // offsets are determined after binning and during rect packing
-      urect cache_area;
-      cache_area.extent.width  = slot->bitmap.width + spec.sdf_props.spread * 2;
-      cache_area.extent.height = slot->bitmap.rows + spec.sdf_props.spread * 2;
+      // bin offsets are determined after binning and during rect packing
+      urect bin_area;
+      bin_area.extent.width  = slot->bitmap.width + spec.sdf.spread * 2;
+      bin_area.extent.height = slot->bitmap.rows + spec.sdf.spread * 2;
 
       glyphs
           .push(Glyph{.is_valid   = true,
                       .is_needed  = is_needed,
                       .metrics    = metrics,
                       .bin        = 0,
-                      .cache_area = cache_area,
+                      .bin_area   = bin_area,
                       .bin_region = {}})
           .unwrap();
     }
@@ -342,7 +342,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
                       .is_needed  = is_needed,
                       .metrics    = {},
                       .bin        = 0,
-                      .cache_area = {},
+                      .bin_area   = {},
                       .bin_region = {}})
           .unwrap();
     }
