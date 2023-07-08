@@ -246,7 +246,12 @@ inline void generate_sdf_from_mono(u8 const *const src, u32 const src_pitch, u32
       i64 const isrc = i - sdf_spread;
       i64 const jsrc = j - sdf_spread;
 
-      u8 const is_inside = (isrc < 0 || isrc >= height || jsrc < 0 || jsrc >= width) ? 0 : (src[isrc * src_pitch + (jsrc / 8)] >> (7 - (jsrc % 8))) & 1;
+      u8 is_inside = 0;
+
+      if (isrc >= 0 && isrc < height && jsrc >= 0 && jsrc < width) [[likely]]
+      {
+        is_inside = (src[isrc * src_pitch + (jsrc / 8)] >> (7 - (jsrc % 8))) & 1;
+      }
 
       // the squared distance to the nearest neigbor that has a different position along the shape
       i64 square_distance = sdf_spread * sdf_spread;
