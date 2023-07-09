@@ -7,7 +7,6 @@ extern "C"
 #include "SBAlgorithm.h"
 #include "SBLine.h"
 #include "SBParagraph.h"
-#include "SBScriptLocator.h"
 }
 
 #include "ashura/font.h"
@@ -51,11 +50,11 @@ struct TextStyle
 };
 
 /// A text run is a sequence of characters sharing a single property i.e. foreground color, font etc.
+/// This is a user-level run
 struct TextRun
 {
-  usize     offset = 0;        // offset from the previous run in the run list
-  usize     size   = 0;        // size of this run
-  TextStyle style;             // run properties. if not set the paragraph's run properties are used instead
+  usize     size = 0;        // byte size coverage of this run
+  TextStyle style;           // run properties. if not set the paragraph's run properties are used instead
 };
 
 enum class TextAlign : u8
@@ -65,14 +64,19 @@ enum class TextAlign : u8
   Right
 };
 
+enum class TextOverflow
+{
+  Wrap,
+  Ellipsis
+};
+
 struct TextBlock
 {
-  std::string_view         text;                                          // utf-8-encoded text, Span because string view doesnt support non-string types
-  stx::Span<TextRun const> runs;                                          // parts of text not styled by a run will use the paragraphs run style
-  TextStyle                style;                                         // run styling
-  TextDirection            direction = TextDirection::LeftToRight;        // base text direction
-  TextAlign                align     = TextAlign::Left;                   // text alignment
-  // TODO(lamarrr): ellipsis overflow wrap
+  std::string_view         text;                              // utf-8-encoded text, Span because string view doesnt support non-string types
+  stx::Span<TextRun const> runs;                              // parts of text not styled by a run will use the paragraphs run style
+  TextStyle                style;                             // default run styling
+  TextAlign                align    = TextAlign::Left;        // text alignment
+  TextOverflow             overflow = TextOverflow::Wrap;
 };
 
 /// Area occupied by a text run
@@ -125,21 +129,18 @@ struct TextRunSubWord
 
 struct TextLayout
 {
-  static usize count_utf8_codepoints(stx::Span<char const> utf8_bytes)
+  struct TextSubRun
   {
-    char const *iter        = utf8_bytes.begin();
-    usize       ncodepoints = 0;
-    while (iter < utf8_bytes.end())
-    {
-      stx::utf8_next(iter);
-      ncodepoints++;
-    }
-    return ncodepoints;
-  }
+    char const      *text_begin           = nullptr;
+    char const      *text_end             = nullptr;
+    TextStyle const *style                = nullptr;
+    SBScript         script               = SBScriptNil;
+    SBLevel          direction            = 0;
+    bool             is_break_opportunity = false;
+    f32              width                = 0;
+  };
 
-  static stx::Span<char const> utf8_slice(stx::Span<char const> utf8_bytes, usize codepoint_offset)
-  {
-  }
+  // LineMetrics?
 
   stx::Vec<TextRunSubWord> subwords;
   stx::Vec<TextRunGlyph>   glyphs;
@@ -150,7 +151,10 @@ struct TextLayout
   /// performs layout of the paragraph
   void layout(TextBlock const &block, stx::Span<BundledFont const> const font_bundle, f32 const max_line_width)
   {
-    constexpr u32 ELLIPSIS = 0x2026;
+    static constexpr hb_tag_t KERNING_FEATURE             = HB_TAG('k', 'e', 'r', 'n');        // kerning operations
+    static constexpr hb_tag_t LIGATURE_FEATURE            = HB_TAG('l', 'i', 'g', 'a');        // standard ligature substitution
+    static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE = HB_TAG('c', 'l', 'i', 'g');        // contextual ligature substitution
+    constexpr u32             ELLIPSIS_CODEPOINT          = 0x2026;
 
     subwords.clear();
     glyphs.clear();
@@ -163,99 +167,116 @@ struct TextLayout
       return;
     }
 
-    SBLevel const       block_base_level      = block.direction == TextDirection::LeftToRight ? SBLevelDefaultLTR : SBLevelDefaultRTL;
-    SBCodepointSequence sb_codepoint_sequence = {SBStringEncodingUTF8, (void *) block.text.data(), block.text.size()};
-    SBAlgorithmRef      sb_algorithm          = SBAlgorithmCreate(&sb_codepoint_sequence);
-    ASH_CHECK(sb_algorithm != nullptr);
+    SBCodepointSequence codepoint_sequence = {SBStringEncodingUTF8, (void *) block.text.data(), block.text.size()};
+    SBAlgorithmRef      algorithm          = SBAlgorithmCreate(&codepoint_sequence);
+    ASH_CHECK(algorithm != nullptr);
 
-    SBScriptLocatorRef sb_script_locator = SBScriptLocatorCreate();
-    ASH_CHECK(sb_script_locator != nullptr);
+    stx::Vec<LayoutRun> paragraph_runs;
 
-    SBScriptLocatorLoadCodepoints(sb_script_locator, &sb_codepoint_sequence);
-    SBScriptAgent const *sb_script_agent = SBScriptLocatorGetAgent(sb_script_locator);
+    char const    *p_style_text_begin = block.text.data();
+    TextRun const *style_it           = block.runs.begin();
+    f32            line_top           = 0;
 
+    //  TextStyle const  *p_run_style         = &block.style;
+
+    //     // find the style configuration intended for this text run (if any)
+    //     while (style_it < block.runs.end())
+    //     {
+    //       if (p_run_begin >= p_style_text_begin && p_run_begin < (p_style_text_begin + style_it->size))
+    //       {
+    //         p_run_style = &style_it->style;
+    //         break;
+    //       }
+    //       else
+    //       {
+    //         p_style_text_begin += style_it->size;
+    //         style_it++;
+    //       }
+    //     }
+
+
+    // TODO(lamarrr): let's perform text layout line by line and reset memory allocations instead of storing all of them
+    // and only add run areas that have specific styling requirements
     for (SBUInteger paragraph_begin = 0; paragraph_begin < block.text.size();)
     {
-      SBParagraphRef sb_paragraph = SBAlgorithmCreateParagraph(sb_algorithm, paragraph_begin, stx::U32_MAX, block_base_level);
+      SBParagraphRef sb_paragraph = SBAlgorithmCreateParagraph(algorithm, paragraph_begin, UINTPTR_MAX, SBLevelDefaultLTR);
       ASH_CHECK(sb_paragraph != nullptr);
+      SBUInteger const     paragraph_length     = SBParagraphGetLength(sb_paragraph);           // number of bytes of the paragraph
+      SBLevel const        paragraph_base_level = SBParagraphGetBaseLevel(sb_paragraph);        // base direction, 0 - LTR, 1 - RTL
+      SBLevel const *const levels               = SBParagraphGetLevelsPtr(sb_paragraph);        // SheenBidi expands to byte level representation of the codepoints
+      char const *const    p_paragraph_begin    = block.text.data() + paragraph_begin;
+      char const *const    p_paragraph_end      = p_paragraph_begin + paragraph_length;
 
-      SBUInteger const paragraph_length     = SBParagraphGetLength(sb_paragraph);
-      SBLevel const    paragraph_base_level = SBParagraphGetBaseLevel(sb_paragraph);
-
-      SBLineRef const sb_line = SBParagraphCreateLine(sb_paragraph, paragraph_begin, paragraph_length);
-      ASH_CHECK(sb_line != nullptr);
-
-      SBRun const *const sb_level_runs   = SBLineGetRunsPtr(sb_line);
-      SBUInteger const   run_count = SBLineGetRunCount(sb_line);
-
-      SBLevel      previous_level     = paragraph_base_level;
-      SBScript     previous_script    = SBScriptNil;
-      usize        previous_run_style = 0;        // run styles are always at least of size 1 with the last one being the text block's
-
-
-      SBRun const *current_sb_level_run     = sb_level_runs;
-
-      for (SBUInteger iparagraph = 0; iparagraph < paragraph_length; iparagraph++)
+      // process text runs on the present paragraph
+      for (char const *run_text_it = p_paragraph_begin; run_text_it < p_paragraph_end;)
       {
-        usize run_style   = 0;
-        usize text_offset = paragraph_begin + iparagraph;
-
-        if (!(text_offset >= sb_script_agent->offset && text_offset < (sb_script_agent->offset + sb_script_agent->length))) [[unlikely]]
+        char const *const p_run_begin         = run_text_it;
+        SBLevel const     run_level           = levels[p_run_begin - p_paragraph_begin];
+        SBCodepoint const run_first_codepoint = stx::utf8_next(run_text_it);
+        SBScript const    run_script          = SBCodepointGetScript(run_first_codepoint);
+       
+        // find the last codepoint belongs to this text run
+        while (run_text_it < p_paragraph_end)
         {
-          ASH_CHECK(SBScriptLocatorMoveNext(sb_script_locator) == SBTrue);
-        }
+          char const       *p_next_codepoint = run_text_it;
+          SBLevel const     level            = levels[p_next_codepoint - p_paragraph_begin];
+          SBCodepoint const codepoint        = stx::utf8_next(p_next_codepoint);
+          SBScript const    script           = SBCodepointGetScript(codepoint);
+          TextStyle const  *p_style          = &block.style;
 
-        if (!(iparagraph >= current_sb_level_run->offset && iparagraph < (current_sb_level_run->offset + current_sb_level_run->length))) [[unlikely]]
-        {
-          current_sb_level_run++;
-        }
-
-        SBScript script = sb_script_agent->script;
-        SBLevel  level  = current_sb_level_run->level;
-
-        for (SBUInteger irun = 0; irun < run_count; irun++)
-        {
-          if (iparagraph >= current_sb_level_run[irun].offset && iparagraph < (current_sb_level_run[irun].offset + current_sb_level_run[irun].length))
+          // find the style configuration intended for this code point (if any)
+          while (style_it < block.runs.end())
           {
-            level = sb_runs[irun].level;
+            if (run_text_it >= p_style_text_begin && run_text_it < (p_style_text_begin + style_it->size))
+            {
+              p_style = &style_it->style;
+              break;
+            }
+            else
+            {
+              p_style_text_begin += style_it->size;
+              p_style++;
+            }
+          }
+
+          if (level != run_level || script != run_script)
+          {
+            // mark as end of run
             break;
+          }
+          else
+          {
+            // make retrieved codepoint part of run and advance
+            run_text_it = p_next_codepoint;
           }
         }
 
-        while ()
+        // split into subruns and perform text layout
+        // we just need blocks. alignment can happen at the very end.
+        // we can remove the absolute positioning property of the TextRun areas and use metrics instead
+        //
+        // TODO(lamarrr): this would mean text shaping can't span across multiple runs
+        // its important that we can shape across multiple runs
+        //
+        for (char const *p_subrun_it = p_run_begin; p_subrun_it < run_text_it;)
         {
-          if (iparagraph >= sb_script_agent->offset && iparagraph < (sb_script_agent->offset + sb_script_agent->length))
+          SBCodepoint const codepoint = stx::utf8_next(p_subrun_it);
+          if (codepoint == ' ' || codepoint == '\t')
           {
-            script = sb_script_agent->script;
-
-            break;
+            // add break point after codepoint
           }
-        }
-
-        for (usize irun_style = 0; irun_style < block.runs.size(); irun_style++)
-        {
-          if (iparagraph >= block.runs[irun_style].offset && iparagraph < (block.runs[irun_style].offset + block.runs[irun_style].size))
+          else if (codepoint == '\n' || codepoint == '\r')
           {
-            run_style = irun_style;
-            break;
           }
-        }
-
-        if (level != previous_level || script != previous_script || run_style != previous_run_style)
-        {
-          //
         }
       }
 
-      SBLineRelease(sb_line);
       SBParagraphRelease(sb_paragraph);
 
-      // count line breaks and offset by that
       paragraph_begin += paragraph_length;
     }
 
-    SBScriptLocatorRelease(sb_script_locator);
-    SBAlgorithmRelease(sb_algorithm);
+    SBAlgorithmRelease(algorithm);
 
     /** Font Resolution and Word Shaping */
     for (TextRunSubWord &subword : subwords)
