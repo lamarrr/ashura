@@ -125,9 +125,21 @@ struct TextRunSubWord
 
 struct TextLayout
 {
-  static constexpr hb_tag_t KERNING_FEATURE             = HB_TAG('k', 'e', 'r', 'n');        // kerning operations
-  static constexpr hb_tag_t LIGATURE_FEATURE            = HB_TAG('l', 'i', 'g', 'a');        // standard ligature substitution
-  static constexpr hb_tag_t CONTEXTUAL_LIGATURE_FEATURE = HB_TAG('c', 'l', 'i', 'g');        // contextual ligature substitution
+  static usize count_utf8_codepoints(stx::Span<char const> utf8_bytes)
+  {
+    char const *iter        = utf8_bytes.begin();
+    usize       ncodepoints = 0;
+    while (iter < utf8_bytes.end())
+    {
+      stx::utf8_next(iter);
+      ncodepoints++;
+    }
+    return ncodepoints;
+  }
+
+  static stx::Span<char const> utf8_slice(stx::Span<char const> utf8_bytes, usize codepoint_offset)
+  {
+  }
 
   stx::Vec<TextRunSubWord> subwords;
   stx::Vec<TextRunGlyph>   glyphs;
