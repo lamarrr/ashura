@@ -32,6 +32,7 @@ struct TextStyle
   stx::Span<std::string_view const> fallback_fonts          = {};                         // font to fallback to if {font} is not available. if none of the specified fallback fonts are found the first font in the font bundle will be used
   f32                               font_height             = 20;                         // px
   color                             foreground_color        = colors::BLACK;              //
+  gfx::image                        foreground_image        = gfx::WHITE_IMAGE;
   color                             background_color        = colors::TRANSPARENT;        //
   color                             outline_color           = colors::BLACK;              //
   f32                               outline_thickness       = 0;                          // px. TODO(lamarrr): outline spread??? we can also scale by px sdf_spread/outline_width
@@ -53,8 +54,8 @@ struct TextStyle
 /// This is a user-level run
 struct TextRun
 {
-  usize     size = 0;        // byte size coverage of this run
-  TextStyle style;           // run properties. if not set the paragraph's run properties are used instead
+  usize size  = 0;        // byte size coverage of this run
+  usize style = 0;        // run properties. if not set the paragraph's run properties are used instead
 };
 
 enum class TextAlign : u8
@@ -72,11 +73,12 @@ enum class TextOverflow
 
 struct TextBlock
 {
-  std::string_view         text;                              // utf-8-encoded text, Span because string view doesnt support non-string types
-  stx::Span<TextRun const> runs;                              // parts of text not styled by a run will use the paragraphs run style
-  TextStyle                style;                             // default run styling
-  TextAlign                align    = TextAlign::Left;        // text alignment
-  TextOverflow             overflow = TextOverflow::Wrap;
+  std::string_view           text;                              // utf-8-encoded text, Span because string view doesnt support non-string types
+  stx::Span<TextRun const>   runs;                              // parts of text not styled by a run will use the paragraphs run style
+  TextStyle                  default_style;                     // default run styling
+  stx::Span<TextStyle const> styles;
+  TextAlign                  align    = TextAlign::Left;        // text alignment
+  TextOverflow               overflow = TextOverflow::Wrap;
 };
 
 /// Area occupied by a text run
@@ -127,6 +129,24 @@ struct TextRunSubWord
   TextRunArea           area;                          // laid out area of this run subword
 };
 
+/// tabs or spaces
+/// spacings are also break opportunities
+struct TextSpacing
+{
+  char const *begin = nullptr;        // byte offset on line
+  usize       size  = 0;              // byte size of total number of spaces on line
+};
+
+struct RunSubword
+{
+  char const *begin       = nullptr;        // byte offset on line
+  usize       size        = 0;              // byte size of total number of spaces on line
+  SBLevel     level       = 0;
+  SBScript    script      = SBScriptNil;
+  usize       spacing     = 0;
+  bool        has_spacing = false;
+};
+
 struct TextLayout
 {
   struct TextSubRun
@@ -167,33 +187,17 @@ struct TextLayout
       return;
     }
 
+    stx::Vec<usize> resolved_fonts;
+
+    // for(), resolve fonts
+
     SBCodepointSequence codepoint_sequence = {SBStringEncodingUTF8, (void *) block.text.data(), block.text.size()};
     SBAlgorithmRef      algorithm          = SBAlgorithmCreate(&codepoint_sequence);
     ASH_CHECK(algorithm != nullptr);
-
-    stx::Vec<LayoutRun> paragraph_runs;
-
     char const    *p_style_text_begin = block.text.data();
     TextRun const *style_it           = block.runs.begin();
     f32            line_top           = 0;
-
-    //  TextStyle const  *p_run_style         = &block.style;
-
-    //     // find the style configuration intended for this text run (if any)
-    //     while (style_it < block.runs.end())
-    //     {
-    //       if (p_run_begin >= p_style_text_begin && p_run_begin < (p_style_text_begin + style_it->size))
-    //       {
-    //         p_run_style = &style_it->style;
-    //         break;
-    //       }
-    //       else
-    //       {
-    //         p_style_text_begin += style_it->size;
-    //         style_it++;
-    //       }
-    //     }
-
+    // stx::Vec<usize> line_break_opportunities;
 
     // TODO(lamarrr): let's perform text layout line by line and reset memory allocations instead of storing all of them
     // and only add run areas that have specific styling requirements
@@ -207,6 +211,27 @@ struct TextLayout
       char const *const    p_paragraph_begin    = block.text.data() + paragraph_begin;
       char const *const    p_paragraph_end      = p_paragraph_begin + paragraph_length;
 
+      // line_break_opportunities.clear();
+      // line_break_opportunities.unsafe_resize_uninitialized(paragraph_length).unwrap();
+      // we have to check from back for line break opportunity
+      // if we find one and it still doesn't fit on the line break opportunity
+
+      // lay out till end of line break opportunity. if it doesn't fit, shrink by 1 break point
+      // lay out again and check if it fits, continue until we can fit onto the line.
+      //
+      //
+
+      // for (char const *line_break_opportunity_begin = p_paragraph_begin; line_break_finder < p_paragraph_end;)
+      // {
+      //   SBCodepoint const codepoint = stx::utf8_next(line_break_finder);
+      //   if (codepoint == ' ' || codepoint == '\t')
+      //   {
+      //   }
+      // }
+
+      stx::Vec<TextSpacing> spacings;
+      stx::Vec<RunSubword>  subwords;
+
       // process text runs on the present paragraph
       for (char const *run_text_it = p_paragraph_begin; run_text_it < p_paragraph_end;)
       {
@@ -214,7 +239,23 @@ struct TextLayout
         SBLevel const     run_level           = levels[p_run_begin - p_paragraph_begin];
         SBCodepoint const run_first_codepoint = stx::utf8_next(run_text_it);
         SBScript const    run_script          = SBCodepointGetScript(run_first_codepoint);
-       
+        TextStyle const  *p_run_style         = &block.default_style;
+
+        // find the style configuration intended for this text run (if any)
+        while (style_it < block.runs.end())
+        {
+          if (p_run_begin >= p_style_text_begin && p_run_begin < (p_style_text_begin + style_it->size))
+          {
+            p_run_style = &block.styles[style_it->style];
+            break;
+          }
+          else
+          {
+            p_style_text_begin += style_it->size;
+            style_it++;
+          }
+        }
+
         // find the last codepoint belongs to this text run
         while (run_text_it < p_paragraph_end)
         {
@@ -222,14 +263,14 @@ struct TextLayout
           SBLevel const     level            = levels[p_next_codepoint - p_paragraph_begin];
           SBCodepoint const codepoint        = stx::utf8_next(p_next_codepoint);
           SBScript const    script           = SBCodepointGetScript(codepoint);
-          TextStyle const  *p_style          = &block.style;
+          TextStyle const  *p_style          = &block.default_style;
 
           // find the style configuration intended for this code point (if any)
           while (style_it < block.runs.end())
           {
             if (run_text_it >= p_style_text_begin && run_text_it < (p_style_text_begin + style_it->size))
             {
-              p_style = &style_it->style;
+              p_style = &block.styles[style_it->style];
               break;
             }
             else
@@ -239,7 +280,7 @@ struct TextLayout
             }
           }
 
-          if (level != run_level || script != run_script)
+          if (level != run_level || script != run_script || p_style != p_run_style)
           {
             // mark as end of run
             break;
@@ -258,18 +299,63 @@ struct TextLayout
         // TODO(lamarrr): this would mean text shaping can't span across multiple runs
         // its important that we can shape across multiple runs
         //
-        for (char const *p_subrun_it = p_run_begin; p_subrun_it < run_text_it;)
+        for (char const *p_word_it = p_run_begin; p_word_it < run_text_it;)
         {
-          SBCodepoint const codepoint = stx::utf8_next(p_subrun_it);
-          if (codepoint == ' ' || codepoint == '\t')
+          char const *p_word_end    = p_word_it;
+          char const *spacing_begin = nullptr;
+          char const *spacing_end   = nullptr;
+
+          while (p_word_end < run_text_it)
           {
-            // add break point after codepoint
+            char const       *p_next_codepoint = p_word_end;
+            SBCodepoint const codepoint        = stx::utf8_next(p_next_codepoint);
+            if (codepoint == ' ' || codepoint == '\t')
+            {
+              spacing_begin = p_word_end;
+              // add break point after codepoint
+              // find last spacing character
+              for (; p_next_codepoint < run_text_it;)
+              {
+                // find end of spacing
+                // make sure we don't iterate over this codepoint next time
+              }
+              break;
+            }
+            else if (codepoint == '\n' || codepoint == '\r')
+            {
+              // already end of paragraph
+              break;
+            }
+            else
+            {
+              p_word_end = p_next_codepoint;
+            }
           }
-          else if (codepoint == '\n' || codepoint == '\r')
+
+          bool const has_spacing = spacing_end > spacing_begin && spacing_begin != nullptr;
+
+          usize spacing = 0;
+
+          if (has_spacing)
           {
+            spacing = spacings.size();
+            spacings.push(TextSpacing{.begin = spacing_begin,
+                                      .size  = (usize) (spacing_end - spacing_begin)})
+                .unwrap();
           }
+
+          subwords.push(RunSubword{
+                            .begin       = p_word_it,
+                            .size        = (usize) (p_word_end - p_word_it),
+                            .level       = run_level,
+                            .script      = run_script,
+                            .spacing     = spacing,
+                            .has_spacing = has_spacing})
+              .unwrap();
         }
       }
+
+      // perform text shaping
 
       SBParagraphRelease(sb_paragraph);
 
