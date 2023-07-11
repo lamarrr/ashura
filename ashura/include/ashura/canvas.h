@@ -796,7 +796,7 @@ struct Canvas
     // its local axis is actually around the origin of this text block?
     for (TextRunSubWord const &subword : layout.subwords)
     {
-      RunProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
+      TextStyle const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
 
       if (props.background_color.is_visible())
       {

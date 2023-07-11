@@ -355,6 +355,7 @@ struct TextLayout
         }
       }
 
+
       // perform text shaping
 
       SBParagraphRelease(sb_paragraph);
