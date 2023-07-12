@@ -352,13 +352,32 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
     }
   }
 
-  for (unicode_range range : spec.ranges)
   {
-    for (u32 character = range.first; character < range.last + 1; character++)
+    FT_UInt  glyph_index  = 0;
+    FT_ULong unicode_char = FT_Get_First_Char(ft_face, &glyph_index);
+    do
     {
-      u32 glyph_index               = FT_Get_Char_Index(ft_face, character);
-      glyphs[glyph_index].is_needed = true;
-    }
+      SBScript const script = SBCodepointGetScript(unicode_char);
+
+      // Common or Inherited Scripts are often shared across unicode ranges during ligature substitution
+      if (script == SBScriptZINH || script == SBScriptZYYY)
+      {
+        glyphs[glyph_index].is_needed = true;
+      }
+      else
+      {
+        for (unicode_range range : spec.ranges)
+        {
+          if (unicode_char >= range.first && unicode_char <= range.last)
+          {
+            glyphs[glyph_index].is_needed = true;
+            break;
+          }
+        }
+      }
+
+      unicode_char = FT_Get_Next_Char(ft_face, unicode_char, &glyph_index);
+    } while (glyph_index != 0);
   }
 
   u32 nloaded_glyphs = 0;
@@ -553,5 +572,43 @@ struct SDFCodec
   static std::pair<FontAtlas, stx::Vec<ImageBuffer>> load_from_file(Font const &font, std::string_view cache_directory);
   static void                                        save_to_file(Font const &font, stx::Span<ImageBuffer const> bins);
 };
+
+inline usize match_font(std::string_view font, stx::Span<BundledFont const> font_bundle)
+{
+  usize i = 0;
+  for (BundledFont const &f : font_bundle)
+  {
+    if (f.name == font)
+    {
+      return i;
+    }
+    else
+    {
+      i++;
+    }
+  }
+
+  return i;
+}
+
+inline usize match_font(std::string_view font, stx::Span<std::string_view const> fallback_fonts, stx::Span<BundledFont const> font_bundle)
+{
+  usize pos = match_font(font, font_bundle);
+  if (pos < font_bundle.size())
+  {
+    return pos;
+  }
+
+  for (std::string_view fallback_font : fallback_fonts)
+  {
+    pos = match_font(font, font_bundle);
+    if (pos < font_bundle.size())
+    {
+      return pos;
+    }
+  }
+
+  return pos;
+}
 
 }        // namespace ash
