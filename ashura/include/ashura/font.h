@@ -9,6 +9,7 @@
 #include "ashura/loggers.h"
 #include "ashura/primitives.h"
 #include "ashura/rect_pack.h"
+#include "ashura/sdf.h"
 #include "ashura/stb_image_resize.h"
 #include "ashura/unicode.h"
 #include "ashura/version.h"
