@@ -189,11 +189,11 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
-  gfx::image transparent_image = render_resource_manager.add_image(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba8888}, false);
+  gfx::image transparent_image = render_resource_manager.add_image(ImageView{.span = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba8888}, false);
 
   ASH_CHECK(transparent_image == 0);
 
-  root_window.value()->set_icon(ImageView{.data = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba8888});
+  root_window.value()->set_icon(ImageView{.span = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba8888});
 
   /*
  C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf
