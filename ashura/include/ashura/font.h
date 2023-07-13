@@ -478,16 +478,16 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
                              scratch_buffer.data(),
                              upscaled_sdf_width);
 
-      ImageBuffer &bin_buffer = bin_buffers[glyph.bin];
+      ImageView<u8> bin_subview = bin_buffers[glyph.bin].view().subview(glyph.bin_area);
 
       stbir_resize_uint8(scratch_buffer.data(),
                          upscaled_sdf_width,
                          upscaled_sdf_height,
                          upscaled_sdf_width,
-                         bin_buffer.subspan(glyph.bin_area.offset).data(),
+                         bin_subview.span.data(),
                          glyph.bin_area.extent.width,
                          glyph.bin_area.extent.height,
-                         bin_buffer.pitch(),
+                         bin_subview.pitch,
                          1);
     }
   }
