@@ -215,7 +215,7 @@ struct TextLayout
         SBCodepoint const    run_first_codepoint = stx::utf8_next(run_text_it);
         SBScript const       run_script          = SBCodepointGetScript(run_first_codepoint);
         TextStyle const     *p_run_style         = &block.default_style;
-        hb_script_t const    run_script_hb       = hb_script_from_iso15924_tag(SBScriptGetOpenTypeTag(run_script));
+        hb_script_t const    run_script_hb       = hb_script_from_iso15924_tag(SBScriptGetOpenTypeTag(run_script));        // Note that unicode scripts are different from OpenType (iso15924) scripts though they have similarities
         hb_direction_t const run_direction_hb    = (run_level & 0x1) == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL;
 
         // find the style configuration intended for this text run (if any)
