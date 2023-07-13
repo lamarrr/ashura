@@ -21,7 +21,7 @@
   case x:                  \
     return #x;
 
-#define ASH_UNREACHABLE() ASH_PANIC("Expected program execution to not reach this state")
+#define ASH_UNREACHABLE() ASH_PANIC("Expected Program Execution Flow To Not Reach This State")
 
 #define AS(type, ...) static_cast<type>(__VA_ARGS__)
 
