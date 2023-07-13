@@ -159,6 +159,8 @@ struct Widget
     // TODO(lamarrr): the whole widget tree will be rendered and clipped as necessary
   }
 
+  // TODO(lamarrr): draw_tooltip();
+
   /// @brief called on every frame. used for state changes, animations, task dispatch and lightweight processing related to the GUI.
   /// heavy-weight and non-sub-millisecond tasks should be dispatched to a Subsystem that would handle that. i.e. using the multi-tasking system.
   /// @param ctx
