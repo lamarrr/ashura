@@ -24,10 +24,10 @@ namespace vk
 struct RenderImage
 {
   Image               image;
-  ImageFormat         format         = ImageFormat::Rgba8888;
-  VkFormat            backend_format = VK_FORMAT_R8G8B8A8_UNORM;
-  VkImageLayout       layout         = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkImageLayout       dst_layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  ImageFormat         format     = ImageFormat::Rgba8888;           // requested format from the frontend
+  VkFormat            gpu_format = VK_FORMAT_R8G8B8A8_UNORM;        // format used to store texture on GPU
+  VkImageLayout       layout     = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImageLayout       dst_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
   ash::extent         extent;
   stx::Option<Buffer> staging_buffer;
   VkDescriptorSet     descriptor_set = VK_NULL_HANDLE;
@@ -157,47 +157,88 @@ struct RenderResourceManager
     vkDestroySampler(dev, sampler, nullptr);
   }
 
-  // BGRA input => BGRA output
-  // [Alpha, Antialiasing, Gray, RGB, RGBA] inputs => RGBA output
-  //
-  // TODO(lamarrr): allow specifying destination format
-  //
-  static void copy_pixels(ImageView view, stx::Span<u8> dst)
+  static ImageFormat to_rep_format(ImageFormat fmt)
   {
-    u8 const *in  = view.data.begin();
-    u8       *out = dst.begin();
-
-    switch (view.format)
+    switch (fmt)
     {
       case ImageFormat::Rgba8888:
+      case ImageFormat::Bgra8888:
+      case ImageFormat::R8:
       {
-        dst.copy(view.data);
+        return fmt;
       }
-      break;
+
+      case ImageFormat::Rgb888:
+      {
+        return ImageFormat::Rgba8888;
+      }
+
+      default:
+      {
+        ASH_PANIC("Unsupported Texture Format Passed To Vulkan Backend");
+      }
+    }
+  }
+
+  static constexpr VkFormat to_vk(ImageFormat fmt)
+  {
+    switch (fmt)
+    {
+      case ImageFormat::Rgba8888:
+        return VK_FORMAT_R8G8B8A8_UNORM;
+
+      case ImageFormat::Rgb888:
+        return VK_FORMAT_R8G8B8_UNORM;
 
       case ImageFormat::Bgra8888:
+        return VK_FORMAT_B8G8R8A8_UNORM;
+
+      case ImageFormat::R8:
+        return VK_FORMAT_R8_UNORM;
+
+      default:
       {
-        dst.copy(view.data);
+        ASH_UNREACHABLE();
+      }
+    }
+  }
+
+  /// Converts textures to their GPU representations
+  /// Note that RGB is converted to RGBA as neither OpenGL nor Vulkan require implementation support for RGB it.
+  static void copy_image_to_GPU_Buffer(ImageView<u8 const> src, ImageView<u8> rep_dst)
+  {
+    ASH_CHECK(src.extent.width <= rep_dst.extent.width);
+    ASH_CHECK(src.extent.height <= rep_dst.extent.height);
+
+    switch (src.format)
+    {
+      case ImageFormat::Rgba8888:
+      case ImageFormat::Bgra8888:
+      case ImageFormat::R8:
+      {
+        rep_dst.copy(src);
       }
       break;
 
       case ImageFormat::Rgb888:
       {
-        for (usize i = 0; i < view.extent.area(); i++)
-        {
-          out[0] = in[0];
-          out[1] = in[1];
-          out[2] = in[2];
-          out[3] = 0xFF;
-          out += 4;
-          in += 3;
-        }
-      }
-      break;
+        ASH_CHECK(rep_dst.format == ImageFormat::Rgba8888);
+        u8 const   *in            = src.span.data();
+        u8         *out           = rep_dst.span.data();
+        usize const src_row_bytes = src.row_bytes();
 
-      case ImageFormat::R8:
-      {
-        dst.copy(view.data);
+        for (usize irow = 0; irow < src.extent.height; irow++, in += src.pitch, out += rep_dst.pitch)
+        {
+          u8 const *in_row  = in;
+          u8       *out_row = out;
+          for (; in_row < in_row + src_row_bytes; in_row += 3, out_row += 4)
+          {
+            out_row[0] = in_row[0];
+            out_row[1] = in_row[1];
+            out_row[2] = in_row[2];
+            out_row[3] = 0xFF;
+          }
+        }
       }
       break;
 
@@ -210,7 +251,7 @@ struct RenderResourceManager
   }
 
   /// image will uploaded and be available for use before next frame
-  gfx::image add_image(ImageView image_view, bool is_real_time)
+  gfx::image add_image(ImageView<u8 const> image_view, bool is_real_time)
   {
     gfx::image id = next_image_id;
     next_image_id++;
@@ -219,36 +260,17 @@ struct RenderResourceManager
     VkDevice                                dev               = queue.device->dev;
     VkPhysicalDeviceMemoryProperties const &memory_properties = queue.device->phy_dev->memory_properties;
 
-    ASH_CHECK(image_view.extent.is_visible());
-    ASH_CHECK(image_view.data.size_bytes() == image_view.extent.area() * nchannel_bytes(image_view.format));
+    ASH_CHECK(image_view.extent.is_visible(), "Encounted unsupported zero extent image");
 
-    VkFormat target_format = VK_FORMAT_R8G8B8A8_UNORM;
-
-    switch (image_view.format)
-    {
-      case ImageFormat::Rgba8888:
-      case ImageFormat::Rgb888:
-        target_format = VK_FORMAT_R8G8B8A8_UNORM;
-        break;
-
-      case ImageFormat::Bgra8888:
-        target_format = VK_FORMAT_B8G8R8A8_UNORM;
-        break;
-
-      case ImageFormat::R8:
-        target_format = VK_FORMAT_R8_UNORM;
-        break;
-
-      default:
-        ASH_UNREACHABLE();
-    }
+    ImageFormat rep_format    = to_rep_format(image_view.format);
+    VkFormat    rep_format_vk = to_vk(rep_format);
 
     VkImageCreateInfo create_info{
         .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .pNext                 = nullptr,
         .flags                 = 0,
         .imageType             = VK_IMAGE_TYPE_2D,
-        .format                = target_format,
+        .format                = rep_format_vk,
         .extent                = VkExtent3D{.width = image_view.extent.width, .height = image_view.extent.height, .depth = 1},
         .mipLevels             = 1,
         .arrayLayers           = 1,
@@ -287,7 +309,7 @@ struct RenderResourceManager
         .flags            = 0,
         .image            = image,
         .viewType         = VK_IMAGE_VIEW_TYPE_2D,
-        .format           = target_format,
+        .format           = rep_format_vk,
         .components       = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                                .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                                .b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -299,10 +321,10 @@ struct RenderResourceManager
 
     ASH_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
-    Buffer staging_buffer = create_host_visible_buffer(dev, memory_properties, image_view.extent.area() * 4, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer staging_buffer = create_host_visible_buffer(dev, memory_properties, fitted_byte_size(image_view.extent, rep_format), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     auto begin = std::chrono::steady_clock::now();
-    copy_pixels(image_view, staging_buffer.span());
+    copy_image_to_GPU_Buffer(image_view, ImageView<u8>{.span = staging_buffer.span(), .extent = image_view.extent, .format = rep_format});
     ASH_LOG_INFO(Vulkan_RenderResourceManager, "Copied Image #{} to Host Visible Staging Buffer in {} ms", id, (std::chrono::steady_clock::now() - begin).count() / 1'000'000.0f);
 
     VkDescriptorSetAllocateInfo descriptor_set_allocate_info{.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -334,7 +356,7 @@ struct RenderResourceManager
 
     images.emplace(id, RenderImage{.image          = Image{.image = image, .view = view, .memory = memory, .dev = dev},
                                    .format         = image_view.format,
-                                   .backend_format = target_format,
+                                   .gpu_format     = rep_format_vk,
                                    .layout         = VK_IMAGE_LAYOUT_UNDEFINED,
                                    .dst_layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                    .extent         = image_view.extent,
@@ -344,31 +366,40 @@ struct RenderResourceManager
                                    .needs_delete   = false,
                                    .is_real_time   = is_real_time});
 
-    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Created {}{} {}x{} Image #{} with format={} and size={} bytes", is_real_time ? "" : "non-", "real-time", image_view.extent.width, image_view.extent.height, id, string_VkFormat(target_format), memory_requirements.size);
+    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Created {}{} {}x{} Image #{} with format={} and size={} bytes", is_real_time ? "" : "non-", "real-time", image_view.extent.width, image_view.extent.height, id, string_VkFormat(rep_format_vk), memory_requirements.size);
 
     return id;
   }
 
-  void update(gfx::image image, ImageView view)
+  void update(gfx::image image, ImageView<u8 const> view)
   {
     auto pos = images.find(image);
     ASH_CHECK(pos != images.end());
-    ASH_CHECK(pos->second.format == view.format);
-    ASH_CHECK(pos->second.extent == view.extent);
-    ASH_CHECK(!pos->second.needs_delete);
+    auto &rimage = pos->second;
+    ASH_CHECK(rimage.format == view.format);
+    ASH_CHECK(rimage.extent == view.extent);
+    ASH_CHECK(!rimage.needs_delete);
 
-    if (pos->second.needs_upload || pos->second.is_real_time)
+    ImageFormat rep_format = to_rep_format(rimage.format);
+
+    if (rimage.needs_upload || rimage.is_real_time)
     {
-      copy_pixels(view, pos->second.staging_buffer.value().span());
+      copy_image_to_GPU_Buffer(view, ImageView<u8>{.span   = rimage.staging_buffer.value().span(),
+                                                   .extent = rimage.extent,
+                                                   .pitch  = rimage.extent.width * pixel_byte_size(rep_format),
+                                                   .format = rep_format});
     }
     else
     {
       CommandQueue const &queue          = *this->queue.value();
-      Buffer              staging_buffer = create_host_visible_buffer(queue.device->dev, queue.device->phy_dev->memory_properties, view.extent.area() * 4, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-      copy_pixels(view, staging_buffer.span());
-      pos->second.staging_buffer = stx::Some(std::move(staging_buffer));
+      Buffer              staging_buffer = create_host_visible_buffer(queue.device->dev, queue.device->phy_dev->memory_properties, fitted_byte_size(rimage.extent, rep_format), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+      copy_image_to_GPU_Buffer(view, ImageView<u8>{.span   = staging_buffer.span(),
+                                                   .extent = rimage.extent,
+                                                   .pitch  = rimage.extent.width * pixel_byte_size(rep_format),
+                                                   .format = rep_format});
+      rimage.staging_buffer = stx::Some(std::move(staging_buffer));
     }
-    pos->second.needs_upload = true;
+    rimage.needs_upload = true;
   }
 
   void remove(gfx::image image)
@@ -521,7 +552,7 @@ struct RenderResourceManager
     ASH_LOG_INFO(Vulkan_RenderResourceManager, "Deleted pending images");
   }
 
-  gfx::image upload_font_atlas(Font &font, ImageView atlas)
+  gfx::image upload_font_atlas(Font &font, ImageView<u8 const> atlas)
   {
     // VkImageFormatProperties image_format_properties;
     // ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties));
