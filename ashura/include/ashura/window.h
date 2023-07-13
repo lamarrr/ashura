@@ -164,7 +164,7 @@ struct Window
     return extent{.width = AS(u32, w), .height = AS(u32, h)};
   }
 
-  void set_icon(ImageView image)
+  void set_icon(ImageView<u8 const> image)
   {
     SDL_PixelFormatEnum fmt = SDL_PIXELFORMAT_RGBA8888;
 
@@ -184,7 +184,7 @@ struct Window
         break;
     }
 
-    SDL_Surface *icon = SDL_CreateSurfaceFrom((void *) image.data.data(), AS(int, image.extent.width), AS(int, image.extent.height), AS(int, image.extent.width *nchannel_bytes(image.format)), fmt);
+    SDL_Surface *icon = SDL_CreateSurfaceFrom((void *) image.span.data(), AS(int, image.extent.width), AS(int, image.extent.height), AS(int, image.pitch), fmt);
     ASH_SDL_CHECK(icon != nullptr);
     ASH_SDL_CHECK(SDL_SetWindowIcon(window, icon) == 0);
     SDL_DestroySurface(icon);
