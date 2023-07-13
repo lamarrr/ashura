@@ -3,8 +3,8 @@
 #include <string_view>
 
 #include "ashura/image.h"
-#include "ashura/subsystem.h"
 #include "ashura/primitives.h"
+#include "ashura/subsystem.h"
 #include "stx/span.h"
 #include "stx/void.h"
 
@@ -31,12 +31,12 @@ struct ImageManager : public Subsystem
   virtual constexpr ~ImageManager() override
   {}
 
-  virtual gfx::image add(ImageView view, bool is_real_time)
+  virtual gfx::image add(ImageView<u8 const> view, bool is_real_time)
   {
     return 0;
   }
 
-  virtual void update(gfx::image image, ImageView view)
+  virtual void update(gfx::image image, ImageView<u8 const> view)
   {
   }
 
