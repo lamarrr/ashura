@@ -307,26 +307,17 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
   }
 
   {
+    // Iterate through all the characters in the font's CMAP
     FT_UInt  glyph_index  = 0;
     FT_ULong unicode_char = FT_Get_First_Char(ft_face, &glyph_index);
     do
     {
-      SBScript const script = SBCodepointGetScript(unicode_char);
-
-      // Common or Inherited Scripts are often shared across unicode ranges during ligature substitution
-      if (script == SBScriptZINH || script == SBScriptZYYY)
+      for (unicode_range range : spec.ranges)
       {
-        glyphs[glyph_index].is_needed = true;
-      }
-      else
-      {
-        for (unicode_range range : spec.ranges)
+        if (unicode_char >= range.first && unicode_char <= range.last)
         {
-          if (unicode_char >= range.first && unicode_char <= range.last)
-          {
-            glyphs[glyph_index].is_needed = true;
-            break;
-          }
+          glyphs[glyph_index].is_needed = true;
+          break;
         }
       }
 
