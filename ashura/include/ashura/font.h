@@ -228,7 +228,7 @@ struct FontSpec
   u32                            font_height          = 64;                                  // the height at which the SDF texture is cached at
   SdfProps                       sdf                  = {};                                  // properties to use for SDF generation
   extent                         max_atlas_bin_extent = DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
-  stx::Span<unicode_range const> ranges               = {};                                  // unicode character ranges of font to load. if set only the specified scripts will be loaded
+  stx::Span<unicode_range const> ranges               = {};                                  // if set only the specified unicode ranges will be loaded, otherwise glyphs in the font will be loaded. Note that this means during font ligature glyph substitution where scripts might change, if the replacement glyph is not in the unicode range, it won't result in a valid glyph.
 };
 
 inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font const &font, FontSpec const spec)
