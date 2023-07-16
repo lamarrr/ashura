@@ -13,7 +13,7 @@ namespace ash
 // TODO(lamarrr): more window events pumping to widgets, how?
 struct WidgetSystem
 {
-  static void __assign_widget_uuids_recursive(Context &ctx, Widget &widget, UuidGenerator &generator)
+  static void __assign_widget_uuids_recursive(Context &ctx, Widget &widget, PrngUuidGenerator &generator)
   {
     if (widget.id.is_none())
     {
@@ -35,7 +35,7 @@ struct WidgetSystem
     }
   }
 
-  void assign_widget_uuids(Context &ctx, Widget &root, UuidGenerator &generator)
+  void assign_widget_uuids(Context &ctx, Widget &root, PrngUuidGenerator &generator)
   {
     __assign_widget_uuids_recursive(ctx, root, generator);
   }
