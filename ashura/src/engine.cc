@@ -58,7 +58,7 @@ inline stx::Option<stx::Span<vk::PhyDeviceInfo const>>
 }
 
 Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
-    uuid_generator{stx::rc::make_inplace<UuidGenerator>(stx::os_allocator, Clock::now()).unwrap()},
+    uuid_generator{stx::rc::make_inplace<PrngUuidGenerator>(stx::os_allocator).unwrap()},
     task_scheduler{stx::os_allocator, std::chrono::steady_clock::now()},
     root_widget{iroot_widget}
 {
