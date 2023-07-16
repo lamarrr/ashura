@@ -41,7 +41,7 @@ struct Engine
   }
 
   // TODO(lamarrr): move all into engine ctx?
-  stx::Rc<UuidGenerator *>                 uuid_generator;
+  stx::Rc<PrngUuidGenerator *>             uuid_generator;
   WindowManager                            window_manager;
   stx::Option<stx::Rc<Window *>>           root_window;
   stx::Option<stx::Rc<vk::CommandQueue *>> queue;
