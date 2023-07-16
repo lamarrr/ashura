@@ -205,6 +205,7 @@ struct Widget
 
   // signifies that this widget is about to be dragged
   // return true if this widget allows dragging
+  // TODO(lamarrr): see https://github.com/ocornut/imgui/issues/1931
   virtual bool on_drag_start(Context &ctx)
   {
     return false;
