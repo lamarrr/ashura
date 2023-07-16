@@ -40,13 +40,12 @@ struct Font
   hb_blob_t   *hb_blob       = nullptr;
   hb_face_t   *hb_face       = nullptr;
   hb_font_t   *hb_font       = nullptr;
-  hb_buffer_t *hb_buffer     = nullptr;
   u32          nfaces        = 0;
   u32          selected_face = 0;
   stx::Vec<u8> data;
 
   Font(stx::String ipostscript_name, stx::String ifamily_name, stx::String istyle_name,
-       hb_blob_t *ihb_blob, hb_face_t *ihb_face, hb_font_t *ihb_font, hb_buffer_t *ihb_buffer,
+       hb_blob_t *ihb_blob, hb_face_t *ihb_face, hb_font_t *ihb_font,
        u32 infaces, u32 iselected_face, stx::Vec<u8> idata) :
       postscript_name{std::move(ipostscript_name)},
       family_name{std::move(ifamily_name)},
@@ -54,7 +53,6 @@ struct Font
       hb_blob{ihb_blob},
       hb_face{ihb_face},
       hb_font{ihb_font},
-      hb_buffer{ihb_buffer},
       nfaces{infaces},
       selected_face{iselected_face},
       data{std::move(idata)}
@@ -67,7 +65,6 @@ struct Font
     hb_blob_destroy(hb_blob);
     hb_face_destroy(hb_face);
     hb_font_destroy(hb_font);
-    hb_buffer_destroy(hb_buffer);
   }
 };
 
@@ -96,9 +93,6 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_memory(stx::Ve
     return stx::Err(FontLoadError::InvalidFont);
   }
 
-  hb_buffer_t *hb_buffer = hb_buffer_create();
-  ASH_CHECK(hb_buffer != nullptr);
-
   FT_Library ft_lib;
   ASH_CHECK(FT_Init_FreeType(&ft_lib) == 0);
 
@@ -108,7 +102,6 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_memory(stx::Ve
   {
     hb_blob_destroy(hb_blob);
     hb_face_destroy(hb_face);
-    hb_buffer_destroy(hb_buffer);
     ASH_CHECK(FT_Done_FreeType(ft_lib) == 0);
     return stx::Err(FontLoadError::InvalidFont);
   }
@@ -122,7 +115,7 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_memory(stx::Ve
   ASH_CHECK(FT_Done_FreeType(ft_lib) == 0);
 
   return stx::Ok(stx::rc::make_inplace<Font>(stx::os_allocator, std::move(postscript_name), std::move(family_name), std::move(style_name),
-                                             hb_blob, hb_face, hb_font, hb_buffer, nfaces, selected_face, std::move(data))
+                                             hb_blob, hb_face, hb_font, nfaces, selected_face, std::move(data))
                      .unwrap());
 }
 
