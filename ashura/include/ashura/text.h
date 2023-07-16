@@ -111,6 +111,7 @@ struct LineMetrics
 
 struct GlyphShaping
 {
+  u32  glyph   = 0;
   f32  advance = 0;        // context-dependent horizontal-layout advance
   vec2 offset;             // context-dependent text shaping offset from normal font glyph position
 };
@@ -140,7 +141,7 @@ struct TextLayout
     hb_buffer_reset(shaping_buffer);
     hb_buffer_set_replacement_codepoint(shaping_buffer, HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);        // invalid character replacement
     hb_buffer_set_not_found_glyph(shaping_buffer, 0);                                                    // default glyphs for characters without defined glyphs
-    hb_buffer_set_script(shaping_buffer, script);                                                        // OpenType (ISO15924 Tag). See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
+    hb_buffer_set_script(shaping_buffer, script);                                                        // OpenType (ISO15924) Script Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
     hb_buffer_set_direction(shaping_buffer, direction);
     hb_buffer_set_language(shaping_buffer, language);                                                    // OpenType BCP-47 language tag for performing certain shaping operations as defined in the font
     hb_font_set_scale(font.hb_font, (int) (64 * style.font_height), (int) (64 * style.font_height));
@@ -321,7 +322,7 @@ struct TextLayout
             f32 const  advance = (f32) glyph_positions[i].x_advance / 64.0f;
             vec2 const offset{(f32) glyph_positions[i].x_offset / 64.0f, (f32) glyph_positions[i].y_offset / -64.0f};
 
-            glyph_shapings.push(GlyphShaping{.advance = advance, .offset = offset}).unwrap();
+            glyph_shapings.push(GlyphShaping{.glyph = glyph_infos[i].codepoint, .advance = advance, .offset = offset}).unwrap();
 
             segment_width += advance + run_style.letter_spacing;
           }
@@ -344,15 +345,15 @@ struct TextLayout
 
       SBParagraphRelease(sb_paragraph);
 
-      usize const                 nparagraph_segments      = segments.size() - paragraph_segments_offset;
-      TextRunSegment const *const paragraph_segments_begin = segments.data() + paragraph_segments_offset;
-      TextRunSegment const *const paragraph_segments_end   = paragraph_segments_begin + nparagraph_segments;
+      usize const           nparagraph_segments      = segments.size() - paragraph_segments_offset;
+      TextRunSegment *const paragraph_segments_begin = segments.data() + paragraph_segments_offset;
+      TextRunSegment *const paragraph_segments_end   = paragraph_segments_begin + nparagraph_segments;
 
-      for (TextRunSegment const *line_begin = paragraph_segments_begin; line_begin < paragraph_segments_end;)
+      for (TextRunSegment *line_begin = paragraph_segments_begin; line_begin < paragraph_segments_end;)
       {
-        f32                   line_width            = 0;
-        TextRunSegment const *line_end              = line_begin;
-        bool                  has_break_opportunity = false;
+        f32             line_width            = 0;
+        TextRunSegment *line_end              = line_begin;
+        bool            has_break_opportunity = false;
 
         /// Line Breaking ///
         for (; line_end < paragraph_segments_end; line_end++)
@@ -375,10 +376,10 @@ struct TextLayout
         f32 ascent      = 0;
         f32 descent     = 0;
         f32 line_height = 0;
-        for (TextRunSegment const *direction_run_begin = line_begin; direction_run_begin < line_end;)
+        for (TextRunSegment *direction_run_begin = line_begin; direction_run_begin < line_end;)
         {
-          TextDirection const   direction         = direction_run_begin->direction;
-          TextRunSegment const *direction_run_end = direction_run_begin + 1;
+          TextDirection const direction         = direction_run_begin->direction;
+          TextRunSegment     *direction_run_end = direction_run_begin + 1;
 
           for (; direction_run_end < line_end; direction_run_end++)
           {
@@ -391,7 +392,7 @@ struct TextLayout
           if (direction == TextDirection::RightToLeft)
           {
             // re-order consecutive RTL segments on the line to match visual reading direction
-            std::reverse(direction_run_begin, direction_run_end);
+            stx::Span{direction_run_begin, (usize) (direction_run_end - direction_run_begin)}.reverse();
           }
 
           for (TextRunSegment const &segment : stx::Span{direction_run_begin, (usize) (direction_run_end - direction_run_begin)})
