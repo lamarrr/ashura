@@ -145,6 +145,8 @@ struct CanvasRenderer
     u32 first_index   = 0;
     u32 vertex_offset = 0;
 
+    // TODO(lamarrr): query timestamps and query pools, performance counters
+
     for (usize icmd = 0; icmd < cmds.size(); icmd++)
     {
       gfx::DrawCommand const &cmd = cmds[icmd];
