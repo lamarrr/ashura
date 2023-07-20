@@ -8,18 +8,19 @@ layout(push_constant) uniform GlyphProps {
     float outline_thickness;
     vec4 color;
     vec4 outline_color;
+    int add_soft_edges;
+    int add_outline;
+    float outline_min_0;
+    float outline_min_1;
+    float outline_max_0;
+    float outline_max_1;
+    float soft_edge_min;
+    float soft_edge_max;
 } props;
 
 layout(set = 0, binding = 0) uniform sampler2D sdf_texture; /// VK_FORMAT_R8_UNORM
 
 layout(location = 0) out vec4 out_color;
-
-void main() {
-    float signed_distance = texture(sdf_texture, in_uv).r;
-    float alpha = smoothstep(1 - props.thickness, 1 - props.thickness, signed_distance);
-    float outline = smoothstep(props.outline_thickness, props.outline_thickness, signed_distance);
-    out_color = vec4(mix(props.outline_color.rgb, props.color.rgb, outline), alpha);
-}
 
 // ...
 // const float outlineDistance; // Between 0 and 0.5, 0 = thick outline, 0.5 = no outline
@@ -51,3 +52,28 @@ void main() {
 
 //     gl_FragColor = mix(shadow, text, text.a);
 // }
+
+void main() {
+    vec4 base_color = props.color;
+    const float signed_distance = texture(sdf_texture, in_uv).r;
+
+    if(props.add_outline != 0 && (signed_distance >= props.outline_max_0) && (signed_distance <= props.outline_max_1)) {
+        float o_factor = 1.0;
+
+        if(signed_distance <= props.outline_min_1) {
+            o_factor = smoothstep(props.outline_min_0, props.outline_min_1, signed_distance);
+        } else {
+            o_factor = smoothstep(props.outline_max_1, props.outline_max_0, signed_distance);
+        }
+
+        base_color = mix(base_color, props.outline_color, o_factor);
+    }
+
+    if(props.add_soft_edges != 0) {
+        base_color.a *= smoothstep(props.soft_edge_min, props.soft_edge_max, signed_distance);
+    } else {
+        base_color.a = signed_distance >= 0.5 ? 1 : 0;
+    }
+
+    out_color = base_color;
+}
