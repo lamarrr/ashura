@@ -197,10 +197,10 @@ struct CanvasRenderer
         vkCmdBindDescriptorSets(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, NIMAGES_PER_DRAWCALL, descriptor_sets, 0, nullptr);
       }
 
-      vkCmdDrawIndexed(cmd_buffer, cmd.nindices, cmd.ninstances, first_index, 0, cmd.first_instance);
+      vkCmdDrawIndexed(cmd_buffer, cmd.nindices, cmd.ninstances, first_index, vertex_offset, cmd.first_instance);
 
       first_index += cmd.nindices;
-      vertex_offset += cmd.nindices;
+      vertex_offset += cmd.nvertices;
 
       previous_pipeline = pipeline.pipeline;
       stx::Span{previous_descriptor_sets}.copy(descriptor_sets);
