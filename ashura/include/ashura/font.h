@@ -1,4 +1,8 @@
 #pragma once
+
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#define STBIRDEF extern "C" inline
+
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
@@ -107,7 +111,7 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_memory(stx::Ve
   }
 
   char const *p_postscript_name = FT_Get_Postscript_Name(ft_face);
-  stx::String postscript_name   = p_postscript_name == nullptr ? "" : stx::string::make(stx::os_allocator, postscript_name).unwrap();
+  stx::String postscript_name   = p_postscript_name == nullptr ? "" : stx::string::make(stx::os_allocator, p_postscript_name).unwrap();
   stx::String family_name       = ft_face->family_name == nullptr ? "" : stx::string::make(stx::os_allocator, ft_face->family_name).unwrap();
   stx::String style_name        = ft_face->style_name == nullptr ? "" : stx::string::make(stx::os_allocator, ft_face->style_name).unwrap();
 
@@ -193,17 +197,20 @@ struct FontAtlas
 {
   stx::Vec<Glyph>        glyphs;
   u32                    replacement_glyph = 0;        // glyph for the replacement glyph 0xFFFD if found, otherwise glyph index 0
+  u32                    ellipsis_glyph    = 0;        // glypg for the ellipsis character '…'
   u32                    font_height       = 0;        // font height at which the this atlas was rendered
   f32                    sdf_spread        = 0;        // normalized signed distance field spread factor
   f32                    ascent            = 0;        // normalized maximum ascent of the font's glyphs
   f32                    descent           = 0;        // normalized maximum descent of the font's glyphs
+  f32                    advance           = 0;        // normalized maximum advance of the font's glyphs
   stx::Vec<FontAtlasBin> bins;
 };
 
 struct SdfProps
 {
-  u32 spread         = 8;         // spread width of the SDF field
-  u32 upscale_factor = 16;        // factor to upsacle the 1-bit alpha texture from which the SDF is calculated from
+  // TODO(lamarrr): don't upscale spread
+  u32 spread         = 4;        // spread width of the SDF field
+  u32 upscale_factor = 2;        // factor to upsacle the 1-bit alpha texture from which the SDF is calculated from
 };
 
 struct BundledFont
@@ -219,13 +226,13 @@ struct FontSpec
   stx::String                    path;                                                       // local file system path of the typeface resource
   bool                           use_caching          = true;                                // whether to try to load or save font atlas from the cache directory. the font is identified in the cache directory by its postscript name, which is different from its font matching name
   u32                            face                 = 0;                                   // font face to use
-  u32                            font_height          = 64;                                  // the height at which the SDF texture is cached at
+  u32                            font_height          = 20;                                  // the height at which the SDF texture is cached at
   SdfProps                       sdf                  = {};                                  // properties to use for SDF generation
   extent                         max_atlas_bin_extent = DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
   stx::Span<unicode_range const> ranges               = {};                                  // if set only the specified unicode ranges will be loaded, otherwise glyphs in the font will be loaded. Note that this means during font ligature glyph substitution where scripts might change, if the replacement glyph is not in the unicode range, it won't result in a valid glyph.
 };
 
-inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font const &font, FontSpec const spec)
+inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font const &font, FontSpec const &spec)
 {
   // NOTE: all *64 or << 6, /64 or >> 6 are to convert to and from 26.6 pixel format used in Freetype and Harfbuzz metrics
 
@@ -242,16 +249,18 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
   ASH_CHECK(FT_Init_FreeType(&ft_lib) == 0);
 
   FT_Face ft_face;
-  ASH_CHECK(FT_New_Memory_Face(ft_lib, font.data.data(), AS(FT_Long, font.data.size()), font.selected_face, &ft_face) == 0);
+  ASH_CHECK(FT_New_Memory_Face(ft_lib, font.data.data(), (FT_Long) font.data.size(), (FT_Long) font.selected_face, &ft_face) == 0);
 
-  ASH_CHECK(FT_Set_Char_Size(ft_face, 0, spec.font_height << 6, 72, 72) == 0);
+  ASH_CHECK(FT_Set_Char_Size(ft_face, 0, (FT_F26Dot6) (spec.font_height << 6), 72, 72) == 0);
 
   stx::Vec<Glyph> glyphs;
 
   u32 const nglyphs           = (u32) ft_face->num_glyphs;
   u32 const replacement_glyph = FT_Get_Char_Index(ft_face, HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);        // glyph index 0 is selected if the glyph for the replacement codepoint is not found
+  u32 const ellipsis_glyph    = FT_Get_Char_Index(ft_face, 0x2026);
   f32 const ascent            = (ft_face->size->metrics.ascender / 64.0f) / spec.font_height;
   f32 const descent           = (ft_face->size->metrics.descender / -64.0f) / spec.font_height;
+  f32 const advance           = (ft_face->size->metrics.max_advance / 64.0f) / spec.font_height;
 
   ASH_LOG_INFO(FontRenderer, "Fetching {} Glyph Metrics For Font: {}", nglyphs, font.postscript_name.c_str());
 
@@ -359,18 +368,17 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
     stx::Vec<rect_packer::Node> nodes;
     nodes.unsafe_resize_uninitialized(spec.max_atlas_bin_extent.width).unwrap();
 
-    rect_packer::Context pack_context = rect_packer::init(spec.max_atlas_bin_extent.width,
-                                                          spec.max_atlas_bin_extent.height,
-                                                          nodes.data(),
-                                                          spec.max_atlas_bin_extent.width,
-                                                          true);
-
     u32                          bin            = 0;
     stx::Span<rect_packer::rect> unpacked_rects = rects;
     bool                         was_all_packed = rects.is_empty();
 
     while (!unpacked_rects.is_empty())
     {
+      rect_packer::Context pack_context = rect_packer::init(spec.max_atlas_bin_extent.width,
+                                                            spec.max_atlas_bin_extent.height,
+                                                            nodes.data(),
+                                                            spec.max_atlas_bin_extent.width,
+                                                            true);
       // tries to pack all the glyph rects into the provided extent
       was_all_packed               = rect_packer::pack_rects(pack_context, unpacked_rects.data(), AS(i32, unpacked_rects.size()));
       auto [just_packed, unpacked] = unpacked_rects.partition([](rect_packer::rect const &r) { return r.was_packed; });
@@ -418,10 +426,10 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
   u32 const upscaled_font_height = spec.sdf.upscale_factor * spec.font_height;
   u32 const upscaled_spread      = spec.sdf.upscale_factor * spec.sdf.spread;
 
-  ASH_CHECK(FT_Set_Char_Size(ft_face, 0, upscaled_font_height << 6, 72, 72) == 0);
+  ASH_CHECK(FT_Set_Char_Size(ft_face, 0, (FT_F26Dot6) (upscaled_font_height << 6), 72, 72) == 0);
 
-  u32 const scratch_width  = AS(u32, (ft_face->bbox.xMax - ft_face->bbox.xMin) >> 6);
-  u32 const scratch_height = AS(u32, (ft_face->bbox.yMax - ft_face->bbox.yMin) >> 6);
+  u32 const scratch_width  = AS(u32, (ft_face->bbox.xMax - ft_face->bbox.xMin));
+  u32 const scratch_height = AS(u32, (ft_face->bbox.yMax - ft_face->bbox.yMin));
 
   u32 const scratch_sdf_width  = scratch_width + upscaled_spread * 2;
   u32 const scratch_sdf_height = scratch_height + upscaled_spread * 2;
@@ -494,10 +502,13 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
   return std::make_pair(FontAtlas{
                             .glyphs            = std::move(glyphs),
                             .replacement_glyph = replacement_glyph,
+                            .ellipsis_glyph    = ellipsis_glyph,
                             .font_height       = spec.font_height,
                             .sdf_spread        = spec.sdf.spread / (f32) spec.font_height,
                             .ascent            = ascent,
-                            .descent           = descent},
+                            .descent           = descent,
+                            .advance           = advance,
+                            .bins              = std::move(bins)},
                         std::move(bin_buffers));
 }
 
