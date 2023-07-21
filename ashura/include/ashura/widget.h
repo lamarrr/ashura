@@ -127,7 +127,7 @@ struct Widget
   /// @param allocated_z_index
   /// @param[out] children_allocation z-index assigned to children
   /// @return
-  virtual i64 z_stack(Context &ctx, i64 allocated_z_index, stx::Span<i64> children_allocation)
+  virtual i32 z_stack(Context &ctx, i32 allocated_z_index, stx::Span<i32> children_allocation)
   {
     children_allocation.fill(allocated_z_index + 1);
     return allocated_z_index;
