@@ -52,7 +52,7 @@ struct CheckBox : public Widget
           .draw_round_rect_filled(area, vec4::splat(props.border_radius), 90, props.box_color)
           .save()
           .scale(props.extent, props.extent)
-          .draw_path(checkmark_path, area, 0.125f, false)
+          .draw_path(checkmark_path, area.offset, area.extent, 0.125f, false)
           .restore();
     }
     else
