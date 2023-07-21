@@ -8,6 +8,7 @@ extern "C"
 #include "SBAlgorithm.h"
 #include "SBLine.h"
 #include "SBParagraph.h"
+#include "SBScriptLocator.h"
 }
 
 #include "ashura/font.h"
@@ -61,9 +62,9 @@ struct TextRun
 
 enum class TextAlign : u8
 {
-  Left,
+  Start,
   Center,
-  Right
+  End
 };
 
 enum class TextOverflow
@@ -78,8 +79,7 @@ struct TextBlock
   stx::Span<TextRun const>   runs;                                          // parts of text not styled by a run will use the paragraphs run style
   stx::Span<TextStyle const> styles;                                        // styles for the text block's contents
   TextStyle                  default_style;                                 // default run styling
-  TextAlign                  align     = TextAlign::Left;                   // text alignment
-  TextOverflow               overflow  = TextOverflow::Wrap;                // text block wrap
+  TextAlign                  align     = TextAlign::Start;                  // text alignment
   TextDirection              direction = TextDirection::LeftToRight;        // base text direction
   std::string_view           language  = {};                                // base language to use for selecting opentype features to used on the text, uses default if not set
 };
@@ -121,6 +121,8 @@ struct TextLayout
   stx::Vec<LineMetrics>    lines;
   stx::Vec<TextRunSegment> segments;
   stx::Vec<GlyphShaping>   glyph_shapings;
+  f32                      max_line_width = 0;
+  vec2                     span;
 
   static std::pair<stx::Span<hb_glyph_info_t const>, stx::Span<hb_glyph_position_t const>> shape_text_harfbuzz(Font const &font, stx::Span<char const> text, hb_buffer_t *shaping_buffer, hb_script_t script, hb_direction_t direction, hb_language_t language, TextStyle const &style)
   {
@@ -161,11 +163,15 @@ struct TextLayout
     return std::make_pair(stx::Span{glyph_info, nglyph_infos}, stx::Span{glyph_pos, nglyph_pos});
   }
 
+  // TODO(lamarrr): remove all uses of char for utf8 text or byte strings
   void layout(TextBlock const &block, stx::Span<BundledFont const> const font_bundle, f32 const max_line_width)
   {
     lines.clear();
     segments.clear();
     glyph_shapings.clear();
+
+    this->max_line_width = max_line_width;
+    span                 = vec2{0, 0};
 
     // there's no layout to perform without a font
     if (font_bundle.is_empty())
@@ -201,8 +207,20 @@ struct TextLayout
     SBCodepointSequence const codepoint_sequence{.stringEncoding = SBStringEncodingUTF8,
                                                  .stringBuffer   = (void *) block.text.data(),
                                                  .stringLength   = block.text.size()};
-    SBAlgorithmRef const      algorithm = SBAlgorithmCreate(&codepoint_sequence);
+
+    SBAlgorithmRef const algorithm = SBAlgorithmCreate(&codepoint_sequence);
     ASH_CHECK(algorithm != nullptr);
+
+    SBScriptLocatorRef const script_locator = SBScriptLocatorCreate();
+    ASH_CHECK(script_locator != nullptr);
+
+    SBScriptLocatorLoadCodepoints(script_locator, &codepoint_sequence);
+
+    SBScriptAgent const *script_agent = SBScriptLocatorGetAgent(script_locator);
+    ASH_CHECK(script_agent != nullptr);
+
+    SBScriptLocatorMoveNext(script_locator);
+
     TextRun const *run_it            = block.runs.begin();
     usize          style_text_offset = 0;
 
@@ -220,19 +238,23 @@ struct TextLayout
 
       for (char const *run_text_begin = paragraph_text_begin; run_text_begin < paragraph_text_end;)
       {
-        char const          *run_text_end          = run_text_begin;
-        usize const          run_block_text_offset = (usize) (run_text_begin - block.text.data());
-        SBLevel const        run_level             = paragraph_levels[run_text_begin - paragraph_text_begin];
-        SBCodepoint const    run_first_codepoint   = stx::utf8_next(run_text_end);
-        SBScript const       run_script            = SBCodepointGetScript(run_first_codepoint);
-        TextDirection const  run_direction         = (run_level & 0x1) == 0 ? TextDirection::LeftToRight : TextDirection::RightToLeft;
-        hb_direction_t const run_direction_hb      = (run_level & 0x1) == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL;
-        hb_script_t const    run_script_hb         = hb_script_from_iso15924_tag(SBScriptGetOpenTypeTag(run_script));        // Note that unicode scripts are different from OpenType (iso15924) scripts though they are similar
-        usize                irun_style            = block.styles.size();                                                    // find the style intended for this text run (if any, otherwise default)
+        char const   *run_text_end          = run_text_begin;
+        usize const   run_block_text_offset = (usize) (run_text_begin - block.text.data());
+        SBLevel const run_level             = paragraph_levels[run_text_begin - paragraph_text_begin];
+        stx::utf8_next(run_text_end);
+        while (!(run_block_text_offset >= script_agent->offset && run_block_text_offset < (script_agent->offset + script_agent->length))) [[unlikely]]
+        {
+          ASH_CHECK(SBScriptLocatorMoveNext(script_locator));
+        }
+        SBScript const       run_script       = script_agent->script;
+        TextDirection const  run_direction    = (run_level & 0x1) == 0 ? TextDirection::LeftToRight : TextDirection::RightToLeft;
+        hb_direction_t const run_direction_hb = (run_level & 0x1) == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL;
+        hb_script_t const    run_script_hb    = hb_script_from_iso15924_tag(SBScriptGetOpenTypeTag(run_script));        // Note that unicode scripts are different from OpenType (iso15924) scripts though they are similar
+        usize                irun_style       = block.styles.size();                                                    // find the style intended for this text run (if any, otherwise default)
 
         while (run_it < block.runs.end())
         {
-          if (run_block_text_offset >= style_text_offset && run_block_text_offset < (style_text_offset + run_it->size))
+          if (run_block_text_offset >= style_text_offset && run_block_text_offset < (style_text_offset + run_it->size)) [[likely]]
           {
             irun_style = run_it->style;
             break;
@@ -250,16 +272,15 @@ struct TextLayout
         // find the last codepoint that belongs to this text run
         while (run_text_end < paragraph_text_end)
         {
-          usize const       block_text_offset = (usize) (run_text_end - block.text.data());
-          SBLevel const     level             = paragraph_levels[run_text_end - paragraph_text_begin];
-          char const       *p_next_codepoint  = run_text_end;
-          SBCodepoint const codepoint         = stx::utf8_next(p_next_codepoint);
-          SBScript const    script            = SBCodepointGetScript(codepoint);
-          usize             istyle            = block.styles.size();        // find the style intended for this code point (if any, otherwise default)
+          usize const   block_text_offset = (usize) (run_text_end - block.text.data());
+          SBLevel const level             = paragraph_levels[run_text_end - paragraph_text_begin];
+          char const   *p_next_codepoint  = run_text_end;
+          stx::utf8_next(p_next_codepoint);
+          usize istyle = block.styles.size();        // find the style intended for this code point (if any, otherwise default)
 
           while (run_it < block.runs.end())
           {
-            if (block_text_offset >= style_text_offset && block_text_offset < (style_text_offset + run_it->size))
+            if (block_text_offset >= style_text_offset && block_text_offset < (style_text_offset + run_it->size)) [[likely]]
             {
               istyle = run_it->style;
               break;
@@ -271,11 +292,9 @@ struct TextLayout
             }
           }
 
-          // inherited scripts inherit the preceding codepoint's script.
-          // common scripts can be used with any script.
-          bool const is_matching_script = (script == run_script) || (script == SBScriptZINH || script == SBScriptZYYY);
+          bool const is_in_script_run = (block_text_offset >= script_agent->offset) && (block_text_offset < (script_agent->offset + script_agent->length));
 
-          if (level != run_level || !is_matching_script || istyle != irun_style) [[unlikely]]
+          if (level != run_level || !is_in_script_run || istyle != irun_style) [[unlikely]]
           {
             // reached end of run
             break;
@@ -340,7 +359,11 @@ struct TextLayout
                                        .nglyph_shapings       = nglyph_shapings,
                                        .width                 = segment_width})
               .unwrap();
+
+          segment_text_begin = segment_text_end;
         }
+
+        run_text_begin = run_text_end;
       }
 
       SBParagraphRelease(sb_paragraph);
@@ -402,6 +425,8 @@ struct TextLayout
             ascent                 = std::max(ascent, font_bundle[segment.font].atlas.ascent * style.font_height);
             descent                = std::max(descent, font_bundle[segment.font].atlas.descent * style.font_height);
           }
+
+          direction_run_begin = direction_run_end;
         }
 
         lines.push_inplace(LineMetrics{
@@ -413,6 +438,9 @@ struct TextLayout
                                .segments_offset = (usize) (line_begin - segments.data()),
                                .nsegments       = (usize) (line_end - line_begin)})
             .unwrap();
+
+        span.y += line_height;
+        span.x = std::max(span.x, line_width);
 
         line_begin = line_end;
       }
