@@ -46,7 +46,7 @@ inline void generate_sdf_from_mono(u8 const *const src, u32 const src_pitch, u32
         }
       }
 
-      i64 const distance        = (u8) (127 * std::sqrt((float) square_distance) / sdf_spread);
+      i64 const distance        = (u8) (127 * std::sqrt((f32) square_distance) / sdf_spread);
       i64 const signed_distance = 127 + (is_inside ? distance : -distance);
 
       output[i * output_pitch + j] = (u8) signed_distance;
