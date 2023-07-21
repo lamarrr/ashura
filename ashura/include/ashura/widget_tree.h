@@ -6,6 +6,9 @@
 #include "ashura/uuid.h"
 #include "ashura/widget.h"
 
+#define ASH_TIMER_BEGIN(name) ::std::chrono::steady_clock::time_point name##_TIMER_Begin = ::std::chrono::steady_clock::now()
+#define ASH_TIMER_END(name, str) ASH_LOG_INFO(FontRenderer, "Timer: {}, Task: {}, took: {}ms", #name, str, (::std::chrono::steady_clock::now() - name##_TIMER_Begin).count() / 1'000'000.0f)
+
 namespace ash
 {
 
@@ -16,7 +19,7 @@ struct WidgetElement
   stx::Vec<vec2>          children_sizes;
   stx::Vec<vec2>          children_positions;
   stx::Vec<Visibility>    children_visibility;
-  stx::Vec<i64>           children_z_indices;
+  stx::Vec<i32>           children_z_indices;
   stx::Vec<rect>          children_clips;
   stx::Vec<WidgetElement> children;
 };
@@ -24,7 +27,7 @@ struct WidgetElement
 struct WidgetRenderElement
 {
   Widget *widget  = nullptr;
-  i64     z_index = 0;
+  i32     z_index = 0;
   rect    clip;
 };
 
@@ -88,11 +91,11 @@ struct WidgetTree
     }
   }
 
-  void __build_render_recursive(Context &ctx, WidgetElement &element, Visibility allocated_visibility, i64 allocated_z_index, rect allocated_clip, rect view_region)
+  void __build_render_recursive(Context &ctx, WidgetElement &element, Visibility allocated_visibility, i32 allocated_z_index, rect allocated_clip, rect view_region)
   {
     stx::Span  children   = element.children;
     Visibility visibility = element.widget->get_visibility(ctx, allocated_visibility, element.children_visibility);
-    i64        z_index    = element.widget->z_stack(ctx, allocated_z_index, element.children_z_indices);
+    i32        z_index    = element.widget->z_stack(ctx, allocated_z_index, element.children_z_indices);
     rect       clip       = element.widget->clip(ctx, allocated_clip, element.children_clips);
 
     if (visibility == Visibility::Visible && clip.overlaps(view_region) && view_region.overlaps(element.widget->area))
@@ -131,6 +134,7 @@ struct WidgetTree
 
   void render(Context &ctx, gfx::Canvas &canvas, rect view_region, vec2 viewport_size)
   {
+    ASH_TIMER_BEGIN(VertexGen);
     render_elements.clear();
     __build_render_recursive(ctx, root, Visibility::Visible, 0, root.widget->area, view_region);
     render_elements.span().sort([](WidgetRenderElement const &a, WidgetRenderElement const &b) { return a.z_index < b.z_index; });
@@ -155,7 +159,9 @@ struct WidgetTree
       canvas.restore();
     }
 
-    spdlog::info("rendering {} commands, {} vertices, {} indices", canvas.draw_list.commands.size(),  canvas.draw_list.vertices.size(), canvas.draw_list.indices.size());
+    ASH_TIMER_END(VertexGen, "");
+
+    spdlog::info("rendering {} commands, {} vertices, {} indices", canvas.draw_list.commands.size(), canvas.draw_list.vertices.size(), canvas.draw_list.indices.size());
   }
 
   Widget *hit(Context &ctx, vec2 position) const
