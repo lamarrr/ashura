@@ -324,7 +324,7 @@ struct RenderResourceManager
     Buffer staging_buffer = create_host_visible_buffer(dev, memory_properties, fitted_byte_size(image_view.extent, rep_format), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     auto begin = std::chrono::steady_clock::now();
-    copy_image_to_GPU_Buffer(image_view, ImageView<u8>{.span = staging_buffer.span(), .extent = image_view.extent, .format = rep_format});
+    copy_image_to_GPU_Buffer(image_view, ImageView<u8>{.span = staging_buffer.span(), .extent = image_view.extent, .pitch = image_view.extent.width * pixel_byte_size(rep_format), .format = rep_format});
     ASH_LOG_INFO(Vulkan_RenderResourceManager, "Copied Image #{} to Host Visible Staging Buffer in {} ms", id, (std::chrono::steady_clock::now() - begin).count() / 1'000'000.0f);
 
     VkDescriptorSetAllocateInfo descriptor_set_allocate_info{.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
