@@ -19,10 +19,10 @@ int main(int argc, char **argv)
 {
   ASH_CHECK(SDL_Init(SDL_INIT_EVERYTHING) == 0);
 
-  FontSpec fonts[] = {
-      {.name = "Roboto", .path = R"(C:\Users\Basit\Documents\workspace\oss\ashura\ashura\assets\fonts\Roboto\Roboto-Regular.ttf)"},
-      {.name = "RobotoMono", .path = R"(C:\Users\Basit\Desktop\IBM_Plex_Sans_Arabic\IBMPlexSansArabic-Regular.ttf)"},
-      {.name = "MaterialIcons", .path = R"(C:\Users\Basit\Documents\workspace\oss\ashura\ashura\assets\fonts\MaterialIcons\MaterialIcons-Regular.ttf)"}};
+  FontSpec fonts[] = {{.name = "Roboto", .path = R"(C:\Users\Basit\Documents\workspace\oss\ashura\ashura\assets\fonts\Roboto\Roboto-Regular.ttf)"},
+                      {.name = "RobotoMono", .path = R"(C:\Users\Basit\Desktop\JetBrainsMono-2.304\fonts\ttf\JetBrainsMono-Regular.ttf)"},
+                      {.name = "MaterialIcons", .path = R"(C:\Users\Basit\Documents\workspace\oss\ashura\ashura\assets\fonts\MaterialIcons\MaterialIcons-Regular.ttf)"},
+                      {.name = "IBMPlexSans", .path = R"(C:\Users\Basit\Desktop\IBM_Plex_Sans_Arabic\IBMPlexSansArabic-Regular.ttf)"}};
 
   CanvasPipelineSpec pipelines[] = {
       {.name = DEFAULT_SHAPE_PIPELINE, .vertex_shader = gfx::vertex_shader_code, .fragment_shader = gfx::fragment_shader_code},
@@ -31,14 +31,15 @@ int main(int argc, char **argv)
   AppConfig cfg{.enable_validation_layers = false, .fonts = fonts, .pipelines = pipelines};
 
   u8 text[] = {
-     0xd8, 0xa7 ,0xd9 ,0x84, 0xd9, 0x84, 0xd9, 0x87, 0x20 ,0x49 ,0x69 ,0x6d, 0x65, 0x20 ,0xd8 ,0xa7, 0xd9 ,0x84 ,0xd9 ,0x84 ,0xd9 ,0x87, 0x20 ,0xd8 ,0xa7 ,0xd9, 0x84 ,0xd9 ,0x84, 0xd9, 0x87};
+      0xd8, 0xb0, 0xd9, 0x8e, 0xd9, 0xb0, 0xd9, 0x84, 0xd9, 0x90, 0xd9, 0x83, 0xd9, 0x8e, 0x20, 0xd8, 0xa7, 0xd9, 0x84, 0xd9, 0x92, 0xd9, 0x83, 0xd9, 0x90, 0xd8, 0xaa, 0xd9, 0x8e, 0xd8, 0xa7, 0xd8, 0xa8, 0xd9, 0x8f, 0x20, 0xd9, 0x84, 0xd9, 0x8e, 0xd8, 0xa7, 0x20, 0xd8, 0xb1, 0xd9, 0x8e, 0xd9, 0x8a, 0xd9, 0x92, 0xd8, 0xa8, 0xd9, 0x8e, 0x20, 0xdb, 0x9b, 0x20, 0xd9, 0x81, 0xd9, 0x90, 0xd9, 0x8a, 0xd9, 0x87, 0xd9, 0x90, 0x20, 0xdb, 0x9b, 0x20, 0xd9, 0x87, 0xd9, 0x8f, 0xd8, 0xaf, 0xd9, 0x8b, 0xd9, 0x89, 0x20, 0xd9, 0x84, 0xd9, 0x90, 0xd9, 0x91, 0xd9, 0x84, 0xd9, 0x92, 0xd9, 0x85, 0xd9, 0x8f, 0xd8, 0xaa, 0xd9, 0x91, 0xd9, 0x8e, 0xd9, 0x82, 0xd9, 0x90, 0xd9, 0x8a, 0xd9, 0x86, 0xd9, 0x8e};
 
   RadioState state{8};
   App        app{std::move(cfg),
           Flex{
               FlexProps{},
               Image{ImageProps{.source = FileImageSource{.path = R"(C:\Users\Basit\Desktop\pimping.png)"}, .aspect_ratio = stx::Some(1.0f), .resize_on_load = true}},
-              Text{std::string_view{(char *) text, sizeof(text)}, TextStyle{.font = "RobotoMono", .font_height = 100, .foreground_color = material::WHITE, .letter_spacing = 0, .word_spacing = 16}},
+              Text{"macro_off", TextStyle{.font = "MaterialIcons", .font_height = 50, .foreground_color = material::WHITE, .background_color = colors::TRANSPARENT, .line_height = 1.0f}},
+              Text{std::string_view{(char *) text, sizeof(text)}, TextStyle{.font = "IBMPlexSans", .font_height = 80, .foreground_color = material::WHITE}},
               CheckBox{},
               Slider{},
               /* Box{BoxProps{.width            = constraint::absolute(200),
