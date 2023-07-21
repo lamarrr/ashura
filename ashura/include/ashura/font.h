@@ -197,6 +197,7 @@ struct FontAtlas
 {
   stx::Vec<Glyph>        glyphs;
   u32                    replacement_glyph = 0;        // glyph for the replacement glyph 0xFFFD if found, otherwise glyph index 0
+  u32                    space_glyph       = 0;
   u32                    ellipsis_glyph    = 0;        // glypg for the ellipsis character '…'
   u32                    font_height       = 0;        // font height at which the this atlas was rendered
   f32                    sdf_spread        = 0;        // normalized signed distance field spread factor
@@ -209,8 +210,8 @@ struct FontAtlas
 struct SdfProps
 {
   // TODO(lamarrr): don't upscale spread
-  u32 spread         = 4;        // spread width of the SDF field
-  u32 upscale_factor = 2;        // factor to upsacle the 1-bit alpha texture from which the SDF is calculated from
+  u32 spread         = 1;        // spread width of the SDF field
+  u32 upscale_factor = 5;        // factor to upsacle the 1-bit alpha texture from which the SDF is calculated from
 };
 
 struct BundledFont
@@ -258,6 +259,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
   u32 const nglyphs           = (u32) ft_face->num_glyphs;
   u32 const replacement_glyph = FT_Get_Char_Index(ft_face, HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);        // glyph index 0 is selected if the glyph for the replacement codepoint is not found
   u32 const ellipsis_glyph    = FT_Get_Char_Index(ft_face, 0x2026);
+  u32 const space_glyph       = FT_Get_Char_Index(ft_face, ' ');
   f32 const ascent            = (ft_face->size->metrics.ascender / 64.0f) / spec.font_height;
   f32 const descent           = (ft_face->size->metrics.descender / -64.0f) / spec.font_height;
   f32 const advance           = (ft_face->size->metrics.max_advance / 64.0f) / spec.font_height;
@@ -279,8 +281,8 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
       metrics.bearing.y = (slot->metrics.horiBearingY / 64.0f) / spec.font_height;
       metrics.advance   = (slot->metrics.horiAdvance / 64.0f) / spec.font_height;
       metrics.extent.x  = (slot->metrics.width / 64.0f) / spec.font_height;
-      metrics.extent.y  = (slot->metrics.width / 64.0f) / spec.font_height;
-      metrics.descent   = std::max(metrics.extent.x - metrics.bearing.y, 0.0f);
+      metrics.extent.y  = (slot->metrics.height / 64.0f) / spec.font_height;
+      metrics.descent   = std::max(metrics.extent.y - metrics.bearing.y, 0.0f);
 
       // bin offsets are determined after binning and during rect packing
       urect bin_area;
@@ -502,6 +504,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
   return std::make_pair(FontAtlas{
                             .glyphs            = std::move(glyphs),
                             .replacement_glyph = replacement_glyph,
+                            .space_glyph       = space_glyph,
                             .ellipsis_glyph    = ellipsis_glyph,
                             .font_height       = spec.font_height,
                             .sdf_spread        = spec.sdf.spread / (f32) spec.font_height,

@@ -124,7 +124,7 @@ struct TextLayout
   f32                      max_line_width = 0;
   vec2                     span;
 
-  static std::pair<stx::Span<hb_glyph_info_t const>, stx::Span<hb_glyph_position_t const>> shape_text_harfbuzz(Font const &font, stx::Span<char const> text, hb_buffer_t *shaping_buffer, hb_script_t script, hb_direction_t direction, hb_language_t language, TextStyle const &style)
+  static std::pair<stx::Span<hb_glyph_info_t const>, stx::Span<hb_glyph_position_t const>> shape_text_harfbuzz(Font const &font, u32 not_found_glyph, stx::Span<char const> text, hb_buffer_t *shaping_buffer, hb_script_t script, hb_direction_t direction, hb_language_t language, TextStyle const &style)
   {
     // tags are opentype feature tags
     hb_feature_t const shaping_features[] = {{.tag   = HB_TAG('k', 'e', 'r', 'n'),        // kerning operations
@@ -142,7 +142,7 @@ struct TextLayout
 
     hb_buffer_reset(shaping_buffer);
     hb_buffer_set_replacement_codepoint(shaping_buffer, HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);        // invalid character replacement
-    hb_buffer_set_not_found_glyph(shaping_buffer, 0);                                                    // default glyphs for characters without defined glyphs
+    hb_buffer_set_not_found_glyph(shaping_buffer, not_found_glyph);                                      // default glyphs for characters without defined glyphs
     hb_buffer_set_script(shaping_buffer, script);                                                        // OpenType (ISO15924) Script Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
     hb_buffer_set_direction(shaping_buffer, direction);
     hb_buffer_set_language(shaping_buffer, language);                                                    // OpenType BCP-47 language tag for performing certain shaping operations as defined in the font
@@ -330,7 +330,7 @@ struct TextLayout
 
           stx::Span const segment_text{segment_text_begin, (usize) (segment_text_end - segment_text_begin)};
 
-          auto const [glyph_infos, glyph_positions] = shape_text_harfbuzz(*font_bundle[run_font].font, segment_text, shaping_buffer, run_script_hb, run_direction_hb, language_hb, run_style);
+          auto const [glyph_infos, glyph_positions] = shape_text_harfbuzz(*font_bundle[run_font].font, font_bundle[run_font].atlas.space_glyph, segment_text, shaping_buffer, run_script_hb, run_direction_hb, language_hb, run_style);
 
           f32 segment_width = 0;
 
@@ -385,7 +385,7 @@ struct TextLayout
           if (has_break_opportunity && (line_width + line_end->width > max_line_width)) [[unlikely]]
           {
             has_break_opportunity = line_end->has_spacing;
-            line_width            = line_end->width;
+            line_width += line_end->width;
             break;
           }
           else
@@ -396,9 +396,9 @@ struct TextLayout
         }
 
         /// Line Metrics and Visual Re-ordering of Text Segments ///
-        f32 ascent      = 0;
-        f32 descent     = 0;
-        f32 line_height = 0;
+        f32 line_ascent  = 0;
+        f32 line_descent = 0;
+        f32 line_height  = 0;
         for (TextRunSegment *direction_run_begin = line_begin; direction_run_begin < line_end;)
         {
           TextDirection const direction         = direction_run_begin->direction;
@@ -420,10 +420,13 @@ struct TextLayout
 
           for (TextRunSegment const &segment : stx::Span{direction_run_begin, (usize) (direction_run_end - direction_run_begin)})
           {
-            TextStyle const &style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
-            line_height            = std::max(line_height, style.line_height * style.font_height);
-            ascent                 = std::max(ascent, font_bundle[segment.font].atlas.ascent * style.font_height);
-            descent                = std::max(descent, font_bundle[segment.font].atlas.descent * style.font_height);
+            TextStyle const &style   = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
+            f32 const        ascent  = font_bundle[segment.font].atlas.ascent * style.font_height;
+            f32 const        descent = font_bundle[segment.font].atlas.descent * style.font_height;
+            f32 const        height  = ascent + descent;
+            line_height              = std::max(line_height, style.line_height * height);
+            line_ascent              = std::max(line_ascent, ascent);
+            line_descent             = std::max(line_descent, descent);
           }
 
           direction_run_begin = direction_run_end;
@@ -431,8 +434,8 @@ struct TextLayout
 
         lines.push_inplace(LineMetrics{
                                .width           = line_width,
-                               .ascent          = ascent,
-                               .descent         = descent,
+                               .ascent          = line_ascent,
+                               .descent         = line_descent,
                                .line_height     = line_height,
                                .base_direction  = (paragraph_base_level & 0x1) == 0 ? TextDirection::LeftToRight : TextDirection::RightToLeft,
                                .segments_offset = (usize) (line_begin - segments.data()),
