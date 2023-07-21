@@ -349,9 +349,40 @@ struct DrawList
 
 struct CanvasState
 {
-  mat3 transform;               // local object transform, applies to local coordinates of the objects
+  mat3 local_transform;         // local object transform, applies to local coordinates of the objects
   mat3 global_transform;        // global scene transform, applies to the global coordinate of the objects
   rect scissor;
+};
+
+struct SdfStyle
+{
+  color stroke_color;
+  color outline_color;
+  f32   outline_min_0 = 0;
+  f32   outline_min_1 = 0;
+  f32   outline_max_0 = 0.5f;
+  f32   outline_max_1 = 0.6f;
+  f32   soft_edge_min = 0;
+  f32   soft_edge_max = 0;
+  bool  add_outline   = false;
+  bool  add_soft_edge = false;
+};
+
+struct SdfPipelinePushConstant
+{
+  static constexpr u32 ADD_SOFT_EDGES_BIT = 1;
+  static constexpr u32 ADD_OUTLINE_BIT    = 2;
+
+  mat3 transform;
+  vec4 stroke_color;
+  vec4 outline_color;
+  f32  outline_min_0 = 0;
+  f32  outline_min_1 = 0;
+  f32  outline_max_0 = 0.5f;
+  f32  outline_max_1 = 0.6f;
+  f32  soft_edge_min = 0;
+  f32  soft_edge_max = 0;
+  u32  flags         = 0;
 };
 
 /// Coordinates are specified in top-left origin absolute pixel coordinates with x pointing to the
@@ -377,13 +408,13 @@ struct Canvas
   bool viewport_contains(rect area) const
   {
     return rect{.offset = {}, .extent = viewport_extent}
-        .overlaps(transform2d(state.global_transform * state.transform, area));
+        .overlaps(transform2d(state.global_transform * state.local_transform, area));
   }
 
   Canvas &restart(vec2 viewport_extent)
   {
     this->viewport_extent = viewport_extent;
-    state                 = CanvasState{.transform        = mat3::identity(),
+    state                 = CanvasState{.local_transform  = mat3::identity(),
                                         .global_transform = mat3::identity(),
                                         .scissor          = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
@@ -395,7 +426,7 @@ struct Canvas
   {
     vec2 viewport_extent_clamped = epsilon_clamp(viewport_extent);
 
-    mat3 t = state.transform;                                                                  /// apply local coordinate transform
+    mat3 t = state.local_transform;                                                            /// apply local coordinate transform
     t      = translate2d(position.x, position.y) * t;                                          /// apply positioning
     t      = state.global_transform * t;                                                       /// apply global coordinate transform
     t      = scale2d(2 / viewport_extent_clamped.x, 2 / viewport_extent_clamped.y) * t;        /// normalize to 0 to 2 coordinate range
@@ -413,22 +444,27 @@ struct Canvas
   /// pop state (transform and scissor) stack and restore state
   Canvas &restore()
   {
-    state = state_stack.pop().unwrap_or(CanvasState{.transform = mat3::identity(), .global_transform = mat3::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}});
+    state = state_stack.pop().unwrap_or(CanvasState{.local_transform = mat3::identity(), .global_transform = mat3::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}});
     return *this;
   }
 
   /// reset the rendering context to its default state (transform and scissor)
   Canvas &reset()
   {
-    state = CanvasState{.transform = mat3::identity(), .global_transform = mat3::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}};
+    state = CanvasState{.local_transform = mat3::identity(), .global_transform = mat3::identity(), .scissor = rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     return *this;
   }
 
   Canvas &translate(f32 tx, f32 ty)
   {
-    state.transform = translate2d(tx, ty) * state.transform;
+    state.local_transform = translate2d(tx, ty) * state.local_transform;
     return *this;
+  }
+
+  Canvas &translate(vec2 t)
+  {
+    return translate(t.x, t.y);
   }
 
   Canvas &global_translate(f32 tx, f32 ty)
@@ -437,9 +473,14 @@ struct Canvas
     return *this;
   }
 
+  Canvas &global_translate(vec2 t)
+  {
+    return global_translate(t.x, t.y);
+  }
+
   Canvas &rotate(f32 angle)
   {
-    state.transform = rotate2d(ASH_TO_RADIANS(angle)) * state.transform;
+    state.local_transform = rotate2d(ASH_TO_RADIANS(angle)) * state.local_transform;
     return *this;
   }
 
@@ -449,21 +490,31 @@ struct Canvas
     return *this;
   }
 
-  Canvas &scale(f32 x, f32 y)
+  Canvas &scale(f32 sx, f32 sy)
   {
-    state.transform = scale2d(x, y) * state.transform;
+    state.local_transform = scale2d(sx, sy) * state.local_transform;
     return *this;
   }
 
-  Canvas &global_scale(f32 x, f32 y)
+  Canvas &scale(vec2 s)
   {
-    state.global_transform = scale2d(x, y) * state.global_transform;
+    return scale(s.x, s.y);
+  }
+
+  Canvas &global_scale(f32 sx, f32 sy)
+  {
+    state.global_transform = scale2d(sx, sy) * state.global_transform;
     return *this;
+  }
+
+  Canvas &global_scale(vec2 s)
+  {
+    return global_scale(s.x, s.y);
   }
 
   Canvas &shear_x(f32 shear)
   {
-    state.transform = shear2d_x(shear) * state.transform;
+    state.local_transform = shear2d_x(shear) * state.local_transform;
     return *this;
   }
 
@@ -475,7 +526,7 @@ struct Canvas
 
   Canvas &shear_y(f32 shear)
   {
-    state.transform = shear2d_y(shear) * state.transform;
+    state.local_transform = shear2d_y(shear) * state.local_transform;
     return *this;
   }
 
@@ -487,7 +538,7 @@ struct Canvas
 
   Canvas &transform(mat3 const &t)
   {
-    state.transform = t * state.transform;
+    state.local_transform = t * state.local_transform;
     return *this;
   }
 
@@ -535,7 +586,7 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_path(stx::Span<vertex const> points, rect area, f32 thickness, bool should_close, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = vec2{0, 0}, .uv1 = vec2{1, 1}})
+  Canvas &draw_path(stx::Span<vertex const> points, vec2 position, vec2 uv_stretch, f32 thickness, bool should_close, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = vec2{0, 0}, .uv1 = vec2{1, 1}})
   {
     if (points.size() < 2 || thickness == 0)
     {
@@ -546,7 +597,7 @@ struct Canvas
     usize prev_nindices  = draw_list.indices.size();
 
     triangulate_line(points, thickness, draw_list.vertices, draw_list.indices, should_close);
-    paths::lerp_uvs(draw_list.vertices.span().slice(prev_nvertices), area.extent, texture_region);
+    paths::lerp_uvs(draw_list.vertices.span().slice(prev_nvertices), uv_stretch, texture_region);
 
     usize curr_nvertices = draw_list.vertices.size();
     usize curr_nindices  = draw_list.indices.size();
@@ -562,7 +613,7 @@ struct Canvas
                                 .ninstances     = 1,
                                 .scissor        = state.scissor,
                                 .textures       = {texture}}
-                                .with_push_constant(make_transform(area.offset).transpose()))
+                                .with_push_constant(make_transform(position).transpose()))
         .unwrap();
 
     return *this;
@@ -636,7 +687,7 @@ struct Canvas
 
     paths::rect(vec2::splat(thickness / 2), area.extent - thickness, color.to_vec(), line);
 
-    return draw_path(line, area, thickness, true, texture, texture_region);
+    return draw_path(line, area.offset, area.extent, thickness, true, texture, texture_region);
   }
 
   Canvas &draw_circle_filled(vec2 center, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
@@ -669,7 +720,7 @@ struct Canvas
 
     paths::circle(vec2::splat(thickness / 2), radius, nsegments, color.to_vec(), scratch);
 
-    return draw_path(scratch, area, thickness, true, texture, texture_region);
+    return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
   }
 
   Canvas &draw_arc_stroke(vec2 center, f32 radius, f32 begin, f32 end, u32 nsegments, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
@@ -719,7 +770,7 @@ struct Canvas
 
     paths::ellipse(vec2::splat(thickness / 2), radii - thickness, nsegments, color.to_vec(), scratch);
 
-    return draw_path(scratch, area, thickness, true, texture, texture_region);
+    return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
   }
 
   Canvas &draw_round_rect_filled(rect area, vec4 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
@@ -746,7 +797,7 @@ struct Canvas
 
     paths::round_rect(vec2::splat(thickness / 2), area.extent - thickness, radii, nsegments, color.to_vec(), scratch);
 
-    return draw_path(scratch, area, thickness, true, texture, texture_region);
+    return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
   }
 
   Canvas &draw_image(image img, rect area, texture_rect texture_region, color tint = colors::WHITE)
@@ -785,80 +836,330 @@ struct Canvas
     return draw_rounded_image(img, area, border_radii, nsegments, texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
-  Canvas &draw_text(Paragraph const &paragraph, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, vec2 const position)
+  Canvas &draw_sdf_image(rect area, gfx::image image, texture_rect region, SdfStyle const &style)
   {
-    if (!viewport_contains(rect{.offset = position, .extent = layout.span}))
+    vertex const vertices[] = {{.position = vec2{0, 0}, .uv = region.uv0, .color = colors::WHITE.to_vec()},
+                               {.position = vec2{area.extent.x, 0}, .uv = vec2{region.uv1.x, region.uv0.y}, .color = colors::WHITE.to_vec()},
+                               {.position = area.extent, .uv = region.uv1, .color = colors::WHITE.to_vec()},
+                               {.position = vec2{0, area.extent.y}, .uv = vec2{region.uv0.x, region.uv1.y}, .color = colors::WHITE.to_vec()}};
+
+    draw_list.vertices.extend(vertices).unwrap();
+
+    triangulate_convex_polygon(draw_list.indices, 4);
+
+    draw_list.commands.push(DrawCommand{
+                                .pipeline       = DEFAULT_SDF_SHAPE_PIPELINE,
+                                .nvertices      = 4,
+                                .nindices       = 6,
+                                .first_instance = 0,
+                                .ninstances     = 1,
+                                .scissor        = state.scissor,
+                                .textures       = {image}}
+                                .with_push_constant(SdfPipelinePushConstant{.transform     = make_transform(area.offset).transpose(),
+                                                                            .stroke_color  = style.stroke_color.to_vec(),
+                                                                            .outline_color = style.outline_color.to_vec(),
+                                                                            .outline_min_0 = style.outline_min_0,
+                                                                            .outline_min_1 = style.outline_min_1,
+                                                                            .outline_max_0 = style.outline_max_0,
+                                                                            .outline_max_1 = style.outline_max_1,
+                                                                            .soft_edge_min = style.soft_edge_min,
+                                                                            .soft_edge_max = style.soft_edge_max,
+                                                                            .flags         = (style.add_outline ? SdfPipelinePushConstant::ADD_OUTLINE_BIT : 0) | (style.add_soft_edge ? SdfPipelinePushConstant::ADD_SOFT_EDGES_BIT : 0)}))
+        .unwrap();
+
+    return *this;
+  }
+
+  Canvas &draw_sdf_glyph(vec2 block_position, vec2 baseline, Glyph const &glyph, GlyphShaping const &shaping, TextStyle const &style, gfx::image sdf_atlas /**SPREAD PROPERTIES??? HOW IS IT USED IN IMGUI AND WICKED ENGINE? AND FLUTTER?*/)
+  {
+    save();
+    translate(block_position);
+    SdfStyle sdf_style{
+        .stroke_color  = style.foreground_color,
+        .outline_color = style.outline_color,
+        .outline_min_0 = 0,
+        .outline_min_1 = 0,
+        .outline_max_0 = 0.5f,
+        .outline_max_1 = 0.6f,
+        .soft_edge_min = 0.45f,
+        .soft_edge_max = 0.5f,
+        .add_outline   = false,
+        .add_soft_edge = true};
+
+    draw_sdf_image(rect{baseline, glyph.bin_area.extent.to_vec() * 5}, sdf_atlas, glyph.bin_region, sdf_style);
+    restore();
+    return *this;
+  }
+
+  Canvas &draw_sdf_glyph_shadow(vec2 block_position, vec2 baseline, Glyph const &glyph, GlyphShaping const &shaping, TextStyle const &style, gfx::image sdf_atlas)
+  {
+    save();
+    translate(block_position);
+    restore();
+    return *this;
+  }
+
+  Canvas &draw_text_segment_lines(vec2 block_position, vec2 baseline, f32 line_height, f32 segment_width, TextStyle const &style)
+  {
+    save();
+    translate(block_position);
+
+    if (style.strikethrough_color.is_visible() && style.strikethrough_thickness > 0)
     {
-      return *this;
+      vertex const strikethrough_path[] = {{.position = baseline - vec2{0, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_vec()},
+                                           {.position = baseline - vec2{-segment_width, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_vec()}};
+
+      draw_path(strikethrough_path, vec2{0, 0}, vec2{0, 0}, style.strikethrough_thickness, false);
     }
 
-    // TODO(lamarrr): save() translate() transform() restore()
-    // its local axis is actually around the origin of this text block?
-    for (TextRunSubWord const &subword : layout.subwords)
+    if (style.underline_color.is_visible() && style.underline_thickness > 0)
     {
-      TextStyle const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
+      vertex const underline_path[] = {{.position = baseline, .uv = {}, .color = style.underline_color.to_vec()},
+                                       {.position = baseline + vec2{segment_width, 0}, .uv = {}, .color = style.underline_color.to_vec()}};
 
-      if (props.background_color.is_visible())
+      draw_path(underline_path, vec2{0, 0}, vec2{0, 0}, style.underline_thickness, false);
+    }
+
+    restore();
+
+    return *this;
+  }
+
+  Canvas &draw_text_segment_background(vec2 block_position, vec2 baseline, f32 line_height, f32 segment_width, TextStyle const &style)
+  {
+    save();
+    translate(block_position);
+    draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{segment_width, line_height}}, style.background_color);
+    restore();
+    return *this;
+  }
+
+  Canvas &draw_text(TextBlock const &block, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, vec2 const position)
+  {
+    /// TEXT BACKGROUNDS ///
+    {
+      f32 line_top = 0;
+      for (LineMetrics const &line : layout.lines)
       {
-        draw_rect_filled(rect{.offset = position + subword.area.offset, .extent = subword.area.extent}, props.background_color);
+        f32 x_alignment = 0;
+
+        switch (block.align)
+        {
+          case TextAlign::Start:
+          {
+            if (line.base_direction == TextDirection::RightToLeft)
+            {
+              x_alignment = layout.span.x - line.width;
+            }
+          }
+          break;
+
+          case TextAlign::Center:
+          {
+            x_alignment = (layout.span.x - line.width) / 2;
+          }
+          break;
+
+          case TextAlign::End:
+          {
+            if (line.base_direction == TextDirection::LeftToRight)
+            {
+              x_alignment = layout.span.x - line.width;
+            }
+          }
+          break;
+
+          default:
+            break;
+        }
+
+        f32       x_cursor         = x_alignment;
+        f32 const vertical_spacing = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+        f32 const baseline         = line_top + line.line_height - vertical_spacing;
+
+        for (TextRunSegment const &segment : layout.segments.span().slice(line.segments_offset, line.nsegments))
+        {
+          TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
+          if (segment_style.background_color.is_visible())
+          {
+            draw_text_segment_background(position, vec2{x_cursor, baseline}, line.line_height, segment.width, segment_style);
+          }
+        }
+
+        line_top += line.line_height;
       }
     }
 
-    // for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
-    // {
-    //   TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
-    //   FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
+    /// GLYPH SHADOWS ///
+    {
+      f32 line_top = 0;
+      for (LineMetrics const &line : layout.lines)
+      {
+        f32 x_alignment = 0;
 
-    //   if (props.stroke_color.is_visible() && props.font_height > 0 && font_bundle[glyph_layout.font].stroke_atlas.is_some())
-    //   {
-    //     FontStrokeAtlas const &stroke_atlas  = font_bundle[glyph_layout.font].stroke_atlas.value();
-    //     f32                    glyph_scale   = props.font_height / atlas.font_height;
-    //     vec2                   extent        = glyph_scale * stroke_atlas.strokes[glyph_layout.glyph].extent.to_vec();
-    //     vec2                   stroke_offset = (atlas.glyphs[glyph_layout.glyph].extent.to_vec() - stroke_atlas.strokes[glyph_layout.glyph].extent.to_vec()) / 2;
-    //     stroke_offset                        = glyph_scale * stroke_offset + props.stroke_offset;
+        switch (block.align)
+        {
+          case TextAlign::Start:
+          {
+            if (line.base_direction == TextDirection::RightToLeft)
+            {
+              x_alignment = layout.span.x - line.width;
+            }
+          }
+          break;
 
-    //     draw_image(stroke_atlas.texture,
-    //                rect{.offset = position + glyph_layout.offset + stroke_offset, .extent = extent},
-    //                stroke_atlas.strokes[glyph_layout.glyph].texture_region,
-    //                props.stroke_color);
-    //   }
-    // }
+          case TextAlign::Center:
+          {
+            x_alignment = (layout.span.x - line.width) / 2;
+          }
+          break;
 
-    // for (GlyphLayout const &glyph_layout : layout.glyph_layouts)
-    // {
-    //   TextProps const &props = paragraph.runs[glyph_layout.run].props.as_cref().unwrap_or(paragraph.props);
-    //   Font const      &font  = *font_bundle[glyph_layout.font].font;
-    //   FontAtlas const &atlas = font_bundle[glyph_layout.font].atlas;
+          case TextAlign::End:
+          {
+            if (line.base_direction == TextDirection::LeftToRight)
+            {
+              x_alignment = layout.span.x - line.width;
+            }
+          }
+          break;
 
-    //   if (props.font_height > 0)
-    //   {
-    //     if (props.foreground_color.is_visible())
-    //     {
-    //       draw_image(atlas.texture,
-    //                  rect{.offset = position + glyph_layout.offset, .extent = glyph_layout.extent},
-    //                  atlas.glyphs[glyph_layout.glyph].texture_region,
-    //                  props.foreground_color);
-    //     }
-    //   }
-    // }
+          default:
+            break;
+        }
 
-    // for (TextRunSubWord const &subword : layout.subwords)
-    // {
-    //   TextProps const &props = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
+        f32       x_cursor         = x_alignment;
+        f32 const vertical_spacing = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+        f32 const baseline         = line_top + line.line_height - vertical_spacing;
 
-    //   if (props.strikethrough_color.is_visible() && props.strikethrough_thickness > 0)
-    //   {
-    //     vec2 pos = position + subword.area.line_top;
-    //     pos.y += (subword.area.baseline.y - subword.area.line_top.y) / 2;
-    //     pos.y -= props.strikethrough_thickness / 2;
-    //     draw_rect_filled(rect{.offset = pos, .extent = vec2{subword.area.extent.x, props.strikethrough_thickness}}, props.strikethrough_color);
-    //   }
+        for (TextRunSegment const &segment : layout.segments.span().slice(line.segments_offset, line.nsegments))
+        {
+          TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
+          FontAtlas const &atlas         = font_bundle[segment.font].atlas;
 
-    //   if (props.underline_color.is_visible() && props.underline_thickness > 0)
-    //   {
-    //     draw_rect_filled(rect{.offset = position + subword.area.baseline, .extent = vec2{subword.area.extent.x, props.underline_thickness}}, props.underline_color);
-    //   }
-    // }
+          for (GlyphShaping const &shaping : layout.glyph_shapings.span().slice(segment.glyph_shapings_offset, segment.nglyph_shapings))
+          {
+            draw_sdf_glyph(position, vec2{x_cursor, baseline}, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
+            x_cursor += shaping.advance;
+          }
+        }
+
+        line_top += line.line_height;
+      }
+    }
+
+    /// GLYPHS ///
+    {
+      f32 line_top = 0;
+      for (LineMetrics const &line : layout.lines)
+      {
+        f32 x_alignment = 0;
+
+        switch (block.align)
+        {
+          case TextAlign::Start:
+          {
+            if (line.base_direction == TextDirection::RightToLeft)
+            {
+              x_alignment = layout.span.x - line.width;
+            }
+          }
+          break;
+
+          case TextAlign::Center:
+          {
+            x_alignment = (layout.span.x - line.width) / 2;
+          }
+          break;
+
+          case TextAlign::End:
+          {
+            if (line.base_direction == TextDirection::LeftToRight)
+            {
+              x_alignment = layout.span.x - line.width;
+            }
+          }
+          break;
+
+          default:
+            break;
+        }
+
+        f32       x_cursor         = x_alignment;
+        f32 const vertical_spacing = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+        f32 const baseline         = line_top + line.line_height - vertical_spacing;
+
+        for (TextRunSegment const &segment : layout.segments.span().slice(line.segments_offset, line.nsegments))
+        {
+          TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
+          FontAtlas const &atlas         = font_bundle[segment.font].atlas;
+
+          for (GlyphShaping const &shaping : layout.glyph_shapings.span().slice(segment.glyph_shapings_offset, segment.nglyph_shapings))
+          {
+            draw_sdf_glyph(position, vec2{x_cursor, baseline}, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
+            x_cursor += shaping.advance;
+          }
+        }
+
+        line_top += line.line_height;
+      }
+    }
+
+    /// UNDERLINES AND STRIKETHROUGHS ///
+    {
+      f32 line_top = 0;
+      for (LineMetrics const &line : layout.lines)
+      {
+        f32 x_alignment = 0;
+
+        switch (block.align)
+        {
+          case TextAlign::Start:
+          {
+            if (line.base_direction == TextDirection::RightToLeft)
+            {
+              x_alignment = layout.span.x - line.width;
+            }
+          }
+          break;
+
+          case TextAlign::Center:
+          {
+            x_alignment = (layout.span.x - line.width) / 2;
+          }
+          break;
+
+          case TextAlign::End:
+          {
+            if (line.base_direction == TextDirection::LeftToRight)
+            {
+              x_alignment = layout.span.x - line.width;
+            }
+          }
+          break;
+
+          default:
+            break;
+        }
+
+        f32       x_cursor         = x_alignment;
+        f32 const vertical_spacing = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+        f32 const baseline         = line_top + line.line_height - vertical_spacing;
+
+        for (TextRunSegment const &segment : layout.segments.span().slice(line.segments_offset, line.nsegments))
+        {
+          TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
+
+          if ((segment_style.underline_color.is_visible() && segment_style.underline_thickness > 0) || (segment_style.strikethrough_color.is_visible() && segment_style.strikethrough_thickness > 0)) [[unlikely]]
+          {
+            draw_text_segment_lines(position, vec2{x_cursor, baseline}, line.line_height, segment.width, segment_style);
+          }
+
+          x_cursor += segment.width;
+        }
+
+        line_top += line.line_height;
+      }
+    }
 
     return *this;
   }
