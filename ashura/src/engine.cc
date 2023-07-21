@@ -189,11 +189,13 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
-  gfx::image transparent_image = render_resource_manager.add_image(ImageView{.span = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba8888}, false);
+  gfx::image transparent_image = render_resource_manager.add_image(ImageView<u8 const>{.span = transparent_image_data, .extent = {1, 1}, .pitch = 4, .format = ImageFormat::Rgba8888}, false);
 
   ASH_CHECK(transparent_image == 0);
 
-  root_window.value()->set_icon(ImageView{.span = transparent_image_data, .extent = {1, 1}, .format = ImageFormat::Rgba8888});
+  u8 icon[] = {0xFF, 0xFF, 0xFF, 0xFF};
+
+  root_window.value()->set_icon(ImageView<u8 const>{.span = icon, .extent = {1, 1}, .pitch = 4, .format = ImageFormat::Rgba8888});
 
   /*
  C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf
@@ -226,15 +228,18 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
   {
     TIMER_BEGIN(FontLoadFromFile);
     ASH_LOG_INFO(Init, "Loading font: {} from file: {}", spec.name.view(), spec.path.view());
-    stx::Result result = load_font_from_file(spec.path);
+    stx::Result result = load_font_from_file(spec.path, spec.face);
     TIMER_END(FontLoadFromFile, "Rendering Font");
 
     if (result.is_ok())
     {
       TIMER_BEGIN(FontGlyphRender);
       ASH_LOG_INFO(Init, "Loaded font: {} from file: {}", spec.name.view(), spec.path.view());
-      auto [atlas, image_buffer] = render_font_atlas(*result.value(), spec.atlas_font_height, spec.max_atlas_extent);
-      atlas.texture              = render_resource_manager.add_image(image_buffer, false);
+      auto [atlas, image_buffers] = render_SDF_font_atlas(*result.value(), spec);
+      for (usize i = 0; i < image_buffers.size(); i++)
+      {
+        atlas.bins[i].texture = render_resource_manager.add_image(image_buffers[i], false);
+      }
       font_bundle.push(BundledFont{.name = spec.name.copy(stx::os_allocator).unwrap(), .font = std::move(result.value()), .atlas = std::move(atlas)}).unwrap();
     }
     else
