@@ -231,7 +231,7 @@ struct RenderResourceManager
         {
           u8 const *in_row  = in;
           u8       *out_row = out;
-          for (; in_row < in_row + src_row_bytes; in_row += 3, out_row += 4)
+          for (; in_row < in + src_row_bytes; in_row += 3, out_row += 4)
           {
             out_row[0] = in_row[0];
             out_row[1] = in_row[1];
