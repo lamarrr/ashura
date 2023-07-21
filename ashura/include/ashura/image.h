@@ -125,9 +125,9 @@ struct ImageView
 
     u8         *out       = span.as_u8().data();
     u8 const   *in        = view.span.as_u8().data();
-    usize const row_bytes = extent.width * pixel_byte_size(format);
+    usize const row_bytes = this->row_bytes();
 
-    for (usize irow = 0; irow < extent.height; out += pitch, in += view.pitch)
+    for (usize irow = 0; irow < extent.height; irow++, out += pitch, in += view.pitch)
     {
       stx::Span{out, row_bytes}.copy(stx::Span{in, row_bytes});
     }
