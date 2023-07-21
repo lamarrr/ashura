@@ -881,12 +881,21 @@ struct Canvas
         .outline_min_1 = 0,
         .outline_max_0 = 0.5f,
         .outline_max_1 = 0.6f,
-        .soft_edge_min = 0.45f,
-        .soft_edge_max = 0.5f,
+        .soft_edge_min = 0.1f,
+        .soft_edge_max = 0.6f,
         .add_outline   = false,
         .add_soft_edge = true};
 
-    draw_sdf_image(rect{baseline, glyph.bin_area.extent.to_vec() * 5}, sdf_atlas, glyph.bin_region, sdf_style);
+    rect area;
+    area.offset = baseline;
+    area.offset.x += glyph.metrics.bearing.x * style.font_height;
+    area.offset.y -= glyph.metrics.bearing.y * style.font_height;
+    area.offset += shaping.offset;
+    area.extent = glyph.metrics.extent * style.font_height;
+    // TODO(lamarrr): we need normalized glyph extent
+    // we need sdf padded area!!!
+
+    draw_sdf_image(area, sdf_atlas, glyph.bin_region, sdf_style);
     restore();
     return *this;
   }
@@ -925,11 +934,11 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_text_segment_background(vec2 block_position, vec2 baseline, f32 line_height, f32 segment_width, TextStyle const &style)
+  Canvas &draw_text_segment_background(vec2 block_position, vec2 line_top, vec2 extent, TextStyle const &style)
   {
     save();
     translate(block_position);
-    draw_rect_filled(rect{.offset = baseline - vec2{0, line_height}, .extent = vec2{segment_width, line_height}}, style.background_color);
+    draw_rect_filled(rect{.offset = line_top, .extent = extent}, style.background_color);
     restore();
     return *this;
   }
@@ -973,17 +982,18 @@ struct Canvas
             break;
         }
 
-        f32       x_cursor         = x_alignment;
-        f32 const vertical_spacing = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
-        f32 const baseline         = line_top + line.line_height - vertical_spacing;
+        f32       x_cursor = x_alignment;
+        f32 const line_gap = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
 
         for (TextRunSegment const &segment : layout.segments.span().slice(line.segments_offset, line.nsegments))
         {
           TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
           if (segment_style.background_color.is_visible())
           {
-            draw_text_segment_background(position, vec2{x_cursor, baseline}, line.line_height, segment.width, segment_style);
+            draw_text_segment_background(position, vec2{x_cursor, line_top}, vec2{segment.width, line.line_height}, segment_style);
           }
+
+          x_cursor += segment.width;
         }
 
         line_top += line.line_height;
@@ -1027,20 +1037,23 @@ struct Canvas
             break;
         }
 
-        f32       x_cursor         = x_alignment;
-        f32 const vertical_spacing = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
-        f32 const baseline         = line_top + line.line_height - vertical_spacing;
+        f32       x_segment_cursor = x_alignment;
+        f32 const line_gap         = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+        f32 const baseline         = line_top + line.line_height - line_gap - line.descent;
 
         for (TextRunSegment const &segment : layout.segments.span().slice(line.segments_offset, line.nsegments))
         {
           TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
           FontAtlas const &atlas         = font_bundle[segment.font].atlas;
+          f32              x_cursor      = x_segment_cursor;
 
           for (GlyphShaping const &shaping : layout.glyph_shapings.span().slice(segment.glyph_shapings_offset, segment.nglyph_shapings))
           {
-            draw_sdf_glyph(position, vec2{x_cursor, baseline}, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
-            x_cursor += shaping.advance;
+            //  draw_sdf_glyph(position, vec2{x_cursor, baseline}, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
+            x_cursor += shaping.advance + segment_style.letter_spacing;
           }
+
+          x_segment_cursor += segment.width;
         }
 
         line_top += line.line_height;
@@ -1084,20 +1097,23 @@ struct Canvas
             break;
         }
 
-        f32       x_cursor         = x_alignment;
-        f32 const vertical_spacing = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
-        f32 const baseline         = line_top + line.line_height - vertical_spacing;
+        f32       x_segment_cursor = x_alignment;
+        f32 const line_gap         = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+        f32 const baseline         = line_top + line.line_height - line_gap - line.descent;
 
         for (TextRunSegment const &segment : layout.segments.span().slice(line.segments_offset, line.nsegments))
         {
           TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
           FontAtlas const &atlas         = font_bundle[segment.font].atlas;
+          f32              x_cursor      = x_segment_cursor;
 
           for (GlyphShaping const &shaping : layout.glyph_shapings.span().slice(segment.glyph_shapings_offset, segment.nglyph_shapings))
           {
             draw_sdf_glyph(position, vec2{x_cursor, baseline}, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
-            x_cursor += shaping.advance;
+            x_cursor += shaping.advance + segment_style.letter_spacing;
           }
+
+          x_segment_cursor += segment.width;
         }
 
         line_top += line.line_height;
@@ -1141,9 +1157,9 @@ struct Canvas
             break;
         }
 
-        f32       x_cursor         = x_alignment;
-        f32 const vertical_spacing = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
-        f32 const baseline         = line_top + line.line_height - vertical_spacing;
+        f32       x_cursor = x_alignment;
+        f32 const line_gap = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+        f32 const baseline = line_top + line.line_height - line_gap - line.descent;
 
         for (TextRunSegment const &segment : layout.segments.span().slice(line.segments_offset, line.nsegments))
         {
