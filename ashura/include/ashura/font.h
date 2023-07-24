@@ -200,18 +200,10 @@ struct FontAtlas
   u32                    space_glyph       = 0;
   u32                    ellipsis_glyph    = 0;        // glypg for the ellipsis character '…'
   u32                    font_height       = 0;        // font height at which the this atlas was rendered
-  f32                    sdf_spread        = 0;        // normalized signed distance field spread factor
   f32                    ascent            = 0;        // normalized maximum ascent of the font's glyphs
   f32                    descent           = 0;        // normalized maximum descent of the font's glyphs
   f32                    advance           = 0;        // normalized maximum advance of the font's glyphs
   stx::Vec<FontAtlasBin> bins;
-};
-
-struct SdfProps
-{
-  // TODO(lamarrr): don't upscale spread
-  u32 spread         = 1;        // spread width of the SDF field
-  u32 upscale_factor = 5;        // factor to upsacle the 1-bit alpha texture from which the SDF is calculated from
 };
 
 struct BundledFont
@@ -227,13 +219,12 @@ struct FontSpec
   stx::String                    path;                                                       // local file system path of the typeface resource
   bool                           use_caching          = true;                                // whether to try to load or save font atlas from the cache directory. the font is identified in the cache directory by its postscript name, which is different from its font matching name
   u32                            face                 = 0;                                   // font face to use
-  u32                            font_height          = 20;                                  // the height at which the SDF texture is cached at
-  SdfProps                       sdf                  = {};                                  // properties to use for SDF generation
+  u32                            font_height          = 40;                                  // the height at which the SDF texture is cached at
   extent                         max_atlas_bin_extent = DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
   stx::Span<unicode_range const> ranges               = {};                                  // if set only the specified unicode ranges will be loaded, otherwise glyphs in the font will be loaded. Note that this means during font ligature glyph substitution where scripts might change, if the replacement glyph is not in the unicode range, it won't result in a valid glyph.
 };
 
-inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font const &font, FontSpec const &spec)
+inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_font_atlas(Font const &font, FontSpec const &spec)
 {
   // NOTE: all *64 or << 6, /64 or >> 6 are to convert to and from 26.6 pixel format used in Freetype and Harfbuzz metrics
 
@@ -286,8 +277,8 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
 
       // bin offsets are determined after binning and during rect packing
       urect bin_area;
-      bin_area.extent.width  = slot->bitmap.width + spec.sdf.spread * 2;
-      bin_area.extent.height = slot->bitmap.rows + spec.sdf.spread * 2;
+      bin_area.extent.width  = slot->bitmap.width;
+      bin_area.extent.height = slot->bitmap.rows;
 
       glyphs
           .push(Glyph{.is_valid   = true,
@@ -425,19 +416,6 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
                "Finished Bin Packing Glyphs For Font: {} Into {} Bins With {} Efficiency (Wasted Area = {}, Used Area = {}, Total Area = {}) ",
                font.postscript_name.c_str(), bins.size(), packing_efficiency, total_wasted_area, total_used_area, total_area);
 
-  u32 const upscaled_font_height = spec.sdf.upscale_factor * spec.font_height;
-  u32 const upscaled_spread      = spec.sdf.upscale_factor * spec.sdf.spread;
-
-  ASH_CHECK(FT_Set_Char_Size(ft_face, 0, (FT_F26Dot6) (upscaled_font_height << 6), 72, 72) == 0);
-
-  u32 const scratch_width  = AS(u32, (ft_face->bbox.xMax - ft_face->bbox.xMin));
-  u32 const scratch_height = AS(u32, (ft_face->bbox.yMax - ft_face->bbox.yMin));
-
-  u32 const scratch_sdf_width  = scratch_width + upscaled_spread * 2;
-  u32 const scratch_sdf_height = scratch_height + upscaled_spread * 2;
-
-  ImageBuffer scratch_buffer = ImageBuffer::make(extent{scratch_sdf_width, scratch_sdf_height}, ImageFormat::R8).unwrap();
-
   stx::Vec<ImageBuffer> bin_buffers;
 
   for (FontAtlasBin const &bin : bins)
@@ -462,37 +440,22 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
       }
 
       FT_GlyphSlot slot = ft_face->glyph;
-      ft_error          = FT_Render_Glyph(slot, FT_RENDER_MODE_MONO);
+      ft_error          = FT_Render_Glyph(slot, FT_RENDER_MODE_NORMAL);
       if (ft_error != 0) [[unlikely]]
       {
         ASH_LOG_ERR(FontRenderer, "Failed To Render Glyph At Index: {} for font: {}", glyph_index, font.postscript_name.c_str(), ft_error);
         continue;
       }
 
-      ASH_CHECK(slot->bitmap.pixel_mode == FT_PIXEL_MODE_MONO);
+      ASH_CHECK(slot->bitmap.pixel_mode == FT_PIXEL_MODE_GRAY);
 
-      u32 const upscaled_sdf_width  = slot->bitmap.width + upscaled_spread * 2;
-      u32 const upscaled_sdf_height = slot->bitmap.rows + upscaled_spread * 2;
-
-      generate_sdf_from_mono(slot->bitmap.buffer,
-                             slot->bitmap.pitch,
-                             slot->bitmap.width,
-                             slot->bitmap.rows,
-                             upscaled_spread,
-                             scratch_buffer.data(),
-                             upscaled_sdf_width);
-
-      ImageView<u8> bin_subview = bin_buffers[glyph.bin].view().subview(glyph.bin_area);
-
-      stbir_resize_uint8(scratch_buffer.data(),
-                         upscaled_sdf_width,
-                         upscaled_sdf_height,
-                         upscaled_sdf_width,
-                         bin_subview.span.data(),
-                         glyph.bin_area.extent.width,
-                         glyph.bin_area.extent.height,
-                         bin_subview.pitch,
-                         1);
+      bin_buffers[glyph.bin]
+          .view()
+          .subview(glyph.bin_area)
+          .copy(ImageView<u8>{.span   = stx::Span<u8>{slot->bitmap.buffer, slot->bitmap.rows * slot->bitmap.pitch},
+                              .extent = extent{slot->bitmap.width, slot->bitmap.rows},
+                              .pitch  = (usize) slot->bitmap.pitch,
+                              .format = ImageFormat::R8});
     }
   }
 
@@ -507,24 +470,12 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_SDF_font_atlas(Font co
                             .space_glyph       = space_glyph,
                             .ellipsis_glyph    = ellipsis_glyph,
                             .font_height       = spec.font_height,
-                            .sdf_spread        = spec.sdf.spread / (f32) spec.font_height,
                             .ascent            = ascent,
                             .descent           = descent,
                             .advance           = advance,
                             .bins              = std::move(bins)},
                         std::move(bin_buffers));
 }
-
-/// TODO(lamarrr): implement if the text pipeline is slow
-/// fonts are identified by their specified name
-struct SDFCodec
-{
-  // change this everytime the codec algorithm changes
-  static constexpr Version VERSION = Version{0, 0, 1};
-
-  static std::pair<FontAtlas, stx::Vec<ImageBuffer>> load_from_file(Font const &font, std::string_view cache_directory);
-  static void                                        save_to_file(Font const &font, stx::Span<ImageBuffer const> bins);
-};
 
 inline usize match_font(std::string_view font, stx::Span<BundledFont const> font_bundle)
 {

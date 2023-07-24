@@ -26,7 +26,7 @@ int main(int argc, char **argv)
 
   CanvasPipelineSpec pipelines[] = {
       {.name = DEFAULT_SHAPE_PIPELINE, .vertex_shader = gfx::vertex_shader_code, .fragment_shader = gfx::fragment_shader_code},
-      {.name = DEFAULT_SDF_SHAPE_PIPELINE, .vertex_shader = gfx::sdf_glyph_vertex_shader_code, .fragment_shader = gfx::sdf_glyph_fragment_shader_code}};
+      {.name = DEFAULT_GLYPH_PIPELINE, .vertex_shader = gfx::glyph_vertex_shader_code, .fragment_shader = gfx::glyph_fragment_shader_code}};
 
   AppConfig cfg{.enable_validation_layers = false, .fonts = fonts, .pipelines = pipelines};
 
@@ -39,7 +39,7 @@ int main(int argc, char **argv)
               FlexProps{},
               Image{ImageProps{.source = FileImageSource{.path = R"(C:\Users\Basit\Desktop\pimping.png)"}, .aspect_ratio = stx::Some(1.0f), .resize_on_load = true}},
               Text{"macro_off", TextStyle{.font = "MaterialIcons", .font_height = 50, .foreground_color = material::WHITE, .background_color = colors::TRANSPARENT, .line_height = 1.0f}},
-              Text{std::string_view{(char *) text, sizeof(text)}, TextStyle{.font = "IBMPlexSans", .font_height = 80, .foreground_color = material::WHITE}},
+              Text{std::string_view{(char *) text, sizeof(text)}, TextStyle{.font = "IBMPlexSans", .font_height = 20, .foreground_color = material::WHITE}},
               CheckBox{},
               Slider{},
               /* Box{BoxProps{.width            = constraint::absolute(200),

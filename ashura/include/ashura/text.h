@@ -112,6 +112,7 @@ struct LineMetrics
 struct GlyphShaping
 {
   u32  glyph   = 0;
+  u32  cluster = 0;
   f32  advance = 0;        // context-dependent horizontal-layout advance
   vec2 offset;             // context-dependent text shaping offset from normal font glyph position
 };
@@ -124,7 +125,7 @@ struct TextLayout
   f32                      max_line_width = 0;
   vec2                     span;
 
-  static std::pair<stx::Span<hb_glyph_info_t const>, stx::Span<hb_glyph_position_t const>> shape_text_harfbuzz(Font const &font, u32 not_found_glyph, stx::Span<char const> text, hb_buffer_t *shaping_buffer, hb_script_t script, hb_direction_t direction, hb_language_t language, TextStyle const &style)
+  static std::pair<stx::Span<hb_glyph_info_t const>, stx::Span<hb_glyph_position_t const>> shape_text_harfbuzz(Font const &font, f32 render_font_height, u32 not_found_glyph, stx::Span<char const> text, hb_buffer_t *shaping_buffer, hb_script_t script, hb_direction_t direction, hb_language_t language, TextStyle const &style)
   {
     // tags are opentype feature tags
     hb_feature_t const shaping_features[] = {{.tag   = HB_TAG('k', 'e', 'r', 'n'),        // kerning operations
@@ -146,7 +147,7 @@ struct TextLayout
     hb_buffer_set_script(shaping_buffer, script);                                                        // OpenType (ISO15924) Script Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
     hb_buffer_set_direction(shaping_buffer, direction);
     hb_buffer_set_language(shaping_buffer, language);                                                    // OpenType BCP-47 language tag for performing certain shaping operations as defined in the font
-    hb_font_set_scale(font.hb_font, (int) (64 * style.font_height), (int) (64 * style.font_height));
+    hb_font_set_scale(font.hb_font, (int) (64 * render_font_height), (int) (64 * render_font_height));
     hb_buffer_add_utf8(shaping_buffer, text.data(), (int) text.size(), 0, (int) text.size());
     hb_shape(font.hb_font, shaping_buffer, shaping_features, (uint) std::size(shaping_features));
 
@@ -241,7 +242,7 @@ struct TextLayout
         char const   *run_text_end          = run_text_begin;
         usize const   run_block_text_offset = (usize) (run_text_begin - block.text.data());
         SBLevel const run_level             = paragraph_levels[run_text_begin - paragraph_text_begin];
-        stx::utf8_next(run_text_end);
+        stx::utf8_next((u8 const *&) run_text_end);
         while (!(run_block_text_offset >= script_agent->offset && run_block_text_offset < (script_agent->offset + script_agent->length))) [[unlikely]]
         {
           ASH_CHECK(SBScriptLocatorMoveNext(script_locator));
@@ -275,7 +276,7 @@ struct TextLayout
           usize const   block_text_offset = (usize) (run_text_end - block.text.data());
           SBLevel const level             = paragraph_levels[run_text_end - paragraph_text_begin];
           char const   *p_next_codepoint  = run_text_end;
-          stx::utf8_next(p_next_codepoint);
+          stx::utf8_next((u8 const *&) p_next_codepoint);
           usize istyle = block.styles.size();        // find the style intended for this code point (if any, otherwise default)
 
           while (run_it < block.runs.end())
@@ -313,7 +314,7 @@ struct TextLayout
           while (segment_text_end < run_text_end)
           {
             char const       *p_next_codepoint = segment_text_end;
-            SBCodepoint const codepoint        = stx::utf8_next(p_next_codepoint);
+            SBCodepoint const codepoint        = stx::utf8_next((u8 const *&) p_next_codepoint);
 
             if (codepoint == ' ' || codepoint == '\t')
             {
@@ -330,7 +331,9 @@ struct TextLayout
 
           stx::Span const segment_text{segment_text_begin, (usize) (segment_text_end - segment_text_begin)};
 
-          auto const [glyph_infos, glyph_positions] = shape_text_harfbuzz(*font_bundle[run_font].font, font_bundle[run_font].atlas.space_glyph, segment_text, shaping_buffer, run_script_hb, run_direction_hb, language_hb, run_style);
+          auto const [glyph_infos, glyph_positions] = shape_text_harfbuzz(*font_bundle[run_font].font, font_bundle[run_font].atlas.font_height, font_bundle[run_font].atlas.space_glyph, segment_text, shaping_buffer, run_script_hb, run_direction_hb, language_hb, run_style);
+
+          f32 const scale = (f32) run_style.font_height / (f32) font_bundle[run_font].atlas.font_height;
 
           f32 segment_width = 0;
 
@@ -338,10 +341,10 @@ struct TextLayout
 
           for (usize i = 0; i < glyph_infos.size(); i++)
           {
-            f32 const  advance = (f32) glyph_positions[i].x_advance / 64.0f;
-            vec2 const offset{(f32) glyph_positions[i].x_offset / 64.0f, (f32) glyph_positions[i].y_offset / -64.0f};
+            f32 const  advance = scale * (f32) glyph_positions[i].x_advance / 64.0f;
+            vec2 const offset  = scale *vec2{(f32) glyph_positions[i].x_offset / 64.0f, (f32) glyph_positions[i].y_offset / -64.0f};
 
-            glyph_shapings.push(GlyphShaping{.glyph = glyph_infos[i].codepoint, .advance = advance, .offset = offset}).unwrap();
+            glyph_shapings.push(GlyphShaping{.glyph = glyph_infos[i].codepoint, .cluster = glyph_infos[i].cluster, .advance = advance, .offset = offset}).unwrap();
 
             segment_width += advance + run_style.letter_spacing;
           }

@@ -354,37 +354,6 @@ struct CanvasState
   rect scissor;
 };
 
-struct SdfStyle
-{
-  color stroke_color;
-  color outline_color;
-  f32   outline_min_0 = 0;
-  f32   outline_min_1 = 0;
-  f32   outline_max_0 = 0.5f;
-  f32   outline_max_1 = 0.6f;
-  f32   soft_edge_min = 0;
-  f32   soft_edge_max = 0;
-  bool  add_outline   = false;
-  bool  add_soft_edge = false;
-};
-
-struct SdfPipelinePushConstant
-{
-  static constexpr u32 ADD_SOFT_EDGES_BIT = 1;
-  static constexpr u32 ADD_OUTLINE_BIT    = 2;
-
-  mat3 transform;
-  vec4 stroke_color;
-  vec4 outline_color;
-  f32  outline_min_0 = 0;
-  f32  outline_min_1 = 0;
-  f32  outline_max_0 = 0.5f;
-  f32  outline_max_1 = 0.6f;
-  f32  soft_edge_min = 0;
-  f32  soft_edge_max = 0;
-  u32  flags         = 0;
-};
-
 /// Coordinates are specified in top-left origin absolute pixel coordinates with x pointing to the
 /// right and y pointing downwards (i.e. {0, 0} being top left and {x, y} being bottom right),
 /// the transform matrix transforms the vertices to a Vulkan Coordinate System (i.e. {-1, -1} top left and {1, 1} bottom right).
@@ -836,55 +805,10 @@ struct Canvas
     return draw_rounded_image(img, area, border_radii, nsegments, texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
-  Canvas &draw_sdf_image(rect area, gfx::image image, texture_rect region, SdfStyle const &style)
-  {
-    vertex const vertices[] = {{.position = vec2{0, 0}, .uv = region.uv0, .color = colors::WHITE.to_vec()},
-                               {.position = vec2{area.extent.x, 0}, .uv = vec2{region.uv1.x, region.uv0.y}, .color = colors::WHITE.to_vec()},
-                               {.position = area.extent, .uv = region.uv1, .color = colors::WHITE.to_vec()},
-                               {.position = vec2{0, area.extent.y}, .uv = vec2{region.uv0.x, region.uv1.y}, .color = colors::WHITE.to_vec()}};
-
-    draw_list.vertices.extend(vertices).unwrap();
-
-    triangulate_convex_polygon(draw_list.indices, 4);
-
-    draw_list.commands.push(DrawCommand{
-                                .pipeline       = DEFAULT_SDF_SHAPE_PIPELINE,
-                                .nvertices      = 4,
-                                .nindices       = 6,
-                                .first_instance = 0,
-                                .ninstances     = 1,
-                                .scissor        = state.scissor,
-                                .textures       = {image}}
-                                .with_push_constant(SdfPipelinePushConstant{.transform     = make_transform(area.offset).transpose(),
-                                                                            .stroke_color  = style.stroke_color.to_vec(),
-                                                                            .outline_color = style.outline_color.to_vec(),
-                                                                            .outline_min_0 = style.outline_min_0,
-                                                                            .outline_min_1 = style.outline_min_1,
-                                                                            .outline_max_0 = style.outline_max_0,
-                                                                            .outline_max_1 = style.outline_max_1,
-                                                                            .soft_edge_min = style.soft_edge_min,
-                                                                            .soft_edge_max = style.soft_edge_max,
-                                                                            .flags         = (style.add_outline ? SdfPipelinePushConstant::ADD_OUTLINE_BIT : 0) | (style.add_soft_edge ? SdfPipelinePushConstant::ADD_SOFT_EDGES_BIT : 0)}))
-        .unwrap();
-
-    return *this;
-  }
-
-  Canvas &draw_sdf_glyph(vec2 block_position, vec2 baseline, Glyph const &glyph, GlyphShaping const &shaping, TextStyle const &style, gfx::image sdf_atlas /**SPREAD PROPERTIES??? HOW IS IT USED IN IMGUI AND WICKED ENGINE? AND FLUTTER?*/)
+  Canvas &draw_glyph(vec2 block_position, vec2 baseline, Glyph const &glyph, GlyphShaping const &shaping, TextStyle const &style, gfx::image atlas)
   {
     save();
     translate(block_position);
-    SdfStyle sdf_style{
-        .stroke_color  = style.foreground_color,
-        .outline_color = style.outline_color,
-        .outline_min_0 = 0,
-        .outline_min_1 = 0,
-        .outline_max_0 = 0.5f,
-        .outline_max_1 = 0.6f,
-        .soft_edge_min = 0.1f,
-        .soft_edge_max = 0.6f,
-        .add_outline   = false,
-        .add_soft_edge = true};
 
     rect area;
     area.offset = baseline;
@@ -892,10 +816,27 @@ struct Canvas
     area.offset.y -= glyph.metrics.bearing.y * style.font_height;
     area.offset += shaping.offset;
     area.extent = glyph.metrics.extent * style.font_height;
-    // TODO(lamarrr): we need normalized glyph extent
-    // we need sdf padded area!!!
 
-    draw_sdf_image(area, sdf_atlas, glyph.bin_region, sdf_style);
+    vertex const vertices[] = {{.position = vec2{0, 0}, .uv = glyph.bin_region.uv0, .color = style.foreground_color.to_vec()},
+                               {.position = vec2{area.extent.x, 0}, .uv = vec2{glyph.bin_region.uv1.x, glyph.bin_region.uv0.y}, .color = style.foreground_color.to_vec()},
+                               {.position = area.extent, .uv = glyph.bin_region.uv1, .color = style.foreground_color.to_vec()},
+                               {.position = vec2{0, area.extent.y}, .uv = vec2{glyph.bin_region.uv0.x, glyph.bin_region.uv1.y}, .color = style.foreground_color.to_vec()}};
+
+    draw_list.vertices.extend(vertices).unwrap();
+
+    triangulate_convex_polygon(draw_list.indices, 4);
+
+    draw_list.commands.push(DrawCommand{
+                                .pipeline       = DEFAULT_GLYPH_PIPELINE,
+                                .nvertices      = 4,
+                                .nindices       = 6,
+                                .first_instance = 0,
+                                .ninstances     = 1,
+                                .scissor        = state.scissor,
+                                .textures       = {atlas}}
+                                .with_push_constant(make_transform(area.offset).transpose()))
+        .unwrap();
+
     restore();
     return *this;
   }
@@ -1109,7 +1050,7 @@ struct Canvas
 
           for (GlyphShaping const &shaping : layout.glyph_shapings.span().slice(segment.glyph_shapings_offset, segment.nglyph_shapings))
           {
-            draw_sdf_glyph(position, vec2{x_cursor, baseline}, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
+            draw_glyph(position, vec2{x_cursor, baseline}, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
             x_cursor += shaping.advance + segment_style.letter_spacing;
           }
 

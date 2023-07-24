@@ -197,14 +197,6 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   root_window.value()->set_icon(ImageView<u8 const>{.span = icon, .extent = {1, 1}, .pitch = 4, .format = ImageFormat::Rgba8888});
 
-  /*
- C:\Users\Basit\OneDrive\Desktop\segoeuiemoji\seguiemj.ttf
-C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
-  Arabic Regular\Adobe Arabic Regular.ttf
-  C:\Users\Basit\OneDrive\Documents\workspace\oss\ashura-assets\fonts\MaterialIcons-Regular.ttf
-      C:\Users\Basit\OneDrive\Desktop\gen-shin-gothic-monospace-bold\Gen
-  Shin Gothic Monospace Bold\Gen Shin Gothic Monospace Bold.ttf
-  */
   ctx.register_subsystem(new VulkanImageManager{render_resource_manager});
   ctx.register_subsystem(new ImageLoader{});
 
@@ -235,7 +227,7 @@ C:\Users\Basit\OneDrive\Desktop\adobe-arabic-regular\Adobe
     {
       TIMER_BEGIN(FontGlyphRender);
       ASH_LOG_INFO(Init, "Loaded font: {} from file: {}", spec.name.view(), spec.path.view());
-      auto [atlas, image_buffers] = render_SDF_font_atlas(*result.value(), spec);
+      auto [atlas, image_buffers] = render_font_atlas(*result.value(), spec);
       for (usize i = 0; i < image_buffers.size(); i++)
       {
         atlas.bins[i].texture = render_resource_manager.add_image(image_buffers[i], false);
