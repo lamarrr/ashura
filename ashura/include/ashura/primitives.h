@@ -898,9 +898,9 @@ constexpr mat4 scale3d(vec3 s)
 
 inline mat3 rotate2d(f32 degree_radians)
 {
-  return mat3{.rows = {{1, 0, 0},
-                       {0, std::cos(degree_radians), -std::sin(degree_radians)},
-                       {0, std::sin(degree_radians), std::cos(degree_radians)}}};
+  return mat3{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0},
+                       {std::sin(degree_radians), std::cos(degree_radians), 0},
+                       {0, 0, 1}}};
 }
 
 inline mat4 rotate3d_x(f32 degree_radians)
@@ -1281,6 +1281,26 @@ constexpr color YELLOW      = color::from_rgb(0xff, 0xff, 0x00);
 struct texture_rect
 {
   vec2 uv0, uv1;
+
+  constexpr vec2 top_left() const
+  {
+    return uv0;
+  }
+
+  constexpr vec2 top_right() const
+  {
+    return vec2{uv1.x, uv0.y};
+  }
+
+  constexpr vec2 bottom_right() const
+  {
+    return uv1;
+  }
+
+  constexpr vec2 bottom_left() const
+  {
+    return vec2{uv0.x, uv1.y};
+  }
 };
 
 /// a 2d shader vertex
