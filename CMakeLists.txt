@@ -15,6 +15,14 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/lamarrr/STX.git
   GIT_TAG main)
 
+set(SheenBidi_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/SheenBidi)
+
+if(NOT EXISTS ${SheenBidi_DIR})
+  execute_process(
+    COMMAND git clone https://github.com/Tehreer/SheenBidi.git --depth=1 -bv2.6
+            ${SheenBidi_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+endif()
+
 find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(harfbuzz REQUIRED)
@@ -31,6 +39,15 @@ find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 
 FetchContent_MakeAvailable(stx)
+
+file(GLOB SheenBidi_SOURCES ${SheenBidi_DIR}/Source/*.c)
+
+add_library(SheenBidi ${SheenBidi_SOURCES})
+target_include_directories(
+  SheenBidi
+  PUBLIC ${SheenBidi_DIR}/Headers
+  PRIVATE ${SheenBidi_DIR}/Source)
+add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)

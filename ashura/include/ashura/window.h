@@ -128,16 +128,16 @@ struct Window
     return extent{.width = AS(u32, w), .height = AS(u32, h)};
   }
 
-  void set_position(offseti pos)
+  void set_position(ioffset pos)
   {
     ASH_SDL_CHECK(SDL_SetWindowPosition(window, AS(int, pos.x), AS(int, pos.y)) == 0);
   }
 
-  offseti get_position()
+  ioffset get_position()
   {
     int x, y;
     ASH_SDL_CHECK(SDL_GetWindowPosition(window, &x, &y) == 0);
-    return offseti{.x = AS(i32, x), .y = AS(i32, y)};
+    return ioffset{.x = AS(i32, x), .y = AS(i32, y)};
   }
 
   void set_min_size(extent min)
@@ -164,19 +164,19 @@ struct Window
     return extent{.width = AS(u32, w), .height = AS(u32, h)};
   }
 
-  void set_icon(ImageView image)
+  void set_icon(ImageView<u8 const> image)
   {
     SDL_PixelFormatEnum fmt = SDL_PIXELFORMAT_RGBA8888;
 
     switch (image.format)
     {
-      case ImageFormat::Rgba:
+      case ImageFormat::Rgba8888:
         fmt = SDL_PIXELFORMAT_RGBA8888;
         break;
-      case ImageFormat::Bgra:
+      case ImageFormat::Bgra8888:
         fmt = SDL_PIXELFORMAT_RGBA8888;
         break;
-      case ImageFormat::Rgb:
+      case ImageFormat::Rgb888:
         fmt = SDL_PIXELFORMAT_RGB888;
         break;
       default:
@@ -184,7 +184,7 @@ struct Window
         break;
     }
 
-    SDL_Surface *icon = SDL_CreateSurfaceFrom((void *) image.data.data(), AS(int, image.extent.width), AS(int, image.extent.height), AS(int, image.extent.width *nchannel_bytes(image.format)), fmt);
+    SDL_Surface *icon = SDL_CreateSurfaceFrom((void *) image.span.data(), AS(int, image.extent.width), AS(int, image.extent.height), AS(int, image.pitch), fmt);
     ASH_SDL_CHECK(icon != nullptr);
     ASH_SDL_CHECK(SDL_SetWindowIcon(window, icon) == 0);
     SDL_DestroySurface(icon);
@@ -317,14 +317,14 @@ struct Window
     // VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT;
     // VK_COLOR_SPACE_DCI_P3_LINEAR_EXT;
 
-    VkPresentModeKHR preferred_present_modes[] = {VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR,
+    VkPresentModeKHR preferred_present_modes[] = {VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR,
                                                   VK_PRESENT_MODE_MAILBOX_KHR};
 
-    VkSampleCountFlagBits msaa_sample_count = queue->device->phy_dev->get_max_sample_count();
+    VkSampleCountFlagBits max_msaa_sample_count = queue->device->phy_dev->get_max_sample_count();
 
     surface.value()->change_swapchain(queue, max_nframes_in_flight, preferred_formats, preferred_present_modes,
                                       VkExtent2D{.width = AS(u32, surface_width), .height = AS(u32, surface_height)},
-                                      VkExtent2D{.width = AS(u32, width), .height = AS(u32, height)}, msaa_sample_count,
+                                      VkExtent2D{.width = AS(u32, width), .height = AS(u32, height)}, max_msaa_sample_count,
                                       VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
   }
 

@@ -23,23 +23,36 @@ namespace vk
 
 struct RenderImage
 {
-  vk::Image               image;
-  ImageFormat             format         = ImageFormat::Rgba;
-  VkFormat                backend_format = VK_FORMAT_R8G8B8A8_UNORM;
-  VkImageLayout           layout         = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkImageLayout           dst_layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-  ash::extent             extent;
-  stx::Option<vk::Buffer> staging_buffer;
-  bool                    needs_upload = false;
-  bool                    needs_delete = false;
-  bool                    is_real_time = false;
+  Image               image;
+  ImageFormat         format     = ImageFormat::Rgba8888;           // requested format from the frontend
+  VkFormat            gpu_format = VK_FORMAT_R8G8B8A8_UNORM;        // format used to store texture on GPU
+  VkImageLayout       layout     = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImageLayout       dst_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  ash::extent         extent;
+  stx::Option<Buffer> staging_buffer;
+  VkDescriptorSet     descriptor_set = VK_NULL_HANDLE;
+  bool                needs_upload   = false;
+  bool                needs_delete   = false;
+  bool                is_real_time   = false;
+
+  void destroy(VkDescriptorPool descriptor_pool)
+  {
+    image.destroy();
+    staging_buffer.match(&Buffer::destroy, []() {});
+    ASH_VK_CHECK(vkFreeDescriptorSets(image.dev, descriptor_pool, 1, &descriptor_set));
+  }
 };
 
 struct RenderResourceManager
 {
-  VkCommandPool                        cmd_pool   = VK_NULL_HANDLE;
-  VkCommandBuffer                      cmd_buffer = VK_NULL_HANDLE;
-  VkFence                              fence      = VK_NULL_HANDLE;
+  static constexpr u32 NMAX_IMAGE_DESCRIPTOR_SETS = 1024;
+
+  VkCommandPool                        cmd_pool              = VK_NULL_HANDLE;
+  VkCommandBuffer                      cmd_buffer            = VK_NULL_HANDLE;
+  VkFence                              fence                 = VK_NULL_HANDLE;
+  VkDescriptorPool                     descriptor_pool       = VK_NULL_HANDLE;
+  VkDescriptorSetLayout                descriptor_set_layout = VK_NULL_HANDLE;
+  VkSampler                            sampler               = VK_NULL_HANDLE;        // ideally list of samplers of different types
   stx::Option<stx::Rc<CommandQueue *>> queue;
   std::map<gfx::image, RenderImage>    images;
   u64                                  next_image_id = 0;
@@ -67,6 +80,54 @@ struct RenderResourceManager
     VkFenceCreateInfo fence_create_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .pNext = nullptr, .flags = 0};
 
     ASH_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr, &fence));
+
+    VkDescriptorSetLayoutBinding descriptor_set_bindings[] = {{.binding            = 0,
+                                                               .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                                               .descriptorCount    = 1,
+                                                               .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                                                               .pImmutableSamplers = nullptr}};
+
+    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{
+        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .pNext        = nullptr,
+        .flags        = 0,
+        .bindingCount = AS(u32, std::size(descriptor_set_bindings)),
+        .pBindings    = descriptor_set_bindings,
+    };
+
+    ASH_VK_CHECK(vkCreateDescriptorSetLayout(dev, &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout));
+
+    VkDescriptorPoolSize descriptor_pool_sizes[] = {{.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = NMAX_IMAGE_DESCRIPTOR_SETS}};
+
+    VkDescriptorPoolCreateInfo descriptor_pool_create_info{.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                                                           .pNext         = nullptr,
+                                                           .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+                                                           .maxSets       = NMAX_IMAGE_DESCRIPTOR_SETS,
+                                                           .poolSizeCount = AS(u32, std::size(descriptor_pool_sizes)),
+                                                           .pPoolSizes    = descriptor_pool_sizes};
+
+    ASH_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info, nullptr, &descriptor_pool));
+
+    VkSamplerCreateInfo sampler_create_info{.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                                            .pNext                   = nullptr,
+                                            .flags                   = 0,
+                                            .magFilter               = VK_FILTER_LINEAR,
+                                            .minFilter               = VK_FILTER_LINEAR,
+                                            .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+                                            .addressModeU            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                            .addressModeV            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                            .addressModeW            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+                                            .mipLodBias              = 0,
+                                            .anisotropyEnable        = VK_TRUE,
+                                            .maxAnisotropy           = queue.value()->device->phy_dev->properties.limits.maxSamplerAnisotropy,
+                                            .compareEnable           = VK_FALSE,
+                                            .compareOp               = VK_COMPARE_OP_ALWAYS,
+                                            .minLod                  = 0,
+                                            .maxLod                  = 0,
+                                            .borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+                                            .unnormalizedCoordinates = VK_FALSE};
+
+    ASH_VK_CHECK(vkCreateSampler(dev, &sampler_create_info, nullptr, &sampler));
   }
 
   void destroy()
@@ -80,90 +141,104 @@ struct RenderResourceManager
       entry.second.needs_delete = true;
     }
 
-    flush_deletes();
-    images = {};
+    execute_deletes();
+    images.clear();
 
     vkFreeCommandBuffers(dev, cmd_pool, 1, &cmd_buffer);
 
     vkDestroyCommandPool(dev, cmd_pool, nullptr);
 
     vkDestroyFence(dev, fence, nullptr);
+
+    vkDestroyDescriptorSetLayout(dev, descriptor_set_layout, nullptr);
+
+    vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
+
+    vkDestroySampler(dev, sampler, nullptr);
   }
 
-  // BGRA input => BGRA output
-  // [Alpha, Antialiasing, Gray, RGB, RGBA] inputs => RGBA output
-  static void copy_pixels(ImageView view, stx::Span<u8> dst)
+  static ImageFormat to_rep_format(ImageFormat fmt)
   {
-    u8 const *in  = view.data.begin();
-    u8       *out = dst.begin();
-
-    switch (view.format)
+    switch (fmt)
     {
-      case ImageFormat::Alpha:
+      case ImageFormat::Rgba8888:
+      case ImageFormat::Bgra8888:
+      case ImageFormat::R8:
       {
-        for (usize i = 0; i < view.extent.area(); i++)
+        return fmt;
+      }
+
+      case ImageFormat::Rgb888:
+      {
+        return ImageFormat::Rgba8888;
+      }
+
+      default:
+      {
+        ASH_PANIC("Unsupported Texture Format Passed To Vulkan Backend");
+      }
+    }
+  }
+
+  static constexpr VkFormat to_vk(ImageFormat fmt)
+  {
+    switch (fmt)
+    {
+      case ImageFormat::Rgba8888:
+        return VK_FORMAT_R8G8B8A8_UNORM;
+
+      case ImageFormat::Rgb888:
+        return VK_FORMAT_R8G8B8_UNORM;
+
+      case ImageFormat::Bgra8888:
+        return VK_FORMAT_B8G8R8A8_UNORM;
+
+      case ImageFormat::R8:
+        return VK_FORMAT_R8_UNORM;
+
+      default:
+      {
+        ASH_UNREACHABLE();
+      }
+    }
+  }
+
+  /// Converts textures to their GPU representations
+  /// Note that RGB is converted to RGBA as neither OpenGL nor Vulkan require implementation support for RGB it.
+  static void copy_image_to_GPU_Buffer(ImageView<u8 const> src, ImageView<u8> rep_dst)
+  {
+    ASH_CHECK(src.extent.width <= rep_dst.extent.width);
+    ASH_CHECK(src.extent.height <= rep_dst.extent.height);
+
+    switch (src.format)
+    {
+      case ImageFormat::Rgba8888:
+      case ImageFormat::Bgra8888:
+      case ImageFormat::R8:
+      {
+        rep_dst.copy(src);
+      }
+      break;
+
+      case ImageFormat::Rgb888:
+      {
+        ASH_CHECK(rep_dst.format == ImageFormat::Rgba8888);
+        u8 const   *in            = src.span.data();
+        u8         *out           = rep_dst.span.data();
+        usize const src_row_bytes = src.row_bytes();
+
+        for (usize irow = 0; irow < src.extent.height; irow++, in += src.pitch, out += rep_dst.pitch)
         {
-          out[0] = 0x00;
-          out[1] = 0x00;
-          out[2] = 0x00;
-          out[3] = *in;
-          out += 4;
-          in++;
+          u8 const *in_row  = in;
+          u8       *out_row = out;
+          for (; in_row < in + src_row_bytes; in_row += 3, out_row += 4)
+          {
+            out_row[0] = in_row[0];
+            out_row[1] = in_row[1];
+            out_row[2] = in_row[2];
+            out_row[3] = 0xFF;
+          }
         }
-      }
-      break;
-
-      case ImageFormat::Antialiasing:
-      {
-        for (usize i = 0; i < view.extent.area(); i++)
-        {
-          out[0] = 0xFF;
-          out[1] = 0xFF;
-          out[2] = 0xFF;
-          out[3] = *in;
-          out += 4;
-          in++;
-        }
-      }
-      break;
-
-      case ImageFormat::Gray:
-      {
-        for (usize i = 0; i < view.extent.area(); i++)
-        {
-          out[0] = *in;
-          out[1] = *in;
-          out[2] = *in;
-          out[3] = 0xFF;
-          out += 4;
-          in++;
-        }
-      }
-      break;
-
-      case ImageFormat::Rgb:
-      {
-        for (usize i = 0; i < view.extent.area(); i++)
-        {
-          out[0] = in[0];
-          out[1] = in[1];
-          out[2] = in[2];
-          out[3] = 0xFF;
-          out += 4;
-          in += 3;
-        }
-      }
-      break;
-
-      case ImageFormat::Rgba:
-      {
-        dst.copy(view.data);
-      }
-      break;
-
-      case ImageFormat::Bgra:
-      {
-        dst.copy(view.data);
       }
       break;
 
@@ -175,7 +250,8 @@ struct RenderResourceManager
     }
   }
 
-  gfx::image add_image(ImageView image_view, bool is_real_time)
+  /// image will uploaded and be available for use before next frame
+  gfx::image add_image(ImageView<u8 const> image_view, bool is_real_time)
   {
     gfx::image id = next_image_id;
     next_image_id++;
@@ -184,18 +260,17 @@ struct RenderResourceManager
     VkDevice                                dev               = queue.device->dev;
     VkPhysicalDeviceMemoryProperties const &memory_properties = queue.device->phy_dev->memory_properties;
 
-    ASH_CHECK(image_view.extent.is_visible());
-    ASH_CHECK(image_view.data.size_bytes() == image_view.extent.area() * nchannel_bytes(image_view.format));
+    ASH_CHECK(image_view.extent.is_visible(), "Encounted unsupported zero extent image");
 
-    // use RGBA8888 for everything else
-    VkFormat target_format = image_view.format == ImageFormat::Bgra ? VK_FORMAT_B8G8R8A8_UNORM : VK_FORMAT_R8G8B8A8_UNORM;
+    ImageFormat rep_format    = to_rep_format(image_view.format);
+    VkFormat    rep_format_vk = to_vk(rep_format);
 
     VkImageCreateInfo create_info{
         .sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .pNext                 = nullptr,
         .flags                 = 0,
         .imageType             = VK_IMAGE_TYPE_2D,
-        .format                = target_format,
+        .format                = rep_format_vk,
         .extent                = VkExtent3D{.width = image_view.extent.width, .height = image_view.extent.height, .depth = 1},
         .mipLevels             = 1,
         .arrayLayers           = 1,
@@ -234,7 +309,7 @@ struct RenderResourceManager
         .flags            = 0,
         .image            = image,
         .viewType         = VK_IMAGE_VIEW_TYPE_2D,
-        .format           = target_format,
+        .format           = rep_format_vk,
         .components       = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
                                                .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                                                .b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -246,48 +321,85 @@ struct RenderResourceManager
 
     ASH_VK_CHECK(vkCreateImageView(dev, &view_create_info, nullptr, &view));
 
-    Buffer staging_buffer = create_host_visible_buffer(dev, memory_properties, image_view.extent.area() * 4, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer staging_buffer = create_host_visible_buffer(dev, memory_properties, fitted_byte_size(image_view.extent, rep_format), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     auto begin = std::chrono::steady_clock::now();
-    copy_pixels(image_view, staging_buffer.span());
+    copy_image_to_GPU_Buffer(image_view, ImageView<u8>{.span = staging_buffer.span(), .extent = image_view.extent, .pitch = image_view.extent.width * pixel_byte_size(rep_format), .format = rep_format});
     ASH_LOG_INFO(Vulkan_RenderResourceManager, "Copied Image #{} to Host Visible Staging Buffer in {} ms", id, (std::chrono::steady_clock::now() - begin).count() / 1'000'000.0f);
+
+    VkDescriptorSetAllocateInfo descriptor_set_allocate_info{.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                                                             .pNext              = nullptr,
+                                                             .descriptorPool     = descriptor_pool,
+                                                             .descriptorSetCount = 1,
+                                                             .pSetLayouts        = &descriptor_set_layout};
+
+    VkDescriptorSet descriptor_set;
+
+    ASH_VK_CHECK(vkAllocateDescriptorSets(dev, &descriptor_set_allocate_info, &descriptor_set));
+
+    {
+      VkDescriptorImageInfo image_info{.sampler = sampler, .imageView = view, .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+      VkWriteDescriptorSet write{.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 .pNext            = nullptr,
+                                 .dstSet           = descriptor_set,
+                                 .dstBinding       = 0,
+                                 .dstArrayElement  = 0,
+                                 .descriptorCount  = 1,
+                                 .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                 .pImageInfo       = &image_info,
+                                 .pBufferInfo      = nullptr,
+                                 .pTexelBufferView = nullptr};
+
+      vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
+    }
 
     images.emplace(id, RenderImage{.image          = Image{.image = image, .view = view, .memory = memory, .dev = dev},
                                    .format         = image_view.format,
-                                   .backend_format = target_format,
+                                   .gpu_format     = rep_format_vk,
                                    .layout         = VK_IMAGE_LAYOUT_UNDEFINED,
                                    .dst_layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                    .extent         = image_view.extent,
                                    .staging_buffer = stx::Some(std::move(staging_buffer)),
+                                   .descriptor_set = descriptor_set,
                                    .needs_upload   = true,
                                    .needs_delete   = false,
                                    .is_real_time   = is_real_time});
 
-    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Created {}{} {}x{} Image #{} with format={} and size={} bytes", is_real_time ? "" : "non-", "real-time", image_view.extent.width, image_view.extent.height, id, string_VkFormat(target_format), memory_requirements.size);
+    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Created {}{} {}x{} Image #{} with format={} and size={} bytes", is_real_time ? "" : "non-", "real-time", image_view.extent.width, image_view.extent.height, id, string_VkFormat(rep_format_vk), memory_requirements.size);
 
     return id;
   }
 
-  void update(gfx::image image, ImageView view)
+  void update(gfx::image image, ImageView<u8 const> view)
   {
     auto pos = images.find(image);
     ASH_CHECK(pos != images.end());
-    ASH_CHECK(pos->second.format == view.format);
-    ASH_CHECK(pos->second.extent == view.extent);
-    ASH_CHECK(!pos->second.needs_delete);
+    auto &rimage = pos->second;
+    ASH_CHECK(rimage.format == view.format);
+    ASH_CHECK(rimage.extent == view.extent);
+    ASH_CHECK(!rimage.needs_delete);
 
-    if (pos->second.needs_upload || pos->second.is_real_time)
+    ImageFormat rep_format = to_rep_format(rimage.format);
+
+    if (rimage.needs_upload || rimage.is_real_time)
     {
-      copy_pixels(view, pos->second.staging_buffer.value().span());
+      copy_image_to_GPU_Buffer(view, ImageView<u8>{.span   = rimage.staging_buffer.value().span(),
+                                                   .extent = rimage.extent,
+                                                   .pitch  = rimage.extent.width * pixel_byte_size(rep_format),
+                                                   .format = rep_format});
     }
     else
     {
       CommandQueue const &queue          = *this->queue.value();
-      vk::Buffer          staging_buffer = create_host_visible_buffer(queue.device->dev, queue.device->phy_dev->memory_properties, view.extent.area() * 4, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-      copy_pixels(view, staging_buffer.span());
-      pos->second.staging_buffer = stx::Some(std::move(staging_buffer));
+      Buffer              staging_buffer = create_host_visible_buffer(queue.device->dev, queue.device->phy_dev->memory_properties, fitted_byte_size(rimage.extent, rep_format), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+      copy_image_to_GPU_Buffer(view, ImageView<u8>{.span   = staging_buffer.span(),
+                                                   .extent = rimage.extent,
+                                                   .pitch  = rimage.extent.width * pixel_byte_size(rep_format),
+                                                   .format = rep_format});
+      rimage.staging_buffer = stx::Some(std::move(staging_buffer));
     }
-    pos->second.needs_upload = true;
+    rimage.needs_upload = true;
   }
 
   void remove(gfx::image image)
@@ -407,7 +519,7 @@ struct RenderResourceManager
     ASH_LOG_INFO(Vulkan_RenderResourceManager, "Uploaded pending images");
   }
 
-  void flush_deletes()
+  void execute_deletes()
   {
     bool has_pending_delete = false;
 
@@ -427,16 +539,12 @@ struct RenderResourceManager
 
     ASH_VK_CHECK(vkQueueWaitIdle(queue.value()->info.queue));
 
+    // stable iterator
     for (auto it = images.begin(); it != images.end(); it++)
     {
       if (it->second.needs_delete)
       {
-        it->second.image.destroy();
-        if (it->second.staging_buffer.is_some())
-        {
-          it->second.staging_buffer.value().destroy();
-          it->second.staging_buffer = stx::None;
-        }
+        it->second.destroy(descriptor_pool);
       }
       images.erase(it);
     }
@@ -444,7 +552,7 @@ struct RenderResourceManager
     ASH_LOG_INFO(Vulkan_RenderResourceManager, "Deleted pending images");
   }
 
-  gfx::image upload_font_atlas(Font &font, ImageView atlas)
+  gfx::image upload_font_atlas(Font &font, ImageView<u8 const> atlas)
   {
     // VkImageFormatProperties image_format_properties;
     // ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties));
@@ -456,186 +564,121 @@ struct RenderResourceManager
   }
 };
 
-struct RecordingContext
+/// @brief NOTE: each pipeline is binded with 8 descriptor sets, each containing an image sampler.
+/// buffers are passed via push constants with a limit of 128 bytes.
+///
+/// Rendering pipelines are rebuilt when the render target changes (i.e. swapchain)
+/// Pipelines also have to be declared at program startup.
+///
+struct CanvasPipeline
 {
-  VkCommandPool                cmd_pool = VK_NULL_HANDLE;
-  stx::Vec<VkCommandBuffer>    cmd_buffers;
-  VkShaderModule               vertex_shader   = VK_NULL_HANDLE;
-  VkShaderModule               fragment_shader = VK_NULL_HANDLE;
-  Pipeline                     pipeline;
-  stx::Vec<VkDescriptorPool>   descriptor_pools;                     // one descriptor pool per frame in flight
-  stx::Vec<DescriptorPoolInfo> descriptor_pool_infos;
-  stx::Vec<DescriptorSetSpec>  descriptor_set_specs;                 // specifications describing binding types/layouts
-                                                                     // for the descriptor sets used. we will have
-                                                                     // multiple of each
-  stx::Vec<VkDescriptorSetLayout>     descriptor_set_layouts;        // the created layouts for each of the descriptor sets
-  stx::Vec<stx::Vec<VkDescriptorSet>> descriptor_sets;               // the allocated descriptor sets, the first vec is for
-                                                                     // each frame in flight and the second vec contains the
-                                                                     // descriptor sets repeated for each of the draw calls.
-                                                                     // i.e. num_draw_calls x num_descriptor_sets_per_frame
-  stx::Vec<VkVertexInputAttributeDescription> vertex_input_attr;
-  u32                                         vertex_input_size     = 0;
-  u32                                         push_constant_size    = 0;
-  u32                                         max_nframes_in_flight = 0;
-  u32                                         queue_family          = 0;
-  VkDevice                                    dev                   = VK_NULL_HANDLE;
+  VkShaderModule        vertex_shader   = VK_NULL_HANDLE;
+  VkShaderModule        fragment_shader = VK_NULL_HANDLE;
+  stx::Option<Pipeline> pipeline;
 
-  void init(VkDevice adev, u32 aqueue_family, stx::Span<u32 const> vertex_shader_code,
-            stx::Span<u32 const> fragment_shader_code, stx::Span<VkVertexInputAttributeDescription const> avertex_input_attr,
-            u32 avertex_input_size, u32 apush_constant_size, u32 amax_nframes_in_flight,
-            stx::Span<DescriptorSetSpec> adescriptor_sets_specs, stx::Span<VkDescriptorPoolSize const> adescriptor_pool_sizes,
-            u32 max_descriptor_sets)
+  void destroy(VkDevice dev)
   {
-    dev                   = adev;
-    max_nframes_in_flight = amax_nframes_in_flight;
-    vertex_input_size     = avertex_input_size;
-    push_constant_size    = apush_constant_size;
-    queue_family          = aqueue_family;
+    vkDestroyShaderModule(dev, vertex_shader, nullptr);
+    vkDestroyShaderModule(dev, fragment_shader, nullptr);
+    pipeline.match(&Pipeline::destroy, []() {});
+  }
+};
 
-    auto create_shader = [this](stx::Span<u32 const> code) {
-      VkShaderModuleCreateInfo create_info{.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-                                           .pNext    = nullptr,
-                                           .flags    = 0,
-                                           .codeSize = code.size_bytes(),
-                                           .pCode    = code.data()};
+/// pipelines are static and can not be removed once added
+struct CanvasPipelineManager
+{
+  std::map<std::string, CanvasPipeline, std::less<>> pipelines;
+  VkDescriptorSetLayout                              descriptor_set_layout = VK_NULL_HANDLE;
+  VkDevice                                           dev                   = VK_NULL_HANDLE;
 
-      VkShaderModule shader;
+  void init(VkDevice adev)
+  {
+    dev = adev;
 
-      ASH_VK_CHECK(vkCreateShaderModule(dev, &create_info, nullptr, &shader));
+    VkDescriptorSetLayoutBinding descriptor_set_bindings[] = {{.binding            = 0,
+                                                               .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                                               .descriptorCount    = 1,
+                                                               .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                                                               .pImmutableSamplers = nullptr}};
 
-      return shader;
-    };
+    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{
+        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .pNext        = nullptr,
+        .flags        = 0,
+        .bindingCount = std::size(descriptor_set_bindings),
+        .pBindings    = descriptor_set_bindings};
 
-    vertex_shader = create_shader(vertex_shader_code);
-
-    fragment_shader = create_shader(fragment_shader_code);
-
-    VkCommandPoolCreateInfo cmd_pool_create_info{.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                                                 .pNext            = nullptr,
-                                                 .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-                                                 .queueFamilyIndex = queue_family};
-
-    ASH_VK_CHECK(vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
-
-    vertex_input_attr.extend(avertex_input_attr).unwrap();
-
-    descriptor_set_specs.extend_move(adescriptor_sets_specs).unwrap();
-
-    for (DescriptorSetSpec const &spec : descriptor_set_specs)
-    {
-      stx::Vec<VkDescriptorSetLayoutBinding> bindings;
-
-      u32 ibinding = 0;
-
-      for (VkDescriptorType type : spec.bindings)
-      {
-        VkDescriptorSetLayoutBinding binding{.binding         = ibinding,
-                                             .descriptorType  = type,
-                                             .descriptorCount = 1,
-                                             .stageFlags      = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT};
-
-        bindings.push_inplace(binding).unwrap();
-        ibinding++;
-      }
-
-      VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-                                                                        .pNext        = nullptr,
-                                                                        .flags        = 0,
-                                                                        .bindingCount = AS(u32, bindings.size()),
-                                                                        .pBindings    = bindings.data()};
-
-      VkDescriptorSetLayout descriptor_set_layout;
-
-      ASH_VK_CHECK(vkCreateDescriptorSetLayout(dev, &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout));
-
-      descriptor_set_layouts.push_inplace(descriptor_set_layout).unwrap();
-    }
-
-    cmd_buffers.resize(max_nframes_in_flight).unwrap();
-
-    VkCommandBufferAllocateInfo cmd_buffers_allocate_info{.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                                                          .pNext              = nullptr,
-                                                          .commandPool        = cmd_pool,
-                                                          .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                                                          .commandBufferCount = AS(u32, max_nframes_in_flight)};
-
-    ASH_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info, cmd_buffers.data()));
-
-    for (usize i = 0; i < max_nframes_in_flight; i++)
-    {
-      stx::Vec<VkDescriptorPoolSize> pool_sizes;
-      pool_sizes.extend(adescriptor_pool_sizes).unwrap();
-
-      VkDescriptorPoolCreateInfo descriptor_pool_create_info{.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-                                                             .pNext         = nullptr,
-                                                             .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-                                                             .maxSets       = max_descriptor_sets,
-                                                             .poolSizeCount = AS(u32, adescriptor_pool_sizes.size()),
-                                                             .pPoolSizes    = adescriptor_pool_sizes.data()};
-
-      VkDescriptorPool descriptor_pool;
-
-      ASH_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info, nullptr, &descriptor_pool));
-
-      descriptor_pools.push_inplace(descriptor_pool).unwrap();
-
-      descriptor_pool_infos
-          .push(DescriptorPoolInfo{.sizes = std::move(pool_sizes), .max_sets = descriptor_pool_create_info.maxSets})
-          .unwrap();
-    }
-
-    for (usize i = 0; i < max_nframes_in_flight; i++)
-    {
-      descriptor_sets.push(stx::Vec<VkDescriptorSet>{}).unwrap();
-    }
+    ASH_VK_CHECK(vkCreateDescriptorSetLayout(dev, &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout));
   }
 
-  void rebuild(VkRenderPass target_render_pass, VkSampleCountFlagBits msaa_sample_count)
+  gfx::pipeline add_pipeline(CanvasPipelineSpec const &spec)
   {
-    if (pipeline.layout != nullptr)
-    {
-      vkDestroyPipelineLayout(dev, pipeline.layout, nullptr);
-    }
+    VkShaderModule           vertex_shader;
+    VkShaderModuleCreateInfo vertex_shader_module_create_info{
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .pNext    = nullptr,
+        .flags    = 0,
+        .codeSize = spec.vertex_shader.size_bytes(),
+        .pCode    = spec.vertex_shader.data()};
+    ASH_VK_CHECK(vkCreateShaderModule(dev, &vertex_shader_module_create_info, nullptr, &vertex_shader));
 
-    if (pipeline.pipeline != nullptr)
-    {
-      vkDestroyPipeline(dev, pipeline.pipeline, nullptr);
-    }
+    VkShaderModule           fragment_shader;
+    VkShaderModuleCreateInfo fragment_shader_module_create_info{
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .pNext    = nullptr,
+        .flags    = 0,
+        .codeSize = spec.fragment_shader.size_bytes(),
+        .pCode    = spec.fragment_shader.data()};
+    ASH_VK_CHECK(vkCreateShaderModule(dev, &fragment_shader_module_create_info, nullptr, &fragment_shader));
 
-    pipeline.build(dev, vertex_shader, fragment_shader, target_render_pass, msaa_sample_count, descriptor_set_layouts,
-                   vertex_input_attr, vertex_input_size, push_constant_size);
+    pipelines.emplace(spec.name, CanvasPipeline{.vertex_shader   = vertex_shader,
+                                                .fragment_shader = fragment_shader,
+                                                .pipeline        = stx::None});
+  }
+
+  /// re-build pipelines to meet renderpass specification
+  void rebuild_for_renderpass(VkRenderPass target_render_pass, VkSampleCountFlagBits msaa_sample_count)
+  {
+    static constexpr VkVertexInputAttributeDescription vertex_input_attributes[] = {
+        {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(vertex, position)},
+        {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(vertex, uv)},
+        {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(vertex, color)}};
+
+    VkDescriptorSetLayout descriptor_sets_layout[NIMAGES_PER_DRAWCALL];
+    stx::Span{descriptor_sets_layout}.fill(descriptor_set_layout);
+
+    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
+
+    for (auto &p : pipelines)
+    {
+      ASH_LOG_INFO(Vulkan_CanvasPipelineManager, "Rebuilding Pipeline #{}", p.first);
+      p.second.pipeline.match(&Pipeline::destroy, []() {});
+      p.second.pipeline = stx::None;
+
+      Pipeline pipeline;
+
+      pipeline.build(dev,
+                     p.second.vertex_shader,
+                     p.second.fragment_shader,
+                     target_render_pass,
+                     msaa_sample_count,
+                     descriptor_sets_layout,
+                     vertex_input_attributes,
+                     sizeof(vertex),
+                     PUSH_CONSTANT_SIZE);
+
+      p.second.pipeline = stx::Some(std::move(pipeline));
+
+      ASH_LOG_INFO(Vulkan_CanvasPipelineManager, "Rebuilt Pipeline #{}", p.first);
+    }
   }
 
   void destroy()
   {
-    ASH_VK_CHECK(vkDeviceWaitIdle(dev));
-
-    vkDestroyShaderModule(dev, vertex_shader, nullptr);
-
-    vkDestroyShaderModule(dev, fragment_shader, nullptr);
-
-    vkFreeCommandBuffers(dev, cmd_pool, AS(u32, max_nframes_in_flight), cmd_buffers.data());
-
-    vkDestroyCommandPool(dev, cmd_pool, nullptr);
-
-    for (VkDescriptorSetLayout layout : descriptor_set_layouts)
+    for (auto &p : pipelines)
     {
-      vkDestroyDescriptorSetLayout(dev, layout, nullptr);
+      p.second.destroy(dev);
     }
-
-    u32 frame_index = 0;
-    for (stx::Vec<VkDescriptorSet> const &set : descriptor_sets)
-    {
-      vkFreeDescriptorSets(dev, descriptor_pools[frame_index], AS(u32, set.size()), set.data());
-      frame_index++;
-    }
-
-    for (VkDescriptorPool descriptor_pool : descriptor_pools)
-    {
-      vkDestroyDescriptorPool(dev, descriptor_pool, nullptr);
-    }
-
-    pipeline.destroy();
   }
 };
 

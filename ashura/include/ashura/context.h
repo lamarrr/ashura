@@ -41,7 +41,7 @@ inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id);
 struct Context
 {
   stx::Vec<Subsystem *>        subsystems;
-  stx::TaskScheduler          *task_scheduler = nullptr;
+  stx::TaskScheduler          *task_scheduler = nullptr; // TODO(lamarrr): set thread name
   ClipBoard                   *clipboard      = nullptr;
   WindowManager               *window_manager = nullptr;
   SystemTheme                  theme          = SystemTheme::Unknown;

@@ -1,317 +1,27 @@
 #pragma once
 
+#include <algorithm>
+#include <string_view>
+
+extern "C"
+{
+#include "SBAlgorithm.h"
+#include "SBLine.h"
+#include "SBParagraph.h"
+#include "SBScriptLocator.h"
+}
+
 #include "ashura/font.h"
 #include "ashura/primitives.h"
+#include "ashura/unicode.h"
+
 #include "harfbuzz/hb.h"
 #include "stx/span.h"
 #include "stx/text.h"
 #include "stx/vec.h"
-#include <string_view>
 
 namespace ash
 {
-
-// BCP-47 language codes
-namespace languages
-{
-
-constexpr std::string_view AFRIKAANS         = "af";
-constexpr std::string_view AMHARIC           = "am";
-constexpr std::string_view ARABIC            = "ar";
-constexpr std::string_view MAPUDUNGUN        = "arn";
-constexpr std::string_view ASSAMESE          = "as";
-constexpr std::string_view AZERBAIJANI       = "az";
-constexpr std::string_view BASHKIR           = "ba";
-constexpr std::string_view BELARUSIAN        = "be";
-constexpr std::string_view BULGARIAN         = "bg";
-constexpr std::string_view BENGALI           = "bn";
-constexpr std::string_view TIBETAN           = "bo";
-constexpr std::string_view BRETON            = "br";
-constexpr std::string_view BOSNIAN           = "bs";
-constexpr std::string_view CATALAN           = "ca";
-constexpr std::string_view CORSICAN          = "co";
-constexpr std::string_view CZECH             = "cs";
-constexpr std::string_view WELSH             = "cy";
-constexpr std::string_view DANISH            = "da";
-constexpr std::string_view GERMAN            = "de";
-constexpr std::string_view LOWER_SORBIAN     = "dsb";
-constexpr std::string_view DIVEHI            = "dv";
-constexpr std::string_view GREEK             = "el";
-constexpr std::string_view ENGLISH           = "en";
-constexpr std::string_view SPANISH           = "es";
-constexpr std::string_view ESTONIAN          = "et";
-constexpr std::string_view BASQUE            = "eu";
-constexpr std::string_view PERSIAN           = "fa";
-constexpr std::string_view FINNISH           = "fi";
-constexpr std::string_view FILIPINO          = "fil";
-constexpr std::string_view FAROESE           = "fo";
-constexpr std::string_view FRENCH            = "fr";
-constexpr std::string_view FRISIAN           = "fy";
-constexpr std::string_view IRISH             = "ga";
-constexpr std::string_view SCOTTISH_GAELIC   = "gd";
-constexpr std::string_view GALICIAN          = "gl";
-constexpr std::string_view ALSATIAN          = "gsw";
-constexpr std::string_view GUJARATI          = "gu";
-constexpr std::string_view HAUSA             = "ha";
-constexpr std::string_view HEBREW            = "he";
-constexpr std::string_view HINDI             = "hi";
-constexpr std::string_view CROATIAN          = "hr";
-constexpr std::string_view UPPER_SORBIAN     = "hsb";
-constexpr std::string_view HUNGARIAN         = "hu";
-constexpr std::string_view ARMENIAN          = "hy";
-constexpr std::string_view INDONESIAN        = "id";
-constexpr std::string_view IGBO              = "ig";
-constexpr std::string_view YI                = "ii";
-constexpr std::string_view ICELANDIC         = "is";
-constexpr std::string_view ITALIAN           = "it";
-constexpr std::string_view INUKTITUT         = "iu";
-constexpr std::string_view JAPANESE          = "ja";
-constexpr std::string_view GEORGIAN          = "ka";
-constexpr std::string_view KAZAKH            = "kk";
-constexpr std::string_view GREENLANDIC       = "kl";
-constexpr std::string_view KHMER             = "km";
-constexpr std::string_view KANNADA           = "kn";
-constexpr std::string_view KOREAN            = "ko";
-constexpr std::string_view KONKANI           = "kok";
-constexpr std::string_view KYRGYZ            = "ky";
-constexpr std::string_view LUXEMBOURGISH     = "lb";
-constexpr std::string_view LAO               = "lo";
-constexpr std::string_view LITHUANIAN        = "lt";
-constexpr std::string_view LATVIAN           = "lv";
-constexpr std::string_view MAORI_REO         = "mi";
-constexpr std::string_view MACEDONIAN        = "mk";
-constexpr std::string_view MALAYALAM         = "ml";
-constexpr std::string_view MONGOLIAN         = "mn";
-constexpr std::string_view MOHAWK            = "moh";
-constexpr std::string_view MARATHI           = "mr";
-constexpr std::string_view MALAY_BAHASA      = "ms";
-constexpr std::string_view MALTESE           = "mt";
-constexpr std::string_view BURMESE           = "my";
-constexpr std::string_view NORWEGIAN_BOKMAL  = "nb";
-constexpr std::string_view NEPALI            = "ne";
-constexpr std::string_view DUTCH             = "nl";
-constexpr std::string_view NORWEGIAN_NYNORSK = "nn";
-constexpr std::string_view NORWEGIAN         = "no";
-constexpr std::string_view SESOTHO           = "st";
-constexpr std::string_view OCCITAN           = "oc";
-constexpr std::string_view ODIA              = "or";
-constexpr std::string_view PUNJABI           = "pa";
-constexpr std::string_view POLISH            = "pl";
-constexpr std::string_view DARI              = "prs";
-constexpr std::string_view PASHTO            = "ps";
-constexpr std::string_view PORTUGUESE        = "pt";
-constexpr std::string_view KICHE             = "quc";
-constexpr std::string_view QUECHUA           = "qu";
-constexpr std::string_view ROMANSH           = "rm";
-constexpr std::string_view ROMANIAN          = "ro";
-constexpr std::string_view RUSSIAN           = "ru";
-constexpr std::string_view KINYARWANDA       = "rw";
-constexpr std::string_view SANSKRIT          = "sa";
-constexpr std::string_view YAKUT             = "sah";
-constexpr std::string_view SAMI_NORTHERN     = "se";
-constexpr std::string_view SINHALA           = "si";
-constexpr std::string_view SLOVAK            = "sk";
-constexpr std::string_view SLOVENIAN         = "sl";
-constexpr std::string_view SAMI_SOUTHERN     = "sma";
-constexpr std::string_view SAMI_LULE         = "smj";
-constexpr std::string_view SAMI_INARI        = "smn";
-constexpr std::string_view SAMI_SKOLT        = "sms";
-constexpr std::string_view ALBANIAN          = "sq";
-constexpr std::string_view SERBIAN           = "sr";
-constexpr std::string_view SWEDISH           = "sv";
-constexpr std::string_view KISWAHILI         = "sw";
-constexpr std::string_view SYRIAC            = "syc";
-constexpr std::string_view TAMIL             = "ta";
-constexpr std::string_view TELUGU            = "te";
-constexpr std::string_view TAJIK             = "tg";
-constexpr std::string_view THAI              = "th";
-constexpr std::string_view TURKMEN           = "tk";
-constexpr std::string_view TSWANA            = "tn";
-constexpr std::string_view TURKISH           = "tr";
-constexpr std::string_view TATAR             = "tt";
-constexpr std::string_view TAMAZIGHT         = "tzm";
-constexpr std::string_view UYGHUR            = "ug";
-constexpr std::string_view UKRAINIAN         = "uk";
-constexpr std::string_view URDU              = "ur";
-constexpr std::string_view UZBEK             = "uz";
-constexpr std::string_view VIETNAMESE        = "vi";
-constexpr std::string_view WOLOF             = "wo";
-constexpr std::string_view XHOSA             = "xh";
-constexpr std::string_view YORUBA            = "yo";
-constexpr std::string_view CHINESE           = "zh";
-constexpr std::string_view ZULU              = "zu";
-
-}        // namespace languages
-
-enum class Script : int
-{
-  Common                = HB_SCRIPT_COMMON,
-  Inherited             = HB_SCRIPT_INHERITED,
-  Unknown               = HB_SCRIPT_UNKNOWN,
-  Arabic                = HB_SCRIPT_ARABIC,
-  Armenian              = HB_SCRIPT_ARMENIAN,
-  Bengali               = HB_SCRIPT_BENGALI,
-  Cyrillic              = HB_SCRIPT_CYRILLIC,
-  Devanagari            = HB_SCRIPT_DEVANAGARI,
-  Georgian              = HB_SCRIPT_GEORGIAN,
-  Greek                 = HB_SCRIPT_GREEK,
-  Gujarati              = HB_SCRIPT_GUJARATI,
-  Gurmukhi              = HB_SCRIPT_GURMUKHI,
-  Hangul                = HB_SCRIPT_HANGUL,
-  Han                   = HB_SCRIPT_HAN,
-  Hebrew                = HB_SCRIPT_HEBREW,
-  Hiragana              = HB_SCRIPT_HIRAGANA,
-  Kannada               = HB_SCRIPT_KANNADA,
-  Katakana              = HB_SCRIPT_KATAKANA,
-  Lao                   = HB_SCRIPT_LAO,
-  Latin                 = HB_SCRIPT_LATIN,
-  Malayalam             = HB_SCRIPT_MALAYALAM,
-  Oriya                 = HB_SCRIPT_ORIYA,
-  Tamil                 = HB_SCRIPT_TAMIL,
-  Telugu                = HB_SCRIPT_TELUGU,
-  Thai                  = HB_SCRIPT_THAI,
-  Tibetan               = HB_SCRIPT_TIBETAN,
-  Bopomofo              = HB_SCRIPT_BOPOMOFO,
-  Braille               = HB_SCRIPT_BRAILLE,
-  CanadianSyllabics     = HB_SCRIPT_CANADIAN_SYLLABICS,
-  Cherokee              = HB_SCRIPT_CHEROKEE,
-  Ethiopic              = HB_SCRIPT_ETHIOPIC,
-  Khmer                 = HB_SCRIPT_KHMER,
-  Mongolian             = HB_SCRIPT_MONGOLIAN,
-  Myanmar               = HB_SCRIPT_MYANMAR,
-  Ogham                 = HB_SCRIPT_OGHAM,
-  Runic                 = HB_SCRIPT_RUNIC,
-  Sinhala               = HB_SCRIPT_SINHALA,
-  Syriac                = HB_SCRIPT_SYRIAC,
-  Thaana                = HB_SCRIPT_THAANA,
-  Yi                    = HB_SCRIPT_YI,
-  Deseret               = HB_SCRIPT_DESERET,
-  Gothic                = HB_SCRIPT_GOTHIC,
-  OldItalic             = HB_SCRIPT_OLD_ITALIC,
-  Buhid                 = HB_SCRIPT_BUHID,
-  Hanunoo               = HB_SCRIPT_HANUNOO,
-  Tagalog               = HB_SCRIPT_TAGALOG,
-  Tagbanwa              = HB_SCRIPT_TAGBANWA,
-  Cypriot               = HB_SCRIPT_CYPRIOT,
-  Limbu                 = HB_SCRIPT_LIMBU,
-  LinearB               = HB_SCRIPT_LINEAR_B,
-  Osmanya               = HB_SCRIPT_OSMANYA,
-  Shavian               = HB_SCRIPT_SHAVIAN,
-  TaiLe                 = HB_SCRIPT_TAI_LE,
-  Ugaritic              = HB_SCRIPT_UGARITIC,
-  Buginese              = HB_SCRIPT_BUGINESE,
-  Coptic                = HB_SCRIPT_COPTIC,
-  Glagolitic            = HB_SCRIPT_GLAGOLITIC,
-  Kharoshthi            = HB_SCRIPT_KHAROSHTHI,
-  NewTaiLue             = HB_SCRIPT_NEW_TAI_LUE,
-  OldPersian            = HB_SCRIPT_OLD_PERSIAN,
-  SylotiNagri           = HB_SCRIPT_SYLOTI_NAGRI,
-  Tifinagh              = HB_SCRIPT_TIFINAGH,
-  Balinese              = HB_SCRIPT_BALINESE,
-  Cuneiform             = HB_SCRIPT_CUNEIFORM,
-  Nko                   = HB_SCRIPT_NKO,
-  PhagsPa               = HB_SCRIPT_PHAGS_PA,
-  Phoenician            = HB_SCRIPT_PHOENICIAN,
-  Carian                = HB_SCRIPT_CARIAN,
-  Cham                  = HB_SCRIPT_CHAM,
-  KayahLi               = HB_SCRIPT_KAYAH_LI,
-  Lepcha                = HB_SCRIPT_LEPCHA,
-  Lycian                = HB_SCRIPT_LYCIAN,
-  Lydian                = HB_SCRIPT_LYDIAN,
-  OlChiki               = HB_SCRIPT_OL_CHIKI,
-  Rejang                = HB_SCRIPT_REJANG,
-  Saurashtra            = HB_SCRIPT_SAURASHTRA,
-  Sundanese             = HB_SCRIPT_SUNDANESE,
-  Vai                   = HB_SCRIPT_VAI,
-  Avestan               = HB_SCRIPT_AVESTAN,
-  Bamum                 = HB_SCRIPT_BAMUM,
-  EgyptianHieroglyphs   = HB_SCRIPT_EGYPTIAN_HIEROGLYPHS,
-  ImperialAramaic       = HB_SCRIPT_IMPERIAL_ARAMAIC,
-  InscriptionalPahlavi  = HB_SCRIPT_INSCRIPTIONAL_PAHLAVI,
-  InscriptionalParthian = HB_SCRIPT_INSCRIPTIONAL_PARTHIAN,
-  Javanese              = HB_SCRIPT_JAVANESE,
-  Kaithi                = HB_SCRIPT_KAITHI,
-  Lisu                  = HB_SCRIPT_LISU,
-  MeeteiMayek           = HB_SCRIPT_MEETEI_MAYEK,
-  OldSouthArabian       = HB_SCRIPT_OLD_SOUTH_ARABIAN,
-  OldTurkic             = HB_SCRIPT_OLD_TURKIC,
-  Samaritan             = HB_SCRIPT_SAMARITAN,
-  TaiTham               = HB_SCRIPT_TAI_THAM,
-  TaiViet               = HB_SCRIPT_TAI_VIET,
-  Batak                 = HB_SCRIPT_BATAK,
-  Brahmi                = HB_SCRIPT_BRAHMI,
-  Mandaic               = HB_SCRIPT_MANDAIC,
-  Chakma                = HB_SCRIPT_CHAKMA,
-  MeroiticCursive       = HB_SCRIPT_MEROITIC_CURSIVE,
-  MeroiticHieroglyphs   = HB_SCRIPT_MEROITIC_HIEROGLYPHS,
-  Miao                  = HB_SCRIPT_MIAO,
-  Sharada               = HB_SCRIPT_SHARADA,
-  SoraSompeng           = HB_SCRIPT_SORA_SOMPENG,
-  Takri                 = HB_SCRIPT_TAKRI,
-  BassaVah              = HB_SCRIPT_BASSA_VAH,
-  CaucasianAlbanian     = HB_SCRIPT_CAUCASIAN_ALBANIAN,
-  Duployan              = HB_SCRIPT_DUPLOYAN,
-  Elbasan               = HB_SCRIPT_ELBASAN,
-  Grantha               = HB_SCRIPT_GRANTHA,
-  Khojki                = HB_SCRIPT_KHOJKI,
-  Khudawadi             = HB_SCRIPT_KHUDAWADI,
-  LinearA               = HB_SCRIPT_LINEAR_A,
-  Mahajani              = HB_SCRIPT_MAHAJANI,
-  Manichaean            = HB_SCRIPT_MANICHAEAN,
-  MendeKikakui          = HB_SCRIPT_MENDE_KIKAKUI,
-  Modi                  = HB_SCRIPT_MODI,
-  Mro                   = HB_SCRIPT_MRO,
-  Nabataean             = HB_SCRIPT_NABATAEAN,
-  OldNorthArabian       = HB_SCRIPT_OLD_NORTH_ARABIAN,
-  OldPermic             = HB_SCRIPT_OLD_PERMIC,
-  PahawhHmong           = HB_SCRIPT_PAHAWH_HMONG,
-  Palmyrene             = HB_SCRIPT_PALMYRENE,
-  PauCinHau             = HB_SCRIPT_PAU_CIN_HAU,
-  PsalterPahlavi        = HB_SCRIPT_PSALTER_PAHLAVI,
-  Siddham               = HB_SCRIPT_SIDDHAM,
-  Tirhuta               = HB_SCRIPT_TIRHUTA,
-  WarangCiti            = HB_SCRIPT_WARANG_CITI,
-  Ahom                  = HB_SCRIPT_AHOM,
-  AnatolianHieroglyphs  = HB_SCRIPT_ANATOLIAN_HIEROGLYPHS,
-  Hatran                = HB_SCRIPT_HATRAN,
-  Multani               = HB_SCRIPT_MULTANI,
-  OldHungarian          = HB_SCRIPT_OLD_HUNGARIAN,
-  Signwriting           = HB_SCRIPT_SIGNWRITING,
-  Adlam                 = HB_SCRIPT_ADLAM,
-  Bhaiksuki             = HB_SCRIPT_BHAIKSUKI,
-  Marchen               = HB_SCRIPT_MARCHEN,
-  Osage                 = HB_SCRIPT_OSAGE,
-  Tangut                = HB_SCRIPT_TANGUT,
-  Newa                  = HB_SCRIPT_NEWA,
-  MasaramGondi          = HB_SCRIPT_MASARAM_GONDI,
-  Nushu                 = HB_SCRIPT_NUSHU,
-  Soyombo               = HB_SCRIPT_SOYOMBO,
-  ZanabazarSquare       = HB_SCRIPT_ZANABAZAR_SQUARE,
-  Dogra                 = HB_SCRIPT_DOGRA,
-  GunjalaGondi          = HB_SCRIPT_GUNJALA_GONDI,
-  HanifiRohingya        = HB_SCRIPT_HANIFI_ROHINGYA,
-  Makasar               = HB_SCRIPT_MAKASAR,
-  Medefaidrin           = HB_SCRIPT_MEDEFAIDRIN,
-  OldSogdian            = HB_SCRIPT_OLD_SOGDIAN,
-  Sogdian               = HB_SCRIPT_SOGDIAN,
-  Elymaic               = HB_SCRIPT_ELYMAIC,
-  Nandinagari           = HB_SCRIPT_NANDINAGARI,
-  NyiakengPuachueHmong  = HB_SCRIPT_NYIAKENG_PUACHUE_HMONG,
-  Wancho                = HB_SCRIPT_WANCHO,
-  Chorasmian            = HB_SCRIPT_CHORASMIAN,
-  DivesAkuru            = HB_SCRIPT_DIVES_AKURU,
-  KhitanSmallScript     = HB_SCRIPT_KHITAN_SMALL_SCRIPT,
-  Yezidi                = HB_SCRIPT_YEZIDI,
-  CyproMinoan           = HB_SCRIPT_CYPRO_MINOAN,
-  OldUyghur             = HB_SCRIPT_OLD_UYGHUR,
-  Tangsa                = HB_SCRIPT_TANGSA,
-  Toto                  = HB_SCRIPT_TOTO,
-  Vithkuqi              = HB_SCRIPT_VITHKUQI,
-  Math                  = HB_SCRIPT_MATH,
-  Kawi                  = HB_SCRIPT_KAWI,
-  NagMundari            = HB_SCRIPT_NAG_MUNDARI,
-  Invalid               = HB_SCRIPT_INVALID
-};
 
 enum class TextDirection : u8
 {
@@ -319,126 +29,155 @@ enum class TextDirection : u8
   RightToLeft
 };
 
-struct TextProps
+struct TextStyle
 {
-  std::string_view                  font;                                /// name to use to match the font
-  stx::Span<std::string_view const> fallback_fonts;                      /// font to fallback to if specified font is not available
-  f32                               font_height             = 20;        /// px
-  color                             foreground_color        = colors::BLACK;
-  color                             background_color        = colors::TRANSPARENT;
-  color                             underline_color         = colors::BLACK;
-  f32                               underline_thickness     = 0;            /// px
-  bool                              wavy_underline          = false;        // TODO(lamarrr): implement
-  color                             strikethrough_color     = colors::BLACK;
-  f32                               strikethrough_thickness = 0;            /// px
-  color                             stroke_color            = colors::TRANSPARENT;
-  vec2                              stroke_offset;                          /// px
-  f32                               letter_spacing = 0;                     /// px
-  f32                               word_spacing   = 4;                     /// px
-  f32                               line_height    = 1.2f;                  /// will be multiplied by font_height
-  TextDirection                     direction      = TextDirection::LeftToRight;
-  usize                             tab_size       = 8;                     /// number of spaces to replace a tab with
-  Script                            script         = Script::Latin;
-  std::string_view                  language       = languages::ENGLISH;
-  bool                              use_kerning    = true;
-  bool                              use_ligatures  = true;        /// use standard and contextual font ligature substitution
+  std::string_view                  font                    = {};                         // name to use to match the font. if font is not found or empty the fallback fonts are tried.
+  stx::Span<std::string_view const> fallback_fonts          = {};                         // font to fallback to if {font} is not available. if none of the specified fallback fonts are found the first font in the font bundle will be used
+  f32                               font_height             = 20;                         // px
+  color                             foreground_color        = colors::BLACK;              //
+  color                             outline_color           = colors::BLACK;              //
+  f32                               outline_thickness       = 0;                          // px. TODO(lamarrr): outline spread??? we can also scale by px sdf_spread/outline_width
+  color                             shadow_color            = colors::BLACK;              //
+  f32                               shadow_scale            = 0;                          // relative. multiplied by font_height
+  vec2                              shadow_offset           = vec2{0, 0};                 // px. offset from center of glyph
+  color                             background_color        = colors::TRANSPARENT;        //
+  color                             underline_color         = colors::BLACK;              //
+  f32                               underline_thickness     = 0;                          // px
+  color                             strikethrough_color     = colors::BLACK;              //
+  f32                               strikethrough_thickness = 0;                          // px
+  f32                               letter_spacing          = 0;                          // px. additional letter spacing, can be negative
+  f32                               word_spacing            = 0;                          // px. additional word spacing, can be negative
+  f32                               line_height             = 1.2f;                       // relative. multiplied by font_height
+  bool                              use_kerning             = true;                       // use provided font kerning
+  bool                              use_ligatures           = true;                       // use standard and contextual font ligature substitution
 };
 
-/// A text run is a sequence of characters sharing a single property i.e. foreground color, font family etc.
+/// A text run is a sequence of characters sharing a single property.
+/// i.e. foreground color, font etc.
 struct TextRun
 {
-  stx::Span<char const>  text;        /// utf-8-encoded text, Span because string view doesnt support non-string types
-  stx::Option<TextProps> props;
+  usize size  = 0;        // byte size coverage of this run. i.e. for the first run with size 20 all text within [0, 20] bytes range of the text will be styled using this run
+  usize style = 0;        // run style to use
 };
 
 enum class TextAlign : u8
 {
-  Left,
+  Start,
   Center,
-  Right
+  End
 };
 
-// TODO(lamarrr): implement ellipsis overflow wrapping
-enum class TextOverflow : u8
+enum class TextOverflow
 {
   Wrap,
   Ellipsis
 };
 
-struct Paragraph
+struct TextBlock
 {
-  stx::Span<TextRun const> runs;
-  TextProps                props;
-  TextAlign                align = TextAlign::Left;
-  // TextOverflow             overflow = TextOverflow::Wrap;
-  // std::string_view         ellipsis = "...";
+  std::string_view           text;                                          // utf-8-encoded text, Span because string view doesnt support non-string types
+  stx::Span<TextRun const>   runs;                                          // parts of text not styled by a run will use the paragraphs run style
+  stx::Span<TextStyle const> styles;                                        // styles for the text block's contents
+  TextStyle                  default_style;                                 // default run styling
+  TextAlign                  align     = TextAlign::Start;                  // text alignment
+  TextDirection              direction = TextDirection::LeftToRight;        // base text direction
+  std::string_view           language  = {};                                // base language to use for selecting opentype features to used on the text, uses default if not set
 };
 
-struct TextRunGlyph
+/// RunSegment is a part of a text run split by groups of spacing characters word contained in a run.
+/// The spacing characters translate to break opportunities.
+struct TextRunSegment
 {
-  u32  index = 0;        // glyph index in font
-  vec2 offset;           // offset from initial font glyph position
-  vec2 advance;          // advance to use
+  bool                  has_spacing           = false;                             // if it has trailing spacing characters (tabs and spaces) where we can break the text, this corresponds to the unicode Break-After (BA)
+  stx::Span<char const> text                  = {};                                // utf8 text of segment
+  TextDirection         direction             = TextDirection::LeftToRight;        // direction of text
+  usize                 style                 = 0;                                 // resolved run text styling
+  usize                 font                  = 0;                                 // resolved font index in font bundle
+  usize                 glyph_shapings_offset = 0;
+  usize                 nglyph_shapings       = 0;
+  f32                   width                 = 0;        // sum of advances, letter spacing & word spacing
 };
 
-struct TextRunArea
+struct LineMetrics
 {
-  vec2 offset;
-  vec2 extent;
-  vec2 baseline;
-  vec2 line_top;
+  f32           width               = 0;                                 // width of the line
+  f32           ascent              = 0;                                 // maximum ascent of all the runs on the line
+  f32           descent             = 0;                                 // maximum descent of all the runs on the line
+  f32           line_height         = 0;                                 // maximum line height of all the runs on the line
+  TextDirection base_direction      = TextDirection::LeftToRight;        // base direction of the line
+  usize         run_segments_offset = 0;                                 // begin index of line's segments
+  usize         nrun_segments       = 0;                                 // number of segments
 };
 
-/// this is part of a word that is styled by a run. i.e. a word: 'Goog', could have 'G' as red, 'oo' as yellow, and 'g' as blue,
-/// 'G' will be a run subword, 'oo' is another run subword, and 'g' will be another subword as they have different properties
-/// determined by the run they belong to, although part of the same word.
-///
-struct TextRunSubWord
+struct GlyphShaping
 {
-  stx::Span<char const> text;
-  usize                 run            = 0;
-  usize                 font           = 0;
-  f32                   glyph_scale    = 0;
-  usize                 nspace_chars   = 0;
-  usize                 nnewline_chars = 0;
-  usize                 nline_breaks   = 0;
-  f32                   width          = 0;        /// width of all the letters excluding the trailing white spaces
-  usize                 glyphs_begin   = 0;
-  usize                 nglyphs        = 0;
-  bool                  is_wrapped     = false;
-  TextRunArea           area;
-};
-
-struct GlyphLayout
-{
-  vec2  offset;
-  vec2  extent;
-  usize run   = 0;
-  usize font  = 0;
-  u32   glyph = 0;
+  u32  glyph   = 0;
+  u32  cluster = 0;
+  f32  advance = 0;        // context-dependent horizontal-layout advance
+  vec2 offset;             // context-dependent text shaping offset from normal font glyph position
 };
 
 struct TextLayout
 {
-  stx::Vec<TextRunSubWord> subwords;
-  stx::Vec<TextRunGlyph>   glyphs;
-  stx::Vec<GlyphLayout>    glyph_layouts;
+  stx::Vec<LineMetrics>    lines;
+  stx::Vec<TextRunSegment> run_segments;
+  stx::Vec<GlyphShaping>   glyph_shapings;
+  f32                      max_line_width = 0;
   vec2                     span;
+  f32                      text_scale_factor = 0;
 
-  // TODO(lamarrr): [future] add bidi
-  /// performs layout of the paragraph and returns the width and height of the paragraph
-  void layout(Paragraph const &paragraph, stx::Span<BundledFont const> const font_bundle, f32 max_line_width)
+  static std::pair<stx::Span<hb_glyph_info_t const>, stx::Span<hb_glyph_position_t const>> shape_text_harfbuzz(
+      Font const &font, f32 render_font_height, u32 not_found_glyph, stx::Span<char const> text,
+      hb_buffer_t *shaping_buffer, hb_script_t script, hb_direction_t direction,
+      hb_language_t language, bool use_kerning, bool use_ligatures)
   {
-    constexpr u32 SPACE    = ' ';
-    constexpr u32 TAB      = '\t';
-    constexpr u32 NEWLINE  = '\n';
-    constexpr u32 RETURN   = '\r';
-    constexpr u32 ELLIPSIS = 0x2026;
+    // tags are opentype feature tags
+    hb_feature_t const shaping_features[] = {{.tag   = HB_TAG('k', 'e', 'r', 'n'),        // kerning operations
+                                              .value = use_kerning,
+                                              .start = HB_FEATURE_GLOBAL_START,
+                                              .end   = HB_FEATURE_GLOBAL_END},
+                                             {.tag   = HB_TAG('l', 'i', 'g', 'a'),        // standard ligature glyph substitution
+                                              .value = use_ligatures,
+                                              .start = HB_FEATURE_GLOBAL_START,
+                                              .end   = HB_FEATURE_GLOBAL_END},
+                                             {.tag   = HB_TAG('c', 'l', 'i', 'g'),        // contextual ligature glyph substitution
+                                              .value = use_ligatures,
+                                              .start = HB_FEATURE_GLOBAL_START,
+                                              .end   = HB_FEATURE_GLOBAL_END}};
 
-    subwords.clear();
-    glyphs.clear();
-    glyph_layouts.clear();
-    span = {};
+    hb_buffer_reset(shaping_buffer);
+    hb_buffer_set_replacement_codepoint(shaping_buffer, HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);        // invalid character replacement
+    hb_buffer_set_not_found_glyph(shaping_buffer, not_found_glyph);                                      // default glyphs for characters without defined glyphs
+    hb_buffer_set_script(shaping_buffer, script);                                                        // OpenType (ISO15924) Script Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
+    hb_buffer_set_direction(shaping_buffer, direction);
+    hb_buffer_set_language(shaping_buffer, language);                                                    // OpenType BCP-47 language tag for performing certain shaping operations as defined in the font
+    hb_font_set_scale(font.hb_font, (int) (64 * render_font_height), (int) (64 * render_font_height));
+    hb_buffer_add_utf8(shaping_buffer, text.data(), (int) text.size(), 0, (int) text.size());
+    hb_shape(font.hb_font, shaping_buffer, shaping_features, (uint) std::size(shaping_features));
+
+    uint                       nglyph_pos;
+    hb_glyph_position_t const *glyph_pos = hb_buffer_get_glyph_positions(shaping_buffer, &nglyph_pos);
+    ASH_CHECK(!(glyph_pos == nullptr && nglyph_pos > 0));
+
+    uint                   nglyph_infos;
+    hb_glyph_info_t const *glyph_info = hb_buffer_get_glyph_infos(shaping_buffer, &nglyph_infos);
+    ASH_CHECK(!(glyph_info == nullptr && nglyph_infos > 0));
+
+    ASH_CHECK(nglyph_pos == nglyph_infos);
+
+    return std::make_pair(stx::Span{glyph_info, nglyph_infos}, stx::Span{glyph_pos, nglyph_pos});
+  }
+
+  // TODO(lamarrr): remove all uses of char for utf8 text or byte strings
+  void layout(TextBlock const &block, f32 text_scale_factor, stx::Span<BundledFont const> const font_bundle, f32 const max_line_width)
+  {
+    lines.clear();
+    run_segments.clear();
+    glyph_shapings.clear();
+
+    this->max_line_width    = max_line_width;
+    this->text_scale_factor = text_scale_factor;
+    span                    = vec2{0, 0};
 
     // there's no layout to perform without a font
     if (font_bundle.is_empty())
@@ -446,449 +185,311 @@ struct TextLayout
       return;
     }
 
-    /** Word Tokenization */
-    for (usize i = 0; i < paragraph.runs.size(); i++)
+    // uses setLocale to get default language from locale which isn't thread-safe
+    hb_language_t const language_hb = block.language.empty() ? hb_language_get_default() : hb_language_from_string(block.language.data(), (int) block.language.size());
+
+    hb_buffer_t *const shaping_buffer = hb_buffer_create();
+    ASH_CHECK(shaping_buffer != nullptr);
+
+    /// Text Style Font Resolution ///
+    stx::Vec<usize> resolved_fonts;
+
+    for (TextStyle const &style : block.styles)
     {
-      TextRun const   &run   = paragraph.runs[i];
-      TextProps const &props = run.props.as_cref().unwrap_or(paragraph.props);
+      usize font = match_font(style.font, style.fallback_fonts, font_bundle);
+      // use first font in the font bundle if specified font and fallback fonts are not found
+      resolved_fonts
+          .push(font < font_bundle.size() ? font : 0)
+          .unwrap();
+    }
 
-      for (char const *word_begin = run.text.begin(); word_begin < run.text.end();)
+    {
+      usize font = match_font(block.default_style.font, block.default_style.fallback_fonts, font_bundle);
+      resolved_fonts
+          .push(font < font_bundle.size() ? font : 0)
+          .unwrap();
+    }
+
+    SBCodepointSequence const codepoint_sequence{.stringEncoding = SBStringEncodingUTF8,
+                                                 .stringBuffer   = (void *) block.text.data(),
+                                                 .stringLength   = block.text.size()};
+
+    SBAlgorithmRef const algorithm = SBAlgorithmCreate(&codepoint_sequence);
+    ASH_CHECK(algorithm != nullptr);
+
+    SBScriptLocatorRef const script_locator = SBScriptLocatorCreate();
+    ASH_CHECK(script_locator != nullptr);
+
+    SBScriptLocatorLoadCodepoints(script_locator, &codepoint_sequence);
+
+    SBScriptAgent const *script_agent = SBScriptLocatorGetAgent(script_locator);
+    ASH_CHECK(script_agent != nullptr);
+
+    SBScriptLocatorMoveNext(script_locator);
+
+    TextRun const *run_it            = block.runs.begin();
+    usize          style_text_offset = 0;
+
+    /// Paragraph Breaking ///
+    for (SBUInteger paragraph_begin = 0; paragraph_begin < block.text.size();)
+    {
+      SBParagraphRef const sb_paragraph = SBAlgorithmCreateParagraph(algorithm, paragraph_begin, UINTPTR_MAX, block.direction == TextDirection::LeftToRight ? (SBLevel) SBLevelDefaultLTR : (SBLevel) SBLevelDefaultRTL);
+      ASH_CHECK(sb_paragraph != nullptr);
+      SBUInteger const     paragraph_length              = SBParagraphGetLength(sb_paragraph);           // number of bytes of the paragraph
+      SBLevel const        paragraph_base_level          = SBParagraphGetBaseLevel(sb_paragraph);        // base direction, 0 - LTR, 1 - RTL
+      SBLevel const *const paragraph_levels              = SBParagraphGetLevelsPtr(sb_paragraph);        // SheenBidi expands to byte level representation of the codepoints
+      char const *const    paragraph_text_begin          = block.text.data() + paragraph_begin;
+      char const *const    paragraph_text_end            = paragraph_text_begin + paragraph_length;
+      usize const          paragraph_run_segments_offset = run_segments.size();
+
+      for (char const *run_text_begin = paragraph_text_begin; run_text_begin < paragraph_text_end;)
       {
-        usize       nspace_chars   = 0;
-        usize       nnewline_chars = 0;
-        char const *seeker         = word_begin;
-        char const *word_end       = seeker;
-        u32         codepoint      = 0;
-
-        for (; seeker < run.text.end();)
+        char const   *run_text_end          = run_text_begin;
+        usize const   run_block_text_offset = (usize) (run_text_begin - block.text.data());
+        SBLevel const run_level             = paragraph_levels[run_text_begin - paragraph_text_begin];
+        stx::utf8_next((u8 const *&) run_text_end);
+        while (!(run_block_text_offset >= script_agent->offset && run_block_text_offset < (script_agent->offset + script_agent->length))) [[unlikely]]
         {
-          codepoint = stx::utf8_next(seeker);
+          ASH_CHECK(SBScriptLocatorMoveNext(script_locator));
+        }
+        SBScript const       run_script       = script_agent->script;
+        TextDirection const  run_direction    = (run_level & 0x1) == 0 ? TextDirection::LeftToRight : TextDirection::RightToLeft;
+        hb_direction_t const run_direction_hb = (run_level & 0x1) == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL;
+        hb_script_t const    run_script_hb    = hb_script_from_iso15924_tag(SBScriptGetOpenTypeTag(run_script));        // Note that unicode scripts are different from OpenType (iso15924) scripts though they are similar
+        usize                irun_style       = block.styles.size();                                                    // find the style intended for this text run (if any, otherwise default)
 
-          if (codepoint == RETURN || codepoint == NEWLINE || codepoint == TAB || codepoint == SPACE)
+        while (run_it < block.runs.end())
+        {
+          if (run_block_text_offset >= style_text_offset && run_block_text_offset < (style_text_offset + run_it->size)) [[likely]]
           {
+            irun_style = run_it->style;
             break;
-          }
-        }
-
-        word_end = seeker;
-
-        if (codepoint == RETURN)
-        {
-          word_end = seeker - 1;
-
-          if (seeker + 1 < run.text.end())
-          {
-            if (*(seeker + 1) == NEWLINE)
-            {
-              seeker++;
-              nnewline_chars++;
-            }
-          }
-        }
-        else if (codepoint == SPACE)
-        {
-          word_end = seeker - 1;
-          nspace_chars++;
-
-          for (char const *iter = seeker; iter < run.text.end();)
-          {
-            seeker        = iter;
-            u32 codepoint = stx::utf8_next(iter);
-
-            if (codepoint == SPACE)
-            {
-              nspace_chars++;
-            }
-            else
-            {
-              break;
-            }
-          }
-        }
-        else if (codepoint == TAB)
-        {
-          word_end = seeker - 1;
-          nspace_chars += props.tab_size;
-
-          for (char const *iter = seeker; iter < run.text.end();)
-          {
-            seeker        = iter;
-            u32 codepoint = stx::utf8_next(iter);
-            if (codepoint == TAB)
-            {
-              nspace_chars += props.tab_size;
-            }
-            else
-            {
-              break;
-            }
-          }
-        }
-        else if (codepoint == NEWLINE)
-        {
-          word_end = seeker - 1;
-          nnewline_chars++;
-
-          for (char const *iter = seeker; iter < run.text.end();)
-          {
-            seeker        = iter;
-            u32 codepoint = stx::utf8_next(iter);
-
-            if (codepoint == NEWLINE)
-            {
-              nnewline_chars++;
-            }
-            else
-            {
-              break;
-            }
-          }
-        }
-
-        subwords
-            .push(TextRunSubWord{.text           = run.text.slice(word_begin - run.text.begin(), word_end - word_begin),
-                                 .run            = i,
-                                 .nspace_chars   = nspace_chars,
-                                 .nnewline_chars = nnewline_chars})
-            .unwrap();
-
-        word_begin = seeker;
-      }
-    }
-
-    /** Font Resolution and Word Shaping */
-    for (TextRunSubWord &subword : subwords)
-    {
-      TextProps const &props  = paragraph.runs[subword.run].props.as_cref().unwrap_or(paragraph.props);
-      stx::Span        font_s = font_bundle.which([&](BundledFont const &f) {
-        return f.name == props.font;
-      });
-
-      // if font not found, check if fallback font is found
-      if (font_s.is_empty())
-      {
-        for (std::string_view fallback : props.fallback_fonts)
-        {
-          font_s = font_bundle.which([&](BundledFont const &f) {
-            return f.name == fallback;
-          });
-
-          if (!font_s.is_empty())
-          {
-            break;
-          }
-        }
-      }
-
-      // if no font or fallback font is found use the first font in the bundle. NOTE that we already ensured there's at least one font in the bundle
-      if (font_s.is_empty())
-      {
-        font_s = font_bundle.slice(0, 1);
-      }
-
-      usize            font_index = AS(usize, font_s.begin() - font_bundle.begin());
-      Font const      &font       = *font_bundle[font_index].font;
-      FontAtlas const &atlas      = font_bundle[font_index].atlas;
-
-      hb_feature_t shaping_features[] = {{.tag = Font::KERNING_FEATURE, .value = props.use_kerning, .start = 0, .end = stx::U_MAX},
-                                         {.tag = Font::LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX},
-                                         {.tag = Font::CONTEXTUAL_LIGATURE_FEATURE, .value = props.use_ligatures, .start = 0, .end = stx::U_MAX}};
-
-      hb_font_set_scale(font.hb_font, 64 * props.font_height, 64 * props.font_height);
-
-      hb_buffer_reset(font.hb_buffer);
-      hb_buffer_set_script(font.hb_buffer, AS(hb_script_t, props.script));
-
-      if (props.direction == TextDirection::LeftToRight)
-      {
-        hb_buffer_set_direction(font.hb_buffer, HB_DIRECTION_LTR);
-      }
-      else
-      {
-        hb_buffer_set_direction(font.hb_buffer, HB_DIRECTION_RTL);
-      }
-
-      hb_buffer_set_language(font.hb_buffer, hb_language_from_string(props.language.data(), AS(int, props.language.size())));
-      hb_buffer_add_utf8(font.hb_buffer, subword.text.begin(), AS(int, subword.text.size()), 0, AS(int, subword.text.size()));
-      hb_shape(font.hb_font, font.hb_buffer, shaping_features, AS(uint, std::size(shaping_features)));
-
-      uint                 nglyphs;
-      hb_glyph_info_t     *glyph_info = hb_buffer_get_glyph_infos(font.hb_buffer, &nglyphs);
-      uint                 nglyph_pos;
-      hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(font.hb_buffer, &nglyph_pos);
-      ASH_CHECK(!(glyph_info == nullptr && nglyphs > 0));
-      ASH_CHECK(!(glyph_pos == nullptr && nglyph_pos > 0));
-      ASH_CHECK(nglyph_pos == nglyphs);
-
-      f32 width       = 0;
-      f32 glyph_scale = props.font_height / atlas.font_height;
-
-      subword.font         = font_index;
-      subword.glyphs_begin = glyphs.size();
-
-      for (usize i = 0; i < nglyphs; i++)
-      {
-        u32       glyph_index = glyph_info[i].codepoint;
-        vec2      offset      = vec2{glyph_pos[i].x_offset / 64.0f, -glyph_pos[i].y_offset / 64.0f};
-        vec2      advance     = vec2{glyph_pos[i].x_advance / 64.0f, glyph_pos[i].y_advance / 64.0f};
-        stx::Span glyph       = atlas.get(glyph_index);
-
-        if (!glyph.is_empty())
-        {
-          width += advance.x + props.letter_spacing;
-          glyphs.push_inplace(TextRunGlyph{
-                                  .index   = glyph_index,
-                                  .offset  = offset,
-                                  .advance = advance})
-              .unwrap();
-          subword.nglyphs++;
-        }
-        // use glyph at index 0 as replacement glyph, this is usually the invalid character replacement glyph
-        else if (!atlas.glyphs.is_empty())
-        {
-          width += advance.x + props.letter_spacing;
-          glyphs.push_inplace(TextRunGlyph{
-                                  .index   = 0,
-                                  .offset  = offset,
-                                  .advance = advance})
-              .unwrap();
-          subword.nglyphs++;
-        }
-        else
-        {
-          // can't find a replacement glyph, we'll pretend as if there's nothing there
-        }
-      }
-
-      subword.glyph_scale = glyph_scale;
-      subword.width       = width;
-    }
-
-    /** Word Wrapping and Line Breaking */
-    {
-      f32 cursor_x = 0;
-
-      for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
-      {
-        TextRunSubWord  *word_begin = iter;
-        TextProps const &props      = paragraph.runs[word_begin->run].props.as_cref().unwrap_or(paragraph.props);
-        f32              word_width = word_begin->width + word_begin->nspace_chars * props.word_spacing;
-
-        TextRunSubWord *word_end = word_begin + 1;
-
-        if (word_begin->nspace_chars == 0 && word_begin->nnewline_chars == 0)
-        {
-          for (; word_end < subwords.end();)
-          {
-            TextProps const &props = paragraph.runs[word_end->run].props.as_cref().unwrap_or(paragraph.props);
-            word_width += word_end->width + word_end->nspace_chars * props.word_spacing;
-
-            // if at last subword
-            if (word_end->nspace_chars > 0 || word_end->nnewline_chars > 0)
-            {
-              word_end++;
-              break;
-            }
-            else
-            {
-              word_end++;
-            }
-          }
-        }
-
-        // wrap word to new line if its width exceeds the maximum line width
-        if (cursor_x + word_width > max_line_width)
-        {
-          word_begin->is_wrapped = true;
-          cursor_x               = word_width;
-        }
-        else
-        {
-          cursor_x += word_width;
-        }
-
-        iter = word_end;
-      }
-    }
-
-    {
-      // resolve line breaks using word wrapping and newline breaks. if it has a newline, the wrapping doesn't count as a line break
-      for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end(); iter++)
-      {
-        if (iter->nnewline_chars > 0)
-        {
-          iter->nline_breaks = iter->nnewline_chars;
-        }
-
-        if (iter->is_wrapped)
-        {
-          TextRunSubWord *previous = iter - 1;
-          if (previous >= subwords.begin() && previous->nnewline_chars == 0)
-          {
-            previous->nline_breaks = 1;
-          }
-        }
-      }
-    }
-
-    /** Line Layout and Glyph Placement */
-    {
-      f32 line_top = 0;
-
-      for (TextRunSubWord *iter = subwords.begin(); iter < subwords.end();)
-      {
-        TextRunSubWord *line_begin   = iter;
-        TextRunSubWord *line_end     = iter;
-        usize           nline_breaks = 0;
-
-        for (; line_end < subwords.end(); line_end++)
-        {
-          if (line_end->nline_breaks > 0)
-          {
-            nline_breaks = line_end->nline_breaks;
-            line_end++;
-            break;
-          }
-        }
-
-        f32 line_width  = 0;
-        f32 line_height = 0;
-        f32 max_ascent  = 0;
-        f32 max_descent = 0;
-
-        for (TextRunSubWord const *subword = line_begin; subword < line_end; subword++)
-        {
-          TextProps const &props = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
-          FontAtlas const &atlas = font_bundle[subword->font].atlas;
-
-          line_width += subword->width + subword->nspace_chars * props.word_spacing;
-          line_height = std::max(line_height, props.line_height * props.font_height);
-
-          max_ascent  = std::max(max_ascent, subword->glyph_scale * atlas.ascent);
-          max_descent = std::max(max_descent, subword->glyph_scale * atlas.descent);
-        }
-
-        f32 line_vertical_padding = std::max((line_height - (max_ascent + max_descent)) / 2, 0.0f);
-        f32 baseline_y            = line_top + line_vertical_padding + max_ascent;
-
-        f32 line_alignment_x = 0;
-
-        if (paragraph.align == TextAlign::Center)
-        {
-          line_alignment_x = std::max(max_line_width - line_width, 0.0f) / 2;
-        }
-        else if (paragraph.align == TextAlign::Right)
-        {
-          line_alignment_x = std::max(max_line_width - line_width, 0.0f);
-        }
-
-        f32 cursor_x = 0;
-
-        for (TextRunSubWord *subword = line_begin; subword < line_end;)
-        {
-          TextProps const &props = paragraph.runs[subword->run].props.as_cref().unwrap_or(paragraph.props);
-          if (props.direction == TextDirection::LeftToRight)
-          {
-            FontAtlas const &atlas = font_bundle[subword->font].atlas;
-
-            subword->area.offset   = vec2{line_alignment_x + cursor_x, line_top};
-            subword->area.extent   = vec2{subword->width + subword->nspace_chars * props.word_spacing, line_height};
-            subword->area.baseline = vec2{line_alignment_x + cursor_x, baseline_y};
-            subword->area.line_top = vec2{line_alignment_x + cursor_x, baseline_y - subword->glyph_scale * atlas.ascent};
-
-            for (TextRunGlyph const &run_glyph : glyphs.span().slice(subword->glyphs_begin, subword->nglyphs))
-            {
-              Glyph const &glyph  = atlas.glyphs[run_glyph.index];
-              vec2         offset = vec2{line_alignment_x + cursor_x + subword->glyph_scale * glyph.bearing.x, baseline_y - subword->glyph_scale * glyph.bearing.y};
-              offset              = offset + run_glyph.offset;
-
-              glyph_layouts.push(GlyphLayout{
-                                     .offset = offset,
-                                     .extent = subword->glyph_scale * glyph.extent.to_vec(),
-                                     .run    = subword->run,
-                                     .font   = subword->font,
-                                     .glyph  = run_glyph.index})
-                  .unwrap();
-
-              cursor_x += run_glyph.advance.x + props.letter_spacing;
-            }
-
-            cursor_x += subword->nspace_chars * props.word_spacing;
-            subword++;
           }
           else
           {
-            f32             rtl_width = 0;
-            TextRunSubWord *rtl_begin = subword;
-            TextRunSubWord *rtl_end   = subword + 1;
-
-            TextProps const &props = paragraph.runs[rtl_begin->run].props.as_cref().unwrap_or(paragraph.props);
-
-            rtl_width += rtl_begin->width + rtl_begin->nspace_chars * props.word_spacing;
-
-            for (; rtl_end < line_end; rtl_end++)
-            {
-              TextProps const &props = paragraph.runs[rtl_end->run].props.as_cref().unwrap_or(paragraph.props);
-              if (props.direction == TextDirection::LeftToRight)
-              {
-                break;
-              }
-              else
-              {
-                rtl_width += rtl_end->width + rtl_end->nspace_chars * props.word_spacing;
-              }
-            }
-
-            f32 rtl_cursor_x = cursor_x + rtl_width;
-
-            for (TextRunSubWord *rtl_iter = rtl_begin; rtl_iter < rtl_end; rtl_iter++)
-            {
-              TextProps const &props = paragraph.runs[rtl_iter->run].props.as_cref().unwrap_or(paragraph.props);
-              FontAtlas const &atlas = font_bundle[rtl_iter->font].atlas;
-
-              rtl_cursor_x -= rtl_iter->width + rtl_iter->nspace_chars * props.word_spacing;
-
-              rtl_iter->area.offset   = vec2{line_alignment_x + rtl_cursor_x, line_top};
-              rtl_iter->area.extent   = vec2{rtl_iter->width + rtl_iter->nspace_chars * props.word_spacing, line_height};
-              rtl_iter->area.baseline = vec2{line_alignment_x + rtl_cursor_x, baseline_y};
-              rtl_iter->area.line_top = vec2{line_alignment_x + cursor_x, baseline_y - rtl_iter->glyph_scale * atlas.ascent};
-
-              f32 glyph_cursor_x = rtl_cursor_x;
-
-              for (TextRunGlyph const &run_glyph : glyphs.span().slice(rtl_iter->glyphs_begin, rtl_iter->nglyphs))
-              {
-                Glyph const &glyph  = atlas.glyphs[run_glyph.index];
-                vec2         offset = vec2{line_alignment_x + glyph_cursor_x + rtl_iter->glyph_scale * glyph.bearing.x, baseline_y - rtl_iter->glyph_scale * glyph.bearing.y};
-                offset              = offset + run_glyph.offset;
-
-                glyph_layouts.push(GlyphLayout{
-                                       .offset = offset,
-                                       .extent = rtl_iter->glyph_scale * glyph.extent.to_vec(),
-                                       .run    = rtl_iter->run,
-                                       .font   = rtl_iter->font,
-                                       .glyph  = run_glyph.index})
-                    .unwrap();
-
-                glyph_cursor_x += run_glyph.advance.x + props.letter_spacing;
-              }
-            }
-
-            cursor_x += rtl_width;
-            subword = rtl_end;
+            style_text_offset += run_it->size;
+            run_it++;
           }
         }
 
-        span.y = line_top + line_height + (nline_breaks > 1 ? (nline_breaks - 1) * line_height : 0.0f);
+        TextStyle const &run_style = irun_style >= block.styles.size() ? block.default_style : block.styles[irun_style];
+        usize const      run_font  = resolved_fonts[irun_style];
 
-        line_top += nline_breaks * line_height;
+        // find the last codepoint that belongs to this text run
+        while (run_text_end < paragraph_text_end)
+        {
+          usize const   block_text_offset = (usize) (run_text_end - block.text.data());
+          SBLevel const level             = paragraph_levels[run_text_end - paragraph_text_begin];
+          char const   *p_next_codepoint  = run_text_end;
+          stx::utf8_next((u8 const *&) p_next_codepoint);
+          usize istyle = block.styles.size();        // find the style intended for this code point (if any, otherwise default)
 
-        span.x = std::max(span.x, line_alignment_x + line_width);
+          while (run_it < block.runs.end())
+          {
+            if (block_text_offset >= style_text_offset && block_text_offset < (style_text_offset + run_it->size)) [[likely]]
+            {
+              istyle = run_it->style;
+              break;
+            }
+            else
+            {
+              style_text_offset += run_it->size;
+              run_it++;
+            }
+          }
 
-        iter = line_end;
+          bool const is_in_script_run = (block_text_offset >= script_agent->offset) && (block_text_offset < (script_agent->offset + script_agent->length));
+
+          if (level != run_level || !is_in_script_run || istyle != irun_style) [[unlikely]]
+          {
+            // reached end of run
+            break;
+          }
+
+          // make retrieved codepoint part of run, then advance iterator
+          run_text_end = p_next_codepoint;
+        }
+
+        /// Text Segmentation ///
+        for (char const *segment_text_begin = run_text_begin; segment_text_begin < run_text_end;)
+        {
+          char const *segment_text_end = segment_text_begin;
+          bool        has_spacing      = false;
+
+          while (segment_text_end < run_text_end)
+          {
+            char const       *p_next_codepoint = segment_text_end;
+            SBCodepoint const codepoint        = stx::utf8_next((u8 const *&) p_next_codepoint);
+
+            if (codepoint == ' ' || codepoint == '\t')
+            {
+              // don't break immediately so we can batch multiple tabs/spaces and have them on the same line during line breaking
+              has_spacing = true;
+            }
+            else if (has_spacing)        // has a preceding spacing character
+            {
+              break;
+            }
+
+            segment_text_end = p_next_codepoint;
+          }
+
+          stx::Span const segment_text{segment_text_begin, (usize) (segment_text_end - segment_text_begin)};
+
+          auto const [glyph_infos, glyph_positions] = shape_text_harfbuzz(*font_bundle[run_font].font, font_bundle[run_font].atlas.font_height,
+                                                                          font_bundle[run_font].atlas.space_glyph, segment_text,
+                                                                          shaping_buffer, run_script_hb, run_direction_hb,
+                                                                          language_hb, run_style.use_kerning, run_style.use_ligatures);
+
+          f32 const scale = ((f32) run_style.font_height * text_scale_factor) / (f32) font_bundle[run_font].atlas.font_height;
+
+          f32 segment_width = 0;
+
+          usize const glyph_shapings_offset = glyph_shapings.size();
+
+          for (usize i = 0; i < glyph_infos.size(); i++)
+          {
+            f32 const  advance = scale * (f32) glyph_positions[i].x_advance / 64.0f;
+            vec2 const offset  = scale *vec2{(f32) glyph_positions[i].x_offset / 64.0f, (f32) glyph_positions[i].y_offset / -64.0f};
+
+            glyph_shapings.push(GlyphShaping{.glyph = glyph_infos[i].codepoint, .cluster = glyph_infos[i].cluster, .advance = advance, .offset = offset}).unwrap();
+
+            segment_width += advance + text_scale_factor * run_style.letter_spacing;
+          }
+
+          usize const nglyph_shapings = glyph_infos.size();
+
+          segment_width += has_spacing ? (text_scale_factor * run_style.word_spacing) : 0;
+
+          run_segments.push(TextRunSegment{.has_spacing           = has_spacing,
+                                           .text                  = segment_text,
+                                           .direction             = run_direction,
+                                           .style                 = irun_style,
+                                           .font                  = run_font,
+                                           .glyph_shapings_offset = glyph_shapings_offset,
+                                           .nglyph_shapings       = nglyph_shapings,
+                                           .width                 = segment_width})
+              .unwrap();
+
+          segment_text_begin = segment_text_end;
+        }
+
+        run_text_begin = run_text_end;
       }
+
+      SBParagraphRelease(sb_paragraph);
+
+      usize const           nparagraph_run_segments      = run_segments.size() - paragraph_run_segments_offset;
+      TextRunSegment *const paragraph_run_segments_begin = run_segments.data() + paragraph_run_segments_offset;
+      TextRunSegment *const paragraph_run_segments_end   = paragraph_run_segments_begin + nparagraph_run_segments;
+
+      for (TextRunSegment *line_begin = paragraph_run_segments_begin; line_begin < paragraph_run_segments_end;)
+      {
+        TextRunSegment *line_end   = line_begin;
+        f32             line_width = 0;
+
+        while (line_end < paragraph_run_segments_end)
+        {
+          line_width += line_end->width;
+          if (line_end->has_spacing)
+          {
+            line_end++;
+            break;
+          }
+          else
+          {
+            line_end++;
+          }
+        }
+
+        /// Line Breaking ///
+        for (TextRunSegment *break_iter = line_end; break_iter < paragraph_run_segments_end;)
+        {
+          f32 word_width = 0;
+
+          while (break_iter < paragraph_run_segments_end)
+          {
+            word_width += break_iter->width;
+            if (break_iter->has_spacing)
+            {
+              break_iter++;
+              break;
+            }
+            else
+            {
+              break_iter++;
+            }
+          }
+
+          if (line_width + word_width > max_line_width)
+          {
+            break;
+          }
+          else
+          {
+            line_end = break_iter;
+            line_width += word_width;
+          }
+        }
+
+        /// Line Metrics and Visual Re-ordering of Text Segments ///
+        f32 line_ascent  = 0;
+        f32 line_descent = 0;
+        f32 line_height  = 0;
+        for (TextRunSegment *direction_run_begin = line_begin; direction_run_begin < line_end;)
+        {
+          TextDirection const direction         = direction_run_begin->direction;
+          TextRunSegment     *direction_run_end = direction_run_begin + 1;
+
+          for (; direction_run_end < line_end; direction_run_end++)
+          {
+            if (direction_run_end->direction != direction) [[unlikely]]
+            {
+              break;
+            }
+          }
+
+          if (direction == TextDirection::RightToLeft)
+          {
+            // re-order consecutive RTL segments on the line to match visual reading direction
+            stx::Span{direction_run_begin, (usize) (direction_run_end - direction_run_begin)}.reverse();
+          }
+
+          for (TextRunSegment const &run_segment : stx::Span{direction_run_begin, (usize) (direction_run_end - direction_run_begin)})
+          {
+            TextStyle const &style   = run_segment.style >= block.styles.size() ? block.default_style : block.styles[run_segment.style];
+            f32 const        ascent  = text_scale_factor * font_bundle[run_segment.font].atlas.ascent * style.font_height;
+            f32 const        descent = text_scale_factor * font_bundle[run_segment.font].atlas.descent * style.font_height;
+            f32 const        height  = ascent + descent;
+            line_height              = std::max(line_height, style.line_height * height);
+            line_ascent              = std::max(line_ascent, ascent);
+            line_descent             = std::max(line_descent, descent);
+          }
+
+          direction_run_begin = direction_run_end;
+        }
+
+        lines.push_inplace(LineMetrics{
+                               .width               = line_width,
+                               .ascent              = line_ascent,
+                               .descent             = line_descent,
+                               .line_height         = line_height,
+                               .base_direction      = (paragraph_base_level & 0x1) == 0 ? TextDirection::LeftToRight : TextDirection::RightToLeft,
+                               .run_segments_offset = (usize) (line_begin - run_segments.data()),
+                               .nrun_segments       = (usize) (line_end - line_begin)})
+            .unwrap();
+
+        span.y += line_height;
+        span.x = std::max(span.x, line_width);
+
+        line_begin = line_end;
+      }
+
+      paragraph_begin += paragraph_length;
     }
 
-    glyphs.clear();
+    SBAlgorithmRelease(algorithm);
+    hb_buffer_destroy(shaping_buffer);
   }
 };
 

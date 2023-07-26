@@ -21,7 +21,9 @@ target_link_libraries(
   ${JPEG_LIBRARIES}
   PNG::PNG
   avif
-  ${FFMPEG_LIBRARIES})
+  ${FFMPEG_LIBRARIES}
+  SheenBidi::SheenBidi
+  )
 
 target_include_directories(ashura PUBLIC ${FFMPEG_INCLUDE_DIRS})
 target_link_directories(ashura PUBLIC ${FFMPEG_LIBRARY_DIRS})

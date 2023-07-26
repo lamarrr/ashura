@@ -6,9 +6,9 @@
 
 #include "ashura/image.h"
 #include "ashura/image_decoder.h"
+#include "ashura/primitives.h"
 #include "ashura/subsystem.h"
 #include "ashura/subsystems/image_manager.h"
-#include "ashura/primitives.h"
 #include "ashura/vulkan.h"
 #include "ashura/vulkan_context.h"
 #include "stx/memory.h"
@@ -39,12 +39,12 @@ struct VulkanImageManager : public ImageManager
   virtual constexpr ~VulkanImageManager() override
   {}
 
-  virtual gfx::image add(ImageView view, bool is_real_time) override
+  virtual gfx::image add(ImageView<u8 const> view, bool is_real_time) override
   {
     return mgr->add_image(view, is_real_time);
   }
 
-  virtual void update(gfx::image image, ImageView view)
+  virtual void update(gfx::image image, ImageView<u8 const> view)
   {
     mgr->update(image, view);
   }

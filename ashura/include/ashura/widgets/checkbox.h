@@ -49,16 +49,21 @@ struct CheckBox : public Widget
     if (value)
     {
       canvas
-          .draw_round_rect_filled(area, vec4::splat(props.border_radius), 10, props.box_color)
+          .draw_round_rect_filled(area, vec4::splat(props.border_radius), 90, props.box_color)
           .save()
           .scale(props.extent, props.extent)
-          .draw_path(checkmark_path, area, 0.125f, false)
+          .draw_path(checkmark_path, area.offset, area.extent, 0.125f, false)
           .restore();
     }
     else
     {
-      canvas.draw_round_rect_stroke(area, vec4::splat(props.border_radius), 10, props.box_color, props.outline_thickness);
+      canvas.draw_round_rect_stroke(area, vec4::splat(props.border_radius), 90, props.box_color, props.outline_thickness);
     }
+  }
+
+  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
+  {
+    return true;
   }
 
   virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override

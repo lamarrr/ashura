@@ -9,7 +9,7 @@
 #include "stx/limits.h"
 #include "stx/option.h"
 
-#define ASH_TO_RADIANS(...) AS(f32, ::ash::PI *(__VA_ARGS__) / 180)
+#define ASH_TO_RADIANS(...) AS(f32, ::ash::PI *(__VA_ARGS__) / 180.0f)
 
 namespace ash
 {
@@ -246,6 +246,16 @@ struct rect
   constexpr auto bounds() const
   {
     return std::make_tuple(offset.x, offset.x + extent.x, offset.y, offset.y + extent.y);
+  }
+
+  constexpr vec2 min() const
+  {
+    return offset;
+  }
+
+  constexpr vec2 max() const
+  {
+    return offset + extent;
   }
 
   constexpr bool overlaps(rect other) const
@@ -630,6 +640,19 @@ constexpr vec3 operator*(mat3 const &a, vec3 const &b)
   return vec3{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b)};
 }
 
+constexpr mat3 operator*(mat3 const &a, mat3 const &b)
+{
+  return mat3{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x}),
+                        dot(a[0], {b[0].y, b[1].y, b[2].y}),
+                        dot(a[0], {b[0].z, b[1].z, b[2].z})},
+                       {dot(a[1], {b[0].x, b[1].x, b[2].x}),
+                        dot(a[1], {b[0].y, b[1].y, b[2].y}),
+                        dot(a[1], {b[0].z, b[1].z, b[2].z})},
+                       {dot(a[2], {b[0].x, b[1].x, b[2].x}),
+                        dot(a[2], {b[0].y, b[1].y, b[2].y}),
+                        dot(a[2], {b[0].z, b[1].z, b[2].z})}}};
+}
+
 constexpr f32 determinant(mat3 const &a)
 {
   return a[0].x * a[1].y * a[2].z -
@@ -769,68 +792,68 @@ constexpr f32 determinant(mat4 const &a)
                    a[0].y * a[1].w * a[2].z);
 }
 
-constexpr mat4 adjoint(mat4 const &a)
-{
-  // TODO(lamarrr): complete from https://semath.info/src/inverse-cofactor-ex4.html
-  return mat4{.rows = {{a[1].y * a[2].z * a[3].w +
-                            a[1].z * a[2].w * a[3].y +
-                            a[1].w * a[2].y * a[3].z -
-                            a[1].w * a[2].z * a[3].y -
-                            a[1].w * a[2].y * a[3].w -
-                            a[1].y * a[2].w * a[3].z,
-                        -a[0].y * a[2].z * a[3].w -
-                            a[0].z * a[2].w * a[3].y -
-                            a[0].w * a[2].y * a[3].z +
-                            a[0].w * a[2].z * a[3].y +
-                            a[0].z * a[2].y * a[3].w +
-                            a[0].y * a[2].w * a[3].z,
-                        a[0].y * a[1].z * a[3].w +
-                            a[0].z * a[1].w * a[3].y +
-                            a[0].w * a[1].y * a[3].z -
-                            a[0].w * a[1].z * a[3].y -
-                            a[0].z * a[1].y * a[3].w -
-                            a[0].y * a[1].w * a[3].z,
-                        -a[0].y * a[1].z * a[2].w -
-                            a[0].z * a[1].w * a[2].y -
-                            a[0].w * a[1].y * a[2].z +
-                            a[0].w * a[1].z * a[2].y +
-                            a[0].z * a[1].y * a[2].w +
-                            a[0].y * a[1].w * a[2].z},
-                       {},
-                       {},
-                       {}}};
-}
+// constexpr mat4 adjoint(mat4 const &a)
+// {
+//   // TODO(lamarrr): complete from https://semath.info/src/inverse-cofactor-ex4.html
+//   return mat4{.rows = {{a[1].y * a[2].z * a[3].w +
+//                             a[1].z * a[2].w * a[3].y +
+//                             a[1].w * a[2].y * a[3].z -
+//                             a[1].w * a[2].z * a[3].y -
+//                             a[1].w * a[2].y * a[3].w -
+//                             a[1].y * a[2].w * a[3].z,
+//                         -a[0].y * a[2].z * a[3].w -
+//                             a[0].z * a[2].w * a[3].y -
+//                             a[0].w * a[2].y * a[3].z +
+//                             a[0].w * a[2].z * a[3].y +
+//                             a[0].z * a[2].y * a[3].w +
+//                             a[0].y * a[2].w * a[3].z,
+//                         a[0].y * a[1].z * a[3].w +
+//                             a[0].z * a[1].w * a[3].y +
+//                             a[0].w * a[1].y * a[3].z -
+//                             a[0].w * a[1].z * a[3].y -
+//                             a[0].z * a[1].y * a[3].w -
+//                             a[0].y * a[1].w * a[3].z,
+//                         -a[0].y * a[1].z * a[2].w -
+//                             a[0].z * a[1].w * a[2].y -
+//                             a[0].w * a[1].y * a[2].z +
+//                             a[0].w * a[1].z * a[2].y +
+//                             a[0].z * a[1].y * a[2].w +
+//                             a[0].y * a[1].w * a[2].z},
+//                        {},
+//                        {},
+//                        {}}};
+//}
 
-constexpr mat4 inverse(mat4 const &a)
-{
-  return 1 / determinant(a) * adjoint(a);
-}
+// constexpr mat4 inverse(mat4 const &a)
+// {
+//   return 1 / determinant(a) * adjoint(a);
+// }
 
-constexpr vec2 transform(mat4 const &a, vec2 const &b)
+constexpr vec2 transform3d(mat4 const &a, vec2 const &b)
 {
   vec4 prod = a *vec4{b.x, b.y, 0, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
-constexpr vec2 transform(mat4 const &a, vec3 const &b)
+constexpr vec2 transform3d(mat4 const &a, vec3 const &b)
 {
   vec4 prod = a *vec4{b.x, b.y, b.z, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
-constexpr quad transform(mat4 const &a, rect const &b)
-{
-  return quad{
-      .p0 = transform(a, b.top_left()),
-      .p1 = transform(a, b.top_right()),
-      .p2 = transform(a, b.bottom_right()),
-      .p3 = transform(a, b.bottom_left())};
-}
-
 constexpr vec2 transform2d(mat3 const &a, vec2 const &b)
 {
-  vec3 prod = a *vec3{b.x, b.y, 1};
+  vec3 prod = a *vec3{b.x, b.y, 0};
   return vec2{prod.x, prod.y};
+}
+
+constexpr quad transform2d(mat3 const &a, rect const &b)
+{
+  return quad{
+      .p0 = transform2d(a, b.top_left()),
+      .p1 = transform2d(a, b.top_right()),
+      .p2 = transform2d(a, b.bottom_right()),
+      .p3 = transform2d(a, b.bottom_left())};
 }
 
 constexpr mat3 translate2d(vec2 t)
@@ -840,19 +863,16 @@ constexpr mat3 translate2d(vec2 t)
                        {0, 0, 1}}};
 }
 
-constexpr mat4 translate(vec3 t)
+constexpr mat3 translate2d(f32 tx, f32 ty)
+{
+  return translate2d(vec2{tx, ty});
+}
+
+constexpr mat4 translate3d(vec3 t)
 {
   return mat4{.rows = {{1, 0, 0, t.x},
                        {0, 1, 0, t.y},
                        {0, 0, 1, t.z},
-                       {0, 0, 0, 1}}};
-}
-
-constexpr mat4 scale(vec3 s)
-{
-  return mat4{.rows = {{s.x, 0, 0, 0},
-                       {0, s.y, 0, 0},
-                       {0, 0, s.z, 0},
                        {0, 0, 0, 1}}};
 }
 
@@ -863,7 +883,27 @@ constexpr mat3 scale2d(vec2 s)
                        {0, 0, 1}}};
 }
 
-inline mat4 rotate_x(f32 degree_radians)
+constexpr mat3 scale2d(f32 sx, f32 sy)
+{
+  return scale2d(vec2{sx, sy});
+}
+
+constexpr mat4 scale3d(vec3 s)
+{
+  return mat4{.rows = {{s.x, 0, 0, 0},
+                       {0, s.y, 0, 0},
+                       {0, 0, s.z, 0},
+                       {0, 0, 0, 1}}};
+}
+
+inline mat3 rotate2d(f32 degree_radians)
+{
+  return mat3{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0},
+                       {std::sin(degree_radians), std::cos(degree_radians), 0},
+                       {0, 0, 1}}};
+}
+
+inline mat4 rotate3d_x(f32 degree_radians)
 {
   return mat4{.rows = {{1, 0, 0, 0},
                        {0, std::cos(degree_radians), -std::sin(degree_radians), 0},
@@ -871,7 +911,7 @@ inline mat4 rotate_x(f32 degree_radians)
                        {0, 0, 0, 1}}};
 }
 
-inline mat4 rotate_y(f32 degree_radians)
+inline mat4 rotate3d_y(f32 degree_radians)
 {
   return mat4{.rows = {{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
                        {0, 1, 0, 0},
@@ -879,7 +919,7 @@ inline mat4 rotate_y(f32 degree_radians)
                        {0, 0, 0, 1}}};
 }
 
-inline mat4 rotate_z(f32 degree_radians)
+inline mat4 rotate3d_z(f32 degree_radians)
 {
   return mat4{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
                        {std::sin(degree_radians), std::cos(degree_radians), 0, 0},
@@ -887,14 +927,21 @@ inline mat4 rotate_z(f32 degree_radians)
                        {0, 0, 0, 1}}};
 }
 
-inline mat3 rotate2d(f32 degree_radians)
+constexpr mat3 shear2d_x(f32 x_shear)
 {
   return mat3{.rows = {{1, 0, 0},
-                       {0, std::cos(degree_radians), -std::sin(degree_radians)},
-                       {0, std::sin(degree_radians), std::cos(degree_radians)}}};
+                       {x_shear, 1, 0},
+                       {0, 0, 1}}};
 }
 
-inline mat4 shear_x(f32 y_shear, f32 z_shear)
+constexpr mat3 shear2d_y(f32 y_shear)
+{
+  return mat3{.rows = {{1, y_shear, 0},
+                       {0, 1, 0},
+                       {0, 0, 1}}};
+}
+
+constexpr mat4 shear3d_x(f32 y_shear, f32 z_shear)
 {
   return mat4{.rows = {{1, y_shear, z_shear, 0},
                        {0, 1, 0, 0},
@@ -902,7 +949,7 @@ inline mat4 shear_x(f32 y_shear, f32 z_shear)
                        {0, 0, 0, 1}}};
 }
 
-inline mat4 shear_y(f32 x_shear, f32 z_shear)
+constexpr mat4 shear3d_y(f32 x_shear, f32 z_shear)
 {
   return mat4{.rows = {{1, 0, 0, 0},
                        {x_shear, 1, z_shear, 0},
@@ -910,7 +957,7 @@ inline mat4 shear_y(f32 x_shear, f32 z_shear)
                        {0, 0, 0, 1}}};
 }
 
-inline mat4 shear_z(f32 x_shear, f32 y_shear)
+constexpr mat4 shear3d_z(f32 x_shear, f32 y_shear)
 {
   return mat4{.rows = {{1, 0, 0, 0},
                        {0, 1, 0, 0},
@@ -923,9 +970,7 @@ struct quaternion
   f32 x = 0, y = 0, z = 0, w = 0;
 
   // static constexpr quaternion from_euler(vec3 x) { return {}; }
-
   // constexpr vec3 to_euler() const { return {}; }
-
   // constexpr quaternion normalized() const { return {}; }
 };
 
@@ -940,15 +985,10 @@ constexpr bool operator!=(quaternion a, quaternion b)
 }
 
 // constexpr quaternion operator+(quaternion a, quaternion b) { return {}; }
-
 // constexpr quaternion operator-(quaternion a, quaternion b) { return {}; }
-
 // constexpr quaternion operator*(quaternion a, f32 b) { return {}; }
-
 // constexpr quaternion operator*(f32 a, quaternion b) { return {}; }
-
 // constexpr quaternion operator*(quaternion a, quaternion b) { return {}; }
-
 // constexpr quaternion dot(quaternion a, quaternion b) { return {}; }
 
 struct offset
@@ -976,7 +1016,7 @@ constexpr offset operator+(offset a, offset b)
   return offset{.x = a.x + b.x, .y = a.y + b.y};
 }
 
-struct offseti
+struct ioffset
 {
   i32 x = 0, y = 0;
 
@@ -986,29 +1026,34 @@ struct offseti
   }
 };
 
-constexpr bool operator==(offseti a, offseti b)
+constexpr bool operator==(ioffset a, ioffset b)
 {
   return a.x == b.x && a.y == b.y;
 }
 
-constexpr bool operator!=(offseti a, offseti b)
+constexpr bool operator!=(ioffset a, ioffset b)
 {
   return !(a == b);
 }
 
-constexpr offseti operator+(offseti a, offseti b)
+constexpr ioffset operator+(ioffset a, ioffset b)
 {
-  return offseti{.x = a.x + b.x, .y = a.y + b.y};
+  return ioffset{.x = a.x + b.x, .y = a.y + b.y};
 }
 
-constexpr offseti operator-(offseti a, offseti b)
+constexpr ioffset operator-(ioffset a, ioffset b)
 {
-  return offseti{.x = a.x - b.x, .y = a.y - b.y};
+  return ioffset{.x = a.x - b.x, .y = a.y - b.y};
 }
 
 struct extent
 {
   u32 width = 0, height = 0;
+
+  static constexpr extent from(vec2 wh)
+  {
+    return extent{AS(u32, wh.x), AS(u32, wh.y)};
+  }
 
   constexpr bool is_visible() const
   {
@@ -1045,6 +1090,38 @@ constexpr extent operator+(extent a, extent b)
 {
   return extent{.width = a.width + b.width, .height = a.height + b.height};
 }
+
+constexpr offset operator+(offset a, extent b)
+{
+  return offset{.x = a.x + b.width, .y = a.y + b.height};
+}
+
+constexpr offset operator+(extent a, offset b)
+{
+  return offset{.x = a.width + b.x, .y = a.height + b.y};
+}
+
+struct urect
+{
+  offset offset;
+  extent extent;
+
+  constexpr ash::offset min() const
+  {
+    return this->offset;
+  }
+
+  constexpr ash::offset max() const
+  {
+    return this->offset + extent;
+  }
+};
+
+struct irect
+{
+  ioffset offset;
+  extent  extent;
+};
 
 /// Simple Layout Constraint Model
 struct constraint
@@ -1204,6 +1281,26 @@ constexpr color YELLOW      = color::from_rgb(0xff, 0xff, 0x00);
 struct texture_rect
 {
   vec2 uv0, uv1;
+
+  constexpr vec2 top_left() const
+  {
+    return uv0;
+  }
+
+  constexpr vec2 top_right() const
+  {
+    return vec2{uv1.x, uv0.y};
+  }
+
+  constexpr vec2 bottom_right() const
+  {
+    return uv1;
+  }
+
+  constexpr vec2 bottom_left() const
+  {
+    return vec2{uv0.x, uv1.y};
+  }
 };
 
 /// a 2d shader vertex
@@ -1233,17 +1330,5 @@ constexpr bool operator!=(EdgeInsets const &a, EdgeInsets const &b)
 {
   return a.left != b.left || a.top != b.top || a.right != b.right || a.bottom != b.bottom;
 }
-
-struct slice
-{
-  usize offset = 0;
-  usize size   = 0;
-};
-
-struct WidgetTransform
-{
-  vec2 scale;
-  vec2 translation;
-};
 
 }        // namespace ash

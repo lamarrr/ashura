@@ -37,17 +37,18 @@ struct Engine
   {
     delete root_widget;
     renderer.destroy();
-    manager.destroy();
+    render_resource_manager.destroy();
   }
 
   // TODO(lamarrr): move all into engine ctx?
-  stx::Rc<UuidGenerator *>                 uuid_generator;
+  stx::Rc<PrngUuidGenerator *>             uuid_generator;
   WindowManager                            window_manager;
   stx::Option<stx::Rc<Window *>>           root_window;
   stx::Option<stx::Rc<vk::CommandQueue *>> queue;
   gfx::Canvas                              canvas;
   vk::CanvasRenderer                       renderer;
-  vk::RenderResourceManager                manager;
+  vk::RenderResourceManager                render_resource_manager;
+  vk::CanvasPipelineManager                pipeline_manager;
   stx::TaskScheduler                       task_scheduler;
   Context                                  ctx;
   Widget                                  *root_widget = nullptr;

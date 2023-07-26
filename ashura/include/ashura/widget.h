@@ -127,7 +127,7 @@ struct Widget
   /// @param allocated_z_index
   /// @param[out] children_allocation z-index assigned to children
   /// @return
-  virtual i64 z_stack(Context &ctx, i64 allocated_z_index, stx::Span<i64> children_allocation)
+  virtual i32 z_stack(Context &ctx, i32 allocated_z_index, stx::Span<i32> children_allocation)
   {
     children_allocation.fill(allocated_z_index + 1);
     return allocated_z_index;
@@ -159,6 +159,8 @@ struct Widget
     // TODO(lamarrr): the whole widget tree will be rendered and clipped as necessary
   }
 
+  // TODO(lamarrr): draw_tooltip();
+
   /// @brief called on every frame. used for state changes, animations, task dispatch and lightweight processing related to the GUI.
   /// heavy-weight and non-sub-millisecond tasks should be dispatched to a Subsystem that would handle that. i.e. using the multi-tasking system.
   /// @param ctx
@@ -180,7 +182,7 @@ struct Widget
   // TODO(lamarrr): this needs to happen before mouse actions as some widgets .i.e. text don't need to intercept or receive mouse events
   virtual bool hit_test(Context &ctx, vec2 mouse_position)
   {
-    return true;
+    return false;
   }
 
   virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks)
@@ -203,6 +205,7 @@ struct Widget
 
   // signifies that this widget is about to be dragged
   // return true if this widget allows dragging
+  // TODO(lamarrr): see https://github.com/ocornut/imgui/issues/1931
   virtual bool on_drag_start(Context &ctx)
   {
     return false;

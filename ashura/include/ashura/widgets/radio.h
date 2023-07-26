@@ -94,9 +94,15 @@ struct Radio : public Widget
   {
     f32  inner_radius = props.radius * 0.6f;
     vec2 center       = area.offset + props.radius;
+
     canvas
-        .draw_circle_stroke(center, props.radius, 180, props.color, 1)
-        .draw_circle_filled(center, inner_radius, 180, animation.animate(color_curve, tween));
+        .draw_circle_stroke(center, props.radius, 360, props.color, 1.5)
+        .draw_circle_filled(center, inner_radius, 360, animation.animate(color_curve, tween));
+  }
+
+  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
+  {
+    return true;
   }
 
   virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
