@@ -100,13 +100,13 @@ struct TextRunSegment
 
 struct LineMetrics
 {
-  f32           width           = 0;                                 // width of the line
-  f32           ascent          = 0;                                 // maximum ascent of all the runs on the line
-  f32           descent         = 0;                                 // maximum descent of all the runs on the line
-  f32           line_height     = 0;                                 // maximum line height of all the runs on the line
-  TextDirection base_direction  = TextDirection::LeftToRight;        // base direction of the line
-  usize         segments_offset = 0;                                 // begin index of line's segments
-  usize         nsegments       = 0;                                 // number of segments
+  f32           width               = 0;                                 // width of the line
+  f32           ascent              = 0;                                 // maximum ascent of all the runs on the line
+  f32           descent             = 0;                                 // maximum descent of all the runs on the line
+  f32           line_height         = 0;                                 // maximum line height of all the runs on the line
+  TextDirection base_direction      = TextDirection::LeftToRight;        // base direction of the line
+  usize         run_segments_offset = 0;                                 // begin index of line's segments
+  usize         nrun_segments       = 0;                                 // number of segments
 };
 
 struct GlyphShaping
@@ -120,24 +120,28 @@ struct GlyphShaping
 struct TextLayout
 {
   stx::Vec<LineMetrics>    lines;
-  stx::Vec<TextRunSegment> segments;
+  stx::Vec<TextRunSegment> run_segments;
   stx::Vec<GlyphShaping>   glyph_shapings;
   f32                      max_line_width = 0;
   vec2                     span;
+  f32                      text_scale_factor = 0;
 
-  static std::pair<stx::Span<hb_glyph_info_t const>, stx::Span<hb_glyph_position_t const>> shape_text_harfbuzz(Font const &font, f32 render_font_height, u32 not_found_glyph, stx::Span<char const> text, hb_buffer_t *shaping_buffer, hb_script_t script, hb_direction_t direction, hb_language_t language, TextStyle const &style)
+  static std::pair<stx::Span<hb_glyph_info_t const>, stx::Span<hb_glyph_position_t const>> shape_text_harfbuzz(
+      Font const &font, f32 render_font_height, u32 not_found_glyph, stx::Span<char const> text,
+      hb_buffer_t *shaping_buffer, hb_script_t script, hb_direction_t direction,
+      hb_language_t language, bool use_kerning, bool use_ligatures)
   {
     // tags are opentype feature tags
     hb_feature_t const shaping_features[] = {{.tag   = HB_TAG('k', 'e', 'r', 'n'),        // kerning operations
-                                              .value = style.use_kerning,
+                                              .value = use_kerning,
                                               .start = HB_FEATURE_GLOBAL_START,
                                               .end   = HB_FEATURE_GLOBAL_END},
                                              {.tag   = HB_TAG('l', 'i', 'g', 'a'),        // standard ligature glyph substitution
-                                              .value = style.use_ligatures,
+                                              .value = use_ligatures,
                                               .start = HB_FEATURE_GLOBAL_START,
                                               .end   = HB_FEATURE_GLOBAL_END},
                                              {.tag   = HB_TAG('c', 'l', 'i', 'g'),        // contextual ligature glyph substitution
-                                              .value = style.use_ligatures,
+                                              .value = use_ligatures,
                                               .start = HB_FEATURE_GLOBAL_START,
                                               .end   = HB_FEATURE_GLOBAL_END}};
 
@@ -165,14 +169,15 @@ struct TextLayout
   }
 
   // TODO(lamarrr): remove all uses of char for utf8 text or byte strings
-  void layout(TextBlock const &block, stx::Span<BundledFont const> const font_bundle, f32 const max_line_width)
+  void layout(TextBlock const &block, f32 text_scale_factor, stx::Span<BundledFont const> const font_bundle, f32 const max_line_width)
   {
     lines.clear();
-    segments.clear();
+    run_segments.clear();
     glyph_shapings.clear();
 
-    this->max_line_width = max_line_width;
-    span                 = vec2{0, 0};
+    this->max_line_width    = max_line_width;
+    this->text_scale_factor = text_scale_factor;
+    span                    = vec2{0, 0};
 
     // there's no layout to perform without a font
     if (font_bundle.is_empty())
@@ -230,12 +235,12 @@ struct TextLayout
     {
       SBParagraphRef const sb_paragraph = SBAlgorithmCreateParagraph(algorithm, paragraph_begin, UINTPTR_MAX, block.direction == TextDirection::LeftToRight ? (SBLevel) SBLevelDefaultLTR : (SBLevel) SBLevelDefaultRTL);
       ASH_CHECK(sb_paragraph != nullptr);
-      SBUInteger const     paragraph_length          = SBParagraphGetLength(sb_paragraph);           // number of bytes of the paragraph
-      SBLevel const        paragraph_base_level      = SBParagraphGetBaseLevel(sb_paragraph);        // base direction, 0 - LTR, 1 - RTL
-      SBLevel const *const paragraph_levels          = SBParagraphGetLevelsPtr(sb_paragraph);        // SheenBidi expands to byte level representation of the codepoints
-      char const *const    paragraph_text_begin      = block.text.data() + paragraph_begin;
-      char const *const    paragraph_text_end        = paragraph_text_begin + paragraph_length;
-      usize const          paragraph_segments_offset = segments.size();
+      SBUInteger const     paragraph_length              = SBParagraphGetLength(sb_paragraph);           // number of bytes of the paragraph
+      SBLevel const        paragraph_base_level          = SBParagraphGetBaseLevel(sb_paragraph);        // base direction, 0 - LTR, 1 - RTL
+      SBLevel const *const paragraph_levels              = SBParagraphGetLevelsPtr(sb_paragraph);        // SheenBidi expands to byte level representation of the codepoints
+      char const *const    paragraph_text_begin          = block.text.data() + paragraph_begin;
+      char const *const    paragraph_text_end            = paragraph_text_begin + paragraph_length;
+      usize const          paragraph_run_segments_offset = run_segments.size();
 
       for (char const *run_text_begin = paragraph_text_begin; run_text_begin < paragraph_text_end;)
       {
@@ -331,9 +336,12 @@ struct TextLayout
 
           stx::Span const segment_text{segment_text_begin, (usize) (segment_text_end - segment_text_begin)};
 
-          auto const [glyph_infos, glyph_positions] = shape_text_harfbuzz(*font_bundle[run_font].font, font_bundle[run_font].atlas.font_height, font_bundle[run_font].atlas.space_glyph, segment_text, shaping_buffer, run_script_hb, run_direction_hb, language_hb, run_style);
+          auto const [glyph_infos, glyph_positions] = shape_text_harfbuzz(*font_bundle[run_font].font, font_bundle[run_font].atlas.font_height,
+                                                                          font_bundle[run_font].atlas.space_glyph, segment_text,
+                                                                          shaping_buffer, run_script_hb, run_direction_hb,
+                                                                          language_hb, run_style.use_kerning, run_style.use_ligatures);
 
-          f32 const scale = (f32) run_style.font_height / (f32) font_bundle[run_font].atlas.font_height;
+          f32 const scale = ((f32) run_style.font_height * text_scale_factor) / (f32) font_bundle[run_font].atlas.font_height;
 
           f32 segment_width = 0;
 
@@ -346,21 +354,21 @@ struct TextLayout
 
             glyph_shapings.push(GlyphShaping{.glyph = glyph_infos[i].codepoint, .cluster = glyph_infos[i].cluster, .advance = advance, .offset = offset}).unwrap();
 
-            segment_width += advance + run_style.letter_spacing;
+            segment_width += advance + text_scale_factor * run_style.letter_spacing;
           }
 
           usize const nglyph_shapings = glyph_infos.size();
 
-          segment_width += has_spacing ? run_style.word_spacing : 0;
+          segment_width += has_spacing ? (text_scale_factor * run_style.word_spacing) : 0;
 
-          segments.push(TextRunSegment{.has_spacing           = has_spacing,
-                                       .text                  = segment_text,
-                                       .direction             = run_direction,
-                                       .style                 = irun_style,
-                                       .font                  = run_font,
-                                       .glyph_shapings_offset = glyph_shapings_offset,
-                                       .nglyph_shapings       = nglyph_shapings,
-                                       .width                 = segment_width})
+          run_segments.push(TextRunSegment{.has_spacing           = has_spacing,
+                                           .text                  = segment_text,
+                                           .direction             = run_direction,
+                                           .style                 = irun_style,
+                                           .font                  = run_font,
+                                           .glyph_shapings_offset = glyph_shapings_offset,
+                                           .nglyph_shapings       = nglyph_shapings,
+                                           .width                 = segment_width})
               .unwrap();
 
           segment_text_begin = segment_text_end;
@@ -371,30 +379,56 @@ struct TextLayout
 
       SBParagraphRelease(sb_paragraph);
 
-      usize const           nparagraph_segments      = segments.size() - paragraph_segments_offset;
-      TextRunSegment *const paragraph_segments_begin = segments.data() + paragraph_segments_offset;
-      TextRunSegment *const paragraph_segments_end   = paragraph_segments_begin + nparagraph_segments;
+      usize const           nparagraph_run_segments      = run_segments.size() - paragraph_run_segments_offset;
+      TextRunSegment *const paragraph_run_segments_begin = run_segments.data() + paragraph_run_segments_offset;
+      TextRunSegment *const paragraph_run_segments_end   = paragraph_run_segments_begin + nparagraph_run_segments;
 
-      for (TextRunSegment *line_begin = paragraph_segments_begin; line_begin < paragraph_segments_end;)
+      for (TextRunSegment *line_begin = paragraph_run_segments_begin; line_begin < paragraph_run_segments_end;)
       {
-        f32             line_width            = 0;
-        TextRunSegment *line_end              = line_begin;
-        bool            has_break_opportunity = false;
+        TextRunSegment *line_end   = line_begin;
+        f32             line_width = 0;
 
-        /// Line Breaking ///
-        for (; line_end < paragraph_segments_end; line_end++)
+        while (line_end < paragraph_run_segments_end)
         {
-          // we can only break at break opportunities
-          if (has_break_opportunity && (line_width + line_end->width > max_line_width)) [[unlikely]]
+          line_width += line_end->width;
+          if (line_end->has_spacing)
           {
-            has_break_opportunity = line_end->has_spacing;
-            line_width += line_end->width;
+            line_end++;
             break;
           }
           else
           {
-            has_break_opportunity = line_end->has_spacing;
-            line_width += line_end->width;
+            line_end++;
+          }
+        }
+
+        /// Line Breaking ///
+        for (TextRunSegment *break_iter = line_end; break_iter < paragraph_run_segments_end;)
+        {
+          f32 word_width = 0;
+
+          while (break_iter < paragraph_run_segments_end)
+          {
+            word_width += break_iter->width;
+            if (break_iter->has_spacing)
+            {
+              break_iter++;
+              break;
+            }
+            else
+            {
+              break_iter++;
+            }
+          }
+
+          if (line_width + word_width > max_line_width)
+          {
+            break;
+          }
+          else
+          {
+            line_end = break_iter;
+            line_width += word_width;
           }
         }
 
@@ -421,11 +455,11 @@ struct TextLayout
             stx::Span{direction_run_begin, (usize) (direction_run_end - direction_run_begin)}.reverse();
           }
 
-          for (TextRunSegment const &segment : stx::Span{direction_run_begin, (usize) (direction_run_end - direction_run_begin)})
+          for (TextRunSegment const &run_segment : stx::Span{direction_run_begin, (usize) (direction_run_end - direction_run_begin)})
           {
-            TextStyle const &style   = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
-            f32 const        ascent  = font_bundle[segment.font].atlas.ascent * style.font_height;
-            f32 const        descent = font_bundle[segment.font].atlas.descent * style.font_height;
+            TextStyle const &style   = run_segment.style >= block.styles.size() ? block.default_style : block.styles[run_segment.style];
+            f32 const        ascent  = text_scale_factor * font_bundle[run_segment.font].atlas.ascent * style.font_height;
+            f32 const        descent = text_scale_factor * font_bundle[run_segment.font].atlas.descent * style.font_height;
             f32 const        height  = ascent + descent;
             line_height              = std::max(line_height, style.line_height * height);
             line_ascent              = std::max(line_ascent, ascent);
@@ -436,13 +470,13 @@ struct TextLayout
         }
 
         lines.push_inplace(LineMetrics{
-                               .width           = line_width,
-                               .ascent          = line_ascent,
-                               .descent         = line_descent,
-                               .line_height     = line_height,
-                               .base_direction  = (paragraph_base_level & 0x1) == 0 ? TextDirection::LeftToRight : TextDirection::RightToLeft,
-                               .segments_offset = (usize) (line_begin - segments.data()),
-                               .nsegments       = (usize) (line_end - line_begin)})
+                               .width               = line_width,
+                               .ascent              = line_ascent,
+                               .descent             = line_descent,
+                               .line_height         = line_height,
+                               .base_direction      = (paragraph_base_level & 0x1) == 0 ? TextDirection::LeftToRight : TextDirection::RightToLeft,
+                               .run_segments_offset = (usize) (line_begin - run_segments.data()),
+                               .nrun_segments       = (usize) (line_end - line_begin)})
             .unwrap();
 
         span.y += line_height;

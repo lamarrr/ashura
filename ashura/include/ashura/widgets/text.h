@@ -32,7 +32,7 @@ struct Text : public Widget
         .direction     = TextDirection::LeftToRight,
         .language      = {}};
 
-    text_layout.layout(text_block, ctx.font_bundle, allocated_size.x);
+    text_layout.layout(text_block, ctx.text_scale_factor, ctx.font_bundle, allocated_size.x);
 
     return text_layout.span;
   }
@@ -60,7 +60,6 @@ struct Text : public Widget
   stx::String text;
   TextStyle   style;
   TextLayout  text_layout;
-  bool        needs_relayout = true;
 };
 
 }        // namespace ash
