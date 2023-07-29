@@ -9,6 +9,7 @@
 #include "ashura/font.h"
 #include "ashura/loggers.h"
 #include "ashura/primitives.h"
+#include "ashura/stats.h"
 #include "ashura/subsystem.h"
 #include "ashura/theme.h"
 #include "ashura/uuid.h"
@@ -41,12 +42,13 @@ inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id);
 struct Context
 {
   stx::Vec<Subsystem *>        subsystems;
-  stx::TaskScheduler          *task_scheduler = nullptr; // TODO(lamarrr): set thread name
+  stx::TaskScheduler          *task_scheduler = nullptr;        // TODO(lamarrr): set thread name
   ClipBoard                   *clipboard      = nullptr;
   WindowManager               *window_manager = nullptr;
   SystemTheme                  theme          = SystemTheme::Unknown;
   GlobalEventListeners         event_listeners;
   stx::Span<BundledFont const> font_bundle;
+  FrameStats                   frame_stats;
   f32                          text_scale_factor = 1;        // TODO(lamarrr)
   f32                          viewport_scale    = 1;        // transformed viewport
   vec2                         viewport_translate;           // TODO(lamarrr): viewport rect

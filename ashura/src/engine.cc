@@ -139,6 +139,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   VkPhysicalDeviceFeatures required_features{};
 
   required_features.samplerAnisotropy = VK_TRUE;
+  required_features.pipelineStatisticsQuery = VK_TRUE;
 
   stx::Rc<vk::Device *> device = vk::create_device(phy_device, command_queue_create_infos, required_device_extensions,
                                                    required_validation_layers, required_features);
@@ -161,6 +162,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   pipeline_manager.init(xqueue->device->dev);
 
   renderer.init(xqueue->device->dev, xqueue->info.queue, xqueue->info.family.index,
+                xqueue->device->phy_dev->properties.limits.timestampPeriod,
                 xqueue->device->phy_dev->memory_properties, DEFAULT_MAX_FRAMES_IN_FLIGHT);
 
   for (CanvasPipelineSpec const &spec : cfg.pipelines)
@@ -338,7 +340,7 @@ void Engine::tick(std::chrono::nanoseconds interval)
                       swapchain.render_semaphores[swapchain.frame], swapchain.render_pass,
                       swapchain.framebuffers[swapchain_image_index], draw_list.commands, draw_list.vertices, draw_list.indices,
                       pipeline_manager,
-                      render_resource_manager);
+                      render_resource_manager, ctx.frame_stats);
 
       swapchain_state = root_window.value()->present(queue.value()->info.queue, swapchain_image_index);
 

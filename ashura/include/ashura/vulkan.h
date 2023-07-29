@@ -28,7 +28,7 @@
   {                                                                                                                      \
     VkResult operation_result = (__VA_ARGS__);                                                                           \
     ASH_CHECK(operation_result == VK_SUCCESS, "Vulkan Operation: (" #__VA_ARGS__ ")  failed! (VK_SUCCESS not returned)", \
-              string_VkResult(operation_result));                                                                        \
+              std::string_view{string_VkResult(operation_result)});                                                      \
   } while (false)
 
 namespace ash

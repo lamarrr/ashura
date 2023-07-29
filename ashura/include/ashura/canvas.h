@@ -395,11 +395,11 @@ struct Canvas
   {
     vec2 viewport_extent_clamped = epsilon_clamp(viewport_extent);
 
-    mat3 t = state.local_transform;                                                            /// apply local coordinate transform
-    t      = translate2d(position.x, position.y) * t;                                          /// apply positioning
-    t      = state.global_transform * t;                                                       /// apply global coordinate transform
-    t      = scale2d(2 / viewport_extent_clamped.x, 2 / viewport_extent_clamped.y) * t;        /// normalize to 0 to 2 coordinate range
-    t      = translate2d(-1, -1) * t;                                                          /// normalize from [0, 2] to vulkan viewport coordinate range [-1, 1]
+    mat3 t = state.local_transform;                           /// apply local coordinate transform
+    t      = translate2d(position) * t;                       /// apply positioning
+    t      = state.global_transform * t;                      /// apply global coordinate transform
+    t      = scale2d(2 / viewport_extent_clamped) * t;        /// normalize to 0 to 2 coordinate range
+    t      = translate2d(-1, -1) * t;                         /// normalize from [0, 2] to vulkan viewport coordinate range [-1, 1]
     return t;
   }
 
@@ -809,10 +809,10 @@ struct Canvas
   {
     save();
     state.local_transform = state.local_transform * translate2d(baseline);
-
+    // TODO(lamarrr):glyph culling
     rect grect;
-    grect.offset = vec2{glyph.metrics.bearing.x  , -glyph.metrics.bearing.y} *style.font_height * text_scale_factor+ shaping.offset;
-    grect.extent = glyph.metrics.extent * style.font_height* text_scale_factor;
+    grect.offset = vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} * style.font_height * text_scale_factor + shaping.offset;
+    grect.extent = glyph.metrics.extent * style.font_height * text_scale_factor;
 
     vertex const vertices[] = {{.position = grect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.foreground_color.to_vec()},
                                {.position = grect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.foreground_color.to_vec()},
