@@ -838,10 +838,39 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_sdf_glyph_shadow(vec2 block_position, vec2 baseline, Glyph const &glyph, GlyphShaping const &shaping, TextStyle const &style, gfx::image sdf_atlas)
+  Canvas &draw_glyph_shadow(vec2 block_position, vec2 baseline, f32 text_scale_factor, Glyph const &glyph, GlyphShaping const &shaping, TextStyle const &style, gfx::image atlas)
   {
     save();
-    translate(block_position);
+    state.local_transform = state.local_transform * translate2d(baseline);
+    // TODO(lamarrr):glyph culling
+    rect grect;
+    grect.offset = vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} * style.font_height * text_scale_factor + shaping.offset;
+    grect.extent = glyph.metrics.extent * style.font_height * text_scale_factor;
+
+    rect srect   = grect;
+    srect.extent = srect.extent * style.shadow_scale;
+    srect.offset = grect.offset + style.shadow_offset;
+
+    vertex const vertices[] = {{.position = srect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.shadow_color.to_vec()},
+                               {.position = srect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.shadow_color.to_vec()},
+                               {.position = srect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.shadow_color.to_vec()},
+                               {.position = srect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.shadow_color.to_vec()}};
+
+    draw_list.vertices.extend(vertices).unwrap();
+
+    triangulate_convex_polygon(draw_list.indices, 4);
+
+    draw_list.commands.push(DrawCommand{
+                                .pipeline       = DEFAULT_GLYPH_PIPELINE,
+                                .nvertices      = 4,
+                                .nindices       = 6,
+                                .first_instance = 0,
+                                .ninstances     = 1,
+                                .scissor        = state.scissor,
+                                .textures       = {atlas}}
+                                .with_push_constant(make_transform(block_position).transpose()))
+        .unwrap();
+
     restore();
     return *this;
   }
@@ -920,8 +949,7 @@ struct Canvas
             break;
         }
 
-        f32       x_cursor = x_alignment;
-        f32 const line_gap = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+        f32 x_cursor = x_alignment;
 
         for (TextRunSegment const &segment : layout.run_segments.span().slice(line.run_segments_offset, line.nrun_segments))
         {
@@ -982,12 +1010,18 @@ struct Canvas
         for (TextRunSegment const &segment : layout.run_segments.span().slice(line.run_segments_offset, line.nrun_segments))
         {
           TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
-          FontAtlas const &atlas         = font_bundle[segment.font].atlas;
-          f32              x_cursor      = x_segment_cursor;
+
+          if (segment_style.shadow_color.is_transparent() || segment_style.shadow_scale <= 0)
+          {
+            continue;
+          }
+
+          FontAtlas const &atlas    = font_bundle[segment.font].atlas;
+          f32              x_cursor = x_segment_cursor;
 
           for (GlyphShaping const &shaping : layout.glyph_shapings.span().slice(segment.glyph_shapings_offset, segment.nglyph_shapings))
           {
-            //  draw_sdf_glyph(position, vec2{x_cursor, baseline}, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
+            draw_glyph_shadow(position, vec2{x_cursor, baseline}, layout.text_scale_factor, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
             x_cursor += shaping.advance + layout.text_scale_factor * segment_style.letter_spacing;
           }
 

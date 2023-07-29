@@ -58,7 +58,7 @@ int main(int argc, char **argv)
               Radio(6, state),
               Radio(8, state),
               Text{"verified", TextStyle{.font = "MaterialIcons", .foreground_color = colors::YELLOW}},
-              Text{R"(I didn't wanna say anything, but this game seems lame)", TextStyle{.font = "Roboto", .font_height = 30, .foreground_color = material::BLUE_500, .background_color = material::GRAY_100}},
+              Text{R"(I didn't wanna say anything, but this game seems lame)", TextStyle{.font = "Roboto", .font_height = 30, .foreground_color = material::WHITE, .shadow_color = colors::BLACK, .shadow_scale = 1, .shadow_offset = 2, .background_color = material::GRAY_100}},
               Text{R"(I didn't wanna say anything, but this game seems lame)", TextStyle{.font = "Roboto", .font_height = 30, .foreground_color = material::BLUE_500, .background_color = material::GRAY_100}},
               Text{"explicit", TextStyle{.font = "MaterialIcons", .foreground_color = colors::GREEN}},
               Image{ImageProps{.source = FileImageSource{.path = R"(C:\Users\Basit\Desktop\wallpaperflare.com_wallpaper.jpg)"}, .border_radius = vec4{20, 20, 20, 20}, .aspect_ratio = stx::Some(2.0f), .resize_on_load = true}}}};
