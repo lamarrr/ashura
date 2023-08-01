@@ -21,10 +21,6 @@ Ashura is a 2D Retained-Mode GUI and 3D Framework for use in GUI applications an
 - Install MSVC, Clang, or GCC with C++20 support
 - Install CMake (>= 3.1)
 - Install [SDL 3](https://github.com/libsdl-org/SDL) with SDL_STATIC=ON to generate the SDL3-static target
-- Install dependencies using vcpkg, for example for an x64 target:
-```bash
-vcpkg install --triplet x64-windows vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg ffmpeg libavif curl
-```
 
 ## Building
 - Build the project using (where ${PATH_TO_ASHURA} is replaced with the path to this project and ${PATH_TO_VCPKG} is replaced with the path to your vcpkg installation): 

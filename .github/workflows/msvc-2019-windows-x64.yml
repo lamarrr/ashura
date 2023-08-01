@@ -54,7 +54,8 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git
           cd vcpkg && ./bootstrap-vcpkg.bat
           vcpkg integrate install
-          vcpkg install --triplet x64-windows vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg ffmpeg libavif curl
+          copy ..\vcpkg.json .
+          vcpkg install --triplet x64-windows 
         if: steps.cache-and-install.outputs.cache-hit != 'true  
 
       - name: Configure and build Ashura
