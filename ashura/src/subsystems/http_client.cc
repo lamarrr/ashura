@@ -23,7 +23,7 @@ HttpCurlMultiHandle::HttpCurlMultiHandle(CURLM *init_multi) :
   if (init_multi)
     impl = new HttpCurlMultiHandleImpl(init_multi);
   else
-    throw std::runtime_error("Invalid multi-handle provided.");
+    stx::panic("Invalid multi-handle provided.");
 }
 
 HttpCurlMultiHandle::~HttpCurlMultiHandle()
@@ -54,7 +54,7 @@ HttpCurlEasyHandle::HttpCurlEasyHandle(CURL *easy, curl_slist *header, stx::Rc<H
     impl(new HttpCurlEasyHandleImpl(easy, header, std::move(parent)))
 {
   if (!impl->easy)
-    throw std::runtime_error("Failed to initialize HttpCurlEasyHandle.");
+    stx::panic("Failed to initialize HttpCurlEasyHandle");
 }
 
 inline size_t curl_header_write_function(u8 const *bytes, size_t unit_size,
