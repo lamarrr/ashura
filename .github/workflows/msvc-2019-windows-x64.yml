@@ -37,7 +37,7 @@ jobs:
           vulkan-query-version: 1.3.204.0
           vulkan-components: Vulkan-Headers, Vulkan-Loader
           vulkan-use-cache: true  
-        if: steps.cache-and-install.outputs.cache-hit != 'true
+        if: steps.cache-and-install.outputs.cache-hit != 'true' 
       
       - name: Install SDL3
         run: |
@@ -45,7 +45,7 @@ jobs:
           cd SDL && mkdir build
           cd build && cmake .. -DSDL_STATIC=ON
           cmake --build . --config Release
-        if: steps.cache-and-install.outputs.cache-hit != 'true 
+        if: steps.cache-and-install.outputs.cache-hit != 'true' 
 
       - name: Install vcpkg
         env:
@@ -56,7 +56,7 @@ jobs:
           vcpkg integrate install
           copy ..\vcpkg.json .
           vcpkg install --triplet x64-windows 
-        if: steps.cache-and-install.outputs.cache-hit != 'true  
+        if: steps.cache-and-install.outputs.cache-hit != 'true' 
 
       - name: Configure and build Ashura
         run: |
