@@ -15,28 +15,55 @@ jobs:
         build_mode: ["Release", "Debug"]
 
     steps:
+      - name: Checkout code
       - uses: actions/checkout@v3
 
-      - name: Install Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@v1.1.1
+      - name: Cache and Install Dependencies
+        id: cache-and-install
+        uses: actions/cache@v3
         with:
-          version: latest
-          cache: true
-    
+          path: |
+            VULKAN_SDK
+            SDL/build
+            SDL/include
+            vcpkg
+          key: ${{ runner.os }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ hashFiles('**/lockfiles') }}
+      
+      - name: Install Vulkan SDK
+        uses: humbletim/setup-vulkan-sdk@v1.2.0
+        with:
+          vulkan-query-version: 1.3.204.0
+          vulkan-components: Vulkan-Headers, Vulkan-Loader
+          vulkan-use-cache: true  
+        if: steps.cache-and-install.outputs.cache-hit != 'true
+      
       - name: Install SDL3
-        run: git clone https://github.com/libsdl-org/SDL.git && cd SDL && mkdir build && cd build && cmake .. -DSDL_STATIC=ON && cmake --build . --config Release --target install
+        run: |
+          git clone https://github.com/libsdl-org/SDL
+          cd SDL && mkdir build
+          cd build && cmake .. -DSDL_STATIC=ON
+          cmake --build . --config Release
+        if: steps.cache-and-install.outputs.cache-hit != 'true 
 
       - name: Install vcpkg
-        run: git clone https://github.com/microsoft/vcpkg.git && cd vcpkg && ./bootstrap-vcpkg.bat
+        env:
+          VULKAN_SDK: ${{ github.workspace }}/VULKAN_SDK
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg && ./bootstrap-vcpkg.bat
+          vcpkg integrate install
+          copy ..\vcpkg.json .
+          vcpkg install --triplet x64-windows 
+        if: steps.cache-and-install.outputs.cache-hit != 'true  
 
-      - name: Install dependencies via vcpkg
-        run: cd vcpkg && .\vcpkg.exe install --triplet x64-windows vulkan freetype libpng[apng] harfbuzz fmt libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg ffmpeg libavif
-
-      - name: Configure Build Directory
-        run: mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE="../vcpkg/scripts/buildsystems/vcpkg.cmake" -DSTX_ENABLE_BACKTRACE=OFF
-
-      - name: Build Ashura
-        run: cd build && cmake --build . --config ${{matrix.build_mode}}
+      - name: Configure and build Ashura
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+          cmake --build . --config ${{matrix.build_mode}}
 
       - name: Run Ashura Test
         run: cd build/ashura/${{matrix.build_mode}}/ && ./ashura_test.exe
