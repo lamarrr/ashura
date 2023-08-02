@@ -44,7 +44,7 @@ jobs:
           git clone https://github.com/libsdl-org/SDL
           cd SDL && mkdir build
           cd build && cmake .. -DSDL_STATIC=ON
-          cmake --build . --config Release
+          cmake --build . --config Release --target install
         if: steps.cache-and-install.outputs.cache-hit != 'true' 
 
       - name: Install vcpkg
