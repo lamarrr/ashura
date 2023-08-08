@@ -36,13 +36,10 @@ struct WidgetDebugInfo
   std::string_view type;
 };
 
-// TODO(lamarrr)
 struct DragData
 {
-  virtual ~DragData()
-  {}
-
-  stx::Option<uuid> source;
+  stx::String                      type;
+  stx::Unique<stx::Span<u8 const>> data;
 };
 
 // TODO(lamarrr): we might need request detach so child widgets can request to
@@ -96,7 +93,7 @@ struct Widget
   /// @param children_sizes sizes of the child widgets
   /// @param[out] children_positions positions of the children widget on the parent
   /// @return this widget's fitted extent
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions)
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions)
   {
     return vec2{0, 0};
   }
@@ -203,49 +200,44 @@ struct Widget
 
   // virtual bool on_mouse_wheel(Context& ctx, vec2 translation, vec2 mouse_position?). propagates up
 
-  // signifies that this widget is about to be dragged
-  // return true if this widget allows dragging
-  // TODO(lamarrr): see https://github.com/ocornut/imgui/issues/1931
-  virtual bool on_drag_start(Context &ctx)
+  /// callback to begin drag operation
+  /// if this returns false, it is treated as a click operation.???
+  virtual stx::Option<DragData> on_drag_start(Context &ctx, vec2 mouse_position)
   {
-    return false;
+    return stx::None;
   }
 
   /// @brief called when theres a drag position update
   /// @param ctx
-  /// @param global_position current global drag position
-  /// @param local_position current position relative to its initial position
-  /// @param delta difference between this drag update and the last drag update position
-  virtual void on_drag_update(Context &ctx, vec2 global_position, vec2 local_position, vec2 delta)
+  /// @param mouse_position current global drag position
+  /// @param translation difference between this drag update and the last drag update position
+  virtual void on_drag_update(Context &ctx, vec2 mouse_position, vec2 translation, DragData const &drag_data)
   {}
 
-  // signifies that the dragging of this widget has been canceled. i.e. released to an area without a widget that accepts the drag event
-  virtual void on_drag_canceled(Context &ctx)
+  /// the drop of the drag data has been ended
+  virtual void on_drag_end(Context &ctx, vec2 mouse_position)
   {}
 
-  // the drag operation has been performed
-  virtual void on_drag_end(Context &ctx)
-  {}
-
-  // this widget has begun receiving drag data, i.e. it has been dragged onto
-  //
-  // returns true if widget can accept this drag event
-  virtual bool on_drag_enter(Context &ctx)
+  /// this widget has begun receiving drag data, i.e. it has been dragged onto
+  ///
+  /// returns true if widget can accept this drag event
+  virtual void on_drag_enter(Context &ctx, DragData const &drag_data)
   {
-    return false;
   }
 
   /// this widget has previously begun receiving drag data, but the mouse is still dragging within it
-  virtual void on_drag_over(Context &ctx)
+  virtual void on_drag_over(Context &ctx, DragData const &drag_data)
   {}
 
   /// the drag event has left this widget
-  virtual void on_drag_leave(Context &ctx)
+  virtual void on_drag_leave(Context &ctx,stx::Option<vec2> mouse_position)
   {}
 
-  // drop of media file/item outside the context of the application
-  virtual void on_drop(Context &ctx)
-  {}
+  /// drop of drag data on this widget
+  virtual bool on_drop(Context &ctx, vec2 mouse_position, DragData const &drag_data)
+  {
+    return false;
+  }
 
   //
   virtual void on_tap(Context &ctx)
