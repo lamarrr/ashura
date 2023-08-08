@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: windows-2019
 
     strategy:
       matrix:
@@ -32,12 +32,11 @@ jobs:
             ${{ runner.os }}-${{ hashFiles('**/lockfiles') }}
       
       - name: Install Vulkan SDK
-        uses: humbletim/setup-vulkan-sdk@v1.2.0
-        with:
-          vulkan-query-version: 1.3.204.0
-          vulkan-components: Vulkan-Headers, Vulkan-Loader
-          vulkan-use-cache: true  
-        if: steps.cache-and-install.outputs.cache-hit != 'true
+        run: |
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/1.3.239.0/windows/VulkanSDK-1.3.239.0-Installer.exe" -OutFile VulkanSDK.exe
+          $installer = Start-Process -FilePath VulkanSDK.exe -Wait -PassThru -ArgumentList @("/S");
+          $installer.WaitForExit();
+        if: steps.cache-and-install.outputs.cache-hit != 'true'
       
       - name: Install SDL3
         run: |
@@ -45,18 +44,18 @@ jobs:
           cd SDL && mkdir build
           cd build && cmake .. -DSDL_STATIC=ON
           cmake --build . --config Release
-        if: steps.cache-and-install.outputs.cache-hit != 'true 
+        if: steps.cache-and-install.outputs.cache-hit != 'true'
 
       - name: Install vcpkg
         env:
-          VULKAN_SDK: ${{ github.workspace }}/VULKAN_SDK
+          VULKAN_SDK: "C:\\VulkanSDK\\1.3.239.0"
         run: |
           git clone https://github.com/microsoft/vcpkg.git
           cd vcpkg && ./bootstrap-vcpkg.bat
           vcpkg integrate install
           copy ..\vcpkg.json .
           vcpkg install --triplet x64-windows 
-        if: steps.cache-and-install.outputs.cache-hit != 'true  
+        if: steps.cache-and-install.outputs.cache-hit != 'true'  
 
       - name: Configure and build Ashura
         run: |
