@@ -56,6 +56,8 @@ jobs:
         if: steps.cache-and-install.outputs.cache-hit != 'true' 
 
       - name: Configure and build Ashura
+        env:
+          VULKAN_SDK: "C:\\VulkanSDK\\1.3.239.0"
         run: |
           mkdir build
           cd build
