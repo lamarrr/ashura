@@ -176,9 +176,6 @@ struct Window
       case ImageFormat::Bgra8888:
         fmt = SDL_PIXELFORMAT_RGBA8888;
         break;
-      case ImageFormat::Rgb888:
-        fmt = SDL_PIXELFORMAT_RGB888;
-        break;
       default:
         ASH_PANIC("unsupported icon image format");
         break;
