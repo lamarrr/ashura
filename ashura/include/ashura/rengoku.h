@@ -5,11 +5,14 @@
 
 namespace ash
 {
-
+namespace rgk
+{
 struct vertex
 {
-  ash::vec3 position;
-  ash::vec2 st;
+  vec3 position;
+  vec2 uv;
+  vec3 normal;
+  vec4 color;
 };
 
 struct AttachmentSpec
@@ -42,7 +45,7 @@ struct RenderPipelineSpec
   char const *id;
   char const *vertex_shader_src;
   char const *fragment_shader_src;
-  ash::u32    render_pass;
+  u32         render_pass;
 };
 
 // static and ideally shouldn't change
@@ -52,17 +55,17 @@ struct ComputePipelineSpec
   // uniform buffer layout
   char const *id;
   char const *compute_shader_src;
-  ash::u32    render_pass;
+  u32         render_pass;
 };
 
 // has to be re-constructed everytime the attachments change
 struct FrameBufferSpec
 {
   // render pass
-  char const     *id;
-  ash::gfx::image depth_attachment;
-  ash::gfx::image color_attachment;
-  ash::extent     extent;
+  char const *id;
+  gfx::image  depth_attachment;
+  gfx::image  color_attachment;
+  extent      extent;
 };
 
 struct ComputePassSpec
@@ -73,17 +76,17 @@ struct ComputePassSpec
 
 struct PbrMaterial
 {
-  ash::gfx::image albedo            = 0;
-  ash::gfx::image normal            = 0;
-  ash::gfx::image metalic           = 0;
-  ash::gfx::image roughness         = 0;
-  ash::gfx::image ambient_occlusion = 0;
-  ash::gfx::image emissive          = 0;
+  gfx::image albedo            = 0;
+  gfx::image normal            = 0;
+  gfx::image metalic           = 0;
+  gfx::image roughness         = 0;
+  gfx::image ambient_occlusion = 0;
+  gfx::image emissive          = 0;
 };
 
 struct blur_effect
 {
-  ash::extent offset;
+  extent offset;
 };
 
 // Perlin noise for cloud generation
@@ -100,4 +103,5 @@ struct blur_effect
 // hdr support
 // global illumination
 
+}        // namespace rgk
 }        // namespace ash
