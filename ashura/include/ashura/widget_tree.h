@@ -6,9 +6,6 @@
 #include "ashura/uuid.h"
 #include "ashura/widget.h"
 
-#define ASH_TIMER_BEGIN(name) ::std::chrono::steady_clock::time_point name##_TIMER_Begin = ::std::chrono::steady_clock::now()
-#define ASH_TIMER_END(name, str) ASH_LOG_INFO(FontRenderer, "Timer: {}, Task: {}, took: {}ms", #name, str, (::std::chrono::steady_clock::now() - name##_TIMER_Begin).count() / 1'000'000.0f)
-
 namespace ash
 {
 
@@ -134,7 +131,6 @@ struct WidgetTree
 
   void render(Context &ctx, gfx::Canvas &canvas, rect view_region, vec2 viewport_size)
   {
-    ASH_TIMER_BEGIN(VertexGen);
     render_elements.clear();
     __build_render_recursive(ctx, root, Visibility::Visible, 0, root.widget->area, view_region);
     render_elements.span().sort([](WidgetRenderElement const &a, WidgetRenderElement const &b) { return a.z_index < b.z_index; });
@@ -158,10 +154,6 @@ struct WidgetTree
       element.widget->draw(ctx, canvas);
       canvas.restore();
     }
-
-    ASH_TIMER_END(VertexGen, "");
-
-    spdlog::info("rendering {} commands, {} vertices, {} indices", canvas.draw_list.commands.size(), canvas.draw_list.vertices.size(), canvas.draw_list.indices.size());
   }
 
   Widget *hit(Context &ctx, vec2 position) const

@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout code
-      - uses: actions/checkout@v3
+        uses: actions/checkout@v3
 
       - name: Cache and Install Dependencies
         id: cache-and-install
@@ -37,14 +37,15 @@ jobs:
           $installer = Start-Process -FilePath VulkanSDK.exe -Wait -PassThru -ArgumentList @("/S");
           $installer.WaitForExit();
         if: steps.cache-and-install.outputs.cache-hit != 'true'
+
       
       - name: Install SDL3
         run: |
           git clone https://github.com/libsdl-org/SDL
           cd SDL && mkdir build
           cd build && cmake .. -DSDL_STATIC=ON
-          cmake --build . --config Release
-        if: steps.cache-and-install.outputs.cache-hit != 'true'
+          cmake --build . --config Release --target install
+        if: steps.cache-and-install.outputs.cache-hit != 'true' 
 
       - name: Install vcpkg
         env:
@@ -55,7 +56,7 @@ jobs:
           vcpkg integrate install
           copy ..\vcpkg.json .
           vcpkg install --triplet x64-windows 
-        if: steps.cache-and-install.outputs.cache-hit != 'true'  
+        if: steps.cache-and-install.outputs.cache-hit != 'true' 
 
       - name: Configure and build Ashura
         run: |
