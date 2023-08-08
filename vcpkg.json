@@ -1,0 +1,24 @@
+{
+    "name": "ashura",
+    "version": "1.0.0",
+    "dependencies": [
+        {
+            "name": "libpng",
+            "features": [ "apng" ]          
+        },
+        "vulkan",
+        "fmt",
+        "freetype",
+        "harfbuzz",
+        "libwebp",
+        "libjpeg-turbo",
+        "libpng",
+        "spdlog",
+        "simdjson",
+        "gtest",
+        "libogg",
+        "ffmpeg",
+        "libavif",
+        "curl"
+    ]
+}
