@@ -63,6 +63,56 @@ constexpr T lerp(T const &a, T const &b, f32 t)
   return AS(T, a + (b - a) * t);
 }
 
+// template<typename T>
+// constexpr T grid_snap(T const& a, T const& unit){
+
+// (a / unit);
+
+// }
+
+// 	/** Snaps a value to the nearest grid multiple */
+// 	template< class T >
+// 	UE_NODISCARD static constexpr FORCEINLINE T GridSnap(T Location, T Grid)
+// 	{
+// 		return (Grid == T{}) ? Location : (Floor((Location + (Grid/(T)2)) / Grid) * Grid);
+// 	}
+
+/*
+ *	Cubic Catmull-Rom Spline interpolation. Based on http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf
+ *	Curves are guaranteed to pass through the control points and are easily chained together.
+ *	Equation supports abitrary parameterization. eg. Uniform=0,1,2,3 ; chordal= |Pn - Pn-1| ; centripetal = |Pn - Pn-1|^0.5
+ *	P0 - The control point preceding the interpolation range.
+ *	P1 - The control point starting the interpolation range.
+ *	P2 - The control point ending the interpolation range.
+ *	P3 - The control point following the interpolation range.
+ *	T0-3 - The interpolation parameters for the corresponding control points.
+ *	T - The interpolation factor in the range 0 to 1. 0 returns P1. 1 returns P2.
+ */
+// template< class U >
+// UE_NODISCARD static constexpr FORCEINLINE_DEBUGGABLE U CubicCRSplineInterp(const U& P0, const U& P1, const U& P2, const U& P3, const float T0, const float T1, const float T2, const float T3, const float T)
+// {
+// 	//Based on http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf
+// 	float InvT1MinusT0 = 1.0f / (T1 - T0);
+// 	U L01 = ( P0 * ((T1 - T) * InvT1MinusT0) ) + ( P1 * ((T - T0) * InvT1MinusT0) );
+// 	float InvT2MinusT1 = 1.0f / (T2 - T1);
+// 	U L12 = ( P1 * ((T2 - T) * InvT2MinusT1) ) + ( P2 * ((T - T1) * InvT2MinusT1) );
+// 	float InvT3MinusT2 = 1.0f / (T3 - T2);
+// 	U L23 = ( P2 * ((T3 - T) * InvT3MinusT2) ) + ( P3 * ((T - T2) * InvT3MinusT2) );
+
+// 	float InvT2MinusT0 = 1.0f / (T2 - T0);
+// 	U L012 = ( L01 * ((T2 - T) * InvT2MinusT0) ) + ( L12 * ((T - T0) * InvT2MinusT0) );
+// 	float InvT3MinusT1 = 1.0f / (T3 - T1);
+// 	U L123 = ( L12 * ((T3 - T) * InvT3MinusT1) ) + ( L23 * ((T - T1) * InvT3MinusT1) );
+
+// 	return  ( ( L012 * ((T2 - T) * InvT2MinusT1) ) + ( L123 * ((T - T1) * InvT2MinusT1) ) );
+// }
+
+template <typename T>
+constexpr f32 inverse_lerp(T const &a, T const &b, T const &v)
+{
+  return (f32) (v - a) / (f32) (b - a);
+}
+
 struct vec2
 {
   f32 x = 0, y = 0;
@@ -843,7 +893,7 @@ constexpr vec2 transform3d(mat4 const &a, vec3 const &b)
 
 constexpr vec2 transform2d(mat3 const &a, vec2 const &b)
 {
-  vec3 prod = a *vec3{b.x, b.y, 0};
+  vec3 prod = a *vec3{b.x, b.y, 1};
   return vec2{prod.x, prod.y};
 }
 
@@ -1168,9 +1218,19 @@ struct SizeConstraint
     return SizeConstraint{.width = constraint::relative(w), .height = constraint::relative(h)};
   }
 
+  static constexpr SizeConstraint relative(vec2 wh)
+  {
+    return relative(wh.x, wh.y);
+  }
+
   static constexpr SizeConstraint absolute(f32 w, f32 h)
   {
     return SizeConstraint{.width = constraint::absolute(w), .height = constraint::absolute(h)};
+  }
+
+  static constexpr SizeConstraint absolute(vec2 wh)
+  {
+    return absolute(wh.x, wh.y);
   }
 
   constexpr SizeConstraint with_min(f32 w, f32 h) const
@@ -1189,6 +1249,61 @@ struct SizeConstraint
   }
 
   constexpr vec2 resolve(vec2 wh) const
+  {
+    return resolve(wh.x, wh.y);
+  }
+};
+
+struct BorderRadius
+{
+  constraint top_left, top_right, bottom_right, bottom_left;
+
+  static constexpr BorderRadius relative(f32 tl, f32 tr, f32 br, f32 bl)
+  {
+    return BorderRadius{.top_left     = constraint::relative(tl),
+                        .top_right    = constraint::relative(tr),
+                        .bottom_right = constraint::relative(br),
+                        .bottom_left  = constraint::relative(bl)};
+  }
+
+  static constexpr BorderRadius relative(vec4 v)
+  {
+    return relative(v.x, v.y, v.z, v.w);
+  }
+
+  static constexpr BorderRadius relative(f32 v)
+  {
+    return relative(v, v, v, v);
+  }
+
+  static constexpr BorderRadius absolute(f32 tl, f32 tr, f32 br, f32 bl)
+  {
+    return BorderRadius{.top_left     = constraint::absolute(tl),
+                        .top_right    = constraint::absolute(tr),
+                        .bottom_right = constraint::absolute(br),
+                        .bottom_left  = constraint::absolute(bl)};
+  }
+
+  static constexpr BorderRadius absolute(vec4 v)
+  {
+    return absolute(v.x, v.y, v.z, v.w);
+  }
+
+  static constexpr BorderRadius absolute(f32 v)
+  {
+    return absolute(v, v, v, v);
+  }
+
+  constexpr vec4 resolve(f32 w, f32 h) const
+  {
+    f32 const src = std::min(w, h) / 2;
+    return vec4{.x = top_left.resolve(src),
+                .y = top_right.resolve(src),
+                .z = bottom_right.resolve(src),
+                .w = bottom_left.resolve(src)};
+  }
+
+  constexpr vec4 resolve(vec2 wh) const
   {
     return resolve(wh.x, wh.y);
   }
@@ -1319,6 +1434,36 @@ struct EdgeInsets
   {
     return EdgeInsets{.left = v, .top = v, .right = v, .bottom = v};
   }
+
+  static constexpr EdgeInsets horizontal(f32 v)
+  {
+    return EdgeInsets{.left = v, .top = 0, .right = v, .bottom = 0};
+  }
+
+  static constexpr EdgeInsets vertical(f32 v)
+  {
+    return EdgeInsets{.left = 0, .top = v, .right = 0, .bottom = v};
+  }
+
+  constexpr f32 y() const
+  {
+    return top + bottom;
+  }
+
+  constexpr f32 x() const
+  {
+    return left + right;
+  }
+
+  constexpr vec2 xy() const
+  {
+    return vec2{x(), y()};
+  }
+
+  constexpr vec2 top_left() const
+  {
+    return vec2{left, top};
+  }
 };
 
 constexpr bool operator==(EdgeInsets const &a, EdgeInsets const &b)
@@ -1331,10 +1476,32 @@ constexpr bool operator!=(EdgeInsets const &a, EdgeInsets const &b)
   return a.left != b.left || a.top != b.top || a.right != b.right || a.bottom != b.bottom;
 }
 
+using Alignment = vec2;
+
+constexpr Alignment ALIGN_TOP_LEFT      = Alignment{0, 0};
+constexpr Alignment ALIGN_TOP_CENTER    = Alignment{0.5f, 0};
+constexpr Alignment ALIGN_TOP_RIGHT     = Alignment{1, 0};
+constexpr Alignment ALIGN_LEFT_CENTER   = Alignment{0, 0.5f};
+constexpr Alignment ALIGN_CENTER        = Alignment{0.5f, 0.5f};
+constexpr Alignment ALIGN_RIGHT_CENTER  = Alignment{1, 0.5f};
+constexpr Alignment ALIGN_BOTTOM_LEFT   = Alignment{0, 1};
+constexpr Alignment ALIGN_BOTTOM_CENTER = Alignment{0.5f, 1};
+constexpr Alignment ALIGN_BOTTOM_RIGHT  = Alignment{1, 1};
+
 struct Slice
 {
   usize offset = 0;
   usize size   = 0;
 };
+
+constexpr vec2 min(vec2 a, vec2 b)
+{
+  return vec2{std::min(a.x, b.x), std::min(a.y, b.y)};
+}
+
+constexpr vec2 max(vec2 a, vec2 b)
+{
+  return vec2{std::max(a.x, b.x), std::max(a.y, b.y)};
+}
 
 }        // namespace ash

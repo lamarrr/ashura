@@ -334,6 +334,7 @@ struct Context
         case SDL_EVENT_SYSTEM_THEME_CHANGED:
         {
           theme = AS(SystemTheme, SDL_GetSystemTheme());
+          return true;
         }
 
           /* Touch events */
@@ -341,6 +342,36 @@ struct Context
 
           // TODO(lamarrr): forward other events
           // case SDL_CLIPBOARDUPDATE
+
+        case SDL_EVENT_DROP_BEGIN:
+        {
+          ASH_LOG_INFO(Vulkan, "drop begin: {}  x={}, y={}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y);
+          return true;
+        }
+
+        case SDL_EVENT_DROP_COMPLETE:
+        {
+          ASH_LOG_INFO(Vulkan, "drop complete: {}  x={}, y={}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y);
+          return true;
+        }
+
+        case SDL_EVENT_DROP_FILE:
+        {
+          ASH_LOG_INFO(Vulkan, "drop file: {}  x={}, y={}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y);
+          return true;
+        }
+
+        case SDL_EVENT_DROP_POSITION:
+        {
+          ASH_LOG_INFO(Vulkan, "drop position: {}  x={}, y={}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y);
+          return true;
+        }
+
+        case SDL_EVENT_DROP_TEXT:
+        {
+          ASH_LOG_INFO(Vulkan, "drop text: {}  x={}, y={}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y);
+          return true;
+        }
 
           // case SDL_DROPFILE
           // case SDL_DROPFILE

@@ -74,7 +74,7 @@ struct WidgetTree
       element.children_sizes[i] = __fit_recursive(ctx, element.children[i], element.children_allocations[i]);
     }
 
-    return element.widget->area.extent = element.widget->fit(ctx, allocated_size, element.children_sizes, element.children_positions);
+    return element.widget->area.extent = element.widget->fit(ctx, allocated_size, element.children_allocations, element.children_sizes, element.children_positions);
   }
 
   static void __absolute_position_recursive(Context &ctx, WidgetElement &element, vec2 allocated_position)

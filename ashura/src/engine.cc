@@ -257,6 +257,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
 void Engine::tick(std::chrono::nanoseconds interval)
 {
+  timepoint begin = Clock::now();
   // poll events to make the window not be marked as unresponsive.
   // poll events from SDL's event queue until there are none left.
   //
@@ -353,6 +354,8 @@ void Engine::tick(std::chrono::nanoseconds interval)
       swapchain_state = SwapChainState::Ok;
     }
   } while (swapchain_state != SwapChainState::Ok);
+
+  ctx.frame_stats.cpu_time = Clock::now() - begin;
 }
 
 }        // namespace ash

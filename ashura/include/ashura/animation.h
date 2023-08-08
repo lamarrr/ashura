@@ -36,28 +36,27 @@ enum class AnimationState : u8
 struct Animation
 {
   /// CONFIGURATION
-  nanoseconds        duration         = nanoseconds{0};
-  nanoseconds        reverse_duration = nanoseconds{0};
-  usize              iterations       = 1;
-  AnimationDirection direction        = AnimationDirection::Forward;
+  nanoseconds        duration          = nanoseconds{0};
+  nanoseconds        reverse_duration  = nanoseconds{0};
+  usize              target_iterations = 1;
+  AnimationDirection direction         = AnimationDirection::Forward;
+  bool               alternate         = false;
 
   /// INTERNAL STATE
   usize iterations_done = 0;
   f32   t               = 0;
   f32   speed           = 1;        // higher spead means faster time to completion than specified duration
 
-  constexpr void restart(
-      nanoseconds duration,
-      nanoseconds reverse_duration,
-      usize       iterations)
+  constexpr void restart(nanoseconds duration, nanoseconds reverse_duration, usize iterations, bool alternate)
   {
-    this->duration         = duration;
-    this->reverse_duration = reverse_duration;
-    this->iterations       = iterations;
-    this->direction        = AnimationDirection::Forward;
-    this->iterations_done  = 0;
-    this->t                = 0;
-    this->speed            = 1;
+    this->duration          = duration;
+    this->reverse_duration  = reverse_duration;
+    this->target_iterations = iterations;
+    this->direction         = AnimationDirection::Forward;
+    this->iterations_done   = 0;
+    this->t                 = 0;
+    this->speed             = 1;
+    this->alternate         = alternate;
   }
 
   constexpr AnimationState get_state() const
@@ -65,7 +64,7 @@ struct Animation
     switch (direction)
     {
       case AnimationDirection::Forward:
-        if (epsilon_equal(t, 1) && iterations_done == iterations)
+        if (epsilon_equal(t, 1) && iterations_done >= target_iterations)
         {
           return AnimationState::Completed;
         }
@@ -80,7 +79,7 @@ struct Animation
         break;
 
       case AnimationDirection::Reverse:
-        if (epsilon_equal(t, 0) && iterations_done == iterations)
+        if (epsilon_equal(t, 0) && iterations_done >= target_iterations)
         {
           return AnimationState::Completed;
         }
@@ -147,29 +146,31 @@ struct Animation
       return;
     }
 
-    f32   step_duration   = (direction == AnimationDirection::Forward ? duration : reverse_duration).count();
-    f32   step            = speed * AS(f32, interval.count()) / epsilon_clamp(step_duration);
-    usize step_iterations = AS(usize, step);
-    step                  = step - AS(f32, AS(i64, step));
+    f32 step_duration = (direction == AnimationDirection::Forward ? duration : reverse_duration).count();
+    // TODO(lamarrr): speed negative might cause overflow
+    f32   next_t          = t + (direction == AnimationDirection::Forward ? speed : -speed) * AS(f32, interval.count()) / epsilon_clamp(step_duration);        // if alternating, this would be squared by iterations?
+    usize step_iterations = (usize) (i64) next_t;
+    next_t                = next_t - (f32) (i64) next_t;
 
-    if (iterations_done + step_iterations >= iterations)
+    if (iterations_done + step_iterations >= target_iterations)
     {
       finish();
-      iterations_done = iterations;
+      iterations_done = target_iterations;
     }
     else
     {
-      switch (direction)
-      {
-        case AnimationDirection::Forward:
-          t = std::min(t + step, 1.0f);
-          break;
-
-        case AnimationDirection::Reverse:
-          t = std::max(t - step, 0.0f);
-          break;
-      }
+      // switch (direction)
+      // {
+      //   case AnimationDirection::Forward:
+      //     t = std::min(t + step, 1.0f);
+      //     break;
+      //
+      //   case AnimationDirection::Reverse:
+      //     t = std::max(t - step, 0.0f);
+      //     break;
+      // }
       iterations_done += step_iterations;
+      t = next_t;
     }
   }
 

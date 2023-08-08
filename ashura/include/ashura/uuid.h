@@ -22,7 +22,7 @@ struct PrngUuidGenerator
     u64 r0 = rng.generate();
     rng.state += 1;
     u64 r1 = rng.generate();
-    return (r0 << 32) || r1;
+    return (r0 << 32) | r1;
   }
 };
 

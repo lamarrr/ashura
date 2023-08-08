@@ -376,6 +376,7 @@ struct Canvas
 
   bool viewport_contains(rect area) const
   {
+    // TODO(lamarrr): check for scissor
     return rect{.offset = {}, .extent = viewport_extent}
         .overlaps(transform2d(state.global_transform * state.local_transform, area));
   }
@@ -809,10 +810,16 @@ struct Canvas
   {
     save();
     state.local_transform = state.local_transform * translate2d(baseline);
-    // TODO(lamarrr):glyph culling
+
     rect grect;
     grect.offset = vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} * style.font_height * text_scale_factor + shaping.offset;
     grect.extent = glyph.metrics.extent * style.font_height * text_scale_factor;
+
+    if (!rect{.offset = {}, .extent = viewport_extent}.overlaps(transform2d(state.global_transform * translate2d(block_position) * state.local_transform, grect)))
+    {
+      restore();
+      return *this;
+    }
 
     vertex const vertices[] = {{.position = grect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.foreground_color.to_vec()},
                                {.position = grect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.foreground_color.to_vec()},
@@ -842,7 +849,7 @@ struct Canvas
   {
     save();
     state.local_transform = state.local_transform * translate2d(baseline);
-    // TODO(lamarrr):glyph culling
+
     rect grect;
     grect.offset = vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} * style.font_height * text_scale_factor + shaping.offset;
     grect.extent = glyph.metrics.extent * style.font_height * text_scale_factor;
@@ -850,6 +857,12 @@ struct Canvas
     rect srect   = grect;
     srect.extent = srect.extent * style.shadow_scale;
     srect.offset = grect.offset + style.shadow_offset;
+
+    if (!rect{.offset = {}, .extent = viewport_extent}.overlaps(transform2d(state.global_transform * translate2d(block_position) * state.local_transform, srect)))
+    {
+      restore();
+      return *this;
+    }
 
     vertex const vertices[] = {{.position = srect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.shadow_color.to_vec()},
                                {.position = srect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.shadow_color.to_vec()},
@@ -914,6 +927,7 @@ struct Canvas
   {
     /// TEXT BACKGROUNDS ///
     {
+      // TODO(lamarrr): merge segment text backgrounds
       f32 line_top = 0;
       for (LineMetrics const &line : layout.lines)
       {
@@ -1094,6 +1108,7 @@ struct Canvas
 
     /// UNDERLINES AND STRIKETHROUGHS ///
     {
+      // TODO(lamarrr): merge segment lines and strikethroughs
       f32 line_top = 0;
       for (LineMetrics const &line : layout.lines)
       {
