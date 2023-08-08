@@ -13,15 +13,22 @@ namespace ash
 
 struct SwitchProps
 {
-  color active_color   = material::GRAY_300;
-  color inactive_color = material::BLUE_A700;
-  f32   radius         = 12.5;
+  color active_track_color   = material::BLUE_A700;
+  color inactive_track_color = material::GRAY_500;
+  color thumb_color          = material::WHITE;
+  f32   height               = 20;
+  bool  disabled             = false;
 };
 
 struct Switch : public Widget
 {
-  explicit Switch(bool ivalue = false, SwitchProps ipros = {}) :
-      value{ivalue}, props{iprops}
+  using Callback = stx::UniqueFn<void(Switch &, Context &, bool)>;
+
+  static void default_on_changed(Switch &, Context &, bool new_state)
+  {}
+
+  explicit Switch(Callback ion_changed = stx::fn::rc::make_unique_static(default_on_changed), bool istate = false, SwitchProps iprops = {}) :
+      on_changed{std::move(ion_changed)}, state{istate}, props{iprops}
   {
   }
 
@@ -32,67 +39,52 @@ struct Switch : public Widget
   {
   }
 
-  virtual vec2 layout(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    return vec2{props.radius * 2, props.radius * 2};
-  }
-
-  virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
-  {
-    if (radio_context.data->value == value && !is_active)
-    {
-      on_changed(context, radio_context.data->value);
-    }
-    else if (radio_context.data->value != value && is_active)
-    {
-      on_changed(context, radio_context.data->value);
-    }
-
-    animation.tick(interval);
+    return vec2{props.height * 1.75f, props.height};
   }
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
-    f32 inner_radius = props.radius * 0.6f;
+    f32 const padding              = 1.75f;
+    f32 const thumb_radius         = std::max(props.height / 2 - padding, 0.0f);
+    f32 const thumb_begin_x        = padding + thumb_radius;
+    f32 const thumb_end_x          = std::max(area.extent.x - padding - thumb_radius, 0.0f);
+    Tween     color_tween          = state ? Tween{props.inactive_track_color, props.active_track_color} : Tween{props.active_track_color, props.inactive_track_color};
+    Tween     thumb_position_tween = state ? Tween{thumb_begin_x, thumb_end_x} : Tween{thumb_end_x, thumb_begin_x};
+    EaseIn    curve;
+    color     color          = animation.animate(curve, color_tween);
+    f32 const thumb_position = animation.animate(curve, thumb_position_tween);
+
     canvas
-        .draw_circle_filled(area.offset, props.radius, 180, props.inactive_color)
-        .draw_circle_filled(area.offset + props.radius - inner_radius, inner_radius, 180, animation.animate(color_curve, tween));
+        .draw_round_rect_filled(area, vec4::splat(props.height / 2), 90, color)
+        .draw_circle_filled(area.offset + vec2{thumb_position, 1.5f + thumb_radius}, thumb_radius, 180, props.thumb_color);
   }
 
-  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks, quad quad) override
+  virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
+  {
+    animation.tick(interval);
+  }
+
+  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
   {
     if (button == MouseButton::Primary)
     {
-      radio_context.data->value = value;
+      state = !state;
+      animation.restart(milliseconds{200}, milliseconds{200}, 1, false);
+      on_changed.handle(*this, ctx, state);
     }
   }
 
-  virtual void on_changed(Context &ctx, RadioValue const &new_value)
+  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
   {
-    if (new_value == value)
-    {
-      is_active = true;
-      on_selected(context);
-      tween = Tween{props.inactive_color, props.active_color};
-    }
-    else if (is_active)
-    {
-      is_active = false;
-      on_deselected(context);
-      tween = Tween{props.active_color, props.inactive_color};
-    }
-
-    animation.restart(milliseconds{200}, milliseconds{200}, 1);
+    return true;
   }
 
-  virtual void on_selected(Context &ctx)
-  {}
-
-  virtual void on_deselected(Context &ctx)
-  {}
-
-  bool        value = true;
+  Callback    on_changed;
+  bool        state = true;
   SwitchProps props;
+  Animation   animation;
 };
 
 }        // namespace ash

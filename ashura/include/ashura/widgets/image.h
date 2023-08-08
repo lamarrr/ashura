@@ -10,9 +10,9 @@
 #include "ashura/image.h"
 #include "ashura/image_decoder.h"
 #include "ashura/loggers.h"
+#include "ashura/primitives.h"
 #include "ashura/subsystems/image_loader.h"
 #include "ashura/subsystems/image_manager.h"
-#include "ashura/primitives.h"
 #include "ashura/widget.h"
 #include "stx/option.h"
 #include "stx/scheduler/scheduling/schedule.h"
@@ -37,9 +37,8 @@ using ImageSource = std::variant<ImageBuffer, FileImageSource, NetworkImageSourc
 struct ImageProps
 {
   ImageSource      source = stx::None;
-  constraint       width;
-  constraint       height;
-  vec4             border_radius;
+  SizeConstraint   size;
+  BorderRadius     border_radius;
   stx::Option<f32> aspect_ratio;
   bool             resize_on_load = true;
   color            tint           = colors::WHITE;
@@ -87,19 +86,18 @@ struct Image : public Widget
     return WidgetDebugInfo{.type = "Image"};
   }
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    f32 width  = props.width.resolve(allocated_size.x);
-    f32 height = props.height.resolve(allocated_size.y);
+    vec2 extent = props.size.resolve(allocated_size);
     if (props.aspect_ratio.is_some())
     {
       f32 aspect_ratio = props.aspect_ratio.value();
-      return vec2{std::min(height * aspect_ratio, width),
-                  std::min(width / aspect_ratio, height)};
+      return vec2{std::min(extent.y * aspect_ratio, extent.x),
+                  std::min(extent.x / aspect_ratio, extent.y)};
     }
     else
     {
-      return vec2{width, height};
+      return extent;
     }
   }
 
@@ -137,13 +135,15 @@ struct Image : public Widget
           texture_region.uv1.y = (space.y / 2 + clipped_extent.y) / original_extent.y;
         }
 
-        if (props.border_radius == vec4{0, 0, 0, 0})
+        vec4 border_radius = props.border_radius.resolve(area.extent);
+
+        if (border_radius == vec4{0, 0, 0, 0})
         {
           canvas.draw_image(image, area, texture_region, props.tint);
         }
         else
         {
-          canvas.draw_rounded_image(image, area, props.border_radius, 360, texture_region, props.tint);
+          canvas.draw_rounded_image(image, area, border_radius, 360, texture_region, props.tint);
         }
       }
       break;
@@ -196,8 +196,7 @@ struct Image : public Widget
             state               = ImageState::Loaded;
             if (props.resize_on_load)
             {
-              props.width  = constraint{.bias = AS(f32, buffer.extent.width)};
-              props.height = constraint{.bias = AS(f32, buffer.extent.height)};
+              props.size = SizeConstraint::absolute(AS(f32, buffer.extent.width), AS(f32, buffer.extent.height));
             }
             image_extent = buffer.extent;
           }

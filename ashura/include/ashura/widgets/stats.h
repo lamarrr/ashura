@@ -52,7 +52,7 @@ struct StatsWidget : public Widget
   STX_DISABLE_COPY(StatsWidget)
   STX_DEFAULT_MOVE(StatsWidget)
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
     return ENTRY_EXTENT;
   }
@@ -94,7 +94,8 @@ struct StatsWidget : public Widget
 
     // canvas.draw_path(vertices, area.offset, {0, 0}, 1.25f, false);
 
-    std::string gpu_time_str = fmt::format("{:.2} ms", ctx.frame_stats.gpu_time.count() / 1'000'000.0);
+    std::string gpu_time_str = fmt::format("GPU time: {:.2} ms\nCPU time: {:.2} ms\nCPU-GPU Sync: {:.2} ms\n {} vertices", ctx.frame_stats.gpu_time.count() / 1'000'000.0, ctx.frame_stats.cpu_time.count() / 1'000'000.0, ctx.frame_stats.gpu_sync_time.count() / 1'000'000.0,
+    ctx.frame_stats.input_assembly_vertices);
 
     TextRun runs[] = {
         TextRun{.size = (usize) -1, .style = 0}};
@@ -108,7 +109,7 @@ struct StatsWidget : public Widget
         .direction     = TextDirection::LeftToRight,
         .language      = {}};
 
-    text_layout.layout(text_block, ctx.text_scale_factor, ctx.font_bundle, 100);
+    text_layout.layout(text_block, ctx.text_scale_factor, ctx.font_bundle, area.extent.x);
 
     canvas.draw_text(text_block, text_layout, ctx.font_bundle, area.offset);
   }

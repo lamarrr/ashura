@@ -10,7 +10,6 @@
 
 namespace ash
 {
-// TODO(lamarrr): disabling
 template <typename RadioValue>
 struct RadioStateData
 {
@@ -20,6 +19,8 @@ struct RadioStateData
 template <typename RadioValue>
 struct RadioState
 {
+  static_assert(stx::equality_comparable<RadioValue>);
+
   explicit RadioState(RadioValue value) :
       data{stx::rc::make(stx::os_allocator, RadioStateData{.value = std::move(value)}).unwrap()}
   {}
@@ -39,25 +40,24 @@ struct RadioState
   stx::Rc<RadioStateData<RadioValue> *> data;
 };
 
-// TODO(lamarrr): make this a rect instead
 struct RadioProps
 {
-  color color  = material::BLUE_A700;
-  f32   radius = 12.5;
+  color color       = material::BLUE_A700;
+  f32   width       = 20;
+  f32   inner_width = 10;
+  bool  disabled    = false;
 };
 
 template <typename RadioValue>
 struct Radio : public Widget
 {
-  static_assert(stx::equality_comparable<RadioValue>);
-
   using Callback = stx::RcFn<void(Radio &, Context &, RadioValue const &)>;
 
-  static void default_on_changed(Radio &radio, Context &ctx, RadioValue const &new_value)
+  static void default_on_changed(Radio &, Context &, RadioValue const &)
   {}
 
   Radio(RadioValue ivalue, RadioState<RadioValue> iradio_state, Callback ion_changed = stx::fn::rc::make_static(default_on_changed), RadioProps iprops = {}) :
-      value{std::move(ivalue)}, state{std::move(iradio_state)}, on_changed{std::move(ion_changed)}, props{iprops}
+      on_changed{std::move(ion_changed)}, value{std::move(ivalue)}, state{std::move(iradio_state)}, props{iprops}
   {
     __restart_state_machine(state.data->value);
   }
@@ -69,9 +69,9 @@ struct Radio : public Widget
   {
   }
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    return vec2{props.radius * 2, props.radius * 2};
+    return vec2::splat(props.width);
   }
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
@@ -92,12 +92,14 @@ struct Radio : public Widget
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
-    f32  inner_radius = props.radius * 0.6f;
-    vec2 center       = area.offset + props.radius;
+    EaseIn curve;
+    rect   outer_rect        = area;
+    vec2   inner_rect_extent = vec2::splat(animation.animate(curve, is_active ? Tween{0.0f, props.inner_width} : Tween{props.inner_width, 0.0f}));
+    rect   inner_rect        = rect{.offset = area.offset + (area.extent / 2) - inner_rect_extent / 2, .extent = inner_rect_extent};
 
     canvas
-        .draw_circle_stroke(center, props.radius, 360, props.color, 1.5)
-        .draw_circle_filled(center, inner_radius, 360, animation.animate(color_curve, tween));
+        .draw_rect_stroke(outer_rect, props.color, 1.5f)
+        .draw_rect_filled(inner_rect, props.color);
   }
 
   virtual bool hit_test(Context &ctx, vec2 mouse_position) override
@@ -107,7 +109,7 @@ struct Radio : public Widget
 
   virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
   {
-    if (button == MouseButton::Primary)
+    if (button == MouseButton::Primary && !props.disabled)
     {
       state.data->value = value;
     }
@@ -118,24 +120,19 @@ struct Radio : public Widget
     if (new_value == value)
     {
       is_active = true;
-      tween     = Tween{props.color.with_alpha(10), props.color};
     }
     else if (is_active)
     {
       is_active = false;
-      tween     = Tween{props.color, props.color.with_alpha(10)};
     }
 
-    animation.restart(milliseconds{200}, milliseconds{200}, 1);
+    animation.restart(milliseconds{200}, milliseconds{200}, 1, false);
   }
 
   RadioValue             value;
   bool                   is_active = false;
   RadioState<RadioValue> state;
   RadioProps             props;
-  EaseIn                 radius_curve;
-  EaseIn                 color_curve;
-  Tween<color>           tween;
   Animation              animation;
   Callback               on_changed;
 };

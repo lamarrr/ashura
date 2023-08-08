@@ -12,19 +12,18 @@ struct CheckBoxProps
   color box_color         = material::BLUE_A700;
   color checkmark_color   = material::GRAY_300;
   f32   extent            = 20;
-  f32   border_radius     = 2.5;
   f32   outline_thickness = 1;
+  bool  disabled          = false;
 };
 
-// TODO(lamarrr): disabling, default value
 struct CheckBox : public Widget
 {
-  using Callback = stx::RcFn<void(CheckBox &, Context &, bool)>;
+  using Callback = stx::UniqueFn<void(CheckBox &, Context &, bool)>;
 
   static void default_on_changed(CheckBox &checkbox, Context &ctx, bool new_value)
   {}
 
-  CheckBox(Callback ion_changed = stx::fn::rc::make_static(default_on_changed), bool default_value = false, CheckBoxProps iprops = CheckBoxProps{}) :
+  CheckBox(Callback ion_changed = stx::fn::rc::make_unique_static(default_on_changed), bool default_value = false, CheckBoxProps iprops = CheckBoxProps{}) :
       on_changed{std::move(ion_changed)}, value{default_value}, props{iprops}
   {}
 
@@ -34,7 +33,7 @@ struct CheckBox : public Widget
   virtual ~CheckBox() override
   {}
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
     return vec2{props.extent, props.extent};
   }
@@ -49,7 +48,7 @@ struct CheckBox : public Widget
     if (value)
     {
       canvas
-          .draw_round_rect_filled(area, vec4::splat(props.border_radius), 90, props.box_color)
+          .draw_rect_filled(area, props.box_color)
           .save()
           .scale(props.extent, props.extent)
           .draw_path(checkmark_path, area.offset, area.extent, 0.125f, false)
@@ -57,7 +56,7 @@ struct CheckBox : public Widget
     }
     else
     {
-      canvas.draw_round_rect_stroke(area, vec4::splat(props.border_radius), 90, props.box_color, props.outline_thickness);
+      canvas.draw_rect_stroke(area, props.box_color, props.outline_thickness);
     }
   }
 
@@ -68,7 +67,7 @@ struct CheckBox : public Widget
 
   virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
   {
-    if (button == MouseButton::Primary)
+    if (button == MouseButton::Primary && !props.disabled)
     {
       value = !value;
       on_changed.handle(*this, ctx, value);

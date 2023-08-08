@@ -100,12 +100,12 @@ struct Flex : public Widget
     return WidgetDebugInfo{.type = "Flex"};
   }
 
-  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation)
+  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation) override
   {
     children_allocation.fill(props.frame.resolve(allocated_size));
   }
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
     vec2 frame = props.frame.resolve(allocated_size);
     vec2 span;

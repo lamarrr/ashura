@@ -12,8 +12,9 @@ struct SliderProps
 {
   color      track_color  = material::BLUE_A700;
   f32        track_height = 5;
-  f32        thumb_radius = 12;
+  f32        thumb_radius = 10;
   constraint width        = constraint{.scale = 1, .max = 250};
+  bool       disabled     = false;
 };
 
 struct Slider : public Widget
@@ -39,7 +40,7 @@ struct Slider : public Widget
   virtual ~Slider() override
   {}
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
     return vec2{props.width.resolve(allocated_size.x), props.thumb_radius * 2};
   }
@@ -59,7 +60,7 @@ struct Slider : public Widget
     f32  thumb_radius = thumb_animation.animate(thumb_animation_curve, thumb_tween);
 
     canvas
-        .draw_round_rect_filled(track_area, vec4::splat(props.track_height / 2), 360, props.track_color)
+        .draw_round_rect_filled(track_area, vec4::splat(props.track_height / 2), 45, props.track_color)
         .draw_circle_filled(thumb_center, thumb_radius, 360, props.track_color);
   }
 
@@ -73,40 +74,18 @@ struct Slider : public Widget
     return true;
   }
 
+  virtual stx::Option<DragData> on_drag_start(Context &ctx, vec2 mouse_position) override
+  {
+    return stx::Some(DragData{.type = "STUB", .data = stx::Unique{stx::Span<u8 const>{}, stx::manager_stub}});
+  }
+
   // TODO(lamarrr): mouse_position is already **inverted** by global zoom and pan matrix???
-  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
+  virtual void on_drag_update(Context &ctx, vec2 mouse_position, vec2 translation, DragData const &drag_data) override
   {
-    if (button == MouseButton::Primary)
-    {
-      on_change_start.handle(*this, ctx, value);
-      f32 x_offset       = mouse_position.x - track_area.offset.x;
-      f32 previous_value = value;
-      value              = std::clamp(min + (x_offset / track_area.extent.x) * (max - min), min, max);
-      if (value != previous_value)
-      {
-        on_changed.handle(*this, ctx, value);
-      }
-      is_changing = true;
-    }
-  }
-
-  virtual void on_mouse_up(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
-  {
-    if (button == MouseButton::Primary && is_changing)
-    {
-      is_changing = false;
-      on_change_end.handle(*this, ctx, value);
-    }
-  }
-
-  virtual void on_mouse_move(Context &ctx, vec2 mouse_position, vec2 translation) override
-  {
-    if (is_changing)
-    {
-      f32 x_offset = mouse_position.x - track_area.offset.x;
-      value        = std::clamp(min + (x_offset / track_area.extent.x) * (max - min), min, max);
-      on_changed.handle(*this, ctx, value);
-    }
+    on_change_start.handle(*this, ctx, value);
+    f32 diff = translation.x / track_area.extent.x;
+    value    = std::clamp(value + diff * (max - min), min, max);
+    on_changed.handle(*this, ctx, value);
   }
 
   virtual void on_mouse_enter(Context &ctx, vec2 mouse_position) override
@@ -122,7 +101,7 @@ struct Slider : public Widget
   void __transition_radius(f32 from, f32 to)
   {
     thumb_tween = Tween{from, to};
-    thumb_animation.restart(milliseconds{200}, milliseconds{200}, 1);
+    thumb_animation.restart(milliseconds{200}, milliseconds{200}, 1, false);
   }
 
   Callback    on_changed;

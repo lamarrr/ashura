@@ -7,10 +7,16 @@
 namespace ash
 {
 
+struct TextProps
+{
+  TextStyle      style;
+  SizeConstraint frame = SizeConstraint::relative(1, 1);
+};
+
 struct Text : public Widget
 {
-  explicit Text(std::string_view itext, TextStyle istyle = TextStyle{}) :
-      text{stx::string::make(stx::os_allocator, itext).unwrap()}, style{istyle}
+  explicit Text(std::string_view itext, TextProps iprops = {}) :
+      text{stx::string::make(stx::os_allocator, itext).unwrap()}, props{iprops}
   {}
 
   virtual WidgetDebugInfo get_debug_info(Context &ctx) override
@@ -18,21 +24,27 @@ struct Text : public Widget
     return WidgetDebugInfo{.type = "Text"};
   }
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    TextRun runs[] = {
-        TextRun{.size = (usize) -1, .style = 0}};
+    if (is_text_updated || text_layout.text_scale_factor != ctx.text_scale_factor)
+    {
+      TextRun runs[] = {
+          TextRun{.size = (usize) -1, .style = 0}};
 
-    TextBlock text_block{
-        .text          = std::string_view{text.data(), text.size()},
-        .runs          = runs,
-        .styles        = {},
-        .default_style = style,
-        .align         = TextAlign::Start,
-        .direction     = TextDirection::LeftToRight,
-        .language      = {}};
+      TextBlock text_block{
+          .text          = std::string_view{text.data(), text.size()},
+          .runs          = runs,
+          .styles        = {},
+          .default_style = props.style,
+          .align         = TextAlign::Start,
+          .direction     = TextDirection::LeftToRight,
+          .language      = {}};
 
-    text_layout.layout(text_block, ctx.text_scale_factor, ctx.font_bundle, allocated_size.x);
+      vec2 size = props.frame.resolve(allocated_size);
+
+      text_layout.layout(text_block, ctx.text_scale_factor, ctx.font_bundle, size.x);
+      is_text_updated = false;
+    }
 
     return text_layout.span;
   }
@@ -46,7 +58,7 @@ struct Text : public Widget
         .text          = std::string_view{text.data(), text.size()},
         .runs          = runs,
         .styles        = {},
-        .default_style = style,
+        .default_style = props.style,
         .align         = TextAlign::Start,
         .direction     = TextDirection::LeftToRight,
         .language      = {}};
@@ -57,9 +69,17 @@ struct Text : public Widget
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {}
 
+  void update_text(std::string_view itext, TextProps iprops)
+  {
+    text            = stx::string::make(stx::os_allocator, itext).unwrap();
+    props           = iprops;
+    is_text_updated = true;
+  }
+
   stx::String text;
-  TextStyle   style;
+  TextProps   props;
   TextLayout  text_layout;
+  bool        is_text_updated = true;
 };
 
 }        // namespace ash

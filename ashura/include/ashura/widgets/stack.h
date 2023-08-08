@@ -7,61 +7,23 @@
 namespace ash
 {
 
-
-
-
-struct ZStack{
-
-vec2 offset{2, -2};
-
-
-};
-
-/**
- * @brief 
- * 
- * 
- * 
- * 
- * 
- * 
- * ZStacks and offset
-Finally, let’s take a quicker look at SwiftUI’s ZStack type, which enables us to stack a series of views in terms of depth, using a back-to-front order.
-
-As an example, let’s say that we wanted to add support for displaying a small “verified badge” on top of our calendar view from before — by placing a checkmark icon at its top-trailing corner. To implement that in a slightly more generic way, let’s extend View with an API that lets us wrap any view within a ZStack (which in of itself won’t affect the view’s layout), that’ll also optionally contain our checkmark icon — like this:
-
-extension View {
-    func addVerifiedBadge(_ isVerified: Bool) -> some View {
-        ZStack(alignment: .topTrailing) {
-            self
-
-            if isVerified {
-                Image(systemName: "checkmark.circle.fill")
-                    .offset(x: 3, y: -3)
-            }
-        }
-    }
-}
-Note how a ZStack gives us full two-dimensional control over its alignment, which we can use to position our icon in the parent view’s top-trailing corner. We then also apply the .offset() modifier to our badge, which’ll move it slightly outside of the bounds of its parent view.
- * 
- */
-enum class Alignment : u8
+struct StackProps
 {
-  TopLeft,
-  TopCenter,
-  TopRight,
-  CenterLeft,
-  Center,
-  CenterRight,
-  BottomLeft,
-  BottomCenter,
-  BottomRight
+  vec2           alignment;
+  SizeConstraint frame = SizeConstraint::relative(1, 1);
 };
 
 struct Stack : public Widget
 {
-  template <typename... DerivedWidget>
-  explicit Stack(Alignment ialignment, DerivedWidget... ichildren);
+  template <WidgetImpl... DerivedWidget>
+  explicit Stack(StackProps iprops, DerivedWidget... ichildren) :
+      props{iprops}
+  {
+    update_children(std::move(ichildren)...);
+  }
+
+  STX_DISABLE_COPY(Stack)
+  STX_DEFAULT_MOVE(Stack)
 
   virtual ~Stack() override
   {
@@ -71,8 +33,18 @@ struct Stack : public Widget
     }
   }
 
-  // update_children(DerivedWidget...)
+  template <WidgetImpl... DerivedWidget>
+  void update_children(DerivedWidget... new_children)
+  {
+    for (Widget *child : children)
+    {
+      delete child;
+    }
+    children.clear();
+    (children.push(new DerivedWidget{std::move(new_children)}).unwrap(), ...);
+  }
 
+  /// takes ownership of the children
   void update_children(stx::Span<Widget *const> new_children)
   {
     for (Widget *child : children)
@@ -94,9 +66,45 @@ struct Stack : public Widget
     return WidgetDebugInfo{.type = "Stack"};
   }
 
-  // virtual Layout layout(Context &ctx, rect area) override;
+  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation) override
+  {
+    children_allocation.fill(props.frame.resolve(allocated_size));
+  }
 
-  Alignment          alignment = Alignment::TopLeft;
+  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  {
+    vec2 size;
+
+    for (vec2 child_size : children_sizes)
+    {
+      size = max(size, child_size);
+    }
+
+    size = props.frame.resolve(size);
+
+    for (usize i = 0; i < children_positions.size(); i++)
+    {
+      vec2 extent           = size - children_sizes[i];
+      children_positions[i] = props.alignment * extent;
+    }
+
+    return size;
+  }
+
+  virtual i32 z_stack(Context &ctx, i32 allocated_z_index, stx::Span<i32> children_allocation) override
+  {
+    i32 next_z_index = allocated_z_index + 1;
+
+    for (i32 &z_index : children_allocation)
+    {
+      z_index = next_z_index;
+      next_z_index += 256;
+    }
+
+    return allocated_z_index;
+  }
+
+  StackProps         props;
   stx::Vec<Widget *> children;
 };
 
