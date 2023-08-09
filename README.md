@@ -4,7 +4,6 @@ Ashura is a 2D Retained-Mode GUI and 3D Framework for use in GUI applications an
 ## Features
 - Multithreaded
 - Portability: Supports Windows, iOS, Linux, Nintendo Switch
-- Super Duper Fast
 - Minimal resource usage
 - Low mental overhead
 - Flexible system and Widgets
