@@ -1,7 +1,6 @@
 #include "ashura/palletes.h"
 #include "ashura/widget_tree.h"
 #include "ashura/widgets/box.h"
-#include "ashura/widgets/button.h"
 #include "ashura/widgets/flex.h"
 #include "ashura/widgets/grid.h"
 #include "ashura/widgets/image.h"
@@ -19,8 +18,8 @@ TEST(FlexLayout, Start)
 {
   Flex flex{
       FlexProps{}, Widget{},
-      Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
-      Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
+      Image{ImageProps{.size = SizeConstraint::absolute(100, 100)}},
+      Image{ImageProps{.size = SizeConstraint::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, vec2{1920, 1080});
@@ -55,8 +54,8 @@ TEST(FlexLayout, SpaceAround)
           .direction   = Direction::H,
           .main_align  = MainAlign::SpaceAround,
           .cross_align = CrossAlign::Center},
-      Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
-      Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
+      Widget{}, Image{ImageProps{.size = SizeConstraint::absolute(100, 100)}},
+      Image{ImageProps{.size = SizeConstraint::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, vec2{1920, 1080});
@@ -96,8 +95,8 @@ TEST(FlexLayout, SpaceEvenly)
       FlexProps{.direction   = Direction::H,
                 .main_align  = MainAlign::SpaceEvenly,
                 .cross_align = CrossAlign::Center},
-      Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
-      Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
+      Widget{}, Image{ImageProps{.size = SizeConstraint::absolute(100, 100)}},
+      Image{ImageProps{.size = SizeConstraint::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, vec2{1920, 1080});
@@ -137,8 +136,8 @@ TEST(FlexLayout, SpaceBetween)
       FlexProps{.direction   = Direction::H,
                 .main_align  = MainAlign::SpaceBetween,
                 .cross_align = CrossAlign::Center},
-      Widget{}, Image{ImageProps{.width = constraint{.bias = 100}, .height = constraint{.bias = 100}}},
-      Image{ImageProps{.width = constraint{.bias = 200}, .height = constraint{.bias = 200}}}};
+      Widget{}, Image{ImageProps{.size = SizeConstraint::absolute(100, 100)}},
+      Image{ImageProps{.size = SizeConstraint::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, vec2{1920, 1080});

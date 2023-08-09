@@ -85,7 +85,7 @@ struct Grid : public Widget
     ASH_CHECK(props.items.is_empty() || props.items.size() == children.size());
     // TODO(lamarrr): handle props.columns == 0
     vec2 const self_extent = props.frame.resolve(allocated_size);
-    u32 const  rows        = props.columns == 0 ? 0 : ((u32) (children.size() / props.columns) + ((children.size() % props.columns != 0) ? 0 : 1));
+    u32 const  rows        = (u32) (props.columns == 0 ? 0 : ((children.size() / props.columns) + (((children.size() % props.columns) == 0) ? 0 : 1)));
     f32 const  column_gap  = props.columns <= 1 ? 0.0f : ((props.columns - 1) * props.column_gap);
     f32 const  row_gap     = rows <= 1 ? 0.0f : ((rows - 1) * props.row_gap);        // TODO(lamarrr): handle rows == 0
     vec2 const cell_size   = (self_extent - vec2{column_gap, row_gap}) / vec2{(f32) props.columns, (f32) rows};
@@ -105,11 +105,11 @@ struct Grid : public Widget
   virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
     vec2 const self_extent = props.frame.resolve(allocated_size);
-    u32 const  rows        = props.columns == 0 ? 0 : ((u32) (children.size() / props.columns) + ((children.size() % props.columns != 0) ? 0 : 1));
+    u32 const  rows        = (u32) (props.columns == 0 ? 0 : ((children.size() / props.columns) + (((children.size() % props.columns) == 0) ? 0 : 1)));
     f32 const  column_gap  = props.columns <= 1 ? 0.0f : ((props.columns - 1) * props.column_gap);
     f32 const  row_gap     = rows <= 1 ? 0.0f : ((rows - 1) * props.row_gap);
     vec2 const cell_size   = (self_extent - vec2{column_gap, row_gap}) / vec2{(f32) props.columns, (f32) rows};
-
+// spacing
     if (props.items.is_empty())
     {
       for (u32 i = 0; i < (u32) children.size(); i++)
@@ -132,6 +132,8 @@ struct Grid : public Widget
 
   GridProps          props;
   stx::Vec<Widget *> children;
+  stx::Vec<f32>      row_heights;
+  stx::Vec<vec2>     column_widths;
 };
 
 }        // namespace ash
