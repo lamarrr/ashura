@@ -59,6 +59,7 @@ jobs:
         run: |
           mkdir build
           cd build
+          rm ${{ github.workspace }}/vcpkg.json
           cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/tools/vcpkg/scripts/buildsystems/vcpkg.cmake
           cmake --build . --config ${{ matrix.build_mode }}
 
