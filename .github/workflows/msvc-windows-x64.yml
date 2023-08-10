@@ -8,11 +8,12 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
         build_mode: ["Release", "Debug"]
+        os: ["windows-2022", "windows-2019"]
 
     steps:
       - name: Checkout Code
