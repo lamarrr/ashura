@@ -21,7 +21,6 @@ jobs:
       - name: Cache and Install Dependencies
         id: cache-and-install
         uses: actions/cache@v3
-        if: always()
         with:
           path: |
             ${{ github.workspace }}/SDKs
