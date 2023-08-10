@@ -58,7 +58,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-release -DVCPKG_HOST_TRIPLET=x64-windows-release -DVCPKG_INSTALLED_DIR=${{ github.workspace }}/tools/vcpkg/installed
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DVCPKG_HOST_TRIPLET=x64-windows -DVCPKG_INSTALLED_DIR=${{ github.workspace }}/tools/vcpkg/installed
           cmake --build . --config ${{ matrix.build_mode }}
 
       - name: Run Ashura Test
