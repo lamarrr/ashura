@@ -54,7 +54,7 @@ jobs:
         
       - name: Install VCPKG Dependencies
         run: |
-         vcpkg install --triplet x64-windows-release libpng[apng] fmt freetype harfbuzz libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg ffmpeg libavif curl 
+         vcpkg install --triplet x64-windows libpng[apng] fmt freetype harfbuzz libwebp libjpeg-turbo libpng spdlog simdjson gtest libogg ffmpeg libavif curl 
         
       - name: Configure and Build Ashura
         env:
