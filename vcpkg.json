@@ -6,7 +6,6 @@
             "name": "libpng",
             "features": [ "apng" ]          
         },
-        "vulkan",
         "fmt",
         "freetype",
         "harfbuzz",
