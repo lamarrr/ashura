@@ -28,7 +28,7 @@ jobs:
             ${{ github.workspace }}/deps
             ${{ github.workspace }}/tools
             ./third_party
-          key: ${{ runner.os }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('vcpkg.json') }}-${{ hashFiles('CMakeLists.txt') }}
+          key: ${{ runner.os }}-${{ hashFiles('**/lockfiles') }}-${{ hashFiles('CMakeLists.txt') }}
       
       - name: Install Vulkan SDK
         run: |
