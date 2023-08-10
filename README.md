@@ -15,7 +15,7 @@ Ashura is a 2D Retained-Mode GUI and 3D Framework for use in GUI applications an
 ## Examples
 
 # Dependencies
-- Install Vulkan SDK via apt, homebrew, https://vulkan.lunarg.com/sdk/home, or https://vulkan.lunarg.com/doc/view/latest/linux/getting_started_ubuntu.html. Make sure it is discoverable by CMake's find_package by having exported targets
+- Install Vulkan SDK via apt, homebrew, https://vulkan.lunarg.com/sdk/home, or https://vulkan.lunarg.com/doc/view/latest/linux/getting_started_ubuntu.html. Make sure it is discoverable by CMake's find_package by having exported targets (i.e. VULKAN_SDK to point to the SDK's root directory)
 - Install vcpkg via https://vcpkg.io/en/index.html
 - Install MSVC, Clang, or GCC with C++20 support
 - Install CMake (>= 3.1)
