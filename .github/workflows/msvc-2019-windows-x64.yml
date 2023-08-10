@@ -51,7 +51,7 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git ${{ github.workspace }}/tools/vcpkg
           cd ${{ github.workspace }}/tools/vcpkg && ./bootstrap-vcpkg.bat
           copy ${{ github.workspace }}/vcpkg.json .
-          vcpkg install --triplet x64-windows --x-install-root=./installed
+          vcpkg install --triplet x64-windows-release --x-install-root=./installed
         if: steps.cache-and-install.outputs.cache-hit != 'true' 
 
       - name: Configure and build Ashura
