@@ -31,23 +31,21 @@ enum class AnimationState : u8
   Completed
 };
 
-// TODO(lamarrr): Splines, Bezier Curves, Hermite Curves, Catmull-Rom curves, B-Spline
-
 struct Animation
 {
   /// CONFIGURATION
   nanoseconds        duration          = nanoseconds{0};
   nanoseconds        reverse_duration  = nanoseconds{0};
-  usize              target_iterations = 1;
+  i64                target_iterations = 1;
   AnimationDirection direction         = AnimationDirection::Forward;
   bool               alternate         = false;
 
   /// INTERNAL STATE
-  usize iterations_done = 0;
-  f32   t               = 0;
-  f32   speed           = 1;        // higher spead means faster time to completion than specified duration
+  i64 iterations_done = 0;
+  f32 t               = 0;
+  f32 speed           = 1;        // higher spead means faster time to completion than specified duration
 
-  constexpr void restart(nanoseconds duration, nanoseconds reverse_duration, usize iterations, bool alternate)
+  constexpr void restart(nanoseconds duration, nanoseconds reverse_duration, i64 iterations, bool alternate)
   {
     this->duration          = duration;
     this->reverse_duration  = reverse_duration;
@@ -146,11 +144,11 @@ struct Animation
       return;
     }
 
-    f32 step_duration = (direction == AnimationDirection::Forward ? duration : reverse_duration).count();
     // TODO(lamarrr): speed negative might cause overflow
-    f32   next_t          = t + (direction == AnimationDirection::Forward ? speed : -speed) * AS(f32, interval.count()) / epsilon_clamp(step_duration);        // if alternating, this would be squared by iterations?
-    usize step_iterations = (usize) (i64) next_t;
-    next_t                = next_t - (f32) (i64) next_t;
+    f32 step_duration   = (f32) (direction == AnimationDirection::Forward ? duration : reverse_duration).count();
+    f32 next_t          = t + (direction == AnimationDirection::Forward ? speed : -speed) * AS(f32, interval.count()) / epsilon_clamp(step_duration);        // if alternating, this would be squared by iterations?
+    i64 step_iterations = (i64) next_t;
+    next_t              = next_t - (f32) (i64) next_t;
 
     if (iterations_done + step_iterations >= target_iterations)
     {

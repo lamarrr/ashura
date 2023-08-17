@@ -1,6 +1,7 @@
 #include "SDL3/SDL.h"
 #include "ashura/app.h"
 #include "ashura/text.h"
+#include "ashura/utf8string.h"
 #include "ashura/uuid.h"
 #include "ashura/widget.h"
 #include "ashura/widget_tree.h"
@@ -36,7 +37,6 @@ int main(int argc, char **argv)
 
   AppConfig cfg{.enable_validation_layers = false, .fonts = fonts, .pipelines = pipelines};
 
-  // TODO(lamarrr): slider layout reflow
   char const text[] = R"(
 1. بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
 2. الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ
@@ -47,6 +47,15 @@ int main(int argc, char **argv)
 7. صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ)";
 
   char const greeting[] = R"( ٱلسَّلَامُ عَلَيْكُمْ )";
+
+  stx::Vec<GridItem> items;
+  GridItem           items_tmp[] = {
+      {.column = 0, .column_span = 2, .row = 0, .row_span = 2},
+      {.column = 2, .column_span = 1, .row = 0, .row_span = 1},
+      {.column = 2, .column_span = 1, .row = 1, .row_span = 1},
+  };
+
+  items.extend(items_tmp).unwrap();
 
   RadioState state{8};
   App        app{std::move(cfg),
@@ -66,50 +75,25 @@ int main(int argc, char **argv)
                                                                                                               .foreground_color = material::BLACK,
                                                                                                               .background_color = colors::WHITE}}},
               CheckBox{},
-              Slider{stx::fn::rc::make_static([](Slider &slider, Context &ctx, f32 value) {
+              Slider{stx::fn::rc::make_unique_static([](Slider &slider, Context &ctx, f32 value) {
                 ctx.text_scale_factor = value * 5;
               })},
               Switch{},
               StatsWidget{},
               ProgressBar{},
-              Grid{GridProps{.columns = 3, .alignment = ALIGN_CENTER, .frame = SizeConstraint::absolute(500, 500)},
+              Grid{GridProps{.columns = 3, .rows = 2, .column_gap = 10, .row_gap = 10, .alignment = ALIGN_CENTER, .items = std::move(items), .frame = SizeConstraint::absolute(600, 400)},
                    Image{
                        ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
-                                         .border_radius  = BorderRadius::relative(1, 1, 1, 1),
                                          .aspect_ratio   = stx::Some(1.0f),
                                          .resize_on_load = true}},
                    Image{
                        ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
-                                         .border_radius  = BorderRadius::relative(1, 1, 1, 1),
                                          .aspect_ratio   = stx::Some(1.0f),
                                          .resize_on_load = true}},
                    Image{
                        ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
-                                         .border_radius  = BorderRadius::relative(1, 1, 1, 1),
                                          .aspect_ratio   = stx::Some(1.0f),
-                                         .resize_on_load = true}},
-                   Image{
-                       ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
-                                         .border_radius  = BorderRadius::relative(1, 1, 1, 1),
-                                         .aspect_ratio   = stx::Some(1.0f),
-                                         .resize_on_load = true}},
-                   Image{
-                       ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
-                                         .border_radius  = BorderRadius::relative(1, 1, 1, 1),
-                                         .aspect_ratio   = stx::Some(1.0f),
-                                         .resize_on_load = true}},
-                   Image{
-                       ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
-                                         .border_radius  = BorderRadius::relative(1, 1, 1, 1),
-                                         .aspect_ratio   = stx::Some(1.0f),
-                                         .resize_on_load = true}},
-                   Image{
-                       ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
-                                         .border_radius  = BorderRadius::relative(1, 1, 1, 1),
-                                         .aspect_ratio   = stx::Some(1.0f),
-                                         .resize_on_load = true}}
-
-              },
+                                         .resize_on_load = true}}},
               Stack{
                   StackProps{.alignment = ALIGN_BOTTOM_CENTER},
                   Box{
@@ -132,7 +116,7 @@ int main(int argc, char **argv)
                                                                        .foreground_color = colors::WHITE}}}}},
 
               Stack{
-                  StackProps{.alignment = ALIGN_TOP_LEFT},
+                  StackProps{.alignment = ALIGN_CENTER},
                   Box{
                       BoxProps{.background_color = material::GREEN_500.with_alpha(0xCC),
                                       .padding          = EdgeInsets::all(50),

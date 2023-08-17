@@ -24,6 +24,13 @@ static_assert(PUSH_CONSTANT_SIZE % 4 == 0);
 namespace gfx
 {
 
+struct ColorGradient
+{
+  color begin;
+  color end;
+  f32   direction = 0;
+};
+
 namespace paths
 {
 
@@ -52,7 +59,7 @@ inline stx::Span<vertex> arc(vec2 offset, f32 radius, f32 begin, f32 end, u32 ns
   for (u32 i = 0; i < nsegments; i++)
   {
     f32  angle = lerp(begin, end, AS(f32, i / (nsegments - 1)));
-    vec2 p     = radius + radius *vec2{std::cos(angle), std::sin(angle)};
+    vec2 p     = radius + radius * vec2{std::cos(angle), std::sin(angle)};
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -70,7 +77,7 @@ inline stx::Span<vertex> circle(vec2 offset, f32 radius, u32 nsegments, vec4 col
 
   for (u32 i = 0; i < nsegments; i++)
   {
-    vec2 p     = radius + radius *vec2{std::cos(i * step), std::sin(i * step)};
+    vec2 p     = radius + radius * vec2{std::cos(i * step), std::sin(i * step)};
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -88,7 +95,7 @@ inline stx::Span<vertex> ellipse(vec2 offset, vec2 radii, u32 nsegments, vec4 co
 
   for (u32 i = 0; i < nsegments; i++)
   {
-    vec2 p     = radii + radii *vec2{std::cos(i * step), std::sin(i * step)};
+    vec2 p     = radii + radii * vec2{std::cos(i * step), std::sin(i * step)};
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -115,7 +122,7 @@ inline stx::Span<vertex> round_rect(vec2 offset, vec2 extent, vec4 radii, u32 ns
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p     = (extent - radii.z) + radii.z *vec2{std::cos(segment * step), std::sin(segment * step)};
+    vec2 p     = (extent - radii.z) + radii.z * vec2{std::cos(segment * step), std::sin(segment * step)};
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -127,7 +134,7 @@ inline stx::Span<vertex> round_rect(vec2 offset, vec2 extent, vec4 radii, u32 ns
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p     = vec2{radii.w, extent.y - radii.w} + radii.w *vec2{std::cos(PI / 2 + segment * step), std::sin(PI / 2 + segment * step)};
+    vec2 p     = vec2{radii.w, extent.y - radii.w} + radii.w * vec2{std::cos(PI / 2 + segment * step), std::sin(PI / 2 + segment * step)};
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -139,7 +146,7 @@ inline stx::Span<vertex> round_rect(vec2 offset, vec2 extent, vec4 radii, u32 ns
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p     = radii.x + radii.x *vec2{std::cos(PI + segment * step), std::sin(PI + segment * step)};
+    vec2 p     = radii.x + radii.x * vec2{std::cos(PI + segment * step), std::sin(PI + segment * step)};
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -151,7 +158,7 @@ inline stx::Span<vertex> round_rect(vec2 offset, vec2 extent, vec4 radii, u32 ns
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    vec2 p     = vec2{extent.x - radii.y, radii.y} + radii.y *vec2{std::cos(PI * 3.0f / 2.0f + segment * step), std::sin(PI * 3.0f / 2.0f + segment * step)};
+    vec2 p     = vec2{extent.x - radii.y, radii.y} + radii.y * vec2{std::cos(PI * 3.0f / 2.0f + segment * step), std::sin(PI * 3.0f / 2.0f + segment * step)};
     polygon[i] = vertex{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -172,6 +179,7 @@ inline stx::Span<vertex> lerp_uvs(stx::Span<vertex> path, vec2 extent, texture_r
   return path;
 }
 
+// clipped rect
 }        // namespace paths
 
 /// outputs (n-2)*3 indices
@@ -850,6 +858,7 @@ struct Canvas
     save();
     state.local_transform = state.local_transform * translate2d(baseline);
 
+    // TODO(lamarrr): add offset to shadow scale? and let offset be from midpoint??
     rect grect;
     grect.offset = vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} * style.font_height * text_scale_factor + shaping.offset;
     grect.extent = glyph.metrics.extent * style.font_height * text_scale_factor;

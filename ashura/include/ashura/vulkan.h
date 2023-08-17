@@ -1396,6 +1396,7 @@ struct SwapChain
                                                    .dependencyCount = 1,
                                                    .pDependencies   = &dependency};
 
+    // we have an implicit render subpass since we specified the msaa sample count
     ASH_VK_CHECK(vkCreateRenderPass(dev, &render_pass_create_info, nullptr, &render_pass));
 
     for (usize i = 0; i < images.size(); i++)

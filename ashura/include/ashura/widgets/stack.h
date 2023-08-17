@@ -17,7 +17,7 @@ struct Stack : public Widget
 {
   template <WidgetImpl... DerivedWidget>
   explicit Stack(StackProps iprops, DerivedWidget... ichildren) :
-      props{iprops}
+      props{std::move(iprops)}
   {
     update_children(std::move(ichildren)...);
   }

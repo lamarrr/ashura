@@ -6,6 +6,7 @@
             "name": "libpng",
             "features": [ "apng" ]          
         },
+        "abseil",
         "fmt",
         "freetype",
         "harfbuzz",

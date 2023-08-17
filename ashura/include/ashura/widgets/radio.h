@@ -51,12 +51,12 @@ struct RadioProps
 template <typename RadioValue>
 struct Radio : public Widget
 {
-  using Callback = stx::RcFn<void(Radio &, Context &, RadioValue const &)>;
+  using Callback = stx::UniqueFn<void(Radio &, Context &, RadioValue const &)>;
 
   static void default_on_changed(Radio &, Context &, RadioValue const &)
   {}
 
-  Radio(RadioValue ivalue, RadioState<RadioValue> iradio_state, Callback ion_changed = stx::fn::rc::make_static(default_on_changed), RadioProps iprops = {}) :
+  Radio(RadioValue ivalue, RadioState<RadioValue> iradio_state, Callback ion_changed = stx::fn::rc::make_unique_static(default_on_changed), RadioProps iprops = {}) :
       on_changed{std::move(ion_changed)}, value{std::move(ivalue)}, state{std::move(iradio_state)}, props{iprops}
   {
     __restart_state_machine(state.data->value);
@@ -129,12 +129,12 @@ struct Radio : public Widget
     animation.restart(milliseconds{200}, milliseconds{200}, 1, false);
   }
 
+  Callback               on_changed;
   RadioValue             value;
   bool                   is_active = false;
   RadioState<RadioValue> state;
   RadioProps             props;
   Animation              animation;
-  Callback               on_changed;
 };
 
 }        // namespace ash

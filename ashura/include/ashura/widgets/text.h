@@ -26,7 +26,7 @@ struct Text : public Widget
 
   virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
   {
-    if (is_text_updated || text_layout.text_scale_factor != ctx.text_scale_factor)
+    if (is_layout_dirty || text_layout.text_scale_factor != ctx.text_scale_factor)
     {
       TextRun runs[] = {
           TextRun{.size = (usize) -1, .style = 0}};
@@ -43,7 +43,7 @@ struct Text : public Widget
       vec2 size = props.frame.resolve(allocated_size);
 
       text_layout.layout(text_block, ctx.text_scale_factor, ctx.font_bundle, size.x);
-      is_text_updated = false;
+      is_layout_dirty = false;
     }
 
     return text_layout.span;
@@ -73,13 +73,13 @@ struct Text : public Widget
   {
     text            = stx::string::make(stx::os_allocator, itext).unwrap();
     props           = iprops;
-    is_text_updated = true;
+    is_layout_dirty = true;
   }
 
   stx::String text;
   TextProps   props;
   TextLayout  text_layout;
-  bool        is_text_updated = true;
+  bool        is_layout_dirty = true;
 };
 
 }        // namespace ash

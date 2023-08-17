@@ -19,14 +19,14 @@ struct SliderProps
 
 struct Slider : public Widget
 {
-  using Callback = stx::RcFn<void(Slider &, Context &, f32)>;
+  using Callback = stx::UniqueFn<void(Slider &, Context &, f32)>;
 
   static void default_on_changed(Slider &, Context &, f32)
   {}
 
-  explicit Slider(Callback ion_changed      = stx::fn::rc::make_static(default_on_changed),
-                  Callback ion_change_start = stx::fn::rc::make_static(default_on_changed),
-                  Callback ion_change_end   = stx::fn::rc::make_static(default_on_changed),
+  explicit Slider(Callback ion_changed      = stx::fn::rc::make_unique_static(default_on_changed),
+                  Callback ion_change_start = stx::fn::rc::make_unique_static(default_on_changed),
+                  Callback ion_change_end   = stx::fn::rc::make_unique_static(default_on_changed),
                   f32 ivalue = 0, f32 imin = 0, f32 imax = 1,
                   SliderProps iprops = SliderProps{}) :
       on_changed{std::move(ion_changed)}, on_change_start{std::move(ion_change_start)}, on_change_end{std::move(ion_change_end)}, value{ivalue}, min{imin}, max{imax}, props{iprops}

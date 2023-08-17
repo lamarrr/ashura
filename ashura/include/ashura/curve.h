@@ -65,13 +65,13 @@ struct Quadratic final : public Curve
 struct Cubic final : public Curve
 {};
 
-struct Bezier final : public Curve
+struct QuadraticBezier final : public Curve
 {
   f32 p0 = 0;
-  f32 p1 = 1;
-  f32 p2 = 2;
+  f32 p1 = 0;
+  f32 p2 = 0;
 
-  virtual ~Bezier() override
+  virtual ~QuadraticBezier() override
   {}
 
   virtual f32 operator()(f32 t) override
@@ -79,6 +79,7 @@ struct Bezier final : public Curve
     return lerp(lerp(p0, p1, t), lerp(p1, p2, t), t);
   }
 };
+// TODO(lamarrr): Splines, Bezier Curves, Hermite Curves, Catmull-Rom curves, B-Spline
 
 struct Spline final : public Curve
 {};
