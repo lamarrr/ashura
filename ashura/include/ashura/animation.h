@@ -33,32 +33,35 @@ enum class AnimationCfg : u8
 
 STX_DEFINE_ENUM_BIT_OPS(AnimationCfg)
 
-/// higher spead means faster time to completion than specified duration
+// TODO(lamarrr): support CSS-like Animation Keyframes?
+
 struct Animation
 {
-  nanoseconds  duration        = milliseconds{256};
-  u64          iterations      = 1;
-  AnimationCfg cfg             = AnimationCfg::Default;
-  f32          speed           = 1;
-  nanoseconds  passed_duration = nanoseconds{0};
-  u64          iterations_done = 0;
-  f32          t               = 0;
+  nanoseconds  duration   = milliseconds{256};
+  u64          iterations = 1;
+  AnimationCfg cfg        = AnimationCfg::Default;
+  f64          speed      = 1;        // higher spead means faster time to completion than specified duration
 
-  void restart(nanoseconds duration, u64 iterations, AnimationCfg cfg, f32 speed)
+  nanoseconds elapsed_duration = nanoseconds{0};
+  u64         iterations_done  = 0;
+  f64         t                = 0;
+
+  void restart(nanoseconds duration, u64 iterations, AnimationCfg cfg, f64 speed)
   {
     ASH_CHECK(duration.count() > 0);
     ASH_CHECK(speed >= 0);
-    this->duration        = duration;
-    this->iterations      = iterations;
-    this->cfg             = cfg;
-    this->speed           = 1;
-    this->iterations_done = 0;
-    this->t               = 0;
+    this->duration         = duration;
+    this->iterations       = iterations;
+    this->cfg              = cfg;
+    this->speed            = 1;
+    this->elapsed_duration = nanoseconds{0};
+    this->iterations_done  = 0;
+    this->t                = 0;
   }
 
   constexpr AnimationState get_state() const
   {
-    if (epsilon_equal(t, 1) && !loop && iterations_done >= target_iterations)
+    if (((cfg & AnimationCfg::Loop) != AnimationCfg::Loop) && iterations_done >= iterations)
     {
       return AnimationState::Completed;
     }
@@ -72,97 +75,55 @@ struct Animation
     }
   }
 
-  /// pause the animation
   constexpr void pause()
   {
     speed = 0;
   }
 
-  /// resume the animation
   constexpr void resume()
   {
-    if (epsilon_equal(speed, 0))
-    {
-      speed = 1;
-    }
+    speed = 1;
   }
 
-  /// drive the current animation iteration to completion
-  constexpr void finish()
+  constexpr void complete()
   {
-    switch (direction)
-    {
-      case AnimationDirection::Forward:
-        t = 1;
-        break;
-
-      case AnimationDirection::Backward:
-        t = 0;
-        break;
-    }
-  }
-
-  constexpr bool is_completed() const
-  {
-    return (!loop) && get_state() == AnimationState::Completed;
+    cfg &= ~AnimationCfg::Loop;
+    iterations_done = iterations;
+    t               = ((cfg & AnimationCfg::Alternate) == AnimationCfg::Alternate) ? (((iterations % 2) == 0) ? 0.0 : 1.0) : 1.0;
   }
 
   void tick(nanoseconds interval)
   {
-    if (is_completed())
+    if (get_state() == AnimationState::Completed)
     {
       return;
     }
 
-    nanoseconds step_duration = nanoseconds{(i64) ((f64) interval.count() * (f64) speed)};
-    passed_duration += step_duration;
+    nanoseconds const tick_duration          = nanoseconds{(i64) ((f64) interval.count() * (f64) speed)};
+    nanoseconds const total_elapsed_duration = elapsed_duration + tick_duration;
+    f64 const         t_total                = (((f64) total_elapsed_duration.count()) / (f64) duration.count());
+    u64 const         t_iterations           = (u64) t_total;
 
-    if (((cfg & AnimationCfg::Loop) != AnimationCfg::Loop) || iterations >= iterations_done)
+    if (((cfg & AnimationCfg::Loop) != AnimationCfg::Loop) && t_iterations >= iterations)
     {
-      return;
-    }
-
-    f32 const t_step          = (((f32) interval.count()) / (f32) duration.count()) * speed;
-    u64 const step_iterations = (u64) t_step;
-
-    if (alternate)
-    {
-      bool const is_even = (step_iterations % 2) == 0;
-      if (is_even)
-      {
-        direction = (direction == AnimationDirection::Forward) ? AnimationDirection::Backward : AnimationDirection::Forward;
-      }
+      elapsed_duration = total_elapsed_duration;
+      iterations_done  = iterations;
+      t                = ((cfg & AnimationCfg::Alternate) == AnimationCfg::Alternate) ? (((iterations % 2) == 0) ? 0.0 : 1.0) : 1.0;
     }
     else
     {
-    }
-
-    if (iterations_done + step_iterations >= target_iterations)
-    {
-      finish();
-      iterations_done = target_iterations;
-    }
-    else
-    {
-      // switch (direction)
-      // {
-      //   case AnimationDirection::Forward:
-      //     t = std::min(t + step, 1.0f);
-      //     break;
-      //
-      //   case AnimationDirection::Backward:
-      //     t = std::max(t - step, 0.0f);
-      //     break;
-      // }
-      iterations_done += step_iterations;
-      t = next_t;
+      f64 const t_unsigned = t_total - (f64) t_iterations;
+      f64 const t_signed   = ((cfg & AnimationCfg::Alternate) == AnimationCfg::Alternate) ? ((t_iterations % 2) == 0 ? t_unsigned : (1.0 - t_unsigned)) : t_unsigned;
+      elapsed_duration     = total_elapsed_duration;
+      iterations_done      = t_iterations;
+      t                    = t_signed;
     }
   }
 
   template <typename T>
   T animate(Curve &curve, Tween<T> const &tween) const
   {
-    return tween.lerp(curve(t));
+    return tween.lerp(curve((f32) t));
   }
 };
 

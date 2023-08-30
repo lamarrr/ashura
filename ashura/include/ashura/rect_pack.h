@@ -548,7 +548,7 @@ inline bool pack_rects(Context &ctx, rect *rects, i32 num_rects)
   }
 
   // sort according to heuristic
-  std::qsort(rects, num_rects, sizeof(rects[0]), rect_height_compare);
+  std::qsort(rects, (usize) num_rects, sizeof(rects[0]), rect_height_compare);
 
   for (i32 i = 0; i < num_rects; ++i)
   {

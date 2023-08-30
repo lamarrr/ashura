@@ -127,7 +127,7 @@ struct Grid : public Widget
         span_gap.y = props.row_gap * (f32) (item.row_span - 1);
       }
 
-      children_allocation[i] = cell_size *vec2{(f32) item.column_span, (f32) item.row_span} + span_gap;
+      children_allocation[i] = cell_size * vec2{(f32) item.column_span, (f32) item.row_span} + span_gap;
     }
   }
 

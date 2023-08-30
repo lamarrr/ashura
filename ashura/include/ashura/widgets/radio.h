@@ -10,11 +10,6 @@
 
 namespace ash
 {
-template <typename RadioValue>
-struct RadioStateData
-{
-  RadioValue value;
-};
 
 template <typename RadioValue>
 struct RadioState
@@ -22,7 +17,7 @@ struct RadioState
   static_assert(stx::equality_comparable<RadioValue>);
 
   explicit RadioState(RadioValue value) :
-      data{stx::rc::make(stx::os_allocator, RadioStateData{.value = std::move(value)}).unwrap()}
+      data{stx::rc::make(stx::os_allocator, std::move(value)).unwrap()}
   {}
 
   RadioState(RadioState const &other) :
@@ -37,7 +32,7 @@ struct RadioState
 
   STX_DEFAULT_MOVE(RadioState)
 
-  stx::Rc<RadioStateData<RadioValue> *> data;
+  stx::Rc<RadioValue *> data;
 };
 
 struct RadioProps
@@ -59,7 +54,7 @@ struct Radio : public Widget
   Radio(RadioValue ivalue, RadioState<RadioValue> iradio_state, Callback ion_changed = stx::fn::rc::make_unique_static(default_on_changed), RadioProps iprops = {}) :
       on_changed{std::move(ion_changed)}, value{std::move(ivalue)}, state{std::move(iradio_state)}, props{iprops}
   {
-    __restart_state_machine(state.data->value);
+    __restart_state_machine(*state.data);
   }
 
   STX_DEFAULT_MOVE(Radio)
@@ -76,15 +71,15 @@ struct Radio : public Widget
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
-    if (state.data->value == value && !is_active)
+    if (*state.data == value && !is_active)
     {
-      on_changed.handle(*this, ctx, state.data->value);
-      __restart_state_machine(state.data->value);
+      on_changed.handle(*this, ctx, *state.data);
+      __restart_state_machine(*state.data);
     }
-    else if (state.data->value != value && is_active)
+    else if (*state.data != value && is_active)
     {
-      on_changed.handle(*this, ctx, state.data->value);
-      __restart_state_machine(state.data->value);
+      on_changed.handle(*this, ctx, *state.data);
+      __restart_state_machine(*state.data);
     }
 
     animation.tick(interval);
@@ -111,7 +106,7 @@ struct Radio : public Widget
   {
     if (button == MouseButton::Primary && !props.disabled)
     {
-      state.data->value = value;
+      *state.data = value;
     }
   }
 
@@ -126,7 +121,7 @@ struct Radio : public Widget
       is_active = false;
     }
 
-    animation.restart(milliseconds{200}, milliseconds{200}, 1, false);
+    animation.restart(milliseconds{200}, 1, AnimationCfg::Default, 1);
   }
 
   Callback               on_changed;

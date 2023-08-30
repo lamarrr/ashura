@@ -139,7 +139,7 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_file(stx::CStr
   ASH_CHECK(file_size >= 0);
 
   stx::Vec<u8> data;
-  data.unsafe_resize_uninitialized(file_size).unwrap();
+  data.unsafe_resize_uninitialized((usize) file_size).unwrap();
 
   ASH_CHECK(std::fseek(file, 0, SEEK_SET) == 0);
 

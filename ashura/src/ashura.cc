@@ -13,6 +13,7 @@
 #include "ashura/widgets/padding.h"
 #include "ashura/widgets/progress_bar.h"
 #include "ashura/widgets/radio.h"
+#include "ashura/widgets/scroll_box.h"
 #include "ashura/widgets/slider.h"
 #include "ashura/widgets/stack.h"
 #include "ashura/widgets/stats.h"
@@ -114,13 +115,13 @@ int main(int argc, char **argv)
                                       .border_radius    = BorderRadius::absolute(7.5f)},
                       Text{"LIVE", TextProps{.style = TextStyle{.font_height      = 15,
                                                                        .foreground_color = colors::WHITE}}}}},
-
               Stack{
                   StackProps{.alignment = ALIGN_CENTER},
                   Box{
-                      BoxProps{.background_color = material::GREEN_500.with_alpha(0xCC),
-                                      .padding          = EdgeInsets::all(50),
-                                      .border_radius    = BorderRadius::absolute(7.5f)},
+                      BoxProps{
+                                 .background_gradient = LinearColorGradient{.begin = material::GREEN_500, .end = material::GREEN_500.with_alpha(10), .angle = 0},
+                                 .padding             = EdgeInsets::all(50),
+                                 .border_radius       = BorderRadius::absolute(7.5f)},
                       Text{"FE!N FE!N FE!N FE!N FE!N", TextProps{.style = TextStyle{.foreground_color = colors::WHITE},
                                                                         .frame = SizeConstraint::relative(1, 1)}}},
                   Padding{
@@ -129,7 +130,8 @@ int main(int argc, char **argv)
                                           .padding          = EdgeInsets::all(5),
                                           .border_thickness = 5,
                                           .border_color     = colors::BLACK,
-                                          .border_radius    = BorderRadius::absolute(7.5f)},
+                                          .border_radius    = BorderRadius::absolute(7.5f),
+                                          .corner_shape     = BoxCornerShape::Bevel},
                           Text{"For You", TextProps{.style = TextStyle{.foreground_color = colors::WHITE}}}}}},
               Box{BoxProps{.background_color = color::from_rgb(0x33, 0x33, 0x33),
                                   .padding          = EdgeInsets::all(5),
@@ -221,10 +223,10 @@ int main(int argc, char **argv)
                                                        .background_color = material::GRAY_100}}},
               Text{"explicit", TextProps{.style = TextStyle{.font             = "MaterialIcons",
                                                                    .foreground_color = colors::GREEN}}},
-              Image{ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\wallpaperflare.com_wallpaper.jpg)"},
-                                      .border_radius  = BorderRadius::relative(.25f, .25f, .25f, .25f),
-                                      .aspect_ratio   = stx::Some(2.0f),
-                                      .resize_on_load = true}}}};
+              ScrollBox{ScrollBoxProps{}, Image{ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\wallpaperflare.com_wallpaper.jpg)"},
+                                                                  .border_radius  = BorderRadius::relative(.25f, .25f, .25f, .25f),
+                                                                  .aspect_ratio   = stx::Some(2.0f),
+                                                                  .resize_on_load = true}}}}};
 
   timepoint last_tick = Clock::now();
   while (true)

@@ -10,34 +10,6 @@
 namespace ash
 {
 
-enum class Direction : u8
-{
-  H,        /// Horizontal
-  V         /// Vertical
-};
-
-enum class Wrap : u8
-{
-  None,
-  Wrap
-};
-
-enum class MainAlign : u8
-{
-  Start,
-  End,
-  SpaceBetween,
-  SpaceAround,
-  SpaceEvenly
-};
-
-enum class CrossAlign : u8
-{
-  Start,
-  End,
-  Center
-};
-
 struct FlexProps
 {
   Direction      direction   = Direction::H;                          // flex direction to layout children along

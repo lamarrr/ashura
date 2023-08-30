@@ -79,7 +79,6 @@ struct Slider : public Widget
     return stx::Some(DragData{.type = "STUB", .data = stx::Unique{stx::Span<u8 const>{}, stx::manager_stub}});
   }
 
-  // TODO(lamarrr): mouse_position is already **inverted** by global zoom and pan matrix???
   virtual void on_drag_update(Context &ctx, vec2 mouse_position, vec2 translation, DragData const &drag_data) override
   {
     on_change_start.handle(*this, ctx, value);
@@ -101,7 +100,7 @@ struct Slider : public Widget
   void __transition_radius(f32 from, f32 to)
   {
     thumb_tween = Tween{from, to};
-    thumb_animation.restart(milliseconds{200}, milliseconds{200}, 1, false);
+    thumb_animation.restart(milliseconds{200}, 1, AnimationCfg::Default, 1);
   }
 
   Callback    on_changed;

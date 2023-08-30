@@ -27,7 +27,7 @@ inline void generate_sdf_from_mono(u8 const *const src, u32 const src_pitch, u32
 
       if (isrc >= 0 && isrc < height && jsrc >= 0 && jsrc < width) [[likely]]
       {
-        is_inside = (src[isrc * src_pitch + (jsrc / 8)] >> (7 - (jsrc % 8))) & 1;
+        is_inside = (src[isrc * src_pitch + (jsrc / 8)] >> (7 - (jsrc % 8))) & 1U;
       }
 
       // the squared distance to the nearest neigbor that has a different position along the shape
@@ -37,7 +37,7 @@ inline void generate_sdf_from_mono(u8 const *const src, u32 const src_pitch, u32
       {
         for (i64 jfield = std::max(jsrc - sdf_spread, (i64) 0); jfield < std::min(jsrc + sdf_spread + 1, (i64) width); jfield++)
         {
-          u8 const neighbor_is_inside = (src[ifield * src_pitch + (jfield / 8)] >> (7 - (jfield % 8))) & 1;
+          u8 const neighbor_is_inside = (src[ifield * src_pitch + (jfield / 8)] >> (7 - (jfield % 8))) & 1U;
           if (neighbor_is_inside != is_inside) [[likely]]
           {
             i64 const neighbor_square_distance = (ifield - isrc) * (ifield - isrc) + (jfield - jsrc) * (jfield - jsrc);

@@ -71,7 +71,7 @@ struct Switch : public Widget
     if (button == MouseButton::Primary)
     {
       state = !state;
-      animation.restart(milliseconds{200}, milliseconds{200}, 1, false);
+      animation.restart(milliseconds{200}, 1, AnimationCfg::Default, 1);
       on_changed.handle(*this, ctx, state);
     }
   }

@@ -881,19 +881,19 @@ constexpr f32 determinant(mat4 const &a)
 
 constexpr vec2 transform3d(mat4 const &a, vec2 const &b)
 {
-  vec4 prod = a *vec4{b.x, b.y, 0, 1};
+  vec4 prod = a * vec4{b.x, b.y, 0, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
 constexpr vec2 transform3d(mat4 const &a, vec3 const &b)
 {
-  vec4 prod = a *vec4{b.x, b.y, b.z, 1};
+  vec4 prod = a * vec4{b.x, b.y, b.z, 1};
   return vec2{.x = prod.x, .y = prod.y};
 }
 
 constexpr vec2 transform2d(mat3 const &a, vec2 const &b)
 {
-  vec3 prod = a *vec3{b.x, b.y, 1};
+  vec3 prod = a * vec3{b.x, b.y, 1};
   return vec2{prod.x, prod.y};
 }
 
@@ -1353,7 +1353,7 @@ struct color
     return !is_transparent();
   }
 
-  constexpr vec4 to_vec() const
+  constexpr vec4 to_normalized_vec() const
   {
     return vec4{.x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
   }
@@ -1372,10 +1372,10 @@ constexpr bool operator!=(color a, color b)
 template <>
 constexpr color lerp<color>(color const &a, color const &b, f32 t)
 {
-  return color{.r = AS(u8, std::clamp<i64>(lerp<i64>(a.r, b.r, t), 0, 255)),
-               .g = AS(u8, std::clamp<i64>(lerp<i64>(a.g, b.g, t), 0, 255)),
-               .b = AS(u8, std::clamp<i64>(lerp<i64>(a.b, b.b, t), 0, 255)),
-               .a = AS(u8, std::clamp<i64>(lerp<i64>(a.a, b.a, t), 0, 255))};
+  return color{.r = AS(u8, std::clamp<f32>(lerp<f32>(a.r, b.r, t), 0, 255)),
+               .g = AS(u8, std::clamp<f32>(lerp<f32>(a.g, b.g, t), 0, 255)),
+               .b = AS(u8, std::clamp<f32>(lerp<f32>(a.b, b.b, t), 0, 255)),
+               .a = AS(u8, std::clamp<f32>(lerp<f32>(a.a, b.a, t), 0, 255))};
 }
 
 namespace colors
@@ -1476,18 +1476,6 @@ constexpr bool operator!=(EdgeInsets const &a, EdgeInsets const &b)
   return a.left != b.left || a.top != b.top || a.right != b.right || a.bottom != b.bottom;
 }
 
-using Alignment = vec2;
-
-constexpr Alignment ALIGN_TOP_LEFT      = Alignment{0, 0};
-constexpr Alignment ALIGN_TOP_CENTER    = Alignment{0.5f, 0};
-constexpr Alignment ALIGN_TOP_RIGHT     = Alignment{1, 0};
-constexpr Alignment ALIGN_LEFT_CENTER   = Alignment{0, 0.5f};
-constexpr Alignment ALIGN_CENTER        = Alignment{0.5f, 0.5f};
-constexpr Alignment ALIGN_RIGHT_CENTER  = Alignment{1, 0.5f};
-constexpr Alignment ALIGN_BOTTOM_LEFT   = Alignment{0, 1};
-constexpr Alignment ALIGN_BOTTOM_CENTER = Alignment{0.5f, 1};
-constexpr Alignment ALIGN_BOTTOM_RIGHT  = Alignment{1, 1};
-
 struct Slice
 {
   usize offset = 0;
@@ -1503,5 +1491,62 @@ constexpr vec2 max(vec2 a, vec2 b)
 {
   return vec2{std::max(a.x, b.x), std::max(a.y, b.y)};
 }
+
+enum class Direction : u8
+{
+  H,        /// Horizontal
+  V         /// Vertical
+};
+
+enum class Wrap : u8
+{
+  None,
+  Wrap
+};
+
+using Alignment = vec2;
+
+constexpr Alignment ALIGN_TOP_LEFT      = vec2{0, 0};
+constexpr Alignment ALIGN_TOP_CENTER    = vec2{0.5f, 0};
+constexpr Alignment ALIGN_TOP_RIGHT     = vec2{1, 0};
+constexpr Alignment ALIGN_LEFT_CENTER   = vec2{0, 0.5f};
+constexpr Alignment ALIGN_CENTER        = vec2{0.5f, 0.5f};
+constexpr Alignment ALIGN_RIGHT_CENTER  = vec2{1, 0.5f};
+constexpr Alignment ALIGN_BOTTOM_LEFT   = vec2{0, 1};
+constexpr Alignment ALIGN_BOTTOM_CENTER = vec2{0.5f, 1};
+constexpr Alignment ALIGN_BOTTOM_RIGHT  = vec2{1, 1};
+
+enum class MainAlign : u8
+{
+  Start,
+  End,
+  SpaceBetween,
+  SpaceAround,
+  SpaceEvenly
+};
+
+enum class CrossAlign : u8
+{
+  Start,
+  End,
+  Center
+};
+
+struct LinearColorGradient
+{
+  color begin, end;
+  f32   angle = 0;
+
+  constexpr bool is_uniform() const
+  {
+    return begin == end;
+  }
+
+  color resolve(vec2 p) const
+  {
+    f32 const t = p.x * std::cos(ASH_TO_RADIANS(angle)) + p.y * std::sin(ASH_TO_RADIANS(angle));
+    return lerp(begin, end, t);
+  }
+};
 
 }        // namespace ash

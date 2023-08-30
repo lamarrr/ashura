@@ -7,6 +7,7 @@
 namespace ash
 {
 
+// TODO(lamarrr): hover color
 struct CheckBoxProps
 {
   color box_color         = material::BLUE_A700;
@@ -41,9 +42,9 @@ struct CheckBox : public Widget
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     vertex checkmark_path[] = {
-        {.position = {0.125f, 0.5f}, .color = props.checkmark_color.to_vec()},
-        {.position = {0.374f, 0.75f}, .color = props.checkmark_color.to_vec()},
-        {.position = {0.775f, 0.25f}, .color = props.checkmark_color.to_vec()}};
+        {.position = {0.125f, 0.5f}, .color = props.checkmark_color.to_normalized_vec()},
+        {.position = {0.374f, 0.75f}, .color = props.checkmark_color.to_normalized_vec()},
+        {.position = {0.775f, 0.25f}, .color = props.checkmark_color.to_normalized_vec()}};
 
     if (value)
     {

@@ -611,7 +611,7 @@ struct CanvasPipelineManager
     ASH_VK_CHECK(vkCreateDescriptorSetLayout(dev, &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout));
   }
 
-  gfx::pipeline add_pipeline(CanvasPipelineSpec const &spec)
+  void add_pipeline(CanvasPipelineSpec const &spec)
   {
     VkShaderModule           vertex_shader;
     VkShaderModuleCreateInfo vertex_shader_module_create_info{

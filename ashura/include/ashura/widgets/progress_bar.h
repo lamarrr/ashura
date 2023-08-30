@@ -1,18 +1,5 @@
 
 
-// TODO:
-// tooltip
-// repeat click hold down
-// input int32, int64 with (- +)
-// input vec4, vec3, vec2, f32, mat4, mat3
-// drag *
-// slider *
-// tooltips with widget rendering onto them
-// progress bar
-// color pickers
-//
-// GRADIENT!
-//
 #pragma once
 
 #include "ashura/animation.h"
@@ -35,7 +22,7 @@ struct ProgressBar : public Widget
   explicit ProgressBar(ProgressBarProps iprops = {}, f32 initial_value = 0) :
       props{iprops}, value{initial_value}
   {
-    animation.restart(milliseconds{500}, milliseconds{500}, stx::USIZE_MAX, false);
+    animation.restart(milliseconds{500}, 0, AnimationCfg::Loop | AnimationCfg::Alternate, 1);
   }
 
   STX_DISABLE_COPY(ProgressBar)

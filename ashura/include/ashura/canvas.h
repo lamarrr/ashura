@@ -24,26 +24,17 @@ static_assert(PUSH_CONSTANT_SIZE % 4 == 0);
 namespace gfx
 {
 
-struct ColorGradient
-{
-  color begin;
-  color end;
-  f32   direction = 0;
-};
-
 namespace paths
 {
 
 inline stx::Span<vertex> rect(vec2 offset, vec2 extent, vec4 color, stx::Span<vertex> polygon)
 {
-  vertex vertices[] = {{.position = offset, .uv = {}, .color = color},
-                       {.position = offset + vec2{extent.x, 0}, .uv = {}, .color = color},
-                       {.position = offset + extent, .uv = {}, .color = color},
-                       {.position = offset + vec2{0, extent.y}, .uv = {}, .color = color}};
+  vertex const vertices[] = {{.position = offset, .uv = {}, .color = color},
+                             {.position = offset + vec2{extent.x, 0}, .uv = {}, .color = color},
+                             {.position = offset + extent, .uv = {}, .color = color},
+                             {.position = offset + vec2{0, extent.y}, .uv = {}, .color = color}};
 
-  polygon.copy(vertices);
-
-  return polygon;
+  return polygon.copy(vertices);
 }
 
 inline stx::Span<vertex> arc(vec2 offset, f32 radius, f32 begin, f32 end, u32 nsegments, vec4 color, stx::Span<vertex> polygon)
@@ -167,6 +158,28 @@ inline stx::Span<vertex> round_rect(vec2 offset, vec2 extent, vec4 radii, u32 ns
   return polygon;
 }
 
+inline stx::Span<vertex> bevel_rect(vec2 offset, vec2 extent, vec4 radii, vec4 color, stx::Span<vertex> polygon)
+{
+  f32 max_radius   = std::min(extent.x, extent.y);
+  radii.x          = std::min(radii.x, max_radius);
+  radii.y          = std::min(radii.y, max_radius - radii.x);
+  f32 max_radius_z = std::min(max_radius - radii.x, max_radius - radii.y);
+  radii.z          = std::min(radii.z, max_radius_z);
+  f32 max_radius_w = std::min(max_radius_z, max_radius - radii.z);
+  radii.w          = std::min(radii.w, max_radius_w);
+
+  vertex const vertices[] = {{.position = offset + vec2{radii.x, 0}, .uv = {}, .color = color},
+                             {.position = offset + vec2{extent.x - radii.y, 0}, .uv = {}, .color = color},
+                             {.position = offset + vec2{extent.x, radii.y}, .uv = {}, .color = color},
+                             {.position = offset + vec2{extent.x, extent.y - radii.z}, .uv = {}, .color = color},
+                             {.position = offset + vec2{extent.x - radii.z, extent.y}, .uv = {}, .color = color},
+                             {.position = offset + vec2{radii.w, extent.y}, .uv = {}, .color = color},
+                             {.position = offset + vec2{0, extent.y - radii.w}, .uv = {}, .color = color},
+                             {.position = offset + vec2{0, radii.x}, .uv = {}, .color = color}};
+
+  return polygon.copy(vertices);
+}
+
 inline stx::Span<vertex> lerp_uvs(stx::Span<vertex> path, vec2 extent, texture_rect texture_region)
 {
   for (vertex &v : path)
@@ -179,7 +192,26 @@ inline stx::Span<vertex> lerp_uvs(stx::Span<vertex> path, vec2 extent, texture_r
   return path;
 }
 
-// clipped rect
+inline stx::Span<vertex> lerp_color_gradient(stx::Span<vertex> path, vec2 extent, LinearColorGradient gradient)
+{
+  if (gradient.is_uniform())
+  {
+    return path;
+  }
+
+  f32 const x = std::cos(ASH_TO_RADIANS(gradient.angle));
+  f32 const y = std::sin(ASH_TO_RADIANS(gradient.angle));
+
+  for (vertex &v : path)
+  {
+    vec2 const p = v.position / extent;
+    f32 const  t = p.x * x + p.y * y;
+    v.color      = lerp(gradient.begin, gradient.end, t).to_normalized_vec();
+  }
+
+  return path;
+}
+
 }        // namespace paths
 
 /// outputs (n-2)*3 indices
@@ -537,7 +569,7 @@ struct Canvas
   {
     draw_list.clear();
 
-    vec4 color = clear_color.to_vec();
+    vec4 color = clear_color.to_normalized_vec();
 
     vertex vertices[] = {{.position = {0, 0}, .uv = {0, 0}, .color = color},
                          {.position = {viewport_extent.x, 0}, .uv = {1, 0}, .color = color},
@@ -641,15 +673,21 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_rect_filled(rect area, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_rect_filled(rect area, color color, LinearColorGradient gradient = {}, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     if (!viewport_contains(area))
     {
       return *this;
     }
 
-    paths::lerp_uvs(paths::rect(vec2{0, 0}, area.extent, color.to_vec(), reserve_convex_polygon(4, area.offset, texture)),
-                    area.extent, texture_region);
+    paths::lerp_color_gradient(paths::lerp_uvs(paths::rect(vec2{0, 0},
+                                                           area.extent,
+                                                           color.to_normalized_vec(),
+                                                           reserve_convex_polygon(4, area.offset, texture)),
+                                               area.extent,
+                                               texture_region),
+                               area.extent,
+                               gradient);
 
     return *this;
   }
@@ -663,12 +701,12 @@ struct Canvas
 
     vertex line[4];
 
-    paths::rect(vec2::splat(thickness / 2), area.extent - thickness, color.to_vec(), line);
+    paths::rect(vec2::splat(thickness / 2), area.extent - thickness, color.to_normalized_vec(), line);
 
     return draw_path(line, area.offset, area.extent, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_circle_filled(vec2 center, f32 radius, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_circle_filled(vec2 center, f32 radius, u32 nsegments, color color, LinearColorGradient gradient = {}, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     vec2 position = center - radius;
     rect area{.offset = position, .extent = vec2::splat(2 * radius)};
@@ -678,8 +716,9 @@ struct Canvas
       return *this;
     }
 
-    paths::lerp_uvs(paths::circle(vec2{0, 0}, radius, nsegments, color.to_vec(), reserve_convex_polygon(nsegments, position, texture)),
-                    area.extent, texture_region);
+    paths::lerp_color_gradient(paths::lerp_uvs(paths::circle(vec2{0, 0}, radius, nsegments, color.to_normalized_vec(), reserve_convex_polygon(nsegments, position, texture)),
+                                               area.extent, texture_region),
+                               area.extent, gradient);
 
     return *this;
   }
@@ -696,7 +735,7 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    paths::circle(vec2::splat(thickness / 2), radius, nsegments, color.to_vec(), scratch);
+    paths::circle(vec2::splat(thickness / 2), radius, nsegments, color.to_normalized_vec(), scratch);
 
     return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
   }
@@ -711,14 +750,14 @@ struct Canvas
       return *this;
     }
 
-    paths::lerp_uvs(paths::arc(vec2::splat(thickness / 2), radius, begin, end, nsegments, color.to_vec(),
+    paths::lerp_uvs(paths::arc(vec2::splat(thickness / 2), radius, begin, end, nsegments, color.to_normalized_vec(),
                                reserve_convex_polygon(nsegments, position, texture)),
                     area.extent, texture_region);
 
     return *this;
   }
 
-  Canvas &draw_ellipse_filled(vec2 center, vec2 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_ellipse_filled(vec2 center, vec2 radii, u32 nsegments, color color, LinearColorGradient gradient = {}, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     vec2 position = center - radii;
     rect area{.offset = position, .extent = 2 * radii};
@@ -728,8 +767,9 @@ struct Canvas
       return *this;
     }
 
-    paths::lerp_uvs(paths::ellipse(vec2{0, 0}, radii, nsegments, color.to_vec(), reserve_convex_polygon(nsegments, area.offset, texture)),
-                    area.extent, texture_region);
+    paths::lerp_color_gradient(paths::lerp_uvs(paths::ellipse(vec2{0, 0}, radii, nsegments, color.to_normalized_vec(), reserve_convex_polygon(nsegments, area.offset, texture)),
+                                               area.extent, texture_region),
+                               area.extent, gradient);
 
     return *this;
   }
@@ -746,20 +786,21 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    paths::ellipse(vec2::splat(thickness / 2), radii - thickness, nsegments, color.to_vec(), scratch);
+    paths::ellipse(vec2::splat(thickness / 2), radii - thickness, nsegments, color.to_normalized_vec(), scratch);
 
     return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_round_rect_filled(rect area, vec4 radii, u32 nsegments, color color, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_round_rect_filled(rect area, vec4 radii, u32 nsegments, color color, LinearColorGradient gradient = {}, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     if (!viewport_contains(area))
     {
       return *this;
     }
 
-    paths::lerp_uvs(paths::round_rect(vec2{0, 0}, area.extent, radii, nsegments, color.to_vec(), reserve_convex_polygon(nsegments * 4 + 8, area.offset, texture)),
-                    area.extent, texture_region);
+    paths::lerp_color_gradient(paths::lerp_uvs(paths::round_rect(vec2{0, 0}, area.extent, radii, nsegments, color.to_normalized_vec(), reserve_convex_polygon(nsegments * 4 + 8, area.offset, texture)),
+                                               area.extent, texture_region),
+                               area.extent, gradient);
 
     return *this;
   }
@@ -773,7 +814,35 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments * 4 + 8).unwrap();
 
-    paths::round_rect(vec2::splat(thickness / 2), area.extent - thickness, radii, nsegments, color.to_vec(), scratch);
+    paths::round_rect(vec2::splat(thickness / 2), area.extent - thickness, radii, nsegments, color.to_normalized_vec(), scratch);
+
+    return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
+  }
+
+  Canvas &draw_bevel_rect_filled(rect area, vec4 radii, color color, LinearColorGradient gradient = {}, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  {
+    if (!viewport_contains(area))
+    {
+      return *this;
+    }
+
+    paths::lerp_color_gradient(paths::lerp_uvs(paths::bevel_rect(vec2{0, 0}, area.extent, radii, color.to_normalized_vec(), reserve_convex_polygon(8, area.offset, texture)),
+                                               area.extent, texture_region),
+                               area.extent, gradient);
+
+    return *this;
+  }
+
+  Canvas &draw_bevel_rect_stroke(rect area, vec4 radii, color color, f32 thickness, image texture = WHITE_IMAGE, texture_rect texture_region = texture_rect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  {
+    if (!viewport_contains(area) || thickness == 0)
+    {
+      return *this;
+    }
+
+    scratch.unsafe_resize_uninitialized(8).unwrap();
+
+    paths::bevel_rect(vec2::splat(thickness / 2), area.extent - thickness, radii, color.to_normalized_vec(), scratch);
 
     return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
   }
@@ -785,7 +854,7 @@ struct Canvas
       return *this;
     }
 
-    paths::lerp_uvs(paths::rect(vec2{0, 0}, area.extent, tint.to_vec(), reserve_convex_polygon(4, area.offset, img)),
+    paths::lerp_uvs(paths::rect(vec2{0, 0}, area.extent, tint.to_normalized_vec(), reserve_convex_polygon(4, area.offset, img)),
                     area.extent, texture_region);
 
     return *this;
@@ -803,7 +872,7 @@ struct Canvas
       return *this;
     }
 
-    paths::lerp_uvs(paths::round_rect(vec2{0, 0}, area.extent, border_radii, nsegments, tint.to_vec(), reserve_convex_polygon(nsegments * 4 + 8, area.offset, img)),
+    paths::lerp_uvs(paths::round_rect(vec2{0, 0}, area.extent, border_radii, nsegments, tint.to_normalized_vec(), reserve_convex_polygon(nsegments * 4 + 8, area.offset, img)),
                     area.extent, texture_region);
 
     return *this;
@@ -829,10 +898,10 @@ struct Canvas
       return *this;
     }
 
-    vertex const vertices[] = {{.position = grect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.foreground_color.to_vec()},
-                               {.position = grect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.foreground_color.to_vec()},
-                               {.position = grect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.foreground_color.to_vec()},
-                               {.position = grect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.foreground_color.to_vec()}};
+    vertex const vertices[] = {{.position = grect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.foreground_color.to_normalized_vec()},
+                               {.position = grect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.foreground_color.to_normalized_vec()},
+                               {.position = grect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.foreground_color.to_normalized_vec()},
+                               {.position = grect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.foreground_color.to_normalized_vec()}};
 
     draw_list.vertices.extend(vertices).unwrap();
 
@@ -873,10 +942,10 @@ struct Canvas
       return *this;
     }
 
-    vertex const vertices[] = {{.position = srect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.shadow_color.to_vec()},
-                               {.position = srect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.shadow_color.to_vec()},
-                               {.position = srect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.shadow_color.to_vec()},
-                               {.position = srect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.shadow_color.to_vec()}};
+    vertex const vertices[] = {{.position = srect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.shadow_color.to_normalized_vec()},
+                               {.position = srect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.shadow_color.to_normalized_vec()},
+                               {.position = srect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.shadow_color.to_normalized_vec()},
+                               {.position = srect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.shadow_color.to_normalized_vec()}};
 
     draw_list.vertices.extend(vertices).unwrap();
 
@@ -904,16 +973,16 @@ struct Canvas
 
     if (style.strikethrough_color.is_visible() && style.strikethrough_thickness > 0)
     {
-      vertex const strikethrough_path[] = {{.position = baseline - vec2{0, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_vec()},
-                                           {.position = baseline - vec2{-segment_width, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_vec()}};
+      vertex const strikethrough_path[] = {{.position = baseline - vec2{0, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_normalized_vec()},
+                                           {.position = baseline - vec2{-segment_width, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_normalized_vec()}};
 
       draw_path(strikethrough_path, vec2{0, 0}, vec2{0, 0}, style.strikethrough_thickness, false);
     }
 
     if (style.underline_color.is_visible() && style.underline_thickness > 0)
     {
-      vertex const underline_path[] = {{.position = baseline, .uv = {}, .color = style.underline_color.to_vec()},
-                                       {.position = baseline + vec2{segment_width, 0}, .uv = {}, .color = style.underline_color.to_vec()}};
+      vertex const underline_path[] = {{.position = baseline, .uv = {}, .color = style.underline_color.to_normalized_vec()},
+                                       {.position = baseline + vec2{segment_width, 0}, .uv = {}, .color = style.underline_color.to_normalized_vec()}};
 
       draw_path(underline_path, vec2{0, 0}, vec2{0, 0}, style.underline_thickness, false);
     }
