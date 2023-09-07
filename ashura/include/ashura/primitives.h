@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <limits>
+#include <type_traits>
 
 #include "ashura/utils.h"
 #include "fmt/format.h"
@@ -13,6 +15,9 @@
 
 namespace ash
 {
+
+template <typename T, typename Base>
+concept Impl = std::is_base_of_v<Base, T>;
 
 using u8  = uint8_t;
 using u16 = uint16_t;
@@ -39,7 +44,8 @@ using nanoseconds  = std::chrono::nanoseconds;
 using milliseconds = std::chrono::milliseconds;
 using seconds      = std::chrono::seconds;
 
-constexpr f32 PI = 3.14159265358979323846f;
+constexpr f32 PI  = 3.14159265358979323846f;
+constexpr f32 INF = std::numeric_limits<f32>::infinity();
 
 constexpr f32 abs(f32 x)
 {
@@ -54,6 +60,16 @@ constexpr bool epsilon_equal(f32 a, f32 b)
 constexpr f32 epsilon_clamp(f32 x)
 {
   return abs(x) > stx::F32_EPSILON ? x : stx::F32_EPSILON;
+}
+
+static constexpr u32 log2_floor_u32(u32 x)
+{
+  u32 result = 0;
+  for (u32 i = 1; i < 32; i++)
+  {
+    result += (u32) (bool) (x >> i);
+  }
+  return result;
 }
 
 // WARNING: the only non-floating-point integral type you should be using this for is i64.
@@ -1124,6 +1140,16 @@ struct extent
   {
     return vec2{.x = AS(f32, width), .y = AS(f32, height)};
   }
+
+  constexpr u32 max_mip_levels() const
+  {
+    return log2_floor_u32(std::min(width, height)) + 1;
+  }
+
+  constexpr extent at_mip_level(u32 mip_level) const
+  {
+    return extent{.width = width >> mip_level, .height = height >> mip_level};
+  }
 };
 
 constexpr bool operator==(extent a, extent b)
@@ -1203,54 +1229,74 @@ struct constraint
     return constraint{.bias = bias, .scale = scale, .min = min, .max = v, .minr = minr, .maxr = maxr};
   }
 
+  constexpr constraint with_minr(f32 v) const
+  {
+    return constraint{.bias = bias, .scale = scale, .min = min, .max = max, .minr = v, .maxr = maxr};
+  }
+
+  constexpr constraint with_maxr(f32 v) const
+  {
+    return constraint{.bias = bias, .scale = scale, .min = min, .max = max, .minr = minr, .maxr = v};
+  }
+
   constexpr f32 resolve(f32 value) const
   {
     return std::clamp(std::clamp(bias + value * scale, min, max), minr * value, maxr * value);
   }
 };
 
-struct SizeConstraint
+struct Constraint2D
 {
-  constraint width, height;
+  constraint x, y;
 
-  static constexpr SizeConstraint relative(f32 w, f32 h)
+  static constexpr Constraint2D relative(f32 x, f32 y)
   {
-    return SizeConstraint{.width = constraint::relative(w), .height = constraint::relative(h)};
+    return Constraint2D{.x = constraint::relative(x), .y = constraint::relative(y)};
   }
 
-  static constexpr SizeConstraint relative(vec2 wh)
+  static constexpr Constraint2D relative(vec2 xy)
   {
-    return relative(wh.x, wh.y);
+    return relative(xy.x, xy.y);
   }
 
-  static constexpr SizeConstraint absolute(f32 w, f32 h)
+  static constexpr Constraint2D absolute(f32 x, f32 y)
   {
-    return SizeConstraint{.width = constraint::absolute(w), .height = constraint::absolute(h)};
+    return Constraint2D{.x = constraint::absolute(x), .y = constraint::absolute(y)};
   }
 
-  static constexpr SizeConstraint absolute(vec2 wh)
+  static constexpr Constraint2D absolute(vec2 xy)
   {
-    return absolute(wh.x, wh.y);
+    return absolute(xy.x, xy.y);
   }
 
-  constexpr SizeConstraint with_min(f32 w, f32 h) const
+  constexpr Constraint2D with_min(f32 nx, f32 ny) const
   {
-    return SizeConstraint{.width = width.with_min(w), .height = height.with_min(h)};
+    return Constraint2D{.x = x.with_min(nx), .y = y.with_min(ny)};
   }
 
-  constexpr SizeConstraint with_max(f32 w, f32 h) const
+  constexpr Constraint2D with_max(f32 nx, f32 ny) const
   {
-    return SizeConstraint{.width = width.with_max(w), .height = height.with_max(h)};
+    return Constraint2D{.x = x.with_max(nx), .y = y.with_max(ny)};
   }
 
-  constexpr vec2 resolve(f32 w, f32 h) const
+  constexpr Constraint2D with_minr(f32 nx, f32 ny) const
   {
-    return vec2{width.resolve(w), height.resolve(h)};
+    return Constraint2D{.x = x.with_minr(nx), .y = y.with_minr(ny)};
   }
 
-  constexpr vec2 resolve(vec2 wh) const
+  constexpr Constraint2D with_maxr(f32 nx, f32 ny) const
   {
-    return resolve(wh.x, wh.y);
+    return Constraint2D{.x = x.with_maxr(nx), .y = y.with_maxr(ny)};
+  }
+
+  constexpr vec2 resolve(f32 xsrc, f32 ysrc) const
+  {
+    return vec2{x.resolve(xsrc), y.resolve(ysrc)};
+  }
+
+  constexpr vec2 resolve(vec2 src) const
+  {
+    return resolve(src.x, src.y);
   }
 };
 

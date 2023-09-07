@@ -36,7 +36,7 @@ struct TextStyle
   f32                               font_height             = 20;                         // px
   color                             foreground_color        = colors::BLACK;              //
   color                             outline_color           = colors::BLACK;              //
-  f32                               outline_thickness       = 0;                          // px. TODO(lamarrr): outline spread??? we can also scale by px sdf_spread/outline_width
+  f32                               outline_thickness       = 0;                          //
   color                             shadow_color            = colors::BLACK;              //
   f32                               shadow_scale            = 0;                          // relative. multiplied by font_height
   vec2                              shadow_offset           = vec2{0, 0};                 // px. offset from center of glyph
@@ -150,7 +150,7 @@ struct TextLayout
     hb_buffer_set_not_found_glyph(shaping_buffer, not_found_glyph);                                      // default glyphs for characters without defined glyphs
     hb_buffer_set_script(shaping_buffer, script);                                                        // OpenType (ISO15924) Script Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
     hb_buffer_set_direction(shaping_buffer, direction);
-    hb_buffer_set_language(shaping_buffer, language);                                                    // OpenType BCP-47 language tag for performing certain shaping operations as defined in the font
+    hb_buffer_set_language(shaping_buffer, language);        // OpenType BCP-47 language tag for performing certain shaping operations as defined in the font
     hb_font_set_scale(font.hb_font, (int) (64 * render_font_height), (int) (64 * render_font_height));
     hb_buffer_add_utf8(shaping_buffer, text.data(), (int) text.size(), 0, (int) text.size());
     hb_shape(font.hb_font, shaping_buffer, shaping_features, (uint) std::size(shaping_features));
@@ -180,7 +180,7 @@ struct TextLayout
     span                    = vec2{0, 0};
 
     // there's no layout to perform without a font
-    if (font_bundle.is_empty())
+    if (font_bundle.is_empty() || block.text.empty())
     {
       return;
     }
@@ -350,7 +350,7 @@ struct TextLayout
           for (usize i = 0; i < glyph_infos.size(); i++)
           {
             f32 const  advance = scale * (f32) glyph_positions[i].x_advance / 64.0f;
-            vec2 const offset  = scale *vec2{(f32) glyph_positions[i].x_offset / 64.0f, (f32) glyph_positions[i].y_offset / -64.0f};
+            vec2 const offset  = scale * vec2{(f32) glyph_positions[i].x_offset / 64.0f, (f32) glyph_positions[i].y_offset / -64.0f};
 
             glyph_shapings.push(GlyphShaping{.glyph = glyph_infos[i].codepoint, .cluster = glyph_infos[i].cluster, .advance = advance, .offset = offset}).unwrap();
 

@@ -24,12 +24,12 @@ struct GridProps
   f32                row_gap    = 0;
   Alignment          alignment  = ALIGN_TOP_LEFT;
   stx::Vec<GridItem> items;
-  SizeConstraint     frame = SizeConstraint::relative(1, 1);
+  Constraint2D       frame = Constraint2D::relative(1, 1);
 };
 
 struct Grid : public Widget
 {
-  template <WidgetImpl... DerivedWidget>
+  template <Impl<Widget>... DerivedWidget>
   explicit Grid(GridProps iprops, DerivedWidget... ichildren) :
       props{std::move(iprops)}
   {
@@ -47,7 +47,7 @@ struct Grid : public Widget
     }
   }
 
-  template <WidgetImpl... DerivedWidget>
+  template <Impl<Widget>... DerivedWidget>
   void update_children(DerivedWidget... new_children)
   {
     for (Widget *child : children)

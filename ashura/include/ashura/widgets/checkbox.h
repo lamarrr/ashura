@@ -7,7 +7,6 @@
 namespace ash
 {
 
-// TODO(lamarrr): hover color
 struct CheckBoxProps
 {
   color box_color         = material::BLUE_A700;

@@ -10,7 +10,6 @@
 namespace ash
 {
 
-// TODO(lamarrr): more window events pumping to widgets, how?
 struct WidgetSystem
 {
   static void __assign_widget_uuids_recursive(Context &ctx, Widget &widget, PrngUuidGenerator &generator)
@@ -50,7 +49,7 @@ struct WidgetSystem
 
         switch (event.action)
         {
-          case MouseAction::Press:
+          case KeyAction::Press:
             if (Widget *hit_widget = tree.hit(ctx, event.position))
             {
               if (stx::Option widget_drag_data = hit_widget->on_drag_start(ctx, event.position))
@@ -65,7 +64,7 @@ struct WidgetSystem
             }
             break;
 
-          case MouseAction::Release:
+          case KeyAction::Release:
             if (Widget *hit_widget = tree.hit(ctx, event.position))
             {
               if (drag_data.is_some())

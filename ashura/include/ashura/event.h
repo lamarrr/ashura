@@ -75,7 +75,7 @@ enum class KeyModifiers : u16
 
 STX_DEFINE_ENUM_BIT_OPS(KeyModifiers)
 
-enum class MouseAction : u8
+enum class KeyAction : u8
 {
   Press,
   Release,
@@ -94,7 +94,7 @@ struct MouseClickEvent
   vec2        position;
   u32         clicks = 0;
   MouseButton button = MouseButton::None;
-  MouseAction action = MouseAction::Press;
+  KeyAction   action = KeyAction::Press;
 };
 
 struct MouseWheelEvent
@@ -365,11 +365,18 @@ constexpr Key SOFTRIGHT_Key = SDLK_SOFTRIGHT;
 constexpr Key CALL_Key      = SDLK_CALL;
 constexpr Key ENDCALL_Key   = SDLK_ENDCALL;
 
-struct ClipBoardEvent;                // TODO(lamarrr): on_update only
+struct ClipBoardEvent;        // TODO(lamarrr): on_update only
 
 struct DeviceOrientationEvent;        // TODO(lamarrr)
 
-struct PointerLock;                   // TODO(lamarrr)
+struct PointerLock;        // TODO(lamarrr)
+
+struct KeyEvent
+{
+  Key          key       = UNKNOWN_Key;
+  KeyModifiers modifiers = KeyModifiers::None;
+  KeyAction    action    = KeyAction::Press;
+};
 
 struct AudioDeviceEvent
 {
@@ -383,8 +390,7 @@ struct WindowEventListeners
   stx::Vec<stx::UniqueFn<void(MouseClickEvent)>>                       mouse_click;
   stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>>                      mouse_motion;
   stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>>                       mouse_wheel;
-  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_down;
-  stx::Vec<stx::UniqueFn<void(Key, KeyModifiers)>>                     key_up;
+  stx::Vec<stx::UniqueFn<void(KeyEvent)>>                              key;     
 };
 
 struct GlobalEventListeners

@@ -188,7 +188,6 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> b
   return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = extent{width, height}, .format = fmt});
 }
 
-// TODO(lamarrr): support avif
 inline stx::Result<ImageBuffer, ImageLoadError> decode_image(stx::Span<u8 const> bytes)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};

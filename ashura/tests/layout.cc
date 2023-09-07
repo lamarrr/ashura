@@ -14,13 +14,12 @@ using namespace ash;
 Context    ctx;
 WidgetTree tree;
 
-
 TEST(FlexLayout, Start)
 {
   Flex flex{
       FlexProps{}, Widget{},
-      Image{ImageProps{.size = SizeConstraint::absolute(100, 100)}},
-      Image{ImageProps{.size = SizeConstraint::absolute(200, 200)}}};
+      Image{ImageProps{.size = Constraint2D::absolute(100, 100)}},
+      Image{ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, vec2{1920, 1080});
@@ -55,8 +54,8 @@ TEST(FlexLayout, SpaceAround)
           .direction   = Direction::H,
           .main_align  = MainAlign::SpaceAround,
           .cross_align = CrossAlign::Center},
-      Widget{}, Image{ImageProps{.size = SizeConstraint::absolute(100, 100)}},
-      Image{ImageProps{.size = SizeConstraint::absolute(200, 200)}}};
+      Widget{}, Image{ImageProps{.size = Constraint2D::absolute(100, 100)}},
+      Image{ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, vec2{1920, 1080});
@@ -96,8 +95,8 @@ TEST(FlexLayout, SpaceEvenly)
       FlexProps{.direction   = Direction::H,
                 .main_align  = MainAlign::SpaceEvenly,
                 .cross_align = CrossAlign::Center},
-      Widget{}, Image{ImageProps{.size = SizeConstraint::absolute(100, 100)}},
-      Image{ImageProps{.size = SizeConstraint::absolute(200, 200)}}};
+      Widget{}, Image{ImageProps{.size = Constraint2D::absolute(100, 100)}},
+      Image{ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, vec2{1920, 1080});
@@ -137,8 +136,8 @@ TEST(FlexLayout, SpaceBetween)
       FlexProps{.direction   = Direction::H,
                 .main_align  = MainAlign::SpaceBetween,
                 .cross_align = CrossAlign::Center},
-      Widget{}, Image{ImageProps{.size = SizeConstraint::absolute(100, 100)}},
-      Image{ImageProps{.size = SizeConstraint::absolute(200, 200)}}};
+      Widget{}, Image{ImageProps{.size = Constraint2D::absolute(100, 100)}},
+      Image{ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, vec2{1920, 1080});

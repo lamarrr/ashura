@@ -11,7 +11,6 @@
 #include "ashura/primitives.h"
 #include "ashura/stats.h"
 #include "ashura/subsystem.h"
-#include "ashura/theme.h"
 #include "ashura/uuid.h"
 #include "ashura/window.h"
 #include "ashura/window_manager.h"
@@ -49,10 +48,10 @@ struct Context
   GlobalEventListeners         event_listeners;
   stx::Span<BundledFont const> font_bundle;
   FrameStats                   frame_stats;
-  f32                          text_scale_factor = 1;        // TODO(lamarrr)
-  f32                          viewport_scale    = 1;        // transformed viewport
-  vec2                         viewport_translate;           // TODO(lamarrr): viewport rect
-  Widget                      *root = nullptr;               // TODO(lamarrr): find_widget() IMPORTANT!!!
+  f32                          text_scale_factor = 1;
+  Widget                      *root              = nullptr;
+  stx::Vec<KeyEvent>           key_events;        // These are more of key state polling than key event state change notifications
+
   // TODO(lamarrr): expose current window here???
 
   stx::Option<Widget *> find_widget(uuid id)
@@ -64,18 +63,6 @@ struct Context
     }
     return stx::None;
   }
-
-  template <typename T>
-  stx::Option<T *> find_ancestor_of_type(uuid id);
-
-  template <typename T>
-  stx::Option<T *> find_ancestor_of_type();
-
-  template <typename T>
-  stx::Option<T *> find_descendant_of_type(uuid id);
-
-  template <typename T>
-  stx::Option<T *> find_descendant_of_type();
 
   Context()
   {}
@@ -220,10 +207,7 @@ struct Context
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
         {
-          MouseClickEvent mouse_event{.mouse_id = MouseID{event.button.which},
-                                      .position = vec2{AS(f32, event.button.x), AS(f32, event.button.y)},
-                                      .clicks   = event.button.clicks};
-
+          MouseClickEvent mouse_event{.mouse_id = MouseID{event.button.which}, .position = vec2{AS(f32, event.button.x), AS(f32, event.button.y)}, .clicks = event.button.clicks};
           switch (event.button.button)
           {
             case SDL_BUTTON_LEFT:
@@ -248,11 +232,11 @@ struct Context
           switch (event.type)
           {
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-              mouse_event.action = MouseAction::Press;
+              mouse_event.action = KeyAction::Press;
               break;
 
             case SDL_EVENT_MOUSE_BUTTON_UP:
-              mouse_event.action = MouseAction::Release;
+              mouse_event.action = KeyAction::Release;
               break;
 
             default:
@@ -280,9 +264,7 @@ struct Context
           }
           for (auto &listener : win->event_listeners.mouse_motion)
           {
-            listener.handle(MouseMotionEvent{.mouse_id    = MouseID{event.motion.which},
-                                             .position    = vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)},
-                                             .translation = vec2{AS(f32, event.motion.xrel), AS(f32, event.motion.yrel)}});
+            listener.handle(MouseMotionEvent{.mouse_id = MouseID{event.motion.which}, .position = vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)}, .translation = vec2{AS(f32, event.motion.xrel), AS(f32, event.motion.yrel)}});
           }
           return true;
         }
@@ -296,27 +278,12 @@ struct Context
           }
           for (auto &listener : win->event_listeners.mouse_wheel)
           {
-            listener.handle(MouseWheelEvent{.mouse_id    = MouseID{event.wheel.which},
-                                            .position    = vec2{AS(f32, event.wheel.mouseX), AS(f32, event.wheel.mouseY)},
-                                            .translation = vec2{event.wheel.x, event.wheel.y}});
+            listener.handle(MouseWheelEvent{.mouse_id = MouseID{event.wheel.which}, .position = vec2{AS(f32, event.wheel.mouseX), AS(f32, event.wheel.mouseY)}, .translation = vec2{event.wheel.x, event.wheel.y}});
           }
           return true;
         }
 
         case SDL_EVENT_KEY_DOWN:
-        {
-          Window *win = get_window(event.key.windowID);
-          if (win == nullptr)
-          {
-            return true;
-          }
-          for (auto &listener : win->event_listeners.key_down)
-          {
-            listener.handle(event.key.keysym.sym, AS(KeyModifiers, event.key.keysym.mod));
-          }
-          return true;
-        }
-
         case SDL_EVENT_KEY_UP:
         {
           Window *win = get_window(event.key.windowID);
@@ -324,9 +291,9 @@ struct Context
           {
             return true;
           }
-          for (auto &listener : win->event_listeners.key_up)
+          for (auto &listener : win->event_listeners.key)
           {
-            listener.handle(event.key.keysym.sym, AS(KeyModifiers, event.key.keysym.mod));
+            listener.handle(KeyEvent{.key = event.key.keysym.sym, .modifiers = AS(KeyModifiers, event.key.keysym.mod), .action = event.type == SDL_EVENT_KEY_DOWN ? KeyAction::Press : KeyAction::Release});
           }
           return true;
         }
@@ -357,7 +324,9 @@ struct Context
 
         case SDL_EVENT_DROP_FILE:
         {
-          ASH_LOG_INFO(Vulkan, "drop file: {}  x={}, y={}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y);
+          f32 x = 0, y = 0;
+          SDL_GetMouseState(&x, &y);
+          ASH_LOG_INFO(Vulkan, "drop file: {}  x={}, y={}, {},{}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y, x, y);
           return true;
         }
 
@@ -373,15 +342,14 @@ struct Context
           return true;
         }
 
-          // case SDL_DROPFILE
-          // case SDL_DROPFILE
-          // case SDL_DROPBEGIN
-          // case SDL_DROPCOMPLETE
+          // case SDL_EVENT_TEXT_EDITING_EXT:{
+          //   event.text.text;
+          // }
+          // case SDL_EVENT_TEXT_INPUT:{
+          //   event.
+          // }
 
-          // SDL_TEXTEDITING,
-          // SDL_TEXTINPUT,
           // SDL_KEYMAPCHANGED,
-
           // SDL_CONTROLLERAXISMOTION
           // SDL_CONTROLLERBUTTONDOWN
           // SDL_CONTROLLERBUTTONUP

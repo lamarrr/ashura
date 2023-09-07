@@ -1,5 +1,7 @@
 #include "SDL3/SDL.h"
 #include "ashura/app.h"
+#include "ashura/ecs.h"
+#include "ashura/lgfx.h"
 #include "ashura/text.h"
 #include "ashura/utf8string.h"
 #include "ashura/uuid.h"
@@ -10,6 +12,7 @@
 #include "ashura/widgets/flex.h"
 #include "ashura/widgets/grid.h"
 #include "ashura/widgets/image.h"
+#include "ashura/widgets/input.h"
 #include "ashura/widgets/padding.h"
 #include "ashura/widgets/progress_bar.h"
 #include "ashura/widgets/radio.h"
@@ -58,23 +61,23 @@ int main(int argc, char **argv)
 
   items.extend(items_tmp).unwrap();
 
-  RadioState state{8};
-  App        app{std::move(cfg),
+  RadioCtx state{8};
+  App      app{std::move(cfg),
           Flex{
               FlexProps{},
               Image{
                   ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\pimping.png)"},
-                                    .aspect_ratio   = stx::Some(1.0f),
-                                    .resize_on_load = true}},
+                                  .aspect_ratio   = stx::Some(1.0f),
+                                  .resize_on_load = true}},
               Text{"cruelty_free", TextProps{.style = TextStyle{.font             = "MaterialIcons",
-                                                                       .font_height      = 25,
-                                                                       .foreground_color = material::BLACK,
-                                                                       .background_color = colors::WHITE,
-                                                                       .line_height      = 1.0f}}},
+                                                                     .font_height      = 25,
+                                                                     .foreground_color = material::BLACK,
+                                                                     .background_color = colors::WHITE,
+                                                                     .line_height      = 1.0f}}},
               Text{std::string_view{(char *) greeting, sizeof(greeting)}, TextProps{.style = TextStyle{.font             = "NotoSans",
-                                                                                                              .font_height      = 20,
-                                                                                                              .foreground_color = material::BLACK,
-                                                                                                              .background_color = colors::WHITE}}},
+                                                                                                            .font_height      = 20,
+                                                                                                            .foreground_color = material::BLACK,
+                                                                                                            .background_color = colors::WHITE}}},
               CheckBox{},
               Slider{stx::fn::rc::make_unique_static([](Slider &slider, Context &ctx, f32 value) {
                 ctx.text_scale_factor = value * 5;
@@ -82,74 +85,74 @@ int main(int argc, char **argv)
               Switch{},
               StatsWidget{},
               ProgressBar{},
-              Grid{GridProps{.columns = 3, .rows = 2, .column_gap = 10, .row_gap = 10, .alignment = ALIGN_CENTER, .items = std::move(items), .frame = SizeConstraint::absolute(600, 400)},
+              Grid{GridProps{.columns = 3, .rows = 2, .column_gap = 10, .row_gap = 10, .alignment = ALIGN_CENTER, .items = std::move(items), .frame = Constraint2D::absolute(600, 400)},
                    Image{
                        ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
-                                         .aspect_ratio   = stx::Some(1.0f),
-                                         .resize_on_load = true}},
+                                       .aspect_ratio   = stx::Some(1.0f),
+                                       .resize_on_load = true}},
                    Image{
                        ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
-                                         .aspect_ratio   = stx::Some(1.0f),
-                                         .resize_on_load = true}},
+                                       .aspect_ratio   = stx::Some(1.0f),
+                                       .resize_on_load = true}},
                    Image{
                        ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
-                                         .aspect_ratio   = stx::Some(1.0f),
-                                         .resize_on_load = true}}},
+                                       .aspect_ratio   = stx::Some(1.0f),
+                                       .resize_on_load = true}}},
               Stack{
                   StackProps{.alignment = ALIGN_BOTTOM_CENTER},
                   Box{
                       BoxProps{.padding          = EdgeInsets::all(2.5f),
-                                      .border_thickness = 2.5f,
-                                      .border_color     = material::CYAN_500,
-                                      .border_radius    = BorderRadius::relative(1)},
+                                    .border_thickness = 2.5f,
+                                    .border_color     = material::CYAN_500,
+                                    .border_radius    = BorderRadius::relative(1)},
                       Image{
                           ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\profile.png)"},
-                                            .border_radius  = BorderRadius::relative(1, 1, 1, 1),
-                                            .aspect_ratio   = stx::Some(1.0f),
-                                            .resize_on_load = true}}},
+                                          .border_radius  = BorderRadius::relative(1, 1, 1, 1),
+                                          .aspect_ratio   = stx::Some(1.0f),
+                                          .resize_on_load = true}}},
                   Box{
                       BoxProps{.background_color = material::RED_500,
-                                      .padding          = EdgeInsets::horizontal(5),
-                                      .border_thickness = 5,
-                                      .border_color     = colors::BLACK,
-                                      .border_radius    = BorderRadius::absolute(7.5f)},
+                                    .padding          = EdgeInsets::horizontal(5),
+                                    .border_thickness = 5,
+                                    .border_color     = colors::BLACK,
+                                    .border_radius    = BorderRadius::absolute(7.5f)},
                       Text{"LIVE", TextProps{.style = TextStyle{.font_height      = 15,
-                                                                       .foreground_color = colors::WHITE}}}}},
+                                                                     .foreground_color = colors::WHITE}}}}},
               Stack{
                   StackProps{.alignment = ALIGN_CENTER},
                   Box{
                       BoxProps{
-                                 .background_gradient = LinearColorGradient{.begin = material::GREEN_500, .end = material::GREEN_500.with_alpha(10), .angle = 0},
-                                 .padding             = EdgeInsets::all(50),
-                                 .border_radius       = BorderRadius::absolute(7.5f)},
+                               .background_gradient = LinearColorGradient{.begin = material::GREEN_500, .end = material::GREEN_500.with_alpha(10), .angle = 0},
+                               .padding             = EdgeInsets::all(50),
+                               .border_radius       = BorderRadius::absolute(7.5f)},
                       Text{"FE!N FE!N FE!N FE!N FE!N", TextProps{.style = TextStyle{.foreground_color = colors::WHITE},
-                                                                        .frame = SizeConstraint::relative(1, 1)}}},
+                                                                      .frame = Constraint2D::relative(1, 1)}}},
                   Padding{
                       EdgeInsets::all(20),
                       Box{BoxProps{.background_color = material::RED_500.with_alpha(0xCC),
-                                          .padding          = EdgeInsets::all(5),
-                                          .border_thickness = 5,
-                                          .border_color     = colors::BLACK,
-                                          .border_radius    = BorderRadius::absolute(7.5f),
-                                          .corner_shape     = BoxCornerShape::Bevel},
+                                        .padding          = EdgeInsets::all(5),
+                                        .border_thickness = 5,
+                                        .border_color     = colors::BLACK,
+                                        .border_radius    = BorderRadius::absolute(7.5f),
+                                        .corner_shape     = BoxCornerShape::Bevel},
                           Text{"For You", TextProps{.style = TextStyle{.foreground_color = colors::WHITE}}}}}},
               Box{BoxProps{.background_color = color::from_rgb(0x33, 0x33, 0x33),
-                                  .padding          = EdgeInsets::all(5),
-                                  .border_thickness = 1,
-                                  .border_color     = color::from_rgb(0xFF, 0xFF, 0xFF),
-                                  .border_radius    = BorderRadius::absolute(7.5f)},
+                                .padding          = EdgeInsets::all(5),
+                                .border_thickness = 1,
+                                .border_color     = color::from_rgb(0xFF, 0xFF, 0xFF),
+                                .border_radius    = BorderRadius::absolute(7.5f)},
                   Text{"For You", TextProps{.style = TextStyle{.foreground_color = colors::WHITE}}}},
               Radio(5, state),
               Radio(6, state),
               Radio(8, state),
               Text{"verified", TextProps{.style = TextStyle{.font = "MaterialIcons", .foreground_color = colors::YELLOW}}},
               Text{R"(I didn't wanna say anything, but this game seems lame)", TextProps{.style = TextStyle{.font             = "Roboto",
-                                                                                                                   .font_height      = 30,
-                                                                                                                   .foreground_color = material::WHITE,
-                                                                                                                   .shadow_color     = colors::BLACK,
-                                                                                                                   .shadow_scale     = 1,
-                                                                                                                   .shadow_offset    = 2,
-                                                                                                                   .background_color = material::GRAY_100}}},
+                                                                                                                 .font_height      = 30,
+                                                                                                                 .foreground_color = material::WHITE,
+                                                                                                                 .shadow_color     = colors::BLACK,
+                                                                                                                 .shadow_scale     = 1,
+                                                                                                                 .shadow_offset    = 2,
+                                                                                                                 .background_color = material::GRAY_100}}},
               Text{R"([2023-07-31 13:26:08.632] [Init] [info] WINDOW RESIZED
 [2023-07-31 13:26:08.632] [ImageLoader] [info] Loading image from path: C:\Users\Basit\Desktop\pimping.png
 [2023-07-31 13:26:08.632] [ImageLoader] [info] Loading image from path: C:\Users\Basit\Desktop\profile.png
@@ -218,15 +221,16 @@ int main(int argc, char **argv)
 [2023-07-31 13:26:08.695] [Vulkan_RenderResourceManager] [info] Uploaded pending image
 )",
                    TextProps{.style = TextStyle{.font             = "Roboto",
-                                                       .font_height      = 30,
-                                                       .foreground_color = material::BLUE_500,
-                                                       .background_color = material::GRAY_100}}},
+                                                     .font_height      = 30,
+                                                     .foreground_color = material::BLUE_500,
+                                                     .background_color = material::GRAY_100}}},
               Text{"explicit", TextProps{.style = TextStyle{.font             = "MaterialIcons",
-                                                                   .foreground_color = colors::GREEN}}},
+                                                                 .foreground_color = colors::GREEN}}},
               ScrollBox{ScrollBoxProps{}, Image{ImageProps{.source         = FileImageSource{.path = R"(C:\Users\Basit\Desktop\wallpaperflare.com_wallpaper.jpg)"},
-                                                                  .border_radius  = BorderRadius::relative(.25f, .25f, .25f, .25f),
-                                                                  .aspect_ratio   = stx::Some(2.0f),
-                                                                  .resize_on_load = true}}}}};
+                                                                .size           = Constraint2D::absolute(2000, 2000).with_maxr(INF, INF),
+                                                                .border_radius  = BorderRadius::relative(.25f, .25f, .25f, .25f),
+                                                                .aspect_ratio   = stx::Some(2.0f),
+                                                                .resize_on_load = false}}}}};
 
   timepoint last_tick = Clock::now();
   while (true)

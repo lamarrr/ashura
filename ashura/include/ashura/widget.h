@@ -28,9 +28,6 @@ enum class Visibility : u8
   Hidden
 };
 
-// TODO(lamarrr): we need to pass in a zoom level to the rendering widget? so
-// that widgets like text can shape their glyphs properly
-
 struct WidgetDebugInfo
 {
   std::string_view type;
@@ -39,7 +36,7 @@ struct WidgetDebugInfo
 struct DragData
 {
   stx::String                      type;
-  stx::Unique<stx::Span<u8 const>> data;
+  stx::Unique<stx::Span<u8 const>> data = stx::Unique{stx::Span<u8 const>{}, stx::noop_manager};
 };
 
 // TODO(lamarrr): we might need request detach so child widgets can request to
@@ -153,7 +150,6 @@ struct Widget
   ///
   virtual void draw(Context &ctx, gfx::Canvas &canvas)
   {
-    // TODO(lamarrr): the whole widget tree will be rendered and clipped as necessary
   }
 
   // TODO(lamarrr): draw_tooltip();
@@ -176,8 +172,13 @@ struct Widget
   virtual void on_view_miss(Context &ctx)
   {}
 
-  // TODO(lamarrr): this needs to happen before mouse actions as some widgets .i.e. text don't need to intercept or receive mouse events
+  // this needs to happen before mouse actions as some widgets .i.e. some widgets don't need to intercept or receive mouse events
   virtual bool hit_test(Context &ctx, vec2 mouse_position)
+  {
+    return false;
+  }
+
+  virtual bool scroll_test(Context &ctx)
   {
     return false;
   }
@@ -230,7 +231,7 @@ struct Widget
   {}
 
   /// the drag event has left this widget
-  virtual void on_drag_leave(Context &ctx,stx::Option<vec2> mouse_position)
+  virtual void on_drag_leave(Context &ctx, stx::Option<vec2> mouse_position)
   {}
 
   /// drop of drag data on this widget
@@ -271,9 +272,6 @@ struct Widget
   rect              area;        ///
 };
 
-template <typename T>
-concept WidgetImpl = std::is_base_of_v<Widget, T>;
-
 inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id)
 {
   if (widget.id.contains(id))
@@ -293,129 +291,4 @@ inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id)
   return nullptr;
 }
 
-using entity_id            = uint64_t;
-using component_id         = uint64_t;
-using system_id            = uint64_t;
-using component_destructor = void (*)(uint64_t const *free_mask, void *reps, uint64_t count);
-using component_batching   = uint64_t;
-
-constexpr component_batching COMPONENT_BATCHED;
-
-struct SampleComponent
-{
-  static constexpr component_id COMPONENT_ID = 0;
-};
-
-// guaranteed to be contigous in memory both component-wise and entity-wise
-//
-// system can decide to only process batches
-// should registry require batches???
-//
-// they are thus not disjoint in memory
-struct entity_batch
-{
-  // must all share the same components, and freed together
-  // data may change differently
-  // can share signals?
-  entity_id first_entity = 0;
-  u64       nentities    = 0;
-};
-
-// TODO(lamarrr): mask these signals using a u32 flag
-// SIGNALS
-
-// cache preload multiple components into memory
-// we can tell the compiler that the component queries will not alias
-// delete, update, modify callbacks or events
-//
-// systems are thus free to re-organize the components
-//
-//
-struct ComponentTable
-{
-  uint64_t size_bytes = 0;
-
-  uint64_t capacity = 0;
-
-  uint64_t count = 0;
-
-  uint64_t nfree = 0;
-
-  uint64_t nsignals = 0;
-
-  void *reps = nullptr;
-
-  uint64_t nbatches = 0;        // only valid for batch registries
-
-  uint64_t *batch_sizes = nullptr;        // only valid for batch registries
-
-  uint64_t *freed_mask = nullptr;        // if it is a batch registry, it will represent each batch
-
-  // signals to-and-from the systems.
-  // it is left to the component and the system to interpret and use these signals.
-  // example signals are: component_disabled, component_updated, component_has_request, etc.
-  uint64_t **signals = nullptr;
-
-  // default state for the signals
-  uint64_t *default_signal_states = nullptr;
-
-  component_destructor destructor = nullptr;
-};
-
-// THE GOAL IS FOR FAST ACCESS OF COMPONENTS, NOT OF ENTITIES
-// SYSTEMS OPERATE ON COMPONENTS, NOT ENTITIES
-// COMPONENTS can only be disabled, not removed
-/// encourages memory re-use
-struct Registry
-{
-  // can request that the component type has a tag to it
-  template <typename... Components>
-  void register_components(component_id (&ids)[sizeof...(Components)]);
-
-  // entity tags???
-  entity_id create_entity();
-  void      disable_entity(entity_id);
-  void      remove_entity(entity_id);
-  // entity and components batching
-
-  template <typename Component>
-  Component *get_component(entity_id, component_id);
-
-  void *get_component(entity_id, component_id);
-
-  template <typename... Components>
-  void add_components(entity_id, component_id (&ids)[sizeof...(Components)], Components &&...);
-
-  template <typename Component>
-  void add_component(entity_id, component_id, Component &&);
-
-  template <typename Component>
-  void disable_component(entity_id, component_id);
-
-  template <typename Component>
-  void remove_component(entity_id, component_id);
-
-  void get_component_state(entity_id, component_id);
-
-  // template <typename Callback>
-  // void query(component_id const *components_query, component_id const *components_to_fetch);
-  // callback return -> component_id, registry
-
-  uint64_t        components_capacity  = 0;
-  uint64_t        entities_capacity    = 0;
-  uint64_t        ncomponents          = 0;
-  uint64_t        nentities            = 0;
-  uint64_t        nfree_entities       = 0;
-  ComponentTable *components           = nullptr;
-  uint64_t       *entity_component_map = nullptr;        // (entity_id * ncomponents * n_entities + component_id) maps entity to index of its component in a map, uint64_t_MAX if entity does not have a component
-  uint64_t       *entity_free_mask     = nullptr;
-  // everytime a component type is added we need to extend the component attributes of all entities
-};
-
-// say for example we want a system that processes elements in batches
-// batches may not be speci
-
-// entity/registry batches are somewhat useless?
-// disjoint-entity component batching are useful and what we need as some systems i.e. particle processing systems won't function properly without them
-// we can have reserves of components
 }        // namespace ash

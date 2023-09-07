@@ -8,7 +8,7 @@ namespace ash
 
 struct Padding : public Widget
 {
-  template <WidgetImpl DerivedWidget>
+  template <Impl<Widget> DerivedWidget>
   Padding(EdgeInsets iedge_insets, DerivedWidget ichild) :
       edge_insets{iedge_insets}
   {
@@ -26,25 +26,17 @@ struct Padding : public Widget
     }
   }
 
-  template <WidgetImpl DerivedWidget>
-  void update_children(DerivedWidget new_child)
+  template <Impl<Widget> DerivedWidget>
+  void update_child(DerivedWidget widget)
   {
-    for (Widget *child : children)
-    {
-      delete child;
-    }
-    children.clear();
-    children.push(new DerivedWidget{std::move(new_child)}).unwrap();
+    update_child(new DerivedWidget{std::move(widget)});
   }
 
-  void update_children(Widget *const new_child)
+  void update_child(Widget *widget)
   {
-    for (Widget *child : children)
-    {
-      delete child;
-    }
-    children.clear();
-    children.push_inplace(new_child).unwrap();
+    ASH_CHECK(children.size() == 1);
+    delete children[0];
+    children[0] = widget;
   }
 
   virtual stx::Span<Widget *const> get_children(Context &ctx) override

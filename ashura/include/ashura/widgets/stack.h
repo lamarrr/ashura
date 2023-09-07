@@ -9,13 +9,13 @@ namespace ash
 
 struct StackProps
 {
-  vec2           alignment;
-  SizeConstraint frame = SizeConstraint::relative(1, 1);
+  vec2         alignment;
+  Constraint2D frame = Constraint2D::relative(1, 1);
 };
 
 struct Stack : public Widget
 {
-  template <WidgetImpl... DerivedWidget>
+  template <Impl<Widget>... DerivedWidget>
   explicit Stack(StackProps iprops, DerivedWidget... ichildren) :
       props{std::move(iprops)}
   {
@@ -33,7 +33,7 @@ struct Stack : public Widget
     }
   }
 
-  template <WidgetImpl... DerivedWidget>
+  template <Impl<Widget>... DerivedWidget>
   void update_children(DerivedWidget... new_children)
   {
     for (Widget *child : children)

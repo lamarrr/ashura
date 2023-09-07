@@ -12,25 +12,25 @@ namespace ash
 {
 
 template <typename RadioValue>
-struct RadioState
+struct RadioCtx
 {
   static_assert(stx::equality_comparable<RadioValue>);
 
-  explicit RadioState(RadioValue value) :
+  explicit RadioCtx(RadioValue value) :
       data{stx::rc::make(stx::os_allocator, std::move(value)).unwrap()}
   {}
 
-  RadioState(RadioState const &other) :
+  RadioCtx(RadioCtx const &other) :
       data{other.data.share()}
   {}
 
-  RadioState &operator=(RadioState const &other)
+  RadioCtx &operator=(RadioCtx const &other)
   {
     data = other.data.share();
     return *this;
   }
 
-  STX_DEFAULT_MOVE(RadioState)
+  STX_DEFAULT_MOVE(RadioCtx)
 
   stx::Rc<RadioValue *> data;
 };
@@ -51,10 +51,10 @@ struct Radio : public Widget
   static void default_on_changed(Radio &, Context &, RadioValue const &)
   {}
 
-  Radio(RadioValue ivalue, RadioState<RadioValue> iradio_state, Callback ion_changed = stx::fn::rc::make_unique_static(default_on_changed), RadioProps iprops = {}) :
-      on_changed{std::move(ion_changed)}, value{std::move(ivalue)}, state{std::move(iradio_state)}, props{iprops}
+  Radio(RadioValue ivalue, RadioCtx<RadioValue> iradio_ctx, Callback ion_changed = stx::fn::rc::make_unique_static(default_on_changed), RadioProps iprops = {}) :
+      on_changed{std::move(ion_changed)}, value{std::move(ivalue)}, radio_ctx{std::move(iradio_ctx)}, props{iprops}
   {
-    __restart_state_machine(*state.data);
+    __restart_state_machine(*radio_ctx.data);
   }
 
   STX_DEFAULT_MOVE(Radio)
@@ -71,15 +71,52 @@ struct Radio : public Widget
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
-    if (*state.data == value && !is_active)
+    if (!ctx.key_events.span().which([](KeyEvent e) {
+                                return e.action == KeyAction::Press && e.key == ESCAPE_Key;
+                              })
+             .is_empty())
     {
-      on_changed.handle(*this, ctx, *state.data);
-      __restart_state_machine(*state.data);
+      
+      // TODO(lamarrr): key debouncing
+      fmt::println("esc down!");
     }
-    else if (*state.data != value && is_active)
+
+    if (!ctx.key_events.span().which([](KeyEvent e) {
+                                return e.action == KeyAction::Release && e.key == ESCAPE_Key;
+                              })
+             .is_empty())
     {
-      on_changed.handle(*this, ctx, *state.data);
-      __restart_state_machine(*state.data);
+      // TODO(lamarrr): key debouncing
+      fmt::println("esc up!");
+    }
+
+        if (!ctx.key_events.span().which([](KeyEvent e) {
+                                return e.action == KeyAction::Press && e.key == m_Key;
+                              })
+             .is_empty())
+    {
+      // TODO(lamarrr): key debouncing
+      fmt::println("m down!");
+    }
+
+    if (!ctx.key_events.span().which([](KeyEvent e) {
+                                return e.action == KeyAction::Release && e.key == m_Key;
+                              })
+             .is_empty())
+    {
+      // TODO(lamarrr): key debouncing
+      fmt::println("m up!");
+    }
+    
+    if (*radio_ctx.data == value && !is_active)
+    {
+      on_changed.handle(*this, ctx, *radio_ctx.data);
+      __restart_state_machine(*radio_ctx.data);
+    }
+    else if (*radio_ctx.data != value && is_active)
+    {
+      on_changed.handle(*this, ctx, *radio_ctx.data);
+      __restart_state_machine(*radio_ctx.data);
     }
 
     animation.tick(interval);
@@ -89,7 +126,7 @@ struct Radio : public Widget
   {
     EaseIn curve;
     rect   outer_rect        = area;
-    vec2   inner_rect_extent = vec2::splat(animation.animate(curve, is_active ? Tween{0.0f, props.inner_width} : Tween{props.inner_width, 0.0f}));
+    vec2   inner_rect_extent = vec2::splat(animation.animate(curve, is_active ? Tween<f32>{0.0f, props.inner_width} : Tween<f32>{props.inner_width, 0.0f}));
     rect   inner_rect        = rect{.offset = area.offset + (area.extent / 2) - inner_rect_extent / 2, .extent = inner_rect_extent};
 
     canvas
@@ -106,7 +143,7 @@ struct Radio : public Widget
   {
     if (button == MouseButton::Primary && !props.disabled)
     {
-      *state.data = value;
+      *radio_ctx.data = value;
     }
   }
 
@@ -124,12 +161,12 @@ struct Radio : public Widget
     animation.restart(milliseconds{200}, 1, AnimationCfg::Default, 1);
   }
 
-  Callback               on_changed;
-  RadioValue             value;
-  bool                   is_active = false;
-  RadioState<RadioValue> state;
-  RadioProps             props;
-  Animation              animation;
+  Callback             on_changed;
+  RadioValue           value;
+  bool                 is_active = false;
+  RadioCtx<RadioValue> radio_ctx;
+  RadioProps           props;
+  Animation            animation;
 };
 
 }        // namespace ash

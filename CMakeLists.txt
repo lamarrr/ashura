@@ -49,10 +49,10 @@ target_include_directories(
   PRIVATE ${SheenBidi_DIR}/Source)
 add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
-if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
+if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
   add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)
 else()
-  if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
+  if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
     add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")

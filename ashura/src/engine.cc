@@ -138,7 +138,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   VkPhysicalDeviceFeatures required_features{};
 
-  required_features.samplerAnisotropy = VK_TRUE;
+  required_features.samplerAnisotropy       = VK_TRUE;
   required_features.pipelineStatisticsQuery = VK_TRUE;
 
   stx::Rc<vk::Device *> device = vk::create_device(phy_device, command_queue_create_infos, required_device_extensions,
@@ -172,23 +172,16 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   pipeline_manager.rebuild_for_renderpass(swp.render_pass, swp.msaa_sample_count);
 
-  root_window.value()->on(WindowEvents::CloseRequested,
-                          stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) { std::exit(0); }).unwrap());
+  root_window.value()->on(WindowEvents::CloseRequested, stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) { std::exit(0); }).unwrap());
 
   root_window.value()->on(WindowEvents::Resized | WindowEvents::PixelSizeChanged,
-                          stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) {
-                            ASH_LOG_INFO(Init, "WINDOW RESIZED");
-                          }).unwrap());
-
-  root_window.value()->on_mouse_motion(stx::fn::rc::make_unique_static([](MouseMotionEvent) {}));
-
+                          stx::fn::rc::make_unique_functor(stx::os_allocator, [](WindowEvents) { ASH_LOG_INFO(Init, "WINDOW RESIZED"); }).unwrap());
   root_window.value()->on_mouse_click(stx::fn::rc::make_unique_static([](MouseClickEvent event) {
-    if (event.action == MouseAction::Press && event.button == MouseButton::A2)
+    if (event.action == KeyAction::Press && event.button == MouseButton::A2)
     {
       std::exit(0);
     }
   }));
-
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
   gfx::image transparent_image = render_resource_manager.add_image(ImageView<u8 const>{.span = transparent_image_data, .extent = {1, 1}, .pitch = 4, .format = ImageFormat::Rgba8888}, false);
@@ -202,14 +195,9 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   ctx.register_subsystem(new VulkanImageManager{render_resource_manager});
   ctx.register_subsystem(new ImageLoader{});
 
-  root_window.value()->on_mouse_click(stx::fn::rc::make_unique_functor(
-                                          stx::os_allocator, [this](MouseClickEvent event) { widget_system.events.push_inplace(event).unwrap(); })
-                                          .unwrap());
-
-  root_window.value()->on_mouse_motion(stx::fn::rc::make_unique_functor(
-                                           stx::os_allocator, [this](MouseMotionEvent event) { widget_system.events.push_inplace(event).unwrap(); })
-                                           .unwrap());
-
+  root_window.value()->on_mouse_click(stx::fn::rc::make_unique_functor(stx::os_allocator, [this](MouseClickEvent event) { widget_system.events.push_inplace(event).unwrap(); }).unwrap());
+  root_window.value()->on_mouse_motion(stx::fn::rc::make_unique_functor(stx::os_allocator, [this](MouseMotionEvent event) { widget_system.events.push_inplace(event).unwrap(); }).unwrap());
+  root_window.value()->on_key(stx::fn::rc::make_unique_functor(stx::os_allocator, [this](KeyEvent event) { ctx.key_events.push_inplace(event).unwrap(); }).unwrap());
   root_window.value()->on(WindowEvents::All, stx::fn::rc::make_unique_functor(stx::os_allocator, [this](WindowEvents events) {
                                                if ((events & WindowEvents::MouseLeave) != WindowEvents::None)
                                                {
@@ -253,6 +241,12 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
     subsystem->on_startup(ctx);
     ASH_LOG_INFO(Context, "Initialized subsystem: {} (type: {})", subsystem->get_name(), typeid(*subsystem).name());
   }
+
+   VkImageFormatProperties image_format_properties;
+    ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties));
+   
+   fmt::println("max: {}", image_format_properties.maxMipLevels);
+   
 }
 
 void Engine::tick(std::chrono::nanoseconds interval)
@@ -266,11 +260,11 @@ void Engine::tick(std::chrono::nanoseconds interval)
   {
   } while (ctx.poll_events());
 
-  // TODO(lamarrr): tick subsystems
   // root_window->tick(interval);
   ctx.tick(interval);
-  widget_system.pump_widget_events(widget_tree, ctx);        // TODO(lamarrr): transform mouse position using view_region
+  widget_system.pump_widget_events(widget_tree, ctx);
   widget_system.tick_widgets(ctx, *root_widget, interval);
+  ctx.key_events.clear();
   // new widgets could have been added
   widget_system.assign_widget_uuids(ctx, *root_widget, *uuid_generator);
   widget_tree.build(ctx, *root_widget);

@@ -99,7 +99,7 @@ struct Slider : public Widget
 
   void __transition_radius(f32 from, f32 to)
   {
-    thumb_tween = Tween{from, to};
+    thumb_tween = Tween<f32>{from, to};
     thumb_animation.restart(milliseconds{200}, 1, AnimationCfg::Default, 1);
   }
 

@@ -14,7 +14,7 @@ struct App
 {
   STX_MAKE_PINNED(App)
 
-  template <WidgetImpl DerivedWidget>
+  template <Impl<Widget> DerivedWidget>
   explicit App(AppConfig icfg, DerivedWidget &&widget) :
       cfg{icfg}, engine{icfg, std::move(widget)}
   {}

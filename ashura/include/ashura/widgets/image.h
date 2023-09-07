@@ -34,10 +34,11 @@ struct NetworkImageSource
 
 using ImageSource = std::variant<ImageBuffer, FileImageSource, NetworkImageSource, stx::NoneType>;
 
+// TODO(lamarrr): fix image layout
 struct ImageProps
 {
   ImageSource      source = stx::None;
-  SizeConstraint   size;
+  Constraint2D     size;
   BorderRadius     border_radius;
   stx::Option<f32> aspect_ratio;
   bool             resize_on_load = true;
@@ -196,7 +197,7 @@ struct Image : public Widget
             state               = ImageState::Loaded;
             if (props.resize_on_load)
             {
-              props.size = SizeConstraint::absolute(AS(f32, buffer.extent.width), AS(f32, buffer.extent.height));
+              props.size = Constraint2D::absolute(AS(f32, buffer.extent.width), AS(f32, buffer.extent.height));
             }
             image_extent = buffer.extent;
           }

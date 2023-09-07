@@ -50,8 +50,8 @@ struct Switch : public Widget
     f32 const thumb_radius         = std::max(props.height / 2 - padding, 0.0f);
     f32 const thumb_begin_x        = padding + thumb_radius;
     f32 const thumb_end_x          = std::max(area.extent.x - padding - thumb_radius, 0.0f);
-    Tween     color_tween          = state ? Tween{props.inactive_track_color, props.active_track_color} : Tween{props.active_track_color, props.inactive_track_color};
-    Tween     thumb_position_tween = state ? Tween{thumb_begin_x, thumb_end_x} : Tween{thumb_end_x, thumb_begin_x};
+    Tween     color_tween          = state ? Tween<color>{props.inactive_track_color, props.active_track_color} : Tween<color>{props.active_track_color, props.inactive_track_color};
+    Tween     thumb_position_tween = state ? Tween<f32>{thumb_begin_x, thumb_end_x} : Tween<f32>{thumb_end_x, thumb_begin_x};
     EaseIn    curve;
     color     color          = animation.animate(curve, color_tween);
     f32 const thumb_position = animation.animate(curve, thumb_position_tween);

@@ -10,7 +10,7 @@ namespace ash
 struct TextProps
 {
   TextStyle      style;
-  SizeConstraint frame = SizeConstraint::relative(1, 1);
+  Constraint2D frame = Constraint2D::relative(1, 1);
 };
 
 struct Text : public Widget

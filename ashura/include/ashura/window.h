@@ -253,14 +253,9 @@ struct Window
     event_listeners.general.push(std::make_pair(event, std::move(action))).unwrap();
   }
 
-  void on_key_down(stx::UniqueFn<void(Key, KeyModifiers)> action)
+  void on_key(stx::UniqueFn<void(KeyEvent)> action)
   {
-    event_listeners.key_down.push(std::move(action)).unwrap();
-  }
-
-  void on_key_up(stx::UniqueFn<void(Key, KeyModifiers)> action)
-  {
-    event_listeners.key_up.push(std::move(action)).unwrap();
+    event_listeners.key.push(std::move(action)).unwrap();
   }
 
   void on_mouse_motion(stx::UniqueFn<void(MouseMotionEvent)> action)
@@ -272,9 +267,6 @@ struct Window
   {
     event_listeners.mouse_click.push(std::move(action)).unwrap();
   }
-
-  // TODO(lamarrr): on keypressed
-  // TODO(lamarrr): repeat all widget events
 
   // attach surface to window for presentation
   void attach_surface(stx::Rc<vk::Instance *> const &instance)
@@ -288,7 +280,7 @@ struct Window
     this->surface = stx::Some(stx::rc::make_unique(stx::os_allocator, vk::Surface{.surface = surface, .instance = instance->instance}).unwrap());
   }
 
-  void recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue, u32 max_nframes_in_flight)        // TODO(lamarrr): use manual logger
+  void recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue, u32 max_nframes_in_flight)
   {
     // if cause of change in swapchain is a change in extent, then mark
     // layout as dirty, otherwise maintain pipeline state

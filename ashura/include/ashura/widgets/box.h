@@ -23,12 +23,12 @@ struct BoxProps
   color               border_color     = colors::BLACK;
   BorderRadius        border_radius    = BorderRadius::relative(0);
   BoxCornerShape      corner_shape     = BoxCornerShape::Round;
-  SizeConstraint      frame            = SizeConstraint::relative(1, 1);
+  Constraint2D        frame            = Constraint2D::relative(1, 1);
 };
 
 struct Box : public Widget
 {
-  template <WidgetImpl DerivedWidget>
+  template <Impl<Widget> DerivedWidget>
   Box(BoxProps iprops, DerivedWidget child) :
       props{iprops}
   {
@@ -100,14 +100,17 @@ struct Box : public Widget
   }
 
   virtual ~Box() override
-  {}
+  {
+    for (Widget *child : children)
+    {
+      delete child;
+    }
+  }
 
-  template <WidgetImpl DerivedWidget>
+  template <Impl<Widget> DerivedWidget>
   void update_child(DerivedWidget widget)
   {
-    ASH_CHECK(children.size() == 1);
-    delete children[0];
-    children[0] = new DerivedWidget{std::move(widget)};
+    update_child(new DerivedWidget{std::move(widget)});
   }
 
   void update_child(Widget *widget)

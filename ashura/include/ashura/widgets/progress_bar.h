@@ -11,10 +11,10 @@ namespace ash
 
 struct ProgressBarProps
 {
-  SizeConstraint size          = SizeConstraint::absolute(200, 20);
-  bool           indeterminate = true;
-  color          bar_color     = material::BLUE_A700;
-  color          track_color   = material::GRAY_500;
+  Constraint2D size          = Constraint2D::absolute(300, 10);
+  bool         indeterminate = true;
+  color        bar_color     = material::BLUE_A700;
+  color        track_color   = material::GRAY_500;
 };
 
 struct ProgressBar : public Widget
@@ -43,7 +43,7 @@ struct ProgressBar : public Widget
     if (props.indeterminate)
     {
       Linear curve;
-      f32    pos = animation.animate(curve, Tween{0.0f, area.extent.x});
+      f32    pos = animation.animate(curve, Tween<f32>{0.0f, area.extent.x});
       canvas.draw_rect_filled(area.with_extent(pos, area.extent.y), props.bar_color);
     }
     else

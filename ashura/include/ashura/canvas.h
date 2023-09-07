@@ -545,7 +545,7 @@ struct Canvas
     state.global_transform = shear2d_y(shear) * state.global_transform;
     return *this;
   }
-
+  // TODO(lamarrr): transform_origin
   Canvas &transform(mat3 const &t)
   {
     state.local_transform = t * state.local_transform;
@@ -1001,6 +1001,7 @@ struct Canvas
     return *this;
   }
 
+  // TODO(lamarrr): text gradient, reset on each line or continue???? how does css do it?
   Canvas &draw_text(TextBlock const &block, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, vec2 const position)
   {
     /// TEXT BACKGROUNDS ///
