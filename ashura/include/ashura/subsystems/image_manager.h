@@ -11,7 +11,6 @@
 namespace ash
 {
 
-// TODO(lamarrr): we need widget context for getting other subsystems
 struct ImageManager : public Subsystem
 {
   virtual constexpr void on_startup(Context &ctx) override
