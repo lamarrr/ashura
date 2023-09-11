@@ -84,14 +84,14 @@ enum class KeyAction : u8
 struct MouseMotionEvent
 {
   MouseID mouse_id = 0;
-  vec2    position;
-  vec2    translation;
+  Vec2    position;
+  Vec2    translation;
 };
 
 struct MouseClickEvent
 {
   MouseID     mouse_id = 0;
-  vec2        position;
+  Vec2        position;
   u32         clicks = 0;
   MouseButton button = MouseButton::None;
   KeyAction   action = KeyAction::Press;
@@ -100,8 +100,8 @@ struct MouseClickEvent
 struct MouseWheelEvent
 {
   MouseID mouse_id = 0;
-  vec2    position;
-  vec2    translation;
+  Vec2    position;
+  Vec2    translation;
 };
 
 using Key = SDL_Keycode;

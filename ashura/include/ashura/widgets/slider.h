@@ -10,10 +10,10 @@ namespace ash
 
 struct SliderProps
 {
-  color      track_color  = material::BLUE_A700;
+  Color      track_color  = material::BLUE_A700;
   f32        track_height = 5;
   f32        thumb_radius = 10;
-  constraint width        = constraint{.scale = 1, .max = 250};
+  Constraint width        = Constraint{.scale = 1, .max = 250};
   bool       disabled     = false;
 };
 
@@ -40,9 +40,9 @@ struct Slider : public Widget
   virtual ~Slider() override
   {}
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
   {
-    return vec2{props.width.resolve(allocated_size.x), props.thumb_radius * 2};
+    return Vec2{props.width.resolve(allocated_size.x), props.thumb_radius * 2};
   }
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
@@ -56,11 +56,11 @@ struct Slider : public Widget
     track_area.offset.y -= props.track_height / 2;
     track_area.extent.y = props.track_height;
 
-    vec2 thumb_center{track_area.offset.x + percentage * track_area.extent.x, area.offset.y + area.extent.y / 2};
+    Vec2 thumb_center{track_area.offset.x + percentage * track_area.extent.x, area.offset.y + area.extent.y / 2};
     f32  thumb_radius = thumb_animation.animate(thumb_animation_curve, thumb_tween);
 
     canvas
-        .draw_round_rect_filled(track_area, vec4::splat(props.track_height / 2), 45, props.track_color)
+        .draw_round_rect_filled(track_area, Vec4::splat(props.track_height / 2), 45, props.track_color)
         .draw_circle_filled(thumb_center, thumb_radius, 360, props.track_color);
   }
 
@@ -69,17 +69,17 @@ struct Slider : public Widget
     thumb_animation.tick(interval);
   }
 
-  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
+  virtual bool hit_test(Context &ctx, Vec2 mouse_position) override
   {
     return true;
   }
 
-  virtual stx::Option<DragData> on_drag_start(Context &ctx, vec2 mouse_position) override
+  virtual stx::Option<DragData> on_drag_start(Context &ctx, Vec2 mouse_position) override
   {
     return stx::Some(DragData{.type = "STUB", .data = stx::Unique{stx::Span<u8 const>{}, stx::manager_stub}});
   }
 
-  virtual void on_drag_update(Context &ctx, vec2 mouse_position, vec2 translation, DragData const &drag_data) override
+  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation, DragData const &drag_data) override
   {
     on_change_start.handle(*this, ctx, value);
     f32 diff = translation.x / track_area.extent.x;
@@ -87,12 +87,12 @@ struct Slider : public Widget
     on_changed.handle(*this, ctx, value);
   }
 
-  virtual void on_mouse_enter(Context &ctx, vec2 mouse_position) override
+  virtual void on_mouse_enter(Context &ctx, Vec2 mouse_position) override
   {
     __transition_radius(props.thumb_radius * 0.75f, props.thumb_radius);
   }
 
-  virtual void on_mouse_leave(Context &ctx, stx::Option<vec2> mouse_position) override
+  virtual void on_mouse_leave(Context &ctx, stx::Option<Vec2> mouse_position) override
   {
     __transition_radius(props.thumb_radius, props.thumb_radius * 0.75f);
   }
@@ -108,7 +108,7 @@ struct Slider : public Widget
   Callback    on_change_end;
   f32         value = 0, min = 0, max = 1;
   SliderProps props;
-  rect        track_area;
+  Rect        track_area;
   bool        is_changing = false;
   Animation   thumb_animation;
   Linear      thumb_animation_curve;

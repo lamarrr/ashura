@@ -9,8 +9,8 @@ namespace ash
 
 struct CheckBoxProps
 {
-  color box_color         = material::BLUE_A700;
-  color checkmark_color   = material::GRAY_300;
+  Color box_color         = material::BLUE_A700;
+  Color checkmark_color   = material::GRAY_300;
   f32   extent            = 20;
   f32   outline_thickness = 1;
   bool  disabled          = false;
@@ -33,14 +33,14 @@ struct CheckBox : public Widget
   virtual ~CheckBox() override
   {}
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
   {
-    return vec2{props.extent, props.extent};
+    return Vec2{props.extent, props.extent};
   }
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
-    vertex checkmark_path[] = {
+    Vertex checkmark_path[] = {
         {.position = {0.125f, 0.5f}, .color = props.checkmark_color.to_normalized_vec()},
         {.position = {0.374f, 0.75f}, .color = props.checkmark_color.to_normalized_vec()},
         {.position = {0.775f, 0.25f}, .color = props.checkmark_color.to_normalized_vec()}};
@@ -60,12 +60,12 @@ struct CheckBox : public Widget
     }
   }
 
-  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
+  virtual bool hit_test(Context &ctx, Vec2 mouse_position) override
   {
     return true;
   }
 
-  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
+  virtual void on_mouse_down(Context &ctx, MouseButton button, Vec2 mouse_position, u32 nclicks) override
   {
     if (button == MouseButton::Primary && !props.disabled)
     {

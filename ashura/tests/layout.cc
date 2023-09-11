@@ -22,7 +22,7 @@ TEST(FlexLayout, Start)
       Image{ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
-  tree.layout(ctx, vec2{1920, 1080});
+  tree.layout(ctx, Vec2{1920, 1080});
 
   EXPECT_EQ(flex.area.offset.x, 0);
   EXPECT_EQ(flex.area.offset.y, 0);
@@ -58,7 +58,7 @@ TEST(FlexLayout, SpaceAround)
       Image{ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
-  tree.layout(ctx, vec2{1920, 1080});
+  tree.layout(ctx, Vec2{1920, 1080});
 
   f32 space = (1920 - 300) / 6;
   f32 x     = 0;
@@ -99,7 +99,7 @@ TEST(FlexLayout, SpaceEvenly)
       Image{ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
-  tree.layout(ctx, vec2{1920, 1080});
+  tree.layout(ctx, Vec2{1920, 1080});
 
   f32 x     = 0;
   f32 space = (1920 - 300) / 4.0f;
@@ -140,7 +140,7 @@ TEST(FlexLayout, SpaceBetween)
       Image{ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
-  tree.layout(ctx, vec2{1920, 1080});
+  tree.layout(ctx, Vec2{1920, 1080});
 
   f32 x     = 0;
   f32 space = (1920 - 300) / 2;

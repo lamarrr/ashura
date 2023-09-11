@@ -242,11 +242,10 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
     ASH_LOG_INFO(Context, "Initialized subsystem: {} (type: {})", subsystem->get_name(), typeid(*subsystem).name());
   }
 
-   VkImageFormatProperties image_format_properties;
-    ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties));
-   
-   fmt::println("max: {}", image_format_properties.maxMipLevels);
-   
+  VkImageFormatProperties image_format_properties;
+  ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties));
+
+  fmt::println("max: {}", image_format_properties.maxMipLevels);
 }
 
 void Engine::tick(std::chrono::nanoseconds interval)
@@ -273,9 +272,9 @@ void Engine::tick(std::chrono::nanoseconds interval)
 
   auto record_draw_commands = [&]() {
     VkExtent2D extent = root_window.value()->surface.value()->swapchain.value().window_extent;
-    vec2       viewport_extent{AS(f32, extent.width), AS(f32, extent.height)};
+    Vec2       viewport_extent{AS(f32, extent.width), AS(f32, extent.height)};
     widget_tree.layout(ctx, viewport_extent);
-    widget_tree.render(ctx, canvas, rect{.offset = {}, .extent = viewport_extent}, viewport_extent);
+    widget_tree.render(ctx, canvas, Rect{.offset = {}, .extent = viewport_extent}, viewport_extent);
   };
 
   // only record if swapchain visible,

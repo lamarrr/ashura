@@ -9,10 +9,10 @@ namespace rgk
 {
 struct vertex
 {
-  vec3 position;
-  vec2 uv;
-  vec3 normal;
-  vec4 color;
+  Vec3 position;
+  Vec2 uv;
+  Vec3 normal;
+  Vec4 color;
 };
 
 struct AttachmentSpec
@@ -65,7 +65,7 @@ struct FrameBufferSpec
   char const *id;
   gfx::image  depth_attachment;
   gfx::image  color_attachment;
-  extent      extent;
+  Extent      extent;
 };
 
 struct ComputePassSpec
@@ -86,7 +86,7 @@ struct PbrMaterial
 
 struct blur_effect
 {
-  extent offset;
+  Extent offset;
 };
 
 // Perlin noise for cloud generation

@@ -27,7 +27,7 @@
 
 namespace ash
 {
-constexpr extent DEFAULT_MAX_ATLAS_BIN_EXTENT = extent{1024, 1024};
+constexpr Extent DEFAULT_MAX_ATLAS_BIN_EXTENT = Extent{1024, 1024};
 
 enum class FontLoadError : u8
 {
@@ -157,17 +157,17 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError> load_font_from_file(stx::CStr
 struct FontAtlasBin
 {
   gfx::image texture = 0;
-  extent     extent;
+  Extent     extent;
   usize      used_area = 0;
 };
 
 /// Metrics are normalized
 struct GlyphMetrics
 {
-  vec2 bearing;            // offset from cursor baseline to start drawing glyph from
+  Vec2 bearing;            // offset from cursor baseline to start drawing glyph from
   f32  descent = 0;        // distance from baseline to the bottom of the glyph
   f32  advance = 0;        // advancement of the cursor after drawing this glyph
-  vec2 extent;             // glyph extent
+  Vec2 extent;             // glyph extent
 };
 
 /// see: https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
@@ -179,8 +179,8 @@ struct Glyph
   bool         is_needed = false;        // if the texture is a texture that is needed. i.e. if the unicode ranges are empty then this is always true, otherwise it is set to true if the config unicode ranges contains it, note that special glyphs like replacement unicode codepoint glyph (0xFFFD) will always be true
   GlyphMetrics metrics;                  // normalized font metrics
   u32          bin = 0;                  // atlas bin this glyph belongs to
-  urect        bin_area;                 // area in the atlas this glyph's cache data is placed
-  texture_rect bin_region;               // normalized texture coordinates of this glyph in the atlas bin
+  URect        bin_area;                 // area in the atlas this glyph's cache data is placed
+  TextureRect bin_region;               // normalized texture coordinates of this glyph in the atlas bin
 };
 
 /// stores codepoint glyphs for a font at a specific font height
@@ -220,7 +220,7 @@ struct FontSpec
   bool                           use_caching          = true;                                // whether to try to load or save font atlas from the cache directory. the font is identified in the cache directory by its postscript name, which is different from its font matching name
   u32                            face                 = 0;                                   // font face to use
   u32                            font_height          = 40;                                  // the height at which the SDF texture is cached at
-  extent                         max_atlas_bin_extent = DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
+  Extent                         max_atlas_bin_extent = DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
   stx::Span<unicode_range const> ranges               = {};                                  // if set only the specified unicode ranges will be loaded, otherwise glyphs in the font will be loaded. Note that this means during font ligature glyph substitution where scripts might change, if the replacement glyph is not in the unicode range, it won't result in a valid glyph.
 };
 
@@ -276,7 +276,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_font_atlas(Font const 
       metrics.descent   = std::max(metrics.extent.y - metrics.bearing.y, 0.0f);
 
       // bin offsets are determined after binning and during rect packing
-      urect bin_area;
+      URect bin_area;
       bin_area.extent.width  = slot->bitmap.width;
       bin_area.extent.height = slot->bitmap.rows;
 
@@ -378,7 +378,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_font_atlas(Font const 
       unpacked_rects               = unpacked;
 
       // NOTE: vulkan doesn't allow zero-extent images
-      extent bin_extent{1, 1};
+      Extent bin_extent{1, 1};
       usize  used_area = 0;
 
       for (rect_packer::rect const &rect : just_packed)
@@ -453,7 +453,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_font_atlas(Font const 
           .view()
           .subview(glyph.bin_area)
           .copy(ImageView<u8>{.span   = stx::Span<u8>{slot->bitmap.buffer, slot->bitmap.rows * slot->bitmap.pitch},
-                              .extent = extent{slot->bitmap.width, slot->bitmap.rows},
+                              .extent = Extent{slot->bitmap.width, slot->bitmap.rows},
                               .pitch  = (usize) slot->bitmap.pitch,
                               .format = ImageFormat::R8});
     }

@@ -9,7 +9,7 @@ namespace ash
 
 struct StackProps
 {
-  vec2         alignment;
+  Vec2         alignment;
   Constraint2D frame = Constraint2D::relative(1, 1);
 };
 
@@ -66,16 +66,16 @@ struct Stack : public Widget
     return WidgetDebugInfo{.type = "Stack"};
   }
 
-  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation) override
+  virtual void allocate_size(Context &ctx, Vec2 allocated_size, stx::Span<Vec2> children_allocation) override
   {
     children_allocation.fill(props.frame.resolve(allocated_size));
   }
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
   {
-    vec2 size;
+    Vec2 size;
 
-    for (vec2 child_size : children_sizes)
+    for (Vec2 child_size : children_sizes)
     {
       size = max(size, child_size);
     }
@@ -84,7 +84,7 @@ struct Stack : public Widget
 
     for (usize i = 0; i < children_positions.size(); i++)
     {
-      vec2 extent           = size - children_sizes[i];
+      Vec2 extent           = size - children_sizes[i];
       children_positions[i] = props.alignment * extent;
     }
 

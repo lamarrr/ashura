@@ -11,7 +11,7 @@ namespace ash
 
 struct WindowManager
 {
-  stx::Rc<Window *> create_window(char const *title, WindowType type, WindowCreateFlags flags, ash::extent extent)
+  stx::Rc<Window *> create_window(char const *title, WindowType type, WindowCreateFlags flags, ash::Extent extent)
   {
     // width and height here refer to the screen coordinates and not the
     // actual pixel coordinates (SEE: Device Pixel Ratio)

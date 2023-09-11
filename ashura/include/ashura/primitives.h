@@ -129,159 +129,159 @@ constexpr f32 inverse_lerp(T const &a, T const &b, T const &v)
   return (f32) (v - a) / (f32) (b - a);
 }
 
-struct vec2
+struct Vec2
 {
   f32 x = 0, y = 0;
 
-  static constexpr vec2 splat(f32 v)
+  static constexpr Vec2 splat(f32 v)
   {
-    return vec2{.x = v, .y = v};
+    return Vec2{.x = v, .y = v};
   }
 };
 
-constexpr vec2 epsilon_clamp(vec2 a)
+constexpr Vec2 epsilon_clamp(Vec2 a)
 {
-  return vec2{.x = epsilon_clamp(a.x), .y = epsilon_clamp(a.y)};
+  return Vec2{.x = epsilon_clamp(a.x), .y = epsilon_clamp(a.y)};
 }
 
-constexpr bool operator==(vec2 a, vec2 b)
+constexpr bool operator==(Vec2 a, Vec2 b)
 {
   return a.x == b.x && a.y == b.y;
 }
 
-constexpr bool operator!=(vec2 a, vec2 b)
+constexpr bool operator!=(Vec2 a, Vec2 b)
 {
   return a.x != b.x || a.y != b.y;
 }
 
-constexpr vec2 operator+(vec2 a, vec2 b)
+constexpr Vec2 operator+(Vec2 a, Vec2 b)
 {
-  return vec2{a.x + b.x, a.y + b.y};
+  return Vec2{a.x + b.x, a.y + b.y};
 }
 
-constexpr vec2 operator+(vec2 a, f32 b)
+constexpr Vec2 operator+(Vec2 a, f32 b)
 {
-  return vec2{a.x + b, a.y + b};
+  return Vec2{a.x + b, a.y + b};
 }
 
-constexpr vec2 operator+(f32 a, vec2 b)
+constexpr Vec2 operator+(f32 a, Vec2 b)
 {
   return b + a;
 }
 
-constexpr vec2 operator-(vec2 a, vec2 b)
+constexpr Vec2 operator-(Vec2 a, Vec2 b)
 {
-  return vec2{a.x - b.x, a.y - b.y};
+  return Vec2{a.x - b.x, a.y - b.y};
 }
 
-constexpr vec2 operator-(vec2 a, f32 b)
+constexpr Vec2 operator-(Vec2 a, f32 b)
 {
-  return vec2{a.x - b, a.y - b};
+  return Vec2{a.x - b, a.y - b};
 }
 
-constexpr vec2 operator-(f32 a, vec2 b)
+constexpr Vec2 operator-(f32 a, Vec2 b)
 {
-  return vec2{a - b.x, a - b.y};
+  return Vec2{a - b.x, a - b.y};
 }
 
-constexpr vec2 operator*(vec2 a, vec2 b)
+constexpr Vec2 operator*(Vec2 a, Vec2 b)
 {
-  return vec2{a.x * b.x, a.y * b.y};
+  return Vec2{a.x * b.x, a.y * b.y};
 }
 
-constexpr vec2 operator*(vec2 a, f32 b)
+constexpr Vec2 operator*(Vec2 a, f32 b)
 {
-  return vec2{a.x * b, a.y * b};
+  return Vec2{a.x * b, a.y * b};
 }
 
-constexpr vec2 operator*(f32 a, vec2 b)
+constexpr Vec2 operator*(f32 a, Vec2 b)
 {
   return b * a;
 }
 
-constexpr vec2 operator/(vec2 a, vec2 b)
+constexpr Vec2 operator/(Vec2 a, Vec2 b)
 {
-  return vec2{a.x / b.x, a.y / b.y};
+  return Vec2{a.x / b.x, a.y / b.y};
 }
 
-constexpr vec2 operator/(vec2 a, f32 b)
+constexpr Vec2 operator/(Vec2 a, f32 b)
 {
-  return vec2{a.x / b, a.y / b};
+  return Vec2{a.x / b, a.y / b};
 }
 
-constexpr vec2 operator/(f32 a, vec2 b)
+constexpr Vec2 operator/(f32 a, Vec2 b)
 {
-  return vec2{a / b.x, a / b.y};
+  return Vec2{a / b.x, a / b.y};
 }
 
-constexpr vec2 &operator+=(vec2 &a, vec2 b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr vec2 &operator+=(vec2 &a, f32 b)
+constexpr Vec2 &operator+=(Vec2 &a, Vec2 b)
 {
   a = a + b;
   return a;
 }
 
-constexpr vec2 &operator-=(vec2 &a, vec2 b)
+constexpr Vec2 &operator+=(Vec2 &a, f32 b)
+{
+  a = a + b;
+  return a;
+}
+
+constexpr Vec2 &operator-=(Vec2 &a, Vec2 b)
 {
   a = a - b;
   return a;
 }
 
-constexpr vec2 &operator-=(vec2 &a, f32 b)
+constexpr Vec2 &operator-=(Vec2 &a, f32 b)
 {
   a = a - b;
   return a;
 }
 
-constexpr vec2 &operator*=(vec2 &a, vec2 b)
+constexpr Vec2 &operator*=(Vec2 &a, Vec2 b)
 {
   a = a * b;
   return a;
 }
 
-constexpr vec2 &operator*=(vec2 &a, f32 b)
+constexpr Vec2 &operator*=(Vec2 &a, f32 b)
 {
   a = a * b;
   return a;
 }
 
-constexpr vec2 &operator/=(vec2 &a, vec2 b)
+constexpr Vec2 &operator/=(Vec2 &a, Vec2 b)
 {
   a = a / b;
   return a;
 }
 
-constexpr vec2 &operator/=(vec2 &a, f32 b)
+constexpr Vec2 &operator/=(Vec2 &a, f32 b)
 {
   a = a / b;
   return a;
 }
 
-constexpr f32 dot(vec2 a, vec2 b)
+constexpr f32 dot(Vec2 a, Vec2 b)
 {
   return a.x * b.x + a.y * b.y;
 }
 
-constexpr f32 cross(vec2 a, vec2 b)
+constexpr f32 cross(Vec2 a, Vec2 b)
 {
   return a.x * b.y - b.x * a.y;
 }
 
 struct tri
 {
-  vec2 p0, p1, p2;
+  Vec2 p0, p1, p2;
 
   constexpr f32 sign() const
   {
     return (p0.x - p2.x) * (p1.y - p2.y) - (p1.x - p2.x) * (p0.y - p2.y);
   }
 
-  constexpr bool contains(vec2 point) const
+  constexpr bool contains(Vec2 point) const
   {
     f32 sign0 = tri{point, p0, p1}.sign();
     f32 sign1 = tri{point, p1, p2}.sign();
@@ -295,36 +295,36 @@ struct tri
 };
 
 // each coordinate is an edge of the quad
-struct quad
+struct Quad
 {
-  vec2 p0, p1, p2, p3;
+  Vec2 p0, p1, p2, p3;
 
-  constexpr bool contains(vec2 point) const
+  constexpr bool contains(Vec2 point) const
   {
     return tri{.p0 = p0, .p1 = p1, .p2 = p2}.contains(point) || tri{.p0 = p0, .p1 = p2, .p2 = p3}.contains(point);
   }
 };
 
-struct rect
+struct Rect
 {
-  vec2 offset, extent;
+  Vec2 offset, extent;
 
   constexpr auto bounds() const
   {
     return std::make_tuple(offset.x, offset.x + extent.x, offset.y, offset.y + extent.y);
   }
 
-  constexpr vec2 min() const
+  constexpr Vec2 min() const
   {
     return offset;
   }
 
-  constexpr vec2 max() const
+  constexpr Vec2 max() const
   {
     return offset + extent;
   }
 
-  constexpr bool overlaps(rect other) const
+  constexpr bool overlaps(Rect other) const
   {
     auto [x0_min, x0_max, y0_min, y0_max] = bounds();
     auto [x1_min, x1_max, y1_min, y1_max] = other.bounds();
@@ -332,7 +332,7 @@ struct rect
     return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min && y1_min < y0_max;
   }
 
-  constexpr bool overlaps(quad const &quad) const
+  constexpr bool overlaps(Quad const &quad) const
   {
     return contains(quad.p0) || contains(quad.p1) || contains(quad.p2) || contains(quad.p3);
   }
@@ -340,23 +340,23 @@ struct rect
   /// @brief NOTE: returns 0-extent rect if there's no intersection
   /// @param other
   /// @return
-  constexpr rect intersect(rect other) const
+  constexpr Rect intersect(Rect other) const
   {
     auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
     auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
 
     if (!overlaps(other))
     {
-      return rect{.offset = offset, .extent = vec2{0, 0}};
+      return Rect{.offset = offset, .extent = Vec2{0, 0}};
     }
 
-    vec2 offset{std::max(x1_min, x2_min), std::max(y1_min, y2_min)};
-    vec2 extent{std::min(x1_max, x2_max) - offset.x, std::min(y1_max, y2_max) - offset.y};
+    Vec2 offset{std::max(x1_min, x2_min), std::max(y1_min, y2_min)};
+    Vec2 extent{std::min(x1_max, x2_max) - offset.x, std::min(y1_max, y2_max) - offset.y};
 
-    return rect{.offset = offset, .extent = extent};
+    return Rect{.offset = offset, .extent = extent};
   }
 
-  constexpr bool contains(vec2 point) const
+  constexpr bool contains(Vec2 point) const
   {
     return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
   }
@@ -366,349 +366,349 @@ struct rect
     return extent.x != 0 && extent.y != 0;
   }
 
-  constexpr vec2 top_left() const
+  constexpr Vec2 top_left() const
   {
     return offset;
   }
 
-  constexpr vec2 top_right() const
+  constexpr Vec2 top_right() const
   {
-    return offset + vec2{extent.x, 0};
+    return offset + Vec2{extent.x, 0};
   }
 
-  constexpr vec2 bottom_left() const
+  constexpr Vec2 bottom_left() const
   {
-    return offset + vec2{0, extent.y};
+    return offset + Vec2{0, extent.y};
   }
 
-  constexpr vec2 bottom_right() const
+  constexpr Vec2 bottom_right() const
   {
     return offset + extent;
   }
 
-  constexpr quad to_quad() const
+  constexpr Quad to_quad() const
   {
-    return quad{
+    return Quad{
         .p0 = top_left(),
         .p1 = top_right(),
         .p2 = bottom_right(),
         .p3 = bottom_left()};
   }
 
-  constexpr rect with_offset(vec2 new_offset) const
+  constexpr Rect with_offset(Vec2 new_offset) const
   {
-    return rect{.offset = new_offset, .extent = extent};
+    return Rect{.offset = new_offset, .extent = extent};
   }
 
-  constexpr rect with_offset(f32 x, f32 y) const
+  constexpr Rect with_offset(f32 x, f32 y) const
   {
-    return rect{.offset = vec2{x, y}, .extent = extent};
+    return Rect{.offset = Vec2{x, y}, .extent = extent};
   }
 
-  constexpr rect with_extent(vec2 new_extent) const
+  constexpr Rect with_extent(Vec2 new_extent) const
   {
-    return rect{.offset = offset, .extent = new_extent};
+    return Rect{.offset = offset, .extent = new_extent};
   }
 
-  constexpr rect with_extent(f32 w, f32 h) const
+  constexpr Rect with_extent(f32 w, f32 h) const
   {
-    return rect{.offset = offset, .extent = vec2{w, h}};
+    return Rect{.offset = offset, .extent = Vec2{w, h}};
   }
 
-  constexpr rect with_center(vec2 center) const
+  constexpr Rect with_center(Vec2 center) const
   {
-    return rect{.offset = center - extent / 2, .extent = extent};
+    return Rect{.offset = center - extent / 2, .extent = extent};
   }
 
-  constexpr rect with_center(f32 cx, f32 cy) const
+  constexpr Rect with_center(f32 cx, f32 cy) const
   {
-    return with_center(vec2{cx, cy});
+    return with_center(Vec2{cx, cy});
   }
 
-  constexpr rect centered() const
+  constexpr Rect centered() const
   {
     return with_center(offset);
   }
 };
 
-struct vec3
+struct Vec3
 {
   f32 x = 0, y = 0, z = 0, __padding__;
 
-  static constexpr vec3 splat(f32 v)
+  static constexpr Vec3 splat(f32 v)
   {
-    return vec3{.x = v, .y = v, .z = v};
+    return Vec3{.x = v, .y = v, .z = v};
   }
 };
 
-constexpr bool operator==(vec3 a, vec3 b)
+constexpr bool operator==(Vec3 a, Vec3 b)
 {
   return a.x == b.x && a.y == b.y && a.z == b.z;
 }
 
-constexpr bool operator!=(vec3 a, vec3 b)
+constexpr bool operator!=(Vec3 a, Vec3 b)
 {
   return a.x != b.x || a.y != b.y || a.z != b.z;
 }
 
-constexpr vec3 operator+(vec3 a, vec3 b)
+constexpr Vec3 operator+(Vec3 a, Vec3 b)
 {
-  return vec3{a.x + b.x, a.y + b.y, a.z + b.z};
+  return Vec3{a.x + b.x, a.y + b.y, a.z + b.z};
 }
 
-constexpr vec3 operator+(vec3 a, f32 b)
+constexpr Vec3 operator+(Vec3 a, f32 b)
 {
-  return vec3{a.x + b, a.y + b, a.z + b};
+  return Vec3{a.x + b, a.y + b, a.z + b};
 }
 
-constexpr vec3 operator+(f32 a, vec3 b)
+constexpr Vec3 operator+(f32 a, Vec3 b)
 {
-  return vec3{a + b.x, a + b.y, a + b.z};
+  return Vec3{a + b.x, a + b.y, a + b.z};
 }
 
-constexpr vec3 operator-(vec3 a, vec3 b)
+constexpr Vec3 operator-(Vec3 a, Vec3 b)
 {
-  return vec3{a.x - b.x, a.y - b.y, a.z - b.z};
+  return Vec3{a.x - b.x, a.y - b.y, a.z - b.z};
 }
 
-constexpr vec3 operator-(vec3 a, f32 b)
+constexpr Vec3 operator-(Vec3 a, f32 b)
 {
-  return vec3{a.x - b, a.y - b, a.z - b};
+  return Vec3{a.x - b, a.y - b, a.z - b};
 }
 
-constexpr vec3 operator-(f32 a, vec3 b)
+constexpr Vec3 operator-(f32 a, Vec3 b)
 {
-  return vec3{a - b.x, a - b.y, a - b.z};
+  return Vec3{a - b.x, a - b.y, a - b.z};
 }
 
-constexpr vec3 operator*(vec3 a, vec3 b)
+constexpr Vec3 operator*(Vec3 a, Vec3 b)
 {
-  return vec3{a.x * b.x, a.y * b.y, a.z * b.z};
+  return Vec3{a.x * b.x, a.y * b.y, a.z * b.z};
 }
 
-constexpr vec3 operator*(vec3 a, f32 b)
+constexpr Vec3 operator*(Vec3 a, f32 b)
 {
-  return vec3{a.x * b, a.y * b, a.z * b};
+  return Vec3{a.x * b, a.y * b, a.z * b};
 }
 
-constexpr vec3 operator*(f32 a, vec3 b)
+constexpr Vec3 operator*(f32 a, Vec3 b)
 {
-  return vec3{a * b.x, a * b.y, a * b.z};
+  return Vec3{a * b.x, a * b.y, a * b.z};
 }
 
-constexpr vec3 operator/(vec3 a, vec3 b)
+constexpr Vec3 operator/(Vec3 a, Vec3 b)
 {
-  return vec3{a.x / b.x, a.y / b.y, a.z / b.z};
+  return Vec3{a.x / b.x, a.y / b.y, a.z / b.z};
 }
 
-constexpr vec3 operator/(vec3 a, f32 b)
+constexpr Vec3 operator/(Vec3 a, f32 b)
 {
-  return vec3{a.x / b, a.y / b, a.z / b};
+  return Vec3{a.x / b, a.y / b, a.z / b};
 }
 
-constexpr vec3 operator/(f32 a, vec3 b)
+constexpr Vec3 operator/(f32 a, Vec3 b)
 {
-  return vec3{a / b.x, a / b.y, a / b.z};
+  return Vec3{a / b.x, a / b.y, a / b.z};
 }
 
-constexpr f32 dot(vec3 a, vec3 b)
+constexpr f32 dot(Vec3 a, Vec3 b)
 {
   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
 /// column vector
-struct vec4
+struct Vec4
 {
   f32 x = 0, y = 0, z = 0, w = 0;
 
-  static constexpr vec4 splat(f32 v)
+  static constexpr Vec4 splat(f32 v)
   {
-    return vec4{.x = v, .y = v, .z = v, .w = v};
+    return Vec4{.x = v, .y = v, .z = v, .w = v};
   }
 };
 
-constexpr bool operator==(vec4 a, vec4 b)
+constexpr bool operator==(Vec4 a, Vec4 b)
 {
   return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }
 
-constexpr bool operator!=(vec4 a, vec4 b)
+constexpr bool operator!=(Vec4 a, Vec4 b)
 {
   return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
 }
 
-constexpr vec4 operator+(vec4 a, vec4 b)
+constexpr Vec4 operator+(Vec4 a, Vec4 b)
 {
-  return vec4{a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
+  return Vec4{a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
 }
 
-constexpr vec4 operator+(vec4 a, f32 b)
+constexpr Vec4 operator+(Vec4 a, f32 b)
 {
-  return vec4{a.x + b, a.y + b, a.z + b, a.w + b};
+  return Vec4{a.x + b, a.y + b, a.z + b, a.w + b};
 }
 
-constexpr vec4 operator+(f32 a, vec4 b)
+constexpr Vec4 operator+(f32 a, Vec4 b)
 {
-  return vec4{a + b.x, a + b.y, a + b.z, a + b.w};
+  return Vec4{a + b.x, a + b.y, a + b.z, a + b.w};
 }
 
-constexpr vec4 operator-(vec4 a, vec4 b)
+constexpr Vec4 operator-(Vec4 a, Vec4 b)
 {
-  return vec4{a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
+  return Vec4{a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
 }
 
-constexpr vec4 operator-(vec4 a, f32 b)
+constexpr Vec4 operator-(Vec4 a, f32 b)
 {
-  return vec4{a.x - b, a.y - b, a.z - b, a.w - b};
+  return Vec4{a.x - b, a.y - b, a.z - b, a.w - b};
 }
 
-constexpr vec4 operator-(f32 a, vec4 b)
+constexpr Vec4 operator-(f32 a, Vec4 b)
 {
-  return vec4{a - b.x, a - b.y, a - b.z, a - b.w};
+  return Vec4{a - b.x, a - b.y, a - b.z, a - b.w};
 }
 
-constexpr vec4 operator*(vec4 a, vec4 b)
+constexpr Vec4 operator*(Vec4 a, Vec4 b)
 {
-  return vec4{a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
+  return Vec4{a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
 }
 
-constexpr vec4 operator*(vec4 a, f32 b)
+constexpr Vec4 operator*(Vec4 a, f32 b)
 {
-  return vec4{a.x * b, a.y * b, a.z * b, a.w * b};
+  return Vec4{a.x * b, a.y * b, a.z * b, a.w * b};
 }
 
-constexpr vec4 operator*(f32 a, vec4 b)
+constexpr Vec4 operator*(f32 a, Vec4 b)
 {
-  return vec4{a * b.x, a * b.y, a * b.z, a * b.w};
+  return Vec4{a * b.x, a * b.y, a * b.z, a * b.w};
 }
 
-constexpr vec4 operator/(vec4 a, vec4 b)
+constexpr Vec4 operator/(Vec4 a, Vec4 b)
 {
-  return vec4{a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w};
+  return Vec4{a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w};
 }
 
-constexpr vec4 operator/(vec4 a, f32 b)
+constexpr Vec4 operator/(Vec4 a, f32 b)
 {
-  return vec4{a.x / b, a.y / b, a.z / b, a.w / b};
+  return Vec4{a.x / b, a.y / b, a.z / b, a.w / b};
 }
 
-constexpr vec4 operator/(f32 a, vec4 b)
+constexpr Vec4 operator/(f32 a, Vec4 b)
 {
-  return vec4{a / b.x, a / b.y, a / b.z, a / b.w};
+  return Vec4{a / b.x, a / b.y, a / b.z, a / b.w};
 }
 
-constexpr f32 dot(vec4 a, vec4 b)
+constexpr f32 dot(Vec4 a, Vec4 b)
 {
   return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
 
-struct mat2
+struct Mat2
 {
-  vec2 rows[2];
+  Vec2 rows[2];
 
-  static constexpr mat2 identity()
+  static constexpr Mat2 identity()
   {
-    return mat2{.rows = {{.x = 1, .y = 0},
+    return Mat2{.rows = {{.x = 1, .y = 0},
                          {.x = 0, .y = 1}}};
   }
 
-  constexpr mat2 transpose() const
+  constexpr Mat2 transpose() const
   {
-    return mat2{.rows = {{rows[0].x, rows[1].x},
+    return Mat2{.rows = {{rows[0].x, rows[1].x},
                          {rows[0].y, rows[1].y}}};
   }
 
-  constexpr vec2 &operator[](usize i)
+  constexpr Vec2 &operator[](usize i)
   {
     return rows[i];
   }
 
-  constexpr vec2 const &operator[](usize i) const
+  constexpr Vec2 const &operator[](usize i) const
   {
     return rows[i];
   }
 };
 
-constexpr mat2 operator*(mat2 a, f32 b)
+constexpr Mat2 operator*(Mat2 a, f32 b)
 {
-  return mat2{.rows = {a[0] * b,
+  return Mat2{.rows = {a[0] * b,
                        a[1] * b}};
 }
 
-constexpr mat2 operator*(f32 a, mat2 b)
+constexpr Mat2 operator*(f32 a, Mat2 b)
 {
-  return mat2{.rows = {a * b[0],
+  return Mat2{.rows = {a * b[0],
                        a * b[1]}};
 }
 
-constexpr f32 determinant(mat2 a)
+constexpr f32 determinant(Mat2 a)
 {
   return a[0].x * a[1].y - a[1].x * a[0].y;
 }
 
-constexpr mat2 adjoint(mat2 a)
+constexpr Mat2 adjoint(Mat2 a)
 {
-  return mat2{.rows = {{a[1].y, -a[0].y},
+  return Mat2{.rows = {{a[1].y, -a[0].y},
                        {-a[1].x, a[0].x}}};
 }
 
-constexpr mat2 inverse(mat2 a)
+constexpr Mat2 inverse(Mat2 a)
 {
   return 1 / determinant(a) * adjoint(a);
 }
 
 /// row-major
-struct mat3
+struct Mat3
 {
-  vec3 rows[3];
+  Vec3 rows[3];
 
-  static constexpr mat3 identity()
+  static constexpr Mat3 identity()
   {
-    return mat3{.rows = {{.x = 1, .y = 0, .z = 0},
+    return Mat3{.rows = {{.x = 1, .y = 0, .z = 0},
                          {.x = 0, .y = 1, .z = 0},
                          {.x = 0, .y = 0, .z = 1}}};
   }
 
-  constexpr mat3 transpose() const
+  constexpr Mat3 transpose() const
   {
-    return mat3{.rows = {{rows[0].x, rows[1].x, rows[2].x},
+    return Mat3{.rows = {{rows[0].x, rows[1].x, rows[2].x},
                          {rows[0].y, rows[1].y, rows[2].y},
                          {rows[0].z, rows[1].z, rows[2].z}}};
   }
 
-  constexpr vec3 &operator[](usize i)
+  constexpr Vec3 &operator[](usize i)
   {
     return rows[i];
   }
 
-  constexpr vec3 const &operator[](usize i) const
+  constexpr Vec3 const &operator[](usize i) const
   {
     return rows[i];
   }
 };
 
-constexpr mat3 operator*(mat3 a, f32 b)
+constexpr Mat3 operator*(Mat3 a, f32 b)
 {
-  return mat3{.rows = {a[0] * b,
+  return Mat3{.rows = {a[0] * b,
                        a[1] * b,
                        a[2] * b}};
 }
 
-constexpr mat3 operator*(f32 a, mat3 b)
+constexpr Mat3 operator*(f32 a, Mat3 b)
 {
-  return mat3{.rows = {a * b[0],
+  return Mat3{.rows = {a * b[0],
                        a * b[1],
                        a * b[2]}};
 }
 
-constexpr vec3 operator*(mat3 const &a, vec3 const &b)
+constexpr Vec3 operator*(Mat3 const &a, Vec3 const &b)
 {
-  return vec3{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b)};
+  return Vec3{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b)};
 }
 
-constexpr mat3 operator*(mat3 const &a, mat3 const &b)
+constexpr Mat3 operator*(Mat3 const &a, Mat3 const &b)
 {
-  return mat3{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x}),
+  return Mat3{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x}),
                         dot(a[0], {b[0].y, b[1].y, b[2].y}),
                         dot(a[0], {b[0].z, b[1].z, b[2].z})},
                        {dot(a[1], {b[0].x, b[1].x, b[2].x}),
@@ -719,7 +719,7 @@ constexpr mat3 operator*(mat3 const &a, mat3 const &b)
                         dot(a[2], {b[0].z, b[1].z, b[2].z})}}};
 }
 
-constexpr f32 determinant(mat3 const &a)
+constexpr f32 determinant(Mat3 const &a)
 {
   return a[0].x * a[1].y * a[2].z -
          a[0].x * a[1].z * a[2].y -
@@ -729,9 +729,9 @@ constexpr f32 determinant(mat3 const &a)
          a[0].z * a[1].y * a[2].x;
 }
 
-constexpr mat3 adjoint(mat3 const &a)
+constexpr Mat3 adjoint(Mat3 const &a)
 {
-  return mat3{.rows = {{a[1].y * a[2].z - a[1].z * a[2].y,
+  return Mat3{.rows = {{a[1].y * a[2].z - a[1].z * a[2].y,
                         a[0].z * a[2].y - a[0].y * a[2].z,
                         a[0].y * a[1].z - a[0].z * a[1].y},
                        {a[1].z * a[2].x - a[1].x * a[2].z,
@@ -742,72 +742,72 @@ constexpr mat3 adjoint(mat3 const &a)
                         a[0].x * a[1].y - a[0].y * a[1].x}}};
 }
 
-constexpr mat3 inverse(mat3 const &a)
+constexpr Mat3 inverse(Mat3 const &a)
 {
   return 1 / determinant(a) * adjoint(a);
 }
 
 /// row-major
-struct mat4
+struct Mat4
 {
-  vec4 rows[4];
+  Vec4 rows[4];
 
-  static constexpr mat4 identity()
+  static constexpr Mat4 identity()
   {
-    return mat4{.rows = {{.x = 1, .y = 0, .z = 0, .w = 0},
+    return Mat4{.rows = {{.x = 1, .y = 0, .z = 0, .w = 0},
                          {.x = 0, .y = 1, .z = 0, .w = 0},
                          {.x = 0, .y = 0, .z = 1, .w = 0},
                          {.x = 0, .y = 0, .z = 0, .w = 1}}};
   }
 
-  constexpr mat4 transpose() const
+  constexpr Mat4 transpose() const
   {
-    return mat4{.rows = {{rows[0].x, rows[1].x, rows[2].x, rows[3].x},
+    return Mat4{.rows = {{rows[0].x, rows[1].x, rows[2].x, rows[3].x},
                          {rows[0].y, rows[1].y, rows[2].y, rows[3].y},
                          {rows[0].z, rows[1].z, rows[2].z, rows[3].z},
                          {rows[0].w, rows[1].w, rows[2].w, rows[3].w}}};
   }
 
-  constexpr vec4 &operator[](usize i)
+  constexpr Vec4 &operator[](usize i)
   {
     return rows[i];
   }
 
-  constexpr vec4 const &operator[](usize i) const
+  constexpr Vec4 const &operator[](usize i) const
   {
     return rows[i];
   }
 };
 
-constexpr mat4 operator*(mat4 a, f32 b)
+constexpr Mat4 operator*(Mat4 a, f32 b)
 {
-  return mat4{.rows = {a[0] * b,
+  return Mat4{.rows = {a[0] * b,
                        a[1] * b,
                        a[2] * b,
                        a[3] * b}};
 }
 
-constexpr mat4 operator*(f32 a, mat4 b)
+constexpr Mat4 operator*(f32 a, Mat4 b)
 {
-  return mat4{.rows = {a * b[0],
+  return Mat4{.rows = {a * b[0],
                        a * b[1],
                        a * b[2],
                        a * b[3]}};
 }
 
-constexpr bool operator==(mat4 const &a, mat4 const &b)
+constexpr bool operator==(Mat4 const &a, Mat4 const &b)
 {
   return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
 }
 
-constexpr bool operator!=(mat4 const &a, mat4 const &b)
+constexpr bool operator!=(Mat4 const &a, Mat4 const &b)
 {
   return a[0] != b[0] || a[1] != b[1] || a[2] != b[2] || a[3] != b[3];
 }
 
-constexpr mat4 operator*(mat4 const &a, mat4 const &b)
+constexpr Mat4 operator*(Mat4 const &a, Mat4 const &b)
 {
-  return mat4{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x, b[3].x}),
+  return Mat4{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x, b[3].x}),
                         dot(a[0], {b[0].y, b[1].y, b[2].y, b[3].y}),
                         dot(a[0], {b[0].z, b[1].z, b[2].z, b[3].z}),
                         dot(a[0], {b[0].w, b[1].w, b[2].w, b[3].w})},
@@ -825,12 +825,12 @@ constexpr mat4 operator*(mat4 const &a, mat4 const &b)
                         dot(a[3], {b[0].w, b[1].w, b[2].w, b[3].w})}}};
 }
 
-constexpr vec4 operator*(mat4 const &a, vec4 const &b)
+constexpr Vec4 operator*(Mat4 const &a, Vec4 const &b)
 {
-  return vec4{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b), .w = dot(a[3], b)};
+  return Vec4{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b), .w = dot(a[3], b)};
 }
 
-constexpr f32 determinant(mat4 const &a)
+constexpr f32 determinant(Mat4 const &a)
 {
   return a[0].x * (a[1].y * a[2].z * a[3].w +
                    a[1].z * a[2].w * a[3].y +
@@ -895,143 +895,143 @@ constexpr f32 determinant(mat4 const &a)
 //   return 1 / determinant(a) * adjoint(a);
 // }
 
-constexpr vec2 transform3d(mat4 const &a, vec2 const &b)
+constexpr Vec2 transform3d(Mat4 const &a, Vec2 const &b)
 {
-  vec4 prod = a * vec4{b.x, b.y, 0, 1};
-  return vec2{.x = prod.x, .y = prod.y};
+  Vec4 prod = a * Vec4{b.x, b.y, 0, 1};
+  return Vec2{.x = prod.x, .y = prod.y};
 }
 
-constexpr vec2 transform3d(mat4 const &a, vec3 const &b)
+constexpr Vec2 transform3d(Mat4 const &a, Vec3 const &b)
 {
-  vec4 prod = a * vec4{b.x, b.y, b.z, 1};
-  return vec2{.x = prod.x, .y = prod.y};
+  Vec4 prod = a * Vec4{b.x, b.y, b.z, 1};
+  return Vec2{.x = prod.x, .y = prod.y};
 }
 
-constexpr vec2 transform2d(mat3 const &a, vec2 const &b)
+constexpr Vec2 transform2d(Mat3 const &a, Vec2 const &b)
 {
-  vec3 prod = a * vec3{b.x, b.y, 1};
-  return vec2{prod.x, prod.y};
+  Vec3 prod = a * Vec3{b.x, b.y, 1};
+  return Vec2{prod.x, prod.y};
 }
 
-constexpr quad transform2d(mat3 const &a, rect const &b)
+constexpr Quad transform2d(Mat3 const &a, Rect const &b)
 {
-  return quad{
+  return Quad{
       .p0 = transform2d(a, b.top_left()),
       .p1 = transform2d(a, b.top_right()),
       .p2 = transform2d(a, b.bottom_right()),
       .p3 = transform2d(a, b.bottom_left())};
 }
 
-constexpr mat3 translate2d(vec2 t)
+constexpr Mat3 translate2d(Vec2 t)
 {
-  return mat3{.rows = {{1, 0, t.x},
+  return Mat3{.rows = {{1, 0, t.x},
                        {0, 1, t.y},
                        {0, 0, 1}}};
 }
 
-constexpr mat3 translate2d(f32 tx, f32 ty)
+constexpr Mat3 translate2d(f32 tx, f32 ty)
 {
-  return translate2d(vec2{tx, ty});
+  return translate2d(Vec2{tx, ty});
 }
 
-constexpr mat4 translate3d(vec3 t)
+constexpr Mat4 translate3d(Vec3 t)
 {
-  return mat4{.rows = {{1, 0, 0, t.x},
+  return Mat4{.rows = {{1, 0, 0, t.x},
                        {0, 1, 0, t.y},
                        {0, 0, 1, t.z},
                        {0, 0, 0, 1}}};
 }
 
-constexpr mat3 scale2d(vec2 s)
+constexpr Mat3 scale2d(Vec2 s)
 {
-  return mat3{.rows = {{s.x, 0, 0},
+  return Mat3{.rows = {{s.x, 0, 0},
                        {0, s.y, 0},
                        {0, 0, 1}}};
 }
 
-constexpr mat3 scale2d(f32 sx, f32 sy)
+constexpr Mat3 scale2d(f32 sx, f32 sy)
 {
-  return scale2d(vec2{sx, sy});
+  return scale2d(Vec2{sx, sy});
 }
 
-constexpr mat4 scale3d(vec3 s)
+constexpr Mat4 scale3d(Vec3 s)
 {
-  return mat4{.rows = {{s.x, 0, 0, 0},
+  return Mat4{.rows = {{s.x, 0, 0, 0},
                        {0, s.y, 0, 0},
                        {0, 0, s.z, 0},
                        {0, 0, 0, 1}}};
 }
 
-inline mat3 rotate2d(f32 degree_radians)
+inline Mat3 rotate2d(f32 degree_radians)
 {
-  return mat3{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0},
+  return Mat3{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0},
                        {std::sin(degree_radians), std::cos(degree_radians), 0},
                        {0, 0, 1}}};
 }
 
-inline mat4 rotate3d_x(f32 degree_radians)
+inline Mat4 rotate3d_x(f32 degree_radians)
 {
-  return mat4{.rows = {{1, 0, 0, 0},
+  return Mat4{.rows = {{1, 0, 0, 0},
                        {0, std::cos(degree_radians), -std::sin(degree_radians), 0},
                        {0, std::sin(degree_radians), std::cos(degree_radians), 0},
                        {0, 0, 0, 1}}};
 }
 
-inline mat4 rotate3d_y(f32 degree_radians)
+inline Mat4 rotate3d_y(f32 degree_radians)
 {
-  return mat4{.rows = {{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
+  return Mat4{.rows = {{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
                        {0, 1, 0, 0},
                        {-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
                        {0, 0, 0, 1}}};
 }
 
-inline mat4 rotate3d_z(f32 degree_radians)
+inline Mat4 rotate3d_z(f32 degree_radians)
 {
-  return mat4{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
+  return Mat4{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
                        {std::sin(degree_radians), std::cos(degree_radians), 0, 0},
                        {0, 0, 1, 0},
                        {0, 0, 0, 1}}};
 }
 
-constexpr mat3 shear2d_x(f32 x_shear)
+constexpr Mat3 shear2d_x(f32 x_shear)
 {
-  return mat3{.rows = {{1, 0, 0},
+  return Mat3{.rows = {{1, 0, 0},
                        {x_shear, 1, 0},
                        {0, 0, 1}}};
 }
 
-constexpr mat3 shear2d_y(f32 y_shear)
+constexpr Mat3 shear2d_y(f32 y_shear)
 {
-  return mat3{.rows = {{1, y_shear, 0},
+  return Mat3{.rows = {{1, y_shear, 0},
                        {0, 1, 0},
                        {0, 0, 1}}};
 }
 
-constexpr mat4 shear3d_x(f32 y_shear, f32 z_shear)
+constexpr Mat4 shear3d_x(f32 y_shear, f32 z_shear)
 {
-  return mat4{.rows = {{1, y_shear, z_shear, 0},
+  return Mat4{.rows = {{1, y_shear, z_shear, 0},
                        {0, 1, 0, 0},
                        {0, 0, 1, 0},
                        {0, 0, 0, 1}}};
 }
 
-constexpr mat4 shear3d_y(f32 x_shear, f32 z_shear)
+constexpr Mat4 shear3d_y(f32 x_shear, f32 z_shear)
 {
-  return mat4{.rows = {{1, 0, 0, 0},
+  return Mat4{.rows = {{1, 0, 0, 0},
                        {x_shear, 1, z_shear, 0},
                        {0, 0, 1, 0},
                        {0, 0, 0, 1}}};
 }
 
-constexpr mat4 shear3d_z(f32 x_shear, f32 y_shear)
+constexpr Mat4 shear3d_z(f32 x_shear, f32 y_shear)
 {
-  return mat4{.rows = {{1, 0, 0, 0},
+  return Mat4{.rows = {{1, 0, 0, 0},
                        {0, 1, 0, 0},
                        {x_shear, y_shear, 1, 0},
                        {0, 0, 0, 1}}};
 }
 
-struct quaternion
+struct Quaternion
 {
   f32 x = 0, y = 0, z = 0, w = 0;
 
@@ -1040,12 +1040,12 @@ struct quaternion
   // constexpr quaternion normalized() const { return {}; }
 };
 
-constexpr bool operator==(quaternion a, quaternion b)
+constexpr bool operator==(Quaternion a, Quaternion b)
 {
   return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }
 
-constexpr bool operator!=(quaternion a, quaternion b)
+constexpr bool operator!=(Quaternion a, Quaternion b)
 {
   return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
 }
@@ -1057,68 +1057,68 @@ constexpr bool operator!=(quaternion a, quaternion b)
 // constexpr quaternion operator*(quaternion a, quaternion b) { return {}; }
 // constexpr quaternion dot(quaternion a, quaternion b) { return {}; }
 
-struct offset
+struct Offset
 {
   u32 x = 0, y = 0;
 
-  constexpr vec2 to_vec() const
+  constexpr Vec2 to_vec() const
   {
-    return vec2{.x = AS(f32, x), .y = AS(f32, y)};
+    return Vec2{.x = AS(f32, x), .y = AS(f32, y)};
   }
 };
 
-constexpr bool operator==(offset a, offset b)
+constexpr bool operator==(Offset a, Offset b)
 {
   return a.x == b.x && a.y == b.y;
 }
 
-constexpr bool operator!=(offset a, offset b)
+constexpr bool operator!=(Offset a, Offset b)
 {
   return !(a == b);
 }
 
-constexpr offset operator+(offset a, offset b)
+constexpr Offset operator+(Offset a, Offset b)
 {
-  return offset{.x = a.x + b.x, .y = a.y + b.y};
+  return Offset{.x = a.x + b.x, .y = a.y + b.y};
 }
 
-struct ioffset
+struct IOffset
 {
   i32 x = 0, y = 0;
 
-  constexpr vec2 as_vec() const
+  constexpr Vec2 as_vec() const
   {
-    return vec2{AS(f32, x), AS(f32, y)};
+    return Vec2{AS(f32, x), AS(f32, y)};
   }
 };
 
-constexpr bool operator==(ioffset a, ioffset b)
+constexpr bool operator==(IOffset a, IOffset b)
 {
   return a.x == b.x && a.y == b.y;
 }
 
-constexpr bool operator!=(ioffset a, ioffset b)
+constexpr bool operator!=(IOffset a, IOffset b)
 {
   return !(a == b);
 }
 
-constexpr ioffset operator+(ioffset a, ioffset b)
+constexpr IOffset operator+(IOffset a, IOffset b)
 {
-  return ioffset{.x = a.x + b.x, .y = a.y + b.y};
+  return IOffset{.x = a.x + b.x, .y = a.y + b.y};
 }
 
-constexpr ioffset operator-(ioffset a, ioffset b)
+constexpr IOffset operator-(IOffset a, IOffset b)
 {
-  return ioffset{.x = a.x - b.x, .y = a.y - b.y};
+  return IOffset{.x = a.x - b.x, .y = a.y - b.y};
 }
 
-struct extent
+struct Extent
 {
   u32 width = 0, height = 0;
 
-  static constexpr extent from(vec2 wh)
+  static constexpr Extent from(Vec2 wh)
   {
-    return extent{AS(u32, wh.x), AS(u32, wh.y)};
+    return Extent{AS(u32, wh.x), AS(u32, wh.y)};
   }
 
   constexpr bool is_visible() const
@@ -1126,9 +1126,9 @@ struct extent
     return width != 0 && height != 0;
   }
 
-  constexpr extent constrain(extent other) const
+  constexpr Extent constrain(Extent other) const
   {
-    return extent{.width = std::min(width, other.width), .height = std::min(height, other.height)};
+    return Extent{.width = std::min(width, other.width), .height = std::min(height, other.height)};
   }
 
   constexpr u64 area() const
@@ -1136,9 +1136,9 @@ struct extent
     return AS(u64, width) * height;
   }
 
-  constexpr vec2 to_vec() const
+  constexpr Vec2 to_vec() const
   {
-    return vec2{.x = AS(f32, width), .y = AS(f32, height)};
+    return Vec2{.x = AS(f32, width), .y = AS(f32, height)};
   }
 
   constexpr u32 max_mip_levels() const
@@ -1146,61 +1146,61 @@ struct extent
     return log2_floor_u32(std::min(width, height)) + 1;
   }
 
-  constexpr extent at_mip_level(u32 mip_level) const
+  constexpr Extent at_mip_level(u32 mip_level) const
   {
-    return extent{.width = width >> mip_level, .height = height >> mip_level};
+    return Extent{.width = width >> mip_level, .height = height >> mip_level};
   }
 };
 
-constexpr bool operator==(extent a, extent b)
+constexpr bool operator==(Extent a, Extent b)
 {
   return a.width == b.width && a.height == b.height;
 }
 
-constexpr bool operator!=(extent a, extent b)
+constexpr bool operator!=(Extent a, Extent b)
 {
   return !(a == b);
 }
 
-constexpr extent operator+(extent a, extent b)
+constexpr Extent operator+(Extent a, Extent b)
 {
-  return extent{.width = a.width + b.width, .height = a.height + b.height};
+  return Extent{.width = a.width + b.width, .height = a.height + b.height};
 }
 
-constexpr offset operator+(offset a, extent b)
+constexpr Offset operator+(Offset a, Extent b)
 {
-  return offset{.x = a.x + b.width, .y = a.y + b.height};
+  return Offset{.x = a.x + b.width, .y = a.y + b.height};
 }
 
-constexpr offset operator+(extent a, offset b)
+constexpr Offset operator+(Extent a, Offset b)
 {
-  return offset{.x = a.width + b.x, .y = a.height + b.y};
+  return Offset{.x = a.width + b.x, .y = a.height + b.y};
 }
 
-struct urect
+struct URect
 {
-  offset offset;
-  extent extent;
+  Offset offset;
+  Extent extent;
 
-  constexpr ash::offset min() const
+  constexpr ash::Offset min() const
   {
     return this->offset;
   }
 
-  constexpr ash::offset max() const
+  constexpr ash::Offset max() const
   {
     return this->offset + extent;
   }
 };
 
-struct irect
+struct IRect
 {
-  ioffset offset;
-  extent  extent;
+  IOffset offset;
+  Extent  extent;
 };
 
 /// Simple Layout Constraint Model
-struct constraint
+struct Constraint
 {
   f32 bias  = 0;                   /// adding or subtracting from the source size, i.e. value should be source size - 20px
   f32 scale = 0;                   /// scales the source size, i.e. value should be 0.5 of source size
@@ -1209,34 +1209,34 @@ struct constraint
   f32 minr  = 0;                   /// clamps the source size relatively. i.e. value should be at least 0.5 of source size
   f32 maxr  = 1;                   /// clamps the source size relatively. i.e. value should be at most 0.5 of source size
 
-  static constexpr constraint relative(f32 scale)
+  static constexpr Constraint relative(f32 scale)
   {
-    return constraint{.bias = 0, .scale = scale, .min = stx::F32_MIN, .max = stx::F32_MAX};
+    return Constraint{.bias = 0, .scale = scale, .min = stx::F32_MIN, .max = stx::F32_MAX};
   }
 
-  static constexpr constraint absolute(f32 value)
+  static constexpr Constraint absolute(f32 value)
   {
-    return constraint{.bias = value, .scale = 0, .min = stx::F32_MIN, .max = stx::F32_MAX};
+    return Constraint{.bias = value, .scale = 0, .min = stx::F32_MIN, .max = stx::F32_MAX};
   }
 
-  constexpr constraint with_min(f32 v) const
+  constexpr Constraint with_min(f32 v) const
   {
-    return constraint{.bias = bias, .scale = scale, .min = v, .max = max, .minr = minr, .maxr = maxr};
+    return Constraint{.bias = bias, .scale = scale, .min = v, .max = max, .minr = minr, .maxr = maxr};
   }
 
-  constexpr constraint with_max(f32 v) const
+  constexpr Constraint with_max(f32 v) const
   {
-    return constraint{.bias = bias, .scale = scale, .min = min, .max = v, .minr = minr, .maxr = maxr};
+    return Constraint{.bias = bias, .scale = scale, .min = min, .max = v, .minr = minr, .maxr = maxr};
   }
 
-  constexpr constraint with_minr(f32 v) const
+  constexpr Constraint with_minr(f32 v) const
   {
-    return constraint{.bias = bias, .scale = scale, .min = min, .max = max, .minr = v, .maxr = maxr};
+    return Constraint{.bias = bias, .scale = scale, .min = min, .max = max, .minr = v, .maxr = maxr};
   }
 
-  constexpr constraint with_maxr(f32 v) const
+  constexpr Constraint with_maxr(f32 v) const
   {
-    return constraint{.bias = bias, .scale = scale, .min = min, .max = max, .minr = minr, .maxr = v};
+    return Constraint{.bias = bias, .scale = scale, .min = min, .max = max, .minr = minr, .maxr = v};
   }
 
   constexpr f32 resolve(f32 value) const
@@ -1247,24 +1247,24 @@ struct constraint
 
 struct Constraint2D
 {
-  constraint x, y;
+  Constraint x, y;
 
   static constexpr Constraint2D relative(f32 x, f32 y)
   {
-    return Constraint2D{.x = constraint::relative(x), .y = constraint::relative(y)};
+    return Constraint2D{.x = Constraint::relative(x), .y = Constraint::relative(y)};
   }
 
-  static constexpr Constraint2D relative(vec2 xy)
+  static constexpr Constraint2D relative(Vec2 xy)
   {
     return relative(xy.x, xy.y);
   }
 
   static constexpr Constraint2D absolute(f32 x, f32 y)
   {
-    return Constraint2D{.x = constraint::absolute(x), .y = constraint::absolute(y)};
+    return Constraint2D{.x = Constraint::absolute(x), .y = Constraint::absolute(y)};
   }
 
-  static constexpr Constraint2D absolute(vec2 xy)
+  static constexpr Constraint2D absolute(Vec2 xy)
   {
     return absolute(xy.x, xy.y);
   }
@@ -1289,12 +1289,12 @@ struct Constraint2D
     return Constraint2D{.x = x.with_maxr(nx), .y = y.with_maxr(ny)};
   }
 
-  constexpr vec2 resolve(f32 xsrc, f32 ysrc) const
+  constexpr Vec2 resolve(f32 xsrc, f32 ysrc) const
   {
-    return vec2{x.resolve(xsrc), y.resolve(ysrc)};
+    return Vec2{x.resolve(xsrc), y.resolve(ysrc)};
   }
 
-  constexpr vec2 resolve(vec2 src) const
+  constexpr Vec2 resolve(Vec2 src) const
   {
     return resolve(src.x, src.y);
   }
@@ -1302,17 +1302,17 @@ struct Constraint2D
 
 struct BorderRadius
 {
-  constraint top_left, top_right, bottom_right, bottom_left;
+  Constraint top_left, top_right, bottom_right, bottom_left;
 
   static constexpr BorderRadius relative(f32 tl, f32 tr, f32 br, f32 bl)
   {
-    return BorderRadius{.top_left     = constraint::relative(tl),
-                        .top_right    = constraint::relative(tr),
-                        .bottom_right = constraint::relative(br),
-                        .bottom_left  = constraint::relative(bl)};
+    return BorderRadius{.top_left     = Constraint::relative(tl),
+                        .top_right    = Constraint::relative(tr),
+                        .bottom_right = Constraint::relative(br),
+                        .bottom_left  = Constraint::relative(bl)};
   }
 
-  static constexpr BorderRadius relative(vec4 v)
+  static constexpr BorderRadius relative(Vec4 v)
   {
     return relative(v.x, v.y, v.z, v.w);
   }
@@ -1324,13 +1324,13 @@ struct BorderRadius
 
   static constexpr BorderRadius absolute(f32 tl, f32 tr, f32 br, f32 bl)
   {
-    return BorderRadius{.top_left     = constraint::absolute(tl),
-                        .top_right    = constraint::absolute(tr),
-                        .bottom_right = constraint::absolute(br),
-                        .bottom_left  = constraint::absolute(bl)};
+    return BorderRadius{.top_left     = Constraint::absolute(tl),
+                        .top_right    = Constraint::absolute(tr),
+                        .bottom_right = Constraint::absolute(br),
+                        .bottom_left  = Constraint::absolute(bl)};
   }
 
-  static constexpr BorderRadius absolute(vec4 v)
+  static constexpr BorderRadius absolute(Vec4 v)
   {
     return absolute(v.x, v.y, v.z, v.w);
   }
@@ -1340,53 +1340,53 @@ struct BorderRadius
     return absolute(v, v, v, v);
   }
 
-  constexpr vec4 resolve(f32 w, f32 h) const
+  constexpr Vec4 resolve(f32 w, f32 h) const
   {
     f32 const src = std::min(w, h) / 2;
-    return vec4{.x = top_left.resolve(src),
+    return Vec4{.x = top_left.resolve(src),
                 .y = top_right.resolve(src),
                 .z = bottom_right.resolve(src),
                 .w = bottom_left.resolve(src)};
   }
 
-  constexpr vec4 resolve(vec2 wh) const
+  constexpr Vec4 resolve(Vec2 wh) const
   {
     return resolve(wh.x, wh.y);
   }
 };
 
-struct color
+struct Color
 {
   u8 r = 0, g = 0, b = 0, a = 0;
 
-  static constexpr color from_rgb(u8 r, u8 g, u8 b)
+  static constexpr Color from_rgb(u8 r, u8 g, u8 b)
   {
-    return color{.r = r, .g = g, .b = b, .a = 0xff};
+    return Color{.r = r, .g = g, .b = b, .a = 0xff};
   }
 
-  static constexpr color from_rgba(u8 r, u8 g, u8 b, u8 a)
+  static constexpr Color from_rgba(u8 r, u8 g, u8 b, u8 a)
   {
-    return color{.r = r, .g = g, .b = b, .a = a};
+    return Color{.r = r, .g = g, .b = b, .a = a};
   }
 
-  constexpr color with_red(u8 nr) const
+  constexpr Color with_red(u8 nr) const
   {
-    return color{.r = nr, .g = g, .b = b, .a = a};
+    return Color{.r = nr, .g = g, .b = b, .a = a};
   }
 
-  constexpr color with_green(u8 ng) const
+  constexpr Color with_green(u8 ng) const
   {
-    return color{.r = r, .g = ng, .b = b, .a = a};
+    return Color{.r = r, .g = ng, .b = b, .a = a};
   }
 
-  constexpr color with_blue(u8 nb) const
+  constexpr Color with_blue(u8 nb) const
   {
-    return color{.r = r, .g = g, .b = nb, .a = a};
+    return Color{.r = r, .g = g, .b = nb, .a = a};
   }
 
-  constexpr color with_alpha(u8 na) const
+  constexpr Color with_alpha(u8 na) const
   {
-    return color{.r = r, .g = g, .b = b, .a = na};
+    return Color{.r = r, .g = g, .b = b, .a = na};
   }
 
   constexpr bool is_transparent() const
@@ -1399,26 +1399,26 @@ struct color
     return !is_transparent();
   }
 
-  constexpr vec4 to_normalized_vec() const
+  constexpr Vec4 to_normalized_vec() const
   {
-    return vec4{.x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
+    return Vec4{.x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
   }
 };
 
-constexpr bool operator==(color a, color b)
+constexpr bool operator==(Color a, Color b)
 {
   return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
 }
 
-constexpr bool operator!=(color a, color b)
+constexpr bool operator!=(Color a, Color b)
 {
   return a.r != b.r || a.g != b.g || a.b != b.b || a.a != b.a;
 }
 
 template <>
-constexpr color lerp<color>(color const &a, color const &b, f32 t)
+constexpr Color lerp<Color>(Color const &a, Color const &b, f32 t)
 {
-  return color{.r = AS(u8, std::clamp<f32>(lerp<f32>(a.r, b.r, t), 0, 255)),
+  return Color{.r = AS(u8, std::clamp<f32>(lerp<f32>(a.r, b.r, t), 0, 255)),
                .g = AS(u8, std::clamp<f32>(lerp<f32>(a.g, b.g, t), 0, 255)),
                .b = AS(u8, std::clamp<f32>(lerp<f32>(a.b, b.b, t), 0, 255)),
                .a = AS(u8, std::clamp<f32>(lerp<f32>(a.a, b.a, t), 0, 255))};
@@ -1427,49 +1427,49 @@ constexpr color lerp<color>(color const &a, color const &b, f32 t)
 namespace colors
 {
 
-constexpr color TRANSPARENT = color::from_rgba(0x00, 0x00, 0x00, 0x00);
-constexpr color WHITE       = color::from_rgb(0xff, 0xff, 0xff);
-constexpr color BLACK       = color::from_rgb(0x00, 0x00, 0x00);
-constexpr color RED         = color::from_rgb(0xff, 0x00, 0x00);
-constexpr color BLUE        = color::from_rgb(0x00, 0x00, 0xff);
-constexpr color GREEN       = color::from_rgb(0x00, 0xff, 0x00);
-constexpr color CYAN        = color::from_rgb(0x00, 0xff, 0xff);
-constexpr color MAGENTA     = color::from_rgb(0xff, 0x00, 0xff);
-constexpr color YELLOW      = color::from_rgb(0xff, 0xff, 0x00);
+constexpr Color TRANSPARENT = Color::from_rgba(0x00, 0x00, 0x00, 0x00);
+constexpr Color WHITE       = Color::from_rgb(0xff, 0xff, 0xff);
+constexpr Color BLACK       = Color::from_rgb(0x00, 0x00, 0x00);
+constexpr Color RED         = Color::from_rgb(0xff, 0x00, 0x00);
+constexpr Color BLUE        = Color::from_rgb(0x00, 0x00, 0xff);
+constexpr Color GREEN       = Color::from_rgb(0x00, 0xff, 0x00);
+constexpr Color CYAN        = Color::from_rgb(0x00, 0xff, 0xff);
+constexpr Color MAGENTA     = Color::from_rgb(0xff, 0x00, 0xff);
+constexpr Color YELLOW      = Color::from_rgb(0xff, 0xff, 0x00);
 
 }        // namespace colors
 
-struct texture_rect
+struct TextureRect
 {
-  vec2 uv0, uv1;
+  Vec2 uv0, uv1;
 
-  constexpr vec2 top_left() const
+  constexpr Vec2 top_left() const
   {
     return uv0;
   }
 
-  constexpr vec2 top_right() const
+  constexpr Vec2 top_right() const
   {
-    return vec2{uv1.x, uv0.y};
+    return Vec2{uv1.x, uv0.y};
   }
 
-  constexpr vec2 bottom_right() const
+  constexpr Vec2 bottom_right() const
   {
     return uv1;
   }
 
-  constexpr vec2 bottom_left() const
+  constexpr Vec2 bottom_left() const
   {
-    return vec2{uv0.x, uv1.y};
+    return Vec2{uv0.x, uv1.y};
   }
 };
 
 /// a 2d shader vertex
-struct vertex
+struct Vertex
 {
-  vec2 position;        // point in 2d space
-  vec2 uv;              // texture coordinates
-  vec4 color;           // color of the vertex encoded in the target's color space
+  Vec2 position;        // point in 2d space
+  Vec2 uv;              // texture coordinates
+  Vec4 color;           // color of the vertex encoded in the target's color space
 };
 
 struct EdgeInsets
@@ -1501,14 +1501,14 @@ struct EdgeInsets
     return left + right;
   }
 
-  constexpr vec2 xy() const
+  constexpr Vec2 xy() const
   {
-    return vec2{x(), y()};
+    return Vec2{x(), y()};
   }
 
-  constexpr vec2 top_left() const
+  constexpr Vec2 top_left() const
   {
-    return vec2{left, top};
+    return Vec2{left, top};
   }
 };
 
@@ -1528,14 +1528,14 @@ struct Slice
   usize size   = 0;
 };
 
-constexpr vec2 min(vec2 a, vec2 b)
+constexpr Vec2 min(Vec2 a, Vec2 b)
 {
-  return vec2{std::min(a.x, b.x), std::min(a.y, b.y)};
+  return Vec2{std::min(a.x, b.x), std::min(a.y, b.y)};
 }
 
-constexpr vec2 max(vec2 a, vec2 b)
+constexpr Vec2 max(Vec2 a, Vec2 b)
 {
-  return vec2{std::max(a.x, b.x), std::max(a.y, b.y)};
+  return Vec2{std::max(a.x, b.x), std::max(a.y, b.y)};
 }
 
 enum class Direction : u8
@@ -1550,17 +1550,17 @@ enum class Wrap : u8
   Wrap
 };
 
-using Alignment = vec2;
+using Alignment = Vec2;
 
-constexpr Alignment ALIGN_TOP_LEFT      = vec2{0, 0};
-constexpr Alignment ALIGN_TOP_CENTER    = vec2{0.5f, 0};
-constexpr Alignment ALIGN_TOP_RIGHT     = vec2{1, 0};
-constexpr Alignment ALIGN_LEFT_CENTER   = vec2{0, 0.5f};
-constexpr Alignment ALIGN_CENTER        = vec2{0.5f, 0.5f};
-constexpr Alignment ALIGN_RIGHT_CENTER  = vec2{1, 0.5f};
-constexpr Alignment ALIGN_BOTTOM_LEFT   = vec2{0, 1};
-constexpr Alignment ALIGN_BOTTOM_CENTER = vec2{0.5f, 1};
-constexpr Alignment ALIGN_BOTTOM_RIGHT  = vec2{1, 1};
+constexpr Alignment ALIGN_TOP_LEFT      = Vec2{0, 0};
+constexpr Alignment ALIGN_TOP_CENTER    = Vec2{0.5f, 0};
+constexpr Alignment ALIGN_TOP_RIGHT     = Vec2{1, 0};
+constexpr Alignment ALIGN_LEFT_CENTER   = Vec2{0, 0.5f};
+constexpr Alignment ALIGN_CENTER        = Vec2{0.5f, 0.5f};
+constexpr Alignment ALIGN_RIGHT_CENTER  = Vec2{1, 0.5f};
+constexpr Alignment ALIGN_BOTTOM_LEFT   = Vec2{0, 1};
+constexpr Alignment ALIGN_BOTTOM_CENTER = Vec2{0.5f, 1};
+constexpr Alignment ALIGN_BOTTOM_RIGHT  = Vec2{1, 1};
 
 enum class MainAlign : u8
 {
@@ -1580,7 +1580,7 @@ enum class CrossAlign : u8
 
 struct LinearColorGradient
 {
-  color begin, end;
+  Color begin, end;
   f32   angle = 0;
 
   constexpr bool is_uniform() const
@@ -1588,7 +1588,7 @@ struct LinearColorGradient
     return begin == end;
   }
 
-  color resolve(vec2 p) const
+  Color resolve(Vec2 p) const
   {
     f32 const t = p.x * std::cos(ASH_TO_RADIANS(angle)) + p.y * std::sin(ASH_TO_RADIANS(angle));
     return lerp(begin, end, t);

@@ -57,7 +57,7 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(stx::Span<u8 const> 
     }
   }
 
-  return stx::Ok(ImageBuffer{.memory = std::move(memory), .extent = extent{AS(u32, features.width), AS(u32, features.height)}, .format = features.has_alpha ? ImageFormat::Rgba8888 : ImageFormat::Rgb888});
+  return stx::Ok(ImageBuffer{.memory = std::move(memory), .extent = Extent{AS(u32, features.width), AS(u32, features.height)}, .format = features.has_alpha ? ImageFormat::Rgba8888 : ImageFormat::Rgb888});
 }
 
 inline void png_stream_reader(png_structp png_ptr, unsigned char *out, usize nbytes_to_read)
@@ -129,7 +129,7 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = extent{width, height}, .format = fmt});
+  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = Extent{width, height}, .format = fmt});
 }
 
 inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> bytes)
@@ -185,7 +185,7 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> b
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = extent{width, height}, .format = fmt});
+  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = Extent{width, height}, .format = fmt});
 }
 
 inline stx::Result<ImageBuffer, ImageLoadError> decode_image(stx::Span<u8 const> bytes)

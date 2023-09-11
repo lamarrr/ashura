@@ -55,7 +55,7 @@ inline usize pixel_byte_size(ImageFormat fmt)
   }
 }
 
-inline usize fitted_byte_size(extent extent, ImageFormat format)
+inline usize fitted_byte_size(Extent extent, ImageFormat format)
 {
   return extent.height * extent.width * pixel_byte_size(format);
 }
@@ -66,7 +66,7 @@ struct ImageView
   static_assert(sizeof(B) == 1);
 
   stx::Span<B> span;
-  ash::extent  extent;
+  ash::Extent  extent;
   usize        pitch  = 0;
   ImageFormat  format = ImageFormat::Rgba8888;
 
@@ -90,7 +90,7 @@ struct ImageView
     return ImageView<B const>{.span = span.as_const(), .extent = extent, .pitch = pitch, .format = format};
   }
 
-  ImageView subview(urect slice) const
+  ImageView subview(URect slice) const
   {
     ASH_CHECK(slice.min().x <= extent.width);
     ASH_CHECK(slice.min().y <= extent.height);
@@ -104,9 +104,9 @@ struct ImageView
     return ImageView{.span = span.slice(byte_offset, byte_span), .extent = slice.extent, .pitch = pitch, .format = format};
   }
 
-  ImageView subview(offset slice) const
+  ImageView subview(Offset slice) const
   {
-    return subview(urect{.offset = slice, .extent = ash::extent{.width = extent.width - std::min(extent.width, slice.x), .height = extent.height - std::min(extent.height, slice.y)}});
+    return subview(URect{.offset = slice, .extent = ash::Extent{.width = extent.width - std::min(extent.width, slice.x), .height = extent.height - std::min(extent.height, slice.y)}});
   }
 
   ImageView<B const> as_const() const
@@ -139,10 +139,10 @@ struct ImageView
 struct ImageBuffer
 {
   stx::Memory memory;
-  ash::extent extent;
+  ash::Extent extent;
   ImageFormat format = ImageFormat::Rgba8888;
 
-  static stx::Result<ImageBuffer, stx::AllocError> make(ash::extent extent, ImageFormat format)
+  static stx::Result<ImageBuffer, stx::AllocError> make(ash::Extent extent, ImageFormat format)
   {
     TRY_OK(memory, stx::mem::allocate(stx::os_allocator, fitted_byte_size(extent, format)));
     return stx::Ok(ImageBuffer{.memory = std::move(memory), .extent = extent, .format = format});
@@ -203,7 +203,7 @@ struct ImageBuffer
     return AS(ImageView<u8>, *this);
   }
 
-  void resize(ash::extent new_extent)
+  void resize(ash::Extent new_extent)
   {
     if (extent.area() != new_extent.area())
     {

@@ -12,12 +12,12 @@ namespace ash
 struct WidgetElement
 {
   Widget                 *widget = nullptr;
-  stx::Vec<vec2>          children_allocations;
-  stx::Vec<vec2>          children_sizes;
-  stx::Vec<vec2>          children_positions;
+  stx::Vec<Vec2>          children_allocations;
+  stx::Vec<Vec2>          children_sizes;
+  stx::Vec<Vec2>          children_positions;
   stx::Vec<Visibility>    children_visibility;
   stx::Vec<i32>           children_z_indices;
-  stx::Vec<rect>          children_clips;
+  stx::Vec<Rect>          children_clips;
   stx::Vec<WidgetElement> children;
 };
 
@@ -25,7 +25,7 @@ struct WidgetRenderElement
 {
   Widget *widget  = nullptr;
   i32     z_index = 0;
-  rect    clip;
+  Rect    clip;
 };
 
 struct WidgetTree
@@ -64,7 +64,7 @@ struct WidgetTree
     }
   }
 
-  static vec2 __fit_recursive(Context &ctx, WidgetElement &element, vec2 allocated_size)
+  static Vec2 __fit_recursive(Context &ctx, WidgetElement &element, Vec2 allocated_size)
   {
     stx::Span children = element.widget->get_children(ctx);
     element.widget->allocate_size(ctx, allocated_size, element.children_allocations);
@@ -77,9 +77,9 @@ struct WidgetTree
     return element.widget->area.extent = element.widget->fit(ctx, allocated_size, element.children_allocations, element.children_sizes, element.children_positions);
   }
 
-  static void __absolute_position_recursive(Context &ctx, WidgetElement &element, vec2 allocated_position)
+  static void __absolute_position_recursive(Context &ctx, WidgetElement &element, Vec2 allocated_position)
   {
-    vec2 position               = element.widget->position(ctx, allocated_position);
+    Vec2 position               = element.widget->position(ctx, allocated_position);
     element.widget->area.offset = position;
 
     for (usize i = 0; i < element.children.size(); i++)
@@ -88,12 +88,12 @@ struct WidgetTree
     }
   }
 
-  void __build_render_recursive(Context &ctx, WidgetElement &element, Visibility allocated_visibility, i32 allocated_z_index, rect allocated_clip, rect view_region)
+  void __build_render_recursive(Context &ctx, WidgetElement &element, Visibility allocated_visibility, i32 allocated_z_index, Rect allocated_clip, Rect view_region)
   {
     stx::Span  children   = element.children;
     Visibility visibility = element.widget->get_visibility(ctx, allocated_visibility, element.children_visibility);
     i32        z_index    = element.widget->z_stack(ctx, allocated_z_index, element.children_z_indices);
-    rect       clip       = element.widget->clip(ctx, allocated_clip, element.children_clips);
+    Rect       clip       = element.widget->clip(ctx, allocated_clip, element.children_clips);
 
     if (visibility == Visibility::Visible && clip.overlaps(view_region) && view_region.overlaps(element.widget->area))
     {
@@ -123,20 +123,20 @@ struct WidgetTree
     __build_child_recursive(ctx, root, root_widget);
   }
 
-  void layout(Context &ctx, vec2 allocated_size)
+  void layout(Context &ctx, Vec2 allocated_size)
   {
     __fit_recursive(ctx, root, allocated_size);
-    __absolute_position_recursive(ctx, root, vec2{0, 0});
+    __absolute_position_recursive(ctx, root, Vec2{0, 0});
   }
 
-  void render(Context &ctx, gfx::Canvas &canvas, rect view_region, vec2 viewport_size)
+  void render(Context &ctx, gfx::Canvas &canvas, Rect view_region, Vec2 viewport_size)
   {
     render_elements.clear();
     __build_render_recursive(ctx, root, Visibility::Visible, 0, root.widget->area, view_region);
     render_elements.span().sort([](WidgetRenderElement const &a, WidgetRenderElement const &b) { return a.z_index < b.z_index; });
 
-    vec2 scale       = viewport_size / view_region.extent;
-    vec2 translation = 0 - view_region.offset;
+    Vec2 scale       = viewport_size / view_region.extent;
+    Vec2 translation = 0 - view_region.offset;
 
     canvas
         .restart(viewport_size)
@@ -145,7 +145,7 @@ struct WidgetTree
 
     for (WidgetRenderElement const &element : render_elements)
     {
-      rect scissor;
+      Rect scissor;
       scissor.offset = (element.clip.offset - view_region.offset) * scale;
       scissor.extent = element.clip.extent * scale;
       canvas
@@ -156,7 +156,7 @@ struct WidgetTree
     }
   }
 
-  Widget *hit(Context &ctx, vec2 position) const
+  Widget *hit(Context &ctx, Vec2 position) const
   {
     for (usize i = render_elements.size(); i > 0;)
     {

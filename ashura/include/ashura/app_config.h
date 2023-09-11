@@ -25,7 +25,7 @@ struct AppConfig
   stx::CStringView                    log_file                 = "log.txt";
   WindowType                          root_window_type         = WindowType::Normal;
   WindowCreateFlags                   root_window_create_flags = WindowCreateFlags::None;
-  ash::extent                         root_window_extent{1920, 1080};
+  ash::Extent                         root_window_extent{1920, 1080};
 };
 
 }        // namespace ash

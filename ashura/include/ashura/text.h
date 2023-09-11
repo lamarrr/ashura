@@ -34,16 +34,16 @@ struct TextStyle
   std::string_view                  font                    = {};                         // name to use to match the font. if font is not found or empty the fallback fonts are tried.
   stx::Span<std::string_view const> fallback_fonts          = {};                         // font to fallback to if {font} is not available. if none of the specified fallback fonts are found the first font in the font bundle will be used
   f32                               font_height             = 20;                         // px
-  color                             foreground_color        = colors::BLACK;              //
-  color                             outline_color           = colors::BLACK;              //
+  Color                             foreground_color        = colors::BLACK;              //
+  Color                             outline_color           = colors::BLACK;              //
   f32                               outline_thickness       = 0;                          //
-  color                             shadow_color            = colors::BLACK;              //
+  Color                             shadow_color            = colors::BLACK;              //
   f32                               shadow_scale            = 0;                          // relative. multiplied by font_height
-  vec2                              shadow_offset           = vec2{0, 0};                 // px. offset from center of glyph
-  color                             background_color        = colors::TRANSPARENT;        //
-  color                             underline_color         = colors::BLACK;              //
+  Vec2                              shadow_offset           = Vec2{0, 0};                 // px. offset from center of glyph
+  Color                             background_color        = colors::TRANSPARENT;        //
+  Color                             underline_color         = colors::BLACK;              //
   f32                               underline_thickness     = 0;                          // px
-  color                             strikethrough_color     = colors::BLACK;              //
+  Color                             strikethrough_color     = colors::BLACK;              //
   f32                               strikethrough_thickness = 0;                          // px
   f32                               letter_spacing          = 0;                          // px. additional letter spacing, can be negative
   f32                               word_spacing            = 0;                          // px. additional word spacing, can be negative
@@ -114,7 +114,7 @@ struct GlyphShaping
   u32  glyph   = 0;
   u32  cluster = 0;
   f32  advance = 0;        // context-dependent horizontal-layout advance
-  vec2 offset;             // context-dependent text shaping offset from normal font glyph position
+  Vec2 offset;             // context-dependent text shaping offset from normal font glyph position
 };
 
 struct TextLayout
@@ -123,7 +123,7 @@ struct TextLayout
   stx::Vec<TextRunSegment> run_segments;
   stx::Vec<GlyphShaping>   glyph_shapings;
   f32                      max_line_width = 0;
-  vec2                     span;
+  Vec2                     span;
   f32                      text_scale_factor = 0;
 
   static std::pair<stx::Span<hb_glyph_info_t const>, stx::Span<hb_glyph_position_t const>> shape_text_harfbuzz(
@@ -177,7 +177,7 @@ struct TextLayout
 
     this->max_line_width    = max_line_width;
     this->text_scale_factor = text_scale_factor;
-    span                    = vec2{0, 0};
+    span                    = Vec2{0, 0};
 
     // there's no layout to perform without a font
     if (font_bundle.is_empty() || block.text.empty())
@@ -350,7 +350,7 @@ struct TextLayout
           for (usize i = 0; i < glyph_infos.size(); i++)
           {
             f32 const  advance = scale * (f32) glyph_positions[i].x_advance / 64.0f;
-            vec2 const offset  = scale * vec2{(f32) glyph_positions[i].x_offset / 64.0f, (f32) glyph_positions[i].y_offset / -64.0f};
+            Vec2 const offset  = scale * Vec2{(f32) glyph_positions[i].x_offset / 64.0f, (f32) glyph_positions[i].y_offset / -64.0f};
 
             glyph_shapings.push(GlyphShaping{.glyph = glyph_infos[i].codepoint, .cluster = glyph_infos[i].cluster, .advance = advance, .offset = offset}).unwrap();
 

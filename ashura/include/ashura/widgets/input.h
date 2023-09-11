@@ -7,7 +7,7 @@ namespace ash
 // TODO:
 // tooltip
 // repeat click hold down
-// input vec4, vec3, vec2, f32, mat4, mat3
+// input Vec4, vec3, vec2, f32, mat4, mat3
 // tooltips with widget rendering onto them
 // progress bar
 // color pickers
@@ -71,11 +71,11 @@ struct NumInputProps
   NumInputFlags flags           = NumInputFlags::Default;
   f32           font_height     = 0;
   f32           padding         = 0;
-  color         button_color    = colors::TRANSPARENT;
-  color         symbol_color    = material::GRAY_300;
-  color         highlight_color = material::GRAY_300;
-  color         text_color      = material::GRAY_300;
-  color         text_box_color  = colors::TRANSPARENT;
+  Color         button_color    = colors::TRANSPARENT;
+  Color         symbol_color    = material::GRAY_300;
+  Color         highlight_color = material::GRAY_300;
+  Color         text_color      = material::GRAY_300;
+  Color         text_box_color  = colors::TRANSPARENT;
 };
 
 enum class NumInputState
@@ -136,7 +136,7 @@ struct NumInput : public Widget
   virtual ~NumInput() override
   {}
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
   {
     char buff[256];
     int  written = std::snprintf(buff, 256, u8spec.display_format, (void *) &u8spec.value);
@@ -151,24 +151,24 @@ struct NumInput : public Widget
   {
   }
 
-  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
+  virtual bool hit_test(Context &ctx, Vec2 mouse_position) override
   {
     return true;
   }
 
-  virtual stx::Option<DragData> on_drag_start(Context &ctx, vec2 mouse_position) override
+  virtual stx::Option<DragData> on_drag_start(Context &ctx, Vec2 mouse_position) override
   {
   }
 
-  virtual void on_drag_update(Context &ctx, vec2 mouse_position, vec2 translation, DragData const &drag_data) override
+  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation, DragData const &drag_data) override
   {
   }
 
-  virtual void on_mouse_enter(Context &ctx, vec2 mouse_position) override
+  virtual void on_mouse_enter(Context &ctx, Vec2 mouse_position) override
   {
   }
 
-  virtual void on_mouse_leave(Context &ctx, stx::Option<vec2> mouse_position) override
+  virtual void on_mouse_leave(Context &ctx, stx::Option<Vec2> mouse_position) override
   {
   }
 

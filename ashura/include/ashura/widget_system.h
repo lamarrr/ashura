@@ -139,13 +139,13 @@ struct WidgetSystem
           {
             ctx
                 .find_widget(last_hit_widget.value())
-                .match([&](Widget *plast_hit_widget) { plast_hit_widget->on_drag_leave(ctx, stx::Some(vec2{event.position})); }, []() {});
+                .match([&](Widget *plast_hit_widget) { plast_hit_widget->on_drag_leave(ctx, stx::Some(Vec2{event.position})); }, []() {});
           }
           else
           {
             ctx
                 .find_widget(last_hit_widget.value())
-                .match([&](Widget *plast_hit_widget) { plast_hit_widget->on_mouse_leave(ctx, stx::Some(vec2{event.position})); }, []() {});
+                .match([&](Widget *plast_hit_widget) { plast_hit_widget->on_mouse_leave(ctx, stx::Some(Vec2{event.position})); }, []() {});
           }
         }
 

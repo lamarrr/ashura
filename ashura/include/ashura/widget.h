@@ -79,9 +79,9 @@ struct Widget
   /// @param ctx
   /// @param allocated_size the size allocated to this widget
   /// @param[out] children_allocation sizes allocated to the children.
-  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation)
+  virtual void allocate_size(Context &ctx, Vec2 allocated_size, stx::Span<Vec2> children_allocation)
   {
-    children_allocation.fill(vec2{0, 0});
+    children_allocation.fill(Vec2{0, 0});
   }
 
   /// @brief fits itself around its children and positions child widgets along/relative to itself (i.e. position {0, 0} means the child will be placed on the top left of the parent)
@@ -90,16 +90,16 @@ struct Widget
   /// @param children_sizes sizes of the child widgets
   /// @param[out] children_positions positions of the children widget on the parent
   /// @return this widget's fitted extent
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions)
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions)
   {
-    return vec2{0, 0};
+    return Vec2{0, 0};
   }
 
   /// @brief this is used for absolute positioning of the widget
   /// @param ctx
   /// @param allocated_position the allocated absolute position of this widget
   /// @return
-  virtual vec2 position(Context &ctx, vec2 allocated_position)
+  virtual Vec2 position(Context &ctx, Vec2 allocated_position)
   {
     return allocated_position;
   }
@@ -136,7 +136,7 @@ struct Widget
   /// @param allocated_clip
   /// @param[out] children_allocation
   /// @return
-  virtual rect clip(Context &ctx, rect allocated_clip, stx::Span<rect> children_allocation)
+  virtual Rect clip(Context &ctx, Rect allocated_clip, stx::Span<Rect> children_allocation)
   {
     children_allocation.fill(allocated_clip);
     return allocated_clip;
@@ -173,7 +173,7 @@ struct Widget
   {}
 
   // this needs to happen before mouse actions as some widgets .i.e. some widgets don't need to intercept or receive mouse events
-  virtual bool hit_test(Context &ctx, vec2 mouse_position)
+  virtual bool hit_test(Context &ctx, Vec2 mouse_position)
   {
     return false;
   }
@@ -183,27 +183,27 @@ struct Widget
     return false;
   }
 
-  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks)
+  virtual void on_mouse_down(Context &ctx, MouseButton button, Vec2 mouse_position, u32 nclicks)
   {}
 
-  virtual void on_mouse_up(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks)
+  virtual void on_mouse_up(Context &ctx, MouseButton button, Vec2 mouse_position, u32 nclicks)
   {}
 
   // TODO(lamarrr): how do we fix translation and zooming? i.e. positioning once transform is applied
-  virtual void on_mouse_move(Context &ctx, vec2 mouse_position, vec2 translation)
+  virtual void on_mouse_move(Context &ctx, Vec2 mouse_position, Vec2 translation)
   {}
 
-  virtual void on_mouse_enter(Context &ctx, vec2 mouse_position)
+  virtual void on_mouse_enter(Context &ctx, Vec2 mouse_position)
   {}
 
-  virtual void on_mouse_leave(Context &ctx, stx::Option<vec2> mouse_position)
+  virtual void on_mouse_leave(Context &ctx, stx::Option<Vec2> mouse_position)
   {}
 
-  // virtual bool on_mouse_wheel(Context& ctx, vec2 translation, vec2 mouse_position?). propagates up
+  // virtual bool on_mouse_wheel(Context& ctx, Vec2 translation, Vec2 mouse_position?). propagates up
 
   /// callback to begin drag operation
   /// if this returns false, it is treated as a click operation.???
-  virtual stx::Option<DragData> on_drag_start(Context &ctx, vec2 mouse_position)
+  virtual stx::Option<DragData> on_drag_start(Context &ctx, Vec2 mouse_position)
   {
     return stx::None;
   }
@@ -212,11 +212,11 @@ struct Widget
   /// @param ctx
   /// @param mouse_position current global drag position
   /// @param translation difference between this drag update and the last drag update position
-  virtual void on_drag_update(Context &ctx, vec2 mouse_position, vec2 translation, DragData const &drag_data)
+  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation, DragData const &drag_data)
   {}
 
   /// the drop of the drag data has been ended
-  virtual void on_drag_end(Context &ctx, vec2 mouse_position)
+  virtual void on_drag_end(Context &ctx, Vec2 mouse_position)
   {}
 
   /// this widget has begun receiving drag data, i.e. it has been dragged onto
@@ -231,11 +231,11 @@ struct Widget
   {}
 
   /// the drag event has left this widget
-  virtual void on_drag_leave(Context &ctx, stx::Option<vec2> mouse_position)
+  virtual void on_drag_leave(Context &ctx, stx::Option<Vec2> mouse_position)
   {}
 
   /// drop of drag data on this widget
-  virtual bool on_drop(Context &ctx, vec2 mouse_position, DragData const &drag_data)
+  virtual bool on_drop(Context &ctx, Vec2 mouse_position, DragData const &drag_data)
   {
     return false;
   }
@@ -269,7 +269,7 @@ struct Widget
   {}
 
   stx::Option<uuid> id;          /// id used to recognise the widget. checked every frame. if one is not present or removed. a new uuid is generated and assigned.
-  rect              area;        ///
+  Rect              area;        ///
 };
 
 inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id)

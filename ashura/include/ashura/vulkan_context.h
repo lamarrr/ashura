@@ -28,7 +28,7 @@ struct RenderImage
   VkFormat            gpu_format = VK_FORMAT_R8G8B8A8_UNORM;        // format used to store texture on GPU
   VkImageLayout       layout     = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImageLayout       dst_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-  ash::extent         extent;
+  ash::Extent         extent;
   stx::Option<Buffer> staging_buffer;
   VkDescriptorSet     descriptor_set = VK_NULL_HANDLE;
   bool                needs_upload   = false;
@@ -640,9 +640,9 @@ struct CanvasPipelineManager
   void rebuild_for_renderpass(VkRenderPass target_render_pass, VkSampleCountFlagBits msaa_sample_count)
   {
     static constexpr VkVertexInputAttributeDescription vertex_input_attributes[] = {
-        {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(vertex, position)},
-        {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(vertex, uv)},
-        {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(vertex, color)}};
+        {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(Vertex, position)},
+        {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(Vertex, uv)},
+        {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(Vertex, color)}};
 
     VkDescriptorSetLayout descriptor_sets_layout[NIMAGES_PER_DRAWCALL];
     stx::Span{descriptor_sets_layout}.fill(descriptor_set_layout);
@@ -664,7 +664,7 @@ struct CanvasPipelineManager
                      msaa_sample_count,
                      descriptor_sets_layout,
                      vertex_input_attributes,
-                     sizeof(vertex),
+                     sizeof(Vertex),
                      PUSH_CONSTANT_SIZE);
 
       p.second.pipeline = stx::Some(std::move(pipeline));

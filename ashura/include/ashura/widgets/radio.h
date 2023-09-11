@@ -37,7 +37,7 @@ struct RadioCtx
 
 struct RadioProps
 {
-  color color       = material::BLUE_A700;
+  Color color       = material::BLUE_A700;
   f32   width       = 20;
   f32   inner_width = 10;
   bool  disabled    = false;
@@ -64,9 +64,9 @@ struct Radio : public Widget
   {
   }
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
   {
-    return vec2::splat(props.width);
+    return Vec2::splat(props.width);
   }
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
@@ -125,21 +125,21 @@ struct Radio : public Widget
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     EaseIn curve;
-    rect   outer_rect        = area;
-    vec2   inner_rect_extent = vec2::splat(animation.animate(curve, is_active ? Tween<f32>{0.0f, props.inner_width} : Tween<f32>{props.inner_width, 0.0f}));
-    rect   inner_rect        = rect{.offset = area.offset + (area.extent / 2) - inner_rect_extent / 2, .extent = inner_rect_extent};
+    Rect   outer_rect        = area;
+    Vec2   inner_rect_extent = Vec2::splat(animation.animate(curve, is_active ? Tween<f32>{0.0f, props.inner_width} : Tween<f32>{props.inner_width, 0.0f}));
+    Rect   inner_rect        = Rect{.offset = area.offset + (area.extent / 2) - inner_rect_extent / 2, .extent = inner_rect_extent};
 
     canvas
         .draw_rect_stroke(outer_rect, props.color, 1.5f)
         .draw_rect_filled(inner_rect, props.color);
   }
 
-  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
+  virtual bool hit_test(Context &ctx, Vec2 mouse_position) override
   {
     return true;
   }
 
-  virtual void on_mouse_down(Context &ctx, MouseButton button, vec2 mouse_position, u32 nclicks) override
+  virtual void on_mouse_down(Context &ctx, MouseButton button, Vec2 mouse_position, u32 nclicks) override
   {
     if (button == MouseButton::Primary && !props.disabled)
     {

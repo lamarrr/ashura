@@ -11,10 +11,10 @@ namespace ash
 
 struct ProgressBarProps
 {
-  Constraint2D size          = Constraint2D::absolute(300, 10);
+  Constraint2D size          = Constraint2D::absolute(300, 15);
   bool         indeterminate = true;
-  color        bar_color     = material::BLUE_A700;
-  color        track_color   = material::GRAY_500;
+  Color        bar_color     = material::BLUE_A700;
+  Color        track_color   = material::GRAY_500;
 };
 
 struct ProgressBar : public Widget
@@ -31,7 +31,7 @@ struct ProgressBar : public Widget
   virtual ~ProgressBar() override
   {}
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
   {
     return props.size.resolve(allocated_size);
   }
@@ -51,6 +51,8 @@ struct ProgressBar : public Widget
       f32 pos = std::clamp(value * area.extent.x, 0.0f, area.extent.x);
       canvas.draw_rect_filled(area.with_extent(pos, area.extent.y), props.bar_color);
     }
+
+    canvas.draw_rect_stroke(area, props.bar_color, 1);
   }
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
@@ -58,7 +60,7 @@ struct ProgressBar : public Widget
     animation.tick(interval);
   }
 
-  virtual bool hit_test(Context &ctx, vec2 mouse_position) override
+  virtual bool hit_test(Context &ctx, Vec2 mouse_position) override
   {
     return true;
   }

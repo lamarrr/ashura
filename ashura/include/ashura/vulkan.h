@@ -195,9 +195,9 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT>
                              .apiVersion         = VK_API_VERSION_1_3};
 
   VkInstanceCreateInfo create_info{
-      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,                                            // debug messenger for when
-                                                                                                  // the installed debug
-                                                                                                  // messenger is uninstalled.
+      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,        // debug messenger for when
+                                                              // the installed debug
+                                                              // messenger is uninstalled.
       .pNext = required_validation_layers.is_empty() ? nullptr :
                                                        &debug_utils_messenger_create_info,        // this helps to debug issues
                                                                                                   // with vkDestroyInstance and
@@ -1226,8 +1226,8 @@ struct SwapChain
   VkExtent2D              image_extent{.width = 0, .height = 0};
   VkExtent2D              window_extent{.width = 0, .height = 0};
   VkSampleCountFlagBits   msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
-  stx::Vec<VkImage>       images;                   // the images in the swapchain, which image is used and the order they are used for frame is determined by the presentation mode
-  stx::Vec<VkImageView>   image_views;              // the image views pointing to a part of a whole texture  (images in the swapchain)
+  stx::Vec<VkImage>       images;             // the images in the swapchain, which image is used and the order they are used for frame is determined by the presentation mode
+  stx::Vec<VkImageView>   image_views;        // the image views pointing to a part of a whole texture  (images in the swapchain)
   stx::Vec<VkFramebuffer> framebuffers;
   stx::Vec<VkSemaphore>   render_semaphores;        // the rendering semaphores correspond to the frame indexes and not the swapchain images
   stx::Vec<VkSemaphore>   image_acquisition_semaphores;
@@ -1246,6 +1246,7 @@ struct SwapChain
   {
     max_nframes_in_flight = amax_nframes_in_flight;
     dev                   = adev;
+    depth_format          = VK_FORMAT_D16_UNORM;        // find_depth_format(phy);
 
     // the properties change every time we need to create a swapchain so we must
     // query for this every time
@@ -1260,7 +1261,8 @@ struct SwapChain
     // swapchain formats are device-dependent
     VkSurfaceFormatKHR selected_format = select_swapchain_surface_formats(properties.supported_formats, preferred_formats);
 
-    ASH_LOG_INFO(Vulkan, "Selected swapchain surface config with format: {} and color space: {}, and {} swapchain images", string_VkFormat(selected_format.format),
+    ASH_LOG_INFO(Vulkan, "Selected swapchain surface config with format: {}, depth stencil format: {}, and color space: {}, and {} swapchain images", string_VkFormat(selected_format.format),
+                 string_VkFormat(depth_format),
                  string_VkColorSpaceKHR(selected_format.colorSpace), max_nframes_in_flight);
 
     ASH_LOG_INFO(Vulkan, "Available swapchain presentation modes:");
@@ -1295,7 +1297,6 @@ struct SwapChain
     image_extent      = new_extent;
     window_extent     = awindow_extent;
     msaa_sample_count = amsaa_sample_count;
-    depth_format      = find_depth_format(phy);
 
     images                = get_swapchain_images(dev, swapchain);
     msaa_color_image      = create_msaa_color_resource(dev, memory_properties, color_format.format, new_extent, msaa_sample_count);

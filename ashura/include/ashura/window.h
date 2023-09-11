@@ -104,7 +104,7 @@ struct Window
     ASH_SDL_CHECK(SDL_MinimizeWindow(window) == 0);
   }
 
-  void set_size(extent size)
+  void set_size(Extent size)
   {
     ASH_SDL_CHECK(SDL_SetWindowSize(window, AS(int, size.width), AS(int, size.height)) == 0);
   }
@@ -114,54 +114,54 @@ struct Window
     ASH_SDL_CHECK(SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED) == 0);
   }
 
-  extent get_size()
+  Extent get_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowSize(window, &w, &h) == 0);
-    return extent{.width = AS(u32, w), .height = AS(u32, h)};
+    return Extent{.width = AS(u32, w), .height = AS(u32, h)};
   }
 
-  extent get_surface_size()
+  Extent get_surface_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowSizeInPixels(window, &w, &h) == 0);
-    return extent{.width = AS(u32, w), .height = AS(u32, h)};
+    return Extent{.width = AS(u32, w), .height = AS(u32, h)};
   }
 
-  void set_position(ioffset pos)
+  void set_position(IOffset pos)
   {
     ASH_SDL_CHECK(SDL_SetWindowPosition(window, AS(int, pos.x), AS(int, pos.y)) == 0);
   }
 
-  ioffset get_position()
+  IOffset get_position()
   {
     int x, y;
     ASH_SDL_CHECK(SDL_GetWindowPosition(window, &x, &y) == 0);
-    return ioffset{.x = AS(i32, x), .y = AS(i32, y)};
+    return IOffset{.x = AS(i32, x), .y = AS(i32, y)};
   }
 
-  void set_min_size(extent min)
+  void set_min_size(Extent min)
   {
     ASH_SDL_CHECK(SDL_SetWindowMinimumSize(window, AS(int, min.width), AS(int, min.height)) == 0);
   }
 
-  extent get_min_size()
+  Extent get_min_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowMinimumSize(window, &w, &h) == 0);
-    return extent{.width = AS(u32, w), .height = AS(u32, h)};
+    return Extent{.width = AS(u32, w), .height = AS(u32, h)};
   }
 
-  void set_max_size(extent max)
+  void set_max_size(Extent max)
   {
     ASH_SDL_CHECK(SDL_SetWindowMaximumSize(window, AS(int, max.width), AS(int, max.height)) == 0);
   }
 
-  extent get_max_size()
+  Extent get_max_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowMaximumSize(window, &w, &h) == 0);
-    return extent{.width = AS(u32, w), .height = AS(u32, h)};
+    return Extent{.width = AS(u32, w), .height = AS(u32, h)};
   }
 
   void set_icon(ImageView<u8 const> image)

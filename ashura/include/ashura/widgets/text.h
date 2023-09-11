@@ -24,7 +24,7 @@ struct Text : public Widget
     return WidgetDebugInfo{.type = "Text"};
   }
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
   {
     if (is_layout_dirty || text_layout.text_scale_factor != ctx.text_scale_factor)
     {
@@ -40,7 +40,7 @@ struct Text : public Widget
           .direction     = TextDirection::LeftToRight,
           .language      = {}};
 
-      vec2 size = props.frame.resolve(allocated_size);
+      Vec2 size = props.frame.resolve(allocated_size);
 
       text_layout.layout(text_block, ctx.text_scale_factor, ctx.font_bundle, size.x);
       is_layout_dirty = false;

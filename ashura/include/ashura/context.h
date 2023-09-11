@@ -207,7 +207,7 @@ struct Context
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
         {
-          MouseClickEvent mouse_event{.mouse_id = MouseID{event.button.which}, .position = vec2{AS(f32, event.button.x), AS(f32, event.button.y)}, .clicks = event.button.clicks};
+          MouseClickEvent mouse_event{.mouse_id = MouseID{event.button.which}, .position = Vec2{AS(f32, event.button.x), AS(f32, event.button.y)}, .clicks = event.button.clicks};
           switch (event.button.button)
           {
             case SDL_BUTTON_LEFT:
@@ -264,7 +264,7 @@ struct Context
           }
           for (auto &listener : win->event_listeners.mouse_motion)
           {
-            listener.handle(MouseMotionEvent{.mouse_id = MouseID{event.motion.which}, .position = vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)}, .translation = vec2{AS(f32, event.motion.xrel), AS(f32, event.motion.yrel)}});
+            listener.handle(MouseMotionEvent{.mouse_id = MouseID{event.motion.which}, .position = Vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)}, .translation = Vec2{AS(f32, event.motion.xrel), AS(f32, event.motion.yrel)}});
           }
           return true;
         }
@@ -278,7 +278,7 @@ struct Context
           }
           for (auto &listener : win->event_listeners.mouse_wheel)
           {
-            listener.handle(MouseWheelEvent{.mouse_id = MouseID{event.wheel.which}, .position = vec2{AS(f32, event.wheel.mouseX), AS(f32, event.wheel.mouseY)}, .translation = vec2{event.wheel.x, event.wheel.y}});
+            listener.handle(MouseWheelEvent{.mouse_id = MouseID{event.wheel.which}, .position = Vec2{AS(f32, event.wheel.mouseX), AS(f32, event.wheel.mouseY)}, .translation = Vec2{event.wheel.x, event.wheel.y}});
           }
           return true;
         }

@@ -49,12 +49,12 @@ struct Padding : public Widget
     return WidgetDebugInfo{.type = "Padding"};
   }
 
-  virtual void allocate_size(Context &ctx, vec2 allocated_size, stx::Span<vec2> children_allocation) override
+  virtual void allocate_size(Context &ctx, Vec2 allocated_size, stx::Span<Vec2> children_allocation) override
   {
-    children_allocation.fill(max(allocated_size - edge_insets.xy(), vec2{0, 0}));
+    children_allocation.fill(max(allocated_size - edge_insets.xy(), Vec2{0, 0}));
   }
 
-  virtual vec2 fit(Context &ctx, vec2 allocated_size, stx::Span<vec2 const> children_allocations, stx::Span<vec2 const> children_sizes, stx::Span<vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
   {
     children_positions[0] = edge_insets.top_left();
     return min(children_sizes[0] + edge_insets.xy(), allocated_size);
