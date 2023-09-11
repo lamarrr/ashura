@@ -41,17 +41,17 @@ struct TextRenderStyle
 namespace paths
 {
 
-inline stx::Span<Vertex> Rect(Vec2 offset, Vec2 extent, Vec4 color, stx::Span<Vertex> polygon)
+inline stx::Span<Vertex2d> Rect(Vec2 offset, Vec2 extent, Vec4 color, stx::Span<Vertex2d> polygon)
 {
-  Vertex const vertices[] = {{.position = offset, .uv = {}, .color = color},
-                             {.position = offset + Vec2{extent.x, 0}, .uv = {}, .color = color},
-                             {.position = offset + extent, .uv = {}, .color = color},
-                             {.position = offset + Vec2{0, extent.y}, .uv = {}, .color = color}};
+  Vertex2d const vertices[] = {{.position = offset, .uv = {}, .color = color},
+                               {.position = offset + Vec2{extent.x, 0}, .uv = {}, .color = color},
+                               {.position = offset + extent, .uv = {}, .color = color},
+                               {.position = offset + Vec2{0, extent.y}, .uv = {}, .color = color}};
 
   return polygon.copy(vertices);
 }
 
-inline stx::Span<Vertex> arc(Vec2 offset, f32 radius, f32 begin, f32 end, u32 nsegments, Vec4 color, stx::Span<Vertex> polygon)
+inline stx::Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end, u32 nsegments, Vec4 color, stx::Span<Vertex2d> polygon)
 {
   begin = ASH_TO_RADIANS(begin);
   end   = ASH_TO_RADIANS(end);
@@ -65,13 +65,13 @@ inline stx::Span<Vertex> arc(Vec2 offset, f32 radius, f32 begin, f32 end, u32 ns
   {
     f32  angle = lerp(begin, end, AS(f32, i / (nsegments - 1)));
     Vec2 p     = radius + radius * Vec2{std::cos(angle), std::sin(angle)};
-    polygon[i] = Vertex{.position = offset + p, .uv = {}, .color = color};
+    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
   return polygon;
 }
 
-inline stx::Span<Vertex> circle(Vec2 offset, f32 radius, u32 nsegments, Vec4 color, stx::Span<Vertex> polygon)
+inline stx::Span<Vertex2d> circle(Vec2 offset, f32 radius, u32 nsegments, Vec4 color, stx::Span<Vertex2d> polygon)
 {
   if (nsegments == 0 || radius <= 0)
   {
@@ -83,13 +83,13 @@ inline stx::Span<Vertex> circle(Vec2 offset, f32 radius, u32 nsegments, Vec4 col
   for (u32 i = 0; i < nsegments; i++)
   {
     Vec2 p     = radius + radius * Vec2{std::cos(i * step), std::sin(i * step)};
-    polygon[i] = Vertex{.position = offset + p, .uv = {}, .color = color};
+    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
   return polygon;
 }
 
-inline stx::Span<Vertex> ellipse(Vec2 offset, Vec2 radii, u32 nsegments, Vec4 color, stx::Span<Vertex> polygon)
+inline stx::Span<Vertex2d> ellipse(Vec2 offset, Vec2 radii, u32 nsegments, Vec4 color, stx::Span<Vertex2d> polygon)
 {
   if (nsegments == 0 || radii.x <= 0 || radii.y <= 0)
   {
@@ -101,14 +101,14 @@ inline stx::Span<Vertex> ellipse(Vec2 offset, Vec2 radii, u32 nsegments, Vec4 co
   for (u32 i = 0; i < nsegments; i++)
   {
     Vec2 p     = radii + radii * Vec2{std::cos(i * step), std::sin(i * step)};
-    polygon[i] = Vertex{.position = offset + p, .uv = {}, .color = color};
+    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
   return polygon;
 }
 
 // outputs 8 + nsegments * 4 vertices
-inline stx::Span<Vertex> round_rect(Vec2 offset, Vec2 extent, Vec4 radii, u32 nsegments, Vec4 color, stx::Span<Vertex> polygon)
+inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii, u32 nsegments, Vec4 color, stx::Span<Vertex2d> polygon)
 {
   f32 max_radius   = std::min(extent.x, extent.y);
   radii.x          = std::min(radii.x, max_radius);
@@ -122,57 +122,57 @@ inline stx::Span<Vertex> round_rect(Vec2 offset, Vec2 extent, Vec4 radii, u32 ns
 
   u32 i = 0;
 
-  polygon[i] = Vertex{.position = offset + extent - Vec2{0, radii.z}, .uv = {}, .color = color};
+  polygon[i] = Vertex2d{.position = offset + extent - Vec2{0, radii.z}, .uv = {}, .color = color};
   i++;
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
     Vec2 p     = (extent - radii.z) + radii.z * Vec2{std::cos(segment * step), std::sin(segment * step)};
-    polygon[i] = Vertex{.position = offset + p, .uv = {}, .color = color};
+    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
-  polygon[i] = Vertex{.position = offset + extent - Vec2{radii.z, 0}, .uv = {}, .color = color};
+  polygon[i] = Vertex2d{.position = offset + extent - Vec2{radii.z, 0}, .uv = {}, .color = color};
   i++;
 
-  polygon[i] = Vertex{.position = offset + Vec2{radii.w, extent.y}, .uv = {}, .color = color};
+  polygon[i] = Vertex2d{.position = offset + Vec2{radii.w, extent.y}, .uv = {}, .color = color};
   i++;
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
     Vec2 p     = Vec2{radii.w, extent.y - radii.w} + radii.w * Vec2{std::cos(PI / 2 + segment * step), std::sin(PI / 2 + segment * step)};
-    polygon[i] = Vertex{.position = offset + p, .uv = {}, .color = color};
+    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
-  polygon[i] = Vertex{.position = offset + Vec2{0, extent.y - radii.w}, .uv = {}, .color = color};
+  polygon[i] = Vertex2d{.position = offset + Vec2{0, extent.y - radii.w}, .uv = {}, .color = color};
   i++;
 
-  polygon[i] = Vertex{.position = offset + Vec2{0, radii.x}, .uv = {}, .color = color};
+  polygon[i] = Vertex2d{.position = offset + Vec2{0, radii.x}, .uv = {}, .color = color};
   i++;
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
     Vec2 p     = radii.x + radii.x * Vec2{std::cos(PI + segment * step), std::sin(PI + segment * step)};
-    polygon[i] = Vertex{.position = offset + p, .uv = {}, .color = color};
+    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
-  polygon[i] = Vertex{.position = offset + Vec2{radii.x, 0}, .uv = {}, .color = color};
+  polygon[i] = Vertex2d{.position = offset + Vec2{radii.x, 0}, .uv = {}, .color = color};
   i++;
 
-  polygon[i] = Vertex{.position = offset + Vec2{extent.x - radii.y, 0}, .uv = {}, .color = color};
+  polygon[i] = Vertex2d{.position = offset + Vec2{extent.x - radii.y, 0}, .uv = {}, .color = color};
   i++;
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
     Vec2 p     = Vec2{extent.x - radii.y, radii.y} + radii.y * Vec2{std::cos(PI * 3.0f / 2.0f + segment * step), std::sin(PI * 3.0f / 2.0f + segment * step)};
-    polygon[i] = Vertex{.position = offset + p, .uv = {}, .color = color};
+    polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
-  polygon[i] = Vertex{.position = offset + Vec2{extent.x, radii.y}, .uv = {}, .color = color};
+  polygon[i] = Vertex2d{.position = offset + Vec2{extent.x, radii.y}, .uv = {}, .color = color};
 
   return polygon;
 }
 
-inline stx::Span<Vertex> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii, Vec4 color, stx::Span<Vertex> polygon)
+inline stx::Span<Vertex2d> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii, Vec4 color, stx::Span<Vertex2d> polygon)
 {
   f32 max_radius   = std::min(extent.x, extent.y);
   radii.x          = std::min(radii.x, max_radius);
@@ -182,21 +182,21 @@ inline stx::Span<Vertex> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii, Vec4 c
   f32 max_radius_w = std::min(max_radius_z, max_radius - radii.z);
   radii.w          = std::min(radii.w, max_radius_w);
 
-  Vertex const vertices[] = {{.position = offset + Vec2{radii.x, 0}, .uv = {}, .color = color},
-                             {.position = offset + Vec2{extent.x - radii.y, 0}, .uv = {}, .color = color},
-                             {.position = offset + Vec2{extent.x, radii.y}, .uv = {}, .color = color},
-                             {.position = offset + Vec2{extent.x, extent.y - radii.z}, .uv = {}, .color = color},
-                             {.position = offset + Vec2{extent.x - radii.z, extent.y}, .uv = {}, .color = color},
-                             {.position = offset + Vec2{radii.w, extent.y}, .uv = {}, .color = color},
-                             {.position = offset + Vec2{0, extent.y - radii.w}, .uv = {}, .color = color},
-                             {.position = offset + Vec2{0, radii.x}, .uv = {}, .color = color}};
+  Vertex2d const vertices[] = {{.position = offset + Vec2{radii.x, 0}, .uv = {}, .color = color},
+                               {.position = offset + Vec2{extent.x - radii.y, 0}, .uv = {}, .color = color},
+                               {.position = offset + Vec2{extent.x, radii.y}, .uv = {}, .color = color},
+                               {.position = offset + Vec2{extent.x, extent.y - radii.z}, .uv = {}, .color = color},
+                               {.position = offset + Vec2{extent.x - radii.z, extent.y}, .uv = {}, .color = color},
+                               {.position = offset + Vec2{radii.w, extent.y}, .uv = {}, .color = color},
+                               {.position = offset + Vec2{0, extent.y - radii.w}, .uv = {}, .color = color},
+                               {.position = offset + Vec2{0, radii.x}, .uv = {}, .color = color}};
 
   return polygon.copy(vertices);
 }
 
-inline stx::Span<Vertex> lerp_uvs(stx::Span<Vertex> path, Vec2 extent, TextureRect texture_region)
+inline stx::Span<Vertex2d> lerp_uvs(stx::Span<Vertex2d> path, Vec2 extent, TextureRect texture_region)
 {
-  for (Vertex &v : path)
+  for (Vertex2d &v : path)
   {
     Vec2 t = v.position / epsilon_clamp(extent);
     v.uv.x = lerp(texture_region.uv0.x, texture_region.uv1.x, t.x);
@@ -206,7 +206,7 @@ inline stx::Span<Vertex> lerp_uvs(stx::Span<Vertex> path, Vec2 extent, TextureRe
   return path;
 }
 
-inline stx::Span<Vertex> lerp_color_gradient(stx::Span<Vertex> path, Vec2 extent, LinearColorGradient gradient)
+inline stx::Span<Vertex2d> lerp_color_gradient(stx::Span<Vertex2d> path, Vec2 extent, LinearColorGradient gradient)
 {
   if (gradient.is_uniform())
   {
@@ -216,7 +216,7 @@ inline stx::Span<Vertex> lerp_color_gradient(stx::Span<Vertex> path, Vec2 extent
   f32 const x = std::cos(ASH_TO_RADIANS(gradient.angle));
   f32 const y = std::sin(ASH_TO_RADIANS(gradient.angle));
 
-  for (Vertex &v : path)
+  for (Vertex2d &v : path)
   {
     Vec2 const p = v.position / extent;
     f32 const  t = p.x * x + p.y * y;
@@ -245,7 +245,7 @@ inline void triangulate_convex_polygon(stx::Vec<u32> &indices, u32 nvertices)
 }
 
 /// line joint is a bevel joint
-inline void add_line_stroke(Vec2 p0, Vec2 p1, f32 thickness, Vec4 color, stx::Vec<Vertex> &out)
+inline void add_line_stroke(Vec2 p0, Vec2 p1, f32 thickness, Vec4 color, stx::Vec<Vertex2d> &out)
 {
   // the angles are specified in clockwise direction to be compatible with the
   // vulkan coordinate system
@@ -286,16 +286,16 @@ inline void add_line_stroke(Vec2 p0, Vec2 p1, f32 thickness, Vec4 color, stx::Ve
   Vec2 p1_0 = p1 + f;
   Vec2 p1_1 = p1 + g;
 
-  Vertex vertices[] = {{.position = p0_0, .uv = {}, .color = color},
-                       {.position = p0_1, .uv = {}, .color = color},
-                       {.position = p1_0, .uv = {}, .color = color},
-                       {.position = p1_1, .uv = {}, .color = color}};
+  Vertex2d vertices[] = {{.position = p0_0, .uv = {}, .color = color},
+                         {.position = p0_1, .uv = {}, .color = color},
+                         {.position = p1_0, .uv = {}, .color = color},
+                         {.position = p1_1, .uv = {}, .color = color}};
 
   out.extend(vertices).unwrap();
 }
 
 // line joint is a bevel joint, it is the most efficient since it re-uses existing vertices and doesn't require generating new vertices
-inline void triangulate_line(stx::Span<Vertex const> in_points, f32 thickness, stx::Vec<Vertex> &out_vertices, stx::Vec<u32> &out_indices, bool should_close)
+inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness, stx::Vec<Vertex2d> &out_vertices, stx::Vec<u32> &out_indices, bool should_close)
 {
   if (in_points.size() < 2 || thickness == 0)
   {
@@ -389,7 +389,7 @@ struct DrawCommand
 
 struct DrawList
 {
-  stx::Vec<Vertex>      vertices;
+  stx::Vec<Vertex2d>    vertices;
   stx::Vec<u32>         indices;
   stx::Vec<DrawCommand> commands;
 
@@ -426,7 +426,7 @@ struct Canvas
   CanvasState           state;
   stx::Vec<CanvasState> state_stack;
   DrawList              draw_list;
-  stx::Vec<Vertex>      scratch;        // scratch/temporary buffer for storing generating vertices before storing in the draw list
+  stx::Vec<Vertex2d>    scratch;        // scratch/temporary buffer for storing generating vertices before storing in the draw list
 
   bool viewport_contains(Rect area) const
   {
@@ -585,10 +585,10 @@ struct Canvas
 
     Vec4 color = clear_color.to_normalized_vec();
 
-    Vertex vertices[] = {{.position = {0, 0}, .uv = {0, 0}, .color = color},
-                         {.position = {viewport_extent.x, 0}, .uv = {1, 0}, .color = color},
-                         {.position = viewport_extent, .uv = {1, 1}, .color = color},
-                         {.position = {0, viewport_extent.y}, .uv = {0, 1}, .color = color}};
+    Vertex2d vertices[] = {{.position = {0, 0}, .uv = {0, 0}, .color = color},
+                           {.position = {viewport_extent.x, 0}, .uv = {1, 0}, .color = color},
+                           {.position = viewport_extent, .uv = {1, 1}, .color = color},
+                           {.position = {0, viewport_extent.y}, .uv = {0, 1}, .color = color}};
 
     draw_list.vertices.extend(vertices).unwrap();
 
@@ -610,7 +610,7 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_path(stx::Span<Vertex const> points, Vec2 position, Vec2 uv_stretch, f32 thickness, bool should_close, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = Vec2{0, 0}, .uv1 = Vec2{1, 1}})
+  Canvas &draw_path(stx::Span<Vertex2d const> points, Vec2 position, Vec2 uv_stretch, f32 thickness, bool should_close, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = Vec2{0, 0}, .uv1 = Vec2{1, 1}})
   {
     if (points.size() < 2 || thickness == 0)
     {
@@ -643,7 +643,7 @@ struct Canvas
     return *this;
   }
 
-  stx::Span<Vertex> reserve_convex_polygon(u32 npoints, Vec2 position, image texture)
+  stx::Span<Vertex2d> reserve_convex_polygon(u32 npoints, Vec2 position, image texture)
   {
     ASH_CHECK(npoints >= 3, "A polygon consists of at least 3 points");
 
@@ -675,7 +675,7 @@ struct Canvas
   }
 
   // texture coordinates are assumed to already be filled and area of viewport known
-  Canvas &draw_convex_polygon_filled(stx::Span<Vertex const> polygon, Vec2 position, image texture)
+  Canvas &draw_convex_polygon_filled(stx::Span<Vertex2d const> polygon, Vec2 position, image texture)
   {
     if (polygon.size() < 3)
     {
@@ -713,7 +713,7 @@ struct Canvas
       return *this;
     }
 
-    Vertex line[4];
+    Vertex2d line[4];
 
     paths::Rect(Vec2::splat(thickness / 2), area.extent - thickness, color.to_normalized_vec(), line);
 
@@ -912,10 +912,10 @@ struct Canvas
       return *this;
     }
 
-    Vertex const vertices[] = {{.position = grect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.foreground_color.to_normalized_vec()},
-                               {.position = grect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.foreground_color.to_normalized_vec()},
-                               {.position = grect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.foreground_color.to_normalized_vec()},
-                               {.position = grect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.foreground_color.to_normalized_vec()}};
+    Vertex2d const vertices[] = {{.position = grect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.foreground_color.to_normalized_vec()},
+                                 {.position = grect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.foreground_color.to_normalized_vec()},
+                                 {.position = grect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.foreground_color.to_normalized_vec()},
+                                 {.position = grect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.foreground_color.to_normalized_vec()}};
 
     draw_list.vertices.extend(vertices).unwrap();
 
@@ -956,10 +956,10 @@ struct Canvas
       return *this;
     }
 
-    Vertex const vertices[] = {{.position = srect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.shadow_color.to_normalized_vec()},
-                               {.position = srect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.shadow_color.to_normalized_vec()},
-                               {.position = srect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.shadow_color.to_normalized_vec()},
-                               {.position = srect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.shadow_color.to_normalized_vec()}};
+    Vertex2d const vertices[] = {{.position = srect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.shadow_color.to_normalized_vec()},
+                                 {.position = srect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.shadow_color.to_normalized_vec()},
+                                 {.position = srect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.shadow_color.to_normalized_vec()},
+                                 {.position = srect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.shadow_color.to_normalized_vec()}};
 
     draw_list.vertices.extend(vertices).unwrap();
 
@@ -987,16 +987,16 @@ struct Canvas
 
     if (style.strikethrough_color.is_visible() && style.strikethrough_thickness > 0)
     {
-      Vertex const strikethrough_path[] = {{.position = baseline - Vec2{0, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_normalized_vec()},
-                                           {.position = baseline - Vec2{-segment_width, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_normalized_vec()}};
+      Vertex2d const strikethrough_path[] = {{.position = baseline - Vec2{0, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_normalized_vec()},
+                                             {.position = baseline - Vec2{-segment_width, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_normalized_vec()}};
 
       draw_path(strikethrough_path, Vec2{0, 0}, Vec2{0, 0}, style.strikethrough_thickness, false);
     }
 
     if (style.underline_color.is_visible() && style.underline_thickness > 0)
     {
-      Vertex const underline_path[] = {{.position = baseline, .uv = {}, .color = style.underline_color.to_normalized_vec()},
-                                       {.position = baseline + Vec2{segment_width, 0}, .uv = {}, .color = style.underline_color.to_normalized_vec()}};
+      Vertex2d const underline_path[] = {{.position = baseline, .uv = {}, .color = style.underline_color.to_normalized_vec()},
+                                         {.position = baseline + Vec2{segment_width, 0}, .uv = {}, .color = style.underline_color.to_normalized_vec()}};
 
       draw_path(underline_path, Vec2{0, 0}, Vec2{0, 0}, style.underline_thickness, false);
     }

@@ -40,7 +40,7 @@ struct CheckBox : public Widget
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
-    Vertex checkmark_path[] = {
+    Vertex2d checkmark_path[] = {
         {.position = {0.125f, 0.5f}, .color = props.checkmark_color.to_normalized_vec()},
         {.position = {0.374f, 0.75f}, .color = props.checkmark_color.to_normalized_vec()},
         {.position = {0.775f, 0.25f}, .color = props.checkmark_color.to_normalized_vec()}};

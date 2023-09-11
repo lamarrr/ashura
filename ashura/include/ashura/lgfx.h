@@ -1,9 +1,9 @@
 #pragma once
+#include <string_view>
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
 #include "stx/fn.h"
 #include "stx/vec.h"
-#include <string_view>
 // #include "Volk/volk.h" TODO(lamarrr): use Volk to avoid table dispatch overhead https://gpuopen.com/learn/reducing-vulkan-api-call-overhead/
 
 namespace ash
@@ -1284,10 +1284,10 @@ struct ScreenPassCtx
 
 struct ScreenPassResources
 {
-  rid color_images[16];        // screen has implicit pass to present the screen_color_image
-  rid depth_stencil_images[16];
-  rid render_passes[16];
-  rid framebuffers[16];
+  Image       color_images[16];        // screen has implicit pass to present the screen_color_image
+  Image       depth_stencil_images[16];
+  RenderPass  render_passes[16];
+  Framebuffer framebuffers[16];
 };
 
 struct ScreenPassBindings
@@ -1533,7 +1533,7 @@ struct BlurCapturePass
     resources.sample_image_extent     = arguments.input_image_subregion_extent;
     Extent downsampled_input_extent   = arguments.input_image_subregion_extent.at_mip_level(resources.sample_image_mip_levels - 1);
     resources.kernel_buffer           = graph.create_buffer(BufferDesc{.size       = arguments.blur_radius.area(),
-                                                                       .properties = graph.ctx.memory_heaps.has_unified_memory() ? (MemoryProperties::DeviceLocal | MemoryProperties::HostVisible) : MemoryProperties::HostVisible,
+                                                                       .properties = graph.ctx.device_info.memory_heaps.has_unified_memory() ? (MemoryProperties::DeviceLocal | MemoryProperties::HostVisible) : MemoryProperties::HostVisible,
                                                                        .usages     = BufferUsages::UniformBuffer});
     resources.sample_image            = graph.create_image(ImageDesc{.format = arguments.input_image_format,
                                                                      .usages = ImageUsages::Sampled,

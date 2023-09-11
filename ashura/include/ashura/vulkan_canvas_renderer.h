@@ -142,7 +142,7 @@ struct CanvasRenderer
               VkRenderPass                      render_pass,
               VkFramebuffer                     framebuffer,
               stx::Span<gfx::DrawCommand const> cmds,
-              stx::Span<Vertex const>           vertices,
+              stx::Span<Vertex2d const>           vertices,
               stx::Span<u32 const>              indices,
               CanvasPipelineManager const      &pipeline_manager,
               RenderResourceManager const      &image_manager,

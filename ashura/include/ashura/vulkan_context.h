@@ -640,9 +640,9 @@ struct CanvasPipelineManager
   void rebuild_for_renderpass(VkRenderPass target_render_pass, VkSampleCountFlagBits msaa_sample_count)
   {
     static constexpr VkVertexInputAttributeDescription vertex_input_attributes[] = {
-        {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(Vertex, position)},
-        {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(Vertex, uv)},
-        {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(Vertex, color)}};
+        {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(Vertex2d, position)},
+        {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(Vertex2d, uv)},
+        {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = offsetof(Vertex2d, color)}};
 
     VkDescriptorSetLayout descriptor_sets_layout[NIMAGES_PER_DRAWCALL];
     stx::Span{descriptor_sets_layout}.fill(descriptor_set_layout);
@@ -664,7 +664,7 @@ struct CanvasPipelineManager
                      msaa_sample_count,
                      descriptor_sets_layout,
                      vertex_input_attributes,
-                     sizeof(Vertex),
+                     sizeof(Vertex2d),
                      PUSH_CONSTANT_SIZE);
 
       p.second.pipeline = stx::Some(std::move(pipeline));

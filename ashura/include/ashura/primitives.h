@@ -1465,9 +1465,23 @@ struct TextureRect
 };
 
 /// a 2d shader vertex
-struct Vertex
+struct Vertex2d
 {
   Vec2 position;        // point in 2d space
+  Vec2 uv;              // texture coordinates
+  Vec4 color;           // color of the vertex encoded in the target's color space
+};
+
+struct Vertex3d
+{
+  Vec3 position;        // point in 3d space. NOTE: size is 16 bytes. sames as Vec4 due to padding
+  Vec2 uv;              // texture coordinates
+  Vec4 color;           // color of the vertex encoded in the target's color space
+};
+
+struct Vertex4d
+{
+  Vec4 position;        // point in 4d space
   Vec2 uv;              // texture coordinates
   Vec4 color;           // color of the vertex encoded in the target's color space
 };
