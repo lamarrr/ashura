@@ -433,7 +433,7 @@ struct Rect
 
 struct Vec3
 {
-  f32 x = 0, y = 0, z = 0, __padding__;
+  f32 x = 0, y = 0, z = 0, __padding__ = 0;
 
   static constexpr Vec3 splat(f32 v)
   {
@@ -1182,14 +1182,14 @@ struct URect
   Offset offset;
   Extent extent;
 
-  constexpr ash::Offset min() const
+  constexpr Offset min() const
   {
-    return this->offset;
+    return offset;
   }
 
-  constexpr ash::Offset max() const
+  constexpr Offset max() const
   {
-    return this->offset + extent;
+    return offset + extent;
   }
 };
 
