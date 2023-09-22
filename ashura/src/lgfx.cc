@@ -5,92 +5,94 @@ namespace ash
 namespace lgfx
 {
 
-Resource Graph::create()
-{
-  if (resources.is_empty())
-  {
-    resources.push(ResourceDesc{}).unwrap();
-    resource_states.push_inplace(ResourceState{}).unwrap();
-  }
-
-  return (Resource) free_indices.pop().unwrap_or_else([&]() {
-    u32 index = resources.size();
-    resources.push(ResourceDesc{}).unwrap();
-    resource_states.push_inplace(ResourceState{}).unwrap();
-    return index;
-  });
-}
-
 Buffer Graph::create_buffer(BufferDesc const &desc)
 {
-  Resource resource               = create();
-  resources[(u32) resource]       = desc;
-  resource_states[(u32) resource] = BufferState{};
-  return (Buffer) resource;
+  return buffers.push(BufferState{.desc = desc});
+}
+
+BufferView Graph::create_buffer_view(BufferViewDesc const &desc)
+{
+  return buffer_views.push(desc);
 }
 
 Image Graph::create_image(ImageDesc const &desc)
 {
-  Resource resource               = create();
-  resources[(u32) resource]       = desc;
-  resource_states[(u32) resource] = ImageState{};
-  return (Image) resource;
+  return images.push(ImageState{.desc = desc});
 }
 
 ImageView Graph::create_image_view(ImageViewDesc const &desc)
 {
-  Resource resource         = create();
-  resources[(u32) resource] = desc;
-  return (ImageView) resource;
+  return image_views.push(desc);
 }
 
 RenderPass Graph::create_render_pass(RenderPassDesc const &desc)
 {
-  Resource resource         = create();
-  resources[(u32) resource] = desc;
-  return (RenderPass) resource;
+  return render_passes.push(desc);
 }
 
 Framebuffer Graph::create_framebuffer(FramebufferDesc const &desc)
 {
-  Resource resource         = create();
-  resources[(u32) resource] = desc;
-  return (Framebuffer) resource;
+  return framebuffers.push(desc);
+}
+
+ComputePipeline Graph::create_compute_pipeline(ComputePipelineDesc const &desc)
+{
+  return compute_pipelines.push(desc);
+}
+
+GraphicsPipeline Graph::create_graphics_pipeline(GraphicsPipelineDesc const &desc)
+{
+  return graphics_pipelines.push(desc);
 }
 
 BufferDesc Graph::get_desc(Buffer buffer) const
 {
-  return resources[(u32) buffer].buffer;
+  return buffers[buffer].desc;
+}
+
+BufferViewDesc Graph::get_desc(BufferView buffer_view) const
+{
+  return buffer_views[buffer_view];
 }
 
 ImageDesc Graph::get_desc(Image image) const
 {
-  return resources[(u32) image].image;
+  return images[image].desc;
 }
 
 ImageViewDesc Graph::get_desc(ImageView image_view) const
 {
-  return resources[(u32) image_view].image_view;
+  return image_views[image_view];
 }
 
 RenderPassDesc Graph::get_desc(RenderPass render_pass) const
 {
-  return resources[(u32) render_pass].render_pass;
+  return render_passes[render_pass];
 }
 
 FramebufferDesc Graph::get_desc(Framebuffer framebuffer) const
 {
-  return resources[(u32) framebuffer].framebuffer;
+  return framebuffers[framebuffer];
+}
+
+ComputePipelineDesc Graph::get_desc(ComputePipeline compute_pipeline) const
+{
+  return compute_pipelines[compute_pipeline];
+}
+
+GraphicsPipelineDesc Graph::get_desc(GraphicsPipeline graphics_pipeline) const
+{
+  return graphics_pipelines[graphics_pipeline];
 }
 
 BufferState &Graph::get_state(Buffer buffer)
 {
-  return resource_states[(u32) buffer].buffer;
+  return buffers[buffer];
 }
 
 ImageState &Graph::get_state(Image image)
 {
-  return resource_states[(u32) image].image;
+  return images[image];
 }
 
 void Graph::release(Buffer buffer)
@@ -108,290 +110,285 @@ void Graph::release(RenderPass render_pass)
 void Graph::release(Framebuffer framebuffer)
 {}
 
-void Graph::validate_resources()
+void Graph::release(ComputePipeline compute_pipeline)
+{}
+
+void Graph::release(GraphicsPipeline graphics_pipeline)
+{}
+
+void validate_resources(Graph &graph)
 {
   // TODO(lamarrr): we need a logger
-  for (ResourceDesc const &desc : resources)
+  for (BufferState const &buffer : graph.buffers)
   {
-    switch (desc.type)
+    ASH_CHECK(buffer.desc.usages != BufferUsages::None);
+    ASH_CHECK(buffer.desc.size > 0);
+    ASH_CHECK(buffer.desc.properties != MemoryProperties::None);
+    ASH_CHECK(graph.ctx.device_info.memory_heaps.has_memory(buffer.desc.properties));
+  }
+
+  for (ImageState const &image : graph.images)
+  {
+    ASH_CHECK(image.desc.extent.is_visible());
+    ASH_CHECK(image.desc.usages != ImageUsages::None);
+    ASH_CHECK(image.desc.mips >= 1);
+    ASH_CHECK(image.desc.format != Format::Undefined);
+  }
+
+  for (ImageViewDesc const &image_view : graph.image_views)
+  {
+    ASH_CHECK(image_view.aspect != ImageAspect::None);
+    ASH_CHECK(image_view.view_format != Format::Undefined);
+    ASH_CHECK(graph.images.is_valid(image_view.image));
+    ASH_CHECK(image_view.num_mip_levels >= 1);
+    ImageDesc const resource = graph.get_desc(image_view.image);
+    ASH_CHECK(image_view.first_mip_level < resource.mips);
+    ASH_CHECK((image_view.first_mip_level + image_view.num_mip_levels) <= resource.mips);
+  }
+
+  for (RenderPassDesc const &render_pass : graph.render_passes)
+  {
+    for (RenderPassAttachment const &attachment : render_pass.color_attachments)
     {
-      case ResourceType::None:
-        break;
-      case ResourceType::Buffer:
-      {
-        ASH_CHECK(desc.buffer.usages != BufferUsages::None);
-        ASH_CHECK(desc.buffer.size > 0);
-        ASH_CHECK(desc.buffer.properties != MemoryProperties::None);
-        ASH_CHECK(ctx.device_info.memory_heaps.has_memory(desc.buffer.properties));
-      }
-      break;
-      case ResourceType::Image:
-      {
-        ASH_CHECK(desc.image.extent.is_visible());
-        ASH_CHECK(desc.image.usages != ImageUsages::None);
-        ASH_CHECK(desc.image.mips >= 1);
-        ASH_CHECK(desc.image.format != Format::Undefined);
-      }
-      break;
-      case ResourceType::ImageView:
-      {
-        ASH_CHECK(desc.image_view.aspect != ImageAspect::None);
-        ASH_CHECK(desc.image_view.view_format != Format::Undefined);
-        ASH_CHECK(desc.image_view.image != Image::None);
-        ASH_CHECK(desc.image_view.num_mip_levels >= 1);
-        ASH_CHECK(((u32) desc.image_view.image) < resources.size());
-        ASH_CHECK(resources[(u32) desc.image_view.image].type == ResourceType::Image);
-        ImageDesc const resource = get_desc(desc.image_view.image);
-        ASH_CHECK(desc.image_view.first_mip_level < resource.mips);
-        ASH_CHECK((desc.image_view.first_mip_level + desc.image_view.num_mip_levels) <= resource.mips);
-      }
-      break;
-      case ResourceType::RenderPass:
-      {
-        for (RenderPassAttachment const &attachment : desc.render_pass.color_attachments)
-        {
-          ASH_CHECK(attachment.format != Format::Undefined);
-        }
-        for (RenderPassAttachment const &attachment : desc.render_pass.depth_stencil_attachments)
-        {
-          ASH_CHECK(attachment.format != Format::Undefined);
-        }
-      }
-      break;
-      case ResourceType::Framebuffer:
-      {
-        ASH_CHECK(desc.framebuffer.renderpass != RenderPass::None);
-        ASH_CHECK(resources[(u32) desc.framebuffer.renderpass].type == ResourceType::RenderPass);
-        ASH_CHECK(desc.framebuffer.extent.is_visible());
-        RenderPassDesc const render_pass_desc = get_desc(desc.framebuffer.renderpass);
-        ASH_CHECK(desc.framebuffer.color_attachments.size() == render_pass_desc.color_attachments.size());
-        ASH_CHECK(desc.framebuffer.depth_stencil_attachments.size() == render_pass_desc.depth_stencil_attachments.size());
-        for (usize i = 0; i < desc.framebuffer.color_attachments.size(); i++)
-        {
-          ImageView attachment = desc.framebuffer.color_attachments[i];
-          ASH_CHECK(attachment != ImageView::None);
-          ASH_CHECK(((u32) attachment) < resources.size());
-          ImageViewDesc const attachment_desc = get_desc(attachment);
-          ASH_CHECK(attachment_desc.aspect == ImageAspect::Color);
-          ASH_CHECK(attachment_desc.num_mip_levels >= 1);
-          ASH_CHECK(render_pass_desc.color_attachments[i].format == attachment_desc.view_format);
-          ImageDesc const image_desc = get_desc(attachment_desc.image);
-          ASH_CHECK((image_desc.usages & ImageUsages::ColorAttachment) != ImageUsages::None);
-          ASH_CHECK(image_desc.extent.width >= desc.framebuffer.extent.width);
-          ASH_CHECK(image_desc.extent.height >= desc.framebuffer.extent.height);
-        }
-        for (usize i = 0; i < desc.framebuffer.depth_stencil_attachments.size(); i++)
-        {
-          ImageView attachment = desc.framebuffer.depth_stencil_attachments[i];
-          ASH_CHECK(attachment != ImageView::None);
-          ASH_CHECK(((u32) attachment) < resources.size());
-          ImageViewDesc const attachment_desc = get_desc(attachment);
-          ASH_CHECK((attachment_desc.aspect & (ImageAspect::Depth | ImageAspect::Stencil)) != ImageAspect::None);
-          ASH_CHECK(attachment_desc.num_mip_levels >= 1);
-          ASH_CHECK(render_pass_desc.depth_stencil_attachments[i].format == attachment_desc.view_format);
-          ImageDesc const image_desc = get_desc(attachment_desc.image);
-          ASH_CHECK((image_desc.usages & ImageUsages::DepthStencilAttachment) != ImageUsages::None);
-          ASH_CHECK(image_desc.extent.width >= desc.framebuffer.extent.width);
-          ASH_CHECK(image_desc.extent.height >= desc.framebuffer.extent.height);
-        }
-      }
-      break;
+      ASH_CHECK(attachment.format != Format::Undefined);
+    }
+    for (RenderPassAttachment const &attachment : render_pass.depth_stencil_attachments)
+    {
+      ASH_CHECK(attachment.format != Format::Undefined);
+    }
+  }
+
+  // check buffer views
+
+  for (FramebufferDesc const &framebuffer : graph.framebuffers)
+  {
+    ASH_CHECK(graph.render_passes.is_valid(framebuffer.renderpass));
+    ASH_CHECK(framebuffer.extent.is_visible());
+    RenderPassDesc const render_pass_desc = graph.get_desc(framebuffer.renderpass);
+    ASH_CHECK(framebuffer.color_attachments.size() == render_pass_desc.color_attachments.size());
+    ASH_CHECK(framebuffer.depth_stencil_attachments.size() == render_pass_desc.depth_stencil_attachments.size());
+    for (usize i = 0; i < framebuffer.color_attachments.size(); i++)
+    {
+      ImageView attachment = framebuffer.color_attachments[i];
+      ASH_CHECK(graph.image_views.is_valid(attachment));
+      ImageViewDesc const attachment_desc = graph.get_desc(attachment);
+      ASH_CHECK(attachment_desc.aspect == ImageAspect::Color);
+      ASH_CHECK(attachment_desc.num_mip_levels >= 1);
+      ASH_CHECK(render_pass_desc.color_attachments[i].format == attachment_desc.view_format);
+      ImageDesc const image_desc = graph.get_desc(attachment_desc.image);
+      ASH_CHECK((image_desc.usages & ImageUsages::ColorAttachment) != ImageUsages::None);
+      ASH_CHECK(image_desc.extent.width >= framebuffer.extent.width);
+      ASH_CHECK(image_desc.extent.height >= framebuffer.extent.height);
+    }
+    for (usize i = 0; i < framebuffer.depth_stencil_attachments.size(); i++)
+    {
+      ImageView attachment = framebuffer.depth_stencil_attachments[i];
+      ASH_CHECK(graph.image_views.is_valid(attachment));
+      ImageViewDesc const attachment_desc = graph.get_desc(attachment);
+      ASH_CHECK((attachment_desc.aspect & (ImageAspect::Depth | ImageAspect::Stencil)) != ImageAspect::None);
+      ASH_CHECK(attachment_desc.num_mip_levels >= 1);
+      ASH_CHECK(render_pass_desc.depth_stencil_attachments[i].format == attachment_desc.view_format);
+      ImageDesc const image_desc = graph.get_desc(attachment_desc.image);
+      ASH_CHECK((image_desc.usages & ImageUsages::DepthStencilAttachment) != ImageUsages::None);
+      ASH_CHECK(image_desc.extent.width >= framebuffer.extent.width);
+      ASH_CHECK(image_desc.extent.height >= framebuffer.extent.height);
     }
   }
 }
 
-void validate_commands(Graph const &graph, stx::Span<Cmd const> cmds)
+void CmdValidator::copy_buffer(Graph &graph, Buffer src, Buffer dst, stx::Span<BufferCopy const> copies)
 {
-  for (Cmd const &cmd : cmds)
+  ASH_CHECK(!copies.is_empty());
+  ASH_CHECK(graph.buffers.is_valid(src));
+  ASH_CHECK(graph.buffers.is_valid(dst));
+  BufferDesc const src_desc = graph.get_desc(src);
+  BufferDesc const dst_desc = graph.get_desc(dst);
+  ASH_CHECK((src_desc.usages & BufferUsages::TransferSrc) != BufferUsages::None);
+  ASH_CHECK((dst_desc.usages & BufferUsages::TransferDst) != BufferUsages::None);
+  for (BufferCopy const &copy : copies)
   {
-    switch (cmd.type)
-    {
-      case CmdType::None:
-        break;
-      case CmdType::CopyBuffer:
-      {
-        ASH_CHECK(!cmd.copy_buffer.copies.is_empty());
-        ASH_CHECK(cmd.copy_buffer.src != Buffer::None);
-        ASH_CHECK(((u32) cmd.copy_buffer.src) < graph.resources.size());
-        ASH_CHECK(graph.resources[(u32) cmd.copy_buffer.src].type == ResourceType::Buffer);
-        ASH_CHECK(cmd.copy_buffer.dst != Buffer::None);
-        ASH_CHECK(((u32) cmd.copy_buffer.dst) < graph.resources.size());
-        ASH_CHECK(graph.resources[(u32) cmd.copy_buffer.dst].type == ResourceType::Buffer);
-        BufferDesc const src_desc = graph.get_desc(cmd.copy_buffer.src);
-        BufferDesc const dst_desc = graph.get_desc(cmd.copy_buffer.dst);
-        ASH_CHECK((src_desc.usages & BufferUsages::TransferSrc) != BufferUsages::None);
-        ASH_CHECK((dst_desc.usages & BufferUsages::TransferDst) != BufferUsages::None);
-        for (BufferCopy const &copy : cmd.copy_buffer.copies)
-        {
-          ASH_CHECK(src_desc.size > copy.src_offset);
-          ASH_CHECK(src_desc.size >= (copy.src_offset + copy.size));
-          ASH_CHECK(dst_desc.size > copy.dst_offset);
-          ASH_CHECK(dst_desc.size >= (copy.dst_offset + copy.size));
-        }
-      }
-      break;
-      case CmdType::CopyHostBuffer:
-      {
-        ASH_CHECK(!cmd.copy_host_buffer.copies.is_empty());
-        ASH_CHECK(!cmd.copy_host_buffer.src.is_empty());
-        ASH_CHECK(cmd.copy_host_buffer.dst != Buffer::None);
-        ASH_CHECK(((u32) cmd.copy_host_buffer.dst) < graph.resources.size());
-        ASH_CHECK(graph.resources[(u32) cmd.copy_host_buffer.dst].type == ResourceType::Buffer);
-        stx::Span        src      = cmd.copy_host_buffer.src;
-        BufferDesc const dst_desc = graph.get_desc(cmd.copy_host_buffer.dst);
-        ASH_CHECK((dst_desc.usages & BufferUsages::TransferDst) != BufferUsages::None);
-        for (BufferCopy const &copy : cmd.copy_host_buffer.copies)
-        {
-          ASH_CHECK(src.size() > copy.src_offset);
-          ASH_CHECK(src.size() >= (copy.src_offset + copy.size));
-          ASH_CHECK(dst_desc.size > copy.dst_offset);
-          ASH_CHECK(dst_desc.size >= (copy.dst_offset + copy.size));
-        }
-      }
-      break;
-      case CmdType::CopyImage:
-      {
-        ASH_CHECK(!cmd.copy_image.copies.is_empty());
-        ASH_CHECK(cmd.copy_image.src != Image::None);
-        ASH_CHECK(((u32) cmd.copy_image.src) < graph.resources.size());
-        ASH_CHECK(graph.resources[(u32) cmd.copy_image.src].type == ResourceType::Image);
-        ASH_CHECK(cmd.copy_image.dst != Image::None);
-        ASH_CHECK(((u32) cmd.copy_image.dst) < graph.resources.size());
-        ASH_CHECK(graph.resources[(u32) cmd.copy_image.dst].type == ResourceType::Image);
-        ImageDesc const src_desc = graph.get_desc(cmd.copy_image.src);
-        ImageDesc const dst_desc = graph.get_desc(cmd.copy_image.dst);
-        ASH_CHECK((src_desc.usages & ImageUsages::TransferSrc) != ImageUsages::None);
-        ASH_CHECK((dst_desc.usages & ImageUsages::TransferDst) != ImageUsages::None);
-
-        for (ImageCopy const &copy : cmd.copy_image.copies)
-        {
-          ASH_CHECK(copy.src_aspect != ImageAspect::None);
-          ASH_CHECK(copy.dst_aspect != ImageAspect::None);
-          ASH_CHECK(copy.src_mip_level < src_desc.mips);
-          ASH_CHECK(copy.dst_mip_level < dst_desc.mips);
-          ASH_CHECK((URect{.offset = {}, .extent = src_desc.extent}.contains(copy.src_area)));
-          ASH_CHECK((URect{.offset = {}, .extent = dst_desc.extent}.contains(copy.src_area.with_offset(copy.dst_offset))));
-        }
-      }
-      break;
-      case CmdType::CopyBufferToImage:
-      {
-        ASH_CHECK(!cmd.copy_buffer_to_image.copies.is_empty());
-        ASH_CHECK(cmd.copy_buffer_to_image.src != Buffer::None);
-        ASH_CHECK(((u32) cmd.copy_buffer_to_image.src) < graph.resources.size());
-        ASH_CHECK(graph.resources[(u32) cmd.copy_buffer_to_image.src].type == ResourceType::Buffer);
-        ASH_CHECK(cmd.copy_buffer_to_image.dst != Image::None);
-        ASH_CHECK(((u32) cmd.copy_buffer_to_image.dst) < graph.resources.size());
-        ASH_CHECK(graph.resources[(u32) cmd.copy_buffer_to_image.dst].type == ResourceType::Image);
-        BufferDesc const src_desc = graph.get_desc(cmd.copy_buffer_to_image.src);
-        ImageDesc const  dst_desc = graph.get_desc(cmd.copy_buffer_to_image.dst);
-        ASH_CHECK((src_desc.usages & BufferUsages::TransferSrc) != BufferUsages::None);
-        ASH_CHECK((dst_desc.usages & ImageUsages::TransferDst) != ImageUsages::None);
-        for (BufferImageCopy const &copy : cmd.copy_buffer_to_image.copies)
-        {
-          ASH_CHECK(copy.buffer_image_height > 0);
-          ASH_CHECK(copy.buffer_row_length > 0);
-          ASH_CHECK(copy.buffer_offset < src_desc.size);
-          ASH_CHECK(copy.image_mip_level < dst_desc.mips);
-          ASH_CHECK(copy.image_aspect != ImageAspect::None);
-          ASH_CHECK((URect{.offset = {}, .extent = dst_desc.extent}.contains(copy.image_area)));
-        }
-      }
-      break;
-      case CmdType::BlitImage:
-      {
-        ASH_CHECK(!cmd.blit_image.blits.is_empty());
-        ASH_CHECK(cmd.blit_image.src != Image::None);
-        ASH_CHECK(((u32) cmd.blit_image.src) < graph.resources.size());
-        ASH_CHECK(graph.resources[(u32) cmd.blit_image.src].type == ResourceType::Image);
-        ASH_CHECK(cmd.blit_image.dst != Image::None);
-        ASH_CHECK(((u32) cmd.blit_image.dst) < graph.resources.size());
-        ASH_CHECK(graph.resources[(u32) cmd.blit_image.dst].type == ResourceType::Image);
-        ImageDesc const src_desc = graph.get_desc(cmd.blit_image.src);
-        ImageDesc const dst_desc = graph.get_desc(cmd.blit_image.dst);
-        ASH_CHECK((src_desc.usages & ImageUsages::TransferSrc) != ImageUsages::None);
-        ASH_CHECK((dst_desc.usages & ImageUsages::TransferDst) != ImageUsages::None);
-        for (ImageBlit const &blit : cmd.blit_image.blits)
-        {
-          ASH_CHECK(blit.src_aspect != ImageAspect::None);
-          ASH_CHECK(blit.dst_aspect != ImageAspect::None);
-          ASH_CHECK(blit.src_mip_level < src_desc.mips);
-          ASH_CHECK(blit.dst_mip_level < dst_desc.mips);
-          ASH_CHECK((URect{.offset = {}, .extent = src_desc.extent}.contains(blit.src_area)));
-          ASH_CHECK((URect{.offset = {}, .extent = dst_desc.extent}.contains(blit.dst_area)));
-        }
-      }
-      break;
-      // case CmdType::DispatchTask:
-      // {
-      //   ASH_CHECK(cmd.dispatch_task.framebuffer != Framebuffer::None);
-      //   ASH_CHECK(((u32) cmd.dispatch_task.framebuffer) < graph.resources.size());
-      //   ASH_CHECK(graph.resources[(u32) cmd.dispatch_task.framebuffer].type == ResourceType::Framebuffer);
-      //   for (ResourceBinding const &binding : cmd.dispatch_task.bindings)
-      //   {
-      //     switch (binding.type)
-      //     {
-      //       case ResourceBindingType::BufferBinding:
-      //       {
-      //         ASH_CHECK(binding.buffer.buffer != Buffer::None);
-      //         ASH_CHECK(((u32) binding.buffer.buffer) < graph.resources.size());
-      //         ASH_CHECK(graph.resources[(u32) binding.buffer.buffer].type == ResourceType::Buffer);
-      //         BufferDesc const buffer_desc       = graph.get_desc(binding.buffer.buffer);
-      //         bool             written_in_shader = (binding.buffer.access & (Access::ShaderWrite | Access::ShaderSampledWrite | Access::ShaderStorageWrite)) != Access::None;
-      //         bool             read_in_shader    = (binding.buffer.access & (Access::ShaderRead | Access::ShaderSampledRead)) != Access::None;
-      //         if (read_in_shader)
-      //         {
-      //           ASH_CHECK((buffer_desc.usages & (BufferUsages::UniformBuffer | BufferUsages::UniformTexelBuffer)) != BufferUsages::None);
-      //         }
-      //         if (written_in_shader)
-      //         {
-      //           ASH_CHECK((buffer_desc.usages & (BufferUsages::StorageBuffer | BufferUsages::UniformStorageTexelBuffer)) != BufferUsages::None);
-      //         }
-      //       }
-      //       break;
-      //       case ResourceBindingType::ImageViewBinding:
-      //       {
-      //         ASH_CHECK(binding.image_view.image_view != ImageView::None);
-      //         ASH_CHECK(((u32) binding.image_view.image_view) < graph.resources.size());
-      //         ASH_CHECK(graph.resources[(u32) binding.image_view.image_view].type == ResourceType::ImageView);
-      //         ImageDesc const image_desc        = graph.get_desc(graph.get_desc(binding.image_view.image_view).image);
-      //         bool            written_in_shader = (binding.image_view.access & (Access::ShaderWrite | Access::ShaderSampledWrite | Access::ShaderStorageWrite)) != Access::None;
-      //         bool            read_in_shader    = (binding.image_view.access & (Access::ShaderRead | Access::ShaderSampledRead)) != Access::None;
-      //         if (read_in_shader)
-      //         {
-      //           ASH_CHECK((image_desc.usages & ImageUsages::Sampled) != ImageUsages::None);
-      //         }
-      //         if (written_in_shader)
-      //         {
-      //           ASH_CHECK((image_desc.usages & ImageUsages::Storage) != ImageUsages::None);
-      //         }
-      //       }
-      //       break;
-      //     }
-      //   }
-      // }
-      // break;
-      case CmdType::BeginRenderPass:
-      {
-        ASH_CHECK(cmd.begin_render_pass.render_pass != RenderPass::None);
-        ASH_CHECK(graph.resources[(u32) cmd.begin_render_pass.render_pass].type == ResourceType::RenderPass);
-        ASH_CHECK(cmd.begin_render_pass.framebuffer != Framebuffer::None);
-        ASH_CHECK(graph.resources[(u32) cmd.begin_render_pass.framebuffer].type == ResourceType::Framebuffer);
-        FramebufferDesc const framebuffer_desc = graph.get_desc(cmd.begin_render_pass.framebuffer);
-        ASH_CHECK(framebuffer_desc.color_attachments.size() == cmd.begin_render_pass.color_attachments_clear_values.size());
-        ASH_CHECK(framebuffer_desc.depth_stencil_attachments.size() == cmd.begin_render_pass.depth_stencil_attachments_clear_values.size());
-      }
-      break;
-      case CmdType::EndRenderPass:
-      {
-        // TODO(lamarrr)
-      }
-      break;
-      default:
-        break;
-    }
+    ASH_CHECK(src_desc.size > copy.src_offset);
+    ASH_CHECK(src_desc.size >= (copy.src_offset + copy.size));
+    ASH_CHECK(dst_desc.size > copy.dst_offset);
+    ASH_CHECK(dst_desc.size >= (copy.dst_offset + copy.size));
   }
 }
+
+void CmdValidator::copy_host_buffer(Graph &graph, stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies)
+{
+  ASH_CHECK(!copies.is_empty());
+  ASH_CHECK(!src.is_empty());
+  ASH_CHECK(graph.buffers.is_valid(dst));
+  stx::Span        src      = src;
+  BufferDesc const dst_desc = graph.get_desc(dst);
+  ASH_CHECK((dst_desc.usages & BufferUsages::TransferDst) != BufferUsages::None);
+  for (BufferCopy const &copy : copies)
+  {
+    ASH_CHECK(src.size() > copy.src_offset);
+    ASH_CHECK(src.size() >= (copy.src_offset + copy.size));
+    ASH_CHECK(dst_desc.size > copy.dst_offset);
+    ASH_CHECK(dst_desc.size >= (copy.dst_offset + copy.size));
+  }
+}
+
+void CmdValidator::copy_image(Graph &graph, Image src, Image dst, stx::Span<ImageCopy const> copies)
+{
+  ASH_CHECK(!copies.is_empty());
+  ASH_CHECK(src != Image::None);
+  ASH_CHECK(graph.images.is_valid(src));
+  ASH_CHECK(graph.images.is_valid(dst));
+  ImageDesc const src_desc = graph.get_desc(src);
+  ImageDesc const dst_desc = graph.get_desc(dst);
+  ASH_CHECK((src_desc.usages & ImageUsages::TransferSrc) != ImageUsages::None);
+  ASH_CHECK((dst_desc.usages & ImageUsages::TransferDst) != ImageUsages::None);
+
+  for (ImageCopy const &copy : copies)
+  {
+    ASH_CHECK(copy.src_aspect != ImageAspect::None);
+    ASH_CHECK(copy.dst_aspect != ImageAspect::None);
+    ASH_CHECK(copy.src_mip_level < src_desc.mips);
+    ASH_CHECK(copy.dst_mip_level < dst_desc.mips);
+    ASH_CHECK((URect{.offset = {}, .extent = src_desc.extent}.contains(copy.src_area)));
+    ASH_CHECK((URect{.offset = {}, .extent = dst_desc.extent}.contains(copy.src_area.with_offset(copy.dst_offset))));
+  }
+}
+
+void CmdValidator::copy_buffer_to_image(Graph &graph, Buffer src, Image dst, stx::Span<BufferImageCopy const> copies)
+{
+  ASH_CHECK(!copies.is_empty());
+  ASH_CHECK(graph.buffers.is_valid(src));
+  ASH_CHECK(graph.images.is_valid(dst));
+  BufferDesc const src_desc = graph.get_desc(src);
+  ImageDesc const  dst_desc = graph.get_desc(dst);
+  ASH_CHECK((src_desc.usages & BufferUsages::TransferSrc) != BufferUsages::None);
+  ASH_CHECK((dst_desc.usages & ImageUsages::TransferDst) != ImageUsages::None);
+  for (BufferImageCopy const &copy : copies)
+  {
+    ASH_CHECK(copy.buffer_image_height > 0);
+    ASH_CHECK(copy.buffer_row_length > 0);
+    ASH_CHECK(copy.buffer_offset < src_desc.size);
+    ASH_CHECK(copy.image_mip_level < dst_desc.mips);
+    ASH_CHECK(copy.image_aspect != ImageAspect::None);
+    ASH_CHECK((URect{.offset = {}, .extent = dst_desc.extent}.contains(copy.image_area)));
+  }
+}
+
+void CmdValidator::blit_image(Graph &graph, Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter)
+{
+  ASH_CHECK(!blits.is_empty());
+  ASH_CHECK(graph.images.is_valid(src));
+  ASH_CHECK(graph.images.is_valid(dst));
+  ImageDesc const src_desc = graph.get_desc(src);
+  ImageDesc const dst_desc = graph.get_desc(dst);
+  ASH_CHECK((src_desc.usages & ImageUsages::TransferSrc) != ImageUsages::None);
+  ASH_CHECK((dst_desc.usages & ImageUsages::TransferDst) != ImageUsages::None);
+  for (ImageBlit const &blit : blits)
+  {
+    ASH_CHECK(blit.src_aspect != ImageAspect::None);
+    ASH_CHECK(blit.dst_aspect != ImageAspect::None);
+    ASH_CHECK(blit.src_mip_level < src_desc.mips);
+    ASH_CHECK(blit.dst_mip_level < dst_desc.mips);
+    ASH_CHECK((URect{.offset = {}, .extent = src_desc.extent}.contains(blit.src_area)));
+    ASH_CHECK((URect{.offset = {}, .extent = dst_desc.extent}.contains(blit.dst_area)));
+  }
+}
+
+void CmdValidator::begin_render_pass(Graph &graph, Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values)
+{
+  ASH_CHECK(graph.render_passes.is_valid(render_pass));
+  ASH_CHECK(graph.framebuffers.is_valid(framebuffer));
+  FramebufferDesc const framebuffer_desc = graph.get_desc(framebuffer);
+  ASH_CHECK(framebuffer_desc.color_attachments.size() == color_attachments_clear_values.size());
+  ASH_CHECK(framebuffer_desc.depth_stencil_attachments.size() == depth_stencil_attachments_clear_values.size());
+  // TODO(lamarrr): check renderpass compatibility
+}
+
+void CmdValidator::end_render_pass(Graph &graph)
+{}
+
+void CmdValidator::push_constants(Graph &graph, stx::Span<u8 const> constants)
+{}
+
+void CmdValidator::bind_compute_pipeline(Graph &graph, ComputePipeline pipeline)
+{}
+
+void CmdValidator::bind_graphics_pipeline(Graph &graph, GraphicsPipeline pipeline)
+{}
+
+void CmdValidator::bind_vertex_buffers(Graph &graph, stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset)
+{}
+
+void CmdValidator::bind_descriptors(Graph &graph, stx::Span<DescriptorBinding const> bindings)
+{}
+
+void CmdValidator::set_scissor(Graph &graph, IRect scissor)
+{}
+
+void CmdValidator::set_viewport(Graph &graph, Viewport viewport)
+{}
+
+void CmdValidator::compute(Graph &graph, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z)
+{}
+
+void CmdValidator::compute_indirect(Graph &graph, Buffer buffer, u64 offset)
+{}
+
+void CmdValidator::draw_indexed(Graph &graph, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)
+{
+  // case CmdType::DispatchTask:
+  // {
+  //   ASH_CHECK(cmd.dispatch_task.framebuffer != Framebuffer::None);
+  //   ASH_CHECK(((u32) cmd.dispatch_task.framebuffer) < graph.resources.size());
+  //   ASH_CHECK(graph.resources[(u32) cmd.dispatch_task.framebuffer].type == ResourceType::Framebuffer);
+  //   for (ResourceBinding const &binding : cmd.dispatch_task.bindings)
+  //   {
+  //     switch (binding.type)
+  //     {
+  //       case ResourceBindingType::BufferBinding:
+  //       {
+  //         ASH_CHECK(binding.buffer.buffer != Buffer::None);
+  //         ASH_CHECK(((u32) binding.buffer.buffer) < graph.resources.size());
+  //         ASH_CHECK(graph.resources[(u32) binding.buffer.buffer].type == ResourceType::Buffer);
+  //         BufferDesc const buffer_desc       = graph.get_desc(binding.buffer.buffer);
+  //         bool             written_in_shader = (binding.buffer.access & (Access::ShaderWrite | Access::ShaderSampledWrite | Access::ShaderStorageWrite)) != Access::None;
+  //         bool             read_in_shader    = (binding.buffer.access & (Access::ShaderRead | Access::ShaderSampledRead)) != Access::None;
+  //         if (read_in_shader)
+  //         {
+  //           ASH_CHECK((buffer_desc.usages & (BufferUsages::UniformBuffer | BufferUsages::UniformTexelBuffer)) != BufferUsages::None);
+  //         }
+  //         if (written_in_shader)
+  //         {
+  //           ASH_CHECK((buffer_desc.usages & (BufferUsages::StorageBuffer | BufferUsages::UniformStorageTexelBuffer)) != BufferUsages::None);
+  //         }
+  //       }
+  //       break;
+  //       case ResourceBindingType::ImageViewBinding:
+  //       {
+  //         ASH_CHECK(binding.image_view.image_view != ImageView::None);
+  //         ASH_CHECK(((u32) binding.image_view.image_view) < graph.resources.size());
+  //         ASH_CHECK(graph.resources[(u32) binding.image_view.image_view].type == ResourceType::ImageView);
+  //         ImageDesc const image_desc        = graph.get_desc(graph.get_desc(binding.image_view.image_view).image);
+  //         bool            written_in_shader = (binding.image_view.access & (Access::ShaderWrite | Access::ShaderSampledWrite | Access::ShaderStorageWrite)) != Access::None;
+  //         bool            read_in_shader    = (binding.image_view.access & (Access::ShaderRead | Access::ShaderSampledRead)) != Access::None;
+  //         if (read_in_shader)
+  //         {
+  //           ASH_CHECK((image_desc.usages & ImageUsages::Sampled) != ImageUsages::None);
+  //         }
+  //         if (written_in_shader)
+  //         {
+  //           ASH_CHECK((image_desc.usages & ImageUsages::Storage) != ImageUsages::None);
+  //         }
+  //       }
+  //       break;
+  //     }
+  //   }
+  // }
+  // break;
+}
+
+void CmdValidator::draw_indexed_indirect(Graph &graph, Buffer buffer, u64 offset, u32 draw_count, u32 stride)
+{}
+
 
 // TODO(lamarrr): remove unnecessary barriers: i.e. newly created resources with None access and None states. and double-reads
 //
@@ -611,58 +608,58 @@ void generate_barriers(Graph &graph, stx::Span<Cmd const> cmds, stx::Vec<QueueBa
       }
       break;
 
-      // case CmdType::DispatchTask:
-      // {
-      //   for (ResourceBinding const &binding : cmd.dispatch_task.bindings)
-      //   {
-      //     switch (binding.type)
-      //     {
-      //       case ResourceBindingType::BufferBinding:
-      //       {
-      //         BufferState             &state = graph.get_state(binding.buffer.buffer);
-      //         QueueBufferMemoryBarrier barrier{.buffer          = binding.buffer.buffer,
-      //                                          .offset          = 0,
-      //                                          .size            = stx::U64_MAX,
-      //                                          .src_stage_mask  = state.stage,
-      //                                          .dst_stage_mask  = binding.buffer.stages,
-      //                                          .src_access_mask = state.access_mask,
-      //                                          .dst_access_mask = binding.buffer.access};
+        // case CmdType::DispatchTask:
+        // {
+        //   for (ResourceBinding const &binding : cmd.dispatch_task.bindings)
+        //   {
+        //     switch (binding.type)
+        //     {
+        //       case ResourceBindingType::BufferBinding:
+        //       {
+        //         BufferState             &state = graph.get_state(binding.buffer.buffer);
+        //         QueueBufferMemoryBarrier barrier{.buffer          = binding.buffer.buffer,
+        //                                          .offset          = 0,
+        //                                          .size            = stx::U64_MAX,
+        //                                          .src_stage_mask  = state.stage,
+        //                                          .dst_stage_mask  = binding.buffer.stages,
+        //                                          .src_access_mask = state.access_mask,
+        //                                          .dst_access_mask = binding.buffer.access};
 
-      //         queue_barriers.push_inplace(barrier).unwrap();
-      //         state.access_mask = binding.buffer.access;
-      //         state.stage       = binding.buffer.stages;
-      //       }
-      //       break;
-      //       case ResourceBindingType::ImageViewBinding:
-      //       {
-      //         ImageViewDesc           sub_desc   = graph.get_desc(binding.image_view.image_view);
-      //         ImageState             &state      = graph.get_state(sub_desc.image);
-      //         bool                    is_storage = (binding.image_view.access & (Access::ShaderStorageWrite | Access::ShaderWrite | Access::ShaderSampledWrite)) != Access::None;
-      //         QueueImageMemoryBarrier barrier{.image           = sub_desc.image,
-      //                                         .first_mip_level = sub_desc.first_mip_level,
-      //                                         .num_mip_levels  = sub_desc.num_mip_levels,
-      //                                         .aspect          = sub_desc.aspect,
-      //                                         .old_layout      = state.layout,
-      //                                         .new_layout      = is_storage ? ImageLayout::General : ImageLayout::ShaderReadOnlyOptimal,
-      //                                         .src_stage_mask  = state.stage,
-      //                                         .dst_stage_mask  = binding.image_view.stages,
-      //                                         .src_access_mask = state.access_mask,
-      //                                         .dst_access_mask = binding.image_view.access};
+        //         queue_barriers.push_inplace(barrier).unwrap();
+        //         state.access_mask = binding.buffer.access;
+        //         state.stage       = binding.buffer.stages;
+        //       }
+        //       break;
+        //       case ResourceBindingType::ImageViewBinding:
+        //       {
+        //         ImageViewDesc           sub_desc   = graph.get_desc(binding.image_view.image_view);
+        //         ImageState             &state      = graph.get_state(sub_desc.image);
+        //         bool                    is_storage = (binding.image_view.access & (Access::ShaderStorageWrite | Access::ShaderWrite | Access::ShaderSampledWrite)) != Access::None;
+        //         QueueImageMemoryBarrier barrier{.image           = sub_desc.image,
+        //                                         .first_mip_level = sub_desc.first_mip_level,
+        //                                         .num_mip_levels  = sub_desc.num_mip_levels,
+        //                                         .aspect          = sub_desc.aspect,
+        //                                         .old_layout      = state.layout,
+        //                                         .new_layout      = is_storage ? ImageLayout::General : ImageLayout::ShaderReadOnlyOptimal,
+        //                                         .src_stage_mask  = state.stage,
+        //                                         .dst_stage_mask  = binding.image_view.stages,
+        //                                         .src_access_mask = state.access_mask,
+        //                                         .dst_access_mask = binding.image_view.access};
 
-      //         queue_barriers.push_inplace(barrier).unwrap();
-      //         state.access_mask = binding.image_view.access;
-      //         state.stage       = binding.image_view.stages;
-      //       }
-      //       break;
+        //         queue_barriers.push_inplace(barrier).unwrap();
+        //         state.access_mask = binding.image_view.access;
+        //         state.stage       = binding.image_view.stages;
+        //       }
+        //       break;
 
-      //       default:
-      //         break;
-      //     }
-      //   }
+        //       default:
+        //         break;
+        //     }
+        //   }
 
-      //   cmd_barriers.push(cmd.dispatch_task.bindings.size()).unwrap();        // TODO(lamarrr)
-      // }
-      // break;
+        //   cmd_barriers.push(cmd.dispatch_task.bindings.size()).unwrap();        // TODO(lamarrr)
+        // }
+        // break;
 
         // TODO(lamarrr): in-between barriers access??? i.e. in shader?
       case CmdType::BeginRenderPass:

@@ -1,8 +1,9 @@
 #pragma once
 #include <string_view>
+
 #include "ashura/primitives.h"
+#include "ashura/sparse_array.h"
 #include "ashura/utils.h"
-#include "stx/fn.h"
 #include "stx/vec.h"
 // #include "Volk/volk.h" TODO(lamarrr): use Volk to avoid table dispatch overhead https://gpuopen.com/learn/reducing-vulkan-api-call-overhead/
 
@@ -11,63 +12,67 @@ namespace ash
 namespace lgfx
 {
 
-enum class Buffer : u64
+enum class Buffer : u32
 {
   None = 0
 };
 
-enum class Image : u64
+enum class BufferView : u32
 {
   None = 0
 };
 
-/// a sub-resource that specifies regions, mips, aspects, and layer of images
-enum class ImageView : u64
+enum class Image : u32
 {
   None = 0
 };
 
-enum class RenderPass : u64
+/// a sub-resource that specifies mips, aspects, and layer of images
+enum class ImageView : u32
 {
   None = 0
 };
 
-enum class Framebuffer : u64
+// renderpasses are used for selecting tiling strategy and related optimizations
+enum class RenderPass : u32
 {
   None = 0
 };
 
-enum class Resource : u64
+enum class Framebuffer : u32
 {
   None = 0
 };
 
-// HIGH-LEVEL RENDER & COMPUTE PIPELINE COMPONENTS (ABSTRACTION)
-// EFFECTS & POST-PROCESSING
-// MESH MANAGEMENT
-// MESH BATCHING & INSTANCING
-// MATERIAL MANAGEMENT
-// RESOURCE MANAGEMENT
-// CAMERA MANAGEMENT
-// LIGHT MANAGEMENT
-// SCENE GRAPH (SORTING, CULLING)
+enum class Shader : u32
+{
+  None = 0
+};
 
-// MID-LEVEL RENDER & COMPUTE PIPELINE COMPONENTS
-// RESOURCE SYNCHRONIZATION & MANAGEMENT (I.E. BARRIERS)
-// TASK GRAPHS
+enum class Resource : u32
+{
+  None = 0
+};
 
-// LOW-LEVEL RENDER & COMPUTE PIPELINE COMPONENTS (PLATFORM-SPECIFIC)
-// RENDER PASSES
-// COMPUTE PASSES
-// PIPELINES
-// SHADERS
-// PSO & PSO CACHES
+enum class ComputePipeline : u32
+{
+  None = 0
+};
 
-/**
- * HANDLES:
- * - Resource state tracking and transition (barriers)
- * - Resource creation, recreation, and management
- */
+enum class GraphicsPipeline : u32
+{
+  None = 0
+};
+
+enum class Pipeline : u32
+{
+  None = 0
+};
+
+enum class Sampler : u32
+{
+  None = 0
+};
 
 enum class MemoryProperties : u32
 {
@@ -97,6 +102,7 @@ struct HeapProperty
   u32              index      = 0;
 };
 
+// TODO(lamarrr): write memory allocation strategies, i.e. images should be allocated on this and this heap
 // a single heap might have multiple properties
 struct DeviceMemoryHeaps
 {
@@ -126,8 +132,6 @@ struct DeviceMemoryHeaps
     return has_memory(MemoryProperties::DeviceLocal | MemoryProperties::HostVisible);
   }
 };
-
-// TODO(lamarrr): write memory allocation strategies, i.e. images should be allocated on this and this heap
 
 enum class Format : u32
 {
@@ -480,10 +484,10 @@ struct FormatProperties
   FormatFeatures buffer_features         = FormatFeatures::None;
 };
 
+// TODO(lamarrr): formats info properties
 struct DeviceInfo
 {
   DeviceMemoryHeaps memory_heaps;
-  // formats info properties
 };
 
 enum class ImageAspect : u32
@@ -582,6 +586,26 @@ enum class StencilOp : u8
   DecrementAndWrap  = 7
 };
 
+enum class LogicOp : u8
+{
+  Clear        = 0,
+  And          = 1,
+  AndReverse   = 2,
+  Copy         = 3,
+  AndInverted  = 4,
+  NoOp         = 5,
+  Xor          = 6,
+  Or           = 7,
+  Nor          = 8,
+  Equivalent   = 9,
+  Invert       = 10,
+  OrReverse    = 11,
+  CopyInverted = 12,
+  OrInverted   = 13,
+  Nand         = 14,
+  Set          = 15
+};
+
 enum class SamplerAddressMode : u8
 {
   Repeat            = 0,
@@ -611,6 +635,19 @@ enum class CullMode : u8
   FrontAndBack = Front | Back
 };
 
+enum class FrontFace : u8
+{
+  CounterClockWise = 0,
+  ClockWise        = 1
+};
+
+enum class StencilFaces : u8
+{
+  Front        = 1,
+  Back         = 2,
+  FrontAndBack = 3
+};
+
 enum class ComponentSwizzle : u8
 {
   Identity   = 0,
@@ -621,6 +658,17 @@ enum class ComponentSwizzle : u8
   ComponentB = 5,
   ComponentA = 6
 };
+
+enum class ColorComponents : u8
+{
+  R   = 0x01,
+  G   = 0x02,
+  B   = 0x04,
+  A   = 0x08,
+  All = R | G | B | A
+};
+
+STX_DEFINE_ENUM_BIT_OPS(ColorComponents)
 
 enum class PipelineStages : u64
 {
@@ -653,7 +701,7 @@ STX_DEFINE_ENUM_BIT_OPS(PipelineStages)
 
 enum class BufferUsages : u32
 {
-  Undefined                 = 0x00000000,
+  None                      = 0x00000000,
   TransferSrc               = 0x00000001,
   TransferDst               = 0x00000002,
   UniformTexelBuffer        = 0x00000004,
@@ -668,7 +716,7 @@ STX_DEFINE_ENUM_BIT_OPS(BufferUsages)
 
 enum class ImageUsages : u32
 {
-  Undefined              = 0x00000000,
+  None                   = 0x00000000,
   TransferSrc            = 0x00000001,
   TransferDst            = 0x00000002,
   Sampled                = 0x00000004,
@@ -679,14 +727,10 @@ enum class ImageUsages : u32
 
 STX_DEFINE_ENUM_BIT_OPS(ImageUsages)
 
-enum class ResourceType : u8
+enum class InputRate : u8
 {
-  None        = 0,
-  Image       = 1,
-  ImageView   = 2,
-  Buffer      = 3,
-  RenderPass  = 4,
-  Framebuffer = 5
+  Vertex   = 0,
+  Instance = 1
 };
 
 enum class Access : u64
@@ -728,94 +772,748 @@ enum class Access : u64
 
 STX_DEFINE_ENUM_BIT_OPS(Access)
 
+enum class ShaderStages : u32
+{
+  None     = 0x00000000,
+  Vertex   = 0x00000001,
+  Geometry = 0x00000008,
+  Fragment = 0x00000010,
+  Compute  = 0x00000020,
+  Graphics = 0x0000001F,
+  All      = 0x7FFFFFFF
+};
+
+STX_DEFINE_ENUM_BIT_OPS(ShaderStages)
+
+enum class BorderColor : u8
+{
+  FloatTransparentBlack = 0,
+  IntTransparentBlack   = 1,
+  FloatOpaqueBlack      = 2,
+  IntOpaqueBlack        = 3,
+  FloatOpaqueueWhite    = 4,
+  IntOpaqueueWhite      = 5,
+};
+
+enum class PolygonMode : u8
+{
+  Fill  = 0,
+  Line  = 1,
+  Point = 2
+};
+
+enum class PrimitiveTopology
+{
+  PointList     = 0,
+  LineList      = 1,
+  LineStrip     = 2,
+  TriangleList  = 3,
+  TriangleStrip = 4,
+  TriangleFan   = 5
+};
+
+struct Viewport
+{
+  Rect area;
+  f32  min_depth = 0;
+  f32  max_depth = 1;
+};
+
+struct StencilOpState
+{
+  StencilOp fail_op       = StencilOp::Keep;
+  StencilOp pass_op       = StencilOp::Keep;
+  StencilOp depth_fail_op = StencilOp::Keep;
+  CompareOp compare_op    = CompareOp::Never;
+  u32       compare_mask  = 0;
+  u32       write_mask    = 0;
+  u32       reference     = 0;
+};
+
 struct ComponentMapping
 {
   ComponentSwizzle r = ComponentSwizzle::Identity;
   ComponentSwizzle g = ComponentSwizzle::Identity;
   ComponentSwizzle b = ComponentSwizzle::Identity;
   ComponentSwizzle a = ComponentSwizzle::Identity;
-
-  static constexpr ComponentMapping identity()
-  {
-    return ComponentMapping{
-        .r = ComponentSwizzle::Identity,
-        .g = ComponentSwizzle::Identity,
-        .b = ComponentSwizzle::Identity,
-        .a = ComponentSwizzle::Identity};
-  }
 };
 
-enum class PipelineType : u8
+struct SamplerBinding
 {
-  Graphics      = 0,
-  Compute       = 1,
-  VideoDecoding = 2,
-  VideoEncoding = 3,
-  RayTracing    = 4
+  Sampler   sampler    = Sampler::None;
+  ImageView image_view = ImageView::None;
 };
 
-// TODO(lamarrr): since we are performing transfers on the same queue family, we can just insert upload barriers instead of waiting on uploads to finish??
-// but since we are writing to a possibly in-use memory, we will need to sync up or check if an upload is already in progress with the buffer?
-// or use vulkan events to let us know when uploads are in progress and when they are done
-
-// A command queue can't execute multiple commands at once, but it can reorder the commands given to it if no synchronization is put in place
-
-// Action and synchronization commands recorded to a command buffer execute the
-// VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT pipeline stage in submission order - forming an implicit
-// execution dependency between this stage in each command.
-//
-// each command executes VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT in the order they were submitted, this is the only execution order guarantee on the queue
-//
-// https://github.com/KhronosGroup/Vulkan-Docs/issues/552
-//
-//
-// A Queue is an out-of-order execution unit that executes a specific set of tasks
-//
-//
-// TODO(lamarrr): each task might have different synchronization tasks to perform
-//
-//
-// we need to keep track of:
-// where it was last used, what it was last used for and how
-// where it will next be used at, what it will next be used for
-//
-//
-//
-struct BufferBinding
+struct CombinedImageSamplerBinding
 {
-  Buffer         buffer = Buffer::None;
-  Access         access = Access::None;
-  PipelineStages stages = PipelineStages::None;
+  Sampler   sampler    = Sampler::None;
+  ImageView image_view = ImageView::None;
 };
 
-struct ImageViewBinding
+struct SampledImageBinding
 {
-  ImageView      image_view = ImageView::None;
-  Access         access     = Access::None;
-  PipelineStages stages     = PipelineStages::None;
+  ImageView image_view = ImageView::None;
 };
 
-enum class ResourceBindingType : u8
+struct StorageImageBinding
 {
-  BufferBinding,
-  ImageViewBinding
+  ImageView image_view = ImageView::None;
 };
 
-struct ResourceBinding
+struct UniformTexelBufferBinding
 {
-  constexpr ResourceBinding(BufferBinding resource) :
-      buffer{resource}, type{ResourceBindingType::BufferBinding}
+  BufferView buffer_view = BufferView::None;
+};
+
+struct StorageTexelBufferBinding
+{
+  BufferView buffer_view = BufferView::None;
+};
+
+struct UniformBufferBinding
+{
+  Buffer buffer = Buffer::None;
+  u64    offset = 0;
+  u64    size   = 0;
+};
+
+struct StorageBufferBinding
+{
+  Buffer buffer = Buffer::None;
+  u64    offset = 0;
+  u64    size   = 0;
+};
+
+struct InputAttachmentBinding
+{
+  ImageView image_view = ImageView::None;
+};
+
+enum class DescriptorType : u64
+{
+  Sampler              = 0,
+  CombinedImageSampler = 1,
+  SampledImage         = 2,
+  StorageImage         = 3,
+  UniformTexelBuffer   = 4,
+  StorageTexelBuffer   = 5,
+  UniformBuffer        = 6,
+  StorageBuffer        = 7,
+  InputAttachment      = 10,
+  Unused               = ~0ULL
+};
+
+struct DescriptorSlot
+{
+  std::string_view name   = {};
+  DescriptorType   type   = DescriptorType::Sampler;
+  ShaderStages     stages = ShaderStages::All;
+};
+
+struct DescriptorBinding
+{
+  constexpr DescriptorBinding() :
+      type{DescriptorType::Unused}
   {}
-  constexpr ResourceBinding(ImageViewBinding resource) :
-      image_view{resource}, type{ResourceBindingType::ImageViewBinding}
+  constexpr DescriptorBinding(SamplerBinding const &binding) :
+      sampler{binding}, type{DescriptorType::Sampler}
+  {}
+  constexpr DescriptorBinding(CombinedImageSamplerBinding const &binding) :
+      combined_image_sampler{binding}, type{DescriptorType::CombinedImageSampler}
+  {}
+  constexpr DescriptorBinding(SampledImageBinding const &binding) :
+      sampled_image{binding}, type{DescriptorType::SampledImage}
+  {}
+  constexpr DescriptorBinding(StorageImageBinding const &binding) :
+      storage_image{binding}, type{DescriptorType::StorageImage}
+  {}
+  constexpr DescriptorBinding(UniformTexelBufferBinding const &binding) :
+      uniform_texel_buffer{binding}, type{DescriptorType::UniformTexelBuffer}
+  {}
+  constexpr DescriptorBinding(StorageTexelBufferBinding const &binding) :
+      storage_texel_buffer{binding}, type{DescriptorType::StorageTexelBuffer}
+  {}
+  constexpr DescriptorBinding(UniformBufferBinding const &binding) :
+      uniform_buffer{binding}, type{DescriptorType::UniformBuffer}
+  {}
+  constexpr DescriptorBinding(StorageBufferBinding const &binding) :
+      storage_buffer{binding}, type{DescriptorType::StorageBuffer}
+  {}
+  constexpr DescriptorBinding(InputAttachmentBinding const &binding) :
+      input_attachment{binding}, type{DescriptorType::InputAttachment}
   {}
 
   union
   {
-    BufferBinding    buffer;
-    ImageViewBinding image_view;
+    SamplerBinding              sampler;
+    CombinedImageSamplerBinding combined_image_sampler;
+    SampledImageBinding         sampled_image;
+    StorageImageBinding         storage_image;
+    UniformTexelBufferBinding   uniform_texel_buffer;
+    StorageTexelBufferBinding   storage_texel_buffer;
+    UniformBufferBinding        uniform_buffer;
+    StorageBufferBinding        storage_buffer;
+    InputAttachmentBinding      input_attachment;
   };
-  ResourceBindingType type;
+  DescriptorType type;
+};
+
+constexpr usize DESCRIPTOR_BINDING_SIZE = sizeof(DescriptorBinding);
+
+struct BufferDesc
+{
+  u64              size       = 0;
+  MemoryProperties properties = MemoryProperties::None;
+  BufferUsages     usages     = BufferUsages::None;
+};
+
+struct BufferViewDesc
+{
+  Buffer buffer      = Buffer::None;
+  Format view_format = Format::Undefined;
+  u64    offset      = 0;
+  u64    size        = 0;
+};
+
+struct ImageDesc
+{
+  Format      format = Format::Undefined;
+  ImageUsages usages = ImageUsages::None;
+  Extent      extent = {};
+  u32         mips   = 1;
+};
+
+struct ImageViewDesc
+{
+  Image            image           = Image::None;
+  Format           view_format     = Format::Undefined;
+  ComponentMapping mapping         = ComponentMapping{};
+  u32              first_mip_level = 0;
+  u32              num_mip_levels  = 0;
+  ImageAspect      aspect          = ImageAspect::None;
+};
+
+struct SamplerDesc
+{
+  Filter             mag_filter               = Filter::Nearest;
+  Filter             min_filter               = Filter::Nearest;
+  SamplerMipMapMode  mip_map_mode             = SamplerMipMapMode::Nearest;
+  SamplerAddressMode address_mode_u           = SamplerAddressMode::ClampToBorder;
+  SamplerAddressMode address_mode_v           = SamplerAddressMode::ClampToBorder;
+  f32                mip_lod_bias             = 0;
+  bool               anisotropy_enable        = true;
+  f32                max_anisotropy           = 1.0f;
+  bool               compare_enable           = false;
+  CompareOp          compare_op               = CompareOp::Always;
+  f32                min_lod                  = 0;
+  f32                max_lod                  = 0;
+  BorderColor        border_color             = BorderColor::FloatTransparentBlack;
+  bool               unnormalized_coordinates = false;
+};
+
+struct RenderPassAttachment
+{
+  Format  format   = Format::Undefined;
+  LoadOp  load_op  = LoadOp::Load;
+  StoreOp store_op = StoreOp::Store;
+};
+
+struct RenderPassDesc
+{
+  stx::Span<RenderPassAttachment const> color_attachments         = {};
+  stx::Span<RenderPassAttachment const> depth_stencil_attachments = {};
+};
+
+struct FramebufferDesc
+{
+  RenderPass                 renderpass                = RenderPass::None;
+  Extent                     extent                    = {};
+  stx::Span<ImageView const> color_attachments         = {};
+  stx::Span<ImageView const> depth_stencil_attachments = {};
+};
+
+struct ComputePipelineDesc
+{
+  Shader                          shader = Shader::None;
+  stx::Span<DescriptorSlot const> slots  = {};
+};
+
+// Specifies how the binded vertex buffers are iterated and the strides for them
+// unique for each binded buffer.
+struct VertexInputBinding
+{
+  u32       binding    = 0;                        // which of the binded vertex buffers
+  u32       stride     = 0;                        // stride in bytes for each binding advance within the binded buffer
+  InputRate input_rate = InputRate::Vertex;        // advance-rate for this binding. on every vertex or every instance
+};
+
+// specifies representation/interpretation and shader location mapping of the values in the buffer
+// this is a many to one mapping to the input binding.
+struct VertexAttribute
+{
+  u32    binding  = 0;                        // which binding
+  u32    location = 0;                        // binding's mapped location
+  Format format   = Format::Undefined;        // data format
+  u32    offset   = 0;                        // offset of attribute in binding
+};
+
+// STILL NEEDED:
+//
+// - Automatically generating pipeline layouts from spirv reflection info
+// - Automatically generating descriptor sets and checking resource bindings
+// - Is it possible to have structs that will be declared as shader inputs?
+// - we can't automatically generate vertex inputs and attributes
+//
+//
+// - we can check the access masks for the SPIRV-shaders, we thus know the stage masks as well
+//
+// - the users just need to specify a name and resource they want bounded to it, what about per-resource descriptor sets?
+// - images always have descriptor sets attached to them, but what about uniform buffers?
+//
+//
+//
+// INITIAL STATES MUST BE NON-NULL and reasonable in case user forgets to set them
+//
+//
+//
+// in shaders, we'll get: names, bindings and sets, and descriptor types
+// from descriptor types we can get: access types, access stages, access masks
+// these will be used for creating the pipeline layouts and descriptor set layouts
+//
+// bind group/descriptor set creation
+//
+//
+// DESCRIPTOR SET MANAGEMENT
+//
+//// TODO(lamarrr): we'll use sets and bindings to match against pipeline descriptor sets but also store the slots and binding
+// names of both shader(pipeline)
+//
+// we create multiple samplers, and on every sampler use whe check if a sampler hasn't already been created
+// samplers are cheap and don't need to be created everytime
+// descriptor sets are also created for every resource with a shader usage
+//
+//
+// // we only take SPIRV shaders and then generate reflection metadata from them?
+//
+//
+// TODO(lamarrr): buffers, buffer views, imageviews, and samplers  should probably have DescriptorCaches
+//
+// ShaderAccessTable for each resource
+//
+//// TODO(lamarrr): PSO caching
+//
+//
+
+struct PipelineDepthStencilState
+{
+  bool           depth_test_enable        = false;
+  bool           depth_write_enable       = false;
+  CompareOp      depth_compare_op         = CompareOp::Never;
+  bool           depth_bounds_test_enable = false;
+  bool           stencil_test_enable      = false;
+  StencilOpState front_stencil_state      = {};
+  StencilOpState back_stencil_state       = {};
+  f32            min_depth_bounds         = 0;
+  f32            max_depth_bounds         = 1;
+};
+
+struct PipelineColorBlendAttachmentState
+{
+  bool            color_blend_enable     = true;
+  BlendFactor     src_color_blend_factor = BlendFactor::SrcAlpha;
+  BlendFactor     dst_color_blend_factor = BlendFactor::OneMinusSrcAlpha;
+  BlendOp         color_blend_op         = BlendOp::Add;
+  BlendFactor     src_alpha_blend_factor = BlendFactor::One;
+  BlendFactor     dst_alpha_blend_factor = BlendFactor::Zero;
+  BlendOp         alpha_blend_op         = BlendOp::Add;
+  ColorComponents color_outputs          = ColorComponents::All;
+};
+
+struct PipelineRasterizationState
+{
+  bool        depth_clamp_enable         = false;
+  PolygonMode polygon_mode               = PolygonMode::Fill;
+  CullMode    cull_mode                  = CullMode::None;
+  FrontFace   front_face                 = FrontFace::ClockWise;
+  bool        depth_bias_enable          = false;
+  f32         depth_bias_constant_factor = 0;
+  f32         depth_bias_clamp           = 0;
+  f32         depth_bias_slope_factor    = 0;
+  bool        color_logic_op_enable      = false;
+  LogicOp     color_logic_op             = LogicOp::Clear;
+};
+
+struct GraphicsPipelineDesc
+{
+  Shader                                             vertex_shader      = Shader::None;
+  Shader                                             fragment_shader    = Shader::None;
+  RenderPass                                         render_pass        = RenderPass::None;
+  stx::Span<VertexInputBinding const>                bindings           = {};
+  stx::Span<VertexAttribute const>                   attributes         = {};
+  stx::Span<DescriptorSlot const>                    slots              = {};
+  PrimitiveTopology                                  primitive_topology = PrimitiveTopology::TriangleList;
+  PipelineRasterizationState                         rasterization_state;
+  PipelineDepthStencilState                          depth_stencil_state;
+  f32                                                color_blend_constants[4] = {0, 0, 0, 0};
+  stx::Span<PipelineColorBlendAttachmentState const> color_blend_states       = {};
+};
+
+struct BufferState
+{
+  BufferDesc     desc        = {};
+  PipelineStages stage       = PipelineStages::None;
+  Access         access_mask = Access::None;
+};
+
+struct ImageState
+{
+  ImageDesc      desc        = {};
+  PipelineStages stage       = PipelineStages::None;
+  Access         access_mask = Access::None;
+  ImageLayout    layout      = ImageLayout::Undefined;
+};
+
+struct BufferCopy
+{
+  u64 src_offset = 0;
+  u64 dst_offset = 0;
+  u64 size       = 0;
+};
+
+struct BufferImageCopy
+{
+  u64         buffer_offset       = 0;
+  u32         buffer_row_length   = 0;
+  u32         buffer_image_height = 0;
+  URect       image_area          = URect{};
+  u32         image_mip_level     = 0;
+  ImageAspect image_aspect        = ImageAspect::None;
+};
+
+struct ImageCopy
+{
+  URect       src_area      = URect{};
+  u32         src_mip_level = 0;
+  ImageAspect src_aspect    = ImageAspect::None;
+  Offset      dst_offset    = Offset{};
+  u32         dst_mip_level = 0;
+  ImageAspect dst_aspect    = ImageAspect::None;
+};
+
+struct ImageBlit
+{
+  URect       src_area      = URect{};
+  u32         src_mip_level = 0;
+  ImageAspect src_aspect    = ImageAspect::None;
+  URect       dst_area      = URect{};
+  u32         dst_mip_level = 0;
+  ImageAspect dst_aspect    = ImageAspect::None;
+};
+
+union Color
+{
+  u32 uint32[4] = {0, 0, 0, 0};
+  i32 int32[4];
+  f32 float32[4];
+};
+
+struct DepthStencil
+{
+  f32 depth   = 0;
+  u32 stencil = 0;
+};
+
+union ClearValue
+{
+  Color        color = Color{};
+  DepthStencil depth_stencil;
+};
+
+namespace cmd
+{
+
+struct CopyBuffer
+{
+  Buffer                      src    = Buffer::None;
+  Buffer                      dst    = Buffer::None;
+  stx::Span<BufferCopy const> copies = {};
+};
+
+// TODO(lamarrr): will cause a device idle wait if in use unless newly created. upload batches to use large buffers
+struct CopyHostBuffer
+{
+  stx::Span<u8 const>         src    = {};
+  Buffer                      dst    = Buffer::None;
+  stx::Span<BufferCopy const> copies = {};
+};
+
+struct CopyImage
+{
+  Image                      src    = Image::None;
+  Image                      dst    = Image::None;
+  stx::Span<ImageCopy const> copies = {};
+};
+
+struct CopyBufferToImage
+{
+  Buffer                           src    = Buffer::None;
+  Image                            dst    = Image::None;
+  stx::Span<BufferImageCopy const> copies = {};
+};
+
+struct BlitImage
+{
+  Image                      src    = Image::None;
+  Image                      dst    = Image::None;
+  stx::Span<ImageBlit const> blits  = {};
+  Filter                     filter = Filter::Nearest;
+};
+
+struct BeginRenderPass
+{
+  Framebuffer                   framebuffer                            = Framebuffer::None;
+  RenderPass                    render_pass                            = RenderPass::None;
+  IRect                         render_area                            = {};
+  stx::Span<Color const>        color_attachments_clear_values         = {};
+  stx::Span<DepthStencil const> depth_stencil_attachments_clear_values = {};
+};
+
+struct EndRenderPass
+{
+};
+
+struct PushConstants
+{
+  u8 data[128] = {};
+};
+
+// Bind Compute pipeline, bind graphics pipeline
+// how to: get pipeline associated with the command
+struct BindComputePipeline
+{
+  ComputePipeline pipeline = ComputePipeline::None;
+};
+
+struct BindGraphicsPipeline
+{
+  GraphicsPipeline pipeline = GraphicsPipeline::None;
+};
+
+struct BindVertexBuffers
+{
+  stx::Span<Buffer const> vertex_buffers        = {};        // Buffer::None means slot is unused
+  stx::Span<u64 const>    vertex_buffer_offsets = {};
+  Buffer                  index_buffer          = Buffer::None;
+  u64                     index_buffer_offset   = 0;
+};
+
+struct BindDescriptors
+{
+  stx::Span<DescriptorBinding const> bindings = {};
+};
+
+struct SetScissor
+{
+  IRect scissor;
+};
+
+struct SetViewport
+{
+  Viewport viewport;
+};
+
+struct Compute
+{
+  u32 base_group_x  = 0;
+  u32 group_count_x = 0;
+  u32 base_group_y  = 0;
+  u32 group_count_y = 0;
+  u32 base_group_z  = 0;
+  u32 group_count_z = 0;
+};
+
+struct ComputeIndirect
+{
+  Buffer buffer = Buffer::None;
+  u64    offset = 0;
+};
+
+struct DrawIndexed
+{
+  u32 index_count    = 0;
+  u32 instance_count = 0;
+  u32 first_index    = 0;
+  i32 vertex_offset  = 0;
+  u32 first_instance = 0;
+};
+
+struct DrawIndexedIndirect
+{
+  Buffer buffer     = Buffer::None;
+  u64    offset     = 0;
+  u32    draw_count = 0;
+  u32    stride     = 0;
+};
+
+};        // namespace cmd
+
+enum class CmdType : u8
+{
+  None                 = 0,
+  CopyBuffer           = 1,
+  CopyHostBuffer       = 2,
+  CopyImage            = 3,
+  CopyBufferToImage    = 4,
+  BlitImage            = 5,
+  BeginRenderPass      = 7,
+  EndRenderPass        = 8,
+  PushConstants        = 9,
+  BindComputePipeline  = 10,
+  BindGraphicsPipeline = 11,
+  BindVertexBuffers    = 12,
+  BindDescriptors      = 13,
+  Compute              = 14,
+  ComputeIndirect      = 15,
+  DrawIndexed          = 16,
+  DrawIndexedIndirect  = 17,
+  SetScissor           = 18,
+  SetViewport          = 19
+};
+
+struct CmdBuffer
+{
+  virtual void copy_buffer(Buffer src, Buffer dst, stx::Span<BufferCopy const> copies)                                                                                                                                            = 0;
+  virtual void copy_host_buffer(stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies)                                                                                                                          = 0;
+  virtual void copy_image(Image src, Image dst, stx::Span<ImageCopy const> copies)                                                                                                                                                = 0;
+  virtual void copy_buffer_to_image(Buffer src, Image dst, stx::Span<BufferImageCopy const> copies)                                                                                                                               = 0;
+  virtual void blit_image(Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter)                                                                                                                                  = 0;
+  virtual void begin_render_pass(Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values) = 0;
+  virtual void end_render_pass()                                                                                                                                                                                                  = 0;
+  virtual void push_constants(stx::Span<u8 const> constants)                                                                                                                                                                      = 0;
+  virtual void bind_compute_pipeline(ComputePipeline pipeline)                                                                                                                                                                    = 0;
+  virtual void bind_graphics_pipeline(GraphicsPipeline pipeline)                                                                                                                                                                  = 0;
+  virtual void bind_vertex_buffers(stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset)                                                              = 0;
+  virtual void bind_descriptors(stx::Span<DescriptorBinding const> bindings)                                                                                                                                                      = 0;
+  virtual void set_scissor(IRect scissor)                                                                                                                                                                                         = 0;
+  virtual void set_viewport(Viewport viewport)                                                                                                                                                                                    = 0;
+  virtual void compute(u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z)                                                                                             = 0;
+  virtual void compute_indirect(Buffer buffer, u64 offset)                                                                                                                                                                        = 0;
+  virtual void draw_indexed(u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)                                                                                                          = 0;
+  virtual void draw_indexed_indirect(Buffer buffer, u64 offset, u32 draw_count, u32 stride)                                                                                                                                       = 0;
+};
+
+struct CmdValidator
+{
+  virtual void copy_buffer(Graph &graph, Buffer src, Buffer dst, stx::Span<BufferCopy const> copies);
+  virtual void copy_host_buffer(Graph &graph, stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies);
+  virtual void copy_image(Graph &graph, Image src, Image dst, stx::Span<ImageCopy const> copies);
+  virtual void copy_buffer_to_image(Graph &graph, Buffer src, Image dst, stx::Span<BufferImageCopy const> copies);
+  virtual void blit_image(Graph &graph, Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter);
+  virtual void begin_render_pass(Graph &graph, Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values);
+  virtual void end_render_pass(Graph &graph);
+  virtual void push_constants(Graph &graph, stx::Span<u8 const> constants);
+  virtual void bind_compute_pipeline(Graph &graph, ComputePipeline pipeline);
+  virtual void bind_graphics_pipeline(Graph &graph, GraphicsPipeline pipeline);
+  virtual void bind_vertex_buffers(Graph &graph, stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset);
+  virtual void bind_descriptors(Graph &graph, stx::Span<DescriptorBinding const> bindings);
+  virtual void set_scissor(Graph &graph, IRect scissor);
+  virtual void set_viewport(Graph &graph, Viewport viewport);
+  virtual void compute(Graph &graph, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z);
+  virtual void compute_indirect(Graph &graph, Buffer buffer, u64 offset);
+  virtual void draw_indexed(Graph &graph, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance);
+  virtual void draw_indexed_indirect(Graph &graph, Buffer buffer, u64 offset, u32 draw_count, u32 stride);
+};
+
+struct Cmd
+{
+  constexpr Cmd() :
+      type{CmdType::None}
+  {}
+  constexpr Cmd(cmd::CopyBuffer const &cmd) :
+      copy_buffer{cmd}, type{CmdType::CopyBuffer}
+  {}
+  constexpr Cmd(cmd::CopyHostBuffer const &cmd) :
+      copy_host_buffer{cmd}, type{CmdType::CopyHostBuffer}
+  {}
+  constexpr Cmd(cmd::CopyImage const &cmd) :
+      copy_image{cmd}, type{CmdType::CopyImage}
+  {}
+  constexpr Cmd(cmd::CopyBufferToImage const &cmd) :
+      copy_buffer_to_image{cmd}, type{CmdType::CopyBufferToImage}
+  {}
+  constexpr Cmd(cmd::BlitImage const &cmd) :
+      blit_image{cmd}, type{CmdType::BlitImage}
+  {}
+  constexpr Cmd(cmd::BeginRenderPass const &cmd) :
+      begin_render_pass{cmd}, type{CmdType::BeginRenderPass}
+  {}
+  constexpr Cmd(cmd::EndRenderPass const &cmd) :
+      end_render_pass{cmd}, type{CmdType::EndRenderPass}
+  {}
+  constexpr Cmd(cmd::PushConstants const &cmd) :
+      push_constants{cmd}, type{CmdType::PushConstants}
+  {}
+  constexpr Cmd(cmd::BindComputePipeline const &cmd) :
+      bind_compute_pipeline{cmd}, type{CmdType::BindComputePipeline}
+  {}
+  constexpr Cmd(cmd::BindGraphicsPipeline const &cmd) :
+      bind_graphics_pipeline{cmd}, type{CmdType::BindGraphicsPipeline}
+  {}
+  constexpr Cmd(cmd::BindVertexBuffers const &cmd) :
+      bind_vertex_buffers{cmd}, type{CmdType::BindVertexBuffers}
+  {}
+  constexpr Cmd(cmd::BindDescriptors const &cmd) :
+      bind_descriptors{cmd}, type{CmdType::BindDescriptors}
+  {}
+  constexpr Cmd(cmd::SetScissor const &cmd) :
+      set_scissor{cmd}, type{CmdType::SetScissor}
+  {}
+  constexpr Cmd(cmd::SetViewport const &cmd) :
+      set_viewport{cmd}, type{CmdType::SetViewport}
+  {}
+  constexpr Cmd(cmd::Compute const &cmd) :
+      compute{cmd}, type{CmdType::Compute}
+  {}
+  constexpr Cmd(cmd::ComputeIndirect const &cmd) :
+      compute_indirect{cmd}, type{CmdType::ComputeIndirect}
+  {}
+  constexpr Cmd(cmd::DrawIndexed const &cmd) :
+      draw_indexed{cmd}, type{CmdType::DrawIndexed}
+  {}
+  constexpr Cmd(cmd::DrawIndexedIndirect const &cmd) :
+      draw_indexed_indirect{cmd}, type{CmdType::DrawIndexedIndirect}
+  {}
+
+  union
+  {
+    cmd::CopyBuffer           copy_buffer;
+    cmd::CopyHostBuffer       copy_host_buffer;
+    cmd::CopyImage            copy_image;
+    cmd::CopyBufferToImage    copy_buffer_to_image;
+    cmd::BlitImage            blit_image;
+    cmd::BeginRenderPass      begin_render_pass;
+    cmd::EndRenderPass        end_render_pass;
+    cmd::PushConstants        push_constants;
+    cmd::BindComputePipeline  bind_compute_pipeline;
+    cmd::BindGraphicsPipeline bind_graphics_pipeline;
+    cmd::BindVertexBuffers    bind_vertex_buffers;
+    cmd::BindDescriptors      bind_descriptors;
+    cmd::SetScissor           set_scissor;
+    cmd::SetViewport          set_viewport;
+    cmd::Compute              compute;
+    cmd::ComputeIndirect      compute_indirect;
+    cmd::DrawIndexed          draw_indexed;
+    cmd::DrawIndexedIndirect  draw_indexed_indirect;
+  };
+  CmdType type = CmdType::None;
+};
+
+constexpr usize CMD_SIZE = sizeof(Cmd);
+
+struct GraphCtx
+{
+  DeviceInfo device_info;
+  f32        max_anisotropy = 1.0f;
 };
 
 struct QueueMemoryBarrier
@@ -883,1031 +1581,64 @@ struct QueueBarrier
   QueueBarrierType type;
 };
 
-struct MemoryState
-{
-  PipelineStages stage       = PipelineStages::None;
-  Access         access_mask = Access::None;
-};
+constexpr usize QUEUE_BARRIER_SIZE = sizeof(QueueBarrier);
 
-struct BufferState
-{
-  PipelineStages stage       = PipelineStages::None;
-  Access         access_mask = Access::None;
-};
-
-struct ImageState
-{
-  PipelineStages stage       = PipelineStages::None;
-  Access         access_mask = Access::None;
-  ImageLayout    layout      = ImageLayout::Undefined;
-};
-
-enum class ResourceStateType : u8
-{
-  MemoryState,
-  BufferState,
-  ImageState
-};
-
-struct ResourceState
-{
-  constexpr ResourceState(MemoryState const &state) :
-      memory{state}, type{ResourceStateType::MemoryState}
-  {}
-  constexpr ResourceState(BufferState const &state) :
-      buffer{state}, type{ResourceStateType::BufferState}
-  {}
-  constexpr ResourceState(ImageState const &state) :
-      image{state}, type{ResourceStateType::ImageState}
-  {}
-
-  union
-  {
-    MemoryState memory;
-    BufferState buffer;
-    ImageState  image;
-  };
-  ResourceStateType type;
-};
-
-struct BufferDesc
-{
-  std::string_view pass       = "undefined";
-  std::string_view name       = "undefined";
-  u64              size       = 0;
-  MemoryProperties properties = MemoryProperties::None;
-  BufferUsages     usages     = BufferUsages::Undefined;
-};
-
-struct ImageDesc
-{
-  std::string_view pass   = "undefined";
-  std::string_view name   = "undefined";
-  Format           format = Format::R8_UNORM;
-  ImageUsages      usages = ImageUsages::Sampled;
-  Extent           extent;
-  u32              mips = 1;
-};
-
-struct ImageViewDesc
-{
-  std::string_view pass            = "undefined";
-  std::string_view name            = "undefined";
-  Image            image           = Image::None;
-  Format           view_format     = Format::Undefined;
-  ComponentMapping mapping         = ComponentMapping::identity();
-  u32              first_mip_level = 0;
-  u32              num_mip_levels  = 0;
-  ImageAspect      aspect          = ImageAspect::None;
-};
-
-struct RenderPassAttachment
-{
-  Format  format   = Format::Undefined;
-  LoadOp  load_op  = LoadOp::DontCare;
-  StoreOp store_op = StoreOp::DontCare;
-};
-
-/**slots description to be fed to pipeline and allow pipeline structure itself*/
-/**combination of images to feed to pipeline along with renderpass*/
-// we can hash the frame buffer description and store it somewhere and then re-use it for the gpu?
-// render passes are used for computing tiling strategy on the GPU. we can create the render passes along with the framebuffer object
-// it is a property of the passes we create, and it should be enough
-//
-// render pass just needs to be a compatible render pass with pre-computed tiling strategy
-// we can cache renderpasses on a per-pass basis or cache the data it computes and just use a compatible renderpass that has the same operations and format
-//
-//
-// TODO(lamarrr): how do we perform: beginrenderpass and endrenderpass then?
-//
-//
-// on framebuffer creation we can use a different renderpass than the originally created one
-//
-// renderpasses are cached ATTACHMENT_UNUSED slots
-//
-struct RenderPassDesc
-{
-  std::string_view                      pass = "undefined";
-  std::string_view                      name = "undefined";
-  stx::Span<RenderPassAttachment const> color_attachments;
-  stx::Span<RenderPassAttachment const> depth_stencil_attachments;
-};
-
-// we can cache framebuffers as they can be dynamic for some stype of passes
-// TODO(lamarrr): how do we know when a renderpass and framebuffer can be destroyed?
-struct FramebufferDesc
-{
-  std::string_view           pass       = "undefined";
-  std::string_view           name       = "undefined";
-  RenderPass                 renderpass = RenderPass::None;
-  stx::Span<ImageView const> color_attachments;
-  stx::Span<ImageView const> depth_stencil_attachments;
-};
-
-struct ResourceDesc
-{
-  constexpr ResourceDesc() :
-      type{ResourceType::None}
-  {}
-  constexpr ResourceDesc(BufferDesc const &desc) :
-      buffer{desc}, type{ResourceType::Buffer}
-  {}
-  constexpr ResourceDesc(ImageDesc const &desc) :
-      image{desc}, type{ResourceType::Image}
-  {}
-  constexpr ResourceDesc(ImageViewDesc const &desc) :
-      image_view{desc}, type{ResourceType::ImageView}
-  {}
-  constexpr ResourceDesc(RenderPassDesc const &desc) :
-      render_pass{desc}, type{ResourceType::RenderPass}
-  {}
-  constexpr ResourceDesc(FramebufferDesc const &desc) :
-      framebuffer{desc}, type{ResourceType::Framebuffer}
-  {}
-
-  union
-  {
-    BufferDesc      buffer;
-    ImageDesc       image;
-    ImageViewDesc   image_view;
-    RenderPassDesc  render_pass;
-    FramebufferDesc framebuffer;
-  };
-  ResourceType type;
-};
-
-struct BufferCopy
-{
-  u64 src_offset = 0;
-  u64 dst_offset = 0;
-  u64 size       = 0;
-};
-
-struct BufferImageCopy
-{
-  u64         buffer_offset       = 0;
-  u32         buffer_row_length   = 0;
-  u32         buffer_image_height = 0;
-  URect       image_area;
-  u32         image_mip_level = 0;
-  ImageAspect image_aspect    = ImageAspect::None;
-};
-
-struct ImageCopy
-{
-  URect       src_area;
-  u32         src_mip_level = 0;
-  ImageAspect src_aspect    = ImageAspect::None;
-  URect       dst_area;
-  u32         dst_mip_level = 0;
-  ImageAspect dst_aspect    = ImageAspect::None;
-};
-
-struct ImageBlit
-{
-  URect       src_area;
-  u32         src_mip_level = 0;
-  ImageAspect src_aspect    = ImageAspect::None;
-  URect       dst_area;
-  u32         dst_mip_level = 0;
-  ImageAspect dst_aspect    = ImageAspect::None;
-};
-
-union Color
-{
-  f32 float32[4];
-  i32 int32[4];
-  u32 uint32[4];
-};
-
-struct DepthStencil
-{
-  f32 depth   = 0;
-  u32 stencil = 0;
-};
-
-struct ClearValue
-{
-  union
-  {
-    Color        color;
-    DepthStencil depth_stencil;
-  };
-};
-
-namespace cmd
-{
-struct CopyBuffer
-{
-  Buffer            src        = Buffer::None;
-  Buffer            dst        = Buffer::None;
-  BufferCopy const *copies     = nullptr;
-  u32               num_copies = 0;
-};
-
-// will cause a device idle wait if in use unless newly created
-struct MutateBuffer
-{
-  Buffer                     dst       = Buffer::None;
-  stx::Fn<void(void *, u64)> operation = stx::fn::make_static([](void *, u64) {});
-};
-
-struct CopyImage
-{
-  Image                      src = Image::None;
-  Image                      dst = Image::None;
-  stx::Span<ImageCopy const> copies;
-};
-
-struct CopyBufferToImage
-{
-  Buffer                           src = Buffer::None;
-  Image                            dst = Image::None;
-  stx::Span<BufferImageCopy const> copies;
-};
-
-struct BlitImage
-{
-  Image                      src = Image::None;
-  Image                      dst = Image::None;
-  stx::Span<ImageBlit const> blits;
-  Filter                     filter = Filter::Nearest;
-};
-
-// TODO(lamarrr): Note: the same resource can be used in many ways
-// framebuffers are cached by the system on a per-pass basis
-// this signifies a draw call/compute call reception command
-//
-// this is for the FXPass receiver to use the information to perform draw calls
-// the FXPass receiver decides which shaders to use, what shader parameters and the inputs, which would also require a command receiver
-//
-//
-// or should we receive draw calls???? this will cause a lot of churn and logic within the EffectPass???
-// what if we need vertices computed externally or something???
-//
-//
-//
-struct DispatchTask
-{
-  u64                              index = 0;        // task index is expected to contain a list of subcommands that don't need separate passes
-  PipelineType                     type  = PipelineType::Graphics;
-  stx::Span<ResourceBinding const> bindings;
-  Framebuffer                      framebuffer = Framebuffer::None;        // only valid for PipelineType::Graphics graphics operations
-};
-
-// TODO(lamarrr): we will cache and create new renderpasses every time
-//
-struct BeginRenderPass
-{
-  Framebuffer                   framebuffer = Framebuffer::None;
-  RenderPass                    render_pass = RenderPass::None;
-  IRect                         render_area;
-  stx::Span<Color const>        color_attachments_clear_values;
-  stx::Span<DepthStencil const> depth_stencil_attachments_clear_values;
-};
-
-struct EndRenderPass
-{
-};
-
-};        // namespace cmd
-
-enum class CmdType : u32
-{
-  None              = 0,
-  CopyBuffer        = 1,
-  MutateBuffer      = 2,
-  CopyImage         = 3,
-  CopyBufferToImage = 4,
-  BlitImage         = 5,
-  DispatchTask      = 6,
-  BeginRenderPass   = 7,
-  EndRenderPass     = 8,
-};
-
-struct Cmd
-{
-  union
-  {
-    cmd::CopyBuffer        copy_buffer;
-    cmd::MutateBuffer      mutate_buffer;
-    cmd::CopyImage         copy_image;
-    cmd::CopyBufferToImage copy_buffer_to_image;
-    cmd::BlitImage         blit_image;
-    cmd::DispatchTask      dispatch_task;
-    cmd::BeginRenderPass   begin_render_pass;
-    cmd::EndRenderPass     end_render_pass;
-  };
-  CmdType type = CmdType::None;
-
-  constexpr Cmd() :
-      type{CmdType::None}
-  {}
-  constexpr Cmd(cmd::CopyBuffer const &cmd) :
-      copy_buffer{cmd}, type{CmdType::CopyBuffer}
-  {}
-  constexpr Cmd(cmd::MutateBuffer const &cmd) :
-      mutate_buffer{cmd}, type{CmdType::MutateBuffer}
-  {}
-  constexpr Cmd(cmd::CopyImage const &cmd) :
-      copy_image{cmd}, type{CmdType::CopyImage}
-  {}
-  constexpr Cmd(cmd::CopyBufferToImage const &cmd) :
-      copy_buffer_to_image{cmd}, type{CmdType::CopyBufferToImage}
-  {}
-  constexpr Cmd(cmd::BlitImage const &cmd) :
-      blit_image{cmd}, type{CmdType::BlitImage}
-  {}
-  constexpr Cmd(cmd::DispatchTask const &cmd) :
-      dispatch_task{cmd}, type{CmdType::DispatchTask}
-  {}
-  constexpr Cmd(cmd::BeginRenderPass const &cmd) :
-      begin_render_pass{cmd}, type{CmdType::BeginRenderPass}
-  {}
-  constexpr Cmd(cmd::EndRenderPass const &cmd) :
-      end_render_pass{cmd}, type{CmdType::EndRenderPass}
-  {}
-};
-
-constexpr usize CMD_SIZE = sizeof(Cmd);
-
-struct GraphCtx
-{
-  DeviceInfo device_info;
-};
-
-// renderpass cache
-//
-// RESOURCE CREATION
-// TODO(lamarrr): we need to check for image aliasing for the renderpasses
 struct Graph
 {
-  GraphCtx                ctx;
-  stx::Vec<u64>           free_indices;
-  stx::Vec<ResourceDesc>  resources;
-  stx::Vec<ResourceState> resource_states;
-  Buffer                  create_buffer(BufferDesc const &);
-  Image                   create_image(ImageDesc const &);
-  ImageView               create_image_view(ImageViewDesc const &);
-  RenderPass              create_render_pass(RenderPassDesc const &);
-  Framebuffer             create_framebuffer(FramebufferDesc const &);
-  BufferDesc              get_desc(Buffer);
-  ImageDesc               get_desc(Image);
-  ImageViewDesc           get_desc(ImageView);
-  RenderPassDesc          get_desc(RenderPass);
-  FramebufferDesc         get_desc(Framebuffer);
-  void                    release(Buffer);
-  void                    release(Image);
-  void                    release(ImageView);
-  void                    release(RenderPass);
-  void                    release(Framebuffer);
+  Buffer                                              create_buffer(BufferDesc const &desc);
+  BufferView                                          create_buffer_view(BufferViewDesc const &desc);
+  Image                                               create_image(ImageDesc const &desc);
+  ImageView                                           create_image_view(ImageViewDesc const &desc);
+  RenderPass                                          create_render_pass(RenderPassDesc const &desc);
+  Framebuffer                                         create_framebuffer(FramebufferDesc const &desc);
+  ComputePipeline                                     create_compute_pipeline(ComputePipelineDesc const &desc);
+  GraphicsPipeline                                    create_graphics_pipeline(GraphicsPipelineDesc const &desc);
+  BufferDesc                                          get_desc(Buffer buffer) const;
+  BufferViewDesc                                      get_desc(BufferView buffer_view) const;
+  ImageDesc                                           get_desc(Image image) const;
+  ImageViewDesc                                       get_desc(ImageView image_view) const;
+  RenderPassDesc                                      get_desc(RenderPass render_pass) const;
+  FramebufferDesc                                     get_desc(Framebuffer framebuffer) const;
+  ComputePipelineDesc                                 get_desc(ComputePipeline pipeline) const;
+  GraphicsPipelineDesc                                get_desc(GraphicsPipeline pipeline) const;
+  BufferState                                        &get_state(Buffer buffer);
+  ImageState                                         &get_state(Image image);
+  void                                                release(Buffer buffer);
+  void                                                release(BufferView buffer_view);
+  void                                                release(Image image);
+  void                                                release(ImageView image_view);
+  void                                                release(RenderPass render_pass);
+  void                                                release(Framebuffer framebuffer);
+  void                                                release(ComputePipeline pipeline);
+  void                                                release(GraphicsPipeline pipeline);
+  GraphCtx                                            ctx;
+  SparseArray<BufferState, Buffer>                    buffers;
+  SparseArray<BufferViewDesc, BufferView>             buffer_views;
+  SparseArray<ImageState, Image>                      images;
+  SparseArray<ImageViewDesc, ImageView>               image_views;
+  SparseArray<RenderPassDesc, RenderPass>             render_passes;
+  SparseArray<FramebufferDesc, Framebuffer>           framebuffers;
+  SparseArray<ComputePipelineDesc, ComputePipeline>   compute_pipelines;
+  SparseArray<GraphicsPipelineDesc, GraphicsPipeline> graphics_pipelines;
 };
 
 // RESOURCE ACCESS DESCRIPTIONS
-
+//
 // WE NEED TO:
 // - Automate synchronization. image, memory, barrier creation, cmdcopy, cmdblit, cmdtransfer
-struct CmdBuffer
+struct CmdBufferx
 {
-  void add(Cmd cmd);
+  void add(Cmd const &cmd)
+  {
+    cmds.push_inplace(cmd).unwrap();
+  }
 
   stx::Vec<Cmd> cmds;
 };
 
-struct ScreenPassCtx
-{
-  Extent extent;
-  Format format;
-  bool   suboptimal  = false;        // updated by vulkan
-  u32    num_buffers = 1;
-};
-
-struct ScreenPassResources
-{
-  Image       color_images[16];        // screen has implicit pass to present the screen_color_image
-  Image       depth_stencil_images[16];
-  RenderPass  render_passes[16];
-  Framebuffer framebuffers[16];
-};
-
-struct ScreenPassBindings
-{
-  u32 image_index = 0;
-};
-
-struct ScreenPass
-{
-  ScreenPassCtx       ctx;
-  ScreenPassResources resources;
-  ScreenPassBindings  bindings;
-};
-
-struct ScreenPass;
-
-inline void onscreen_draw_pass(Graph &graph)
-{
-  // RENDER
-  // transition color attachment layout from presentation optimal to color attachment optimal
-  //
-  //
-  // perform intermediate rendering operations
-  //
-  //
-  // transition color attachment layout from color_attachment optimal to presentation optimal
-  // THIS IS POINTLESSSS, it is on-screen
-  // TODO(lamarrr): graph check?
-
-  // ASH_CHECK( ctx.screen_pass.ctx.num_buffers <= 16);
-
-  // for (u32 i = 0; i < ctx.screen_pass.ctx.num_buffers; i++)
-  // {
-  //   rid                   color_image = graph.create_image(ImageDesc{.format = ctx.screen_pass.ctx.format,
-  //                                                                    .usages = ImageUsages::ColorAttachment,
-  //                                                                    .size   = ctx.screen_pass.ctx.extent,
-  //                                                                    .mips   = 1});
-  //   FramebufferAttachment color_attachment{.image    = color_image,
-  //                                          .load_op  = LoadOp::Clear,
-  //                                          .store_op = StoreOp::Store};
-
-  //   rid depth_stencil_image = graph.create_image(ImageDesc{.format = Format::D16_Unorm,
-  //                                                          .usages = ImageUsages::DepthStencilAttachment,
-  //                                                          .size   = ctx.screen_pass.ctx.extent,
-  //                                                          .mips   = 1});
-
-  //   FramebufferAttachment depth_stencil_attachment{.image    = depth_stencil_image,
-  //                                                  .load_op  = LoadOp::Clear,
-  //                                                  .store_op = StoreOp::Store};
-
-  //   rid framebuffer                                   = graph.create_framebuffer(RenderPassDesc{.render_pass   = render_pass,
-  //                                                                                               .color         = color_image,
-  //                                                                                               .depth_stencil = depth_stencil_image});
-  //   ctx.screen_pass.resources.color_images[i]         = color_image;
-  //   ctx.screen_pass.resources.depth_stencil_images[i] = depth_stencil_image;
-  //   ctx.screen_pass.resources.render_passes[i]        = render_pass;
-  //   ctx.screen_pass.resources.framebuffers[i]         = framebuffer;
-  // }
-  // record render ops
-}
-
-inline void onscreen_draw_pass_update(Graph &graph, GraphCtx &ctx)
-{
-}
-
-struct OffscreenPass
-{
-  // if these changes, the resources need to be recreated
-  struct Arguments
-  {
-    ImageDesc color_attachment_desc;
-    ImageDesc depth_stencil_attachment_desc;
-    LoadOp    color_load_op          = LoadOp::DontCare;
-    LoadOp    depth_stencil_load_op  = LoadOp::DontCare;
-    StoreOp   color_store_op         = StoreOp::DontCare;
-    StoreOp   depth_stencil_store_op = StoreOp::DontCare;
-  } arguments;
-
-  struct Resources
-  {
-    Image       color_images[1]              = {Image::None};
-    ImageView   color_image_views[1]         = {ImageView::None};
-    Image       depth_stencil_images[1]      = {Image::None};
-    ImageView   depth_stencil_image_views[1] = {ImageView::None};
-    RenderPass  render_pass                  = RenderPass::None;
-    Framebuffer framebuffer                  = Framebuffer::None;
-  } resources;
-
-  struct State
-  {
-    RenderPassAttachment color_attachments[1];
-    RenderPassAttachment depth_stencil_attachments[1];
-    Color                clear_colors[1]         = {Color{.int32 = {0, 0, 0, 0}}};
-    DepthStencil         clear_depth_stencils[1] = {DepthStencil{.depth = 0, .stencil = 0}};
-  } state;
-
-  // bindings don't require changes to the resources, and can change for every task execution
-  // these are input or output bindings
-  struct Bindings
-  {
-  } bindings;
-
-  // to check if to recreate resources
-  bool diff(Graph const &graph, Arguments const &new_args)
-  {
-    return false;
-  }
-
-  void init(Graph &graph, CmdBuffer &cmd_buffer)
-  {
-    // SETUP
-    //
-    // get the number maximum number of offscreen draw passes in the scene = N
-    //
-    // create N color output render targets with undefined layout
-    // optionally create N depth stencil output render targets with undefined layout
-    // left to the pipeline to determine the inputs???
-    //
-
-    bool has_color         = arguments.color_attachment_desc.format != Format::Undefined;
-    bool has_depth_stencil = arguments.depth_stencil_attachment_desc.format != Format::Undefined;
-
-    if (has_color)
-    {
-      resources.color_images[0]      = graph.create_image(arguments.color_attachment_desc);
-      resources.color_image_views[0] = graph.create_image_view(ImageViewDesc{.image           = resources.color_images[0],
-                                                                             .view_format     = arguments.color_attachment_desc.format,
-                                                                             .mapping         = ComponentMapping::identity(),
-                                                                             .first_mip_level = 0,
-                                                                             .num_mip_levels  = 1,
-                                                                             .aspect          = ImageAspect::Color});
-    }
-
-    if (has_depth_stencil)
-    {
-      resources.depth_stencil_images[0]      = graph.create_image(arguments.depth_stencil_attachment_desc);
-      resources.depth_stencil_image_views[0] = graph.create_image_view(ImageViewDesc{.image           = resources.depth_stencil_images[0],
-                                                                                     .view_format     = arguments.depth_stencil_attachment_desc.format,
-                                                                                     .mapping         = ComponentMapping::identity(),
-                                                                                     .first_mip_level = 0,
-                                                                                     .num_mip_levels  = 1,
-                                                                                     .aspect          = ImageAspect::Depth | ImageAspect::Stencil});
-    }
-
-    state.color_attachments[0]         = RenderPassAttachment{.format   = arguments.color_attachment_desc.format,
-                                                              .load_op  = arguments.color_load_op,
-                                                              .store_op = arguments.color_store_op};
-    state.depth_stencil_attachments[0] = RenderPassAttachment{.format   = arguments.depth_stencil_attachment_desc.format,
-                                                              .load_op  = arguments.depth_stencil_load_op,
-                                                              .store_op = arguments.depth_stencil_store_op};
-    resources.render_pass              = graph.create_render_pass(RenderPassDesc{.color_attachments         = has_color ? stx::Span{state.color_attachments} : stx::Span<RenderPassAttachment>{},
-                                                                                 .depth_stencil_attachments = has_depth_stencil ? stx::Span{state.depth_stencil_attachments} : stx::Span<RenderPassAttachment>{}});
-    resources.framebuffer              = graph.create_framebuffer(FramebufferDesc{.renderpass                = resources.render_pass,
-                                                                                  .color_attachments         = has_color ? stx::Span{resources.color_image_views} : stx::Span<ImageView>{},
-                                                                                  .depth_stencil_attachments = has_depth_stencil ? stx::Span{resources.depth_stencil_image_views} : stx::Span<ImageView>{}});
-  }
-
-  void execute(Graph &graph, CmdBuffer &cmd_buffer)
-  {
-    //
-    // for all N outputs insert barrier to convert from used or newly created layout to color attachment output layout
-    //
-    // for each N batch:
-    //
-    // for each z-sorted offscreen render pass:
-    //
-    //
-    // RENDER
-    // perform all intermediate rendering operations
-    //
-    // transition layout of color render target to shader read or transfer src or dst
-    //
-    // render to target
-    // insert barrier to convert layout back to color attachment output
-    //
-    // we might want to leave the final image layout or state until completion of the pipeline as we don't know how exactly the will be used
-    //
-
-    bool has_color         = arguments.color_attachment_desc.format != Format::Undefined;
-    bool has_depth_stencil = arguments.depth_stencil_attachment_desc.format != Format::Undefined;
-
-    cmd_buffer.add(cmd::BeginRenderPass{.framebuffer                            = resources.framebuffer,
-                                        .render_pass                            = resources.render_pass,
-                                        .render_area                            = IRect{.offset = {0, 0}, .extent = arguments.color_attachment_desc.extent},
-                                        .color_attachments_clear_values         = has_color ? stx::Span{state.clear_colors} : stx::Span<Color>{},
-                                        .depth_stencil_attachments_clear_values = has_depth_stencil ? stx::Span{state.clear_depth_stencils} : stx::Span<DepthStencil>{}});
-    cmd_buffer.add(cmd::DispatchTask{.index       = 0,
-                                     .type        = PipelineType::Graphics,
-                                     .bindings    = {},
-                                     .framebuffer = resources.framebuffer});        // TODO(lamarrr): what are we using framebuffer for here?>
-    cmd_buffer.add(cmd::EndRenderPass{});
-  }
-};
-
-inline void clipped_draw_pass()
-{
-}
-
-struct BlurCapturePass
-{
-  struct Arguments
-  {
-    Extent blur_radius;
-    Extent input_image_subregion_extent;
-    Format input_image_format = Format::R8G8B8A8_UNORM;
-  } arguments;
-
-  struct Resources
-  {
-    Buffer kernel_buffer           = Buffer::None;
-    Image  sample_image            = Image::None;
-    u32    sample_image_mip_levels = 0;
-    Extent sample_image_extent;
-    Buffer sample_buffer = Buffer::None;
-    Buffer result_buffer = Buffer::None;
-  } resources;
-
-  struct State
-  {
-    ImageBlit       mip_down_blits[6];
-    ImageBlit       mip_up_blits[6];
-    ResourceBinding pipeline_bindings[32];
-  } state;
-
-  struct Bindings
-  {
-    Image  input_image     = Image::None;
-    u32    input_image_mip = 0;
-    Offset input_image_offset;
-  } bindings;
-
-  constexpr u8 pixel_byte_size(Format)
-  {
-    return 1;
-  }
-
-  void init(Graph &graph, CmdBuffer &cmd_buffer)
-  {
-    // SETUP
-    // TODO(lamarrr): how do we handle alpha??
-    // TODO(lamarrr): we can just blit from the source image down to mips directly
-    resources.sample_image_mip_levels = std::min(arguments.input_image_subregion_extent.max_mip_levels(), 6U);
-    resources.sample_image_extent     = arguments.input_image_subregion_extent;
-    Extent downsampled_input_extent   = arguments.input_image_subregion_extent.at_mip_level(resources.sample_image_mip_levels - 1);
-    resources.kernel_buffer           = graph.create_buffer(BufferDesc{.size       = arguments.blur_radius.area(),
-                                                                       .properties = graph.ctx.device_info.memory_heaps.has_unified_memory() ? (MemoryProperties::DeviceLocal | MemoryProperties::HostVisible) : MemoryProperties::HostVisible,
-                                                                       .usages     = BufferUsages::UniformBuffer});
-    resources.sample_image            = graph.create_image(ImageDesc{.format = arguments.input_image_format,
-                                                                     .usages = ImageUsages::Sampled,
-                                                                     .extent = arguments.input_image_subregion_extent,
-                                                                     .mips   = resources.sample_image_mip_levels});
-    resources.sample_buffer           = graph.create_buffer(BufferDesc{.size       = downsampled_input_extent.area() * pixel_byte_size(arguments.input_image_format),
-                                                                       .properties = MemoryProperties::DeviceLocal,
-                                                                       .usages     = BufferUsages::TransferDst | BufferUsages::TransferSrc | BufferUsages::StorageBuffer});
-    resources.result_buffer           = graph.create_buffer(BufferDesc{.size       = downsampled_input_extent.area() * pixel_byte_size(arguments.input_image_format),
-                                                                       .properties = MemoryProperties::DeviceLocal,
-                                                                       .usages     = BufferUsages::TransferDst | BufferUsages::TransferSrc | BufferUsages::StorageBuffer});
-    // resource initialization stage
-    // resource pre-render setup
-    //
-    //
-    // TODO(lamarrr): mips up to a certain extent, sanity check the mip level
-    // prepare constants
-    // RENDER
-    //
-    // for each blur pass
-    // for vert and horz pass
-    //
-    // transition src image layout to transfer src
-    // copy from src image to the buffer
-    // use buffer as SSBO
-    // perform seperable vert and horz gaussian blur in compute shader
-    //
-    // hand over image to the next user and let them decide how to use them? only valid usage is sampled image
-    //
-    //
-    // copy image from input to sample mip level 0
-    // blit image to image mip level N-1
-    // what if we want to execute compute shader at creation time?
-    // this should be done externally, we are only concerned with pass resource management????
-    // even if done externally, we still need to track resources?
-    //
-    cmd_buffer.add(cmd::MutateBuffer{.dst       = resources.kernel_buffer,
-                                     .operation = stx::fn::make_static([](void *data, u64 size) {
-                                       std::memset(data, 0, size);
-                                     })});
-  }
-
-  // to check if to recreate resources
-  bool diff(Graph const &graph, Arguments const &new_args)
-  {
-    return false;
-  }
-
-  void execute(Graph &graph, CmdBuffer &cmd_buffer)
-  {
-    // TODO(lamarrr): assume this is correct
-    state.mip_up_blits[resources.sample_image_mip_levels - 1] = state.mip_down_blits[0] = ImageBlit{
-        .src_area      = URect{.offset = {0, 0}, .extent = resources.sample_image_extent},
-        .src_mip_level = 0,
-        .src_aspect    = ImageAspect::Color,
-        .dst_area      = URect{.offset = {0, 0}, .extent = resources.sample_image_extent},
-        .dst_mip_level = 0,
-        .dst_aspect    = ImageAspect::Color};
-
-    for (u32 i = 1; i < resources.sample_image_mip_levels; i++)
-    {
-      state.mip_up_blits[resources.sample_image_mip_levels - 1 - i] = state.mip_down_blits[i] = ImageBlit{
-          .src_area      = URect{.offset = {0, 0}, .extent = resources.sample_image_extent.at_mip_level(i - 1)},
-          .src_mip_level = i - 1,
-          .src_aspect    = ImageAspect::Color,
-          .dst_area      = URect{.offset = {0, 0}, .extent = resources.sample_image_extent.at_mip_level(i)},
-          .dst_mip_level = i,
-          .dst_aspect    = ImageAspect::Color};
-    }
-
-    cmd_buffer.add(cmd::BlitImage{.src    = bindings.input_image,
-                                  .dst    = resources.sample_image,
-                                  .blits  = stx::Span{state.mip_down_blits, resources.sample_image_mip_levels},
-                                  .filter = Filter::Nearest});
-
-    // TODO(lamarrr): what if pipeline clears depth stencil multiple times?
-    //
-    //
-    // a concerning usage would be:
-    //
-    // perform pass
-    // render draw commands//
-    // render draw commands// here, we would need to generate multiple barriers depending on the number of tasks being performed, we can make it a part of the binding argument
-    // render draw commands//
-    // render draw commands//
-    // perform pass
-    //
-    //
-    //
-    //
-    // TODO(lamarrr): what about intermediate drawing passes? will this be handled by the executor??? will this worsen resource management?
-
-    // TODO(lamarrr): what about specifying multiple commands??? with inputs??
-
-    state.pipeline_bindings[0] = BufferBinding{.buffer = resources.kernel_buffer, .access = Access::ShaderRead, .stages = PipelineStages::ComputeShader};
-    state.pipeline_bindings[1] = BufferBinding{.buffer = resources.sample_buffer, .access = Access::ShaderRead, .stages = PipelineStages::ComputeShader};
-    state.pipeline_bindings[2] = BufferBinding{.buffer = resources.result_buffer, .access = Access::ShaderStorageWrite, .stages = PipelineStages::ComputeShader};
-
-    // for graphics passes that write to the framebuffer, it will generate sync primitives for them
-    cmd_buffer.add(cmd::BeginRenderPass{.render_pass = RenderPass::None});
-    cmd_buffer.add(cmd::DispatchTask{.index    = 0,
-                                     .type     = PipelineType::Compute,
-                                     .bindings = stx::Span{state.pipeline_bindings, 2}});
-    cmd_buffer.add(cmd::EndRenderPass{});
-
-    // each render task execution will need to wait on the framebuffer
-    cmd_buffer.add(cmd::DispatchTask{.index    = 0,
-                                     .type     = PipelineType::Compute,
-                                     .bindings = {}});
-
-    cmd_buffer.add(cmd::BlitImage{.src    = bindings.input_image,
-                                  .dst    = resources.sample_image,
-                                  .blits  = stx::Span{state.mip_up_blits, resources.sample_image_mip_levels},
-                                  .filter = Filter::Nearest});
-  }
-};
-
-struct BloomCapturePassExecutor
-{
-  // we need to sync each generated frame?
-  void init(BlurCapturePass);
-  void execute()
-  {
-    // add_task(TaskType::Compute, [](){});
-    // add_task(TaskType::Compute, [](){});
-    // add_task(TaskType::Compute, [](){});
-    // add_task(TaskType::Compute, [](){});
-    // take draw lists
-  }
-};
-
-inline void bloom3d_pass()
-{
-  // SETUP
-  // RENDER
-}
-
-inline void outline3d_pass()
-{
-  // SETUP
-  // create depth attachment
-  // RENDER
-  // clear depth attachment
-  // disable depth test and depth buffer
-  // draw commands using colors only
-  // enable depth test and depth buffer
-  // draw object
-}
-
-inline void chromatic_aberration_pass()
-{
-  // https://www.shadertoy.com/view/Mds3zn
-  // SETUP
-  // RENDER
-}
-
-inline void effect_pass()
-{
-  // SETUP
-  // RENDER
-}
-
-//
-// DeviceLocal::HostVisible when available
-//
-// or AccessType::OnDeviceOnly? this will enable it to write directly
-// AccessType::Host AccessType::DeviceAndHost
-//
-// or request UsageHints
-//
-
-// TODO(lamarrr): some states in the graphics ctx might change, we need to diff them for the passes
-// Resource utilization optimization passes
-//
-// the graphics api already knows how to optimize and multi-thread accesses, we just need to insert barriers appropriately
-//
-// each operation will have a number of barriers that need to be inserted before it executes
-//
-inline void generate_sync_primitives(Graph const &graph, stx::Span<Cmd const> cmds, stx::Vec<QueueBarrier> &queue_barriers, stx::Vec<u32> &cmd_barriers)
-{
-  // accumulate states until they are no longer needed
-  // use previous frame's states and barriers states
-  // detect unused resources
-  // insert fences, barriers, and whatnot
-  // smart aliasing image memory barriers with aliasing will enable us to perform better
-  // store current usage so the next usage will know how to access
-  //
-  // render passes perform layout and transitions neccessary
-  //
-  //
-
-  for (Cmd const &cmd : cmds)
-  {
-    switch (cmd.type)
-    {
-      case CmdType::None:
-        break;
-      case CmdType::BlitImage:
-      {
-        // check RID
-        // check current layout and usage, and all accessors
-        // check all memory aliasing
-        // convert layout to transfer dst and write access with whatever access type is needed for blitting
-        // update barrier tracker
-        // on next usage in command buffer, get the last usage and update accordingly
-        ImageState &src_state = graph.resource_states[(u64) cmd.blit_image.src].image;
-        ImageState &dst_state = graph.resource_states[(u64) cmd.blit_image.dst].image;
-
-        for (ImageBlit const &blit : cmd.blit_image.blits)
-        {
-          QueueImageMemoryBarrier src_barrier{.image           = cmd.blit_image.src,
-                                              .first_mip_level = blit.src_mip_level,
-                                              .num_mip_levels  = 1,
-                                              .aspect          = blit.src_aspect,
-                                              .old_layout      = src_state.layout,
-                                              .new_layout      = ImageLayout::TransferSrcOptimal,
-                                              .src_stage_mask  = src_state.stage,
-                                              .dst_stage_mask  = PipelineStages::Transfer,
-                                              .src_access_mask = src_state.access_mask,
-                                              .dst_access_mask = Access::TransferRead};
-
-          QueueImageMemoryBarrier dst_barrier{.image           = cmd.blit_image.dst,
-                                              .first_mip_level = blit.dst_mip_level,
-                                              .num_mip_levels  = 1,
-                                              .aspect          = blit.dst_aspect,
-                                              .old_layout      = dst_state.layout,
-                                              .new_layout      = ImageLayout::TransferDstOptimal,
-                                              .src_stage_mask  = dst_state.stage,
-                                              .dst_stage_mask  = PipelineStages::Transfer,
-                                              .src_access_mask = dst_state.access_mask,
-                                              .dst_access_mask = Access::TransferWrite};
-
-          queue_barriers.push_inplace(src_barrier).unwrap();
-          queue_barriers.push_inplace(dst_barrier).unwrap();
-
-          src_state.access_mask = Access::TransferRead;
-          dst_state.access_mask = Access::TransferWrite;
-          src_state.stage       = PipelineStages::Transfer;
-          dst_state.stage       = PipelineStages::Transfer;
-          src_state.layout      = ImageLayout::TransferSrcOptimal;
-          dst_state.layout      = ImageLayout::TransferDstOptimal;
-        }
-
-        cmd_barriers.push(cmd.blit_image.blits.size() * 2).unwrap();
-      }
-      break;
-      case CmdType::CopyBufferToImage:
-      {
-        // get latest expected state
-        // convert to transfer dst layout and transfer write access with transfer stage
-        // leave as-is. the next usage should conver it back to how it is needed if necessary
-        BufferState &src_state = graph.resource_states[(u64) cmd.copy_buffer_to_image.src].buffer;
-        ImageState  &dst_state = graph.resource_states[(u64) cmd.copy_buffer_to_image.dst].image;
-
-        for (BufferImageCopy const &copy : cmd.copy_buffer_to_image.copies)
-        {
-          QueueBufferMemoryBarrier src_barrier{.buffer          = cmd.copy_buffer_to_image.src,
-                                               .offset          = copy.buffer_offset,
-                                               .size            = copy.buffer_row_length * copy.buffer_image_height,
-                                               .src_stage_mask  = src_state.stage,
-                                               .dst_stage_mask  = PipelineStages::Transfer,
-                                               .src_access_mask = src_state.access_mask,
-                                               .dst_access_mask = Access::TransferRead};
-
-          QueueImageMemoryBarrier dst_barrier{.image           = cmd.copy_buffer_to_image.dst,
-                                              .first_mip_level = copy.image_mip_level,
-                                              .num_mip_levels  = 1,
-                                              .aspect          = copy.image_aspect,
-                                              .old_layout      = dst_state.layout,
-                                              .new_layout      = ImageLayout::TransferDstOptimal,
-                                              .src_stage_mask  = dst_state.stage,
-                                              .dst_stage_mask  = PipelineStages::Transfer,
-                                              .src_access_mask = dst_state.access_mask,
-                                              .dst_access_mask = Access::TransferWrite};
-
-          queue_barriers.push_inplace(src_barrier).unwrap();
-          queue_barriers.push_inplace(dst_barrier).unwrap();
-
-          src_state.access_mask = Access::TransferRead;
-          dst_state.access_mask = Access::TransferWrite;
-          src_state.stage       = PipelineStages::Transfer;
-          dst_state.stage       = PipelineStages::Transfer;
-          dst_state.layout      = ImageLayout::TransferDstOptimal;
-        }
-
-        cmd_barriers.push(cmd.copy_buffer_to_image.copies.size() * 2).unwrap();
-      }
-
-      break;
-
-      case CmdType::BeginRenderPass:
-      {
-        cmd.begin_render_pass.render_pass;
-        cmd.begin_render_pass.framebuffer;
-        cmd.begin_render_pass.color_attachments_clear_values;
-        cmd.begin_render_pass.depth_stencil_attachments_clear_values;
-      }
-      break;
-
-      case CmdType::EndRenderPass:
-      {
-      }
-      break;
-
-      case CmdType::DispatchTask:
-      {
-        for (ResourceBinding const &binding : cmd.dispatch_task.bindings)
-        {
-          switch (binding.type)
-          {
-            case ResourceBindingType::BufferBinding:
-            {
-              BufferState &state = graph.resource_states[(u64) binding.buffer.buffer].buffer;
-
-              QueueBufferMemoryBarrier barrier{.buffer          = binding.buffer.buffer,
-                                               .offset          = 0,
-                                               .size            = stx::U64_MAX,
-                                               .src_stage_mask  = state.stage,
-                                               .dst_stage_mask  = binding.buffer.stages,
-                                               .src_access_mask = state.access_mask,
-                                               .dst_access_mask = binding.buffer.access};
-
-              queue_barriers.push_inplace(barrier).unwrap();
-              state.access_mask = binding.buffer.access;
-              state.stage       = binding.buffer.stages;
-            }
-            break;
-            case ResourceBindingType::ImageViewBinding:
-            {
-              ImageViewDesc const &sub_desc = graph.resources[(u64) binding.image_view.image_view].image_view;
-              ImageDesc const     &desc     = graph.resources[(u64) sub_desc.image].image;
-              ImageState          &state    = graph.resource_states[(u64) sub_desc.image].image;
-
-              QueueImageMemoryBarrier barrier{.image           = sub_desc.image,
-                                              .first_mip_level = sub_desc.first_mip_level,
-                                              .num_mip_levels  = sub_desc.num_mip_levels,
-                                              .aspect          = sub_desc.aspect,
-                                              .old_layout      = state.layout,
-                                              .new_layout      = ImageLayout::ShaderReadOnlyOptimal,
-                                              .src_stage_mask  = state.stage,
-                                              .dst_stage_mask  = binding.image_view.stages,
-                                              .src_access_mask = state.access_mask,
-                                              .dst_access_mask = binding.image_view.access};
-
-              queue_barriers.push_inplace(barrier).unwrap();
-              state.access_mask = binding.image_view.access;
-              state.stage       = binding.image_view.stages;
-            }
-            break;
-
-            default:
-              break;
-          }
-        }
-        cmd_barriers.push(2).unwrap();        // TODO(lamarrr)
-      }
-      break;
-
-      default:
-        break;
-    }
-  }
-}
-
-struct Pipeline
-{};
-struct ShaderMatrix
-{};
-// TODO(lamarrr): dynamic shaders / baking
-struct DynamicShader
-{
-  // bindings
-  // script
-};
+void validate_resources(Graph &graph);
+void validate_commands(Graph const &graph, stx::Span<Cmd const> cmds);
+void generate_barriers(Graph &graph, stx::Span<Cmd const> cmds, stx::Vec<QueueBarrier> &queue_barriers, stx::Vec<u32> &cmd_barriers);
 
 }        // namespace lgfx
 }        // namespace ash
