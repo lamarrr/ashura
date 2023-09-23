@@ -1229,301 +1229,6 @@ union ClearValue
   DepthStencil depth_stencil;
 };
 
-namespace cmd
-{
-
-struct CopyBuffer
-{
-  Buffer                      src    = Buffer::None;
-  Buffer                      dst    = Buffer::None;
-  stx::Span<BufferCopy const> copies = {};
-};
-
-// TODO(lamarrr): will cause a device idle wait if in use unless newly created. upload batches to use large buffers
-struct CopyHostBuffer
-{
-  stx::Span<u8 const>         src    = {};
-  Buffer                      dst    = Buffer::None;
-  stx::Span<BufferCopy const> copies = {};
-};
-
-struct CopyImage
-{
-  Image                      src    = Image::None;
-  Image                      dst    = Image::None;
-  stx::Span<ImageCopy const> copies = {};
-};
-
-struct CopyBufferToImage
-{
-  Buffer                           src    = Buffer::None;
-  Image                            dst    = Image::None;
-  stx::Span<BufferImageCopy const> copies = {};
-};
-
-struct BlitImage
-{
-  Image                      src    = Image::None;
-  Image                      dst    = Image::None;
-  stx::Span<ImageBlit const> blits  = {};
-  Filter                     filter = Filter::Nearest;
-};
-
-struct BeginRenderPass
-{
-  Framebuffer                   framebuffer                            = Framebuffer::None;
-  RenderPass                    render_pass                            = RenderPass::None;
-  IRect                         render_area                            = {};
-  stx::Span<Color const>        color_attachments_clear_values         = {};
-  stx::Span<DepthStencil const> depth_stencil_attachments_clear_values = {};
-};
-
-struct EndRenderPass
-{
-};
-
-struct PushConstants
-{
-  u8 data[128] = {};
-};
-
-// Bind Compute pipeline, bind graphics pipeline
-// how to: get pipeline associated with the command
-struct BindComputePipeline
-{
-  ComputePipeline pipeline = ComputePipeline::None;
-};
-
-struct BindGraphicsPipeline
-{
-  GraphicsPipeline pipeline = GraphicsPipeline::None;
-};
-
-struct BindVertexBuffers
-{
-  stx::Span<Buffer const> vertex_buffers        = {};        // Buffer::None means slot is unused
-  stx::Span<u64 const>    vertex_buffer_offsets = {};
-  Buffer                  index_buffer          = Buffer::None;
-  u64                     index_buffer_offset   = 0;
-};
-
-struct BindDescriptors
-{
-  stx::Span<DescriptorBinding const> bindings = {};
-};
-
-struct SetScissor
-{
-  IRect scissor;
-};
-
-struct SetViewport
-{
-  Viewport viewport;
-};
-
-struct Compute
-{
-  u32 base_group_x  = 0;
-  u32 group_count_x = 0;
-  u32 base_group_y  = 0;
-  u32 group_count_y = 0;
-  u32 base_group_z  = 0;
-  u32 group_count_z = 0;
-};
-
-struct ComputeIndirect
-{
-  Buffer buffer = Buffer::None;
-  u64    offset = 0;
-};
-
-struct DrawIndexed
-{
-  u32 index_count    = 0;
-  u32 instance_count = 0;
-  u32 first_index    = 0;
-  i32 vertex_offset  = 0;
-  u32 first_instance = 0;
-};
-
-struct DrawIndexedIndirect
-{
-  Buffer buffer     = Buffer::None;
-  u64    offset     = 0;
-  u32    draw_count = 0;
-  u32    stride     = 0;
-};
-
-};        // namespace cmd
-
-enum class CmdType : u8
-{
-  None                 = 0,
-  CopyBuffer           = 1,
-  CopyHostBuffer       = 2,
-  CopyImage            = 3,
-  CopyBufferToImage    = 4,
-  BlitImage            = 5,
-  BeginRenderPass      = 7,
-  EndRenderPass        = 8,
-  PushConstants        = 9,
-  BindComputePipeline  = 10,
-  BindGraphicsPipeline = 11,
-  BindVertexBuffers    = 12,
-  BindDescriptors      = 13,
-  Compute              = 14,
-  ComputeIndirect      = 15,
-  DrawIndexed          = 16,
-  DrawIndexedIndirect  = 17,
-  SetScissor           = 18,
-  SetViewport          = 19
-};
-
-struct CmdBuffer
-{
-  virtual void copy_buffer(Buffer src, Buffer dst, stx::Span<BufferCopy const> copies)                                                                                                                                            = 0;
-  virtual void copy_host_buffer(stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies)                                                                                                                          = 0;
-  virtual void copy_image(Image src, Image dst, stx::Span<ImageCopy const> copies)                                                                                                                                                = 0;
-  virtual void copy_buffer_to_image(Buffer src, Image dst, stx::Span<BufferImageCopy const> copies)                                                                                                                               = 0;
-  virtual void blit_image(Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter)                                                                                                                                  = 0;
-  virtual void begin_render_pass(Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values) = 0;
-  virtual void end_render_pass()                                                                                                                                                                                                  = 0;
-  virtual void push_constants(stx::Span<u8 const> constants)                                                                                                                                                                      = 0;
-  virtual void bind_compute_pipeline(ComputePipeline pipeline)                                                                                                                                                                    = 0;
-  virtual void bind_graphics_pipeline(GraphicsPipeline pipeline)                                                                                                                                                                  = 0;
-  virtual void bind_vertex_buffers(stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset)                                                              = 0;
-  virtual void bind_descriptors(stx::Span<DescriptorBinding const> bindings)                                                                                                                                                      = 0;
-  virtual void set_scissor(IRect scissor)                                                                                                                                                                                         = 0;
-  virtual void set_viewport(Viewport viewport)                                                                                                                                                                                    = 0;
-  virtual void compute(u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z)                                                                                             = 0;
-  virtual void compute_indirect(Buffer buffer, u64 offset)                                                                                                                                                                        = 0;
-  virtual void draw_indexed(u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)                                                                                                          = 0;
-  virtual void draw_indexed_indirect(Buffer buffer, u64 offset, u32 draw_count, u32 stride)                                                                                                                                       = 0;
-};
-
-struct CmdValidator
-{
-  virtual void copy_buffer(Graph &graph, Buffer src, Buffer dst, stx::Span<BufferCopy const> copies);
-  virtual void copy_host_buffer(Graph &graph, stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies);
-  virtual void copy_image(Graph &graph, Image src, Image dst, stx::Span<ImageCopy const> copies);
-  virtual void copy_buffer_to_image(Graph &graph, Buffer src, Image dst, stx::Span<BufferImageCopy const> copies);
-  virtual void blit_image(Graph &graph, Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter);
-  virtual void begin_render_pass(Graph &graph, Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values);
-  virtual void end_render_pass(Graph &graph);
-  virtual void push_constants(Graph &graph, stx::Span<u8 const> constants);
-  virtual void bind_compute_pipeline(Graph &graph, ComputePipeline pipeline);
-  virtual void bind_graphics_pipeline(Graph &graph, GraphicsPipeline pipeline);
-  virtual void bind_vertex_buffers(Graph &graph, stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset);
-  virtual void bind_descriptors(Graph &graph, stx::Span<DescriptorBinding const> bindings);
-  virtual void set_scissor(Graph &graph, IRect scissor);
-  virtual void set_viewport(Graph &graph, Viewport viewport);
-  virtual void compute(Graph &graph, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z);
-  virtual void compute_indirect(Graph &graph, Buffer buffer, u64 offset);
-  virtual void draw_indexed(Graph &graph, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance);
-  virtual void draw_indexed_indirect(Graph &graph, Buffer buffer, u64 offset, u32 draw_count, u32 stride);
-};
-
-struct Cmd
-{
-  constexpr Cmd() :
-      type{CmdType::None}
-  {}
-  constexpr Cmd(cmd::CopyBuffer const &cmd) :
-      copy_buffer{cmd}, type{CmdType::CopyBuffer}
-  {}
-  constexpr Cmd(cmd::CopyHostBuffer const &cmd) :
-      copy_host_buffer{cmd}, type{CmdType::CopyHostBuffer}
-  {}
-  constexpr Cmd(cmd::CopyImage const &cmd) :
-      copy_image{cmd}, type{CmdType::CopyImage}
-  {}
-  constexpr Cmd(cmd::CopyBufferToImage const &cmd) :
-      copy_buffer_to_image{cmd}, type{CmdType::CopyBufferToImage}
-  {}
-  constexpr Cmd(cmd::BlitImage const &cmd) :
-      blit_image{cmd}, type{CmdType::BlitImage}
-  {}
-  constexpr Cmd(cmd::BeginRenderPass const &cmd) :
-      begin_render_pass{cmd}, type{CmdType::BeginRenderPass}
-  {}
-  constexpr Cmd(cmd::EndRenderPass const &cmd) :
-      end_render_pass{cmd}, type{CmdType::EndRenderPass}
-  {}
-  constexpr Cmd(cmd::PushConstants const &cmd) :
-      push_constants{cmd}, type{CmdType::PushConstants}
-  {}
-  constexpr Cmd(cmd::BindComputePipeline const &cmd) :
-      bind_compute_pipeline{cmd}, type{CmdType::BindComputePipeline}
-  {}
-  constexpr Cmd(cmd::BindGraphicsPipeline const &cmd) :
-      bind_graphics_pipeline{cmd}, type{CmdType::BindGraphicsPipeline}
-  {}
-  constexpr Cmd(cmd::BindVertexBuffers const &cmd) :
-      bind_vertex_buffers{cmd}, type{CmdType::BindVertexBuffers}
-  {}
-  constexpr Cmd(cmd::BindDescriptors const &cmd) :
-      bind_descriptors{cmd}, type{CmdType::BindDescriptors}
-  {}
-  constexpr Cmd(cmd::SetScissor const &cmd) :
-      set_scissor{cmd}, type{CmdType::SetScissor}
-  {}
-  constexpr Cmd(cmd::SetViewport const &cmd) :
-      set_viewport{cmd}, type{CmdType::SetViewport}
-  {}
-  constexpr Cmd(cmd::Compute const &cmd) :
-      compute{cmd}, type{CmdType::Compute}
-  {}
-  constexpr Cmd(cmd::ComputeIndirect const &cmd) :
-      compute_indirect{cmd}, type{CmdType::ComputeIndirect}
-  {}
-  constexpr Cmd(cmd::DrawIndexed const &cmd) :
-      draw_indexed{cmd}, type{CmdType::DrawIndexed}
-  {}
-  constexpr Cmd(cmd::DrawIndexedIndirect const &cmd) :
-      draw_indexed_indirect{cmd}, type{CmdType::DrawIndexedIndirect}
-  {}
-
-  union
-  {
-    cmd::CopyBuffer           copy_buffer;
-    cmd::CopyHostBuffer       copy_host_buffer;
-    cmd::CopyImage            copy_image;
-    cmd::CopyBufferToImage    copy_buffer_to_image;
-    cmd::BlitImage            blit_image;
-    cmd::BeginRenderPass      begin_render_pass;
-    cmd::EndRenderPass        end_render_pass;
-    cmd::PushConstants        push_constants;
-    cmd::BindComputePipeline  bind_compute_pipeline;
-    cmd::BindGraphicsPipeline bind_graphics_pipeline;
-    cmd::BindVertexBuffers    bind_vertex_buffers;
-    cmd::BindDescriptors      bind_descriptors;
-    cmd::SetScissor           set_scissor;
-    cmd::SetViewport          set_viewport;
-    cmd::Compute              compute;
-    cmd::ComputeIndirect      compute_indirect;
-    cmd::DrawIndexed          draw_indexed;
-    cmd::DrawIndexedIndirect  draw_indexed_indirect;
-  };
-  CmdType type = CmdType::None;
-};
-
-constexpr usize CMD_SIZE = sizeof(Cmd);
-
-struct GraphCtx
-{
-  DeviceInfo device_info;
-  f32        max_anisotropy = 1.0f;
-};
-
-struct QueueMemoryBarrier
-{
-  PipelineStages src_stage_mask  = PipelineStages::None;
-  PipelineStages dst_stage_mask  = PipelineStages::None;
-  Access         src_access_mask = Access::None;
-  Access         dst_access_mask = Access::None;
-};
-
 struct QueueBufferMemoryBarrier
 {
   Buffer         buffer          = Buffer::None;
@@ -1540,7 +1245,7 @@ struct QueueImageMemoryBarrier
   Image          image           = Image::None;
   u32            first_mip_level = 0;
   u32            num_mip_levels  = 0;
-  ImageAspect    aspect          = ImageAspect::None;
+  ImageAspects   aspects         = ImageAspects::None;
   ImageLayout    old_layout      = ImageLayout::Undefined;
   ImageLayout    new_layout      = ImageLayout::Undefined;
   PipelineStages src_stage_mask  = PipelineStages::None;
@@ -1549,39 +1254,61 @@ struct QueueImageMemoryBarrier
   Access         dst_access_mask = Access::None;
 };
 
-enum class QueueBarrierType : u8
+struct GraphCtx
 {
-  None         = 0,
-  Memory       = 1,
-  BufferMemory = 2,
-  ImageMemory  = 3
+  DeviceInfo device_info;
+  f32        max_anisotropy          = 1.0f;
+  bool       supports_raytracing : 1 = false;
 };
 
-struct QueueBarrier
+struct Backend
 {
-  constexpr QueueBarrier() :
-      type{QueueBarrierType::None}
-  {}
-  constexpr QueueBarrier(QueueMemoryBarrier const &barrier) :
-      memory{barrier}, type{QueueBarrierType::Memory}
-  {}
-  constexpr QueueBarrier(QueueBufferMemoryBarrier const &barrier) :
-      buffer{barrier}, type{QueueBarrierType::BufferMemory}
-  {}
-  constexpr QueueBarrier(QueueImageMemoryBarrier const &barrier) :
-      image{barrier}, type{QueueBarrierType::ImageMemory}
-  {}
-
-  union
-  {
-    QueueMemoryBarrier       memory;
-    QueueBufferMemoryBarrier buffer;
-    QueueImageMemoryBarrier  image;
-  };
-  QueueBarrierType type;
+  virtual ~Backend()                                                                                                                                                                                                                         = 0;
+  virtual void *create_buffer(BufferDesc const &desc)                                                                                                                                                                                        = 0;
+  virtual void *create_buffer_view(BufferViewDesc const &desc)                                                                                                                                                                               = 0;
+  virtual void *create_image(ImageDesc const &desc)                                                                                                                                                                                          = 0;
+  virtual void *create_image_view(ImageViewDesc const &desc)                                                                                                                                                                                 = 0;
+  virtual void *create_render_pass(RenderPassDesc const &desc)                                                                                                                                                                               = 0;
+  virtual void *create_framebuffer(FramebufferDesc const &desc)                                                                                                                                                                              = 0;
+  virtual void *create_sampler(SamplerDesc const &sampler)                                                                                                                                                                                   = 0;
+  virtual void *create_bind_group(stx::Span<BindGroupEntry const> bind_group_layout)                                                                                                                                                         = 0;
+  virtual void *create_bind_group(stx::Span<DescriptorBinding const> bindings)                                                                                                                                                               = 0;
+  virtual void *create_compute_pipeline(ComputePipelineDesc const &desc)                                                                                                                                                                     = 0;
+  virtual void *create_graphics_pipeline(GraphicsPipelineDesc const &desc)                                                                                                                                                                   = 0;
+  virtual void *create_command_buffer()                                                                                                                                                                                                      = 0;
+  virtual void  update_bind_group(void *bind_group, stx::Span<DescriptorBinding const> bindings)                                                                                                                                             = 0;
+  virtual void  release_buffer(void *buffer)                                                                                                                                                                                                 = 0;
+  virtual void  release_buffer_view(void *buffer_view)                                                                                                                                                                                       = 0;
+  virtual void  release_image(void *image)                                                                                                                                                                                                   = 0;
+  virtual void  release_image_view(void *image_view)                                                                                                                                                                                         = 0;
+  virtual void  release_render_pass(void *render_pass)                                                                                                                                                                                       = 0;
+  virtual void  release_frame_buffer(void *framebuffer)                                                                                                                                                                                      = 0;
+  virtual void  release_bind_group(void *bind_group)                                                                                                                                                                                         = 0;
+  virtual void  release_compute_pipeline(void *pipeline)                                                                                                                                                                                     = 0;
+  virtual void  release_graphics_pipeline(void *pipeline)                                                                                                                                                                                    = 0;
+  virtual void  cmd_copy_buffer(void *cmd_buffer, void *src, void *dst, stx::Span<BufferCopy const> copies)                                                                                                                                  = 0;
+  virtual void  cmd_copy_host_buffer(void *cmd_buffer, void *src, void *dst, stx::Span<BufferCopy const> copies)                                                                                                                             = 0;
+  virtual void  cmd_copy_image(void *cmd_buffer, void *src, void *dst, stx::Span<ImageCopy const> copies)                                                                                                                                    = 0;
+  virtual void  cmd_copy_buffer_to_image(void *cmd_buffer, void *src, void *dst, stx::Span<BufferImageCopy const> copies)                                                                                                                    = 0;
+  virtual void  cmd_blit_image(void *cmd_buffer, void *src, void *dst, stx::Span<ImageBlit const> blits, Filter filter)                                                                                                                      = 0;
+  virtual void  cmd_begin_render_pass(void *cmd_buffer, void *renderpass, void *framebuffer, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values) = 0;
+  virtual void  cmd_end_render_pass(void *cmd_buffer)                                                                                                                                                                                        = 0;
+  virtual void  cmd_push_constants(void *cmd_buffer, stx::Span<u8 const> constants)                                                                                                                                                          = 0;
+  virtual void  cmd_bind_compute_pipeline(void *cmd_buffer, void *pipeline)                                                                                                                                                                  = 0;
+  virtual void  cmd_bind_graphics_pipeline(void *cmd_buffer, void *pipeline)                                                                                                                                                                 = 0;
+  virtual void  cmd_bind_vertex_buffers(void *cmd_buffer, stx::Span<void *const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, void *index_buffer, u64 index_buffer_offset)                                                    = 0;
+  virtual void  cmd_set_bind_group(void *cmd_buffer, void *bind_group)                                                                                                                                                                       = 0;
+  virtual void  cmd_set_scissor(void *cmd_buffer, IRect scissor)                                                                                                                                                                             = 0;
+  virtual void  cmd_set_viewport(void *cmd_buffer, Viewport viewport)                                                                                                                                                                        = 0;
+  virtual void  cmd_set_blend_constants(void *cmd_buffer, f32 r, f32 g, f32 b, f32 a)                                                                                                                                                        = 0;
+  virtual void  cmd_set_stencil_compare_mask(void *cmd_buffer, StencilFaces faces, u32 compare_mask)                                                                                                                                         = 0;
+  virtual void  cmd_set_stencil_reference(void *cmd_buffer, StencilFaces faces, u32 reference)                                                                                                                                               = 0;
+  virtual void  cmd_set_stencil_write_mask(void *cmd_buffer, StencilFaces faces, u32 write_mask)                                                                                                                                             = 0;
+  virtual void  cmd_compute(void *cmd_buffer, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z)                                                                                 = 0;
+  virtual void  cmd_compute_indirect(void *cmd_buffer, void *buffer, u64 offset)                                                                                                                                                             = 0;
+  virtual void  cmd_draw_indexed(void *cmd_buffer, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)                                                                                              = 0;
+  virtual void  cmd_draw_indexed_indirect(void *cmd_buffer, void *buffer, u64 offset, u32 draw_count, u32 stride)
 };
-
-constexpr usize QUEUE_BARRIER_SIZE = sizeof(QueueBarrier);
 
 struct Graph
 {
@@ -1591,24 +1318,30 @@ struct Graph
   ImageView                                           create_image_view(ImageViewDesc const &desc);
   RenderPass                                          create_render_pass(RenderPassDesc const &desc);
   Framebuffer                                         create_framebuffer(FramebufferDesc const &desc);
+  Sampler                                             create_sampler(SamplerDesc const &sampler);
+  BindGroup                                           create_bind_group(stx::Span<BindGroupEntry const> bind_group_layout);
+  BindGroup                                           create_bind_group(stx::Span<DescriptorBinding const> bindings);
   ComputePipeline                                     create_compute_pipeline(ComputePipelineDesc const &desc);
   GraphicsPipeline                                    create_graphics_pipeline(GraphicsPipelineDesc const &desc);
-  BufferDesc                                          get_desc(Buffer buffer) const;
-  BufferViewDesc                                      get_desc(BufferView buffer_view) const;
-  ImageDesc                                           get_desc(Image image) const;
-  ImageViewDesc                                       get_desc(ImageView image_view) const;
-  RenderPassDesc                                      get_desc(RenderPass render_pass) const;
-  FramebufferDesc                                     get_desc(Framebuffer framebuffer) const;
-  ComputePipelineDesc                                 get_desc(ComputePipeline pipeline) const;
-  GraphicsPipelineDesc                                get_desc(GraphicsPipeline pipeline) const;
+  BufferDesc const                                   &get_desc(Buffer buffer) const;
+  BufferViewDesc const                               &get_desc(BufferView buffer_view) const;
+  ImageDesc const                                    &get_desc(Image image) const;
+  ImageViewDesc const                                &get_desc(ImageView image_view) const;
+  RenderPassDesc const                               &get_desc(RenderPass render_pass) const;
+  BindGroupDesc const                                &get_desc(BindGroup bind_group) const;
+  FramebufferDesc const                              &get_desc(Framebuffer framebuffer) const;
+  ComputePipelineDesc const                          &get_desc(ComputePipeline pipeline) const;
+  GraphicsPipelineDesc const                         &get_desc(GraphicsPipeline pipeline) const;
   BufferState                                        &get_state(Buffer buffer);
   ImageState                                         &get_state(Image image);
+  void                                                update_bind_group(BindGroup bind_group, stx::Span<DescriptorBinding const> bindings);
   void                                                release(Buffer buffer);
   void                                                release(BufferView buffer_view);
   void                                                release(Image image);
   void                                                release(ImageView image_view);
   void                                                release(RenderPass render_pass);
   void                                                release(Framebuffer framebuffer);
+  void                                                release(BindGroup bind_group);
   void                                                release(ComputePipeline pipeline);
   void                                                release(GraphicsPipeline pipeline);
   GraphCtx                                            ctx;
@@ -1618,27 +1351,72 @@ struct Graph
   SparseArray<ImageViewDesc, ImageView>               image_views;
   SparseArray<RenderPassDesc, RenderPass>             render_passes;
   SparseArray<FramebufferDesc, Framebuffer>           framebuffers;
+  SparseArray<SamplerDesc, Sampler>                   samplers;
+  SparseArray<BindGroupDesc, BindGroup>               bind_groups;
   SparseArray<ComputePipelineDesc, ComputePipeline>   compute_pipelines;
   SparseArray<GraphicsPipelineDesc, GraphicsPipeline> graphics_pipelines;
 };
 
-// RESOURCE ACCESS DESCRIPTIONS
-//
-// WE NEED TO:
-// - Automate synchronization. image, memory, barrier creation, cmdcopy, cmdblit, cmdtransfer
-struct CmdBufferx
+struct CmdBuffer
 {
-  void add(Cmd const &cmd)
-  {
-    cmds.push_inplace(cmd).unwrap();
-  }
-
-  stx::Vec<Cmd> cmds;
+  virtual void copy_buffer(Buffer src, Buffer dst, stx::Span<BufferCopy const> copies)                                                                                                                                            = 0;
+  virtual void copy_host_buffer(stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies)                                                                                                                          = 0;
+  virtual void copy_image(Image src, Image dst, stx::Span<ImageCopy const> copies)                                                                                                                                                = 0;
+  virtual void copy_buffer_to_image(Buffer src, Image dst, stx::Span<BufferImageCopy const> copies)                                                                                                                               = 0;
+  virtual void blit_image(Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter)                                                                                                                                  = 0;
+  virtual void begin_render_pass(Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values) = 0;
+  virtual void end_render_pass()                                                                                                                                                                                                  = 0;
+  virtual void push_constants(stx::Span<u8 const> constants)                                                                                                                                                                      = 0;
+  virtual void bind_compute_pipeline(ComputePipeline pipeline)                                                                                                                                                                    = 0;
+  virtual void bind_graphics_pipeline(GraphicsPipeline pipeline)                                                                                                                                                                  = 0;
+  virtual void bind_vertex_buffers(stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset)                                                              = 0;
+  virtual void set_bind_group(BindGroup bind_group)                                                                                                                                                                               = 0;
+  virtual void set_scissor(IRect scissor)                                                                                                                                                                                         = 0;
+  virtual void set_viewport(Viewport viewport)                                                                                                                                                                                    = 0;
+  virtual void set_blend_constants(f32 r, f32 g, f32 b, f32 a)                                                                                                                                                                    = 0;
+  virtual void set_stencil_compare_mask(StencilFaces faces, u32 compare_mask)                                                                                                                                                     = 0;
+  virtual void set_stencil_reference(StencilFaces faces, u32 reference)                                                                                                                                                           = 0;
+  virtual void set_stencil_write_mask(StencilFaces faces, u32 write_mask)                                                                                                                                                         = 0;
+  virtual void compute(u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z)                                                                                             = 0;
+  virtual void compute_indirect(Buffer buffer, u64 offset)                                                                                                                                                                        = 0;
+  virtual void draw_indexed(u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)                                                                                                          = 0;
+  virtual void draw_indexed_indirect(Buffer buffer, u64 offset, u32 draw_count, u32 stride)                                                                                                                                       = 0;
 };
 
-void validate_resources(Graph &graph);
-void validate_commands(Graph const &graph, stx::Span<Cmd const> cmds);
-void generate_barriers(Graph &graph, stx::Span<Cmd const> cmds, stx::Vec<QueueBarrier> &queue_barriers, stx::Vec<u32> &cmd_barriers);
+struct CmdValidator
+{
+  static void copy_buffer(Graph &graph, Buffer src, Buffer dst, stx::Span<BufferCopy const> copies);
+  static void copy_host_buffer(Graph &graph, stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies);
+  static void copy_image(Graph &graph, Image src, Image dst, stx::Span<ImageCopy const> copies);
+  static void copy_buffer_to_image(Graph &graph, Buffer src, Image dst, stx::Span<BufferImageCopy const> copies);
+  static void blit_image(Graph &graph, Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter);
+  static void begin_render_pass(Graph &graph, Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values);
+  static void end_render_pass(Graph &graph);
+  static void push_constants(Graph &graph, stx::Span<u8 const> constants);
+  static void bind_compute_pipeline(Graph &graph, ComputePipeline pipeline);
+  static void bind_graphics_pipeline(Graph &graph, GraphicsPipeline pipeline);
+  static void bind_vertex_buffers(Graph &graph, stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset);
+  static void set_bind_group(BindGroup bind_group);
+  static void set_scissor(Graph &graph, IRect scissor);
+  static void set_viewport(Graph &graph, Viewport viewport);
+  static void set_blend_constants(f32 r, f32 g, f32 b, f32 a);
+  static void set_stencil_compare_mask(StencilFaces faces, u32 compare_mask);
+  static void set_stencil_reference(StencilFaces faces, u32 reference);
+  static void set_stencil_write_mask(StencilFaces faces, u32 write_mask);
+  static void compute(Graph &graph, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z);
+  static void compute_indirect(Graph &graph, Buffer buffer, u64 offset);
+  static void draw_indexed(Graph &graph, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance);
+  static void draw_indexed_indirect(Graph &graph, Buffer buffer, u64 offset, u32 draw_count, u32 stride);
+};
+
+struct BarrierInserter
+{
+  virtual void insert(QueueImageMemoryBarrier);
+  virtual void insert(QueueBufferMemoryBarrier);
+};
+
+struct CmdBarrierGenerator
+{
 
 }        // namespace lgfx
 }        // namespace ash
