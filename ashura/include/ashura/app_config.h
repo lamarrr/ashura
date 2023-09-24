@@ -4,7 +4,6 @@
 #include "ashura/pipeline.h"
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
-#include "ashura/version.h"
 #include "ashura/window.h"
 #include "stx/c_string_view.h"
 #include "stx/string.h"

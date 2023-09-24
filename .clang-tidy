@@ -1,4 +1,4 @@
-Checks: "clang-diagnostic-*,clang-analyzer-*,google-*,readability-*"
+Checks: "clang-diagnostic-*,clang-analyzer-*,google-*,readability-*,bugprone-*,cert-*,llvm-*"
 WarningsAsErrors: ""
 HeaderFilterRegex: ""
 AnalyzeTemporaryDtors: false

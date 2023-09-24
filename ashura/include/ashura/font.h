@@ -16,7 +16,6 @@
 #include "ashura/sdf.h"
 #include "ashura/stb_image_resize.h"
 #include "ashura/unicode.h"
-#include "ashura/version.h"
 #include "freetype/freetype.h"
 #include "harfbuzz/hb.h"
 #include "stx/enum.h"
@@ -180,7 +179,7 @@ struct Glyph
   GlyphMetrics metrics;                  // normalized font metrics
   u32          bin = 0;                  // atlas bin this glyph belongs to
   URect        bin_area;                 // area in the atlas this glyph's cache data is placed
-  TextureRect bin_region;               // normalized texture coordinates of this glyph in the atlas bin
+  TextureRect  bin_region;               // normalized texture coordinates of this glyph in the atlas bin
 };
 
 /// stores codepoint glyphs for a font at a specific font height
@@ -221,7 +220,7 @@ struct FontSpec
   u32                            face                 = 0;                                   // font face to use
   u32                            font_height          = 40;                                  // the height at which the SDF texture is cached at
   Extent                         max_atlas_bin_extent = DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
-  stx::Span<unicode_range const> ranges               = {};                                  // if set only the specified unicode ranges will be loaded, otherwise glyphs in the font will be loaded. Note that this means during font ligature glyph substitution where scripts might change, if the replacement glyph is not in the unicode range, it won't result in a valid glyph.
+  stx::Span<UnicodeRange const> ranges               = {};                                  // if set only the specified unicode ranges will be loaded, otherwise glyphs in the font will be loaded. Note that this means during font ligature glyph substitution where scripts might change, if the replacement glyph is not in the unicode range, it won't result in a valid glyph.
 };
 
 inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_font_atlas(Font const &font, FontSpec const &spec)
@@ -231,7 +230,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_font_atlas(Font const 
   if (!spec.ranges.is_empty())
   {
     ASH_LOG_INFO(FontRenderer, "Font: {}'s Needed Unicode Ranges: ", font.postscript_name.c_str());
-    for (unicode_range range : spec.ranges)
+    for (UnicodeRange range : spec.ranges)
     {
       ASH_LOG_INFO(FontRenderer, "Unicode Range {:x} - {:x}", range.first, range.last);
     }
@@ -308,7 +307,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_font_atlas(Font const 
     FT_ULong unicode_char = FT_Get_First_Char(ft_face, &glyph_index);
     do
     {
-      for (unicode_range range : spec.ranges)
+      for (UnicodeRange range : spec.ranges)
       {
         if (unicode_char >= range.first && unicode_char <= range.last)
         {
@@ -505,7 +504,7 @@ inline usize match_font(std::string_view font, stx::Span<std::string_view const>
 
   for (std::string_view fallback_font : fallback_fonts)
   {
-    pos = match_font(font, font_bundle);
+    pos = match_font(fallback_font, font_bundle);
     if (pos < font_bundle.size())
     {
       return pos;

@@ -5,22 +5,34 @@
 namespace ash
 {
 
-struct Utf8StringView
+using ascii_codepoint = u8;
+using utf8_codepoint  = u32;
+
+enum class StringEncoding : u8
 {
-  Utf8StringView();
-  size_t ncodepoints = 0;
+  Ascii = 0,
+  Utf8 = 1
 };
 
-struct Utf8String
+struct ASCIIString
+{};
+struct ASCIIStringView
+{};
+
+struct StringView
 {
-  Utf8String(char8_t const *static_string_literal)
-  {}
+  StringView(char const *static_string_literal);
+  usize          ncodepoints = 0;
+  usize          size        = 0;
+  StringEncoding encoding    = StringEncoding::Ascii;
+};
 
-  operator std::string_view() const
+struct String
+{
+  String(char const *static_string_literal)
   {}
-
-  size_t ncodepoints = 0;
-  size_t size        = 0;
+  usize ncodepoints = 0;
+  usize size        = 0;
 };
 
 /// gets the unicode codepoint at iter and then advances iter to the next codepoint

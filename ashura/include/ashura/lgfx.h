@@ -7,10 +7,13 @@
 #include "stx/vec.h"
 // #include "Volk/volk.h" TODO(lamarrr): use Volk to avoid table dispatch overhead https://gpuopen.com/learn/reducing-vulkan-api-call-overhead/
 
+// TODO(lamarrr): dynamic shader updates
 namespace ash
 {
 namespace lgfx
 {
+constexpr u32 REMAINING_MIP_LEVELS = ~0U;
+constexpr u64 WHOLE_SIZE           = ~0ULL;
 
 enum class Buffer : u32
 {
@@ -49,11 +52,6 @@ enum class Shader : u32
   None = 0
 };
 
-enum class Resource : u32
-{
-  None = 0
-};
-
 enum class ComputePipeline : u32
 {
   None = 0
@@ -74,6 +72,16 @@ enum class Sampler : u32
   None = 0
 };
 
+enum class BindGroup : u32
+{
+  None = 0
+};
+
+enum class BindGroupLayout : u32
+{
+  None = 0
+};
+
 enum class MemoryProperties : u32
 {
   None            = 0x00000000,
@@ -86,52 +94,6 @@ enum class MemoryProperties : u32
 };
 
 STX_DEFINE_ENUM_BIT_OPS(MemoryProperties)
-
-struct HeapProperty
-{
-  // properties is either of:
-  //
-  // HostVisible | HostCoherent
-  // HostVisible | HostCached
-  // HostVisible | HostCached | HostCoherent
-  // DeviceLocal
-  // DeviceLocal | HostVisible | HostCoherent
-  // DeviceLocal | HostVisible | HostCached
-  // DeviceLocal | HostVisible | HostCached | HostCoherent
-  MemoryProperties properties = MemoryProperties::None;
-  u32              index      = 0;
-};
-
-// TODO(lamarrr): write memory allocation strategies, i.e. images should be allocated on this and this heap
-// a single heap might have multiple properties
-struct DeviceMemoryHeaps
-{
-  static constexpr u8 MAX_HEAP_PROPERTIES = 32;
-  static constexpr u8 MAX_HEAPS           = 16;
-
-  // ordered by performance-tier (MemoryProperties)
-  HeapProperty heap_properties[MAX_HEAP_PROPERTIES];
-  u32          num_properties = 0;
-  u64          heap_sizes[MAX_HEAPS];
-  u32          num_heaps = 0;
-
-  constexpr bool has_memory(MemoryProperties properties) const
-  {
-    for (u32 i = 0; i < num_properties; i++)
-    {
-      if ((heap_properties[i].properties & properties) == properties)
-      {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  constexpr bool has_unified_memory() const
-  {
-    return has_memory(MemoryProperties::DeviceLocal | MemoryProperties::HostVisible);
-  }
-};
 
 enum class Format : u32
 {
@@ -477,20 +439,7 @@ enum class FormatFeatures : u64
   VideoEncodeDpb                                                   = 0x10000000ULL
 };
 
-struct FormatProperties
-{
-  FormatFeatures linear_tiling_features  = FormatFeatures::None;
-  FormatFeatures optimal_tiling_features = FormatFeatures::None;
-  FormatFeatures buffer_features         = FormatFeatures::None;
-};
-
-// TODO(lamarrr): formats info properties
-struct DeviceInfo
-{
-  DeviceMemoryHeaps memory_heaps;
-};
-
-enum class ImageAspect : u32
+enum class ImageAspects : u32
 {
   None     = 0x00000000,
   Color    = 0x00000001,
@@ -502,7 +451,7 @@ enum class ImageAspect : u32
   Plane2   = 0x00000040
 };
 
-STX_DEFINE_ENUM_BIT_OPS(ImageAspect)
+STX_DEFINE_ENUM_BIT_OPS(ImageAspects)
 
 enum class ImageLayout : u32
 {
@@ -643,6 +592,7 @@ enum class FrontFace : u8
 
 enum class StencilFaces : u8
 {
+  None         = 0,
   Front        = 1,
   Back         = 2,
   FrontAndBack = 3
@@ -661,11 +611,12 @@ enum class ComponentSwizzle : u8
 
 enum class ColorComponents : u8
 {
-  R   = 0x01,
-  G   = 0x02,
-  B   = 0x04,
-  A   = 0x08,
-  All = R | G | B | A
+  None = 0x00,
+  R    = 0x01,
+  G    = 0x02,
+  B    = 0x04,
+  A    = 0x08,
+  All  = R | G | B | A
 };
 
 STX_DEFINE_ENUM_BIT_OPS(ColorComponents)
@@ -675,6 +626,7 @@ enum class PipelineStages : u64
   None                    = 0x00000000ULL,
   TopOfPipe               = 0x00000001ULL,
   VertexShader            = 0x00000008ULL,
+  GeometryShader          = 0x00000008,
   FragmentShader          = 0x00000080ULL,
   EarlyFragmentTests      = 0x00000100ULL,
   LateFragmentTests       = 0x00000200ULL,
@@ -774,13 +726,13 @@ STX_DEFINE_ENUM_BIT_OPS(Access)
 
 enum class ShaderStages : u32
 {
-  None     = 0x00000000,
-  Vertex   = 0x00000001,
-  Geometry = 0x00000008,
-  Fragment = 0x00000010,
-  Compute  = 0x00000020,
-  Graphics = 0x0000001F,
-  All      = 0x7FFFFFFF
+  None        = 0x00000000,
+  Vertex      = 0x00000001,
+  Geometry    = 0x00000008,
+  Fragment    = 0x00000010,
+  Compute     = 0x00000020,
+  AllGraphics = 0x0000001F,
+  All         = 0x7FFFFFFF
 };
 
 STX_DEFINE_ENUM_BIT_OPS(ShaderStages)
@@ -802,7 +754,7 @@ enum class PolygonMode : u8
   Point = 2
 };
 
-enum class PrimitiveTopology
+enum class PrimitiveTopology : u8
 {
   PointList     = 0,
   LineList      = 1,
@@ -810,6 +762,88 @@ enum class PrimitiveTopology
   TriangleList  = 3,
   TriangleStrip = 4,
   TriangleFan   = 5
+};
+
+enum class ImageViewType : u8
+{
+  Type1D = 0,
+  Type2D = 1,
+  Type3D = 2
+};
+
+enum class DescriptorType : u32
+{
+  Sampler              = 0,
+  CombinedImageSampler = 1,
+  SampledImage         = 2,
+  StorageImage         = 3,
+  UniformTexelBuffer   = 4,
+  StorageTexelBuffer   = 5,
+  UniformBuffer        = 6,
+  StorageBuffer        = 7,
+  InputAttachment      = 10,
+  Unused               = ~0U
+};
+
+struct HeapProperty
+{
+  // properties is either of:
+  //
+  // HostVisible | HostCoherent
+  // HostVisible | HostCached
+  // HostVisible | HostCached | HostCoherent
+  // DeviceLocal
+  // DeviceLocal | HostVisible | HostCoherent
+  // DeviceLocal | HostVisible | HostCached
+  // DeviceLocal | HostVisible | HostCached | HostCoherent
+  MemoryProperties properties = MemoryProperties::None;
+  u32              index      = 0;
+};
+
+// TODO(lamarrr): write memory allocation strategies, i.e. images should be allocated on this and this heap
+// a single heap might have multiple properties
+struct DeviceMemoryHeaps
+{
+  static constexpr u8 MAX_HEAP_PROPERTIES = 32;
+  static constexpr u8 MAX_HEAPS           = 16;
+
+  // ordered by performance-tier (MemoryProperties)
+  HeapProperty heap_properties[MAX_HEAP_PROPERTIES];
+  u32          num_properties = 0;
+  u64          heap_sizes[MAX_HEAPS];
+  u32          num_heaps = 0;
+
+  constexpr bool has_memory(MemoryProperties properties) const
+  {
+    for (u32 i = 0; i < num_properties; i++)
+    {
+      if ((heap_properties[i].properties & properties) == properties)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  constexpr bool has_unified_memory() const
+  {
+    return has_memory(MemoryProperties::DeviceLocal | MemoryProperties::HostVisible);
+  }
+};
+
+struct FormatProperties
+{
+  FormatFeatures linear_tiling_features  = FormatFeatures::None;
+  FormatFeatures optimal_tiling_features = FormatFeatures::None;
+  FormatFeatures buffer_features         = FormatFeatures::None;
+};
+
+// TODO(lamarrr): formats info properties
+struct DeviceInfo
+{
+  DeviceMemoryHeaps memory_heaps;
+  f32               max_anisotropy      = 1.0f;
+  bool              supports_raytracing = false;
 };
 
 struct Viewport
@@ -840,8 +874,7 @@ struct ComponentMapping
 
 struct SamplerBinding
 {
-  Sampler   sampler    = Sampler::None;
-  ImageView image_view = ImageView::None;
+  Sampler sampler = Sampler::None;
 };
 
 struct CombinedImageSamplerBinding
@@ -884,30 +917,16 @@ struct StorageBufferBinding
   u64    size   = 0;
 };
 
+// used for frame-buffer-local read-operations, i.e. depth-stencil
 struct InputAttachmentBinding
 {
   ImageView image_view = ImageView::None;
 };
 
-enum class DescriptorType : u64
+struct BindGroupEntry
 {
-  Sampler              = 0,
-  CombinedImageSampler = 1,
-  SampledImage         = 2,
-  StorageImage         = 3,
-  UniformTexelBuffer   = 4,
-  StorageTexelBuffer   = 5,
-  UniformBuffer        = 6,
-  StorageBuffer        = 7,
-  InputAttachment      = 10,
-  Unused               = ~0ULL
-};
-
-struct DescriptorSlot
-{
-  std::string_view name   = {};
-  DescriptorType   type   = DescriptorType::Sampler;
-  ShaderStages     stages = ShaderStages::All;
+  DescriptorType type   = DescriptorType::Sampler;
+  ShaderStages   stages = ShaderStages::All;
 };
 
 struct DescriptorBinding
@@ -960,6 +979,28 @@ struct DescriptorBinding
 
 constexpr usize DESCRIPTOR_BINDING_SIZE = sizeof(DescriptorBinding);
 
+// POOL ALLOCATOR + HASH MAP COMBINATION
+//
+// PROBLEM: when the associated handles are released, the cache must be notified and the entries freed
+//
+//
+// TODO(lamarrr): aliasing of the same resources in the same descriptor binding group
+//
+// SEPARATE FROM THE ENTRIES!!!
+// TODO(lamarrr): write in vertex shader, read in fragment shader, possible pattern? can be synced via glsl
+// ordering is non-deterministic
+//
+// for compute shader it is assumed to
+//
+// (sampler, image_view, DescriptorType) -> descriptor_set
+// (image_view, DescriptorType) -> descriptor_set
+//
+// NOTE: almost 0(1) lookup, compared to a global cache
+// we have to invoke the backend everytime we manage or update something, so it's not the backend invoking us
+// for each image_view ->
+// for each buffer ->
+// for each buffer view ->
+
 struct BufferDesc
 {
   u64              size       = 0;
@@ -977,20 +1018,22 @@ struct BufferViewDesc
 
 struct ImageDesc
 {
-  Format      format = Format::Undefined;
-  ImageUsages usages = ImageUsages::None;
-  Extent      extent = {};
-  u32         mips   = 1;
+  Format       format  = Format::Undefined;
+  ImageUsages  usages  = ImageUsages::None;
+  ImageAspects aspects = ImageAspects::None;
+  Extent3D     extent  = {};
+  u32          mips    = 0;
 };
 
 struct ImageViewDesc
 {
   Image            image           = Image::None;
+  ImageViewType    view_type       = ImageViewType::Type1D;
   Format           view_format     = Format::Undefined;
   ComponentMapping mapping         = ComponentMapping{};
   u32              first_mip_level = 0;
   u32              num_mip_levels  = 0;
-  ImageAspect      aspect          = ImageAspect::None;
+  ImageAspects     aspects         = ImageAspects::None;
 };
 
 struct SamplerDesc
@@ -1001,41 +1044,65 @@ struct SamplerDesc
   SamplerAddressMode address_mode_u           = SamplerAddressMode::ClampToBorder;
   SamplerAddressMode address_mode_v           = SamplerAddressMode::ClampToBorder;
   f32                mip_lod_bias             = 0;
-  bool               anisotropy_enable        = true;
-  f32                max_anisotropy           = 1.0f;
+  bool               anisotropy_enable        = false;
+  f32                max_anisotropy           = 0;
   bool               compare_enable           = false;
-  CompareOp          compare_op               = CompareOp::Always;
+  CompareOp          compare_op               = CompareOp::Never;
   f32                min_lod                  = 0;
   f32                max_lod                  = 0;
   BorderColor        border_color             = BorderColor::FloatTransparentBlack;
   bool               unnormalized_coordinates = false;
 };
 
+enum class AttachmentUsage : u8
+{
+  None         = 0,
+  Input        = 1,
+  Color        = 2,
+  DepthStencil = 3
+};
+
+// TODO(lamarrr): we should find a way to always transition the image layout to color depth stencil or what not
+// it should not do any layout transitions?
 struct RenderPassAttachment
 {
-  Format  format   = Format::Undefined;
-  LoadOp  load_op  = LoadOp::Load;
-  StoreOp store_op = StoreOp::Store;
+  AttachmentUsage usage            = AttachmentUsage::None;
+  Format          format           = Format::Undefined;
+  LoadOp          load_op          = LoadOp::Load;        // how to use color and depth components
+  StoreOp         store_op         = StoreOp::Store;
+  LoadOp          stencil_load_op  = LoadOp::Load;        // how to use stencil components
+  StoreOp         stencil_store_op = StoreOp::Store;
 };
 
 struct RenderPassDesc
 {
-  stx::Span<RenderPassAttachment const> color_attachments         = {};
-  stx::Span<RenderPassAttachment const> depth_stencil_attachments = {};
+  RenderPassAttachment attachments[8] = {};
 };
 
 struct FramebufferDesc
 {
-  RenderPass                 renderpass                = RenderPass::None;
-  Extent                     extent                    = {};
-  stx::Span<ImageView const> color_attachments         = {};
-  stx::Span<ImageView const> depth_stencil_attachments = {};
+  RenderPass renderpass     = RenderPass::None;
+  Extent     extent         = {};
+  ImageView  attachments[8] = {};
+};
+
+struct BindGroupLayoutDesc
+{
+  BindGroupEntry layout[8];
+  u32            num_bindings = 0;
+};
+
+struct BindGroupDesc
+{
+  BindGroupLayout   layout = BindGroupLayout::None;
+  DescriptorBinding bindings[8];
+  u32               num_bindings = 0;
 };
 
 struct ComputePipelineDesc
 {
-  Shader                          shader = Shader::None;
-  stx::Span<DescriptorSlot const> slots  = {};
+  Shader          shader            = Shader::None;
+  BindGroupLayout bind_group_layout = BindGroupLayout::None;
 };
 
 // Specifies how the binded vertex buffers are iterated and the strides for them
@@ -1057,51 +1124,12 @@ struct VertexAttribute
   u32    offset   = 0;                        // offset of attribute in binding
 };
 
-// STILL NEEDED:
-//
-// - Automatically generating pipeline layouts from spirv reflection info
-// - Automatically generating descriptor sets and checking resource bindings
-// - Is it possible to have structs that will be declared as shader inputs?
-// - we can't automatically generate vertex inputs and attributes
-//
-//
-// - we can check the access masks for the SPIRV-shaders, we thus know the stage masks as well
-//
-// - the users just need to specify a name and resource they want bounded to it, what about per-resource descriptor sets?
-// - images always have descriptor sets attached to them, but what about uniform buffers?
-//
-//
-//
-// INITIAL STATES MUST BE NON-NULL and reasonable in case user forgets to set them
-//
-//
-//
-// in shaders, we'll get: names, bindings and sets, and descriptor types
-// from descriptor types we can get: access types, access stages, access masks
-// these will be used for creating the pipeline layouts and descriptor set layouts
-//
-// bind group/descriptor set creation
-//
-//
 // DESCRIPTOR SET MANAGEMENT
 //
-//// TODO(lamarrr): we'll use sets and bindings to match against pipeline descriptor sets but also store the slots and binding
-// names of both shader(pipeline)
+// WE NEED TO:
+// - Automate synchronization. image, memory, barrier creation, cmdcopy, cmdblit, cmdtransfer
 //
-// we create multiple samplers, and on every sampler use whe check if a sampler hasn't already been created
-// samplers are cheap and don't need to be created everytime
-// descriptor sets are also created for every resource with a shader usage
-//
-//
-// // we only take SPIRV shaders and then generate reflection metadata from them?
-//
-//
-// TODO(lamarrr): buffers, buffer views, imageviews, and samplers  should probably have DescriptorCaches
-//
-// ShaderAccessTable for each resource
-//
-//// TODO(lamarrr): PSO caching
-//
+// This is the backend that we hand over commands to
 //
 
 struct PipelineDepthStencilState
@@ -1111,19 +1139,19 @@ struct PipelineDepthStencilState
   CompareOp      depth_compare_op         = CompareOp::Never;
   bool           depth_bounds_test_enable = false;
   bool           stencil_test_enable      = false;
-  StencilOpState front_stencil_state      = {};
-  StencilOpState back_stencil_state       = {};
+  StencilOpState front_stencil_state      = StencilOpState{};
+  StencilOpState back_stencil_state       = StencilOpState{};
   f32            min_depth_bounds         = 0;
   f32            max_depth_bounds         = 1;
 };
 
 struct PipelineColorBlendAttachmentState
 {
-  bool            color_blend_enable     = true;
-  BlendFactor     src_color_blend_factor = BlendFactor::SrcAlpha;
-  BlendFactor     dst_color_blend_factor = BlendFactor::OneMinusSrcAlpha;
+  bool            color_blend_enable     = false;
+  BlendFactor     src_color_blend_factor = BlendFactor::Zero;
+  BlendFactor     dst_color_blend_factor = BlendFactor::Zero;
   BlendOp         color_blend_op         = BlendOp::Add;
-  BlendFactor     src_alpha_blend_factor = BlendFactor::One;
+  BlendFactor     src_alpha_blend_factor = BlendFactor::Zero;
   BlendFactor     dst_alpha_blend_factor = BlendFactor::Zero;
   BlendOp         alpha_blend_op         = BlendOp::Add;
   ColorComponents color_outputs          = ColorComponents::All;
@@ -1134,7 +1162,7 @@ struct PipelineRasterizationState
   bool        depth_clamp_enable         = false;
   PolygonMode polygon_mode               = PolygonMode::Fill;
   CullMode    cull_mode                  = CullMode::None;
-  FrontFace   front_face                 = FrontFace::ClockWise;
+  FrontFace   front_face                 = FrontFace::CounterClockWise;
   bool        depth_bias_enable          = false;
   f32         depth_bias_constant_factor = 0;
   f32         depth_bias_clamp           = 0;
@@ -1145,30 +1173,34 @@ struct PipelineRasterizationState
 
 struct GraphicsPipelineDesc
 {
-  Shader                                             vertex_shader      = Shader::None;
-  Shader                                             fragment_shader    = Shader::None;
-  RenderPass                                         render_pass        = RenderPass::None;
-  stx::Span<VertexInputBinding const>                bindings           = {};
-  stx::Span<VertexAttribute const>                   attributes         = {};
-  stx::Span<DescriptorSlot const>                    slots              = {};
-  PrimitiveTopology                                  primitive_topology = PrimitiveTopology::TriangleList;
-  PipelineRasterizationState                         rasterization_state;
-  PipelineDepthStencilState                          depth_stencil_state;
-  f32                                                color_blend_constants[4] = {0, 0, 0, 0};
-  stx::Span<PipelineColorBlendAttachmentState const> color_blend_states       = {};
+  Shader                            vertex_shader             = Shader::None;
+  Shader                            fragment_shader           = Shader::None;
+  RenderPass                        render_pass               = RenderPass::None;
+  VertexInputBinding                vertex_input_bindings[16] = {};
+  u32                               num_vertex_input_bindings = 0;
+  VertexAttribute                   vertex_attributes[16]     = {};
+  u32                               num_vertex_attributes     = 0;
+  BindGroupLayout                   bind_group_layout         = BindGroupLayout::None;
+  u32                               num_bind_group_entries    = 0;
+  PrimitiveTopology                 primitive_topology        = PrimitiveTopology::PointList;
+  PipelineRasterizationState        rasterization_state       = {};
+  PipelineDepthStencilState         depth_stencil_state       = {};
+  f32                               color_blend_constants[4]  = {0, 0, 0, 0};
+  PipelineColorBlendAttachmentState color_blend_states[8]     = {};
+  u32                               num_color_attachments     = 0;
 };
 
 struct BufferState
 {
   BufferDesc     desc        = {};
-  PipelineStages stage       = PipelineStages::None;
+  PipelineStages stages      = PipelineStages::None;
   Access         access_mask = Access::None;
 };
 
 struct ImageState
 {
   ImageDesc      desc        = {};
-  PipelineStages stage       = PipelineStages::None;
+  PipelineStages stages      = PipelineStages::None;
   Access         access_mask = Access::None;
   ImageLayout    layout      = ImageLayout::Undefined;
 };
@@ -1182,32 +1214,32 @@ struct BufferCopy
 
 struct BufferImageCopy
 {
-  u64         buffer_offset       = 0;
-  u32         buffer_row_length   = 0;
-  u32         buffer_image_height = 0;
-  URect       image_area          = URect{};
-  u32         image_mip_level     = 0;
-  ImageAspect image_aspect        = ImageAspect::None;
+  u64          buffer_offset       = 0;
+  u32          buffer_row_length   = 0;
+  u32          buffer_image_height = 0;
+  URect        image_area          = URect{};
+  u32          image_mip_level     = 0;
+  ImageAspects image_aspects       = ImageAspects::None;
 };
 
 struct ImageCopy
 {
-  URect       src_area      = URect{};
-  u32         src_mip_level = 0;
-  ImageAspect src_aspect    = ImageAspect::None;
-  Offset      dst_offset    = Offset{};
-  u32         dst_mip_level = 0;
-  ImageAspect dst_aspect    = ImageAspect::None;
+  URect        src_area      = URect{};
+  u32          src_mip_level = 0;
+  ImageAspects src_aspects   = ImageAspects::None;
+  Offset       dst_offset    = Offset{};
+  u32          dst_mip_level = 0;
+  ImageAspects dst_aspects   = ImageAspects::None;
 };
 
 struct ImageBlit
 {
-  URect       src_area      = URect{};
-  u32         src_mip_level = 0;
-  ImageAspect src_aspect    = ImageAspect::None;
-  URect       dst_area      = URect{};
-  u32         dst_mip_level = 0;
-  ImageAspect dst_aspect    = ImageAspect::None;
+  URect        src_area      = URect{};
+  u32          src_mip_level = 0;
+  ImageAspects src_aspects   = ImageAspects::None;
+  URect        dst_area      = URect{};
+  u32          dst_mip_level = 0;
+  ImageAspects dst_aspects   = ImageAspects::None;
 };
 
 union Color
@@ -1257,8 +1289,6 @@ struct QueueImageMemoryBarrier
 struct GraphCtx
 {
   DeviceInfo device_info;
-  f32        max_anisotropy          = 1.0f;
-  bool       supports_raytracing : 1 = false;
 };
 
 struct Backend
@@ -1307,7 +1337,7 @@ struct Backend
   virtual void  cmd_compute(void *cmd_buffer, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z)                                                                                 = 0;
   virtual void  cmd_compute_indirect(void *cmd_buffer, void *buffer, u64 offset)                                                                                                                                                             = 0;
   virtual void  cmd_draw_indexed(void *cmd_buffer, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)                                                                                              = 0;
-  virtual void  cmd_draw_indexed_indirect(void *cmd_buffer, void *buffer, u64 offset, u32 draw_count, u32 stride)
+  virtual void  cmd_draw_indexed_indirect(void *cmd_buffer, void *buffer, u64 offset, u32 draw_count, u32 stride)                                                                                                                            = 0;
 };
 
 struct Graph
@@ -1319,8 +1349,8 @@ struct Graph
   RenderPass                                          create_render_pass(RenderPassDesc const &desc);
   Framebuffer                                         create_framebuffer(FramebufferDesc const &desc);
   Sampler                                             create_sampler(SamplerDesc const &sampler);
-  BindGroup                                           create_bind_group(stx::Span<BindGroupEntry const> bind_group_layout);
-  BindGroup                                           create_bind_group(stx::Span<DescriptorBinding const> bindings);
+  BindGroupLayout                                     create_bind_group_layout(BindGroupLayoutDesc const &desc);
+  BindGroup                                           create_bind_group(BindGroupDesc const &desc);
   ComputePipeline                                     create_compute_pipeline(ComputePipelineDesc const &desc);
   GraphicsPipeline                                    create_graphics_pipeline(GraphicsPipelineDesc const &desc);
   BufferDesc const                                   &get_desc(Buffer buffer) const;
@@ -1342,6 +1372,7 @@ struct Graph
   void                                                release(RenderPass render_pass);
   void                                                release(Framebuffer framebuffer);
   void                                                release(BindGroup bind_group);
+  void                                                release(BindGroupLayout bind_group_layout);
   void                                                release(ComputePipeline pipeline);
   void                                                release(GraphicsPipeline pipeline);
   GraphCtx                                            ctx;
@@ -1417,6 +1448,22 @@ struct BarrierInserter
 
 struct CmdBarrierGenerator
 {
+  static void copy_buffer(Graph &graph, BarrierInserter &inserter, Buffer src, Buffer dst, stx::Span<BufferCopy const> copies);
+  static void copy_host_buffer(Graph &graph, BarrierInserter &inserter, stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies);
+  static void copy_image(Graph &graph, BarrierInserter &inserter, Image src, Image dst, stx::Span<ImageCopy const> copies);
+  static void copy_buffer_to_image(Graph &graph, BarrierInserter &inserter, Buffer src, Image dst, stx::Span<BufferImageCopy const> copies);
+  static void blit_image(Graph &graph, BarrierInserter &inserter, Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter);
+  static void begin_render_pass(Graph &graph, BarrierInserter &inserter, Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values);
+  static void end_render_pass(Graph &graph, BarrierInserter &inserter);
+  static void bind_compute_pipeline(Graph &graph, BarrierInserter &inserter, ComputePipeline pipeline);
+  static void bind_graphics_pipeline(Graph &graph, BarrierInserter &inserter, GraphicsPipeline pipeline);
+  static void bind_vertex_buffers(Graph &graph, BarrierInserter &inserter, stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset);
+  static void set_bind_group(Graph &graph, BarrierInserter &inserter, BindGroup bind_group);
+  static void compute(Graph &graph, BarrierInserter &inserter, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z);
+  static void compute_indirect(Graph &graph, BarrierInserter &inserter, Buffer buffer, u64 offset);
+  static void draw_indexed(Graph &graph, BarrierInserter &inserter, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance);
+  static void draw_indexed_indirect(Graph &graph, BarrierInserter &inserter, Buffer buffer, u64 offset, u32 draw_count, u32 stride);
+};
 
 }        // namespace lgfx
 }        // namespace ash

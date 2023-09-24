@@ -5,6 +5,10 @@ namespace ash
 namespace lgfx
 {
 
+constexpr bool is_renderpass_compatible(RenderPassDesc const&a, RenderPassDesc const& b){
+  
+}
+
 Buffer Graph::create_buffer(BufferDesc const &desc)
 {
   return buffers.push(BufferState{.desc = desc});
@@ -45,42 +49,42 @@ GraphicsPipeline Graph::create_graphics_pipeline(GraphicsPipelineDesc const &des
   return graphics_pipelines.push(desc);
 }
 
-BufferDesc Graph::get_desc(Buffer buffer) const
+BufferDesc const &Graph::get_desc(Buffer buffer) const
 {
   return buffers[buffer].desc;
 }
 
-BufferViewDesc Graph::get_desc(BufferView buffer_view) const
+BufferViewDesc const &Graph::get_desc(BufferView buffer_view) const
 {
   return buffer_views[buffer_view];
 }
 
-ImageDesc Graph::get_desc(Image image) const
+ImageDesc const &Graph::get_desc(Image image) const
 {
   return images[image].desc;
 }
 
-ImageViewDesc Graph::get_desc(ImageView image_view) const
+ImageViewDesc const &Graph::get_desc(ImageView image_view) const
 {
   return image_views[image_view];
 }
 
-RenderPassDesc Graph::get_desc(RenderPass render_pass) const
+RenderPassDesc const &Graph::get_desc(RenderPass render_pass) const
 {
   return render_passes[render_pass];
 }
 
-FramebufferDesc Graph::get_desc(Framebuffer framebuffer) const
+FramebufferDesc const &Graph::get_desc(Framebuffer framebuffer) const
 {
   return framebuffers[framebuffer];
 }
 
-ComputePipelineDesc Graph::get_desc(ComputePipeline compute_pipeline) const
+ComputePipelineDesc const &Graph::get_desc(ComputePipeline compute_pipeline) const
 {
   return compute_pipelines[compute_pipeline];
 }
 
-GraphicsPipelineDesc Graph::get_desc(GraphicsPipeline graphics_pipeline) const
+GraphicsPipelineDesc const &Graph::get_desc(GraphicsPipeline graphics_pipeline) const
 {
   return graphics_pipelines[graphics_pipeline];
 }
@@ -133,15 +137,17 @@ void validate_resources(Graph &graph)
     ASH_CHECK(image.desc.usages != ImageUsages::None);
     ASH_CHECK(image.desc.mips >= 1);
     ASH_CHECK(image.desc.format != Format::Undefined);
+    ASH_CHECK(image.desc.aspects != ImageAspects::None);
   }
 
   for (ImageViewDesc const &image_view : graph.image_views)
   {
-    ASH_CHECK(image_view.aspect != ImageAspect::None);
+    ASH_CHECK(image_view.aspects != ImageAspects::None);
     ASH_CHECK(image_view.view_format != Format::Undefined);
     ASH_CHECK(graph.images.is_valid(image_view.image));
     ASH_CHECK(image_view.num_mip_levels >= 1);
     ImageDesc const resource = graph.get_desc(image_view.image);
+    ASH_CHECK((resource.aspects | image_view.aspects) != ImageAspects::None);
     ASH_CHECK(image_view.first_mip_level < resource.mips);
     ASH_CHECK((image_view.first_mip_level + image_view.num_mip_levels) <= resource.mips);
   }
@@ -172,7 +178,7 @@ void validate_resources(Graph &graph)
       ImageView attachment = framebuffer.color_attachments[i];
       ASH_CHECK(graph.image_views.is_valid(attachment));
       ImageViewDesc const attachment_desc = graph.get_desc(attachment);
-      ASH_CHECK(attachment_desc.aspect == ImageAspect::Color);
+      ASH_CHECK((attachment_desc.aspects & ImageAspects::Color) != ImageAspects::None);
       ASH_CHECK(attachment_desc.num_mip_levels >= 1);
       ASH_CHECK(render_pass_desc.color_attachments[i].format == attachment_desc.view_format);
       ImageDesc const image_desc = graph.get_desc(attachment_desc.image);
@@ -185,7 +191,7 @@ void validate_resources(Graph &graph)
       ImageView attachment = framebuffer.depth_stencil_attachments[i];
       ASH_CHECK(graph.image_views.is_valid(attachment));
       ImageViewDesc const attachment_desc = graph.get_desc(attachment);
-      ASH_CHECK((attachment_desc.aspect & (ImageAspect::Depth | ImageAspect::Stencil)) != ImageAspect::None);
+      ASH_CHECK((attachment_desc.aspects & (ImageAspects::Depth | ImageAspects::Stencil)) != ImageAspects::None);
       ASH_CHECK(attachment_desc.num_mip_levels >= 1);
       ASH_CHECK(render_pass_desc.depth_stencil_attachments[i].format == attachment_desc.view_format);
       ImageDesc const image_desc = graph.get_desc(attachment_desc.image);
@@ -219,7 +225,6 @@ void CmdValidator::copy_host_buffer(Graph &graph, stx::Span<u8 const> src, Buffe
   ASH_CHECK(!copies.is_empty());
   ASH_CHECK(!src.is_empty());
   ASH_CHECK(graph.buffers.is_valid(dst));
-  stx::Span        src      = src;
   BufferDesc const dst_desc = graph.get_desc(dst);
   ASH_CHECK((dst_desc.usages & BufferUsages::TransferDst) != BufferUsages::None);
   for (BufferCopy const &copy : copies)
@@ -244,8 +249,10 @@ void CmdValidator::copy_image(Graph &graph, Image src, Image dst, stx::Span<Imag
 
   for (ImageCopy const &copy : copies)
   {
-    ASH_CHECK(copy.src_aspect != ImageAspect::None);
-    ASH_CHECK(copy.dst_aspect != ImageAspect::None);
+    ASH_CHECK(copy.src_aspects != ImageAspects::None);
+    ASH_CHECK(copy.dst_aspects != ImageAspects::None);
+    ASH_CHECK((copy.src_aspects | src_desc.aspects) != ImageAspects::None);
+    ASH_CHECK((copy.dst_aspects | dst_desc.aspects) != ImageAspects::None);
     ASH_CHECK(copy.src_mip_level < src_desc.mips);
     ASH_CHECK(copy.dst_mip_level < dst_desc.mips);
     ASH_CHECK((URect{.offset = {}, .extent = src_desc.extent}.contains(copy.src_area)));
@@ -268,7 +275,8 @@ void CmdValidator::copy_buffer_to_image(Graph &graph, Buffer src, Image dst, stx
     ASH_CHECK(copy.buffer_row_length > 0);
     ASH_CHECK(copy.buffer_offset < src_desc.size);
     ASH_CHECK(copy.image_mip_level < dst_desc.mips);
-    ASH_CHECK(copy.image_aspect != ImageAspect::None);
+    ASH_CHECK(copy.image_aspects != ImageAspects::None);
+    ASH_CHECK((copy.image_aspects | dst_desc.aspects) != ImageAspects::None);
     ASH_CHECK((URect{.offset = {}, .extent = dst_desc.extent}.contains(copy.image_area)));
   }
 }
@@ -284,8 +292,10 @@ void CmdValidator::blit_image(Graph &graph, Image src, Image dst, stx::Span<Imag
   ASH_CHECK((dst_desc.usages & ImageUsages::TransferDst) != ImageUsages::None);
   for (ImageBlit const &blit : blits)
   {
-    ASH_CHECK(blit.src_aspect != ImageAspect::None);
-    ASH_CHECK(blit.dst_aspect != ImageAspect::None);
+    ASH_CHECK(blit.src_aspects != ImageAspects::None);
+    ASH_CHECK(blit.dst_aspects != ImageAspects::None);
+    ASH_CHECK((blit.src_aspects | src_desc.aspects) != ImageAspects::None);
+    ASH_CHECK((blit.dst_aspects | dst_desc.aspects) != ImageAspects::None);
     ASH_CHECK(blit.src_mip_level < src_desc.mips);
     ASH_CHECK(blit.dst_mip_level < dst_desc.mips);
     ASH_CHECK((URect{.offset = {}, .extent = src_desc.extent}.contains(blit.src_area)));
@@ -307,13 +317,17 @@ void CmdValidator::end_render_pass(Graph &graph)
 {}
 
 void CmdValidator::push_constants(Graph &graph, stx::Span<u8 const> constants)
-{}
+{
+  ASH_CHECK(constants.size_bytes() <= 128);
+}
 
 void CmdValidator::bind_compute_pipeline(Graph &graph, ComputePipeline pipeline)
-{}
+{
+}
 
 void CmdValidator::bind_graphics_pipeline(Graph &graph, GraphicsPipeline pipeline)
-{}
+{
+}
 
 void CmdValidator::bind_vertex_buffers(Graph &graph, stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset)
 {}
@@ -335,67 +349,215 @@ void CmdValidator::compute_indirect(Graph &graph, Buffer buffer, u64 offset)
 
 void CmdValidator::draw_indexed(Graph &graph, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)
 {
-  // case CmdType::DispatchTask:
-  // {
-  //   ASH_CHECK(cmd.dispatch_task.framebuffer != Framebuffer::None);
-  //   ASH_CHECK(((u32) cmd.dispatch_task.framebuffer) < graph.resources.size());
-  //   ASH_CHECK(graph.resources[(u32) cmd.dispatch_task.framebuffer].type == ResourceType::Framebuffer);
-  //   for (ResourceBinding const &binding : cmd.dispatch_task.bindings)
-  //   {
-  //     switch (binding.type)
-  //     {
-  //       case ResourceBindingType::BufferBinding:
-  //       {
-  //         ASH_CHECK(binding.buffer.buffer != Buffer::None);
-  //         ASH_CHECK(((u32) binding.buffer.buffer) < graph.resources.size());
-  //         ASH_CHECK(graph.resources[(u32) binding.buffer.buffer].type == ResourceType::Buffer);
-  //         BufferDesc const buffer_desc       = graph.get_desc(binding.buffer.buffer);
-  //         bool             written_in_shader = (binding.buffer.access & (Access::ShaderWrite | Access::ShaderSampledWrite | Access::ShaderStorageWrite)) != Access::None;
-  //         bool             read_in_shader    = (binding.buffer.access & (Access::ShaderRead | Access::ShaderSampledRead)) != Access::None;
-  //         if (read_in_shader)
-  //         {
-  //           ASH_CHECK((buffer_desc.usages & (BufferUsages::UniformBuffer | BufferUsages::UniformTexelBuffer)) != BufferUsages::None);
-  //         }
-  //         if (written_in_shader)
-  //         {
-  //           ASH_CHECK((buffer_desc.usages & (BufferUsages::StorageBuffer | BufferUsages::UniformStorageTexelBuffer)) != BufferUsages::None);
-  //         }
-  //       }
-  //       break;
-  //       case ResourceBindingType::ImageViewBinding:
-  //       {
-  //         ASH_CHECK(binding.image_view.image_view != ImageView::None);
-  //         ASH_CHECK(((u32) binding.image_view.image_view) < graph.resources.size());
-  //         ASH_CHECK(graph.resources[(u32) binding.image_view.image_view].type == ResourceType::ImageView);
-  //         ImageDesc const image_desc        = graph.get_desc(graph.get_desc(binding.image_view.image_view).image);
-  //         bool            written_in_shader = (binding.image_view.access & (Access::ShaderWrite | Access::ShaderSampledWrite | Access::ShaderStorageWrite)) != Access::None;
-  //         bool            read_in_shader    = (binding.image_view.access & (Access::ShaderRead | Access::ShaderSampledRead)) != Access::None;
-  //         if (read_in_shader)
-  //         {
-  //           ASH_CHECK((image_desc.usages & ImageUsages::Sampled) != ImageUsages::None);
-  //         }
-  //         if (written_in_shader)
-  //         {
-  //           ASH_CHECK((image_desc.usages & ImageUsages::Storage) != ImageUsages::None);
-  //         }
-  //       }
-  //       break;
-  //     }
-  //   }
-  // }
-  // break;
 }
 
 void CmdValidator::draw_indexed_indirect(Graph &graph, Buffer buffer, u64 offset, u32 draw_count, u32 stride)
 {}
 
-
-// TODO(lamarrr): remove unnecessary barriers: i.e. newly created resources with None access and None states. and double-reads
-//
-// some scenarios reset the state of the barriers i.e. when we wait for fences on a swapchain, all resources in that frame would not be in use
-//
-void generate_barriers(Graph &graph, stx::Span<Cmd const> cmds, stx::Vec<QueueBarrier> &queue_barriers, stx::Vec<u32> &cmd_barriers)
+void CmdBarrierGenerator::copy_buffer(Graph &graph, BarrierInserter &inserter, Buffer src, Buffer dst, stx::Span<BufferCopy const> copies)
 {
+  BufferState &src_state = graph.get_state(src);
+  BufferState &dst_state = graph.get_state(dst);
+
+  QueueBufferMemoryBarrier src_barrier{.buffer          = src,
+                                       .offset          = 0,
+                                       .size            = src_state.desc.size,
+                                       .src_stage_mask  = src_state.stages,
+                                       .dst_stage_mask  = PipelineStages::Transfer,
+                                       .src_access_mask = src_state.access_mask,
+                                       .dst_access_mask = Access::TransferRead};
+  QueueBufferMemoryBarrier dst_barrier{.buffer          = dst,
+                                       .offset          = 0,
+                                       .size            = dst_state.desc.size,
+                                       .src_stage_mask  = dst_state.stages,
+                                       .dst_stage_mask  = PipelineStages::Transfer,
+                                       .src_access_mask = dst_state.access_mask,
+                                       .dst_access_mask = Access::TransferRead};
+
+  inserter.insert(src_barrier);
+  inserter.insert(dst_barrier);
+
+  src_state.access_mask = Access::TransferRead;
+  dst_state.access_mask = Access::TransferWrite;
+  src_state.stages      = PipelineStages::Transfer;
+  dst_state.stages      = PipelineStages::Transfer;
+}
+
+void CmdBarrierGenerator::copy_host_buffer(Graph &graph, BarrierInserter &inserter, stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies)
+{
+  BufferState &dst_state = graph.get_state(dst);
+
+  QueueBufferMemoryBarrier dst_barrier{.buffer          = dst,
+                                       .offset          = 0,
+                                       .size            = dst_state.desc.size,
+                                       .src_stage_mask  = dst_state.stages,
+                                       .dst_stage_mask  = PipelineStages::Transfer,
+                                       .src_access_mask = dst_state.access_mask,
+                                       .dst_access_mask = Access::TransferRead};
+
+  inserter.insert(dst_barrier);
+
+  dst_state.access_mask = Access::TransferWrite;
+  dst_state.stages      = PipelineStages::Transfer;
+}
+
+void CmdBarrierGenerator::copy_image(Graph &graph, BarrierInserter &inserter, Image src, Image dst, stx::Span<ImageCopy const> copies)
+{
+  ImageState &src_state = graph.get_state(src);
+  ImageState &dst_state = graph.get_state(dst);
+
+  QueueImageMemoryBarrier src_barrier{.image           = src,
+                                      .first_mip_level = 0,
+                                      .num_mip_levels  = REMAINING_MIP_LEVELS,
+                                      .aspects         = src_state.desc.aspects,
+                                      .old_layout      = src_state.layout,
+                                      .new_layout      = ImageLayout::TransferSrcOptimal,
+                                      .src_stage_mask  = src_state.stages,
+                                      .dst_stage_mask  = PipelineStages::Transfer,
+                                      .src_access_mask = src_state.access_mask,
+                                      .dst_access_mask = Access::TransferRead};
+  QueueImageMemoryBarrier dst_barrier{.image           = dst,
+                                      .first_mip_level = 0,
+                                      .num_mip_levels  = REMAINING_MIP_LEVELS,
+                                      .aspects         = dst_state.desc.aspects,
+                                      .old_layout      = dst_state.layout,
+                                      .new_layout      = ImageLayout::TransferDstOptimal,
+                                      .src_stage_mask  = dst_state.stages,
+                                      .dst_stage_mask  = PipelineStages::Transfer,
+                                      .src_access_mask = dst_state.access_mask,
+                                      .dst_access_mask = Access::TransferWrite};
+
+  inserter.insert(src_barrier);
+  inserter.insert(dst_barrier);
+
+  src_state.access_mask = Access::TransferRead;
+  dst_state.access_mask = Access::TransferWrite;
+  src_state.stages      = PipelineStages::Transfer;
+  dst_state.stages      = PipelineStages::Transfer;
+  src_state.layout      = ImageLayout::TransferSrcOptimal;
+  dst_state.layout      = ImageLayout::TransferDstOptimal;
+}
+
+void CmdBarrierGenerator::copy_buffer_to_image(Graph &graph, BarrierInserter &inserter, Buffer src, Image dst, stx::Span<BufferImageCopy const> copies)
+{
+  // get latest expected state
+  // convert to transfer dst layout and transfer write access with transfer stage
+  // leave as-is. the next usage should conver it back to how it is needed if necessary
+  BufferState &src_state = graph.get_state(src);
+  ImageState  &dst_state = graph.get_state(dst);
+
+  QueueBufferMemoryBarrier src_barrier{.buffer          = src,
+                                       .offset          = 0,
+                                       .size            = WHOLE_SIZE,
+                                       .src_stage_mask  = src_state.stages,
+                                       .dst_stage_mask  = PipelineStages::Transfer,
+                                       .src_access_mask = src_state.access_mask,
+                                       .dst_access_mask = Access::TransferRead};
+  QueueImageMemoryBarrier  dst_barrier{.image           = dst,
+                                       .first_mip_level = 0,
+                                       .num_mip_levels  = REMAINING_MIP_LEVELS,
+                                       .aspects         = dst_state.desc.aspects,
+                                       .old_layout      = dst_state.layout,
+                                       .new_layout      = ImageLayout::TransferDstOptimal,
+                                       .src_stage_mask  = dst_state.stages,
+                                       .dst_stage_mask  = PipelineStages::Transfer,
+                                       .src_access_mask = dst_state.access_mask,
+                                       .dst_access_mask = Access::TransferWrite};
+
+  inserter.insert(src_barrier);
+  inserter.insert(dst_barrier);
+
+  src_state.access_mask = Access::TransferRead;
+  dst_state.access_mask = Access::TransferWrite;
+  src_state.stages      = PipelineStages::Transfer;
+  dst_state.stages      = PipelineStages::Transfer;
+  dst_state.layout      = ImageLayout::TransferDstOptimal;
+}
+
+void CmdBarrierGenerator::blit_image(Graph &graph, BarrierInserter &inserter, Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter)
+{
+  // check RID
+  // check current layout and usage, and all accessors
+  // check all memory aliasing
+  // convert layout to transfer dst and write access with whatever access type is needed for blitting
+  // update barrier tracker
+  // on next usage in command buffer, get the last usage and update accordingly
+  ImageState &src_state = graph.get_state(src);
+  ImageState &dst_state = graph.get_state(dst);
+
+  QueueImageMemoryBarrier src_barrier{.image           = src,
+                                      .first_mip_level = 0,
+                                      .num_mip_levels  = REMAINING_MIP_LEVELS,
+                                      .aspects         = src_state.desc.aspects,
+                                      .old_layout      = src_state.layout,
+                                      .new_layout      = ImageLayout::TransferSrcOptimal,
+                                      .src_stage_mask  = src_state.stages,
+                                      .dst_stage_mask  = PipelineStages::Transfer,
+                                      .src_access_mask = src_state.access_mask,
+                                      .dst_access_mask = Access::TransferRead};
+  QueueImageMemoryBarrier dst_barrier{.image           = dst,
+                                      .first_mip_level = 0,
+                                      .num_mip_levels  = REMAINING_MIP_LEVELS,
+                                      .aspects         = dst_state.desc.aspects,
+                                      .old_layout      = dst_state.layout,
+                                      .new_layout      = ImageLayout::TransferDstOptimal,
+                                      .src_stage_mask  = dst_state.stages,
+                                      .dst_stage_mask  = PipelineStages::Transfer,
+                                      .src_access_mask = dst_state.access_mask,
+                                      .dst_access_mask = Access::TransferWrite};
+
+  inserter.insert(src_barrier);
+  inserter.insert(dst_barrier);
+
+  src_state.access_mask = Access::TransferRead;
+  dst_state.access_mask = Access::TransferWrite;
+  src_state.stages      = PipelineStages::Transfer;
+  dst_state.stages      = PipelineStages::Transfer;
+  src_state.layout      = ImageLayout::TransferSrcOptimal;
+  dst_state.layout      = ImageLayout::TransferDstOptimal;
+}
+
+void CmdBarrierGenerator::begin_render_pass(Graph &graph, BarrierInserter &inserter, Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values)
+{
+  // TODO(lamarrr): in-between barriers access??? i.e. in shader?
+  //
+  // TODO(lamarrr): should we make the renderpass not convert the layouts?
+  //
+  FramebufferDesc framebuffer_desc = graph.get_desc(framebuffer);
+  for (ImageView attachment : framebuffer_desc.color_attachments)
+  {
+    ImageState &state = graph.get_state(graph.get_desc(attachment).image);                 // TODO(lamarrr): color attachment may not be written to depending on the renderpass ops
+    state.access_mask = Access::ColorAttachmentRead | Access::ColorAttachmentWrite;        // LoadOp and StoreOp
+    state.stages      = PipelineStages::ColorAttachmentOutput | PipelineStages::EarlyFragmentTests;
+    state.layout      = ImageLayout::ColorAttachmentOptimal;
+  }
+
+  for (ImageView attachment : framebuffer_desc.depth_stencil_attachments)
+  {
+    ImageState &state = graph.get_state(graph.get_desc(attachment).image);
+    state.access_mask = Access::DepthStencilAttachmentRead | Access::DepthStencilAttachmentWrite;
+    state.stages      = PipelineStages::ColorAttachmentOutput | PipelineStages::EarlyFragmentTests;
+    state.layout      = ImageLayout::DepthStencilAttachmentOptimal;
+  }
+}
+
+void CmdBarrierGenerator::end_render_pass(Graph &graph, BarrierInserter &inserter)
+{
+  // TODO(lamarrr): post-renderpass state transitions
+  // TODO(lamarrr): DontCare generates write access to the attachment in renderpasses
+}
+void CmdBarrierGenerator::bind_compute_pipeline(Graph &graph, BarrierInserter &inserter, ComputePipeline pipeline)
+{}
+void CmdBarrierGenerator::bind_graphics_pipeline(Graph &graph, BarrierInserter &inserter, GraphicsPipeline pipeline)
+{}
+void CmdBarrierGenerator::bind_vertex_buffers(Graph &graph, BarrierInserter &inserter, stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset)
+{}
+void CmdBarrierGenerator::bind_descriptors(Graph &graph, BarrierInserter &inserter, stx::Span<DescriptorBinding const> bindings)
+{
+  // TODO(lamarrr): remove unnecessary barriers: i.e. newly created resources with None access and None states. and double-reads
+  //
+  // some scenarios reset the state of the barriers i.e. when we wait for fences on a swapchain, all resources in that frame would not be in use
+  //
   // accumulate states until they are no longer needed
   // use previous frame's states and barriers states
   // detect unused resources
@@ -404,289 +566,185 @@ void generate_barriers(Graph &graph, stx::Span<Cmd const> cmds, stx::Vec<QueueBa
   // store current usage so the next usage will know how to access
   //
   // render passes perform layout and transitions neccessary
-  //
-  //
+}
 
-  for (Cmd const &cmd : cmds)
+PipelineStages to_pipeline_stage(ShaderStages stages)
+{
+  PipelineStages out = PipelineStages::None;
+
+  if ((stages & ShaderStages::Vertex) != ShaderStages::None)
   {
-    switch (cmd.type)
+    out |= PipelineStages::VertexShader;
+  }
+
+  if ((stages & ShaderStages::Geometry) != ShaderStages::None)
+  {
+    out |= PipelineStages::GeometryShader;
+  }
+
+  if ((stages & ShaderStages::Fragment) != ShaderStages::None)
+  {
+    out |= PipelineStages::FragmentShader;
+  }
+
+  if ((stages & ShaderStages::Compute) != ShaderStages::None)
+  {
+    out |= PipelineStages::ComputeShader;
+  }
+
+  if ((stages & ShaderStages::AllGraphics) != ShaderStages::None)
+  {
+    out |= PipelineStages::AllGraphics;
+  }
+
+  if ((stages & ShaderStages::All) != ShaderStages::None)
+  {
+    out |= PipelineStages::AllCommands;
+  }
+}
+
+void CmdBarrierGenerator::set_bind_group(Graph &graph, BarrierInserter &inserter, BindGroup bind_group)
+{
+  BindGroupDesc const &desc = graph.get_desc(bind_group);
+  for (u32 i = 0; i < desc.num_bindings; i++)
+  {
+    DescriptorBinding const &binding         = desc.bindings[i];
+    BindGroupEntry const    &entry           = desc.layout[i];
+    PipelineStages           pipeline_stages = to_pipeline_stage(entry.stages);
+    switch (binding.type)
     {
-      case CmdType::None:
-        break;
-
-      case CmdType::CopyBuffer:
+      case DescriptorType::CombinedImageSampler:
       {
-        BufferState &src_state = graph.get_state(cmd.copy_buffer.src);
-        BufferState &dst_state = graph.get_state(cmd.copy_buffer.dst);
+        Image            image = graph.get_desc(binding.combined_image_sampler.image_view).image;
+        ImageDesc const &desc  = graph.get_desc(image);
+        ImageState      &state = graph.get_state(image);
 
-        for (BufferCopy const &copy : cmd.copy_buffer.copies)
-        {
-          QueueBufferMemoryBarrier src_barrier{.buffer          = cmd.copy_buffer.src,
-                                               .offset          = copy.src_offset,
-                                               .size            = copy.size,
-                                               .src_stage_mask  = src_state.stage,
-                                               .dst_stage_mask  = PipelineStages::Transfer,
-                                               .src_access_mask = src_state.access_mask,
-                                               .dst_access_mask = Access::TransferRead};
-          QueueBufferMemoryBarrier dst_barrier{.buffer          = cmd.copy_buffer.dst,
-                                               .offset          = copy.dst_offset,
-                                               .size            = copy.size,
-                                               .src_stage_mask  = dst_state.stage,
-                                               .dst_stage_mask  = PipelineStages::Transfer,
-                                               .src_access_mask = dst_state.access_mask,
-                                               .dst_access_mask = Access::TransferRead};
-
-          queue_barriers.push_inplace(src_barrier).unwrap();
-          queue_barriers.push_inplace(dst_barrier).unwrap();
-
-          src_state.access_mask = Access::TransferRead;
-          dst_state.access_mask = Access::TransferWrite;
-          src_state.stage       = PipelineStages::Transfer;
-          dst_state.stage       = PipelineStages::Transfer;
-        }
-
-        cmd_barriers.push(cmd.copy_buffer.copies.size() * 2).unwrap();
+        inserter.insert(QueueImageMemoryBarrier{
+            .image           = image,
+            .first_mip_level = 0,
+            .num_mip_levels  = REMAINING_MIP_LEVELS,
+            .aspects         = desc.aspects,
+            .old_layout      = state.layout,
+            .new_layout      = ImageLayout::ShaderReadOnlyOptimal,
+            .src_stage_mask  = state.stages,
+            .dst_stage_mask  = pipeline_stages,
+            .src_access_mask = state.access_mask,
+            .dst_access_mask = Access::ShaderSampledRead});
       }
       break;
 
-      case CmdType::CopyHostBuffer:
+      case DescriptorType::InputAttachment:
       {
-        BufferState &dst_state = graph.get_state(cmd.copy_host_buffer.dst);
-
-        for (BufferCopy const &copy : cmd.copy_host_buffer.copies)
-        {
-          QueueBufferMemoryBarrier dst_barrier{.buffer          = cmd.copy_host_buffer.dst,
-                                               .offset          = copy.dst_offset,
-                                               .size            = copy.size,
-                                               .src_stage_mask  = dst_state.stage,
-                                               .dst_stage_mask  = PipelineStages::Transfer,
-                                               .src_access_mask = dst_state.access_mask,
-                                               .dst_access_mask = Access::TransferRead};
-
-          queue_barriers.push_inplace(dst_barrier).unwrap();
-
-          dst_state.access_mask = Access::TransferWrite;
-          dst_state.stage       = PipelineStages::Transfer;
-        }
-
-        cmd_barriers.push(cmd.copy_buffer.copies.size()).unwrap();
       }
       break;
 
-      case CmdType::CopyImage:
+      case DescriptorType::SampledImage:
       {
-        ImageState &src_state = graph.get_state(cmd.copy_image.src);
-        ImageState &dst_state = graph.get_state(cmd.copy_image.dst);
+        Image            image = graph.get_desc(binding.sampled_image.image_view).image;
+        ImageDesc const &desc  = graph.get_desc(image);
+        ImageState      &state = graph.get_state(image);
 
-        for (ImageCopy const &copy : cmd.copy_image.copies)
-        {
-          QueueImageMemoryBarrier src_barrier{.image           = cmd.copy_image.src,
-                                              .first_mip_level = copy.src_mip_level,
-                                              .num_mip_levels  = 1,
-                                              .aspect          = copy.src_aspect,
-                                              .old_layout      = src_state.layout,
-                                              .new_layout      = ImageLayout::TransferSrcOptimal,
-                                              .src_stage_mask  = src_state.stage,
-                                              .dst_stage_mask  = PipelineStages::Transfer,
-                                              .src_access_mask = src_state.access_mask,
-                                              .dst_access_mask = Access::TransferRead};
-          QueueImageMemoryBarrier dst_barrier{.image           = cmd.copy_image.dst,
-                                              .first_mip_level = copy.dst_mip_level,
-                                              .num_mip_levels  = 1,
-                                              .aspect          = copy.dst_aspect,
-                                              .old_layout      = dst_state.layout,
-                                              .new_layout      = ImageLayout::TransferDstOptimal,
-                                              .src_stage_mask  = dst_state.stage,
-                                              .dst_stage_mask  = PipelineStages::Transfer,
-                                              .src_access_mask = dst_state.access_mask,
-                                              .dst_access_mask = Access::TransferWrite};
-
-          queue_barriers.push_inplace(src_barrier).unwrap();
-          queue_barriers.push_inplace(dst_barrier).unwrap();
-
-          src_state.access_mask = Access::TransferRead;
-          dst_state.access_mask = Access::TransferWrite;
-          src_state.stage       = PipelineStages::Transfer;
-          dst_state.stage       = PipelineStages::Transfer;
-          src_state.layout      = ImageLayout::TransferSrcOptimal;
-          dst_state.layout      = ImageLayout::TransferDstOptimal;
-        }
-
-        cmd_barriers.push(cmd.copy_image.copies.size() * 2).unwrap();
+        inserter.insert(QueueImageMemoryBarrier{
+            .image           = image,
+            .first_mip_level = 0,
+            .num_mip_levels  = REMAINING_MIP_LEVELS,
+            .aspects         = desc.aspects,
+            .old_layout      = state.layout,
+            .new_layout      = ImageLayout::ShaderReadOnlyOptimal,
+            .src_stage_mask  = state.stages,
+            .dst_stage_mask  = pipeline_stages,
+            .src_access_mask = state.access_mask,
+            .dst_access_mask = Access::ShaderSampledRead});
       }
       break;
 
-      case CmdType::CopyBufferToImage:
+      case DescriptorType::Sampler:
       {
-        // get latest expected state
-        // convert to transfer dst layout and transfer write access with transfer stage
-        // leave as-is. the next usage should conver it back to how it is needed if necessary
-        BufferState &src_state = graph.get_state(cmd.copy_buffer_to_image.src);
-        ImageState  &dst_state = graph.get_state(cmd.copy_buffer_to_image.dst);
-
-        for (BufferImageCopy const &copy : cmd.copy_buffer_to_image.copies)
-        {
-          QueueBufferMemoryBarrier src_barrier{.buffer          = cmd.copy_buffer_to_image.src,
-                                               .offset          = copy.buffer_offset,
-                                               .size            = ((u32) copy.buffer_row_length) * copy.buffer_image_height,
-                                               .src_stage_mask  = src_state.stage,
-                                               .dst_stage_mask  = PipelineStages::Transfer,
-                                               .src_access_mask = src_state.access_mask,
-                                               .dst_access_mask = Access::TransferRead};
-          QueueImageMemoryBarrier  dst_barrier{.image           = cmd.copy_buffer_to_image.dst,
-                                               .first_mip_level = copy.image_mip_level,
-                                               .num_mip_levels  = 1,
-                                               .aspect          = copy.image_aspect,
-                                               .old_layout      = dst_state.layout,
-                                               .new_layout      = ImageLayout::TransferDstOptimal,
-                                               .src_stage_mask  = dst_state.stage,
-                                               .dst_stage_mask  = PipelineStages::Transfer,
-                                               .src_access_mask = dst_state.access_mask,
-                                               .dst_access_mask = Access::TransferWrite};
-
-          queue_barriers.push_inplace(src_barrier).unwrap();
-          queue_barriers.push_inplace(dst_barrier).unwrap();
-
-          src_state.access_mask = Access::TransferRead;
-          dst_state.access_mask = Access::TransferWrite;
-          src_state.stage       = PipelineStages::Transfer;
-          dst_state.stage       = PipelineStages::Transfer;
-          dst_state.layout      = ImageLayout::TransferDstOptimal;
-        }
-
-        cmd_barriers.push(cmd.copy_buffer_to_image.copies.size() * 2).unwrap();
-      }
-
-      break;
-
-      case CmdType::BlitImage:
-      {
-        // check RID
-        // check current layout and usage, and all accessors
-        // check all memory aliasing
-        // convert layout to transfer dst and write access with whatever access type is needed for blitting
-        // update barrier tracker
-        // on next usage in command buffer, get the last usage and update accordingly
-        ImageState &src_state = graph.get_state(cmd.blit_image.src);
-        ImageState &dst_state = graph.get_state(cmd.blit_image.dst);
-
-        for (ImageBlit const &blit : cmd.blit_image.blits)
-        {
-          QueueImageMemoryBarrier src_barrier{.image           = cmd.blit_image.src,
-                                              .first_mip_level = blit.src_mip_level,
-                                              .num_mip_levels  = 1,
-                                              .aspect          = blit.src_aspect,
-                                              .old_layout      = src_state.layout,
-                                              .new_layout      = ImageLayout::TransferSrcOptimal,
-                                              .src_stage_mask  = src_state.stage,
-                                              .dst_stage_mask  = PipelineStages::Transfer,
-                                              .src_access_mask = src_state.access_mask,
-                                              .dst_access_mask = Access::TransferRead};
-          QueueImageMemoryBarrier dst_barrier{.image           = cmd.blit_image.dst,
-                                              .first_mip_level = blit.dst_mip_level,
-                                              .num_mip_levels  = 1,
-                                              .aspect          = blit.dst_aspect,
-                                              .old_layout      = dst_state.layout,
-                                              .new_layout      = ImageLayout::TransferDstOptimal,
-                                              .src_stage_mask  = dst_state.stage,
-                                              .dst_stage_mask  = PipelineStages::Transfer,
-                                              .src_access_mask = dst_state.access_mask,
-                                              .dst_access_mask = Access::TransferWrite};
-
-          queue_barriers.push_inplace(src_barrier).unwrap();
-          queue_barriers.push_inplace(dst_barrier).unwrap();
-
-          src_state.access_mask = Access::TransferRead;
-          dst_state.access_mask = Access::TransferWrite;
-          src_state.stage       = PipelineStages::Transfer;
-          dst_state.stage       = PipelineStages::Transfer;
-          src_state.layout      = ImageLayout::TransferSrcOptimal;
-          dst_state.layout      = ImageLayout::TransferDstOptimal;
-        }
-
-        cmd_barriers.push(cmd.blit_image.blits.size() * 2).unwrap();
       }
       break;
 
-        // case CmdType::DispatchTask:
-        // {
-        //   for (ResourceBinding const &binding : cmd.dispatch_task.bindings)
-        //   {
-        //     switch (binding.type)
-        //     {
-        //       case ResourceBindingType::BufferBinding:
-        //       {
-        //         BufferState             &state = graph.get_state(binding.buffer.buffer);
-        //         QueueBufferMemoryBarrier barrier{.buffer          = binding.buffer.buffer,
-        //                                          .offset          = 0,
-        //                                          .size            = stx::U64_MAX,
-        //                                          .src_stage_mask  = state.stage,
-        //                                          .dst_stage_mask  = binding.buffer.stages,
-        //                                          .src_access_mask = state.access_mask,
-        //                                          .dst_access_mask = binding.buffer.access};
-
-        //         queue_barriers.push_inplace(barrier).unwrap();
-        //         state.access_mask = binding.buffer.access;
-        //         state.stage       = binding.buffer.stages;
-        //       }
-        //       break;
-        //       case ResourceBindingType::ImageViewBinding:
-        //       {
-        //         ImageViewDesc           sub_desc   = graph.get_desc(binding.image_view.image_view);
-        //         ImageState             &state      = graph.get_state(sub_desc.image);
-        //         bool                    is_storage = (binding.image_view.access & (Access::ShaderStorageWrite | Access::ShaderWrite | Access::ShaderSampledWrite)) != Access::None;
-        //         QueueImageMemoryBarrier barrier{.image           = sub_desc.image,
-        //                                         .first_mip_level = sub_desc.first_mip_level,
-        //                                         .num_mip_levels  = sub_desc.num_mip_levels,
-        //                                         .aspect          = sub_desc.aspect,
-        //                                         .old_layout      = state.layout,
-        //                                         .new_layout      = is_storage ? ImageLayout::General : ImageLayout::ShaderReadOnlyOptimal,
-        //                                         .src_stage_mask  = state.stage,
-        //                                         .dst_stage_mask  = binding.image_view.stages,
-        //                                         .src_access_mask = state.access_mask,
-        //                                         .dst_access_mask = binding.image_view.access};
-
-        //         queue_barriers.push_inplace(barrier).unwrap();
-        //         state.access_mask = binding.image_view.access;
-        //         state.stage       = binding.image_view.stages;
-        //       }
-        //       break;
-
-        //       default:
-        //         break;
-        //     }
-        //   }
-
-        //   cmd_barriers.push(cmd.dispatch_task.bindings.size()).unwrap();        // TODO(lamarrr)
-        // }
-        // break;
-
-        // TODO(lamarrr): in-between barriers access??? i.e. in shader?
-      case CmdType::BeginRenderPass:
+      case DescriptorType::StorageBuffer:
       {
-        FramebufferDesc framebuffer_desc = graph.get_desc(cmd.begin_render_pass.framebuffer);
-        for (ImageView attachment : framebuffer_desc.color_attachments)
-        {
-          ImageState &state = graph.get_state(graph.get_desc(attachment).image);                 // TODO(lamarrr): color attachment may not be written to depending on the renderpass ops
-          state.access_mask = Access::ColorAttachmentRead | Access::ColorAttachmentWrite;        // LoadOp and StoreOp
-          state.stage       = PipelineStages::ColorAttachmentOutput | PipelineStages::EarlyFragmentTests;
-          state.layout      = ImageLayout::ColorAttachmentOptimal;
-        }
+        BufferState &state = graph.get_state(binding.storage_buffer.buffer);
 
-        for (ImageView attachment : framebuffer_desc.depth_stencil_attachments)
-        {
-          ImageState &state = graph.get_state(graph.get_desc(attachment).image);
-          state.access_mask = Access::DepthStencilAttachmentRead | Access::DepthStencilAttachmentWrite;
-          state.stage       = PipelineStages::ColorAttachmentOutput | PipelineStages::EarlyFragmentTests;
-          state.layout      = ImageLayout::DepthStencilAttachmentOptimal;
-        }
+        inserter.insert(QueueBufferMemoryBarrier{
+            .buffer          = binding.storage_buffer.buffer,
+            .offset          = 0,
+            .size            = WHOLE_SIZE,
+            .src_stage_mask  = state.stages,
+            .dst_stage_mask  = pipeline_stages,
+            .src_access_mask = state.access_mask,
+            .dst_access_mask = Access::ShaderStorageWrite});
       }
       break;
 
-      case CmdType::EndRenderPass:
+      case DescriptorType::StorageImage:
       {
-        // TODO(lamarrr): post-renderpass state transitions
-        // TODO(lamarrr): DontCare generates write access to the attachment in renderpasses
+        Image            image = graph.get_desc(binding.storage_image.image_view).image;
+        ImageDesc const &desc  = graph.get_desc(image);
+        ImageState      &state = graph.get_state(image);
+
+        inserter.insert(QueueImageMemoryBarrier{
+            .image           = image,
+            .first_mip_level = 0,
+            .num_mip_levels  = REMAINING_MIP_LEVELS,
+            .aspects         = desc.aspects,
+            .old_layout      = state.layout,
+            .new_layout      = ImageLayout::General,
+            .src_stage_mask  = state.stages,
+            .dst_stage_mask  = pipeline_stages,
+            .src_access_mask = state.access_mask,
+            .dst_access_mask = Access::ShaderStorageWrite});
+      }
+      break;
+
+      case DescriptorType::StorageTexelBuffer:
+      {
+        BufferViewDesc const &subdesc = graph.get_desc(binding.storage_texel_buffer.buffer_view);
+        BufferDesc const     &desc    = graph.get_desc(subdesc.buffer);
+        BufferState          &state   = graph.get_state(subdesc.buffer);
+
+        inserter.insert(QueueBufferMemoryBarrier{
+            .buffer          = subdesc.buffer,
+            .offset          = 0,
+            .size            = WHOLE_SIZE,
+            .src_stage_mask  = state.stages,
+            .dst_stage_mask  = pipeline_stages,
+            .src_access_mask = state.access_mask,
+            .dst_access_mask = Access::ShaderStorageWrite});
+      }
+      break;
+
+      case DescriptorType::UniformBuffer:
+      {
+        BufferDesc const &desc  = graph.get_desc(binding.uniform_buffer.buffer);
+        BufferState      &state = graph.get_state(binding.uniform_buffer.buffer);
+
+        inserter.insert(QueueBufferMemoryBarrier{
+            .buffer          = binding.uniform_buffer.buffer,
+            .offset          = 0,
+            .size            = WHOLE_SIZE,
+            .src_stage_mask  = state.stages,
+            .dst_stage_mask  = pipeline_stages,
+            .src_access_mask = state.access_mask,
+            .dst_access_mask = Access::UniformRead});
+      }
+      break;
+
+      case DescriptorType::UniformTexelBuffer:
+      {
+        BufferViewDesc const &subdesc = graph.get_desc(binding.uniform_texel_buffer.buffer_view);
+        BufferDesc const     &desc    = graph.get_desc(subdesc.buffer);
+        BufferState          &state   = graph.get_state(subdesc.buffer);
+
+        inserter.insert(QueueBufferMemoryBarrier{
+            .buffer          = binding.uniform_buffer.buffer,
+            .offset          = 0,
+            .size            = WHOLE_SIZE,
+            .src_stage_mask  = state.stages,
+            .dst_stage_mask  = pipeline_stages,
+            .src_access_mask = state.access_mask,
+            .dst_access_mask = Access::UniformRead});
       }
       break;
 
@@ -695,6 +753,18 @@ void generate_barriers(Graph &graph, stx::Span<Cmd const> cmds, stx::Vec<QueueBa
     }
   }
 }
+
+void CmdBarrierGenerator::compute(Graph &graph, BarrierInserter &inserter, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z)
+{}
+
+void CmdBarrierGenerator::compute_indirect(Graph &graph, BarrierInserter &inserter, Buffer buffer, u64 offset)
+{}
+
+void CmdBarrierGenerator::draw_indexed(Graph &graph, BarrierInserter &inserter, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)
+{}
+
+void CmdBarrierGenerator::draw_indexed_indirect(Graph &graph, BarrierInserter &inserter, Buffer buffer, u64 offset, u32 draw_count, u32 stride)
+{}
 
 }        // namespace lgfx
 }        // namespace ash

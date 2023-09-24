@@ -1152,6 +1152,31 @@ struct Extent
   }
 };
 
+struct Extent3D
+{
+  u32 width = 0, height = 0, depth = 0;
+
+  constexpr bool is_visible() const
+  {
+    return width != 0 && height != 0 && depth != 0;
+  }
+
+  constexpr u64 area() const
+  {
+    return AS(u64, width) * AS(u64, height) * depth;
+  }
+
+  constexpr u32 max_mip_levels() const
+  {
+    return log2_floor_u32(std::min(std::min(width, height), depth)) + 1;
+  }
+
+  constexpr Extent3D at_mip_level(u32 mip_level) const
+  {
+    return Extent3D{.width = width >> mip_level, .height = height >> mip_level, .depth = depth >> mip_level};
+  }
+};
+
 constexpr bool operator==(Extent a, Extent b)
 {
   return a.width == b.width && a.height == b.height;
@@ -1190,6 +1215,34 @@ struct URect
   constexpr Offset max() const
   {
     return offset + extent;
+  }
+
+  constexpr bool contains(URect const &other) const
+  {
+    return (offset.x <= other.offset.x) &&
+           ((offset.x + extent.width) >= (other.offset.x + other.extent.width)) &&
+           (offset.y <= other.offset.y) &&
+           ((offset.y + extent.height) >= (other.offset.y + other.extent.height));
+  }
+
+  constexpr URect with_offset(Offset new_offset) const
+  {
+    return URect{.offset = new_offset, .extent = extent};
+  }
+
+  constexpr URect with_offset(u32 x, u32 y) const
+  {
+    return URect{.offset = Offset{x, y}, .extent = extent};
+  }
+
+  constexpr URect with_extent(Extent new_extent) const
+  {
+    return URect{.offset = offset, .extent = new_extent};
+  }
+
+  constexpr URect with_extent(u32 w, u32 h) const
+  {
+    return URect{.offset = offset, .extent = Extent{w, h}};
   }
 };
 
@@ -1607,6 +1660,11 @@ struct LinearColorGradient
     f32 const t = p.x * std::cos(ASH_TO_RADIANS(angle)) + p.y * std::sin(ASH_TO_RADIANS(angle));
     return lerp(begin, end, t);
   }
+};
+
+struct Version
+{
+  u8 major = 0, minor = 0, patch = 0;
 };
 
 }        // namespace ash
