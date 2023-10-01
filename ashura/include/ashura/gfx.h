@@ -14,7 +14,7 @@ namespace gfx
 constexpr u32 REMAINING_MIP_LEVELS        = ~0U;
 constexpr u32 REMAINING_ARRAY_LAYERS      = ~0U;
 constexpr u64 WHOLE_SIZE                  = ~0ULL;
-constexpr u8  MAX_DESCRIPTOR_SETS         = 8;        // TODO(lamarrr): we have to check these against usages and device info
+constexpr u8  MAX_BOUND_DESCRIPTOR_SETS   = 8;        // TODO(lamarrr): we have to check these against usages and device info
 constexpr u8  MAX_DESCRIPTOR_SET_BINDINGS = 8;
 constexpr u8  MAX_ATTACHMENTS             = 8;
 constexpr u8  MAX_VERTEX_ATTRIBUTES       = 16;
@@ -800,6 +800,8 @@ enum class DescriptorType : u32
   StorageTexelBuffer   = 5,
   UniformBuffer        = 6,
   StorageBuffer        = 7,
+  DynamicUniformBuffer = 8,
+  DynamicStorageBuffer = 9,
   InputAttachment      = 10
 };
 
@@ -987,87 +989,43 @@ struct UniformTexelBufferBinding
 
 struct StorageTexelBufferBinding
 {
-  u32        binding     = 0;
   BufferView buffer_view = BufferView::None;
 };
 
 struct UniformBufferBinding
 {
-  u32    binding = 0;
-  Buffer buffer  = Buffer::None;
-  u64    offset  = 0;
-  u64    size    = 0;
+  Buffer buffer = Buffer::None;
+  u64    offset = 0;
+  u64    size   = 0;
 };
 
 struct StorageBufferBinding
 {
-  u32    binding = 0;
-  Buffer buffer  = Buffer::None;
-  u64    offset  = 0;
-  u64    size    = 0;
+  Buffer buffer = Buffer::None;
+  u64    offset = 0;
+  u64    size   = 0;
 };
 
-// used for frame-buffer-local read-operations, i.e. depth-stencil
+struct DynamicUniformBufferBinding
+{
+  Buffer buffer = Buffer::None;
+  u64    offset = 0;
+  u64    size   = 0;
+};
+
+struct DynamicStorageBufferBinding
+{
+  Buffer buffer = Buffer::None;
+  u64    offset = 0;
+  u64    size   = 0;
+};
+
+/// used for frame-buffer-local read-operations, i.e. depth-stencil
 struct InputAttachmentBinding
 {
-  u32       binding    = 0;
   ImageView image_view = ImageView::None;
-};
-
-struct BindGroupEntry
-{
-  u32            binding = 0;
-  DescriptorType type    = DescriptorType::Sampler;
-  u32            count   = 0;
-  ShaderStages   stages  = ShaderStages::None;
-};
-
-struct DescriptorBinding
-{
-  constexpr DescriptorBinding() :
-      sampler{}, type{DescriptorType::Sampler}
-  {}
-  constexpr DescriptorBinding(SamplerBinding const &binding) :
-      sampler{binding}, type{DescriptorType::Sampler}
-  {}
-  constexpr DescriptorBinding(CombinedImageSamplerBinding const &binding) :
-      combined_image_sampler{binding}, type{DescriptorType::CombinedImageSampler}
-  {}
-  constexpr DescriptorBinding(SampledImageBinding const &binding) :
-      sampled_image{binding}, type{DescriptorType::SampledImage}
-  {}
-  constexpr DescriptorBinding(StorageImageBinding const &binding) :
-      storage_image{binding}, type{DescriptorType::StorageImage}
-  {}
-  constexpr DescriptorBinding(UniformTexelBufferBinding const &binding) :
-      uniform_texel_buffer{binding}, type{DescriptorType::UniformTexelBuffer}
-  {}
-  constexpr DescriptorBinding(StorageTexelBufferBinding const &binding) :
-      storage_texel_buffer{binding}, type{DescriptorType::StorageTexelBuffer}
-  {}
-  constexpr DescriptorBinding(UniformBufferBinding const &binding) :
-      uniform_buffer{binding}, type{DescriptorType::UniformBuffer}
-  {}
-  constexpr DescriptorBinding(StorageBufferBinding const &binding) :
-      storage_buffer{binding}, type{DescriptorType::StorageBuffer}
-  {}
-  constexpr DescriptorBinding(InputAttachmentBinding const &binding) :
-      input_attachment{binding}, type{DescriptorType::InputAttachment}
-  {}
-
-  union
-  {
-    SamplerBinding              sampler;
-    CombinedImageSamplerBinding combined_image_sampler;
-    SampledImageBinding         sampled_image;
-    StorageImageBinding         storage_image;
-    UniformTexelBufferBinding   uniform_texel_buffer;
-    StorageTexelBufferBinding   storage_texel_buffer;
-    UniformBufferBinding        uniform_buffer;
-    StorageBufferBinding        storage_buffer;
-    InputAttachmentBinding      input_attachment;
-  };
-  DescriptorType type;
+  u32       binding_id = 0;
+  u32       index      = 0;
 };
 
 struct DescriptorSetBindingDesc
@@ -1107,6 +1065,12 @@ struct DescriptorSetBinding
   constexpr DescriptorSetBinding(StorageBufferBinding const &binding) :
       storage_buffer{binding}, type{DescriptorType::StorageBuffer}
   {}
+  constexpr DescriptorSetBinding(DynamicUniformBufferBinding const &binding) :
+      dynamic_uniform_buffer{binding}, type{DescriptorType::DynamicUniformBuffer}
+  {}
+  constexpr DescriptorSetBinding(DynamicStorageBufferBinding const &binding) :
+      dynamic_storage_buffer{binding}, type{DescriptorType::DynamicStorageBuffer}
+  {}
   constexpr DescriptorSetBinding(InputAttachmentBinding const &binding) :
       input_attachment{binding}, type{DescriptorType::InputAttachment}
   {}
@@ -1121,18 +1085,38 @@ struct DescriptorSetBinding
     StorageTexelBufferBinding   storage_texel_buffer;
     UniformBufferBinding        uniform_buffer;
     StorageBufferBinding        storage_buffer;
+    DynamicUniformBufferBinding dynamic_uniform_buffer;
+    DynamicStorageBufferBinding dynamic_storage_buffer;
     InputAttachmentBinding      input_attachment;
   };
   DescriptorType type;
 };
 
-// need to be able to check against number of bindings and types
-struct DescriptorSetLayoutDesc
+// which set, which binding
+struct DescriptorSetWrite
 {
-  DescriptorSetBindingDesc bindings[8] = {};
+  DescriptorSet        set                   = DescriptorSet::None;
+  DescriptorSetBinding binding               = DescriptorSetBinding{};
+  u32                  binding_id            = 0;
+  u32                  first_array_index     = 0;
+  u32                  num_descriptor_writes = 0;
 };
 
+struct DescriptorSetCopy
+{
+  DescriptorSet src                   = DescriptorSet::None;
+  u32           src_binding_id        = 0;
+  u32           src_array_index       = 0;
+  DescriptorSet dst                   = DescriptorSet::None;
+  u32           dst_binding_id        = 0;
+  u32           dst_array_index       = 0;
+  u32           num_descriptor_copies = 0;
+};
 
+DescriptorSetLayout create_descriptor_set_layout(stx::Span<DescriptorSetBindingDesc const>);
+DescriptorSet       create_descriptor_set(DescriptorSetLayout layout);
+void                update_descriptor_sets(stx::Span<DescriptorSetWrite const> writes, stx::Span<DescriptorSetCopy const> copies);        // bindings need to be saved
+void                bind_descriptor_sets(u32 first_set_id, stx::Span<DescriptorSet const> descriptor_sets, stx::Span<u64 const> offsets);
 
 struct SpecializationConstant
 {
