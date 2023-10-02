@@ -8,6 +8,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 struct ProgressBarProps
 {
@@ -70,4 +72,5 @@ struct ProgressBar : public Widget
   Animation        animation;
 };
 
+}        // namespace gui
 }        // namespace ash

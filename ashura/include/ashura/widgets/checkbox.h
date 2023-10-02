@@ -6,6 +6,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 struct CheckBoxProps
 {
@@ -79,4 +81,5 @@ struct CheckBox : public Widget
   CheckBoxProps props;
 };
 
+}        // namespace gui
 }        // namespace ash

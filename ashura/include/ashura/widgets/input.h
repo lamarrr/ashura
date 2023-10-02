@@ -4,6 +4,8 @@
 
 namespace ash
 {
+namespace gui
+{
 // TODO:
 // tooltip
 // repeat click hold down
@@ -272,4 +274,5 @@ struct TextInput
   // on updating/ on typing with timeout
 };
 
+}        // namespace gui
 }        // namespace ash

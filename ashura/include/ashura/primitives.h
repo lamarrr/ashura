@@ -516,6 +516,43 @@ constexpr f32 dot(Vec3 a, Vec3 b)
   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
+struct Box
+{
+  Vec3 offset, extent;
+
+  constexpr f32 volume() const
+  {
+    return extent.x * extent.y * extent.z;
+  }
+
+  constexpr Vec3 min() const
+  {
+    return offset;
+  }
+
+  constexpr Vec3 max() const
+  {
+    return offset + extent;
+  }
+
+  constexpr bool contains(Vec3 point) const
+  {
+    // TODO(lamarrr): fix
+    // return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
+    return true;
+  }
+
+  constexpr bool overlaps(Box other) const
+  {
+    // auto [x0_min, x0_max, y0_min, y0_max] = bounds();
+    // auto [x1_min, x1_max, y1_min, y1_max] = other.bounds();
+
+    // return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min && y1_min < y0_max;
+    return true;
+    // TODO(lamarrr): fix
+  }
+};
+
 /// column vector
 struct Vec4
 {
@@ -1152,6 +1189,11 @@ struct Extent
   }
 };
 
+struct Offset3D
+{
+  u32 x = 0, y = 0, z = 0;
+};
+
 struct Extent3D
 {
   u32 width = 0, height = 0, depth = 0;
@@ -1244,6 +1286,12 @@ struct URect
   {
     return URect{.offset = offset, .extent = Extent{w, h}};
   }
+};
+
+struct URect3D
+{
+  Offset3D offset;
+  Extent3D extent;
 };
 
 struct IRect

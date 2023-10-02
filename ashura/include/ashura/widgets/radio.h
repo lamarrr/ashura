@@ -10,6 +10,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 template <typename RadioValue>
 struct RadioCtx
@@ -76,7 +78,6 @@ struct Radio : public Widget
                               })
              .is_empty())
     {
-      
       // TODO(lamarrr): key debouncing
       fmt::println("esc down!");
     }
@@ -90,7 +91,7 @@ struct Radio : public Widget
       fmt::println("esc up!");
     }
 
-        if (!ctx.key_events.span().which([](KeyEvent e) {
+    if (!ctx.key_events.span().which([](KeyEvent e) {
                                 return e.action == KeyAction::Press && e.key == m_Key;
                               })
              .is_empty())
@@ -107,7 +108,7 @@ struct Radio : public Widget
       // TODO(lamarrr): key debouncing
       fmt::println("m up!");
     }
-    
+
     if (*radio_ctx.data == value && !is_active)
     {
       on_changed.handle(*this, ctx, *radio_ctx.data);
@@ -169,4 +170,5 @@ struct Radio : public Widget
   Animation            animation;
 };
 
+}        // namespace gui
 }        // namespace ash

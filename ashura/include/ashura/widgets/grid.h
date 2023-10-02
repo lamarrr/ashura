@@ -6,6 +6,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 struct GridItem
 {
@@ -186,4 +188,5 @@ struct Grid : public Widget
   stx::Vec<Vec2>     column_widths;
 };
 
+}        // namespace gui
 }        // namespace ash

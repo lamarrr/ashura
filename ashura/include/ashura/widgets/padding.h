@@ -5,7 +5,8 @@
 
 namespace ash
 {
-
+namespace gui
+{
 struct Padding : public Widget
 {
   template <Impl<Widget> DerivedWidget>
@@ -64,4 +65,5 @@ struct Padding : public Widget
   stx::Vec<Widget *> children;
 };
 
+}        // namespace gui
 }        // namespace ash

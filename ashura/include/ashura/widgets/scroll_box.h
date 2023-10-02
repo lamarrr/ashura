@@ -7,6 +7,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 struct ScrollBoxProps
 {
@@ -286,4 +288,5 @@ struct ScrollBox : public Widget
   stx::Rc<ScrollCtx *> scroll_ctx;
 };
 
-};        // namespace ash
+};        // namespace gui
+}        // namespace ash

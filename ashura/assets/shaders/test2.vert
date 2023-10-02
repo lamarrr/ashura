@@ -10,7 +10,7 @@ layout(set = 0, binding = 0) uniform Buf {
     vec3 normal;
 } c;
 
-layout(set=0, binding = 1) uniform Bufx {
+layout(set = 0, binding = 1) uniform Bufx {
     mat3 transform;
     vec2 uv;
     vec3 normal;
@@ -27,6 +27,7 @@ layout(set = 7, binding = 9) uniform textureBuffer rtextureBuffer;
 layout(set = 7, binding = 9) uniform sampler2D rtextureBuffer2;
 layout(set = 7, binding = 9, rgba8ui) uniform writeonly uimage2D rtextureBuffer3;
 layout(set = 7, binding = 9, rgba8ui) uniform readonly uimageBuffer rtextureBuffer4;
+layout(set = 8, binding = 10) uniform sampler2DArray rSampler2DArray;
 
 // layout(location = 0) out vec2 out_uv;
 // layout(location = 1) out vec4 out_color;

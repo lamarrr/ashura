@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cinttypes>
 
 #include "ashura/primitives.h"
@@ -11,14 +12,14 @@ namespace ash
 namespace gfx
 {
 
-constexpr u32 REMAINING_MIP_LEVELS        = ~0U;
-constexpr u32 REMAINING_ARRAY_LAYERS      = ~0U;
-constexpr u64 WHOLE_SIZE                  = ~0ULL;
-constexpr u8  MAX_BOUND_DESCRIPTOR_SETS   = 8;        // TODO(lamarrr): we have to check these against usages and device info
-constexpr u8  MAX_DESCRIPTOR_SET_BINDINGS = 8;
-constexpr u8  MAX_ATTACHMENTS             = 8;
-constexpr u8  MAX_VERTEX_ATTRIBUTES       = 16;
-constexpr u8  MAX_PUSH_CONSTANT_SIZE      = 128;
+constexpr u32 REMAINING_MIP_LEVELS         = ~0U;
+constexpr u32 REMAINING_ARRAY_LAYERS       = ~0U;
+constexpr u64 WHOLE_SIZE                   = ~0ULL;
+constexpr u8  MAX_PIPELINE_DESCRIPTOR_SETS = 16;        // TODO(lamarrr): we have to check these against usages and device info
+constexpr u8  MAX_DESCRIPTOR_SET_BINDINGS  = 16;
+constexpr u8  MAX_COLOR_ATTACHMENTS        = 8;
+constexpr u8  MAX_VERTEX_ATTRIBUTES        = 16;
+constexpr u8  MAX_PUSH_CONSTANT_SIZE       = 128;
 
 enum class Buffer : uintptr_t
 {
@@ -63,11 +64,6 @@ enum class Framebuffer : uintptr_t
 };
 
 enum class DescriptorSetLayout : uintptr_t
-{
-  None = 0
-};
-
-enum class DescriptorSet : uintptr_t
 {
   None = 0
 };
@@ -587,30 +583,31 @@ enum class ColorComponents : u8
 
 STX_DEFINE_ENUM_BIT_OPS(ColorComponents)
 
-enum class PipelineStages : u64
+enum class PipelineStages : u32
 {
-  None                         = 0x00000000ULL,
-  TopOfPipe                    = 0x00000001ULL,
-  DrawIndirect                 = 0x00000002ULL,
-  VertexShader                 = 0x00000008ULL,
+  None                         = 0x00000000,
+  TopOfPipe                    = 0x00000001,
+  DrawIndirect                 = 0x00000002,
+  VertexInput                  = 0x00000004,
+  VertexShader                 = 0x00000008,
   TessellationControlShader    = 0x00000010,
   TessellationEvaluationShader = 0x00000020,
   GeometryShader               = 0x00000040,
-  FragmentShader               = 0x00000080ULL,
-  EarlyFragmentTests           = 0x00000100ULL,
-  LateFragmentTests            = 0x00000200ULL,
-  ColorAttachmentOutput        = 0x00000400ULL,
-  ComputeShader                = 0x00000800ULL,
-  Transfer                     = 0x00001000ULL,
-  BottomOfPipe                 = 0x00002000ULL,
-  Host                         = 0x00004000ULL,
-  AllGraphics                  = 0x00008000ULL,
-  AllCommands                  = 0x00010000ULL
+  FragmentShader               = 0x00000080,
+  EarlyFragmentTests           = 0x00000100,
+  LateFragmentTests            = 0x00000200,
+  ColorAttachmentOutput        = 0x00000400,
+  ComputeShader                = 0x00000800,
+  Transfer                     = 0x00001000,
+  BottomOfPipe                 = 0x00002000,
+  Host                         = 0x00004000,
+  AllGraphics                  = 0x00008000,
+  AllCommands                  = 0x00010000
 };
 
 STX_DEFINE_ENUM_BIT_OPS(PipelineStages)
 
-enum class BufferUsages : u32
+enum class BufferUsages : u8
 {
   None                      = 0x00000000,
   TransferSrc               = 0x00000001,
@@ -625,7 +622,7 @@ enum class BufferUsages : u32
 
 STX_DEFINE_ENUM_BIT_OPS(BufferUsages)
 
-enum class ImageUsages : u32
+enum class ImageUsages : u8
 {
   None                   = 0x00000000,
   TransferSrc            = 0x00000001,
@@ -790,7 +787,7 @@ enum class ImageViewType : u8
   Type3D = 2
 };
 
-enum class DescriptorType : u32
+enum class DescriptorType : u8
 {
   Sampler              = 0,
   CombinedImageSampler = 1,
@@ -807,10 +804,10 @@ enum class DescriptorType : u32
 
 enum class AccessSequence : u8
 {
-  None,
-  NoneAfterRead,
-  NoneAfterWrite,
-  ReadAfterWrite
+  None           = 0,
+  NoneAfterRead  = 1,
+  NoneAfterWrite = 2,
+  ReadAfterWrite = 3
 };
 
 enum class PipelineBindPoint : u32
@@ -928,107 +925,42 @@ struct SamplerDesc
   bool               unnormalized_coordinates = false;
 };
 
-enum class AttachmentUsage : u8
-{
-  None         = 0,
-  Input        = 1,
-  Color        = 2,
-  DepthStencil = 3
-};
-
-// TODO(lamarrr): we should find a way to always transition the image layout to color depth stencil or what not
-// it should not do any layout transitions?
 struct RenderPassAttachment
 {
-  AttachmentUsage usage            = AttachmentUsage::None;
-  Format          format           = Format::Undefined;
-  LoadOp          load_op          = LoadOp::Load;        // how to use color and depth components
-  StoreOp         store_op         = StoreOp::Store;
-  LoadOp          stencil_load_op  = LoadOp::Load;        // how to use stencil components
-  StoreOp         stencil_store_op = StoreOp::Store;
+  Format  format           = Format::Undefined;
+  LoadOp  load_op          = LoadOp::Load;        // how to use color and depth components
+  StoreOp store_op         = StoreOp::Store;
+  LoadOp  stencil_load_op  = LoadOp::Load;        // how to use stencil components
+  StoreOp stencil_store_op = StoreOp::Store;
+
+  ImageAccess get_color_image_access() const;
+  ImageAccess get_depth_stencil_image_access() const;
 };
 
 struct RenderPassDesc
 {
-  RenderPassAttachment attachments[MAX_ATTACHMENTS] = {};
+  RenderPassAttachment color_attachments[MAX_COLOR_ATTACHMENTS] = {};
+  u32                  num_color_attachments                    = 0;
+  RenderPassAttachment input_attachments[MAX_COLOR_ATTACHMENTS] = {};
+  u32                  num_input_attachments                    = 0;
+  RenderPassAttachment depth_stencil_attachments[1]             = {};
+  u32                  num_depth_stencil_attachments            = 0;
 };
 
 struct FramebufferDesc
 {
-  RenderPass renderpass                   = RenderPass::None;
-  Extent     extent                       = {};
-  u32        layers                       = 0;
-  ImageView  attachments[MAX_ATTACHMENTS] = {};
+  RenderPass renderpass                               = RenderPass::None;
+  Extent     extent                                   = {};
+  u32        layers                                   = 0;
+  ImageView  color_attachments[MAX_COLOR_ATTACHMENTS] = {};
+  u32        num_color_attachments                    = 0;
+  ImageView  input_attachments[MAX_COLOR_ATTACHMENTS] = {};
+  u32        num_input_attachments                    = 0;
+  ImageView  depth_stencil_attachments[1]             = {};
+  u32        num_depth_stencil_attachments            = 0;
 };
 
-struct SamplerBinding
-{
-  Sampler sampler = Sampler::None;
-};
-
-struct CombinedImageSamplerBinding
-{
-  Sampler   sampler    = Sampler::None;
-  ImageView image_view = ImageView::None;
-};
-
-struct SampledImageBinding
-{
-  ImageView image_view = ImageView::None;
-};
-
-struct StorageImageBinding
-{
-  ImageView image_view = ImageView::None;
-};
-
-struct UniformTexelBufferBinding
-{
-  BufferView buffer_view = BufferView::None;
-};
-
-struct StorageTexelBufferBinding
-{
-  BufferView buffer_view = BufferView::None;
-};
-
-struct UniformBufferBinding
-{
-  Buffer buffer = Buffer::None;
-  u64    offset = 0;
-  u64    size   = 0;
-};
-
-struct StorageBufferBinding
-{
-  Buffer buffer = Buffer::None;
-  u64    offset = 0;
-  u64    size   = 0;
-};
-
-struct DynamicUniformBufferBinding
-{
-  Buffer buffer = Buffer::None;
-  u64    offset = 0;
-  u64    size   = 0;
-};
-
-struct DynamicStorageBufferBinding
-{
-  Buffer buffer = Buffer::None;
-  u64    offset = 0;
-  u64    size   = 0;
-};
-
-/// used for frame-buffer-local read-operations, i.e. depth-stencil
-struct InputAttachmentBinding
-{
-  ImageView image_view = ImageView::None;
-  u32       binding_id = 0;
-  u32       index      = 0;
-};
-
-struct DescriptorSetBindingDesc
+struct DescriptorBindingDesc
 {
   u32            binding = 0;
   DescriptorType type    = DescriptorType::Sampler;
@@ -1036,108 +968,122 @@ struct DescriptorSetBindingDesc
   ShaderStages   stages  = ShaderStages::None;
 };
 
-struct DescriptorSetBinding
+struct DescriptorSetDesc
 {
-  constexpr DescriptorSetBinding() :
-      sampler{}, type{DescriptorType::Sampler}
-  {}
-  constexpr DescriptorSetBinding(SamplerBinding const &binding) :
-      sampler{binding}, type{DescriptorType::Sampler}
-  {}
-  constexpr DescriptorSetBinding(CombinedImageSamplerBinding const &binding) :
-      combined_image_sampler{binding}, type{DescriptorType::CombinedImageSampler}
-  {}
-  constexpr DescriptorSetBinding(SampledImageBinding const &binding) :
-      sampled_image{binding}, type{DescriptorType::SampledImage}
-  {}
-  constexpr DescriptorSetBinding(StorageImageBinding const &binding) :
-      storage_image{binding}, type{DescriptorType::StorageImage}
-  {}
-  constexpr DescriptorSetBinding(UniformTexelBufferBinding const &binding) :
-      uniform_texel_buffer{binding}, type{DescriptorType::UniformTexelBuffer}
-  {}
-  constexpr DescriptorSetBinding(StorageTexelBufferBinding const &binding) :
-      storage_texel_buffer{binding}, type{DescriptorType::StorageTexelBuffer}
-  {}
-  constexpr DescriptorSetBinding(UniformBufferBinding const &binding) :
-      uniform_buffer{binding}, type{DescriptorType::UniformBuffer}
-  {}
-  constexpr DescriptorSetBinding(StorageBufferBinding const &binding) :
-      storage_buffer{binding}, type{DescriptorType::StorageBuffer}
-  {}
-  constexpr DescriptorSetBinding(DynamicUniformBufferBinding const &binding) :
-      dynamic_uniform_buffer{binding}, type{DescriptorType::DynamicUniformBuffer}
-  {}
-  constexpr DescriptorSetBinding(DynamicStorageBufferBinding const &binding) :
-      dynamic_storage_buffer{binding}, type{DescriptorType::DynamicStorageBuffer}
-  {}
-  constexpr DescriptorSetBinding(InputAttachmentBinding const &binding) :
-      input_attachment{binding}, type{DescriptorType::InputAttachment}
-  {}
-
-  union
-  {
-    SamplerBinding              sampler;
-    CombinedImageSamplerBinding combined_image_sampler;
-    SampledImageBinding         sampled_image;
-    StorageImageBinding         storage_image;
-    UniformTexelBufferBinding   uniform_texel_buffer;
-    StorageTexelBufferBinding   storage_texel_buffer;
-    UniformBufferBinding        uniform_buffer;
-    StorageBufferBinding        storage_buffer;
-    DynamicUniformBufferBinding dynamic_uniform_buffer;
-    DynamicStorageBufferBinding dynamic_storage_buffer;
-    InputAttachmentBinding      input_attachment;
-  };
-  DescriptorType type;
+  stx::Span<DescriptorBindingDesc const> bindings;
 };
 
-// which set, which binding
-struct DescriptorSetWrite
+struct SamplerBinding
 {
-  DescriptorSet        set                   = DescriptorSet::None;
-  DescriptorSetBinding binding               = DescriptorSetBinding{};
-  u32                  binding_id            = 0;
-  u32                  first_array_index     = 0;
-  u32                  num_descriptor_writes = 0;
+  u32     binding_id  = 0;
+  u32     array_index = 0;
+  u32     count       = 0;
+  Sampler sampler     = Sampler::None;
 };
 
-struct DescriptorSetCopy
+struct CombinedImageSamplerBinding
 {
-  DescriptorSet src                   = DescriptorSet::None;
-  u32           src_binding_id        = 0;
-  u32           src_array_index       = 0;
-  DescriptorSet dst                   = DescriptorSet::None;
-  u32           dst_binding_id        = 0;
-  u32           dst_array_index       = 0;
-  u32           num_descriptor_copies = 0;
+  u32       binding_id  = 0;
+  u32       array_index = 0;
+  u32       count       = 0;
+  Sampler   sampler     = Sampler::None;
+  ImageView image_view  = ImageView::None;
 };
 
-DescriptorSetLayout create_descriptor_set_layout(stx::Span<DescriptorSetBindingDesc const>);
-DescriptorSet       create_descriptor_set(DescriptorSetLayout layout);
-void                update_descriptor_sets(stx::Span<DescriptorSetWrite const> writes, stx::Span<DescriptorSetCopy const> copies);        // bindings need to be saved
-void                bind_descriptor_sets(u32 first_set_id, stx::Span<DescriptorSet const> descriptor_sets, stx::Span<u64 const> offsets);
+struct SampledImageBinding
+{
+  u32       binding_id  = 0;
+  u32       array_index = 0;
+  u32       count       = 0;
+  ImageView image_view  = ImageView::None;
+};
+
+struct StorageImageBinding
+{
+  u32       binding_id  = 0;
+  u32       array_index = 0;
+  u32       count       = 0;
+  ImageView image_view  = ImageView::None;
+};
+
+struct UniformTexelBufferBinding
+{
+  u32        binding_id  = 0;
+  u32        array_index = 0;
+  u32        count       = 0;
+  BufferView buffer_view = BufferView::None;
+};
+
+struct StorageTexelBufferBinding
+{
+  u32        binding_id  = 0;
+  u32        array_index = 0;
+  u32        count       = 0;
+  BufferView buffer_view = BufferView::None;
+};
+
+struct UniformBufferBinding
+{
+  u32    binding_id  = 0;
+  u32    array_index = 0;
+  u32    count       = 0;
+  Buffer buffer      = Buffer::None;
+  u64    offset      = 0;
+  u64    size        = 0;
+};
+
+struct StorageBufferBinding
+{
+  u32    binding_id  = 0;
+  u32    array_index = 0;
+  u32    count       = 0;
+  Buffer buffer      = Buffer::None;
+  u64    offset      = 0;
+  u64    size        = 0;
+};
+
+/// used for frame-buffer-local read-operations, i.e. depth-stencil
+struct InputAttachmentBinding
+{
+  u32       binding_id  = 0;
+  u32       array_index = 0;
+  u32       count       = 0;
+  ImageView image_view  = ImageView::None;
+};
+
+struct DescriptorSetBindings
+{
+  stx::Span<SamplerBinding const>              samplers                = {};
+  stx::Span<CombinedImageSamplerBinding const> combined_image_samplers = {};
+  stx::Span<SampledImageBinding const>         sampled_images          = {};
+  stx::Span<StorageImageBinding const>         storage_images          = {};
+  stx::Span<UniformTexelBufferBinding const>   uniform_texel_buffers   = {};
+  stx::Span<StorageTexelBufferBinding const>   storage_texel_buffers   = {};
+  stx::Span<UniformBufferBinding const>        uniform_buffers         = {};
+  stx::Span<StorageBufferBinding const>        storage_buffers         = {};
+  stx::Span<InputAttachmentBinding const>      input_attachments       = {};
+};
 
 struct SpecializationConstant
 {
-  u32   id     = 0;
-  u32   offset = 0;
-  usize size   = 0;
+  u32   constant_id = 0;
+  u32   offset      = 0;
+  usize size        = 0;
 };
 
 struct ShaderStageDesc
 {
-  ShaderStages                            stage                        = ShaderStages::None;
   Shader                                  shader                       = Shader::None;
-  char const                             *entry_point                  = "main";
+  char const                             *entry_point                  = nullptr;
   void const                             *specialization_constant_data = nullptr;
   stx::Span<SpecializationConstant const> specialization_constants     = {};
 };
 
 struct ComputePipelineDesc
 {
-  stx::Span<ShaderStageDesc const> stages            = {};
-  BindGroupLayout                  bind_group_layout = BindGroupLayout::None;
+  ShaderStageDesc     compute_shader                                       = {};
+  DescriptorSetLayout descriptor_set_layouts[MAX_PIPELINE_DESCRIPTOR_SETS] = {};
+  u32                 num_descriptor_sets                                  = 0;
 };
 
 // Specifies how the binded vertex buffers are iterated and the strides for them
@@ -1158,14 +1104,6 @@ struct VertexAttribute
   Format format   = Format::Undefined;        // data format
   u32    offset   = 0;                        // offset of attribute in binding
 };
-
-// DESCRIPTOR SET MANAGEMENT
-//
-// WE NEED TO:
-// - Automate synchronization. image, memory, barrier creation, cmdcopy, cmdblit, cmdtransfer
-//
-// This is the backend that we hand over commands to
-//
 
 struct PipelineDepthStencilState
 {
@@ -1208,19 +1146,21 @@ struct PipelineRasterizationState
 
 struct GraphicsPipelineDesc
 {
-  stx::Span<ShaderStageDesc const>  stages                                       = {};
-  RenderPass                        render_pass                                  = RenderPass::None;
-  VertexInputBinding                vertex_input_bindings[MAX_VERTEX_ATTRIBUTES] = {};
-  u8                                num_vertex_input_bindings                    = 0;
-  VertexAttribute                   vertex_attributes[MAX_VERTEX_ATTRIBUTES]     = {};
-  u8                                num_vertex_attributes                        = 0;
-  BindGroupLayout                   bind_group_layout                            = BindGroupLayout::None;
-  PrimitiveTopology                 primitive_topology                           = PrimitiveTopology::PointList;
-  PipelineRasterizationState        rasterization_state                          = {};
-  PipelineDepthStencilState         depth_stencil_state                          = {};
-  f32                               color_blend_constants[4]                     = {0, 0, 0, 0};
-  PipelineColorBlendAttachmentState color_blend_states[MAX_ATTACHMENTS]          = {};
-  u8                                num_color_attachments                        = 0;
+  ShaderStageDesc                   vertex_shader_stage                                  = {};
+  ShaderStageDesc                   fragment_shader_stage                                = {};
+  RenderPass                        render_pass                                          = RenderPass::None;
+  VertexInputBinding                vertex_input_bindings[MAX_VERTEX_ATTRIBUTES]         = {};
+  u32                               num_vertex_input_bindings                            = 0;
+  VertexAttribute                   vertex_attributes[MAX_VERTEX_ATTRIBUTES]             = {};
+  u32                               num_vertex_attributes                                = 0;
+  DescriptorSetLayout               descriptor_set_layouts[MAX_PIPELINE_DESCRIPTOR_SETS] = {};
+  u32                               num_descriptor_sets                                  = 0;
+  PrimitiveTopology                 primitive_topology                                   = PrimitiveTopology::PointList;
+  PipelineRasterizationState        rasterization_state                                  = {};
+  PipelineDepthStencilState         depth_stencil_state                                  = {};
+  f32                               color_blend_constants[4]                             = {0, 0, 0, 0};
+  PipelineColorBlendAttachmentState color_blend_states[MAX_COLOR_ATTACHMENTS]            = {};
+  u32                               num_color_attachments                                = 0;
 };
 
 struct BufferCopy
@@ -1287,6 +1227,15 @@ union ClearValue
 {
   Color        color = Color{};
   DepthStencil depth_stencil;
+};
+
+struct RenderPassBeginInfo
+{
+  Framebuffer                   framebuffer                            = Framebuffer::None;
+  RenderPass                    render_pass                            = RenderPass::None;
+  IRect                         render_area                            = {};
+  stx::Span<Color const>        color_attachments_clear_values         = {};
+  stx::Span<DepthStencil const> depth_stencil_attachments_clear_values = {};
 };
 
 struct QueueBufferMemoryBarrier
@@ -1382,32 +1331,22 @@ struct ShaderResource
 
 struct ComputePipelineResource
 {
-  ComputePipelineDesc desc;
-  ComputePipeline     handle = ComputePipeline::None;
+  ComputePipeline handle = ComputePipeline::None;
 };
 
 struct GraphicsPipelineResource
 {
-  GraphicsPipelineDesc desc;
-  GraphicsPipeline     handle = GraphicsPipeline::None;
+  GraphicsPipeline handle = GraphicsPipeline::None;
 };
 
 struct SamplerResource
 {
-  SamplerDesc desc;
-  Sampler     handle = Sampler::None;
+  Sampler handle = Sampler::None;
 };
 
-struct BindGroupResource
+struct DescriptorSetLayoutResource
 {
-  BindGroupDesc desc;
-  BindGroup     handle = BindGroup::None;
-};
-
-struct BindGroupLayoutResource
-{
-  BindGroupLayoutDesc desc;
-  BindGroupLayout     handle = BindGroupLayout::None;
+  DescriptorSetLayout handle = DescriptorSetLayout::None;
 };
 
 struct CommandBufferResource

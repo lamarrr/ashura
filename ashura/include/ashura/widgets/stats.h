@@ -9,6 +9,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 struct StatsWidget : public Box
 {
@@ -24,8 +26,7 @@ struct StatsWidget : public Box
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
-    
-   TextProps props{.style = TextStyle{.foreground_color = colors::WHITE}};
+    TextProps props{.style = TextStyle{.foreground_color = colors::WHITE}};
     stx::Span cols = this->get_children(ctx)[0]->get_children(ctx);
     dynamic_cast<Text *>(cols[0])->update_text(fmt::format("GPU time:  {:.2} ms", ctx.frame_stats.gpu_time.count() / 1'000'000.0), props);
     dynamic_cast<Text *>(cols[1])->update_text(fmt::format("CPU time:  {:.2} ms", ctx.frame_stats.cpu_time.count() / 1'000'000.0), props);
@@ -33,5 +34,5 @@ struct StatsWidget : public Box
     dynamic_cast<Text *>(cols[3])->update_text(fmt::format("{} vertices", ctx.frame_stats.input_assembly_vertices), props);
   }
 };
-
+}        // namespace gui
 }        // namespace ash

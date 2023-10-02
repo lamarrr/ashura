@@ -9,6 +9,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 struct FlexProps
 {
@@ -344,4 +346,5 @@ struct Flex : public Widget
   stx::Vec<Widget *> children;
 };
 
+}        // namespace gui
 }        // namespace ash

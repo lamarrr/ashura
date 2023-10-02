@@ -21,6 +21,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 struct FileImageSource
 {
@@ -226,5 +228,5 @@ struct Image : public Widget
   Extent                                                             image_extent;
   stx::Option<stx::Future<stx::Result<ImageBuffer, ImageLoadError>>> image_load_future;
 };
-
+}        // namespace gui
 }        // namespace ash

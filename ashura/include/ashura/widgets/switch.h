@@ -10,7 +10,8 @@
 
 namespace ash
 {
-
+namespace gui
+{
 struct SwitchProps
 {
   Color active_track_color   = material::BLUE_A700;
@@ -86,5 +87,5 @@ struct Switch : public Widget
   SwitchProps props;
   Animation   animation;
 };
-
+}        // namespace gui
 }        // namespace ash

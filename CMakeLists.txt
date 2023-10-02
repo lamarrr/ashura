@@ -16,9 +16,15 @@ FetchContent_Declare(
   GIT_TAG main)
 
 FetchContent_Declare(
-  spirv-reflect
-  GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect
+  spirv-reflect-static
+  GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
   GIT_TAG main)
+
+FetchContent_Declare(
+  VulkanMemoryAllocator
+  GIT_REPOSITORY
+    https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+  GIT_TAG master)
 
 set(SheenBidi_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/SheenBidi)
 
@@ -44,6 +50,8 @@ find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 
 FetchContent_MakeAvailable(stx)
+FetchContent_MakeAvailable(spirv-reflect-static)
+FetchContent_MakeAvailable(VulkanMemoryAllocator)
 
 file(GLOB SheenBidi_SOURCES ${SheenBidi_DIR}/Source/*.c)
 

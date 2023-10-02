@@ -7,6 +7,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 enum class BoxCornerShape : u8
 {
@@ -123,5 +125,5 @@ struct Box : public Widget
   stx::Vec<Widget *> children;
   BoxProps           props;
 };
-
+}        // namespace gui
 };        // namespace ash

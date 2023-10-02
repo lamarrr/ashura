@@ -7,6 +7,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 struct SliderProps
 {
@@ -115,4 +117,5 @@ struct Slider : public Widget
   Tween<f32>  thumb_tween;
 };
 
+}        // namespace gui
 }        // namespace ash

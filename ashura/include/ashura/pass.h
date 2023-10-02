@@ -12,6 +12,56 @@ namespace ash
 namespace lgfx
 {
 
+struct Graph
+{};
+struct PassContext
+{
+};
+struct CommandBuffer;
+
+// scene pass -> post effect pass 1 -> post effect pass 2 -> fxaa pass
+// scene blur passs????
+// selective layer blur?
+// TODO(lamarrr): what if we need to destroy an index buffer because of multibuffering?
+// new pass doesn't begin until the previous pass' buffer is done with
+//
+// 
+//
+//
+
+struct SceneRenderer;
+struct PostProcessRenderer;
+
+// TODO(lamarrr): how: dynamic updates
+struct Renderer
+{
+  // 3D scene objects (certain effects? offscreen rendering? PBR)
+  // - object + shader + pipeline +  (offscreen) pass + uniform data
+  // - Screen-space rendered objects
+  // - Meshes
+  // - Splines & Curves
+  // - 3D Path Rendering (+Splines & Curves)
+  // - Lights
+  // - Portals
+  // - Reflections
+  // - Shadows
+  // - Reflection Probes
+  // - Particle Effects (custom compute shader-based)
+  //
+  // Screen-space objects
+  // - object + (offscreen) pass, custom shaders
+  // - 2D Path Rendering (+Splines & Curves)
+  //
+  // post process effects
+  // - TAA
+  // - FXAA
+  // - Gaussian Blur
+  // - Bloom
+  // - Chromatic Aberration
+  // - Bokeh Depth of Field
+  //
+};
+
 struct ScreenPass
 {
   struct Arguments
@@ -95,11 +145,9 @@ struct ScreenPass
   }
 };
 
-
 inline void clipped_draw_pass()
 {
 }
-
 
 inline void outline3d_pass()
 {

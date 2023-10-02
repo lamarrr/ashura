@@ -6,10 +6,12 @@
 
 namespace ash
 {
+namespace gui
+{
 
 struct TextProps
 {
-  TextStyle      style;
+  TextStyle    style;
   Constraint2D frame = Constraint2D::relative(1, 1);
 };
 
@@ -82,4 +84,5 @@ struct Text : public Widget
   bool        is_layout_dirty = true;
 };
 
+}        // namespace gui
 }        // namespace ash

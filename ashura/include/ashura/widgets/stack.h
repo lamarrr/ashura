@@ -6,6 +6,8 @@
 
 namespace ash
 {
+namespace gui
+{
 
 struct StackProps
 {
@@ -108,4 +110,5 @@ struct Stack : public Widget
   stx::Vec<Widget *> children;
 };
 
+}        // namespace gui
 }        // namespace ash
