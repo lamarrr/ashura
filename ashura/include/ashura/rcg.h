@@ -48,31 +48,28 @@ struct CommandBufferHook
   virtual ~CommandBufferHook()                                                                                                   = 0;
 };
 
-struct DescriptorSetAccess
+struct DescriptorSetBarriers
 {
-  gfx::Buffer       buffers[gfx::MAX_DESCRIPTOR_SET_BINDINGS]       = {};
-  gfx::BufferAccess buffer_access[gfx::MAX_DESCRIPTOR_SET_BINDINGS] = {};
-  u32               num_buffers                                     = 0;
-  gfx::Image        images[gfx::MAX_DESCRIPTOR_SET_BINDINGS]        = {};
-  gfx::ImageAccess  image_access[gfx::MAX_DESCRIPTOR_SET_BINDINGS]  = {};
-  u32               num_images                                      = 0;
+  // USE IMAGE ACCESS INSTEAD? AND COALESCE THEM? i.e. used as read and used as write
+  stx::Vec<gfx::QueueBufferMemoryBarrier> buffer = {};
+  stx::Vec<gfx::QueueImageMemoryBarrier>  image  = {};
 
-  void reset()
+  void clear()
   {
-    num_buffers = 0;
-    num_images  = 0;
+    buffer.clear();
+    image.clear();
   }
 };
 
 struct CommandBufferContext
 {
-  gfx::GraphicsPipeline graphics_pipeline                                        = gfx::GraphicsPipeline::None;
-  gfx::ComputePipeline  compute_pipeline                                         = gfx::ComputePipeline::None;
-  gfx::RenderPass       render_pass                                              = gfx::RenderPass::None;
-  gfx::Framebuffer      framebuffer                                              = gfx::Framebuffer::None;
-  gfx::Buffer           vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES]               = {};
-  gfx::Buffer           index_buffer                                             = gfx::Buffer::None;
-  DescriptorSetAccess   descriptor_set_access[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
+  gfx::GraphicsPipeline graphics_pipeline                                          = gfx::GraphicsPipeline::None;
+  gfx::ComputePipeline  compute_pipeline                                           = gfx::ComputePipeline::None;
+  gfx::RenderPass       render_pass                                                = gfx::RenderPass::None;
+  gfx::Framebuffer      framebuffer                                                = gfx::Framebuffer::None;
+  DescriptorSetBarriers descriptor_set_barriers[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
+  gfx::Buffer           vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES]                 = {};
+  gfx::Buffer           index_buffer                                               = gfx::Buffer::None;
 };
 
 struct CommandBuffer

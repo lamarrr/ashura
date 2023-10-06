@@ -269,83 +269,109 @@ void CommandBuffer::push_constants(stx::Span<u8 const> constants)
 
 void CommandBuffer::push_descriptor_set(u32 set, gfx::DescriptorSetBindings const &bindings)
 {
+  // todo(lamarrr): add pipeline bind point
   hook->push_descriptor_set(set, bindings);
 
-  bool is_compute = context.compute_pipeline == gfx::ComputePipeline::None;
+  context.descriptor_set_barriers[set].clear();
 
-  u32 num_images  = 0;
-  u32 num_buffers = 0;
+  gfx::QueueImageMemoryBarrier  image_memory_barrier;
+  gfx::QueueBufferMemoryBarrier buffer_memory_barrier;
 
   for (gfx::CombinedImageSamplerBinding const &binding : bindings.combined_image_samplers)
   {
-    context.descriptor_set_access[set].images[num_images]       = graph->image_views[binding.image_view].desc.image;
-    context.descriptor_set_access[set].image_access[num_images] = gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                   .access = gfx::Access::ShaderRead,
-                                                                                   .layout = gfx::ImageLayout::ShaderReadOnlyOptimal};
-    num_images++;
+    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
+                                                                                                     .access = gfx::Access::ShaderRead,
+                                                                                                     .layout = gfx::ImageLayout::ShaderReadOnlyOptimal},
+                                                                                    image_memory_barrier))
+    {
+      image_memory_barrier.image   = graph->images[graph->image_views[binding.image_view].desc.image].handle;
+      image_memory_barrier.aspects = graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
+      context.descriptor_set_barriers[set].image.push_inplace(image_memory_barrier).unwrap();
+    }
   }
 
   for (gfx::SampledImageBinding const &binding : bindings.sampled_images)
   {
-    context.descriptor_set_access[set].images[num_images]       = graph->image_views[binding.image_view].desc.image;
-    context.descriptor_set_access[set].image_access[num_images] = gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                   .access = gfx::Access::ShaderRead,
-                                                                                   .layout = gfx::ImageLayout::ShaderReadOnlyOptimal};
-    num_images++;
+    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
+                                                                                                     .access = gfx::Access::ShaderRead,
+                                                                                                     .layout = gfx::ImageLayout::ShaderReadOnlyOptimal},
+                                                                                    image_memory_barrier))
+    {
+      image_memory_barrier.image   = graph->images[graph->image_views[binding.image_view].desc.image].handle;
+      image_memory_barrier.aspects = graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
+      context.descriptor_set_barriers[set].image.push_inplace(image_memory_barrier).unwrap();
+    }
   }
 
-  for (gfx::SampledImageBinding const &binding : bindings.sampled_images)
+  for (gfx::StorageImageBinding const &binding : bindings.storage_images)
   {
-    context.descriptor_set_access[set].images[num_images]       = graph->image_views[binding.image_view].desc.image;
-    context.descriptor_set_access[set].image_access[num_images] = gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                   .access = gfx::Access::ShaderWrite,
-                                                                                   .layout = gfx::ImageLayout::General};
-    num_images++;
+    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
+                                                                                                     .access = gfx::Access::ShaderWrite,
+                                                                                                     .layout = gfx::ImageLayout::General},
+                                                                                    image_memory_barrier))
+    {
+      image_memory_barrier.image   = graph->images[graph->image_views[binding.image_view].desc.image].handle;
+      image_memory_barrier.aspects = graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
+      context.descriptor_set_barriers[set].image.push_inplace(image_memory_barrier).unwrap();
+    }
   }
 
   for (gfx::UniformTexelBufferBinding const &binding : bindings.uniform_texel_buffers)
   {
-    context.descriptor_set_access[set].buffers[num_buffers]       = graph->buffer_views[binding.buffer_view].desc.buffer;
-    context.descriptor_set_access[set].buffer_access[num_buffers] = gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                      .access = gfx::Access::ShaderRead};
-    num_buffers++;
+    if (graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
+                                                                                                          .access = gfx::Access::ShaderRead},
+                                                                                        buffer_memory_barrier))
+    {
+      buffer_memory_barrier.buffer = graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].handle;
+      context.descriptor_set_barriers[set].buffer.push_inplace(buffer_memory_barrier).unwrap();
+    }
   }
 
   for (gfx::StorageTexelBufferBinding const &binding : bindings.storage_texel_buffers)
   {
-    context.descriptor_set_access[set].buffers[num_buffers]       = graph->buffer_views[binding.buffer_view].desc.buffer;
-    context.descriptor_set_access[set].buffer_access[num_buffers] = gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                      .access = gfx::Access::ShaderWrite};
-    num_buffers++;
+    if (graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
+                                                                                                          .access = gfx::Access::ShaderWrite},
+                                                                                        buffer_memory_barrier))
+    {
+      buffer_memory_barrier.buffer = graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].handle;
+      context.descriptor_set_barriers[set].buffer.push_inplace(buffer_memory_barrier).unwrap();
+    }
   }
 
   for (gfx::UniformBufferBinding const &binding : bindings.uniform_buffers)
   {
-    context.descriptor_set_access[set].buffers[num_buffers]       = binding.buffer;
-    context.descriptor_set_access[set].buffer_access[num_buffers] = gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                      .access = gfx::Access::ShaderRead};
-    num_buffers++;
+    if (graph->buffers[binding.buffer].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
+                                                                    .access = gfx::Access::ShaderRead},
+                                                  buffer_memory_barrier))
+    {
+      buffer_memory_barrier.buffer = graph->buffers[binding.buffer].handle;
+      context.descriptor_set_barriers[set].buffer.push_inplace(buffer_memory_barrier).unwrap();
+    }
   }
 
   for (gfx::StorageBufferBinding const &binding : bindings.storage_buffers)
   {
-    context.descriptor_set_access[set].buffers[num_buffers]       = binding.buffer;
-    context.descriptor_set_access[set].buffer_access[num_buffers] = gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                      .access = gfx::Access::ShaderRead};
-    num_buffers++;
+    if (graph->buffers[binding.buffer].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
+                                                                    .access = gfx::Access::ShaderWrite},
+                                                  buffer_memory_barrier))
+    {
+      buffer_memory_barrier.buffer = graph->buffers[binding.buffer].handle;
+      context.descriptor_set_barriers[set].buffer.push_inplace(buffer_memory_barrier).unwrap();
+    }
   }
 
   for (gfx::InputAttachmentBinding const &binding : bindings.input_attachments)
   {
-    context.descriptor_set_access[set].images[num_images]       = graph->image_views[binding.image_view].desc.image;
-    context.descriptor_set_access[set].image_access[num_images] = gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                   .access = gfx::Access::ShaderRead,
-                                                                                   .layout = gfx::ImageLayout::ShaderReadOnlyOptimal};
-    num_images++;
+    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
+                                                                                                     .access = gfx::Access::ShaderRead,
+                                                                                                     .layout = gfx::ImageLayout::ShaderReadOnlyOptimal},
+                                                                                    image_memory_barrier))
+    {
+      image_memory_barrier.image   = graph->images[graph->image_views[binding.image_view].desc.image].handle;
+      image_memory_barrier.aspects = graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
+      context.descriptor_set_barriers[set].image.push_inplace(image_memory_barrier).unwrap();
+    }
   }
-
-  context.descriptor_set_access[set].num_buffers = num_buffers;
-  context.descriptor_set_access[set].num_images  = num_images;
 
   graph->driver->cmd_push_descriptor_set(handle, set, bindings);
 }
@@ -389,30 +415,35 @@ void CommandBuffer::set_stencil_write_mask(gfx::StencilFaces faces, u32 write_ma
 void CommandBuffer::dispatch(u32 group_count_x, u32 group_count_y, u32 group_count_z)
 {
   hook->dispatch(group_count_x, group_count_y, group_count_z);
+  graph->driver->cmd_insert_barriers(handle, context.descriptor_set_barriers.buffer_memory_barriers, image_memory_barriers);
   graph->driver->cmd_dispatch(handle, group_count_x, group_count_y, group_count_z);
 }
 
 void CommandBuffer::dispatch_indirect(gfx::Buffer buffer, u64 offset)
 {
   hook->dispatch_indirect(buffer, offset);
+  graph->driver->cmd_insert_barriers(handle, buffer_memory_barriers, image_memory_barriers);
   graph->driver->cmd_dispatch_indirect(handle, buffer, offset);
 }
 
 void CommandBuffer::draw(u32 first_vertex, u32 vertex_count, u32 instance_count, u32 first_instance_id)
 {
   hook->draw(first_vertex, vertex_count, instance_count, first_instance_id);
+  graph->driver->cmd_insert_barriers(handle, buffer_memory_barriers, image_memory_barriers);
   graph->driver->cmd_draw(handle, first_vertex, vertex_count, instance_count, first_instance_id);
 }
 
 void CommandBuffer::draw_indexed(u32 first_index, u32 index_count, u32 instance_count, i32 vertex_offset, u32 first_instance_id)
 {
   hook->draw_indexed(first_index, index_count, instance_count, vertex_offset, first_instance_id);
+  graph->driver->cmd_insert_barriers(handle, buffer_memory_barriers, image_memory_barriers);
   graph->driver->cmd_draw_indexed(handle, first_index, index_count, instance_count, vertex_offset, first_instance_id);
 }
 
 void CommandBuffer::draw_indexed_indirect(gfx::Buffer buffer, u64 offset, u32 draw_count, u32 stride)
 {
   hook->draw_indexed_indirect(buffer, offset, draw_count, stride);
+  graph->driver->cmd_insert_barriers(handle, buffer_memory_barriers, image_memory_barriers);
   graph->driver->cmd_draw_indexed_indirect(handle, buffer, offset, draw_count, stride);
 }
 

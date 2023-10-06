@@ -782,9 +782,13 @@ enum class ImageType : u8
 
 enum class ImageViewType : u8
 {
-  Type1D = 0,
-  Type2D = 1,
-  Type3D = 2
+  Type1D      = 0,
+  Type2D      = 1,
+  Type3D      = 2,
+  TypeCube    = 3,
+  Type1DArray = 4,
+  Type2DArray = 5,
+  Type3DArray = 6
 };
 
 enum class DescriptorType : u8

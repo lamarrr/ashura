@@ -1180,7 +1180,7 @@ struct Extent
 
   constexpr u32 max_mip_levels() const
   {
-    return log2_floor_u32(std::min(width, height)) + 1;
+    return log2_floor_u32(std::max(width, height)) + 1;
   }
 
   constexpr Extent at_mip_level(u32 mip_level) const
@@ -1210,7 +1210,7 @@ struct Extent3D
 
   constexpr u32 max_mip_levels() const
   {
-    return log2_floor_u32(std::min(std::min(width, height), depth)) + 1;
+    return log2_floor_u32(std::max(std::max(width, height), depth)) + 1;
   }
 
   constexpr Extent3D at_mip_level(u32 mip_level) const
