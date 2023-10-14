@@ -154,7 +154,7 @@ bool load_device_table(VkDevice device, VulkanDeviceTable &table)
   ASH_VMA_LOAD(CreateImage);
   ASH_VMA_LOAD(DestroyImage);
   ASH_VMA_LOAD(CmdCopyBuffer);
-  
+
 #undef ASH_VMA_LOAD
 
   return all_loaded;
@@ -179,7 +179,6 @@ struct VulkanImage
   VkDeviceMemory vk_memory;
 };
 
-
 gfx::Buffer VulkanDriver::create(gfx::BufferDesc const &desc)
 {
   VkBufferCreateInfo create_info{
@@ -198,12 +197,12 @@ gfx::Buffer VulkanDriver::create(gfx::BufferDesc const &desc)
   table->CreateBuffer(device, &create_info, nullptr, &buffer->vk_buffer);
 
   // TODO(lamarrr): allocate memory
-  return (gfx::Buffer)(uintptr_t) buffer;
+  return (gfx::Buffer) buffer;
 }
 
 gfx::BufferView VulkanDriver::create(gfx::BufferViewDesc const &desc)
 {
-  return gfx::BufferView::None;
+  return nullptr;
 }
 
 gfx::Image VulkanDriver::create(gfx::ImageDesc const &desc)
@@ -216,7 +215,7 @@ gfx::Image VulkanDriver::create(gfx::ImageDesc const &desc)
       .format                = (VkFormat) desc.format,
       .extent                = VkExtent3D{.width = desc.extent.width, .height = desc.extent.height, .depth = desc.extent.height},
       .mipLevels             = desc.mips,
-      .arrayLayers           = 1,
+      .arrayLayers           = desc.array_layers,
       .samples               = VK_SAMPLE_COUNT_1_BIT,
       .tiling                = VK_IMAGE_TILING_OPTIMAL,
       .usage                 = (VkImageUsageFlags) desc.usages,
@@ -229,7 +228,7 @@ gfx::Image VulkanDriver::create(gfx::ImageDesc const &desc)
 
   table->CreateImage(device, &create_info, nullptr, &image->vk_image);
 
-  return (gfx::Image)(uintptr_t) image;
+  return (gfx::Image) image;
 }
 
 gfx::ImageView VulkanDriver::create(gfx::ImageViewDesc const &desc)
@@ -238,7 +237,7 @@ gfx::ImageView VulkanDriver::create(gfx::ImageViewDesc const &desc)
       .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
       .pNext            = nullptr,
       .flags            = 0,
-      .image            = ((VulkanImage *) (uintptr_t) desc.image)->vk_image,
+      .image            = ((VulkanImage *)  desc.image)->vk_image,
       .viewType         = (VkImageViewType) desc.view_type,
       .format           = (VkFormat) desc.view_format,
       .components       = VkComponentMapping{.r = (VkComponentSwizzle) desc.mapping.r,
@@ -250,7 +249,7 @@ gfx::ImageView VulkanDriver::create(gfx::ImageViewDesc const &desc)
   VkImageView view;
   table->CreateImageView(device, &create_info, nullptr, &view);
 
-  return (gfx::ImageView)(uintptr_t) view;
+  return (gfx::ImageView) view;
 }
 
 gfx::Sampler VulkanDriver::create(gfx::SamplerDesc const &desc)
@@ -277,7 +276,7 @@ gfx::Sampler VulkanDriver::create(gfx::SamplerDesc const &desc)
   VkSampler sampler;
   table->CreateSampler(device, &create_info, nullptr, &sampler);
 
-  return (gfx::Sampler)(uintptr_t) sampler;
+  return (gfx::Sampler) sampler;
 }
 
 gfx::BindGroupLayout VulkanDriver::create_bind_group_layout(gfx::BindGroupLayoutDesc const &desc)
@@ -304,12 +303,12 @@ gfx::BindGroupLayout VulkanDriver::create_bind_group_layout(gfx::BindGroupLayout
     table->CreateDescriptorSetLayout(device, &create_info, nullptr, layout->vk_descriptor_set_layouts + i);
   }
 
-  return (gfx::BindGroupLayout)(uintptr_t) (layout);
+  return (gfx::BindGroupLayout) (layout);
 }
 
 gfx::BindGroup VulkanDriver::create_bind_group(gfx::BindGroupDesc const &desc)
 {
-  VulkanBindGroupLayout *layout = (VulkanBindGroupLayout *) (uintptr_t) desc.layout;
+  VulkanBindGroupLayout *layout = (VulkanBindGroupLayout *)  desc.layout;
 
   VkDescriptorSetAllocateInfo allocate_info{
       .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -322,9 +321,9 @@ gfx::BindGroup VulkanDriver::create_bind_group(gfx::BindGroupDesc const &desc)
 
   table->AllocateDescriptorSets(device, nullptr, bind_group->descriptor_sets);
 
-  update_bind_group((gfx::BindGroup)(uintptr_t) bind_group, stx::Span{desc.bindings}.slice(0, desc.num_bindings));
+  update_bind_group((gfx::BindGroup) bind_group, stx::Span{desc.bindings}.slice(0, desc.num_bindings));
 
-  return gfx::BindGroup::None;
+  return nullptr;
 }
 
 void VulkanDriver::update_bind_group(gfx::BindGroup bind_group_h, stx::Span<gfx::DescriptorBinding const> bindings)
@@ -349,8 +348,8 @@ void VulkanDriver::update_bind_group(gfx::BindGroup bind_group_h, stx::Span<gfx:
       case gfx::DescriptorType::CombinedImageSampler:
       {
         image_infos[num_images].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        image_infos[num_images].imageView   = (VkImageView) (uintptr_t) binding.combined_image_sampler.image_view;
-        image_infos[num_images].sampler     = (VkSampler) (uintptr_t) binding.combined_image_sampler.sampler;
+        image_infos[num_images].imageView   = (VkImageView)  binding.combined_image_sampler.image_view;
+        image_infos[num_images].sampler     = (VkSampler)  binding.combined_image_sampler.sampler;
 
         writes[i] = VkWriteDescriptorSet{
             .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -374,7 +373,7 @@ void VulkanDriver::update_bind_group(gfx::BindGroup bind_group_h, stx::Span<gfx:
       case gfx::DescriptorType::SampledImage:
       {
         image_infos[num_images].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        image_infos[num_images].imageView   = (VkImageView) (uintptr_t) binding.combined_image_sampler.image_view;
+        image_infos[num_images].imageView   = (VkImageView)  binding.combined_image_sampler.image_view;
         image_infos[num_images].sampler     = nullptr;
 
         writes[i] = VkWriteDescriptorSet{
@@ -395,7 +394,7 @@ void VulkanDriver::update_bind_group(gfx::BindGroup bind_group_h, stx::Span<gfx:
       {
         image_infos[num_images].imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         image_infos[num_images].imageView   = nullptr;
-        image_infos[num_images].sampler     = (VkSampler) (uintptr_t) binding.sampler.sampler;
+        image_infos[num_images].sampler     = (VkSampler)  binding.sampler.sampler;
 
         writes[i] = VkWriteDescriptorSet{
             .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -434,7 +433,7 @@ void VulkanDriver::update_bind_group(gfx::BindGroup bind_group_h, stx::Span<gfx:
       case gfx::DescriptorType::StorageImage:
       {
         image_infos[num_images].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        image_infos[num_images].imageView   = (VkImageView) (uintptr_t) binding.storage_image.image_view;
+        image_infos[num_images].imageView   = (VkImageView)  binding.storage_image.image_view;
         image_infos[num_images].sampler     = nullptr;
 
         writes[i] = VkWriteDescriptorSet{
@@ -515,7 +514,7 @@ void VulkanDriver::update_bind_group(gfx::BindGroup bind_group_h, stx::Span<gfx:
 void VulkanDriver::release_buffer(gfx::Buffer buffer)
 {
   // release memory
-  table->DestroyBuffer(device, (VkBuffer) (uintptr_t) buffer, nullptr);
+  table->DestroyBuffer(device, (VkBuffer)  buffer, nullptr);
 }
 
 void VulkanDriver::cmd_copy_buffer(gfx::CommandBuffer command_buffer, gfx::Buffer src, gfx::Buffer dst, stx::Span<gfx::BufferCopy const> copies)

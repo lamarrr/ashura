@@ -180,10 +180,10 @@ struct VulkanDriver : public Driver
   virtual void                     cmd_blit_image(gfx::CommandBuffer command_buffer, gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageBlit const> blits, gfx::Filter filter) override;
   virtual void                     cmd_begin_render_pass(gfx::CommandBuffer command_buffer, gfx::RenderPassBeginInfo const &info) override;
   virtual void                     cmd_end_render_pass(gfx::CommandBuffer command_buffer) override;
-  virtual void                     cmd_bind_compute_pipeline(gfx::CommandBuffer command_buffer, gfx::ComputePipeline pipeline) override;
-  virtual void                     cmd_bind_graphics_pipeline(gfx::CommandBuffer command_buffer, gfx::GraphicsPipeline pipeline) override;
-  virtual void                     cmd_bind_vertex_buffers(gfx::CommandBuffer command_buffer, stx::Span<gfx::Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, gfx::Buffer index_buffer, u64 index_buffer_offset) override;
-  virtual void                     cmd_push_constants(gfx::CommandBuffer command_buffer, stx::Span<u8 const> constants) override;
+  virtual void                     cmd_bind_pipeline(gfx::CommandBuffer command_buffer, gfx::ComputePipeline pipeline) override;
+  virtual void                     cmd_bind_pipeline(gfx::CommandBuffer command_buffer, gfx::GraphicsPipeline pipeline) override;
+  virtual void                     cmd_bind_vertex_buffers(gfx::CommandBuffer command_buffer, u32 first_binding, stx::Span<gfx::Buffer const> vertex_buffers, stx::Span<u64 const> offsets) override;
+  virtual void                     cmd_bind_index_buffer(gfx::CommandBuffer command_buffer, gfx::Buffer index_buffer, u64 offset) override;
   virtual void                     cmd_push_descriptor_set(gfx::CommandBuffer command_buffer, u32 set, gfx::DescriptorSetBindings const &bindings) override;
   virtual void                     cmd_set_scissor(gfx::CommandBuffer command_buffer, IRect scissor) override;
   virtual void                     cmd_set_viewport(gfx::CommandBuffer command_buffer, gfx::Viewport const &viewport) override;

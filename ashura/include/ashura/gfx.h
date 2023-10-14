@@ -7,6 +7,10 @@
 #include "stx/enum.h"
 #include "stx/span.h"
 
+#define ASH_DEFINE_HANDLE(handle) \
+  typedef struct handle##_T;      \
+  typedef handle##_T *handle;
+
 namespace ash
 {
 namespace gfx
@@ -21,69 +25,20 @@ constexpr u8  MAX_COLOR_ATTACHMENTS        = 8;
 constexpr u8  MAX_VERTEX_ATTRIBUTES        = 16;
 constexpr u8  MAX_PUSH_CONSTANT_SIZE       = 128;
 
-enum class Buffer : uintptr_t
-{
-  None = 0
-};
+ASH_DEFINE_HANDLE(Buffer);
+ASH_DEFINE_HANDLE(BufferView);        /// format interpretation of a buffer's contents
+ASH_DEFINE_HANDLE(Image);
+ASH_DEFINE_HANDLE(ImageView);        /// a sub-resource that specifies mips, aspects, and layer of images
+ASH_DEFINE_HANDLE(Sampler);
+ASH_DEFINE_HANDLE(Shader);
+ASH_DEFINE_HANDLE(RenderPass);        /// renderpasses are used for selecting tiling strategy and related optimizations
+ASH_DEFINE_HANDLE(Framebuffer);
+ASH_DEFINE_HANDLE(DescriptorSetLayout);
+ASH_DEFINE_HANDLE(ComputePipeline);
+ASH_DEFINE_HANDLE(GraphicsPipeline);
+ASH_DEFINE_HANDLE(CommandBuffer);
 
-enum class BufferView : uintptr_t
-{
-  None = 0
-};
-
-enum class Image : uintptr_t
-{
-  None = 0
-};
-
-/// a sub-resource that specifies mips, aspects, and layer of images
-enum class ImageView : uintptr_t
-{
-  None = 0
-};
-
-enum class Sampler : uintptr_t
-{
-  None = 0
-};
-
-enum class Shader : uintptr_t
-{
-  None = 0
-};
-
-// renderpasses are used for selecting tiling strategy and related optimizations
-enum class RenderPass : uintptr_t
-{
-  None = 0
-};
-
-enum class Framebuffer : uintptr_t
-{
-  None = 0
-};
-
-enum class DescriptorSetLayout : uintptr_t
-{
-  None = 0
-};
-
-enum class ComputePipeline : uintptr_t
-{
-  None = 0
-};
-
-enum class GraphicsPipeline : uintptr_t
-{
-  None = 0
-};
-
-enum class CommandBuffer : uintptr_t
-{
-  None = 0
-};
-
-enum class MemoryProperties : u32
+enum class MemoryProperties : u8
 {
   None            = 0x00000000,
   DeviceLocal     = 0x00000001,
@@ -95,15 +50,6 @@ enum class MemoryProperties : u32
 };
 
 STX_DEFINE_ENUM_BIT_OPS(MemoryProperties)
-
-enum class DeviceType : u32
-{
-  Other         = 0,
-  IntegratedGpu = 1,
-  DiscreteGpu   = 2,
-  VirtualGpu    = 3,
-  Cpu           = 4
-};
 
 enum class Format : u32
 {
@@ -395,7 +341,7 @@ enum class FormatFeatures : u64
   VideoEncodeDpb                                                   = 0x10000000ULL
 };
 
-enum class ImageAspects : u32
+enum class ImageAspects : u8
 {
   None     = 0x00000000,
   Color    = 0x00000001,
@@ -814,13 +760,6 @@ enum class AccessSequence : u8
   ReadAfterWrite = 3
 };
 
-enum class PipelineBindPoint : u32
-{
-  Graphics   = 0,
-  Compute    = 1,
-  RayTracing = 1000165000
-};
-
 struct BufferAccess
 {
   PipelineStages stages = PipelineStages::None;
@@ -838,7 +777,7 @@ struct Viewport
 {
   Rect area;
   f32  min_depth = 0;
-  f32  max_depth = 1;
+  f32  max_depth = 0;
 };
 
 struct StencilOpState
@@ -880,7 +819,7 @@ struct BufferDesc
 
 struct BufferViewDesc
 {
-  Buffer buffer      = Buffer::None;
+  Buffer buffer      = nullptr;
   Format view_format = Format::Undefined;
   u64    offset      = 0;
   u64    size        = 0;
@@ -899,7 +838,7 @@ struct ImageDesc
 
 struct ImageViewDesc
 {
-  Image            image             = Image::None;
+  Image            image             = nullptr;
   ImageViewType    view_type         = ImageViewType::Type1D;
   Format           view_format       = Format::Undefined;
   ComponentMapping mapping           = ComponentMapping{};
@@ -953,15 +892,14 @@ struct RenderPassDesc
 
 struct FramebufferDesc
 {
-  RenderPass renderpass                               = RenderPass::None;
+  RenderPass renderpass                               = nullptr;
   Extent     extent                                   = {};
   u32        layers                                   = 0;
   ImageView  color_attachments[MAX_COLOR_ATTACHMENTS] = {};
   u32        num_color_attachments                    = 0;
   ImageView  input_attachments[MAX_COLOR_ATTACHMENTS] = {};
   u32        num_input_attachments                    = 0;
-  ImageView  depth_stencil_attachments[1]             = {};
-  u32        num_depth_stencil_attachments            = 0;
+  ImageView  depth_stencil_attachment                 = nullptr;
 };
 
 struct DescriptorBindingDesc
@@ -982,7 +920,7 @@ struct SamplerBinding
   u32     binding_id  = 0;
   u32     array_index = 0;
   u32     count       = 0;
-  Sampler sampler     = Sampler::None;
+  Sampler sampler     = nullptr;
 };
 
 struct CombinedImageSamplerBinding
@@ -990,8 +928,8 @@ struct CombinedImageSamplerBinding
   u32       binding_id  = 0;
   u32       array_index = 0;
   u32       count       = 0;
-  Sampler   sampler     = Sampler::None;
-  ImageView image_view  = ImageView::None;
+  Sampler   sampler     = nullptr;
+  ImageView image_view  = nullptr;
 };
 
 struct SampledImageBinding
@@ -999,7 +937,7 @@ struct SampledImageBinding
   u32       binding_id  = 0;
   u32       array_index = 0;
   u32       count       = 0;
-  ImageView image_view  = ImageView::None;
+  ImageView image_view  = nullptr;
 };
 
 struct StorageImageBinding
@@ -1007,7 +945,7 @@ struct StorageImageBinding
   u32       binding_id  = 0;
   u32       array_index = 0;
   u32       count       = 0;
-  ImageView image_view  = ImageView::None;
+  ImageView image_view  = nullptr;
 };
 
 struct UniformTexelBufferBinding
@@ -1015,7 +953,7 @@ struct UniformTexelBufferBinding
   u32        binding_id  = 0;
   u32        array_index = 0;
   u32        count       = 0;
-  BufferView buffer_view = BufferView::None;
+  BufferView buffer_view = nullptr;
 };
 
 struct StorageTexelBufferBinding
@@ -1023,7 +961,7 @@ struct StorageTexelBufferBinding
   u32        binding_id  = 0;
   u32        array_index = 0;
   u32        count       = 0;
-  BufferView buffer_view = BufferView::None;
+  BufferView buffer_view = nullptr;
 };
 
 struct UniformBufferBinding
@@ -1031,7 +969,7 @@ struct UniformBufferBinding
   u32    binding_id  = 0;
   u32    array_index = 0;
   u32    count       = 0;
-  Buffer buffer      = Buffer::None;
+  Buffer buffer      = nullptr;
   u64    offset      = 0;
   u64    size        = 0;
 };
@@ -1041,18 +979,18 @@ struct StorageBufferBinding
   u32    binding_id  = 0;
   u32    array_index = 0;
   u32    count       = 0;
-  Buffer buffer      = Buffer::None;
+  Buffer buffer      = nullptr;
   u64    offset      = 0;
   u64    size        = 0;
 };
 
-/// used for frame-buffer-local read-operations, i.e. depth-stencil
+/// used for frame-buffer-local read-operations
 struct InputAttachmentBinding
 {
   u32       binding_id  = 0;
   u32       array_index = 0;
   u32       count       = 0;
-  ImageView image_view  = ImageView::None;
+  ImageView image_view  = nullptr;
 };
 
 struct DescriptorSetBindings
@@ -1077,10 +1015,10 @@ struct SpecializationConstant
 
 struct ShaderStageDesc
 {
-  Shader                                  shader                       = Shader::None;
-  char const                             *entry_point                  = nullptr;
-  void const                             *specialization_constant_data = nullptr;
-  stx::Span<SpecializationConstant const> specialization_constants     = {};
+  Shader                                  shader                        = nullptr;
+  char const                             *entry_point                   = nullptr;
+  stx::Span<u8 const>                     specialization_constants_data = {};
+  stx::Span<SpecializationConstant const> specialization_constants      = {};
 };
 
 struct ComputePipelineDesc
@@ -1116,8 +1054,8 @@ struct PipelineDepthStencilState
   CompareOp      depth_compare_op         = CompareOp::Never;
   bool           depth_bounds_test_enable = false;
   bool           stencil_test_enable      = false;
-  StencilOpState front_stencil_state      = StencilOpState{};
-  StencilOpState back_stencil_state       = StencilOpState{};
+  StencilOpState front_stencil_state      = {};
+  StencilOpState back_stencil_state       = {};
   f32            min_depth_bounds         = 0;
   f32            max_depth_bounds         = 0;
 };
@@ -1131,7 +1069,7 @@ struct PipelineColorBlendAttachmentState
   BlendFactor     src_alpha_blend_factor = BlendFactor::Zero;
   BlendFactor     dst_alpha_blend_factor = BlendFactor::Zero;
   BlendOp         alpha_blend_op         = BlendOp::Add;
-  ColorComponents color_outputs          = ColorComponents::All;
+  ColorComponents color_outputs          = ColorComponents::None;
 };
 
 struct PipelineRasterizationState
@@ -1152,7 +1090,7 @@ struct GraphicsPipelineDesc
 {
   ShaderStageDesc                   vertex_shader_stage                                  = {};
   ShaderStageDesc                   fragment_shader_stage                                = {};
-  RenderPass                        render_pass                                          = RenderPass::None;
+  RenderPass                        render_pass                                          = nullptr;
   VertexInputBinding                vertex_input_bindings[MAX_VERTEX_ATTRIBUTES]         = {};
   u32                               num_vertex_input_bindings                            = 0;
   VertexAttribute                   vertex_attributes[MAX_VERTEX_ATTRIBUTES]             = {};
@@ -1162,7 +1100,7 @@ struct GraphicsPipelineDesc
   PrimitiveTopology                 primitive_topology                                   = PrimitiveTopology::PointList;
   PipelineRasterizationState        rasterization_state                                  = {};
   PipelineDepthStencilState         depth_stencil_state                                  = {};
-  f32                               color_blend_constants[4]                             = {0, 0, 0, 0};
+  Vec4                              color_blend_constant                                 = {};
   PipelineColorBlendAttachmentState color_blend_states[MAX_COLOR_ATTACHMENTS]            = {};
   u32                               num_color_attachments                                = 0;
 };
@@ -1233,18 +1171,9 @@ union ClearValue
   DepthStencil depth_stencil;
 };
 
-struct RenderPassBeginInfo
-{
-  Framebuffer                   framebuffer                            = Framebuffer::None;
-  RenderPass                    render_pass                            = RenderPass::None;
-  IRect                         render_area                            = {};
-  stx::Span<Color const>        color_attachments_clear_values         = {};
-  stx::Span<DepthStencil const> depth_stencil_attachments_clear_values = {};
-};
-
 struct QueueBufferMemoryBarrier
 {
-  Buffer         buffer     = Buffer::None;
+  Buffer         buffer     = nullptr;
   u64            offset     = 0;
   u64            size       = 0;
   PipelineStages src_stages = PipelineStages::None;
@@ -1255,7 +1184,7 @@ struct QueueBufferMemoryBarrier
 
 struct QueueImageMemoryBarrier
 {
-  Image          image             = Image::None;
+  Image          image             = nullptr;
   u32            first_mip_level   = 0;
   u32            num_mip_levels    = 0;
   u32            first_array_layer = 0;
@@ -1276,16 +1205,34 @@ struct BufferState
 {
   BufferAccess   access[2] = {};
   AccessSequence sequence  = AccessSequence::None;
-  bool           sync(BufferAccess request, QueueBufferMemoryBarrier &barrier);
-  void           on_drain();
+
+  bool sync(BufferAccess request, QueueBufferMemoryBarrier &barrier);
+  void on_drain();
 };
 
 struct ImageState
 {
   ImageAccess    access[2] = {};
   AccessSequence sequence  = AccessSequence::None;
-  bool           sync(ImageAccess request, QueueImageMemoryBarrier &barrier);
-  void           on_drain();
+
+  bool sync(ImageAccess request, QueueImageMemoryBarrier &barrier);
+  void on_drain();
+};
+
+struct StencilFaceState
+{
+  u32 compare_mask = 0;
+  u32 reference    = 0;
+  u32 write_mask   = 0;
+};
+
+struct GraphicsState
+{
+  Viewport         viewport;
+  IRect            scissor;
+  Vec4             blend_constants;
+  StencilFaceState front_stencil;
+  StencilFaceState back_stencil;
 };
 
 // RESOURCES hold the backend/RHI handles
@@ -1294,135 +1241,68 @@ struct BufferResource
 {
   BufferDesc  desc;
   BufferState state;
-  Buffer      handle = Buffer::None;
+  Buffer      handle = nullptr;
 };
 
 struct BufferViewResource
 {
   BufferViewDesc desc;
-  BufferView     handle = BufferView::None;
+  BufferView     handle = nullptr;
 };
 
 struct ImageResource
 {
   ImageDesc  desc;
   ImageState state;
-  Image      handle = Image::None;
+  Image      handle = nullptr;
 };
 
 struct ImageViewResource
 {
   ImageViewDesc desc;
-  ImageView     handle = ImageView::None;
+  ImageView     handle = nullptr;
 };
 
 struct RenderPassResource
 {
   RenderPassDesc desc;
-  RenderPass     handle = RenderPass::None;
+  RenderPass     handle = nullptr;
 };
 
 struct FramebufferResource
 {
   FramebufferDesc desc;
-  Framebuffer     handle = Framebuffer::None;
+  Framebuffer     handle = nullptr;
 };
 
 struct ShaderResource
 {
-  Shader handle = Shader::None;
+  Shader handle = nullptr;
 };
 
 struct ComputePipelineResource
 {
-  ComputePipeline handle = ComputePipeline::None;
+  ComputePipeline handle = nullptr;
 };
 
 struct GraphicsPipelineResource
 {
-  GraphicsPipeline handle = GraphicsPipeline::None;
+  GraphicsPipeline handle = nullptr;
 };
 
 struct SamplerResource
 {
-  Sampler handle = Sampler::None;
+  Sampler handle = nullptr;
 };
 
 struct DescriptorSetLayoutResource
 {
-  DescriptorSetLayout handle = DescriptorSetLayout::None;
+  DescriptorSetLayout handle = nullptr;
 };
 
 struct CommandBufferResource
 {
-  CommandBuffer handle = CommandBuffer::None;
-};
-
-/// [properties] is either of:
-///
-/// HostVisible | HostCoherent
-/// HostVisible | HostCached
-/// HostVisible | HostCached | HostCoherent
-/// DeviceLocal
-/// DeviceLocal | HostVisible | HostCoherent
-/// DeviceLocal | HostVisible | HostCached
-/// DeviceLocal | HostVisible | HostCached | HostCoherent
-struct HeapProperty
-{
-  MemoryProperties properties = MemoryProperties::None;
-  u32              index      = 0;
-};
-
-// TODO(lamarrr): write memory allocation strategies, i.e. images should be allocated on this and this heap
-// a single heap might have multiple properties
-struct DeviceMemoryHeaps
-{
-  static constexpr u8 MAX_HEAP_PROPERTIES = 32;
-  static constexpr u8 MAX_HEAPS           = 16;
-
-  // ordered by performance-tier (MemoryProperties)
-  HeapProperty heap_properties[MAX_HEAP_PROPERTIES];
-  u8           num_properties = 0;
-  u64          heap_sizes[MAX_HEAPS];
-  u8           num_heaps = 0;
-
-  constexpr bool has_memory(MemoryProperties properties) const
-  {
-    for (u8 i = 0; i < num_properties; i++)
-    {
-      if ((heap_properties[i].properties & properties) == properties)
-      {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  constexpr bool has_unified_memory() const
-  {
-    return has_memory(MemoryProperties::DeviceLocal | MemoryProperties::HostVisible);
-  }
-};
-
-// TODO(lamarrr): formats info properties
-struct DeviceInfo
-{
-  DeviceType        type = DeviceType::Other;
-  DeviceMemoryHeaps memory_heaps;
-  f32               max_anisotropy      = 1.0f;
-  bool              supports_raytracing = false;
-  // device type
-  // device name
-  // vendor name
-  // driver name
-  // current display size
-  // current display format
-  // supports hdr?
-  // supports video encode
-  // supports video decode
-  // is format hdr
-  // dci p3?
-  //
+  CommandBuffer handle = nullptr;
 };
 
 }        // namespace gfx

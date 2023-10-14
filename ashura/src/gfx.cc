@@ -92,13 +92,9 @@ ImageAccess RenderPassAttachment::get_depth_stencil_image_access() const
 // TODO(lamarrr): for each renderpass execution we need to get accessed resources and generate barriers for them
 //
 // requirements:
-// - allow multiple subsequent reads
-// - prevent multiple subsequent writes
-// - prevent multiple subsequent writes and reads
-//
-//
-// needs access barrier: -> ReadAfterWrite, WriteAfterRead, WriteAfterWrite
-// needs access no barrier: -> ReadAfterRead, NoneAfterRead, NoneAfterWrite, None
+// - allow simultaneous reads
+// - prevent simultaneous writes
+// - prevent simultaneous writes and reads
 //
 // Also, See: https://stackoverflow.com/questions/60339191/synchronizing-a-render-pass-layout-transition-with-a-semaphore-in-acquire-pres
 bool BufferState::sync(BufferAccess request, QueueBufferMemoryBarrier &barrier)
