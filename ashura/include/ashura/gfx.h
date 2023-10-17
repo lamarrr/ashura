@@ -16,22 +16,26 @@ namespace ash
 namespace gfx
 {
 
-constexpr u32 REMAINING_MIP_LEVELS         = ~0U;
-constexpr u32 REMAINING_ARRAY_LAYERS       = ~0U;
-constexpr u64 WHOLE_SIZE                   = ~0ULL;
-constexpr u8  MAX_PIPELINE_DESCRIPTOR_SETS = 16;        // TODO(lamarrr): we have to check these against usages and device info
-constexpr u8  MAX_DESCRIPTOR_SET_BINDINGS  = 16;
-constexpr u8  MAX_COLOR_ATTACHMENTS        = 8;
-constexpr u8  MAX_VERTEX_ATTRIBUTES        = 16;
-constexpr u8  MAX_PUSH_CONSTANT_SIZE       = 128;
+constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
+constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
+constexpr u64 WHOLE_SIZE             = ~0ULL;
+// TODO(lamarrr): we have to check these against usages and device info
+constexpr u8 MAX_DESCRIPTOR_SET_BINDINGS = 16;
+constexpr u8 MAX_COLOR_ATTACHMENTS       = 8;
+constexpr u8 MAX_VERTEX_ATTRIBUTES       = 16;
+constexpr u8 MAX_PUSH_CONSTANT_SIZE      = 128;
 
 ASH_DEFINE_HANDLE(Buffer);
-ASH_DEFINE_HANDLE(BufferView);        /// format interpretation of a buffer's contents
+ASH_DEFINE_HANDLE(BufferView);
+/// format interpretation of a buffer's contents
 ASH_DEFINE_HANDLE(Image);
-ASH_DEFINE_HANDLE(ImageView);        /// a sub-resource that specifies mips, aspects, and layer of images
+ASH_DEFINE_HANDLE(ImageView);
+/// a sub-resource that specifies mips, aspects, and layer of images
 ASH_DEFINE_HANDLE(Sampler);
 ASH_DEFINE_HANDLE(Shader);
-ASH_DEFINE_HANDLE(RenderPass);        /// renderpasses are used for selecting tiling strategy and related optimizations
+ASH_DEFINE_HANDLE(RenderPass);
+/// renderpasses are used for selecting tiling strategy and
+/// related optimizations
 ASH_DEFINE_HANDLE(Framebuffer);
 ASH_DEFINE_HANDLE(DescriptorSetLayout);
 ASH_DEFINE_HANDLE(ComputePipeline);
@@ -576,10 +580,34 @@ enum class ImageUsages : u8
   Sampled                = 0x00000004,
   Storage                = 0x00000008,
   ColorAttachment        = 0x00000010,
-  DepthStencilAttachment = 0x00000020
+  DepthStencilAttachment = 0x00000020,
+  InputAttachment        = 0x00000080
 };
 
 STX_DEFINE_ENUM_BIT_OPS(ImageUsages)
+
+enum class BufferBindings : u8
+{
+  None         = 0x00,
+  Uniform      = 0x01,
+  Storage      = 0x02,
+  UniformTexel = 0x04,
+  StorageTexel = 0x08,
+  IndexBuffer  = 0x10,
+  VertexBuffer = 0x20,
+};
+
+STX_DEFINE_ENUM_BIT_OPS(BufferBindings)
+
+enum class ImageBindings : u8
+{
+  None            = 0x00,
+  Sampled         = 0x01,
+  Storage         = 0x02,
+  InputAttachment = 0x04
+};
+
+STX_DEFINE_ENUM_BIT_OPS(ImageBindings)
 
 enum class InputRate : u8
 {
@@ -635,37 +663,22 @@ constexpr MemoryOps get_memory_ops(Access access)
 {
   MemoryOps ops = MemoryOps::None;
 
-  if ((access & (Access::IndirectCommandRead |
-                 Access::IndexRead |
-                 Access::VertexAttributeRead |
-                 Access::UniformRead |
-                 Access::InputAttachmentRead |
-                 Access::ShaderRead |
-                 Access::ColorAttachmentRead |
-                 Access::DepthStencilAttachmentRead |
-                 Access::TransferRead |
-                 Access::HostRead |
-                 Access::MemoryRead |
-                 Access::VideoDecodeRead |
-                 Access::VideoEncodeRead |
-                 Access::AccelerationStructureRead |
-                 Access::FragmentDensityMapRead |
-                 Access::ColorAttachmentReadNonCoherent |
-                 Access::DescriptorBufferRead |
-                 Access::ShaderBindingTableRead)) != Access::None)
+  if ((access &
+       (Access::IndirectCommandRead | Access::IndexRead | Access::VertexAttributeRead |
+        Access::UniformRead | Access::InputAttachmentRead | Access::ShaderRead |
+        Access::ColorAttachmentRead | Access::DepthStencilAttachmentRead | Access::TransferRead |
+        Access::HostRead | Access::MemoryRead | Access::VideoDecodeRead | Access::VideoEncodeRead |
+        Access::AccelerationStructureRead | Access::FragmentDensityMapRead |
+        Access::ColorAttachmentReadNonCoherent | Access::DescriptorBufferRead |
+        Access::ShaderBindingTableRead)) != Access::None)
   {
     ops |= MemoryOps::Read;
   }
 
-  if ((access & (Access::ShaderWrite |
-                 Access::ColorAttachmentWrite |
-                 Access::DepthStencilAttachmentWrite |
-                 Access::TransferWrite |
-                 Access::HostWrite |
-                 Access::MemoryWrite |
-                 Access::VideoDecodeWrite |
-                 Access::VideoEncodeWrite |
-                 Access::AccelerationStructureWrite)) != Access::None)
+  if ((access &
+       (Access::ShaderWrite | Access::ColorAttachmentWrite | Access::DepthStencilAttachmentWrite |
+        Access::TransferWrite | Access::HostWrite | Access::MemoryWrite | Access::VideoDecodeWrite |
+        Access::VideoEncodeWrite | Access::AccelerationStructureWrite)) != Access::None)
   {
     ops |= MemoryOps::Write;
   }
@@ -773,6 +786,9 @@ struct ImageAccess
   ImageLayout    layout = ImageLayout::Undefined;
 };
 
+BufferAccess to_pipeline_access(BufferBindings bindings, PipelineStages stages);
+ImageAccess  to_pipeline_access(ImageBindings bindings, PipelineStages stages);
+
 struct Viewport
 {
   Rect area;
@@ -808,8 +824,8 @@ struct FormatProperties
 
 // TODO(lamarrr): aliasing of the same resources in the same descriptor binding group
 //
-// TODO(lamarrr): write in vertex shader, read in fragment shader, possible pattern? can be synced via glsl
-// ordering is non-deterministic
+// TODO(lamarrr): write in vertex shader, read in fragment shader, possible pattern? can be synced
+// via glsl ordering is non-deterministic
 struct BufferDesc
 {
   u64              size       = 0;
@@ -886,8 +902,7 @@ struct RenderPassDesc
   u32                  num_color_attachments                    = 0;
   RenderPassAttachment input_attachments[MAX_COLOR_ATTACHMENTS] = {};
   u32                  num_input_attachments                    = 0;
-  RenderPassAttachment depth_stencil_attachments[1]             = {};
-  u32                  num_depth_stencil_attachments            = 0;
+  RenderPassAttachment depth_stencil_attachment                 = {};
 };
 
 struct FramebufferDesc
@@ -908,11 +923,6 @@ struct DescriptorBindingDesc
   DescriptorType type    = DescriptorType::Sampler;
   u32            count   = 0;
   ShaderStages   stages  = ShaderStages::None;
-};
-
-struct DescriptorSetDesc
-{
-  stx::Span<DescriptorBindingDesc const> bindings;
 };
 
 struct SamplerBinding
@@ -1023,18 +1033,20 @@ struct ShaderStageDesc
 
 struct ComputePipelineDesc
 {
-  ShaderStageDesc     compute_shader                                       = {};
-  DescriptorSetLayout descriptor_set_layouts[MAX_PIPELINE_DESCRIPTOR_SETS] = {};
-  u32                 num_descriptor_sets                                  = 0;
+  ShaderStageDesc     compute_shader        = {};
+  DescriptorSetLayout descriptor_set_layout = nullptr;
 };
 
 // Specifies how the binded vertex buffers are iterated and the strides for them
 // unique for each binded buffer.
 struct VertexInputBinding
 {
-  u32       binding    = 0;                        // which of the binded vertex buffers
-  u32       stride     = 0;                        // stride in bytes for each binding advance within the binded buffer
-  InputRate input_rate = InputRate::Vertex;        // advance-rate for this binding. on every vertex or every instance
+  // which of the binded vertex buffers
+  u32 binding = 0;
+  // stride in bytes for each binding advance within the binded buffer
+  u32 stride = 0;
+  // advance-rate for this binding. on every vertex or every instance
+  InputRate input_rate = InputRate::Vertex;
 };
 
 // specifies representation/interpretation and shader location mapping of the values in the buffer
@@ -1088,21 +1100,20 @@ struct PipelineRasterizationState
 
 struct GraphicsPipelineDesc
 {
-  ShaderStageDesc                   vertex_shader_stage                                  = {};
-  ShaderStageDesc                   fragment_shader_stage                                = {};
-  RenderPass                        render_pass                                          = nullptr;
-  VertexInputBinding                vertex_input_bindings[MAX_VERTEX_ATTRIBUTES]         = {};
-  u32                               num_vertex_input_bindings                            = 0;
-  VertexAttribute                   vertex_attributes[MAX_VERTEX_ATTRIBUTES]             = {};
-  u32                               num_vertex_attributes                                = 0;
-  DescriptorSetLayout               descriptor_set_layouts[MAX_PIPELINE_DESCRIPTOR_SETS] = {};
-  u32                               num_descriptor_sets                                  = 0;
-  PrimitiveTopology                 primitive_topology                                   = PrimitiveTopology::PointList;
-  PipelineRasterizationState        rasterization_state                                  = {};
-  PipelineDepthStencilState         depth_stencil_state                                  = {};
-  Vec4                              color_blend_constant                                 = {};
-  PipelineColorBlendAttachmentState color_blend_states[MAX_COLOR_ATTACHMENTS]            = {};
-  u32                               num_color_attachments                                = 0;
+  ShaderStageDesc                   vertex_shader_stage                          = {};
+  ShaderStageDesc                   fragment_shader_stage                        = {};
+  RenderPass                        render_pass                                  = nullptr;
+  VertexInputBinding                vertex_input_bindings[MAX_VERTEX_ATTRIBUTES] = {};
+  u32                               num_vertex_input_bindings                    = 0;
+  VertexAttribute                   vertex_attributes[MAX_VERTEX_ATTRIBUTES]     = {};
+  u32                               num_vertex_attributes                        = 0;
+  DescriptorSetLayout               descriptor_set_layout                        = nullptr;
+  PrimitiveTopology                 primitive_topology   = PrimitiveTopology::PointList;
+  PipelineRasterizationState        rasterization_state  = {};
+  PipelineDepthStencilState         depth_stencil_state  = {};
+  Vec4                              color_blend_constant = {};
+  PipelineColorBlendAttachmentState color_blend_states[MAX_COLOR_ATTACHMENTS] = {};
+  u32                               num_color_attachments                     = 0;
 };
 
 struct BufferCopy
@@ -1226,7 +1237,7 @@ struct StencilFaceState
   u32 write_mask   = 0;
 };
 
-struct GraphicsState
+struct RenderState
 {
   Viewport         viewport;
   IRect            scissor;
@@ -1239,9 +1250,10 @@ struct GraphicsState
 
 struct BufferResource
 {
-  BufferDesc  desc;
-  BufferState state;
-  Buffer      handle = nullptr;
+  BufferDesc     desc;
+  BufferState    state;
+  BufferBindings bindings = BufferBindings::None;
+  Buffer         handle   = nullptr;
 };
 
 struct BufferViewResource
@@ -1252,9 +1264,10 @@ struct BufferViewResource
 
 struct ImageResource
 {
-  ImageDesc  desc;
-  ImageState state;
-  Image      handle = nullptr;
+  ImageDesc     desc;
+  ImageState    state;
+  ImageBindings bindings = ImageBindings::None;
+  Image         handle   = nullptr;
 };
 
 struct ImageViewResource
@@ -1307,3 +1320,4 @@ struct CommandBufferResource
 
 }        // namespace gfx
 }        // namespace ash
+         // NOTE: renderpass attachments MUST not be accessed in shaders within that renderpass

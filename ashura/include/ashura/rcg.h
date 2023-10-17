@@ -19,50 +19,37 @@ struct CommandBufferHook
 {
   Graph *graph = nullptr;
 
-  virtual void fill_buffer(gfx::Buffer buffer, u64 offset, u64 size, u32 data)                                       = 0;
-  virtual void copy_buffer(gfx::Buffer src, gfx::Buffer dst, stx::Span<gfx::BufferCopy const> copies)                = 0;
-  virtual void update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::Buffer dst)                               = 0;
-  virtual void copy_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageCopy const> copies)                    = 0;
-  virtual void copy_buffer_to_image(gfx::Buffer src, gfx::Image dst, stx::Span<gfx::BufferImageCopy const> copies)   = 0;
-  virtual void blit_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageBlit const> blits, gfx::Filter filter) = 0;
-  virtual void begin_render_pass(gfx::Framebuffer                   framebuffer,
-                                 gfx::RenderPass                    render_pass,
-                                 IRect                              render_area,
-                                 stx::Span<gfx::Color const>        color_attachments_clear_values,
-                                 stx::Span<gfx::DepthStencil const> depth_stencil_attachments_clear_values)          = 0;
-  virtual void end_render_pass()                                                                                     = 0;
-  virtual void dispatch(gfx::ComputePipeline                        pipeline,
-                        u32                                         group_count_x,
-                        u32                                         group_count_y,
-                        u32                                         group_count_z,
-                        stx::Span<gfx::DescriptorSetBindings const> bindings,
-                        stx::Span<u8 const>                         push_constants_data)                                                     = 0;
-  virtual void dispatch_indirect(gfx::ComputePipeline                        pipeline,
-                                 gfx::Buffer                                 buffer,
-                                 u64                                         offset,
-                                 stx::Span<gfx::DescriptorSetBindings const> bindings,
-                                 stx::Span<u8 const>                         push_constants_data)                                            = 0;
-  virtual void draw(gfx::GraphicsPipeline                       pipeline,
-                    gfx::GraphicsState const                   &state,
-                    stx::Span<gfx::Buffer const>                vertex_buffers,
-                    gfx::Buffer                                 index_buffer,
-                    u32                                         first_index,
-                    u32                                         num_indices,
-                    u32                                         vertex_offset,
-                    u32                                         first_instance,
-                    u32                                         num_instances,
-                    stx::Span<gfx::DescriptorSetBindings const> bindings,
-                    stx::Span<u8 const>                         push_constants_data);
-  virtual void draw_indirect(gfx::GraphicsPipeline                       pipeline,
-                             gfx::GraphicsState const                   &state,
-                             stx::Span<gfx::Buffer const>                vertex_buffers,
-                             gfx::Buffer                                 index_buffer,
-                             gfx::Buffer                                 buffer,
-                             u64                                         offset,
-                             u32                                         draw_count,
-                             u32                                         stride,
-                             stx::Span<gfx::DescriptorSetBindings const> bindings,
-                             stx::Span<u8 const>                         push_constants_data)    = 0;
+  virtual void fill_buffer(gfx::Buffer buffer, u64 offset, u64 size, u32 data)         = 0;
+  virtual void copy_buffer(gfx::Buffer src, gfx::Buffer dst,
+                           stx::Span<gfx::BufferCopy const> copies)                    = 0;
+  virtual void update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::Buffer dst) = 0;
+  virtual void copy_image(gfx::Image src, gfx::Image dst,
+                          stx::Span<gfx::ImageCopy const> copies)                      = 0;
+  virtual void copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
+                                    stx::Span<gfx::BufferImageCopy const> copies)      = 0;
+  virtual void blit_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageBlit const> blits,
+                          gfx::Filter filter)                                          = 0;
+  virtual void begin_render_pass(
+      gfx::Framebuffer framebuffer, gfx::RenderPass render_pass, IRect render_area,
+      stx::Span<gfx::Color const>        color_attachments_clear_values,
+      stx::Span<gfx::DepthStencil const> depth_stencil_attachments_clear_values) = 0;
+  virtual void end_render_pass()                                                 = 0;
+  virtual void dispatch(gfx::ComputePipeline pipeline, u32 group_count_x, u32 group_count_y,
+                        u32 group_count_z, gfx::DescriptorSetBindings const &bindings,
+                        stx::Span<u8 const> push_constants_data)                 = 0;
+  virtual void dispatch_indirect(gfx::ComputePipeline pipeline, gfx::Buffer buffer, u64 offset,
+                                 gfx::DescriptorSetBindings const &bindings,
+                                 stx::Span<u8 const>               push_constants_data)        = 0;
+  virtual void draw(gfx::GraphicsPipeline pipeline, gfx::RenderState const &state,
+                    stx::Span<gfx::Buffer const> vertex_buffers, gfx::Buffer index_buffer,
+                    u32 first_index, u32 num_indices, u32 vertex_offset, u32 first_instance,
+                    u32 num_instances, gfx::DescriptorSetBindings const &bindings,
+                    stx::Span<u8 const> push_constants_data);
+  virtual void draw_indirect(gfx::GraphicsPipeline pipeline, gfx::RenderState const &state,
+                             stx::Span<gfx::Buffer const> vertex_buffers, gfx::Buffer index_buffer,
+                             gfx::Buffer buffer, u64 offset, u32 draw_count, u32 stride,
+                             gfx::DescriptorSetBindings const &bindings,
+                             stx::Span<u8 const>               push_constants_data)    = 0;
   virtual void on_execution_complete_fn(stx::UniqueFn<void()> const &fn) = 0;
   virtual ~CommandBufferHook()                                           = 0;
 };
@@ -76,58 +63,48 @@ struct CommandBuffer
   gfx::Framebuffer                framebuffer      = nullptr;
   stx::Vec<stx::UniqueFn<void()>> completion_tasks = {};        // MUST be run in reverse order
   gfx::CommandBuffer              handle           = nullptr;
+  stx::Vec<gfx::QueueBufferMemoryBarrier> buffer_memory_barriers;
+  stx::Vec<gfx::QueueImageMemoryBarrier>  image_memory_barriers;
 
   // TODO(lamarrr): use descriptor sets multiple times per-pass
-  void fill_buffer(gfx::Buffer buffer, u64 offset, u64 size, u32 data);        // NOTE:::: MUST be multiple of 4 for dst offset and dst size
+  // NOTE:::: MUST be multiple of 4 for dst offset and dst size
+  void fill_buffer(gfx::Buffer buffer, u64 offset, u64 size, u32 data);
   void copy_buffer(gfx::Buffer src, gfx::Buffer dst, stx::Span<gfx::BufferCopy const> copies);
-  void update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::Buffer dst);        // NOTE:::: MUST be multiple of 4 for dst offset and dst size
+  // NOTE:::: MUST be multiple of 4 for dst offset and dst size
+  void update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::Buffer dst);
   void copy_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageCopy const> copies);
-  void copy_buffer_to_image(gfx::Buffer src, gfx::Image dst, stx::Span<gfx::BufferImageCopy const> copies);
-  void blit_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageBlit const> blits, gfx::Filter filter);
-  void begin_render_pass(gfx::Framebuffer                   framebuffer,
-                         gfx::RenderPass                    render_pass,
+  void copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
+                            stx::Span<gfx::BufferImageCopy const> copies);
+  void blit_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageBlit const> blits,
+                  gfx::Filter filter);
+  void begin_render_pass(gfx::Framebuffer framebuffer, gfx::RenderPass render_pass,
                          IRect                              render_area,
                          stx::Span<gfx::Color const>        color_attachments_clear_values,
                          stx::Span<gfx::DepthStencil const> depth_stencil_attachments_clear_values);
   void end_render_pass();
-  void dispatch(gfx::ComputePipeline                        pipeline,
-                u32                                         group_count_x,
-                u32                                         group_count_y,
-                u32                                         group_count_z,
-                stx::Span<gfx::DescriptorSetBindings const> bindings,
-                stx::Span<u8 const>                         push_constants_data);
-  void dispatch_indirect(gfx::ComputePipeline                        pipeline,
-                         gfx::Buffer                                 buffer,
-                         u64                                         offset,
-                         stx::Span<gfx::DescriptorSetBindings const> bindings,
-                         stx::Span<u8 const>                         push_constants_data);
-  void draw(gfx::GraphicsPipeline                       pipeline,
-            gfx::GraphicsState const                   &state,
-            stx::Span<gfx::Buffer const>                vertex_buffers,
-            gfx::Buffer                                 index_buffer,
-            u32                                         first_index,
-            u32                                         num_indices,
-            u32                                         vertex_offset,
-            u32                                         first_instance,
-            u32                                         num_instances,
-            stx::Span<gfx::DescriptorSetBindings const> bindings,
-            stx::Span<u8 const>                         push_constants_data);
-  void draw_indirect(gfx::GraphicsPipeline                       pipeline,
-                     gfx::GraphicsState const                   &state,
-                     stx::Span<gfx::Buffer const>                vertex_buffers,
-                     gfx::Buffer                                 index_buffer,
-                     gfx::Buffer                                 buffer,
-                     u64                                         offset,
-                     u32                                         draw_count,
-                     u32                                         stride,
-                     stx::Span<gfx::DescriptorSetBindings const> bindings,
-                     stx::Span<u8 const>                         push_constants_data);
+  void dispatch(gfx::ComputePipeline pipeline, u32 group_count_x, u32 group_count_y,
+                u32 group_count_z, gfx::DescriptorSetBindings const &bindings,
+                stx::Span<u8 const> push_constants_data);
+  void dispatch_indirect(gfx::ComputePipeline pipeline, gfx::Buffer buffer, u64 offset,
+                         gfx::DescriptorSetBindings const &bindings,
+                         stx::Span<u8 const>               push_constants_data);
+  void draw(gfx::GraphicsPipeline pipeline, gfx::RenderState const &state,
+            stx::Span<gfx::Buffer const> vertex_buffers, gfx::Buffer index_buffer, u32 first_index,
+            u32 num_indices, u32 vertex_offset, u32 first_instance, u32 num_instances,
+            gfx::DescriptorSetBindings const &bindings, stx::Span<u8 const> push_constants_data);
+  void draw_indirect(gfx::GraphicsPipeline pipeline, gfx::RenderState const &state,
+                     stx::Span<gfx::Buffer const> vertex_buffers, gfx::Buffer index_buffer,
+                     gfx::Buffer buffer, u64 offset, u32 draw_count, u32 stride,
+                     gfx::DescriptorSetBindings const &bindings,
+                     stx::Span<u8 const>               push_constants_data);
   void on_execution_complete_fn(stx::UniqueFn<void()> &&fn);
   template <typename TaskLambda>
   void on_execution_complete(TaskLambda &&lambda)
   {
     static_assert(std::is_invocable_v<TaskLambda &>);
-    on_execution_complete_fn(stx::fn::rc::make_unique_functor(stx::os_allocator, std::forward<TaskLambda>(lambda)).unwrap());
+    on_execution_complete_fn(
+        stx::fn::rc::make_unique_functor(stx::os_allocator, std::forward<TaskLambda>(lambda))
+            .unwrap());
   }
 };
 
@@ -161,7 +138,8 @@ struct GraphHook
 // interceptor that is used for validation and adding barriers
 // this is separate from the graph as it could be recorded????
 //
-// TASKS: use flow information to insert barrier and perform optimal synchronization and resource layout conversions
+// TASKS: use flow information to insert barrier and perform optimal synchronization and resource
+// layout conversions
 // TODO(lamarrr): how do we enable features like raytracing dynamically at runtime?
 // each pass declares flags?
 //
@@ -171,12 +149,14 @@ struct GraphHook
 // NOW: how to insert barrier and validation hooks
 //
 //
-// for each creation and release commands, we'll insert optional hooks that check that the parameters are correct
-// we need to check the graph for information regarding the type and its dependencies
+// for each creation and release commands, we'll insert optional hooks that check that the
+// parameters are correct we need to check the graph for information regarding the type and its
+// dependencies
 //
 //
 // on_queue_drain should be called on every device/queue idle wait
-// on scheduled frame_fence sent check if any resource has been requested to be released, if so, release
+// on scheduled frame_fence sent check if any resource has been requested to be released, if so,
+// release
 //
 // temporary images, temporary buffers,
 //
@@ -186,27 +166,27 @@ struct GraphHook
 //
 struct Graph
 {
-  gfx::Buffer                                                             create(gfx::BufferDesc const &desc);
-  gfx::BufferView                                                         create(gfx::BufferViewDesc const &desc);
-  gfx::Image                                                              create(gfx::ImageDesc const &desc);
-  gfx::ImageView                                                          create(gfx::ImageViewDesc const &desc);
-  gfx::Sampler                                                            create(gfx::SamplerDesc const &sampler);
-  gfx::RenderPass                                                         create(gfx::RenderPassDesc const &desc);
-  gfx::Framebuffer                                                        create(gfx::FramebufferDesc const &desc);
-  gfx::DescriptorSetLayout                                                create(gfx::DescriptorSetDesc const &descriptor_set_layout);
-  gfx::ComputePipeline                                                    create(gfx::ComputePipelineDesc const &desc);
-  gfx::GraphicsPipeline                                                   create(gfx::GraphicsPipelineDesc const &desc);
-  void                                                                    release(gfx::Buffer buffer);
-  void                                                                    release(gfx::BufferView buffer_view);
-  void                                                                    release(gfx::Image image);
-  void                                                                    release(gfx::ImageView image_view);
-  void                                                                    release(gfx::Sampler sampler);
-  void                                                                    release(gfx::RenderPass render_pass);
-  void                                                                    release(gfx::Framebuffer framebuffer);
-  void                                                                    release(gfx::DescriptorSetLayout descriptor_set_layout);
-  void                                                                    release(gfx::ComputePipeline pipeline);
-  void                                                                    release(gfx::GraphicsPipeline pipeline);
-  void                                                                    on_drain();
+  gfx::Buffer              create(gfx::BufferDesc const &desc);
+  gfx::BufferView          create(gfx::BufferViewDesc const &desc);
+  gfx::Image               create(gfx::ImageDesc const &desc);
+  gfx::ImageView           create(gfx::ImageViewDesc const &desc);
+  gfx::Sampler             create(gfx::SamplerDesc const &sampler);
+  gfx::RenderPass          create(gfx::RenderPassDesc const &desc);
+  gfx::Framebuffer         create(gfx::FramebufferDesc const &desc);
+  gfx::DescriptorSetLayout create(gfx::DescriptorSetDesc const &descriptor_set_layout);
+  gfx::ComputePipeline     create(gfx::ComputePipelineDesc const &desc);
+  gfx::GraphicsPipeline    create(gfx::GraphicsPipelineDesc const &desc);
+  void                     release(gfx::Buffer buffer);
+  void                     release(gfx::BufferView buffer_view);
+  void                     release(gfx::Image image);
+  void                     release(gfx::ImageView image_view);
+  void                     release(gfx::Sampler sampler);
+  void                     release(gfx::RenderPass render_pass);
+  void                     release(gfx::Framebuffer framebuffer);
+  void                     release(gfx::DescriptorSetLayout descriptor_set_layout);
+  void                     release(gfx::ComputePipeline pipeline);
+  void                     release(gfx::GraphicsPipeline pipeline);
+  void                     on_drain();
   SparseArray<gfx::BufferResource, gfx::Buffer>                           buffers;
   SparseArray<gfx::BufferViewResource, gfx::BufferView>                   buffer_views;
   SparseArray<gfx::ImageResource, gfx::Image>                             images;

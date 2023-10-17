@@ -5,7 +5,6 @@ namespace ash
 namespace rcg
 {
 
-
 void CommandBuffer::fill_buffer(gfx::Buffer buffer, u64 offset, u64 size, u32 data)
 {
   hook->fill_buffer(buffer, offset, size, data);
@@ -20,7 +19,8 @@ void CommandBuffer::fill_buffer(gfx::Buffer buffer, u64 offset, u64 size, u32 da
   graph->driver->cmd_fill_buffer(handle, buffer, offset, size, data);
 }
 
-void CommandBuffer::copy_buffer(gfx::Buffer src, gfx::Buffer dst, stx::Span<gfx::BufferCopy const> copies)
+void CommandBuffer::copy_buffer(gfx::Buffer src, gfx::Buffer dst,
+                                stx::Span<gfx::BufferCopy const> copies)
 {
   hook->copy_buffer(src, dst, copies);
 
@@ -66,26 +66,29 @@ void CommandBuffer::update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::
   graph->driver->cmd_update_buffer(handle, src, dst_offset, dst);
 }
 
-void CommandBuffer::copy_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageCopy const> copies)
+void CommandBuffer::copy_image(gfx::Image src, gfx::Image dst,
+                               stx::Span<gfx::ImageCopy const> copies)
 {
   hook->copy_image(src, dst, copies);
 
   gfx::QueueImageMemoryBarrier barriers[2];
   u8                           num_barriers = 0;
-  if (graph->images[src].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
-                                                     .access = gfx::Access::TransferRead,
-                                                     .layout = gfx::ImageLayout::TransferSrcOptimal},
-                                    barriers[num_barriers]))
+  if (graph->images[src].state.sync(
+          gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
+                           .access = gfx::Access::TransferRead,
+                           .layout = gfx::ImageLayout::TransferSrcOptimal},
+          barriers[num_barriers]))
   {
     barriers[num_barriers].image   = graph->images[src].handle;
     barriers[num_barriers].aspects = graph->images[src].desc.aspects;
     num_barriers++;
   }
 
-  if (graph->images[dst].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
-                                                     .access = gfx::Access::TransferWrite,
-                                                     .layout = gfx::ImageLayout::TransferDstOptimal},
-                                    barriers[num_barriers]))
+  if (graph->images[dst].state.sync(
+          gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
+                           .access = gfx::Access::TransferWrite,
+                           .layout = gfx::ImageLayout::TransferDstOptimal},
+          barriers[num_barriers]))
   {
     barriers[num_barriers].image   = graph->images[dst].handle;
     barriers[num_barriers].aspects = graph->images[dst].desc.aspects;
@@ -100,7 +103,8 @@ void CommandBuffer::copy_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::Im
   graph->driver->cmd_copy_image(handle, src, dst, copies);
 }
 
-void CommandBuffer::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst, stx::Span<gfx::BufferImageCopy const> copies)
+void CommandBuffer::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
+                                         stx::Span<gfx::BufferImageCopy const> copies)
 {
   gfx::QueueBufferMemoryBarrier buffer_memory_barriers[1];
   gfx::QueueImageMemoryBarrier  image_memory_barriers[1];
@@ -115,10 +119,11 @@ void CommandBuffer::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst, stx::S
     num_buffer_memory_barriers++;
   }
 
-  if (graph->images[dst].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
-                                                     .access = gfx::Access::TransferWrite,
-                                                     .layout = gfx::ImageLayout::TransferDstOptimal},
-                                    image_memory_barriers[num_image_memory_barriers]))
+  if (graph->images[dst].state.sync(
+          gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
+                           .access = gfx::Access::TransferWrite,
+                           .layout = gfx::ImageLayout::TransferDstOptimal},
+          image_memory_barriers[num_image_memory_barriers]))
   {
     image_memory_barriers[num_image_memory_barriers].image   = graph->images[dst].handle;
     image_memory_barriers[num_image_memory_barriers].aspects = graph->images[dst].desc.aspects;
@@ -127,32 +132,37 @@ void CommandBuffer::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst, stx::S
 
   if (num_buffer_memory_barriers > 0 || num_image_memory_barriers > 0)
   {
-    graph->driver->cmd_insert_barriers(handle, stx::Span{buffer_memory_barriers, num_buffer_memory_barriers}, stx::Span{image_memory_barriers, num_image_memory_barriers});
+    graph->driver->cmd_insert_barriers(
+        handle, stx::Span{buffer_memory_barriers, num_buffer_memory_barriers},
+        stx::Span{image_memory_barriers, num_image_memory_barriers});
   }
 
   graph->driver->cmd_copy_buffer_to_image(handle, src, dst, copies);
 }
 
-void CommandBuffer::blit_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageBlit const> blits, gfx::Filter filter)
+void CommandBuffer::blit_image(gfx::Image src, gfx::Image dst,
+                               stx::Span<gfx::ImageBlit const> blits, gfx::Filter filter)
 {
   hook->blit_image(src, dst, blits, filter);
 
   gfx::QueueImageMemoryBarrier barriers[2];
   u8                           num_barriers = 0;
-  if (graph->images[src].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
-                                                     .access = gfx::Access::TransferRead,
-                                                     .layout = gfx::ImageLayout::TransferSrcOptimal},
-                                    barriers[num_barriers]))
+  if (graph->images[src].state.sync(
+          gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
+                           .access = gfx::Access::TransferRead,
+                           .layout = gfx::ImageLayout::TransferSrcOptimal},
+          barriers[num_barriers]))
   {
     barriers[num_barriers].image   = graph->images[src].handle;
     barriers[num_barriers].aspects = graph->images[src].desc.aspects;
     num_barriers++;
   }
 
-  if (graph->images[dst].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
-                                                     .access = gfx::Access::TransferWrite,
-                                                     .layout = gfx::ImageLayout::TransferDstOptimal},
-                                    barriers[num_barriers]))
+  if (graph->images[dst].state.sync(
+          gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
+                           .access = gfx::Access::TransferWrite,
+                           .layout = gfx::ImageLayout::TransferDstOptimal},
+          barriers[num_barriers]))
   {
     barriers[num_barriers].image   = graph->images[dst].handle;
     barriers[num_barriers].aspects = graph->images[dst].desc.aspects;
@@ -167,46 +177,55 @@ void CommandBuffer::blit_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::Im
   graph->driver->cmd_blit_image(handle, src, dst, blits, filter);
 }
 
-void CommandBuffer::begin_render_pass(gfx::RenderPassBeginInfo const &info)
+void CommandBuffer::begin_render_pass(
+    gfx::Framebuffer framebuffer, gfx::RenderPass render_pass, IRect render_area,
+    stx::Span<gfx::Color const>        color_attachments_clear_values,
+    stx::Span<gfx::DepthStencil const> depth_stencil_attachments_clear_values)
 {
-  hook->begin_render_pass(info);
+  hook->begin_render_pass(framebuffer, render_pass, render_area, color_attachments_clear_values,
+                          depth_stencil_attachments_clear_values);
 
-  gfx::RenderPassDesc const             &renderpass_desc = graph->render_passes[info.render_pass].desc;
-  stx::Vec<gfx::QueueImageMemoryBarrier> barriers;
-  gfx::QueueImageMemoryBarrier           barrier;
+  gfx::RenderPassDesc const   &renderpass_desc = graph->render_passes[render_pass].desc;
+  gfx::QueueImageMemoryBarrier barrier;
+  gfx::QueueImageMemoryBarrier barriers[gfx::MAX_COLOR_ATTACHMENTS + 1];
+  u32                          num_barriers = 0;
 
   for (u32 i = 0; i < renderpass_desc.num_color_attachments; i++)
   {
-    gfx::Image                image    = graph->image_views[graph->framebuffers[info.framebuffer].desc.color_attachments[i]].desc.image;
+    gfx::Image image =
+        graph->image_views[graph->framebuffers[framebuffer].desc.color_attachments[i]].desc.image;
     gfx::ImageResource const &resource = graph->images[image];
 
-    if (graph->images[image].state.sync(renderpass_desc.color_attachments[i].get_color_image_access(), barrier))
+    if (graph->images[image].state.sync(
+            renderpass_desc.color_attachments[i].get_color_image_access(), barrier))
     {
-      barrier.image   = resource.handle;
-      barrier.aspects = resource.desc.aspects;
-      barriers.push_inplace(barrier).unwrap();
+      barrier.image          = resource.handle;
+      barrier.aspects        = resource.desc.aspects;
+      barriers[num_barriers] = barrier;
+      num_barriers++;
     }
   }
 
-  for (u32 i = 0; i < renderpass_desc.num_depth_stencil_attachments; i++)
   {
-    gfx::Image                image    = graph->image_views[graph->framebuffers[info.framebuffer].desc.depth_stencil_attachments[i]].desc.image;
+    gfx::Image image =
+        graph->image_views[graph->framebuffers[framebuffer].desc.depth_stencil_attachment]
+            .desc.image;
     gfx::ImageResource const &resource = graph->images[image];
 
-    if (graph->images[image].state.sync(renderpass_desc.depth_stencil_attachments[i].get_depth_stencil_image_access(), barrier))
+    if (graph->images[image].state.sync(
+            renderpass_desc.depth_stencil_attachment.get_depth_stencil_image_access(), barrier))
     {
-      barrier.image   = resource.handle;
-      barrier.aspects = resource.desc.aspects;
-      barriers.push_inplace(barrier).unwrap();
+      barrier.image          = resource.handle;
+      barrier.aspects        = resource.desc.aspects;
+      barriers[num_barriers] = barrier;
+      num_barriers++;
     }
   }
 
-  gfx::RenderPassBeginInfo info_copy{info};
-  info_copy.framebuffer = graph->framebuffers[info_copy.framebuffer].handle;
-  info_copy.render_pass = graph->render_passes[info_copy.render_pass].handle;
-
-  graph->driver->cmd_insert_barriers(handle, {}, barriers);
-  graph->driver->cmd_begin_render_pass(handle, info_copy);
+  graph->driver->cmd_insert_barriers(handle, {}, stx::Span{barriers, num_barriers});
+  graph->driver->cmd_begin_render_pass(
+      handle, graph->framebuffers[framebuffer].handle, graph->render_passes[render_pass].handle,
+      render_area, color_attachments_clear_values, depth_stencil_attachments_clear_values);
 }
 
 void CommandBuffer::end_render_pass()
@@ -215,115 +234,239 @@ void CommandBuffer::end_render_pass()
   graph->driver->cmd_end_render_pass(handle);
 }
 
-void CommandBuffer::bind_pipeline(gfx::ComputePipeline pipeline)
-{
-  hook->bind_pipeline(pipeline);
-  context.compute_pipeline = pipeline;
-  graph->driver->cmd_bind_pipeline(handle, graph->compute_pipelines[pipeline].handle);
-}
 
-void CommandBuffer::bind_pipeline(gfx::GraphicsPipeline pipeline)
-{
-  hook->bind_pipeline(pipeline);
-  context.graphics_pipeline = pipeline;
-  graph->driver->cmd_bind_pipeline(handle, graph->graphics_pipelines[pipeline].handle);
-}
-
-void CommandBuffer::bind_vertex_buffers(u32 first_binding, stx::Span<gfx::Buffer const> vertex_buffers, stx::Span<u64 const> offsets)
-{
-  hook->bind_vertex_buffers(first_binding, vertex_buffers, offsets);
-  graph->driver->cmd_bind_vertex_buffers(handle, first_binding, vertex_buffers, offsets);
-}
-
-void CommandBuffer::bind_index_buffer(gfx::Buffer index_buffer, u64 offset)
-{
-  hook->bind_index_buffer(index_buffer, offset);
-  context.index_buffer = index_buffer;
-  graph->driver->cmd_bind_index_buffer(handle, index_buffer, offset);
-}
-
-void CommandBuffer::push_constants(stx::Span<u8 const> constants)
-{
-  hook->push_constants(constants);
-  graph->driver->cmd_push_constants(handle, context.compute_pipeline == nullptr ? gfx::PipelineBindPoint::Graphics : gfx::PipelineBindPoint::Compute, constants);
-}
-
-void CommandBuffer::push_descriptor_set(u32 set, gfx::DescriptorSetBindings const &bindings)
+inline void generate_descriptor_barriers(gfx::DescriptorSetBindings const &bindings, Graph &graph,
+                                         stx::Vec<gfx::QueueImageMemoryBarrier>  &image_barriers,
+                                         stx::Vec<gfx::QueueBufferMemoryBarrier> &buffer_barriers)
 {
   // todo(lamarrr): add pipeline bind point
   hook->push_descriptor_set(set, bindings);
 
-  context.descriptor_set_barriers[set].clear();
+  for (gfx::CombinedImageSamplerBinding const &binding : bindings.combined_image_samplers)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings =
+        gfx::ImageBindings::None;
+  }
+
+  for (gfx::InputAttachmentBinding const &binding : bindings.input_attachments)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings =
+        gfx::ImageBindings::None;
+  }
+
+  for (gfx::SampledImageBinding const &binding : bindings.sampled_images)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings =
+        gfx::ImageBindings::None;
+  }
+
+  for (gfx::StorageBufferBinding const &binding : bindings.storage_buffers)
+  {
+    graph.buffers[binding.buffer].bindings = gfx::BufferBindings::None;
+  }
+
+  for (gfx::StorageImageBinding const &binding : bindings.storage_images)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings =
+        gfx::ImageBindings::None;
+  }
+
+  for (gfx::StorageTexelBufferBinding const &binding : bindings.storage_texel_buffers)
+  {
+    graph.buffers[graph.buffer_views[binding.buffer_view].desc.buffer].bindings =
+        gfx::BufferBindings::None;
+  }
+
+  for (gfx::UniformBufferBinding const &binding : bindings.uniform_buffers)
+  {
+    graph.buffers[binding.buffer].bindings = gfx::BufferBindings::None;
+  }
+
+  for (gfx::UniformTexelBufferBinding const &binding : bindings.uniform_texel_buffers)
+  {
+    graph.buffers[graph.buffer_views[binding.buffer_view].desc.buffer].bindings =
+        gfx::BufferBindings::None;
+  }
+
+  /////////////////////////////////
+
+  for (gfx::CombinedImageSamplerBinding const &binding : bindings.combined_image_samplers)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings |=
+        gfx::ImageBindings::Sampled;
+  }
+
+  for (gfx::InputAttachmentBinding const &binding : bindings.input_attachments)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings |=
+        gfx::ImageBindings::InputAttachment;
+  }
+
+  for (gfx::SampledImageBinding const &binding : bindings.sampled_images)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings |=
+        gfx::ImageBindings::Sampled;
+  }
+
+  for (gfx::StorageBufferBinding const &binding : bindings.storage_buffers)
+  {
+    graph.buffers[binding.buffer].bindings |= gfx::BufferBindings::Storage;
+  }
+
+  for (gfx::StorageImageBinding const &binding : bindings.storage_images)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings |=
+        gfx::ImageBindings::Storage;
+  }
+
+  for (gfx::StorageTexelBufferBinding const &binding : bindings.storage_texel_buffers)
+  {
+    graph.buffers[graph.buffer_views[binding.buffer_view].desc.buffer].bindings |=
+        gfx::BufferBindings::StorageTexel;
+  }
+
+  for (gfx::UniformBufferBinding const &binding : bindings.uniform_buffers)
+  {
+    graph.buffers[binding.buffer].bindings |= gfx::BufferBindings::Uniform;
+  }
+
+  for (gfx::UniformTexelBufferBinding const &binding : bindings.uniform_texel_buffers)
+  {
+    graph.buffers[graph.buffer_views[binding.buffer_view].desc.buffer].bindings |=
+        gfx::BufferBindings::UniformTexel;
+  }
+
+  //////////////////////////////////////////////////////////////////
+
+  for (gfx::CombinedImageSamplerBinding const &binding : bindings.combined_image_samplers)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings |=
+        gfx::ImageBindings::Sampled;
+  }
+
+  for (gfx::InputAttachmentBinding const &binding : bindings.input_attachments)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings |=
+        gfx::ImageBindings::InputAttachment;
+  }
+
+  for (gfx::SampledImageBinding const &binding : bindings.sampled_images)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings |=
+        gfx::ImageBindings::Sampled;
+  }
+
+  for (gfx::StorageBufferBinding const &binding : bindings.storage_buffers)
+  {
+    graph.buffers[binding.buffer].bindings |= gfx::BufferBindings::Storage;
+  }
+
+  for (gfx::StorageImageBinding const &binding : bindings.storage_images)
+  {
+    graph.images[graph.image_views[binding.image_view].desc.image].bindings |=
+        gfx::ImageBindings::Storage;
+  }
+
+  for (gfx::StorageTexelBufferBinding const &binding : bindings.storage_texel_buffers)
+  {
+    graph.buffers[graph.buffer_views[binding.buffer_view].desc.buffer].bindings |=
+        gfx::BufferBindings::StorageTexel;
+  }
+
+  for (gfx::UniformBufferBinding const &binding : bindings.uniform_buffers)
+  {
+    graph.buffers[binding.buffer].bindings |= gfx::BufferBindings::Uniform;
+  }
+
+  for (gfx::UniformTexelBufferBinding const &binding : bindings.uniform_texel_buffers)
+  {
+    graph.buffers[graph.buffer_views[binding.buffer_view].desc.buffer].bindings |=
+        gfx::BufferBindings::UniformTexel;
+  }
 
   gfx::QueueImageMemoryBarrier  image_memory_barrier;
   gfx::QueueBufferMemoryBarrier buffer_memory_barrier;
 
   for (gfx::CombinedImageSamplerBinding const &binding : bindings.combined_image_samplers)
   {
-    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                                     .access = gfx::Access::ShaderRead,
-                                                                                                     .layout = gfx::ImageLayout::ShaderReadOnlyOptimal},
-                                                                                    image_memory_barrier))
+    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(
+            gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
+                             .access = gfx::Access::ShaderRead,
+                             .layout = gfx::ImageLayout::ShaderReadOnlyOptimal},
+            image_memory_barrier))
     {
-      image_memory_barrier.image   = graph->images[graph->image_views[binding.image_view].desc.image].handle;
-      image_memory_barrier.aspects = graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
+      image_memory_barrier.image =
+          graph->images[graph->image_views[binding.image_view].desc.image].handle;
+      image_memory_barrier.aspects =
+          graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
       context.descriptor_set_barriers[set].image.push_inplace(image_memory_barrier).unwrap();
     }
   }
 
   for (gfx::SampledImageBinding const &binding : bindings.sampled_images)
   {
-    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                                     .access = gfx::Access::ShaderRead,
-                                                                                                     .layout = gfx::ImageLayout::ShaderReadOnlyOptimal},
-                                                                                    image_memory_barrier))
+    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(
+            gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
+                             .access = gfx::Access::ShaderRead,
+                             .layout = gfx::ImageLayout::ShaderReadOnlyOptimal},
+            image_memory_barrier))
     {
-      image_memory_barrier.image   = graph->images[graph->image_views[binding.image_view].desc.image].handle;
-      image_memory_barrier.aspects = graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
+      image_memory_barrier.image =
+          graph->images[graph->image_views[binding.image_view].desc.image].handle;
+      image_memory_barrier.aspects =
+          graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
       context.descriptor_set_barriers[set].image.push_inplace(image_memory_barrier).unwrap();
     }
   }
 
   for (gfx::StorageImageBinding const &binding : bindings.storage_images)
   {
-    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                                     .access = gfx::Access::ShaderWrite,
-                                                                                                     .layout = gfx::ImageLayout::General},
-                                                                                    image_memory_barrier))
+    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(
+            gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
+                             .access = gfx::Access::ShaderWrite,
+                             .layout = gfx::ImageLayout::General},
+            image_memory_barrier))
     {
-      image_memory_barrier.image   = graph->images[graph->image_views[binding.image_view].desc.image].handle;
-      image_memory_barrier.aspects = graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
+      image_memory_barrier.image =
+          graph->images[graph->image_views[binding.image_view].desc.image].handle;
+      image_memory_barrier.aspects =
+          graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
       context.descriptor_set_barriers[set].image.push_inplace(image_memory_barrier).unwrap();
     }
   }
 
   for (gfx::UniformTexelBufferBinding const &binding : bindings.uniform_texel_buffers)
   {
-    if (graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                                          .access = gfx::Access::ShaderRead},
-                                                                                        buffer_memory_barrier))
+    if (graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].state.sync(
+            gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
+                              .access = gfx::Access::ShaderRead},
+            buffer_memory_barrier))
     {
-      buffer_memory_barrier.buffer = graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].handle;
+      buffer_memory_barrier.buffer =
+          graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].handle;
       context.descriptor_set_barriers[set].buffer.push_inplace(buffer_memory_barrier).unwrap();
     }
   }
 
   for (gfx::StorageTexelBufferBinding const &binding : bindings.storage_texel_buffers)
   {
-    if (graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                                          .access = gfx::Access::ShaderWrite},
-                                                                                        buffer_memory_barrier))
+    if (graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].state.sync(
+            gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
+                              .access = gfx::Access::ShaderWrite},
+            buffer_memory_barrier))
     {
-      buffer_memory_barrier.buffer = graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].handle;
+      buffer_memory_barrier.buffer =
+          graph->buffers[graph->buffer_views[binding.buffer_view].desc.buffer].handle;
       context.descriptor_set_barriers[set].buffer.push_inplace(buffer_memory_barrier).unwrap();
     }
   }
 
   for (gfx::UniformBufferBinding const &binding : bindings.uniform_buffers)
   {
-    if (graph->buffers[binding.buffer].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                    .access = gfx::Access::ShaderRead},
-                                                  buffer_memory_barrier))
+    if (graph->buffers[binding.buffer].state.sync(
+            gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
+                              .access = gfx::Access::ShaderRead},
+            buffer_memory_barrier))
     {
       buffer_memory_barrier.buffer = graph->buffers[binding.buffer].handle;
       context.descriptor_set_barriers[set].buffer.push_inplace(buffer_memory_barrier).unwrap();
@@ -332,9 +475,10 @@ void CommandBuffer::push_descriptor_set(u32 set, gfx::DescriptorSetBindings cons
 
   for (gfx::StorageBufferBinding const &binding : bindings.storage_buffers)
   {
-    if (graph->buffers[binding.buffer].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                    .access = gfx::Access::ShaderWrite},
-                                                  buffer_memory_barrier))
+    if (graph->buffers[binding.buffer].state.sync(
+            gfx::BufferAccess{.stages = gfx::PipelineStages::AllCommands,
+                              .access = gfx::Access::ShaderWrite},
+            buffer_memory_barrier))
     {
       buffer_memory_barrier.buffer = graph->buffers[binding.buffer].handle;
       context.descriptor_set_barriers[set].buffer.push_inplace(buffer_memory_barrier).unwrap();
@@ -343,13 +487,16 @@ void CommandBuffer::push_descriptor_set(u32 set, gfx::DescriptorSetBindings cons
 
   for (gfx::InputAttachmentBinding const &binding : bindings.input_attachments)
   {
-    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
-                                                                                                     .access = gfx::Access::ShaderRead,
-                                                                                                     .layout = gfx::ImageLayout::ShaderReadOnlyOptimal},
-                                                                                    image_memory_barrier))
+    if (graph->images[graph->image_views[binding.image_view].desc.image].state.sync(
+            gfx::ImageAccess{.stages = gfx::PipelineStages::AllCommands,
+                             .access = gfx::Access::ShaderRead,
+                             .layout = gfx::ImageLayout::ShaderReadOnlyOptimal},
+            image_memory_barrier))
     {
-      image_memory_barrier.image   = graph->images[graph->image_views[binding.image_view].desc.image].handle;
-      image_memory_barrier.aspects = graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
+      image_memory_barrier.image =
+          graph->images[graph->image_views[binding.image_view].desc.image].handle;
+      image_memory_barrier.aspects =
+          graph->images[graph->image_views[binding.image_view].desc.image].desc.aspects;
       context.descriptor_set_barriers[set].image.push_inplace(image_memory_barrier).unwrap();
     }
   }
@@ -357,75 +504,34 @@ void CommandBuffer::push_descriptor_set(u32 set, gfx::DescriptorSetBindings cons
   graph->driver->cmd_push_descriptor_set(handle, set, bindings);
 }
 
-void CommandBuffer::set_scissor(IRect scissor)
+void CommandBuffer::dispatch(gfx::ComputePipeline pipeline, u32 group_count_x, u32 group_count_y,
+                             u32                                         group_count_z,
+                             stx::Span<gfx::DescriptorSetBindings const> bindings,
+                             stx::Span<u8 const>                         push_constants_data)
 {
-  hook->set_scissor(scissor);
-  graph->driver->cmd_set_scissor(handle, scissor);
 }
 
-void CommandBuffer::set_viewport(gfx::Viewport const &viewport)
+void CommandBuffer::dispatch_indirect(gfx::ComputePipeline pipeline, gfx::Buffer buffer, u64 offset,
+                                      stx::Span<gfx::DescriptorSetBindings const> bindings,
+                                      stx::Span<u8 const> push_constants_data)
 {
-  hook->set_viewport(viewport);
-  graph->driver->cmd_set_viewport(handle, viewport);
 }
 
-void CommandBuffer::set_blend_constants(f32 r, f32 g, f32 b, f32 a)
+void CommandBuffer::draw(gfx::GraphicsPipeline pipeline, gfx::RenderState const &state,
+                         stx::Span<gfx::Buffer const> vertex_buffers, gfx::Buffer index_buffer,
+                         u32 first_index, u32 num_indices, u32 vertex_offset, u32 first_instance,
+                         u32 num_instances, stx::Span<gfx::DescriptorSetBindings const> bindings,
+                         stx::Span<u8 const> push_constants_data)
 {
-  hook->set_blend_constants(r, g, b, a);
-  graph->driver->cmd_set_blend_constants(handle, r, g, b, a);
 }
 
-void CommandBuffer::set_stencil_compare_mask(gfx::StencilFaces faces, u32 compare_mask)
+void CommandBuffer::draw_indirect(gfx::GraphicsPipeline pipeline, gfx::RenderState const &state,
+                                  stx::Span<gfx::Buffer const> vertex_buffers,
+                                  gfx::Buffer index_buffer, gfx::Buffer buffer, u64 offset,
+                                  u32 draw_count, u32 stride,
+                                  stx::Span<gfx::DescriptorSetBindings const> bindings,
+                                  stx::Span<u8 const>                         push_constants_data)
 {
-  hook->set_stencil_compare_mask(faces, compare_mask);
-  graph->driver->cmd_set_stencil_compare_mask(handle, faces, compare_mask);
-}
-
-void CommandBuffer::set_stencil_reference(gfx::StencilFaces faces, u32 reference)
-{
-  hook->set_stencil_reference(faces, reference);
-  graph->driver->cmd_set_stencil_reference(handle, faces, reference);
-}
-
-void CommandBuffer::set_stencil_write_mask(gfx::StencilFaces faces, u32 write_mask)
-{
-  hook->set_stencil_write_mask(faces, write_mask);
-  graph->driver->cmd_set_stencil_write_mask(handle, faces, write_mask);
-}
-
-void CommandBuffer::dispatch(u32 group_count_x, u32 group_count_y, u32 group_count_z)
-{
-  hook->dispatch(group_count_x, group_count_y, group_count_z);
-  graph->driver->cmd_insert_barriers(handle, context.descriptor_set_barriers.buffer_memory_barriers, image_memory_barriers);
-  graph->driver->cmd_dispatch(handle, group_count_x, group_count_y, group_count_z);
-}
-
-void CommandBuffer::dispatch_indirect(gfx::Buffer buffer, u64 offset)
-{
-  hook->dispatch_indirect(buffer, offset);
-  graph->driver->cmd_insert_barriers(handle, buffer_memory_barriers, image_memory_barriers);
-  graph->driver->cmd_dispatch_indirect(handle, buffer, offset);
-}
-
-void CommandBuffer::draw(u32 first_vertex, u32 vertex_count, u32 instance_count, u32 first_instance_id)
-{
-  hook->draw(first_vertex, vertex_count, instance_count, first_instance_id);
-  graph->driver->cmd_insert_barriers(handle, buffer_memory_barriers, image_memory_barriers);
-  graph->driver->cmd_draw(handle, first_vertex, vertex_count, instance_count, first_instance_id);
-}
-
-void CommandBuffer::draw_indexed(u32 first_index, u32 index_count, u32 instance_count, i32 vertex_offset, u32 first_instance_id)
-{
-  hook->draw_indexed(first_index, index_count, instance_count, vertex_offset, first_instance_id);
-  graph->driver->cmd_insert_barriers(handle, buffer_memory_barriers, image_memory_barriers);
-  graph->driver->cmd_draw_indexed(handle, first_index, index_count, instance_count, vertex_offset, first_instance_id);
-}
-
-void CommandBuffer::draw_indexed_indirect(gfx::Buffer buffer, u64 offset, u32 draw_count, u32 stride)
-{
-  hook->draw_indexed_indirect(buffer, offset, draw_count, stride);
-  graph->driver->cmd_insert_barriers(handle, buffer_memory_barriers, image_memory_barriers);
-  graph->driver->cmd_draw_indexed_indirect(handle, buffer, offset, draw_count, stride);
 }
 
 void CommandBuffer::on_execution_complete_fn(stx::UniqueFn<void()> &&fn)
@@ -441,42 +547,50 @@ constexpr bool is_renderpass_compatible(RenderPassDesc const &a, RenderPassDesc 
 /*
 Buffer Graph::create_buffer(BufferDesc const &desc)
 {
-  return buffers.push(BufferResource{.state = BufferState{.desc = desc}, .handle = driver->create_buffer(desc)});
+  return buffers.push(BufferResource{.state = BufferState{.desc = desc}, .handle =
+driver->create_buffer(desc)});
 }
 
 BufferView Graph::create_buffer_view(BufferViewDesc const &desc)
 {
-  return buffer_views.push(BufferViewResource{.desc = desc, .handle = driver->create_buffer_view(desc)});
+  return buffer_views.push(BufferViewResource{.desc = desc, .handle =
+driver->create_buffer_view(desc)});
 }
 
 Image Graph::create_image(ImageDesc const &desc)
 {
-  return images.push(ImageResource{.state = ImageState{.desc = desc}, .handle = driver->create_image(desc)});
+  return images.push(ImageResource{.state = ImageState{.desc = desc}, .handle =
+driver->create_image(desc)});
 }
 
 ImageView Graph::create_image_view(ImageViewDesc const &desc)
 {
-  return image_views.push(ImageViewResource{.desc = desc, .handle = driver->create_image_view(desc)});
+  return image_views.push(ImageViewResource{.desc = desc, .handle =
+driver->create_image_view(desc)});
 }
 
 RenderPass Graph::create_render_pass(RenderPassDesc const &desc)
 {
-  return render_passes.push(RenderPassResource{.desc = desc, .handle = driver->create_render_pass(desc)});
+  return render_passes.push(RenderPassResource{.desc = desc, .handle =
+driver->create_render_pass(desc)});
 }
 
 Framebuffer Graph::create_framebuffer(FramebufferDesc const &desc)
 {
-  return framebuffers.push(FramebufferResource{.desc= desc,.handle = driver->create_framebuffer(desc)});
+  return framebuffers.push(FramebufferResource{.desc= desc,.handle =
+driver->create_framebuffer(desc)});
 }
 
 ComputePipeline Graph::create_compute_pipeline(ComputePipelineDesc const &desc)
 {
-  return compute_pipelines.push(ComputePipelineResource{.desc= desc,.handle = driver->create_compute_pipeline(desc)});
+  return compute_pipelines.push(ComputePipelineResource{.desc= desc,.handle =
+driver->create_compute_pipeline(desc)});
 }
 
 GraphicsPipeline Graph::create_graphics_pipeline(GraphicsPipelineDesc const &desc)
 {
-  return graphics_pipelines.push(GraphicsPipelineResource{.desc= desc,.handle=driver->create_graphics_pipeline(desc)});
+  return graphics_pipelines.push(GraphicsPipelineResource{.desc=
+desc,.handle=driver->create_graphics_pipeline(desc)});
 }
 
 BufferDesc const &Graph::get_desc(Buffer buffer) const
@@ -602,7 +716,8 @@ void validate_resources(Graph &graph)
   //   ASH_CHECK(framebuffer.extent.is_visible());
   //   RenderPassDesc const render_pass_desc = graph.get_desc(framebuffer.renderpass);
   //   ASH_CHECK(framebuffer.color_attachments.size() == render_pass_desc.color_attachments.size());
-  //   ASH_CHECK(framebuffer.depth_stencil_attachments.size() == render_pass_desc.depth_stencil_attachments.size());
+  //   ASH_CHECK(framebuffer.depth_stencil_attachments.size() ==
+render_pass_desc.depth_stencil_attachments.size());
   //   for (usize i = 0; i < framebuffer.color_attachments.size(); i++)
   //   {
   //     ImageView attachment = framebuffer.color_attachments[i];
@@ -621,9 +736,11 @@ void validate_resources(Graph &graph)
   //     ImageView attachment = framebuffer.depth_stencil_attachments[i];
   //     ASH_CHECK(graph.image_views.is_valid(attachment));
   //     ImageViewDesc const attachment_desc = graph.get_desc(attachment);
-  //     ASH_CHECK((attachment_desc.aspects & (ImageAspects::Depth | ImageAspects::Stencil)) != ImageAspects::None);
+  //     ASH_CHECK((attachment_desc.aspects & (ImageAspects::Depth | ImageAspects::Stencil)) !=
+ImageAspects::None);
   //     ASH_CHECK(attachment_desc.num_mip_levels >= 1);
-  //     ASH_CHECK(render_pass_desc.depth_stencil_attachments[i].format == attachment_desc.view_format);
+  //     ASH_CHECK(render_pass_desc.depth_stencil_attachments[i].format ==
+attachment_desc.view_format);
   //     ImageDesc const image_desc = graph.get_desc(attachment_desc.image);
   //     ASH_CHECK((image_desc.usages & ImageUsages::DepthStencilAttachment) != ImageUsages::None);
   //     ASH_CHECK(image_desc.extent.width >= framebuffer.extent.width);
@@ -632,7 +749,8 @@ void validate_resources(Graph &graph)
   // }
 }
 
-void CmdValidator::copy_buffer(Graph &graph, Buffer src, Buffer dst, stx::Span<BufferCopy const> copies)
+void CmdValidator::copy_buffer(Graph &graph, Buffer src, Buffer dst, stx::Span<BufferCopy const>
+copies)
 {
   ASH_CHECK(!copies.is_empty());
   ASH_CHECK(graph.buffers.is_valid(src));
@@ -650,7 +768,8 @@ void CmdValidator::copy_buffer(Graph &graph, Buffer src, Buffer dst, stx::Span<B
   }
 }
 
-void CmdValidator::copy_host_buffer(Graph &graph, stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies)
+void CmdValidator::copy_host_buffer(Graph &graph, stx::Span<u8 const> src, Buffer dst,
+stx::Span<BufferCopy const> copies)
 {
   ASH_CHECK(!copies.is_empty());
   ASH_CHECK(!src.is_empty());
@@ -686,11 +805,13 @@ void CmdValidator::copy_image(Graph &graph, Image src, Image dst, stx::Span<Imag
     ASH_CHECK(copy.src_mip_level < src_desc.mips);
     ASH_CHECK(copy.dst_mip_level < dst_desc.mips);
     // ASH_CHECK((URect{.offset = {}, .extent = src_desc.extent}.contains(copy.src_area)));
-    // ASH_CHECK((URect{.offset = {}, .extent = dst_desc.extent}.contains(copy.src_area.with_offset(copy.dst_offset))));
+    // ASH_CHECK((URect{.offset = {}, .extent =
+dst_desc.extent}.contains(copy.src_area.with_offset(copy.dst_offset))));
   }
 }
 
-void CmdValidator::copy_buffer_to_image(Graph &graph, Buffer src, Image dst, stx::Span<BufferImageCopy const> copies)
+void CmdValidator::copy_buffer_to_image(Graph &graph, Buffer src, Image dst,
+stx::Span<BufferImageCopy const> copies)
 {
   ASH_CHECK(!copies.is_empty());
   ASH_CHECK(graph.buffers.is_valid(src));
@@ -711,7 +832,8 @@ void CmdValidator::copy_buffer_to_image(Graph &graph, Buffer src, Image dst, stx
   }
 }
 
-void CmdValidator::blit_image(Graph &graph, Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter)
+void CmdValidator::blit_image(Graph &graph, Image src, Image dst, stx::Span<ImageBlit const> blits,
+Filter filter)
 {
   ASH_CHECK(!blits.is_empty());
   ASH_CHECK(graph.images.is_valid(src));
@@ -733,13 +855,16 @@ void CmdValidator::blit_image(Graph &graph, Image src, Image dst, stx::Span<Imag
   }
 }
 
-void CmdValidator::begin_render_pass(Graph &graph, Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values)
+void CmdValidator::begin_render_pass(Graph &graph, Framebuffer framebuffer, RenderPass render_pass,
+IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil
+const> depth_stencil_attachments_clear_values)
 {
   ASH_CHECK(graph.render_passes.is_valid(render_pass));
   ASH_CHECK(graph.framebuffers.is_valid(framebuffer));
   FramebufferDesc const framebuffer_desc = graph.get_desc(framebuffer);
   // ASH_CHECK(framebuffer_desc.color_attachments.size() == color_attachments_clear_values.size());
-  // ASH_CHECK(framebuffer_desc.depth_stencil_attachments.size() == depth_stencil_attachments_clear_values.size());
+  // ASH_CHECK(framebuffer_desc.depth_stencil_attachments.size() ==
+depth_stencil_attachments_clear_values.size());
   // TODO(lamarrr): check renderpass compatibility
 }
 
@@ -759,7 +884,8 @@ void CmdValidator::bind_graphics_pipeline(Graph &graph, GraphicsPipeline pipelin
 {
 }
 
-void CmdValidator::bind_vertex_buffers(Graph &graph, stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset)
+void CmdValidator::bind_vertex_buffers(Graph &graph, stx::Span<Buffer const> vertex_buffers,
+stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset)
 {}
 
 void CmdValidator::set_scissor(Graph &graph, IRect scissor)
@@ -768,20 +894,24 @@ void CmdValidator::set_scissor(Graph &graph, IRect scissor)
 void CmdValidator::set_viewport(Graph &graph, Viewport viewport)
 {}
 
-void CmdValidator::compute(Graph &graph, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z)
+void CmdValidator::compute(Graph &graph, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32
+group_count_y, u32 base_group_z, u32 group_count_z)
 {}
 
 void CmdValidator::compute_indirect(Graph &graph, Buffer buffer, u64 offset)
 {}
 
-void CmdValidator::draw_indexed(Graph &graph, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)
+void CmdValidator::draw_indexed(Graph &graph, u32 index_count, u32 instance_count, u32 first_index,
+i32 vertex_offset, u32 first_instance)
 {
 }
 
-void CmdValidator::draw_indexed_indirect(Graph &graph, Buffer buffer, u64 offset, u32 draw_count, u32 stride)
+void CmdValidator::draw_indexed_indirect(Graph &graph, Buffer buffer, u64 offset, u32 draw_count,
+u32 stride)
 {}
 
-void CmdBarrierGenerator::copy_buffer(Graph &graph, BarrierInserter &inserter, Buffer src, Buffer dst, stx::Span<BufferCopy const> copies)
+void CmdBarrierGenerator::copy_buffer(Graph &graph, BarrierInserter &inserter, Buffer src, Buffer
+dst, stx::Span<BufferCopy const> copies)
 {
   BufferState &src_state = graph.get_state(src);
   BufferState &dst_state = graph.get_state(dst);
@@ -810,7 +940,8 @@ void CmdBarrierGenerator::copy_buffer(Graph &graph, BarrierInserter &inserter, B
   dst_state.stages      = PipelineStages::Transfer;
 }
 
-void CmdBarrierGenerator::copy_host_buffer(Graph &graph, BarrierInserter &inserter, stx::Span<u8 const> src, Buffer dst, stx::Span<BufferCopy const> copies)
+void CmdBarrierGenerator::copy_host_buffer(Graph &graph, BarrierInserter &inserter, stx::Span<u8
+const> src, Buffer dst, stx::Span<BufferCopy const> copies)
 {
   BufferState &dst_state = graph.get_state(dst);
 
@@ -828,7 +959,8 @@ void CmdBarrierGenerator::copy_host_buffer(Graph &graph, BarrierInserter &insert
   dst_state.stages      = PipelineStages::Transfer;
 }
 
-void CmdBarrierGenerator::copy_image(Graph &graph, BarrierInserter &inserter, Image src, Image dst, stx::Span<ImageCopy const> copies)
+void CmdBarrierGenerator::copy_image(Graph &graph, BarrierInserter &inserter, Image src, Image dst,
+stx::Span<ImageCopy const> copies)
 {
   ImageState &src_state = graph.get_state(src);
   ImageState &dst_state = graph.get_state(dst);
@@ -865,7 +997,8 @@ void CmdBarrierGenerator::copy_image(Graph &graph, BarrierInserter &inserter, Im
   dst_state.layout      = ImageLayout::TransferDstOptimal;
 }
 
-void CmdBarrierGenerator::copy_buffer_to_image(Graph &graph, BarrierInserter &inserter, Buffer src, Image dst, stx::Span<BufferImageCopy const> copies)
+void CmdBarrierGenerator::copy_buffer_to_image(Graph &graph, BarrierInserter &inserter, Buffer src,
+Image dst, stx::Span<BufferImageCopy const> copies)
 {
   // get latest expected state
   // convert to transfer dst layout and transfer write access with transfer stage
@@ -901,12 +1034,14 @@ void CmdBarrierGenerator::copy_buffer_to_image(Graph &graph, BarrierInserter &in
   dst_state.layout      = ImageLayout::TransferDstOptimal;
 }
 
-void CmdBarrierGenerator::blit_image(Graph &graph, BarrierInserter &inserter, Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter)
+void CmdBarrierGenerator::blit_image(Graph &graph, BarrierInserter &inserter, Image src, Image dst,
+stx::Span<ImageBlit const> blits, Filter filter)
 {
   // check RID
   // check current layout and usage, and all accessors
   // check all memory aliasing
-  // convert layout to transfer dst and write access with whatever access type is needed for blitting
+  // convert layout to transfer dst and write access with whatever access type is needed for
+blitting
   // update barrier tracker
   // on next usage in command buffer, get the last usage and update accordingly
   ImageState &src_state = graph.get_state(src);
@@ -944,7 +1079,10 @@ void CmdBarrierGenerator::blit_image(Graph &graph, BarrierInserter &inserter, Im
   dst_state.layout      = ImageLayout::TransferDstOptimal;
 }
 
-void CmdBarrierGenerator::begin_render_pass(Graph &graph, BarrierInserter &inserter, Framebuffer framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const> color_attachments_clear_values, stx::Span<DepthStencil const> depth_stencil_attachments_clear_values)
+void CmdBarrierGenerator::begin_render_pass(Graph &graph, BarrierInserter &inserter, Framebuffer
+framebuffer, RenderPass render_pass, IRect render_area, stx::Span<Color const>
+color_attachments_clear_values, stx::Span<DepthStencil const>
+depth_stencil_attachments_clear_values)
 {
   // TODO(lamarrr): in-between barriers access??? i.e. in shader?
   //
@@ -953,9 +1091,12 @@ void CmdBarrierGenerator::begin_render_pass(Graph &graph, BarrierInserter &inser
   // FramebufferDesc framebuffer_desc = graph.get_desc(framebuffer);
   // for (ImageView attachment : framebuffer_desc.color_attachments)
   // {
-  //   ImageState &state = graph.get_state(graph.get_desc(attachment).image);                 // TODO(lamarrr): color attachment may not be written to depending on the renderpass ops
-  //   state.access_mask = Access::ColorAttachmentRead | Access::ColorAttachmentWrite;        // LoadOp and StoreOp
-  //   state.stages      = PipelineStages::ColorAttachmentOutput | PipelineStages::EarlyFragmentTests;
+  //   ImageState &state = graph.get_state(graph.get_desc(attachment).image);                 //
+TODO(lamarrr): color attachment may not be written to depending on the renderpass ops
+  //   state.access_mask = Access::ColorAttachmentRead | Access::ColorAttachmentWrite;        //
+LoadOp and StoreOp
+  //   state.stages      = PipelineStages::ColorAttachmentOutput |
+PipelineStages::EarlyFragmentTests;
   //   state.layout      = ImageLayout::ColorAttachmentOptimal;
   // }
 
@@ -963,7 +1104,8 @@ void CmdBarrierGenerator::begin_render_pass(Graph &graph, BarrierInserter &inser
   // {
   //   ImageState &state = graph.get_state(graph.get_desc(attachment).image);
   //   state.access_mask = Access::DepthStencilAttachmentRead | Access::DepthStencilAttachmentWrite;
-  //   state.stages      = PipelineStages::ColorAttachmentOutput | PipelineStages::EarlyFragmentTests;
+  //   state.stages      = PipelineStages::ColorAttachmentOutput |
+PipelineStages::EarlyFragmentTests;
   //   state.layout      = ImageLayout::DepthStencilAttachmentOptimal;
   // }
 }
@@ -973,15 +1115,21 @@ void CmdBarrierGenerator::end_render_pass(Graph &graph, BarrierInserter &inserte
   // TODO(lamarrr): post-renderpass state transitions
   // TODO(lamarrr): DontCare generates write access to the attachment in renderpasses
 }
-void CmdBarrierGenerator::bind_compute_pipeline(Graph &graph, BarrierInserter &inserter, ComputePipeline pipeline)
+void CmdBarrierGenerator::bind_compute_pipeline(Graph &graph, BarrierInserter &inserter,
+ComputePipeline pipeline)
 {}
-void CmdBarrierGenerator::bind_graphics_pipeline(Graph &graph, BarrierInserter &inserter, GraphicsPipeline pipeline)
+void CmdBarrierGenerator::bind_graphics_pipeline(Graph &graph, BarrierInserter &inserter,
+GraphicsPipeline pipeline)
 {}
-void CmdBarrierGenerator::bind_vertex_buffers(Graph &graph, BarrierInserter &inserter, stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer index_buffer, u64 index_buffer_offset)
+void CmdBarrierGenerator::bind_vertex_buffers(Graph &graph, BarrierInserter &inserter,
+stx::Span<Buffer const> vertex_buffers, stx::Span<u64 const> vertex_buffer_offsets, Buffer
+index_buffer, u64 index_buffer_offset)
 {}
-// TODO(lamarrr): remove unnecessary barriers: i.e. newly created resources with None access and None states. and double-reads
+// TODO(lamarrr): remove unnecessary barriers: i.e. newly created resources with None access and
+None states. and double-reads
 //
-// some scenarios reset the state of the barriers i.e. when we wait for fences on a swapchain, all resources in that frame would not be in use
+// some scenarios reset the state of the barriers i.e. when we wait for fences on a swapchain, all
+resources in that frame would not be in use
 //
 // accumulate states until they are no longer needed
 // use previous frame's states and barriers states
@@ -1029,7 +1177,8 @@ PipelineStages to_pipeline_stage(ShaderStages stages)
   return out;
 }
 
-void CmdBarrierGenerator::set_bind_group(Graph &graph, BarrierInserter &inserter, BindGroup bind_group)
+void CmdBarrierGenerator::set_bind_group(Graph &graph, BarrierInserter &inserter, BindGroup
+bind_group)
 {
   BindGroupDesc const &desc = graph.get_desc(bind_group);
   for (u32 i = 0; i < desc.num_bindings; i++)
@@ -1179,16 +1328,20 @@ void CmdBarrierGenerator::set_bind_group(Graph &graph, BarrierInserter &inserter
     }
   }
 }
-void CmdBarrierGenerator::compute(Graph &graph, BarrierInserter &inserter, u32 base_group_x, u32 group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z)
+void CmdBarrierGenerator::compute(Graph &graph, BarrierInserter &inserter, u32 base_group_x, u32
+group_count_x, u32 base_group_y, u32 group_count_y, u32 base_group_z, u32 group_count_z)
 {}
 
-void CmdBarrierGenerator::compute_indirect(Graph &graph, BarrierInserter &inserter, Buffer buffer, u64 offset)
+void CmdBarrierGenerator::compute_indirect(Graph &graph, BarrierInserter &inserter, Buffer buffer,
+u64 offset)
 {}
 
-void CmdBarrierGenerator::draw_indexed(Graph &graph, BarrierInserter &inserter, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)
+void CmdBarrierGenerator::draw_indexed(Graph &graph, BarrierInserter &inserter, u32 index_count, u32
+instance_count, u32 first_index, i32 vertex_offset, u32 first_instance)
 {}
 
-void CmdBarrierGenerator::draw_indexed_indirect(Graph &graph, BarrierInserter &inserter, Buffer buffer, u64 offset, u32 draw_count, u32 stride)
+void CmdBarrierGenerator::draw_indexed_indirect(Graph &graph, BarrierInserter &inserter, Buffer
+buffer, u64 offset, u32 draw_count, u32 stride)
 {}
 */
 
