@@ -615,15 +615,23 @@ enum class InputRate : u8
   Instance = 1
 };
 
-enum class MemoryOps : u8
+// write access -> wait on all previous reads, transient reads, and transient writes
+// transient write access -> wait on all previous reads, writes, transient reads, and transient writes
+// transient read access  -> wait on all previous reads, writes, transient reads, and transient writes
+// read-only access -> wait only all previous writes, transient reads, and transient writes
+//
+// buffers have no transient accesses
+//
+enum class MemoryAccess : u8
 {
-  None      = 0,
-  Read      = 1,
-  Write     = 2,
-  ReadWrite = Read | Write
+  None           = 0,
+  Read           = 1,
+  Write          = 2,
+  TransientRead  = 4,
+  TransientWrite = 8
 };
 
-STX_DEFINE_ENUM_BIT_OPS(MemoryOps)
+STX_DEFINE_ENUM_BIT_OPS(MemoryAccess)
 
 enum class Access : u64
 {
@@ -658,33 +666,6 @@ enum class Access : u64
 };
 
 STX_DEFINE_ENUM_BIT_OPS(Access)
-
-constexpr MemoryOps get_memory_ops(Access access)
-{
-  MemoryOps ops = MemoryOps::None;
-
-  if ((access &
-       (Access::IndirectCommandRead | Access::IndexRead | Access::VertexAttributeRead |
-        Access::UniformRead | Access::InputAttachmentRead | Access::ShaderRead |
-        Access::ColorAttachmentRead | Access::DepthStencilAttachmentRead | Access::TransferRead |
-        Access::HostRead | Access::MemoryRead | Access::VideoDecodeRead | Access::VideoEncodeRead |
-        Access::AccelerationStructureRead | Access::FragmentDensityMapRead |
-        Access::ColorAttachmentReadNonCoherent | Access::DescriptorBufferRead |
-        Access::ShaderBindingTableRead)) != Access::None)
-  {
-    ops |= MemoryOps::Read;
-  }
-
-  if ((access &
-       (Access::ShaderWrite | Access::ColorAttachmentWrite | Access::DepthStencilAttachmentWrite |
-        Access::TransferWrite | Access::HostWrite | Access::MemoryWrite | Access::VideoDecodeWrite |
-        Access::VideoEncodeWrite | Access::AccelerationStructureWrite)) != Access::None)
-  {
-    ops |= MemoryOps::Write;
-  }
-
-  return ops;
-}
 
 enum class ShaderStages : u32
 {
@@ -764,30 +745,6 @@ enum class DescriptorType : u8
   DynamicStorageBuffer = 9,
   InputAttachment      = 10
 };
-
-enum class AccessSequence : u8
-{
-  None           = 0,
-  NoneAfterRead  = 1,
-  NoneAfterWrite = 2,
-  ReadAfterWrite = 3
-};
-
-struct BufferAccess
-{
-  PipelineStages stages = PipelineStages::None;
-  Access         access = Access::None;
-};
-
-struct ImageAccess
-{
-  PipelineStages stages = PipelineStages::None;
-  Access         access = Access::None;
-  ImageLayout    layout = ImageLayout::Undefined;
-};
-
-BufferAccess to_pipeline_access(BufferBindings bindings, PipelineStages stages);
-ImageAccess  to_pipeline_access(ImageBindings bindings, PipelineStages stages);
 
 struct Viewport
 {
@@ -891,9 +848,6 @@ struct RenderPassAttachment
   StoreOp store_op         = StoreOp::Store;
   LoadOp  stencil_load_op  = LoadOp::Load;        // how to use stencil components
   StoreOp stencil_store_op = StoreOp::Store;
-
-  ImageAccess get_color_image_access() const;
-  ImageAccess get_depth_stencil_image_access() const;
 };
 
 struct RenderPassDesc
@@ -1209,25 +1163,34 @@ struct QueueImageMemoryBarrier
   Access         dst_access        = Access::None;
 };
 
-// TODO(lamarrr): access coalescing, i.e. resource used multiple times within the same wave
-// i.e. multiple accesses in descriptor bindings???? read and write
-//
-struct BufferState
+struct BufferSyncScope
 {
-  BufferAccess   access[2] = {};
-  AccessSequence sequence  = AccessSequence::None;
+  MemoryAccess   access   = MemoryAccess::None;
+  ImageLayout    layout   = ImageLayout::Undefined;
+  BufferBindings bindings = BufferBindings::None;
 
-  bool sync(BufferAccess request, QueueBufferMemoryBarrier &barrier);
-  void on_drain();
+  constexpr void reset()
+  {
+    access = MemoryAccess::None;
+  }
+
+  u8 sync(MemoryAccess memory_access, Access access, PipelineStages stages,
+            QueueBufferMemoryBarrier barrier[2]);
 };
 
-struct ImageState
+struct ImageSyncScope
 {
-  ImageAccess    access[2] = {};
-  AccessSequence sequence  = AccessSequence::None;
+  MemoryAccess  access   = MemoryAccess::None;
+  ImageLayout   layout   = ImageLayout::Undefined;
+  ImageBindings bindings = ImageBindings::None;
 
-  bool sync(ImageAccess request, QueueImageMemoryBarrier &barrier);
-  void on_drain();
+  constexpr void reset()
+  {
+    access = MemoryAccess::None;
+  }
+
+  bool sync(MemoryAccess memory_access, Access access, PipelineStages stages, ImageLayout layout,
+            QueueImageMemoryBarrier &barrier);
 };
 
 struct StencilFaceState
@@ -1250,10 +1213,9 @@ struct RenderState
 
 struct BufferResource
 {
-  BufferDesc     desc;
-  BufferState    state;
-  BufferBindings bindings = BufferBindings::None;
-  Buffer         handle   = nullptr;
+  BufferDesc      desc;
+  BufferSyncScope sync_scope;
+  Buffer          handle = nullptr;
 };
 
 struct BufferViewResource
@@ -1264,10 +1226,9 @@ struct BufferViewResource
 
 struct ImageResource
 {
-  ImageDesc     desc;
-  ImageState    state;
-  ImageBindings bindings = ImageBindings::None;
-  Image         handle   = nullptr;
+  ImageDesc      desc;
+  ImageSyncScope sync_scope;
+  Image          handle = nullptr;
 };
 
 struct ImageViewResource

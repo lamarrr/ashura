@@ -166,6 +166,80 @@ ImageAccess RenderPassAttachment::get_depth_stencil_image_access() const
                      .layout = layout};
 }
 
+u8 BufferSyncScope::sync(MemoryAccess memory_access, Access access, PipelineStages stages,
+                         QueueBufferMemoryBarrier barriers[2])
+{
+  // TODO(lamarrr): upon write, clear all??? and reset to write, that way there will be no read | write case, since only trigger is write
+  u8 num_barriers = 0;
+  if (this->access == MemoryAccess::Write)
+  {
+    // RAW
+    if ((memory_access & MemoryAccess::Read) != MemoryAccess::None)
+    {
+      barriers[num_barriers].src_access = Access::MemoryWrite;
+      barriers[num_barriers].src_stages = PipelineStages::BottomOfPipe;
+      barriers[num_barriers].dst_access = Access::MemoryRead;
+      barriers[num_barriers].dst_stages = stages;
+      barriers[num_barriers].offset     = 0;
+      barriers[num_barriers].size       = WHOLE_SIZE;
+      num_barriers++;
+    }
+
+        // WAW
+    if ((memory_access & MemoryAccess::Write) != MemoryAccess::None)
+    {
+      barriers[num_barriers].src_access = Access::MemoryWrite;
+      barriers[num_barriers].src_stages = PipelineStages::BottomOfPipe;
+      barriers[num_barriers].dst_access = Access::MemoryWrite;
+      barriers[num_barriers].dst_stages = stages;
+      barriers[num_barriers].offset     = 0;
+      barriers[num_barriers].size       = WHOLE_SIZE;
+      num_barriers++;
+    }
+
+    this->access |= memory_access;
+    return num_barriers;
+  }
+  else if (this->access == MemoryAccess::Read)
+  {
+    if ((memory_access & MemoryAccess::Write) != MemoryAccess::None)
+    {
+      // WAR
+      barriers[num_barriers].src_access = Access::MemoryRead;
+      barriers[num_barriers].src_stages = PipelineStages::BottomOfPipe;
+      barriers[num_barriers].dst_access = access;
+      if((memory_access & MemoryAccess::Read)!= MemoryAccess::None){
+      barriers[num_barriers].dst_stages =   stages;
+      } else{
+      barriers[num_barriers].dst_stages =   stages;
+      }
+      barriers[num_barriers].offset     = 0;
+      barriers[num_barriers].size       = WHOLE_SIZE;
+      this->access |= memory_access;
+    }
+    else
+    {
+      // RAR
+      this->access |= memory_access;
+      return false;
+    }
+  }
+  else if (this->access == (MemoryAccess::Read | MemoryAccess::Write))
+  {
+
+    
+  }
+  else
+  {
+    return 0;
+  }
+}
+
+bool ImageSyncScope::sync(MemoryAccess memory_access, Access access, PipelineStages stages,
+                          ImageLayout layout, QueueImageMemoryBarrier &barrier)
+{
+}
+
 // TODO(lamarrr): index buffer can be used from a generated compute stage, will our graph handle
 // this? we need to check for read/write compatibility
 // TODO(lamarrr): on every device idle, we can reset resource states.
