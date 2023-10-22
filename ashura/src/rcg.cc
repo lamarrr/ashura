@@ -9,13 +9,21 @@ void CommandBuffer::fill_buffer(gfx::Buffer buffer, u64 offset, u64 size, u32 da
 {
   hook->fill_buffer(buffer, offset, size, data);
 
-  gfx::QueueBufferMemoryBarrier barriers[1] = {{.buffer = graph->buffers[buffer].handle}};
-  if (graph->buffers[buffer].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::Transfer,
-                                                          .access = gfx::Access::TransferWrite},
-                                        barriers[0]))
+  gfx::QueueBufferMemoryBarrier barriers[1];
+  u8                            num_barriers = 0;
+
+  if (graph->buffers[buffer].sync_scope.sync(gfx::MemoryAccess::Write,
+                                             gfx::PipelineStages::Transfer, barriers[0]))
   {
-    graph->driver->cmd_insert_barriers(handle, barriers, {});
+    barriers[0].buffer = graph->buffers[buffer].handle;
+    num_barriers++;
   }
+
+  if (num_barriers > 0)
+  {
+    graph->driver->cmd_insert_barriers(handle, stx::Span{barriers, num_barriers}, {});
+  }
+
   graph->driver->cmd_fill_buffer(handle, buffer, offset, size, data);
 }
 
@@ -26,20 +34,31 @@ void CommandBuffer::copy_buffer(gfx::Buffer src, gfx::Buffer dst,
 
   gfx::QueueBufferMemoryBarrier barriers[2];
   u8                            num_barriers = 0;
-  if (graph->buffers[src].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::Transfer,
-                                                       .access = gfx::Access::TransferRead},
-                                     barriers[num_barriers]))
-  {
-    barriers[num_barriers].buffer = graph->buffers[src].handle;
-    num_barriers++;
-  }
 
-  if (graph->buffers[dst].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::Transfer,
-                                                       .access = gfx::Access::TransferWrite},
-                                     barriers[num_barriers]))
+  if (src != dst)
   {
-    barriers[num_barriers].buffer = graph->buffers[dst].handle;
-    num_barriers++;
+    if (graph->buffers[src].sync_scope.sync(gfx::MemoryAccess::Read, gfx::PipelineStages::Transfer,
+                                            barriers[num_barriers]))
+    {
+      barriers[num_barriers].buffer = graph->buffers[src].handle;
+      num_barriers++;
+    }
+
+    if (graph->buffers[dst].sync_scope.sync(gfx::MemoryAccess::Write, gfx::PipelineStages::Transfer,
+                                            barriers[num_barriers]))
+    {
+      barriers[num_barriers].buffer = graph->buffers[dst].handle;
+      num_barriers++;
+    }
+  }
+  else
+  {
+    if (graph->buffers[src].sync_scope.sync(gfx::MemoryAccess::Read | gfx::MemoryAccess::Write,
+                                            gfx::PipelineStages::Transfer, barriers[num_barriers]))
+    {
+      barriers[num_barriers].buffer = graph->buffers[src].handle;
+      num_barriers++;
+    }
   }
 
   if (num_barriers > 0)
@@ -55,12 +74,18 @@ void CommandBuffer::update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::
   hook->update_buffer(src, dst_offset, dst);
 
   gfx::QueueBufferMemoryBarrier barriers[1];
-  if (graph->buffers[dst].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::Transfer,
-                                                       .access = gfx::Access::TransferWrite},
-                                     barriers[0]))
+  u8                            num_barriers = 0;
+
+  if (graph->buffers[dst].sync_scope.sync(gfx::MemoryAccess::Write, gfx::PipelineStages::Transfer,
+                                          barriers[0]))
   {
     barriers[0].buffer = graph->buffers[dst].handle;
-    graph->driver->cmd_insert_barriers(handle, barriers, {});
+    num_barriers++;
+  }
+
+  if (num_barriers > 0)
+  {
+    graph->driver->cmd_insert_barriers(handle, stx::Span{barriers, num_barriers}, {});
   }
 
   graph->driver->cmd_update_buffer(handle, src, dst_offset, dst);
@@ -73,26 +98,37 @@ void CommandBuffer::copy_image(gfx::Image src, gfx::Image dst,
 
   gfx::QueueImageMemoryBarrier barriers[2];
   u8                           num_barriers = 0;
-  if (graph->images[src].state.sync(
-          gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
-                           .access = gfx::Access::TransferRead,
-                           .layout = gfx::ImageLayout::TransferSrcOptimal},
-          barriers[num_barriers]))
-  {
-    barriers[num_barriers].image   = graph->images[src].handle;
-    barriers[num_barriers].aspects = graph->images[src].desc.aspects;
-    num_barriers++;
-  }
 
-  if (graph->images[dst].state.sync(
-          gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
-                           .access = gfx::Access::TransferWrite,
-                           .layout = gfx::ImageLayout::TransferDstOptimal},
-          barriers[num_barriers]))
+  if (src != dst)
   {
-    barriers[num_barriers].image   = graph->images[dst].handle;
-    barriers[num_barriers].aspects = graph->images[dst].desc.aspects;
-    num_barriers++;
+    if (graph->images[src].sync_scope.sync(gfx::MemoryAccess::Read, gfx::PipelineStages::Transfer,
+                                           gfx::ImageLayout::TransferSrcOptimal,
+                                           barriers[num_barriers]))
+    {
+      barriers[num_barriers].image   = graph->images[src].handle;
+      barriers[num_barriers].aspects = graph->images[src].desc.aspects;
+      num_barriers++;
+    }
+
+    if (graph->images[dst].sync_scope.sync(gfx::MemoryAccess::Write, gfx::PipelineStages::Transfer,
+                                           gfx::ImageLayout::TransferDstOptimal,
+                                           barriers[num_barriers]))
+    {
+      barriers[num_barriers].image   = graph->images[dst].handle;
+      barriers[num_barriers].aspects = graph->images[dst].desc.aspects;
+      num_barriers++;
+    }
+  }
+  else
+  {
+    if (graph->images[src].sync_scope.sync(gfx::MemoryAccess::Read | gfx::MemoryAccess::Write,
+                                           gfx::PipelineStages::Transfer, gfx::ImageLayout::General,
+                                           barriers[num_barriers]))
+    {
+      barriers[num_barriers].image   = graph->images[src].handle;
+      barriers[num_barriers].aspects = graph->images[src].desc.aspects;
+      num_barriers++;
+    }
   }
 
   if (num_barriers > 0)
@@ -107,23 +143,20 @@ void CommandBuffer::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
                                          stx::Span<gfx::BufferImageCopy const> copies)
 {
   gfx::QueueBufferMemoryBarrier buffer_memory_barriers[1];
-  gfx::QueueImageMemoryBarrier  image_memory_barriers[1];
   u8                            num_buffer_memory_barriers = 0;
-  u8                            num_image_memory_barriers  = 0;
+  gfx::QueueImageMemoryBarrier  image_memory_barriers[1];
+  u8                            num_image_memory_barriers = 0;
 
-  if (graph->buffers[src].state.sync(gfx::BufferAccess{.stages = gfx::PipelineStages::Transfer,
-                                                       .access = gfx::Access::TransferRead},
-                                     buffer_memory_barriers[num_buffer_memory_barriers]))
+  if (graph->buffers[src].sync_scope.sync(gfx::MemoryAccess::Read, gfx::PipelineStages::Transfer,
+                                          buffer_memory_barriers[num_buffer_memory_barriers]))
   {
     buffer_memory_barriers[num_buffer_memory_barriers].buffer = graph->buffers[src].handle;
     num_buffer_memory_barriers++;
   }
 
-  if (graph->images[dst].state.sync(
-          gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
-                           .access = gfx::Access::TransferWrite,
-                           .layout = gfx::ImageLayout::TransferDstOptimal},
-          image_memory_barriers[num_image_memory_barriers]))
+  if (graph->images[dst].sync_scope.sync(gfx::MemoryAccess::Write, gfx::PipelineStages::Transfer,
+                                         gfx::ImageLayout::TransferDstOptimal,
+                                         image_memory_barriers[num_image_memory_barriers]))
   {
     image_memory_barriers[num_image_memory_barriers].image   = graph->images[dst].handle;
     image_memory_barriers[num_image_memory_barriers].aspects = graph->images[dst].desc.aspects;
@@ -147,26 +180,37 @@ void CommandBuffer::blit_image(gfx::Image src, gfx::Image dst,
 
   gfx::QueueImageMemoryBarrier barriers[2];
   u8                           num_barriers = 0;
-  if (graph->images[src].state.sync(
-          gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
-                           .access = gfx::Access::TransferRead,
-                           .layout = gfx::ImageLayout::TransferSrcOptimal},
-          barriers[num_barriers]))
-  {
-    barriers[num_barriers].image   = graph->images[src].handle;
-    barriers[num_barriers].aspects = graph->images[src].desc.aspects;
-    num_barriers++;
-  }
 
-  if (graph->images[dst].state.sync(
-          gfx::ImageAccess{.stages = gfx::PipelineStages::Transfer,
-                           .access = gfx::Access::TransferWrite,
-                           .layout = gfx::ImageLayout::TransferDstOptimal},
-          barriers[num_barriers]))
+  if (src != dst)
   {
-    barriers[num_barriers].image   = graph->images[dst].handle;
-    barriers[num_barriers].aspects = graph->images[dst].desc.aspects;
-    num_barriers++;
+    if (graph->images[src].sync_scope.sync(gfx::MemoryAccess::Read, gfx::PipelineStages::Transfer,
+                                           gfx::ImageLayout::TransferSrcOptimal,
+                                           barriers[num_barriers]))
+    {
+      barriers[num_barriers].image   = graph->images[src].handle;
+      barriers[num_barriers].aspects = graph->images[src].desc.aspects;
+      num_barriers++;
+    }
+
+    if (graph->images[dst].sync_scope.sync(gfx::MemoryAccess::Write, gfx::PipelineStages::Transfer,
+                                           gfx::ImageLayout::TransferDstOptimal,
+                                           barriers[num_barriers]))
+    {
+      barriers[num_barriers].image   = graph->images[dst].handle;
+      barriers[num_barriers].aspects = graph->images[dst].desc.aspects;
+      num_barriers++;
+    }
+  }
+  else
+  {
+    if (graph->images[src].sync_scope.sync(gfx::MemoryAccess::Read | gfx::MemoryAccess::Write,
+                                           gfx::PipelineStages::Transfer, gfx::ImageLayout::General,
+                                           barriers[num_barriers]))
+    {
+      barriers[num_barriers].image   = graph->images[src].handle;
+      barriers[num_barriers].aspects = graph->images[src].desc.aspects;
+      num_barriers++;
+    }
   }
 
   if (num_barriers > 0)
@@ -186,7 +230,6 @@ void CommandBuffer::begin_render_pass(
                           depth_stencil_attachments_clear_values);
 
   gfx::RenderPassDesc const   &renderpass_desc = graph->render_passes[render_pass].desc;
-  gfx::QueueImageMemoryBarrier barrier;
   gfx::QueueImageMemoryBarrier barriers[gfx::MAX_COLOR_ATTACHMENTS + 1];
   u32                          num_barriers = 0;
 
@@ -196,7 +239,7 @@ void CommandBuffer::begin_render_pass(
         graph->image_views[graph->framebuffers[framebuffer].desc.color_attachments[i]].desc.image;
     gfx::ImageResource const &resource = graph->images[image];
 
-    if (graph->images[image].state.sync(
+    if (graph->images[image].sync_scope.sync(
             renderpass_desc.color_attachments[i].get_color_image_access(), barrier))
     {
       barrier.image          = resource.handle;
@@ -222,7 +265,11 @@ void CommandBuffer::begin_render_pass(
     }
   }
 
-  graph->driver->cmd_insert_barriers(handle, {}, stx::Span{barriers, num_barriers});
+  if (num_barriers > 0)
+  {
+    graph->driver->cmd_insert_barriers(handle, {}, stx::Span{barriers, num_barriers});
+  }
+
   graph->driver->cmd_begin_render_pass(
       handle, graph->framebuffers[framebuffer].handle, graph->render_passes[render_pass].handle,
       render_area, color_attachments_clear_values, depth_stencil_attachments_clear_values);
@@ -233,7 +280,6 @@ void CommandBuffer::end_render_pass()
   hook->end_render_pass();
   graph->driver->cmd_end_render_pass(handle);
 }
-
 
 inline void generate_descriptor_barriers(gfx::DescriptorSetBindings const &bindings, Graph &graph,
                                          stx::Vec<gfx::QueueImageMemoryBarrier>  &image_barriers,

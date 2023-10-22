@@ -113,26 +113,26 @@ struct GraphHook
 {
   Graph *graph = nullptr;
 
-  virtual void create(gfx::BufferDesc const &desc)                         = 0;
-  virtual void create(gfx::BufferViewDesc const &desc)                     = 0;
-  virtual void create(gfx::ImageDesc const &desc)                          = 0;
-  virtual void create(gfx::ImageViewDesc const &desc)                      = 0;
-  virtual void create(gfx::SamplerDesc const &sampler)                     = 0;
-  virtual void create(gfx::RenderPassDesc const &desc)                     = 0;
-  virtual void create(gfx::FramebufferDesc const &desc)                    = 0;
-  virtual void create(gfx::DescriptorSetDesc const &descriptor_set_layout) = 0;
-  virtual void create(gfx::ComputePipelineDesc const &desc)                = 0;
-  virtual void create(gfx::GraphicsPipelineDesc const &desc)               = 0;
-  virtual void release(gfx::Buffer buffer)                                 = 0;
-  virtual void release(gfx::BufferView buffer_view)                        = 0;
-  virtual void release(gfx::Image image)                                   = 0;
-  virtual void release(gfx::ImageView image_view)                          = 0;
-  virtual void release(gfx::Sampler sampler)                               = 0;
-  virtual void release(gfx::RenderPass render_pass)                        = 0;
-  virtual void release(gfx::Framebuffer framebuffer)                       = 0;
-  virtual void release(gfx::DescriptorSetLayout descriptor_set_layout)     = 0;
-  virtual void release(gfx::ComputePipeline pipeline)                      = 0;
-  virtual void release(gfx::GraphicsPipeline pipeline)                     = 0;
+  virtual void create(gfx::BufferDesc const &desc)                                     = 0;
+  virtual void create(gfx::BufferViewDesc const &desc)                                 = 0;
+  virtual void create(gfx::ImageDesc const &desc)                                      = 0;
+  virtual void create(gfx::ImageViewDesc const &desc)                                  = 0;
+  virtual void create(gfx::SamplerDesc const &sampler)                                 = 0;
+  virtual void create(gfx::RenderPassDesc const &desc)                                 = 0;
+  virtual void create(gfx::FramebufferDesc const &desc)                                = 0;
+  virtual void create(stx::Span<gfx::DescriptorBindingDesc const> descriptor_set_desc) = 0;
+  virtual void create(gfx::ComputePipelineDesc const &desc)                            = 0;
+  virtual void create(gfx::GraphicsPipelineDesc const &desc)                           = 0;
+  virtual void release(gfx::Buffer buffer)                                             = 0;
+  virtual void release(gfx::BufferView buffer_view)                                    = 0;
+  virtual void release(gfx::Image image)                                               = 0;
+  virtual void release(gfx::ImageView image_view)                                      = 0;
+  virtual void release(gfx::Sampler sampler)                                           = 0;
+  virtual void release(gfx::RenderPass render_pass)                                    = 0;
+  virtual void release(gfx::Framebuffer framebuffer)                                   = 0;
+  virtual void release(gfx::DescriptorSetLayout descriptor_set_layout)                 = 0;
+  virtual void release(gfx::ComputePipeline pipeline)                                  = 0;
+  virtual void release(gfx::GraphicsPipeline pipeline)                                 = 0;
 };
 
 // interceptor that is used for validation and adding barriers
@@ -173,7 +173,7 @@ struct Graph
   gfx::Sampler             create(gfx::SamplerDesc const &sampler);
   gfx::RenderPass          create(gfx::RenderPassDesc const &desc);
   gfx::Framebuffer         create(gfx::FramebufferDesc const &desc);
-  gfx::DescriptorSetLayout create(gfx::DescriptorSetDesc const &descriptor_set_layout);
+  gfx::DescriptorSetLayout create(stx::Span<gfx::DescriptorBindingDesc const> descriptor_set_desc);
   gfx::ComputePipeline     create(gfx::ComputePipelineDesc const &desc);
   gfx::GraphicsPipeline    create(gfx::GraphicsPipelineDesc const &desc);
   void                     release(gfx::Buffer buffer);

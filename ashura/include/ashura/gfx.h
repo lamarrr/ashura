@@ -586,25 +586,30 @@ enum class ImageUsages : u8
 
 STX_DEFINE_ENUM_BIT_OPS(ImageUsages)
 
-enum class BufferBindings : u8
+enum class BufferBindings : u16
 {
-  None         = 0x00,
-  Uniform      = 0x01,
-  Storage      = 0x02,
-  UniformTexel = 0x04,
-  StorageTexel = 0x08,
-  IndexBuffer  = 0x10,
-  VertexBuffer = 0x20,
+  None                       = 0x0000,
+  ComputeShaderUniform       = 0x0001,
+  ComputeShaderStorage       = 0x0002,
+  ComputeShaderUniformTexel  = 0x0004,
+  ComputeShaderStorageTexel  = 0x0008,
+  FragmentShaderUniform      = 0x0010,
+  FragmentShaderUniformTexel = 0x0020,
+  VertexShaderUniform        = 0x0040,
+  VertexShaderUniformTexel   = 0x0080,
+  GraphicsIndexBuffer        = 0x0100,
+  GraphicsVertexBuffer       = 0x0200,
 };
 
 STX_DEFINE_ENUM_BIT_OPS(BufferBindings)
 
 enum class ImageBindings : u8
 {
-  None            = 0x00,
-  Sampled         = 0x01,
-  Storage         = 0x02,
-  InputAttachment = 0x04
+  None                    = 0x00,
+  ComputeSampled          = 0x01,
+  ComputeStorage          = 0x02,
+  GraphicsSampled         = 0x01,
+  GraphicsInputAttachment = 0x04
 };
 
 STX_DEFINE_ENUM_BIT_OPS(ImageBindings)
@@ -622,47 +627,35 @@ enum class InputRate : u8
 //
 // buffers have no transient accesses
 //
-enum class MemoryAccess : u8
+enum class MemoryAccess : u32
 {
-  None           = 0,
-  Read           = 1,
-  Write          = 2,
-  TransientRead  = 4,
-  TransientWrite = 8
+  None  = 0,
+  Read  = 0x00008000,
+  Write = 0x00010000
 };
 
 STX_DEFINE_ENUM_BIT_OPS(MemoryAccess)
 
-enum class Access : u64
+enum class Access : u32
 {
-  None                           = 0x00000000ULL,
-  IndirectCommandRead            = 0x00000001ULL,
-  IndexRead                      = 0x00000002ULL,
-  VertexAttributeRead            = 0x00000004ULL,
-  UniformRead                    = 0x00000008ULL,
-  InputAttachmentRead            = 0x00000010ULL,
-  ShaderRead                     = 0x00000020ULL,
-  ShaderWrite                    = 0x00000040ULL,
-  ColorAttachmentRead            = 0x00000080ULL,
-  ColorAttachmentWrite           = 0x00000100ULL,
-  DepthStencilAttachmentRead     = 0x00000200ULL,
-  DepthStencilAttachmentWrite    = 0x00000400ULL,
-  TransferRead                   = 0x00000800ULL,
-  TransferWrite                  = 0x00001000ULL,
-  HostRead                       = 0x00002000ULL,
-  HostWrite                      = 0x00004000ULL,
-  MemoryRead                     = 0x00008000ULL,
-  MemoryWrite                    = 0x00010000ULL,
-  VideoDecodeRead                = 0x800000000ULL,
-  VideoDecodeWrite               = 0x1000000000ULL,
-  VideoEncodeRead                = 0x2000000000ULL,
-  VideoEncodeWrite               = 0x4000000000ULL,
-  AccelerationStructureRead      = 0x00200000ULL,
-  AccelerationStructureWrite     = 0x00400000ULL,
-  FragmentDensityMapRead         = 0x01000000ULL,
-  ColorAttachmentReadNonCoherent = 0x00080000ULL,
-  DescriptorBufferRead           = 0x20000000000ULL,
-  ShaderBindingTableRead         = 0x10000000000ULL
+  None                        = 0x00000000,
+  IndirectCommandRead         = 0x00000001,
+  IndexRead                   = 0x00000002,
+  VertexAttributeRead         = 0x00000004,
+  UniformRead                 = 0x00000008,
+  InputAttachmentRead         = 0x00000010,
+  ShaderRead                  = 0x00000020,
+  ShaderWrite                 = 0x00000040,
+  ColorAttachmentRead         = 0x00000080,
+  ColorAttachmentWrite        = 0x00000100,
+  DepthStencilAttachmentRead  = 0x00000200,
+  DepthStencilAttachmentWrite = 0x00000400,
+  TransferRead                = 0x00000800,
+  TransferWrite               = 0x00001000,
+  HostRead                    = 0x00002000,
+  HostWrite                   = 0x00004000,
+  MemoryRead                  = 0x00008000,
+  MemoryWrite                 = 0x00010000
 };
 
 STX_DEFINE_ENUM_BIT_OPS(Access)
@@ -848,6 +841,83 @@ struct RenderPassAttachment
   StoreOp store_op         = StoreOp::Store;
   LoadOp  stencil_load_op  = LoadOp::Load;        // how to use stencil components
   StoreOp stencil_store_op = StoreOp::Store;
+
+  constexpr ImageAccess get_color_image_access() const
+  {
+    ImageLayout  layout    = ImageLayout::ColorAttachmentOptimal;
+    bool         has_write = false;
+    bool         has_read  = false;
+    MemoryAccess access    = MemoryAccess::None;
+
+    if (load_op == LoadOp::Clear || load_op == LoadOp::DontCare || store_op == StoreOp::Store)
+    {
+      has_write = true;
+    }
+
+    if (load_op == LoadOp::Load)
+    {
+      has_read = true;
+    }
+
+    if (has_write)
+    {
+      access |= MemoryAccess::Write;
+    }
+
+    if (has_read)
+    {
+      access |= MemoryAccess::Read;
+    }
+
+    return ImageAccess{
+        .layout = layout, .stages = PipelineStages::ColorAttachmentOutput, .access = access};
+  }
+
+  constexpr ImageAccess get_depth_stencil_image_access() const
+  {
+    ImageLayout  layout    = ImageLayout::Undefined;
+    bool         has_write = false;
+    bool         has_read  = false;
+    MemoryAccess access    = MemoryAccess::None;
+
+    if (load_op == LoadOp::Clear || load_op == LoadOp::DontCare || store_op == StoreOp::Store ||
+        store_op == StoreOp::DontCare || stencil_load_op == LoadOp::Clear ||
+        stencil_load_op == LoadOp::DontCare || stencil_store_op == StoreOp::Store ||
+        stencil_store_op == StoreOp::DontCare)
+    {
+      has_write = true;
+    }
+
+    if (load_op == LoadOp::Load || stencil_load_op == LoadOp::Load)
+    {
+      has_read = true;
+    }
+
+    if (has_write)
+    {
+      access |= MemoryAccess::Write;
+    }
+
+    if (has_read)
+    {
+      access |= MemoryAccess::Read;
+    }
+
+    if (has_write)
+    {
+      layout = ImageLayout::DepthStencilAttachmentOptimal;
+    }
+    else
+    {
+      layout = ImageLayout::DepthStencilReadOnlyOptimal;
+    }
+
+    return ImageAccess{.layout = layout,
+                       .stages = PipelineStages::EarlyFragmentTests |
+                                 PipelineStages::LateFragmentTests |
+                                 PipelineStages::ColorAttachmentOutput,
+                       .access = access};
+  }
 };
 
 struct RenderPassDesc
@@ -1163,19 +1233,59 @@ struct QueueImageMemoryBarrier
   Access         dst_access        = Access::None;
 };
 
+struct BufferAccess
+{
+  PipelineStages stages = PipelineStages::None;
+  MemoryAccess   access = MemoryAccess::None;
+};
+
+struct ImageAccess
+{
+  ImageLayout    layout = ImageLayout::Undefined;
+  PipelineStages stages = PipelineStages::None;
+  MemoryAccess   access = MemoryAccess::None;
+};
+
 struct BufferSyncScope
 {
   MemoryAccess   access   = MemoryAccess::None;
-  ImageLayout    layout   = ImageLayout::Undefined;
   BufferBindings bindings = BufferBindings::None;
 
   constexpr void reset()
   {
-    access = MemoryAccess::None;
+    access   = MemoryAccess::None;
+    bindings = BufferBindings::None;
   }
 
-  u8 sync(MemoryAccess memory_access, Access access, PipelineStages stages,
-            QueueBufferMemoryBarrier barrier[2]);
+  constexpr bool sync(MemoryAccess new_access, PipelineStages new_stages,
+                      QueueBufferMemoryBarrier &barrier)
+  {
+    if (access == MemoryAccess::None)
+    {
+      access |= new_access;
+      return false;
+    }
+
+    // RAR needs no barrier
+    if ((new_access == MemoryAccess::Read || new_access == MemoryAccess::None) &&
+        (access == MemoryAccess::Read || access == MemoryAccess::None))
+    {
+      access |= new_access;
+      return false;
+    }
+
+    bool const is_non_mutating = new_access == MemoryAccess::Read;
+
+    // WAR, RAW, WAW
+    barrier.src_access = (Access) (is_non_mutating ? MemoryAccess::Write : access);
+    barrier.src_stages = PipelineStages::BottomOfPipe;
+    barrier.dst_access = (Access) new_access;
+    barrier.dst_stages = new_stages;
+    barrier.offset     = 0;
+    barrier.size       = WHOLE_SIZE;
+    access |= new_access;
+    return true;
+  }
 };
 
 struct ImageSyncScope
@@ -1186,11 +1296,129 @@ struct ImageSyncScope
 
   constexpr void reset()
   {
-    access = MemoryAccess::None;
+    access   = MemoryAccess::None;
+    bindings = ImageBindings::None;
   }
 
-  bool sync(MemoryAccess memory_access, Access access, PipelineStages stages, ImageLayout layout,
-            QueueImageMemoryBarrier &barrier);
+  constexpr bool sync(MemoryAccess new_access, PipelineStages new_stages, ImageLayout new_layout,
+                      QueueImageMemoryBarrier &barrier)
+  {
+    if (layout == new_layout && access == MemoryAccess::None)
+    {
+      access |= new_access;
+      return false;
+    }
+
+    if (layout == new_layout &&
+        (new_access == MemoryAccess::Read || new_access == MemoryAccess::None) &&
+        (access == MemoryAccess::Read || access == MemoryAccess::None))
+    {
+      access |= new_access;
+      return false;
+    }
+
+    // RAW, WAR, WAW
+    bool const is_non_mutating = new_access == MemoryAccess::Read && layout == new_layout;
+    barrier.first_mip_level    = 0;
+    barrier.num_mip_levels     = REMAINING_MIP_LEVELS;
+    barrier.first_array_layer  = 0;
+    barrier.num_array_layers   = REMAINING_ARRAY_LAYERS;
+    barrier.old_layout         = layout;
+    barrier.new_layout         = new_layout;
+    barrier.src_access         = (Access) (is_non_mutating ? MemoryAccess::Write : access);
+    barrier.src_stages         = PipelineStages::BottomOfPipe;
+    barrier.dst_access         = (Access) new_access;
+    barrier.dst_stages         = new_stages;
+    access |= is_non_mutating ? MemoryAccess::Read : new_access;
+    layout = new_layout;
+    return true;
+  }
+
+  BufferAccess to_pipeline_access(BufferBindings bindings, PipelineStages binding_stages)
+  {
+    Access         access = Access::None;
+    PipelineStages stages = PipelineStages::None;
+
+    if ((bindings & (BufferBindings::Uniform | BufferBindings::Storage |
+                     BufferBindings::UniformTexel | BufferBindings::StorageTexel)) !=
+        BufferBindings::None)
+    {
+      stages |= binding_stages;
+    }
+
+    if ((bindings & (BufferBindings::IndexBuffer | BufferBindings::VertexBuffer)) !=
+        BufferBindings::None)
+    {
+      stages |= PipelineStages::VertexInput;
+    }
+
+    if ((bindings & BufferBindings::IndexBuffer) != BufferBindings::None)
+    {
+      access |= Access::IndexRead;
+    }
+
+    if ((bindings & BufferBindings::VertexBuffer) != BufferBindings::None)
+    {
+      access |= Access::VertexAttributeRead;
+    }
+
+    if ((bindings & (BufferBindings::Uniform | BufferBindings::UniformTexel)) !=
+        BufferBindings::None)
+    {
+      access |= Access::ShaderRead;
+    }
+
+    if ((bindings & (BufferBindings::Storage | BufferBindings::StorageTexel)) !=
+        BufferBindings::None)
+    {
+      access |= Access::ShaderWrite;
+    }
+
+    return BufferAccess{.stages = stages, .access = access};
+  }
+
+  ImageAccess to_pipeline_access(ImageBindings bindings, PipelineStages binding_stages)
+  {
+    Access         access = Access::None;
+    ImageLayout    layout = ImageLayout::Undefined;
+    PipelineStages stages = PipelineStages::None;
+
+    if ((bindings & ImageBindings::InputAttachment) != ImageBindings::None)
+    {
+      access |= Access::InputAttachmentRead;
+    }
+
+    if ((bindings & ImageBindings::Sampled) != ImageBindings::None)
+    {
+      access |= Access::ShaderRead;
+    }
+
+    if ((bindings & ImageBindings::Storage) != ImageBindings::None)
+    {
+      access |= Access::ShaderWrite;
+    }
+
+    if ((bindings & ImageBindings::Storage) != ImageBindings::None)
+    {
+      layout = ImageLayout::General;
+    }
+    else if ((bindings & (ImageBindings::Sampled | ImageBindings::InputAttachment)) !=
+             ImageBindings::None)
+    {
+      layout = ImageLayout::ShaderReadOnlyOptimal;
+    }
+
+    if (bindings == ImageBindings::InputAttachment)
+    {
+      stages = PipelineStages::FragmentShader;
+    }
+    else if (bindings != ImageBindings::None)
+    {
+      stages = binding_stages;
+    }
+
+    return ImageAccess{.stages = stages, .access = access, .layout = layout};
+  }
 };
 
 struct StencilFaceState
