@@ -92,53 +92,64 @@ enum class NumInputState
 // TODO(lamarrr): accept focus, esc to cancel, enter to increase
 struct NumInput : public Widget
 {
-  NumInput(U8InputSpec spec, NumInputProps iprops) :
-      u8spec{spec}, type{NumType::U8}, props{iprops}
-  {}
+  NumInput(U8InputSpec spec, NumInputProps iprops) : u8spec{spec}, type{NumType::U8}, props{iprops}
+  {
+  }
 
   NumInput(U16InputSpec spec, NumInputProps iprops) :
       u16spec{spec}, type{NumType::U16}, props{iprops}
-  {}
+  {
+  }
 
   NumInput(U32InputSpec spec, NumInputProps iprops) :
       u32spec{spec}, type{NumType::U32}, props{iprops}
-  {}
+  {
+  }
 
   NumInput(U64InputSpec spec, NumInputProps iprops) :
       u64spec{spec}, type{NumType::U64}, props{iprops}
-  {}
+  {
+  }
 
-  NumInput(I8InputSpec spec, NumInputProps iprops) :
-      i8spec{spec}, type{NumType::I8}, props{iprops}
-  {}
+  NumInput(I8InputSpec spec, NumInputProps iprops) : i8spec{spec}, type{NumType::I8}, props{iprops}
+  {
+  }
 
   NumInput(I16InputSpec spec, NumInputProps iprops) :
       i16spec{spec}, type{NumType::I16}, props{iprops}
-  {}
+  {
+  }
 
   NumInput(I32InputSpec spec, NumInputProps iprops) :
       i32spec{spec}, type{NumType::I32}, props{iprops}
-  {}
+  {
+  }
 
   NumInput(I64InputSpec spec, NumInputProps iprops) :
       i64spec{spec}, type{NumType::I64}, props{iprops}
-  {}
+  {
+  }
 
   NumInput(F32InputSpec spec, NumInputProps iprops) :
       f32spec{spec}, type{NumType::F32}, props{iprops}
-  {}
+  {
+  }
 
   NumInput(F64InputSpec spec, NumInputProps iprops) :
       f64spec{spec}, type{NumType::F64}, props{iprops}
-  {}
+  {
+  }
 
   STX_DISABLE_COPY(NumInput)
   STX_DEFAULT_MOVE(NumInput)
 
   virtual ~NumInput() override
-  {}
+  {
+  }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+                   stx::Span<Vec2 const> children_sizes,
+                   stx::Span<Vec2>       children_positions) override
   {
     char buff[256];
     int  written = std::snprintf(buff, 256, u8spec.display_format, (void *) &u8spec.value);
@@ -162,7 +173,8 @@ struct NumInput : public Widget
   {
   }
 
-  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation, DragData const &drag_data) override
+  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation,
+                              DragData const &drag_data) override
   {
   }
 

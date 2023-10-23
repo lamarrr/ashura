@@ -12,7 +12,8 @@ namespace ash
 
 struct WidgetSystem
 {
-  static void __assign_widget_uuids_recursive(Context &ctx, Widget &widget, PrngUuidGenerator &generator)
+  static void __assign_widget_uuids_recursive(Context &ctx, Widget &widget,
+                                              PrngUuidGenerator &generator)
   {
     if (widget.id.is_none())
     {
@@ -74,7 +75,14 @@ struct WidgetSystem
                   bool accepted_drop = hit_widget->on_drop(ctx, event.position, drag_data.value());
                   if (!accepted_drop)
                   {
-                    drag_source.match([&](uuid source) {  if(stx::Option source_widget = ctx.find_widget(source)){  source_widget.value()->on_drag_end(ctx, event.position  );  } }, []() {});
+                    drag_source.match(
+                        [&](uuid source) {
+                          if (stx::Option source_widget = ctx.find_widget(source))
+                          {
+                            source_widget.value()->on_drag_end(ctx, event.position);
+                          }
+                        },
+                        []() {});
                   }
                 }
                 else
@@ -104,9 +112,13 @@ struct WidgetSystem
 
         if (drag_data.is_some() && drag_source.is_some())
         {
-          ctx
-              .find_widget(drag_source.value())
-              .match([&](Widget *pdrag_source) { pdrag_source->on_drag_update(ctx, event.position, event.translation, drag_data.value()); }, []() {});
+          ctx.find_widget(drag_source.value())
+              .match(
+                  [&](Widget *pdrag_source) {
+                    pdrag_source->on_drag_update(ctx, event.position, event.translation,
+                                                 drag_data.value());
+                  },
+                  []() {});
         }
 
         if (Widget *phit_widget = tree.hit(ctx, event.position))
@@ -133,19 +145,26 @@ struct WidgetSystem
           hit_widget = stx::Some(phit_widget->id.copy().unwrap());
         }
 
-        if (last_hit_widget.is_some() && (hit_widget.is_none() || hit_widget.value() != last_hit_widget.value()))
+        if (last_hit_widget.is_some() &&
+            (hit_widget.is_none() || hit_widget.value() != last_hit_widget.value()))
         {
           if (drag_data.is_some())
           {
-            ctx
-                .find_widget(last_hit_widget.value())
-                .match([&](Widget *plast_hit_widget) { plast_hit_widget->on_drag_leave(ctx, stx::Some(Vec2{event.position})); }, []() {});
+            ctx.find_widget(last_hit_widget.value())
+                .match(
+                    [&](Widget *plast_hit_widget) {
+                      plast_hit_widget->on_drag_leave(ctx, stx::Some(Vec2{event.position}));
+                    },
+                    []() {});
           }
           else
           {
-            ctx
-                .find_widget(last_hit_widget.value())
-                .match([&](Widget *plast_hit_widget) { plast_hit_widget->on_mouse_leave(ctx, stx::Some(Vec2{event.position})); }, []() {});
+            ctx.find_widget(last_hit_widget.value())
+                .match(
+                    [&](Widget *plast_hit_widget) {
+                      plast_hit_widget->on_mouse_leave(ctx, stx::Some(Vec2{event.position}));
+                    },
+                    []() {});
           }
         }
 
@@ -157,15 +176,19 @@ struct WidgetSystem
         {
           if (last_hit_widget.is_some())
           {
-            ctx
-                .find_widget(last_hit_widget.value())
-                .match([&](Widget *plast_hit_widget) { 
-              if(drag_data.is_some())
-              {
-                plast_hit_widget->on_drag_leave(ctx, stx::None);
-              } else{
-                plast_hit_widget->on_mouse_leave(ctx, stx::None); 
-               }; }, []() {});
+            ctx.find_widget(last_hit_widget.value())
+                .match(
+                    [&](Widget *plast_hit_widget) {
+                      if (drag_data.is_some())
+                      {
+                        plast_hit_widget->on_drag_leave(ctx, stx::None);
+                      }
+                      else
+                      {
+                        plast_hit_widget->on_mouse_leave(ctx, stx::None);
+                      };
+                    },
+                    []() {});
             last_hit_widget = stx::None;
           }
         }

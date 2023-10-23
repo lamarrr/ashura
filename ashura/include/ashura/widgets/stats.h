@@ -15,8 +15,12 @@ namespace gui
 struct StatsWidget : public Box
 {
   StatsWidget() :
-      Box{BoxProps{.background_color = colors::MAGENTA.with_alpha(128), .padding = EdgeInsets::all(10)},
-          Flex{FlexProps{.direction = Direction::V, .wrap = Wrap::Wrap, .main_align = MainAlign::Start, .cross_align = CrossAlign::Start},
+      Box{BoxProps{.background_color = colors::MAGENTA.with_alpha(128),
+                   .padding          = EdgeInsets::all(10)},
+          Flex{FlexProps{.direction   = Direction::V,
+                         .wrap        = Wrap::Wrap,
+                         .main_align  = MainAlign::Start,
+                         .cross_align = CrossAlign::Start},
                Text{"", {}}, Text{"", {}}, Text{"", {}}, Text{"", {}}}}
   {
   }
@@ -28,10 +32,16 @@ struct StatsWidget : public Box
   {
     TextProps props{.style = TextStyle{.foreground_color = colors::WHITE}};
     stx::Span cols = this->get_children(ctx)[0]->get_children(ctx);
-    dynamic_cast<Text *>(cols[0])->update_text(fmt::format("GPU time:  {:.2} ms", ctx.frame_stats.gpu_time.count() / 1'000'000.0), props);
-    dynamic_cast<Text *>(cols[1])->update_text(fmt::format("CPU time:  {:.2} ms", ctx.frame_stats.cpu_time.count() / 1'000'000.0), props);
-    dynamic_cast<Text *>(cols[2])->update_text(fmt::format("CPU-GPU sync time:  {:.2} ms", ctx.frame_stats.gpu_sync_time.count() / 1'000'000.0), props);
-    dynamic_cast<Text *>(cols[3])->update_text(fmt::format("{} vertices", ctx.frame_stats.input_assembly_vertices), props);
+    dynamic_cast<Text *>(cols[0])->update_text(
+        fmt::format("GPU time:  {:.2} ms", ctx.frame_stats.gpu_time.count() / 1'000'000.0), props);
+    dynamic_cast<Text *>(cols[1])->update_text(
+        fmt::format("CPU time:  {:.2} ms", ctx.frame_stats.cpu_time.count() / 1'000'000.0), props);
+    dynamic_cast<Text *>(cols[2])->update_text(
+        fmt::format("CPU-GPU sync time:  {:.2} ms",
+                    ctx.frame_stats.gpu_sync_time.count() / 1'000'000.0),
+        props);
+    dynamic_cast<Text *>(cols[3])->update_text(
+        fmt::format("{} vertices", ctx.frame_stats.input_assembly_vertices), props);
   }
 };
 }        // namespace gui

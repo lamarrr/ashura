@@ -91,11 +91,12 @@ struct Registry
   // check entity validity: (entity_id < nentities) && ((entity_free_mask[entity_id >> 6] >> (entity_id & 63)) & 1)
   // free entity: free components && entity_free_mask[]
   u64 **entity_component_map = nullptr;
-  u64  *entity_free_mask     = nullptr;        // we don't want to waste indices and have to update indirections
-  u64  *free_entity_indices  = nullptr;
-  u64   entities_capacity    = 0;
-  u64   nentities            = 0;
-  u64   nfree_entities       = 0;
+  u64  *entity_free_mask =
+      nullptr;        // we don't want to waste indices and have to update indirections
+  u64 *free_entity_indices = nullptr;
+  u64  entities_capacity   = 0;
+  u64  nentities           = 0;
+  u64  nfree_entities      = 0;
 };
 
 // say for example we want a system that processes elements in batches

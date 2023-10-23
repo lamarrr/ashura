@@ -15,14 +15,15 @@ struct App
   STX_MAKE_PINNED(App)
 
   template <Impl<Widget> DerivedWidget>
-  explicit App(AppConfig icfg, DerivedWidget &&widget) :
-      cfg{icfg}, engine{icfg, std::move(widget)}
-  {}
+  explicit App(AppConfig icfg, DerivedWidget &&widget) : cfg{icfg}, engine{icfg, std::move(widget)}
+  {
+  }
 
   void tick(std::chrono::nanoseconds interval);
 
   ~App()
-  {}
+  {
+  }
 
   AppConfig cfg;
   Engine    engine;

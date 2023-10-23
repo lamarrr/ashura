@@ -301,7 +301,8 @@ struct Quad
 
   constexpr bool contains(Vec2 point) const
   {
-    return tri{.p0 = p0, .p1 = p1, .p2 = p2}.contains(point) || tri{.p0 = p0, .p1 = p2, .p2 = p3}.contains(point);
+    return tri{.p0 = p0, .p1 = p1, .p2 = p2}.contains(point) ||
+           tri{.p0 = p0, .p1 = p2, .p2 = p3}.contains(point);
   }
 };
 
@@ -358,7 +359,8 @@ struct Rect
 
   constexpr bool contains(Vec2 point) const
   {
-    return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
+    return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x &&
+           (offset.y + extent.y) >= point.y;
   }
 
   constexpr bool is_visible() const
@@ -388,11 +390,7 @@ struct Rect
 
   constexpr Quad to_quad() const
   {
-    return Quad{
-        .p0 = top_left(),
-        .p1 = top_right(),
-        .p2 = bottom_right(),
-        .p3 = bottom_left()};
+    return Quad{.p0 = top_left(), .p1 = top_right(), .p2 = bottom_right(), .p3 = bottom_left()};
   }
 
   constexpr Rect with_offset(Vec2 new_offset) const
@@ -645,14 +643,12 @@ struct Mat2
 
   static constexpr Mat2 identity()
   {
-    return Mat2{.rows = {{.x = 1, .y = 0},
-                         {.x = 0, .y = 1}}};
+    return Mat2{.rows = {{.x = 1, .y = 0}, {.x = 0, .y = 1}}};
   }
 
   constexpr Mat2 transpose() const
   {
-    return Mat2{.rows = {{rows[0].x, rows[1].x},
-                         {rows[0].y, rows[1].y}}};
+    return Mat2{.rows = {{rows[0].x, rows[1].x}, {rows[0].y, rows[1].y}}};
   }
 
   constexpr Vec2 &operator[](usize i)
@@ -668,14 +664,12 @@ struct Mat2
 
 constexpr Mat2 operator*(Mat2 a, f32 b)
 {
-  return Mat2{.rows = {a[0] * b,
-                       a[1] * b}};
+  return Mat2{.rows = {a[0] * b, a[1] * b}};
 }
 
 constexpr Mat2 operator*(f32 a, Mat2 b)
 {
-  return Mat2{.rows = {a * b[0],
-                       a * b[1]}};
+  return Mat2{.rows = {a * b[0], a * b[1]}};
 }
 
 constexpr f32 determinant(Mat2 a)
@@ -685,8 +679,7 @@ constexpr f32 determinant(Mat2 a)
 
 constexpr Mat2 adjoint(Mat2 a)
 {
-  return Mat2{.rows = {{a[1].y, -a[0].y},
-                       {-a[1].x, a[0].x}}};
+  return Mat2{.rows = {{a[1].y, -a[0].y}, {-a[1].x, a[0].x}}};
 }
 
 constexpr Mat2 inverse(Mat2 a)
@@ -701,9 +694,8 @@ struct Mat3
 
   static constexpr Mat3 identity()
   {
-    return Mat3{.rows = {{.x = 1, .y = 0, .z = 0},
-                         {.x = 0, .y = 1, .z = 0},
-                         {.x = 0, .y = 0, .z = 1}}};
+    return Mat3{
+        .rows = {{.x = 1, .y = 0, .z = 0}, {.x = 0, .y = 1, .z = 0}, {.x = 0, .y = 0, .z = 1}}};
   }
 
   constexpr Mat3 transpose() const
@@ -726,16 +718,12 @@ struct Mat3
 
 constexpr Mat3 operator*(Mat3 a, f32 b)
 {
-  return Mat3{.rows = {a[0] * b,
-                       a[1] * b,
-                       a[2] * b}};
+  return Mat3{.rows = {a[0] * b, a[1] * b, a[2] * b}};
 }
 
 constexpr Mat3 operator*(f32 a, Mat3 b)
 {
-  return Mat3{.rows = {a * b[0],
-                       a * b[1],
-                       a * b[2]}};
+  return Mat3{.rows = {a * b[0], a * b[1], a * b[2]}};
 }
 
 constexpr Vec3 operator*(Mat3 const &a, Vec3 const &b)
@@ -745,37 +733,27 @@ constexpr Vec3 operator*(Mat3 const &a, Vec3 const &b)
 
 constexpr Mat3 operator*(Mat3 const &a, Mat3 const &b)
 {
-  return Mat3{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x}),
-                        dot(a[0], {b[0].y, b[1].y, b[2].y}),
+  return Mat3{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x}), dot(a[0], {b[0].y, b[1].y, b[2].y}),
                         dot(a[0], {b[0].z, b[1].z, b[2].z})},
-                       {dot(a[1], {b[0].x, b[1].x, b[2].x}),
-                        dot(a[1], {b[0].y, b[1].y, b[2].y}),
+                       {dot(a[1], {b[0].x, b[1].x, b[2].x}), dot(a[1], {b[0].y, b[1].y, b[2].y}),
                         dot(a[1], {b[0].z, b[1].z, b[2].z})},
-                       {dot(a[2], {b[0].x, b[1].x, b[2].x}),
-                        dot(a[2], {b[0].y, b[1].y, b[2].y}),
+                       {dot(a[2], {b[0].x, b[1].x, b[2].x}), dot(a[2], {b[0].y, b[1].y, b[2].y}),
                         dot(a[2], {b[0].z, b[1].z, b[2].z})}}};
 }
 
 constexpr f32 determinant(Mat3 const &a)
 {
-  return a[0].x * a[1].y * a[2].z -
-         a[0].x * a[1].z * a[2].y -
-         a[0].y * a[1].x * a[2].z +
-         a[0].y * a[1].z * a[2].x +
-         a[0].z * a[1].x * a[2].y -
-         a[0].z * a[1].y * a[2].x;
+  return a[0].x * a[1].y * a[2].z - a[0].x * a[1].z * a[2].y - a[0].y * a[1].x * a[2].z +
+         a[0].y * a[1].z * a[2].x + a[0].z * a[1].x * a[2].y - a[0].z * a[1].y * a[2].x;
 }
 
 constexpr Mat3 adjoint(Mat3 const &a)
 {
-  return Mat3{.rows = {{a[1].y * a[2].z - a[1].z * a[2].y,
-                        a[0].z * a[2].y - a[0].y * a[2].z,
+  return Mat3{.rows = {{a[1].y * a[2].z - a[1].z * a[2].y, a[0].z * a[2].y - a[0].y * a[2].z,
                         a[0].y * a[1].z - a[0].z * a[1].y},
-                       {a[1].z * a[2].x - a[1].x * a[2].z,
-                        a[0].x * a[2].z - a[0].z * a[2].x,
+                       {a[1].z * a[2].x - a[1].x * a[2].z, a[0].x * a[2].z - a[0].z * a[2].x,
                         a[0].z * a[1].x - a[0].x * a[1].z},
-                       {a[1].x * a[2].y - a[1].y * a[2].x,
-                        a[0].y * a[2].x - a[0].x * a[2].y,
+                       {a[1].x * a[2].y - a[1].y * a[2].x, a[0].y * a[2].x - a[0].x * a[2].y,
                         a[0].x * a[1].y - a[0].y * a[1].x}}};
 }
 
@@ -818,18 +796,12 @@ struct Mat4
 
 constexpr Mat4 operator*(Mat4 a, f32 b)
 {
-  return Mat4{.rows = {a[0] * b,
-                       a[1] * b,
-                       a[2] * b,
-                       a[3] * b}};
+  return Mat4{.rows = {a[0] * b, a[1] * b, a[2] * b, a[3] * b}};
 }
 
 constexpr Mat4 operator*(f32 a, Mat4 b)
 {
-  return Mat4{.rows = {a * b[0],
-                       a * b[1],
-                       a * b[2],
-                       a * b[3]}};
+  return Mat4{.rows = {a * b[0], a * b[1], a * b[2], a * b[3]}};
 }
 
 constexpr bool operator==(Mat4 const &a, Mat4 const &b)
@@ -844,22 +816,20 @@ constexpr bool operator!=(Mat4 const &a, Mat4 const &b)
 
 constexpr Mat4 operator*(Mat4 const &a, Mat4 const &b)
 {
-  return Mat4{.rows = {{dot(a[0], {b[0].x, b[1].x, b[2].x, b[3].x}),
-                        dot(a[0], {b[0].y, b[1].y, b[2].y, b[3].y}),
-                        dot(a[0], {b[0].z, b[1].z, b[2].z, b[3].z}),
-                        dot(a[0], {b[0].w, b[1].w, b[2].w, b[3].w})},
-                       {dot(a[1], {b[0].x, b[1].x, b[2].x, b[3].x}),
-                        dot(a[1], {b[0].y, b[1].y, b[2].y, b[3].y}),
-                        dot(a[1], {b[0].z, b[1].z, b[2].z, b[3].z}),
-                        dot(a[1], {b[0].w, b[1].w, b[2].w, b[3].w})},
-                       {dot(a[2], {b[0].x, b[1].x, b[2].x, b[3].x}),
-                        dot(a[2], {b[0].y, b[1].y, b[2].y, b[3].y}),
-                        dot(a[2], {b[0].z, b[1].z, b[2].z, b[3].z}),
-                        dot(a[2], {b[0].w, b[1].w, b[2].w, b[3].w})},
-                       {dot(a[3], {b[0].x, b[1].x, b[2].x, b[3].x}),
-                        dot(a[3], {b[0].y, b[1].y, b[2].y, b[3].y}),
-                        dot(a[3], {b[0].z, b[1].z, b[2].z, b[3].z}),
-                        dot(a[3], {b[0].w, b[1].w, b[2].w, b[3].w})}}};
+  return Mat4{
+      .rows = {
+          {dot(a[0], {b[0].x, b[1].x, b[2].x, b[3].x}), dot(a[0], {b[0].y, b[1].y, b[2].y, b[3].y}),
+           dot(a[0], {b[0].z, b[1].z, b[2].z, b[3].z}),
+           dot(a[0], {b[0].w, b[1].w, b[2].w, b[3].w})},
+          {dot(a[1], {b[0].x, b[1].x, b[2].x, b[3].x}), dot(a[1], {b[0].y, b[1].y, b[2].y, b[3].y}),
+           dot(a[1], {b[0].z, b[1].z, b[2].z, b[3].z}),
+           dot(a[1], {b[0].w, b[1].w, b[2].w, b[3].w})},
+          {dot(a[2], {b[0].x, b[1].x, b[2].x, b[3].x}), dot(a[2], {b[0].y, b[1].y, b[2].y, b[3].y}),
+           dot(a[2], {b[0].z, b[1].z, b[2].z, b[3].z}),
+           dot(a[2], {b[0].w, b[1].w, b[2].w, b[3].w})},
+          {dot(a[3], {b[0].x, b[1].x, b[2].x, b[3].x}), dot(a[3], {b[0].y, b[1].y, b[2].y, b[3].y}),
+           dot(a[3], {b[0].z, b[1].z, b[2].z, b[3].z}),
+           dot(a[3], {b[0].w, b[1].w, b[2].w, b[3].w})}}};
 }
 
 constexpr Vec4 operator*(Mat4 const &a, Vec4 const &b)
@@ -869,30 +839,14 @@ constexpr Vec4 operator*(Mat4 const &a, Vec4 const &b)
 
 constexpr f32 determinant(Mat4 const &a)
 {
-  return a[0].x * (a[1].y * a[2].z * a[3].w +
-                   a[1].z * a[2].w * a[3].y +
-                   a[1].w * a[2].y * a[3].z -
-                   a[1].w * a[2].z * a[3].y -
-                   a[1].z * a[2].y * a[3].w -
-                   a[1].y * a[2].w * a[3].z) -
-         a[1].x * (a[0].y * a[2].z * a[3].w +
-                   a[0].z * a[2].w * a[3].y +
-                   a[0].w * a[2].y * a[3].z -
-                   a[0].w * a[2].z * a[3].y -
-                   a[0].z * a[2].y * a[3].w -
-                   a[0].y * a[2].w * a[3].z) +
-         a[2].x * (a[0].y * a[1].z * a[3].w +
-                   a[0].z * a[1].w * a[3].y +
-                   a[0].w * a[1].y * a[3].z -
-                   a[0].w * a[1].z * a[3].y -
-                   a[0].z * a[1].y * a[3].w -
-                   a[0].y * a[1].w * a[3].z) -
-         a[3].x * (a[0].y * a[1].z * a[2].w +
-                   a[0].z * a[1].w * a[2].y +
-                   a[0].w * a[1].y * a[2].z -
-                   a[0].w * a[1].z * a[2].y -
-                   a[0].z * a[1].y * a[2].w -
-                   a[0].y * a[1].w * a[2].z);
+  return a[0].x * (a[1].y * a[2].z * a[3].w + a[1].z * a[2].w * a[3].y + a[1].w * a[2].y * a[3].z -
+                   a[1].w * a[2].z * a[3].y - a[1].z * a[2].y * a[3].w - a[1].y * a[2].w * a[3].z) -
+         a[1].x * (a[0].y * a[2].z * a[3].w + a[0].z * a[2].w * a[3].y + a[0].w * a[2].y * a[3].z -
+                   a[0].w * a[2].z * a[3].y - a[0].z * a[2].y * a[3].w - a[0].y * a[2].w * a[3].z) +
+         a[2].x * (a[0].y * a[1].z * a[3].w + a[0].z * a[1].w * a[3].y + a[0].w * a[1].y * a[3].z -
+                   a[0].w * a[1].z * a[3].y - a[0].z * a[1].y * a[3].w - a[0].y * a[1].w * a[3].z) -
+         a[3].x * (a[0].y * a[1].z * a[2].w + a[0].z * a[1].w * a[2].y + a[0].w * a[1].y * a[2].z -
+                   a[0].w * a[1].z * a[2].y - a[0].z * a[1].y * a[2].w - a[0].y * a[1].w * a[2].z);
 }
 
 // constexpr mat4 adjoint(mat4 const &a)
@@ -952,18 +906,15 @@ constexpr Vec2 transform2d(Mat3 const &a, Vec2 const &b)
 
 constexpr Quad transform2d(Mat3 const &a, Rect const &b)
 {
-  return Quad{
-      .p0 = transform2d(a, b.top_left()),
-      .p1 = transform2d(a, b.top_right()),
-      .p2 = transform2d(a, b.bottom_right()),
-      .p3 = transform2d(a, b.bottom_left())};
+  return Quad{.p0 = transform2d(a, b.top_left()),
+              .p1 = transform2d(a, b.top_right()),
+              .p2 = transform2d(a, b.bottom_right()),
+              .p3 = transform2d(a, b.bottom_left())};
 }
 
 constexpr Mat3 translate2d(Vec2 t)
 {
-  return Mat3{.rows = {{1, 0, t.x},
-                       {0, 1, t.y},
-                       {0, 0, 1}}};
+  return Mat3{.rows = {{1, 0, t.x}, {0, 1, t.y}, {0, 0, 1}}};
 }
 
 constexpr Mat3 translate2d(f32 tx, f32 ty)
@@ -973,17 +924,12 @@ constexpr Mat3 translate2d(f32 tx, f32 ty)
 
 constexpr Mat4 translate3d(Vec3 t)
 {
-  return Mat4{.rows = {{1, 0, 0, t.x},
-                       {0, 1, 0, t.y},
-                       {0, 0, 1, t.z},
-                       {0, 0, 0, 1}}};
+  return Mat4{.rows = {{1, 0, 0, t.x}, {0, 1, 0, t.y}, {0, 0, 1, t.z}, {0, 0, 0, 1}}};
 }
 
 constexpr Mat3 scale2d(Vec2 s)
 {
-  return Mat3{.rows = {{s.x, 0, 0},
-                       {0, s.y, 0},
-                       {0, 0, 1}}};
+  return Mat3{.rows = {{s.x, 0, 0}, {0, s.y, 0}, {0, 0, 1}}};
 }
 
 constexpr Mat3 scale2d(f32 sx, f32 sy)
@@ -993,10 +939,7 @@ constexpr Mat3 scale2d(f32 sx, f32 sy)
 
 constexpr Mat4 scale3d(Vec3 s)
 {
-  return Mat4{.rows = {{s.x, 0, 0, 0},
-                       {0, s.y, 0, 0},
-                       {0, 0, s.z, 0},
-                       {0, 0, 0, 1}}};
+  return Mat4{.rows = {{s.x, 0, 0, 0}, {0, s.y, 0, 0}, {0, 0, s.z, 0}, {0, 0, 0, 1}}};
 }
 
 inline Mat3 rotate2d(f32 degree_radians)
@@ -1032,40 +975,27 @@ inline Mat4 rotate3d_z(f32 degree_radians)
 
 constexpr Mat3 shear2d_x(f32 x_shear)
 {
-  return Mat3{.rows = {{1, 0, 0},
-                       {x_shear, 1, 0},
-                       {0, 0, 1}}};
+  return Mat3{.rows = {{1, 0, 0}, {x_shear, 1, 0}, {0, 0, 1}}};
 }
 
 constexpr Mat3 shear2d_y(f32 y_shear)
 {
-  return Mat3{.rows = {{1, y_shear, 0},
-                       {0, 1, 0},
-                       {0, 0, 1}}};
+  return Mat3{.rows = {{1, y_shear, 0}, {0, 1, 0}, {0, 0, 1}}};
 }
 
 constexpr Mat4 shear3d_x(f32 y_shear, f32 z_shear)
 {
-  return Mat4{.rows = {{1, y_shear, z_shear, 0},
-                       {0, 1, 0, 0},
-                       {0, 0, 1, 0},
-                       {0, 0, 0, 1}}};
+  return Mat4{.rows = {{1, y_shear, z_shear, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
 }
 
 constexpr Mat4 shear3d_y(f32 x_shear, f32 z_shear)
 {
-  return Mat4{.rows = {{1, 0, 0, 0},
-                       {x_shear, 1, z_shear, 0},
-                       {0, 0, 1, 0},
-                       {0, 0, 0, 1}}};
+  return Mat4{.rows = {{1, 0, 0, 0}, {x_shear, 1, z_shear, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
 }
 
 constexpr Mat4 shear3d_z(f32 x_shear, f32 y_shear)
 {
-  return Mat4{.rows = {{1, 0, 0, 0},
-                       {0, 1, 0, 0},
-                       {x_shear, y_shear, 1, 0},
-                       {0, 0, 0, 1}}};
+  return Mat4{.rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {x_shear, y_shear, 1, 0}, {0, 0, 0, 1}}};
 }
 
 struct Quaternion
@@ -1215,7 +1145,8 @@ struct Extent3D
 
   constexpr Extent3D at_mip_level(u32 mip_level) const
   {
-    return Extent3D{.width = width >> mip_level, .height = height >> mip_level, .depth = depth >> mip_level};
+    return Extent3D{
+        .width = width >> mip_level, .height = height >> mip_level, .depth = depth >> mip_level};
   }
 };
 
@@ -1303,12 +1234,15 @@ struct IRect
 /// Simple Layout Constraint Model
 struct Constraint
 {
-  f32 bias  = 0;                   /// adding or subtracting from the source size, i.e. value should be source size - 20px
-  f32 scale = 0;                   /// scales the source size, i.e. value should be 0.5 of source size
+  f32 bias =
+      0;        /// adding or subtracting from the source size, i.e. value should be source size - 20px
+  f32 scale = 0;        /// scales the source size, i.e. value should be 0.5 of source size
   f32 min   = stx::F32_MIN;        /// clamps the source size, i.e. value should be at least 20px
   f32 max   = stx::F32_MAX;        /// clamps the source size, i.e. value should be at most 100px
-  f32 minr  = 0;                   /// clamps the source size relatively. i.e. value should be at least 0.5 of source size
-  f32 maxr  = 1;                   /// clamps the source size relatively. i.e. value should be at most 0.5 of source size
+  f32 minr =
+      0;        /// clamps the source size relatively. i.e. value should be at least 0.5 of source size
+  f32 maxr =
+      1;        /// clamps the source size relatively. i.e. value should be at most 0.5 of source size
 
   static constexpr Constraint relative(f32 scale)
   {
@@ -1322,22 +1256,26 @@ struct Constraint
 
   constexpr Constraint with_min(f32 v) const
   {
-    return Constraint{.bias = bias, .scale = scale, .min = v, .max = max, .minr = minr, .maxr = maxr};
+    return Constraint{
+        .bias = bias, .scale = scale, .min = v, .max = max, .minr = minr, .maxr = maxr};
   }
 
   constexpr Constraint with_max(f32 v) const
   {
-    return Constraint{.bias = bias, .scale = scale, .min = min, .max = v, .minr = minr, .maxr = maxr};
+    return Constraint{
+        .bias = bias, .scale = scale, .min = min, .max = v, .minr = minr, .maxr = maxr};
   }
 
   constexpr Constraint with_minr(f32 v) const
   {
-    return Constraint{.bias = bias, .scale = scale, .min = min, .max = max, .minr = v, .maxr = maxr};
+    return Constraint{
+        .bias = bias, .scale = scale, .min = min, .max = max, .minr = v, .maxr = maxr};
   }
 
   constexpr Constraint with_maxr(f32 v) const
   {
-    return Constraint{.bias = bias, .scale = scale, .min = min, .max = max, .minr = minr, .maxr = v};
+    return Constraint{
+        .bias = bias, .scale = scale, .min = min, .max = max, .minr = minr, .maxr = v};
   }
 
   constexpr f32 resolve(f32 value) const

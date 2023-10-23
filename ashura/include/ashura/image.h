@@ -87,7 +87,8 @@ struct ImageView
 
   operator ImageView<B const>() const
   {
-    return ImageView<B const>{.span = span.as_const(), .extent = extent, .pitch = pitch, .format = format};
+    return ImageView<B const>{
+        .span = span.as_const(), .extent = extent, .pitch = pitch, .format = format};
   }
 
   ImageView subview(URect slice) const
@@ -99,14 +100,23 @@ struct ImageView
 
     usize const pixel_bytes = pixel_byte_size(format);
     usize const byte_offset = slice.offset.y * pitch + slice.offset.x * pixel_bytes;
-    usize const byte_span   = slice.extent.height > 0 ? (slice.extent.width * pixel_bytes + (slice.extent.height - 1U) * pitch) : 0;
+    usize const byte_span =
+        slice.extent.height > 0 ?
+            (slice.extent.width * pixel_bytes + (slice.extent.height - 1U) * pitch) :
+            0;
 
-    return ImageView{.span = span.slice(byte_offset, byte_span), .extent = slice.extent, .pitch = pitch, .format = format};
+    return ImageView{.span   = span.slice(byte_offset, byte_span),
+                     .extent = slice.extent,
+                     .pitch  = pitch,
+                     .format = format};
   }
 
   ImageView subview(Offset slice) const
   {
-    return subview(URect{.offset = slice, .extent = ash::Extent{.width = extent.width - std::min(extent.width, slice.x), .height = extent.height - std::min(extent.height, slice.y)}});
+    return subview(
+        URect{.offset = slice,
+              .extent = ash::Extent{.width  = extent.width - std::min(extent.width, slice.x),
+                                    .height = extent.height - std::min(extent.height, slice.y)}});
   }
 
   ImageView<B const> as_const() const
@@ -185,7 +195,8 @@ struct ImageBuffer
 
   operator ImageView<u8 const>() const
   {
-    return ImageView<u8 const>{.span = span(), .extent = extent, .pitch = pitch(), .format = format};
+    return ImageView<u8 const>{
+        .span = span(), .extent = extent, .pitch = pitch(), .format = format};
   }
 
   operator ImageView<u8>()

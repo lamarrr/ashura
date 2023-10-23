@@ -50,7 +50,8 @@ struct Context
   FrameStats                   frame_stats;
   f32                          text_scale_factor = 1;
   Widget                      *root              = nullptr;
-  stx::Vec<KeyEvent>           key_events;        // These are more of key state polling than key event state change notifications
+  stx::Vec<KeyEvent>
+      key_events;        // These are more of key state polling than key event state change notifications
 
   // TODO(lamarrr): expose current window here???
 
@@ -65,7 +66,8 @@ struct Context
   }
 
   Context()
-  {}
+  {
+  }
 
   STX_MAKE_PINNED(Context)
 
@@ -73,7 +75,8 @@ struct Context
   {
     for (Subsystem *subsystem : subsystems)
     {
-      ASH_LOG_INFO(Context, "Destroying subsystem: {} (type: {})", subsystem->get_name(), typeid(*subsystem).name());
+      ASH_LOG_INFO(Context, "Destroying subsystem: {} (type: {})", subsystem->get_name(),
+                   typeid(*subsystem).name());
       delete subsystem;
     }
   }
@@ -81,13 +84,15 @@ struct Context
   void register_subsystem(Subsystem *subsystem)
   {
     subsystems.push_inplace(subsystem).unwrap();
-    ASH_LOG_INFO(Context, "Registered subsystem: {} (type: {})", subsystem->get_name(), typeid(*subsystem).name());
+    ASH_LOG_INFO(Context, "Registered subsystem: {} (type: {})", subsystem->get_name(),
+                 typeid(*subsystem).name());
   }
 
   template <typename T>
   stx::Option<T *> get_subsystem(std::string_view name) const
   {
-    stx::Span subsystem = subsystems.span().which([name](Subsystem *subsystem) { return subsystem->get_name() == name; });
+    stx::Span subsystem = subsystems.span().which(
+        [name](Subsystem *subsystem) { return subsystem->get_name() == name; });
     if (!subsystem.is_empty())
     {
       return stx::Some(subsystem[0]->template as<T>());
@@ -207,7 +212,10 @@ struct Context
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
         {
-          MouseClickEvent mouse_event{.mouse_id = MouseID{event.button.which}, .position = Vec2{AS(f32, event.button.x), AS(f32, event.button.y)}, .clicks = event.button.clicks};
+          MouseClickEvent mouse_event{.mouse_id = MouseID{event.button.which},
+                                      .position =
+                                          Vec2{AS(f32, event.button.x), AS(f32, event.button.y)},
+                                      .clicks = event.button.clicks};
           switch (event.button.button)
           {
             case SDL_BUTTON_LEFT:
@@ -264,7 +272,10 @@ struct Context
           }
           for (auto &listener : win->event_listeners.mouse_motion)
           {
-            listener.handle(MouseMotionEvent{.mouse_id = MouseID{event.motion.which}, .position = Vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)}, .translation = Vec2{AS(f32, event.motion.xrel), AS(f32, event.motion.yrel)}});
+            listener.handle(MouseMotionEvent{
+                .mouse_id    = MouseID{event.motion.which},
+                .position    = Vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)},
+                .translation = Vec2{AS(f32, event.motion.xrel), AS(f32, event.motion.yrel)}});
           }
           return true;
         }
@@ -278,7 +289,10 @@ struct Context
           }
           for (auto &listener : win->event_listeners.mouse_wheel)
           {
-            listener.handle(MouseWheelEvent{.mouse_id = MouseID{event.wheel.which}, .position = Vec2{AS(f32, event.wheel.mouseX), AS(f32, event.wheel.mouseY)}, .translation = Vec2{event.wheel.x, event.wheel.y}});
+            listener.handle(MouseWheelEvent{
+                .mouse_id    = MouseID{event.wheel.which},
+                .position    = Vec2{AS(f32, event.wheel.mouseX), AS(f32, event.wheel.mouseY)},
+                .translation = Vec2{event.wheel.x, event.wheel.y}});
           }
           return true;
         }
@@ -293,7 +307,11 @@ struct Context
           }
           for (auto &listener : win->event_listeners.key)
           {
-            listener.handle(KeyEvent{.key = event.key.keysym.sym, .modifiers = AS(KeyModifiers, event.key.keysym.mod), .action = event.type == SDL_EVENT_KEY_DOWN ? KeyAction::Press : KeyAction::Release});
+            listener.handle(KeyEvent{.key       = event.key.keysym.sym,
+                                     .modifiers = AS(KeyModifiers, event.key.keysym.mod),
+                                     .action    = event.type == SDL_EVENT_KEY_DOWN ?
+                                                      KeyAction::Press :
+                                                      KeyAction::Release});
           }
           return true;
         }
@@ -312,13 +330,17 @@ struct Context
 
         case SDL_EVENT_DROP_BEGIN:
         {
-          ASH_LOG_INFO(Vulkan, "drop begin: {}  x={}, y={}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y);
+          ASH_LOG_INFO(Vulkan, "drop begin: {}  x={}, y={}",
+                       event.drop.file == nullptr ? " " : event.drop.file, event.drop.x,
+                       event.drop.y);
           return true;
         }
 
         case SDL_EVENT_DROP_COMPLETE:
         {
-          ASH_LOG_INFO(Vulkan, "drop complete: {}  x={}, y={}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y);
+          ASH_LOG_INFO(Vulkan, "drop complete: {}  x={}, y={}",
+                       event.drop.file == nullptr ? " " : event.drop.file, event.drop.x,
+                       event.drop.y);
           return true;
         }
 
@@ -326,19 +348,25 @@ struct Context
         {
           f32 x = 0, y = 0;
           SDL_GetMouseState(&x, &y);
-          ASH_LOG_INFO(Vulkan, "drop file: {}  x={}, y={}, {},{}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y, x, y);
+          ASH_LOG_INFO(Vulkan, "drop file: {}  x={}, y={}, {},{}",
+                       event.drop.file == nullptr ? " " : event.drop.file, event.drop.x,
+                       event.drop.y, x, y);
           return true;
         }
 
         case SDL_EVENT_DROP_POSITION:
         {
-          ASH_LOG_INFO(Vulkan, "drop position: {}  x={}, y={}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y);
+          ASH_LOG_INFO(Vulkan, "drop position: {}  x={}, y={}",
+                       event.drop.file == nullptr ? " " : event.drop.file, event.drop.x,
+                       event.drop.y);
           return true;
         }
 
         case SDL_EVENT_DROP_TEXT:
         {
-          ASH_LOG_INFO(Vulkan, "drop text: {}  x={}, y={}", event.drop.file == nullptr ? " " : event.drop.file, event.drop.x, event.drop.y);
+          ASH_LOG_INFO(Vulkan, "drop text: {}  x={}, y={}",
+                       event.drop.file == nullptr ? " " : event.drop.file, event.drop.x,
+                       event.drop.y);
           return true;
         }
 

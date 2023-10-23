@@ -11,7 +11,7 @@ using pipeline = u32;
 };        // namespace gfx
 
 constexpr std::string_view DEFAULT_SHAPE_PIPELINE = "BuiltinPipeline:Shape2D";
-constexpr std::string_view DEFAULT_GLYPH_PIPELINE  = "BuiltinPipeline:Glyph2D";
+constexpr std::string_view DEFAULT_GLYPH_PIPELINE = "BuiltinPipeline:Glyph2D";
 
 struct CanvasPipelineSpec
 {

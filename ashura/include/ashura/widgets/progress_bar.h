@@ -31,9 +31,12 @@ struct ProgressBar : public Widget
   STX_DEFAULT_MOVE(ProgressBar)
 
   virtual ~ProgressBar() override
-  {}
+  {
+  }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+                   stx::Span<Vec2 const> children_sizes,
+                   stx::Span<Vec2>       children_positions) override
   {
     return props.size.resolve(allocated_size);
   }

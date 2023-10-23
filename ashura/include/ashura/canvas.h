@@ -51,7 +51,8 @@ inline stx::Span<Vertex2d> Rect(Vec2 offset, Vec2 extent, Vec4 color, stx::Span<
   return polygon.copy(vertices);
 }
 
-inline stx::Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end, u32 nsegments, Vec4 color, stx::Span<Vertex2d> polygon)
+inline stx::Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end, u32 nsegments,
+                               Vec4 color, stx::Span<Vertex2d> polygon)
 {
   begin = ASH_TO_RADIANS(begin);
   end   = ASH_TO_RADIANS(end);
@@ -71,7 +72,8 @@ inline stx::Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end, u32 
   return polygon;
 }
 
-inline stx::Span<Vertex2d> circle(Vec2 offset, f32 radius, u32 nsegments, Vec4 color, stx::Span<Vertex2d> polygon)
+inline stx::Span<Vertex2d> circle(Vec2 offset, f32 radius, u32 nsegments, Vec4 color,
+                                  stx::Span<Vertex2d> polygon)
 {
   if (nsegments == 0 || radius <= 0)
   {
@@ -89,7 +91,8 @@ inline stx::Span<Vertex2d> circle(Vec2 offset, f32 radius, u32 nsegments, Vec4 c
   return polygon;
 }
 
-inline stx::Span<Vertex2d> ellipse(Vec2 offset, Vec2 radii, u32 nsegments, Vec4 color, stx::Span<Vertex2d> polygon)
+inline stx::Span<Vertex2d> ellipse(Vec2 offset, Vec2 radii, u32 nsegments, Vec4 color,
+                                   stx::Span<Vertex2d> polygon)
 {
   if (nsegments == 0 || radii.x <= 0 || radii.y <= 0)
   {
@@ -108,7 +111,8 @@ inline stx::Span<Vertex2d> ellipse(Vec2 offset, Vec2 radii, u32 nsegments, Vec4 
 }
 
 // outputs 8 + nsegments * 4 vertices
-inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii, u32 nsegments, Vec4 color, stx::Span<Vertex2d> polygon)
+inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii, u32 nsegments,
+                                      Vec4 color, stx::Span<Vertex2d> polygon)
 {
   f32 max_radius   = std::min(extent.x, extent.y);
   radii.x          = std::min(radii.x, max_radius);
@@ -127,7 +131,8 @@ inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii, u32 
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    Vec2 p     = (extent - radii.z) + radii.z * Vec2{std::cos(segment * step), std::sin(segment * step)};
+    Vec2 p =
+        (extent - radii.z) + radii.z * Vec2{std::cos(segment * step), std::sin(segment * step)};
     polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -139,7 +144,8 @@ inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii, u32 
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    Vec2 p     = Vec2{radii.w, extent.y - radii.w} + radii.w * Vec2{std::cos(PI / 2 + segment * step), std::sin(PI / 2 + segment * step)};
+    Vec2 p = Vec2{radii.w, extent.y - radii.w} +
+             radii.w * Vec2{std::cos(PI / 2 + segment * step), std::sin(PI / 2 + segment * step)};
     polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -151,7 +157,7 @@ inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii, u32 
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    Vec2 p     = radii.x + radii.x * Vec2{std::cos(PI + segment * step), std::sin(PI + segment * step)};
+    Vec2 p = radii.x + radii.x * Vec2{std::cos(PI + segment * step), std::sin(PI + segment * step)};
     polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -163,7 +169,9 @@ inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii, u32 
 
   for (u32 segment = 0; segment < nsegments; segment++, i++)
   {
-    Vec2 p     = Vec2{extent.x - radii.y, radii.y} + radii.y * Vec2{std::cos(PI * 3.0f / 2.0f + segment * step), std::sin(PI * 3.0f / 2.0f + segment * step)};
+    Vec2 p = Vec2{extent.x - radii.y, radii.y} +
+             radii.y * Vec2{std::cos(PI * 3.0f / 2.0f + segment * step),
+                            std::sin(PI * 3.0f / 2.0f + segment * step)};
     polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
 
@@ -172,7 +180,8 @@ inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii, u32 
   return polygon;
 }
 
-inline stx::Span<Vertex2d> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii, Vec4 color, stx::Span<Vertex2d> polygon)
+inline stx::Span<Vertex2d> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii, Vec4 color,
+                                      stx::Span<Vertex2d> polygon)
 {
   f32 max_radius   = std::min(extent.x, extent.y);
   radii.x          = std::min(radii.x, max_radius);
@@ -182,19 +191,21 @@ inline stx::Span<Vertex2d> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii, Vec4
   f32 max_radius_w = std::min(max_radius_z, max_radius - radii.z);
   radii.w          = std::min(radii.w, max_radius_w);
 
-  Vertex2d const vertices[] = {{.position = offset + Vec2{radii.x, 0}, .uv = {}, .color = color},
-                               {.position = offset + Vec2{extent.x - radii.y, 0}, .uv = {}, .color = color},
-                               {.position = offset + Vec2{extent.x, radii.y}, .uv = {}, .color = color},
-                               {.position = offset + Vec2{extent.x, extent.y - radii.z}, .uv = {}, .color = color},
-                               {.position = offset + Vec2{extent.x - radii.z, extent.y}, .uv = {}, .color = color},
-                               {.position = offset + Vec2{radii.w, extent.y}, .uv = {}, .color = color},
-                               {.position = offset + Vec2{0, extent.y - radii.w}, .uv = {}, .color = color},
-                               {.position = offset + Vec2{0, radii.x}, .uv = {}, .color = color}};
+  Vertex2d const vertices[] = {
+      {.position = offset + Vec2{radii.x, 0}, .uv = {}, .color = color},
+      {.position = offset + Vec2{extent.x - radii.y, 0}, .uv = {}, .color = color},
+      {.position = offset + Vec2{extent.x, radii.y}, .uv = {}, .color = color},
+      {.position = offset + Vec2{extent.x, extent.y - radii.z}, .uv = {}, .color = color},
+      {.position = offset + Vec2{extent.x - radii.z, extent.y}, .uv = {}, .color = color},
+      {.position = offset + Vec2{radii.w, extent.y}, .uv = {}, .color = color},
+      {.position = offset + Vec2{0, extent.y - radii.w}, .uv = {}, .color = color},
+      {.position = offset + Vec2{0, radii.x}, .uv = {}, .color = color}};
 
   return polygon.copy(vertices);
 }
 
-inline stx::Span<Vertex2d> lerp_uvs(stx::Span<Vertex2d> path, Vec2 extent, TextureRect texture_region)
+inline stx::Span<Vertex2d> lerp_uvs(stx::Span<Vertex2d> path, Vec2 extent,
+                                    TextureRect texture_region)
 {
   for (Vertex2d &v : path)
   {
@@ -206,7 +217,8 @@ inline stx::Span<Vertex2d> lerp_uvs(stx::Span<Vertex2d> path, Vec2 extent, Textu
   return path;
 }
 
-inline stx::Span<Vertex2d> lerp_color_gradient(stx::Span<Vertex2d> path, Vec2 extent, LinearColorGradient gradient)
+inline stx::Span<Vertex2d> lerp_color_gradient(stx::Span<Vertex2d> path, Vec2 extent,
+                                               LinearColorGradient gradient)
 {
   if (gradient.is_uniform())
   {
@@ -295,7 +307,9 @@ inline void add_line_stroke(Vec2 p0, Vec2 p1, f32 thickness, Vec4 color, stx::Ve
 }
 
 // line joint is a bevel joint, it is the most efficient since it re-uses existing vertices and doesn't require generating new vertices
-inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness, stx::Vec<Vertex2d> &out_vertices, stx::Vec<u32> &out_indices, bool should_close)
+inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness,
+                             stx::Vec<Vertex2d> &out_vertices, stx::Vec<u32> &out_indices,
+                             bool should_close)
 {
   if (in_points.size() < 2 || thickness == 0)
   {
@@ -315,7 +329,8 @@ inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness,
     add_line_stroke(p0, p1, thickness, color, out_vertices);
 
     // weave the line triangles
-    u32 indices[] = {Vertex_index, Vertex_index + 1, Vertex_index + 3, Vertex_index, Vertex_index + 2, Vertex_index + 3};
+    u32 indices[] = {Vertex_index, Vertex_index + 1, Vertex_index + 3,
+                     Vertex_index, Vertex_index + 2, Vertex_index + 3};
 
     out_indices.extend(indices).unwrap();
 
@@ -345,7 +360,8 @@ inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness,
     add_line_stroke(p0, p1, thickness, color, out_vertices);
 
     // weave the line triangles
-    u32 indices[] = {Vertex_index, Vertex_index + 1, Vertex_index + 3, Vertex_index, Vertex_index + 2, Vertex_index + 3};
+    u32 indices[] = {Vertex_index, Vertex_index + 1, Vertex_index + 3,
+                     Vertex_index, Vertex_index + 2, Vertex_index + 3};
 
     out_indices.extend(indices).unwrap();
 
@@ -353,13 +369,12 @@ inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness,
       u32 prev_line_Vertex_index  = Vertex_index - 4;
       u32 first_line_Vertex_index = 0;
 
-      u32 indices[] = {
-          // weave the previous line's end to the beginning of this line
-          prev_line_Vertex_index + 2, prev_line_Vertex_index + 3, Vertex_index,
-          prev_line_Vertex_index + 2, prev_line_Vertex_index + 3, Vertex_index + 1,
-          // weave this line's end to the beginning of the first line
-          Vertex_index + 2, Vertex_index + 3, first_line_Vertex_index,
-          Vertex_index + 2, Vertex_index + 3, first_line_Vertex_index + 1};
+      u32 indices[] = {// weave the previous line's end to the beginning of this line
+                       prev_line_Vertex_index + 2, prev_line_Vertex_index + 3, Vertex_index,
+                       prev_line_Vertex_index + 2, prev_line_Vertex_index + 3, Vertex_index + 1,
+                       // weave this line's end to the beginning of the first line
+                       Vertex_index + 2, Vertex_index + 3, first_line_Vertex_index,
+                       Vertex_index + 2, Vertex_index + 3, first_line_Vertex_index + 1};
 
       out_indices.extend(indices).unwrap();
     }
@@ -368,14 +383,19 @@ inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness,
 
 struct DrawCommand
 {
-  std::string_view pipeline;                                      /// ID of pipeline to use for rendering
-  u32              nvertices      = 0;                            /// number of vertices for this draw call. offset is automatically determined
-  u32              nindices       = 0;                            /// number of indices for this draw call. offset is automatically determined
-  u32              first_instance = 0;                            /// first instance used for instanced rendering
-  u32              ninstances     = 1;                            /// number of instances used for instanced rendering
-  Rect             scissor;                                       /// determines visible area of the rendering operation, in framebuffer coordinates (0, 0) -> viewport_extent
-  image            textures[NIMAGES_PER_DRAWCALL]    = {};        /// textures bounded to each descriptor set, 8-max
-  u8               push_constant[PUSH_CONSTANT_SIZE] = {};        /// push constant used for draw call. maximum size of PUSH_CONSTANT_SIZE bytes
+  std::string_view pipeline;        /// ID of pipeline to use for rendering
+  u32              nvertices =
+      0;        /// number of vertices for this draw call. offset is automatically determined
+  u32 nindices =
+      0;        /// number of indices for this draw call. offset is automatically determined
+  u32 first_instance = 0;        /// first instance used for instanced rendering
+  u32 ninstances     = 1;        /// number of instances used for instanced rendering
+  Rect
+      scissor;        /// determines visible area of the rendering operation, in framebuffer coordinates (0, 0) -> viewport_extent
+  image textures[NIMAGES_PER_DRAWCALL] =
+      {};        /// textures bounded to each descriptor set, 8-max
+  u8 push_constant[PUSH_CONSTANT_SIZE] =
+      {};        /// push constant used for draw call. maximum size of PUSH_CONSTANT_SIZE bytes
 
   template <typename T>
   DrawCommand with_push_constant(T const &constant)
@@ -403,8 +423,10 @@ struct DrawList
 
 struct CanvasState
 {
-  Mat3 local_transform;         // local object transform, applies to local coordinates of the objects
-  Mat3 global_transform;        // global scene transform, applies to the global coordinate of the objects
+  Mat3
+      local_transform;        // local object transform, applies to local coordinates of the objects
+  Mat3
+      global_transform;        // global scene transform, applies to the global coordinate of the objects
   Rect scissor;
 };
 
@@ -426,13 +448,14 @@ struct Canvas
   CanvasState           state;
   stx::Vec<CanvasState> state_stack;
   DrawList              draw_list;
-  stx::Vec<Vertex2d>    scratch;        // scratch/temporary buffer for storing generating vertices before storing in the draw list
+  stx::Vec<Vertex2d>
+      scratch;        // scratch/temporary buffer for storing generating vertices before storing in the draw list
 
   bool viewport_contains(Rect area) const
   {
     // TODO(lamarrr): check for scissor
-    return Rect{.offset = {}, .extent = viewport_extent}
-        .overlaps(transform2d(state.global_transform * state.local_transform, area));
+    return Rect{.offset = {}, .extent = viewport_extent}.overlaps(
+        transform2d(state.global_transform * state.local_transform, area));
   }
 
   Canvas &restart(Vec2 viewport_extent)
@@ -450,11 +473,12 @@ struct Canvas
   {
     Vec2 viewport_extent_clamped = epsilon_clamp(viewport_extent);
 
-    Mat3 t = state.local_transform;                           /// apply local coordinate transform
-    t      = translate2d(position) * t;                       /// apply positioning
-    t      = state.global_transform * t;                      /// apply global coordinate transform
-    t      = scale2d(2 / viewport_extent_clamped) * t;        /// normalize to 0 to 2 coordinate range
-    t      = translate2d(-1, -1) * t;                         /// normalize from [0, 2] to vulkan viewport coordinate range [-1, 1]
+    Mat3 t = state.local_transform;                      /// apply local coordinate transform
+    t      = translate2d(position) * t;                  /// apply positioning
+    t      = state.global_transform * t;                 /// apply global coordinate transform
+    t = scale2d(2 / viewport_extent_clamped) * t;        /// normalize to 0 to 2 coordinate range
+    t = translate2d(-1, -1) *
+        t;        /// normalize from [0, 2] to vulkan viewport coordinate range [-1, 1]
     return t;
   }
 
@@ -468,14 +492,19 @@ struct Canvas
   /// pop state (transform and scissor) stack and restore state
   Canvas &restore()
   {
-    state = state_stack.pop().unwrap_or(CanvasState{.local_transform = Mat3::identity(), .global_transform = Mat3::identity(), .scissor = Rect{.offset = {0, 0}, .extent = viewport_extent}});
+    state = state_stack.pop().unwrap_or(
+        CanvasState{.local_transform  = Mat3::identity(),
+                    .global_transform = Mat3::identity(),
+                    .scissor          = Rect{.offset = {0, 0}, .extent = viewport_extent}});
     return *this;
   }
 
   /// reset the rendering context to its default state (transform and scissor)
   Canvas &reset()
   {
-    state = CanvasState{.local_transform = Mat3::identity(), .global_transform = Mat3::identity(), .scissor = Rect{.offset = {0, 0}, .extent = viewport_extent}};
+    state = CanvasState{.local_transform  = Mat3::identity(),
+                        .global_transform = Mat3::identity(),
+                        .scissor          = Rect{.offset = {0, 0}, .extent = viewport_extent}};
     state_stack.clear();
     return *this;
   }
@@ -596,21 +625,23 @@ struct Canvas
 
     draw_list.indices.extend(indices).unwrap();
 
-    draw_list.commands.push(DrawCommand{
-                                .pipeline       = DEFAULT_SHAPE_PIPELINE,
-                                .nvertices      = AS(u32, std::size(vertices)),
-                                .nindices       = AS(u32, std::size(indices)),
-                                .first_instance = 0,
-                                .ninstances     = 1,
-                                .scissor        = Rect{.offset = {0, 0}, .extent = viewport_extent},
-                                .textures       = {texture}}
-                                .with_push_constant(make_transform(Vec2{0, 0}).transpose()))
+    draw_list.commands
+        .push(DrawCommand{.pipeline       = DEFAULT_SHAPE_PIPELINE,
+                          .nvertices      = AS(u32, std::size(vertices)),
+                          .nindices       = AS(u32, std::size(indices)),
+                          .first_instance = 0,
+                          .ninstances     = 1,
+                          .scissor        = Rect{.offset = {0, 0}, .extent = viewport_extent},
+                          .textures       = {texture}}
+                  .with_push_constant(make_transform(Vec2{0, 0}).transpose()))
         .unwrap();
 
     return *this;
   }
 
-  Canvas &draw_path(stx::Span<Vertex2d const> points, Vec2 position, Vec2 uv_stretch, f32 thickness, bool should_close, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = Vec2{0, 0}, .uv1 = Vec2{1, 1}})
+  Canvas &draw_path(stx::Span<Vertex2d const> points, Vec2 position, Vec2 uv_stretch, f32 thickness,
+                    bool should_close, image texture = WHITE_IMAGE,
+                    TextureRect texture_region = TextureRect{.uv0 = Vec2{0, 0}, .uv1 = Vec2{1, 1}})
   {
     if (points.size() < 2 || thickness == 0)
     {
@@ -629,15 +660,15 @@ struct Canvas
     u32 nvertices = AS(u32, curr_nvertices - prev_nvertices);
     u32 nindices  = AS(u32, curr_nindices - prev_nindices);
 
-    draw_list.commands.push(DrawCommand{
-                                .pipeline       = DEFAULT_SHAPE_PIPELINE,
-                                .nvertices      = nvertices,
-                                .nindices       = nindices,
-                                .first_instance = 0,
-                                .ninstances     = 1,
-                                .scissor        = state.scissor,
-                                .textures       = {texture}}
-                                .with_push_constant(make_transform(position).transpose()))
+    draw_list.commands
+        .push(DrawCommand{.pipeline       = DEFAULT_SHAPE_PIPELINE,
+                          .nvertices      = nvertices,
+                          .nindices       = nindices,
+                          .first_instance = 0,
+                          .ninstances     = 1,
+                          .scissor        = state.scissor,
+                          .textures       = {texture}}
+                  .with_push_constant(make_transform(position).transpose()))
         .unwrap();
 
     return *this;
@@ -652,7 +683,9 @@ struct Canvas
 
     triangulate_convex_polygon(draw_list.indices, npoints);
 
-    stx::Span polygon = draw_list.vertices.unsafe_resize_uninitialized(draw_list.vertices.size() + npoints).unwrap();
+    stx::Span polygon =
+        draw_list.vertices.unsafe_resize_uninitialized(draw_list.vertices.size() + npoints)
+            .unwrap();
 
     usize curr_nvertices = draw_list.vertices.size();
     usize curr_nindices  = draw_list.indices.size();
@@ -660,22 +693,23 @@ struct Canvas
     u32 nvertices = AS(u32, curr_nvertices - prev_nvertices);
     u32 nindices  = AS(u32, curr_nindices - prev_nindices);
 
-    draw_list.commands.push(DrawCommand{
-                                .pipeline       = DEFAULT_SHAPE_PIPELINE,
-                                .nvertices      = nvertices,
-                                .nindices       = nindices,
-                                .first_instance = 0,
-                                .ninstances     = 1,
-                                .scissor        = state.scissor,
-                                .textures       = {texture}}
-                                .with_push_constant(make_transform(position).transpose()))
+    draw_list.commands
+        .push(DrawCommand{.pipeline       = DEFAULT_SHAPE_PIPELINE,
+                          .nvertices      = nvertices,
+                          .nindices       = nindices,
+                          .first_instance = 0,
+                          .ninstances     = 1,
+                          .scissor        = state.scissor,
+                          .textures       = {texture}}
+                  .with_push_constant(make_transform(position).transpose()))
         .unwrap();
 
     return polygon;
   }
 
   // texture coordinates are assumed to already be filled and area of viewport known
-  Canvas &draw_convex_polygon_filled(stx::Span<Vertex2d const> polygon, Vec2 position, image texture)
+  Canvas &draw_convex_polygon_filled(stx::Span<Vertex2d const> polygon, Vec2 position,
+                                     image texture)
   {
     if (polygon.size() < 3)
     {
@@ -687,26 +721,26 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_rect_filled(Rect area, Color color, LinearColorGradient gradient = {}, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_rect_filled(Rect area, Color color, LinearColorGradient gradient = {},
+                           image       texture        = WHITE_IMAGE,
+                           TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     if (!viewport_contains(area))
     {
       return *this;
     }
 
-    paths::lerp_color_gradient(paths::lerp_uvs(paths::Rect(Vec2{0, 0},
-                                                           area.extent,
-                                                           color.to_normalized_vec(),
-                                                           reserve_convex_polygon(4, area.offset, texture)),
-                                               area.extent,
-                                               texture_region),
-                               area.extent,
-                               gradient);
+    paths::lerp_color_gradient(
+        paths::lerp_uvs(paths::Rect(Vec2{0, 0}, area.extent, color.to_normalized_vec(),
+                                    reserve_convex_polygon(4, area.offset, texture)),
+                        area.extent, texture_region),
+        area.extent, gradient);
 
     return *this;
   }
 
-  Canvas &draw_rect_stroke(Rect area, Color color, f32 thickness, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_rect_stroke(Rect area, Color color, f32 thickness, image texture = WHITE_IMAGE,
+                           TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     if (!viewport_contains(area) || thickness == 0)
     {
@@ -715,12 +749,15 @@ struct Canvas
 
     Vertex2d line[4];
 
-    paths::Rect(Vec2::splat(thickness / 2), area.extent - thickness, color.to_normalized_vec(), line);
+    paths::Rect(Vec2::splat(thickness / 2), area.extent - thickness, color.to_normalized_vec(),
+                line);
 
     return draw_path(line, area.offset, area.extent, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_circle_filled(Vec2 center, f32 radius, u32 nsegments, Color color, LinearColorGradient gradient = {}, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_circle_filled(Vec2 center, f32 radius, u32 nsegments, Color color,
+                             LinearColorGradient gradient = {}, image texture = WHITE_IMAGE,
+                             TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     Vec2 position = center - radius;
     Rect area{.offset = position, .extent = Vec2::splat(2 * radius)};
@@ -730,14 +767,18 @@ struct Canvas
       return *this;
     }
 
-    paths::lerp_color_gradient(paths::lerp_uvs(paths::circle(Vec2{0, 0}, radius, nsegments, color.to_normalized_vec(), reserve_convex_polygon(nsegments, position, texture)),
-                                               area.extent, texture_region),
-                               area.extent, gradient);
+    paths::lerp_color_gradient(
+        paths::lerp_uvs(paths::circle(Vec2{0, 0}, radius, nsegments, color.to_normalized_vec(),
+                                      reserve_convex_polygon(nsegments, position, texture)),
+                        area.extent, texture_region),
+        area.extent, gradient);
 
     return *this;
   }
 
-  Canvas &draw_circle_stroke(Vec2 center, f32 radius, u32 nsegments, Color color, f32 thickness, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_circle_stroke(Vec2 center, f32 radius, u32 nsegments, Color color, f32 thickness,
+                             image       texture        = WHITE_IMAGE,
+                             TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     Vec2 position = center - radius - thickness / 2;
     Rect area{.offset = position, .extent = Vec2::splat(2 * radius + thickness)};
@@ -749,12 +790,15 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    paths::circle(Vec2::splat(thickness / 2), radius, nsegments, color.to_normalized_vec(), scratch);
+    paths::circle(Vec2::splat(thickness / 2), radius, nsegments, color.to_normalized_vec(),
+                  scratch);
 
     return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_arc_stroke(Vec2 center, f32 radius, f32 begin, f32 end, u32 nsegments, Color color, f32 thickness, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_arc_stroke(Vec2 center, f32 radius, f32 begin, f32 end, u32 nsegments, Color color,
+                          f32 thickness, image texture = WHITE_IMAGE,
+                          TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
   {
     Vec2 position = center - radius - thickness / 2;
     Rect area{.offset = position, .extent = Vec2::splat(2 * radius + thickness)};
@@ -764,14 +808,18 @@ struct Canvas
       return *this;
     }
 
-    paths::lerp_uvs(paths::arc(Vec2::splat(thickness / 2), radius, begin, end, nsegments, color.to_normalized_vec(),
+    paths::lerp_uvs(paths::arc(Vec2::splat(thickness / 2), radius, begin, end, nsegments,
+                               color.to_normalized_vec(),
                                reserve_convex_polygon(nsegments, position, texture)),
                     area.extent, texture_region);
 
     return *this;
   }
 
-  Canvas &draw_ellipse_filled(Vec2 center, Vec2 radii, u32 nsegments, Color color, LinearColorGradient gradient = {}, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_ellipse_filled(Vec2 center, Vec2 radii, u32 nsegments, Color color,
+                              LinearColorGradient gradient = {}, image texture = WHITE_IMAGE,
+                              TextureRect texture_region = TextureRect{.uv0 = {0, 0},
+                                                                       .uv1 = {1, 1}})
   {
     Vec2 position = center - radii;
     Rect area{.offset = position, .extent = 2 * radii};
@@ -781,14 +829,19 @@ struct Canvas
       return *this;
     }
 
-    paths::lerp_color_gradient(paths::lerp_uvs(paths::ellipse(Vec2{0, 0}, radii, nsegments, color.to_normalized_vec(), reserve_convex_polygon(nsegments, area.offset, texture)),
-                                               area.extent, texture_region),
-                               area.extent, gradient);
+    paths::lerp_color_gradient(
+        paths::lerp_uvs(paths::ellipse(Vec2{0, 0}, radii, nsegments, color.to_normalized_vec(),
+                                       reserve_convex_polygon(nsegments, area.offset, texture)),
+                        area.extent, texture_region),
+        area.extent, gradient);
 
     return *this;
   }
 
-  Canvas &draw_ellipse_stroke(Vec2 center, Vec2 radii, u32 nsegments, Color color, f32 thickness, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_ellipse_stroke(Vec2 center, Vec2 radii, u32 nsegments, Color color, f32 thickness,
+                              image       texture        = WHITE_IMAGE,
+                              TextureRect texture_region = TextureRect{.uv0 = {0, 0},
+                                                                       .uv1 = {1, 1}})
   {
     Vec2 position = center - radii;
     Rect area{.offset = position, .extent = 2 * radii};
@@ -800,26 +853,36 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments).unwrap();
 
-    paths::ellipse(Vec2::splat(thickness / 2), radii - thickness, nsegments, color.to_normalized_vec(), scratch);
+    paths::ellipse(Vec2::splat(thickness / 2), radii - thickness, nsegments,
+                   color.to_normalized_vec(), scratch);
 
     return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_round_rect_filled(Rect area, Vec4 radii, u32 nsegments, Color color, LinearColorGradient gradient = {}, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_round_rect_filled(Rect area, Vec4 radii, u32 nsegments, Color color,
+                                 LinearColorGradient gradient = {}, image texture = WHITE_IMAGE,
+                                 TextureRect texture_region = TextureRect{.uv0 = {0, 0},
+                                                                          .uv1 = {1, 1}})
   {
     if (!viewport_contains(area))
     {
       return *this;
     }
 
-    paths::lerp_color_gradient(paths::lerp_uvs(paths::round_rect(Vec2{0, 0}, area.extent, radii, nsegments, color.to_normalized_vec(), reserve_convex_polygon(nsegments * 4 + 8, area.offset, texture)),
-                                               area.extent, texture_region),
-                               area.extent, gradient);
+    paths::lerp_color_gradient(
+        paths::lerp_uvs(
+            paths::round_rect(Vec2{0, 0}, area.extent, radii, nsegments, color.to_normalized_vec(),
+                              reserve_convex_polygon(nsegments * 4 + 8, area.offset, texture)),
+            area.extent, texture_region),
+        area.extent, gradient);
 
     return *this;
   }
 
-  Canvas &draw_round_rect_stroke(Rect area, Vec4 radii, u32 nsegments, Color color, f32 thickness, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_round_rect_stroke(Rect area, Vec4 radii, u32 nsegments, Color color, f32 thickness,
+                                 image       texture        = WHITE_IMAGE,
+                                 TextureRect texture_region = TextureRect{.uv0 = {0, 0},
+                                                                          .uv1 = {1, 1}})
   {
     if (!viewport_contains(area) || thickness == 0)
     {
@@ -828,26 +891,35 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(nsegments * 4 + 8).unwrap();
 
-    paths::round_rect(Vec2::splat(thickness / 2), area.extent - thickness, radii, nsegments, color.to_normalized_vec(), scratch);
+    paths::round_rect(Vec2::splat(thickness / 2), area.extent - thickness, radii, nsegments,
+                      color.to_normalized_vec(), scratch);
 
     return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
   }
 
-  Canvas &draw_bevel_rect_filled(Rect area, Vec4 radii, Color color, LinearColorGradient gradient = {}, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_bevel_rect_filled(Rect area, Vec4 radii, Color color,
+                                 LinearColorGradient gradient = {}, image texture = WHITE_IMAGE,
+                                 TextureRect texture_region = TextureRect{.uv0 = {0, 0},
+                                                                          .uv1 = {1, 1}})
   {
     if (!viewport_contains(area))
     {
       return *this;
     }
 
-    paths::lerp_color_gradient(paths::lerp_uvs(paths::bevel_rect(Vec2{0, 0}, area.extent, radii, color.to_normalized_vec(), reserve_convex_polygon(8, area.offset, texture)),
-                                               area.extent, texture_region),
-                               area.extent, gradient);
+    paths::lerp_color_gradient(
+        paths::lerp_uvs(paths::bevel_rect(Vec2{0, 0}, area.extent, radii, color.to_normalized_vec(),
+                                          reserve_convex_polygon(8, area.offset, texture)),
+                        area.extent, texture_region),
+        area.extent, gradient);
 
     return *this;
   }
 
-  Canvas &draw_bevel_rect_stroke(Rect area, Vec4 radii, Color color, f32 thickness, image texture = WHITE_IMAGE, TextureRect texture_region = TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}})
+  Canvas &draw_bevel_rect_stroke(Rect area, Vec4 radii, Color color, f32 thickness,
+                                 image       texture        = WHITE_IMAGE,
+                                 TextureRect texture_region = TextureRect{.uv0 = {0, 0},
+                                                                          .uv1 = {1, 1}})
   {
     if (!viewport_contains(area) || thickness == 0)
     {
@@ -856,7 +928,8 @@ struct Canvas
 
     scratch.unsafe_resize_uninitialized(8).unwrap();
 
-    paths::bevel_rect(Vec2::splat(thickness / 2), area.extent - thickness, radii, color.to_normalized_vec(), scratch);
+    paths::bevel_rect(Vec2::splat(thickness / 2), area.extent - thickness, radii,
+                      color.to_normalized_vec(), scratch);
 
     return draw_path(scratch, area.offset, area.extent, thickness, true, texture, texture_region);
   }
@@ -868,7 +941,8 @@ struct Canvas
       return *this;
     }
 
-    paths::lerp_uvs(paths::Rect(Vec2{0, 0}, area.extent, tint.to_normalized_vec(), reserve_convex_polygon(4, area.offset, img)),
+    paths::lerp_uvs(paths::Rect(Vec2{0, 0}, area.extent, tint.to_normalized_vec(),
+                                reserve_convex_polygon(4, area.offset, img)),
                     area.extent, texture_region);
 
     return *this;
@@ -879,124 +953,163 @@ struct Canvas
     return draw_image(img, area, TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
-  Canvas &draw_rounded_image(image img, Rect area, Vec4 border_radii, u32 nsegments, TextureRect texture_region, Color tint = colors::WHITE)
+  Canvas &draw_rounded_image(image img, Rect area, Vec4 border_radii, u32 nsegments,
+                             TextureRect texture_region, Color tint = colors::WHITE)
   {
     if (!viewport_contains(area))
     {
       return *this;
     }
 
-    paths::lerp_uvs(paths::round_rect(Vec2{0, 0}, area.extent, border_radii, nsegments, tint.to_normalized_vec(), reserve_convex_polygon(nsegments * 4 + 8, area.offset, img)),
+    paths::lerp_uvs(paths::round_rect(Vec2{0, 0}, area.extent, border_radii, nsegments,
+                                      tint.to_normalized_vec(),
+                                      reserve_convex_polygon(nsegments * 4 + 8, area.offset, img)),
                     area.extent, texture_region);
 
     return *this;
   }
 
-  Canvas &draw_rounded_image(image img, Rect area, Vec4 border_radii, u32 nsegments, Color tint = colors::WHITE)
+  Canvas &draw_rounded_image(image img, Rect area, Vec4 border_radii, u32 nsegments,
+                             Color tint = colors::WHITE)
   {
-    return draw_rounded_image(img, area, border_radii, nsegments, TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
+    return draw_rounded_image(img, area, border_radii, nsegments,
+                              TextureRect{.uv0 = {0, 0}, .uv1 = {1, 1}}, tint);
   }
 
-  Canvas &draw_glyph(Vec2 block_position, Vec2 baseline, f32 text_scale_factor, Glyph const &glyph, GlyphShaping const &shaping, TextStyle const &style, gfx::image atlas)
+  Canvas &draw_glyph(Vec2 block_position, Vec2 baseline, f32 text_scale_factor, Glyph const &glyph,
+                     GlyphShaping const &shaping, TextStyle const &style, gfx::image atlas)
   {
     save();
     state.local_transform = state.local_transform * translate2d(baseline);
 
     Rect grect;
-    grect.offset = Vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} * style.font_height * text_scale_factor + shaping.offset;
+    grect.offset = Vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} * style.font_height *
+                       text_scale_factor +
+                   shaping.offset;
     grect.extent = glyph.metrics.extent * style.font_height * text_scale_factor;
 
-    if (!Rect{.offset = {}, .extent = viewport_extent}.overlaps(transform2d(state.global_transform * translate2d(block_position) * state.local_transform, grect)))
+    if (!Rect{.offset = {}, .extent = viewport_extent}.overlaps(transform2d(
+            state.global_transform * translate2d(block_position) * state.local_transform, grect)))
     {
       restore();
       return *this;
     }
 
-    Vertex2d const vertices[] = {{.position = grect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.foreground_color.to_normalized_vec()},
-                                 {.position = grect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.foreground_color.to_normalized_vec()},
-                                 {.position = grect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.foreground_color.to_normalized_vec()},
-                                 {.position = grect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.foreground_color.to_normalized_vec()}};
+    Vertex2d const vertices[] = {{.position = grect.top_left(),
+                                  .uv       = glyph.bin_region.top_left(),
+                                  .color    = style.foreground_color.to_normalized_vec()},
+                                 {.position = grect.top_right(),
+                                  .uv       = glyph.bin_region.top_right(),
+                                  .color    = style.foreground_color.to_normalized_vec()},
+                                 {.position = grect.bottom_right(),
+                                  .uv       = glyph.bin_region.bottom_right(),
+                                  .color    = style.foreground_color.to_normalized_vec()},
+                                 {.position = grect.bottom_left(),
+                                  .uv       = glyph.bin_region.bottom_left(),
+                                  .color    = style.foreground_color.to_normalized_vec()}};
 
     draw_list.vertices.extend(vertices).unwrap();
 
     triangulate_convex_polygon(draw_list.indices, 4);
 
-    draw_list.commands.push(DrawCommand{
-                                .pipeline       = DEFAULT_GLYPH_PIPELINE,
-                                .nvertices      = 4,
-                                .nindices       = 6,
-                                .first_instance = 0,
-                                .ninstances     = 1,
-                                .scissor        = state.scissor,
-                                .textures       = {atlas}}
-                                .with_push_constant(make_transform(block_position).transpose()))
+    draw_list.commands
+        .push(DrawCommand{.pipeline       = DEFAULT_GLYPH_PIPELINE,
+                          .nvertices      = 4,
+                          .nindices       = 6,
+                          .first_instance = 0,
+                          .ninstances     = 1,
+                          .scissor        = state.scissor,
+                          .textures       = {atlas}}
+                  .with_push_constant(make_transform(block_position).transpose()))
         .unwrap();
 
     restore();
     return *this;
   }
 
-  Canvas &draw_glyph_shadow(Vec2 block_position, Vec2 baseline, f32 text_scale_factor, Glyph const &glyph, GlyphShaping const &shaping, TextStyle const &style, gfx::image atlas)
+  Canvas &draw_glyph_shadow(Vec2 block_position, Vec2 baseline, f32 text_scale_factor,
+                            Glyph const &glyph, GlyphShaping const &shaping, TextStyle const &style,
+                            gfx::image atlas)
   {
     save();
     state.local_transform = state.local_transform * translate2d(baseline);
 
     // TODO(lamarrr): add offset to shadow scale? and let offset be from midpoint??
     Rect grect;
-    grect.offset = Vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} * style.font_height * text_scale_factor + shaping.offset;
+    grect.offset = Vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} * style.font_height *
+                       text_scale_factor +
+                   shaping.offset;
     grect.extent = glyph.metrics.extent * style.font_height * text_scale_factor;
 
     Rect srect   = grect;
     srect.extent = srect.extent * style.shadow_scale;
     srect.offset = grect.offset + style.shadow_offset;
 
-    if (!Rect{.offset = {}, .extent = viewport_extent}.overlaps(transform2d(state.global_transform * translate2d(block_position) * state.local_transform, srect)))
+    if (!Rect{.offset = {}, .extent = viewport_extent}.overlaps(transform2d(
+            state.global_transform * translate2d(block_position) * state.local_transform, srect)))
     {
       restore();
       return *this;
     }
 
-    Vertex2d const vertices[] = {{.position = srect.top_left(), .uv = glyph.bin_region.top_left(), .color = style.shadow_color.to_normalized_vec()},
-                                 {.position = srect.top_right(), .uv = glyph.bin_region.top_right(), .color = style.shadow_color.to_normalized_vec()},
-                                 {.position = srect.bottom_right(), .uv = glyph.bin_region.bottom_right(), .color = style.shadow_color.to_normalized_vec()},
-                                 {.position = srect.bottom_left(), .uv = glyph.bin_region.bottom_left(), .color = style.shadow_color.to_normalized_vec()}};
+    Vertex2d const vertices[] = {{.position = srect.top_left(),
+                                  .uv       = glyph.bin_region.top_left(),
+                                  .color    = style.shadow_color.to_normalized_vec()},
+                                 {.position = srect.top_right(),
+                                  .uv       = glyph.bin_region.top_right(),
+                                  .color    = style.shadow_color.to_normalized_vec()},
+                                 {.position = srect.bottom_right(),
+                                  .uv       = glyph.bin_region.bottom_right(),
+                                  .color    = style.shadow_color.to_normalized_vec()},
+                                 {.position = srect.bottom_left(),
+                                  .uv       = glyph.bin_region.bottom_left(),
+                                  .color    = style.shadow_color.to_normalized_vec()}};
 
     draw_list.vertices.extend(vertices).unwrap();
 
     triangulate_convex_polygon(draw_list.indices, 4);
 
-    draw_list.commands.push(DrawCommand{
-                                .pipeline       = DEFAULT_GLYPH_PIPELINE,
-                                .nvertices      = 4,
-                                .nindices       = 6,
-                                .first_instance = 0,
-                                .ninstances     = 1,
-                                .scissor        = state.scissor,
-                                .textures       = {atlas}}
-                                .with_push_constant(make_transform(block_position).transpose()))
+    draw_list.commands
+        .push(DrawCommand{.pipeline       = DEFAULT_GLYPH_PIPELINE,
+                          .nvertices      = 4,
+                          .nindices       = 6,
+                          .first_instance = 0,
+                          .ninstances     = 1,
+                          .scissor        = state.scissor,
+                          .textures       = {atlas}}
+                  .with_push_constant(make_transform(block_position).transpose()))
         .unwrap();
 
     restore();
     return *this;
   }
 
-  Canvas &draw_text_segment_lines(Vec2 block_position, Vec2 baseline, f32 line_height, f32 segment_width, TextStyle const &style)
+  Canvas &draw_text_segment_lines(Vec2 block_position, Vec2 baseline, f32 line_height,
+                                  f32 segment_width, TextStyle const &style)
   {
     save();
     translate(block_position);
 
     if (style.strikethrough_color.is_visible() && style.strikethrough_thickness > 0)
     {
-      Vertex2d const strikethrough_path[] = {{.position = baseline - Vec2{0, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_normalized_vec()},
-                                             {.position = baseline - Vec2{-segment_width, line_height / 2}, .uv = {}, .color = style.strikethrough_color.to_normalized_vec()}};
+      Vertex2d const strikethrough_path[] = {
+          {.position = baseline - Vec2{0, line_height / 2},
+           .uv       = {},
+           .color    = style.strikethrough_color.to_normalized_vec()},
+          {.position = baseline - Vec2{-segment_width, line_height / 2},
+           .uv       = {},
+           .color    = style.strikethrough_color.to_normalized_vec()}};
 
       draw_path(strikethrough_path, Vec2{0, 0}, Vec2{0, 0}, style.strikethrough_thickness, false);
     }
 
     if (style.underline_color.is_visible() && style.underline_thickness > 0)
     {
-      Vertex2d const underline_path[] = {{.position = baseline, .uv = {}, .color = style.underline_color.to_normalized_vec()},
-                                         {.position = baseline + Vec2{segment_width, 0}, .uv = {}, .color = style.underline_color.to_normalized_vec()}};
+      Vertex2d const underline_path[] = {
+          {.position = baseline, .uv = {}, .color = style.underline_color.to_normalized_vec()},
+          {.position = baseline + Vec2{segment_width, 0},
+           .uv       = {},
+           .color    = style.underline_color.to_normalized_vec()}};
 
       draw_path(underline_path, Vec2{0, 0}, Vec2{0, 0}, style.underline_thickness, false);
     }
@@ -1006,7 +1119,8 @@ struct Canvas
     return *this;
   }
 
-  Canvas &draw_text_segment_background(Vec2 block_position, Vec2 line_top, Vec2 extent, TextStyle const &style)
+  Canvas &draw_text_segment_background(Vec2 block_position, Vec2 line_top, Vec2 extent,
+                                       TextStyle const &style)
   {
     save();
     translate(block_position);
@@ -1016,7 +1130,8 @@ struct Canvas
   }
 
   // TODO(lamarrr): text gradient, reset on each line or continue???? how does css do it?
-  Canvas &draw_text(TextBlock const &block, TextLayout const &layout, stx::Span<BundledFont const> font_bundle, Vec2 const position)
+  Canvas &draw_text(TextBlock const &block, TextLayout const &layout,
+                    stx::Span<BundledFont const> font_bundle, Vec2 const position)
   {
     /// TEXT BACKGROUNDS ///
     {
@@ -1058,12 +1173,16 @@ struct Canvas
 
         f32 x_cursor = x_alignment;
 
-        for (TextRunSegment const &segment : layout.run_segments.span().slice(line.run_segments_offset, line.nrun_segments))
+        for (TextRunSegment const &segment :
+             layout.run_segments.span().slice(line.run_segments_offset, line.nrun_segments))
         {
-          TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
+          TextStyle const &segment_style = segment.style >= block.styles.size() ?
+                                               block.default_style :
+                                               block.styles[segment.style];
           if (segment_style.background_color.is_visible())
           {
-            draw_text_segment_background(position, Vec2{x_cursor, line_top}, Vec2{segment.width, line.line_height}, segment_style);
+            draw_text_segment_background(position, Vec2{x_cursor, line_top},
+                                         Vec2{segment.width, line.line_height}, segment_style);
           }
 
           x_cursor += segment.width;
@@ -1111,12 +1230,15 @@ struct Canvas
         }
 
         f32       x_segment_cursor = x_alignment;
-        f32 const line_gap         = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
-        f32 const baseline         = line_top + line.line_height - line_gap - line.descent;
+        f32 const line_gap = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+        f32 const baseline = line_top + line.line_height - line_gap - line.descent;
 
-        for (TextRunSegment const &segment : layout.run_segments.span().slice(line.run_segments_offset, line.nrun_segments))
+        for (TextRunSegment const &segment :
+             layout.run_segments.span().slice(line.run_segments_offset, line.nrun_segments))
         {
-          TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
+          TextStyle const &segment_style = segment.style >= block.styles.size() ?
+                                               block.default_style :
+                                               block.styles[segment.style];
 
           if (segment_style.shadow_color.is_transparent() || segment_style.shadow_scale <= 0)
           {
@@ -1126,9 +1248,12 @@ struct Canvas
           FontAtlas const &atlas    = font_bundle[segment.font].atlas;
           f32              x_cursor = x_segment_cursor;
 
-          for (GlyphShaping const &shaping : layout.glyph_shapings.span().slice(segment.glyph_shapings_offset, segment.nglyph_shapings))
+          for (GlyphShaping const &shaping : layout.glyph_shapings.span().slice(
+                   segment.glyph_shapings_offset, segment.nglyph_shapings))
           {
-            draw_glyph_shadow(position, Vec2{x_cursor, baseline}, layout.text_scale_factor, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
+            draw_glyph_shadow(position, Vec2{x_cursor, baseline}, layout.text_scale_factor,
+                              atlas.glyphs[shaping.glyph], shaping, segment_style,
+                              atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
             x_cursor += shaping.advance + layout.text_scale_factor * segment_style.letter_spacing;
           }
 
@@ -1177,18 +1302,24 @@ struct Canvas
         }
 
         f32       x_segment_cursor = x_alignment;
-        f32 const line_gap         = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
-        f32 const baseline         = line_top + line.line_height - line_gap - line.descent;
+        f32 const line_gap = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+        f32 const baseline = line_top + line.line_height - line_gap - line.descent;
 
-        for (TextRunSegment const &segment : layout.run_segments.span().slice(line.run_segments_offset, line.nrun_segments))
+        for (TextRunSegment const &segment :
+             layout.run_segments.span().slice(line.run_segments_offset, line.nrun_segments))
         {
-          TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
+          TextStyle const &segment_style = segment.style >= block.styles.size() ?
+                                               block.default_style :
+                                               block.styles[segment.style];
           FontAtlas const &atlas         = font_bundle[segment.font].atlas;
           f32              x_cursor      = x_segment_cursor;
 
-          for (GlyphShaping const &shaping : layout.glyph_shapings.span().slice(segment.glyph_shapings_offset, segment.nglyph_shapings))
+          for (GlyphShaping const &shaping : layout.glyph_shapings.span().slice(
+                   segment.glyph_shapings_offset, segment.nglyph_shapings))
           {
-            draw_glyph(position, Vec2{x_cursor, baseline}, layout.text_scale_factor, atlas.glyphs[shaping.glyph], shaping, segment_style, atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
+            draw_glyph(position, Vec2{x_cursor, baseline}, layout.text_scale_factor,
+                       atlas.glyphs[shaping.glyph], shaping, segment_style,
+                       atlas.bins[atlas.glyphs[shaping.glyph].bin].texture);
             x_cursor += shaping.advance + layout.text_scale_factor * segment_style.letter_spacing;
           }
 
@@ -1241,13 +1372,20 @@ struct Canvas
         f32 const line_gap = std::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
         f32 const baseline = line_top + line.line_height - line_gap - line.descent;
 
-        for (TextRunSegment const &segment : layout.run_segments.span().slice(line.run_segments_offset, line.nrun_segments))
+        for (TextRunSegment const &segment :
+             layout.run_segments.span().slice(line.run_segments_offset, line.nrun_segments))
         {
-          TextStyle const &segment_style = segment.style >= block.styles.size() ? block.default_style : block.styles[segment.style];
+          TextStyle const &segment_style = segment.style >= block.styles.size() ?
+                                               block.default_style :
+                                               block.styles[segment.style];
 
-          if ((segment_style.underline_color.is_visible() && segment_style.underline_thickness > 0) || (segment_style.strikethrough_color.is_visible() && segment_style.strikethrough_thickness > 0)) [[unlikely]]
+          if ((segment_style.underline_color.is_visible() &&
+               segment_style.underline_thickness > 0) ||
+              (segment_style.strikethrough_color.is_visible() &&
+               segment_style.strikethrough_thickness > 0)) [[unlikely]]
           {
-            draw_text_segment_lines(position, Vec2{x_cursor, baseline}, line.line_height, segment.width, segment_style);
+            draw_text_segment_lines(position, Vec2{x_cursor, baseline}, line.line_height,
+                                    segment.width, segment_style);
           }
 
           x_cursor += segment.width;

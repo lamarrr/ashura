@@ -19,13 +19,16 @@ struct Subsystem
   }
 
   virtual constexpr void on_startup(Context &ctx)
-  {}
+  {
+  }
 
   virtual constexpr void tick(Context &ctx, std::chrono::nanoseconds interval)
-  {}
+  {
+  }
 
   virtual constexpr void on_exit(Context &ctx)
-  {}
+  {
+  }
 
   virtual constexpr std::string_view get_name()
   {
@@ -33,7 +36,8 @@ struct Subsystem
   }
 
   virtual constexpr ~Subsystem()
-  {}
+  {
+  }
 };
 
 }        // namespace ash

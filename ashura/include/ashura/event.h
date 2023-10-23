@@ -390,7 +390,7 @@ struct WindowEventListeners
   stx::Vec<stx::UniqueFn<void(MouseClickEvent)>>                       mouse_click;
   stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>>                      mouse_motion;
   stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>>                       mouse_wheel;
-  stx::Vec<stx::UniqueFn<void(KeyEvent)>>                              key;     
+  stx::Vec<stx::UniqueFn<void(KeyEvent)>>                              key;
 };
 
 struct GlobalEventListeners

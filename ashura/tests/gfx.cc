@@ -8,9 +8,9 @@ TEST(GFX, ReadAfterWrite)
 {
   QueueImageMemoryBarrier barrier;
   ImageState              state;
-  ImageAccess             shader_access{.stages = PipelineStages::FragmentShader | PipelineStages::VertexShader,
-                                        .access = Access::ShaderRead,
-                                        .layout = ImageLayout::ShaderReadOnlyOptimal};
+  ImageAccess shader_access{.stages = PipelineStages::FragmentShader | PipelineStages::VertexShader,
+                            .access = Access::ShaderRead,
+                            .layout = ImageLayout::ShaderReadOnlyOptimal};
 
   EXPECT_TRUE(state.sync(shader_access, barrier));
   EXPECT_EQ(barrier.old_layout, ImageLayout::Undefined);
@@ -52,10 +52,9 @@ TEST(GFX, ReadAfterWrite)
 TEST(GFX, WriteAfterRead)
 {
   QueueImageMemoryBarrier barrier;
-  ImageState              state{.access   = {ImageAccess{
-                                      .stages = PipelineStages::None,
-                                      .access = Access::None,
-                                      .layout = ImageLayout::General}},
+  ImageState              state{.access   = {ImageAccess{.stages = PipelineStages::None,
+                                                         .access = Access::None,
+                                                         .layout = ImageLayout::General}},
                                 .sequence = AccessSequence::None};
 
   ImageAccess shader_read1{.stages = PipelineStages::FragmentShader,

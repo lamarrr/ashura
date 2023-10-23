@@ -10,7 +10,8 @@ namespace ash
 struct Curve
 {
   virtual ~Curve()
-  {}
+  {
+  }
 
   virtual f32 operator()(f32 t) = 0;
 };
@@ -18,7 +19,8 @@ struct Curve
 struct Linear final : public Curve
 {
   virtual ~Linear() override
-  {}
+  {
+  }
 
   virtual f32 operator()(f32 t) override
   {
@@ -29,7 +31,8 @@ struct Linear final : public Curve
 struct EaseIn final : public Curve
 {
   virtual ~EaseIn() override
-  {}
+  {
+  }
 
   virtual f32 operator()(f32 t) override
   {
@@ -40,7 +43,8 @@ struct EaseIn final : public Curve
 struct EaseOut final : public Curve
 {
   virtual ~EaseOut() override
-  {}
+  {
+  }
 
   virtual f32 operator()(f32 t) override
   {
@@ -51,7 +55,8 @@ struct EaseOut final : public Curve
 struct EaseInOut final : public Curve
 {
   virtual ~EaseInOut() override
-  {}
+  {
+  }
 
   virtual f32 operator()(f32 t) override
   {
@@ -60,10 +65,12 @@ struct EaseInOut final : public Curve
 };
 
 struct Quadratic final : public Curve
-{};
+{
+};
 
 struct Cubic final : public Curve
-{};
+{
+};
 
 struct QuadraticBezier final : public Curve
 {
@@ -72,7 +79,8 @@ struct QuadraticBezier final : public Curve
   f32 p2 = 0;
 
   virtual ~QuadraticBezier() override
-  {}
+  {
+  }
 
   virtual f32 operator()(f32 t) override
   {
@@ -82,6 +90,7 @@ struct QuadraticBezier final : public Curve
 // TODO(lamarrr): Splines, Bezier Curves, Hermite Curves, Catmull-Rom curves, B-Spline
 
 struct Spline final : public Curve
-{};
+{
+};
 
 };        // namespace ash

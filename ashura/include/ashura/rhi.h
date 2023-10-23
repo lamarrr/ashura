@@ -139,13 +139,13 @@ struct Driver
                                      stx::Span<gfx::DescriptorSetBindings const> bindings,
                                      stx::Span<u8 const> push_constants_data)    = 0;
   virtual void cmd_draw(gfx::CommandBuffer command_buffer, gfx::GraphicsPipeline pipeline,
-                        gfx::RenderState const    &state,
-                        stx::Span<gfx::Buffer const> vertex_buffers, gfx::Buffer index_buffer,
-                        u32 first_index, u32 num_indices, u32 vertex_offset, u32 first_instance,
-                        u32 num_instances, stx::Span<gfx::DescriptorSetBindings const> bindings,
-                        stx::Span<u8 const> push_constants_data)                 = 0;
+                        gfx::RenderState const &state, stx::Span<gfx::Buffer const> vertex_buffers,
+                        gfx::Buffer index_buffer, u32 first_index, u32 num_indices,
+                        u32 vertex_offset, u32 first_instance, u32 num_instances,
+                        stx::Span<gfx::DescriptorSetBindings const> bindings,
+                        stx::Span<u8 const>                         push_constants_data)                 = 0;
   virtual void cmd_draw_indirect(gfx::CommandBuffer command_buffer, gfx::GraphicsPipeline pipeline,
-                                 gfx::RenderState const    &state,
+                                 gfx::RenderState const      &state,
                                  stx::Span<gfx::Buffer const> vertex_buffers,
                                  gfx::Buffer index_buffer, gfx::Buffer buffer, u64 offset,
                                  u32 draw_count, u32 stride,

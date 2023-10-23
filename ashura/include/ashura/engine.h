@@ -28,7 +28,8 @@ struct Engine
   template <Impl<Widget> DerivedWidget>
   Engine(AppConfig const &cfg, DerivedWidget &&root_widget) :
       Engine{cfg, new DerivedWidget{std::move(root_widget)}}
-  {}
+  {
+  }
 
   Engine(AppConfig const &cfg, Widget *root_widget);
 

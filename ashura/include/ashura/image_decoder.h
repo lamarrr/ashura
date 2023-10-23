@@ -38,26 +38,34 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(stx::Span<u8 const> 
     return stx::Err(ImageLoadError::InvalidData);
   }
 
-  stx::Memory memory = stx::mem::allocate(stx::os_allocator, AS(usize, features.width * features.height * features.has_alpha ? 4 : 3)).unwrap();
+  stx::Memory memory =
+      stx::mem::allocate(stx::os_allocator,
+                         AS(usize, features.width * features.height * features.has_alpha ? 4 : 3))
+          .unwrap();
 
   u8 *pixels = AS(u8 *, memory.handle);
 
   if (features.has_alpha)
   {
-    if (WebPDecodeRGBAInto(data.data(), data.size(), pixels, features.width * features.height * 4, features.width * 4) == nullptr)
+    if (WebPDecodeRGBAInto(data.data(), data.size(), pixels, features.width * features.height * 4,
+                           features.width * 4) == nullptr)
     {
       return stx::Err(ImageLoadError::InvalidData);
     }
   }
   else
   {
-    if (WebPDecodeRGBInto(data.data(), data.size(), pixels, features.width * features.height * 3, features.width * 3) == nullptr)
+    if (WebPDecodeRGBInto(data.data(), data.size(), pixels, features.width * features.height * 3,
+                          features.width * 3) == nullptr)
     {
       return stx::Err(ImageLoadError::InvalidData);
     }
   }
 
-  return stx::Ok(ImageBuffer{.memory = std::move(memory), .extent = Extent{AS(u32, features.width), AS(u32, features.height)}, .format = features.has_alpha ? ImageFormat::Rgba8888 : ImageFormat::Rgb888});
+  return stx::Ok(
+      ImageBuffer{.memory = std::move(memory),
+                  .extent = Extent{AS(u32, features.width), AS(u32, features.height)},
+                  .format = features.has_alpha ? ImageFormat::Rgba8888 : ImageFormat::Rgb888});
 }
 
 inline void png_stream_reader(png_structp png_ptr, unsigned char *out, usize nbytes_to_read)
@@ -91,7 +99,8 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
   int color_type;
   int bit_depth;
 
-  u32 status = png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, nullptr, nullptr, nullptr);
+  u32 status = png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, nullptr,
+                            nullptr, nullptr);
 
   if (status != 1)
   {
@@ -117,7 +126,8 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
     return stx::Err(ImageLoadError::UnsupportedChannels);
   }
 
-  stx::Memory pixels_mem = stx::mem::allocate(stx::os_allocator, width * height * ncomponents).unwrap();
+  stx::Memory pixels_mem =
+      stx::mem::allocate(stx::os_allocator, width * height * ncomponents).unwrap();
 
   u8 *pixels = AS(u8 *, pixels_mem.handle);
 
@@ -129,7 +139,8 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = Extent{width, height}, .format = fmt});
+  return stx::Ok(
+      ImageBuffer{.memory = std::move(pixels_mem), .extent = Extent{width, height}, .format = fmt});
 }
 
 inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> bytes)
@@ -172,7 +183,8 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> b
     return stx::Err(ImageLoadError::UnsupportedChannels);
   }
 
-  stx::Memory pixels_mem = stx::mem::allocate(stx::os_allocator, height * width * ncomponents).unwrap();
+  stx::Memory pixels_mem =
+      stx::mem::allocate(stx::os_allocator, height * width * ncomponents).unwrap();
 
   u8 *pixels = AS(u8 *, pixels_mem.handle);
 
@@ -185,7 +197,8 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> b
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem), .extent = Extent{width, height}, .format = fmt});
+  return stx::Ok(
+      ImageBuffer{.memory = std::move(pixels_mem), .extent = Extent{width, height}, .format = fmt});
 }
 
 inline stx::Result<ImageBuffer, ImageLoadError> decode_image(stx::Span<u8 const> bytes)

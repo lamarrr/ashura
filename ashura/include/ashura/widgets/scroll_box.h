@@ -41,12 +41,15 @@ struct ScrollBar : public Widget
 {
   ScrollBar(Direction idirection, stx::Rc<ScrollCtx *> iscroll_ctx) :
       direction{idirection}, scroll_ctx{std::move(iscroll_ctx)}
-  {}
+  {
+  }
 
   STX_DISABLE_COPY(ScrollBar)
   STX_DEFAULT_MOVE(ScrollBar)
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+                   stx::Span<Vec2 const> children_sizes,
+                   stx::Span<Vec2>       children_positions) override
   {
     Vec2 size;
     if (direction == Direction::V)
@@ -80,7 +83,8 @@ struct ScrollBar : public Widget
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
-    Vec2 view_offset = scroll_ctx->view_offset.resolve(scroll_ctx->content_size - scroll_ctx->view_size);
+    Vec2 view_offset =
+        scroll_ctx->view_offset.resolve(scroll_ctx->content_size - scroll_ctx->view_size);
     if (direction == Direction::H && scroll_ctx->can_scroll_x())
     {
       f32  scale        = area.extent.x / scroll_ctx->content_size.x;
@@ -89,8 +93,7 @@ struct ScrollBar : public Widget
       Rect thumb_rect   = area;
       thumb_rect.offset.x += thumb_offset;
       thumb_rect.extent.x = thumb_width;
-      canvas
-          .draw_rect_filled(thumb_rect, scroll_ctx->props.thumb_color)
+      canvas.draw_rect_filled(thumb_rect, scroll_ctx->props.thumb_color)
           .draw_rect_filled(area, scroll_ctx->props.track_color);
     }
     else if (direction == Direction::V && scroll_ctx->can_scroll_y())
@@ -101,8 +104,7 @@ struct ScrollBar : public Widget
       Rect thumb_rect   = area;
       thumb_rect.offset.y += thumb_offset;
       thumb_rect.extent.y = thumb_height;
-      canvas
-          .draw_rect_filled(thumb_rect, scroll_ctx->props.thumb_color)
+      canvas.draw_rect_filled(thumb_rect, scroll_ctx->props.thumb_color)
           .draw_rect_filled(area, scroll_ctx->props.track_color);
     }
   }
@@ -116,27 +118,28 @@ struct ScrollBar : public Widget
   {
     if (direction == Direction::H)
     {
-      f32 offset                = (mouse_position.x - area.offset.x) / area.extent.x * scroll_ctx->content_size.x;
+      f32 offset = (mouse_position.x - area.offset.x) / area.extent.x * scroll_ctx->content_size.x;
       scroll_ctx->view_offset.x = Constraint::absolute(offset);
     }
     else
     {
-      f32 offset                = (mouse_position.y - area.offset.y) / area.extent.y * scroll_ctx->content_size.y;
+      f32 offset = (mouse_position.y - area.offset.y) / area.extent.y * scroll_ctx->content_size.y;
       scroll_ctx->view_offset.y = Constraint::absolute(offset);
     }
     return stx::Some(DragData{});
   }
 
-  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation, DragData const &drag_data) override
+  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation,
+                              DragData const &drag_data) override
   {
     if (direction == Direction::H)
     {
-      f32 offset                = (mouse_position.x - area.offset.x) / area.extent.x * scroll_ctx->content_size.x;
+      f32 offset = (mouse_position.x - area.offset.x) / area.extent.x * scroll_ctx->content_size.x;
       scroll_ctx->view_offset.x = Constraint::absolute(offset);
     }
     else
     {
-      f32 offset                = (mouse_position.y - area.offset.y) / area.extent.y * scroll_ctx->content_size.y;
+      f32 offset = (mouse_position.y - area.offset.y) / area.extent.y * scroll_ctx->content_size.y;
       scroll_ctx->view_offset.y = Constraint::absolute(offset);
     }
   }
@@ -150,10 +153,10 @@ struct ScrollViewport : public Widget
   template <Impl<Widget> DerivedWidget>
   ScrollViewport(stx::Rc<ScrollCtx *> ctx, DerivedWidget child) :
       ScrollViewport{std::move(ctx), new DerivedWidget{std::move(child)}}
-  {}
+  {
+  }
 
-  ScrollViewport(stx::Rc<ScrollCtx *> ictx, Widget *child) :
-      scroll_ctx{std::move(ictx)}
+  ScrollViewport(stx::Rc<ScrollCtx *> ictx, Widget *child) : scroll_ctx{std::move(ictx)}
   {
     children.push_inplace(child).unwrap();
   }
@@ -161,12 +164,15 @@ struct ScrollViewport : public Widget
   STX_DISABLE_COPY(ScrollViewport)
   STX_DEFAULT_MOVE(ScrollViewport)
 
-  virtual void allocate_size(Context &ctx, Vec2 allocated_size, stx::Span<Vec2> children_allocation) override
+  virtual void allocate_size(Context &ctx, Vec2 allocated_size,
+                             stx::Span<Vec2> children_allocation) override
   {
     children_allocation.fill(scroll_ctx->props.frame.resolve(allocated_size));
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+                   stx::Span<Vec2 const> children_sizes,
+                   stx::Span<Vec2>       children_positions) override
   {
     Vec2 view_size           = scroll_ctx->props.frame.resolve(allocated_size);
     Vec2 content_size        = children_sizes[0];
@@ -224,7 +230,8 @@ struct ScrollBox : public Widget
   template <Impl<Widget> DerivedWidget>
   ScrollBox(ScrollBoxProps iprops, DerivedWidget child) :
       ScrollBox{std::move(iprops), new DerivedWidget{std::move(child)}}
-  {}
+  {
+  }
 
   ScrollBox(ScrollBoxProps iprops, Widget *child) :
       scroll_ctx{stx::rc::make(stx::os_allocator, ScrollCtx{.props = iprops}).unwrap()}
@@ -238,12 +245,15 @@ struct ScrollBox : public Widget
   STX_DISABLE_COPY(ScrollBox)
   STX_DEFAULT_MOVE(ScrollBox)
 
-  virtual void allocate_size(Context &ctx, Vec2 allocated_size, stx::Span<Vec2> children_allocation) override
+  virtual void allocate_size(Context &ctx, Vec2 allocated_size,
+                             stx::Span<Vec2> children_allocation) override
   {
     children_allocation.fill(allocated_size);
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+                   stx::Span<Vec2 const> children_sizes,
+                   stx::Span<Vec2>       children_positions) override
   {
     children_positions[0] = Vec2{0, 0};
     children_positions[1] = Vec2{0, scroll_ctx->view_size.y - scroll_ctx->props.bar_width};
@@ -251,7 +261,8 @@ struct ScrollBox : public Widget
     return children_sizes[0];
   }
 
-  virtual i32 z_stack(Context &ctx, i32 allocated_z_index, stx::Span<i32> children_allocation) override
+  virtual i32 z_stack(Context &ctx, i32 allocated_z_index,
+                      stx::Span<i32> children_allocation) override
   {
     children_allocation[0] = allocated_z_index + 1;
     children_allocation[1] = allocated_z_index + 1 + 256 * 256;

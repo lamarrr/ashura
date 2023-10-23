@@ -91,6 +91,29 @@ void CommandBuffer::update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::
   graph->driver->cmd_update_buffer(handle, src, dst_offset, dst);
 }
 
+void gen_transfer_barriers(gfx::BufferUsageScope scope, gfx::QueueBufferMemoryBarrier[])
+{
+  // pre-
+  // all ops that have side-effects
+  // post-
+}
+
+void gen_transfer_barriers(gfx::ImageUsageScope scope, gfx::QueueImageMemoryBarrier[])
+{
+}
+
+void gen_compute_barriers(gfx::BufferUsageScope scope, gfx::QueueBufferMemoryBarrier[])
+{
+}
+
+void gen_compute_barriers(gfx::ImageUsageScope scope, gfx::QueueImageMemoryBarrier[])
+{
+}
+
+void gen_present_barriers(gfx::ImageUsageScope scope, gfx::QueueImageMemoryBarrier[])
+{
+}
+
 void CommandBuffer::copy_image(gfx::Image src, gfx::Image dst,
                                stx::Span<gfx::ImageCopy const> copies)
 {
@@ -131,12 +154,12 @@ void CommandBuffer::copy_image(gfx::Image src, gfx::Image dst,
     }
   }
 
+  graph->driver->cmd_copy_image(handle, src, dst, copies);
+
   if (num_barriers > 0)
   {
     graph->driver->cmd_insert_barriers(handle, {}, stx::Span{barriers, num_barriers});
   }
-
-  graph->driver->cmd_copy_image(handle, src, dst, copies);
 }
 
 void CommandBuffer::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,

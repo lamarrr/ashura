@@ -13,7 +13,8 @@ namespace lgfx
 {
 
 struct Graph
-{};
+{
+};
 struct PassContext
 {
 };
@@ -25,7 +26,7 @@ struct CommandBuffer;
 // TODO(lamarrr): what if we need to destroy an index buffer because of multibuffering?
 // new pass doesn't begin until the previous pass' buffer is done with
 //
-// 
+//
 //
 //
 
@@ -74,8 +75,8 @@ struct ScreenPass
 
   struct Resources
   {
-    Image       color_images[16];        // screen has implicit pass to present the screen_color_image
-    Image       depth_stencil_images[16];
+    Image color_images[16];        // screen has implicit pass to present the screen_color_image
+    Image depth_stencil_images[16];
     RenderPass  render_passes[16];
     Framebuffer framebuffers[16];
   } resources;

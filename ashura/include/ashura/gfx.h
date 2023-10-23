@@ -19,7 +19,7 @@ namespace gfx
 constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
 constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
 constexpr u64 WHOLE_SIZE             = ~0ULL;
-// TODO(lamarrr): we have to check these against usages and device info
+// TODO(lamarrr): we have to check these against usage and device info
 constexpr u8 MAX_DESCRIPTOR_SET_BINDINGS = 16;
 constexpr u8 MAX_COLOR_ATTACHMENTS       = 8;
 constexpr u8 MAX_VERTEX_ATTRIBUTES       = 16;
@@ -557,7 +557,7 @@ enum class PipelineStages : u32
 
 STX_DEFINE_ENUM_BIT_OPS(PipelineStages)
 
-enum class BufferUsages : u8
+enum class BufferUsage : u8
 {
   None                      = 0x00000000,
   TransferSrc               = 0x00000001,
@@ -570,9 +570,9 @@ enum class BufferUsages : u8
   VertexBuffer              = 0x00000080
 };
 
-STX_DEFINE_ENUM_BIT_OPS(BufferUsages)
+STX_DEFINE_ENUM_BIT_OPS(BufferUsage)
 
-enum class ImageUsages : u8
+enum class ImageUsage : u8
 {
   None                   = 0x00000000,
   TransferSrc            = 0x00000001,
@@ -584,35 +584,75 @@ enum class ImageUsages : u8
   InputAttachment        = 0x00000080
 };
 
-STX_DEFINE_ENUM_BIT_OPS(ImageUsages)
+STX_DEFINE_ENUM_BIT_OPS(ImageUsage)
 
-enum class BufferBindings : u16
+// USED TO DETERMINE HOW TO INSERT BARRIERS BEFORE AND AFTER MUTATING SCOPES
+enum class BufferUsageScope : u32
 {
-  None                       = 0x0000,
-  ComputeShaderUniform       = 0x0001,
-  ComputeShaderStorage       = 0x0002,
-  ComputeShaderUniformTexel  = 0x0004,
-  ComputeShaderStorageTexel  = 0x0008,
-  FragmentShaderUniform      = 0x0010,
-  FragmentShaderUniformTexel = 0x0020,
-  VertexShaderUniform        = 0x0040,
-  VertexShaderUniformTexel   = 0x0080,
-  GraphicsIndexBuffer        = 0x0100,
-  GraphicsVertexBuffer       = 0x0200,
+  None                      = 0x00000000,
+  TransferSrc               = 0x00000001,
+  TransferDst               = 0x00000002,
+  ComputeShaderUniform      = 0x00000004,
+  ComputeShaderStorage      = 0x00000008,
+  ComputeShaderUniformTexel = 0x00000010,
+  ComputeShaderStorageTexel = 0x00000020,
+  IndexBuffer               = 0x00000040,
+  VertexBuffer              = 0x00000080,
+  VertexShaderUniform       = 0x00000100,
+  FragmentShaderUniform     = 0x00000200,
+  All                       = 0xFFFFFFFF
 };
 
-STX_DEFINE_ENUM_BIT_OPS(BufferBindings)
+STX_DEFINE_ENUM_BIT_OPS(BufferUsageScope)
 
-enum class ImageBindings : u8
+// BASE LAYOUT IS ALWAYS  SHADER-READ-ONLY???
+//
+//
+//
+// used for: -> base layout, layout transitions
+// TransferSrc is implicitly supported?
+//
+// read from color attachment in compute shader
+// write from color attachment in compute shader
+// read but with transitions in compute  shader
+//
+// tramsition from base layout to new layout storage|sampled
+// transition back to base layout
+//
+//
+// base layout is determined by relative frequency of operation
+//
+//
+//
+enum class ImageUsageScope : u32
 {
-  None                    = 0x00,
-  ComputeSampled          = 0x01,
-  ComputeStorage          = 0x02,
-  GraphicsSampled         = 0x01,
-  GraphicsInputAttachment = 0x04
+  None                        = 0x00000000,
+  TransferSrc                 = 0x00000001,
+  TransferDst                 = 0x00000002,
+  InputAttachment             = 0x00000004,
+  ReadColorAttachment         = 0x00000008,
+  WriteColorAttachment        = 0x00000010,
+  ReadDepthStencilAttachment  = 0x00000020,
+  WriteDepthStencilAttachment = 0x00000040,
+  ComputeShaderSampled        = 0x00000080,
+  ComputeShaderStorage        = 0x00000100,
+  VertexShaderSampled         = 0x00000200,
+  FragmentShaderSampled       = 0x00000400,
+  Present                     = 0x00000800,
+  All                         = 0xFFFFFFFF
 };
 
-STX_DEFINE_ENUM_BIT_OPS(ImageBindings)
+STX_DEFINE_ENUM_BIT_OPS(ImageUsageScope)
+
+constexpr PipelineStages stages_from_usage(BufferUsage usage)
+{
+}
+
+constexpr PipelineStages stages_from_usage(ImageUsage usage)
+{
+}
+
+// compute pipelines
 
 enum class InputRate : u8
 {
@@ -780,7 +820,8 @@ struct BufferDesc
 {
   u64              size       = 0;
   MemoryProperties properties = MemoryProperties::None;
-  BufferUsages     usages     = BufferUsages::None;
+  BufferUsage      usage      = BufferUsage::None;
+  BufferUsageScope scope      = BufferUsageScope::None;
 };
 
 struct BufferViewDesc
@@ -793,13 +834,14 @@ struct BufferViewDesc
 
 struct ImageDesc
 {
-  ImageType    type         = ImageType::Type1D;
-  Format       format       = Format::Undefined;
-  ImageUsages  usages       = ImageUsages::None;
-  ImageAspects aspects      = ImageAspects::None;
-  Extent3D     extent       = {};
-  u32          mips         = 0;
-  u32          array_layers = 0;
+  ImageType       type         = ImageType::Type1D;
+  Format          format       = Format::Undefined;
+  ImageUsage      usage        = ImageUsage::None;
+  ImageUsageScope scope        = ImageUsageScope::None;
+  ImageAspects    aspects      = ImageAspects::None;
+  Extent3D        extent       = {};
+  u32             mips         = 0;
+  u32             array_layers = 0;
 };
 
 struct ImageViewDesc
@@ -1233,194 +1275,6 @@ struct QueueImageMemoryBarrier
   Access         dst_access        = Access::None;
 };
 
-struct BufferAccess
-{
-  PipelineStages stages = PipelineStages::None;
-  MemoryAccess   access = MemoryAccess::None;
-};
-
-struct ImageAccess
-{
-  ImageLayout    layout = ImageLayout::Undefined;
-  PipelineStages stages = PipelineStages::None;
-  MemoryAccess   access = MemoryAccess::None;
-};
-
-struct BufferSyncScope
-{
-  MemoryAccess   access   = MemoryAccess::None;
-  BufferBindings bindings = BufferBindings::None;
-
-  constexpr void reset()
-  {
-    access   = MemoryAccess::None;
-    bindings = BufferBindings::None;
-  }
-
-  constexpr bool sync(MemoryAccess new_access, PipelineStages new_stages,
-                      QueueBufferMemoryBarrier &barrier)
-  {
-    if (access == MemoryAccess::None)
-    {
-      access |= new_access;
-      return false;
-    }
-
-    // RAR needs no barrier
-    if ((new_access == MemoryAccess::Read || new_access == MemoryAccess::None) &&
-        (access == MemoryAccess::Read || access == MemoryAccess::None))
-    {
-      access |= new_access;
-      return false;
-    }
-
-    bool const is_non_mutating = new_access == MemoryAccess::Read;
-
-    // WAR, RAW, WAW
-    barrier.src_access = (Access) (is_non_mutating ? MemoryAccess::Write : access);
-    barrier.src_stages = PipelineStages::BottomOfPipe;
-    barrier.dst_access = (Access) new_access;
-    barrier.dst_stages = new_stages;
-    barrier.offset     = 0;
-    barrier.size       = WHOLE_SIZE;
-    access |= new_access;
-    return true;
-  }
-};
-
-struct ImageSyncScope
-{
-  MemoryAccess  access   = MemoryAccess::None;
-  ImageLayout   layout   = ImageLayout::Undefined;
-  ImageBindings bindings = ImageBindings::None;
-
-  constexpr void reset()
-  {
-    access   = MemoryAccess::None;
-    bindings = ImageBindings::None;
-  }
-
-  constexpr bool sync(MemoryAccess new_access, PipelineStages new_stages, ImageLayout new_layout,
-                      QueueImageMemoryBarrier &barrier)
-  {
-    if (layout == new_layout && access == MemoryAccess::None)
-    {
-      access |= new_access;
-      return false;
-    }
-
-    if (layout == new_layout &&
-        (new_access == MemoryAccess::Read || new_access == MemoryAccess::None) &&
-        (access == MemoryAccess::Read || access == MemoryAccess::None))
-    {
-      access |= new_access;
-      return false;
-    }
-
-    // RAW, WAR, WAW
-    bool const is_non_mutating = new_access == MemoryAccess::Read && layout == new_layout;
-    barrier.first_mip_level    = 0;
-    barrier.num_mip_levels     = REMAINING_MIP_LEVELS;
-    barrier.first_array_layer  = 0;
-    barrier.num_array_layers   = REMAINING_ARRAY_LAYERS;
-    barrier.old_layout         = layout;
-    barrier.new_layout         = new_layout;
-    barrier.src_access         = (Access) (is_non_mutating ? MemoryAccess::Write : access);
-    barrier.src_stages         = PipelineStages::BottomOfPipe;
-    barrier.dst_access         = (Access) new_access;
-    barrier.dst_stages         = new_stages;
-    access |= is_non_mutating ? MemoryAccess::Read : new_access;
-    layout = new_layout;
-    return true;
-  }
-
-  BufferAccess to_pipeline_access(BufferBindings bindings, PipelineStages binding_stages)
-  {
-    Access         access = Access::None;
-    PipelineStages stages = PipelineStages::None;
-
-    if ((bindings & (BufferBindings::Uniform | BufferBindings::Storage |
-                     BufferBindings::UniformTexel | BufferBindings::StorageTexel)) !=
-        BufferBindings::None)
-    {
-      stages |= binding_stages;
-    }
-
-    if ((bindings & (BufferBindings::IndexBuffer | BufferBindings::VertexBuffer)) !=
-        BufferBindings::None)
-    {
-      stages |= PipelineStages::VertexInput;
-    }
-
-    if ((bindings & BufferBindings::IndexBuffer) != BufferBindings::None)
-    {
-      access |= Access::IndexRead;
-    }
-
-    if ((bindings & BufferBindings::VertexBuffer) != BufferBindings::None)
-    {
-      access |= Access::VertexAttributeRead;
-    }
-
-    if ((bindings & (BufferBindings::Uniform | BufferBindings::UniformTexel)) !=
-        BufferBindings::None)
-    {
-      access |= Access::ShaderRead;
-    }
-
-    if ((bindings & (BufferBindings::Storage | BufferBindings::StorageTexel)) !=
-        BufferBindings::None)
-    {
-      access |= Access::ShaderWrite;
-    }
-
-    return BufferAccess{.stages = stages, .access = access};
-  }
-
-  ImageAccess to_pipeline_access(ImageBindings bindings, PipelineStages binding_stages)
-  {
-    Access         access = Access::None;
-    ImageLayout    layout = ImageLayout::Undefined;
-    PipelineStages stages = PipelineStages::None;
-
-    if ((bindings & ImageBindings::InputAttachment) != ImageBindings::None)
-    {
-      access |= Access::InputAttachmentRead;
-    }
-
-    if ((bindings & ImageBindings::Sampled) != ImageBindings::None)
-    {
-      access |= Access::ShaderRead;
-    }
-
-    if ((bindings & ImageBindings::Storage) != ImageBindings::None)
-    {
-      access |= Access::ShaderWrite;
-    }
-
-    if ((bindings & ImageBindings::Storage) != ImageBindings::None)
-    {
-      layout = ImageLayout::General;
-    }
-    else if ((bindings & (ImageBindings::Sampled | ImageBindings::InputAttachment)) !=
-             ImageBindings::None)
-    {
-      layout = ImageLayout::ShaderReadOnlyOptimal;
-    }
-
-    if (bindings == ImageBindings::InputAttachment)
-    {
-      stages = PipelineStages::FragmentShader;
-    }
-    else if (bindings != ImageBindings::None)
-    {
-      stages = binding_stages;
-    }
-
-    return ImageAccess{.stages = stages, .access = access, .layout = layout};
-  }
-};
-
 struct StencilFaceState
 {
   u32 compare_mask = 0;
@@ -1441,9 +1295,8 @@ struct RenderState
 
 struct BufferResource
 {
-  BufferDesc      desc;
-  BufferSyncScope sync_scope;
-  Buffer          handle = nullptr;
+  BufferDesc desc;
+  Buffer     handle = nullptr;
 };
 
 struct BufferViewResource
@@ -1454,9 +1307,8 @@ struct BufferViewResource
 
 struct ImageResource
 {
-  ImageDesc      desc;
-  ImageSyncScope sync_scope;
-  Image          handle = nullptr;
+  ImageDesc desc;
+  Image     handle = nullptr;
 };
 
 struct ImageViewResource

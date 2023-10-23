@@ -32,8 +32,7 @@ struct GridProps
 struct Grid : public Widget
 {
   template <Impl<Widget>... DerivedWidget>
-  explicit Grid(GridProps iprops, DerivedWidget... ichildren) :
-      props{std::move(iprops)}
+  explicit Grid(GridProps iprops, DerivedWidget... ichildren) : props{std::move(iprops)}
   {
     update_children(std::move(ichildren)...);
   }
@@ -82,7 +81,8 @@ struct Grid : public Widget
     return WidgetDebugInfo{.type = "Grid"};
   }
 
-  virtual void allocate_size(Context &ctx, Vec2 allocated_size, stx::Span<Vec2> children_allocation) override
+  virtual void allocate_size(Context &ctx, Vec2 allocated_size,
+                             stx::Span<Vec2> children_allocation) override
   {
     ASH_CHECK(props.items.is_empty() || props.items.size() == children.size());
 
@@ -107,7 +107,8 @@ struct Grid : public Widget
 
     f32 const  column_gap = (f32) (columns - 1) * props.column_gap;
     f32 const  row_gap    = (f32) (rows - 1) * props.row_gap;
-    Vec2 const cell_size  = (self_extent - Vec2{column_gap, row_gap}) / Vec2{(f32) columns, (f32) rows};
+    Vec2 const cell_size =
+        (self_extent - Vec2{column_gap, row_gap}) / Vec2{(f32) columns, (f32) rows};
 
     if (props.items.is_empty())
     {
@@ -129,11 +130,14 @@ struct Grid : public Widget
         span_gap.y = props.row_gap * (f32) (item.row_span - 1);
       }
 
-      children_allocation[i] = cell_size * Vec2{(f32) item.column_span, (f32) item.row_span} + span_gap;
+      children_allocation[i] =
+          cell_size * Vec2{(f32) item.column_span, (f32) item.row_span} + span_gap;
     }
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+                   stx::Span<Vec2 const> children_sizes,
+                   stx::Span<Vec2>       children_positions) override
   {
     ASH_CHECK(props.items.is_empty() || props.items.size() == children.size());
 
@@ -158,15 +162,17 @@ struct Grid : public Widget
 
     f32 const  column_gap = (f32) (columns - 1) * props.column_gap;
     f32 const  row_gap    = (f32) (rows - 1) * props.row_gap;
-    Vec2 const cell_size  = (self_extent - Vec2{column_gap, row_gap}) / Vec2{(f32) columns, (f32) rows};
+    Vec2 const cell_size =
+        (self_extent - Vec2{column_gap, row_gap}) / Vec2{(f32) columns, (f32) rows};
 
     if (props.items.is_empty())
     {
       for (u32 i = 0; i < nchildren; i++)
       {
-        u32 const  column     = i % props.columns;
-        u32 const  row        = i / props.columns;
-        Vec2 const position   = (cell_size + Vec2{props.column_gap, props.row_gap}) * Vec2{(f32) column, (f32) row};
+        u32 const  column = i % props.columns;
+        u32 const  row    = i / props.columns;
+        Vec2 const position =
+            (cell_size + Vec2{props.column_gap, props.row_gap}) * Vec2{(f32) column, (f32) row};
         children_positions[i] = position + (cell_size - children_sizes[i]) * props.alignment;
       }
     }
@@ -174,8 +180,10 @@ struct Grid : public Widget
     {
       for (u32 i = 0; i < nchildren; i++)
       {
-        Vec2 const position   = (cell_size + Vec2{props.column_gap, props.row_gap}) * Vec2{(f32) props.items[i].column, (f32) props.items[i].row};
-        children_positions[i] = position + (children_allocations[i] - children_sizes[i]) * props.items[i].alignment;
+        Vec2 const position = (cell_size + Vec2{props.column_gap, props.row_gap}) *
+                              Vec2{(f32) props.items[i].column, (f32) props.items[i].row};
+        children_positions[i] =
+            position + (children_allocations[i] - children_sizes[i]) * props.items[i].alignment;
       }
     }
 

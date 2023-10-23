@@ -8,22 +8,20 @@ namespace gfx
 bool BufferSyncScope::sync(MemoryAccess memory_access, PipelineStages stages,
                            QueueBufferMemoryBarrier &barrier)
 
-
-
-// TODO(lamarrr): index buffer can be used from a generated compute stage, will our graph handle
-// this? we need to check for read/write compatibility
-// TODO(lamarrr): on every device idle, we can reset resource states.
-// TODO(lamarrr): for each renderpass execution we need to get accessed resources and generate
-// barriers for them
-//
-// requirements:
-// - allow simultaneous reads
-// - prevent simultaneous writes
-// - prevent simultaneous writes and reads
-//
-// Also, See:
-// https://stackoverflow.com/questions/60339191/synchronizing-a-render-pass-layout-transition-with-a-semaphore-in-acquire-pres
-bool BufferState::sync(BufferAccess request, QueueBufferMemoryBarrier &barrier)
+    // TODO(lamarrr): index buffer can be used from a generated compute stage, will our graph handle
+    // this? we need to check for read/write compatibility
+    // TODO(lamarrr): on every device idle, we can reset resource states.
+    // TODO(lamarrr): for each renderpass execution we need to get accessed resources and generate
+    // barriers for them
+    //
+    // requirements:
+    // - allow simultaneous reads
+    // - prevent simultaneous writes
+    // - prevent simultaneous writes and reads
+    //
+    // Also, See:
+    // https://stackoverflow.com/questions/60339191/synchronizing-a-render-pass-layout-transition-with-a-semaphore-in-acquire-pres
+    bool BufferState::sync(BufferAccess request, QueueBufferMemoryBarrier &barrier)
 {
   MemoryOps const ops = get_memory_ops(request.access);
 

@@ -11,7 +11,8 @@ namespace ash
 
 struct WindowManager
 {
-  stx::Rc<Window *> create_window(char const *title, WindowType type, WindowCreateFlags flags, ash::Extent extent)
+  stx::Rc<Window *> create_window(char const *title, WindowType type, WindowCreateFlags flags,
+                                  ash::Extent extent)
   {
     // width and height here refer to the screen coordinates and not the
     // actual pixel coordinates (SEE: Device Pixel Ratio)
@@ -61,7 +62,8 @@ struct WindowManager
       window_flags |= SDL_WINDOW_ALWAYS_ON_TOP;
     }
 
-    SDL_Window *window = SDL_CreateWindow(title, AS(i32, extent.width), AS(i32, extent.height), window_flags);
+    SDL_Window *window =
+        SDL_CreateWindow(title, AS(i32, extent.width), AS(i32, extent.height), window_flags);
 
     // window creation shouldn't fail reliably, if it fails, there's no point in the program proceeding
     ASH_SDL_CHECK(window != nullptr, "unable to create window");

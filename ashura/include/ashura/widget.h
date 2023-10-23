@@ -49,10 +49,12 @@ struct DragData
 struct Widget
 {
   Widget()
-  {}
+  {
+  }
 
   virtual ~Widget()
-  {}
+  {
+  }
 
   /// @brief get child widgets
   /// @param ctx
@@ -90,7 +92,8 @@ struct Widget
   /// @param children_sizes sizes of the child widgets
   /// @param[out] children_positions positions of the children widget on the parent
   /// @return this widget's fitted extent
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions)
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+                   stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions)
   {
     return Vec2{0, 0};
   }
@@ -110,7 +113,8 @@ struct Widget
   /// @param allocated_visibility
   /// @param[out] children_allocation visibility assigned to children
   /// @return
-  virtual Visibility get_visibility(Context &ctx, Visibility allocated_visibility, stx::Span<Visibility> children_allocation)
+  virtual Visibility get_visibility(Context &ctx, Visibility allocated_visibility,
+                                    stx::Span<Visibility> children_allocation)
   {
     children_allocation.fill(allocated_visibility);
     return allocated_visibility;
@@ -159,18 +163,21 @@ struct Widget
   /// @param ctx
   /// @param interval time passed since last call to this method
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval)
-  {}
+  {
+  }
 
   /// @brief called on every frame the widget is viewed on the viewport.
   /// @param ctx
   virtual void on_view_hit(Context &ctx)
-  {}
+  {
+  }
 
   /// @brief called on every frame that the widget is not seen on the viewport
   /// this can be because it has hidden visibility, is clipped away, or parent positioned out of the visible region
   /// @param ctx
   virtual void on_view_miss(Context &ctx)
-  {}
+  {
+  }
 
   // this needs to happen before mouse actions as some widgets .i.e. some widgets don't need to intercept or receive mouse events
   virtual bool hit_test(Context &ctx, Vec2 mouse_position)
@@ -184,20 +191,25 @@ struct Widget
   }
 
   virtual void on_mouse_down(Context &ctx, MouseButton button, Vec2 mouse_position, u32 nclicks)
-  {}
+  {
+  }
 
   virtual void on_mouse_up(Context &ctx, MouseButton button, Vec2 mouse_position, u32 nclicks)
-  {}
+  {
+  }
 
   // TODO(lamarrr): how do we fix translation and zooming? i.e. positioning once transform is applied
   virtual void on_mouse_move(Context &ctx, Vec2 mouse_position, Vec2 translation)
-  {}
+  {
+  }
 
   virtual void on_mouse_enter(Context &ctx, Vec2 mouse_position)
-  {}
+  {
+  }
 
   virtual void on_mouse_leave(Context &ctx, stx::Option<Vec2> mouse_position)
-  {}
+  {
+  }
 
   // virtual bool on_mouse_wheel(Context& ctx, Vec2 translation, Vec2 mouse_position?). propagates up
 
@@ -212,12 +224,15 @@ struct Widget
   /// @param ctx
   /// @param mouse_position current global drag position
   /// @param translation difference between this drag update and the last drag update position
-  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation, DragData const &drag_data)
-  {}
+  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation,
+                              DragData const &drag_data)
+  {
+  }
 
   /// the drop of the drag data has been ended
   virtual void on_drag_end(Context &ctx, Vec2 mouse_position)
-  {}
+  {
+  }
 
   /// this widget has begun receiving drag data, i.e. it has been dragged onto
   ///
@@ -228,11 +243,13 @@ struct Widget
 
   /// this widget has previously begun receiving drag data, but the mouse is still dragging within it
   virtual void on_drag_over(Context &ctx, DragData const &drag_data)
-  {}
+  {
+  }
 
   /// the drag event has left this widget
   virtual void on_drag_leave(Context &ctx, stx::Option<Vec2> mouse_position)
-  {}
+  {
+  }
 
   /// drop of drag data on this widget
   virtual bool on_drop(Context &ctx, Vec2 mouse_position, DragData const &drag_data)
@@ -242,34 +259,42 @@ struct Widget
 
   //
   virtual void on_tap(Context &ctx)
-  {}
+  {
+  }
 
   //
   virtual void on_touch_cancel(Context &ctx)
-  {}
+  {
+  }
 
   //
   virtual void on_touch_end(Context &ctx)
-  {}
+  {
+  }
 
   //
   virtual void on_touch_move(Context &ctx)
-  {}
+  {
+  }
 
   //
   virtual void on_touch_start(Context &ctx)
-  {}
+  {
+  }
 
   //
   virtual void on_touch_enter(Context &ctx)
-  {}
+  {
+  }
 
   //
   virtual void on_touch_leave(Context &ctx)
-  {}
+  {
+  }
 
-  stx::Option<uuid> id;          /// id used to recognise the widget. checked every frame. if one is not present or removed. a new uuid is generated and assigned.
-  Rect              area;        ///
+  stx::Option<uuid>
+      id;        /// id used to recognise the widget. checked every frame. if one is not present or removed. a new uuid is generated and assigned.
+  Rect area;        ///
 };
 
 inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id)

@@ -11,13 +11,15 @@ using utf8_codepoint  = u32;
 enum class StringEncoding : u8
 {
   Ascii = 0,
-  Utf8 = 1
+  Utf8  = 1
 };
 
 struct ASCIIString
-{};
+{
+};
 struct ASCIIStringView
-{};
+{
+};
 
 struct StringView
 {
@@ -30,7 +32,8 @@ struct StringView
 struct String
 {
   String(char const *static_string_literal)
-  {}
+  {
+  }
   usize ncodepoints = 0;
   usize size        = 0;
 };

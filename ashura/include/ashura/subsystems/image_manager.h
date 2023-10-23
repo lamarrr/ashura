@@ -14,13 +14,16 @@ namespace ash
 struct ImageManager : public Subsystem
 {
   virtual constexpr void on_startup(Context &ctx) override
-  {}
+  {
+  }
 
   virtual constexpr void tick(Context &ctx, std::chrono::nanoseconds interval) override
-  {}
+  {
+  }
 
   virtual constexpr void on_exit(Context &ctx) override
-  {}
+  {
+  }
 
   virtual constexpr std::string_view get_name() override
   {
@@ -28,7 +31,8 @@ struct ImageManager : public Subsystem
   }
 
   virtual constexpr ~ImageManager() override
-  {}
+  {
+  }
 
   virtual gfx::image add(ImageView<u8 const> view, bool is_real_time)
   {

@@ -23,21 +23,25 @@ namespace ash
 
 struct VulkanImageManager : public ImageManager
 {
-  VulkanImageManager(vk::RenderResourceManager &imgr) :
-      mgr{&imgr}
-  {}
+  VulkanImageManager(vk::RenderResourceManager &imgr) : mgr{&imgr}
+  {
+  }
 
   virtual constexpr void on_startup(Context &ctx) override
-  {}
+  {
+  }
 
   virtual constexpr void tick(Context &ctx, std::chrono::nanoseconds interval) override
-  {}
+  {
+  }
 
   virtual constexpr void on_exit(Context &ctx) override
-  {}
+  {
+  }
 
   virtual constexpr ~VulkanImageManager() override
-  {}
+  {
+  }
 
   virtual gfx::image add(ImageView<u8 const> view, bool is_real_time) override
   {

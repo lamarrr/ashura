@@ -77,9 +77,9 @@ enum class ImageState : u8
 //
 struct Image : public Widget
 {
-  explicit Image(ImageProps image_props) :
-      props{std::move(image_props)}
-  {}
+  explicit Image(ImageProps image_props) : props{std::move(image_props)}
+  {
+  }
 
   STX_DISABLE_COPY(Image)
   STX_DEFAULT_MOVE(Image)
@@ -89,7 +89,9 @@ struct Image : public Widget
     return WidgetDebugInfo{.type = "Image"};
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations, stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions) override
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+                   stx::Span<Vec2 const> children_sizes,
+                   stx::Span<Vec2>       children_positions) override
   {
     Vec2 extent = props.size.resolve(allocated_size);
     if (props.aspect_ratio.is_some())
@@ -178,8 +180,9 @@ struct Image : public Widget
         }
         else if (std::holds_alternative<FileImageSource>(props.source))
         {
-          image_load_future = stx::Some(loader->load_from_file(std::get<FileImageSource>(props.source).path));
-          state             = ImageState::Loading;
+          image_load_future =
+              stx::Some(loader->load_from_file(std::get<FileImageSource>(props.source).path));
+          state = ImageState::Loading;
         }
         else if (std::holds_alternative<NetworkImageSource>(props.source))
         {
@@ -199,7 +202,8 @@ struct Image : public Widget
             state               = ImageState::Loaded;
             if (props.resize_on_load)
             {
-              props.size = Constraint2D::absolute(AS(f32, buffer.extent.width), AS(f32, buffer.extent.height));
+              props.size = Constraint2D::absolute(AS(f32, buffer.extent.width),
+                                                  AS(f32, buffer.extent.height));
             }
             image_extent = buffer.extent;
           }
