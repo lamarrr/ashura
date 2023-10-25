@@ -91,11 +91,203 @@ void CommandBuffer::update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::
   graph->driver->cmd_update_buffer(handle, src, dst_offset, dst);
 }
 
+gfx::ImageLayout get_base_layout(gfx::ImageUsageScope scope){
+// if it has a sampled use case, base layout should be shaderreadonlyoptimal
+// if it has a storage use case, base layout should be general 
+
+
+}
+
+
+
+gfx::PipelineStages get_transfer_src_stages(gfx::ImageUsageScope scope)
+{
+  gfx::PipelineStages stages = gfx::PipelineStages::Transfer;
+  gfx::ImageLayout    layout = gfx::ImageLayout::Undefined;
+  gfx::Access         access = gfx::Access::None;
+
+  if ((scope & (gfx::ImageUsageScope::TransferSrc | gfx::ImageUsageScope::TransferDst)) ==
+      (gfx::ImageUsageScope::TransferSrc | gfx::ImageUsageScope::TransferDst))
+  {
+    stages = gfx::PipelineStages::Transfer;
+    layout = gfx::ImageLayout::General;
+    access = gfx::Access::TransferRead | gfx::Access::TransferWrite;
+  }
+  else if ((scope & gfx::ImageUsageScope::TransferSrc) != gfx::ImageUsageScope::TransferSrc)
+  {
+    stages = gfx::PipelineStages::Transfer;
+    layout = gfx::ImageLayout::TransferSrcOptimal;
+    access = gfx::Access::TransferRead;
+  }
+  else if ((scope & gfx::ImageUsageScope::TransferDst) != gfx::ImageUsageScope::TransferDst)
+  {
+    stages = gfx::PipelineStages::Transfer;
+    layout = gfx::ImageLayout::TransferDstOptimal;
+    access = gfx::Access::TransferRead;
+  }
+
+  if ((scope &
+       (gfx::ImageUsageScope::ComputeShaderSampled | gfx::ImageUsageScope::ComputeShaderStorage)) ==
+      (gfx::ImageUsageScope::ComputeShaderSampled | gfx::ImageUsageScope::ComputeShaderStorage))
+  {
+    stages = gfx::PipelineStages::ComputeShader;
+    layout = gfx::ImageLayout::General;
+    access = gfx::Access::ShaderRead | gfx::Access::ShaderWrite;
+  }
+  else if ((scope & gfx::ImageUsageScope::ComputeShaderStorage) != gfx::ImageUsageScope::None)
+  {
+    stages = gfx::PipelineStages::ComputeShader;
+    layout = gfx::ImageLayout::General;
+    access = gfx::Access::ShaderWrite;
+  }
+  else if ((scope & gfx::ImageUsageScope::ComputeShaderSampled) != gfx::ImageUsageScope::None)
+  {
+    stages = gfx::PipelineStages::ComputeShader;
+    layout = gfx::ImageLayout::ShaderReadOnlyOptimal;
+    access = gfx::Access::ShaderRead;
+  }
+
+  if ((scope & gfx::ImageUsageScope::VertexShaderSampled) != gfx::ImageUsageScope::None)
+  {
+    stages = gfx::PipelineStages::VertexShader;
+    layout = gfx::ImageLayout::ShaderReadOnlyOptimal;
+    access = gfx::Access::ShaderRead;
+  }
+
+  if ((scope & gfx::ImageUsageScope::InputAttachment) != gfx::ImageUsageScope::None)
+  {
+    stages = gfx::PipelineStages::FragmentShader;
+    layout = gfx::ImageLayout::ShaderReadOnlyOptimal;
+    access = gfx::Access::InputAttachmentRead;
+  }
+
+  if ((scope & gfx::ImageUsageScope::FragmentShaderSampled) != gfx::ImageUsageScope::None)
+  {
+    stages = gfx::PipelineStages::FragmentShader;
+    layout = gfx::ImageLayout::ShaderReadOnlyOptimal;
+    access = gfx::Access::ShaderRead;
+  }
+
+  if ((scope &
+       (gfx::ImageUsageScope::ReadColorAttachment | gfx::ImageUsageScope::WriteColorAttachment)) ==
+      (gfx::ImageUsageScope::ReadColorAttachment | gfx::ImageUsageScope::WriteColorAttachment))
+  {
+    stages = gfx::PipelineStages::LateFragmentTests;
+    access = gfx::Access::ColorAttachmentRead | gfx::Access::ColorAttachmentWrite;
+    layout = gfx::ImageLayout::ColorAttachmentOptimal;
+  }
+  else if ((scope & gfx::ImageUsageScope::ReadColorAttachment) != gfx::ImageUsageScope::None)
+  {
+    stages = gfx::PipelineStages::LateFragmentTests;
+    access = gfx::Access::ColorAttachmentRead;
+    layout = gfx::ImageLayout::ColorAttachmentOptimal;
+  }
+  else if ((scope & (gfx::ImageUsageScope::ReadColorAttachment |
+                     gfx::ImageUsageScope::WriteColorAttachment)) != gfx::ImageUsageScope::None)
+  {
+    stages = gfx::PipelineStages::LateFragmentTests;
+    access = gfx::Access::ShaderRead;
+    layout = gfx::ImageLayout::ColorAttachmentOptimal;
+  }
+
+  if ((scope & (gfx::ImageUsageScope::ReadDepthStencilAttachment |
+                gfx::ImageUsageScope::WriteDepthStencilAttachment)) ==
+      (gfx::ImageUsageScope::ReadDepthStencilAttachment |
+       gfx::ImageUsageScope::WriteDepthStencilAttachment))
+  {
+    stages = gfx::PipelineStages::EarlyFragmentTests;
+    access = gfx::Access::DepthStencilAttachmentRead | gfx::Access::DepthStencilAttachmentWrite;
+    layout = gfx::ImageLayout::DepthStencilAttachmentOptimal;
+  }
+  else if ((scope & gfx::ImageUsageScope::ReadDepthStencilAttachment) != gfx::ImageUsageScope::None)
+  {
+    stages = gfx::PipelineStages::EarlyFragmentTests;
+    access = gfx::Access::DepthStencilAttachmentRead;
+    layout = gfx::ImageLayout::DepthStencilReadOnlyOptimal;
+  }
+  else if ((scope & gfx::ImageUsageScope::WriteDepthStencilAttachment) !=
+           gfx::ImageUsageScope::None)
+  {
+    stages = gfx::PipelineStages::EarlyFragmentTests;
+    access = gfx::Access::DepthStencilAttachmentWrite;
+    layout = gfx::ImageLayout::DepthStencilAttachmentOptimal;
+  }
+
+  return stages;
+}
+
+gfx::Access get_transfer_src_access(gfx::ImageUsageScope scope)
+{
+  gfx::Access access = gfx::PipelineStages::None;
+
+  if (scope == gfx::ImageUsageScope::All)
+  {
+    return gfx::PipelineStages::AllCommands;
+  }
+
+  if ((scope & (gfx::ImageUsageScope::ComputeShaderSampled |
+                gfx::ImageUsageScope::ComputeShaderStorage)) != gfx::ImageUsageScope::None)
+  {
+    stages |= gfx::PipelineStages::ComputeShader;
+  }
+
+  if ((scope & gfx::ImageUsageScope::VertexShaderSampled) != gfx::ImageUsageScope::None)
+  {
+    stages |= gfx::PipelineStages::VertexShader;
+  }
+
+  if ((scope & (gfx::ImageUsageScope::FragmentShaderSampled |
+                gfx::ImageUsageScope::InputAttachment)) != gfx::ImageUsageScope::None)
+  {
+    stages |= gfx::PipelineStages::FragmentShader;
+  }
+
+  if ((scope & (gfx::ImageUsageScope::ReadColorAttachment |
+                gfx::ImageUsageScope::WriteColorAttachment)) != gfx::ImageUsageScope::None)
+  {
+    stages |= gfx::PipelineStages::LateFragmentTests;
+  }
+
+  if ((scope & (gfx::ImageUsageScope::ReadDepthStencilAttachment |
+                gfx::ImageUsageScope::WriteDepthStencilAttachment)) != gfx::ImageUsageScope::None)
+  {
+    stages |= gfx::PipelineStages::EarlyFragmentTests;
+  }
+
+  return stages;
+}
+
 void gen_transfer_barriers(gfx::BufferUsageScope scope, gfx::QueueBufferMemoryBarrier[])
 {
-  // pre-
+  // images and buffers must have a first command that operate on them? to transition them and provide access to other commands?
+  //
+  // what if no previous operation meets the barrier's requirements? then it will continue executing the requesting command
+  //
+  // no previous cmd means contents are undefined
+  //
+  //
+  // and if image was never transitioned we should be good and use undefined src layout?
+  //
+  // pre -> op -> post
+  // if image was already on the queue scope takes care of it
+  // layout+scope -> transfer src|dst optimal
   // all ops that have side-effects
-  // post-
+  // transfer transfer src|dst optimal -> scope + layout???? not needed?
+  //
+  // for transfer post-stages, we can omit the barriers, we only need to give barriers to readers
+  //
+  //
+  //
+  // challenges
+  //
+  // if scope has compute shader write then it will always be transitioned to general for compute
+  //
+  //
+  //
+  // multiple storage references
+  // what about transfer to same src and dst
+  //
+  // todo(lamarrr): layout merging? i.e. used as storage and sampled? sampled and input attachment
 }
 
 void gen_transfer_barriers(gfx::ImageUsageScope scope, gfx::QueueImageMemoryBarrier[])
@@ -119,7 +311,8 @@ void CommandBuffer::copy_image(gfx::Image src, gfx::Image dst,
 {
   hook->copy_image(src, dst, copies);
 
-  gfx::QueueImageMemoryBarrier barriers[2];
+  gfx::QueueImageMemoryBarrier pre_barriers[20];
+  gfx::QueueImageMemoryBarrier post_barriers[20];
   u8                           num_barriers = 0;
 
   if (src != dst)
@@ -144,14 +337,19 @@ void CommandBuffer::copy_image(gfx::Image src, gfx::Image dst,
   }
   else
   {
-    if (graph->images[src].sync_scope.sync(gfx::MemoryAccess::Read | gfx::MemoryAccess::Write,
-                                           gfx::PipelineStages::Transfer, gfx::ImageLayout::General,
-                                           barriers[num_barriers]))
-    {
-      barriers[num_barriers].image   = graph->images[src].handle;
-      barriers[num_barriers].aspects = graph->images[src].desc.aspects;
-      num_barriers++;
-    }
+    barriers[num_barriers].image             = graph->images[src].handle;
+    barriers[num_barriers].aspects           = graph->images[src].desc.aspects;
+    barriers[num_barriers].old_layout        = gfx::ImageLayout::ShaderReadOnlyOptimal;
+    barriers[num_barriers].new_layout        = gfx::ImageLayout::General;
+    barriers[num_barriers].first_array_layer = 0;
+    barriers[num_barriers].num_array_layers  = gfx::REMAINING_ARRAY_LAYERS;
+    barriers[num_barriers].first_mip_level   = 0;
+    barriers[num_barriers].num_mip_levels    = gfx::REMAINING_MIP_LEVELS;
+    barriers[num_barriers].src_stages        = gfx::;
+    barriers[num_barriers].src_access        = ;
+    barriers[num_barriers].dst_stages        = gfx::PipelineStages::Transfer;
+    barriers[num_barriers].dst_access = gfx::Access::TransferWrite | gfx::Access::TransferRead;
+    num_barriers++;
   }
 
   graph->driver->cmd_copy_image(handle, src, dst, copies);
