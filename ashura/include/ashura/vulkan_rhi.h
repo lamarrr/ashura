@@ -229,8 +229,8 @@ struct VulkanDriver : public Driver
                                          u64 offset, u32 draw_count, u32 stride) override;
   virtual void cmd_insert_barriers(
       gfx::CommandBuffer                             command_buffer,
-      stx::Span<gfx::QueueBufferMemoryBarrier const> buffer_memory_barriers,
-      stx::Span<gfx::QueueImageMemoryBarrier const>  image_memory_barriers) override;
+      stx::Span<gfx::BufferMemoryBarrier const> buffer_memory_barriers,
+      stx::Span<gfx::ImageMemoryBarrier const>  image_memory_barriers) override;
 };
 
 }        // namespace rhi

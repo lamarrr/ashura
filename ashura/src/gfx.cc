@@ -6,7 +6,7 @@ namespace gfx
 {
 
 bool BufferSyncScope::sync(MemoryAccess memory_access, PipelineStages stages,
-                           QueueBufferMemoryBarrier &barrier)
+                           BufferMemoryBarrier &barrier)
 
     // TODO(lamarrr): index buffer can be used from a generated compute stage, will our graph handle
     // this? we need to check for read/write compatibility
@@ -21,7 +21,7 @@ bool BufferSyncScope::sync(MemoryAccess memory_access, PipelineStages stages,
     //
     // Also, See:
     // https://stackoverflow.com/questions/60339191/synchronizing-a-render-pass-layout-transition-with-a-semaphore-in-acquire-pres
-    bool BufferState::sync(BufferAccess request, QueueBufferMemoryBarrier &barrier)
+    bool BufferState::sync(BufferAccess request, BufferMemoryBarrier &barrier)
 {
   MemoryOps const ops = get_memory_ops(request.access);
 
@@ -150,7 +150,7 @@ void BufferState::on_drain()
 
 // layout transitions are considered write operations even if only a read happens so multiple ones
 // can't happen at the same time
-bool ImageState::sync(ImageAccess request, QueueImageMemoryBarrier &barrier)
+bool ImageState::sync(ImageAccess request, ImageMemoryBarrier &barrier)
 {
   ImageLayout const current_layout = access[0].layout;
 

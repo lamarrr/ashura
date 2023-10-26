@@ -63,8 +63,8 @@ struct CommandBuffer
   gfx::Framebuffer                framebuffer      = nullptr;
   stx::Vec<stx::UniqueFn<void()>> completion_tasks = {};        // MUST be run in reverse order
   gfx::CommandBuffer              handle           = nullptr;
-  stx::Vec<gfx::QueueBufferMemoryBarrier> buffer_memory_barriers;
-  stx::Vec<gfx::QueueImageMemoryBarrier>  image_memory_barriers;
+  stx::Vec<gfx::BufferMemoryBarrier> buffer_memory_barriers;
+  stx::Vec<gfx::ImageMemoryBarrier>  image_memory_barriers;
 
   // TODO(lamarrr): use descriptor sets multiple times per-pass
   // NOTE:::: MUST be multiple of 4 for dst offset and dst size

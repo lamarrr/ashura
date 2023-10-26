@@ -6,7 +6,7 @@ using namespace ash::gfx;
 
 TEST(GFX, ReadAfterWrite)
 {
-  QueueImageMemoryBarrier barrier;
+  ImageMemoryBarrier barrier;
   ImageState              state;
   ImageAccess shader_access{.stages = PipelineStages::FragmentShader | PipelineStages::VertexShader,
                             .access = Access::ShaderRead,
@@ -51,7 +51,7 @@ TEST(GFX, ReadAfterWrite)
 
 TEST(GFX, WriteAfterRead)
 {
-  QueueImageMemoryBarrier barrier;
+  ImageMemoryBarrier barrier;
   ImageState              state{.access   = {ImageAccess{.stages = PipelineStages::None,
                                                          .access = Access::None,
                                                          .layout = ImageLayout::General}},

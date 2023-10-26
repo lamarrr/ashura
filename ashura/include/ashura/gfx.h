@@ -542,7 +542,6 @@ enum class PipelineStages : u32
   VertexShader                 = 0x00000008,
   TessellationControlShader    = 0x00000010,
   TessellationEvaluationShader = 0x00000020,
-  GeometryShader               = 0x00000040,
   FragmentShader               = 0x00000080,
   EarlyFragmentTests           = 0x00000100,
   LateFragmentTests            = 0x00000200,
@@ -592,14 +591,15 @@ enum class BufferUsageScope : u32
   None                      = 0x00000000,
   TransferSrc               = 0x00000001,
   TransferDst               = 0x00000002,
-  ComputeShaderUniform      = 0x00000004,
-  ComputeShaderStorage      = 0x00000008,
+  IndirectCommand           = 0x00000004,
+  ComputeShaderUniform      = 0x00000008,
   ComputeShaderUniformTexel = 0x00000010,
-  ComputeShaderStorageTexel = 0x00000020,
-  IndexBuffer               = 0x00000040,
-  VertexBuffer              = 0x00000080,
-  VertexShaderUniform       = 0x00000100,
-  FragmentShaderUniform     = 0x00000200,
+  ComputeShaderStorage      = 0x00000020,
+  ComputeShaderStorageTexel = 0x00000040,
+  IndexBuffer               = 0x00000080,
+  VertexBuffer              = 0x00000100,
+  VertexShaderUniform       = 0x00000200,
+  FragmentShaderUniform     = 0x00000400,
   All                       = 0xFFFFFFFF
 };
 
@@ -641,40 +641,17 @@ enum class ImageUsageScope : u32
   Present                     = 0x00000800,
   All                         = 0xFFFFFFFF
 };
+// warnings: can't be used as depth stencil and color attachment
+// load op clear op, read write matches imageusagescope
+// ssbo matches scope
 
 STX_DEFINE_ENUM_BIT_OPS(ImageUsageScope)
-
-constexpr PipelineStages stages_from_usage(BufferUsage usage)
-{
-}
-
-constexpr PipelineStages stages_from_usage(ImageUsage usage)
-{
-}
-
-// compute pipelines
 
 enum class InputRate : u8
 {
   Vertex   = 0,
   Instance = 1
 };
-
-// write access -> wait on all previous reads, transient reads, and transient writes
-// transient write access -> wait on all previous reads, writes, transient reads, and transient writes
-// transient read access  -> wait on all previous reads, writes, transient reads, and transient writes
-// read-only access -> wait only all previous writes, transient reads, and transient writes
-//
-// buffers have no transient accesses
-//
-enum class MemoryAccess : u32
-{
-  None  = 0,
-  Read  = 0x00008000,
-  Write = 0x00010000
-};
-
-STX_DEFINE_ENUM_BIT_OPS(MemoryAccess)
 
 enum class Access : u32
 {
@@ -704,7 +681,6 @@ enum class ShaderStages : u32
 {
   None         = 0x00000000,
   Vertex       = 0x00000001,
-  Geometry     = 0x00000008,
   Fragment     = 0x00000010,
   Compute      = 0x00000020,
   AllGraphics  = 0x0000001F,
@@ -883,83 +859,6 @@ struct RenderPassAttachment
   StoreOp store_op         = StoreOp::Store;
   LoadOp  stencil_load_op  = LoadOp::Load;        // how to use stencil components
   StoreOp stencil_store_op = StoreOp::Store;
-
-  constexpr ImageAccess get_color_image_access() const
-  {
-    ImageLayout  layout    = ImageLayout::ColorAttachmentOptimal;
-    bool         has_write = false;
-    bool         has_read  = false;
-    MemoryAccess access    = MemoryAccess::None;
-
-    if (load_op == LoadOp::Clear || load_op == LoadOp::DontCare || store_op == StoreOp::Store)
-    {
-      has_write = true;
-    }
-
-    if (load_op == LoadOp::Load)
-    {
-      has_read = true;
-    }
-
-    if (has_write)
-    {
-      access |= MemoryAccess::Write;
-    }
-
-    if (has_read)
-    {
-      access |= MemoryAccess::Read;
-    }
-
-    return ImageAccess{
-        .layout = layout, .stages = PipelineStages::ColorAttachmentOutput, .access = access};
-  }
-
-  constexpr ImageAccess get_depth_stencil_image_access() const
-  {
-    ImageLayout  layout    = ImageLayout::Undefined;
-    bool         has_write = false;
-    bool         has_read  = false;
-    MemoryAccess access    = MemoryAccess::None;
-
-    if (load_op == LoadOp::Clear || load_op == LoadOp::DontCare || store_op == StoreOp::Store ||
-        store_op == StoreOp::DontCare || stencil_load_op == LoadOp::Clear ||
-        stencil_load_op == LoadOp::DontCare || stencil_store_op == StoreOp::Store ||
-        stencil_store_op == StoreOp::DontCare)
-    {
-      has_write = true;
-    }
-
-    if (load_op == LoadOp::Load || stencil_load_op == LoadOp::Load)
-    {
-      has_read = true;
-    }
-
-    if (has_write)
-    {
-      access |= MemoryAccess::Write;
-    }
-
-    if (has_read)
-    {
-      access |= MemoryAccess::Read;
-    }
-
-    if (has_write)
-    {
-      layout = ImageLayout::DepthStencilAttachmentOptimal;
-    }
-    else
-    {
-      layout = ImageLayout::DepthStencilReadOnlyOptimal;
-    }
-
-    return ImageAccess{.layout = layout,
-                       .stages = PipelineStages::EarlyFragmentTests |
-                                 PipelineStages::LateFragmentTests |
-                                 PipelineStages::ColorAttachmentOutput,
-                       .access = access};
-  }
 };
 
 struct RenderPassDesc
@@ -1248,31 +1147,24 @@ union ClearValue
   DepthStencil depth_stencil;
 };
 
-struct QueueBufferMemoryBarrier
+struct BufferMemoryBarrier
 {
-  Buffer         buffer     = nullptr;
-  u64            offset     = 0;
-  u64            size       = 0;
   PipelineStages src_stages = PipelineStages::None;
   PipelineStages dst_stages = PipelineStages::None;
   Access         src_access = Access::None;
   Access         dst_access = Access::None;
+  Buffer         buffer     = nullptr;
 };
 
-struct QueueImageMemoryBarrier
+struct ImageMemoryBarrier
 {
-  Image          image             = nullptr;
-  u32            first_mip_level   = 0;
-  u32            num_mip_levels    = 0;
-  u32            first_array_layer = 0;
-  u32            num_array_layers  = 0;
-  ImageAspects   aspects           = ImageAspects::None;
-  ImageLayout    old_layout        = ImageLayout::Undefined;
-  ImageLayout    new_layout        = ImageLayout::Undefined;
-  PipelineStages src_stages        = PipelineStages::None;
-  PipelineStages dst_stages        = PipelineStages::None;
-  Access         src_access        = Access::None;
-  Access         dst_access        = Access::None;
+  PipelineStages src_stages = PipelineStages::None;
+  PipelineStages dst_stages = PipelineStages::None;
+  Access         src_access = Access::None;
+  Access         dst_access = Access::None;
+  ImageLayout    old_layout = ImageLayout::Undefined;
+  ImageLayout    new_layout = ImageLayout::Undefined;
+  Image          image      = nullptr;
 };
 
 struct StencilFaceState
@@ -1361,4 +1253,3 @@ struct CommandBufferResource
 
 }        // namespace gfx
 }        // namespace ash
-         // NOTE: renderpass attachments MUST not be accessed in shaders within that renderpass

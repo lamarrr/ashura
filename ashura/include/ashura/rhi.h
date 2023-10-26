@@ -153,8 +153,8 @@ struct Driver
                                  stx::Span<u8 const> push_constants_data)        = 0;
   virtual void
       cmd_insert_barriers(gfx::CommandBuffer                             command_buffer,
-                          stx::Span<gfx::QueueBufferMemoryBarrier const> buffer_memory_barriers,
-                          stx::Span<gfx::QueueImageMemoryBarrier const>  image_memory_barriers) = 0;
+                          stx::Span<gfx::BufferMemoryBarrier const> buffer_memory_barriers,
+                          stx::Span<gfx::ImageMemoryBarrier const>  image_memory_barriers) = 0;
 };
 
 };        // namespace rhi

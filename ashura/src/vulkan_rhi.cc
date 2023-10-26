@@ -24,6 +24,7 @@ bool load_device_table(VkDevice device, VulkanDeviceTable &table)
 
   // DEVICE OBJECT FUNCTIONS
   ASH_VK_LOAD(AllocateCommandBuffers);
+  ASH_VK_LOAD(AllocateDescriptorSets);
   ASH_VK_LOAD(AllocateMemory);
   ASH_VK_LOAD(BindBufferMemory);
   ASH_VK_LOAD(BindImageMemory);
@@ -31,6 +32,7 @@ bool load_device_table(VkDevice device, VulkanDeviceTable &table)
   ASH_VK_LOAD(CreateBufferView);
   ASH_VK_LOAD(CreateCommandPool);
   ASH_VK_LOAD(CreateComputePipelines);
+  ASH_VK_LOAD(CreateDescriptorPool);
   ASH_VK_LOAD(CreateDescriptorSetLayout);
   ASH_VK_LOAD(CreateDevice);
   ASH_VK_LOAD(CreateEvent);
@@ -49,6 +51,7 @@ bool load_device_table(VkDevice device, VulkanDeviceTable &table)
   ASH_VK_LOAD(DestroyBuffer);
   ASH_VK_LOAD(DestroyBufferView);
   ASH_VK_LOAD(DestroyCommandPool);
+  ASH_VK_LOAD(DestroyDescriptorPool);
   ASH_VK_LOAD(DestroyDescriptorSetLayout);
   ASH_VK_LOAD(DestroyDevice);
   ASH_VK_LOAD(DestroyEvent);
@@ -67,6 +70,7 @@ bool load_device_table(VkDevice device, VulkanDeviceTable &table)
   ASH_VK_LOAD(DeviceWaitIdle);
   ASH_VK_LOAD(FlushMappedMemoryRanges);
   ASH_VK_LOAD(FreeCommandBuffers);
+  ASH_VK_LOAD(FreeDescriptorSets);
   ASH_VK_LOAD(FreeMemory);
   ASH_VK_LOAD(GetBufferMemoryRequirements);
   ASH_VK_LOAD(GetDeviceMemoryCommitment);
@@ -85,6 +89,7 @@ bool load_device_table(VkDevice device, VulkanDeviceTable &table)
   ASH_VK_LOAD(ResetEvent);
   ASH_VK_LOAD(ResetFences);
   ASH_VK_LOAD(SetEvent);
+  ASH_VK_LOAD(UpdateDescriptorSets);
   ASH_VK_LOAD(UnmapMemory);
   ASH_VK_LOAD(WaitForFences);
 
@@ -92,6 +97,7 @@ bool load_device_table(VkDevice device, VulkanDeviceTable &table)
   ASH_VK_LOAD(BeginCommandBuffer);
   ASH_VK_LOAD(CmdBeginQuery);
   ASH_VK_LOAD(CmdBeginRenderPass);
+  ASH_VK_LOAD(CmdBindDescriptorSets);
   ASH_VK_LOAD(CmdBindIndexBuffer);
   ASH_VK_LOAD(CmdBindPipeline);
   ASH_VK_LOAD(CmdBindVertexBuffers);
@@ -116,7 +122,6 @@ bool load_device_table(VkDevice device, VulkanDeviceTable &table)
   ASH_VK_LOAD(CmdNextSubpass);
   ASH_VK_LOAD(CmdPipelineBarrier);
   ASH_VK_LOAD(CmdPushConstants);
-  ASH_VK_LOAD(CmdPushDescriptorSetKHR);
   ASH_VK_LOAD(CmdResetEvent);
   ASH_VK_LOAD(CmdResetQueryPool);
   ASH_VK_LOAD(CmdResolveImage);
@@ -138,24 +143,24 @@ bool load_device_table(VkDevice device, VulkanDeviceTable &table)
 
 #undef ASH_VK_LOAD
 
-#define ASH_VMA_LOAD(function) table.vma_functions.vk##function = table.function
+#define ASH_VMA_SET(function) table.vma_functions.vk##function = table.function
 
-  ASH_VMA_LOAD(AllocateMemory);
-  ASH_VMA_LOAD(FreeMemory);
-  ASH_VMA_LOAD(UnmapMemory);
-  ASH_VMA_LOAD(FlushMappedMemoryRanges);
-  ASH_VMA_LOAD(InvalidateMappedMemoryRanges);
-  ASH_VMA_LOAD(BindBufferMemory);
-  ASH_VMA_LOAD(BindImageMemory);
-  ASH_VMA_LOAD(GetBufferMemoryRequirements);
-  ASH_VMA_LOAD(GetImageMemoryRequirements);
-  ASH_VMA_LOAD(CreateBuffer);
-  ASH_VMA_LOAD(DestroyBuffer);
-  ASH_VMA_LOAD(CreateImage);
-  ASH_VMA_LOAD(DestroyImage);
-  ASH_VMA_LOAD(CmdCopyBuffer);
+  ASH_VMA_SET(AllocateMemory);
+  ASH_VMA_SET(FreeMemory);
+  ASH_VMA_SET(UnmapMemory);
+  ASH_VMA_SET(FlushMappedMemoryRanges);
+  ASH_VMA_SET(InvalidateMappedMemoryRanges);
+  ASH_VMA_SET(BindBufferMemory);
+  ASH_VMA_SET(BindImageMemory);
+  ASH_VMA_SET(GetBufferMemoryRequirements);
+  ASH_VMA_SET(GetImageMemoryRequirements);
+  ASH_VMA_SET(CreateBuffer);
+  ASH_VMA_SET(DestroyBuffer);
+  ASH_VMA_SET(CreateImage);
+  ASH_VMA_SET(DestroyImage);
+  ASH_VMA_SET(CmdCopyBuffer);
 
-#undef ASH_VMA_LOAD
+#undef ASH_VMA_SET
 
   return all_loaded;
 }
@@ -185,7 +190,7 @@ gfx::Buffer VulkanDriver::create(gfx::BufferDesc const &desc)
                                  .pNext                 = nullptr,
                                  .flags                 = 0,
                                  .size                  = desc.size,
-                                 .usage                 = (VkBufferUsageFlags) desc.usages,
+                                 .usage                 = (VkBufferUsageFlags) desc.usage,
                                  .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
                                  .queueFamilyIndexCount = 1,
                                  .pQueueFamilyIndices   = nullptr};
@@ -218,10 +223,10 @@ gfx::Image VulkanDriver::create(gfx::ImageDesc const &desc)
                                 .arrayLayers           = desc.array_layers,
                                 .samples               = VK_SAMPLE_COUNT_1_BIT,
                                 .tiling                = VK_IMAGE_TILING_OPTIMAL,
-                                .usage                 = (VkImageUsageFlags) desc.usages,
+                                .usage                 = (VkImageUsageFlags) desc.usage,
                                 .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
                                 .queueFamilyIndexCount = 1,
-                                .pQueueFamilyIndices   = nullptr,
+                                .pQueueFamilyIndices   = nullptr,        //TODO??
                                 .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED};
 
   VulkanImage *image = allocate<VulkanImage>();
@@ -267,14 +272,15 @@ gfx::Sampler VulkanDriver::create(gfx::SamplerDesc const &desc)
                                   .addressModeV     = (VkSamplerAddressMode) desc.address_mode_v,
                                   .addressModeW     = (VkSamplerAddressMode) desc.address_mode_w,
                                   .mipLodBias       = desc.mip_lod_bias,
-                                  .anisotropyEnable = desc.anisotropy_enable,
+                                  .anisotropyEnable = (VkBool32) desc.anisotropy_enable,
                                   .maxAnisotropy    = desc.max_anisotropy,
-                                  .compareEnable    = desc.compare_enable,
+                                  .compareEnable    = (VkBool32) desc.compare_enable,
                                   .compareOp        = (VkCompareOp) desc.compare_op,
                                   .minLod           = desc.min_lod,
                                   .maxLod           = desc.max_lod,
                                   .borderColor      = (VkBorderColor) desc.border_color,
-                                  .unnormalizedCoordinates = desc.unnormalized_coordinates};
+                                  .unnormalizedCoordinates =
+                                      (VkBool32) desc.unnormalized_coordinates};
 
   VkSampler sampler;
   table->CreateSampler(device, &create_info, nullptr, &sampler);
