@@ -19,11 +19,17 @@ namespace ash
 template <typename T, typename Base>
 concept Impl = std::is_base_of_v<Base, T>;
 
-template<typename T>
-constexpr bool has_bits(T src, T cmp){
-  return (src & cmp) ==  cmp;
+template <typename T>
+constexpr bool has_bits(T src, T cmp)
+{
+  return (src & cmp) == cmp;
 }
 
+template <typename T>
+constexpr bool has_any_bit(T src, T cmp)
+{
+  return (src & cmp) != (T) 0;
+}
 
 using u8  = uint8_t;
 using u16 = uint16_t;

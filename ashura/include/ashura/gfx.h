@@ -1,7 +1,9 @@
 #pragma once
 #include <array>
 #include <cinttypes>
+#include <string_view>
 
+#include "ashura/array.h"
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
 #include "stx/enum.h"
@@ -16,26 +18,26 @@ namespace ash
 namespace gfx
 {
 
+// TODO(lamarrr): we have to check these against usage and device info
+
 constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
 constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
 constexpr u64 WHOLE_SIZE             = ~0ULL;
-// TODO(lamarrr): we have to check these against usage and device info
-constexpr u8 MAX_DESCRIPTOR_SET_BINDINGS = 16;
-constexpr u8 MAX_COLOR_ATTACHMENTS       = 8;
-constexpr u8 MAX_VERTEX_ATTRIBUTES       = 16;
-constexpr u8 MAX_PUSH_CONSTANT_SIZE      = 128;
+constexpr u8  MAX_COLOR_ATTACHMENTS  = 8;
+constexpr u8  MAX_VERTEX_ATTRIBUTES  = 16;
+constexpr u8  MAX_PUSH_CONSTANT_SIZE = 128;
 
 ASH_DEFINE_HANDLE(Buffer);
-ASH_DEFINE_HANDLE(BufferView);
 /// format interpretation of a buffer's contents
+ASH_DEFINE_HANDLE(BufferView);
 ASH_DEFINE_HANDLE(Image);
-ASH_DEFINE_HANDLE(ImageView);
 /// a sub-resource that specifies mips, aspects, and layer of images
+ASH_DEFINE_HANDLE(ImageView);
 ASH_DEFINE_HANDLE(Sampler);
 ASH_DEFINE_HANDLE(Shader);
-ASH_DEFINE_HANDLE(RenderPass);
 /// renderpasses are used for selecting tiling strategy and
 /// related optimizations
+ASH_DEFINE_HANDLE(RenderPass);
 ASH_DEFINE_HANDLE(Framebuffer);
 ASH_DEFINE_HANDLE(DescriptorSetLayout);
 ASH_DEFINE_HANDLE(ComputePipeline);
@@ -50,7 +52,7 @@ enum class MemoryProperties : u8
   HostCoherent    = 0x00000004,
   HostCached      = 0x00000008,
   LazilyAllocated = 0x00000010,
-  Protected       = 0x00000020,
+  Protected       = 0x00000020
 };
 
 STX_DEFINE_ENUM_BIT_OPS(MemoryProperties)
@@ -585,7 +587,7 @@ enum class ImageUsage : u8
 
 STX_DEFINE_ENUM_BIT_OPS(ImageUsage)
 
-// USED TO DETERMINE HOW TO INSERT BARRIERS BEFORE AND AFTER MUTATING SCOPES
+/// used for synchronization of state-mutating commands
 enum class BufferUsageScope : u32
 {
   None                      = 0x00000000,
@@ -605,25 +607,7 @@ enum class BufferUsageScope : u32
 
 STX_DEFINE_ENUM_BIT_OPS(BufferUsageScope)
 
-// BASE LAYOUT IS ALWAYS  SHADER-READ-ONLY???
-//
-//
-//
-// used for: -> base layout, layout transitions
-// TransferSrc is implicitly supported?
-//
-// read from color attachment in compute shader
-// write from color attachment in compute shader
-// read but with transitions in compute  shader
-//
-// tramsition from base layout to new layout storage|sampled
-// transition back to base layout
-//
-//
-// base layout is determined by relative frequency of operation
-//
-//
-//
+/// used for synchronization of state-mutating commands
 enum class ImageUsageScope : u32
 {
   None                        = 0x00000000,
@@ -641,9 +625,6 @@ enum class ImageUsageScope : u32
   Present                     = 0x00000800,
   All                         = 0xFFFFFFFF
 };
-// warnings: can't be used as depth stencil and color attachment
-// load op clear op, read write matches imageusagescope
-// ssbo matches scope
 
 STX_DEFINE_ENUM_BIT_OPS(ImageUsageScope)
 
@@ -788,12 +769,9 @@ struct FormatProperties
   FormatFeatures buffer_features         = FormatFeatures::None;
 };
 
-// TODO(lamarrr): aliasing of the same resources in the same descriptor binding group
-//
-// TODO(lamarrr): write in vertex shader, read in fragment shader, possible pattern? can be synced
-// via glsl ordering is non-deterministic
 struct BufferDesc
 {
+  char const      *name       = nullptr;
   u64              size       = 0;
   MemoryProperties properties = MemoryProperties::None;
   BufferUsage      usage      = BufferUsage::None;
@@ -802,14 +780,16 @@ struct BufferDesc
 
 struct BufferViewDesc
 {
-  Buffer buffer      = nullptr;
-  Format view_format = Format::Undefined;
-  u64    offset      = 0;
-  u64    size        = 0;
+  char const *name        = nullptr;
+  Buffer      buffer      = nullptr;
+  Format      view_format = Format::Undefined;
+  u64         offset      = 0;
+  u64         size        = 0;
 };
 
 struct ImageDesc
 {
+  char const     *name         = nullptr;
   ImageType       type         = ImageType::Type1D;
   Format          format       = Format::Undefined;
   ImageUsage      usage        = ImageUsage::None;
@@ -822,6 +802,7 @@ struct ImageDesc
 
 struct ImageViewDesc
 {
+  char const      *name              = nullptr;
   Image            image             = nullptr;
   ImageViewType    view_type         = ImageViewType::Type1D;
   Format           view_format       = Format::Undefined;
@@ -835,6 +816,7 @@ struct ImageViewDesc
 
 struct SamplerDesc
 {
+  char const        *name                     = nullptr;
   Filter             mag_filter               = Filter::Nearest;
   Filter             min_filter               = Filter::Nearest;
   SamplerMipMapMode  mip_map_mode             = SamplerMipMapMode::Nearest;
@@ -863,23 +845,21 @@ struct RenderPassAttachment
 
 struct RenderPassDesc
 {
-  RenderPassAttachment color_attachments[MAX_COLOR_ATTACHMENTS] = {};
-  u32                  num_color_attachments                    = 0;
-  RenderPassAttachment input_attachments[MAX_COLOR_ATTACHMENTS] = {};
-  u32                  num_input_attachments                    = 0;
-  RenderPassAttachment depth_stencil_attachment                 = {};
+  char const                                             *name                     = nullptr;
+  stx::Array<RenderPassAttachment, MAX_COLOR_ATTACHMENTS> color_attachments        = {};
+  stx::Array<RenderPassAttachment, MAX_COLOR_ATTACHMENTS> input_attachments        = {};
+  RenderPassAttachment                                    depth_stencil_attachment = {};
 };
 
 struct FramebufferDesc
 {
-  RenderPass renderpass                               = nullptr;
-  Extent     extent                                   = {};
-  u32        layers                                   = 0;
-  ImageView  color_attachments[MAX_COLOR_ATTACHMENTS] = {};
-  u32        num_color_attachments                    = 0;
-  ImageView  input_attachments[MAX_COLOR_ATTACHMENTS] = {};
-  u32        num_input_attachments                    = 0;
-  ImageView  depth_stencil_attachment                 = nullptr;
+  char const                                  *name                     = nullptr;
+  RenderPass                                   renderpass               = nullptr;
+  Extent                                       extent                   = {};
+  u32                                          layers                   = 0;
+  stx::Array<ImageView, MAX_COLOR_ATTACHMENTS> color_attachments        = {};
+  stx::Array<ImageView, MAX_COLOR_ATTACHMENTS> input_attachments        = {};
+  ImageView                                    depth_stencil_attachment = nullptr;
 };
 
 struct DescriptorBindingDesc
@@ -998,6 +978,7 @@ struct ShaderStageDesc
 
 struct ComputePipelineDesc
 {
+  char const         *name                  = nullptr;
   ShaderStageDesc     compute_shader        = {};
   DescriptorSetLayout descriptor_set_layout = nullptr;
 };
@@ -1065,20 +1046,18 @@ struct PipelineRasterizationState
 
 struct GraphicsPipelineDesc
 {
-  ShaderStageDesc                   vertex_shader_stage                          = {};
-  ShaderStageDesc                   fragment_shader_stage                        = {};
-  RenderPass                        render_pass                                  = nullptr;
-  VertexInputBinding                vertex_input_bindings[MAX_VERTEX_ATTRIBUTES] = {};
-  u32                               num_vertex_input_bindings                    = 0;
-  VertexAttribute                   vertex_attributes[MAX_VERTEX_ATTRIBUTES]     = {};
-  u32                               num_vertex_attributes                        = 0;
-  DescriptorSetLayout               descriptor_set_layout                        = nullptr;
-  PrimitiveTopology                 primitive_topology   = PrimitiveTopology::PointList;
-  PipelineRasterizationState        rasterization_state  = {};
-  PipelineDepthStencilState         depth_stencil_state  = {};
-  Vec4                              color_blend_constant = {};
-  PipelineColorBlendAttachmentState color_blend_states[MAX_COLOR_ATTACHMENTS] = {};
-  u32                               num_color_attachments                     = 0;
+  char const                                           *name                  = nullptr;
+  ShaderStageDesc                                       vertex_shader_stage   = {};
+  ShaderStageDesc                                       fragment_shader_stage = {};
+  RenderPass                                            render_pass           = nullptr;
+  stx::Array<VertexInputBinding, MAX_VERTEX_ATTRIBUTES> vertex_input_bindings = {};
+  stx::Array<VertexAttribute, MAX_VERTEX_ATTRIBUTES>    vertex_attributes     = {};
+  DescriptorSetLayout                                   descriptor_set_layout = nullptr;
+  PrimitiveTopology          primitive_topology   = PrimitiveTopology::PointList;
+  PipelineRasterizationState rasterization_state  = {};
+  PipelineDepthStencilState  depth_stencil_state  = {};
+  Vec4                       color_blend_constant = {};
+  stx::Array<PipelineColorBlendAttachmentState, MAX_COLOR_ATTACHMENTS> color_blend_states = {};
 };
 
 struct BufferCopy

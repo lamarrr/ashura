@@ -5,8 +5,12 @@ namespace ash
 namespace rcg
 {
 
-constexpr u8 MAX_SCOPE_BARRIERS = 16;
+constexpr u8  MAX_SCOPE_BARRIERS = 16;
+constexpr u64 BATCH_SIZE         = 16;
 
+// warnings: can't be used as depth stencil and color attachment
+// load op clear op, read write matches imageusagescope
+// ssbo matches scope
 struct BufferScope
 {
   gfx::PipelineStages stages = gfx::PipelineStages::None;
@@ -15,219 +19,210 @@ struct BufferScope
 
 struct ImageScope
 {
-  gfx::ImageLayout    layout = gfx::ImageLayout::Undefined;
   gfx::PipelineStages stages = gfx::PipelineStages::None;
   gfx::Access         access = gfx::Access::None;
+  gfx::ImageLayout    layout = gfx::ImageLayout::Undefined;
 };
 
-constexpr void acquire_buffer(gfx::BufferUsageScope scope, gfx::PipelineStages dst_stages,
-                              gfx::Access              dst_access,
-                              gfx::BufferMemoryBarrier barriers[MAX_SCOPE_BARRIERS],
-                              u8                      &num_barriers)
+inline void acquire_buffer(gfx::BufferUsageScope scope, gfx::PipelineStages dst_stages,
+                           gfx::Access                                               dst_access,
+                           stx::Array<gfx::BufferMemoryBarrier, MAX_SCOPE_BARRIERS> &barriers)
 {
-  num_barriers = 0;
-
   if (has_bits(scope, gfx::BufferUsageScope::TransferSrc | gfx::BufferUsageScope::TransferDst))
   {
-    barriers[num_barriers] = gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
-                                                      .dst_stages = dst_stages,
-                                                      .src_access = gfx::Access::TransferRead |
-                                                                    gfx::Access::TransferWrite,
-                                                      .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
+                                       .dst_stages = dst_stages,
+                                       .src_access =
+                                           gfx::Access::TransferRead | gfx::Access::TransferWrite,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::BufferUsageScope::TransferSrc))
   {
-    barriers[num_barriers] = gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
-                                                      .dst_stages = dst_stages,
-                                                      .src_access = gfx::Access::TransferRead,
-                                                      .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
+                                       .dst_stages = dst_stages,
+                                       .src_access = gfx::Access::TransferRead,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::BufferUsageScope::TransferDst))
   {
-    barriers[num_barriers] = gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
-                                                      .dst_stages = dst_stages,
-                                                      .src_access = gfx::Access::TransferWrite,
-                                                      .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
+                                       .dst_stages = dst_stages,
+                                       .src_access = gfx::Access::TransferWrite,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::BufferUsageScope::IndirectCommand))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::DrawIndirect,
-                                 .dst_stages = dst_stages,
-                                 .src_access = gfx::Access::IndirectCommandRead,
-                                 .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::DrawIndirect,
+                                       .dst_stages = dst_stages,
+                                       .src_access = gfx::Access::IndirectCommandRead,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
 
-  if (has_bits(scope, gfx::BufferUsageScope::ComputeShaderUniform) ||
-      has_bits(scope, gfx::BufferUsageScope::ComputeShaderUniformTexel))
+  if (has_any_bit(scope, gfx::BufferUsageScope::ComputeShaderUniform |
+                             gfx::BufferUsageScope::ComputeShaderUniformTexel))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::ComputeShader,
-                                 .dst_stages = dst_stages,
-                                 .src_access = gfx::Access::ShaderRead,
-                                 .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::ComputeShader,
+                                       .dst_stages = dst_stages,
+                                       .src_access = gfx::Access::ShaderRead,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
 
-  if (has_bits(scope, gfx::BufferUsageScope::ComputeShaderStorage) ||
-      has_bits(scope, gfx::BufferUsageScope::ComputeShaderStorageTexel))
+  if (has_any_bit(scope, gfx::BufferUsageScope::ComputeShaderStorage |
+                             gfx::BufferUsageScope::ComputeShaderStorageTexel))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::ComputeShader,
-                                 .dst_stages = dst_stages,
-                                 .src_access = gfx::Access::ShaderWrite,
-                                 .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::ComputeShader,
+                                       .dst_stages = dst_stages,
+                                       .src_access = gfx::Access::ShaderWrite,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::BufferUsageScope::IndexBuffer))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::VertexInput,
-                                 .dst_stages = dst_stages,
-                                 .src_access = gfx::Access::IndexRead,
-                                 .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::VertexInput,
+                                       .dst_stages = dst_stages,
+                                       .src_access = gfx::Access::IndexRead,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::BufferUsageScope::VertexBuffer))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::VertexInput,
-                                 .dst_stages = dst_stages,
-                                 .src_access = gfx::Access::VertexAttributeRead,
-                                 .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::VertexInput,
+                                       .dst_stages = dst_stages,
+                                       .src_access = gfx::Access::VertexAttributeRead,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::BufferUsageScope::VertexShaderUniform |
                           gfx::BufferUsageScope::FragmentShaderUniform))
   {
-    barriers[num_barriers] = gfx::BufferMemoryBarrier{
-        .src_stages = gfx::PipelineStages::VertexShader | gfx::PipelineStages::FragmentShader,
-        .dst_stages = dst_stages,
-        .src_access = gfx::Access::ShaderRead,
-        .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::VertexShader |
+                                                     gfx::PipelineStages::FragmentShader,
+                                       .dst_stages = dst_stages,
+                                       .src_access = gfx::Access::ShaderRead,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::BufferUsageScope::VertexShaderUniform))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::VertexShader,
-                                 .dst_stages = dst_stages,
-                                 .src_access = gfx::Access::ShaderRead,
-                                 .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::VertexShader,
+                                       .dst_stages = dst_stages,
+                                       .src_access = gfx::Access::ShaderRead,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::BufferUsageScope::FragmentShaderUniform))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::FragmentShader,
-                                 .dst_stages = dst_stages,
-                                 .src_access = gfx::Access::ShaderRead,
-                                 .dst_access = dst_access};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = gfx::PipelineStages::FragmentShader,
+                                       .dst_stages = dst_stages,
+                                       .src_access = gfx::Access::ShaderRead,
+                                       .dst_access = dst_access})
+        .unwrap();
   }
 }
 
-constexpr void release_buffer(gfx::BufferUsageScope scope, gfx::PipelineStages src_stages,
-                              gfx::Access              src_access,
-                              gfx::BufferMemoryBarrier barriers[MAX_SCOPE_BARRIERS],
-                              u8                      &num_barriers)
+inline void release_buffer(gfx::BufferUsageScope scope, gfx::PipelineStages src_stages,
+                           gfx::Access                                               src_access,
+                           stx::Array<gfx::BufferMemoryBarrier, MAX_SCOPE_BARRIERS> &barriers)
 {
-  num_barriers = 0;
-
   if (has_bits(scope, gfx::BufferUsageScope::TransferSrc))
   {
-    barriers[num_barriers] = gfx::BufferMemoryBarrier{.src_stages = src_stages,
-                                                      .dst_stages = gfx::PipelineStages::Transfer,
-                                                      .src_access = src_access,
-                                                      .dst_access = gfx::Access::TransferRead |
-                                                                    gfx::Access::TransferWrite};
-    num_barriers++;
-  }
-  else if (has_bits(scope, gfx::BufferUsageScope::TransferSrc))
-  {
-    barriers[num_barriers] = gfx::BufferMemoryBarrier{.src_stages = src_stages,
-                                                      .dst_stages = gfx::PipelineStages::Transfer,
-                                                      .src_access = src_access,
-                                                      .dst_access = gfx::Access::TransferRead};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = src_stages,
+                                       .dst_stages = gfx::PipelineStages::Transfer,
+                                       .src_access = src_access,
+                                       .dst_access = gfx::Access::TransferRead})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::BufferUsageScope::IndirectCommand))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = src_stages,
-                                 .dst_stages = gfx::PipelineStages::DrawIndirect,
-                                 .src_access = src_access,
-                                 .dst_access = gfx::Access::IndirectCommandRead};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = src_stages,
+                                       .dst_stages = gfx::PipelineStages::DrawIndirect,
+                                       .src_access = src_access,
+                                       .dst_access = gfx::Access::IndirectCommandRead})
+        .unwrap();
   }
 
-  if (has_bits(scope, gfx::BufferUsageScope::ComputeShaderUniform) ||
-      has_bits(scope, gfx::BufferUsageScope::ComputeShaderUniformTexel))
+  if (has_any_bit(scope, gfx::BufferUsageScope::ComputeShaderUniform |
+                             gfx::BufferUsageScope::ComputeShaderUniformTexel))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = src_stages,
-                                 .dst_stages = gfx::PipelineStages::ComputeShader,
-                                 .src_access = src_access,
-                                 .dst_access = gfx::Access::ShaderRead};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = src_stages,
+                                       .dst_stages = gfx::PipelineStages::ComputeShader,
+                                       .src_access = src_access,
+                                       .dst_access = gfx::Access::ShaderRead})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::BufferUsageScope::IndexBuffer))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = src_stages,
-                                 .dst_stages = gfx::PipelineStages::VertexInput,
-                                 .src_access = src_access,
-                                 .dst_access = gfx::Access::IndexRead};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = src_stages,
+                                       .dst_stages = gfx::PipelineStages::VertexInput,
+                                       .src_access = src_access,
+                                       .dst_access = gfx::Access::IndexRead})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::BufferUsageScope::VertexBuffer))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = src_stages,
-                                 .dst_stages = gfx::PipelineStages::VertexInput,
-                                 .src_access = src_access,
-                                 .dst_access = gfx::Access::VertexAttributeRead};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = src_stages,
+                                       .dst_stages = gfx::PipelineStages::VertexInput,
+                                       .src_access = src_access,
+                                       .dst_access = gfx::Access::VertexAttributeRead})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::BufferUsageScope::VertexShaderUniform |
                           gfx::BufferUsageScope::FragmentShaderUniform))
   {
-    barriers[num_barriers] = gfx::BufferMemoryBarrier{
-        .src_stages = src_stages,
-        .dst_stages = gfx::PipelineStages::VertexShader | gfx::PipelineStages::FragmentShader,
-        .src_access = src_access,
-        .dst_access = gfx::Access::ShaderRead};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = src_stages,
+                                       .dst_stages = gfx::PipelineStages::VertexShader |
+                                                     gfx::PipelineStages::FragmentShader,
+                                       .src_access = src_access,
+                                       .dst_access = gfx::Access::ShaderRead})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::BufferUsageScope::VertexShaderUniform))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = src_stages,
-                                 .dst_stages = gfx::PipelineStages::VertexShader,
-                                 .src_access = src_access,
-                                 .dst_access = gfx::Access::ShaderRead};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = src_stages,
+                                       .dst_stages = gfx::PipelineStages::VertexShader,
+                                       .src_access = src_access,
+                                       .dst_access = gfx::Access::ShaderRead})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::BufferUsageScope::FragmentShaderUniform))
   {
-    barriers[num_barriers] =
-        gfx::BufferMemoryBarrier{.src_stages = src_stages,
-                                 .dst_stages = gfx::PipelineStages::FragmentShader,
-                                 .src_access = src_access,
-                                 .dst_access = gfx::Access::ShaderRead};
-    num_barriers++;
+    barriers
+        .push(gfx::BufferMemoryBarrier{.src_stages = src_stages,
+                                       .dst_stages = gfx::PipelineStages::FragmentShader,
+                                       .src_access = src_access,
+                                       .dst_access = gfx::Access::ShaderRead})
+        .unwrap();
   }
 }
 
@@ -291,244 +286,252 @@ constexpr BufferScope compute_storage_buffer_scope(gfx::BufferUsageScope scope)
 //
 //
 // only called on dst
-constexpr void acquire_image(gfx::ImageUsageScope scope, gfx::PipelineStages dst_stages,
-                             gfx::Access dst_access, gfx::ImageLayout new_layout,
-                             gfx::ImageMemoryBarrier barriers[MAX_SCOPE_BARRIERS], u8 &num_barriers)
+// Q: by inserting multiple barriers, will they all execute???
+// Q: non-sampled or imagelayout-transitioning stages need acquire and release operations???
+// only one of them will ever get executed because the previous barriers would have drained the work they had
+// only executes if there is still work left to be drained???? but there will be multiple works to be drained
+// barriers execute in the order they were submitted?
+// once a work completes and there are multiple barriers waiting on it, will all the barriers perform the wait
+//, no because this will implicitly depend on any op that performs read, writes, or layout transitions
+
+
+// if there's no task that has the required access and stages, will the barrier
+//
+//
+inline void acquire_image(gfx::ImageUsageScope scope, gfx::PipelineStages dst_stages,
+                          gfx::Access dst_access, gfx::ImageLayout new_layout,
+                          stx::Array<gfx::ImageMemoryBarrier, MAX_SCOPE_BARRIERS> &barriers)
 {
-  num_barriers = 0;
-
-  // Q: by inserting multiple barriers, will they all execute???
-  // Q: non-sampled or imagelayout-transitioning stages need acquire and release operations???
-  // only one of them will ever get executed because the previous barriers would have drained the work they had
-  // only executes if there is still work left to be drained???? but there will be multiple works to be drained
-  // barriers execute in the order they were submitted?
-  // once a work completes and there are multiple barriers waiting on it, will all the barriers perform the wait
-  //, no because this will implicitly depend on any op that performs read, writes, or layout transitions
-
   if (has_bits(scope, gfx::ImageUsageScope::TransferSrc | gfx::ImageUsageScope::TransferDst))
   {
-    barriers[num_barriers] = gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
-                                                     .dst_stages = dst_stages,
-                                                     .src_access = gfx::Access::TransferRead |
-                                                                   gfx::Access::TransferWrite,
-                                                     .dst_access = dst_access,
-                                                     .old_layout = gfx::ImageLayout::General,
-                                                     .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
+                                      .dst_stages = dst_stages,
+                                      .src_access =
+                                          gfx::Access::TransferRead | gfx::Access::TransferWrite,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::General,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::ImageUsageScope::TransferSrc))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
-                                .dst_stages = dst_stages,
-                                .src_access = gfx::Access::TransferRead,
-                                .dst_access = dst_access,
-                                .old_layout = gfx::ImageLayout::TransferSrcOptimal,
-                                .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::TransferRead,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::TransferSrcOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::ImageUsageScope::TransferDst))
   {
-    barriers[num_barriers] = gfx::ImageMemoryBarrier{
-        .src_stages = gfx::PipelineStages::Transfer,
-        .dst_stages = dst_stages,
-        .src_access = gfx::Access::TransferWrite,
-        .dst_access = dst_access,
-        .old_layout = gfx::ImageLayout::TransferDstOptimal,
-        .new_layout = new_layout,
-    };
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::Transfer,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::TransferWrite,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::TransferDstOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::ImageUsageScope::ComputeShaderStorage |
                           gfx::ImageUsageScope::ComputeShaderSampled))
   {
-    barriers[num_barriers] = gfx::ImageMemoryBarrier{
-        .src_stages = gfx::PipelineStages::ComputeShader,
-        .dst_stages = dst_stages,
-        .src_access = gfx::Access::ShaderWrite | gfx::Access::ShaderRead,
-        .dst_access = dst_access,
-        .old_layout = gfx::ImageLayout::General,
-        .new_layout = new_layout,
-    };
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::ComputeShader,
+                                      .dst_stages = dst_stages,
+                                      .src_access =
+                                          gfx::Access::ShaderWrite | gfx::Access::ShaderRead,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::General,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::ImageUsageScope::ComputeShaderStorage))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::ComputeShader,
-                                .dst_stages = dst_stages,
-                                .src_access = gfx::Access::ShaderWrite,
-                                .dst_access = dst_access,
-                                .old_layout = gfx::ImageLayout::General,
-                                .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::ComputeShader,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::ShaderWrite,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::General,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::ImageUsageScope::ComputeShaderSampled))
   {
-    barriers[num_barriers] = gfx::ImageMemoryBarrier{
-        .src_stages = gfx::PipelineStages::ComputeShader,
-        .dst_stages = dst_stages,
-        .src_access = gfx::Access::ShaderRead,
-        .dst_access = dst_access,
-        .old_layout = gfx::ImageLayout::ShaderReadOnlyOptimal,
-        .new_layout = new_layout,
-    };
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::ComputeShader,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::ShaderRead,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::ShaderReadOnlyOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::ImageUsageScope::VertexShaderSampled))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::VertexShader,
-                                .dst_stages = dst_stages,
-                                .src_access = gfx::Access::ShaderRead,
-                                .dst_access = dst_access,
-                                .old_layout = gfx::ImageLayout::ShaderReadOnlyOptimal,
-                                .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::VertexShader,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::ShaderRead,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::ShaderReadOnlyOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::ImageUsageScope::FragmentShaderSampled))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::FragmentShader,
-                                .dst_stages = dst_stages,
-                                .src_access = gfx::Access::ShaderRead,
-                                .dst_access = dst_access,
-                                .old_layout = gfx::ImageLayout::ShaderReadOnlyOptimal,
-                                .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::FragmentShader,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::ShaderRead,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::ShaderReadOnlyOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::ImageUsageScope::InputAttachment))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::FragmentShader,
-                                .dst_stages = dst_stages,
-                                .src_access = gfx::Access::InputAttachmentRead,
-                                .dst_access = dst_access,
-                                .old_layout = gfx::ImageLayout::ShaderReadOnlyOptimal,
-                                .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::FragmentShader,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::InputAttachmentRead,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::ShaderReadOnlyOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::ImageUsageScope::ReadColorAttachment |
                           gfx::ImageUsageScope::WriteColorAttachment))
   {
-    barriers[num_barriers] = gfx::ImageMemoryBarrier{
-        .src_stages = gfx::PipelineStages::LateFragmentTests,
-        .dst_stages = dst_stages,
-        .src_access = gfx::Access::ColorAttachmentRead | gfx::Access::ColorAttachmentWrite,
-        .dst_access = dst_access,
-        .old_layout = gfx::ImageLayout::ColorAttachmentOptimal,
-        .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::LateFragmentTests,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::ColorAttachmentRead |
+                                                    gfx::Access::ColorAttachmentWrite,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::ColorAttachmentOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::ImageUsageScope::ReadColorAttachment))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::LateFragmentTests,
-                                .dst_stages = dst_stages,
-                                .src_access = gfx::Access::ColorAttachmentRead,
-                                .dst_access = dst_access,
-                                .old_layout = gfx::ImageLayout::ColorAttachmentOptimal,
-                                .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::LateFragmentTests,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::ColorAttachmentRead,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::ColorAttachmentOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::ImageUsageScope::WriteColorAttachment))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::LateFragmentTests,
-                                .dst_stages = dst_stages,
-                                .src_access = gfx::Access::ColorAttachmentWrite,
-                                .dst_access = dst_access,
-                                .old_layout = gfx::ImageLayout::ColorAttachmentOptimal,
-                                .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::LateFragmentTests,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::ColorAttachmentWrite,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::ColorAttachmentOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
 
   if (has_bits(scope, gfx::ImageUsageScope::ReadDepthStencilAttachment |
                           gfx::ImageUsageScope::WriteDepthStencilAttachment))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::EarlyFragmentTests,
-                                .dst_stages = dst_stages,
-                                .src_access = gfx::Access::DepthStencilAttachmentRead |
-                                              gfx::Access::DepthStencilAttachmentWrite,
-                                .dst_access = dst_access,
-                                .old_layout = gfx::ImageLayout::DepthStencilAttachmentOptimal,
-                                .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::EarlyFragmentTests |
+                                                    gfx::PipelineStages::LateFragmentTests,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::DepthStencilAttachmentRead |
+                                                    gfx::Access::DepthStencilAttachmentWrite,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::DepthStencilAttachmentOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::ImageUsageScope::ReadDepthStencilAttachment))
   {
-    barriers[num_barriers] = gfx::ImageMemoryBarrier{
-        .src_stages = gfx::PipelineStages::EarlyFragmentTests,
-        .dst_stages = dst_stages,
-        .src_access = gfx::Access::DepthStencilAttachmentRead,
-        .dst_access = dst_access,
-        .old_layout = gfx::ImageLayout::DepthStencilReadOnlyOptimal,
-        .new_layout = new_layout,
-    };
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::EarlyFragmentTests,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::DepthStencilAttachmentRead,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::DepthStencilReadOnlyOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
   else if (has_bits(scope, gfx::ImageUsageScope::WriteDepthStencilAttachment))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::EarlyFragmentTests,
-                                .dst_stages = dst_stages,
-                                .src_access = gfx::Access::DepthStencilAttachmentWrite,
-                                .dst_access = dst_access,
-                                .old_layout = gfx::ImageLayout::DepthStencilAttachmentOptimal,
-                                .new_layout = new_layout};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::LateFragmentTests,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::DepthStencilAttachmentWrite,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::DepthStencilAttachmentOptimal,
+                                      .new_layout = new_layout})
+        .unwrap();
   }
 }
 
 // release side-effects to operations that are allowed to execute in parallel
-constexpr void release_image(gfx::ImageUsageScope scope, gfx::PipelineStages src_stages,
-                             gfx::Access src_access, gfx::ImageLayout old_layout,
-                             gfx::ImageMemoryBarrier barriers[MAX_SCOPE_BARRIERS], u8 &num_barriers)
+inline void release_image(gfx::ImageUsageScope scope, gfx::PipelineStages src_stages,
+                          gfx::Access src_access, gfx::ImageLayout old_layout,
+                          stx::Array<gfx::ImageMemoryBarrier, MAX_SCOPE_BARRIERS> &barriers)
 {
-  num_barriers = 0;
-
+  // this would mean even if it is only used as sampled in a pass, as long as it has a storage usage, an acquire must be performed?
+  // or do we convert to general??????
+  //
+  //
+  // TODO(lamarrr): merge input attachment, frgment shader and vertex shader?
+  //
   if (has_bits(scope, gfx::ImageUsageScope::ComputeShaderSampled) &&
       !has_bits(scope, gfx::ImageUsageScope::ComputeShaderStorage))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = src_stages,
-                                .dst_stages = gfx::PipelineStages::ComputeShader,
-                                .src_access = src_access,
-                                .dst_access = gfx::Access::ShaderRead,
-                                .old_layout = old_layout,
-                                .new_layout = gfx::ImageLayout::ShaderReadOnlyOptimal};
-    num_barriers++;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = src_stages,
+                                      .dst_stages = gfx::PipelineStages::ComputeShader,
+                                      .src_access = src_access,
+                                      .dst_access = gfx::Access::ShaderRead,
+                                      .old_layout = old_layout,
+                                      .new_layout = gfx::ImageLayout::ShaderReadOnlyOptimal})
+        .unwrap();
   }
 
-  if (has_bits(scope, gfx::ImageUsageScope::VertexShaderSampled))
+  if (has_any_bit(scope, gfx::ImageUsageScope::VertexShaderSampled |
+                             gfx::ImageUsageScope::FragmentShaderSampled |
+                             gfx::ImageUsageScope::InputAttachment))
   {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = src_stages,
-                                .dst_stages = gfx::PipelineStages::VertexShader,
-                                .src_access = src_access,
-                                .dst_access = gfx::Access::ShaderRead,
-                                .old_layout = old_layout,
-                                .new_layout = gfx::ImageLayout::ShaderReadOnlyOptimal};
-    num_barriers++;
-  }
+    gfx::PipelineStages dst_stages = gfx::PipelineStages::None;
 
-  if (has_bits(scope, gfx::ImageUsageScope::FragmentShaderSampled) ||
-      has_bits(scope, gfx::ImageUsageScope::InputAttachment))
-  {
-    barriers[num_barriers] =
-        gfx::ImageMemoryBarrier{.src_stages = src_stages,
-                                .dst_stages = gfx::PipelineStages::FragmentShader,
-                                .src_access = src_access,
-                                .dst_access = gfx::Access::ShaderRead,
-                                .old_layout = old_layout,
-                                .new_layout = gfx::ImageLayout::ShaderReadOnlyOptimal};
-    num_barriers++;
+    if (has_bits(scope, gfx::ImageUsageScope::VertexShaderSampled))
+    {
+      dst_stages |= gfx::PipelineStages::VertexShader;
+    }
+
+    if (has_any_bit(scope, gfx::ImageUsageScope::FragmentShaderSampled |
+                               gfx::ImageUsageScope::InputAttachment))
+    {
+      dst_stages |= gfx::PipelineStages::FragmentShader;
+    }
+
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = src_stages,
+                                      .dst_stages = dst_stages,
+                                      .src_access = src_access,
+                                      .dst_access = gfx::Access::ShaderRead,
+                                      .old_layout = old_layout,
+                                      .new_layout = gfx::ImageLayout::ShaderReadOnlyOptimal})
+        .unwrap();
   }
 
   // color attachments must have barriers whether read or write since they perform transitions
@@ -542,7 +545,7 @@ constexpr void release_image(gfx::ImageUsageScope scope, gfx::PipelineStages src
   //   barrier.old_layout = old_layout;
   //   barrier.new_layout = gfx::ImageLayout::ColorAttachmentOptimal;
   // }
-
+  //
   // if (has_bits(scope, gfx::ImageUsageScope::ReadDepthStencilAttachment) &&
   //     !has_bits(scope, gfx::ImageUsageScope::WriteDepthStencilAttachment))
   // {
@@ -578,7 +581,7 @@ constexpr ImageScope transfer_image_scope(gfx::ImageUsageScope scope)
     layout = gfx::ImageLayout::TransferDstOptimal;
   }
 
-  return ImageScope{.layout = layout, .stages = stages, .access = access};
+  return ImageScope{.stages = stages, .access = access, .layout = layout};
 }
 
 constexpr ImageScope compute_storage_image_scope(gfx::ImageUsageScope scope)
@@ -604,59 +607,55 @@ constexpr ImageScope compute_storage_image_scope(gfx::ImageUsageScope scope)
     layout = gfx::ImageLayout::General;
   }
 
-  return ImageScope{.layout = layout, .stages = stages, .access = access};
+  return ImageScope{.stages = stages, .access = access, .layout = layout};
 }
 
 constexpr ImageScope color_attachment_image_scope(gfx::ImageUsageScope scope)
 {
-  gfx::ImageLayout    layout = gfx::ImageLayout::Undefined;
-  gfx::PipelineStages stages = gfx::PipelineStages::LateFragmentTests;
+  gfx::ImageLayout    layout = gfx::ImageLayout::ColorAttachmentOptimal;
+  gfx::PipelineStages stages = gfx::PipelineStages::ColorAttachmentOutput;
   gfx::Access         access = gfx::Access::None;
 
-  if (has_bits(scope, gfx::ImageUsageScope::ReadColorAttachment |
-                          gfx::ImageUsageScope::WriteColorAttachment))
+  if (has_bits(scope, gfx::ImageUsageScope::ReadColorAttachment))
   {
-    access = gfx::Access::ColorAttachmentRead | gfx::Access::ColorAttachmentWrite;
-    layout = gfx::ImageLayout::ColorAttachmentOptimal;
-  }
-  else if (has_bits(scope, gfx::ImageUsageScope::ReadColorAttachment))
-  {
-    access = gfx::Access::ColorAttachmentRead;
-    layout = gfx::ImageLayout::ColorAttachmentOptimal;
-  }
-  else if (has_bits(scope, gfx::ImageUsageScope::WriteColorAttachment))
-  {
-    access = gfx::Access::ColorAttachmentWrite;
-    layout = gfx::ImageLayout::ColorAttachmentOptimal;
+    access |= gfx::Access::ColorAttachmentRead;
   }
 
-  return ImageScope{.layout = layout, .stages = stages, .access = access};
+  if (has_bits(scope, gfx::ImageUsageScope::WriteColorAttachment))
+  {
+    access |= gfx::Access::ColorAttachmentWrite;
+  }
+
+  return ImageScope{.stages = stages, .access = access, .layout = layout};
 }
 
 constexpr ImageScope depth_stencil_attachment_image_scope(gfx::ImageUsageScope scope)
 {
   gfx::ImageLayout    layout = gfx::ImageLayout::Undefined;
-  gfx::PipelineStages stages = gfx::PipelineStages::EarlyFragmentTests;
+  gfx::PipelineStages stages = gfx::PipelineStages::None;
   gfx::Access         access = gfx::Access::None;
 
   if (has_bits(scope, gfx::ImageUsageScope::ReadDepthStencilAttachment |
                           gfx::ImageUsageScope::WriteDepthStencilAttachment))
   {
+    stages = gfx::PipelineStages::EarlyFragmentTests | gfx::PipelineStages::LateFragmentTests;
     access = gfx::Access::DepthStencilAttachmentRead | gfx::Access::DepthStencilAttachmentWrite;
     layout = gfx::ImageLayout::DepthStencilAttachmentOptimal;
   }
   else if (has_bits(scope, gfx::ImageUsageScope::ReadDepthStencilAttachment))
   {
+    stages = gfx::PipelineStages::EarlyFragmentTests;
     access = gfx::Access::DepthStencilAttachmentRead;
     layout = gfx::ImageLayout::DepthStencilReadOnlyOptimal;
   }
   else if (has_bits(scope, gfx::ImageUsageScope::WriteDepthStencilAttachment))
   {
-    access = gfx::Access::TransferWrite;
+    stages = gfx::PipelineStages::LateFragmentTests;
+    access = gfx::Access::DepthStencilAttachmentWrite;
     layout = gfx::ImageLayout::DepthStencilAttachmentOptimal;
   }
 
-  return ImageScope{.layout = layout, .stages = stages, .access = access};
+  return ImageScope{.stages = stages, .access = access, .layout = layout};
 }
 
 void gen_transfer_barriers(gfx::BufferUsageScope scope, gfx::BufferMemoryBarrier[])
@@ -694,81 +693,60 @@ void gen_transfer_barriers(gfx::BufferUsageScope scope, gfx::BufferMemoryBarrier
 
 // NOTE: renderpass attachments MUST not be accessed in shaders within that renderpass
 
-constexpr ImageAccess get_color_image_access() const
+constexpr ImageScope color_attachment_image_scope(gfx::RenderPassAttachment const &attachment)
 {
-  ImageLayout  layout    = ImageLayout::ColorAttachmentOptimal;
-  bool         has_write = false;
-  bool         has_read  = false;
-  MemoryAccess access    = MemoryAccess::None;
+  gfx::ImageLayout layout = gfx::ImageLayout::ColorAttachmentOptimal;
+  gfx::Access      access = gfx::Access::None;
 
-  if (load_op == LoadOp::Clear || load_op == LoadOp::DontCare || store_op == StoreOp::Store)
+  if (attachment.load_op == gfx::LoadOp::Clear || attachment.load_op == gfx::LoadOp::DontCare ||
+      attachment.store_op == gfx::StoreOp::Store)
   {
-    has_write = true;
+    access |= gfx::Access::ColorAttachmentWrite;
   }
 
-  if (load_op == LoadOp::Load)
+  if (attachment.load_op == gfx::LoadOp::Load)
   {
-    has_read = true;
+    access |= gfx::Access::ColorAttachmentRead;
   }
 
-  if (has_write)
-  {
-    access |= MemoryAccess::Write;
-  }
-
-  if (has_read)
-  {
-    access |= MemoryAccess::Read;
-  }
-
-  return ImageAccess{
-      .layout = layout, .stages = PipelineStages::ColorAttachmentOutput, .access = access};
+  return ImageScope{
+      .stages = gfx::PipelineStages::ColorAttachmentOutput, .access = access, .layout = layout};
 }
 
-constexpr ImageAccess get_depth_stencil_image_access() const
+constexpr ImageScope
+    depth_stencil_attachment_image_scope(gfx::RenderPassAttachment const &attachment)
 {
-  ImageLayout  layout    = ImageLayout::Undefined;
-  bool         has_write = false;
-  bool         has_read  = false;
-  MemoryAccess access    = MemoryAccess::None;
+  gfx::ImageLayout    layout = gfx::ImageLayout::Undefined;
+  gfx::Access         access = gfx::Access::None;
+  gfx::PipelineStages stages = gfx::PipelineStages::None;
 
-  if (load_op == LoadOp::Clear || load_op == LoadOp::DontCare || store_op == StoreOp::Store ||
-      store_op == StoreOp::DontCare || stencil_load_op == LoadOp::Clear ||
-      stencil_load_op == LoadOp::DontCare || stencil_store_op == StoreOp::Store ||
-      stencil_store_op == StoreOp::DontCare)
+  if (attachment.load_op == gfx::LoadOp::Clear || attachment.load_op == gfx::LoadOp::DontCare ||
+      attachment.store_op == gfx::StoreOp::Store || attachment.store_op == gfx::StoreOp::DontCare ||
+      attachment.stencil_load_op == gfx::LoadOp::Clear ||
+      attachment.stencil_load_op == gfx::LoadOp::DontCare ||
+      attachment.stencil_store_op == gfx::StoreOp::Store ||
+      attachment.stencil_store_op == gfx::StoreOp::DontCare)
   {
-    has_write = true;
+    access |= gfx::Access::DepthStencilAttachmentWrite;
+    stages |= gfx::PipelineStages::LateFragmentTests;
   }
 
-  if (load_op == LoadOp::Load || stencil_load_op == LoadOp::Load)
+  if (attachment.load_op == gfx::LoadOp::Load || attachment.stencil_load_op == gfx::LoadOp::Load)
   {
-    has_read = true;
+    access |= gfx::Access::DepthStencilAttachmentRead;
+    stages |= gfx::PipelineStages::EarlyFragmentTests;
   }
 
-  if (has_write)
+  if (has_bits(access, gfx::Access::ColorAttachmentWrite))
   {
-    access |= MemoryAccess::Write;
-  }
-
-  if (has_read)
-  {
-    access |= MemoryAccess::Read;
-  }
-
-  if (has_write)
-  {
-    layout = ImageLayout::DepthStencilAttachmentOptimal;
+    layout = gfx::ImageLayout::DepthStencilAttachmentOptimal;
   }
   else
   {
-    layout = ImageLayout::DepthStencilReadOnlyOptimal;
+    layout = gfx::ImageLayout::DepthStencilReadOnlyOptimal;
   }
 
-  return ImageAccess{.layout = layout,
-                     .stages = PipelineStages::EarlyFragmentTests |
-                               PipelineStages::LateFragmentTests |
-                               PipelineStages::ColorAttachmentOutput,
-                     .access = access};
+  return ImageScope{.stages = stages, .access = access, .layout = layout};
 }
 
 void CommandBuffer::fill_buffer(gfx::Buffer buffer, u64 offset, u64 size, u32 data)
