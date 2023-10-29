@@ -1,7 +1,7 @@
 #pragma once
 #include "ashura/gfx.h"
 #include "ashura/rhi.h"
-#include "ashura/sparse_array.h"
+#include "ashura/sparse_vec.h"
 #include "stx/fn.h"
 #include "stx/vec.h"
 
@@ -9,9 +9,34 @@ namespace ash
 {
 namespace rcg
 {
-struct CommandBufferHook;
-struct CommandBuffer;
-struct GraphHook;
+
+constexpr u8 MAX_FRAMES_IN_FLIGHT = 2;
+
+// we'll support GLSL->SPIRV and Shader Editor -> C++ -> GLSL -> SPIRV
+// contains all loaded shaders
+//
+//
+// TODO(lamarrr): multi-pass dependency? knowing when to free resources
+//
+struct ShaderMap
+{
+  // shaders are always compiled and loaded at startup time
+  // select shader
+  // shader will have vendor, context, and name to compare to
+  // if none was given then how?
+  // we don't allow shaders to change at runtime, they must be baked and compiled AOT
+  //
+  // TODO(lamarrr): PSO caches
+  //
+  //
+};
+
+struct PipelineCacheMap
+{
+  // vendor id, pass name, name
+  // frag shader id, vert shader id
+};
+
 struct Graph;
 
 // used for: validation layer, logging, warning, and driver dispatch
@@ -19,10 +44,13 @@ struct CommandBufferHook
 {
   Graph *graph = nullptr;
 
+  // todo(lamarrr): clear subresource
   virtual void fill_buffer(gfx::Buffer buffer, u64 offset, u64 size, u32 data)         = 0;
   virtual void copy_buffer(gfx::Buffer src, gfx::Buffer dst,
                            stx::Span<gfx::BufferCopy const> copies)                    = 0;
   virtual void update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::Buffer dst) = 0;
+  virtual void clear_image(gfx::Image dst, gfx::Color color)                           = 0;
+  virtual void clear_image(gfx::Image dst, gfx::DepthStencil depth_stencil)            = 0;
   virtual void copy_image(gfx::Image src, gfx::Image dst,
                           stx::Span<gfx::ImageCopy const> copies)                      = 0;
   virtual void copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
@@ -54,7 +82,6 @@ struct CommandBufferHook
   virtual ~CommandBufferHook()                                           = 0;
 };
 
-// USE IMAGE ACCESS INSTEAD? AND COALESCE THEM? i.e. used as read and used as write
 struct CommandBuffer
 {
   Graph                          *graph            = nullptr;
@@ -63,15 +90,12 @@ struct CommandBuffer
   gfx::Framebuffer                framebuffer      = nullptr;
   stx::Vec<stx::UniqueFn<void()>> completion_tasks = {};        // MUST be run in reverse order
   gfx::CommandBuffer              handle           = nullptr;
-  stx::Vec<gfx::BufferMemoryBarrier> buffer_memory_barriers;
-  stx::Vec<gfx::ImageMemoryBarrier>  image_memory_barriers;
 
-  // TODO(lamarrr): use descriptor sets multiple times per-pass
-  // NOTE:::: MUST be multiple of 4 for dst offset and dst size
   void fill_buffer(gfx::Buffer buffer, u64 offset, u64 size, u32 data);
   void copy_buffer(gfx::Buffer src, gfx::Buffer dst, stx::Span<gfx::BufferCopy const> copies);
-  // NOTE:::: MUST be multiple of 4 for dst offset and dst size
   void update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::Buffer dst);
+  void clear_image(gfx::Image dst, gfx::Color color);
+  void clear_image(gfx::Image dst, gfx::DepthStencil depth_stencil);
   void copy_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageCopy const> copies);
   void copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
                             stx::Span<gfx::BufferImageCopy const> copies);
@@ -113,26 +137,38 @@ struct GraphHook
 {
   Graph *graph = nullptr;
 
-  virtual void create(gfx::BufferDesc const &desc)                                     = 0;
-  virtual void create(gfx::BufferViewDesc const &desc)                                 = 0;
-  virtual void create(gfx::ImageDesc const &desc)                                      = 0;
-  virtual void create(gfx::ImageViewDesc const &desc)                                  = 0;
-  virtual void create(gfx::SamplerDesc const &sampler)                                 = 0;
-  virtual void create(gfx::RenderPassDesc const &desc)                                 = 0;
-  virtual void create(gfx::FramebufferDesc const &desc)                                = 0;
-  virtual void create(stx::Span<gfx::DescriptorBindingDesc const> descriptor_set_desc) = 0;
-  virtual void create(gfx::ComputePipelineDesc const &desc)                            = 0;
-  virtual void create(gfx::GraphicsPipelineDesc const &desc)                           = 0;
-  virtual void release(gfx::Buffer buffer)                                             = 0;
-  virtual void release(gfx::BufferView buffer_view)                                    = 0;
-  virtual void release(gfx::Image image)                                               = 0;
-  virtual void release(gfx::ImageView image_view)                                      = 0;
-  virtual void release(gfx::Sampler sampler)                                           = 0;
-  virtual void release(gfx::RenderPass render_pass)                                    = 0;
-  virtual void release(gfx::Framebuffer framebuffer)                                   = 0;
-  virtual void release(gfx::DescriptorSetLayout descriptor_set_layout)                 = 0;
-  virtual void release(gfx::ComputePipeline pipeline)                                  = 0;
-  virtual void release(gfx::GraphicsPipeline pipeline)                                 = 0;
+  virtual void create(gfx::BufferDesc const &desc)                                         = 0;
+  virtual void create(gfx::BufferViewDesc const &desc)                                     = 0;
+  virtual void create(gfx::ImageDesc const &desc, gfx::Color initial_color)                = 0;
+  virtual void create(gfx::ImageDesc const &desc, gfx::DepthStencil initial_depth_stencil) = 0;
+  virtual void create(gfx::ImageDesc const &desc, gfx::Buffer initial_data)                = 0;
+  virtual void create(gfx::ImageViewDesc const &desc)                                      = 0;
+  virtual void create(gfx::SamplerDesc const &sampler)                                     = 0;
+  virtual void create(gfx::RenderPassDesc const &desc)                                     = 0;
+  virtual void create(gfx::FramebufferDesc const &desc)                                    = 0;
+  virtual void create(gfx::DescriptorSetLayoutDesc const &desc)                            = 0;
+  virtual void create(gfx::ComputePipelineDesc const &desc)                                = 0;
+  virtual void create(gfx::GraphicsPipelineDesc const &desc)                               = 0;
+  virtual void ref(gfx::Buffer buffer)                                                     = 0;
+  virtual void ref(gfx::BufferView buffer_view)                                            = 0;
+  virtual void ref(gfx::Image image)                                                       = 0;
+  virtual void ref(gfx::ImageView image_view)                                              = 0;
+  virtual void ref(gfx::Sampler sampler)                                                   = 0;
+  virtual void ref(gfx::RenderPass render_pass)                                            = 0;
+  virtual void ref(gfx::Framebuffer framebuffer)                                           = 0;
+  virtual void ref(gfx::DescriptorSetLayout descriptor_set_layout)                         = 0;
+  virtual void ref(gfx::ComputePipeline pipeline)                                          = 0;
+  virtual void ref(gfx::GraphicsPipeline pipeline)                                         = 0;
+  virtual void unref(gfx::Buffer buffer)                                                   = 0;
+  virtual void unref(gfx::BufferView buffer_view)                                          = 0;
+  virtual void unref(gfx::Image image)                                                     = 0;
+  virtual void unref(gfx::ImageView image_view)                                            = 0;
+  virtual void unref(gfx::Sampler sampler)                                                 = 0;
+  virtual void unref(gfx::RenderPass render_pass)                                          = 0;
+  virtual void unref(gfx::Framebuffer framebuffer)                                         = 0;
+  virtual void unref(gfx::DescriptorSetLayout descriptor_set_layout)                       = 0;
+  virtual void unref(gfx::ComputePipeline pipeline)                                        = 0;
+  virtual void unref(gfx::GraphicsPipeline pipeline)                                       = 0;
 };
 
 // interceptor that is used for validation and adding barriers
@@ -149,14 +185,14 @@ struct GraphHook
 // NOW: how to insert barrier and validation hooks
 //
 //
-// for each creation and release commands, we'll insert optional hooks that check that the
+// for each creation and unref commands, we'll insert optional hooks that check that the
 // parameters are correct we need to check the graph for information regarding the type and its
 // dependencies
 //
 //
 // on_queue_drain should be called on every device/queue idle wait
-// on scheduled frame_fence sent check if any resource has been requested to be released, if so,
-// release
+// on scheduled frame_fence sent check if any resource has been requested to be unrefd, if so,
+// unref
 //
 // temporary images, temporary buffers,
 //
@@ -166,60 +202,52 @@ struct GraphHook
 //
 struct Graph
 {
-  gfx::Buffer              create(gfx::BufferDesc const &desc);
-  gfx::BufferView          create(gfx::BufferViewDesc const &desc);
-  gfx::Image               create(gfx::ImageDesc const &desc);
-  gfx::ImageView           create(gfx::ImageViewDesc const &desc);
-  gfx::Sampler             create(gfx::SamplerDesc const &sampler);
-  gfx::RenderPass          create(gfx::RenderPassDesc const &desc);
-  gfx::Framebuffer         create(gfx::FramebufferDesc const &desc);
-  gfx::DescriptorSetLayout create(stx::Span<gfx::DescriptorBindingDesc const> descriptor_set_desc);
-  gfx::ComputePipeline     create(gfx::ComputePipelineDesc const &desc);
-  gfx::GraphicsPipeline    create(gfx::GraphicsPipelineDesc const &desc);
-  void                     release(gfx::Buffer buffer);
-  void                     release(gfx::BufferView buffer_view);
-  void                     release(gfx::Image image);
-  void                     release(gfx::ImageView image_view);
-  void                     release(gfx::Sampler sampler);
-  void                     release(gfx::RenderPass render_pass);
-  void                     release(gfx::Framebuffer framebuffer);
-  void                     release(gfx::DescriptorSetLayout descriptor_set_layout);
-  void                     release(gfx::ComputePipeline pipeline);
-  void                     release(gfx::GraphicsPipeline pipeline);
-  void                     on_drain();
-  SparseArray<gfx::BufferResource, gfx::Buffer>                           buffers;
-  SparseArray<gfx::BufferViewResource, gfx::BufferView>                   buffer_views;
-  SparseArray<gfx::ImageResource, gfx::Image>                             images;
-  SparseArray<gfx::ImageViewResource, gfx::ImageView>                     image_views;
-  SparseArray<gfx::SamplerResource, gfx::Sampler>                         samplers;
-  SparseArray<gfx::RenderPassResource, gfx::RenderPass>                   render_passes;
-  SparseArray<gfx::FramebufferResource, gfx::Framebuffer>                 framebuffers;
-  SparseArray<gfx::DescriptorSetLayoutResource, gfx::DescriptorSetLayout> descriptor_set_layouts;
-  SparseArray<gfx::ComputePipelineResource, gfx::ComputePipeline>         compute_pipelines;
-  SparseArray<gfx::GraphicsPipelineResource, gfx::GraphicsPipeline>       graphics_pipelines;
-  rhi::Driver                                                            *driver = nullptr;
-  GraphHook                                                              *hook   = nullptr;
-};
-
-// we'll support GLSL->SPIRV and Shader Editor -> C++ -> GLSL -> SPIRV
-// contains all loaded shaders
-struct ShaderMap
-{
-  // shaders are always compiled and loaded at startup time
-  // select shader
-  // shader will have vendor, context, and name to compare to
-  // if none was given then how?
-  // we don't allow shaders to change at runtime, they must be baked and compiled AOT
-  //
-  // TODO(lamarrr): PSO caches
-  //
-  //
-};
-
-struct PipelineCacheMap
-{
-  // vendor id, pass name, name
-  // frag shader id, vert shader id
+  gfx::Buffer      create(gfx::BufferDesc const &desc);
+  gfx::BufferView  create(gfx::BufferViewDesc const &desc);
+  gfx::Image       create(gfx::ImageDesc const &desc, gfx::Color initial_color);
+  gfx::Image       create(gfx::ImageDesc const &desc, gfx::DepthStencil initial_depth_stencil);
+  gfx::Image       create(gfx::ImageDesc const &desc, gfx::Buffer initial_data);
+  gfx::ImageView   create(gfx::ImageViewDesc const &desc);
+  gfx::Sampler     create(gfx::SamplerDesc const &sampler);
+  gfx::RenderPass  create(gfx::RenderPassDesc const &desc);
+  gfx::Framebuffer create(gfx::FramebufferDesc const &desc);
+  gfx::DescriptorSetLayout                    create(gfx::DescriptorSetLayoutDesc const &desc);
+  gfx::ComputePipeline                        create(gfx::ComputePipelineDesc const &desc);
+  gfx::GraphicsPipeline                       create(gfx::GraphicsPipelineDesc const &desc);
+  void                                        ref(gfx::Buffer buffer);
+  void                                        ref(gfx::BufferView buffer_view);
+  void                                        ref(gfx::Image image);
+  void                                        ref(gfx::ImageView image_view);
+  void                                        ref(gfx::Sampler sampler);
+  void                                        ref(gfx::RenderPass render_pass);
+  void                                        ref(gfx::Framebuffer framebuffer);
+  void                                        ref(gfx::DescriptorSetLayout descriptor_set_layout);
+  void                                        ref(gfx::ComputePipeline pipeline);
+  void                                        ref(gfx::GraphicsPipeline pipeline);
+  void                                        unref(gfx::Buffer buffer);
+  void                                        unref(gfx::BufferView buffer_view);
+  void                                        unref(gfx::Image image);
+  void                                        unref(gfx::ImageView image_view);
+  void                                        unref(gfx::Sampler sampler);
+  void                                        unref(gfx::RenderPass render_pass);
+  void                                        unref(gfx::Framebuffer framebuffer);
+  void                                        unref(gfx::DescriptorSetLayout descriptor_set_layout);
+  void                                        unref(gfx::ComputePipeline pipeline);
+  void                                        unref(gfx::GraphicsPipeline pipeline);
+  SparseVec<gfx::BufferResource, gfx::Buffer> buffers;
+  SparseVec<gfx::BufferViewResource, gfx::BufferView>                   buffer_views;
+  SparseVec<gfx::ImageResource, gfx::Image>                             images;
+  SparseVec<gfx::ImageViewResource, gfx::ImageView>                     image_views;
+  SparseVec<gfx::SamplerResource, gfx::Sampler>                         samplers;
+  SparseVec<gfx::RenderPassResource, gfx::RenderPass>                   render_passes;
+  SparseVec<gfx::FramebufferResource, gfx::Framebuffer>                 framebuffers;
+  SparseVec<gfx::DescriptorSetLayoutResource, gfx::DescriptorSetLayout> descriptor_set_layouts;
+  SparseVec<gfx::ComputePipelineResource, gfx::ComputePipeline>         compute_pipelines;
+  SparseVec<gfx::GraphicsPipelineResource, gfx::GraphicsPipeline>       graphics_pipelines;
+  rhi::Driver                                                          *driver = nullptr;
+  GraphHook                                                            *hook   = nullptr;
+  CommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT]                          = {};
+  u8            current_command_buffer                                         = 0;
 };
 
 }        // namespace rcg

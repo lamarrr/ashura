@@ -18,8 +18,6 @@ namespace ash
 namespace gfx
 {
 
-// TODO(lamarrr): we have to check these against usage and device info
-
 constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
 constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
 constexpr u64 WHOLE_SIZE             = ~0ULL;
@@ -608,6 +606,9 @@ enum class BufferUsageScope : u32
 STX_DEFINE_ENUM_BIT_OPS(BufferUsageScope)
 
 /// used for synchronization of state-mutating commands
+
+/// must provide initial clear value or initial buffer initializer
+// images implicitly have TransferDst usage scope
 enum class ImageUsageScope : u32
 {
   None                        = 0x00000000,
@@ -870,6 +871,11 @@ struct DescriptorBindingDesc
   ShaderStages   stages  = ShaderStages::None;
 };
 
+struct DescriptorSetLayoutDesc
+{
+  stx::Span<DescriptorBindingDesc const> bindings;
+};
+
 struct SamplerBinding
 {
   u32     binding_id  = 0;
@@ -1126,6 +1132,22 @@ union ClearValue
   DepthStencil depth_stencil;
 };
 
+struct StencilFaceState
+{
+  u32 compare_mask = 0;
+  u32 reference    = 0;
+  u32 write_mask   = 0;
+};
+
+struct RenderState
+{
+  Viewport         viewport;
+  IRect            scissor;
+  Vec4             blend_constants;
+  StencilFaceState front_stencil;
+  StencilFaceState back_stencil;
+};
+
 struct BufferMemoryBarrier
 {
   PipelineStages src_stages = PipelineStages::None;
@@ -1146,88 +1168,84 @@ struct ImageMemoryBarrier
   Image          image      = nullptr;
 };
 
-struct StencilFaceState
-{
-  u32 compare_mask = 0;
-  u32 reference    = 0;
-  u32 write_mask   = 0;
-};
-
-struct RenderState
-{
-  Viewport         viewport;
-  IRect            scissor;
-  Vec4             blend_constants;
-  StencilFaceState front_stencil;
-  StencilFaceState back_stencil;
-};
-
 // RESOURCES hold the backend/RHI handles
 
 struct BufferResource
 {
-  BufferDesc desc;
-  Buffer     handle = nullptr;
+  u32        refcount = 0;
+  BufferDesc desc     = {};
+  Buffer     handle   = nullptr;
 };
 
 struct BufferViewResource
 {
-  BufferViewDesc desc;
-  BufferView     handle = nullptr;
+  u32            refcount = 0;
+  BufferViewDesc desc     = {};
+  BufferView     handle   = nullptr;
 };
 
 struct ImageResource
 {
-  ImageDesc desc;
-  Image     handle = nullptr;
+  u32       refcount = 0;
+  ImageDesc desc     = {};
+  Image     handle   = nullptr;
 };
 
 struct ImageViewResource
 {
-  ImageViewDesc desc;
-  ImageView     handle = nullptr;
+  u32           refcount = 0;
+  ImageViewDesc desc     = {};
+  ImageView     handle   = nullptr;
 };
 
 struct RenderPassResource
 {
-  RenderPassDesc desc;
-  RenderPass     handle = nullptr;
+  u32            refcount = 0;
+  RenderPassDesc desc     = {};
+  RenderPass     handle   = nullptr;
 };
 
 struct FramebufferResource
 {
-  FramebufferDesc desc;
-  Framebuffer     handle = nullptr;
+  u32             refcount = 0;
+  FramebufferDesc desc     = {};
+  Framebuffer     handle   = nullptr;
 };
 
 struct ShaderResource
 {
-  Shader handle = nullptr;
+  u32    refcount = 0;
+  Shader handle   = nullptr;
 };
 
 struct ComputePipelineResource
 {
-  ComputePipeline handle = nullptr;
+  u32             refcount = 0;
+  ComputePipeline handle   = nullptr;
 };
 
 struct GraphicsPipelineResource
 {
-  GraphicsPipeline handle = nullptr;
+  u32              refcount = 0;
+  GraphicsPipeline handle   = nullptr;
 };
 
 struct SamplerResource
 {
-  Sampler handle = nullptr;
+  u32     refcount = 0;
+  Sampler handle   = nullptr;
 };
 
 struct DescriptorSetLayoutResource
 {
-  DescriptorSetLayout handle = nullptr;
+  u32                 refcount = 0;
+  DescriptorSetLayout handle   = nullptr;
 };
 
 struct CommandBufferResource
 {
-  CommandBuffer handle = nullptr;
+  u32           refcount = 0;
+  CommandBuffer handle   = nullptr;
 };
 
 }        // namespace gfx

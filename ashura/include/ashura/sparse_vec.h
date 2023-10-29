@@ -6,12 +6,12 @@ namespace ash
 {
 
 template <typename T, typename Handle = u64>
-struct SparseArray
+struct SparseVec
 {
   struct Iterator
   {
-    SparseArray *array = nullptr;
-    usize        index = 0;
+    SparseVec *array = nullptr;
+    usize      index = 0;
 
     Iterator &operator++()
     {

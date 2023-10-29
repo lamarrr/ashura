@@ -11,6 +11,9 @@ constexpr u64 BATCH_SIZE         = 16;
 // warnings: can't be used as depth stencil and color attachment
 // load op clear op, read write matches imageusagescope
 // ssbo matches scope
+// push constant size match check
+// NOTE: renderpass attachments MUST not be accessed in shaders within that renderpass
+// NOTE:::: update_buffer and fill_buffer MUST be multiple of 4 for dst offset and dst size
 struct BufferScope
 {
   gfx::PipelineStages stages = gfx::PipelineStages::None;
@@ -140,6 +143,7 @@ inline void acquire_buffer(gfx::BufferUsageScope scope, gfx::PipelineStages dst_
   }
 }
 
+// release side-effects to operations that are allowed to have concurrent non-mutating access on the resource
 inline void release_buffer(gfx::BufferUsageScope scope, gfx::PipelineStages src_stages,
                            gfx::Access                                               src_access,
                            stx::Array<gfx::BufferMemoryBarrier, MAX_SCOPE_BARRIERS> &barriers)
@@ -272,32 +276,153 @@ constexpr BufferScope compute_storage_buffer_scope(gfx::BufferUsageScope scope)
   return BufferScope{.stages = stages, .access = access};
 }
 
-// src access
-// src layout
-// dst access
-// dst layout
-//
-//
-// read-only stages only need to wait if the image has a write usage scope
-//
-// we need a single barrier for stages where the layout is different from the base layout
+// we need a single barrier for stages where the layout is different from the base layout (readonlyoptimal)
 // i.e. storage, transfer
 //
-//
-//
 // only called on dst
-// Q: by inserting multiple barriers, will they all execute???
-// Q: non-sampled or imagelayout-transitioning stages need acquire and release operations???
+// Q(lamarrr): by inserting multiple barriers, will they all execute???
 // only one of them will ever get executed because the previous barriers would have drained the work they had
 // only executes if there is still work left to be drained???? but there will be multiple works to be drained
-// barriers execute in the order they were submitted?
 // once a work completes and there are multiple barriers waiting on it, will all the barriers perform the wait
 //, no because this will implicitly depend on any op that performs read, writes, or layout transitions
-
-
-// if there's no task that has the required access and stages, will the barrier
+//
+// Q(lamarrr): if there's no task that has the required access and stages, will the barrier still execute?
 //
 //
+// images and buffers must have a first command that operate on them? to transition them and provide access to other commands?
+//
+// what if no previous operation meets the barrier's requirements? then it will continue executing the requesting command
+//
+// no previous cmd means contents are undefined
+//
+//
+// and if image was never transitioned we should be good and use undefined src layout?
+//
+// pre -> op -> post
+// if image was already on the queue scope takes care of it
+// layout+scope -> transfer src|dst optimal
+// all ops that have side-effects
+// transfer transfer src|dst optimal -> scope + layout???? not needed?
+//
+// for transfer post-stages, we can omit the barriers, we only need to give barriers to readers
+//
+//
+// Requirements:
+// - layout merging:
+//      - used as storage and sampled in the same command
+//      - sampled and input attachment  in the same command
+//      - transfer src and transfer dst in the same command
+//
+//
+// TODO(lamarrr): undefined layout handling
+//
+// we need: initial layout, operations providing the initial layout and releasing it to other scopes for pickup
+//
+// - easiest and best would be to have an Undefined + Init function that specifies and places barriers for the scopes
+//
+// - they must all have an initial transfer-dst operation? -
+// - acquire_init -> transfer -> release
+//
+// - acquire_init -> render as color attachment -> release
+//
+// we need a base layout
+
+inline void release_image_init(gfx::ImageUsageScope first_use_scope, gfx::ImageUsageScope scope,
+                               gfx::ImageMemoryBarrier &barrier)
+{
+  // just use fill??? even if not specified with initial data
+  // Scope Layout -> Other Scopes layout
+  // can't use fill cos we might not know the initial layout
+  //
+  // our barriers assume they are coming from one usagescope and transition to same or another usagescope
+  // initialization is not representable
+  //
+  //
+  //
+  // release only upon init
+  //
+  // Undefined, None Access, TopOfPipe -> scopes, NoAccessMask will not affect accessmasks
+  // - multiple setup will mean????
+  //
+  // release to transfer will be as transfer dst
+  // release to color attachment will be as write-only non-flushed
+  //
+  //
+  // multiple none-accesses will cause multiple transitions because there will be no dependency chains
+  //
+  // the previous acquire barriers only work on
+  //
+  //
+  // initial layout top of pipe, none access, transition layout to initial layout
+  //
+  //
+  // add is_first?
+  //
+  //
+  if (has_any_bit(init_scope,
+                  gfx::ImageUsageScope::TransferSrc | gfx::ImageUsageScope::TransferDst))
+  {
+    gfx::ImageLayout new_layout = gfx::ImageLayout::Undefined;
+    if (has_bits(scope, gfx::ImageUsageScope::TransferSrc | gfx::ImageUsageScope::TransferDst))
+    {
+      new_layout = gfx::ImageLayout::General;
+    }
+    else if (has_bits(scope, gfx))
+      else
+      {
+        new_layout = gfx::ImageLayout::TransferDstOptimal;
+      }
+
+    barrier = gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::TopOfPipe,
+                                      .dst_stages = gfx::PipelineStages::Transfer,
+                                      .src_access = gfx::Access::None,
+                                      .dst_access = gfx::Access::TransferWrite,
+                                      .old_layout = gfx::ImageLayout::Undefined,
+                                      .new_layout = new_layout};
+  }
+  else if (init_scope == gfx::ImageUsageScope::ComputeShaderStorage)
+  {
+    barrier = gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::TopOfPipe,
+                                      .dst_stages = gfx::PipelineStages::ComputeShader,
+                                      .src_access = gfx::Access::None,
+                                      .dst_access = gfx::Access::ShaderWrite,
+                                      .old_layout = gfx::ImageLayout::Undefined,
+                                      .new_layout = gfx::ImageLayout::General};
+  }
+  else if (init_scope == gfx::ImageUsageScope::WriteColorAttachment)
+  {
+    barrier = gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::TopOfPipe,
+                                      .dst_stages = gfx::PipelineStages::ColorAttachmentOutput,
+                                      .src_access = gfx::Access::None,
+                                      .dst_access = gfx::Access::ColorAttachmentWrite,
+                                      .old_layout = gfx::ImageLayout::Undefined,
+                                      .new_layout = gfx::ImageLayout::General};
+  }
+  else if (init_scope == gfx::ImageUsageScope::WriteDepthStencilAttachment)
+  {
+    barrier =
+        gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::TopOfPipe,
+                                .dst_stages = gfx::PipelineStages::LateFragmentTests,
+                                .src_access = gfx::Access::None,
+                                .dst_access = gfx::Access::DepthStencilAttachmentWrite,
+                                .old_layout = gfx::ImageLayout::Undefined,
+                                .new_layout = gfx::ImageLayout::DepthStencilAttachmentOptimal};
+  }
+
+  if (has_bits(scope, gfx::ImageUsageScope::Undefined))
+  {
+    scope &= ~gfx::ImageUsageScope::Undefined;
+    barriers
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::TopOfPipe,
+                                      .dst_stages = dst_stages,
+                                      .src_access = gfx::Access::None,
+                                      .dst_access = dst_access,
+                                      .old_layout = gfx::ImageLayout::Undefined,
+                                      .new_layout = gfx::ImageLayout::ColorAttachmentOptimal})
+        .unwrap();
+  }
+}
+
 inline void acquire_image(gfx::ImageUsageScope scope, gfx::PipelineStages dst_stages,
                           gfx::Access dst_access, gfx::ImageLayout new_layout,
                           stx::Array<gfx::ImageMemoryBarrier, MAX_SCOPE_BARRIERS> &barriers)
@@ -337,25 +462,14 @@ inline void acquire_image(gfx::ImageUsageScope scope, gfx::PipelineStages dst_st
         .unwrap();
   }
 
-  if (has_bits(scope, gfx::ImageUsageScope::ComputeShaderStorage |
-                          gfx::ImageUsageScope::ComputeShaderSampled))
+  // if scope has compute shader write then it will always be transitioned to general
+  if (has_bits(scope, gfx::ImageUsageScope::ComputeShaderStorage))
   {
     barriers
         .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::ComputeShader,
                                       .dst_stages = dst_stages,
                                       .src_access =
                                           gfx::Access::ShaderWrite | gfx::Access::ShaderRead,
-                                      .dst_access = dst_access,
-                                      .old_layout = gfx::ImageLayout::General,
-                                      .new_layout = new_layout})
-        .unwrap();
-  }
-  else if (has_bits(scope, gfx::ImageUsageScope::ComputeShaderStorage))
-  {
-    barriers
-        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::ComputeShader,
-                                      .dst_stages = dst_stages,
-                                      .src_access = gfx::Access::ShaderWrite,
                                       .dst_access = dst_access,
                                       .old_layout = gfx::ImageLayout::General,
                                       .new_layout = new_layout})
@@ -413,7 +527,7 @@ inline void acquire_image(gfx::ImageUsageScope scope, gfx::PipelineStages dst_st
                           gfx::ImageUsageScope::WriteColorAttachment))
   {
     barriers
-        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::LateFragmentTests,
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::ColorAttachmentOutput,
                                       .dst_stages = dst_stages,
                                       .src_access = gfx::Access::ColorAttachmentRead |
                                                     gfx::Access::ColorAttachmentWrite,
@@ -425,7 +539,7 @@ inline void acquire_image(gfx::ImageUsageScope scope, gfx::PipelineStages dst_st
   else if (has_bits(scope, gfx::ImageUsageScope::ReadColorAttachment))
   {
     barriers
-        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::LateFragmentTests,
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::ColorAttachmentOutput,
                                       .dst_stages = dst_stages,
                                       .src_access = gfx::Access::ColorAttachmentRead,
                                       .dst_access = dst_access,
@@ -436,7 +550,7 @@ inline void acquire_image(gfx::ImageUsageScope scope, gfx::PipelineStages dst_st
   else if (has_bits(scope, gfx::ImageUsageScope::WriteColorAttachment))
   {
     barriers
-        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::LateFragmentTests,
+        .push(gfx::ImageMemoryBarrier{.src_stages = gfx::PipelineStages::ColorAttachmentOutput,
                                       .dst_stages = dst_stages,
                                       .src_access = gfx::Access::ColorAttachmentWrite,
                                       .dst_access = dst_access,
@@ -483,16 +597,15 @@ inline void acquire_image(gfx::ImageUsageScope scope, gfx::PipelineStages dst_st
   }
 }
 
-// release side-effects to operations that are allowed to execute in parallel
+// release side-effects to operations that are allowed to have concurrent non-mutating access on the resource
 inline void release_image(gfx::ImageUsageScope scope, gfx::PipelineStages src_stages,
                           gfx::Access src_access, gfx::ImageLayout old_layout,
                           stx::Array<gfx::ImageMemoryBarrier, MAX_SCOPE_BARRIERS> &barriers)
 {
-  // this would mean even if it is only used as sampled in a pass, as long as it has a storage usage, an acquire must be performed?
-  // or do we convert to general??????
+  // only shader-sampled images can run parallel to other command views
+  // only transitioned to Shader read only if it is not used as storage at the same stage
   //
-  //
-  // TODO(lamarrr): merge input attachment, frgment shader and vertex shader?
+  // for all non-shader-read-only-optimal usages, an acquire must be performed
   //
   if (has_bits(scope, gfx::ImageUsageScope::ComputeShaderSampled) &&
       !has_bits(scope, gfx::ImageUsageScope::ComputeShaderStorage))
@@ -533,32 +646,9 @@ inline void release_image(gfx::ImageUsageScope scope, gfx::PipelineStages src_st
                                       .new_layout = gfx::ImageLayout::ShaderReadOnlyOptimal})
         .unwrap();
   }
-
-  // color attachments must have barriers whether read or write since they perform transitions
-  // if (has_bits(scope, gfx::ImageUsageScope::ReadColorAttachment) &&
-  //     !has_bits(scope, gfx::ImageUsageScope::WriteColorAttachment))
-  // {
-  //   barrier.src_stages = src_stages;
-  //   barrier.src_access = src_access;
-  //   barrier.dst_stages = gfx::PipelineStages::LateFragmentTests;
-  //   barrier.dst_access = gfx::Access::ColorAttachmentRead;
-  //   barrier.old_layout = old_layout;
-  //   barrier.new_layout = gfx::ImageLayout::ColorAttachmentOptimal;
-  // }
-  //
-  // if (has_bits(scope, gfx::ImageUsageScope::ReadDepthStencilAttachment) &&
-  //     !has_bits(scope, gfx::ImageUsageScope::WriteDepthStencilAttachment))
-  // {
-  //   barrier.src_stages = src_stages;
-  //   barrier.src_access = src_access;
-  //   barrier.dst_stages = gfx::PipelineStages::EarlyFragmentTests;
-  //   barrier.dst_access = gfx::Access::DepthStencilAttachmentRead;
-  //   barrier.old_layout = old_layout;
-  //   barrier.new_layout = gfx::ImageLayout::DepthStencilReadOnlyOptimal;
-  // }
 }
 
-// apply to both src and dist since they require layout transitions
+// apply to both src and dst since they require layout transitions
 constexpr ImageScope transfer_image_scope(gfx::ImageUsageScope scope)
 {
   gfx::ImageLayout    layout = gfx::ImageLayout::Undefined;
@@ -658,41 +748,6 @@ constexpr ImageScope depth_stencil_attachment_image_scope(gfx::ImageUsageScope s
   return ImageScope{.stages = stages, .access = access, .layout = layout};
 }
 
-void gen_transfer_barriers(gfx::BufferUsageScope scope, gfx::BufferMemoryBarrier[])
-{
-  // images and buffers must have a first command that operate on them? to transition them and provide access to other commands?
-  //
-  // what if no previous operation meets the barrier's requirements? then it will continue executing the requesting command
-  //
-  // no previous cmd means contents are undefined
-  //
-  //
-  // and if image was never transitioned we should be good and use undefined src layout?
-  //
-  // pre -> op -> post
-  // if image was already on the queue scope takes care of it
-  // layout+scope -> transfer src|dst optimal
-  // all ops that have side-effects
-  // transfer transfer src|dst optimal -> scope + layout???? not needed?
-  //
-  // for transfer post-stages, we can omit the barriers, we only need to give barriers to readers
-  //
-  //
-  //
-  // challenges
-  //
-  // if scope has compute shader write then it will always be transitioned to general for compute
-  //
-  //
-  //
-  // multiple storage references
-  // what about transfer to same src and dst
-  //
-  // todo(lamarrr): layout merging? i.e. used as storage and sampled? sampled and input attachment
-}
-
-// NOTE: renderpass attachments MUST not be accessed in shaders within that renderpass
-
 constexpr ImageScope color_attachment_image_scope(gfx::RenderPassAttachment const &attachment)
 {
   gfx::ImageLayout layout = gfx::ImageLayout::ColorAttachmentOptimal;
@@ -741,7 +796,7 @@ constexpr ImageScope
   {
     layout = gfx::ImageLayout::DepthStencilAttachmentOptimal;
   }
-  else
+  else if (has_bits(access, gfx::Access::ColorAttachmentRead))
   {
     layout = gfx::ImageLayout::DepthStencilReadOnlyOptimal;
   }

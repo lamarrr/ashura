@@ -6,15 +6,25 @@
 #include "stx/result.h"
 #include "stx/span.h"
 #include "stx/void.h"
+#include <cstddef>
+#include <new>
 
-namespace stx
-{
+STX_BEGIN_NAMESPACE
 
-template <typename T, size_t capacity_>
+#define STX_ARRAY_ENSURE(condition, message)                                      \
+  do                                                                              \
+  {                                                                               \
+    if (!(condition))                                                             \
+    {                                                                             \
+      ::stx::panic("condition: '" #condition "' failed. explanation: " #message); \
+    }                                                                             \
+  } while (0)
+
+template <typename T, size_t Capacity>
 struct Array
 {
-  static_assert(capacity_ > 0);
-  static constexpr size_t capacity = capacity_;
+  static_assert(Capacity > 0);
+  static constexpr size_t capacity = Capacity;
   using Type                       = T;
   using Reference                  = T &;
   using Iterator                   = T *;
@@ -31,21 +41,54 @@ struct Array
   constexpr Array(T const (&arr)[SrcSize]) : size_{SrcSize}
   {
     static_assert(SrcSize <= capacity);
+    for (size_t i = 0; i < SrcSize; i++)
+    {
+      new (data() + i) T{arr[i]};
+    }
   }
 
-  constexpr Array(Array const &);
-  constexpr Array(Array &&);
-  constexpr Array &operator=(Array const &);
-  constexpr Array &operator=(Array &&);
+  constexpr Array(Array const &other) : size_{other.size_}
+  {
+    for (size_t i = 0; i < other.size_; i++)
+    {
+      new (data() + i) T{other.data()[i]};
+    }
+  }
+
+  constexpr Array(Array &&other) : size_{other.size_}
+  {
+    for (size_t i = 0; i < other.size_; i++)
+    {
+      new (data() + i) T{(T &&) (other.data()[i])};
+    }
+
+    for (size_t i = 0; i < other.size_; i++)
+    {
+      (other.data() + i)->~T();
+    }
+
+    other.size_ = 0;
+  }
+
+  constexpr Array &operator=(Array const &other)
+  {
+    this->~Array();
+    new (this) Array{other};
+    return *this;
+  }
+
+  constexpr Array &operator=(Array &&other)
+  {
+    this->~~Array();
+    new (this) Array{(Array &&) other};
+    return *this;
+  }
 
   constexpr ~Array()
   {
-    if constexpr (!std::is_trivially_destructible_v<T>)
+    for (size_t i = 0; i < size_; i++)
     {
-      for (size_t i = 0; i < size_; i++)
-      {
-        data_[i].~T();
-      }
+      data()[i].~T();
     }
   }
 
@@ -56,69 +99,97 @@ struct Array
 
   constexpr T *begin()
   {
-    return data_;
+    return data();
   }
 
   constexpr T const *begin() const
   {
-    return data_;
+    return data();
   }
 
   constexpr T *end()
   {
-    return data_ + size_;
+    return data() + size_;
   }
 
   constexpr T const *end() const
   {
-    return data_ + size_;
+    return data() + size_;
   }
 
   constexpr T *data()
   {
-    return data_;
+    return &storage_[0].value;
   }
 
   constexpr T const *data() const
   {
-    return data_;
+    return &storage_[0].value;
   }
 
   constexpr stx::Span<T> span()
   {
+    return stx::Span{data(), size_};
   }
 
   constexpr stx::Span<T const> span() const
   {
+    return stx::Span{data(), size_};
   }
 
   T &operator[](Index index)
   {
+    STX_ARRAY_ENSURE(index < size_, "index out of bounds");
+    return data()[index];
   }
 
   T const &operator[](Index index) const
   {
+    STX_ARRAY_ENSURE(index < size_, "index out of bounds");
+    return data()[index];
   }
 
   constexpr T &get_unsafe(Index index);
 
   constexpr T const &get_unsafe(Index index) const;
 
-  constexpr void clear();
+  constexpr void clear()
+  {
+    this->~Array();
+    size_ = 0;
+  }
 
   constexpr void erase();
 
   constexpr void erase_unsafe();
 
-  Result<Void, AllocError> push(T &&item);
-
-  constexpr void push_unsafe(T &&item);
+  template <typename... Args>
+  Result<Void, AllocError> push_inplace(Args &&...args)
+  {
+    if (size_ >= Capacity)
+    {
+      return stx::Err(stx::AllocError::NoMemory);
+    }
+    push_inplace_unsafe(((Args &&) args)...);
+    return stx::Ok(stx::Void{});
+  }
 
   template <typename... Args>
-  Result<Void, AllocError> push_inplace(Args &&...args);
+  constexpr void push_inplace_unsafe(Args &&...args)
+  {
+    new (&(storage_[size_].value)) T{((Args &&) args)...};
+    size_++;
+  }
 
-  template <typename... Args>
-  constexpr void push_inplace_unsafe(Args &&...args);
+  Result<Void, AllocError> push(T &&item)
+  {
+    return push_inplace((T &&) item);
+  }
+
+  constexpr void push_unsafe(T &&item)
+  {
+    return push_inplace_unsafe((T &&) item);
+  }
 
   Result<Void, AllocError> extend(stx::Span<T const> span);
 
@@ -128,11 +199,12 @@ struct Array
 
   constexpr void extend_move_unsafe(stx::Span<T> span);
 
-  union
+  union Storage
   {
-    T data_[capacity];
-  };
+    T       value;
+    uint8_t rep[sizeof(T)] = {};
+  } storage_[capacity];
   size_t size_ = 0;
 };
 
-}        // namespace stx
+STX_END_NAMESPACE
