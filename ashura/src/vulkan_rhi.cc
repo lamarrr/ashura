@@ -219,7 +219,7 @@ gfx::Image VulkanDriver::create(gfx::ImageDesc const &desc)
                                 .extent                = VkExtent3D{.width  = desc.extent.width,
                                                                     .height = desc.extent.height,
                                                                     .depth  = desc.extent.height},
-                                .mipLevels             = desc.mips,
+                                .mipLevels             = desc.mip_levels,
                                 .arrayLayers           = desc.array_layers,
                                 .samples               = VK_SAMPLE_COUNT_1_BIT,
                                 .tiling                = VK_IMAGE_TILING_OPTIMAL,

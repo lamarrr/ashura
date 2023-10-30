@@ -9,9 +9,7 @@
 #include "stx/enum.h"
 #include "stx/span.h"
 
-#define ASH_DEFINE_HANDLE(handle) \
-  typedef struct handle##_T;      \
-  typedef handle##_T *handle;
+#define ASH_DEFINE_HANDLE(handle) typedef struct handle##_T *handle;
 
 namespace ash
 {
@@ -21,9 +19,9 @@ namespace gfx
 constexpr u32 REMAINING_MIP_LEVELS   = ~0U;
 constexpr u32 REMAINING_ARRAY_LAYERS = ~0U;
 constexpr u64 WHOLE_SIZE             = ~0ULL;
-constexpr u8  MAX_COLOR_ATTACHMENTS  = 8;
-constexpr u8  MAX_VERTEX_ATTRIBUTES  = 16;
-constexpr u8  MAX_PUSH_CONSTANT_SIZE = 128;
+constexpr u32 MAX_COLOR_ATTACHMENTS  = 8;
+constexpr u32 MAX_VERTEX_ATTRIBUTES  = 16;
+constexpr u32 MAX_PUSH_CONSTANT_SIZE = 128;
 
 ASH_DEFINE_HANDLE(Buffer);
 /// format interpretation of a buffer's contents
@@ -606,7 +604,6 @@ enum class BufferUsageScope : u32
 STX_DEFINE_ENUM_BIT_OPS(BufferUsageScope)
 
 /// used for synchronization of state-mutating commands
-
 /// must provide initial clear value or initial buffer initializer
 // images implicitly have TransferDst usage scope
 enum class ImageUsageScope : u32
@@ -770,9 +767,26 @@ struct FormatProperties
   FormatFeatures buffer_features         = FormatFeatures::None;
 };
 
+struct ImageSubresourceRange
+{
+  ImageAspects aspects           = ImageAspects::None;
+  u32          first_mip_level   = 0;
+  u32          num_mip_levels    = 0;
+  u32          first_array_layer = 0;
+  u32          num_array_layers  = 0;
+};
+
+struct ImageSubresourceLayers
+{
+  ImageAspects aspects           = ImageAspects::None;
+  u32          mip_level         = 0;
+  u32          first_array_layer = 0;
+  u32          num_array_layers  = 0;
+};
+
 struct BufferDesc
 {
-  char const      *name       = nullptr;
+  char const      *label      = nullptr;
   u64              size       = 0;
   MemoryProperties properties = MemoryProperties::None;
   BufferUsage      usage      = BufferUsage::None;
@@ -781,7 +795,7 @@ struct BufferDesc
 
 struct BufferViewDesc
 {
-  char const *name        = nullptr;
+  char const *label       = nullptr;
   Buffer      buffer      = nullptr;
   Format      view_format = Format::Undefined;
   u64         offset      = 0;
@@ -790,34 +804,34 @@ struct BufferViewDesc
 
 struct ImageDesc
 {
-  char const     *name         = nullptr;
+  char const     *label        = nullptr;
   ImageType       type         = ImageType::Type1D;
   Format          format       = Format::Undefined;
   ImageUsage      usage        = ImageUsage::None;
   ImageUsageScope scope        = ImageUsageScope::None;
   ImageAspects    aspects      = ImageAspects::None;
   Extent3D        extent       = {};
-  u32             mips         = 0;
+  u32             mip_levels   = 0;
   u32             array_layers = 0;
 };
 
 struct ImageViewDesc
 {
-  char const      *name              = nullptr;
+  char const      *label             = nullptr;
   Image            image             = nullptr;
   ImageViewType    view_type         = ImageViewType::Type1D;
   Format           view_format       = Format::Undefined;
   ComponentMapping mapping           = ComponentMapping{};
+  ImageAspects     aspects           = ImageAspects::None;
   u32              first_mip_level   = 0;
   u32              num_mip_levels    = 0;
   u32              first_array_layer = 0;
   u32              num_array_layers  = 0;
-  ImageAspects     aspects           = ImageAspects::None;
 };
 
 struct SamplerDesc
 {
-  char const        *name                     = nullptr;
+  char const        *label                    = nullptr;
   Filter             mag_filter               = Filter::Nearest;
   Filter             min_filter               = Filter::Nearest;
   SamplerMipMapMode  mip_map_mode             = SamplerMipMapMode::Nearest;
@@ -846,7 +860,7 @@ struct RenderPassAttachment
 
 struct RenderPassDesc
 {
-  char const                                             *name                     = nullptr;
+  char const                                             *label                    = nullptr;
   stx::Array<RenderPassAttachment, MAX_COLOR_ATTACHMENTS> color_attachments        = {};
   stx::Array<RenderPassAttachment, MAX_COLOR_ATTACHMENTS> input_attachments        = {};
   RenderPassAttachment                                    depth_stencil_attachment = {};
@@ -854,12 +868,11 @@ struct RenderPassDesc
 
 struct FramebufferDesc
 {
-  char const                                  *name                     = nullptr;
+  char const                                  *label                    = nullptr;
   RenderPass                                   renderpass               = nullptr;
   Extent                                       extent                   = {};
   u32                                          layers                   = 0;
   stx::Array<ImageView, MAX_COLOR_ATTACHMENTS> color_attachments        = {};
-  stx::Array<ImageView, MAX_COLOR_ATTACHMENTS> input_attachments        = {};
   ImageView                                    depth_stencil_attachment = nullptr;
 };
 
@@ -984,7 +997,7 @@ struct ShaderStageDesc
 
 struct ComputePipelineDesc
 {
-  char const         *name                  = nullptr;
+  char const         *label                 = nullptr;
   ShaderStageDesc     compute_shader        = {};
   DescriptorSetLayout descriptor_set_layout = nullptr;
 };
@@ -1052,7 +1065,7 @@ struct PipelineRasterizationState
 
 struct GraphicsPipelineDesc
 {
-  char const                                           *name                  = nullptr;
+  char const                                           *label                 = nullptr;
   ShaderStageDesc                                       vertex_shader_stage   = {};
   ShaderStageDesc                                       fragment_shader_stage = {};
   RenderPass                                            render_pass           = nullptr;
@@ -1075,42 +1088,27 @@ struct BufferCopy
 
 struct BufferImageCopy
 {
-  u64          buffer_offset       = 0;
-  u32          buffer_row_length   = 0;
-  u32          buffer_image_height = 0;
-  URect3D      image_area          = {};
-  u32          image_mip_level     = 0;
-  u32          first_array_layer   = 0;
-  u32          num_array_layers    = 0;
-  ImageAspects image_aspects       = ImageAspects::None;
+  u64                    buffer_offset       = 0;
+  u32                    buffer_row_length   = 0;
+  u32                    buffer_image_height = 0;
+  URect3D                image_area          = {};
+  ImageSubresourceLayers image_layers        = {};
 };
 
 struct ImageCopy
 {
-  URect3D      src_area              = {};
-  u32          src_mip_level         = 0;
-  u32          src_first_array_layer = 0;
-  u32          src_num_array_layers  = 0;
-  ImageAspects src_aspects           = ImageAspects::None;
-  Offset3D     dst_offset            = {};
-  u32          dst_mip_level         = 0;
-  u32          dst_first_array_layer = 0;
-  u32          dst_num_array_layers  = 0;
-  ImageAspects dst_aspects           = ImageAspects::None;
+  URect3D                src_area   = {};
+  ImageSubresourceLayers src_layers = {};
+  Offset3D               dst_offset = {};
+  ImageSubresourceLayers dst_layers = {};
 };
 
 struct ImageBlit
 {
-  URect3D      src_area              = {};
-  u32          src_mip_level         = 0;
-  u32          src_first_array_layer = 0;
-  u32          src_num_array_layers  = 0;
-  ImageAspects src_aspects           = ImageAspects::None;
-  URect3D      dst_area              = {};
-  u32          dst_mip_level         = 0;
-  u32          dst_first_array_layer = 0;
-  u32          dst_num_array_layers  = 0;
-  ImageAspects dst_aspects           = ImageAspects::None;
+  URect3D                src_area   = {};
+  ImageSubresourceLayers src_layers = {};
+  URect3D                dst_area   = {};
+  ImageSubresourceLayers dst_layers = {};
 };
 
 union Color
@@ -1166,6 +1164,7 @@ struct ImageMemoryBarrier
   ImageLayout    old_layout = ImageLayout::Undefined;
   ImageLayout    new_layout = ImageLayout::Undefined;
   Image          image      = nullptr;
+  ImageAspects   aspects    = ImageAspects::None;
 };
 
 // RESOURCES hold the backend/RHI handles

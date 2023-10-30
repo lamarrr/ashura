@@ -1,17 +1,28 @@
 #pragma once
-#include "ashura/primitives.h"
+#include "stx/panic.h"
 #include "stx/vec.h"
+#include <cinttypes>
+#include <cstddef>
+#include <type_traits>
 
-namespace ash
-{
+#define STX_SPARSE_VEC_ENSURE(condition, message)                                 \
+  do                                                                              \
+  {                                                                               \
+    if (!(condition))                                                             \
+    {                                                                             \
+      ::stx::panic("condition: '" #condition "' failed. explanation: " #message); \
+    }                                                                             \
+  } while (0)
 
-template <typename T, typename Handle = u64>
+STX_BEGIN_NAMESPACE
+
+template <typename T, typename Handle = uint64_t>
 struct SparseVec
 {
   struct Iterator
   {
     SparseVec *array = nullptr;
-    usize      index = 0;
+    size_t     index = 0;
 
     Iterator &operator++()
     {
@@ -59,17 +70,17 @@ struct SparseVec
   {
     if (!free_indices.is_empty())
     {
-      usize index = free_indices.pop().unwrap();
-      T    *mem   = sparse.data() + index;
-      new (mem) T{std::move(element)};
+      size_t index = free_indices.pop().unwrap();
+      T     *mem   = sparse.data() + index;
+      new (mem) T{(T &&) element};
       validity_masks[index >> 6] |= (1ULL << (index & 63));
       return (Handle) (index + 1);
     }
     else
     {
-      usize index = sparse.size();
-      sparse.push_inplace(std::move(element)).unwrap();
-      usize pack = index >> 6;
+      size_t index = sparse.size();
+      sparse.push_inplace((T &&) element).unwrap();
+      size_t pack = index >> 6;
       if (pack >= validity_masks.size())
       {
         validity_masks.resize(pack + 1).unwrap();
@@ -81,10 +92,9 @@ struct SparseVec
 
   void remove(Handle handle)
   {
-    ASH_CHECK(is_valid(handle));
-    usize index = ((usize) handle) - 1;
-    u64  &mask  = validity_masks[index >> 6];
-    ASH_CHECK((mask & (1ULL << (index & 63))) != 0);
+    STX_SPARSE_VEC_ENSURE(is_valid(handle), "invalid handle");
+    size_t    index = ((size_t) handle) - 1;
+    uint64_t &mask  = validity_masks[index >> 6];
     mask &= ~(1ULL << (index & 63));
     if constexpr (!std::is_trivially_destructible_v<T>)
     {
@@ -95,19 +105,19 @@ struct SparseVec
 
   T &operator[](Handle handle)
   {
-    ASH_CHECK(is_valid(handle));
-    return sparse.data()[(usize) handle];
+    STX_SPARSE_VEC_ENSURE(is_valid(handle), "invalid handle");
+    return sparse.data()[(size_t) handle];
   }
 
   T const &operator[](Handle handle) const
   {
-    ASH_CHECK(is_valid(handle));
-    return sparse.data()[(usize) handle];
+    STX_SPARSE_VEC_ENSURE(is_valid(handle), "invalid handle");
+    return sparse.data()[(size_t) handle];
   }
 
   bool is_valid(Handle handle) const
   {
-    usize index = (usize) handle;
+    size_t index = (size_t) handle;
     if (index == 0 || index > sparse.size())
     {
       return false;
@@ -128,9 +138,9 @@ struct SparseVec
     return Iterator{.array = this, .index = sparse.size()};
   }
 
-  stx::Vec<T>     sparse;
-  stx::Vec<u64>   validity_masks;
-  stx::Vec<usize> free_indices;
+  Vec<T>        sparse;
+  Vec<uint64_t> validity_masks;
+  Vec<size_t>   free_indices;
 };
 
-}        // namespace ash
+STX_END_NAMESPACE

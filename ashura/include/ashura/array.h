@@ -33,12 +33,12 @@ struct Array
   using Size                       = size_t;
   using Index                      = size_t;
 
-  constexpr Array() : size_{0}
+  constexpr Array() : rep_{}, size_{0}
   {
   }
 
   template <size_t SrcSize>
-  constexpr Array(T const (&arr)[SrcSize]) : size_{SrcSize}
+  constexpr Array(T const (&arr)[SrcSize]) : rep_{}, size_{SrcSize}
   {
     static_assert(SrcSize <= capacity);
     for (size_t i = 0; i < SrcSize; i++)
@@ -47,7 +47,7 @@ struct Array
     }
   }
 
-  constexpr Array(Array const &other) : size_{other.size_}
+  constexpr Array(Array const &other) : rep_{}, size_{other.size_}
   {
     for (size_t i = 0; i < other.size_; i++)
     {
@@ -55,7 +55,7 @@ struct Array
     }
   }
 
-  constexpr Array(Array &&other) : size_{other.size_}
+  constexpr Array(Array &&other) : rep_{}, size_{other.size_}
   {
     for (size_t i = 0; i < other.size_; i++)
     {
@@ -79,7 +79,7 @@ struct Array
 
   constexpr Array &operator=(Array &&other)
   {
-    this->~~Array();
+    this->~Array();
     new (this) Array{(Array &&) other};
     return *this;
   }
@@ -119,12 +119,12 @@ struct Array
 
   constexpr T *data()
   {
-    return &storage_[0].value;
+    return data_;
   }
 
   constexpr T const *data() const
   {
-    return &storage_[0].value;
+    return data_;
   }
 
   constexpr stx::Span<T> span()
@@ -177,7 +177,7 @@ struct Array
   template <typename... Args>
   constexpr void push_inplace_unsafe(Args &&...args)
   {
-    new (&(storage_[size_].value)) T{((Args &&) args)...};
+    new (data_ + size_) T{((Args &&) args)...};
     size_++;
   }
 
@@ -199,11 +199,11 @@ struct Array
 
   constexpr void extend_move_unsafe(stx::Span<T> span);
 
-  union Storage
+  union
   {
-    T       value;
-    uint8_t rep[sizeof(T)] = {};
-  } storage_[capacity];
+    T       data_[capacity];
+    uint8_t rep_[capacity * sizeof(T)] = {};
+  };
   size_t size_ = 0;
 };
 

@@ -142,7 +142,6 @@ struct VulkanDeviceTable
   VmaVulkanFunctions vma_functions = {};
 };
 
-// TODO(lamarrr): expose multi-device here
 struct VulkanDriver : public Driver
 {
   static constexpr char const *REQUIRED_EXTENSIONS[] = {"VK_KHR_swapchain"};
@@ -152,85 +151,6 @@ struct VulkanDriver : public Driver
   VkDevice                 device    = VK_NULL_HANDLE;
   VmaAllocator             allocator = nullptr;
   virtual ~VulkanDriver() override;
-  virtual gfx::FormatProperties get_format_properties(gfx::Format format) override;
-  virtual gfx::Buffer           create(gfx::BufferDesc const &desc) override;
-  virtual gfx::BufferView       create(gfx::BufferViewDesc const &desc) override;
-  virtual gfx::Image            create(gfx::ImageDesc const &desc) override;
-  virtual gfx::ImageView        create(gfx::ImageViewDesc const &desc) override;
-  virtual gfx::RenderPass       create(gfx::RenderPassDesc const &desc) override;
-  virtual gfx::Framebuffer      create(gfx::FramebufferDesc const &desc) override;
-  virtual gfx::Sampler          create(gfx::SamplerDesc const &sampler) override;
-  virtual gfx::DescriptorSetLayout
-                               create(gfx::DescriptorSetDesc const &descriptor_set_layout) override;
-  virtual gfx::Shader          create_shader(stx::Span<u32 const> shader) override;
-  virtual gfx::ComputePipeline create(gfx::ComputePipelineDesc const &desc) override;
-  virtual gfx::GraphicsPipeline create(gfx::GraphicsPipelineDesc const &desc) override;
-  virtual gfx::CommandBuffer    create_command_buffer() override;
-  virtual void                  release(gfx::Buffer buffer) override;
-  virtual void                  release(gfx::BufferView buffer_view) override;
-  virtual void                  release(gfx::Image image) override;
-  virtual void                  release(gfx::ImageView image_view) override;
-  virtual void                  release(gfx::RenderPass render_pass) override;
-  virtual void                  release(gfx::Framebuffer framebuffer) override;
-  virtual void                  release(gfx::Sampler sampler) override;
-  virtual void                  release(gfx::DescriptorSetLayout descriptor_set_layout) override;
-  virtual void                  release(gfx::Shader shader) override;
-  virtual void                  release(gfx::ComputePipeline pipeline) override;
-  virtual void                  release(gfx::GraphicsPipeline pipeline) override;
-  virtual void                  release(gfx::CommandBuffer command_buffer) override;
-  virtual void cmd_fill_buffer(gfx::CommandBuffer command_buffer, gfx::Buffer buffer, u64 offset,
-                               u64 size, u32 data) override;
-  virtual void cmd_copy_buffer(gfx::CommandBuffer command_buffer, gfx::Buffer src, gfx::Buffer dst,
-                               stx::Span<gfx::BufferCopy const> copies) override;
-  virtual void cmd_update_buffer(gfx::CommandBuffer command_buffer, stx::Span<u8 const> src,
-                                 u64 dst_offset, gfx::Buffer dst) override;
-  virtual void cmd_copy_image(gfx::CommandBuffer command_buffer, gfx::Image src, gfx::Image dst,
-                              stx::Span<gfx::ImageCopy const> copies) override;
-  virtual void cmd_copy_buffer_to_image(gfx::CommandBuffer command_buffer, gfx::Buffer src,
-                                        gfx::Image                            dst,
-                                        stx::Span<gfx::BufferImageCopy const> copies) override;
-  virtual void cmd_blit_image(gfx::CommandBuffer command_buffer, gfx::Image src, gfx::Image dst,
-                              stx::Span<gfx::ImageBlit const> blits, gfx::Filter filter) override;
-  virtual void cmd_begin_render_pass(gfx::CommandBuffer              command_buffer,
-                                     gfx::RenderPassBeginInfo const &info) override;
-  virtual void cmd_end_render_pass(gfx::CommandBuffer command_buffer) override;
-  virtual void cmd_bind_pipeline(gfx::CommandBuffer   command_buffer,
-                                 gfx::ComputePipeline pipeline) override;
-  virtual void cmd_bind_pipeline(gfx::CommandBuffer    command_buffer,
-                                 gfx::GraphicsPipeline pipeline) override;
-  virtual void cmd_bind_vertex_buffers(gfx::CommandBuffer command_buffer, u32 first_binding,
-                                       stx::Span<gfx::Buffer const> vertex_buffers,
-                                       stx::Span<u64 const>         offsets) override;
-  virtual void cmd_bind_index_buffer(gfx::CommandBuffer command_buffer, gfx::Buffer index_buffer,
-                                     u64 offset) override;
-  virtual void cmd_push_descriptor_set(gfx::CommandBuffer command_buffer, u32 set,
-                                       gfx::DescriptorSetBindings const &bindings) override;
-  virtual void cmd_set_scissor(gfx::CommandBuffer command_buffer, IRect scissor) override;
-  virtual void cmd_set_viewport(gfx::CommandBuffer   command_buffer,
-                                gfx::Viewport const &viewport) override;
-  virtual void cmd_set_blend_constants(gfx::CommandBuffer command_buffer, f32 r, f32 g, f32 b,
-                                       f32 a) override;
-  virtual void cmd_set_stencil_compare_mask(gfx::CommandBuffer command_buffer,
-                                            gfx::StencilFaces faces, u32 compare_mask) override;
-  virtual void cmd_set_stencil_reference(gfx::CommandBuffer command_buffer, gfx::StencilFaces faces,
-                                         u32 reference) override;
-  virtual void cmd_set_stencil_write_mask(gfx::CommandBuffer command_buffer,
-                                          gfx::StencilFaces faces, u32 write_mask) override;
-  virtual void cmd_dispatch(gfx::CommandBuffer command_buffer, u32 group_count_x, u32 group_count_y,
-                            u32 group_count_z) override;
-  virtual void cmd_dispatch_indirect(gfx::CommandBuffer command_buffer, gfx::Buffer buffer,
-                                     u64 offset) override;
-  virtual void cmd_draw(gfx::CommandBuffer command_buffer, u32 first_vertex, u32 vertex_count,
-                        u32 instance_count, u32 first_instance_id) override;
-  virtual void cmd_draw_indexed(gfx::CommandBuffer command_buffer, u32 first_index, u32 index_count,
-                                u32 instance_count, i32 vertex_offset,
-                                u32 first_instance_id) override;
-  virtual void cmd_draw_indexed_indirect(gfx::CommandBuffer command_buffer, gfx::Buffer buffer,
-                                         u64 offset, u32 draw_count, u32 stride) override;
-  virtual void cmd_insert_barriers(
-      gfx::CommandBuffer                             command_buffer,
-      stx::Span<gfx::BufferMemoryBarrier const> buffer_memory_barriers,
-      stx::Span<gfx::ImageMemoryBarrier const>  image_memory_barriers) override;
 };
 
 }        // namespace rhi
