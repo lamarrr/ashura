@@ -9,6 +9,7 @@
 #include "ashura/utils.h"
 #include "stx/enum.h"
 #include "stx/fn.h"
+#include "stx/result.h"
 #include "stx/span.h"
 
 #define ASH_DEFINE_HANDLE(handle) typedef struct handle##_T *handle;
@@ -66,6 +67,22 @@ enum class MemoryProperties : u8
 };
 
 STX_DEFINE_ENUM_BIT_OPS(MemoryProperties)
+
+enum class Status : i32
+{
+  Success              = 0,
+  NotReady             = 1,
+  Incomplete           = 5,
+  OutOfHostMemory      = -1,
+  OutOfDeviceMemory    = -2,
+  InitializationFailed = -3,
+  DeviceLost           = -4,
+  MemoryMapFailed      = -5,
+  FeatureNotPresent    = -8,
+  FormatNotSupported   = -11,
+  Unknown              = -13,
+  SurfaceLost          = -1000000000
+};
 
 enum class Format : u32
 {
@@ -1050,43 +1067,43 @@ union ClearValue
 struct BufferResource
 {
   u32        refcount = 0;
-  BufferDesc desc     = {};
   void      *handle   = nullptr;
+  BufferDesc desc     = {};
 };
 
 struct BufferViewResource
 {
   u32            refcount = 0;
-  BufferViewDesc desc     = {};
   void          *handle   = nullptr;
+  BufferViewDesc desc     = {};
 };
 
 struct ImageResource
 {
   u32       refcount = 0;
-  ImageDesc desc     = {};
   void     *handle   = nullptr;
+  ImageDesc desc     = {};
 };
 
 struct ImageViewResource
 {
   u32           refcount = 0;
-  ImageViewDesc desc     = {};
   void         *handle   = nullptr;
+  ImageViewDesc desc     = {};
 };
 
 struct RenderPassResource
 {
   u32            refcount = 0;
-  RenderPassDesc desc     = {};
   void          *handle   = nullptr;
+  RenderPassDesc desc     = {};
 };
 
 struct FramebufferResource
 {
   u32             refcount = 0;
-  FramebufferDesc desc     = {};
   void           *handle   = nullptr;
+  FramebufferDesc desc     = {};
 };
 
 struct ShaderResource
@@ -1170,13 +1187,6 @@ struct CommandEncoder
   virtual ~CommandEncoder();
 };
 
-enum class Error
-{
-  OutOfMemory,
-  MemoryTypeNotFound,
-  CacheInvalid
-};
-
 /// [properties] is either of:
 ///
 /// HostVisible | HostCoherent
@@ -1223,10 +1233,10 @@ struct DeviceMemoryHeaps
 // instance
 struct DeviceInfo
 {
-  DeviceType type = DeviceType::Other;
   // device name
   // vendor name
   // driver name
+  DeviceType type = DeviceType::Other;
   DeviceMemoryHeaps memory_heaps          = {};
   f32               max_anisotropy        = 1.0f;
   bool              supports_raytracing   = false;
@@ -1243,8 +1253,6 @@ struct DeviceInfo
 // Single-threaded
 struct Device
 {
-  virtual FormatProperties get_format_properties(Format format);
-
   struct Resources
   {
     stx::SparseVec<BufferResource, Buffer>                           buffers;
@@ -1260,22 +1268,33 @@ struct Device
     stx::SparseVec<FenceResource, Fence>                             fences;
   } resources;
 
+  virtual ~Device();
+
+  // TODO(lamarrr): timestamps, renderpass, computepass,
   // Lock
   // returns null on-OOM
-  virtual Buffer      create_buffer(BufferDesc const &desc);
-  virtual BufferView  create_buffer_view(BufferViewDesc const &desc);
-  virtual Image       create_image(ImageDesc const &desc, Color initial_color);
-  virtual Image       create_image(ImageDesc const &desc, DepthStencil initial_depth_stencil);
-  virtual Image       create_image(ImageDesc const &desc, Buffer initial_data);
-  virtual ImageView   create_image_view(ImageViewDesc const &desc);
-  virtual Sampler     create_sampler(SamplerDesc const &sampler);
-  virtual RenderPass  create_render_pass(RenderPassDesc const &desc);
-  virtual Framebuffer create_framebuffer(FramebufferDesc const &desc);
-  virtual DescriptorSetLayout create_descriptor_set_layout(DescriptorSetLayoutDesc const &desc);
-  virtual ComputePipeline     create_compute_pipeline(ComputePipelineDesc const &desc);
-  virtual GraphicsPipeline    create_graphics_pipeline(GraphicsPipelineDesc const &desc);
-  virtual CommandEncoder     *create_command_encoder();
-  virtual Fence               create_fence();
+  virtual FormatProperties                 get_format_properties(Format format);
+  virtual stx::Result<Buffer, Status>      create_buffer(BufferDesc const &desc);
+  virtual stx::Result<BufferView, Status>  create_buffer_view(BufferViewDesc const &desc);
+  virtual stx::Result<Image, Status>       create_image(ImageDesc const &desc, Color initial_color,
+                                                        CommandEncoder &command_encoder);
+  virtual stx::Result<Image, Status>       create_image(ImageDesc const &desc,
+                                                        DepthStencil     initial_depth_stencil,
+                                                        CommandEncoder  &command_encoder);
+  virtual stx::Result<Image, Status>       create_image(ImageDesc const &desc, Buffer initial_data,
+                                                        CommandEncoder &command_encoder);
+  virtual stx::Result<ImageView, Status>   create_image_view(ImageViewDesc const &desc);
+  virtual stx::Result<Sampler, Status>     create_sampler(SamplerDesc const &sampler);
+  virtual stx::Result<RenderPass, Status>  create_render_pass(RenderPassDesc const &desc);
+  virtual stx::Result<Framebuffer, Status> create_framebuffer(FramebufferDesc const &desc);
+  virtual stx::Result<DescriptorSetLayout, Status>
+      create_descriptor_set_layout(DescriptorSetLayoutDesc const &desc);
+  virtual stx::Result<ComputePipeline, Status>
+      create_compute_pipeline(ComputePipelineDesc const &desc);
+  virtual stx::Result<GraphicsPipeline, Status>
+      create_graphics_pipeline(GraphicsPipelineDesc const &desc);
+  virtual stx::Result<CommandEncoder *, Status> create_command_encoder();
+  virtual stx::Result<Fence, Status>            create_fence();
 
   virtual void ref(Buffer buffer);
   virtual void ref(BufferView buffer_view);
@@ -1300,7 +1319,9 @@ struct Device
   virtual void unref(ComputePipeline pipeline);
   virtual void unref(GraphicsPipeline pipeline);
   virtual void unref(CommandEncoder *command_encoder);
-  virtual ~Device();
+
+  virtual void *get_buffer_memory_map(Buffer buffer);
+  virtual void  flush_buffer_memory_map(Buffer buffer, u64 offset, u64 size);
 };
 
 // MT? how will mt even work?

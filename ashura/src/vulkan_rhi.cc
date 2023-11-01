@@ -171,18 +171,6 @@ VulkanDriver::~VulkanDriver()
   vkDestroyInstance(instance, nullptr);
 }
 
-struct VulkanBuffer
-{
-  VkBuffer       vk_buffer;
-  VkDeviceMemory vk_memory;
-  void          *host_map;
-};
-
-struct VulkanImage
-{
-  VkImage        vk_image;
-  VkDeviceMemory vk_memory;
-};
 
 VkBuffer VulkanDriver::create(gfx::BufferDesc const &desc)
 {

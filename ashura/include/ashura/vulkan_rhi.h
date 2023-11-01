@@ -2,7 +2,6 @@
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
 #include "ashura/gfx.h"
-#include "ashura/rhi.h"
 #include "stx/vec.h"
 #include "vma/vk_mem_alloc.h"
 #include "vulkan/vulkan.h"
@@ -161,17 +160,22 @@ struct VulkanDevice : public Device
   virtual ~VulkanDevice() override;
 };
 
-struct ComputePipeline
+
+
+struct VulkanBuffer
 {
-  VkPipeline pipeline = nullptr;
+  VkBuffer       vk_buffer;
+  VkDeviceMemory vk_memory;
+  void          *host_map;
 };
 
-struct GraphicsPipeline
+struct VulkanImage
 {
-  VkPipeline pipeline = nullptr;
-  // for each bind descriptor call, create a new descriptor set
-  // won't work for things like UI as it would require sorting by bind group
+  VkImage        vk_image;
+  VkDeviceMemory vk_memory;
 };
+
+
 
 struct DescriptorSetPoolBin
 {
@@ -186,6 +190,9 @@ struct DescriptorSetLayout
   u32                   sizing[11] = {};
 };
 
+
+  // for each bind descriptor call, create a new descriptor set
+  // won't work for things like UI as it would require sorting by bind group
 struct CommandBuffer
 {
   // pool sizing depends on descriptor set layout
