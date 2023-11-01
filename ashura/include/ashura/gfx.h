@@ -5,8 +5,10 @@
 
 #include "ashura/array.h"
 #include "ashura/primitives.h"
+#include "ashura/sparse_vec.h"
 #include "ashura/utils.h"
 #include "stx/enum.h"
+#include "stx/fn.h"
 #include "stx/span.h"
 
 #define ASH_DEFINE_HANDLE(handle) typedef struct handle##_T *handle;
@@ -22,6 +24,8 @@ constexpr u64 WHOLE_SIZE             = ~0ULL;
 constexpr u32 MAX_COLOR_ATTACHMENTS  = 8;
 constexpr u32 MAX_VERTEX_ATTRIBUTES  = 16;
 constexpr u32 MAX_PUSH_CONSTANT_SIZE = 128;
+constexpr u32 MAX_HEAP_PROPERTIES    = 32;
+constexpr u32 MAX_HEAPS              = 16;
 
 ASH_DEFINE_HANDLE(Buffer);
 /// format interpretation of a buffer's contents
@@ -39,6 +43,16 @@ ASH_DEFINE_HANDLE(DescriptorSetLayout);
 ASH_DEFINE_HANDLE(ComputePipeline);
 ASH_DEFINE_HANDLE(GraphicsPipeline);
 ASH_DEFINE_HANDLE(CommandBuffer);
+ASH_DEFINE_HANDLE(Fence);
+
+enum class DeviceType : u8
+{
+  Other         = 0,
+  IntegratedGpu = 1,
+  DiscreteGpu   = 2,
+  VirtualGpu    = 3,
+  Cpu           = 4
+};
 
 enum class MemoryProperties : u8
 {
@@ -357,25 +371,6 @@ enum class ImageAspects : u8
 
 STX_DEFINE_ENUM_BIT_OPS(ImageAspects)
 
-enum class ImageLayout : u32
-{
-  Undefined                     = 0,
-  General                       = 1,
-  ColorAttachmentOptimal        = 2,
-  DepthStencilAttachmentOptimal = 3,
-  DepthStencilReadOnlyOptimal   = 4,
-  ShaderReadOnlyOptimal         = 5,
-  TransferSrcOptimal            = 6,
-  TransferDstOptimal            = 7,
-  PresentSrc                    = 1000001002,
-  VideoDecodeDst                = 1000024000,
-  VideoDecodeSrc                = 1000024001,
-  VideoDecodeDpb                = 1000024002,
-  VideoEncodeDst                = 1000299000,
-  VideoEncodeSrc                = 1000299001,
-  EncodeDpb                     = 1000299002
-};
-
 enum class LoadOp : u8
 {
   Load     = 0,
@@ -531,60 +526,8 @@ enum class ColorComponents : u8
 
 STX_DEFINE_ENUM_BIT_OPS(ColorComponents)
 
-enum class PipelineStages : u32
-{
-  None                         = 0x00000000,
-  TopOfPipe                    = 0x00000001,
-  DrawIndirect                 = 0x00000002,
-  VertexInput                  = 0x00000004,
-  VertexShader                 = 0x00000008,
-  TessellationControlShader    = 0x00000010,
-  TessellationEvaluationShader = 0x00000020,
-  FragmentShader               = 0x00000080,
-  EarlyFragmentTests           = 0x00000100,
-  LateFragmentTests            = 0x00000200,
-  ColorAttachmentOutput        = 0x00000400,
-  ComputeShader                = 0x00000800,
-  Transfer                     = 0x00001000,
-  BottomOfPipe                 = 0x00002000,
-  Host                         = 0x00004000,
-  AllGraphics                  = 0x00008000,
-  AllCommands                  = 0x00010000
-};
-
-STX_DEFINE_ENUM_BIT_OPS(PipelineStages)
-
-enum class BufferUsage : u8
-{
-  None                      = 0x00000000,
-  TransferSrc               = 0x00000001,
-  TransferDst               = 0x00000002,
-  UniformTexelBuffer        = 0x00000004,
-  UniformStorageTexelBuffer = 0x00000008,
-  UniformBuffer             = 0x00000010,
-  StorageBuffer             = 0x00000020,
-  IndexBuffer               = 0x00000040,
-  VertexBuffer              = 0x00000080
-};
-
-STX_DEFINE_ENUM_BIT_OPS(BufferUsage)
-
-enum class ImageUsage : u8
-{
-  None                   = 0x00000000,
-  TransferSrc            = 0x00000001,
-  TransferDst            = 0x00000002,
-  Sampled                = 0x00000004,
-  Storage                = 0x00000008,
-  ColorAttachment        = 0x00000010,
-  DepthStencilAttachment = 0x00000020,
-  InputAttachment        = 0x00000080
-};
-
-STX_DEFINE_ENUM_BIT_OPS(ImageUsage)
-
 /// used for synchronization of state-mutating commands
-enum class BufferUsageScope : u32
+enum class BufferUsage : u32
 {
   None                      = 0x00000000,
   TransferSrc               = 0x00000001,
@@ -601,12 +544,12 @@ enum class BufferUsageScope : u32
   All                       = 0xFFFFFFFF
 };
 
-STX_DEFINE_ENUM_BIT_OPS(BufferUsageScope)
+STX_DEFINE_ENUM_BIT_OPS(BufferUsage)
 
 /// used for synchronization of state-mutating commands
 /// must provide initial clear value or initial buffer initializer
 // images implicitly have TransferDst usage scope
-enum class ImageUsageScope : u32
+enum class ImageUsage : u32
 {
   None                        = 0x00000000,
   TransferSrc                 = 0x00000001,
@@ -624,37 +567,13 @@ enum class ImageUsageScope : u32
   All                         = 0xFFFFFFFF
 };
 
-STX_DEFINE_ENUM_BIT_OPS(ImageUsageScope)
+STX_DEFINE_ENUM_BIT_OPS(ImageUsage)
 
 enum class InputRate : u8
 {
   Vertex   = 0,
   Instance = 1
 };
-
-enum class Access : u32
-{
-  None                        = 0x00000000,
-  IndirectCommandRead         = 0x00000001,
-  IndexRead                   = 0x00000002,
-  VertexAttributeRead         = 0x00000004,
-  UniformRead                 = 0x00000008,
-  InputAttachmentRead         = 0x00000010,
-  ShaderRead                  = 0x00000020,
-  ShaderWrite                 = 0x00000040,
-  ColorAttachmentRead         = 0x00000080,
-  ColorAttachmentWrite        = 0x00000100,
-  DepthStencilAttachmentRead  = 0x00000200,
-  DepthStencilAttachmentWrite = 0x00000400,
-  TransferRead                = 0x00000800,
-  TransferWrite               = 0x00001000,
-  HostRead                    = 0x00002000,
-  HostWrite                   = 0x00004000,
-  MemoryRead                  = 0x00008000,
-  MemoryWrite                 = 0x00010000
-};
-
-STX_DEFINE_ENUM_BIT_OPS(Access)
 
 enum class ShaderStages : u32
 {
@@ -790,7 +709,6 @@ struct BufferDesc
   u64              size       = 0;
   MemoryProperties properties = MemoryProperties::None;
   BufferUsage      usage      = BufferUsage::None;
-  BufferUsageScope scope      = BufferUsageScope::None;
 };
 
 struct BufferViewDesc
@@ -804,15 +722,14 @@ struct BufferViewDesc
 
 struct ImageDesc
 {
-  char const     *label        = nullptr;
-  ImageType       type         = ImageType::Type1D;
-  Format          format       = Format::Undefined;
-  ImageUsage      usage        = ImageUsage::None;
-  ImageUsageScope scope        = ImageUsageScope::None;
-  ImageAspects    aspects      = ImageAspects::None;
-  Extent3D        extent       = {};
-  u32             mip_levels   = 0;
-  u32             array_layers = 0;
+  char const  *label        = nullptr;
+  ImageType    type         = ImageType::Type1D;
+  Format       format       = Format::Undefined;
+  ImageUsage   usage        = ImageUsage::None;
+  ImageAspects aspects      = ImageAspects::None;
+  Extent3D     extent       = {};
+  u32          mip_levels   = 0;
+  u32          array_layers = 0;
 };
 
 struct ImageViewDesc
@@ -1130,122 +1047,372 @@ union ClearValue
   DepthStencil depth_stencil;
 };
 
-struct StencilFaceState
-{
-  u32 compare_mask = 0;
-  u32 reference    = 0;
-  u32 write_mask   = 0;
-};
-
-struct RenderState
-{
-  Viewport         viewport;
-  IRect            scissor;
-  Vec4             blend_constants;
-  StencilFaceState front_stencil;
-  StencilFaceState back_stencil;
-};
-
-struct BufferMemoryBarrier
-{
-  PipelineStages src_stages = PipelineStages::None;
-  PipelineStages dst_stages = PipelineStages::None;
-  Access         src_access = Access::None;
-  Access         dst_access = Access::None;
-  Buffer         buffer     = nullptr;
-};
-
-struct ImageMemoryBarrier
-{
-  PipelineStages src_stages = PipelineStages::None;
-  PipelineStages dst_stages = PipelineStages::None;
-  Access         src_access = Access::None;
-  Access         dst_access = Access::None;
-  ImageLayout    old_layout = ImageLayout::Undefined;
-  ImageLayout    new_layout = ImageLayout::Undefined;
-  Image          image      = nullptr;
-  ImageAspects   aspects    = ImageAspects::None;
-};
-
-// RESOURCES hold the backend/RHI handles
-
 struct BufferResource
 {
   u32        refcount = 0;
   BufferDesc desc     = {};
-  Buffer     handle   = nullptr;
+  void      *handle   = nullptr;
 };
 
 struct BufferViewResource
 {
   u32            refcount = 0;
   BufferViewDesc desc     = {};
-  BufferView     handle   = nullptr;
+  void          *handle   = nullptr;
 };
 
 struct ImageResource
 {
   u32       refcount = 0;
   ImageDesc desc     = {};
-  Image     handle   = nullptr;
+  void     *handle   = nullptr;
 };
 
 struct ImageViewResource
 {
   u32           refcount = 0;
   ImageViewDesc desc     = {};
-  ImageView     handle   = nullptr;
+  void         *handle   = nullptr;
 };
 
 struct RenderPassResource
 {
   u32            refcount = 0;
   RenderPassDesc desc     = {};
-  RenderPass     handle   = nullptr;
+  void          *handle   = nullptr;
 };
 
 struct FramebufferResource
 {
   u32             refcount = 0;
   FramebufferDesc desc     = {};
-  Framebuffer     handle   = nullptr;
+  void           *handle   = nullptr;
 };
 
 struct ShaderResource
 {
-  u32    refcount = 0;
-  Shader handle   = nullptr;
+  u32   refcount = 0;
+  void *handle   = nullptr;
 };
 
 struct ComputePipelineResource
 {
-  u32             refcount = 0;
-  ComputePipeline handle   = nullptr;
+  u32   refcount = 0;
+  void *handle   = nullptr;
 };
 
 struct GraphicsPipelineResource
 {
-  u32              refcount = 0;
-  GraphicsPipeline handle   = nullptr;
+  u32   refcount = 0;
+  void *handle   = nullptr;
 };
 
 struct SamplerResource
 {
-  u32     refcount = 0;
-  Sampler handle   = nullptr;
+  u32   refcount = 0;
+  void *handle   = nullptr;
 };
 
 struct DescriptorSetLayoutResource
 {
-  u32                 refcount = 0;
-  DescriptorSetLayout handle   = nullptr;
+  u32   refcount = 0;
+  void *handle   = nullptr;
 };
 
 struct CommandBufferResource
 {
-  u32           refcount = 0;
-  CommandBuffer handle   = nullptr;
+  u32   refcount = 0;
+  void *handle   = nullptr;
 };
+
+struct FenceResource
+{
+  u32   refcount = 0;
+  void *handle   = nullptr;
+};
+
+struct CommandEncoder
+{
+  virtual void fill_buffer(Buffer dst, u64 offset, u64 size, u32 data);
+  virtual void copy_buffer(Buffer src, Buffer dst, stx::Span<BufferCopy const> copies);
+  virtual void update_buffer(stx::Span<u8 const> src, u64 dst_offset, Buffer dst);
+  virtual void clear_color_image(Image dst, stx::Span<Color const> clear_colors,
+                                 stx::Span<ImageSubresourceRange const> ranges);
+  virtual void clear_depth_stencil_image(Image                         dst,
+                                         stx::Span<DepthStencil const> clear_depth_stencils,
+                                         stx::Span<ImageSubresourceRange const> ranges);
+  virtual void copy_image(Image src, Image dst, stx::Span<ImageCopy const> copies);
+  virtual void copy_buffer_to_image(Buffer src, Image dst, stx::Span<BufferImageCopy const> copies);
+  virtual void blit_image(Image src, Image dst, stx::Span<ImageBlit const> blits, Filter filter);
+  virtual void
+               begin_render_pass(Framebuffer framebuffer, RenderPass render_pass, IRect render_area,
+                                 stx::Span<Color const>        color_attachments_clear_values,
+                                 stx::Span<DepthStencil const> depth_stencil_attachments_clear_values);
+  virtual void end_render_pass();
+  virtual void bind_pipeline(ComputePipeline pipeline);
+  virtual void bind_pipeline(GraphicsPipeline pipeline);
+  virtual void push_descriptors(DescriptorSetBindings const &bindings);
+  virtual void push_constants(stx::Span<u8 const> push_constants_data);
+  virtual void dispatch(u32 group_count_x, u32 group_count_y, u32 group_count_z);
+  virtual void dispatch_indirect(Buffer buffer, u64 offset);
+  virtual void set_viewport(Viewport const &viewport);
+  virtual void set_scissor(IRect scissor);
+  virtual void set_blend_constants(Vec4 blend_constants);
+  virtual void set_stencil_compare_mask(StencilFaces faces, u32 mask);
+  virtual void set_stencil_reference(StencilFaces faces, u32 reference);
+  virtual void set_stencil_write_mask(StencilFaces faces, u32 mask);
+  virtual void set_vertex_buffers(stx::Span<Buffer const> vertex_buffers);
+  virtual void draw(Buffer index_buffer, u32 first_index, u32 num_indices, u32 vertex_offset,
+                    u32 first_instance, u32 num_instances);
+  virtual void draw_indirect(Buffer index_buffer, Buffer buffer, u64 offset, u32 draw_count,
+                             u32 stride);
+  virtual void on_execution_complete(stx::UniqueFn<void()> &&fn);
+  virtual ~CommandEncoder();
+};
+
+enum class Error
+{
+  OutOfMemory,
+  MemoryTypeNotFound,
+  CacheInvalid
+};
+
+/// [properties] is either of:
+///
+/// HostVisible | HostCoherent
+/// HostVisible | HostCached
+/// HostVisible | HostCached | HostCoherent
+/// DeviceLocal
+/// DeviceLocal | HostVisible | HostCoherent
+/// DeviceLocal | HostVisible | HostCached
+/// DeviceLocal | HostVisible | HostCached | HostCoherent
+struct HeapProperty
+{
+  MemoryProperties properties = MemoryProperties::None;
+  u32              index      = 0;
+};
+
+// TODO(lamarrr): write memory allocation strategies, i.e. images should be allocated on this and
+// this heap a single heap might have multiple properties
+struct DeviceMemoryHeaps
+{
+  // ordered by performance-tier (MemoryProperties)
+  stx::Array<HeapProperty, MAX_HEAP_PROPERTIES> heap_properties = {};
+  stx::Array<u64, MAX_HEAPS>                    heap_sizes      = {};
+
+  constexpr bool has_memory(MemoryProperties properties) const
+  {
+    for (HeapProperty p : heap_properties)
+    {
+      if (has_bits(p.properties, properties))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  constexpr bool has_unified_memory() const
+  {
+    return has_memory(MemoryProperties::DeviceLocal | MemoryProperties::HostVisible);
+  }
+};
+
+// TODO(lamarrr): formats info properties
+// device selection
+// instance
+struct DeviceInfo
+{
+  DeviceType type = DeviceType::Other;
+  // device name
+  // vendor name
+  // driver name
+  DeviceMemoryHeaps memory_heaps          = {};
+  f32               max_anisotropy        = 1.0f;
+  bool              supports_raytracing   = false;
+  bool              supports_video_encode = false;
+  bool              supports_video_decode = false;
+  // FrameInfo -> current display size
+  // -> current display format
+  // supports hdr?
+  // is format hdr
+  // dci p3?
+  //
+};
+
+// Single-threaded
+struct Device
+{
+  virtual FormatProperties get_format_properties(Format format);
+
+  struct Resources
+  {
+    stx::SparseVec<BufferResource, Buffer>                           buffers;
+    stx::SparseVec<BufferViewResource, BufferView>                   buffer_views;
+    stx::SparseVec<ImageResource, Image>                             images;
+    stx::SparseVec<ImageViewResource, ImageView>                     image_views;
+    stx::SparseVec<SamplerResource, Sampler>                         samplers;
+    stx::SparseVec<RenderPassResource, RenderPass>                   render_passes;
+    stx::SparseVec<FramebufferResource, Framebuffer>                 framebuffers;
+    stx::SparseVec<DescriptorSetLayoutResource, DescriptorSetLayout> descriptor_set_layouts;
+    stx::SparseVec<ComputePipelineResource, ComputePipeline>         compute_pipelines;
+    stx::SparseVec<GraphicsPipelineResource, GraphicsPipeline>       graphics_pipelines;
+    stx::SparseVec<FenceResource, Fence>                             fences;
+  } resources;
+
+  // Lock
+  // returns null on-OOM
+  virtual Buffer      create_buffer(BufferDesc const &desc);
+  virtual BufferView  create_buffer_view(BufferViewDesc const &desc);
+  virtual Image       create_image(ImageDesc const &desc, Color initial_color);
+  virtual Image       create_image(ImageDesc const &desc, DepthStencil initial_depth_stencil);
+  virtual Image       create_image(ImageDesc const &desc, Buffer initial_data);
+  virtual ImageView   create_image_view(ImageViewDesc const &desc);
+  virtual Sampler     create_sampler(SamplerDesc const &sampler);
+  virtual RenderPass  create_render_pass(RenderPassDesc const &desc);
+  virtual Framebuffer create_framebuffer(FramebufferDesc const &desc);
+  virtual DescriptorSetLayout create_descriptor_set_layout(DescriptorSetLayoutDesc const &desc);
+  virtual ComputePipeline     create_compute_pipeline(ComputePipelineDesc const &desc);
+  virtual GraphicsPipeline    create_graphics_pipeline(GraphicsPipelineDesc const &desc);
+  virtual CommandEncoder     *create_command_encoder();
+  virtual Fence               create_fence();
+
+  virtual void ref(Buffer buffer);
+  virtual void ref(BufferView buffer_view);
+  virtual void ref(Image image);
+  virtual void ref(ImageView image_view);
+  virtual void ref(Sampler sampler);
+  virtual void ref(RenderPass render_pass);
+  virtual void ref(Framebuffer framebuffer);
+  virtual void ref(DescriptorSetLayout descriptor_set_layout);
+  virtual void ref(ComputePipeline pipeline);
+  virtual void ref(GraphicsPipeline pipeline);
+  virtual void ref(CommandEncoder *command_encoder);
+
+  virtual void unref(Buffer buffer);
+  virtual void unref(BufferView buffer_view);
+  virtual void unref(Image image);
+  virtual void unref(ImageView image_view);
+  virtual void unref(Sampler sampler);
+  virtual void unref(RenderPass render_pass);
+  virtual void unref(Framebuffer framebuffer);
+  virtual void unref(DescriptorSetLayout descriptor_set_layout);
+  virtual void unref(ComputePipeline pipeline);
+  virtual void unref(GraphicsPipeline pipeline);
+  virtual void unref(CommandEncoder *command_encoder);
+  virtual ~Device();
+};
+
+// MT? how will mt even work?
+template <typename Handle>
+struct Rc
+{
+  Device *dev    = nullptr;
+  Handle  handle = nullptr;
+  STX_DISABLE_COPY(Rc)
+  STX_DEFAULT_MOVE(Rc)
+  constexpr Rc(Device &idev, Handle ihandle) : dev{idev}, handle{ihandle}
+  {
+  }
+  constexpr Rc   share();
+  constexpr void release()
+  {
+  }
+  constexpr ~Rc()
+  {
+    if (handle != nullptr && dev != nullptr)
+    {
+      dev->unref(handle);
+    }
+  }
+};
+
+/*
+
+
+namespace ash
+{
+namespace rcg
+{
+
+constexpr u8 MAX_FRAMES_IN_FLIGHT = 4;
+
+// we'll support GLSL->SPIRV and Shader Editor -> C++ -> GLSL -> SPIRV
+// contains all loaded shaders
+//
+//
+// TODO(lamarrr): multi-pass dependency? knowing when to free resources
+//
+struct ShaderMap
+{
+  // shaders are always compiled and loaded at startup time
+  // select shader
+  // shader will have vendor, context, and name to compare to
+  // if none was given then how?
+  // we don't allow shaders to change at runtime, they must be baked and compiled AOT
+  //
+  // TODO(lamarrr): PSO caches
+  //
+  //
+};
+
+struct PipelineCacheMap
+{
+  // vendor id, pass name, name
+  // frag shader id, vert shader id
+};
+
+struct Graph;
+
+// used for: validation layer, logging, warning, and driver dispatch
+struct CommandBuffer
+{
+  rhi::Driver                    *driver            = nullptr;
+  CommandBuffer              rhi               = nullptr;
+  Graph                          *graph             = nullptr;
+  CommandBufferHook              *hook              = nullptr;
+  RenderPass                 render_pass       = nullptr;
+  stx::Vec<stx::UniqueFn<void()>> completion_tasks  = {};        // MUST be run in reverse order
+};
+
+// used for: validation layer, logging
+// TODO(lamarrr): how do we enable features like raytracing dynamically at runtime?
+// each pass declares flags?
+//
+// TODO(lamarrr): async shader compilation and loading, how?
+//
+//
+// for each creation and unref commands, we'll insert optional hooks that check that the
+// parameters are correct we need to check the graph for information regarding the type and its
+// dependencies
+//
+//
+// on scheduled frame_fence sent check if any resource has been requested to be unrefd, if so,
+// unref
+//
+//
+struct Graph
+{
+  Buffer              to_rhi(Buffer buffer);
+  BufferView          to_rhi(BufferView buffer_view);
+  Image               to_rhi(Image image);
+  ImageView           to_rhi(ImageView image_view);
+  Sampler             to_rhi(Sampler sampler);
+  RenderPass          to_rhi(RenderPass render_pass);
+  Framebuffer         to_rhi(Framebuffer framebuffer);
+  DescriptorSetLayout to_rhi(DescriptorSetLayout descriptor_set_layout);
+  ComputePipeline     to_rhi(ComputePipeline pipeline);
+  GraphicsPipeline    to_rhi(GraphicsPipeline pipeline);
+    rhi::Driver                                                               *driver = nullptr;
+  GraphHook                                                                 *hook   = nullptr;
+  stx::Array<CommandBuffer, MAX_FRAMES_IN_FLIGHT>                            command_buffers = {};
+  u32 current_command_buffer                                                                 = 0;
+};
+
+}        // namespace rcg
+}        // namespace ash
+
+*/
 
 }        // namespace gfx
 }        // namespace ash

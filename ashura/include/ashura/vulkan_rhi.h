@@ -3,14 +3,21 @@
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
 #include "ashura/gfx.h"
 #include "ashura/rhi.h"
+#include "stx/vec.h"
 #include "vma/vk_mem_alloc.h"
 #include "vulkan/vulkan.h"
+#include <map>
 
 namespace ash
 {
 
 namespace rhi
 {
+
+
+
+
+constexpr u32 DESCRIPTOR_POOL_BIN_SIZE = 1024;        // * num_entries
 
 // some systems have multiple vulkan implementations! dynamic loading
 // VERSION 1.1 Vulkan Functions
@@ -142,7 +149,8 @@ struct VulkanDeviceTable
   VmaVulkanFunctions vma_functions = {};
 };
 
-struct VulkanDriver : public Driver
+
+struct VulkanDevice : public Device
 {
   static constexpr char const *REQUIRED_EXTENSIONS[] = {"VK_KHR_swapchain"};
 
@@ -150,7 +158,54 @@ struct VulkanDriver : public Driver
   VulkanDeviceTable const *table     = nullptr;
   VkDevice                 device    = VK_NULL_HANDLE;
   VmaAllocator             allocator = nullptr;
-  virtual ~VulkanDriver() override;
+  virtual ~VulkanDevice() override;
+};
+
+struct ComputePipeline
+{
+  VkPipeline pipeline = nullptr;
+};
+
+struct GraphicsPipeline
+{
+  VkPipeline pipeline = nullptr;
+  // for each bind descriptor call, create a new descriptor set
+  // won't work for things like UI as it would require sorting by bind group
+};
+
+struct DescriptorSetPoolBin
+{
+  // batch descriptor pool free!!!
+  stx::Vec<VkDescriptorSet> sets;
+  VkDescriptorPool          pool = nullptr;
+};
+
+struct DescriptorSetLayout
+{
+  VkDescriptorSetLayout layout     = nullptr;
+  u32                   sizing[11] = {};
+};
+
+struct CommandBuffer
+{
+  // pool sizing depends on descriptor set layout
+  using DescriptorPoolMap = std::map<VkDescriptorSetLayout, stx::Vec<DescriptorSetPoolBin>>;
+  DescriptorPoolMap                              descriptor_pool_bins;
+  DescriptorPoolMap::iterator                    descriptor_pool;
+  stx::Vec<VkDescriptorSet>                      descriptor_sets;
+  stx::Vec<VkWriteDescriptorSet>                 descriptor_writes;
+  stx::Array<VkBufferMemoryBarrier, 16>          tmp_buffer_barriers   = {};
+  stx::Array<VkImageMemoryBarrier, 16>           tmp_image_barriers    = {};
+  stx::Array<gfx::StorageImageBinding, 16>       storage_images        = {};
+  stx::Array<gfx::StorageTexelBufferBinding, 16> storage_texel_buffers = {};
+  stx::Array<gfx::StorageBufferBinding, 16>      storage_buffers       = {};
+  gfx::Framebuffer                               framebuffer           = nullptr;
+  gfx::ComputePipeline                           compute_pipeline      = nullptr;
+  gfx::GraphicsPipeline                          graphics_pipeline     = nullptr;
+
+  void begin();
+  void end();
+  void reset();
 };
 
 }        // namespace rhi
