@@ -639,6 +639,8 @@ struct Canvas
     return *this;
   }
 
+  // TODO(lamarrr): draw quad
+
   Canvas &draw_path(stx::Span<Vertex2d const> points, Vec2 position, Vec2 uv_stretch, f32 thickness,
                     bool should_close, image texture = WHITE_IMAGE,
                     TextureRect texture_region = TextureRect{.uv0 = Vec2{0, 0}, .uv1 = Vec2{1, 1}})

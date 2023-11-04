@@ -72,15 +72,78 @@ struct Array
 
   constexpr Array &operator=(Array const &other)
   {
-    this->~Array();
-    new (this) Array{other};
+    if (size_ == other.size_)
+    {
+      for (size_t i = 0; i < size_; i++)
+      {
+        data()[i] = other.data()[i];
+      }
+    }
+    else if (size_ > other.size_)
+    {
+      for (size_t i = 0; i < other.size_; i++)
+      {
+        data()[i] = other.data()[i];
+      }
+      for (size_t i = other.size_; i < size_; i++)
+      {
+        data()[i].~T();
+      }
+    }
+    else
+    {
+      for (size_t i = 0; i < size_; i++)
+      {
+        data()[i] = other.data()[i];
+      }
+      for (size_t i = size_; i < other.size_; i++)
+      {
+        new (data() + i) T{other.data()[i]};
+      }
+    }
+    size_ = other.size_;
     return *this;
   }
 
   constexpr Array &operator=(Array &&other)
   {
-    this->~Array();
-    new (this) Array{(Array &&) other};
+    if (size_ == other.size_)
+    {
+      for (size_t i = 0; i < size_; i++)
+      {
+        data()[i] = (T &&) other.data()[i];
+      }
+    }
+    else if (size_ > other.size_)
+    {
+      for (size_t i = 0; i < other.size_; i++)
+      {
+        data()[i] = (T &&) other.data()[i];
+      }
+      for (size_t i = other.size_; i < size_; i++)
+      {
+        data()[i].~T();
+      }
+    }
+    else
+    {
+      for (size_t i = 0; i < size_; i++)
+      {
+        data()[i] = (T &&) other.data()[i];
+      }
+      for (size_t i = size_; i < other.size_; i++)
+      {
+        new (data() + i) T{(T &&) other.data()[i]};
+      }
+    }
+
+    for (size_t i = 0; i < other.size_; i++)
+    {
+      other.data()[i].~T();
+    }
+
+    size_       = other.size_;
+    other.size_ = 0;
     return *this;
   }
 
@@ -155,7 +218,10 @@ struct Array
 
   constexpr void clear()
   {
-    this->~Array();
+    for (size_t i = 0; i < size_; i++)
+    {
+      data()[i].~T();
+    }
     size_ = 0;
   }
 
@@ -177,7 +243,7 @@ struct Array
   template <typename... Args>
   constexpr void push_inplace_unsafe(Args &&...args)
   {
-    new (data_ + size_) T{((Args &&) args)...};
+    new (data() + size_) T{((Args &&) args)...};
     size_++;
   }
 

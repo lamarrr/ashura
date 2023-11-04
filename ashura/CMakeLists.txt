@@ -7,8 +7,7 @@ add_library(
   src/rengoku.cc
   src/loggers.cc
   src/subsystems/http_client.cc
-  src/rcg.cc
-  src/vulkan_rhi.cc
+  src/vulkan_gfx.cc
   src/ecs.cc)
 
 target_include_directories(
