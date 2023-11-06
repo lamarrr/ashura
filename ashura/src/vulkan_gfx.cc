@@ -116,6 +116,9 @@ bool load_device_table(VkDevice device, DeviceTable &table)
   ASH_VK_LOAD(UnmapMemory);
   ASH_VK_LOAD(WaitForFences);
 
+  ASH_VK_LOAD(QueueSubmit);
+  ASH_VK_LOAD(QueueWaitIdle);
+
   // COMMAND BUFFER OBJECT FUNCTIONS
   ASH_VK_LOAD(BeginCommandBuffer);
   ASH_VK_LOAD(CmdBeginQuery);
@@ -300,890 +303,8 @@ constexpr VkImageUsageFlags to_vkUsage(gfx::ImageUsage usage)
   return out;
 }
 
-stx::Result<gfx::FormatProperties, gfx::Status>
-    DeviceImpl::get_format_properties(gfx::Format format)
-{
-  VkFormatProperties props;
-  vkGetPhysicalDeviceFormatProperties(vk_phy_device, (VkFormat) format, &props);
-  return stx::Ok(gfx::FormatProperties{
-      .linear_tiling_features  = (gfx::FormatFeatures) props.linearTilingFeatures,
-      .optimal_tiling_features = (gfx::FormatFeatures) props.optimalTilingFeatures,
-      .buffer_features         = (gfx::FormatFeatures) props.bufferFeatures});
-}
-
-stx::Result<gfx::Buffer, gfx::Status> DeviceImpl::create_buffer(gfx::BufferDesc const &desc)
-{
-  VkBufferCreateInfo      create_info{.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-                                      .pNext                 = nullptr,
-                                      .flags                 = 0,
-                                      .size                  = desc.size,
-                                      .usage                 = to_vkUsage(desc.usage),
-                                      .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-                                      .queueFamilyIndexCount = 1,
-                                      .pQueueFamilyIndices   = nullptr};
-  Buffer                  buffer;
-  VmaAllocationCreateInfo alloc_create_info{.flags = 0,
-                                            .usage = VMA_MEMORY_USAGE_UNKNOWN,
-                                            .requiredFlags =
-                                                (VkMemoryPropertyFlags) desc.properties,
-                                            .preferredFlags = 0,
-                                            .memoryTypeBits = 0,
-                                            .pool           = nullptr,
-                                            .pUserData      = nullptr,
-                                            .priority       = 0};
-  VmaAllocationInfo       alloc_info;
-  VK_ERR(vmaCreateBuffer(vk_allocator, &create_info, &alloc_create_info, &buffer.vk_buffer, nullptr,
-                         &alloc_info));
-
-  if (has_bits(desc.properties, gfx::MemoryProperties::HostVisible))
-  {
-    VK_ERR(vk_table.MapMemory(vk_device, alloc_info.deviceMemory, 0, VK_WHOLE_SIZE, 0,
-                              &buffer.host_map));
-  }
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT,
-        .object      = (u64) buffer.vk_buffer,
-        .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
-  }
-
-  void *handle = vk_resources.buffers.push(buffer);
-
-  return stx::Ok(
-      resources.buffers.push(gfx::BufferResource{.refcount = 1, .handle = handle, .desc = desc}));
-}
-
-stx::Result<gfx::BufferView, gfx::Status>
-    DeviceImpl::create_buffer_view(gfx::BufferViewDesc const &desc)
-{
-  VkBufferViewCreateInfo create_info{.sType  = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
-                                     .pNext  = nullptr,
-                                     .flags  = 0,
-                                     .buffer = (VkBuffer) resources.buffers[desc.buffer].handle,
-                                     .format = (VkFormat) desc.format,
-                                     .offset = desc.offset,
-                                     .range  = desc.size};
-
-  VkBufferView view;
-
-  VK_ERR(vk_table.CreateBufferView(vk_device, &create_info, nullptr, &view));
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT,
-        .object      = (u64) view,
-        .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
-  }
-
-  return stx::Ok(resources.buffer_views.push(
-      gfx::BufferViewResource{.refcount = 1, .handle = view, .desc = desc}));
-}
-
-stx::Result<Image, gfx::Status> create_vk_image(gfx::ImageDesc const &desc, DeviceImpl &device)
-{
-  VkImageCreateInfo create_info{.sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                                .pNext       = nullptr,
-                                .flags       = 0,
-                                .imageType   = (VkImageType) desc.type,
-                                .format      = (VkFormat) desc.format,
-                                .extent      = VkExtent3D{.width  = desc.extent.width,
-                                                          .height = desc.extent.height,
-                                                          .depth  = desc.extent.depth},
-                                .mipLevels   = desc.mip_levels,
-                                .arrayLayers = desc.array_layers,
-                                .samples     = VK_SAMPLE_COUNT_1_BIT,
-                                .tiling      = VK_IMAGE_TILING_OPTIMAL,
-                                .usage = to_vkUsage(desc.usage | gfx::ImageUsage::TransferDst),
-                                .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-                                .queueFamilyIndexCount = 0,
-                                .pQueueFamilyIndices   = nullptr,
-                                .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED};
-
-  Image image;
-  VK_ERR(vmaCreateImage(device.vk_allocator, &create_info, nullptr, &image.vk_image,
-                        &image.vk_allocation, nullptr));
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-        .object      = (u64) image.vk_image,
-        .pObjectName = desc.label};
-    device.vk_table.DebugMarkerSetObjectNameEXT(device.vk_device, &debug_info);
-  }
-
-  return stx::Ok((Image) image);
-}
-
-stx::Result<gfx::ImageView, gfx::Status>
-    DeviceImpl::create_image_view(gfx::ImageViewDesc const &desc)
-{
-  VkImageViewCreateInfo create_info{
-      .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .pNext            = nullptr,
-      .flags            = 0,
-      .image            = vk_resources.images[resources.images[desc.image].handle].vk_image,
-      .viewType         = (VkImageViewType) desc.view_type,
-      .format           = (VkFormat) desc.view_format,
-      .components       = VkComponentMapping{.r = (VkComponentSwizzle) desc.mapping.r,
-                                             .g = (VkComponentSwizzle) desc.mapping.g,
-                                             .b = (VkComponentSwizzle) desc.mapping.b,
-                                             .a = (VkComponentSwizzle) desc.mapping.a},
-      .subresourceRange = VkImageSubresourceRange{.aspectMask   = (VkImageAspectFlags) desc.aspects,
-                                                  .baseMipLevel = desc.first_mip_level,
-                                                  .levelCount   = desc.num_mip_levels,
-                                                  .baseArrayLayer = desc.first_array_layer,
-                                                  .layerCount     = desc.num_array_layers}};
-
-  VkImageView view;
-  VK_ERR(vk_table.CreateImageView(vk_device, &create_info, nullptr, &view));
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT,
-        .object      = (u64) view,
-        .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
-  }
-
-  return stx::Ok(resources.image_views.push(
-      gfx::ImageViewResource{.refcount = 1, .handle = view, .desc = desc}));
-}
-
-stx::Result<gfx::Sampler, gfx::Status> DeviceImpl::create_sampler(gfx::SamplerDesc const &desc)
-{
-  VkSamplerCreateInfo create_info{.sType            = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-                                  .pNext            = nullptr,
-                                  .magFilter        = (VkFilter) desc.mag_filter,
-                                  .minFilter        = (VkFilter) desc.min_filter,
-                                  .mipmapMode       = (VkSamplerMipmapMode) desc.mip_map_mode,
-                                  .addressModeU     = (VkSamplerAddressMode) desc.address_mode_u,
-                                  .addressModeV     = (VkSamplerAddressMode) desc.address_mode_v,
-                                  .addressModeW     = (VkSamplerAddressMode) desc.address_mode_w,
-                                  .mipLodBias       = desc.mip_lod_bias,
-                                  .anisotropyEnable = (VkBool32) desc.anisotropy_enable,
-                                  .maxAnisotropy    = desc.max_anisotropy,
-                                  .compareEnable    = (VkBool32) desc.compare_enable,
-                                  .compareOp        = (VkCompareOp) desc.compare_op,
-                                  .minLod           = desc.min_lod,
-                                  .maxLod           = desc.max_lod,
-                                  .borderColor      = (VkBorderColor) desc.border_color,
-                                  .unnormalizedCoordinates =
-                                      (VkBool32) desc.unnormalized_coordinates};
-
-  VkSampler sampler;
-  VK_ERR(vk_table.CreateSampler(vk_device, &create_info, nullptr, &sampler));
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT,
-        .object      = (u64) sampler,
-        .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
-  }
-
-  return stx::Ok(resources.samplers.push(gfx::SamplerResource{.refcount = 1, .handle = sampler}));
-}
-
-stx::Result<gfx::Shader, gfx::Status> DeviceImpl::create_shader(gfx::ShaderDesc const &desc)
-{
-  VkShaderModuleCreateInfo create_info{.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-                                       .pNext    = nullptr,
-                                       .flags    = 0,
-                                       .codeSize = desc.spirv_code.size_bytes(),
-                                       .pCode    = desc.spirv_code.data()};
-
-  VkShaderModule shader;
-  VK_ERR(vk_table.CreateShaderModule(vk_device, &create_info, nullptr, &shader));
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
-        .object      = (u64) shader,
-        .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
-  }
-
-  return stx::Ok(resources.shaders.push(
-      gfx::ShaderResource{.refcount = 1, .handle = shader, .label = desc.label}));
-}
-
-stx::Result<gfx::RenderPass, gfx::Status>
-    DeviceImpl::create_render_pass(gfx::RenderPassDesc const &desc)
-{
-  VkAttachmentDescription vk_attachments[gfx::MAX_COLOR_ATTACHMENTS * 2 + 1];
-  VkAttachmentReference   vk_color_attachments[gfx::MAX_COLOR_ATTACHMENTS];
-  VkAttachmentReference   vk_input_attachments[gfx::MAX_COLOR_ATTACHMENTS];
-  VkAttachmentReference   vk_depth_stencil_attachment;
-  u32                     num_attachments       = 0;
-  u32                     num_color_attachments = (u32) desc.color_attachments.size();
-  u32                     num_input_attachments = (u32) desc.input_attachments.size();
-  u32                     num_depth_stencil_attachments =
-      desc.depth_stencil_attachment.format == gfx::Format::Undefined ? 0 : 1;
-  for (u32 icolor_attachment = 0; icolor_attachment < (u32) desc.color_attachments.size();
-       num_attachments++, icolor_attachment++)
-  {
-    gfx::RenderPassAttachment const &attachment =
-        desc.color_attachments.get_unsafe(icolor_attachment);
-    vk_attachments[num_attachments] =
-        VkAttachmentDescription{.flags          = 0,
-                                .format         = (VkFormat) attachment.format,
-                                .samples        = VK_SAMPLE_COUNT_1_BIT,
-                                .loadOp         = (VkAttachmentLoadOp) attachment.load_op,
-                                .storeOp        = (VkAttachmentStoreOp) attachment.store_op,
-                                .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                                .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                                .initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                .finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-    vk_color_attachments[icolor_attachment] = VkAttachmentReference{
-        .attachment = num_attachments, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-  }
-
-  for (u32 iinput_attachment = 0; iinput_attachment < (u32) desc.input_attachments.size();
-       num_attachments++, iinput_attachment++)
-  {
-    gfx::RenderPassAttachment const &attachment =
-        desc.input_attachments.get_unsafe(iinput_attachment);
-    vk_attachments[num_attachments] =
-        VkAttachmentDescription{.flags          = 0,
-                                .format         = (VkFormat) attachment.format,
-                                .samples        = VK_SAMPLE_COUNT_1_BIT,
-                                .loadOp         = (VkAttachmentLoadOp) attachment.load_op,
-                                .storeOp        = (VkAttachmentStoreOp) attachment.store_op,
-                                .stencilLoadOp  = (VkAttachmentLoadOp) attachment.stencil_load_op,
-                                .stencilStoreOp = (VkAttachmentStoreOp) attachment.stencil_store_op,
-                                .initialLayout  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
-    vk_input_attachments[iinput_attachment] = VkAttachmentReference{
-        .attachment = num_attachments, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-  }
-
-  if (num_depth_stencil_attachments != 0)
-  {
-    vk_attachments[num_attachments] = VkAttachmentDescription{
-        .flags          = 0,
-        .format         = (VkFormat) desc.depth_stencil_attachment.format,
-        .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp         = (VkAttachmentLoadOp) desc.depth_stencil_attachment.load_op,
-        .storeOp        = (VkAttachmentStoreOp) desc.depth_stencil_attachment.store_op,
-        .stencilLoadOp  = (VkAttachmentLoadOp) desc.depth_stencil_attachment.stencil_load_op,
-        .stencilStoreOp = (VkAttachmentStoreOp) desc.depth_stencil_attachment.stencil_store_op,
-        .initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        .finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
-
-    vk_depth_stencil_attachment = VkAttachmentReference{
-        .attachment = num_attachments, .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
-
-    num_attachments++;
-  }
-
-  VkSubpassDescription vk_subpass{.flags                   = 0,
-                                  .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  .inputAttachmentCount    = num_input_attachments,
-                                  .pInputAttachments       = vk_input_attachments,
-                                  .colorAttachmentCount    = num_color_attachments,
-                                  .pColorAttachments       = vk_color_attachments,
-                                  .pResolveAttachments     = nullptr,
-                                  .pDepthStencilAttachment = num_depth_stencil_attachments == 0 ?
-                                                                 nullptr :
-                                                                 &vk_depth_stencil_attachment,
-                                  .preserveAttachmentCount = 0,
-                                  .pPreserveAttachments    = nullptr};
-
-  VkRenderPassCreateInfo create_info{.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-                                     .pNext           = nullptr,
-                                     .flags           = 0,
-                                     .attachmentCount = num_attachments,
-                                     .pAttachments    = vk_attachments,
-                                     .subpassCount    = 1,
-                                     .pSubpasses      = &vk_subpass,
-                                     .dependencyCount = 0,
-                                     .pDependencies   = nullptr};
-  VkRenderPass           renderpass;
-  VK_ERR(vk_table.CreateRenderPass(vk_device, &create_info, nullptr, &renderpass));
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT,
-        .object      = (u64) renderpass,
-        .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
-  }
-
-  return stx::Ok(resources.render_passes.push(
-      gfx::RenderPassResource{.refcount = 1, .handle = renderpass, .desc = desc}));
-}
-
-stx::Result<gfx::Framebuffer, gfx::Status>
-    DeviceImpl::create_framebuffer(gfx::FramebufferDesc const &desc)
-{
-  u32         num_color_attachments         = (u32) desc.color_attachments.size();
-  u32         num_depth_stencil_attachments = desc.depth_stencil_attachment == nullptr ? 0 : 1;
-  VkImageView vk_attachments[gfx::MAX_COLOR_ATTACHMENTS + 1];
-  u32         num_attachments = 0;
-  // TODO(lamarrr): fill, does the index slot association make sense preesently???
-  VkFramebufferCreateInfo create_info{.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-                                      .pNext           = nullptr,
-                                      .flags           = 0,
-                                      .attachmentCount = num_attachments,
-                                      .pAttachments    = vk_attachments,
-                                      .width           = desc.extent.width,
-                                      .height          = desc.extent.height,
-                                      .layers          = desc.layers};
-
-  VkFramebuffer framebuffer;
-
-  VK_ERR(vk_table.CreateFramebuffer(vk_device, &create_info, nullptr, &framebuffer));
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT,
-        .object      = (u64) framebuffer,
-        .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
-  }
-
-  return stx::Ok(resources.framebuffers.push(
-      gfx::FramebufferResource{.refcount = 1, .handle = framebuffer, .desc = desc}));
-}
-
-stx::Result<gfx::DescriptorSetLayout, gfx::Status>
-    DeviceImpl::create_descriptor_set_layout(gfx::DescriptorSetLayoutDesc const &desc)
-{
-  gfx::DescriptorSetCount                count;
-  stx::Vec<VkDescriptorSetLayoutBinding> vk_bindings;
-  vk_bindings.unsafe_resize_uninitialized(desc.bindings.size());
-
-  for (usize i = 0; i < desc.bindings.size(); i++)
-  {
-    gfx::DescriptorBindingDesc const &binding = desc.bindings[i];
-    vk_bindings[i] = VkDescriptorSetLayoutBinding{.binding        = binding.binding,
-                                                  .descriptorType = (VkDescriptorType) binding.type,
-                                                  .descriptorCount    = binding.count,
-                                                  .stageFlags         = VK_SHADER_STAGE_ALL,
-                                                  .pImmutableSamplers = nullptr};
-
-    switch (binding.type)
-    {
-      case gfx::DescriptorType::CombinedImageSampler:
-        count.num_combined_image_samplers += binding.count;
-        break;
-      case gfx::DescriptorType::DynamicStorageBuffer:
-        count.num_storage_buffers += binding.count;
-        break;
-      case gfx::DescriptorType::DynamicUniformBuffer:
-        count.num_uniform_buffers += binding.count;
-        break;
-      case gfx::DescriptorType::InputAttachment:
-        count.num_input_attachments += binding.count;
-        break;
-      case gfx::DescriptorType::SampledImage:
-        count.num_sampled_images += binding.count;
-        break;
-      case gfx::DescriptorType::Sampler:
-        count.num_samplers += binding.count;
-        break;
-      case gfx::DescriptorType::StorageBuffer:
-        count.num_storage_buffers += binding.count;
-        break;
-      case gfx::DescriptorType::StorageImage:
-        count.num_storage_images += binding.count;
-        break;
-      case gfx::DescriptorType::StorageTexelBuffer:
-        count.num_storage_texel_buffers += binding.count;
-        break;
-      case gfx::DescriptorType::UniformBuffer:
-        count.num_uniform_buffers += binding.count;
-        break;
-      case gfx::DescriptorType::UniformTexelBuffer:
-        count.num_uniform_texel_buffers += binding.count;
-        break;
-      default:
-        break;
-    }
-  }
-
-  VkDescriptorSetLayoutCreateInfo create_info{
-      .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-      .pNext        = nullptr,
-      .flags        = 0,
-      .bindingCount = (u32) vk_bindings.size(),
-      .pBindings    = vk_bindings.data()};
-
-  VkDescriptorSetLayout layout;
-  VK_ERR(vk_table.CreateDescriptorSetLayout(vk_device, &create_info, nullptr, &layout));
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT,
-        .object      = (u64) layout,
-        .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
-  }
-
-  return stx::Ok(resources.descriptor_set_layouts.push(
-      gfx::DescriptorSetLayoutResource{.refcount = 1, .handle = layout, .count = count}));
-}
-
-stx::Result<gfx::PipelineCache, gfx::Status>
-    DeviceImpl::create_pipeline_cache(gfx::PipelineCacheDesc const &desc)
-{
-  VkPipelineCacheCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
-                                        .pNext = nullptr,
-                                        .flags = 0,
-                                        .initialDataSize = desc.initial_data.size_bytes(),
-                                        .pInitialData    = desc.initial_data.data()};
-
-  VkPipelineCache cache;
-  VK_ERR(vk_table.CreatePipelineCache(vk_device, &create_info, nullptr, &cache));
-
-  return stx::Ok(
-      resources.pipeline_caches.push(gfx::PipelineCacheResource{.refcount = 1, .handle = cache}));
-}
-
-stx::Result<gfx::ComputePipeline, gfx::Status>
-    DeviceImpl::create_compute_pipeline(gfx::ComputePipelineDesc const &desc)
-{
-  VkSpecializationInfo vk_specialization{
-      .mapEntryCount = desc.compute_shader.specialization_constants.size(),
-      .pMapEntries =
-          (VkSpecializationMapEntry const *) desc.compute_shader.specialization_constants.data(),
-      .dataSize = desc.compute_shader.specialization_constants_data.size_bytes(),
-      .pData    = desc.compute_shader.specialization_constants_data.data()};
-
-  VkPipelineShaderStageCreateInfo vk_stage{
-      .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-      .pNext  = nullptr,
-      .flags  = 0,
-      .stage  = VK_SHADER_STAGE_COMPUTE_BIT,
-      .module = (VkShaderModule) resources.shaders[desc.compute_shader.shader].handle,
-      .pName =
-          desc.compute_shader.entry_point == nullptr ? "main" : desc.compute_shader.entry_point,
-      .pSpecializationInfo = &vk_specialization};
-
-  VkDescriptorSetLayout descriptor_set_layout =
-      (VkDescriptorSetLayout) resources.descriptor_set_layouts[desc.descriptor_set_layout].handle;
-
-  VkPushConstantRange push_constant_range{
-      .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT, .offset = 0, .size = desc.push_constant_size};
-
-  VkPipelineLayoutCreateInfo layout_create_info{.sType =
-                                                    VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-                                                .pNext                  = nullptr,
-                                                .flags                  = 0,
-                                                .setLayoutCount         = 1,
-                                                .pSetLayouts            = &descriptor_set_layout,
-                                                .pushConstantRangeCount = 1,
-                                                .pPushConstantRanges    = &push_constant_range};
-
-  VkPipelineLayout layout;
-  VK_ERR(vk_table.CreatePipelineLayout(vk_device, &layout_create_info, nullptr, &layout));
-
-  VkComputePipelineCreateInfo create_info{.sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-                                          .pNext  = nullptr,
-                                          .flags  = 0,
-                                          .stage  = vk_stage,
-                                          .layout = layout,
-                                          .basePipelineHandle = nullptr,
-                                          .basePipelineIndex  = 0};
-
-  VkPipeline      pipeline;
-  VkPipelineCache cache = desc.cache == nullptr ?
-                              nullptr :
-                              (VkPipelineCache) resources.pipeline_caches[desc.cache].handle;
-  VkResult        result =
-      vk_table.CreateComputePipelines(vk_device, cache, 1, &create_info, nullptr, &pipeline);
-
-  if (result != VK_SUCCESS)
-  {
-    vk_table.DestroyPipelineLayout(vk_device, layout, nullptr);
-    return stx::Err((gfx::Status) result);
-  }
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT,
-        .object      = (u64) pipeline,
-        .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
-  }
-
-  void *handle =
-      vk_resources.compute_pipelines.push(Pipeline{.pipeline = pipeline, .layout = layout});
-
-  return stx::Ok(resources.compute_pipelines.push(
-      gfx::ComputePipelineResource{.refcount = 1, .handle = handle}));
-}
-
-stx::Result<gfx::GraphicsPipeline, gfx::Status>
-    DeviceImpl::create_graphics_pipeline(gfx::GraphicsPipelineDesc const &desc)
-{
-  VkSpecializationInfo vk_vs_specialization{
-      .mapEntryCount = desc.vertex_shader.specialization_constants.size(),
-      .pMapEntries =
-          (VkSpecializationMapEntry const *) desc.vertex_shader.specialization_constants.data(),
-      .dataSize = desc.vertex_shader.specialization_constants_data.size_bytes(),
-      .pData    = desc.vertex_shader.specialization_constants_data.data()};
-
-  VkSpecializationInfo vk_fs_specialization{
-      .mapEntryCount = desc.fragment_shader.specialization_constants.size(),
-      .pMapEntries =
-          (VkSpecializationMapEntry const *) desc.fragment_shader.specialization_constants.data(),
-      .dataSize = desc.fragment_shader.specialization_constants_data.size_bytes(),
-      .pData    = desc.fragment_shader.specialization_constants_data.data()};
-
-  VkPipelineShaderStageCreateInfo vk_stages[2] = {
-      {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-       .pNext  = nullptr,
-       .flags  = 0,
-       .stage  = VK_SHADER_STAGE_VERTEX_BIT,
-       .module = (VkShaderModule) resources.shaders[desc.vertex_shader.shader].handle,
-       .pName = desc.vertex_shader.entry_point == nullptr ? "main" : desc.vertex_shader.entry_point,
-       .pSpecializationInfo = &vk_vs_specialization},
-      {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-       .pNext  = nullptr,
-       .flags  = 0,
-       .stage  = VK_SHADER_STAGE_FRAGMENT_BIT,
-       .module = (VkShaderModule) resources.shaders[desc.fragment_shader.shader].handle,
-       .pName =
-           desc.fragment_shader.entry_point == nullptr ? "main" : desc.fragment_shader.entry_point,
-       .pSpecializationInfo = &vk_fs_specialization}};
-
-  VkDescriptorSetLayout descriptor_set_layout =
-      (VkDescriptorSetLayout) resources.descriptor_set_layouts[desc.descriptor_set_layout].handle;
-
-  VkPushConstantRange push_constant_range{
-      .stageFlags = VK_SHADER_STAGE_ALL, .offset = 0, .size = desc.push_constant_size};
-
-  VkPipelineLayoutCreateInfo layout_create_info{.sType =
-                                                    VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-                                                .pNext                  = nullptr,
-                                                .flags                  = 0,
-                                                .setLayoutCount         = 1,
-                                                .pSetLayouts            = &descriptor_set_layout,
-                                                .pushConstantRangeCount = 1,
-                                                .pPushConstantRanges    = &push_constant_range};
-
-  VkPipelineLayout layout;
-  VK_ERR(vk_table.CreatePipelineLayout(vk_device, &layout_create_info, nullptr, &layout));
-
-  VkVertexInputBindingDescription input_bindings[gfx::MAX_VERTEX_ATTRIBUTES];
-  u32                             num_input_bindings = 0;
-  for (; num_input_bindings < desc.vertex_input_bindings.size(); num_input_bindings++)
-  {
-    gfx::VertexInputBinding const &binding =
-        desc.vertex_input_bindings.get_unsafe(num_input_bindings);
-    input_bindings[num_input_bindings] = VkVertexInputBindingDescription{
-        .binding   = binding.binding,
-        .stride    = binding.stride,
-        .inputRate = (VkVertexInputRate) binding.input_rate,
-    };
-  }
-
-  VkVertexInputAttributeDescription attributes[gfx::MAX_VERTEX_ATTRIBUTES];
-  u32                               num_attributes = 0;
-  for (; num_attributes < desc.vertex_attributes.size(); num_attributes++)
-  {
-    gfx::VertexAttribute const &attribute = desc.vertex_attributes.get_unsafe(num_attributes);
-    attributes[num_attributes] =
-        VkVertexInputAttributeDescription{.location = attribute.location,
-                                          .binding  = attribute.binding,
-                                          .format   = (VkFormat) attribute.format,
-                                          .offset   = attribute.offset};
-  }
-
-  VkPipelineVertexInputStateCreateInfo vertex_input_state{
-      .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-      .pNext                           = nullptr,
-      .flags                           = 0,
-      .vertexBindingDescriptionCount   = num_input_bindings,
-      .pVertexBindingDescriptions      = input_bindings,
-      .vertexAttributeDescriptionCount = num_attributes,
-      .pVertexAttributeDescriptions    = attributes};
-
-  VkPipelineInputAssemblyStateCreateInfo input_assembly_state{
-      .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-      .pNext                  = nullptr,
-      .flags                  = 0,
-      .topology               = (VkPrimitiveTopology) desc.primitive_topology,
-      .primitiveRestartEnable = false};
-
-  VkPipelineViewportStateCreateInfo viewport_state{
-      .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .pNext         = nullptr,
-      .flags         = 0,
-      .viewportCount = 1,
-      .pViewports    = nullptr,
-      .scissorCount  = 1,
-      .pScissors     = nullptr};
-
-  VkPipelineRasterizationStateCreateInfo rasterization_state{
-      .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-      .pNext                   = nullptr,
-      .flags                   = 0,
-      .depthClampEnable        = desc.rasterization_state.depth_clamp_enable,
-      .rasterizerDiscardEnable = false,
-      .polygonMode             = (VkPolygonMode) desc.rasterization_state.polygon_mode,
-      .cullMode                = (VkCullModeFlags) desc.rasterization_state.cull_mode,
-      .frontFace               = (VkFrontFace) desc.rasterization_state.front_face,
-      .depthBiasEnable         = desc.rasterization_state.depth_bias_enable,
-      .depthBiasConstantFactor = desc.rasterization_state.depth_bias_constant_factor,
-      .depthBiasClamp          = desc.rasterization_state.depth_bias_clamp,
-      .depthBiasSlopeFactor    = desc.rasterization_state.depth_bias_slope_factor,
-      .lineWidth               = 1.0f};
-
-  VkPipelineMultisampleStateCreateInfo multisample_state{
-      .sType                 = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .pNext                 = nullptr,
-      .flags                 = 0,
-      .rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
-      .sampleShadingEnable   = false,
-      .minSampleShading      = 1,
-      .pSampleMask           = nullptr,
-      .alphaToCoverageEnable = false,
-      .alphaToOneEnable      = false};
-
-  VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
-      .sType                 = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .pNext                 = nullptr,
-      .flags                 = 0,
-      .depthTestEnable       = desc.depth_stencil_state.depth_test_enable,
-      .depthWriteEnable      = desc.depth_stencil_state.depth_write_enable,
-      .depthCompareOp        = (VkCompareOp) desc.depth_stencil_state.depth_compare_op,
-      .depthBoundsTestEnable = desc.depth_stencil_state.depth_bounds_test_enable,
-      .stencilTestEnable     = desc.depth_stencil_state.stencil_test_enable,
-      .front =
-          VkStencilOpState{
-              .failOp      = (VkStencilOp) desc.depth_stencil_state.front_stencil.fail_op,
-              .passOp      = (VkStencilOp) desc.depth_stencil_state.front_stencil.pass_op,
-              .depthFailOp = (VkStencilOp) desc.depth_stencil_state.front_stencil.depth_fail_op,
-              .compareOp   = (VkCompareOp) desc.depth_stencil_state.front_stencil.compare_op,
-              .compareMask = desc.depth_stencil_state.front_stencil.compare_mask,
-              .writeMask   = desc.depth_stencil_state.front_stencil.write_mask,
-              .reference   = desc.depth_stencil_state.front_stencil.reference},
-      .back =
-          VkStencilOpState{
-              .failOp      = (VkStencilOp) desc.depth_stencil_state.back_stencil.fail_op,
-              .passOp      = (VkStencilOp) desc.depth_stencil_state.back_stencil.pass_op,
-              .depthFailOp = (VkStencilOp) desc.depth_stencil_state.back_stencil.depth_fail_op,
-              .compareOp   = (VkCompareOp) desc.depth_stencil_state.back_stencil.compare_op,
-              .compareMask = desc.depth_stencil_state.back_stencil.compare_mask,
-              .writeMask   = desc.depth_stencil_state.back_stencil.write_mask,
-              .reference   = desc.depth_stencil_state.back_stencil.reference},
-      .minDepthBounds = desc.depth_stencil_state.min_depth_bounds,
-      .maxDepthBounds = desc.depth_stencil_state.max_depth_bounds};
-
-  VkPipelineColorBlendAttachmentState attachment_states[gfx::MAX_COLOR_ATTACHMENTS];
-  u32                                 num_color_attachments = 0;
-
-  for (; num_color_attachments < (u32) desc.color_blend_state.attachments.size();
-       num_color_attachments++)
-  {
-    gfx::PipelineColorBlendAttachmentState const &state =
-        desc.color_blend_state.attachments.get_unsafe(num_color_attachments);
-    attachment_states[num_color_attachments] = VkPipelineColorBlendAttachmentState{
-        .blendEnable         = state.blend_enable,
-        .srcColorBlendFactor = (VkBlendFactor) state.src_color_blend_factor,
-        .dstColorBlendFactor = (VkBlendFactor) state.dst_color_blend_factor,
-        .colorBlendOp        = (VkBlendOp) state.color_blend_op,
-        .srcAlphaBlendFactor = (VkBlendFactor) state.src_alpha_blend_factor,
-        .dstAlphaBlendFactor = (VkBlendFactor) state.dst_alpha_blend_factor,
-        .alphaBlendOp        = (VkBlendOp) state.alpha_blend_op,
-        .colorWriteMask      = (VkColorComponentFlags) state.color_write_mask};
-  }
-
-  VkPipelineColorBlendStateCreateInfo color_blend_state{
-      .sType           = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .pNext           = nullptr,
-      .flags           = 0,
-      .logicOpEnable   = desc.color_blend_state.logic_op_enable,
-      .logicOp         = (VkLogicOp) desc.color_blend_state.logic_op,
-      .attachmentCount = num_color_attachments,
-      .pAttachments    = attachment_states,
-      .blendConstants  = {
-          desc.color_blend_state.blend_constants.x, desc.color_blend_state.blend_constants.y,
-          desc.color_blend_state.blend_constants.z, desc.color_blend_state.blend_constants.w}};
-
-  constexpr u32  num_dynamic_states                 = 6;
-  VkDynamicState dynamic_states[num_dynamic_states] = {
-      VK_DYNAMIC_STATE_VIEWPORT,          VK_DYNAMIC_STATE_SCISSOR,
-      VK_DYNAMIC_STATE_BLEND_CONSTANTS,   VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
-      VK_DYNAMIC_STATE_STENCIL_REFERENCE, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK};
-
-  VkPipelineDynamicStateCreateInfo dynamic_state{
-      .sType             = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-      .pNext             = nullptr,
-      .flags             = 0,
-      .dynamicStateCount = num_dynamic_states,
-      .pDynamicStates    = dynamic_states};
-
-  VkGraphicsPipelineCreateInfo create_info{
-      .sType               = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-      .pNext               = nullptr,
-      .flags               = 0,
-      .stageCount          = 2,
-      .pStages             = vk_stages,
-      .pVertexInputState   = &vertex_input_state,
-      .pInputAssemblyState = &input_assembly_state,
-      .pTessellationState  = nullptr,
-      .pViewportState      = &viewport_state,
-      .pRasterizationState = &rasterization_state,
-      .pMultisampleState   = &multisample_state,
-      .pDepthStencilState  = &depth_stencil_state,
-      .pColorBlendState    = &color_blend_state,
-      .pDynamicState       = &dynamic_state,
-      .layout              = layout,
-      .renderPass          = (VkRenderPass) resources.render_passes[desc.render_pass].handle,
-      .subpass             = 0,
-      .basePipelineHandle  = nullptr,
-      .basePipelineIndex   = 0};
-
-  VkPipeline      pipeline;
-  VkPipelineCache cache = desc.cache == nullptr ?
-                              nullptr :
-                              (VkPipelineCache) resources.pipeline_caches[desc.cache].handle;
-  VkResult        result =
-      vk_table.CreateGraphicsPipelines(vk_device, cache, 1, &create_info, nullptr, &pipeline);
-
-  if (result != VK_SUCCESS)
-  {
-    vk_table.DestroyPipelineLayout(vk_device, layout, nullptr);
-    return stx::Err((gfx::Status) result);
-  }
-
-  if (desc.label != nullptr)
-  {
-    VkDebugMarkerObjectNameInfoEXT debug_info{
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .pNext       = nullptr,
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT,
-        .object      = (u64) pipeline,
-        .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
-  }
-
-  void *handle =
-      vk_resources.graphics_pipelines.push(Pipeline{.pipeline = pipeline, .layout = layout});
-
-  return stx::Ok(resources.graphics_pipelines.push(
-      gfx::GraphicsPipelineResource{.refcount = 1, .handle = handle}));
-}
-
-stx::Result<gfx::CommandEncoder *, gfx::Status> DeviceImpl::create_command_encoder()
-{
-}
-
-
-
-
-
-   void *DeviceImpl::get_buffer_memory_map(gfx::Buffer buffer)
-{
-}
-
-   void DeviceImpl::invalidate_buffer_memory_map(gfx::Buffer                       buffer,
-                                           stx::Span<gfx::MemoryRange const> ranges) {}
-
-void DeviceImpl::flush_buffer_memory_map(gfx::Buffer                       buffer,
-                                      stx::Span<gfx::MemoryRange const> ranges) {}
-
-usize DeviceImpl::get_pipeline_cache_size(gfx::PipelineCache cache)
-{
-}
-
-void DeviceImpl::get_pipeline_cache_data(gfx::PipelineCache cache, stx::Span<u8> out)
-{
-}
-
-void DeviceImpl::wait_for_fences(stx::Span<gfx::Fence const> fences, bool all, u64 timeout)
-{
-}
-
-void DeviceImpl::reset_fences(stx::Span<gfx::Fence const> fences)
-{
-}
-
-gfx::FenceStatus DeviceImpl::get_fence_status(gfx::Fence fence)
-{
-}
-
-void DeviceImpl::submit(gfx::CommandEncoder *encoder, gfx::Fence signal_fence)
-{
-}
-
-void DeviceImpl::wait_idle()
-{
-  vk_table.DeviceWaitIdle(vk_device);
-  // todo(lamarrr):check
-}
-
-
-
-/*
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-*/
-
-inline void acquire_buffer(VkBuffer buffer, gfx::BufferUsage usage, BufferScope const &scope,
-                           VkCommandBuffer command_buffer, DeviceTable const &table)
+inline void sync_acquire_buffer(DeviceTable const &table, VkCommandBuffer command_buffer,
+                                VkBuffer buffer, gfx::BufferUsage usage, BufferScope const &scope)
 {
   if (has_any_bit(usage, gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst))
   {
@@ -1312,8 +433,8 @@ inline void acquire_buffer(VkBuffer buffer, gfx::BufferUsage usage, BufferScope 
 // release side-effects to operations that are allowed to have concurrent non-mutating access on the
 // resource
 
-inline void release_buffer(VkBuffer buffer, gfx::BufferUsage usage, BufferScope const &scope,
-                           VkCommandBuffer command_buffer, DeviceTable const &table)
+inline void sync_release_buffer(DeviceTable const &table, VkCommandBuffer command_buffer,
+                                VkBuffer buffer, gfx::BufferUsage usage, BufferScope const &scope)
 {
   if (has_bits(usage, gfx::BufferUsage::TransferSrc))
   {
@@ -1476,9 +597,9 @@ constexpr BufferScope compute_storage_buffer_scope()
 //
 // release only upon init
 //
-inline void acquire_image(VkImage image, gfx::ImageUsage usage, ImageScope const &scope,
-                          VkImageAspectFlags aspects, VkCommandBuffer command_buffer,
-                          DeviceTable const &table)
+inline void sync_acquire_image(DeviceTable const &table, VkCommandBuffer command_buffer,
+                               VkImage image, gfx::ImageUsage usage, ImageScope const &scope,
+                               VkImageAspectFlags aspects)
 {
   if (has_any_bit(usage, gfx::ImageUsage::TransferSrc | gfx::ImageUsage::TransferDst))
   {
@@ -1671,9 +792,9 @@ inline void acquire_image(VkImage image, gfx::ImageUsage usage, ImageScope const
 
 // release side-effects to operations that are allowed to have concurrent non-mutating access on the
 // resource
-inline void release_image(VkImage image, gfx::ImageUsage usage, ImageScope const &scope,
-                          VkImageAspectFlags aspects, VkCommandBuffer command_buffer,
-                          DeviceTable const &table)
+inline void sync_release_image(DeviceTable const &table, VkCommandBuffer command_buffer,
+                               VkImage image, gfx::ImageUsage usage, ImageScope const &scope,
+                               VkImageAspectFlags aspects)
 {
   // only shader-sampled images can run parallel to other command views
   // only transitioned to Shader read only if it is not used as storage at the same stage
@@ -1857,143 +978,1105 @@ constexpr gfx::ImageUsage
   return usage;
 }
 
-stx::Result<gfx::Image, gfx::Status>
-    CommandEncoderImpl::create_image(gfx::ImageDesc const &old_desc, gfx::Color initial_color)
+stx::Result<gfx::FormatProperties, gfx::Status>
+    DeviceImpl::get_format_properties(gfx::Format format)
 {
-  gfx::ImageDesc desc{old_desc};
-  desc.usage |= gfx::ImageUsage::TransferDst;
-  TRY_OK(image, create_vk_image(desc, *device));
+  VkFormatProperties props;
+  vkGetPhysicalDeviceFormatProperties(vk_phy_device, (VkFormat) format, &props);
+  return stx::Ok(gfx::FormatProperties{
+      .linear_tiling_features  = (gfx::FormatFeatures) props.linearTilingFeatures,
+      .optimal_tiling_features = (gfx::FormatFeatures) props.optimalTilingFeatures,
+      .buffer_features         = (gfx::FormatFeatures) props.bufferFeatures});
+}
 
-  gfx::Image out = device->resources.images.push(
-      gfx::ImageResource{.refcount           = 1,
-                         .handle             = device->vk_resources.images.push(image),
-                         .externally_managed = false,
-                         .desc               = desc});
+stx::Result<gfx::Buffer, gfx::Status> DeviceImpl::create_buffer(gfx::BufferDesc const &desc)
+{
+  VkBufferCreateInfo      create_info{.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                                      .pNext                 = nullptr,
+                                      .flags                 = 0,
+                                      .size                  = desc.size,
+                                      .usage                 = to_vkUsage(desc.usage),
+                                      .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+                                      .queueFamilyIndexCount = 1,
+                                      .pQueueFamilyIndices   = nullptr};
+  VmaAllocationCreateInfo alloc_create_info{.flags = 0,
+                                            .usage = VMA_MEMORY_USAGE_UNKNOWN,
+                                            .requiredFlags =
+                                                (VkMemoryPropertyFlags) desc.properties,
+                                            .preferredFlags = 0,
+                                            .memoryTypeBits = 0,
+                                            .pool           = nullptr,
+                                            .pUserData      = nullptr,
+                                            .priority       = 0};
+  VmaAllocationInfo       vma_allocation_info;
+  VmaAllocation           vma_allocation;
+  VkBuffer                vk_buffer;
+  VK_ERR(vmaCreateBuffer(vma_allocator, &create_info, &alloc_create_info, &vk_buffer,
+                         &vma_allocation, &vma_allocation_info));
 
-  ImageScope scope = transfer_image_scope(desc.usage);
+  void *host_map = nullptr;
+  if (has_bits(desc.properties, gfx::MemoryProperties::HostVisible))
+  {
+    VK_ERR(vk_table.MapMemory(vk_device, vma_allocation_info.deviceMemory, 0, VK_WHOLE_SIZE, 0,
+                              &host_map));
+  }
 
-  VkImageSubresourceRange range{.aspectMask     = (VkImageAspectFlags) desc.aspects,
-                                .baseMipLevel   = 0,
-                                .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                .baseArrayLayer = 0,
-                                .layerCount     = VK_REMAINING_ARRAY_LAYERS};
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT,
+        .object      = (u64) vk_buffer,
+        .pObjectName = desc.label};
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+  }
 
-  VkImageMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                               .pNext               = nullptr,
-                               .srcAccessMask       = VK_ACCESS_NONE,
-                               .dstAccessMask       = scope.access,
-                               .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-                               .newLayout           = scope.layout,
-                               .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                               .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                               .image               = image.vk_image,
-                               .subresourceRange    = range};
+  Buffer *buffer = (Buffer *) allocator.allocate(allocator.data, sizeof(Buffer), alignof(Buffer));
+  if (buffer == nullptr)
+  {
+    vmaDestroyBuffer(vma_allocator, vk_buffer, vma_allocation);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
 
-  device->vk_table.CmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                      scope.access, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0,
-                                      nullptr, 1, &barrier);
+  new (buffer) Buffer{.refcount            = 1,
+                      .desc                = desc,
+                      .vk_buffer           = vk_buffer,
+                      .vma_allocation      = vma_allocation,
+                      .vma_allocation_info = vma_allocation_info,
+                      .host_map            = host_map};
 
-  device->vk_table.CmdClearColorImage(vk_command_buffer, image.vk_image, scope.layout,
-                                      (VkClearColorValue *) &initial_color, 1, &range);
+  return stx::Ok((gfx::Buffer) buffer);
+}
 
-  release_image(image.vk_image, desc.usage, scope, (VkImageAspectFlags) desc.aspects,
-                vk_command_buffer, device->vk_table);
+stx::Result<gfx::BufferView, gfx::Status>
+    DeviceImpl::create_buffer_view(gfx::BufferViewDesc const &desc)
+{
+  VkBufferViewCreateInfo create_info{.sType  = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
+                                     .pNext  = nullptr,
+                                     .flags  = 0,
+                                     .buffer = ((Buffer *) desc.buffer)->vk_buffer,
+                                     .format = (VkFormat) desc.format,
+                                     .offset = desc.offset,
+                                     .range  = desc.size};
 
-  return stx::Ok((gfx::Image) out);
+  VkBufferView vk_view;
+
+  VK_ERR(vk_table.CreateBufferView(vk_device, &create_info, nullptr, &vk_view));
+
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT,
+        .object      = (u64) vk_view,
+        .pObjectName = desc.label};
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+  }
+
+  BufferView *view =
+      (BufferView *) allocator.allocate(allocator.data, sizeof(BufferView), alignof(BufferView));
+
+  if (view == nullptr)
+  {
+    vk_table.DestroyBufferView(vk_device, vk_view, nullptr);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  new (view) BufferView{.refcount = 1, .desc = desc, .vk_view = vk_view};
+
+  return stx::Ok((gfx::BufferView) view);
+}
+
+#define CREATE_IMAGE_PRELUDE()                                                                    \
+  gfx::ImageDesc desc{old_desc};                                                                  \
+  desc.usage |= gfx::ImageUsage::TransferDst;                                                     \
+                                                                                                  \
+  VkImageCreateInfo create_info{.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,     \
+                                .pNext                 = nullptr,                                 \
+                                .flags                 = 0,                                       \
+                                .imageType             = (VkImageType) desc.type,                 \
+                                .format                = (VkFormat) desc.format,                  \
+                                .extent                = VkExtent3D{.width  = desc.extent.width,  \
+                                                                    .height = desc.extent.height, \
+                                                                    .depth  = desc.extent.depth},  \
+                                .mipLevels             = desc.mip_levels,                         \
+                                .arrayLayers           = desc.array_layers,                       \
+                                .samples               = VK_SAMPLE_COUNT_1_BIT,                   \
+                                .tiling                = VK_IMAGE_TILING_OPTIMAL,                 \
+                                .usage                 = to_vkUsage(desc.usage),                  \
+                                .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,               \
+                                .queueFamilyIndexCount = 0,                                       \
+                                .pQueueFamilyIndices   = nullptr,                                 \
+                                .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED};                      \
+                                                                                                  \
+  VkImage           vk_image;                                                                     \
+  VmaAllocation     vma_allocation;                                                               \
+  VmaAllocationInfo vma_allocation_info;                                                          \
+  VK_ERR(vmaCreateImage(vma_allocator, &create_info, nullptr, &vk_image, &vma_allocation,         \
+                        &vma_allocation_info));                                                   \
+                                                                                                  \
+  if (desc.label != nullptr)                                                                      \
+  {                                                                                               \
+    VkDebugMarkerObjectNameInfoEXT debug_info{                                                    \
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,                       \
+        .pNext       = nullptr,                                                                   \
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,                                     \
+        .object      = (u64) vk_image,                                                            \
+        .pObjectName = desc.label};                                                               \
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);                                 \
+  }                                                                                               \
+                                                                                                  \
+  ImageScope scope = transfer_image_scope(desc.usage);                                            \
+                                                                                                  \
+  VkImageSubresourceRange range{.aspectMask     = (VkImageAspectFlags) desc.aspects,              \
+                                .baseMipLevel   = 0,                                              \
+                                .levelCount     = VK_REMAINING_MIP_LEVELS,                        \
+                                .baseArrayLayer = 0,                                              \
+                                .layerCount     = VK_REMAINING_ARRAY_LAYERS};                         \
+                                                                                                  \
+  VkImageMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,     \
+                               .pNext               = nullptr,                                    \
+                               .srcAccessMask       = VK_ACCESS_NONE,                             \
+                               .dstAccessMask       = scope.access,                               \
+                               .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,                  \
+                               .newLayout           = scope.layout,                               \
+                               .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,                    \
+                               .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,                    \
+                               .image               = vk_image,                                   \
+                               .subresourceRange    = range};                                        \
+                                                                                                  \
+  Image *image = (Image *) allocator.allocate(allocator.data, sizeof(Image), alignof(Image));     \
+                                                                                                  \
+  if (image == nullptr)                                                                           \
+  {                                                                                               \
+    vmaDestroyImage(vma_allocator, vk_image, vma_allocation);                                     \
+    return stx::Err(gfx::Status::OutOfHostMemory);                                                \
+  }                                                                                               \
+                                                                                                  \
+  new (image) Image{.refcount            = 1,                                                     \
+                    .desc                = desc,                                                  \
+                    .is_weak             = false,                                                 \
+                    .vk_image            = vk_image,                                              \
+                    .vma_allocation      = vma_allocation,                                        \
+                    .vma_allocation_info = vma_allocation_info};                                  \
+                                                                                                  \
+  VkCommandBuffer vk_command_buffer =                                                             \
+      ((CommandEncoderImpl *) command_encoder.to_impl())->vk_command_buffer;                      \
+  vk_table.CmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, scope.access, \
+                              VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
+
+stx::Result<gfx::Image, gfx::Status> DeviceImpl::create_image(gfx::ImageDesc const &old_desc,
+                                                              gfx::Color            initial_color,
+                                                              gfx::CommandEncoder  &command_encoder)
+{
+  CREATE_IMAGE_PRELUDE();
+
+  vk_table.CmdClearColorImage(vk_command_buffer, vk_image, scope.layout,
+                              (VkClearColorValue *) &initial_color, 1, &range);
+
+  sync_release_image(vk_table, vk_command_buffer, vk_image, desc.usage, scope,
+                     (VkImageAspectFlags) desc.aspects);
+
+  return stx::Ok((gfx::Image) image);
 }
 
 stx::Result<gfx::Image, gfx::Status>
-    CommandEncoderImpl::create_image(gfx::ImageDesc const &old_desc,
-                                     gfx::DepthStencil     initial_depth_stencil)
+    DeviceImpl::create_image(gfx::ImageDesc const &old_desc,
+                             gfx::DepthStencil     initial_depth_stencil,
+                             gfx::CommandEncoder  &command_encoder)
 {
-  gfx::ImageDesc desc{old_desc};
-  desc.usage |= gfx::ImageUsage::TransferDst;
-  TRY_OK(image, create_vk_image(desc, *device));
+  CREATE_IMAGE_PRELUDE();
 
-  gfx::Image out = device->resources.images.push(
-      gfx::ImageResource{.refcount           = 1,
-                         .handle             = device->vk_resources.images.push(image),
-                         .externally_managed = false,
-                         .desc               = desc});
+  vk_table.CmdClearDepthStencilImage(vk_command_buffer, vk_image, scope.layout,
+                                     (VkClearDepthStencilValue *) &initial_depth_stencil, 1,
+                                     &range);
 
-  ImageScope scope = transfer_image_scope(desc.usage);
+  sync_release_image(vk_table, vk_command_buffer, vk_image, desc.usage, scope,
+                     (VkImageAspectFlags) desc.aspects);
 
-  VkImageSubresourceRange range{.aspectMask     = (VkImageAspectFlags) desc.aspects,
-                                .baseMipLevel   = 0,
-                                .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                .baseArrayLayer = 0,
-                                .layerCount     = VK_REMAINING_ARRAY_LAYERS};
-
-  VkImageMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                               .pNext               = nullptr,
-                               .srcAccessMask       = VK_ACCESS_NONE,
-                               .dstAccessMask       = scope.access,
-                               .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-                               .newLayout           = scope.layout,
-                               .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                               .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                               .image               = image.vk_image,
-                               .subresourceRange    = range};
-
-  device->vk_table.CmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                      scope.access, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0,
-                                      nullptr, 1, &barrier);
-
-  device->vk_table.CmdClearDepthStencilImage(vk_command_buffer, image.vk_image, scope.layout,
-                                             (VkClearDepthStencilValue *) &initial_depth_stencil, 1,
-                                             &range);
-
-  release_image(image.vk_image, desc.usage, scope, (VkImageAspectFlags) desc.aspects,
-                vk_command_buffer, device->vk_table);
-
-  return stx::Ok((gfx::Image) out);
+  return stx::Ok((gfx::Image) image);
 }
 
 stx::Result<gfx::Image, gfx::Status>
-    CommandEncoderImpl::create_image(gfx::ImageDesc const &old_desc, gfx::Buffer initial_data,
-                                     stx::Span<gfx::BufferImageCopy const> copies)
+    DeviceImpl::create_image(gfx::ImageDesc const &old_desc, gfx::Buffer initial_data,
+                             stx::Span<gfx::BufferImageCopy const> copies,
+                             gfx::CommandEncoder                  &command_encoder)
 {
-  gfx::ImageDesc desc{old_desc};
-  desc.usage |= gfx::ImageUsage::TransferDst;
-  TRY_OK(image, create_vk_image(desc, *device));
+  CREATE_IMAGE_PRELUDE();
 
-  gfx::Image out = device->resources.images.push(
-      gfx::ImageResource{.refcount           = 1,
-                         .handle             = device->vk_resources.images.push(image),
-                         .externally_managed = false,
-                         .desc               = desc});
+  VkBufferImageCopy *vk_copies = (VkBufferImageCopy *) allocator.allocate(
+      allocator.data, sizeof(VkBufferImageCopy) * (u32) copies.size(), alignof(VkBufferImageCopy));
 
-  ImageScope scope = transfer_image_scope(desc.usage);
+  if (vk_copies == nullptr)
+  {
+    vmaDestroyImage(vma_allocator, vk_image, vma_allocation);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
 
-  VkImageSubresourceRange range{.aspectMask     = (VkImageAspectFlags) desc.aspects,
-                                .baseMipLevel   = 0,
-                                .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                .baseArrayLayer = 0,
-                                .layerCount     = VK_REMAINING_ARRAY_LAYERS};
+  for (u32 i = 0; i < (u32) copies.size(); i++)
+  {
+    gfx::BufferImageCopy const &copy = copies.data()[i];
+    vk_copies[i]                     = VkBufferImageCopy{
+                            .bufferOffset      = copy.buffer_offset,
+                            .bufferRowLength   = copy.buffer_row_length,
+                            .bufferImageHeight = copy.buffer_image_height,
+                            .imageSubresource =
+            VkImageSubresourceLayers{.aspectMask = (VkImageAspectFlags) copy.image_layers.aspects,
+                                                         .mipLevel   = copy.image_layers.mip_level,
+                                                         .baseArrayLayer = copy.image_layers.first_array_layer,
+                                                         .layerCount     = copy.image_layers.num_array_layers},
+                            .imageOffset = VkOffset3D{(i32) copy.image_area.offset.x, (i32) copy.image_area.offset.y,
+                                  (i32) copy.image_area.offset.z},
+                            .imageExtent = VkExtent3D{copy.image_area.extent.width, copy.image_area.extent.height,
+                                  copy.image_area.extent.depth}};
+  }
 
-  VkImageMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                               .pNext               = nullptr,
-                               .srcAccessMask       = VK_ACCESS_NONE,
-                               .dstAccessMask       = scope.access,
-                               .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-                               .newLayout           = scope.layout,
-                               .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                               .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                               .image               = image.vk_image,
-                               .subresourceRange    = range};
+  vk_table.CmdCopyBufferToImage(vk_command_buffer, ((Buffer *) initial_data)->vk_buffer, vk_image,
+                                scope.layout, (u32) copies.size(), vk_copies);
 
-  device->vk_table.CmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                      scope.access, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0,
-                                      nullptr, 1, &barrier);
+  allocator.deallocate(allocator.data, vk_copies);
 
-  device->vk_table.CmdClearColorImage(vk_command_buffer, image.vk_image, scope.layout,
-                                      (VkClearColorValue *) &initial_color, 1, &range);
+  sync_release_image(vk_table, vk_command_buffer, vk_image, desc.usage, scope,
+                     (VkImageAspectFlags) desc.aspects);
 
-  release_image(image.vk_image, desc.usage, scope, (VkImageAspectFlags) desc.aspects,
-                vk_command_buffer, device->vk_table);
-
-  return stx::Ok((gfx::Image) out);
+  return stx::Ok((gfx::Image) image);
 }
+
+stx::Result<gfx::ImageView, gfx::Status>
+    DeviceImpl::create_image_view(gfx::ImageViewDesc const &desc)
+{
+  VkImageViewCreateInfo create_info{
+      .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .pNext            = nullptr,
+      .flags            = 0,
+      .image            = ((Image *) desc.image)->vk_image,
+      .viewType         = (VkImageViewType) desc.view_type,
+      .format           = (VkFormat) desc.view_format,
+      .components       = VkComponentMapping{.r = (VkComponentSwizzle) desc.mapping.r,
+                                             .g = (VkComponentSwizzle) desc.mapping.g,
+                                             .b = (VkComponentSwizzle) desc.mapping.b,
+                                             .a = (VkComponentSwizzle) desc.mapping.a},
+      .subresourceRange = VkImageSubresourceRange{.aspectMask   = (VkImageAspectFlags) desc.aspects,
+                                                  .baseMipLevel = desc.first_mip_level,
+                                                  .levelCount   = desc.num_mip_levels,
+                                                  .baseArrayLayer = desc.first_array_layer,
+                                                  .layerCount     = desc.num_array_layers}};
+
+  VkImageView vk_view;
+  VK_ERR(vk_table.CreateImageView(vk_device, &create_info, nullptr, &vk_view));
+
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT,
+        .object      = (u64) vk_view,
+        .pObjectName = desc.label};
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+  }
+
+  ImageView *view =
+      (ImageView *) allocator.allocate(allocator.data, sizeof(ImageView), alignof(ImageView));
+  if (view == nullptr)
+  {
+    vk_table.DestroyImageView(vk_device, vk_view, nullptr);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  new (view) ImageView{.refcount = 1, .desc = desc, .vk_view = vk_view};
+
+  return stx::Ok((gfx::ImageView) view);
+}
+
+stx::Result<gfx::Sampler, gfx::Status> DeviceImpl::create_sampler(gfx::SamplerDesc const &desc)
+{
+  VkSamplerCreateInfo create_info{.sType            = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+                                  .pNext            = nullptr,
+                                  .magFilter        = (VkFilter) desc.mag_filter,
+                                  .minFilter        = (VkFilter) desc.min_filter,
+                                  .mipmapMode       = (VkSamplerMipmapMode) desc.mip_map_mode,
+                                  .addressModeU     = (VkSamplerAddressMode) desc.address_mode_u,
+                                  .addressModeV     = (VkSamplerAddressMode) desc.address_mode_v,
+                                  .addressModeW     = (VkSamplerAddressMode) desc.address_mode_w,
+                                  .mipLodBias       = desc.mip_lod_bias,
+                                  .anisotropyEnable = (VkBool32) desc.anisotropy_enable,
+                                  .maxAnisotropy    = desc.max_anisotropy,
+                                  .compareEnable    = (VkBool32) desc.compare_enable,
+                                  .compareOp        = (VkCompareOp) desc.compare_op,
+                                  .minLod           = desc.min_lod,
+                                  .maxLod           = desc.max_lod,
+                                  .borderColor      = (VkBorderColor) desc.border_color,
+                                  .unnormalizedCoordinates =
+                                      (VkBool32) desc.unnormalized_coordinates};
+
+  VkSampler vk_sampler;
+  VK_ERR(vk_table.CreateSampler(vk_device, &create_info, nullptr, &vk_sampler));
+
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT,
+        .object      = (u64) vk_sampler,
+        .pObjectName = desc.label};
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+  }
+
+  Sampler *sampler =
+      (Sampler *) allocator.allocate(allocator.data, sizeof(Sampler), alignof(Sampler));
+  if (sampler == nullptr)
+  {
+    vk_table.DestroySampler(vk_device, vk_sampler, nullptr);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  new (sampler) Sampler{.refcount = 1, .vk_sampler = vk_sampler};
+
+  return stx::Ok((gfx::Sampler) sampler);
+}
+
+stx::Result<gfx::Shader, gfx::Status> DeviceImpl::create_shader(gfx::ShaderDesc const &desc)
+{
+  VkShaderModuleCreateInfo create_info{.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                                       .pNext    = nullptr,
+                                       .flags    = 0,
+                                       .codeSize = desc.spirv_code.size_bytes(),
+                                       .pCode    = desc.spirv_code.data()};
+
+  VkShaderModule vk_shader;
+  VK_ERR(vk_table.CreateShaderModule(vk_device, &create_info, nullptr, &vk_shader));
+
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+        .object      = (u64) vk_shader,
+        .pObjectName = desc.label};
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+  }
+
+  Shader *shader = (Shader *) allocator.allocate(allocator.data, sizeof(Shader), alignof(Shader));
+  if (shader == nullptr)
+  {
+    vk_table.DestroyShaderModule(vk_device, vk_shader, nullptr);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  new (shader) Shader{.refcount = 1, .vk_shader = vk_shader};
+
+  return stx::Ok((gfx::Shader) shader);
+}
+
+stx::Result<gfx::RenderPass, gfx::Status>
+    DeviceImpl::create_render_pass(gfx::RenderPassDesc const &desc)
+{
+  VkAttachmentDescription vk_attachments[gfx::MAX_COLOR_ATTACHMENTS * 2 + 1];
+  VkAttachmentReference   vk_color_attachments[gfx::MAX_COLOR_ATTACHMENTS];
+  VkAttachmentReference   vk_input_attachments[gfx::MAX_COLOR_ATTACHMENTS];
+  VkAttachmentReference   vk_depth_stencil_attachment;
+  u32                     num_attachments       = 0;
+  u32                     num_color_attachments = (u32) desc.color_attachments.size();
+  u32                     num_input_attachments = (u32) desc.input_attachments.size();
+  u32                     num_depth_stencil_attachments =
+      desc.depth_stencil_attachment.format == gfx::Format::Undefined ? 0 : 1;
+  for (u32 icolor_attachment = 0; icolor_attachment < (u32) desc.color_attachments.size();
+       num_attachments++, icolor_attachment++)
+  {
+    gfx::RenderPassAttachment const &attachment =
+        desc.color_attachments.get_unsafe(icolor_attachment);
+    vk_attachments[num_attachments] =
+        VkAttachmentDescription{.flags          = 0,
+                                .format         = (VkFormat) attachment.format,
+                                .samples        = VK_SAMPLE_COUNT_1_BIT,
+                                .loadOp         = (VkAttachmentLoadOp) attachment.load_op,
+                                .storeOp        = (VkAttachmentStoreOp) attachment.store_op,
+                                .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                                .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                                .initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                .finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    vk_color_attachments[icolor_attachment] = VkAttachmentReference{
+        .attachment = num_attachments, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+  }
+
+  for (u32 iinput_attachment = 0; iinput_attachment < (u32) desc.input_attachments.size();
+       num_attachments++, iinput_attachment++)
+  {
+    gfx::RenderPassAttachment const &attachment =
+        desc.input_attachments.get_unsafe(iinput_attachment);
+    vk_attachments[num_attachments] =
+        VkAttachmentDescription{.flags          = 0,
+                                .format         = (VkFormat) attachment.format,
+                                .samples        = VK_SAMPLE_COUNT_1_BIT,
+                                .loadOp         = (VkAttachmentLoadOp) attachment.load_op,
+                                .storeOp        = (VkAttachmentStoreOp) attachment.store_op,
+                                .stencilLoadOp  = (VkAttachmentLoadOp) attachment.stencil_load_op,
+                                .stencilStoreOp = (VkAttachmentStoreOp) attachment.stencil_store_op,
+                                .initialLayout  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+    vk_input_attachments[iinput_attachment] = VkAttachmentReference{
+        .attachment = num_attachments, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+  }
+
+  if (num_depth_stencil_attachments != 0)
+  {
+    vk_attachments[num_attachments] = VkAttachmentDescription{
+        .flags          = 0,
+        .format         = (VkFormat) desc.depth_stencil_attachment.format,
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp         = (VkAttachmentLoadOp) desc.depth_stencil_attachment.load_op,
+        .storeOp        = (VkAttachmentStoreOp) desc.depth_stencil_attachment.store_op,
+        .stencilLoadOp  = (VkAttachmentLoadOp) desc.depth_stencil_attachment.stencil_load_op,
+        .stencilStoreOp = (VkAttachmentStoreOp) desc.depth_stencil_attachment.stencil_store_op,
+        .initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        .finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+
+    vk_depth_stencil_attachment = VkAttachmentReference{
+        .attachment = num_attachments, .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+
+    num_attachments++;
+  }
+
+  VkSubpassDescription vk_subpass{.flags                   = 0,
+                                  .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  .inputAttachmentCount    = num_input_attachments,
+                                  .pInputAttachments       = vk_input_attachments,
+                                  .colorAttachmentCount    = num_color_attachments,
+                                  .pColorAttachments       = vk_color_attachments,
+                                  .pResolveAttachments     = nullptr,
+                                  .pDepthStencilAttachment = num_depth_stencil_attachments == 0 ?
+                                                                 nullptr :
+                                                                 &vk_depth_stencil_attachment,
+                                  .preserveAttachmentCount = 0,
+                                  .pPreserveAttachments    = nullptr};
+
+  VkRenderPassCreateInfo create_info{.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+                                     .pNext           = nullptr,
+                                     .flags           = 0,
+                                     .attachmentCount = num_attachments,
+                                     .pAttachments    = vk_attachments,
+                                     .subpassCount    = 1,
+                                     .pSubpasses      = &vk_subpass,
+                                     .dependencyCount = 0,
+                                     .pDependencies   = nullptr};
+  VkRenderPass           vk_render_pass;
+  VK_ERR(vk_table.CreateRenderPass(vk_device, &create_info, nullptr, &vk_render_pass));
+
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT,
+        .object      = (u64) vk_render_pass,
+        .pObjectName = desc.label};
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+  }
+
+  RenderPass *render_pass =
+      (RenderPass *) allocator.allocate(allocator.data, sizeof(RenderPass), alignof(RenderPass));
+  if (render_pass == nullptr)
+  {
+    vk_table.DestroyRenderPass(vk_device, vk_render_pass, nullptr);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  new (render_pass) RenderPass{.refcount = 1, .desc = desc, .vk_render_pass = vk_render_pass};
+
+  return stx::Ok((gfx::RenderPass) render_pass);
+}
+
+stx::Result<gfx::Framebuffer, gfx::Status>
+    DeviceImpl::create_framebuffer(gfx::FramebufferDesc const &desc)
+{
+  u32         num_color_attachments         = (u32) desc.color_attachments.size();
+  u32         num_depth_stencil_attachments = desc.depth_stencil_attachment == nullptr ? 0 : 1;
+  VkImageView vk_attachments[gfx::MAX_COLOR_ATTACHMENTS + 1];
+  u32         num_attachments = 0;
+  // TODO(lamarrr): fill, does the index slot association make sense preesently???
+  VkFramebufferCreateInfo create_info{.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                                      .pNext           = nullptr,
+                                      .flags           = 0,
+                                      .attachmentCount = num_attachments,
+                                      .pAttachments    = vk_attachments,
+                                      .width           = desc.extent.width,
+                                      .height          = desc.extent.height,
+                                      .layers          = desc.layers};
+
+  VkFramebuffer vk_framebuffer;
+
+  VK_ERR(vk_table.CreateFramebuffer(vk_device, &create_info, nullptr, &vk_framebuffer));
+
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT,
+        .object      = (u64) vk_framebuffer,
+        .pObjectName = desc.label};
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+  }
+
+  Framebuffer *framebuffer =
+      (Framebuffer *) allocator.allocate(allocator.data, sizeof(Framebuffer), alignof(Framebuffer));
+  if (framebuffer == nullptr)
+  {
+    vk_table.DestroyFramebuffer(vk_device, vk_framebuffer, nullptr);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  new (framebuffer) Framebuffer{.refcount = 1, .desc = desc, .vk_framebuffer = vk_framebuffer};
+
+  return stx::Ok((gfx::Framebuffer) framebuffer);
+}
+
+stx::Result<gfx::DescriptorSetLayout, gfx::Status>
+    DeviceImpl::create_descriptor_set_layout(gfx::DescriptorSetLayoutDesc const &desc)
+{
+  u32                           num_bindings = (u32) desc.bindings.size();
+  VkDescriptorSetLayoutBinding *vk_bindings  = (VkDescriptorSetLayoutBinding *) allocator.allocate(
+      allocator.data, sizeof(VkDescriptorSetLayoutBinding) * num_bindings,
+      alignof(VkDescriptorSetLayoutBinding));
+
+  if (vk_bindings == nullptr)
+  {
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  gfx::DescriptorBindingCount binding_count;
+
+  for (usize i = 0; i < num_bindings; i++)
+  {
+    gfx::DescriptorBindingDesc const &binding = desc.bindings.data()[i];
+    vk_bindings[i] = VkDescriptorSetLayoutBinding{.binding        = binding.binding,
+                                                  .descriptorType = (VkDescriptorType) binding.type,
+                                                  .descriptorCount    = binding.count,
+                                                  .stageFlags         = VK_SHADER_STAGE_ALL,
+                                                  .pImmutableSamplers = nullptr};
+
+    binding_count.counts[(u32) binding.type] += binding.count;
+  }
+
+  VkDescriptorSetLayoutCreateInfo create_info{
+      .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+      .pNext        = nullptr,
+      .flags        = 0,
+      .bindingCount = num_bindings,
+      .pBindings    = vk_bindings};
+
+  VkDescriptorSetLayout vk_layout;
+  VkResult              result =
+      vk_table.CreateDescriptorSetLayout(vk_device, &create_info, nullptr, &vk_layout);
+
+  allocator.deallocate(allocator.data, vk_bindings);
+
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
+
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT,
+        .object      = (u64) vk_layout,
+        .pObjectName = desc.label};
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+  }
+
+  DescriptorSetLayout *layout = (DescriptorSetLayout *) allocator.allocate(
+      allocator.data, sizeof(DescriptorSetLayout), alignof(DescriptorSetLayout));
+  if (layout == nullptr)
+  {
+    vk_table.DestroyDescriptorSetLayout(vk_device, vk_layout, nullptr);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  new (layout)
+      DescriptorSetLayout{.refcount = 1, .binding_count = binding_count, .vk_layout = vk_layout};
+
+  return stx::Ok((gfx::DescriptorSetLayout) layout);
+}
+
+stx::Result<gfx::PipelineCache, gfx::Status>
+    DeviceImpl::create_pipeline_cache(gfx::PipelineCacheDesc const &desc)
+{
+  VkPipelineCacheCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
+                                        .pNext = nullptr,
+                                        .flags = 0,
+                                        .initialDataSize = desc.initial_data.size_bytes(),
+                                        .pInitialData    = desc.initial_data.data()};
+
+  VkPipelineCache vk_cache;
+  VK_ERR(vk_table.CreatePipelineCache(vk_device, &create_info, nullptr, &vk_cache));
+
+  PipelineCache *cache = (PipelineCache *) allocator.allocate(allocator.data, sizeof(PipelineCache),
+                                                              alignof(PipelineCache));
+  if (cache == nullptr)
+  {
+    vk_table.DestroyPipelineCache(vk_device, vk_cache, nullptr);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  new (cache) PipelineCache{.refcount = 1, .vk_cache = vk_cache};
+
+  return stx::Ok((gfx::PipelineCache) cache);
+}
+
+stx::Result<gfx::ComputePipeline, gfx::Status>
+    DeviceImpl::create_compute_pipeline(gfx::ComputePipelineDesc const &desc)
+{
+  VkSpecializationInfo vk_specialization{
+      .mapEntryCount = desc.compute_shader.specialization_constants.size(),
+      .pMapEntries =
+          (VkSpecializationMapEntry const *) desc.compute_shader.specialization_constants.data(),
+      .dataSize = desc.compute_shader.specialization_constants_data.size_bytes(),
+      .pData    = desc.compute_shader.specialization_constants_data.data()};
+
+  VkPipelineShaderStageCreateInfo vk_stage{
+      .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .pNext  = nullptr,
+      .flags  = 0,
+      .stage  = VK_SHADER_STAGE_COMPUTE_BIT,
+      .module = ((Shader *) desc.compute_shader.shader)->vk_shader,
+      .pName =
+          desc.compute_shader.entry_point == nullptr ? "main" : desc.compute_shader.entry_point,
+      .pSpecializationInfo = &vk_specialization};
+
+  VkPushConstantRange push_constant_range{
+      .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT, .offset = 0, .size = desc.push_constant_size};
+
+  VkPipelineLayoutCreateInfo layout_create_info{
+      .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .pNext                  = nullptr,
+      .flags                  = 0,
+      .setLayoutCount         = 1,
+      .pSetLayouts            = &((DescriptorSetLayout *) desc.descriptor_set_layout)->vk_layout,
+      .pushConstantRangeCount = 1,
+      .pPushConstantRanges    = &push_constant_range};
+
+  VkPipelineLayout vk_layout;
+  VK_ERR(vk_table.CreatePipelineLayout(vk_device, &layout_create_info, nullptr, &vk_layout));
+
+  VkComputePipelineCreateInfo create_info{.sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+                                          .pNext  = nullptr,
+                                          .flags  = 0,
+                                          .stage  = vk_stage,
+                                          .layout = vk_layout,
+                                          .basePipelineHandle = nullptr,
+                                          .basePipelineIndex  = 0};
+
+  VkPipeline vk_pipeline;
+  VkResult   result = vk_table.CreateComputePipelines(
+      vk_device, desc.cache == nullptr ? nullptr : ((PipelineCache *) desc.cache)->vk_cache, 1,
+      &create_info, nullptr, &vk_pipeline);
+
+  if (result != VK_SUCCESS)
+  {
+    vk_table.DestroyPipelineLayout(vk_device, vk_layout, nullptr);
+    return stx::Err((gfx::Status) result);
+  }
+
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT,
+        .object      = (u64) vk_pipeline,
+        .pObjectName = desc.label};
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+  }
+
+  ComputePipeline *pipeline = (ComputePipeline *) allocator.allocate(
+      allocator.data, sizeof(ComputePipeline), alignof(ComputePipeline));
+  if (pipeline == nullptr)
+  {
+    vk_table.DestroyPipelineLayout(vk_device, vk_layout, nullptr);
+    vk_table.DestroyPipeline(vk_device, vk_pipeline, nullptr);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  new (pipeline) ComputePipeline{.refcount = 1, .vk_pipeline = vk_pipeline, .vk_layout = vk_layout};
+
+  return stx::Ok((gfx::ComputePipeline) pipeline);
+}
+
+stx::Result<gfx::GraphicsPipeline, gfx::Status>
+    DeviceImpl::create_graphics_pipeline(gfx::GraphicsPipelineDesc const &desc)
+{
+  VkSpecializationInfo vk_vs_specialization{
+      .mapEntryCount = desc.vertex_shader.specialization_constants.size(),
+      .pMapEntries =
+          (VkSpecializationMapEntry const *) desc.vertex_shader.specialization_constants.data(),
+      .dataSize = desc.vertex_shader.specialization_constants_data.size_bytes(),
+      .pData    = desc.vertex_shader.specialization_constants_data.data()};
+
+  VkSpecializationInfo vk_fs_specialization{
+      .mapEntryCount = desc.fragment_shader.specialization_constants.size(),
+      .pMapEntries =
+          (VkSpecializationMapEntry const *) desc.fragment_shader.specialization_constants.data(),
+      .dataSize = desc.fragment_shader.specialization_constants_data.size_bytes(),
+      .pData    = desc.fragment_shader.specialization_constants_data.data()};
+
+  VkPipelineShaderStageCreateInfo vk_stages[2] = {
+      {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+       .pNext  = nullptr,
+       .flags  = 0,
+       .stage  = VK_SHADER_STAGE_VERTEX_BIT,
+       .module = ((Shader *) desc.vertex_shader.shader)->vk_shader,
+       .pName = desc.vertex_shader.entry_point == nullptr ? "main" : desc.vertex_shader.entry_point,
+       .pSpecializationInfo = &vk_vs_specialization},
+      {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+       .pNext  = nullptr,
+       .flags  = 0,
+       .stage  = VK_SHADER_STAGE_FRAGMENT_BIT,
+       .module = ((Shader *) desc.fragment_shader.shader)->vk_shader,
+       .pName =
+           desc.fragment_shader.entry_point == nullptr ? "main" : desc.fragment_shader.entry_point,
+       .pSpecializationInfo = &vk_fs_specialization}};
+
+  VkPushConstantRange push_constant_range{
+      .stageFlags = VK_SHADER_STAGE_ALL, .offset = 0, .size = desc.push_constant_size};
+
+  VkPipelineLayoutCreateInfo layout_create_info{
+      .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .pNext                  = nullptr,
+      .flags                  = 0,
+      .setLayoutCount         = 1,
+      .pSetLayouts            = &((DescriptorSetLayout *) desc.descriptor_set_layout)->vk_layout,
+      .pushConstantRangeCount = 1,
+      .pPushConstantRanges    = &push_constant_range};
+
+  VkPipelineLayout vk_layout;
+  VK_ERR(vk_table.CreatePipelineLayout(vk_device, &layout_create_info, nullptr, &vk_layout));
+
+  VkVertexInputBindingDescription input_bindings[gfx::MAX_VERTEX_ATTRIBUTES];
+  u32                             num_input_bindings = 0;
+  for (; num_input_bindings < desc.vertex_input_bindings.size(); num_input_bindings++)
+  {
+    gfx::VertexInputBinding const &binding =
+        desc.vertex_input_bindings.get_unsafe(num_input_bindings);
+    input_bindings[num_input_bindings] = VkVertexInputBindingDescription{
+        .binding   = binding.binding,
+        .stride    = binding.stride,
+        .inputRate = (VkVertexInputRate) binding.input_rate,
+    };
+  }
+
+  VkVertexInputAttributeDescription attributes[gfx::MAX_VERTEX_ATTRIBUTES];
+  u32                               num_attributes = 0;
+  for (; num_attributes < desc.vertex_attributes.size(); num_attributes++)
+  {
+    gfx::VertexAttribute const &attribute = desc.vertex_attributes.get_unsafe(num_attributes);
+    attributes[num_attributes] =
+        VkVertexInputAttributeDescription{.location = attribute.location,
+                                          .binding  = attribute.binding,
+                                          .format   = (VkFormat) attribute.format,
+                                          .offset   = attribute.offset};
+  }
+
+  VkPipelineVertexInputStateCreateInfo vertex_input_state{
+      .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+      .pNext                           = nullptr,
+      .flags                           = 0,
+      .vertexBindingDescriptionCount   = num_input_bindings,
+      .pVertexBindingDescriptions      = input_bindings,
+      .vertexAttributeDescriptionCount = num_attributes,
+      .pVertexAttributeDescriptions    = attributes};
+
+  VkPipelineInputAssemblyStateCreateInfo input_assembly_state{
+      .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+      .pNext                  = nullptr,
+      .flags                  = 0,
+      .topology               = (VkPrimitiveTopology) desc.primitive_topology,
+      .primitiveRestartEnable = false};
+
+  VkPipelineViewportStateCreateInfo viewport_state{
+      .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      .pNext         = nullptr,
+      .flags         = 0,
+      .viewportCount = 1,
+      .pViewports    = nullptr,
+      .scissorCount  = 1,
+      .pScissors     = nullptr};
+
+  VkPipelineRasterizationStateCreateInfo rasterization_state{
+      .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+      .pNext                   = nullptr,
+      .flags                   = 0,
+      .depthClampEnable        = desc.rasterization_state.depth_clamp_enable,
+      .rasterizerDiscardEnable = false,
+      .polygonMode             = (VkPolygonMode) desc.rasterization_state.polygon_mode,
+      .cullMode                = (VkCullModeFlags) desc.rasterization_state.cull_mode,
+      .frontFace               = (VkFrontFace) desc.rasterization_state.front_face,
+      .depthBiasEnable         = desc.rasterization_state.depth_bias_enable,
+      .depthBiasConstantFactor = desc.rasterization_state.depth_bias_constant_factor,
+      .depthBiasClamp          = desc.rasterization_state.depth_bias_clamp,
+      .depthBiasSlopeFactor    = desc.rasterization_state.depth_bias_slope_factor,
+      .lineWidth               = 1.0f};
+
+  VkPipelineMultisampleStateCreateInfo multisample_state{
+      .sType                 = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      .pNext                 = nullptr,
+      .flags                 = 0,
+      .rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
+      .sampleShadingEnable   = false,
+      .minSampleShading      = 1,
+      .pSampleMask           = nullptr,
+      .alphaToCoverageEnable = false,
+      .alphaToOneEnable      = false};
+
+  VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
+      .sType                 = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      .pNext                 = nullptr,
+      .flags                 = 0,
+      .depthTestEnable       = desc.depth_stencil_state.depth_test_enable,
+      .depthWriteEnable      = desc.depth_stencil_state.depth_write_enable,
+      .depthCompareOp        = (VkCompareOp) desc.depth_stencil_state.depth_compare_op,
+      .depthBoundsTestEnable = desc.depth_stencil_state.depth_bounds_test_enable,
+      .stencilTestEnable     = desc.depth_stencil_state.stencil_test_enable,
+      .front =
+          VkStencilOpState{
+              .failOp      = (VkStencilOp) desc.depth_stencil_state.front_stencil.fail_op,
+              .passOp      = (VkStencilOp) desc.depth_stencil_state.front_stencil.pass_op,
+              .depthFailOp = (VkStencilOp) desc.depth_stencil_state.front_stencil.depth_fail_op,
+              .compareOp   = (VkCompareOp) desc.depth_stencil_state.front_stencil.compare_op,
+              .compareMask = desc.depth_stencil_state.front_stencil.compare_mask,
+              .writeMask   = desc.depth_stencil_state.front_stencil.write_mask,
+              .reference   = desc.depth_stencil_state.front_stencil.reference},
+      .back =
+          VkStencilOpState{
+              .failOp      = (VkStencilOp) desc.depth_stencil_state.back_stencil.fail_op,
+              .passOp      = (VkStencilOp) desc.depth_stencil_state.back_stencil.pass_op,
+              .depthFailOp = (VkStencilOp) desc.depth_stencil_state.back_stencil.depth_fail_op,
+              .compareOp   = (VkCompareOp) desc.depth_stencil_state.back_stencil.compare_op,
+              .compareMask = desc.depth_stencil_state.back_stencil.compare_mask,
+              .writeMask   = desc.depth_stencil_state.back_stencil.write_mask,
+              .reference   = desc.depth_stencil_state.back_stencil.reference},
+      .minDepthBounds = desc.depth_stencil_state.min_depth_bounds,
+      .maxDepthBounds = desc.depth_stencil_state.max_depth_bounds};
+
+  VkPipelineColorBlendAttachmentState attachment_states[gfx::MAX_COLOR_ATTACHMENTS];
+  u32                                 num_color_attachments = 0;
+
+  for (; num_color_attachments < (u32) desc.color_blend_state.attachments.size();
+       num_color_attachments++)
+  {
+    gfx::PipelineColorBlendAttachmentState const &state =
+        desc.color_blend_state.attachments.get_unsafe(num_color_attachments);
+    attachment_states[num_color_attachments] = VkPipelineColorBlendAttachmentState{
+        .blendEnable         = state.blend_enable,
+        .srcColorBlendFactor = (VkBlendFactor) state.src_color_blend_factor,
+        .dstColorBlendFactor = (VkBlendFactor) state.dst_color_blend_factor,
+        .colorBlendOp        = (VkBlendOp) state.color_blend_op,
+        .srcAlphaBlendFactor = (VkBlendFactor) state.src_alpha_blend_factor,
+        .dstAlphaBlendFactor = (VkBlendFactor) state.dst_alpha_blend_factor,
+        .alphaBlendOp        = (VkBlendOp) state.alpha_blend_op,
+        .colorWriteMask      = (VkColorComponentFlags) state.color_write_mask};
+  }
+
+  VkPipelineColorBlendStateCreateInfo color_blend_state{
+      .sType           = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      .pNext           = nullptr,
+      .flags           = 0,
+      .logicOpEnable   = desc.color_blend_state.logic_op_enable,
+      .logicOp         = (VkLogicOp) desc.color_blend_state.logic_op,
+      .attachmentCount = num_color_attachments,
+      .pAttachments    = attachment_states,
+      .blendConstants  = {
+          desc.color_blend_state.blend_constants.x, desc.color_blend_state.blend_constants.y,
+          desc.color_blend_state.blend_constants.z, desc.color_blend_state.blend_constants.w}};
+
+  constexpr u32  num_dynamic_states                 = 6;
+  VkDynamicState dynamic_states[num_dynamic_states] = {
+      VK_DYNAMIC_STATE_VIEWPORT,          VK_DYNAMIC_STATE_SCISSOR,
+      VK_DYNAMIC_STATE_BLEND_CONSTANTS,   VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
+      VK_DYNAMIC_STATE_STENCIL_REFERENCE, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK};
+
+  VkPipelineDynamicStateCreateInfo dynamic_state{
+      .sType             = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      .pNext             = nullptr,
+      .flags             = 0,
+      .dynamicStateCount = num_dynamic_states,
+      .pDynamicStates    = dynamic_states};
+
+  VkGraphicsPipelineCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+                                           .pNext = nullptr,
+                                           .flags = 0,
+                                           .stageCount          = 2,
+                                           .pStages             = vk_stages,
+                                           .pVertexInputState   = &vertex_input_state,
+                                           .pInputAssemblyState = &input_assembly_state,
+                                           .pTessellationState  = nullptr,
+                                           .pViewportState      = &viewport_state,
+                                           .pRasterizationState = &rasterization_state,
+                                           .pMultisampleState   = &multisample_state,
+                                           .pDepthStencilState  = &depth_stencil_state,
+                                           .pColorBlendState    = &color_blend_state,
+                                           .pDynamicState       = &dynamic_state,
+                                           .layout              = vk_layout,
+                                           .renderPass =
+                                               ((RenderPass *) desc.render_pass)->vk_render_pass,
+                                           .subpass            = 0,
+                                           .basePipelineHandle = nullptr,
+                                           .basePipelineIndex  = 0};
+
+  VkPipeline vk_pipeline;
+  VkResult   result = vk_table.CreateGraphicsPipelines(
+      vk_device, desc.cache == nullptr ? nullptr : ((PipelineCache *) desc.cache)->vk_cache, 1,
+      &create_info, nullptr, &vk_pipeline);
+
+  if (result != VK_SUCCESS)
+  {
+    vk_table.DestroyPipelineLayout(vk_device, vk_layout, nullptr);
+    return stx::Err((gfx::Status) result);
+  }
+
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT,
+        .object      = (u64) vk_pipeline,
+        .pObjectName = desc.label};
+    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+  }
+
+  GraphicsPipeline *pipeline = (GraphicsPipeline *) allocator.allocate(
+      allocator.data, sizeof(GraphicsPipeline), alignof(GraphicsPipeline));
+  if (pipeline == nullptr)
+  {
+    vk_table.DestroyPipelineLayout(vk_device, vk_layout, nullptr);
+    vk_table.DestroyPipeline(vk_device, vk_pipeline, nullptr);
+    return stx::Err(gfx::Status::OutOfHostMemory);
+  }
+
+  new (pipeline)
+      GraphicsPipeline{.refcount = 1, .vk_pipeline = vk_pipeline, .vk_layout = vk_layout};
+
+  return stx::Ok((gfx::GraphicsPipeline) pipeline);
+}
+
+stx::Result<gfx::CommandEncoder *, gfx::Status> DeviceImpl::create_command_encoder()
+{
+}
+
+void *DeviceImpl::get_buffer_memory_map(gfx::Buffer buffer)
+{
+  return ((Buffer *) buffer)->host_map;
+}
+
+void DeviceImpl::invalidate_buffer_memory_map(gfx::Buffer                       buffer,
+                                              stx::Span<gfx::MemoryRange const> ranges)
+{
+  Buffer *buffer_impl = ((Buffer *) buffer);
+
+  if (buffer_impl->host_map != nullptr)
+  {
+    for (gfx::MemoryRange const &range : ranges)
+    {
+      VkMappedMemoryRange vk_range{.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                                   .pNext  = nullptr,
+                                   .memory = buffer_impl->vma_allocation_info.deviceMemory,
+                                   .offset = range.offset,
+                                   .size   = range.size};
+      vk_table.InvalidateMappedMemoryRanges(vk_device, 1, &vk_range);
+    }
+  }
+}
+
+void DeviceImpl::flush_buffer_memory_map(gfx::Buffer                       buffer,
+                                         stx::Span<gfx::MemoryRange const> ranges)
+{
+  Buffer *buffer_impl = ((Buffer *) buffer);
+
+  if (buffer_impl->host_map != nullptr)
+  {
+    for (gfx::MemoryRange const &range : ranges)
+    {
+      VkMappedMemoryRange vk_range{.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                                   .pNext  = nullptr,
+                                   .memory = buffer_impl->vma_allocation_info.deviceMemory,
+                                   .offset = range.offset,
+                                   .size   = range.size};
+      vk_table.FlushMappedMemoryRanges(vk_device, 1, &vk_range);
+    }
+  }
+}
+
+usize DeviceImpl::get_pipeline_cache_size(gfx::PipelineCache cache)
+{
+  usize size;
+  ASH_CHECK(vk_table.GetPipelineCacheData(vk_device, ((PipelineCache *) cache)->vk_cache, &size,
+                                          nullptr) == VK_SUCCESS);
+}
+
+usize DeviceImpl::get_pipeline_cache_data(gfx::PipelineCache cache, stx::Span<u8> out)
+{
+  usize size = out.size_bytes();
+  ASH_CHECK(vk_table.GetPipelineCacheData(vk_device, ((PipelineCache *) cache)->vk_cache, &size,
+                                          out.data()) == VK_SUCCESS);
+  return size;
+}
+
+gfx::Status DeviceImpl::wait_for_fences(stx::Span<gfx::Fence const> fences, bool all, u64 timeout)
+{
+  u32      num_fences = (u32) fences.size();
+  VkFence *vk_fences  = (VkFence *) allocator.allocate(allocator.data, sizeof(VkFence) * num_fences,
+                                                       alignof(VkFence));
+  ASH_CHECK(vk_fences != nullptr);
+  for (u32 i = 0; i < num_fences; i++)
+  {
+    vk_fences[i] = ((Fence *) fences.data()[i])->vk_fence;
+  }
+
+  VkResult result = vk_table.WaitForFences(vk_device, num_fences, vk_fences, all, timeout);
+
+  allocator.deallocate(allocator.data, vk_fences);
+
+  return (gfx::Status) result;
+}
+
+void DeviceImpl::reset_fences(stx::Span<gfx::Fence const> fences)
+{
+  for (gfx::Fence fence : fences)
+  {
+    vk_table.ResetFences(vk_device, 1, &((Fence *) fence)->vk_fence);
+  }
+}
+
+gfx::Status DeviceImpl::get_fence_status(gfx::Fence fence)
+{
+  return (gfx::Status) vk_table.GetFenceStatus(vk_device, ((Fence *) fence)->vk_fence);
+}
+
+void DeviceImpl::submit(gfx::CommandEncoder *encoder, gfx::Fence signal_fence)
+{
+}
+
+void DeviceImpl::wait_idle()
+{
+  vk_table.DeviceWaitIdle(vk_device);
+  // todo(lamarrr):check
+}
+
+void DeviceImpl::wait_queue_idle()
+{
+  vk_table.QueueWaitIdle(vk_queue);
+  // todo(lamarrr):check
+}
+
 
 void CommandEncoderImpl::begin()
 {
@@ -2032,165 +2115,275 @@ void CommandEncoderImpl::end_debug_marker()
 
 void CommandEncoderImpl::fill_buffer(gfx::Buffer dst, u64 offset, u64 size, u32 data)
 {
-  gfx::BufferResource const &resource  = device->resources.buffers[dst];
-  VkBuffer                   vk_buffer = device->vk_resources.buffers[resource.handle].vk_buffer;
-  BufferScope                scope     = transfer_buffer_scope(resource.desc.usage);
-  acquire_buffer(vk_buffer, resource.desc.usage, scope, vk_command_buffer, device->vk_table);
-  device->vk_table.CmdFillBuffer(vk_command_buffer, vk_buffer, offset, size, data);
-  release_buffer(vk_buffer, resource.desc.usage, scope, vk_command_buffer, device->vk_table);
+  Buffer     *dst_impl = (Buffer *) dst;
+  BufferScope scope    = transfer_buffer_scope(dst_impl->desc.usage);
+  sync_acquire_buffer(device->vk_table, vk_command_buffer, dst_impl->vk_buffer,
+                      dst_impl->desc.usage, scope);
+  device->vk_table.CmdFillBuffer(vk_command_buffer, dst_impl->vk_buffer, offset, size, data);
+  sync_release_buffer(device->vk_table, vk_command_buffer, dst_impl->vk_buffer,
+                      dst_impl->desc.usage, scope);
 }
 
 void CommandEncoderImpl::copy_buffer(gfx::Buffer src, gfx::Buffer dst,
                                      stx::Span<gfx::BufferCopy const> copies)
 {
-  gfx::BufferResource const &src_rc    = device->resources.buffers[src];
-  VkBuffer                   vk_src    = device->vk_resources.buffers[src_rc.handle].vk_buffer;
-  gfx::BufferResource const &dst_rc    = device->resources.buffers[dst];
-  VkBuffer                   vk_dst    = device->vk_resources.buffers[dst_rc.handle].vk_buffer;
-  BufferScope                dst_scope = transfer_buffer_scope(dst_rc.desc.usage);
+  Buffer     *src_impl = (Buffer *) src;
+  Buffer     *dst_impl = (Buffer *) dst;
+  BufferScope scope    = transfer_buffer_scope(dst_impl->desc.usage);
 
-  acquire_buffer(vk_dst, dst_rc.desc.usage, dst_scope, vk_command_buffer, device->vk_table);
+  sync_acquire_buffer(device->vk_table, vk_command_buffer, dst_impl->vk_buffer,
+                      dst_impl->desc.usage, scope);
 
-  // todo(lamarrr);
-  device->vk_table.CmdCopyBuffer(vk_command_buffer, vk_src, vk_dst, 0, nullptr);
+  u32           num_copies = (u32) copies.size();
+  VkBufferCopy *vk_copies  = (VkBufferCopy *) allocator.allocate(
+      allocator.data, sizeof(VkBufferCopy) * num_copies, alignof(VkBufferCopy));
+  ASH_CHECK(vk_copies != nullptr);
 
-  release_buffer(vk_dst, dst_rc.desc.usage, dst_scope, vk_command_buffer, device->vk_table);
+  for (u32 i = 0; i < num_copies; i++)
+  {
+    gfx::BufferCopy const &copy = copies.data()[i];
+    vk_copies[i] =
+        VkBufferCopy{.srcOffset = copy.src_offset, .dstOffset = copy.dst_offset, .size = copy.size};
+  }
+
+  device->vk_table.CmdCopyBuffer(vk_command_buffer, src_impl->vk_buffer, dst_impl->vk_buffer,
+                                 num_copies, vk_copies);
+
+  sync_release_buffer(device->vk_table, vk_command_buffer, dst_impl->vk_buffer,
+                      dst_impl->desc.usage, scope);
+
+  allocator.deallocate(allocator.data, vk_copies);
 }
 
 void CommandEncoderImpl::update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::Buffer dst)
 {
-  gfx::BufferResource const &dst_rc    = device->resources.buffers[dst];
-  VkBuffer                   vk_dst    = device->vk_resources.buffers[dst_rc.handle].vk_buffer;
-  BufferScope                dst_scope = transfer_buffer_scope(dst_rc.desc.usage);
+  Buffer     *dst_impl = (Buffer *) dst;
+  BufferScope scope    = transfer_buffer_scope(dst_impl->desc.usage);
 
-  acquire_buffer(vk_dst, dst_rc.desc.usage, dst_scope, vk_command_buffer, device->vk_table);
+  sync_acquire_buffer(device->vk_table, vk_command_buffer, dst_impl->vk_buffer,
+                      dst_impl->desc.usage, scope);
 
-  device->vk_table.CmdUpdateBuffer(vk_command_buffer, vk_dst, dst_offset, (u64) src.size(),
-                                   src.data());
+  device->vk_table.CmdUpdateBuffer(vk_command_buffer, dst_impl->vk_buffer, dst_offset,
+                                   (u64) src.size(), src.data());
 
-  release_buffer(vk_dst, dst_rc.desc.usage, dst_scope, vk_command_buffer, device->vk_table);
+  sync_release_buffer(device->vk_table, vk_command_buffer, dst_impl->vk_buffer,
+                      dst_impl->desc.usage, scope);
 }
 
-void CommandEncoderImpl::clear_color_image(gfx::Image dst, stx::Span<gfx::Color const> clear_colors,
+void CommandEncoderImpl::clear_color_image(gfx::Image dst, gfx::Color clear_color,
                                            stx::Span<gfx::ImageSubresourceRange const> ranges)
 
 {
-  gfx::ImageResource const &resource = device->resources.images[dst];
-  VkImage                   vk_image = device->vk_resources.images[resource.handle].vk_image;
-  ImageScope                scope    = transfer_image_scope(resource.desc.usage);
-  VkImageSubresourceRange   vk_range[16];
+  Image     *dst_impl = (Image *) dst;
+  ImageScope scope    = transfer_image_scope(dst_impl->desc.usage);
 
-  for (u32 i = 0; i < ranges.size(); i += 16)
+  sync_acquire_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
+                     scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+
+  u32                      num_ranges = (u32) ranges.size();
+  VkImageSubresourceRange *vk_ranges  = (VkImageSubresourceRange *) allocator.allocate(
+      allocator.data, sizeof(VkImageSubresourceRange) * num_ranges,
+      alignof(VkImageSubresourceRange));
+
+  for (u32 i = 0; i < num_ranges; i++)
   {
-    acquire_image(vk_image, resource.desc.usage, scope, (VkImageAspectFlags) resource.desc.aspects,
-                  vk_command_buffer, device->vk_table);
-
-    device->vk_table.CmdClearColorImage(vk_command_buffer, vk_image, scope.layout,
-                                        (VkClearColorValue *) clear_colors.data(),
-                                        (u32) clear_colors.size(), );
+    gfx::ImageSubresourceRange const &range = ranges.data()[i];
+    vk_ranges[i] = VkImageSubresourceRange{.aspectMask     = (VkImageAspectFlags) range.aspects,
+                                           .baseMipLevel   = range.first_mip_level,
+                                           .levelCount     = range.num_mip_levels,
+                                           .baseArrayLayer = range.first_array_layer,
+                                           .layerCount     = range.num_array_layers};
   }
+
+  device->vk_table.CmdClearColorImage(vk_command_buffer, dst_impl->vk_image, scope.layout,
+                                      (VkClearColorValue *) &clear_color, num_ranges, vk_ranges);
+
+  sync_release_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
+                     scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+
+  allocator.deallocate(allocator.data, vk_ranges);
 }
 
-void CommandBuffer::clear_depth_stencil_image(
-    gfx::Image dst, stx::Span<gfx::DepthStencil const> clear_depth_stencils,
+void CommandEncoderImpl::clear_depth_stencil_image(
+    gfx::Image dst, gfx::DepthStencil clear_depth_stencil,
     stx::Span<gfx::ImageSubresourceRange const> ranges)
 
 {
-  ImageScope scope = transfer_image_scope(graph->images[dst].desc.scope);
+  Image     *dst_impl = (Image *) dst;
+  ImageScope scope    = transfer_image_scope(dst_impl->desc.usage);
 
-  acquire_image(graph->to_rhi(dst), graph->images[dst].desc.scope, scope.stages, scope.access,
-                scope.layout, graph->images[dst].desc.aspects, tmp_image_barriers);
+  sync_acquire_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
+                     scope, (VkImageAspectFlags) dst_impl->desc.aspects);
 
-  driver->cmd_insert_barriers(rhi, {}, tmp_image_barriers);
+  u32                      num_ranges = (u32) ranges.size();
+  VkImageSubresourceRange *vk_ranges  = (VkImageSubresourceRange *) allocator.allocate(
+      allocator.data, sizeof(VkImageSubresourceRange) * num_ranges,
+      alignof(VkImageSubresourceRange));
 
-  driver->cmd_clear_depth_stencil_image(rhi, graph->to_rhi(dst), clear_depth_stencils, ranges);
+  for (u32 i = 0; i < num_ranges; i++)
+  {
+    gfx::ImageSubresourceRange const &range = ranges.data()[i];
+    vk_ranges[i] = VkImageSubresourceRange{.aspectMask     = (VkImageAspectFlags) range.aspects,
+                                           .baseMipLevel   = range.first_mip_level,
+                                           .levelCount     = range.num_mip_levels,
+                                           .baseArrayLayer = range.first_array_layer,
+                                           .layerCount     = range.num_array_layers};
+  }
 
-  release_image(graph->to_rhi(dst), graph->images[dst].desc.scope, scope.stages, scope.access,
-                scope.layout, graph->images[dst].desc.aspects, tmp_image_barriers);
+  device->vk_table.CmdClearDepthStencilImage(vk_command_buffer, dst_impl->vk_image, scope.layout,
+                                             (VkClearDepthStencilValue *) &clear_depth_stencil,
+                                             num_ranges, vk_ranges);
 
-  driver->cmd_insert_barriers(rhi, {}, tmp_image_barriers);
+  sync_release_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
+                     scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+
+  allocator.deallocate(allocator.data, vk_ranges);
 }
 
-void CommandBuffer::copy_image(gfx::Image src, gfx::Image dst,
-                               stx::Span<gfx::ImageCopy const> copies)
+void CommandEncoderImpl::copy_image(gfx::Image src, gfx::Image dst,
+                                    stx::Span<gfx::ImageCopy const> copies)
 {
-  ImageScope src_scope = transfer_image_scope(graph->images[src].desc.scope);
-  ImageScope dst_scope = transfer_image_scope(graph->images[dst].desc.scope);
+  Image     *src_impl  = (Image *) src;
+  Image     *dst_impl  = (Image *) dst;
+  ImageScope src_scope = transfer_image_scope(src_impl->desc.usage);
+  ImageScope dst_scope = transfer_image_scope(dst_impl->desc.usage);
 
-  acquire_image(graph->to_rhi(src), graph->images[src].desc.scope, src_scope.stages,
-                src_scope.access, src_scope.layout, graph->images[src].desc.aspects,
-                tmp_image_barriers);
-  acquire_image(graph->to_rhi(dst), graph->images[dst].desc.scope, dst_scope.stages,
-                dst_scope.access, dst_scope.layout, graph->images[dst].desc.aspects,
-                tmp_image_barriers);
+  sync_acquire_image(device->vk_table, vk_command_buffer, src_impl->vk_image, src_impl->desc.usage,
+                     src_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+  sync_acquire_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
+                     dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
 
-  driver->cmd_insert_barriers(rhi, {}, tmp_image_barriers);
+  u32          num_copies = (u32) copies.size();
+  VkImageCopy *vk_copies  = (VkImageCopy *) allocator.allocate(
+      allocator.data, sizeof(VkImageCopy) * num_copies, alignof(VkImageCopy));
 
-  driver->cmd_copy_image(rhi, src, dst, copies);
+  for (u32 i = 0; i < num_copies; i++)
+  {
+    gfx::ImageCopy const &copy = copies.data()[i];
+    vk_copies[i]               = VkImageCopy{
+                      .srcSubresource =
+            VkImageSubresourceLayers{.aspectMask     = (VkImageAspectFlags) copy.src_layers.aspects,
+                                                   .mipLevel       = copy.src_layers.mip_level,
+                                                   .baseArrayLayer = copy.src_layers.first_array_layer,
+                                                   .layerCount     = copy.src_layers.num_array_layers},
+                      .srcOffset =
+            VkOffset3D{copy.src_area.offset.x, copy.src_area.offset.y, copy.src_area.offset.z},
+                      .dstSubresource =
+            VkImageSubresourceLayers{.aspectMask     = (VkImageAspectFlags) copy.dst_layers.aspects,
+                                                   .mipLevel       = copy.dst_layers.mip_level,
+                                                   .baseArrayLayer = copy.dst_layers.first_array_layer,
+                                                   .layerCount     = copy.dst_layers.num_array_layers},
+                      .dstOffset = VkOffset3D{copy.dst_offset.x, copy.dst_offset.y, copy.dst_offset.z},
+                      .extent    = VkExtent3D{copy.src_area.extent.width, copy.src_area.extent.height,
+                             copy.src_area.extent.depth}};
+  }
 
-  release_image(graph->to_rhi(src), graph->images[src].desc.scope, src_scope.stages,
-                src_scope.access, src_scope.layout, graph->images[src].desc.aspects,
-                tmp_image_barriers);
-  release_image(graph->to_rhi(dst), graph->images[dst].desc.scope, dst_scope.stages,
-                dst_scope.access, dst_scope.layout, graph->images[dst].desc.aspects,
-                tmp_image_barriers);
+  device->vk_table.CmdCopyImage(vk_command_buffer, src_impl->vk_image, src_scope.layout,
+                                src_impl->vk_image, dst_scope.layout, num_copies, vk_copies);
 
-  driver->cmd_insert_barriers(rhi, {}, tmp_image_barriers);
+  sync_release_image(device->vk_table, vk_command_buffer, src_impl->vk_image, src_impl->desc.usage,
+                     src_scope, (VkImageAspectFlags) src_impl->desc.aspects);
+  sync_release_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
+                     dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+
+  allocator.deallocate(allocator.data, vk_copies);
 }
 
-void CommandBuffer::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
-                                         stx::Span<gfx::BufferImageCopy const> copies)
+void CommandEncoderImpl::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
+                                              stx::Span<gfx::BufferImageCopy const> copies)
 {
-  BufferScope src_scope = transfer_buffer_scope(graph->buffers[src].desc.scope);
-  ImageScope  dst_scope = transfer_image_scope(graph->images[dst].desc.scope);
+  Image     *dst_impl  = (Image *) dst;
+  ImageScope dst_scope = transfer_image_scope(dst_impl->desc.usage);
 
-  acquire_buffer(graph->to_rhi(src), graph->buffers[src].desc.scope, src_scope.stages,
-                 src_scope.access, tmp_buffer_barriers);
-  acquire_image(graph->to_rhi(dst), graph->images[dst].desc.scope, dst_scope.stages,
-                dst_scope.access, dst_scope.layout, graph->images[dst].desc.aspects,
-                tmp_image_barriers);
+  sync_acquire_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
+                     dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
 
-  driver->cmd_insert_barriers(rhi, tmp_buffer_barriers, tmp_image_barriers);
+  u32                num_copies = (u32) copies.size();
+  VkBufferImageCopy *vk_copies  = (VkBufferImageCopy *) allocator.allocate(
+      allocator.data, sizeof(VkBufferImageCopy) * num_copies, alignof(VkBufferImageCopy));
 
-  driver->cmd_copy_buffer_to_image(rhi, src, dst, copies);
+  for (u32 i = 0; i < num_copies; i++)
+  {
+    gfx::BufferImageCopy const &copy = copies.data()[i];
+    vk_copies[i]                     = VkBufferImageCopy{
+                            .bufferOffset      = copy.buffer_offset,
+                            .bufferRowLength   = copy.buffer_row_length,
+                            .bufferImageHeight = copy.buffer_image_height,
+                            .imageSubresource =
+            VkImageSubresourceLayers{.aspectMask = (VkImageAspectFlags) copy.image_layers.aspects,
+                                                         .mipLevel   = copy.image_layers.mip_level,
+                                                         .baseArrayLayer = copy.image_layers.first_array_layer,
+                                                         .layerCount     = copy.image_layers.num_array_layers},
+                            .imageOffset = VkOffset3D{copy.image_area.offset.x, copy.image_area.offset.y,
+                                  copy.image_area.offset.z},
+                            .imageExtent = VkExtent3D{copy.image_area.extent.width, copy.image_area.extent.height,
+                                  copy.image_area.extent.depth}};
+  }
 
-  release_buffer(graph->to_rhi(src), graph->buffers[src].desc.scope, src_scope.stages,
-                 src_scope.access, tmp_buffer_barriers);
-  release_image(graph->to_rhi(dst), graph->images[dst].desc.scope, dst_scope.stages,
-                dst_scope.access, dst_scope.layout, graph->images[dst].desc.aspects,
-                tmp_image_barriers);
+  device->vk_table.CmdCopyBufferToImage(vk_command_buffer, ((Buffer *) src)->vk_buffer,
+                                        dst_impl->vk_image, dst_scope.layout, num_copies,
+                                        vk_copies);
 
-  driver->cmd_insert_barriers(rhi, tmp_buffer_barriers, tmp_image_barriers);
+  sync_release_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
+                     dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+
+  allocator.deallocate(allocator.data, vk_copies);
 }
 
-void CommandBuffer::blit_image(gfx::Image src, gfx::Image dst,
-                               stx::Span<gfx::ImageBlit const> blits, gfx::Filter filter)
+void CommandEncoderImpl::blit_image(gfx::Image src, gfx::Image dst,
+                                    stx::Span<gfx::ImageBlit const> blits, gfx::Filter filter)
 {
-  ImageScope src_scope = transfer_image_scope(graph->images[src].desc.scope);
-  ImageScope dst_scope = transfer_image_scope(graph->images[dst].desc.scope);
+  Image     *src_impl  = (Image *) src;
+  Image     *dst_impl  = (Image *) dst;
+  ImageScope src_scope = transfer_image_scope(src_impl->desc.usage);
+  ImageScope dst_scope = transfer_image_scope(dst_impl->desc.usage);
 
-  acquire_image(graph->to_rhi(src), graph->images[src].desc.scope, src_scope.stages,
-                src_scope.access, src_scope.layout, graph->images[src].desc.aspects,
-                tmp_image_barriers);
-  acquire_image(graph->to_rhi(dst), graph->images[dst].desc.scope, dst_scope.stages,
-                dst_scope.access, dst_scope.layout, graph->images[dst].desc.aspects,
-                tmp_image_barriers);
+  sync_acquire_image(device->vk_table, vk_command_buffer, src_impl->vk_image, src_impl->desc.usage,
+                     src_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+  sync_acquire_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
+                     dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
 
-  driver->cmd_insert_barriers(rhi, {}, tmp_image_barriers);
+  u32          num_blits = (u32) blits.size();
+  VkImageBlit *vk_blits  = (VkImageBlit *) allocator.allocate(
+      allocator.data, sizeof(VkImageBlit) * num_blits, alignof(VkImageBlit));
 
-  driver->cmd_blit_image(rhi, src, dst, blits, filter);
+  for (u32 i = 0; i < num_blits; i++)
+  {
+    gfx::ImageBlit const &blit = blits.data()[i];
+    vk_blits[i]                = VkImageBlit{
+                       .srcSubresource =
+            VkImageSubresourceLayers{.aspectMask     = (VkImageAspectFlags) blit.src_layers.aspects,
+                                                    .mipLevel       = blit.src_layers.mip_level,
+                                                    .baseArrayLayer = blit.src_layers.first_array_layer,
+                                                    .layerCount     = blit.src_layers.num_array_layers},
+                       .srcOffsets = {VkOffset3D{(i32) blit.src_offsets[0].x, (i32) blit.src_offsets[0].y,
+                                  (i32) blit.src_offsets[0].z},
+                                      VkOffset3D{(i32) blit.src_offsets[1].x, (i32) blit.src_offsets[1].y,
+                                  (i32) blit.src_offsets[1].z}},
+                       .dstSubresource =
+            VkImageSubresourceLayers{.aspectMask     = (VkImageAspectFlags) blit.dst_layers.aspects,
+                                                    .mipLevel       = blit.dst_layers.mip_level,
+                                                    .baseArrayLayer = blit.dst_layers.first_array_layer,
+                                                    .layerCount     = blit.dst_layers.num_array_layers},
+                       .dstOffsets = {VkOffset3D{(i32) blit.dst_offsets[0].x, (i32) blit.dst_offsets[0].y,
+                                  (i32) blit.dst_offsets[0].z},
+                                      VkOffset3D{(i32) blit.dst_offsets[1].x, (i32) blit.dst_offsets[1].y,
+                                  (i32) blit.dst_offsets[1].z}}};
+  }
 
-  release_image(graph->to_rhi(src), graph->images[src].desc.scope, src_scope.stages,
-                src_scope.access, src_scope.layout, graph->images[src].desc.aspects,
-                tmp_image_barriers);
-  release_image(graph->to_rhi(dst), graph->images[dst].desc.scope, dst_scope.stages,
-                dst_scope.access, dst_scope.layout, graph->images[dst].desc.aspects,
-                tmp_image_barriers);
+  device->vk_table.CmdBlitImage(vk_command_buffer, src_impl->vk_image, src_scope.layout,
+                                src_impl->vk_image, dst_scope.layout, num_blits, vk_blits,
+                                (VkFilter) filter);
 
-  driver->cmd_insert_barriers(rhi, {}, tmp_image_barriers);
+  sync_release_image(device->vk_table, vk_command_buffer, src_impl->vk_image, src_impl->desc.usage,
+                     src_scope, (VkImageAspectFlags) src_impl->desc.aspects);
+  sync_release_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
+                     dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+
+  allocator.deallocate(allocator.data, vk_blits);
 }
 
-void CommandBuffer::begin_render_pass(
+void CommandEncoderImpl::begin_render_pass(
     gfx::Framebuffer framebuffer, gfx::RenderPass render_pass, IRect render_area,
     stx::Span<gfx::Color const>        color_attachments_clear_values,
     stx::Span<gfx::DepthStencil const> depth_stencil_attachments_clear_values)
@@ -2229,7 +2422,7 @@ void CommandBuffer::begin_render_pass(
       render_area, color_attachments_clear_values, depth_stencil_attachments_clear_values);
 }
 
-void CommandBuffer::end_render_pass()
+void CommandEncoderImpl::end_render_pass()
 {
   driver->cmd_end_render_pass(rhi);
 

@@ -1136,6 +1136,11 @@ struct Offset3D
   u32 x = 0, y = 0, z = 0;
 };
 
+struct IOffset3D
+{
+  i32 x = 0, y = 0, z = 0;
+};
+
 struct Extent3D
 {
   u32 width = 0, height = 0, depth = 0;
@@ -1234,6 +1239,12 @@ struct URect
 struct URect3D
 {
   Offset3D offset;
+  Extent3D extent;
+};
+
+struct IRect3D
+{
+  IOffset3D offset;
   Extent3D extent;
 };
 
