@@ -19,7 +19,7 @@
 #include "stx/result.h"
 #include "stx/span.h"
 #include "stx/vec.h"
-#include "vulkan/vk_enum_string_helper.h"
+#include "ashura/vulkan/vk_enum_string_helper.h"
 #include "vulkan/vulkan.h"
 
 #define ASH_VK_CHECK(...)                                                                \

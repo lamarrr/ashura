@@ -20,7 +20,8 @@ target_link_libraries(
   stx::stx
   SDL3::SDL3-static
   fmt::fmt
-  Vulkan::Vulkan
+  Vulkan::Headers
+  GPUOpen::VulkanMemoryAllocator
   spdlog::spdlog
   harfbuzz
   CURL::libcurl
@@ -33,7 +34,6 @@ target_link_libraries(
   avif
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi
-  GPUOpen::VulkanMemoryAllocator
   )
 
 target_include_directories(ashura PUBLIC ${FFMPEG_INCLUDE_DIRS})

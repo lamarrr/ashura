@@ -16,6 +16,11 @@ FetchContent_Declare(
   GIT_TAG main)
 
 FetchContent_Declare(
+  VulkanHeaders
+  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+  GIT_TAG v1.3.269)
+
+FetchContent_Declare(
   spirv-reflect-static
   GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
   GIT_TAG main)
@@ -34,7 +39,6 @@ if(NOT EXISTS ${SheenBidi_DIR})
             ${SheenBidi_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 endif()
 
-find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(harfbuzz REQUIRED)
 find_package(fmt REQUIRED)
@@ -50,6 +54,7 @@ find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 
 FetchContent_MakeAvailable(stx)
+FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(spirv-reflect-static)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 
@@ -69,30 +74,7 @@ else()
     add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-      add_compile_options(
-        /Wall
-        /wd5045
-        /wd5264
-        /wd4514
-        /wd4061
-        /wd4583
-        /wd4820
-        /wd4426
-        /wd4625
-        /wd4623
-        /wd4626
-        /wd4868
-        /wd4100
-        /wd4458
-        /wd4456
-        /wd5039
-        /wd5246
-        /wd5026
-        /wd5027
-        /wd5204
-        /wd4996
-        /wd4710
-        /wd4711)
+      add_compile_options(/W4)
     endif()
   endif()
 endif()

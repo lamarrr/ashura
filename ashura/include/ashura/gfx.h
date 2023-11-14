@@ -1,31 +1,16 @@
 #pragma once
-#include <array>
-#include <cinttypes>
-#include <string_view>
-
 #include "ashura/array.h"
 #include "ashura/primitives.h"
-#include "ashura/sparse_vec.h"
 #include "ashura/utils.h"
 #include "stx/enum.h"
 #include "stx/fn.h"
 #include "stx/result.h"
 #include "stx/span.h"
 
-#define ASH_DEFINE_HANDLE(handle) typedef struct handle##_T *handle;
-
 namespace ash
 {
 namespace gfx
 {
-
-struct AllocationCallbacks
-{
-  void *data                                                             = nullptr;
-  void *(*allocate)(void *data, usize size, usize alignment)             = nullptr;
-  void *(*reallocate)(void *data, void *old, usize size, usize aligment) = nullptr;
-  void (*deallocate)(void *data, void *memory)                           = nullptr;
-};
 
 constexpr u32 REMAINING_MIP_LEVELS       = ~0U;
 constexpr u32 REMAINING_ARRAY_LAYERS     = ~0U;
@@ -35,24 +20,21 @@ constexpr u32 MAX_VERTEX_ATTRIBUTES      = 16;
 constexpr u32 MAX_PUSH_CONSTANT_SIZE     = 128;
 constexpr u32 MAX_MEMORY_HEAP_PROPERTIES = 32;
 constexpr u32 MAX_MEMORY_HEAPS           = 16;
+constexpr u32 NUM_DESCRIPTOR_TYPES       = 11;
 
-ASH_DEFINE_HANDLE(Buffer);
-/// format interpretation of a buffer's contents
-ASH_DEFINE_HANDLE(BufferView);
-ASH_DEFINE_HANDLE(Image);
-/// a sub-resource that specifies mips, aspects, and layer of images
-ASH_DEFINE_HANDLE(ImageView);
-ASH_DEFINE_HANDLE(Sampler);
-ASH_DEFINE_HANDLE(Shader);
-/// renderpasses are used for selecting tiling strategy and
-/// related optimizations
-ASH_DEFINE_HANDLE(RenderPass);
-ASH_DEFINE_HANDLE(Framebuffer);
-ASH_DEFINE_HANDLE(DescriptorSetLayout);
-ASH_DEFINE_HANDLE(PipelineCache);
-ASH_DEFINE_HANDLE(ComputePipeline);
-ASH_DEFINE_HANDLE(GraphicsPipeline);
-ASH_DEFINE_HANDLE(Fence);
+typedef struct Buffer_T           *Buffer;
+typedef struct BufferView_T       *BufferView;
+typedef struct Image_T            *Image;
+typedef struct ImageView_T        *ImageView;
+typedef struct Sampler_T          *Sampler;
+typedef struct Shader_T           *Shader;
+typedef struct RenderPass_T       *RenderPass;
+typedef struct Framebuffer_T      *Framebuffer;
+typedef struct DescriptorLayout_T *DescriptorLayout;
+typedef struct PipelineCache_T    *PipelineCache;
+typedef struct ComputePipeline_T  *ComputePipeline;
+typedef struct GraphicsPipeline_T *GraphicsPipeline;
+typedef struct Fence_T            *Fence;
 
 enum class DeviceType : u8
 {
@@ -73,7 +55,7 @@ enum class DeviceFeatures : u64
 
 STX_DEFINE_ENUM_BIT_OPS(DeviceFeatures)
 
-enum class MemoryProperties : u8
+enum class MemoryProperties : u32
 {
   None            = 0x00000000,
   DeviceLocal     = 0x00000001,
@@ -86,7 +68,7 @@ enum class MemoryProperties : u8
 
 STX_DEFINE_ENUM_BIT_OPS(MemoryProperties)
 
-enum class Status : i32
+enum class [[nodiscard]] Status : i32
 {
   Success              = 0,
   NotReady             = 1,
@@ -393,7 +375,7 @@ enum class FormatFeatures : u64
   VideoEncodeDpb                                                   = 0x10000000Ui64
 };
 
-enum class ImageAspects : u8
+enum class ImageAspects : u32
 {
   None     = 0x00000000,
   Color    = 0x00000001,
@@ -794,6 +776,7 @@ struct BufferDesc
   BufferUsage      usage      = BufferUsage::None;
 };
 
+/// format interpretation of a buffer's contents
 struct BufferViewDesc
 {
   char const *label  = nullptr;
@@ -815,13 +798,14 @@ struct ImageDesc
   u32          array_layers = 0;
 };
 
+/// a sub-resource that specifies mips, aspects, and layer of images
 struct ImageViewDesc
 {
   char const      *label             = nullptr;
   Image            image             = nullptr;
   ImageViewType    view_type         = ImageViewType::Type1D;
   Format           view_format       = Format::Undefined;
-  ComponentMapping mapping           = ComponentMapping{};
+  ComponentMapping mapping           = {};
   ImageAspects     aspects           = ImageAspects::None;
   u32              first_mip_level   = 0;
   u32              num_mip_levels    = 0;
@@ -864,6 +848,8 @@ struct RenderPassAttachment
   StoreOp stencil_store_op = StoreOp::Store;
 };
 
+/// renderpasses are used for selecting tiling strategy and
+/// related optimizations
 struct RenderPassDesc
 {
   char const                                             *label                    = nullptr;
@@ -890,7 +876,7 @@ struct DescriptorBindingDesc
   ShaderStages   stages  = ShaderStages::None;
 };
 
-struct DescriptorSetLayoutDesc
+struct DescriptorLayoutDesc
 {
   char const                            *label = nullptr;
   stx::Span<DescriptorBindingDesc const> bindings;
@@ -901,9 +887,19 @@ struct PipelineCacheDesc
   stx::Span<u8 const> initial_data;
 };
 
-struct DescriptorBindingCount
+struct DescriptorCount
 {
-  u32 counts[11] = {};
+  u32 samplers                = 0;
+  u32 combined_image_samplers = 0;
+  u32 sampled_images          = 0;
+  u32 storage_images          = 0;
+  u32 uniform_texel_buffers   = 0;
+  u32 storage_texel_buffers   = 0;
+  u32 uniform_buffers         = 0;
+  u32 storage_buffers         = 0;
+  u32 dynamic_uniform_buffers = 0;
+  u32 dynamic_storage_buffers = 0;
+  u32 input_attachments       = 0;
 };
 
 struct SamplerBinding
@@ -984,7 +980,7 @@ struct InputAttachmentBinding
   ImageView image_view  = nullptr;
 };
 
-struct DescriptorSetBindings
+struct DescriptorBindings
 {
   stx::Span<SamplerBinding const>              samplers                = {};
   stx::Span<CombinedImageSamplerBinding const> combined_image_samplers = {};
@@ -1014,11 +1010,11 @@ struct ShaderStageDesc
 
 struct ComputePipelineDesc
 {
-  char const         *label                 = nullptr;
-  ShaderStageDesc     compute_shader        = {};
-  u32                 push_constant_size    = 0;
-  DescriptorSetLayout descriptor_set_layout = nullptr;
-  PipelineCache       cache                 = nullptr;
+  char const      *label              = nullptr;
+  ShaderStageDesc  compute_shader     = {};
+  u32              push_constant_size = 0;
+  DescriptorLayout descriptor_layout  = nullptr;
+  PipelineCache    cache              = nullptr;
 };
 
 // Specifies how the binded vertex buffers are iterated and the strides for them
@@ -1098,7 +1094,7 @@ struct GraphicsPipelineDesc
   stx::Array<VertexInputBinding, MAX_VERTEX_ATTRIBUTES> vertex_input_bindings = {};
   stx::Array<VertexAttribute, MAX_VERTEX_ATTRIBUTES>    vertex_attributes     = {};
   u32                                                   push_constant_size    = 0;
-  DescriptorSetLayout                                   descriptor_set_layout = nullptr;
+  DescriptorLayout                                      descriptor_layout     = nullptr;
   PrimitiveTopology          primitive_topology  = PrimitiveTopology::PointList;
   PipelineRasterizationState rasterization_state = {};
   PipelineDepthStencilState  depth_stencil_state = {};
@@ -1153,7 +1149,7 @@ struct DepthStencil
 
 union ClearValue
 {
-  Color        color = Color{};
+  Color        color = {};
   DepthStencil depth_stencil;
 };
 
@@ -1179,33 +1175,38 @@ struct DeviceInfo
 
 struct CommandEncoder
 {
-  virtual void *to_impl()                                                               = 0;
-  virtual ~CommandEncoder()                                                             = 0;
-  virtual void begin()                                                                  = 0;
-  virtual void end()                                                                    = 0;
-  virtual void reset()                                                                  = 0;
-  virtual void begin_debug_marker(char const *region_name, Vec4 color)                  = 0;
-  virtual void end_debug_marker()                                                       = 0;
-  virtual void fill_buffer(Buffer dst, u64 offset, u64 size, u32 data)                  = 0;
-  virtual void copy_buffer(Buffer src, Buffer dst, stx::Span<BufferCopy const> copies)  = 0;
-  virtual void update_buffer(stx::Span<u8 const> src, u64 dst_offset, Buffer dst)       = 0;
-  virtual void clear_color_image(Image dst, Color clear_color,
-                                 stx::Span<ImageSubresourceRange const> ranges)         = 0;
-  virtual void clear_depth_stencil_image(Image dst, DepthStencil clear_depth_stencil,
-                                         stx::Span<ImageSubresourceRange const> ranges) = 0;
-  virtual void copy_image(Image src, Image dst, stx::Span<ImageCopy const> copies)      = 0;
-  virtual void copy_buffer_to_image(Buffer src, Image dst,
-                                    stx::Span<BufferImageCopy const> copies)            = 0;
-  virtual void blit_image(Image src, Image dst, stx::Span<ImageBlit const> blits,
-                          Filter filter)                                                = 0;
+  virtual void *to_impl()                                                                 = 0;
+  virtual ~CommandEncoder()                                                               = 0;
+  virtual void   begin()                                                                  = 0;
+  virtual Status end()                                                                    = 0;
+  virtual void   reset()                                                                  = 0;
+  virtual void   begin_debug_marker(char const *region_name, Vec4 color)                  = 0;
+  virtual void   end_debug_marker()                                                       = 0;
+  virtual void   fill_buffer(Buffer dst, u64 offset, u64 size, u32 data)                  = 0;
+  virtual void   copy_buffer(Buffer src, Buffer dst, stx::Span<BufferCopy const> copies)  = 0;
+  virtual void   update_buffer(stx::Span<u8 const> src, u64 dst_offset, Buffer dst)       = 0;
+  virtual void   clear_color_image(Image dst, Color clear_color,
+                                   stx::Span<ImageSubresourceRange const> ranges)         = 0;
+  virtual void   clear_depth_stencil_image(Image dst, DepthStencil clear_depth_stencil,
+                                           stx::Span<ImageSubresourceRange const> ranges) = 0;
+  virtual void   copy_image(Image src, Image dst, stx::Span<ImageCopy const> copies)      = 0;
+  virtual void   copy_buffer_to_image(Buffer src, Image dst,
+                                      stx::Span<BufferImageCopy const> copies)            = 0;
+  virtual void   blit_image(Image src, Image dst, stx::Span<ImageBlit const> blits,
+                            Filter filter)                                                = 0;
+  virtual void   begin_descriptor_pass()                              = 0;        //todo; error
+  virtual u32    push_descriptors(DescriptorLayout layout, u32 count) = 0;
+  virtual void   push_bindings(u32 set, DescriptorBindings const &bindings) = 0;
+  virtual void   end_descriptor_pass()                                      = 0;
+  virtual void   bind_descriptor(u32 index)                                 = 0;
+  virtual void   bind_next_descriptor()                                     = 0;
   virtual void
                begin_render_pass(Framebuffer framebuffer, RenderPass render_pass, IRect render_area,
                                  stx::Span<Color const>        color_attachments_clear_values,
                                  stx::Span<DepthStencil const> depth_stencil_attachments_clear_values) = 0;
   virtual void end_render_pass()                                                    = 0;
-  virtual void bind_pipeline(ComputePipeline pipeline, DescriptorSetLayout layout)  = 0;
-  virtual void bind_pipeline(GraphicsPipeline pipeline, DescriptorSetLayout layout) = 0;
-  virtual void push_descriptors(DescriptorSetBindings const &bindings)              = 0;
+  virtual void bind_pipeline(ComputePipeline pipeline)                              = 0;
+  virtual void bind_pipeline(GraphicsPipeline pipeline)                             = 0;
   virtual void push_constants(stx::Span<u8 const> push_constants_data)              = 0;
   virtual void dispatch(u32 group_count_x, u32 group_count_y, u32 group_count_z)    = 0;
   virtual void dispatch_indirect(Buffer buffer, u64 offset)                         = 0;
@@ -1215,39 +1216,39 @@ struct CommandEncoder
   virtual void set_stencil_compare_mask(StencilFaces faces, u32 mask)               = 0;
   virtual void set_stencil_reference(StencilFaces faces, u32 reference)             = 0;
   virtual void set_stencil_write_mask(StencilFaces faces, u32 mask)                 = 0;
-  virtual void set_vertex_buffers(stx::Span<Buffer const> vertex_buffers)           = 0;
-  virtual void draw(Buffer index_buffer, u32 first_index, u32 num_indices, u32 vertex_offset,
-                    u32 first_instance, u32 num_instances)                          = 0;
-  virtual void draw_indirect(Buffer index_buffer, Buffer buffer, u64 offset, u32 draw_count,
-                             u32 stride)                                            = 0;
+  virtual void set_vertex_buffers(stx::Span<Buffer const> vertex_buffers,
+                                  stx::Span<u64 const>    offsets)                     = 0;
+  virtual void set_index_buffer(Buffer index_buffer, u64 offset)                    = 0;
+  virtual void draw(u32 first_index, u32 num_indices, i32 vertex_offset, u32 first_instance,
+                    u32 num_instances)                                              = 0;
+  virtual void draw_indirect(Buffer buffer, u64 offset, u32 draw_count, u32 stride) = 0;
   virtual void on_execution_complete(stx::UniqueFn<void()> &&fn)                    = 0;
 };
 
-// Single-threaded
-// Lock????
 struct Device
 {
-  virtual void *to_impl() = 0;
-  virtual ~Device()       = 0;
-
+  virtual void *to_impl()                                                                      = 0;
+  virtual void  ref()                                                                          = 0;
+  virtual void  unref()                                                                        = 0;
+  virtual ~Device()                                                                            = 0;
   virtual stx::Result<FormatProperties, Status> get_format_properties(Format format)           = 0;
   virtual stx::Result<Buffer, Status>           create_buffer(BufferDesc const &desc)          = 0;
   virtual stx::Result<BufferView, Status>       create_buffer_view(BufferViewDesc const &desc) = 0;
   virtual stx::Result<Image, Status>       create_image(ImageDesc const &desc, Color initial_color,
-                                                        CommandEncoder &command_encoder)       = 0;
+                                                        CommandEncoder &encoder)               = 0;
   virtual stx::Result<Image, Status>       create_image(ImageDesc const &desc,
                                                         DepthStencil     initial_depth_stencil,
-                                                        CommandEncoder  &command_encoder)       = 0;
+                                                        CommandEncoder  &encoder)               = 0;
   virtual stx::Result<Image, Status>       create_image(ImageDesc const &desc, Buffer initial_data,
                                                         stx::Span<BufferImageCopy const> copies,
-                                                        CommandEncoder &command_encoder)       = 0;
+                                                        CommandEncoder                  &encoder)               = 0;
   virtual stx::Result<ImageView, Status>   create_image_view(ImageViewDesc const &desc)        = 0;
   virtual stx::Result<Sampler, Status>     create_sampler(SamplerDesc const &desc)             = 0;
   virtual stx::Result<Shader, Status>      create_shader(ShaderDesc const &desc)               = 0;
   virtual stx::Result<RenderPass, Status>  create_render_pass(RenderPassDesc const &desc)      = 0;
   virtual stx::Result<Framebuffer, Status> create_framebuffer(FramebufferDesc const &desc)     = 0;
-  virtual stx::Result<DescriptorSetLayout, Status>
-      create_descriptor_set_layout(DescriptorSetLayoutDesc const &desc) = 0;
+  virtual stx::Result<DescriptorLayout, Status>
+      create_descriptor_layout(DescriptorLayoutDesc const &desc) = 0;
   virtual stx::Result<PipelineCache, Status>
       create_pipeline_cache(PipelineCacheDesc const &desc) = 0;
   virtual stx::Result<ComputePipeline, Status>
@@ -1256,42 +1257,41 @@ struct Device
                                      create_graphics_pipeline(GraphicsPipelineDesc const &desc) = 0;
   virtual stx::Result<Fence, Status> create_fence(bool signaled)                                = 0;
   virtual stx::Result<CommandEncoder *, Status> create_command_encoder()                        = 0;
-
-  virtual void ref(Buffer buffer)                             = 0;
-  virtual void ref(BufferView buffer_view)                    = 0;
-  virtual void ref(Image image)                               = 0;
-  virtual void ref(ImageView image_view)                      = 0;
-  virtual void ref(Sampler sampler)                           = 0;
-  virtual void ref(Shader shader)                             = 0;
-  virtual void ref(RenderPass render_pass)                    = 0;
-  virtual void ref(Framebuffer framebuffer)                   = 0;
-  virtual void ref(DescriptorSetLayout descriptor_set_layout) = 0;
-  virtual void ref(PipelineCache cache)                       = 0;
-  virtual void ref(ComputePipeline pipeline)                  = 0;
-  virtual void ref(GraphicsPipeline pipeline)                 = 0;
-  virtual void ref(Fence fence)                               = 0;
-  virtual void ref(CommandEncoder *command_encoder)           = 0;
-
-  virtual void unref(Buffer buffer)                             = 0;
-  virtual void unref(BufferView buffer_view)                    = 0;
-  virtual void unref(Image image)                               = 0;
-  virtual void unref(ImageView image_view)                      = 0;
-  virtual void unref(Sampler sampler)                           = 0;
-  virtual void unref(Shader shader)                             = 0;
-  virtual void unref(RenderPass render_pass)                    = 0;
-  virtual void unref(Framebuffer framebuffer)                   = 0;
-  virtual void unref(DescriptorSetLayout descriptor_set_layout) = 0;
-  virtual void unref(PipelineCache cache)                       = 0;
-  virtual void unref(ComputePipeline pipeline)                  = 0;
-  virtual void unref(GraphicsPipeline pipeline)                 = 0;
-  virtual void unref(Fence fence)                               = 0;
-  virtual void unref(CommandEncoder *command_encoder)           = 0;
-
-  virtual void *get_buffer_memory_map(Buffer buffer)                                            = 0;
+  virtual void                                  ref(Buffer buffer)                              = 0;
+  virtual void                                  ref(BufferView buffer_view)                     = 0;
+  virtual void                                  ref(Image image)                                = 0;
+  virtual void                                  ref(ImageView image_view)                       = 0;
+  virtual void                                  ref(Sampler sampler)                            = 0;
+  virtual void                                  ref(Shader shader)                              = 0;
+  virtual void                                  ref(RenderPass render_pass)                     = 0;
+  virtual void                                  ref(Framebuffer framebuffer)                    = 0;
+  virtual void                                  ref(DescriptorLayout layout)                    = 0;
+  virtual void                                  ref(PipelineCache cache)                        = 0;
+  virtual void                                  ref(ComputePipeline pipeline)                   = 0;
+  virtual void                                  ref(GraphicsPipeline pipeline)                  = 0;
+  virtual void                                  ref(Fence fence)                                = 0;
+  virtual void                                  ref(CommandEncoder *encoder)                    = 0;
+  virtual void                                  unref(Buffer buffer)                            = 0;
+  virtual void                                  unref(BufferView buffer_view)                   = 0;
+  virtual void                                  unref(Image image)                              = 0;
+  virtual void                                  unref(ImageView image_view)                     = 0;
+  virtual void                                  unref(Sampler sampler)                          = 0;
+  virtual void                                  unref(Shader shader)                            = 0;
+  virtual void                                  unref(RenderPass render_pass)                   = 0;
+  virtual void                                  unref(Framebuffer framebuffer)                  = 0;
+  virtual void                                  unref(DescriptorLayout layout)                  = 0;
+  virtual void                                  unref(PipelineCache cache)                      = 0;
+  virtual void                                  unref(ComputePipeline pipeline)                 = 0;
+  virtual void                                  unref(GraphicsPipeline pipeline)                = 0;
+  virtual void                                  unref(Fence fence)                              = 0;
+  virtual void                                  unref(CommandEncoder *encoder)                  = 0;
+  virtual void                                 *get_buffer_memory_map(Buffer buffer)            = 0;
   virtual void invalidate_buffer_memory_map(Buffer buffer, stx::Span<MemoryRange const> ranges) = 0;
   virtual void flush_buffer_memory_map(Buffer buffer, stx::Span<MemoryRange const> ranges)      = 0;
-  virtual usize  get_pipeline_cache_size(PipelineCache cache)                                   = 0;
-  virtual usize  get_pipeline_cache_data(PipelineCache cache, stx::Span<u8> out)                = 0;
+  virtual stx::Result<usize, Status> get_pipeline_cache_size(PipelineCache cache)               = 0;
+  virtual stx::Result<usize, Status> get_pipeline_cache_data(PipelineCache cache,
+                                                             stx::Span<u8> out)                 = 0;
+  virtual Status merge_pipeline_cache(PipelineCache dst, stx::Span<PipelineCache const> srcs)   = 0;
   virtual Status wait_for_fences(stx::Span<Fence const> fences, bool all, u64 timeout)          = 0;
   virtual void   reset_fences(stx::Span<Fence const> fences)                                    = 0;
   virtual Status get_fence_status(Fence fence)                                                  = 0;
@@ -1371,8 +1371,6 @@ constexpr u8 MAX_FRAMES_IN_FLIGHT = 4;
 //
 // TODO(lamarrr): multi-pass dependency? knowing when to free resources
 //
-struct ShaderMap
-{
   // shaders are always compiled and loaded at startup time
   // select shader
   // shader will have vendor, context, and name to compare to
@@ -1382,13 +1380,6 @@ struct ShaderMap
   // TODO(lamarrr): PSO caches
   //
   //
-};
-
-struct PipelineCacheMap
-{
-  // vendor id, pass name, name
-  // frag shader id, vert shader id
-};
 
 
 // TODO(lamarrr): how do we enable features like raytracing dynamically at runtime?

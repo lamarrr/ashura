@@ -1,9 +1,11 @@
 #pragma once
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
+
+#include "ashura/allocator.h"
 #include "ashura/gfx.h"
 #include "stx/vec.h"
-#include "vma/vk_mem_alloc.h"
+#include "vk_mem_alloc.h"
 #include "vulkan/vulkan.h"
 #include <map>
 
@@ -12,7 +14,44 @@ namespace ash
 namespace vk
 {
 
-constexpr u32 DESCRIPTOR_POOL_BIN_SIZE = 1024;        // * num_entries
+template <typename T>
+struct Vec
+{
+  T  *data     = nullptr;
+  u32 count    = 0;
+  u32 capacity = 0;
+
+  gfx::Status reserve(AllocationCallbacks const &allocator, u32 target_size)
+  {
+    if (target_size <= capacity)
+    {
+      return gfx::Status::Success;
+    }
+    usize const target_capacity = target_size + (target_size >> 1);
+    T          *new_data =
+        (T *) allocator.reallocate(allocator.data, data, sizeof(T) * target_capacity, alignof(T));
+    if (new_data == nullptr)
+    {
+      return gfx::Status::OutOfHostMemory;
+    }
+    data     = new_data;
+    capacity = target_capacity;
+    return gfx::Status::Success;
+  }
+
+  void reset()
+  {
+    count = 0;
+  }
+
+  void deallocate(AllocationCallbacks const &allocator)
+  {
+    allocator.deallocate(allocator.data, data);
+    data     = nullptr;
+    count    = 0;
+    capacity = 0;
+  }
+};
 
 // some systems have multiple vulkan implementations! dynamic loading
 // VERSION 1.1 Vulkan Functions
@@ -208,11 +247,11 @@ struct Shader
   VkShaderModule vk_shader = nullptr;
 };
 
-struct DescriptorSetLayout
+struct DescriptorLayout
 {
-  u64                         refcount      = 0;
-  gfx::DescriptorBindingCount binding_count = {};
-  VkDescriptorSetLayout       vk_layout     = nullptr;
+  u64                   refcount  = 0;
+  gfx::DescriptorCount  count     = {};
+  VkDescriptorSetLayout vk_layout = nullptr;
 };
 
 struct PipelineCache
@@ -272,43 +311,38 @@ struct ImageScope
   VkImageLayout        layout = VK_IMAGE_LAYOUT_UNDEFINED;
 };
 
-struct DescriptorSetPoolBin
-{
-  // batch descriptor pool free!!!
-  stx::Vec<VkDescriptorSet> sets;
-  VkDescriptorPool          pool = nullptr;
-};
-
 struct DeviceImpl final : public gfx::Device
 {
-  static constexpr char const *REQUIRED_EXTENSIONS[] = {"VK_KHR_swapchain"};
-  static constexpr char const *OPTIONAL_EXTENSIONS[] = {"VK_EXT_debug_marker"};
+  static constexpr char const *REQUIRED_EXTENSIONS[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+  static constexpr char const *OPTIONAL_EXTENSIONS[] = {VK_EXT_DEBUG_MARKER_EXTENSION_NAME};
 
-  gfx::AllocationCallbacks allocator     = {};
-  VkInstance               vk_instance   = nullptr;
-  DeviceTable              vk_table      = {};
-  VkPhysicalDevice         vk_phy_device = nullptr;
-  VkDevice                 vk_device     = nullptr;
-  VkQueue                  vk_queue      = nullptr;
-  VmaAllocator             vma_allocator = nullptr;
+  AllocationCallbacks allocator     = {};
+  VkInstance          vk_instance   = nullptr;
+  DeviceTable         vk_table      = {};
+  VkPhysicalDevice    vk_phy_device = nullptr;
+  VkDevice            vk_device     = nullptr;
+  VkQueue             vk_queue      = nullptr;
+  VmaAllocator        vma_allocator = nullptr;
 
+  virtual void *to_impl() override;
+  virtual void  ref() override;
+  virtual void  unref() override;
   virtual ~DeviceImpl() override;
-
   virtual stx::Result<gfx::FormatProperties, gfx::Status>
                                                 get_format_properties(gfx::Format format) override;
   virtual stx::Result<gfx::Buffer, gfx::Status> create_buffer(gfx::BufferDesc const &desc) override;
   virtual stx::Result<gfx::BufferView, gfx::Status>
       create_buffer_view(gfx::BufferViewDesc const &desc) override;
-  virtual stx::Result<gfx::Image, gfx::Status>
-      create_image(gfx::ImageDesc const &desc, gfx::Color initial_color,
-                   gfx::CommandEncoder &command_encoder) override;
-  virtual stx::Result<gfx::Image, gfx::Status>
-      create_image(gfx::ImageDesc const &desc, gfx::DepthStencil initial_depth_stencil,
-                   gfx::CommandEncoder &command_encoder) override;
+  virtual stx::Result<gfx::Image, gfx::Status> create_image(gfx::ImageDesc const &desc,
+                                                            gfx::Color            initial_color,
+                                                            gfx::CommandEncoder  &encoder) override;
+  virtual stx::Result<gfx::Image, gfx::Status> create_image(gfx::ImageDesc const &desc,
+                                                            gfx::DepthStencil initial_depth_stencil,
+                                                            gfx::CommandEncoder &encoder) override;
   virtual stx::Result<gfx::Image, gfx::Status>
       create_image(gfx::ImageDesc const &desc, gfx::Buffer initial_data,
                    stx::Span<gfx::BufferImageCopy const> copies,
-                   gfx::CommandEncoder                  &command_encoder) override;
+                   gfx::CommandEncoder                  &encoder) override;
   virtual stx::Result<gfx::ImageView, gfx::Status>
       create_image_view(gfx::ImageViewDesc const &desc) override;
   virtual stx::Result<gfx::Sampler, gfx::Status>
@@ -318,8 +352,8 @@ struct DeviceImpl final : public gfx::Device
       create_render_pass(gfx::RenderPassDesc const &desc) override;
   virtual stx::Result<gfx::Framebuffer, gfx::Status>
       create_framebuffer(gfx::FramebufferDesc const &desc) override;
-  virtual stx::Result<gfx::DescriptorSetLayout, gfx::Status>
-      create_descriptor_set_layout(gfx::DescriptorSetLayoutDesc const &desc) override;
+  virtual stx::Result<gfx::DescriptorLayout, gfx::Status>
+      create_descriptor_layout(gfx::DescriptorLayoutDesc const &desc) override;
   virtual stx::Result<gfx::PipelineCache, gfx::Status>
       create_pipeline_cache(gfx::PipelineCacheDesc const &desc) override;
   virtual stx::Result<gfx::ComputePipeline, gfx::Status>
@@ -328,44 +362,45 @@ struct DeviceImpl final : public gfx::Device
       create_graphics_pipeline(gfx::GraphicsPipelineDesc const &desc) override;
   virtual stx::Result<gfx::Fence, gfx::Status>            create_fence(bool signaled) override;
   virtual stx::Result<gfx::CommandEncoder *, gfx::Status> create_command_encoder() override;
-
-  virtual void ref(gfx::Buffer buffer) override;
-  virtual void ref(gfx::BufferView buffer_view) override;
-  virtual void ref(gfx::Image image) override;
-  virtual void ref(gfx::ImageView image_view) override;
-  virtual void ref(gfx::Sampler sampler) override;
-  virtual void ref(gfx::Shader shader) override;
-  virtual void ref(gfx::RenderPass render_pass) override;
-  virtual void ref(gfx::Framebuffer framebuffer) override;
-  virtual void ref(gfx::DescriptorSetLayout descriptor_set_layout) override;
-  virtual void ref(gfx::PipelineCache cache) override;
-  virtual void ref(gfx::ComputePipeline pipeline) override;
-  virtual void ref(gfx::GraphicsPipeline pipeline) override;
-  virtual void ref(gfx::Fence fence) override;
-  virtual void ref(gfx::CommandEncoder *command_encoder) override;
-
-  virtual void unref(gfx::Buffer buffer) override;
-  virtual void unref(gfx::BufferView buffer_view) override;
-  virtual void unref(gfx::Image image) override;
-  virtual void unref(gfx::ImageView image_view) override;
-  virtual void unref(gfx::Sampler sampler) override;
-  virtual void unref(gfx::Shader shader) override;
-  virtual void unref(gfx::RenderPass render_pass) override;
-  virtual void unref(gfx::Framebuffer framebuffer) override;
-  virtual void unref(gfx::DescriptorSetLayout descriptor_set_layout) override;
-  virtual void unref(gfx::PipelineCache cache) override;
-  virtual void unref(gfx::ComputePipeline pipeline) override;
-  virtual void unref(gfx::GraphicsPipeline pipeline) override;
-  virtual void unref(gfx::Fence fence) override;
-  virtual void unref(gfx::CommandEncoder *command_encoder) override;
-
-  virtual void       *get_buffer_memory_map(gfx::Buffer buffer) override;
-  virtual void        invalidate_buffer_memory_map(gfx::Buffer                       buffer,
-                                                   stx::Span<gfx::MemoryRange const> ranges) override;
-  virtual void        flush_buffer_memory_map(gfx::Buffer                       buffer,
-                                              stx::Span<gfx::MemoryRange const> ranges) override;
-  virtual usize       get_pipeline_cache_size(gfx::PipelineCache cache) override;
-  virtual usize       get_pipeline_cache_data(gfx::PipelineCache cache, stx::Span<u8> out) override;
+  virtual void                                            ref(gfx::Buffer buffer) override;
+  virtual void                                            ref(gfx::BufferView buffer_view) override;
+  virtual void                                            ref(gfx::Image image) override;
+  virtual void                                            ref(gfx::ImageView image_view) override;
+  virtual void                                            ref(gfx::Sampler sampler) override;
+  virtual void                                            ref(gfx::Shader shader) override;
+  virtual void                                            ref(gfx::RenderPass render_pass) override;
+  virtual void  ref(gfx::Framebuffer framebuffer) override;
+  virtual void  ref(gfx::DescriptorLayout layout) override;
+  virtual void  ref(gfx::PipelineCache cache) override;
+  virtual void  ref(gfx::ComputePipeline pipeline) override;
+  virtual void  ref(gfx::GraphicsPipeline pipeline) override;
+  virtual void  ref(gfx::Fence fence) override;
+  virtual void  ref(gfx::CommandEncoder *encoder) override;
+  virtual void  unref(gfx::Buffer buffer) override;
+  virtual void  unref(gfx::BufferView buffer_view) override;
+  virtual void  unref(gfx::Image image) override;
+  virtual void  unref(gfx::ImageView image_view) override;
+  virtual void  unref(gfx::Sampler sampler) override;
+  virtual void  unref(gfx::Shader shader) override;
+  virtual void  unref(gfx::RenderPass render_pass) override;
+  virtual void  unref(gfx::Framebuffer framebuffer) override;
+  virtual void  unref(gfx::DescriptorLayout layout) override;
+  virtual void  unref(gfx::PipelineCache cache) override;
+  virtual void  unref(gfx::ComputePipeline pipeline) override;
+  virtual void  unref(gfx::GraphicsPipeline pipeline) override;
+  virtual void  unref(gfx::Fence fence) override;
+  virtual void  unref(gfx::CommandEncoder *encoder) override;
+  virtual void *get_buffer_memory_map(gfx::Buffer buffer) override;
+  virtual void  invalidate_buffer_memory_map(gfx::Buffer                       buffer,
+                                             stx::Span<gfx::MemoryRange const> ranges) override;
+  virtual void  flush_buffer_memory_map(gfx::Buffer                       buffer,
+                                        stx::Span<gfx::MemoryRange const> ranges) override;
+  virtual stx::Result<usize, gfx::Status>
+      get_pipeline_cache_size(gfx::PipelineCache cache) override;
+  virtual stx::Result<usize, gfx::Status> get_pipeline_cache_data(gfx::PipelineCache cache,
+                                                                  stx::Span<u8>      out) override;
+  virtual gfx::Status                     merge_pipeline_cache(gfx::PipelineCache                  dst,
+                                                               stx::Span<gfx::PipelineCache const> srcs) override;
   virtual gfx::Status wait_for_fences(stx::Span<gfx::Fence const> fences, bool all,
                                       u64 timeout) override;
   virtual void        reset_fences(stx::Span<gfx::Fence const> fences) override;
@@ -375,34 +410,64 @@ struct DeviceImpl final : public gfx::Device
   virtual void        wait_queue_idle() override;
 };
 
+// at the end of pass, if capacity is more than 1.5 of present frame size we shrink.
+struct DescriptorBindings
+{
+  // freed at end of frame
+  Vec<gfx::SamplerBinding>              samplers                = {};
+  Vec<gfx::CombinedImageSamplerBinding> combined_image_samplers = {};
+  Vec<gfx::SampledImageBinding>         sampled_images          = {};
+  Vec<gfx::StorageImageBinding>         storage_images          = {};
+  Vec<gfx::UniformTexelBufferBinding>   uniform_texel_buffers   = {};
+  Vec<gfx::StorageTexelBufferBinding>   storage_texel_buffers   = {};
+  Vec<gfx::UniformBufferBinding>        uniform_buffers         = {};
+  Vec<gfx::StorageBufferBinding>        storage_buffers         = {};
+  Vec<gfx::InputAttachmentBinding>      input_attachments       = {};
+
+  // freed at end of descriptor pass
+  Vec<u32> samplers_end                = {};
+  Vec<u32> combined_image_samplers_end = {};
+  Vec<u32> sampled_images_end          = {};
+  Vec<u32> storage_images_end          = {};
+  Vec<u32> uniform_texel_buffers_end   = {};
+  Vec<u32> storage_texel_buffers_end   = {};
+  Vec<u32> uniform_buffers_end         = {};
+  Vec<u32> storage_buffers_end         = {};
+  Vec<u32> input_attachments_end       = {};
+};
+
 // for each bind descriptor call, create a new descriptor set
 // won't work for things like UI as it would require sorting by bind group
+// TODO(lamarrr): report malloc errors using status
 struct CommandEncoderImpl final : public gfx::CommandEncoder
 {
+  // we need to only store storage images and buffers for descriptor sets
   // pool sizing depends on descriptor set layout
-  using DescriptorPoolMap = std::map<VkDescriptorSetLayout, stx::Vec<DescriptorSetPoolBin>>;
-  DescriptorPoolMap              descriptor_pool_bins;
-  DescriptorPoolMap::iterator    descriptor_pool;
-  stx::Vec<VkDescriptorSet>      frame_descriptor_sets;
-  stx::Vec<VkWriteDescriptorSet> frame_descriptor_writes;
-  Framebuffer                   *framebuffer          = nullptr;
-  ComputePipeline               *compute_pipeline     = nullptr;
-  GraphicsPipeline              *graphics_pipeline    = nullptr;
-  VkCommandPool                  vk_command_pool      = nullptr;
-  VkCommandBuffer                vk_command_buffer    = nullptr;
-  DeviceImpl                    *device               = nullptr;
-  gfx::AllocationCallbacks       allocator            = {};
-  stx::Vec<stx::Fn<void()>>      completion_callbacks = {};
-
+  gfx::Status                     status                  = gfx::Status::Success;
+  AllocationCallbacks             allocator               = {};
+  DeviceImpl                     *device                  = nullptr;
+  VkCommandPool                   vk_command_pool         = nullptr;
+  VkCommandBuffer                 vk_command_buffer       = nullptr;
+  ComputePipeline                *compute_pipeline        = nullptr;
+  GraphicsPipeline                *graphics_pipeline        = nullptr;
+  Framebuffer                    *framebuffer             = nullptr;
+  VkDescriptorPool                vk_descriptor_pool      = nullptr;
+  gfx::DescriptorCount            descriptors_capacity    = {};
+  gfx::DescriptorCount            descriptors_size_target = {};
+  Vec<VkDescriptorSetLayout>      vk_descriptor_layouts   = {};
+  Vec<VkDescriptorSet>            vk_descriptors          = {};
+  DescriptorBindings              descriptor_bindings     = {};
+  u32                             bound_descriptor        = ~0U;
+  stx::Vec<stx::UniqueFn<void()>> completion_tasks        = {};
   virtual ~CommandEncoderImpl() override;
-  virtual void begin() override;
-  virtual void end() override;
-  virtual void reset() override;
-  virtual void begin_debug_marker(char const *region_name, Vec4 color) override;
-  virtual void end_debug_marker() override;
-  virtual void fill_buffer(gfx::Buffer dst, u64 offset, u64 size, u32 data) override;
-  virtual void copy_buffer(gfx::Buffer src, gfx::Buffer dst,
-                           stx::Span<gfx::BufferCopy const> copies) override;
+  virtual void        begin() override;
+  virtual gfx::Status end() override;
+  virtual void        reset() override;
+  virtual void        begin_debug_marker(char const *region_name, Vec4 color) override;
+  virtual void        end_debug_marker() override;
+  virtual void        fill_buffer(gfx::Buffer dst, u64 offset, u64 size, u32 data) override;
+  virtual void        copy_buffer(gfx::Buffer src, gfx::Buffer dst,
+                                  stx::Span<gfx::BufferCopy const> copies) override;
   virtual void update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::Buffer dst) override;
   virtual void clear_color_image(gfx::Image dst, gfx::Color clear_color,
                                  stx::Span<gfx::ImageSubresourceRange const> ranges) override;
@@ -415,16 +480,19 @@ struct CommandEncoderImpl final : public gfx::CommandEncoder
                                     stx::Span<gfx::BufferImageCopy const> copies) override;
   virtual void blit_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageBlit const> blits,
                           gfx::Filter filter) override;
+  virtual void begin_descriptor_pass() override;
+  virtual u32  push_descriptors(gfx::DescriptorLayout layout, u32 count) override;
+  virtual void push_bindings(u32 set, gfx::DescriptorBindings const &bindings) override;
+  virtual void end_descriptor_pass() override;
+  virtual void bind_descriptor(u32 index) override;
+  virtual void bind_next_descriptor() override;
   virtual void begin_render_pass(
       gfx::Framebuffer framebuffer, gfx::RenderPass render_pass, IRect render_area,
       stx::Span<gfx::Color const>        color_attachments_clear_values,
       stx::Span<gfx::DepthStencil const> depth_stencil_attachments_clear_values) override;
   virtual void end_render_pass() override;
-  virtual void bind_pipeline(gfx::ComputePipeline     pipeline,
-                             gfx::DescriptorSetLayout layout) override;
-  virtual void bind_pipeline(gfx::GraphicsPipeline    pipeline,
-                             gfx::DescriptorSetLayout layout) override;
-  virtual void push_descriptors(gfx::DescriptorSetBindings const &bindings) override;
+  virtual void bind_pipeline(gfx::ComputePipeline pipeline) override;
+  virtual void bind_pipeline(gfx::GraphicsPipeline pipeline) override;
   virtual void push_constants(stx::Span<u8 const> push_constants_data) override;
   virtual void dispatch(u32 group_count_x, u32 group_count_y, u32 group_count_z) override;
   virtual void dispatch_indirect(gfx::Buffer buffer, u64 offset) override;
@@ -434,11 +502,13 @@ struct CommandEncoderImpl final : public gfx::CommandEncoder
   virtual void set_stencil_compare_mask(gfx::StencilFaces faces, u32 mask) override;
   virtual void set_stencil_reference(gfx::StencilFaces faces, u32 reference) override;
   virtual void set_stencil_write_mask(gfx::StencilFaces faces, u32 mask) override;
-  virtual void set_vertex_buffers(stx::Span<gfx::Buffer const> vertex_buffers) override;
-  virtual void draw(gfx::Buffer index_buffer, u32 first_index, u32 num_indices, u32 vertex_offset,
-                    u32 first_instance, u32 num_instances) override;
-  virtual void draw_indirect(gfx::Buffer index_buffer, gfx::Buffer buffer, u64 offset,
-                             u32 draw_count, u32 stride) override;
+  virtual void set_vertex_buffers(stx::Span<gfx::Buffer const> vertex_buffers,
+                                  stx::Span<u64 const>         offsets) override;
+  virtual void set_index_buffer(gfx::Buffer index_buffer, u64 offset) override;
+  virtual void draw(u32 first_index, u32 num_indices, i32 vertex_offset, u32 first_instance,
+                    u32 num_instances) override;
+  virtual void draw_indirect(gfx::Buffer buffer, u64 offset, u32 draw_count, u32 stride) override;
+  virtual void on_execution_complete(stx::UniqueFn<void()> &&fn) override;
 };
 
 }        // namespace vk

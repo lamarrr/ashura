@@ -61,7 +61,7 @@ struct Animation
 
   constexpr AnimationState get_state() const
   {
-    if (((cfg & AnimationCfg::Loop) != AnimationCfg::Loop) && iterations_done >= iterations)
+    if (has_bits(cfg, AnimationCfg::Loop) && iterations_done >= iterations)
     {
       return AnimationState::Completed;
     }
@@ -89,9 +89,7 @@ struct Animation
   {
     cfg &= ~AnimationCfg::Loop;
     iterations_done = iterations;
-    t               = ((cfg & AnimationCfg::Alternate) == AnimationCfg::Alternate) ?
-                          (((iterations % 2) == 0) ? 0.0 : 1.0) :
-                          1.0;
+    t = has_bits(cfg, AnimationCfg::Alternate) ? (((iterations % 2) == 0) ? 0.0 : 1.0) : 1.0;
   }
 
   void tick(nanoseconds interval)
@@ -106,18 +104,16 @@ struct Animation
     f64 const         t_total = (((f64) total_elapsed_duration.count()) / (f64) duration.count());
     u64 const         t_iterations = (u64) t_total;
 
-    if (((cfg & AnimationCfg::Loop) != AnimationCfg::Loop) && t_iterations >= iterations)
+    if (has_bits(cfg, AnimationCfg::Loop) && t_iterations >= iterations)
     {
       elapsed_duration = total_elapsed_duration;
       iterations_done  = iterations;
-      t                = ((cfg & AnimationCfg::Alternate) == AnimationCfg::Alternate) ?
-                             (((iterations % 2) == 0) ? 0.0 : 1.0) :
-                             1.0;
+      t = has_bits(cfg, AnimationCfg::Alternate) ? (((iterations % 2) == 0) ? 0.0 : 1.0) : 1.0;
     }
     else
     {
       f64 const t_unsigned = t_total - (f64) t_iterations;
-      f64 const t_signed   = ((cfg & AnimationCfg::Alternate) == AnimationCfg::Alternate) ?
+      f64 const t_signed   = has_bits(cfg, AnimationCfg::Alternate) ?
                                  ((t_iterations % 2) == 0 ? t_unsigned : (1.0 - t_unsigned)) :
                                  t_unsigned;
       elapsed_duration     = total_elapsed_duration;

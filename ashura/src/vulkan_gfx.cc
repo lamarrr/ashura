@@ -15,6 +15,9 @@ namespace vk
       return stx::Err((gfx::Status) result); \
   } while (0)
 
+#define ALLOC_NUM(allocator, type, num) \
+  (type *) allocator.allocate(allocator.data, (usize) sizeof(type) * num, alignof(type))
+
 VkResult DebugMarkerSetObjectTagEXT_Stub(VkDevice, const VkDebugMarkerObjectTagInfoEXT *)
 {
   return VK_SUCCESS;
@@ -343,6 +346,7 @@ inline void sync_acquire_buffer(DeviceTable const &table, VkCommandBuffer comman
                                   .buffer              = buffer,
                                   .offset              = 0,
                                   .size                = VK_WHOLE_SIZE};
+
     table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, scope.stages,
                              VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
   }
@@ -385,6 +389,7 @@ inline void sync_acquire_buffer(DeviceTable const &table, VkCommandBuffer comman
                                   .buffer              = buffer,
                                   .offset              = 0,
                                   .size                = VK_WHOLE_SIZE};
+
     table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, scope.stages,
                              VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
   }
@@ -400,6 +405,7 @@ inline void sync_acquire_buffer(DeviceTable const &table, VkCommandBuffer comman
                                   .buffer              = buffer,
                                   .offset              = 0,
                                   .size                = VK_WHOLE_SIZE};
+
     table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, scope.stages,
                              VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
   }
@@ -425,6 +431,7 @@ inline void sync_acquire_buffer(DeviceTable const &table, VkCommandBuffer comman
                                   .buffer              = buffer,
                                   .offset              = 0,
                                   .size                = VK_WHOLE_SIZE};
+
     table.CmdPipelineBarrier(command_buffer, src_stages, scope.stages, VK_DEPENDENCY_BY_REGION_BIT,
                              0, nullptr, 1, &barrier, 0, nullptr);
   }
@@ -463,6 +470,7 @@ inline void sync_release_buffer(DeviceTable const &table, VkCommandBuffer comman
                                   .buffer              = buffer,
                                   .offset              = 0,
                                   .size                = VK_WHOLE_SIZE};
+
     table.CmdPipelineBarrier(command_buffer, scope.stages, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
                              VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
   }
@@ -479,6 +487,7 @@ inline void sync_release_buffer(DeviceTable const &table, VkCommandBuffer comman
                                   .buffer              = buffer,
                                   .offset              = 0,
                                   .size                = VK_WHOLE_SIZE};
+
     table.CmdPipelineBarrier(command_buffer, scope.stages, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                              VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
   }
@@ -505,6 +514,7 @@ inline void sync_release_buffer(DeviceTable const &table, VkCommandBuffer comman
                                   .buffer              = buffer,
                                   .offset              = 0,
                                   .size                = VK_WHOLE_SIZE};
+
     table.CmdPipelineBarrier(command_buffer, scope.stages, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
                              VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
   }
@@ -533,6 +543,7 @@ inline void sync_release_buffer(DeviceTable const &table, VkCommandBuffer comman
                                   .buffer              = buffer,
                                   .offset              = 0,
                                   .size                = VK_WHOLE_SIZE};
+
     table.CmdPipelineBarrier(command_buffer, scope.stages, dst_stages, VK_DEPENDENCY_BY_REGION_BIT,
                              0, nullptr, 1, &barrier, 0, nullptr);
   }
@@ -1032,7 +1043,7 @@ stx::Result<gfx::Buffer, gfx::Status> DeviceImpl::create_buffer(gfx::BufferDesc 
     vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
   }
 
-  Buffer *buffer = (Buffer *) allocator.allocate(allocator.data, sizeof(Buffer), alignof(Buffer));
+  Buffer *buffer = ALLOC_NUM(allocator, Buffer, 1);
   if (buffer == nullptr)
   {
     vmaDestroyBuffer(vma_allocator, vk_buffer, vma_allocation);
@@ -1075,8 +1086,7 @@ stx::Result<gfx::BufferView, gfx::Status>
     vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
   }
 
-  BufferView *view =
-      (BufferView *) allocator.allocate(allocator.data, sizeof(BufferView), alignof(BufferView));
+  BufferView *view = ALLOC_NUM(allocator, BufferView, 1);
 
   if (view == nullptr)
   {
@@ -1111,11 +1121,12 @@ stx::Result<gfx::BufferView, gfx::Status>
                                 .pQueueFamilyIndices   = nullptr,                                 \
                                 .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED};                      \
                                                                                                   \
-  VkImage           vk_image;                                                                     \
-  VmaAllocation     vma_allocation;                                                               \
-  VmaAllocationInfo vma_allocation_info;                                                          \
-  VK_ERR(vmaCreateImage(vma_allocator, &create_info, nullptr, &vk_image, &vma_allocation,         \
-                        &vma_allocation_info));                                                   \
+  VkImage                 vk_image;                                                               \
+  VmaAllocation           vma_allocation;                                                         \
+  VmaAllocationInfo       vma_allocation_info;                                                    \
+  VmaAllocationCreateInfo vma_allocation_create_info = {.usage = VMA_MEMORY_USAGE_GPU_ONLY};      \
+  VK_ERR(vmaCreateImage(vma_allocator, &create_info, &vma_allocation_create_info, &vk_image,      \
+                        &vma_allocation, &vma_allocation_info));                                  \
                                                                                                   \
   if (desc.label != nullptr)                                                                      \
   {                                                                                               \
@@ -1147,7 +1158,7 @@ stx::Result<gfx::BufferView, gfx::Status>
                                .image               = vk_image,                                   \
                                .subresourceRange    = range};                                        \
                                                                                                   \
-  Image *image = (Image *) allocator.allocate(allocator.data, sizeof(Image), alignof(Image));     \
+  Image *image = ALLOC_NUM(allocator, Image, 1);                                                  \
                                                                                                   \
   if (image == nullptr)                                                                           \
   {                                                                                               \
@@ -1206,8 +1217,7 @@ stx::Result<gfx::Image, gfx::Status>
 {
   CREATE_IMAGE_PRELUDE();
 
-  VkBufferImageCopy *vk_copies = (VkBufferImageCopy *) allocator.allocate(
-      allocator.data, sizeof(VkBufferImageCopy) * (u32) copies.size(), alignof(VkBufferImageCopy));
+  VkBufferImageCopy *vk_copies = ALLOC_NUM(allocator, VkBufferImageCopy, (u32) copies.size());
 
   if (vk_copies == nullptr)
   {
@@ -1278,8 +1288,7 @@ stx::Result<gfx::ImageView, gfx::Status>
     vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
   }
 
-  ImageView *view =
-      (ImageView *) allocator.allocate(allocator.data, sizeof(ImageView), alignof(ImageView));
+  ImageView *view = ALLOC_NUM(allocator, ImageView, 1);
   if (view == nullptr)
   {
     vk_table.DestroyImageView(vk_device, vk_view, nullptr);
@@ -1326,8 +1335,7 @@ stx::Result<gfx::Sampler, gfx::Status> DeviceImpl::create_sampler(gfx::SamplerDe
     vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
   }
 
-  Sampler *sampler =
-      (Sampler *) allocator.allocate(allocator.data, sizeof(Sampler), alignof(Sampler));
+  Sampler *sampler = ALLOC_NUM(allocator, Sampler, 1);
   if (sampler == nullptr)
   {
     vk_table.DestroySampler(vk_device, vk_sampler, nullptr);
@@ -1361,7 +1369,7 @@ stx::Result<gfx::Shader, gfx::Status> DeviceImpl::create_shader(gfx::ShaderDesc 
     vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
   }
 
-  Shader *shader = (Shader *) allocator.allocate(allocator.data, sizeof(Shader), alignof(Shader));
+  Shader *shader = ALLOC_NUM(allocator, Shader, 1);
   if (shader == nullptr)
   {
     vk_table.DestroyShaderModule(vk_device, vk_shader, nullptr);
@@ -1384,7 +1392,7 @@ stx::Result<gfx::RenderPass, gfx::Status>
   u32                     num_color_attachments = (u32) desc.color_attachments.size();
   u32                     num_input_attachments = (u32) desc.input_attachments.size();
   u32                     num_depth_stencil_attachments =
-      desc.depth_stencil_attachment.format == gfx::Format::Undefined ? 0 : 1;
+      desc.depth_stencil_attachment.format == gfx::Format::Undefined ? 0U : 1U;
   for (u32 icolor_attachment = 0; icolor_attachment < (u32) desc.color_attachments.size();
        num_attachments++, icolor_attachment++)
   {
@@ -1479,8 +1487,7 @@ stx::Result<gfx::RenderPass, gfx::Status>
     vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
   }
 
-  RenderPass *render_pass =
-      (RenderPass *) allocator.allocate(allocator.data, sizeof(RenderPass), alignof(RenderPass));
+  RenderPass *render_pass = ALLOC_NUM(allocator, RenderPass, 1);
   if (render_pass == nullptr)
   {
     vk_table.DestroyRenderPass(vk_device, vk_render_pass, nullptr);
@@ -1524,8 +1531,7 @@ stx::Result<gfx::Framebuffer, gfx::Status>
     vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
   }
 
-  Framebuffer *framebuffer =
-      (Framebuffer *) allocator.allocate(allocator.data, sizeof(Framebuffer), alignof(Framebuffer));
+  Framebuffer *framebuffer = ALLOC_NUM(allocator, Framebuffer, 1);
   if (framebuffer == nullptr)
   {
     vk_table.DestroyFramebuffer(vk_device, vk_framebuffer, nullptr);
@@ -1537,20 +1543,19 @@ stx::Result<gfx::Framebuffer, gfx::Status>
   return stx::Ok((gfx::Framebuffer) framebuffer);
 }
 
-stx::Result<gfx::DescriptorSetLayout, gfx::Status>
-    DeviceImpl::create_descriptor_set_layout(gfx::DescriptorSetLayoutDesc const &desc)
+stx::Result<gfx::DescriptorLayout, gfx::Status>
+    DeviceImpl::create_descriptor_layout(gfx::DescriptorLayoutDesc const &desc)
 {
   u32                           num_bindings = (u32) desc.bindings.size();
-  VkDescriptorSetLayoutBinding *vk_bindings  = (VkDescriptorSetLayoutBinding *) allocator.allocate(
-      allocator.data, sizeof(VkDescriptorSetLayoutBinding) * num_bindings,
-      alignof(VkDescriptorSetLayoutBinding));
+  VkDescriptorSetLayoutBinding *vk_bindings =
+      ALLOC_NUM(allocator, VkDescriptorSetLayoutBinding, num_bindings);
 
   if (vk_bindings == nullptr)
   {
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
-  gfx::DescriptorBindingCount binding_count;
+  gfx::DescriptorCount count;
 
   for (usize i = 0; i < num_bindings; i++)
   {
@@ -1561,7 +1566,42 @@ stx::Result<gfx::DescriptorSetLayout, gfx::Status>
                                                   .stageFlags         = VK_SHADER_STAGE_ALL,
                                                   .pImmutableSamplers = nullptr};
 
-    binding_count.counts[(u32) binding.type] += binding.count;
+    switch (binding.type)
+    {
+      case gfx::DescriptorType::Sampler:
+        count.samplers += binding.count;
+        break;
+      case gfx::DescriptorType::CombinedImageSampler:
+        count.combined_image_samplers += binding.count;
+        break;
+      case gfx::DescriptorType::SampledImage:
+        count.sampled_images += binding.count;
+        break;
+      case gfx::DescriptorType::StorageImage:
+        count.storage_images += binding.count;
+        break;
+      case gfx::DescriptorType::UniformTexelBuffer:
+        count.uniform_texel_buffers += binding.count;
+        break;
+      case gfx::DescriptorType::StorageTexelBuffer:
+        count.storage_texel_buffers += binding.count;
+        break;
+      case gfx::DescriptorType::UniformBuffer:
+        count.uniform_buffers += binding.count;
+        break;
+      case gfx::DescriptorType::StorageBuffer:
+        count.storage_buffers += binding.count;
+        break;
+      case gfx::DescriptorType::DynamicUniformBuffer:
+        count.dynamic_uniform_buffers += binding.count;
+        break;
+      case gfx::DescriptorType::DynamicStorageBuffer:
+        count.dynamic_storage_buffers += binding.count;
+        break;
+      case gfx::DescriptorType::InputAttachment:
+        count.input_attachments += binding.count;
+        break;
+    }
   }
 
   VkDescriptorSetLayoutCreateInfo create_info{
@@ -1593,18 +1633,16 @@ stx::Result<gfx::DescriptorSetLayout, gfx::Status>
     vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
   }
 
-  DescriptorSetLayout *layout = (DescriptorSetLayout *) allocator.allocate(
-      allocator.data, sizeof(DescriptorSetLayout), alignof(DescriptorSetLayout));
+  DescriptorLayout *layout = ALLOC_NUM(allocator, DescriptorLayout, 1);
   if (layout == nullptr)
   {
     vk_table.DestroyDescriptorSetLayout(vk_device, vk_layout, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
-  new (layout)
-      DescriptorSetLayout{.refcount = 1, .binding_count = binding_count, .vk_layout = vk_layout};
+  new (layout) DescriptorLayout{.refcount = 1, .count = count, .vk_layout = vk_layout};
 
-  return stx::Ok((gfx::DescriptorSetLayout) layout);
+  return stx::Ok((gfx::DescriptorLayout) layout);
 }
 
 stx::Result<gfx::PipelineCache, gfx::Status>
@@ -1619,8 +1657,7 @@ stx::Result<gfx::PipelineCache, gfx::Status>
   VkPipelineCache vk_cache;
   VK_ERR(vk_table.CreatePipelineCache(vk_device, &create_info, nullptr, &vk_cache));
 
-  PipelineCache *cache = (PipelineCache *) allocator.allocate(allocator.data, sizeof(PipelineCache),
-                                                              alignof(PipelineCache));
+  PipelineCache *cache = ALLOC_NUM(allocator, PipelineCache, 1);
   if (cache == nullptr)
   {
     vk_table.DestroyPipelineCache(vk_device, vk_cache, nullptr);
@@ -1636,7 +1673,7 @@ stx::Result<gfx::ComputePipeline, gfx::Status>
     DeviceImpl::create_compute_pipeline(gfx::ComputePipelineDesc const &desc)
 {
   VkSpecializationInfo vk_specialization{
-      .mapEntryCount = desc.compute_shader.specialization_constants.size(),
+      .mapEntryCount = (u32) desc.compute_shader.specialization_constants.size(),
       .pMapEntries =
           (VkSpecializationMapEntry const *) desc.compute_shader.specialization_constants.data(),
       .dataSize = desc.compute_shader.specialization_constants_data.size_bytes(),
@@ -1660,7 +1697,7 @@ stx::Result<gfx::ComputePipeline, gfx::Status>
       .pNext                  = nullptr,
       .flags                  = 0,
       .setLayoutCount         = 1,
-      .pSetLayouts            = &((DescriptorSetLayout *) desc.descriptor_set_layout)->vk_layout,
+      .pSetLayouts            = &((DescriptorLayout *) desc.descriptor_layout)->vk_layout,
       .pushConstantRangeCount = 1,
       .pPushConstantRanges    = &push_constant_range};
 
@@ -1697,8 +1734,7 @@ stx::Result<gfx::ComputePipeline, gfx::Status>
     vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
   }
 
-  ComputePipeline *pipeline = (ComputePipeline *) allocator.allocate(
-      allocator.data, sizeof(ComputePipeline), alignof(ComputePipeline));
+  ComputePipeline *pipeline = ALLOC_NUM(allocator, ComputePipeline, 1);
   if (pipeline == nullptr)
   {
     vk_table.DestroyPipelineLayout(vk_device, vk_layout, nullptr);
@@ -1715,14 +1751,14 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
     DeviceImpl::create_graphics_pipeline(gfx::GraphicsPipelineDesc const &desc)
 {
   VkSpecializationInfo vk_vs_specialization{
-      .mapEntryCount = desc.vertex_shader.specialization_constants.size(),
+      .mapEntryCount = (u32) desc.vertex_shader.specialization_constants.size(),
       .pMapEntries =
           (VkSpecializationMapEntry const *) desc.vertex_shader.specialization_constants.data(),
       .dataSize = desc.vertex_shader.specialization_constants_data.size_bytes(),
       .pData    = desc.vertex_shader.specialization_constants_data.data()};
 
   VkSpecializationInfo vk_fs_specialization{
-      .mapEntryCount = desc.fragment_shader.specialization_constants.size(),
+      .mapEntryCount = (u32) desc.fragment_shader.specialization_constants.size(),
       .pMapEntries =
           (VkSpecializationMapEntry const *) desc.fragment_shader.specialization_constants.data(),
       .dataSize = desc.fragment_shader.specialization_constants_data.size_bytes(),
@@ -1753,7 +1789,7 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
       .pNext                  = nullptr,
       .flags                  = 0,
       .setLayoutCount         = 1,
-      .pSetLayouts            = &((DescriptorSetLayout *) desc.descriptor_set_layout)->vk_layout,
+      .pSetLayouts            = &((DescriptorLayout *) desc.descriptor_layout)->vk_layout,
       .pushConstantRangeCount = 1,
       .pPushConstantRanges    = &push_constant_range};
 
@@ -1799,7 +1835,7 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
       .pNext                  = nullptr,
       .flags                  = 0,
       .topology               = (VkPrimitiveTopology) desc.primitive_topology,
-      .primitiveRestartEnable = false};
+      .primitiveRestartEnable = VK_FALSE};
 
   VkPipelineViewportStateCreateInfo viewport_state{
       .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
@@ -1814,37 +1850,37 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
       .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
       .pNext                   = nullptr,
       .flags                   = 0,
-      .depthClampEnable        = desc.rasterization_state.depth_clamp_enable,
-      .rasterizerDiscardEnable = false,
+      .depthClampEnable        = (VkBool32) desc.rasterization_state.depth_clamp_enable,
+      .rasterizerDiscardEnable = VK_FALSE,
       .polygonMode             = (VkPolygonMode) desc.rasterization_state.polygon_mode,
       .cullMode                = (VkCullModeFlags) desc.rasterization_state.cull_mode,
       .frontFace               = (VkFrontFace) desc.rasterization_state.front_face,
-      .depthBiasEnable         = desc.rasterization_state.depth_bias_enable,
+      .depthBiasEnable         = (VkBool32) desc.rasterization_state.depth_bias_enable,
       .depthBiasConstantFactor = desc.rasterization_state.depth_bias_constant_factor,
       .depthBiasClamp          = desc.rasterization_state.depth_bias_clamp,
       .depthBiasSlopeFactor    = desc.rasterization_state.depth_bias_slope_factor,
-      .lineWidth               = 1.0f};
+      .lineWidth               = 1.0F};
 
   VkPipelineMultisampleStateCreateInfo multisample_state{
       .sType                 = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
       .pNext                 = nullptr,
       .flags                 = 0,
       .rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
-      .sampleShadingEnable   = false,
+      .sampleShadingEnable   = (VkBool32) false,
       .minSampleShading      = 1,
       .pSampleMask           = nullptr,
-      .alphaToCoverageEnable = false,
-      .alphaToOneEnable      = false};
+      .alphaToCoverageEnable = (VkBool32) false,
+      .alphaToOneEnable      = (VkBool32) false};
 
   VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
       .sType                 = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
       .pNext                 = nullptr,
       .flags                 = 0,
-      .depthTestEnable       = desc.depth_stencil_state.depth_test_enable,
-      .depthWriteEnable      = desc.depth_stencil_state.depth_write_enable,
+      .depthTestEnable       = (VkBool32) desc.depth_stencil_state.depth_test_enable,
+      .depthWriteEnable      = (VkBool32) desc.depth_stencil_state.depth_write_enable,
       .depthCompareOp        = (VkCompareOp) desc.depth_stencil_state.depth_compare_op,
-      .depthBoundsTestEnable = desc.depth_stencil_state.depth_bounds_test_enable,
-      .stencilTestEnable     = desc.depth_stencil_state.stencil_test_enable,
+      .depthBoundsTestEnable = (VkBool32) desc.depth_stencil_state.depth_bounds_test_enable,
+      .stencilTestEnable     = (VkBool32) desc.depth_stencil_state.stencil_test_enable,
       .front =
           VkStencilOpState{
               .failOp      = (VkStencilOp) desc.depth_stencil_state.front_stencil.fail_op,
@@ -1875,7 +1911,7 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
     gfx::PipelineColorBlendAttachmentState const &state =
         desc.color_blend_state.attachments.get_unsafe(num_color_attachments);
     attachment_states[num_color_attachments] = VkPipelineColorBlendAttachmentState{
-        .blendEnable         = state.blend_enable,
+        .blendEnable         = (VkBool32) state.blend_enable,
         .srcColorBlendFactor = (VkBlendFactor) state.src_color_blend_factor,
         .dstColorBlendFactor = (VkBlendFactor) state.dst_color_blend_factor,
         .colorBlendOp        = (VkBlendOp) state.color_blend_op,
@@ -1889,7 +1925,7 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
       .sType           = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
       .pNext           = nullptr,
       .flags           = 0,
-      .logicOpEnable   = desc.color_blend_state.logic_op_enable,
+      .logicOpEnable   = (VkBool32) desc.color_blend_state.logic_op_enable,
       .logicOp         = (VkLogicOp) desc.color_blend_state.logic_op,
       .attachmentCount = num_color_attachments,
       .pAttachments    = attachment_states,
@@ -1953,8 +1989,7 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
     vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
   }
 
-  GraphicsPipeline *pipeline = (GraphicsPipeline *) allocator.allocate(
-      allocator.data, sizeof(GraphicsPipeline), alignof(GraphicsPipeline));
+  GraphicsPipeline *pipeline = ALLOC_NUM(allocator, GraphicsPipeline, 1);
   if (pipeline == nullptr)
   {
     vk_table.DestroyPipelineLayout(vk_device, vk_layout, nullptr);
@@ -2015,33 +2050,66 @@ void DeviceImpl::flush_buffer_memory_map(gfx::Buffer                       buffe
   }
 }
 
-usize DeviceImpl::get_pipeline_cache_size(gfx::PipelineCache cache)
+stx::Result<usize, gfx::Status> DeviceImpl::get_pipeline_cache_size(gfx::PipelineCache cache)
 {
-  usize size;
-  ASH_CHECK(vk_table.GetPipelineCacheData(vk_device, ((PipelineCache *) cache)->vk_cache, &size,
-                                          nullptr) == VK_SUCCESS);
+  usize    size;
+  VkResult result =
+      vk_table.GetPipelineCacheData(vk_device, ((PipelineCache *) cache)->vk_cache, &size, nullptr);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
+  return stx::Ok((usize) size);
 }
 
-usize DeviceImpl::get_pipeline_cache_data(gfx::PipelineCache cache, stx::Span<u8> out)
+stx::Result<usize, gfx::Status> DeviceImpl::get_pipeline_cache_data(gfx::PipelineCache cache,
+                                                                    stx::Span<u8>      out)
 {
-  usize size = out.size_bytes();
-  ASH_CHECK(vk_table.GetPipelineCacheData(vk_device, ((PipelineCache *) cache)->vk_cache, &size,
-                                          out.data()) == VK_SUCCESS);
-  return size;
+  usize    size   = out.size_bytes();
+  VkResult result = vk_table.GetPipelineCacheData(vk_device, ((PipelineCache *) cache)->vk_cache,
+                                                  &size, out.data());
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
+  return stx::Ok((usize) size);
+}
+
+gfx::Status DeviceImpl::merge_pipeline_cache(gfx::PipelineCache                  dst,
+                                             stx::Span<gfx::PipelineCache const> srcs)
+{
+  u32              num_srcs  = (u32) srcs.size();
+  VkPipelineCache *vk_caches = ALLOC_NUM(allocator, VkPipelineCache, num_srcs);
+  if (vk_caches == nullptr)
+  {
+    return gfx::Status::OutOfHostMemory;
+  }
+
+  for (u32 i = 0; i < num_srcs; i++)
+  {
+    vk_caches[i] = ((PipelineCache *) srcs.data()[i])->vk_cache;
+  }
+
+  VkResult result = vk_table.MergePipelineCaches(vk_device, ((PipelineCache *) dst)->vk_cache,
+                                                 num_srcs, vk_caches);
+
+  allocator.deallocate(allocator.data, vk_caches);
+
+  return (gfx::Status) result;
 }
 
 gfx::Status DeviceImpl::wait_for_fences(stx::Span<gfx::Fence const> fences, bool all, u64 timeout)
 {
   u32      num_fences = (u32) fences.size();
-  VkFence *vk_fences  = (VkFence *) allocator.allocate(allocator.data, sizeof(VkFence) * num_fences,
-                                                       alignof(VkFence));
+  VkFence *vk_fences  = ALLOC_NUM(allocator, VkFence, num_fences);
   ASH_CHECK(vk_fences != nullptr);
   for (u32 i = 0; i < num_fences; i++)
   {
     vk_fences[i] = ((Fence *) fences.data()[i])->vk_fence;
   }
 
-  VkResult result = vk_table.WaitForFences(vk_device, num_fences, vk_fences, all, timeout);
+  VkResult result =
+      vk_table.WaitForFences(vk_device, num_fences, vk_fences, (VkBool32) all, timeout);
 
   allocator.deallocate(allocator.data, vk_fences);
 
@@ -2061,8 +2129,21 @@ gfx::Status DeviceImpl::get_fence_status(gfx::Fence fence)
   return (gfx::Status) vk_table.GetFenceStatus(vk_device, ((Fence *) fence)->vk_fence);
 }
 
-void DeviceImpl::submit(gfx::CommandEncoder *encoder, gfx::Fence signal_fence)
+void DeviceImpl::submit(gfx::CommandEncoder &encoder, gfx::Fence signal_fence)
 {
+  CommandEncoderImpl *impl = (CommandEncoderImpl *) encoder.to_impl();
+  VkSubmitInfo        info{.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                           .pNext                = nullptr,
+                           .waitSemaphoreCount   = 1,
+                           .pWaitSemaphores      = nullptr,
+                           .pWaitDstStageMask    = nullptr,
+                           .commandBufferCount   = 1,
+                           .pCommandBuffers      = &impl->vk_command_buffer,
+                           .signalSemaphoreCount = 1,
+                           .pSignalSemaphores    = nullptr};
+  ASH_CHECK(vk_table.QueueSubmit(vk_queue, 1, &info, ((Fence *) signal_fence)->vk_fence) ==
+            VK_SUCCESS);
+  // TODO(LAMARRR): handle, return error if any
 }
 
 void DeviceImpl::wait_idle()
@@ -2077,30 +2158,42 @@ void DeviceImpl::wait_queue_idle()
   // todo(lamarrr):check
 }
 
-
 void CommandEncoderImpl::begin()
 {
+  if (status != gfx::Status::Success)
+  {
+    return;
+  }
   VkCommandBufferBeginInfo info{.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                                 .pNext            = nullptr,
                                 .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
                                 .pInheritanceInfo = nullptr};
-  device->vk_table.BeginCommandBuffer(vk_command_buffer, &info);        //TODO: CHECK
+  status = (gfx::Status) device->vk_table.BeginCommandBuffer(vk_command_buffer, &info);
 }
 
-void CommandEncoderImpl::end()
+gfx::Status CommandEncoderImpl::end()
 {
+  if (status != gfx::Status::Success)
+  {
+    return status;
+  }
   device->vk_table.EndCommandBuffer(vk_command_buffer);
 }
 
 void CommandEncoderImpl::reset()
 {
-  // reset state - pools
   device->vk_table.ResetCommandPool(device->vk_device, vk_command_pool, 0);
-  // FLAG must have been set whilst creating to signify that batch deletion
+  status = gfx::Status::Success;
+  // reset status
+  // preserve buffers
 }
 
 void CommandEncoderImpl::begin_debug_marker(char const *region_name, Vec4 color)
 {
+  if (status != gfx::Status::Success)
+  {
+    return;
+  }
   VkDebugMarkerMarkerInfoEXT info{.sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
                                   .pNext       = nullptr,
                                   .pMarkerName = region_name,
@@ -2110,11 +2203,19 @@ void CommandEncoderImpl::begin_debug_marker(char const *region_name, Vec4 color)
 
 void CommandEncoderImpl::end_debug_marker()
 {
+  if (status != gfx::Status::Success)
+  {
+    return;
+  }
   device->vk_table.CmdDebugMarkerEndEXT(vk_command_buffer);
 }
 
 void CommandEncoderImpl::fill_buffer(gfx::Buffer dst, u64 offset, u64 size, u32 data)
 {
+  if (status != gfx::Status::Success)
+  {
+    return;
+  }
   Buffer     *dst_impl = (Buffer *) dst;
   BufferScope scope    = transfer_buffer_scope(dst_impl->desc.usage);
   sync_acquire_buffer(device->vk_table, vk_command_buffer, dst_impl->vk_buffer,
@@ -2127,6 +2228,10 @@ void CommandEncoderImpl::fill_buffer(gfx::Buffer dst, u64 offset, u64 size, u32 
 void CommandEncoderImpl::copy_buffer(gfx::Buffer src, gfx::Buffer dst,
                                      stx::Span<gfx::BufferCopy const> copies)
 {
+  if (status != gfx::Status::Success)
+  {
+    return;
+  }
   Buffer     *src_impl = (Buffer *) src;
   Buffer     *dst_impl = (Buffer *) dst;
   BufferScope scope    = transfer_buffer_scope(dst_impl->desc.usage);
@@ -2135,9 +2240,13 @@ void CommandEncoderImpl::copy_buffer(gfx::Buffer src, gfx::Buffer dst,
                       dst_impl->desc.usage, scope);
 
   u32           num_copies = (u32) copies.size();
-  VkBufferCopy *vk_copies  = (VkBufferCopy *) allocator.allocate(
-      allocator.data, sizeof(VkBufferCopy) * num_copies, alignof(VkBufferCopy));
-  ASH_CHECK(vk_copies != nullptr);
+  VkBufferCopy *vk_copies  = ALLOC_NUM(allocator, VkBufferCopy, num_copies);
+
+  if (vk_copies == nullptr)
+  {
+    status = gfx::Status::OutOfHostMemory;
+    return;
+  }
 
   for (u32 i = 0; i < num_copies; i++)
   {
@@ -2157,6 +2266,10 @@ void CommandEncoderImpl::copy_buffer(gfx::Buffer src, gfx::Buffer dst,
 
 void CommandEncoderImpl::update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::Buffer dst)
 {
+  if (status != gfx::Status::Success)
+  {
+    return;
+  }
   Buffer     *dst_impl = (Buffer *) dst;
   BufferScope scope    = transfer_buffer_scope(dst_impl->desc.usage);
 
@@ -2174,6 +2287,10 @@ void CommandEncoderImpl::clear_color_image(gfx::Image dst, gfx::Color clear_colo
                                            stx::Span<gfx::ImageSubresourceRange const> ranges)
 
 {
+  if (status != gfx::Status::Success)
+  {
+    return;
+  }
   Image     *dst_impl = (Image *) dst;
   ImageScope scope    = transfer_image_scope(dst_impl->desc.usage);
 
@@ -2181,9 +2298,13 @@ void CommandEncoderImpl::clear_color_image(gfx::Image dst, gfx::Color clear_colo
                      scope, (VkImageAspectFlags) dst_impl->desc.aspects);
 
   u32                      num_ranges = (u32) ranges.size();
-  VkImageSubresourceRange *vk_ranges  = (VkImageSubresourceRange *) allocator.allocate(
-      allocator.data, sizeof(VkImageSubresourceRange) * num_ranges,
-      alignof(VkImageSubresourceRange));
+  VkImageSubresourceRange *vk_ranges  = ALLOC_NUM(allocator, VkImageSubresourceRange, num_ranges);
+
+  if (vk_ranges == nullptr)
+  {
+    status = gfx::Status::OutOfHostMemory;
+    return;
+  }
 
   for (u32 i = 0; i < num_ranges; i++)
   {
@@ -2209,6 +2330,10 @@ void CommandEncoderImpl::clear_depth_stencil_image(
     stx::Span<gfx::ImageSubresourceRange const> ranges)
 
 {
+  if (status != gfx::Status::Success)
+  {
+    return;
+  }
   Image     *dst_impl = (Image *) dst;
   ImageScope scope    = transfer_image_scope(dst_impl->desc.usage);
 
@@ -2216,9 +2341,13 @@ void CommandEncoderImpl::clear_depth_stencil_image(
                      scope, (VkImageAspectFlags) dst_impl->desc.aspects);
 
   u32                      num_ranges = (u32) ranges.size();
-  VkImageSubresourceRange *vk_ranges  = (VkImageSubresourceRange *) allocator.allocate(
-      allocator.data, sizeof(VkImageSubresourceRange) * num_ranges,
-      alignof(VkImageSubresourceRange));
+  VkImageSubresourceRange *vk_ranges  = ALLOC_NUM(allocator, VkImageSubresourceRange, num_ranges);
+
+  if (vk_ranges == nullptr)
+  {
+    status = gfx::Status::OutOfHostMemory;
+    return;
+  }
 
   for (u32 i = 0; i < num_ranges; i++)
   {
@@ -2243,6 +2372,10 @@ void CommandEncoderImpl::clear_depth_stencil_image(
 void CommandEncoderImpl::copy_image(gfx::Image src, gfx::Image dst,
                                     stx::Span<gfx::ImageCopy const> copies)
 {
+  if (status != gfx::Status::Success)
+  {
+    return;
+  }
   Image     *src_impl  = (Image *) src;
   Image     *dst_impl  = (Image *) dst;
   ImageScope src_scope = transfer_image_scope(src_impl->desc.usage);
@@ -2250,12 +2383,21 @@ void CommandEncoderImpl::copy_image(gfx::Image src, gfx::Image dst,
 
   sync_acquire_image(device->vk_table, vk_command_buffer, src_impl->vk_image, src_impl->desc.usage,
                      src_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
-  sync_acquire_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
-                     dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+  if (src != dst)
+  {
+    sync_acquire_image(device->vk_table, vk_command_buffer, dst_impl->vk_image,
+                       dst_impl->desc.usage, dst_scope,
+                       (VkImageAspectFlags) dst_impl->desc.aspects);
+  }
 
   u32          num_copies = (u32) copies.size();
-  VkImageCopy *vk_copies  = (VkImageCopy *) allocator.allocate(
-      allocator.data, sizeof(VkImageCopy) * num_copies, alignof(VkImageCopy));
+  VkImageCopy *vk_copies  = ALLOC_NUM(allocator, VkImageCopy, num_copies);
+
+  if (vk_copies == nullptr)
+  {
+    status = gfx::Status::OutOfHostMemory;
+    return;
+  }
 
   for (u32 i = 0; i < num_copies; i++)
   {
@@ -2283,8 +2425,13 @@ void CommandEncoderImpl::copy_image(gfx::Image src, gfx::Image dst,
 
   sync_release_image(device->vk_table, vk_command_buffer, src_impl->vk_image, src_impl->desc.usage,
                      src_scope, (VkImageAspectFlags) src_impl->desc.aspects);
-  sync_release_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
-                     dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+
+  if (src != dst)
+  {
+    sync_release_image(device->vk_table, vk_command_buffer, dst_impl->vk_image,
+                       dst_impl->desc.usage, dst_scope,
+                       (VkImageAspectFlags) dst_impl->desc.aspects);
+  }
 
   allocator.deallocate(allocator.data, vk_copies);
 }
@@ -2292,6 +2439,10 @@ void CommandEncoderImpl::copy_image(gfx::Image src, gfx::Image dst,
 void CommandEncoderImpl::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
                                               stx::Span<gfx::BufferImageCopy const> copies)
 {
+  if (status != gfx::Status::Success)
+  {
+    return;
+  }
   Image     *dst_impl  = (Image *) dst;
   ImageScope dst_scope = transfer_image_scope(dst_impl->desc.usage);
 
@@ -2299,8 +2450,13 @@ void CommandEncoderImpl::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
                      dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
 
   u32                num_copies = (u32) copies.size();
-  VkBufferImageCopy *vk_copies  = (VkBufferImageCopy *) allocator.allocate(
-      allocator.data, sizeof(VkBufferImageCopy) * num_copies, alignof(VkBufferImageCopy));
+  VkBufferImageCopy *vk_copies  = ALLOC_NUM(allocator, VkBufferImageCopy, num_copies);
+
+  if (vk_copies == nullptr)
+  {
+    status = gfx::Status::OutOfHostMemory;
+    return;
+  }
 
   for (u32 i = 0; i < num_copies; i++)
   {
@@ -2340,12 +2496,21 @@ void CommandEncoderImpl::blit_image(gfx::Image src, gfx::Image dst,
 
   sync_acquire_image(device->vk_table, vk_command_buffer, src_impl->vk_image, src_impl->desc.usage,
                      src_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
-  sync_acquire_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
-                     dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+  if (src != dst)
+  {
+    sync_acquire_image(device->vk_table, vk_command_buffer, dst_impl->vk_image,
+                       dst_impl->desc.usage, dst_scope,
+                       (VkImageAspectFlags) dst_impl->desc.aspects);
+  }
 
   u32          num_blits = (u32) blits.size();
-  VkImageBlit *vk_blits  = (VkImageBlit *) allocator.allocate(
-      allocator.data, sizeof(VkImageBlit) * num_blits, alignof(VkImageBlit));
+  VkImageBlit *vk_blits  = ALLOC_NUM(allocator, VkImageBlit, num_blits);
+
+  if (vk_blits == nullptr)
+  {
+    status = gfx::Status::OutOfHostMemory;
+    return;
+  }
 
   for (u32 i = 0; i < num_blits; i++)
   {
@@ -2377,10 +2542,201 @@ void CommandEncoderImpl::blit_image(gfx::Image src, gfx::Image dst,
 
   sync_release_image(device->vk_table, vk_command_buffer, src_impl->vk_image, src_impl->desc.usage,
                      src_scope, (VkImageAspectFlags) src_impl->desc.aspects);
-  sync_release_image(device->vk_table, vk_command_buffer, dst_impl->vk_image, dst_impl->desc.usage,
-                     dst_scope, (VkImageAspectFlags) dst_impl->desc.aspects);
+  if (src != dst)
+  {
+    sync_release_image(device->vk_table, vk_command_buffer, dst_impl->vk_image,
+                       dst_impl->desc.usage, dst_scope,
+                       (VkImageAspectFlags) dst_impl->desc.aspects);
+  }
 
   allocator.deallocate(allocator.data, vk_blits);
+}
+
+void CommandEncoderImpl::begin_descriptor_pass()
+{
+}
+
+u32 CommandEncoderImpl::push_descriptors(gfx::DescriptorLayout layout, u32 count)
+{
+  //if(   ){}
+  // check if in descriptor pass
+  status = vk_descriptor_layouts.reserve(allocator, vk_descriptor_layouts.count + count);
+  if (status != gfx::Status::Success)
+  {
+    return 0;
+  }
+  DescriptorLayout     *layout_impl = (DescriptorLayout *) layout;
+  VkDescriptorSetLayout vk_layout   = layout_impl->vk_layout;
+  for (u32 i = 0; i < count; i++)
+  {
+    vk_descriptor_layouts.data[vk_descriptor_layouts.count + i] = vk_layout;
+  }
+  vk_descriptor_layouts.count += count;
+
+  descriptors_size_target.samplers += count * layout_impl->count.samplers;
+  descriptors_size_target.combined_image_samplers +=
+      count * layout_impl->count.combined_image_samplers;
+  descriptors_size_target.sampled_images += count * layout_impl->count.sampled_images;
+  descriptors_size_target.storage_images += count * layout_impl->count.storage_images;
+  descriptors_size_target.uniform_texel_buffers += count * layout_impl->count.uniform_texel_buffers;
+  descriptors_size_target.storage_texel_buffers += count * layout_impl->count.storage_texel_buffers;
+  descriptors_size_target.uniform_buffers += count * layout_impl->count.uniform_buffers;
+  descriptors_size_target.storage_buffers += count * layout_impl->count.storage_buffers;
+  descriptors_size_target.dynamic_uniform_buffers +=
+      count * layout_impl->count.dynamic_uniform_buffers;
+  descriptors_size_target.dynamic_storage_buffers +=
+      count * layout_impl->count.dynamic_storage_buffers;
+  descriptors_size_target.input_attachments += count * layout_impl->count.input_attachments;
+}
+
+void CommandEncoderImpl::push_bindings(u32 set, gfx::DescriptorBindings const &bindings)
+{
+}
+
+void CommandEncoderImpl::end_descriptor_pass()
+{
+  // handle error
+  // todo(lamarrr): what does the spec say about zero-sized?
+  // what if the new capacity is still 0
+  bool                 need_pool_resize = false;
+  gfx::DescriptorCount new_capacity;
+
+#define CHECK_DESCPOOL_RESIZE_NEEDED(type)                                                  \
+  if (descriptors_size_target.##type > descriptors_capacity.##type)                         \
+  {                                                                                         \
+    new_capacity.##type =                                                                   \
+        std::max(std::max(descriptors_capacity.##type + (descriptors_capacity.##type >> 1), \
+                          descriptors_size_target.##type),                                  \
+                 1U);                                                                       \
+    need_pool_resize = true;                                                                \
+  }
+
+  CHECK_DESCPOOL_RESIZE_NEEDED(samplers);
+  CHECK_DESCPOOL_RESIZE_NEEDED(combined_image_samplers);
+  CHECK_DESCPOOL_RESIZE_NEEDED(sampled_images);
+  CHECK_DESCPOOL_RESIZE_NEEDED(storage_images);
+  CHECK_DESCPOOL_RESIZE_NEEDED(uniform_texel_buffers);
+  CHECK_DESCPOOL_RESIZE_NEEDED(storage_texel_buffers);
+  CHECK_DESCPOOL_RESIZE_NEEDED(uniform_buffers);
+  CHECK_DESCPOOL_RESIZE_NEEDED(storage_buffers);
+  CHECK_DESCPOOL_RESIZE_NEEDED(dynamic_uniform_buffers);
+  CHECK_DESCPOOL_RESIZE_NEEDED(dynamic_storage_buffers);
+  CHECK_DESCPOOL_RESIZE_NEEDED(input_attachments);
+
+  if (need_pool_resize)
+  {
+    if (vk_descriptor_pool != nullptr)
+    {
+      device->vk_table.DestroyDescriptorPool(device->vk_device, vk_descriptor_pool, nullptr);
+      vk_descriptor_pool = nullptr;
+    }
+
+    VkDescriptorPoolSize vk_pool_sizes[gfx::NUM_DESCRIPTOR_TYPES] = {
+        {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = new_capacity.samplers},
+        {.type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         .descriptorCount = new_capacity.combined_image_samplers},
+        {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = new_capacity.sampled_images},
+        {.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = new_capacity.storage_images},
+        {.type            = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,
+         .descriptorCount = new_capacity.uniform_texel_buffers},
+        {.type            = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,
+         .descriptorCount = new_capacity.storage_texel_buffers},
+        {.type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+         .descriptorCount = new_capacity.uniform_buffers},
+        {.type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+         .descriptorCount = new_capacity.storage_buffers},
+        {.type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+         .descriptorCount = new_capacity.dynamic_uniform_buffers},
+        {.type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+         .descriptorCount = new_capacity.dynamic_storage_buffers},
+        {.type            = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+         .descriptorCount = new_capacity.input_attachments}};
+
+    u32 max_descriptors = new_capacity.samplers + new_capacity.combined_image_samplers +
+                          new_capacity.sampled_images + new_capacity.storage_images +
+                          new_capacity.uniform_texel_buffers + new_capacity.storage_texel_buffers +
+                          new_capacity.uniform_buffers + new_capacity.storage_buffers +
+                          new_capacity.dynamic_uniform_buffers +
+                          new_capacity.dynamic_storage_buffers + new_capacity.input_attachments;
+
+    VkDescriptorPoolCreateInfo create_info{.sType   = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                                           .pNext   = nullptr,
+                                           .flags   = 0,
+                                           .maxSets = max_descriptors,
+                                           .poolSizeCount = gfx::NUM_DESCRIPTOR_TYPES,
+                                           .pPoolSizes    = vk_pool_sizes};
+
+    device->vk_table.CreateDescriptorPool(device->vk_device, &create_info, nullptr,
+                                          &vk_descriptor_pool);
+    descriptors_capacity = new_capacity;
+  }
+
+  device->vk_table.ResetDescriptorPool(device->vk_device, vk_descriptor_pool, 0);
+  // check success
+
+  VkDescriptorSetAllocateInfo allocate_info{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                                            .pNext = nullptr,
+                                            .descriptorPool     = vk_descriptor_pool,
+                                            .descriptorSetCount = vk_descriptor_layouts.count,
+                                            .pSetLayouts        = vk_descriptor_layouts.data};
+
+  // resize vk_descriptors
+  // device oom
+  device->vk_table.AllocateDescriptorSets(device->vk_device, &allocate_info, vk_descriptors.data);
+
+  // resize descriptor_bindings.*;
+
+  u32 num_buffer_infos =
+      descriptor_bindings.uniform_buffers.count + descriptor_bindings.storage_buffers.count;
+  VkDescriptorBufferInfo *vk_buffer_infos =
+      ALLOC_NUM(allocator, VkDescriptorBufferInfo, num_buffer_infos);
+
+  if (vk_buffer_infos == nullptr)
+  {
+    // cleanup, oom
+  }
+
+  u32 num_buffer_view_infos = descriptor_bindings.uniform_texel_buffers.count +
+                              descriptor_bindings.storage_texel_buffers.count;
+  VkBufferView *vk_buffer_view_infos = ALLOC_NUM(allocator, VkBufferView, num_buffer_view_infos);
+
+  if (vk_buffer_view_infos == nullptr)
+  {
+    // cleanup, oom
+  }
+
+  u32 num_image_infos =
+      descriptor_bindings.samplers.count + descriptor_bindings.combined_image_samplers.count +
+      descriptor_bindings.sampled_images.count + descriptor_bindings.storage_images.count +
+      descriptor_bindings.input_attachments.count;
+
+  VkDescriptorImageInfo *vk_image_infos =
+      ALLOC_NUM(allocator, VkDescriptorImageInfo, num_buffer_infos);
+
+  if (vk_image_infos == nullptr)
+  {
+    // cleanup, oom
+  }
+
+  u32 samplers_offset = 0;
+  for (u32 i = 0; i < vk_descriptors.count; i++)
+  {
+  }
+
+  // free non-storage binding descriptors
+}
+
+void CommandEncoderImpl::bind_descriptor(u32 index)
+{
+  // checks
+  // bind to render/compute
+}
+
+void CommandEncoderImpl::bind_next_descriptor()
+{
+  // advance
+  // bind to render/compute
+  // checks
 }
 
 void CommandEncoderImpl::begin_render_pass(
@@ -2388,84 +2744,110 @@ void CommandEncoderImpl::begin_render_pass(
     stx::Span<gfx::Color const>        color_attachments_clear_values,
     stx::Span<gfx::DepthStencil const> depth_stencil_attachments_clear_values)
 {
-  this->framebuffer = framebuffer;
-  this->render_pass = render_pass;
+  this->framebuffer = (Framebuffer *) framebuffer;
 
-  for (gfx::ImageView view : graph->framebuffers[framebuffer].desc.color_attachments)
+  for (gfx::ImageView view : ((Framebuffer *) framebuffer)->desc.color_attachments)
   {
     if (view == nullptr)
     {
       continue;
     }
 
-    gfx::ImageResource const &image_resource = graph->images[graph->image_views[view].desc.image];
-    ImageScope                scope = color_attachment_image_scope(image_resource.desc.scope);
-    acquire_image(image_resource.handle, image_resource.desc.scope, scope.stages, scope.access,
-                  scope.layout, image_resource.desc.aspects, tmp_image_barriers);
-    driver->cmd_insert_barriers(rhi, {}, tmp_image_barriers);
+    Image     *impl  = (Image *) (((ImageView *) view)->desc.image);
+    ImageScope scope = color_attachment_image_scope(impl->desc.usage);
+    sync_acquire_image(device->vk_table, vk_command_buffer, impl->vk_image, impl->desc.usage, scope,
+                       (VkImageAspectFlags) impl->desc.aspects);
   }
 
   {
-    gfx::ImageView view = graph->framebuffers[framebuffer].desc.depth_stencil_attachment;
+    gfx::ImageView view = ((Framebuffer *) framebuffer)->desc.depth_stencil_attachment;
     if (view != nullptr)
     {
-      gfx::ImageResource const &image_resource = graph->images[graph->image_views[view].desc.image];
-      ImageScope scope = depth_stencil_attachment_image_scope(image_resource.desc.scope);
-      acquire_image(image_resource.handle, image_resource.desc.scope, scope.stages, scope.access,
-                    scope.layout, image_resource.desc.aspects, tmp_image_barriers);
-      driver->cmd_insert_barriers(rhi, {}, tmp_image_barriers);
+      Image     *impl  = (Image *) (((ImageView *) view)->desc.image);
+      ImageScope scope = depth_stencil_attachment_image_scope(impl->desc.usage);
+      sync_acquire_image(device->vk_table, vk_command_buffer, impl->vk_image, impl->desc.usage,
+                         scope, (VkImageAspectFlags) impl->desc.aspects);
     }
   }
 
-  driver->cmd_begin_render_pass(
-      rhi, graph->framebuffers[framebuffer].handle, graph->render_passes[render_pass].handle,
-      render_area, color_attachments_clear_values, depth_stencil_attachments_clear_values);
+  VkRenderPassBeginInfo begin_info{.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+                                   .pNext           = nullptr,
+                                   .renderPass      = ((RenderPass *) render_pass)->vk_render_pass,
+                                   .framebuffer     = ((Framebuffer *) framebuffer)->vk_framebuffer,
+                                   .renderArea      = VkRect2D{},
+                                   .clearValueCount = 1,
+                                   .pClearValues    = nullptr};
+
+  device->vk_table.CmdBeginRenderPass(vk_command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 }
 
 void CommandEncoderImpl::end_render_pass()
 {
-  driver->cmd_end_render_pass(rhi);
-
-  for (gfx::ImageView view : graph->framebuffers[framebuffer].desc.color_attachments)
+  // check in renderpass
+  for (gfx::ImageView view : ((Framebuffer *) framebuffer)->desc.color_attachments)
   {
     if (view == nullptr)
     {
       continue;
     }
 
-    gfx::ImageResource const &image_resource = graph->images[graph->image_views[view].desc.image];
-    ImageScope                scope = color_attachment_image_scope(image_resource.desc.scope);
-    release_image(image_resource.handle, image_resource.desc.scope, scope.stages, scope.access,
-                  scope.layout, image_resource.desc.aspects, tmp_image_barriers);
-    driver->cmd_insert_barriers(rhi, {}, tmp_image_barriers);
+    Image     *impl  = (Image *) (((ImageView *) view)->desc.image);
+    ImageScope scope = color_attachment_image_scope(impl->desc.usage);
+    sync_release_image(device->vk_table, vk_command_buffer, impl->vk_image, impl->desc.usage, scope,
+                       (VkImageAspectFlags) impl->desc.aspects);
   }
 
   {
-    gfx::ImageView view = graph->framebuffers[framebuffer].desc.depth_stencil_attachment;
+    gfx::ImageView view = ((Framebuffer *) framebuffer)->desc.depth_stencil_attachment;
     if (view != nullptr)
     {
-      gfx::ImageResource const &image_resource = graph->images[graph->image_views[view].desc.image];
-      ImageScope scope = depth_stencil_attachment_image_scope(image_resource.desc.scope);
-      release_image(image_resource.handle, image_resource.desc.scope, scope.stages, scope.access,
-                    scope.layout, image_resource.desc.aspects, tmp_image_barriers);
-      driver->cmd_insert_barriers(rhi, {}, tmp_image_barriers);
+      Image     *impl  = (Image *) (((ImageView *) view)->desc.image);
+      ImageScope scope = depth_stencil_attachment_image_scope(impl->desc.usage);
+      sync_release_image(device->vk_table, vk_command_buffer, impl->vk_image, impl->desc.usage,
+                         scope, (VkImageAspectFlags) impl->desc.aspects);
     }
+  }
+
+  device->vk_table.CmdEndRenderPass(vk_command_buffer);
+}
+
+void CommandEncoderImpl::bind_pipeline(gfx::ComputePipeline pipeline)
+{
+  // check status
+  this->compute_pipeline = (ComputePipeline *) pipeline;
+  device->vk_table.CmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                   this->compute_pipeline->vk_pipeline);
+}
+
+void CommandEncoderImpl::bind_pipeline(gfx::GraphicsPipeline pipeline)
+{
+  this->graphics_pipeline = (GraphicsPipeline *) pipeline;
+  device->vk_table.CmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                   this->graphics_pipeline->vk_pipeline);
+}
+
+void CommandEncoderImpl::push_constants(stx::Span<u8 const> push_constants_data)
+{
+  // check status
+  if (compute_pipeline)
+  {
+    device->vk_table.CmdPushConstants(
+        vk_command_buffer, compute_pipeline->vk_layout, VK_SHADER_STAGE_ALL, 0,
+        (u32) push_constants_data.size_bytes(), push_constants_data.data());
+  }
+  else if (graphics_pipeline)
+  {
+    device->vk_table.CmdPushConstants(
+        vk_command_buffer, graphics_pipeline->vk_layout, VK_SHADER_STAGE_ALL, 0,
+        (u32) push_constants_data.size_bytes(), push_constants_data.data());
+  }
+  else
+  {
+    ASH_PANIC("Not in renderpass or compute pass");
   }
 }
 
-void CommandBuffer::bind_pipeline(gfx::ComputePipeline pipeline)
-{
-  this->compute_pipeline  = pipeline;
-  this->graphics_pipeline = nullptr;
-
-  driver->bind_pipeline(pipeline);
-}
-
-void CommandBuffer::bind_pipeline(gfx::GraphicsPipeline pipeline);
-
-void CommandBuffer::dispatch(gfx::ComputePipeline pipeline, u32 group_count_x, u32 group_count_y,
-                             u32 group_count_z, gfx::DescriptorSetBindings const &bindings,
-                             stx::Span<u8 const> push_constants_data)
+void CommandEncoderImpl::dispatch(u32 group_count_x, u32 group_count_y, u32 group_count_z)
 {
   for (gfx::StorageImageBinding const &binding : bindings.storage_images)
   {
@@ -2529,9 +2911,7 @@ void CommandBuffer::dispatch(gfx::ComputePipeline pipeline, u32 group_count_x, u
   }
 }
 
-void CommandBuffer::dispatch_indirect(gfx::ComputePipeline pipeline, gfx::Buffer buffer, u64 offset,
-                                      gfx::DescriptorSetBindings const &bindings,
-                                      stx::Span<u8 const>               push_constants_data)
+void CommandEncoderImpl::dispatch_indirect(gfx::Buffer buffer, u64 offset)
 {
   for (gfx::StorageImageBinding const &binding : bindings.storage_images)
   {
@@ -2595,28 +2975,89 @@ void CommandBuffer::dispatch_indirect(gfx::ComputePipeline pipeline, gfx::Buffer
   }
 }
 
-void CommandBuffer::draw(gfx::GraphicsPipeline pipeline, gfx::RenderState const &state,
-                         stx::Span<gfx::Buffer const> vertex_buffers, gfx::Buffer index_buffer,
-                         u32 first_index, u32 num_indices, u32 vertex_offset, u32 first_instance,
-                         u32 num_instances, gfx::DescriptorSetBindings const &bindings,
-                         stx::Span<u8 const> push_constants_data)
+void CommandEncoderImpl::set_viewport(gfx::Viewport const &viewport)
 {
-  driver->cmd_draw(rhi, pipeline, state, vertex_buffers, index_buffer, first_index, num_indices,
-                   vertex_offset, first_instance, num_instances, bindings, push_constants_data);
+  VkViewport vk_viewport{.x        = viewport.area.offset.x,
+                         .y        = viewport.area.offset.y,
+                         .width    = viewport.area.extent.x,
+                         .height   = viewport.area.extent.y,
+                         .minDepth = viewport.min_depth,
+                         .maxDepth = viewport.max_depth};
+  device->vk_table.CmdSetViewport(vk_command_buffer, 0, 1, &vk_viewport);
 }
 
-void CommandBuffer::draw_indirect(gfx::GraphicsPipeline pipeline, gfx::RenderState const &state,
-                                  stx::Span<gfx::Buffer const> vertex_buffers,
-                                  gfx::Buffer index_buffer, gfx::Buffer buffer, u64 offset,
-                                  u32 draw_count, u32 stride,
-                                  gfx::DescriptorSetBindings const &bindings,
-                                  stx::Span<u8 const>               push_constants_data)
+void CommandEncoderImpl::set_scissor(IRect scissor)
 {
-  driver->cmd_draw_indirect(rhi, pipeline, state, vertex_buffers, index_buffer, buffer, offset,
-                            draw_count, stride, bindings, push_constants_data);
+  VkRect2D vk_scissor{.offset = VkOffset2D{scissor.offset.x, scissor.offset.y},
+                      .extent = VkExtent2D{scissor.extent.width, scissor.extent.height}};
+  device->vk_table.CmdSetScissor(vk_command_buffer, 0, 1, &vk_scissor);
 }
 
-void CommandBuffer::on_execution_complete_fn(stx::UniqueFn<void()> &&fn)
+void CommandEncoderImpl::set_blend_constants(Vec4 blend_constants)
+{
+  f32 vk_constants[4] = {blend_constants.x, blend_constants.y, blend_constants.z,
+                         blend_constants.w};
+  device->vk_table.CmdSetBlendConstants(vk_command_buffer, vk_constants);
+}
+
+void CommandEncoderImpl::set_stencil_compare_mask(gfx::StencilFaces faces, u32 mask)
+{
+  device->vk_table.CmdSetStencilCompareMask(vk_command_buffer, (VkStencilFaceFlags) faces, mask);
+}
+
+void CommandEncoderImpl::set_stencil_reference(gfx::StencilFaces faces, u32 reference)
+{
+  device->vk_table.CmdSetStencilReference(vk_command_buffer, (VkStencilFaceFlags) faces, reference);
+}
+
+void CommandEncoderImpl::set_stencil_write_mask(gfx::StencilFaces faces, u32 mask)
+{
+  device->vk_table.CmdSetStencilWriteMask(vk_command_buffer, (VkStencilFaceFlags) faces, mask);
+}
+
+void CommandEncoderImpl::set_vertex_buffers(stx::Span<gfx::Buffer const> vertex_buffers,
+                                            stx::Span<u64 const>         offsets)
+{
+  u32       num_buffers = (u32) vertex_buffers.size();
+  VkBuffer *vk_buffers  = ALLOC_NUM(allocator, VkBuffer, num_buffers);
+
+  if (vk_buffers == nullptr)
+  {
+    status = gfx::Status::OutOfHostMemory;
+    return;
+  }
+
+  for (u32 i = 0; i < num_buffers; i++)
+  {
+    vk_buffers[i] = ((Buffer *) vertex_buffers.data()[i])->vk_buffer;
+  }
+
+  device->vk_table.CmdBindVertexBuffers(vk_command_buffer, 0, num_buffers, vk_buffers,
+                                        offsets.data());
+
+  allocator.deallocate(allocator.data, vk_buffers);
+}
+
+void CommandEncoderImpl::set_index_buffer(gfx::Buffer index_buffer, u64 offset)
+{
+  device->vk_table.CmdBindIndexBuffer(vk_command_buffer, ((Buffer *) index_buffer)->vk_buffer,
+                                      offset, VK_INDEX_TYPE_UINT32);
+}
+
+void CommandEncoderImpl::draw(u32 first_index, u32 num_indices, i32 vertex_offset,
+                              u32 first_instance, u32 num_instances)
+{
+  device->vk_table.CmdDrawIndexed(vk_command_buffer, num_indices, num_instances, first_index,
+                                  vertex_offset, first_instance);
+}
+
+void CommandEncoderImpl::draw_indirect(gfx::Buffer buffer, u64 offset, u32 draw_count, u32 stride)
+{
+  device->vk_table.CmdDrawIndexedIndirect(vk_command_buffer, ((Buffer *) buffer)->vk_buffer, offset,
+                                          draw_count, stride);
+}
+
+void CommandEncoderImpl::on_execution_complete(stx::UniqueFn<void()> &&fn)
 {
   completion_tasks.push(std::move(fn)).unwrap();
 }
