@@ -14,6 +14,7 @@ namespace ash
 namespace vk
 {
 
+// only for purely trivial types
 template <typename T>
 struct Vec
 {
@@ -23,14 +24,14 @@ struct Vec
 
   gfx::Status reserve(AllocationCallbacks const &allocator, u32 target_size)
   {
-    if (target_size <= capacity)
+    if (target_size <= capacity) [[unlikely]]
     {
       return gfx::Status::Success;
     }
     usize const target_capacity = target_size + (target_size >> 1);
     T          *new_data =
         (T *) allocator.reallocate(allocator.data, data, sizeof(T) * target_capacity, alignof(T));
-    if (new_data == nullptr)
+    if (new_data == nullptr) [[unlikely]]
     {
       return gfx::Status::OutOfHostMemory;
     }
@@ -39,7 +40,42 @@ struct Vec
     return gfx::Status::Success;
   }
 
-  void reset()
+  gfx::Status grow_count(AllocationCallbacks const &allocator, u32 growth)
+  {
+    gfx::Status status = reserve(allocator, count + growth);
+    if (status != gfx::Status::Success) [[unlikely]]
+    {
+      return status;
+    }
+    count += growth;
+    return gfx::Status::Success;
+  }
+
+  void fill(T const &element, u32 begin, u32 num)
+  {
+    for (u32 i = begin; i < begin + num && i < count; i++)
+    {
+      data[i] = element;
+    }
+  }
+
+  gfx::Status push(AllocationCallbacks const &allocator, T const &element)
+  {
+    gfx::Status status = reserve(allocator, count + 1);
+    if (status != gfx::Status::Success) [[unlikely]]
+    {
+      return status;
+    }
+    data[count] = element;
+    count++;
+
+    return gfx::Status::Success;
+  }
+
+  void shrink_to_fit();
+  bool is_shrink_recommended();
+
+  void clear()
   {
     count = 0;
   }
@@ -50,6 +86,16 @@ struct Vec
     data     = nullptr;
     count    = 0;
     capacity = 0;
+  }
+
+  T *begin()
+  {
+    return data;
+  }
+
+  T *end()
+  {
+    return data + count;
   }
 };
 
@@ -191,6 +237,19 @@ struct DeviceTable
 #undef ASH_VKDEV_FUNC
 
   VmaVulkanFunctions vma_functions = {};
+};
+
+struct BufferSyncState
+{
+  VkShaderStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkAccessFlags      access = VK_ACCESS_NONE;
+};
+
+struct ImageSyncState
+{
+  VkShaderStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkAccessFlags      access = VK_ACCESS_NONE;
+  VkImageLayout      layout = VK_IMAGE_LAYOUT_UNDEFINED;
 };
 
 struct Buffer
@@ -410,30 +469,17 @@ struct DeviceImpl final : public gfx::Device
   virtual void        wait_queue_idle() override;
 };
 
-// at the end of pass, if capacity is more than 1.5 of present frame size we shrink.
-struct DescriptorBindings
+struct DescriptorStorageBindings
 {
-  // freed at end of frame
-  Vec<gfx::SamplerBinding>              samplers                = {};
-  Vec<gfx::CombinedImageSamplerBinding> combined_image_samplers = {};
-  Vec<gfx::SampledImageBinding>         sampled_images          = {};
-  Vec<gfx::StorageImageBinding>         storage_images          = {};
-  Vec<gfx::UniformTexelBufferBinding>   uniform_texel_buffers   = {};
-  Vec<gfx::StorageTexelBufferBinding>   storage_texel_buffers   = {};
-  Vec<gfx::UniformBufferBinding>        uniform_buffers         = {};
-  Vec<gfx::StorageBufferBinding>        storage_buffers         = {};
-  Vec<gfx::InputAttachmentBinding>      input_attachments       = {};
-
-  // freed at end of descriptor pass
-  Vec<u32> samplers_end                = {};
-  Vec<u32> combined_image_samplers_end = {};
-  Vec<u32> sampled_images_end          = {};
-  Vec<u32> storage_images_end          = {};
-  Vec<u32> uniform_texel_buffers_end   = {};
-  Vec<u32> storage_texel_buffers_end   = {};
-  Vec<u32> uniform_buffers_end         = {};
-  Vec<u32> storage_buffers_end         = {};
-  Vec<u32> input_attachments_end       = {};
+  struct End
+  {
+    u32 buffer = 0;
+    u32 image  = 0;
+  };
+  // how to avoid for ones that don't contain storage
+  Vec<Buffer *> buffers = {};
+  Vec<Image *>  images  = {};
+  Vec<End>      ends    = {};        // for each descriptor
 };
 
 // for each bind descriptor call, create a new descriptor set
@@ -443,22 +489,26 @@ struct CommandEncoderImpl final : public gfx::CommandEncoder
 {
   // we need to only store storage images and buffers for descriptor sets
   // pool sizing depends on descriptor set layout
-  gfx::Status                     status                  = gfx::Status::Success;
-  AllocationCallbacks             allocator               = {};
-  DeviceImpl                     *device                  = nullptr;
-  VkCommandPool                   vk_command_pool         = nullptr;
-  VkCommandBuffer                 vk_command_buffer       = nullptr;
-  ComputePipeline                *compute_pipeline        = nullptr;
-  GraphicsPipeline                *graphics_pipeline        = nullptr;
-  Framebuffer                    *framebuffer             = nullptr;
-  VkDescriptorPool                vk_descriptor_pool      = nullptr;
-  gfx::DescriptorCount            descriptors_capacity    = {};
-  gfx::DescriptorCount            descriptors_size_target = {};
-  Vec<VkDescriptorSetLayout>      vk_descriptor_layouts   = {};
-  Vec<VkDescriptorSet>            vk_descriptors          = {};
-  DescriptorBindings              descriptor_bindings     = {};
-  u32                             bound_descriptor        = ~0U;
-  stx::Vec<stx::UniqueFn<void()>> completion_tasks        = {};
+  gfx::Status                     status                           = gfx::Status::Success;
+  AllocationCallbacks             allocator                        = {};
+  DeviceImpl                     *device                           = nullptr;
+  VkCommandPool                   vk_command_pool                  = nullptr;
+  VkCommandBuffer                 vk_command_buffer                = nullptr;
+  ComputePipeline                *compute_pipeline                 = nullptr;
+  GraphicsPipeline               *graphics_pipeline                = nullptr;
+  Framebuffer                    *framebuffer                      = nullptr;
+  VkDescriptorPool                vk_descriptor_pool               = nullptr;
+  gfx::DescriptorCount            descriptors_capacity             = {};
+  gfx::DescriptorCount            descriptors_size_target          = {};
+  Vec<VkDescriptorSetLayout>      vk_descriptor_layouts            = {};
+  Vec<VkDescriptorSet>            vk_descriptors                   = {};
+  Vec<VkDescriptorBufferInfo>     vk_descriptor_buffers            = {};
+  Vec<VkBufferView>               vk_descriptor_texel_buffer_views = {};
+  Vec<VkDescriptorImageInfo>      vk_descriptor_images             = {};
+  Vec<VkWriteDescriptorSet>       vk_descriptor_writes             = {};
+  DescriptorStorageBindings       descriptor_storage_bindings      = {};
+  u32                             bound_descriptor                 = ~0U;
+  stx::Vec<stx::UniqueFn<void()>> completion_tasks                 = {};
   virtual ~CommandEncoderImpl() override;
   virtual void        begin() override;
   virtual gfx::Status end() override;
@@ -482,7 +532,8 @@ struct CommandEncoderImpl final : public gfx::CommandEncoder
                           gfx::Filter filter) override;
   virtual void begin_descriptor_pass() override;
   virtual u32  push_descriptors(gfx::DescriptorLayout layout, u32 count) override;
-  virtual void push_bindings(u32 set, gfx::DescriptorBindings const &bindings) override;
+  virtual void push_bindings(u32 descriptor, gfx::PipelineBindPoint bind_point,
+                             gfx::DescriptorBindings const &bindings) override;
   virtual void end_descriptor_pass() override;
   virtual void bind_descriptor(u32 index) override;
   virtual void bind_next_descriptor() override;

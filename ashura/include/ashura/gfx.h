@@ -12,15 +12,16 @@ namespace ash
 namespace gfx
 {
 
-constexpr u32 REMAINING_MIP_LEVELS       = ~0U;
-constexpr u32 REMAINING_ARRAY_LAYERS     = ~0U;
-constexpr u64 WHOLE_SIZE                 = ~0Ui64;
-constexpr u32 MAX_COLOR_ATTACHMENTS      = 8;
-constexpr u32 MAX_VERTEX_ATTRIBUTES      = 16;
-constexpr u32 MAX_PUSH_CONSTANT_SIZE     = 128;
-constexpr u32 MAX_MEMORY_HEAP_PROPERTIES = 32;
-constexpr u32 MAX_MEMORY_HEAPS           = 16;
-constexpr u32 NUM_DESCRIPTOR_TYPES       = 11;
+constexpr u32 REMAINING_MIP_LEVELS         = ~0U;
+constexpr u32 REMAINING_ARRAY_LAYERS       = ~0U;
+constexpr u64 WHOLE_SIZE                   = ~0Ui64;
+constexpr u32 MAX_COLOR_ATTACHMENTS        = 8;
+constexpr u32 MAX_VERTEX_ATTRIBUTES        = 16;
+constexpr u32 MAX_PUSH_CONSTANT_SIZE       = 128;
+constexpr u32 MAX_MEMORY_HEAP_PROPERTIES   = 32;
+constexpr u32 MAX_MEMORY_HEAPS             = 16;
+constexpr u32 NUM_DESCRIPTOR_TYPES         = 11;
+constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 8;
 
 typedef struct Buffer_T           *Buffer;
 typedef struct BufferView_T       *BufferView;
@@ -671,6 +672,12 @@ enum class DescriptorType : u8
   InputAttachment      = 10
 };
 
+enum class PipelineBindPoint : u8
+{
+  Graphics = 0,
+  Compute  = 1
+};
+
 struct MemoryRange
 {
   u64 offset = 0;
@@ -1194,12 +1201,13 @@ struct CommandEncoder
                                       stx::Span<BufferImageCopy const> copies)            = 0;
   virtual void   blit_image(Image src, Image dst, stx::Span<ImageBlit const> blits,
                             Filter filter)                                                = 0;
-  virtual void   begin_descriptor_pass()                              = 0;        //todo; error
-  virtual u32    push_descriptors(DescriptorLayout layout, u32 count) = 0;
-  virtual void   push_bindings(u32 set, DescriptorBindings const &bindings) = 0;
-  virtual void   end_descriptor_pass()                                      = 0;
-  virtual void   bind_descriptor(u32 index)                                 = 0;
-  virtual void   bind_next_descriptor()                                     = 0;
+  virtual void   begin_descriptor_pass()                                                  = 0;
+  virtual u32    push_descriptors(DescriptorLayout layout, u32 count)                     = 0;
+  virtual void   push_bindings(u32 descriptor, PipelineBindPoint bind_point,
+                               DescriptorBindings const &bindings)                        = 0;
+  virtual void   end_descriptor_pass()                                                    = 0;
+  virtual void   bind_descriptor(u32 descriptor)                                          = 0;
+  virtual void   bind_next_descriptor()                                                   = 0;
   virtual void
                begin_render_pass(Framebuffer framebuffer, RenderPass render_pass, IRect render_area,
                                  stx::Span<Color const>        color_attachments_clear_values,
