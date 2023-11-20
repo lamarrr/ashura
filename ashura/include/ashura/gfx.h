@@ -23,19 +23,22 @@ constexpr u32 MAX_MEMORY_HEAPS             = 16;
 constexpr u32 NUM_DESCRIPTOR_TYPES         = 11;
 constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 8;
 
-typedef struct Buffer_T           *Buffer;
-typedef struct BufferView_T       *BufferView;
-typedef struct Image_T            *Image;
-typedef struct ImageView_T        *ImageView;
-typedef struct Sampler_T          *Sampler;
-typedef struct Shader_T           *Shader;
-typedef struct RenderPass_T       *RenderPass;
-typedef struct Framebuffer_T      *Framebuffer;
-typedef struct DescriptorLayout_T *DescriptorLayout;
+typedef struct Buffer_T              *Buffer;
+typedef struct BufferView_T          *BufferView;
+typedef struct Image_T               *Image;
+typedef struct ImageView_T           *ImageView;
+typedef struct Sampler_T             *Sampler;
+typedef struct Shader_T              *Shader;
+typedef struct RenderPass_T          *RenderPass;
+typedef struct Framebuffer_T         *Framebuffer;
+typedef struct DescriptorSetLayout_T *DescriptorSetLayout;
+typedef struct DescriptorSet_T       *DescriptorSet;
+typedef struct DescriptorHeap;
 typedef struct PipelineCache_T    *PipelineCache;
 typedef struct ComputePipeline_T  *ComputePipeline;
 typedef struct GraphicsPipeline_T *GraphicsPipeline;
 typedef struct Fence_T            *Fence;
+typedef struct CommandEncoder;
 
 enum class DeviceType : u8
 {
@@ -545,45 +548,45 @@ enum class ColorComponents : u8
 
 STX_DEFINE_ENUM_BIT_OPS(ColorComponents)
 
-/// used for synchronization of state-mutating commands
 enum class BufferUsage : u32
 {
-  None                      = 0x00000000,
-  TransferSrc               = 0x00000001,
-  TransferDst               = 0x00000002,
-  IndirectCommand           = 0x00000004,
-  ComputeShaderUniform      = 0x00000008,
-  ComputeShaderUniformTexel = 0x00000010,
-  ComputeShaderStorage      = 0x00000020,
-  ComputeShaderStorageTexel = 0x00000040,
-  IndexBuffer               = 0x00000080,
-  VertexBuffer              = 0x00000100,
-  VertexShaderUniform       = 0x00000200,
-  FragmentShaderUniform     = 0x00000400,
-  All                       = 0xFFFFFFFF
+  None                                    = 0x00000000,
+  TransferDst                             = 0x00000002,
+  UniformTexelBuffer                      = 0x00000004,
+  StorageTexelBuffer                      = 0x00000008,
+  UniformBuffer                           = 0x00000010,
+  StorageBuffer                           = 0x00000020,
+  IndexBuffer                             = 0x00000040,
+  VertexBuffer                            = 0x00000080,
+  IndirectBuffer                          = 0x00000100,
+  VideoDecodeSrc                          = 0x00002000,
+  VideoDecodeDst                          = 0x00004000,
+  AccelerationStructureBuildInputReadOnly = 0x00080000,
+  AccelerationStructureStorage            = 0x00100000,
+  ShaderBindingTable                      = 0x00000400,
+  VideoEncodeDst                          = 0x00008000,
+  VideoEncodeSrc                          = 0x00010000,
+  RayTracing                              = ShaderBindingTable
 };
 
 STX_DEFINE_ENUM_BIT_OPS(BufferUsage)
 
-/// used for synchronization of state-mutating commands
-/// must provide initial clear value or initial buffer initializer
-// images implicitly have TransferDst usage scope
 enum class ImageUsage : u32
 {
-  None                        = 0x00000000,
-  TransferSrc                 = 0x00000001,
-  TransferDst                 = 0x00000002,
-  ComputeShaderSampled        = 0x00000004,
-  ComputeShaderStorage        = 0x00000008,
-  VertexShaderSampled         = 0x00000010,
-  FragmentShaderSampled       = 0x00000020,
-  InputAttachment             = 0x00000040,
-  ReadColorAttachment         = 0x00000080,
-  WriteColorAttachment        = 0x00000100,
-  ReadDepthStencilAttachment  = 0x00000200,
-  WriteDepthStencilAttachment = 0x00000400,
-  PresentSrc                  = 0x00000800,
-  All                         = 0xFFFFFFFF
+  None                   = 0x00000000,
+  TransferSrc            = 0x00000001,
+  TransferDst            = 0x00000002,
+  Sampled                = 0x00000004,
+  Storage                = 0x00000008,
+  ColorAttachment        = 0x00000010,
+  DepthStencilAttachment = 0x00000020,
+  InputAttachment        = 0x00000080,
+  VideoDecodeDst         = 0x00000400,
+  VideoDecodeSrc         = 0x00000800,
+  VideoDecodeDpb         = 0x00001000,
+  VideoEncodeDst         = 0x00002000,
+  VideoEncodeSrc         = 0x00004000,
+  VideoEncodeDpb         = 0x00008000
 };
 
 STX_DEFINE_ENUM_BIT_OPS(ImageUsage)
@@ -883,7 +886,7 @@ struct DescriptorBindingDesc
   ShaderStages   stages  = ShaderStages::None;
 };
 
-struct DescriptorLayoutDesc
+struct DescriptorSetLayoutDesc
 {
   char const                            *label = nullptr;
   stx::Span<DescriptorBindingDesc const> bindings;
@@ -1017,11 +1020,11 @@ struct ShaderStageDesc
 
 struct ComputePipelineDesc
 {
-  char const      *label              = nullptr;
-  ShaderStageDesc  compute_shader     = {};
-  u32              push_constant_size = 0;
-  DescriptorLayout descriptor_layout  = nullptr;
-  PipelineCache    cache              = nullptr;
+  char const                                                   *label                  = nullptr;
+  ShaderStageDesc                                               compute_shader         = {};
+  u32                                                           push_constant_size     = 0;
+  stx::Array<DescriptorSetLayout, MAX_PIPELINE_DESCRIPTOR_SETS> descriptor_set_layouts = {};
+  PipelineCache                                                 cache                  = nullptr;
 };
 
 // Specifies how the binded vertex buffers are iterated and the strides for them
@@ -1094,14 +1097,14 @@ struct PipelineRasterizationState
 // TODO(lamarrr): figure out lifetimes
 struct GraphicsPipelineDesc
 {
-  char const                                           *label                 = nullptr;
-  ShaderStageDesc                                       vertex_shader         = {};
-  ShaderStageDesc                                       fragment_shader       = {};
-  RenderPass                                            render_pass           = nullptr;
-  stx::Array<VertexInputBinding, MAX_VERTEX_ATTRIBUTES> vertex_input_bindings = {};
-  stx::Array<VertexAttribute, MAX_VERTEX_ATTRIBUTES>    vertex_attributes     = {};
-  u32                                                   push_constant_size    = 0;
-  DescriptorLayout                                      descriptor_layout     = nullptr;
+  char const                                                   *label                  = nullptr;
+  ShaderStageDesc                                               vertex_shader          = {};
+  ShaderStageDesc                                               fragment_shader        = {};
+  RenderPass                                                    render_pass            = nullptr;
+  stx::Array<VertexInputBinding, MAX_VERTEX_ATTRIBUTES>         vertex_input_bindings  = {};
+  stx::Array<VertexAttribute, MAX_VERTEX_ATTRIBUTES>            vertex_attributes      = {};
+  u32                                                           push_constant_size     = 0;
+  stx::Array<DescriptorSetLayout, MAX_PIPELINE_DESCRIPTOR_SETS> descriptor_set_layouts = {};
   PrimitiveTopology          primitive_topology  = PrimitiveTopology::PointList;
   PipelineRasterizationState rasterization_state = {};
   PipelineDepthStencilState  depth_stencil_state = {};
@@ -1109,6 +1112,7 @@ struct GraphicsPipelineDesc
   PipelineCache              cache               = nullptr;
 };
 
+// TODO(lamarrr): checks
 struct BufferCopy
 {
   u64 src_offset = 0;
@@ -1180,6 +1184,24 @@ struct DeviceInfo
   //
 };
 
+struct TickTimeline
+{
+  u64 trailing = 0;
+  u64 current  = 1;
+};
+
+struct DescriptorHeap
+{
+  virtual void *to_impl()                                                                   = 0;
+  virtual ~DescriptorHeap()                                                                 = 0;
+  virtual stx::Result<u32, Status> add()                                                    = 0;
+  virtual void                     get(u32 index, stx::Span<DescriptorSet> descriptor_sets) = 0;
+  virtual void                     mark_usage(u32 index, u64 frame_index)                   = 0;
+  virtual bool                     is_in_use(u32 index)                                     = 0;
+  virtual void                     release(u32 index)                                       = 0;
+  virtual void                     tick(u64 trailing_frame_tick)                            = 0;
+};
+
 struct CommandEncoder
 {
   virtual void *to_impl()                                                                 = 0;
@@ -1201,13 +1223,6 @@ struct CommandEncoder
                                       stx::Span<BufferImageCopy const> copies)            = 0;
   virtual void   blit_image(Image src, Image dst, stx::Span<ImageBlit const> blits,
                             Filter filter)                                                = 0;
-  virtual void   begin_descriptor_pass()                                                  = 0;
-  virtual u32    push_descriptors(DescriptorLayout layout, u32 count)                     = 0;
-  virtual void   push_bindings(u32 descriptor, PipelineBindPoint bind_point,
-                               DescriptorBindings const &bindings)                        = 0;
-  virtual void   end_descriptor_pass()                                                    = 0;
-  virtual void   bind_descriptor(u32 descriptor)                                          = 0;
-  virtual void   bind_next_descriptor()                                                   = 0;
   virtual void
                begin_render_pass(Framebuffer framebuffer, RenderPass render_pass, IRect render_area,
                                  stx::Span<Color const>        color_attachments_clear_values,
@@ -1215,6 +1230,7 @@ struct CommandEncoder
   virtual void end_render_pass()                                                    = 0;
   virtual void bind_pipeline(ComputePipeline pipeline)                              = 0;
   virtual void bind_pipeline(GraphicsPipeline pipeline)                             = 0;
+  virtual void bind_descriptor_sets(stx::Span<DescriptorSet const> descriptor_sets) = 0;
   virtual void push_constants(stx::Span<u8 const> push_constants_data)              = 0;
   virtual void dispatch(u32 group_count_x, u32 group_count_y, u32 group_count_z)    = 0;
   virtual void dispatch_indirect(Buffer buffer, u64 offset)                         = 0;
@@ -1235,28 +1251,24 @@ struct CommandEncoder
 
 struct Device
 {
-  virtual void *to_impl()                                                                      = 0;
-  virtual void  ref()                                                                          = 0;
-  virtual void  unref()                                                                        = 0;
-  virtual ~Device()                                                                            = 0;
-  virtual stx::Result<FormatProperties, Status> get_format_properties(Format format)           = 0;
-  virtual stx::Result<Buffer, Status>           create_buffer(BufferDesc const &desc)          = 0;
-  virtual stx::Result<BufferView, Status>       create_buffer_view(BufferViewDesc const &desc) = 0;
-  virtual stx::Result<Image, Status>       create_image(ImageDesc const &desc, Color initial_color,
-                                                        CommandEncoder &encoder)               = 0;
-  virtual stx::Result<Image, Status>       create_image(ImageDesc const &desc,
-                                                        DepthStencil     initial_depth_stencil,
-                                                        CommandEncoder  &encoder)               = 0;
-  virtual stx::Result<Image, Status>       create_image(ImageDesc const &desc, Buffer initial_data,
-                                                        stx::Span<BufferImageCopy const> copies,
-                                                        CommandEncoder                  &encoder)               = 0;
-  virtual stx::Result<ImageView, Status>   create_image_view(ImageViewDesc const &desc)        = 0;
-  virtual stx::Result<Sampler, Status>     create_sampler(SamplerDesc const &desc)             = 0;
-  virtual stx::Result<Shader, Status>      create_shader(ShaderDesc const &desc)               = 0;
-  virtual stx::Result<RenderPass, Status>  create_render_pass(RenderPassDesc const &desc)      = 0;
-  virtual stx::Result<Framebuffer, Status> create_framebuffer(FramebufferDesc const &desc)     = 0;
-  virtual stx::Result<DescriptorLayout, Status>
-      create_descriptor_layout(DescriptorLayoutDesc const &desc) = 0;
+  virtual void *to_impl()                                                                       = 0;
+  virtual void  ref()                                                                           = 0;
+  virtual void  unref()                                                                         = 0;
+  virtual ~Device()                                                                             = 0;
+  virtual stx::Result<FormatProperties, Status> get_format_properties(Format format)            = 0;
+  virtual stx::Result<Buffer, Status>           create_buffer(BufferDesc const &desc)           = 0;
+  virtual stx::Result<BufferView, Status>       create_buffer_view(BufferViewDesc const &desc)  = 0;
+  virtual stx::Result<Image, Status>            create_image(ImageDesc const &desc)             = 0;
+  virtual stx::Result<ImageView, Status>        create_image_view(ImageViewDesc const &desc)    = 0;
+  virtual stx::Result<Sampler, Status>          create_sampler(SamplerDesc const &desc)         = 0;
+  virtual stx::Result<Shader, Status>           create_shader(ShaderDesc const &desc)           = 0;
+  virtual stx::Result<RenderPass, Status>       create_render_pass(RenderPassDesc const &desc)  = 0;
+  virtual stx::Result<Framebuffer, Status>      create_framebuffer(FramebufferDesc const &desc) = 0;
+  virtual stx::Result<DescriptorSetLayout, Status>
+      create_descriptor_set_layout(DescriptorSetLayoutDesc const &desc) = 0;
+  virtual stx::Result<DescriptorHeap *, Status>
+      create_descriptor_heap(stx::Span<DescriptorSetLayout const> descriptor_set_layouts,
+                             u32                                  pool_size) = 0;
   virtual stx::Result<PipelineCache, Status>
       create_pipeline_cache(PipelineCacheDesc const &desc) = 0;
   virtual stx::Result<ComputePipeline, Status>
@@ -1273,7 +1285,8 @@ struct Device
   virtual void                                  ref(Shader shader)                              = 0;
   virtual void                                  ref(RenderPass render_pass)                     = 0;
   virtual void                                  ref(Framebuffer framebuffer)                    = 0;
-  virtual void                                  ref(DescriptorLayout layout)                    = 0;
+  virtual void                                  ref(DescriptorSetLayout layout)                 = 0;
+  virtual void                                  ref(DescriptorHeap *heap)                       = 0;
   virtual void                                  ref(PipelineCache cache)                        = 0;
   virtual void                                  ref(ComputePipeline pipeline)                   = 0;
   virtual void                                  ref(GraphicsPipeline pipeline)                  = 0;
@@ -1287,7 +1300,8 @@ struct Device
   virtual void                                  unref(Shader shader)                            = 0;
   virtual void                                  unref(RenderPass render_pass)                   = 0;
   virtual void                                  unref(Framebuffer framebuffer)                  = 0;
-  virtual void                                  unref(DescriptorLayout layout)                  = 0;
+  virtual void                                  unref(DescriptorSetLayout layout)               = 0;
+  virtual void                                  unref(DescriptorHeap *heap)                     = 0;
   virtual void                                  unref(PipelineCache cache)                      = 0;
   virtual void                                  unref(ComputePipeline pipeline)                 = 0;
   virtual void                                  unref(GraphicsPipeline pipeline)                = 0;
@@ -1310,7 +1324,6 @@ struct Device
   // acquireNextSwapchainImage, on swapchain invalid?
 };
 
-// MT? how will mt even work?
 template <typename Handle>
 struct Rc
 {
@@ -1334,9 +1347,10 @@ struct Rc
 
   constexpr Rc &operator=(Rc const &other)
   {
-    this->~Rc();        //self-assign
-    new (this) Rc{other};
-    return *this;
+    dev->unref(handle);
+    other.dev->ref(other.handle);
+    dev    = other.dev;
+    handle = other.handle;
   }
 
   constexpr Rc &operator=(Rc &&other)
@@ -1352,14 +1366,6 @@ struct Rc
     {
       dev->unref(handle);
     }
-  }
-
-  constexpr Handle leak()
-  {
-    Handle out = dev;
-    dev        = nullptr;
-    handle     = nullptr;
-    return out;
   }
 };
 

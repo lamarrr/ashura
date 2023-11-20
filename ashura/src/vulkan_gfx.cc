@@ -223,770 +223,28 @@ bool load_device_table(VkDevice device, DeviceTable &table)
   return all_loaded;
 }
 
-constexpr VkBufferUsageFlags to_vkUsage(gfx::BufferUsage usage)
-{
-  VkBufferUsageFlags out = (VkBufferUsageFlags) 0;
-  if (has_bits(usage, gfx::BufferUsage::TransferSrc))
-  {
-    out |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-  }
-  if (has_bits(usage, gfx::BufferUsage::TransferDst))
-  {
-    out |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-  }
-  if (has_bits(usage, gfx::BufferUsage::IndirectCommand))
-  {
-    out |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
-  }
-  if (has_bits(usage, gfx::BufferUsage::ComputeShaderUniform))
-  {
-    out |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-  }
-  if (has_bits(usage, gfx::BufferUsage::ComputeShaderUniformTexel))
-  {
-    out |= VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
-  }
-  if (has_bits(usage, gfx::BufferUsage::ComputeShaderStorage))
-  {
-    out |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-  }
-  if (has_bits(usage, gfx::BufferUsage::ComputeShaderStorageTexel))
-  {
-    out |= VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT;
-  }
-  if (has_bits(usage, gfx::BufferUsage::IndexBuffer))
-  {
-    out |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-  }
-  if (has_bits(usage, gfx::BufferUsage::VertexBuffer))
-  {
-    out |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-  }
-  if (has_bits(usage, gfx::BufferUsage::VertexShaderUniform))
-  {
-    out |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-  }
-  if (has_bits(usage, gfx::BufferUsage::FragmentShaderUniform))
-  {
-    out |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-  }
-  return out;
-}
-
-constexpr VkImageUsageFlags to_vkUsage(gfx::ImageUsage usage)
-{
-  VkImageUsageFlags out = (VkImageUsageFlags) 0;
-  if (has_bits(usage, gfx::ImageUsage::TransferSrc))
-  {
-    out |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-  }
-  if (has_bits(usage, gfx::ImageUsage::TransferDst))
-  {
-    out |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-  }
-  if (has_bits(usage, gfx::ImageUsage::ComputeShaderSampled))
-  {
-    out |= VK_IMAGE_USAGE_SAMPLED_BIT;
-  }
-  if (has_bits(usage, gfx::ImageUsage::ComputeShaderStorage))
-  {
-    out |= VK_IMAGE_USAGE_STORAGE_BIT;
-  }
-  if (has_bits(usage, gfx::ImageUsage::VertexShaderSampled))
-  {
-    out |= VK_IMAGE_USAGE_SAMPLED_BIT;
-  }
-  if (has_bits(usage, gfx::ImageUsage::FragmentShaderSampled))
-  {
-    out |= VK_IMAGE_USAGE_SAMPLED_BIT;
-  }
-  if (has_bits(usage, gfx::ImageUsage::InputAttachment))
-  {
-    out |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-  }
-  if (has_bits(usage, gfx::ImageUsage::ReadColorAttachment))
-  {
-    out |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-  }
-  if (has_bits(usage, gfx::ImageUsage::WriteColorAttachment))
-  {
-    out |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-  }
-  if (has_bits(usage, gfx::ImageUsage::ReadDepthStencilAttachment))
-  {
-    out |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-  }
-  if (has_bits(usage, gfx::ImageUsage::WriteDepthStencilAttachment))
-  {
-    out |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-  }
-  return out;
-}
-
-inline void sync_acquire_buffer(DeviceTable const &table, VkCommandBuffer command_buffer,
-                                VkBuffer buffer, gfx::BufferUsage usage, BufferScope const &scope)
-{
-  if (has_any_bit(usage, gfx::BufferUsage::TransferSrc | gfx::BufferUsage::TransferDst))
-  {
-    VkAccessFlags src_access = VK_ACCESS_NONE;
-    if (has_bits(usage, gfx::BufferUsage::TransferSrc))
-    {
-      src_access |= VK_ACCESS_TRANSFER_READ_BIT;
-    }
-    if (has_bits(usage, gfx::BufferUsage::TransferDst))
-    {
-      src_access |= VK_ACCESS_TRANSFER_WRITE_BIT;
-    }
-
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = src_access,
-                                  .dstAccessMask       = scope.access,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, scope.stages,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
-  }
-
-  if (has_bits(usage, gfx::BufferUsage::IndirectCommand))
-  {
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
-                                  .dstAccessMask       = scope.access,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, scope.stages,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
-  }
-
-  if (has_any_bit(usage, gfx::BufferUsage::ComputeShaderUniform |
-                             gfx::BufferUsage::ComputeShaderUniformTexel |
-                             gfx::BufferUsage::ComputeShaderStorage |
-                             gfx::BufferUsage::ComputeShaderStorageTexel))
-  {
-    VkAccessFlags src_access = VK_ACCESS_SHADER_READ_BIT;
-
-    if (has_any_bit(usage, gfx::BufferUsage::ComputeShaderStorage |
-                               gfx::BufferUsage::ComputeShaderStorageTexel))
-    {
-      src_access |= VK_ACCESS_SHADER_WRITE_BIT;
-    }
-
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = src_access,
-                                  .dstAccessMask       = scope.access,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, scope.stages,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
-  }
-
-  if (has_bits(usage, gfx::BufferUsage::IndexBuffer))
-  {
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = VK_ACCESS_INDEX_READ_BIT,
-                                  .dstAccessMask       = scope.access,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, scope.stages,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
-  }
-
-  if (has_bits(usage, gfx::BufferUsage::VertexBuffer))
-  {
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
-                                  .dstAccessMask       = scope.access,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, scope.stages,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
-  }
-
-  if (has_any_bit(usage,
-                  gfx::BufferUsage::VertexShaderUniform | gfx::BufferUsage::FragmentShaderUniform))
-  {
-    VkPipelineStageFlags src_stages = VK_PIPELINE_STAGE_NONE;
-    if (has_bits(usage, gfx::BufferUsage::VertexShaderUniform))
-    {
-      src_stages |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-    }
-    if (has_bits(usage, gfx::BufferUsage::FragmentShaderUniform))
-    {
-      src_stages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    }
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-                                  .dstAccessMask       = scope.access,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, src_stages, scope.stages, VK_DEPENDENCY_BY_REGION_BIT,
-                             0, nullptr, 1, &barrier, 0, nullptr);
-  }
-}
-
-// release side-effects to operations that are allowed to have concurrent non-mutating access on the
-// resource
-
-inline void sync_release_buffer(DeviceTable const &table, VkCommandBuffer command_buffer,
-                                VkBuffer buffer, gfx::BufferUsage usage, BufferScope const &scope)
-{
-  if (has_bits(usage, gfx::BufferUsage::TransferSrc))
-  {
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = scope.access,
-                                  .dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, scope.stages, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
-  }
-
-  if (has_bits(usage, gfx::BufferUsage::IndirectCommand))
-  {
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = scope.access,
-                                  .dstAccessMask       = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, scope.stages, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
-  }
-
-  if (has_any_bit(usage, gfx::BufferUsage::ComputeShaderUniform |
-                             gfx::BufferUsage::ComputeShaderUniformTexel))
-  {
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = scope.access,
-                                  .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, scope.stages, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
-  }
-
-  if (has_any_bit(usage, gfx::BufferUsage::IndexBuffer | gfx::BufferUsage::VertexBuffer))
-  {
-    VkAccessFlags dst_access = VK_ACCESS_NONE;
-    if (has_bits(usage, gfx::BufferUsage::IndexBuffer))
-    {
-      dst_access |= VK_ACCESS_INDEX_READ_BIT;
-    }
-
-    if (has_bits(usage, gfx::BufferUsage::VertexBuffer))
-    {
-      dst_access |= VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-    }
-
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = scope.access,
-                                  .dstAccessMask       = dst_access,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, scope.stages, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &barrier, 0, nullptr);
-  }
-
-  if (has_any_bit(usage,
-                  gfx::BufferUsage::VertexShaderUniform | gfx::BufferUsage::FragmentShaderUniform))
-  {
-    VkPipelineStageFlags dst_stages = VK_PIPELINE_STAGE_NONE;
-
-    if (has_bits(usage, gfx::BufferUsage::VertexShaderUniform))
-    {
-      dst_stages |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-    }
-
-    if (has_bits(usage, gfx::BufferUsage::FragmentShaderUniform))
-    {
-      dst_stages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    }
-
-    VkBufferMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                                  .pNext               = nullptr,
-                                  .srcAccessMask       = scope.access,
-                                  .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-                                  .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                                  .buffer              = buffer,
-                                  .offset              = 0,
-                                  .size                = VK_WHOLE_SIZE};
-
-    table.CmdPipelineBarrier(command_buffer, scope.stages, dst_stages, VK_DEPENDENCY_BY_REGION_BIT,
-                             0, nullptr, 1, &barrier, 0, nullptr);
-  }
-}
-
-constexpr BufferScope transfer_buffer_scope(gfx::BufferUsage usage)
-{
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TRANSFER_BIT;
-  VkAccessFlags        access = VK_ACCESS_NONE;
-
-  if (has_bits(usage, gfx::BufferUsage::TransferSrc))
-  {
-    access |= VK_ACCESS_TRANSFER_READ_BIT;
-  }
-
-  if (has_bits(usage, gfx::BufferUsage::TransferDst))
-  {
-    access |= VK_ACCESS_TRANSFER_WRITE_BIT;
-  }
-
-  return BufferScope{.stages = stages, .access = access};
-}
-
-constexpr BufferScope compute_storage_buffer_scope()
-{
-  return BufferScope{.stages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                     .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT};
-}
-
-// we need a single barrier for stages where the layout is different from the base layout
-// (readonlyoptimal) i.e. storage, transfer
-//
-// Q(lamarrr): by inserting multiple barriers, will they all execute???
-// only one of them will ever get executed because the previous barriers would have drained the work
-// they had only executes if there is still work left to be drained???? but there will be multiple
-// works to be drained once a work completes and there are multiple barriers waiting on it, will all
-// the barriers perform the wait
-//, no because this will implicitly depend on any op that performs read, writes, or layout
-//transitions
-//
-// Q(lamarrr): if there's no task that has the required access and stages, will the barrier still
-// execute?
-//
-//
-// images and buffers must have a first command that operate on them? to transition them and provide
-// access to other commands?
-//
-// what if no previous operation meets the barrier's requirements? then it will continue executing
-// the requesting command
-//
-// no previous cmd means contents are undefined
-//
-// for transfer post-stages, we can omit the barriers, we only need to give barriers to readers
-//
-//
-// Requirements:
-// - layout merging:
-//      - used as storage and sampled in the same command
-//      - sampled and input attachment  in the same command
-//      - transfer src and transfer dst in the same command
-//
-//
-// release only upon init
-//
-inline void sync_acquire_image(DeviceTable const &table, VkCommandBuffer command_buffer,
-                               VkImage image, gfx::ImageUsage usage, ImageScope const &scope,
-                               VkImageAspectFlags aspects)
-{
-  if (has_any_bit(usage, gfx::ImageUsage::TransferSrc | gfx::ImageUsage::TransferDst))
-  {
-    VkAccessFlags src_access = VK_ACCESS_NONE;
-    VkImageLayout old_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    if (has_bits(usage, gfx::ImageUsage::TransferSrc | gfx::ImageUsage::TransferDst))
-    {
-      old_layout = VK_IMAGE_LAYOUT_GENERAL;
-      src_access = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-    }
-    else if (has_bits(usage, gfx::ImageUsage::TransferSrc))
-    {
-      old_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-      src_access = VK_ACCESS_TRANSFER_READ_BIT;
-    }
-    else if (has_bits(usage, gfx::ImageUsage::TransferDst))
-    {
-      old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-      src_access = VK_ACCESS_TRANSFER_WRITE_BIT;
-    }
-
-    VkImageMemoryBarrier barrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = src_access,
-        .dstAccessMask       = scope.access,
-        .oldLayout           = old_layout,
-        .newLayout           = scope.layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image,
-        .subresourceRange    = VkImageSubresourceRange{.aspectMask     = aspects,
-                                                       .baseMipLevel   = 0,
-                                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                                       .baseArrayLayer = 0,
-                                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}};
-
-    table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, scope.stages,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
-  }
-
-  // if scope has compute shader write then it will always be transitioned to general
-  if (has_bits(usage,
-               gfx::ImageUsage::ComputeShaderStorage | gfx::ImageUsage::ComputeShaderSampled))
-  {
-    VkImageLayout old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    VkAccessFlags src_access = VK_ACCESS_SHADER_READ_BIT;
-
-    if (has_bits(usage, gfx::ImageUsage::ComputeShaderStorage))
-    {
-      old_layout = VK_IMAGE_LAYOUT_GENERAL;
-      src_access |= VK_ACCESS_SHADER_WRITE_BIT;
-    }
-
-    VkImageMemoryBarrier barrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = src_access,
-        .dstAccessMask       = scope.access,
-        .oldLayout           = old_layout,
-        .newLayout           = scope.layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image,
-        .subresourceRange    = VkImageSubresourceRange{.aspectMask     = aspects,
-                                                       .baseMipLevel   = 0,
-                                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                                       .baseArrayLayer = 0,
-                                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}};
-
-    table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, scope.stages,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
-  }
-
-  if (has_any_bit(usage, gfx::ImageUsage::VertexShaderSampled |
-                             gfx::ImageUsage::FragmentShaderSampled |
-                             gfx::ImageUsage::InputAttachment))
-  {
-    VkPipelineStageFlags src_stages = VK_PIPELINE_STAGE_NONE;
-
-    if (has_bits(usage, gfx::ImageUsage::VertexShaderSampled))
-    {
-      src_stages |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-    }
-
-    if (has_any_bit(usage,
-                    gfx::ImageUsage::FragmentShaderSampled | gfx::ImageUsage::InputAttachment))
-    {
-      src_stages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    }
-
-    VkImageMemoryBarrier barrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-        .dstAccessMask       = scope.access,
-        .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        .newLayout           = scope.layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image,
-        .subresourceRange    = VkImageSubresourceRange{.aspectMask     = aspects,
-                                                       .baseMipLevel   = 0,
-                                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                                       .baseArrayLayer = 0,
-                                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}};
-
-    table.CmdPipelineBarrier(command_buffer, src_stages, scope.stages, VK_DEPENDENCY_BY_REGION_BIT,
-                             0, nullptr, 0, nullptr, 1, &barrier);
-  }
-
-  if (has_any_bit(usage,
-                  gfx::ImageUsage::ReadColorAttachment | gfx::ImageUsage::WriteColorAttachment))
-  {
-    VkAccessFlags src_access = VK_ACCESS_NONE;
-
-    if (has_bits(usage, gfx::ImageUsage::ReadColorAttachment))
-    {
-      src_access |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-    }
-
-    if (has_bits(usage, gfx::ImageUsage::WriteColorAttachment))
-    {
-      src_access |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    }
-
-    VkImageMemoryBarrier barrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = src_access,
-        .dstAccessMask       = scope.access,
-        .oldLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .newLayout           = scope.layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image,
-        .subresourceRange    = VkImageSubresourceRange{.aspectMask     = aspects,
-                                                       .baseMipLevel   = 0,
-                                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                                       .baseArrayLayer = 0,
-                                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}};
-
-    table.CmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                             scope.stages, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1,
-                             &barrier);
-  }
-
-  if (has_any_bit(usage, gfx::ImageUsage::ReadDepthStencilAttachment |
-                             gfx::ImageUsage::WriteDepthStencilAttachment))
-  {
-    VkImageLayout        old_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VkAccessFlags        src_access = VK_ACCESS_NONE;
-    VkPipelineStageFlags src_stages = VK_PIPELINE_STAGE_NONE;
-
-    if (has_bits(usage, gfx::ImageUsage::ReadDepthStencilAttachment))
-    {
-      old_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-      src_access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
-      src_stages |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    }
-
-    if (has_bits(usage, gfx::ImageUsage::WriteDepthStencilAttachment))
-    {
-      old_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-      src_access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-      src_stages |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    }
-
-    VkImageMemoryBarrier barrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = src_access,
-        .dstAccessMask       = scope.access,
-        .oldLayout           = old_layout,
-        .newLayout           = scope.layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image,
-        .subresourceRange    = VkImageSubresourceRange{.aspectMask     = aspects,
-                                                       .baseMipLevel   = 0,
-                                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                                       .baseArrayLayer = 0,
-                                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}};
-
-    table.CmdPipelineBarrier(command_buffer, src_stages, scope.stages, VK_DEPENDENCY_BY_REGION_BIT,
-                             0, nullptr, 0, nullptr, 1, &barrier);
-  }
-}
-
-// release side-effects to operations that are allowed to have concurrent non-mutating access on the
-// resource
-inline void sync_release_image(DeviceTable const &table, VkCommandBuffer command_buffer,
-                               VkImage image, gfx::ImageUsage usage, ImageScope const &scope,
-                               VkImageAspectFlags aspects)
-{
-  // only shader-sampled images can run parallel to other command views
-  // only transitioned to Shader read only if it is not used as storage at the same stage
-  //
-  // for all non-shader-read-only-optimal usages, an acquire must be performed
-  //
-  if (has_bits(usage, gfx::ImageUsage::ComputeShaderSampled) &&
-      !has_bits(usage, gfx::ImageUsage::ComputeShaderStorage))
-  {
-    VkImageMemoryBarrier barrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = scope.access,
-        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-        .oldLayout           = scope.layout,
-        .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image,
-        .subresourceRange    = VkImageSubresourceRange{.aspectMask     = aspects,
-                                                       .baseMipLevel   = 0,
-                                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                                       .baseArrayLayer = 0,
-                                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}};
-
-    table.CmdPipelineBarrier(command_buffer, scope.stages, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
-  }
-
-  if (has_any_bit(usage, gfx::ImageUsage::VertexShaderSampled |
-                             gfx::ImageUsage::FragmentShaderSampled |
-                             gfx::ImageUsage::InputAttachment))
-  {
-    VkPipelineStageFlags dst_stages = VK_PIPELINE_STAGE_NONE;
-
-    if (has_bits(usage, gfx::ImageUsage::VertexShaderSampled))
-    {
-      dst_stages |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-    }
-
-    if (has_any_bit(usage,
-                    gfx::ImageUsage::FragmentShaderSampled | gfx::ImageUsage::InputAttachment))
-    {
-      dst_stages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    }
-
-    VkImageMemoryBarrier barrier{
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .pNext               = nullptr,
-        .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-        .dstAccessMask       = scope.access,
-        .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        .newLayout           = scope.layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = image,
-        .subresourceRange    = VkImageSubresourceRange{.aspectMask     = aspects,
-                                                       .baseMipLevel   = 0,
-                                                       .levelCount     = VK_REMAINING_MIP_LEVELS,
-                                                       .baseArrayLayer = 0,
-                                                       .layerCount     = VK_REMAINING_ARRAY_LAYERS}};
-
-    table.CmdPipelineBarrier(command_buffer, scope.stages, dst_stages, VK_DEPENDENCY_BY_REGION_BIT,
-                             0, nullptr, 0, nullptr, 1, &barrier);
-  }
-}
-
-// apply to both src and dst since they require layout transitions
-constexpr ImageScope transfer_image_scope(gfx::ImageUsage usage)
-{
-  VkImageLayout        layout = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TRANSFER_BIT;
-  VkAccessFlags        access = VK_ACCESS_NONE;
-
-  if (has_bits(usage, gfx::ImageUsage::TransferSrc | gfx::ImageUsage::TransferDst))
-  {
-    access = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-    layout = VK_IMAGE_LAYOUT_GENERAL;
-  }
-  else if (has_bits(usage, gfx::ImageUsage::TransferSrc))
-  {
-    access = VK_ACCESS_TRANSFER_READ_BIT;
-    layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-  }
-  else if (has_bits(usage, gfx::ImageUsage::TransferDst))
-  {
-    access = VK_ACCESS_TRANSFER_WRITE_BIT;
-    layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-  }
-
-  return ImageScope{.stages = stages, .access = access, .layout = layout};
-}
-
-constexpr ImageScope compute_storage_image_scope()
-{
-  return ImageScope{.stages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                    .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                    .layout = VK_IMAGE_LAYOUT_GENERAL};
-}
-
-constexpr ImageScope color_attachment_image_scope(gfx::ImageUsage usage)
+constexpr VkAccessFlags color_attachment_image_access(gfx::RenderPassAttachment const &attachment)
 {
   VkAccessFlags access = VK_ACCESS_NONE;
-
-  if (has_bits(usage, gfx::ImageUsage::ReadColorAttachment))
-  {
-    access |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-  }
-
-  if (has_bits(usage, gfx::ImageUsage::WriteColorAttachment))
-  {
-    access |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-  }
-
-  return ImageScope{.stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    .access = access,
-                    .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-}
-
-constexpr ImageScope depth_stencil_attachment_image_scope(gfx::ImageUsage usage)
-{
-  VkImageLayout        layout = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_NONE;
-  VkAccessFlags        access = VK_ACCESS_NONE;
-
-  if (has_bits(usage, gfx::ImageUsage::ReadDepthStencilAttachment))
-  {
-    stages |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
-    layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-  }
-
-  if (has_bits(usage, gfx::ImageUsage::WriteDepthStencilAttachment))
-  {
-    stages |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-  }
-
-  return ImageScope{.stages = stages, .access = access, .layout = layout};
-}
-
-constexpr gfx::ImageUsage color_attachment_image_usage(gfx::RenderPassAttachment const &attachment)
-{
-  gfx::ImageUsage usage = gfx::ImageUsage::None;
 
   if (attachment.load_op == gfx::LoadOp::Clear || attachment.load_op == gfx::LoadOp::DontCare ||
       attachment.store_op == gfx::StoreOp::Store)
   {
-    usage |= gfx::ImageUsage::WriteColorAttachment;
+    access |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
   }
 
   if (attachment.load_op == gfx::LoadOp::Load)
   {
-    usage |= gfx::ImageUsage::ReadColorAttachment;
+    access |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
   }
 
-  return usage;
+  return access;
 }
 
-constexpr gfx::ImageUsage
-    depth_stencil_attachment_image_usage(gfx::RenderPassAttachment const &attachment)
+constexpr VkAccessFlags
+    depth_stencil_attachment_image_access(gfx::RenderPassAttachment const &attachment)
 {
-  gfx::ImageUsage usage = gfx::ImageUsage::None;
+  VkAccessFlags access = VK_ACCESS_NONE;
 
   if (attachment.load_op == gfx::LoadOp::Clear || attachment.load_op == gfx::LoadOp::DontCare ||
       attachment.store_op == gfx::StoreOp::Store || attachment.store_op == gfx::StoreOp::DontCare ||
@@ -995,15 +253,348 @@ constexpr gfx::ImageUsage
       attachment.stencil_store_op == gfx::StoreOp::Store ||
       attachment.stencil_store_op == gfx::StoreOp::DontCare)
   {
-    usage |= gfx::ImageUsage::WriteDepthStencilAttachment;
+    access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
   }
 
   if (attachment.load_op == gfx::LoadOp::Load || attachment.stencil_load_op == gfx::LoadOp::Load)
   {
-    usage |= gfx::ImageUsage::ReadDepthStencilAttachment;
+    access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
   }
 
-  return usage;
+  return access;
+}
+
+constexpr bool has_read_access(VkAccessFlags access)
+{
+  return has_any_bit(
+      access,
+      (VkAccessFlags) (VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_INDEX_READ_BIT |
+                       VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_UNIFORM_READ_BIT |
+                       VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT |
+                       VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                       VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT |
+                       VK_ACCESS_HOST_READ_BIT | VK_ACCESS_MEMORY_READ_BIT |
+                       VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT |
+                       VK_ACCESS_CONDITIONAL_RENDERING_READ_BIT_EXT |
+                       VK_ACCESS_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT |
+                       VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR |
+                       VK_ACCESS_FRAGMENT_DENSITY_MAP_READ_BIT_EXT |
+                       VK_ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ_BIT_KHR |
+                       VK_ACCESS_COMMAND_PREPROCESS_READ_BIT_NV));
+}
+
+constexpr bool has_write_access(VkAccessFlags access)
+{
+  return has_any_bit(
+      access,
+      (VkAccessFlags) (VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                       VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT |
+                       VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_MEMORY_WRITE_BIT |
+                       VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
+                       VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT |
+                       VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
+                       VK_ACCESS_COMMAND_PREPROCESS_WRITE_BIT_NV |
+                       VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV));
+}
+
+bool sync(BufferState &state, BufferAccess request, VkBufferMemoryBarrier &barrier,
+          VkPipelineStageFlags &src_stages, VkPipelineStageFlags &dst_stages)
+{
+  bool const has_write = has_write_access(request.access);
+  bool const has_read  = has_read_access(request.access);
+
+  switch (state.sequence)
+  {
+      // no sync needed, no accessor before this
+    case AccessSequence::None:
+    {
+      if (has_write)
+      {
+        state.sequence  = AccessSequence::Write;
+        state.access[0] = BufferAccess{.stages = request.stages, .access = request.access};
+        return false;
+      }
+      else if (has_read)
+      {
+        state.sequence  = AccessSequence::Reads;
+        state.access[0] = BufferAccess{.stages = request.stages, .access = request.access};
+        return false;
+      }
+    }
+    break;
+    case AccessSequence::Reads:
+    {
+      if (has_write)
+      {
+        // wait till done reading before modifying
+        // reset access sequence since all stages following this write need to wait on this write
+        state.sequence                    = AccessSequence::Write;
+        BufferAccess const previous_reads = state.access[0];
+        state.access[0]       = BufferAccess{.stages = request.stages, .access = request.access};
+        state.access[1]       = BufferAccess{};
+        src_stages            = previous_reads.stages;
+        barrier.srcAccessMask = previous_reads.access;
+        dst_stages            = request.stages;
+        barrier.dstAccessMask = request.access;
+
+        return true;
+      }
+      else if (has_read)
+      {
+        // combine all subsequent reads, so the next writer knows to wait on all combined reads to
+        // complete
+        state.sequence                    = AccessSequence::Reads;
+        BufferAccess const previous_reads = state.access[0];
+        state.access[0] = BufferAccess{.stages = previous_reads.stages | request.stages,
+                                       .access = previous_reads.access | request.access};
+        return false;
+      }
+    }
+    break;
+    case AccessSequence::Write:
+    {
+      if (has_write)
+      {
+        // wait till done writing before modifying
+        // remove previous write since this access already waits on another access to complete
+        // and the next access will have to wait on this access
+        state.sequence                    = AccessSequence::Write;
+        BufferAccess const previous_write = state.access[0];
+        state.access[0]       = BufferAccess{.stages = request.stages, .access = request.access};
+        state.access[1]       = BufferAccess{};
+        src_stages            = previous_write.stages;
+        dst_stages            = request.stages;
+        barrier.srcAccessMask = previous_write.access;
+        barrier.dstAccessMask = request.access;
+        return true;
+      }
+      else if (has_read)
+      {
+        // wait till all write stages are done
+        state.sequence        = AccessSequence::ReadAfterWrite;
+        state.access[1]       = BufferAccess{.stages = request.stages, .access = request.access};
+        src_stages            = state.access[0].stages;
+        dst_stages            = request.stages;
+        barrier.srcAccessMask = state.access[0].access;
+        barrier.dstAccessMask = request.access;
+        return true;
+      }
+    }
+    break;
+    case AccessSequence::ReadAfterWrite:
+    {
+      if (has_write)
+      {
+        // wait for all reading stages only
+        // stages can be reset and point only to the latest write stage, since they all need to wait
+        // for this write anyway.
+        state.sequence                    = AccessSequence::Write;
+        BufferAccess const previous_reads = state.access[1];
+        state.access[0]       = BufferAccess{.stages = request.stages, .access = request.access};
+        state.access[1]       = BufferAccess{};
+        src_stages            = previous_reads.stages;
+        dst_stages            = request.stages;
+        barrier.srcAccessMask = previous_reads.access;
+        barrier.dstAccessMask = request.access;
+        return true;
+      }
+      else if (has_read)
+      {
+        // wait for all write stages to be done
+        // no need to wait on other reads since we are only performing a read
+        // mask all subsequent reads so next writer knows to wait on all reads to complete
+
+        // if stage and access intersects previous barrier, no need to add new one
+
+        if (has_any_bit(state.access[1].stages, request.stages) &&
+            has_any_bit(state.access[1].access, request.access))
+        {
+          return false;
+        }
+        else
+        {
+          state.sequence = AccessSequence::ReadAfterWrite;
+          state.access[1].stages |= request.stages;
+          state.access[1].access |= request.access;
+          src_stages            = state.access[0].stages;
+          dst_stages            = request.stages;
+          barrier.srcAccessMask = state.access[0].access;
+          barrier.dstAccessMask = request.access;
+          return true;
+        }
+      }
+    }
+    break;
+    default:
+      return false;
+      break;
+  }
+
+  return false;
+}
+
+// layout transitions are considered write operations even if only a read happens so multiple ones
+// can't happen at the same time
+//
+// we'll kind of be waiting on a barrier operation which doesn't make sense cos the barrier might have already taken care of us
+// even when they both only perform reads
+//
+// if their scopes don't line-up, they won't observe the effects same
+
+bool sync(ImageState &state, ImageAccess request, VkImageMemoryBarrier &barrier,
+          VkPipelineStageFlags &src_stages, VkPipelineStageFlags &dst_stages)
+{
+  // TODO(lamarrr): make sure aspects are filled
+  VkImageLayout const current_layout          = state.access[0].layout;
+  bool const          needs_layout_transition = current_layout != request.layout;
+  bool const          has_write = has_write_access(request.access) || needs_layout_transition;
+  bool const          has_read  = has_read_access(request.access);
+  barrier.oldLayout             = current_layout;
+  barrier.newLayout             = request.layout;
+
+  switch (state.sequence)
+  {
+      // no sync needed, no accessor before this
+    case AccessSequence::None:
+    {
+      if (has_write)
+      {
+        state.sequence  = AccessSequence::Write;
+        state.access[0] = ImageAccess{
+            .stages = request.stages, .access = request.access, .layout = request.layout};
+
+        if (needs_layout_transition)
+        {
+          src_stages            = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+          dst_stages            = request.stages;
+          barrier.srcAccessMask = VK_ACCESS_NONE;
+          barrier.dstAccessMask = request.access;
+          return true;
+        }
+        else
+        {
+          return false;
+        }
+      }
+      else if (has_read)
+      {
+        state.sequence  = AccessSequence::Reads;
+        state.access[0] = ImageAccess{
+            .stages = request.stages, .access = request.access, .layout = request.layout};
+        return false;
+      }
+    }
+    break;
+    case AccessSequence::Reads:
+    {
+      if (has_write)
+      {
+        // wait till done reading before modifying
+        // reset access sequence since all stages following this write need to wait on this write
+        state.sequence                   = AccessSequence::Write;
+        ImageAccess const previous_reads = state.access[0];
+        state.access[0]                  = ImageAccess{
+                             .stages = request.stages, .access = request.access, .layout = request.layout};
+        state.access[1]       = ImageAccess{};
+        src_stages            = previous_reads.stages;
+        dst_stages            = request.stages;
+        barrier.srcAccessMask = previous_reads.access;
+        barrier.dstAccessMask = request.access;
+        return true;
+      }
+      else if (has_read)
+      {
+        // combine all subsequent reads, so the next writer knows to wait on all combined reads to
+        // complete
+        state.sequence                   = AccessSequence::Reads;
+        ImageAccess const previous_reads = state.access[0];
+        state.access[0] = ImageAccess{.stages = previous_reads.stages | request.stages,
+                                      .access = previous_reads.access | request.access,
+                                      .layout = request.layout};
+        return false;
+      }
+    }
+    break;
+    case AccessSequence::Write:
+    {
+      if (has_write)
+      {
+        // wait till done writing before modifying
+        // remove previous write since this access already waits on another access to complete
+        // and the next access will have to wait on this access
+        state.sequence                   = AccessSequence::Write;
+        ImageAccess const previous_write = state.access[0];
+        state.access[0]                  = ImageAccess{
+                             .stages = request.stages, .access = request.access, .layout = request.layout};
+        state.access[1]       = ImageAccess{};
+        src_stages            = previous_write.stages;
+        dst_stages            = request.stages;
+        barrier.srcAccessMask = previous_write.access;
+        barrier.dstAccessMask = request.access;
+        return true;
+      }
+      else if (has_read)
+      {
+        // wait till all write stages are done
+        state.sequence  = AccessSequence::ReadAfterWrite;
+        state.access[1] = ImageAccess{
+            .stages = request.stages, .access = request.access, .layout = request.layout};
+        src_stages            = state.access[0].stages;
+        dst_stages            = request.stages;
+        barrier.srcAccessMask = state.access[0].access;
+        barrier.dstAccessMask = request.access;
+        return true;
+      }
+    }
+    break;
+    case AccessSequence::ReadAfterWrite:
+    {
+      if (has_write)
+      {
+        // wait for all reading stages only
+        // stages can be reset and point only to the latest write stage, since they all need to wait
+        // for this write anyway.
+        state.sequence                   = AccessSequence::Write;
+        ImageAccess const previous_reads = state.access[1];
+        state.access[0]                  = ImageAccess{
+                             .stages = request.stages, .access = request.access, .layout = request.layout};
+        state.access[1]       = ImageAccess{};
+        src_stages            = previous_reads.stages;
+        dst_stages            = request.stages;
+        barrier.srcAccessMask = previous_reads.access;
+        barrier.dstAccessMask = request.access;
+        return true;
+      }
+      else if (has_read)
+      {
+        // wait for all write stages to be done
+        // no need to wait on other reads since we are only performing a read
+        // mask all subsequent reads so next writer knows to wait on all reads to complete
+        //
+        // if stage and access intersects previous barrier, no need to add new one as we'll observe the effect
+        state.sequence = AccessSequence::ReadAfterWrite;
+
+        if (has_any_bit(state.access[1].stages, request.stages) &&
+            has_any_bit(state.access[1].access, request.access))
+        {
+          return false;
+        }
+        else
+        {
+          state.access[1].stages |= request.stages;
+          state.access[1].access |= request.access;
+          src_stages            = state.access[0].stages;
+          dst_stages            = request.stages;
+          barrier.srcAccessMask = state.access[0].access;
+          barrier.dstAccessMask = request.access;
+          return true;
+        }
+      }
+    }
+    break;
+    default:
+      return false;
+  }
 }
 
 stx::Result<gfx::FormatProperties, gfx::Status>

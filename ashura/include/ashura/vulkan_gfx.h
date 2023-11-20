@@ -239,17 +239,39 @@ struct DeviceTable
   VmaVulkanFunctions vma_functions = {};
 };
 
-struct BufferSyncState
+struct BufferAccess
 {
   VkShaderStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
   VkAccessFlags      access = VK_ACCESS_NONE;
 };
 
-struct ImageSyncState
+struct ImageAccess
 {
   VkShaderStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
   VkAccessFlags      access = VK_ACCESS_NONE;
   VkImageLayout      layout = VK_IMAGE_LAYOUT_UNDEFINED;
+};
+
+// if is read access but with layout and access same as the transitioned one
+// reader tries to read write but there's no dependency
+enum class AccessSequence : u8
+{
+  None           = 0,
+  Reads          = 1,
+  Write          = 2,
+  ReadAfterWrite = 3
+};
+
+struct BufferState
+{
+  BufferAccess   access[2] = {};
+  AccessSequence sequence  = AccessSequence::None;
+};
+
+struct ImageState
+{
+  ImageAccess    access[2] = {};
+  AccessSequence sequence  = AccessSequence::None;
 };
 
 struct Buffer
@@ -260,6 +282,7 @@ struct Buffer
   VmaAllocation     vma_allocation      = nullptr;
   VmaAllocationInfo vma_allocation_info = {};
   void             *host_map            = nullptr;
+  BufferState       state               = {};
 };
 
 struct BufferView
@@ -277,6 +300,7 @@ struct Image
   VkImage           vk_image            = nullptr;
   VmaAllocation     vma_allocation      = nullptr;
   VmaAllocationInfo vma_allocation_info = {};
+  ImageState        state               = {};
 };
 
 struct ImageView
@@ -530,13 +554,6 @@ struct CommandEncoderImpl final : public gfx::CommandEncoder
                                     stx::Span<gfx::BufferImageCopy const> copies) override;
   virtual void blit_image(gfx::Image src, gfx::Image dst, stx::Span<gfx::ImageBlit const> blits,
                           gfx::Filter filter) override;
-  virtual void begin_descriptor_pass() override;
-  virtual u32  push_descriptors(gfx::DescriptorLayout layout, u32 count) override;
-  virtual void push_bindings(u32 descriptor, gfx::PipelineBindPoint bind_point,
-                             gfx::DescriptorBindings const &bindings) override;
-  virtual void end_descriptor_pass() override;
-  virtual void bind_descriptor(u32 index) override;
-  virtual void bind_next_descriptor() override;
   virtual void begin_render_pass(
       gfx::Framebuffer framebuffer, gfx::RenderPass render_pass, IRect render_area,
       stx::Span<gfx::Color const>        color_attachments_clear_values,

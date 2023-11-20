@@ -63,9 +63,9 @@ int main(int argc, char **argv)
 
   stx::Vec<gui::GridItem> items;
   gui::GridItem           items_tmp[] = {
-                {.column = 0, .column_span = 2, .row = 0, .row_span = 2},
-                {.column = 2, .column_span = 1, .row = 0, .row_span = 1},
-                {.column = 2, .column_span = 1, .row = 1, .row_span = 1},
+      {.column = 0, .column_span = 2, .row = 0, .row_span = 2},
+      {.column = 2, .column_span = 1, .row = 0, .row_span = 1},
+      {.column = 2, .column_span = 1, .row = 1, .row_span = 1},
   };
 
   items.extend(items_tmp).unwrap();

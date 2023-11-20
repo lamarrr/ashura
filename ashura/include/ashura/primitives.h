@@ -1245,7 +1245,7 @@ struct URect3D
 struct IRect3D
 {
   IOffset3D offset;
-  Extent3D extent;
+  Extent3D  extent;
 };
 
 struct IRect

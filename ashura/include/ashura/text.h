@@ -276,10 +276,10 @@ struct TextLayout
         stx::utf8_next((u8 const *&) run_text_end);
         while (!(run_block_text_offset >= script_agent->offset &&
                  run_block_text_offset < (script_agent->offset + script_agent->length)))
-          [[unlikely]]
-          {
-            ASH_CHECK(SBScriptLocatorMoveNext(script_locator));
-          }
+            [[unlikely]]
+        {
+          ASH_CHECK(SBScriptLocatorMoveNext(script_locator));
+        }
         SBScript const      run_script = script_agent->script;
         TextDirection const run_direction =
             (run_level & 0x1) == 0 ? TextDirection::LeftToRight : TextDirection::RightToLeft;

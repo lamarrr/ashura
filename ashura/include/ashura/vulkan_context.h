@@ -429,8 +429,8 @@ struct RenderResourceManager
     {
       CommandQueue const &queue          = *this->queue.value();
       Buffer              staging_buffer = create_host_visible_buffer(
-                       queue.device->dev, queue.device->phy_dev->memory_properties,
-                       fitted_byte_size(rimage.extent, rep_format), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+          queue.device->dev, queue.device->phy_dev->memory_properties,
+          fitted_byte_size(rimage.extent, rep_format), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
       copy_image_to_GPU_Buffer(
           view, ImageView<u8>{.span   = staging_buffer.span(),
                               .extent = rimage.extent,
