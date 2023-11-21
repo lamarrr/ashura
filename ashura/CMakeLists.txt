@@ -1,13 +1,21 @@
+add_library(ashura_gfx STATIC src/gfx.cc src/vulkan_gfx.cc)
+
+target_link_libraries(ashura_gfx stx::stx Vulkan::Headers
+                      GPUOpen::VulkanMemoryAllocator)
+
+target_include_directories(
+  ashura_gfx
+  PUBLIC include
+  PRIVATE src)
+
 add_library(
   ashura STATIC
   src/app.cc
   src/engine.cc
-  src/gfx.cc
   src/widget.cc
   src/rengoku.cc
   src/loggers.cc
   src/subsystems/http_client.cc
-  src/vulkan_gfx.cc
   src/ecs.cc)
 
 target_include_directories(
@@ -17,11 +25,10 @@ target_include_directories(
 
 target_link_libraries(
   ashura
+  ashura_gfx
   stx::stx
   SDL3::SDL3-static
   fmt::fmt
-  Vulkan::Headers
-  GPUOpen::VulkanMemoryAllocator
   spdlog::spdlog
   harfbuzz
   CURL::libcurl
@@ -33,8 +40,7 @@ target_link_libraries(
   PNG::PNG
   avif
   ${FFMPEG_LIBRARIES}
-  SheenBidi::SheenBidi
-  )
+  SheenBidi::SheenBidi)
 
 target_include_directories(ashura PUBLIC ${FFMPEG_INCLUDE_DIRS})
 target_link_directories(ashura PUBLIC ${FFMPEG_LIBRARY_DIRS})

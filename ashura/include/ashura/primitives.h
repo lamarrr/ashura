@@ -6,12 +6,10 @@
 #include <limits>
 #include <type_traits>
 
-#include "ashura/utils.h"
-#include "fmt/format.h"
 #include "stx/limits.h"
 #include "stx/option.h"
 
-#define ASH_TO_RADIANS(...) AS(f32, ::ash::PI *(__VA_ARGS__) / 180.0f)
+#define ASH_TO_RADIANS(...) (f32)(::ash::PI * (__VA_ARGS__) / 180.0f)
 
 namespace ash
 {
@@ -88,7 +86,7 @@ static constexpr u32 log2_floor_u32(u32 x)
 template <typename T>
 constexpr T lerp(T const &a, T const &b, f32 t)
 {
-  return AS(T, a + (b - a) * t);
+  return static_cast<T>(a + (b - a) * t);
 }
 
 // template<typename T>
@@ -363,10 +361,10 @@ struct Rect
       return Rect{.offset = offset, .extent = Vec2{0, 0}};
     }
 
-    Vec2 offset{std::max(x1_min, x2_min), std::max(y1_min, y2_min)};
-    Vec2 extent{std::min(x1_max, x2_max) - offset.x, std::min(y1_max, y2_max) - offset.y};
+    Vec2 intersect_offset{std::max(x1_min, x2_min), std::max(y1_min, y2_min)};
+    Vec2 intersect_extent{std::min(x1_max, x2_max) - offset.x, std::min(y1_max, y2_max) - offset.y};
 
-    return Rect{.offset = offset, .extent = extent};
+    return Rect{.offset = intersect_offset, .extent = intersect_extent};
   }
 
   constexpr bool contains(Vec2 point) const
@@ -1042,7 +1040,7 @@ struct Offset
 
   constexpr Vec2 to_vec() const
   {
-    return Vec2{.x = AS(f32, x), .y = AS(f32, y)};
+    return Vec2{.x = static_cast<f32>(x), .y = static_cast<f32>(y)};
   }
 };
 
@@ -1067,7 +1065,7 @@ struct IOffset
 
   constexpr Vec2 as_vec() const
   {
-    return Vec2{AS(f32, x), AS(f32, y)};
+    return Vec2{static_cast<f32>(x), static_cast<f32>(y)};
   }
 };
 
@@ -1097,7 +1095,7 @@ struct Extent
 
   static constexpr Extent from(Vec2 wh)
   {
-    return Extent{AS(u32, wh.x), AS(u32, wh.y)};
+    return Extent{static_cast<u32>(wh.x), static_cast<u32>(wh.y)};
   }
 
   constexpr bool is_visible() const
@@ -1112,12 +1110,12 @@ struct Extent
 
   constexpr u64 area() const
   {
-    return AS(u64, width) * height;
+    return static_cast<u64>(width) * height;
   }
 
   constexpr Vec2 to_vec() const
   {
-    return Vec2{.x = AS(f32, width), .y = AS(f32, height)};
+    return Vec2{.x = static_cast<f32>(width), .y = static_cast<f32>(height)};
   }
 
   constexpr u32 max_mip_levels() const
@@ -1152,7 +1150,7 @@ struct Extent3D
 
   constexpr u64 area() const
   {
-    return AS(u64, width) * AS(u64, height) * depth;
+    return static_cast<u64>(width) * static_cast<u64>(height) * depth;
   }
 
   constexpr u32 max_mip_levels() const
@@ -1480,10 +1478,10 @@ constexpr bool operator!=(Color a, Color b)
 template <>
 constexpr Color lerp<Color>(Color const &a, Color const &b, f32 t)
 {
-  return Color{.r = AS(u8, std::clamp<f32>(lerp<f32>(a.r, b.r, t), 0, 255)),
-               .g = AS(u8, std::clamp<f32>(lerp<f32>(a.g, b.g, t), 0, 255)),
-               .b = AS(u8, std::clamp<f32>(lerp<f32>(a.b, b.b, t), 0, 255)),
-               .a = AS(u8, std::clamp<f32>(lerp<f32>(a.a, b.a, t), 0, 255))};
+  return Color{.r = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.r, b.r, t), 0, 255)),
+               .g = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.g, b.g, t), 0, 255)),
+               .b = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.b, b.b, t), 0, 255)),
+               .a = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.a, b.a, t), 0, 255))};
 }
 
 namespace colors

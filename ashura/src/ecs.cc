@@ -1,4 +1,5 @@
 #include "ashura/ecs.h"
+#include "ashura/primitives.h
 
 #include <cinttypes>
 #include <span>
@@ -50,7 +51,7 @@ struct RenderEncoder
     Image    texture;
     uint32_t descriptor_set;
   } entities[100];
-  DescriptorManager descriptor_manager;
+  DescriptorHeap descriptor_heap;
 
   // multiple batches of resources
   // add entity
@@ -63,7 +64,7 @@ struct RenderEncoder
   void     remove(uint32_t);
   Entity  &get(uint32_t);
 
-  void tick(CommandEncoder)
+  void tick(CommandEncoder, uint64_t frame_index)
   {
   }
 };

@@ -14,6 +14,24 @@ namespace ash
 namespace vk
 {
 
+enum class ImageBindings
+{
+  None            = 0x00,
+  Storage         = 0x01,
+  Sampled         = 0x02,
+  InputAttachment = 0x04,
+  ColorAttachment = 0x08
+};
+
+enum class BufferBindings
+{
+  None         = 0x00,
+  Storage      = 0x01,
+  Uniform      = 0x02,
+  VertexBuffer = 0x04,
+  IndexBuffer  = 0x08
+};
+
 // only for purely trivial types
 template <typename T>
 struct Vec

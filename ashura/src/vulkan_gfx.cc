@@ -30,10 +30,9 @@ namespace vk
 #define ALLOC_NUM(allocator, type, num) \
   (type *) allocator.allocate(allocator.data, (usize) sizeof(type) * num, alignof(type))
 
-#define ALLOC_ARRAY(allocators, type, num)
-#define ALLOC_SCRATCH_ARRAY(allocators, type, num)
-#define ALLOC_OBJECT(allocators, type)
-#define ALLOC_OBJECTS(allocators, type, num)
+#define ALLOC_ARRAY(allocator, type, num)
+#define ALLOC_OBJECT(allocator, type)
+#define ALLOC_OBJECTS(allocator, type, num)
 
 VkResult DebugMarkerSetObjectTagEXT_Stub(VkDevice, const VkDebugMarkerObjectTagInfoEXT *)
 {
