@@ -1343,20 +1343,20 @@ struct SwapChain
   VkExtent2D            image_extent{.width = 0, .height = 0};
   VkExtent2D            window_extent{.width = 0, .height = 0};
   VkSampleCountFlagBits msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
-  stx::Vec<VkImage>
-      images;        // the images in the swapchain, which image is used and the order they are used for frame is determined by the presentation mode
-  stx::Vec<VkImageView>
-      image_views;        // the image views pointing to a part of a whole texture  (images in the swapchain)
+  stx::Vec<VkImage> images;        // the images in the swapchain, which image is used and the order
+                                   // they are used for frame is determined by the presentation mode
+  stx::Vec<VkImageView> image_views;        // the image views pointing to a part of a whole texture
+                                            // (images in the swapchain)
   stx::Vec<VkFramebuffer> framebuffers;
-  stx::Vec<VkSemaphore>
-      render_semaphores;        // the rendering semaphores correspond to the frame indexes and not the swapchain images
+  stx::Vec<VkSemaphore>   render_semaphores;        // the rendering semaphores correspond to the
+                                                    // frame indexes and not the swapchain images
   stx::Vec<VkSemaphore> image_acquisition_semaphores;
   stx::Vec<VkFence>     render_fences;
   stx::Vec<VkFence>     image_acquisition_fences;
   Image                 msaa_color_image;
   Image                 msaa_depth_image;
-  VkRenderPass          render_pass =
-      VK_NULL_HANDLE;        // Render Passes describe the outputs, attachments, depth, and msaa process
+  VkRenderPass          render_pass = VK_NULL_HANDLE;        // Render Passes describe the outputs,
+                                                             // attachments, depth, and msaa process
   VkSwapchainKHR swapchain = VK_NULL_HANDLE;
   VkDevice       dev       = VK_NULL_HANDLE;
 

@@ -65,7 +65,8 @@ struct WindowManager
     SDL_Window *window =
         SDL_CreateWindow(title, AS(i32, extent.width), AS(i32, extent.height), window_flags);
 
-    // window creation shouldn't fail reliably, if it fails, there's no point in the program proceeding
+    // window creation shouldn't fail reliably, if it fails, there's no point in the program
+    // proceeding
     ASH_SDL_CHECK(window != nullptr, "unable to create window");
 
     u32 window_id = SDL_GetWindowID(window);

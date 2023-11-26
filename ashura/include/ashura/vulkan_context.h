@@ -214,7 +214,8 @@ struct RenderResourceManager
   }
 
   /// Converts textures to their GPU representations
-  /// Note that RGB is converted to RGBA as neither OpenGL nor Vulkan require implementation support for RGB it.
+  /// Note that RGB is converted to RGBA as neither OpenGL nor Vulkan require implementation support
+  /// for RGB it.
   static void copy_image_to_GPU_Buffer(ImageView<u8 const> src, ImageView<u8> rep_dst)
   {
     ASH_CHECK(src.extent.width <= rep_dst.extent.width);
@@ -614,8 +615,11 @@ struct RenderResourceManager
   gfx::image upload_font_atlas(Font &font, ImageView<u8 const> atlas)
   {
     // VkImageFormatProperties image_format_properties;
-    // ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device, VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties));
-    // auto [atlas, image_buffer] = render_font_atlas(font, font_height, extent{image_format_properties.maxExtent.width, image_format_properties.maxExtent.height});
+    // ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device,
+    // VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
+    // VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties)); auto [atlas, image_buffer] =
+    // render_font_atlas(font, font_height, extent{image_format_properties.maxExtent.width,
+    // image_format_properties.maxExtent.height});
     ASH_LOG_INFO(Vulkan_RenderResourceManager, "Uploading Atlas for Font: {} to GPU",
                  font.postscript_name.c_str());
     gfx::image image = add_image(atlas, false);

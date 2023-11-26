@@ -25,204 +25,182 @@ struct Array
 {
   static_assert(Capacity > 0);
   static constexpr size_t capacity = Capacity;
-  using Type                       = T;
-  using Reference                  = T &;
-  using Iterator                   = T *;
-  using ConstIterator              = T const *;
-  using Pointer                    = T *;
-  using Size                       = size_t;
-  using Index                      = size_t;
 
-  constexpr Array() : rep_{}, size_{0}
+  constexpr Array() : rep{}, size{0}
   {
   }
 
   template <size_t SrcSize>
-  constexpr Array(T const (&arr)[SrcSize]) : rep_{}, size_{SrcSize}
+  constexpr Array(T const (&arr)[SrcSize]) : rep{}, size{SrcSize}
   {
     static_assert(SrcSize <= capacity);
     for (size_t i = 0; i < SrcSize; i++)
     {
-      new (data() + i) T{arr[i]};
+      new (data + i) T{arr[i]};
     }
   }
 
-  constexpr Array(Array const &other) : rep_{}, size_{other.size_}
+  constexpr Array(Array const &other) : rep{}, size{other.size}
   {
-    for (size_t i = 0; i < other.size_; i++)
+    for (size_t i = 0; i < other.size; i++)
     {
-      new (data() + i) T{other.data()[i]};
+      new (data + i) T{other.data[i]};
     }
   }
 
-  constexpr Array(Array &&other) : rep_{}, size_{other.size_}
+  constexpr Array(Array &&other) : rep{}, size{other.size}
   {
-    for (size_t i = 0; i < other.size_; i++)
+    for (size_t i = 0; i < other.size; i++)
     {
-      new (data() + i) T{(T &&) (other.data()[i])};
+      new (data + i) T{(T &&) (other.data[i])};
     }
 
-    for (size_t i = 0; i < other.size_; i++)
+    for (size_t i = 0; i < other.size; i++)
     {
-      (other.data() + i)->~T();
+      (other.data + i)->~T();
     }
 
-    other.size_ = 0;
+    other.size = 0;
   }
 
   constexpr Array &operator=(Array const &other)
   {
-    if (size_ == other.size_)
+    if (size == other.size)
     {
-      for (size_t i = 0; i < size_; i++)
+      for (size_t i = 0; i < size; i++)
       {
-        data()[i] = other.data()[i];
+        data[i] = other.data[i];
       }
     }
-    else if (size_ > other.size_)
+    else if (size > other.size)
     {
-      for (size_t i = 0; i < other.size_; i++)
+      for (size_t i = 0; i < other.size; i++)
       {
-        data()[i] = other.data()[i];
+        data[i] = other.data[i];
       }
-      for (size_t i = other.size_; i < size_; i++)
+      for (size_t i = other.size; i < size; i++)
       {
-        data()[i].~T();
+        data[i].~T();
       }
     }
     else
     {
-      for (size_t i = 0; i < size_; i++)
+      for (size_t i = 0; i < size; i++)
       {
-        data()[i] = other.data()[i];
+        data[i] = other.data[i];
       }
-      for (size_t i = size_; i < other.size_; i++)
+      for (size_t i = size; i < other.size; i++)
       {
-        new (data() + i) T{other.data()[i]};
+        new (data + i) T{other.data[i]};
       }
     }
-    size_ = other.size_;
+    size = other.size;
     return *this;
   }
 
   constexpr Array &operator=(Array &&other)
   {
-    if (size_ == other.size_)
+    if (size == other.size)
     {
-      for (size_t i = 0; i < size_; i++)
+      for (size_t i = 0; i < size; i++)
       {
-        data()[i] = (T &&) other.data()[i];
+        data[i] = (T &&) other.data[i];
       }
     }
-    else if (size_ > other.size_)
+    else if (size > other.size)
     {
-      for (size_t i = 0; i < other.size_; i++)
+      for (size_t i = 0; i < other.size; i++)
       {
-        data()[i] = (T &&) other.data()[i];
+        data[i] = (T &&) other.data[i];
       }
-      for (size_t i = other.size_; i < size_; i++)
+      for (size_t i = other.size; i < size; i++)
       {
-        data()[i].~T();
+        data[i].~T();
       }
     }
     else
     {
-      for (size_t i = 0; i < size_; i++)
+      for (size_t i = 0; i < size; i++)
       {
-        data()[i] = (T &&) other.data()[i];
+        data[i] = (T &&) other.data[i];
       }
-      for (size_t i = size_; i < other.size_; i++)
+      for (size_t i = size; i < other.size; i++)
       {
-        new (data() + i) T{(T &&) other.data()[i]};
+        new (data + i) T{(T &&) other.data[i]};
       }
     }
 
-    for (size_t i = 0; i < other.size_; i++)
+    for (size_t i = 0; i < other.size; i++)
     {
-      other.data()[i].~T();
+      other.data[i].~T();
     }
 
-    size_       = other.size_;
-    other.size_ = 0;
+    size       = other.size;
+    other.size = 0;
     return *this;
   }
 
   constexpr ~Array()
   {
-    for (size_t i = 0; i < size_; i++)
+    for (size_t i = 0; i < size; i++)
     {
-      data()[i].~T();
+      data[i].~T();
     }
-  }
-
-  constexpr size_t size() const
-  {
-    return size_;
   }
 
   constexpr T *begin()
   {
-    return data();
+    return data;
   }
 
   constexpr T const *begin() const
   {
-    return data();
+    return data;
   }
 
   constexpr T *end()
   {
-    return data() + size_;
+    return data + size;
   }
 
   constexpr T const *end() const
   {
-    return data() + size_;
-  }
-
-  constexpr T *data()
-  {
-    return data_;
-  }
-
-  constexpr T const *data() const
-  {
-    return data_;
+    return data + size;
   }
 
   constexpr stx::Span<T> span()
   {
-    return stx::Span{data(), size_};
+    return stx::Span{data, size};
   }
 
   constexpr stx::Span<T const> span() const
   {
-    return stx::Span{data(), size_};
+    return stx::Span{data, size};
   }
 
-  T &operator[](Index index)
+  T &operator[](size_t index)
   {
-    STX_ARRAY_ENSURE(index < size_, "index out of bounds");
-    return data()[index];
+    STX_ARRAY_ENSURE(index < size, "index out of bounds");
+    return data[index];
   }
 
-  T const &operator[](Index index) const
+  T const &operator[](size_t index) const
   {
-    STX_ARRAY_ENSURE(index < size_, "index out of bounds");
-    return data()[index];
+    STX_ARRAY_ENSURE(index < size, "index out of bounds");
+    return data[index];
   }
 
-  constexpr T &get_unsafe(Index index);
+  constexpr T &get_unsafe(size_t index);
 
-  constexpr T const &get_unsafe(Index index) const;
+  constexpr T const &get_unsafe(size_t index) const;
 
   constexpr void clear()
   {
-    for (size_t i = 0; i < size_; i++)
+    for (size_t i = 0; i < size; i++)
     {
-      data()[i].~T();
+      data[i].~T();
     }
-    size_ = 0;
+    size = 0;
   }
 
   constexpr void erase();
@@ -232,7 +210,7 @@ struct Array
   template <typename... Args>
   Result<Void, AllocError> push_inplace(Args &&...args)
   {
-    if (size_ >= Capacity)
+    if (size >= Capacity)
     {
       return stx::Err(stx::AllocError::NoMemory);
     }
@@ -243,8 +221,8 @@ struct Array
   template <typename... Args>
   constexpr void push_inplace_unsafe(Args &&...args)
   {
-    new (data() + size_) T{((Args &&) args)...};
-    size_++;
+    new (data + size) T{((Args &&) args)...};
+    size++;
   }
 
   Result<Void, AllocError> push(T &&item)
@@ -267,10 +245,10 @@ struct Array
 
   union
   {
-    T       data_[capacity];
-    uint8_t rep_[capacity * sizeof(T)] = {};
+    T       data[capacity];
+    uint8_t rep[capacity * sizeof(T)] = {};
   };
-  size_t size_ = 0;
+  size_t size = 0;
 };
 
 STX_END_NAMESPACE

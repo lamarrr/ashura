@@ -42,6 +42,12 @@
   ((__VA_ARGS__) < 0 ? (::ash::u8) 0 : \
                        ((__VA_ARGS__) > 255 ? (::ash::u8) 255 : (::ash::u8)(__VA_ARGS__)))
 
+#if STX_CFG(COMPILER, MSVC) || STX_CFG(COMPILER, CLANG) || STX_CFG(COMPILER, GNUC)
+#  define ASH_RESTRICT __restrict
+#else
+#  define ASH_RESTRICT
+#endif
+
 namespace ash
 {
 

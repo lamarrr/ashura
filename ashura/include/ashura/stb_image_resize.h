@@ -178,7 +178,8 @@
       Installable filters?
       Resize that respects alpha test coverage
          (Reference code: FloatImage::alphaTestCoverage and FloatImage::scaleAlphaToCoverage:
-         https://code.google.com/p/nvidia-texture-tools/source/browse/trunk/src/nvimage/FloatImage.cpp )
+         https://code.google.com/p/nvidia-texture-tools/source/browse/trunk/src/nvimage/FloatImage.cpp
+   )
 */
 
 #ifndef STBIR_INCLUDE_STB_IMAGE_RESIZE_H
@@ -211,7 +212,8 @@ typedef uint32_t stbir_uint32;
 //
 // Easy-to-use API:
 //
-//     * "input pixels" points to an array of image data with 'num_channels' channels (e.g. RGB=3, RGBA=4)
+//     * "input pixels" points to an array of image data with 'num_channels' channels (e.g. RGB=3,
+//     RGBA=4)
 //     * input_w is input image width (x-axis), input_h is input image height (y-axis)
 //     * stride is the offset between successive rows of image data in memory, in bytes. you can
 //       specify 0 to mean packed continuously in memory
@@ -221,7 +223,8 @@ typedef uint32_t stbir_uint32;
 //       #define STBIR_ASSERT() to trigger an assert on parameter validation errors.
 //     * Memory required grows approximately linearly with input and output size, but with
 //       discontinuities at input_w == output_w and input_h == output_h.
-//     * These functions use a "default" resampling filter defined at compile time. To change the filter,
+//     * These functions use a "default" resampling filter defined at compile time. To change the
+//     filter,
 //       you can change the compile-time defaults by #defining STBIR_DEFAULT_FILTER_UPSAMPLE
 //       and STBIR_DEFAULT_FILTER_DOWNSAMPLE, or you can use the medium-complexity API.
 
@@ -263,7 +266,8 @@ typedef enum
   STBIR_EDGE_ZERO    = 4,
 } stbir_edge;
 
-// This function adds the ability to specify how requests to sample off the edge of the image are handled.
+// This function adds the ability to specify how requests to sample off the edge of the image are
+// handled.
 STBIRDEF int stbir_resize_uint8_srgb_edgemode(const unsigned char *input_pixels, int input_w,
                                               int input_h, int input_stride_in_bytes,
                                               unsigned char *output_pixels, int output_w,
@@ -379,7 +383,8 @@ STBIRDEF int stbir_resize_region(const void *input_pixels, int input_w, int inpu
                                  stbir_filter filter_horizontal, stbir_filter filter_vertical,
                                  stbir_colorspace space, void *alloc_context, float s0, float t0,
                                  float s1, float t1);
-// (s0, t0) & (s1, t1) are the top-left and bottom right corner (uv addressing style: [0, 1]x[0, 1]) of a region of the input image to use.
+// (s0, t0) & (s1, t1) are the top-left and bottom right corner (uv addressing style: [0, 1]x[0, 1])
+// of a region of the input image to use.
 
 //
 //
@@ -538,15 +543,17 @@ typedef struct
   int horizontal_num_contributors;
   int vertical_num_contributors;
 
-  int ring_buffer_length_bytes;        // The length of an individual entry in the ring buffer. The total number of ring buffers is stbir__get_filter_pixel_width(filter)
+  int ring_buffer_length_bytes;        // The length of an individual entry in the ring buffer. The
+                                       // total number of ring buffers is
+                                       // stbir__get_filter_pixel_width(filter)
   int    ring_buffer_num_entries;        // Total number of entries in the ring buffer.
   int    ring_buffer_first_scanline;
   int    ring_buffer_last_scanline;
   int    ring_buffer_begin_index;        // first_scanline is at this index in the ring buffer
   float *ring_buffer;
 
-  float *
-      encode_buffer;        // A temporary buffer to store floats so we don't lose precision while we do multiply-adds.
+  float *encode_buffer;        // A temporary buffer to store floats so we don't lose precision
+                               // while we do multiply-adds.
 
   int horizontal_contributors_size;
   int horizontal_coefficients_size;
@@ -1075,9 +1082,9 @@ static void stbir__calculate_coefficients_upsample(stbir_filter filter, float sc
 
   STBIR_ASSERT(
       in_last_pixel - in_first_pixel <=
-      (int) ceil(
-          stbir__filter_info_table[filter].support(1 / scale) *
-          2));        // Taken directly from stbir__get_coefficient_width() which we can't call because we don't know if we're horizontal or vertical.
+      (int) ceil(stbir__filter_info_table[filter].support(1 / scale) *
+                 2));        // Taken directly from stbir__get_coefficient_width() which we can't
+                             // call because we don't know if we're horizontal or vertical.
 
   contributor->n0 = in_first_pixel;
   contributor->n1 = in_last_pixel;
@@ -1090,7 +1097,8 @@ static void stbir__calculate_coefficients_upsample(stbir_filter filter, float sc
     coefficient_group[i] =
         stbir__filter_info_table[filter].kernel(in_center_of_out - in_pixel_center, 1 / scale);
 
-    // If the coefficient is zero, skip it. (Don't do the <0 check here, we want the influence of those outside pixels.)
+    // If the coefficient is zero, skip it. (Don't do the <0 check here, we want the influence of
+    // those outside pixels.)
     if (i == 0 && !coefficient_group[i])
     {
       contributor->n0 = ++in_first_pixel;
@@ -1105,7 +1113,8 @@ static void stbir__calculate_coefficients_upsample(stbir_filter filter, float sc
   // It would be true in exact math but is at best approximately true in floating-point math,
   // and it would not make sense to try and put actual bounds on this here because it depends
   // on the image aspect ratio which can get pretty extreme.
-  //STBIR_ASSERT(stbir__filter_info_table[filter].kernel((float)(in_last_pixel + 1) + 0.5f - in_center_of_out, 1/scale) == 0);
+  // STBIR_ASSERT(stbir__filter_info_table[filter].kernel((float)(in_last_pixel + 1) + 0.5f -
+  // in_center_of_out, 1/scale) == 0);
 
   STBIR_ASSERT(total_filter > 0.9);
   STBIR_ASSERT(total_filter < 1.1f);        // Make sure it's not way off.
@@ -1136,9 +1145,9 @@ static void stbir__calculate_coefficients_downsample(stbir_filter filter, float 
 
   STBIR_ASSERT(
       out_last_pixel - out_first_pixel <=
-      (int) ceil(
-          stbir__filter_info_table[filter].support(scale_ratio) *
-          2));        // Taken directly from stbir__get_coefficient_width() which we can't call because we don't know if we're horizontal or vertical.
+      (int) ceil(stbir__filter_info_table[filter].support(scale_ratio) *
+                 2));        // Taken directly from stbir__get_coefficient_width() which we can't
+                             // call because we don't know if we're horizontal or vertical.
 
   contributor->n0 = out_first_pixel;
   contributor->n1 = out_last_pixel;
@@ -1156,7 +1165,8 @@ static void stbir__calculate_coefficients_downsample(stbir_filter filter, float 
   // It would be true in exact math but is at best approximately true in floating-point math,
   // and it would not make sense to try and put actual bounds on this here because it depends
   // on the image aspect ratio which can get pretty extreme.
-  //STBIR_ASSERT(stbir__filter_info_table[filter].kernel((float)(out_last_pixel + 1) + 0.5f - out_center_of_in, scale_ratio) == 0);
+  // STBIR_ASSERT(stbir__filter_info_table[filter].kernel((float)(out_last_pixel + 1) + 0.5f -
+  // out_center_of_in, scale_ratio) == 0);
 
   for (i = out_last_pixel - out_first_pixel; i >= 0; i--)
   {
@@ -1335,8 +1345,8 @@ static void stbir__decode_scanline(stbir__info *stbir_info, int n)
 
   int x = -stbir_info->horizontal_filter_pixel_margin;
 
-  // special handling for STBIR_EDGE_ZERO because it needs to return an item that doesn't appear in the input,
-  // and we want to avoid paying overhead on every pixel if not STBIR_EDGE_ZERO
+  // special handling for STBIR_EDGE_ZERO because it needs to return an item that doesn't appear in
+  // the input, and we want to avoid paying overhead on every pixel if not STBIR_EDGE_ZERO
   if (edge_vertical == STBIR_EDGE_ZERO && (n < 0 || n >= stbir_info->input_h))
   {
     for (; x < max_x; x++)
@@ -1809,15 +1819,16 @@ static void stbir__encode_scanline(stbir__info *stbir_info, int num_pixels, void
       float alpha            = encode_buffer[pixel_index + alpha_channel];
       float reciprocal_alpha = alpha ? 1.0f / alpha : 0;
 
-      // unrolling this produced a 1% slowdown upscaling a large RGBA linear-space image on my machine - stb
+      // unrolling this produced a 1% slowdown upscaling a large RGBA linear-space image on my
+      // machine - stb
       for (n = 0; n < channels; n++)
         if (n != alpha_channel)
           encode_buffer[pixel_index + n] *= reciprocal_alpha;
 
-      // We added in a small epsilon to prevent the color channel from being deleted with zero alpha.
-      // Because we only add it for integer types, it will automatically be discarded on integer
-      // conversion, so we don't need to subtract it back out (which would be problematic for
-      // numeric precision reasons).
+      // We added in a small epsilon to prevent the color channel from being deleted with zero
+      // alpha. Because we only add it for integer types, it will automatically be discarded on
+      // integer conversion, so we don't need to subtract it back out (which would be problematic
+      // for numeric precision reasons).
     }
   }
 
@@ -2417,7 +2428,8 @@ static stbir_uint32 stbir__calculate_memory(stbir__info *info)
   info->vertical_num_contributors = stbir__get_contributors(
       info->vertical_scale, info->vertical_filter, info->input_h, info->output_h);
 
-  // One extra entry because floating point precision problems sometimes cause an extra to be necessary.
+  // One extra entry because floating point precision problems sometimes cause an extra to be
+  // necessary.
   info->ring_buffer_num_entries = filter_height + 1;
 
   info->horizontal_contributors_size =

@@ -183,8 +183,9 @@ struct RgbVideoFrame
       int linesizes[4] = {AS(int, new_extent.area()) * 3, 0, 0, 0};
       u8 *planes[4]    = {nullptr, nullptr, nullptr, nullptr};
 
-      /// NOTE: FFMPEG will segfault if you use a custom allocated memory that doesn't meet its alignment/size requirements
-      /// as it will perform some aligned/packed SIMD operations (if supported, as in most cases)
+      /// NOTE: FFMPEG will segfault if you use a custom allocated memory that doesn't meet its
+      /// alignment/size requirements as it will perform some aligned/packed SIMD operations (if
+      /// supported, as in most cases)
       int nbytes = av_image_alloc(planes, linesizes, new_extent.width, new_extent.height,
                                   AV_PIX_FMT_RGB24, 1);
       ASH_CHECK(nbytes >= 0);
@@ -312,9 +313,9 @@ struct VideoDecodeContext
     pause_requested = true;
   }
 
-  // interval between video frames, unlike audio samples, can be really long, so we need a more fine-grained clock.
-  // i.e. a 30fps video has 33 ms intervals which can be large if the audio is trying to sync to it. some frames might also be
-  // repeated and span over multiple cycles.
+  // interval between video frames, unlike audio samples, can be really long, so we need a more
+  // fine-grained clock. i.e. a 30fps video has 33 ms intervals which can be large if the audio is
+  // trying to sync to it. some frames might also be repeated and span over multiple cycles.
   nanoseconds get_clock_time() const
   {
     timepoint last_frame_pts_timepoint =
@@ -377,7 +378,8 @@ struct VideoDecodeContext
       nanoseconds sync_threshold =
           pts_interval > SYNC_THRESHOLD ?
               pts_interval :
-              SYNC_THRESHOLD;        // skip or repeat the frame. Take delay into account we still doesn't "know if this is the best guess."
+              SYNC_THRESHOLD;        // skip or repeat the frame. Take delay into account we still
+                                     // doesn't "know if this is the best guess."
 
       if (std::chrono::abs(diff) < NO_SYNC_THRESHOLD)
       {
@@ -419,9 +421,11 @@ struct DecodeContext
   AVFrame        *frame  = nullptr;
 };
 
-// Demuxer runs on main/presentation, fetches raw streams/packets from the files and dispatches them to the decoders
+// Demuxer runs on main/presentation, fetches raw streams/packets from the files and dispatches them
+// to the decoders
 //
-// the audio/video decode thread decodes audio/video frames, performs conversions/resampling and sends them to the renderer/audio device
+// the audio/video decode thread decodes audio/video frames, performs conversions/resampling and
+// sends them to the renderer/audio device
 //
 struct VideoDemuxer
 {
@@ -727,7 +731,8 @@ struct AudioDevice
     audio_sources_lock.unlock();
   }
 
-  /// NOTE: will be called on audio device thread managed by SDL, use SDL_LockAudioDevice and SDL_UnlockAudioDevice to prevent this callback from running
+  /// NOTE: will be called on audio device thread managed by SDL, use SDL_LockAudioDevice and
+  /// SDL_UnlockAudioDevice to prevent this callback from running
   static void audio_callback(void *userdata, u8 *pstream, int len)
   {
     AudioDevice *This = AS(AudioDevice *, userdata);
@@ -1219,8 +1224,10 @@ struct MediaPlayerAudioSource : public AudioSource
 // all this is performed on a separate dedicated worker thread
 // streams audio to AudioDevice
 // streams pictures to Vulkan Backend
-// it will have as many images as the number of frames so we don't block the vulkan backend or cause data races whilst writing to the images ???? might not be possible?
-// sdl audio device requires a callback so it can request for audio frames whenever and that would mean we'd have to use the silence value of the sdl spec when we don't have audio samples available
+// it will have as many images as the number of frames so we don't block the vulkan backend or cause
+// data races whilst writing to the images ???? might not be possible? sdl audio device requires a
+// callback so it can request for audio frames whenever and that would mean we'd have to use the
+// silence value of the sdl spec when we don't have audio samples available
 //
 // subtitle
 //

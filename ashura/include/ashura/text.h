@@ -31,10 +31,11 @@ enum class TextDirection : u8
 
 struct TextStyle
 {
-  std::string_view font =
-      {};        // name to use to match the font. if font is not found or empty the fallback fonts are tried.
+  std::string_view font = {};        // name to use to match the font. if font is not found or empty
+                                     // the fallback fonts are tried.
   stx::Span<std::string_view const> fallback_fonts =
-      {};        // font to fallback to if {font} is not available. if none of the specified fallback fonts are found the first font in the font bundle will be used
+      {};        // font to fallback to if {font} is not available. if none of the specified
+                 // fallback fonts are found the first font in the font bundle will be used
   f32   font_height             = 20;                         // px
   Color foreground_color        = colors::BLACK;              //
   Color outline_color           = colors::BLACK;              //
@@ -59,7 +60,8 @@ struct TextStyle
 struct TextRun
 {
   usize size =
-      0;        // byte size coverage of this run. i.e. for the first run with size 20 all text within [0, 20] bytes range of the text will be styled using this run
+      0;        // byte size coverage of this run. i.e. for the first run with size 20 all text
+                // within [0, 20] bytes range of the text will be styled using this run
   usize style = 0;        // run style to use
 };
 
@@ -86,16 +88,17 @@ struct TextBlock
   TextStyle                  default_style;        // default run styling
   TextAlign                  align     = TextAlign::Start;                  // text alignment
   TextDirection              direction = TextDirection::LeftToRight;        // base text direction
-  std::string_view           language =
-      {};        // base language to use for selecting opentype features to used on the text, uses default if not set
+  std::string_view language = {};        // base language to use for selecting opentype features to
+                                         // used on the text, uses default if not set
 };
 
-/// RunSegment is a part of a text run split by groups of spacing characters word contained in a run.
-/// The spacing characters translate to break opportunities.
+/// RunSegment is a part of a text run split by groups of spacing characters word contained in a
+/// run. The spacing characters translate to break opportunities.
 struct TextRunSegment
 {
   bool has_spacing =
-      false;        // if it has trailing spacing characters (tabs and spaces) where we can break the text, this corresponds to the unicode Break-After (BA)
+      false;        // if it has trailing spacing characters (tabs and spaces) where we can break
+                    // the text, this corresponds to the unicode Break-After (BA)
   stx::Span<char const> text      = {};                                // utf8 text of segment
   TextDirection         direction = TextDirection::LeftToRight;        // direction of text
   usize                 style     = 0;                                 // resolved run text styling
@@ -161,13 +164,13 @@ struct TextLayout
     hb_buffer_set_not_found_glyph(
         shaping_buffer,
         not_found_glyph);        // default glyphs for characters without defined glyphs
-    hb_buffer_set_script(
-        shaping_buffer,
-        script);        // OpenType (ISO15924) Script Tag. See: https://unicode.org/reports/tr24/#Relation_To_ISO15924
+    hb_buffer_set_script(shaping_buffer,
+                         script);        // OpenType (ISO15924) Script Tag. See:
+                                         // https://unicode.org/reports/tr24/#Relation_To_ISO15924
     hb_buffer_set_direction(shaping_buffer, direction);
-    hb_buffer_set_language(
-        shaping_buffer,
-        language);        // OpenType BCP-47 language tag for performing certain shaping operations as defined in the font
+    hb_buffer_set_language(shaping_buffer,
+                           language);        // OpenType BCP-47 language tag for performing certain
+                                             // shaping operations as defined in the font
     hb_font_set_scale(font.hb_font, (int) (64 * render_font_height),
                       (int) (64 * render_font_height));
     hb_buffer_add_utf8(shaping_buffer, text.data(), (int) text.size(), 0, (int) text.size());
@@ -286,10 +289,10 @@ struct TextLayout
         hb_direction_t const run_direction_hb =
             (run_level & 0x1) == 0 ? HB_DIRECTION_LTR : HB_DIRECTION_RTL;
         hb_script_t const run_script_hb = hb_script_from_iso15924_tag(SBScriptGetOpenTypeTag(
-            run_script));        // Note that unicode scripts are different from OpenType (iso15924) scripts though they are similar
-        usize             irun_style =
-            block.styles
-                .size();        // find the style intended for this text run (if any, otherwise default)
+            run_script));        // Note that unicode scripts are different from OpenType (iso15924)
+                                 // scripts though they are similar
+        usize irun_style = block.styles.size();        // find the style intended for this text run
+                                                       // (if any, otherwise default)
 
         while (run_it < block.runs.end())
         {
@@ -317,9 +320,8 @@ struct TextLayout
           SBLevel const level             = paragraph_levels[run_text_end - paragraph_text_begin];
           char const   *p_next_codepoint  = run_text_end;
           stx::utf8_next((u8 const *&) p_next_codepoint);
-          usize istyle =
-              block.styles
-                  .size();        // find the style intended for this code point (if any, otherwise default)
+          usize istyle = block.styles.size();        // find the style intended for this code point
+                                                     // (if any, otherwise default)
 
           while (run_it < block.runs.end())
           {
@@ -363,7 +365,8 @@ struct TextLayout
 
             if (codepoint == ' ' || codepoint == '\t')
             {
-              // don't break immediately so we can batch multiple tabs/spaces and have them on the same line during line breaking
+              // don't break immediately so we can batch multiple tabs/spaces and have them on the
+              // same line during line breaking
               has_spacing = true;
             }
             else if (has_spacing)        // has a preceding spacing character

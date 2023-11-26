@@ -42,9 +42,9 @@ enum class SwapChainState : u8
 {
   Ok            = 0,
   ExtentChanged = 1,        // the window's extent and surface (framebuffer) extent has changed
-  Suboptimal =
-      2,        // the window swapchain can still be used for presentation but is not optimal for presentation in its present state
-  OutOfDate = 4,        // the window swapchain is now out of date and needs to be changed
+  Suboptimal    = 2,        // the window swapchain can still be used for presentation but is not
+                            // optimal for presentation in its present state
+  OutOfDate = 4,            // the window swapchain is now out of date and needs to be changed
   All       = 7
 };
 

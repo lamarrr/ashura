@@ -113,24 +113,30 @@ struct ScreenPass
 
     // for (u32 i = 0; i < ctx.screen_pass.ctx.num_buffers; i++)
     // {
-    //   rid                   color_image = graph.create_image(ImageDesc{.format = ctx.screen_pass.ctx.format,
-    //                                                                    .usages = ImageUsages::ColorAttachment,
-    //                                                                    .size   = ctx.screen_pass.ctx.extent,
+    //   rid                   color_image = graph.create_image(ImageDesc{.format =
+    //   ctx.screen_pass.ctx.format,
+    //                                                                    .usages =
+    //                                                                    ImageUsages::ColorAttachment,
+    //                                                                    .size   =
+    //                                                                    ctx.screen_pass.ctx.extent,
     //                                                                    .mips   = 1});
     //   FramebufferAttachment color_attachment{.image    = color_image,
     //                                          .load_op  = LoadOp::Clear,
     //                                          .store_op = StoreOp::Store};
 
     //   rid depth_stencil_image = graph.create_image(ImageDesc{.format = Format::D16_Unorm,
-    //                                                          .usages = ImageUsages::DepthStencilAttachment,
-    //                                                          .size   = ctx.screen_pass.ctx.extent,
-    //                                                          .mips   = 1});
+    //                                                          .usages =
+    //                                                          ImageUsages::DepthStencilAttachment,
+    //                                                          .size   =
+    //                                                          ctx.screen_pass.ctx.extent, .mips =
+    //                                                          1});
 
     //   FramebufferAttachment depth_stencil_attachment{.image    = depth_stencil_image,
     //                                                  .load_op  = LoadOp::Clear,
     //                                                  .store_op = StoreOp::Store};
 
-    //   rid framebuffer                                   = graph.create_framebuffer(RenderPassDesc{.render_pass   = render_pass,
+    //   rid framebuffer                                   =
+    //   graph.create_framebuffer(RenderPassDesc{.render_pass   = render_pass,
     //                                                                                               .color         = color_image,
     //                                                                                               .depth_stencil = depth_stencil_image});
     //   ctx.screen_pass.resources.color_images[i]         = color_image;

@@ -182,14 +182,19 @@ struct GlyphMetrics
   Vec2 extent;             // glyph extent
 };
 
-/// see: https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
+/// see:
+/// https://stackoverflow.com/questions/62374506/how-do-i-align-glyphs-along-the-baseline-with-freetype
 ///
-/// NOTE: using stubs enables us to perform fast constant lookups of glyph indices by ensuring the array is filled and sorted by glyph index from 0 -> nglyphs_found_in_font-1
+/// NOTE: using stubs enables us to perform fast constant lookups of glyph indices by ensuring the
+/// array is filled and sorted by glyph index from 0 -> nglyphs_found_in_font-1
 struct Glyph
 {
   bool is_valid = false;        // if the glyph was found in the font and loaded successfully
   bool is_needed =
-      false;        // if the texture is a texture that is needed. i.e. if the unicode ranges are empty then this is always true, otherwise it is set to true if the config unicode ranges contains it, note that special glyphs like replacement unicode codepoint glyph (0xFFFD) will always be true
+      false;        // if the texture is a texture that is needed. i.e. if the unicode ranges are
+                    // empty then this is always true, otherwise it is set to true if the config
+                    // unicode ranges contains it, note that special glyphs like replacement unicode
+                    // codepoint glyph (0xFFFD) will always be true
   GlyphMetrics metrics;           // normalized font metrics
   u32          bin = 0;           // atlas bin this glyph belongs to
   URect        bin_area;          // area in the atlas this glyph's cache data is placed
@@ -200,11 +205,13 @@ struct Glyph
 /// For info on SDF Text Rendering,
 /// See:
 /// - https://www.youtube.com/watch?v=1b5hIMqz_wM
-/// - https://cdn.cloudflare.steamstatic.com/apps/valve/2007/SIGGRAPH2007_AlphaTestedMagnification.pdf
+/// -
+/// https://cdn.cloudflare.steamstatic.com/apps/valve/2007/SIGGRAPH2007_AlphaTestedMagnification.pdf
 ///
 /// In SDFs each pixel is encoded with its distance to the edge of a shape.
-/// The inner portion of the glyph has a value at the midpoint of the text, i.e. encoded 127 + distance away from the glyph boundary.
-/// The outer portion of the glyph however is encoded with a value lower than the midpoint. i.e. encoded 0-127.
+/// The inner portion of the glyph has a value at the midpoint of the text, i.e. encoded 127 +
+/// distance away from the glyph boundary. The outer portion of the glyph however is encoded with a
+/// value lower than the midpoint. i.e. encoded 0-127.
 ///
 struct FontAtlas
 {
@@ -229,22 +236,27 @@ struct BundledFont
 
 struct FontSpec
 {
-  stx::String name;        // name to use in font matching
-  stx::String path;        // local file system path of the typeface resource
-  bool        use_caching =
-      true;        // whether to try to load or save font atlas from the cache directory. the font is identified in the cache directory by its postscript name, which is different from its font matching name
+  stx::String name;                      // name to use in font matching
+  stx::String path;                      // local file system path of the typeface resource
+  bool        use_caching = true;        // whether to try to load or save font atlas from the cache
+                                  // directory. the font is identified in the cache directory by its
+                                  // postscript name, which is different from its font matching name
   u32    face        = 0;         // font face to use
   u32    font_height = 40;        // the height at which the SDF texture is cached at
   Extent max_atlas_bin_extent =
       DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
   stx::Span<UnicodeRange const> ranges =
-      {};        // if set only the specified unicode ranges will be loaded, otherwise glyphs in the font will be loaded. Note that this means during font ligature glyph substitution where scripts might change, if the replacement glyph is not in the unicode range, it won't result in a valid glyph.
+      {};        // if set only the specified unicode ranges will be loaded, otherwise glyphs in the
+                 // font will be loaded. Note that this means during font ligature glyph
+                 // substitution where scripts might change, if the replacement glyph is not in the
+                 // unicode range, it won't result in a valid glyph.
 };
 
 inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_font_atlas(Font const     &font,
                                                                      FontSpec const &spec)
 {
-  // NOTE: all *64 or << 6, /64 or >> 6 are to convert to and from 26.6 pixel format used in Freetype and Harfbuzz metrics
+  // NOTE: all *64 or << 6, /64 or >> 6 are to convert to and from 26.6 pixel format used in
+  // Freetype and Harfbuzz metrics
 
   if (!spec.ranges.is_empty())
   {
@@ -269,7 +281,8 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>> render_font_atlas(Font const 
   u32 const nglyphs           = (u32) ft_face->num_glyphs;
   u32 const replacement_glyph = FT_Get_Char_Index(
       ft_face,
-      HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);        // glyph index 0 is selected if the glyph for the replacement codepoint is not found
+      HB_BUFFER_REPLACEMENT_CODEPOINT_DEFAULT);        // glyph index 0 is selected if the glyph for
+                                                       // the replacement codepoint is not found
   u32 const ellipsis_glyph = FT_Get_Char_Index(ft_face, 0x2026);
   u32 const space_glyph    = FT_Get_Char_Index(ft_face, ' ');
   f32 const ascent         = (ft_face->size->metrics.ascender / 64.0f) / spec.font_height;

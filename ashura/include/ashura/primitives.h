@@ -29,22 +29,18 @@ constexpr bool has_any_bit(T src, T cmp)
   return (src & cmp) != (T) 0;
 }
 
-using u8  = uint8_t;
-using u16 = uint16_t;
-using u32 = uint32_t;
-using u64 = uint64_t;
-
-using i8  = int8_t;
-using i16 = int16_t;
-using i32 = int32_t;
-using i64 = int64_t;
-
-using f32 = float;
-using f64 = double;
-
+using u8    = uint8_t;
+using u16   = uint16_t;
+using u32   = uint32_t;
+using u64   = uint64_t;
+using i8    = int8_t;
+using i16   = int16_t;
+using i32   = int32_t;
+using i64   = int64_t;
+using f32   = float;
+using f64   = double;
 using usize = size_t;
 using isize = ptrdiff_t;
-
 using uchar = unsigned char;
 using uint  = unsigned int;
 
@@ -104,18 +100,19 @@ constexpr T lerp(T const &a, T const &b, f32 t)
 // 	}
 
 /*
- *	Cubic Catmull-Rom Spline interpolation. Based on http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf
- *	Curves are guaranteed to pass through the control points and are easily chained together.
- *	Equation supports abitrary parameterization. eg. Uniform=0,1,2,3 ; chordal= |Pn - Pn-1| ; centripetal = |Pn - Pn-1|^0.5
- *	P0 - The control point preceding the interpolation range.
- *	P1 - The control point starting the interpolation range.
- *	P2 - The control point ending the interpolation range.
- *	P3 - The control point following the interpolation range.
- *	T0-3 - The interpolation parameters for the corresponding control points.
- *	T - The interpolation factor in the range 0 to 1. 0 returns P1. 1 returns P2.
+ *	Cubic Catmull-Rom Spline interpolation. Based on
+ *http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf Curves are guaranteed to pass
+ *through the control points and are easily chained together. Equation supports abitrary
+ *parameterization. eg. Uniform=0,1,2,3 ; chordal= |Pn - Pn-1| ; centripetal = |Pn - Pn-1|^0.5 P0 -
+ *The control point preceding the interpolation range. P1 - The control point starting the
+ *interpolation range. P2 - The control point ending the interpolation range. P3 - The control point
+ *following the interpolation range. T0-3 - The interpolation parameters for the corresponding
+ *control points. T - The interpolation factor in the range 0 to 1. 0 returns P1. 1 returns P2.
  */
 // template< class U >
-// UE_NODISCARD static constexpr FORCEINLINE_DEBUGGABLE U CubicCRSplineInterp(const U& P0, const U& P1, const U& P2, const U& P3, const float T0, const float T1, const float T2, const float T3, const float T)
+// UE_NODISCARD static constexpr FORCEINLINE_DEBUGGABLE U CubicCRSplineInterp(const U& P0, const U&
+// P1, const U& P2, const U& P3, const float T0, const float T1, const float T2, const float T3,
+// const float T)
 // {
 // 	//Based on http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf
 // 	float InvT1MinusT0 = 1.0f / (T1 - T0);
@@ -546,7 +543,8 @@ struct Box
   constexpr bool contains(Vec3 point) const
   {
     // TODO(lamarrr): fix
-    // return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
+    // return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x &&
+    // (offset.y + extent.y) >= point.y;
     return true;
   }
 
@@ -1255,15 +1253,15 @@ struct IRect
 /// Simple Layout Constraint Model
 struct Constraint
 {
-  f32 bias =
-      0;        /// adding or subtracting from the source size, i.e. value should be source size - 20px
+  f32 bias = 0;         /// adding or subtracting from the source size, i.e. value should be source
+                        /// size - 20px
   f32 scale = 0;        /// scales the source size, i.e. value should be 0.5 of source size
   f32 min   = stx::F32_MIN;        /// clamps the source size, i.e. value should be at least 20px
   f32 max   = stx::F32_MAX;        /// clamps the source size, i.e. value should be at most 100px
-  f32 minr =
-      0;        /// clamps the source size relatively. i.e. value should be at least 0.5 of source size
-  f32 maxr =
-      1;        /// clamps the source size relatively. i.e. value should be at most 0.5 of source size
+  f32 minr  = 0;        /// clamps the source size relatively. i.e. value should be at least 0.5 of
+                        /// source size
+  f32 maxr = 1;         /// clamps the source size relatively. i.e. value should be at most 0.5 of
+                        /// source size
 
   static constexpr Constraint relative(f32 scale)
   {

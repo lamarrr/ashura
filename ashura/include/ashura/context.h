@@ -50,8 +50,8 @@ struct Context
   FrameStats                   frame_stats;
   f32                          text_scale_factor = 1;
   Widget                      *root              = nullptr;
-  stx::Vec<KeyEvent>
-      key_events;        // These are more of key state polling than key event state change notifications
+  stx::Vec<KeyEvent> key_events;        // These are more of key state polling than key event state
+                                        // change notifications
 
   // TODO(lamarrr): expose current window here???
 

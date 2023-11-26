@@ -62,8 +62,9 @@ struct ComponentTable
 
   // capacity = count
   // indices of available slots
-  // freeing: destroy(data[i]); free_indices[nfree_indices] = i; freed_mask[i >> 6] ^= (i & 63); nfree_indices++;
-  // reclamation: i = free_indices[nfree_indices - 1]; freed_mask[i >> 6] ^= (i & 63); data[i] = component_data;  nfree_indices--;
+  // freeing: destroy(data[i]); free_indices[nfree_indices] = i; freed_mask[i >> 6] ^= (i & 63);
+  // nfree_indices++; reclamation: i = free_indices[nfree_indices - 1]; freed_mask[i >> 6] ^= (i &
+  // 63); data[i] = component_data;  nfree_indices--;
   u64 *free_indices = nullptr;
 
   // default state for the signals
@@ -88,8 +89,8 @@ struct Registry
   // maps entities to the indices of its components, U64_MAX if entity does not have a component
   // check entity has component: entity_component_map[component_id][entity_id] != U64_MAX;
   // get entity component: components[component_id][entity_component_map[component_id][entity_id]]
-  // check entity validity: (entity_id < nentities) && ((entity_free_mask[entity_id >> 6] >> (entity_id & 63)) & 1)
-  // free entity: free components && entity_free_mask[]
+  // check entity validity: (entity_id < nentities) && ((entity_free_mask[entity_id >> 6] >>
+  // (entity_id & 63)) & 1) free entity: free components && entity_free_mask[]
   u64 **entity_component_map = nullptr;
   u64  *entity_free_mask =
       nullptr;        // we don't want to waste indices and have to update indirections
@@ -103,7 +104,7 @@ struct Registry
 // batches may not be speci
 
 // entity/registry batches are somewhat useless?
-// disjoint-entity component batching are useful and what we need as some systems i.e. particle processing systems won't function properly without them
-// we can have reserves of components
+// disjoint-entity component batching are useful and what we need as some systems i.e. particle
+// processing systems won't function properly without them we can have reserves of components
 }        // namespace ecs
 }        // namespace ash

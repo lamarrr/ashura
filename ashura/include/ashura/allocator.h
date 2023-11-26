@@ -4,18 +4,42 @@
 
 namespace ash
 {
-typedef void *(*PFN_allocate)(void *data, usize size, usize alignment);
-typedef void *(*PFN_reallocate)(void *data, void *old, usize size, usize aligment);
-typedef void (*PFN_deallocate)(void *data, void *memory);
-typedef void (*PFN_release)(void *data);
+typedef struct Allocator_T       *Allocator;
+typedef struct AllocatorInterface AllocatorInterface;
+typedef struct AllocatorImpl      AllocatorImpl;
 
-struct AllocationCallbacks
+struct AllocatorInterface
 {
-  void          *data       = nullptr;
-  PFN_allocate   allocate   = nullptr;
-  PFN_reallocate reallocate = nullptr;
-  PFN_deallocate deallocate = nullptr;
-  PFN_release    release    = nullptr;
+  void *(*allocate)(Allocator self, usize size, usize alignment)              = nullptr;
+  void *(*reallocate)(Allocator self, void *old, usize size, usize alignment) = nullptr;
+  void (*deallocate)(Allocator self, void *memory)                            = nullptr;
+  void (*release)(Allocator self)                                             = nullptr;
+};
+
+struct AllocatorImpl
+{
+  Allocator                 self      = nullptr;
+  AllocatorInterface const *interface = nullptr;
+
+  [[nodiscard]] void *allocate(usize size, usize alignment) const
+  {
+    return interface->allocate(self, size, alignment);
+  }
+
+  [[nodiscard]] void *reallocate(void *old, usize size, usize alignment) const
+  {
+    return interface->reallocate(self, old, size, alignment);
+  }
+
+  void deallocate(void *memory) const
+  {
+    return interface->deallocate(self, memory);
+  }
+
+  void release()
+  {
+    return interface->release(self);
+  }
 };
 
 }        // namespace ash

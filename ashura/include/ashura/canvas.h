@@ -306,7 +306,8 @@ inline void add_line_stroke(Vec2 p0, Vec2 p1, f32 thickness, Vec4 color, stx::Ve
   out.extend(vertices).unwrap();
 }
 
-// line joint is a bevel joint, it is the most efficient since it re-uses existing vertices and doesn't require generating new vertices
+// line joint is a bevel joint, it is the most efficient since it re-uses existing vertices and
+// doesn't require generating new vertices
 inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness,
                              stx::Vec<Vertex2d> &out_vertices, stx::Vec<u32> &out_indices,
                              bool should_close)
@@ -388,10 +389,10 @@ struct DrawCommand
       0;        /// number of vertices for this draw call. offset is automatically determined
   u32 nindices =
       0;        /// number of indices for this draw call. offset is automatically determined
-  u32 first_instance = 0;        /// first instance used for instanced rendering
-  u32 ninstances     = 1;        /// number of instances used for instanced rendering
-  Rect
-      scissor;        /// determines visible area of the rendering operation, in framebuffer coordinates (0, 0) -> viewport_extent
+  u32  first_instance = 0;        /// first instance used for instanced rendering
+  u32  ninstances     = 1;        /// number of instances used for instanced rendering
+  Rect scissor;        /// determines visible area of the rendering operation, in framebuffer
+                       /// coordinates (0, 0) -> viewport_extent
   image textures[NIMAGES_PER_DRAWCALL] =
       {};        /// textures bounded to each descriptor set, 8-max
   u8 push_constant[PUSH_CONSTANT_SIZE] =
@@ -425,21 +426,23 @@ struct CanvasState
 {
   Mat3
       local_transform;        // local object transform, applies to local coordinates of the objects
-  Mat3
-      global_transform;        // global scene transform, applies to the global coordinate of the objects
+  Mat3 global_transform;        // global scene transform, applies to the global coordinate of the
+                                // objects
   Rect scissor;
 };
 
 /// Coordinates are specified in top-left origin absolute pixel coordinates with x pointing to the
 /// right and y pointing downwards (i.e. {0, 0} being top left and {x, y} being bottom right),
-/// the transform matrix transforms the vertices to a Vulkan Coordinate System (i.e. {-1, -1} top left and {1, 1} bottom right).
+/// the transform matrix transforms the vertices to a Vulkan Coordinate System (i.e. {-1, -1} top
+/// left and {1, 1} bottom right).
 ///
 /// LIMITATIONS:
 /// - each draw call must not have more than 2^32 vertices and indices, otherwise split them up
 /// - the canvas must not have more than 2^32 draw calls
 ///
 /// NOTES:
-/// - some graphics frameworks, i.e. vulkan only allow u32 indices so we have to split up the draw calls across multiple draw list batches
+/// - some graphics frameworks, i.e. vulkan only allow u32 indices so we have to split up the draw
+/// calls across multiple draw list batches
 /// - the canvas doesn't manage the lifetime of the handed over resources or images
 ///
 struct Canvas
@@ -448,8 +451,8 @@ struct Canvas
   CanvasState           state;
   stx::Vec<CanvasState> state_stack;
   DrawList              draw_list;
-  stx::Vec<Vertex2d>
-      scratch;        // scratch/temporary buffer for storing generating vertices before storing in the draw list
+  stx::Vec<Vertex2d>    scratch;        // scratch/temporary buffer for storing generating vertices
+                                        // before storing in the draw list
 
   bool viewport_contains(Rect area) const
   {

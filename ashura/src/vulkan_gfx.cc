@@ -7,32 +7,12 @@ namespace ash
 namespace vk
 {
 
-#define VK_ERR(expr)                         \
-  do                                         \
-  {                                          \
-    VkResult result = (expr);                \
-    if (result != VK_SUCCESS)                \
-      return stx::Err((gfx::Status) result); \
-  } while (0)
-
-#define RETURN_IF_ERR(...)              \
-  do                                    \
-  {                                     \
-    status = __VA_ARGS__;               \
-    if (status != gfx::Status::Success) \
-    {                                   \
-      return;                           \
-    }                                   \
-  } while (false)
-
 // todo(lamarrr): define macros for checks, use debug name
 
-#define ALLOC_NUM(allocator, type, num) \
-  (type *) allocator.allocate(allocator.data, (usize) sizeof(type) * num, alignof(type))
+#define ALLOC_N(allocator, type, num) \
+  (type *) (allocator).allocate((usize) sizeof(type) * (num), alignof(type))
 
-#define ALLOC_ARRAY(allocator, type, num)
-#define ALLOC_OBJECT(allocator, type)
-#define ALLOC_OBJECTS(allocator, type, num)
+#define ALLOC_OBJECT(allocator, type) (type *) (allocator).allocate(sizeof(type), alignof(type))
 
 VkResult DebugMarkerSetObjectTagEXT_Stub(VkDevice, const VkDebugMarkerObjectTagInfoEXT *)
 {
@@ -56,168 +36,168 @@ void CmdDebugMarkerInsertEXT_Stub(VkCommandBuffer, const VkDebugMarkerMarkerInfo
 {
 }
 
-bool load_device_table(VkDevice device, DeviceTable &table)
+bool load_device_table(VkDevice device, DeviceTable &vk_table, VmaVulkanFunctions &vma_table)
 {
   bool all_loaded = true;
 
-#define ASH_VK_LOAD(function)                                                      \
-  table.function = (PFN_vk##function) vkGetDeviceProcAddr(device, "vk" #function); \
-  all_loaded     = all_loaded && (table.function != nullptr)
+#define LOAD_VK(function)                                                             \
+  vk_table.function = (PFN_vk##function) vkGetDeviceProcAddr(device, "vk" #function); \
+  all_loaded        = all_loaded && (vk_table.function != nullptr)
 
   // DEVICE OBJECT FUNCTIONS
-  ASH_VK_LOAD(AllocateCommandBuffers);
-  ASH_VK_LOAD(AllocateDescriptorSets);
-  ASH_VK_LOAD(AllocateMemory);
-  ASH_VK_LOAD(BindBufferMemory);
-  ASH_VK_LOAD(BindImageMemory);
-  ASH_VK_LOAD(CreateBuffer);
-  ASH_VK_LOAD(CreateBufferView);
-  ASH_VK_LOAD(CreateCommandPool);
-  ASH_VK_LOAD(CreateComputePipelines);
-  ASH_VK_LOAD(CreateDescriptorPool);
-  ASH_VK_LOAD(CreateDescriptorSetLayout);
-  ASH_VK_LOAD(CreateDevice);
-  ASH_VK_LOAD(CreateEvent);
-  ASH_VK_LOAD(CreateFence);
-  ASH_VK_LOAD(CreateFramebuffer);
-  ASH_VK_LOAD(CreateGraphicsPipelines);
-  ASH_VK_LOAD(CreateImage);
-  ASH_VK_LOAD(CreateImageView);
-  ASH_VK_LOAD(CreatePipelineCache);
-  ASH_VK_LOAD(CreatePipelineLayout);
-  ASH_VK_LOAD(CreateQueryPool);
-  ASH_VK_LOAD(CreateRenderPass);
-  ASH_VK_LOAD(CreateSampler);
-  ASH_VK_LOAD(CreateSemaphore);
-  ASH_VK_LOAD(CreateShaderModule);
-  ASH_VK_LOAD(DestroyBuffer);
-  ASH_VK_LOAD(DestroyBufferView);
-  ASH_VK_LOAD(DestroyCommandPool);
-  ASH_VK_LOAD(DestroyDescriptorPool);
-  ASH_VK_LOAD(DestroyDescriptorSetLayout);
-  ASH_VK_LOAD(DestroyDevice);
-  ASH_VK_LOAD(DestroyEvent);
-  ASH_VK_LOAD(DestroyFence);
-  ASH_VK_LOAD(DestroyFramebuffer);
-  ASH_VK_LOAD(DestroyImage);
-  ASH_VK_LOAD(DestroyImageView);
-  ASH_VK_LOAD(DestroyPipeline);
-  ASH_VK_LOAD(DestroyPipelineCache);
-  ASH_VK_LOAD(DestroyPipelineLayout);
-  ASH_VK_LOAD(DestroyQueryPool);
-  ASH_VK_LOAD(DestroyRenderPass);
-  ASH_VK_LOAD(DestroySampler);
-  ASH_VK_LOAD(DestroySemaphore);
-  ASH_VK_LOAD(DestroyShaderModule);
-  ASH_VK_LOAD(DeviceWaitIdle);
-  ASH_VK_LOAD(FlushMappedMemoryRanges);
-  ASH_VK_LOAD(FreeCommandBuffers);
-  ASH_VK_LOAD(FreeDescriptorSets);
-  ASH_VK_LOAD(FreeMemory);
-  ASH_VK_LOAD(GetBufferMemoryRequirements);
-  ASH_VK_LOAD(GetDeviceMemoryCommitment);
-  ASH_VK_LOAD(GetDeviceQueue);
-  ASH_VK_LOAD(GetEventStatus);
-  ASH_VK_LOAD(GetFenceStatus);
-  ASH_VK_LOAD(GetImageMemoryRequirements);
-  ASH_VK_LOAD(GetImageSubresourceLayout);
-  ASH_VK_LOAD(GetPipelineCacheData);
-  ASH_VK_LOAD(GetQueryPoolResults);
-  ASH_VK_LOAD(InvalidateMappedMemoryRanges);
-  ASH_VK_LOAD(MapMemory);
-  ASH_VK_LOAD(MergePipelineCaches);
-  ASH_VK_LOAD(ResetCommandPool);
-  ASH_VK_LOAD(ResetDescriptorPool);
-  ASH_VK_LOAD(ResetEvent);
-  ASH_VK_LOAD(ResetFences);
-  ASH_VK_LOAD(SetEvent);
-  ASH_VK_LOAD(UpdateDescriptorSets);
-  ASH_VK_LOAD(UnmapMemory);
-  ASH_VK_LOAD(WaitForFences);
+  LOAD_VK(AllocateCommandBuffers);
+  LOAD_VK(AllocateDescriptorSets);
+  LOAD_VK(AllocateMemory);
+  LOAD_VK(BindBufferMemory);
+  LOAD_VK(BindImageMemory);
+  LOAD_VK(CreateBuffer);
+  LOAD_VK(CreateBufferView);
+  LOAD_VK(CreateCommandPool);
+  LOAD_VK(CreateComputePipelines);
+  LOAD_VK(CreateDescriptorPool);
+  LOAD_VK(CreateDescriptorSetLayout);
+  LOAD_VK(CreateDevice);
+  LOAD_VK(CreateEvent);
+  LOAD_VK(CreateFence);
+  LOAD_VK(CreateFramebuffer);
+  LOAD_VK(CreateGraphicsPipelines);
+  LOAD_VK(CreateImage);
+  LOAD_VK(CreateImageView);
+  LOAD_VK(CreatePipelineCache);
+  LOAD_VK(CreatePipelineLayout);
+  LOAD_VK(CreateQueryPool);
+  LOAD_VK(CreateRenderPass);
+  LOAD_VK(CreateSampler);
+  LOAD_VK(CreateSemaphore);
+  LOAD_VK(CreateShaderModule);
+  LOAD_VK(DestroyBuffer);
+  LOAD_VK(DestroyBufferView);
+  LOAD_VK(DestroyCommandPool);
+  LOAD_VK(DestroyDescriptorPool);
+  LOAD_VK(DestroyDescriptorSetLayout);
+  LOAD_VK(DestroyDevice);
+  LOAD_VK(DestroyEvent);
+  LOAD_VK(DestroyFence);
+  LOAD_VK(DestroyFramebuffer);
+  LOAD_VK(DestroyImage);
+  LOAD_VK(DestroyImageView);
+  LOAD_VK(DestroyPipeline);
+  LOAD_VK(DestroyPipelineCache);
+  LOAD_VK(DestroyPipelineLayout);
+  LOAD_VK(DestroyQueryPool);
+  LOAD_VK(DestroyRenderPass);
+  LOAD_VK(DestroySampler);
+  LOAD_VK(DestroySemaphore);
+  LOAD_VK(DestroyShaderModule);
+  LOAD_VK(DeviceWaitIdle);
+  LOAD_VK(FlushMappedMemoryRanges);
+  LOAD_VK(FreeCommandBuffers);
+  LOAD_VK(FreeDescriptorSets);
+  LOAD_VK(FreeMemory);
+  LOAD_VK(GetBufferMemoryRequirements);
+  LOAD_VK(GetDeviceMemoryCommitment);
+  LOAD_VK(GetDeviceQueue);
+  LOAD_VK(GetEventStatus);
+  LOAD_VK(GetFenceStatus);
+  LOAD_VK(GetImageMemoryRequirements);
+  LOAD_VK(GetImageSubresourceLayout);
+  LOAD_VK(GetPipelineCacheData);
+  LOAD_VK(GetQueryPoolResults);
+  LOAD_VK(InvalidateMappedMemoryRanges);
+  LOAD_VK(MapMemory);
+  LOAD_VK(MergePipelineCaches);
+  LOAD_VK(ResetCommandPool);
+  LOAD_VK(ResetDescriptorPool);
+  LOAD_VK(ResetEvent);
+  LOAD_VK(ResetFences);
+  LOAD_VK(SetEvent);
+  LOAD_VK(UpdateDescriptorSets);
+  LOAD_VK(UnmapMemory);
+  LOAD_VK(WaitForFences);
 
-  ASH_VK_LOAD(QueueSubmit);
-  ASH_VK_LOAD(QueueWaitIdle);
+  LOAD_VK(QueueSubmit);
+  LOAD_VK(QueueWaitIdle);
 
   // COMMAND BUFFER OBJECT FUNCTIONS
-  ASH_VK_LOAD(BeginCommandBuffer);
-  ASH_VK_LOAD(CmdBeginQuery);
-  ASH_VK_LOAD(CmdBeginRenderPass);
-  ASH_VK_LOAD(CmdBindDescriptorSets);
-  ASH_VK_LOAD(CmdBindIndexBuffer);
-  ASH_VK_LOAD(CmdBindPipeline);
-  ASH_VK_LOAD(CmdBindVertexBuffers);
-  ASH_VK_LOAD(CmdBlitImage);
-  ASH_VK_LOAD(CmdClearAttachments);
-  ASH_VK_LOAD(CmdClearColorImage);
-  ASH_VK_LOAD(CmdClearDepthStencilImage);
-  ASH_VK_LOAD(CmdCopyBuffer);
-  ASH_VK_LOAD(CmdCopyBufferToImage);
-  ASH_VK_LOAD(CmdCopyImage);
-  ASH_VK_LOAD(CmdCopyImageToBuffer);
-  ASH_VK_LOAD(CmdCopyQueryPoolResults);
-  ASH_VK_LOAD(CmdDispatch);
-  ASH_VK_LOAD(CmdDispatchIndirect);
-  ASH_VK_LOAD(CmdDraw);
-  ASH_VK_LOAD(CmdDrawIndexed);
-  ASH_VK_LOAD(CmdDrawIndexedIndirect);
-  ASH_VK_LOAD(CmdDrawIndirect);
-  ASH_VK_LOAD(CmdEndQuery);
-  ASH_VK_LOAD(CmdEndRenderPass);
-  ASH_VK_LOAD(CmdFillBuffer);
-  ASH_VK_LOAD(CmdNextSubpass);
-  ASH_VK_LOAD(CmdPipelineBarrier);
-  ASH_VK_LOAD(CmdPushConstants);
-  ASH_VK_LOAD(CmdResetEvent);
-  ASH_VK_LOAD(CmdResetQueryPool);
-  ASH_VK_LOAD(CmdResolveImage);
-  ASH_VK_LOAD(CmdSetBlendConstants);
-  ASH_VK_LOAD(CmdSetDepthBias);
-  ASH_VK_LOAD(CmdSetDepthBounds);
-  ASH_VK_LOAD(CmdSetEvent);
-  ASH_VK_LOAD(CmdSetLineWidth);
-  ASH_VK_LOAD(CmdSetScissor);
-  ASH_VK_LOAD(CmdSetStencilCompareMask);
-  ASH_VK_LOAD(CmdSetStencilReference);
-  ASH_VK_LOAD(CmdSetStencilWriteMask);
-  ASH_VK_LOAD(CmdSetViewport);
-  ASH_VK_LOAD(CmdUpdateBuffer);
-  ASH_VK_LOAD(CmdWaitEvents);
-  ASH_VK_LOAD(CmdWriteTimestamp);
-  ASH_VK_LOAD(EndCommandBuffer);
-  ASH_VK_LOAD(ResetCommandBuffer);
-#undef ASH_VK_LOAD
+  LOAD_VK(BeginCommandBuffer);
+  LOAD_VK(CmdBeginQuery);
+  LOAD_VK(CmdBeginRenderPass);
+  LOAD_VK(CmdBindDescriptorSets);
+  LOAD_VK(CmdBindIndexBuffer);
+  LOAD_VK(CmdBindPipeline);
+  LOAD_VK(CmdBindVertexBuffers);
+  LOAD_VK(CmdBlitImage);
+  LOAD_VK(CmdClearAttachments);
+  LOAD_VK(CmdClearColorImage);
+  LOAD_VK(CmdClearDepthStencilImage);
+  LOAD_VK(CmdCopyBuffer);
+  LOAD_VK(CmdCopyBufferToImage);
+  LOAD_VK(CmdCopyImage);
+  LOAD_VK(CmdCopyImageToBuffer);
+  LOAD_VK(CmdCopyQueryPoolResults);
+  LOAD_VK(CmdDispatch);
+  LOAD_VK(CmdDispatchIndirect);
+  LOAD_VK(CmdDraw);
+  LOAD_VK(CmdDrawIndexed);
+  LOAD_VK(CmdDrawIndexedIndirect);
+  LOAD_VK(CmdDrawIndirect);
+  LOAD_VK(CmdEndQuery);
+  LOAD_VK(CmdEndRenderPass);
+  LOAD_VK(CmdFillBuffer);
+  LOAD_VK(CmdNextSubpass);
+  LOAD_VK(CmdPipelineBarrier);
+  LOAD_VK(CmdPushConstants);
+  LOAD_VK(CmdResetEvent);
+  LOAD_VK(CmdResetQueryPool);
+  LOAD_VK(CmdResolveImage);
+  LOAD_VK(CmdSetBlendConstants);
+  LOAD_VK(CmdSetDepthBias);
+  LOAD_VK(CmdSetDepthBounds);
+  LOAD_VK(CmdSetEvent);
+  LOAD_VK(CmdSetLineWidth);
+  LOAD_VK(CmdSetScissor);
+  LOAD_VK(CmdSetStencilCompareMask);
+  LOAD_VK(CmdSetStencilReference);
+  LOAD_VK(CmdSetStencilWriteMask);
+  LOAD_VK(CmdSetViewport);
+  LOAD_VK(CmdUpdateBuffer);
+  LOAD_VK(CmdWaitEvents);
+  LOAD_VK(CmdWriteTimestamp);
+  LOAD_VK(EndCommandBuffer);
+  LOAD_VK(ResetCommandBuffer);
+#undef LOAD_VK
 
-#define ASH_VKEXT_LOAD(function)                                                   \
-  table.function = (PFN_vk##function) vkGetDeviceProcAddr(device, "vk" #function); \
-  table.function = (table.function != nullptr) ? table.function : function##_Stub;
+#define LOAD_VKEXT(function)                                                          \
+  vk_table.function = (PFN_vk##function) vkGetDeviceProcAddr(device, "vk" #function); \
+  vk_table.function = (vk_table.function != nullptr) ? vk_table.function : function##_Stub;
 
-  ASH_VKEXT_LOAD(DebugMarkerSetObjectTagEXT);
-  ASH_VKEXT_LOAD(DebugMarkerSetObjectNameEXT);
+  LOAD_VKEXT(DebugMarkerSetObjectTagEXT);
+  LOAD_VKEXT(DebugMarkerSetObjectNameEXT);
 
-  ASH_VKEXT_LOAD(CmdDebugMarkerBeginEXT);
-  ASH_VKEXT_LOAD(CmdDebugMarkerEndEXT);
-  ASH_VKEXT_LOAD(CmdDebugMarkerInsertEXT);
+  LOAD_VKEXT(CmdDebugMarkerBeginEXT);
+  LOAD_VKEXT(CmdDebugMarkerEndEXT);
+  LOAD_VKEXT(CmdDebugMarkerInsertEXT);
 
-#undef ASH_VKEXT_LOAD
+#undef LOAD_VKEXT
 
-#define ASH_VMA_SET(function) table.vma_functions.vk##function = table.function
+#define SET_VMA(function) vma_table.vk##function = vk_table.function
+  // TODO(lamarrr): phy dev functions
+  SET_VMA(AllocateMemory);
+  SET_VMA(FreeMemory);
+  SET_VMA(UnmapMemory);
+  SET_VMA(FlushMappedMemoryRanges);
+  SET_VMA(InvalidateMappedMemoryRanges);
+  SET_VMA(BindBufferMemory);
+  SET_VMA(BindImageMemory);
+  SET_VMA(GetBufferMemoryRequirements);
+  SET_VMA(GetImageMemoryRequirements);
+  SET_VMA(CreateBuffer);
+  SET_VMA(DestroyBuffer);
+  SET_VMA(CreateImage);
+  SET_VMA(DestroyImage);
+  SET_VMA(CmdCopyBuffer);
 
-  ASH_VMA_SET(AllocateMemory);
-  ASH_VMA_SET(FreeMemory);
-  ASH_VMA_SET(UnmapMemory);
-  ASH_VMA_SET(FlushMappedMemoryRanges);
-  ASH_VMA_SET(InvalidateMappedMemoryRanges);
-  ASH_VMA_SET(BindBufferMemory);
-  ASH_VMA_SET(BindImageMemory);
-  ASH_VMA_SET(GetBufferMemoryRequirements);
-  ASH_VMA_SET(GetImageMemoryRequirements);
-  ASH_VMA_SET(CreateBuffer);
-  ASH_VMA_SET(DestroyBuffer);
-  ASH_VMA_SET(CreateImage);
-  ASH_VMA_SET(DestroyImage);
-  ASH_VMA_SET(CmdCopyBuffer);
-
-#undef ASH_VMA_SET
+#undef SET_VMA
 
   return all_loaded;
 }
@@ -435,8 +415,8 @@ bool sync(BufferState &state, BufferAccess request, VkBufferMemoryBarrier &barri
 // layout transitions are considered write operations even if only a read happens so multiple ones
 // can't happen at the same time
 //
-// we'll kind of be waiting on a barrier operation which doesn't make sense cos the barrier might have already taken care of us
-// even when they both only perform reads
+// we'll kind of be waiting on a barrier operation which doesn't make sense cos the barrier might
+// have already taken care of us even when they both only perform reads
 //
 // if their scopes don't line-up, they won't observe the effects same
 
@@ -570,7 +550,8 @@ bool sync(ImageState &state, ImageAccess request, VkImageMemoryBarrier &barrier,
         // no need to wait on other reads since we are only performing a read
         // mask all subsequent reads so next writer knows to wait on all reads to complete
         //
-        // if stage and access intersects previous barrier, no need to add new one as we'll observe the effect
+        // if stage and access intersects previous barrier, no need to add new one as we'll observe
+        // the effect
         state.sequence = AccessSequence::ReadAfterWrite;
 
         if (has_any_bit(state.access[1].stages, request.stages) &&
@@ -596,26 +577,29 @@ bool sync(ImageState &state, ImageAccess request, VkImageMemoryBarrier &barrier,
   }
 }
 
-stx::Result<gfx::FormatProperties, gfx::Status>
-    DeviceImpl::get_format_properties(gfx::Format format)
+Result<gfx::FormatProperties, gfx::Status>
+    DeviceInterface::get_format_properties(gfx::Device self, gfx::Format format)
 {
+  Device            *impl = (Device *) self;
   VkFormatProperties props;
-  vkGetPhysicalDeviceFormatProperties(vk_phy_device, (VkFormat) format, &props);
+  // TODOD(Lamarrr): fix
+  vkGetPhysicalDeviceFormatProperties(impl->vk_phy_device, (VkFormat) format, &props);
   return stx::Ok(gfx::FormatProperties{
       .linear_tiling_features  = (gfx::FormatFeatures) props.linearTilingFeatures,
       .optimal_tiling_features = (gfx::FormatFeatures) props.optimalTilingFeatures,
       .buffer_features         = (gfx::FormatFeatures) props.bufferFeatures});
 }
 
-stx::Result<gfx::Buffer, gfx::Status> DeviceImpl::create_buffer(gfx::BufferDesc const &desc)
+Result<gfx::Buffer, gfx::Status> DeviceInterface::create_buffer(gfx::Device            self,
+                                                                gfx::BufferDesc const &desc)
 {
   // check size
-
+  Device                 *impl = (Device *) self;
   VkBufferCreateInfo      create_info{.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                       .pNext                 = nullptr,
                                       .flags                 = 0,
                                       .size                  = desc.size,
-                                      .usage                 = to_vkUsage(desc.usage),
+                                      .usage                 = (VkBufferUsageFlags) desc.usage,
                                       .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
                                       .queueFamilyIndexCount = 1,
                                       .pQueueFamilyIndices   = nullptr};
@@ -631,14 +615,21 @@ stx::Result<gfx::Buffer, gfx::Status> DeviceImpl::create_buffer(gfx::BufferDesc 
   VmaAllocationInfo       vma_allocation_info;
   VmaAllocation           vma_allocation;
   VkBuffer                vk_buffer;
-  VK_ERR(vmaCreateBuffer(vma_allocator, &create_info, &alloc_create_info, &vk_buffer,
-                         &vma_allocation, &vma_allocation_info));
+  VkResult result = vmaCreateBuffer(impl->vma_allocator, &create_info, &alloc_create_info,
+                                    &vk_buffer, &vma_allocation, &vma_allocation_info);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
 
   void *host_map = nullptr;
-  if (has_bits(desc.properties, gfx::MemoryProperties::HostVisible))
+  if (has_any_bit(desc.properties, gfx::MemoryProperties::HostVisible |
+                                       gfx::MemoryProperties::HostCoherent |
+                                       gfx::MemoryProperties::HostCached))
   {
-    VK_ERR(vk_table.MapMemory(vk_device, vma_allocation_info.deviceMemory, 0, VK_WHOLE_SIZE, 0,
-                              &host_map));
+    result = impl->vk_table.MapMemory(impl->vk_device, vma_allocation_info.deviceMemory, 0,
+                                      VK_WHOLE_SIZE, 0, &host_map);
+    // TODO(lamarrr): check result
   }
 
   if (desc.label != nullptr)
@@ -649,13 +640,13 @@ stx::Result<gfx::Buffer, gfx::Status> DeviceImpl::create_buffer(gfx::BufferDesc 
         .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT,
         .object      = (u64) vk_buffer,
         .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
   }
 
-  Buffer *buffer = ALLOC_NUM(allocator, Buffer, 1);
+  Buffer *buffer = ALLOC_OBJECT(impl->allocator, Buffer);
   if (buffer == nullptr)
   {
-    vmaDestroyBuffer(vma_allocator, vk_buffer, vma_allocation);
+    vmaDestroyBuffer(impl->vma_allocator, vk_buffer, vma_allocation);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
@@ -669,10 +660,11 @@ stx::Result<gfx::Buffer, gfx::Status> DeviceImpl::create_buffer(gfx::BufferDesc 
   return stx::Ok((gfx::Buffer) buffer);
 }
 
-stx::Result<gfx::BufferView, gfx::Status>
-    DeviceImpl::create_buffer_view(gfx::BufferViewDesc const &desc)
+Result<gfx::BufferView, gfx::Status>
+    DeviceInterface::create_buffer_view(gfx::Device self, gfx::BufferViewDesc const &desc)
 {
   // check range
+  Device                *impl = (Device *) self;
   VkBufferViewCreateInfo create_info{.sType  = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
                                      .pNext  = nullptr,
                                      .flags  = 0,
@@ -683,7 +675,12 @@ stx::Result<gfx::BufferView, gfx::Status>
 
   VkBufferView vk_view;
 
-  VK_ERR(vk_table.CreateBufferView(vk_device, &create_info, nullptr, &vk_view));
+  VkResult result =
+      impl->vk_table.CreateBufferView(impl->vk_device, &create_info, nullptr, &vk_view);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
 
   if (desc.label != nullptr)
   {
@@ -693,14 +690,14 @@ stx::Result<gfx::BufferView, gfx::Status>
         .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_VIEW_EXT,
         .object      = (u64) vk_view,
         .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
   }
 
-  BufferView *view = ALLOC_NUM(allocator, BufferView, 1);
+  BufferView *view = ALLOC_OBJECT(impl->allocator, BufferView);
 
   if (view == nullptr)
   {
-    vk_table.DestroyBufferView(vk_device, vk_view, nullptr);
+    impl->vk_table.DestroyBufferView(impl->vk_device, vk_view, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
@@ -709,169 +706,77 @@ stx::Result<gfx::BufferView, gfx::Status>
   return stx::Ok((gfx::BufferView) view);
 }
 
-#define CREATE_IMAGE_PRELUDE()                                                                    \
-  gfx::ImageDesc desc{old_desc};                                                                  \
-  desc.usage |= gfx::ImageUsage::TransferDst;                                                     \
-                                                                                                  \
-  VkImageCreateInfo create_info{.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,     \
-                                .pNext                 = nullptr,                                 \
-                                .flags                 = 0,                                       \
-                                .imageType             = (VkImageType) desc.type,                 \
-                                .format                = (VkFormat) desc.format,                  \
-                                .extent                = VkExtent3D{.width  = desc.extent.width,  \
-                                                                    .height = desc.extent.height, \
-                                                                    .depth  = desc.extent.depth},  \
-                                .mipLevels             = desc.mip_levels,                         \
-                                .arrayLayers           = desc.array_layers,                       \
-                                .samples               = VK_SAMPLE_COUNT_1_BIT,                   \
-                                .tiling                = VK_IMAGE_TILING_OPTIMAL,                 \
-                                .usage                 = to_vkUsage(desc.usage),                  \
-                                .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,               \
-                                .queueFamilyIndexCount = 0,                                       \
-                                .pQueueFamilyIndices   = nullptr,                                 \
-                                .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED};                      \
-                                                                                                  \
-  VkImage                 vk_image;                                                               \
-  VmaAllocation           vma_allocation;                                                         \
-  VmaAllocationInfo       vma_allocation_info;                                                    \
-  VmaAllocationCreateInfo vma_allocation_create_info = {.usage = VMA_MEMORY_USAGE_GPU_ONLY};      \
-  VK_ERR(vmaCreateImage(vma_allocator, &create_info, &vma_allocation_create_info, &vk_image,      \
-                        &vma_allocation, &vma_allocation_info));                                  \
-                                                                                                  \
-  if (desc.label != nullptr)                                                                      \
-  {                                                                                               \
-    VkDebugMarkerObjectNameInfoEXT debug_info{                                                    \
-        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,                       \
-        .pNext       = nullptr,                                                                   \
-        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,                                     \
-        .object      = (u64) vk_image,                                                            \
-        .pObjectName = desc.label};                                                               \
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);                                 \
-  }                                                                                               \
-                                                                                                  \
-  ImageScope scope = transfer_image_scope(desc.usage);                                            \
-                                                                                                  \
-  VkImageSubresourceRange range{.aspectMask     = (VkImageAspectFlags) desc.aspects,              \
-                                .baseMipLevel   = 0,                                              \
-                                .levelCount     = VK_REMAINING_MIP_LEVELS,                        \
-                                .baseArrayLayer = 0,                                              \
-                                .layerCount     = VK_REMAINING_ARRAY_LAYERS};                         \
-                                                                                                  \
-  VkImageMemoryBarrier barrier{.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,     \
-                               .pNext               = nullptr,                                    \
-                               .srcAccessMask       = VK_ACCESS_NONE,                             \
-                               .dstAccessMask       = scope.access,                               \
-                               .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,                  \
-                               .newLayout           = scope.layout,                               \
-                               .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,                    \
-                               .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,                    \
-                               .image               = vk_image,                                   \
-                               .subresourceRange    = range};                                        \
-                                                                                                  \
-  Image *image = ALLOC_NUM(allocator, Image, 1);                                                  \
-                                                                                                  \
-  if (image == nullptr)                                                                           \
-  {                                                                                               \
-    vmaDestroyImage(vma_allocator, vk_image, vma_allocation);                                     \
-    return stx::Err(gfx::Status::OutOfHostMemory);                                                \
-  }                                                                                               \
-                                                                                                  \
-  new (image) Image{.refcount            = 1,                                                     \
-                    .desc                = desc,                                                  \
-                    .is_weak             = false,                                                 \
-                    .vk_image            = vk_image,                                              \
-                    .vma_allocation      = vma_allocation,                                        \
-                    .vma_allocation_info = vma_allocation_info};                                  \
-                                                                                                  \
-  VkCommandBuffer vk_command_buffer =                                                             \
-      ((CommandEncoderImpl *) command_encoder.to_impl())->vk_command_buffer;                      \
-  vk_table.CmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, scope.access, \
-                              VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0, nullptr, 1, &barrier);
-
-stx::Result<gfx::Image, gfx::Status> DeviceImpl::create_image(gfx::ImageDesc const &old_desc,
-                                                              gfx::Color            initial_color,
-                                                              gfx::CommandEncoder  &command_encoder)
+Result<gfx::Image, gfx::Status> DeviceInterface::create_image(gfx::Device           self,
+                                                              gfx::ImageDesc const &desc)
 {
   // check size
   // check aspects
   // check format support against usage
-  CREATE_IMAGE_PRELUDE();
+  Device           *impl = (Device *) self;
+  VkImageCreateInfo create_info{.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                                .pNext                 = nullptr,
+                                .flags                 = 0,
+                                .imageType             = (VkImageType) desc.type,
+                                .format                = (VkFormat) desc.format,
+                                .extent                = VkExtent3D{.width  = desc.extent.width,
+                                                                    .height = desc.extent.height,
+                                                                    .depth  = desc.extent.depth},
+                                .mipLevels             = desc.mip_levels,
+                                .arrayLayers           = desc.array_layers,
+                                .samples               = VK_SAMPLE_COUNT_1_BIT,
+                                .tiling                = VK_IMAGE_TILING_OPTIMAL,
+                                .usage                 = (VkImageUsageFlags) desc.usage,
+                                .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+                                .queueFamilyIndexCount = 0,
+                                .pQueueFamilyIndices   = nullptr,
+                                .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED};
 
-  vk_table.CmdClearColorImage(vk_command_buffer, vk_image, scope.layout,
-                              (VkClearColorValue *) &initial_color, 1, &range);
-
-  sync_release_image(vk_table, vk_command_buffer, vk_image, desc.usage, scope,
-                     (VkImageAspectFlags) desc.aspects);
-
-  return stx::Ok((gfx::Image) image);
-}
-
-stx::Result<gfx::Image, gfx::Status>
-    DeviceImpl::create_image(gfx::ImageDesc const &old_desc,
-                             gfx::DepthStencil     initial_depth_stencil,
-                             gfx::CommandEncoder  &command_encoder)
-{
-  CREATE_IMAGE_PRELUDE();
-
-  vk_table.CmdClearDepthStencilImage(vk_command_buffer, vk_image, scope.layout,
-                                     (VkClearDepthStencilValue *) &initial_depth_stencil, 1,
-                                     &range);
-
-  sync_release_image(vk_table, vk_command_buffer, vk_image, desc.usage, scope,
-                     (VkImageAspectFlags) desc.aspects);
-
-  return stx::Ok((gfx::Image) image);
-}
-
-stx::Result<gfx::Image, gfx::Status>
-    DeviceImpl::create_image(gfx::ImageDesc const &old_desc, gfx::Buffer initial_data,
-                             stx::Span<gfx::BufferImageCopy const> copies,
-                             gfx::CommandEncoder                  &command_encoder)
-{
-  CREATE_IMAGE_PRELUDE();
-
-  VkBufferImageCopy *vk_copies = ALLOC_NUM(allocator, VkBufferImageCopy, (u32) copies.size());
-
-  if (vk_copies == nullptr)
+  VkImage                 vk_image;
+  VmaAllocation           vma_allocation;
+  VmaAllocationInfo       vma_allocation_info;
+  VmaAllocationCreateInfo vma_allocation_create_info = {.usage = VMA_MEMORY_USAGE_GPU_ONLY};
+  VkResult result = vmaCreateImage(impl->vma_allocator, &create_info, &vma_allocation_create_info,
+                                   &vk_image, &vma_allocation, &vma_allocation_info);
+  if (result != VK_SUCCESS)
   {
-    vmaDestroyImage(vma_allocator, vk_image, vma_allocation);
+    return stx::Err((gfx::Status) result);
+  }
+
+  if (desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+        .object      = (u64) vk_image,
+        .pObjectName = desc.label};
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
+  }
+
+  Image *image = ALLOC_OBJECT(impl->allocator, Image);
+
+  if (image == nullptr)
+  {
+    vmaDestroyImage(impl->vma_allocator, vk_image, vma_allocation);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
-  for (u32 i = 0; i < (u32) copies.size(); i++)
-  {
-    gfx::BufferImageCopy const &copy = copies.data()[i];
-    vk_copies[i]                     = VkBufferImageCopy{
-                            .bufferOffset      = copy.buffer_offset,
-                            .bufferRowLength   = copy.buffer_row_length,
-                            .bufferImageHeight = copy.buffer_image_height,
-                            .imageSubresource =
-            VkImageSubresourceLayers{.aspectMask = (VkImageAspectFlags) copy.image_layers.aspects,
-                                                         .mipLevel   = copy.image_layers.mip_level,
-                                                         .baseArrayLayer = copy.image_layers.first_array_layer,
-                                                         .layerCount     = copy.image_layers.num_array_layers},
-                            .imageOffset = VkOffset3D{(i32) copy.image_area.offset.x, (i32) copy.image_area.offset.y,
-                                  (i32) copy.image_area.offset.z},
-                            .imageExtent = VkExtent3D{copy.image_area.extent.width, copy.image_area.extent.height,
-                                  copy.image_area.extent.depth}};
-  }
-
-  vk_table.CmdCopyBufferToImage(vk_command_buffer, ((Buffer *) initial_data)->vk_buffer, vk_image,
-                                scope.layout, (u32) copies.size(), vk_copies);
-
-  allocator.deallocate(allocator.data, vk_copies);
-
-  sync_release_image(vk_table, vk_command_buffer, vk_image, desc.usage, scope,
-                     (VkImageAspectFlags) desc.aspects);
+  new (image) Image{.refcount            = 1,
+                    .desc                = desc,
+                    .is_weak             = false,
+                    .vk_image            = vk_image,
+                    .vma_allocation      = vma_allocation,
+                    .vma_allocation_info = vma_allocation_info};
 
   return stx::Ok((gfx::Image) image);
 }
 
-stx::Result<gfx::ImageView, gfx::Status>
-    DeviceImpl::create_image_view(gfx::ImageViewDesc const &desc)
+Result<gfx::ImageView, gfx::Status>
+    DeviceInterface::create_image_view(gfx::Device self, gfx::ImageViewDesc const &desc)
 {
   // check aspect match
   // check subresource range
+  Device               *impl = (Device *) self;
   VkImageViewCreateInfo create_info{
       .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
       .pNext            = nullptr,
@@ -890,7 +795,12 @@ stx::Result<gfx::ImageView, gfx::Status>
                                                   .layerCount     = desc.num_array_layers}};
 
   VkImageView vk_view;
-  VK_ERR(vk_table.CreateImageView(vk_device, &create_info, nullptr, &vk_view));
+  VkResult    result =
+      impl->vk_table.CreateImageView(impl->vk_device, &create_info, nullptr, &vk_view);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
 
   if (desc.label != nullptr)
   {
@@ -900,13 +810,13 @@ stx::Result<gfx::ImageView, gfx::Status>
         .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT,
         .object      = (u64) vk_view,
         .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
   }
 
-  ImageView *view = ALLOC_NUM(allocator, ImageView, 1);
+  ImageView *view = ALLOC_OBJECT(impl->allocator, ImageView);
   if (view == nullptr)
   {
-    vk_table.DestroyImageView(vk_device, vk_view, nullptr);
+    impl->vk_table.DestroyImageView(impl->vk_device, vk_view, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
@@ -915,8 +825,10 @@ stx::Result<gfx::ImageView, gfx::Status>
   return stx::Ok((gfx::ImageView) view);
 }
 
-stx::Result<gfx::Sampler, gfx::Status> DeviceImpl::create_sampler(gfx::SamplerDesc const &desc)
+Result<gfx::Sampler, gfx::Status> DeviceInterface::create_sampler(gfx::Device             self,
+                                                                  gfx::SamplerDesc const &desc)
 {
+  Device             *impl = (Device *) self;
   VkSamplerCreateInfo create_info{.sType            = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
                                   .pNext            = nullptr,
                                   .magFilter        = (VkFilter) desc.mag_filter,
@@ -937,7 +849,12 @@ stx::Result<gfx::Sampler, gfx::Status> DeviceImpl::create_sampler(gfx::SamplerDe
                                       (VkBool32) desc.unnormalized_coordinates};
 
   VkSampler vk_sampler;
-  VK_ERR(vk_table.CreateSampler(vk_device, &create_info, nullptr, &vk_sampler));
+  VkResult  result =
+      impl->vk_table.CreateSampler(impl->vk_device, &create_info, nullptr, &vk_sampler);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
 
   if (desc.label != nullptr)
   {
@@ -947,13 +864,13 @@ stx::Result<gfx::Sampler, gfx::Status> DeviceImpl::create_sampler(gfx::SamplerDe
         .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT,
         .object      = (u64) vk_sampler,
         .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
   }
 
-  Sampler *sampler = ALLOC_NUM(allocator, Sampler, 1);
+  Sampler *sampler = ALLOC_OBJECT(impl->allocator, Sampler);
   if (sampler == nullptr)
   {
-    vk_table.DestroySampler(vk_device, vk_sampler, nullptr);
+    impl->vk_table.DestroySampler(impl->vk_device, vk_sampler, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
@@ -962,17 +879,24 @@ stx::Result<gfx::Sampler, gfx::Status> DeviceImpl::create_sampler(gfx::SamplerDe
   return stx::Ok((gfx::Sampler) sampler);
 }
 
-stx::Result<gfx::Shader, gfx::Status> DeviceImpl::create_shader(gfx::ShaderDesc const &desc)
+Result<gfx::Shader, gfx::Status> DeviceInterface::create_shader(gfx::Device            self,
+                                                                gfx::ShaderDesc const &desc)
 {
   // check size
+  Device                  *impl = (Device *) self;
   VkShaderModuleCreateInfo create_info{.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
                                        .pNext    = nullptr,
                                        .flags    = 0,
                                        .codeSize = desc.spirv_code.size_bytes(),
-                                       .pCode    = desc.spirv_code.data()};
+                                       .pCode    = desc.spirv_code.data};
 
   VkShaderModule vk_shader;
-  VK_ERR(vk_table.CreateShaderModule(vk_device, &create_info, nullptr, &vk_shader));
+  VkResult       result =
+      impl->vk_table.CreateShaderModule(impl->vk_device, &create_info, nullptr, &vk_shader);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
 
   if (desc.label != nullptr)
   {
@@ -982,13 +906,13 @@ stx::Result<gfx::Shader, gfx::Status> DeviceImpl::create_shader(gfx::ShaderDesc 
         .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
         .object      = (u64) vk_shader,
         .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
   }
 
-  Shader *shader = ALLOC_NUM(allocator, Shader, 1);
+  Shader *shader = ALLOC_OBJECT(impl->allocator, Shader);
   if (shader == nullptr)
   {
-    vk_table.DestroyShaderModule(vk_device, vk_shader, nullptr);
+    impl->vk_table.DestroyShaderModule(impl->vk_device, vk_shader, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
@@ -997,19 +921,20 @@ stx::Result<gfx::Shader, gfx::Status> DeviceImpl::create_shader(gfx::ShaderDesc 
   return stx::Ok((gfx::Shader) shader);
 }
 
-stx::Result<gfx::RenderPass, gfx::Status>
-    DeviceImpl::create_render_pass(gfx::RenderPassDesc const &desc)
+Result<gfx::RenderPass, gfx::Status>
+    DeviceInterface::create_render_pass(gfx::Device self, gfx::RenderPassDesc const &desc)
 {
+  Device                 *impl = (Device *) self;
   VkAttachmentDescription vk_attachments[gfx::MAX_COLOR_ATTACHMENTS * 2 + 1];
   VkAttachmentReference   vk_color_attachments[gfx::MAX_COLOR_ATTACHMENTS];
   VkAttachmentReference   vk_input_attachments[gfx::MAX_COLOR_ATTACHMENTS];
   VkAttachmentReference   vk_depth_stencil_attachment;
   u32                     num_attachments       = 0;
-  u32                     num_color_attachments = (u32) desc.color_attachments.size();
-  u32                     num_input_attachments = (u32) desc.input_attachments.size();
+  u32                     num_color_attachments = (u32) desc.color_attachments.size;
+  u32                     num_input_attachments = (u32) desc.input_attachments.size;
   u32                     num_depth_stencil_attachments =
       desc.depth_stencil_attachment.format == gfx::Format::Undefined ? 0U : 1U;
-  for (u32 icolor_attachment = 0; icolor_attachment < (u32) desc.color_attachments.size();
+  for (u32 icolor_attachment = 0; icolor_attachment < (u32) desc.color_attachments.size;
        num_attachments++, icolor_attachment++)
   {
     gfx::RenderPassAttachment const &attachment =
@@ -1028,7 +953,7 @@ stx::Result<gfx::RenderPass, gfx::Status>
         .attachment = num_attachments, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
   }
 
-  for (u32 iinput_attachment = 0; iinput_attachment < (u32) desc.input_attachments.size();
+  for (u32 iinput_attachment = 0; iinput_attachment < (u32) desc.input_attachments.size;
        num_attachments++, iinput_attachment++)
   {
     gfx::RenderPassAttachment const &attachment =
@@ -1090,7 +1015,12 @@ stx::Result<gfx::RenderPass, gfx::Status>
                                      .dependencyCount = 0,
                                      .pDependencies   = nullptr};
   VkRenderPass           vk_render_pass;
-  VK_ERR(vk_table.CreateRenderPass(vk_device, &create_info, nullptr, &vk_render_pass));
+  VkResult               result =
+      impl->vk_table.CreateRenderPass(impl->vk_device, &create_info, nullptr, &vk_render_pass);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
 
   if (desc.label != nullptr)
   {
@@ -1100,13 +1030,13 @@ stx::Result<gfx::RenderPass, gfx::Status>
         .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT,
         .object      = (u64) vk_render_pass,
         .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
   }
 
-  RenderPass *render_pass = ALLOC_NUM(allocator, RenderPass, 1);
+  RenderPass *render_pass = ALLOC_OBJECT(impl->allocator, RenderPass);
   if (render_pass == nullptr)
   {
-    vk_table.DestroyRenderPass(vk_device, vk_render_pass, nullptr);
+    impl->vk_table.DestroyRenderPass(impl->vk_device, vk_render_pass, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
@@ -1115,10 +1045,11 @@ stx::Result<gfx::RenderPass, gfx::Status>
   return stx::Ok((gfx::RenderPass) render_pass);
 }
 
-stx::Result<gfx::Framebuffer, gfx::Status>
-    DeviceImpl::create_framebuffer(gfx::FramebufferDesc const &desc)
+Result<gfx::Framebuffer, gfx::Status>
+    DeviceInterface::create_framebuffer(gfx::Device self, gfx::FramebufferDesc const &desc)
 {
-  u32         num_color_attachments         = (u32) desc.color_attachments.size();
+  Device     *impl                          = (Device *) self;
+  u32         num_color_attachments         = (u32) desc.color_attachments.size;
   u32         num_depth_stencil_attachments = desc.depth_stencil_attachment == nullptr ? 0 : 1;
   VkImageView vk_attachments[gfx::MAX_COLOR_ATTACHMENTS + 1];
   u32         num_attachments = 0;
@@ -1134,7 +1065,12 @@ stx::Result<gfx::Framebuffer, gfx::Status>
 
   VkFramebuffer vk_framebuffer;
 
-  VK_ERR(vk_table.CreateFramebuffer(vk_device, &create_info, nullptr, &vk_framebuffer));
+  VkResult result =
+      impl->vk_table.CreateFramebuffer(impl->vk_device, &create_info, nullptr, &vk_framebuffer);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
 
   if (desc.label != nullptr)
   {
@@ -1144,13 +1080,13 @@ stx::Result<gfx::Framebuffer, gfx::Status>
         .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT,
         .object      = (u64) vk_framebuffer,
         .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
   }
 
-  Framebuffer *framebuffer = ALLOC_NUM(allocator, Framebuffer, 1);
+  Framebuffer *framebuffer = ALLOC_OBJECT(impl->allocator, Framebuffer);
   if (framebuffer == nullptr)
   {
-    vk_table.DestroyFramebuffer(vk_device, vk_framebuffer, nullptr);
+    impl->vk_table.DestroyFramebuffer(impl->vk_device, vk_framebuffer, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
@@ -1159,12 +1095,14 @@ stx::Result<gfx::Framebuffer, gfx::Status>
   return stx::Ok((gfx::Framebuffer) framebuffer);
 }
 
-stx::Result<gfx::DescriptorLayout, gfx::Status>
-    DeviceImpl::create_descriptor_layout(gfx::DescriptorLayoutDesc const &desc)
+Result<gfx::DescriptorSetLayout, gfx::Status>
+    DeviceInterface::create_descriptor_set_layout(gfx::Device                         self,
+                                                  gfx::DescriptorSetLayoutDesc const &desc)
 {
-  u32                           num_bindings = (u32) desc.bindings.size();
+  Device                       *impl         = (Device *) self;
+  u32                           num_bindings = (u32) desc.bindings.size;
   VkDescriptorSetLayoutBinding *vk_bindings =
-      ALLOC_NUM(allocator, VkDescriptorSetLayoutBinding, num_bindings);
+      ALLOC_N(impl->allocator, VkDescriptorSetLayoutBinding, num_bindings);
 
   if (vk_bindings == nullptr)
   {
@@ -1173,15 +1111,15 @@ stx::Result<gfx::DescriptorLayout, gfx::Status>
 
   gfx::DescriptorCount count;
 
-  for (usize i = 0; i < num_bindings; i++)
+  for (u32 i = 0; i < num_bindings; i++)
   {
-    gfx::DescriptorBindingDesc const &binding = desc.bindings.data()[i];
-    vk_bindings[i] = VkDescriptorSetLayoutBinding{.binding        = binding.binding,
-                                                  .descriptorType = (VkDescriptorType) binding.type,
-                                                  .descriptorCount    = binding.count,
-                                                  .stageFlags         = VK_SHADER_STAGE_ALL,
-                                                  .pImmutableSamplers = nullptr};
-
+    gfx::DescriptorBindingDesc const &binding = desc.bindings.data[i];
+    vk_bindings[i]                            = VkDescriptorSetLayoutBinding{.binding        = i,
+                                                                             .descriptorType = (VkDescriptorType) binding.type,
+                                                                             .descriptorCount    = binding.count,
+                                                                             .stageFlags         = VK_SHADER_STAGE_ALL,
+                                                                             .pImmutableSamplers = nullptr};
+    // TODO(lamarrr): if ray tracing is not enabled
     switch (binding.type)
     {
       case gfx::DescriptorType::Sampler:
@@ -1217,6 +1155,9 @@ stx::Result<gfx::DescriptorLayout, gfx::Status>
       case gfx::DescriptorType::InputAttachment:
         count.input_attachments += binding.count;
         break;
+      case gfx::DescriptorType::AccelerationStructure:
+        count.acceleration_structures += binding.count;
+        break;
     }
   }
 
@@ -1229,9 +1170,9 @@ stx::Result<gfx::DescriptorLayout, gfx::Status>
 
   VkDescriptorSetLayout vk_layout;
   VkResult              result =
-      vk_table.CreateDescriptorSetLayout(vk_device, &create_info, nullptr, &vk_layout);
+      impl->vk_table.CreateDescriptorSetLayout(impl->vk_device, &create_info, nullptr, &vk_layout);
 
-  allocator.deallocate(allocator.data, vk_bindings);
+  impl->allocator.deallocate(vk_bindings);
 
   if (result != VK_SUCCESS)
   {
@@ -1246,37 +1187,43 @@ stx::Result<gfx::DescriptorLayout, gfx::Status>
         .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT,
         .object      = (u64) vk_layout,
         .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
   }
 
-  DescriptorLayout *layout = ALLOC_NUM(allocator, DescriptorLayout, 1);
+  DescriptorSetLayout *layout = ALLOC_OBJECT(impl->allocator, DescriptorSetLayout);
   if (layout == nullptr)
   {
-    vk_table.DestroyDescriptorSetLayout(vk_device, vk_layout, nullptr);
+    impl->vk_table.DestroyDescriptorSetLayout(impl->vk_device, vk_layout, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
-  new (layout) DescriptorLayout{.refcount = 1, .count = count, .vk_layout = vk_layout};
+  new (layout) DescriptorSetLayout{.refcount = 1, .count = count, .vk_layout = vk_layout};
 
-  return stx::Ok((gfx::DescriptorLayout) layout);
+  return stx::Ok((gfx::DescriptorSetLayout) layout);
 }
 
-stx::Result<gfx::PipelineCache, gfx::Status>
-    DeviceImpl::create_pipeline_cache(gfx::PipelineCacheDesc const &desc)
+Result<gfx::PipelineCache, gfx::Status>
+    DeviceInterface::create_pipeline_cache(gfx::Device self, gfx::PipelineCacheDesc const &desc)
 {
+  Device                   *impl = (Device *) self;
   VkPipelineCacheCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
                                         .pNext = nullptr,
                                         .flags = 0,
                                         .initialDataSize = desc.initial_data.size_bytes(),
-                                        .pInitialData    = desc.initial_data.data()};
+                                        .pInitialData    = desc.initial_data.data};
 
   VkPipelineCache vk_cache;
-  VK_ERR(vk_table.CreatePipelineCache(vk_device, &create_info, nullptr, &vk_cache));
+  VkResult        result =
+      impl->vk_table.CreatePipelineCache(impl->vk_device, &create_info, nullptr, &vk_cache);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
 
-  PipelineCache *cache = ALLOC_NUM(allocator, PipelineCache, 1);
+  PipelineCache *cache = ALLOC_OBJECT(impl->allocator, PipelineCache);
   if (cache == nullptr)
   {
-    vk_table.DestroyPipelineCache(vk_device, vk_cache, nullptr);
+    impl->vk_table.DestroyPipelineCache(impl->vk_device, vk_cache, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
@@ -1285,15 +1232,16 @@ stx::Result<gfx::PipelineCache, gfx::Status>
   return stx::Ok((gfx::PipelineCache) cache);
 }
 
-stx::Result<gfx::ComputePipeline, gfx::Status>
-    DeviceImpl::create_compute_pipeline(gfx::ComputePipelineDesc const &desc)
+Result<gfx::ComputePipeline, gfx::Status>
+    DeviceInterface::create_compute_pipeline(gfx::Device self, gfx::ComputePipelineDesc const &desc)
 {
+  Device              *impl = (Device *) self;
   VkSpecializationInfo vk_specialization{
-      .mapEntryCount = (u32) desc.compute_shader.specialization_constants.size(),
+      .mapEntryCount = (u32) desc.compute_shader.specialization_constants.size,
       .pMapEntries =
-          (VkSpecializationMapEntry const *) desc.compute_shader.specialization_constants.data(),
+          (VkSpecializationMapEntry const *) desc.compute_shader.specialization_constants.data,
       .dataSize = desc.compute_shader.specialization_constants_data.size_bytes(),
-      .pData    = desc.compute_shader.specialization_constants_data.data()};
+      .pData    = desc.compute_shader.specialization_constants_data.data};
 
   VkPipelineShaderStageCreateInfo vk_stage{
       .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -1318,7 +1266,12 @@ stx::Result<gfx::ComputePipeline, gfx::Status>
       .pPushConstantRanges    = &push_constant_range};
 
   VkPipelineLayout vk_layout;
-  VK_ERR(vk_table.CreatePipelineLayout(vk_device, &layout_create_info, nullptr, &vk_layout));
+  VkResult result = impl->vk_table.CreatePipelineLayout(impl->vk_device, &layout_create_info,
+                                                        nullptr, &vk_layout);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
 
   VkComputePipelineCreateInfo create_info{.sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
                                           .pNext  = nullptr,
@@ -1329,13 +1282,13 @@ stx::Result<gfx::ComputePipeline, gfx::Status>
                                           .basePipelineIndex  = 0};
 
   VkPipeline vk_pipeline;
-  VkResult   result = vk_table.CreateComputePipelines(
-      vk_device, desc.cache == nullptr ? nullptr : ((PipelineCache *) desc.cache)->vk_cache, 1,
-      &create_info, nullptr, &vk_pipeline);
+  result = impl->vk_table.CreateComputePipelines(
+      impl->vk_device, desc.cache == nullptr ? nullptr : ((PipelineCache *) desc.cache)->vk_cache,
+      1, &create_info, nullptr, &vk_pipeline);
 
   if (result != VK_SUCCESS)
   {
-    vk_table.DestroyPipelineLayout(vk_device, vk_layout, nullptr);
+    impl->vk_table.DestroyPipelineLayout(impl->vk_device, vk_layout, nullptr);
     return stx::Err((gfx::Status) result);
   }
 
@@ -1347,14 +1300,14 @@ stx::Result<gfx::ComputePipeline, gfx::Status>
         .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT,
         .object      = (u64) vk_pipeline,
         .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
   }
 
-  ComputePipeline *pipeline = ALLOC_NUM(allocator, ComputePipeline, 1);
+  ComputePipeline *pipeline = ALLOC_OBJECT(impl->allocator, ComputePipeline);
   if (pipeline == nullptr)
   {
-    vk_table.DestroyPipelineLayout(vk_device, vk_layout, nullptr);
-    vk_table.DestroyPipeline(vk_device, vk_pipeline, nullptr);
+    impl->vk_table.DestroyPipelineLayout(impl->vk_device, vk_layout, nullptr);
+    impl->vk_table.DestroyPipeline(impl->vk_device, vk_pipeline, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
@@ -1363,22 +1316,24 @@ stx::Result<gfx::ComputePipeline, gfx::Status>
   return stx::Ok((gfx::ComputePipeline) pipeline);
 }
 
-stx::Result<gfx::GraphicsPipeline, gfx::Status>
-    DeviceImpl::create_graphics_pipeline(gfx::GraphicsPipelineDesc const &desc)
+Result<gfx::GraphicsPipeline, gfx::Status>
+    DeviceInterface::create_graphics_pipeline(gfx::Device                      self,
+                                              gfx::GraphicsPipelineDesc const &desc)
 {
+  Device              *impl = (Device *) self;
   VkSpecializationInfo vk_vs_specialization{
-      .mapEntryCount = (u32) desc.vertex_shader.specialization_constants.size(),
+      .mapEntryCount = (u32) desc.vertex_shader.specialization_constants.size,
       .pMapEntries =
-          (VkSpecializationMapEntry const *) desc.vertex_shader.specialization_constants.data(),
+          (VkSpecializationMapEntry const *) desc.vertex_shader.specialization_constants.data,
       .dataSize = desc.vertex_shader.specialization_constants_data.size_bytes(),
-      .pData    = desc.vertex_shader.specialization_constants_data.data()};
+      .pData    = desc.vertex_shader.specialization_constants_data.data};
 
   VkSpecializationInfo vk_fs_specialization{
-      .mapEntryCount = (u32) desc.fragment_shader.specialization_constants.size(),
+      .mapEntryCount = (u32) desc.fragment_shader.specialization_constants.size,
       .pMapEntries =
-          (VkSpecializationMapEntry const *) desc.fragment_shader.specialization_constants.data(),
+          (VkSpecializationMapEntry const *) desc.fragment_shader.specialization_constants.data,
       .dataSize = desc.fragment_shader.specialization_constants_data.size_bytes(),
-      .pData    = desc.fragment_shader.specialization_constants_data.data()};
+      .pData    = desc.fragment_shader.specialization_constants_data.data};
 
   VkPipelineShaderStageCreateInfo vk_stages[2] = {
       {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -1410,11 +1365,16 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
       .pPushConstantRanges    = &push_constant_range};
 
   VkPipelineLayout vk_layout;
-  VK_ERR(vk_table.CreatePipelineLayout(vk_device, &layout_create_info, nullptr, &vk_layout));
+  VkResult result = impl->vk_table.CreatePipelineLayout(impl->vk_device, &layout_create_info,
+                                                        nullptr, &vk_layout);
+  if (result != VK_SUCCESS)
+  {
+    return stx::Err((gfx::Status) result);
+  }
 
   VkVertexInputBindingDescription input_bindings[gfx::MAX_VERTEX_ATTRIBUTES];
   u32                             num_input_bindings = 0;
-  for (; num_input_bindings < desc.vertex_input_bindings.size(); num_input_bindings++)
+  for (; num_input_bindings < desc.vertex_input_bindings.size; num_input_bindings++)
   {
     gfx::VertexInputBinding const &binding =
         desc.vertex_input_bindings.get_unsafe(num_input_bindings);
@@ -1427,7 +1387,7 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
 
   VkVertexInputAttributeDescription attributes[gfx::MAX_VERTEX_ATTRIBUTES];
   u32                               num_attributes = 0;
-  for (; num_attributes < desc.vertex_attributes.size(); num_attributes++)
+  for (; num_attributes < desc.vertex_attributes.size; num_attributes++)
   {
     gfx::VertexAttribute const &attribute = desc.vertex_attributes.get_unsafe(num_attributes);
     attributes[num_attributes] =
@@ -1521,7 +1481,7 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
   VkPipelineColorBlendAttachmentState attachment_states[gfx::MAX_COLOR_ATTACHMENTS];
   u32                                 num_color_attachments = 0;
 
-  for (; num_color_attachments < (u32) desc.color_blend_state.attachments.size();
+  for (; num_color_attachments < (u32) desc.color_blend_state.attachments.size;
        num_color_attachments++)
   {
     gfx::PipelineColorBlendAttachmentState const &state =
@@ -1584,13 +1544,13 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
                                            .basePipelineIndex  = 0};
 
   VkPipeline vk_pipeline;
-  VkResult   result = vk_table.CreateGraphicsPipelines(
-      vk_device, desc.cache == nullptr ? nullptr : ((PipelineCache *) desc.cache)->vk_cache, 1,
-      &create_info, nullptr, &vk_pipeline);
+  result = impl->vk_table.CreateGraphicsPipelines(
+      impl->vk_device, desc.cache == nullptr ? nullptr : ((PipelineCache *) desc.cache)->vk_cache,
+      1, &create_info, nullptr, &vk_pipeline);
 
   if (result != VK_SUCCESS)
   {
-    vk_table.DestroyPipelineLayout(vk_device, vk_layout, nullptr);
+    impl->vk_table.DestroyPipelineLayout(impl->vk_device, vk_layout, nullptr);
     return stx::Err((gfx::Status) result);
   }
 
@@ -1602,14 +1562,14 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
         .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT,
         .object      = (u64) vk_pipeline,
         .pObjectName = desc.label};
-    vk_table.DebugMarkerSetObjectNameEXT(vk_device, &debug_info);
+    impl->vk_table.DebugMarkerSetObjectNameEXT(impl->vk_device, &debug_info);
   }
 
-  GraphicsPipeline *pipeline = ALLOC_NUM(allocator, GraphicsPipeline, 1);
+  GraphicsPipeline *pipeline = ALLOC_OBJECT(impl->allocator, GraphicsPipeline);
   if (pipeline == nullptr)
   {
-    vk_table.DestroyPipelineLayout(vk_device, vk_layout, nullptr);
-    vk_table.DestroyPipeline(vk_device, vk_pipeline, nullptr);
+    impl->vk_table.DestroyPipelineLayout(impl->vk_device, vk_layout, nullptr);
+    impl->vk_table.DestroyPipeline(impl->vk_device, vk_pipeline, nullptr);
     return stx::Err(gfx::Status::OutOfHostMemory);
   }
 
@@ -1619,58 +1579,57 @@ stx::Result<gfx::GraphicsPipeline, gfx::Status>
   return stx::Ok((gfx::GraphicsPipeline) pipeline);
 }
 
-stx::Result<gfx::CommandEncoder *, gfx::Status> DeviceImpl::create_command_encoder()
+Result<gfx::CommandEncoderImpl, gfx::Status>
+    DeviceInterface::create_command_encoder(gfx::Device self)
 {
+  Device *impl = (Device *) self;
 }
 
-void *DeviceImpl::get_buffer_memory_map(gfx::Buffer buffer)
+Result<void *, gfx::Status> DeviceInterface::get_buffer_memory_map(gfx::Device self,
+                                                                   gfx::Buffer buffer)
 {
-  return ((Buffer *) buffer)->host_map;
+  (void) self;
+  Buffer *buffer_impl = (Buffer *) buffer;
+  // check has_any_bit(buffer_impl->desc.properties, gfx::MemoryProperties::HostCached|
+  // gfx::MemoryProperties::HostCoherent| gfx::MemoryProperties::HostVisible);
+  return stx::Ok((void *) buffer_impl->host_map);
 }
 
-void DeviceImpl::invalidate_buffer_memory_map(gfx::Buffer                       buffer,
-                                              stx::Span<gfx::MemoryRange const> ranges)
+gfx::Status DeviceInterface::invalidate_buffer_memory_map(gfx::Device self, gfx::Buffer buffer,
+                                                          gfx::MemoryRange range)
 {
-  Buffer *buffer_impl = ((Buffer *) buffer);
-
-  if (buffer_impl->host_map != nullptr)
-  {
-    for (gfx::MemoryRange const &range : ranges)
-    {
-      VkMappedMemoryRange vk_range{.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                                   .pNext  = nullptr,
-                                   .memory = buffer_impl->vma_allocation_info.deviceMemory,
-                                   .offset = range.offset,
-                                   .size   = range.size};
-      vk_table.InvalidateMappedMemoryRanges(vk_device, 1, &vk_range);
-    }
-  }
+  // TODO(lamarrr): check is host accessible
+  Device             *impl        = (Device *) self;
+  Buffer             *buffer_impl = (Buffer *) buffer;
+  VkMappedMemoryRange vk_range{.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                               .pNext  = nullptr,
+                               .memory = buffer_impl->vma_allocation_info.deviceMemory,
+                               .offset = range.offset,
+                               .size   = range.size};
+  return (gfx::Status) impl->vk_table.InvalidateMappedMemoryRanges(impl->vk_device, 1, &vk_range);
 }
 
-void DeviceImpl::flush_buffer_memory_map(gfx::Buffer                       buffer,
-                                         stx::Span<gfx::MemoryRange const> ranges)
+gfx::Status DeviceInterface::flush_buffer_memory_map(gfx::Device self, gfx::Buffer buffer,
+                                                     gfx::MemoryRange range)
 {
-  Buffer *buffer_impl = ((Buffer *) buffer);
-
-  if (buffer_impl->host_map != nullptr)
-  {
-    for (gfx::MemoryRange const &range : ranges)
-    {
-      VkMappedMemoryRange vk_range{.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                                   .pNext  = nullptr,
-                                   .memory = buffer_impl->vma_allocation_info.deviceMemory,
-                                   .offset = range.offset,
-                                   .size   = range.size};
-      vk_table.FlushMappedMemoryRanges(vk_device, 1, &vk_range);
-    }
-  }
+  // TODO(lamarrr): check is host accessible
+  Device             *impl        = (Device *) self;
+  Buffer             *buffer_impl = (Buffer *) buffer;
+  VkMappedMemoryRange vk_range{.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                               .pNext  = nullptr,
+                               .memory = buffer_impl->vma_allocation_info.deviceMemory,
+                               .offset = range.offset,
+                               .size   = range.size};
+  return (gfx::Status) impl->vk_table.FlushMappedMemoryRanges(impl->vk_device, 1, &vk_range);
 }
 
-stx::Result<usize, gfx::Status> DeviceImpl::get_pipeline_cache_size(gfx::PipelineCache cache)
+Result<usize, gfx::Status> DeviceInterface::get_pipeline_cache_size(gfx::Device        self,
+                                                                    gfx::PipelineCache cache)
 {
+  Device  *impl = (Device *) self;
   usize    size;
-  VkResult result =
-      vk_table.GetPipelineCacheData(vk_device, ((PipelineCache *) cache)->vk_cache, &size, nullptr);
+  VkResult result = impl->vk_table.GetPipelineCacheData(
+      impl->vk_device, ((PipelineCache *) cache)->vk_cache, &size, nullptr);
   if (result != VK_SUCCESS)
   {
     return stx::Err((gfx::Status) result);
@@ -1678,12 +1637,14 @@ stx::Result<usize, gfx::Status> DeviceImpl::get_pipeline_cache_size(gfx::Pipelin
   return stx::Ok((usize) size);
 }
 
-stx::Result<usize, gfx::Status> DeviceImpl::get_pipeline_cache_data(gfx::PipelineCache cache,
-                                                                    stx::Span<u8>      out)
+Result<usize, gfx::Status> DeviceInterface::get_pipeline_cache_data(gfx::Device        self,
+                                                                    gfx::PipelineCache cache,
+                                                                    Span<u8>           out)
 {
+  Device  *impl   = (Device *) self;
   usize    size   = out.size_bytes();
-  VkResult result = vk_table.GetPipelineCacheData(vk_device, ((PipelineCache *) cache)->vk_cache,
-                                                  &size, out.data());
+  VkResult result = impl->vk_table.GetPipelineCacheData(
+      impl->vk_device, ((PipelineCache *) cache)->vk_cache, &size, out.data);
   if (result != VK_SUCCESS)
   {
     return stx::Err((gfx::Status) result);
@@ -1691,11 +1652,12 @@ stx::Result<usize, gfx::Status> DeviceImpl::get_pipeline_cache_data(gfx::Pipelin
   return stx::Ok((usize) size);
 }
 
-gfx::Status DeviceImpl::merge_pipeline_cache(gfx::PipelineCache                  dst,
-                                             stx::Span<gfx::PipelineCache const> srcs)
+gfx::Status DeviceInterface::merge_pipeline_cache(gfx::Device self, gfx::PipelineCache dst,
+                                                  Span<gfx::PipelineCache const> srcs)
 {
-  u32              num_srcs  = (u32) srcs.size();
-  VkPipelineCache *vk_caches = ALLOC_NUM(allocator, VkPipelineCache, num_srcs);
+  Device          *impl      = (Device *) self;
+  u32              num_srcs  = (u32) srcs.size;
+  VkPipelineCache *vk_caches = ALLOC_N(impl->allocator, VkPipelineCache, num_srcs);
   if (vk_caches == nullptr)
   {
     return gfx::Status::OutOfHostMemory;
@@ -1703,50 +1665,74 @@ gfx::Status DeviceImpl::merge_pipeline_cache(gfx::PipelineCache                 
 
   for (u32 i = 0; i < num_srcs; i++)
   {
-    vk_caches[i] = ((PipelineCache *) srcs.data()[i])->vk_cache;
+    vk_caches[i] = ((PipelineCache *) srcs.data[i])->vk_cache;
   }
 
-  VkResult result = vk_table.MergePipelineCaches(vk_device, ((PipelineCache *) dst)->vk_cache,
-                                                 num_srcs, vk_caches);
+  VkResult result = impl->vk_table.MergePipelineCaches(
+      impl->vk_device, ((PipelineCache *) dst)->vk_cache, num_srcs, vk_caches);
 
-  allocator.deallocate(allocator.data, vk_caches);
+  impl->allocator.deallocate(vk_caches);
 
   return (gfx::Status) result;
 }
 
-gfx::Status DeviceImpl::wait_for_fences(stx::Span<gfx::Fence const> fences, bool all, u64 timeout)
+gfx::Status DeviceInterface::wait_for_fences(gfx::Device self, Span<gfx::Fence const> fences,
+                                             bool all, nanoseconds timeout)
 {
-  u32      num_fences = (u32) fences.size();
-  VkFence *vk_fences  = ALLOC_NUM(allocator, VkFence, num_fences);
-  ASH_CHECK(vk_fences != nullptr);
+  Device  *impl       = (Device *) self;
+  u32      num_fences = (u32) fences.size;
+  VkFence *vk_fences  = ALLOC_N(impl->allocator, VkFence, num_fences);
+
+  if (vk_fences == nullptr)
+  {
+    return gfx::Status::OutOfHostMemory;
+  }
+
   for (u32 i = 0; i < num_fences; i++)
   {
-    vk_fences[i] = ((Fence *) fences.data()[i])->vk_fence;
+    vk_fences[i] = ((Fence *) fences.data[i])->vk_fence;
   }
 
-  VkResult result =
-      vk_table.WaitForFences(vk_device, num_fences, vk_fences, (VkBool32) all, timeout);
+  VkResult result = impl->vk_table.WaitForFences(impl->vk_device, num_fences, vk_fences,
+                                                 (VkBool32) all, (u64) timeout.count());
 
-  allocator.deallocate(allocator.data, vk_fences);
+  impl->allocator.deallocate(vk_fences);
 
   return (gfx::Status) result;
 }
 
-void DeviceImpl::reset_fences(stx::Span<gfx::Fence const> fences)
+gfx::Status DeviceInterface::reset_fences(gfx::Device self, Span<gfx::Fence const> fences)
 {
-  for (gfx::Fence fence : fences)
+  Device  *impl       = (Device *) self;
+  u32      num_fences = (u32) fences.size;
+  VkFence *vk_fences  = ALLOC_N(impl->allocator, VkFence, num_fences);
+  if (vk_fences == nullptr)
   {
-    vk_table.ResetFences(vk_device, 1, &((Fence *) fence)->vk_fence);
+    return gfx::Status::OutOfHostMemory;
   }
+
+  for (u32 i = 0; i < num_fences; i++)
+  {
+    vk_fences[i] = ((Fence *) fences.data[i])->vk_fence;
+  }
+
+  VkResult result = impl->vk_table.ResetFences(impl->vk_device, num_fences, vk_fences);
+
+  impl->allocator.deallocate(vk_fences);
+
+  return (gfx::Status) result;
 }
 
-gfx::Status DeviceImpl::get_fence_status(gfx::Fence fence)
+gfx::Status DeviceInterface::get_fence_status(gfx::Device self, gfx::Fence fence)
 {
-  return (gfx::Status) vk_table.GetFenceStatus(vk_device, ((Fence *) fence)->vk_fence);
+  Device *impl = (Device *) self;
+  return (gfx::Status) impl->vk_table.GetFenceStatus(impl->vk_device, ((Fence *) fence)->vk_fence);
 }
 
-void DeviceImpl::submit(gfx::CommandEncoder &encoder, gfx::Fence signal_fence)
+void DeviceInterface::submit(gfx::Device self, gfx::CommandEncoder &encoder,
+                             gfx::Fence signal_fence)
 {
+  Device             *impl = (Device *) self;
   CommandEncoderImpl *impl = (CommandEncoderImpl *) encoder.to_impl();
   VkSubmitInfo        info{.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                            .pNext                = nullptr,
@@ -1762,19 +1748,19 @@ void DeviceImpl::submit(gfx::CommandEncoder &encoder, gfx::Fence signal_fence)
   // TODO(LAMARRR): handle, return error if any
 }
 
-void DeviceImpl::wait_idle()
+void DeviceInterface::wait_idle(gfx::Device self)
 {
   vk_table.DeviceWaitIdle(vk_device);
   // todo(lamarrr):check
 }
 
-void DeviceImpl::wait_queue_idle()
+void DeviceInterface::wait_queue_idle(gfx::Device self)
 {
   vk_table.QueueWaitIdle(vk_queue);
   // todo(lamarrr):check
 }
 
-void CommandEncoderImpl::begin()
+void CommandEncoderInterface::begin(gfx::CommandEncoder self)
 {
   if (status != gfx::Status::Success)
   {
@@ -1787,7 +1773,7 @@ void CommandEncoderImpl::begin()
   status = (gfx::Status) device->vk_table.BeginCommandBuffer(vk_command_buffer, &info);
 }
 
-gfx::Status CommandEncoderImpl::end()
+gfx::Status CommandEncoderInterface::end(gfx::CommandEncoder self)
 {
   if (status != gfx::Status::Success)
   {
@@ -1796,7 +1782,7 @@ gfx::Status CommandEncoderImpl::end()
   device->vk_table.EndCommandBuffer(vk_command_buffer);
 }
 
-void CommandEncoderImpl::reset()
+void CommandEncoderInterface::reset(gfx::CommandEncoder self)
 {
   device->vk_table.ResetCommandPool(device->vk_device, vk_command_pool, 0);
   status = gfx::Status::Success;
@@ -1804,9 +1790,11 @@ void CommandEncoderImpl::reset()
   // preserve buffers
 }
 
-void CommandEncoderImpl::begin_debug_marker(char const *region_name, Vec4 color)
+void CommandEncoderInterface::begin_debug_marker(gfx::CommandEncoder self, char const *region_name,
+                                                 Vec4 color)
 {
-  if (status != gfx::Status::Success)
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
   {
     return;
   }
@@ -1814,21 +1802,24 @@ void CommandEncoderImpl::begin_debug_marker(char const *region_name, Vec4 color)
                                   .pNext       = nullptr,
                                   .pMarkerName = region_name,
                                   .color       = {color.x, color.y, color.z, color.w}};
-  device->vk_table.CmdDebugMarkerBeginEXT(vk_command_buffer, &info);
+  impl->device->vk_table.CmdDebugMarkerBeginEXT(impl->vk_command_buffer, &info);
 }
 
-void CommandEncoderImpl::end_debug_marker()
+void CommandEncoderInterface::end_debug_marker(gfx::CommandEncoder self)
 {
-  if (status != gfx::Status::Success)
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
   {
     return;
   }
-  device->vk_table.CmdDebugMarkerEndEXT(vk_command_buffer);
+  impl->device->vk_table.CmdDebugMarkerEndEXT(impl->vk_command_buffer);
 }
 
-void CommandEncoderImpl::fill_buffer(gfx::Buffer dst, u64 offset, u64 size, u32 data)
+void CommandEncoderInterface::fill_buffer(gfx::CommandEncoder self, gfx::Buffer dst, u64 offset,
+                                          u64 size, u32 data)
 {
-  if (status != gfx::Status::Success)
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
   {
     return;
   }
@@ -1842,16 +1833,17 @@ void CommandEncoderImpl::fill_buffer(gfx::Buffer dst, u64 offset, u64 size, u32 
                       dst_impl->desc.usage, scope);
 }
 
-void CommandEncoderImpl::copy_buffer(gfx::Buffer src, gfx::Buffer dst,
-                                     stx::Span<gfx::BufferCopy const> copies)
+void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self, gfx::Buffer src,
+                                          gfx::Buffer dst, Span<gfx::BufferCopy const> copies)
 {
+  CommandEncoder *impl = (CommandEncoder *) self;
   if (status != gfx::Status::Success)
   {
     return;
   }
 
-  u32           num_copies = (u32) copies.size();
-  VkBufferCopy *vk_copies  = ALLOC_NUM(allocator, VkBufferCopy, num_copies);
+  u32           num_copies = (u32) copies.size;
+  VkBufferCopy *vk_copies  = ALLOC_N(allocator, VkBufferCopy, num_copies);
 
   if (vk_copies == nullptr)
   {
@@ -1882,8 +1874,10 @@ void CommandEncoderImpl::copy_buffer(gfx::Buffer src, gfx::Buffer dst,
   allocator.deallocate(allocator.data, vk_copies);
 }
 
-void CommandEncoderImpl::update_buffer(stx::Span<u8 const> src, u64 dst_offset, gfx::Buffer dst)
+void CommandEncoderInterface::update_buffer(gfx::CommandEncoder self, Span<u8 const> src,
+                                            u64 dst_offset, gfx::Buffer dst)
 {
+  CommandEncoder *impl = (CommandEncoder *) self;
   if (status != gfx::Status::Success)
   {
     return;
@@ -1896,22 +1890,24 @@ void CommandEncoderImpl::update_buffer(stx::Span<u8 const> src, u64 dst_offset, 
                       dst_impl->desc.usage, scope);
 
   device->vk_table.CmdUpdateBuffer(vk_command_buffer, dst_impl->vk_buffer, dst_offset,
-                                   (u64) src.size(), src.data());
+                                   (u64) src.size, src.data());
 
   sync_release_buffer(device->vk_table, vk_command_buffer, dst_impl->vk_buffer,
                       dst_impl->desc.usage, scope);
 }
 
-void CommandEncoderImpl::clear_color_image(gfx::Image dst, gfx::Color clear_color,
-                                           stx::Span<gfx::ImageSubresourceRange const> ranges)
+void CommandEncoderInterface::clear_color_image(gfx::CommandEncoder self, gfx::Image dst,
+                                                gfx::Color                             clear_color,
+                                                Span<gfx::ImageSubresourceRange const> ranges)
 
 {
+  CommandEncoder *impl = (CommandEncoder *) self;
   if (status != gfx::Status::Success)
   {
     return;
   }
-  u32                      num_ranges = (u32) ranges.size();
-  VkImageSubresourceRange *vk_ranges  = ALLOC_NUM(allocator, VkImageSubresourceRange, num_ranges);
+  u32                      num_ranges = (u32) ranges.size;
+  VkImageSubresourceRange *vk_ranges  = ALLOC_N(allocator, VkImageSubresourceRange, num_ranges);
 
   if (vk_ranges == nullptr)
   {
@@ -1944,18 +1940,19 @@ void CommandEncoderImpl::clear_color_image(gfx::Image dst, gfx::Color clear_colo
   allocator.deallocate(allocator.data, vk_ranges);
 }
 
-void CommandEncoderImpl::clear_depth_stencil_image(
-    gfx::Image dst, gfx::DepthStencil clear_depth_stencil,
-    stx::Span<gfx::ImageSubresourceRange const> ranges)
+void CommandEncoderInterface::clear_depth_stencil_image(
+    gfx::CommandEncoder self, gfx::Image dst, gfx::DepthStencil clear_depth_stencil,
+    Span<gfx::ImageSubresourceRange const> ranges)
 
 {
+  CommandEncoder *impl = (CommandEncoder *) self;
   if (status != gfx::Status::Success)
   {
     return;
   }
 
-  u32                      num_ranges = (u32) ranges.size();
-  VkImageSubresourceRange *vk_ranges  = ALLOC_NUM(allocator, VkImageSubresourceRange, num_ranges);
+  u32                      num_ranges = (u32) ranges.size;
+  VkImageSubresourceRange *vk_ranges  = ALLOC_N(allocator, VkImageSubresourceRange, num_ranges);
 
   if (vk_ranges == nullptr)
   {
@@ -1989,17 +1986,18 @@ void CommandEncoderImpl::clear_depth_stencil_image(
   allocator.deallocate(allocator.data, vk_ranges);
 }
 
-void CommandEncoderImpl::copy_image(gfx::Image src, gfx::Image dst,
-                                    stx::Span<gfx::ImageCopy const> copies)
+void CommandEncoderInterface::copy_image(gfx::CommandEncoder self, gfx::Image src, gfx::Image dst,
+                                         Span<gfx::ImageCopy const> copies)
 {
   // check copies > 0
+  CommandEncoder *impl = (CommandEncoder *) self;
   if (status != gfx::Status::Success)
   {
     return;
   }
 
-  u32          num_copies = (u32) copies.size();
-  VkImageCopy *vk_copies  = ALLOC_NUM(allocator, VkImageCopy, num_copies);
+  u32          num_copies = (u32) copies.size;
+  VkImageCopy *vk_copies  = ALLOC_N(allocator, VkImageCopy, num_copies);
 
   if (vk_copies == nullptr)
   {
@@ -2058,17 +2056,19 @@ void CommandEncoderImpl::copy_image(gfx::Image src, gfx::Image dst,
   allocator.deallocate(allocator.data, vk_copies);
 }
 
-void CommandEncoderImpl::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
-                                              stx::Span<gfx::BufferImageCopy const> copies)
+void CommandEncoderInterface::copy_buffer_to_image(gfx::CommandEncoder self, gfx::Buffer src,
+                                                   gfx::Image                       dst,
+                                                   Span<gfx::BufferImageCopy const> copies)
 {
   // check copies > 0
+  CommandEncoder *impl = (CommandEncoder *) self;
   if (status != gfx::Status::Success)
   {
     return;
   }
 
-  u32                num_copies = (u32) copies.size();
-  VkBufferImageCopy *vk_copies  = ALLOC_NUM(allocator, VkBufferImageCopy, num_copies);
+  u32                num_copies = (u32) copies.size;
+  VkBufferImageCopy *vk_copies  = ALLOC_N(allocator, VkBufferImageCopy, num_copies);
 
   if (vk_copies == nullptr)
   {
@@ -2110,13 +2110,14 @@ void CommandEncoderImpl::copy_buffer_to_image(gfx::Buffer src, gfx::Image dst,
   allocator.deallocate(allocator.data, vk_copies);
 }
 
-void CommandEncoderImpl::blit_image(gfx::Image src, gfx::Image dst,
-                                    stx::Span<gfx::ImageBlit const> blits, gfx::Filter filter)
+void CommandEncoderInterface::blit_image(gfx::CommandEncoder self, gfx::Image src, gfx::Image dst,
+                                         Span<gfx::ImageBlit const> blits, gfx::Filter filter)
 {
   // check blits >0
+  CommandEncoder *impl = (CommandEncoder *) self;
 
-  u32          num_blits = (u32) blits.size();
-  VkImageBlit *vk_blits  = ALLOC_NUM(allocator, VkImageBlit, num_blits);
+  u32          num_blits = (u32) blits.size;
+  VkImageBlit *vk_blits  = ALLOC_N(allocator, VkImageBlit, num_blits);
 
   if (vk_blits == nullptr)
   {
@@ -2178,19 +2179,24 @@ void CommandEncoderImpl::blit_image(gfx::Image src, gfx::Image dst,
   allocator.deallocate(allocator.data, vk_blits);
 }
 
-void CommandEncoderImpl::begin_descriptor_pass()
+u32 CommandEncoderInterface::push_descriptors(gfx::CommandEncoder   self,
+                                              gfx::DescriptorLayout layout, u32 count)
 {
-}
-
-u32 CommandEncoderImpl::push_descriptors(gfx::DescriptorLayout layout, u32 count)
-{
-  //if(   ){}
-  // check if in descriptor pass
+  // if(   ){}
+  //  check if in descriptor pass
   ASH_CHECK(count > 0, "Push descriptor count is 0");
   u32 const descriptor = vk_descriptor_layouts.count;
 
-  RETURN_IF_ERR(descriptor_storage_bindings.ends.grow_count(allocator, count));
-  RETURN_IF_ERR(vk_descriptor_layouts.grow_count(allocator, count));
+  impl->status = descriptor_storage_bindings.ends.grow_size(allocator, count);
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  };
+  impl->status = vk_descriptor_layouts.grow_size(allocator, count);
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  };
 
   // if we use ordered-pushing we can spec writes here correctly
   // and only allocate as much as needed and not need to keep track of writes
@@ -2241,8 +2247,9 @@ VkImageLayout get_image_binding_layout(gfx::PipelineBindPoint bind_point, gfx::I
 }
 
 // todo(lamarrr): end_descriptor_pass allocate sets and free memory for them
-void CommandEncoderImpl::push_bindings(u32 descriptor, gfx::PipelineBindPoint bind_point,
-                                       gfx::DescriptorBindings const &bindings)
+void CommandEncoderInterface::push_bindings(gfx::CommandEncoder self, u32 descriptor,
+                                            gfx::PipelineBindPoint         bind_point,
+                                            gfx::DescriptorBindings const &bindings)
 {
   // check status
   ASH_CHECK(descriptor < descriptor_storage_bindings.ends.count, "invalid descriptor index");
@@ -2258,45 +2265,69 @@ void CommandEncoderImpl::push_bindings(u32 descriptor, gfx::PipelineBindPoint bi
   u32       storage_buffers_offset = descriptor_storage_bindings.buffers.count;
   u32       storage_images_offset  = descriptor_storage_bindings.images.count;
   u32 const num_storage_buffers =
-      (u32) bindings.storage_buffers.size() + (u32) bindings.storage_texel_buffers.size();
-  u32 const num_storage_images              = (u32) bindings.storage_images.size();
+      (u32) bindings.storage_buffers.size + (u32) bindings.storage_texel_buffers.size;
+  u32 const num_storage_images              = (u32) bindings.storage_images.size;
   u32       buffer_writes_offset            = vk_descriptor_buffers.count;
   u32       texel_buffer_view_writes_offset = vk_descriptor_texel_buffer_views.count;
   u32       image_writes_offset             = vk_descriptor_images.count;
   u32       writes_offset                   = vk_descriptor_writes.count;
   u32 const num_buffer_writes =
-      (u32) bindings.uniform_buffers.size() + (u32) bindings.storage_buffers.size();
+      (u32) bindings.uniform_buffers.size + (u32) bindings.storage_buffers.size;
   u32 const num_texel_buffer_view_writes =
-      (u32) bindings.uniform_texel_buffers.size() + (u32) bindings.storage_texel_buffers.size();
+      (u32) bindings.uniform_texel_buffers.size + (u32) bindings.storage_texel_buffers.size;
   u32 const num_image_writes =
-      (u32) bindings.samplers.size() + (u32) bindings.combined_image_samplers.size() +
-      (u32) bindings.sampled_images.size() + (u32) bindings.storage_images.size() +
-      (u32) bindings.input_attachments.size();
+      (u32) bindings.samplers.size + (u32) bindings.combined_image_samplers.size +
+      (u32) bindings.sampled_images.size + (u32) bindings.storage_images.size +
+      (u32) bindings.input_attachments.size;
   u32       writes_offset = vk_descriptor_writes.count;
   u32 const num_writes    = num_buffer_writes + num_texel_buffer_view_writes + num_image_writes;
 
-  RETURN_IF_ERR(descriptor_storage_bindings.buffers.grow_count(allocator, num_storage_buffers));
-  RETURN_IF_ERR(descriptor_storage_bindings.images.grow_count(allocator, num_storage_images));
-  RETURN_IF_ERR(vk_descriptor_buffers.grow_count(allocator, num_buffer_writes));
-  RETURN_IF_ERR(
-      vk_descriptor_texel_buffer_views.grow_count(allocator, num_texel_buffer_view_writes));
-  RETURN_IF_ERR(vk_descriptor_images.grow_count(allocator, num_image_writes));
-  RETURN_IF_ERR(vk_descriptor_writes.grow_count(allocator, num_writes));
+  impl->status = descriptor_storage_bindings.buffers.grow_size(allocator, num_storage_buffers);
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  };
+  impl->status = descriptor_storage_bindings.images.grow_size(allocator, num_storage_images);
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  };
+  impl->status = vk_descriptor_buffers.grow_size(allocator, num_buffer_writes);
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  };
+  impl->status =
+      vk_descriptor_texel_buffer_views.grow_size(allocator, num_texel_buffer_view_writes);
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  };
+  impl->status = vk_descriptor_images.grow_size(allocator, num_image_writes);
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  };
+  impl->status = vk_descriptor_writes.grow_size(allocator, num_writes);
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  };
 
-  for (u32 i = 0; i < (u32) bindings.storage_buffers.size(); i++, storage_buffers_offset++)
+  for (u32 i = 0; i < (u32) bindings.storage_buffers.size; i++, storage_buffers_offset++)
   {
     descriptor_storage_bindings.buffers.data[storage_buffers_offset] =
         ((Buffer *) bindings.storage_buffers.data()[i].buffer);
   }
 
-  for (u32 i = 0; i < (u32) bindings.storage_texel_buffers.size(); i++, storage_buffers_offset++)
+  for (u32 i = 0; i < (u32) bindings.storage_texel_buffers.size; i++, storage_buffers_offset++)
   {
     descriptor_storage_bindings.buffers.data[storage_buffers_offset] =
         (Buffer *) (((BufferView *) bindings.storage_texel_buffers.data()[i].buffer_view)
                         ->desc.buffer);
   }
 
-  for (u32 i = 0; i < (u32) bindings.storage_images.size(); i++, storage_images_offset++)
+  for (u32 i = 0; i < (u32) bindings.storage_images.size; i++, storage_images_offset++)
   {
     descriptor_storage_bindings.images.data[storage_images_offset] =
         (Image *) (((ImageView *) bindings.storage_images.data()[i].image_view)->desc.image);
@@ -2409,7 +2440,7 @@ void CommandEncoderImpl::push_bindings(u32 descriptor, gfx::PipelineBindPoint bi
   }
 }
 
-void CommandEncoderImpl::end_descriptor_pass()
+void CommandEncoderInterface::end_descriptor_pass(gfx::CommandEncoder self)
 {
   // handle error
   // todo(lamarrr): what does the spec say about zero-sized?
@@ -2513,14 +2544,14 @@ void CommandEncoderImpl::end_descriptor_pass()
   // free non-storage binding descriptors
 }
 
-void CommandEncoderImpl::bind_descriptor(u32 index)
+void CommandEncoderInterface::bind_descriptor(gfx::CommandEncoder self, u32 index)
 {
   // checks
   // bind to render/compute
   // check index
 }
 
-void CommandEncoderImpl::bind_next_descriptor()
+void CommandEncoderInterface::bind_next_descriptor(gfx::CommandEncoder self, )
 {
   // advance
   // bind to render/compute
@@ -2528,10 +2559,10 @@ void CommandEncoderImpl::bind_next_descriptor()
   // check index
 }
 
-void CommandEncoderImpl::begin_render_pass(
-    gfx::Framebuffer framebuffer, gfx::RenderPass render_pass, IRect render_area,
-    stx::Span<gfx::Color const>        color_attachments_clear_values,
-    stx::Span<gfx::DepthStencil const> depth_stencil_attachments_clear_values)
+void CommandEncoderInterface::begin_render_pass(
+    gfx::CommandEncoder self, gfx::Framebuffer framebuffer, gfx::RenderPass render_pass,
+    IRect render_area, Span<gfx::Color const> color_attachments_clear_values,
+    Span<gfx::DepthStencil const> depth_stencil_attachments_clear_values)
 {
   this->framebuffer = (Framebuffer *) framebuffer;
 
@@ -2570,7 +2601,7 @@ void CommandEncoderImpl::begin_render_pass(
   device->vk_table.CmdBeginRenderPass(vk_command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
 }
 
-void CommandEncoderImpl::end_render_pass()
+void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self, )
 {
   // check in renderpass
   for (gfx::ImageView view : ((Framebuffer *) framebuffer)->desc.color_attachments)
@@ -2600,7 +2631,7 @@ void CommandEncoderImpl::end_render_pass()
   device->vk_table.CmdEndRenderPass(vk_command_buffer);
 }
 
-void CommandEncoderImpl::bind_pipeline(gfx::ComputePipeline pipeline)
+void CommandEncoderInterface::bind_pipeline(gfx::CommandEncoder self, gfx::ComputePipeline pipeline)
 {
   // check status
   this->compute_pipeline = (ComputePipeline *) pipeline;
@@ -2608,14 +2639,16 @@ void CommandEncoderImpl::bind_pipeline(gfx::ComputePipeline pipeline)
                                    this->compute_pipeline->vk_pipeline);
 }
 
-void CommandEncoderImpl::bind_pipeline(gfx::GraphicsPipeline pipeline)
+void CommandEncoderInterface::bind_pipeline(gfx::CommandEncoder   self,
+                                            gfx::GraphicsPipeline pipeline)
 {
   this->graphics_pipeline = (GraphicsPipeline *) pipeline;
   device->vk_table.CmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                    this->graphics_pipeline->vk_pipeline);
 }
 
-void CommandEncoderImpl::push_constants(stx::Span<u8 const> push_constants_data)
+void CommandEncoderInterface::push_constants(gfx::CommandEncoder self,
+                                             Span<u8 const>      push_constants_data)
 {
   // check status
   if (compute_pipeline)
@@ -2636,102 +2669,170 @@ void CommandEncoderImpl::push_constants(stx::Span<u8 const> push_constants_data)
   }
 }
 
-void CommandEncoderImpl::dispatch(u32 group_count_x, u32 group_count_y, u32 group_count_z)
+void CommandEncoderInterface::dispatch(gfx::CommandEncoder self, u32 group_count_x,
+                                       u32 group_count_y, u32 group_count_z)
 {
 }
 
-void CommandEncoderImpl::dispatch_indirect(gfx::Buffer buffer, u64 offset)
+void CommandEncoderInterface::dispatch_indirect(gfx::CommandEncoder self, gfx::Buffer buffer,
+                                                u64 offset)
 {
   // pre
   device->vk_table;
   // post
 }
 
-void CommandEncoderImpl::set_viewport(gfx::Viewport const &viewport)
+void CommandEncoderInterface::set_viewport(gfx::CommandEncoder self, gfx::Viewport const &viewport)
 {
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
   VkViewport vk_viewport{.x        = viewport.area.offset.x,
                          .y        = viewport.area.offset.y,
                          .width    = viewport.area.extent.x,
                          .height   = viewport.area.extent.y,
                          .minDepth = viewport.min_depth,
                          .maxDepth = viewport.max_depth};
-  device->vk_table.CmdSetViewport(vk_command_buffer, 0, 1, &vk_viewport);
+  impl->device->vk_table.CmdSetViewport(impl->vk_command_buffer, 0, 1, &vk_viewport);
 }
 
-void CommandEncoderImpl::set_scissor(IRect scissor)
+void CommandEncoderInterface::set_scissor(gfx::CommandEncoder self, IRect scissor)
 {
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
   VkRect2D vk_scissor{.offset = VkOffset2D{scissor.offset.x, scissor.offset.y},
                       .extent = VkExtent2D{scissor.extent.width, scissor.extent.height}};
-  device->vk_table.CmdSetScissor(vk_command_buffer, 0, 1, &vk_scissor);
+  impl->device->vk_table.CmdSetScissor(impl->vk_command_buffer, 0, 1, &vk_scissor);
 }
 
-void CommandEncoderImpl::set_blend_constants(Vec4 blend_constants)
+void CommandEncoderInterface::set_blend_constants(gfx::CommandEncoder self, Vec4 blend_constants)
 {
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
   f32 vk_constants[4] = {blend_constants.x, blend_constants.y, blend_constants.z,
                          blend_constants.w};
-  device->vk_table.CmdSetBlendConstants(vk_command_buffer, vk_constants);
+  impl->device->vk_table.CmdSetBlendConstants(impl->vk_command_buffer, vk_constants);
 }
 
-void CommandEncoderImpl::set_stencil_compare_mask(gfx::StencilFaces faces, u32 mask)
+void CommandEncoderInterface::set_stencil_compare_mask(gfx::CommandEncoder self,
+                                                       gfx::StencilFaces faces, u32 mask)
 {
-  device->vk_table.CmdSetStencilCompareMask(vk_command_buffer, (VkStencilFaceFlags) faces, mask);
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
+  impl->device->vk_table.CmdSetStencilCompareMask(impl->vk_command_buffer,
+                                                  (VkStencilFaceFlags) faces, mask);
 }
 
-void CommandEncoderImpl::set_stencil_reference(gfx::StencilFaces faces, u32 reference)
+void CommandEncoderInterface::set_stencil_reference(gfx::CommandEncoder self,
+                                                    gfx::StencilFaces faces, u32 reference)
 {
-  device->vk_table.CmdSetStencilReference(vk_command_buffer, (VkStencilFaceFlags) faces, reference);
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
+  impl->device->vk_table.CmdSetStencilReference(impl->vk_command_buffer, (VkStencilFaceFlags) faces,
+                                                reference);
 }
 
-void CommandEncoderImpl::set_stencil_write_mask(gfx::StencilFaces faces, u32 mask)
+void CommandEncoderInterface::set_stencil_write_mask(gfx::CommandEncoder self,
+                                                     gfx::StencilFaces faces, u32 mask)
 {
-  device->vk_table.CmdSetStencilWriteMask(vk_command_buffer, (VkStencilFaceFlags) faces, mask);
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
+  impl->device->vk_table.CmdSetStencilWriteMask(impl->vk_command_buffer, (VkStencilFaceFlags) faces,
+                                                mask);
 }
 
-void CommandEncoderImpl::set_vertex_buffers(stx::Span<gfx::Buffer const> vertex_buffers,
-                                            stx::Span<u64 const>         offsets)
+void CommandEncoderInterface::set_vertex_buffers(gfx::CommandEncoder     self,
+                                                 Span<gfx::Buffer const> vertex_buffers,
+                                                 Span<u64 const>         offsets)
 {
-  u32       num_buffers = (u32) vertex_buffers.size();
-  VkBuffer *vk_buffers  = ALLOC_NUM(allocator, VkBuffer, num_buffers);
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
+  u32       num_buffers = (u32) vertex_buffers.size;
+  VkBuffer *vk_buffers  = ALLOC_N(impl->allocator, VkBuffer, num_buffers);
 
   if (vk_buffers == nullptr)
   {
-    status = gfx::Status::OutOfHostMemory;
+    impl->status = gfx::Status::OutOfHostMemory;
     return;
   }
 
   for (u32 i = 0; i < num_buffers; i++)
   {
-    vk_buffers[i] = ((Buffer *) vertex_buffers.data()[i])->vk_buffer;
+    vk_buffers[i] = ((Buffer *) vertex_buffers.data[i])->vk_buffer;
   }
 
-  device->vk_table.CmdBindVertexBuffers(vk_command_buffer, 0, num_buffers, vk_buffers,
-                                        offsets.data());
+  impl->device->vk_table.CmdBindVertexBuffers(impl->vk_command_buffer, 0, num_buffers, vk_buffers,
+                                              offsets.data);
 
-  allocator.deallocate(allocator.data, vk_buffers);
+  impl->allocator.deallocate(vk_buffers);
 }
 
-void CommandEncoderImpl::set_index_buffer(gfx::Buffer index_buffer, u64 offset)
+void CommandEncoderInterface::set_index_buffer(gfx::CommandEncoder self, gfx::Buffer index_buffer,
+                                               u64 offset)
 {
-  device->vk_table.CmdBindIndexBuffer(vk_command_buffer, ((Buffer *) index_buffer)->vk_buffer,
-                                      offset, VK_INDEX_TYPE_UINT32);
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
+  impl->device->vk_table.CmdBindIndexBuffer(
+      impl->vk_command_buffer, ((Buffer *) index_buffer)->vk_buffer, offset, VK_INDEX_TYPE_UINT32);
 }
 
-void CommandEncoderImpl::draw(u32 first_index, u32 num_indices, i32 vertex_offset,
-                              u32 first_instance, u32 num_instances)
+void CommandEncoderInterface::draw(gfx::CommandEncoder self, u32 first_index, u32 num_indices,
+                                   i32 vertex_offset, u32 first_instance, u32 num_instances)
 {
-  device->vk_table.CmdDrawIndexed(vk_command_buffer, num_indices, num_instances, first_index,
-                                  vertex_offset, first_instance);
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
+  impl->device->vk_table.CmdDrawIndexed(impl->vk_command_buffer, num_indices, num_instances,
+                                        first_index, vertex_offset, first_instance);
 }
 
-void CommandEncoderImpl::draw_indirect(gfx::Buffer buffer, u64 offset, u32 draw_count, u32 stride)
+void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self, gfx::Buffer buffer,
+                                            u64 offset, u32 draw_count, u32 stride)
 {
-  device->vk_table.CmdDrawIndexedIndirect(vk_command_buffer, ((Buffer *) buffer)->vk_buffer, offset,
-                                          draw_count, stride);
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
+  impl->device->vk_table.CmdDrawIndexedIndirect(
+      impl->vk_command_buffer, ((Buffer *) buffer)->vk_buffer, offset, draw_count, stride);
 }
 
-void CommandEncoderImpl::on_execution_complete(stx::UniqueFn<void()> &&fn)
+// TODO(lamarrr): instead of this we can have tasks use the trailing frame indices to execute tasks
+void CommandEncoderInterface::on_execution_complete(gfx::CommandEncoder     self,
+                                                    stx::UniqueFn<void()> &&fn)
 {
-  completion_tasks.push(std::move(fn)).unwrap();
+  CommandEncoder *impl = (CommandEncoder *) self;
+  if (impl->status != gfx::Status::Success)
+  {
+    return;
+  }
+  impl->completion_tasks.push(std::move(fn)).unwrap();
 }
 
 }        // namespace vk
