@@ -14,6 +14,7 @@ namespace ash
 namespace vk
 {
 
+using gfx::Status;
 constexpr char const *REQUIRED_INSTANCE_EXTENSIONS[] = {""};
 constexpr char const *OPTIONAL_INSTANCE_EXTENSIONS[] = {""};
 constexpr char const *REQUIRED_DEVICE_EXTENSIONS[]   = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -31,32 +32,32 @@ struct Vec
   u32 size     = 0;
   u32 capacity = 0;
 
-  gfx::Status reserve(AllocatorImpl allocator, u32 target_size)
+  Status reserve(AllocatorImpl allocator, u32 target_size)
   {
     if (target_size <= capacity) [[unlikely]]
     {
-      return gfx::Status::Success;
+      return Status::Success;
     }
     usize const target_capacity = target_size + (target_size >> 1);
     T *new_data = (T *) allocator.reallocate(data, sizeof(T) * target_capacity, alignof(T));
     if (new_data == nullptr) [[unlikely]]
     {
-      return gfx::Status::OutOfHostMemory;
+      return Status::OutOfHostMemory;
     }
     data     = new_data;
     capacity = target_capacity;
-    return gfx::Status::Success;
+    return Status::Success;
   }
 
-  gfx::Status grow_size(AllocatorImpl allocator, u32 growth)
+  Status grow_size(AllocatorImpl allocator, u32 growth)
   {
-    gfx::Status status = reserve(allocator, size + growth);
-    if (status != gfx::Status::Success) [[unlikely]]
+    Status status = reserve(allocator, size + growth);
+    if (status != Status::Success) [[unlikely]]
     {
       return status;
     }
     size += growth;
-    return gfx::Status::Success;
+    return Status::Success;
   }
 
   void fill(T const &element, u32 begin, u32 num)
@@ -67,17 +68,17 @@ struct Vec
     }
   }
 
-  gfx::Status push(AllocatorImpl allocator, T const &element)
+  Status push(AllocatorImpl allocator, T const &element)
   {
-    gfx::Status status = reserve(allocator, size + 1);
-    if (status != gfx::Status::Success) [[unlikely]]
+    Status status = reserve(allocator, size + 1);
+    if (status != Status::Success) [[unlikely]]
     {
       return status;
     }
     data[size] = element;
     size++;
 
-    return gfx::Status::Success;
+    return Status::Success;
   }
 
   void shrink_to_fit();
@@ -275,15 +276,15 @@ struct DeviceTable
 // NOTE: update_buffer and fill_buffer MUST be multiple of 4 for dst offset and dst size
 struct BufferAccess
 {
-  VkShaderStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-  VkAccessFlags      access = VK_ACCESS_NONE;
+  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkAccessFlags        access = VK_ACCESS_NONE;
 };
 
 struct ImageAccess
 {
-  VkShaderStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-  VkAccessFlags      access = VK_ACCESS_NONE;
-  VkImageLayout      layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkPipelineStageFlags stages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkAccessFlags        access = VK_ACCESS_NONE;
+  VkImageLayout        layout = VK_IMAGE_LAYOUT_UNDEFINED;
 };
 
 // if is read access but with layout and access same as the transitioned one
@@ -430,12 +431,6 @@ struct Device
   gfx::FrameId       current_frame     = 0;
 };
 
-struct DescriptorPoolStats
-{
-  u32 num_released = 0;
-  u32 num_free     = 0;
-};
-
 /// struct DescriptorHeap - // ntypes * nsets
 // for each group
 // can be updated independently
@@ -450,25 +445,8 @@ struct DescriptorPoolStats
 // sets from that descriptor set can't be reused, destroyed or modified until its no longer in use
 ///
 ///
-/// DESCRIPTOR SET LAYOUT
-/// =====================
-///
-/// GROUP 0:
-///     SET 0
-///     SET 1
-///     ...
-/// GROUP 1:
-///     SET 0
-///     SET 1
-///     ...
-/// ...
-///
-///
-///
-///
 /// BINDING LAYOUT
 /// ==============
-///
 ///
 /// GROUP 0:
 ///     SET 0:
@@ -502,31 +480,27 @@ struct DescriptorPoolStats
 /// build vkwritedescriptorset using provided descriptor set binding data
 ///
 ///
-///
-///
 // TODO(lamarrr): use an arena allocator
 struct DescriptorHeap
 {
-  u64                   refcount            = 0;
-  Device               *device              = nullptr;
-  AllocatorImpl         arena_allocator           = {};
-  AllocatorImpl         binding_allocator           = {};
-  DescriptorSetLayout **set_layouts         = nullptr;
-  u32                  *group_set_offsets   = nullptr;
-  VkDescriptorPool     *vk_pools            = nullptr;
-  DescriptorPoolStats  *pool_stats          = nullptr;
-  VkDescriptorSet      *vk_descriptor_sets  = nullptr;
-  u64                  *last_use_frame      = nullptr;
-  u32                  *released_groups     = nullptr;
-  u32                  *free_groups         = nullptr;
-  void                 *bindings            = 0;
-  u32                   num_sets            = 0;
-  u32                   num_pools           = 0;
-  u32                   num_pool_groups     = 0;
-  u32                   num_released_groups = 0;
-  u32                   num_free_groups     = 0;
-  u32                   group_stride        = 0;
-  bool                  can_shrink          = false;
+  u64                   refcount             = 0;
+  Device               *device               = nullptr;
+  AllocatorImpl         allocator            = {};
+  DescriptorSetLayout **set_layouts          = nullptr;
+  u32                 **binding_offsets      = nullptr;
+  VkDescriptorPool     *vk_pools             = nullptr;
+  VkDescriptorSet      *vk_descriptor_sets   = nullptr;
+  u64                  *last_use_frame       = nullptr;
+  u32                  *released_groups      = nullptr;
+  u32                  *free_groups          = nullptr;
+  u8                   *bindings             = nullptr;
+  void                 *scratch_memory       = nullptr;
+  u32                   num_sets_per_group   = 0;
+  u32                   num_pools            = 0;
+  u32                   num_groups_per_pool  = 0;
+  u32                   num_released_groups  = 0;
+  u32                   num_free_groups      = 0;
+  u32                   group_binding_stride = 0;
 };
 
 struct CommandEncoder
@@ -544,46 +518,44 @@ struct CommandEncoder
   u32                        bound_descriptor_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]       = {};
   u32                        num_bound_descriptor_sets                                      = 0;
   Vec<stx::UniqueFn<void()>> completion_tasks                                               = {};
-  gfx::Status                status = gfx::Status::Success;
+  Status                     status = Status::Success;
 };
 
 struct DeviceInterface
 {
-  static void                                       ref(gfx::Device self);
-  static void                                       unref(gfx::Device self);
-  static Result<gfx::DeviceInfo, gfx::Status>       get_device_info(gfx::Device self);
-  static Result<gfx::FormatProperties, gfx::Status> get_format_properties(gfx::Device self,
-                                                                          gfx::Format format);
-  static Result<gfx::Buffer, gfx::Status>           create_buffer(gfx::Device            self,
-                                                                  gfx::BufferDesc const &desc);
-  static Result<gfx::BufferView, gfx::Status>       create_buffer_view(gfx::Device                self,
-                                                                       gfx::BufferViewDesc const &desc);
-  static Result<gfx::Image, gfx::Status> create_image(gfx::Device self, gfx::ImageDesc const &desc);
-  static Result<gfx::ImageView, gfx::Status>   create_image_view(gfx::Device               self,
-                                                                 gfx::ImageViewDesc const &desc);
-  static Result<gfx::Sampler, gfx::Status>     create_sampler(gfx::Device             self,
-                                                              gfx::SamplerDesc const &desc);
-  static Result<gfx::Shader, gfx::Status>      create_shader(gfx::Device            self,
-                                                             gfx::ShaderDesc const &desc);
-  static Result<gfx::RenderPass, gfx::Status>  create_render_pass(gfx::Device                self,
-                                                                  gfx::RenderPassDesc const &desc);
-  static Result<gfx::Framebuffer, gfx::Status> create_framebuffer(gfx::Device                 self,
-                                                                  gfx::FramebufferDesc const &desc);
-  static Result<gfx::DescriptorSetLayout, gfx::Status>
+  static void                                  ref(gfx::Device self);
+  static void                                  unref(gfx::Device self);
+  static Result<gfx::DeviceInfo, Status>       get_device_info(gfx::Device self);
+  static Result<gfx::FormatProperties, Status> get_format_properties(gfx::Device self,
+                                                                     gfx::Format format);
+  static Result<gfx::Buffer, Status> create_buffer(gfx::Device self, gfx::BufferDesc const &desc);
+  static Result<gfx::BufferView, Status> create_buffer_view(gfx::Device                self,
+                                                            gfx::BufferViewDesc const &desc);
+  static Result<gfx::Image, Status>      create_image(gfx::Device self, gfx::ImageDesc const &desc);
+  static Result<gfx::ImageView, Status>  create_image_view(gfx::Device               self,
+                                                           gfx::ImageViewDesc const &desc);
+  static Result<gfx::Sampler, Status>    create_sampler(gfx::Device             self,
+                                                        gfx::SamplerDesc const &desc);
+  static Result<gfx::Shader, Status> create_shader(gfx::Device self, gfx::ShaderDesc const &desc);
+  static Result<gfx::RenderPass, Status>  create_render_pass(gfx::Device                self,
+                                                             gfx::RenderPassDesc const &desc);
+  static Result<gfx::Framebuffer, Status> create_framebuffer(gfx::Device                 self,
+                                                             gfx::FramebufferDesc const &desc);
+  static Result<gfx::DescriptorSetLayout, Status>
       create_descriptor_set_layout(gfx::Device self, gfx::DescriptorSetLayoutDesc const &desc);
-  static Result<gfx::DescriptorHeapImpl, gfx::Status>
+  static Result<gfx::DescriptorHeapImpl, Status>
       create_descriptor_heap(gfx::Device                          self,
                              Span<gfx::DescriptorSetLayout const> descriptor_set_layouts,
-                             u32 pool_size, bool can_shrink);
-  static Result<gfx::PipelineCache, gfx::Status>
+                             u32                                  groups_per_pool);
+  static Result<gfx::PipelineCache, Status>
       create_pipeline_cache(gfx::Device self, gfx::PipelineCacheDesc const &desc);
-  static Result<gfx::ComputePipeline, gfx::Status>
+  static Result<gfx::ComputePipeline, Status>
       create_compute_pipeline(gfx::Device self, gfx::ComputePipelineDesc const &desc);
-  static Result<gfx::GraphicsPipeline, gfx::Status>
+  static Result<gfx::GraphicsPipeline, Status>
       create_graphics_pipeline(gfx::Device self, gfx::GraphicsPipelineDesc const &desc);
-  static Result<gfx::Fence, gfx::Status>              create_fence(gfx::Device self, bool signaled);
-  static Result<gfx::CommandEncoderImpl, gfx::Status> create_command_encoder(gfx::Device self);
-  static void ref_buffer(gfx::Device self, gfx::Buffer buffer);
+  static Result<gfx::Fence, Status>              create_fence(gfx::Device self, bool signaled);
+  static Result<gfx::CommandEncoderImpl, Status> create_command_encoder(gfx::Device self);
+  static void                                    ref_buffer(gfx::Device self, gfx::Buffer buffer);
   static void ref_buffer_view(gfx::Device self, gfx::BufferView buffer_view);
   static void ref_image(gfx::Device self, gfx::Image image);
   static void ref_image_view(gfx::Device self, gfx::ImageView image_view);
@@ -613,50 +585,67 @@ struct DeviceInterface
   static void unref_graphics_pipeline(gfx::Device self, gfx::GraphicsPipeline pipeline);
   static void unref_fence(gfx::Device self, gfx::Fence fence);
   static void unref_command_encoder(gfx::Device self, gfx::CommandEncoderImpl encoder);
-  static Result<void *, gfx::Status> get_buffer_memory_map(gfx::Device self, gfx::Buffer buffer);
-  static Result<Void, gfx::Status>
-      invalidate_buffer_memory_map(gfx::Device self, gfx::Buffer buffer, gfx::MemoryRange ranges);
-  static Result<Void, gfx::Status>  flush_buffer_memory_map(gfx::Device self, gfx::Buffer buffer,
-                                                            gfx::MemoryRange range);
-  static Result<usize, gfx::Status> get_pipeline_cache_size(gfx::Device        self,
-                                                            gfx::PipelineCache cache);
-  static Result<usize, gfx::Status> get_pipeline_cache_data(gfx::Device        self,
-                                                            gfx::PipelineCache cache, Span<u8> out);
-  static Result<Void, gfx::Status>  merge_pipeline_cache(gfx::Device self, gfx::PipelineCache dst,
-                                                         Span<gfx::PipelineCache const> srcs);
-  static Result<Void, gfx::Status>  wait_for_fences(gfx::Device self, Span<gfx::Fence const> fences,
-                                                    bool all, u64 timeout);
-  static Result<Void, gfx::Status>  reset_fences(gfx::Device self, Span<gfx::Fence const> fences);
-  static Result<Void, gfx::Status>  get_fence_status(gfx::Device self, gfx::Fence fence);
-  static Result<Void, gfx::Status>  submit(gfx::Device self, gfx::CommandEncoder encoder,
-                                           gfx::Fence signal_fence);
-  static Result<Void, gfx::Status>  wait_idle(gfx::Device self);
-  static Result<Void, gfx::Status>  wait_queue_idle(gfx::Device self);
-  static Result<gfx::FrameInfo, gfx::Status>           get_frame_info(gfx::Device self);
-  static Result<Void, gfx::Status>                     present_frame(gfx::Device self);
-  static Result<gfx::SurfaceCapabilities, gfx::Status> get_surface_capabilities(gfx::Device self);
-  static Result<Void, gfx::Status> config_surface(gfx::SurfaceConfig const &config);
+  static Result<void *, Status> get_buffer_memory_map(gfx::Device self, gfx::Buffer buffer);
+  static Result<Void, Status>   invalidate_buffer_memory_map(gfx::Device self, gfx::Buffer buffer,
+                                                             gfx::MemoryRange ranges);
+  static Result<Void, Status>   flush_buffer_memory_map(gfx::Device self, gfx::Buffer buffer,
+                                                        gfx::MemoryRange range);
+  static Result<usize, Status>  get_pipeline_cache_size(gfx::Device self, gfx::PipelineCache cache);
+  static Result<usize, Status>  get_pipeline_cache_data(gfx::Device self, gfx::PipelineCache cache,
+                                                        Span<u8> out);
+  static Result<Void, Status>   merge_pipeline_cache(gfx::Device self, gfx::PipelineCache dst,
+                                                     Span<gfx::PipelineCache const> srcs);
+  static Result<Void, Status>   wait_for_fences(gfx::Device self, Span<gfx::Fence const> fences,
+                                                bool all, u64 timeout);
+  static Result<Void, Status>   reset_fences(gfx::Device self, Span<gfx::Fence const> fences);
+  static Result<bool, Status>   get_fence_status(gfx::Device self, gfx::Fence fence);
+  static Result<Void, Status>   submit(gfx::Device self, gfx::CommandEncoder encoder,
+                                       gfx::Fence signal_fence);
+  static Result<Void, Status>   wait_idle(gfx::Device self);
+  static Result<Void, Status>   wait_queue_idle(gfx::Device self);
+  static Result<gfx::FrameInfo, Status>           get_frame_info(gfx::Device self);
+  static Result<Void, Status>                     present_frame(gfx::Device self);
+  static Result<gfx::SurfaceCapabilities, Status> get_surface_capabilities(gfx::Device self);
+  static Result<Void, Status>                     config_surface(gfx::SurfaceConfig const &config);
 };
 
 struct DescriptorHeapInterface
 {
-  static gfx::DescriptorCount     count_descriptors(gfx::DescriptorSetLayout layout);
-  static Result<u32, gfx::Status> add(gfx::DescriptorHeap self);
-  static void                     update(gfx::DescriptorHeap self, u32 group, u32 set,
-                                         gfx::DescriptorSetBindings const &bindings);
+  static Result<u32, Status> add_group(gfx::DescriptorHeap self, gfx::FrameId trailing_frame);
+  static void                sampler(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                                     Span<gfx::SamplerBinding const> elements);
+  static void combined_image_sampler(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                                     Span<gfx::CombinedImageSamplerBinding const> elements);
+  static void sampled_image(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                            Span<gfx::SampledImageBinding const> elements);
+  static void storage_image(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                            Span<gfx::StorageImageBinding const> elements);
+  static void uniform_texel_buffer(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                                   Span<gfx::UniformTexelBufferBinding const> elements);
+  static void storage_texel_buffer(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                                   Span<gfx::StorageTexelBufferBinding const> elements);
+  static void uniform_buffer(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                             Span<gfx::UniformBufferBinding const> elements);
+  static void storage_buffer(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                             Span<gfx::StorageBufferBinding const> elements);
+  static void dynamic_uniform_buffer(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                                     Span<gfx::DynamicUniformBufferBinding const> elements);
+  static void dynamic_storage_buffer(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                                     Span<gfx::DynamicStorageBufferBinding const> elements);
+  static void input_attachment(gfx::DescriptorHeap self, u32 group, u32 set, u32 binding,
+                               Span<gfx::InputAttachmentBinding const> elements);
   static void mark_in_use(gfx::DescriptorHeap self, u32 group, gfx::FrameId current_frame);
   static bool is_in_use(gfx::DescriptorHeap self, u32 group, gfx::FrameId trailing_frame);
   static void release(gfx::DescriptorHeap self, u32 group);
   static gfx::DescriptorHeapStats get_stats(gfx::DescriptorHeap self);
-  static void                     tick(gfx::DescriptorHeap self, gfx::FrameId trailing_frame);
 };
 
 // TODO(lamarrr): min of minUniformBufferOffsetAlignment for dynamicbufferoffset
 struct CommandEncoderInterface
 {
-  static void                      begin(gfx::CommandEncoder self);
-  static Result<Void, gfx::Status> end(gfx::CommandEncoder self);
-  static void                      reset(gfx::CommandEncoder self);
+  static void                 begin(gfx::CommandEncoder self);
+  static Result<Void, Status> end(gfx::CommandEncoder self);
+  static void                 reset(gfx::CommandEncoder self);
   static void begin_debug_marker(gfx::CommandEncoder self, char const *region_name, Vec4 color);
   static void end_debug_marker(gfx::CommandEncoder self);
   static void fill_buffer(gfx::CommandEncoder self, gfx::Buffer dst, u64 offset, u64 size,

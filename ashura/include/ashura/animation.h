@@ -34,6 +34,7 @@ enum class AnimationCfg : u8
 STX_DEFINE_ENUM_BIT_OPS(AnimationCfg)
 
 // TODO(lamarrr): support CSS-like Animation Keyframes?
+// TODO(lamarrr): animation resolution for anime-like frames
 
 struct Animation
 {

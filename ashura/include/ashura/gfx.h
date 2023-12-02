@@ -1,60 +1,17 @@
 #pragma once
-#include "ashura/array.h"
+#include "ashura/integers.h"
 #include "ashura/primitives.h"
+#include "ashura/span.h"
 #include "stx/enum.h"
 #include "stx/fn.h"
 #include "stx/result.h"
-#include "stx/span.h"
-#include <type_traits>
 
 namespace ash
 {
-using stx::Array;
+using stx::Err;
+using stx::Ok;
 using stx::Result;
-
-template <typename T>
-struct IsConstT
-{
-  static constexpr bool value = false;
-};
-
-template <typename T>
-struct IsConstT<T const>
-{
-  static constexpr bool value = true;
-};
-
-template <typename T>
-constexpr bool IsConst = IsConstT<T>::value;
-
-template <typename T>
-concept Const = IsConst<T>;
-
-template <typename T>
-struct Span
-{
-  T    *data = nullptr;
-  usize size = 0;
-
-  constexpr usize         size_bytes() const;
-  constexpr T            *begin() const;
-  constexpr T            *end() const;
-  constexpr Span<T>       slice(usize offset, usize count) const;
-  constexpr Span<T const> as_const() const;
-  constexpr Span<u8>      as_u8() const
-    requires(!Const<T>);
-  constexpr Span<char> as_char() const
-    requires(!Const<T>);
-  constexpr Span<u8 const> as_u8() const
-    requires Const<T>;
-  constexpr Span<char const> as_char() const
-    requires Const<T>;
-
-  constexpr operator Span<T const>() const
-  {
-    return Span<T const>{.data = data, .size = size};
-  }
-};
+using stx::Void;
 
 namespace gfx
 {
@@ -63,6 +20,7 @@ constexpr u32 REMAINING_MIP_LEVELS         = ~0U;
 constexpr u32 REMAINING_ARRAY_LAYERS       = ~0U;
 constexpr u64 WHOLE_SIZE                   = ~0ULL;
 constexpr u32 MAX_COLOR_ATTACHMENTS        = 8;
+constexpr u32 MAX_INPUT_ATTACHMENTS        = 8;
 constexpr u32 MAX_VERTEX_ATTRIBUTES        = 16;
 constexpr u32 MAX_PUSH_CONSTANT_SIZE       = 128;
 constexpr u32 MAX_MEMORY_HEAP_PROPERTIES   = 32;
@@ -744,24 +702,37 @@ enum class ImageViewType : u8
 
 enum class DescriptorType : u32
 {
-  Sampler               = 0,
-  CombinedImageSampler  = 1,
-  SampledImage          = 2,
-  StorageImage          = 3,
-  UniformTexelBuffer    = 4,
-  StorageTexelBuffer    = 5,
-  UniformBuffer         = 6,
-  StorageBuffer         = 7,
-  DynamicUniformBuffer  = 8,
-  DynamicStorageBuffer  = 9,
-  InputAttachment       = 10,
-  AccelerationStructure = 1000150000
+  Sampler              = 0,
+  CombinedImageSampler = 1,
+  SampledImage         = 2,
+  StorageImage         = 3,
+  UniformTexelBuffer   = 4,
+  StorageTexelBuffer   = 5,
+  UniformBuffer        = 6,
+  StorageBuffer        = 7,
+  DynamicUniformBuffer = 8,
+  DynamicStorageBuffer = 9,
+  InputAttachment      = 10
 };
 
 enum class PipelineBindPoint : u8
 {
   Graphics = 0,
   Compute  = 1
+};
+
+struct SurfaceFormat
+{
+  ColorSpace color_space = ColorSpace::SRGB_NONLINEAR;
+  Format     format      = Format::Undefined;
+};
+
+struct SurfaceCapabilities
+{
+  Span<SurfaceFormat const> formats       = {};
+  Span<PresentMode const>   present_modes = {};
+  u32                       min_buffering = 0;
+  u32                       max_buffering = 0;
 };
 
 struct FrameIndex
@@ -844,8 +815,8 @@ struct HeapProperty
 struct DeviceMemoryHeaps
 {
   // ordered by performance-tier (MemoryProperties)
-  Array<HeapProperty, MAX_MEMORY_HEAP_PROPERTIES> heap_properties = {};
-  Array<u64, MAX_MEMORY_HEAPS>                    heap_sizes      = {};
+  HeapProperty heap_properties[MAX_MEMORY_HEAP_PROPERTIES] = {};
+  u64          heap_sizes[MAX_MEMORY_HEAPS]                = {};
 
   constexpr bool has_memory(MemoryProperties properties) const
   {
@@ -949,20 +920,20 @@ struct RenderPassAttachment
 /// related optimizations
 struct RenderPassDesc
 {
-  char const                                        *label                    = nullptr;
-  Array<RenderPassAttachment, MAX_COLOR_ATTACHMENTS> color_attachments        = {};
-  Array<RenderPassAttachment, MAX_COLOR_ATTACHMENTS> input_attachments        = {};
-  RenderPassAttachment                               depth_stencil_attachment = {};
+  char const                      *label                    = nullptr;
+  Span<RenderPassAttachment const> color_attachments        = {};
+  Span<RenderPassAttachment const> input_attachments        = {};
+  RenderPassAttachment             depth_stencil_attachment = {};
 };
 
 struct FramebufferDesc
 {
-  char const                             *label                    = nullptr;
-  RenderPass                              renderpass               = nullptr;
-  Extent                                  extent                   = {};
-  u32                                     layers                   = 0;
-  Array<ImageView, MAX_COLOR_ATTACHMENTS> color_attachments        = {};
-  ImageView                               depth_stencil_attachment = nullptr;
+  char const           *label                    = nullptr;
+  RenderPass            renderpass               = nullptr;
+  Extent                extent                   = {};
+  u32                   layers                   = 0;
+  Span<ImageView const> color_attachments        = {};
+  ImageView             depth_stencil_attachment = nullptr;
 };
 
 struct DescriptorBindingDesc
@@ -973,13 +944,14 @@ struct DescriptorBindingDesc
 
 struct DescriptorSetLayoutDesc
 {
-  char const                       *label = nullptr;
-  Span<DescriptorBindingDesc const> bindings;
+  char const                       *label    = nullptr;
+  Span<DescriptorBindingDesc const> bindings = {};
 };
 
 struct PipelineCacheDesc
 {
-  Span<u8 const> initial_data;
+  char const    *label        = nullptr;
+  Span<u8 const> initial_data = {};
 };
 
 struct DescriptorCount
@@ -995,62 +967,61 @@ struct DescriptorCount
   u32 dynamic_uniform_buffers = 0;
   u32 dynamic_storage_buffers = 0;
   u32 input_attachments       = 0;
-  u32 acceleration_structures = 0;
 };
 
-struct alignas(8) SamplerBinding
+struct SamplerBinding
 {
   Sampler sampler = nullptr;
 };
 
-struct alignas(8) CombinedImageSamplerBinding
+struct CombinedImageSamplerBinding
 {
   Sampler   sampler    = nullptr;
   ImageView image_view = nullptr;
 };
 
-struct alignas(8) SampledImageBinding
+struct SampledImageBinding
 {
   ImageView image_view = nullptr;
 };
 
-struct alignas(8) StorageImageBinding
+struct StorageImageBinding
 {
   ImageView image_view = nullptr;
 };
 
-struct alignas(8) UniformTexelBufferBinding
+struct UniformTexelBufferBinding
 {
   BufferView buffer_view = nullptr;
 };
 
-struct alignas(8) StorageTexelBufferBinding
+struct StorageTexelBufferBinding
 {
   BufferView buffer_view = nullptr;
 };
 
-struct alignas(8) UniformBufferBinding
+struct UniformBufferBinding
 {
   Buffer buffer = nullptr;
   u64    offset = 0;
   u64    size   = 0;
 };
 
-struct alignas(8) StorageBufferBinding
+struct StorageBufferBinding
 {
   Buffer buffer = nullptr;
   u64    offset = 0;
   u64    size   = 0;
 };
 
-struct alignas(8) DynamicUniformBufferBinding
+struct DynamicUniformBufferBinding
 {
   Buffer buffer = nullptr;
   u64    offset = 0;
   u64    size   = 0;
 };
 
-struct alignas(8) DynamicStorageBufferBinding
+struct DynamicStorageBufferBinding
 {
   Buffer buffer = nullptr;
   u64    offset = 0;
@@ -1058,71 +1029,14 @@ struct alignas(8) DynamicStorageBufferBinding
 };
 
 /// used for frame-buffer-local read-operations
-struct alignas(8) InputAttachmentBinding
+struct InputAttachmentBinding
 {
   ImageView image_view = nullptr;
 };
 
-struct DescriptorBinding
-{
-  constexpr DescriptorBinding(Span<SamplerBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::Sampler}
-  {
-  }
-
-  constexpr DescriptorBinding(Span<CombinedImageSamplerBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::CombinedImageSampler}
-  {
-  }
-
-  constexpr DescriptorBinding(Span<SampledImageBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::SampledImage}
-  {
-  }
-
-  constexpr DescriptorBinding(Span<StorageImageBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::StorageImage}
-  {
-  }
-
-  constexpr DescriptorBinding(Span<UniformTexelBufferBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::UniformTexelBuffer}
-  {
-  }
-
-  constexpr DescriptorBinding(Span<StorageTexelBufferBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::StorageTexelBuffer}
-  {
-  }
-
-  constexpr DescriptorBinding(Span<UniformBufferBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::UniformBuffer}
-  {
-  }
-
-  constexpr DescriptorBinding(Span<StorageBufferBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::StorageBuffer}
-  {
-  }
-
-  constexpr DescriptorBinding(Span<DynamicUniformBufferBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::DynamicUniformBuffer}
-  {
-  }
-
-  constexpr DescriptorBinding(Span<DynamicStorageBufferBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::DynamicStorageBuffer}
-  {
-  }
-
-  constexpr DescriptorBinding(Span<InputAttachmentBinding const> ibinding) :
-      binding{ibinding.as_u8()}, type{DescriptorType::InputAttachment}
-  {
-  }
-
-  Span<u8 const> binding = {};
-  DescriptorType type    = DescriptorType::Sampler;
-};
+// is there a way to pack multiple types into a buffer
+// and allocate for the buffer ahead of time safely?
+// need to take care of alignment
 
 struct SpecializationConstant
 {
@@ -1141,11 +1055,11 @@ struct ShaderStageDesc
 
 struct ComputePipelineDesc
 {
-  char const                                              *label                  = nullptr;
-  ShaderStageDesc                                          compute_shader         = {};
-  u32                                                      push_constant_size     = 0;
-  Array<DescriptorSetLayout, MAX_PIPELINE_DESCRIPTOR_SETS> descriptor_set_layouts = {};
-  PipelineCache                                            cache                  = nullptr;
+  char const                     *label                  = nullptr;
+  ShaderStageDesc                 compute_shader         = {};
+  u32                             push_constant_size     = 0;
+  Span<DescriptorSetLayout const> descriptor_set_layouts = {};
+  PipelineCache                   cache                  = nullptr;
 };
 
 /// Specifies how the binded vertex buffers are iterated and the strides for them
@@ -1201,10 +1115,10 @@ struct PipelineColorBlendAttachmentState
 
 struct PipelineColorBlendState
 {
-  bool                                                            logic_op_enable = false;
-  LogicOp                                                         logic_op        = LogicOp::Clear;
-  Array<PipelineColorBlendAttachmentState, MAX_COLOR_ATTACHMENTS> attachments     = {};
-  Vec4                                                            blend_constants;
+  bool                                          logic_op_enable = false;
+  LogicOp                                       logic_op        = LogicOp::Clear;
+  Span<PipelineColorBlendAttachmentState const> attachments     = {};
+  Vec4                                          blend_constants;
 };
 
 struct PipelineRasterizationState
@@ -1219,25 +1133,23 @@ struct PipelineRasterizationState
   f32         depth_bias_slope_factor    = 0;
 };
 
-// TODO(lamarrr): figure out lifetimes
 struct GraphicsPipelineDesc
 {
-  char const                                              *label                  = nullptr;
-  ShaderStageDesc                                          vertex_shader          = {};
-  ShaderStageDesc                                          fragment_shader        = {};
-  RenderPass                                               render_pass            = nullptr;
-  Array<VertexInputBinding, MAX_VERTEX_ATTRIBUTES>         vertex_input_bindings  = {};
-  Array<VertexAttribute, MAX_VERTEX_ATTRIBUTES>            vertex_attributes      = {};
-  u32                                                      push_constant_size     = 0;
-  Array<DescriptorSetLayout, MAX_PIPELINE_DESCRIPTOR_SETS> descriptor_set_layouts = {};
-  PrimitiveTopology          primitive_topology  = PrimitiveTopology::PointList;
-  PipelineRasterizationState rasterization_state = {};
-  PipelineDepthStencilState  depth_stencil_state = {};
-  PipelineColorBlendState    color_blend_state   = {};
-  PipelineCache              cache               = nullptr;
+  char const                     *label                  = nullptr;
+  ShaderStageDesc                 vertex_shader          = {};
+  ShaderStageDesc                 fragment_shader        = {};
+  RenderPass                      render_pass            = nullptr;
+  Span<VertexInputBinding const>  vertex_input_bindings  = {};
+  Span<VertexAttribute const>     vertex_attributes      = {};
+  u32                             push_constant_size     = 0;
+  Span<DescriptorSetLayout const> descriptor_set_layouts = {};
+  PrimitiveTopology               primitive_topology     = PrimitiveTopology::PointList;
+  PipelineRasterizationState      rasterization_state    = {};
+  PipelineDepthStencilState       depth_stencil_state    = {};
+  PipelineColorBlendState         color_blend_state      = {};
+  PipelineCache                   cache                  = nullptr;
 };
 
-// TODO(lamarrr): checks
 struct BufferCopy
 {
   u64 src_offset = 0;
@@ -1250,23 +1162,25 @@ struct BufferImageCopy
   u64                    buffer_offset       = 0;
   u32                    buffer_row_length   = 0;
   u32                    buffer_image_height = 0;
-  IRect3D                image_area          = {};
   ImageSubresourceLayers image_layers        = {};
+  Offset3D               image_offset        = {};
+  Extent3D               image_extent        = {};
 };
 
 struct ImageCopy
 {
-  IRect3D                src_area   = {};
+  Offset3D               src_offset = {};
   ImageSubresourceLayers src_layers = {};
-  IOffset3D              dst_offset = {};
+  Offset3D               dst_offset = {};
   ImageSubresourceLayers dst_layers = {};
+  Extent3D               extent     = {};
 };
 
 struct ImageBlit
 {
-  IOffset3D              src_offsets[2] = {};
+  Offset3D               src_offsets[2] = {};
   ImageSubresourceLayers src_layers     = {};
-  IOffset3D              dst_offsets[2] = {};
+  Offset3D               dst_offsets[2] = {};
   ImageSubresourceLayers dst_layers     = {};
 };
 
@@ -1289,21 +1203,19 @@ union ClearValue
   DepthStencil depth_stencil;
 };
 
-// is color space supported, is format supported for present src and display
-// Span<SwapchainConfig const>
-struct SwapchainConfig
+struct SurfaceConfig
 {
-  ColorSpace  preferred_color_space;
-  Format      preferred_format;
-  u32         preferred_buffering;
-  PresentMode preferred_present_mode;
+  ColorSpace  color_space  = ColorSpace::SRGB_NONLINEAR;
+  Format      format       = Format::Undefined;
+  u32         buffering    = 0;
+  PresentMode present_mode = PresentMode::Fifo;
 };
 
 /// @frame_stamp: frame at which the swapchain was created. used to know if we are referring to a
 /// different swapchain and synchronizing creation of renderpasses and framebuffers
 /// @images: swapchain images, calling ref or unref on them will cause a panic as they are only
 /// meant to exist for the lifetime of the frame
-struct SwapchainInfo
+struct SurfaceInfo
 {
   FrameId           frame_stamp   = 0;
   Extent            extent        = {};
@@ -1315,9 +1227,9 @@ struct SwapchainInfo
 
 struct FrameInfo
 {
-  FrameId       trailing       = 0;
-  FrameId       current        = 0;
-  SwapchainInfo swapchain_info = {};
+  FrameId     trailing     = 0;
+  FrameId     current      = 0;
+  SurfaceInfo surface_info = {};
 };
 
 // TODO(lamarrr): device selection? device list
@@ -1344,24 +1256,38 @@ struct DescriptorHeapStats
   u32 num_allocated_groups = 0;
   u32 num_free_groups      = 0;
   u32 num_released_groups  = 0;
+  u32 num_pools            = 0;
 };
 
-// TODO(lamarrr): storing bindings and coalescing
-// storings unique of images, buffers
-// TODO(lamarrr): if we specify all the bindings instead of specifying writes, it'll be easier to
-// know which bindings are present we can perform a unique of resources of each type here unique of
-// sampled images, unique of storage images, and unique of uniform buffers and storage buffers
-// TODO(lamarrr): store binding data
 struct DescriptorHeapInterface
 {
-  Result<u32, Status> (*add)(DescriptorHeap self)                            = nullptr;
-  void (*update)(DescriptorHeap self, u32 group, u32 set,
-                 Span<DescriptorBinding const> bindings)                     = nullptr;
-  void (*mark_in_use)(DescriptorHeap self, u32 group, FrameId current_frame) = nullptr;
-  bool (*is_in_use)(DescriptorHeap self, u32 group, FrameId trailing_frame)  = nullptr;
-  void (*release)(DescriptorHeap self, u32 group)                            = nullptr;
-  DescriptorHeapStats (*get_stats)(DescriptorHeap self)                      = nullptr;
-  void (*tick)(DescriptorHeap self, FrameId trailing_frame)                  = nullptr;
+  Result<u32, Status> (*add_group)(DescriptorHeap self, FrameId trailing_frame)    = nullptr;
+  void (*sampler)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                  Span<SamplerBinding const> elements)                             = nullptr;
+  void (*combined_image_sampler)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                                 Span<CombinedImageSamplerBinding const> elements) = nullptr;
+  void (*sampled_image)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                        Span<SampledImageBinding const> elements)                  = nullptr;
+  void (*storage_image)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                        Span<StorageImageBinding const> elements)                  = nullptr;
+  void (*uniform_texel_buffer)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                               Span<UniformTexelBufferBinding const> elements)     = nullptr;
+  void (*storage_texel_buffer)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                               Span<StorageTexelBufferBinding const> elements)     = nullptr;
+  void (*uniform_buffer)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                         Span<UniformBufferBinding const> elements)                = nullptr;
+  void (*storage_buffer)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                         Span<StorageBufferBinding const> elements)                = nullptr;
+  void (*dynamic_uniform_buffer)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                                 Span<DynamicUniformBufferBinding const> elements) = nullptr;
+  void (*dynamic_storage_buffer)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                                 Span<DynamicStorageBufferBinding const> elements) = nullptr;
+  void (*input_attachment)(DescriptorHeap self, u32 group, u32 set, u32 binding,
+                           Span<InputAttachmentBinding const> elements)            = nullptr;
+  void (*mark_in_use)(DescriptorHeap self, u32 group, FrameId current_frame)       = nullptr;
+  bool (*is_in_use)(DescriptorHeap self, u32 group, FrameId trailing_frame)        = nullptr;
+  void (*release)(DescriptorHeap self, u32 group)                                  = nullptr;
+  DescriptorHeapStats (*get_stats)(DescriptorHeap self)                            = nullptr;
 };
 
 struct DescriptorHeapImpl
@@ -1373,7 +1299,7 @@ struct DescriptorHeapImpl
 struct CommandEncoderInterface
 {
   void (*begin)(CommandEncoder self)                                                   = nullptr;
-  Status (*end)(CommandEncoder self)                                                   = nullptr;
+  Result<Void, Status> (*end)(CommandEncoder self)                                     = nullptr;
   void (*reset)(CommandEncoder self)                                                   = nullptr;
   void (*begin_debug_marker)(CommandEncoder self, char const *region_name, Vec4 color) = nullptr;
   void (*end_debug_marker)(CommandEncoder self)                                        = nullptr;
@@ -1428,12 +1354,12 @@ struct CommandEncoderImpl
   CommandEncoder                 self      = nullptr;
   CommandEncoderInterface const *interface = nullptr;
 
-  constexpr bool operator==(CommandEncoderImpl const &other) const
+  constexpr bool operator==(CommandEncoderImpl other) const
   {
     return self == other.self && interface == other.interface;
   }
 
-  constexpr bool operator!=(CommandEncoderImpl const &other) const
+  constexpr bool operator!=(CommandEncoderImpl other) const
   {
     return !(*this == other);
   }
@@ -1461,63 +1387,72 @@ struct DeviceInterface
   Result<DescriptorSetLayout, Status> (*create_descriptor_set_layout)(
       Device self, DescriptorSetLayoutDesc const &desc) = nullptr;
   Result<DescriptorHeapImpl, Status> (*create_descriptor_heap)(
-      Device self, Span<DescriptorSetLayout const> descriptor_set_layouts, u32 pool_size) = nullptr;
+      Device self, Span<DescriptorSetLayout const> descriptor_set_layouts,
+      u32 groups_per_pool)                                                              = nullptr;
   Result<PipelineCache, Status> (*create_pipeline_cache)(Device                   self,
-                                                         PipelineCacheDesc const &desc)   = nullptr;
+                                                         PipelineCacheDesc const &desc) = nullptr;
   Result<ComputePipeline, Status> (*create_compute_pipeline)(
       Device self, ComputePipelineDesc const &desc) = nullptr;
   Result<GraphicsPipeline, Status> (*create_graphics_pipeline)(
-      Device self, GraphicsPipelineDesc const &desc)                                    = nullptr;
-  Result<Fence, Status> (*create_fence)(Device self, bool signaled)                     = nullptr;
-  Result<CommandEncoderImpl, Status> (*create_command_encoder)(Device self)             = nullptr;
-  void (*ref_buffer)(Device self, Buffer buffer)                                        = nullptr;
-  void (*ref_buffer_view)(Device self, BufferView buffer_view)                          = nullptr;
-  void (*ref_image)(Device self, Image image)                                           = nullptr;
-  void (*ref_image_view)(Device self, ImageView image_view)                             = nullptr;
-  void (*ref_sampler)(Device self, Sampler sampler)                                     = nullptr;
-  void (*ref_shader)(Device self, Shader shader)                                        = nullptr;
-  void (*ref_render_pass)(Device self, RenderPass render_pass)                          = nullptr;
-  void (*ref_framebuffer)(Device self, Framebuffer framebuffer)                         = nullptr;
-  void (*ref_descriptor_set_layout)(Device self, DescriptorSetLayout layout)            = nullptr;
-  void (*ref_descriptor_heap)(Device self, DescriptorHeapImpl const &heap)              = nullptr;
-  void (*ref_pipeline_cache)(Device self, PipelineCache cache)                          = nullptr;
-  void (*ref_compute_pipeline)(Device self, ComputePipeline pipeline)                   = nullptr;
-  void (*ref_graphics_pipeline)(Device self, GraphicsPipeline pipeline)                 = nullptr;
-  void (*ref_fence)(Device self, Fence fence)                                           = nullptr;
-  void (*ref_command_encoder)(Device self, CommandEncoderImpl const &encoder)           = nullptr;
-  void (*unref_buffer)(Device self, Buffer buffer)                                      = nullptr;
-  void (*unref_buffer_view)(Device self, BufferView buffer_view)                        = nullptr;
-  void (*unref_image)(Device self, Image image)                                         = nullptr;
-  void (*unref_image_view)(Device self, ImageView image_view)                           = nullptr;
-  void (*unref_sampler)(Device self, Sampler sampler)                                   = nullptr;
-  void (*unref_shader)(Device self, Shader shader)                                      = nullptr;
-  void (*unref_render_pass)(Device self, RenderPass render_pass)                        = nullptr;
-  void (*unref_framebuffer)(Device self, Framebuffer framebuffer)                       = nullptr;
-  void (*unref_descriptor_set_layout)(Device self, DescriptorSetLayout layout)          = nullptr;
-  void (*unref_descriptor_heap)(Device self, DescriptorHeapImpl const &heap)            = nullptr;
-  void (*unref_pipeline_cache)(Device self, PipelineCache cache)                        = nullptr;
-  void (*unref_compute_pipeline)(Device self, ComputePipeline pipeline)                 = nullptr;
-  void (*unref_graphics_pipeline)(Device self, GraphicsPipeline pipeline)               = nullptr;
-  void (*unref_fence)(Device self, Fence fence)                                         = nullptr;
-  void (*unref_command_encoder)(Device self, CommandEncoderImpl const &encoder)         = nullptr;
-  Result<void *, Status> (*get_buffer_memory_map)(Device self, Buffer buffer)           = nullptr;
-  Status (*invalidate_buffer_memory_map)(Device self, Buffer buffer, MemoryRange range) = nullptr;
-  Status (*flush_buffer_memory_map)(Device self, Buffer buffer, MemoryRange range)      = nullptr;
-  Result<usize, Status> (*get_pipeline_cache_size)(Device self, PipelineCache cache)    = nullptr;
+      Device self, GraphicsPipelineDesc const &desc)                                      = nullptr;
+  Result<Fence, Status> (*create_fence)(Device self, bool signaled)                       = nullptr;
+  Result<CommandEncoderImpl, Status> (*create_command_encoder)(Device self)               = nullptr;
+  void (*ref_buffer)(Device self, Buffer buffer)                                          = nullptr;
+  void (*ref_buffer_view)(Device self, BufferView buffer_view)                            = nullptr;
+  void (*ref_image)(Device self, Image image)                                             = nullptr;
+  void (*ref_image_view)(Device self, ImageView image_view)                               = nullptr;
+  void (*ref_sampler)(Device self, Sampler sampler)                                       = nullptr;
+  void (*ref_shader)(Device self, Shader shader)                                          = nullptr;
+  void (*ref_render_pass)(Device self, RenderPass render_pass)                            = nullptr;
+  void (*ref_framebuffer)(Device self, Framebuffer framebuffer)                           = nullptr;
+  void (*ref_descriptor_set_layout)(Device self, DescriptorSetLayout layout)              = nullptr;
+  void (*ref_descriptor_heap)(Device self, DescriptorHeapImpl heap)                       = nullptr;
+  void (*ref_pipeline_cache)(Device self, PipelineCache cache)                            = nullptr;
+  void (*ref_compute_pipeline)(Device self, ComputePipeline pipeline)                     = nullptr;
+  void (*ref_graphics_pipeline)(Device self, GraphicsPipeline pipeline)                   = nullptr;
+  void (*ref_fence)(Device self, Fence fence)                                             = nullptr;
+  void (*ref_command_encoder)(Device self, CommandEncoderImpl encoder)                    = nullptr;
+  void (*unref_buffer)(Device self, Buffer buffer)                                        = nullptr;
+  void (*unref_buffer_view)(Device self, BufferView buffer_view)                          = nullptr;
+  void (*unref_image)(Device self, Image image)                                           = nullptr;
+  void (*unref_image_view)(Device self, ImageView image_view)                             = nullptr;
+  void (*unref_sampler)(Device self, Sampler sampler)                                     = nullptr;
+  void (*unref_shader)(Device self, Shader shader)                                        = nullptr;
+  void (*unref_render_pass)(Device self, RenderPass render_pass)                          = nullptr;
+  void (*unref_framebuffer)(Device self, Framebuffer framebuffer)                         = nullptr;
+  void (*unref_descriptor_set_layout)(Device self, DescriptorSetLayout layout)            = nullptr;
+  void (*unref_descriptor_heap)(Device self, DescriptorHeapImpl heap)                     = nullptr;
+  void (*unref_pipeline_cache)(Device self, PipelineCache cache)                          = nullptr;
+  void (*unref_compute_pipeline)(Device self, ComputePipeline pipeline)                   = nullptr;
+  void (*unref_graphics_pipeline)(Device self, GraphicsPipeline pipeline)                 = nullptr;
+  void (*unref_fence)(Device self, Fence fence)                                           = nullptr;
+  void (*unref_command_encoder)(Device self, CommandEncoderImpl encoder)                  = nullptr;
+  Result<void *, Status> (*get_buffer_memory_map)(Device self, Buffer buffer)             = nullptr;
+  Result<Void, Status> (*invalidate_buffer_memory_map)(Device self, Buffer buffer,
+                                                       MemoryRange range)                 = nullptr;
+  Result<Void, Status> (*flush_buffer_memory_map)(Device self, Buffer buffer,
+                                                  MemoryRange range)                      = nullptr;
+  Result<usize, Status> (*get_pipeline_cache_size)(Device self, PipelineCache cache)      = nullptr;
   Result<usize, Status> (*get_pipeline_cache_data)(Device self, PipelineCache cache,
-                                                   Span<u8> out)                        = nullptr;
-  Status (*merge_pipeline_cache)(Device self, PipelineCache dst,
-                                 Span<PipelineCache const> srcs)                        = nullptr;
-  Status (*wait_for_fences)(Device self, Span<Fence const> fences, bool all,
-                            nanoseconds timeout)                                        = nullptr;
-  Status (*reset_fences)(Device self, Span<Fence const> fences)                         = nullptr;
-  Status (*get_fence_status)(Device self, Fence fence)                                  = nullptr;
-  Status (*submit)(Device self, CommandEncoder encoder, Fence signal_fence)             = nullptr;
-  Status (*wait_idle)(Device self)                                                      = nullptr;
-  Status (*wait_queue_idle)(Device self)                                                = nullptr;
-  Result<FrameInfo, Status> (*get_frame_info)(Device self)                              = nullptr;
-  Status (*present_frame)(Device self)                                                  = nullptr;
-  Status (*change_swapchain)(stx::Fn<SwapchainConfig(Span<int>)> selector)                = nullptr;
+                                                   Span<u8> out)                          = nullptr;
+  Result<Void, Status> (*merge_pipeline_cache)(Device self, PipelineCache dst,
+                                               Span<PipelineCache const> srcs)            = nullptr;
+  Result<Void, Status> (*wait_for_fences)(Device self, Span<Fence const> fences, bool all,
+                                          u64 timeout)                                    = nullptr;
+  Result<Void, Status> (*reset_fences)(Device self, Span<Fence const> fences)             = nullptr;
+  Result<bool, Status> (*get_fence_status)(Device self, Fence fence)                      = nullptr;
+  Result<Void, Status> (*submit)(Device self, CommandEncoder encoder, Fence signal_fence) = nullptr;
+  Result<Void, Status> (*wait_idle)(Device self)                                          = nullptr;
+  Result<Void, Status> (*wait_queue_idle)(Device self)                                    = nullptr;
+  Result<FrameInfo, Status> (*get_frame_info)(Device self)                                = nullptr;
+  Result<Void, Status> (*present_frame)(Device self)                                      = nullptr;
+  Result<SurfaceCapabilities, Status> (*get_surface_capabilities)(Device self)            = nullptr;
+  Result<Void, Status> (*config_surface)(SurfaceConfig const &config)                     = nullptr;
+  // must be called before beginning frame or recording frame info
+  // TODO(lamarrr): create default config based on backend
+  // on present frame the swapchain might become invalid and we might need to re-record for that
+  // frame? on config_surface called the surface must be recreated and the config stored
+  // TODO(lamarrr): make resilient to changing displays, surfaces, ability to re-attach surfaces?
 };
 
 struct DeviceImpl
@@ -1525,12 +1460,12 @@ struct DeviceImpl
   Device                 self      = nullptr;
   DeviceInterface const *interface = nullptr;
 
-  constexpr bool operator==(DeviceImpl const &other) const
+  constexpr bool operator==(DeviceImpl other) const
   {
     return self == other.self && interface == other.interface;
   }
 
-  constexpr bool operator!=(DeviceImpl const &other) const
+  constexpr bool operator!=(DeviceImpl other) const
   {
     return !(*this == other);
   }
@@ -1580,7 +1515,7 @@ struct DeviceImpl
     interface->ref_descriptor_set_layout(self, object);
   }
 
-  void ref(DescriptorHeapImpl const &object) const
+  void ref(DescriptorHeapImpl object) const
   {
     interface->ref_descriptor_heap(self, object);
   }
@@ -1605,7 +1540,7 @@ struct DeviceImpl
     interface->ref_fence(self, object);
   }
 
-  void ref(CommandEncoderImpl const &object) const
+  void ref(CommandEncoderImpl object) const
   {
     interface->ref_command_encoder(self, object);
   }
@@ -1655,7 +1590,7 @@ struct DeviceImpl
     interface->unref_descriptor_set_layout(self, object);
   }
 
-  void unref(DescriptorHeapImpl const &object) const
+  void unref(DescriptorHeapImpl object) const
   {
     interface->unref_descriptor_heap(self, object);
   }
@@ -1680,7 +1615,7 @@ struct DeviceImpl
     interface->unref_fence(self, object);
   }
 
-  void unref(CommandEncoderImpl const &object) const
+  void unref(CommandEncoderImpl object) const
   {
     interface->unref_command_encoder(self, object);
   }
@@ -1736,31 +1671,6 @@ struct Rc
     }
   }
 };
-
-/*
-// we'll support GLSL->SPIRV and Shader Editor -> C++ -> GLSL -> SPIRV
-// contains all loaded shaders
-//
-//
-// TODO(lamarrr): multi-pass dependency? knowing when to free resources
-//
-  // shaders are always compiled and loaded at startup time
-  // select shader
-  // shader will have vendor, context, and name to compare to
-  // if none was given then how?
-  // we don't allow shaders to change at runtime, they must be baked and compiled AOT
-  //
-
-// TODO(lamarrr): how do we enable features like raytracing dynamically at runtime?
-// each pass declares flags?
-//
-// TODO(lamarrr): async shader compilation and loading, how?
-//
-// on scheduled frame_fence sent check if any resource has been requested to be unrefd, if so,
-// unref
-//
-//
-*/
 
 }        // namespace gfx
 }        // namespace ash
