@@ -1298,31 +1298,30 @@ struct DescriptorHeapImpl
 
 struct CommandEncoderInterface
 {
-  void (*begin)(CommandEncoder self)                                                   = nullptr;
-  Result<Void, Status> (*end)(CommandEncoder self)                                     = nullptr;
-  void (*reset)(CommandEncoder self)                                                   = nullptr;
-  void (*begin_debug_marker)(CommandEncoder self, char const *region_name, Vec4 color) = nullptr;
-  void (*end_debug_marker)(CommandEncoder self)                                        = nullptr;
-  void (*fill_buffer)(CommandEncoder self, Buffer dst, u64 offset, u64 size, u32 data) = nullptr;
+  void (*begin)(CommandEncoder self)                                                    = nullptr;
+  Result<Void, Status> (*end)(CommandEncoder self)                                      = nullptr;
+  void (*reset)(CommandEncoder self)                                                    = nullptr;
+  void (*begin_debug_marker)(CommandEncoder self, char const *region_name, Vec4 color)  = nullptr;
+  void (*end_debug_marker)(CommandEncoder self)                                         = nullptr;
+  void (*fill_buffer)(CommandEncoder self, Buffer dst, u64 offset, u64 size, u32 data)  = nullptr;
   void (*copy_buffer)(CommandEncoder self, Buffer src, Buffer dst,
-                      Span<BufferCopy const> copies)                                   = nullptr;
+                      Span<BufferCopy const> copies)                                    = nullptr;
   void (*update_buffer)(CommandEncoder self, Span<u8 const> src, u64 dst_offset,
-                        Buffer dst)                                                    = nullptr;
+                        Buffer dst)                                                     = nullptr;
   void (*clear_color_image)(CommandEncoder self, Image dst, Color clear_color,
-                            Span<ImageSubresourceRange const> ranges)                  = nullptr;
+                            Span<ImageSubresourceRange const> ranges)                   = nullptr;
   void (*clear_depth_stencil_image)(CommandEncoder self, Image dst,
                                     DepthStencil                      clear_depth_stencil,
-                                    Span<ImageSubresourceRange const> ranges)          = nullptr;
+                                    Span<ImageSubresourceRange const> ranges)           = nullptr;
   void (*copy_image)(CommandEncoder self, Image src, Image dst,
-                     Span<ImageCopy const> copies)                                     = nullptr;
+                     Span<ImageCopy const> copies)                                      = nullptr;
   void (*copy_buffer_to_image)(CommandEncoder self, Buffer src, Image dst,
-                               Span<BufferImageCopy const> copies)                     = nullptr;
+                               Span<BufferImageCopy const> copies)                      = nullptr;
   void (*blit_image)(CommandEncoder self, Image src, Image dst, Span<ImageBlit const> blits,
-                     Filter filter)                                                    = nullptr;
+                     Filter filter)                                                     = nullptr;
   void (*begin_render_pass)(CommandEncoder self, Framebuffer framebuffer, RenderPass render_pass,
                             IRect render_area, Span<Color const> color_attachments_clear_values,
-                            Span<DepthStencil const> depth_stencil_attachments_clear_values) =
-      nullptr;
+                            DepthStencil const &depth_stencil_attachments_clear_value)  = nullptr;
   void (*end_render_pass)(CommandEncoder self)                                          = nullptr;
   void (*bind_compute_pipeline)(CommandEncoder self, ComputePipeline pipeline)          = nullptr;
   void (*bind_graphics_pipeline)(CommandEncoder self, GraphicsPipeline pipeline)        = nullptr;

@@ -15,6 +15,7 @@ namespace vk
 {
 
 using gfx::Status;
+
 constexpr char const *REQUIRED_INSTANCE_EXTENSIONS[] = {""};
 constexpr char const *OPTIONAL_INSTANCE_EXTENSIONS[] = {""};
 constexpr char const *REQUIRED_DEVICE_EXTENSIONS[]   = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -436,9 +437,6 @@ struct Device
 // can be updated independently
 // must be allocated and freed together
 // must
-/// @group_set_strides: stride of sets within groups
-/// @set_binding_strides: stride of bindings within the set
-/// @vk_descriptor_sets:  multiple of nlayouts
 ///
 /// for all sets in released indices if last used tick < trailing_frame_tick, move to free indices
 // pop index from pool_free_sets if any, otherwise create new pool and add and allocate new free
@@ -472,12 +470,6 @@ struct Device
 /// ==> GET [GROUP I: SET J: DESCRIPTOR_SET]
 /// ==> GET [GROUP I: SET J: BINDINGS]
 /// ==> UPDATE [GROUP I: SET J: BINDINGS] with [NEW_BINDINGS] and [GROUP I: SET J]
-/// updateDescriptorSet
-///
-/// for data update.
-/// we need: byte stride to move from group to group
-/// byte offset of each descriptor set data
-/// build vkwritedescriptorset using provided descriptor set binding data
 ///
 ///
 // TODO(lamarrr): use an arena allocator
@@ -665,11 +657,10 @@ struct CommandEncoderInterface
                                    Span<gfx::BufferImageCopy const> copies);
   static void blit_image(gfx::CommandEncoder self, gfx::Image src, gfx::Image dst,
                          Span<gfx::ImageBlit const> blits, gfx::Filter filter);
-  static void
-              begin_render_pass(gfx::CommandEncoder self, gfx::Framebuffer framebuffer,
+  static void begin_render_pass(gfx::CommandEncoder self, gfx::Framebuffer framebuffer,
                                 gfx::RenderPass render_pass, IRect render_area,
-                                Span<gfx::Color const>        color_attachments_clear_values,
-                                Span<gfx::DepthStencil const> depth_stencil_attachments_clear_values);
+                                Span<gfx::Color const>   color_attachments_clear_values,
+                                gfx::DepthStencil const &depth_stencil_attachments_clear_value);
   static void end_render_pass(gfx::CommandEncoder self);
   static void bind_compute_pipeline(gfx::CommandEncoder self, gfx::ComputePipeline pipeline);
   static void bind_graphics_pipeline(gfx::CommandEncoder self, gfx::GraphicsPipeline pipeline);

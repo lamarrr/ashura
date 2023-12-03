@@ -553,20 +553,25 @@ struct Box
 
   constexpr bool contains(Vec3 point) const
   {
-    // TODO(lamarrr): fix
-    // return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x &&
-    // (offset.y + extent.y) >= point.y;
+    return offset.x <= point.x && offset.y <= point.y && offset.z <= point.z &&
+           (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y &&
+           (offset.z + extent.z) >= point.z;
     return true;
+  }
+
+  constexpr auto bounds() const
+  {
+    return std::make_tuple(offset.x, offset.x + extent.x, offset.y, offset.y + extent.y, offset.z,
+                           offset.z + extent.z);
   }
 
   constexpr bool overlaps(Box other) const
   {
-    // auto [x0_min, x0_max, y0_min, y0_max] = bounds();
-    // auto [x1_min, x1_max, y1_min, y1_max] = other.bounds();
+    auto [x0_min, x0_max, y0_min, y0_max, z0_min, z0_max] = bounds();
+    auto [x1_min, x1_max, y1_min, y1_max, z1_min, z1_max] = other.bounds();
 
-    // return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min && y1_min < y0_max;
-    return true;
-    // TODO(lamarrr): fix
+    return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min && y1_min < y0_max &&
+           z1_max > z0_min && z1_min < z0_max;
   }
 };
 
