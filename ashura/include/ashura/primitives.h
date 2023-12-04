@@ -1323,17 +1323,20 @@ struct IRect
 };
 
 /// Simple Layout Constraint Model
+/// @bias: adding or subtracting from the source size, i.e. value should be source size - 20px
+/// @scale: scales the source size, i.e. value should be 0.5 of source size
+/// @min: clamps the source size, i.e. value should be at least 20px
+/// @max: clamps the source size, i.e. value should be at most 100px
+/// @minr: clamps the source size relatively. i.e. value should be at least 0.5 of source size
+/// @maxr: clamps the source size relatively. i.e. value should be at most 0.5 of source size
 struct Constraint
 {
-  f32 bias = 0;         /// adding or subtracting from the source size, i.e. value should be source
-                        /// size - 20px
-  f32 scale = 0;        /// scales the source size, i.e. value should be 0.5 of source size
-  f32 min   = stx::F32_MIN;        /// clamps the source size, i.e. value should be at least 20px
-  f32 max   = stx::F32_MAX;        /// clamps the source size, i.e. value should be at most 100px
-  f32 minr  = 0;        /// clamps the source size relatively. i.e. value should be at least 0.5 of
-                        /// source size
-  f32 maxr = 1;         /// clamps the source size relatively. i.e. value should be at most 0.5 of
-                        /// source size
+  f32 bias  = 0;
+  f32 scale = 0;
+  f32 min   = stx::F32_MIN;
+  f32 max   = stx::F32_MAX;
+  f32 minr  = 0;
+  f32 maxr  = 1;
 
   static constexpr Constraint relative(f32 scale)
   {
@@ -1678,14 +1681,14 @@ constexpr Vec2 max(Vec2 a, Vec2 b)
 
 enum class Direction : u8
 {
-  H,        /// Horizontal
-  V         /// Vertical
+  H = 0,        /// Horizontal
+  V = 1         /// Vertical
 };
 
 enum class Wrap : u8
 {
-  None,
-  Wrap
+  None = 0,
+  Wrap = 1
 };
 
 using Alignment = Vec2;
@@ -1702,18 +1705,18 @@ constexpr Alignment ALIGN_BOTTOM_RIGHT  = Vec2{1, 1};
 
 enum class MainAlign : u8
 {
-  Start,
-  End,
-  SpaceBetween,
-  SpaceAround,
-  SpaceEvenly
+  Start        = 0,
+  End          = 1,
+  SpaceBetween = 2,
+  SpaceAround  = 3,
+  SpaceEvenly  = 4
 };
 
 enum class CrossAlign : u8
 {
-  Start,
-  End,
-  Center
+  Start  = 0,
+  End    = 1,
+  Center = 2
 };
 
 struct LinearColorGradient
@@ -1736,6 +1739,33 @@ struct LinearColorGradient
 struct Version
 {
   u8 major = 0, minor = 0, patch = 0;
+};
+
+/// @x_mag: The floating-point horizontal magnification of the view. This value MUST NOT be equal to
+/// zero. This value SHOULD NOT be negative.
+/// @y_mag: The floating-point vertical magnification of the view. This value MUST NOT be equal to
+/// zero. This value SHOULD NOT be negative.
+/// @z_far: The floating-point distance to the far clipping plane. This value MUST NOT be equal to
+/// zero. zfar MUST be greater than znear.
+/// @z_near: The floating-point distance to the near clipping plane.
+struct OrthographicCamera
+{
+  f32 x_mag  = 0;
+  f32 y_mag  = 0;
+  f32 z_far  = 0;
+  f32 z_near = 0;
+};
+
+/// @aspect_ratio: The floating-point aspect ratio of the field of view.
+/// @y_fov: The floating-point vertical field of view in radians. This value SHOULD be less than π.
+/// @z_far: The floating-point distance to the far clipping plane.
+/// @z_near: The floating-point distance to the near clipping plane.
+struct PerspectiveCamera
+{
+  f32 aspect_ratio = 0;
+  f32 y_fov        = 0;
+  f32 z_far        = 0;
+  f32 z_near       = 0;
 };
 
 }        // namespace ash
