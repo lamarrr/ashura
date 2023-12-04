@@ -1063,32 +1063,6 @@ constexpr Mat4 shear3d_z(f32 x_shear, f32 y_shear)
   return Mat4{.rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {x_shear, y_shear, 1, 0}, {0, 0, 0, 1}}};
 }
 
-struct Quaternion
-{
-  f32 x = 0, y = 0, z = 0, w = 0;
-
-  // static constexpr quaternion from_euler(vec3 x) { return {}; }
-  // constexpr vec3 to_euler() const { return {}; }
-  // constexpr quaternion normalized() const { return {}; }
-};
-
-constexpr bool operator==(Quaternion a, Quaternion b)
-{
-  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
-}
-
-constexpr bool operator!=(Quaternion a, Quaternion b)
-{
-  return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w;
-}
-
-// constexpr quaternion operator+(quaternion a, quaternion b) { return {}; }
-// constexpr quaternion operator-(quaternion a, quaternion b) { return {}; }
-// constexpr quaternion operator*(quaternion a, f32 b) { return {}; }
-// constexpr quaternion operator*(f32 a, quaternion b) { return {}; }
-// constexpr quaternion operator*(quaternion a, quaternion b) { return {}; }
-// constexpr quaternion dot(quaternion a, quaternion b) { return {}; }
-
 struct Offset
 {
   u32 x = 0, y = 0;
