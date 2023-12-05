@@ -11,8 +11,10 @@ Context _ctx;
 TEST(Http, HttpClient)
 {
   HttpClient         client{stx::os_allocator};
-  stx::TaskScheduler scheduler{stx::os_allocator, std::chrono::steady_clock::now()};
-  auto [response, monitor] = client.get(stx::string::make_static("https://github.com"));
+  stx::TaskScheduler scheduler{stx::os_allocator,
+                               std::chrono::steady_clock::now()};
+  auto [response, monitor] =
+      client.get(stx::string::make_static("https://github.com"));
 
   stx::Future<void> a = stx::sched::await(
       scheduler,

@@ -23,8 +23,9 @@ struct CommandBuffer;
 // scene pass -> post effect pass 1 -> post effect pass 2 -> fxaa pass
 // scene blur passs????
 // selective layer blur?
-// TODO(lamarrr): what if we need to destroy an index buffer because of multibuffering?
-// new pass doesn't begin until the previous pass' buffer is done with
+// TODO(lamarrr): what if we need to destroy an index buffer because of
+// multibuffering? new pass doesn't begin until the previous pass' buffer is
+// done with
 //
 //
 //
@@ -75,8 +76,9 @@ struct ScreenPass
 
   struct Resources
   {
-    Image color_images[16];        // screen has implicit pass to present the screen_color_image
-    Image depth_stencil_images[16];
+    Image color_images[16];        // screen has implicit pass to present the
+                                   // screen_color_image
+    Image       depth_stencil_images[16];
     RenderPass  render_passes[16];
     Framebuffer framebuffers[16];
   } resources;
@@ -99,50 +101,58 @@ struct ScreenPass
   void init(Graph &graph, CmdBuffer &cmd_buffer)
   {
     // RENDER
-    // transition color attachment layout from presentation optimal to color attachment optimal
+    // transition color attachment layout from presentation optimal to color
+    // attachment optimal
     //
     //
     // perform intermediate rendering operations
     //
     //
-    // transition color attachment layout from color_attachment optimal to presentation optimal
-    // THIS IS POINTLESSSS, it is on-screen
+    // transition color attachment layout from color_attachment optimal to
+    // presentation optimal THIS IS POINTLESSSS, it is on-screen
     // TODO(lamarrr): graph check?
 
     // ASH_CHECK( ctx.screen_pass.ctx.num_buffers <= 16);
 
     // for (u32 i = 0; i < ctx.screen_pass.ctx.num_buffers; i++)
     // {
-    //   rid                   color_image = graph.create_image(ImageDesc{.format =
-    //   ctx.screen_pass.ctx.format,
-    //                                                                    .usages =
+    //   rid                   color_image =
+    //   graph.create_image(ImageDesc{.format = ctx.screen_pass.ctx.format,
+    //                                                                    .usages
+    //                                                                    =
     //                                                                    ImageUsages::ColorAttachment,
-    //                                                                    .size   =
+    //                                                                    .size
+    //                                                                    =
     //                                                                    ctx.screen_pass.ctx.extent,
-    //                                                                    .mips   = 1});
+    //                                                                    .mips
+    //                                                                    = 1});
     //   FramebufferAttachment color_attachment{.image    = color_image,
     //                                          .load_op  = LoadOp::Clear,
     //                                          .store_op = StoreOp::Store};
 
-    //   rid depth_stencil_image = graph.create_image(ImageDesc{.format = Format::D16_Unorm,
+    //   rid depth_stencil_image = graph.create_image(ImageDesc{.format =
+    //   Format::D16_Unorm,
     //                                                          .usages =
     //                                                          ImageUsages::DepthStencilAttachment,
     //                                                          .size   =
-    //                                                          ctx.screen_pass.ctx.extent, .mips =
-    //                                                          1});
+    //                                                          ctx.screen_pass.ctx.extent,
+    //                                                          .mips = 1});
 
-    //   FramebufferAttachment depth_stencil_attachment{.image    = depth_stencil_image,
-    //                                                  .load_op  = LoadOp::Clear,
-    //                                                  .store_op = StoreOp::Store};
+    //   FramebufferAttachment depth_stencil_attachment{.image    =
+    //   depth_stencil_image,
+    //                                                  .load_op  =
+    //                                                  LoadOp::Clear, .store_op
+    //                                                  = StoreOp::Store};
 
     //   rid framebuffer                                   =
     //   graph.create_framebuffer(RenderPassDesc{.render_pass   = render_pass,
     //                                                                                               .color         = color_image,
     //                                                                                               .depth_stencil = depth_stencil_image});
     //   ctx.screen_pass.resources.color_images[i]         = color_image;
-    //   ctx.screen_pass.resources.depth_stencil_images[i] = depth_stencil_image;
-    //   ctx.screen_pass.resources.render_passes[i]        = render_pass;
-    //   ctx.screen_pass.resources.framebuffers[i]         = framebuffer;
+    //   ctx.screen_pass.resources.depth_stencil_images[i] =
+    //   depth_stencil_image; ctx.screen_pass.resources.render_passes[i] =
+    //   render_pass; ctx.screen_pass.resources.framebuffers[i]         =
+    //   framebuffer;
     // }
     // record render ops
   }

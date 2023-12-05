@@ -23,12 +23,14 @@ namespace vk
 
 struct RenderImage
 {
-  Image         image;
-  ImageFormat   format     = ImageFormat::Rgba8888;           // requested format from the frontend
-  VkFormat      gpu_format = VK_FORMAT_R8G8B8A8_UNORM;        // format used to store texture on GPU
-  VkImageLayout layout     = VK_IMAGE_LAYOUT_UNDEFINED;
-  VkImageLayout dst_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-  ash::Extent   extent;
+  Image       image;
+  ImageFormat format =
+      ImageFormat::Rgba8888;        // requested format from the frontend
+  VkFormat gpu_format =
+      VK_FORMAT_R8G8B8A8_UNORM;        // format used to store texture on GPU
+  VkImageLayout       layout     = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkImageLayout       dst_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  ash::Extent         extent;
   stx::Option<Buffer> staging_buffer;
   VkDescriptorSet     descriptor_set = VK_NULL_HANDLE;
   bool                needs_upload   = false;
@@ -39,7 +41,8 @@ struct RenderImage
   {
     image.destroy();
     staging_buffer.match(&Buffer::destroy, []() {});
-    ASH_VK_CHECK(vkFreeDescriptorSets(image.dev, descriptor_pool, 1, &descriptor_set));
+    ASH_VK_CHECK(
+        vkFreeDescriptorSets(image.dev, descriptor_pool, 1, &descriptor_set));
   }
 };
 
@@ -52,7 +55,8 @@ struct RenderResourceManager
   VkFence               fence                 = VK_NULL_HANDLE;
   VkDescriptorPool      descriptor_pool       = VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptor_set_layout = VK_NULL_HANDLE;
-  VkSampler sampler = VK_NULL_HANDLE;        // ideally list of samplers of different types
+  VkSampler             sampler =
+      VK_NULL_HANDLE;        // ideally list of samplers of different types
   stx::Option<stx::Rc<CommandQueue *>> queue;
   std::map<gfx::image, RenderImage>    images;
   u64                                  next_image_id = 0;
@@ -68,7 +72,8 @@ struct RenderResourceManager
         .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         .queueFamilyIndex = queue.value()->info.family.index};
 
-    ASH_VK_CHECK(vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
+    ASH_VK_CHECK(
+        vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
 
     VkCommandBufferAllocateInfo cmd_buffer_allocate_info{
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -77,18 +82,22 @@ struct RenderResourceManager
         .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1};
 
-    ASH_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffer_allocate_info, &cmd_buffer));
+    ASH_VK_CHECK(
+        vkAllocateCommandBuffers(dev, &cmd_buffer_allocate_info, &cmd_buffer));
 
-    VkFenceCreateInfo fence_create_info{
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .pNext = nullptr, .flags = 0};
+    VkFenceCreateInfo fence_create_info{.sType =
+                                            VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                                        .pNext = nullptr,
+                                        .flags = 0};
 
     ASH_VK_CHECK(vkCreateFence(dev, &fence_create_info, nullptr, &fence));
 
     VkDescriptorSetLayoutBinding descriptor_set_bindings[] = {
-        {.binding            = 0,
-         .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-         .descriptorCount    = 1,
-         .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        {.binding         = 0,
+         .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         .descriptorCount = 1,
+         .stageFlags =
+             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
          .pImmutableSamplers = nullptr}};
 
     VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{
@@ -99,8 +108,9 @@ struct RenderResourceManager
         .pBindings    = descriptor_set_bindings,
     };
 
-    ASH_VK_CHECK(vkCreateDescriptorSetLayout(dev, &descriptor_set_layout_create_info, nullptr,
-                                             &descriptor_set_layout));
+    ASH_VK_CHECK(vkCreateDescriptorSetLayout(dev,
+                                             &descriptor_set_layout_create_info,
+                                             nullptr, &descriptor_set_layout));
 
     VkDescriptorPoolSize descriptor_pool_sizes[] = {
         {.type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -114,8 +124,8 @@ struct RenderResourceManager
         .poolSizeCount = AS(u32, std::size(descriptor_pool_sizes)),
         .pPoolSizes    = descriptor_pool_sizes};
 
-    ASH_VK_CHECK(
-        vkCreateDescriptorPool(dev, &descriptor_pool_create_info, nullptr, &descriptor_pool));
+    ASH_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,
+                                        nullptr, &descriptor_pool));
 
     VkSamplerCreateInfo sampler_create_info{
         .sType            = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -129,12 +139,14 @@ struct RenderResourceManager
         .addressModeW     = VK_SAMPLER_ADDRESS_MODE_REPEAT,
         .mipLodBias       = 0,
         .anisotropyEnable = VK_TRUE,
-        .maxAnisotropy    = queue.value()->device->phy_dev->properties.limits.maxSamplerAnisotropy,
-        .compareEnable    = VK_FALSE,
-        .compareOp        = VK_COMPARE_OP_ALWAYS,
-        .minLod           = 0,
-        .maxLod           = 0,
-        .borderColor      = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+        .maxAnisotropy =
+            queue.value()
+                ->device->phy_dev->properties.limits.maxSamplerAnisotropy,
+        .compareEnable           = VK_FALSE,
+        .compareOp               = VK_COMPARE_OP_ALWAYS,
+        .minLod                  = 0,
+        .maxLod                  = 0,
+        .borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
         .unnormalizedCoordinates = VK_FALSE};
 
     ASH_VK_CHECK(vkCreateSampler(dev, &sampler_create_info, nullptr, &sampler));
@@ -214,9 +226,10 @@ struct RenderResourceManager
   }
 
   /// Converts textures to their GPU representations
-  /// Note that RGB is converted to RGBA as neither OpenGL nor Vulkan require implementation support
-  /// for RGB it.
-  static void copy_image_to_GPU_Buffer(ImageView<u8 const> src, ImageView<u8> rep_dst)
+  /// Note that RGB is converted to RGBA as neither OpenGL nor Vulkan require
+  /// implementation support for RGB it.
+  static void copy_image_to_GPU_Buffer(ImageView<u8 const> src,
+                                       ImageView<u8>       rep_dst)
   {
     ASH_CHECK(src.extent.width <= rep_dst.extent.width);
     ASH_CHECK(src.extent.height <= rep_dst.extent.height);
@@ -273,29 +286,30 @@ struct RenderResourceManager
     VkPhysicalDeviceMemoryProperties const &memory_properties =
         queue.device->phy_dev->memory_properties;
 
-    ASH_CHECK(image_view.extent.is_visible(), "Encounted unsupported zero extent image");
+    ASH_CHECK(image_view.extent.is_visible(),
+              "Encounted unsupported zero extent image");
 
     ImageFormat rep_format    = to_rep_format(image_view.format);
     VkFormat    rep_format_vk = to_vk(rep_format);
 
-    VkImageCreateInfo create_info{.sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                                  .pNext       = nullptr,
-                                  .flags       = 0,
-                                  .imageType   = VK_IMAGE_TYPE_2D,
-                                  .format      = rep_format_vk,
-                                  .extent      = VkExtent3D{.width  = image_view.extent.width,
-                                                            .height = image_view.extent.height,
-                                                            .depth  = 1},
-                                  .mipLevels   = 1,
-                                  .arrayLayers = 1,
-                                  .samples     = VK_SAMPLE_COUNT_1_BIT,
-                                  .tiling      = VK_IMAGE_TILING_OPTIMAL,
-                                  .usage =
-                                      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                  .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-                                  .queueFamilyIndexCount = 0,
-                                  .pQueueFamilyIndices   = nullptr,
-                                  .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED};
+    VkImageCreateInfo create_info{
+        .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext       = nullptr,
+        .flags       = 0,
+        .imageType   = VK_IMAGE_TYPE_2D,
+        .format      = rep_format_vk,
+        .extent      = VkExtent3D{.width  = image_view.extent.width,
+                                  .height = image_view.extent.height,
+                                  .depth  = 1},
+        .mipLevels   = 1,
+        .arrayLayers = 1,
+        .samples     = VK_SAMPLE_COUNT_1_BIT,
+        .tiling      = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices   = nullptr,
+        .initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED};
 
     VkImage image;
 
@@ -305,11 +319,13 @@ struct RenderResourceManager
 
     vkGetImageMemoryRequirements(dev, image, &memory_requirements);
 
-    u32 memory_type_index = find_suitable_memory_type(memory_properties, memory_requirements,
-                                                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-                                .unwrap();
+    u32 memory_type_index =
+        find_suitable_memory_type(memory_properties, memory_requirements,
+                                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+            .unwrap();
 
-    VkMemoryAllocateInfo alloc_info{.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+    VkMemoryAllocateInfo alloc_info{.sType =
+                                        VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
                                     .pNext           = nullptr,
                                     .allocationSize  = memory_requirements.size,
                                     .memoryTypeIndex = memory_type_index};
@@ -321,21 +337,22 @@ struct RenderResourceManager
     ASH_VK_CHECK(vkBindImageMemory(dev, image, memory, 0));
 
     VkImageViewCreateInfo view_create_info{
-        .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .pNext            = nullptr,
-        .flags            = 0,
-        .image            = image,
-        .viewType         = VK_IMAGE_VIEW_TYPE_2D,
-        .format           = rep_format_vk,
-        .components       = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                               .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                               .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                                               .a = VK_COMPONENT_SWIZZLE_IDENTITY},
-        .subresourceRange = VkImageSubresourceRange{.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                    .baseMipLevel   = 0,
-                                                    .levelCount     = 1,
-                                                    .baseArrayLayer = 0,
-                                                    .layerCount     = 1}};
+        .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext      = nullptr,
+        .flags      = 0,
+        .image      = image,
+        .viewType   = VK_IMAGE_VIEW_TYPE_2D,
+        .format     = rep_format_vk,
+        .components = VkComponentMapping{.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                         .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                         .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                                         .a = VK_COMPONENT_SWIZZLE_IDENTITY},
+        .subresourceRange =
+            VkImageSubresourceRange{.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                                    .baseMipLevel   = 0,
+                                    .levelCount     = 1,
+                                    .baseArrayLayer = 0,
+                                    .layerCount     = 1}};
 
     VkImageView view;
 
@@ -346,14 +363,16 @@ struct RenderResourceManager
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     auto begin = std::chrono::steady_clock::now();
-    copy_image_to_GPU_Buffer(
-        image_view, ImageView<u8>{.span   = staging_buffer.span(),
-                                  .extent = image_view.extent,
-                                  .pitch  = image_view.extent.width * pixel_byte_size(rep_format),
-                                  .format = rep_format});
+    copy_image_to_GPU_Buffer(image_view,
+                             ImageView<u8>{.span   = staging_buffer.span(),
+                                           .extent = image_view.extent,
+                                           .pitch  = image_view.extent.width *
+                                                    pixel_byte_size(rep_format),
+                                           .format = rep_format});
     ASH_LOG_INFO(Vulkan_RenderResourceManager,
                  "Copied Image #{} to Host Visible Staging Buffer in {} ms", id,
-                 (std::chrono::steady_clock::now() - begin).count() / 1'000'000.0f);
+                 (std::chrono::steady_clock::now() - begin).count() /
+                     1'000'000.0f);
 
     VkDescriptorSetAllocateInfo descriptor_set_allocate_info{
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -364,45 +383,52 @@ struct RenderResourceManager
 
     VkDescriptorSet descriptor_set;
 
-    ASH_VK_CHECK(vkAllocateDescriptorSets(dev, &descriptor_set_allocate_info, &descriptor_set));
+    ASH_VK_CHECK(vkAllocateDescriptorSets(dev, &descriptor_set_allocate_info,
+                                          &descriptor_set));
 
     {
-      VkDescriptorImageInfo image_info{.sampler     = sampler,
-                                       .imageView   = view,
-                                       .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      VkDescriptorImageInfo image_info{
+          .sampler     = sampler,
+          .imageView   = view,
+          .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
-      VkWriteDescriptorSet write{.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                 .pNext            = nullptr,
-                                 .dstSet           = descriptor_set,
-                                 .dstBinding       = 0,
-                                 .dstArrayElement  = 0,
-                                 .descriptorCount  = 1,
-                                 .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                 .pImageInfo       = &image_info,
-                                 .pBufferInfo      = nullptr,
-                                 .pTexelBufferView = nullptr};
+      VkWriteDescriptorSet write{
+          .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          .pNext            = nullptr,
+          .dstSet           = descriptor_set,
+          .dstBinding       = 0,
+          .dstArrayElement  = 0,
+          .descriptorCount  = 1,
+          .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+          .pImageInfo       = &image_info,
+          .pBufferInfo      = nullptr,
+          .pTexelBufferView = nullptr};
 
       vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
     }
 
     images.emplace(
-        id, RenderImage{.image  = Image{.image = image, .view = view, .memory = memory, .dev = dev},
-                        .format = image_view.format,
-                        .gpu_format     = rep_format_vk,
-                        .layout         = VK_IMAGE_LAYOUT_UNDEFINED,
-                        .dst_layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                        .extent         = image_view.extent,
+        id, RenderImage{.image      = Image{.image  = image,
+                                            .view   = view,
+                                            .memory = memory,
+                                            .dev    = dev},
+                        .format     = image_view.format,
+                        .gpu_format = rep_format_vk,
+                        .layout     = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .dst_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        .extent     = image_view.extent,
                         .staging_buffer = stx::Some(std::move(staging_buffer)),
                         .descriptor_set = descriptor_set,
                         .needs_upload   = true,
                         .needs_delete   = false,
                         .is_real_time   = is_real_time});
 
-    ASH_LOG_INFO(Vulkan_RenderResourceManager,
-                 "Created {}{} {}x{} Image #{} with format={} and size={} bytes",
-                 is_real_time ? "" : "non-", "real-time", image_view.extent.width,
-                 image_view.extent.height, id, string_VkFormat(rep_format_vk),
-                 memory_requirements.size);
+    ASH_LOG_INFO(
+        Vulkan_RenderResourceManager,
+        "Created {}{} {}x{} Image #{} with format={} and size={} bytes",
+        is_real_time ? "" : "non-", "real-time", image_view.extent.width,
+        image_view.extent.height, id, string_VkFormat(rep_format_vk),
+        memory_requirements.size);
 
     return id;
   }
@@ -423,7 +449,8 @@ struct RenderResourceManager
       copy_image_to_GPU_Buffer(
           view, ImageView<u8>{.span   = rimage.staging_buffer.value().span(),
                               .extent = rimage.extent,
-                              .pitch  = rimage.extent.width * pixel_byte_size(rep_format),
+                              .pitch  = rimage.extent.width *
+                                       pixel_byte_size(rep_format),
                               .format = rep_format});
     }
     else
@@ -431,11 +458,13 @@ struct RenderResourceManager
       CommandQueue const &queue          = *this->queue.value();
       Buffer              staging_buffer = create_host_visible_buffer(
           queue.device->dev, queue.device->phy_dev->memory_properties,
-          fitted_byte_size(rimage.extent, rep_format), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+          fitted_byte_size(rimage.extent, rep_format),
+          VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
       copy_image_to_GPU_Buffer(
           view, ImageView<u8>{.span   = staging_buffer.span(),
                               .extent = rimage.extent,
-                              .pitch  = rimage.extent.width * pixel_byte_size(rep_format),
+                              .pitch  = rimage.extent.width *
+                                       pixel_byte_size(rep_format),
                               .format = rep_format});
       rimage.staging_buffer = stx::Some(std::move(staging_buffer));
     }
@@ -447,7 +476,8 @@ struct RenderResourceManager
     auto pos = images.find(image);
     ASH_CHECK(pos != images.end());
     pos->second.needs_delete = true;
-    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Marked image: {} as ready for deletion");
+    ASH_LOG_INFO(Vulkan_RenderResourceManager,
+                 "Marked image: {} as ready for deletion");
   }
 
   void submit_uploads()
@@ -493,32 +523,37 @@ struct RenderResourceManager
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image               = entry.second.image.image,
-            .subresourceRange    = VkImageSubresourceRange{.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                           .baseMipLevel   = 0,
-                                                           .levelCount     = 1,
-                                                           .baseArrayLayer = 0,
-                                                           .layerCount     = 1}};
+            .subresourceRange =
+                VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                        .baseMipLevel   = 0,
+                                        .levelCount     = 1,
+                                        .baseArrayLayer = 0,
+                                        .layerCount     = 1}};
 
         vkCmdPipelineBarrier(cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0,
-                             nullptr, 1, &pre_upload_barrier);
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, nullptr, 1,
+                             &pre_upload_barrier);
 
-        VkBufferImageCopy copy{.bufferOffset      = 0,
-                               .bufferRowLength   = 0,
-                               .bufferImageHeight = 0,
-                               .imageSubresource =
-                                   VkImageSubresourceLayers{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                            .mipLevel   = 0,
-                                                            .baseArrayLayer = 0,
-                                                            .layerCount     = 1},
-                               .imageOffset = VkOffset3D{.x = 0, .y = 0, .z = 0},
-                               .imageExtent = VkExtent3D{.width  = entry.second.extent.width,
-                                                         .height = entry.second.extent.height,
-                                                         .depth  = 1}};
+        VkBufferImageCopy copy{
+            .bufferOffset      = 0,
+            .bufferRowLength   = 0,
+            .bufferImageHeight = 0,
+            .imageSubresource =
+                VkImageSubresourceLayers{.aspectMask =
+                                             VK_IMAGE_ASPECT_COLOR_BIT,
+                                         .mipLevel       = 0,
+                                         .baseArrayLayer = 0,
+                                         .layerCount     = 1},
+            .imageOffset = VkOffset3D{.x = 0, .y = 0, .z = 0},
+            .imageExtent = VkExtent3D{.width  = entry.second.extent.width,
+                                      .height = entry.second.extent.height,
+                                      .depth  = 1}};
 
-        vkCmdCopyBufferToImage(cmd_buffer, entry.second.staging_buffer.value().buffer,
-                               entry.second.image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                               &copy);
+        vkCmdCopyBufferToImage(cmd_buffer,
+                               entry.second.staging_buffer.value().buffer,
+                               entry.second.image.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
         VkImageMemoryBarrier post_upload_barrier{
             .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -530,22 +565,24 @@ struct RenderResourceManager
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image               = entry.second.image.image,
-            .subresourceRange    = VkImageSubresourceRange{.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                           .baseMipLevel   = 0,
-                                                           .levelCount     = 1,
-                                                           .baseArrayLayer = 0,
-                                                           .layerCount     = 1}};
+            .subresourceRange =
+                VkImageSubresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                        .baseMipLevel   = 0,
+                                        .levelCount     = 1,
+                                        .baseArrayLayer = 0,
+                                        .layerCount     = 1}};
 
         vkCmdPipelineBarrier(cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0,
-                             nullptr, 0, nullptr, 1, &post_upload_barrier);
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                             VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 0,
+                             nullptr, 1, &post_upload_barrier);
       }
     }
 
     ASH_VK_CHECK(vkEndCommandBuffer(cmd_buffer));
 
-    VkSubmitInfo submit_info{.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                             .pNext                = nullptr,
+    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .pNext = nullptr,
                              .waitSemaphoreCount   = 0,
                              .pWaitSemaphores      = nullptr,
                              .pWaitDstStageMask    = nullptr,
@@ -617,23 +654,27 @@ struct RenderResourceManager
     // VkImageFormatProperties image_format_properties;
     // ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device,
     // VK_FORMAT_B8G8R8A8_UNORM, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
-    // VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties)); auto [atlas, image_buffer] =
-    // render_font_atlas(font, font_height, extent{image_format_properties.maxExtent.width,
+    // VK_IMAGE_USAGE_SAMPLED_BIT, 0, &image_format_properties)); auto [atlas,
+    // image_buffer] = render_font_atlas(font, font_height,
+    // extent{image_format_properties.maxExtent.width,
     // image_format_properties.maxExtent.height});
-    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Uploading Atlas for Font: {} to GPU",
+    ASH_LOG_INFO(Vulkan_RenderResourceManager,
+                 "Uploading Atlas for Font: {} to GPU",
                  font.postscript_name.c_str());
     gfx::image image = add_image(atlas, false);
-    ASH_LOG_INFO(Vulkan_RenderResourceManager, "Uploaded Atlas For Font: {} to GPU",
+    ASH_LOG_INFO(Vulkan_RenderResourceManager,
+                 "Uploaded Atlas For Font: {} to GPU",
                  font.postscript_name.c_str());
     return image;
   }
 };
 
-/// @brief NOTE: each pipeline is binded with 8 descriptor sets, each containing an image sampler.
-/// buffers are passed via push constants with a limit of 128 bytes.
+/// @brief NOTE: each pipeline is binded with 8 descriptor sets, each containing
+/// an image sampler. buffers are passed via push constants with a limit of 128
+/// bytes.
 ///
-/// Rendering pipelines are rebuilt when the render target changes (i.e. swapchain)
-/// Pipelines also have to be declared at program startup.
+/// Rendering pipelines are rebuilt when the render target changes (i.e.
+/// swapchain) Pipelines also have to be declared at program startup.
 ///
 struct CanvasPipeline
 {
@@ -653,18 +694,19 @@ struct CanvasPipeline
 struct CanvasPipelineManager
 {
   std::map<std::string, CanvasPipeline, std::less<>> pipelines;
-  VkDescriptorSetLayout                              descriptor_set_layout = VK_NULL_HANDLE;
-  VkDevice                                           dev                   = VK_NULL_HANDLE;
+  VkDescriptorSetLayout descriptor_set_layout = VK_NULL_HANDLE;
+  VkDevice              dev                   = VK_NULL_HANDLE;
 
   void init(VkDevice adev)
   {
     dev = adev;
 
     VkDescriptorSetLayoutBinding descriptor_set_bindings[] = {
-        {.binding            = 0,
-         .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-         .descriptorCount    = 1,
-         .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        {.binding         = 0,
+         .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+         .descriptorCount = 1,
+         .stageFlags =
+             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
          .pImmutableSamplers = nullptr}};
 
     VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{
@@ -674,8 +716,9 @@ struct CanvasPipelineManager
         .bindingCount = std::size(descriptor_set_bindings),
         .pBindings    = descriptor_set_bindings};
 
-    ASH_VK_CHECK(vkCreateDescriptorSetLayout(dev, &descriptor_set_layout_create_info, nullptr,
-                                             &descriptor_set_layout));
+    ASH_VK_CHECK(vkCreateDescriptorSetLayout(dev,
+                                             &descriptor_set_layout_create_info,
+                                             nullptr, &descriptor_set_layout));
   }
 
   void add_pipeline(CanvasPipelineSpec const &spec)
@@ -687,8 +730,8 @@ struct CanvasPipelineManager
         .flags    = 0,
         .codeSize = spec.vertex_shader.size_bytes(),
         .pCode    = spec.vertex_shader.data()};
-    ASH_VK_CHECK(
-        vkCreateShaderModule(dev, &vertex_shader_module_create_info, nullptr, &vertex_shader));
+    ASH_VK_CHECK(vkCreateShaderModule(dev, &vertex_shader_module_create_info,
+                                      nullptr, &vertex_shader));
 
     VkShaderModule           fragment_shader;
     VkShaderModuleCreateInfo fragment_shader_module_create_info{
@@ -697,31 +740,32 @@ struct CanvasPipelineManager
         .flags    = 0,
         .codeSize = spec.fragment_shader.size_bytes(),
         .pCode    = spec.fragment_shader.data()};
-    ASH_VK_CHECK(
-        vkCreateShaderModule(dev, &fragment_shader_module_create_info, nullptr, &fragment_shader));
+    ASH_VK_CHECK(vkCreateShaderModule(dev, &fragment_shader_module_create_info,
+                                      nullptr, &fragment_shader));
 
-    pipelines.emplace(spec.name, CanvasPipeline{.vertex_shader   = vertex_shader,
-                                                .fragment_shader = fragment_shader,
-                                                .pipeline        = stx::None});
+    pipelines.emplace(spec.name,
+                      CanvasPipeline{.vertex_shader   = vertex_shader,
+                                     .fragment_shader = fragment_shader,
+                                     .pipeline        = stx::None});
   }
 
   /// re-build pipelines to meet renderpass specification
   void rebuild_for_renderpass(VkRenderPass          target_render_pass,
                               VkSampleCountFlagBits msaa_sample_count)
   {
-    static constexpr VkVertexInputAttributeDescription vertex_input_attributes[] = {
-        {.location = 0,
-         .binding  = 0,
-         .format   = VK_FORMAT_R32G32_SFLOAT,
-         .offset   = offsetof(Vertex2d, position)},
-        {.location = 1,
-         .binding  = 0,
-         .format   = VK_FORMAT_R32G32_SFLOAT,
-         .offset   = offsetof(Vertex2d, uv)},
-        {.location = 2,
-         .binding  = 0,
-         .format   = VK_FORMAT_R32G32B32A32_SFLOAT,
-         .offset   = offsetof(Vertex2d, color)}};
+    static constexpr VkVertexInputAttributeDescription
+        vertex_input_attributes[] = {{.location = 0,
+                                      .binding  = 0,
+                                      .format   = VK_FORMAT_R32G32_SFLOAT,
+                                      .offset   = offsetof(Vertex2d, position)},
+                                     {.location = 1,
+                                      .binding  = 0,
+                                      .format   = VK_FORMAT_R32G32_SFLOAT,
+                                      .offset   = offsetof(Vertex2d, uv)},
+                                     {.location = 2,
+                                      .binding  = 0,
+                                      .format   = VK_FORMAT_R32G32B32A32_SFLOAT,
+                                      .offset   = offsetof(Vertex2d, color)}};
 
     VkDescriptorSetLayout descriptor_sets_layout[NIMAGES_PER_DRAWCALL];
     stx::Span{descriptor_sets_layout}.fill(descriptor_set_layout);
@@ -730,19 +774,22 @@ struct CanvasPipelineManager
 
     for (auto &p : pipelines)
     {
-      ASH_LOG_INFO(Vulkan_CanvasPipelineManager, "Rebuilding Pipeline #{}", p.first);
+      ASH_LOG_INFO(Vulkan_CanvasPipelineManager, "Rebuilding Pipeline #{}",
+                   p.first);
       p.second.pipeline.match(&Pipeline::destroy, []() {});
       p.second.pipeline = stx::None;
 
       Pipeline pipeline;
 
-      pipeline.build(dev, p.second.vertex_shader, p.second.fragment_shader, target_render_pass,
-                     msaa_sample_count, descriptor_sets_layout, vertex_input_attributes,
+      pipeline.build(dev, p.second.vertex_shader, p.second.fragment_shader,
+                     target_render_pass, msaa_sample_count,
+                     descriptor_sets_layout, vertex_input_attributes,
                      sizeof(Vertex2d), PUSH_CONSTANT_SIZE);
 
       p.second.pipeline = stx::Some(std::move(pipeline));
 
-      ASH_LOG_INFO(Vulkan_CanvasPipelineManager, "Rebuilt Pipeline #{}", p.first);
+      ASH_LOG_INFO(Vulkan_CanvasPipelineManager, "Rebuilt Pipeline #{}",
+                   p.first);
     }
   }
 

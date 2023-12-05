@@ -87,7 +87,8 @@ struct QuadraticBezier final : public Curve
     return lerp(lerp(p0, p1, t), lerp(p1, p2, t), t);
   }
 };
-// TODO(lamarrr): Splines, Bezier Curves, Hermite Curves, Catmull-Rom curves, B-Spline
+// TODO(lamarrr): Splines, Bezier Curves, Hermite Curves, Catmull-Rom curves,
+// B-Spline
 
 struct Spline final : public Curve
 {

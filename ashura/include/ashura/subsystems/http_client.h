@@ -130,14 +130,16 @@ struct HttpProgressUpdater
   stx::Rc<HttpProgressMonitorState *> state;
 };
 
-inline stx::Result<std::pair<HttpProgressMonitor, HttpProgressUpdater>, stx::AllocError>
+inline stx::Result<std::pair<HttpProgressMonitor, HttpProgressUpdater>,
+                   stx::AllocError>
     makeProgressMonitor(stx::Allocator allocator)
 {
   TRY_OK(state, stx::rc::make_inplace<HttpProgressMonitorState>(allocator));
 
   HttpProgressMonitor progressMonitor{state.share()};
 
-  return stx::Ok(std::make_pair(std::move(progressMonitor), HttpProgressUpdater{std::move(state)}));
+  return stx::Ok(std::make_pair(std::move(progressMonitor),
+                                HttpProgressUpdater{std::move(state)}));
 }
 
 struct HttpCurlMultiHandleImpl;
@@ -148,8 +150,9 @@ struct HttpCurlMultiHandle
   STX_DISABLE_COPY(HttpCurlMultiHandle)
   STX_DISABLE_MOVE(HttpCurlMultiHandle)
 
-  explicit HttpCurlMultiHandle(CURLM *init_multi);        // Declaration of constructor
-  ~HttpCurlMultiHandle();                                 // Declaration of destructor
+  explicit HttpCurlMultiHandle(
+      CURLM *init_multi);        // Declaration of constructor
+  ~HttpCurlMultiHandle();        // Declaration of destructor
 
   friend struct HttpTask;
   friend struct HttpClient;
@@ -163,7 +166,8 @@ inline auto make_curl_multi_handle(stx::Allocator allocator)
   CURLM *multi = curl_multi_init();
   if (multi == nullptr)
   {
-    stx::panic("unexpected error from curl");        // Panic if initialization fails
+    stx::panic(
+        "unexpected error from curl");        // Panic if initialization fails
   }
   return stx::rc::make_inplace<HttpCurlMultiHandle>(
       allocator, multi);        // Create and return the HttpCurlMultiHandle
@@ -204,19 +208,22 @@ struct HttpTask
   stx::Unique<HttpTaskInfo *> info;
 
   static stx::Result<stx::Rc<HttpCurlEasyHandle *>, stx::AllocError>
-      prepare_request(stx::Allocator allocator, stx::Rc<HttpCurlMultiHandle *> const &parent,
-                      HttpRequest const &request);
+      prepare_request(stx::Allocator                        allocator,
+                      stx::Rc<HttpCurlMultiHandle *> const &parent,
+                      HttpRequest const                    &request);
 
   static void begin_request(CURL *easy, CURLM *multi, HttpTaskInfo *info_addr);
 
   void retrieve_progress_info(CURL *easy, CURLINFO info, u64 &value);
 
-  void retrieve_optional_progress_info(CURL *easy, CURLINFO info, stx::Option<u64> &value);
+  void retrieve_optional_progress_info(CURL *easy, CURLINFO info,
+                                       stx::Option<u64> &value);
 
   void update_progress();
 
-  static stx::Result<std::tuple<HttpTask, HttpProgressMonitor, stx::Future<HttpResponse>>,
-                     stx::AllocError>
+  static stx::Result<
+      std::tuple<HttpTask, HttpProgressMonitor, stx::Future<HttpResponse>>,
+      stx::AllocError>
       launch(stx::Allocator allocator, HttpRequest const &request,
              stx::Rc<HttpCurlMultiHandle *> const &parent);
 
@@ -236,13 +243,15 @@ struct HttpClient : public Subsystem
   }
 
   std::tuple<stx::Future<HttpResponse>, HttpProgressMonitor>
-      get(stx::String url, std::map<stx::String, stx::String> header = {}, u32 max_redirects = 69)
+      get(stx::String url, std::map<stx::String, stx::String> header = {},
+          u32 max_redirects = 69)
   {
     stx::LockGuard guard{lock_};
     auto [task, monitor, future] =
-        HttpTask::launch(
-            allocator_,
-            HttpRequest{std::move(url), std::move(header), HttpMethod::Get, max_redirects}, multi_)
+        HttpTask::launch(allocator_,
+                         HttpRequest{std::move(url), std::move(header),
+                                     HttpMethod::Get, max_redirects},
+                         multi_)
             .unwrap();
 
     tasks_.push(std::move(task)).unwrap();
@@ -251,13 +260,15 @@ struct HttpClient : public Subsystem
   }
 
   std::tuple<stx::Future<HttpResponse>, HttpProgressMonitor>
-      head(stx::String url, std::map<stx::String, stx::String> header = {}, u32 max_redirects = 69)
+      head(stx::String url, std::map<stx::String, stx::String> header = {},
+           u32 max_redirects = 69)
   {
     stx::LockGuard guard{lock_};
     auto [task, monitor, future] =
-        HttpTask::launch(
-            allocator_,
-            HttpRequest{std::move(url), std::move(header), HttpMethod::Head, max_redirects}, multi_)
+        HttpTask::launch(allocator_,
+                         HttpRequest{std::move(url), std::move(header),
+                                     HttpMethod::Head, max_redirects},
+                         multi_)
             .unwrap();
 
     tasks_.push(std::move(task)).unwrap();

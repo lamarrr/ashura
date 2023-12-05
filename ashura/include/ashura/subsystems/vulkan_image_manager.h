@@ -31,7 +31,8 @@ struct VulkanImageManager : public ImageManager
   {
   }
 
-  virtual constexpr void tick(Context &ctx, std::chrono::nanoseconds interval) override
+  virtual constexpr void tick(Context                 &ctx,
+                              std::chrono::nanoseconds interval) override
   {
   }
 

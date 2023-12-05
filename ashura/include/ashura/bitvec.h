@@ -11,7 +11,7 @@ STX_BEGIN_NAMESPACE
 
 static constexpr size_t BIT_PACK_SIZE      = sizeof(size_t);
 static constexpr size_t BIT_PACK_BIT_COUNT = BIT_PACK_SIZE << 3;
-using Bit                                  = size_t;        // must always be 0 or 1
+using Bit = size_t;        // must always be 0 or 1
 
 struct BitConstRef
 {
@@ -135,7 +135,8 @@ struct BitConstIterator
 
   constexpr BitConstRef operator*() const
   {
-    return BitConstRef{data + (index / BIT_PACK_BIT_COUNT), index % BIT_PACK_BIT_COUNT};
+    return BitConstRef{data + (index / BIT_PACK_BIT_COUNT),
+                       index % BIT_PACK_BIT_COUNT};
   }
 
   constexpr BitConstIterator &operator++()
@@ -169,7 +170,8 @@ struct BitIterator
 
   constexpr BitRef operator*() const
   {
-    return BitRef{data + (index / BIT_PACK_BIT_COUNT), index % BIT_PACK_BIT_COUNT};
+    return BitRef{data + (index / BIT_PACK_BIT_COUNT),
+                  index % BIT_PACK_BIT_COUNT};
   }
 
   constexpr BitIterator &operator++()
@@ -296,9 +298,11 @@ struct BitVec
     return stx::Ok(stx::Void{});
   }
 
-  stx::Result<stx::Void, stx::AllocError> resize(size_t target_size, Bit default_bits = 0)
+  stx::Result<stx::Void, stx::AllocError> resize(size_t target_size,
+                                                 Bit    default_bits = 0)
   {
-    TRY_OK(voidr, vec.resize((target_size / BIT_PACK_BIT_COUNT) + 1, default_bits));
+    TRY_OK(voidr,
+           vec.resize((target_size / BIT_PACK_BIT_COUNT) + 1, default_bits));
     num_bits = target_size;
     return stx::Ok(stx::Void{});
   }

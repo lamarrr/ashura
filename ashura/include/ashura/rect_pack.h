@@ -173,7 +173,8 @@ struct Context
 };
 
 // find minimum y position if it starts at x1
-inline i32 skyline_find_min_y(Context &c, Node *first, i32 x0, i32 width, i32 *pwaste)
+inline i32 skyline_find_min_y(Context &c, Node *first, i32 x0, i32 width,
+                              i32 *pwaste)
 {
   Node *node = first;
   i32   x1   = x0 + width;
@@ -333,7 +334,8 @@ inline FindResult skyline_find_best_pos(Context &ctx, i32 width, i32 height)
       {
         if (y <= best_y)
         {
-          if (y < best_y || waste < best_waste || (waste == best_waste && xpos < best_x))
+          if (y < best_y || waste < best_waste ||
+              (waste == best_waste && xpos < best_x))
           {
             best_x = xpos;
             ASH_CHECK(y <= best_y);
@@ -363,7 +365,8 @@ inline FindResult skyline_pack_rectangle(Context &ctx, i32 width, i32 height)
   //    1. it failed
   //    2. the best node doesn't fit (we don't always check this)
   //    3. we're out of memory
-  if (res.prev_link == nullptr || res.y + height > ctx.height || ctx.free_head == nullptr)
+  if (res.prev_link == nullptr || res.y + height > ctx.height ||
+      ctx.free_head == nullptr)
   {
     res.prev_link = nullptr;
     return res;
@@ -464,7 +467,8 @@ inline FindResult skyline_pack_rectangle(Context &ctx, i32 width, i32 height)
 // algorithm may run out of temporary storage and be unable to pack some
 // rectangles.
 //
-inline Context init(i32 width, i32 height, Node *nodes, i32 num_nodes, bool allow_out_of_mem)
+inline Context init(i32 width, i32 height, Node *nodes, i32 num_nodes,
+                    bool allow_out_of_mem)
 {
   Context ctx;
 
@@ -558,7 +562,8 @@ inline bool pack_rects(Context &ctx, rect *rects, i32 num_rects)
     }
     else
     {
-      FindResult find_result = skyline_pack_rectangle(ctx, rects[i].w, rects[i].h);
+      FindResult find_result =
+          skyline_pack_rectangle(ctx, rects[i].w, rects[i].h);
       if (find_result.prev_link)
       {
         rects[i].x = AS(i32, find_result.x);
@@ -572,12 +577,14 @@ inline bool pack_rects(Context &ctx, rect *rects, i32 num_rects)
   }
 
   // unsort
-  std::qsort(rects, AS(size_t, num_rects), sizeof(rects[0]), rect_original_order);
+  std::qsort(rects, AS(size_t, num_rects), sizeof(rects[0]),
+             rect_original_order);
 
   // set was_packed flags and all_rects_packed status
   for (i32 i = 0; i < num_rects; ++i)
   {
-    rects[i].was_packed = !(rects[i].x == stx::I32_MAX && rects[i].y == stx::I32_MAX);
+    rects[i].was_packed =
+        !(rects[i].x == stx::I32_MAX && rects[i].y == stx::I32_MAX);
     if (!rects[i].was_packed)
       all_rects_packed = 0;
   }

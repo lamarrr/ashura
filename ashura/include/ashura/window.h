@@ -41,11 +41,14 @@ STX_DEFINE_ENUM_BIT_OPS(WindowCreateFlags)
 enum class SwapChainState : u8
 {
   Ok            = 0,
-  ExtentChanged = 1,        // the window's extent and surface (framebuffer) extent has changed
-  Suboptimal    = 2,        // the window swapchain can still be used for presentation but is not
-                            // optimal for presentation in its present state
-  OutOfDate = 4,            // the window swapchain is now out of date and needs to be changed
-  All       = 7
+  ExtentChanged = 1,        // the window's extent and surface (framebuffer)
+                            // extent has changed
+  Suboptimal =
+      2,        // the window swapchain can still be used for presentation but
+                // is not optimal for presentation in its present state
+  OutOfDate = 4,        // the window swapchain is now out of date and needs to
+                        // be changed
+  All = 7
 };
 
 STX_DEFINE_ENUM_BIT_OPS(SwapChainState)
@@ -63,7 +66,8 @@ struct Window
   {
     if (surface.is_some())
     {
-      // TODO(lamarrr): an unspecified lifetime reference is bound to the device here
+      // TODO(lamarrr): an unspecified lifetime reference is bound to the device
+      // here
       surface.value()->destroy();
     }
 
@@ -74,14 +78,16 @@ struct Window
   {
     u32 ext_count;
 
-    ASH_SDL_CHECK(SDL_Vulkan_GetInstanceExtensions(&ext_count, nullptr) == SDL_TRUE);
+    ASH_SDL_CHECK(SDL_Vulkan_GetInstanceExtensions(&ext_count, nullptr) ==
+                  SDL_TRUE);
 
     stx::Vec<char const *> required_instance_extensions;
 
     required_instance_extensions.resize(ext_count).unwrap();
 
     ASH_SDL_CHECK(SDL_Vulkan_GetInstanceExtensions(
-                      &ext_count, required_instance_extensions.data()) == SDL_TRUE);
+                      &ext_count, required_instance_extensions.data()) ==
+                  SDL_TRUE);
 
     return required_instance_extensions;
   }
@@ -93,7 +99,8 @@ struct Window
 
   stx::String get_title()
   {
-    return stx::string::make(stx::os_allocator, SDL_GetWindowTitle(window)).unwrap();
+    return stx::string::make(stx::os_allocator, SDL_GetWindowTitle(window))
+        .unwrap();
   }
 
   void maximize()
@@ -108,13 +115,14 @@ struct Window
 
   void set_size(Extent size)
   {
-    ASH_SDL_CHECK(SDL_SetWindowSize(window, AS(int, size.width), AS(int, size.height)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowSize(window, AS(int, size.width),
+                                    AS(int, size.height)) == 0);
   }
 
   void center()
   {
-    ASH_SDL_CHECK(SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED) ==
-                  0);
+    ASH_SDL_CHECK(SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED,
+                                        SDL_WINDOWPOS_CENTERED) == 0);
   }
 
   Extent get_size()
@@ -133,7 +141,8 @@ struct Window
 
   void set_position(IOffset pos)
   {
-    ASH_SDL_CHECK(SDL_SetWindowPosition(window, AS(int, pos.x), AS(int, pos.y)) == 0);
+    ASH_SDL_CHECK(
+        SDL_SetWindowPosition(window, AS(int, pos.x), AS(int, pos.y)) == 0);
   }
 
   IOffset get_position()
@@ -145,7 +154,8 @@ struct Window
 
   void set_min_size(Extent min)
   {
-    ASH_SDL_CHECK(SDL_SetWindowMinimumSize(window, AS(int, min.width), AS(int, min.height)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowMinimumSize(window, AS(int, min.width),
+                                           AS(int, min.height)) == 0);
   }
 
   Extent get_min_size()
@@ -157,7 +167,8 @@ struct Window
 
   void set_max_size(Extent max)
   {
-    ASH_SDL_CHECK(SDL_SetWindowMaximumSize(window, AS(int, max.width), AS(int, max.height)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowMaximumSize(window, AS(int, max.width),
+                                           AS(int, max.height)) == 0);
   }
 
   Extent get_max_size()
@@ -184,9 +195,9 @@ struct Window
         break;
     }
 
-    SDL_Surface *icon =
-        SDL_CreateSurfaceFrom((void *) image.span.data(), AS(int, image.extent.width),
-                              AS(int, image.extent.height), AS(int, image.pitch), fmt);
+    SDL_Surface *icon = SDL_CreateSurfaceFrom(
+        (void *) image.span.data(), AS(int, image.extent.width),
+        AS(int, image.extent.height), AS(int, image.pitch), fmt);
     ASH_SDL_CHECK(icon != nullptr);
     ASH_SDL_CHECK(SDL_SetWindowIcon(window, icon) == 0);
     SDL_DestroySurface(icon);
@@ -224,8 +235,9 @@ struct Window
 
   void request_attention(bool briefly)
   {
-    ASH_SDL_CHECK(SDL_FlashWindow(window, briefly ? SDL_FLASH_BRIEFLY : SDL_FLASH_UNTIL_FOCUSED) ==
-                  0);
+    ASH_SDL_CHECK(SDL_FlashWindow(window, briefly ?
+                                              SDL_FLASH_BRIEFLY :
+                                              SDL_FLASH_UNTIL_FOCUSED) == 0);
   }
 
   void make_fullscreen()
@@ -256,7 +268,8 @@ struct Window
 
   void on(WindowEvents event, stx::UniqueFn<void(WindowEvents)> action)
   {
-    event_listeners.general.push(std::make_pair(event, std::move(action))).unwrap();
+    event_listeners.general.push(std::make_pair(event, std::move(action)))
+        .unwrap();
   }
 
   void on_key(stx::UniqueFn<void(KeyEvent)> action)
@@ -281,16 +294,19 @@ struct Window
 
     VkSurfaceKHR surface;
 
-    ASH_SDL_CHECK(SDL_Vulkan_CreateSurface(window, instance->instance, &surface) == SDL_TRUE,
+    ASH_SDL_CHECK(SDL_Vulkan_CreateSurface(window, instance->instance,
+                                           &surface) == SDL_TRUE,
                   "unable to create surface for window");
 
     this->surface = stx::Some(
-        stx::rc::make_unique(stx::os_allocator,
-                             vk::Surface{.surface = surface, .instance = instance->instance})
+        stx::rc::make_unique(
+            stx::os_allocator,
+            vk::Surface{.surface = surface, .instance = instance->instance})
             .unwrap());
   }
 
-  void recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue, u32 max_nframes_in_flight)
+  void recreate_swapchain(stx::Rc<vk::CommandQueue *> const &queue,
+                          u32 max_nframes_in_flight)
   {
     // if cause of change in swapchain is a change in extent, then mark
     // layout as dirty, otherwise maintain pipeline state
@@ -298,7 +314,8 @@ struct Window
     ASH_SDL_CHECK(SDL_GetWindowSize(window, &width, &height) == 0);
 
     int surface_width, surface_height;
-    ASH_SDL_CHECK(SDL_GetWindowSizeInPixels(window, &surface_width, &surface_height) == 0);
+    ASH_SDL_CHECK(SDL_GetWindowSizeInPixels(window, &surface_width,
+                                            &surface_height) == 0);
 
     VkSurfaceFormatKHR preferred_formats[] = {
         {VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
@@ -318,34 +335,40 @@ struct Window
     // VK_COLOR_SPACE_DCI_P3_LINEAR_EXT;
 
     VkPresentModeKHR preferred_present_modes[] = {
-        VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR,
-        VK_PRESENT_MODE_MAILBOX_KHR};
+        VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_KHR,
+        VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_MAILBOX_KHR};
 
-    VkSampleCountFlagBits max_msaa_sample_count = queue->device->phy_dev->get_max_sample_count();
+    VkSampleCountFlagBits max_msaa_sample_count =
+        queue->device->phy_dev->get_max_sample_count();
 
     surface.value()->change_swapchain(
-        queue, max_nframes_in_flight, preferred_formats, preferred_present_modes,
-        VkExtent2D{.width = AS(u32, surface_width), .height = AS(u32, surface_height)},
-        VkExtent2D{.width = AS(u32, width), .height = AS(u32, height)}, max_msaa_sample_count,
-        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+        queue, max_nframes_in_flight, preferred_formats,
+        preferred_present_modes,
+        VkExtent2D{.width  = AS(u32, surface_width),
+                   .height = AS(u32, surface_height)},
+        VkExtent2D{.width = AS(u32, width), .height = AS(u32, height)},
+        max_msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
   }
 
   std::pair<SwapChainState, u32> acquire_image()
   {
-    ASH_CHECK(surface.is_some(), "trying to present to swapchain without having surface attached");
+    ASH_CHECK(surface.is_some(),
+              "trying to present to swapchain without having surface attached");
     ASH_CHECK(surface.value()->swapchain.is_some(),
               "trying to present to swapchain without having one");
 
     vk::SwapChain &swapchain = surface.value()->swapchain.value();
 
-    VkSemaphore semaphore = swapchain.image_acquisition_semaphores[swapchain.frame];
+    VkSemaphore semaphore =
+        swapchain.image_acquisition_semaphores[swapchain.frame];
 
     VkFence fence = VK_NULL_HANDLE;
 
     u32 swapchain_image_index = 0;
 
-    VkResult result = vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain, VULKAN_TIMEOUT,
-                                            semaphore, fence, &swapchain_image_index);
+    VkResult result = vkAcquireNextImageKHR(swapchain.dev, swapchain.swapchain,
+                                            VULKAN_TIMEOUT, semaphore, fence,
+                                            &swapchain_image_index);
 
     ASH_CHECK(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR ||
                   result == VK_ERROR_OUT_OF_DATE_KHR,
@@ -371,7 +394,8 @@ struct Window
 
   SwapChainState present(VkQueue queue, u32 swapchain_image_index)
   {
-    ASH_CHECK(surface.is_some(), "trying to present to swapchain without having surface attached");
+    ASH_CHECK(surface.is_some(),
+              "trying to present to swapchain without having surface attached");
     ASH_CHECK(surface.value()->swapchain.is_some(),
               "trying to present to swapchain without having one");
 
@@ -386,14 +410,15 @@ struct Window
     // delay the process so we don't submit more frames than the display's
     // refresh rate can keep up with and we thus save power.
     //
-    VkPresentInfoKHR present_info{.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-                                  .pNext              = nullptr,
-                                  .waitSemaphoreCount = 1,
-                                  .pWaitSemaphores = &swapchain.render_semaphores[swapchain.frame],
-                                  .swapchainCount  = 1,
-                                  .pSwapchains     = &swapchain.swapchain,
-                                  .pImageIndices   = &swapchain_image_index,
-                                  .pResults        = nullptr};
+    VkPresentInfoKHR present_info{
+        .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext              = nullptr,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores    = &swapchain.render_semaphores[swapchain.frame],
+        .swapchainCount     = 1,
+        .pSwapchains        = &swapchain.swapchain,
+        .pImageIndices      = &swapchain_image_index,
+        .pResults           = nullptr};
 
     VkResult result = vkQueuePresentKHR(queue, &present_info);
 

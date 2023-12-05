@@ -17,7 +17,8 @@ struct ImageManager : public Subsystem
   {
   }
 
-  virtual constexpr void tick(Context &ctx, std::chrono::nanoseconds interval) override
+  virtual constexpr void tick(Context                 &ctx,
+                              std::chrono::nanoseconds interval) override
   {
   }
 

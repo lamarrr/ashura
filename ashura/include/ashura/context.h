@@ -40,8 +40,9 @@ inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id);
 // not thread-safe! ensure all api calls occur on the main thread.
 struct Context
 {
-  stx::Vec<Subsystem *>        subsystems;
-  stx::TaskScheduler          *task_scheduler = nullptr;        // TODO(lamarrr): set thread name
+  stx::Vec<Subsystem *> subsystems;
+  stx::TaskScheduler   *task_scheduler =
+      nullptr;        // TODO(lamarrr): set thread name
   ClipBoard                   *clipboard      = nullptr;
   WindowManager               *window_manager = nullptr;
   SystemTheme                  theme          = SystemTheme::Unknown;
@@ -50,8 +51,9 @@ struct Context
   FrameStats                   frame_stats;
   f32                          text_scale_factor = 1;
   Widget                      *root              = nullptr;
-  stx::Vec<KeyEvent> key_events;        // These are more of key state polling than key event state
-                                        // change notifications
+  stx::Vec<KeyEvent>
+      key_events;        // These are more of key state polling than key event
+                         // state change notifications
 
   // TODO(lamarrr): expose current window here???
 
@@ -75,8 +77,8 @@ struct Context
   {
     for (Subsystem *subsystem : subsystems)
     {
-      ASH_LOG_INFO(Context, "Destroying subsystem: {} (type: {})", subsystem->get_name(),
-                   typeid(*subsystem).name());
+      ASH_LOG_INFO(Context, "Destroying subsystem: {} (type: {})",
+                   subsystem->get_name(), typeid(*subsystem).name());
       delete subsystem;
     }
   }
@@ -84,8 +86,8 @@ struct Context
   void register_subsystem(Subsystem *subsystem)
   {
     subsystems.push_inplace(subsystem).unwrap();
-    ASH_LOG_INFO(Context, "Registered subsystem: {} (type: {})", subsystem->get_name(),
-                 typeid(*subsystem).name());
+    ASH_LOG_INFO(Context, "Registered subsystem: {} (type: {})",
+                 subsystem->get_name(), typeid(*subsystem).name());
   }
 
   template <typename T>
@@ -193,8 +195,9 @@ struct Context
         case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
         case SDL_EVENT_WINDOW_TAKE_FOCUS:
         {
-          WindowEvents win_event = to_window_event((SDL_EventType) event.window.type);
-          Window      *win       = get_window(event.window.windowID);
+          WindowEvents win_event =
+              to_window_event((SDL_EventType) event.window.type);
+          Window *win = get_window(event.window.windowID);
           if (win == nullptr)
           {
             return true;
@@ -213,9 +216,9 @@ struct Context
         case SDL_EVENT_MOUSE_BUTTON_UP:
         {
           MouseClickEvent mouse_event{.mouse_id = MouseID{event.button.which},
-                                      .position =
-                                          Vec2{AS(f32, event.button.x), AS(f32, event.button.y)},
-                                      .clicks = event.button.clicks};
+                                      .position = Vec2{AS(f32, event.button.x),
+                                                       AS(f32, event.button.y)},
+                                      .clicks   = event.button.clicks};
           switch (event.button.button)
           {
             case SDL_BUTTON_LEFT:
@@ -273,9 +276,11 @@ struct Context
           for (auto &listener : win->event_listeners.mouse_motion)
           {
             listener.handle(MouseMotionEvent{
-                .mouse_id    = MouseID{event.motion.which},
-                .position    = Vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)},
-                .translation = Vec2{AS(f32, event.motion.xrel), AS(f32, event.motion.yrel)}});
+                .mouse_id = MouseID{event.motion.which},
+                .position =
+                    Vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)},
+                .translation = Vec2{AS(f32, event.motion.xrel),
+                                    AS(f32, event.motion.yrel)}});
           }
           return true;
         }
@@ -291,7 +296,8 @@ struct Context
           {
             listener.handle(MouseWheelEvent{
                 .mouse_id    = MouseID{event.wheel.which},
-                .position    = Vec2{AS(f32, event.wheel.mouseX), AS(f32, event.wheel.mouseY)},
+                .position    = Vec2{AS(f32, event.wheel.mouseX),
+                                 AS(f32, event.wheel.mouseY)},
                 .translation = Vec2{event.wheel.x, event.wheel.y}});
           }
           return true;
@@ -307,11 +313,12 @@ struct Context
           }
           for (auto &listener : win->event_listeners.key)
           {
-            listener.handle(KeyEvent{.key       = event.key.keysym.sym,
-                                     .modifiers = AS(KeyModifiers, event.key.keysym.mod),
-                                     .action    = event.type == SDL_EVENT_KEY_DOWN ?
-                                                      KeyAction::Press :
-                                                      KeyAction::Release});
+            listener.handle(
+                KeyEvent{.key       = event.key.keysym.sym,
+                         .modifiers = AS(KeyModifiers, event.key.keysym.mod),
+                         .action    = event.type == SDL_EVENT_KEY_DOWN ?
+                                          KeyAction::Press :
+                                          KeyAction::Release});
           }
           return true;
         }
@@ -331,16 +338,16 @@ struct Context
         case SDL_EVENT_DROP_BEGIN:
         {
           ASH_LOG_INFO(Vulkan, "drop begin: {}  x={}, y={}",
-                       event.drop.file == nullptr ? " " : event.drop.file, event.drop.x,
-                       event.drop.y);
+                       event.drop.file == nullptr ? " " : event.drop.file,
+                       event.drop.x, event.drop.y);
           return true;
         }
 
         case SDL_EVENT_DROP_COMPLETE:
         {
           ASH_LOG_INFO(Vulkan, "drop complete: {}  x={}, y={}",
-                       event.drop.file == nullptr ? " " : event.drop.file, event.drop.x,
-                       event.drop.y);
+                       event.drop.file == nullptr ? " " : event.drop.file,
+                       event.drop.x, event.drop.y);
           return true;
         }
 
@@ -349,24 +356,24 @@ struct Context
           f32 x = 0, y = 0;
           SDL_GetMouseState(&x, &y);
           ASH_LOG_INFO(Vulkan, "drop file: {}  x={}, y={}, {},{}",
-                       event.drop.file == nullptr ? " " : event.drop.file, event.drop.x,
-                       event.drop.y, x, y);
+                       event.drop.file == nullptr ? " " : event.drop.file,
+                       event.drop.x, event.drop.y, x, y);
           return true;
         }
 
         case SDL_EVENT_DROP_POSITION:
         {
           ASH_LOG_INFO(Vulkan, "drop position: {}  x={}, y={}",
-                       event.drop.file == nullptr ? " " : event.drop.file, event.drop.x,
-                       event.drop.y);
+                       event.drop.file == nullptr ? " " : event.drop.file,
+                       event.drop.x, event.drop.y);
           return true;
         }
 
         case SDL_EVENT_DROP_TEXT:
         {
           ASH_LOG_INFO(Vulkan, "drop text: {}  x={}, y={}",
-                       event.drop.file == nullptr ? " " : event.drop.file, event.drop.x,
-                       event.drop.y);
+                       event.drop.file == nullptr ? " " : event.drop.file,
+                       event.drop.x, event.drop.y);
           return true;
         }
 
@@ -391,10 +398,13 @@ struct Context
 
           SDL_EVENT_AUDIO_DEVICE_ADDED;
           SDL_EVENT_AUDIO_DEVICE_REMOVED;
-          SDL_EVENT_DISPLAY_ORIENTATION;        // Display orientation has changed to data1
-          SDL_EVENT_DISPLAY_ADDED;              // Display has been added to the system
-          SDL_EVENT_DISPLAY_REMOVED;            // Display has been removed from the system
-          SDL_EVENT_DISPLAY_MOVED;              // Display has changed position
+          SDL_EVENT_DISPLAY_ORIENTATION;        // Display orientation has
+                                                // changed to data1
+          SDL_EVENT_DISPLAY_ADDED;              // Display has been added to the
+                                                // system
+          SDL_EVENT_DISPLAY_REMOVED;        // Display has been removed from the
+                                            // system
+          SDL_EVENT_DISPLAY_MOVED;          // Display has changed position
 
         default:
         {

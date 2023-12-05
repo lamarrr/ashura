@@ -16,9 +16,10 @@ WidgetTree tree;
 
 TEST(FlexLayout, Start)
 {
-  gui::Flex flex{gui::FlexProps{}, Widget{},
-                 gui::Image{gui::ImageProps{.size = Constraint2D::absolute(100, 100)}},
-                 gui::Image{gui::ImageProps{.size = Constraint2D::absolute(200, 200)}}};
+  gui::Flex flex{
+      gui::FlexProps{}, Widget{},
+      gui::Image{gui::ImageProps{.size = Constraint2D::absolute(100, 100)}},
+      gui::Image{gui::ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, Vec2{1920, 1080});
@@ -48,11 +49,13 @@ TEST(FlexLayout, Start)
 
 TEST(FlexLayout, SpaceAround)
 {
-  gui::Flex flex{gui::FlexProps{.direction   = Direction::H,
-                                .main_align  = MainAlign::SpaceAround,
-                                .cross_align = CrossAlign::Center},
-                 Widget{}, gui::Image{gui::ImageProps{.size = Constraint2D::absolute(100, 100)}},
-                 gui::Image{gui::ImageProps{.size = Constraint2D::absolute(200, 200)}}};
+  gui::Flex flex{
+      gui::FlexProps{.direction   = Direction::H,
+                     .main_align  = MainAlign::SpaceAround,
+                     .cross_align = CrossAlign::Center},
+      Widget{},
+      gui::Image{gui::ImageProps{.size = Constraint2D::absolute(100, 100)}},
+      gui::Image{gui::ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, Vec2{1920, 1080});
@@ -88,11 +91,13 @@ TEST(FlexLayout, SpaceAround)
 
 TEST(FlexLayout, SpaceEvenly)
 {
-  gui::Flex flex{gui::FlexProps{.direction   = Direction::H,
-                                .main_align  = MainAlign::SpaceEvenly,
-                                .cross_align = CrossAlign::Center},
-                 Widget{}, gui::Image{gui::ImageProps{.size = Constraint2D::absolute(100, 100)}},
-                 gui::Image{gui::ImageProps{.size = Constraint2D::absolute(200, 200)}}};
+  gui::Flex flex{
+      gui::FlexProps{.direction   = Direction::H,
+                     .main_align  = MainAlign::SpaceEvenly,
+                     .cross_align = CrossAlign::Center},
+      Widget{},
+      gui::Image{gui::ImageProps{.size = Constraint2D::absolute(100, 100)}},
+      gui::Image{gui::ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, Vec2{1920, 1080});
@@ -128,11 +133,13 @@ TEST(FlexLayout, SpaceEvenly)
 
 TEST(FlexLayout, SpaceBetween)
 {
-  gui::Flex flex{gui::FlexProps{.direction   = Direction::H,
-                                .main_align  = MainAlign::SpaceBetween,
-                                .cross_align = CrossAlign::Center},
-                 Widget{}, gui::Image{gui::ImageProps{.size = Constraint2D::absolute(100, 100)}},
-                 gui::Image{gui::ImageProps{.size = Constraint2D::absolute(200, 200)}}};
+  gui::Flex flex{
+      gui::FlexProps{.direction   = Direction::H,
+                     .main_align  = MainAlign::SpaceBetween,
+                     .cross_align = CrossAlign::Center},
+      Widget{},
+      gui::Image{gui::ImageProps{.size = Constraint2D::absolute(100, 100)}},
+      gui::Image{gui::ImageProps{.size = Constraint2D::absolute(200, 200)}}};
 
   tree.build(ctx, flex);
   tree.layout(ctx, Vec2{1920, 1080});

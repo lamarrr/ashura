@@ -5,13 +5,14 @@
 #include <cstddef>
 #include <type_traits>
 
-#define STX_SPARSE_VEC_ENSURE(condition, message)                                 \
-  do                                                                              \
-  {                                                                               \
-    if (!(condition))                                                             \
-    {                                                                             \
-      ::stx::panic("condition: '" #condition "' failed. explanation: " #message); \
-    }                                                                             \
+#define STX_SPARSE_VEC_ENSURE(condition, message)       \
+  do                                                    \
+  {                                                     \
+    if (!(condition))                                   \
+    {                                                   \
+      ::stx::panic("condition: '" #condition            \
+                   "' failed. explanation: " #message); \
+    }                                                   \
   } while (0)
 
 STX_BEGIN_NAMESPACE
@@ -28,7 +29,8 @@ struct SparseVec
     {
       while (index < array->sparse.size())
       {
-        if ((array->validity_masks[index >> 6] & (1ULL << (index & 63))) != 0ULL)
+        if ((array->validity_masks[index >> 6] & (1ULL << (index & 63))) !=
+            0ULL)
         {
           break;
         }

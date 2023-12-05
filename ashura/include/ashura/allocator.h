@@ -10,10 +10,11 @@ typedef struct AllocatorImpl      AllocatorImpl;
 
 struct AllocatorInterface
 {
-  void *(*allocate)(Allocator self, usize size, usize alignment)              = nullptr;
-  void *(*reallocate)(Allocator self, void *old, usize size, usize alignment) = nullptr;
-  void (*deallocate)(Allocator self, void *memory)                            = nullptr;
-  void (*release)(Allocator self)                                             = nullptr;
+  void *(*allocate)(Allocator self, usize size, usize alignment) = nullptr;
+  void *(*reallocate)(Allocator self, void *old, usize size,
+                      usize alignment)                           = nullptr;
+  void (*deallocate)(Allocator self, void *memory)               = nullptr;
+  void (*release)(Allocator self)                                = nullptr;
 };
 
 struct AllocatorImpl

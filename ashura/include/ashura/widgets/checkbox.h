@@ -22,11 +22,13 @@ struct CheckBox : public Widget
 {
   using Callback = stx::UniqueFn<void(CheckBox &, Context &, bool)>;
 
-  static void default_on_changed(CheckBox &checkbox, Context &ctx, bool new_value)
+  static void default_on_changed(CheckBox &checkbox, Context &ctx,
+                                 bool new_value)
   {
   }
 
-  CheckBox(Callback ion_changed = stx::fn::rc::make_unique_static(default_on_changed),
+  CheckBox(Callback ion_changed =
+               stx::fn::rc::make_unique_static(default_on_changed),
            bool default_value = false, CheckBoxProps iprops = CheckBoxProps{}) :
       on_changed{std::move(ion_changed)}, value{default_value}, props{iprops}
   {
@@ -39,7 +41,8 @@ struct CheckBox : public Widget
   {
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
@@ -49,9 +52,12 @@ struct CheckBox : public Widget
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     Vertex2d checkmark_path[] = {
-        {.position = {0.125f, 0.5f}, .color = props.checkmark_color.to_normalized_vec()},
-        {.position = {0.374f, 0.75f}, .color = props.checkmark_color.to_normalized_vec()},
-        {.position = {0.775f, 0.25f}, .color = props.checkmark_color.to_normalized_vec()}};
+        {.position = {0.125f, 0.5f},
+         .color    = props.checkmark_color.to_normalized_vec()},
+        {.position = {0.374f, 0.75f},
+         .color    = props.checkmark_color.to_normalized_vec()},
+        {.position = {0.775f, 0.25f},
+         .color    = props.checkmark_color.to_normalized_vec()}};
 
     if (value)
     {
@@ -72,8 +78,8 @@ struct CheckBox : public Widget
     return true;
   }
 
-  virtual void on_mouse_down(Context &ctx, MouseButton button, Vec2 mouse_position,
-                             u32 nclicks) override
+  virtual void on_mouse_down(Context &ctx, MouseButton button,
+                             Vec2 mouse_position, u32 nclicks) override
   {
     if (button == MouseButton::Primary && !props.disabled)
     {

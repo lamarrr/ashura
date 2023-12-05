@@ -70,7 +70,8 @@ static constexpr u32 log2_floor_u32(u32 x)
   return result;
 }
 
-// WARNING: the only non-floating-point integral type you should be using this for is i64.
+// WARNING: the only non-floating-point integral type you should be using this
+// for is i64.
 template <typename T>
 constexpr T lerp(T const &a, T const &b, f32 t)
 {
@@ -88,38 +89,42 @@ constexpr T lerp(T const &a, T const &b, f32 t)
 // 	template< class T >
 // 	UE_NODISCARD static constexpr FORCEINLINE T GridSnap(T Location, T Grid)
 // 	{
-// 		return (Grid == T{}) ? Location : (Floor((Location + (Grid/(T)2)) / Grid) * Grid);
+// 		return (Grid == T{}) ? Location : (Floor((Location + (Grid/(T)2)) /
+// Grid) * Grid);
 // 	}
 
 /*
  *	Cubic Catmull-Rom Spline interpolation. Based on
- *http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf Curves are guaranteed to pass
- *through the control points and are easily chained together. Equation supports abitrary
- *parameterization. eg. Uniform=0,1,2,3 ; chordal= |Pn - Pn-1| ; centripetal = |Pn - Pn-1|^0.5 P0 -
- *The control point preceding the interpolation range. P1 - The control point starting the
- *interpolation range. P2 - The control point ending the interpolation range. P3 - The control point
- *following the interpolation range. T0-3 - The interpolation parameters for the corresponding
- *control points. T - The interpolation factor in the range 0 to 1. 0 returns P1. 1 returns P2.
+ *http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf Curves are
+ *guaranteed to pass through the control points and are easily chained together.
+ *Equation supports abitrary parameterization. eg. Uniform=0,1,2,3 ; chordal=
+ *|Pn - Pn-1| ; centripetal = |Pn - Pn-1|^0.5 P0 - The control point preceding
+ *the interpolation range. P1 - The control point starting the interpolation
+ *range. P2 - The control point ending the interpolation range. P3 - The control
+ *point following the interpolation range. T0-3 - The interpolation parameters
+ *for the corresponding control points. T - The interpolation factor in the
+ *range 0 to 1. 0 returns P1. 1 returns P2.
  */
 // template< class U >
-// UE_NODISCARD static constexpr FORCEINLINE_DEBUGGABLE U CubicCRSplineInterp(const U& P0, const U&
-// P1, const U& P2, const U& P3, const float T0, const float T1, const float T2, const float T3,
-// const float T)
+// UE_NODISCARD static constexpr FORCEINLINE_DEBUGGABLE U
+// CubicCRSplineInterp(const U& P0, const U& P1, const U& P2, const U& P3, const
+// float T0, const float T1, const float T2, const float T3, const float T)
 // {
 // 	//Based on http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf
 // 	float InvT1MinusT0 = 1.0f / (T1 - T0);
-// 	U L01 = ( P0 * ((T1 - T) * InvT1MinusT0) ) + ( P1 * ((T - T0) * InvT1MinusT0) );
-// 	float InvT2MinusT1 = 1.0f / (T2 - T1);
-// 	U L12 = ( P1 * ((T2 - T) * InvT2MinusT1) ) + ( P2 * ((T - T1) * InvT2MinusT1) );
-// 	float InvT3MinusT2 = 1.0f / (T3 - T2);
-// 	U L23 = ( P2 * ((T3 - T) * InvT3MinusT2) ) + ( P3 * ((T - T2) * InvT3MinusT2) );
+// 	U L01 = ( P0 * ((T1 - T) * InvT1MinusT0) ) + ( P1 * ((T - T0) *
+// InvT1MinusT0) ); 	float InvT2MinusT1 = 1.0f / (T2 - T1); 	U L12 = ( P1 * ((T2 -
+// T) * InvT2MinusT1) ) + ( P2 * ((T - T1) * InvT2MinusT1) ); 	float InvT3MinusT2
+// = 1.0f / (T3 - T2); 	U L23 = ( P2 * ((T3 - T) * InvT3MinusT2) ) + ( P3 * ((T -
+// T2) * InvT3MinusT2) );
 
 // 	float InvT2MinusT0 = 1.0f / (T2 - T0);
-// 	U L012 = ( L01 * ((T2 - T) * InvT2MinusT0) ) + ( L12 * ((T - T0) * InvT2MinusT0) );
-// 	float InvT3MinusT1 = 1.0f / (T3 - T1);
-// 	U L123 = ( L12 * ((T3 - T) * InvT3MinusT1) ) + ( L23 * ((T - T1) * InvT3MinusT1) );
+// 	U L012 = ( L01 * ((T2 - T) * InvT2MinusT0) ) + ( L12 * ((T - T0) *
+// InvT2MinusT0) ); 	float InvT3MinusT1 = 1.0f / (T3 - T1); 	U L123 = ( L12 * ((T3
+// - T) * InvT3MinusT1) ) + ( L23 * ((T - T1) * InvT3MinusT1) );
 
-// 	return  ( ( L012 * ((T2 - T) * InvT2MinusT1) ) + ( L123 * ((T - T1) * InvT2MinusT1) ) );
+// 	return  ( ( L012 * ((T2 - T) * InvT2MinusT1) ) + ( L123 * ((T - T1) *
+// InvT2MinusT1) ) );
 // }
 
 template <typename T>
@@ -321,7 +326,8 @@ struct Rect
 
   constexpr auto bounds() const
   {
-    return std::make_tuple(offset.x, offset.x + extent.x, offset.y, offset.y + extent.y);
+    return std::make_tuple(offset.x, offset.x + extent.x, offset.y,
+                           offset.y + extent.y);
   }
 
   constexpr Vec2 min() const
@@ -339,12 +345,14 @@ struct Rect
     auto [x0_min, x0_max, y0_min, y0_max] = bounds();
     auto [x1_min, x1_max, y1_min, y1_max] = other.bounds();
 
-    return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min && y1_min < y0_max;
+    return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min &&
+           y1_min < y0_max;
   }
 
   constexpr bool overlaps(Quad const &quad) const
   {
-    return contains(quad.p0) || contains(quad.p1) || contains(quad.p2) || contains(quad.p3);
+    return contains(quad.p0) || contains(quad.p1) || contains(quad.p2) ||
+           contains(quad.p3);
   }
 
   /// @brief NOTE: returns 0-extent rect if there's no intersection
@@ -361,15 +369,16 @@ struct Rect
     }
 
     Vec2 intersect_offset{std::max(x1_min, x2_min), std::max(y1_min, y2_min)};
-    Vec2 intersect_extent{std::min(x1_max, x2_max) - offset.x, std::min(y1_max, y2_max) - offset.y};
+    Vec2 intersect_extent{std::min(x1_max, x2_max) - offset.x,
+                          std::min(y1_max, y2_max) - offset.y};
 
     return Rect{.offset = intersect_offset, .extent = intersect_extent};
   }
 
   constexpr bool contains(Vec2 point) const
   {
-    return offset.x <= point.x && offset.y <= point.y && (offset.x + extent.x) >= point.x &&
-           (offset.y + extent.y) >= point.y;
+    return offset.x <= point.x && offset.y <= point.y &&
+           (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
   }
 
   constexpr bool is_visible() const
@@ -399,7 +408,10 @@ struct Rect
 
   constexpr Quad to_quad() const
   {
-    return Quad{.p0 = top_left(), .p1 = top_right(), .p2 = bottom_right(), .p3 = bottom_left()};
+    return Quad{.p0 = top_left(),
+                .p1 = top_right(),
+                .p2 = bottom_right(),
+                .p3 = bottom_left()};
   }
 
   constexpr Rect with_offset(Vec2 new_offset) const
@@ -555,15 +567,15 @@ struct Box
   constexpr bool contains(Vec3 point) const
   {
     return offset.x <= point.x && offset.y <= point.y && offset.z <= point.z &&
-           (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y &&
-           (offset.z + extent.z) >= point.z;
+           (offset.x + extent.x) >= point.x &&
+           (offset.y + extent.y) >= point.y && (offset.z + extent.z) >= point.z;
     return true;
   }
 
   constexpr auto bounds() const
   {
-    return std::make_tuple(offset.x, offset.x + extent.x, offset.y, offset.y + extent.y, offset.z,
-                           offset.z + extent.z);
+    return std::make_tuple(offset.x, offset.x + extent.x, offset.y,
+                           offset.y + extent.y, offset.z, offset.z + extent.z);
   }
 
   constexpr bool overlaps(Box other) const
@@ -571,8 +583,8 @@ struct Box
     auto [x0_min, x0_max, y0_min, y0_max, z0_min, z0_max] = bounds();
     auto [x1_min, x1_max, y1_min, y1_max, z1_min, z1_max] = other.bounds();
 
-    return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min && y1_min < y0_max &&
-           z1_max > z0_min && z1_min < z0_max;
+    return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min &&
+           y1_min < y0_max && z1_max > z0_min && z1_min < z0_max;
   }
 };
 
@@ -729,8 +741,9 @@ struct Mat3
 
   static constexpr Mat3 identity()
   {
-    return Mat3{
-        .rows = {{.x = 1, .y = 0, .z = 0}, {.x = 0, .y = 1, .z = 0}, {.x = 0, .y = 0, .z = 1}}};
+    return Mat3{.rows = {{.x = 1, .y = 0, .z = 0},
+                         {.x = 0, .y = 1, .z = 0},
+                         {.x = 0, .y = 0, .z = 1}}};
   }
 
   constexpr Mat3 transpose() const
@@ -768,30 +781,35 @@ constexpr Vec3 operator*(Mat3 const &a, Vec3 const &b)
 
 constexpr Mat3 operator*(Mat3 const &a, Mat3 const &b)
 {
-  return Mat3{
-      .rows = {{dot(a[0], {b[0][0], b[1][0], b[2][0]}), dot(a[0], {b[0][1], b[1][1], b[2][1]}),
-                dot(a[0], {b[0][2], b[1][2], b[2][2]})},
-               {dot(a[1], {b[0][0], b[1][0], b[2][0]}), dot(a[1], {b[0][1], b[1][1], b[2][1]}),
-                dot(a[1], {b[0][2], b[1][2], b[2][2]})},
-               {dot(a[2], {b[0][0], b[1][0], b[2][0]}), dot(a[2], {b[0][1], b[1][1], b[2][1]}),
-                dot(a[2], {b[0][2], b[1][2], b[2][2]})}}};
+  return Mat3{.rows = {{dot(a[0], {b[0][0], b[1][0], b[2][0]}),
+                        dot(a[0], {b[0][1], b[1][1], b[2][1]}),
+                        dot(a[0], {b[0][2], b[1][2], b[2][2]})},
+                       {dot(a[1], {b[0][0], b[1][0], b[2][0]}),
+                        dot(a[1], {b[0][1], b[1][1], b[2][1]}),
+                        dot(a[1], {b[0][2], b[1][2], b[2][2]})},
+                       {dot(a[2], {b[0][0], b[1][0], b[2][0]}),
+                        dot(a[2], {b[0][1], b[1][1], b[2][1]}),
+                        dot(a[2], {b[0][2], b[1][2], b[2][2]})}}};
 }
 
 constexpr f32 determinant(Mat3 const &a)
 {
-  return a[0][0] * a[1][1] * a[2][2] - a[0][0] * a[1][2] * a[2][1] - a[0][1] * a[1][0] * a[2][2] +
-         a[0][1] * a[1][2] * a[2][0] + a[0][2] * a[1][0] * a[2][1] - a[0][2] * a[1][1] * a[2][0];
+  return a[0][0] * a[1][1] * a[2][2] - a[0][0] * a[1][2] * a[2][1] -
+         a[0][1] * a[1][0] * a[2][2] + a[0][1] * a[1][2] * a[2][0] +
+         a[0][2] * a[1][0] * a[2][1] - a[0][2] * a[1][1] * a[2][0];
 }
 
 constexpr Mat3 adjoint(Mat3 const &a)
 {
-  return Mat3{
-      .rows = {{a[1][1] * a[2][2] - a[1][2] * a[2][1], a[0][2] * a[2][1] - a[0][1] * a[2][2],
-                a[0][1] * a[1][2] - a[0][2] * a[1][1]},
-               {a[1][2] * a[2][0] - a[1][0] * a[2][2], a[0][0] * a[2][2] - a[0][2] * a[2][0],
-                a[0][2] * a[1][0] - a[0][0] * a[1][2]},
-               {a[1][0] * a[2][1] - a[1][1] * a[2][0], a[0][1] * a[2][0] - a[0][0] * a[2][1],
-                a[0][0] * a[1][1] - a[0][1] * a[1][0]}}};
+  return Mat3{.rows = {{a[1][1] * a[2][2] - a[1][2] * a[2][1],
+                        a[0][2] * a[2][1] - a[0][1] * a[2][2],
+                        a[0][1] * a[1][2] - a[0][2] * a[1][1]},
+                       {a[1][2] * a[2][0] - a[1][0] * a[2][2],
+                        a[0][0] * a[2][2] - a[0][2] * a[2][0],
+                        a[0][2] * a[1][0] - a[0][0] * a[1][2]},
+                       {a[1][0] * a[2][1] - a[1][1] * a[2][0],
+                        a[0][1] * a[2][0] - a[0][0] * a[2][1],
+                        a[0][0] * a[1][1] - a[0][1] * a[1][0]}}};
 }
 
 constexpr Mat3 inverse(Mat3 const &a)
@@ -873,7 +891,10 @@ constexpr Mat4 operator*(Mat4 const &a, Mat4 const &b)
 
 constexpr Vec4 operator*(Mat4 const &a, Vec4 const &b)
 {
-  return Vec4{.x = dot(a[0], b), .y = dot(a[1], b), .z = dot(a[2], b), .w = dot(a[3], b)};
+  return Vec4{.x = dot(a[0], b),
+              .y = dot(a[1], b),
+              .z = dot(a[2], b),
+              .w = dot(a[3], b)};
 }
 
 constexpr f32 determinant(Mat4 const &a)
@@ -989,7 +1010,8 @@ constexpr Mat3 translate2d(f32 tx, f32 ty)
 
 constexpr Mat4 translate3d(Vec3 t)
 {
-  return Mat4{.rows = {{1, 0, 0, t.x}, {0, 1, 0, t.y}, {0, 0, 1, t.z}, {0, 0, 0, 1}}};
+  return Mat4{
+      .rows = {{1, 0, 0, t.x}, {0, 1, 0, t.y}, {0, 0, 1, t.z}, {0, 0, 0, 1}}};
 }
 
 constexpr Mat3 scale2d(Vec2 s)
@@ -1004,7 +1026,8 @@ constexpr Mat3 scale2d(f32 sx, f32 sy)
 
 constexpr Mat4 scale3d(Vec3 s)
 {
-  return Mat4{.rows = {{s.x, 0, 0, 0}, {0, s.y, 0, 0}, {0, 0, s.z, 0}, {0, 0, 0, 1}}};
+  return Mat4{
+      .rows = {{s.x, 0, 0, 0}, {0, s.y, 0, 0}, {0, 0, s.z, 0}, {0, 0, 0, 1}}};
 }
 
 inline Mat3 rotate2d(f32 degree_radians)
@@ -1016,26 +1039,29 @@ inline Mat3 rotate2d(f32 degree_radians)
 
 inline Mat4 rotate3d_x(f32 degree_radians)
 {
-  return Mat4{.rows = {{1, 0, 0, 0},
-                       {0, std::cos(degree_radians), -std::sin(degree_radians), 0},
-                       {0, std::sin(degree_radians), std::cos(degree_radians), 0},
-                       {0, 0, 0, 1}}};
+  return Mat4{
+      .rows = {{1, 0, 0, 0},
+               {0, std::cos(degree_radians), -std::sin(degree_radians), 0},
+               {0, std::sin(degree_radians), std::cos(degree_radians), 0},
+               {0, 0, 0, 1}}};
 }
 
 inline Mat4 rotate3d_y(f32 degree_radians)
 {
-  return Mat4{.rows = {{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
-                       {0, 1, 0, 0},
-                       {-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
-                       {0, 0, 0, 1}}};
+  return Mat4{
+      .rows = {{std::cos(degree_radians), 0, std::sin(degree_radians), 0},
+               {0, 1, 0, 0},
+               {-std::sin(degree_radians), 0, std::cos(degree_radians), 0},
+               {0, 0, 0, 1}}};
 }
 
 inline Mat4 rotate3d_z(f32 degree_radians)
 {
-  return Mat4{.rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
-                       {std::sin(degree_radians), std::cos(degree_radians), 0, 0},
-                       {0, 0, 1, 0},
-                       {0, 0, 0, 1}}};
+  return Mat4{
+      .rows = {{std::cos(degree_radians), -std::sin(degree_radians), 0, 0},
+               {std::sin(degree_radians), std::cos(degree_radians), 0, 0},
+               {0, 0, 1, 0},
+               {0, 0, 0, 1}}};
 }
 
 constexpr Mat3 shear2d_x(f32 x_shear)
@@ -1050,17 +1076,23 @@ constexpr Mat3 shear2d_y(f32 y_shear)
 
 constexpr Mat4 shear3d_x(f32 y_shear, f32 z_shear)
 {
-  return Mat4{.rows = {{1, y_shear, z_shear, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
+  return Mat4{
+      .rows = {
+          {1, y_shear, z_shear, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
 }
 
 constexpr Mat4 shear3d_y(f32 x_shear, f32 z_shear)
 {
-  return Mat4{.rows = {{1, 0, 0, 0}, {x_shear, 1, z_shear, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
+  return Mat4{
+      .rows = {
+          {1, 0, 0, 0}, {x_shear, 1, z_shear, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}};
 }
 
 constexpr Mat4 shear3d_z(f32 x_shear, f32 y_shear)
 {
-  return Mat4{.rows = {{1, 0, 0, 0}, {0, 1, 0, 0}, {x_shear, y_shear, 1, 0}, {0, 0, 0, 1}}};
+  return Mat4{
+      .rows = {
+          {1, 0, 0, 0}, {0, 1, 0, 0}, {x_shear, y_shear, 1, 0}, {0, 0, 0, 1}}};
 }
 
 struct Offset
@@ -1134,7 +1166,8 @@ struct Extent
 
   constexpr Extent constrain(Extent other) const
   {
-    return Extent{.width = std::min(width, other.width), .height = std::min(height, other.height)};
+    return Extent{.width  = std::min(width, other.width),
+                  .height = std::min(height, other.height)};
   }
 
   constexpr u64 area() const
@@ -1189,8 +1222,9 @@ struct Extent3D
 
   constexpr Extent3D at_mip_level(u32 mip_level) const
   {
-    return Extent3D{
-        .width = width >> mip_level, .height = height >> mip_level, .depth = depth >> mip_level};
+    return Extent3D{.width  = width >> mip_level,
+                    .height = height >> mip_level,
+                    .depth  = depth >> mip_level};
   }
 
   constexpr Offset3D to_offset() const
@@ -1242,9 +1276,11 @@ struct URect
   constexpr bool contains(URect const &other) const
   {
     return (offset.x <= other.offset.x) &&
-           ((offset.x + extent.width) >= (other.offset.x + other.extent.width)) &&
+           ((offset.x + extent.width) >=
+            (other.offset.x + other.extent.width)) &&
            (offset.y <= other.offset.y) &&
-           ((offset.y + extent.height) >= (other.offset.y + other.extent.height));
+           ((offset.y + extent.height) >=
+            (other.offset.y + other.extent.height));
   }
 
   constexpr URect with_offset(Offset new_offset) const
@@ -1276,9 +1312,11 @@ struct URect3D
   constexpr bool contains(URect3D const &other) const
   {
     return (offset.x <= other.offset.x) &&
-           ((offset.x + extent.width) >= (other.offset.x + other.extent.width)) &&
+           ((offset.x + extent.width) >=
+            (other.offset.x + other.extent.width)) &&
            (offset.y <= other.offset.y) &&
-           ((offset.y + extent.height) >= (other.offset.y + other.extent.height)) &&
+           ((offset.y + extent.height) >=
+            (other.offset.y + other.extent.height)) &&
            (offset.z <= other.offset.z) &&
            ((offset.z + extent.depth) >= (other.offset.z + other.extent.depth));
   }
@@ -1297,12 +1335,15 @@ struct IRect
 };
 
 /// Simple Layout Constraint Model
-/// @bias: adding or subtracting from the source size, i.e. value should be source size - 20px
+/// @bias: adding or subtracting from the source size, i.e. value should be
+/// source size - 20px
 /// @scale: scales the source size, i.e. value should be 0.5 of source size
 /// @min: clamps the source size, i.e. value should be at least 20px
 /// @max: clamps the source size, i.e. value should be at most 100px
-/// @minr: clamps the source size relatively. i.e. value should be at least 0.5 of source size
-/// @maxr: clamps the source size relatively. i.e. value should be at most 0.5 of source size
+/// @minr: clamps the source size relatively. i.e. value should be at least 0.5
+/// of source size
+/// @maxr: clamps the source size relatively. i.e. value should be at most 0.5
+/// of source size
 struct Constraint
 {
   f32 bias  = 0;
@@ -1314,41 +1355,60 @@ struct Constraint
 
   static constexpr Constraint relative(f32 scale)
   {
-    return Constraint{.bias = 0, .scale = scale, .min = stx::F32_MIN, .max = stx::F32_MAX};
+    return Constraint{
+        .bias = 0, .scale = scale, .min = stx::F32_MIN, .max = stx::F32_MAX};
   }
 
   static constexpr Constraint absolute(f32 value)
   {
-    return Constraint{.bias = value, .scale = 0, .min = stx::F32_MIN, .max = stx::F32_MAX};
+    return Constraint{
+        .bias = value, .scale = 0, .min = stx::F32_MIN, .max = stx::F32_MAX};
   }
 
   constexpr Constraint with_min(f32 v) const
   {
-    return Constraint{
-        .bias = bias, .scale = scale, .min = v, .max = max, .minr = minr, .maxr = maxr};
+    return Constraint{.bias  = bias,
+                      .scale = scale,
+                      .min   = v,
+                      .max   = max,
+                      .minr  = minr,
+                      .maxr  = maxr};
   }
 
   constexpr Constraint with_max(f32 v) const
   {
-    return Constraint{
-        .bias = bias, .scale = scale, .min = min, .max = v, .minr = minr, .maxr = maxr};
+    return Constraint{.bias  = bias,
+                      .scale = scale,
+                      .min   = min,
+                      .max   = v,
+                      .minr  = minr,
+                      .maxr  = maxr};
   }
 
   constexpr Constraint with_minr(f32 v) const
   {
-    return Constraint{
-        .bias = bias, .scale = scale, .min = min, .max = max, .minr = v, .maxr = maxr};
+    return Constraint{.bias  = bias,
+                      .scale = scale,
+                      .min   = min,
+                      .max   = max,
+                      .minr  = v,
+                      .maxr  = maxr};
   }
 
   constexpr Constraint with_maxr(f32 v) const
   {
-    return Constraint{
-        .bias = bias, .scale = scale, .min = min, .max = max, .minr = minr, .maxr = v};
+    return Constraint{.bias  = bias,
+                      .scale = scale,
+                      .min   = min,
+                      .max   = max,
+                      .minr  = minr,
+                      .maxr  = v};
   }
 
   constexpr f32 resolve(f32 value) const
   {
-    return std::clamp(std::clamp(bias + value * scale, min, max), minr * value, maxr * value);
+    return std::clamp(std::clamp(bias + value * scale, min, max), minr * value,
+                      maxr * value);
   }
 };
 
@@ -1358,7 +1418,8 @@ struct Constraint2D
 
   static constexpr Constraint2D relative(f32 x, f32 y)
   {
-    return Constraint2D{.x = Constraint::relative(x), .y = Constraint::relative(y)};
+    return Constraint2D{.x = Constraint::relative(x),
+                        .y = Constraint::relative(y)};
   }
 
   static constexpr Constraint2D relative(Vec2 xy)
@@ -1368,7 +1429,8 @@ struct Constraint2D
 
   static constexpr Constraint2D absolute(f32 x, f32 y)
   {
-    return Constraint2D{.x = Constraint::absolute(x), .y = Constraint::absolute(y)};
+    return Constraint2D{.x = Constraint::absolute(x),
+                        .y = Constraint::absolute(y)};
   }
 
   static constexpr Constraint2D absolute(Vec2 xy)
@@ -1508,7 +1570,8 @@ struct Color
 
   constexpr Vec4 to_normalized_vec() const
   {
-    return Vec4{.x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
+    return Vec4{
+        .x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
   }
 };
 
@@ -1525,10 +1588,11 @@ constexpr bool operator!=(Color a, Color b)
 template <>
 constexpr Color lerp<Color>(Color const &a, Color const &b, f32 t)
 {
-  return Color{.r = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.r, b.r, t), 0, 255)),
-               .g = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.g, b.g, t), 0, 255)),
-               .b = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.b, b.b, t), 0, 255)),
-               .a = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.a, b.a, t), 0, 255))};
+  return Color{
+      .r = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.r, b.r, t), 0, 255)),
+      .g = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.g, b.g, t), 0, 255)),
+      .b = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.b, b.b, t), 0, 255)),
+      .a = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.a, b.a, t), 0, 255))};
 }
 
 namespace colors
@@ -1576,21 +1640,22 @@ struct Vertex2d
 {
   Vec2 position;        // point in 2d space
   Vec2 uv;              // texture coordinates
-  Vec4 color;           // color of the vertex encoded in the target's color space
+  Vec4 color;        // color of the vertex encoded in the target's color space
 };
 
 struct Vertex3d
 {
-  Vec3 position;        // point in 3d space. NOTE: size is 16 bytes. sames as Vec4 due to padding
+  Vec3 position;        // point in 3d space. NOTE: size is 16 bytes. sames as
+                        // Vec4 due to padding
   Vec2 uv;              // texture coordinates
-  Vec4 color;           // color of the vertex encoded in the target's color space
+  Vec4 color;        // color of the vertex encoded in the target's color space
 };
 
 struct Vertex4d
 {
   Vec4 position;        // point in 4d space
   Vec2 uv;              // texture coordinates
-  Vec4 color;           // color of the vertex encoded in the target's color space
+  Vec4 color;        // color of the vertex encoded in the target's color space
 };
 
 struct EdgeInsets
@@ -1635,12 +1700,14 @@ struct EdgeInsets
 
 constexpr bool operator==(EdgeInsets const &a, EdgeInsets const &b)
 {
-  return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
+  return a.left == b.left && a.top == b.top && a.right == b.right &&
+         a.bottom == b.bottom;
 }
 
 constexpr bool operator!=(EdgeInsets const &a, EdgeInsets const &b)
 {
-  return a.left != b.left || a.top != b.top || a.right != b.right || a.bottom != b.bottom;
+  return a.left != b.left || a.top != b.top || a.right != b.right ||
+         a.bottom != b.bottom;
 }
 
 constexpr Vec2 min(Vec2 a, Vec2 b)
@@ -1705,7 +1772,8 @@ struct LinearColorGradient
 
   Color resolve(Vec2 p) const
   {
-    f32 const t = p.x * std::cos(ASH_TO_RADIANS(angle)) + p.y * std::sin(ASH_TO_RADIANS(angle));
+    f32 const t = p.x * std::cos(ASH_TO_RADIANS(angle)) +
+                  p.y * std::sin(ASH_TO_RADIANS(angle));
     return lerp(begin, end, t);
   }
 };
@@ -1715,12 +1783,12 @@ struct Version
   u8 major = 0, minor = 0, patch = 0;
 };
 
-/// @x_mag: The floating-point horizontal magnification of the view. This value MUST NOT be equal to
-/// zero. This value SHOULD NOT be negative.
-/// @y_mag: The floating-point vertical magnification of the view. This value MUST NOT be equal to
-/// zero. This value SHOULD NOT be negative.
-/// @z_far: The floating-point distance to the far clipping plane. This value MUST NOT be equal to
-/// zero. zfar MUST be greater than znear.
+/// @x_mag: The floating-point horizontal magnification of the view. This value
+/// MUST NOT be equal to zero. This value SHOULD NOT be negative.
+/// @y_mag: The floating-point vertical magnification of the view. This value
+/// MUST NOT be equal to zero. This value SHOULD NOT be negative.
+/// @z_far: The floating-point distance to the far clipping plane. This value
+/// MUST NOT be equal to zero. zfar MUST be greater than znear.
 /// @z_near: The floating-point distance to the near clipping plane.
 struct OrthographicCamera
 {
@@ -1731,7 +1799,8 @@ struct OrthographicCamera
 };
 
 /// @aspect_ratio: The floating-point aspect ratio of the field of view.
-/// @y_fov: The floating-point vertical field of view in radians. This value SHOULD be less than π.
+/// @y_fov: The floating-point vertical field of view in radians. This value
+/// SHOULD be less than π.
 /// @z_far: The floating-point distance to the far clipping plane.
 /// @z_near: The floating-point distance to the near clipping plane.
 struct PerspectiveCamera

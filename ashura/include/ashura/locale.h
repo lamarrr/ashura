@@ -5,7 +5,8 @@
 namespace ash
 {
 
-// IETF BCP 47 language tags. See: https://en.wikipedia.org/wiki/IETF_language_tag
+// IETF BCP 47 language tags. See:
+// https://en.wikipedia.org/wiki/IETF_language_tag
 namespace languages
 {
 constexpr std::string_view AFRIKAANS         = "af";

@@ -47,7 +47,8 @@ struct ScrollBar : public Widget
   STX_DISABLE_COPY(ScrollBar)
   STX_DEFAULT_MOVE(ScrollBar)
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
@@ -83,8 +84,8 @@ struct ScrollBar : public Widget
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
-    Vec2 view_offset =
-        scroll_ctx->view_offset.resolve(scroll_ctx->content_size - scroll_ctx->view_size);
+    Vec2 view_offset = scroll_ctx->view_offset.resolve(
+        scroll_ctx->content_size - scroll_ctx->view_size);
     if (direction == Direction::H && scroll_ctx->can_scroll_x())
     {
       f32  scale        = area.extent.x / scroll_ctx->content_size.x;
@@ -114,32 +115,38 @@ struct ScrollBar : public Widget
     return true;
   }
 
-  virtual stx::Option<DragData> on_drag_start(Context &ctx, Vec2 mouse_position) override
+  virtual stx::Option<DragData> on_drag_start(Context &ctx,
+                                              Vec2     mouse_position) override
   {
     if (direction == Direction::H)
     {
-      f32 offset = (mouse_position.x - area.offset.x) / area.extent.x * scroll_ctx->content_size.x;
+      f32 offset = (mouse_position.x - area.offset.x) / area.extent.x *
+                   scroll_ctx->content_size.x;
       scroll_ctx->view_offset.x = Constraint::absolute(offset);
     }
     else
     {
-      f32 offset = (mouse_position.y - area.offset.y) / area.extent.y * scroll_ctx->content_size.y;
+      f32 offset = (mouse_position.y - area.offset.y) / area.extent.y *
+                   scroll_ctx->content_size.y;
       scroll_ctx->view_offset.y = Constraint::absolute(offset);
     }
     return stx::Some(DragData{});
   }
 
-  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation,
+  virtual void on_drag_update(Context &ctx, Vec2 mouse_position,
+                              Vec2            translation,
                               DragData const &drag_data) override
   {
     if (direction == Direction::H)
     {
-      f32 offset = (mouse_position.x - area.offset.x) / area.extent.x * scroll_ctx->content_size.x;
+      f32 offset = (mouse_position.x - area.offset.x) / area.extent.x *
+                   scroll_ctx->content_size.x;
       scroll_ctx->view_offset.x = Constraint::absolute(offset);
     }
     else
     {
-      f32 offset = (mouse_position.y - area.offset.y) / area.extent.y * scroll_ctx->content_size.y;
+      f32 offset = (mouse_position.y - area.offset.y) / area.extent.y *
+                   scroll_ctx->content_size.y;
       scroll_ctx->view_offset.y = Constraint::absolute(offset);
     }
   }
@@ -156,7 +163,8 @@ struct ScrollViewport : public Widget
   {
   }
 
-  ScrollViewport(stx::Rc<ScrollCtx *> ictx, Widget *child) : scroll_ctx{std::move(ictx)}
+  ScrollViewport(stx::Rc<ScrollCtx *> ictx, Widget *child) :
+      scroll_ctx{std::move(ictx)}
   {
     children.push_inplace(child).unwrap();
   }
@@ -170,7 +178,8 @@ struct ScrollViewport : public Widget
     children_allocation.fill(scroll_ctx->props.frame.resolve(allocated_size));
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
@@ -182,12 +191,14 @@ struct ScrollViewport : public Widget
     view_size.y              = y_scrollable ? view_size.y : content_size.y;
     scroll_ctx->view_size    = view_size;
     scroll_ctx->content_size = content_size;
-    Vec2 view_translation    = 0.0f - scroll_ctx->view_offset.resolve(content_size - view_size);
+    Vec2 view_translation =
+        0.0f - scroll_ctx->view_offset.resolve(content_size - view_size);
     children_positions.fill(view_translation);
     return view_size;
   }
 
-  virtual Rect clip(Context &ctx, Rect allocated_clip, stx::Span<Rect> children_allocation) override
+  virtual Rect clip(Context &ctx, Rect allocated_clip,
+                    stx::Span<Rect> children_allocation) override
   {
     children_allocation.fill(area.intersect(allocated_clip));
     return area;
@@ -234,7 +245,8 @@ struct ScrollBox : public Widget
   }
 
   ScrollBox(ScrollBoxProps iprops, Widget *child) :
-      scroll_ctx{stx::rc::make(stx::os_allocator, ScrollCtx{.props = iprops}).unwrap()}
+      scroll_ctx{
+          stx::rc::make(stx::os_allocator, ScrollCtx{.props = iprops}).unwrap()}
   {
     children.push(new ScrollViewport{scroll_ctx.share(), child}).unwrap();
     children.push(new ScrollBar{Direction::H, scroll_ctx.share()}).unwrap();
@@ -251,13 +263,16 @@ struct ScrollBox : public Widget
     children_allocation.fill(allocated_size);
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
     children_positions[0] = Vec2{0, 0};
-    children_positions[1] = Vec2{0, scroll_ctx->view_size.y - scroll_ctx->props.bar_width};
-    children_positions[2] = Vec2{scroll_ctx->view_size.x - scroll_ctx->props.bar_width, 0};
+    children_positions[1] =
+        Vec2{0, scroll_ctx->view_size.y - scroll_ctx->props.bar_width};
+    children_positions[2] =
+        Vec2{scroll_ctx->view_size.x - scroll_ctx->props.bar_width, 0};
     return children_sizes[0];
   }
 

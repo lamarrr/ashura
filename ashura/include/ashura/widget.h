@@ -36,7 +36,8 @@ struct WidgetDebugInfo
 struct DragData
 {
   stx::String                      type;
-  stx::Unique<stx::Span<u8 const>> data = stx::Unique{stx::Span<u8 const>{}, stx::noop_manager};
+  stx::Unique<stx::Span<u8 const>> data =
+      stx::Unique{stx::Span<u8 const>{}, stx::noop_manager};
 };
 
 // TODO(lamarrr): we might need request detach so child widgets can request to
@@ -72,31 +73,37 @@ struct Widget
     return WidgetDebugInfo{.type = "Widget"};
   }
 
-  // TODO(lamarrr): we need re-calculable offsets so we can shift the parents around without
-  // shifting the children this is important for cursors, drag and drop? this might mean we need to
-  // totally remove the concept of area. storing transformed area might not be needed?
+  // TODO(lamarrr): we need re-calculable offsets so we can shift the parents
+  // around without shifting the children this is important for cursors, drag
+  // and drop? this might mean we need to totally remove the concept of area.
+  // storing transformed area might not be needed?
 
   /// @brief distributes the size allocated to it to its child widgets.
-  /// unlike CSS. has the advantage that children wouldn't need extra attributes for specific kind
-  /// of placements i.e. relative, absolute, etc.
+  /// unlike CSS. has the advantage that children wouldn't need extra attributes
+  /// for specific kind of placements i.e. relative, absolute, etc.
   /// @param ctx
   /// @param allocated_size the size allocated to this widget
   /// @param[out] children_allocation sizes allocated to the children.
-  virtual void allocate_size(Context &ctx, Vec2 allocated_size, stx::Span<Vec2> children_allocation)
+  virtual void allocate_size(Context &ctx, Vec2 allocated_size,
+                             stx::Span<Vec2> children_allocation)
   {
     children_allocation.fill(Vec2{0, 0});
   }
 
-  /// @brief fits itself around its children and positions child widgets along/relative to itself
-  /// (i.e. position {0, 0} means the child will be placed on the top left of the parent)
+  /// @brief fits itself around its children and positions child widgets
+  /// along/relative to itself (i.e. position {0, 0} means the child will be
+  /// placed on the top left of the parent)
   /// @param ctx
-  /// @param allocated_size the size allocated to this widget. the widget can decide to disregard or
-  /// fit to this as needed.
+  /// @param allocated_size the size allocated to this widget. the widget can
+  /// decide to disregard or fit to this as needed.
   /// @param children_sizes sizes of the child widgets
-  /// @param[out] children_positions positions of the children widget on the parent
+  /// @param[out] children_positions positions of the children widget on the
+  /// parent
   /// @return this widget's fitted extent
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes, stx::Span<Vec2> children_positions)
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
+                   stx::Span<Vec2 const> children_sizes,
+                   stx::Span<Vec2>       children_positions)
   {
     return Vec2{0, 0};
   }
@@ -110,13 +117,15 @@ struct Widget
     return allocated_position;
   }
 
-  /// @brief returns the visibility of this widget. an invisible widget will not be drawn nor
-  /// receive mouse/touch events. parents can decide the visibility of eacg child
+  /// @brief returns the visibility of this widget. an invisible widget will not
+  /// be drawn nor receive mouse/touch events. parents can decide the visibility
+  /// of eacg child
   /// @param ctx
   /// @param allocated_visibility
   /// @param[out] children_allocation visibility assigned to children
   /// @return
-  virtual Visibility get_visibility(Context &ctx, Visibility allocated_visibility,
+  virtual Visibility get_visibility(Context              &ctx,
+                                    Visibility            allocated_visibility,
                                     stx::Span<Visibility> children_allocation)
   {
     children_allocation.fill(allocated_visibility);
@@ -128,30 +137,35 @@ struct Widget
   /// @param allocated_z_index
   /// @param[out] children_allocation z-index assigned to children
   /// @return
-  virtual i32 z_stack(Context &ctx, i32 allocated_z_index, stx::Span<i32> children_allocation)
+  virtual i32 z_stack(Context &ctx, i32 allocated_z_index,
+                      stx::Span<i32> children_allocation)
   {
     children_allocation.fill(allocated_z_index + 1);
     return allocated_z_index;
   }
 
-  /// @brief this is used for clipping widget views. the provided clip is relative to the root
-  /// widget's axis (0, 0). this can be used for nested viewports where there are multiple
-  /// intersecting clips. transforms do not apply to the clip rects. this is used for visibility
-  /// testing and eventually actual vertex culling. a nested viewport for example can therefore use
-  /// the intersection of its allocated clip and it's own viewport clip and assign that to its
-  /// children, whilst using the allocated clip on itself.
+  /// @brief this is used for clipping widget views. the provided clip is
+  /// relative to the root widget's axis (0, 0). this can be used for nested
+  /// viewports where there are multiple intersecting clips. transforms do not
+  /// apply to the clip rects. this is used for visibility testing and
+  /// eventually actual vertex culling. a nested viewport for example can
+  /// therefore use the intersection of its allocated clip and it's own viewport
+  /// clip and assign that to its children, whilst using the allocated clip on
+  /// itself.
   /// @param ctx
   /// @param allocated_clip
   /// @param[out] children_allocation
   /// @return
-  virtual Rect clip(Context &ctx, Rect allocated_clip, stx::Span<Rect> children_allocation)
+  virtual Rect clip(Context &ctx, Rect allocated_clip,
+                    stx::Span<Rect> children_allocation)
   {
     children_allocation.fill(allocated_clip);
     return allocated_clip;
   }
 
-  /// @brief record draw commands needed to render this widget. this method is only called if the
-  /// widget passes the visibility tests. this is called on every frame.
+  /// @brief record draw commands needed to render this widget. this method is
+  /// only called if the widget passes the visibility tests. this is called on
+  /// every frame.
   /// @param ctx
   /// @param canvas
   ///
@@ -162,9 +176,10 @@ struct Widget
 
   // TODO(lamarrr): draw_tooltip();
 
-  /// @brief called on every frame. used for state changes, animations, task dispatch and
-  /// lightweight processing related to the GUI. heavy-weight and non-sub-millisecond tasks should
-  /// be dispatched to a Subsystem that would handle that. i.e. using the multi-tasking system.
+  /// @brief called on every frame. used for state changes, animations, task
+  /// dispatch and lightweight processing related to the GUI. heavy-weight and
+  /// non-sub-millisecond tasks should be dispatched to a Subsystem that would
+  /// handle that. i.e. using the multi-tasking system.
   /// @param ctx
   /// @param interval time passed since last call to this method
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval)
@@ -178,15 +193,15 @@ struct Widget
   }
 
   /// @brief called on every frame that the widget is not seen on the viewport
-  /// this can be because it has hidden visibility, is clipped away, or parent positioned out of the
-  /// visible region
+  /// this can be because it has hidden visibility, is clipped away, or parent
+  /// positioned out of the visible region
   /// @param ctx
   virtual void on_view_miss(Context &ctx)
   {
   }
 
-  // this needs to happen before mouse actions as some widgets .i.e. some widgets don't need to
-  // intercept or receive mouse events
+  // this needs to happen before mouse actions as some widgets .i.e. some
+  // widgets don't need to intercept or receive mouse events
   virtual bool hit_test(Context &ctx, Vec2 mouse_position)
   {
     return false;
@@ -197,17 +212,20 @@ struct Widget
     return false;
   }
 
-  virtual void on_mouse_down(Context &ctx, MouseButton button, Vec2 mouse_position, u32 nclicks)
+  virtual void on_mouse_down(Context &ctx, MouseButton button,
+                             Vec2 mouse_position, u32 nclicks)
   {
   }
 
-  virtual void on_mouse_up(Context &ctx, MouseButton button, Vec2 mouse_position, u32 nclicks)
+  virtual void on_mouse_up(Context &ctx, MouseButton button,
+                           Vec2 mouse_position, u32 nclicks)
   {
   }
 
-  // TODO(lamarrr): how do we fix translation and zooming? i.e. positioning once transform is
-  // applied
-  virtual void on_mouse_move(Context &ctx, Vec2 mouse_position, Vec2 translation)
+  // TODO(lamarrr): how do we fix translation and zooming? i.e. positioning once
+  // transform is applied
+  virtual void on_mouse_move(Context &ctx, Vec2 mouse_position,
+                             Vec2 translation)
   {
   }
 
@@ -219,8 +237,8 @@ struct Widget
   {
   }
 
-  // virtual bool on_mouse_wheel(Context& ctx, Vec2 translation, Vec2 mouse_position?). propagates
-  // up
+  // virtual bool on_mouse_wheel(Context& ctx, Vec2 translation, Vec2
+  // mouse_position?). propagates up
 
   /// callback to begin drag operation
   /// if this returns false, it is treated as a click operation.???
@@ -232,9 +250,10 @@ struct Widget
   /// @brief called when theres a drag position update
   /// @param ctx
   /// @param mouse_position current global drag position
-  /// @param translation difference between this drag update and the last drag update position
-  virtual void on_drag_update(Context &ctx, Vec2 mouse_position, Vec2 translation,
-                              DragData const &drag_data)
+  /// @param translation difference between this drag update and the last drag
+  /// update position
+  virtual void on_drag_update(Context &ctx, Vec2 mouse_position,
+                              Vec2 translation, DragData const &drag_data)
   {
   }
 
@@ -250,8 +269,8 @@ struct Widget
   {
   }
 
-  /// this widget has previously begun receiving drag data, but the mouse is still dragging within
-  /// it
+  /// this widget has previously begun receiving drag data, but the mouse is
+  /// still dragging within it
   virtual void on_drag_over(Context &ctx, DragData const &drag_data)
   {
   }
@@ -262,7 +281,8 @@ struct Widget
   }
 
   /// drop of drag data on this widget
-  virtual bool on_drop(Context &ctx, Vec2 mouse_position, DragData const &drag_data)
+  virtual bool on_drop(Context &ctx, Vec2 mouse_position,
+                       DragData const &drag_data)
   {
     return false;
   }
@@ -302,9 +322,11 @@ struct Widget
   {
   }
 
-  stx::Option<uuid> id;        /// id used to recognise the widget. checked every frame. if one is
-                               /// not present or removed. a new uuid is generated and assigned.
-  Rect area;                   ///
+  stx::Option<uuid>
+      id;        /// id used to recognise the widget. checked every frame. if
+                 /// one is not present or removed. a new uuid is generated and
+                 /// assigned.
+  Rect area;        ///
 };
 
 inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id)

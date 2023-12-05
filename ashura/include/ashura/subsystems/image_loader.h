@@ -27,7 +27,8 @@ struct ImageLoader : public Subsystem
     task_scheduler = ctx.task_scheduler;
   }
 
-  virtual constexpr void tick(Context &ctx, std::chrono::nanoseconds interval) override
+  virtual constexpr void tick(Context                 &ctx,
+                              std::chrono::nanoseconds interval) override
   {
   }
 
@@ -44,7 +45,8 @@ struct ImageLoader : public Subsystem
   {
   }
 
-  stx::Future<stx::Result<ImageBuffer, ImageLoadError>> load_from_file(std::string_view path)
+  stx::Future<stx::Result<ImageBuffer, ImageLoadError>>
+      load_from_file(std::string_view path)
   {
     ASH_LOG_INFO(ImageLoader, "Loading image from path: {}", path);
     return stx::sched::fn(
@@ -53,8 +55,10 @@ struct ImageLoader : public Subsystem
             -> stx::Result<ImageBuffer, ImageLoadError> {
           if (!std::filesystem::exists(path_.view()))
           {
-            ASH_LOG_ERR(ImageLoader, "Failed to load image from path: {}, path does not exist",
-                        path_.view());
+            ASH_LOG_ERR(
+                ImageLoader,
+                "Failed to load image from path: {}, path does not exist",
+                path_.view());
             return stx::Err(ImageLoadError::InvalidPath);
           }
 
@@ -66,7 +70,8 @@ struct ImageLoader : public Subsystem
           long file_size = std::ftell(file);
           ASH_CHECK(file_size >= 0);
 
-          stx::Memory memory = stx::mem::allocate(stx::os_allocator, file_size).unwrap();
+          stx::Memory memory =
+              stx::mem::allocate(stx::os_allocator, file_size).unwrap();
 
           ASH_CHECK(std::fseek(file, 0, SEEK_SET) == 0);
 
@@ -74,20 +79,22 @@ struct ImageLoader : public Subsystem
 
           ASH_CHECK(std::fclose(file) == 0);
 
-          stx::Result result =
-              decode_image(stx::Span{AS(u8 const *, memory.handle), AS(usize, file_size)});
+          stx::Result result = decode_image(
+              stx::Span{AS(u8 const *, memory.handle), AS(usize, file_size)});
 
           if (result.is_ok())
           {
-            ASH_LOG_INFO(ImageLoader,
-                         "Loaded and decoded {}x{} image at path: {} with size={} bytes",
-                         result.value().extent.width, result.value().extent.height, path_.view(),
-                         result.value().span().size());
+            ASH_LOG_INFO(
+                ImageLoader,
+                "Loaded and decoded {}x{} image at path: {} with size={} bytes",
+                result.value().extent.width, result.value().extent.height,
+                path_.view(), result.value().span().size());
           }
           else
           {
-            ASH_LOG_ERR(ImageLoader, "Failed to decode image at path: {}, error: {}", path_.view(),
-                        (i64) result.err());
+            ASH_LOG_ERR(ImageLoader,
+                        "Failed to decode image at path: {}, error: {}",
+                        path_.view(), (i64) result.err());
           }
 
           return result;

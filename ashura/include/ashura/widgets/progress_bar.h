@@ -24,7 +24,8 @@ struct ProgressBar : public Widget
   explicit ProgressBar(ProgressBarProps iprops = {}, f32 initial_value = 0) :
       props{iprops}, value{initial_value}
   {
-    animation.restart(milliseconds{500}, 0, AnimationCfg::Loop | AnimationCfg::Alternate, 1);
+    animation.restart(milliseconds{500}, 0,
+                      AnimationCfg::Loop | AnimationCfg::Alternate, 1);
   }
 
   STX_DISABLE_COPY(ProgressBar)
@@ -34,7 +35,8 @@ struct ProgressBar : public Widget
   {
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
@@ -49,12 +51,14 @@ struct ProgressBar : public Widget
     {
       Linear curve;
       f32    pos = animation.animate(curve, Tween<f32>{0.0f, area.extent.x});
-      canvas.draw_rect_filled(area.with_extent(pos, area.extent.y), props.bar_color);
+      canvas.draw_rect_filled(area.with_extent(pos, area.extent.y),
+                              props.bar_color);
     }
     else
     {
       f32 pos = std::clamp(value * area.extent.x, 0.0f, area.extent.x);
-      canvas.draw_rect_filled(area.with_extent(pos, area.extent.y), props.bar_color);
+      canvas.draw_rect_filled(area.with_extent(pos, area.extent.y),
+                              props.bar_color);
     }
 
     canvas.draw_rect_stroke(area, props.bar_color, 1);

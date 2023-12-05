@@ -41,19 +41,22 @@ constexpr Span<T const> as_const(Span<T> span)
 template <typename T>
 constexpr Span<u8> as_u8(Span<T> span)
 {
-  return Span<u8>{.data = reinterpret_cast<u8 *>(span.data), .size = span.size_bytes()};
+  return Span<u8>{.data = reinterpret_cast<u8 *>(span.data),
+                  .size = span.size_bytes()};
 }
 
 template <typename T>
 constexpr Span<char> as_char(Span<T> span)
 {
-  return Span<char>{.data = reinterpret_cast<char *>(span.data), .size = span.size_bytes()};
+  return Span<char>{.data = reinterpret_cast<char *>(span.data),
+                    .size = span.size_bytes()};
 }
 
 template <typename T>
 constexpr Span<u8 const> as_u8(Span<T const> span)
 {
-  return Span<u8 const>{.data = reinterpret_cast<u8 const *>(span.data), .size = span.size_bytes()};
+  return Span<u8 const>{.data = reinterpret_cast<u8 const *>(span.data),
+                        .size = span.size_bytes()};
 }
 
 template <typename T>
@@ -128,13 +131,15 @@ constexpr Span<Dst> cast(Span<T> src)
 template <typename T>
 Span<T> reinterpret(Span<u8> src)
 {
-  return Span<T>{.data = reinterpret_cast<T *>(src.data), .size = src.size / sizeof(T)};
+  return Span<T>{.data = reinterpret_cast<T *>(src.data),
+                 .size = src.size / sizeof(T)};
 }
 
 template <typename T>
 Span<T const> reinterpret(Span<u8 const> src)
 {
-  return Span<T const>{.data = reinterpret_cast<T const *>(src.data), .size = src.size / sizeof(T)};
+  return Span<T const>{.data = reinterpret_cast<T const *>(src.data),
+                       .size = src.size / sizeof(T)};
 }
 
 }        // namespace ash

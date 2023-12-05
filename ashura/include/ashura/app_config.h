@@ -21,10 +21,10 @@ struct AppConfig
   bool                                enable_validation_layers = false;
   stx::Span<FontSpec const>           fonts;
   stx::Span<CanvasPipelineSpec const> pipelines;
-  stx::CStringView                    log_file                 = "log.txt";
-  WindowType                          root_window_type         = WindowType::Normal;
-  WindowCreateFlags                   root_window_create_flags = WindowCreateFlags::None;
-  ash::Extent                         root_window_extent{1920, 1080};
+  stx::CStringView                    log_file         = "log.txt";
+  WindowType                          root_window_type = WindowType::Normal;
+  WindowCreateFlags root_window_create_flags = WindowCreateFlags::None;
+  ash::Extent       root_window_extent{1920, 1080};
 };
 
 }        // namespace ash

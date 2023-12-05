@@ -39,8 +39,10 @@ struct CanvasRenderer
   VkQueue                          queue              = VK_NULL_HANDLE;
   VkDevice                         dev                = VK_NULL_HANDLE;
 
-  void init(VkDevice adev, VkQueue aqueue, u32 aqueue_family_index, f32 atimestamp_period,
-            VkPhysicalDeviceMemoryProperties const &amemory_properties, u32 amax_nframes_in_flight)
+  void init(VkDevice adev, VkQueue aqueue, u32 aqueue_family_index,
+            f32                                     atimestamp_period,
+            VkPhysicalDeviceMemoryProperties const &amemory_properties,
+            u32                                     amax_nframes_in_flight)
   {
     max_nframes_in_flight = amax_nframes_in_flight;
     memory_properties     = amemory_properties;
@@ -53,13 +55,15 @@ struct CanvasRenderer
     {
       VecBuffer vertex_buffer;
 
-      vertex_buffer.init(dev, memory_properties, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+      vertex_buffer.init(dev, memory_properties,
+                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
       vertex_buffers.push_inplace(vertex_buffer).unwrap();
 
       VecBuffer index_buffer;
 
-      index_buffer.init(dev, memory_properties, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+      index_buffer.init(dev, memory_properties,
+                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
       index_buffers.push_inplace(index_buffer).unwrap();
     }
@@ -70,7 +74,8 @@ struct CanvasRenderer
         .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         .queueFamilyIndex = queue_family_index};
 
-    ASH_VK_CHECK(vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
+    ASH_VK_CHECK(
+        vkCreateCommandPool(dev, &cmd_pool_create_info, nullptr, &cmd_pool));
 
     cmd_buffers.unsafe_resize_uninitialized(max_nframes_in_flight).unwrap();
 
@@ -81,7 +86,8 @@ struct CanvasRenderer
         .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = AS(u32, max_nframes_in_flight)};
 
-    ASH_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info, cmd_buffers.data()));
+    ASH_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info,
+                                          cmd_buffers.data()));
 
     VkQueryPoolCreateInfo pipeline_statistics_query_pool_create_info{
         .sType              = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
@@ -102,14 +108,18 @@ struct CanvasRenderer
     for (u32 i = 0; i < max_nframes_in_flight; i++)
     {
       VkQueryPool pipeline_statistics_query_pool;
-      ASH_VK_CHECK(vkCreateQueryPool(dev, &pipeline_statistics_query_pool_create_info, nullptr,
-                                     &pipeline_statistics_query_pool));
-      pipeline_statistics_query_pools.push_inplace(pipeline_statistics_query_pool).unwrap();
+      ASH_VK_CHECK(
+          vkCreateQueryPool(dev, &pipeline_statistics_query_pool_create_info,
+                            nullptr, &pipeline_statistics_query_pool));
+      pipeline_statistics_query_pools
+          .push_inplace(pipeline_statistics_query_pool)
+          .unwrap();
 
       VkQueryPool timestamp_query_pool;
-      ASH_VK_CHECK(vkCreateQueryPool(dev, &timestamp_query_pool_create_info, nullptr,
-                                     &timestamp_query_pool));
-      pipeline_timestamp_query_pools.push_inplace(timestamp_query_pool).unwrap();
+      ASH_VK_CHECK(vkCreateQueryPool(dev, &timestamp_query_pool_create_info,
+                                     nullptr, &timestamp_query_pool));
+      pipeline_timestamp_query_pools.push_inplace(timestamp_query_pool)
+          .unwrap();
     }
   }
 
@@ -136,17 +146,20 @@ struct CanvasRenderer
       vkDestroyQueryPool(dev, query_pool, nullptr);
     }
 
-    vkFreeCommandBuffers(dev, cmd_pool, AS(u32, max_nframes_in_flight), cmd_buffers.data());
+    vkFreeCommandBuffers(dev, cmd_pool, AS(u32, max_nframes_in_flight),
+                         cmd_buffers.data());
 
     vkDestroyCommandPool(dev, cmd_pool, nullptr);
   }
 
-  void submit(VkExtent2D viewport_extent, VkExtent2D image_extent, u32 frame, VkFence render_fence,
-              VkSemaphore image_acquisition_semaphore, VkSemaphore render_semaphore,
-              VkRenderPass render_pass, VkFramebuffer framebuffer,
-              stx::Span<gfx::DrawCommand const> cmds, stx::Span<Vertex2d const> vertices,
-              stx::Span<u32 const> indices, CanvasPipelineManager const &pipeline_manager,
-              RenderResourceManager const &image_manager, FrameStats &frame_stats)
+  void submit(VkExtent2D viewport_extent, VkExtent2D image_extent, u32 frame,
+              VkFence render_fence, VkSemaphore image_acquisition_semaphore,
+              VkSemaphore render_semaphore, VkRenderPass render_pass,
+              VkFramebuffer framebuffer, stx::Span<gfx::DrawCommand const> cmds,
+              stx::Span<Vertex2d const> vertices, stx::Span<u32 const> indices,
+              CanvasPipelineManager const &pipeline_manager,
+              RenderResourceManager const &image_manager,
+              FrameStats                  &frame_stats)
   {
     ASH_CHECK(frame < max_nframes_in_flight);
 
@@ -158,7 +171,8 @@ struct CanvasRenderer
 
     timepoint gpu_sync_begin = Clock::now();
 
-    ASH_VK_CHECK(vkWaitForFences(dev, 1, &render_fence, VK_TRUE, VULKAN_TIMEOUT));
+    ASH_VK_CHECK(
+        vkWaitForFences(dev, 1, &render_fence, VK_TRUE, VULKAN_TIMEOUT));
 
     timepoint gpu_sync_end = Clock::now();
 
@@ -171,26 +185,36 @@ struct CanvasRenderer
 
     if (vkGetQueryPoolResults(dev, pipeline_statistics_query_pools[frame], 0, 1,
                               sizeof(pipeline_statistics_query_query_results),
-                              pipeline_statistics_query_query_results, sizeof(u64),
+                              pipeline_statistics_query_query_results,
+                              sizeof(u64),
                               VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
     {
-      frame_stats.input_assembly_vertices     = pipeline_statistics_query_query_results[0];
-      frame_stats.input_assembly_primitives   = pipeline_statistics_query_query_results[1];
-      frame_stats.vertex_shader_invocations   = pipeline_statistics_query_query_results[2];
-      frame_stats.fragment_shader_invocations = pipeline_statistics_query_query_results[3];
-      frame_stats.compute_shader_invocations  = pipeline_statistics_query_query_results[4];
-      frame_stats.task_shader_invocations     = pipeline_statistics_query_query_results[5];
-      frame_stats.mesh_shader_invocations     = pipeline_statistics_query_query_results[6];
+      frame_stats.input_assembly_vertices =
+          pipeline_statistics_query_query_results[0];
+      frame_stats.input_assembly_primitives =
+          pipeline_statistics_query_query_results[1];
+      frame_stats.vertex_shader_invocations =
+          pipeline_statistics_query_query_results[2];
+      frame_stats.fragment_shader_invocations =
+          pipeline_statistics_query_query_results[3];
+      frame_stats.compute_shader_invocations =
+          pipeline_statistics_query_query_results[4];
+      frame_stats.task_shader_invocations =
+          pipeline_statistics_query_query_results[5];
+      frame_stats.mesh_shader_invocations =
+          pipeline_statistics_query_query_results[6];
     }
 
     if (vkGetQueryPoolResults(dev, pipeline_timestamp_query_pools[frame], 0,
-                              NPIPELINE_TIMESTAMP_QUERIES, sizeof(pipeline_timestamp_query_results),
+                              NPIPELINE_TIMESTAMP_QUERIES,
+                              sizeof(pipeline_timestamp_query_results),
                               pipeline_timestamp_query_results, sizeof(u64),
                               VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
     {
-      frame_stats.gpu_time = nanoseconds{(nanoseconds::rep)(
-          ((f64) timestamp_period) *
-          (f64) (pipeline_timestamp_query_results[1] - pipeline_timestamp_query_results[0]))};
+      frame_stats.gpu_time = nanoseconds{
+          (nanoseconds::rep)(((f64) timestamp_period) *
+                             (f64) (pipeline_timestamp_query_results[1] -
+                                    pipeline_timestamp_query_results[0]))};
     }
 
     ASH_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
@@ -218,25 +242,29 @@ struct CanvasRenderer
         {.depthStencil = VkClearDepthStencilValue{.depth = 1, .stencil = 0}}};
 
     VkRenderPassBeginInfo render_pass_begin_info{
-        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext           = nullptr,
-        .renderPass      = render_pass,
-        .framebuffer     = framebuffer,
-        .renderArea      = VkRect2D{.offset = VkOffset2D{0, 0}, .extent = image_extent},
+        .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .pNext       = nullptr,
+        .renderPass  = render_pass,
+        .framebuffer = framebuffer,
+        .renderArea =
+            VkRect2D{.offset = VkOffset2D{0, 0}, .extent = image_extent},
         .clearValueCount = AS(u32, std::size(clear_values)),
         .pClearValues    = clear_values};
 
-    vkCmdBeginRenderPass(cmd_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(cmd_buffer, &render_pass_begin_info,
+                         VK_SUBPASS_CONTENTS_INLINE);
 
-    VkPipeline      previous_pipeline                              = VK_NULL_HANDLE;
+    VkPipeline      previous_pipeline = VK_NULL_HANDLE;
     VkDescriptorSet previous_descriptor_sets[NIMAGES_PER_DRAWCALL] = {};
     VkViewport      previouse_viewport{};
     VkRect2D        previouse_scissor{};
 
     VkDeviceSize const vertices_offsets[] = {0};
 
-    vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer, vertices_offsets);
-    vkCmdBindIndexBuffer(cmd_buffer, index_buffers[frame].buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindVertexBuffers(cmd_buffer, 0, 1, &vertex_buffers[frame].buffer,
+                           vertices_offsets);
+    vkCmdBindIndexBuffer(cmd_buffer, index_buffers[frame].buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
 
     u32 first_index   = 0;
     u32 vertex_offset = 0;
@@ -258,7 +286,8 @@ struct CanvasRenderer
 
       if (pipeline.pipeline != previous_pipeline)
       {
-        vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
+        vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline.pipeline);
       }
 
       VkViewport viewport{.x        = 0,
@@ -273,9 +302,10 @@ struct CanvasRenderer
         vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
       }
 
-      VkRect2D scissor{
-          .offset = VkOffset2D{AS(i32, cmd.scissor.offset.x), AS(i32, cmd.scissor.offset.y)},
-          .extent = VkExtent2D{AS(u32, cmd.scissor.extent.x), AS(u32, cmd.scissor.extent.y)}};
+      VkRect2D scissor{.offset = VkOffset2D{AS(i32, cmd.scissor.offset.x),
+                                            AS(i32, cmd.scissor.offset.y)},
+                       .extent = VkExtent2D{AS(u32, cmd.scissor.extent.x),
+                                            AS(u32, cmd.scissor.extent.y)}};
 
       if (memcmp(&scissor, &previouse_scissor, sizeof(VkRect2D)) != 0)
       {
@@ -283,8 +313,9 @@ struct CanvasRenderer
       }
 
       vkCmdPushConstants(cmd_buffer, pipeline.layout,
-                         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                         PUSH_CONSTANT_SIZE, cmd.push_constant);
+                         VK_SHADER_STAGE_VERTEX_BIT |
+                             VK_SHADER_STAGE_FRAGMENT_BIT,
+                         0, PUSH_CONSTANT_SIZE, cmd.push_constant);
 
       VkDescriptorSet descriptor_sets[NIMAGES_PER_DRAWCALL];
 
@@ -295,14 +326,16 @@ struct CanvasRenderer
         descriptor_sets[i] = image_pos->second.descriptor_set;
       }
 
-      if (!stx::Span{descriptor_sets}.equals(stx::Span{previous_descriptor_sets}))
+      if (!stx::Span{descriptor_sets}.equals(
+              stx::Span{previous_descriptor_sets}))
       {
-        vkCmdBindDescriptorSets(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0,
-                                NIMAGES_PER_DRAWCALL, descriptor_sets, 0, nullptr);
+        vkCmdBindDescriptorSets(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                pipeline.layout, 0, NIMAGES_PER_DRAWCALL,
+                                descriptor_sets, 0, nullptr);
       }
 
-      vkCmdDrawIndexed(cmd_buffer, cmd.nindices, cmd.ninstances, first_index, (i32) vertex_offset,
-                       cmd.first_instance);
+      vkCmdDrawIndexed(cmd_buffer, cmd.nindices, cmd.ninstances, first_index,
+                       (i32) vertex_offset, cmd.first_instance);
 
       first_index += cmd.nindices;
       vertex_offset += cmd.nvertices;
@@ -323,13 +356,13 @@ struct CanvasRenderer
 
     VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
-    VkSubmitInfo submit_info{.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                             .pNext                = nullptr,
-                             .waitSemaphoreCount   = 1,
-                             .pWaitSemaphores      = &image_acquisition_semaphore,
-                             .pWaitDstStageMask    = &wait_stage,
-                             .commandBufferCount   = 1,
-                             .pCommandBuffers      = &cmd_buffer,
+    VkSubmitInfo submit_info{.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                             .pNext = nullptr,
+                             .waitSemaphoreCount = 1,
+                             .pWaitSemaphores    = &image_acquisition_semaphore,
+                             .pWaitDstStageMask  = &wait_stage,
+                             .commandBufferCount = 1,
+                             .pCommandBuffers    = &cmd_buffer,
                              .signalSemaphoreCount = 1,
                              .pSignalSemaphores    = &render_semaphore};
 

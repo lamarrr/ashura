@@ -11,13 +11,14 @@
 
 STX_BEGIN_NAMESPACE
 
-#define STX_ARRAY_ENSURE(condition, message)                                      \
-  do                                                                              \
-  {                                                                               \
-    if (!(condition))                                                             \
-    {                                                                             \
-      ::stx::panic("condition: '" #condition "' failed. explanation: " #message); \
-    }                                                                             \
+#define STX_ARRAY_ENSURE(condition, message)            \
+  do                                                    \
+  {                                                     \
+    if (!(condition))                                   \
+    {                                                   \
+      ::stx::panic("condition: '" #condition            \
+                   "' failed. explanation: " #message); \
+    }                                                   \
   } while (0)
 
 template <typename T, size_t Capacity>

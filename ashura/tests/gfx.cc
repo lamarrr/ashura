@@ -7,16 +7,18 @@ using namespace ash::gfx;
 TEST(GFX, ReadAfterWrite)
 {
   ImageMemoryBarrier barrier;
-  ImageState              state;
-  ImageAccess shader_access{.stages = PipelineStages::FragmentShader | PipelineStages::VertexShader,
-                            .access = Access::ShaderRead,
-                            .layout = ImageLayout::ShaderReadOnlyOptimal};
+  ImageState         state;
+  ImageAccess        shader_access{.stages = PipelineStages::FragmentShader |
+                                      PipelineStages::VertexShader,
+                                   .access = Access::ShaderRead,
+                                   .layout = ImageLayout::ShaderReadOnlyOptimal};
 
   EXPECT_TRUE(state.sync(shader_access, barrier));
   EXPECT_EQ(barrier.old_layout, ImageLayout::Undefined);
   EXPECT_EQ(barrier.new_layout, ImageLayout::ShaderReadOnlyOptimal);
   EXPECT_EQ(barrier.src_stages, PipelineStages::None);
-  EXPECT_EQ(barrier.dst_stages, PipelineStages::FragmentShader | PipelineStages::VertexShader);
+  EXPECT_EQ(barrier.dst_stages,
+            PipelineStages::FragmentShader | PipelineStages::VertexShader);
   EXPECT_EQ(barrier.src_access, Access::None);
   EXPECT_EQ(barrier.dst_access, Access::ShaderRead);
   EXPECT_EQ(barrier.first_array_layer, 0);
@@ -27,8 +29,10 @@ TEST(GFX, ReadAfterWrite)
   EXPECT_TRUE(state.sync(shader_access, barrier));
   EXPECT_EQ(barrier.old_layout, ImageLayout::ShaderReadOnlyOptimal);
   EXPECT_EQ(barrier.new_layout, ImageLayout::ShaderReadOnlyOptimal);
-  EXPECT_EQ(barrier.src_stages, PipelineStages::FragmentShader | PipelineStages::VertexShader);
-  EXPECT_EQ(barrier.dst_stages, PipelineStages::FragmentShader | PipelineStages::VertexShader);
+  EXPECT_EQ(barrier.src_stages,
+            PipelineStages::FragmentShader | PipelineStages::VertexShader);
+  EXPECT_EQ(barrier.dst_stages,
+            PipelineStages::FragmentShader | PipelineStages::VertexShader);
   EXPECT_EQ(barrier.src_access, Access::ShaderRead);
   EXPECT_EQ(barrier.dst_access, Access::ShaderRead);
   EXPECT_EQ(barrier.first_array_layer, 0);
@@ -39,8 +43,10 @@ TEST(GFX, ReadAfterWrite)
   EXPECT_TRUE(state.sync(shader_access, barrier));
   EXPECT_EQ(barrier.old_layout, ImageLayout::ShaderReadOnlyOptimal);
   EXPECT_EQ(barrier.new_layout, ImageLayout::ShaderReadOnlyOptimal);
-  EXPECT_EQ(barrier.src_stages, PipelineStages::FragmentShader | PipelineStages::VertexShader);
-  EXPECT_EQ(barrier.dst_stages, PipelineStages::FragmentShader | PipelineStages::VertexShader);
+  EXPECT_EQ(barrier.src_stages,
+            PipelineStages::FragmentShader | PipelineStages::VertexShader);
+  EXPECT_EQ(barrier.dst_stages,
+            PipelineStages::FragmentShader | PipelineStages::VertexShader);
   EXPECT_EQ(barrier.src_access, Access::ShaderRead);
   EXPECT_EQ(barrier.dst_access, Access::ShaderRead);
   EXPECT_EQ(barrier.first_array_layer, 0);
@@ -52,10 +58,10 @@ TEST(GFX, ReadAfterWrite)
 TEST(GFX, WriteAfterRead)
 {
   ImageMemoryBarrier barrier;
-  ImageState              state{.access   = {ImageAccess{.stages = PipelineStages::None,
-                                                         .access = Access::None,
-                                                         .layout = ImageLayout::General}},
-                                .sequence = AccessSequence::None};
+  ImageState state{.access   = {ImageAccess{.stages = PipelineStages::None,
+                                            .access = Access::None,
+                                            .layout = ImageLayout::General}},
+                   .sequence = AccessSequence::None};
 
   ImageAccess shader_read1{.stages = PipelineStages::FragmentShader,
                            .access = Access::ShaderRead,
@@ -69,7 +75,8 @@ TEST(GFX, WriteAfterRead)
   EXPECT_EQ(state.sequence, AccessSequence::NoneAfterRead);
   EXPECT_EQ(state.access[0].layout, ImageLayout::General);
   EXPECT_EQ(state.access[0].access, Access::ShaderRead);
-  EXPECT_EQ(state.access[0].stages, PipelineStages::FragmentShader | PipelineStages::VertexShader);
+  EXPECT_EQ(state.access[0].stages,
+            PipelineStages::FragmentShader | PipelineStages::VertexShader);
 
   ImageAccess attachment_write{.stages = PipelineStages::ColorAttachmentOutput,
                                .access = Access::ColorAttachmentWrite,
@@ -79,7 +86,8 @@ TEST(GFX, WriteAfterRead)
   EXPECT_EQ(state.sequence, AccessSequence::NoneAfterWrite);
   EXPECT_EQ(barrier.old_layout, ImageLayout::General);
   EXPECT_EQ(barrier.new_layout, ImageLayout::General);
-  EXPECT_EQ(barrier.src_stages, PipelineStages::FragmentShader | PipelineStages::VertexShader);
+  EXPECT_EQ(barrier.src_stages,
+            PipelineStages::FragmentShader | PipelineStages::VertexShader);
   EXPECT_EQ(barrier.dst_stages, PipelineStages::ColorAttachmentOutput);
   EXPECT_EQ(barrier.src_access, Access::ShaderRead);
   EXPECT_EQ(barrier.dst_access, Access::ColorAttachmentWrite);

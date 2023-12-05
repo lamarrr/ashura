@@ -24,7 +24,8 @@ struct Pcg32Rng
   {
     u32 const old_state = state;
     state               = old_state * 747796405u + 2891336453u;
-    u32 word            = ((old_state >> ((old_state >> 28u) + 4u)) ^ old_state) * 277803737u;
+    u32 word =
+        ((old_state >> ((old_state >> 28u) + 4u)) ^ old_state) * 277803737u;
     return (word >> 22u) ^ word;
   }
 };

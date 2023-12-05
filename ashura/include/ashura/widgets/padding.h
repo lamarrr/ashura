@@ -10,7 +10,8 @@ namespace gui
 struct Padding : public Widget
 {
   template <Impl<Widget> DerivedWidget>
-  Padding(EdgeInsets iedge_insets, DerivedWidget ichild) : edge_insets{iedge_insets}
+  Padding(EdgeInsets iedge_insets, DerivedWidget ichild) :
+      edge_insets{iedge_insets}
   {
     children.push(new DerivedWidget{std::move(ichild)}).unwrap();
   }
@@ -52,10 +53,12 @@ struct Padding : public Widget
   virtual void allocate_size(Context &ctx, Vec2 allocated_size,
                              stx::Span<Vec2> children_allocation) override
   {
-    children_allocation.fill(max(allocated_size - edge_insets.xy(), Vec2{0, 0}));
+    children_allocation.fill(
+        max(allocated_size - edge_insets.xy(), Vec2{0, 0}));
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {

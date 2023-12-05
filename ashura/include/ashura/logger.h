@@ -7,21 +7,23 @@
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
-#define ASH_DECLARE_LOGGER(identifier) ::spdlog::logger *get_logger_##identifier()
+#define ASH_DECLARE_LOGGER(identifier) \
+  ::spdlog::logger *get_logger_##identifier()
 
 #define ASH_GET_LOGGER(identifier) get_logger_##identifier()
 
 // TODO(lamarrr): use log path specified in config?
-#define ASH_DEFINE_LOGGER(identifier)                                                         \
-  ::spdlog::logger *get_logger_##identifier()                                                 \
-  {                                                                                           \
-    static ::spdlog::sink_ptr __sinks[] = {                                                   \
-        ::std::make_shared<::spdlog::sinks::basic_file_sink_mt>("log.txt"),                   \
-        ::std::make_shared<::spdlog::sinks::stdout_color_sink_mt>()};                         \
-                                                                                              \
-    static ::spdlog::logger __logger{#identifier, __sinks,                                    \
-                                     __sinks + sizeof(__sinks) / sizeof(::spdlog::sink_ptr)}; \
-    return &__logger;                                                                         \
+#define ASH_DEFINE_LOGGER(identifier)                                       \
+  ::spdlog::logger *get_logger_##identifier()                               \
+  {                                                                         \
+    static ::spdlog::sink_ptr __sinks[] = {                                 \
+        ::std::make_shared<::spdlog::sinks::basic_file_sink_mt>("log.txt"), \
+        ::std::make_shared<::spdlog::sinks::stdout_color_sink_mt>()};       \
+                                                                            \
+    static ::spdlog::logger __logger{                                       \
+        #identifier, __sinks,                                               \
+        __sinks + sizeof(__sinks) / sizeof(::spdlog::sink_ptr)};            \
+    return &__logger;                                                       \
   }
 
 #define ASH_LOG_TRACE(logger, ...) ASH_GET_LOGGER(logger)->trace(__VA_ARGS__)

@@ -34,7 +34,8 @@ struct NetworkImageSource
   stx::String uri;
 };
 
-using ImageSource = std::variant<ImageBuffer, FileImageSource, NetworkImageSource, stx::NoneType>;
+using ImageSource = std::variant<ImageBuffer, FileImageSource,
+                                 NetworkImageSource, stx::NoneType>;
 
 // TODO(lamarrr): fix image layout
 struct ImageProps
@@ -70,7 +71,8 @@ enum class ImageState : u8
 /// - once the image arrives, get a reference to it
 /// - Update widget state to show that the image is loading
 ///
-// TODO(lamarrr): this is a static image. no unloading is presently done. do that ONCE props change
+// TODO(lamarrr): this is a static image. no unloading is presently done. do
+// that ONCE props change
 //
 // TODO(lamarrrr): resource multiple deletion with move???
 //
@@ -89,7 +91,8 @@ struct Image : public Widget
     return WidgetDebugInfo{.type = "Image"};
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
@@ -126,18 +129,22 @@ struct Image : public Widget
         {
           f32 aspect_ratio = props.aspect_ratio.value();
 
-          Vec2 clipped_extent{
-              std::min(image_extent.height * aspect_ratio, AS(f32, image_extent.width)),
-              std::min(image_extent.width / aspect_ratio, AS(f32, image_extent.height))};
+          Vec2 clipped_extent{std::min(image_extent.height * aspect_ratio,
+                                       AS(f32, image_extent.width)),
+                              std::min(image_extent.width / aspect_ratio,
+                                       AS(f32, image_extent.height))};
 
-          Vec2 original_extent{AS(f32, image_extent.width), AS(f32, image_extent.height)};
+          Vec2 original_extent{AS(f32, image_extent.width),
+                               AS(f32, image_extent.height)};
 
           Vec2 space = original_extent - clipped_extent;
 
           texture_region.uv0.x = (space.x / 2) / original_extent.x;
-          texture_region.uv1.x = (space.x / 2 + clipped_extent.x) / original_extent.x;
+          texture_region.uv1.x =
+              (space.x / 2 + clipped_extent.x) / original_extent.x;
           texture_region.uv0.y = (space.y / 2) / original_extent.y;
-          texture_region.uv1.y = (space.y / 2 + clipped_extent.y) / original_extent.y;
+          texture_region.uv1.y =
+              (space.y / 2 + clipped_extent.y) / original_extent.y;
         }
 
         Vec4 border_radius = props.border_radius.resolve(area.extent);
@@ -148,7 +155,8 @@ struct Image : public Widget
         }
         else
         {
-          canvas.draw_rounded_image(image, area, border_radius, 360, texture_region, props.tint);
+          canvas.draw_rounded_image(image, area, border_radius, 360,
+                                    texture_region, props.tint);
         }
       }
       break;
@@ -165,8 +173,10 @@ struct Image : public Widget
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
   {
-    ImageManager *mgr    = ctx.get_subsystem<ImageManager>("ImageManager").unwrap();
-    ImageLoader  *loader = ctx.get_subsystem<ImageLoader>("ImageLoader").unwrap();
+    ImageManager *mgr =
+        ctx.get_subsystem<ImageManager>("ImageManager").unwrap();
+    ImageLoader *loader =
+        ctx.get_subsystem<ImageLoader>("ImageLoader").unwrap();
 
     switch (state)
     {
@@ -180,9 +190,9 @@ struct Image : public Widget
         }
         else if (std::holds_alternative<FileImageSource>(props.source))
         {
-          image_load_future =
-              stx::Some(loader->load_from_file(std::get<FileImageSource>(props.source).path));
-          state = ImageState::Loading;
+          image_load_future = stx::Some(loader->load_from_file(
+              std::get<FileImageSource>(props.source).path));
+          state             = ImageState::Loading;
         }
         else if (std::holds_alternative<NetworkImageSource>(props.source))
         {
@@ -202,8 +212,8 @@ struct Image : public Widget
             state               = ImageState::Loaded;
             if (props.resize_on_load)
             {
-              props.size = Constraint2D::absolute(AS(f32, buffer.extent.width),
-                                                  AS(f32, buffer.extent.height));
+              props.size = Constraint2D::absolute(
+                  AS(f32, buffer.extent.width), AS(f32, buffer.extent.height));
             }
             image_extent = buffer.extent;
           }
@@ -226,11 +236,12 @@ struct Image : public Widget
     }
   }
 
-  ImageProps                                                         props;
-  ImageState                                                         state = ImageState::Inactive;
-  gfx::image                                                         image = 0;
-  Extent                                                             image_extent;
-  stx::Option<stx::Future<stx::Result<ImageBuffer, ImageLoadError>>> image_load_future;
+  ImageProps props;
+  ImageState state = ImageState::Inactive;
+  gfx::image image = 0;
+  Extent     image_extent;
+  stx::Option<stx::Future<stx::Result<ImageBuffer, ImageLoadError>>>
+      image_load_future;
 };
 }        // namespace gui
 }        // namespace ash

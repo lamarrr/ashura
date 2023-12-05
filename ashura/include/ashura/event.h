@@ -16,23 +16,24 @@ using AudioDeviceID = u32;
 
 enum class WindowEvents : u32
 {
-  None             = 0,
-  Shown            = 1,
-  Hidden           = 1 << 1,
-  Exposed          = 1 << 2,
-  Moved            = 1 << 3,
-  Resized          = 1 << 4,        // window size changed by user
-  PixelSizeChanged = 1 << 5,        // window size changed by user or via window API
-  Minimized        = 1 << 6,
-  Maximized        = 1 << 7,
-  Restored         = 1 << 8,
-  MouseEnter       = 1 << 9,
-  MouseLeave       = 1 << 10,
-  FocusGained      = 1 << 11,
-  FocusLost        = 1 << 12,
-  CloseRequested   = 1 << 13,
-  TakeFocus        = 1 << 14,
-  All              = (1 << 15) - 1
+  None    = 0,
+  Shown   = 1,
+  Hidden  = 1 << 1,
+  Exposed = 1 << 2,
+  Moved   = 1 << 3,
+  Resized = 1 << 4,        // window size changed by user
+  PixelSizeChanged =
+      1 << 5,        // window size changed by user or via window API
+  Minimized      = 1 << 6,
+  Maximized      = 1 << 7,
+  Restored       = 1 << 8,
+  MouseEnter     = 1 << 9,
+  MouseLeave     = 1 << 10,
+  FocusGained    = 1 << 11,
+  FocusLost      = 1 << 12,
+  CloseRequested = 1 << 13,
+  TakeFocus      = 1 << 14,
+  All            = (1 << 15) - 1
 };
 
 STX_DEFINE_ENUM_BIT_OPS(WindowEvents)
@@ -387,10 +388,10 @@ struct AudioDeviceEvent
 struct WindowEventListeners
 {
   stx::Vec<std::pair<WindowEvents, stx::UniqueFn<void(WindowEvents)>>> general;
-  stx::Vec<stx::UniqueFn<void(MouseClickEvent)>>                       mouse_click;
-  stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>>                      mouse_motion;
-  stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>>                       mouse_wheel;
-  stx::Vec<stx::UniqueFn<void(KeyEvent)>>                              key;
+  stx::Vec<stx::UniqueFn<void(MouseClickEvent)>>  mouse_click;
+  stx::Vec<stx::UniqueFn<void(MouseMotionEvent)>> mouse_motion;
+  stx::Vec<stx::UniqueFn<void(MouseWheelEvent)>>  mouse_wheel;
+  stx::Vec<stx::UniqueFn<void(KeyEvent)>>         key;
 };
 
 struct GlobalEventListeners

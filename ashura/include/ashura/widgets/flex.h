@@ -14,15 +14,19 @@ namespace gui
 
 struct FlexProps
 {
-  Direction direction  = Direction::H;        // flex direction to layout children along
-  Wrap      wrap       = Wrap::Wrap;          /// wrap to a new block or not
-  MainAlign main_align = MainAlign::
-      Start;        /// main-axis alignment. specifies how free space is used on the main axis
-  CrossAlign cross_align = CrossAlign::
-      Start;        /// cross-axis alignment. affects how free space is used on the cross axis
+  Direction direction =
+      Direction::H;                   // flex direction to layout children along
+  Wrap      wrap = Wrap::Wrap;        /// wrap to a new block or not
+  MainAlign main_align =
+      MainAlign::Start;        /// main-axis alignment. specifies how free space
+                               /// is used on the main axis
+  CrossAlign cross_align =
+      CrossAlign::Start;        /// cross-axis alignment. affects how free space
+                                /// is used on the cross axis
   Constraint2D frame = Constraint2D::relative(
       1,
-      1);        /// frame size to use for layout. this is not same as the actual extent of the flex
+      1);        /// frame size to use for layout. this is not same as the
+                 /// actual extent of the flex
 };
 
 struct Flex : public Widget
@@ -83,7 +87,8 @@ struct Flex : public Widget
     children_allocation.fill(props.frame.resolve(allocated_size));
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
@@ -108,7 +113,8 @@ struct Flex : public Widget
         {
           if (props.wrap == Wrap::None ||
               (props.wrap == Wrap::Wrap &&
-               (block_main_axis_extent + children_sizes[iblock_end].x <= frame.x)))
+               (block_main_axis_extent + children_sizes[iblock_end].x <=
+                frame.x)))
           {
             children_positions[iblock_end].y = cross_axis_cursor;
             block_main_axis_extent += children_sizes[iblock_end].x;
@@ -123,7 +129,8 @@ struct Flex : public Widget
 
         if (props.main_align != MainAlign::Start)
         {
-          block_main_axis_spacing = std::max(frame.x - block_main_axis_extent, 0.0f);
+          block_main_axis_spacing =
+              std::max(frame.x - block_main_axis_extent, 0.0f);
         }
       }
       else
@@ -136,7 +143,8 @@ struct Flex : public Widget
         {
           if (props.wrap == Wrap::None ||
               (props.wrap == Wrap::Wrap &&
-               (block_main_axis_extent + children_sizes[iblock_end].y <= frame.y)))
+               (block_main_axis_extent + children_sizes[iblock_end].y <=
+                frame.y)))
           {
             children_positions[iblock_end].x = cross_axis_cursor;
             block_main_axis_extent += children_sizes[iblock_end].y;
@@ -151,7 +159,8 @@ struct Flex : public Widget
 
         if (props.main_align != MainAlign::Start)
         {
-          block_main_axis_spacing = std::max(frame.y - block_main_axis_extent, 0.0f);
+          block_main_axis_spacing =
+              std::max(frame.y - block_main_axis_extent, 0.0f);
         }
       }
 
@@ -184,14 +193,16 @@ struct Flex : public Widget
           {
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].y += block_cross_axis_extent - children_sizes[iblock].y;
+              children_positions[iblock].y +=
+                  block_cross_axis_extent - children_sizes[iblock].y;
             }
           }
           else
           {
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
-              children_positions[iblock].x += block_cross_axis_extent - children_sizes[iblock].x;
+              children_positions[iblock].x +=
+                  block_cross_axis_extent - children_sizes[iblock].x;
             }
           }
           break;
@@ -219,7 +230,7 @@ struct Flex : public Widget
 
           case MainAlign::SpaceAround:
           {
-            f32 spacing                  = block_main_axis_spacing / (nblock_children * 2);
+            f32 spacing = block_main_axis_spacing / (nblock_children * 2);
             f32 main_axis_spacing_cursor = 0;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
@@ -232,7 +243,7 @@ struct Flex : public Widget
 
           case MainAlign::SpaceBetween:
           {
-            f32 spacing                  = block_main_axis_spacing / (nblock_children - 1);
+            f32 spacing = block_main_axis_spacing / (nblock_children - 1);
             f32 main_axis_spacing_cursor = 0;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
@@ -244,7 +255,7 @@ struct Flex : public Widget
 
           case MainAlign::SpaceEvenly:
           {
-            f32 spacing                  = block_main_axis_spacing / (nblock_children + 1);
+            f32 spacing = block_main_axis_spacing / (nblock_children + 1);
             f32 main_axis_spacing_cursor = spacing;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
@@ -286,7 +297,7 @@ struct Flex : public Widget
 
           case MainAlign::SpaceAround:
           {
-            f32 spacing                  = block_main_axis_spacing / (nblock_children * 2);
+            f32 spacing = block_main_axis_spacing / (nblock_children * 2);
             f32 main_axis_spacing_cursor = 0;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
@@ -299,7 +310,7 @@ struct Flex : public Widget
 
           case MainAlign::SpaceBetween:
           {
-            f32 spacing                  = block_main_axis_spacing / (nblock_children - 1);
+            f32 spacing = block_main_axis_spacing / (nblock_children - 1);
             f32 main_axis_spacing_cursor = 0;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
@@ -311,7 +322,7 @@ struct Flex : public Widget
 
           case MainAlign::SpaceEvenly:
           {
-            f32 spacing                  = block_main_axis_spacing / (nblock_children + 1);
+            f32 spacing = block_main_axis_spacing / (nblock_children + 1);
             f32 main_axis_spacing_cursor = spacing;
             for (usize iblock = i; iblock < iblock_end; iblock++)
             {
@@ -341,13 +352,15 @@ struct Flex : public Widget
 
       if (props.direction == Direction::H)
       {
-        span.x = std::max(span.x, block_main_axis_extent + block_main_axis_spacing);
+        span.x =
+            std::max(span.x, block_main_axis_extent + block_main_axis_spacing);
         span.y = cross_axis_cursor;
       }
       else
       {
         span.x = cross_axis_cursor;
-        span.y = std::max(span.y, block_main_axis_extent + block_main_axis_spacing);
+        span.y =
+            std::max(span.y, block_main_axis_extent + block_main_axis_spacing);
       }
 
       i = iblock_end;

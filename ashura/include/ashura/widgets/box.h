@@ -55,16 +55,19 @@ struct Box : public Widget
     children_allocation.fill(max(allocated_size - box_size, Vec2{0, 0}));
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
     if (children.size() > 0)
     {
-      children_positions[0] = props.border_thickness + Vec2{props.padding.left, props.padding.top};
+      children_positions[0] =
+          props.border_thickness + Vec2{props.padding.left, props.padding.top};
     }
-    return props.frame.resolve(props.border_thickness * 2 + props.padding.xy() +
-                               (children.size() > 0 ? children_sizes[0] : Vec2{0, 0}));
+    return props.frame.resolve(
+        props.border_thickness * 2 + props.padding.xy() +
+        (children.size() > 0 ? children_sizes[0] : Vec2{0, 0}));
   }
 
   virtual stx::Span<Widget *const> get_children(Context &ctx) override
@@ -75,21 +78,24 @@ struct Box : public Widget
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     Vec4 const border_radius = props.border_radius.resolve(area.extent);
-    if (props.background_color.is_visible() || ((!props.background_gradient.is_uniform()) &&
-                                                (props.background_gradient.begin.is_visible() ||
-                                                 props.background_gradient.end.is_visible())))
+    if (props.background_color.is_visible() ||
+        ((!props.background_gradient.is_uniform()) &&
+         (props.background_gradient.begin.is_visible() ||
+          props.background_gradient.end.is_visible())))
     {
       Rect inner_area;
       inner_area.offset = area.offset + props.border_thickness * 0.88f;
       inner_area.extent = area.extent - props.border_thickness * 0.88f * 2;
       if (props.corner_shape == BoxCornerShape::Round)
       {
-        canvas.draw_round_rect_filled(inner_area, border_radius, 360, props.background_color,
+        canvas.draw_round_rect_filled(inner_area, border_radius, 360,
+                                      props.background_color,
                                       props.background_gradient);
       }
       else
       {
-        canvas.draw_bevel_rect_filled(inner_area, border_radius, props.background_color,
+        canvas.draw_bevel_rect_filled(inner_area, border_radius,
+                                      props.background_color,
                                       props.background_gradient);
       }
     }
@@ -98,7 +104,8 @@ struct Box : public Widget
     {
       if (props.corner_shape == BoxCornerShape::Round)
       {
-        canvas.draw_round_rect_stroke(area, border_radius, 360, props.border_color,
+        canvas.draw_round_rect_stroke(area, border_radius, 360,
+                                      props.border_color,
                                       props.border_thickness);
       }
       else

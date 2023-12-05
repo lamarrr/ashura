@@ -26,7 +26,8 @@ struct WidgetSystem
     }
   }
 
-  static void __tick_recursive(Context &ctx, Widget &widget, std::chrono::nanoseconds interval)
+  static void __tick_recursive(Context &ctx, Widget &widget,
+                               std::chrono::nanoseconds interval)
   {
     widget.tick(ctx, interval);
     for (Widget *child : widget.get_children(ctx))
@@ -35,7 +36,8 @@ struct WidgetSystem
     }
   }
 
-  void assign_widget_uuids(Context &ctx, Widget &root, PrngUuidGenerator &generator)
+  void assign_widget_uuids(Context &ctx, Widget &root,
+                           PrngUuidGenerator &generator)
   {
     __assign_widget_uuids_recursive(ctx, root, generator);
   }
@@ -53,14 +55,16 @@ struct WidgetSystem
           case KeyAction::Press:
             if (Widget *hit_widget = tree.hit(ctx, event.position))
             {
-              if (stx::Option widget_drag_data = hit_widget->on_drag_start(ctx, event.position))
+              if (stx::Option widget_drag_data =
+                      hit_widget->on_drag_start(ctx, event.position))
               {
                 drag_source = hit_widget->id.copy();
                 drag_data   = std::move(widget_drag_data);
               }
               else
               {
-                hit_widget->on_mouse_down(ctx, event.button, event.position, event.clicks);
+                hit_widget->on_mouse_down(ctx, event.button, event.position,
+                                          event.clicks);
               }
             }
             break;
@@ -72,14 +76,17 @@ struct WidgetSystem
               {
                 if (!drag_source.contains(hit_widget->id.value()))
                 {
-                  bool accepted_drop = hit_widget->on_drop(ctx, event.position, drag_data.value());
+                  bool accepted_drop = hit_widget->on_drop(ctx, event.position,
+                                                           drag_data.value());
                   if (!accepted_drop)
                   {
                     drag_source.match(
                         [&](uuid source) {
-                          if (stx::Option source_widget = ctx.find_widget(source))
+                          if (stx::Option source_widget =
+                                  ctx.find_widget(source))
                           {
-                            source_widget.value()->on_drag_end(ctx, event.position);
+                            source_widget.value()->on_drag_end(ctx,
+                                                               event.position);
                           }
                         },
                         []() {});
@@ -92,7 +99,8 @@ struct WidgetSystem
               }
               else
               {
-                hit_widget->on_mouse_up(ctx, event.button, event.position, event.clicks);
+                hit_widget->on_mouse_up(ctx, event.button, event.position,
+                                        event.clicks);
               }
             }
             drag_data = stx::None;
@@ -108,14 +116,16 @@ struct WidgetSystem
 
         stx::Option<uuid> hit_widget;
         // we have to check if previous hit widget accepted the drag data
-        // if it is in drag state the last_hit_widget will be a widget that accepts it
+        // if it is in drag state the last_hit_widget will be a widget that
+        // accepts it
 
         if (drag_data.is_some() && drag_source.is_some())
         {
           ctx.find_widget(drag_source.value())
               .match(
                   [&](Widget *pdrag_source) {
-                    pdrag_source->on_drag_update(ctx, event.position, event.translation,
+                    pdrag_source->on_drag_update(ctx, event.position,
+                                                 event.translation,
                                                  drag_data.value());
                   },
                   []() {});
@@ -123,7 +133,8 @@ struct WidgetSystem
 
         if (Widget *phit_widget = tree.hit(ctx, event.position))
         {
-          if (last_hit_widget.is_none() || phit_widget->id.value() != last_hit_widget.value())
+          if (last_hit_widget.is_none() ||
+              phit_widget->id.value() != last_hit_widget.value())
           {
             if (drag_data.is_some())
             {
@@ -138,7 +149,8 @@ struct WidgetSystem
           {
             if (!drag_data.is_some())
             {
-              phit_widget->on_mouse_move(ctx, event.position, event.translation);
+              phit_widget->on_mouse_move(ctx, event.position,
+                                         event.translation);
             }
           }
 
@@ -146,14 +158,16 @@ struct WidgetSystem
         }
 
         if (last_hit_widget.is_some() &&
-            (hit_widget.is_none() || hit_widget.value() != last_hit_widget.value()))
+            (hit_widget.is_none() ||
+             hit_widget.value() != last_hit_widget.value()))
         {
           if (drag_data.is_some())
           {
             ctx.find_widget(last_hit_widget.value())
                 .match(
                     [&](Widget *plast_hit_widget) {
-                      plast_hit_widget->on_drag_leave(ctx, stx::Some(Vec2{event.position}));
+                      plast_hit_widget->on_drag_leave(
+                          ctx, stx::Some(Vec2{event.position}));
                     },
                     []() {});
           }
@@ -162,7 +176,8 @@ struct WidgetSystem
             ctx.find_widget(last_hit_widget.value())
                 .match(
                     [&](Widget *plast_hit_widget) {
-                      plast_hit_widget->on_mouse_leave(ctx, stx::Some(Vec2{event.position}));
+                      plast_hit_widget->on_mouse_leave(
+                          ctx, stx::Some(Vec2{event.position}));
                     },
                     []() {});
           }
@@ -172,7 +187,8 @@ struct WidgetSystem
       }
       else if (std::holds_alternative<WindowEvents>(e))
       {
-        if ((std::get<WindowEvents>(e) & WindowEvents::MouseLeave) != WindowEvents::None)
+        if ((std::get<WindowEvents>(e) & WindowEvents::MouseLeave) !=
+            WindowEvents::None)
         {
           if (last_hit_widget.is_some())
           {
@@ -198,14 +214,16 @@ struct WidgetSystem
     events.clear();
   }
 
-  void tick_widgets(Context &ctx, Widget &root, std::chrono::nanoseconds interval)
+  void tick_widgets(Context &ctx, Widget &root,
+                    std::chrono::nanoseconds interval)
   {
     __tick_recursive(ctx, root, interval);
   }
 
-  stx::Vec<std::variant<MouseClickEvent, MouseMotionEvent, WindowEvents>> events;
-  stx::Option<uuid>                                                       last_hit_widget;
-  stx::Option<DragData>                                                   drag_data   = stx::None;
-  stx::Option<uuid>                                                       drag_source = stx::None;
+  stx::Vec<std::variant<MouseClickEvent, MouseMotionEvent, WindowEvents>>
+                        events;
+  stx::Option<uuid>     last_hit_widget;
+  stx::Option<DragData> drag_data   = stx::None;
+  stx::Option<uuid>     drag_source = stx::None;
 };
 }        // namespace ash

@@ -6,7 +6,8 @@
 
 #define ASH_PANIC(...) ::stx::panic(__VA_ARGS__)
 
-#define ASH_UNIMPLEMENTED() ASH_PANIC("Reached unimplemented code path. submit a bug report!")
+#define ASH_UNIMPLEMENTED() \
+  ASH_PANIC("Reached unimplemented code path. submit a bug report!")
 
 #define ASH_CHECK(expr, ...)     \
   do                             \
@@ -21,7 +22,8 @@
   case x:                  \
     return #x;
 
-#define ASH_UNREACHABLE() ASH_PANIC("Expected Program Execution Flow To Not Reach This State")
+#define ASH_UNREACHABLE() \
+  ASH_PANIC("Expected Program Execution Flow To Not Reach This State")
 
 #define AS(type, ...) static_cast<type>(__VA_ARGS__)
 
@@ -38,11 +40,13 @@
 #define AS_F32(...) AS(::ash::f32, __VA_ARGS__)
 #define AS_F64(...) AS(::ash::f64, __VA_ARGS__)
 
-#define ASH_U8_CLAMP(...)              \
-  ((__VA_ARGS__) < 0 ? (::ash::u8) 0 : \
-                       ((__VA_ARGS__) > 255 ? (::ash::u8) 255 : (::ash::u8)(__VA_ARGS__)))
+#define ASH_U8_CLAMP(...) \
+  ((__VA_ARGS__) < 0 ?    \
+       (::ash::u8) 0 :    \
+       ((__VA_ARGS__) > 255 ? (::ash::u8) 255 : (::ash::u8)(__VA_ARGS__)))
 
-#if STX_CFG(COMPILER, MSVC) || STX_CFG(COMPILER, CLANG) || STX_CFG(COMPILER, GNUC)
+#if STX_CFG(COMPILER, MSVC) || STX_CFG(COMPILER, CLANG) || \
+    STX_CFG(COMPILER, GNUC)
 #  define ASH_RESTRICT __restrict
 #else
 #  define ASH_RESTRICT

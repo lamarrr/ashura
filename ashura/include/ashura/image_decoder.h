@@ -29,7 +29,8 @@ enum class ImageLoadError : u8
   UnsupportedFormat
 };
 
-inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(stx::Span<u8 const> data)
+inline stx::Result<ImageBuffer, ImageLoadError>
+    decode_webp(stx::Span<u8 const> data)
 {
   WebPBitstreamFeatures features;
 
@@ -39,15 +40,18 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(stx::Span<u8 const> 
   }
 
   stx::Memory memory =
-      stx::mem::allocate(stx::os_allocator,
-                         AS(usize, features.width * features.height * features.has_alpha ? 4 : 3))
+      stx::mem::allocate(
+          stx::os_allocator,
+          AS(usize,
+             features.width * features.height * features.has_alpha ? 4 : 3))
           .unwrap();
 
   u8 *pixels = AS(u8 *, memory.handle);
 
   if (features.has_alpha)
   {
-    if (WebPDecodeRGBAInto(data.data(), data.size(), pixels, features.width * features.height * 4,
+    if (WebPDecodeRGBAInto(data.data(), data.size(), pixels,
+                           features.width * features.height * 4,
                            features.width * 4) == nullptr)
     {
       return stx::Err(ImageLoadError::InvalidData);
@@ -55,32 +59,38 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_webp(stx::Span<u8 const> 
   }
   else
   {
-    if (WebPDecodeRGBInto(data.data(), data.size(), pixels, features.width * features.height * 3,
+    if (WebPDecodeRGBInto(data.data(), data.size(), pixels,
+                          features.width * features.height * 3,
                           features.width * 3) == nullptr)
     {
       return stx::Err(ImageLoadError::InvalidData);
     }
   }
 
-  return stx::Ok(
-      ImageBuffer{.memory = std::move(memory),
-                  .extent = Extent{AS(u32, features.width), AS(u32, features.height)},
-                  .format = features.has_alpha ? ImageFormat::Rgba8888 : ImageFormat::Rgb888});
+  return stx::Ok(ImageBuffer{
+      .memory = std::move(memory),
+      .extent = Extent{AS(u32, features.width), AS(u32, features.height)},
+      .format =
+          features.has_alpha ? ImageFormat::Rgba8888 : ImageFormat::Rgb888});
 }
 
-inline void png_stream_reader(png_structp png_ptr, unsigned char *out, usize nbytes_to_read)
+inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
+                              usize nbytes_to_read)
 {
-  stx::Span<u8 const> *input = AS(stx::Span<u8 const> *, png_get_io_ptr(png_ptr));
+  stx::Span<u8 const> *input =
+      AS(stx::Span<u8 const> *, png_get_io_ptr(png_ptr));
   stx::Span{out, nbytes_to_read}.copy(*input);
   *input = input->slice(nbytes_to_read);
 }
 
-inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> data)
+inline stx::Result<ImageBuffer, ImageLoadError>
+    decode_png(stx::Span<u8 const> data)
 {
   // skip magic number
   data = data.slice(8);
 
-  png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+  png_structp png_ptr =
+      png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
 
   ASH_CHECK(png_ptr != nullptr);
 
@@ -99,8 +109,8 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
   int color_type;
   int bit_depth;
 
-  u32 status = png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, nullptr,
-                            nullptr, nullptr);
+  u32 status = png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth,
+                            &color_type, nullptr, nullptr, nullptr);
 
   if (status != 1)
   {
@@ -127,7 +137,8 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
   }
 
   stx::Memory pixels_mem =
-      stx::mem::allocate(stx::os_allocator, width * height * ncomponents).unwrap();
+      stx::mem::allocate(stx::os_allocator, width * height * ncomponents)
+          .unwrap();
 
   u8 *pixels = AS(u8 *, pixels_mem.handle);
 
@@ -139,11 +150,13 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_png(stx::Span<u8 const> d
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  return stx::Ok(
-      ImageBuffer{.memory = std::move(pixels_mem), .extent = Extent{width, height}, .format = fmt});
+  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem),
+                             .extent = Extent{width, height},
+                             .format = fmt});
 }
 
-inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> bytes)
+inline stx::Result<ImageBuffer, ImageLoadError>
+    decode_jpg(stx::Span<u8 const> bytes)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -184,7 +197,8 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> b
   }
 
   stx::Memory pixels_mem =
-      stx::mem::allocate(stx::os_allocator, height * width * ncomponents).unwrap();
+      stx::mem::allocate(stx::os_allocator, height * width * ncomponents)
+          .unwrap();
 
   u8 *pixels = AS(u8 *, pixels_mem.handle);
 
@@ -197,11 +211,13 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_jpg(stx::Span<u8 const> b
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  return stx::Ok(
-      ImageBuffer{.memory = std::move(pixels_mem), .extent = Extent{width, height}, .format = fmt});
+  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem),
+                             .extent = Extent{width, height},
+                             .format = fmt});
 }
 
-inline stx::Result<ImageBuffer, ImageLoadError> decode_image(stx::Span<u8 const> bytes)
+inline stx::Result<ImageBuffer, ImageLoadError>
+    decode_image(stx::Span<u8 const> bytes)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 
@@ -219,8 +235,10 @@ inline stx::Result<ImageBuffer, ImageLoadError> decode_image(stx::Span<u8 const>
   {
     return decode_png(bytes);
   }
-  else if (bytes.slice(0, std::size(WEBP_MAGIC1)).equals(stx::Span{WEBP_MAGIC1}) &&
-           bytes.slice(8, std::size(WEBP_MAGIC2)).equals(stx::Span{WEBP_MAGIC2}))
+  else if (bytes.slice(0, std::size(WEBP_MAGIC1))
+               .equals(stx::Span{WEBP_MAGIC1}) &&
+           bytes.slice(8, std::size(WEBP_MAGIC2))
+               .equals(stx::Span{WEBP_MAGIC2}))
   {
     return decode_webp(bytes);
   }

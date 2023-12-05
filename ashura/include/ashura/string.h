@@ -38,7 +38,8 @@ struct String
   usize size        = 0;
 };
 
-/// gets the unicode codepoint at iter and then advances iter to the next codepoint
+/// gets the unicode codepoint at iter and then advances iter to the next
+/// codepoint
 ///
 constexpr uint32_t utf8_next(uint8_t const *&iter)
 {
@@ -120,7 +121,8 @@ constexpr uint32_t utf8_next(uint8_t const *&iter)
 //     c &>>= 6
 //     o &<<= 8
 //     return EncodedScalar(
-//       _biasedBits: (o | c ) &+ 0b0__1000_0001__1000_0001__1000_0001__1111_0001)
+//       _biasedBits: (o | c ) &+
+//       0b0__1000_0001__1000_0001__1000_0001__1111_0001)
 //   }
 
 //   @inline(__always)
@@ -136,18 +138,19 @@ constexpr uint32_t utf8_next(uint8_t const *&iter)
 //       return Unicode.Scalar(_unchecked: value)
 //     case 3:
 //       let bits = source._biasedBits &- 0x010101
-//       var value = (bits & 0b0____________11_1111__0000_0000__0000_0000) &>> 16
-//       value    |= (bits & 0b0_______________________11_1111__0000_0000) &>> 2
-//       value    |= (bits & 0b0________________________________0000_1111) &<< 12
-//       return Unicode.Scalar(_unchecked: value)
+//       var value = (bits & 0b0____________11_1111__0000_0000__0000_0000) &>>
+//       16 value    |= (bits & 0b0_______________________11_1111__0000_0000)
+//       &>> 2 value    |= (bits & 0b0________________________________0000_1111)
+//       &<< 12 return Unicode.Scalar(_unchecked: value)
 //     default:
 //       _internalInvariant(source.count == 4)
 //       let bits = source._biasedBits &- 0x01010101
-//       var value = (bits & 0b0_11_1111__0000_0000__0000_0000__0000_0000) &>> 24
-//       value    |= (bits & 0b0____________11_1111__0000_0000__0000_0000) &>> 10
-//       value    |= (bits & 0b0_______________________11_1111__0000_0000) &<< 4
-//       value    |= (bits & 0b0________________________________0000_0111) &<< 18
-//       return Unicode.Scalar(_unchecked: value)
+//       var value = (bits & 0b0_11_1111__0000_0000__0000_0000__0000_0000) &>>
+//       24 value    |= (bits & 0b0____________11_1111__0000_0000__0000_0000)
+//       &>> 10 value    |= (bits &
+//       0b0_______________________11_1111__0000_0000) &<< 4 value    |= (bits &
+//       0b0________________________________0000_0111) &<< 18 return
+//       Unicode.Scalar(_unchecked: value)
 //     }
 //   }
 

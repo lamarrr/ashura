@@ -1,7 +1,7 @@
 
 
-#include "stx/vec.h"
 #include "ashura/bitvec.h"
+#include "stx/vec.h"
 
 #include "gtest/gtest.h"
 
@@ -21,7 +21,8 @@ TEST(BitVecTest, Init)
   bit = *(vec.end() - 1);
   EXPECT_EQ(bit, 0);
 
-  for(auto i = 0; i < 12; i++){
-   std::cout << vec.get(i).unwrap() << std::endl;
+  for (auto i = 0; i < 12; i++)
+  {
+    std::cout << vec.get(i).unwrap() << std::endl;
   }
 }

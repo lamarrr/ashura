@@ -1,16 +1,14 @@
 #pragma once
 #include "ashura/primitives.h"
 
+namespace ash
+{
 
-namespace ash{
-
-struct StackAllocator{
-
-~StackAllocator(){}
-void grow();
-void shrink();
-
-
-
-
+struct StackAllocator
+{
+  ~StackAllocator()
+  {
+  }
+  void grow();
+  void shrink();
 };

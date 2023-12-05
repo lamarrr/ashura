@@ -41,13 +41,15 @@ struct Animation
   nanoseconds  duration   = milliseconds{256};
   u64          iterations = 1;
   AnimationCfg cfg        = AnimationCfg::Default;
-  f64 speed = 1;        // higher spead means faster time to completion than specified duration
+  f64 speed = 1;        // higher spead means faster time to completion than
+                        // specified duration
 
   nanoseconds elapsed_duration = nanoseconds{0};
   u64         iterations_done  = 0;
   f64         t                = 0;
 
-  void restart(nanoseconds duration, u64 iterations, AnimationCfg cfg, f64 speed)
+  void restart(nanoseconds duration, u64 iterations, AnimationCfg cfg,
+               f64 speed)
   {
     ASH_CHECK(duration.count() > 0);
     ASH_CHECK(speed >= 0);
@@ -90,7 +92,9 @@ struct Animation
   {
     cfg &= ~AnimationCfg::Loop;
     iterations_done = iterations;
-    t = has_bits(cfg, AnimationCfg::Alternate) ? (((iterations % 2) == 0) ? 0.0 : 1.0) : 1.0;
+    t               = has_bits(cfg, AnimationCfg::Alternate) ?
+                          (((iterations % 2) == 0) ? 0.0 : 1.0) :
+                          1.0;
   }
 
   void tick(nanoseconds interval)
@@ -100,26 +104,31 @@ struct Animation
       return;
     }
 
-    nanoseconds const tick_duration = nanoseconds{(i64) ((f64) interval.count() * (f64) speed)};
+    nanoseconds const tick_duration =
+        nanoseconds{(i64) ((f64) interval.count() * (f64) speed)};
     nanoseconds const total_elapsed_duration = elapsed_duration + tick_duration;
-    f64 const         t_total = (((f64) total_elapsed_duration.count()) / (f64) duration.count());
-    u64 const         t_iterations = (u64) t_total;
+    f64 const         t_total =
+        (((f64) total_elapsed_duration.count()) / (f64) duration.count());
+    u64 const t_iterations = (u64) t_total;
 
     if (has_bits(cfg, AnimationCfg::Loop) && t_iterations >= iterations)
     {
       elapsed_duration = total_elapsed_duration;
       iterations_done  = iterations;
-      t = has_bits(cfg, AnimationCfg::Alternate) ? (((iterations % 2) == 0) ? 0.0 : 1.0) : 1.0;
+      t                = has_bits(cfg, AnimationCfg::Alternate) ?
+                             (((iterations % 2) == 0) ? 0.0 : 1.0) :
+                             1.0;
     }
     else
     {
       f64 const t_unsigned = t_total - (f64) t_iterations;
-      f64 const t_signed   = has_bits(cfg, AnimationCfg::Alternate) ?
-                                 ((t_iterations % 2) == 0 ? t_unsigned : (1.0 - t_unsigned)) :
-                                 t_unsigned;
-      elapsed_duration     = total_elapsed_duration;
-      iterations_done      = t_iterations;
-      t                    = t_signed;
+      f64 const t_signed =
+          has_bits(cfg, AnimationCfg::Alternate) ?
+              ((t_iterations % 2) == 0 ? t_unsigned : (1.0 - t_unsigned)) :
+              t_unsigned;
+      elapsed_duration = total_elapsed_duration;
+      iterations_done  = t_iterations;
+      t                = t_signed;
     }
   }
 

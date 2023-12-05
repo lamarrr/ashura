@@ -18,7 +18,8 @@ struct StackProps
 struct Stack : public Widget
 {
   template <Impl<Widget>... DerivedWidget>
-  explicit Stack(StackProps iprops, DerivedWidget... ichildren) : props{std::move(iprops)}
+  explicit Stack(StackProps iprops, DerivedWidget... ichildren) :
+      props{std::move(iprops)}
   {
     update_children(std::move(ichildren)...);
   }
@@ -73,7 +74,8 @@ struct Stack : public Widget
     children_allocation.fill(props.frame.resolve(allocated_size));
   }
 
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size, stx::Span<Vec2 const> children_allocations,
+  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
+                   stx::Span<Vec2 const> children_allocations,
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
