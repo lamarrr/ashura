@@ -31,11 +31,11 @@ constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
 template <typename T>
 struct Vec
 {
-  T  *data     = nullptr;
-  u32 size     = 0;
-  u32 capacity = 0;
+  T    *data     = nullptr;
+  usize size     = 0;
+  usize capacity = 0;
 
-  Status reserve(AllocatorImpl allocator, u32 target_size)
+  Status reserve(AllocatorImpl allocator, usize target_size)
   {
     if (target_size <= capacity) [[unlikely]]
     {
@@ -53,7 +53,7 @@ struct Vec
     return Status::Success;
   }
 
-  Status grow_size(AllocatorImpl allocator, u32 growth)
+  Status grow_size(AllocatorImpl allocator, usize growth)
   {
     Status status = reserve(allocator, size + growth);
     if (status != Status::Success) [[unlikely]]
@@ -64,9 +64,9 @@ struct Vec
     return Status::Success;
   }
 
-  void fill(T const &element, u32 begin, u32 num)
+  void fill(T const &element, usize begin, usize num)
   {
-    for (u32 i = begin; i < begin + num && i < size; i++)
+    for (usize i = begin; i < begin + num && i < size; i++)
     {
       data[i] = element;
     }
@@ -84,9 +84,6 @@ struct Vec
 
     return Status::Success;
   }
-
-  void shrink_to_fit();
-  bool is_shrink_recommended();
 
   void clear()
   {
@@ -435,6 +432,7 @@ struct Device
   VkInstance         vk_instance       = nullptr;
   VkPhysicalDevice   vk_phy_device     = nullptr;
   VkDevice           vk_device         = nullptr;
+  u32                queue_family      = 0;
   VkQueue            vk_queue          = nullptr;
   VmaAllocator       vma_allocator     = nullptr;
   Swapchain          swapchain         = {};
@@ -442,50 +440,20 @@ struct Device
   gfx::FrameId       current_frame     = 0;
 };
 
-/// struct DescriptorHeap - // ntypes * nsets
-// for each group
-// can be updated independently
-// must be allocated and freed together
-// must
+/// @struct DescriptorHeap
+/// Descriptor heap helps with allocation of descriptor sets and checking when
+/// they are in use before releasing and re-using them. Having multiple sets in
+/// one group helps lighten the burden of managing separate heaps for different
+/// descriptor sets belonging to an object
 ///
-/// for all sets in released indices if last used tick < trailing_frame_tick,
-/// move to free indices
-// pop index from pool_free_sets if any, otherwise create new pool and add and
-// allocate new free sets from that descriptor set can't be reused, destroyed or
-// modified until its no longer in use
-///
-///
-/// BINDING LAYOUT
-/// ==============
-///
-/// GROUP 0:
-///     SET 0:
-///         BINDING 0: ELEMENT 0, ELEMENT 1...
-///         BINDING 1: ELEMENT 0, ELEMENT 1...
-///         ...
-///     SET 1:
-///         BINDING 0: ELEMENT 0, ELEMENT 1...
-///         BINDING 1: ELEMENT 0, ELEMENT 1...
-///         ...
-/// GROUP 1:
-///     SET 0:
-///         BINDING 0: ELEMENT 0, ELEMENT 1...
-///         BINDING 1: ELEMENT 0, ELEMENT 1...
-///         ...
-///     SET 1:
-///         BINDING 0: ELEMENT 0, ELEMENT 1...
-///         BINDING 1: ELEMENT 0, ELEMENT 1...
-///         ...
-///
+/// LAYOUT: GROUPS -> DESCRIPTOR SETS -> BINDINGS
 ///
 /// ACCESS PATTERNS
 /// ==> GET [GROUP I: SET J: DESCRIPTOR_SET]
 /// ==> GET [GROUP I: SET J: BINDINGS]
-/// ==> UPDATE [GROUP I: SET J: BINDINGS] with [NEW_BINDINGS] and [GROUP I: SET
-/// J]
+/// ==> UPDATE [GROUP I: SET J: DESCRIPTOR SET] with [NEW_BINDINGS] and copy to
+/// [GROUP I: SET J: BINDINGS]
 ///
-///
-// TODO(lamarrr): use an arena allocator
 struct DescriptorHeap
 {
   u64                   refcount             = 0;
@@ -692,7 +660,6 @@ struct DescriptorHeapInterface
   static gfx::DescriptorHeapStats get_stats(gfx::DescriptorHeap self);
 };
 
-// TODO(lamarrr): min of minUniformBufferOffsetAlignment for dynamicbufferoffset
 struct CommandEncoderInterface
 {
   static void                 begin(gfx::CommandEncoder self);
