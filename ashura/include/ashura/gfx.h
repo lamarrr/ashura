@@ -716,10 +716,13 @@ enum class DescriptorType : u32
   InputAttachment      = 10
 };
 
-enum class PipelineBindPoint : u8
+enum class CommandEncoderState : u8
 {
-  Graphics = 0,
-  Compute  = 1
+  Initial    = 0,
+  Recording  = 1,
+  Executable = 2,
+  Pending    = 3,
+  Invalid    = 4
 };
 
 struct SurfaceFormat

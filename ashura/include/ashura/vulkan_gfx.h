@@ -494,6 +494,7 @@ struct CommandEncoder
   u32  num_bound_descriptor_sets                                      = 0;
   Vec<stx::UniqueFn<void()>> completion_tasks                         = {};
   Status                     status = Status::Success;
+  gfx::CommandEncoderState   state  = gfx::CommandEncoderState::Initial;
 };
 
 struct DeviceInterface
