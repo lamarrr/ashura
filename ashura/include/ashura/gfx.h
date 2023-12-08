@@ -1312,6 +1312,7 @@ struct DescriptorHeapImpl
   DescriptorHeapInterface const *interface = nullptr;
 };
 
+/// to execute tasks at end of frame. use the trailing frame index.
 struct CommandEncoderInterface
 {
   void (*begin)(CommandEncoder self)                                  = nullptr;
@@ -1339,7 +1340,7 @@ struct CommandEncoderInterface
                      Span<ImageBlit const> blits, Filter filter)   = nullptr;
   void (*begin_render_pass)(
       CommandEncoder self, Framebuffer framebuffer, RenderPass render_pass,
-      IRect render_area, Span<Color const> color_attachments_clear_values,
+      URect render_area, Span<Color const> color_attachments_clear_values,
       DepthStencil const &depth_stencil_attachments_clear_value)      = nullptr;
   void (*end_render_pass)(CommandEncoder self)                        = nullptr;
   void (*bind_compute_pipeline)(CommandEncoder  self,
@@ -1357,7 +1358,7 @@ struct CommandEncoderInterface
   void (*dispatch_indirect)(CommandEncoder self, Buffer buffer,
                             u64 offset)                               = nullptr;
   void (*set_viewport)(CommandEncoder self, Viewport const &viewport) = nullptr;
-  void (*set_scissor)(CommandEncoder self, IRect scissor)             = nullptr;
+  void (*set_scissor)(CommandEncoder self, URect scissor)             = nullptr;
   void (*set_blend_constants)(CommandEncoder self,
                               Vec4           blend_constants)                   = nullptr;
   void (*set_stencil_compare_mask)(CommandEncoder self, StencilFaces faces,
@@ -1376,8 +1377,6 @@ struct CommandEncoderInterface
                u32 num_instances)                                     = nullptr;
   void (*draw_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
                         u32 draw_count, u32 stride)                   = nullptr;
-  void (*on_execution_complete)(CommandEncoder          self,
-                                stx::UniqueFn<void()> &&fn)           = nullptr;
 };
 
 struct CommandEncoderImpl
@@ -1396,7 +1395,7 @@ struct CommandEncoderImpl
   }
 };
 
-/// @present_frame: present current frame (swapchain image) and advamce to the
+/// @present_frame: present current frame (swapchain image) and advance to the
 /// next frame and recreate swapchain image as necessary
 struct DeviceInterface
 {

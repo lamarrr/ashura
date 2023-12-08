@@ -115,17 +115,12 @@ struct InstanceTable
   PFN_vkCreateDebugReportCallbackEXT  CreateDebugReportCallbackEXT  = nullptr;
   PFN_vkCreateDebugUtilsMessengerEXT  CreateDebugUtilsMessengerEXT  = nullptr;
   PFN_vkCreateInstance                CreateInstance                = nullptr;
-  PFN_vkDebugReportMessageEXT         DebugReportMessageEXT         = nullptr;
   PFN_vkDestroyDebugReportCallbackEXT DestroyDebugReportCallbackEXT = nullptr;
   PFN_vkDestroyDebugUtilsMessengerEXT DestroyDebugUtilsMessengerEXT = nullptr;
   PFN_vkDestroyInstance               DestroyInstance               = nullptr;
   PFN_vkDestroySurfaceKHR             DestroySurfaceKHR             = nullptr;
-  PFN_vkEnumeratePhysicalDeviceGroups EnumeratePhysicalDeviceGroups = nullptr;
-  PFN_vkEnumeratePhysicalDeviceGroupsKHR EnumeratePhysicalDeviceGroupsKHR =
-      nullptr;
-  PFN_vkEnumeratePhysicalDevices   EnumeratePhysicalDevices   = nullptr;
-  PFN_vkGetInstanceProcAddr        GetInstanceProcAddr        = nullptr;
-  PFN_vkSubmitDebugUtilsMessageEXT SubmitDebugUtilsMessageEXT = nullptr;
+  PFN_vkEnumeratePhysicalDevices      EnumeratePhysicalDevices      = nullptr;
+  PFN_vkGetInstanceProcAddr           GetInstanceProcAddr           = nullptr;
 
   PFN_vkCreateDevice                       CreateDevice = nullptr;
   PFN_vkEnumerateDeviceExtensionProperties EnumerateDeviceExtensionProperties =
@@ -145,8 +140,6 @@ struct InstanceTable
       GetPhysicalDeviceSparseImageFormatProperties = nullptr;
 };
 
-// some systems have multiple vulkan implementations! dynamic loading
-// VERSION 1.1 Vulkan Functions
 struct DeviceTable
 {
   // DEVICE OBJECT FUNCTIONS
@@ -425,20 +418,21 @@ struct Swapchain
 
 struct Device
 {
-  u64                refcount          = 0;
-  AllocatorImpl      allocator         = {};
-  InstanceTable      vk_instance_table = {};
-  DeviceTable        vk_table          = {};
-  VmaVulkanFunctions vma_table         = {};
-  VkInstance         vk_instance       = nullptr;
-  VkPhysicalDevice   vk_phy_device     = nullptr;
-  VkDevice           vk_device         = nullptr;
-  u32                queue_family      = 0;
-  VkQueue            vk_queue          = nullptr;
-  VmaAllocator       vma_allocator     = nullptr;
-  Swapchain          swapchain         = {};
-  gfx::FrameId       trailing_frame    = 0;
-  gfx::FrameId       current_frame     = 0;
+  u64                        refcount                 = 0;
+  AllocatorImpl              allocator                = {};
+  InstanceTable              vk_instance_table        = {};
+  DeviceTable                vk_table                 = {};
+  VmaVulkanFunctions         vma_table                = {};
+  VkInstance                 vk_instance              = nullptr;
+  VkPhysicalDevice           vk_phy_device            = nullptr;
+  VkPhysicalDeviceProperties vk_phy_device_properties = {};
+  VkDevice                   vk_device                = nullptr;
+  u32                        queue_family             = 0;
+  VkQueue                    vk_queue                 = nullptr;
+  VmaAllocator               vma_allocator            = nullptr;
+  Swapchain                  swapchain                = {};
+  gfx::FrameId               trailing_frame           = 0;
+  gfx::FrameId               current_frame            = 0;
 };
 
 /// @struct DescriptorHeap
@@ -486,15 +480,15 @@ struct CommandEncoder
   VkCommandBuffer   vk_command_buffer = nullptr;
   ComputePipeline  *compute_pipeline  = nullptr;
   GraphicsPipeline *graphics_pipeline = nullptr;
+  RenderPass       *render_pass       = nullptr;
   Framebuffer      *framebuffer       = nullptr;
   DescriptorHeap
-      *bound_descriptor_set_heaps[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]  = {};
-  u32  bound_descriptor_set_groups[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
-  u32  bound_descriptor_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]       = {};
-  u32  num_bound_descriptor_sets                                      = 0;
-  Vec<stx::UniqueFn<void()>> completion_tasks                         = {};
-  Status                     status = Status::Success;
-  gfx::CommandEncoderState   state  = gfx::CommandEncoderState::Initial;
+        *bound_descriptor_set_heaps[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]  = {};
+  u32    bound_descriptor_set_groups[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
+  u32    bound_descriptor_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]       = {};
+  u32    num_bound_descriptor_sets                                      = 0;
+  Status status                  = Status::Success;
+  gfx::CommandEncoderState state = gfx::CommandEncoderState::Initial;
 };
 
 struct DeviceInterface
@@ -693,7 +687,7 @@ struct CommandEncoderInterface
                          gfx::Filter filter);
   static void begin_render_pass(
       gfx::CommandEncoder self, gfx::Framebuffer framebuffer,
-      gfx::RenderPass render_pass, IRect render_area,
+      gfx::RenderPass render_pass, URect render_area,
       Span<gfx::Color const>   color_attachments_clear_values,
       gfx::DepthStencil const &depth_stencil_attachments_clear_value);
   static void end_render_pass(gfx::CommandEncoder self);
@@ -714,7 +708,7 @@ struct CommandEncoderInterface
                                 u64 offset);
   static void set_viewport(gfx::CommandEncoder  self,
                            gfx::Viewport const &viewport);
-  static void set_scissor(gfx::CommandEncoder self, IRect scissor);
+  static void set_scissor(gfx::CommandEncoder self, URect scissor);
   static void set_blend_constants(gfx::CommandEncoder self,
                                   Vec4                blend_constants);
   static void set_stencil_compare_mask(gfx::CommandEncoder self,
@@ -732,8 +726,6 @@ struct CommandEncoderInterface
                    i32 vertex_offset, u32 first_instance, u32 num_instances);
   static void draw_indirect(gfx::CommandEncoder self, gfx::Buffer buffer,
                             u64 offset, u32 draw_count, u32 stride);
-  static void on_execution_complete(gfx::CommandEncoder     self,
-                                    stx::UniqueFn<void()> &&fn);
 };
 
 }        // namespace vk

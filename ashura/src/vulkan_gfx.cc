@@ -24,6 +24,8 @@ namespace vk
     }                                 \
   } while (false)
 
+#define UNREACHABLE() stx::panic("Expected Unreachable")
+
 #define ALLOC_GROW(allocator, old, type, num, growth)                       \
   (type *) (allocator).reallocate((old), sizeof(type) * ((num) + (growth)), \
                                   alignof(type))
@@ -88,7 +90,6 @@ static AllocatorImpl default_heap_allocator{
     .interface = &default_heap_allocator_interface};
 
 // TODO(lamarrr): command buffer state checks
-
 // todo(lamarrr): define macros for checks, use debug name
 // todo(lamarrr): check state of command encoder and other stateful objects
 // before destroying
@@ -207,8 +208,7 @@ static gfx::CommandEncoderInterface const command_encoder_interface{
     .set_vertex_buffers     = CommandEncoderInterface::set_vertex_buffers,
     .set_index_buffer       = CommandEncoderInterface::set_index_buffer,
     .draw                   = CommandEncoderInterface::draw,
-    .draw_indirect          = CommandEncoderInterface::draw_indirect,
-    .on_execution_complete  = CommandEncoderInterface::on_execution_complete};
+    .draw_indirect          = CommandEncoderInterface::draw_indirect};
 
 VkResult DebugMarkerSetObjectTagEXT_Stub(VkDevice,
                                          const VkDebugMarkerObjectTagInfoEXT *)
@@ -235,6 +235,39 @@ void CmdDebugMarkerEndEXT_Stub(VkCommandBuffer)
 void CmdDebugMarkerInsertEXT_Stub(VkCommandBuffer,
                                   const VkDebugMarkerMarkerInfoEXT *)
 {
+}
+
+bool load_instance_table(VkInstance instance, InstanceTable &vk_instance_table)
+{
+  bool all_loaded = true;
+
+#define LOAD_VK(function)                                                 \
+  vk_instance_table.function =                                            \
+      (PFN_vk##function) vkGetInstanceProcAddr(instance, "vk" #function); \
+  all_loaded = all_loaded && (vk_instance_table.function != nullptr)
+
+  LOAD_VK(CreateDebugReportCallbackEXT);
+  LOAD_VK(CreateDebugUtilsMessengerEXT);
+  LOAD_VK(CreateInstance);
+  LOAD_VK(DestroyDebugReportCallbackEXT);
+  LOAD_VK(DestroyDebugUtilsMessengerEXT);
+  LOAD_VK(DestroyInstance);
+  LOAD_VK(DestroySurfaceKHR);
+  LOAD_VK(EnumeratePhysicalDevices);
+  LOAD_VK(GetInstanceProcAddr);
+  LOAD_VK(CreateDevice);
+  LOAD_VK(EnumerateDeviceExtensionProperties);
+  LOAD_VK(EnumerateDeviceLayerProperties);
+  LOAD_VK(GetPhysicalDeviceFeatures);
+  LOAD_VK(GetPhysicalDeviceFormatProperties);
+  LOAD_VK(GetPhysicalDeviceImageFormatProperties);
+  LOAD_VK(GetPhysicalDeviceMemoryProperties);
+  LOAD_VK(GetPhysicalDeviceProperties);
+  LOAD_VK(GetPhysicalDeviceQueueFamilyProperties);
+  LOAD_VK(GetPhysicalDeviceSparseImageFormatProperties);
+#undef LOAD_VK
+
+  return all_loaded;
 }
 
 bool load_device_table(VkDevice device, DeviceTable &vk_table,
@@ -386,7 +419,6 @@ bool load_device_table(VkDevice device, DeviceTable &vk_table,
 #undef LOAD_VKEXT
 
 #define SET_VMA(function) vma_table.vk##function = vk_table.function
-  // TODO(lamarrr): phy dev functions
   SET_VMA(AllocateMemory);
   SET_VMA(FreeMemory);
   SET_VMA(UnmapMemory);
@@ -656,7 +688,6 @@ static bool sync_image(ImageState &state, ImageAccess request,
                        VkPipelineStageFlags &src_stages,
                        VkPipelineStageFlags &dst_stages)
 {
-  // TODO(lamarrr): make sure aspects are filled
   VkImageLayout const current_layout = state.access[0].layout;
   bool const needs_layout_transition = current_layout != request.layout;
   bool const has_write =
@@ -877,8 +908,6 @@ static void access_image(CommandEncoder const *encoder, Image *image,
   }
 }
 
-// TODO(lamarrr): also check for compatibility of renderpass with input
-// attachment bindings
 static bool is_renderpass_compatible(RenderPass const           *render_pass,
                                      gfx::FramebufferDesc const &desc)
 {
@@ -922,7 +951,6 @@ Result<gfx::FormatProperties, Status>
 {
   Device *const      self = (Device *) self_;
   VkFormatProperties props;
-  // TODOD(Lamarrr): fix
   vkGetPhysicalDeviceFormatProperties(self->vk_phy_device, (VkFormat) format,
                                       &props);
   return Ok(gfx::FormatProperties{
@@ -951,7 +979,7 @@ Result<gfx::Buffer, Status>
                                  .pQueueFamilyIndices   = nullptr};
   VmaAllocationCreateInfo alloc_create_info{
       .flags          = 0,
-      .usage          = VMA_MEMORY_USAGE_UNKNOWN,
+      .usage          = VMA_MEMORY_USAGE_AUTO,
       .requiredFlags  = (VkMemoryPropertyFlags) desc.properties,
       .preferredFlags = 0,
       .memoryTypeBits = 0,
@@ -1096,12 +1124,19 @@ Result<gfx::Image, Status>
                                 .queueFamilyIndexCount = 0,
                                 .pQueueFamilyIndices   = nullptr,
                                 .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+  VmaAllocationCreateInfo vma_allocation_create_info{
+      .flags          = 0,
+      .usage          = VMA_MEMORY_USAGE_AUTO,
+      .requiredFlags  = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+      .preferredFlags = 0,
+      .memoryTypeBits = 0,
+      .pool           = nullptr,
+      .pUserData      = nullptr,
+      .priority       = 0};
+  VkImage           vk_image;
+  VmaAllocation     vma_allocation;
+  VmaAllocationInfo vma_allocation_info;
 
-  VkImage                 vk_image;
-  VmaAllocation           vma_allocation;
-  VmaAllocationInfo       vma_allocation_info;
-  VmaAllocationCreateInfo vma_allocation_create_info = {
-      .usage = VMA_MEMORY_USAGE_GPU_ONLY};
   VkResult result = vmaCreateImage(self->vma_allocator, &create_info,
                                    &vma_allocation_create_info, &vk_image,
                                    &vma_allocation, &vma_allocation_info);
@@ -1266,8 +1301,10 @@ Result<gfx::Shader, Status>
     DeviceInterface::create_shader(gfx::Device            self_,
                                    gfx::ShaderDesc const &desc)
 {
-  // check size
-  Device *const            self = (Device *) self_;
+  Device *const self = (Device *) self_;
+
+  VALIDATE("", desc.spirv_code.size_bytes() > 0);
+
   VkShaderModuleCreateInfo create_info{
       .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
       .pNext    = nullptr,
@@ -1311,18 +1348,24 @@ Result<gfx::RenderPass, Status>
                                         gfx::RenderPassDesc const &desc)
 {
   Device *const self = (Device *) self_;
-  // renderpass attachments packed in the following order:
+
+  VALIDATE("", desc.color_attachments.size <= gfx::MAX_COLOR_ATTACHMENTS);
+  VALIDATE("", desc.input_attachments.size <= gfx::MAX_INPUT_ATTACHMENTS);
+
+  // renderpass attachment descriptions are packed in the following order:
   // [color_attachments..., depth_stencil_attachment, input_attachments...]
   VkAttachmentDescription vk_attachments[gfx::MAX_COLOR_ATTACHMENTS + 1 +
                                          gfx::MAX_INPUT_ATTACHMENTS];
   VkAttachmentReference   vk_color_attachments[gfx::MAX_COLOR_ATTACHMENTS];
   VkAttachmentReference   vk_depth_stencil_attachment;
   VkAttachmentReference   vk_input_attachments[gfx::MAX_INPUT_ATTACHMENTS];
-  u32 const num_color_attachments = (u32) desc.color_attachments.size;
-  u32 const num_depth_stencil_attachments =
-      desc.depth_stencil_attachment.format == gfx::Format::Undefined ? 0U : 1U;
+  u32 const  num_color_attachments = (u32) desc.color_attachments.size;
+  bool const has_depth_stencil_attachment =
+      desc.depth_stencil_attachment.format != gfx::Format::Undefined;
   u32 const num_input_attachments = (u32) desc.input_attachments.size;
-  u32       num_attachments       = 0;
+  u32 const num_attachments       = num_color_attachments +
+                              (has_depth_stencil_attachment ? 1U : 0U) +
+                              num_input_attachments;
 
   gfx::RenderPassAttachment *color_attachments = ALLOC_N(
       self->allocator, gfx::RenderPassAttachment, num_color_attachments);
@@ -1344,13 +1387,13 @@ Result<gfx::RenderPass, Status>
   mem_copy(desc.color_attachments, color_attachments);
   mem_copy(desc.input_attachments, input_attachments);
 
-  for (u32 icolor_attachment = 0;
-       icolor_attachment < (u32) desc.color_attachments.size;
-       num_attachments++, icolor_attachment++)
+  u32 iattachment = 0;
+  for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
+       icolor_attachment++, iattachment++)
   {
     gfx::RenderPassAttachment const &attachment =
         desc.color_attachments.data[icolor_attachment];
-    vk_attachments[num_attachments] = VkAttachmentDescription{
+    vk_attachments[iattachment] = VkAttachmentDescription{
         .flags          = 0,
         .format         = (VkFormat) attachment.format,
         .samples        = VK_SAMPLE_COUNT_1_BIT,
@@ -1361,18 +1404,18 @@ Result<gfx::RenderPass, Status>
         .initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
     vk_color_attachments[icolor_attachment] = VkAttachmentReference{
-        .attachment = num_attachments,
+        .attachment = iattachment,
         .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
   }
 
-  if (num_depth_stencil_attachments != 0)
+  if (has_depth_stencil_attachment)
   {
     VkImageLayout layout =
         has_write_access(depth_stencil_attachment_image_access(
             desc.depth_stencil_attachment)) ?
             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
             VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-    vk_attachments[num_attachments] = VkAttachmentDescription{
+    vk_attachments[iattachment] = VkAttachmentDescription{
         .flags   = 0,
         .format  = (VkFormat) desc.depth_stencil_attachment.format,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -1386,19 +1429,18 @@ Result<gfx::RenderPass, Status>
         .finalLayout   = layout};
 
     vk_depth_stencil_attachment = VkAttachmentReference{
-        .attachment = num_attachments,
+        .attachment = iattachment,
         .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
 
-    num_attachments++;
+    iattachment++;
   }
 
-  for (u32 iinput_attachment = 0;
-       iinput_attachment < (u32) desc.input_attachments.size;
-       num_attachments++, iinput_attachment++)
+  for (u32 iinput_attachment = 0; iinput_attachment < num_input_attachments;
+       iinput_attachment++, iattachment++)
   {
     gfx::RenderPassAttachment const &attachment =
         desc.input_attachments.data[iinput_attachment];
-    vk_attachments[num_attachments] = VkAttachmentDescription{
+    vk_attachments[iattachment] = VkAttachmentDescription{
         .flags          = 0,
         .format         = (VkFormat) attachment.format,
         .samples        = VK_SAMPLE_COUNT_1_BIT,
@@ -1410,21 +1452,20 @@ Result<gfx::RenderPass, Status>
         .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     vk_input_attachments[iinput_attachment] = VkAttachmentReference{
-        .attachment = num_attachments,
+        .attachment = iattachment,
         .layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
   }
 
   VkSubpassDescription vk_subpass{
-      .flags                   = 0,
-      .pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
-      .inputAttachmentCount    = num_input_attachments,
-      .pInputAttachments       = vk_input_attachments,
-      .colorAttachmentCount    = num_color_attachments,
-      .pColorAttachments       = vk_color_attachments,
-      .pResolveAttachments     = nullptr,
-      .pDepthStencilAttachment = num_depth_stencil_attachments == 0 ?
-                                     nullptr :
-                                     &vk_depth_stencil_attachment,
+      .flags                = 0,
+      .pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS,
+      .inputAttachmentCount = num_input_attachments,
+      .pInputAttachments    = vk_input_attachments,
+      .colorAttachmentCount = num_color_attachments,
+      .pColorAttachments    = vk_color_attachments,
+      .pResolveAttachments  = nullptr,
+      .pDepthStencilAttachment =
+          has_depth_stencil_attachment ? &vk_depth_stencil_attachment : nullptr,
       .preserveAttachmentCount = 0,
       .pPreserveAttachments    = nullptr};
 
@@ -1487,12 +1528,13 @@ Result<gfx::Framebuffer, Status>
 {
   Device *const self                  = (Device *) self_;
   u32 const     num_color_attachments = (u32) desc.color_attachments.size;
-  u32 const     num_depth_stencil_attachments =
-      desc.depth_stencil_attachment == nullptr ? 0 : 1;
+  bool const    has_depth_stencil_attachment =
+      desc.depth_stencil_attachment != nullptr;
+  u32 const num_attachments =
+      num_color_attachments + (has_depth_stencil_attachment ? 1U : 0U);
   VkImageView vk_attachments[gfx::MAX_COLOR_ATTACHMENTS + 1];
-  u32         num_attachments = 0;        // TODO(lamarrr): what???
 
-  VALIDATE("framebuffer and renderpass not compatible",
+  VALIDATE("Framebuffer and Renderpass are not compatible",
            is_renderpass_compatible((RenderPass *) desc.renderpass, desc));
 
   gfx::ImageView *color_attachments =
@@ -1505,8 +1547,20 @@ Result<gfx::Framebuffer, Status>
 
   mem_copy(desc.color_attachments, color_attachments);
 
-  // TODO(lamarrr): fill, does the index slot association make sense
-  // preesently???
+  u32 ivk_attachment = 0;
+  for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
+       icolor_attachment++, ivk_attachment++)
+  {
+    vk_attachments[ivk_attachment] =
+        ((ImageView *) desc.color_attachments.data[icolor_attachment])->vk_view;
+  }
+
+  if (has_depth_stencil_attachment)
+  {
+    vk_attachments[ivk_attachment] =
+        ((ImageView *) desc.depth_stencil_attachment)->vk_view;
+  }
+
   VkFramebufferCreateInfo create_info{
       .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
       .pNext           = nullptr,
@@ -2100,13 +2154,13 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   }
 
   VkVertexInputBindingDescription input_bindings[gfx::MAX_VERTEX_ATTRIBUTES];
-  u32                             num_input_bindings = 0;
-  for (; num_input_bindings < desc.vertex_input_bindings.size;
-       num_input_bindings++)
+  u32 const num_input_bindings = (u32) desc.vertex_input_bindings.size;
+  for (u32 iinput_bindings = 0; iinput_bindings < num_input_bindings;
+       iinput_bindings++)
   {
     gfx::VertexInputBinding const &binding =
-        desc.vertex_input_bindings.data[num_input_bindings];
-    input_bindings[num_input_bindings] = VkVertexInputBindingDescription{
+        desc.vertex_input_bindings.data[iinput_bindings];
+    input_bindings[iinput_bindings] = VkVertexInputBindingDescription{
         .binding   = binding.binding,
         .stride    = binding.stride,
         .inputRate = (VkVertexInputRate) binding.input_rate,
@@ -2114,12 +2168,12 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   }
 
   VkVertexInputAttributeDescription attributes[gfx::MAX_VERTEX_ATTRIBUTES];
-  u32                               num_attributes = 0;
-  for (; num_attributes < desc.vertex_attributes.size; num_attributes++)
+  u32 const num_attributes = (u32) desc.vertex_attributes.size;
+  for (u32 iattribute = 0; iattribute < num_attributes; iattribute++)
   {
     gfx::VertexAttribute const &attribute =
-        desc.vertex_attributes.data[num_attributes];
-    attributes[num_attributes] =
+        desc.vertex_attributes.data[iattribute];
+    attributes[iattribute] =
         VkVertexInputAttributeDescription{.location = attribute.location,
                                           .binding  = attribute.binding,
                                           .format = (VkFormat) attribute.format,
@@ -2222,24 +2276,24 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .maxDepthBounds = desc.depth_stencil_state.max_depth_bounds};
 
   VkPipelineColorBlendAttachmentState
-      attachment_states[gfx::MAX_COLOR_ATTACHMENTS];
-  u32 num_color_attachments = 0;
+            attachment_states[gfx::MAX_COLOR_ATTACHMENTS];
+  u32 const num_color_attachments =
+      (u32) desc.color_blend_state.attachments.size;
 
-  for (; num_color_attachments < (u32) desc.color_blend_state.attachments.size;
-       num_color_attachments++)
+  for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
+       icolor_attachment++)
   {
     gfx::PipelineColorBlendAttachmentState const &state =
-        desc.color_blend_state.attachments.data[num_color_attachments];
-    attachment_states[num_color_attachments] =
-        VkPipelineColorBlendAttachmentState{
-            .blendEnable         = (VkBool32) state.blend_enable,
-            .srcColorBlendFactor = (VkBlendFactor) state.src_color_blend_factor,
-            .dstColorBlendFactor = (VkBlendFactor) state.dst_color_blend_factor,
-            .colorBlendOp        = (VkBlendOp) state.color_blend_op,
-            .srcAlphaBlendFactor = (VkBlendFactor) state.src_alpha_blend_factor,
-            .dstAlphaBlendFactor = (VkBlendFactor) state.dst_alpha_blend_factor,
-            .alphaBlendOp        = (VkBlendOp) state.alpha_blend_op,
-            .colorWriteMask = (VkColorComponentFlags) state.color_write_mask};
+        desc.color_blend_state.attachments.data[icolor_attachment];
+    attachment_states[icolor_attachment] = VkPipelineColorBlendAttachmentState{
+        .blendEnable         = (VkBool32) state.blend_enable,
+        .srcColorBlendFactor = (VkBlendFactor) state.src_color_blend_factor,
+        .dstColorBlendFactor = (VkBlendFactor) state.dst_color_blend_factor,
+        .colorBlendOp        = (VkBlendOp) state.color_blend_op,
+        .srcAlphaBlendFactor = (VkBlendFactor) state.src_alpha_blend_factor,
+        .dstAlphaBlendFactor = (VkBlendFactor) state.dst_alpha_blend_factor,
+        .alphaBlendOp        = (VkBlendOp) state.alpha_blend_op,
+        .colorWriteMask      = (VkColorComponentFlags) state.color_write_mask};
   }
 
   VkPipelineColorBlendStateCreateInfo color_blend_state{
@@ -2255,8 +2309,8 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
                           desc.color_blend_state.blend_constants.z,
                           desc.color_blend_state.blend_constants.w}};
 
-  constexpr u32  num_dynamic_states                 = 6;
-  VkDynamicState dynamic_states[num_dynamic_states] = {
+  constexpr u32  NUM_PIPELINE_DYNAMIC_STATES                 = 6U;
+  VkDynamicState dynamic_states[NUM_PIPELINE_DYNAMIC_STATES] = {
       VK_DYNAMIC_STATE_VIEWPORT,          VK_DYNAMIC_STATE_SCISSOR,
       VK_DYNAMIC_STATE_BLEND_CONSTANTS,   VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
       VK_DYNAMIC_STATE_STENCIL_REFERENCE, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK};
@@ -2265,7 +2319,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
       .pNext = nullptr,
       .flags = 0,
-      .dynamicStateCount = num_dynamic_states,
+      .dynamicStateCount = NUM_PIPELINE_DYNAMIC_STATES,
       .pDynamicStates    = dynamic_states};
 
   VkGraphicsPipelineCreateInfo create_info{
@@ -2383,11 +2437,11 @@ Result<gfx::CommandEncoderImpl, Status>
                                .vk_command_buffer = vk_command_buffer,
                                .compute_pipeline  = nullptr,
                                .graphics_pipeline = nullptr,
+                               .render_pass       = nullptr,
                                .framebuffer       = nullptr,
                                .bound_descriptor_set_heaps  = {},
                                .bound_descriptor_set_groups = {},
                                .num_bound_descriptor_sets   = 0,
-                               .completion_tasks            = {},
                                .status                      = Status::Success};
 
   return Ok(gfx::CommandEncoderImpl{.self      = (gfx::CommandEncoder) encoder,
@@ -2396,35 +2450,35 @@ Result<gfx::CommandEncoderImpl, Status>
 
 Result<void *, Status>
     DeviceInterface::get_buffer_memory_map(gfx::Device self_,
-                                           gfx::Buffer buffer)
+                                           gfx::Buffer buffer_)
 {
   (void) self_;
-  Buffer *buffer_impl = (Buffer *) buffer;
+  Buffer *const buffer = (Buffer *) buffer_;
 
-  VALIDATE("", has_any_bit(buffer_impl->desc.properties,
+  VALIDATE("", has_any_bit(buffer->desc.properties,
                            gfx::MemoryProperties::HostVisible |
                                gfx::MemoryProperties::HostCoherent |
                                gfx::MemoryProperties::HostCached));
-  return Ok((void *) buffer_impl->host_map);
+  return Ok((void *) buffer->host_map);
 }
 
 Result<Void, Status> DeviceInterface::invalidate_buffer_memory_map(
-    gfx::Device self_, gfx::Buffer buffer, gfx::MemoryRange range)
+    gfx::Device self_, gfx::Buffer buffer_, gfx::MemoryRange range)
 {
-  Device *const self        = (Device *) self_;
-  Buffer       *buffer_impl = (Buffer *) buffer;
+  Device *const self   = (Device *) self_;
+  Buffer *const buffer = (Buffer *) buffer_;
 
-  VALIDATE("", has_any_bit(buffer_impl->desc.properties,
+  VALIDATE("", has_any_bit(buffer->desc.properties,
                            gfx::MemoryProperties::HostVisible |
                                gfx::MemoryProperties::HostCoherent |
                                gfx::MemoryProperties::HostCached));
 
-  VkMappedMemoryRange vk_range{
-      .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-      .pNext  = nullptr,
-      .memory = buffer_impl->vma_allocation_info.deviceMemory,
-      .offset = range.offset,
-      .size   = range.size};
+  VkMappedMemoryRange vk_range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                               .pNext = nullptr,
+                               .memory =
+                                   buffer->vma_allocation_info.deviceMemory,
+                               .offset = range.offset,
+                               .size   = range.size};
   VkResult result = self->vk_table.InvalidateMappedMemoryRanges(self->vk_device,
                                                                 1, &vk_range);
   if (result != VK_SUCCESS)
@@ -2435,23 +2489,23 @@ Result<Void, Status> DeviceInterface::invalidate_buffer_memory_map(
 }
 
 Result<Void, Status> DeviceInterface::flush_buffer_memory_map(
-    gfx::Device self_, gfx::Buffer buffer, gfx::MemoryRange range)
+    gfx::Device self_, gfx::Buffer buffer_, gfx::MemoryRange range)
 {
-  Device *const self        = (Device *) self_;
-  Buffer       *buffer_impl = (Buffer *) buffer;
+  Device *const self   = (Device *) self_;
+  Buffer *const buffer = (Buffer *) buffer_;
 
-  VALIDATE("", has_any_bit(buffer_impl->desc.properties,
+  VALIDATE("", has_any_bit(buffer->desc.properties,
                            gfx::MemoryProperties::HostVisible |
                                gfx::MemoryProperties::HostCoherent |
                                gfx::MemoryProperties::HostCached));
 
-  VkMappedMemoryRange vk_range{
-      .sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-      .pNext  = nullptr,
-      .memory = buffer_impl->vma_allocation_info.deviceMemory,
-      .offset = range.offset,
-      .size   = range.size};
-  VkResult result =
+  VkMappedMemoryRange vk_range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+                               .pNext = nullptr,
+                               .memory =
+                                   buffer->vma_allocation_info.deviceMemory,
+                               .offset = range.offset,
+                               .size   = range.size};
+  VkResult            result =
       self->vk_table.FlushMappedMemoryRanges(self->vk_device, 1, &vk_range);
   if (result != VK_SUCCESS)
   {
@@ -2466,7 +2520,8 @@ Result<usize, Status>
 {
   Device *const self = (Device *) self_;
   usize         size;
-  VkResult      result = self->vk_table.GetPipelineCacheData(
+
+  VkResult result = self->vk_table.GetPipelineCacheData(
       self->vk_device, ((PipelineCache *) cache)->vk_cache, &size, nullptr);
   if (result != VK_SUCCESS)
   {
@@ -2478,9 +2533,10 @@ Result<usize, Status>
 Result<usize, Status> DeviceInterface::get_pipeline_cache_data(
     gfx::Device self_, gfx::PipelineCache cache, Span<u8> out)
 {
-  Device *const self   = (Device *) self_;
-  usize         size   = out.size_bytes();
-  VkResult      result = self->vk_table.GetPipelineCacheData(
+  Device *const self = (Device *) self_;
+  usize         size = out.size_bytes();
+
+  VkResult result = self->vk_table.GetPipelineCacheData(
       self->vk_device, ((PipelineCache *) cache)->vk_cache, &size, out.data);
   if (result != VK_SUCCESS)
   {
@@ -2494,8 +2550,9 @@ Result<Void, Status>
                                           gfx::PipelineCache             dst,
                                           Span<gfx::PipelineCache const> srcs)
 {
-  Device *const    self     = (Device *) self_;
-  u32 const        num_srcs = (u32) srcs.size;
+  Device *const self     = (Device *) self_;
+  u32 const     num_srcs = (u32) srcs.size;
+
   VkPipelineCache *vk_caches =
       ALLOC_N(self->allocator, VkPipelineCache, num_srcs);
   if (vk_caches == nullptr)
@@ -2523,7 +2580,7 @@ Result<Void, Status> DeviceInterface::wait_for_fences(
     gfx::Device self_, Span<gfx::Fence const> fences, bool all, u64 timeout)
 {
   Device *const self       = (Device *) self_;
-  u32           num_fences = (u32) fences.size;
+  u32 const     num_fences = (u32) fences.size;
 
   VALIDATE("", num_fences > 0);
 
@@ -2858,7 +2915,7 @@ Result<u32, Status>
   u32 const assigned_group        = self->num_pools * self->num_groups_per_pool;
   self->vk_pools[self->num_pools] = vk_pool;
   self->num_pools++;
-  // fill the free groups in reverse order (i.e. [set 4, set 3, set 2, set 1])
+  // fill the free groups in reverse order (i.e. [set 4, set 3, set 2])
   // as reclamation pulls from the end of the free groups. this helps make with
   // predictability of indexes of newly allocated groups
   for (u32 free_group = self->num_pools * self->num_groups_per_pool - 1;
@@ -3450,7 +3507,7 @@ void DescriptorHeapInterface::mark_in_use(gfx::DescriptorHeap self_, u32 group,
                                           gfx::FrameId current_frame)
 {
   DescriptorHeap *const self = (DescriptorHeap *) self_;
-  // check index
+
   VALIDATE("", group < (self->num_pools * self->num_groups_per_pool));
   VALIDATE("", self->last_use_frame[group] <= current_frame);
 
@@ -3461,19 +3518,21 @@ bool DescriptorHeapInterface::is_in_use(gfx::DescriptorHeap self_, u32 group,
                                         gfx::FrameId trailing_frame)
 {
   DescriptorHeap *const self = (DescriptorHeap *) self_;
-  // check index
+
   VALIDATE("", group < (self->num_pools * self->num_groups_per_pool));
+
   return self->last_use_frame[group] >= trailing_frame;
 }
 
 void DescriptorHeapInterface::release(gfx::DescriptorHeap self_, u32 group)
 {
-  // sanity check
   DescriptorHeap *const self = (DescriptorHeap *) self_;
+
   VALIDATE("", group < (self->num_pools * self->num_groups_per_pool));
   VALIDATE("multiple descriptor group release detected",
            (self->num_released_groups + 1) <=
                (self->num_pools * self->num_groups_per_pool));
+
   self->released_groups[self->num_released_groups] = group;
   self->num_released_groups++;
 }
@@ -3491,11 +3550,13 @@ gfx::DescriptorHeapStats
 
 void CommandEncoderInterface::begin(gfx::CommandEncoder self_)
 {
-  CommandEncoder *self = (CommandEncoder *) self_;
+  CommandEncoder *const self = (CommandEncoder *) self_;
+
   if (self->status != Status::Success)
   {
     return;
   }
+
   VkCommandBufferBeginInfo info{
       .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
       .pNext            = nullptr,
@@ -3507,7 +3568,8 @@ void CommandEncoderInterface::begin(gfx::CommandEncoder self_)
 
 Result<Void, Status> CommandEncoderInterface::end(gfx::CommandEncoder self_)
 {
-  CommandEncoder *self = (CommandEncoder *) self_;
+  CommandEncoder *const self = (CommandEncoder *) self_;
+
   if (self->status != Status::Success)
   {
     return Err((Status) self->status);
@@ -3536,10 +3598,12 @@ void CommandEncoderInterface::begin_debug_marker(gfx::CommandEncoder self_,
                                                  Vec4        color)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
   if (self->status != Status::Success)
   {
     return;
   }
+
   VkDebugMarkerMarkerInfoEXT info{
       .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
       .pNext       = nullptr,
@@ -3559,14 +3623,14 @@ void CommandEncoderInterface::end_debug_marker(gfx::CommandEncoder self_)
 }
 
 void CommandEncoderInterface::fill_buffer(gfx::CommandEncoder self_,
-                                          gfx::Buffer dst, u64 offset, u64 size,
-                                          u32 data)
+                                          gfx::Buffer dst_, u64 offset,
+                                          u64 size, u32 data)
 {
-  CommandEncoder *const self     = (CommandEncoder *) self_;
-  Buffer *const         dst_impl = (Buffer *) dst;
+  CommandEncoder *const self = (CommandEncoder *) self_;
+  Buffer *const         dst  = (Buffer *) dst_;
 
-  VALIDATE("", offset < dst_impl->desc.size);
-  VALIDATE("", (offset + size) <= dst_impl->desc.size);
+  VALIDATE("", offset < dst->desc.size);
+  VALIDATE("", (offset + size) <= dst->desc.size);
   VALIDATE("", (offset % 4) == 0);
   VALIDATE("", (size % 4) == 0);
   VALIDATE("", size > 0);
@@ -3576,28 +3640,28 @@ void CommandEncoderInterface::fill_buffer(gfx::CommandEncoder self_,
     return;
   }
 
-  access_buffer(self, dst_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_buffer(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
-  self->device->vk_table.CmdFillBuffer(self->vk_command_buffer,
-                                       dst_impl->vk_buffer, offset, size, data);
+  self->device->vk_table.CmdFillBuffer(self->vk_command_buffer, dst->vk_buffer,
+                                       offset, size, data);
 }
 
 void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self_,
-                                          gfx::Buffer src, gfx::Buffer dst,
+                                          gfx::Buffer src_, gfx::Buffer dst_,
                                           Span<gfx::BufferCopy const> copies)
 {
   CommandEncoder *const self       = (CommandEncoder *) self_;
-  Buffer *const         src_impl   = (Buffer *) src;
-  Buffer *const         dst_impl   = (Buffer *) dst;
+  Buffer *const         src        = (Buffer *) src_;
+  Buffer *const         dst        = (Buffer *) dst_;
   u32 const             num_copies = (u32) copies.size;
 
   VALIDATE("", num_copies > 0);
   for (gfx::BufferCopy const &copy : copies)
   {
-    VALIDATE("", copy.src_offset < src_impl->desc.size);
-    VALIDATE("", (copy.src_offset + copy.size) <= src_impl->desc.size);
-    VALIDATE("", copy.dst_offset < dst_impl->desc.size);
-    VALIDATE("", (copy.dst_offset + copy.size) <= dst_impl->desc.size);
+    VALIDATE("", copy.src_offset < src->desc.size);
+    VALIDATE("", (copy.src_offset + copy.size) <= src->desc.size);
+    VALIDATE("", copy.dst_offset < dst->desc.size);
+    VALIDATE("", (copy.dst_offset + copy.size) <= dst->desc.size);
   }
 
   if (self->status != Status::Success)
@@ -3621,27 +3685,26 @@ void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self_,
                                                .size      = copy.size};
   }
 
-  access_buffer(self, src_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_buffer(self, src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_READ_BIT);
-  access_buffer(self, dst_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_buffer(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
 
-  self->device->vk_table.CmdCopyBuffer(self->vk_command_buffer,
-                                       src_impl->vk_buffer, dst_impl->vk_buffer,
-                                       num_copies, vk_copies);
+  self->device->vk_table.CmdCopyBuffer(self->vk_command_buffer, src->vk_buffer,
+                                       dst->vk_buffer, num_copies, vk_copies);
 
   self->allocator.deallocate(vk_copies);
 }
 
 void CommandEncoderInterface::update_buffer(gfx::CommandEncoder self_,
                                             Span<u8 const> src, u64 dst_offset,
-                                            gfx::Buffer dst)
+                                            gfx::Buffer dst_)
 {
-  CommandEncoder *const self     = (CommandEncoder *) self_;
-  Buffer *const         dst_impl = (Buffer *) dst;
+  CommandEncoder *const self = (CommandEncoder *) self_;
+  Buffer *const         dst  = (Buffer *) dst_;
 
-  VALIDATE("", dst_offset < dst_impl->desc.size);
-  VALIDATE("", (dst_offset + src.size_bytes()) <= dst_impl->desc.size);
+  VALIDATE("", dst_offset < dst->desc.size);
+  VALIDATE("", (dst_offset + src.size_bytes()) <= dst->desc.size);
   VALIDATE("", (dst_offset % 4) == 0);
   VALIDATE("", (src.size_bytes() % 4) == 0);
   VALIDATE("", src.size_bytes() > 0);
@@ -3651,21 +3714,21 @@ void CommandEncoderInterface::update_buffer(gfx::CommandEncoder self_,
     return;
   }
 
-  access_buffer(self, dst_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_buffer(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
 
   self->device->vk_table.CmdUpdateBuffer(self->vk_command_buffer,
-                                         dst_impl->vk_buffer, dst_offset,
+                                         dst->vk_buffer, dst_offset,
                                          (u64) src.size, src.data);
 }
 
 void CommandEncoderInterface::clear_color_image(
-    gfx::CommandEncoder self_, gfx::Image dst, gfx::Color clear_color,
+    gfx::CommandEncoder self_, gfx::Image dst_, gfx::Color clear_color,
     Span<gfx::ImageSubresourceRange const> ranges)
 
 {
   CommandEncoder *const self       = (CommandEncoder *) self_;
-  Image *const          dst_impl   = (Image *) dst;
+  Image *const          dst        = (Image *) dst_;
   u32 const             num_ranges = (u32) ranges.size;
 
   static_assert(sizeof(gfx::Color) == sizeof(VkClearColorValue));
@@ -3674,13 +3737,13 @@ void CommandEncoderInterface::clear_color_image(
   for (u32 i = 0; i < num_ranges; i++)
   {
     gfx::ImageSubresourceRange const &range = ranges.data[i];
-    VALIDATE("", has_bits(dst_impl->desc.aspects, range.aspects));
-    VALIDATE("", range.first_mip_level < dst_impl->desc.mip_levels);
-    VALIDATE("", range.first_array_layer < dst_impl->desc.array_layers);
+    VALIDATE("", has_bits(dst->desc.aspects, range.aspects));
+    VALIDATE("", range.first_mip_level < dst->desc.mip_levels);
+    VALIDATE("", range.first_array_layer < dst->desc.array_layers);
     VALIDATE("", (range.first_mip_level + range.num_mip_levels) <=
-                     dst_impl->desc.mip_levels);
+                     dst->desc.mip_levels);
     VALIDATE("", (range.first_array_layer + range.num_array_layers) <=
-                     dst_impl->desc.array_layers);
+                     dst->desc.array_layers);
   }
 
   if (self->status != Status::Success)
@@ -3708,12 +3771,12 @@ void CommandEncoderInterface::clear_color_image(
                                    .layerCount     = range.num_array_layers};
   }
 
-  access_image(self, dst_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
   self->device->vk_table.CmdClearColorImage(
-      self->vk_command_buffer, dst_impl->vk_image,
+      self->vk_command_buffer, dst->vk_image,
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, (VkClearColorValue *) &clear_color,
       num_ranges, vk_ranges);
 
@@ -3721,13 +3784,13 @@ void CommandEncoderInterface::clear_color_image(
 }
 
 void CommandEncoderInterface::clear_depth_stencil_image(
-    gfx::CommandEncoder self_, gfx::Image dst,
+    gfx::CommandEncoder self_, gfx::Image dst_,
     gfx::DepthStencil                      clear_depth_stencil,
     Span<gfx::ImageSubresourceRange const> ranges)
 
 {
   CommandEncoder *const self       = (CommandEncoder *) self_;
-  Image *const          dst_impl   = (Image *) dst;
+  Image *const          dst        = (Image *) dst_;
   u32 const             num_ranges = (u32) ranges.size;
 
   static_assert(sizeof(gfx::DepthStencil) == sizeof(VkClearDepthStencilValue));
@@ -3737,13 +3800,13 @@ void CommandEncoderInterface::clear_depth_stencil_image(
   for (u32 i = 0; i < num_ranges; i++)
   {
     gfx::ImageSubresourceRange const &range = ranges.data[i];
-    VALIDATE("", has_bits(dst_impl->desc.aspects, range.aspects));
-    VALIDATE("", range.first_mip_level < dst_impl->desc.mip_levels);
-    VALIDATE("", range.first_array_layer < dst_impl->desc.array_layers);
+    VALIDATE("", has_bits(dst->desc.aspects, range.aspects));
+    VALIDATE("", range.first_mip_level < dst->desc.mip_levels);
+    VALIDATE("", range.first_array_layer < dst->desc.array_layers);
     VALIDATE("", (range.first_mip_level + range.num_mip_levels) <=
-                     dst_impl->desc.mip_levels);
+                     dst->desc.mip_levels);
     VALIDATE("", (range.first_array_layer + range.num_array_layers) <=
-                     dst_impl->desc.array_layers);
+                     dst->desc.array_layers);
   }
 
   if (self->status != Status::Success)
@@ -3771,11 +3834,11 @@ void CommandEncoderInterface::clear_depth_stencil_image(
                                    .layerCount     = range.num_array_layers};
   }
 
-  access_image(self, dst_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
   self->device->vk_table.CmdClearDepthStencilImage(
-      self->vk_command_buffer, dst_impl->vk_image,
+      self->vk_command_buffer, dst->vk_image,
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
       (VkClearDepthStencilValue *) &clear_depth_stencil, num_ranges, vk_ranges);
 
@@ -3783,38 +3846,34 @@ void CommandEncoderInterface::clear_depth_stencil_image(
 }
 
 void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
-                                         gfx::Image src, gfx::Image dst,
+                                         gfx::Image src_, gfx::Image dst_,
                                          Span<gfx::ImageCopy const> copies)
 {
   CommandEncoder *const self       = (CommandEncoder *) self_;
-  Image *const          src_impl   = (Image *) src;
-  Image *const          dst_impl   = (Image *) dst;
+  Image *const          src        = (Image *) src_;
+  Image *const          dst        = (Image *) dst_;
   u32 const             num_copies = (u32) copies.size;
 
   VALIDATE("", num_copies > 0);
   for (u32 i = 0; i < num_copies; i++)
   {
     gfx::ImageCopy const &copy = copies.data[i];
-    VALIDATE("", URect3D{{}, src_impl->desc.extent}.contains(
+    VALIDATE("", URect3D{{}, src->desc.extent}.contains(
                      URect3D{copy.src_offset, copy.extent}));
-    VALIDATE("", URect3D{{}, dst_impl->desc.extent}.contains(
+    VALIDATE("", URect3D{{}, dst->desc.extent}.contains(
                      URect3D{copy.dst_offset, copy.extent}));
 
-    VALIDATE("", has_bits(src_impl->desc.aspects, copy.src_layers.aspects));
-    VALIDATE("", copy.src_layers.mip_level < src_impl->desc.mip_levels);
-    VALIDATE("",
-             copy.src_layers.first_array_layer < src_impl->desc.array_layers);
-    VALIDATE("",
-             (copy.src_layers.first_array_layer +
-              copy.src_layers.num_array_layers) <= src_impl->desc.array_layers);
+    VALIDATE("", has_bits(src->desc.aspects, copy.src_layers.aspects));
+    VALIDATE("", copy.src_layers.mip_level < src->desc.mip_levels);
+    VALIDATE("", copy.src_layers.first_array_layer < src->desc.array_layers);
+    VALIDATE("", (copy.src_layers.first_array_layer +
+                  copy.src_layers.num_array_layers) <= src->desc.array_layers);
 
-    VALIDATE("", has_bits(dst_impl->desc.aspects, copy.dst_layers.aspects));
-    VALIDATE("", copy.dst_layers.mip_level < dst_impl->desc.mip_levels);
-    VALIDATE("",
-             copy.dst_layers.first_array_layer < dst_impl->desc.array_layers);
-    VALIDATE("",
-             (copy.dst_layers.first_array_layer +
-              copy.dst_layers.num_array_layers) <= dst_impl->desc.array_layers);
+    VALIDATE("", has_bits(dst->desc.aspects, copy.dst_layers.aspects));
+    VALIDATE("", copy.dst_layers.mip_level < dst->desc.mip_levels);
+    VALIDATE("", copy.dst_layers.first_array_layer < dst->desc.array_layers);
+    VALIDATE("", (copy.dst_layers.first_array_layer +
+                  copy.dst_layers.num_array_layers) <= dst->desc.array_layers);
   }
 
   if (self->status != Status::Success)
@@ -3856,45 +3915,44 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
                                .extent         = extent};
   }
 
-  access_image(self, src_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(self, src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_READ_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-  access_image(self, dst_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
   self->device->vk_table.CmdCopyImage(
-      self->vk_command_buffer, src_impl->vk_image,
-      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst_impl->vk_image,
+      self->vk_command_buffer, src->vk_image,
+      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->vk_image,
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, num_copies, vk_copies);
 
   self->allocator.deallocate(vk_copies);
 }
 
 void CommandEncoderInterface::copy_buffer_to_image(
-    gfx::CommandEncoder self_, gfx::Buffer src, gfx::Image dst,
+    gfx::CommandEncoder self_, gfx::Buffer src_, gfx::Image dst_,
     Span<gfx::BufferImageCopy const> copies)
 {
   CommandEncoder *const self       = (CommandEncoder *) self_;
-  Buffer *const         src_impl   = (Buffer *) src;
-  Image *const          dst_impl   = (Image *) dst;
+  Buffer *const         src        = (Buffer *) src_;
+  Image *const          dst        = (Image *) dst_;
   u32 const             num_copies = (u32) copies.size;
 
   VALIDATE("", num_copies > 0);
   for (u32 i = 0; i < num_copies; i++)
   {
     gfx::BufferImageCopy const &copy = copies.data[i];
-    VALIDATE("", copy.buffer_offset < src_impl->desc.size);
-    VALIDATE("", URect3D{{}, dst_impl->desc.extent}.contains(
+    VALIDATE("", copy.buffer_offset < src->desc.size);
+    VALIDATE("", URect3D{{}, dst->desc.extent}.contains(
                      URect3D{copy.image_offset, copy.image_extent}));
 
-    VALIDATE("", has_bits(dst_impl->desc.aspects, copy.image_layers.aspects));
-    VALIDATE("", copy.image_layers.mip_level < dst_impl->desc.mip_levels);
+    VALIDATE("", has_bits(dst->desc.aspects, copy.image_layers.aspects));
+    VALIDATE("", copy.image_layers.mip_level < dst->desc.mip_levels);
+    VALIDATE("", copy.image_layers.first_array_layer < dst->desc.array_layers);
     VALIDATE("",
-             copy.image_layers.first_array_layer < dst_impl->desc.array_layers);
-    VALIDATE("", (copy.image_layers.first_array_layer +
-                  copy.image_layers.num_array_layers) <=
-                     dst_impl->desc.array_layers);
+             (copy.image_layers.first_array_layer +
+              copy.image_layers.num_array_layers) <= dst->desc.array_layers);
   }
 
   if (self->status != Status::Success)
@@ -3932,61 +3990,57 @@ void CommandEncoderInterface::copy_buffer_to_image(
                                                     copy.image_extent.depth}};
   }
 
-  access_buffer(self, src_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_buffer(self, src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_READ_BIT);
-  access_image(self, dst_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
   self->device->vk_table.CmdCopyBufferToImage(
-      self->vk_command_buffer, src_impl->vk_buffer, dst_impl->vk_image,
+      self->vk_command_buffer, src->vk_buffer, dst->vk_image,
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, num_copies, vk_copies);
 
   self->allocator.deallocate(vk_copies);
 }
 
 void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
-                                         gfx::Image src, gfx::Image dst,
+                                         gfx::Image src_, gfx::Image dst_,
                                          Span<gfx::ImageBlit const> blits,
                                          gfx::Filter                filter)
 {
   CommandEncoder *const self      = (CommandEncoder *) self_;
-  Image *const          src_impl  = (Image *) src;
-  Image *const          dst_impl  = (Image *) dst;
+  Image *const          src       = (Image *) src_;
+  Image *const          dst       = (Image *) dst_;
   u32 const             num_blits = (u32) blits.size;
 
   VALIDATE("", num_blits > 0);
   for (u32 i = 0; i < num_blits; i++)
   {
     gfx::ImageBlit const &blit = blits.data[i];
-    VALIDATE("", blit.src_offsets[0].x <= src_impl->desc.extent.width &&
-                     blit.src_offsets[0].y <= src_impl->desc.extent.height &&
-                     blit.src_offsets[0].z <= src_impl->desc.extent.depth &&
-                     blit.src_offsets[1].x <= src_impl->desc.extent.width &&
-                     blit.src_offsets[1].y <= src_impl->desc.extent.height &&
-                     blit.src_offsets[1].z <= src_impl->desc.extent.depth);
-    VALIDATE("", blit.dst_offsets[0].x <= dst_impl->desc.extent.width &&
-                     blit.dst_offsets[0].y <= dst_impl->desc.extent.height &&
-                     blit.dst_offsets[0].z <= dst_impl->desc.extent.depth &&
-                     blit.dst_offsets[1].x <= dst_impl->desc.extent.width &&
-                     blit.dst_offsets[1].y <= dst_impl->desc.extent.height &&
-                     blit.dst_offsets[1].z <= dst_impl->desc.extent.depth);
+    VALIDATE("", blit.src_offsets[0].x <= src->desc.extent.width &&
+                     blit.src_offsets[0].y <= src->desc.extent.height &&
+                     blit.src_offsets[0].z <= src->desc.extent.depth &&
+                     blit.src_offsets[1].x <= src->desc.extent.width &&
+                     blit.src_offsets[1].y <= src->desc.extent.height &&
+                     blit.src_offsets[1].z <= src->desc.extent.depth);
+    VALIDATE("", blit.dst_offsets[0].x <= dst->desc.extent.width &&
+                     blit.dst_offsets[0].y <= dst->desc.extent.height &&
+                     blit.dst_offsets[0].z <= dst->desc.extent.depth &&
+                     blit.dst_offsets[1].x <= dst->desc.extent.width &&
+                     blit.dst_offsets[1].y <= dst->desc.extent.height &&
+                     blit.dst_offsets[1].z <= dst->desc.extent.depth);
 
-    VALIDATE("", has_bits(src_impl->desc.aspects, blit.src_layers.aspects));
-    VALIDATE("", blit.src_layers.mip_level < src_impl->desc.mip_levels);
-    VALIDATE("",
-             blit.src_layers.first_array_layer < src_impl->desc.array_layers);
-    VALIDATE("",
-             (blit.src_layers.first_array_layer +
-              blit.src_layers.num_array_layers) <= src_impl->desc.array_layers);
+    VALIDATE("", has_bits(src->desc.aspects, blit.src_layers.aspects));
+    VALIDATE("", blit.src_layers.mip_level < src->desc.mip_levels);
+    VALIDATE("", blit.src_layers.first_array_layer < src->desc.array_layers);
+    VALIDATE("", (blit.src_layers.first_array_layer +
+                  blit.src_layers.num_array_layers) <= src->desc.array_layers);
 
-    VALIDATE("", has_bits(dst_impl->desc.aspects, blit.dst_layers.aspects));
-    VALIDATE("", blit.dst_layers.mip_level < dst_impl->desc.mip_levels);
-    VALIDATE("",
-             blit.dst_layers.first_array_layer < dst_impl->desc.array_layers);
-    VALIDATE("",
-             (blit.dst_layers.first_array_layer +
-              blit.dst_layers.num_array_layers) <= dst_impl->desc.array_layers);
+    VALIDATE("", has_bits(dst->desc.aspects, blit.dst_layers.aspects));
+    VALIDATE("", blit.dst_layers.mip_level < dst->desc.mip_levels);
+    VALIDATE("", blit.dst_layers.first_array_layer < dst->desc.array_layers);
+    VALIDATE("", (blit.dst_layers.first_array_layer +
+                  blit.dst_layers.num_array_layers) <= dst->desc.array_layers);
   }
 
   if (self->status != Status::Success)
@@ -4031,85 +4085,110 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
                        (i32) blit.dst_offsets[1].z}}};
   }
 
-  access_image(self, src_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(self, src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_READ_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-  access_image(self, dst_impl, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-  self->device->vk_table.CmdBlitImage(
-      self->vk_command_buffer, src_impl->vk_image,
-      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, src_impl->vk_image,
-      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, num_blits, vk_blits,
-      (VkFilter) filter);
+  self->device->vk_table.CmdBlitImage(self->vk_command_buffer, src->vk_image,
+                                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                      src->vk_image,
+                                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                      num_blits, vk_blits, (VkFilter) filter);
 
   self->allocator.deallocate(vk_blits);
 }
 
 void CommandEncoderInterface::begin_render_pass(
-    gfx::CommandEncoder self_, gfx::Framebuffer framebuffer,
-    gfx::RenderPass render_pass, IRect render_area,
+    gfx::CommandEncoder self_, gfx::Framebuffer framebuffer_,
+    gfx::RenderPass render_pass_, URect render_area,
     Span<gfx::Color const>   color_attachments_clear_values,
-    gfx::DepthStencil const &depth_stencil_attachments_clear_value)
+    gfx::DepthStencil const &depth_stencil_attachment_clear_value)
 {
-  CommandEncoder *const self             = (CommandEncoder *) self_;
-  Framebuffer *const    framebuffer_impl = (Framebuffer *) framebuffer;
-  RenderPass *const     render_pass_impl = (RenderPass *) render_pass;
+  CommandEncoder *const self        = (CommandEncoder *) self_;
+  Framebuffer *const    framebuffer = (Framebuffer *) framebuffer_;
+  RenderPass *const     render_pass = (RenderPass *) render_pass_;
+  u32 const  num_color_clear_values = (u32) color_attachments_clear_values.size;
+  bool const has_depth_stencil_attachment =
+      framebuffer->desc.depth_stencil_attachment != nullptr;
+  u32 const num_vk_clear_values =
+      num_color_clear_values + (has_depth_stencil_attachment ? 1U : 0U);
 
-  // TODO(lamarrr): check renderpass compatible
+  VALIDATE("", is_renderpass_compatible(render_pass, framebuffer->desc));
   VALIDATE("", color_attachments_clear_values.size ==
-                   render_pass_impl->desc.color_attachments.size);
-  VALIDATE("", render_pass_impl->desc.color_attachments.size ==
-                   framebuffer_impl->desc.color_attachments.size);
-  VALIDATE("",
-           render_pass_impl->desc.depth_stencil_attachment.format ==
-                   gfx::Format::Undefined ?
-               (framebuffer_impl->desc.depth_stencil_attachment == nullptr) :
-               (framebuffer_impl->desc.depth_stencil_attachment != nullptr));
+                   framebuffer->desc.color_attachments.size);
+  VALIDATE("", URect{{}, framebuffer->desc.extent}.contains(render_area));
+  static_assert(sizeof(gfx::Color) == sizeof(VkClearColorValue));
 
   if (self->status != Status::Success)
   {
     return;
   }
 
-  // TDOD(LAMARRR): CLEAR VALUES
-
-  self->framebuffer = framebuffer_impl;
-
-  for (u32 i = 0; i < framebuffer_impl->desc.color_attachments.size; i++)
-  {
-    access_image(
-        self, IMAGE_FROM_VIEW(framebuffer_impl->desc.color_attachments.data[i]),
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        color_attachment_image_access(
-            render_pass_impl->desc.color_attachments.data[i]),
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-  }
+  VkClearValue vk_clear_values[gfx::MAX_COLOR_ATTACHMENTS + 1];
 
   {
-    gfx::ImageView view = self->framebuffer->desc.depth_stencil_attachment;
-    if (view != nullptr)
+    u32 ivk_clear_value = 0;
+    for (u32 icolor_clear_value = 0;
+         icolor_clear_value < num_color_clear_values;
+         icolor_clear_value++, ivk_clear_value++)
     {
-      VkAccessFlags access = depth_stencil_attachment_image_access(
-          render_pass_impl->desc.depth_stencil_attachment);
-      access_image(self, IMAGE_FROM_VIEW(view),
-                   VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-                       VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                   access,
-                   has_write_access(access) ?
-                       VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
-                       VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+      gfx::Color const &color =
+          color_attachments_clear_values.data[icolor_clear_value];
+      memcpy(&vk_clear_values[ivk_clear_value].color, &color,
+             sizeof(gfx::Color));
+    }
+
+    if (has_depth_stencil_attachment)
+    {
+      vk_clear_values[ivk_clear_value].depthStencil.depth =
+          depth_stencil_attachment_clear_value.depth;
+      vk_clear_values[ivk_clear_value].depthStencil.stencil =
+          depth_stencil_attachment_clear_value.stencil;
     }
   }
 
-  VkRenderPassBeginInfo begin_info{
-      .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-      .pNext           = nullptr,
-      .renderPass      = render_pass_impl->vk_render_pass,
-      .framebuffer     = framebuffer_impl->vk_framebuffer,
-      .renderArea      = VkRect2D{},
-      .clearValueCount = 1,
-      .pClearValues    = nullptr};
+  self->render_pass = render_pass;
+  self->framebuffer = framebuffer;
+
+  for (u32 i = 0; i < framebuffer->desc.color_attachments.size; i++)
+  {
+    access_image(self,
+                 IMAGE_FROM_VIEW(framebuffer->desc.color_attachments.data[i]),
+                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                 color_attachment_image_access(
+                     render_pass->desc.color_attachments.data[i]),
+                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+  }
+
+  if (has_depth_stencil_attachment)
+  {
+    VkAccessFlags access = depth_stencil_attachment_image_access(
+        render_pass->desc.depth_stencil_attachment);
+    access_image(
+        self, IMAGE_FROM_VIEW(self->framebuffer->desc.depth_stencil_attachment),
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        access,
+        has_write_access(access) ?
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+  }
+
+  VkRect2D vk_render_area{.offset = VkOffset2D{.x = (i32) render_area.offset.x,
+                                               .y = (i32) render_area.offset.y},
+                          .extent =
+                              VkExtent2D{.width  = render_area.extent.width,
+                                         .height = render_area.extent.height}};
+  VkRenderPassBeginInfo begin_info{.sType =
+                                       VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+                                   .pNext       = nullptr,
+                                   .renderPass  = render_pass->vk_render_pass,
+                                   .framebuffer = framebuffer->vk_framebuffer,
+                                   .renderArea  = vk_render_area,
+                                   .clearValueCount = num_vk_clear_values,
+                                   .pClearValues    = vk_clear_values};
 
   self->device->vk_table.CmdBeginRenderPass(
       self->vk_command_buffer, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -4118,6 +4197,8 @@ void CommandEncoderInterface::begin_render_pass(
 void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
+  VALIDATE("", self->render_pass != nullptr);
 
   if (self->status != Status::Success)
   {
@@ -4168,8 +4249,55 @@ void CommandEncoderInterface::bind_descriptor_sets(
     Span<u32 const> groups, Span<u32 const> sets,
     Span<u32 const> dynamic_offsets)
 {
-  // TODO(lamarrr): min of minUniformBufferOffsetAlignment for
-  // dynamicbufferoffset
+  CommandEncoder *const self                = (CommandEncoder *) self_;
+  u32 const             num_sets            = (u32) sets.size;
+  u32 const             num_dynamic_offsets = (u32) dynamic_offsets.size;
+
+  VALIDATE("", num_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
+  VALIDATE("", descriptor_heaps.size == groups.size);
+  VALIDATE("", groups.size == sets.size);
+  VALIDATE("", num_dynamic_offsets <= num_sets);
+  for (u32 iset = 0; iset < num_sets; iset++)
+  {
+    DescriptorHeap *heap = (DescriptorHeap *) descriptor_heaps.data[iset];
+    VALIDATE("",
+             groups.data[iset] < heap->num_pools * heap->num_groups_per_pool);
+    VALIDATE("", sets.data[iset] < heap->num_sets_per_group);
+  }
+
+  VkDescriptorSet vk_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
+
+  for (u32 iset = 0; iset < num_sets; iset++)
+  {
+    DescriptorHeap *heap = (DescriptorHeap *) descriptor_heaps.data[iset];
+    vk_sets[iset] =
+        heap->vk_descriptor_sets[heap->num_sets_per_group * groups.data[iset] +
+                                 sets.data[iset]];
+  }
+
+  VkPipelineBindPoint vk_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
+  VkPipelineLayout    vk_layout     = nullptr;
+
+  if (self->compute_pipeline != nullptr)
+  {
+    vk_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
+    vk_layout     = self->compute_pipeline->vk_layout;
+  }
+  else if (self->graphics_pipeline != nullptr)
+  {
+    vk_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    vk_layout     = self->graphics_pipeline->vk_layout;
+  }
+  else
+  {
+    UNREACHABLE();
+  }
+
+  self->device->vk_table.CmdBindDescriptorSets(
+      self->vk_command_buffer, vk_bind_point, vk_layout, 0, num_sets, vk_sets,
+      num_dynamic_offsets, dynamic_offsets.data);
+  // TODO(lamarrr): store descriptor heaps in command encoder
+  // set num_bound_descriptor_heaps in command encoder
 }
 
 void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
@@ -4177,8 +4305,8 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", (self->compute_pipeline != nullptr) ||
-                   (self->graphics_pipeline != nullptr));
+  VALIDATE("", !(self->compute_pipeline == nullptr &&
+                 self->graphics_pipeline == nullptr));
   VALIDATE("", push_constants_data.size_bytes() <= gfx::MAX_PUSH_CONSTANT_SIZE);
 
   if (self->status != Status::Success)
@@ -4186,20 +4314,24 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
     return;
   }
 
+  VkPipelineLayout vk_layout = nullptr;
+
   if (self->compute_pipeline != nullptr)
   {
-    self->device->vk_table.CmdPushConstants(
-        self->vk_command_buffer, self->compute_pipeline->vk_layout,
-        VK_SHADER_STAGE_ALL, 0, (u32) push_constants_data.size_bytes(),
-        push_constants_data.data);
+    vk_layout = self->compute_pipeline->vk_layout;
   }
   else if (self->graphics_pipeline != nullptr)
   {
-    self->device->vk_table.CmdPushConstants(
-        self->vk_command_buffer, self->graphics_pipeline->vk_layout,
-        VK_SHADER_STAGE_ALL, 0, (u32) push_constants_data.size_bytes(),
-        push_constants_data.data);
+    vk_layout = self->graphics_pipeline->vk_layout;
   }
+  else
+  {
+    UNREACHABLE();
+  }
+
+  self->device->vk_table.CmdPushConstants(
+      self->vk_command_buffer, vk_layout, VK_SHADER_STAGE_ALL, 0,
+      (u32) push_constants_data.size_bytes(), push_constants_data.data);
 }
 
 void CommandEncoderInterface::dispatch(gfx::CommandEncoder self_,
@@ -4207,24 +4339,39 @@ void CommandEncoderInterface::dispatch(gfx::CommandEncoder self_,
                                        u32 group_count_z)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
+  VALIDATE("", self->compute_pipeline != nullptr);
+
+  self->device->vk_table.CmdDispatch(self->vk_command_buffer, group_count_x,
+                                     group_count_y, group_count_z);
 }
 
 void CommandEncoderInterface::dispatch_indirect(gfx::CommandEncoder self_,
-                                                gfx::Buffer buffer, u64 offset)
+                                                gfx::Buffer buffer_, u64 offset)
 {
-  // pre
-  // device->vk_table;
-  // post
+  CommandEncoder *const self   = (CommandEncoder *) self_;
+  Buffer *const         buffer = (Buffer *) buffer_;
+
+  VALIDATE("", self->compute_pipeline != nullptr);
+  VALIDATE("", has_bits(buffer->desc.usage, gfx::BufferUsage::IndirectBuffer));
+  VALIDATE("", offset < buffer->desc.size);
+
+  self->device->vk_table.CmdDispatchIndirect(self->vk_command_buffer,
+                                             buffer->vk_buffer, offset);
 }
 
 void CommandEncoderInterface::set_viewport(gfx::CommandEncoder  self_,
                                            gfx::Viewport const &viewport)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
+  VALIDATE("", self->graphics_pipeline != nullptr);
+
   if (self->status != Status::Success)
   {
     return;
   }
+
   VkViewport vk_viewport{.x        = viewport.area.offset.x,
                          .y        = viewport.area.offset.y,
                          .width    = viewport.area.extent.x,
@@ -4236,15 +4383,19 @@ void CommandEncoderInterface::set_viewport(gfx::CommandEncoder  self_,
 }
 
 void CommandEncoderInterface::set_scissor(gfx::CommandEncoder self_,
-                                          IRect               scissor)
+                                          URect               scissor)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
+  VALIDATE("", self->graphics_pipeline != nullptr);
+
   if (self->status != Status::Success)
   {
     return;
   }
+
   VkRect2D vk_scissor{
-      .offset = VkOffset2D{scissor.offset.x, scissor.offset.y},
+      .offset = VkOffset2D{(i32) scissor.offset.x, (i32) scissor.offset.y},
       .extent = VkExtent2D{scissor.extent.width, scissor.extent.height}};
   self->device->vk_table.CmdSetScissor(self->vk_command_buffer, 0, 1,
                                        &vk_scissor);
@@ -4254,10 +4405,14 @@ void CommandEncoderInterface::set_blend_constants(gfx::CommandEncoder self_,
                                                   Vec4 blend_constants)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
+  VALIDATE("", self->graphics_pipeline != nullptr);
+
   if (self->status != Status::Success)
   {
     return;
   }
+
   f32 vk_constants[4] = {blend_constants.x, blend_constants.y,
                          blend_constants.z, blend_constants.w};
   self->device->vk_table.CmdSetBlendConstants(self->vk_command_buffer,
@@ -4268,10 +4423,14 @@ void CommandEncoderInterface::set_stencil_compare_mask(
     gfx::CommandEncoder self_, gfx::StencilFaces faces, u32 mask)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
+  VALIDATE("", self->graphics_pipeline != nullptr);
+
   if (self->status != Status::Success)
   {
     return;
   }
+
   self->device->vk_table.CmdSetStencilCompareMask(
       self->vk_command_buffer, (VkStencilFaceFlags) faces, mask);
 }
@@ -4281,10 +4440,14 @@ void CommandEncoderInterface::set_stencil_reference(gfx::CommandEncoder self_,
                                                     u32 reference)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
+  VALIDATE("", self->graphics_pipeline != nullptr);
+
   if (self->status != Status::Success)
   {
     return;
   }
+
   self->device->vk_table.CmdSetStencilReference(
       self->vk_command_buffer, (VkStencilFaceFlags) faces, reference);
 }
@@ -4294,10 +4457,14 @@ void CommandEncoderInterface::set_stencil_write_mask(gfx::CommandEncoder self_,
                                                      u32                 mask)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
+  VALIDATE("", self->graphics_pipeline != nullptr);
+
   if (self->status != Status::Success)
   {
     return;
   }
+
   self->device->vk_table.CmdSetStencilWriteMask(
       self->vk_command_buffer, (VkStencilFaceFlags) faces, mask);
 }
@@ -4309,7 +4476,9 @@ void CommandEncoderInterface::set_vertex_buffers(
   CommandEncoder *const self        = (CommandEncoder *) self_;
   u32 const             num_buffers = (u32) vertex_buffers.size;
 
+  VALIDATE("", self->graphics_pipeline != nullptr);
   VALIDATE("", num_buffers > 0);
+  VALIDATE("", offsets.size == vertex_buffers.size);
 
   if (self->status != Status::Success)
   {
@@ -4342,6 +4511,7 @@ void CommandEncoderInterface::set_index_buffer(gfx::CommandEncoder self_,
   CommandEncoder *const self              = (CommandEncoder *) self_;
   Buffer *const         index_buffer_impl = (Buffer *) index_buffer;
 
+  VALIDATE("", self->graphics_pipeline != nullptr);
   VALIDATE("", offset < index_buffer_impl->desc.size);
 
   if (self->status != Status::Success)
@@ -4359,10 +4529,16 @@ void CommandEncoderInterface::draw(gfx::CommandEncoder self_, u32 first_index,
                                    u32 first_instance, u32 num_instances)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
+  VALIDATE("", self->graphics_pipeline != nullptr);
+  VALIDATE("", self->render_pass != nullptr);
+  // TODO(lamarrr): validate input attachment compat
+
   if (self->status != Status::Success)
   {
     return;
   }
+
   self->device->vk_table.CmdDrawIndexed(self->vk_command_buffer, num_indices,
                                         num_instances, first_index,
                                         vertex_offset, first_instance);
@@ -4373,26 +4549,19 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
                                             u32 draw_count, u32 stride)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
+  VALIDATE("", self->graphics_pipeline != nullptr);
+  VALIDATE("", self->render_pass != nullptr);
+  // TODO(lamarrr): validate input attachment compat
+
   if (self->status != Status::Success)
   {
     return;
   }
+
   self->device->vk_table.CmdDrawIndexedIndirect(self->vk_command_buffer,
                                                 ((Buffer *) buffer)->vk_buffer,
                                                 offset, draw_count, stride);
-}
-
-// TODO(lamarrr): instead of this we can have tasks use the trailing frame
-// indices to execute tasks
-void CommandEncoderInterface::on_execution_complete(gfx::CommandEncoder self_,
-                                                    stx::UniqueFn<void()> &&fn)
-{
-  CommandEncoder *const self = (CommandEncoder *) self_;
-  if (self->status != Status::Success)
-  {
-    return;
-  }
-  // self->completion_tasks.push(std::move(fn)).unwrap();
 }
 
 }        // namespace vk
