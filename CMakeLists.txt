@@ -22,11 +22,6 @@ FetchContent_Declare(
   GIT_TAG v1.3.269)
 
 FetchContent_Declare(
-  spirv-reflect-static
-  GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Reflect.git
-  GIT_TAG main)
-
-FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
@@ -50,13 +45,11 @@ find_package(WebP CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
-find_package(libavif CONFIG REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 
 FetchContent_MakeAvailable(stx)
 FetchContent_MakeAvailable(VulkanHeaders)
-FetchContent_MakeAvailable(spirv-reflect-static)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 
 file(GLOB SheenBidi_SOURCES ${SheenBidi_DIR}/Source/*.c)
@@ -80,5 +73,61 @@ else()
   endif()
 endif()
 
-# add_subdirectory(assets)
-add_subdirectory(ashura)
+add_library(ashura_gfx STATIC ashura/gfx.cc ashura/vulkan_gfx.cc)
+
+target_link_libraries(ashura_gfx stx::stx Vulkan::Headers
+                      GPUOpen::VulkanMemoryAllocator)
+
+target_include_directories(
+  ashura_gfx
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  PRIVATE src)
+
+add_library(
+  ashura STATIC
+  ashura/app.cc
+  ashura/engine.cc
+  ashura/widget.cc
+  ashura/rengoku.cc
+  ashura/loggers.cc
+  ashura/subsystems/http_client.cc
+  ashura/ecs.cc)
+
+target_include_directories(
+  ashura
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ashura ${JPEG_INCLUDE_DIR})
+
+target_link_libraries(
+  ashura
+  ashura_gfx
+  stx::stx
+  SDL3::SDL3-static
+  fmt::fmt
+  spdlog::spdlog
+  harfbuzz
+  CURL::libcurl
+  Freetype::Freetype
+  simdjson::simdjson
+  WebP::webp
+  WebP::webpdecoder
+  ${JPEG_LIBRARIES}
+  PNG::PNG
+  ${FFMPEG_LIBRARIES}
+  SheenBidi::SheenBidi)
+
+target_include_directories(ashura PUBLIC ${FFMPEG_INCLUDE_DIRS})
+target_link_directories(ashura PUBLIC ${FFMPEG_LIBRARY_DIRS})
+
+set_target_properties(ashura PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED
+                                                        ON)
+
+add_executable(ashura_main ashura/ashura.cc)
+target_link_libraries(ashura_main ashura)
+
+add_executable(ashura_networking_test ashura/tests/http.cc)
+target_link_libraries(ashura_networking_test ashura GTest::gtest
+                      GTest::gtest_main)
+
+add_executable(ashura_test ashura/tests/layout.cc)
+target_link_libraries(ashura_test ashura GTest::gtest GTest::gtest_main)
+

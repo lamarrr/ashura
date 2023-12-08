@@ -89,10 +89,7 @@ static AllocatorImpl default_heap_allocator{
     .self      = (Allocator) &default_heap,
     .interface = &default_heap_allocator_interface};
 
-// TODO(lamarrr): command buffer state checks
 // todo(lamarrr): define macros for checks, use debug name
-// todo(lamarrr): check state of command encoder and other stateful objects
-// before destroying
 static gfx::DeviceInterface const device_interface{
     .ref                   = DeviceInterface::ref,
     .unref                 = DeviceInterface::unref,
