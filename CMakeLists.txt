@@ -4,6 +4,7 @@ project(Ashura)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_COLOR_DIAGNOSTICS ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -68,10 +69,10 @@ target_include_directories(
 add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
 if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
-  add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)
+  add_compile_options(-Wall -Wextra -Wpedantic)
 else()
   if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
-    add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic -Wno-nullability-extension)
+    add_compile_options(-Wall -Wextra -Wpedantic -Wno-nullability-extension)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
       add_compile_options(/W4)
