@@ -27,31 +27,6 @@
 
 #define AS(type, ...) static_cast<type>(__VA_ARGS__)
 
-#define AS_U8(...) AS(::ash::u8, __VA_ARGS__)
-#define AS_U16(...) AS(::ash::u16, __VA_ARGS__)
-#define AS_U32(...) AS(::ash::u32, __VA_ARGS__)
-#define AS_U64(...) AS(::ash::u64, __VA_ARGS__)
-
-#define AS_I8(...) AS(::ash::i8, __VA_ARGS__)
-#define AS_I16(...) AS(::ash::i16, __VA_ARGS__)
-#define AS_I32(...) AS(::ash::i32, __VA_ARGS__)
-#define AS_I64(...) AS(::ash::i64, __VA_ARGS__)
-
-#define AS_F32(...) AS(::ash::f32, __VA_ARGS__)
-#define AS_F64(...) AS(::ash::f64, __VA_ARGS__)
-
-#define ASH_U8_CLAMP(...) \
-  ((__VA_ARGS__) < 0 ?    \
-       (::ash::u8) 0 :    \
-       ((__VA_ARGS__) > 255 ? (::ash::u8) 255 : (::ash::u8)(__VA_ARGS__)))
-
-#if STX_CFG(COMPILER, MSVC) || STX_CFG(COMPILER, CLANG) || \
-    STX_CFG(COMPILER, GNUC)
-#  define ASH_RESTRICT __restrict
-#else
-#  define ASH_RESTRICT
-#endif
-
 namespace ash
 {
 

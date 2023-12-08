@@ -173,7 +173,7 @@ void HttpTask::begin_request(CURL *easy, CURLM *multi, HttpTaskInfo *info_addr)
 void HttpTask::retrieve_progress_info(CURL *easy, CURLINFO info, u64 &value)
 {
   curl_off_t curl_value;
-  AS_U64(curl_easy_getinfo(easy, info, &curl_value));
+  ASH_CURLE_CHECK(curl_easy_getinfo(easy, info, &curl_value));
   value = static_cast<u64>(curl_value);
 }
 
@@ -188,7 +188,7 @@ void HttpTask::retrieve_optional_progress_info(CURL *easy, CURLINFO info,
   }
   else
   {
-    value = stx::Some(AS_U64(curl_value));
+    value = stx::Some(static_cast<u64>(curl_value));
   }
 }
 

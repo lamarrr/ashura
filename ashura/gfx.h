@@ -1,10 +1,11 @@
 #pragma once
-#include "ashura/integers.h"
+#include "ashura/integrals.h"
 #include "ashura/primitives.h"
 #include "ashura/span.h"
+#include "ashura/surface.h"
 #include "stx/enum.h"
-#include "stx/fn.h"
 #include "stx/result.h"
+#include "stx/void.h"
 
 namespace ash
 {
@@ -27,6 +28,9 @@ constexpr u32 MAX_MEMORY_HEAP_PROPERTIES   = 32;
 constexpr u32 MAX_MEMORY_HEAPS             = 16;
 constexpr u32 NUM_DESCRIPTOR_TYPES         = 11;
 constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 8;
+constexpr u32 MAX_COMPUTE_GROUP_COUNT_X    = 1024;
+constexpr u32 MAX_COMPUTE_GROUP_COUNT_Y    = 1024;
+constexpr u32 MAX_COMPUTE_GROUP_COUNT_Z    = 1024;
 
 typedef u64                            FrameId;
 typedef struct Buffer_T               *Buffer;
@@ -45,6 +49,8 @@ typedef struct ComputePipeline_T      *ComputePipeline;
 typedef struct GraphicsPipeline_T     *GraphicsPipeline;
 typedef struct Fence_T                *Fence;
 typedef struct CommandEncoder_T       *CommandEncoder;
+typedef struct Swapchain_T            *Swapchain;
+typedef struct FrameContext_T         *FrameContext;
 typedef struct Device_T               *Device;
 typedef struct DescriptorHeapInterface DescriptorHeapInterface;
 typedef struct CommandEncoderInterface CommandEncoderInterface;
@@ -716,27 +722,10 @@ enum class DescriptorType : u32
   InputAttachment      = 10
 };
 
-enum class CommandEncoderState : u8
-{
-  Initial    = 0,
-  Recording  = 1,
-  Executable = 2,
-  Pending    = 3,
-  Invalid    = 4
-};
-
 struct SurfaceFormat
 {
   ColorSpace color_space = ColorSpace::SRGB_NONLINEAR;
   Format     format      = Format::Undefined;
-};
-
-struct SurfaceCapabilities
-{
-  Span<SurfaceFormat const> formats       = {};
-  Span<PresentMode const>   present_modes = {};
-  u32                       min_buffering = 0;
-  u32                       max_buffering = 0;
 };
 
 struct FrameIndex
@@ -957,21 +946,6 @@ struct PipelineCacheDesc
 {
   char const    *label        = nullptr;
   Span<u8 const> initial_data = {};
-};
-
-struct DescriptorCount
-{
-  u32 samplers                = 0;
-  u32 combined_image_samplers = 0;
-  u32 sampled_images          = 0;
-  u32 storage_images          = 0;
-  u32 uniform_texel_buffers   = 0;
-  u32 storage_texel_buffers   = 0;
-  u32 uniform_buffers         = 0;
-  u32 storage_buffers         = 0;
-  u32 dynamic_uniform_buffers = 0;
-  u32 dynamic_storage_buffers = 0;
-  u32 input_attachments       = 0;
 };
 
 struct SamplerBinding
@@ -1209,37 +1183,39 @@ union ClearValue
   DepthStencil depth_stencil;
 };
 
-struct SurfaceConfig
+struct SwapchainConfig
 {
-  ColorSpace  color_space  = ColorSpace::SRGB_NONLINEAR;
-  Format      format       = Format::Undefined;
-  u32         buffering    = 0;
-  PresentMode present_mode = PresentMode::Fifo;
+  SurfaceFormat format       = {};
+  u32           buffering    = 0;
+  PresentMode   present_mode = PresentMode::Fifo;
 };
 
-/// @frame_stamp: frame at which the swapchain was created. used to know if we
-/// are referring to a different swapchain and synchronizing creation of
-/// renderpasses and framebuffers
+/// @timestamp: increases everytime the swapchain for the surface is recreated
+/// or re-configured
 /// @images: swapchain images, calling ref or unref on them will cause a panic
-/// as they are only meant to exist for the lifetime of the frame
-struct SurfaceInfo
+/// as they are only meant to exist for the lifetime of the frame.
+/// avoid storing pointers to its data members.
+struct SwapchainInfo
 {
-  FrameId           frame_stamp   = 0;
+  u64               timestamp     = 0;
   Extent            extent        = {};
-  Format            format        = Format::Undefined;
-  ColorSpace        color_space   = ColorSpace::SRGB_NONLINEAR;
+  SurfaceFormat     format        = {};
   Span<Image const> images        = {};
   u32               current_image = 0;
 };
 
+/// should be assumed to change from frame to frame.
+/// avoid storing pointers to this struct.
+///
 struct FrameInfo
 {
-  FrameId     trailing     = 0;
-  FrameId     current      = 0;
-  SurfaceInfo surface_info = {};
+  FrameId                    trailing                = 0;
+  FrameId                    current                 = 0;
+  Span<CommandEncoder const> command_encoders        = {};
+  Span<Fence const>          command_encoder_fences  = {};
+  u32                        current_command_encoder = 0;
 };
 
-// TODO(lamarrr): device selection? device list
 struct DeviceInfo
 {
   u32               api_version    = 0;
@@ -1254,10 +1230,10 @@ struct DeviceInfo
   DeviceFeatures    features       = DeviceFeatures::None;
 };
 
-/// @num_allocated_groups: number of alive set group allocations
+/// @num_allocated_groups: number of alive group allocations
 /// @num_free_groups: number of released and reclaimable desciptor groups
 /// @num_released_groups: number of released but non-reclaimable descriptor
-/// groups. possibly still in use by the device. resolved on tick()
+/// groups. possibly still in use by the device.
 struct DescriptorHeapStats
 {
   u32 num_allocated_groups = 0;
@@ -1395,8 +1371,6 @@ struct CommandEncoderImpl
   }
 };
 
-/// @present_frame: present current frame (swapchain image) and advance to the
-/// next frame and recreate swapchain image as necessary
 struct DeviceInterface
 {
   void (*ref)(Device self)                                   = nullptr;
@@ -1434,6 +1408,10 @@ struct DeviceInterface
   Result<Fence, Status> (*create_fence)(Device self, bool signaled) = nullptr;
   Result<CommandEncoderImpl, Status> (*create_command_encoder)(Device self) =
       nullptr;
+  Result<FrameContext, Status> (*create_frame_context)(
+      Device self, u32 max_frames_in_flight) = nullptr;
+  Result<Swapchain, Status> (*create_swapchain)(
+      Device self, Surface surface, SwapchainConfig const &config)    = nullptr;
   void (*ref_buffer)(Device self, Buffer buffer)                      = nullptr;
   void (*ref_buffer_view)(Device self, BufferView buffer_view)        = nullptr;
   void (*ref_image)(Device self, Image image)                         = nullptr;
@@ -1452,6 +1430,8 @@ struct DeviceInterface
   void (*ref_fence)(Device self, Fence fence)                         = nullptr;
   void (*ref_command_encoder)(Device             self,
                               CommandEncoderImpl encoder)             = nullptr;
+  void (*ref_frame_context)(Device self, FrameContext frame_context)  = nullptr;
+  void (*ref_swapchain)(Device self, Swapchain swapchain)             = nullptr;
   void (*unref_buffer)(Device self, Buffer buffer)                    = nullptr;
   void (*unref_buffer_view)(Device self, BufferView buffer_view)      = nullptr;
   void (*unref_image)(Device self, Image image)                       = nullptr;
@@ -1471,6 +1451,9 @@ struct DeviceInterface
   void (*unref_fence)(Device self, Fence fence)                       = nullptr;
   void (*unref_command_encoder)(Device             self,
                                 CommandEncoderImpl encoder)           = nullptr;
+  void (*unref_frame_context)(Device       self,
+                              FrameContext frame_context)             = nullptr;
+  void (*unref_swapchain)(Device self, Swapchain swapchain)           = nullptr;
   Result<void *, Status> (*get_buffer_memory_map)(Device self,
                                                   Buffer buffer)      = nullptr;
   Result<Void, Status> (*invalidate_buffer_memory_map)(
@@ -1493,11 +1476,44 @@ struct DeviceInterface
                                  Fence signal_fence)                  = nullptr;
   Result<Void, Status> (*wait_idle)(Device self)                      = nullptr;
   Result<Void, Status> (*wait_queue_idle)(Device self)                = nullptr;
-  Result<FrameInfo, Status> (*get_frame_info)(Device self)            = nullptr;
-  Result<Void, Status> (*present_frame)(Device self)                  = nullptr;
-  Result<SurfaceCapabilities, Status> (*get_surface_capabilities)(Device self) =
+  Result<FrameInfo, Status> (*get_frame_info)(
+      Device self, FrameContext frame_context) = nullptr;
+  Result<u32, Status> (*get_surface_formats)(
+      Device self, Surface surface, Span<SurfaceFormat> formats) = nullptr;
+  Result<u32, Status> (*get_surface_present_modes)(
+      Device self, Surface surface, Span<PresentMode> modes)     = nullptr;
+  Result<u32, Status> (*get_surface_min_images)(Device  self,
+                                                Surface surface) = nullptr;
+  Result<u32, Status> (*get_surface_max_images)(Device  self,
+                                                Surface surface) = nullptr;
+  Result<SwapchainInfo, Status> (*get_swapchain_info)(
+      Device self, Swapchain swapchain) = nullptr;
+  Result<Void, Status> (*update_swapchain)(Device self, Swapchain swapchain,
+                                           SwapchainConfig const &config) =
       nullptr;
-  Result<Void, Status> (*config_surface)(SurfaceConfig const &config) = nullptr;
+  Result<Void, Status> (*submit_frame)(Device                self,
+                                       Span<Swapchain const> swapchains,
+                                       FrameContext frame_context) = nullptr;
+  // advance frame id, if swapchain redundant, mark as redundant for next frame
+  // and let them do the work again acquire next image at start of frame and
+  // recreate if necessary, not at end of loop
+  //
+  // (must be checked that it is initialized, we don't configure surfaces, it
+  // must be configured.
+  //
+  // how to manage format and config selection with changing
+  // windows and possibly unsupported formats and color
+  // spaces, this might cause issues.
+  // surface must have been created from from a vkphydevice and window must give
+  // this.
+  // we should probably take a function that configures the swapchain's format
+  // and color space
+  //
+  //
+  // submits current frame and advances to the next
+  // TODO(lamarrr): swapchain recreation
+  // submit along with surface?
+  // multi-window rendering?
   // must be called before beginning frame or recording frame info
   // TODO(lamarrr): create default config based on backend
   // on present frame the swapchain might become invalid and we might need to
@@ -1505,6 +1521,10 @@ struct DeviceInterface
   // recreated and the config stored
   // TODO(lamarrr): make resilient to changing displays, surfaces, ability to
   // re-attach surfaces?
+  // CREATE FRAME COMMAND ENCODERS? we'll be able to know
+  // which to handle out and which to reserve
+  // next_frame => format + command buffers + wait fences + wait semaphores
+  // submit_frame => signal semaphores + signal fences
 };
 
 struct DeviceImpl
@@ -1597,6 +1617,16 @@ struct DeviceImpl
     interface->ref_command_encoder(self, object);
   }
 
+  void ref(FrameContext object) const
+  {
+    interface->ref_frame_context(self, object);
+  }
+
+  void ref(Swapchain object) const
+  {
+    interface->ref_swapchain(self, object);
+  }
+
   void unref(Buffer object) const
   {
     interface->unref_buffer(self, object);
@@ -1671,6 +1701,16 @@ struct DeviceImpl
   {
     interface->unref_command_encoder(self, object);
   }
+
+  void unref(FrameContext object) const
+  {
+    interface->unref_frame_context(self, object);
+  }
+
+  void unref(Swapchain object) const
+  {
+    interface->unref_swapchain(self, object);
+  }
 };
 
 template <typename Object>
@@ -1707,6 +1747,7 @@ struct Rc
     other.device.ref(other.object);
     device = other.device;
     object = other.object;
+    return *this;
   }
 
   constexpr Rc &operator=(Rc &&other)
@@ -1723,6 +1764,11 @@ struct Rc
       device.unref(object);
     }
   }
+};
+
+struct Api
+{
+  DeviceImpl (*create_device)(Span<DeviceType const> preferred_types) = nullptr;
 };
 
 }        // namespace gfx

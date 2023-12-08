@@ -28,87 +28,29 @@ constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
     VK_EXT_MESH_SHADER_EXTENSION_NAME};
 // TODO(lamarrr): specify polyfills
 
-// only for purely trivial types
-template <typename T>
-struct Vec
-{
-  T    *data     = nullptr;
-  usize size     = 0;
-  usize capacity = 0;
-
-  Status reserve(AllocatorImpl allocator, usize target_size)
-  {
-    if (target_size <= capacity) [[unlikely]]
-    {
-      return Status::Success;
-    }
-    usize const target_capacity = target_size + (target_size >> 1);
-    T *new_data = (T *) allocator.reallocate(data, sizeof(T) * target_capacity,
-                                             alignof(T));
-    if (new_data == nullptr) [[unlikely]]
-    {
-      return Status::OutOfHostMemory;
-    }
-    data     = new_data;
-    capacity = target_capacity;
-    return Status::Success;
-  }
-
-  Status grow_size(AllocatorImpl allocator, usize growth)
-  {
-    Status status = reserve(allocator, size + growth);
-    if (status != Status::Success) [[unlikely]]
-    {
-      return status;
-    }
-    size += growth;
-    return Status::Success;
-  }
-
-  void fill(T const &element, usize begin, usize num)
-  {
-    for (usize i = begin; i < begin + num && i < size; i++)
-    {
-      data[i] = element;
-    }
-  }
-
-  Status push(AllocatorImpl allocator, T const &element)
-  {
-    Status status = reserve(allocator, size + 1);
-    if (status != Status::Success) [[unlikely]]
-    {
-      return status;
-    }
-    data[size] = element;
-    size++;
-
-    return Status::Success;
-  }
-
-  void clear()
-  {
-    size = 0;
-  }
-
-  void deallocate(AllocatorImpl allocator)
-  {
-    allocator.deallocate(data);
-    data     = nullptr;
-    size     = 0;
-    capacity = 0;
-  }
-
-  T *begin()
-  {
-    return data;
-  }
-
-  T *end()
-  {
-    return data + size;
-  }
-};
+typedef struct InstanceTable           InstanceTable;
+typedef struct DeviceTable             DeviceTable;
+typedef struct Buffer                  Buffer;
+typedef struct BufferView              BufferView;
+typedef struct Image                   Image;
+typedef struct ImageView               ImageView;
+typedef struct RenderPass              RenderPass;
+typedef struct Framebuffer             Framebuffer;
+typedef struct Shader                  Shader;
+typedef struct DescriptorSetLayout     DescriptorSetLayout;
+typedef struct PipelineCache           PipelineCache;
+typedef struct ComputePipeline         ComputePipeline;
+typedef struct GraphicsPipeline        GraphicsPipeline;
+typedef struct Sampler                 Sampler;
+typedef struct Fence                   Fence;
+typedef struct Device                  Device;
+typedef struct DescriptorHeap          DescriptorHeap;
+typedef struct CommandEncoder          CommandEncoder;
+typedef struct DeviceInterface         DeviceInterface;
+typedef struct DescriptorHeapInterface DescriptorHeapInterface;
+typedef struct CommandEncoderInterface CommandEncoderInterface;
+typedef struct Swapchain               Swapchain;
+typedef struct FrameContext            FrameContext;
 
 struct InstanceTable
 {
@@ -264,6 +206,12 @@ struct DeviceTable
   PFN_vkEndCommandBuffer          EndCommandBuffer          = nullptr;
   PFN_vkResetCommandBuffer        ResetCommandBuffer        = nullptr;
 
+  PFN_vkCreateSwapchainKHR    CreateSwapchainKHR    = nullptr;
+  PFN_vkDestroySwapchainKHR   DestroySwapchainKHR   = nullptr;
+  PFN_vkGetSwapchainImagesKHR GetSwapchainImagesKHR = nullptr;
+  PFN_vkAcquireNextImageKHR   AcquireNextImageKHR   = nullptr;
+  PFN_vkQueuePresentKHR       QueuePresentKHR       = nullptr;
+
   PFN_vkDebugMarkerSetObjectTagEXT  DebugMarkerSetObjectTagEXT  = nullptr;
   PFN_vkDebugMarkerSetObjectNameEXT DebugMarkerSetObjectNameEXT = nullptr;
 
@@ -272,7 +220,6 @@ struct DeviceTable
   PFN_vkCmdDebugMarkerInsertEXT CmdDebugMarkerInsertEXT = nullptr;
 };
 
-// TODO(lamarrr): CHECKS push constant size match check
 // NOTE: renderpass attachments MUST not be accessed in shaders within that
 // renderpass NOTE: update_buffer and fill_buffer MUST be multiple of 4 for dst
 // offset and dst size
@@ -407,15 +354,6 @@ struct Fence
   VkFence vk_fence = nullptr;
 };
 
-struct Swapchain
-{
-  gfx::SurfaceInfo info          = {};
-  VkSwapchainKHR   vk_swapchain  = nullptr;
-  Image           *images        = nullptr;
-  u32              num_images    = 0;
-  u32              current_image = 0;
-};
-
 struct Device
 {
   u64                        refcount                 = 0;
@@ -430,9 +368,6 @@ struct Device
   u32                        queue_family             = 0;
   VkQueue                    vk_queue                 = nullptr;
   VmaAllocator               vma_allocator            = nullptr;
-  Swapchain                  swapchain                = {};
-  gfx::FrameId               trailing_frame           = 0;
-  gfx::FrameId               current_frame            = 0;
 };
 
 /// @struct DescriptorHeap
@@ -487,8 +422,31 @@ struct CommandEncoder
   u32    bound_descriptor_set_groups[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
   u32    bound_descriptor_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]       = {};
   u32    num_bound_descriptor_sets                                      = 0;
-  Status status                  = Status::Success;
-  gfx::CommandEncoderState state = gfx::CommandEncoderState::Initial;
+  Status status = Status::Success;
+};
+
+struct Swapchain
+{
+  u64                refcount      = 0;
+  u64                timestamp     = 0;
+  Extent             extent        = {};
+  gfx::SurfaceFormat format        = {};
+  Image             *images        = nullptr;
+  u32                num_images    = 0;
+  u32                current_image = 0;
+  VkSwapchainKHR     vk_swapchain  = nullptr;
+};
+
+struct FrameContext
+{
+  u64             refcount                 = 0;
+  gfx::FrameId    trailing_frame           = 0;
+  gfx::FrameId    current_frame            = 0;
+  CommandEncoder *command_encoders         = nullptr;
+  Fence          *fences                   = nullptr;
+  VkSemaphore    *semaphores               = nullptr;
+  u32             num_command_encoders     = 0;
+  u32             current_command_encoders = 0;
 };
 
 struct DeviceInterface
@@ -533,7 +491,12 @@ struct DeviceInterface
   static Result<gfx::Fence, Status> create_fence(gfx::Device self,
                                                  bool        signaled);
   static Result<gfx::CommandEncoderImpl, Status>
-              create_command_encoder(gfx::Device self);
+      create_command_encoder(gfx::Device self);
+  static Result<gfx::FrameContext, Status>
+      create_frame_context(gfx::Device self, u32 max_frames_in_flight);
+  static Result<gfx::Swapchain, Status>
+              create_swapchain(gfx::Device self, Surface surface,
+                               gfx::SwapchainConfig const &config);
   static void ref_buffer(gfx::Device self, gfx::Buffer buffer);
   static void ref_buffer_view(gfx::Device self, gfx::BufferView buffer_view);
   static void ref_image(gfx::Device self, gfx::Image image);
@@ -554,6 +517,9 @@ struct DeviceInterface
   static void ref_fence(gfx::Device self, gfx::Fence fence);
   static void ref_command_encoder(gfx::Device             self,
                                   gfx::CommandEncoderImpl encoder);
+  static void ref_frame_context(gfx::Device       self,
+                                gfx::FrameContext frame_context);
+  static void ref_swapchain(gfx::Device self, gfx::Swapchain swapchain);
   static void unref_buffer(gfx::Device self, gfx::Buffer buffer);
   static void unref_buffer_view(gfx::Device self, gfx::BufferView buffer_view);
   static void unref_image(gfx::Device self, gfx::Image image);
@@ -574,6 +540,9 @@ struct DeviceInterface
   static void unref_fence(gfx::Device self, gfx::Fence fence);
   static void unref_command_encoder(gfx::Device             self,
                                     gfx::CommandEncoderImpl encoder);
+  static void unref_frame_context(gfx::Device       self,
+                                  gfx::FrameContext frame_context);
+  static void unref_swapchain(gfx::Device self, gfx::Swapchain swapchain);
   static Result<void *, Status> get_buffer_memory_map(gfx::Device self,
                                                       gfx::Buffer buffer);
   static Result<Void, Status>
@@ -590,23 +559,38 @@ struct DeviceInterface
   static Result<Void, Status>
       merge_pipeline_cache(gfx::Device self, gfx::PipelineCache dst,
                            Span<gfx::PipelineCache const> srcs);
-  static Result<Void, Status>           wait_for_fences(gfx::Device            self,
-                                                        Span<gfx::Fence const> fences,
-                                                        bool all, u64 timeout);
-  static Result<Void, Status>           reset_fences(gfx::Device            self,
-                                                     Span<gfx::Fence const> fences);
-  static Result<bool, Status>           get_fence_status(gfx::Device self,
-                                                         gfx::Fence  fence);
-  static Result<Void, Status>           submit(gfx::Device         self,
-                                               gfx::CommandEncoder encoder,
-                                               gfx::Fence          signal_fence);
-  static Result<Void, Status>           wait_idle(gfx::Device self);
-  static Result<Void, Status>           wait_queue_idle(gfx::Device self);
-  static Result<gfx::FrameInfo, Status> get_frame_info(gfx::Device self);
-  static Result<Void, Status>           present_frame(gfx::Device self);
-  static Result<gfx::SurfaceCapabilities, Status>
-                              get_surface_capabilities(gfx::Device self);
-  static Result<Void, Status> config_surface(gfx::SurfaceConfig const &config);
+  static Result<Void, Status> wait_for_fences(gfx::Device            self,
+                                              Span<gfx::Fence const> fences,
+                                              bool all, u64 timeout);
+  static Result<Void, Status> reset_fences(gfx::Device            self,
+                                           Span<gfx::Fence const> fences);
+  static Result<bool, Status> get_fence_status(gfx::Device self,
+                                               gfx::Fence  fence);
+  static Result<Void, Status> submit(gfx::Device         self,
+                                     gfx::CommandEncoder encoder,
+                                     gfx::Fence          signal_fence);
+  static Result<Void, Status> wait_idle(gfx::Device self);
+  static Result<Void, Status> wait_queue_idle(gfx::Device self);
+  static Result<gfx::FrameInfo, Status>
+      get_frame_info(gfx::Device self, gfx::FrameContext frame_context);
+  static Result<u32, Status>
+      get_surface_formats(gfx::Device self, Surface surface,
+                          Span<gfx::SurfaceFormat> formats);
+  static Result<u32, Status>
+      get_surface_present_modes(gfx::Device self, Surface surface,
+                                Span<gfx::PresentMode> modes);
+  static Result<u32, Status> get_surface_min_images(gfx::Device self,
+                                                    Surface     surface);
+  static Result<u32, Status> get_surface_max_images(gfx::Device self,
+                                                    Surface     surface);
+  static Result<gfx::SwapchainInfo, Status>
+      get_swapchain_info(gfx::Device self, gfx::Swapchain swapchain);
+  static Result<Void, Status>
+      update_swapchain(gfx::Device self, gfx::Swapchain swapchain,
+                       gfx::SwapchainConfig const &config);
+  static Result<Void, Status>
+      submit_frame(gfx::Device self, Span<gfx::Swapchain const> swapchains,
+                   gfx::FrameContext frame_context);
 };
 
 struct DescriptorHeapInterface

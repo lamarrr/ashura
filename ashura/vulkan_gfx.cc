@@ -109,6 +109,8 @@ static gfx::DeviceInterface const device_interface{
     .create_pipeline_cache       = DeviceInterface::create_pipeline_cache,
     .create_compute_pipeline     = DeviceInterface::create_compute_pipeline,
     .create_fence                = DeviceInterface::create_fence,
+    .create_frame_context        = DeviceInterface::create_frame_context,
+    .create_swapchain            = DeviceInterface::create_swapchain,
     .ref_buffer                  = DeviceInterface::ref_buffer,
     .ref_buffer_view             = DeviceInterface::ref_buffer_view,
     .ref_image                   = DeviceInterface::ref_image,
@@ -123,6 +125,8 @@ static gfx::DeviceInterface const device_interface{
     .ref_compute_pipeline        = DeviceInterface::ref_compute_pipeline,
     .ref_fence                   = DeviceInterface::ref_fence,
     .ref_command_encoder         = DeviceInterface::ref_command_encoder,
+    .ref_frame_context           = DeviceInterface::ref_frame_context,
+    .ref_swapchain               = DeviceInterface::ref_swapchain,
     .unref_buffer                = DeviceInterface::unref_buffer,
     .unref_buffer_view           = DeviceInterface::unref_buffer_view,
     .unref_image                 = DeviceInterface::unref_image,
@@ -137,23 +141,29 @@ static gfx::DeviceInterface const device_interface{
     .unref_compute_pipeline      = DeviceInterface::unref_compute_pipeline,
     .unref_fence                 = DeviceInterface::unref_fence,
     .unref_command_encoder       = DeviceInterface::unref_command_encoder,
+    .unref_frame_context         = DeviceInterface::unref_frame_context,
+    .unref_swapchain             = DeviceInterface::unref_swapchain,
     .get_buffer_memory_map       = DeviceInterface::get_buffer_memory_map,
     .invalidate_buffer_memory_map =
         DeviceInterface::invalidate_buffer_memory_map,
-    .flush_buffer_memory_map  = DeviceInterface::flush_buffer_memory_map,
-    .get_pipeline_cache_size  = DeviceInterface::get_pipeline_cache_size,
-    .get_pipeline_cache_data  = DeviceInterface::get_pipeline_cache_data,
-    .merge_pipeline_cache     = DeviceInterface::merge_pipeline_cache,
-    .wait_for_fences          = DeviceInterface::wait_for_fences,
-    .reset_fences             = DeviceInterface::reset_fences,
-    .get_fence_status         = DeviceInterface::get_fence_status,
-    .submit                   = DeviceInterface::submit,
-    .wait_idle                = DeviceInterface::wait_idle,
-    .wait_queue_idle          = DeviceInterface::wait_queue_idle,
-    .get_frame_info           = DeviceInterface::get_frame_info,
-    .present_frame            = DeviceInterface::present_frame,
-    .get_surface_capabilities = DeviceInterface::get_surface_capabilities,
-    .config_surface           = DeviceInterface::config_surface};
+    .flush_buffer_memory_map   = DeviceInterface::flush_buffer_memory_map,
+    .get_pipeline_cache_size   = DeviceInterface::get_pipeline_cache_size,
+    .get_pipeline_cache_data   = DeviceInterface::get_pipeline_cache_data,
+    .merge_pipeline_cache      = DeviceInterface::merge_pipeline_cache,
+    .wait_for_fences           = DeviceInterface::wait_for_fences,
+    .reset_fences              = DeviceInterface::reset_fences,
+    .get_fence_status          = DeviceInterface::get_fence_status,
+    .submit                    = DeviceInterface::submit,
+    .wait_idle                 = DeviceInterface::wait_idle,
+    .wait_queue_idle           = DeviceInterface::wait_queue_idle,
+    .get_frame_info            = DeviceInterface::get_frame_info,
+    .get_surface_formats       = DeviceInterface::get_surface_formats,
+    .get_surface_present_modes = DeviceInterface::get_surface_present_modes,
+    .get_surface_min_images    = DeviceInterface::get_surface_min_images,
+    .get_surface_max_images    = DeviceInterface::get_surface_max_images,
+    .get_swapchain_info        = DeviceInterface::get_swapchain_info,
+    .update_swapchain          = DeviceInterface::update_swapchain,
+    .submit_frame              = DeviceInterface::submit_frame};
 
 static gfx::DescriptorHeapInterface const descriptor_heap_interface{
     .add_group              = DescriptorHeapInterface::add_group,
@@ -398,6 +408,12 @@ bool load_device_table(VkDevice device, DeviceTable &vk_table,
   LOAD_VK(CmdWriteTimestamp);
   LOAD_VK(EndCommandBuffer);
   LOAD_VK(ResetCommandBuffer);
+
+  LOAD_VK(CreateSwapchainKHR);
+  LOAD_VK(DestroySwapchainKHR);
+  LOAD_VK(GetSwapchainImagesKHR);
+  LOAD_VK(AcquireNextImageKHR);
+  LOAD_VK(QueuePresentKHR);
 #undef LOAD_VK
 
 #define LOAD_VKEXT(function)                                          \
@@ -932,8 +948,8 @@ static bool is_renderpass_compatible(RenderPass const           *render_pass,
 
   for (usize i = 0; i < render_pass->desc.color_attachments.size; i++)
   {
-    if (render_pass->desc.color_attachments.data[i].format !=
-        IMAGE_FROM_VIEW(desc.color_attachments.data[i])->desc.format)
+    if (render_pass->desc.color_attachments[i].format !=
+        IMAGE_FROM_VIEW(desc.color_attachments[i])->desc.format)
     {
       return false;
     }
@@ -1389,7 +1405,7 @@ Result<gfx::RenderPass, Status>
        icolor_attachment++, iattachment++)
   {
     gfx::RenderPassAttachment const &attachment =
-        desc.color_attachments.data[icolor_attachment];
+        desc.color_attachments[icolor_attachment];
     vk_attachments[iattachment] = VkAttachmentDescription{
         .flags          = 0,
         .format         = (VkFormat) attachment.format,
@@ -1436,7 +1452,7 @@ Result<gfx::RenderPass, Status>
        iinput_attachment++, iattachment++)
   {
     gfx::RenderPassAttachment const &attachment =
-        desc.input_attachments.data[iinput_attachment];
+        desc.input_attachments[iinput_attachment];
     vk_attachments[iattachment] = VkAttachmentDescription{
         .flags          = 0,
         .format         = (VkFormat) attachment.format,
@@ -1549,7 +1565,7 @@ Result<gfx::Framebuffer, Status>
        icolor_attachment++, ivk_attachment++)
   {
     vk_attachments[ivk_attachment] =
-        ((ImageView *) desc.color_attachments.data[icolor_attachment])->vk_view;
+        ((ImageView *) desc.color_attachments[icolor_attachment])->vk_view;
   }
 
   if (has_depth_stencil_attachment)
@@ -1622,7 +1638,7 @@ Result<gfx::DescriptorSetLayout, Status>
   VALIDATE("", num_bindings > 0);
   for (u32 i = 0; i < num_bindings; i++)
   {
-    VALIDATE("", desc.bindings.data[i].count > 0);
+    VALIDATE("", desc.bindings[i].count > 0);
   }
 
   VkDescriptorSetLayoutBinding *vk_bindings =
@@ -1645,7 +1661,7 @@ Result<gfx::DescriptorSetLayout, Status>
 
   for (u32 i = 0; i < num_bindings; i++)
   {
-    gfx::DescriptorBindingDesc const &binding = desc.bindings.data[i];
+    gfx::DescriptorBindingDesc const &binding = desc.bindings[i];
     vk_bindings[i]                            = VkDescriptorSetLayoutBinding{
                                    .binding            = i,
                                    .descriptorType     = (VkDescriptorType) binding.type,
@@ -1978,8 +1994,7 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
   for (u32 i = 0; i < num_descriptor_sets; i++)
   {
     vk_descriptor_set_layouts[i] =
-        ((DescriptorSetLayout *) desc.descriptor_set_layouts.data[i])
-            ->vk_layout;
+        ((DescriptorSetLayout *) desc.descriptor_set_layouts[i])->vk_layout;
   }
 
   VkSpecializationInfo vk_specialization{
@@ -2089,8 +2104,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   for (u32 i = 0; i < num_descriptor_sets; i++)
   {
     vk_descriptor_set_layouts[i] =
-        ((DescriptorSetLayout *) desc.descriptor_set_layouts.data[i])
-            ->vk_layout;
+        ((DescriptorSetLayout *) desc.descriptor_set_layouts[i])->vk_layout;
   }
 
   VkSpecializationInfo vk_vs_specialization{
@@ -2156,7 +2170,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
        iinput_bindings++)
   {
     gfx::VertexInputBinding const &binding =
-        desc.vertex_input_bindings.data[iinput_bindings];
+        desc.vertex_input_bindings[iinput_bindings];
     input_bindings[iinput_bindings] = VkVertexInputBindingDescription{
         .binding   = binding.binding,
         .stride    = binding.stride,
@@ -2168,8 +2182,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   u32 const num_attributes = (u32) desc.vertex_attributes.size;
   for (u32 iattribute = 0; iattribute < num_attributes; iattribute++)
   {
-    gfx::VertexAttribute const &attribute =
-        desc.vertex_attributes.data[iattribute];
+    gfx::VertexAttribute const &attribute = desc.vertex_attributes[iattribute];
     attributes[iattribute] =
         VkVertexInputAttributeDescription{.location = attribute.location,
                                           .binding  = attribute.binding,
@@ -2281,7 +2294,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
        icolor_attachment++)
   {
     gfx::PipelineColorBlendAttachmentState const &state =
-        desc.color_blend_state.attachments.data[icolor_attachment];
+        desc.color_blend_state.attachments[icolor_attachment];
     attachment_states[icolor_attachment] = VkPipelineColorBlendAttachmentState{
         .blendEnable         = (VkBool32) state.blend_enable,
         .srcColorBlendFactor = (VkBlendFactor) state.src_color_blend_factor,
@@ -2559,7 +2572,7 @@ Result<Void, Status>
 
   for (u32 i = 0; i < num_srcs; i++)
   {
-    vk_caches[i] = ((PipelineCache *) srcs.data[i])->vk_cache;
+    vk_caches[i] = ((PipelineCache *) srcs[i])->vk_cache;
   }
 
   VkResult result = self->vk_table.MergePipelineCaches(
@@ -2589,7 +2602,7 @@ Result<Void, Status> DeviceInterface::wait_for_fences(
 
   for (u32 i = 0; i < num_fences; i++)
   {
-    vk_fences[i] = ((Fence *) fences.data[i])->vk_fence;
+    vk_fences[i] = ((Fence *) fences[i])->vk_fence;
   }
 
   VkResult result = self->vk_table.WaitForFences(
@@ -2621,7 +2634,7 @@ Result<Void, Status>
 
   for (u32 i = 0; i < num_fences; i++)
   {
-    vk_fences[i] = ((Fence *) fences.data[i])->vk_fence;
+    vk_fences[i] = ((Fence *) fences[i])->vk_fence;
   }
 
   VkResult result =
@@ -2949,7 +2962,7 @@ void DescriptorHeapInterface::sampler(gfx::DescriptorHeap self_, u32 group,
       (VkDescriptorImageInfo *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::SamplerBinding const &element = elements.data[i];
+    gfx::SamplerBinding const &element = elements[i];
     image_infos[i]                     = VkDescriptorImageInfo{
                             .sampler     = ((Sampler *) element.sampler)->vk_sampler,
                             .imageView   = nullptr,
@@ -3002,7 +3015,7 @@ void DescriptorHeapInterface::combined_image_sampler(
       (VkDescriptorImageInfo *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::CombinedImageSamplerBinding const &element = elements.data[i];
+    gfx::CombinedImageSamplerBinding const &element = elements[i];
     image_infos[i]                                  = VkDescriptorImageInfo{
                                          .sampler     = ((Sampler *) element.sampler)->vk_sampler,
                                          .imageView   = ((ImageView *) element.image_view)->vk_view,
@@ -3055,7 +3068,7 @@ void DescriptorHeapInterface::sampled_image(
       (VkDescriptorImageInfo *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::SampledImageBinding const &element = elements.data[i];
+    gfx::SampledImageBinding const &element = elements[i];
     image_infos[i]                          = VkDescriptorImageInfo{
                                  .sampler     = nullptr,
                                  .imageView   = ((ImageView *) element.image_view)->vk_view,
@@ -3108,7 +3121,7 @@ void DescriptorHeapInterface::storage_image(
       (VkDescriptorImageInfo *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::StorageImageBinding const &element = elements.data[i];
+    gfx::StorageImageBinding const &element = elements[i];
     image_infos[i]                          = VkDescriptorImageInfo{
                                  .sampler     = nullptr,
                                  .imageView   = ((ImageView *) element.image_view)->vk_view,
@@ -3161,7 +3174,7 @@ void DescriptorHeapInterface::uniform_texel_buffer(
   VkBufferView *buffer_views = (VkBufferView *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::UniformTexelBufferBinding const &element = elements.data[i];
+    gfx::UniformTexelBufferBinding const &element = elements[i];
     buffer_views[i] = ((BufferView *) element.buffer_view)->vk_view;
   }
 
@@ -3211,7 +3224,7 @@ void DescriptorHeapInterface::storage_texel_buffer(
   VkBufferView *buffer_views = (VkBufferView *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::StorageTexelBufferBinding const &element = elements.data[i];
+    gfx::StorageTexelBufferBinding const &element = elements[i];
     buffer_views[i] = ((BufferView *) element.buffer_view)->vk_view;
   }
 
@@ -3262,7 +3275,7 @@ void DescriptorHeapInterface::uniform_buffer(
       (VkDescriptorBufferInfo *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::UniformBufferBinding const &element = elements.data[i];
+    gfx::UniformBufferBinding const &element = elements[i];
     buffer_infos[i] =
         VkDescriptorBufferInfo{.buffer = ((Buffer *) element.buffer)->vk_buffer,
                                .offset = element.offset,
@@ -3316,7 +3329,7 @@ void DescriptorHeapInterface::storage_buffer(
       (VkDescriptorBufferInfo *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::StorageBufferBinding const &element = elements.data[i];
+    gfx::StorageBufferBinding const &element = elements[i];
     buffer_infos[i] =
         VkDescriptorBufferInfo{.buffer = ((Buffer *) element.buffer)->vk_buffer,
                                .offset = element.offset,
@@ -3369,7 +3382,7 @@ void DescriptorHeapInterface::dynamic_uniform_buffer(
       (VkDescriptorBufferInfo *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::DynamicUniformBufferBinding const &element = elements.data[i];
+    gfx::DynamicUniformBufferBinding const &element = elements[i];
     buffer_infos[i] =
         VkDescriptorBufferInfo{.buffer = ((Buffer *) element.buffer)->vk_buffer,
                                .offset = element.offset,
@@ -3422,7 +3435,7 @@ void DescriptorHeapInterface::dynamic_storage_buffer(
       (VkDescriptorBufferInfo *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::DynamicStorageBufferBinding const &element = elements.data[i];
+    gfx::DynamicStorageBufferBinding const &element = elements[i];
     buffer_infos[i] =
         VkDescriptorBufferInfo{.buffer = ((Buffer *) element.buffer)->vk_buffer,
                                .offset = element.offset,
@@ -3476,7 +3489,7 @@ void DescriptorHeapInterface::input_attachment(
       (VkDescriptorImageInfo *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
   {
-    gfx::InputAttachmentBinding const &element = elements.data[i];
+    gfx::InputAttachmentBinding const &element = elements[i];
     image_infos[i]                             = VkDescriptorImageInfo{
                                     .sampler     = nullptr,
                                     .imageView   = ((ImageView *) element.image_view)->vk_view,
@@ -3676,7 +3689,7 @@ void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self_,
 
   for (u32 i = 0; i < num_copies; i++)
   {
-    gfx::BufferCopy const &copy = copies.data[i];
+    gfx::BufferCopy const &copy = copies[i];
     vk_copies[i]                = VkBufferCopy{.srcOffset = copy.src_offset,
                                                .dstOffset = copy.dst_offset,
                                                .size      = copy.size};
@@ -3733,7 +3746,7 @@ void CommandEncoderInterface::clear_color_image(
   VALIDATE("", num_ranges > 0);
   for (u32 i = 0; i < num_ranges; i++)
   {
-    gfx::ImageSubresourceRange const &range = ranges.data[i];
+    gfx::ImageSubresourceRange const &range = ranges[i];
     VALIDATE("", has_bits(dst->desc.aspects, range.aspects));
     VALIDATE("", range.first_mip_level < dst->desc.mip_levels);
     VALIDATE("", range.first_array_layer < dst->desc.array_layers);
@@ -3759,7 +3772,7 @@ void CommandEncoderInterface::clear_color_image(
 
   for (u32 i = 0; i < num_ranges; i++)
   {
-    gfx::ImageSubresourceRange const &range = ranges.data[i];
+    gfx::ImageSubresourceRange const &range = ranges[i];
     vk_ranges[i]                            = VkImageSubresourceRange{
                                    .aspectMask     = (VkImageAspectFlags) range.aspects,
                                    .baseMipLevel   = range.first_mip_level,
@@ -3796,7 +3809,7 @@ void CommandEncoderInterface::clear_depth_stencil_image(
   VALIDATE("", num_ranges > 0);
   for (u32 i = 0; i < num_ranges; i++)
   {
-    gfx::ImageSubresourceRange const &range = ranges.data[i];
+    gfx::ImageSubresourceRange const &range = ranges[i];
     VALIDATE("", has_bits(dst->desc.aspects, range.aspects));
     VALIDATE("", range.first_mip_level < dst->desc.mip_levels);
     VALIDATE("", range.first_array_layer < dst->desc.array_layers);
@@ -3822,7 +3835,7 @@ void CommandEncoderInterface::clear_depth_stencil_image(
 
   for (u32 i = 0; i < num_ranges; i++)
   {
-    gfx::ImageSubresourceRange const &range = ranges.data[i];
+    gfx::ImageSubresourceRange const &range = ranges[i];
     vk_ranges[i]                            = VkImageSubresourceRange{
                                    .aspectMask     = (VkImageAspectFlags) range.aspects,
                                    .baseMipLevel   = range.first_mip_level,
@@ -3854,7 +3867,7 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
   VALIDATE("", num_copies > 0);
   for (u32 i = 0; i < num_copies; i++)
   {
-    gfx::ImageCopy const &copy = copies.data[i];
+    gfx::ImageCopy const &copy = copies[i];
     VALIDATE("", URect3D{{}, src->desc.extent}.contains(
                      URect3D{copy.src_offset, copy.extent}));
     VALIDATE("", URect3D{{}, dst->desc.extent}.contains(
@@ -3888,7 +3901,7 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
 
   for (u32 i = 0; i < num_copies; i++)
   {
-    gfx::ImageCopy const    &copy = copies.data[i];
+    gfx::ImageCopy const    &copy = copies[i];
     VkImageSubresourceLayers src_subresource{
         .aspectMask     = (VkImageAspectFlags) copy.src_layers.aspects,
         .mipLevel       = copy.src_layers.mip_level,
@@ -3939,7 +3952,7 @@ void CommandEncoderInterface::copy_buffer_to_image(
   VALIDATE("", num_copies > 0);
   for (u32 i = 0; i < num_copies; i++)
   {
-    gfx::BufferImageCopy const &copy = copies.data[i];
+    gfx::BufferImageCopy const &copy = copies[i];
     VALIDATE("", copy.buffer_offset < src->desc.size);
     VALIDATE("", URect3D{{}, dst->desc.extent}.contains(
                      URect3D{copy.image_offset, copy.image_extent}));
@@ -3968,7 +3981,7 @@ void CommandEncoderInterface::copy_buffer_to_image(
 
   for (u32 i = 0; i < num_copies; i++)
   {
-    gfx::BufferImageCopy const &copy = copies.data[i];
+    gfx::BufferImageCopy const &copy = copies[i];
     VkImageSubresourceLayers    image_subresource{
            .aspectMask     = (VkImageAspectFlags) copy.image_layers.aspects,
            .mipLevel       = copy.image_layers.mip_level,
@@ -4013,7 +4026,7 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
   VALIDATE("", num_blits > 0);
   for (u32 i = 0; i < num_blits; i++)
   {
-    gfx::ImageBlit const &blit = blits.data[i];
+    gfx::ImageBlit const &blit = blits[i];
     VALIDATE("", blit.src_offsets[0].x <= src->desc.extent.width &&
                      blit.src_offsets[0].y <= src->desc.extent.height &&
                      blit.src_offsets[0].z <= src->desc.extent.depth &&
@@ -4055,7 +4068,7 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
 
   for (u32 i = 0; i < num_blits; i++)
   {
-    gfx::ImageBlit const    &blit = blits.data[i];
+    gfx::ImageBlit const    &blit = blits[i];
     VkImageSubresourceLayers src_subresource{
         .aspectMask     = (VkImageAspectFlags) blit.src_layers.aspects,
         .mipLevel       = blit.src_layers.mip_level,
@@ -4132,7 +4145,7 @@ void CommandEncoderInterface::begin_render_pass(
          icolor_clear_value++, ivk_clear_value++)
     {
       gfx::Color const &color =
-          color_attachments_clear_values.data[icolor_clear_value];
+          color_attachments_clear_values[icolor_clear_value];
       memcpy(&vk_clear_values[ivk_clear_value].color, &color,
              sizeof(gfx::Color));
     }
@@ -4151,12 +4164,11 @@ void CommandEncoderInterface::begin_render_pass(
 
   for (u32 i = 0; i < framebuffer->desc.color_attachments.size; i++)
   {
-    access_image(self,
-                 IMAGE_FROM_VIEW(framebuffer->desc.color_attachments.data[i]),
-                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                 color_attachment_image_access(
-                     render_pass->desc.color_attachments.data[i]),
-                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    access_image(
+        self, IMAGE_FROM_VIEW(framebuffer->desc.color_attachments[i]),
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        color_attachment_image_access(render_pass->desc.color_attachments[i]),
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
   }
 
   if (has_depth_stencil_attachment)
@@ -4256,20 +4268,19 @@ void CommandEncoderInterface::bind_descriptor_sets(
   VALIDATE("", num_dynamic_offsets <= num_sets);
   for (u32 iset = 0; iset < num_sets; iset++)
   {
-    DescriptorHeap *heap = (DescriptorHeap *) descriptor_heaps.data[iset];
-    VALIDATE("",
-             groups.data[iset] < heap->num_pools * heap->num_groups_per_pool);
-    VALIDATE("", sets.data[iset] < heap->num_sets_per_group);
+    DescriptorHeap *heap = (DescriptorHeap *) descriptor_heaps[iset];
+    VALIDATE("", groups[iset] < heap->num_pools * heap->num_groups_per_pool);
+    VALIDATE("", sets[iset] < heap->num_sets_per_group);
   }
 
   VkDescriptorSet vk_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
 
   for (u32 iset = 0; iset < num_sets; iset++)
   {
-    DescriptorHeap *heap = (DescriptorHeap *) descriptor_heaps.data[iset];
+    DescriptorHeap *heap = (DescriptorHeap *) descriptor_heaps[iset];
     vk_sets[iset] =
-        heap->vk_descriptor_sets[heap->num_sets_per_group * groups.data[iset] +
-                                 sets.data[iset]];
+        heap->vk_descriptor_sets[heap->num_sets_per_group * groups[iset] +
+                                 sets[iset]];
   }
 
   VkPipelineBindPoint vk_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
@@ -4338,6 +4349,9 @@ void CommandEncoderInterface::dispatch(gfx::CommandEncoder self_,
   CommandEncoder *const self = (CommandEncoder *) self_;
 
   VALIDATE("", self->compute_pipeline != nullptr);
+  VALIDATE("", group_count_x <= gfx::MAX_COMPUTE_GROUP_COUNT_X);
+  VALIDATE("", group_count_y <= gfx::MAX_COMPUTE_GROUP_COUNT_Y);
+  VALIDATE("", group_count_z <= gfx::MAX_COMPUTE_GROUP_COUNT_Z);
 
   self->device->vk_table.CmdDispatch(self->vk_command_buffer, group_count_x,
                                      group_count_y, group_count_z);
@@ -4492,7 +4506,7 @@ void CommandEncoderInterface::set_vertex_buffers(
 
   for (u32 i = 0; i < num_buffers; i++)
   {
-    vk_buffers[i] = ((Buffer *) vertex_buffers.data[i])->vk_buffer;
+    vk_buffers[i] = ((Buffer *) vertex_buffers[i])->vk_buffer;
   }
 
   self->device->vk_table.CmdBindVertexBuffers(

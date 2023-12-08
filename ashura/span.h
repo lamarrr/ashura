@@ -1,5 +1,5 @@
 #pragma once
-#include "ashura/integers.h"
+#include "ashura/integrals.h"
 #include <cstring>
 
 namespace ash
@@ -24,6 +24,11 @@ struct Span
   constexpr T *end() const
   {
     return data + size;
+  }
+
+  constexpr T &operator[](usize i) const
+  {
+    return data[i];
   }
 
   constexpr operator Span<T const>() const
