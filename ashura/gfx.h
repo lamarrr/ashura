@@ -1,8 +1,7 @@
 #pragma once
-#include "ashura/integrals.h"
+#include "ashura/types.h"
 #include "ashura/primitives.h"
 #include "ashura/span.h"
-#include "ashura/surface.h"
 #include "stx/enum.h"
 #include "stx/result.h"
 #include "stx/void.h"
@@ -26,7 +25,6 @@ constexpr u32 MAX_VERTEX_ATTRIBUTES        = 16;
 constexpr u32 MAX_PUSH_CONSTANT_SIZE       = 128;
 constexpr u32 MAX_MEMORY_HEAP_PROPERTIES   = 32;
 constexpr u32 MAX_MEMORY_HEAPS             = 16;
-constexpr u32 NUM_DESCRIPTOR_TYPES         = 11;
 constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 8;
 constexpr u32 MAX_COMPUTE_GROUP_COUNT_X    = 1024;
 constexpr u32 MAX_COMPUTE_GROUP_COUNT_Y    = 1024;
@@ -42,22 +40,25 @@ typedef struct Shader_T               *Shader;
 typedef struct RenderPass_T           *RenderPass;
 typedef struct Framebuffer_T          *Framebuffer;
 typedef struct DescriptorSetLayout_T  *DescriptorSetLayout;
-typedef struct DescriptorSet_T        *DescriptorSet;
 typedef struct DescriptorHeap_T       *DescriptorHeap;
 typedef struct PipelineCache_T        *PipelineCache;
 typedef struct ComputePipeline_T      *ComputePipeline;
 typedef struct GraphicsPipeline_T     *GraphicsPipeline;
 typedef struct Fence_T                *Fence;
 typedef struct CommandEncoder_T       *CommandEncoder;
+typedef struct Surface_T              *Surface;
 typedef struct Swapchain_T            *Swapchain;
 typedef struct FrameContext_T         *FrameContext;
 typedef struct Device_T               *Device;
+typedef struct Instance_T             *Instance;
 typedef struct DescriptorHeapInterface DescriptorHeapInterface;
 typedef struct CommandEncoderInterface CommandEncoderInterface;
 typedef struct DeviceInterface         DeviceInterface;
+typedef struct InstanceInterface       InstanceInterface;
 typedef struct DescriptorHeapImpl      DescriptorHeapImpl;
 typedef struct CommandEncoderImpl      CommandEncoderImpl;
 typedef struct DeviceImpl              DeviceImpl;
+typedef struct InstanceImpl            InstanceImpl;
 
 enum class DeviceType : u8
 {
@@ -1183,21 +1184,24 @@ union ClearValue
   DepthStencil depth_stencil;
 };
 
-struct SwapchainConfig
+struct SwapchainDesc
 {
-  SurfaceFormat format       = {};
-  u32           buffering    = 0;
-  PresentMode   present_mode = PresentMode::Fifo;
+  char const   *label               = nullptr;
+  SurfaceFormat format              = {};
+  ImageUsage    usage               = ImageUsage::None;
+  u32           preferred_buffering = 0;
+  PresentMode   present_mode        = PresentMode::Immediate;
+  Extent        preferred_extent    = {};
 };
 
-/// @timestamp: increases everytime the swapchain for the surface is recreated
+/// @generation: increases everytime the swapchain for the surface is recreated
 /// or re-configured
 /// @images: swapchain images, calling ref or unref on them will cause a panic
 /// as they are only meant to exist for the lifetime of the frame.
 /// avoid storing pointers to its data members.
 struct SwapchainInfo
 {
-  u64               timestamp     = 0;
+  u64               generation    = 0;
   Extent            extent        = {};
   SurfaceFormat     format        = {};
   Span<Image const> images        = {};
@@ -1206,7 +1210,6 @@ struct SwapchainInfo
 
 /// should be assumed to change from frame to frame.
 /// avoid storing pointers to this struct.
-///
 struct FrameInfo
 {
   FrameId                    trailing                = 0;
@@ -1317,7 +1320,7 @@ struct CommandEncoderInterface
   void (*begin_render_pass)(
       CommandEncoder self, Framebuffer framebuffer, RenderPass render_pass,
       URect render_area, Span<Color const> color_attachments_clear_values,
-      DepthStencil const &depth_stencil_attachments_clear_value)      = nullptr;
+      DepthStencil const &depth_stencil_attachment_clear_value)       = nullptr;
   void (*end_render_pass)(CommandEncoder self)                        = nullptr;
   void (*bind_compute_pipeline)(CommandEncoder  self,
                                 ComputePipeline pipeline)             = nullptr;
@@ -1353,6 +1356,7 @@ struct CommandEncoderInterface
                u32 num_instances)                                     = nullptr;
   void (*draw_indirect)(CommandEncoder self, Buffer buffer, u64 offset,
                         u32 draw_count, u32 stride)                   = nullptr;
+  void (*present_image)(CommandEncoder self, Image image)             = nullptr;
 };
 
 struct CommandEncoderImpl
@@ -1411,7 +1415,7 @@ struct DeviceInterface
   Result<FrameContext, Status> (*create_frame_context)(
       Device self, u32 max_frames_in_flight) = nullptr;
   Result<Swapchain, Status> (*create_swapchain)(
-      Device self, Surface surface, SwapchainConfig const &config)    = nullptr;
+      Device self, Surface surface, SwapchainDesc const &desc)        = nullptr;
   void (*ref_buffer)(Device self, Buffer buffer)                      = nullptr;
   void (*ref_buffer_view)(Device self, BufferView buffer_view)        = nullptr;
   void (*ref_image)(Device self, Image image)                         = nullptr;
@@ -1431,7 +1435,6 @@ struct DeviceInterface
   void (*ref_command_encoder)(Device             self,
                               CommandEncoderImpl encoder)             = nullptr;
   void (*ref_frame_context)(Device self, FrameContext frame_context)  = nullptr;
-  void (*ref_swapchain)(Device self, Swapchain swapchain)             = nullptr;
   void (*unref_buffer)(Device self, Buffer buffer)                    = nullptr;
   void (*unref_buffer_view)(Device self, BufferView buffer_view)      = nullptr;
   void (*unref_image)(Device self, Image image)                       = nullptr;
@@ -1453,7 +1456,6 @@ struct DeviceInterface
                                 CommandEncoderImpl encoder)           = nullptr;
   void (*unref_frame_context)(Device       self,
                               FrameContext frame_context)             = nullptr;
-  void (*unref_swapchain)(Device self, Swapchain swapchain)           = nullptr;
   Result<void *, Status> (*get_buffer_memory_map)(Device self,
                                                   Buffer buffer)      = nullptr;
   Result<Void, Status> (*invalidate_buffer_memory_map)(
@@ -1481,37 +1483,19 @@ struct DeviceInterface
   Result<u32, Status> (*get_surface_formats)(
       Device self, Surface surface, Span<SurfaceFormat> formats) = nullptr;
   Result<u32, Status> (*get_surface_present_modes)(
-      Device self, Surface surface, Span<PresentMode> modes)     = nullptr;
-  Result<u32, Status> (*get_surface_min_images)(Device  self,
-                                                Surface surface) = nullptr;
-  Result<u32, Status> (*get_surface_max_images)(Device  self,
-                                                Surface surface) = nullptr;
+      Device self, Surface surface, Span<PresentMode> modes) = nullptr;
   Result<SwapchainInfo, Status> (*get_swapchain_info)(
       Device self, Swapchain swapchain) = nullptr;
-  Result<Void, Status> (*update_swapchain)(Device self, Swapchain swapchain,
-                                           SwapchainConfig const &config) =
-      nullptr;
-  Result<Void, Status> (*submit_frame)(Device                self,
-                                       Span<Swapchain const> swapchains,
+  Result<Void, Status> (*invalidate_swapchain)(
+      Device self, Swapchain swapchain, SwapchainDesc const &desc) = nullptr;
+  Result<Void, Status> (*begin_frame)(Device self, Swapchain swapchain,
+                                      FrameContext frame_context)  = nullptr;
+  Result<Void, Status> (*submit_frame)(Device self, Swapchain swapchain,
                                        FrameContext frame_context) = nullptr;
   // advance frame id, if swapchain redundant, mark as redundant for next frame
   // and let them do the work again acquire next image at start of frame and
   // recreate if necessary, not at end of loop
   //
-  // (must be checked that it is initialized, we don't configure surfaces, it
-  // must be configured.
-  //
-  // how to manage format and config selection with changing
-  // windows and possibly unsupported formats and color
-  // spaces, this might cause issues.
-  // surface must have been created from from a vkphydevice and window must give
-  // this.
-  // we should probably take a function that configures the swapchain's format
-  // and color space
-  //
-  //
-  // submits current frame and advances to the next
-  // TODO(lamarrr): swapchain recreation
   // submit along with surface?
   // multi-window rendering?
   // must be called before beginning frame or recording frame info
@@ -1622,11 +1606,6 @@ struct DeviceImpl
     interface->ref_frame_context(self, object);
   }
 
-  void ref(Swapchain object) const
-  {
-    interface->ref_swapchain(self, object);
-  }
-
   void unref(Buffer object) const
   {
     interface->unref_buffer(self, object);
@@ -1706,11 +1685,6 @@ struct DeviceImpl
   {
     interface->unref_frame_context(self, object);
   }
-
-  void unref(Swapchain object) const
-  {
-    interface->unref_swapchain(self, object);
-  }
 };
 
 template <typename Object>
@@ -1766,9 +1740,37 @@ struct Rc
   }
 };
 
-struct Api
+// how will window create a surface from this without knowing the actual
+// implementation details?
+//
+//
+// HOW to associate with window backend
+//
+// Instance is thread-safe, Device is not
+//
+//
+//
+// - REQUIREMENTS
+// - create surface should work with any supported window platform
+// - we should be able to get/create the surface from a window
+//
+//
+// for vulkan backend, Surface must be VkSurfaceKHR
+//
+//TODO: enable backend validations
+//
+//
+
+struct InstanceInterface
 {
-  DeviceImpl (*create_device)(Span<DeviceType const> preferred_types) = nullptr;
+  Result<Instance, Status> (*create)() = nullptr;
+  void (*ref)(Instance instance)       = nullptr;
+  void (*unref)(Instance instance)     = nullptr;
+  Result<DeviceImpl, Status> (*create_device)(
+      Instance instance, Span<DeviceType const> preferred_types,
+      Span<Surface const> compatible_surfaces) = nullptr;
+  Result<Surface, Status> (*create_headless_surface)(Instance instance) =
+      nullptr;
 };
 
 }        // namespace gfx

@@ -1,9 +1,15 @@
 #pragma once
-#include "ashura/integrals.h"
+#include "ashura/types.h"
 #include <cstring>
 
 namespace ash
 {
+
+struct Slice
+{
+  usize offset = 0;
+  usize size   = 0;
+};
 
 template <typename T>
 struct Span
@@ -72,16 +78,23 @@ constexpr Span<char const> as_char(Span<T const> span)
 }
 
 template <typename T>
-constexpr Span<T> slice(Span<T> span, usize offset)
+constexpr Span<T> slice(Span<T> span, usize offset, usize size)
 {
-  return Span<T>{.data = span.data + offset, .size = span.size - offset};
+  offset = offset > span.size ? span.size : offset;
+  size   = (span.size - offset) > size ? size : (span.size - offset);
+  return Span<T>{.data = span.data + offset, .size = size};
 }
 
 template <typename T>
-constexpr Span<T> slice(Span<T> span, usize offset, usize count)
+constexpr Span<T> slice(Span<T> span, usize offset)
 {
-  count = ((span.size - offset) > count) ? count : (span.size - offset);
-  return Span<T>{.data = span.data + offset, .size = count};
+  return slice(span, offset, USIZE_MAX);
+}
+
+template <typename T>
+constexpr Span<T> slice(Span<T> span, Slice range)
+{
+  return slice(span, range.offset, range.size);
 }
 
 template <typename T>
@@ -133,18 +146,11 @@ constexpr Span<Dst> cast(Span<T> src)
   return Span<Dst>{.data = static_cast<Dst *>(src.data), .size = src.size};
 }
 
-template <typename T>
-Span<T> reinterpret(Span<u8> src)
+template <typename Dst, typename Src>
+Span<Dst> reinterpret(Span<Src> src)
 {
-  return Span<T>{.data = reinterpret_cast<T *>(src.data),
-                 .size = src.size / sizeof(T)};
-}
-
-template <typename T>
-Span<T const> reinterpret(Span<u8 const> src)
-{
-  return Span<T const>{.data = reinterpret_cast<T const *>(src.data),
-                       .size = src.size / sizeof(T)};
+  return Span<Dst>{.data = reinterpret_cast<Dst *>(src.data),
+                   .size = (src.size * sizeof(Src)) / sizeof(Dst)};
 }
 
 }        // namespace ash

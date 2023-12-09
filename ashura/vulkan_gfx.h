@@ -5,7 +5,6 @@
 #include "ashura/allocator.h"
 #include "ashura/gfx.h"
 #include "ashura/span.h"
-#include "stx/vec.h"
 #include "vk_mem_alloc.h"
 #include "vulkan/vulkan.h"
 
@@ -18,14 +17,11 @@ using gfx::Status;
 
 constexpr char const *REQUIRED_INSTANCE_EXTENSIONS[] = {
     VK_KHR_SURFACE_EXTENSION_NAME};
-constexpr char const *OPTIONAL_INSTANCE_EXTENSIONS[] = {""};
-constexpr char const *REQUIRED_DEVICE_EXTENSIONS[]   = {
+constexpr char const **OPTIONAL_INSTANCE_EXTENSIONS = nullptr;
+constexpr char const  *REQUIRED_DEVICE_EXTENSIONS[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
-    VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
-    VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
-    VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-    VK_EXT_MESH_SHADER_EXTENSION_NAME};
+    VK_EXT_DEBUG_MARKER_EXTENSION_NAME};
 // TODO(lamarrr): specify polyfills
 
 typedef struct InstanceTable           InstanceTable;
@@ -34,23 +30,23 @@ typedef struct Buffer                  Buffer;
 typedef struct BufferView              BufferView;
 typedef struct Image                   Image;
 typedef struct ImageView               ImageView;
+typedef struct Sampler                 Sampler;
+typedef struct Shader                  Shader;
 typedef struct RenderPass              RenderPass;
 typedef struct Framebuffer             Framebuffer;
-typedef struct Shader                  Shader;
 typedef struct DescriptorSetLayout     DescriptorSetLayout;
+typedef struct DescriptorHeap          DescriptorHeap;
 typedef struct PipelineCache           PipelineCache;
 typedef struct ComputePipeline         ComputePipeline;
 typedef struct GraphicsPipeline        GraphicsPipeline;
-typedef struct Sampler                 Sampler;
 typedef struct Fence                   Fence;
-typedef struct Device                  Device;
-typedef struct DescriptorHeap          DescriptorHeap;
 typedef struct CommandEncoder          CommandEncoder;
-typedef struct DeviceInterface         DeviceInterface;
-typedef struct DescriptorHeapInterface DescriptorHeapInterface;
-typedef struct CommandEncoderInterface CommandEncoderInterface;
 typedef struct Swapchain               Swapchain;
 typedef struct FrameContext            FrameContext;
+typedef struct Device                  Device;
+typedef struct DescriptorHeapInterface DescriptorHeapInterface;
+typedef struct CommandEncoderInterface CommandEncoderInterface;
+typedef struct DeviceInterface         DeviceInterface;
 
 struct InstanceTable
 {
@@ -80,6 +76,15 @@ struct InstanceTable
       GetPhysicalDeviceQueueFamilyProperties = nullptr;
   PFN_vkGetPhysicalDeviceSparseImageFormatProperties
       GetPhysicalDeviceSparseImageFormatProperties = nullptr;
+
+  PFN_vkGetPhysicalDeviceSurfaceSupportKHR GetPhysicalDeviceSurfaceSupportKHR =
+      nullptr;
+  PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR
+      GetPhysicalDeviceSurfaceCapabilitiesKHR = nullptr;
+  PFN_vkGetPhysicalDeviceSurfaceFormatsKHR GetPhysicalDeviceSurfaceFormatsKHR =
+      nullptr;
+  PFN_vkGetPhysicalDeviceSurfacePresentModesKHR
+      GetPhysicalDeviceSurfacePresentModesKHR = nullptr;
 };
 
 struct DeviceTable
@@ -280,7 +285,7 @@ struct Image
 {
   u64               refcount            = 0;
   gfx::ImageDesc    desc                = {};
-  bool              is_sharable         = false;
+  bool              is_swapchain_image  = false;
   VkImage           vk_image            = nullptr;
   VmaAllocation     vma_allocation      = nullptr;
   VmaAllocationInfo vma_allocation_info = {};
@@ -408,15 +413,15 @@ struct DescriptorHeap
 
 struct CommandEncoder
 {
-  u64               refcount          = 0;
-  AllocatorImpl     allocator         = {};
-  Device           *device            = nullptr;
-  VkCommandPool     vk_command_pool   = nullptr;
-  VkCommandBuffer   vk_command_buffer = nullptr;
-  ComputePipeline  *compute_pipeline  = nullptr;
-  GraphicsPipeline *graphics_pipeline = nullptr;
-  RenderPass       *render_pass       = nullptr;
-  Framebuffer      *framebuffer       = nullptr;
+  u64               refcount                = 0;
+  AllocatorImpl     allocator               = {};
+  Device           *device                  = nullptr;
+  VkCommandPool     vk_command_pool         = nullptr;
+  VkCommandBuffer   vk_command_buffer       = nullptr;
+  ComputePipeline  *bound_compute_pipeline  = nullptr;
+  GraphicsPipeline *bound_graphics_pipeline = nullptr;
+  RenderPass       *bound_render_pass       = nullptr;
+  Framebuffer      *bound_framebuffer       = nullptr;
   DescriptorHeap
         *bound_descriptor_set_heaps[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]  = {};
   u32    bound_descriptor_set_groups[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
@@ -425,28 +430,32 @@ struct CommandEncoder
   Status status = Status::Success;
 };
 
+struct FrameContext
+{
+  u64                      refcount                = 0;
+  gfx::FrameId             trailing_frame          = 0;
+  gfx::FrameId             current_frame           = 0;
+  u32                      current_command_encoder = 0;
+  u32                      max_frames_in_flight    = 0;
+  gfx::CommandEncoderImpl *command_encoders        = nullptr;
+  VkSemaphore             *acquire_semaphores      = nullptr;
+  gfx::Fence              *submit_fences           = nullptr;
+  VkSemaphore             *submit_semaphores       = nullptr;
+};
+
 struct Swapchain
 {
-  u64                refcount      = 0;
-  u64                timestamp     = 0;
+  u64                generation    = 0;
+  gfx::SwapchainDesc desc          = {};
+  bool               is_valid      = false;
+  bool               is_optimal    = false;
   Extent             extent        = {};
-  gfx::SurfaceFormat format        = {};
-  Image             *images        = nullptr;
+  gfx::Image        *images        = nullptr;
+  VkImage           *vk_images     = nullptr;
   u32                num_images    = 0;
   u32                current_image = 0;
   VkSwapchainKHR     vk_swapchain  = nullptr;
-};
-
-struct FrameContext
-{
-  u64             refcount                 = 0;
-  gfx::FrameId    trailing_frame           = 0;
-  gfx::FrameId    current_frame            = 0;
-  CommandEncoder *command_encoders         = nullptr;
-  Fence          *fences                   = nullptr;
-  VkSemaphore    *semaphores               = nullptr;
-  u32             num_command_encoders     = 0;
-  u32             current_command_encoders = 0;
+  VkSurfaceKHR       vk_surface    = nullptr;
 };
 
 struct DeviceInterface
@@ -495,8 +504,8 @@ struct DeviceInterface
   static Result<gfx::FrameContext, Status>
       create_frame_context(gfx::Device self, u32 max_frames_in_flight);
   static Result<gfx::Swapchain, Status>
-              create_swapchain(gfx::Device self, Surface surface,
-                               gfx::SwapchainConfig const &config);
+              create_swapchain(gfx::Device self, gfx::Surface surface,
+                               gfx::SwapchainDesc const &config);
   static void ref_buffer(gfx::Device self, gfx::Buffer buffer);
   static void ref_buffer_view(gfx::Device self, gfx::BufferView buffer_view);
   static void ref_image(gfx::Device self, gfx::Image image);
@@ -519,7 +528,6 @@ struct DeviceInterface
                                   gfx::CommandEncoderImpl encoder);
   static void ref_frame_context(gfx::Device       self,
                                 gfx::FrameContext frame_context);
-  static void ref_swapchain(gfx::Device self, gfx::Swapchain swapchain);
   static void unref_buffer(gfx::Device self, gfx::Buffer buffer);
   static void unref_buffer_view(gfx::Device self, gfx::BufferView buffer_view);
   static void unref_image(gfx::Device self, gfx::Image image);
@@ -542,7 +550,6 @@ struct DeviceInterface
                                     gfx::CommandEncoderImpl encoder);
   static void unref_frame_context(gfx::Device       self,
                                   gfx::FrameContext frame_context);
-  static void unref_swapchain(gfx::Device self, gfx::Swapchain swapchain);
   static Result<void *, Status> get_buffer_memory_map(gfx::Device self,
                                                       gfx::Buffer buffer);
   static Result<Void, Status>
@@ -574,23 +581,22 @@ struct DeviceInterface
   static Result<gfx::FrameInfo, Status>
       get_frame_info(gfx::Device self, gfx::FrameContext frame_context);
   static Result<u32, Status>
-      get_surface_formats(gfx::Device self, Surface surface,
+      get_surface_formats(gfx::Device self, gfx::Surface surface,
                           Span<gfx::SurfaceFormat> formats);
   static Result<u32, Status>
-      get_surface_present_modes(gfx::Device self, Surface surface,
+      get_surface_present_modes(gfx::Device self, gfx::Surface surface,
                                 Span<gfx::PresentMode> modes);
-  static Result<u32, Status> get_surface_min_images(gfx::Device self,
-                                                    Surface     surface);
-  static Result<u32, Status> get_surface_max_images(gfx::Device self,
-                                                    Surface     surface);
   static Result<gfx::SwapchainInfo, Status>
       get_swapchain_info(gfx::Device self, gfx::Swapchain swapchain);
   static Result<Void, Status>
-      update_swapchain(gfx::Device self, gfx::Swapchain swapchain,
-                       gfx::SwapchainConfig const &config);
-  static Result<Void, Status>
-      submit_frame(gfx::Device self, Span<gfx::Swapchain const> swapchains,
-                   gfx::FrameContext frame_context);
+      invalidate_swapchain(gfx::Device self, gfx::Swapchain swapchain,
+                           gfx::SwapchainDesc const &config);
+  static Result<Void, Status> begin_frame(gfx::Device       self,
+                                          gfx::Swapchain    swapchain,
+                                          gfx::FrameContext frame_context);
+  static Result<Void, Status> submit_frame(gfx::Device       self,
+                                           gfx::Swapchain    swapchain,
+                                           gfx::FrameContext frame_context);
 };
 
 struct DescriptorHeapInterface
@@ -673,7 +679,7 @@ struct CommandEncoderInterface
       gfx::CommandEncoder self, gfx::Framebuffer framebuffer,
       gfx::RenderPass render_pass, URect render_area,
       Span<gfx::Color const>   color_attachments_clear_values,
-      gfx::DepthStencil const &depth_stencil_attachments_clear_value);
+      gfx::DepthStencil const &depth_stencil_attachment_clear_value);
   static void end_render_pass(gfx::CommandEncoder self);
   static void bind_compute_pipeline(gfx::CommandEncoder  self,
                                     gfx::ComputePipeline pipeline);

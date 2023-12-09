@@ -126,7 +126,6 @@ static gfx::DeviceInterface const device_interface{
     .ref_fence                   = DeviceInterface::ref_fence,
     .ref_command_encoder         = DeviceInterface::ref_command_encoder,
     .ref_frame_context           = DeviceInterface::ref_frame_context,
-    .ref_swapchain               = DeviceInterface::ref_swapchain,
     .unref_buffer                = DeviceInterface::unref_buffer,
     .unref_buffer_view           = DeviceInterface::unref_buffer_view,
     .unref_image                 = DeviceInterface::unref_image,
@@ -142,7 +141,6 @@ static gfx::DeviceInterface const device_interface{
     .unref_fence                 = DeviceInterface::unref_fence,
     .unref_command_encoder       = DeviceInterface::unref_command_encoder,
     .unref_frame_context         = DeviceInterface::unref_frame_context,
-    .unref_swapchain             = DeviceInterface::unref_swapchain,
     .get_buffer_memory_map       = DeviceInterface::get_buffer_memory_map,
     .invalidate_buffer_memory_map =
         DeviceInterface::invalidate_buffer_memory_map,
@@ -159,10 +157,9 @@ static gfx::DeviceInterface const device_interface{
     .get_frame_info            = DeviceInterface::get_frame_info,
     .get_surface_formats       = DeviceInterface::get_surface_formats,
     .get_surface_present_modes = DeviceInterface::get_surface_present_modes,
-    .get_surface_min_images    = DeviceInterface::get_surface_min_images,
-    .get_surface_max_images    = DeviceInterface::get_surface_max_images,
     .get_swapchain_info        = DeviceInterface::get_swapchain_info,
-    .update_swapchain          = DeviceInterface::update_swapchain,
+    .invalidate_swapchain      = DeviceInterface::invalidate_swapchain,
+    .begin_frame               = DeviceInterface::begin_frame,
     .submit_frame              = DeviceInterface::submit_frame};
 
 static gfx::DescriptorHeapInterface const descriptor_heap_interface{
@@ -272,6 +269,11 @@ bool load_instance_table(VkInstance instance, InstanceTable &vk_instance_table)
   LOAD_VK(GetPhysicalDeviceProperties);
   LOAD_VK(GetPhysicalDeviceQueueFamilyProperties);
   LOAD_VK(GetPhysicalDeviceSparseImageFormatProperties);
+
+  LOAD_VK(GetPhysicalDeviceSurfaceSupportKHR);
+  LOAD_VK(GetPhysicalDeviceSurfaceCapabilitiesKHR);
+  LOAD_VK(GetPhysicalDeviceSurfaceFormatsKHR);
+  LOAD_VK(GetPhysicalDeviceSurfacePresentModesKHR);
 #undef LOAD_VK
 
   return all_loaded;
@@ -414,22 +416,23 @@ bool load_device_table(VkDevice device, DeviceTable &vk_table,
   LOAD_VK(GetSwapchainImagesKHR);
   LOAD_VK(AcquireNextImageKHR);
   LOAD_VK(QueuePresentKHR);
+
 #undef LOAD_VK
 
-#define LOAD_VKEXT(function)                                          \
+#define LOAD_VK_STUBBED(function)                                     \
   vk_table.function =                                                 \
       (PFN_vk##function) vkGetDeviceProcAddr(device, "vk" #function); \
   vk_table.function =                                                 \
       (vk_table.function != nullptr) ? vk_table.function : function##_Stub;
 
-  LOAD_VKEXT(DebugMarkerSetObjectTagEXT);
-  LOAD_VKEXT(DebugMarkerSetObjectNameEXT);
+  LOAD_VK_STUBBED(DebugMarkerSetObjectTagEXT);
+  LOAD_VK_STUBBED(DebugMarkerSetObjectNameEXT);
 
-  LOAD_VKEXT(CmdDebugMarkerBeginEXT);
-  LOAD_VKEXT(CmdDebugMarkerEndEXT);
-  LOAD_VKEXT(CmdDebugMarkerInsertEXT);
+  LOAD_VK_STUBBED(CmdDebugMarkerBeginEXT);
+  LOAD_VK_STUBBED(CmdDebugMarkerEndEXT);
+  LOAD_VK_STUBBED(CmdDebugMarkerInsertEXT);
 
-#undef LOAD_VKEXT
+#undef LOAD_VK_STUBBED
 
 #define SET_VMA(function) vma_table.vk##function = vk_table.function
   SET_VMA(AllocateMemory);
@@ -1179,10 +1182,11 @@ Result<gfx::Image, Status>
 
   new (image) Image{.refcount            = 1,
                     .desc                = desc,
-                    .is_sharable         = false,
+                    .is_swapchain_image  = false,
                     .vk_image            = vk_image,
                     .vma_allocation      = vma_allocation,
-                    .vma_allocation_info = vma_allocation_info};
+                    .vma_allocation_info = vma_allocation_info,
+                    .state               = {}};
 
   return Ok((gfx::Image) image);
 }
@@ -1493,7 +1497,8 @@ Result<gfx::RenderPass, Status>
       .dependencyCount = 0,
       .pDependencies   = nullptr};
   VkRenderPass vk_render_pass;
-  VkResult     result = self->vk_table.CreateRenderPass(
+
+  VkResult result = self->vk_table.CreateRenderPass(
       self->vk_device, &create_info, nullptr, &vk_render_pass);
   if (result != VK_SUCCESS)
   {
@@ -1654,6 +1659,7 @@ Result<gfx::DescriptorSetLayout, Status>
 
   if (bindings == nullptr)
   {
+    self->allocator.deallocate(vk_bindings);
     return Err(Status::OutOfHostMemory);
   }
 
@@ -1685,6 +1691,7 @@ Result<gfx::DescriptorSetLayout, Status>
 
   if (result != VK_SUCCESS)
   {
+    self->allocator.deallocate(bindings);
     return Err((Status) result);
   }
 
@@ -1705,6 +1712,7 @@ Result<gfx::DescriptorSetLayout, Status>
   {
     self->vk_table.DestroyDescriptorSetLayout(self->vk_device, vk_layout,
                                               nullptr);
+    self->allocator.deallocate(bindings);
     return Err(Status::OutOfHostMemory);
   }
 
@@ -2156,7 +2164,8 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .pPushConstantRanges    = &push_constant_range};
 
   VkPipelineLayout vk_layout;
-  VkResult         result = self->vk_table.CreatePipelineLayout(
+
+  VkResult result = self->vk_table.CreatePipelineLayout(
       self->vk_device, &layout_create_info, nullptr, &vk_layout);
   if (result != VK_SUCCESS)
   {
@@ -2440,15 +2449,15 @@ Result<gfx::CommandEncoderImpl, Status>
     return Err(Status::OutOfHostMemory);
   }
 
-  new (encoder) CommandEncoder{.refcount          = 1,
-                               .allocator         = default_heap_allocator,
-                               .device            = self,
-                               .vk_command_pool   = vk_command_pool,
-                               .vk_command_buffer = vk_command_buffer,
-                               .compute_pipeline  = nullptr,
-                               .graphics_pipeline = nullptr,
-                               .render_pass       = nullptr,
-                               .framebuffer       = nullptr,
+  new (encoder) CommandEncoder{.refcount               = 1,
+                               .allocator              = default_heap_allocator,
+                               .device                 = self,
+                               .vk_command_pool        = vk_command_pool,
+                               .vk_command_buffer      = vk_command_buffer,
+                               .bound_compute_pipeline = nullptr,
+                               .bound_graphics_pipeline     = nullptr,
+                               .bound_render_pass           = nullptr,
+                               .bound_framebuffer           = nullptr,
                                .bound_descriptor_set_heaps  = {},
                                .bound_descriptor_set_groups = {},
                                .num_bound_descriptor_sets   = 0,
@@ -2456,6 +2465,461 @@ Result<gfx::CommandEncoderImpl, Status>
 
   return Ok(gfx::CommandEncoderImpl{.self      = (gfx::CommandEncoder) encoder,
                                     .interface = &command_encoder_interface});
+}
+
+Result<gfx::FrameContext, Status>
+    DeviceInterface::create_frame_context(gfx::Device self_,
+                                          u32         max_frames_in_flight)
+{
+  Device *const self = (Device *) self_;
+
+  gfx::CommandEncoderImpl *command_encoders =
+      ALLOC_N(self->allocator, gfx::CommandEncoderImpl, max_frames_in_flight);
+
+  if (command_encoders == nullptr)
+  {
+    return Err(Status::OutOfHostMemory);
+  }
+
+  {
+    Status status   = Status::Success;
+    u32    push_end = 0;
+    for (; push_end < max_frames_in_flight; push_end++)
+    {
+      Result result = DeviceInterface::create_command_encoder(self_);
+      if (result.is_err())
+      {
+        status = result.err();
+        break;
+      }
+      command_encoders[push_end] = result.value();
+    }
+
+    if (push_end != max_frames_in_flight)
+    {
+      for (u32 ifree = 0; ifree < push_end; ifree++)
+      {
+        DeviceInterface::unref_command_encoder(self_, command_encoders[ifree]);
+      }
+      return Err((Status) status);
+    }
+  }
+
+  VkSemaphore *acquire_semaphores =
+      ALLOC_N(self->allocator, VkSemaphore, max_frames_in_flight);
+
+  {
+    VkResult              result   = VK_SUCCESS;
+    u32                   push_end = 0;
+    VkSemaphoreCreateInfo create_info{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0};
+    for (; push_end < max_frames_in_flight; push_end++)
+    {
+      VkSemaphore semaphore;
+      result = self->vk_table.CreateSemaphore(self->vk_device, &create_info,
+                                              nullptr, &semaphore);
+      if (result != VK_SUCCESS)
+      {
+        break;
+      }
+      acquire_semaphores[push_end] = semaphore;
+    }
+
+    if (push_end != max_frames_in_flight)
+    {
+      for (u32 ifree = 0; ifree < push_end; ifree++)
+      {
+        self->vk_table.DestroySemaphore(self->vk_device,
+                                        acquire_semaphores[ifree], nullptr);
+      }
+
+      for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+      {
+        DeviceInterface::unref_command_encoder(self_, command_encoders[ifree]);
+      }
+
+      return Err((Status) result);
+    }
+  }
+
+  gfx::Fence *submit_fences =
+      ALLOC_N(self->allocator, gfx::Fence, max_frames_in_flight);
+
+  if (submit_fences == nullptr)
+  {
+    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    {
+      self->vk_table.DestroySemaphore(self->vk_device,
+                                      acquire_semaphores[ifree], nullptr);
+    }
+    return Err(Status::OutOfHostMemory);
+  }
+
+  {
+    Status status   = Status::Success;
+    u32    push_end = 0;
+    for (; push_end < max_frames_in_flight; push_end++)
+    {
+      Result result = DeviceInterface::create_fence(self_, true);
+      if (result.is_err())
+      {
+        status = result.err();
+        break;
+      }
+      submit_fences[push_end] = result.value();
+    }
+
+    if (push_end != max_frames_in_flight)
+    {
+      for (u32 ifree = 0; ifree < push_end; ifree++)
+      {
+        DeviceInterface::unref_fence(self_, submit_fences[ifree]);
+      }
+
+      for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+      {
+        self->vk_table.DestroySemaphore(self->vk_device,
+                                        acquire_semaphores[ifree], nullptr);
+      }
+
+      for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+      {
+        DeviceInterface::unref_command_encoder(self_, command_encoders[ifree]);
+      }
+      return Err((Status) status);
+    }
+  }
+
+  VkSemaphore *submit_semaphores =
+      ALLOC_N(self->allocator, VkSemaphore, max_frames_in_flight);
+
+  if (submit_semaphores == nullptr)
+  {
+    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    {
+      DeviceInterface::unref_fence(self_, submit_fences[ifree]);
+    }
+
+    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    {
+      self->vk_table.DestroySemaphore(self->vk_device,
+                                      acquire_semaphores[ifree], nullptr);
+    }
+
+    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    {
+      DeviceInterface::unref_command_encoder(self_, command_encoders[ifree]);
+    }
+
+    return Err(Status::OutOfHostMemory);
+  }
+
+  FrameContext *frame_context = ALLOC_OBJECT(self->allocator, FrameContext);
+
+  if (frame_context == nullptr)
+  {
+    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    {
+      self->vk_table.DestroySemaphore(self->vk_device, submit_semaphores[ifree],
+                                      nullptr);
+    }
+
+    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    {
+      DeviceInterface::unref_fence(self_, submit_fences[ifree]);
+    }
+
+    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    {
+      self->vk_table.DestroySemaphore(self->vk_device,
+                                      acquire_semaphores[ifree], nullptr);
+    }
+
+    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    {
+      DeviceInterface::unref_command_encoder(self_, command_encoders[ifree]);
+    }
+
+    return Err(Status::OutOfHostMemory);
+  }
+
+  new (frame_context) FrameContext{.refcount                = 1,
+                                   .trailing_frame          = 0,
+                                   .current_frame           = 0,
+                                   .current_command_encoder = 0,
+                                   .max_frames_in_flight = max_frames_in_flight,
+                                   .command_encoders     = command_encoders,
+                                   .acquire_semaphores   = acquire_semaphores,
+                                   .submit_fences        = submit_fences,
+                                   .submit_semaphores    = submit_semaphores};
+
+  return Ok((gfx::FrameContext) frame_context);
+}
+
+/// old swapchain will be retired and destroyed irregardless of whether new
+/// swapchain recreation fails.
+static VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
+{
+  VALIDATE("", swapchain->desc.preferred_extent.is_visible());
+
+  for (u32 i = 0; i < swapchain->num_images; i++)
+  {
+    // swapchain images are just plain bytes, no destructor need be run
+    Image *image = (Image *) swapchain->images[i];
+    device->allocator.deallocate(image);
+  }
+  device->allocator.deallocate(swapchain->images);
+  device->allocator.deallocate(swapchain->vk_images);
+
+  // take ownership of internal data for re-use/release
+  VkSwapchainKHR old_vk_swapchain = swapchain->vk_swapchain;
+  swapchain->is_valid             = false;
+  swapchain->is_optimal           = false;
+  swapchain->extent               = Extent{};
+  swapchain->images               = nullptr;
+  swapchain->vk_images            = nullptr;
+  swapchain->num_images           = 0;
+  swapchain->current_image        = 0;
+  swapchain->vk_swapchain         = nullptr;
+
+  VkSurfaceCapabilitiesKHR surface_capabilities;
+  VkResult                 result =
+      device->vk_instance_table.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+          device->vk_phy_device, swapchain->vk_surface, &surface_capabilities);
+
+  if (result != VK_SUCCESS)
+  {
+    device->vk_table.DestroySwapchainKHR(device->vk_device, old_vk_swapchain,
+                                         nullptr);
+    return result;
+  }
+
+  VALIDATE("", has_bits(surface_capabilities.supportedUsageFlags,
+                        (VkImageUsageFlags) swapchain->desc.usage));
+
+  VkExtent2D vk_extent;
+
+  if (surface_capabilities.currentExtent.width == 0xFFFFFFFFU &&
+      surface_capabilities.currentExtent.height == 0xFFFFFFFFU)
+  {
+    vk_extent.width  = std::clamp(swapchain->desc.preferred_extent.width,
+                                  surface_capabilities.minImageExtent.width,
+                                  surface_capabilities.maxImageExtent.width);
+    vk_extent.height = std::clamp(swapchain->desc.preferred_extent.height,
+                                  surface_capabilities.minImageExtent.height,
+                                  surface_capabilities.maxImageExtent.height);
+  }
+  else
+  {
+    vk_extent = surface_capabilities.currentExtent;
+  }
+
+  u32 min_image_count = 0;
+
+  if (surface_capabilities.maxImageCount != 0)
+  {
+    min_image_count = std::clamp(swapchain->desc.preferred_buffering,
+                                 surface_capabilities.minImageCount,
+                                 surface_capabilities.maxImageCount);
+  }
+  else
+  {
+    min_image_count =
+        std::max(min_image_count, surface_capabilities.minImageCount);
+  }
+
+  VkSwapchainCreateInfoKHR create_info{
+      .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+      .pNext            = nullptr,
+      .flags            = 0,
+      .surface          = swapchain->vk_surface,
+      .minImageCount    = min_image_count,
+      .imageFormat      = (VkFormat) swapchain->desc.format.format,
+      .imageColorSpace  = (VkColorSpaceKHR) swapchain->desc.format.color_space,
+      .imageExtent      = vk_extent,
+      .imageArrayLayers = 1,
+      .imageUsage       = (VkImageUsageFlags) swapchain->desc.usage,
+      .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .queueFamilyIndexCount = 1,
+      .pQueueFamilyIndices   = nullptr,
+      .preTransform          = surface_capabilities.currentTransform,
+      .compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+      .presentMode           = (VkPresentModeKHR) swapchain->desc.present_mode,
+      .clipped               = VK_TRUE,
+      .oldSwapchain          = old_vk_swapchain};
+
+  VkSwapchainKHR new_vk_swapchain;
+  result = device->vk_table.CreateSwapchainKHR(device->vk_device, &create_info,
+                                               nullptr, &new_vk_swapchain);
+
+  if (old_vk_swapchain != nullptr)
+  {
+    device->vk_table.DestroySwapchainKHR(device->vk_device, old_vk_swapchain,
+                                         nullptr);
+    old_vk_swapchain = nullptr;
+  }
+
+  if (result != VK_SUCCESS)
+  {
+    return result;
+  }
+
+  u32 num_images;
+  result = device->vk_table.GetSwapchainImagesKHR(
+      device->vk_device, new_vk_swapchain, &num_images, nullptr);
+
+  if (result != VK_SUCCESS)
+  {
+    device->vk_table.DestroySwapchainKHR(device->vk_device, new_vk_swapchain,
+                                         nullptr);
+    return result;
+  }
+
+  VkImage *vk_images = ALLOC_N(device->allocator, VkImage, num_images);
+
+  if (vk_images == nullptr)
+  {
+    device->vk_table.DestroySwapchainKHR(device->vk_device, new_vk_swapchain,
+                                         nullptr);
+    return VK_ERROR_OUT_OF_HOST_MEMORY;
+  }
+
+  gfx::Image *images = ALLOC_N(device->allocator, gfx::Image, num_images);
+
+  if (images == nullptr)
+  {
+    device->allocator.deallocate(vk_images);
+    device->vk_table.DestroySwapchainKHR(device->vk_device, new_vk_swapchain,
+                                         nullptr);
+    return VK_ERROR_OUT_OF_HOST_MEMORY;
+  }
+
+  {
+    u32 push_end = 0;
+    for (; push_end < num_images; push_end++)
+    {
+      Image *image = ALLOC_OBJECT(device->allocator, Image);
+      if (image == nullptr)
+      {
+        break;
+      }
+      images[push_end] = (gfx::Image) image;
+    }
+
+    if (push_end != num_images)
+    {
+      for (u32 ifree = 0; ifree < push_end; ifree++)
+      {
+        device->allocator.deallocate(images[ifree]);
+      }
+      device->allocator.deallocate(images);
+      device->allocator.deallocate(vk_images);
+      device->vk_table.DestroySwapchainKHR(device->vk_device, new_vk_swapchain,
+                                           nullptr);
+      return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+  }
+
+  result = device->vk_table.GetSwapchainImagesKHR(
+      device->vk_device, new_vk_swapchain, &num_images, vk_images);
+
+  if (result != VK_SUCCESS)
+  {
+    for (u32 ifree = 0; ifree < num_images; ifree++)
+    {
+      device->allocator.deallocate(images[ifree]);
+    }
+    device->allocator.deallocate(images);
+    device->allocator.deallocate(vk_images);
+    device->vk_table.DestroySwapchainKHR(device->vk_device, new_vk_swapchain,
+                                         nullptr);
+    return result;
+  }
+
+  if (swapchain->desc.label != nullptr)
+  {
+    VkDebugMarkerObjectNameInfoEXT swapchain_debug_info{
+        .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+        .pNext       = nullptr,
+        .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT,
+        .object      = (u64) new_vk_swapchain,
+        .pObjectName = swapchain->desc.label};
+    device->vk_table.DebugMarkerSetObjectNameEXT(device->vk_device,
+                                                 &swapchain_debug_info);
+
+    for (u32 i = 0; i < num_images; i++)
+    {
+      VkDebugMarkerObjectNameInfoEXT image_debug_info{
+          .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
+          .pNext       = nullptr,
+          .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+          .object      = (u64) vk_images[i],
+          .pObjectName = swapchain->desc.label};
+      device->vk_table.DebugMarkerSetObjectNameEXT(device->vk_device,
+                                                   &image_debug_info);
+    }
+  }
+
+  for (u32 i = 0; i < num_images; i++)
+  {
+    Image *image = (Image *) images[i];
+    new (image)
+        Image{.refcount = 1,
+              .desc     = gfx::ImageDesc{.type    = gfx::ImageType::Type2D,
+                                         .format  = swapchain->desc.format.format,
+                                         .usage   = swapchain->desc.usage,
+                                         .aspects = gfx::ImageAspects::Color,
+                                         .extent  = Extent3D{vk_extent.width,
+                                                        vk_extent.height, 1},
+                                         .mip_levels   = 1,
+                                         .array_layers = 1},
+              .is_swapchain_image  = true,
+              .vk_image            = vk_images[i],
+              .vma_allocation      = nullptr,
+              .vma_allocation_info = {},
+              .state               = {}};
+  }
+
+  swapchain->generation++;
+  swapchain->is_valid      = true;
+  swapchain->is_optimal    = true;
+  swapchain->extent.width  = vk_extent.width;
+  swapchain->extent.height = vk_extent.height;
+  swapchain->images        = images;
+  swapchain->vk_images     = vk_images;
+  swapchain->num_images    = num_images;
+  swapchain->current_image = 0;
+  swapchain->vk_swapchain  = new_vk_swapchain;
+
+  return VK_SUCCESS;
+}
+
+Result<gfx::Swapchain, Status>
+    DeviceInterface::create_swapchain(gfx::Device self_, gfx::Surface surface,
+                                      gfx::SwapchainDesc const &desc)
+{
+  Device *const self      = (Device *) self_;
+  Swapchain    *swapchain = ALLOC_OBJECT(self->allocator, Swapchain);
+  if (swapchain == nullptr)
+  {
+    return Err(Status::OutOfHostMemory);
+  }
+
+  new (swapchain) Swapchain{.generation    = 0,
+                            .desc          = desc,
+                            .is_valid      = false,
+                            .is_optimal    = false,
+                            .extent        = {},
+                            .images        = nullptr,
+                            .vk_images     = nullptr,
+                            .num_images    = 0,
+                            .current_image = 0,
+                            .vk_swapchain  = nullptr,
+                            .vk_surface    = (VkSurfaceKHR) surface};
+
+  return Ok((gfx::Swapchain) swapchain);
 }
 
 Result<void *, Status>
@@ -2515,7 +2979,8 @@ Result<Void, Status> DeviceInterface::flush_buffer_memory_map(
                                    buffer->vma_allocation_info.deviceMemory,
                                .offset = range.offset,
                                .size   = range.size};
-  VkResult            result =
+
+  VkResult result =
       self->vk_table.FlushMappedMemoryRanges(self->vk_device, 1, &vk_range);
   if (result != VK_SUCCESS)
   {
@@ -2685,9 +3150,7 @@ Result<Void, Status> DeviceInterface::submit(gfx::Device         self_,
                         &((CommandEncoder *) encoder)->vk_command_buffer,
                     .signalSemaphoreCount = 1,
                     .pSignalSemaphores    = nullptr};
-  // TODO(lamarrr): store semaphores for signaling and awaiting i.e.
-  // last_semaphore what if we are not done with frame? store last command
-  // buffer??? NOOOO!!!
+
   VkResult result = self->vk_table.QueueSubmit(
       self->vk_queue, 1, &info, ((Fence *) signal_fence)->vk_fence);
 
@@ -2716,6 +3179,157 @@ Result<Void, Status> DeviceInterface::wait_queue_idle(gfx::Device self_)
   Device *const self   = (Device *) self_;
   VkResult      result = self->vk_table.QueueWaitIdle(self->vk_queue);
   if (result != VK_SUCCESS)
+  {
+    return Err((Status) result);
+  }
+
+  return Ok(Void{});
+}
+
+Result<Void, Status>
+    DeviceInterface::begin_frame(gfx::Device self_, gfx::Swapchain swapchain_,
+                                 gfx::FrameContext frame_context_)
+{
+  Device *const       self          = (Device *) self_;
+  FrameContext *const frame_context = (FrameContext *) frame_context_;
+  Swapchain *const    swapchain     = (Swapchain *) swapchain_;
+  VkResult            result        = VK_SUCCESS;
+
+  if (!swapchain->is_valid)
+  {
+    if (swapchain->vk_swapchain != nullptr)
+    {
+      // await all pending submitted operations on the device possibly using
+      // the swapchain, to avoid destroying whilst in use
+      result = self->vk_table.DeviceWaitIdle(self->vk_device);
+      if (result != VK_SUCCESS)
+      {
+        return Err((Status) result);
+      }
+    }
+
+    result = recreate_swapchain(self, swapchain);
+    if (result != VK_SUCCESS)
+    {
+      return Err((Status) result);
+    }
+  }
+
+  u32 next_image;
+  result = self->vk_table.AcquireNextImageKHR(
+      self->vk_device, swapchain->vk_swapchain, U64_MAX,
+      frame_context->acquire_semaphores[frame_context->current_command_encoder],
+      nullptr, &next_image);
+
+  if (result == VK_SUBOPTIMAL_KHR)
+  {
+    swapchain->is_optimal = false;
+  }
+  else if (result != VK_SUCCESS)
+  {
+    return Err((Status) result);
+  }
+
+  swapchain->current_image = next_image;
+  return Ok(Void{});
+}
+
+Result<Void, Status>
+    DeviceInterface::submit_frame(gfx::Device self_, gfx::Swapchain swapchain_,
+                                  gfx::FrameContext frame_context_)
+{
+  Device *const       self          = (Device *) self_;
+  FrameContext *const frame_context = (FrameContext *) frame_context_;
+  Swapchain *const    swapchain     = (Swapchain *) swapchain_;
+  Fence *const        submit_fence =
+      (Fence *)
+          frame_context->submit_fences[frame_context->current_command_encoder];
+  VkCommandBuffer const command_buffer =
+      ((CommandEncoder *) frame_context
+           ->command_encoders[frame_context->current_command_encoder]
+           .self)
+          ->vk_command_buffer;
+  VkSemaphore const acquire_semaphore =
+      frame_context->acquire_semaphores[frame_context->current_command_encoder];
+  VkSemaphore const submit_semaphore =
+      frame_context->submit_semaphores[frame_context->current_command_encoder];
+
+  VkResult result = self->vk_table.WaitForFences(
+      self->vk_device, 1, &submit_fence->vk_fence, VK_TRUE, U64_MAX);
+
+  if (result != VK_SUCCESS)
+  {
+    return Err((Status) result);
+  }
+
+  result =
+      self->vk_table.ResetFences(self->vk_device, 1, &submit_fence->vk_fence);
+
+  if (result != VK_SUCCESS)
+  {
+    return Err((Status) result);
+  }
+
+  VkSubmitInfo submit_info{.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                           .pNext              = nullptr,
+                           .waitSemaphoreCount = 1,
+                           .pWaitSemaphores    = &acquire_semaphore,
+                           .pWaitDstStageMask  = nullptr,
+                           .commandBufferCount = 1,
+                           .pCommandBuffers    = &command_buffer,
+                           .signalSemaphoreCount = 1,
+                           .pSignalSemaphores    = &submit_semaphore};
+
+  result = self->vk_table.QueueSubmit(self->vk_queue, 1, &submit_info,
+                                      submit_fence->vk_fence);
+
+  if (result != VK_SUCCESS)
+  {
+    // handle error
+    // there's not really any way to preserve state here and allow for re-call?
+    return Err((Status) result);
+  }
+
+  // TODO(lamarrr): is it possible by any means that the number of maximum in
+  // flight frames changes? if the user decides to change the buffering for
+  // example how will this affect the program state as they depend on it
+  frame_context->current_frame++;
+  frame_context->trailing_frame =
+      std::max(frame_context->current_frame,
+               (gfx::FrameId) frame_context->max_frames_in_flight) -
+      frame_context->max_frames_in_flight;
+  frame_context->current_command_encoder =
+      (frame_context->current_command_encoder + 1) %
+      frame_context->max_frames_in_flight;
+
+  //
+  // - submit commands
+  // - present swapchain images, if error, invalidate.
+  // - advance frame, even if invalidation occured. frame is marked as missed
+  // but has no side effect on the flow. so no need for resubmitting as previous
+  // commands would have been executed.
+  // - repeat.
+  //
+  //
+  //
+  // at what point is image invalidation handled? recording commands need to
+  // check if images are invalidated or not
+  //
+  // acquire semaphores needs to be done for each swapchain
+
+  VkPresentInfoKHR present_info{.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+                                .pNext = nullptr,
+                                .waitSemaphoreCount = 1,
+                                .pWaitSemaphores    = &submit_semaphore,
+                                .pSwapchains        = &swapchain->vk_swapchain,
+                                .pImageIndices      = &swapchain->current_image,
+                                .pResults           = nullptr};
+  result = self->vk_table.QueuePresentKHR(self->vk_queue, &present_info);
+  if (result == VK_ERROR_OUT_OF_DATE_KHR)
+  {
+    swapchain->is_valid = false;
+  }
+  else if (result != VK_SUCCESS)
   {
     return Err((Status) result);
   }
@@ -4159,8 +4773,8 @@ void CommandEncoderInterface::begin_render_pass(
     }
   }
 
-  self->render_pass = render_pass;
-  self->framebuffer = framebuffer;
+  self->bound_render_pass = render_pass;
+  self->bound_framebuffer = framebuffer;
 
   for (u32 i = 0; i < framebuffer->desc.color_attachments.size; i++)
   {
@@ -4176,7 +4790,8 @@ void CommandEncoderInterface::begin_render_pass(
     VkAccessFlags access = depth_stencil_attachment_image_access(
         render_pass->desc.depth_stencil_attachment);
     access_image(
-        self, IMAGE_FROM_VIEW(self->framebuffer->desc.depth_stencil_attachment),
+        self,
+        IMAGE_FROM_VIEW(self->bound_framebuffer->desc.depth_stencil_attachment),
         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
         access,
@@ -4207,7 +4822,7 @@ void CommandEncoderInterface::end_render_pass(gfx::CommandEncoder self_)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", self->render_pass != nullptr);
+  VALIDATE("", self->bound_render_pass != nullptr);
 
   if (self->status != Status::Success)
   {
@@ -4227,12 +4842,12 @@ void CommandEncoderInterface::bind_compute_pipeline(
     return;
   }
 
-  self->compute_pipeline  = (ComputePipeline *) pipeline;
-  self->graphics_pipeline = nullptr;
+  self->bound_compute_pipeline  = (ComputePipeline *) pipeline;
+  self->bound_graphics_pipeline = nullptr;
 
-  self->device->vk_table.CmdBindPipeline(self->vk_command_buffer,
-                                         VK_PIPELINE_BIND_POINT_COMPUTE,
-                                         self->compute_pipeline->vk_pipeline);
+  self->device->vk_table.CmdBindPipeline(
+      self->vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+      self->bound_compute_pipeline->vk_pipeline);
 }
 
 void CommandEncoderInterface::bind_graphics_pipeline(
@@ -4245,12 +4860,12 @@ void CommandEncoderInterface::bind_graphics_pipeline(
     return;
   }
 
-  self->graphics_pipeline = (GraphicsPipeline *) pipeline;
-  self->compute_pipeline  = nullptr;
+  self->bound_graphics_pipeline = (GraphicsPipeline *) pipeline;
+  self->bound_compute_pipeline  = nullptr;
 
-  self->device->vk_table.CmdBindPipeline(self->vk_command_buffer,
-                                         VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                         self->graphics_pipeline->vk_pipeline);
+  self->device->vk_table.CmdBindPipeline(
+      self->vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      self->bound_graphics_pipeline->vk_pipeline);
 }
 
 void CommandEncoderInterface::bind_descriptor_sets(
@@ -4286,15 +4901,15 @@ void CommandEncoderInterface::bind_descriptor_sets(
   VkPipelineBindPoint vk_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
   VkPipelineLayout    vk_layout     = nullptr;
 
-  if (self->compute_pipeline != nullptr)
+  if (self->bound_compute_pipeline != nullptr)
   {
     vk_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
-    vk_layout     = self->compute_pipeline->vk_layout;
+    vk_layout     = self->bound_compute_pipeline->vk_layout;
   }
-  else if (self->graphics_pipeline != nullptr)
+  else if (self->bound_graphics_pipeline != nullptr)
   {
     vk_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    vk_layout     = self->graphics_pipeline->vk_layout;
+    vk_layout     = self->bound_graphics_pipeline->vk_layout;
   }
   else
   {
@@ -4313,8 +4928,8 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", !(self->compute_pipeline == nullptr &&
-                 self->graphics_pipeline == nullptr));
+  VALIDATE("", !(self->bound_compute_pipeline == nullptr &&
+                 self->bound_graphics_pipeline == nullptr));
   VALIDATE("", push_constants_data.size_bytes() <= gfx::MAX_PUSH_CONSTANT_SIZE);
 
   if (self->status != Status::Success)
@@ -4324,13 +4939,13 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
 
   VkPipelineLayout vk_layout = nullptr;
 
-  if (self->compute_pipeline != nullptr)
+  if (self->bound_compute_pipeline != nullptr)
   {
-    vk_layout = self->compute_pipeline->vk_layout;
+    vk_layout = self->bound_compute_pipeline->vk_layout;
   }
-  else if (self->graphics_pipeline != nullptr)
+  else if (self->bound_graphics_pipeline != nullptr)
   {
-    vk_layout = self->graphics_pipeline->vk_layout;
+    vk_layout = self->bound_graphics_pipeline->vk_layout;
   }
   else
   {
@@ -4348,7 +4963,7 @@ void CommandEncoderInterface::dispatch(gfx::CommandEncoder self_,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", self->compute_pipeline != nullptr);
+  VALIDATE("", self->bound_compute_pipeline != nullptr);
   VALIDATE("", group_count_x <= gfx::MAX_COMPUTE_GROUP_COUNT_X);
   VALIDATE("", group_count_y <= gfx::MAX_COMPUTE_GROUP_COUNT_Y);
   VALIDATE("", group_count_z <= gfx::MAX_COMPUTE_GROUP_COUNT_Z);
@@ -4363,7 +4978,7 @@ void CommandEncoderInterface::dispatch_indirect(gfx::CommandEncoder self_,
   CommandEncoder *const self   = (CommandEncoder *) self_;
   Buffer *const         buffer = (Buffer *) buffer_;
 
-  VALIDATE("", self->compute_pipeline != nullptr);
+  VALIDATE("", self->bound_compute_pipeline != nullptr);
   VALIDATE("", has_bits(buffer->desc.usage, gfx::BufferUsage::IndirectBuffer));
   VALIDATE("", offset < buffer->desc.size);
 
@@ -4376,7 +4991,7 @@ void CommandEncoderInterface::set_viewport(gfx::CommandEncoder  self_,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", self->graphics_pipeline != nullptr);
+  VALIDATE("", self->bound_graphics_pipeline != nullptr);
 
   if (self->status != Status::Success)
   {
@@ -4398,7 +5013,7 @@ void CommandEncoderInterface::set_scissor(gfx::CommandEncoder self_,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", self->graphics_pipeline != nullptr);
+  VALIDATE("", self->bound_graphics_pipeline != nullptr);
 
   if (self->status != Status::Success)
   {
@@ -4417,7 +5032,7 @@ void CommandEncoderInterface::set_blend_constants(gfx::CommandEncoder self_,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", self->graphics_pipeline != nullptr);
+  VALIDATE("", self->bound_graphics_pipeline != nullptr);
 
   if (self->status != Status::Success)
   {
@@ -4435,7 +5050,7 @@ void CommandEncoderInterface::set_stencil_compare_mask(
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", self->graphics_pipeline != nullptr);
+  VALIDATE("", self->bound_graphics_pipeline != nullptr);
 
   if (self->status != Status::Success)
   {
@@ -4452,7 +5067,7 @@ void CommandEncoderInterface::set_stencil_reference(gfx::CommandEncoder self_,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", self->graphics_pipeline != nullptr);
+  VALIDATE("", self->bound_graphics_pipeline != nullptr);
 
   if (self->status != Status::Success)
   {
@@ -4469,7 +5084,7 @@ void CommandEncoderInterface::set_stencil_write_mask(gfx::CommandEncoder self_,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", self->graphics_pipeline != nullptr);
+  VALIDATE("", self->bound_graphics_pipeline != nullptr);
 
   if (self->status != Status::Success)
   {
@@ -4487,7 +5102,7 @@ void CommandEncoderInterface::set_vertex_buffers(
   CommandEncoder *const self        = (CommandEncoder *) self_;
   u32 const             num_buffers = (u32) vertex_buffers.size;
 
-  VALIDATE("", self->graphics_pipeline != nullptr);
+  VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", num_buffers > 0);
   VALIDATE("", offsets.size == vertex_buffers.size);
 
@@ -4522,7 +5137,7 @@ void CommandEncoderInterface::set_index_buffer(gfx::CommandEncoder self_,
   CommandEncoder *const self              = (CommandEncoder *) self_;
   Buffer *const         index_buffer_impl = (Buffer *) index_buffer;
 
-  VALIDATE("", self->graphics_pipeline != nullptr);
+  VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", offset < index_buffer_impl->desc.size);
 
   if (self->status != Status::Success)
@@ -4541,8 +5156,8 @@ void CommandEncoderInterface::draw(gfx::CommandEncoder self_, u32 first_index,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", self->graphics_pipeline != nullptr);
-  VALIDATE("", self->render_pass != nullptr);
+  VALIDATE("", self->bound_graphics_pipeline != nullptr);
+  VALIDATE("", self->bound_render_pass != nullptr);
   // TODO(lamarrr): validate input attachment compat
 
   if (self->status != Status::Success)
@@ -4561,8 +5176,8 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
-  VALIDATE("", self->graphics_pipeline != nullptr);
-  VALIDATE("", self->render_pass != nullptr);
+  VALIDATE("", self->bound_graphics_pipeline != nullptr);
+  VALIDATE("", self->bound_render_pass != nullptr);
   // TODO(lamarrr): validate input attachment compat
 
   if (self->status != Status::Success)

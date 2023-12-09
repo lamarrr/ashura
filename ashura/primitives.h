@@ -6,7 +6,7 @@
 #include <limits>
 #include <type_traits>
 
-#include "ashura/integrals.h"
+#include "ashura/types.h"
 #include "stx/limits.h"
 #include "stx/option.h"
 
