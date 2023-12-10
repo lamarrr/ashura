@@ -4,7 +4,6 @@
 
 #include "ashura/allocator.h"
 #include "ashura/gfx.h"
-#include "ashura/span.h"
 #include "vk_mem_alloc.h"
 #include "vulkan/vulkan.h"
 

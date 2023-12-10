@@ -47,4 +47,161 @@ constexpr usize USIZE_MAX        = (usize) -1;
 constexpr isize ISIZE_MIN        = PTRDIFF_MIN;
 constexpr isize ISIZE_MAX        = PTRDIFF_MAX;
 
+struct Slice
+{
+  usize offset = 0;
+  usize size   = 0;
+};
+
+template <typename T>
+struct Span
+{
+  T    *data = nullptr;
+  usize size = 0;
+
+  constexpr usize size_bytes() const
+  {
+    return sizeof(T) * size;
+  }
+
+  constexpr bool is_empty() const
+  {
+    return size == 0;
+  }
+
+  constexpr T *begin() const
+  {
+    return data;
+  }
+
+  constexpr T *end() const
+  {
+    return data + size;
+  }
+
+  constexpr T &operator[](usize i) const
+  {
+    return data[i];
+  }
+
+  constexpr Span<T> operator[](Slice slice) const
+  {
+    // written such that overflow will not occur even if both offset and size
+    // are set to USIZE_MAX
+    slice.offset = slice.offset > size ? size : slice.offset;
+    slice.size =
+        (size - slice.offset) > slice.size ? slice.size : (size - slice.offset);
+    return Span<T>{data + slice.offset, slice.size};
+  }
+
+  constexpr operator Span<T const>() const
+  {
+    return Span<T const>{data, size};
+  }
+
+  constexpr Span<T> slice(usize offset) const
+  {
+    return (*this)[Slice{offset, USIZE_MAX}];
+  }
+
+  constexpr Span<T> slice(usize offset, usize size) const
+  {
+    return (*this)[Slice{offset, size}];
+  }
+
+  constexpr Span<T> slice(Slice s) const
+  {
+    return (*this)[s];
+  }
+};
+
+template <typename T>
+constexpr Span<T const> as_const(Span<T> span)
+{
+  return Span<T const>{span.data, span.size};
+}
+
+template <typename T>
+constexpr Span<u8> as_u8(Span<T> span)
+{
+  return Span<u8>{reinterpret_cast<u8 *>(span.data), span.size_bytes()};
+}
+
+template <typename T>
+constexpr Span<char> as_char(Span<T> span)
+{
+  return Span<char>{reinterpret_cast<char *>(span.data), span.size_bytes()};
+}
+
+template <typename T>
+constexpr Span<u8 const> as_u8(Span<T const> span)
+{
+  return Span<u8 const>{reinterpret_cast<u8 const *>(span.data),
+                        span.size_bytes()};
+}
+
+template <typename T>
+constexpr Span<char const> as_char(Span<T const> span)
+{
+  return Span<char const>{reinterpret_cast<char const *>(span.data),
+                          span.size_bytes()};
+}
+
+template <typename T, usize N>
+constexpr Span<T> span_from_array(T (&array)[N])
+{
+  return Span<T>{array, N};
+}
+
+// A span with bit access semantics
+template <typename UnsignedInteger>
+struct BitSpan
+{
+  static constexpr u32 NUM_BITS_PER_PACK = sizeof(UnsignedInteger) << 3;
+
+  Span<UnsignedInteger> body          = {};
+  Slice                 current_slice = {};
+
+  constexpr bool operator[](usize offset) const
+  {
+    offset   = current_slice.offset + offset;
+    bool bit = (body.data[offset / NUM_BITS_PER_PACK] >>
+                (offset % NUM_BITS_PER_PACK)) &
+               1U;
+    return bit;
+  }
+
+  constexpr void set(usize offset, bool bit) const
+  {
+    offset                      = current_slice.offset + offset;
+    UnsignedInteger &out        = body.data[offset / NUM_BITS_PER_PACK];
+    usize            bit_offset = offset % NUM_BITS_PER_PACK;
+    out                         = (out & ~((UnsignedInteger) 1 << bit_offset)) |
+          ((UnsignedInteger) bit << bit_offset);
+  }
+
+  constexpr void toggle(usize offset) const
+  {
+    offset               = current_slice.offset + offset;
+    UnsignedInteger &out = body.data[offset / NUM_BITS_PER_PACK];
+    out                  = out ^ (1ULL << (offset % NUM_BITS_PER_PACK));
+  }
+
+  constexpr BitSpan operator[](Slice slice) const
+  {
+    slice.offset += current_slice.offset;
+    slice.offset =
+        slice.offset > current_slice.size ? current_slice.size : slice.offset;
+    slice.size = (current_slice.size - slice.offset) > slice.size ?
+                     slice.size :
+                     (current_slice.size - slice.offset);
+    return BitSpan{body, slice};
+  }
+
+  constexpr BitSpan slice(Slice s) const
+  {
+    return (*this)[s];
+  }
+};
+
 }        // namespace ash

@@ -1,7 +1,6 @@
 #pragma once
 #include "ashura/types.h"
 #include "ashura/primitives.h"
-#include "ashura/span.h"
 #include "stx/enum.h"
 #include "stx/result.h"
 #include "stx/void.h"

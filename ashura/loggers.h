@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ashura/logger.h"
+#include "ashura/log.h"
 
 namespace ash
 {

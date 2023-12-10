@@ -1,4 +1,6 @@
 #include "ashura/vulkan_gfx.h"
+#include "ashura/algorithms.h"
+#include "ashura/mem.h"
 #include "vulkan/vulkan.h"
 
 namespace ash
@@ -1401,8 +1403,8 @@ Result<gfx::RenderPass, Status>
     return Err(Status::OutOfHostMemory);
   }
 
-  mem_copy(desc.color_attachments, color_attachments);
-  mem_copy(desc.input_attachments, input_attachments);
+  mem::copy(desc.color_attachments, color_attachments);
+  mem::copy(desc.input_attachments, input_attachments);
 
   u32 iattachment = 0;
   for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
@@ -1563,7 +1565,7 @@ Result<gfx::Framebuffer, Status>
     return Err(Status::OutOfHostMemory);
   }
 
-  mem_copy(desc.color_attachments, color_attachments);
+  mem::copy(desc.color_attachments, color_attachments);
 
   u32 ivk_attachment = 0;
   for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
@@ -1663,7 +1665,7 @@ Result<gfx::DescriptorSetLayout, Status>
     return Err(Status::OutOfHostMemory);
   }
 
-  mem_copy(desc.bindings, bindings);
+  mem::copy(desc.bindings, bindings);
 
   for (u32 i = 0; i < num_bindings; i++)
   {
@@ -1752,7 +1754,7 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
     return Err(Status::OutOfHostMemory);
   }
 
-  mem_copy(descriptor_set_layouts, (gfx::DescriptorSetLayout *) set_layouts);
+  mem::copy(descriptor_set_layouts, (gfx::DescriptorSetLayout *) set_layouts);
 
   u32 **binding_offsets = ALLOC_N(self->allocator, u32 *, num_sets);
 
@@ -1802,14 +1804,14 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
         switch (desc.type)
         {
           case gfx::DescriptorType::Sampler:
-            offset = align_offset(offset, (u32) alignof(gfx::SamplerBinding));
+            offset = (u32) align_offset(offset, alignof(gfx::SamplerBinding));
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::SamplerBinding) * desc.count);
             num_image_infos = std::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::CombinedImageSampler:
-            offset = align_offset(
-                offset, (u32) alignof(gfx::CombinedImageSamplerBinding));
+            offset = (u32) align_offset(
+                offset, alignof(gfx::CombinedImageSamplerBinding));
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::CombinedImageSamplerBinding) * desc.count);
@@ -1817,29 +1819,29 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             break;
           case gfx::DescriptorType::SampledImage:
             offset =
-                align_offset(offset, (u32) alignof(gfx::SampledImageBinding));
+                (u32) align_offset(offset, alignof(gfx::SampledImageBinding));
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::SampledImageBinding) * desc.count);
             num_image_infos = std::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::StorageImage:
             offset =
-                align_offset(offset, (u32) alignof(gfx::StorageImageBinding));
+                (u32) align_offset(offset, alignof(gfx::StorageImageBinding));
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::StorageImageBinding) * desc.count);
             num_image_infos = std::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::UniformTexelBuffer:
-            offset = align_offset(
-                offset, (u32) alignof(gfx::UniformTexelBufferBinding));
+            offset = (u32) align_offset(
+                offset, alignof(gfx::UniformTexelBufferBinding));
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::UniformTexelBufferBinding) * desc.count);
             num_buffer_views = std::max(num_buffer_views, desc.count);
             break;
           case gfx::DescriptorType::StorageTexelBuffer:
-            offset = align_offset(
-                offset, (u32) alignof(gfx::StorageTexelBufferBinding));
+            offset = (u32) align_offset(
+                offset, alignof(gfx::StorageTexelBufferBinding));
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::StorageTexelBufferBinding) * desc.count);
@@ -1847,37 +1849,37 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             break;
           case gfx::DescriptorType::UniformBuffer:
             offset =
-                align_offset(offset, (u32) alignof(gfx::UniformBufferBinding));
+                (u32) align_offset(offset, alignof(gfx::UniformBufferBinding));
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::UniformBufferBinding) * desc.count);
             num_buffer_infos = std::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::StorageBuffer:
             offset =
-                align_offset(offset, (u32) alignof(gfx::StorageBufferBinding));
+                (u32) align_offset(offset, alignof(gfx::StorageBufferBinding));
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::StorageBufferBinding) * desc.count);
             num_buffer_infos = std::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::DynamicUniformBuffer:
-            offset = align_offset(
-                offset, (u32) alignof(gfx::DynamicUniformBufferBinding));
+            offset = (u32) align_offset(
+                offset, alignof(gfx::DynamicUniformBufferBinding));
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::DynamicUniformBufferBinding) * desc.count);
             num_buffer_infos = std::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::DynamicStorageBuffer:
-            offset = align_offset(
-                offset, (u32) alignof(gfx::DynamicStorageBufferBinding));
+            offset = (u32) align_offset(
+                offset, alignof(gfx::DynamicStorageBufferBinding));
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::DynamicStorageBufferBinding) * desc.count);
             num_buffer_infos = std::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::InputAttachment:
-            offset                        = align_offset(offset,
-                                                         (u32) alignof(gfx::InputAttachmentBinding));
+            offset                        = (u32) align_offset(offset,
+                                                               alignof(gfx::InputAttachmentBinding));
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::InputAttachmentBinding) * desc.count);
             num_image_infos = std::max(num_image_infos, desc.count);
@@ -3369,9 +3371,9 @@ Result<u32, Status>
   {
     u32 group = self->free_groups[self->num_free_groups - 1];
     self->num_free_groups--;
-    mem_zero(self->bindings + group * (usize) self->group_binding_stride +
-                 self->binding_offsets[0][0],
-             self->group_binding_stride);
+    mem::zero(self->bindings + group * (usize) self->group_binding_stride +
+                  self->binding_offsets[0][0],
+              self->group_binding_stride);
     return Ok((u32) group);
   }
 
@@ -3446,8 +3448,8 @@ Result<u32, Status>
 
   self->bindings = bindings;
 
-  mem_zero(self->bindings + self->num_pools * pool_bindings_size,
-           pool_bindings_size);
+  mem::zero(self->bindings + self->num_pools * pool_bindings_size,
+            pool_bindings_size);
 
   u32 num_bindings_per_group = 0;
   for (u32 i = 0; i < self->num_sets_per_group; i++)
@@ -3570,7 +3572,7 @@ void DescriptorHeapInterface::sampler(gfx::DescriptorHeap self_, u32 group,
       (gfx::SamplerBinding *) (self->bindings +
                                (usize) self->group_binding_stride * group +
                                self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkDescriptorImageInfo *image_infos =
       (VkDescriptorImageInfo *) self->scratch_memory;
@@ -3623,7 +3625,7 @@ void DescriptorHeapInterface::combined_image_sampler(
       (gfx::CombinedImageSamplerBinding
            *) (self->bindings + (usize) self->group_binding_stride * group +
                self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkDescriptorImageInfo *image_infos =
       (VkDescriptorImageInfo *) self->scratch_memory;
@@ -3676,7 +3678,7 @@ void DescriptorHeapInterface::sampled_image(
       (gfx::SampledImageBinding *) (self->bindings +
                                     (usize) self->group_binding_stride * group +
                                     self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkDescriptorImageInfo *image_infos =
       (VkDescriptorImageInfo *) self->scratch_memory;
@@ -3729,7 +3731,7 @@ void DescriptorHeapInterface::storage_image(
       (gfx::StorageImageBinding *) (self->bindings +
                                     (usize) self->group_binding_stride * group +
                                     self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkDescriptorImageInfo *image_infos =
       (VkDescriptorImageInfo *) self->scratch_memory;
@@ -3783,7 +3785,7 @@ void DescriptorHeapInterface::uniform_texel_buffer(
                                           (usize) self->group_binding_stride *
                                               group +
                                           self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkBufferView *buffer_views = (VkBufferView *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
@@ -3833,7 +3835,7 @@ void DescriptorHeapInterface::storage_texel_buffer(
                                           (usize) self->group_binding_stride *
                                               group +
                                           self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkBufferView *buffer_views = (VkBufferView *) self->scratch_memory;
   for (u32 i = 0; i < elements.size; i++)
@@ -3883,7 +3885,7 @@ void DescriptorHeapInterface::uniform_buffer(
                                      (usize) self->group_binding_stride *
                                          group +
                                      self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkDescriptorBufferInfo *buffer_infos =
       (VkDescriptorBufferInfo *) self->scratch_memory;
@@ -3937,7 +3939,7 @@ void DescriptorHeapInterface::storage_buffer(
                                      (usize) self->group_binding_stride *
                                          group +
                                      self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkDescriptorBufferInfo *buffer_infos =
       (VkDescriptorBufferInfo *) self->scratch_memory;
@@ -3990,7 +3992,7 @@ void DescriptorHeapInterface::dynamic_uniform_buffer(
       (gfx::DynamicUniformBufferBinding
            *) (self->bindings + (usize) self->group_binding_stride * group +
                self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkDescriptorBufferInfo *buffer_infos =
       (VkDescriptorBufferInfo *) self->scratch_memory;
@@ -4043,7 +4045,7 @@ void DescriptorHeapInterface::dynamic_storage_buffer(
       (gfx::DynamicStorageBufferBinding
            *) (self->bindings + (usize) self->group_binding_stride * group +
                self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkDescriptorBufferInfo *buffer_infos =
       (VkDescriptorBufferInfo *) self->scratch_memory;
@@ -4097,7 +4099,7 @@ void DescriptorHeapInterface::input_attachment(
                                        (usize) self->group_binding_stride *
                                            group +
                                        self->binding_offsets[set][binding]);
-  mem_copy(elements, bindings);
+  mem::copy(elements, bindings);
 
   VkDescriptorImageInfo *image_infos =
       (VkDescriptorImageInfo *) self->scratch_memory;
