@@ -369,16 +369,12 @@ constexpr Span<T> find(Span<T> span, T const &value, Cmp cmp = {})
   return span.slice(offset, 1);
 }
 
+template <typename UnsignedInteger>
+constexpr BitSpan<UnsignedInteger> find_set_bit(BitSpan<UnsignedInteger> span);
 
 template <typename UnsignedInteger>
-constexpr Span<UnsignedInteger const>
-    find_set_bit(Span<UnsignedInteger const> bits, usize bit_offset,
-                 usize bits_size, usize &found_offset);
-
-template <typename UnsignedInteger>
-constexpr Span<UnsignedInteger const>
-    find_unset_bit(Span<UnsignedInteger const> bits, usize bit_offset,
-                   usize bits_size, usize &found_offset);
+constexpr BitSpan<UnsignedInteger>
+    find_unset_bit(BitSpan<UnsignedInteger> span);
 
 template <typename T, typename Predicate>
 constexpr Span<T> find_if(Span<T> span, Predicate predicate)
@@ -416,7 +412,6 @@ template <typename T, typename Predicate>
 constexpr Span<T> find_last_if(Span<T> span, Predicate predicate);
 // advance points to the first element and the length is
 // with the length of the remaining elements
-
 
 template <typename T, typename Predicate>
 constexpr Span<T> skip_until(Span<T>, Predicate predicate);

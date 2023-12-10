@@ -153,6 +153,12 @@ constexpr Span<T> span_from_array(T (&array)[N])
   return Span<T>{array, N};
 }
 
+template <typename StdContainer>
+constexpr auto span_from_std_container(StdContainer &container)
+{
+  return Span{container.data(), container.size()};
+}
+
 // A span with bit access semantics
 template <typename UnsignedInteger>
 struct BitSpan
@@ -161,6 +167,11 @@ struct BitSpan
 
   Span<UnsignedInteger> body          = {};
   Slice                 current_slice = {};
+
+  constexpr bool is_empty() const
+  {
+    return current_slice.size == 0;
+  }
 
   constexpr bool operator[](usize offset) const
   {
