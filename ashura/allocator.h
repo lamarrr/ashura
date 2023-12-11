@@ -2,65 +2,47 @@
 
 #include "ashura/types.h"
 
-// allocate using standard-based object alignment
-// TODO(lamarrr): cast pointer to given type so we can check if the pointer type
-// is correct
-
 // REQUIREMENTS: basic typing and type cast checks
 // type-erased allocations
 
 namespace ash
 {
 
-typedef struct Allocator_T       *Allocator;
-typedef struct AllocatorInterface AllocatorInterface;
-typedef struct AllocatorImpl      AllocatorImpl;
+typedef struct Allocator_T             *Allocator;
+typedef struct AllocatorInterface       AllocatorInterface;
+typedef struct AllocatorImpl            AllocatorImpl;
+typedef struct Heap                     Heap;
+typedef struct HeapInterface            HeapInterface;
+typedef struct OverAlignedHeap          OverAlignedHeap;
+typedef struct OverAlignedHeapInterface OverAlignedHeapInterface;
 
-///
-/// NOTE: it is undefined behaviour to pass over-aligned memory to non
-/// over-aligned functions and vice-versa.
-///
-/// @allocate: allocate memory sized to size. the alignment is guaranteed to be
-/// at least standard alignment => MAX_STANDARD_ALIGNMENT. returns null if
+/// @allocate: allocate aligned memory. returns null if
 /// failed.
 /// @allocate_zeroed: like allocate but zeroes the allocated memory, this is
-/// performed by the OS and can be faster. returns null if failed.
+/// performed by the OS and can be faster. returns null if allocation failed.
 /// @reallocate: free the previously allocated memory and return a new memory,
 /// alignment is not guaranteed to be preserved. if an error occurs, the old
-/// memory is not freed and null is returned.
+/// memory is not freed and null is returned. alignment must be same as the
+/// alignment of the original allocated memory.
 /// @deallocate: free the previously allocated memory.
 ///
-/// @over_aligned_allocate: same purpose as @allocate but for alignment greater
-/// than MAX_STANDARD_ALIGNMENT.
-/// @over_aligned_allocate_zeroed: same purpose as @allocate_zeroed but for
-/// alignment greater than MAX_STANDARD_ALIGNMENT.
-/// @over_aligned_reallocate: same purpose as @reallocate but for alignment
-/// greater than MAX_STANDARD_ALIGNMENT. if the platform does not provide an
-/// implementation, this will be implemented with an overaligned alloc + memcpy
-/// + overaligned dealloc.
-/// @over_aligned_deallocate: same purpose as @deallocate but for alignment
-/// greater than MAX_STANDARD_ALIGNMENT.
-///
 /// @release: releases all allocated memory on the allocator.
+///
+///
+/// REQUIREMENTS
+/// =============
+///
+/// @alignment: must be a power of 2
 ///
 struct AllocatorInterface
 {
   void *(*allocate)(Allocator self, usize alignment, usize size) = nullptr;
   void *(*allocate_zeroed)(Allocator self, usize alignment,
                            usize size)                           = nullptr;
-  void *(*reallocate)(Allocator self, usize alignment, void *old_memory,
+  void *(*reallocate)(Allocator self, usize alignment, void *memory,
                       usize old_size, usize new_size)            = nullptr;
   void (*deallocate)(Allocator self, usize alignment, void *memory,
                      usize size)                                 = nullptr;
-  void *(*over_aligned_allocate)(Allocator self, usize alignment,
-                                 usize size)                     = nullptr;
-  void *(*over_aligned_allocate_zeroed)(Allocator self, usize alignment,
-                                        usize size)              = nullptr;
-  void *(*over_aligned_reallocate)(Allocator self, usize alignment,
-                                   void *old_memory, usize old_size,
-                                   usize new_size)               = nullptr;
-  void (*over_aligned_deallocate)(Allocator self, usize alignment, void *memory,
-                                  usize size)                    = nullptr;
   void (*release)(Allocator self)                                = nullptr;
 };
 
@@ -69,68 +51,130 @@ struct AllocatorImpl
   Allocator                 self      = nullptr;
   AllocatorInterface const *interface = nullptr;
 
-  void allocate(...);
-  void allocate_t(...);
-  void allocate_zeroed(...);
-  void allocate_zeroed_t(...);
-  void reallocate(...);
-  void realloce_t(...);
-  void grow_allocate(...);
-  void grow_allocate_t(...);
-  void de_allocate(...);
-  void de_allocate_t(...);
-  void over_aligned_allocate(...);
-  void over_aligned_allocate_t(...);
-  void over_aligned_allocate_zeroed(...);
-  void over_aligned_allocate_zeroed_t(...);
-  void over_aligned_reallocate(...);
-  void over_aligned_reallocate_t(...);
-  void over_aligned_grow_allocate(...);
-  void over_aligned_grow_allocate_t(...);
-  void over_aligned_de_alloc(...);
-  void over_aligned_de_alloc_T(...);
+  [[nodiscard]] void *allocate(usize alignment, usize size) const
+  {
+    return interface->allocate(self, alignment, size);
+  }
+
+  template <typename T>
+  [[nodiscard]] T *allocate_t(usize num) const
+  {
+    return (T *) interface->allocate(self, alignof(T), sizeof(T) * num);
+  }
+
+  [[nodiscard]] void *allocate_zeroed(usize alignment, usize size) const
+  {
+    return interface->allocate_zeroed(self, alignment, size);
+  }
+
+  template <typename T>
+  [[nodiscard]] T *allocate_zeroed_t(usize num) const
+  {
+    return (T *) interface->allocate_zeroed(self, alignof(T), sizeof(T) * num);
+  }
+
+  [[nodiscard]] void *reallocate(usize alignment, void *memory, usize old_size,
+                                 usize new_size) const
+  {
+    return interface->reallocate(self, alignment, memory, old_size, new_size);
+  }
+
+  template <typename T>
+  [[nodiscard]] T *reallocate_t(T *memory, usize old_num, usize new_num) const
+  {
+    return (T *) interface->reallocate(
+        self, alignof(T), memory, sizeof(T) * old_num, sizeof(T) * new_num);
+  }
+
+  [[nodiscard]] void *grow(usize alignment, void *memory, usize old_size,
+                           usize growth)
+  {
+    return interface->reallocate(self, alignment, memory, old_size,
+                                 old_size + growth);
+  }
+
+  template <typename T>
+  [[nodiscard]] T *grow_t(T *memory, usize old_num, usize growth) const
+  {
+    return (T *) interface->reallocate(self, alignof(T), memory,
+                                       sizeof(T) * old_num,
+                                       sizeof(T) * (old_num + growth));
+  }
+
+  void deallocate(usize alignment, void *memory, usize size) const
+  {
+    interface->deallocate(self, alignment, memory, size);
+  }
+
+  template <typename T>
+  void deallocate_t(T *memory, usize num) const
+  {
+    interface->deallocate(self, alignof(T), memory, sizeof(T) * num);
+  }
+
+  void release() const
+  {
+    interface->release(self);
+  }
 };
 
-struct DefaultHeapInterface
+struct Heap
+{
+};
+
+extern Heap const heap;
+
+struct HeapInterface
 {
   static void *allocate(Allocator self, usize alignment, usize size);
   static void *allocate_zeroed(Allocator self, usize alignment, usize size);
-  static void *reallocate(Allocator self, usize alignment, void *old_memory,
+  static void *reallocate(Allocator self, usize alignment, void *memory,
                           usize old_size, usize new_size);
   static void  deallocate(Allocator self, usize alignment, void *memory,
                           usize size);
-  static void *over_aligned_allocate(Allocator self, usize alignment,
-                                     usize size);
-  static void *over_aligned_allocate_zeroed(Allocator self, usize alignment,
-                                            usize size);
-  static void *over_aligned_reallocate(Allocator self, usize alignment,
-                                       void *old_memory, usize old_size,
-                                       usize new_size);
-  static void  over_aligned_deallocate(Allocator self, usize alignment,
-                                       void *memory, usize size);
   static void  release(Allocator self);
 };
 
-struct DefaultHeap
+static AllocatorInterface heap_interface{
+    .allocate        = HeapInterface::allocate,
+    .allocate_zeroed = HeapInterface::allocate_zeroed,
+    .reallocate      = HeapInterface::reallocate,
+    .deallocate      = HeapInterface::deallocate,
+    .release         = HeapInterface::release};
+
+/// allocator for standard-aligned allocations, guarantees at most
+/// MAX_STANDARD_ALIGNMENT.
+static AllocatorImpl const heap_allocator{.self      = (Allocator) &heap,
+                                          .interface = &heap_interface};
+
+struct OverAlignedHeap
 {
 };
 
-extern DefaultHeap default_heap;
+extern OverAlignedHeap const over_aligned_heap;
 
-static AllocatorInterface default_heap_allocator_interface{
-    .allocate              = DefaultHeapInterface::allocate,
-    .allocate_zeroed       = DefaultHeapInterface::allocate_zeroed,
-    .reallocate            = DefaultHeapInterface::reallocate,
-    .deallocate            = DefaultHeapInterface::deallocate,
-    .over_aligned_allocate = DefaultHeapInterface::over_aligned_allocate,
-    .over_aligned_allocate_zeroed =
-        DefaultHeapInterface::over_aligned_allocate_zeroed,
-    .over_aligned_reallocate = DefaultHeapInterface::over_aligned_reallocate,
-    .over_aligned_deallocate = DefaultHeapInterface::over_aligned_deallocate,
-    .release                 = DefaultHeapInterface::release};
+struct OverAlignedHeapInterface
+{
+  static void *allocate(Allocator self, usize alignment, usize size);
+  static void *allocate_zeroed(Allocator self, usize alignment, usize size);
+  static void *reallocate(Allocator self, usize alignment, void *memory,
+                          usize old_size, usize new_size);
+  static void  deallocate(Allocator self, usize alignment, void *memory,
+                          usize size);
+  static void  release(Allocator self);
+};
 
-static AllocatorImpl default_heap_allocator{
-    .self      = (Allocator) &default_heap,
-    .interface = &default_heap_allocator_interface};
+static AllocatorInterface const over_aligned_heap_interface{
+    .allocate        = OverAlignedHeapInterface::allocate,
+    .allocate_zeroed = OverAlignedHeapInterface::allocate_zeroed,
+    .reallocate      = OverAlignedHeapInterface::reallocate,
+    .deallocate      = OverAlignedHeapInterface::deallocate,
+    .release         = OverAlignedHeapInterface::release};
+
+/// allocator for over-aligned allocations, i.e. allocations aligned beyond
+/// standard alignment requirement. guarantees more than MAX_STANDARD_ALIGNMENT
+static AllocatorImpl const over_aligned_heap_allocator{
+    .self      = (Allocator) &over_aligned_heap,
+    .interface = &over_aligned_heap_interface};
 
 }        // namespace ash

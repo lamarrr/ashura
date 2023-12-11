@@ -390,24 +390,31 @@ struct Device
 ///
 struct DescriptorHeap
 {
-  u64                   refcount             = 0;
-  Device               *device               = nullptr;
-  AllocatorImpl         allocator            = {};
-  DescriptorSetLayout **set_layouts          = nullptr;
-  u32                 **binding_offsets      = nullptr;
-  VkDescriptorPool     *vk_pools             = nullptr;
-  VkDescriptorSet      *vk_descriptor_sets   = nullptr;
-  u64                  *last_use_frame       = nullptr;
-  u32                  *released_groups      = nullptr;
-  u32                  *free_groups          = nullptr;
-  u8                   *bindings             = nullptr;
-  void                 *scratch_memory       = nullptr;
-  u32                   num_sets_per_group   = 0;
-  u32                   num_pools            = 0;
-  u32                   num_groups_per_pool  = 0;
-  u32                   num_released_groups  = 0;
-  u32                   num_free_groups      = 0;
-  u32                   group_binding_stride = 0;
+  u64                   refcount                    = 0;
+  Device               *device                      = nullptr;
+  AllocatorImpl         allocator                   = {};
+  DescriptorSetLayout **set_layouts                 = nullptr;
+  u32                 **binding_offsets             = nullptr;
+  VkDescriptorPool     *vk_pools                    = nullptr;
+  VkDescriptorSet      *vk_descriptor_sets          = nullptr;
+  u64                  *last_use_frame              = nullptr;
+  u32                  *released_groups             = nullptr;
+  u32                  *free_groups                 = nullptr;
+  u8                   *bindings                    = nullptr;
+  void                 *scratch_memory              = nullptr;
+  u32                   num_sets_per_group          = 0;
+  u32                   num_pools                   = 0;
+  u32                   num_groups_per_pool         = 0;
+  u32                   num_released_groups         = 0;
+  u32                   num_free_groups             = 0;
+  u32                   group_binding_stride        = 0;
+  usize                 vk_pools_capacity           = 0;
+  usize                 vk_descriptor_sets_capacity = 0;
+  usize                 last_use_frame_capacity     = 0;
+  usize                 released_groups_capacity    = 0;
+  usize                 free_groups_capacity        = 0;
+  usize                 bindings_capacity           = 0;
+  usize                 scratch_memory_size         = 0;
 };
 
 struct CommandEncoder

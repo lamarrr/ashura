@@ -30,6 +30,11 @@ void zero(T *dst, usize count)
   std::memset(dst, 0, sizeof(T) * count);
 }
 
+void zero(void *dst, usize size)
+{
+  std::memset(dst, 0, size);
+}
+
 template <typename T>
 void zero(Span<T> dst)
 {

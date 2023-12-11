@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.1)
 
 project(Ashura)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
@@ -73,15 +73,19 @@ else()
   endif()
 endif()
 
+add_library(ashura_allocator STATIC ashura/allocator.cc ashura/arena_allocator.cc)
 add_library(ashura_gfx STATIC ashura/gfx.cc ashura/vulkan_gfx.cc)
 
+target_include_directories(
+  ashura_allocator
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} )
+
 target_link_libraries(ashura_gfx stx::stx Vulkan::Headers
-                      GPUOpen::VulkanMemoryAllocator)
+                      GPUOpen::VulkanMemoryAllocator ashura_allocator)
 
 target_include_directories(
   ashura_gfx
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-  PRIVATE src)
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} )
 
 add_library(
   ashura STATIC
@@ -95,7 +99,10 @@ add_library(
 
 target_include_directories(
   ashura
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ashura ${JPEG_INCLUDE_DIR})
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} 
+  ${JPEG_INCLUDE_DIR} 
+  ${FFMPEG_INCLUDE_DIRS} 
+  ${FFMPEG_LIBRARY_DIRS})
 
 target_link_libraries(
   ashura
@@ -115,10 +122,7 @@ target_link_libraries(
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
 
-target_include_directories(ashura PUBLIC ${FFMPEG_INCLUDE_DIRS})
-target_link_directories(ashura PUBLIC ${FFMPEG_LIBRARY_DIRS})
-
-set_target_properties(ashura PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED
+set_target_properties(ashura PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED
                                                         ON)
 
 add_executable(ashura_main ashura/ashura.cc)
