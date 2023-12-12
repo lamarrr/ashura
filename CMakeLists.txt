@@ -62,10 +62,10 @@ target_include_directories(
 add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
 if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  add_compile_options(-Wall -Wextra -Wpedantic -fno-rtti -fno-exceptions)
 else()
   if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic -Wno-nullability-extension)
+    add_compile_options(-Wall -Wextra -Wpedantic -Wno-nullability-extension -fno-rtti -fno-exceptions)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
       add_compile_options(/W4)
