@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.1)
 
 project(Ashura)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
@@ -61,11 +61,11 @@ target_include_directories(
   PRIVATE ${SheenBidi_DIR}/Source)
 add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
-if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   add_compile_options(-Wall -Wextra -Wpedantic -fno-rtti -fno-exceptions)
 else()
-  if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic -Wno-nullability-extension -fno-rtti -fno-exceptions)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-Wall -Wextra -Wpedantic -fno-rtti -fno-exceptions)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
       add_compile_options(/W4)
@@ -73,20 +73,9 @@ else()
   endif()
 endif()
 
-add_library(ashura_allocator STATIC ashura/allocator.cc ashura/arena_allocator.cc)
+add_library(ashura_allocator STATIC ashura/allocator.cc
+                                    ashura/arena_allocator.cc)
 add_library(ashura_gfx STATIC ashura/gfx.cc ashura/vulkan_gfx.cc)
-
-target_include_directories(
-  ashura_allocator
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} )
-
-target_link_libraries(ashura_gfx stx::stx Vulkan::Headers
-                      GPUOpen::VulkanMemoryAllocator ashura_allocator)
-
-target_include_directories(
-  ashura_gfx
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} )
-
 add_library(
   ashura STATIC
   ashura/app.cc
@@ -96,14 +85,18 @@ add_library(
   ashura/loggers.cc
   ashura/subsystems/http_client.cc
   ashura/ecs.cc)
+add_executable(ashura_main ashura/ashura.cc)
+add_executable(ashura_networking_test ashura/tests/http.cc)
+add_executable(ashura_test ashura/tests/layout.cc)
 
+target_include_directories(ashura_allocator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(
-  ashura
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} 
-  ${JPEG_INCLUDE_DIR} 
-  ${FFMPEG_INCLUDE_DIRS} 
-  ${FFMPEG_LIBRARY_DIRS})
+  ashura PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
+                ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
 
+target_link_libraries(ashura_gfx stx::stx Vulkan::Headers
+                      GPUOpen::VulkanMemoryAllocator ashura_allocator)
 target_link_libraries(
   ashura
   ashura_gfx
@@ -121,17 +114,7 @@ target_link_libraries(
   PNG::PNG
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
-
-set_target_properties(ashura PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED
-                                                        ON)
-
-add_executable(ashura_main ashura/ashura.cc)
 target_link_libraries(ashura_main ashura)
-
-add_executable(ashura_networking_test ashura/tests/http.cc)
 target_link_libraries(ashura_networking_test ashura GTest::gtest
                       GTest::gtest_main)
-
-add_executable(ashura_test ashura/tests/layout.cc)
 target_link_libraries(ashura_test ashura GTest::gtest GTest::gtest_main)
-
