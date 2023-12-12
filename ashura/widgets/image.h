@@ -130,12 +130,12 @@ struct Image : public Widget
           f32 aspect_ratio = props.aspect_ratio.value();
 
           Vec2 clipped_extent{std::min(image_extent.height * aspect_ratio,
-                                       static_cast<f32>( image_extent.width)),
+                                       static_cast<f32>(image_extent.width)),
                               std::min(image_extent.width / aspect_ratio,
-                                       static_cast<f32>( image_extent.height))};
+                                       static_cast<f32>(image_extent.height))};
 
-          Vec2 original_extent{static_cast<f32>( image_extent.width),
-                               static_cast<f32>( image_extent.height)};
+          Vec2 original_extent{static_cast<f32>(image_extent.width),
+                               static_cast<f32>(image_extent.height)};
 
           Vec2 space = original_extent - clipped_extent;
 
@@ -213,7 +213,8 @@ struct Image : public Widget
             if (props.resize_on_load)
             {
               props.size = Constraint2D::absolute(
-                  static_cast<f32>( buffer.extent.width), static_cast<f32>( buffer.extent.height));
+                  static_cast<f32>(buffer.extent.width),
+                  static_cast<f32>(buffer.extent.height));
             }
             image_extent = buffer.extent;
           }

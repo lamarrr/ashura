@@ -9,11 +9,11 @@
 #include "ashura/image_decoder.h"
 #include "ashura/primitives.h"
 #include "ashura/subsystem.h"
+#include "ashura/utils.h"
 #include "stx/async.h"
 #include "stx/memory.h"
 #include "stx/result.h"
 #include "stx/scheduler.h"
-#include "ashura/utils.h"
 #include "stx/scheduler/scheduling/schedule.h"
 
 namespace ash
@@ -81,7 +81,7 @@ struct ImageLoader : public Subsystem
           ASH_CHECK(std::fclose(file) == 0);
 
           stx::Result result = decode_image(
-              stx::Span{   (u8*) memory.handle, static_cast<usize> (file_size)});
+              stx::Span{(u8 *) memory.handle, static_cast<usize>(file_size)});
 
           if (result.is_ok())
           {
