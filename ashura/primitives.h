@@ -15,16 +15,6 @@
 namespace ash
 {
 
-constexpr bool is_pointer_aligned(void *pointer, uintptr_t alignment)
-{
-  return (((uintptr_t) pointer) % alignment) == 0;
-}
-
-constexpr usize align_offset(usize offset, usize alignment)
-{
-  return (offset + (alignment - 1)) / alignment;
-}
-
 template <typename T, typename Base>
 concept Impl = std::is_base_of_v<Base, T>;
 

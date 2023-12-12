@@ -29,6 +29,7 @@ constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 8;
 constexpr u32 MAX_COMPUTE_GROUP_COUNT_X    = 1024;
 constexpr u32 MAX_COMPUTE_GROUP_COUNT_Y    = 1024;
 constexpr u32 MAX_COMPUTE_GROUP_COUNT_Z    = 1024;
+constexpr u32 MAX_SWAPCHAIN_IMAGES         = 8;
 
 typedef u64                            FrameId;
 typedef struct Buffer_T               *Buffer;
@@ -902,12 +903,16 @@ struct ShaderDesc
   Span<u32 const> spirv_code = {};
 };
 
+/// @load_op: how to load color or depth component
+/// @store_op: how to store color or depth component
+/// @stencil_load_op: how to load stencil component
+/// @stencil_store_op: how to store stencil component
 struct RenderPassAttachment
 {
-  Format format  = Format::Undefined;
-  LoadOp load_op = LoadOp::Load;        // how to use color and depth components
-  StoreOp store_op       = StoreOp::Store;
-  LoadOp stencil_load_op = LoadOp::Load;        // how to use stencil components
+  Format  format           = Format::Undefined;
+  LoadOp  load_op          = LoadOp::Load;
+  StoreOp store_op         = StoreOp::Store;
+  LoadOp  stencil_load_op  = LoadOp::Load;
   StoreOp stencil_store_op = StoreOp::Store;
 };
 
@@ -1363,16 +1368,6 @@ struct CommandEncoderImpl
 {
   CommandEncoder                 self      = nullptr;
   CommandEncoderInterface const *interface = nullptr;
-
-  constexpr bool operator==(CommandEncoderImpl other) const
-  {
-    return self == other.self && interface == other.interface;
-  }
-
-  constexpr bool operator!=(CommandEncoderImpl other) const
-  {
-    return !(*this == other);
-  }
 };
 
 struct DeviceInterface
@@ -1512,16 +1507,6 @@ struct DeviceImpl
 {
   Device                 self      = nullptr;
   DeviceInterface const *interface = nullptr;
-
-  constexpr bool operator==(DeviceImpl other) const
-  {
-    return self == other.self && interface == other.interface;
-  }
-
-  constexpr bool operator!=(DeviceImpl other) const
-  {
-    return !(*this == other);
-  }
 
   void ref(Buffer object) const
   {
@@ -1681,59 +1666,6 @@ struct DeviceImpl
   void unref(FrameContext object) const
   {
     interface->unref_frame_context(self, object);
-  }
-};
-
-template <typename Object>
-struct Rc
-{
-  DeviceImpl device = {};
-  Object     object = {};
-
-  static Rc ref(DeviceImpl device, Object object)
-  {
-    device.ref(object);
-    return Rc{device, object};
-  }
-
-  constexpr Rc(DeviceImpl idevice, Object iobject) :
-      device{idevice}, object{iobject}
-  {
-  }
-
-  Rc(Rc const &other) : device{other.device}, object{other.object}
-  {
-    device.ref(object);
-  }
-
-  constexpr Rc(Rc &&other) : device{other.device}, object{other.object}
-  {
-    other.device = DeviceImpl{};
-    other.object = Object{};
-  }
-
-  Rc &operator=(Rc const &other)
-  {
-    device.unref(object);
-    other.device.ref(other.object);
-    device = other.device;
-    object = other.object;
-    return *this;
-  }
-
-  constexpr Rc &operator=(Rc &&other)
-  {
-    std::swap(device, other.device);
-    std::swap(object, other.object);
-    return *this;
-  }
-
-  constexpr ~Rc()
-  {
-    if ((device != DeviceImpl{}) && (object != Object{}))
-    {
-      device.unref(object);
-    }
   }
 };
 

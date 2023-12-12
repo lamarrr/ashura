@@ -6,6 +6,11 @@ namespace ash
 namespace mem
 {
 
+constexpr usize align_offset(usize alignment, usize offset)
+{
+  return (offset + (alignment - 1)) / alignment;
+}
+
 template <typename T>
 void copy(T *src, T *dst, usize count)
 {

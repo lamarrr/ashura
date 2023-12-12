@@ -483,7 +483,7 @@ constexpr bool has_write_access(VkAccessFlags access)
                        VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV));
 }
 
-static bool sync_buffer(BufferState &state, BufferAccess request,
+inline bool sync_buffer(BufferState &state, BufferAccess request,
                         VkBufferMemoryBarrier &barrier,
                         VkPipelineStageFlags  &src_stages,
                         VkPipelineStageFlags  &dst_stages)
@@ -642,7 +642,7 @@ static bool sync_buffer(BufferState &state, BufferAccess request,
 // perform reads
 //
 // if their scopes don't line-up, they won't observe the effects same
-static bool sync_image(ImageState &state, ImageAccess request,
+inline bool sync_image(ImageState &state, ImageAccess request,
                        VkImageMemoryBarrier &barrier,
                        VkPipelineStageFlags &src_stages,
                        VkPipelineStageFlags &dst_stages)
@@ -815,7 +815,7 @@ static bool sync_image(ImageState &state, ImageAccess request,
   }
 }
 
-static void access_buffer(CommandEncoder const *encoder, Buffer *buffer,
+inline void access_buffer(CommandEncoder const *encoder, Buffer *buffer,
                           VkPipelineStageFlags stages, VkAccessFlags access)
 {
   VkBufferMemoryBarrier barrier;
@@ -838,7 +838,7 @@ static void access_buffer(CommandEncoder const *encoder, Buffer *buffer,
   }
 }
 
-static void access_image(CommandEncoder const *encoder, Image *image,
+inline void access_image(CommandEncoder const *encoder, Image *image,
                          VkPipelineStageFlags stages, VkAccessFlags access,
                          VkImageLayout layout)
 {
@@ -867,7 +867,7 @@ static void access_image(CommandEncoder const *encoder, Image *image,
   }
 }
 
-static bool is_renderpass_compatible(RenderPass const           *render_pass,
+inline bool is_renderpass_compatible(RenderPass const           *render_pass,
                                      gfx::FramebufferDesc const &desc)
 {
   // also depends on the formats of the input attachments which can't be
@@ -1749,82 +1749,83 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
         switch (desc.type)
         {
           case gfx::DescriptorType::Sampler:
-            offset = (u32) align_offset(offset, alignof(gfx::SamplerBinding));
+            offset =
+                (u32) mem::align_offset(alignof(gfx::SamplerBinding), offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::SamplerBinding) * desc.count);
             num_image_infos = std::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::CombinedImageSampler:
-            offset = (u32) align_offset(
-                offset, alignof(gfx::CombinedImageSamplerBinding));
+            offset = (u32) mem::align_offset(
+                alignof(gfx::CombinedImageSamplerBinding), offset);
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::CombinedImageSamplerBinding) * desc.count);
             num_image_infos = std::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::SampledImage:
-            offset =
-                (u32) align_offset(offset, alignof(gfx::SampledImageBinding));
+            offset = (u32) mem::align_offset(alignof(gfx::SampledImageBinding),
+                                             offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::SampledImageBinding) * desc.count);
             num_image_infos = std::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::StorageImage:
-            offset =
-                (u32) align_offset(offset, alignof(gfx::StorageImageBinding));
+            offset = (u32) mem::align_offset(alignof(gfx::StorageImageBinding),
+                                             offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::StorageImageBinding) * desc.count);
             num_image_infos = std::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::UniformTexelBuffer:
-            offset = (u32) align_offset(
-                offset, alignof(gfx::UniformTexelBufferBinding));
+            offset = (u32) mem::align_offset(
+                alignof(gfx::UniformTexelBufferBinding), offset);
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::UniformTexelBufferBinding) * desc.count);
             num_buffer_views = std::max(num_buffer_views, desc.count);
             break;
           case gfx::DescriptorType::StorageTexelBuffer:
-            offset = (u32) align_offset(
-                offset, alignof(gfx::StorageTexelBufferBinding));
+            offset = (u32) mem::align_offset(
+                alignof(gfx::StorageTexelBufferBinding), offset);
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::StorageTexelBufferBinding) * desc.count);
             num_buffer_views = std::max(num_buffer_views, desc.count);
             break;
           case gfx::DescriptorType::UniformBuffer:
-            offset =
-                (u32) align_offset(offset, alignof(gfx::UniformBufferBinding));
+            offset = (u32) mem::align_offset(alignof(gfx::UniformBufferBinding),
+                                             offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::UniformBufferBinding) * desc.count);
             num_buffer_infos = std::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::StorageBuffer:
-            offset =
-                (u32) align_offset(offset, alignof(gfx::StorageBufferBinding));
+            offset = (u32) mem::align_offset(alignof(gfx::StorageBufferBinding),
+                                             offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::StorageBufferBinding) * desc.count);
             num_buffer_infos = std::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::DynamicUniformBuffer:
-            offset = (u32) align_offset(
-                offset, alignof(gfx::DynamicUniformBufferBinding));
+            offset = (u32) mem::align_offset(
+                alignof(gfx::DynamicUniformBufferBinding), offset);
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::DynamicUniformBufferBinding) * desc.count);
             num_buffer_infos = std::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::DynamicStorageBuffer:
-            offset = (u32) align_offset(
-                offset, alignof(gfx::DynamicStorageBufferBinding));
+            offset = (u32) mem::align_offset(
+                alignof(gfx::DynamicStorageBufferBinding), offset);
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::DynamicStorageBufferBinding) * desc.count);
             num_buffer_infos = std::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::InputAttachment:
-            offset                        = (u32) align_offset(offset,
-                                                               alignof(gfx::InputAttachmentBinding));
+            offset = (u32) mem::align_offset(
+                alignof(gfx::InputAttachmentBinding), offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::InputAttachmentBinding) * desc.count);
             num_image_infos = std::max(num_image_infos, desc.count);
@@ -1842,7 +1843,6 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
                 num_buffer_infos * sizeof(VkDescriptorBufferInfo),
                 num_buffer_views * sizeof(VkBufferView)});
 
-  // TODO(lamarrr): store scratch size for later destroy call
   void *scratch_memory =
       self->allocator.allocate(MAX_STANDARD_ALIGNMENT, scratch_size);
   if (scratch_memory == nullptr)
@@ -2620,27 +2620,15 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 
 /// old swapchain will be retired and destroyed irregardless of whether new
 /// swapchain recreation fails.
-static VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
+inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
 {
   VALIDATE("", swapchain->desc.preferred_extent.is_visible());
-
-  for (u32 i = 0; i < swapchain->num_images; i++)
-  {
-    // swapchain images are just plain bytes, no destructor need be run
-    Image *image = (Image *) swapchain->images[i];
-    device->allocator.deallocate_typed(image, 1);
-  }
-  device->allocator.deallocate_typed(swapchain->images, swapchain->num_images);
-  device->allocator.deallocate_typed(swapchain->vk_images,
-                                     swapchain->num_images);
 
   // take ownership of internal data for re-use/release
   VkSwapchainKHR old_vk_swapchain = swapchain->vk_swapchain;
   swapchain->is_valid             = false;
   swapchain->is_optimal           = false;
   swapchain->extent               = Extent{};
-  swapchain->images               = nullptr;
-  swapchain->vk_images            = nullptr;
   swapchain->num_images           = 0;
   swapchain->current_image        = 0;
   swapchain->vk_swapchain         = nullptr;
@@ -2738,67 +2726,33 @@ static VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
     return result;
   }
 
-  VkImage *vk_images = device->allocator.allocate_typed<VkImage>(num_images);
-
-  if (vk_images == nullptr)
-  {
-    device->vk_table.DestroySwapchainKHR(device->vk_device, new_vk_swapchain,
-                                         nullptr);
-    return VK_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  gfx::Image *images = device->allocator.allocate_typed<gfx::Image>(num_images);
-
-  if (images == nullptr)
-  {
-    device->allocator.deallocate_typed(vk_images, num_images);
-    device->vk_table.DestroySwapchainKHR(device->vk_device, new_vk_swapchain,
-                                         nullptr);
-    return VK_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  {
-    u32 push_end = 0;
-    for (; push_end < num_images; push_end++)
-    {
-      Image *image = device->allocator.allocate_typed<Image>(1);
-      if (image == nullptr)
-      {
-        break;
-      }
-      images[push_end] = (gfx::Image) image;
-    }
-
-    if (push_end != num_images)
-    {
-      for (u32 ifree = 0; ifree < push_end; ifree++)
-      {
-        Image *image = (Image *) images[ifree];
-        device->allocator.deallocate_typed(image, 1);
-      }
-      device->allocator.deallocate_typed(images, num_images);
-      device->allocator.deallocate_typed(vk_images, num_images);
-      device->vk_table.DestroySwapchainKHR(device->vk_device, new_vk_swapchain,
-                                           nullptr);
-      return VK_ERROR_OUT_OF_HOST_MEMORY;
-    }
-  }
-
   result = device->vk_table.GetSwapchainImagesKHR(
-      device->vk_device, new_vk_swapchain, &num_images, vk_images);
+      device->vk_device, new_vk_swapchain, &num_images, swapchain->vk_images);
 
   if (result != VK_SUCCESS)
   {
-    for (u32 ifree = 0; ifree < num_images; ifree++)
-    {
-      Image *image = (Image *) images[ifree];
-      device->allocator.deallocate_typed(image, 1);
-    }
-    device->allocator.deallocate_typed(images, num_images);
-    device->allocator.deallocate_typed(vk_images, num_images);
     device->vk_table.DestroySwapchainKHR(device->vk_device, new_vk_swapchain,
                                          nullptr);
     return result;
+  }
+
+  for (u32 i = 0; i < num_images; i++)
+  {
+    swapchain->image_impls[i] =
+        Image{.refcount = 1,
+              .desc     = gfx::ImageDesc{.type    = gfx::ImageType::Type2D,
+                                         .format  = swapchain->desc.format.format,
+                                         .usage   = swapchain->desc.usage,
+                                         .aspects = gfx::ImageAspects::Color,
+                                         .extent  = Extent3D{vk_extent.width,
+                                                        vk_extent.height, 1},
+                                         .mip_levels   = 1,
+                                         .array_layers = 1},
+              .is_swapchain_image  = true,
+              .vk_image            = swapchain->vk_images[i],
+              .vma_allocation      = nullptr,
+              .vma_allocation_info = {},
+              .state               = {}};
   }
 
   if (swapchain->desc.label != nullptr)
@@ -2818,31 +2772,11 @@ static VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
           .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
           .pNext       = nullptr,
           .objectType  = VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
-          .object      = (u64) vk_images[i],
+          .object      = (u64) swapchain->vk_images[i],
           .pObjectName = swapchain->desc.label};
       device->vk_table.DebugMarkerSetObjectNameEXT(device->vk_device,
                                                    &image_debug_info);
     }
-  }
-
-  for (u32 i = 0; i < num_images; i++)
-  {
-    Image *image = (Image *) images[i];
-    new (image)
-        Image{.refcount = 1,
-              .desc     = gfx::ImageDesc{.type    = gfx::ImageType::Type2D,
-                                         .format  = swapchain->desc.format.format,
-                                         .usage   = swapchain->desc.usage,
-                                         .aspects = gfx::ImageAspects::Color,
-                                         .extent  = Extent3D{vk_extent.width,
-                                                        vk_extent.height, 1},
-                                         .mip_levels   = 1,
-                                         .array_layers = 1},
-              .is_swapchain_image  = true,
-              .vk_image            = vk_images[i],
-              .vma_allocation      = nullptr,
-              .vma_allocation_info = {},
-              .state               = {}};
   }
 
   swapchain->generation++;
@@ -2850,8 +2784,6 @@ static VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
   swapchain->is_optimal    = true;
   swapchain->extent.width  = vk_extent.width;
   swapchain->extent.height = vk_extent.height;
-  swapchain->images        = images;
-  swapchain->vk_images     = vk_images;
   swapchain->num_images    = num_images;
   swapchain->current_image = 0;
   swapchain->vk_swapchain  = new_vk_swapchain;
@@ -2875,8 +2807,9 @@ Result<gfx::Swapchain, Status>
                             .is_valid      = false,
                             .is_optimal    = false,
                             .extent        = {},
-                            .images        = nullptr,
-                            .vk_images     = nullptr,
+                            .image_impls   = {},
+                            .images        = {},
+                            .vk_images     = {},
                             .num_images    = 0,
                             .current_image = 0,
                             .vk_swapchain  = nullptr,
@@ -3217,6 +3150,9 @@ Result<Void, Status>
   VkSemaphore const submit_semaphore =
       frame_context->submit_semaphores[frame_context->current_command_encoder];
 
+  VALIDATE("", swapchain->is_valid);
+  VALIDATE("", swapchain->extent.is_visible());
+
   VkResult result = self->vk_table.WaitForFences(
       self->vk_device, 1, &submit_fence->vk_fence, VK_TRUE, U64_MAX);
 
@@ -3305,10 +3241,6 @@ Result<u32, Status>
                                        gfx::FrameId        trailing_frame)
 {
   DescriptorHeap *const self = (DescriptorHeap *) self_;
-
-  // TODO(lamarrr): the size becomes incorrect upon deallocation if we leave it
-  // as is without storing the capacities.
-  // like this
 
   // move from released to free for all released groups not in use by the device
   if (self->num_released_groups > 0)
@@ -4873,7 +4805,11 @@ void CommandEncoderInterface::bind_descriptor_sets(
     vk_sets[iset] =
         descriptor_heap->vk_descriptor_sets
             [descriptor_heap->num_sets_per_group * groups[iset] + sets[iset]];
+    self->bound_descriptor_set_heaps[iset]  = descriptor_heap;
+    self->bound_descriptor_set_groups[iset] = groups[iset];
+    self->bound_descriptor_sets[iset]       = sets[iset];
   }
+  self->num_bound_descriptor_sets = num_sets;
 
   VkPipelineBindPoint vk_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
   VkPipelineLayout    vk_layout     = nullptr;
@@ -4896,8 +4832,6 @@ void CommandEncoderInterface::bind_descriptor_sets(
   self->device->vk_table.CmdBindDescriptorSets(
       self->vk_command_buffer, vk_bind_point, vk_layout, 0, num_sets, vk_sets,
       num_dynamic_offsets, dynamic_offsets.data);
-  // TODO(lamarrr): store descriptor heaps in command encoder
-  // set num_bound_descriptor_heaps in command encoder
 }
 
 void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
@@ -4974,6 +4908,10 @@ void CommandEncoderInterface::set_viewport(gfx::CommandEncoder  self_,
   {
     return;
   }
+
+  // TODO(lamarrr): generate access for dispatches
+  // and bindings and framebuffers
+  // index buffer, vertex buffer
 
   VkViewport vk_viewport{.x        = viewport.area.offset.x,
                          .y        = viewport.area.offset.y,
@@ -5135,7 +5073,7 @@ void CommandEncoderInterface::draw(gfx::CommandEncoder self_, u32 first_index,
 
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", self->bound_render_pass != nullptr);
-  // TODO(lamarrr): validate input attachment compat
+  VALIDATE("", self->bound_framebuffer != nullptr);
 
   if (self->status != Status::Success)
   {
@@ -5155,7 +5093,7 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
 
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", self->bound_render_pass != nullptr);
-  // TODO(lamarrr): validate input attachment compat
+  VALIDATE("", self->bound_framebuffer != nullptr);
 
   if (self->status != Status::Success)
   {

@@ -451,17 +451,18 @@ struct FrameContext
 
 struct Swapchain
 {
-  u64                generation    = 0;
-  gfx::SwapchainDesc desc          = {};
-  bool               is_valid      = false;
-  bool               is_optimal    = false;
-  Extent             extent        = {};
-  gfx::Image        *images        = nullptr;
-  VkImage           *vk_images     = nullptr;
-  u32                num_images    = 0;
-  u32                current_image = 0;
-  VkSwapchainKHR     vk_swapchain  = nullptr;
-  VkSurfaceKHR       vk_surface    = nullptr;
+  u64                generation                             = 0;
+  gfx::SwapchainDesc desc                                   = {};
+  bool               is_valid                               = false;
+  bool               is_optimal                             = false;
+  Extent             extent                                 = {};
+  Image              image_impls[gfx::MAX_SWAPCHAIN_IMAGES] = {};
+  gfx::Image         images[gfx::MAX_SWAPCHAIN_IMAGES]       = {};
+  VkImage            vk_images[gfx::MAX_SWAPCHAIN_IMAGES]   = {};
+  u32                num_images                             = 0;
+  u32                current_image                          = 0;
+  VkSwapchainKHR     vk_swapchain                           = nullptr;
+  VkSurfaceKHR       vk_surface                             = nullptr;
 };
 
 struct DeviceInterface

@@ -158,22 +158,22 @@ constexpr void default_construct(Span<T> span)
 template <typename Src, typename Dst>
 constexpr void move_construct(Span<Src> src, Span<Dst> dst)
 {
-  Src *in  = src.begin();
-  Dst *out = dst.begin();
-  for (; in < src.end(); out++, in++)
+  Src *input  = src.begin();
+  Dst *output = dst.begin();
+  for (; input < src.end(); output++, input++)
   {
-    new (*out) Dst{(Src &&) (*in)};
+    new (*output) Dst{(Src &&) (*input)};
   }
 }
 
 template <typename Src, typename Dst>
 constexpr void copy_construct(Span<Src> src, Span<Dst> dst)
 {
-  Src *in  = src.begin();
-  Dst *out = dst.begin();
-  for (; in < src.end(); out++, in++)
+  Src *input  = src.begin();
+  Dst *output = dst.begin();
+  for (; input < src.end(); output++, input++)
   {
-    new (*out) Dst{*in};
+    new (*output) Dst{*input};
   }
 }
 
@@ -189,22 +189,22 @@ constexpr void destruct(Span<T> span)
 template <typename Src, typename Dst>
 constexpr void move(Span<Src> src, Span<Dst> dst)
 {
-  Src *in  = src.begin();
-  Dst *out = dst.begin();
-  for (; in < src.end(); out++, in++)
+  Src *input  = src.begin();
+  Dst *output = dst.begin();
+  for (; input < src.end(); output++, input++)
   {
-    *out = (Src &&) *in;
+    *output = (Src &&) *input;
   }
 }
 
 template <typename Src, typename Dst>
 constexpr void copy(Span<Src> src, Span<Dst> dst)
 {
-  Src *in  = src.begin();
-  Dst *out = dst.begin();
-  for (; in < src.end(); out++, in++)
+  Src *input  = src.begin();
+  Dst *output = dst.begin();
+  for (; input < src.end(); output++, input++)
   {
-    *out = *in;
+    *output = *input;
   }
 }
 
