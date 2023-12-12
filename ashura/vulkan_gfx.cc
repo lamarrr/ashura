@@ -1683,13 +1683,13 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
 
   VALIDATE("", groups_per_pool > 0);
   VALIDATE("", num_sets > 0);
-  for (gfx::DescriptorSetLayout layout : descriptor_set_layouts)
+  for (gfx::DescriptorSetLayout layout_ : descriptor_set_layouts)
   {
-    DescriptorSetLayout *layout_impl = (DescriptorSetLayout *) layout;
-    VALIDATE("", layout_impl->num_bindings > 0);
-    for (u32 i = 0; i < layout_impl->num_bindings; i++)
+    DescriptorSetLayout *layout = (DescriptorSetLayout *) layout_;
+    VALIDATE("", layout->num_bindings > 0);
+    for (u32 i = 0; i < layout->num_bindings; i++)
     {
-      VALIDATE("", layout_impl->bindings[i].count > 0);
+      VALIDATE("", layout->bindings[i].count > 0);
     }
   }
 
