@@ -601,7 +601,7 @@ struct VideoDemuxer
       }
     } while (prev != nullptr);
 
-    for (uint i = 0; i < fmt_ctx->nb_streams; i++)
+    for (unsigned int i = 0; i < fmt_ctx->nb_streams; i++)
     {
       AVStream *stream = fmt_ctx->streams[i];
       ASH_LOG_INFO(
