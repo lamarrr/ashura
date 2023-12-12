@@ -152,8 +152,8 @@ static gfx::CommandEncoderInterface const command_encoder_interface{
         CommandEncoderInterface::set_stencil_compare_mask,
     .set_stencil_reference  = CommandEncoderInterface::set_stencil_reference,
     .set_stencil_write_mask = CommandEncoderInterface::set_stencil_write_mask,
-    .set_vertex_buffers     = CommandEncoderInterface::set_vertex_buffers,
-    .set_index_buffer       = CommandEncoderInterface::set_index_buffer,
+    .bind_vertex_buffers    = CommandEncoderInterface::bind_vertex_buffers,
+    .bind_index_buffer      = CommandEncoderInterface::bind_index_buffer,
     .draw                   = CommandEncoderInterface::draw,
     .draw_indirect          = CommandEncoderInterface::draw_indirect};
 
@@ -2419,6 +2419,8 @@ Result<gfx::CommandEncoderImpl, Status>
                                .bound_graphics_pipeline     = nullptr,
                                .bound_render_pass           = nullptr,
                                .bound_framebuffer           = nullptr,
+                               .bound_vertex_buffers        = {},
+                               .num_bound_vertex_buffers    = 0,
                                .bound_descriptor_set_heaps  = {},
                                .bound_descriptor_set_groups = {},
                                .num_bound_descriptor_sets   = 0,
@@ -5018,15 +5020,16 @@ void CommandEncoderInterface::set_stencil_write_mask(gfx::CommandEncoder self_,
       self->vk_command_buffer, (VkStencilFaceFlags) faces, mask);
 }
 
-void CommandEncoderInterface::set_vertex_buffers(
+void CommandEncoderInterface::bind_vertex_buffers(
     gfx::CommandEncoder self_, Span<gfx::Buffer const> vertex_buffers,
     Span<u64 const> offsets)
 {
-  CommandEncoder *const self        = (CommandEncoder *) self_;
-  u32 const             num_buffers = (u32) vertex_buffers.size;
+  CommandEncoder *const self               = (CommandEncoder *) self_;
+  u32 const             num_vertex_buffers = (u32) vertex_buffers.size;
 
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
-  VALIDATE("", num_buffers > 0);
+  VALIDATE("", num_vertex_buffers > 0);
+  VALIDATE("", num_vertex_buffers <= gfx::MAX_VERTEX_ATTRIBUTES);
   VALIDATE("", offsets.size == vertex_buffers.size);
 
   if (self->status != Status::Success)
@@ -5034,43 +5037,41 @@ void CommandEncoderInterface::set_vertex_buffers(
     return;
   }
 
-  VkBuffer *vk_buffers = self->allocator.allocate_typed<VkBuffer>(num_buffers);
+  VkBuffer vk_buffers[gfx::MAX_VERTEX_ATTRIBUTES];
 
-  if (vk_buffers == nullptr)
+  for (u32 i = 0; i < num_vertex_buffers; i++)
   {
-    self->status = Status::OutOfHostMemory;
-    return;
+    Buffer *buffer                = (Buffer *) vertex_buffers[i];
+    vk_buffers[i]                 = buffer->vk_buffer;
+    self->bound_vertex_buffers[i] = buffer;
   }
-
-  for (u32 i = 0; i < num_buffers; i++)
-  {
-    vk_buffers[i] = ((Buffer *) vertex_buffers[i])->vk_buffer;
-  }
+  self->num_bound_vertex_buffers = num_vertex_buffers;
 
   self->device->vk_table.CmdBindVertexBuffers(
-      self->vk_command_buffer, 0, num_buffers, vk_buffers, offsets.data);
-
-  self->allocator.deallocate_typed(vk_buffers, num_buffers);
+      self->vk_command_buffer, 0, num_vertex_buffers, vk_buffers, offsets.data);
 }
 
-void CommandEncoderInterface::set_index_buffer(gfx::CommandEncoder self_,
-                                               gfx::Buffer         index_buffer,
-                                               u64                 offset)
+void CommandEncoderInterface::bind_index_buffer(gfx::CommandEncoder self_,
+                                                gfx::Buffer    index_buffer_,
+                                                u64            offset,
+                                                gfx::IndexType index_type)
 {
-  CommandEncoder *const self              = (CommandEncoder *) self_;
-  Buffer *const         index_buffer_impl = (Buffer *) index_buffer;
+  CommandEncoder *const self         = (CommandEncoder *) self_;
+  Buffer *const         index_buffer = (Buffer *) index_buffer_;
 
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
-  VALIDATE("", offset < index_buffer_impl->desc.size);
+  VALIDATE("", offset < index_buffer->desc.size);
 
   if (self->status != Status::Success)
   {
     return;
   }
 
+  self->bound_index_buffer = index_buffer;
+
   self->device->vk_table.CmdBindIndexBuffer(self->vk_command_buffer,
-                                            index_buffer_impl->vk_buffer,
-                                            offset, VK_INDEX_TYPE_UINT32);
+                                            index_buffer->vk_buffer, offset,
+                                            (VkIndexType) index_type);
 }
 
 void CommandEncoderInterface::draw(gfx::CommandEncoder self_, u32 first_index,

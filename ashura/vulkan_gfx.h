@@ -419,15 +419,18 @@ struct DescriptorHeap
 
 struct CommandEncoder
 {
-  u64               refcount                = 0;
-  AllocatorImpl     allocator               = {};
-  Device           *device                  = nullptr;
-  VkCommandPool     vk_command_pool         = nullptr;
-  VkCommandBuffer   vk_command_buffer       = nullptr;
-  ComputePipeline  *bound_compute_pipeline  = nullptr;
-  GraphicsPipeline *bound_graphics_pipeline = nullptr;
-  RenderPass       *bound_render_pass       = nullptr;
-  Framebuffer      *bound_framebuffer       = nullptr;
+  u64               refcount                                         = 0;
+  AllocatorImpl     allocator                                        = {};
+  Device           *device                                           = nullptr;
+  VkCommandPool     vk_command_pool                                  = nullptr;
+  VkCommandBuffer   vk_command_buffer                                = nullptr;
+  ComputePipeline  *bound_compute_pipeline                           = nullptr;
+  GraphicsPipeline *bound_graphics_pipeline                          = nullptr;
+  RenderPass       *bound_render_pass                                = nullptr;
+  Framebuffer      *bound_framebuffer                                = nullptr;
+  Buffer           *bound_vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
+  u32               num_bound_vertex_buffers                         = 0;
+  Buffer           *bound_index_buffer                               = nullptr;
   DescriptorHeap
         *bound_descriptor_set_heaps[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]  = {};
   u32    bound_descriptor_set_groups[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
@@ -715,11 +718,12 @@ struct CommandEncoderInterface
                                     gfx::StencilFaces faces, u32 reference);
   static void set_stencil_write_mask(gfx::CommandEncoder self,
                                      gfx::StencilFaces faces, u32 mask);
-  static void set_vertex_buffers(gfx::CommandEncoder     self,
-                                 Span<gfx::Buffer const> vertex_buffers,
-                                 Span<u64 const>         offsets);
-  static void set_index_buffer(gfx::CommandEncoder self,
-                               gfx::Buffer index_buffer, u64 offset);
+  static void bind_vertex_buffers(gfx::CommandEncoder     self,
+                                  Span<gfx::Buffer const> vertex_buffers,
+                                  Span<u64 const>         offsets);
+  static void bind_index_buffer(gfx::CommandEncoder self,
+                                gfx::Buffer index_buffer, u64 offset,
+                                gfx::IndexType index_type);
   static void draw(gfx::CommandEncoder self, u32 first_index, u32 num_indices,
                    i32 vertex_offset, u32 first_instance, u32 num_instances);
   static void draw_indirect(gfx::CommandEncoder self, gfx::Buffer buffer,
