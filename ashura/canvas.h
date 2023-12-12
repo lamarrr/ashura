@@ -10,6 +10,7 @@
 #include "ashura/pipeline.h"
 #include "ashura/primitives.h"
 #include "ashura/text.h"
+#include "ashura/utils.h"
 #include "stx/text.h"
 #include "stx/vec.h"
 
@@ -67,7 +68,7 @@ inline stx::Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end,
 
   for (u32 i = 0; i < nsegments; i++)
   {
-    f32  angle = lerp(begin, end, AS(f32, i / (nsegments - 1)));
+    f32  angle = lerp(begin, end, static_cast<f32>(i / (nsegments - 1)));
     Vec2 p     = radius + radius * Vec2{std::cos(angle), std::sin(angle)};
     polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
@@ -347,7 +348,7 @@ inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness,
 
   u32 Vertex_index = 0;
 
-  for (u32 i = 1; i < AS(u32, in_points.size()); i++)
+  for (u32 i = 1; i < static_cast<u32>(in_points.size()); i++)
   {
     Vec4 color = in_points[i - 1].color;
     Vec2 p0    = in_points[i - 1].position;
@@ -673,9 +674,9 @@ struct Canvas
     draw_list.indices.extend(indices).unwrap();
 
     draw_list.commands
-        .push(DrawCommand{.pipeline       = DEFAULT_SHAPE_PIPELINE,
-                          .nvertices      = AS(u32, std::size(vertices)),
-                          .nindices       = AS(u32, std::size(indices)),
+        .push(DrawCommand{.pipeline  = DEFAULT_SHAPE_PIPELINE,
+                          .nvertices = static_cast<u32>(std::size(vertices)),
+                          .nindices  = static_cast<u32>(std::size(indices)),
                           .first_instance = 0,
                           .ninstances     = 1,
                           .scissor =
@@ -711,8 +712,8 @@ struct Canvas
     usize curr_nvertices = draw_list.vertices.size();
     usize curr_nindices  = draw_list.indices.size();
 
-    u32 nvertices = AS(u32, curr_nvertices - prev_nvertices);
-    u32 nindices  = AS(u32, curr_nindices - prev_nindices);
+    u32 nvertices = static_cast<u32>(curr_nvertices - prev_nvertices);
+    u32 nindices  = static_cast<u32>(curr_nindices - prev_nindices);
 
     draw_list.commands
         .push(DrawCommand{.pipeline       = DEFAULT_SHAPE_PIPELINE,
@@ -746,8 +747,8 @@ struct Canvas
     usize curr_nvertices = draw_list.vertices.size();
     usize curr_nindices  = draw_list.indices.size();
 
-    u32 nvertices = AS(u32, curr_nvertices - prev_nvertices);
-    u32 nindices  = AS(u32, curr_nindices - prev_nindices);
+    u32 nvertices = static_cast<u32>(curr_nvertices - prev_nvertices);
+    u32 nindices  = static_cast<u32>(curr_nindices - prev_nindices);
 
     draw_list.commands
         .push(DrawCommand{.pipeline       = DEFAULT_SHAPE_PIPELINE,
@@ -773,7 +774,7 @@ struct Canvas
       return *this;
     }
 
-    reserve_convex_polygon(AS(u32, polygon.size()), position, texture)
+    reserve_convex_polygon(static_cast<u32>(polygon.size()), position, texture)
         .copy(polygon);
 
     return *this;

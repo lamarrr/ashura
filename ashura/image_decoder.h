@@ -3,6 +3,7 @@
 
 #include "ashura/image.h"
 #include "ashura/primitives.h"
+#include "ashura/utils.h"
 #include "stx/span.h"
 
 extern "C"
@@ -42,11 +43,11 @@ inline stx::Result<ImageBuffer, ImageLoadError>
   stx::Memory memory =
       stx::mem::allocate(
           stx::os_allocator,
-          AS(usize,
-             features.width * features.height * features.has_alpha ? 4 : 3))
+          static_cast<usize>(
+              features.width * features.height * features.has_alpha ? 4 : 3))
           .unwrap();
 
-  u8 *pixels = AS(u8 *, memory.handle);
+  u8 *pixels = (u8 *) memory.handle;
 
   if (features.has_alpha)
   {
@@ -67,18 +68,19 @@ inline stx::Result<ImageBuffer, ImageLoadError>
     }
   }
 
-  return stx::Ok(ImageBuffer{
-      .memory = std::move(memory),
-      .extent = Extent{AS(u32, features.width), AS(u32, features.height)},
-      .format =
-          features.has_alpha ? ImageFormat::Rgba8888 : ImageFormat::Rgb888});
+  return stx::Ok(
+      ImageBuffer{.memory = std::move(memory),
+                  .extent = Extent{static_cast<u32>(features.width),
+                                   static_cast<u32>(features.height)},
+                  .format = features.has_alpha ? ImageFormat::Rgba8888 :
+                                                 ImageFormat::Rgb888});
 }
 
 inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
                               usize nbytes_to_read)
 {
   stx::Span<u8 const> *input =
-      AS(stx::Span<u8 const> *, png_get_io_ptr(png_ptr));
+      reinterpret_cast<stx::Span<u8 const> *>(png_get_io_ptr(png_ptr));
   stx::Span{out, nbytes_to_read}.copy(*input);
   *input = input->slice(nbytes_to_read);
 }
@@ -140,7 +142,7 @@ inline stx::Result<ImageBuffer, ImageLoadError>
       stx::mem::allocate(stx::os_allocator, width * height * ncomponents)
           .unwrap();
 
-  u8 *pixels = AS(u8 *, pixels_mem.handle);
+  u8 *pixels = (u8 *) pixels_mem.handle;
 
   for (u32 i = 0; i < height; i++)
   {
@@ -150,9 +152,9 @@ inline stx::Result<ImageBuffer, ImageLoadError>
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem),
+  return stx::Ok{ImageBuffer{.memory = std::move(pixels_mem),
                              .extent = Extent{width, height},
-                             .format = fmt});
+                             .format = fmt}};
 }
 
 inline stx::Result<ImageBuffer, ImageLoadError>
@@ -163,7 +165,7 @@ inline stx::Result<ImageBuffer, ImageLoadError>
   info.err = jpeg_std_error(&error_mgr);
   jpeg_create_decompress(&info);
 
-  jpeg_mem_src(&info, bytes.data(), AS(unsigned long, bytes.size()));
+  jpeg_mem_src(&info, bytes.data(), static_cast<unsigned long>(bytes.size()));
 
   if (jpeg_read_header(&info, true) != JPEG_HEADER_OK)
   {
@@ -200,7 +202,7 @@ inline stx::Result<ImageBuffer, ImageLoadError>
       stx::mem::allocate(stx::os_allocator, height * width * ncomponents)
           .unwrap();
 
-  u8 *pixels = AS(u8 *, pixels_mem.handle);
+  u8 *pixels = (u8 *) pixels_mem.handle;
 
   while (info.output_scanline < height)
   {
@@ -211,9 +213,9 @@ inline stx::Result<ImageBuffer, ImageLoadError>
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem),
+  return stx::Ok{ImageBuffer{.memory = std::move(pixels_mem),
                              .extent = Extent{width, height},
-                             .format = fmt});
+                             .format = fmt}};
 }
 
 inline stx::Result<ImageBuffer, ImageLoadError>

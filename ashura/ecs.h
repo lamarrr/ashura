@@ -11,7 +11,7 @@ using component_id         = u64;
 using component_tag        = u64;
 using component_destructor = void (*)(u64 const *free_mask, void *reps,
                                       u64 count);
-using component_relocator  = void (*)(u64 const *free_mask, void *reps,
+using component_relocator  = void  (*)(u64 const *free_mask, void *reps,
                                      u64 count);
 
 struct SampleComponent

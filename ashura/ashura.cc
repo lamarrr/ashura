@@ -3,6 +3,7 @@
 #include "ashura/ecs.h"
 #include "ashura/gfx.h"
 #include "ashura/text.h"
+#include "ashura/utils.h"
 #include "ashura/uuid.h"
 #include "ashura/widget.h"
 #include "ashura/widget_tree.h"

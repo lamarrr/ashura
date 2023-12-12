@@ -98,8 +98,8 @@ std::string base64_decode(stx::Span<char const> enc)
     {
       for (i = 0; i < 4; i++)
       {
-        char_array_4[i] =
-            AS(char, strchr(base64_chars, char_array_4[i]) - base64_chars);
+        char_array_4[i] = static_cast<char>(
+            strchr(base64_chars, char_array_4[i]) - base64_chars);
       }
 
       char_array_3[0] =
@@ -125,8 +125,8 @@ std::string base64_decode(stx::Span<char const> enc)
 
     for (i64 j = 0; j < 4; j++)
     {
-      char_array_4[j] =
-          AS(char, strchr(base64_chars, char_array_4[j]) - base64_chars);
+      char_array_4[j] = static_cast<char>(
+          strchr(base64_chars, char_array_4[j]) - base64_chars);
     }
 
     char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);

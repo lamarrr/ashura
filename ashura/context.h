@@ -62,7 +62,7 @@ struct Context
     Widget *found = __find_widget_recursive(*this, *root, id);
     if (found != nullptr)
     {
-      return stx::Some(AS(Widget *, found));
+      return stx::Some{(Widget *) found};
     }
     return stx::None;
   }
@@ -166,7 +166,7 @@ struct Context
     {
       return nullptr;
     }
-    Window *bwin = AS(Window *, SDL_GetWindowData(win, "handle"));
+    Window *bwin = static_cast<Window *>(SDL_GetWindowData(win, "handle"));
     return bwin;
   }
 
@@ -215,10 +215,11 @@ struct Context
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
         {
-          MouseClickEvent mouse_event{.mouse_id = MouseID{event.button.which},
-                                      .position = Vec2{AS(f32, event.button.x),
-                                                       AS(f32, event.button.y)},
-                                      .clicks   = event.button.clicks};
+          MouseClickEvent mouse_event{
+              .mouse_id = MouseID{event.button.which},
+              .position = Vec2{static_cast<f32>(event.button.x),
+                               static_cast<f32>(event.button.y)},
+              .clicks   = event.button.clicks};
           switch (event.button.button)
           {
             case SDL_BUTTON_LEFT:
@@ -276,11 +277,11 @@ struct Context
           for (auto &listener : win->event_listeners.mouse_motion)
           {
             listener.handle(MouseMotionEvent{
-                .mouse_id = MouseID{event.motion.which},
-                .position =
-                    Vec2{AS(f32, event.motion.x), AS(f32, event.motion.y)},
-                .translation = Vec2{AS(f32, event.motion.xrel),
-                                    AS(f32, event.motion.yrel)}});
+                .mouse_id    = MouseID{event.motion.which},
+                .position    = Vec2{static_cast<f32>(event.motion.x),
+                                 static_cast<f32>(event.motion.y)},
+                .translation = Vec2{static_cast<f32>(event.motion.xrel),
+                                    static_cast<f32>(event.motion.yrel)}});
           }
           return true;
         }
@@ -296,8 +297,8 @@ struct Context
           {
             listener.handle(MouseWheelEvent{
                 .mouse_id    = MouseID{event.wheel.which},
-                .position    = Vec2{AS(f32, event.wheel.mouseX),
-                                 AS(f32, event.wheel.mouseY)},
+                .position    = Vec2{static_cast<f32>(event.wheel.mouseX),
+                                 static_cast<f32>(event.wheel.mouseY)},
                 .translation = Vec2{event.wheel.x, event.wheel.y}});
           }
           return true;
@@ -313,19 +314,19 @@ struct Context
           }
           for (auto &listener : win->event_listeners.key)
           {
-            listener.handle(
-                KeyEvent{.key       = event.key.keysym.sym,
-                         .modifiers = AS(KeyModifiers, event.key.keysym.mod),
-                         .action    = event.type == SDL_EVENT_KEY_DOWN ?
-                                          KeyAction::Press :
-                                          KeyAction::Release});
+            listener.handle(KeyEvent{
+                .key       = event.key.keysym.sym,
+                .modifiers = static_cast<KeyModifiers>(event.key.keysym.mod),
+                .action    = event.type == SDL_EVENT_KEY_DOWN ?
+                                 KeyAction::Press :
+                                 KeyAction::Release});
           }
           return true;
         }
 
         case SDL_EVENT_SYSTEM_THEME_CHANGED:
         {
-          theme = AS(SystemTheme, SDL_GetSystemTheme());
+          theme = static_cast<SystemTheme>(SDL_GetSystemTheme());
           return true;
         }
 
@@ -338,7 +339,7 @@ struct Context
         case SDL_EVENT_DROP_BEGIN:
         {
           ASH_LOG_INFO(Vulkan, "drop begin: {}  x={}, y={}",
-                       event.drop.file == nullptr ? " " : event.drop.file,
+                       event.drop.data == nullptr ? " " : event.drop.data,
                        event.drop.x, event.drop.y);
           return true;
         }
@@ -346,7 +347,7 @@ struct Context
         case SDL_EVENT_DROP_COMPLETE:
         {
           ASH_LOG_INFO(Vulkan, "drop complete: {}  x={}, y={}",
-                       event.drop.file == nullptr ? " " : event.drop.file,
+                       event.drop.data == nullptr ? " " : event.drop.data,
                        event.drop.x, event.drop.y);
           return true;
         }
@@ -356,7 +357,7 @@ struct Context
           f32 x = 0, y = 0;
           SDL_GetMouseState(&x, &y);
           ASH_LOG_INFO(Vulkan, "drop file: {}  x={}, y={}, {},{}",
-                       event.drop.file == nullptr ? " " : event.drop.file,
+                       event.drop.data == nullptr ? " " : event.drop.data,
                        event.drop.x, event.drop.y, x, y);
           return true;
         }
@@ -364,7 +365,7 @@ struct Context
         case SDL_EVENT_DROP_POSITION:
         {
           ASH_LOG_INFO(Vulkan, "drop position: {}  x={}, y={}",
-                       event.drop.file == nullptr ? " " : event.drop.file,
+                       event.drop.data == nullptr ? " " : event.drop.data,
                        event.drop.x, event.drop.y);
           return true;
         }
@@ -372,7 +373,7 @@ struct Context
         case SDL_EVENT_DROP_TEXT:
         {
           ASH_LOG_INFO(Vulkan, "drop text: {}  x={}, y={}",
-                       event.drop.file == nullptr ? " " : event.drop.file,
+                       event.drop.data == nullptr ? " " : event.drop.data,
                        event.drop.x, event.drop.y);
           return true;
         }

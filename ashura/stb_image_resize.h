@@ -566,8 +566,8 @@ typedef struct
                                        // the ring buffer. The total number of
                                        // ring buffers is
                                        // stbir__get_filter_pixel_width(filter)
-  int ring_buffer_num_entries;        // Total number of entries in the ring
-                                      // buffer.
+  int ring_buffer_num_entries;         // Total number of entries in the ring
+                                       // buffer.
   int ring_buffer_first_scanline;
   int ring_buffer_last_scanline;
   int ring_buffer_begin_index;        // first_scanline is at this index in the

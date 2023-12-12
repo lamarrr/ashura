@@ -38,9 +38,9 @@ struct AllocatorInterface
                            usize size)                           = nullptr;
   void *(*reallocate)(Allocator self, usize alignment, void *memory,
                       usize old_size, usize new_size)            = nullptr;
-  void (*deallocate)(Allocator self, usize alignment, void *memory,
-                     usize size)                                 = nullptr;
-  void (*release)(Allocator self)                                = nullptr;
+  void  (*deallocate)(Allocator self, usize alignment, void *memory,
+                     usize size)                                = nullptr;
+  void  (*release)(Allocator self)                               = nullptr;
 };
 
 struct AllocatorImpl

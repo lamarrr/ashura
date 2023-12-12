@@ -6,6 +6,7 @@
 #include "ashura/primitives.h"
 #include "ashura/shaders.h"
 #include "ashura/stats.h"
+#include "ashura/utils.h"
 #include "ashura/vulkan.h"
 #include "ashura/vulkan_context.h"
 
@@ -84,7 +85,7 @@ struct CanvasRenderer
         .pNext              = nullptr,
         .commandPool        = cmd_pool,
         .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = AS(u32, max_nframes_in_flight)};
+        .commandBufferCount = static_cast<u32>(max_nframes_in_flight)};
 
     ASH_VK_CHECK(vkAllocateCommandBuffers(dev, &cmd_buffers_allocate_info,
                                           cmd_buffers.data()));
@@ -146,7 +147,7 @@ struct CanvasRenderer
       vkDestroyQueryPool(dev, query_pool, nullptr);
     }
 
-    vkFreeCommandBuffers(dev, cmd_pool, AS(u32, max_nframes_in_flight),
+    vkFreeCommandBuffers(dev, cmd_pool, static_cast<u32>(max_nframes_in_flight),
                          cmd_buffers.data());
 
     vkDestroyCommandPool(dev, cmd_pool, nullptr);
@@ -248,7 +249,7 @@ struct CanvasRenderer
         .framebuffer = framebuffer,
         .renderArea =
             VkRect2D{.offset = VkOffset2D{0, 0}, .extent = image_extent},
-        .clearValueCount = AS(u32, std::size(clear_values)),
+        .clearValueCount = static_cast<u32>(std::size(clear_values)),
         .pClearValues    = clear_values};
 
     vkCmdBeginRenderPass(cmd_buffer, &render_pass_begin_info,
@@ -292,8 +293,8 @@ struct CanvasRenderer
 
       VkViewport viewport{.x        = 0,
                           .y        = 0,
-                          .width    = AS(f32, viewport_extent.width),
-                          .height   = AS(f32, viewport_extent.height),
+                          .width    = static_cast<f32>(viewport_extent.width),
+                          .height   = static_cast<f32>(viewport_extent.height),
                           .minDepth = 0,
                           .maxDepth = 1};
 
@@ -302,10 +303,11 @@ struct CanvasRenderer
         vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
       }
 
-      VkRect2D scissor{.offset = VkOffset2D{AS(i32, cmd.scissor.offset.x),
-                                            AS(i32, cmd.scissor.offset.y)},
-                       .extent = VkExtent2D{AS(u32, cmd.scissor.extent.x),
-                                            AS(u32, cmd.scissor.extent.y)}};
+      VkRect2D scissor{
+          .offset = VkOffset2D{static_cast<i32>(cmd.scissor.offset.x),
+                               static_cast<i32>(cmd.scissor.offset.y)},
+          .extent = VkExtent2D{static_cast<u32>(cmd.scissor.extent.x),
+                               static_cast<u32>(cmd.scissor.extent.y)}};
 
       if (memcmp(&scissor, &previouse_scissor, sizeof(VkRect2D)) != 0)
       {

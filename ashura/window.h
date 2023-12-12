@@ -78,16 +78,13 @@ struct Window
   {
     u32 ext_count;
 
-    ASH_SDL_CHECK(SDL_Vulkan_GetInstanceExtensions(&ext_count, nullptr) ==
-                  SDL_TRUE);
+    char const *const *extensions =
+        SDL_Vulkan_GetInstanceExtensions(&ext_count);
+    ASH_SDL_CHECK(extensions != nullptr);
 
     stx::Vec<char const *> required_instance_extensions;
-
-    required_instance_extensions.resize(ext_count).unwrap();
-
-    ASH_SDL_CHECK(SDL_Vulkan_GetInstanceExtensions(
-                      &ext_count, required_instance_extensions.data()) ==
-                  SDL_TRUE);
+    required_instance_extensions.extend(stx::Span{extensions, ext_count})
+        .unwrap();
 
     return required_instance_extensions;
   }
@@ -115,8 +112,8 @@ struct Window
 
   void set_size(Extent size)
   {
-    ASH_SDL_CHECK(SDL_SetWindowSize(window, AS(int, size.width),
-                                    AS(int, size.height)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowSize(window, static_cast<int>(size.width),
+                                    static_cast<int>(size.height)) == 0);
   }
 
   void center()
@@ -129,53 +126,53 @@ struct Window
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowSize(window, &w, &h) == 0);
-    return Extent{.width = AS(u32, w), .height = AS(u32, h)};
+    return Extent{.width = static_cast<u32>(w), .height = static_cast<u32>(h)};
   }
 
   Extent get_surface_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowSizeInPixels(window, &w, &h) == 0);
-    return Extent{.width = AS(u32, w), .height = AS(u32, h)};
+    return Extent{.width = static_cast<u32>(w), .height = static_cast<u32>(h)};
   }
 
   void set_position(IOffset pos)
   {
-    ASH_SDL_CHECK(
-        SDL_SetWindowPosition(window, AS(int, pos.x), AS(int, pos.y)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowPosition(window, static_cast<int>(pos.x),
+                                        static_cast<int>(pos.y)) == 0);
   }
 
   IOffset get_position()
   {
     int x, y;
     ASH_SDL_CHECK(SDL_GetWindowPosition(window, &x, &y) == 0);
-    return IOffset{.x = AS(i32, x), .y = AS(i32, y)};
+    return IOffset{.x = static_cast<i32>(x), .y = static_cast<i32>(y)};
   }
 
   void set_min_size(Extent min)
   {
-    ASH_SDL_CHECK(SDL_SetWindowMinimumSize(window, AS(int, min.width),
-                                           AS(int, min.height)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowMinimumSize(window, static_cast<int>(min.width),
+                                           static_cast<int>(min.height)) == 0);
   }
 
   Extent get_min_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowMinimumSize(window, &w, &h) == 0);
-    return Extent{.width = AS(u32, w), .height = AS(u32, h)};
+    return Extent{.width = static_cast<u32>(w), .height = static_cast<u32>(h)};
   }
 
   void set_max_size(Extent max)
   {
-    ASH_SDL_CHECK(SDL_SetWindowMaximumSize(window, AS(int, max.width),
-                                           AS(int, max.height)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowMaximumSize(window, static_cast<int>(max.width),
+                                           static_cast<int>(max.height)) == 0);
   }
 
   Extent get_max_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowMaximumSize(window, &w, &h) == 0);
-    return Extent{.width = AS(u32, w), .height = AS(u32, h)};
+    return Extent{.width = static_cast<u32>(w), .height = static_cast<u32>(h)};
   }
 
   void set_icon(ImageView<u8 const> image)
@@ -196,8 +193,9 @@ struct Window
     }
 
     SDL_Surface *icon = SDL_CreateSurfaceFrom(
-        (void *) image.span.data(), AS(int, image.extent.width),
-        AS(int, image.extent.height), AS(int, image.pitch), fmt);
+        (void *) image.span.data(), static_cast<int>(image.extent.width),
+        static_cast<int>(image.extent.height), static_cast<int>(image.pitch),
+        fmt);
     ASH_SDL_CHECK(icon != nullptr);
     ASH_SDL_CHECK(SDL_SetWindowIcon(window, icon) == 0);
     SDL_DestroySurface(icon);
@@ -263,7 +261,8 @@ struct Window
 
   void set_always_on_top(bool always)
   {
-    ASH_SDL_CHECK(SDL_SetWindowAlwaysOnTop(window, AS(SDL_bool, always)) == 0);
+    ASH_SDL_CHECK(
+        SDL_SetWindowAlwaysOnTop(window, static_cast<SDL_bool>(always)) == 0);
   }
 
   void on(WindowEvents event, stx::UniqueFn<void(WindowEvents)> action)
@@ -294,7 +293,7 @@ struct Window
 
     VkSurfaceKHR surface;
 
-    ASH_SDL_CHECK(SDL_Vulkan_CreateSurface(window, instance->instance,
+    ASH_SDL_CHECK(SDL_Vulkan_CreateSurface(window, instance->instance, nullptr,
                                            &surface) == SDL_TRUE,
                   "unable to create surface for window");
 
@@ -344,9 +343,10 @@ struct Window
     surface.value()->change_swapchain(
         queue, max_nframes_in_flight, preferred_formats,
         preferred_present_modes,
-        VkExtent2D{.width  = AS(u32, surface_width),
-                   .height = AS(u32, surface_height)},
-        VkExtent2D{.width = AS(u32, width), .height = AS(u32, height)},
+        VkExtent2D{.width  = static_cast<u32>(surface_width),
+                   .height = static_cast<u32>(surface_height)},
+        VkExtent2D{.width  = static_cast<u32>(width),
+                   .height = static_cast<u32>(height)},
         max_msaa_sample_count, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
   }
 

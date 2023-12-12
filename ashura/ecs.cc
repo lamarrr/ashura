@@ -1,6 +1,6 @@
 #include "ashura/ecs.h"
 #include "ashura/gfx.h"
-#include "ashura/primitives.h
+#include "ashura/primitives.h"
 
 namespace ash
 {

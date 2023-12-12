@@ -15,6 +15,7 @@
 #include "ashura/subsystems/image_manager.h"
 #include "ashura/subsystems/vulkan_font_manager.h"
 #include "ashura/subsystems/vulkan_image_manager.h"
+#include "ashura/utils.h"
 #include "ashura/vulkan_context.h"
 #include "ashura/window_manager.h"
 #include "spdlog/sinks/basic_file_sink.h"
@@ -157,7 +158,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
        .pNext            = nullptr,
        .flags            = 0,
        .queueFamilyIndex = graphics_command_queue_family->index,
-       .queueCount       = AS(u32, std::size(queue_priorities)),
+       .queueCount       = static_cast<u32>(std::size(queue_priorities)),
        .pQueuePriorities = queue_priorities}};
 
   VkPhysicalDeviceFeatures required_features{};
@@ -301,7 +302,8 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
     else
     {
       ASH_LOG_ERR(Init, "Failed to load font: {} from file: {}, error: {}",
-                  spec.name.view(), spec.path.view(), AS(i64, result.err()));
+                  spec.name.view(), spec.path.view(),
+                  static_cast<i64>(result.err()));
     }
   }
 
@@ -352,7 +354,8 @@ void Engine::tick(std::chrono::nanoseconds interval)
   auto record_draw_commands = [&]() {
     VkExtent2D extent =
         root_window.value()->surface.value()->swapchain.value().window_extent;
-    Vec2 viewport_extent{AS(f32, extent.width), AS(f32, extent.height)};
+    Vec2 viewport_extent{static_cast<f32>(extent.width),
+                         static_cast<f32>(extent.height)};
     widget_tree.layout(ctx, viewport_extent);
     widget_tree.render(ctx, canvas,
                        Rect{.offset = {}, .extent = viewport_extent},
