@@ -22,5 +22,7 @@ namespace ash
 Heap const heap;
 
 // TODO(lamarrr): handle nullptrs, 0 resizes
+// malloc 0 is okay
+
 
 }        // namespace ash

@@ -408,11 +408,11 @@ struct DescriptorHeap
   u32                   num_released_groups         = 0;
   u32                   num_free_groups             = 0;
   u32                   group_binding_stride        = 0;
-  usize                 vk_pools_capacity           = 0;
-  usize                 vk_descriptor_sets_capacity = 0;
-  usize                 last_use_frame_capacity     = 0;
-  usize                 released_groups_capacity    = 0;
-  usize                 free_groups_capacity        = 0;
+  u32                   vk_pools_capacity           = 0;
+  u32                   vk_descriptor_sets_capacity = 0;
+  u32                   last_use_frame_capacity     = 0;
+  u32                   released_groups_capacity    = 0;
+  u32                   free_groups_capacity        = 0;
   usize                 bindings_capacity           = 0;
   usize                 scratch_memory_size         = 0;
 };
@@ -493,7 +493,7 @@ struct DeviceInterface
   static Result<gfx::DescriptorHeapImpl, Status> create_descriptor_heap(
       gfx::Device                          self,
       Span<gfx::DescriptorSetLayout const> descriptor_set_layouts,
-      u32                                  groups_per_pool);
+      u32 groups_per_pool, AllocatorImpl allocator);
   static Result<gfx::PipelineCache, Status>
       create_pipeline_cache(gfx::Device                   self,
                             gfx::PipelineCacheDesc const &desc);
@@ -506,9 +506,10 @@ struct DeviceInterface
   static Result<gfx::Fence, Status> create_fence(gfx::Device self,
                                                  bool        signaled);
   static Result<gfx::CommandEncoderImpl, Status>
-      create_command_encoder(gfx::Device self);
-  static Result<gfx::FrameContext, Status>
-      create_frame_context(gfx::Device self, u32 max_frames_in_flight);
+      create_command_encoder(gfx::Device self, AllocatorImpl allocator);
+  static Result<gfx::FrameContext, Status> create_frame_context(
+      gfx::Device self, u32 max_frames_in_flight,
+      Span<AllocatorImpl const> command_encoder_allocators);
   static Result<gfx::Swapchain, Status>
               create_swapchain(gfx::Device self, gfx::Surface surface,
                                gfx::SwapchainDesc const &config);

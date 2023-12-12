@@ -1,6 +1,7 @@
 #pragma once
-#include "ashura/types.h"
+#include "ashura/allocator.h"
 #include "ashura/primitives.h"
+#include "ashura/types.h"
 #include "stx/enum.h"
 #include "stx/result.h"
 #include "stx/void.h"
@@ -1401,7 +1402,7 @@ struct DeviceInterface
       Device self, DescriptorSetLayoutDesc const &desc) = nullptr;
   Result<DescriptorHeapImpl, Status> (*create_descriptor_heap)(
       Device self, Span<DescriptorSetLayout const> descriptor_set_layouts,
-      u32 groups_per_pool) = nullptr;
+      u32 groups_per_pool, AllocatorImpl allocator) = nullptr;
   Result<PipelineCache, Status> (*create_pipeline_cache)(
       Device self, PipelineCacheDesc const &desc) = nullptr;
   Result<ComputePipeline, Status> (*create_compute_pipeline)(
@@ -1409,10 +1410,11 @@ struct DeviceInterface
   Result<GraphicsPipeline, Status> (*create_graphics_pipeline)(
       Device self, GraphicsPipelineDesc const &desc)                = nullptr;
   Result<Fence, Status> (*create_fence)(Device self, bool signaled) = nullptr;
-  Result<CommandEncoderImpl, Status> (*create_command_encoder)(Device self) =
-      nullptr;
+  Result<CommandEncoderImpl, Status> (*create_command_encoder)(
+      Device self, AllocatorImpl allocator) = nullptr;
   Result<FrameContext, Status> (*create_frame_context)(
-      Device self, u32 max_frames_in_flight) = nullptr;
+      Device self, u32 max_frames_in_flight,
+      Span<AllocatorImpl const> command_encoder_allocators) = nullptr;
   Result<Swapchain, Status> (*create_swapchain)(
       Device self, Surface surface, SwapchainDesc const &desc)        = nullptr;
   void (*ref_buffer)(Device self, Buffer buffer)                      = nullptr;
@@ -1504,10 +1506,6 @@ struct DeviceInterface
   // recreated and the config stored
   // TODO(lamarrr): make resilient to changing displays, surfaces, ability to
   // re-attach surfaces?
-  // CREATE FRAME COMMAND ENCODERS? we'll be able to know
-  // which to handle out and which to reserve
-  // next_frame => format + command buffers + wait fences + wait semaphores
-  // submit_frame => signal semaphores + signal fences
 };
 
 struct DeviceImpl
@@ -1756,18 +1754,19 @@ struct Rc
 //
 // for vulkan backend, Surface must be VkSurfaceKHR
 //
-//TODO: enable backend validations
+// TODO: enable backend validations
 //
 //
 
 struct InstanceInterface
 {
-  Result<Instance, Status> (*create)() = nullptr;
-  void (*ref)(Instance instance)       = nullptr;
-  void (*unref)(Instance instance)     = nullptr;
+  Result<Instance, Status> (*create)(AllocatorImpl allocator) = nullptr;
+  void (*ref)(Instance instance)                              = nullptr;
+  void (*unref)(Instance instance)                            = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance instance, Span<DeviceType const> preferred_types,
-      Span<Surface const> compatible_surfaces) = nullptr;
+      Span<Surface const> compatible_surfaces,
+      AllocatorImpl       allocator) = nullptr;
   Result<Surface, Status> (*create_headless_surface)(Instance instance) =
       nullptr;
 };

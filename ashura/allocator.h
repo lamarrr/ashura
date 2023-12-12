@@ -2,9 +2,6 @@
 
 #include "ashura/types.h"
 
-// REQUIREMENTS: basic typing and type cast checks
-// type-erased allocations
-
 namespace ash
 {
 
@@ -57,7 +54,7 @@ struct AllocatorImpl
   }
 
   template <typename T>
-  [[nodiscard]] T *allocate_t(usize num) const
+  [[nodiscard]] T *allocate_typed(usize num) const
   {
     return (T *) interface->allocate(self, alignof(T), sizeof(T) * num);
   }
@@ -68,7 +65,7 @@ struct AllocatorImpl
   }
 
   template <typename T>
-  [[nodiscard]] T *allocate_zeroed_t(usize num) const
+  [[nodiscard]] T *allocate_zeroed_typed(usize num) const
   {
     return (T *) interface->allocate_zeroed(self, alignof(T), sizeof(T) * num);
   }
@@ -80,7 +77,8 @@ struct AllocatorImpl
   }
 
   template <typename T>
-  [[nodiscard]] T *reallocate_t(T *memory, usize old_num, usize new_num) const
+  [[nodiscard]] T *reallocate_typed(T *memory, usize old_num,
+                                    usize new_num) const
   {
     return (T *) interface->reallocate(
         self, alignof(T), memory, sizeof(T) * old_num, sizeof(T) * new_num);
@@ -94,7 +92,7 @@ struct AllocatorImpl
   }
 
   template <typename T>
-  [[nodiscard]] T *grow_t(T *memory, usize old_num, usize growth) const
+  [[nodiscard]] T *grow_typed(T *memory, usize old_num, usize growth) const
   {
     return (T *) interface->reallocate(self, alignof(T), memory,
                                        sizeof(T) * old_num,
@@ -107,7 +105,7 @@ struct AllocatorImpl
   }
 
   template <typename T>
-  void deallocate_t(T *memory, usize num) const
+  void deallocate_typed(T *memory, usize num) const
   {
     interface->deallocate(self, alignof(T), memory, sizeof(T) * num);
   }
