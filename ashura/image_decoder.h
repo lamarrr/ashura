@@ -150,9 +150,9 @@ inline stx::Result<ImageBuffer, ImageLoadError>
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem),
+  return stx::Ok{ImageBuffer{.memory = std::move(pixels_mem),
                              .extent = Extent{width, height},
-                             .format = fmt});
+                             .format = fmt}};
 }
 
 inline stx::Result<ImageBuffer, ImageLoadError>
@@ -211,9 +211,9 @@ inline stx::Result<ImageBuffer, ImageLoadError>
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  return stx::Ok(ImageBuffer{.memory = std::move(pixels_mem),
+  return stx::Ok{ImageBuffer{.memory = std::move(pixels_mem),
                              .extent = Extent{width, height},
-                             .format = fmt});
+                             .format = fmt}};
 }
 
 inline stx::Result<ImageBuffer, ImageLoadError>

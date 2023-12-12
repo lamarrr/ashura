@@ -224,8 +224,8 @@ struct DeviceTable
   PFN_vkCmdDebugMarkerInsertEXT CmdDebugMarkerInsertEXT = nullptr;
 };
 
-// NOTE: renderpass attachments MUST not be accessed in shaders within that
-// renderpass NOTE: update_buffer and fill_buffer MUST be multiple of 4 for dst
+// NOTE: render_pass attachments MUST not be accessed in shaders within that
+// render_pass NOTE: update_buffer and fill_buffer MUST be multiple of 4 for dst
 // offset and dst size
 struct BufferAccess
 {
