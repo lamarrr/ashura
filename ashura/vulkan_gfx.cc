@@ -2623,6 +2623,8 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
 {
   VALIDATE("", swapchain->desc.preferred_extent.is_visible());
+  VALIDATE("",
+           swapchain->desc.preferred_buffering <= gfx::MAX_SWAPCHAIN_IMAGES);
 
   // take ownership of internal data for re-use/release
   VkSwapchainKHR old_vk_swapchain = swapchain->vk_swapchain;
@@ -2725,6 +2727,8 @@ inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
                                          nullptr);
     return result;
   }
+
+  CHECK("", num_images <= gfx::MAX_SWAPCHAIN_IMAGES);
 
   result = device->vk_table.GetSwapchainImagesKHR(
       device->vk_device, new_vk_swapchain, &num_images, swapchain->vk_images);
