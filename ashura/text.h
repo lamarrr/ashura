@@ -197,14 +197,14 @@ struct TextLayout
     hb_buffer_add_utf8(shaping_buffer, text.data(), (int) text.size(), 0,
                        (int) text.size());
     hb_shape(font.hb_font, shaping_buffer, shaping_features,
-             (uint) std::size(shaping_features));
+             (unsigned int) std::size(shaping_features));
 
-    uint                       nglyph_pos;
+    unsigned int                       nglyph_pos;
     hb_glyph_position_t const *glyph_pos =
         hb_buffer_get_glyph_positions(shaping_buffer, &nglyph_pos);
     ASH_CHECK(!(glyph_pos == nullptr && nglyph_pos > 0));
 
-    uint                   nglyph_infos;
+    unsigned int                   nglyph_infos;
     hb_glyph_info_t const *glyph_info =
         hb_buffer_get_glyph_infos(shaping_buffer, &nglyph_infos);
     ASH_CHECK(!(glyph_info == nullptr && nglyph_infos > 0));
