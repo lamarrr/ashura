@@ -730,6 +730,17 @@ enum class IndexType : u8
   Uint32 = 1
 };
 
+enum class CompositeAlpha : u8
+{
+  None           = 0x00000000,
+  Opaque         = 0x00000001,
+  PreMultiplied  = 0x00000002,
+  PostMultiplied = 0x00000004,
+  Inherit        = 0x00000008
+};
+
+STX_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
+
 struct SurfaceFormat
 {
   ColorSpace color_space = ColorSpace::SRGB_NONLINEAR;
@@ -1197,12 +1208,13 @@ union ClearValue
 
 struct SwapchainDesc
 {
-  char const   *label               = nullptr;
-  SurfaceFormat format              = {};
-  ImageUsage    usage               = ImageUsage::None;
-  u32           preferred_buffering = 0;
-  PresentMode   present_mode        = PresentMode::Immediate;
-  Extent        preferred_extent    = {};
+  char const    *label               = nullptr;
+  SurfaceFormat  format              = {};
+  ImageUsage     usage               = ImageUsage::None;
+  u32            preferred_buffering = 0;
+  PresentMode    present_mode        = PresentMode::Immediate;
+  Extent         preferred_extent    = {};
+  CompositeAlpha composite_alpha     = CompositeAlpha::None;
 };
 
 /// @generation: increases everytime the swapchain for the surface is recreated

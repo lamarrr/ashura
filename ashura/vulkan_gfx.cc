@@ -2701,10 +2701,11 @@ inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
       .queueFamilyIndexCount = 1,
       .pQueueFamilyIndices   = nullptr,
       .preTransform          = surface_capabilities.currentTransform,
-      .compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-      .presentMode           = (VkPresentModeKHR) swapchain->desc.present_mode,
-      .clipped               = VK_TRUE,
-      .oldSwapchain          = old_vk_swapchain};
+      .compositeAlpha =
+          (VkCompositeAlphaFlagBitsKHR) swapchain->desc.composite_alpha,
+      .presentMode  = (VkPresentModeKHR) swapchain->desc.present_mode,
+      .clipped      = VK_TRUE,
+      .oldSwapchain = old_vk_swapchain};
 
   VkSwapchainKHR new_vk_swapchain;
   result = device->vk_table.CreateSwapchainKHR(device->vk_device, &create_info,
