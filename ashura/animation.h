@@ -1,6 +1,7 @@
 #pragma once
 #include "ashura/curve.h"
 #include "ashura/primitives.h"
+#include "ashura/utils.h"
 
 namespace ash
 {

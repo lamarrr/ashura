@@ -15,6 +15,7 @@ extern "C"
 #include "ashura/primitives.h"
 #include "ashura/unicode.h"
 
+#include "ashura/utils.h"
 #include "harfbuzz/hb.h"
 #include "stx/span.h"
 #include "stx/text.h"

@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/primitives.h"
+#include "ashura/utils.h"
 #include "stx/memory.h"
 #include "stx/span.h"
 #include "stx/try_ok.h"
@@ -171,12 +172,12 @@ struct ImageBuffer
 
   u8 const *data() const
   {
-    return AS(u8 *, memory.handle);
+    return (u8 const *) memory.handle;
   }
 
   u8 *data()
   {
-    return AS(u8 *, memory.handle);
+    return (u8 *) memory.handle;
   }
 
   usize row_bytes() const
@@ -218,12 +219,12 @@ struct ImageBuffer
 
   ImageView<u8 const> view() const
   {
-    return AS(ImageView<u8 const>, *this);
+    return static_cast<ImageView<u8 const>>(*this);
   }
 
   ImageView<u8> view()
   {
-    return AS(ImageView<u8>, *this);
+    return static_cast<ImageView<u8>>(*this);
   }
 
   void resize(ash::Extent new_extent)

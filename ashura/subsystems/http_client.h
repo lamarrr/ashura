@@ -49,7 +49,7 @@ inline std::string operator>>(stx::ReportQuery, CURLcode code)
 // Overloading the operator>> to convert CURLMcode to a string representation
 inline std::string operator>>(stx::ReportQuery, CURLMcode code)
 {
-  return fmt::format("CURLMcode{}", AS(int, code));
+  return fmt::format("CURLMcode{}", static_cast<int>(code));
 }
 
 // Enum to represent HTTP request methods

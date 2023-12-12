@@ -3,6 +3,7 @@
 #include "ashura/palletes.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
+#include "ashura/utils.h"
 #include "ashura/widgets/image.h"
 
 namespace ash

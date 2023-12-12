@@ -1,3 +1,4 @@
+#include "ashura/utils.h"
 #include "ashura/subsystems/http_client.h"
 
 namespace ash

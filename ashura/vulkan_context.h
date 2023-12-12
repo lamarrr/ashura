@@ -104,7 +104,7 @@ struct RenderResourceManager
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext        = nullptr,
         .flags        = 0,
-        .bindingCount = AS(u32, std::size(descriptor_set_bindings)),
+        .bindingCount = static_cast<u32>(std::size(descriptor_set_bindings)),
         .pBindings    = descriptor_set_bindings,
     };
 
@@ -121,7 +121,7 @@ struct RenderResourceManager
         .pNext         = nullptr,
         .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
         .maxSets       = NMAX_IMAGE_DESCRIPTOR_SETS,
-        .poolSizeCount = AS(u32, std::size(descriptor_pool_sizes)),
+        .poolSizeCount = static_cast<u32>(std::size(descriptor_pool_sizes)),
         .pPoolSizes    = descriptor_pool_sizes};
 
     ASH_VK_CHECK(vkCreateDescriptorPool(dev, &descriptor_pool_create_info,

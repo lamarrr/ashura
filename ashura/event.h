@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SDL3/SDL_Keycode.h"
+#include "SDL3/SDL_keycode.h"
 #include "ashura/primitives.h"
 #include "stx/allocator.h"
 #include "stx/enum.h"

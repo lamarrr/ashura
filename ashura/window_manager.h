@@ -62,8 +62,9 @@ struct WindowManager
       window_flags |= SDL_WINDOW_ALWAYS_ON_TOP;
     }
 
-    SDL_Window *window = SDL_CreateWindow(title, AS(i32, extent.width),
-                                          AS(i32, extent.height), window_flags);
+    SDL_Window *window =
+        SDL_CreateWindow(title, static_cast<i32>(extent.width),
+                         static_cast<i32>(extent.height), window_flags);
 
     // window creation shouldn't fail reliably, if it fails, there's no point in
     // the program proceeding

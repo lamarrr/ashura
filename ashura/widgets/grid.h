@@ -2,6 +2,7 @@
 
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
+#include "ashura/utils.h"
 #include "stx/vec.h"
 
 namespace ash

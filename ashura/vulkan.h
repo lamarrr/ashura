@@ -13,7 +13,7 @@
 #include "ashura/loggers.h"
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
-#include "ashura/vulkan/vk_enum_string_helper.h"
+#include "ashura/vk_enum_string_helper.h"
 #include "stx/backtrace.h"
 #include "stx/limits.h"
 #include "stx/option.h"
@@ -240,10 +240,10 @@ inline std::pair<VkInstance, VkDebugUtilsMessengerEXT> create_vulkan_instance(
                                                          // installed)
       .flags             = 0,
       .pApplicationInfo  = &app_info,
-      .enabledLayerCount = AS(
-          u32, required_validation_layers.size()),        // validation layers
+      .enabledLayerCount = static_cast<u32>(
+          required_validation_layers.size()),        // validation layers
       .ppEnabledLayerNames     = required_validation_layers.data(),
-      .enabledExtensionCount   = AS(u32, required_extensions.size()),
+      .enabledExtensionCount   = static_cast<u32>(required_extensions.size()),
       .ppEnabledExtensionNames = required_extensions.data(),
   };
 
@@ -312,7 +312,7 @@ inline stx::Vec<bool> get_surface_presentation_command_queue_support(
 {
   stx::Vec<bool> supports;
 
-  for (u32 i = 0; i < AS(u32, queue_families.size()); i++)
+  for (u32 i = 0; i < static_cast<u32>(queue_families.size()); i++)
   {
     VkBool32 surface_presentation_supported;
     ASH_VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(
@@ -365,14 +365,15 @@ inline VkDevice create_logical_device(
             "Can't find all required extensions");
 
   VkDeviceCreateInfo device_create_info{
-      .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-      .pNext                   = nullptr,
-      .flags                   = 0,
-      .queueCreateInfoCount    = AS(u32, command_queue_create_infos.size()),
-      .pQueueCreateInfos       = command_queue_create_infos.data(),
-      .enabledLayerCount       = AS(u32, required_validation_layers.size()),
+      .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = 0,
+      .queueCreateInfoCount =
+          static_cast<u32>(command_queue_create_infos.size()),
+      .pQueueCreateInfos = command_queue_create_infos.data(),
+      .enabledLayerCount = static_cast<u32>(required_validation_layers.size()),
       .ppEnabledLayerNames     = required_validation_layers.data(),
-      .enabledExtensionCount   = AS(u32, required_extensions.size()),
+      .enabledExtensionCount   = static_cast<u32>(required_extensions.size()),
       .ppEnabledExtensionNames = required_extensions.data(),
       .pEnabledFeatures        = &required_features};
 
@@ -594,7 +595,7 @@ inline stx::Option<u32> find_suitable_memory_type(
          required_properties) == required_properties &&
         (memory_requirements.memoryTypeBits & (1 << i)))
     {
-      return stx::Some(AS(u32, i));
+      return stx::Some(static_cast<u32>(i));
     }
   }
   return stx::None;
@@ -822,7 +823,7 @@ inline stx::Option<CommandQueueFamilyInfo>
   }
 
   return stx::Some(CommandQueueFamilyInfo{
-      .index      = AS(u32, pos - phy_dev->family_properties.begin()),
+      .index      = static_cast<u32>(pos - phy_dev->family_properties.begin()),
       .phy_device = phy_dev.share()});
 }
 
@@ -862,7 +863,7 @@ inline stx::Rc<Device *> create_device(
       command_queues
           .push(CommandQueueInfo{
               .queue        = command_queue,
-              .create_index = AS(u32, i),
+              .create_index = static_cast<u32>(i),
               .priority     = priority,
               .family =
                   CommandQueueFamilyInfo{.index = command_queue_family_index,
@@ -920,7 +921,7 @@ struct Buffer
 
   stx::Span<u8> span() const
   {
-    return stx::Span<u8>{AS(u8 *, memory_map), size};
+    return stx::Span<u8>{(u8 *) memory_map, size};
   }
 
   void destroy()
@@ -1549,7 +1550,7 @@ struct SwapChain
     msaa_depth_image = create_msaa_depth_resource(
         dev, memory_properties, depth_format, new_extent, msaa_sample_count);
     max_nframes_in_flight =
-        std::min(AS(u32, images.size()), max_nframes_in_flight);
+        std::min(static_cast<u32>(images.size()), max_nframes_in_flight);
 
     for (VkImage image : images)
     {
@@ -1654,7 +1655,7 @@ struct SwapChain
         .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
         .pNext           = nullptr,
         .flags           = 0,
-        .attachmentCount = AS(u32, std::size(attachments)),
+        .attachmentCount = static_cast<u32>(std::size(attachments)),
         .pAttachments    = attachments,
         .subpassCount    = 1,
         .pSubpasses      = &subpass,
@@ -1678,7 +1679,7 @@ struct SwapChain
           .pNext           = nullptr,
           .flags           = 0,
           .renderPass      = render_pass,
-          .attachmentCount = AS(u32, std::size(attachments)),
+          .attachmentCount = static_cast<u32>(std::size(attachments)),
           .pAttachments    = attachments,
           .width           = image_extent.width,
           .height          = image_extent.height,
@@ -1891,11 +1892,11 @@ struct Pipeline
         .size       = push_constant_size};
 
     VkPipelineLayoutCreateInfo layout_create_info{
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .pNext                  = nullptr,
-        .flags                  = 0,
-        .setLayoutCount         = AS(u32, descriptor_set_layout.size()),
-        .pSetLayouts            = descriptor_set_layout.data(),
+        .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .pNext          = nullptr,
+        .flags          = 0,
+        .setLayoutCount = static_cast<u32>(descriptor_set_layout.size()),
+        .pSetLayouts    = descriptor_set_layout.data(),
         .pushConstantRangeCount = 1,
         .pPushConstantRanges    = &push_constant};
 
@@ -1918,11 +1919,12 @@ struct Pipeline
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .logicOpEnable   = VK_FALSE,
-        .logicOp         = VK_LOGIC_OP_COPY,
-        .attachmentCount = AS(u32, std::size(color_blend_attachment_states)),
-        .pAttachments    = color_blend_attachment_states,
-        .blendConstants  = {0, 0, 0, 0}};
+        .logicOpEnable = VK_FALSE,
+        .logicOp       = VK_LOGIC_OP_COPY,
+        .attachmentCount =
+            static_cast<u32>(std::size(color_blend_attachment_states)),
+        .pAttachments   = color_blend_attachment_states,
+        .blendConstants = {0, 0, 0, 0}};
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
@@ -1993,10 +1995,11 @@ struct Pipeline
         .pNext = nullptr,
         .flags = 0,
         .vertexBindingDescriptionCount =
-            AS(u32, std::size(vertex_binding_descriptions)),
-        .pVertexBindingDescriptions      = vertex_binding_descriptions,
-        .vertexAttributeDescriptionCount = AS(u32, vertex_input_attr.size()),
-        .pVertexAttributeDescriptions    = vertex_input_attr.data()};
+            static_cast<u32>(std::size(vertex_binding_descriptions)),
+        .pVertexBindingDescriptions = vertex_binding_descriptions,
+        .vertexAttributeDescriptionCount =
+            static_cast<u32>(vertex_input_attr.size()),
+        .pVertexAttributeDescriptions = vertex_input_attr.data()};
 
     VkPipelineViewportStateCreateInfo viewport_state{
         .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
@@ -2014,14 +2017,14 @@ struct Pipeline
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .dynamicStateCount = AS(u32, std::size(dynamic_states)),
+        .dynamicStateCount = static_cast<u32>(std::size(dynamic_states)),
         .pDynamicStates    = dynamic_states};
 
     VkGraphicsPipelineCreateInfo create_info{
         .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext               = nullptr,
         .flags               = 0,
-        .stageCount          = AS(u32, std::size(stages)),
+        .stageCount          = static_cast<u32>(std::size(stages)),
         .pStages             = stages,
         .pVertexInputState   = &vertex_input_state,
         .pInputAssemblyState = &input_assembly_state,

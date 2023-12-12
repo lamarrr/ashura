@@ -16,6 +16,7 @@
 #include "ashura/sdf.h"
 #include "ashura/stb_image_resize.h"
 #include "ashura/unicode.h"
+#include "ashura/utils.h"
 #include "freetype/freetype.h"
 #include "harfbuzz/hb.h"
 #include "stx/enum.h"
@@ -76,9 +77,9 @@ struct Font
 inline stx::Result<stx::Rc<Font *>, FontLoadError>
     load_font_from_memory(stx::Vec<u8> data, u32 selected_face)
 {
-  hb_blob_t *hb_blob =
-      hb_blob_create(data.span().as_char().data(), AS(uint, data.size()),
-                     HB_MEMORY_MODE_READONLY, nullptr, nullptr);
+  hb_blob_t *hb_blob = hb_blob_create(
+      data.span().as_char().data(), static_cast<u32>(data.size()),
+      HB_MEMORY_MODE_READONLY, nullptr, nullptr);
 
   ASH_CHECK(hb_blob != nullptr);
 
@@ -106,8 +107,8 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError>
 
   FT_Face ft_face;
 
-  if (FT_New_Memory_Face(ft_lib, data.data(), AS(FT_Long, data.size()), 0,
-                         &ft_face) != 0)
+  if (FT_New_Memory_Face(ft_lib, data.data(), static_cast<FT_Long>(data.size()),
+                         0, &ft_face) != 0)
   {
     hb_blob_destroy(hb_blob);
     hb_face_destroy(hb_face);
@@ -417,9 +418,10 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
 
         // added padding to avoid texture spilling due to accumulated uv
         // interpolation errors
-        rects[irect].w = AS(i32, glyphs[glyph_index].bin_area.extent.width + 2);
+        rects[irect].w =
+            static_cast<i32>(glyphs[glyph_index].bin_area.extent.width + 2);
         rects[irect].h =
-            AS(i32, glyphs[glyph_index].bin_area.extent.height + 2);
+            static_cast<i32>(glyphs[glyph_index].bin_area.extent.height + 2);
         irect++;
       }
     }
@@ -437,8 +439,9 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
           spec.max_atlas_bin_extent.width, spec.max_atlas_bin_extent.height,
           nodes.data(), spec.max_atlas_bin_extent.width, true);
       // tries to pack all the glyph rects into the provided extent
-      was_all_packed = rect_packer::pack_rects(
-          pack_context, unpacked_rects.data(), AS(i32, unpacked_rects.size()));
+      was_all_packed =
+          rect_packer::pack_rects(pack_context, unpacked_rects.data(),
+                                  static_cast<i32>(unpacked_rects.size()));
       auto [just_packed, unpacked] = unpacked_rects.partition(
           [](rect_packer::rect const &r) { return r.was_packed; });
       unpacked_rects = unpacked;
@@ -458,8 +461,8 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
       for (rect_packer::rect const &rect : just_packed)
       {
         Glyph &glyph            = glyphs[rect.glyph_index];
-        glyph.bin_area.offset.x = AS(u32, rect.x) + 1;
-        glyph.bin_area.offset.y = AS(u32, rect.y) + 1;
+        glyph.bin_area.offset.x = static_cast<u32>(rect.x) + 1;
+        glyph.bin_area.offset.y = static_cast<u32>(rect.y) + 1;
         glyph.bin               = bin;
         glyph.bin_region.uv0 =
             glyph.bin_area.min().to_vec() / bin_extent.to_vec();
@@ -481,8 +484,8 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
     ASH_CHECK(was_all_packed);
   }
 
-  f32 const   packing_efficiency = AS(f32, total_used_area) / total_area;
-  usize const total_wasted_area  = total_area - total_used_area;
+  f32 const packing_efficiency = static_cast<f32>(total_used_area) / total_area;
+  usize const total_wasted_area = total_area - total_used_area;
 
   ASH_LOG_INFO(FontRenderer,
                "Finished Bin Packing Glyphs For Font: {} Into {} Bins With {} "

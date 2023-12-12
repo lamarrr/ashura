@@ -119,8 +119,8 @@ struct rect
 
 constexpr int rect_height_compare(void const *a, void const *b)
 {
-  rect const *p = AS(rect const *, a);
-  rect const *q = AS(rect const *, b);
+  rect const *p = (rect const *) a;
+  rect const *q = (rect const *) b;
   if (p->h > q->h)
     return -1;
   if (p->h < q->h)
@@ -130,8 +130,8 @@ constexpr int rect_height_compare(void const *a, void const *b)
 
 constexpr int rect_original_order(void const *a, void const *b)
 {
-  rect const *p = AS(rect const *, a);
-  rect const *q = AS(rect const *, b);
+  rect const *p = (rect const *) a;
+  rect const *q = (rect const *) b;
   return (p->was_packed < q->was_packed) ? -1 : (p->was_packed > q->was_packed);
 }
 
@@ -566,8 +566,8 @@ inline bool pack_rects(Context &ctx, rect *rects, i32 num_rects)
           skyline_pack_rectangle(ctx, rects[i].w, rects[i].h);
       if (find_result.prev_link)
       {
-        rects[i].x = AS(i32, find_result.x);
-        rects[i].y = AS(i32, find_result.y);
+        rects[i].x = static_cast<i32>(find_result.x);
+        rects[i].y = static_cast<i32>(find_result.y);
       }
       else
       {
@@ -577,7 +577,7 @@ inline bool pack_rects(Context &ctx, rect *rects, i32 num_rects)
   }
 
   // unsort
-  std::qsort(rects, AS(size_t, num_rects), sizeof(rects[0]),
+  std::qsort(rects, static_cast<size_t>(num_rects), sizeof(rects[0]),
              rect_original_order);
 
   // set was_packed flags and all_rects_packed status
@@ -590,7 +590,7 @@ inline bool pack_rects(Context &ctx, rect *rects, i32 num_rects)
   }
 
   // return the all_rects_packed status
-  return AS(bool, all_rects_packed);
+  return static_cast<bool>(all_rects_packed);
 }
 
 }        // namespace rect_packer

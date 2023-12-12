@@ -457,7 +457,7 @@ struct Swapchain
   bool               is_optimal                             = false;
   Extent             extent                                 = {};
   Image              image_impls[gfx::MAX_SWAPCHAIN_IMAGES] = {};
-  gfx::Image         images[gfx::MAX_SWAPCHAIN_IMAGES]       = {};
+  gfx::Image         images[gfx::MAX_SWAPCHAIN_IMAGES]      = {};
   VkImage            vk_images[gfx::MAX_SWAPCHAIN_IMAGES]   = {};
   u32                num_images                             = 0;
   u32                current_image                          = 0;
