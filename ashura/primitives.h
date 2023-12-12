@@ -4,7 +4,6 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
-#include <type_traits>
 
 #include "ashura/types.h"
 #include "stx/limits.h"
@@ -14,9 +13,6 @@
 
 namespace ash
 {
-
-template <typename T, typename Base>
-concept Impl = std::is_base_of_v<Base, T>;
 
 template <typename T>
 constexpr bool has_bits(T src, T cmp)
@@ -36,9 +32,6 @@ using nanoseconds  = std::chrono::nanoseconds;
 using milliseconds = std::chrono::milliseconds;
 using seconds      = std::chrono::seconds;
 
-constexpr f32 PI  = 3.14159265358979323846f;
-constexpr f32 INF = std::numeric_limits<f32>::infinity();
-
 constexpr f32 abs(f32 x)
 {
   return x >= 0 ? x : -x;
@@ -46,12 +39,12 @@ constexpr f32 abs(f32 x)
 
 constexpr bool epsilon_equal(f32 a, f32 b)
 {
-  return abs(b - a) <= stx::F32_EPSILON;
+  return abs(b - a) <= F32_EPSILON;
 }
 
 constexpr f32 epsilon_clamp(f32 x)
 {
-  return abs(x) > stx::F32_EPSILON ? x : stx::F32_EPSILON;
+  return abs(x) > F32_EPSILON ? x : F32_EPSILON;
 }
 
 static constexpr u32 log2_floor_u32(u32 x)
@@ -1343,21 +1336,21 @@ struct Constraint
 {
   f32 bias  = 0;
   f32 scale = 0;
-  f32 min   = stx::F32_MIN;
-  f32 max   = stx::F32_MAX;
+  f32 min   = F32_MIN;
+  f32 max   = F32_MAX;
   f32 minr  = 0;
   f32 maxr  = 1;
 
   static constexpr Constraint relative(f32 scale)
   {
     return Constraint{
-        .bias = 0, .scale = scale, .min = stx::F32_MIN, .max = stx::F32_MAX};
+        .bias = 0, .scale = scale, .min = F32_MIN, .max = F32_MAX};
   }
 
   static constexpr Constraint absolute(f32 value)
   {
     return Constraint{
-        .bias = value, .scale = 0, .min = stx::F32_MIN, .max = stx::F32_MAX};
+        .bias = value, .scale = 0, .min = F32_MIN, .max = F32_MAX};
   }
 
   constexpr Constraint with_min(f32 v) const

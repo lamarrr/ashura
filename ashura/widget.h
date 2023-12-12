@@ -18,9 +18,13 @@
 #include "stx/span.h"
 #include "stx/string.h"
 #include "stx/vec.h"
+#include <type_traits>
 
 namespace ash
 {
+
+template <typename T, typename Base>
+concept Impl = std::is_base_of_v<Base, T>;
 
 enum class Visibility : u8
 {
