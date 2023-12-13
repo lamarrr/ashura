@@ -1,6 +1,7 @@
 #pragma once
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
+#define VK_NO_PROTOTYPES
 
 #include "ashura/allocator.h"
 #include "ashura/gfx.h"
@@ -454,7 +455,7 @@ struct FrameContext
 
 struct Swapchain
 {
-  u64                generation                             = 0;
+  gfx::Generation    generation                             = 0;
   gfx::SwapchainDesc desc                                   = {};
   bool               is_valid                               = false;
   bool               is_optimal                             = false;
@@ -597,6 +598,8 @@ struct DeviceInterface
   static Result<u32, Status>
       get_surface_present_modes(gfx::Device self, gfx::Surface surface,
                                 Span<gfx::PresentMode> modes);
+  static Result<gfx::ImageUsage, Status> (*get_surface_usage)(
+      gfx::Device self, gfx::Surface surface);
   static Result<gfx::SwapchainInfo, Status>
       get_swapchain_info(gfx::Device self, gfx::Swapchain swapchain);
   static Result<Void, Status>

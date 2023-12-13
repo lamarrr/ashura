@@ -14,18 +14,6 @@
 namespace ash
 {
 
-template <typename T>
-constexpr bool has_bits(T src, T cmp)
-{
-  return (src & cmp) == cmp;
-}
-
-template <typename T>
-constexpr bool has_any_bit(T src, T cmp)
-{
-  return (src & cmp) != (T) 0;
-}
-
 using Clock        = std::chrono::steady_clock;        // monotonic system clock
 using timepoint    = Clock::time_point;
 using nanoseconds  = std::chrono::nanoseconds;
@@ -297,6 +285,7 @@ struct tri
 };
 
 // each coordinate is an edge of the quad
+// TODO(lamarrr): rename this
 struct Quad
 {
   Vec2 p0, p1, p2, p3;

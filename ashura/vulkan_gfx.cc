@@ -100,6 +100,7 @@ static gfx::DeviceInterface const device_interface{
     .get_frame_info            = DeviceInterface::get_frame_info,
     .get_surface_formats       = DeviceInterface::get_surface_formats,
     .get_surface_present_modes = DeviceInterface::get_surface_present_modes,
+    .get_surface_usage         = DeviceInterface::get_surface_usage,
     .get_swapchain_info        = DeviceInterface::get_swapchain_info,
     .invalidate_swapchain      = DeviceInterface::invalidate_swapchain,
     .begin_frame               = DeviceInterface::begin_frame,
@@ -184,14 +185,16 @@ void CmdDebugMarkerInsertEXT_Stub(VkCommandBuffer,
 {
 }
 
-bool load_instance_table(VkInstance instance, InstanceTable &vk_instance_table)
+bool load_instance_table(VkInstance                instance,
+                         PFN_vkGetInstanceProcAddr GetInstanceProcAddr,
+                         InstanceTable            *vk_instance_table)
 {
   bool all_loaded = true;
 
-#define LOAD_VK(function)                                                 \
-  vk_instance_table.function =                                            \
-      (PFN_vk##function) vkGetInstanceProcAddr(instance, "vk" #function); \
-  all_loaded = all_loaded && (vk_instance_table.function != nullptr)
+#define LOAD_VK(function)                                               \
+  vk_instance_table->function =                                         \
+      (PFN_vk##function) GetInstanceProcAddr(instance, "vk" #function); \
+  all_loaded = all_loaded && (vk_instance_table->function != nullptr)
 
   LOAD_VK(CreateDebugReportCallbackEXT);
   LOAD_VK(CreateDebugUtilsMessengerEXT);
@@ -217,20 +220,22 @@ bool load_instance_table(VkInstance instance, InstanceTable &vk_instance_table)
   LOAD_VK(GetPhysicalDeviceSurfaceCapabilitiesKHR);
   LOAD_VK(GetPhysicalDeviceSurfaceFormatsKHR);
   LOAD_VK(GetPhysicalDeviceSurfacePresentModesKHR);
+  // TODO(lamarrr): platform surface functions loaders
 #undef LOAD_VK
 
   return all_loaded;
 }
 
-bool load_device_table(VkDevice device, DeviceTable &vk_table,
-                       VmaVulkanFunctions &vma_table)
+bool load_device_table(VkDevice                device,
+                       PFN_vkGetDeviceProcAddr GetDeviceProcAddr,
+                       DeviceTable *vk_table, VmaVulkanFunctions *vma_table)
 {
   bool all_loaded = true;
 
-#define LOAD_VK(function)                                             \
-  vk_table.function =                                                 \
-      (PFN_vk##function) vkGetDeviceProcAddr(device, "vk" #function); \
-  all_loaded = all_loaded && (vk_table.function != nullptr)
+#define LOAD_VK(function)                                           \
+  vk_table->function =                                              \
+      (PFN_vk##function) GetDeviceProcAddr(device, "vk" #function); \
+  all_loaded = all_loaded && (vk_table->function != nullptr)
 
   // DEVICE OBJECT FUNCTIONS
   LOAD_VK(AllocateCommandBuffers);
@@ -362,11 +367,11 @@ bool load_device_table(VkDevice device, DeviceTable &vk_table,
 
 #undef LOAD_VK
 
-#define LOAD_VK_STUBBED(function)                                     \
-  vk_table.function =                                                 \
-      (PFN_vk##function) vkGetDeviceProcAddr(device, "vk" #function); \
-  vk_table.function =                                                 \
-      (vk_table.function != nullptr) ? vk_table.function : function##_Stub;
+#define LOAD_VK_STUBBED(function)                                   \
+  vk_table->function =                                              \
+      (PFN_vk##function) GetDeviceProcAddr(device, "vk" #function); \
+  vk_table->function =                                              \
+      (vk_table->function != nullptr) ? vk_table->function : function##_Stub;
 
   LOAD_VK_STUBBED(DebugMarkerSetObjectTagEXT);
   LOAD_VK_STUBBED(DebugMarkerSetObjectNameEXT);
@@ -377,7 +382,7 @@ bool load_device_table(VkDevice device, DeviceTable &vk_table,
 
 #undef LOAD_VK_STUBBED
 
-#define SET_VMA(function) vma_table.vk##function = vk_table.function
+#define SET_VMA(function) vma_table->vk##function = vk_table->function
   SET_VMA(AllocateMemory);
   SET_VMA(FreeMemory);
   SET_VMA(UnmapMemory);
@@ -910,8 +915,8 @@ Result<gfx::FormatProperties, Status>
 {
   Device *const      self = (Device *) self_;
   VkFormatProperties props;
-  vkGetPhysicalDeviceFormatProperties(self->vk_phy_device, (VkFormat) format,
-                                      &props);
+  self->vk_instance_table.GetPhysicalDeviceFormatProperties(
+      self->vk_phy_device, (VkFormat) format, &props);
   return Ok(gfx::FormatProperties{
       .linear_tiling_features =
           (gfx::FormatFeatures) props.linearTilingFeatures,

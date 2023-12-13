@@ -64,172 +64,283 @@ constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
 
 constexpr f32 PI = 3.14159265358979323846f;
 
+template <typename T>
+constexpr bool has_bits(T src, T cmp)
+{
+  return (src & cmp) == cmp;
+}
+
+template <typename T>
+constexpr bool has_any_bit(T src, T cmp)
+{
+  return (src & cmp) != (T) 0;
+}
+
+typedef struct Vec2       Vec2;
+typedef struct Vec2       Complex;
+typedef struct Vec3       Vec3;
+typedef struct Vec4       Vec4;
+typedef struct Vec4       Quaternion;
+typedef struct Vec4       Color;
+typedef struct Vec4U8     Vec4U8;
+typedef struct Vec4U8     ColorU8;
+typedef struct Vec2I      Vec2I;
+typedef struct Vec3I      Vec3I;
+typedef struct Vec2U      Vec2U;
+typedef struct Vec3U      Vec3U;
+typedef struct Vec4U      Vec4U;
+typedef struct Vec4U      ColorU;
+typedef struct Mat2       Mat2;
+typedef struct Mat3       Mat3;
+typedef struct Mat3Affine Mat3Affine;
+typedef struct Mat4       Mat4;
+typedef struct Mat4Affine Mat4Affine;
+typedef struct Slice      Slice;
+template <typename T>
+struct Span;
+
+struct Vec2
+{
+  union
+  {
+    f32 c = 0;
+    f32 i;
+    f32 width;
+  };
+
+  union
+  {
+    f32 y = 0;
+    f32 j;
+    f32 height;
+  };
+};
+
+struct Vec3
+{
+  union
+  {
+    f32 x = 0;
+    f32 r;
+    f32 width;
+  };
+
+  union
+  {
+    f32 y = 0;
+    f32 g;
+    f32 height;
+  };
+
+  union
+  {
+    f32 z = 0;
+    f32 b;
+    f32 depth;
+  };
+};
+
+struct Vec4
+{
+  union
+  {
+    f32 x = 0;
+    f32 c;
+    f32 r;
+    f32 width;
+  };
+
+  union
+  {
+    f32 y = 0;
+    f32 i;
+    f32 g;
+    f32 height;
+  };
+
+  union
+  {
+    f32 z = 0;
+    f32 j;
+    f32 b;
+    f32 depth;
+  };
+
+  union
+  {
+    f32 w = 0;
+    f32 k;
+    f32 a;
+    f32 hyper;
+  };
+};
+
+struct Vec4U8
+{
+  union
+  {
+    u8 x = 0;
+    u8 r;
+    u8 width;
+  };
+
+  union
+  {
+    u8 y = 0;
+    u8 g;
+    u8 height;
+  };
+
+  union
+  {
+    u8 z = 0;
+    u8 b;
+    u8 depth;
+  };
+
+  union
+  {
+    u8 w = 0;
+    u8 a;
+    u8 hyper;
+  };
+};
+
+struct Vec2I
+{
+  union
+  {
+    i32 x = 0;
+    i32 width;
+  };
+
+  union
+  {
+    i32 y = 0;
+    i32 height;
+  };
+};
+
+struct Vec3I
+{
+  union
+  {
+    i32 x = 0;
+    i32 width;
+  };
+
+  union
+  {
+    i32 y = 0;
+    i32 height;
+  };
+
+  union
+  {
+    i32 z = 0;
+    i32 depth;
+  };
+};
+
+struct Vec2U
+{
+  union
+  {
+    u32 x = 0;
+    u32 width;
+  };
+
+  union
+  {
+    u32 y = 0;
+    u32 height;
+  };
+};
+
+struct Vec3U
+{
+  union
+  {
+    u32 x = 0;
+    u32 r;
+    u32 width;
+  };
+
+  union
+  {
+    u32 y = 0;
+    u32 g;
+    u32 height;
+  };
+
+  union
+  {
+    u32 z = 0;
+    u32 b;
+    u32 depth;
+  };
+};
+
+struct Vec4U
+{
+  union
+  {
+    u32 x = 0;
+    u32 r;
+    u32 width;
+  };
+
+  union
+  {
+    u32 y = 0;
+    u32 g;
+    u32 height;
+  };
+
+  union
+  {
+    u32 z = 0;
+    u32 b;
+    u32 depth;
+  };
+
+  union
+  {
+    u32 w = 0;
+    u32 a;
+    u32 hyper;
+  };
+};
+
+struct Mat2
+{
+  Vec2 rows[2] = {};
+};
+
+struct Mat3
+{
+  Vec3 rows[3] = {};
+};
+
+struct Mat3Affine
+{
+  Vec3 rows[2] = {};
+};
+
+struct Mat4
+{
+  Vec4 rows[3] = {};
+};
+
+struct Mat4Affine
+{
+  Vec4 rows[3] = {};
+};
+
 struct Slice
 {
   usize offset = 0;
   usize size   = 0;
-};
-
-template <typename T>
-struct Span
-{
-  T    *data = nullptr;
-  usize size = 0;
-
-  constexpr usize size_bytes() const
-  {
-    return sizeof(T) * size;
-  }
-
-  constexpr bool is_empty() const
-  {
-    return size == 0;
-  }
-
-  constexpr T *begin() const
-  {
-    return data;
-  }
-
-  constexpr T *end() const
-  {
-    return data + size;
-  }
-
-  constexpr T &operator[](usize i) const
-  {
-    return data[i];
-  }
-
-  constexpr Span<T> operator[](Slice slice) const
-  {
-    // written such that overflow will not occur even if both offset and size
-    // are set to USIZE_MAX
-    slice.offset = slice.offset > size ? size : slice.offset;
-    slice.size =
-        (size - slice.offset) > slice.size ? slice.size : (size - slice.offset);
-    return Span<T>{data + slice.offset, slice.size};
-  }
-
-  constexpr operator Span<T const>() const
-  {
-    return Span<T const>{data, size};
-  }
-
-  constexpr Span<T> slice(usize offset) const
-  {
-    return (*this)[Slice{offset, USIZE_MAX}];
-  }
-
-  constexpr Span<T> slice(usize offset, usize size) const
-  {
-    return (*this)[Slice{offset, size}];
-  }
-
-  constexpr Span<T> slice(Slice s) const
-  {
-    return (*this)[s];
-  }
-};
-
-template <typename T>
-constexpr Span<T const> as_const(Span<T> span)
-{
-  return Span<T const>{span.data, span.size};
-}
-
-template <typename T>
-constexpr Span<u8> as_u8(Span<T> span)
-{
-  return Span<u8>{reinterpret_cast<u8 *>(span.data), span.size_bytes()};
-}
-
-template <typename T>
-constexpr Span<char> as_char(Span<T> span)
-{
-  return Span<char>{reinterpret_cast<char *>(span.data), span.size_bytes()};
-}
-
-template <typename T>
-constexpr Span<u8 const> as_u8(Span<T const> span)
-{
-  return Span<u8 const>{reinterpret_cast<u8 const *>(span.data),
-                        span.size_bytes()};
-}
-
-template <typename T>
-constexpr Span<char const> as_char(Span<T const> span)
-{
-  return Span<char const>{reinterpret_cast<char const *>(span.data),
-                          span.size_bytes()};
-}
-
-template <typename T, usize N>
-constexpr Span<T> span_from_array(T (&array)[N])
-{
-  return Span<T>{array, N};
-}
-
-template <typename StdContainer>
-constexpr auto span_from_std_container(StdContainer &container)
-{
-  return Span{container.data(), container.size()};
-}
-
-// A span with bit access semantics
-template <typename UnsignedInteger>
-struct BitSpan
-{
-  static constexpr u32 NUM_BITS_PER_PACK = sizeof(UnsignedInteger) << 3;
-
-  Span<UnsignedInteger> body          = {};
-  Slice                 current_slice = {};
-
-  constexpr bool is_empty() const
-  {
-    return current_slice.size == 0;
-  }
-
-  constexpr bool operator[](usize offset) const
-  {
-    offset   = current_slice.offset + offset;
-    bool bit = (body.data[offset / NUM_BITS_PER_PACK] >>
-                (offset % NUM_BITS_PER_PACK)) &
-               1U;
-    return bit;
-  }
-
-  constexpr void set(usize offset, bool bit) const
-  {
-    offset                      = current_slice.offset + offset;
-    UnsignedInteger &out        = body.data[offset / NUM_BITS_PER_PACK];
-    usize            bit_offset = offset % NUM_BITS_PER_PACK;
-    out                         = (out & ~((UnsignedInteger) 1 << bit_offset)) |
-          ((UnsignedInteger) bit << bit_offset);
-  }
-
-  constexpr void toggle(usize offset) const
-  {
-    offset               = current_slice.offset + offset;
-    UnsignedInteger &out = body.data[offset / NUM_BITS_PER_PACK];
-    out                  = out ^ (1ULL << (offset % NUM_BITS_PER_PACK));
-  }
-
-  constexpr BitSpan operator[](Slice slice) const
-  {
-    slice.offset += current_slice.offset;
-    slice.offset =
-        slice.offset > current_slice.size ? current_slice.size : slice.offset;
-    slice.size = (current_slice.size - slice.offset) > slice.size ?
-                     slice.size :
-                     (current_slice.size - slice.offset);
-    return BitSpan{body, slice};
-  }
-
-  constexpr BitSpan slice(Slice s) const
-  {
-    return (*this)[s];
-  }
 };
 
 }        // namespace ash

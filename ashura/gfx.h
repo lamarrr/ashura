@@ -31,7 +31,12 @@ constexpr u32 MAX_COMPUTE_GROUP_COUNT_Y    = 1024;
 constexpr u32 MAX_COMPUTE_GROUP_COUNT_Z    = 1024;
 constexpr u32 MAX_SWAPCHAIN_IMAGES         = 8;
 
+typedef Vec2U                          Offset;
+typedef Vec2U                          Extent;
+typedef Vec3U                          Offset3D;
+typedef Vec3U                          Extent3D;
 typedef u64                            FrameId;
+typedef u64                            Generation;
 typedef struct Buffer_T               *Buffer;
 typedef struct BufferView_T           *BufferView;
 typedef struct Image_T                *Image;
@@ -761,7 +766,8 @@ struct MemoryRange
 
 struct Viewport
 {
-  Rect area;
+  Vec2 offset;
+  Vec2 extent;
   f32  min_depth = 0;
   f32  max_depth = 0;
 };
@@ -1224,7 +1230,7 @@ struct SwapchainDesc
 /// avoid storing pointers to its data members.
 struct SwapchainInfo
 {
-  u64               generation    = 0;
+  Generation        generation    = 0;
   Extent            extent        = {};
   SurfaceFormat     format        = {};
   Span<Image const> images        = {};
@@ -1497,7 +1503,9 @@ struct DeviceInterface
   Result<u32, Status> (*get_surface_formats)(
       Device self, Surface surface, Span<SurfaceFormat> formats) = nullptr;
   Result<u32, Status> (*get_surface_present_modes)(
-      Device self, Surface surface, Span<PresentMode> modes) = nullptr;
+      Device self, Surface surface, Span<PresentMode> modes)       = nullptr;
+  Result<ImageUsage, Status> (*get_surface_usage)(Device  self,
+                                                  Surface surface) = nullptr;
   Result<SwapchainInfo, Status> (*get_swapchain_info)(
       Device self, Swapchain swapchain) = nullptr;
   Result<Void, Status> (*invalidate_swapchain)(
@@ -1708,6 +1716,9 @@ struct DeviceImpl
 //
 //
 
+//
+//
+//
 struct InstanceInterface
 {
   Result<Instance, Status> (*create)(AllocatorImpl allocator) = nullptr;
@@ -1719,6 +1730,14 @@ struct InstanceInterface
       AllocatorImpl       allocator) = nullptr;
   Result<Surface, Status> (*create_headless_surface)(Instance instance) =
       nullptr;
+  void create_win32_surface();
+  void create_x11_surface();
+  void create_wayland_surface();
+  void create_xlib_surface();
+  void create_metal_surface();
+  void create_macos_surface();
+  void create_ios_surface();
+  void create_android_surface();
 };
 
 }        // namespace gfx
