@@ -1,6 +1,4 @@
-#include <string_view>
-
-#include "ashura/primitives.h"
+#include "ashura/types.h"
 
 namespace ash
 {
@@ -33,7 +31,6 @@ struct Utf8StringView
   {
     return size == 0;
   }
-
 };
 
 // TODO(lamarrr): algorithms, find, rotate, etc.
@@ -46,6 +43,7 @@ constexpr void utf8_encode(Span<u32 const> decoded, Span<char> encode);
 constexpr Utf8StringView to_utf8_unchecked(StringView);
 constexpr bool           to_utf8(StringView, Utf8StringView &);
 constexpr bool           is_utf8(StringView);
+constexpr bool           is_ascii(char const *, usize size);
 constexpr bool           count_utf8_codepoints(StringView);
 template <typename Operation>
 constexpr void iterate_codepoints(Utf8StringView, Operation);
