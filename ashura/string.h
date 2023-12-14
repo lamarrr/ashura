@@ -32,12 +32,11 @@ struct Utf8StringView
 
 // TODO(lamarrr): algorithms, find, rotate, etc.
 
-constexpr void utf8_decode(
-    Utf8StringView encoded,
-    Span<u32>      decode);        // decode.size must be encoded.num_codepoints
-constexpr void utf8_encode(
-    Span<u32 const> decoded,
-    Span<char> encode);        // encode.size must be at least decoded.size * 4
+// decode.size must be encoded.num_codepoints
+constexpr void utf8_decode(Utf8StringView encoded, Span<u32> decode);
+
+// encode.size must be at least decoded.size * 4
+constexpr void utf8_encode(Span<u32 const> decoded, Span<char> encode);
 constexpr Utf8StringView to_utf8_unchecked(StringView);
 constexpr bool           to_utf8(StringView, Utf8StringView &);
 constexpr bool           is_utf8(StringView);
