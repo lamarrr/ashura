@@ -5,78 +5,79 @@
 namespace ash
 {
 
-using ascii_codepoint = u8;
-using utf8_codepoint  = u32;
-
-enum class StringEncoding : u8
-{
-  Ascii = 0,
-  Utf8  = 1
-};
-
-struct ASCIIString
-{
-};
-struct ASCIIStringView
-{
-};
-
+// Byte-encoded string view. can represent ASCII and UTF-8
 struct StringView
 {
-  StringView(char const *static_string_literal);
-  usize          ncodepoints = 0;
-  usize          size        = 0;
-  StringEncoding encoding    = StringEncoding::Ascii;
+  char const *data = nullptr;
+  usize       size = 0;
+
+  constexpr char const &operator[](usize index) const
+  {
+    return data[index];
+  }
+
+  constexpr operator Span<char const>() const
+  {
+    return Span{data, size};
+  }
 };
 
-struct String
+// UTF-8-encoded string view
+struct Utf8StringView
 {
-  String(char const *static_string_literal)
-  {
-  }
-  usize ncodepoints = 0;
-  usize size        = 0;
+  char const *data           = nullptr;
+  usize       size           = 0;
+  usize       num_codepoints = 0;
 };
+
+// TODO(lamarrr): algorithms, find, rotate, etc.
+
+constexpr void utf8_decode(
+    Utf8StringView encoded,
+    Span<u32>      decode);        // decode.size must be encoded.num_codepoints
+constexpr void utf8_encode(
+    Span<u32 const> decoded,
+    Span<char> encode);        // encode.size must be at least decoded.size * 4
+constexpr Utf8StringView to_utf8_unchecked(StringView);
+constexpr bool           to_utf8(StringView, Utf8StringView &);
+constexpr bool           is_utf8(StringView);
+constexpr bool           count_utf8_codepoints(StringView);
+template <typename Operation>
+constexpr void iterate_codepoints(Utf8StringView, Operation);
 
 /// gets the unicode codepoint at iter and then advances iter to the next
 /// codepoint
 ///
-constexpr uint32_t utf8_next(uint8_t const *&iter)
+constexpr u32 utf8_next(u8 const *iter, u8 const **next)
 {
   if ((*iter & 0xF8) == 0xF0)
   {
-    uint32_t c1 = *iter;
-    iter++;
-    uint32_t c2 = *iter;
-    iter++;
-    uint32_t c3 = *iter;
-    iter++;
-    uint32_t c4 = *iter;
-    iter++;
+    u32 c1 = *iter++;
+    u32 c2 = *iter++;
+    u32 c3 = *iter++;
+    u32 c4 = *iter++;
+    *next  = iter;
     return c1 << 24 | c2 << 16 | c3 << 8 | c4;
   }
   else if ((*iter & 0xF0) == 0xE0)
   {
-    uint32_t c1 = *iter;
-    iter++;
-    uint32_t c2 = *iter;
-    iter++;
-    uint32_t c3 = *iter;
-    iter++;
+    u32 c1 = *iter++;
+    u32 c2 = *iter++;
+    u32 c3 = *iter++;
+    *next  = iter;
     return c1 << 16 | c2 << 8 | c3;
   }
   else if ((*iter & 0xE0) == 0xC0)
   {
-    uint32_t c1 = *iter;
-    iter++;
-    uint32_t c2 = *iter;
-    iter++;
+    u32 c1 = *iter++;
+    u32 c2 = *iter++;
+    *next  = iter;
     return c1 << 8 | c2;
   }
   else
   {
-    uint32_t c1 = *iter;
-    iter++;
+    u32 c1 = *iter++;
+    *next  = iter;
     return c1;
   }
 }
