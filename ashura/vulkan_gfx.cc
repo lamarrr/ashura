@@ -226,6 +226,8 @@ bool load_instance_table(VkInstance                instance,
   return all_loaded;
 }
 
+// todo(lamarrr): check all vulkan spec invariants
+
 bool load_device_table(VkDevice                device,
                        PFN_vkGetDeviceProcAddr GetDeviceProcAddr,
                        DeviceTable *vk_table, VmaVulkanFunctions *vma_table)
@@ -1065,7 +1067,9 @@ Result<gfx::Image, Status>
   VALIDATE("", desc.format != gfx::Format::Undefined);
   VALIDATE("", desc.usage != gfx::ImageUsage::None);
   VALIDATE("", desc.aspects != gfx::ImageAspects::None);
-  VALIDATE("", desc.extent.is_visible());
+  VALIDATE("", desc.extent.x != 0);
+  VALIDATE("", desc.extent.y != 0);
+  VALIDATE("", desc.extent.z != 0);
   VALIDATE("", desc.mip_levels > 0);
   VALIDATE("", desc.array_layers > 0);
 
@@ -1075,11 +1079,10 @@ Result<gfx::Image, Status>
                                 .flags = 0,
                                 .imageType = (VkImageType) desc.type,
                                 .format    = (VkFormat) desc.format,
-                                .extent =
-                                    VkExtent3D{.width  = desc.extent.width,
-                                               .height = desc.extent.height,
-                                               .depth  = desc.extent.depth},
-                                .mipLevels   = desc.mip_levels,
+                                .extent    = VkExtent3D{.width  = desc.extent.x,
+                                                        .height = desc.extent.y,
+                                                        .depth  = desc.extent.z},
+                                .mipLevels = desc.mip_levels,
                                 .arrayLayers = desc.array_layers,
                                 .samples     = VK_SAMPLE_COUNT_1_BIT,
                                 .tiling      = VK_IMAGE_TILING_OPTIMAL,
@@ -1538,8 +1541,8 @@ Result<gfx::Framebuffer, Status>
       .renderPass      = render_pass->vk_render_pass,
       .attachmentCount = num_attachments,
       .pAttachments    = vk_attachments,
-      .width           = desc.extent.width,
-      .height          = desc.extent.height,
+      .width           = desc.extent.x,
+      .height          = desc.extent.y,
       .layers          = desc.layers};
 
   VkFramebuffer vk_framebuffer;
@@ -2289,10 +2292,10 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .logicOp         = (VkLogicOp) desc.color_blend_state.logic_op,
       .attachmentCount = num_color_attachments,
       .pAttachments    = attachment_states,
-      .blendConstants  = {desc.color_blend_state.blend_constants.x,
-                          desc.color_blend_state.blend_constants.y,
-                          desc.color_blend_state.blend_constants.z,
-                          desc.color_blend_state.blend_constants.w}};
+      .blendConstants  = {desc.color_blend_state.blend_constant.x,
+                          desc.color_blend_state.blend_constant.y,
+                          desc.color_blend_state.blend_constant.z,
+                          desc.color_blend_state.blend_constant.w}};
 
   constexpr u32  NUM_PIPELINE_DYNAMIC_STATES                 = 6U;
   VkDynamicState dynamic_states[NUM_PIPELINE_DYNAMIC_STATES] = {
@@ -2632,7 +2635,8 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 /// swapchain recreation fails.
 inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
 {
-  VALIDATE("", swapchain->desc.preferred_extent.is_visible());
+  VALIDATE("", swapchain->desc.preferred_extent.x != 0);
+  VALIDATE("", swapchain->desc.preferred_extent.y != 0);
   VALIDATE("",
            swapchain->desc.preferred_buffering <= gfx::MAX_SWAPCHAIN_IMAGES);
 
@@ -2640,7 +2644,7 @@ inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
   VkSwapchainKHR old_vk_swapchain = swapchain->vk_swapchain;
   swapchain->is_valid             = false;
   swapchain->is_optimal           = false;
-  swapchain->extent               = Extent{};
+  swapchain->extent               = gfx::Extent{};
   swapchain->num_images           = 0;
   swapchain->current_image        = 0;
   swapchain->vk_swapchain         = nullptr;
@@ -2665,10 +2669,10 @@ inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
   if (surface_capabilities.currentExtent.width == 0xFFFFFFFFU &&
       surface_capabilities.currentExtent.height == 0xFFFFFFFFU)
   {
-    vk_extent.width  = std::clamp(swapchain->desc.preferred_extent.width,
+    vk_extent.width  = std::clamp(swapchain->desc.preferred_extent.x,
                                   surface_capabilities.minImageExtent.width,
                                   surface_capabilities.maxImageExtent.width);
-    vk_extent.height = std::clamp(swapchain->desc.preferred_extent.height,
+    vk_extent.height = std::clamp(swapchain->desc.preferred_extent.y,
                                   surface_capabilities.minImageExtent.height,
                                   surface_capabilities.maxImageExtent.height);
   }
@@ -2753,21 +2757,21 @@ inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
 
   for (u32 i = 0; i < num_images; i++)
   {
-    swapchain->image_impls[i] =
-        Image{.refcount = 1,
-              .desc     = gfx::ImageDesc{.type    = gfx::ImageType::Type2D,
-                                         .format  = swapchain->desc.format.format,
-                                         .usage   = swapchain->desc.usage,
-                                         .aspects = gfx::ImageAspects::Color,
-                                         .extent  = Extent3D{vk_extent.width,
-                                                        vk_extent.height, 1},
-                                         .mip_levels   = 1,
-                                         .array_layers = 1},
-              .is_swapchain_image  = true,
-              .vk_image            = swapchain->vk_images[i],
-              .vma_allocation      = nullptr,
-              .vma_allocation_info = {},
-              .state               = {}};
+    swapchain->image_impls[i] = Image{
+        .refcount            = 1,
+        .desc                = gfx::ImageDesc{.type         = gfx::ImageType::Type2D,
+                                              .format       = swapchain->desc.format.format,
+                                              .usage        = swapchain->desc.usage,
+                                              .aspects      = gfx::ImageAspects::Color,
+                                              .extent       = gfx::Extent3D{vk_extent.width,
+                                                       vk_extent.height, 1},
+                                              .mip_levels   = 1,
+                                              .array_layers = 1},
+        .is_swapchain_image  = true,
+        .vk_image            = swapchain->vk_images[i],
+        .vma_allocation      = nullptr,
+        .vma_allocation_info = {},
+        .state               = {}};
   }
 
   if (swapchain->desc.label != nullptr)
@@ -2797,8 +2801,8 @@ inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
   swapchain->generation++;
   swapchain->is_valid      = true;
   swapchain->is_optimal    = true;
-  swapchain->extent.width  = vk_extent.width;
-  swapchain->extent.height = vk_extent.height;
+  swapchain->extent.x      = vk_extent.width;
+  swapchain->extent.y      = vk_extent.height;
   swapchain->num_images    = num_images;
   swapchain->current_image = 0;
   swapchain->vk_swapchain  = new_vk_swapchain;
@@ -3166,7 +3170,8 @@ Result<Void, Status>
       frame_context->submit_semaphores[frame_context->current_command_encoder];
 
   VALIDATE("", swapchain->is_valid);
-  VALIDATE("", swapchain->extent.is_visible());
+  VALIDATE("", swapchain->extent.x != 0);
+  VALIDATE("", swapchain->extent.y != 0);
 
   VkResult result = self->vk_table.WaitForFences(
       self->vk_device, 1, &submit_fence->vk_fence, VK_TRUE, U64_MAX);
@@ -4174,11 +4179,11 @@ void CommandEncoderInterface::fill_buffer(gfx::CommandEncoder self_,
   CommandEncoder *const self = (CommandEncoder *) self_;
   Buffer *const         dst  = (Buffer *) dst_;
 
-  VALIDATE("", offset < dst->desc.size);
-  VALIDATE("", (offset + size) <= dst->desc.size);
   VALIDATE("", (offset % 4) == 0);
   VALIDATE("", (size % 4) == 0);
   VALIDATE("", size > 0);
+  VALIDATE("", offset < dst->desc.size);
+  VALIDATE("", (offset + size) <= dst->desc.size);
 
   if (self->status != Status::Success)
   {
@@ -4277,6 +4282,7 @@ void CommandEncoderInterface::clear_color_image(
   Image *const          dst        = (Image *) dst_;
   u32 const             num_ranges = (u32) ranges.size;
 
+  // TODO(lamarrr): use memcpy instead
   static_assert(sizeof(gfx::Color) == sizeof(VkClearColorValue));
   static_assert(alignof(gfx::Color) == alignof(VkClearColorValue));
   VALIDATE("", num_ranges > 0);
@@ -4339,6 +4345,7 @@ void CommandEncoderInterface::clear_depth_stencil_image(
   Image *const          dst        = (Image *) dst_;
   u32 const             num_ranges = (u32) ranges.size;
 
+  // todo(lamarrr): really?
   static_assert(sizeof(gfx::DepthStencil) == sizeof(VkClearDepthStencilValue));
   static_assert(alignof(gfx::DepthStencil) ==
                 alignof(VkClearDepthStencilValue));
@@ -4404,10 +4411,21 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
   for (u32 i = 0; i < num_copies; i++)
   {
     gfx::ImageCopy const &copy = copies[i];
-    VALIDATE("", URect3D{{}, src->desc.extent}.contains(
-                     URect3D{copy.src_offset, copy.extent}));
-    VALIDATE("", URect3D{{}, dst->desc.extent}.contains(
-                     URect3D{copy.dst_offset, copy.extent}));
+    VALIDATE("", copy.extent.x > 0);
+    VALIDATE("", copy.extent.y > 0);
+    VALIDATE("", copy.extent.z > 0);
+    VALIDATE("", copy.src_offset.x <= src->desc.extent.x);
+    VALIDATE("", copy.src_offset.y <= src->desc.extent.y);
+    VALIDATE("", copy.src_offset.z <= src->desc.extent.z);
+    VALIDATE("", (copy.src_offset.x + copy.extent.x) <= src->desc.extent.x);
+    VALIDATE("", (copy.src_offset.y + copy.extent.x) <= src->desc.extent.y);
+    VALIDATE("", (copy.src_offset.z + copy.extent.x) <= src->desc.extent.z);
+    VALIDATE("", copy.dst_offset.x <= dst->desc.extent.x);
+    VALIDATE("", copy.dst_offset.y <= dst->desc.extent.y);
+    VALIDATE("", copy.dst_offset.z <= dst->desc.extent.z);
+    VALIDATE("", (copy.dst_offset.x + copy.extent.x) <= dst->desc.extent.x);
+    VALIDATE("", (copy.dst_offset.y + copy.extent.x) <= dst->desc.extent.y);
+    VALIDATE("", (copy.dst_offset.z + copy.extent.x) <= dst->desc.extent.z);
 
     VALIDATE("", has_bits(src->desc.aspects, copy.src_layers.aspects));
     VALIDATE("", copy.src_layers.mip_level < src->desc.mip_levels);
@@ -4453,7 +4471,7 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
         .layerCount     = copy.dst_layers.num_array_layers};
     VkOffset3D dst_offset{(i32) copy.dst_offset.x, (i32) copy.dst_offset.y,
                           (i32) copy.dst_offset.z};
-    VkExtent3D extent{copy.extent.width, copy.extent.height, copy.extent.depth};
+    VkExtent3D extent{copy.extent.x, copy.extent.y, copy.extent.z};
 
     vk_copies[i] = VkImageCopy{.srcSubresource = src_subresource,
                                .srcOffset      = src_offset,
@@ -4491,9 +4509,18 @@ void CommandEncoderInterface::copy_buffer_to_image(
   {
     gfx::BufferImageCopy const &copy = copies[i];
     VALIDATE("", copy.buffer_offset < src->desc.size);
-    VALIDATE("", URect3D{{}, dst->desc.extent}.contains(
-                     URect3D{copy.image_offset, copy.image_extent}));
-
+    VALIDATE("", copy.image_extent.x > 0);
+    VALIDATE("", copy.image_extent.y > 0);
+    VALIDATE("", copy.image_extent.z > 0);
+    VALIDATE("", copy.image_extent.x <= dst->desc.extent.x);
+    VALIDATE("", copy.image_extent.y <= dst->desc.extent.y);
+    VALIDATE("", copy.image_extent.z <= dst->desc.extent.z);
+    VALIDATE("",
+             (copy.image_offset.x + copy.image_extent.x) <= dst->desc.extent.x);
+    VALIDATE("",
+             (copy.image_offset.y + copy.image_extent.y) <= dst->desc.extent.y);
+    VALIDATE("",
+             (copy.image_offset.z + copy.image_extent.z) <= dst->desc.extent.z);
     VALIDATE("", has_bits(dst->desc.aspects, copy.image_layers.aspects));
     VALIDATE("", copy.image_layers.mip_level < dst->desc.mip_levels);
     VALIDATE("", copy.image_layers.first_array_layer < dst->desc.array_layers);
@@ -4524,17 +4551,16 @@ void CommandEncoderInterface::copy_buffer_to_image(
            .mipLevel       = copy.image_layers.mip_level,
            .baseArrayLayer = copy.image_layers.first_array_layer,
            .layerCount     = copy.image_layers.num_array_layers};
-    vk_copies[i] =
-        VkBufferImageCopy{.bufferOffset      = copy.buffer_offset,
-                          .bufferRowLength   = copy.buffer_row_length,
-                          .bufferImageHeight = copy.buffer_image_height,
-                          .imageSubresource  = image_subresource,
-                          .imageOffset = VkOffset3D{(i32) copy.image_offset.x,
-                                                    (i32) copy.image_offset.y,
-                                                    (i32) copy.image_offset.z},
-                          .imageExtent = VkExtent3D{copy.image_extent.width,
-                                                    copy.image_extent.height,
-                                                    copy.image_extent.depth}};
+    vk_copies[i] = VkBufferImageCopy{
+        .bufferOffset      = copy.buffer_offset,
+        .bufferRowLength   = copy.buffer_row_length,
+        .bufferImageHeight = copy.buffer_image_height,
+        .imageSubresource  = image_subresource,
+        .imageOffset =
+            VkOffset3D{(i32) copy.image_offset.x, (i32) copy.image_offset.y,
+                       (i32) copy.image_offset.z},
+        .imageExtent = VkExtent3D{copy.image_extent.x, copy.image_extent.y,
+                                  copy.image_extent.z}};
   }
 
   access_buffer(self, src, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -4564,18 +4590,18 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
   for (u32 i = 0; i < num_blits; i++)
   {
     gfx::ImageBlit const &blit = blits[i];
-    VALIDATE("", blit.src_offsets[0].x <= src->desc.extent.width &&
-                     blit.src_offsets[0].y <= src->desc.extent.height &&
-                     blit.src_offsets[0].z <= src->desc.extent.depth &&
-                     blit.src_offsets[1].x <= src->desc.extent.width &&
-                     blit.src_offsets[1].y <= src->desc.extent.height &&
-                     blit.src_offsets[1].z <= src->desc.extent.depth);
-    VALIDATE("", blit.dst_offsets[0].x <= dst->desc.extent.width &&
-                     blit.dst_offsets[0].y <= dst->desc.extent.height &&
-                     blit.dst_offsets[0].z <= dst->desc.extent.depth &&
-                     blit.dst_offsets[1].x <= dst->desc.extent.width &&
-                     blit.dst_offsets[1].y <= dst->desc.extent.height &&
-                     blit.dst_offsets[1].z <= dst->desc.extent.depth);
+    VALIDATE("", blit.src_offsets[0].x <= src->desc.extent.x);
+    VALIDATE("", blit.src_offsets[0].y <= src->desc.extent.y);
+    VALIDATE("", blit.src_offsets[0].z <= src->desc.extent.z);
+    VALIDATE("", blit.src_offsets[1].x <= src->desc.extent.x);
+    VALIDATE("", blit.src_offsets[1].y <= src->desc.extent.y);
+    VALIDATE("", blit.src_offsets[1].z <= src->desc.extent.z);
+    VALIDATE("", blit.dst_offsets[0].x <= dst->desc.extent.x);
+    VALIDATE("", blit.dst_offsets[0].y <= dst->desc.extent.y);
+    VALIDATE("", blit.dst_offsets[0].z <= dst->desc.extent.z);
+    VALIDATE("", blit.dst_offsets[1].x <= dst->desc.extent.x);
+    VALIDATE("", blit.dst_offsets[1].y <= dst->desc.extent.y);
+    VALIDATE("", blit.dst_offsets[1].z <= dst->desc.extent.z);
 
     VALIDATE("", has_bits(src->desc.aspects, blit.src_layers.aspects));
     VALIDATE("", blit.src_layers.mip_level < src->desc.mip_levels);
@@ -4650,7 +4676,8 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
 
 void CommandEncoderInterface::begin_render_pass(
     gfx::CommandEncoder self_, gfx::Framebuffer framebuffer_,
-    gfx::RenderPass render_pass_, URect render_area,
+    gfx::RenderPass render_pass_, gfx::Offset render_offset,
+    gfx::Extent              render_extent,
     Span<gfx::Color const>   color_attachments_clear_values,
     gfx::DepthStencil const &depth_stencil_attachment_clear_value)
 {
@@ -4666,8 +4693,14 @@ void CommandEncoderInterface::begin_render_pass(
   VALIDATE("", is_render_pass_compatible(render_pass, framebuffer->desc));
   VALIDATE("", color_attachments_clear_values.size ==
                    framebuffer->desc.color_attachments.size);
-  VALIDATE("", URect{{}, framebuffer->desc.extent}.contains(render_area));
-  static_assert(sizeof(gfx::Color) == sizeof(VkClearColorValue));
+  VALIDATE("", render_extent.x > 0);
+  VALIDATE("", render_extent.y > 0);
+  VALIDATE("", render_offset.x <= framebuffer->desc.extent.x);
+  VALIDATE("", render_offset.y <= framebuffer->desc.extent.y);
+  VALIDATE("",
+           (render_offset.x + render_extent.x) <= framebuffer->desc.extent.x);
+  VALIDATE("",
+           (render_offset.y + render_extent.y) <= framebuffer->desc.extent.y);
 
   if (self->status != Status::Success)
   {
@@ -4724,11 +4757,10 @@ void CommandEncoderInterface::begin_render_pass(
             VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
   }
 
-  VkRect2D vk_render_area{.offset = VkOffset2D{.x = (i32) render_area.offset.x,
-                                               .y = (i32) render_area.offset.y},
-                          .extent =
-                              VkExtent2D{.width  = render_area.extent.width,
-                                         .height = render_area.extent.height}};
+  VkRect2D vk_render_area{.offset = VkOffset2D{.x = (i32) render_offset.x,
+                                               .y = (i32) render_offset.y},
+                          .extent = VkExtent2D{.width  = render_extent.x,
+                                               .height = render_extent.y}};
   VkRenderPassBeginInfo begin_info{.sType =
                                        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
                                    .pNext       = nullptr,
@@ -4929,10 +4961,10 @@ void CommandEncoderInterface::set_viewport(gfx::CommandEncoder  self_,
   // and bindings and framebuffers
   // index buffer, vertex buffer
 
-  VkViewport vk_viewport{.x        = viewport.area.offset.x,
-                         .y        = viewport.area.offset.y,
-                         .width    = viewport.area.extent.x,
-                         .height   = viewport.area.extent.y,
+  VkViewport vk_viewport{.x        = viewport.offset.x,
+                         .y        = viewport.offset.y,
+                         .width    = viewport.extent.x,
+                         .height   = viewport.extent.y,
                          .minDepth = viewport.min_depth,
                          .maxDepth = viewport.max_depth};
   self->device->vk_table.CmdSetViewport(self->vk_command_buffer, 0, 1,
@@ -4940,7 +4972,8 @@ void CommandEncoderInterface::set_viewport(gfx::CommandEncoder  self_,
 }
 
 void CommandEncoderInterface::set_scissor(gfx::CommandEncoder self_,
-                                          URect               scissor)
+                                          gfx::Offset         scissor_offset,
+                                          gfx::Extent         scissor_extent)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
@@ -4952,14 +4985,14 @@ void CommandEncoderInterface::set_scissor(gfx::CommandEncoder self_,
   }
 
   VkRect2D vk_scissor{
-      .offset = VkOffset2D{(i32) scissor.offset.x, (i32) scissor.offset.y},
-      .extent = VkExtent2D{scissor.extent.width, scissor.extent.height}};
+      .offset = VkOffset2D{(i32) scissor_offset.x, (i32) scissor_offset.y},
+      .extent = VkExtent2D{scissor_extent.x, scissor_extent.y}};
   self->device->vk_table.CmdSetScissor(self->vk_command_buffer, 0, 1,
                                        &vk_scissor);
 }
 
 void CommandEncoderInterface::set_blend_constants(gfx::CommandEncoder self_,
-                                                  Vec4 blend_constants)
+                                                  Vec4 blend_constant)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
@@ -4970,8 +5003,8 @@ void CommandEncoderInterface::set_blend_constants(gfx::CommandEncoder self_,
     return;
   }
 
-  f32 vk_constants[4] = {blend_constants.x, blend_constants.y,
-                         blend_constants.z, blend_constants.w};
+  f32 vk_constants[4] = {blend_constant.x, blend_constant.y, blend_constant.z,
+                         blend_constant.w};
   self->device->vk_table.CmdSetBlendConstants(self->vk_command_buffer,
                                               vk_constants);
 }
@@ -5037,6 +5070,7 @@ void CommandEncoderInterface::bind_vertex_buffers(
   VALIDATE("", num_vertex_buffers > 0);
   VALIDATE("", num_vertex_buffers <= gfx::MAX_VERTEX_ATTRIBUTES);
   VALIDATE("", offsets.size == vertex_buffers.size);
+  // TODO(lamarrr): validate bounds of offset and alignment
 
   if (self->status != Status::Success)
   {
@@ -5065,6 +5099,7 @@ void CommandEncoderInterface::bind_index_buffer(gfx::CommandEncoder self_,
   CommandEncoder *const self         = (CommandEncoder *) self_;
   Buffer *const         index_buffer = (Buffer *) index_buffer_;
 
+  // todo(lamarrr): validate alignment of offset
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", offset < index_buffer->desc.size);
 
@@ -5086,6 +5121,7 @@ void CommandEncoderInterface::draw(gfx::CommandEncoder self_, u32 first_index,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
+  // todo(lamarrr): validate index buffer bounds
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", self->bound_render_pass != nullptr);
   VALIDATE("", self->bound_framebuffer != nullptr);
@@ -5106,6 +5142,8 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
 
+  // TODO(lamarrr): validate offset + size
+  // todo(lamarrr): how are indirect commands recorded?
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", self->bound_render_pass != nullptr);
   VALIDATE("", self->bound_framebuffer != nullptr);

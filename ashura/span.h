@@ -4,53 +4,6 @@
 namespace ash
 {
 
-template <typename T>
-struct Span
-{
-  T    *data = nullptr;
-  usize size = 0;
-
-  constexpr usize size_bytes() const
-  {
-    return sizeof(T) * size;
-  }
-
-  constexpr bool is_empty() const
-  {
-    return size == 0;
-  }
-
-  constexpr T *begin() const
-  {
-    return data;
-  }
-
-  constexpr T *end() const
-  {
-    return data + size;
-  }
-
-  constexpr T &operator[](usize index) const
-  {
-    return data[index];
-  }
-
-  constexpr Span<T> operator[](Slice slice) const
-  {
-    // written such that overflow will not occur even if both offset and size
-    // are set to USIZE_MAX
-    slice.offset = slice.offset > size ? size : slice.offset;
-    slice.size =
-        (size - slice.offset) > slice.size ? slice.size : (size - slice.offset);
-    return Span<T>{data + slice.offset, slice.size};
-  }
-
-  constexpr operator Span<T const>() const
-  {
-    return Span<T const>{data, size};
-  }
-};
-
 // A span with bit access semantics
 template <typename UnsignedInteger>
 struct BitSpan

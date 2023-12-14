@@ -459,7 +459,7 @@ struct Swapchain
   gfx::SwapchainDesc desc                                   = {};
   bool               is_valid                               = false;
   bool               is_optimal                             = false;
-  Extent             extent                                 = {};
+  gfx::Extent        extent                                 = {};
   Image              image_impls[gfx::MAX_SWAPCHAIN_IMAGES] = {};
   gfx::Image         images[gfx::MAX_SWAPCHAIN_IMAGES]      = {};
   VkImage            vk_images[gfx::MAX_SWAPCHAIN_IMAGES]   = {};
@@ -691,7 +691,8 @@ struct CommandEncoderInterface
                          gfx::Filter filter);
   static void begin_render_pass(
       gfx::CommandEncoder self, gfx::Framebuffer framebuffer,
-      gfx::RenderPass render_pass, URect render_area,
+      gfx::RenderPass render_pass, gfx::Offset render_offset,
+      gfx::Extent              render_extent,
       Span<gfx::Color const>   color_attachments_clear_values,
       gfx::DepthStencil const &depth_stencil_attachment_clear_value);
   static void end_render_pass(gfx::CommandEncoder self);
@@ -712,9 +713,10 @@ struct CommandEncoderInterface
                                 u64 offset);
   static void set_viewport(gfx::CommandEncoder  self,
                            gfx::Viewport const &viewport);
-  static void set_scissor(gfx::CommandEncoder self, URect scissor);
+  static void set_scissor(gfx::CommandEncoder self, gfx::Offset scissor_offset,
+                          gfx::Extent scissor_extent);
   static void set_blend_constants(gfx::CommandEncoder self,
-                                  Vec4                blend_constants);
+                                  Vec4                blend_constant);
   static void set_stencil_compare_mask(gfx::CommandEncoder self,
                                        gfx::StencilFaces faces, u32 mask);
   static void set_stencil_reference(gfx::CommandEncoder self,

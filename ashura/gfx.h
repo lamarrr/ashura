@@ -1125,9 +1125,9 @@ struct PipelineColorBlendAttachmentState
 struct PipelineColorBlendState
 {
   bool                                          logic_op_enable = false;
-  LogicOp                                       logic_op    = LogicOp::Clear;
-  Span<PipelineColorBlendAttachmentState const> attachments = {};
-  Vec4                                          blend_constants;
+  LogicOp                                       logic_op       = LogicOp::Clear;
+  Span<PipelineColorBlendAttachmentState const> attachments    = {};
+  Vec4                                          blend_constant = {};
 };
 
 struct PipelineRasterizationState
@@ -1348,7 +1348,8 @@ struct CommandEncoderInterface
                      Span<ImageBlit const> blits, Filter filter)   = nullptr;
   void (*begin_render_pass)(
       CommandEncoder self, Framebuffer framebuffer, RenderPass render_pass,
-      URect render_area, Span<Color const> color_attachments_clear_values,
+      Offset render_offset, Extent render_extent,
+      Span<Color const>   color_attachments_clear_values,
       DepthStencil const &depth_stencil_attachment_clear_value)       = nullptr;
   void (*end_render_pass)(CommandEncoder self)                        = nullptr;
   void (*bind_compute_pipeline)(CommandEncoder  self,
@@ -1366,9 +1367,10 @@ struct CommandEncoderInterface
   void (*dispatch_indirect)(CommandEncoder self, Buffer buffer,
                             u64 offset)                               = nullptr;
   void (*set_viewport)(CommandEncoder self, Viewport const &viewport) = nullptr;
-  void (*set_scissor)(CommandEncoder self, URect scissor)             = nullptr;
+  void (*set_scissor)(CommandEncoder self, Offset scissor_offset,
+                      Extent scissor_extent)                          = nullptr;
   void (*set_blend_constants)(CommandEncoder self,
-                              Vec4           blend_constants)                   = nullptr;
+                              Vec4           blend_constant)                    = nullptr;
   void (*set_stencil_compare_mask)(CommandEncoder self, StencilFaces faces,
                                    u32 mask)                          = nullptr;
   void (*set_stencil_reference)(CommandEncoder self, StencilFaces faces,
