@@ -28,6 +28,12 @@ struct Utf8StringView
   char const *data           = nullptr;
   usize       size           = 0;
   usize       num_codepoints = 0;
+
+  constexpr bool is_empty() const
+  {
+    return size == 0;
+  }
+
 };
 
 // TODO(lamarrr): algorithms, find, rotate, etc.
@@ -43,6 +49,8 @@ constexpr bool           is_utf8(StringView);
 constexpr bool           count_utf8_codepoints(StringView);
 template <typename Operation>
 constexpr void iterate_codepoints(Utf8StringView, Operation);
+constexpr void utf8_get_codepoint();
+constexpr void utf8_insert_codepoint();
 
 /// gets the unicode codepoint at iter and then advances iter to the next
 /// codepoint
