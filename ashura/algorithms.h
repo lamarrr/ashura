@@ -133,12 +133,28 @@ struct Swap
 struct Clamp
 {
   template <typename T>
-  constexpr T const &operator()(T const &value, T const &low,
-                                T const &high) const
+  constexpr T const &operator()(T const &value, T const &min,
+                                T const &max) const
   {
-    return value <= low ? low : (value >= high ? high : value);
+    return value <= min ? min : (value >= max ? max : value);
   }
 };
+
+constexpr Add            add;
+constexpr Sub            sub;
+constexpr Mul            mul;
+constexpr Div            div;
+constexpr Equal          equal;
+constexpr NotEqual       not_equal;
+constexpr Lesser         lesser;
+constexpr LesserOrEqual  lesser_or_equal;
+constexpr Greater        greater;
+constexpr GreaterOrEqual greater_or_equal;
+constexpr Compare        compare;
+constexpr Min            min;
+constexpr Max            max;
+constexpr Swap           swap;
+constexpr Clamp          clamp;
 
 }        // namespace op
 

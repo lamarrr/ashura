@@ -301,16 +301,24 @@ struct ImageView
 
 struct RenderPass
 {
-  u64                 refcount       = 0;
-  gfx::RenderPassDesc desc           = {};
-  VkRenderPass        vk_render_pass = nullptr;
+  u64                       refcount                                      = 0;
+  gfx::RenderPassAttachment color_attachments[gfx::MAX_COLOR_ATTACHMENTS] = {};
+  gfx::RenderPassAttachment input_attachments[gfx::MAX_INPUT_ATTACHMENTS] = {};
+  gfx::RenderPassAttachment depth_stencil_attachment                      = {};
+  u32                       num_color_attachments                         = 0;
+  u32                       num_input_attachments                         = 0;
+  VkRenderPass              vk_render_pass = nullptr;
 };
 
 struct Framebuffer
 {
-  u64                  refcount       = 0;
-  gfx::FramebufferDesc desc           = {};
-  VkFramebuffer        vk_framebuffer = nullptr;
+  u64           refcount                                      = 0;
+  gfx::Extent   extent                                        = {};
+  ImageView    *color_attachments[gfx::MAX_INPUT_ATTACHMENTS] = {};
+  ImageView    *depth_stencil_attachment                      = nullptr;
+  u32           layers                                        = 0;
+  u32           num_color_attachments                         = 0;
+  VkFramebuffer vk_framebuffer                                = nullptr;
 };
 
 struct Shader

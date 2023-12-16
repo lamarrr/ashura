@@ -25,6 +25,225 @@ static_assert(PUSH_CONSTANT_SIZE % 4 == 0);
 namespace gfx
 {
 
+struct Vertex3d
+{
+  Vec3 position;        // point in 3d space. NOTE: size is 16 bytes. sames as
+                        // Vec4 due to padding
+  Vec2 uv;              // texture coordinates
+  Vec4 color;        // color of the vertex encoded in the target's color space
+};
+
+struct LinearColorGradient
+{
+  Color begin, end;
+  f32   angle = 0;
+
+  constexpr bool is_uniform() const
+  {
+    return begin == end;
+  }
+
+  Color resolve(Vec2 p) const
+  {
+    f32 const t = p.x * std::cos(ASH_TO_RADIANS(angle)) +
+                  p.y * std::sin(ASH_TO_RADIANS(angle));
+    return lerp(begin, end, t);
+  }
+};
+// should be removed
+struct EdgeInsets
+{
+  f32 left = 0, top = 0, right = 0, bottom = 0;
+
+  static constexpr EdgeInsets all(f32 v)
+  {
+    return EdgeInsets{.left = v, .top = v, .right = v, .bottom = v};
+  }
+
+  static constexpr EdgeInsets horizontal(f32 v)
+  {
+    return EdgeInsets{.left = v, .top = 0, .right = v, .bottom = 0};
+  }
+
+  static constexpr EdgeInsets vertical(f32 v)
+  {
+    return EdgeInsets{.left = 0, .top = v, .right = 0, .bottom = v};
+  }
+
+  constexpr f32 y() const
+  {
+    return top + bottom;
+  }
+
+  constexpr f32 x() const
+  {
+    return left + right;
+  }
+
+  constexpr Vec2 xy() const
+  {
+    return Vec2{x(), y()};
+  }
+
+  constexpr Vec2 top_left() const
+  {
+    return Vec2{left, top};
+  }
+};
+
+
+struct Constraint2D
+{
+  Constraint x, y;
+
+  static constexpr Constraint2D relative(f32 x, f32 y)
+  {
+    return Constraint2D{.x = Constraint::relative(x),
+                        .y = Constraint::relative(y)};
+  }
+
+  static constexpr Constraint2D relative(Vec2 xy)
+  {
+    return relative(xy.x, xy.y);
+  }
+
+  static constexpr Constraint2D absolute(f32 x, f32 y)
+  {
+    return Constraint2D{.x = Constraint::absolute(x),
+                        .y = Constraint::absolute(y)};
+  }
+
+  static constexpr Constraint2D absolute(Vec2 xy)
+  {
+    return absolute(xy.x, xy.y);
+  }
+
+  constexpr Constraint2D with_min(f32 nx, f32 ny) const
+  {
+    return Constraint2D{.x = x.with_min(nx), .y = y.with_min(ny)};
+  }
+
+  constexpr Constraint2D with_max(f32 nx, f32 ny) const
+  {
+    return Constraint2D{.x = x.with_max(nx), .y = y.with_max(ny)};
+  }
+
+  constexpr Constraint2D with_minr(f32 nx, f32 ny) const
+  {
+    return Constraint2D{.x = x.with_minr(nx), .y = y.with_minr(ny)};
+  }
+
+  constexpr Constraint2D with_maxr(f32 nx, f32 ny) const
+  {
+    return Constraint2D{.x = x.with_maxr(nx), .y = y.with_maxr(ny)};
+  }
+
+  constexpr Vec2 resolve(f32 xsrc, f32 ysrc) const
+  {
+    return Vec2{x.resolve(xsrc), y.resolve(ysrc)};
+  }
+
+  constexpr Vec2 resolve(Vec2 src) const
+  {
+    return resolve(src.x, src.y);
+  }
+};
+
+struct BorderRadius
+{
+  Constraint top_left, top_right, bottom_right, bottom_left;
+
+  static constexpr BorderRadius relative(f32 tl, f32 tr, f32 br, f32 bl)
+  {
+    return BorderRadius{.top_left     = Constraint::relative(tl),
+                        .top_right    = Constraint::relative(tr),
+                        .bottom_right = Constraint::relative(br),
+                        .bottom_left  = Constraint::relative(bl)};
+  }
+
+  static constexpr BorderRadius relative(Vec4 v)
+  {
+    return relative(v.x, v.y, v.z, v.w);
+  }
+
+  static constexpr BorderRadius relative(f32 v)
+  {
+    return relative(v, v, v, v);
+  }
+
+  static constexpr BorderRadius absolute(f32 tl, f32 tr, f32 br, f32 bl)
+  {
+    return BorderRadius{.top_left     = Constraint::absolute(tl),
+                        .top_right    = Constraint::absolute(tr),
+                        .bottom_right = Constraint::absolute(br),
+                        .bottom_left  = Constraint::absolute(bl)};
+  }
+
+  static constexpr BorderRadius absolute(Vec4 v)
+  {
+    return absolute(v.x, v.y, v.z, v.w);
+  }
+
+  static constexpr BorderRadius absolute(f32 v)
+  {
+    return absolute(v, v, v, v);
+  }
+
+  constexpr Vec4 resolve(f32 w, f32 h) const
+  {
+    f32 const src = std::min(w, h) / 2;
+    return Vec4{.x = top_left.resolve(src),
+                .y = top_right.resolve(src),
+                .z = bottom_right.resolve(src),
+                .w = bottom_left.resolve(src)};
+  }
+
+  constexpr Vec4 resolve(Vec2 wh) const
+  {
+    return resolve(wh.x, wh.y);
+  }
+};
+
+enum class Direction : u8
+{
+  H = 0,        /// Horizontal
+  V = 1         /// Vertical
+};
+
+enum class Wrap : u8
+{
+  None = 0,
+  Wrap = 1
+};
+
+typedef Vec2 Alignment;
+
+constexpr Alignment ALIGN_TOP_LEFT      = Vec2{0, 0};
+constexpr Alignment ALIGN_TOP_CENTER    = Vec2{0.5f, 0};
+constexpr Alignment ALIGN_TOP_RIGHT     = Vec2{1, 0};
+constexpr Alignment ALIGN_LEFT_CENTER   = Vec2{0, 0.5f};
+constexpr Alignment ALIGN_CENTER        = Vec2{0.5f, 0.5f};
+constexpr Alignment ALIGN_RIGHT_CENTER  = Vec2{1, 0.5f};
+constexpr Alignment ALIGN_BOTTOM_LEFT   = Vec2{0, 1};
+constexpr Alignment ALIGN_BOTTOM_CENTER = Vec2{0.5f, 1};
+constexpr Alignment ALIGN_BOTTOM_RIGHT  = Vec2{1, 1};
+
+enum class MainAlign : u8
+{
+  Start        = 0,
+  End          = 1,
+  SpaceBetween = 2,
+  SpaceAround  = 3,
+  SpaceEvenly  = 4
+};
+
+enum class CrossAlign : u8
+{
+  Start  = 0,
+  End    = 1,
+  Center = 2
+};
+
 enum class TextRenderStyleWrap : u8
 {
   None,

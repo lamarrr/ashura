@@ -5,6 +5,7 @@
 #include <cstdint>
 
 // todo(lamarrr): operator == != and assign for mat*
+// todo: add scalar ops
 
 namespace ash
 {
@@ -726,7 +727,27 @@ struct Mat2
   {
     return rows[index];
   }
+
+  constexpr Vec2 x() const
+  {
+    return Vec2{rows[0].x, rows[1].x};
+  }
+
+  constexpr Vec2 y() const
+  {
+    return Vec2{rows[0].y, rows[1].y};
+  }
 };
+
+constexpr bool operator==(Mat2 const &a, Mat2 const &b)
+{
+  return a[0] == b[0] && a[1] == b[1];
+}
+
+constexpr bool operator!=(Mat2 const &a, Mat2 const &b)
+{
+  return a[0] != b[0] || a[1] != b[1];
+}
 
 constexpr Mat2 operator+(Mat2 const &a, Mat2 const &b)
 {
@@ -785,7 +806,32 @@ struct Mat3
   {
     return rows[index];
   }
+
+  constexpr Vec3 x() const
+  {
+    return Vec3{rows[0].x, rows[1].x, rows[2].x};
+  }
+
+  constexpr Vec3 y() const
+  {
+    return Vec3{rows[0].y, rows[1].y, rows[2].y};
+  }
+
+  constexpr Vec3 z() const
+  {
+    return Vec3{rows[0].z, rows[1].z, rows[2].z};
+  }
 };
+
+constexpr bool operator==(Mat3 const &a, Mat3 const &b)
+{
+  return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
+}
+
+constexpr bool operator!=(Mat3 const &a, Mat3 const &b)
+{
+  return a[0] != b[0] || a[1] != b[1] || a[2] != b[2];
+}
 
 constexpr Mat3 operator+(Mat3 const &a, Mat3 const &b)
 {
@@ -833,7 +879,8 @@ constexpr Mat3 &operator/=(Mat3 &a, Mat3 const &b)
 
 struct Mat3Affine
 {
-  Vec3 rows[2] = {};
+  static constexpr Vec3 trailing_row = Vec3{0, 0, 1};
+  Vec3                  rows[2]      = {};
 
   constexpr Vec3 &operator[](usize index)
   {
@@ -844,7 +891,37 @@ struct Mat3Affine
   {
     return rows[index];
   }
+
+  explicit operator Mat3() const
+  {
+    return Mat3{.rows = {rows[0], rows[1], {0, 0, 1}}};
+  }
+
+  constexpr Vec3 x() const
+  {
+    return Vec3{rows[0].x, rows[1].x, 0};
+  }
+
+  constexpr Vec3 y() const
+  {
+    return Vec3{rows[0].y, rows[1].y, 0};
+  }
+
+  constexpr Vec3 z() const
+  {
+    return Vec3{rows[0].z, rows[1].z, 1};
+  }
 };
+
+constexpr bool operator==(Mat3Affine const &a, Mat3Affine const &b)
+{
+  return a[0] == b[0] && a[1] == b[1];
+}
+
+constexpr bool operator!=(Mat3Affine const &a, Mat3Affine const &b)
+{
+  return a[0] != b[0] || a[1] != b[1];
+}
 
 constexpr Mat3Affine operator+(Mat3Affine const &a, Mat3Affine const &b)
 {
@@ -903,7 +980,37 @@ struct Mat4
   {
     return rows[index];
   }
+
+  constexpr Vec4 x() const
+  {
+    return Vec4{rows[0].x, rows[1].x, rows[2].x, rows[3].x};
+  }
+
+  constexpr Vec4 y() const
+  {
+    return Vec4{rows[0].y, rows[1].y, rows[2].y, rows[3].y};
+  }
+
+  constexpr Vec4 z() const
+  {
+    return Vec4{rows[0].z, rows[1].z, rows[2].z, rows[3].z};
+  }
+
+  constexpr Vec4 w() const
+  {
+    return Vec4{rows[0].w, rows[1].w, rows[2].w, rows[3].w};
+  }
 };
+
+constexpr bool operator==(Mat4 const &a, Mat4 const &b)
+{
+  return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
+}
+
+constexpr bool operator!=(Mat4 const &a, Mat4 const &b)
+{
+  return a[0] != b[0] || a[1] != b[1] || a[2] != b[2] || a[3] != b[3];
+}
 
 constexpr Mat4 operator+(Mat4 const &a, Mat4 const &b)
 {
@@ -951,7 +1058,8 @@ constexpr Mat4 &operator/=(Mat4 &a, Mat4 const &b)
 
 struct Mat4Affine
 {
-  Vec4 rows[3] = {};
+  static constexpr Vec4 trailing_row = Vec4{0, 0, 0, 1};
+  Vec4                  rows[3]      = {};
 
   constexpr Vec4 &operator[](usize index)
   {
@@ -962,7 +1070,42 @@ struct Mat4Affine
   {
     return rows[index];
   }
+
+  explicit operator Mat4() const
+  {
+    return Mat4{.rows = {rows[0], rows[1], rows[2], {0, 0, 0, 1}}};
+  }
+
+  constexpr Vec4 x() const
+  {
+    return Vec4{rows[0].x, rows[1].x, rows[2].x, 0};
+  }
+
+  constexpr Vec4 y() const
+  {
+    return Vec4{rows[0].y, rows[1].y, rows[2].y, 0};
+  }
+
+  constexpr Vec4 z() const
+  {
+    return Vec4{rows[0].z, rows[1].z, rows[2].z, 0};
+  }
+
+  constexpr Vec4 w() const
+  {
+    return Vec4{rows[0].w, rows[1].w, rows[2].w, 1};
+  }
 };
+
+constexpr bool operator==(Mat4Affine const &a, Mat4Affine const &b)
+{
+  return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
+}
+
+constexpr bool operator!=(Mat4Affine const &a, Mat4Affine const &b)
+{
+  return a[0] != b[0] || a[1] != b[1] || a[2] != b[2];
+}
 
 constexpr Mat4Affine operator+(Mat4Affine const &a, Mat4Affine const &b)
 {

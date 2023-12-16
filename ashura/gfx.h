@@ -954,9 +954,9 @@ struct FramebufferDesc
   char const           *label                    = nullptr;
   RenderPass            render_pass              = nullptr;
   Extent                extent                   = {};
-  u32                   layers                   = 0;
   Span<ImageView const> color_attachments        = {};
   ImageView             depth_stencil_attachment = nullptr;
+  u32                   layers                   = 0;
 };
 
 struct DescriptorBindingDesc

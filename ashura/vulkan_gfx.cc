@@ -1,4 +1,5 @@
 #include "ashura/vulkan_gfx.h"
+#include "ashura/algorithms.h"
 #include "ashura/mem.h"
 #include "vulkan/vulkan.h"
 
@@ -874,35 +875,36 @@ inline void access_image(CommandEncoder const *encoder, Image *image,
   }
 }
 
-inline bool is_render_pass_compatible(RenderPass const           *render_pass,
-                                      gfx::FramebufferDesc const &desc)
+inline bool is_render_pass_compatible(RenderPass const      *render_pass,
+                                      Span<ImageView *const> color_attachments,
+                                      ImageView *depth_stencil_attachment)
 {
   // also depends on the formats of the input attachments which can't be
   // determined here
   // our render_passes uses same initial and final layouts
-  if (render_pass->desc.color_attachments.size != desc.color_attachments.size)
+  if (render_pass->num_color_attachments != color_attachments.size)
   {
     return false;
   }
 
-  if ((render_pass->desc.depth_stencil_attachment.format ==
+  if ((render_pass->depth_stencil_attachment.format ==
        gfx::Format::Undefined) &&
-      (desc.depth_stencil_attachment != nullptr))
+      (depth_stencil_attachment != nullptr))
   {
     return false;
   }
 
-  if (desc.depth_stencil_attachment != nullptr &&
-      (render_pass->desc.depth_stencil_attachment.format !=
-       IMAGE_FROM_VIEW(desc.depth_stencil_attachment)->desc.format))
+  if (depth_stencil_attachment != nullptr &&
+      (render_pass->depth_stencil_attachment.format !=
+       IMAGE_FROM_VIEW(depth_stencil_attachment)->desc.format))
   {
     return false;
   }
 
-  for (usize i = 0; i < render_pass->desc.color_attachments.size; i++)
+  for (usize i = 0; i < render_pass->num_color_attachments; i++)
   {
-    if (render_pass->desc.color_attachments[i].format !=
-        IMAGE_FROM_VIEW(desc.color_attachments[i])->desc.format)
+    if (render_pass->color_attachments[i].format !=
+        IMAGE_FROM_VIEW(color_attachments[i])->desc.format)
     {
       return false;
     }
@@ -1071,6 +1073,7 @@ Result<gfx::Image, Status>
   VALIDATE("", desc.extent.y != 0);
   VALIDATE("", desc.extent.z != 0);
   VALIDATE("", desc.mip_levels > 0);
+  VALIDATE("", desc.mip_levels <= math::num_mip_levels(desc.extent));
   VALIDATE("", desc.array_layers > 0);
 
   Device *const     self = (Device *) self_;
@@ -1146,25 +1149,24 @@ Result<gfx::ImageView, Status>
     DeviceInterface::create_image_view(gfx::Device               self_,
                                        gfx::ImageViewDesc const &desc)
 {
+  Image *const src_image = (Image *) desc.image;
   VALIDATE("", desc.image != nullptr);
   VALIDATE("", desc.view_format != gfx::Format::Undefined);
   VALIDATE("", desc.aspects != gfx::ImageAspects::None);
-  VALIDATE("", has_bits(((Image *) desc.image)->desc.aspects,
-                        gfx::ImageAspects::None));
-  VALIDATE("", desc.first_mip_level < ((Image *) desc.image)->desc.mip_levels);
+  VALIDATE("", has_bits(src_image->desc.aspects, gfx::ImageAspects::None));
+  VALIDATE("", desc.first_mip_level < src_image->desc.mip_levels);
   VALIDATE("", (desc.first_mip_level + desc.num_mip_levels) <=
-                   ((Image *) desc.image)->desc.mip_levels);
-  VALIDATE("",
-           desc.first_array_layer < ((Image *) desc.image)->desc.array_layers);
+                   src_image->desc.mip_levels);
+  VALIDATE("", desc.first_array_layer < src_image->desc.array_layers);
   VALIDATE("", (desc.first_array_layer + desc.num_array_layers) <=
-                   ((Image *) desc.image)->desc.array_layers);
+                   src_image->desc.array_layers);
 
   Device *const         self = (Device *) self_;
   VkImageViewCreateInfo create_info{
       .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
       .pNext    = nullptr,
       .flags    = 0,
-      .image    = ((Image *) desc.image)->vk_image,
+      .image    = src_image->vk_image,
       .viewType = (VkImageViewType) desc.view_type,
       .format   = (VkFormat) desc.view_format,
       .components =
@@ -1336,28 +1338,6 @@ Result<gfx::RenderPass, Status>
                               (has_depth_stencil_attachment ? 1U : 0U) +
                               num_input_attachments;
 
-  gfx::RenderPassAttachment *color_attachments =
-      self->allocator.allocate_typed<gfx::RenderPassAttachment>(
-          num_color_attachments);
-
-  if (color_attachments == nullptr)
-  {
-    return Err{Status::OutOfHostMemory};
-  }
-
-  gfx::RenderPassAttachment *input_attachments =
-      self->allocator.allocate_typed<gfx::RenderPassAttachment>(
-          num_input_attachments);
-
-  if (color_attachments == nullptr)
-  {
-    self->allocator.deallocate_typed(color_attachments, num_color_attachments);
-    return Err{Status::OutOfHostMemory};
-  }
-
-  mem::copy(desc.color_attachments, color_attachments);
-  mem::copy(desc.input_attachments, input_attachments);
-
   u32 iattachment = 0;
   for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
        icolor_attachment++, iattachment++)
@@ -1456,8 +1436,6 @@ Result<gfx::RenderPass, Status>
       self->vk_device, &create_info, nullptr, &vk_render_pass);
   if (result != VK_SUCCESS)
   {
-    self->allocator.deallocate_typed(color_attachments, num_color_attachments);
-    self->allocator.deallocate_typed(input_attachments, num_input_attachments);
     return Err{(Status) result};
   }
 
@@ -1476,20 +1454,20 @@ Result<gfx::RenderPass, Status>
   if (render_pass == nullptr)
   {
     self->vk_table.DestroyRenderPass(self->vk_device, vk_render_pass, nullptr);
-    self->allocator.deallocate_typed(color_attachments, num_color_attachments);
-    self->allocator.deallocate_typed(input_attachments, num_input_attachments);
     return Err{Status::OutOfHostMemory};
   }
 
-  new (render_pass) RenderPass{
-      .refcount = 1,
-      .desc =
-          gfx::RenderPassDesc{
-              .label             = desc.label,
-              .color_attachments = {color_attachments, num_color_attachments},
-              .input_attachments = {input_attachments, num_input_attachments},
-              .depth_stencil_attachment = desc.depth_stencil_attachment},
-      .vk_render_pass = vk_render_pass};
+  new (render_pass)
+      RenderPass{.refcount                 = 1,
+                 .color_attachments        = {},
+                 .input_attachments        = {},
+                 .depth_stencil_attachment = desc.depth_stencil_attachment,
+                 .num_color_attachments    = num_color_attachments,
+                 .num_input_attachments    = num_input_attachments,
+                 .vk_render_pass           = vk_render_pass};
+
+  mem::copy(desc.color_attachments, render_pass->color_attachments);
+  mem::copy(desc.input_attachments, render_pass->input_attachments);
 
   return Ok{(gfx::RenderPass) render_pass};
 }
@@ -1507,18 +1485,13 @@ Result<gfx::Framebuffer, Status>
       num_color_attachments + (has_depth_stencil_attachment ? 1U : 0U);
   VkImageView vk_attachments[gfx::MAX_COLOR_ATTACHMENTS + 1];
 
+  // TODO(lamarrr): check layers and sizes specification
   VALIDATE("Framebuffer and Renderpass are not compatible",
-           is_render_pass_compatible(render_pass, desc));
-
-  gfx::ImageView *color_attachments =
-      self->allocator.allocate_typed<gfx::ImageView>(num_color_attachments);
-
-  if (color_attachments == nullptr)
-  {
-    return Err{Status::OutOfHostMemory};
-  }
-
-  mem::copy(desc.color_attachments, color_attachments);
+           is_render_pass_compatible(
+               render_pass,
+               Span{(ImageView *const *) desc.color_attachments.data,
+                    desc.color_attachments.size},
+               (ImageView *) desc.depth_stencil_attachment));
 
   u32 ivk_attachment = 0;
   for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
@@ -1551,7 +1524,6 @@ Result<gfx::Framebuffer, Status>
       self->vk_device, &create_info, nullptr, &vk_framebuffer);
   if (result != VK_SUCCESS)
   {
-    self->allocator.deallocate_typed(color_attachments, num_color_attachments);
     return Err{(Status) result};
   }
 
@@ -1570,21 +1542,20 @@ Result<gfx::Framebuffer, Status>
   if (framebuffer == nullptr)
   {
     self->vk_table.DestroyFramebuffer(self->vk_device, vk_framebuffer, nullptr);
-    self->allocator.deallocate_typed(color_attachments, num_color_attachments);
     return Err{Status::OutOfHostMemory};
   }
 
-  new (framebuffer) Framebuffer{
-      .refcount = 1,
-      .desc =
-          gfx::FramebufferDesc{
-              .label             = desc.label,
-              .render_pass       = desc.render_pass,
-              .extent            = desc.extent,
-              .layers            = desc.layers,
-              .color_attachments = {color_attachments, num_color_attachments},
-              .depth_stencil_attachment = desc.depth_stencil_attachment},
-      .vk_framebuffer = vk_framebuffer};
+  new (framebuffer) Framebuffer{.refcount          = 1,
+                                .extent            = desc.extent,
+                                .color_attachments = {},
+                                .depth_stencil_attachment =
+                                    (ImageView *) desc.depth_stencil_attachment,
+                                .layers                = desc.layers,
+                                .num_color_attachments = num_color_attachments,
+                                .vk_framebuffer        = vk_framebuffer};
+
+  mem::copy(desc.color_attachments,
+            (gfx::ImageView *) framebuffer->color_attachments);
 
   return Ok{(gfx::Framebuffer) framebuffer};
 }
@@ -2669,12 +2640,12 @@ inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
   if (surface_capabilities.currentExtent.width == 0xFFFFFFFFU &&
       surface_capabilities.currentExtent.height == 0xFFFFFFFFU)
   {
-    vk_extent.width  = std::clamp(swapchain->desc.preferred_extent.x,
-                                  surface_capabilities.minImageExtent.width,
-                                  surface_capabilities.maxImageExtent.width);
-    vk_extent.height = std::clamp(swapchain->desc.preferred_extent.y,
-                                  surface_capabilities.minImageExtent.height,
-                                  surface_capabilities.maxImageExtent.height);
+    vk_extent.width  = op::clamp(swapchain->desc.preferred_extent.x,
+                                 surface_capabilities.minImageExtent.width,
+                                 surface_capabilities.maxImageExtent.width);
+    vk_extent.height = op::clamp(swapchain->desc.preferred_extent.y,
+                                 surface_capabilities.minImageExtent.height,
+                                 surface_capabilities.maxImageExtent.height);
   }
   else
   {
@@ -2685,14 +2656,14 @@ inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
 
   if (surface_capabilities.maxImageCount != 0)
   {
-    min_image_count = std::clamp(swapchain->desc.preferred_buffering,
-                                 surface_capabilities.minImageCount,
-                                 surface_capabilities.maxImageCount);
+    min_image_count = op::clamp(swapchain->desc.preferred_buffering,
+                                surface_capabilities.minImageCount,
+                                surface_capabilities.maxImageCount);
   }
   else
   {
     min_image_count =
-        std::max(min_image_count, surface_capabilities.minImageCount);
+        op::max(min_image_count, surface_capabilities.minImageCount);
   }
 
   VkSwapchainCreateInfoKHR create_info{
@@ -2835,6 +2806,367 @@ Result<gfx::Swapchain, Status>
                             .vk_surface    = (VkSurfaceKHR) surface};
 
   return Ok{(gfx::Swapchain) swapchain};
+}
+
+void DeviceInterface::ref_buffer(gfx::Device, gfx::Buffer buffer_)
+{
+  ((Buffer *) buffer_)->refcount++;
+}
+
+void DeviceInterface::ref_buffer_view(gfx::Device, gfx::BufferView buffer_view_)
+{
+  ((BufferView *) buffer_view_)->refcount++;
+}
+
+void DeviceInterface::ref_image(gfx::Device, gfx::Image image_)
+{
+  Image *image = (Image *) image_;
+  VALIDATE("", !image->is_swapchain_image);
+  image->refcount++;
+}
+
+void DeviceInterface::ref_image_view(gfx::Device, gfx::ImageView image_view_)
+{
+  ((ImageView *) image_view_)->refcount++;
+}
+
+void DeviceInterface::ref_sampler(gfx::Device, gfx::Sampler sampler_)
+{
+  ((Sampler *) sampler_)->refcount++;
+}
+
+void DeviceInterface::ref_shader(gfx::Device, gfx::Shader shader_)
+{
+  ((Shader *) shader_)->refcount++;
+}
+
+void DeviceInterface::ref_render_pass(gfx::Device, gfx::RenderPass render_pass_)
+{
+  ((RenderPass *) render_pass_)->refcount++;
+}
+
+void DeviceInterface::ref_framebuffer(gfx::Device,
+                                      gfx::Framebuffer framebuffer_)
+{
+  ((Framebuffer *) framebuffer_)->refcount++;
+}
+
+void DeviceInterface::ref_descriptor_set_layout(
+    gfx::Device, gfx::DescriptorSetLayout layout_)
+{
+  ((DescriptorSetLayout *) layout_)->refcount++;
+}
+
+void DeviceInterface::ref_descriptor_heap(gfx::Device,
+                                          gfx::DescriptorHeapImpl heap_)
+{
+  ((DescriptorHeap *) heap_.self)->refcount++;
+}
+
+void DeviceInterface::ref_pipeline_cache(gfx::Device, gfx::PipelineCache cache_)
+{
+  ((PipelineCache *) cache_)->refcount++;
+}
+
+void DeviceInterface::ref_compute_pipeline(gfx::Device,
+                                           gfx::ComputePipeline pipeline_)
+{
+  ((ComputePipeline *) pipeline_)->refcount++;
+}
+
+void DeviceInterface::ref_graphics_pipeline(gfx::Device,
+                                            gfx::GraphicsPipeline pipeline_)
+{
+  ((GraphicsPipeline *) pipeline_)->refcount++;
+}
+
+void DeviceInterface::ref_fence(gfx::Device, gfx::Fence fence_)
+{
+  ((Fence *) fence_)->refcount++;
+}
+
+void DeviceInterface::ref_command_encoder(gfx::Device,
+                                          gfx::CommandEncoderImpl encoder_)
+{
+  ((CommandEncoder *) encoder_.self)->refcount++;
+}
+
+void DeviceInterface::ref_frame_context(gfx::Device,
+                                        gfx::FrameContext frame_context_)
+{
+  ((FrameContext *) frame_context_)->refcount++;
+}
+
+void DeviceInterface::unref_buffer(gfx::Device self_, gfx::Buffer buffer_)
+{
+  Device *const self   = (Device *) self_;
+  Buffer *const buffer = (Buffer *) buffer_;
+
+  if (--buffer->refcount == 0)
+  {
+    vmaDestroyBuffer(self->vma_allocator, buffer->vk_buffer,
+                     buffer->vma_allocation);
+    self->allocator.deallocate_typed(buffer, 1);
+  }
+}
+
+void DeviceInterface::unref_buffer_view(gfx::Device     self_,
+                                        gfx::BufferView buffer_view_)
+{
+  Device *const     self        = (Device *) self_;
+  BufferView *const buffer_view = (BufferView *) buffer_view_;
+
+  if (--buffer_view->refcount == 0)
+  {
+    self->vk_table.DestroyBufferView(self->vk_device, buffer_view->vk_view,
+                                     nullptr);
+    self->allocator.deallocate_typed(buffer_view, 1);
+  }
+}
+
+void DeviceInterface::unref_image(gfx::Device self_, gfx::Image image_)
+{
+  Device *const self  = (Device *) self_;
+  Image *const  image = (Image *) image_;
+
+  VALIDATE("", !image->is_swapchain_image);
+
+  if (--image->refcount == 0)
+  {
+    vmaDestroyImage(self->vma_allocator, image->vk_image,
+                    image->vma_allocation);
+    self->allocator.deallocate_typed(image, 1);
+  }
+}
+
+void DeviceInterface::unref_image_view(gfx::Device    self_,
+                                       gfx::ImageView image_view_)
+{
+  Device *const    self       = (Device *) self_;
+  ImageView *const image_view = (ImageView *) image_view_;
+
+  if (--image_view->refcount == 0)
+  {
+    self->vk_table.DestroyImageView(self->vk_device, image_view->vk_view,
+                                    nullptr);
+    self->allocator.deallocate_typed(image_view, 1);
+  }
+}
+
+void DeviceInterface::unref_sampler(gfx::Device self_, gfx::Sampler sampler_)
+{
+  Device *const  self    = (Device *) self_;
+  Sampler *const sampler = (Sampler *) sampler_;
+
+  if (--sampler->refcount == 0)
+  {
+    self->vk_table.DestroySampler(self->vk_device, sampler->vk_sampler,
+                                  nullptr);
+    self->allocator.deallocate_typed(sampler, 1);
+  }
+}
+
+void DeviceInterface::unref_shader(gfx::Device self_, gfx::Shader shader_)
+{
+  Device *const self   = (Device *) self_;
+  Shader *const shader = (Shader *) shader_;
+
+  if (--shader->refcount == 0)
+  {
+    self->vk_table.DestroyShaderModule(self->vk_device, shader->vk_shader,
+                                       nullptr);
+    self->allocator.deallocate_typed(shader, 1);
+  }
+}
+
+void DeviceInterface::unref_render_pass(gfx::Device     self_,
+                                        gfx::RenderPass render_pass_)
+{
+  Device *const     self        = (Device *) self_;
+  RenderPass *const render_pass = (RenderPass *) render_pass_;
+
+  if (--render_pass->refcount == 0)
+  {
+    self->vk_table.DestroyRenderPass(self->vk_device,
+                                     render_pass->vk_render_pass, nullptr);
+    self->allocator.deallocate_typed(render_pass, 1);
+  }
+}
+
+void DeviceInterface::unref_framebuffer(gfx::Device      self_,
+                                        gfx::Framebuffer framebuffer_)
+{
+  Device *const      self        = (Device *) self_;
+  Framebuffer *const framebuffer = (Framebuffer *) framebuffer_;
+
+  if (--framebuffer->refcount == 0)
+  {
+    self->vk_table.DestroyFramebuffer(self->vk_device,
+                                      framebuffer->vk_framebuffer, nullptr);
+    self->allocator.deallocate_typed(framebuffer, 1);
+  }
+}
+
+void DeviceInterface::unref_descriptor_set_layout(
+    gfx::Device self_, gfx::DescriptorSetLayout layout_)
+{
+  Device *const              self   = (Device *) self_;
+  DescriptorSetLayout *const layout = (DescriptorSetLayout *) layout_;
+
+  if (--layout->refcount == 0)
+  {
+    self->vk_table.DestroyDescriptorSetLayout(self->vk_device,
+                                              layout->vk_layout, nullptr);
+    self->allocator.deallocate_typed(layout->bindings, layout->num_bindings);
+    self->allocator.deallocate_typed(layout, 1);
+  }
+}
+
+void DeviceInterface::unref_descriptor_heap(gfx::Device             self_,
+                                            gfx::DescriptorHeapImpl heap_)
+{
+  Device *const         self            = (Device *) self_;
+  DescriptorHeap *const descriptor_heap = (DescriptorHeap *) heap_.self;
+
+  if (--descriptor_heap->refcount == 0)
+  {
+    self->allocator.deallocate_typed(descriptor_heap->set_layouts,
+                                     descriptor_heap->num_sets_per_group);
+    self->allocator.deallocate_typed(descriptor_heap->set_layouts,
+                                     descriptor_heap->num_sets_per_group);
+    for (u32 i = 0; i < descriptor_heap->num_sets_per_group; i++)
+    {
+      self->allocator.deallocate_typed(
+          descriptor_heap->binding_offsets[i],
+          descriptor_heap->set_layouts[i]->num_bindings);
+    }
+    self->allocator.deallocate_typed(descriptor_heap->binding_offsets,
+                                     descriptor_heap->num_sets_per_group);
+    for (u32 i = 0; i < descriptor_heap->num_pools; i++)
+    {
+      self->vk_table.DestroyDescriptorPool(
+          self->vk_device, descriptor_heap->vk_pools[i], nullptr);
+    }
+    descriptor_heap->allocator.deallocate_typed(
+        descriptor_heap->vk_pools, descriptor_heap->vk_pools_capacity);
+    descriptor_heap->allocator.deallocate_typed(
+        descriptor_heap->vk_descriptor_sets,
+        descriptor_heap->vk_descriptor_sets_capacity);
+    descriptor_heap->allocator.deallocate_typed(
+        descriptor_heap->last_use_frame,
+        descriptor_heap->last_use_frame_capacity);
+    descriptor_heap->allocator.deallocate_typed(
+        descriptor_heap->released_groups,
+        descriptor_heap->released_groups_capacity);
+    descriptor_heap->allocator.deallocate_typed(
+        descriptor_heap->free_groups, descriptor_heap->free_groups_capacity);
+    descriptor_heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT,
+                                          descriptor_heap->bindings,
+                                          descriptor_heap->bindings_capacity);
+    descriptor_heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT,
+                                          descriptor_heap->scratch_memory,
+                                          descriptor_heap->scratch_memory_size);
+  }
+}
+
+void DeviceInterface::unref_pipeline_cache(gfx::Device        self_,
+                                           gfx::PipelineCache cache_)
+{
+  Device *const        self  = (Device *) self_;
+  PipelineCache *const cache = (PipelineCache *) cache_;
+
+  if (--cache->refcount == 0)
+  {
+    self->vk_table.DestroyPipelineCache(self->vk_device, cache->vk_cache,
+                                        nullptr);
+    self->allocator.deallocate_typed(cache, 1);
+  }
+}
+
+void DeviceInterface::unref_compute_pipeline(gfx::Device          self_,
+                                             gfx::ComputePipeline pipeline_)
+{
+  Device *const          self     = (Device *) self_;
+  ComputePipeline *const pipeline = (ComputePipeline *) pipeline_;
+
+  if (--pipeline->refcount == 0)
+  {
+    self->vk_table.DestroyPipeline(self->vk_device, pipeline->vk_pipeline,
+                                   nullptr);
+    self->vk_table.DestroyPipelineLayout(self->vk_device, pipeline->vk_layout,
+                                         nullptr);
+    self->allocator.deallocate_typed(pipeline, 1);
+  }
+}
+
+void DeviceInterface::unref_graphics_pipeline(gfx::Device           self_,
+                                              gfx::GraphicsPipeline pipeline_)
+{
+  Device *const           self     = (Device *) self_;
+  GraphicsPipeline *const pipeline = (GraphicsPipeline *) pipeline_;
+
+  if (--pipeline->refcount == 0)
+  {
+    self->vk_table.DestroyPipeline(self->vk_device, pipeline->vk_pipeline,
+                                   nullptr);
+    self->vk_table.DestroyPipelineLayout(self->vk_device, pipeline->vk_layout,
+                                         nullptr);
+    self->allocator.deallocate_typed(pipeline, 1);
+  }
+}
+
+void DeviceInterface::unref_fence(gfx::Device self_, gfx::Fence fence_)
+{
+  Device *const self  = (Device *) self_;
+  Fence *const  fence = (Fence *) fence_;
+
+  if (--fence->refcount == 0)
+  {
+    self->vk_table.DestroyFence(self->vk_device, fence->vk_fence, nullptr);
+    self->allocator.deallocate_typed(fence, 1);
+  }
+}
+
+void DeviceInterface::unref_command_encoder(gfx::Device             self_,
+                                            gfx::CommandEncoderImpl encoder_)
+{
+  Device *const         self    = (Device *) self_;
+  CommandEncoder *const encoder = (CommandEncoder *) encoder_.self;
+
+  if (--encoder->refcount == 0)
+  {
+    self->vk_table.DestroyCommandPool(self->vk_device, encoder->vk_command_pool,
+                                      nullptr);
+    self->allocator.deallocate_typed(encoder, 1);
+  }
+}
+
+void DeviceInterface::unref_frame_context(gfx::Device       self_,
+                                          gfx::FrameContext frame_context_)
+{
+  Device *const       self          = (Device *) self_;
+  FrameContext *const frame_context = (FrameContext *) frame_context_;
+
+  if (--frame_context->refcount == 0)
+  {
+    for (u32 i = 0; i < frame_context->max_frames_in_flight; i++)
+    {
+      // free command encoders
+      self->vk_table.DestroySemaphore(
+          self->vk_device, frame_context->acquire_semaphores[i], nullptr);
+      self->vk_table.DestroyFence(
+          self->vk_device,
+          ((Fence *) frame_context->submit_fences[i])->vk_fence, nullptr);
+      self->vk_table.DestroySemaphore(
+          self->vk_device, frame_context->submit_semaphores[i], nullptr);
+    }
+    self->allocator.deallocate_typed(frame_context->acquire_semaphores,
+                                     frame_context->max_frames_in_flight);
+    self->allocator.deallocate_typed(frame_context->submit_fences,
+                                     frame_context->max_frames_in_flight);
+    self->allocator.deallocate_typed(frame_context->submit_semaphores,
+                                     frame_context->max_frames_in_flight);
+  }
 }
 
 Result<void *, Status>
@@ -4137,10 +4469,15 @@ Result<Void, Status> CommandEncoderInterface::end(gfx::CommandEncoder self_)
 
 void CommandEncoderInterface::reset(gfx::CommandEncoder self_)
 {
-  // device->vk_table.ResetCommandPool(device->vk_device, vk_command_pool, 0);
-  // status = Status::Success;
-  // reset status
-  // preserve buffers
+  CommandEncoder *const self = (CommandEncoder *) self_;
+  self->device->vk_table.ResetCommandBuffer(self->vk_command_buffer, 0);
+  self->bound_compute_pipeline    = nullptr;
+  self->bound_graphics_pipeline   = nullptr;
+  self->bound_render_pass         = nullptr;
+  self->bound_framebuffer         = nullptr;
+  self->num_bound_vertex_buffers  = 0;
+  self->num_bound_descriptor_sets = 0;
+  self->status                    = Status::Success;
 }
 
 void CommandEncoderInterface::begin_debug_marker(gfx::CommandEncoder self_,
@@ -4282,9 +4619,7 @@ void CommandEncoderInterface::clear_color_image(
   Image *const          dst        = (Image *) dst_;
   u32 const             num_ranges = (u32) ranges.size;
 
-  // TODO(lamarrr): use memcpy instead
   static_assert(sizeof(gfx::Color) == sizeof(VkClearColorValue));
-  static_assert(alignof(gfx::Color) == alignof(VkClearColorValue));
   VALIDATE("", num_ranges > 0);
   for (u32 i = 0; i < num_ranges; i++)
   {
@@ -4327,10 +4662,13 @@ void CommandEncoderInterface::clear_color_image(
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
+  VkClearColorValue vk_clear_color;
+  memcpy(&vk_clear_color, &clear_color, sizeof(VkClearColorValue));
+
   self->device->vk_table.CmdClearColorImage(
       self->vk_command_buffer, dst->vk_image,
-      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, (VkClearColorValue *) &clear_color,
-      num_ranges, vk_ranges);
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vk_clear_color, num_ranges,
+      vk_ranges);
 
   self->allocator.deallocate_typed(vk_ranges, num_ranges);
 }
@@ -4345,10 +4683,7 @@ void CommandEncoderInterface::clear_depth_stencil_image(
   Image *const          dst        = (Image *) dst_;
   u32 const             num_ranges = (u32) ranges.size;
 
-  // todo(lamarrr): really?
   static_assert(sizeof(gfx::DepthStencil) == sizeof(VkClearDepthStencilValue));
-  static_assert(alignof(gfx::DepthStencil) ==
-                alignof(VkClearDepthStencilValue));
   VALIDATE("", num_ranges > 0);
   for (u32 i = 0; i < num_ranges; i++)
   {
@@ -4390,10 +4725,15 @@ void CommandEncoderInterface::clear_depth_stencil_image(
   access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+  VkClearDepthStencilValue vk_clear_depth_stencil;
+  memcpy(&vk_clear_depth_stencil, &clear_depth_stencil,
+         sizeof(gfx::DepthStencil));
+
   self->device->vk_table.CmdClearDepthStencilImage(
       self->vk_command_buffer, dst->vk_image,
-      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-      (VkClearDepthStencilValue *) &clear_depth_stencil, num_ranges, vk_ranges);
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vk_clear_depth_stencil, num_ranges,
+      vk_ranges);
 
   self->allocator.deallocate_typed(vk_ranges, num_ranges);
 }
@@ -4411,21 +4751,6 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
   for (u32 i = 0; i < num_copies; i++)
   {
     gfx::ImageCopy const &copy = copies[i];
-    VALIDATE("", copy.extent.x > 0);
-    VALIDATE("", copy.extent.y > 0);
-    VALIDATE("", copy.extent.z > 0);
-    VALIDATE("", copy.src_offset.x <= src->desc.extent.x);
-    VALIDATE("", copy.src_offset.y <= src->desc.extent.y);
-    VALIDATE("", copy.src_offset.z <= src->desc.extent.z);
-    VALIDATE("", (copy.src_offset.x + copy.extent.x) <= src->desc.extent.x);
-    VALIDATE("", (copy.src_offset.y + copy.extent.x) <= src->desc.extent.y);
-    VALIDATE("", (copy.src_offset.z + copy.extent.x) <= src->desc.extent.z);
-    VALIDATE("", copy.dst_offset.x <= dst->desc.extent.x);
-    VALIDATE("", copy.dst_offset.y <= dst->desc.extent.y);
-    VALIDATE("", copy.dst_offset.z <= dst->desc.extent.z);
-    VALIDATE("", (copy.dst_offset.x + copy.extent.x) <= dst->desc.extent.x);
-    VALIDATE("", (copy.dst_offset.y + copy.extent.x) <= dst->desc.extent.y);
-    VALIDATE("", (copy.dst_offset.z + copy.extent.x) <= dst->desc.extent.z);
 
     VALIDATE("", has_bits(src->desc.aspects, copy.src_layers.aspects));
     VALIDATE("", copy.src_layers.mip_level < src->desc.mip_levels);
@@ -4438,6 +4763,26 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
     VALIDATE("", copy.dst_layers.first_array_layer < dst->desc.array_layers);
     VALIDATE("", (copy.dst_layers.first_array_layer +
                   copy.dst_layers.num_array_layers) <= dst->desc.array_layers);
+
+    gfx::Extent3D src_extent =
+        math::mip_down(src->desc.extent, copy.src_layers.mip_level);
+    gfx::Extent3D dst_extent =
+        math::mip_down(dst->desc.extent, copy.dst_layers.mip_level);
+    VALIDATE("", copy.extent.x > 0);
+    VALIDATE("", copy.extent.y > 0);
+    VALIDATE("", copy.extent.z > 0);
+    VALIDATE("", copy.src_offset.x <= src_extent.x);
+    VALIDATE("", copy.src_offset.y <= src_extent.y);
+    VALIDATE("", copy.src_offset.z <= src_extent.z);
+    VALIDATE("", (copy.src_offset.x + copy.extent.x) <= src_extent.x);
+    VALIDATE("", (copy.src_offset.y + copy.extent.x) <= src_extent.y);
+    VALIDATE("", (copy.src_offset.z + copy.extent.x) <= src_extent.z);
+    VALIDATE("", copy.dst_offset.x <= dst_extent.x);
+    VALIDATE("", copy.dst_offset.y <= dst_extent.y);
+    VALIDATE("", copy.dst_offset.z <= dst_extent.z);
+    VALIDATE("", (copy.dst_offset.x + copy.extent.x) <= dst_extent.x);
+    VALIDATE("", (copy.dst_offset.y + copy.extent.x) <= dst_extent.y);
+    VALIDATE("", (copy.dst_offset.z + copy.extent.x) <= dst_extent.z);
   }
 
   if (self->status != Status::Success)
@@ -4509,24 +4854,23 @@ void CommandEncoderInterface::copy_buffer_to_image(
   {
     gfx::BufferImageCopy const &copy = copies[i];
     VALIDATE("", copy.buffer_offset < src->desc.size);
-    VALIDATE("", copy.image_extent.x > 0);
-    VALIDATE("", copy.image_extent.y > 0);
-    VALIDATE("", copy.image_extent.z > 0);
-    VALIDATE("", copy.image_extent.x <= dst->desc.extent.x);
-    VALIDATE("", copy.image_extent.y <= dst->desc.extent.y);
-    VALIDATE("", copy.image_extent.z <= dst->desc.extent.z);
-    VALIDATE("",
-             (copy.image_offset.x + copy.image_extent.x) <= dst->desc.extent.x);
-    VALIDATE("",
-             (copy.image_offset.y + copy.image_extent.y) <= dst->desc.extent.y);
-    VALIDATE("",
-             (copy.image_offset.z + copy.image_extent.z) <= dst->desc.extent.z);
     VALIDATE("", has_bits(dst->desc.aspects, copy.image_layers.aspects));
     VALIDATE("", copy.image_layers.mip_level < dst->desc.mip_levels);
     VALIDATE("", copy.image_layers.first_array_layer < dst->desc.array_layers);
     VALIDATE("",
              (copy.image_layers.first_array_layer +
               copy.image_layers.num_array_layers) <= dst->desc.array_layers);
+    VALIDATE("", copy.image_extent.x > 0);
+    VALIDATE("", copy.image_extent.y > 0);
+    VALIDATE("", copy.image_extent.z > 0);
+    gfx::Extent3D dst_extent =
+        math::mip_down(dst->desc.extent, copy.image_layers.mip_level);
+    VALIDATE("", copy.image_extent.x <= dst_extent.x);
+    VALIDATE("", copy.image_extent.y <= dst_extent.y);
+    VALIDATE("", copy.image_extent.z <= dst_extent.z);
+    VALIDATE("", (copy.image_offset.x + copy.image_extent.x) <= dst_extent.x);
+    VALIDATE("", (copy.image_offset.y + copy.image_extent.y) <= dst_extent.y);
+    VALIDATE("", (copy.image_offset.z + copy.image_extent.z) <= dst_extent.z);
   }
 
   if (self->status != Status::Success)
@@ -4590,18 +4934,6 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
   for (u32 i = 0; i < num_blits; i++)
   {
     gfx::ImageBlit const &blit = blits[i];
-    VALIDATE("", blit.src_offsets[0].x <= src->desc.extent.x);
-    VALIDATE("", blit.src_offsets[0].y <= src->desc.extent.y);
-    VALIDATE("", blit.src_offsets[0].z <= src->desc.extent.z);
-    VALIDATE("", blit.src_offsets[1].x <= src->desc.extent.x);
-    VALIDATE("", blit.src_offsets[1].y <= src->desc.extent.y);
-    VALIDATE("", blit.src_offsets[1].z <= src->desc.extent.z);
-    VALIDATE("", blit.dst_offsets[0].x <= dst->desc.extent.x);
-    VALIDATE("", blit.dst_offsets[0].y <= dst->desc.extent.y);
-    VALIDATE("", blit.dst_offsets[0].z <= dst->desc.extent.z);
-    VALIDATE("", blit.dst_offsets[1].x <= dst->desc.extent.x);
-    VALIDATE("", blit.dst_offsets[1].y <= dst->desc.extent.y);
-    VALIDATE("", blit.dst_offsets[1].z <= dst->desc.extent.z);
 
     VALIDATE("", has_bits(src->desc.aspects, blit.src_layers.aspects));
     VALIDATE("", blit.src_layers.mip_level < src->desc.mip_levels);
@@ -4614,6 +4946,23 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
     VALIDATE("", blit.dst_layers.first_array_layer < dst->desc.array_layers);
     VALIDATE("", (blit.dst_layers.first_array_layer +
                   blit.dst_layers.num_array_layers) <= dst->desc.array_layers);
+
+    gfx::Extent3D src_extent =
+        math::mip_down(src->desc.extent, blit.src_layers.mip_level);
+    gfx::Extent3D dst_extent =
+        math::mip_down(dst->desc.extent, blit.dst_layers.mip_level);
+    VALIDATE("", blit.src_offsets[0].x <= src_extent.x);
+    VALIDATE("", blit.src_offsets[0].y <= src_extent.y);
+    VALIDATE("", blit.src_offsets[0].z <= src_extent.z);
+    VALIDATE("", blit.src_offsets[1].x <= src_extent.x);
+    VALIDATE("", blit.src_offsets[1].y <= src_extent.y);
+    VALIDATE("", blit.src_offsets[1].z <= src_extent.z);
+    VALIDATE("", blit.dst_offsets[0].x <= dst_extent.x);
+    VALIDATE("", blit.dst_offsets[0].y <= dst_extent.y);
+    VALIDATE("", blit.dst_offsets[0].z <= dst_extent.z);
+    VALIDATE("", blit.dst_offsets[1].x <= dst_extent.x);
+    VALIDATE("", blit.dst_offsets[1].y <= dst_extent.y);
+    VALIDATE("", blit.dst_offsets[1].z <= dst_extent.z);
   }
 
   if (self->status != Status::Success)
@@ -4686,21 +5035,23 @@ void CommandEncoderInterface::begin_render_pass(
   RenderPass *const     render_pass = (RenderPass *) render_pass_;
   u32 const  num_color_clear_values = (u32) color_attachments_clear_values.size;
   bool const has_depth_stencil_attachment =
-      framebuffer->desc.depth_stencil_attachment != nullptr;
+      framebuffer->depth_stencil_attachment != nullptr;
   u32 const num_vk_clear_values =
       num_color_clear_values + (has_depth_stencil_attachment ? 1U : 0U);
 
-  VALIDATE("", is_render_pass_compatible(render_pass, framebuffer->desc));
+  VALIDATE("",
+           is_render_pass_compatible(render_pass,
+                                     Span{framebuffer->color_attachments,
+                                          framebuffer->num_color_attachments},
+                                     framebuffer->depth_stencil_attachment));
   VALIDATE("", color_attachments_clear_values.size ==
-                   framebuffer->desc.color_attachments.size);
+                   framebuffer->num_color_attachments);
   VALIDATE("", render_extent.x > 0);
   VALIDATE("", render_extent.y > 0);
-  VALIDATE("", render_offset.x <= framebuffer->desc.extent.x);
-  VALIDATE("", render_offset.y <= framebuffer->desc.extent.y);
-  VALIDATE("",
-           (render_offset.x + render_extent.x) <= framebuffer->desc.extent.x);
-  VALIDATE("",
-           (render_offset.y + render_extent.y) <= framebuffer->desc.extent.y);
+  VALIDATE("", render_offset.x <= framebuffer->extent.x);
+  VALIDATE("", render_offset.y <= framebuffer->extent.y);
+  VALIDATE("", (render_offset.x + render_extent.x) <= framebuffer->extent.x);
+  VALIDATE("", (render_offset.y + render_extent.y) <= framebuffer->extent.y);
 
   if (self->status != Status::Success)
   {
@@ -4733,22 +5084,22 @@ void CommandEncoderInterface::begin_render_pass(
   self->bound_render_pass = render_pass;
   self->bound_framebuffer = framebuffer;
 
-  for (u32 i = 0; i < framebuffer->desc.color_attachments.size; i++)
+  for (u32 i = 0; i < framebuffer->num_color_attachments; i++)
   {
     access_image(
-        self, IMAGE_FROM_VIEW(framebuffer->desc.color_attachments[i]),
+        self, IMAGE_FROM_VIEW(framebuffer->color_attachments[i]),
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        color_attachment_image_access(render_pass->desc.color_attachments[i]),
+        color_attachment_image_access(render_pass->color_attachments[i]),
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
   }
 
   if (has_depth_stencil_attachment)
   {
     VkAccessFlags access = depth_stencil_attachment_image_access(
-        render_pass->desc.depth_stencil_attachment);
+        render_pass->depth_stencil_attachment);
     access_image(
         self,
-        IMAGE_FROM_VIEW(self->bound_framebuffer->desc.depth_stencil_attachment),
+        IMAGE_FROM_VIEW(self->bound_framebuffer->depth_stencil_attachment),
         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
         access,

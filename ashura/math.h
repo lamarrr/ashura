@@ -61,12 +61,12 @@ inline u32 u32log2(u32 value)
 #if ASH_CFG(COMPILER, MSVC)
   unsigned long index;
   _BitScanReverse(&index, value);
-  return 31 - index;
+  return 31U - index;
 #else
 #  if defined(__has_builtin) && __has_builtin(__builtin_clz)
-  return 31 - __builtin_clz(value);
+  return 31U - __builtin_clz(value);
 #  else
-  return 31 - std::count_lzero(value);
+  return 31U - std::count_lzero(value);
 #  endif
 #endif
 }
@@ -121,7 +121,7 @@ constexpr f32 dot(Vec2 a, Vec2 b)
   return a.x * b.x + a.y * b.y;
 }
 
-constexpr f32 dot(Vec2I a, Vec2I b)
+constexpr i32 dot(Vec2I a, Vec2I b)
 {
   return a.x * b.x + a.y * b.y;
 }
@@ -131,7 +131,7 @@ constexpr f32 dot(Vec3 a, Vec3 b)
   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-constexpr f32 dot(Vec3I a, Vec3I b)
+constexpr i32 dot(Vec3I a, Vec3I b)
 {
   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
@@ -141,7 +141,7 @@ constexpr f32 dot(Vec4 a, Vec4 b)
   return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
 
-constexpr f32 dot(Vec4I a, Vec4I b)
+constexpr i32 dot(Vec4I a, Vec4I b)
 {
   return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
@@ -151,7 +151,7 @@ constexpr f32 cross(Vec2 a, Vec2 b)
   return a.x * b.y - b.x * a.y;
 }
 
-constexpr f32 cross(Vec2I a, Vec2I b)
+constexpr i32 cross(Vec2I a, Vec2I b)
 {
   return a.x * b.y - b.x * a.y;
 }
@@ -188,29 +188,53 @@ constexpr Mat2 uniform_mat2(f32 value)
   return Mat2{.rows = {{value, value}, {value, value}}};
 }
 
-constexpr Mat3 uniform_mat3(f32 value){
-  return Mat2{.rows = {{value, value}, {value, value}}};
+constexpr Mat3 uniform_mat3(f32 value)
+{
+  return Mat3{.rows = {{value, value, value},
+                       {value, value, value},
+                       {value, value, value}}};
 }
 
-constexpr Mat4 uniform_mat4(f32 value){
-  return Mat2{.rows = {{value, value}, {value, value}}};
+constexpr Mat4 uniform_mat4(f32 value)
+{
+  return Mat4{.rows = {{value, value, value, value},
+                       {value, value, value, value},
+                       {value, value, value, value},
+                       {value, value, value, value}}};
 }
 
-constexpr Mat2 diagonal_mat2(f32 value);
+constexpr Mat2 diagonal_mat2(f32 value)
+{
+  return Mat2{.rows = {{value, 0}, {0, value}}};
+}
 
-constexpr Mat3 diagonal_mat3(f32 value);
+constexpr Mat3 diagonal_mat3(f32 value)
+{
+  return Mat3{.rows = {{value, 0, 0}, {0, value, 0}, {0, 0, value}}};
+}
 
-constexpr Mat3 diagonal_mat3_affine(f32 value);
+constexpr Mat4 diagonal_mat4(f32 value)
+{
+  return Mat4{.rows = {{value, 0, 0, 0},
+                       {0, value, 0, 0},
+                       {0, 0, value, 0},
+                       {0, 0, 0, value}}};
+}
 
-constexpr Mat4 diagonal_mat4(f32 value);
+constexpr Mat2 identity_mat2()
+{
+  return diagonal_mat2(1);
+}
 
-constexpr Mat4 diagonal_mat4_affine(f32 value);
+constexpr Mat3 identity_mat3()
+{
+  return diagonal_mat3(1);
+}
 
-constexpr Mat2 identity_mat2(f32 value);
-
-constexpr Mat3 identity_mat3(f32 value);
-
-constexpr Mat4 identity_mat4(f32 value);
+constexpr Mat4 identity_mat4()
+{
+  return diagonal_mat4(1);
+}
 
 constexpr Mat2 transpose(Mat2 const &a)
 {
@@ -254,22 +278,37 @@ constexpr Mat3 matmul(Mat3 const &a, Mat3 const &b)
 
 constexpr Vec3 matmul(Mat3Affine const &a, Vec3 const &b)
 {
+  return Vec3{dot(a[0], b), dot(a[1], b), dot(Mat3Affine::trailing_row, b)};
 }
 
 constexpr Mat3 matmul(Mat3Affine const &a, Mat3 const &b)
 {
+  return Mat3{.rows = {
+                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
+                  {dot(Mat3Affine::trailing_row, b.x()),
+                   dot(Mat3Affine::trailing_row, b.y()),
+                   dot(Mat3Affine::trailing_row, b.z())},
+              }};
 }
 
 constexpr Mat3 matmul(Mat3 const &a, Mat3Affine const &b)
 {
+  return Mat3{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+                       {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
+                       {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())}}};
 }
 
 constexpr Mat3Affine matmul(Mat3Affine const &a, Mat3Affine const &b)
 {
+  return Mat3Affine{
+      .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())}}};
 }
 
 constexpr Vec4 matmul(Mat4 const &a, Vec4 const &b)
 {
+  return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b), dot(a[3], b)};
 }
 
 constexpr Mat4 matmul(Mat4 const &a, Mat4 const &b)
@@ -286,22 +325,48 @@ constexpr Mat4 matmul(Mat4 const &a, Mat4 const &b)
 
 constexpr Mat4Affine matmul(Mat4Affine const &a, Vec4 const &b)
 {
+  return Mat4Affine{.rows = {dot(a[0], b), dot(a[1], b), dot(a[2], b),
+                             dot(Mat4Affine::trailing_row, b)}};
 }
 
 constexpr Mat4 matmul(Mat4Affine const &a, Mat4 const &b)
 {
-}
-
-constexpr Mat4 matmul(Mat4Affine const &a, Mat4 const &b)
-{
+  return Mat4{.rows = {
+                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
+                   dot(a[0], b.w())},
+                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
+                   dot(a[1], b.w())},
+                  {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
+                   dot(a[2], b.w())},
+                  {dot(Mat4Affine::trailing_row, b.x()),
+                   dot(Mat4Affine::trailing_row, b.y()),
+                   dot(Mat4Affine::trailing_row, b.z()),
+                   dot(Mat4Affine::trailing_row, b.w())},
+              }};
 }
 
 constexpr Mat4 matmul(Mat4 const &a, Mat4Affine const &b)
 {
+  return Mat4{.rows = {
+                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
+                   dot(a[0], b.w())},
+                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
+                   dot(a[1], b.w())},
+                  {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
+                   dot(a[2], b.w())},
+                  {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
+                   dot(a[3], b.w())},
+              }};
 }
 
 constexpr Mat4Affine matmul(Mat4Affine const &a, Mat4Affine const &b)
 {
+  return Mat4Affine{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()),
+                              dot(a[0], b.z()), dot(a[0], b.w())},
+                             {dot(a[1], b.x()), dot(a[1], b.y()),
+                              dot(a[1], b.z()), dot(a[1], b.w())},
+                             {dot(a[2], b.x()), dot(a[2], b.y()),
+                              dot(a[2], b.z()), dot(a[2], b.w())}}};
 }
 
 constexpr f32 determinant(Mat2 const &a)
@@ -403,39 +468,6 @@ constexpr Mat4 adjoint(Mat4 const &a)
   return r;
 }
 
-static constexpr Mat3 identity()
-{
-  return Mat3{.rows = {{.x = 1, .y = 0, .z = 0},
-                       {.x = 0, .y = 1, .z = 0},
-                       {.x = 0, .y = 0, .z = 1}}};
-}
-
-static constexpr Mat2 identity()
-{
-  return Mat2{.rows = {{.x = 1, .y = 0}, {.x = 0, .y = 1}}};
-}
-
-constexpr Mat3 mamaatmul(Mat3 const &a, Mat3 const &b)
-{
-  return Mat3{.rows = {{dot(a[0], {b[0][0], b[1][0], b[2][0]}),
-                        dot(a[0], {b[0][1], b[1][1], b[2][1]}),
-                        dot(a[0], {b[0][2], b[1][2], b[2][2]})},
-                       {dot(a[1], {b[0][0], b[1][0], b[2][0]}),
-                        dot(a[1], {b[0][1], b[1][1], b[2][1]}),
-                        dot(a[1], {b[0][2], b[1][2], b[2][2]})},
-                       {dot(a[2], {b[0][0], b[1][0], b[2][0]}),
-                        dot(a[2], {b[0][1], b[1][1], b[2][1]}),
-                        dot(a[2], {b[0][2], b[1][2], b[2][2]})}}};
-}
-
-static constexpr Mat4 identity()
-{
-  return Mat4{.rows = {{.x = 1, .y = 0, .z = 0, .w = 0},
-                       {.x = 0, .y = 1, .z = 0, .w = 0},
-                       {.x = 0, .y = 0, .z = 1, .w = 0},
-                       {.x = 0, .y = 0, .z = 0, .w = 1}}};
-}
-
 constexpr Mat2 inverse(Mat2 a)
 {
   return uniform_mat2(1.0F / determinant(a)) * adjoint(a);
@@ -453,7 +485,7 @@ constexpr Mat4 inverse(Mat4 const &a)
 
 constexpr Mat3 translate2d(Vec2 t)
 {
-  return Mat3{.rows = {{1, 0, t.x}, {0, 1, t.y}, {0, 0, 1}}};
+  return Mat3{.rows = {{1, 0, t.x}, {0, 1, t.y}, Mat3Affine::trailing_row}};
 }
 
 constexpr Mat3Affine affine_translate2d(Vec2 t)
@@ -463,23 +495,28 @@ constexpr Mat3Affine affine_translate2d(Vec2 t)
 
 constexpr Mat4 translate3d(Vec3 t)
 {
-  return Mat4{
-      .rows = {{1, 0, 0, t.x}, {0, 1, 0, t.y}, {0, 0, 1, t.z}, {0, 0, 0, 1}}};
+  return Mat4{.rows = {{1, 0, 0, t.x},
+                       {0, 1, 0, t.y},
+                       {0, 0, 1, t.z},
+                       Mat4Affine::trailing_row}};
 }
 
 constexpr Mat4Affine affine_translate3d(Vec3 t)
 {
-  Mat4Affine{.rows = {{1, 0, 0, t.x}, {0, 1, 0, t.y}, {0, 0, 1, t.z}}};
+  return Mat4Affine{.rows = {{1, 0, 0, t.x}, {0, 1, 0, t.y}, {0, 0, 1, t.z}}};
 }
 
 constexpr Mat3 scale2d(Vec2 s)
 {
-  return Mat3{.rows = {{s.x, 0, 0}, {0, s.y, 0}, {0, 0, 1}}};
+  return Mat3{.rows = {{s.x, 0, 0}, {0, s.y, 0}, Mat3Affine::trailing_row}};
 }
 
 constexpr Mat4 scale3d(Vec3 s)
 {
-  Mat4{.rows = {{s.x, 0, 0, 0}, {0, s.y, 0, 0}, {0, 0, s.z, 0}, {0, 0, 0, 1}}};
+  return Mat4{.rows = {{s.x, 0, 0, 0},
+                       {0, s.y, 0, 0},
+                       {0, 0, s.z, 0},
+                       Mat4Affine::trailing_row}};
 }
 
 constexpr Mat3Affine affine_scale2d(Vec2 s)
@@ -489,14 +526,14 @@ constexpr Mat3Affine affine_scale2d(Vec2 s)
 
 constexpr Mat4Affine affine_scale3d(Vec3 s)
 {
-  Mat4Affine{.rows = {{s.x, 0, 0, 0}, {0, s.y, 0, 0}, {0, 0, s.z, 0}}};
+  return Mat4Affine{.rows = {{s.x, 0, 0, 0}, {0, s.y, 0, 0}, {0, 0, s.z, 0}}};
 }
 
 inline Mat3 rotate2d(f32 radians)
 {
   return Mat3{.rows = {{cosf(radians), -sinf(radians), 0},
                        {sinf(radians), cosf(radians), 0},
-                       {0, 0, 1}}};
+                       Mat3Affine::trailing_row}};
 }
 
 inline Mat3Affine affine_rotate2d(f32 radians)
@@ -510,7 +547,7 @@ inline Mat4 rotate3d_x(f32 radians)
   return Mat4{.rows = {{1, 0, 0, 0},
                        {0, cosf(radians), -sinf(radians), 0},
                        {0, sinf(radians), cosf(radians), 0},
-                       {0, 0, 0, 1}}};
+                       Mat4Affine::trailing_row}};
 }
 
 inline Mat4Affine affine_rotate3d_x(f32 radians)
@@ -525,7 +562,7 @@ inline Mat4 rotate3d_y(f32 radians)
   return Mat4{.rows = {{cosf(radians), 0, sinf(radians), 0},
                        {0, 1, 0, 0},
                        {-sinf(radians), 0, cosf(radians), 0},
-                       {0, 0, 0, 1}}};
+                       Mat4Affine::trailing_row}};
 }
 
 inline Mat4Affine affine_rotate3d_y(f32 radians)
@@ -540,7 +577,7 @@ inline Mat4 rotate3d_z(f32 radians)
   return Mat4{.rows = {{cosf(radians), -sinf(radians), 0, 0},
                        {sinf(radians), cosf(radians), 0, 0},
                        {0, 0, 1, 0},
-                       {0, 0, 0, 1}}};
+                       Mat4Affine::trailing_row}};
 }
 
 inline Mat4Affine affine_rotate3d_z(f32 radians)
@@ -568,24 +605,27 @@ inline Mat4Affine affine_rotate3d_z(f32 radians)
 /*
  *	Cubic Catmull-Rom Spline interpolation. Based on
  *http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf Curves are
- *guaranteed to pass through the control points and are easily chained together.
- *Equation supports abitrary parameterization. eg. Uniform=0,1,2,3 ; chordal=
- *|Pn - Pn-1| ; centripetal = |Pn - Pn-1|^0.5 P0 - The control point preceding
- *the interpolation range. P1 - The control point starting the interpolation
- *range. P2 - The control point ending the interpolation range. P3 - The control
- *point following the interpolation range. T0-3 - The interpolation parameters
- *for the corresponding control points. T - The interpolation factor in the
- *range 0 to 1. 0 returns P1. 1 returns P2.
+ *guaranteed to pass through the control points and are easily chained
+ *together. Equation supports abitrary parameterization. eg. Uniform=0,1,2,3 ;
+ *chordal= |Pn - Pn-1| ; centripetal = |Pn - Pn-1|^0.5 P0 - The control point
+ *preceding the interpolation range. P1 - The control point starting the
+ *interpolation range. P2 - The control point ending the interpolation range.
+ *P3 - The control point following the interpolation range. T0-3 - The
+ *interpolation parameters for the corresponding control points. T - The
+ *interpolation factor in the range 0 to 1. 0 returns P1. 1 returns P2.
  */
 // template< class U >
 // UE_NODISCARD static constexpr FORCEINLINE_DEBUGGABLE U
-// CubicCRSplineInterp(const U& P0, const U& P1, const U& P2, const U& P3, const
-// float T0, const float T1, const float T2, const float T3, const float T)
+// CubicCRSplineInterp(const U& P0, const U& P1, const U& P2, const U& P3,
+// const float T0, const float T1, const float T2, const float T3, const float
+// T)
 // {
-// 	//Based on http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf
-// 	float InvT1MinusT0 = 1.0f / (T1 - T0);
-// 	U L01 = ( P0 * ((T1 - T) * InvT1MinusT0) ) + ( P1 * ((T - T0) *
-// InvT1MinusT0) ); 	float InvT2MinusT1 = 1.0f / (T2 - T1); 	U L12 = ( P1 *
+// 	//Based on
+// http://www.cemyuksel.com/research/catmullrom_param/catmullrom.pdf 	float
+// InvT1MinusT0 = 1.0f / (T1 - T0); 	U L01 = ( P0 * ((T1 - T) * InvT1MinusT0)
+// )
+// + ( P1 * ((T - T0) * InvT1MinusT0) ); 	float InvT2MinusT1 = 1.0f / (T2 -
+// T1); 	U L12 = ( P1 *
 // ((T2 - T) * InvT2MinusT1) ) + ( P2 * ((T - T1) * InvT2MinusT1) ); 	float
 // InvT3MinusT2 = 1.0f / (T3 - T2); 	U L23 = ( P2 * ((T3 - T) * InvT3MinusT2)
 // ) + ( P3 * ((T - T2) * InvT3MinusT2) );
