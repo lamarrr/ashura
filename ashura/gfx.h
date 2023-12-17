@@ -1248,7 +1248,7 @@ struct FrameInfo
   u32                        current_command_encoder = 0;
 };
 
-struct DeviceInfo
+struct DeviceProperties
 {
   u32               api_version    = 0;
   u32               driver_version = 0;
@@ -1398,9 +1398,10 @@ struct CommandEncoderImpl
 
 struct DeviceInterface
 {
-  void (*ref)(Device self)                                   = nullptr;
-  void (*unref)(Device self)                                 = nullptr;
-  Result<DeviceInfo, Status> (*get_device_info)(Device self) = nullptr;
+  void (*ref)(Device self)   = nullptr;
+  void (*unref)(Device self) = nullptr;
+  Result<DeviceProperties, Status> (*get_device_properties)(Device self) =
+      nullptr;
   Result<FormatProperties, Status> (*get_format_properties)(
       Device self, Format format)                                 = nullptr;
   Result<Buffer, Status> (*create_buffer)(Device            self,

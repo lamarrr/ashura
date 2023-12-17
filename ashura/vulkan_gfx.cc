@@ -37,7 +37,7 @@ namespace vk
 static gfx::DeviceInterface const device_interface{
     .ref                   = DeviceInterface::ref,
     .unref                 = DeviceInterface::unref,
-    .get_device_info       = DeviceInterface::get_device_info,
+    .get_device_properties = DeviceInterface::get_device_properties,
     .get_format_properties = DeviceInterface::get_format_properties,
     .create_buffer         = DeviceInterface::create_buffer,
     .create_buffer_view    = DeviceInterface::create_buffer_view,
@@ -913,6 +913,19 @@ inline bool is_render_pass_compatible(RenderPass const      *render_pass,
   return true;
 }
 
+inline u64 index_type_size(gfx::IndexType type)
+{
+  switch (type)
+  {
+    case gfx::IndexType::Uint16:
+      return 2;
+    case gfx::IndexType::Uint32:
+      return 4;
+    default:
+      UNREACHABLE();
+  }
+}
+
 Result<gfx::FormatProperties, Status>
     DeviceInterface::get_format_properties(gfx::Device self_,
                                            gfx::Format format)
@@ -1485,7 +1498,35 @@ Result<gfx::Framebuffer, Status>
       num_color_attachments + (has_depth_stencil_attachment ? 1U : 0U);
   VkImageView vk_attachments[gfx::MAX_COLOR_ATTACHMENTS + 1];
 
-  // TODO(lamarrr): check layers and sizes specification
+  for (gfx::ImageView attachment : desc.color_attachments)
+  {
+    ImageView    *view  = (ImageView *) attachment;
+    Image        *image = IMAGE_FROM_VIEW(attachment);
+    gfx::Extent3D extent =
+        math::mip_down(image->desc.extent, view->desc.first_mip_level);
+    VALIDATE("", has_bits(image->desc.usage, gfx::ImageUsage::ColorAttachment));
+    VALIDATE("", has_bits(view->desc.aspects, gfx::ImageAspects::Color));
+    VALIDATE("", view->desc.num_array_layers >= desc.layers);
+    VALIDATE("", extent.x >= desc.extent.x);
+    VALIDATE("", extent.y >= desc.extent.y);
+  }
+
+  if (desc.depth_stencil_attachment != nullptr)
+  {
+    ImageView    *view  = (ImageView *) desc.depth_stencil_attachment;
+    Image        *image = IMAGE_FROM_VIEW(view);
+    gfx::Extent3D extent =
+        math::mip_down(image->desc.extent, view->desc.first_mip_level);
+    VALIDATE("", has_bits(image->desc.usage,
+                          gfx::ImageUsage::DepthStencilAttachment));
+    VALIDATE("",
+             has_any_bit(view->desc.aspects, gfx::ImageAspects::Depth |
+                                                 gfx::ImageAspects::Stencil));
+    VALIDATE("", view->desc.num_array_layers >= desc.layers);
+    VALIDATE("", extent.x >= desc.extent.x);
+    VALIDATE("", extent.y >= desc.extent.y);
+  }
+
   VALIDATE("Framebuffer and Renderpass are not compatible",
            is_render_pass_compatible(
                render_pass,
@@ -1735,7 +1776,7 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
                 (u32) mem::align_offset(alignof(gfx::SamplerBinding), offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::SamplerBinding) * desc.count);
-            num_image_infos = std::max(num_image_infos, desc.count);
+            num_image_infos = op::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::CombinedImageSampler:
             offset = (u32) mem::align_offset(
@@ -1743,21 +1784,21 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::CombinedImageSamplerBinding) * desc.count);
-            num_image_infos = std::max(num_image_infos, desc.count);
+            num_image_infos = op::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::SampledImage:
             offset = (u32) mem::align_offset(alignof(gfx::SampledImageBinding),
                                              offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::SampledImageBinding) * desc.count);
-            num_image_infos = std::max(num_image_infos, desc.count);
+            num_image_infos = op::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::StorageImage:
             offset = (u32) mem::align_offset(alignof(gfx::StorageImageBinding),
                                              offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::StorageImageBinding) * desc.count);
-            num_image_infos = std::max(num_image_infos, desc.count);
+            num_image_infos = op::max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::UniformTexelBuffer:
             offset = (u32) mem::align_offset(
@@ -1765,7 +1806,7 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::UniformTexelBufferBinding) * desc.count);
-            num_buffer_views = std::max(num_buffer_views, desc.count);
+            num_buffer_views = op::max(num_buffer_views, desc.count);
             break;
           case gfx::DescriptorType::StorageTexelBuffer:
             offset = (u32) mem::align_offset(
@@ -1773,21 +1814,21 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::StorageTexelBufferBinding) * desc.count);
-            num_buffer_views = std::max(num_buffer_views, desc.count);
+            num_buffer_views = op::max(num_buffer_views, desc.count);
             break;
           case gfx::DescriptorType::UniformBuffer:
             offset = (u32) mem::align_offset(alignof(gfx::UniformBufferBinding),
                                              offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::UniformBufferBinding) * desc.count);
-            num_buffer_infos = std::max(num_buffer_infos, desc.count);
+            num_buffer_infos = op::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::StorageBuffer:
             offset = (u32) mem::align_offset(alignof(gfx::StorageBufferBinding),
                                              offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::StorageBufferBinding) * desc.count);
-            num_buffer_infos = std::max(num_buffer_infos, desc.count);
+            num_buffer_infos = op::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::DynamicUniformBuffer:
             offset = (u32) mem::align_offset(
@@ -1795,7 +1836,7 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::DynamicUniformBufferBinding) * desc.count);
-            num_buffer_infos = std::max(num_buffer_infos, desc.count);
+            num_buffer_infos = op::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::DynamicStorageBuffer:
             offset = (u32) mem::align_offset(
@@ -1803,14 +1844,14 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::DynamicStorageBufferBinding) * desc.count);
-            num_buffer_infos = std::max(num_buffer_infos, desc.count);
+            num_buffer_infos = op::max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::InputAttachment:
             offset = (u32) mem::align_offset(
                 alignof(gfx::InputAttachmentBinding), offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::InputAttachmentBinding) * desc.count);
-            num_image_infos = std::max(num_image_infos, desc.count);
+            num_image_infos = op::max(num_image_infos, desc.count);
             break;
           default:
             break;
@@ -1821,9 +1862,9 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
   }
 
   usize scratch_size =
-      std::max({num_image_infos * sizeof(VkDescriptorImageInfo),
-                num_buffer_infos * sizeof(VkDescriptorBufferInfo),
-                num_buffer_views * sizeof(VkBufferView)});
+      op::max(op::max(num_image_infos * sizeof(VkDescriptorImageInfo),
+                      num_buffer_infos * sizeof(VkDescriptorBufferInfo)),
+              num_buffer_views * sizeof(VkBufferView));
 
   void *scratch_memory =
       self->allocator.allocate(MAX_STANDARD_ALIGNMENT, scratch_size);
@@ -2389,17 +2430,20 @@ Result<gfx::CommandEncoderImpl, Status>
     return Err{Status::OutOfHostMemory};
   }
 
-  new (encoder) CommandEncoder{.refcount                    = 1,
-                               .allocator                   = allocator,
-                               .device                      = self,
-                               .vk_command_pool             = vk_command_pool,
-                               .vk_command_buffer           = vk_command_buffer,
-                               .bound_compute_pipeline      = nullptr,
-                               .bound_graphics_pipeline     = nullptr,
-                               .bound_render_pass           = nullptr,
-                               .bound_framebuffer           = nullptr,
-                               .bound_vertex_buffers        = {},
-                               .num_bound_vertex_buffers    = 0,
+  new (encoder) CommandEncoder{.refcount                 = 1,
+                               .allocator                = allocator,
+                               .device                   = self,
+                               .vk_command_pool          = vk_command_pool,
+                               .vk_command_buffer        = vk_command_buffer,
+                               .bound_compute_pipeline   = nullptr,
+                               .bound_graphics_pipeline  = nullptr,
+                               .bound_render_pass        = nullptr,
+                               .bound_framebuffer        = nullptr,
+                               .bound_vertex_buffers     = {},
+                               .num_bound_vertex_buffers = 0,
+                               .bound_index_buffer       = nullptr,
+                               .bound_index_type = gfx::IndexType::Uint16,
+                               .bound_index_buffer_offset   = 0,
                                .bound_descriptor_set_heaps  = {},
                                .bound_descriptor_set_groups = {},
                                .num_bound_descriptor_sets   = 0,
@@ -3536,7 +3580,7 @@ Result<Void, Status>
 
   if (result != VK_SUCCESS)
   {
-    // handle error
+    // todo(lamarrr): handle error
     // there's not really any way to preserve state here and allow for re-call?
     return Err{(Status) result};
   }
@@ -3546,8 +3590,8 @@ Result<Void, Status>
   // example how will this affect the program state as they depend on it
   frame_context->current_frame++;
   frame_context->trailing_frame =
-      std::max(frame_context->current_frame,
-               (gfx::FrameId) frame_context->max_frames_in_flight) -
+      op::max(frame_context->current_frame,
+              (gfx::FrameId) frame_context->max_frames_in_flight) -
       frame_context->max_frames_in_flight;
   frame_context->current_command_encoder =
       (frame_context->current_command_encoder + 1) %
@@ -4423,6 +4467,7 @@ gfx::DescriptorHeapStats
     DescriptorHeapInterface::get_stats(gfx::DescriptorHeap self_)
 {
   DescriptorHeap *const self = (DescriptorHeap *) self_;
+
   return gfx::DescriptorHeapStats{
       .num_allocated_groups = self->num_pools * self->num_groups_per_pool,
       .num_free_groups      = self->num_free_groups,
@@ -4470,6 +4515,7 @@ Result<Void, Status> CommandEncoderInterface::end(gfx::CommandEncoder self_)
 void CommandEncoderInterface::reset(gfx::CommandEncoder self_)
 {
   CommandEncoder *const self = (CommandEncoder *) self_;
+
   self->device->vk_table.ResetCommandBuffer(self->vk_command_buffer, 0);
   self->bound_compute_pipeline    = nullptr;
   self->bound_graphics_pipeline   = nullptr;
@@ -5308,10 +5354,6 @@ void CommandEncoderInterface::set_viewport(gfx::CommandEncoder  self_,
     return;
   }
 
-  // TODO(lamarrr): generate access for dispatches
-  // and bindings and framebuffers
-  // index buffer, vertex buffer
-
   VkViewport vk_viewport{.x        = viewport.offset.x,
                          .y        = viewport.offset.y,
                          .width    = viewport.extent.x,
@@ -5421,7 +5463,13 @@ void CommandEncoderInterface::bind_vertex_buffers(
   VALIDATE("", num_vertex_buffers > 0);
   VALIDATE("", num_vertex_buffers <= gfx::MAX_VERTEX_ATTRIBUTES);
   VALIDATE("", offsets.size == vertex_buffers.size);
-  // TODO(lamarrr): validate bounds of offset and alignment
+  for (u32 i = 0; i < num_vertex_buffers; i++)
+  {
+    u64 const     offset = offsets[i];
+    Buffer *const buffer = (Buffer *) vertex_buffers[i];
+    VALIDATE("", offset < buffer->desc.size);
+    VALIDATE("", has_bits(buffer->desc.usage, gfx::BufferUsage::VertexBuffer));
+  }
 
   if (self->status != Status::Success)
   {
@@ -5449,17 +5497,22 @@ void CommandEncoderInterface::bind_index_buffer(gfx::CommandEncoder self_,
 {
   CommandEncoder *const self         = (CommandEncoder *) self_;
   Buffer *const         index_buffer = (Buffer *) index_buffer_;
+  u64 const             index_size   = index_type_size(index_type);
 
-  // todo(lamarrr): validate alignment of offset
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", offset < index_buffer->desc.size);
+  VALIDATE("", (offset % index_size) == 0);
+  VALIDATE("",
+           has_bits(index_buffer->desc.usage, gfx::BufferUsage::IndexBuffer));
 
   if (self->status != Status::Success)
   {
     return;
   }
 
-  self->bound_index_buffer = index_buffer;
+  self->bound_index_buffer        = index_buffer;
+  self->bound_index_type          = index_type;
+  self->bound_index_buffer_offset = offset;
 
   self->device->vk_table.CmdBindIndexBuffer(self->vk_command_buffer,
                                             index_buffer->vk_buffer, offset,
@@ -5470,17 +5523,26 @@ void CommandEncoderInterface::draw(gfx::CommandEncoder self_, u32 first_index,
                                    u32 num_indices, i32 vertex_offset,
                                    u32 first_instance, u32 num_instances)
 {
-  CommandEncoder *const self = (CommandEncoder *) self_;
+  CommandEncoder *const self       = (CommandEncoder *) self_;
+  u64 const             index_size = index_type_size(self->bound_index_type);
 
-  // todo(lamarrr): validate index buffer bounds
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", self->bound_render_pass != nullptr);
   VALIDATE("", self->bound_framebuffer != nullptr);
+  VALIDATE("", (self->bound_index_buffer_offset + first_index * index_size) <
+                   self->bound_index_buffer->desc.size);
+  VALIDATE("", (self->bound_index_buffer_offset +
+                (first_index + num_indices) * index_size) <=
+                   self->bound_index_buffer->desc.size);
 
   if (self->status != Status::Success)
   {
     return;
   }
+
+  // TODO(lamarrr): generate access for dispatches
+  // and bindings and framebuffers
+  // index buffer, vertex buffer
 
   self->device->vk_table.CmdDrawIndexed(self->vk_command_buffer, num_indices,
                                         num_instances, first_index,
@@ -5488,25 +5550,27 @@ void CommandEncoderInterface::draw(gfx::CommandEncoder self_, u32 first_index,
 }
 
 void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
-                                            gfx::Buffer buffer, u64 offset,
+                                            gfx::Buffer buffer_, u64 offset,
                                             u32 draw_count, u32 stride)
 {
-  CommandEncoder *const self = (CommandEncoder *) self_;
+  CommandEncoder *const self   = (CommandEncoder *) self_;
+  Buffer *const         buffer = (Buffer *) buffer_;
 
-  // TODO(lamarrr): validate offset + size
-  // todo(lamarrr): how are indirect commands recorded?
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", self->bound_render_pass != nullptr);
   VALIDATE("", self->bound_framebuffer != nullptr);
+  VALIDATE("", has_bits(buffer->desc.usage, gfx::BufferUsage::IndirectBuffer));
+  VALIDATE("", offset < buffer->desc.size);
+  VALIDATE("", (offset + draw_count * stride) <= buffer->desc.size);
+  VALIDATE("", stride >= (5 * sizeof(u32)));
 
   if (self->status != Status::Success)
   {
     return;
   }
 
-  self->device->vk_table.CmdDrawIndexedIndirect(self->vk_command_buffer,
-                                                ((Buffer *) buffer)->vk_buffer,
-                                                offset, draw_count, stride);
+  self->device->vk_table.CmdDrawIndexedIndirect(
+      self->vk_command_buffer, buffer->vk_buffer, offset, draw_count, stride);
 }
 
 }        // namespace vk

@@ -13,13 +13,13 @@
 #include "ashura/loggers.h"
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
-#include "ashura/vk_enum_string_helper.h"
 #include "stx/backtrace.h"
 #include "stx/limits.h"
 #include "stx/option.h"
 #include "stx/result.h"
 #include "stx/span.h"
 #include "stx/vec.h"
+#include "vulkan/vk_enum_string_helper.h"
 #include "vulkan/vulkan.h"
 
 #define ASH_VK_CHECK(...)                                           \

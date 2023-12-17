@@ -323,10 +323,10 @@ constexpr Mat4 matmul(Mat4 const &a, Mat4 const &b)
                         dot(a[3], b.w())}}};
 }
 
-constexpr Mat4Affine matmul(Mat4Affine const &a, Vec4 const &b)
+constexpr Vec4 matmul(Mat4Affine const &a, Vec4 const &b)
 {
-  return Mat4Affine{.rows = {dot(a[0], b), dot(a[1], b), dot(a[2], b),
-                             dot(Mat4Affine::trailing_row, b)}};
+  return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b),
+              dot(Mat4Affine::trailing_row, b)};
 }
 
 constexpr Mat4 matmul(Mat4Affine const &a, Mat4 const &b)

@@ -5,13 +5,11 @@
 namespace ash
 {
 
-typedef struct Allocator_T             *Allocator;
-typedef struct AllocatorInterface       AllocatorInterface;
-typedef struct AllocatorImpl            AllocatorImpl;
-typedef struct Heap                     Heap;
-typedef struct HeapInterface            HeapInterface;
-typedef struct OverAlignedHeap          OverAlignedHeap;
-typedef struct OverAlignedHeapInterface OverAlignedHeapInterface;
+typedef struct Allocator_T       *Allocator;
+typedef struct AllocatorInterface AllocatorInterface;
+typedef struct AllocatorImpl      AllocatorImpl;
+typedef struct Heap               Heap;
+typedef struct HeapInterface      HeapInterface;
 
 /// @allocate: allocate aligned memory. returns null if
 /// failed.
@@ -29,7 +27,7 @@ typedef struct OverAlignedHeapInterface OverAlignedHeapInterface;
 /// REQUIREMENTS
 /// =============
 ///
-/// @alignment: must be a power of 2
+/// @alignment: must be a power of 2. UB if 0 or otherwise
 ///
 struct AllocatorInterface
 {
@@ -38,9 +36,9 @@ struct AllocatorInterface
                            usize size)                           = nullptr;
   void *(*reallocate)(Allocator self, usize alignment, void *memory,
                       usize old_size, usize new_size)            = nullptr;
-  void  (*deallocate)(Allocator self, usize alignment, void *memory,
-                     usize size)                                = nullptr;
-  void  (*release)(Allocator self)                               = nullptr;
+  void (*deallocate)(Allocator self, usize alignment, void *memory,
+                     usize size)                                 = nullptr;
+  void (*release)(Allocator self)                                = nullptr;
 };
 
 struct AllocatorImpl
@@ -144,35 +142,5 @@ static AllocatorInterface heap_interface{
 /// MAX_STANDARD_ALIGNMENT.
 static AllocatorImpl const heap_allocator{.self      = (Allocator) &heap,
                                           .interface = &heap_interface};
-
-struct OverAlignedHeap
-{
-};
-
-extern OverAlignedHeap const over_aligned_heap;
-
-struct OverAlignedHeapInterface
-{
-  static void *allocate(Allocator self, usize alignment, usize size);
-  static void *allocate_zeroed(Allocator self, usize alignment, usize size);
-  static void *reallocate(Allocator self, usize alignment, void *memory,
-                          usize old_size, usize new_size);
-  static void  deallocate(Allocator self, usize alignment, void *memory,
-                          usize size);
-  static void  release(Allocator self);
-};
-
-static AllocatorInterface const over_aligned_heap_interface{
-    .allocate        = OverAlignedHeapInterface::allocate,
-    .allocate_zeroed = OverAlignedHeapInterface::allocate_zeroed,
-    .reallocate      = OverAlignedHeapInterface::reallocate,
-    .deallocate      = OverAlignedHeapInterface::deallocate,
-    .release         = OverAlignedHeapInterface::release};
-
-/// allocator for over-aligned allocations, i.e. allocations aligned beyond
-/// standard alignment requirement. guarantees more than MAX_STANDARD_ALIGNMENT
-static AllocatorImpl const over_aligned_heap_allocator{
-    .self      = (Allocator) &over_aligned_heap,
-    .interface = &over_aligned_heap_interface};
 
 }        // namespace ash

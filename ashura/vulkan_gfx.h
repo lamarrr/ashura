@@ -6,6 +6,7 @@
 #include "ashura/allocator.h"
 #include "ashura/gfx.h"
 #include "vk_mem_alloc.h"
+#include "vulkan/vk_enum_string_helper.h"
 #include "vulkan/vulkan.h"
 
 namespace ash
@@ -440,6 +441,8 @@ struct CommandEncoder
   Buffer           *bound_vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
   u32               num_bound_vertex_buffers                         = 0;
   Buffer           *bound_index_buffer                               = nullptr;
+  gfx::IndexType    bound_index_type          = gfx::IndexType::Uint16;
+  u64               bound_index_buffer_offset = 0;
   DescriptorHeap
         *bound_descriptor_set_heaps[gfx::MAX_PIPELINE_DESCRIPTOR_SETS]  = {};
   u32    bound_descriptor_set_groups[gfx::MAX_PIPELINE_DESCRIPTOR_SETS] = {};
@@ -479,9 +482,10 @@ struct Swapchain
 
 struct DeviceInterface
 {
-  static void                            ref(gfx::Device self);
-  static void                            unref(gfx::Device self);
-  static Result<gfx::DeviceInfo, Status> get_device_info(gfx::Device self);
+  static void ref(gfx::Device self);
+  static void unref(gfx::Device self);
+  static Result<gfx::DeviceProperties, Status>
+      get_device_properties(gfx::Device self);
   static Result<gfx::FormatProperties, Status>
       get_format_properties(gfx::Device self, gfx::Format format);
   static Result<gfx::Buffer, Status> create_buffer(gfx::Device            self,
@@ -525,7 +529,7 @@ struct DeviceInterface
       Span<AllocatorImpl const> command_encoder_allocators);
   static Result<gfx::Swapchain, Status>
               create_swapchain(gfx::Device self, gfx::Surface surface,
-                               gfx::SwapchainDesc const &config);
+                               gfx::SwapchainDesc const &desc);
   static void ref_buffer(gfx::Device self, gfx::Buffer buffer);
   static void ref_buffer_view(gfx::Device self, gfx::BufferView buffer_view);
   static void ref_image(gfx::Device self, gfx::Image image);
