@@ -3846,6 +3846,7 @@ Result<Void, Status>
   return Ok{Void{}};
 }
 
+// todo(lamarrr): insert barrier to convert image to image present src layout
 Result<Void, Status>
     DeviceInterface::submit_frame(gfx::Device self_, gfx::Swapchain swapchain_,
                                   gfx::FrameContext frame_context_)
