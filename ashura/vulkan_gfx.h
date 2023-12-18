@@ -18,12 +18,10 @@ using gfx::Status;
 
 constexpr char const *REQUIRED_INSTANCE_EXTENSIONS[] = {
     VK_KHR_SURFACE_EXTENSION_NAME};
-constexpr char const **OPTIONAL_INSTANCE_EXTENSIONS = nullptr;
-constexpr char const  *REQUIRED_DEVICE_EXTENSIONS[] = {
+constexpr char const *REQUIRED_DEVICE_EXTENSIONS[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
     VK_EXT_DEBUG_MARKER_EXTENSION_NAME};
-// TODO(lamarrr): specify polyfills
 
 typedef struct InstanceTable           InstanceTable;
 typedef struct DeviceTable             DeviceTable;

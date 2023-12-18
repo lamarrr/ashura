@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/allocator.h"
 #include "ashura/primitives.h"
@@ -1398,8 +1399,6 @@ struct CommandEncoderImpl
 
 struct DeviceInterface
 {
-  void (*ref)(Device self)   = nullptr;
-  void (*unref)(Device self) = nullptr;
   Result<DeviceProperties, Status> (*get_device_properties)(Device self) =
       nullptr;
   Result<FormatProperties, Status> (*get_format_properties)(
@@ -1704,9 +1703,6 @@ struct DeviceImpl
 //
 // HOW to associate with window backend
 //
-// Instance is thread-safe, Device is not
-//
-//
 //
 // - REQUIREMENTS
 // - create surface should work with any supported window platform
@@ -1715,32 +1711,24 @@ struct DeviceImpl
 //
 // for vulkan backend, Surface must be VkSurfaceKHR
 //
-// TODO: enable backend validations
-//
-//
-
-//
-//
-//
 struct InstanceInterface
 {
-  Result<Instance, Status> (*create)(AllocatorImpl allocator) = nullptr;
-  void (*ref)(Instance instance)                              = nullptr;
-  void (*unref)(Instance instance)                            = nullptr;
+  Result<Instance, Status> (*create)(AllocatorImpl allocator,
+                                     bool enable_validation_layer) = nullptr;
+  void (*ref)(Instance instance)                                   = nullptr;
+  void (*unref)(Instance instance)                                 = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance instance, Span<DeviceType const> preferred_types,
       Span<Surface const> compatible_surfaces,
-      AllocatorImpl       allocator) = nullptr;
-  Result<Surface, Status> (*create_headless_surface)(Instance instance) =
-      nullptr;
-  void create_win32_surface();
-  void create_x11_surface();
-  void create_wayland_surface();
-  void create_xlib_surface();
-  void create_metal_surface();
-  void create_macos_surface();
-  void create_ios_surface();
-  void create_android_surface();
+      AllocatorImpl       allocator)                           = nullptr;
+  void (*ref_device)(Instance instance, Device device)   = nullptr;
+  void (*unref_device)(Instance instance, Device device) = nullptr;
+};
+
+struct InstanceImpl
+{
+  Instance                 instance  = nullptr;
+  InstanceInterface const *interface = nullptr;
 };
 
 }        // namespace gfx
