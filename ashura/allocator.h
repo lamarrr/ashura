@@ -138,8 +138,7 @@ static AllocatorInterface heap_interface{
     .deallocate      = HeapInterface::deallocate,
     .release         = HeapInterface::release};
 
-/// allocator for standard-aligned allocations, guarantees at most
-/// MAX_STANDARD_ALIGNMENT.
+/// guarantees at least MAX_STANDARD_ALIGNMENT alignment.
 static AllocatorImpl const heap_allocator{.self      = (Allocator) &heap,
                                           .interface = &heap_interface};
 

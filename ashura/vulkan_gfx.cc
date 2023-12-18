@@ -875,6 +875,324 @@ inline void access_image(CommandEncoder const *encoder, Image *image,
   }
 }
 
+inline void access_compute_bindings(CommandEncoder *encoder)
+{
+  for (u32 i = 0; i < encoder->num_bound_descriptor_sets; i++)
+  {
+    DescriptorHeap const *heap  = encoder->bound_descriptor_set_heaps[i];
+    u32 const             set   = encoder->bound_descriptor_sets[i];
+    u32 const             group = encoder->bound_descriptor_set_groups[i];
+    DescriptorSetLayout const *const layout = heap->set_layouts[set];
+
+    for (u32 ibinding = 0; ibinding < layout->num_bindings; ibinding++)
+    {
+      gfx::DescriptorBindingDesc const &binding = layout->bindings[ibinding];
+      switch (binding.type)
+      {
+        case gfx::DescriptorType::CombinedImageSampler:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::CombinedImageSamplerBinding const *bindings =
+              (gfx::CombinedImageSamplerBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_image(
+                encoder, IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::SampledImage:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::SampledImageBinding const *bindings =
+              (gfx::SampledImageBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_image(
+                encoder, IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::StorageImage:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::StorageImageBinding const *bindings =
+              (gfx::StorageImageBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_image(encoder,
+                         IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+                         VK_IMAGE_LAYOUT_GENERAL);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::UniformTexelBuffer:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::UniformTexelBufferBinding const *bindings =
+              (gfx::UniformTexelBufferBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_buffer(encoder,
+                          BUFFER_FROM_VIEW(bindings[ielement].buffer_view),
+                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_SHADER_READ_BIT);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::StorageTexelBuffer:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::StorageTexelBufferBinding const *bindings =
+              (gfx::StorageTexelBufferBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_buffer(
+                encoder, BUFFER_FROM_VIEW(bindings[ielement].buffer_view),
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::UniformBuffer:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::UniformBufferBinding const *bindings =
+              (gfx::UniformBufferBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_SHADER_READ_BIT);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::StorageBuffer:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::StorageBufferBinding const *bindings =
+              (gfx::StorageBufferBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_SHADER_WRITE_BIT |
+                              VK_ACCESS_SHADER_READ_BIT);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::DynamicUniformBuffer:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::DynamicUniformBufferBinding const *bindings =
+              (gfx::DynamicUniformBufferBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_SHADER_READ_BIT);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::DynamicStorageBuffer:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::DynamicStorageBufferBinding const *bindings =
+              (gfx::DynamicStorageBufferBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_SHADER_WRITE_BIT |
+                              VK_ACCESS_SHADER_READ_BIT);
+          }
+        }
+        break;
+
+        default:
+          break;
+      }
+    }
+  }
+}
+
+inline void access_graphics_bindings(CommandEncoder *encoder)
+{
+  for (u32 i = 0; i < encoder->num_bound_descriptor_sets; i++)
+  {
+    DescriptorHeap const *heap  = encoder->bound_descriptor_set_heaps[i];
+    u32 const             set   = encoder->bound_descriptor_sets[i];
+    u32 const             group = encoder->bound_descriptor_set_groups[i];
+    DescriptorSetLayout const *const layout = heap->set_layouts[set];
+
+    for (u32 ibinding = 0; ibinding < layout->num_bindings; ibinding++)
+    {
+      gfx::DescriptorBindingDesc const &binding = layout->bindings[ibinding];
+      switch (binding.type)
+      {
+        case gfx::DescriptorType::CombinedImageSampler:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::CombinedImageSamplerBinding const *bindings =
+              (gfx::CombinedImageSamplerBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_image(encoder,
+                         IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         VK_ACCESS_SHADER_READ_BIT,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::SampledImage:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::SampledImageBinding const *bindings =
+              (gfx::SampledImageBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_image(encoder,
+                         IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         VK_ACCESS_SHADER_READ_BIT,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::UniformTexelBuffer:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::UniformTexelBufferBinding const *bindings =
+              (gfx::UniformTexelBufferBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_buffer(encoder,
+                          BUFFER_FROM_VIEW(bindings[ielement].buffer_view),
+                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                          VK_ACCESS_SHADER_READ_BIT);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::UniformBuffer:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::UniformBufferBinding const *bindings =
+              (gfx::UniformBufferBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                          VK_ACCESS_SHADER_READ_BIT);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::DynamicUniformBuffer:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::DynamicUniformBufferBinding const *bindings =
+              (gfx::DynamicUniformBufferBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                          VK_ACCESS_SHADER_READ_BIT);
+          }
+        }
+        break;
+
+        case gfx::DescriptorType::InputAttachment:
+        {
+          u32 offset = heap->binding_offsets[set][ibinding];
+          gfx::InputAttachmentBinding const *bindings =
+              (gfx::InputAttachmentBinding const
+                   *) (heap->bindings +
+                       (usize) heap->group_binding_stride * group +
+                       (usize) offset);
+          for (u32 ielement = 0; ielement < binding.count; ielement++)
+          {
+            access_image(encoder,
+                         IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         VK_ACCESS_SHADER_READ_BIT,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+          }
+        }
+        break;
+
+        default:
+          break;
+      }
+    }
+  }
+}
+
 inline bool is_render_pass_compatible(RenderPass const      *render_pass,
                                       Span<ImageView *const> color_attachments,
                                       ImageView *depth_stencil_attachment)
@@ -4522,6 +4840,7 @@ void CommandEncoderInterface::reset(gfx::CommandEncoder self_)
   self->bound_render_pass         = nullptr;
   self->bound_framebuffer         = nullptr;
   self->num_bound_vertex_buffers  = 0;
+  self->bound_index_buffer        = nullptr;
   self->num_bound_descriptor_sets = 0;
   self->status                    = Status::Success;
 }
@@ -5324,6 +5643,8 @@ void CommandEncoderInterface::dispatch(gfx::CommandEncoder self_,
   VALIDATE("", group_count_y <= gfx::MAX_COMPUTE_GROUP_COUNT_Y);
   VALIDATE("", group_count_z <= gfx::MAX_COMPUTE_GROUP_COUNT_Z);
 
+  access_compute_bindings(self);
+
   self->device->vk_table.CmdDispatch(self->vk_command_buffer, group_count_x,
                                      group_count_y, group_count_z);
 }
@@ -5337,6 +5658,8 @@ void CommandEncoderInterface::dispatch_indirect(gfx::CommandEncoder self_,
   VALIDATE("", self->bound_compute_pipeline != nullptr);
   VALIDATE("", has_bits(buffer->desc.usage, gfx::BufferUsage::IndirectBuffer));
   VALIDATE("", offset < buffer->desc.size);
+
+  access_compute_bindings(self);
 
   self->device->vk_table.CmdDispatchIndirect(self->vk_command_buffer,
                                              buffer->vk_buffer, offset);
@@ -5529,6 +5852,7 @@ void CommandEncoderInterface::draw(gfx::CommandEncoder self_, u32 first_index,
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", self->bound_render_pass != nullptr);
   VALIDATE("", self->bound_framebuffer != nullptr);
+  VALIDATE("", self->bound_index_buffer != nullptr);
   VALIDATE("", (self->bound_index_buffer_offset + first_index * index_size) <
                    self->bound_index_buffer->desc.size);
   VALIDATE("", (self->bound_index_buffer_offset +
@@ -5540,9 +5864,17 @@ void CommandEncoderInterface::draw(gfx::CommandEncoder self_, u32 first_index,
     return;
   }
 
-  // TODO(lamarrr): generate access for dispatches
-  // and bindings and framebuffers
-  // index buffer, vertex buffer
+  for (u32 i = 0; i < self->num_bound_vertex_buffers; i++)
+  {
+    access_buffer(self, self->bound_vertex_buffers[i],
+                  VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+                  VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
+  }
+
+  access_buffer(self, self->bound_index_buffer,
+                VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_ACCESS_INDEX_READ_BIT);
+
+  access_graphics_bindings(self);
 
   self->device->vk_table.CmdDrawIndexed(self->vk_command_buffer, num_indices,
                                         num_instances, first_index,
@@ -5559,6 +5891,7 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
   VALIDATE("", self->bound_render_pass != nullptr);
   VALIDATE("", self->bound_framebuffer != nullptr);
+  VALIDATE("", self->bound_index_buffer != nullptr);
   VALIDATE("", has_bits(buffer->desc.usage, gfx::BufferUsage::IndirectBuffer));
   VALIDATE("", offset < buffer->desc.size);
   VALIDATE("", (offset + draw_count * stride) <= buffer->desc.size);
@@ -5568,6 +5901,18 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
   {
     return;
   }
+
+  for (u32 i = 0; i < self->num_bound_vertex_buffers; i++)
+  {
+    access_buffer(self, self->bound_vertex_buffers[i],
+                  VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+                  VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
+  }
+
+  access_buffer(self, self->bound_index_buffer,
+                VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_ACCESS_INDEX_READ_BIT);
+
+  access_graphics_bindings(self);
 
   self->device->vk_table.CmdDrawIndexedIndirect(
       self->vk_command_buffer, buffer->vk_buffer, offset, draw_count, stride);

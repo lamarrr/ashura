@@ -136,7 +136,7 @@ struct Clamp
   constexpr T const &operator()(T const &value, T const &min,
                                 T const &max) const
   {
-    return value <= min ? min : (value >= max ? max : value);
+    return value < min ? min : (value > max ? max : value);
   }
 };
 
@@ -160,8 +160,6 @@ constexpr Clamp          clamp;
 
 namespace alg
 {
-// it's important we don't specialize any of this functions
-// no default parameters
 template <typename T>
 constexpr void default_construct(Span<T> span)
 {
@@ -329,8 +327,8 @@ constexpr bool ends_with(Span<B const> body, Span<F const> footer, Cmp cmp = {})
 }
 
 // size is 0 if not found, size is 1 if found
-template <typename T, typename Cmp = op::Equal>
-constexpr Span<T> find(Span<T> span, T const &value, Cmp cmp = {})
+template <typename T, typename U, typename Cmp = op::Equal>
+constexpr Span<T> find(Span<T> span, U const &value, Cmp cmp = {})
 {
   usize offset = 0;
   for (; offset < span.size; offset++)
@@ -357,86 +355,152 @@ constexpr Span<T> find_if(Span<T> span, Predicate predicate)
   return span.slice(offset, 1);
 }
 
-// points to end with 0 size if not found
-template <typename T, typename U, typename Cmp = op::Equal>
-constexpr Span<T> find_last(Span<T> span, U const &);
-
-template <typename T, typename Predicate>
-constexpr Span<T> find_last_if(Span<T> span, Predicate predicate);
-// advance points to the first element and the length is
-// with the length of the remaining elements
-
 template <typename T, typename Predicate>
 constexpr Span<T> skip_until(Span<T>, Predicate predicate);
+
 template <typename T, typename Predicate>
 constexpr Span<T> skip_while(Span<T>, Predicate predicate);
+
 template <typename T, typename Predicate>
 constexpr Span<T> skip_to_last(Span<T>, Predicate predicate);
+
 template <typename T, typename U, typename Cmp = op::Equal>
 constexpr void find_mismatch(Span<T>, Span<U>, Span<T> &, Span<U> &,
                              Cmp cmp = {});
-template <typename T, typename Predicate>
-constexpr usize count(Span<T const>, Predicate predicate);
-template <typename T, typename Predicate>
-constexpr usize count_if(Span<T const>, Predicate predicate);
-template <typename A, typename B, typename Cmp = op::Equal>
-constexpr void equal(Span<A const>, Span<B const>, Cmp cmp = {});
-template <typename Input, typename Output, typename Map>
-constexpr void map(Span<Input const>, Span<Output>, Map);
 
-template <typename Input, typename Init, typename Reduce>
-constexpr Init reduce(Span<Input const>, Init init, Reduce);
+template <typename T, typename Element, typename Cmp = op::Equal>
+constexpr usize count(Span<T const> span, Element const &element, Cmp cmp = {})
+{
+  usize count = 0;
+  for (usize i = 0; i < span.size; i++)
+  {
+    if (cmp(span.data[i], element))
+    {
+      count++;
+    }
+  }
+  return count;
+}
+
+template <typename T, typename Predicate>
+constexpr usize count_if(Span<T const> span, Predicate predicate)
+{
+  usize count = 0;
+  for (usize i = 0; i < span.size; i++)
+  {
+    if (predicate(span.data[i]))
+    {
+      count++;
+    }
+  }
+  return count;
+}
+
+template <typename A, typename B, typename Cmp = op::Equal>
+constexpr bool equal(Span<A const> a, Span<B const> b, Cmp cmp = {})
+{
+  for (usize i = 0; i < a.size; i++)
+  {
+    if (!cmp(a.data[i], b.data[i]))
+    {
+      return false;
+    }
+    return true;
+  }
+}
+
+template <typename Input, typename Output, typename Map>
+constexpr void map(Span<Input const> input, Span<Output> output, Map mapper)
+{
+  for (usize i = 0; i < input.size; i++)
+  {
+    output.data[i] = mapper(input.data[i]);
+  }
+}
+
+template <typename Input, typename Init, typename Reduce = op::Add>
+constexpr Init reduce(Span<Input const> span, Init init, Reduce reducer = {})
+{
+  for (usize i = 0; i < span.size; i++)
+  {
+    init = reducer(init, span.data[i]);
+  }
+
+  return (Init &&) init;
+}
 
 template <typename Input, typename Output, typename Init, typename Map,
           typename Reduce>
-constexpr Init map_reduce(Span<Input const>, Span<Output>, Init init, Map map,
-                          Reduce reduce);
+constexpr Init map_reduce(Span<Input const> input, Init init, Map map,
+                          Reduce reducer)
+{
+  for (usize i = 0; i < input.size; i++)
+  {
+    init = reducer(init, map(input.data[i]));
+  }
 
-constexpr void replace();
+  return (Init &&) init;
+}
 
-constexpr void replace_if();
+template <typename T, typename E, typename R, typename Cmp = op::Equal>
+constexpr void replace(Span<T> span, E const &element, R const &replacement,
+                       Cmp cmp = {})
+{
+  for (usize i = 0; i < span.size; i++)
+  {
+    if (cmp(span.data[i], element))
+    {
+      span.data[i] = replacement;
+    }
+  }
+}
 
-constexpr void replace_copy_if();
+template <typename T, typename R, typename Test>
+constexpr void replace_if(Span<T> span, R const &replacement, Test test)
+{
+  for (usize i = 0; i < span.size; i++)
+  {
+    if (test(span.data[i]))
+    {
+      span.data[i] = replacement;
+    }
+  }
+}
 
-constexpr void generate();
-
-constexpr void partition();
+template <typename T, typename Predicate>
+constexpr void partition(Span<T>, Span<T> &, Span<T> &, Predicate);
 
 template <typename T, typename Cmp = op::Equal>
 constexpr void unique(Span<T>, Cmp cmp = {});        // destroy? retain?
 
 template <typename T, typename Swap = op::Swap>
-constexpr void reverse(Span<T>, Swap swap = {});
-
-constexpr void reversed_copy();
+constexpr void reverse(Span<T> span, Swap swap = {})
+{
+  for (usize fwd = 0, bwd = span.size - 1; fwd < span.size / 2; fwd++, bwd--)
+  {
+    swap(span.data[fwd], span.data[bwd]);
+  }
+}
 
 template <typename T, typename Swap = op::Swap>
 constexpr void rotate(Span<T>, Swap swap = {});
 
-template <typename T, typename Ord = op::Min>
-constexpr Span<T> min(Span<T> span, Ord ord = {});        // return Span
-template <typename T, typename Ord = op::Max>
-constexpr Span<T> max(Span<T> span, Ord ord = {});        // return Span
+template <typename T, typename Cmp = op::Min>
+constexpr Span<T> min(Span<T> span, Cmp cmp = {});        // return Span
+
+template <typename T, typename Cmp = op::Max>
+constexpr Span<T> max(Span<T> span, Cmp cmp = {});        // return Span
 
 template <typename T, typename LexOrd = op::Compare>
 constexpr void min_max(Span<T> span, Span<T> &min, Span<T> &max,
                        LexOrd ord = {});
 
-template <typename T>
-constexpr void stable_sort(Span<T>);
-template <typename T>
-constexpr void unstable_sort(Span<T>);
-template <typename T>
-constexpr bool is_sorted();
-
-template <typename T, typename Cmp = op::Compare>
-constexpr Span<T> binary_search(Span<T>, T const &, Cmp cmp = {});
-
 // once gotten, it will call op(span) for each range
 // TODO(lamarrr)
 template <typename T, typename U, typename Op, typename Cmp = op::Equal>
-constexpr void split(Span<T> span, Span<U const> delimeter, Op op,
-                     Cmp cmp = {});
+constexpr void split(Span<T> span, Span<U const> delimeter, Op op, Cmp cmp = {})
+{
+}
 
 // first check if src begins with other
 // keep advancing whilst src begins with other
@@ -446,7 +510,10 @@ constexpr void split(Span<T> span, Span<U const> delimeter, Op op,
 // if equal again, move back
 // move back until it is no longer equal
 template <typename T, typename U, typename Cmp = op::Equal>
-constexpr Span<T> strip(Span<T> src, Span<U const> other, Cmp cmp = {});
+constexpr Span<T> strip(Span<T> src, Span<U const> other, Cmp cmp = {})
+{
+  
+}
 // title() span, no string_view types
 
 // returns the
