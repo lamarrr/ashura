@@ -4,7 +4,7 @@
 #include "ashura/cfg.h"
 #include "ashura/types.h"
 #include <bit>
-#include <cmath>
+#include <math.h>
 
 #if ASH_CFG(COMPILER, MSVC)
 #  include <intrin.h>
