@@ -43,17 +43,21 @@ constexpr f64 to_radians(f64 degree)
 
 // find intepolated value v, given points a and b, and interpolator t
 template <typename T, typename Interpolator>
-constexpr T lerp(T const &a, T const &b, Interpolator const &t)
+constexpr T lerp(T const &low, T const &high, Interpolator const &t)
 {
-  return static_cast<T>(a + (b - a) * t);
+  return static_cast<T>(low + (high - low) * t);
 }
 
 // find interpolator t, given points a and b, and interpolated value v
 template <typename T>
-constexpr T unlerp(T const &a, T const &b, T const &v)
+constexpr T unlerp(T const &low, T const &high, T const &value)
 {
-  return (v - a) / (b - a);
+  return (value - low) / (high - low);
 }
+
+template <typename T>
+constexpr void relerp(T const &input_low, T const &input_high,
+                      T const &output_low, T const &output_high, T &value);
 
 // Undefined behaviour if value is 0
 inline u32 u32log2(u32 value)
