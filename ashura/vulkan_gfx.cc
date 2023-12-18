@@ -8,6 +8,7 @@ namespace ash
 namespace vk
 {
 
+// todo: use loggers fatal
 #define VALIDATE(desc, ...)           \
   do                                  \
   {                                   \
@@ -33,10 +34,16 @@ namespace vk
 #define IMAGE_FROM_VIEW(image_view) \
   ((Image *) (((ImageView *) (image_view))->desc.image))
 
+static gfx::InstanceInterface const instance_interface{
+    .create        = InstanceInterface::create,
+    .ref           = InstanceInterface::ref,
+    .unref         = InstanceInterface::unref,
+    .create_device = InstanceInterface::create_device,
+    .ref_device    = InstanceInterface::ref_device,
+    .unref_device  = InstanceInterface::unref_device};
+
 // todo(lamarrr): define macros for checks, use debug name
 static gfx::DeviceInterface const device_interface{
-    .ref                   = DeviceInterface::ref,
-    .unref                 = DeviceInterface::unref,
     .get_device_properties = DeviceInterface::get_device_properties,
     .get_format_properties = DeviceInterface::get_format_properties,
     .create_buffer         = DeviceInterface::create_buffer,
@@ -197,11 +204,7 @@ bool load_instance_table(VkInstance                instance,
       (PFN_vk##function) GetInstanceProcAddr(instance, "vk" #function); \
   all_loaded = all_loaded && (vk_instance_table->function != nullptr)
 
-  LOAD_VK(CreateDebugReportCallbackEXT);
-  LOAD_VK(CreateDebugUtilsMessengerEXT);
   LOAD_VK(CreateInstance);
-  LOAD_VK(DestroyDebugReportCallbackEXT);
-  LOAD_VK(DestroyDebugUtilsMessengerEXT);
   LOAD_VK(DestroyInstance);
   LOAD_VK(DestroySurfaceKHR);
   LOAD_VK(EnumeratePhysicalDevices);
@@ -221,7 +224,6 @@ bool load_instance_table(VkInstance                instance,
   LOAD_VK(GetPhysicalDeviceSurfaceCapabilitiesKHR);
   LOAD_VK(GetPhysicalDeviceSurfaceFormatsKHR);
   LOAD_VK(GetPhysicalDeviceSurfacePresentModesKHR);
-  // TODO(lamarrr): platform surface functions loaders
 #undef LOAD_VK
 
   return all_loaded;
@@ -1244,13 +1246,351 @@ inline u64 index_type_size(gfx::IndexType type)
   }
 }
 
+static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
+    VkDebugUtilsMessageTypeFlagsEXT             message_type,
+    VkDebugUtilsMessengerCallbackDataEXT const *data, void *user_data)
+{
+  Instance *const instance = (Instance *) user_data;
+
+  if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+  {
+    instance->logger.error("[Id: ({}), Name: {}, Type: {}] {}",
+                           data->messageIdNumber, data->pMessageIdName,
+                           string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
+                           data->pMessage);
+    if (data->objectCount != 0)
+    {
+      instance->logger.error("Objects Involved:");
+      for (u32 i = 0; i < data->objectCount; i++)
+      {
+        instance->logger.error(
+            "[Type: {}] {}", data->pObjects[i].pObjectName,
+            string_VkObjectType(data->pObjects[i].objectType));
+      }
+    }
+  }
+  else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+  {
+    instance->logger.warn("[Id: ({}), Name: {}, Type: {}] {}",
+                          data->messageIdNumber, data->pMessageIdName,
+                          string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
+                          data->pMessage);
+    if (data->objectCount != 0)
+    {
+      instance->logger.warn("Objects Involved:");
+      for (u32 i = 0; i < data->objectCount; i++)
+      {
+        instance->logger.warn(
+            "[Type: {}] {}", data->pObjects[i].pObjectName,
+            string_VkObjectType(data->pObjects[i].objectType));
+      }
+    }
+  }
+  else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+  {
+    instance->logger.info("[Id: ({}), Name: {}, Type: {}] {}",
+                          data->messageIdNumber, data->pMessageIdName,
+                          string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
+                          data->pMessage);
+    if (data->objectCount != 0)
+    {
+      instance->logger.info("Objects Involved:");
+      for (u32 i = 0; i < data->objectCount; i++)
+      {
+        instance->logger.info(
+            "[Type: {}] {}", data->pObjects[i].pObjectName,
+            string_VkObjectType(data->pObjects[i].objectType));
+      }
+    }
+  }
+  else
+  {
+    instance->logger.trace("[Id: ({}), Name: {}, Type: {}] {}",
+                           data->messageIdNumber, data->pMessageIdName,
+                           string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
+                           data->pMessage);
+    if (data->objectCount != 0)
+    {
+      instance->logger.trace("Objects Involved:");
+      for (u32 i = 0; i < data->objectCount; i++)
+      {
+        instance->logger.trace(
+            "[Type: {}] {}", data->pObjects[i].pObjectName,
+            string_VkObjectType(data->pObjects[i].objectType));
+      }
+    }
+  }
+
+  return VK_FALSE;
+}
+
+Result<gfx::InstanceImpl, Status>
+    InstanceInterface::create(AllocatorImpl allocator, LoggerImpl logger,
+                              bool enable_validation_layer)
+{
+  logger.trace("Enumerating Vulkan Extensions...");
+  u32      num_available_extensions;
+  VkResult result = vkEnumerateInstanceExtensionProperties(
+      nullptr, &num_available_extensions, nullptr);
+
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
+  VkExtensionProperties *extension_properties =
+      allocator.allocate_typed<VkExtensionProperties>(num_available_extensions);
+
+  if (num_available_extensions != 0 && extension_properties == nullptr)
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  u32 num_read_extensions = num_available_extensions;
+
+  result = vkEnumerateInstanceExtensionProperties(nullptr, &num_read_extensions,
+                                                  extension_properties);
+
+  if (result != VK_SUCCESS)
+  {
+    allocator.deallocate_typed(extension_properties, num_available_extensions);
+    return Err{(Status) result};
+  }
+
+  logger.trace("Enumerating Vulkan Layers...");
+
+  u32 num_available_layers;
+  result = vkEnumerateInstanceLayerProperties(&num_available_layers, nullptr);
+
+  if (result != VK_SUCCESS)
+  {
+    allocator.deallocate_typed(extension_properties, num_available_extensions);
+    return Err{(Status) result};
+  }
+
+  VkLayerProperties *layer_properties =
+      allocator.allocate_typed<VkLayerProperties>(num_available_layers);
+
+  if (num_available_layers != 0 && layer_properties == nullptr)
+  {
+    allocator.deallocate_typed(extension_properties, num_available_extensions);
+    return Err{Status::OutOfHostMemory};
+  }
+
+  u32 num_read_layers = num_available_layers;
+  result =
+      vkEnumerateInstanceLayerProperties(&num_read_layers, layer_properties);
+
+  if (result != VK_SUCCESS)
+  {
+    allocator.deallocate_typed(extension_properties, num_available_extensions);
+    allocator.deallocate_typed(layer_properties, num_available_layers);
+    return Err{(Status) result};
+  }
+
+  logger.trace("Available Vulkan Extensions:");
+
+  for (VkExtensionProperties const &properties :
+       Span{extension_properties, num_read_extensions})
+  {
+    logger.trace("{}\t\t(spec version {}.{}.{} variant {})",
+                 properties.extensionName,
+                 VK_API_VERSION_MAJOR(properties.specVersion),
+                 VK_API_VERSION_MINOR(properties.specVersion),
+                 VK_API_VERSION_PATCH(properties.specVersion),
+                 VK_API_VERSION_VARIANT(properties.specVersion));
+  }
+
+  logger.trace("Available Vulkan Validation Layers:");
+
+  for (VkLayerProperties const &properties :
+       Span{layer_properties, num_read_layers})
+  {
+    logger.trace(
+        "{}\t\t(spec version {}.{}.{} variant {}, implementation version: {})",
+        properties.layerName, VK_API_VERSION_MAJOR(properties.specVersion),
+        VK_API_VERSION_MINOR(properties.specVersion),
+        VK_API_VERSION_PATCH(properties.specVersion),
+        VK_API_VERSION_VARIANT(properties.specVersion),
+        properties.implementationVersion);
+  }
+
+  char const *load_extensions[4];
+  u32         num_load_extensions = 0;
+
+  CHECK("Required Vulkan Extension: " VK_KHR_SURFACE_EXTENSION_NAME
+        " is not supported",
+        !alg::find(
+             Span<VkExtensionProperties const>{extension_properties,
+                                               num_read_extensions},
+             VK_KHR_SURFACE_EXTENSION_NAME,
+             [](VkExtensionProperties const &property, char const *find_name) {
+               return strcmp(property.extensionName, find_name) == 0;
+             })
+             .is_empty());
+
+  load_extensions[num_load_extensions] = VK_KHR_SURFACE_EXTENSION_NAME;
+  num_load_extensions++;
+
+  if (enable_validation_layer)
+  {
+    CHECK("Required Vulkan Validation Layer: ",
+          VK_EXT_DEBUG_UTILS_EXTENSION_NAME " is not supported",
+          !alg::find(Span<VkExtensionProperties const>{extension_properties,
+                                                       num_read_extensions},
+                     VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+                     [](VkExtensionProperties const &property,
+                        char const                  *find_name) {
+                       return strcmp(property.extensionName, find_name) == 0;
+                     })
+               .is_empty());
+    load_extensions[num_load_extensions] = VK_KHR_SURFACE_EXTENSION_NAME;
+    num_load_extensions++;
+  }
+
+  char const *load_layers[4];
+  u32         num_load_layers = 0;
+
+  if (enable_validation_layer)
+  {
+    CHECK("Required Vulkan Validation Layer: VK_LAYER_KHRONOS_validation is "
+          "not supported",
+          !alg::find(
+               Span<VkLayerProperties const>{layer_properties, num_read_layers},
+               "VK_LAYER_KHRONOS_validation",
+               [](VkLayerProperties const &property, char const *find_name) {
+                 return strcmp(property.layerName, find_name) == 0;
+               })
+               .is_empty());
+    load_layers[num_load_layers] = "VK_LAYER_KHRONOS_validation";
+    num_load_layers++;
+  }
+
+  allocator.deallocate_typed(extension_properties, num_available_extensions);
+  allocator.deallocate_typed(layer_properties, num_available_layers);
+
+  Instance *instance = allocator.allocate_typed<Instance>(1);
+
+  if (instance == nullptr)
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  new (instance) Instance{.refcount                 = 1,
+                          .allocator                = allocator,
+                          .logger                   = logger,
+                          .vk_table                 = {},
+                          .vk_instance              = nullptr,
+                          .vk_debug_messenger       = nullptr,
+                          .validation_layer_enabled = enable_validation_layer};
+
+  VkApplicationInfo app_info{.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+                             .pNext = nullptr,
+                             .pApplicationName = "Ash Client",
+                             .applicationVersion =
+                                 VK_MAKE_API_VERSION(0, 1, 0, 0),
+                             .pEngineName   = ENGINE_NAME,
+                             .engineVersion = ENGINE_VERSION,
+                             .apiVersion    = VK_MAKE_API_VERSION(0, 1, 3, 0)};
+
+  VkDebugUtilsMessengerCreateInfoEXT debug_create_info{
+      .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+      .pNext = nullptr,
+      .flags = 0,
+      .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+      .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                     VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                     VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+      .pfnUserCallback = debug_callback,
+      .pUserData       = instance};
+
+  // .pNext helps to debug issues with vkDestroyInstance and vkCreateInstance
+  // i.e. (before and after the debug messenger is installed)
+  VkInstanceCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+      .pNext = enable_validation_layer ? &debug_create_info : nullptr,
+      .flags = 0,
+      .pApplicationInfo        = &app_info,
+      .enabledLayerCount       = num_load_layers,
+      .ppEnabledLayerNames     = load_layers,
+      .enabledExtensionCount   = num_load_extensions,
+      .ppEnabledExtensionNames = load_extensions};
+
+  VkInstance vk_instance;
+
+  result = vkCreateInstance(&create_info, nullptr, &vk_instance);
+  if (result != VK_SUCCESS)
+  {
+    allocator.deallocate_typed(instance, 1);
+    return Err{(Status) result};
+  }
+
+  VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
+
+  if (enable_validation_layer)
+  {
+    result = vkCreateDebugUtilsMessengerEXT(vk_instance, &debug_create_info,
+                                            nullptr, &vk_debug_messenger);
+    if (result != VK_SUCCESS)
+    {
+      vkDestroyInstance(vk_instance, nullptr);
+      // destroy our instance memory after to allow debug reporter report
+      // messages
+      allocator.deallocate_typed(instance, 1);
+      return Err{(Status) result};
+    }
+  }
+
+  InstanceTable vk_table;
+
+  CHECK("Unable to load all required vulkan procedure address",
+        load_instance_table(vk_instance, vkGetInstanceProcAddr, &vk_table));
+
+  instance->vk_table           = vk_table;
+  instance->vk_instance        = vk_instance;
+  instance->vk_debug_messenger = vk_debug_messenger;
+
+  return Ok{gfx::InstanceImpl{.self      = (gfx::Instance) instance,
+                              .interface = &instance_interface}};
+}
+
+void InstanceInterface::ref(gfx::Instance instance)
+{
+}
+
+void InstanceInterface::unref(gfx::Instance instance)
+{
+}
+
+Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
+    gfx::Instance instance, Span<gfx::DeviceType const> preferred_types,
+    Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator)
+{
+  constexpr char const *REQUIRED_DEVICE_EXTENSIONS[] = {
+      VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+  constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
+      VK_EXT_DEBUG_MARKER_EXTENSION_NAME};
+}
+
+void InstanceInterface::ref_device(gfx::Instance instance, gfx::Device device)
+{
+}
+
+void InstanceInterface::unref_device(gfx::Instance instance, gfx::Device device)
+{
+}
+
 Result<gfx::FormatProperties, Status>
     DeviceInterface::get_format_properties(gfx::Device self_,
                                            gfx::Format format)
 {
   Device *const      self = (Device *) self_;
   VkFormatProperties props;
-  self->vk_instance_table.GetPhysicalDeviceFormatProperties(
+  self->instance->vk_table.GetPhysicalDeviceFormatProperties(
       self->vk_phy_device, (VkFormat) format, &props);
   return Ok(gfx::FormatProperties{
       .linear_tiling_features =
@@ -2780,6 +3120,8 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 {
   Device *const self = (Device *) self_;
 
+  VALIDATE("", max_frames_in_flight > 0);
+
   gfx::CommandEncoderImpl *command_encoders =
       self->allocator.allocate_typed<gfx::CommandEncoderImpl>(
           max_frames_in_flight);
@@ -2987,7 +3329,7 @@ inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
 
   VkSurfaceCapabilitiesKHR surface_capabilities;
   VkResult                 result =
-      device->vk_instance_table.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+      device->instance->vk_table.GetPhysicalDeviceSurfaceCapabilitiesKHR(
           device->vk_phy_device, swapchain->vk_surface, &surface_capabilities);
 
   if (result != VK_SUCCESS)
@@ -3639,6 +3981,8 @@ Result<Void, Status>
 {
   Device *const self     = (Device *) self_;
   u32 const     num_srcs = (u32) srcs.size;
+
+  VALIDATE("", num_srcs > 0);
 
   VkPipelineCache *vk_caches =
       self->allocator.allocate_typed<VkPipelineCache>(num_srcs);

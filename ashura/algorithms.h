@@ -338,7 +338,7 @@ constexpr Span<T> find(Span<T> span, U const &value, Cmp cmp = {})
       break;
     }
   }
-  return span.slice(offset, 1);
+  return span[Slice{offset, 1}];
 }
 
 template <typename T, typename Predicate>
@@ -352,7 +352,7 @@ constexpr Span<T> find_if(Span<T> span, Predicate predicate)
       break;
     }
   }
-  return span.slice(offset, 1);
+  return span[Slice{offset, 1}];
 }
 
 template <typename T, typename Predicate>
@@ -512,7 +512,6 @@ constexpr void split(Span<T> span, Span<U const> delimeter, Op op, Cmp cmp = {})
 template <typename T, typename U, typename Cmp = op::Equal>
 constexpr Span<T> strip(Span<T> src, Span<U const> other, Cmp cmp = {})
 {
-  
 }
 // title() span, no string_view types
 

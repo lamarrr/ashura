@@ -8,17 +8,31 @@
 #define ASH_TRACE_BEGIN()
 #define ASH_TRACE_END()
 
+#define DEFINE_TRACE
+#define TRACE_PARAM
+
+#include "ashura/time.h"
+#include "ashura/types.h"
+#include "stx/source_location.h"
+
+namespace ash
+{
 typedef struct Tracer_T       *Tracer;
 typedef struct TracerInterface TracerInterface;
 typedef struct TracerImpl      TracerImpl;
-
-#define DEFINE_TRACE
-#define TRACE_PARAM
 
 // log to console, log to json file, log to whatever
 // use for regression testing
 struct TracerInterface
 {
-  void (*begin_event)(char const *event);
-  void (*end_event)(char const *event);
+  void (*begin_event)(Tracer self, char const *event) = nullptr;
+  void (*end_event)(Tracer self, char const *event)   = nullptr;
 };
+
+struct TracerImpl
+{
+  Tracer                 self      = nullptr;
+  TracerInterface const *interface = nullptr;
+};
+
+}        // namespace ash

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "ashura/allocator.h"
+#include "ashura/log.h"
 #include "ashura/primitives.h"
 #include "ashura/types.h"
 #include "stx/enum.h"
@@ -1307,12 +1308,12 @@ struct DescriptorHeapInterface
   void (*input_attachment)(DescriptorHeap self, u32 group, u32 set, u32 binding,
                            Span<InputAttachmentBinding const> elements) =
       nullptr;
-  void (*mark_in_use)(DescriptorHeap self, u32 group,
-                      FrameId current_frame)            = nullptr;
-  bool (*is_in_use)(DescriptorHeap self, u32 group,
-                    FrameId trailing_frame)             = nullptr;
-  void (*release)(DescriptorHeap self, u32 group)       = nullptr;
-  DescriptorHeapStats (*get_stats)(DescriptorHeap self) = nullptr;
+  void                (*mark_in_use)(DescriptorHeap self, u32 group,
+                      FrameId current_frame)      = nullptr;
+  bool                (*is_in_use)(DescriptorHeap self, u32 group,
+                    FrameId trailing_frame)       = nullptr;
+  void                (*release)(DescriptorHeap self, u32 group) = nullptr;
+  DescriptorHeapStats (*get_stats)(DescriptorHeap self)          = nullptr;
 };
 
 struct DescriptorHeapImpl
@@ -1324,9 +1325,9 @@ struct DescriptorHeapImpl
 /// to execute tasks at end of frame. use the trailing frame index.
 struct CommandEncoderInterface
 {
-  void (*begin)(CommandEncoder self)                                  = nullptr;
+  void                 (*begin)(CommandEncoder self)                  = nullptr;
   Result<Void, Status> (*end)(CommandEncoder self)                    = nullptr;
-  void (*reset)(CommandEncoder self)                                  = nullptr;
+  void                 (*reset)(CommandEncoder self)                  = nullptr;
   void (*begin_debug_marker)(CommandEncoder self, char const *region_name,
                              Vec4 color)                              = nullptr;
   void (*end_debug_marker)(CommandEncoder self)                       = nullptr;
@@ -1402,19 +1403,19 @@ struct DeviceInterface
   Result<DeviceProperties, Status> (*get_device_properties)(Device self) =
       nullptr;
   Result<FormatProperties, Status> (*get_format_properties)(
-      Device self, Format format)                                 = nullptr;
-  Result<Buffer, Status> (*create_buffer)(Device            self,
+      Device self, Format format)                                     = nullptr;
+  Result<Buffer, Status>     (*create_buffer)(Device            self,
                                           BufferDesc const &desc) = nullptr;
   Result<BufferView, Status> (*create_buffer_view)(
-      Device self, BufferViewDesc const &desc)                 = nullptr;
-  Result<Image, Status> (*create_image)(Device           self,
+      Device self, BufferViewDesc const &desc)                     = nullptr;
+  Result<Image, Status>     (*create_image)(Device           self,
                                         ImageDesc const &desc) = nullptr;
   Result<ImageView, Status> (*create_image_view)(
-      Device self, ImageViewDesc const &desc)                        = nullptr;
-  Result<Sampler, Status> (*create_sampler)(Device             self,
+      Device self, ImageViewDesc const &desc) = nullptr;
+  Result<Sampler, Status>    (*create_sampler)(Device             self,
                                             SamplerDesc const &desc) = nullptr;
-  Result<Shader, Status> (*create_shader)(Device            self,
-                                          ShaderDesc const &desc)    = nullptr;
+  Result<Shader, Status>     (*create_shader)(Device            self,
+                                          ShaderDesc const &desc) = nullptr;
   Result<RenderPass, Status> (*create_render_pass)(
       Device self, RenderPassDesc const &desc) = nullptr;
   Result<Framebuffer, Status> (*create_framebuffer)(
@@ -1480,33 +1481,33 @@ struct DeviceInterface
                               FrameContext frame_context)             = nullptr;
   Result<void *, Status> (*get_buffer_memory_map)(Device self,
                                                   Buffer buffer)      = nullptr;
-  Result<Void, Status> (*invalidate_buffer_memory_map)(
-      Device self, Buffer buffer, MemoryRange range)                 = nullptr;
-  Result<Void, Status> (*flush_buffer_memory_map)(Device self, Buffer buffer,
+  Result<Void, Status>   (*invalidate_buffer_memory_map)(
+      Device self, Buffer buffer, MemoryRange range)                = nullptr;
+  Result<Void, Status>  (*flush_buffer_memory_map)(Device self, Buffer buffer,
                                                   MemoryRange range) = nullptr;
   Result<usize, Status> (*get_pipeline_cache_size)(
       Device self, PipelineCache cache)                          = nullptr;
   Result<usize, Status> (*get_pipeline_cache_data)(Device        self,
                                                    PipelineCache cache,
                                                    Span<u8>      out) = nullptr;
-  Result<Void, Status> (*merge_pipeline_cache)(
+  Result<Void, Status>  (*merge_pipeline_cache)(
       Device self, PipelineCache dst, Span<PipelineCache const> srcs) = nullptr;
   Result<Void, Status> (*wait_for_fences)(Device self, Span<Fence const> fences,
-                                          bool all, u64 timeout)      = nullptr;
+                                          bool all, u64 timeout)     = nullptr;
   Result<Void, Status> (*reset_fences)(Device            self,
-                                       Span<Fence const> fences)      = nullptr;
-  Result<bool, Status> (*get_fence_status)(Device self, Fence fence)  = nullptr;
+                                       Span<Fence const> fences)     = nullptr;
+  Result<bool, Status> (*get_fence_status)(Device self, Fence fence) = nullptr;
   Result<Void, Status> (*submit)(Device self, CommandEncoder encoder,
-                                 Fence signal_fence)                  = nullptr;
-  Result<Void, Status> (*wait_idle)(Device self)                      = nullptr;
-  Result<Void, Status> (*wait_queue_idle)(Device self)                = nullptr;
+                                 Fence signal_fence)                 = nullptr;
+  Result<Void, Status> (*wait_idle)(Device self)                     = nullptr;
+  Result<Void, Status> (*wait_queue_idle)(Device self)               = nullptr;
   Result<FrameInfo, Status> (*get_frame_info)(
       Device self, FrameContext frame_context) = nullptr;
   Result<u32, Status> (*get_surface_formats)(
       Device self, Surface surface, Span<SurfaceFormat> formats) = nullptr;
   Result<u32, Status> (*get_surface_present_modes)(
-      Device self, Surface surface, Span<PresentMode> modes)       = nullptr;
-  Result<ImageUsage, Status> (*get_surface_usage)(Device  self,
+      Device self, Surface surface, Span<PresentMode> modes)          = nullptr;
+  Result<ImageUsage, Status>    (*get_surface_usage)(Device  self,
                                                   Surface surface) = nullptr;
   Result<SwapchainInfo, Status> (*get_swapchain_info)(
       Device self, Swapchain swapchain) = nullptr;
@@ -1713,10 +1714,11 @@ struct DeviceImpl
 //
 struct InstanceInterface
 {
-  Result<Instance, Status> (*create)(AllocatorImpl allocator,
-                                     bool enable_validation_layer) = nullptr;
-  void (*ref)(Instance instance)                                   = nullptr;
-  void (*unref)(Instance instance)                                 = nullptr;
+  Result<InstanceImpl, Status> (*create)(
+      AllocatorImpl allocator, LoggerImpl logger,
+      bool enable_validation_layer)                      = nullptr;
+  void                       (*ref)(Instance instance)   = nullptr;
+  void                       (*unref)(Instance instance) = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance instance, Span<DeviceType const> preferred_types,
       Span<Surface const> compatible_surfaces,
@@ -1727,7 +1729,7 @@ struct InstanceInterface
 
 struct InstanceImpl
 {
-  Instance                 instance  = nullptr;
+  Instance                 self      = nullptr;
   InstanceInterface const *interface = nullptr;
 };
 

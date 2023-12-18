@@ -22,12 +22,11 @@ FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG master)
+  GIT_TAG 5e43c79)
 
-  FetchContent_Declare(
-    VulkanUtilityHeaders 
-    GIT_REPOSITORY
-  https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
+FetchContent_Declare(
+  VulkanUtilityHeaders
+  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
   GIT_TAG vulkan-sdk-1.3.268.0)
 
 set(SheenBidi_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/SheenBidi)
@@ -50,6 +49,7 @@ find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
+find_library(LIB_VULKAN vulkan NAMES vulkan-1 vk-static.1 REQUIRED)
 
 FetchContent_MakeAvailable(stx)
 FetchContent_MakeAvailable(VulkanHeaders)
@@ -99,8 +99,14 @@ target_include_directories(
   ashura PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
                 ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
 
-target_link_libraries(ashura_gfx stx::stx Vulkan::Headers Vulkan::UtilityHeaders
-                      GPUOpen::VulkanMemoryAllocator ashura_allocator)
+target_link_libraries(
+  ashura_gfx
+  stx::stx
+  Vulkan::Headers
+  Vulkan::UtilityHeaders
+  ${LIB_VULKAN}
+  GPUOpen::VulkanMemoryAllocator
+  ashura_allocator)
 target_link_libraries(
   ashura
   ashura_gfx

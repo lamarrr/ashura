@@ -1,32 +1,53 @@
 
 #pragma once
 
-#include <memory>
+#include "ashura/time.h"
+#include "ashura/types.h"
 
-#include "spdlog/logger.h"
-#include "spdlog/sinks/basic_file_sink.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
+namespace ash
+{
 
-#define ASH_DECLARE_LOGGER(identifier) \
-  ::spdlog::logger *get_logger_##identifier()
+typedef struct Logger_T       *Logger;
+typedef struct LoggerInterface LoggerInterface;
+typedef struct LoggerImpl      LoggerImpl;
 
-#define ASH_GET_LOGGER(identifier) get_logger_##identifier()
+enum class LogLevel : u8
+{
+  Debug   = 0,
+  Trace   = 1,
+  Info    = 2,
+  Warning = 3,
+  Error   = 4,
+  Fatal   = 5
+};
 
-// TODO(lamarrr): use log path specified in config?
-#define ASH_DEFINE_LOGGER(identifier)                                       \
-  ::spdlog::logger *get_logger_##identifier()                               \
-  {                                                                         \
-    static ::spdlog::sink_ptr __sinks[] = {                                 \
-        ::std::make_shared<::spdlog::sinks::basic_file_sink_mt>("log.txt"), \
-        ::std::make_shared<::spdlog::sinks::stdout_color_sink_mt>()};       \
-                                                                            \
-    static ::spdlog::logger __logger{                                       \
-        #identifier, __sinks,                                               \
-        __sinks + sizeof(__sinks) / sizeof(::spdlog::sink_ptr)};            \
-    return &__logger;                                                       \
-  }
+struct LoggerInterface
+{
+  void (*log)(Logger self, LogLevel level) = nullptr;
+  void (*ref)(Logger self)                                      = nullptr;
+  void (*unref)(Logger self)                                    = nullptr;
+};
 
-#define ASH_LOG_TRACE(logger, ...) ASH_GET_LOGGER(logger)->trace(__VA_ARGS__)
-#define ASH_LOG_INFO(logger, ...) ASH_GET_LOGGER(logger)->info(__VA_ARGS__)
-#define ASH_LOG_ERR(logger, ...) ASH_GET_LOGGER(logger)->error(__VA_ARGS__)
-#define ASH_LOG_WARN(logger, ...) ASH_GET_LOGGER(logger)->warn(__VA_ARGS__)
+// log destination -> file, network, disk. chaining of multiple log destinations
+// to be flushed into trace format style, utc, time encoding, etc.
+struct LoggerImpl
+{
+  Logger                 self      = nullptr;
+  LoggerInterface const *interface = nullptr;
+
+  static LoggerImpl create_logger(char const *name);
+  template <typename... Args>
+  void debug(char const *fmt, Args const &...args);
+  template <typename... Args>
+  void trace(char const *fmt, Args const &...args);
+  template <typename... Args>
+  void info(char const *fmt, Args const &...args);
+  template <typename... Args>
+  void warn(char const *fmt, Args const &...args);
+  template <typename... Args>
+  void error(char const *fmt, Args const &...args);
+  template <typename... Args>
+  void fatal(char const *fmt, Args const &...args);
+};
+
+}        // namespace ash

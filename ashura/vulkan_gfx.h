@@ -1,7 +1,6 @@
 #pragma once
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
-#define VK_NO_PROTOTYPES
 
 #include "ashura/allocator.h"
 #include "ashura/gfx.h"
@@ -16,12 +15,8 @@ namespace vk
 
 using gfx::Status;
 
-constexpr char const *REQUIRED_INSTANCE_EXTENSIONS[] = {
-    VK_KHR_SURFACE_EXTENSION_NAME};
-constexpr char const *REQUIRED_DEVICE_EXTENSIONS[] = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
-    VK_EXT_DEBUG_MARKER_EXTENSION_NAME};
+constexpr char const *ENGINE_NAME    = "ASH";
+constexpr u32         ENGINE_VERSION = VK_MAKE_API_VERSION(1, 0, 0, 1);
 
 typedef struct InstanceTable           InstanceTable;
 typedef struct DeviceTable             DeviceTable;
@@ -49,15 +44,11 @@ typedef struct DeviceInterface         DeviceInterface;
 
 struct InstanceTable
 {
-  PFN_vkCreateDebugReportCallbackEXT  CreateDebugReportCallbackEXT  = nullptr;
-  PFN_vkCreateDebugUtilsMessengerEXT  CreateDebugUtilsMessengerEXT  = nullptr;
-  PFN_vkCreateInstance                CreateInstance                = nullptr;
-  PFN_vkDestroyDebugReportCallbackEXT DestroyDebugReportCallbackEXT = nullptr;
-  PFN_vkDestroyDebugUtilsMessengerEXT DestroyDebugUtilsMessengerEXT = nullptr;
-  PFN_vkDestroyInstance               DestroyInstance               = nullptr;
-  PFN_vkDestroySurfaceKHR             DestroySurfaceKHR             = nullptr;
-  PFN_vkEnumeratePhysicalDevices      EnumeratePhysicalDevices      = nullptr;
-  PFN_vkGetInstanceProcAddr           GetInstanceProcAddr           = nullptr;
+  PFN_vkCreateInstance           CreateInstance           = nullptr;
+  PFN_vkDestroyInstance          DestroyInstance          = nullptr;
+  PFN_vkDestroySurfaceKHR        DestroySurfaceKHR        = nullptr;
+  PFN_vkEnumeratePhysicalDevices EnumeratePhysicalDevices = nullptr;
+  PFN_vkGetInstanceProcAddr      GetInstanceProcAddr      = nullptr;
 
   PFN_vkCreateDevice                       CreateDevice = nullptr;
   PFN_vkEnumerateDeviceExtensionProperties EnumerateDeviceExtensionProperties =
@@ -366,14 +357,24 @@ struct Fence
   VkFence vk_fence = nullptr;
 };
 
+struct Instance
+{
+  u64                      refcount    = 0;
+  AllocatorImpl            allocator   = {};
+  LoggerImpl               logger      = {};
+  InstanceTable            vk_table    = {};
+  VkInstance               vk_instance = nullptr;
+  VkDebugUtilsMessengerEXT vk_debug_messenger;
+  bool                     validation_layer_enabled = false;
+};
+
 struct Device
 {
   u64                        refcount                 = 0;
   AllocatorImpl              allocator                = {};
-  InstanceTable              vk_instance_table        = {};
+  Instance                  *instance                 = nullptr;
   DeviceTable                vk_table                 = {};
   VmaVulkanFunctions         vma_table                = {};
-  VkInstance                 vk_instance              = nullptr;
   VkPhysicalDevice           vk_phy_device            = nullptr;
   VkPhysicalDeviceProperties vk_phy_device_properties = {};
   VkDevice                   vk_device                = nullptr;
@@ -476,6 +477,20 @@ struct Swapchain
   u32                current_image                          = 0;
   VkSwapchainKHR     vk_swapchain                           = nullptr;
   VkSurfaceKHR       vk_surface                             = nullptr;
+};
+
+struct InstanceInterface
+{
+  static Result<gfx::InstanceImpl, Status> create(AllocatorImpl allocator,
+                                                  LoggerImpl    logger,
+                                                  bool enable_validation_layer);
+  static void                              ref(gfx::Instance instance);
+  static void                              unref(gfx::Instance instance);
+  static Result<gfx::DeviceImpl, Status>   create_device(
+        gfx::Instance instance, Span<gfx::DeviceType const> preferred_types,
+        Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator);
+  static void ref_device(gfx::Instance instance, gfx::Device device);
+  static void unref_device(gfx::Instance instance, gfx::Device device);
 };
 
 struct DeviceInterface

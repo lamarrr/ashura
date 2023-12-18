@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <limits>
 
@@ -12,12 +11,6 @@
 
 namespace ash
 {
-
-using Clock        = std::chrono::steady_clock;        // monotonic system clock
-using timepoint    = Clock::time_point;
-using nanoseconds  = std::chrono::nanoseconds;
-using milliseconds = std::chrono::milliseconds;
-using seconds      = std::chrono::seconds;
 
 constexpr f32 epsilon_clamp(f32 x)
 {
