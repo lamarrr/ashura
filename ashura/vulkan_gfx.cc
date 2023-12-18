@@ -1406,6 +1406,9 @@ Result<gfx::Image, Status>
   VALIDATE("", desc.mip_levels > 0);
   VALIDATE("", desc.mip_levels <= math::num_mip_levels(desc.extent));
   VALIDATE("", desc.array_layers > 0);
+  VALIDATE("", !(desc.type == gfx::ImageType::Type2D && desc.extent.z != 1));
+  VALIDATE("",
+           !(desc.type == gfx::ImageType::Type3D && desc.array_layers != 1));
 
   Device *const     self = (Device *) self_;
   VkImageCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
