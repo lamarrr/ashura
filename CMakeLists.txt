@@ -6,17 +6,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
+set(VMA_DYNAMIC_VULKAN_FUNCTIONS ON)
+
 include(FetchContent)
 
 FetchContent_Declare(
   stx
   GIT_REPOSITORY https://github.com/lamarrr/STX.git
   GIT_TAG main)
-
-FetchContent_Declare(
-  VulkanHeaders
-  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-  GIT_TAG v1.3.269)
 
 FetchContent_Declare(
   VulkanMemoryAllocator
@@ -49,10 +46,9 @@ find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
-find_library(LIB_VULKAN vulkan NAMES vulkan-1 vk-static.1 REQUIRED)
+find_package(Vulkan REQUIRED)
 
 FetchContent_MakeAvailable(stx)
-FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(VulkanUtilityHeaders)
 
@@ -104,7 +100,7 @@ target_link_libraries(
   stx::stx
   Vulkan::Headers
   Vulkan::UtilityHeaders
-  ${LIB_VULKAN}
+  Vulkan::Vulkan
   GPUOpen::VulkanMemoryAllocator
   ashura_allocator)
 target_link_libraries(

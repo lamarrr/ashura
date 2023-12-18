@@ -1435,8 +1435,8 @@ Result<gfx::InstanceImpl, Status>
 
   if (enable_validation_layer)
   {
-    CHECK("Required Vulkan Validation Layer: ",
-          VK_EXT_DEBUG_UTILS_EXTENSION_NAME " is not supported",
+    CHECK("Required Vulkan Validation Layer: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+          " is not supported",
           !alg::find(Span<VkExtensionProperties const>{extension_properties,
                                                        num_read_extensions},
                      VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
@@ -1538,8 +1538,8 @@ Result<gfx::InstanceImpl, Status>
     if (result != VK_SUCCESS)
     {
       vkDestroyInstance(vk_instance, nullptr);
-      // destroy our instance memory after to allow debug reporter report
-      // messages
+      // destroy our instance object after to allow debug reporter report
+      // messages through it
       allocator.deallocate_typed(instance, 1);
       return Err{(Status) result};
     }
@@ -1567,13 +1567,55 @@ void InstanceInterface::unref(gfx::Instance instance)
 }
 
 Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
-    gfx::Instance instance, Span<gfx::DeviceType const> preferred_types,
+    gfx::Instance self_, Span<gfx::DeviceType const> preferred_types,
     Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator)
 {
   constexpr char const *REQUIRED_DEVICE_EXTENSIONS[] = {
       VK_KHR_SWAPCHAIN_EXTENSION_NAME};
   constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
       VK_EXT_DEBUG_MARKER_EXTENSION_NAME};
+
+  Instance *const self = (Instance *) self_;
+
+  u32      num_available_devices;
+  VkResult result = self->vk_table.EnumeratePhysicalDevices(
+      self->vk_instance, &num_available_devices, nullptr);
+
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
+  VkPhysicalDevice *phy_devices =
+      self->allocator.allocate_typed<VkPhysicalDevice>(num_available_devices);
+
+  if (phy_devices == nullptr)
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  u32 num_read_devices = num_available_devices;
+  result               = self->vk_table.EnumeratePhysicalDevices(
+      self->vk_instance, &num_available_devices, phy_devices);
+
+  if (result != VK_SUCCESS)
+  {
+    self->allocator.deallocate_typed(phy_devices, num_available_devices);
+    return Err{(Status) result};
+  }
+
+  VkPhysicalDeviceFeatures         features;
+  VkQueueFamilyProperties         *queue_family_properties;
+  VkPhysicalDeviceProperties       properties;
+  VkPhysicalDeviceMemoryProperties memory_properties;
+
+  for (u32 i = 0; i < num_read_devices; i++)
+  {
+    self->vk_table.GetPhysicalDeviceQueueFamilyProperties;
+    self->vk_table.GetPhysicalDeviceFeatures;
+    self->vk_table.GetPhysicalDeviceMemoryProperties;
+    self->vk_table.GetPhysicalDeviceProperties;
+  }
 }
 
 void InstanceInterface::ref_device(gfx::Instance instance, gfx::Device device)

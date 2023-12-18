@@ -484,13 +484,13 @@ struct InstanceInterface
   static Result<gfx::InstanceImpl, Status> create(AllocatorImpl allocator,
                                                   LoggerImpl    logger,
                                                   bool enable_validation_layer);
-  static void                              ref(gfx::Instance instance);
-  static void                              unref(gfx::Instance instance);
+  static void                              ref(gfx::Instance self);
+  static void                              unref(gfx::Instance self);
   static Result<gfx::DeviceImpl, Status>   create_device(
-        gfx::Instance instance, Span<gfx::DeviceType const> preferred_types,
+        gfx::Instance self, Span<gfx::DeviceType const> preferred_types,
         Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator);
-  static void ref_device(gfx::Instance instance, gfx::Device device);
-  static void unref_device(gfx::Instance instance, gfx::Device device);
+  static void ref_device(gfx::Instance self, gfx::Device device);
+  static void unref_device(gfx::Instance self, gfx::Device device);
 };
 
 struct DeviceInterface
