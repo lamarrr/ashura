@@ -1566,25 +1566,6 @@ void InstanceInterface::unref(gfx::Instance instance)
 {
 }
 
-inline u32 select_command_queue(VkQueueFamilyProperties const *properties,
-                                u32                            num_queues)
-{
-  u32 selected_queue = VK_QUEUE_FAMILY_IGNORED;
-
-  for (u32 i = 0; i < num_queues; i++)
-  {
-    if (has_bits(properties[i].queueFlags,
-                 (VkQueueFlags) (VK_QUEUE_COMPUTE_BIT | VK_QUEUE_GRAPHICS_BIT |
-                                 VK_QUEUE_TRANSFER_BIT)))
-    {
-      selected_queue = i;
-      break;
-    }
-  }
-
-  return selected_queue;
-}
-
 inline bool device_supports_surface(Instance        *instance,
                                     VkPhysicalDevice physical_device,
                                     u32              queue_family_index,
@@ -1696,24 +1677,36 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     }
   }
 
+  self->logger.trace("Available Devices:");
   for (u32 i = 0; i < num_devices; i++)
   {
-    VkPhysicalDeviceProperties const &properties =
-        physical_devices[i].properties;
+    PhysicalDevice const             &device     = physical_devices[i];
+    VkPhysicalDeviceProperties const &properties = device.properties;
     self->logger.trace(
-        "[DEVICE: {}]{} {} Vulkan API version {}.{}.{} variant {}, driver "
-        "version: {}, "
-        "vendor id: {}, device id: {}",
+        "[DEVICE: {}]{} {} Vulkan API version {}.{}.{} Variant {}, Driver "
+        "Version: {}, "
+        "Vendor ID: {}, Device ID: {}",
         i, string_VkPhysicalDeviceType(properties.deviceType),
         properties.deviceName, VK_API_VERSION_MAJOR(properties.apiVersion),
         VK_API_VERSION_MINOR(properties.apiVersion),
         VK_API_VERSION_PATCH(properties.apiVersion),
         VK_API_VERSION_VARIANT(properties.apiVersion), properties.driverVersion,
         properties.vendorID, properties.deviceID);
+    for (u32 iqueue_family = 0; iqueue_family < device.num_queue_families;
+         iqueue_family++)
+    {
+      self->logger.trace(
+          "\t\tQueue Family: {}, Count: {}, Flags: {}", iqueue_family,
+          device.queue_family_properties[iqueue_family].queueCount,
+          string_VkQueueFlags(
+              device.queue_family_properties[iqueue_family].queueFlags));
+    }
   }
 
-  u32 preferred_device             = num_devices;
-  u32 selected_device_queue_family = VK_QUEUE_FAMILY_IGNORED;
+  u32           preferred_device             = num_devices;
+  u32           selected_device_queue_family = VK_QUEUE_FAMILY_IGNORED;
+  VkSurfaceKHR *surfaces;
+  u32           num_surfaces = 0;
 
   for (usize i = 0; i < (u32) preferred_types.size; i++)
   {
@@ -1723,19 +1716,20 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
       if (((VkPhysicalDeviceType) preferred_types[i]) ==
           device.properties.deviceType)
       {
-        if (device.features.geometryShader != VK_FALSE)
+        for (u32 iqueue_family = 0; iqueue_family < device.num_queue_families;
+             iqueue_family++)
         {
-          for (u32 iqueue_family = 0; iqueue_family < device.num_queue_families;
-               iqueue_family++)
+          if (has_bits(device.queue_family_properties[iqueue_family].queueFlags,
+                       (VkQueueFlags) (VK_QUEUE_COMPUTE_BIT |
+                                       VK_QUEUE_GRAPHICS_BIT |
+                                       VK_QUEUE_TRANSFER_BIT)))
           {
-            if (has_bits(
-                    device.queue_family_properties[iqueue_family].queueFlags,
-                    (VkQueueFlags) (VK_QUEUE_GRAPHICS_BIT |
-                                    VK_QUEUE_COMPUTE_BIT |
-                                    VK_QUEUE_TRANSFER_BIT)))
+            for (u32 isurface = 0; isurface < num_surfaces; isurface++)
             {
-              preferred_device             = idevice;
-              selected_device_queue_family = iqueue_family;
+              VkBool32 supported;
+              self->vk_table.GetPhysicalDeviceSurfaceSupportKHR(
+                  device.vk_physical_device, iqueue_family, surfaces[isurface],
+                  &supported);
             }
           }
         }
@@ -1748,7 +1742,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     // return device not found error
   }
 
-  logger.trace("Selected device {}", preferred_device);
+  self->logger.trace("Selected device {}", preferred_device);
 
   constexpr char const *REQUIRED_DEVICE_EXTENSIONS[] = {
       VK_KHR_SWAPCHAIN_EXTENSION_NAME};
