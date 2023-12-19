@@ -1577,44 +1577,114 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   Instance *const self = (Instance *) self_;
 
-  u32      num_available_devices;
+  u32      num_devices;
   VkResult result = self->vk_table.EnumeratePhysicalDevices(
-      self->vk_instance, &num_available_devices, nullptr);
+      self->vk_instance, &num_devices, nullptr);
+
+  if (num_devices == 0)
+  {
+    return Err{Status::DeviceLost};
+  }
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  VkPhysicalDevice *phy_devices =
-      self->allocator.allocate_typed<VkPhysicalDevice>(num_available_devices);
+  VkPhysicalDevice *vk_physical_devices =
+      self->allocator.allocate_typed<VkPhysicalDevice>(num_devices);
 
-  if (phy_devices == nullptr)
+  if (vk_physical_devices == nullptr)
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  u32 num_read_devices = num_available_devices;
-  result               = self->vk_table.EnumeratePhysicalDevices(
-      self->vk_instance, &num_available_devices, phy_devices);
-
-  if (result != VK_SUCCESS)
   {
-    self->allocator.deallocate_typed(phy_devices, num_available_devices);
-    return Err{(Status) result};
+    u32 num_read_devices = num_devices;
+    result               = self->vk_table.EnumeratePhysicalDevices(
+        self->vk_instance, &num_read_devices, vk_physical_devices);
+
+    if (result != VK_SUCCESS)
+    {
+      self->allocator.deallocate_typed(vk_physical_devices, num_devices);
+      return Err{(Status) result};
+    }
+
+    CHECK("", num_read_devices == num_devices);
   }
 
-  VkPhysicalDeviceFeatures         features;
-  VkQueueFamilyProperties         *queue_family_properties;
-  VkPhysicalDeviceProperties       properties;
-  VkPhysicalDeviceMemoryProperties memory_properties;
+  PhysicalDevice *physical_devices =
+      self->allocator.allocate_typed<PhysicalDevice>(num_devices);
 
-  for (u32 i = 0; i < num_read_devices; i++)
+  if (physical_devices == nullptr)
   {
-    self->vk_table.GetPhysicalDeviceQueueFamilyProperties;
-    self->vk_table.GetPhysicalDeviceFeatures;
-    self->vk_table.GetPhysicalDeviceMemoryProperties;
-    self->vk_table.GetPhysicalDeviceProperties;
+    self->allocator.deallocate_typed(vk_physical_devices, num_devices);
+    return Err{Status::OutOfHostMemory};
+  }
+
+  {
+    u32 i = 0;
+    for (; i < num_devices; i++)
+    {
+      PhysicalDevice  &dev    = physical_devices[i];
+      VkPhysicalDevice vk_dev = vk_physical_devices[i];
+      dev.vk_physical_device  = vk_dev;
+      u32 num_queue_families;
+      self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
+          vk_physical_devices[i], &num_queue_families, nullptr);
+      VkQueueFamilyProperties *queue_family_properties =
+          self->allocator.allocate_typed<VkQueueFamilyProperties>(
+              num_queue_families);
+      if (num_queue_families != 0 && queue_family_properties == nullptr)
+      {
+        break;
+      }
+
+      {
+        u32 num_read_queue_families = num_queue_families;
+        self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
+            vk_physical_devices[i], &num_queue_families,
+            dev.queue_family_properties);
+        CHECK("", num_read_queue_families == num_queue_families);
+      }
+
+      dev.queue_family_properties = queue_family_properties;
+      dev.num_queue_families      = num_queue_families;
+      self->vk_table.GetPhysicalDeviceFeatures(vk_dev, &dev.features);
+      self->vk_table.GetPhysicalDeviceMemoryProperties(vk_dev,
+                                                       &dev.memory_properties);
+      self->vk_table.GetPhysicalDeviceProperties(vk_dev, &dev.properties);
+    }
+
+    self->allocator.deallocate_typed(vk_physical_devices, num_devices);
+
+    if (i != num_devices)
+    {
+      for (u32 ifree = 0; ifree < i; ifree++)
+      {
+        self->allocator.deallocate_typed(
+            physical_devices[ifree].queue_family_properties,
+            physical_devices[ifree].num_queue_families);
+      }
+      self->allocator.deallocate_typed(physical_devices, num_devices);
+      return Err{Status::OutOfHostMemory};
+    }
+  }
+
+  for (u32 i = 0; i < num_devices; i++)
+  {
+    VkPhysicalDeviceProperties const &properties =
+        physical_devices[i].properties;
+    self->logger.trace(
+        "[DEVICE: {}]{} {} Vulkan API version {}.{}.{} variant {}, driver "
+        "version: {}, "
+        "vendor id: {}, device id: {}",
+        i, string_VkPhysicalDeviceType(properties.deviceType),
+        properties.deviceName, VK_API_VERSION_MAJOR(properties.apiVersion),
+        VK_API_VERSION_MINOR(properties.apiVersion),
+        VK_API_VERSION_PATCH(properties.apiVersion),
+        VK_API_VERSION_VARIANT(properties.apiVersion), properties.driverVersion,
+        properties.vendorID, properties.deviceID);
   }
 }
 
@@ -1633,7 +1703,7 @@ Result<gfx::FormatProperties, Status>
   Device *const      self = (Device *) self_;
   VkFormatProperties props;
   self->instance->vk_table.GetPhysicalDeviceFormatProperties(
-      self->vk_phy_device, (VkFormat) format, &props);
+      self->physical_device.vk_physical_device, (VkFormat) format, &props);
   return Ok(gfx::FormatProperties{
       .linear_tiling_features =
           (gfx::FormatFeatures) props.linearTilingFeatures,
@@ -3372,7 +3442,8 @@ inline VkResult recreate_swapchain(Device const *device, Swapchain *swapchain)
   VkSurfaceCapabilitiesKHR surface_capabilities;
   VkResult                 result =
       device->instance->vk_table.GetPhysicalDeviceSurfaceCapabilitiesKHR(
-          device->vk_phy_device, swapchain->vk_surface, &surface_capabilities);
+          device->physical_device.vk_physical_device, swapchain->vk_surface,
+          &surface_capabilities);
 
   if (result != VK_SUCCESS)
   {

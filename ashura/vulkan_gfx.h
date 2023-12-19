@@ -368,19 +368,28 @@ struct Instance
   bool                     validation_layer_enabled = false;
 };
 
+struct PhysicalDevice
+{
+  VkPhysicalDevice                 vk_physical_device      = nullptr;
+  VkPhysicalDeviceFeatures         features                = {};
+  VkQueueFamilyProperties         *queue_family_properties = nullptr;
+  u32                              num_queue_families      = 0;
+  VkPhysicalDeviceProperties       properties              = {};
+  VkPhysicalDeviceMemoryProperties memory_properties       = {};
+};
+
 struct Device
 {
-  u64                        refcount                 = 0;
-  AllocatorImpl              allocator                = {};
-  Instance                  *instance                 = nullptr;
-  DeviceTable                vk_table                 = {};
-  VmaVulkanFunctions         vma_table                = {};
-  VkPhysicalDevice           vk_phy_device            = nullptr;
-  VkPhysicalDeviceProperties vk_phy_device_properties = {};
-  VkDevice                   vk_device                = nullptr;
-  u32                        queue_family             = 0;
-  VkQueue                    vk_queue                 = nullptr;
-  VmaAllocator               vma_allocator            = nullptr;
+  u64                refcount        = 0;
+  AllocatorImpl      allocator       = {};
+  Instance          *instance        = nullptr;
+  PhysicalDevice     physical_device = {};
+  DeviceTable        vk_table        = {};
+  VmaVulkanFunctions vma_table       = {};
+  VkDevice           vk_device       = nullptr;
+  u32                queue_family    = 0;
+  VkQueue            vk_queue        = nullptr;
+  VmaAllocator       vma_allocator   = nullptr;
 };
 
 /// @struct DescriptorHeap
