@@ -1,6 +1,7 @@
 #include "ashura/vulkan_gfx.h"
 #include "ashura/algorithms.h"
 #include "ashura/mem.h"
+#include "ashura/math.h"
 #include "vulkan/vulkan.h"
 
 namespace ash
@@ -1672,7 +1673,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     PhysicalDevice const             &device     = physical_devices[i];
     VkPhysicalDeviceProperties const &properties = device.properties;
     self->logger.trace(
-        "[DEVICE: {}]{} {} Vulkan API version {}.{}.{} Variant {}, Driver "
+        "[Device: {}]{} {} Vulkan API version {}.{}.{} Variant {}, Driver "
         "Version: {}, "
         "Vendor ID: {}, Device ID: {}",
         i, string_VkPhysicalDeviceType(properties.deviceType),
@@ -1763,13 +1764,56 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     CHECK("", num_device_extensions == num_read_device_extensions);
   }
 
-  constexpr char const *REQUIRED_DEVICE_EXTENSIONS[] = {
-      VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-  constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
-      VK_EXT_DEBUG_MARKER_EXTENSION_NAME};
+  self->logger.trace("Available Device Extensions:");
 
-  // alg::find({device_extensions,num_device_extensions },
-  // )
+  for (u32 i = 0; i < num_device_extensions; i++)
+  {
+    VkExtensionProperties const &properties = device_extensions[i];
+    self->logger.trace("\t\t{} (spec version: {}.{}.{} variant {})",
+                       properties.extensionName,
+                       VK_API_VERSION_MAJOR(properties.specVersion),
+                       VK_API_VERSION_MINOR(properties.specVersion),
+                       VK_API_VERSION_PATCH(properties.specVersion),
+                       VK_API_VERSION_VARIANT(properties.specVersion));
+  }
+
+  bool is_swapchain_extension_present    = false;
+  bool is_debug_marker_extension_present = false;
+
+  for (u32 i = 0; i < num_device_extensions; i++)
+  {
+    if (strcmp(device_extensions[i].extensionName,
+               VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0)
+    {
+      is_swapchain_extension_present = true;
+    }
+    if (strcmp(device_extensions[i].extensionName,
+               VK_EXT_DEBUG_MARKER_EXTENSION_NAME) == 0)
+    {
+      is_debug_marker_extension_present = true;
+    }
+  }
+
+  // required
+  if (!is_swapchain_extension_present)
+  {
+    return Err{Status::ExtensionNotPresent};
+  }
+
+  char const *load_extensions[2];
+  u32         num_load_extensions = 0;
+
+  if (is_swapchain_extension_present)
+  {
+    load_extensions[num_load_extensions] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+    num_load_extensions++;
+  }
+
+  if (is_debug_marker_extension_present)
+  {
+    load_extensions[num_load_extensions] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
+    num_load_extensions++;
+  }
 
   float const queue_priority = 1.0F;
 

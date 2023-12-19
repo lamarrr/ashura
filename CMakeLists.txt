@@ -15,16 +15,23 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/lamarrr/STX.git
   GIT_TAG main)
 
-FetchContent_Declare(
-  VulkanMemoryAllocator
-  GIT_REPOSITORY
-    https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG 5e43c79)
+  FetchContent_Declare(
+    VulkanHeaders
+    GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+    GIT_TAG v1.3.269)
 
 FetchContent_Declare(
   VulkanUtilityHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
   GIT_TAG vulkan-sdk-1.3.268.0)
+
+
+  FetchContent_Declare(
+    VulkanMemoryAllocator
+    GIT_REPOSITORY
+      https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+    GIT_TAG 5e43c79)
+  
 
 set(SheenBidi_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/SheenBidi)
 
@@ -49,8 +56,9 @@ find_package(CURL CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 
 FetchContent_MakeAvailable(stx)
-FetchContent_MakeAvailable(VulkanMemoryAllocator)
+FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityHeaders)
+FetchContent_MakeAvailable(VulkanMemoryAllocator)
 
 file(GLOB SheenBidi_SOURCES ${SheenBidi_DIR}/Source/*.c)
 
@@ -98,7 +106,7 @@ target_include_directories(
 target_link_libraries(
   ashura_gfx
   stx::stx
-  Vulkan::Headers
+  Vulkan-Headers
   Vulkan::UtilityHeaders
   Vulkan::Vulkan
   GPUOpen::VulkanMemoryAllocator
