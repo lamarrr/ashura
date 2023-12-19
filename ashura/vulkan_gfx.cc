@@ -1692,8 +1692,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     }
   }
 
-  u32           preferred_device             = num_devices;
-  u32           selected_device_queue_family = VK_QUEUE_FAMILY_IGNORED;
+  u32           selected_device       = num_devices;
+  u32           selected_queue_family = VK_QUEUE_FAMILY_IGNORED;
   VkSurfaceKHR *surfaces;
   u32           num_surfaces = 0;
 
@@ -1713,12 +1713,23 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                                        VK_QUEUE_GRAPHICS_BIT |
                                        VK_QUEUE_TRANSFER_BIT)))
           {
+            u32 num_supported_surfaces = 0;
             for (u32 isurface = 0; isurface < num_surfaces; isurface++)
             {
               VkBool32 supported;
               self->vk_table.GetPhysicalDeviceSurfaceSupportKHR(
                   device.vk_physical_device, iqueue_family, surfaces[isurface],
                   &supported);
+              if (supported == VK_TRUE)
+              {
+                num_supported_surfaces++;
+              }
+            }
+
+            if (num_supported_surfaces == num_surfaces)
+            {
+              selected_device       = idevice;
+              selected_queue_family = iqueue_family;
             }
           }
         }
@@ -1726,17 +1737,69 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     }
   }
 
-  if (preferred_device == num_devices)
+  if (selected_device == num_devices)
   {
+    self->logger.trace("No suitable device found");
     // return device not found error
   }
 
-  self->logger.trace("Selected device {}", preferred_device);
+  self->logger.trace("Selected device {}", selected_device);
+
+  u32 num_device_extensions;
+  result = self->vk_table.EnumerateDeviceExtensionProperties(
+      physical_devices[selected_device].vk_physical_device, nullptr,
+      &num_device_extensions, nullptr);
+
+  // handle result
+  VkExtensionProperties *device_extensions =
+      self->allocator.allocate_typed<VkExtensionProperties>(
+          num_device_extensions);
+
+  {
+    u32 num_read_device_extensions = num_device_extensions;
+    result = self->vk_table.EnumerateDeviceExtensionProperties(
+        physical_devices[selected_device].vk_physical_device, nullptr,
+        &num_read_device_extensions, device_extensions);
+    CHECK("", num_device_extensions == num_read_device_extensions);
+  }
 
   constexpr char const *REQUIRED_DEVICE_EXTENSIONS[] = {
       VK_KHR_SWAPCHAIN_EXTENSION_NAME};
   constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
       VK_EXT_DEBUG_MARKER_EXTENSION_NAME};
+
+  // alg::find({device_extensions,num_device_extensions },
+  // )
+
+  float const queue_priority = 1.0F;
+
+  VkDeviceQueueCreateInfo queue_create_info{
+      .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+      .pNext            = nullptr,
+      .flags            = 0,
+      .queueFamilyIndex = selected_queue_family,
+      .queueCount       = 1,
+      .pQueuePriorities = &queue_priority};
+
+  VkPhysicalDeviceFeatures device_features;
+  mem::zero(&device_features, 1);
+  // todo: enable features
+
+  VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+                                 .pNext = nullptr,
+                                 .flags = {0x0000},
+                                 .queueCreateInfoCount    = 1,
+                                 .pQueueCreateInfos       = &queue_create_info,
+                                 .enabledLayerCount       = {0x0000},
+                                 .ppEnabledLayerNames     = nullptr,
+                                 .enabledExtensionCount   = {0x000},
+                                 .ppEnabledExtensionNames = nullptr,
+                                 .pEnabledFeatures        = &device_features};
+
+  VkDevice vk_device;
+  result = self->vk_table.CreateDevice(
+      physical_devices[selected_device].vk_physical_device, &create_info,
+      nullptr, &vk_device);
 }
 
 void InstanceInterface::ref_device(gfx::Instance instance, gfx::Device device)
