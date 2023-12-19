@@ -1566,17 +1566,6 @@ void InstanceInterface::unref(gfx::Instance instance)
 {
 }
 
-inline bool device_supports_surface(Instance        *instance,
-                                    VkPhysicalDevice physical_device,
-                                    u32              queue_family_index,
-                                    VkSurfaceKHR     surface)
-{
-  VkBool32 supported;
-  instance->vk_table.GetPhysicalDeviceSurfaceSupportKHR(
-      physical_device, queue_family_index, surface, &supported);
-  return (bool) supported;
-}
-
 Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     gfx::Instance self_, Span<gfx::DeviceType const> preferred_types,
     Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator)
