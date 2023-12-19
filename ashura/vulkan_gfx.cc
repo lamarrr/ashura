@@ -1,7 +1,7 @@
 #include "ashura/vulkan_gfx.h"
 #include "ashura/algorithms.h"
-#include "ashura/mem.h"
 #include "ashura/math.h"
+#include "ashura/mem.h"
 #include "vulkan/vulkan.h"
 
 namespace ash
@@ -1455,17 +1455,24 @@ Result<gfx::InstanceImpl, Status>
 
   if (enable_validation_layer)
   {
-    CHECK("Required Vulkan Validation Layer: VK_LAYER_KHRONOS_validation is "
-          "not supported",
-          !alg::find(
-               Span<VkLayerProperties const>{layer_properties, num_read_layers},
-               "VK_LAYER_KHRONOS_validation",
-               [](VkLayerProperties const &property, char const *find_name) {
-                 return strcmp(property.layerName, find_name) == 0;
-               })
-               .is_empty());
-    load_layers[num_load_layers] = "VK_LAYER_KHRONOS_validation";
-    num_load_layers++;
+    if (alg::find(
+            Span<VkLayerProperties const>{layer_properties, num_read_layers},
+            "VK_LAYER_KHRONOS_validation",
+            [](VkLayerProperties const &property, char const *find_name) {
+              return strcmp(property.layerName, find_name) == 0;
+            })
+            .is_empty())
+    {
+      logger.warn(
+          "Required Vulkan Validation Layer: VK_LAYER_KHRONOS_validation is "
+          "not supported");
+      enable_validation_layer = false;
+    }
+    else
+    {
+      load_layers[num_load_layers] = "VK_LAYER_KHRONOS_validation";
+      num_load_layers++;
+    }
   }
 
   allocator.deallocate_typed(extension_properties, num_available_extensions);
@@ -1592,6 +1599,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   if (vk_physical_devices == nullptr)
   {
+    // handle
     return Err{Status::OutOfHostMemory};
   }
 
@@ -1740,35 +1748,79 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   if (selected_device == num_devices)
   {
-    self->logger.trace("No suitable device found");
+    self->logger.trace("No Suitable Device Found");
     // return device not found error
   }
 
-  self->logger.trace("Selected device {}", selected_device);
+  self->logger.trace("Selected Device {}", selected_device);
 
-  u32 num_device_extensions;
+  u32 num_extensions;
   result = self->vk_table.EnumerateDeviceExtensionProperties(
       physical_devices[selected_device].vk_physical_device, nullptr,
-      &num_device_extensions, nullptr);
+      &num_extensions, nullptr);
 
-  // handle result
-  VkExtensionProperties *device_extensions =
-      self->allocator.allocate_typed<VkExtensionProperties>(
-          num_device_extensions);
-
+  if (result != VK_SUCCESS)
   {
-    u32 num_read_device_extensions = num_device_extensions;
-    result = self->vk_table.EnumerateDeviceExtensionProperties(
-        physical_devices[selected_device].vk_physical_device, nullptr,
-        &num_read_device_extensions, device_extensions);
-    CHECK("", num_device_extensions == num_read_device_extensions);
+    //
   }
 
-  self->logger.trace("Available Device Extensions:");
+  // handle result
+  VkExtensionProperties *extensions =
+      self->allocator.allocate_typed<VkExtensionProperties>(num_extensions);
 
-  for (u32 i = 0; i < num_device_extensions; i++)
+  if (num_extensions > 0 && extensions == nullptr)
   {
-    VkExtensionProperties const &properties = device_extensions[i];
+    // handle
+    return Err{Status::OutOfHostMemory};
+  }
+
+  {
+    u32 num_read_extensions = num_extensions;
+    result                  = self->vk_table.EnumerateDeviceExtensionProperties(
+        physical_devices[selected_device].vk_physical_device, nullptr,
+        &num_read_extensions, extensions);
+    if (result != VK_SUCCESS)
+    {
+      //
+    }
+    CHECK("", num_extensions == num_read_extensions);
+  }
+
+  u32 num_layers;
+  result = self->vk_table.EnumerateDeviceLayerProperties(
+      physical_devices[selected_device].vk_physical_device, &num_layers,
+      nullptr);
+
+  if (result != VK_SUCCESS)
+  {
+    //
+  }
+
+  VkLayerProperties *layers =
+      self->allocator.allocate_typed<VkLayerProperties>(num_layers);
+
+if(num_layers > 0 && layers == nullptr){
+  // handle
+}
+
+  // handle
+  {
+    u32 num_read_layers = num_layers;
+    result              = self->vk_table.EnumerateDeviceLayerProperties(
+        physical_devices[selected_device].vk_physical_device, &num_read_layers,
+        layers);
+    if (result != VK_SUCCESS)
+    {
+      //
+    }
+    CHECK("", num_read_layers == num_layers);
+  }
+
+  self->logger.trace("Available Extensions:");
+
+  for (u32 i = 0; i < num_extensions; i++)
+  {
+    VkExtensionProperties const &properties = extensions[i];
     self->logger.trace("\t\t{} (spec version: {}.{}.{} variant {})",
                        properties.extensionName,
                        VK_API_VERSION_MAJOR(properties.specVersion),
@@ -1777,45 +1829,86 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                        VK_API_VERSION_VARIANT(properties.specVersion));
   }
 
-  bool is_swapchain_extension_present    = false;
-  bool is_debug_marker_extension_present = false;
+  self->logger.trace("Available Layers:");
 
-  for (u32 i = 0; i < num_device_extensions; i++)
+  for (u32 i = 0; i < num_layers; i++)
   {
-    if (strcmp(device_extensions[i].extensionName,
-               VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0)
+    VkLayerProperties const &properties = layers[i];
+
+    self->logger.trace("\t\t{} (spec version: {}.{}.{} variant {}, "
+                       "implementation version: {})",
+                       properties.layerName,
+                       VK_API_VERSION_MAJOR(properties.specVersion),
+                       VK_API_VERSION_MINOR(properties.specVersion),
+                       VK_API_VERSION_PATCH(properties.specVersion),
+                       VK_API_VERSION_VARIANT(properties.specVersion),
+                       properties.implementationVersion);
+  }
+
+  bool has_swapchain_ext    = false;
+  bool has_debug_marker_ext = false;
+  bool has_validation_layer = false;
+
+  for (u32 i = 0; i < num_extensions; i++)
+  {
+    if (strcmp(extensions[i].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) ==
+        0)
     {
-      is_swapchain_extension_present = true;
+      has_swapchain_ext = true;
     }
-    if (strcmp(device_extensions[i].extensionName,
+    if (strcmp(extensions[i].extensionName,
                VK_EXT_DEBUG_MARKER_EXTENSION_NAME) == 0)
     {
-      is_debug_marker_extension_present = true;
+      has_debug_marker_ext = true;
+    }
+
+    if (has_swapchain_ext && has_debug_marker_ext)
+    {
+      break;
+    }
+  }
+
+  for (u32 i = 0; i < num_layers; i++)
+  {
+    if (strcmp(layers[i].layerName, "VK_LAYER_KHRONOS_validation") == 0)
+    {
+      has_validation_layer = true;
+      break;
     }
   }
 
   // required
-  if (!is_swapchain_extension_present)
+  if (!has_swapchain_ext)
   {
+    // TODO, and log
     return Err{Status::ExtensionNotPresent};
   }
 
   char const *load_extensions[2];
   u32         num_load_extensions = 0;
+  char const *load_layers[2];
+  u32         num_load_layers = 0;
 
-  if (is_swapchain_extension_present)
+  // todo: this should be removed since it is required
+  if (has_swapchain_ext)
   {
     load_extensions[num_load_extensions] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
     num_load_extensions++;
   }
 
-  if (is_debug_marker_extension_present)
+  if (has_debug_marker_ext)
   {
     load_extensions[num_load_extensions] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
     num_load_extensions++;
   }
 
-  float const queue_priority = 1.0F;
+  if (self->validation_layer_enabled && has_validation_layer)
+  {
+    load_layers[num_load_layers] = "VK_LAYER_KHRONOS_validation";
+    num_load_layers++;
+  }
+
+  f32 const queue_priority = 1.0F;
 
   VkDeviceQueueCreateInfo queue_create_info{
       .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -1825,25 +1918,43 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
       .queueCount       = 1,
       .pQueuePriorities = &queue_priority};
 
-  VkPhysicalDeviceFeatures device_features;
-  mem::zero(&device_features, 1);
   // todo: enable features
+  VkPhysicalDeviceFeatures features{.geometryShader = VK_TRUE};
 
   VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                                  .pNext = nullptr,
-                                 .flags = {0x0000},
+                                 .flags = 0,
                                  .queueCreateInfoCount    = 1,
                                  .pQueueCreateInfos       = &queue_create_info,
-                                 .enabledLayerCount       = {0x0000},
-                                 .ppEnabledLayerNames     = nullptr,
-                                 .enabledExtensionCount   = {0x000},
-                                 .ppEnabledExtensionNames = nullptr,
-                                 .pEnabledFeatures        = &device_features};
+                                 .enabledLayerCount       = num_load_layers,
+                                 .ppEnabledLayerNames     = load_layers,
+                                 .enabledExtensionCount   = num_load_extensions,
+                                 .ppEnabledExtensionNames = load_extensions,
+                                 .pEnabledFeatures        = &features};
 
   VkDevice vk_device;
   result = self->vk_table.CreateDevice(
       physical_devices[selected_device].vk_physical_device, &create_info,
       nullptr, &vk_device);
+
+  if (result != VK_SUCCESS)
+  {
+    //
+  }
+
+  Device *device = self->allocator.allocate_typed<Device>(1);
+
+  if (device == nullptr)
+  {
+    //
+  }
+
+  new (device) Device{
+
+  };
+
+  return Ok{gfx::DeviceImpl{.self      = (gfx::Device) device,
+                            .interface = &device_interface}};
 }
 
 void InstanceInterface::ref_device(gfx::Instance instance, gfx::Device device)
