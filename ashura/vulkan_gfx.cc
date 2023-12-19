@@ -1570,11 +1570,6 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     gfx::Instance self_, Span<gfx::DeviceType const> preferred_types,
     Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator)
 {
-  constexpr char const *REQUIRED_DEVICE_EXTENSIONS[] = {
-      VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-  constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
-      VK_EXT_DEBUG_MARKER_EXTENSION_NAME};
-
   Instance *const self = (Instance *) self_;
 
   u32      num_devices;
@@ -1686,6 +1681,17 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
         VK_API_VERSION_VARIANT(properties.apiVersion), properties.driverVersion,
         properties.vendorID, properties.deviceID);
   }
+
+  for (u32 i = 0; i < num_devices; i++)
+  {
+  }
+
+  // print index of selected device
+
+  constexpr char const *REQUIRED_DEVICE_EXTENSIONS[] = {
+      VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+  constexpr char const *OPTIONAL_DEVICE_EXTENSIONS[] = {
+      VK_EXT_DEBUG_MARKER_EXTENSION_NAME};
 }
 
 void InstanceInterface::ref_device(gfx::Instance instance, gfx::Device device)
