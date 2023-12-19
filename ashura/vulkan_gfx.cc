@@ -1566,6 +1566,36 @@ void InstanceInterface::unref(gfx::Instance instance)
 {
 }
 
+inline u32 select_command_queue(VkQueueFamilyProperties const *properties,
+                                u32                            num_queues)
+{
+  u32 selected_queue = VK_QUEUE_FAMILY_IGNORED;
+
+  for (u32 i = 0; i < num_queues; i++)
+  {
+    if (has_bits(properties[i].queueFlags,
+                 (VkQueueFlags) (VK_QUEUE_COMPUTE_BIT | VK_QUEUE_GRAPHICS_BIT |
+                                 VK_QUEUE_TRANSFER_BIT)))
+    {
+      selected_queue = i;
+      break;
+    }
+  }
+
+  return selected_queue;
+}
+
+inline bool device_supports_surface(Instance        *instance,
+                                    VkPhysicalDevice physical_device,
+                                    u32              queue_family_index,
+                                    VkSurfaceKHR     surface)
+{
+  VkBool32 supported;
+  instance->vk_table.GetPhysicalDeviceSurfaceSupportKHR(
+      physical_device, queue_family_index, surface, &supported);
+  return (bool) supported;
+}
+
 Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     gfx::Instance self_, Span<gfx::DeviceType const> preferred_types,
     Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator)
@@ -1682,11 +1712,43 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
         properties.vendorID, properties.deviceID);
   }
 
-  for (u32 i = 0; i < num_devices; i++)
+  u32 preferred_device             = num_devices;
+  u32 selected_device_queue_family = VK_QUEUE_FAMILY_IGNORED;
+
+  for (usize i = 0; i < (u32) preferred_types.size; i++)
   {
+    for (u32 idevice = 0; idevice < num_devices; idevice++)
+    {
+      PhysicalDevice const &device = physical_devices[idevice];
+      if (((VkPhysicalDeviceType) preferred_types[i]) ==
+          device.properties.deviceType)
+      {
+        if (device.features.geometryShader != VK_FALSE)
+        {
+          for (u32 iqueue_family = 0; iqueue_family < device.num_queue_families;
+               iqueue_family++)
+          {
+            if (has_bits(
+                    device.queue_family_properties[iqueue_family].queueFlags,
+                    (VkQueueFlags) (VK_QUEUE_GRAPHICS_BIT |
+                                    VK_QUEUE_COMPUTE_BIT |
+                                    VK_QUEUE_TRANSFER_BIT)))
+            {
+              preferred_device             = idevice;
+              selected_device_queue_family = iqueue_family;
+            }
+          }
+        }
+      }
+    }
   }
 
-  // print index of selected device
+  if (preferred_device == num_devices)
+  {
+    // return device not found error
+  }
+
+  logger.trace("Selected device {}", preferred_device);
 
   constexpr char const *REQUIRED_DEVICE_EXTENSIONS[] = {
       VK_KHR_SWAPCHAIN_EXTENSION_NAME};
