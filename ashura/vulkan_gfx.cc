@@ -4,6 +4,10 @@
 #include "ashura/mem.h"
 #include "vulkan/vulkan.h"
 
+#ifndef VK_LAYER_KHRONOS_VALIDATION_NAME
+#  define VK_LAYER_KHRONOS_VALIDATION_NAME "VK_LAYER_KHRONOS_validation"
+#endif
+
 namespace ash
 {
 namespace vk
@@ -407,6 +411,85 @@ bool load_device_table(VkDevice                device,
 #undef SET_VMA
 
   return all_loaded;
+}
+
+static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
+    VkDebugUtilsMessageTypeFlagsEXT             message_type,
+    VkDebugUtilsMessengerCallbackDataEXT const *data, void *user_data)
+{
+  Instance *const instance = (Instance *) user_data;
+
+  if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+  {
+    instance->logger.error("[Id: ({}), Name: {}, Type: {}] {}",
+                           data->messageIdNumber, data->pMessageIdName,
+                           string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
+                           data->pMessage);
+    if (data->objectCount != 0)
+    {
+      instance->logger.error("Objects Involved:");
+      for (u32 i = 0; i < data->objectCount; i++)
+      {
+        instance->logger.error(
+            "[Type: {}] {}", data->pObjects[i].pObjectName,
+            string_VkObjectType(data->pObjects[i].objectType));
+      }
+    }
+  }
+  else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+  {
+    instance->logger.warn("[Id: ({}), Name: {}, Type: {}] {}",
+                          data->messageIdNumber, data->pMessageIdName,
+                          string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
+                          data->pMessage);
+    if (data->objectCount != 0)
+    {
+      instance->logger.warn("Objects Involved:");
+      for (u32 i = 0; i < data->objectCount; i++)
+      {
+        instance->logger.warn(
+            "[Type: {}] {}", data->pObjects[i].pObjectName,
+            string_VkObjectType(data->pObjects[i].objectType));
+      }
+    }
+  }
+  else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+  {
+    instance->logger.info("[Id: ({}), Name: {}, Type: {}] {}",
+                          data->messageIdNumber, data->pMessageIdName,
+                          string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
+                          data->pMessage);
+    if (data->objectCount != 0)
+    {
+      instance->logger.info("Objects Involved:");
+      for (u32 i = 0; i < data->objectCount; i++)
+      {
+        instance->logger.info(
+            "[Type: {}] {}", data->pObjects[i].pObjectName,
+            string_VkObjectType(data->pObjects[i].objectType));
+      }
+    }
+  }
+  else
+  {
+    instance->logger.trace("[Id: ({}), Name: {}, Type: {}] {}",
+                           data->messageIdNumber, data->pMessageIdName,
+                           string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
+                           data->pMessage);
+    if (data->objectCount != 0)
+    {
+      instance->logger.trace("Objects Involved:");
+      for (u32 i = 0; i < data->objectCount; i++)
+      {
+        instance->logger.trace(
+            "[Type: {}] {}", data->pObjects[i].pObjectName,
+            string_VkObjectType(data->pObjects[i].objectType));
+      }
+    }
+  }
+
+  return VK_FALSE;
 }
 
 constexpr VkAccessFlags
@@ -1247,184 +1330,107 @@ inline u64 index_type_size(gfx::IndexType type)
   }
 }
 
-static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
-    VkDebugUtilsMessageTypeFlagsEXT             message_type,
-    VkDebugUtilsMessengerCallbackDataEXT const *data, void *user_data)
-{
-  Instance *const instance = (Instance *) user_data;
-
-  if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-  {
-    instance->logger.error("[Id: ({}), Name: {}, Type: {}] {}",
-                           data->messageIdNumber, data->pMessageIdName,
-                           string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
-                           data->pMessage);
-    if (data->objectCount != 0)
-    {
-      instance->logger.error("Objects Involved:");
-      for (u32 i = 0; i < data->objectCount; i++)
-      {
-        instance->logger.error(
-            "[Type: {}] {}", data->pObjects[i].pObjectName,
-            string_VkObjectType(data->pObjects[i].objectType));
-      }
-    }
-  }
-  else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-  {
-    instance->logger.warn("[Id: ({}), Name: {}, Type: {}] {}",
-                          data->messageIdNumber, data->pMessageIdName,
-                          string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
-                          data->pMessage);
-    if (data->objectCount != 0)
-    {
-      instance->logger.warn("Objects Involved:");
-      for (u32 i = 0; i < data->objectCount; i++)
-      {
-        instance->logger.warn(
-            "[Type: {}] {}", data->pObjects[i].pObjectName,
-            string_VkObjectType(data->pObjects[i].objectType));
-      }
-    }
-  }
-  else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
-  {
-    instance->logger.info("[Id: ({}), Name: {}, Type: {}] {}",
-                          data->messageIdNumber, data->pMessageIdName,
-                          string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
-                          data->pMessage);
-    if (data->objectCount != 0)
-    {
-      instance->logger.info("Objects Involved:");
-      for (u32 i = 0; i < data->objectCount; i++)
-      {
-        instance->logger.info(
-            "[Type: {}] {}", data->pObjects[i].pObjectName,
-            string_VkObjectType(data->pObjects[i].objectType));
-      }
-    }
-  }
-  else
-  {
-    instance->logger.trace("[Id: ({}), Name: {}, Type: {}] {}",
-                           data->messageIdNumber, data->pMessageIdName,
-                           string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
-                           data->pMessage);
-    if (data->objectCount != 0)
-    {
-      instance->logger.trace("Objects Involved:");
-      for (u32 i = 0; i < data->objectCount; i++)
-      {
-        instance->logger.trace(
-            "[Type: {}] {}", data->pObjects[i].pObjectName,
-            string_VkObjectType(data->pObjects[i].objectType));
-      }
-    }
-  }
-
-  return VK_FALSE;
-}
-
 Result<gfx::InstanceImpl, Status>
     InstanceInterface::create(AllocatorImpl allocator, LoggerImpl logger,
                               bool enable_validation_layer)
 {
-  logger.trace("Enumerating Extensions...");
-  u32      num_available_extensions;
-  VkResult result = vkEnumerateInstanceExtensionProperties(
-      nullptr, &num_available_extensions, nullptr);
+  u32      num_extensions;
+  VkResult result =
+      vkEnumerateInstanceExtensionProperties(nullptr, &num_extensions, nullptr);
 
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
   }
 
-  VkExtensionProperties *extension_properties =
-      allocator.allocate_typed<VkExtensionProperties>(num_available_extensions);
+  VkExtensionProperties *extensions =
+      allocator.allocate_typed<VkExtensionProperties>(num_extensions);
 
-  if (num_available_extensions != 0 && extension_properties == nullptr)
+  if (num_extensions != 0 && extensions == nullptr)
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  u32 num_read_extensions = num_available_extensions;
+  {
+    u32 num_read_extensions = num_extensions;
+    result                  = vkEnumerateInstanceExtensionProperties(
+        nullptr, &num_read_extensions, extensions);
 
-  result = vkEnumerateInstanceExtensionProperties(nullptr, &num_read_extensions,
-                                                  extension_properties);
+    if (result != VK_SUCCESS)
+    {
+      allocator.deallocate_typed(extensions, num_extensions);
+      return Err{(Status) result};
+    }
+
+    CHECK("", num_read_extensions == num_extensions);
+  }
+
+  u32 num_layers;
+  result = vkEnumerateInstanceLayerProperties(&num_layers, nullptr);
 
   if (result != VK_SUCCESS)
   {
-    allocator.deallocate_typed(extension_properties, num_available_extensions);
+    allocator.deallocate_typed(extensions, num_extensions);
     return Err{(Status) result};
   }
 
-  logger.trace("Enumerating Layers...");
+  VkLayerProperties *layers =
+      allocator.allocate_typed<VkLayerProperties>(num_layers);
 
-  u32 num_available_layers;
-  result = vkEnumerateInstanceLayerProperties(&num_available_layers, nullptr);
-
-  if (result != VK_SUCCESS)
+  if (num_layers != 0 && layers == nullptr)
   {
-    allocator.deallocate_typed(extension_properties, num_available_extensions);
-    return Err{(Status) result};
-  }
-
-  VkLayerProperties *layer_properties =
-      allocator.allocate_typed<VkLayerProperties>(num_available_layers);
-
-  if (num_available_layers != 0 && layer_properties == nullptr)
-  {
-    allocator.deallocate_typed(extension_properties, num_available_extensions);
+    allocator.deallocate_typed(extensions, num_extensions);
     return Err{Status::OutOfHostMemory};
   }
 
-  u32 num_read_layers = num_available_layers;
-  result =
-      vkEnumerateInstanceLayerProperties(&num_read_layers, layer_properties);
-
-  if (result != VK_SUCCESS)
   {
-    allocator.deallocate_typed(extension_properties, num_available_extensions);
-    allocator.deallocate_typed(layer_properties, num_available_layers);
-    return Err{(Status) result};
+    u32 num_read_layers = num_layers;
+    result = vkEnumerateInstanceLayerProperties(&num_read_layers, layers);
+
+    if (result != VK_SUCCESS)
+    {
+      allocator.deallocate_typed(extensions, num_extensions);
+      allocator.deallocate_typed(layers, num_layers);
+      return Err{(Status) result};
+    }
+
+    CHECK("", num_read_layers == num_layers);
   }
 
   logger.trace("Available Extensions:");
 
-  for (VkExtensionProperties const &properties :
-       Span{extension_properties, num_read_extensions})
+  for (VkExtensionProperties const &extension :
+       Span{extensions, num_extensions})
   {
     logger.trace("{}\t\t(spec version {}.{}.{} variant {})",
-                 properties.extensionName,
-                 VK_API_VERSION_MAJOR(properties.specVersion),
-                 VK_API_VERSION_MINOR(properties.specVersion),
-                 VK_API_VERSION_PATCH(properties.specVersion),
-                 VK_API_VERSION_VARIANT(properties.specVersion));
+                 extension.extensionName,
+                 VK_API_VERSION_MAJOR(extension.specVersion),
+                 VK_API_VERSION_MINOR(extension.specVersion),
+                 VK_API_VERSION_PATCH(extension.specVersion),
+                 VK_API_VERSION_VARIANT(extension.specVersion));
   }
 
   logger.trace("Available Validation Layers:");
 
-  for (VkLayerProperties const &properties :
-       Span{layer_properties, num_read_layers})
+  for (VkLayerProperties const &layer : Span{layers, num_layers})
   {
     logger.trace(
         "{}\t\t(spec version {}.{}.{} variant {}, implementation version: {})",
-        properties.layerName, VK_API_VERSION_MAJOR(properties.specVersion),
-        VK_API_VERSION_MINOR(properties.specVersion),
-        VK_API_VERSION_PATCH(properties.specVersion),
-        VK_API_VERSION_VARIANT(properties.specVersion),
-        properties.implementationVersion);
+        layer.layerName, VK_API_VERSION_MAJOR(layer.specVersion),
+        VK_API_VERSION_MINOR(layer.specVersion),
+        VK_API_VERSION_PATCH(layer.specVersion),
+        VK_API_VERSION_VARIANT(layer.specVersion), layer.implementationVersion);
   }
 
   char const *load_extensions[4];
+  char const *load_layers[4];
   u32         num_load_extensions = 0;
+  u32         num_load_layers     = 0;
 
   CHECK("Required Vulkan Extension: " VK_KHR_SURFACE_EXTENSION_NAME
         " is not supported",
         !alg::find(
-             Span<VkExtensionProperties const>{extension_properties,
-                                               num_read_extensions},
+             Span<VkExtensionProperties const>{extensions, num_extensions},
              VK_KHR_SURFACE_EXTENSION_NAME,
              [](VkExtensionProperties const &property, char const *find_name) {
                return strcmp(property.extensionName, find_name) == 0;
@@ -1436,31 +1442,27 @@ Result<gfx::InstanceImpl, Status>
 
   if (enable_validation_layer)
   {
-    CHECK("Required Vulkan Validation Layer: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-          " is not supported",
-          !alg::find(Span<VkExtensionProperties const>{extension_properties,
-                                                       num_read_extensions},
-                     VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-                     [](VkExtensionProperties const &property,
-                        char const                  *find_name) {
-                       return strcmp(property.extensionName, find_name) == 0;
-                     })
-               .is_empty());
+    CHECK(
+        "Required Vulkan Validation Layer: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+        " is not supported",
+        !alg::find(
+             Span<VkExtensionProperties const>{extensions, num_extensions},
+             VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+             [](VkExtensionProperties const &property, char const *find_name) {
+               return strcmp(property.extensionName, find_name) == 0;
+             })
+             .is_empty());
     load_extensions[num_load_extensions] = VK_KHR_SURFACE_EXTENSION_NAME;
     num_load_extensions++;
   }
 
-  char const *load_layers[4];
-  u32         num_load_layers = 0;
-
   if (enable_validation_layer)
   {
-    if (alg::find(
-            Span<VkLayerProperties const>{layer_properties, num_read_layers},
-            "VK_LAYER_KHRONOS_validation",
-            [](VkLayerProperties const &property, char const *find_name) {
-              return strcmp(property.layerName, find_name) == 0;
-            })
+    if (alg::find(Span<VkLayerProperties const>{layers, num_layers},
+                  "VK_LAYER_KHRONOS_validation",
+                  [](VkLayerProperties const &property, char const *find_name) {
+                    return strcmp(property.layerName, find_name) == 0;
+                  })
             .is_empty())
     {
       logger.warn(
@@ -1475,8 +1477,8 @@ Result<gfx::InstanceImpl, Status>
     }
   }
 
-  allocator.deallocate_typed(extension_properties, num_available_extensions);
-  allocator.deallocate_typed(layer_properties, num_available_layers);
+  allocator.deallocate_typed(extensions, num_extensions);
+  allocator.deallocate_typed(layers, num_layers);
 
   Instance *instance = allocator.allocate_typed<Instance>(1);
 
@@ -1577,9 +1579,13 @@ void InstanceInterface::unref(gfx::Instance instance_)
 
   if (--instance->refcount == 0)
   {
-    vkDestroyDebugUtilsMessengerEXT(instance->vk_instance,
-                                    instance->vk_debug_messenger, nullptr);
+    if (instance->validation_layer_enabled)
+    {
+      vkDestroyDebugUtilsMessengerEXT(instance->vk_instance,
+                                      instance->vk_debug_messenger, nullptr);
+    }
     instance->vk_table.DestroyInstance(instance->vk_instance, nullptr);
+    instance->allocator.deallocate_typed(instance, 1);
   }
 }
 
@@ -1746,6 +1752,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
             {
               selected_device_index = idevice;
               selected_queue_family = iqueue_family;
+              break;
             }
           }
         }
@@ -1832,29 +1839,27 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   for (u32 i = 0; i < num_extensions; i++)
   {
-    VkExtensionProperties const &properties = extensions[i];
+    VkExtensionProperties const &ext = extensions[i];
     self->logger.trace("\t\t{} (spec version: {}.{}.{} variant {})",
-                       properties.extensionName,
-                       VK_API_VERSION_MAJOR(properties.specVersion),
-                       VK_API_VERSION_MINOR(properties.specVersion),
-                       VK_API_VERSION_PATCH(properties.specVersion),
-                       VK_API_VERSION_VARIANT(properties.specVersion));
+                       ext.extensionName, VK_API_VERSION_MAJOR(ext.specVersion),
+                       VK_API_VERSION_MINOR(ext.specVersion),
+                       VK_API_VERSION_PATCH(ext.specVersion),
+                       VK_API_VERSION_VARIANT(ext.specVersion));
   }
 
   self->logger.trace("Available Layers:");
 
   for (u32 i = 0; i < num_layers; i++)
   {
-    VkLayerProperties const &properties = layers[i];
+    VkLayerProperties const &layer = layers[i];
 
     self->logger.trace("\t\t{} (spec version: {}.{}.{} variant {}, "
                        "implementation version: {})",
-                       properties.layerName,
-                       VK_API_VERSION_MAJOR(properties.specVersion),
-                       VK_API_VERSION_MINOR(properties.specVersion),
-                       VK_API_VERSION_PATCH(properties.specVersion),
-                       VK_API_VERSION_VARIANT(properties.specVersion),
-                       properties.implementationVersion);
+                       layer.layerName, VK_API_VERSION_MAJOR(layer.specVersion),
+                       VK_API_VERSION_MINOR(layer.specVersion),
+                       VK_API_VERSION_PATCH(layer.specVersion),
+                       VK_API_VERSION_VARIANT(layer.specVersion),
+                       layer.implementationVersion);
   }
 
   bool has_swapchain_ext    = false;
@@ -1882,7 +1887,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   for (u32 i = 0; i < num_layers; i++)
   {
-    if (strcmp(layers[i].layerName, "VK_LAYER_KHRONOS_validation") == 0)
+    if (strcmp(layers[i].layerName, VK_LAYER_KHRONOS_VALIDATION_NAME) == 0)
     {
       has_validation_layer = true;
       break;
@@ -1911,7 +1916,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   // optional
   if (self->validation_layer_enabled && has_validation_layer)
   {
-    load_layers[num_load_layers] = "VK_LAYER_KHRONOS_validation";
+    load_layers[num_load_layers] = VK_LAYER_KHRONOS_VALIDATION_NAME;
     num_load_layers++;
   }
 
@@ -2026,11 +2031,16 @@ void InstanceInterface::unref_device(gfx::Instance instance_,
   Instance *const instance = (Instance *) instance_;
   Device *const   device   = (Device *) device_;
 
+  if (device == nullptr)
+  {
+    return;
+  }
+
   if (--device->refcount == 0)
   {
     vmaDestroyAllocator(device->vma_allocator);
     device->vk_table.DestroyDevice(device->vk_device, nullptr);
-    instance->allocator.deallocate_typed(instance, 1);
+    instance->allocator.deallocate_typed(device, 1);
   }
 }
 
@@ -2054,10 +2064,11 @@ Result<gfx::Buffer, Status>
     DeviceInterface::create_buffer(gfx::Device            self_,
                                    gfx::BufferDesc const &desc)
 {
+  Device *const self = (Device *) self_;
+
   VALIDATE("", desc.size > 0);
   VALIDATE("", desc.usage != gfx::BufferUsage::None);
 
-  Device *const      self = (Device *) self_;
   VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
                                  .pNext = nullptr,
                                  .flags = 0,
@@ -2134,13 +2145,13 @@ Result<gfx::BufferView, Status>
     DeviceInterface::create_buffer_view(gfx::Device                self_,
                                         gfx::BufferViewDesc const &desc)
 {
+  Device *const self = (Device *) self_;
+
   VALIDATE("", desc.buffer != nullptr);
   VALIDATE("", desc.format != gfx::Format::Undefined);
   VALIDATE("", desc.offset < ((Buffer *) desc.buffer)->desc.size);
   VALIDATE("",
            (desc.offset + desc.size) <= ((Buffer *) desc.buffer)->desc.size);
-
-  Device *const self = (Device *) self_;
 
   VkBufferViewCreateInfo create_info{
       .sType  = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
@@ -2187,6 +2198,8 @@ Result<gfx::BufferView, Status>
 Result<gfx::Image, Status>
     DeviceInterface::create_image(gfx::Device self_, gfx::ImageDesc const &desc)
 {
+  Device *const self = (Device *) self_;
+
   VALIDATE("", desc.format != gfx::Format::Undefined);
   VALIDATE("", desc.usage != gfx::ImageUsage::None);
   VALIDATE("", desc.aspects != gfx::ImageAspects::None);
@@ -2200,7 +2213,6 @@ Result<gfx::Image, Status>
   VALIDATE("",
            !(desc.type == gfx::ImageType::Type3D && desc.array_layers != 1));
 
-  Device *const     self = (Device *) self_;
   VkImageCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                                 .pNext = nullptr,
                                 .flags = 0,
@@ -2273,7 +2285,9 @@ Result<gfx::ImageView, Status>
     DeviceInterface::create_image_view(gfx::Device               self_,
                                        gfx::ImageViewDesc const &desc)
 {
-  Image *const src_image = (Image *) desc.image;
+  Device *const self      = (Device *) self_;
+  Image *const  src_image = (Image *) desc.image;
+
   VALIDATE("", desc.image != nullptr);
   VALIDATE("", desc.view_format != gfx::Format::Undefined);
   VALIDATE("", desc.aspects != gfx::ImageAspects::None);
@@ -2285,7 +2299,6 @@ Result<gfx::ImageView, Status>
   VALIDATE("", (desc.first_array_layer + desc.num_array_layers) <=
                    src_image->desc.array_layers);
 
-  Device *const         self = (Device *) self_;
   VkImageViewCreateInfo create_info{
       .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
       .pNext    = nullptr,
@@ -4091,6 +4104,11 @@ void DeviceInterface::unref_buffer(gfx::Device self_, gfx::Buffer buffer_)
   Device *const self   = (Device *) self_;
   Buffer *const buffer = (Buffer *) buffer_;
 
+  if (buffer == nullptr)
+  {
+    return;
+  }
+
   if (--buffer->refcount == 0)
   {
     vmaDestroyBuffer(self->vma_allocator, buffer->vk_buffer,
@@ -4105,6 +4123,11 @@ void DeviceInterface::unref_buffer_view(gfx::Device     self_,
   Device *const     self        = (Device *) self_;
   BufferView *const buffer_view = (BufferView *) buffer_view_;
 
+  if (buffer_view == nullptr)
+  {
+    return;
+  }
+
   if (--buffer_view->refcount == 0)
   {
     self->vk_table.DestroyBufferView(self->vk_device, buffer_view->vk_view,
@@ -4117,6 +4140,11 @@ void DeviceInterface::unref_image(gfx::Device self_, gfx::Image image_)
 {
   Device *const self  = (Device *) self_;
   Image *const  image = (Image *) image_;
+
+  if (image == nullptr)
+  {
+    return;
+  }
 
   VALIDATE("", !image->is_swapchain_image);
 
@@ -4134,6 +4162,11 @@ void DeviceInterface::unref_image_view(gfx::Device    self_,
   Device *const    self       = (Device *) self_;
   ImageView *const image_view = (ImageView *) image_view_;
 
+  if (image_view == nullptr)
+  {
+    return;
+  }
+
   if (--image_view->refcount == 0)
   {
     self->vk_table.DestroyImageView(self->vk_device, image_view->vk_view,
@@ -4147,6 +4180,11 @@ void DeviceInterface::unref_sampler(gfx::Device self_, gfx::Sampler sampler_)
   Device *const  self    = (Device *) self_;
   Sampler *const sampler = (Sampler *) sampler_;
 
+  if (sampler == nullptr)
+  {
+    return;
+  }
+
   if (--sampler->refcount == 0)
   {
     self->vk_table.DestroySampler(self->vk_device, sampler->vk_sampler,
@@ -4159,6 +4197,11 @@ void DeviceInterface::unref_shader(gfx::Device self_, gfx::Shader shader_)
 {
   Device *const self   = (Device *) self_;
   Shader *const shader = (Shader *) shader_;
+
+  if (shader == nullptr)
+  {
+    return;
+  }
 
   if (--shader->refcount == 0)
   {
@@ -4174,6 +4217,11 @@ void DeviceInterface::unref_render_pass(gfx::Device     self_,
   Device *const     self        = (Device *) self_;
   RenderPass *const render_pass = (RenderPass *) render_pass_;
 
+  if (render_pass == nullptr)
+  {
+    return;
+  }
+
   if (--render_pass->refcount == 0)
   {
     self->vk_table.DestroyRenderPass(self->vk_device,
@@ -4187,6 +4235,11 @@ void DeviceInterface::unref_framebuffer(gfx::Device      self_,
 {
   Device *const      self        = (Device *) self_;
   Framebuffer *const framebuffer = (Framebuffer *) framebuffer_;
+
+  if (framebuffer == nullptr)
+  {
+    return;
+  }
 
   if (--framebuffer->refcount == 0)
   {
@@ -4202,6 +4255,11 @@ void DeviceInterface::unref_descriptor_set_layout(
   Device *const              self   = (Device *) self_;
   DescriptorSetLayout *const layout = (DescriptorSetLayout *) layout_;
 
+  if (layout == nullptr)
+  {
+    return;
+  }
+
   if (--layout->refcount == 0)
   {
     self->vk_table.DestroyDescriptorSetLayout(self->vk_device,
@@ -4216,6 +4274,11 @@ void DeviceInterface::unref_descriptor_heap(gfx::Device             self_,
 {
   Device *const         self = (Device *) self_;
   DescriptorHeap *const heap = (DescriptorHeap *) heap_.self;
+
+  if (heap == nullptr)
+  {
+    return;
+  }
 
   if (--heap->refcount == 0)
   {
@@ -4257,6 +4320,11 @@ void DeviceInterface::unref_pipeline_cache(gfx::Device        self_,
   Device *const        self  = (Device *) self_;
   PipelineCache *const cache = (PipelineCache *) cache_;
 
+  if (cache == nullptr)
+  {
+    return;
+  }
+
   if (--cache->refcount == 0)
   {
     self->vk_table.DestroyPipelineCache(self->vk_device, cache->vk_cache,
@@ -4270,6 +4338,11 @@ void DeviceInterface::unref_compute_pipeline(gfx::Device          self_,
 {
   Device *const          self     = (Device *) self_;
   ComputePipeline *const pipeline = (ComputePipeline *) pipeline_;
+
+  if (pipeline == nullptr)
+  {
+    return;
+  }
 
   if (--pipeline->refcount == 0)
   {
@@ -4287,6 +4360,11 @@ void DeviceInterface::unref_graphics_pipeline(gfx::Device           self_,
   Device *const           self     = (Device *) self_;
   GraphicsPipeline *const pipeline = (GraphicsPipeline *) pipeline_;
 
+  if (pipeline == nullptr)
+  {
+    return;
+  }
+
   if (--pipeline->refcount == 0)
   {
     self->vk_table.DestroyPipeline(self->vk_device, pipeline->vk_pipeline,
@@ -4302,6 +4380,11 @@ void DeviceInterface::unref_fence(gfx::Device self_, gfx::Fence fence_)
   Device *const self  = (Device *) self_;
   Fence *const  fence = (Fence *) fence_;
 
+  if (fence == nullptr)
+  {
+    return;
+  }
+
   if (--fence->refcount == 0)
   {
     self->vk_table.DestroyFence(self->vk_device, fence->vk_fence, nullptr);
@@ -4314,6 +4397,11 @@ void DeviceInterface::unref_command_encoder(gfx::Device             self_,
 {
   Device *const         self    = (Device *) self_;
   CommandEncoder *const encoder = (CommandEncoder *) encoder_.self;
+
+  if (encoder == nullptr)
+  {
+    return;
+  }
 
   if (--encoder->refcount == 0)
   {
@@ -4328,6 +4416,11 @@ void DeviceInterface::unref_frame_context(gfx::Device       self_,
 {
   Device *const       self          = (Device *) self_;
   FrameContext *const frame_context = (FrameContext *) frame_context_;
+
+  if (frame_context == nullptr)
+  {
+    return;
+  }
 
   if (--frame_context->refcount == 0)
   {
