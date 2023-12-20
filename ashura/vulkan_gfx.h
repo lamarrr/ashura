@@ -370,12 +370,10 @@ struct Instance
 
 struct PhysicalDevice
 {
-  VkPhysicalDevice                 vk_physical_device      = nullptr;
-  VkPhysicalDeviceFeatures         features                = {};
-  VkQueueFamilyProperties         *queue_family_properties = nullptr;
-  u32                              num_queue_families      = 0;
-  VkPhysicalDeviceProperties       properties              = {};
-  VkPhysicalDeviceMemoryProperties memory_properties       = {};
+  VkPhysicalDevice                 vk_physical_device = nullptr;
+  VkPhysicalDeviceFeatures         features           = {};
+  VkPhysicalDeviceProperties       properties         = {};
+  VkPhysicalDeviceMemoryProperties memory_properties  = {};
 };
 
 struct Device

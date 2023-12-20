@@ -1578,7 +1578,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     gfx::Instance self_, Span<gfx::DeviceType const> preferred_types,
     Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator)
 {
-  Instance *const self = (Instance *) self_;
+  Instance *const self               = (Instance *) self_;
+  constexpr u32   MAX_QUEUE_FAMILIES = 16;
 
   u32      num_devices;
   VkResult result = self->vk_table.EnumeratePhysicalDevices(
@@ -1586,6 +1587,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   if (num_devices == 0)
   {
+    self->logger.trace("No Physical Device Found");
     return Err{Status::DeviceLost};
   }
 
@@ -1599,7 +1601,6 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   if (vk_physical_devices == nullptr)
   {
-    // handle
     return Err{Status::OutOfHostMemory};
   }
 
@@ -1626,54 +1627,18 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     return Err{Status::OutOfHostMemory};
   }
 
+  for (u32 i = 0; i < num_devices; i++)
   {
-    u32 i = 0;
-    for (; i < num_devices; i++)
-    {
-      PhysicalDevice  &dev    = physical_devices[i];
-      VkPhysicalDevice vk_dev = vk_physical_devices[i];
-      dev.vk_physical_device  = vk_dev;
-      u32 num_queue_families;
-      self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
-          vk_physical_devices[i], &num_queue_families, nullptr);
-      VkQueueFamilyProperties *queue_family_properties =
-          self->allocator.allocate_typed<VkQueueFamilyProperties>(
-              num_queue_families);
-      if (num_queue_families != 0 && queue_family_properties == nullptr)
-      {
-        break;
-      }
-
-      {
-        u32 num_read_queue_families = num_queue_families;
-        self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
-            vk_physical_devices[i], &num_queue_families,
-            dev.queue_family_properties);
-        CHECK("", num_read_queue_families == num_queue_families);
-      }
-
-      dev.queue_family_properties = queue_family_properties;
-      dev.num_queue_families      = num_queue_families;
-      self->vk_table.GetPhysicalDeviceFeatures(vk_dev, &dev.features);
-      self->vk_table.GetPhysicalDeviceMemoryProperties(vk_dev,
-                                                       &dev.memory_properties);
-      self->vk_table.GetPhysicalDeviceProperties(vk_dev, &dev.properties);
-    }
-
-    self->allocator.deallocate_typed(vk_physical_devices, num_devices);
-
-    if (i != num_devices)
-    {
-      for (u32 ifree = 0; ifree < i; ifree++)
-      {
-        self->allocator.deallocate_typed(
-            physical_devices[ifree].queue_family_properties,
-            physical_devices[ifree].num_queue_families);
-      }
-      self->allocator.deallocate_typed(physical_devices, num_devices);
-      return Err{Status::OutOfHostMemory};
-    }
+    PhysicalDevice  &dev    = physical_devices[i];
+    VkPhysicalDevice vk_dev = vk_physical_devices[i];
+    dev.vk_physical_device  = vk_dev;
+    self->vk_table.GetPhysicalDeviceFeatures(vk_dev, &dev.features);
+    self->vk_table.GetPhysicalDeviceMemoryProperties(vk_dev,
+                                                     &dev.memory_properties);
+    self->vk_table.GetPhysicalDeviceProperties(vk_dev, &dev.properties);
   }
+
+  self->allocator.deallocate_typed(vk_physical_devices, num_devices);
 
   self->logger.trace("Available Devices:");
   for (u32 i = 0; i < num_devices; i++)
@@ -1690,18 +1655,35 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
         VK_API_VERSION_PATCH(properties.apiVersion),
         VK_API_VERSION_VARIANT(properties.apiVersion), properties.driverVersion,
         properties.vendorID, properties.deviceID);
-    for (u32 iqueue_family = 0; iqueue_family < device.num_queue_families;
+
+    u32 num_queue_families;
+    self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
+        physical_devices[i].vk_physical_device, &num_queue_families, nullptr);
+
+    CHECK("", num_queue_families <= MAX_QUEUE_FAMILIES);
+
+    VkQueueFamilyProperties queue_family_properties[MAX_QUEUE_FAMILIES];
+
+    {
+      u32 num_read_queue_families = num_queue_families;
+      self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
+          physical_devices[i].vk_physical_device, &num_queue_families,
+          queue_family_properties);
+      CHECK("", num_read_queue_families == num_queue_families);
+    }
+
+    for (u32 iqueue_family = 0; iqueue_family < num_queue_families;
          iqueue_family++)
     {
       self->logger.trace(
           "\t\tQueue Family: {}, Count: {}, Flags: {}", iqueue_family,
-          device.queue_family_properties[iqueue_family].queueCount,
+          queue_family_properties[iqueue_family].queueCount,
           string_VkQueueFlags(
-              device.queue_family_properties[iqueue_family].queueFlags));
+              queue_family_properties[iqueue_family].queueFlags));
     }
   }
 
-  u32           selected_device       = num_devices;
+  u32           selected_device_index = num_devices;
   u32           selected_queue_family = VK_QUEUE_FAMILY_IGNORED;
   VkSurfaceKHR *surfaces;
   u32           num_surfaces = 0;
@@ -1711,13 +1693,30 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     for (u32 idevice = 0; idevice < num_devices; idevice++)
     {
       PhysicalDevice const &device = physical_devices[idevice];
+
+      u32 num_queue_families;
+      self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
+          device.vk_physical_device, &num_queue_families, nullptr);
+
+      CHECK("", num_queue_families <= MAX_QUEUE_FAMILIES);
+
+      VkQueueFamilyProperties queue_family_properties[MAX_QUEUE_FAMILIES];
+
+      {
+        u32 num_read_queue_families = num_queue_families;
+        self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
+            device.vk_physical_device, &num_queue_families,
+            queue_family_properties);
+        CHECK("", num_read_queue_families == num_queue_families);
+      }
+
       if (((VkPhysicalDeviceType) preferred_types[i]) ==
           device.properties.deviceType)
       {
-        for (u32 iqueue_family = 0; iqueue_family < device.num_queue_families;
+        for (u32 iqueue_family = 0; iqueue_family < num_queue_families;
              iqueue_family++)
         {
-          if (has_bits(device.queue_family_properties[iqueue_family].queueFlags,
+          if (has_bits(queue_family_properties[iqueue_family].queueFlags,
                        (VkQueueFlags) (VK_QUEUE_COMPUTE_BIT |
                                        VK_QUEUE_GRAPHICS_BIT |
                                        VK_QUEUE_TRANSFER_BIT)))
@@ -1737,7 +1736,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
             if (num_supported_surfaces == num_surfaces)
             {
-              selected_device       = idevice;
+              selected_device_index = idevice;
               selected_queue_family = iqueue_family;
             }
           }
@@ -1746,72 +1745,77 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     }
   }
 
-  if (selected_device == num_devices)
+  if (selected_device_index == num_devices)
   {
     self->logger.trace("No Suitable Device Found");
-    // return device not found error
+    self->allocator.deallocate_typed(physical_devices, num_devices);
+    return Err{Status::DeviceLost};
   }
 
-  self->logger.trace("Selected Device {}", selected_device);
+  PhysicalDevice selected_device = physical_devices[selected_device_index];
+
+  self->allocator.deallocate_typed(physical_devices, num_devices);
+
+  self->logger.trace("Selected Device {}", selected_device_index);
 
   u32 num_extensions;
   result = self->vk_table.EnumerateDeviceExtensionProperties(
-      physical_devices[selected_device].vk_physical_device, nullptr,
-      &num_extensions, nullptr);
+      selected_device.vk_physical_device, nullptr, &num_extensions, nullptr);
 
   if (result != VK_SUCCESS)
   {
-    //
+    return Err{(Status) result};
   }
 
-  // handle result
   VkExtensionProperties *extensions =
       self->allocator.allocate_typed<VkExtensionProperties>(num_extensions);
 
   if (num_extensions > 0 && extensions == nullptr)
   {
-    // handle
     return Err{Status::OutOfHostMemory};
   }
 
   {
     u32 num_read_extensions = num_extensions;
     result                  = self->vk_table.EnumerateDeviceExtensionProperties(
-        physical_devices[selected_device].vk_physical_device, nullptr,
-        &num_read_extensions, extensions);
+        selected_device.vk_physical_device, nullptr, &num_read_extensions,
+        extensions);
     if (result != VK_SUCCESS)
     {
-      //
+      self->allocator.deallocate_typed(extensions, num_extensions);
+      return Err{(Status) result};
     }
     CHECK("", num_extensions == num_read_extensions);
   }
 
   u32 num_layers;
   result = self->vk_table.EnumerateDeviceLayerProperties(
-      physical_devices[selected_device].vk_physical_device, &num_layers,
-      nullptr);
+      selected_device.vk_physical_device, &num_layers, nullptr);
 
   if (result != VK_SUCCESS)
   {
-    //
+    self->allocator.deallocate_typed(extensions, num_extensions);
+    return Err{(Status) result};
   }
 
   VkLayerProperties *layers =
       self->allocator.allocate_typed<VkLayerProperties>(num_layers);
 
-if(num_layers > 0 && layers == nullptr){
-  // handle
-}
+  if (num_layers > 0 && layers == nullptr)
+  {
+    self->allocator.deallocate_typed(extensions, num_extensions);
+    return Err{Status::OutOfHostMemory};
+  }
 
-  // handle
   {
     u32 num_read_layers = num_layers;
     result              = self->vk_table.EnumerateDeviceLayerProperties(
-        physical_devices[selected_device].vk_physical_device, &num_read_layers,
-        layers);
+        selected_device.vk_physical_device, &num_read_layers, layers);
     if (result != VK_SUCCESS)
     {
-      //
+      self->allocator.deallocate_typed(layers, num_layers);
+      self->allocator.deallocate_typed(extensions, num_extensions);
+      return Err{(Status) result};
     }
     CHECK("", num_read_layers == num_layers);
   }
@@ -1877,35 +1881,38 @@ if(num_layers > 0 && layers == nullptr){
     }
   }
 
-  // required
-  if (!has_swapchain_ext)
-  {
-    // TODO, and log
-    return Err{Status::ExtensionNotPresent};
-  }
+  self->allocator.deallocate_typed(layers, num_layers);
+  self->allocator.deallocate_typed(extensions, num_extensions);
 
   char const *load_extensions[2];
   u32         num_load_extensions = 0;
   char const *load_layers[2];
   u32         num_load_layers = 0;
 
-  // todo: this should be removed since it is required
-  if (has_swapchain_ext)
-  {
-    load_extensions[num_load_extensions] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-    num_load_extensions++;
-  }
+  // required
+  load_extensions[num_load_extensions] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+  num_load_extensions++;
 
+  // optional, stubbed
   if (has_debug_marker_ext)
   {
     load_extensions[num_load_extensions] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
     num_load_extensions++;
   }
 
+  // optional
   if (self->validation_layer_enabled && has_validation_layer)
   {
     load_layers[num_load_layers] = "VK_LAYER_KHRONOS_validation";
     num_load_layers++;
+  }
+
+  // required
+  if (!has_swapchain_ext)
+  {
+    self->logger.trace("Required Extension: " VK_KHR_SWAPCHAIN_EXTENSION_NAME
+                       " Not Present");
+    return Err{Status::ExtensionNotPresent};
   }
 
   f32 const queue_priority = 1.0F;
@@ -1918,8 +1925,9 @@ if(num_layers > 0 && layers == nullptr){
       .queueCount       = 1,
       .pQueuePriorities = &queue_priority};
 
-  // todo: enable features
-  VkPhysicalDeviceFeatures features{.geometryShader = VK_TRUE};
+  VkPhysicalDeviceFeatures features{
+      .geometryShader    = VK_TRUE,
+      .samplerAnisotropy = selected_device.features.samplerAnisotropy};
 
   VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                                  .pNext = nullptr,
@@ -1933,25 +1941,65 @@ if(num_layers > 0 && layers == nullptr){
                                  .pEnabledFeatures        = &features};
 
   VkDevice vk_device;
-  result = self->vk_table.CreateDevice(
-      physical_devices[selected_device].vk_physical_device, &create_info,
-      nullptr, &vk_device);
+  result = self->vk_table.CreateDevice(selected_device.vk_physical_device,
+                                       &create_info, nullptr, &vk_device);
 
   if (result != VK_SUCCESS)
   {
-    //
+    return Err{(Status) result};
   }
+
+  DeviceTable        vk_table;
+  VmaVulkanFunctions vma_table;
+  CHECK(
+      "Not all required vulkan device functions were loaded",
+      load_device_table(vk_device, vkGetDeviceProcAddr, &vk_table, &vma_table));
 
   Device *device = self->allocator.allocate_typed<Device>(1);
 
   if (device == nullptr)
   {
-    //
+    vk_table.DestroyDevice(vk_device, nullptr);
+    return Err{Status::OutOfHostMemory};
   }
 
-  new (device) Device{
+  VkQueue vk_queue;
+  vk_table.GetDeviceQueue(vk_device, selected_queue_family, 0, &vk_queue);
 
-  };
+  // TODO(lamarrr): tracer for memory allocations
+  // trace u64, i64, f64 etc
+  VmaAllocatorCreateInfo vma_create_info{
+      .flags          = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
+      .physicalDevice = selected_device.vk_physical_device,
+      .device         = vk_device,
+      .preferredLargeHeapBlockSize    = 0,
+      .pAllocationCallbacks           = nullptr,
+      .pDeviceMemoryCallbacks         = nullptr,
+      .pHeapSizeLimit                 = nullptr,
+      .pVulkanFunctions               = &vma_table,
+      .instance                       = self->vk_instance,
+      .vulkanApiVersion               = VK_API_VERSION_1_0,
+      .pTypeExternalMemoryHandleTypes = nullptr};
+
+  VmaAllocator vma_allocator;
+  result = vmaCreateAllocator(&vma_create_info, &vma_allocator);
+
+  if (result != VK_SUCCESS)
+  {
+    self->allocator.deallocate_typed(device, 1);
+    vk_table.DestroyDevice(vk_device, nullptr);
+    return Err{(Status) result};
+  }
+
+  new (device) Device{.refcount        = 1,
+                      .allocator       = allocator,
+                      .instance        = self,
+                      .physical_device = selected_device,
+                      .vk_table        = vk_table,
+                      .vma_table       = vma_table,
+                      .queue_family    = selected_queue_family,
+                      .vk_queue        = vk_queue,
+                      .vma_allocator   = vma_allocator};
 
   return Ok{gfx::DeviceImpl{.self      = (gfx::Device) device,
                             .interface = &device_interface}};
