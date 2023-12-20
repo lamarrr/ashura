@@ -826,13 +826,13 @@ inline bool sync_image(ImageState &state, ImageAccess request,
   }
 }
 
-inline void access_buffer(CommandEncoder const *encoder, Buffer *buffer,
+inline void access_buffer(CommandEncoder const &encoder, Buffer &buffer,
                           VkPipelineStageFlags stages, VkAccessFlags access)
 {
   VkBufferMemoryBarrier barrier;
   VkPipelineStageFlags  src_stages;
   VkPipelineStageFlags  dst_stages;
-  if (sync_buffer(buffer->state,
+  if (sync_buffer(buffer.state,
                   BufferAccess{.stages = stages, .access = access}, barrier,
                   src_stages, dst_stages))
   {
@@ -840,16 +840,16 @@ inline void access_buffer(CommandEncoder const *encoder, Buffer *buffer,
     barrier.pNext               = nullptr;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.buffer              = buffer->vk_buffer;
+    barrier.buffer              = buffer.vk_buffer;
     barrier.offset              = 0;
     barrier.size                = VK_WHOLE_SIZE;
-    encoder->device->vk_table.CmdPipelineBarrier(
-        encoder->vk_command_buffer, src_stages, dst_stages, 0, 0, nullptr, 1,
+    encoder.device->vk_table.CmdPipelineBarrier(
+        encoder.vk_command_buffer, src_stages, dst_stages, 0, 0, nullptr, 1,
         &barrier, 0, nullptr);
   }
 }
 
-inline void access_image(CommandEncoder const *encoder, Image *image,
+inline void access_image(CommandEncoder const &encoder, Image &image,
                          VkPipelineStageFlags stages, VkAccessFlags access,
                          VkImageLayout layout)
 {
@@ -857,7 +857,7 @@ inline void access_image(CommandEncoder const *encoder, Image *image,
   VkPipelineStageFlags src_stages;
   VkPipelineStageFlags dst_stages;
   if (sync_image(
-          image->state,
+          image.state,
           ImageAccess{.stages = stages, .access = access, .layout = layout},
           barrier, src_stages, dst_stages))
   {
@@ -865,26 +865,26 @@ inline void access_image(CommandEncoder const *encoder, Image *image,
     barrier.pNext               = nullptr;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image               = image->vk_image;
+    barrier.image               = image.vk_image;
     barrier.subresourceRange.aspectMask =
-        (VkImageAspectFlags) image->desc.aspects;
+        (VkImageAspectFlags) image.desc.aspects;
     barrier.subresourceRange.baseMipLevel   = 0;
     barrier.subresourceRange.levelCount     = VK_REMAINING_MIP_LEVELS;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount     = VK_REMAINING_ARRAY_LAYERS;
-    encoder->device->vk_table.CmdPipelineBarrier(
-        encoder->vk_command_buffer, src_stages, dst_stages, 0, 0, nullptr, 0,
+    encoder.device->vk_table.CmdPipelineBarrier(
+        encoder.vk_command_buffer, src_stages, dst_stages, 0, 0, nullptr, 0,
         nullptr, 1, &barrier);
   }
 }
 
-inline void access_compute_bindings(CommandEncoder *encoder)
+inline void access_compute_bindings(CommandEncoder &encoder)
 {
-  for (u32 i = 0; i < encoder->num_bound_descriptor_sets; i++)
+  for (u32 i = 0; i < encoder.num_bound_descriptor_sets; i++)
   {
-    DescriptorHeap const *heap  = encoder->bound_descriptor_set_heaps[i];
-    u32 const             set   = encoder->bound_descriptor_sets[i];
-    u32 const             group = encoder->bound_descriptor_set_groups[i];
+    DescriptorHeap const *heap  = encoder.bound_descriptor_set_heaps[i];
+    u32 const             set   = encoder.bound_descriptor_sets[i];
+    u32 const             group = encoder.bound_descriptor_set_groups[i];
     DescriptorSetLayout const *const layout = heap->set_layouts[set];
 
     for (u32 ibinding = 0; ibinding < layout->num_bindings; ibinding++)
@@ -903,7 +903,7 @@ inline void access_compute_bindings(CommandEncoder *encoder)
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
             access_image(
-                encoder, IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                encoder, *IMAGE_FROM_VIEW(bindings[ielement].image_view),
                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
           }
@@ -921,7 +921,7 @@ inline void access_compute_bindings(CommandEncoder *encoder)
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
             access_image(
-                encoder, IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                encoder, *IMAGE_FROM_VIEW(bindings[ielement].image_view),
                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
           }
@@ -939,7 +939,7 @@ inline void access_compute_bindings(CommandEncoder *encoder)
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
             access_image(encoder,
-                         IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                         *IMAGE_FROM_VIEW(bindings[ielement].image_view),
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                          VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
                          VK_IMAGE_LAYOUT_GENERAL);
@@ -958,7 +958,7 @@ inline void access_compute_bindings(CommandEncoder *encoder)
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
             access_buffer(encoder,
-                          BUFFER_FROM_VIEW(bindings[ielement].buffer_view),
+                          *BUFFER_FROM_VIEW(bindings[ielement].buffer_view),
                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                           VK_ACCESS_SHADER_READ_BIT);
           }
@@ -976,7 +976,7 @@ inline void access_compute_bindings(CommandEncoder *encoder)
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
             access_buffer(
-                encoder, BUFFER_FROM_VIEW(bindings[ielement].buffer_view),
+                encoder, *BUFFER_FROM_VIEW(bindings[ielement].buffer_view),
                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                 VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT);
           }
@@ -993,7 +993,7 @@ inline void access_compute_bindings(CommandEncoder *encoder)
                        (usize) offset);
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
-            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+            access_buffer(encoder, *((Buffer *) bindings[ielement].buffer),
                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                           VK_ACCESS_SHADER_READ_BIT);
           }
@@ -1010,7 +1010,7 @@ inline void access_compute_bindings(CommandEncoder *encoder)
                        (usize) offset);
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
-            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+            access_buffer(encoder, *((Buffer *) bindings[ielement].buffer),
                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                           VK_ACCESS_SHADER_WRITE_BIT |
                               VK_ACCESS_SHADER_READ_BIT);
@@ -1028,7 +1028,7 @@ inline void access_compute_bindings(CommandEncoder *encoder)
                        (usize) offset);
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
-            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+            access_buffer(encoder, *((Buffer *) bindings[ielement].buffer),
                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                           VK_ACCESS_SHADER_READ_BIT);
           }
@@ -1045,7 +1045,7 @@ inline void access_compute_bindings(CommandEncoder *encoder)
                        (usize) offset);
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
-            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+            access_buffer(encoder, *((Buffer *) bindings[ielement].buffer),
                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                           VK_ACCESS_SHADER_WRITE_BIT |
                               VK_ACCESS_SHADER_READ_BIT);
@@ -1060,13 +1060,13 @@ inline void access_compute_bindings(CommandEncoder *encoder)
   }
 }
 
-inline void access_graphics_bindings(CommandEncoder *encoder)
+inline void access_graphics_bindings(CommandEncoder &encoder)
 {
-  for (u32 i = 0; i < encoder->num_bound_descriptor_sets; i++)
+  for (u32 i = 0; i < encoder.num_bound_descriptor_sets; i++)
   {
-    DescriptorHeap const *heap  = encoder->bound_descriptor_set_heaps[i];
-    u32 const             set   = encoder->bound_descriptor_sets[i];
-    u32 const             group = encoder->bound_descriptor_set_groups[i];
+    DescriptorHeap const *heap  = encoder.bound_descriptor_set_heaps[i];
+    u32 const             set   = encoder.bound_descriptor_sets[i];
+    u32 const             group = encoder.bound_descriptor_set_groups[i];
     DescriptorSetLayout const *const layout = heap->set_layouts[set];
 
     for (u32 ibinding = 0; ibinding < layout->num_bindings; ibinding++)
@@ -1085,7 +1085,7 @@ inline void access_graphics_bindings(CommandEncoder *encoder)
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
             access_image(encoder,
-                         IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                         *IMAGE_FROM_VIEW(bindings[ielement].image_view),
                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          VK_ACCESS_SHADER_READ_BIT,
@@ -1105,7 +1105,7 @@ inline void access_graphics_bindings(CommandEncoder *encoder)
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
             access_image(encoder,
-                         IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                         *IMAGE_FROM_VIEW(bindings[ielement].image_view),
                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          VK_ACCESS_SHADER_READ_BIT,
@@ -1125,7 +1125,7 @@ inline void access_graphics_bindings(CommandEncoder *encoder)
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
             access_buffer(encoder,
-                          BUFFER_FROM_VIEW(bindings[ielement].buffer_view),
+                          *BUFFER_FROM_VIEW(bindings[ielement].buffer_view),
                           VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                           VK_ACCESS_SHADER_READ_BIT);
@@ -1143,7 +1143,7 @@ inline void access_graphics_bindings(CommandEncoder *encoder)
                        (usize) offset);
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
-            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+            access_buffer(encoder, *((Buffer *) bindings[ielement].buffer),
                           VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                           VK_ACCESS_SHADER_READ_BIT);
@@ -1161,7 +1161,7 @@ inline void access_graphics_bindings(CommandEncoder *encoder)
                        (usize) offset);
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
-            access_buffer(encoder, (Buffer *) bindings[ielement].buffer,
+            access_buffer(encoder, *((Buffer *) bindings[ielement].buffer),
                           VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                           VK_ACCESS_SHADER_READ_BIT);
@@ -1180,7 +1180,7 @@ inline void access_graphics_bindings(CommandEncoder *encoder)
           for (u32 ielement = 0; ielement < binding.count; ielement++)
           {
             access_image(encoder,
-                         IMAGE_FROM_VIEW(bindings[ielement].image_view),
+                         *(IMAGE_FROM_VIEW(bindings[ielement].image_view)),
                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          VK_ACCESS_SHADER_READ_BIT,
@@ -1683,8 +1683,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     }
   }
 
-  u32           selected_device_index = num_devices;
-  u32           selected_queue_family = VK_QUEUE_FAMILY_IGNORED;
+  u32 selected_device_index = num_devices;
+  u32 selected_queue_family = VK_QUEUE_FAMILY_IGNORED;
   // todo(lamarrr): get vksurfaces
   VkSurfaceKHR *surfaces;
   u32           num_surfaces = 0;
@@ -5717,9 +5717,9 @@ void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self_,
                                                .size      = copy.size};
   }
 
-  access_buffer(self, src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_buffer(*self, *src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_READ_BIT);
-  access_buffer(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_buffer(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
 
   self->device->vk_table.CmdCopyBuffer(self->vk_command_buffer, src->vk_buffer,
@@ -5746,7 +5746,7 @@ void CommandEncoderInterface::update_buffer(gfx::CommandEncoder self_,
     return;
   }
 
-  access_buffer(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_buffer(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
 
   self->device->vk_table.CmdUpdateBuffer(self->vk_command_buffer,
@@ -5802,7 +5802,7 @@ void CommandEncoderInterface::clear_color_image(
                                    .layerCount     = range.num_array_layers};
   }
 
-  access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -5866,7 +5866,7 @@ void CommandEncoderInterface::clear_depth_stencil_image(
                                    .layerCount     = range.num_array_layers};
   }
 
-  access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -5969,10 +5969,10 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
                                .extent         = extent};
   }
 
-  access_image(self, src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(*self, *src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_READ_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-  access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -6051,9 +6051,9 @@ void CommandEncoderInterface::copy_buffer_to_image(
                                   copy.image_extent.z}};
   }
 
-  access_buffer(self, src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_buffer(*self, *src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_READ_BIT);
-  access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -6152,10 +6152,10 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
                        (i32) blit.dst_offsets[1].z}}};
   }
 
-  access_image(self, src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(*self, *src, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_READ_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-  access_image(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_image(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                VK_ACCESS_TRANSFER_WRITE_BIT,
                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
   self->device->vk_table.CmdBlitImage(self->vk_command_buffer, src->vk_image,
@@ -6231,7 +6231,7 @@ void CommandEncoderInterface::begin_render_pass(
   for (u32 i = 0; i < framebuffer->num_color_attachments; i++)
   {
     access_image(
-        self, IMAGE_FROM_VIEW(framebuffer->color_attachments[i]),
+        *self, *IMAGE_FROM_VIEW(framebuffer->color_attachments[i]),
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         color_attachment_image_access(render_pass->color_attachments[i]),
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -6242,8 +6242,8 @@ void CommandEncoderInterface::begin_render_pass(
     VkAccessFlags access = depth_stencil_attachment_image_access(
         render_pass->depth_stencil_attachment);
     access_image(
-        self,
-        IMAGE_FROM_VIEW(self->bound_framebuffer->depth_stencil_attachment),
+        *self,
+        *IMAGE_FROM_VIEW(self->bound_framebuffer->depth_stencil_attachment),
         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
         access,
@@ -6422,7 +6422,7 @@ void CommandEncoderInterface::dispatch(gfx::CommandEncoder self_,
   VALIDATE("", group_count_y <= gfx::MAX_COMPUTE_GROUP_COUNT_Y);
   VALIDATE("", group_count_z <= gfx::MAX_COMPUTE_GROUP_COUNT_Z);
 
-  access_compute_bindings(self);
+  access_compute_bindings(*self);
 
   self->device->vk_table.CmdDispatch(self->vk_command_buffer, group_count_x,
                                      group_count_y, group_count_z);
@@ -6438,7 +6438,7 @@ void CommandEncoderInterface::dispatch_indirect(gfx::CommandEncoder self_,
   VALIDATE("", has_bits(buffer->desc.usage, gfx::BufferUsage::IndirectBuffer));
   VALIDATE("", offset < buffer->desc.size);
 
-  access_compute_bindings(self);
+  access_compute_bindings(*self);
 
   self->device->vk_table.CmdDispatchIndirect(self->vk_command_buffer,
                                              buffer->vk_buffer, offset);
@@ -6645,15 +6645,15 @@ void CommandEncoderInterface::draw(gfx::CommandEncoder self_, u32 first_index,
 
   for (u32 i = 0; i < self->num_bound_vertex_buffers; i++)
   {
-    access_buffer(self, self->bound_vertex_buffers[i],
+    access_buffer(*self, *self->bound_vertex_buffers[i],
                   VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
                   VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
   }
 
-  access_buffer(self, self->bound_index_buffer,
+  access_buffer(*self, *self->bound_index_buffer,
                 VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_ACCESS_INDEX_READ_BIT);
 
-  access_graphics_bindings(self);
+  access_graphics_bindings(*self);
 
   self->device->vk_table.CmdDrawIndexed(self->vk_command_buffer, num_indices,
                                         num_instances, first_index,
@@ -6683,15 +6683,15 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
 
   for (u32 i = 0; i < self->num_bound_vertex_buffers; i++)
   {
-    access_buffer(self, self->bound_vertex_buffers[i],
+    access_buffer(*self, *self->bound_vertex_buffers[i],
                   VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
                   VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
   }
 
-  access_buffer(self, self->bound_index_buffer,
+  access_buffer(*self, *self->bound_index_buffer,
                 VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_ACCESS_INDEX_READ_BIT);
 
-  access_graphics_bindings(self);
+  access_graphics_bindings(*self);
 
   self->device->vk_table.CmdDrawIndexedIndirect(
       self->vk_command_buffer, buffer->vk_buffer, offset, draw_count, stride);
