@@ -1330,7 +1330,7 @@ Result<gfx::InstanceImpl, Status>
     InstanceInterface::create(AllocatorImpl allocator, LoggerImpl logger,
                               bool enable_validation_layer)
 {
-  logger.trace("Enumerating Vulkan Extensions...");
+  logger.trace("Enumerating Extensions...");
   u32      num_available_extensions;
   VkResult result = vkEnumerateInstanceExtensionProperties(
       nullptr, &num_available_extensions, nullptr);
@@ -1359,7 +1359,7 @@ Result<gfx::InstanceImpl, Status>
     return Err{(Status) result};
   }
 
-  logger.trace("Enumerating Vulkan Layers...");
+  logger.trace("Enumerating Layers...");
 
   u32 num_available_layers;
   result = vkEnumerateInstanceLayerProperties(&num_available_layers, nullptr);
@@ -1390,7 +1390,7 @@ Result<gfx::InstanceImpl, Status>
     return Err{(Status) result};
   }
 
-  logger.trace("Available Vulkan Extensions:");
+  logger.trace("Available Extensions:");
 
   for (VkExtensionProperties const &properties :
        Span{extension_properties, num_read_extensions})
@@ -1403,7 +1403,7 @@ Result<gfx::InstanceImpl, Status>
                  VK_API_VERSION_VARIANT(properties.specVersion));
   }
 
-  logger.trace("Available Vulkan Validation Layers:");
+  logger.trace("Available Validation Layers:");
 
   for (VkLayerProperties const &properties :
        Span{layer_properties, num_read_layers})
@@ -1566,19 +1566,29 @@ Result<gfx::InstanceImpl, Status>
                               .interface = &instance_interface}};
 }
 
-void InstanceInterface::ref(gfx::Instance instance)
+void InstanceInterface::ref(gfx::Instance instance_)
 {
+  ((Instance *) instance_)->refcount++;
 }
 
-void InstanceInterface::unref(gfx::Instance instance)
+void InstanceInterface::unref(gfx::Instance instance_)
 {
+  Instance *const instance = (Instance *) instance_;
+
+  if (--instance->refcount == 0)
+  {
+    vkDestroyDebugUtilsMessengerEXT(instance->vk_instance,
+                                    instance->vk_debug_messenger, nullptr);
+    instance->vk_table.DestroyInstance(instance->vk_instance, nullptr);
+  }
 }
 
 Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     gfx::Instance self_, Span<gfx::DeviceType const> preferred_types,
-    Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator)
+    Span<VkSurfaceKHR const> compatible_surfaces, AllocatorImpl allocator)
 {
   Instance *const self               = (Instance *) self_;
+  u32 const       num_surfaces       = (u32) compatible_surfaces.size;
   constexpr u32   MAX_QUEUE_FAMILIES = 16;
 
   u32      num_devices;
@@ -1658,7 +1668,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
     u32 num_queue_families;
     self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
-        physical_devices[i].vk_physical_device, &num_queue_families, nullptr);
+        device.vk_physical_device, &num_queue_families, nullptr);
 
     CHECK("", num_queue_families <= MAX_QUEUE_FAMILIES);
 
@@ -1667,7 +1677,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     {
       u32 num_read_queue_families = num_queue_families;
       self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
-          physical_devices[i].vk_physical_device, &num_queue_families,
+          device.vk_physical_device, &num_queue_families,
           queue_family_properties);
       CHECK("", num_read_queue_families == num_queue_families);
     }
@@ -1685,9 +1695,6 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   u32 selected_device_index = num_devices;
   u32 selected_queue_family = VK_QUEUE_FAMILY_IGNORED;
-  // todo(lamarrr): get vksurfaces
-  VkSurfaceKHR *surfaces;
-  u32           num_surfaces = 0;
 
   for (usize i = 0; i < (u32) preferred_types.size; i++)
   {
@@ -1727,8 +1734,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
             {
               VkBool32 supported;
               self->vk_table.GetPhysicalDeviceSurfaceSupportKHR(
-                  device.vk_physical_device, iqueue_family, surfaces[isurface],
-                  &supported);
+                  device.vk_physical_device, iqueue_family,
+                  compatible_surfaces[isurface], &supported);
               if (supported == VK_TRUE)
               {
                 num_supported_surfaces++;
@@ -1926,9 +1933,10 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
       .queueCount       = 1,
       .pQueuePriorities = &queue_priority};
 
-  VkPhysicalDeviceFeatures features{
-      .geometryShader    = VK_TRUE,
-      .samplerAnisotropy = selected_device.features.samplerAnisotropy};
+  VkPhysicalDeviceFeatures features;
+  mem::zero(&features, 1);
+  features.geometryShader    = VK_TRUE;
+  features.samplerAnisotropy = selected_device.features.samplerAnisotropy;
 
   VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                                  .pNext = nullptr,
@@ -1952,7 +1960,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   DeviceTable        vk_table;
   VmaVulkanFunctions vma_table;
-  CHECK("Not all required vulkan device functions were loaded",
+  CHECK("Failed To Load Vulkan Device Functions",
         load_device_table(vk_device, vkGetDeviceProcAddr, vk_table, vma_table));
 
   Device *device = self->allocator.allocate_typed<Device>(1);
@@ -2005,12 +2013,25 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                             .interface = &device_interface}};
 }
 
-void InstanceInterface::ref_device(gfx::Instance instance, gfx::Device device)
+void InstanceInterface::ref_device(gfx::Instance instance_, gfx::Device device_)
 {
+  (void) instance_;
+  Device *const device = (Device *) device_;
+  device->refcount++;
 }
 
-void InstanceInterface::unref_device(gfx::Instance instance, gfx::Device device)
+void InstanceInterface::unref_device(gfx::Instance instance_,
+                                     gfx::Device   device_)
 {
+  Instance *const instance = (Instance *) instance_;
+  Device *const   device   = (Device *) device_;
+
+  if (--device->refcount == 0)
+  {
+    vmaDestroyAllocator(device->vma_allocator);
+    device->vk_table.DestroyDevice(device->vk_device, nullptr);
+    instance->allocator.deallocate_typed(instance, 1);
+  }
 }
 
 Result<gfx::FormatProperties, Status>
@@ -3067,6 +3088,7 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
 
   VALIDATE("", num_descriptor_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
   VALIDATE("", desc.push_constant_size <= gfx::MAX_PUSH_CONSTANT_SIZE);
+  VALIDATE("", desc.push_constant_size % 4 == 0);
 
   VkDescriptorSetLayout
       vk_descriptor_set_layouts[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
@@ -3107,7 +3129,8 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
       .setLayoutCount         = num_descriptor_sets,
       .pSetLayouts            = vk_descriptor_set_layouts,
       .pushConstantRangeCount = 1,
-      .pPushConstantRanges    = &push_constant_range};
+      .pPushConstantRanges =
+          desc.push_constant_size == 0 ? nullptr : &push_constant_range};
 
   VkPipelineLayout vk_layout;
   VkResult         result = self->vk_table.CreatePipelineLayout(
@@ -3467,6 +3490,38 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .refcount = 1, .vk_pipeline = vk_pipeline, .vk_layout = vk_layout};
 
   return Ok{(gfx::GraphicsPipeline) pipeline};
+}
+
+Result<gfx::Fence, Status> DeviceInterface::create_fence(gfx::Device self_,
+                                                         bool        signaled)
+{
+  Device *const self = (Device *) self_;
+
+  VkFenceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                                .pNext = nullptr,
+                                .flags = signaled ?
+                                             VK_FENCE_CREATE_SIGNALED_BIT :
+                                             (VkFenceCreateFlagBits) 0};
+
+  VkFence  vk_fence;
+  VkResult result = self->vk_table.CreateFence(self->vk_device, &create_info,
+                                               nullptr, &vk_fence);
+
+  if (result != VK_SUCCESS)
+  {
+    return Err{(Status) result};
+  }
+
+  Fence *fence = self->allocator.allocate_typed<Fence>(1);
+
+  if (fence == nullptr)
+  {
+    return Err{Status::OutOfHostMemory};
+  }
+
+  new (fence) Fence{.refcount = 1, .vk_fence = vk_fence};
+
+  return Ok{(gfx::Fence) fence};
 }
 
 Result<gfx::CommandEncoderImpl, Status>
@@ -6373,6 +6428,7 @@ void CommandEncoderInterface::push_constants(gfx::CommandEncoder self_,
   VALIDATE("", !(self->bound_compute_pipeline == nullptr &&
                  self->bound_graphics_pipeline == nullptr));
   VALIDATE("", push_constants_data.size_bytes() <= gfx::MAX_PUSH_CONSTANT_SIZE);
+  VALIDATE("", push_constants_data.size_bytes() % 4 == 0);
 
   if (self->status != Status::Success)
   {

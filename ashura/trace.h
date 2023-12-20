@@ -25,8 +25,9 @@ typedef struct TracerImpl      TracerImpl;
 // use for regression testing
 struct TracerInterface
 {
-  void (*begin_event)(Tracer self, char const *event) = nullptr;
-  void (*end_event)(Tracer self, char const *event)   = nullptr;
+  u64  (*begin_event)(Tracer self, char const *category,
+                     char const *event)       = nullptr;
+  void (*end_event)(Tracer self, u64 event_id) = nullptr;
 };
 
 struct TracerImpl

@@ -7,6 +7,8 @@
 #include "stx/result.h"
 #include "stx/void.h"
 
+typedef struct VkSurfaceKHR_T *VkSurfaceKHR;
+
 namespace ash
 {
 using stx::Err;
@@ -1725,8 +1727,8 @@ struct InstanceInterface
   void                       (*unref)(Instance self) = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance self, Span<DeviceType const> preferred_types,
-      Span<Surface const> compatible_surfaces,
-      AllocatorImpl       allocator)                       = nullptr;
+      Span<VkSurfaceKHR const> compatible_surfaces,
+      AllocatorImpl            allocator)                       = nullptr;
   void (*ref_device)(Instance self, Device device)   = nullptr;
   void (*unref_device)(Instance self, Device device) = nullptr;
 };

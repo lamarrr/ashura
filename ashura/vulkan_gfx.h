@@ -495,15 +495,13 @@ struct InstanceInterface
   static void                              unref(gfx::Instance self);
   static Result<gfx::DeviceImpl, Status>   create_device(
         gfx::Instance self, Span<gfx::DeviceType const> preferred_types,
-        Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator);
+        Span<VkSurfaceKHR const> compatible_surfaces, AllocatorImpl allocator);
   static void ref_device(gfx::Instance self, gfx::Device device);
   static void unref_device(gfx::Instance self, gfx::Device device);
 };
 
 struct DeviceInterface
 {
-  static void ref(gfx::Device self);
-  static void unref(gfx::Device self);
   static Result<gfx::DeviceProperties, Status>
       get_device_properties(gfx::Device self);
   static Result<gfx::FormatProperties, Status>
