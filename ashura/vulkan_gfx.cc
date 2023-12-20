@@ -3497,11 +3497,11 @@ Result<gfx::Fence, Status> DeviceInterface::create_fence(gfx::Device self_,
 {
   Device *const self = (Device *) self_;
 
-  VkFenceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                                .pNext = nullptr,
-                                .flags = signaled ?
-                                             VK_FENCE_CREATE_SIGNALED_BIT :
-                                             (VkFenceCreateFlagBits) 0};
+  VkFenceCreateInfo create_info{
+      .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = signaled ? (VkFenceCreateFlags) VK_FENCE_CREATE_SIGNALED_BIT :
+                          (VkFenceCreateFlags) 0};
 
   VkFence  vk_fence;
   VkResult result = self->vk_table.CreateFence(self->vk_device, &create_info,
