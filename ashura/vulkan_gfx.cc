@@ -196,14 +196,14 @@ void CmdDebugMarkerInsertEXT_Stub(VkCommandBuffer,
 
 bool load_instance_table(VkInstance                instance,
                          PFN_vkGetInstanceProcAddr GetInstanceProcAddr,
-                         InstanceTable            *vk_instance_table)
+                         InstanceTable            &vk_instance_table)
 {
   bool all_loaded = true;
 
 #define LOAD_VK(function)                                               \
-  vk_instance_table->function =                                         \
+  vk_instance_table.function =                                          \
       (PFN_vk##function) GetInstanceProcAddr(instance, "vk" #function); \
-  all_loaded = all_loaded && (vk_instance_table->function != nullptr)
+  all_loaded = all_loaded && (vk_instance_table.function != nullptr)
 
   LOAD_VK(CreateInstance);
   LOAD_VK(DestroyInstance);
@@ -234,14 +234,14 @@ bool load_instance_table(VkInstance                instance,
 
 bool load_device_table(VkDevice                device,
                        PFN_vkGetDeviceProcAddr GetDeviceProcAddr,
-                       DeviceTable *vk_table, VmaVulkanFunctions *vma_table)
+                       DeviceTable &vk_table, VmaVulkanFunctions &vma_table)
 {
   bool all_loaded = true;
 
 #define LOAD_VK(function)                                           \
-  vk_table->function =                                              \
+  vk_table.function =                                               \
       (PFN_vk##function) GetDeviceProcAddr(device, "vk" #function); \
-  all_loaded = all_loaded && (vk_table->function != nullptr)
+  all_loaded = all_loaded && (vk_table.function != nullptr)
 
   // DEVICE OBJECT FUNCTIONS
   LOAD_VK(AllocateCommandBuffers);
@@ -374,10 +374,10 @@ bool load_device_table(VkDevice                device,
 #undef LOAD_VK
 
 #define LOAD_VK_STUBBED(function)                                   \
-  vk_table->function =                                              \
+  vk_table.function =                                               \
       (PFN_vk##function) GetDeviceProcAddr(device, "vk" #function); \
-  vk_table->function =                                              \
-      (vk_table->function != nullptr) ? vk_table->function : function##_Stub;
+  vk_table.function =                                               \
+      (vk_table.function != nullptr) ? vk_table.function : function##_Stub;
 
   LOAD_VK_STUBBED(DebugMarkerSetObjectTagEXT);
   LOAD_VK_STUBBED(DebugMarkerSetObjectNameEXT);
@@ -388,7 +388,7 @@ bool load_device_table(VkDevice                device,
 
 #undef LOAD_VK_STUBBED
 
-#define SET_VMA(function) vma_table->vk##function = vk_table->function
+#define SET_VMA(function) vma_table.vk##function = vk_table.function
   SET_VMA(AllocateMemory);
   SET_VMA(FreeMemory);
   SET_VMA(UnmapMemory);
@@ -1556,7 +1556,7 @@ Result<gfx::InstanceImpl, Status>
   InstanceTable vk_table;
 
   CHECK("Unable to load all required vulkan procedure address",
-        load_instance_table(vk_instance, vkGetInstanceProcAddr, &vk_table));
+        load_instance_table(vk_instance, vkGetInstanceProcAddr, vk_table));
 
   instance->vk_table           = vk_table;
   instance->vk_instance        = vk_instance;
@@ -1952,9 +1952,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   DeviceTable        vk_table;
   VmaVulkanFunctions vma_table;
-  CHECK(
-      "Not all required vulkan device functions were loaded",
-      load_device_table(vk_device, vkGetDeviceProcAddr, &vk_table, &vma_table));
+  CHECK("Not all required vulkan device functions were loaded",
+        load_device_table(vk_device, vkGetDeviceProcAddr, vk_table, vma_table));
 
   Device *device = self->allocator.allocate_typed<Device>(1);
 
@@ -2971,10 +2970,9 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
     return Err{Status::OutOfHostMemory};
   }
 
-  DescriptorHeap *descriptor_heap =
-      self->allocator.allocate_typed<DescriptorHeap>(1);
+  DescriptorHeap *heap = self->allocator.allocate_typed<DescriptorHeap>(1);
 
-  if (descriptor_heap == nullptr)
+  if (heap == nullptr)
   {
     self->allocator.deallocate(MAX_STANDARD_ALIGNMENT, scratch_memory,
                                scratch_size);
@@ -2988,36 +2986,34 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
     return Err{Status::OutOfHostMemory};
   }
 
-  new (descriptor_heap)
-      DescriptorHeap{.refcount                    = 1,
-                     .device                      = self,
-                     .allocator                   = allocator,
-                     .set_layouts                 = set_layouts,
-                     .binding_offsets             = binding_offsets,
-                     .vk_pools                    = nullptr,
-                     .vk_descriptor_sets          = nullptr,
-                     .last_use_frame              = nullptr,
-                     .released_groups             = nullptr,
-                     .free_groups                 = nullptr,
-                     .bindings                    = nullptr,
-                     .scratch_memory              = scratch_memory,
-                     .num_sets_per_group          = num_sets,
-                     .num_pools                   = 0,
-                     .num_groups_per_pool         = groups_per_pool,
-                     .num_released_groups         = 0,
-                     .num_free_groups             = 0,
-                     .group_binding_stride        = group_binding_stride,
-                     .vk_pools_capacity           = 0,
-                     .vk_descriptor_sets_capacity = 0,
-                     .last_use_frame_capacity     = 0,
-                     .released_groups_capacity    = 0,
-                     .free_groups_capacity        = 0,
-                     .bindings_capacity           = 0,
-                     .scratch_memory_size         = 0};
+  new (heap) DescriptorHeap{.refcount                    = 1,
+                            .device                      = self,
+                            .allocator                   = allocator,
+                            .set_layouts                 = set_layouts,
+                            .binding_offsets             = binding_offsets,
+                            .vk_pools                    = nullptr,
+                            .vk_descriptor_sets          = nullptr,
+                            .last_use_frame              = nullptr,
+                            .released_groups             = nullptr,
+                            .free_groups                 = nullptr,
+                            .bindings                    = nullptr,
+                            .scratch_memory              = scratch_memory,
+                            .num_sets_per_group          = num_sets,
+                            .num_pools                   = 0,
+                            .num_groups_per_pool         = groups_per_pool,
+                            .num_released_groups         = 0,
+                            .num_free_groups             = 0,
+                            .group_binding_stride        = group_binding_stride,
+                            .vk_pools_capacity           = 0,
+                            .vk_descriptor_sets_capacity = 0,
+                            .last_use_frame_capacity     = 0,
+                            .released_groups_capacity    = 0,
+                            .free_groups_capacity        = 0,
+                            .bindings_capacity           = 0,
+                            .scratch_memory_size         = 0};
 
-  return Ok(
-      gfx::DescriptorHeapImpl{.self = (gfx::DescriptorHeap) descriptor_heap,
-                              .interface = &descriptor_heap_interface});
+  return Ok(gfx::DescriptorHeapImpl{.self      = (gfx::DescriptorHeap) heap,
+                                    .interface = &descriptor_heap_interface});
 }
 
 Result<gfx::PipelineCache, Status>
@@ -4163,47 +4159,40 @@ void DeviceInterface::unref_descriptor_set_layout(
 void DeviceInterface::unref_descriptor_heap(gfx::Device             self_,
                                             gfx::DescriptorHeapImpl heap_)
 {
-  Device *const         self            = (Device *) self_;
-  DescriptorHeap *const descriptor_heap = (DescriptorHeap *) heap_.self;
+  Device *const         self = (Device *) self_;
+  DescriptorHeap *const heap = (DescriptorHeap *) heap_.self;
 
-  if (--descriptor_heap->refcount == 0)
+  if (--heap->refcount == 0)
   {
-    self->allocator.deallocate_typed(descriptor_heap->set_layouts,
-                                     descriptor_heap->num_sets_per_group);
-    self->allocator.deallocate_typed(descriptor_heap->set_layouts,
-                                     descriptor_heap->num_sets_per_group);
-    for (u32 i = 0; i < descriptor_heap->num_sets_per_group; i++)
+    self->allocator.deallocate_typed(heap->set_layouts,
+                                     heap->num_sets_per_group);
+    self->allocator.deallocate_typed(heap->set_layouts,
+                                     heap->num_sets_per_group);
+    for (u32 i = 0; i < heap->num_sets_per_group; i++)
     {
-      self->allocator.deallocate_typed(
-          descriptor_heap->binding_offsets[i],
-          descriptor_heap->set_layouts[i]->num_bindings);
+      self->allocator.deallocate_typed(heap->binding_offsets[i],
+                                       heap->set_layouts[i]->num_bindings);
     }
-    self->allocator.deallocate_typed(descriptor_heap->binding_offsets,
-                                     descriptor_heap->num_sets_per_group);
-    for (u32 i = 0; i < descriptor_heap->num_pools; i++)
+    self->allocator.deallocate_typed(heap->binding_offsets,
+                                     heap->num_sets_per_group);
+    for (u32 i = 0; i < heap->num_pools; i++)
     {
-      self->vk_table.DestroyDescriptorPool(
-          self->vk_device, descriptor_heap->vk_pools[i], nullptr);
+      self->vk_table.DestroyDescriptorPool(self->vk_device, heap->vk_pools[i],
+                                           nullptr);
     }
-    descriptor_heap->allocator.deallocate_typed(
-        descriptor_heap->vk_pools, descriptor_heap->vk_pools_capacity);
-    descriptor_heap->allocator.deallocate_typed(
-        descriptor_heap->vk_descriptor_sets,
-        descriptor_heap->vk_descriptor_sets_capacity);
-    descriptor_heap->allocator.deallocate_typed(
-        descriptor_heap->last_use_frame,
-        descriptor_heap->last_use_frame_capacity);
-    descriptor_heap->allocator.deallocate_typed(
-        descriptor_heap->released_groups,
-        descriptor_heap->released_groups_capacity);
-    descriptor_heap->allocator.deallocate_typed(
-        descriptor_heap->free_groups, descriptor_heap->free_groups_capacity);
-    descriptor_heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT,
-                                          descriptor_heap->bindings,
-                                          descriptor_heap->bindings_capacity);
-    descriptor_heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT,
-                                          descriptor_heap->scratch_memory,
-                                          descriptor_heap->scratch_memory_size);
+    heap->allocator.deallocate_typed(heap->vk_pools, heap->vk_pools_capacity);
+    heap->allocator.deallocate_typed(heap->vk_descriptor_sets,
+                                     heap->vk_descriptor_sets_capacity);
+    heap->allocator.deallocate_typed(heap->last_use_frame,
+                                     heap->last_use_frame_capacity);
+    heap->allocator.deallocate_typed(heap->released_groups,
+                                     heap->released_groups_capacity);
+    heap->allocator.deallocate_typed(heap->free_groups,
+                                     heap->free_groups_capacity);
+    heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT, heap->bindings,
+                               heap->bindings_capacity);
+    heap->allocator.deallocate(MAX_STANDARD_ALIGNMENT, heap->scratch_memory,
+                               heap->scratch_memory_size);
   }
 }
 
@@ -5671,7 +5660,7 @@ void CommandEncoderInterface::fill_buffer(gfx::CommandEncoder self_,
     return;
   }
 
-  access_buffer(self, dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  access_buffer(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_ACCESS_TRANSFER_WRITE_BIT);
   self->device->vk_table.CmdFillBuffer(self->vk_command_buffer, dst->vk_buffer,
                                        offset, size, data);
@@ -6334,21 +6323,20 @@ void CommandEncoderInterface::bind_descriptor_sets(
   VALIDATE("", num_dynamic_offsets <= num_sets);
   for (u32 iset = 0; iset < num_sets; iset++)
   {
-    DescriptorHeap *descriptor_heap = (DescriptorHeap *) descriptor_heaps[iset];
-    VALIDATE("", groups[iset] < descriptor_heap->num_pools *
-                                    descriptor_heap->num_groups_per_pool);
-    VALIDATE("", sets[iset] < descriptor_heap->num_sets_per_group);
+    DescriptorHeap *heap = (DescriptorHeap *) descriptor_heaps[iset];
+    VALIDATE("", groups[iset] < heap->num_pools * heap->num_groups_per_pool);
+    VALIDATE("", sets[iset] < heap->num_sets_per_group);
   }
 
   VkDescriptorSet vk_sets[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
 
   for (u32 iset = 0; iset < num_sets; iset++)
   {
-    DescriptorHeap *descriptor_heap = (DescriptorHeap *) descriptor_heaps[iset];
+    DescriptorHeap *heap = (DescriptorHeap *) descriptor_heaps[iset];
     vk_sets[iset] =
-        descriptor_heap->vk_descriptor_sets
-            [descriptor_heap->num_sets_per_group * groups[iset] + sets[iset]];
-    self->bound_descriptor_set_heaps[iset]  = descriptor_heap;
+        heap->vk_descriptor_sets[heap->num_sets_per_group * groups[iset] +
+                                 sets[iset]];
+    self->bound_descriptor_set_heaps[iset]  = heap;
     self->bound_descriptor_set_groups[iset] = groups[iset];
     self->bound_descriptor_sets[iset]       = sets[iset];
   }
