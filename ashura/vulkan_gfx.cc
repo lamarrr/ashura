@@ -1685,6 +1685,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   u32           selected_device_index = num_devices;
   u32           selected_queue_family = VK_QUEUE_FAMILY_IGNORED;
+  // todo(lamarrr): get vksurfaces
   VkSurfaceKHR *surfaces;
   u32           num_surfaces = 0;
 
@@ -3530,8 +3531,8 @@ Result<gfx::CommandEncoderImpl, Status>
                                .bound_render_pass        = nullptr,
                                .bound_framebuffer        = nullptr,
                                .bound_vertex_buffers     = {},
-                               .num_bound_vertex_buffers = 0,
                                .bound_index_buffer       = nullptr,
+                               .num_bound_vertex_buffers = 0,
                                .bound_index_type = gfx::IndexType::Uint16,
                                .bound_index_buffer_offset   = 0,
                                .bound_descriptor_set_heaps  = {},

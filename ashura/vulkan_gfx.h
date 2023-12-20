@@ -445,8 +445,8 @@ struct CommandEncoder
   RenderPass       *bound_render_pass                                = nullptr;
   Framebuffer      *bound_framebuffer                                = nullptr;
   Buffer           *bound_vertex_buffers[gfx::MAX_VERTEX_ATTRIBUTES] = {};
-  u32               num_bound_vertex_buffers                         = 0;
   Buffer           *bound_index_buffer                               = nullptr;
+  u32               num_bound_vertex_buffers                         = 0;
   gfx::IndexType    bound_index_type          = gfx::IndexType::Uint16;
   u64               bound_index_buffer_offset = 0;
   DescriptorHeap
