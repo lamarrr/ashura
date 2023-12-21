@@ -82,21 +82,6 @@ struct AllocatorImpl
         self, alignof(T), memory, sizeof(T) * old_num, sizeof(T) * new_num);
   }
 
-  [[nodiscard]] void *grow(usize alignment, void *memory, usize old_size,
-                           usize growth)
-  {
-    return interface->reallocate(self, alignment, memory, old_size,
-                                 old_size + growth);
-  }
-
-  template <typename T>
-  [[nodiscard]] T *grow_typed(T *memory, usize old_num, usize growth) const
-  {
-    return (T *) interface->reallocate(self, alignof(T), memory,
-                                       sizeof(T) * old_num,
-                                       sizeof(T) * (old_num + growth));
-  }
-
   void deallocate(usize alignment, void *memory, usize size) const
   {
     interface->deallocate(self, alignment, memory, size);

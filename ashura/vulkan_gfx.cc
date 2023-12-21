@@ -2018,9 +2018,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                             .interface = &device_interface}};
 }
 
-void InstanceInterface::ref_device(gfx::Instance instance_, gfx::Device device_)
+void InstanceInterface::ref_device(gfx::Instance, gfx::Device device_)
 {
-  (void) instance_;
   Device *const device = (Device *) device_;
   device->refcount++;
 }
@@ -2613,10 +2612,10 @@ Result<gfx::Framebuffer, Status>
     DeviceInterface::create_framebuffer(gfx::Device                 self_,
                                         gfx::FramebufferDesc const &desc)
 {
-  Device *const self                  = (Device *) self_;
-  RenderPass   *render_pass           = (RenderPass *) desc.render_pass;
-  u32 const     num_color_attachments = (u32) desc.color_attachments.size;
-  bool const    has_depth_stencil_attachment =
+  Device *const     self                  = (Device *) self_;
+  RenderPass *const render_pass           = (RenderPass *) desc.render_pass;
+  u32 const         num_color_attachments = (u32) desc.color_attachments.size;
+  bool const        has_depth_stencil_attachment =
       desc.depth_stencil_attachment != nullptr;
   u32 const num_attachments =
       num_color_attachments + (has_depth_stencil_attachment ? 1U : 0U);
@@ -2827,15 +2826,6 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
 
   VALIDATE("", groups_per_pool > 0);
   VALIDATE("", num_sets > 0);
-  for (gfx::DescriptorSetLayout layout_ : descriptor_set_layouts)
-  {
-    DescriptorSetLayout *layout = (DescriptorSetLayout *) layout_;
-    VALIDATE("", layout->num_bindings > 0);
-    for (u32 i = 0; i < layout->num_bindings; i++)
-    {
-      VALIDATE("", layout->bindings[i].count > 0);
-    }
-  }
 
   DescriptorSetLayout **set_layouts =
       self->allocator.allocate_typed<DescriptorSetLayout *>(num_sets);
@@ -2856,24 +2846,24 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
   }
 
   {
-    u32 iset = 0;
-    for (; iset < num_sets; iset++)
+    u32 push_end = 0;
+    for (; push_end < num_sets; push_end++)
     {
-      u32 *binding_offset =
-          self->allocator.allocate_typed<u32>(set_layouts[iset]->num_bindings);
+      u32 *binding_offset = self->allocator.allocate_typed<u32>(
+          set_layouts[push_end]->num_bindings);
       if (binding_offset == nullptr)
       {
         break;
       }
-      binding_offsets[iset] = binding_offset;
+      binding_offsets[push_end] = binding_offset;
     }
 
-    if (iset != num_sets)
+    if (push_end != num_sets)
     {
-      for (u32 ifree = 0; ifree < iset; ifree++)
+      for (u32 i = 0; i < push_end; i++)
       {
-        self->allocator.deallocate_typed(binding_offsets[ifree],
-                                         set_layouts[ifree]->num_bindings);
+        self->allocator.deallocate_typed(binding_offsets[i],
+                                         set_layouts[i]->num_bindings);
       }
       self->allocator.deallocate_typed(binding_offsets, num_sets);
       self->allocator.deallocate_typed(set_layouts, num_sets);
@@ -2994,10 +2984,10 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
       self->allocator.allocate(MAX_STANDARD_ALIGNMENT, scratch_size);
   if (scratch_memory == nullptr)
   {
-    for (u32 ifree = 0; ifree < num_sets; ifree++)
+    for (u32 i = 0; i < num_sets; i++)
     {
-      self->allocator.deallocate_typed(binding_offsets[ifree],
-                                       set_layouts[ifree]->num_bindings);
+      self->allocator.deallocate_typed(binding_offsets[i],
+                                       set_layouts[i]->num_bindings);
     }
     self->allocator.deallocate_typed(binding_offsets, num_sets);
     self->allocator.deallocate_typed(set_layouts, num_sets);
@@ -3010,10 +3000,10 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
   {
     self->allocator.deallocate(MAX_STANDARD_ALIGNMENT, scratch_memory,
                                scratch_size);
-    for (u32 ifree = 0; ifree < num_sets; ifree++)
+    for (u32 i = 0; i < num_sets; i++)
     {
-      self->allocator.deallocate_typed(binding_offsets[ifree],
-                                       set_layouts[ifree]->num_bindings);
+      self->allocator.deallocate_typed(binding_offsets[i],
+                                       set_layouts[i]->num_bindings);
     }
     self->allocator.deallocate_typed(binding_offsets, num_sets);
     self->allocator.deallocate_typed(set_layouts, num_sets);
@@ -3102,6 +3092,7 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
   VALIDATE("", num_descriptor_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
   VALIDATE("", desc.push_constant_size <= gfx::MAX_PUSH_CONSTANT_SIZE);
   VALIDATE("", desc.push_constant_size % 4 == 0);
+  VALIDATE("", desc.compute_shader.entry_point != nullptr);
 
   VkDescriptorSetLayout
       vk_descriptor_set_layouts[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
@@ -3125,9 +3116,7 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
       .flags  = 0,
       .stage  = VK_SHADER_STAGE_COMPUTE_BIT,
       .module = ((Shader *) desc.compute_shader.shader)->vk_shader,
-      .pName  = desc.compute_shader.entry_point == nullptr ?
-                    "main" :
-                    desc.compute_shader.entry_point,
+      .pName  = desc.compute_shader.entry_point,
       .pSpecializationInfo = &vk_specialization};
 
   VkPushConstantRange push_constant_range{.stageFlags =
@@ -3204,13 +3193,22 @@ Result<gfx::ComputePipeline, Status> DeviceInterface::create_compute_pipeline(
 Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
     gfx::Device self_, gfx::GraphicsPipelineDesc const &desc)
 {
-  Device *const self                = (Device *) self_;
+  Device *const self                        = (Device *) self_;
+  constexpr u32 NUM_PIPELINE_DYNAMIC_STATES = 6U;
   u32 const     num_descriptor_sets = (u32) desc.descriptor_set_layouts.size;
+  u32 const     num_input_bindings  = (u32) desc.vertex_input_bindings.size;
+  u32 const     num_attributes      = (u32) desc.vertex_attributes.size;
+  u32 const     num_color_attachments =
+      (u32) desc.color_blend_state.attachments.size;
 
   VALIDATE("number of descriptor set layouts exceed maximum pipeline "
-           "descriptor set size",
+           "descriptor sets size",
            num_descriptor_sets <= gfx::MAX_PIPELINE_DESCRIPTOR_SETS);
   VALIDATE("", desc.push_constant_size <= gfx::MAX_PUSH_CONSTANT_SIZE);
+  VALIDATE("", desc.vertex_shader.entry_point != nullptr);
+  VALIDATE("", desc.fragment_shader.entry_point != nullptr);
+  VALIDATE("", num_attributes <= gfx::MAX_VERTEX_ATTRIBUTES);
+  VALIDATE("", num_attributes <= num_input_bindings);
 
   VkDescriptorSetLayout
       vk_descriptor_set_layouts[gfx::MAX_PIPELINE_DESCRIPTOR_SETS];
@@ -3241,18 +3239,14 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
        .flags  = 0,
        .stage  = VK_SHADER_STAGE_VERTEX_BIT,
        .module = ((Shader *) desc.vertex_shader.shader)->vk_shader,
-       .pName  = desc.vertex_shader.entry_point == nullptr ?
-                     "main" :
-                     desc.vertex_shader.entry_point,
+       .pName  = desc.vertex_shader.entry_point,
        .pSpecializationInfo = &vk_vs_specialization},
       {.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
        .pNext  = nullptr,
        .flags  = 0,
        .stage  = VK_SHADER_STAGE_FRAGMENT_BIT,
        .module = ((Shader *) desc.fragment_shader.shader)->vk_shader,
-       .pName  = desc.fragment_shader.entry_point == nullptr ?
-                     "main" :
-                     desc.fragment_shader.entry_point,
+       .pName  = desc.fragment_shader.entry_point,
        .pSpecializationInfo = &vk_fs_specialization}};
 
   VkPushConstantRange push_constant_range{.stageFlags = VK_SHADER_STAGE_ALL,
@@ -3278,7 +3272,6 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   }
 
   VkVertexInputBindingDescription input_bindings[gfx::MAX_VERTEX_ATTRIBUTES];
-  u32 const num_input_bindings = (u32) desc.vertex_input_bindings.size;
   for (u32 iinput_bindings = 0; iinput_bindings < num_input_bindings;
        iinput_bindings++)
   {
@@ -3292,7 +3285,6 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
   }
 
   VkVertexInputAttributeDescription attributes[gfx::MAX_VERTEX_ATTRIBUTES];
-  u32 const num_attributes = (u32) desc.vertex_attributes.size;
   for (u32 iattribute = 0; iattribute < num_attributes; iattribute++)
   {
     gfx::VertexAttribute const &attribute = desc.vertex_attributes[iattribute];
@@ -3399,9 +3391,7 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
       .maxDepthBounds = desc.depth_stencil_state.max_depth_bounds};
 
   VkPipelineColorBlendAttachmentState
-            attachment_states[gfx::MAX_COLOR_ATTACHMENTS];
-  u32 const num_color_attachments =
-      (u32) desc.color_blend_state.attachments.size;
+      attachment_states[gfx::MAX_COLOR_ATTACHMENTS];
 
   for (u32 icolor_attachment = 0; icolor_attachment < num_color_attachments;
        icolor_attachment++)
@@ -3432,7 +3422,6 @@ Result<gfx::GraphicsPipeline, Status> DeviceInterface::create_graphics_pipeline(
                           desc.color_blend_state.blend_constant.z,
                           desc.color_blend_state.blend_constant.w}};
 
-  constexpr u32  NUM_PIPELINE_DYNAMIC_STATES                 = 6U;
   VkDynamicState dynamic_states[NUM_PIPELINE_DYNAMIC_STATES] = {
       VK_DYNAMIC_STATE_VIEWPORT,          VK_DYNAMIC_STATE_SCISSOR,
       VK_DYNAMIC_STATE_BLEND_CONSTANTS,   VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
@@ -3642,9 +3631,9 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 
     if (push_end != max_frames_in_flight)
     {
-      for (u32 ifree = 0; ifree < push_end; ifree++)
+      for (u32 i = 0; i < push_end; i++)
       {
-        DeviceInterface::unref_command_encoder(self_, command_encoders[ifree]);
+        DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
       }
       return Err{(Status) status};
     }
@@ -3674,15 +3663,15 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 
     if (push_end != max_frames_in_flight)
     {
-      for (u32 ifree = 0; ifree < push_end; ifree++)
+      for (u32 i = 0; i < push_end; i++)
       {
-        self->vk_table.DestroySemaphore(self->vk_device,
-                                        acquire_semaphores[ifree], nullptr);
+        self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
+                                        nullptr);
       }
 
-      for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+      for (u32 i = 0; i < max_frames_in_flight; i++)
       {
-        DeviceInterface::unref_command_encoder(self_, command_encoders[ifree]);
+        DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
       }
 
       return Err{(Status) result};
@@ -3694,10 +3683,10 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 
   if (submit_fences == nullptr)
   {
-    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    for (u32 i = 0; i < max_frames_in_flight; i++)
     {
-      self->vk_table.DestroySemaphore(self->vk_device,
-                                      acquire_semaphores[ifree], nullptr);
+      self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
+                                      nullptr);
     }
     return Err{Status::OutOfHostMemory};
   }
@@ -3718,21 +3707,18 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 
     if (push_end != max_frames_in_flight)
     {
-      for (u32 ifree = 0; ifree < push_end; ifree++)
+      for (u32 i = 0; i < push_end; i++)
       {
-        DeviceInterface::unref_fence(self_, submit_fences[ifree]);
+        DeviceInterface::unref_fence(self_, submit_fences[i]);
       }
 
-      for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+      for (u32 i = 0; i < max_frames_in_flight; i++)
       {
-        self->vk_table.DestroySemaphore(self->vk_device,
-                                        acquire_semaphores[ifree], nullptr);
+        self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
+                                        nullptr);
+        DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
       }
 
-      for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
-      {
-        DeviceInterface::unref_command_encoder(self_, command_encoders[ifree]);
-      }
       return Err{(Status) status};
     }
   }
@@ -3742,20 +3728,12 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 
   if (submit_semaphores == nullptr)
   {
-    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    for (u32 i = 0; i < max_frames_in_flight; i++)
     {
-      DeviceInterface::unref_fence(self_, submit_fences[ifree]);
-    }
-
-    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
-    {
-      self->vk_table.DestroySemaphore(self->vk_device,
-                                      acquire_semaphores[ifree], nullptr);
-    }
-
-    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
-    {
-      DeviceInterface::unref_command_encoder(self_, command_encoders[ifree]);
+      DeviceInterface::unref_fence(self_, submit_fences[i]);
+      self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
+                                      nullptr);
+      DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
     }
 
     return Err{Status::OutOfHostMemory};
@@ -3765,26 +3743,14 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
 
   if (frame_context == nullptr)
   {
-    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
+    for (u32 i = 0; i < max_frames_in_flight; i++)
     {
-      self->vk_table.DestroySemaphore(self->vk_device, submit_semaphores[ifree],
+      self->vk_table.DestroySemaphore(self->vk_device, submit_semaphores[i],
                                       nullptr);
-    }
-
-    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
-    {
-      DeviceInterface::unref_fence(self_, submit_fences[ifree]);
-    }
-
-    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
-    {
-      self->vk_table.DestroySemaphore(self->vk_device,
-                                      acquire_semaphores[ifree], nullptr);
-    }
-
-    for (u32 ifree = 0; ifree < max_frames_in_flight; ifree++)
-    {
-      DeviceInterface::unref_command_encoder(self_, command_encoders[ifree]);
+      DeviceInterface::unref_fence(self_, submit_fences[i]);
+      self->vk_table.DestroySemaphore(self->vk_device, acquire_semaphores[i],
+                                      nullptr);
+      DeviceInterface::unref_command_encoder(self_, command_encoders[i]);
     }
 
     return Err{Status::OutOfHostMemory};
@@ -4445,10 +4411,8 @@ void DeviceInterface::unref_frame_context(gfx::Device       self_,
 }
 
 Result<void *, Status>
-    DeviceInterface::get_buffer_memory_map(gfx::Device self_,
-                                           gfx::Buffer buffer_)
+    DeviceInterface::get_buffer_memory_map(gfx::Device, gfx::Buffer buffer_)
 {
-  (void) self_;
   Buffer *const buffer = (Buffer *) buffer_;
 
   VALIDATE("", has_any_bit(buffer->desc.properties,
@@ -4780,8 +4744,6 @@ Result<Void, Status>
       frame_context->submit_semaphores[frame_context->current_command_encoder];
 
   VALIDATE("", swapchain->is_valid);
-  VALIDATE("", swapchain->extent.x != 0);
-  VALIDATE("", swapchain->extent.y != 0);
 
   VkResult result = self->vk_table.WaitForFences(
       self->vk_device, 1, &submit_fence->vk_fence, VK_TRUE, U64_MAX);
@@ -4872,6 +4834,15 @@ Result<u32, Status>
                                        gfx::FrameId        trailing_frame)
 {
   DescriptorHeap *const self = (DescriptorHeap *) self_;
+  u32 const             num_sets_per_pool =
+      self->num_sets_per_group * self->num_groups_per_pool;
+  usize const pool_bindings_size =
+      self->num_groups_per_pool * (usize) self->group_binding_stride;
+  u32 num_bindings_per_group = 0;
+  for (u32 i = 0; i < self->num_sets_per_group; i++)
+  {
+    num_bindings_per_group += self->set_layouts[i]->num_bindings;
+  }
 
   // move from released to free for all released groups not in use by the device
   if (self->num_released_groups > 0)
@@ -4899,40 +4870,40 @@ Result<u32, Status>
   {
     u32 group = self->free_groups[self->num_free_groups - 1];
     self->num_free_groups--;
-    mem::zero(self->bindings + group * (usize) self->group_binding_stride +
-                  self->binding_offsets[0][0],
+    mem::zero(self->bindings + group * (usize) self->group_binding_stride,
               self->group_binding_stride);
     return Ok{(u32) group};
   }
 
-  VkDescriptorPool *pools =
-      self->allocator.grow_typed(self->vk_pools, self->num_pools, 1);
+  VkDescriptorPool *pools = self->allocator.reallocate_typed(
+      self->vk_pools, self->vk_pools_capacity, self->num_pools + 1);
 
   if (pools == nullptr)
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  self->vk_pools = pools;
+  self->vk_pools          = pools;
+  self->vk_pools_capacity = self->num_pools + 1;
 
-  VkDescriptorSet *descriptor_sets = self->allocator.grow_typed(
-      self->vk_descriptor_sets,
-      self->num_sets_per_group * self->num_pools * self->num_groups_per_pool,
-      self->num_sets_per_group * self->num_groups_per_pool);
+  VkDescriptorSet *descriptor_sets = self->allocator.reallocate_typed(
+      self->vk_descriptor_sets, self->vk_descriptor_sets_capacity,
+      (self->num_pools + 1) * num_sets_per_pool);
 
   if (descriptor_sets == nullptr)
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  self->vk_descriptor_sets = descriptor_sets;
-  VkDescriptorSet *new_descriptor_sets =
-      descriptor_sets +
-      self->num_sets_per_group * self->num_groups_per_pool * self->num_pools;
+  self->vk_descriptor_sets          = descriptor_sets;
+  self->vk_descriptor_sets_capacity = (self->num_pools + 1) * num_sets_per_pool;
 
-  u64 *last_use_frame = self->allocator.grow_typed(
-      self->last_use_frame, self->num_pools * self->num_groups_per_pool,
-      self->num_groups_per_pool);
+  VkDescriptorSet *new_descriptor_sets =
+      descriptor_sets + self->num_pools * num_sets_per_pool;
+
+  u64 *last_use_frame = self->allocator.reallocate_typed(
+      self->last_use_frame, self->last_use_frame_capacity,
+      (self->num_pools + 1) * self->num_groups_per_pool);
 
   if (last_use_frame == nullptr)
   {
@@ -4940,11 +4911,12 @@ Result<u32, Status>
   }
 
   self->last_use_frame = last_use_frame;
-  self->last_use_frame_capacity += self->num_groups_per_pool;
+  self->last_use_frame_capacity =
+      (self->num_pools + 1) * self->num_groups_per_pool;
 
-  u32 *released_groups = self->allocator.grow_typed(
-      self->released_groups, self->num_pools * self->num_groups_per_pool,
-      self->num_groups_per_pool);
+  u32 *released_groups = self->allocator.reallocate_typed(
+      self->released_groups, self->released_groups_capacity,
+      (self->num_pools + 1) * self->num_groups_per_pool);
 
   if (released_groups == nullptr)
   {
@@ -4952,11 +4924,12 @@ Result<u32, Status>
   }
 
   self->released_groups = released_groups;
-  self->released_groups_capacity += self->num_groups_per_pool;
+  self->released_groups_capacity =
+      (self->num_pools + 1) * self->num_groups_per_pool;
 
-  u32 *free_groups = self->allocator.grow_typed(
-      self->free_groups, self->num_pools * self->num_groups_per_pool,
-      self->num_groups_per_pool);
+  u32 *free_groups = self->allocator.reallocate_typed(
+      self->free_groups, self->free_groups_capacity,
+      (self->num_pools + 1) * self->num_groups_per_pool);
 
   if (free_groups == nullptr)
   {
@@ -4964,30 +4937,23 @@ Result<u32, Status>
   }
 
   self->free_groups = free_groups;
-  self->free_groups_capacity += self->num_groups_per_pool;
+  self->free_groups_capacity =
+      (self->num_pools + 1) * self->num_groups_per_pool;
 
-  usize const pool_bindings_size =
-      self->num_groups_per_pool * (usize) self->group_binding_stride;
-  u8 *bindings = (u8 *) self->allocator.grow(
-      MAX_STANDARD_ALIGNMENT, self->bindings,
-      self->num_pools * pool_bindings_size, pool_bindings_size);
+  u8 *bindings = (u8 *) self->allocator.reallocate(
+      MAX_STANDARD_ALIGNMENT, self->bindings, self->bindings_capacity,
+      (self->num_pools + 1) * pool_bindings_size);
 
   if (bindings == nullptr)
   {
     return Err{Status::OutOfHostMemory};
   }
 
-  self->bindings = bindings;
-  self->bindings_capacity += pool_bindings_size;
+  self->bindings          = bindings;
+  self->bindings_capacity = (self->num_pools + 1) * pool_bindings_size;
 
   mem::zero(self->bindings + self->num_pools * pool_bindings_size,
             pool_bindings_size);
-
-  u32 num_bindings_per_group = 0;
-  for (u32 i = 0; i < self->num_sets_per_group; i++)
-  {
-    num_bindings_per_group += self->set_layouts[i]->num_bindings;
-  }
 
   VkDescriptorPoolSize *pool_sizes =
       self->allocator.allocate_typed<VkDescriptorPoolSize>(
