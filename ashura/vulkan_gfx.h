@@ -75,6 +75,9 @@ struct InstanceTable
       nullptr;
   PFN_vkGetPhysicalDeviceSurfacePresentModesKHR
       GetPhysicalDeviceSurfacePresentModesKHR = nullptr;
+
+  PFN_vkCreateDebugUtilsMessengerEXT  CreateDebugUtilsMessengerEXT  = nullptr;
+  PFN_vkDestroyDebugUtilsMessengerEXT DestroyDebugUtilsMessengerEXT = nullptr;
 };
 
 struct DeviceTable

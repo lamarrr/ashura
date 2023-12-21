@@ -200,14 +200,14 @@ void CmdDebugMarkerInsertEXT_Stub(VkCommandBuffer,
 
 bool load_instance_table(VkInstance                instance,
                          PFN_vkGetInstanceProcAddr GetInstanceProcAddr,
-                         InstanceTable            &vk_instance_table)
+                         InstanceTable &vk_table, bool validation_layer_enabled)
 {
   bool all_loaded = true;
 
 #define LOAD_VK(function)                                               \
-  vk_instance_table.function =                                          \
+  vk_table.function =                                                   \
       (PFN_vk##function) GetInstanceProcAddr(instance, "vk" #function); \
-  all_loaded = all_loaded && (vk_instance_table.function != nullptr)
+  all_loaded = all_loaded && (vk_table.function != nullptr)
 
   LOAD_VK(CreateInstance);
   LOAD_VK(DestroyInstance);
@@ -229,6 +229,13 @@ bool load_instance_table(VkInstance                instance,
   LOAD_VK(GetPhysicalDeviceSurfaceCapabilitiesKHR);
   LOAD_VK(GetPhysicalDeviceSurfaceFormatsKHR);
   LOAD_VK(GetPhysicalDeviceSurfacePresentModesKHR);
+
+  if (validation_layer_enabled)
+  {
+    LOAD_VK(CreateDebugUtilsMessengerEXT);
+    LOAD_VK(DestroyDebugUtilsMessengerEXT);
+  }
+
 #undef LOAD_VK
 
   return all_loaded;
@@ -1539,26 +1546,27 @@ Result<gfx::InstanceImpl, Status>
     return Err{(Status) result};
   }
 
+  InstanceTable vk_table;
+
+  CHECK("Unable to load all required vulkan procedure address",
+        load_instance_table(vk_instance, vkGetInstanceProcAddr, vk_table,
+                            enable_validation_layer));
+
   VkDebugUtilsMessengerEXT vk_debug_messenger = nullptr;
 
   if (enable_validation_layer)
   {
-    result = vkCreateDebugUtilsMessengerEXT(vk_instance, &debug_create_info,
-                                            nullptr, &vk_debug_messenger);
+    result = vk_table.CreateDebugUtilsMessengerEXT(
+        vk_instance, &debug_create_info, nullptr, &vk_debug_messenger);
     if (result != VK_SUCCESS)
     {
-      vkDestroyInstance(vk_instance, nullptr);
+      vk_table.DestroyInstance(vk_instance, nullptr);
       // destroy our instance object after to allow debug reporter report
-      // messages through it
+      // messages through the pointer to it
       allocator.deallocate_typed(instance, 1);
       return Err{(Status) result};
     }
   }
-
-  InstanceTable vk_table;
-
-  CHECK("Unable to load all required vulkan procedure address",
-        load_instance_table(vk_instance, vkGetInstanceProcAddr, vk_table));
 
   instance->vk_table           = vk_table;
   instance->vk_instance        = vk_instance;
@@ -1581,8 +1589,8 @@ void InstanceInterface::unref(gfx::Instance instance_)
   {
     if (instance->validation_layer_enabled)
     {
-      vkDestroyDebugUtilsMessengerEXT(instance->vk_instance,
-                                      instance->vk_debug_messenger, nullptr);
+      instance->vk_table.DestroyDebugUtilsMessengerEXT(
+          instance->vk_instance, instance->vk_debug_messenger, nullptr);
     }
     instance->vk_table.DestroyInstance(instance->vk_instance, nullptr);
     instance->allocator.deallocate_typed(instance, 1);
@@ -6553,6 +6561,8 @@ void CommandEncoderInterface::set_viewport(gfx::CommandEncoder  self_,
   CommandEncoder *const self = (CommandEncoder *) self_;
 
   VALIDATE("", self->bound_graphics_pipeline != nullptr);
+  VALIDATE("", viewport.min_depth >= 0.0F);
+  VALIDATE("", viewport.max_depth <= 1.0F);
 
   if (self->status != Status::Success)
   {
