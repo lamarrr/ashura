@@ -1326,6 +1326,28 @@ inline bool is_render_pass_compatible(RenderPass const      *render_pass,
   return true;
 }
 
+inline bool is_image_view_type_compatible(gfx::ImageType     image_type,
+                                          gfx::ImageViewType view_type)
+{
+  switch (view_type)
+  {
+    case gfx::ImageViewType::Type1D:
+    case gfx::ImageViewType::Type1DArray:
+      return image_type == gfx::ImageType::Type1D;
+    case gfx::ImageViewType::Type2D:
+    case gfx::ImageViewType::Type2DArray:
+      return image_type == gfx::ImageType::Type2D ||
+             image_type == gfx::ImageType::Type3D;
+    case gfx::ImageViewType::TypeCube:
+    case gfx::ImageViewType::TypeCubeArray:
+      return image_type == gfx::ImageType::Type2D;
+    case gfx::ImageViewType::Type3D:
+      return image_type == gfx::ImageType::Type3D;
+    default:
+      return false;
+  }
+}
+
 inline u64 index_type_size(gfx::IndexType type)
 {
   switch (type)
@@ -1950,7 +1972,6 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   VkPhysicalDeviceFeatures features;
   mem::zero(&features, 1);
-  features.geometryShader    = VK_TRUE;
   features.samplerAnisotropy = selected_device.features.samplerAnisotropy;
 
   VkDeviceCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -2296,15 +2317,19 @@ Result<gfx::ImageView, Status>
   Image *const  src_image = (Image *) desc.image;
 
   VALIDATE("", desc.image != nullptr);
+  VALIDATE("",
+           is_image_view_type_compatible(src_image->desc.type, desc.view_type));
   VALIDATE("", desc.view_format != gfx::Format::Undefined);
   VALIDATE("", desc.aspects != gfx::ImageAspects::None);
-  VALIDATE("", has_bits(src_image->desc.aspects, gfx::ImageAspects::None));
+  VALIDATE("", has_bits(src_image->desc.aspects, desc.aspects));
   VALIDATE("", desc.first_mip_level < src_image->desc.mip_levels);
-  VALIDATE("", (desc.first_mip_level + desc.num_mip_levels) <=
-                   src_image->desc.mip_levels);
+  VALIDATE("", desc.num_mip_levels == gfx::REMAINING_MIP_LEVELS ||
+                   (desc.first_mip_level + desc.num_mip_levels) <=
+                       src_image->desc.mip_levels);
   VALIDATE("", desc.first_array_layer < src_image->desc.array_layers);
-  VALIDATE("", (desc.first_array_layer + desc.num_array_layers) <=
-                   src_image->desc.array_layers);
+  VALIDATE("", desc.num_array_layers == gfx::REMAINING_ARRAY_LAYERS ||
+                   (desc.first_array_layer + desc.num_array_layers) <=
+                       src_image->desc.array_layers);
 
   VkImageViewCreateInfo create_info{
       .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -2631,29 +2656,31 @@ Result<gfx::Framebuffer, Status>
 
   for (gfx::ImageView attachment : desc.color_attachments)
   {
-    ImageView    *view  = (ImageView *) attachment;
-    Image        *image = IMAGE_FROM_VIEW(attachment);
-    gfx::Extent3D extent =
+    ImageView *const view  = (ImageView *) attachment;
+    Image *const     image = IMAGE_FROM_VIEW(attachment);
+    gfx::Extent3D    extent =
         math::mip_down(image->desc.extent, view->desc.first_mip_level);
     VALIDATE("", has_bits(image->desc.usage, gfx::ImageUsage::ColorAttachment));
     VALIDATE("", has_bits(view->desc.aspects, gfx::ImageAspects::Color));
-    VALIDATE("", view->desc.num_array_layers >= desc.layers);
+    VALIDATE("", view->desc.num_array_layers == gfx::REMAINING_ARRAY_LAYERS ||
+                     view->desc.num_array_layers >= desc.layers);
     VALIDATE("", extent.x >= desc.extent.x);
     VALIDATE("", extent.y >= desc.extent.y);
   }
 
   if (desc.depth_stencil_attachment != nullptr)
   {
-    ImageView    *view  = (ImageView *) desc.depth_stencil_attachment;
-    Image        *image = IMAGE_FROM_VIEW(view);
-    gfx::Extent3D extent =
+    ImageView *const view  = (ImageView *) desc.depth_stencil_attachment;
+    Image *const     image = IMAGE_FROM_VIEW(view);
+    gfx::Extent3D    extent =
         math::mip_down(image->desc.extent, view->desc.first_mip_level);
     VALIDATE("", has_bits(image->desc.usage,
                           gfx::ImageUsage::DepthStencilAttachment));
     VALIDATE("",
              has_any_bit(view->desc.aspects, gfx::ImageAspects::Depth |
                                                  gfx::ImageAspects::Stencil));
-    VALIDATE("", view->desc.num_array_layers >= desc.layers);
+    VALIDATE("", view->desc.num_array_layers == gfx::REMAINING_ARRAY_LAYERS ||
+                     view->desc.num_array_layers >= desc.layers);
     VALIDATE("", extent.x >= desc.extent.x);
     VALIDATE("", extent.y >= desc.extent.y);
   }
@@ -5856,10 +5883,12 @@ void CommandEncoderInterface::clear_color_image(
     VALIDATE("", has_bits(dst->desc.aspects, range.aspects));
     VALIDATE("", range.first_mip_level < dst->desc.mip_levels);
     VALIDATE("", range.first_array_layer < dst->desc.array_layers);
-    VALIDATE("", (range.first_mip_level + range.num_mip_levels) <=
-                     dst->desc.mip_levels);
-    VALIDATE("", (range.first_array_layer + range.num_array_layers) <=
-                     dst->desc.array_layers);
+    VALIDATE("", range.num_mip_levels == gfx::REMAINING_MIP_LEVELS ||
+                     (range.first_mip_level + range.num_mip_levels) <=
+                         dst->desc.mip_levels);
+    VALIDATE("", range.num_array_layers == gfx::REMAINING_ARRAY_LAYERS ||
+                     (range.first_array_layer + range.num_array_layers) <=
+                         dst->desc.array_layers);
   }
 
   if (self->status != Status::Success)
@@ -5920,10 +5949,12 @@ void CommandEncoderInterface::clear_depth_stencil_image(
     VALIDATE("", has_bits(dst->desc.aspects, range.aspects));
     VALIDATE("", range.first_mip_level < dst->desc.mip_levels);
     VALIDATE("", range.first_array_layer < dst->desc.array_layers);
-    VALIDATE("", (range.first_mip_level + range.num_mip_levels) <=
-                     dst->desc.mip_levels);
-    VALIDATE("", (range.first_array_layer + range.num_array_layers) <=
-                     dst->desc.array_layers);
+    VALIDATE("", range.num_mip_levels == gfx::REMAINING_MIP_LEVELS ||
+                     (range.first_mip_level + range.num_mip_levels) <=
+                         dst->desc.mip_levels);
+    VALIDATE("", range.num_array_layers == gfx::REMAINING_ARRAY_LAYERS ||
+                     (range.first_array_layer + range.num_array_layers) <=
+                         dst->desc.array_layers);
   }
 
   if (self->status != Status::Success)
@@ -5984,13 +6015,17 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
     VALIDATE("", has_bits(src->desc.aspects, copy.src_layers.aspects));
     VALIDATE("", copy.src_layers.mip_level < src->desc.mip_levels);
     VALIDATE("", copy.src_layers.first_array_layer < src->desc.array_layers);
-    VALIDATE("", (copy.src_layers.first_array_layer +
+    VALIDATE("",
+             copy.src_layers.num_array_layers == gfx::REMAINING_ARRAY_LAYERS ||
+                 (copy.src_layers.first_array_layer +
                   copy.src_layers.num_array_layers) <= src->desc.array_layers);
 
     VALIDATE("", has_bits(dst->desc.aspects, copy.dst_layers.aspects));
     VALIDATE("", copy.dst_layers.mip_level < dst->desc.mip_levels);
     VALIDATE("", copy.dst_layers.first_array_layer < dst->desc.array_layers);
-    VALIDATE("", (copy.dst_layers.first_array_layer +
+    VALIDATE("",
+             copy.dst_layers.num_array_layers == gfx::REMAINING_ARRAY_LAYERS ||
+                 (copy.dst_layers.first_array_layer +
                   copy.dst_layers.num_array_layers) <= dst->desc.array_layers);
 
     gfx::Extent3D src_extent =
@@ -6086,9 +6121,10 @@ void CommandEncoderInterface::copy_buffer_to_image(
     VALIDATE("", has_bits(dst->desc.aspects, copy.image_layers.aspects));
     VALIDATE("", copy.image_layers.mip_level < dst->desc.mip_levels);
     VALIDATE("", copy.image_layers.first_array_layer < dst->desc.array_layers);
-    VALIDATE("",
-             (copy.image_layers.first_array_layer +
-              copy.image_layers.num_array_layers) <= dst->desc.array_layers);
+    VALIDATE(
+        "", copy.image_layers.num_array_layers == gfx::REMAINING_ARRAY_LAYERS ||
+                (copy.image_layers.first_array_layer +
+                 copy.image_layers.num_array_layers) <= dst->desc.array_layers);
     VALIDATE("", copy.image_extent.x > 0);
     VALIDATE("", copy.image_extent.y > 0);
     VALIDATE("", copy.image_extent.z > 0);
@@ -6167,13 +6203,17 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
     VALIDATE("", has_bits(src->desc.aspects, blit.src_layers.aspects));
     VALIDATE("", blit.src_layers.mip_level < src->desc.mip_levels);
     VALIDATE("", blit.src_layers.first_array_layer < src->desc.array_layers);
-    VALIDATE("", (blit.src_layers.first_array_layer +
+    VALIDATE("",
+             blit.src_layers.num_array_layers == gfx::REMAINING_ARRAY_LAYERS ||
+                 (blit.src_layers.first_array_layer +
                   blit.src_layers.num_array_layers) <= src->desc.array_layers);
 
     VALIDATE("", has_bits(dst->desc.aspects, blit.dst_layers.aspects));
     VALIDATE("", blit.dst_layers.mip_level < dst->desc.mip_levels);
     VALIDATE("", blit.dst_layers.first_array_layer < dst->desc.array_layers);
-    VALIDATE("", (blit.dst_layers.first_array_layer +
+    VALIDATE("",
+             blit.dst_layers.num_array_layers == gfx::REMAINING_ARRAY_LAYERS ||
+                 (blit.dst_layers.first_array_layer +
                   blit.dst_layers.num_array_layers) <= dst->desc.array_layers);
 
     gfx::Extent3D src_extent =
