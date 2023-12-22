@@ -13,7 +13,11 @@ namespace ash
 namespace vk
 {
 
-// todo: use loggers fatal
+// todo(lamarrr): check all vulkan spec invariants
+// todo(lamarrr): define macros for checks, use debug name,use loggers fatal for
+// checks
+// TODO(lamarrr): tracer for vma memory allocations
+// trace u64, i64, f64 etc
 #define VALIDATE(desc, ...)           \
   do                                  \
   {                                   \
@@ -47,7 +51,6 @@ static gfx::InstanceInterface const instance_interface{
     .ref_device    = InstanceInterface::ref_device,
     .unref_device  = InstanceInterface::unref_device};
 
-// todo(lamarrr): define macros for checks, use debug name
 static gfx::DeviceInterface const device_interface{
     .get_device_properties = DeviceInterface::get_device_properties,
     .get_format_properties = DeviceInterface::get_format_properties,
@@ -241,8 +244,6 @@ bool load_instance_table(VkInstance                instance,
 
   return all_loaded;
 }
-
-// todo(lamarrr): check all vulkan spec invariants
 
 bool load_device_table(VkDevice                device,
                        PFN_vkGetDeviceProcAddr GetDeviceProcAddr,
@@ -1988,8 +1989,6 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   VkQueue vk_queue;
   vk_table.GetDeviceQueue(vk_device, selected_queue_family, 0, &vk_queue);
 
-  // TODO(lamarrr): tracer for memory allocations
-  // trace u64, i64, f64 etc
   VmaAllocatorCreateInfo vma_create_info{
       .flags          = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
       .physicalDevice = selected_device.vk_physical_device,
@@ -3773,8 +3772,7 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
                                    .command_encoders     = command_encoders,
                                    .acquire_semaphores   = acquire_semaphores,
                                    .submit_fences        = submit_fences,
-                                   .submit_semaphores    = submit_semaphores,
-                                   .is_begun             = false};
+                                   .submit_semaphores    = submit_semaphores};
 
   return Ok{(gfx::FrameContext) frame_context};
 }
@@ -4780,11 +4778,6 @@ Result<Void, Status>
 
   CHECK("", result == VK_SUCCESS);
 
-  // TODO(lamarrr): is it possible by any means that the number of maximum in
-  // flight frames changes? if the user or window system decides to change the
-  // buffering for example how will this affect the program state as they depend
-  // on it
-  //
   // - advance frame, even if invalidation occured. frame is marked as missed
   // but has no side effect on the flow. so no need for resubmitting as previous
   // commands would have been executed.
