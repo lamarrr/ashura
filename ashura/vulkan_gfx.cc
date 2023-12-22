@@ -169,7 +169,8 @@ static gfx::CommandEncoderInterface const command_encoder_interface{
     .bind_vertex_buffers    = CommandEncoderInterface::bind_vertex_buffers,
     .bind_index_buffer      = CommandEncoderInterface::bind_index_buffer,
     .draw                   = CommandEncoderInterface::draw,
-    .draw_indirect          = CommandEncoderInterface::draw_indirect};
+    .draw_indirect          = CommandEncoderInterface::draw_indirect,
+    .present_image          = CommandEncoderInterface::present_image};
 
 VkResult DebugMarkerSetObjectTagEXT_Stub(VkDevice,
                                          const VkDebugMarkerObjectTagInfoEXT *)
@@ -3772,7 +3773,8 @@ Result<gfx::FrameContext, Status> DeviceInterface::create_frame_context(
                                    .command_encoders     = command_encoders,
                                    .acquire_semaphores   = acquire_semaphores,
                                    .submit_fences        = submit_fences,
-                                   .submit_semaphores    = submit_semaphores};
+                                   .submit_semaphores    = submit_semaphores,
+                                   .is_begun             = false};
 
   return Ok{(gfx::FrameContext) frame_context};
 }
@@ -4730,7 +4732,6 @@ Result<Void, Status>
   return Ok{Void{}};
 }
 
-// todo(lamarrr): insert barrier to convert image to image present src layout
 Result<Void, Status>
     DeviceInterface::submit_frame(gfx::Device self_, gfx::Swapchain swapchain_,
                                   gfx::FrameContext frame_context_)
@@ -4741,12 +4742,12 @@ Result<Void, Status>
   Fence *const        submit_fence =
       (Fence *)
           frame_context->submit_fences[frame_context->current_command_encoder];
-  VkCommandBuffer const command_buffer =
-      ((CommandEncoder *) frame_context
-           ->command_encoders[frame_context->current_command_encoder]
-           .self)
-          ->vk_command_buffer;
-  VkSemaphore const acquire_semaphore =
+  CommandEncoder *const command_encoder =
+      (CommandEncoder *) frame_context
+          ->command_encoders[frame_context->current_command_encoder]
+          .self;
+  VkCommandBuffer const command_buffer = command_encoder->vk_command_buffer;
+  VkSemaphore const     acquire_semaphore =
       frame_context->acquire_semaphores[frame_context->current_command_encoder];
   VkSemaphore const submit_semaphore =
       frame_context->submit_semaphores[frame_context->current_command_encoder];
@@ -4754,20 +4755,15 @@ Result<Void, Status>
   VALIDATE("", swapchain->is_valid);
 
   VkResult result = self->vk_table.WaitForFences(
-      self->vk_device, 1, &submit_fence->vk_fence, VK_TRUE, U64_MAX);
+      self->vk_device, 1, &submit_fence->vk_fence, VK_TRUE, U64_MAX / 2);
 
-  if (result != VK_SUCCESS)
-  {
-    return Err{(Status) result};
-  }
+  // there's not really any way to preserve state here and allow for re-entrancy
+  CHECK("", result == VK_SUCCESS);
 
   result =
       self->vk_table.ResetFences(self->vk_device, 1, &submit_fence->vk_fence);
 
-  if (result != VK_SUCCESS)
-  {
-    return Err{(Status) result};
-  }
+  CHECK("", result == VK_SUCCESS);
 
   VkSubmitInfo submit_info{.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                            .pNext              = nullptr,
@@ -4782,16 +4778,16 @@ Result<Void, Status>
   result = self->vk_table.QueueSubmit(self->vk_queue, 1, &submit_info,
                                       submit_fence->vk_fence);
 
-  if (result != VK_SUCCESS)
-  {
-    // todo(lamarrr): handle error
-    // there's not really any way to preserve state here and allow for re-call?
-    return Err{(Status) result};
-  }
+  CHECK("", result == VK_SUCCESS);
 
   // TODO(lamarrr): is it possible by any means that the number of maximum in
-  // flight frames changes? if the user decides to change the buffering for
-  // example how will this affect the program state as they depend on it
+  // flight frames changes? if the user or window system decides to change the
+  // buffering for example how will this affect the program state as they depend
+  // on it
+  //
+  // - advance frame, even if invalidation occured. frame is marked as missed
+  // but has no side effect on the flow. so no need for resubmitting as previous
+  // commands would have been executed.
   frame_context->current_frame++;
   frame_context->trailing_frame =
       op::max(frame_context->current_frame,
@@ -4800,21 +4796,6 @@ Result<Void, Status>
   frame_context->current_command_encoder =
       (frame_context->current_command_encoder + 1) %
       frame_context->max_frames_in_flight;
-
-  //
-  // - submit commands
-  // - present swapchain images, if error, invalidate.
-  // - advance frame, even if invalidation occured. frame is marked as missed
-  // but has no side effect on the flow. so no need for resubmitting as previous
-  // commands would have been executed.
-  // - repeat.
-  //
-  //
-  //
-  // at what point is image invalidation handled? recording commands need to
-  // check if images are invalidated or not
-  //
-  // acquire semaphores needs to be done for each swapchain
 
   VkPresentInfoKHR present_info{.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
                                 .pNext = nullptr,
@@ -4829,9 +4810,9 @@ Result<Void, Status>
   {
     swapchain->is_valid = false;
   }
-  else if (result != VK_SUCCESS)
+  else
   {
-    return Err{(Status) result};
+    CHECK("", result == VK_SUCCESS);
   }
 
   return Ok{Void{}};
@@ -6808,6 +6789,21 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
 
   self->device->vk_table.CmdDrawIndexedIndirect(
       self->vk_command_buffer, buffer->vk_buffer, offset, draw_count, stride);
+}
+
+void CommandEncoderInterface::present_image(gfx::CommandEncoder self_,
+                                            gfx::Image          image_)
+{
+  CommandEncoder *const self  = (CommandEncoder *) self_;
+  Image *const          image = (Image *) image_;
+
+  if (self->status != Status::Success)
+  {
+    return;
+  }
+
+  access_image(*self, *image, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+               VK_ACCESS_NONE, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 }
 
 }        // namespace vk

@@ -766,6 +766,7 @@ struct CommandEncoderInterface
                    i32 vertex_offset, u32 first_instance, u32 num_instances);
   static void draw_indirect(gfx::CommandEncoder self, gfx::Buffer buffer,
                             u64 offset, u32 draw_count, u32 stride);
+  static void present_image(gfx::CommandEncoder self, gfx::Image image);
 };
 
 }        // namespace vk
