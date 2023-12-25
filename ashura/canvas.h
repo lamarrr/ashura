@@ -54,9 +54,9 @@ struct LinearColorGradient
 
   Vec4 resolve(Vec2 p) const
   {
-    f32 const t = p.x * std::cos(math::to_radians(angle)) +
-                  p.y * std::sin(math::to_radians(angle));
-    return math::lerp(begin, end, t);
+    f32 const t =
+        p.x * std::cos(to_radians(angle)) + p.y * std::sin(to_radians(angle));
+    return lerp(begin, end, t);
   }
 };
 
@@ -79,8 +79,8 @@ inline stx::Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end,
                                u32 nsegments, Vec4 color,
                                stx::Span<Vertex2d> polygon)
 {
-  begin = math::to_radians(begin);
-  end   = math::to_radians(end);
+  begin = to_radians(begin);
+  end   = to_radians(end);
 
   if (nsegments < 1 || radius <= 0)
   {
@@ -89,7 +89,7 @@ inline stx::Span<Vertex2d> arc(Vec2 offset, f32 radius, f32 begin, f32 end,
 
   for (u32 i = 0; i < nsegments; i++)
   {
-    f32  angle = math::lerp(begin, end, static_cast<f32>(i / (nsegments - 1)));
+    f32  angle = lerp(begin, end, static_cast<f32>(i / (nsegments - 1)));
     Vec2 p     = radius + radius * Vec2{std::cos(angle), std::sin(angle)};
     polygon[i] = Vertex2d{.position = offset + p, .uv = {}, .color = color};
   }
@@ -257,8 +257,8 @@ inline stx::Span<Vertex2d> lerp_uvs(stx::Span<Vertex2d> path, Vec2 extent,
   {
     Vec2 t =
         v.position / Vec2{epsilon_clamp(extent.x), epsilon_clamp(extent.y)};
-    v.uv.x = math::lerp(uv0.x, uv1.x, t.x);
-    v.uv.y = math::lerp(uv0.y, uv1.y, t.y);
+    v.uv.x = lerp(uv0.x, uv1.x, t.x);
+    v.uv.y = lerp(uv0.y, uv1.y, t.y);
   }
 
   return path;
@@ -273,14 +273,14 @@ inline stx::Span<Vertex2d> lerp_color_gradient(stx::Span<Vertex2d> path,
     return path;
   }
 
-  f32 const x = std::cos(math::to_radians(gradient.angle));
-  f32 const y = std::sin(math::to_radians(gradient.angle));
+  f32 const x = std::cos(to_radians(gradient.angle));
+  f32 const y = std::sin(to_radians(gradient.angle));
 
   for (Vertex2d &v : path)
   {
     Vec2 const p = v.position / extent;
     f32 const  t = p.x * x + p.y * y;
-    v.color      = math::lerp(gradient.begin, gradient.end, t);
+    v.color      = lerp(gradient.begin, gradient.end, t);
   }
 
   return path;
@@ -437,6 +437,11 @@ inline void triangulate_line(stx::Span<Vertex2d const> in_points, f32 thickness,
   }
 }
 
+struct GLSLMat3
+{
+  Vec4 rows[3];
+};
+
 struct DrawCommand
 {
   std::string_view pipeline;        /// ID of pipeline to use for rendering
@@ -457,12 +462,17 @@ struct DrawCommand
       {};        /// push constant used for draw call. maximum size of
                  /// PUSH_CONSTANT_SIZE bytes
 
-  template <typename T>
-  DrawCommand with_push_constant(T const &constant)
+  DrawCommand with_push_constant(Mat3 const &constant)
   {
-    static_assert(sizeof(T) <= PUSH_CONSTANT_SIZE);
+    GLSLMat3 rep;
+    rep.rows[0] = {constant.rows[0].x, constant.rows[0].y, constant.rows[0].z,
+                   0};
+    rep.rows[1] = {constant.rows[1].x, constant.rows[1].y, constant.rows[1].z,
+                   0};
+    rep.rows[2] = {constant.rows[2].x, constant.rows[2].y, constant.rows[2].z,
+                   0};
     DrawCommand copy{*this};
-    stx::Span{copy.push_constant}.as_u8().copy(stx::Span{&constant, 1}.as_u8());
+    stx::Span{copy.push_constant}.as_u8().copy(stx::Span{&rep, 1}.as_u8());
     return copy;
   }
 };
@@ -523,19 +533,19 @@ struct Canvas
     // TODO(lamarrr): check for scissor
     Vec2 begin     = offset;
     Vec2 end       = offset + extent;
-    Mat3 transform = state.global_transform * state.local_transform;
-    begin          = math::transform(transform, begin);
-    end            = math::transform(transform, end);
-    return math::overlaps({0, 0}, viewport_extent, begin, end);
+    Mat3 transform = matmul(state.global_transform, state.local_transform);
+    begin          = ash::transform(transform, begin);
+    end            = ash::transform(transform, end);
+    return overlaps({0, 0}, viewport_extent, begin, end);
   }
 
   Canvas &restart(Vec2 viewport_extent)
   {
     this->viewport_extent = viewport_extent;
-    state = CanvasState{.local_transform  = math::identity_mat3(),
-                        .global_transform = math::identity_mat3(),
-                        .scissor_offset   = {0, 0},
-                        .scissor_extent   = viewport_extent};
+    state                 = CanvasState{.local_transform  = identity_mat3(),
+                                        .global_transform = identity_mat3(),
+                                        .scissor_offset   = {0, 0},
+                                        .scissor_extent   = viewport_extent};
     state_stack.clear();
     draw_list.clear();
     return *this;
@@ -547,13 +557,15 @@ struct Canvas
                                         epsilon_clamp(viewport_extent.y)};
 
     Mat3 t = state.local_transform;        /// apply local coordinate transform
-    t      = math::translate2d(position) * t;        /// apply positioning
-    t = state.global_transform * t;        /// apply global coordinate transform
-    t = math::scale2d(2 / viewport_extent_clamped) *
-        t;        /// normalize to 0 to 2 coordinate range
-    t = math::translate2d({-1, -1}) *
-        t;        /// normalize from [0, 2] to vulkan
-                  /// viewport coordinate range [-1, 1]
+    t      = matmul(translate2d(position),
+                    t);        /// apply positioning
+    t      = matmul(state.global_transform,
+                    t);        /// apply global coordinate transform
+    t      = matmul(scale2d(2 / viewport_extent_clamped),
+                    t);        /// normalize to 0 to 2 coordinate range
+    t      = matmul(translate2d({-1, -1}),
+                    t);        /// normalize from [0, 2] to vulkan
+                               /// viewport coordinate range [-1, -1]
     return t;
   }
 
@@ -568,8 +580,8 @@ struct Canvas
   Canvas &restore()
   {
     state = state_stack.pop().unwrap_or(
-        CanvasState{.local_transform  = math::identity_mat3(),
-                    .global_transform = math::identity_mat3(),
+        CanvasState{.local_transform  = identity_mat3(),
+                    .global_transform = identity_mat3(),
                     .scissor_offset   = {0, 0},
                     .scissor_extent   = viewport_extent});
     return *this;
@@ -578,8 +590,8 @@ struct Canvas
   /// reset the rendering context to its default state (transform and scissor)
   Canvas &reset()
   {
-    state = CanvasState{.local_transform  = math::identity_mat3(),
-                        .global_transform = math::identity_mat3(),
+    state = CanvasState{.local_transform  = identity_mat3(),
+                        .global_transform = identity_mat3(),
                         .scissor_offset   = {0, 0},
                         .scissor_extent   = viewport_extent};
     state_stack.clear();
@@ -588,7 +600,8 @@ struct Canvas
 
   Canvas &translate(f32 tx, f32 ty)
   {
-    state.local_transform = math::translate2d({tx, ty}) * state.local_transform;
+    state.local_transform =
+        matmul(translate2d({tx, ty}), state.local_transform);
     return *this;
   }
 
@@ -601,7 +614,7 @@ struct Canvas
   Canvas &global_translate(f32 tx, f32 ty)
   {
     state.global_transform =
-        math::translate2d({tx, ty}) * state.global_transform;
+        matmul(translate2d({tx, ty}), state.global_transform);
     return *this;
   }
 
@@ -613,20 +626,20 @@ struct Canvas
   Canvas &rotate(f32 angle)
   {
     state.local_transform =
-        math::rotate2d(math::to_radians(angle)) * state.local_transform;
+        matmul(rotate2d(to_radians(angle)), state.local_transform);
     return *this;
   }
 
   Canvas &global_rotate(f32 angle)
   {
     state.global_transform =
-        math::rotate2d(math::to_radians(angle)) * state.global_transform;
+        matmul(rotate2d(to_radians(angle)), state.global_transform);
     return *this;
   }
 
   Canvas &scale(f32 sx, f32 sy)
   {
-    state.local_transform = math::scale2d({sx, sy}) * state.local_transform;
+    state.local_transform = matmul(scale2d({sx, sy}), state.local_transform);
     return *this;
   }
 
@@ -637,7 +650,7 @@ struct Canvas
 
   Canvas &global_scale(f32 sx, f32 sy)
   {
-    state.global_transform = math::scale2d({sx, sy}) * state.global_transform;
+    state.global_transform = matmul(scale2d({sx, sy}), state.global_transform);
     return *this;
   }
 
@@ -649,13 +662,13 @@ struct Canvas
   // TODO(lamarrr): transform_origin
   Canvas &transform(Mat3 const &t)
   {
-    state.local_transform = t * state.local_transform;
+    state.local_transform = matmul(t, state.local_transform);
     return *this;
   }
 
   Canvas &global_transform(Mat3 const &t)
   {
-    state.global_transform = t * state.global_transform;
+    state.global_transform = matmul(t, state.global_transform);
     return *this;
   }
 
@@ -694,8 +707,7 @@ struct Canvas
                           .scissor_offset = {0, 0},
                           .scissor_extent = viewport_extent,
                           .textures       = {texture}}
-                  .with_push_constant(
-                      math::transpose(make_transform(Vec2{0, 0}))))
+                  .with_push_constant(transpose(make_transform(Vec2{0, 0}))))
         .unwrap();
 
     return *this;
@@ -728,16 +740,15 @@ struct Canvas
     u32 nindices  = static_cast<u32>(curr_nindices - prev_nindices);
 
     draw_list.commands
-        .push(
-            DrawCommand{.pipeline       = DEFAULT_SHAPE_PIPELINE,
-                        .nvertices      = nvertices,
-                        .nindices       = nindices,
-                        .first_instance = 0,
-                        .ninstances     = 1,
-                        .scissor_offset = state.scissor_offset,
-                        .scissor_extent = state.scissor_extent,
-                        .textures       = {texture}}
-                .with_push_constant(math::transpose(make_transform(position))))
+        .push(DrawCommand{.pipeline       = DEFAULT_SHAPE_PIPELINE,
+                          .nvertices      = nvertices,
+                          .nindices       = nindices,
+                          .first_instance = 0,
+                          .ninstances     = 1,
+                          .scissor_offset = state.scissor_offset,
+                          .scissor_extent = state.scissor_extent,
+                          .textures       = {texture}}
+                  .with_push_constant(transpose(make_transform(position))))
         .unwrap();
 
     return *this;
@@ -765,16 +776,15 @@ struct Canvas
     u32 nindices  = static_cast<u32>(curr_nindices - prev_nindices);
 
     draw_list.commands
-        .push(
-            DrawCommand{.pipeline       = DEFAULT_SHAPE_PIPELINE,
-                        .nvertices      = nvertices,
-                        .nindices       = nindices,
-                        .first_instance = 0,
-                        .ninstances     = 1,
-                        .scissor_offset = state.scissor_offset,
-                        .scissor_extent = state.scissor_extent,
-                        .textures       = {texture}}
-                .with_push_constant(math::transpose(make_transform(position))))
+        .push(DrawCommand{.pipeline       = DEFAULT_SHAPE_PIPELINE,
+                          .nvertices      = nvertices,
+                          .nindices       = nindices,
+                          .first_instance = 0,
+                          .ninstances     = 1,
+                          .scissor_offset = state.scissor_offset,
+                          .scissor_extent = state.scissor_extent,
+                          .textures       = {texture}}
+                  .with_push_constant(transpose(make_transform(position))))
         .unwrap();
 
     return polygon;
@@ -1074,18 +1084,18 @@ struct Canvas
                      TextStyle const &style, gfx::image atlas)
   {
     save();
-    state.local_transform = state.local_transform * math::translate2d(baseline);
+    state.local_transform =
+        matmul(state.local_transform, translate2d(baseline));
 
     Vec2 offset = Vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} *
                       style.font_height * text_scale_factor +
                   shaping.offset;
     Vec2 extent = glyph.metrics.extent * style.font_height * text_scale_factor;
     Mat3 transform = state.global_transform *
-                     math::translate2d(block_position) * state.local_transform;
+                     matmul(translate2d(block_position), state.local_transform);
 
-    if (!math::overlaps({0, 0}, viewport_extent,
-                        math::transform(transform, offset),
-                        math::transform(transform, offset + extent)))
+    if (!overlaps({0, 0}, viewport_extent, ash::transform(transform, offset),
+                  ash::transform(transform, offset + extent)))
     {
       restore();
       return *this;
@@ -1108,16 +1118,16 @@ struct Canvas
     triangulate_convex_polygon(draw_list.indices, 4);
 
     draw_list.commands
-        .push(DrawCommand{.pipeline       = DEFAULT_GLYPH_PIPELINE,
-                          .nvertices      = 4,
-                          .nindices       = 6,
-                          .first_instance = 0,
-                          .ninstances     = 1,
-                          .scissor_offset = state.scissor_offset,
-                          .scissor_extent = state.scissor_extent,
-                          .textures       = {atlas}}
-                  .with_push_constant(
-                      math::transpose(make_transform(block_position))))
+        .push(
+            DrawCommand{.pipeline       = DEFAULT_GLYPH_PIPELINE,
+                        .nvertices      = 4,
+                        .nindices       = 6,
+                        .first_instance = 0,
+                        .ninstances     = 1,
+                        .scissor_offset = state.scissor_offset,
+                        .scissor_extent = state.scissor_extent,
+                        .textures       = {atlas}}
+                .with_push_constant(transpose(make_transform(block_position))))
         .unwrap();
 
     restore();
@@ -1130,7 +1140,8 @@ struct Canvas
                             gfx::image atlas)
   {
     save();
-    state.local_transform = state.local_transform * math::translate2d(baseline);
+    state.local_transform =
+        matmul(state.local_transform, translate2d(baseline));
 
     // TODO(lamarrr): add offset to shadow scale? and let offset be from
     // midpoint??
@@ -1138,15 +1149,16 @@ struct Canvas
                       style.font_height * text_scale_factor +
                   shaping.offset;
     Vec2 extent = glyph.metrics.extent * style.font_height * text_scale_factor;
-    Mat3 transform = state.global_transform *
-                     math::translate2d(block_position) * state.local_transform;
+    Mat3 transform =
+        matmul(state.global_transform,
+               matmul(translate2d(block_position), state.local_transform));
 
     Vec2 shadow_offset = offset + style.shadow_offset;
     Vec2 shadow_extent = extent * style.shadow_scale;
 
-    if (!math::overlaps(
-            {0, 0}, viewport_extent, math::transform(transform, shadow_offset),
-            math::transform(transform, shadow_offset + shadow_extent)))
+    if (!overlaps({0, 0}, viewport_extent,
+                  ash::transform(transform, shadow_offset),
+                  ash::transform(transform, shadow_offset + shadow_extent)))
     {
       restore();
       return *this;
@@ -1171,16 +1183,16 @@ struct Canvas
     triangulate_convex_polygon(draw_list.indices, 4);
 
     draw_list.commands
-        .push(DrawCommand{.pipeline       = DEFAULT_GLYPH_PIPELINE,
-                          .nvertices      = 4,
-                          .nindices       = 6,
-                          .first_instance = 0,
-                          .ninstances     = 1,
-                          .scissor_offset = state.scissor_offset,
-                          .scissor_extent = state.scissor_extent,
-                          .textures       = {atlas}}
-                  .with_push_constant(
-                      math::transpose(make_transform(block_position))))
+        .push(
+            DrawCommand{.pipeline       = DEFAULT_GLYPH_PIPELINE,
+                        .nvertices      = 4,
+                        .nindices       = 6,
+                        .first_instance = 0,
+                        .ninstances     = 1,
+                        .scissor_offset = state.scissor_offset,
+                        .scissor_extent = state.scissor_extent,
+                        .textures       = {atlas}}
+                .with_push_constant(transpose(make_transform(block_position))))
         .unwrap();
 
     restore();

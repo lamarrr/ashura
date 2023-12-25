@@ -12,8 +12,6 @@
 
 namespace ash
 {
-namespace math
-{
 
 template <typename SignedType>
 constexpr SignedType abs(SignedType x)
@@ -685,5 +683,4 @@ constexpr void rect_intersect(Vec2 a_begin, Vec2 a_end, Vec2 &b_begin,
 // InvT2MinusT1) ) );
 // }
 
-}        // namespace math
 }        // namespace ash

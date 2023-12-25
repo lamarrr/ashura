@@ -61,7 +61,7 @@ struct EaseInOut final : public Curve
 
   virtual f32 operator()(f32 t) override
   {
-    return math::lerp(t * t, 1 - (1 - t) * (1 - t), t);
+    return lerp(t * t, 1 - (1 - t) * (1 - t), t);
   }
 };
 
@@ -85,7 +85,7 @@ struct QuadraticBezier final : public Curve
 
   virtual f32 operator()(f32 t) override
   {
-    return math::lerp(math::lerp(p0, p1, t), math::lerp(p1, p2, t), t);
+    return lerp(lerp(p0, p1, t), lerp(p1, p2, t), t);
   }
 };
 // TODO(lamarrr): Splines, Bezier Curves, Hermite Curves, Catmull-Rom curves,

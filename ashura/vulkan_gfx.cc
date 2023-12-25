@@ -2240,8 +2240,7 @@ Result<gfx::Image, Status>
   VALIDATE(self->logger, "", desc.extent.y != 0);
   VALIDATE(self->logger, "", desc.extent.z != 0);
   VALIDATE(self->logger, "", desc.mip_levels > 0);
-  VALIDATE(self->logger, "",
-           desc.mip_levels <= math::num_mip_levels(desc.extent));
+  VALIDATE(self->logger, "", desc.mip_levels <= num_mip_levels(desc.extent));
   VALIDATE(self->logger, "", desc.array_layers > 0);
   VALIDATE(self->logger, "",
            !(desc.type == gfx::ImageType::Type2D && desc.extent.z != 1));
@@ -2671,7 +2670,7 @@ Result<gfx::Framebuffer, Status>
     ImageView *const view  = (ImageView *) attachment;
     Image *const     image = IMAGE_FROM_VIEW(attachment);
     gfx::Extent3D    extent =
-        math::mip_down(image->desc.extent, view->desc.first_mip_level);
+        mip_down(image->desc.extent, view->desc.first_mip_level);
     VALIDATE(self->logger, "",
              has_bits(image->desc.usage, gfx::ImageUsage::ColorAttachment));
     VALIDATE(self->logger, "",
@@ -2688,7 +2687,7 @@ Result<gfx::Framebuffer, Status>
     ImageView *const view  = (ImageView *) desc.depth_stencil_attachment;
     Image *const     image = IMAGE_FROM_VIEW(view);
     gfx::Extent3D    extent =
-        math::mip_down(image->desc.extent, view->desc.first_mip_level);
+        mip_down(image->desc.extent, view->desc.first_mip_level);
     VALIDATE(
         self->logger, "",
         has_bits(image->desc.usage, gfx::ImageUsage::DepthStencilAttachment));
@@ -6285,9 +6284,9 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
                   copy.dst_layers.num_array_layers) <= dst->desc.array_layers);
 
     gfx::Extent3D src_extent =
-        math::mip_down(src->desc.extent, copy.src_layers.mip_level);
+        mip_down(src->desc.extent, copy.src_layers.mip_level);
     gfx::Extent3D dst_extent =
-        math::mip_down(dst->desc.extent, copy.dst_layers.mip_level);
+        mip_down(dst->desc.extent, copy.dst_layers.mip_level);
     VALIDATE(self->logger, "", copy.extent.x > 0);
     VALIDATE(self->logger, "", copy.extent.y > 0);
     VALIDATE(self->logger, "", copy.extent.z > 0);
@@ -6395,7 +6394,7 @@ void CommandEncoderInterface::copy_buffer_to_image(
     VALIDATE(self->logger, "", copy.image_extent.y > 0);
     VALIDATE(self->logger, "", copy.image_extent.z > 0);
     gfx::Extent3D dst_extent =
-        math::mip_down(dst->desc.extent, copy.image_layers.mip_level);
+        mip_down(dst->desc.extent, copy.image_layers.mip_level);
     VALIDATE(self->logger, "", copy.image_extent.x <= dst_extent.x);
     VALIDATE(self->logger, "", copy.image_extent.y <= dst_extent.y);
     VALIDATE(self->logger, "", copy.image_extent.z <= dst_extent.z);
@@ -6492,9 +6491,9 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
                   blit.dst_layers.num_array_layers) <= dst->desc.array_layers);
 
     gfx::Extent3D src_extent =
-        math::mip_down(src->desc.extent, blit.src_layers.mip_level);
+        mip_down(src->desc.extent, blit.src_layers.mip_level);
     gfx::Extent3D dst_extent =
-        math::mip_down(dst->desc.extent, blit.dst_layers.mip_level);
+        mip_down(dst->desc.extent, blit.dst_layers.mip_level);
     VALIDATE(self->logger, "", blit.src_offsets[0].x <= src_extent.x);
     VALIDATE(self->logger, "", blit.src_offsets[0].y <= src_extent.y);
     VALIDATE(self->logger, "", blit.src_offsets[0].z <= src_extent.z);

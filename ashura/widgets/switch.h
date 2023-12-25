@@ -71,7 +71,7 @@ struct Switch : public Widget
 
     canvas
         .draw_round_rect_filled(area.offset, area.extent,
-                                math::uniform_vec4(props.height / 2), 90, color)
+                                uniform_vec4(props.height / 2), 90, color)
         .draw_circle_filled(area.offset +
                                 Vec2{thumb_position, 1.5f + thumb_radius},
                             thumb_radius, 180, props.thumb_color);

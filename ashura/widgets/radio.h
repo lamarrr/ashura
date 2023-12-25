@@ -79,7 +79,7 @@ struct Radio : public Widget
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
-    return math::uniform_vec2(props.width);
+    return uniform_vec2(props.width);
   }
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
@@ -142,7 +142,7 @@ struct Radio : public Widget
   {
     EaseIn curve;
     Rect   outer_rect        = area;
-    Vec2   inner_rect_extent = math::uniform_vec2(animation.animate(
+    Vec2   inner_rect_extent = uniform_vec2(animation.animate(
         curve, is_active ? Tween<f32>{0.0f, props.inner_width} :
                              Tween<f32>{props.inner_width, 0.0f}));
     Rect   inner_rect =

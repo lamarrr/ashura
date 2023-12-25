@@ -14,7 +14,7 @@ namespace ash
 
 constexpr f32 epsilon_clamp(f32 x)
 {
-  return math::abs(x) > F32_EPSILON ? x : F32_EPSILON;
+  return abs(x) > F32_EPSILON ? x : F32_EPSILON;
 }
 
 typedef Vec2U Extent;
