@@ -15,23 +15,21 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/lamarrr/STX.git
   GIT_TAG main)
 
-  FetchContent_Declare(
-    VulkanHeaders
-    GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-    GIT_TAG v1.3.269)
+FetchContent_Declare(
+  VulkanHeaders
+  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+  GIT_TAG v1.3.269)
 
 FetchContent_Declare(
   VulkanUtilityHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
   GIT_TAG vulkan-sdk-1.3.268.0)
 
-
-  FetchContent_Declare(
-    VulkanMemoryAllocator
-    GIT_REPOSITORY
-      https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-    GIT_TAG 5e43c79)
-  
+FetchContent_Declare(
+  VulkanMemoryAllocator
+  GIT_REPOSITORY
+    https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+  GIT_TAG 5e43c79)
 
 set(SheenBidi_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/SheenBidi)
 
@@ -70,17 +68,21 @@ target_include_directories(
 add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  add_compile_options(-Wall -Wextra -Wpedantic -fno-rtti -fno-exceptions)
+  add_compile_options(
+    -Wall -Wextra -Wpedantic # -fno-rtti -fno-exceptions TODO(lamarrr): future
+  )
 else()
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic -fno-rtti -fno-exceptions)
+    add_compile_options(-Wall -Wextra -Wpedantic # -fno-rtti -fno-exceptions
+    )
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-      add_compile_options(/W4)
+      add_compile_options(/W3)
     endif()
   endif()
 endif()
 
+add_library(ashura_format STATIC ashura/format.cc)
 add_library(ashura_allocator STATIC ashura/allocator.cc
                                     ashura/arena_allocator.cc)
 add_library(ashura_gfx STATIC ashura/gfx.cc ashura/vulkan_gfx.cc)
@@ -97,12 +99,14 @@ add_executable(ashura_main ashura/ashura.cc)
 add_executable(ashura_networking_test ashura/tests/http.cc)
 add_executable(ashura_test ashura/tests/layout.cc)
 
+target_include_directories(ashura_format PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(ashura_allocator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(
   ashura PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
                 ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
 
+target_link_libraries(ashura_format stx::stx)
 target_link_libraries(
   ashura_gfx
   stx::stx

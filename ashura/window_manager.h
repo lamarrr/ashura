@@ -63,8 +63,8 @@ struct WindowManager
     }
 
     SDL_Window *window =
-        SDL_CreateWindow(title, static_cast<i32>(extent.width),
-                         static_cast<i32>(extent.height), window_flags);
+        SDL_CreateWindow(title, static_cast<i32>(extent.x),
+                         static_cast<i32>(extent.y), window_flags);
 
     // window creation shouldn't fail reliably, if it fails, there's no point in
     // the program proceeding
@@ -76,7 +76,8 @@ struct WindowManager
     stx::Rc w =
         stx::rc::make_inplace<Window>(stx::os_allocator, window).unwrap();
 
-    SDL_SetWindowData(window, "handle", w.handle);
+    SDL_PropertiesID properties = SDL_GetWindowProperties(window);
+    SDL_SetProperty(properties, "handle", w.handle);
 
     return std::move(w);
   }

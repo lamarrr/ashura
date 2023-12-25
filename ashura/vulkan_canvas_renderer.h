@@ -22,9 +22,7 @@ struct CanvasRenderer
       VK_QUERY_PIPELINE_STATISTIC_INPUT_ASSEMBLY_PRIMITIVES_BIT |
       VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT |
       VK_QUERY_PIPELINE_STATISTIC_FRAGMENT_SHADER_INVOCATIONS_BIT |
-      VK_QUERY_PIPELINE_STATISTIC_COMPUTE_SHADER_INVOCATIONS_BIT |
-      VK_QUERY_PIPELINE_STATISTIC_TASK_SHADER_INVOCATIONS_BIT_EXT |
-      VK_QUERY_PIPELINE_STATISTIC_MESH_SHADER_INVOCATIONS_BIT_EXT;
+      VK_QUERY_PIPELINE_STATISTIC_COMPUTE_SHADER_INVOCATIONS_BIT;
   static constexpr u32             NPIPELINE_STATISTIC_QUERIES = 7;
   static constexpr u32             NPIPELINE_TIMESTAMP_QUERIES = 2;
   u32                              max_nframes_in_flight       = 0;
@@ -157,10 +155,11 @@ struct CanvasRenderer
               VkFence render_fence, VkSemaphore image_acquisition_semaphore,
               VkSemaphore render_semaphore, VkRenderPass render_pass,
               VkFramebuffer framebuffer, stx::Span<gfx::DrawCommand const> cmds,
-              stx::Span<Vertex2d const> vertices, stx::Span<u32 const> indices,
-              CanvasPipelineManager const &pipeline_manager,
-              RenderResourceManager const &image_manager,
-              FrameStats                  &frame_stats)
+              stx::Span<gfx::Vertex2d const> vertices,
+              stx::Span<u32 const>           indices,
+              CanvasPipelineManager const   &pipeline_manager,
+              RenderResourceManager const   &image_manager,
+              FrameStats                    &frame_stats)
   {
     ASH_CHECK(frame < max_nframes_in_flight);
 
@@ -170,53 +169,53 @@ struct CanvasRenderer
 
     index_buffers[frame].write(memory_properties, indices.as_u8());
 
-    timepoint gpu_sync_begin = Clock::now();
+    Timepoint gpu_sync_begin = Clock::now();
 
     ASH_VK_CHECK(
         vkWaitForFences(dev, 1, &render_fence, VK_TRUE, VULKAN_TIMEOUT));
 
-    timepoint gpu_sync_end = Clock::now();
+    Timepoint gpu_sync_end = Clock::now();
 
     frame_stats.gpu_sync_time = gpu_sync_end - gpu_sync_begin;
 
     ASH_VK_CHECK(vkResetFences(dev, 1, &render_fence));
 
-    u64 pipeline_statistics_query_query_results[NPIPELINE_STATISTIC_QUERIES];
-    u64 pipeline_timestamp_query_results[NPIPELINE_TIMESTAMP_QUERIES];
+    // u64 pipeline_statistics_query_query_results[NPIPELINE_STATISTIC_QUERIES];
+    // u64 pipeline_timestamp_query_results[NPIPELINE_TIMESTAMP_QUERIES];
 
-    if (vkGetQueryPoolResults(dev, pipeline_statistics_query_pools[frame], 0, 1,
-                              sizeof(pipeline_statistics_query_query_results),
-                              pipeline_statistics_query_query_results,
-                              sizeof(u64),
-                              VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
-    {
-      frame_stats.input_assembly_vertices =
-          pipeline_statistics_query_query_results[0];
-      frame_stats.input_assembly_primitives =
-          pipeline_statistics_query_query_results[1];
-      frame_stats.vertex_shader_invocations =
-          pipeline_statistics_query_query_results[2];
-      frame_stats.fragment_shader_invocations =
-          pipeline_statistics_query_query_results[3];
-      frame_stats.compute_shader_invocations =
-          pipeline_statistics_query_query_results[4];
-      frame_stats.task_shader_invocations =
-          pipeline_statistics_query_query_results[5];
-      frame_stats.mesh_shader_invocations =
-          pipeline_statistics_query_query_results[6];
-    }
+    // if (vkGetQueryPoolResults(dev, pipeline_statistics_query_pools[frame], 0, 1,
+    //                           sizeof(pipeline_statistics_query_query_results),
+    //                           pipeline_statistics_query_query_results,
+    //                           sizeof(u64),
+    //                           VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
+    // {
+    //   frame_stats.input_assembly_vertices =
+    //       pipeline_statistics_query_query_results[0];
+    //   frame_stats.input_assembly_primitives =
+    //       pipeline_statistics_query_query_results[1];
+    //   frame_stats.vertex_shader_invocations =
+    //       pipeline_statistics_query_query_results[2];
+    //   frame_stats.fragment_shader_invocations =
+    //       pipeline_statistics_query_query_results[3];
+    //   frame_stats.compute_shader_invocations =
+    //       pipeline_statistics_query_query_results[4];
+    //   frame_stats.task_shader_invocations =
+    //       pipeline_statistics_query_query_results[5];
+    //   frame_stats.mesh_shader_invocations =
+    //       pipeline_statistics_query_query_results[6];
+    // }
 
-    if (vkGetQueryPoolResults(dev, pipeline_timestamp_query_pools[frame], 0,
-                              NPIPELINE_TIMESTAMP_QUERIES,
-                              sizeof(pipeline_timestamp_query_results),
-                              pipeline_timestamp_query_results, sizeof(u64),
-                              VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
-    {
-      frame_stats.gpu_time = nanoseconds{
-          (nanoseconds::rep)(((f64) timestamp_period) *
-                             (f64) (pipeline_timestamp_query_results[1] -
-                                    pipeline_timestamp_query_results[0]))};
-    }
+    // if (vkGetQueryPoolResults(dev, pipeline_timestamp_query_pools[frame], 0,
+    //                           NPIPELINE_TIMESTAMP_QUERIES,
+    //                           sizeof(pipeline_timestamp_query_results),
+    //                           pipeline_timestamp_query_results, sizeof(u64),
+    //                           VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
+    // {
+    //   frame_stats.gpu_time = Nanoseconds{
+    //       (Nanoseconds::rep)(((f64) timestamp_period) *
+    //                          (f64) (pipeline_timestamp_query_results[1] -
+    //                                 pipeline_timestamp_query_results[0]))};
+    // }
 
     ASH_VK_CHECK(vkResetCommandBuffer(cmd_buffer, 0));
 
@@ -229,14 +228,14 @@ struct CanvasRenderer
 
     ASH_VK_CHECK(vkBeginCommandBuffer(cmd_buffer, &command_buffer_begin_info));
 
-    vkCmdResetQueryPool(cmd_buffer, pipeline_statistics_query_pools[frame], 0,
-                        NPIPELINE_STATISTIC_QUERIES);
-    vkCmdResetQueryPool(cmd_buffer, pipeline_timestamp_query_pools[frame], 0,
-                        NPIPELINE_TIMESTAMP_QUERIES);
+    // vkCmdResetQueryPool(cmd_buffer, pipeline_statistics_query_pools[frame], 0,
+    //                     NPIPELINE_STATISTIC_QUERIES);
+    // vkCmdResetQueryPool(cmd_buffer, pipeline_timestamp_query_pools[frame], 0,
+    //                     NPIPELINE_TIMESTAMP_QUERIES);
 
-    vkCmdBeginQuery(cmd_buffer, pipeline_statistics_query_pools[frame], 0, 0);
-    vkCmdWriteTimestamp(cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                        pipeline_timestamp_query_pools[frame], 0);
+    // vkCmdBeginQuery(cmd_buffer, pipeline_statistics_query_pools[frame], 0, 0);
+    // vkCmdWriteTimestamp(cmd_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                        // pipeline_timestamp_query_pools[frame], 0);
 
     VkClearValue clear_values[] = {
         {.color = VkClearColorValue{{0, 0, 0, 0}}},
@@ -274,7 +273,7 @@ struct CanvasRenderer
     {
       gfx::DrawCommand const &cmd = cmds[icmd];
 
-      if (cmd.scissor.offset.x < 0 || cmd.scissor.offset.y < 0)
+      if (cmd.scissor_offset.x < 0 || cmd.scissor_offset.y < 0)
       {
         continue;
       }
@@ -304,10 +303,10 @@ struct CanvasRenderer
       }
 
       VkRect2D scissor{
-          .offset = VkOffset2D{static_cast<i32>(cmd.scissor.offset.x),
-                               static_cast<i32>(cmd.scissor.offset.y)},
-          .extent = VkExtent2D{static_cast<u32>(cmd.scissor.extent.x),
-                               static_cast<u32>(cmd.scissor.extent.y)}};
+          .offset = VkOffset2D{static_cast<i32>(cmd.scissor_offset.x),
+                               static_cast<i32>(cmd.scissor_offset.y)},
+          .extent = VkExtent2D{static_cast<u32>(cmd.scissor_extent.x),
+                               static_cast<u32>(cmd.scissor_extent.y)}};
 
       if (memcmp(&scissor, &previouse_scissor, sizeof(VkRect2D)) != 0)
       {
@@ -350,9 +349,9 @@ struct CanvasRenderer
 
     vkCmdEndRenderPass(cmd_buffer);
 
-    vkCmdEndQuery(cmd_buffer, pipeline_statistics_query_pools[frame], 0);
-    vkCmdWriteTimestamp(cmd_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                        pipeline_timestamp_query_pools[frame], 1);
+    // vkCmdEndQuery(cmd_buffer, pipeline_statistics_query_pools[frame], 0);
+    // vkCmdWriteTimestamp(cmd_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+    //                     pipeline_timestamp_query_pools[frame], 1);
 
     ASH_VK_CHECK(vkEndCommandBuffer(cmd_buffer));
 

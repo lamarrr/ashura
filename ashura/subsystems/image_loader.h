@@ -88,7 +88,7 @@ struct ImageLoader : public Subsystem
             ASH_LOG_INFO(
                 ImageLoader,
                 "Loaded and decoded {}x{} image at path: {} with size={} bytes",
-                result.value().extent.width, result.value().extent.height,
+                result.value().extent.x, result.value().extent.y,
                 path_.view(), result.value().span().size());
           }
           else

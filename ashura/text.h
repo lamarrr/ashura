@@ -11,6 +11,7 @@ extern "C"
 #include "SBScriptLocator.h"
 }
 
+#include "ashura/color.h"
 #include "ashura/font.h"
 #include "ashura/primitives.h"
 #include "ashura/unicode.h"
@@ -39,19 +40,19 @@ struct TextStyle
       {};        // font to fallback to if {font} is not available. if none of
                  // the specified fallback fonts are found the first font in the
                  // font bundle will be used
-  f32   font_height       = 20;                   // px
-  Color foreground_color  = colors::BLACK;        //
-  Color outline_color     = colors::BLACK;        //
-  f32   outline_thickness = 0;                    //
-  Color shadow_color      = colors::BLACK;        //
-  f32   shadow_scale      = 0;        // relative. multiplied by font_height
-  Vec2  shadow_offset    = Vec2{0, 0};        // px. offset from center of glyph
-  Color background_color = colors::TRANSPARENT;         //
-  Color underline_color  = colors::BLACK;               //
-  f32   underline_thickness     = 0;                    // px
-  Color strikethrough_color     = colors::BLACK;        //
-  f32   strikethrough_thickness = 0;                    // px
-  f32   letter_spacing =
+  f32  font_height = 20;                  // px
+  Vec4 foreground_color;                  //
+  Vec4 outline_color;                     //
+  f32  outline_thickness = 0;             //
+  Vec4 shadow_color;                      //
+  f32  shadow_scale  = 0;                 // relative. multiplied by font_height
+  Vec2 shadow_offset = Vec2{0, 0};        // px. offset from center of glyph
+  Vec4 background_color;                  //
+  Vec4 underline_color;                   //
+  f32  underline_thickness = 0;           // px
+  Vec4 strikethrough_color;               //
+  f32  strikethrough_thickness = 0;        // px
+  f32  letter_spacing =
       0;        // px. additional letter spacing, can be negative
   f32  word_spacing = 0;        // px. additional word spacing, can be negative
   f32  line_height  = 1.2f;        // relative. multiplied by font_height
@@ -199,12 +200,12 @@ struct TextLayout
     hb_shape(font.hb_font, shaping_buffer, shaping_features,
              (unsigned int) std::size(shaping_features));
 
-    unsigned int                       nglyph_pos;
+    unsigned int               nglyph_pos;
     hb_glyph_position_t const *glyph_pos =
         hb_buffer_get_glyph_positions(shaping_buffer, &nglyph_pos);
     ASH_CHECK(!(glyph_pos == nullptr && nglyph_pos > 0));
 
-    unsigned int                   nglyph_infos;
+    unsigned int           nglyph_infos;
     hb_glyph_info_t const *glyph_info =
         hb_buffer_get_glyph_infos(shaping_buffer, &nglyph_infos);
     ASH_CHECK(!(glyph_info == nullptr && nglyph_infos > 0));
@@ -452,8 +453,9 @@ struct TextLayout
             f32 const advance =
                 scale * (f32) glyph_positions[i].x_advance / 64.0f;
             Vec2 const offset =
-                scale * Vec2{(f32) glyph_positions[i].x_offset / 64.0f,
-                             (f32) glyph_positions[i].y_offset / -64.0f};
+                Vec2{scale, scale} *
+                Vec2{(f32) glyph_positions[i].x_offset / 64.0f,
+                     (f32) glyph_positions[i].y_offset / -64.0f};
 
             glyph_shapings
                 .push(GlyphShaping{.glyph   = glyph_infos[i].codepoint,

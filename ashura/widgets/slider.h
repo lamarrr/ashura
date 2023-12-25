@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ashura/animation.h"
-#include "ashura/palletes.h"
+#include "ashura/color.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
 
@@ -77,9 +77,11 @@ struct Slider : public Widget
     f32  thumb_radius =
         thumb_animation.animate(thumb_animation_curve, thumb_tween);
 
+    f32 r = props.track_height / 2;
+
     canvas
-        .draw_round_rect_filled(track_area, Vec4::splat(props.track_height / 2),
-                                45, props.track_color)
+        .draw_round_rect_filled(track_area.offset, track_area.extent,
+                                Vec4{r, r, r, r}, 45, props.track_color)
         .draw_circle_filled(thumb_center, thumb_radius, 360, props.track_color);
   }
 
@@ -125,7 +127,7 @@ struct Slider : public Widget
   void __transition_radius(f32 from, f32 to)
   {
     thumb_tween = Tween<f32>{from, to};
-    thumb_animation.restart(milliseconds{200}, 1, AnimationCfg::Default, 1);
+    thumb_animation.restart(Milliseconds{200}, 1, AnimationCfg::Default, 1);
   }
 
   Callback    on_changed;

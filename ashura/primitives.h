@@ -17,26 +17,50 @@ constexpr f32 epsilon_clamp(f32 x)
   return math::abs(x) > F32_EPSILON ? x : F32_EPSILON;
 }
 
-/*
-struct Vec2
+typedef Vec2U Extent;
+typedef Vec2U Offset;
+
+struct Rect
 {
-  f32 x = 0, y = 0;
+  Vec2 offset;
+  Vec2 extent;
 
-  static constexpr Vec2 splat(f32 v)
+  constexpr bool contains(Vec2 point) const
   {
-    return Vec2{.x = v, .y = v};
+    return offset.x <= point.x && offset.y <= point.y &&
+           (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
   }
 
-  constexpr f32 &operator[](usize i)
+  constexpr bool overlaps(Rect other) const
   {
-    return (&x)[i];
+    Vec2 a_begin = offset;
+    Vec2 a_end   = offset + extent;
+    Vec2 b_begin = other.offset;
+    Vec2 b_end   = other.offset + other.extent;
+    return a_begin.x <= b_end.x && a_end.x >= b_begin.x &&
+           a_begin.y <= b_end.y && a_end.y >= b_begin.y;
   }
 
-  constexpr f32 const &operator[](usize i) const
+  constexpr Rect intersect(Rect other) const
   {
-    return (&x)[i];
+    if (!overlaps(other))
+    {
+      return Rect{offset, {0, 0}};
+    }
+
+    Vec2 a_begin = offset;
+    Vec2 a_end   = offset + extent;
+    Vec2 b_begin = other.offset;
+    Vec2 b_end   = other.offset + other.extent;
+    Vec2 int_begin{op::max(a_begin.x, b_begin.x),
+                   op::max(a_begin.y, b_begin.y)};
+    Vec2 int_end{op::min(a_end.x, b_end.x), op::min(a_end.y, b_end.y)};
+
+    return Rect{int_begin, int_end - int_begin};
   }
 };
+
+/*
 
 constexpr Vec2 epsilon_clamp(Vec2 a)
 {
@@ -340,55 +364,6 @@ constexpr Mat4 operator*(f32 a, Mat4 b)
   return Mat4{.rows = {a * b[0], a * b[1], a * b[2], a * b[3]}};
 }
 
-
-constexpr Mat4 operator*(Mat4 const &a, Mat4 const &b)
-{
-  return Mat4{.rows = {{dot(a[0], {b[0][0], b[1][0], b[2][0], b[3][0]}),
-                        dot(a[0], {b[0][1], b[1][1], b[2][1], b[3][1]}),
-                        dot(a[0], {b[0][2], b[1][2], b[2][2], b[3][2]}),
-                        dot(a[0], {b[0][3], b[1][3], b[2][3], b[3][3]})},
-                       {dot(a[1], {b[0][0], b[1][0], b[2][0], b[3][0]}),
-                        dot(a[1], {b[0][1], b[1][1], b[2][1], b[3][1]}),
-                        dot(a[1], {b[0][2], b[1][2], b[2][2], b[3][2]}),
-                        dot(a[1], {b[0][3], b[1][3], b[2][3], b[3][3]})},
-                       {dot(a[2], {b[0][0], b[1][0], b[2][0], b[3][0]}),
-                        dot(a[2], {b[0][1], b[1][1], b[2][1], b[3][1]}),
-                        dot(a[2], {b[0][2], b[1][2], b[2][2], b[3][2]}),
-                        dot(a[2], {b[0][3], b[1][3], b[2][3], b[3][3]})},
-                       {dot(a[3], {b[0][0], b[1][0], b[2][0], b[3][0]}),
-                        dot(a[3], {b[0][1], b[1][1], b[2][1], b[3][1]}),
-                        dot(a[3], {b[0][2], b[1][2], b[2][2], b[3][2]}),
-                        dot(a[3], {b[0][3], b[1][3], b[2][3], b[3][3]})}}};
-}
-
-constexpr Vec4 operator*(Mat4 const &a, Vec4 const &b)
-{
-  return Vec4{.x = dot(a[0], b),
-              .y = dot(a[1], b),
-              .z = dot(a[2], b),
-              .w = dot(a[3], b)};
-}
-
-
-
-constexpr Vec2 transform3d(Mat4 const &a, Vec2 const &b)
-{
-  Vec4 prod = a * Vec4{b.x, b.y, 0, 1};
-  return Vec2{.x = prod.x, .y = prod.y};
-}
-
-constexpr Vec2 transform3d(Mat4 const &a, Vec3 const &b)
-{
-  Vec4 prod = a * Vec4{b.x, b.y, b.z, 1};
-  return Vec2{.x = prod.x, .y = prod.y};
-}
-
-constexpr Vec2 transform2d(Mat3 const &a, Vec2 const &b)
-{
-  Vec3 prod = a * Vec3{b.x, b.y, 1};
-  return Vec2{prod.x, prod.y};
-}
-
 constexpr Quad transform2d(Mat3 const &a, Rect const &b)
 {
   return Quad{.p0 = transform2d(a, b.top_left()),
@@ -452,83 +427,7 @@ struct URect3D
   }
 };
 
-/// Simple Layout Constraint Model
-/// @bias: adding or subtracting from the source size, i.e. value should be
-/// source size - 20px
-/// @scale: scales the source size, i.e. value should be 0.5 of source size
-/// @min: clamps the source size, i.e. value should be at least 20px
-/// @max: clamps the source size, i.e. value should be at most 100px
-/// @minr: clamps the source size relatively. i.e. value should be at least 0.5
-/// of source size
-/// @maxr: clamps the source size relatively. i.e. value should be at most 0.5
-/// of source size
-struct Constraint
-{
-  f32 bias  = 0;
-  f32 scale = 0;
-  f32 min   = F32_MIN;
-  f32 max   = F32_MAX;
-  f32 minr  = 0;
-  f32 maxr  = 1;
 
-  static constexpr Constraint relative(f32 scale)
-  {
-    return Constraint{
-        .bias = 0, .scale = scale, .min = F32_MIN, .max = F32_MAX};
-  }
-
-  static constexpr Constraint absolute(f32 value)
-  {
-    return Constraint{
-        .bias = value, .scale = 0, .min = F32_MIN, .max = F32_MAX};
-  }
-
-  constexpr Constraint with_min(f32 v) const
-  {
-    return Constraint{.bias  = bias,
-                      .scale = scale,
-                      .min   = v,
-                      .max   = max,
-                      .minr  = minr,
-                      .maxr  = maxr};
-  }
-
-  constexpr Constraint with_max(f32 v) const
-  {
-    return Constraint{.bias  = bias,
-                      .scale = scale,
-                      .min   = min,
-                      .max   = v,
-                      .minr  = minr,
-                      .maxr  = maxr};
-  }
-
-  constexpr Constraint with_minr(f32 v) const
-  {
-    return Constraint{.bias  = bias,
-                      .scale = scale,
-                      .min   = min,
-                      .max   = max,
-                      .minr  = v,
-                      .maxr  = maxr};
-  }
-
-  constexpr Constraint with_maxr(f32 v) const
-  {
-    return Constraint{.bias  = bias,
-                      .scale = scale,
-                      .min   = min,
-                      .max   = max,
-                      .minr  = minr,
-                      .maxr  = v};
-  }
-
-  constexpr f32 resolve(f32 value) const
-  {
-    return std::clamp(std::clamp(bias + value * scale, min, max), minr * value,
-                      maxr * value);
-  }
-};
 
 
 
@@ -550,27 +449,9 @@ constexpr Color lerp<Color>(Color const &a, Color const &b, f32 t)
       .a = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.a, b.a, t), 0, 255))};
 }
 
-namespace colors
-{
-
-constexpr Color TRANSPARENT = Color::from_rgba(0x00, 0x00, 0x00, 0x00);
-constexpr Color WHITE       = Color::from_rgb(0xff, 0xff, 0xff);
-constexpr Color BLACK       = Color::from_rgb(0x00, 0x00, 0x00);
-constexpr Color RED         = Color::from_rgb(0xff, 0x00, 0x00);
-constexpr Color BLUE        = Color::from_rgb(0x00, 0x00, 0xff);
-constexpr Color GREEN       = Color::from_rgb(0x00, 0xff, 0x00);
-constexpr Color CYAN        = Color::from_rgb(0x00, 0xff, 0xff);
-constexpr Color MAGENTA     = Color::from_rgb(0xff, 0x00, 0xff);
-constexpr Color YELLOW      = Color::from_rgb(0xff, 0xff, 0x00);
-
-}        // namespace colors
-
-
-
-
 struct Version
 {
-  u8 major = 0, minor = 0, patch = 0;
+ u8 variant, u8 major = 0, minor = 0, patch = 0;
 };
 
 /// @x_mag: The floating-point horizontal magnification of the view. This value

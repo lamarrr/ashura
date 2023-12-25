@@ -87,7 +87,7 @@ struct WidgetTree
                                             WidgetElement &element,
                                             Vec2           allocated_position)
   {
-    Vec2 position = element.widget->position(ctx, allocated_position);
+    Vec2 position          = element.widget->position(ctx, allocated_position);
     element.widget->area.offset = position;
 
     for (usize i = 0; i < element.children.size(); i++)
@@ -110,8 +110,14 @@ struct WidgetTree
     Rect clip =
         element.widget->clip(ctx, allocated_clip, element.children_clips);
 
-    if (visibility == Visibility::Visible && clip.overlaps(view_region) &&
-        view_region.overlaps(element.widget->area))
+    if (visibility == Visibility::Visible &&
+        math::overlaps(view_region.offset,
+                       view_region.offset + view_region.extent, clip.offset,
+                       clip.offset + clip.extent) &&
+        math::overlaps(view_region.offset,
+                       view_region.offset + view_region.extent,
+                       element.widget->area.offset,
+                       element.widget->area.offset + element.widget->area.extent))
     {
       element.widget->on_view_hit(ctx);
       render_elements
@@ -156,7 +162,8 @@ struct WidgetTree
   {
     render_elements.clear();
     __build_render_recursive(ctx, root, Visibility::Visible, 0,
-                             root.widget->area, view_region);
+                             Rect{root.widget->area.offset, root.widget->area.extent},
+                             view_region);
     render_elements.span().sort(
         [](WidgetRenderElement const &a, WidgetRenderElement const &b) {
           return a.z_index < b.z_index;
@@ -174,7 +181,7 @@ struct WidgetTree
       Rect scissor;
       scissor.offset = (element.clip.offset - view_region.offset) * scale;
       scissor.extent = element.clip.extent * scale;
-      canvas.save().scissor(scissor);
+      canvas.save().scissor(scissor.offset, scissor.extent);
       element.widget->draw(ctx, canvas);
       canvas.restore();
     }
@@ -185,8 +192,10 @@ struct WidgetTree
     for (usize i = render_elements.size(); i > 0;)
     {
       i--;
-      if (render_elements[i].widget->area.contains(position) &&
-          render_elements[i].widget->hit_test(ctx, position))
+      Widget *widget = render_elements[i].widget;
+      if (math::rect_contains_point(
+              widget->area.offset, widget->area.offset + widget->area.extent, position) &&
+          widget->hit_test(ctx, position))
       {
         return render_elements[i].widget;
       }

@@ -231,8 +231,8 @@ struct RenderResourceManager
   static void copy_image_to_GPU_Buffer(ImageView<u8 const> src,
                                        ImageView<u8>       rep_dst)
   {
-    ASH_CHECK(src.extent.width <= rep_dst.extent.width);
-    ASH_CHECK(src.extent.height <= rep_dst.extent.height);
+    ASH_CHECK(src.extent.x <= rep_dst.extent.x);
+    ASH_CHECK(src.extent.y <= rep_dst.extent.y);
 
     switch (src.format)
     {
@@ -251,7 +251,7 @@ struct RenderResourceManager
         u8         *out           = rep_dst.span.data();
         usize const src_row_bytes = src.row_bytes();
 
-        for (usize irow = 0; irow < src.extent.height;
+        for (usize irow = 0; irow < src.extent.y;
              irow++, in += src.pitch, out += rep_dst.pitch)
         {
           u8 const *in_row  = in;
@@ -286,7 +286,7 @@ struct RenderResourceManager
     VkPhysicalDeviceMemoryProperties const &memory_properties =
         queue.device->phy_dev->memory_properties;
 
-    ASH_CHECK(image_view.extent.is_visible(),
+    ASH_CHECK(image_view.extent.x != 0 && image_view.extent.y != 0,
               "Encounted unsupported zero extent image");
 
     ImageFormat rep_format    = to_rep_format(image_view.format);
@@ -298,8 +298,8 @@ struct RenderResourceManager
         .flags       = 0,
         .imageType   = VK_IMAGE_TYPE_2D,
         .format      = rep_format_vk,
-        .extent      = VkExtent3D{.width  = image_view.extent.width,
-                                  .height = image_view.extent.height,
+        .extent      = VkExtent3D{.width  = image_view.extent.x,
+                                  .height = image_view.extent.y,
                                   .depth  = 1},
         .mipLevels   = 1,
         .arrayLayers = 1,
@@ -366,7 +366,7 @@ struct RenderResourceManager
     copy_image_to_GPU_Buffer(image_view,
                              ImageView<u8>{.span   = staging_buffer.span(),
                                            .extent = image_view.extent,
-                                           .pitch  = image_view.extent.width *
+                                           .pitch  = image_view.extent.x *
                                                     pixel_byte_size(rep_format),
                                            .format = rep_format});
     ASH_LOG_INFO(Vulkan_RenderResourceManager,
@@ -426,8 +426,8 @@ struct RenderResourceManager
     ASH_LOG_INFO(
         Vulkan_RenderResourceManager,
         "Created {}{} {}x{} Image #{} with format={} and size={} bytes",
-        is_real_time ? "" : "non-", "real-time", image_view.extent.width,
-        image_view.extent.height, id, string_VkFormat(rep_format_vk),
+        is_real_time ? "" : "non-", "real-time", image_view.extent.x,
+        image_view.extent.y, id, string_VkFormat(rep_format_vk),
         memory_requirements.size);
 
     return id;
@@ -449,7 +449,7 @@ struct RenderResourceManager
       copy_image_to_GPU_Buffer(
           view, ImageView<u8>{.span   = rimage.staging_buffer.value().span(),
                               .extent = rimage.extent,
-                              .pitch  = rimage.extent.width *
+                              .pitch  = rimage.extent.x *
                                        pixel_byte_size(rep_format),
                               .format = rep_format});
     }
@@ -463,7 +463,7 @@ struct RenderResourceManager
       copy_image_to_GPU_Buffer(
           view, ImageView<u8>{.span   = staging_buffer.span(),
                               .extent = rimage.extent,
-                              .pitch  = rimage.extent.width *
+                              .pitch  = rimage.extent.x *
                                        pixel_byte_size(rep_format),
                               .format = rep_format});
       rimage.staging_buffer = stx::Some(std::move(staging_buffer));
@@ -546,8 +546,8 @@ struct RenderResourceManager
                                          .baseArrayLayer = 0,
                                          .layerCount     = 1},
             .imageOffset = VkOffset3D{.x = 0, .y = 0, .z = 0},
-            .imageExtent = VkExtent3D{.width  = entry.second.extent.width,
-                                      .height = entry.second.extent.height,
+            .imageExtent = VkExtent3D{.width  = entry.second.extent.x,
+                                      .height = entry.second.extent.y,
                                       .depth  = 1}};
 
         vkCmdCopyBufferToImage(cmd_buffer,
@@ -754,18 +754,19 @@ struct CanvasPipelineManager
                               VkSampleCountFlagBits msaa_sample_count)
   {
     static constexpr VkVertexInputAttributeDescription
-        vertex_input_attributes[] = {{.location = 0,
-                                      .binding  = 0,
-                                      .format   = VK_FORMAT_R32G32_SFLOAT,
-                                      .offset   = offsetof(Vertex2d, position)},
-                                     {.location = 1,
-                                      .binding  = 0,
-                                      .format   = VK_FORMAT_R32G32_SFLOAT,
-                                      .offset   = offsetof(Vertex2d, uv)},
-                                     {.location = 2,
-                                      .binding  = 0,
-                                      .format   = VK_FORMAT_R32G32B32A32_SFLOAT,
-                                      .offset   = offsetof(Vertex2d, color)}};
+        vertex_input_attributes[] = {
+            {.location = 0,
+             .binding  = 0,
+             .format   = VK_FORMAT_R32G32_SFLOAT,
+             .offset   = offsetof(gfx::Vertex2d, position)},
+            {.location = 1,
+             .binding  = 0,
+             .format   = VK_FORMAT_R32G32_SFLOAT,
+             .offset   = offsetof(gfx::Vertex2d, uv)},
+            {.location = 2,
+             .binding  = 0,
+             .format   = VK_FORMAT_R32G32B32A32_SFLOAT,
+             .offset   = offsetof(gfx::Vertex2d, color)}};
 
     VkDescriptorSetLayout descriptor_sets_layout[NIMAGES_PER_DRAWCALL];
     stx::Span{descriptor_sets_layout}.fill(descriptor_set_layout);
@@ -784,7 +785,7 @@ struct CanvasPipelineManager
       pipeline.build(dev, p.second.vertex_shader, p.second.fragment_shader,
                      target_render_pass, msaa_sample_count,
                      descriptor_sets_layout, vertex_input_attributes,
-                     sizeof(Vertex2d), PUSH_CONSTANT_SIZE);
+                     sizeof(gfx::Vertex2d), PUSH_CONSTANT_SIZE);
 
       p.second.pipeline = stx::Some(std::move(pipeline));
 

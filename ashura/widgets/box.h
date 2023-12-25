@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ashura/palletes.h"
+#include "ashura/color.h"
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
 #include "ashura/widget.h"
@@ -19,14 +19,14 @@ enum class BoxCornerShape : u8
 
 struct BoxProps
 {
-  Color               background_color;
-  LinearColorGradient background_gradient;
-  EdgeInsets          padding;
-  f32                 border_thickness = 0;
-  Color               border_color     = colors::BLACK;
-  BorderRadius        border_radius    = BorderRadius::relative(0);
-  BoxCornerShape      corner_shape     = BoxCornerShape::Round;
-  Constraint2D        frame            = Constraint2D::relative(1, 1);
+  Vec4                     background_color;
+  gfx::LinearColorGradient background_gradient;
+  EdgeInsets               padding;
+  f32                      border_thickness = 0;
+  Vec4                     border_color     = {0, 0, 0, 1};
+  BorderRadius             border_radius    = BorderRadius::relative(0);
+  BoxCornerShape           corner_shape     = BoxCornerShape::Round;
+  Constraint2D             frame            = Constraint2D::relative(1, 1);
 };
 
 struct Box : public Widget
@@ -52,8 +52,11 @@ struct Box : public Widget
   virtual void allocate_size(Context &ctx, Vec2 allocated_size,
                              stx::Span<Vec2> children_allocation) override
   {
-    Vec2 const box_size = props.border_thickness * 2 + props.padding.xy();
-    children_allocation.fill(max(allocated_size - box_size, Vec2{0, 0}));
+    Vec2 const box_size   = props.border_thickness * 2 + props.padding.xy();
+    Vec2       child_size = allocated_size - box_size;
+    child_size.x          = op::max(child_size.x, 0.0f);
+    child_size.y          = op::max(child_size.y, 0.0f);
+    children_allocation.fill(child_size);
   }
 
   virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
@@ -79,39 +82,40 @@ struct Box : public Widget
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
     Vec4 const border_radius = props.border_radius.resolve(area.extent);
-    if (props.background_color.is_visible() ||
+    if (props.background_color.w > 0 ||
         ((!props.background_gradient.is_uniform()) &&
-         (props.background_gradient.begin.is_visible() ||
-          props.background_gradient.end.is_visible())))
+         (props.background_gradient.begin.w > 0 ||
+          props.background_gradient.end.w > 0)))
     {
       Rect inner_area;
       inner_area.offset = area.offset + props.border_thickness * 0.88f;
       inner_area.extent = area.extent - props.border_thickness * 0.88f * 2;
       if (props.corner_shape == BoxCornerShape::Round)
       {
-        canvas.draw_round_rect_filled(inner_area, border_radius, 360,
-                                      props.background_color,
-                                      props.background_gradient);
+        canvas.draw_round_rect_filled(
+            inner_area.offset, inner_area.extent, border_radius, 360,
+            props.background_color, props.background_gradient);
       }
       else
       {
-        canvas.draw_bevel_rect_filled(inner_area, border_radius,
-                                      props.background_color,
+        canvas.draw_bevel_rect_filled(inner_area.offset, inner_area.extent,
+                                      border_radius, props.background_color,
                                       props.background_gradient);
       }
     }
 
-    if (props.border_color.is_visible() && props.border_thickness > 0)
+    if (props.border_color.w > 0 && props.border_thickness > 0)
     {
       if (props.corner_shape == BoxCornerShape::Round)
       {
-        canvas.draw_round_rect_stroke(area, border_radius, 360,
-                                      props.border_color,
+        canvas.draw_round_rect_stroke(area.offset, area.extent, border_radius,
+                                      360, props.border_color,
                                       props.border_thickness);
       }
       else
       {
-        canvas.draw_bevel_rect_stroke(area, border_radius, props.border_color,
+        canvas.draw_bevel_rect_stroke(area.offset, area.extent, border_radius,
+                                      props.border_color,
                                       props.border_thickness);
       }
     }

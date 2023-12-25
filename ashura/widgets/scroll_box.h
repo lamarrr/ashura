@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "ashura/palletes.h"
+#include "ashura/color.h"
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
 #include "ashura/widget.h"
@@ -13,8 +13,8 @@ namespace gui
 
 struct ScrollBoxProps
 {
-  Color        thumb_color = material::GRAY_400.with_alpha(200);
-  Color        track_color = material::GRAY_800.with_alpha(128);
+  Color        thumb_color = material::GRAY_400;
+  Color        track_color = material::GRAY_800;
   f32          bar_width   = 15;
   Constraint2D view_offset = Constraint2D::relative(0, 0);
   Constraint2D frame       = Constraint2D::absolute(200, 200);
@@ -95,8 +95,11 @@ struct ScrollBar : public Widget
       Rect thumb_rect   = area;
       thumb_rect.offset.x += thumb_offset;
       thumb_rect.extent.x = thumb_width;
-      canvas.draw_rect_filled(thumb_rect, scroll_ctx->props.thumb_color)
-          .draw_rect_filled(area, scroll_ctx->props.track_color);
+      canvas
+          .draw_rect_filled(thumb_rect.offset, thumb_rect.extent,
+                            scroll_ctx->props.thumb_color)
+          .draw_rect_filled(area.offset, area.extent,
+                            scroll_ctx->props.track_color);
     }
     else if (direction == Direction::V && scroll_ctx->can_scroll_y())
     {
@@ -106,8 +109,11 @@ struct ScrollBar : public Widget
       Rect thumb_rect   = area;
       thumb_rect.offset.y += thumb_offset;
       thumb_rect.extent.y = thumb_height;
-      canvas.draw_rect_filled(thumb_rect, scroll_ctx->props.thumb_color)
-          .draw_rect_filled(area, scroll_ctx->props.track_color);
+      canvas
+          .draw_rect_filled(thumb_rect.offset, thumb_rect.extent,
+                            scroll_ctx->props.thumb_color)
+          .draw_rect_filled(area.offset, area.extent,
+                            scroll_ctx->props.track_color);
     }
   }
 

@@ -207,9 +207,13 @@ struct Glyph
                     // unicode codepoint glyph (0xFFFD) will always be true
   GlyphMetrics metrics;        // normalized font metrics
   u32          bin = 0;        // atlas bin this glyph belongs to
-  URect bin_area;        // area in the atlas this glyph's cache data is placed
-  TextureRect bin_region;        // normalized texture coordinates of this glyph
-                                 // in the atlas bin
+  Vec2U
+      bin_offset;        // area in the atlas this glyph's cache data is placed
+  Vec2U bin_extent;
+  Vec2  uv0;
+  Vec2  uv1;
+  // TextureRect bin_region;        // normalized texture coordinates of this
+  // glyph in the atlas bin
 };
 
 /// stores codepoint glyphs for a font at a specific font height
@@ -340,17 +344,14 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
       metrics.descent  = std::max(metrics.extent.y - metrics.bearing.y, 0.0f);
 
       // bin offsets are determined after binning and during rect packing
-      URect bin_area;
-      bin_area.extent.width  = slot->bitmap.width;
-      bin_area.extent.height = slot->bitmap.rows;
-
       glyphs
-          .push(Glyph{.is_valid   = true,
-                      .is_needed  = is_needed,
-                      .metrics    = metrics,
-                      .bin        = 0,
-                      .bin_area   = bin_area,
-                      .bin_region = {}})
+          .push(
+              Glyph{.is_valid   = true,
+                    .is_needed  = is_needed,
+                    .metrics    = metrics,
+                    .bin        = 0,
+                    .bin_offset = Vec2U{0, 0},
+                    .bin_extent = Vec2U{slot->bitmap.width, slot->bitmap.rows}})
           .unwrap();
     }
     else
@@ -360,8 +361,8 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
                       .is_needed  = is_needed,
                       .metrics    = {},
                       .bin        = 0,
-                      .bin_area   = {},
-                      .bin_region = {}})
+                      .bin_offset = {},
+                      .bin_extent = {}})
           .unwrap();
     }
   }
@@ -418,16 +419,14 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
 
         // added padding to avoid texture spilling due to accumulated uv
         // interpolation errors
-        rects[irect].w =
-            static_cast<i32>(glyphs[glyph_index].bin_area.extent.width + 2);
-        rects[irect].h =
-            static_cast<i32>(glyphs[glyph_index].bin_area.extent.height + 2);
+        rects[irect].w = static_cast<i32>(glyphs[glyph_index].bin_extent.x + 2);
+        rects[irect].h = static_cast<i32>(glyphs[glyph_index].bin_extent.y + 2);
         irect++;
       }
     }
 
     stx::Vec<rect_packer::Node> nodes;
-    nodes.unsafe_resize_uninitialized(spec.max_atlas_bin_extent.width).unwrap();
+    nodes.unsafe_resize_uninitialized(spec.max_atlas_bin_extent.x).unwrap();
 
     u32                          bin            = 0;
     stx::Span<rect_packer::rect> unpacked_rects = rects;
@@ -436,8 +435,8 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
     while (!unpacked_rects.is_empty())
     {
       rect_packer::Context pack_context = rect_packer::init(
-          spec.max_atlas_bin_extent.width, spec.max_atlas_bin_extent.height,
-          nodes.data(), spec.max_atlas_bin_extent.width, true);
+          spec.max_atlas_bin_extent.x, spec.max_atlas_bin_extent.y,
+          nodes.data(), spec.max_atlas_bin_extent.x, true);
       // tries to pack all the glyph rects into the provided extent
       was_all_packed =
           rect_packer::pack_rects(pack_context, unpacked_rects.data(),
@@ -452,22 +451,23 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
 
       for (rect_packer::rect const &rect : just_packed)
       {
-        bin_extent.width = std::max(bin_extent.width, (u32) (rect.x + rect.w));
-        bin_extent.height =
-            std::max(bin_extent.height, (u32) (rect.y + rect.h));
+        bin_extent.x = std::max(bin_extent.x, (u32) (rect.x + rect.w));
+        bin_extent.y = std::max(bin_extent.y, (u32) (rect.y + rect.h));
         used_area += rect.w * rect.h;
       }
 
       for (rect_packer::rect const &rect : just_packed)
       {
-        Glyph &glyph            = glyphs[rect.glyph_index];
-        glyph.bin_area.offset.x = static_cast<u32>(rect.x) + 1;
-        glyph.bin_area.offset.y = static_cast<u32>(rect.y) + 1;
-        glyph.bin               = bin;
-        glyph.bin_region.uv0 =
-            glyph.bin_area.min().to_vec() / bin_extent.to_vec();
-        glyph.bin_region.uv1 =
-            glyph.bin_area.max().to_vec() / bin_extent.to_vec();
+        Glyph &glyph       = glyphs[rect.glyph_index];
+        glyph.bin_offset.x = static_cast<u32>(rect.x) + 1;
+        glyph.bin_offset.y = static_cast<u32>(rect.y) + 1;
+        glyph.bin          = bin;
+        glyph.uv0          = Vec2{(f32) glyph.bin_offset.x / (f32) bin_extent.x,
+                         (f32) glyph.bin_offset.y / (f32) bin_extent.y};
+        glyph.uv1 = Vec2{((f32) glyph.bin_offset.x + (f32) glyph.bin_extent.x) /
+                             (f32) bin_extent.x,
+                         ((f32) glyph.bin_offset.y + (f32) glyph.bin_extent.y) /
+                             (f32) bin_extent.y};
       }
 
       bins.push(FontAtlasBin{.texture   = gfx::WHITE_IMAGE,
@@ -477,7 +477,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
       bin++;
 
       total_used_area += used_area;
-      total_area += bin_extent.area();
+      total_area += bin_extent.x * (usize) bin_extent.y;
     }
 
     // sanity check. ideally all should have been packed
@@ -535,7 +535,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
 
       bin_buffers[glyph.bin]
           .view()
-          .subview(glyph.bin_area)
+          .subview(glyph.bin_offset, glyph.bin_extent)
           .copy(ImageView<u8>{
               .span   = stx::Span<u8>{slot->bitmap.buffer,
                                       slot->bitmap.rows * slot->bitmap.pitch},

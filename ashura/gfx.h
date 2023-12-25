@@ -55,7 +55,7 @@ typedef struct ComputePipeline_T      *ComputePipeline;
 typedef struct GraphicsPipeline_T     *GraphicsPipeline;
 typedef struct Fence_T                *Fence;
 typedef struct CommandEncoder_T       *CommandEncoder;
-typedef struct Surface_T              *Surface;
+typedef VkSurfaceKHR                   Surface;
 typedef struct Swapchain_T            *Swapchain;
 typedef struct FrameContext_T         *FrameContext;
 typedef struct Device_T               *Device;
@@ -101,7 +101,7 @@ enum class MemoryProperties : u32
 
 STX_DEFINE_ENUM_BIT_OPS(MemoryProperties)
 
-enum class PresentMode : u32
+enum class PresentMode : u8
 {
   Immediate   = 0,
   Mailbox     = 1,
@@ -754,8 +754,8 @@ STX_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
 
 struct SurfaceFormat
 {
-  ColorSpace color_space = ColorSpace::SRGB_NONLINEAR;
   Format     format      = Format::Undefined;
+  ColorSpace color_space = ColorSpace::SRGB_NONLINEAR;
 };
 
 struct FrameIndex
@@ -1215,6 +1215,12 @@ union ClearValue
   DepthStencil depth_stencil;
 };
 
+struct SurfaceCapabilities
+{
+  ImageUsage     image_usage     = ImageUsage::None;
+  CompositeAlpha composite_alpha = CompositeAlpha::None;
+};
+
 struct SwapchainDesc
 {
   char const    *label               = nullptr;
@@ -1244,11 +1250,10 @@ struct SwapchainInfo
 /// avoid storing pointers to this struct.
 struct FrameInfo
 {
-  FrameId                    trailing                = 0;
-  FrameId                    current                 = 0;
-  Span<CommandEncoder const> command_encoders        = {};
-  Span<Fence const>          command_encoder_fences  = {};
-  u32                        current_command_encoder = 0;
+  FrameId                        trailing                = 0;
+  FrameId                        current                 = 0;
+  Span<CommandEncoderImpl const> command_encoders        = {};
+  u32                            current_command_encoder = 0;
 };
 
 struct DeviceProperties
@@ -1507,9 +1512,9 @@ struct DeviceInterface
   Result<u32, Status> (*get_surface_formats)(
       Device self, Surface surface, Span<SurfaceFormat> formats) = nullptr;
   Result<u32, Status> (*get_surface_present_modes)(
-      Device self, Surface surface, Span<PresentMode> modes)       = nullptr;
-  Result<ImageUsage, Status> (*get_surface_usage)(Device  self,
-                                                  Surface surface) = nullptr;
+      Device self, Surface surface, Span<PresentMode> modes) = nullptr;
+  Result<SurfaceCapabilities, Status> (*get_surface_capabilities)(
+      Device self, Surface surface) = nullptr;
   Result<SwapchainInfo, Status> (*get_swapchain_info)(
       Device self, Swapchain swapchain) = nullptr;
   Result<Void, Status> (*invalidate_swapchain)(
@@ -1518,19 +1523,6 @@ struct DeviceInterface
                                       FrameContext frame_context)  = nullptr;
   Result<Void, Status> (*submit_frame)(Device self, Swapchain swapchain,
                                        FrameContext frame_context) = nullptr;
-  // advance frame id, if swapchain redundant, mark as redundant for next frame
-  // and let them do the work again acquire next image at start of frame and
-  // recreate if necessary, not at end of loop
-  //
-  // submit along with surface?
-  // multi-window rendering?
-  // must be called before beginning frame or recording frame info
-  // TODO(lamarrr): create default config based on backend
-  // on present frame the swapchain might become invalid and we might need to
-  // re-record for that frame? on config_surface called the surface must be
-  // recreated and the config stored
-  // TODO(lamarrr): make resilient to changing displays, surfaces, ability to
-  // re-attach surfaces?
 };
 
 struct DeviceImpl
@@ -1699,32 +1691,16 @@ struct DeviceImpl
   }
 };
 
-// how will window create a surface from this without knowing the actual
-// implementation details?
-//
-//
-// HOW to associate with window backend
-//
-//
-// - REQUIREMENTS
-// - create surface should work with any supported window platform
-// - we should be able to get/create the surface from a window
-//
-//
-// for vulkan backend, Surface must be VkSurfaceKHR.
-// we only need to wrap vksurface, not the window
-//
-//
 struct InstanceInterface
 {
   Result<InstanceImpl, Status> (*create)(
-      AllocatorImpl allocator, LoggerImpl logger,
+      AllocatorImpl allocator, Logger *logger,
       bool enable_validation_layer) = nullptr;
   void (*ref)(Instance self)        = nullptr;
   void (*unref)(Instance self)      = nullptr;
   Result<DeviceImpl, Status> (*create_device)(
       Instance self, Span<DeviceType const> preferred_types,
-      Span<VkSurfaceKHR const> compatible_surfaces,
+      Span<gfx::Surface const> compatible_surfaces,
       AllocatorImpl            allocator)                       = nullptr;
   void (*ref_device)(Instance self, Device device)   = nullptr;
   void (*unref_device)(Instance self, Device device) = nullptr;

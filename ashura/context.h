@@ -166,7 +166,10 @@ struct Context
     {
       return nullptr;
     }
-    Window *bwin = static_cast<Window *>(SDL_GetWindowData(win, "handle"));
+    SDL_PropertiesID properties = SDL_GetWindowProperties(win);
+    Window          *bwin =
+        static_cast<Window *>(SDL_GetProperty(properties, "handle", nullptr));
+    ASH_CHECK(bwin != nullptr);
     return bwin;
   }
 

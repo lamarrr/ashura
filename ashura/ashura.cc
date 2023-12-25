@@ -33,16 +33,16 @@ int main(int argc, char **argv)
   FontSpec fonts[] = {
       {.name = "Roboto",
        .path =
-           R"(C:\Users\Basit\Documents\workspace\oss\ashura\ashura\assets\fonts\Roboto\Roboto-Regular.ttf)"},
+           R"(Roboto.ttf)"},
       {.name = "RobotoMono",
        .path =
-           R"(C:\Users\Basit\Desktop\JetBrainsMono-2.304\fonts\ttf\JetBrainsMono-Regular.ttf)"},
+           R"(RobotoMono.ttf)"},
       {.name = "MaterialIcons",
        .path =
-           R"(C:\Users\Basit\Documents\workspace\oss\ashura\ashura\assets\fonts\MaterialIcons\MaterialIcons-Regular.ttf)"},
+           R"(MaterialIcons.ttf)"},
       {.name = "NotoSans",
        .path =
-           R"(C:\Users\Basit\Desktop\Noto_Sans_Arabic\static\NotoSansArabic-Regular.ttf)"}};
+           R"(NotoSans.ttf)"}};
 
   CanvasPipelineSpec pipelines[] = {
       {.name            = DEFAULT_SHAPE_PIPELINE,
@@ -83,7 +83,7 @@ int main(int argc, char **argv)
           gui::Image{gui::ImageProps{
                         .source =
                   gui::FileImageSource{
-                                .path = R"(C:\Users\Basit\Desktop\pimping.png)"},
+                                .path = R"(img1)"},
                         .aspect_ratio   = stx::Some(1.0f),
                         .resize_on_load = true}},
           gui::Text{"cruelty_free",
@@ -119,21 +119,21 @@ int main(int argc, char **argv)
                   gui::ImageProps{
                                 .source =
                           gui::FileImageSource{
-                                        .path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
+                                        .path = R"(img1)"},
                                 .aspect_ratio   = stx::Some(1.0f),
                                 .resize_on_load = true}},
               gui::Image{
                   gui::ImageProps{
                                 .source =
                           gui::FileImageSource{
-                                        .path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
+                                        .path = R"(img1)"},
                                 .aspect_ratio   = stx::Some(1.0f),
                                 .resize_on_load = true}},
               gui::Image{
                   gui::ImageProps{
                                 .source =
                           gui::FileImageSource{
-                                        .path = R"(C:\Users\Basit\Desktop\26050398.jpg)"},
+                                        .path = R"(img1)"},
                                 .aspect_ratio   = stx::Some(1.0f),
                                 .resize_on_load = true}}},
           gui::Stack{
@@ -147,7 +147,7 @@ int main(int argc, char **argv)
                            gui::ImageProps{
                                          .source =
                                    gui::FileImageSource{
-                                                 .path = R"(C:\Users\Basit\Desktop\profile.png)"},
+                                                 .path = R"(img1)"},
                                          .border_radius =
                                    BorderRadius::relative(1, 1, 1, 1),
                                          .aspect_ratio   = stx::Some(1.0f),
@@ -166,14 +166,13 @@ int main(int argc, char **argv)
           gui::Stack{
               gui::StackProps{.alignment = ALIGN_CENTER},
               gui::Box{
-                  gui::BoxProps{.background_gradient =
-                                    LinearColorGradient{
-                                                  .begin = material::GREEN_500,
-                                                  .end = material::GREEN_500.with_alpha(
-                                            10),
-                                                  .angle = 0},
-                                          .padding = EdgeInsets::all(50),
-                                          .border_radius = BorderRadius::absolute(7.5f)},
+                  gui::BoxProps{
+                                .background_gradient =
+                          gfx::LinearColorGradient{.begin = material::GREEN_500,
+                                                             .end = material::GREEN_500,
+                                                             .angle = 0},
+                                .padding       = EdgeInsets::all(50),
+                                .border_radius = BorderRadius::absolute(7.5f)},
                   gui::Text{
                       "FE!N FE!N FE!N FE!N FE!N",
                       gui::TextProps{
@@ -182,8 +181,7 @@ int main(int argc, char **argv)
               gui::Padding{
                   EdgeInsets::all(20),
                   gui::Box{
-                      gui::BoxProps{.background_color =
-                                        material::RED_500.with_alpha(0xCC),
+                      gui::BoxProps{.background_color = material::RED_500,
                                               .padding = EdgeInsets::all(5),
                                               .border_thickness = 5,
                                               .border_color     = colors::BLACK,
@@ -195,12 +193,14 @@ int main(int argc, char **argv)
                                               .style = TextStyle{.foreground_color =
                                                            colors::WHITE}}}}}},
           gui::Box{
-              gui::BoxProps{.background_color =
-                                Color::from_rgb(0x33, 0x33, 0x33),
-                                      .padding          = EdgeInsets::all(5),
-                                      .border_thickness = 1,
-                                      .border_color = Color::from_rgb(0xFF, 0xFF, 0xFF),
-                                      .border_radius = BorderRadius::absolute(7.5f)},
+              gui::BoxProps{
+                            .background_color =
+                      Color(0x33 / 255.0F, 0x33 / 255.0F, 0x33 / 255.0F, 1.0F),
+                            .padding          = EdgeInsets::all(5),
+                            .border_thickness = 1,
+                            .border_color =
+                      Color(0xFF / 255.0F, 0xFF / 255.0F, 0xFF / 255.0F, 1.0F),
+                            .border_radius = BorderRadius::absolute(7.5f)},
               gui::Text{"For You",
                         gui::TextProps{.style = TextStyle{.foreground_color =
                                                               colors::WHITE}}}},
@@ -304,18 +304,18 @@ int main(int argc, char **argv)
                   gui::ImageProps{
                                 .source =
                           gui::FileImageSource{
-                                        .path = R"(C:\Users\Basit\Desktop\wallpaperflare.com_wallpaper.jpg)"},
+                                        .path = R"(img2)"},
                                 .size = Constraint2D::absolute(2000, 2000)
-                                  .with_maxr(INF, INF),
+                                  .with_maxr(0xFFFFFFFFFF, 0xFFFFFFFFFF),
                                 .border_radius =
                           BorderRadius::relative(.25f, .25f, .25f, .25f),
                                 .aspect_ratio   = stx::Some(2.0f),
                                 .resize_on_load = false}}}}};
 
-  timepoint last_tick = Clock::now();
+  Timepoint last_tick = Clock::now();
   while (true)
   {
-    timepoint present = Clock::now();
+    Timepoint present = Clock::now();
     app.tick(present - last_tick);
     last_tick = present;
   }

@@ -1,15 +1,16 @@
 #pragma once
 
-#include "ashura/primitives.h"
+#include "ashura/time.h"
+#include "ashura/types.h"
 
 namespace ash
 {
 
 struct FrameStats
 {
-  nanoseconds gpu_time{0};
-  nanoseconds cpu_time{0};
-  nanoseconds gpu_sync_time{0};
+  Nanoseconds gpu_time{0};
+  Nanoseconds cpu_time{0};
+  Nanoseconds gpu_sync_time{0};
   u64         input_assembly_vertices     = 0;
   u64         input_assembly_primitives   = 0;
   u64         vertex_shader_invocations   = 0;

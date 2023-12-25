@@ -6,7 +6,6 @@
 #include "ashura/animation.h"
 #include "ashura/canvas.h"
 #include "ashura/loggers.h"
-#include "ashura/palletes.h"
 #include "ashura/sdl_utils.h"
 #include "ashura/shaders.h"
 #include "ashura/subsystems/font_loader.h"
@@ -102,8 +101,8 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
   stx::Rc vk_instance = vk::create_instance(
       cfg.name.c_str(), VK_MAKE_VERSION(0, 0, 1), cfg.name.c_str(),
-      VK_MAKE_VERSION(cfg.version.major, cfg.version.minor, cfg.version.patch),
-      required_window_instance_extensions, required_validation_layers);
+      VK_MAKE_VERSION(0, 0, 1), required_window_instance_extensions,
+      required_validation_layers);
 
   root_window.value()->attach_surface(vk_instance.share());
 
@@ -331,7 +330,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
 
 void Engine::tick(std::chrono::nanoseconds interval)
 {
-  timepoint begin = Clock::now();
+  Timepoint begin = Clock::now();
   // poll events to make the window not be marked as unresponsive.
   // poll events from SDL's event queue until there are none left.
   //

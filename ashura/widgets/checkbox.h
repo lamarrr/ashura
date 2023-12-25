@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ashura/palletes.h"
+#include "ashura/color.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
 
@@ -51,17 +51,14 @@ struct CheckBox : public Widget
 
   virtual void draw(Context &ctx, gfx::Canvas &canvas) override
   {
-    Vertex2d checkmark_path[] = {
-        {.position = {0.125f, 0.5f},
-         .color    = props.checkmark_color.to_normalized_vec()},
-        {.position = {0.374f, 0.75f},
-         .color    = props.checkmark_color.to_normalized_vec()},
-        {.position = {0.775f, 0.25f},
-         .color    = props.checkmark_color.to_normalized_vec()}};
+    gfx::Vertex2d checkmark_path[] = {
+        {.position = {0.125f, 0.5f}, .color = props.checkmark_color},
+        {.position = {0.374f, 0.75f}, .color = props.checkmark_color},
+        {.position = {0.775f, 0.25f}, .color = props.checkmark_color}};
 
     if (value)
     {
-      canvas.draw_rect_filled(area, props.box_color)
+      canvas.draw_rect_filled(area.offset, area.extent, props.box_color)
           .save()
           .scale(props.extent, props.extent)
           .draw_path(checkmark_path, area.offset, area.extent, 0.125f, false)
@@ -69,7 +66,8 @@ struct CheckBox : public Widget
     }
     else
     {
-      canvas.draw_rect_stroke(area, props.box_color, props.outline_thickness);
+      canvas.draw_rect_stroke(area.offset, area.extent, props.box_color,
+                              props.outline_thickness);
     }
   }
 

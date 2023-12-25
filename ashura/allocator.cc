@@ -21,8 +21,9 @@
 namespace ash
 {
 
-Heap const heap;
+Heap const global_heap_object;
 
+// TODO(lamarrr): switch to using global panic and logger
 void *HeapInterface::allocate(Allocator self, usize alignment, usize size)
 {
   (void) self;
@@ -42,7 +43,7 @@ void *HeapInterface::allocate(Allocator self, usize alignment, usize size)
                  "over-aligned malloc of alignment %" PRIu64 " not supported\n",
                  (u64) alignment);
   (void) fflush(stderr);
-  abort();
+  return nullptr;
 #  endif
 #endif
 }
@@ -79,7 +80,7 @@ void *HeapInterface::allocate_zeroed(Allocator self, usize alignment,
                  " not supported\n",
                  (u64) alignment);
   (void) fflush(stderr);
-  abort();
+  return nullptr;
 #  endif
 #endif
 }
@@ -115,7 +116,7 @@ void *HeapInterface::reallocate(Allocator self, usize alignment, void *memory,
                  " not supported\n",
                  (u64) alignment);
   (void) fflush(stderr);
-  abort();
+  return nullptr;
 #  endif
 #endif
 }
@@ -143,7 +144,7 @@ void HeapInterface::deallocate(Allocator self, usize alignment, void *memory,
                  "over-aligned malloc of alignment %" PRIu64 " not supported\n",
                  (u64) alignment);
   (void) fflush(stderr);
-  abort();
+  return nullptr;
 #  endif
 #endif
 }

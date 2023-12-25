@@ -112,8 +112,8 @@ struct Window
 
   void set_size(Extent size)
   {
-    ASH_SDL_CHECK(SDL_SetWindowSize(window, static_cast<int>(size.width),
-                                    static_cast<int>(size.height)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowSize(window, static_cast<int>(size.x),
+                                    static_cast<int>(size.y)) == 0);
   }
 
   void center()
@@ -126,53 +126,52 @@ struct Window
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowSize(window, &w, &h) == 0);
-    return Extent{.width = static_cast<u32>(w), .height = static_cast<u32>(h)};
+    return Extent{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
   Extent get_surface_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowSizeInPixels(window, &w, &h) == 0);
-    return Extent{.width = static_cast<u32>(w), .height = static_cast<u32>(h)};
+    return Extent{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
-  void set_position(IOffset pos)
+  void set_position(Vec2I pos)
   {
-    ASH_SDL_CHECK(SDL_SetWindowPosition(window, static_cast<int>(pos.x),
-                                        static_cast<int>(pos.y)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowPosition(window, pos.x, pos.y) == 0);
   }
 
-  IOffset get_position()
+  Vec2I get_position()
   {
     int x, y;
     ASH_SDL_CHECK(SDL_GetWindowPosition(window, &x, &y) == 0);
-    return IOffset{.x = static_cast<i32>(x), .y = static_cast<i32>(y)};
+    return Vec2I{x, y};
   }
 
   void set_min_size(Extent min)
   {
-    ASH_SDL_CHECK(SDL_SetWindowMinimumSize(window, static_cast<int>(min.width),
-                                           static_cast<int>(min.height)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowMinimumSize(window, static_cast<int>(min.x),
+                                           static_cast<int>(min.y)) == 0);
   }
 
   Extent get_min_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowMinimumSize(window, &w, &h) == 0);
-    return Extent{.width = static_cast<u32>(w), .height = static_cast<u32>(h)};
+    return Extent{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
   void set_max_size(Extent max)
   {
-    ASH_SDL_CHECK(SDL_SetWindowMaximumSize(window, static_cast<int>(max.width),
-                                           static_cast<int>(max.height)) == 0);
+    ASH_SDL_CHECK(SDL_SetWindowMaximumSize(window, static_cast<int>(max.x),
+                                           static_cast<int>(max.y)) == 0);
   }
 
   Extent get_max_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowMaximumSize(window, &w, &h) == 0);
-    return Extent{.width = static_cast<u32>(w), .height = static_cast<u32>(h)};
+    return Extent{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
   void set_icon(ImageView<u8 const> image)
@@ -193,8 +192,8 @@ struct Window
     }
 
     SDL_Surface *icon = SDL_CreateSurfaceFrom(
-        (void *) image.span.data(), static_cast<int>(image.extent.width),
-        static_cast<int>(image.extent.height), static_cast<int>(image.pitch),
+        (void *) image.span.data(), static_cast<int>(image.extent.x),
+        static_cast<int>(image.extent.y), static_cast<int>(image.pitch),
         fmt);
     ASH_SDL_CHECK(icon != nullptr);
     ASH_SDL_CHECK(SDL_SetWindowIcon(window, icon) == 0);

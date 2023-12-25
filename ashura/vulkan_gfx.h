@@ -15,8 +15,10 @@ namespace vk
 
 using gfx::Status;
 
-constexpr char const *ENGINE_NAME    = "ASH";
-constexpr u32         ENGINE_VERSION = VK_MAKE_API_VERSION(1, 0, 0, 1);
+constexpr char const *ENGINE_NAME    = "Ash";
+constexpr u32         ENGINE_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
+constexpr char const *CLIENT_NAME    = "Ash Client";
+constexpr u32         CLIENT_VERSION = VK_MAKE_API_VERSION(0, 0, 0, 1);
 
 typedef struct InstanceTable           InstanceTable;
 typedef struct DeviceTable             DeviceTable;
@@ -364,7 +366,7 @@ struct Instance
 {
   u64                      refcount    = 0;
   AllocatorImpl            allocator   = {};
-  LoggerImpl               logger      = {};
+  Logger                  *logger      = {};
   InstanceTable            vk_table    = {};
   VkInstance               vk_instance = nullptr;
   VkDebugUtilsMessengerEXT vk_debug_messenger;
@@ -383,6 +385,7 @@ struct Device
 {
   u64                refcount        = 0;
   AllocatorImpl      allocator       = {};
+  Logger            *logger          = nullptr;
   Instance          *instance        = nullptr;
   PhysicalDevice     physical_device = {};
   DeviceTable        vk_table        = {};
@@ -412,6 +415,7 @@ struct DescriptorHeap
   u64                   refcount                    = 0;
   Device               *device                      = nullptr;
   AllocatorImpl         allocator                   = {};
+  Logger               *logger                      = nullptr;
   DescriptorSetLayout **set_layouts                 = nullptr;
   u32                 **binding_offsets             = nullptr;
   VkDescriptorPool     *vk_pools                    = nullptr;
@@ -440,6 +444,7 @@ struct CommandEncoder
 {
   u64               refcount                                         = 0;
   AllocatorImpl     allocator                                        = {};
+  Logger           *logger                                           = nullptr;
   Device           *device                                           = nullptr;
   VkCommandPool     vk_command_pool                                  = nullptr;
   VkCommandBuffer   vk_command_buffer                                = nullptr;
@@ -473,32 +478,38 @@ struct FrameContext
   VkSemaphore             *submit_semaphores       = nullptr;
 };
 
+/// @is_optimal: false when vulkan returns that the surface is suboptimal or
+/// the description is updated by the user
 struct Swapchain
 {
-  gfx::Generation    generation                             = 0;
-  gfx::SwapchainDesc desc                                   = {};
-  bool               is_valid                               = false;
-  bool               is_optimal                             = false;
-  gfx::Extent        extent                                 = {};
-  Image              image_impls[gfx::MAX_SWAPCHAIN_IMAGES] = {};
-  gfx::Image         images[gfx::MAX_SWAPCHAIN_IMAGES]      = {};
-  VkImage            vk_images[gfx::MAX_SWAPCHAIN_IMAGES]   = {};
-  u32                num_images                             = 0;
-  u32                current_image                          = 0;
-  VkSwapchainKHR     vk_swapchain                           = nullptr;
-  VkSurfaceKHR       vk_surface                             = nullptr;
+  gfx::Generation     generation      = 0;
+  gfx::SwapchainDesc  desc            = {};
+  bool                is_valid        = false;
+  bool                is_optimal      = false;
+  gfx::SurfaceFormat  format          = {};
+  gfx::ImageUsage     usage           = gfx::ImageUsage::None;
+  gfx::PresentMode    present_mode    = gfx::PresentMode::Immediate;
+  gfx::Extent         extent          = {};
+  gfx::CompositeAlpha composite_alpha = gfx::CompositeAlpha::None;
+  Image               image_impls[gfx::MAX_SWAPCHAIN_IMAGES] = {};
+  gfx::Image          images[gfx::MAX_SWAPCHAIN_IMAGES]      = {};
+  VkImage             vk_images[gfx::MAX_SWAPCHAIN_IMAGES]   = {};
+  u32                 num_images                             = 0;
+  u32                 current_image                          = 0;
+  VkSwapchainKHR      vk_swapchain                           = nullptr;
+  VkSurfaceKHR        vk_surface                             = nullptr;
 };
 
 struct InstanceInterface
 {
   static Result<gfx::InstanceImpl, Status> create(AllocatorImpl allocator,
-                                                  LoggerImpl    logger,
+                                                  Logger       *logger,
                                                   bool enable_validation_layer);
   static void                              ref(gfx::Instance self);
   static void                              unref(gfx::Instance self);
   static Result<gfx::DeviceImpl, Status>   create_device(
         gfx::Instance self, Span<gfx::DeviceType const> preferred_types,
-        Span<VkSurfaceKHR const> compatible_surfaces, AllocatorImpl allocator);
+        Span<gfx::Surface const> compatible_surfaces, AllocatorImpl allocator);
   static void ref_device(gfx::Instance self, gfx::Device device);
   static void unref_device(gfx::Instance self, gfx::Device device);
 };
@@ -631,13 +642,13 @@ struct DeviceInterface
   static Result<u32, Status>
       get_surface_present_modes(gfx::Device self, gfx::Surface surface,
                                 Span<gfx::PresentMode> modes);
-  static Result<gfx::ImageUsage, Status> (*get_surface_usage)(
-      gfx::Device self, gfx::Surface surface);
+  static Result<gfx::SurfaceCapabilities, Status>
+      get_surface_capabilities(gfx::Device self, gfx::Surface surface);
   static Result<gfx::SwapchainInfo, Status>
       get_swapchain_info(gfx::Device self, gfx::Swapchain swapchain);
   static Result<Void, Status>
       invalidate_swapchain(gfx::Device self, gfx::Swapchain swapchain,
-                           gfx::SwapchainDesc const &config);
+                           gfx::SwapchainDesc const &desc);
   static Result<Void, Status> begin_frame(gfx::Device       self,
                                           gfx::Swapchain    swapchain,
                                           gfx::FrameContext frame_context);

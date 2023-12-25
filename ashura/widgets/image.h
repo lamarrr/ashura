@@ -45,7 +45,7 @@ struct ImageProps
   BorderRadius     border_radius;
   stx::Option<f32> aspect_ratio;
   bool             resize_on_load = true;
-  Color            tint           = colors::WHITE;
+  Vec4             tint           = {1, 1, 1, 1};
   stx::String      alt;
 };
 
@@ -123,40 +123,40 @@ struct Image : public Widget
       break;
       case ImageState::Loaded:
       {
-        TextureRect texture_region{.uv0 = {0, 0}, .uv1 = {1, 1}};
+        Vec2 uv0 = {0, 0};
+        Vec2 uv1 = {1, 1};
 
         if (props.aspect_ratio.is_some())
         {
           f32 aspect_ratio = props.aspect_ratio.value();
 
-          Vec2 clipped_extent{std::min(image_extent.height * aspect_ratio,
-                                       static_cast<f32>(image_extent.width)),
-                              std::min(image_extent.width / aspect_ratio,
-                                       static_cast<f32>(image_extent.height))};
+          Vec2 clipped_extent{std::min(image_extent.y * aspect_ratio,
+                                       static_cast<f32>(image_extent.x)),
+                              std::min(image_extent.x / aspect_ratio,
+                                       static_cast<f32>(image_extent.y))};
 
-          Vec2 original_extent{static_cast<f32>(image_extent.width),
-                               static_cast<f32>(image_extent.height)};
+          Vec2 original_extent{static_cast<f32>(image_extent.x),
+                               static_cast<f32>(image_extent.y)};
 
           Vec2 space = original_extent - clipped_extent;
 
-          texture_region.uv0.x = (space.x / 2) / original_extent.x;
-          texture_region.uv1.x =
-              (space.x / 2 + clipped_extent.x) / original_extent.x;
-          texture_region.uv0.y = (space.y / 2) / original_extent.y;
-          texture_region.uv1.y =
-              (space.y / 2 + clipped_extent.y) / original_extent.y;
+          uv0.x = (space.x / 2) / original_extent.x;
+          uv1.x = (space.x / 2 + clipped_extent.x) / original_extent.x;
+          uv0.y = (space.y / 2) / original_extent.y;
+          uv1.y = (space.y / 2 + clipped_extent.y) / original_extent.y;
         }
 
         Vec4 border_radius = props.border_radius.resolve(area.extent);
 
         if (border_radius == Vec4{0, 0, 0, 0})
         {
-          canvas.draw_image(image, area, texture_region, props.tint);
+          canvas.draw_image(image, area.offset, area.extent, props.tint, uv0,
+                            uv1);
         }
         else
         {
-          canvas.draw_rounded_image(image, area, border_radius, 360,
-                                    texture_region, props.tint);
+          canvas.draw_rounded_image(image, area.offset, area.extent,
+                                    border_radius, 360, props.tint, uv0, uv1);
         }
       }
       break;
@@ -212,9 +212,9 @@ struct Image : public Widget
             state               = ImageState::Loaded;
             if (props.resize_on_load)
             {
-              props.size = Constraint2D::absolute(
-                  static_cast<f32>(buffer.extent.width),
-                  static_cast<f32>(buffer.extent.height));
+              props.size =
+                  Constraint2D::absolute(static_cast<f32>(buffer.extent.x),
+                                         static_cast<f32>(buffer.extent.y));
             }
             image_extent = buffer.extent;
           }

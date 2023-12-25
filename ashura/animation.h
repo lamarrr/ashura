@@ -1,6 +1,8 @@
 #pragma once
 #include "ashura/curve.h"
+#include "ashura/math.h"
 #include "ashura/primitives.h"
+#include "ashura/types.h"
 #include "ashura/utils.h"
 
 namespace ash
@@ -14,7 +16,7 @@ struct Tween
 
   constexpr T lerp(f32 t) const
   {
-    return ash::lerp(a, b, t);
+    return math::lerp(a, b, t);
   }
 };
 
@@ -39,17 +41,17 @@ STX_DEFINE_ENUM_BIT_OPS(AnimationCfg)
 
 struct Animation
 {
-  nanoseconds  duration   = milliseconds{256};
+  Nanoseconds  duration   = Milliseconds{256};
   u64          iterations = 1;
   AnimationCfg cfg        = AnimationCfg::Default;
   f64 speed = 1;        // higher spead means faster time to completion than
                         // specified duration
 
-  nanoseconds elapsed_duration = nanoseconds{0};
+  Nanoseconds elapsed_duration = Nanoseconds{0};
   u64         iterations_done  = 0;
   f64         t                = 0;
 
-  void restart(nanoseconds duration, u64 iterations, AnimationCfg cfg,
+  void restart(Nanoseconds duration, u64 iterations, AnimationCfg cfg,
                f64 speed)
   {
     ASH_CHECK(duration.count() > 0);
@@ -58,7 +60,7 @@ struct Animation
     this->iterations       = iterations;
     this->cfg              = cfg;
     this->speed            = 1;
-    this->elapsed_duration = nanoseconds{0};
+    this->elapsed_duration = Nanoseconds{0};
     this->iterations_done  = 0;
     this->t                = 0;
   }
@@ -98,16 +100,16 @@ struct Animation
                           1.0;
   }
 
-  void tick(nanoseconds interval)
+  void tick(Nanoseconds interval)
   {
     if (get_state() == AnimationState::Completed)
     {
       return;
     }
 
-    nanoseconds const tick_duration =
-        nanoseconds{(i64) ((f64) interval.count() * (f64) speed)};
-    nanoseconds const total_elapsed_duration = elapsed_duration + tick_duration;
+    Nanoseconds const tick_duration =
+        Nanoseconds{(i64) ((f64) interval.count() * (f64) speed)};
+    Nanoseconds const total_elapsed_duration = elapsed_duration + tick_duration;
     f64 const         t_total =
         (((f64) total_elapsed_duration.count()) / (f64) duration.count());
     u64 const t_iterations = (u64) t_total;

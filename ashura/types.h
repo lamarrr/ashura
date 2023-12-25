@@ -120,9 +120,29 @@ constexpr Vec2 operator+(Vec2 a, Vec2 b)
   return Vec2{a.x + b.x, a.y + b.y};
 }
 
+constexpr Vec2 operator+(Vec2 a, f32 b)
+{
+  return Vec2{a.x + b, a.y + b};
+}
+
+constexpr Vec2 operator+(f32 a, Vec2 b)
+{
+  return Vec2{a + b.x, a + b.y};
+}
+
 constexpr Vec2 operator-(Vec2 a, Vec2 b)
 {
   return Vec2{a.x - b.x, a.y - b.y};
+}
+
+constexpr Vec2 operator-(Vec2 a, f32 b)
+{
+  return Vec2{a.x - b, a.y - b};
+}
+
+constexpr Vec2 operator-(f32 a, Vec2 b)
+{
+  return Vec2{a - b.x, a - b.y};
 }
 
 constexpr Vec2 operator*(Vec2 a, Vec2 b)
@@ -130,9 +150,29 @@ constexpr Vec2 operator*(Vec2 a, Vec2 b)
   return Vec2{a.x * b.x, a.y * b.y};
 }
 
+constexpr Vec2 operator*(Vec2 a, f32 b)
+{
+  return Vec2{a.x * b, a.y * b};
+}
+
+constexpr Vec2 operator*(f32 a, Vec2 b)
+{
+  return Vec2{a * b.x, a * b.y};
+}
+
 constexpr Vec2 operator/(Vec2 a, Vec2 b)
 {
   return Vec2{a.x / b.x, a.y / b.y};
+}
+
+constexpr Vec2 operator/(Vec2 a, f32 b)
+{
+  return Vec2{a.x / b, a.y / b};
+}
+
+constexpr Vec2 operator/(f32 a, Vec2 b)
+{
+  return Vec2{a / b.x, a / b.y};
 }
 
 constexpr Vec2 &operator+=(Vec2 &a, Vec2 b)
@@ -181,9 +221,29 @@ constexpr Vec3 operator+(Vec3 a, Vec3 b)
   return Vec3{a.x + b.x, a.y + b.y, a.z + b.z};
 }
 
+constexpr Vec3 operator+(Vec3 a, f32 b)
+{
+  return Vec3{a.x + b, a.y + b, a.z + b};
+}
+
+constexpr Vec3 operator+(f32 a, Vec3 b)
+{
+  return Vec3{a + b.x, a + b.y, a + b.z};
+}
+
 constexpr Vec3 operator-(Vec3 a, Vec3 b)
 {
   return Vec3{a.x - b.x, a.y - b.y, a.z - b.z};
+}
+
+constexpr Vec3 operator-(Vec3 a, f32 b)
+{
+  return Vec3{a.x - b, a.y - b, a.z - b};
+}
+
+constexpr Vec3 operator-(f32 a, Vec3 b)
+{
+  return Vec3{a - b.x, a - b.y, a - b.z};
 }
 
 constexpr Vec3 operator*(Vec3 a, Vec3 b)
@@ -191,9 +251,29 @@ constexpr Vec3 operator*(Vec3 a, Vec3 b)
   return Vec3{a.x * b.x, a.y * b.y, a.z * b.z};
 }
 
+constexpr Vec3 operator*(Vec3 a, f32 b)
+{
+  return Vec3{a.x * b, a.y * b, a.z * b};
+}
+
+constexpr Vec3 operator*(f32 a, Vec3 b)
+{
+  return Vec3{a * b.x, a * b.y, a * b.z};
+}
+
 constexpr Vec3 operator/(Vec3 a, Vec3 b)
 {
   return Vec3{a.x / b.x, a.y / b.y, a.z / b.z};
+}
+
+constexpr Vec3 operator/(Vec3 a, f32 b)
+{
+  return Vec3{a.x / b, a.y / b, a.z / b};
+}
+
+constexpr Vec3 operator/(f32 a, Vec3 b)
+{
+  return Vec3{a / b.x, a / b.y, a / b.z};
 }
 
 constexpr Vec3 &operator+=(Vec3 &a, Vec3 b)
@@ -243,9 +323,29 @@ constexpr Vec4 operator+(Vec4 a, Vec4 b)
   return Vec4{a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
 }
 
+constexpr Vec4 operator+(Vec4 a, f32 b)
+{
+  return Vec4{a.x + b, a.y + b, a.z + b, a.w + b};
+}
+
+constexpr Vec4 operator+(f32 a, Vec4 b)
+{
+  return Vec4{a + b.x, a + b.y, a + b.z, a + b.w};
+}
+
 constexpr Vec4 operator-(Vec4 a, Vec4 b)
 {
   return Vec4{a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
+}
+
+constexpr Vec4 operator-(Vec4 a, f32 b)
+{
+  return Vec4{a.x - b, a.y - b, a.z - b, a.w - b};
+}
+
+constexpr Vec4 operator-(f32 a, Vec4 b)
+{
+  return Vec4{a - b.x, a - b.y, a - b.z, a - b.w};
 }
 
 constexpr Vec4 operator*(Vec4 a, Vec4 b)
@@ -253,9 +353,29 @@ constexpr Vec4 operator*(Vec4 a, Vec4 b)
   return Vec4{a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w};
 }
 
+constexpr Vec4 operator*(Vec4 a, f32 b)
+{
+  return Vec4{a.x * b, a.y * b, a.z * b, a.w * b};
+}
+
+constexpr Vec4 operator*(f32 a, Vec4 b)
+{
+  return Vec4{a * b.x, a * b.y, a * b.z, a * b.w};
+}
+
 constexpr Vec4 operator/(Vec4 a, Vec4 b)
 {
   return Vec4{a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w};
+}
+
+constexpr Vec4 operator/(Vec4 a, f32 b)
+{
+  return Vec4{a.x / b, a.y / b, a.z / b, a.w / b};
+}
+
+constexpr Vec4 operator/(f32 a, Vec4 b)
+{
+  return Vec4{a / b.x, a / b.y, a / b.z, a / b.w};
 }
 
 constexpr Vec4 &operator+=(Vec4 &a, Vec4 b)

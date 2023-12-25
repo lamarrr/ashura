@@ -58,7 +58,7 @@ inline usize pixel_byte_size(ImageFormat fmt)
 
 inline usize fitted_byte_size(Extent extent, ImageFormat format)
 {
-  return extent.height * extent.width * pixel_byte_size(format);
+  return extent.y * (extent.x * pixel_byte_size(format));
 }
 
 template <typename B>
@@ -73,12 +73,12 @@ struct ImageView
 
   bool is_fitted() const
   {
-    return pitch == (extent.width * pixel_byte_size(format));
+    return pitch == (extent.x * pixel_byte_size(format));
   }
 
   usize row_bytes() const
   {
-    return extent.width * pixel_byte_size(format);
+    return extent.x * pixel_byte_size(format);
   }
 
   usize fitted_size_bytes() const
@@ -94,34 +94,30 @@ struct ImageView
                               .format = format};
   }
 
-  ImageView subview(URect slice) const
+  ImageView subview(Offset sub_offset, Extent sub_extent) const
   {
-    ASH_CHECK(slice.min().x <= extent.width);
-    ASH_CHECK(slice.min().y <= extent.height);
-    ASH_CHECK(slice.max().x <= extent.width);
-    ASH_CHECK(slice.max().y <= extent.height);
+    ASH_CHECK(sub_offset.x <= extent.x);
+    ASH_CHECK(sub_offset.y <= extent.y);
+    ASH_CHECK(sub_offset.x + sub_extent.x <= extent.x);
+    ASH_CHECK(sub_offset.y + sub_extent.y <= extent.y);
 
     usize const pixel_bytes = pixel_byte_size(format);
-    usize const byte_offset =
-        slice.offset.y * pitch + slice.offset.x * pixel_bytes;
-    usize const byte_span = slice.extent.height > 0 ?
-                                (slice.extent.width * pixel_bytes +
-                                 (slice.extent.height - 1U) * pitch) :
-                                0;
+    usize const byte_offset = sub_offset.y * pitch + sub_offset.x * pixel_bytes;
+    usize const byte_span =
+        sub_extent.y > 0 ?
+            (sub_extent.x * pixel_bytes + (sub_extent.y - 1U) * pitch) :
+            0;
 
     return ImageView{.span   = span.slice(byte_offset, byte_span),
-                     .extent = slice.extent,
+                     .extent = sub_extent,
                      .pitch  = pitch,
                      .format = format};
   }
 
   ImageView subview(Offset slice) const
   {
-    return subview(
-        URect{.offset = slice,
-              .extent = ash::Extent{
-                  .width  = extent.width - std::min(extent.width, slice.x),
-                  .height = extent.height - std::min(extent.height, slice.y)}});
+    return subview(slice, ash::Extent{extent.x - std::min(extent.x, slice.x),
+                                      extent.y - std::min(extent.y, slice.y)});
   }
 
   ImageView<B const> as_const() const
@@ -138,14 +134,14 @@ struct ImageView
     static_assert(!std::is_const_v<B>);
 
     ASH_CHECK(format == view.format);
-    ASH_CHECK(extent.width <= view.extent.width);
-    ASH_CHECK(extent.height <= view.extent.height);
+    ASH_CHECK(extent.x <= view.extent.x);
+    ASH_CHECK(extent.y <= view.extent.y);
 
     u8         *out       = span.as_u8().data();
     u8 const   *in        = view.span.as_u8().data();
     usize const row_bytes = this->row_bytes();
 
-    for (usize irow = 0; irow < extent.height;
+    for (usize irow = 0; irow < extent.y;
          irow++, out += pitch, in += view.pitch)
     {
       stx::Span{out, row_bytes}.copy(stx::Span{in, row_bytes});
@@ -182,7 +178,7 @@ struct ImageBuffer
 
   usize row_bytes() const
   {
-    return extent.width * pixel_byte_size(format);
+    return extent.x * pixel_byte_size(format);
   }
 
   usize pitch() const
@@ -225,16 +221,6 @@ struct ImageBuffer
   ImageView<u8> view()
   {
     return static_cast<ImageView<u8>>(*this);
-  }
-
-  void resize(ash::Extent new_extent)
-  {
-    if (extent.area() != new_extent.area())
-    {
-      stx::mem::reallocate(memory, fitted_byte_size(new_extent, format))
-          .unwrap();
-    }
-    extent = new_extent;
   }
 };
 

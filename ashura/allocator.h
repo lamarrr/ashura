@@ -103,7 +103,7 @@ struct Heap
 {
 };
 
-extern Heap const heap;
+extern Heap const global_heap_object;
 
 struct HeapInterface
 {
@@ -124,7 +124,7 @@ static AllocatorInterface heap_interface{
     .release         = HeapInterface::release};
 
 /// guarantees at least MAX_STANDARD_ALIGNMENT alignment.
-static AllocatorImpl const heap_allocator{.self      = (Allocator) &heap,
-                                          .interface = &heap_interface};
+static AllocatorImpl const heap_allocator{
+    .self = (Allocator) &global_heap_object, .interface = &heap_interface};
 
 }        // namespace ash

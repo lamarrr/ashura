@@ -17,7 +17,6 @@ using namespace stx::literals;
 struct AppConfig
 {
   stx::CStringView                    name = "Ashura Engine";
-  Version                             version{0, 0, 1};
   bool                                enable_validation_layers = false;
   stx::Span<FontSpec const>           fonts;
   stx::Span<CanvasPipelineSpec const> pipelines;

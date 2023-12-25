@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ashura/animation.h"
-#include "ashura/palletes.h"
+#include "ashura/color.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
 #include "stx/common.h"
@@ -70,7 +70,8 @@ struct Switch : public Widget
     f32 const thumb_position = animation.animate(curve, thumb_position_tween);
 
     canvas
-        .draw_round_rect_filled(area, Vec4::splat(props.height / 2), 90, color)
+        .draw_round_rect_filled(area.offset, area.extent,
+                                math::uniform_vec4(props.height / 2), 90, color)
         .draw_circle_filled(area.offset +
                                 Vec2{thumb_position, 1.5f + thumb_radius},
                             thumb_radius, 180, props.thumb_color);
@@ -87,7 +88,7 @@ struct Switch : public Widget
     if (button == MouseButton::Primary)
     {
       state = !state;
-      animation.restart(milliseconds{200}, 1, AnimationCfg::Default, 1);
+      animation.restart(Milliseconds{200}, 1, AnimationCfg::Default, 1);
       on_changed.handle(*this, ctx, state);
     }
   }

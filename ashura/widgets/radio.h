@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ashura/animation.h"
-#include "ashura/palletes.h"
+#include "ashura/color.h"
 #include "ashura/primitives.h"
 #include "ashura/widget.h"
 #include "stx/common.h"
@@ -79,7 +79,7 @@ struct Radio : public Widget
                    stx::Span<Vec2 const> children_sizes,
                    stx::Span<Vec2>       children_positions) override
   {
-    return Vec2::splat(props.width);
+    return math::uniform_vec2(props.width);
   }
 
   virtual void tick(Context &ctx, std::chrono::nanoseconds interval) override
@@ -142,15 +142,17 @@ struct Radio : public Widget
   {
     EaseIn curve;
     Rect   outer_rect        = area;
-    Vec2   inner_rect_extent = Vec2::splat(animation.animate(
+    Vec2   inner_rect_extent = math::uniform_vec2(animation.animate(
         curve, is_active ? Tween<f32>{0.0f, props.inner_width} :
                              Tween<f32>{props.inner_width, 0.0f}));
     Rect   inner_rect =
         Rect{.offset = area.offset + (area.extent / 2) - inner_rect_extent / 2,
              .extent = inner_rect_extent};
 
-    canvas.draw_rect_stroke(outer_rect, props.color, 1.5f)
-        .draw_rect_filled(inner_rect, props.color);
+    canvas
+        .draw_rect_stroke(outer_rect.offset, outer_rect.extent, props.color,
+                          1.5f)
+        .draw_rect_filled(inner_rect.offset, inner_rect.extent, props.color);
   }
 
   virtual bool hit_test(Context &ctx, Vec2 mouse_position) override
@@ -178,7 +180,7 @@ struct Radio : public Widget
       is_active = false;
     }
 
-    animation.restart(milliseconds{200}, 1, AnimationCfg::Default, 1);
+    animation.restart(Milliseconds{200}, 1, AnimationCfg::Default, 1);
   }
 
   Callback             on_changed;

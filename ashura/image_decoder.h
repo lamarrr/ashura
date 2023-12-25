@@ -41,10 +41,10 @@ inline stx::Result<ImageBuffer, ImageLoadError>
   }
 
   stx::Memory memory =
-      stx::mem::allocate(
-          stx::os_allocator,
-          static_cast<usize>(
-              features.width * features.height * features.has_alpha ? 4 : 3))
+      stx::mem::allocate(stx::os_allocator,
+                         static_cast<usize>(features.width) *
+                             static_cast<usize>(features.height) *
+                             (features.has_alpha ? 4ULL : 3ULL))
           .unwrap();
 
   u8 *pixels = (u8 *) memory.handle;

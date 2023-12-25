@@ -26,6 +26,155 @@ namespace ash
 template <typename T, typename Base>
 concept Impl = std::is_base_of_v<Base, T>;
 
+struct EdgeInsets
+{
+  f32 left = 0, top = 0, right = 0, bottom = 0;
+
+  static constexpr EdgeInsets all(f32 v)
+  {
+    return EdgeInsets{.left = v, .top = v, .right = v, .bottom = v};
+  }
+
+  static constexpr EdgeInsets horizontal(f32 v)
+  {
+    return EdgeInsets{.left = v, .top = 0, .right = v, .bottom = 0};
+  }
+
+  static constexpr EdgeInsets vertical(f32 v)
+  {
+    return EdgeInsets{.left = 0, .top = v, .right = 0, .bottom = v};
+  }
+
+  constexpr f32 y() const
+  {
+    return top + bottom;
+  }
+
+  constexpr f32 x() const
+  {
+    return left + right;
+  }
+
+  constexpr Vec2 xy() const
+  {
+    return Vec2{x(), y()};
+  }
+
+  constexpr Vec2 top_left() const
+  {
+    return Vec2{left, top};
+  }
+};
+
+struct BorderRadius
+{
+  Constraint top_left, top_right, bottom_right, bottom_left;
+
+  static constexpr BorderRadius relative(f32 tl, f32 tr, f32 br, f32 bl)
+  {
+    return BorderRadius{.top_left     = Constraint::relative(tl),
+                        .top_right    = Constraint::relative(tr),
+                        .bottom_right = Constraint::relative(br),
+                        .bottom_left  = Constraint::relative(bl)};
+  }
+
+  static constexpr BorderRadius relative(Vec4 v)
+  {
+    return relative(v.x, v.y, v.z, v.w);
+  }
+
+  static constexpr BorderRadius relative(f32 v)
+  {
+    return relative(v, v, v, v);
+  }
+
+  static constexpr BorderRadius absolute(f32 tl, f32 tr, f32 br, f32 bl)
+  {
+    return BorderRadius{.top_left     = Constraint::absolute(tl),
+                        .top_right    = Constraint::absolute(tr),
+                        .bottom_right = Constraint::absolute(br),
+                        .bottom_left  = Constraint::absolute(bl)};
+  }
+
+  static constexpr BorderRadius absolute(Vec4 v)
+  {
+    return absolute(v.x, v.y, v.z, v.w);
+  }
+
+  static constexpr BorderRadius absolute(f32 v)
+  {
+    return absolute(v, v, v, v);
+  }
+
+  constexpr Vec4 resolve(f32 w, f32 h) const
+  {
+    f32 const src = op::min(w, h) / 2;
+    return Vec4{.x = top_left.resolve(src),
+                .y = top_right.resolve(src),
+                .z = bottom_right.resolve(src),
+                .w = bottom_left.resolve(src)};
+  }
+
+  constexpr Vec4 resolve(Vec2 wh) const
+  {
+    return resolve(wh.x, wh.y);
+  }
+};
+
+enum class Direction : u8
+{
+  H = 0,        /// Horizontal
+  V = 1         /// Vertical
+};
+
+enum class Wrap : u8
+{
+  None = 0,
+  Wrap = 1
+};
+
+typedef Vec2 Alignment;
+
+constexpr Alignment ALIGN_TOP_LEFT      = Vec2{0, 0};
+constexpr Alignment ALIGN_TOP_CENTER    = Vec2{0.5f, 0};
+constexpr Alignment ALIGN_TOP_RIGHT     = Vec2{1, 0};
+constexpr Alignment ALIGN_LEFT_CENTER   = Vec2{0, 0.5f};
+constexpr Alignment ALIGN_CENTER        = Vec2{0.5f, 0.5f};
+constexpr Alignment ALIGN_RIGHT_CENTER  = Vec2{1, 0.5f};
+constexpr Alignment ALIGN_BOTTOM_LEFT   = Vec2{0, 1};
+constexpr Alignment ALIGN_BOTTOM_CENTER = Vec2{0.5f, 1};
+constexpr Alignment ALIGN_BOTTOM_RIGHT  = Vec2{1, 1};
+
+enum class MainAlign : u8
+{
+  Start        = 0,
+  End          = 1,
+  SpaceBetween = 2,
+  SpaceAround  = 3,
+  SpaceEvenly  = 4
+};
+
+enum class CrossAlign : u8
+{
+  Start  = 0,
+  End    = 1,
+  Center = 2
+};
+
+enum class TextRenderStyleWrap : u8
+{
+  None,
+  Letter,
+  Word,
+  Line
+};
+// https://fossheim.io/writing/posts/css-text-gradient/
+struct TextRenderStyle
+{
+  gfx::LinearColorGradient color_gradient;
+  TextRenderStyleWrap      wrap = TextRenderStyleWrap::None;
+};
+
 enum class Visibility : u8
 {
   Visible,
@@ -326,11 +475,11 @@ struct Widget
   {
   }
 
-  stx::Option<uuid>
-      id;        /// id used to recognise the widget. checked every frame. if
-                 /// one is not present or removed. a new uuid is generated and
-                 /// assigned.
-  Rect area;        ///
+  /// id used to recognise the widget. checked every frame. if
+  /// one is not present or removed. a new uuid is generated and
+  /// assigned.
+  stx::Option<uuid> id;
+  Rect              area;
 };
 
 inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id)

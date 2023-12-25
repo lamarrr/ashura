@@ -591,6 +591,47 @@ inline Mat4Affine affine_rotate3d_z(f32 radians)
                              {0, 0, 1, 0}}};
 }
 
+// TODO(lamarrr): implement for affine
+constexpr Vec2 transform(Mat3 const &t, Vec2 value)
+{
+  Vec3 v{value.x, value.y, 1};
+  v = matmul(t, v);
+  return Vec2{v.x, v.y};
+}
+
+// TODO(lamarrr): is this correct? for transformed vertices
+constexpr bool overlaps(Vec2 a_begin, Vec2 a_end, Vec2 b_begin, Vec2 b_end)
+{
+  return a_begin.x <= b_end.x && a_end.x >= b_begin.x && a_begin.y <= b_end.y &&
+         a_end.y >= b_begin.y;
+}
+
+// quad overlaps
+
+constexpr bool rect_contains_point(Vec2 begin, Vec2 end, Vec2 point)
+{
+  return begin.x <= point.x && begin.y <= point.y && end.x >= point.x &&
+         end.y >= point.y;
+}
+
+constexpr void rect_intersect(Vec2 a_begin, Vec2 a_end, Vec2 &b_begin,
+                              Vec2 &b_end)
+{
+  if (!overlaps(a_begin, a_end, b_begin, b_end))
+  {
+    b_begin = {};
+    b_end   = {};
+    return;
+  }
+
+  Vec2 intersect_begin{op::max(a_begin.x, b_begin.x),
+                       op::max(a_begin.y, b_begin.y)};
+  Vec2 intersect_end{op::min(a_end.x, b_end.x), op::min(a_end.y, b_end.y)};
+
+  b_begin = intersect_begin;
+  b_end   = intersect_end;
+}
+
 // template<typename T>
 // constexpr T grid_snap(T const& a, T const& unit){
 
