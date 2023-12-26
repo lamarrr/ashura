@@ -18,6 +18,7 @@ layout(location = 1) out vec2 out_st;
 
 void main()
 {
-  out_world_position = (uniforms.model_view_projection * vec4(in_local_position, 1)).xyz;
-  out_st             = in_st;
+  out_world_position =
+      (uniforms.model_view_projection * vec4(in_local_position, 1)).xyz;
+  out_st = in_st;
 }

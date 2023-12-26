@@ -2,6 +2,7 @@
 
 #include "ashura/types.h"
 #include "stx/fn.h"
+#include <string>
 #include <string_view>
 
 namespace ash
@@ -33,6 +34,12 @@ struct Context
   usize                                         scratch_buffer_size = 0;
 };
 
+template <typename T>
+bool push(Context &ctx, Spec const &, T const &value)
+{
+  return ctx.push("{?}", 3);
+}
+
 bool push(Context &ctx, Spec const &, bool value);
 bool push(Context &ctx, Spec const &spec, u8 value);
 bool push(Context &ctx, Spec const &spec, u16 value);
@@ -49,6 +56,7 @@ bool push(Context &ctx, Spec const &, Span<char const> str);
 bool push(Context &ctx, Spec const &, std::string_view str);
 bool push(Context &ctx, Spec const &, char const *str);
 bool push(Context &ctx, Spec const &spec, void const *ptr);
+bool push(Context &ctx, Spec const &, std::string const &str);
 
 template <typename... Args>
 bool format(Context &ctx, Args const &...args)
@@ -57,5 +65,5 @@ bool format(Context &ctx, Args const &...args)
   return true && (push(ctx, spec, args) && ...);
 }
 
-}        // namespace fmt
+}        // namespace fmtx
 }        // namespace ash

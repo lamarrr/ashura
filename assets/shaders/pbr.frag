@@ -84,9 +84,10 @@ void main()
   for (int i = 0; i < uniforms.nlights; ++i)
   {
     // calculate per-light radiance
-    vec3  l           = normalize(uniforms.light_positions[i].xyz - in_world_position);
-    vec3  h           = normalize(v + l);
-    float distance    = length(uniforms.light_positions[i].xyz - in_world_position);
+    vec3  l = normalize(uniforms.light_positions[i].xyz - in_world_position);
+    vec3  h = normalize(v + l);
+    float distance =
+        length(uniforms.light_positions[i].xyz - in_world_position);
     float attenuation = 1 / (distance * distance);
     vec3  radiance    = uniforms.light_colors[i].xyz * attenuation;
 

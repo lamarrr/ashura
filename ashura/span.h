@@ -115,19 +115,19 @@ constexpr Span<char const> as_char(Span<T const> self)
 }
 
 template <typename T, usize N>
-constexpr Span<T> from_array(T (&array)[N])
+constexpr Span<T> array(T (&array)[N])
 {
   return Span<T>{array, N};
 }
 
 template <typename StdContainer>
-constexpr auto from_std_container(StdContainer &container)
+constexpr auto container(StdContainer &container)
 {
   return Span{container.data(), container.size()};
 }
 
 template <typename T>
-constexpr Span<T const> from_initializer_list(std::initializer_list<T> init)
+constexpr Span<T const> init_list(std::initializer_list<T> init)
 {
   return Span<T const>{init.begin(), init.size()};
 }

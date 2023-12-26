@@ -31,6 +31,8 @@ enum class LogLevel : u8
   Fatal   = 32
 };
 
+STX_DEFINE_ENUM_BIT_OPS(LogLevel)
+
 struct LogSinkInterface
 {
   void (*log)(LogSink self, LogLevel level, char const *log_message,

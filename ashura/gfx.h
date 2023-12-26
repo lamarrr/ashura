@@ -1123,6 +1123,21 @@ struct GraphicsPipelineDesc
   PipelineCache              cache               = nullptr;
 };
 
+struct IndirectDispatchCommand
+{
+  u32 x = 0;
+  u32 y = 0;
+  u32 z = 0;
+};
+
+struct IndirectDrawCommand
+{
+  u32 vertex_count   = 0;
+  u32 instance_count = 0;
+  u32 first_vertex   = 0;
+  u32 first_instance = 0;
+};
+
 struct BufferCopy
 {
   u64 src_offset = 0;
@@ -1286,6 +1301,11 @@ struct DescriptorHeapImpl
 {
   DescriptorHeap                 self      = nullptr;
   DescriptorHeapInterface const *interface = nullptr;
+
+  constexpr DescriptorHeapInterface const *operator->() const
+  {
+    return interface;
+  }
 };
 
 /// to execute tasks at end of frame. use the trailing frame index.
@@ -1362,6 +1382,11 @@ struct CommandEncoderImpl
 {
   CommandEncoder                 self      = nullptr;
   CommandEncoderInterface const *interface = nullptr;
+
+  constexpr CommandEncoderInterface const *operator->() const
+  {
+    return interface;
+  }
 };
 
 struct DeviceInterface
@@ -1466,8 +1491,7 @@ struct DeviceInterface
                                  Fence signal_fence)                  = nullptr;
   Result<Void, Status> (*wait_idle)(Device self)                      = nullptr;
   Result<Void, Status> (*wait_queue_idle)(Device self)                = nullptr;
-  Result<FrameInfo, Status> (*get_frame_info)(
-      Device self, FrameContext frame_context) = nullptr;
+  FrameInfo (*get_frame_info)(Device self, FrameContext frame_context);
   Result<u32, Status> (*get_surface_formats)(
       Device self, Surface surface, Span<SurfaceFormat> formats) = nullptr;
   Result<u32, Status> (*get_surface_present_modes)(
@@ -1488,6 +1512,11 @@ struct DeviceImpl
 {
   Device                 self      = nullptr;
   DeviceInterface const *interface = nullptr;
+
+  constexpr DeviceInterface const *operator->() const
+  {
+    return interface;
+  }
 
   void ref(Buffer object) const
   {
@@ -1669,6 +1698,11 @@ struct InstanceImpl
 {
   Instance                 self      = nullptr;
   InstanceInterface const *interface = nullptr;
+
+  constexpr InstanceInterface const *operator->() const
+  {
+    return interface;
+  }
 };
 
 }        // namespace gfx

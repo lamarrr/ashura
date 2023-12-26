@@ -162,6 +162,11 @@ bool fmtx::push(fmtx::Context &ctx, fmtx::Spec const &, std::string_view str)
   return ctx.push(str.data(), str.size());
 }
 
+bool fmtx::push(fmtx::Context &ctx, fmtx::Spec const &, std::string const &str)
+{
+  return ctx.push(str.data(), str.size());
+}
+
 bool fmtx::push(fmtx::Context &ctx, fmtx::Spec const &, char const *str)
 {
   return ctx.push(str, strlen(str));

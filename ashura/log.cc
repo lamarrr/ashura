@@ -10,15 +10,15 @@ char const *get_level_str(LogLevel level)
   switch (level)
   {
     case LogLevel::Debug:
-      return "\x1b[38;20m"
+      return "\x1b[94;20m"
              "DEBUG"
              "\x1b[0m";
     case LogLevel::Trace:
-      return "\x1b[38;20m"
+      return "\x1b[35;20m"
              "TRACE"
              "\x1b[0m";
     case LogLevel::Info:
-      return "\x1b[32;1m"
+      return "\x1b[32;20m"
              "INFO"
              "\x1b[0m";
     case LogLevel::Warning:

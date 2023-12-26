@@ -62,11 +62,6 @@ struct Rect
 
 /*
 
-constexpr Vec2 epsilon_clamp(Vec2 a)
-{
-  return Vec2{.x = epsilon_clamp(a.x), .y = epsilon_clamp(a.y)};
-}
-
 struct tri
 {
   Vec2 p0, p1, p2;
@@ -106,86 +101,10 @@ struct Rect
 {
   Vec2 offset, extent;
 
-  constexpr auto bounds() const
-  {
-    return std::make_tuple(offset.x, offset.x + extent.x, offset.y,
-                           offset.y + extent.y);
-  }
-
-  constexpr Vec2 min() const
-  {
-    return offset;
-  }
-
-  constexpr Vec2 max() const
-  {
-    return offset + extent;
-  }
-
-  constexpr bool overlaps(Rect other) const
-  {
-    auto [x0_min, x0_max, y0_min, y0_max] = bounds();
-    auto [x1_min, x1_max, y1_min, y1_max] = other.bounds();
-
-    return x0_min < x1_max && x0_max > x1_min && y1_max > y0_min &&
-           y1_min < y0_max;
-  }
-
   constexpr bool overlaps(Quad const &quad) const
   {
     return contains(quad.p0) || contains(quad.p1) || contains(quad.p2) ||
            contains(quad.p3);
-  }
-
-  /// @brief NOTE: returns 0-extent rect if there's no intersection
-  /// @param other
-  /// @return
-  constexpr Rect intersect(Rect other) const
-  {
-    auto const [x1_min, x1_max, y1_min, y1_max] = bounds();
-    auto const [x2_min, x2_max, y2_min, y2_max] = other.bounds();
-
-    if (!overlaps(other))
-    {
-      return Rect{.offset = offset, .extent = Vec2{0, 0}};
-    }
-
-    Vec2 intersect_offset{std::max(x1_min, x2_min), std::max(y1_min, y2_min)};
-    Vec2 intersect_extent{std::min(x1_max, x2_max) - offset.x,
-                          std::min(y1_max, y2_max) - offset.y};
-
-    return Rect{.offset = intersect_offset, .extent = intersect_extent};
-  }
-
-  constexpr bool contains(Vec2 point) const
-  {
-    return offset.x <= point.x && offset.y <= point.y &&
-           (offset.x + extent.x) >= point.x && (offset.y + extent.y) >= point.y;
-  }
-
-  constexpr bool is_visible() const
-  {
-    return extent.x != 0 && extent.y != 0;
-  }
-
-  constexpr Vec2 top_left() const
-  {
-    return offset;
-  }
-
-  constexpr Vec2 top_right() const
-  {
-    return offset + Vec2{extent.x, 0};
-  }
-
-  constexpr Vec2 bottom_left() const
-  {
-    return offset + Vec2{0, extent.y};
-  }
-
-  constexpr Vec2 bottom_right() const
-  {
-    return offset + extent;
   }
 
   constexpr Quad to_quad() const
@@ -196,62 +115,7 @@ struct Rect
                 .p3 = bottom_left()};
   }
 
-  constexpr Rect with_offset(Vec2 new_offset) const
-  {
-    return Rect{.offset = new_offset, .extent = extent};
-  }
-
-  constexpr Rect with_offset(f32 x, f32 y) const
-  {
-    return Rect{.offset = Vec2{x, y}, .extent = extent};
-  }
-
-  constexpr Rect with_extent(Vec2 new_extent) const
-  {
-    return Rect{.offset = offset, .extent = new_extent};
-  }
-
-  constexpr Rect with_extent(f32 w, f32 h) const
-  {
-    return Rect{.offset = offset, .extent = Vec2{w, h}};
-  }
-
-  constexpr Rect with_center(Vec2 center) const
-  {
-    return Rect{.offset = center - extent / 2, .extent = extent};
-  }
-
-  constexpr Rect with_center(f32 cx, f32 cy) const
-  {
-    return with_center(Vec2{cx, cy});
-  }
-
-  constexpr Rect centered() const
-  {
-    return with_center(offset);
-  }
 };
-
-struct Vec3
-{
-  f32 x = 0, y = 0, z = 0, __padding__ = 0;
-
-  static constexpr Vec3 splat(f32 v)
-  {
-    return Vec3{.x = v, .y = v, .z = v};
-  }
-
-  constexpr f32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr f32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
 
 
 struct Box
@@ -261,16 +125,6 @@ struct Box
   constexpr f32 volume() const
   {
     return extent.x * extent.y * extent.z;
-  }
-
-  constexpr Vec3 min() const
-  {
-    return offset;
-  }
-
-  constexpr Vec3 max() const
-  {
-    return offset + extent;
   }
 
   constexpr bool contains(Vec3 point) const
@@ -297,72 +151,6 @@ struct Box
   }
 };
 
-/// column vector
-struct Vec4
-{
-  f32 x = 0, y = 0, z = 0, w = 0;
-
-  static constexpr Vec4 splat(f32 v)
-  {
-    return Vec4{.x = v, .y = v, .z = v, .w = v};
-  }
-
-  constexpr f32 &operator[](usize i)
-  {
-    return (&x)[i];
-  }
-
-  constexpr f32 const &operator[](usize i) const
-  {
-    return (&x)[i];
-  }
-};
-
-
-constexpr Mat3 operator*(Mat3 a, f32 b)
-{
-  return Mat3{.rows = {a[0] * b, a[1] * b, a[2] * b}};
-}
-
-constexpr Mat3 operator*(f32 a, Mat3 b)
-{
-  return Mat3{.rows = {a * b[0], a * b[1], a * b[2]}};
-}
-
-constexpr Vec3 operator*(Mat3 const &a, Vec3 const &b)
-{
-}
-
-
-/// row-major
-struct Mat4
-{
-  Vec4 rows[4];
-
-
-
-
-
-  constexpr Vec4 &operator[](usize i)
-  {
-    return rows[i];
-  }
-
-  constexpr Vec4 const &operator[](usize i) const
-  {
-    return rows[i];
-  }
-};
-
-constexpr Mat4 operator*(Mat4 a, f32 b)
-{
-  return Mat4{.rows = {a[0] * b, a[1] * b, a[2] * b, a[3] * b}};
-}
-
-constexpr Mat4 operator*(f32 a, Mat4 b)
-{
-  return Mat4{.rows = {a * b[0], a * b[1], a * b[2], a * b[3]}};
-}
 
 constexpr Quad transform2d(Mat3 const &a, Rect const &b)
 {
@@ -371,73 +159,6 @@ constexpr Quad transform2d(Mat3 const &a, Rect const &b)
               .p2 = transform2d(a, b.bottom_right()),
               .p3 = transform2d(a, b.bottom_left())};
 }
-
-
-
-  constexpr Extent constrain(Extent other) const
-  {
-    return Extent{.width  = std::min(width, other.width),
-                  .height = std::min(height, other.height)};
-  }
-
-  constexpr u64 area() const
-  {
-    return static_cast<u64>(width) * height;
-  }
-
-  constexpr u32 max_mip_levels() const
-  {
-    return log2_floor_u32(std::max(width, height)) + 1;
-  }
-
-  constexpr Extent at_mip_level(u32 mip_level) const
-  {
-    return Extent{.width = width >> mip_level, .height = height >> mip_level};
-  }
-
-
-  rect_contains();
-
-
-struct URect
-{
-  constexpr bool contains(URect const &other) const
-  {
-    return (offset.x <= other.offset.x) &&
-           ((offset.x + extent.width) >=
-            (other.offset.x + other.extent.width)) &&
-           (offset.y <= other.offset.y) &&
-           ((offset.y + extent.height) >=
-            (other.offset.y + other.extent.height));
-  }
-};
-
-struct URect3D
-{
-  constexpr bool contains(URect3D const &other) const
-  {
-    return (offset.x <= other.offset.x) &&
-           ((offset.x + extent.width) >=
-            (other.offset.x + other.extent.width)) &&
-           (offset.y <= other.offset.y) &&
-           ((offset.y + extent.height) >=
-            (other.offset.y + other.extent.height)) &&
-           (offset.z <= other.offset.z) &&
-           ((offset.z + extent.depth) >= (other.offset.z + other.extent.depth));
-  }
-};
-
-
-
-
-
-Vec4 normalize_color(Vec4U8);
-  constexpr Vec4 to_normalized_vec() const
-  {
-    return Vec4{
-        .x = r / 255.0f, .y = g / 255.0f, .z = b / 255.0f, .w = a / 255.0f};
-  }
-};
 
 template <>
 constexpr Color lerp<Color>(Color const &a, Color const &b, f32 t)
@@ -448,11 +169,6 @@ constexpr Color lerp<Color>(Color const &a, Color const &b, f32 t)
       .b = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.b, b.b, t), 0, 255)),
       .a = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.a, b.a, t), 0, 255))};
 }
-
-struct Version
-{
- u8 variant, u8 major = 0, minor = 0, patch = 0;
-};
 
 /// @x_mag: The floating-point horizontal magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.

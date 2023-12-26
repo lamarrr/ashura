@@ -7,6 +7,7 @@ layout(set = 0, binding = 0) uniform sampler2D skin_texture;
 
 layout(location = 0) out vec4 out_color;
 
-void main() {
-    out_color = in_color * vec4(1, 1, 1, texture(skin_texture, in_uv).r);
+void main()
+{
+  out_color = in_color * vec4(1, 1, 1, texture(skin_texture, in_uv).r);
 }

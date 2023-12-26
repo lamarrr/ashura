@@ -634,8 +634,8 @@ struct DeviceInterface
                                      gfx::Fence          signal_fence);
   static Result<Void, Status> wait_idle(gfx::Device self);
   static Result<Void, Status> wait_queue_idle(gfx::Device self);
-  static Result<gfx::FrameInfo, Status>
-      get_frame_info(gfx::Device self, gfx::FrameContext frame_context);
+  static gfx::FrameInfo       get_frame_info(gfx::Device       self,
+                                             gfx::FrameContext frame_context);
   static Result<u32, Status>
       get_surface_formats(gfx::Device self, gfx::Surface surface,
                           Span<gfx::SurfaceFormat> formats);
@@ -880,6 +880,7 @@ static gfx::DescriptorHeapInterface const descriptor_heap_interface{
 static gfx::CommandEncoderInterface const command_encoder_interface{
     .begin              = CommandEncoderInterface::begin,
     .end                = CommandEncoderInterface::end,
+    .reset              = CommandEncoderInterface::reset,
     .begin_debug_marker = CommandEncoderInterface::begin_debug_marker,
     .end_debug_marker   = CommandEncoderInterface::end_debug_marker,
     .fill_buffer        = CommandEncoderInterface::fill_buffer,
