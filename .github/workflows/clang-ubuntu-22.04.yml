@@ -29,7 +29,7 @@ jobs:
       - name: Update Apt
         run: |
           sudo apt update
-          sudo apt-upgrade
+          sudo apt upgrade
           sudo apt dist-upgrade
 
       - name: Install Build Tools
