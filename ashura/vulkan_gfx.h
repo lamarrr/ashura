@@ -1,6 +1,7 @@
 #pragma once
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
+#define VMA_VULKAN_VERSION 1000000
 
 #include "ashura/allocator.h"
 #include "ashura/gfx.h"
@@ -51,6 +52,7 @@ struct InstanceTable
   PFN_vkDestroySurfaceKHR        DestroySurfaceKHR        = nullptr;
   PFN_vkEnumeratePhysicalDevices EnumeratePhysicalDevices = nullptr;
   PFN_vkGetInstanceProcAddr      GetInstanceProcAddr      = nullptr;
+  PFN_vkGetDeviceProcAddr        GetDeviceProcAddr        = nullptr;
 
   PFN_vkCreateDevice                       CreateDevice = nullptr;
   PFN_vkEnumerateDeviceExtensionProperties EnumerateDeviceExtensionProperties =
@@ -96,7 +98,6 @@ struct DeviceTable
   PFN_vkCreateComputePipelines       CreateComputePipelines       = nullptr;
   PFN_vkCreateDescriptorPool         CreateDescriptorPool         = nullptr;
   PFN_vkCreateDescriptorSetLayout    CreateDescriptorSetLayout    = nullptr;
-  PFN_vkCreateDevice                 CreateDevice                 = nullptr;
   PFN_vkCreateEvent                  CreateEvent                  = nullptr;
   PFN_vkCreateFence                  CreateFence                  = nullptr;
   PFN_vkCreateFramebuffer            CreateFramebuffer            = nullptr;
@@ -516,8 +517,7 @@ struct InstanceInterface
 
 struct DeviceInterface
 {
-  static Result<gfx::DeviceProperties, Status>
-      get_device_properties(gfx::Device self);
+  static gfx::DeviceProperties get_device_properties(gfx::Device self);
   static Result<gfx::FormatProperties, Status>
       get_format_properties(gfx::Device self, gfx::Format format);
   static Result<gfx::Buffer, Status> create_buffer(gfx::Device            self,
@@ -779,6 +779,138 @@ struct CommandEncoderInterface
                             u64 offset, u32 draw_count, u32 stride);
   static void present_image(gfx::CommandEncoder self, gfx::Image image);
 };
+
+static gfx::InstanceInterface const instance_interface{
+    .create        = InstanceInterface::create,
+    .ref           = InstanceInterface::ref,
+    .unref         = InstanceInterface::unref,
+    .create_device = InstanceInterface::create_device,
+    .ref_device    = InstanceInterface::ref_device,
+    .unref_device  = InstanceInterface::unref_device};
+
+static gfx::DeviceInterface const device_interface{
+    .get_device_properties = DeviceInterface::get_device_properties,
+    .get_format_properties = DeviceInterface::get_format_properties,
+    .create_buffer         = DeviceInterface::create_buffer,
+    .create_buffer_view    = DeviceInterface::create_buffer_view,
+    .create_image          = DeviceInterface::create_image,
+    .create_image_view     = DeviceInterface::create_image_view,
+    .create_sampler        = DeviceInterface::create_sampler,
+    .create_shader         = DeviceInterface::create_shader,
+    .create_render_pass    = DeviceInterface::create_render_pass,
+    .create_framebuffer    = DeviceInterface::create_framebuffer,
+    .create_descriptor_set_layout =
+        DeviceInterface::create_descriptor_set_layout,
+    .create_descriptor_heap      = DeviceInterface::create_descriptor_heap,
+    .create_pipeline_cache       = DeviceInterface::create_pipeline_cache,
+    .create_compute_pipeline     = DeviceInterface::create_compute_pipeline,
+    .create_fence                = DeviceInterface::create_fence,
+    .create_frame_context        = DeviceInterface::create_frame_context,
+    .create_swapchain            = DeviceInterface::create_swapchain,
+    .ref_buffer                  = DeviceInterface::ref_buffer,
+    .ref_buffer_view             = DeviceInterface::ref_buffer_view,
+    .ref_image                   = DeviceInterface::ref_image,
+    .ref_image_view              = DeviceInterface::ref_image_view,
+    .ref_sampler                 = DeviceInterface::ref_sampler,
+    .ref_shader                  = DeviceInterface::ref_shader,
+    .ref_render_pass             = DeviceInterface::ref_render_pass,
+    .ref_framebuffer             = DeviceInterface::ref_framebuffer,
+    .ref_descriptor_set_layout   = DeviceInterface::ref_descriptor_set_layout,
+    .ref_descriptor_heap         = DeviceInterface::ref_descriptor_heap,
+    .ref_pipeline_cache          = DeviceInterface::ref_pipeline_cache,
+    .ref_compute_pipeline        = DeviceInterface::ref_compute_pipeline,
+    .ref_fence                   = DeviceInterface::ref_fence,
+    .ref_command_encoder         = DeviceInterface::ref_command_encoder,
+    .ref_frame_context           = DeviceInterface::ref_frame_context,
+    .unref_buffer                = DeviceInterface::unref_buffer,
+    .unref_buffer_view           = DeviceInterface::unref_buffer_view,
+    .unref_image                 = DeviceInterface::unref_image,
+    .unref_image_view            = DeviceInterface::unref_image_view,
+    .unref_sampler               = DeviceInterface::unref_sampler,
+    .unref_shader                = DeviceInterface::unref_shader,
+    .unref_render_pass           = DeviceInterface::unref_render_pass,
+    .unref_framebuffer           = DeviceInterface::unref_framebuffer,
+    .unref_descriptor_set_layout = DeviceInterface::unref_descriptor_set_layout,
+    .unref_descriptor_heap       = DeviceInterface::unref_descriptor_heap,
+    .unref_pipeline_cache        = DeviceInterface::unref_pipeline_cache,
+    .unref_compute_pipeline      = DeviceInterface::unref_compute_pipeline,
+    .unref_fence                 = DeviceInterface::unref_fence,
+    .unref_command_encoder       = DeviceInterface::unref_command_encoder,
+    .unref_frame_context         = DeviceInterface::unref_frame_context,
+    .get_buffer_memory_map       = DeviceInterface::get_buffer_memory_map,
+    .invalidate_buffer_memory_map =
+        DeviceInterface::invalidate_buffer_memory_map,
+    .flush_buffer_memory_map   = DeviceInterface::flush_buffer_memory_map,
+    .get_pipeline_cache_size   = DeviceInterface::get_pipeline_cache_size,
+    .get_pipeline_cache_data   = DeviceInterface::get_pipeline_cache_data,
+    .merge_pipeline_cache      = DeviceInterface::merge_pipeline_cache,
+    .wait_for_fences           = DeviceInterface::wait_for_fences,
+    .reset_fences              = DeviceInterface::reset_fences,
+    .get_fence_status          = DeviceInterface::get_fence_status,
+    .submit                    = DeviceInterface::submit,
+    .wait_idle                 = DeviceInterface::wait_idle,
+    .wait_queue_idle           = DeviceInterface::wait_queue_idle,
+    .get_frame_info            = DeviceInterface::get_frame_info,
+    .get_surface_formats       = DeviceInterface::get_surface_formats,
+    .get_surface_present_modes = DeviceInterface::get_surface_present_modes,
+    .get_surface_capabilities  = DeviceInterface::get_surface_capabilities,
+    .get_swapchain_info        = DeviceInterface::get_swapchain_info,
+    .invalidate_swapchain      = DeviceInterface::invalidate_swapchain,
+    .begin_frame               = DeviceInterface::begin_frame,
+    .submit_frame              = DeviceInterface::submit_frame};
+
+static gfx::DescriptorHeapInterface const descriptor_heap_interface{
+    .add_group              = DescriptorHeapInterface::add_group,
+    .sampler                = DescriptorHeapInterface::sampler,
+    .combined_image_sampler = DescriptorHeapInterface::combined_image_sampler,
+    .sampled_image          = DescriptorHeapInterface::sampled_image,
+    .storage_image          = DescriptorHeapInterface::storage_image,
+    .uniform_texel_buffer   = DescriptorHeapInterface::uniform_texel_buffer,
+    .storage_texel_buffer   = DescriptorHeapInterface::storage_texel_buffer,
+    .uniform_buffer         = DescriptorHeapInterface::uniform_buffer,
+    .storage_buffer         = DescriptorHeapInterface::storage_buffer,
+    .dynamic_uniform_buffer = DescriptorHeapInterface::dynamic_uniform_buffer,
+    .dynamic_storage_buffer = DescriptorHeapInterface::dynamic_storage_buffer,
+    .input_attachment       = DescriptorHeapInterface::input_attachment,
+    .mark_in_use            = DescriptorHeapInterface::mark_in_use,
+    .is_in_use              = DescriptorHeapInterface::is_in_use,
+    .release                = DescriptorHeapInterface::release,
+    .get_stats              = DescriptorHeapInterface::get_stats};
+
+static gfx::CommandEncoderInterface const command_encoder_interface{
+    .begin              = CommandEncoderInterface::begin,
+    .end                = CommandEncoderInterface::end,
+    .begin_debug_marker = CommandEncoderInterface::begin_debug_marker,
+    .end_debug_marker   = CommandEncoderInterface::end_debug_marker,
+    .fill_buffer        = CommandEncoderInterface::fill_buffer,
+    .copy_buffer        = CommandEncoderInterface::copy_buffer,
+    .update_buffer      = CommandEncoderInterface::update_buffer,
+    .clear_color_image  = CommandEncoderInterface::clear_color_image,
+    .clear_depth_stencil_image =
+        CommandEncoderInterface::clear_depth_stencil_image,
+    .copy_image             = CommandEncoderInterface::copy_image,
+    .copy_buffer_to_image   = CommandEncoderInterface::copy_buffer_to_image,
+    .blit_image             = CommandEncoderInterface::blit_image,
+    .begin_render_pass      = CommandEncoderInterface::begin_render_pass,
+    .end_render_pass        = CommandEncoderInterface::end_render_pass,
+    .bind_compute_pipeline  = CommandEncoderInterface::bind_compute_pipeline,
+    .bind_graphics_pipeline = CommandEncoderInterface::bind_graphics_pipeline,
+    .bind_descriptor_sets   = CommandEncoderInterface::bind_descriptor_sets,
+    .push_constants         = CommandEncoderInterface::push_constants,
+    .dispatch               = CommandEncoderInterface::dispatch,
+    .dispatch_indirect      = CommandEncoderInterface::dispatch_indirect,
+    .set_viewport           = CommandEncoderInterface::set_viewport,
+    .set_scissor            = CommandEncoderInterface::set_scissor,
+    .set_blend_constants    = CommandEncoderInterface::set_blend_constants,
+    .set_stencil_compare_mask =
+        CommandEncoderInterface::set_stencil_compare_mask,
+    .set_stencil_reference  = CommandEncoderInterface::set_stencil_reference,
+    .set_stencil_write_mask = CommandEncoderInterface::set_stencil_write_mask,
+    .bind_vertex_buffers    = CommandEncoderInterface::bind_vertex_buffers,
+    .bind_index_buffer      = CommandEncoderInterface::bind_index_buffer,
+    .draw                   = CommandEncoderInterface::draw,
+    .draw_indirect          = CommandEncoderInterface::draw_indirect,
+    .present_image          = CommandEncoderInterface::present_image};
 
 }        // namespace vk
 }        // namespace ash

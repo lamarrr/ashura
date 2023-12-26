@@ -16,26 +16,28 @@ namespace vk
 
 // TODO(lamarrr): tracer for vma memory allocations
 // trace u64, i64, f64 etc
-#define VALIDATE(logger, description, ...)                                \
-  do                                                                      \
-  {                                                                       \
-    if (!(__VA_ARGS__))                                                   \
-    {                                                                     \
-      (logger)->panic("Validation: " description, " (" #__VA_ARGS__,      \
-                      ") failed [file: ", __FILE__, ", line: ", __LINE__, \
-                      "]");                                               \
-    }                                                                     \
+#define VALIDATE(logger, description, ...)                              \
+  do                                                                    \
+  {                                                                     \
+    if (!(__VA_ARGS__))                                                 \
+    {                                                                   \
+      (logger)->panic("Validation: " description, " (" #__VA_ARGS__,    \
+                      ") failed [function: ", __builtin_FUNCTION(),     \
+                      ", file: ", __FILE__, ":", __builtin_LINE(), ":", \
+                      __builtin_COLUMN(), "]");                         \
+    }                                                                   \
   } while (false)
 
-#define CHECK(logger, description, ...)                                   \
-  do                                                                      \
-  {                                                                       \
-    if (!(__VA_ARGS__))                                                   \
-    {                                                                     \
-      (logger)->panic("Check: " description, " (" #__VA_ARGS__,           \
-                      ") failed [file: ", __FILE__, ", line: ", __LINE__, \
-                      "]");                                               \
-    }                                                                     \
+#define CHECK(logger, description, ...)                                 \
+  do                                                                    \
+  {                                                                     \
+    if (!(__VA_ARGS__))                                                 \
+    {                                                                   \
+      (logger)->panic("Check: " description, " (" #__VA_ARGS__,         \
+                      ") failed [function: ", __builtin_FUNCTION(),     \
+                      ", file: ", __FILE__, ":", __builtin_LINE(), ":", \
+                      __builtin_COLUMN(), "]");                         \
+    }                                                                   \
   } while (false)
 
 #define UNREACHABLE() abort()
@@ -44,138 +46,6 @@ namespace vk
   ((Buffer *) (((BufferView *) (buffer_view))->desc.buffer))
 #define IMAGE_FROM_VIEW(image_view) \
   ((Image *) (((ImageView *) (image_view))->desc.image))
-
-static gfx::InstanceInterface const instance_interface{
-    .create        = InstanceInterface::create,
-    .ref           = InstanceInterface::ref,
-    .unref         = InstanceInterface::unref,
-    .create_device = InstanceInterface::create_device,
-    .ref_device    = InstanceInterface::ref_device,
-    .unref_device  = InstanceInterface::unref_device};
-
-static gfx::DeviceInterface const device_interface{
-    .get_device_properties = DeviceInterface::get_device_properties,
-    .get_format_properties = DeviceInterface::get_format_properties,
-    .create_buffer         = DeviceInterface::create_buffer,
-    .create_buffer_view    = DeviceInterface::create_buffer_view,
-    .create_image          = DeviceInterface::create_image,
-    .create_image_view     = DeviceInterface::create_image_view,
-    .create_sampler        = DeviceInterface::create_sampler,
-    .create_shader         = DeviceInterface::create_shader,
-    .create_render_pass    = DeviceInterface::create_render_pass,
-    .create_framebuffer    = DeviceInterface::create_framebuffer,
-    .create_descriptor_set_layout =
-        DeviceInterface::create_descriptor_set_layout,
-    .create_descriptor_heap      = DeviceInterface::create_descriptor_heap,
-    .create_pipeline_cache       = DeviceInterface::create_pipeline_cache,
-    .create_compute_pipeline     = DeviceInterface::create_compute_pipeline,
-    .create_fence                = DeviceInterface::create_fence,
-    .create_frame_context        = DeviceInterface::create_frame_context,
-    .create_swapchain            = DeviceInterface::create_swapchain,
-    .ref_buffer                  = DeviceInterface::ref_buffer,
-    .ref_buffer_view             = DeviceInterface::ref_buffer_view,
-    .ref_image                   = DeviceInterface::ref_image,
-    .ref_image_view              = DeviceInterface::ref_image_view,
-    .ref_sampler                 = DeviceInterface::ref_sampler,
-    .ref_shader                  = DeviceInterface::ref_shader,
-    .ref_render_pass             = DeviceInterface::ref_render_pass,
-    .ref_framebuffer             = DeviceInterface::ref_framebuffer,
-    .ref_descriptor_set_layout   = DeviceInterface::ref_descriptor_set_layout,
-    .ref_descriptor_heap         = DeviceInterface::ref_descriptor_heap,
-    .ref_pipeline_cache          = DeviceInterface::ref_pipeline_cache,
-    .ref_compute_pipeline        = DeviceInterface::ref_compute_pipeline,
-    .ref_fence                   = DeviceInterface::ref_fence,
-    .ref_command_encoder         = DeviceInterface::ref_command_encoder,
-    .ref_frame_context           = DeviceInterface::ref_frame_context,
-    .unref_buffer                = DeviceInterface::unref_buffer,
-    .unref_buffer_view           = DeviceInterface::unref_buffer_view,
-    .unref_image                 = DeviceInterface::unref_image,
-    .unref_image_view            = DeviceInterface::unref_image_view,
-    .unref_sampler               = DeviceInterface::unref_sampler,
-    .unref_shader                = DeviceInterface::unref_shader,
-    .unref_render_pass           = DeviceInterface::unref_render_pass,
-    .unref_framebuffer           = DeviceInterface::unref_framebuffer,
-    .unref_descriptor_set_layout = DeviceInterface::unref_descriptor_set_layout,
-    .unref_descriptor_heap       = DeviceInterface::unref_descriptor_heap,
-    .unref_pipeline_cache        = DeviceInterface::unref_pipeline_cache,
-    .unref_compute_pipeline      = DeviceInterface::unref_compute_pipeline,
-    .unref_fence                 = DeviceInterface::unref_fence,
-    .unref_command_encoder       = DeviceInterface::unref_command_encoder,
-    .unref_frame_context         = DeviceInterface::unref_frame_context,
-    .get_buffer_memory_map       = DeviceInterface::get_buffer_memory_map,
-    .invalidate_buffer_memory_map =
-        DeviceInterface::invalidate_buffer_memory_map,
-    .flush_buffer_memory_map   = DeviceInterface::flush_buffer_memory_map,
-    .get_pipeline_cache_size   = DeviceInterface::get_pipeline_cache_size,
-    .get_pipeline_cache_data   = DeviceInterface::get_pipeline_cache_data,
-    .merge_pipeline_cache      = DeviceInterface::merge_pipeline_cache,
-    .wait_for_fences           = DeviceInterface::wait_for_fences,
-    .reset_fences              = DeviceInterface::reset_fences,
-    .get_fence_status          = DeviceInterface::get_fence_status,
-    .submit                    = DeviceInterface::submit,
-    .wait_idle                 = DeviceInterface::wait_idle,
-    .wait_queue_idle           = DeviceInterface::wait_queue_idle,
-    .get_frame_info            = DeviceInterface::get_frame_info,
-    .get_surface_formats       = DeviceInterface::get_surface_formats,
-    .get_surface_present_modes = DeviceInterface::get_surface_present_modes,
-    .get_surface_capabilities  = DeviceInterface::get_surface_capabilities,
-    .get_swapchain_info        = DeviceInterface::get_swapchain_info,
-    .invalidate_swapchain      = DeviceInterface::invalidate_swapchain,
-    .begin_frame               = DeviceInterface::begin_frame,
-    .submit_frame              = DeviceInterface::submit_frame};
-
-static gfx::DescriptorHeapInterface const descriptor_heap_interface{
-    .add_group              = DescriptorHeapInterface::add_group,
-    .sampler                = DescriptorHeapInterface::sampler,
-    .combined_image_sampler = DescriptorHeapInterface::combined_image_sampler,
-    .sampled_image          = DescriptorHeapInterface::sampled_image,
-    .storage_image          = DescriptorHeapInterface::storage_image,
-    .uniform_texel_buffer   = DescriptorHeapInterface::uniform_texel_buffer,
-    .storage_texel_buffer   = DescriptorHeapInterface::storage_texel_buffer,
-    .uniform_buffer         = DescriptorHeapInterface::uniform_buffer,
-    .storage_buffer         = DescriptorHeapInterface::storage_buffer,
-    .dynamic_uniform_buffer = DescriptorHeapInterface::dynamic_uniform_buffer,
-    .dynamic_storage_buffer = DescriptorHeapInterface::dynamic_storage_buffer,
-    .input_attachment       = DescriptorHeapInterface::input_attachment,
-    .mark_in_use            = DescriptorHeapInterface::mark_in_use,
-    .is_in_use              = DescriptorHeapInterface::is_in_use,
-    .release                = DescriptorHeapInterface::release,
-    .get_stats              = DescriptorHeapInterface::get_stats};
-
-static gfx::CommandEncoderInterface const command_encoder_interface{
-    .begin              = CommandEncoderInterface::begin,
-    .end                = CommandEncoderInterface::end,
-    .begin_debug_marker = CommandEncoderInterface::begin_debug_marker,
-    .end_debug_marker   = CommandEncoderInterface::end_debug_marker,
-    .fill_buffer        = CommandEncoderInterface::fill_buffer,
-    .copy_buffer        = CommandEncoderInterface::copy_buffer,
-    .update_buffer      = CommandEncoderInterface::update_buffer,
-    .clear_color_image  = CommandEncoderInterface::clear_color_image,
-    .clear_depth_stencil_image =
-        CommandEncoderInterface::clear_depth_stencil_image,
-    .copy_image             = CommandEncoderInterface::copy_image,
-    .copy_buffer_to_image   = CommandEncoderInterface::copy_buffer_to_image,
-    .blit_image             = CommandEncoderInterface::blit_image,
-    .begin_render_pass      = CommandEncoderInterface::begin_render_pass,
-    .end_render_pass        = CommandEncoderInterface::end_render_pass,
-    .bind_compute_pipeline  = CommandEncoderInterface::bind_compute_pipeline,
-    .bind_graphics_pipeline = CommandEncoderInterface::bind_graphics_pipeline,
-    .bind_descriptor_sets   = CommandEncoderInterface::bind_descriptor_sets,
-    .push_constants         = CommandEncoderInterface::push_constants,
-    .dispatch               = CommandEncoderInterface::dispatch,
-    .dispatch_indirect      = CommandEncoderInterface::dispatch_indirect,
-    .set_viewport           = CommandEncoderInterface::set_viewport,
-    .set_scissor            = CommandEncoderInterface::set_scissor,
-    .set_blend_constants    = CommandEncoderInterface::set_blend_constants,
-    .set_stencil_compare_mask =
-        CommandEncoderInterface::set_stencil_compare_mask,
-    .set_stencil_reference  = CommandEncoderInterface::set_stencil_reference,
-    .set_stencil_write_mask = CommandEncoderInterface::set_stencil_write_mask,
-    .bind_vertex_buffers    = CommandEncoderInterface::bind_vertex_buffers,
-    .bind_index_buffer      = CommandEncoderInterface::bind_index_buffer,
-    .draw                   = CommandEncoderInterface::draw,
-    .draw_indirect          = CommandEncoderInterface::draw_indirect,
-    .present_image          = CommandEncoderInterface::present_image};
 
 VkResult DebugMarkerSetObjectTagEXT_Stub(VkDevice,
                                          const VkDebugMarkerObjectTagInfoEXT *)
@@ -220,6 +90,7 @@ bool load_instance_table(VkInstance                instance,
   LOAD_VK(DestroySurfaceKHR);
   LOAD_VK(EnumeratePhysicalDevices);
   LOAD_VK(GetInstanceProcAddr);
+  LOAD_VK(GetDeviceProcAddr);
   LOAD_VK(CreateDevice);
   LOAD_VK(EnumerateDeviceExtensionProperties);
   LOAD_VK(EnumerateDeviceLayerProperties);
@@ -247,15 +118,15 @@ bool load_instance_table(VkInstance                instance,
   return all_loaded;
 }
 
-bool load_device_table(VkDevice                device,
-                       PFN_vkGetDeviceProcAddr GetDeviceProcAddr,
-                       DeviceTable &vk_table, VmaVulkanFunctions &vma_table)
+bool load_device_table(VkDevice device, InstanceTable const &instance_table,
+                       DeviceTable &vk_table)
 {
+  mem::zero(&vk_table, 1);
   bool all_loaded = true;
 
-#define LOAD_VK(function)                                           \
-  vk_table.function =                                               \
-      (PFN_vk##function) GetDeviceProcAddr(device, "vk" #function); \
+#define LOAD_VK(function)                                                  \
+  vk_table.function = (PFN_vk##function) instance_table.GetDeviceProcAddr( \
+      device, "vk" #function);                                             \
   all_loaded = all_loaded && (vk_table.function != nullptr)
 
   // DEVICE OBJECT FUNCTIONS
@@ -270,7 +141,6 @@ bool load_device_table(VkDevice                device,
   LOAD_VK(CreateComputePipelines);
   LOAD_VK(CreateDescriptorPool);
   LOAD_VK(CreateDescriptorSetLayout);
-  LOAD_VK(CreateDevice);
   LOAD_VK(CreateEvent);
   LOAD_VK(CreateFence);
   LOAD_VK(CreateFramebuffer);
@@ -388,10 +258,10 @@ bool load_device_table(VkDevice                device,
 
 #undef LOAD_VK
 
-#define LOAD_VK_STUBBED(function)                                   \
-  vk_table.function =                                               \
-      (PFN_vk##function) GetDeviceProcAddr(device, "vk" #function); \
-  vk_table.function =                                               \
+#define LOAD_VK_STUBBED(function)                                          \
+  vk_table.function = (PFN_vk##function) instance_table.GetDeviceProcAddr( \
+      device, "vk" #function);                                             \
+  vk_table.function =                                                      \
       (vk_table.function != nullptr) ? vk_table.function : function##_Stub;
 
   LOAD_VK_STUBBED(DebugMarkerSetObjectTagEXT);
@@ -403,25 +273,36 @@ bool load_device_table(VkDevice                device,
 
 #undef LOAD_VK_STUBBED
 
-#define SET_VMA(function) vma_table.vk##function = vk_table.function
-  SET_VMA(AllocateMemory);
-  SET_VMA(FreeMemory);
-  SET_VMA(UnmapMemory);
-  SET_VMA(FlushMappedMemoryRanges);
-  SET_VMA(InvalidateMappedMemoryRanges);
-  SET_VMA(BindBufferMemory);
-  SET_VMA(BindImageMemory);
-  SET_VMA(GetBufferMemoryRequirements);
-  SET_VMA(GetImageMemoryRequirements);
-  SET_VMA(CreateBuffer);
-  SET_VMA(DestroyBuffer);
-  SET_VMA(CreateImage);
-  SET_VMA(DestroyImage);
-  SET_VMA(CmdCopyBuffer);
-
-#undef SET_VMA
-
   return all_loaded;
+}
+
+void load_vma_table(InstanceTable const &instance_table,
+                    DeviceTable const &vk_table, VmaVulkanFunctions &vma_table)
+{
+  mem::zero(&vma_table, 1);
+#define SET_VMA_INST(function) vma_table.vk##function = instance_table.function
+  SET_VMA_INST(GetInstanceProcAddr);
+  SET_VMA_INST(GetDeviceProcAddr);
+  SET_VMA_INST(GetPhysicalDeviceProperties);
+  SET_VMA_INST(GetPhysicalDeviceMemoryProperties);
+#undef SET_VMA_INST
+
+#define SET_VMA_DEV(function) vma_table.vk##function = vk_table.function
+  SET_VMA_DEV(AllocateMemory);
+  SET_VMA_DEV(FreeMemory);
+  SET_VMA_DEV(UnmapMemory);
+  SET_VMA_DEV(FlushMappedMemoryRanges);
+  SET_VMA_DEV(InvalidateMappedMemoryRanges);
+  SET_VMA_DEV(BindBufferMemory);
+  SET_VMA_DEV(BindImageMemory);
+  SET_VMA_DEV(GetBufferMemoryRequirements);
+  SET_VMA_DEV(GetImageMemoryRequirements);
+  SET_VMA_DEV(CreateBuffer);
+  SET_VMA_DEV(DestroyBuffer);
+  SET_VMA_DEV(CreateImage);
+  SET_VMA_DEV(DestroyImage);
+  SET_VMA_DEV(CmdCopyBuffer);
+#undef SET_VMA_DEV
 }
 
 static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
@@ -431,72 +312,38 @@ static VkBool32 VKAPI_ATTR VKAPI_CALL debug_callback(
 {
   Instance *const instance = (Instance *) user_data;
 
+  LogLevel level = LogLevel::Trace;
   if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
   {
-    instance->logger->error(
-        "[Id: ({}), Name: {}, Type: {}] {}", data->messageIdNumber,
-        data->pMessageIdName,
-        string_VkDebugUtilsMessageTypeFlagsEXT(message_type), data->pMessage);
-    if (data->objectCount != 0)
-    {
-      instance->logger->error("Objects Involved:");
-      for (u32 i = 0; i < data->objectCount; i++)
-      {
-        instance->logger->error(
-            "[Type: {}] {}", data->pObjects[i].pObjectName,
-            string_VkObjectType(data->pObjects[i].objectType));
-      }
-    }
+    level = LogLevel::Debug;
   }
   else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
   {
-    instance->logger->warn("[Id: ({}), Name: {}, Type: {}] {}",
-                           data->messageIdNumber, data->pMessageIdName,
-                           string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
-                           data->pMessage);
-    if (data->objectCount != 0)
-    {
-      instance->logger->warn("Objects Involved:");
-      for (u32 i = 0; i < data->objectCount; i++)
-      {
-        instance->logger->warn(
-            "[Type: {}] {}", data->pObjects[i].pObjectName,
-            string_VkObjectType(data->pObjects[i].objectType));
-      }
-    }
+    level = LogLevel::Warning;
   }
   else if (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
   {
-    instance->logger->info("[Id: ({}), Name: {}, Type: {}] {}",
-                           data->messageIdNumber, data->pMessageIdName,
-                           string_VkDebugUtilsMessageTypeFlagsEXT(message_type),
-                           data->pMessage);
-    if (data->objectCount != 0)
-    {
-      instance->logger->info("Objects Involved:");
-      for (u32 i = 0; i < data->objectCount; i++)
-      {
-        instance->logger->info(
-            "[Type: {}] {}", data->pObjects[i].pObjectName,
-            string_VkObjectType(data->pObjects[i].objectType));
-      }
-    }
+    level = LogLevel::Info;
   }
   else
   {
-    instance->logger->trace(
-        "[Id: ({}), Name: {}, Type: {}] {}", data->messageIdNumber,
-        data->pMessageIdName,
-        string_VkDebugUtilsMessageTypeFlagsEXT(message_type), data->pMessage);
-    if (data->objectCount != 0)
+    level = LogLevel::Trace;
+  }
+
+  instance->logger->log(
+      level, "[Id: ", data->messageIdNumber, ", Name: ", data->pMessageIdName,
+      "] ", data->pMessage == nullptr ? "(empty message)" : data->pMessage);
+  if (data->objectCount != 0)
+  {
+    instance->logger->log(level, "Objects Involved:");
+    for (u32 i = 0; i < data->objectCount; i++)
     {
-      instance->logger->trace("Objects Involved:");
-      for (u32 i = 0; i < data->objectCount; i++)
-      {
-        instance->logger->trace(
-            "[Type: {}] {}", data->pObjects[i].pObjectName,
-            string_VkObjectType(data->pObjects[i].objectType));
-      }
+      instance->logger->log(
+          level, "[Type: ", string_VkObjectType(data->pObjects[i].objectType),
+          "] ",
+          data->pObjects[i].pObjectName == nullptr ?
+              "(unnamed)" :
+              data->pObjects[i].pObjectName);
     }
   }
 
@@ -1435,24 +1282,24 @@ Result<gfx::InstanceImpl, Status>
   for (VkExtensionProperties const &extension :
        Span{extensions, num_extensions})
   {
-    logger->trace("{}\t\t(spec version {}.{}.{} variant {})",
-                  extension.extensionName,
-                  VK_API_VERSION_MAJOR(extension.specVersion),
-                  VK_API_VERSION_MINOR(extension.specVersion),
-                  VK_API_VERSION_PATCH(extension.specVersion),
-                  VK_API_VERSION_VARIANT(extension.specVersion));
+    logger->trace(extension.extensionName, "\t\t(spec version ",
+                  VK_API_VERSION_MAJOR(extension.specVersion), ".",
+                  VK_API_VERSION_MINOR(extension.specVersion), ".",
+                  VK_API_VERSION_PATCH(extension.specVersion), " variant ",
+                  VK_API_VERSION_VARIANT(extension.specVersion), ")");
   }
 
   logger->trace("Available Validation Layers:");
 
   for (VkLayerProperties const &layer : Span{layers, num_layers})
   {
-    logger->trace(
-        "{}\t\t(spec version {}.{}.{} variant {}, implementation version: {})",
-        layer.layerName, VK_API_VERSION_MAJOR(layer.specVersion),
-        VK_API_VERSION_MINOR(layer.specVersion),
-        VK_API_VERSION_PATCH(layer.specVersion),
-        VK_API_VERSION_VARIANT(layer.specVersion), layer.implementationVersion);
+    logger->trace(layer.layerName, "\t\t(spec version ",
+                  VK_API_VERSION_MAJOR(layer.specVersion), ".",
+                  VK_API_VERSION_MINOR(layer.specVersion), ".",
+                  VK_API_VERSION_PATCH(layer.specVersion), " variant ",
+                  VK_API_VERSION_VARIANT(layer.specVersion),
+                  ", implementation version: ", layer.implementationVersion,
+                  ")");
   }
 
   char const *load_extensions[4];
@@ -1487,7 +1334,7 @@ Result<gfx::InstanceImpl, Status>
                return strcmp(property.extensionName, find_name) == 0;
              })
              .is_empty());
-    load_extensions[num_load_extensions] = VK_KHR_SURFACE_EXTENSION_NAME;
+    load_extensions[num_load_extensions] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     num_load_extensions++;
   }
 
@@ -1697,15 +1544,19 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
     PhysicalDevice const             &device     = physical_devices[i];
     VkPhysicalDeviceProperties const &properties = device.properties;
     self->logger->trace(
-        "[Device: {}]{} {} Vulkan API version {}.{}.{} Variant {}, Driver "
-        "Version: {}, "
-        "Vendor ID: {}, Device ID: {}",
-        i, string_VkPhysicalDeviceType(properties.deviceType),
-        properties.deviceName, VK_API_VERSION_MAJOR(properties.apiVersion),
-        VK_API_VERSION_MINOR(properties.apiVersion),
-        VK_API_VERSION_PATCH(properties.apiVersion),
-        VK_API_VERSION_VARIANT(properties.apiVersion), properties.driverVersion,
-        properties.vendorID, properties.deviceID);
+        "[Device: ", i, "] ",
+        string_VkPhysicalDeviceType(properties.deviceType), " ",
+        properties.deviceName, " Vulkan API version ",
+        VK_API_VERSION_MAJOR(properties.apiVersion), ".",
+        VK_API_VERSION_MINOR(properties.apiVersion), ".",
+        VK_API_VERSION_PATCH(properties.apiVersion), " Variant ",
+        VK_API_VERSION_VARIANT(properties.apiVersion),
+        ", Driver "
+        "Version: ",
+        properties.driverVersion,
+        ", "
+        "Vendor ID: ",
+        properties.vendorID, ", Device ID: ", properties.deviceID);
 
     u32 num_queue_families;
     self->vk_table.GetPhysicalDeviceQueueFamilyProperties(
@@ -1727,8 +1578,9 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
          iqueue_family++)
     {
       self->logger->trace(
-          "\t\tQueue Family: {}, Count: {}, Flags: {}", iqueue_family,
-          queue_family_properties[iqueue_family].queueCount,
+          "\t\tQueue Family: ", iqueue_family,
+          ", Count: ", queue_family_properties[iqueue_family].queueCount,
+          ", Flags: ",
           string_VkQueueFlags(
               queue_family_properties[iqueue_family].queueFlags));
     }
@@ -1739,7 +1591,9 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   for (usize i = 0; i < (u32) preferred_types.size; i++)
   {
-    for (u32 idevice = 0; idevice < num_devices; idevice++)
+    for (u32 idevice = 0;
+         idevice < num_devices && selected_device_index == num_devices;
+         idevice++)
     {
       PhysicalDevice const &device = physical_devices[idevice];
 
@@ -1762,7 +1616,8 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
       if (((VkPhysicalDeviceType) preferred_types[i]) ==
           device.properties.deviceType)
       {
-        for (u32 iqueue_family = 0; iqueue_family < num_queue_families;
+        for (u32 iqueue_family = 0; iqueue_family < num_queue_families &&
+                                    selected_device_index == num_devices;
              iqueue_family++)
         {
           if (has_bits(queue_family_properties[iqueue_family].queueFlags,
@@ -1806,7 +1661,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
 
   self->allocator.deallocate_typed(physical_devices, num_devices);
 
-  self->logger->trace("Selected Device {}", selected_device_index);
+  self->logger->trace("Selected Device ", selected_device_index);
 
   u32 num_extensions;
   result = self->vk_table.EnumerateDeviceExtensionProperties(
@@ -1875,12 +1730,11 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   for (u32 i = 0; i < num_extensions; i++)
   {
     VkExtensionProperties const &ext = extensions[i];
-    self->logger->trace("\t\t{} (spec version: {}.{}.{} variant {})",
-                        ext.extensionName,
-                        VK_API_VERSION_MAJOR(ext.specVersion),
-                        VK_API_VERSION_MINOR(ext.specVersion),
-                        VK_API_VERSION_PATCH(ext.specVersion),
-                        VK_API_VERSION_VARIANT(ext.specVersion));
+    self->logger->trace("\t\t", ext.extensionName, " (spec version: ",
+                        VK_API_VERSION_MAJOR(ext.specVersion), ".",
+                        VK_API_VERSION_MINOR(ext.specVersion), ".",
+                        VK_API_VERSION_PATCH(ext.specVersion), " variant ",
+                        VK_API_VERSION_VARIANT(ext.specVersion), ")");
   }
 
   self->logger->trace("Available Layers:");
@@ -1889,13 +1743,14 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   {
     VkLayerProperties const &layer = layers[i];
 
-    self->logger->trace(
-        "\t\t{} (spec version: {}.{}.{} variant {}, "
-        "implementation version: {})",
-        layer.layerName, VK_API_VERSION_MAJOR(layer.specVersion),
-        VK_API_VERSION_MINOR(layer.specVersion),
-        VK_API_VERSION_PATCH(layer.specVersion),
-        VK_API_VERSION_VARIANT(layer.specVersion), layer.implementationVersion);
+    self->logger->trace("\t\t", layer.layerName, " (spec version: ",
+                        VK_API_VERSION_MAJOR(layer.specVersion), ".",
+                        VK_API_VERSION_MINOR(layer.specVersion), ".",
+                        VK_API_VERSION_PATCH(layer.specVersion), " variant ",
+                        VK_API_VERSION_VARIANT(layer.specVersion),
+                        ", "
+                        "implementation version: ",
+                        layer.implementationVersion, ")");
   }
 
   bool has_swapchain_ext    = false;
@@ -2001,7 +1856,9 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
   DeviceTable        vk_table;
   VmaVulkanFunctions vma_table;
   CHECK(self->logger, "Failed To Load Vulkan Device Functions",
-        load_device_table(vk_device, vkGetDeviceProcAddr, vk_table, vma_table));
+        load_device_table(vk_device, self->vk_table, vk_table));
+
+  load_vma_table(self->vk_table, vk_table, vma_table);
 
   Device *device = self->allocator.allocate_typed<Device>(1);
 
@@ -2044,6 +1901,7 @@ Result<gfx::DeviceImpl, Status> InstanceInterface::create_device(
                       .physical_device = selected_device,
                       .vk_table        = vk_table,
                       .vma_table       = vma_table,
+                      .vk_device       = vk_device,
                       .queue_family    = selected_queue_family,
                       .vk_queue        = vk_queue,
                       .vma_allocator   = vma_allocator};
@@ -2075,6 +1933,38 @@ void InstanceInterface::unref_device(gfx::Instance instance_,
     device->vk_table.DestroyDevice(device->vk_device, nullptr);
     instance->allocator.deallocate_typed(device, 1);
   }
+}
+
+gfx::DeviceProperties DeviceInterface::get_device_properties(gfx::Device self_)
+{
+  Device *const                     self = (Device *) self_;
+  VkPhysicalDeviceProperties const &vk_properties =
+      self->physical_device.properties;
+
+  bool has_uma = false;
+  for (u32 i = 0; i < self->physical_device.memory_properties.memoryTypeCount;
+       i++)
+  {
+    if (has_bits(self->physical_device.memory_properties.memoryTypes[i]
+                     .propertyFlags,
+                 (VkMemoryPropertyFlags) (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
+    {
+      has_uma = true;
+      break;
+    }
+  }
+
+  return gfx::DeviceProperties{.api_version    = vk_properties.apiVersion,
+                               .driver_version = vk_properties.driverVersion,
+                               .vendor_id      = vk_properties.vendorID,
+                               .device_id      = vk_properties.deviceID,
+                               .api_name       = "vulkan",
+                               .device_name    = vk_properties.deviceName,
+                               .type =
+                                   (gfx::DeviceType) vk_properties.deviceType,
+                               .has_unified_memory = has_uma,
+                               .features = gfx::DeviceFeatures::Basic};
 }
 
 Result<gfx::FormatProperties, Status>
@@ -2111,9 +2001,13 @@ Result<gfx::Buffer, Status>
                                  .queueFamilyIndexCount = 1,
                                  .pQueueFamilyIndices   = nullptr};
   VmaAllocationCreateInfo alloc_create_info{
-      .flags          = 0,
+      .flags =
+          desc.host_mapped ?
+              (VmaAllocationCreateFlags) (VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                                          VMA_ALLOCATION_CREATE_MAPPED_BIT) :
+              (VmaAllocationCreateFlags) 0,
       .usage          = VMA_MEMORY_USAGE_AUTO,
-      .requiredFlags  = (VkMemoryPropertyFlags) desc.properties,
+      .requiredFlags  = 0,
       .preferredFlags = 0,
       .memoryTypeBits = 0,
       .pool           = nullptr,
@@ -2127,22 +2021,6 @@ Result<gfx::Buffer, Status>
                       &vk_buffer, &vma_allocation, &vma_allocation_info);
   if (result != VK_SUCCESS)
   {
-    return Err{(Status) result};
-  }
-
-  void *host_map = nullptr;
-  if (has_any_bit(desc.properties, gfx::MemoryProperties::HostVisible |
-                                       gfx::MemoryProperties::HostCoherent |
-                                       gfx::MemoryProperties::HostCached))
-  {
-    result = self->vk_table.MapMemory(self->vk_device,
-                                      vma_allocation_info.deviceMemory, 0,
-                                      VK_WHOLE_SIZE, 0, &host_map);
-  }
-
-  if (result != VK_SUCCESS)
-  {
-    vmaDestroyBuffer(self->vma_allocator, vk_buffer, vma_allocation);
     return Err{(Status) result};
   }
 
@@ -2169,7 +2047,7 @@ Result<gfx::Buffer, Status>
                       .vk_buffer           = vk_buffer,
                       .vma_allocation      = vma_allocation,
                       .vma_allocation_info = vma_allocation_info,
-                      .host_map            = host_map};
+                      .host_map            = vma_allocation_info.pMappedData};
 
   return Ok{(gfx::Buffer) buffer};
 }
@@ -2178,9 +2056,14 @@ Result<gfx::BufferView, Status>
     DeviceInterface::create_buffer_view(gfx::Device                self_,
                                         gfx::BufferViewDesc const &desc)
 {
-  Device *const self = (Device *) self_;
+  Device *const self   = (Device *) self_;
+  Buffer *const buffer = (Buffer *) desc.buffer;
 
-  VALIDATE(self->logger, "", desc.buffer != nullptr);
+  VALIDATE(self->logger, "", buffer != nullptr);
+  VALIDATE(self->logger, "",
+           has_any_bit(buffer->desc.usage,
+                       gfx::BufferUsage::UniformTexelBuffer |
+                           gfx::BufferUsage::StorageTexelBuffer));
   VALIDATE(self->logger, "", desc.format != gfx::Format::Undefined);
   VALIDATE(self->logger, "", desc.offset < ((Buffer *) desc.buffer)->desc.size);
   VALIDATE(self->logger, "",
@@ -2190,7 +2073,7 @@ Result<gfx::BufferView, Status>
       .sType  = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
       .pNext  = nullptr,
       .flags  = 0,
-      .buffer = ((Buffer *) desc.buffer)->vk_buffer,
+      .buffer = buffer->vk_buffer,
       .format = (VkFormat) desc.format,
       .offset = desc.offset,
       .range  = desc.size};
@@ -2811,12 +2694,17 @@ Result<gfx::DescriptorSetLayout, Status>
   for (u32 i = 0; i < num_bindings; i++)
   {
     gfx::DescriptorBindingDesc const &binding = desc.bindings[i];
-    vk_bindings[i]                            = VkDescriptorSetLayoutBinding{
-                                   .binding            = i,
-                                   .descriptorType     = (VkDescriptorType) binding.type,
-                                   .descriptorCount    = binding.count,
-                                   .stageFlags         = VK_SHADER_STAGE_ALL,
-                                   .pImmutableSamplers = nullptr};
+    VkShaderStageFlags                stage_flags =
+        (VkShaderStageFlags) (binding.type ==
+                                      gfx::DescriptorType::InputAttachment ?
+                                  VK_SHADER_STAGE_FRAGMENT_BIT :
+                                  VK_SHADER_STAGE_ALL);
+    vk_bindings[i] = VkDescriptorSetLayoutBinding{
+        .binding            = i,
+        .descriptorType     = (VkDescriptorType) binding.type,
+        .descriptorCount    = binding.count,
+        .stageFlags         = stage_flags,
+        .pImmutableSamplers = nullptr};
   }
 
   VkDescriptorSetLayoutCreateInfo create_info{
@@ -4491,11 +4379,7 @@ Result<void *, Status>
   Device *const self   = (Device *) self_;
   Buffer *const buffer = (Buffer *) buffer_;
 
-  VALIDATE(self->logger, "",
-           has_any_bit(buffer->desc.properties,
-                       gfx::MemoryProperties::HostVisible |
-                           gfx::MemoryProperties::HostCoherent |
-                           gfx::MemoryProperties::HostCached));
+  VALIDATE(self->logger, "", buffer->desc.host_mapped);
   return Ok{(void *) buffer->host_map};
 }
 
@@ -4505,20 +4389,9 @@ Result<Void, Status> DeviceInterface::invalidate_buffer_memory_map(
   Device *const self   = (Device *) self_;
   Buffer *const buffer = (Buffer *) buffer_;
 
-  VALIDATE(self->logger, "",
-           has_any_bit(buffer->desc.properties,
-                       gfx::MemoryProperties::HostVisible |
-                           gfx::MemoryProperties::HostCoherent |
-                           gfx::MemoryProperties::HostCached));
-
-  VkMappedMemoryRange vk_range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                               .pNext = nullptr,
-                               .memory =
-                                   buffer->vma_allocation_info.deviceMemory,
-                               .offset = range.offset,
-                               .size   = range.size};
-  VkResult result = self->vk_table.InvalidateMappedMemoryRanges(self->vk_device,
-                                                                1, &vk_range);
+  VALIDATE(self->logger, "", buffer->desc.host_mapped);
+  VkResult result = vmaInvalidateAllocation(
+      self->vma_allocator, buffer->vma_allocation, range.offset, range.size);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -4532,21 +4405,10 @@ Result<Void, Status> DeviceInterface::flush_buffer_memory_map(
   Device *const self   = (Device *) self_;
   Buffer *const buffer = (Buffer *) buffer_;
 
-  VALIDATE(self->logger, "",
-           has_any_bit(buffer->desc.properties,
-                       gfx::MemoryProperties::HostVisible |
-                           gfx::MemoryProperties::HostCoherent |
-                           gfx::MemoryProperties::HostCached));
+  VALIDATE(self->logger, "", buffer->desc.host_mapped);
 
-  VkMappedMemoryRange vk_range{.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-                               .pNext = nullptr,
-                               .memory =
-                                   buffer->vma_allocation_info.deviceMemory,
-                               .offset = range.offset,
-                               .size   = range.size};
-
-  VkResult result =
-      self->vk_table.FlushMappedMemoryRanges(self->vk_device, 1, &vk_range);
+  VkResult result = vmaFlushAllocation(
+      self->vma_allocator, buffer->vma_allocation, range.offset, range.size);
   if (result != VK_SUCCESS)
   {
     return Err{(Status) result};
@@ -5266,7 +5128,6 @@ Result<u32, Status>
   {
     self->free_groups[self->num_free_groups] = free_group;
   }
-  self->num_free_groups += (self->num_groups_per_pool - 1);
 
   return Ok{(u32) assigned_group};
 }
@@ -6015,6 +5876,8 @@ void CommandEncoderInterface::fill_buffer(gfx::CommandEncoder self_,
   CommandEncoder *const self = (CommandEncoder *) self_;
   Buffer *const         dst  = (Buffer *) dst_;
 
+  VALIDATE(self->logger, "",
+           has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   VALIDATE(self->logger, "", (offset % 4) == 0);
   VALIDATE(self->logger, "", (size % 4) == 0);
   VALIDATE(self->logger, "", size > 0);
@@ -6041,6 +5904,10 @@ void CommandEncoderInterface::copy_buffer(gfx::CommandEncoder self_,
   Buffer *const         dst        = (Buffer *) dst_;
   u32 const             num_copies = (u32) copies.size;
 
+  VALIDATE(self->logger, "",
+           has_bits(src->desc.usage, gfx::BufferUsage::TransferSrc));
+  VALIDATE(self->logger, "",
+           has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   VALIDATE(self->logger, "", num_copies > 0);
   for (gfx::BufferCopy const &copy : copies)
   {
@@ -6090,6 +5957,8 @@ void CommandEncoderInterface::update_buffer(gfx::CommandEncoder self_,
   CommandEncoder *const self = (CommandEncoder *) self_;
   Buffer *const         dst  = (Buffer *) dst_;
 
+  VALIDATE(self->logger, "",
+           has_bits(dst->desc.usage, gfx::BufferUsage::TransferDst));
   VALIDATE(self->logger, "", dst_offset < dst->desc.size);
   VALIDATE(self->logger, "", (dst_offset + src.size_bytes()) <= dst->desc.size);
   VALIDATE(self->logger, "", (dst_offset % 4) == 0);
@@ -6119,6 +5988,8 @@ void CommandEncoderInterface::clear_color_image(
   u32 const             num_ranges = (u32) ranges.size;
 
   static_assert(sizeof(gfx::Color) == sizeof(VkClearColorValue));
+  VALIDATE(self->logger, "",
+           has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
   VALIDATE(self->logger, "", num_ranges > 0);
   for (u32 i = 0; i < num_ranges; i++)
   {
@@ -6189,6 +6060,8 @@ void CommandEncoderInterface::clear_depth_stencil_image(
 
   static_assert(sizeof(gfx::DepthStencil) == sizeof(VkClearDepthStencilValue));
   VALIDATE(self->logger, "", num_ranges > 0);
+  VALIDATE(self->logger, "",
+           has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
   for (u32 i = 0; i < num_ranges; i++)
   {
     gfx::ImageSubresourceRange const &range = ranges[i];
@@ -6257,6 +6130,10 @@ void CommandEncoderInterface::copy_image(gfx::CommandEncoder self_,
   u32 const             num_copies = (u32) copies.size;
 
   VALIDATE(self->logger, "", num_copies > 0);
+  VALIDATE(self->logger, "",
+           has_bits(src->desc.usage, gfx::ImageUsage::TransferSrc));
+  VALIDATE(self->logger, "",
+           has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
   for (u32 i = 0; i < num_copies; i++)
   {
     gfx::ImageCopy const &copy = copies[i];
@@ -6375,6 +6252,10 @@ void CommandEncoderInterface::copy_buffer_to_image(
   u32 const             num_copies = (u32) copies.size;
 
   VALIDATE(self->logger, "", num_copies > 0);
+  VALIDATE(self->logger, "",
+           has_bits(src->desc.usage, gfx::BufferUsage::TransferSrc));
+  VALIDATE(self->logger, "",
+           has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
   for (u32 i = 0; i < num_copies; i++)
   {
     gfx::BufferImageCopy const &copy = copies[i];
@@ -6464,6 +6345,10 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
   u32 const             num_blits = (u32) blits.size;
 
   VALIDATE(self->logger, "", num_blits > 0);
+  VALIDATE(self->logger, "",
+           has_bits(src->desc.usage, gfx::ImageUsage::TransferSrc));
+  VALIDATE(self->logger, "",
+           has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
   for (u32 i = 0; i < num_blits; i++)
   {
     gfx::ImageBlit const &blit = blits[i];
@@ -7086,7 +6971,7 @@ void CommandEncoderInterface::draw_indirect(gfx::CommandEncoder self_,
            has_bits(buffer->desc.usage, gfx::BufferUsage::IndirectBuffer));
   VALIDATE(self->logger, "", offset < buffer->desc.size);
   VALIDATE(self->logger, "",
-           (offset + draw_count * stride) <= buffer->desc.size);
+           (offset + (u64) draw_count * stride) <= buffer->desc.size);
   VALIDATE(self->logger, "", stride >= (5 * sizeof(u32)));
 
   if (self->status != Status::Success)

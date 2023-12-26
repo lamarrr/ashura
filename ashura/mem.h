@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ashura/types.h"
 #include <cstring>
 
@@ -35,7 +37,7 @@ void zero(T *dst, usize count)
   std::memset(dst, 0, sizeof(T) * count);
 }
 
-void zero(void *dst, usize size)
+inline void zero(void *dst, usize size)
 {
   std::memset(dst, 0, size);
 }

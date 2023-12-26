@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/types.h"
+#include <initializer_list>
 
 namespace ash
 {
@@ -124,5 +125,12 @@ constexpr auto from_std_container(StdContainer &container)
 {
   return Span{container.data(), container.size()};
 }
+
+template <typename T>
+constexpr Span<T const> from_initializer_list(std::initializer_list<T> init)
+{
+  return Span<T const>{init.begin(), init.size()};
+}
+
 }        // namespace span
 }        // namespace ash

@@ -80,7 +80,7 @@ enum class DeviceType : u8
 
 enum class DeviceFeatures : u64
 {
-  None        = 0x000000ULL,
+  Basic       = 0x000000ULL,
   VideoEncode = 0x000001ULL,
   VideoDecode = 0x000002ULL,
   RayTracing  = 0x000004ULL
@@ -611,6 +611,7 @@ STX_DEFINE_ENUM_BIT_OPS(ColorComponents)
 enum class BufferUsage : u32
 {
   None                                    = 0x00000000,
+  TransferSrc                             = 0x00000001,
   TransferDst                             = 0x00000002,
   UniformTexelBuffer                      = 0x00000004,
   StorageTexelBuffer                      = 0x00000008,
@@ -822,52 +823,12 @@ struct ImageSubresourceLayers
   u32          num_array_layers  = 0;
 };
 
-/// [properties] is either of:
-///
-/// HostVisible | HostCoherent
-/// HostVisible | HostCached
-/// HostVisible | HostCached | HostCoherent
-/// DeviceLocal
-/// DeviceLocal | HostVisible | HostCoherent
-/// DeviceLocal | HostVisible | HostCached
-/// DeviceLocal | HostVisible | HostCached | HostCoherent
-struct HeapProperty
-{
-  MemoryProperties properties = MemoryProperties::None;
-  u32              index      = 0;
-};
-
-struct DeviceMemoryHeaps
-{
-  // ordered by performance-tier (MemoryProperties)
-  HeapProperty heap_properties[MAX_MEMORY_HEAP_PROPERTIES] = {};
-  u64          heap_sizes[MAX_MEMORY_HEAPS]                = {};
-
-  constexpr bool has_memory(MemoryProperties properties) const
-  {
-    for (HeapProperty p : heap_properties)
-    {
-      if (has_bits(p.properties, properties))
-      {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  constexpr bool has_unified_memory() const
-  {
-    return has_memory(MemoryProperties::DeviceLocal |
-                      MemoryProperties::HostVisible);
-  }
-};
-
 struct BufferDesc
 {
-  char const      *label      = nullptr;
-  u64              size       = 0;
-  MemoryProperties properties = MemoryProperties::None;
-  BufferUsage      usage      = BufferUsage::None;
+  char const *label       = nullptr;
+  u64         size        = 0;
+  bool        host_mapped = false;
+  BufferUsage usage       = BufferUsage::None;
 };
 
 /// format interpretation of a buffer's contents
@@ -1258,16 +1219,15 @@ struct FrameInfo
 
 struct DeviceProperties
 {
-  u32               api_version    = 0;
-  u32               driver_version = 0;
-  u32               vendor_id      = 0;
-  u32               device_id      = 0;
-  std::string_view  api_name       = {};
-  std::string_view  device_name    = {};
-  DeviceType        type           = DeviceType::Other;
-  DeviceMemoryHeaps memory_heaps   = {};
-  f32               max_anisotropy = 0;
-  DeviceFeatures    features       = DeviceFeatures::None;
+  u32              api_version        = 0;
+  u32              driver_version     = 0;
+  u32              vendor_id          = 0;
+  u32              device_id          = 0;
+  std::string_view api_name           = {};
+  std::string_view device_name        = {};
+  DeviceType       type               = DeviceType::Other;
+  bool             has_unified_memory = false;
+  DeviceFeatures   features           = DeviceFeatures::Basic;
 };
 
 /// @num_allocated_groups: number of alive group allocations
@@ -1406,8 +1366,7 @@ struct CommandEncoderImpl
 
 struct DeviceInterface
 {
-  Result<DeviceProperties, Status> (*get_device_properties)(Device self) =
-      nullptr;
+  DeviceProperties (*get_device_properties)(Device self) = nullptr;
   Result<FormatProperties, Status> (*get_format_properties)(
       Device self, Format format)                                 = nullptr;
   Result<Buffer, Status> (*create_buffer)(Device            self,

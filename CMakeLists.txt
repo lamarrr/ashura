@@ -83,9 +83,11 @@ else()
 endif()
 
 add_library(ashura_format STATIC ashura/format.cc)
+add_library(ashura_log STATIC ashura/log.cc ashura/runtime.cc)
 add_library(ashura_allocator STATIC ashura/allocator.cc
                                     ashura/arena_allocator.cc)
-add_library(ashura_gfx STATIC ashura/gfx.cc ashura/vulkan_gfx.cc)
+add_library(ashura_gfx STATIC ashura/gfx.cc ashura/vulkan_gfx.cc
+                              ashura/vma_def.cc)
 add_library(
   ashura STATIC
   ashura/app.cc
@@ -96,10 +98,12 @@ add_library(
   ashura/subsystems/http_client.cc
   ashura/ecs.cc)
 add_executable(ashura_main ashura/ashura.cc)
+add_executable(ashura_main2 ashura/ashura2.cc)
 add_executable(ashura_networking_test ashura/tests/http.cc)
 add_executable(ashura_test ashura/tests/layout.cc)
 
 target_include_directories(ashura_format PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ashura_log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(ashura_allocator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(
@@ -107,6 +111,7 @@ target_include_directories(
                 ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
 
 target_link_libraries(ashura_format stx::stx)
+target_link_libraries(ashura_log ashura_format)
 target_link_libraries(
   ashura_gfx
   stx::stx
@@ -114,7 +119,9 @@ target_link_libraries(
   Vulkan::UtilityHeaders
   Vulkan::Vulkan
   GPUOpen::VulkanMemoryAllocator
-  ashura_allocator)
+  ashura_allocator
+  ashura_log
+  ashura_format)
 target_link_libraries(
   ashura
   ashura_gfx
@@ -133,6 +140,7 @@ target_link_libraries(
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
 target_link_libraries(ashura_main ashura)
+target_link_libraries(ashura_main2 ashura_gfx)
 target_link_libraries(ashura_networking_test ashura GTest::gtest
                       GTest::gtest_main)
 target_link_libraries(ashura_test ashura GTest::gtest GTest::gtest_main)

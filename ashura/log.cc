@@ -5,44 +5,63 @@
 namespace ash
 {
 
+char const *get_level_str(LogLevel level)
+{
+  switch (level)
+  {
+    case LogLevel::Debug:
+      return "\x1b[38;20m"
+             "DEBUG"
+             "\x1b[0m";
+    case LogLevel::Trace:
+      return "\x1b[38;20m"
+             "TRACE"
+             "\x1b[0m";
+    case LogLevel::Info:
+      return "\x1b[32;1m"
+             "INFO"
+             "\x1b[0m";
+    case LogLevel::Warning:
+      return "\x1b[33;20m"
+             "WARNING"
+             "\x1b[0m";
+    case LogLevel::Error:
+      return "\x1b[31;20m"
+             "ERROR"
+             "\x1b[0m";
+    case LogLevel::Fatal:
+      return "\x1b[31;1m"
+             "FATAL"
+             "\x1b[0m";
+    default:
+      return "";
+  }
+}
+
 void StdioSinkInterface::log(LogSink self_, LogLevel level,
                              char const *log_message, usize len)
 {
   StdioSink  *self      = (StdioSink *) self_;
-  char const *level_str = "";
+  char const *level_str = get_level_str(level);
   FILE       *file      = stdout;
 
   switch (level)
   {
     case LogLevel::Debug:
-      level_str = "DEBUG";
-      file      = stdout;
-      break;
     case LogLevel::Trace:
-      level_str = "TRACE";
-      file      = stdout;
-      break;
     case LogLevel::Info:
-      level_str = "INFO";
-      file      = stdout;
-      break;
     case LogLevel::Warning:
-      level_str = "WARNING";
-      file      = stdout;
+      file = stdout;
       break;
     case LogLevel::Error:
-      level_str = "ERROR";
-      file      = stderr;
-      break;
     case LogLevel::Fatal:
-      level_str = "FATAL";
-      file      = stderr;
+      file = stderr;
       break;
     default:
       break;
   }
 
-  constexpr char const time_format[] = "%d/%m/%Y %H:%M:%S";
+  constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";
   char                 time_string[256];
   usize                time_string_length = 0;
 
@@ -61,9 +80,9 @@ void StdioSinkInterface::log(LogSink self_, LogLevel level,
 
   (void) fputs("[", file);
   (void) fputs(level_str, file);
-  (void) fputs(", ", file);
+  (void) fputs(": ", file);
   (void) fwrite(time_string, 1, time_string_length, file);
-  (void) fputs("]", file);
+  (void) fputs("] ", file);
   (void) fwrite(log_message, 1, len, file);
 }
 
@@ -80,33 +99,8 @@ void FileSinkInterface::log(LogSink self_, LogLevel level,
 {
   FileSink *self = (FileSink *) self_;
 
-  char const *level_str = "";
-
-  switch (level)
-  {
-    case LogLevel::Debug:
-      level_str = "DEBUG";
-      break;
-    case LogLevel::Trace:
-      level_str = "TRACE";
-      break;
-    case LogLevel::Info:
-      level_str = "INFO";
-      break;
-    case LogLevel::Warning:
-      level_str = "WARNING";
-      break;
-    case LogLevel::Error:
-      level_str = "ERROR";
-      break;
-    case LogLevel::Fatal:
-      level_str = "FATAL";
-      break;
-    default:
-      break;
-  }
-
-  constexpr char const time_format[] = "%d/%m/%Y %H:%M:%S";
+  char const          *level_str     = get_level_str(level);
+  constexpr char const time_format[] = "%d/%m/%Y, %H:%M:%S";
   char                 time_string[256];
   usize                time_string_length = 0;
 
@@ -124,9 +118,9 @@ void FileSinkInterface::log(LogSink self_, LogLevel level,
   std::unique_lock lock{self->mutex};
   (void) fputs("[", self->file);
   (void) fputs(level_str, self->file);
-  (void) fputs(", ", self->file);
+  (void) fputs(": ", self->file);
   (void) fwrite(time_string, 1, time_string_length, self->file);
-  (void) fputs("]", self->file);
+  (void) fputs("] ", self->file);
   (void) fwrite(log_message, 1, len, self->file);
 }
 

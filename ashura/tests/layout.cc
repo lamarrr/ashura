@@ -1,4 +1,4 @@
-#include "ashura/palletes.h"
+#include "ashura/color.h"
 #include "ashura/widget_tree.h"
 #include "ashura/widgets/box.h"
 #include "ashura/widgets/flex.h"
