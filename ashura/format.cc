@@ -1,5 +1,6 @@
 #include "ashura/format.h"
 #include <charconv>
+#include <string.h>
 
 namespace ash
 {
