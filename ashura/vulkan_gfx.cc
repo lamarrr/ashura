@@ -2,6 +2,7 @@
 #include "ashura/algorithms.h"
 #include "ashura/math.h"
 #include "ashura/mem.h"
+#include "stx/source_location.h"
 #include "vulkan/vulkan.h"
 #include <stdlib.h>
 
@@ -14,43 +15,30 @@ namespace ash
 namespace vk
 {
 
+#define PANIC_IF(logger, description, ...)                          \
+  do                                                                \
+  {                                                                 \
+    if (!(__VA_ARGS__))                                             \
+    {                                                               \
+      (logger)->panic(                                              \
+          description, " (expression: " #__VA_ARGS__,               \
+          ") [function: ", stx::SourceLocation::current().function, \
+          ", file: ", stx::SourceLocation::current().file, ":",     \
+          stx::SourceLocation::current().line, ":",                 \
+          stx::SourceLocation::current().column, "]");              \
+    }                                                               \
+  } while (false)
+
+#define CHECK_WITH(logger, description, ...) \
+  PANIC_IF(logger, "Check: " description " Failed", __VA_ARGS__)
+
 // TODO(lamarrr): tracer for vma memory allocations
 // trace u64, i64, f64 etc
-#define VALIDATE(obj, description, ...)                                      \
-  do                                                                         \
-  {                                                                          \
-    if (!(__VA_ARGS__))                                                      \
-    {                                                                        \
-      (obj)->logger->panic("Validation: " description, " (" #__VA_ARGS__,    \
-                           ") failed [function: ", __builtin_FUNCTION(),     \
-                           ", file: ", __FILE__, ":", __builtin_LINE(), ":", \
-                           __builtin_COLUMN(), "]");                         \
-    }                                                                        \
-  } while (false)
+#define VALIDATE(obj, description, ...) \
+  PANIC_IF((obj)->logger, "Validation: " description " Failed", __VA_ARGS__)
 
-#define CHECK(obj, description, ...)                                         \
-  do                                                                         \
-  {                                                                          \
-    if (!(__VA_ARGS__))                                                      \
-    {                                                                        \
-      (obj)->logger->panic("Check: " description, " (" #__VA_ARGS__,         \
-                           ") failed [function: ", __builtin_FUNCTION(),     \
-                           ", file: ", __FILE__, ":", __builtin_LINE(), ":", \
-                           __builtin_COLUMN(), "]");                         \
-    }                                                                        \
-  } while (false)
-
-#define CHECK_WITH(logger, description, ...)                            \
-  do                                                                    \
-  {                                                                     \
-    if (!(__VA_ARGS__))                                                 \
-    {                                                                   \
-      (logger)->panic("Check: " description, " (" #__VA_ARGS__,         \
-                      ") failed [function: ", __builtin_FUNCTION(),     \
-                      ", file: ", __FILE__, ":", __builtin_LINE(), ":", \
-                      __builtin_COLUMN(), "]");                         \
-    }                                                                   \
-  } while (false)
+#define CHECK(obj, description, ...) \
+  PANIC_IF((obj)->logger, "Check: " description " Failed", __VA_ARGS__)
 
 #define UNREACHABLE() abort()
 
@@ -2040,7 +2028,7 @@ Result<gfx::Buffer, Status>
 {
   Device *const self = (Device *) self_;
 
-  VALIDATE(self, "", desc.size > 0);
+  VALIDATE(self, "", desc.size != 0);
   VALIDATE(self, "", desc.usage != gfx::BufferUsage::None);
 
   VkBufferCreateInfo create_info{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
