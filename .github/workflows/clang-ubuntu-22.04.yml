@@ -28,15 +28,15 @@ jobs:
 
       - name: Update Apt
         run: |
-          apt update
-          apt-upgrade
-          apt dist-upgrade
+          sudo apt update
+          sudo apt-upgrade
+          sudo apt dist-upgrade
 
       - name: Install Build Tools
-        run: apt install build-essential ninja-build clang-15 cmake
+        run: sudo apt install build-essential ninja-build clang-15 cmake
 
       - name: Install Vulkan SDK
-        run: apt install vulkan-sdk 
+        run: sudo apt install vulkan-sdk 
         if: steps.cache-and-install.outputs.cache-hit != 'true'
 
       - name: Build SDL3
@@ -51,7 +51,7 @@ jobs:
       - name: Install SDL3
         run: |
          cd ${{ github.workspace }}/deps/SDL/build
-         ninja install
+         sudo ninja install
       - name: Install VCPKG
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git ${{ github.workspace }}/tools/vcpkg
