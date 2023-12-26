@@ -1,5 +1,5 @@
 # Ashura (ReGui) <img src="https://github.com/lamarrr/ashura/actions/workflows/msvc-windows-x64.yml/badge.svg">
-Ashura is a GUI and 2D & 3D Graphics Framework for use in High-performance GUI applications and games
+Ashura is a 2D & 3D Engine for use in High-performance GUI applications and games
 
 ## Features
 - Concurrency & Multithreading
