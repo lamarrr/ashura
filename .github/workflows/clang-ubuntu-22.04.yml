@@ -52,7 +52,7 @@ jobs:
         
       - name: Install Dependencies, Configure, and Build Ashura
         run: |
-          mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_INSTALLED_DIR=${{ github.workspace }}/tools/vcpkg/installed -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -GNinja && ninja
+          sudo apt install nasm && mkdir build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_INSTALLED_DIR=${{ github.workspace }}/tools/vcpkg/installed -DCMAKE_BUILD_TYPE=${{ matrix.build_mode }} -GNinja && ninja
       - name: Run Ashura Test
         run: |
          cd build/ashura/ && ./ashura_test
