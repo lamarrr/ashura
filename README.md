@@ -1,4 +1,4 @@
-# Ashura (ReGui) <img src="https://github.com/lamarrr/ashura/actions/workflows/msvc-windows-x64.yml/badge.svg">
+# Ashura (ReGui) <img src="https://github.com/lamarrr/ashura/actions/workflows/msvc-windows-x64.yml/badge.svg"> <img src="https://github.com/lamarrr/ashura/actions/workflows/clang-ubuntu-22.04.yml/badge.svg">
 Ashura is a 2D & 3D Engine for use in High-performance GUI applications and games
 
 ## Features
