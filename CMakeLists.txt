@@ -4,16 +4,32 @@ project(Ashura)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_COLOR_DIAGNOSTICS ON)
 
-set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+set(VMA_DYNAMIC_VULKAN_FUNCTIONS ON)
 
-include(add_project_library)
 include(FetchContent)
 
 FetchContent_Declare(
   stx
   GIT_REPOSITORY https://github.com/lamarrr/STX.git
   GIT_TAG main)
+
+FetchContent_Declare(
+  VulkanHeaders
+  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+  GIT_TAG v1.3.269)
+
+FetchContent_Declare(
+  VulkanUtilityHeaders
+  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
+  GIT_TAG vulkan-sdk-1.3.268.0)
+
+FetchContent_Declare(
+  VulkanMemoryAllocator
+  GIT_REPOSITORY
+    https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+  GIT_TAG 5e43c79)
 
 set(SheenBidi_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/SheenBidi)
 
@@ -23,7 +39,6 @@ if(NOT EXISTS ${SheenBidi_DIR})
             ${SheenBidi_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 endif()
 
-find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(harfbuzz REQUIRED)
 find_package(fmt REQUIRED)
@@ -34,11 +49,14 @@ find_package(WebP CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
-find_package(libavif CONFIG REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
+find_package(Vulkan REQUIRED)
 
 FetchContent_MakeAvailable(stx)
+FetchContent_MakeAvailable(VulkanHeaders)
+FetchContent_MakeAvailable(VulkanUtilityHeaders)
+FetchContent_MakeAvailable(VulkanMemoryAllocator)
 
 file(GLOB SheenBidi_SOURCES ${SheenBidi_DIR}/Source/*.c)
 
@@ -49,40 +67,80 @@ target_include_directories(
   PRIVATE ${SheenBidi_DIR}/Source)
 add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
-if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
-  add_compile_options(-fdiagnostics-color=always -Wall -Wextra -Wpedantic)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  add_compile_options(
+    -Wall -Wextra -Wpedantic # -fno-rtti -fno-exceptions TODO(lamarrr): future
+  )
 else()
-  if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
-    add_compile_options(-fcolor-diagnostics -Wall -Wextra -Wpedantic)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-Wall -Wextra -Wpedantic # -fno-rtti -fno-exceptions
+    )
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-      add_compile_options(
-        /Wall
-        /wd5045
-        /wd5264
-        /wd4514
-        /wd4061
-        /wd4583
-        /wd4820
-        /wd4426
-        /wd4625
-        /wd4623
-        /wd4626
-        /wd4868
-        /wd4100
-        /wd4458
-        /wd4456
-        /wd5039
-        /wd5246
-        /wd5026
-        /wd5027
-        /wd5204
-        /wd4996
-        /wd4710
-        /wd4711)
+      add_compile_options(/W3)
     endif()
   endif()
 endif()
 
-# add_subdirectory(assets)
-add_subdirectory(ashura)
+add_library(ashura_format STATIC ashura/format.cc)
+add_library(ashura_log STATIC ashura/log.cc ashura/runtime.cc)
+add_library(ashura_allocator STATIC ashura/allocator.cc
+                                    ashura/arena_allocator.cc)
+add_library(ashura_gfx STATIC ashura/gfx.cc ashura/vulkan_gfx.cc
+                              ashura/vma_def.cc)
+add_library(
+  ashura STATIC
+  ashura/app.cc
+  ashura/engine.cc
+  ashura/widget.cc
+  ashura/rengoku.cc
+  ashura/loggers.cc
+  ashura/subsystems/http_client.cc
+  ashura/ecs.cc)
+add_executable(ashura_main ashura/ashura.cc)
+add_executable(ashura_main2 ashura/ashura2.cc)
+add_executable(ashura_networking_test ashura/tests/http.cc)
+add_executable(ashura_test ashura/tests/layout.cc)
+
+target_include_directories(ashura_format PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ashura_log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ashura_allocator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(
+  ashura PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
+                ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
+
+target_link_libraries(ashura_format stx::stx)
+target_link_libraries(ashura_log ashura_format)
+target_link_libraries(
+  ashura_gfx
+  stx::stx
+  Vulkan-Headers
+  Vulkan::UtilityHeaders
+  Vulkan::Vulkan
+  GPUOpen::VulkanMemoryAllocator
+  ashura_allocator
+  ashura_log
+  ashura_format)
+target_link_libraries(
+  ashura
+  ashura_gfx
+  stx::stx
+  SDL3::SDL3-static
+  fmt::fmt
+  spdlog::spdlog
+  harfbuzz
+  CURL::libcurl
+  Freetype::Freetype
+  simdjson::simdjson
+  WebP::webp
+  WebP::webpdecoder
+  ${JPEG_LIBRARIES}
+  PNG::PNG
+  ${FFMPEG_LIBRARIES}
+  SheenBidi::SheenBidi)
+target_link_libraries(ashura_main ashura)
+target_link_libraries(ashura_main2 ashura_gfx)
+target_link_libraries(ashura_networking_test ashura GTest::gtest
+                      GTest::gtest_main)
+target_link_libraries(ashura_test ashura GTest::gtest GTest::gtest_main)

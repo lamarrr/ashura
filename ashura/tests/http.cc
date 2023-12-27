@@ -1,22 +1,22 @@
-#include "ashura/subsystems/http_client.h"
 #include "ashura/context.h"
-#include "gtest/gtest.h"
+#include "ashura/subsystems/http_client.h"
 #include "stx/scheduler.h"
 #include "stx/scheduler/scheduling/await.h"
-
+#include "gtest/gtest.h"
 
 using namespace ash;
 
-Context    _ctx;
-
+Context _ctx;
 
 TEST(Http, HttpClient)
 {
-  HttpClient client{stx::os_allocator};
-  stx::TaskScheduler scheduler{stx::os_allocator, std::chrono::steady_clock::now()};
-  auto [response, monitor] = client.get(stx::string::make_static("https://github.com"));
+  HttpClient         client{stx::os_allocator};
+  stx::TaskScheduler scheduler{stx::os_allocator,
+                               std::chrono::steady_clock::now()};
+  auto [response, monitor] =
+      client.get(stx::string::make_static("https://github.com"));
 
-    stx::Future<void> a = stx::sched::await(
+  stx::Future<void> a = stx::sched::await(
       scheduler,
       [](stx::Future<HttpResponse> response) {
         auto httpResponse = response.ref().unwrap();
@@ -35,5 +35,4 @@ TEST(Http, HttpClient)
     client.tick(_ctx, interval);
     scheduler.tick(interval);
   }
-
 }

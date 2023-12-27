@@ -1,11 +1,7 @@
 {
     "name": "ashura",
-    "version": "1.0.0",
+    "version": "0.0.1",
     "dependencies": [
-        {
-            "name": "libpng",
-            "features": [ "apng" ]          
-        },
         "abseil",
         "fmt",
         "freetype",
@@ -18,7 +14,6 @@
         "gtest",
         "libogg",
         "ffmpeg",
-        "libavif",
         "curl"
     ]
 }
