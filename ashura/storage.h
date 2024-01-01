@@ -33,7 +33,7 @@ struct Storage
 };
 
 template <usize Alignment, usize ByteCapacity>
-struct AlignedStorage
+struct UntypedStorage
 {
   static_assert(ByteCapacity > 0);
   static_assert(ByteCapacity % Alignment == 0);

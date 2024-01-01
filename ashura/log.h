@@ -48,6 +48,7 @@ struct LogSinkImpl
 
 // to be flushed into trace format style, utc, time encoding, etc.
 // format context should append to the buffer
+// TODO(lamarrr): Level filter and filter for sinks?
 struct Logger
 {
   static constexpr u32 SCRATCH_BUFFER_SIZE                 = 256;

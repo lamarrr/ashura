@@ -160,42 +160,6 @@ constexpr Quad transform2d(Mat3 const &a, Rect const &b)
               .p3 = transform2d(a, b.bottom_left())};
 }
 
-template <>
-constexpr Color lerp<Color>(Color const &a, Color const &b, f32 t)
-{
-  return Color{
-      .r = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.r, b.r, t), 0, 255)),
-      .g = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.g, b.g, t), 0, 255)),
-      .b = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.b, b.b, t), 0, 255)),
-      .a = static_cast<u8>(std::clamp<f32>(lerp<f32>(a.a, b.a, t), 0, 255))};
-}
 
-/// @x_mag: The floating-point horizontal magnification of the view. This value
-/// MUST NOT be equal to zero. This value SHOULD NOT be negative.
-/// @y_mag: The floating-point vertical magnification of the view. This value
-/// MUST NOT be equal to zero. This value SHOULD NOT be negative.
-/// @z_far: The floating-point distance to the far clipping plane. This value
-/// MUST NOT be equal to zero. zfar MUST be greater than znear.
-/// @z_near: The floating-point distance to the near clipping plane.
-struct OrthographicCamera
-{
-  f32 x_mag  = 0;
-  f32 y_mag  = 0;
-  f32 z_far  = 0;
-  f32 z_near = 0;
-};
-
-/// @aspect_ratio: The floating-point aspect ratio of the field of view.
-/// @y_fov: The floating-point vertical field of view in radians. This value
-/// SHOULD be less than π.
-/// @z_far: The floating-point distance to the far clipping plane.
-/// @z_near: The floating-point distance to the near clipping plane.
-struct PerspectiveCamera
-{
-  f32 aspect_ratio = 0;
-  f32 y_fov        = 0;
-  f32 z_far        = 0;
-  f32 z_near       = 0;
-};
 */
 }        // namespace ash

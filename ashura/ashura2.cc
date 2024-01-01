@@ -1,6 +1,7 @@
 #include "ashura/span.h"
 #include "ashura/storage.h"
 #include "ashura/vulkan_gfx.h"
+#include "ashura/renderer.h"
 
 int main()
 {
