@@ -35,25 +35,25 @@ typedef struct ChromaticAberration ChromaticAberration;
 
 struct Box
 {
-  Vec4 center;
-  Vec4 half_extent;
+  Vec3 center;
+  Vec3 half_extent;
 };
 
 struct DirectionalLight
 {
-  Vec4 direction = {};
+  Vec3 direction = {};
 };
 
 struct PointLight
 {
-  Vec4 position    = {};
+  Vec3 position    = {};
   f32  attenuation = 0;
 };
 
 struct SpotLight
 {
-  Vec4 postion     = {};
-  Vec4 direction   = {};
+  Vec3 postion     = {};
+  Vec3 direction   = {};
   f32  cutoff      = 0;
   f32  attenuation = 0;
 };
