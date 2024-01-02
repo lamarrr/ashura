@@ -25,13 +25,15 @@ typedef struct SpotLight           SpotLight;
 typedef struct OrthographicCamera  OrthographicCamera;
 typedef struct PerspectiveCamera   PerspectiveCamera;
 typedef struct Object              Object;
-typedef struct RenderScene         RenderScene;
+typedef struct Scene               Scene;
 typedef struct ReflectionProbe     ReflectionProbe;
 typedef struct Bokeh               Bokeh;
 typedef struct TAA                 TAA;
 typedef struct FXAA                FXAA;
 typedef struct Bloom               Bloom;
 typedef struct ChromaticAberration ChromaticAberration;
+
+// Skybox?
 
 struct Box
 {
@@ -87,6 +89,13 @@ struct PerspectiveCamera
   f32 z_near       = 0;
 };
 
+struct Camera
+{
+  Mat4Affine model;
+  Mat4Affine view;
+  Mat4Affine projection;
+};
+
 struct ComputePass
 {
 };
@@ -134,7 +143,30 @@ struct Object
 //
 // A scene prepared for rendering
 //
-struct RenderScene
+//
+// TODO(lamarrr): make it passes instead? culled by specifications
+//
+//
+// buffer = encode(scene->get_lights());
+// descriptor_set->ref(buffer);
+//
+// 
+// how object culling will work?
+//
+// i.e. add_object_pass( [scene, descriptor_set](command_buffer,
+// u64 const * cull_mask  ){
+//  
+//  if(cull_mask[...] >> ... & 1){
+//  command_buffer->bind_descriptor_sets(descriptor_set);
+//  command_buffer->draw();
+//  }
+//
+//
+// }  );
+//
+//
+//
+struct Scene
 {
   // camera positions
   OrthographicCamera *orthographic_cameras     = nullptr;
@@ -151,12 +183,22 @@ struct RenderScene
   u64                 num_objects              = 0;
   u32                 active_camera            = 0;
   u32                 active_camera_type       = 0;
-  RenderScene        *portals                  = nullptr;
+  Scene              *portals                  = nullptr;
   u32                 num_portals              = 0;
   // portal camera (positions + directions)
   // portal bounding boxes
   // objects -> mesh + material
   // vfx
+
+  // add_light();
+  // add_camera();
+  // add_object();
+  // remove_light();
+  // remove_camera();
+  // remove_object();
+  // &get_light();
+  // &get_camera();
+  // &get_object();
 };
 
 // we need
@@ -183,7 +225,7 @@ struct RenderResourceManager
 
 struct SceneManager
 {
-  RenderScene           *render_scene;
+  Scene                 *render_scene;
   RenderResourceManager *resource_manager;
 };
 
@@ -193,7 +235,7 @@ struct Renderer
   // scenes
   // sort by z-index
   // mesh + shaders
-  void render(RenderScene const &scene);
+  void render(Scene const &scene);
 };
 
 };        // namespace ash
