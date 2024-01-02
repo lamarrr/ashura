@@ -24,7 +24,6 @@ typedef struct PointLight          PointLight;
 typedef struct SpotLight           SpotLight;
 typedef struct OrthographicCamera  OrthographicCamera;
 typedef struct PerspectiveCamera   PerspectiveCamera;
-typedef struct Object              Object;
 typedef struct Scene               Scene;
 typedef struct ReflectionProbe     ReflectionProbe;
 typedef struct Bokeh               Bokeh;
@@ -91,40 +90,22 @@ struct PerspectiveCamera
 
 struct Camera
 {
-  Mat4Affine model;
-  Mat4Affine view;
-  Mat4Affine projection;
-};
-
-struct ComputePass
-{
-};
-
-struct RenderPass
-{
-};
-
-struct Pass
-{
-  u64  buffers[2];
-  u64  images[2];
-  u64  shaders[2];
-  u64  pre;
-  u64  post;
-  bool is_compute = false;
+  Mat4Affine model      = {};
+  Mat4Affine view       = {};
+  Mat4Affine projection = {};
+  Vec3       position   = {};
 };
 
 // should offscreen rendering be performed by objects??? shouldn't they be a
 // different viewport? what if it is once per frame for example
-struct Object
-{
-  // mesh, shaders, pipelines, buffers, images, imageviews, bufferviews
-  Mat4 transform = {};        // local ? global? // bounding box instead?
-  Vec4 position  = {};        // should contain id of buffer and index into
-  // buffer to source data from. only data for culling is needed?
-  // clip texture? compute pre-pass, etc
-  u64 pass;
-};
+// struct Object
+// {
+// mesh, shaders, pipelines, buffers, images, imageviews, bufferviews
+// Mat4 transform = {};        // local ? global? // bounding box instead?
+// Vec4 position  = {};        // should contain id of buffer and index into
+// buffer to source data from. only data for culling is needed?
+// clip texture? compute pre-pass, etc
+// };
 
 // objects are pre-sorted by z-index (if z-index dependent)
 // portals are subscenes
@@ -147,34 +128,72 @@ struct Object
 // TODO(lamarrr): make it passes instead? culled by specifications
 //
 //
+// if lights buffer dirty, update
+// if cameras dirty, update
 // buffer = encode(scene->get_lights());
 // descriptor_set->ref(buffer);
 //
-// 
-// how object culling will work?
 //
-// i.e. add_object_pass( [scene, descriptor_set](command_buffer,
+// how object culling will work?
+// particle pass
+//
+// i.e. add_pass("PBR Object Pass", [scene, descriptor_set](command_buffer,
 // u64 const * cull_mask  ){
-//  
+//
+//  bind pbr pipeline
+//  for(object : objects){
 //  if(cull_mask[...] >> ... & 1){
+//  bind_lights();
+//  bind_transform(mvp, world, local);
+//  bind_materials();
 //  command_buffer->bind_descriptor_sets(descriptor_set);
 //  command_buffer->draw();
 //  }
+// }
 //
+//
+// bind particle pipeline
+//  for(particle: particles){
+//
+// }
+// for(object_pass: object_passes)
+// object_pass(command_buffer, cull, ctx.camera, ctx.lights);
+//
+//
+// // bind custom pipelines
+// for(object: objects){
+//  bind_lights();
+//  bind_transform(mvp, world, local);
+//  bind_materials();
+//  custom_encode_function(scope...);
+//  custom_draw_function(scope...);
+// }
 //
 // }  );
 //
+// add_pass("bloom pass", [](){});
 //
+// add_pass("chromatic aberration", [](){});
 //
-struct Scene
+
+// manages and uploads render resources to the GPU.
+struct RenderResourceManager
 {
-  // camera positions
+  // sort by update frequency, per-frame updates, rare-updates, once updates
+  // allocate temporary image for rendering
+  // renderpasses, framebuffers, pipeline caches, buffer views
+  //
+  // resource manager
+  // static buffer + streaming
+  // dynamic buffers + streaming
+};
+struct SceneGraph
+{
   OrthographicCamera *orthographic_cameras     = nullptr;
   PerspectiveCamera  *perspective_cameras      = nullptr;
   DirectionalLight   *directional_lights       = 0;
   PointLight         *point_lights             = 0;
   SpotLight          *spot_lights              = 0;
-  Object             *objects                  = nullptr;
   u32                 num_orthographic_cameras = 0;
   u32                 num_perspective_cameras  = 0;
   u32                 num_directional_lights   = 0;
@@ -183,18 +202,66 @@ struct Scene
   u64                 num_objects              = 0;
   u32                 active_camera            = 0;
   u32                 active_camera_type       = 0;
-  Scene              *portals                  = nullptr;
-  u32                 num_portals              = 0;
-  // portal camera (positions + directions)
-  // portal bounding boxes
+};
+
+typedef struct Pass_T *Pass;
+struct PassInterface
+{
+  void (*init)(Pass self, Scene *scene,
+               RenderResourceManager const *mgr)                 = nullptr;
+  void (*encode)(Pass self, Scene *scene, RenderResourceManager const *mgr,
+                 gfx::CommandEncoderImpl const *command_encoder) = nullptr;
+  void (*tick)(Pass self, Scene *scene,
+               RenderResourceManager const *mgr)                 = nullptr;
+};
+
+struct PassImpl
+{
+  Pass                 self      = nullptr;
+  PassInterface const *interface = nullptr;
+};
+
+struct ChromaticAberration
+{
+};
+struct FXAA
+{
+};
+
+struct Bloom
+{
+};
+
+// on change, on modification, on stream
+// renderer inputs to the scene
+struct Scene
+{
+  Camera              camera                           = {};
+  Box                *entities_aabb                    = nullptr;
+  u64                 num_entities_aab                 = 0;
+  u64                *entities_aab_mask                = nullptr;
+  DirectionalLight   *lights                           = nullptr;
+  u32                 num_lights                       = 0;
+  PassImpl const     *passes                           = nullptr;
+  u32                 num_passes                       = 0;
+  ChromaticAberration chromatic_abberation             = {};
+  FXAA                fxaa                             = {};
+  Bloom               bloom                            = {};
+  bool                chromatic_abberation_enabled : 1 = false;
+  bool                fxaa_enabled : 1                 = false;
+  bool                bloom_enabled : 1                = false;
+
+  // TODO(lamarrr): bloom for example requires that the shaders all cooperate
+  // and output their emmisive samples to a second output attachment
+
+  u64  add_entity_aab(Box);
+  void update_entity_aab(u64);
+  void remove_entity_aabb(u64);
+
   // objects -> mesh + material
   // vfx
-
-  // add_light();
-  // add_camera();
-  // add_object();
-  // remove_light();
-  // remove_camera();
+  // add_light(); -> update buffers and descriptor sets, increase size of
+  // buffers add_camera(); add_object(); remove_light(); remove_camera();
   // remove_object();
   // &get_light();
   // &get_camera();
@@ -211,26 +278,8 @@ struct Scene
 //
 //
 
-// manages and uploads render resources to the GPU.
-struct RenderResourceManager
-{
-  // sort by update frequency, per-frame updates, rare-updates, once updates
-  // allocate temporary image for rendering
-  // renderpasses, framebuffers, pipeline caches, buffer views
-  //
-  // resource manager
-  // static buffer + streaming
-  // dynamic buffers + streaming
-};
-
-struct SceneManager
-{
-  Scene                 *render_scene;
-  RenderResourceManager *resource_manager;
-};
-
 // bounding box or frustum culling
-struct Renderer
+struct RendererTree
 {
   // scenes
   // sort by z-index
