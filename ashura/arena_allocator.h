@@ -4,14 +4,14 @@
 namespace ash
 {
 
-/// @memory_begin: where the memory block begins
-/// @memory_end: one byte past the block
-/// @offset: end of the last allocation, must be set to {memory_begin}
+/// @begin: where the memory block begins
+/// @end: one byte past the block
+/// @offset: end of the last allocation, must be set to {begin}
 struct Arena
 {
-  void *memory_begin = nullptr;
-  void *memory_end   = nullptr;
-  void *offset       = nullptr;
+  void *begin  = nullptr;
+  void *end    = nullptr;
+  void *offset = nullptr;
 };
 
 struct ArenaInterface

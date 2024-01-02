@@ -10,7 +10,7 @@ void *ArenaInterface::allocate(Allocator self_, usize alignment, usize size)
   usize        skip  = (uintptr_t) self->offset & (alignment - 1);
   void        *alloc = (char *) self->offset + skip;
   void        *end   = (char *) alloc + size;
-  if (end > self->memory_end)
+  if (end > self->end)
   {
     return nullptr;
   }
@@ -49,7 +49,7 @@ void *ArenaInterface::reallocate(Allocator self_, usize alignment, void *memory,
   if (self->offset == ((char *) memory + old_size))
   {
     usize const extension = new_size - old_size;
-    if (((char *) self->offset + extension) > self->memory_end)
+    if (((char *) self->offset + extension) > self->end)
     {
       return nullptr;
     }
@@ -77,7 +77,7 @@ void ArenaInterface::deallocate(Allocator, usize, void *, usize)
 void ArenaInterface::release(Allocator self_)
 {
   Arena *const self = (Arena *) self_;
-  self->offset      = self->memory_begin;
+  self->offset      = self->begin;
 }
 
 }        // namespace ash
