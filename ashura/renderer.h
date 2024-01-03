@@ -12,24 +12,27 @@ constexpr u32 MAXIMUM_SPOT_LIGHTS        = 64;
 constexpr u32 MAXIMUM_POINT_LIGHTS       = 64;
 constexpr u32 MAXIMUM_DIRECTIONAL_LIGHTS = 64;
 
-typedef struct Box                 Box;
-typedef u64                        Pipeline;
-typedef u64                        Shader;
-typedef u64                        Texture;
-typedef u64                        Mesh;
-typedef i64                        ZIndex;
-typedef struct Material            Material;
-typedef struct DirectionalLight    DirectionalLight;
-typedef struct PointLight          PointLight;
-typedef struct SpotLight           SpotLight;
-typedef struct OrthographicCamera  OrthographicCamera;
-typedef struct PerspectiveCamera   PerspectiveCamera;
-typedef struct Scene               Scene;
-typedef struct ReflectionProbe     ReflectionProbe;
-typedef struct Bokeh               Bokeh;
-typedef struct TAA                 TAA;
-typedef struct FXAA                FXAA;
-typedef struct Bloom               Bloom;
+typedef struct Box                Box;
+typedef u64                       Pipeline;
+typedef u64                       Shader;
+typedef u64                       Texture;
+typedef u64                       Mesh;
+typedef i64                       ZIndex;
+typedef struct Material           Material;
+typedef struct DirectionalLight   DirectionalLight;
+typedef struct PointLight         PointLight;
+typedef struct SpotLight          SpotLight;
+typedef struct OrthographicCamera OrthographicCamera;
+typedef struct PerspectiveCamera  PerspectiveCamera;
+typedef struct Scene              Scene;
+typedef struct ReflectionProbe    ReflectionProbe;
+typedef struct Bokeh              Bokeh;
+typedef struct TAA                TAA;
+typedef struct FXAA               FXAA;
+typedef struct Bloom
+    Bloom;        // kawase blur:
+                  // https://www.intel.com/content/www/us/en/developer/videos/improving-real-time-gpu-based-image-blur-algorithms-kawase-blur-and-moving-box-averages.html,
+                  // https://www.elopezr.com/the-rendering-of-jurassic-world-evolution/
 typedef struct ChromaticAberration ChromaticAberration;
 
 // Skybox?
@@ -204,7 +207,9 @@ struct SceneGraph
   u32                 active_camera_type       = 0;
 };
 
-typedef struct Pass_T *Pass;
+typedef struct Pass_T       *Pass;
+typedef struct PassInterface PassInterface;
+typedef struct PassImpl      PassImpl;
 struct PassInterface
 {
   void (*init)(Pass self, Scene *scene,
@@ -255,7 +260,7 @@ struct Scene
   // and output their emmisive samples to a second output attachment
 
   u64  add_entity_aab(Box);
-  void update_entity_aab(u64);
+  Box &get_entity_aab(u64);
   void remove_entity_aabb(u64);
 
   // objects -> mesh + material
