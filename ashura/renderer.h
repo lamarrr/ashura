@@ -36,8 +36,8 @@ typedef struct ChromaticAberration ChromaticAberration;
 
 struct Box
 {
-  Vec3 center;
-  Vec3 half_extent;
+  Vec3 begin;
+  Vec3 end;
 };
 
 struct DirectionalLight
