@@ -6,62 +6,66 @@ namespace ash
 {
 
 // shader and mesh authoring and consuming
-// TODO(lamarrr): Box and Rect for canvas 2.0 must have half extents and be from
-// the center
 constexpr u32 MAXIMUM_SPOT_LIGHTS        = 64;
 constexpr u32 MAXIMUM_POINT_LIGHTS       = 64;
 constexpr u32 MAXIMUM_DIRECTIONAL_LIGHTS = 64;
 
-typedef struct Box                Box;
-typedef u64                       Pipeline;
-typedef u64                       Shader;
-typedef u64                       Texture;
-typedef u64                       Mesh;
-typedef i64                       ZIndex;
-typedef struct Material           Material;
-typedef struct DirectionalLight   DirectionalLight;
-typedef struct PointLight         PointLight;
-typedef struct SpotLight          SpotLight;
-typedef struct OrthographicCamera OrthographicCamera;
-typedef struct PerspectiveCamera  PerspectiveCamera;
-typedef struct Scene              Scene;
-typedef struct ReflectionProbe    ReflectionProbe;
-typedef struct Bokeh              Bokeh;
-typedef struct TAA                TAA;
-typedef struct FXAA               FXAA;
-typedef struct Bloom
-    Bloom;        // kawase blur:
-                  // https://www.intel.com/content/www/us/en/developer/videos/improving-real-time-gpu-based-image-blur-algorithms-kawase-blur-and-moving-box-averages.html,
-                  // https://www.elopezr.com/the-rendering-of-jurassic-world-evolution/
-typedef struct ChromaticAberration ChromaticAberration;
+typedef struct Box                     Box;
+typedef struct DirectionalLight        DirectionalLight;
+typedef struct PointLight              PointLight;
+typedef struct SpotLight               SpotLight;
+typedef struct OrthographicCamera      OrthographicCamera;
+typedef struct PerspectiveCamera       PerspectiveCamera;
+typedef struct Scene                   Scene;
+typedef struct Renderer                Renderer;
+typedef struct BokehPass               BokehPass;
+typedef struct TAAPass                 TAAPass;
+typedef struct FXAAPass                FXAAPass;
+typedef struct BlurPass                BlurPass;
+typedef struct BloomPass               BloomPass;
+typedef struct ChromaticAberrationPass ChromaticAberrationPass;
+typedef struct PBRPass                 PBRPass;
 
 // Skybox?
 
 struct Box
 {
-  Vec3 begin;
-  Vec3 end;
+  Vec3 offset;
+  Vec3 extent;
+
+  constexpr Vec3 center() const
+  {
+    return offset + (extent / 2);
+  }
+
+  constexpr Vec3 end() const
+  {
+    return offset + extent;
+  }
 };
 
 struct DirectionalLight
 {
   Vec3 direction = {};
+  Vec4 color     = {};
 };
 
 struct PointLight
 {
   Vec3 position    = {};
   f32  attenuation = 0;
+  Vec4 color       = {};
 };
 
+// TODO(lamarrr): light materials, shader?
 struct SpotLight
 {
-  Vec3 postion     = {};
+  Vec3 position    = {};
   Vec3 direction   = {};
   f32  cutoff      = 0;
   f32  attenuation = 0;
+  Vec4 color       = {};
 };
-// TODO(lamarrr): light materials, shader?
 
 /// @x_mag: The floating-point horizontal magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
@@ -96,7 +100,6 @@ struct Camera
   Mat4Affine model      = {};
   Mat4Affine view       = {};
   Mat4Affine projection = {};
-  Vec3       position   = {};
 };
 
 // should offscreen rendering be performed by objects??? shouldn't they be a
@@ -109,7 +112,7 @@ struct Camera
 // buffer to source data from. only data for culling is needed?
 // clip texture? compute pre-pass, etc
 // };
-
+//
 // objects are pre-sorted by z-index (if z-index dependent)
 // portals are subscenes
 // camera data
@@ -118,12 +121,6 @@ struct Camera
 //
 //
 // TODO(lamarrr): multi-pass object rendering?
-//
-//
-//
-// Mat4                local_to_world_transform = {};
-// Mat4                world_to_local_transform = {};
-//
 //
 // A scene prepared for rendering
 //
@@ -180,7 +177,7 @@ struct Camera
 //
 
 // manages and uploads render resources to the GPU.
-struct RenderResourceManager
+struct PassResourceManager
 {
   // sort by update frequency, per-frame updates, rare-updates, once updates
   // allocate temporary image for rendering
@@ -189,35 +186,26 @@ struct RenderResourceManager
   // resource manager
   // static buffer + streaming
   // dynamic buffers + streaming
-};
-struct SceneGraph
-{
-  OrthographicCamera *orthographic_cameras     = nullptr;
-  PerspectiveCamera  *perspective_cameras      = nullptr;
-  DirectionalLight   *directional_lights       = 0;
-  PointLight         *point_lights             = 0;
-  SpotLight          *spot_lights              = 0;
-  u32                 num_orthographic_cameras = 0;
-  u32                 num_perspective_cameras  = 0;
-  u32                 num_directional_lights   = 0;
-  u32                 num_point_lights         = 0;
-  u32                 num_spot_lights          = 0;
-  u64                 num_objects              = 0;
-  u32                 active_camera            = 0;
-  u32                 active_camera_type       = 0;
+  //
+  //
+  // UNIFORM COLOR Texture cache
+  //
+  //
 };
 
 typedef struct Pass_T       *Pass;
 typedef struct PassInterface PassInterface;
 typedef struct PassImpl      PassImpl;
+
+/// @init: initialize on adding to the renderer
+/// @tick: update internal data based on changed information in the scene
+/// @encode: encode commands to be sent to the gpu
 struct PassInterface
 {
-  void (*init)(Pass self, Scene *scene,
-               RenderResourceManager const *mgr)                 = nullptr;
-  void (*encode)(Pass self, Scene *scene, RenderResourceManager const *mgr,
-                 gfx::CommandEncoderImpl const *command_encoder) = nullptr;
-  void (*tick)(Pass self, Scene *scene,
-               RenderResourceManager const *mgr)                 = nullptr;
+  void (*init)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
+  void (*tick)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
+  void (*encode)(Pass self, Scene *scene, PassResourceManager *mgr,
+                 gfx::CommandEncoderImpl command_encoder)         = nullptr;
 };
 
 struct PassImpl
@@ -226,42 +214,46 @@ struct PassImpl
   PassInterface const *interface = nullptr;
 };
 
-struct ChromaticAberration
+struct SceneNode
 {
-};
-struct FXAA
-{
-};
-
-struct Bloom
-{
+  u64 parent       = 0;
+  u64 level        = 0;
+  u64 next_sibling = 0;
+  u64 first_child  = 0;
 };
 
 // on change, on modification, on stream
 // renderer inputs to the scene
 struct Scene
 {
-  Camera              camera                           = {};
-  Box                *entities_aabb                    = nullptr;
-  u64                 num_entities_aab                 = 0;
-  u64                *entities_aab_mask                = nullptr;
-  DirectionalLight   *lights                           = nullptr;
-  u32                 num_lights                       = 0;
-  PassImpl const     *passes                           = nullptr;
-  u32                 num_passes                       = 0;
-  ChromaticAberration chromatic_abberation             = {};
-  FXAA                fxaa                             = {};
-  Bloom               bloom                            = {};
-  bool                chromatic_abberation_enabled : 1 = false;
-  bool                fxaa_enabled : 1                 = false;
-  bool                bloom_enabled : 1                = false;
-
-  // TODO(lamarrr): bloom for example requires that the shaders all cooperate
-  // and output their emmisive samples to a second output attachment
+  Camera              camera                    = {};
+  OrthographicCamera *orthographic_cameras      = nullptr;
+  PerspectiveCamera  *perspective_cameras       = nullptr;
+  u32                 num_orthographic_cameras  = 0;
+  u32                 num_perspective_cameras   = 0;
+  DirectionalLight   *directional_lights        = 0;
+  PointLight         *point_lights              = 0;
+  SpotLight          *spot_lights               = 0;
+  u32                 num_directional_lights    = 0;
+  u32                 num_point_lights          = 0;
+  u32                 num_spot_lights           = 0;
+  PassImpl           *passes                    = nullptr;
+  u32                 num_passes                = 0;
+  SceneNode          *nodes                     = nullptr;
+  Mat4Affine         *node_local_transforms     = nullptr;
+  Mat4Affine         *node_global_transforms    = nullptr;
+  Mat4Affine         *node_effective_transforms = nullptr;
+  Box                *node_aabb                 = nullptr;
+  u64                *node_frustum_mask         = nullptr;
+  u64                *transform_dirty_mask      = nullptr;
+  u64                 num_nodes                 = 0;
 
   u64  add_entity_aab(Box);
   Box &get_entity_aab(u64);
   void remove_entity_aabb(u64);
+
+  u64      add_pass(PassImpl pass);
+  PassImpl get_pass(u64);
 
   // objects -> mesh + material
   // vfx
@@ -284,12 +276,56 @@ struct Scene
 //
 
 // bounding box or frustum culling
-struct RendererTree
+struct Renderer
 {
   // scenes
   // sort by z-index
   // mesh + shaders
   void render(Scene const &scene);
+};
+
+struct PBRMaterial
+{
+  gfx::Image ambient           = nullptr;
+  gfx::Image albedo            = nullptr;
+  gfx::Image emmissive         = nullptr;
+  gfx::Image metalic_roughness = nullptr;
+  gfx::Image normal            = nullptr;
+};
+
+/// @mesh: static or dynamic?
+struct PBREntity
+{
+  PBRMaterial material = {};
+  u64         mesh     = 0;
+  u64         aabb     = 0;
+};
+
+struct PBRPass
+{
+  PBREntity               *entities              = nullptr;
+  u64                      num_entities          = 0;
+  Scene                   *scene                 = nullptr;
+  gfx::GraphicsPipeline    pipeline              = nullptr;
+  gfx::PipelineCache       pipeline_cache        = nullptr;
+  gfx::Sampler             sampler               = nullptr;
+  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
+  gfx::DescriptorHeapImpl  descriptor_heap       = {};
+
+  // add AABB to scene and init material for rendering
+  void add_entity();
+};
+
+struct ChromaticAberrationPass
+{
+};
+
+struct FXAAPass
+{
+};
+
+struct BloomPass
+{
 };
 
 };        // namespace ash
