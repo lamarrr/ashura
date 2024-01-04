@@ -10,7 +10,7 @@ namespace ash
 constexpr u32 MAXIMUM_SPOT_LIGHTS        = 64;
 constexpr u32 MAXIMUM_POINT_LIGHTS       = 64;
 constexpr u32 MAXIMUM_DIRECTIONAL_LIGHTS = 64;
-constexpr u32 MAXIMUM_ID_LENGTH          = 64;
+constexpr u32 MAXIMUM_ID_LENGTH          = 128;
 
 typedef struct Box                     Box;
 typedef struct DirectionalLight        DirectionalLight;
@@ -91,14 +91,6 @@ struct Camera
 
 // should offscreen rendering be performed by objects??? shouldn't they be a
 // different viewport? what if it is once per frame for example
-// struct Object
-// {
-// mesh, shaders, pipelines, buffers, images, imageviews, bufferviews
-// Mat4 transform = {};        // local ? global? // bounding box instead?
-// Vec4 position  = {};        // should contain id of buffer and index into
-// buffer to source data from. only data for culling is needed?
-// clip texture? compute pre-pass, etc
-// };
 //
 // objects are pre-sorted by z-index (if z-index dependent)
 // portals are subscenes
@@ -166,9 +158,10 @@ struct Camera
 // manages and uploads render resources to the GPU.
 struct PassResourceManager
 {
-  // sort by update frequency, per-frame updates, rare-updates, once updates
+  // sort by update frequency, per-frame updates, rare-updates
   // allocate temporary image for rendering
-  // renderpasses, framebuffers, pipeline caches, buffer views
+  // renderpasses, framebuffers, pipeline caches,async pipeline cache loader and
+  // pipeline builder, buffer views
   //
   // resource manager
   // static buffer + streaming
@@ -200,6 +193,10 @@ struct PassInterface
                  gfx::CommandEncoderImpl command_encoder)           = nullptr;
 };
 
+// can be loaded from a DLL i.e. C++ with C-linkage => Clang IR => DLL
+//
+// we consult the passes to execute, not the objects.
+//
 struct PassImpl
 {
   Pass                 self      = nullptr;
@@ -209,14 +206,19 @@ struct PassImpl
 /// tilted tree
 struct ObjectNode
 {
-  u64 parent       = 0;
-  u64 level        = 0;
-  u64 next_sibling = 0;
-  u64 first_child  = 0;
+  u64  parent       = 0;
+  u64  level        = 0;
+  u64  next_sibling = 0;
+  u64  first_child  = 0;
+  bool opaque       = false;
 };
 
 // TODO(lamarrr): this still doesn't solve the custom shader problem?
 // helps with structuring dependency of passes
+// i.e. world scene pass -> post-fx pass -> HUD pass
+//
+// can HUD pass be represented by a separate world scene pass?
+//
 struct PassNode
 {
   u64 pass  = 0;
@@ -237,7 +239,7 @@ struct PassNode
 // TODO(lamarrr): invocation procedure. on a pass-by-pass basis? how about
 // object relationship? won't that affect the pass procedure?
 //
-//
+// all objects belong to and respect this hierarchy
 //
 struct Scene
 {
@@ -246,15 +248,13 @@ struct Scene
   PerspectiveCamera  *perspective_cameras         = nullptr;
   u32                 num_orthographic_cameras    = 0;
   u32                 num_perspective_cameras     = 0;
+  Vec4                ambient_light               = {};
   DirectionalLight   *directional_lights          = 0;
   PointLight         *point_lights                = 0;
   SpotLight          *spot_lights                 = 0;
   u32                 num_directional_lights      = 0;
   u32                 num_point_lights            = 0;
   u32                 num_spot_lights             = 0;
-  PassImpl           *passes                      = nullptr;
-  PassNode           *pass_nodes                  = nullptr;
-  u64                 num_passes                  = 0;
   ObjectNode         *object_nodes                = nullptr;
   Mat4Affine         *object_local_transforms     = nullptr;
   Mat4Affine         *object_global_transforms    = nullptr;
@@ -268,19 +268,30 @@ struct Scene
   Id                 *directional_lights_id       = nullptr;
   Id                 *point_lights_id             = nullptr;
   Id                 *spot_lights_id              = nullptr;
-  Id                 *passes_id                   = nullptr;
   Id                 *object_nodes_id             = nullptr;
   bool                lights_dirty_mask           = false;
 
-  u64      add_aabb(Box);
-  Box     &get_aabb(u64);
-  void     remove_aabb(u64);
+  u64  add_aabb(Box);
+  Box &get_aabb(u64);
+  void remove_aabb(u64);
+};
+
+struct Renderer
+{
+  PassNode *pass_nodes = nullptr;
+  PassImpl *passes     = nullptr;
+  u64       num_passes = 0;
+  Id       *passes_id  = nullptr;
+
   u64      add_pass(char const *pass_id, PassImpl pass);
   PassImpl get_pass(u64);
   PassImpl get_pass_by_id(char const *pass_id);
-  // void     frustum_cull();
-  // void occlusion culling: needs to respect
-  // transparent/semi-transparent/opaque objects scene lights_culling by camera
+  // perform frustum and occlusion culling of objects and light
+  void cull(Span<Scene *const> scenes);
+  //  needs to respect
+  // transparent/semi-transparent/opaque objects
+  //
+  // scene lights_culling by camera
   // object lights_culling if affected by light
   //
   // vfx
@@ -300,7 +311,12 @@ struct Scene
   // scenes
   // sort by z-index
   // mesh + shaders
-  void render();
+  //
+  // each scene is rendered and composited onto one another? can this possibly
+  // work for portals?
+  //
+  //
+  void render(Span<Scene *const> scenes, gfx::Framebuffer);
 };
 
 struct PBRMaterial
@@ -430,23 +446,6 @@ struct PBRPass
       .init = init, .deinit = deinit, .update = update, .encode = encode};
 };
 
-// can be loaded from a DLL i.e. C++ with C-linkage => Clang IR => DLL
-// can be per-object or global
-//
-// we consult the passes to execute, not the objects. what about with culling on
-// others?
-//
-struct CustomPass
-{
-  // add_object
-  // encode, etc.
-};
-
-// needs to be 3d as we need to add to be able to add it to the scene
-struct UIObject
-{
-};
-
 // normal 2d objects
 // z_index mapped to clip space, occlusion culling + batching
 // custom objects + custom passes?
@@ -458,9 +457,6 @@ struct UIObject
 //
 // CUSTOM SHADERS + CUSTOM PASSES
 //
-struct UIPass
-{
-};
 
 struct ChromaticAberrationPass
 {
