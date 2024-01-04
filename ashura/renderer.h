@@ -198,15 +198,17 @@ typedef struct Pass_T       *Pass;
 typedef struct PassInterface PassInterface;
 typedef struct PassImpl      PassImpl;
 
-/// @init: initialize on adding to the renderer
+/// @create: initialize on adding to the renderer
+/// @destroy: uninitialize on removing from the renderer
 /// @tick: update internal data based on changed information in the scene
 /// @encode: encode commands to be sent to the gpu
 struct PassInterface
 {
-  void (*init)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
-  void (*tick)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
+  void (*create)(Pass self, Scene *scene, PassResourceManager *mgr)  = nullptr;
+  void (*destroy)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
+  void (*tick)(Pass self, Scene *scene, PassResourceManager *mgr)    = nullptr;
   void (*encode)(Pass self, Scene *scene, PassResourceManager *mgr,
-                 gfx::CommandEncoderImpl command_encoder)         = nullptr;
+                 gfx::CommandEncoderImpl command_encoder)            = nullptr;
 };
 
 struct PassImpl
