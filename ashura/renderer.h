@@ -276,8 +276,8 @@ struct Scene
 //
 // what if the shader or source needs the transforms or whatever
 //
+// on frame begin, pending uploads are first performed
 //
-
 // bounding box or frustum culling
 struct Renderer
 {
