@@ -279,8 +279,8 @@ struct Scene
   PassImpl get_pass(u64);
   PassImpl get_pass_by_id(char const *pass_id);
   // void     frustum_cull();
-  // void occlusion culling
-  // scene lights_culling by camera
+  // void occlusion culling: needs to respect
+  // transparent/semi-transparent/opaque objects scene lights_culling by camera
   // object lights_culling if affected by light
   //
   // vfx
