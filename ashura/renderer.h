@@ -216,6 +216,7 @@ struct ObjectNode
 };
 
 // TODO(lamarrr): this still doesn't solve the custom shader problem?
+// helps with structuring dependency of passes
 struct PassNode
 {
   u64 pass  = 0;
@@ -275,7 +276,7 @@ struct Scene
   //
   // vfx
   // add_light(); -> update buffers and descriptor sets, increase size of
-
+  //
   // we need
   // the mesh and object render-data is mostly pre-configured or modified
   // outside the renderer we just need to implement the post-effects and
