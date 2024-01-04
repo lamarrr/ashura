@@ -352,7 +352,7 @@ struct PBRObject
 // - how to invoke passes for each object from the scene store? and manage updates
 //   this will mean that we can't make batched draw calls easily as we previously did
 //
-// well, what if the passes have screen-space effects?
+// well, what if the passes have screen-space effects? must be done in a separate post-scene effect
 //
 //
 //
