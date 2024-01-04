@@ -230,6 +230,14 @@ struct PassNode
 // camera should be assumed to change every frame
 //
 // Passes are static and not per-object?
+//
+//
+//
+//
+// TODO(lamarrr): invocation procedure. on a pass-by-pass basis? how about object relationship? won't that affect the pass procedure?
+//
+//
+//
 struct Scene
 {
   Camera              camera                      = {};
