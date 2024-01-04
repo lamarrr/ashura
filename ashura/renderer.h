@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/gfx.h"
+#include "ashura/image.h"
 #include "ashura/types.h"
 
 namespace ash
@@ -293,6 +294,12 @@ struct PBRMaterial
   gfx::Image normal            = nullptr;
 };
 
+struct PBRVertex
+{
+  f32 x = 0, y = 0, z = 0;
+  f32 s = 0, t = 0;
+};
+
 /// @mesh: static or dynamic?
 struct PBREntity
 {
@@ -311,9 +318,15 @@ struct PBRPass
   gfx::Sampler             sampler               = nullptr;
   gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
   gfx::DescriptorHeapImpl  descriptor_heap       = {};
+  gfx::RenderPass          render_pass           = nullptr;
+  gfx::Framebuffer         framebuffer           = nullptr;
 
   // add AABB to scene and init material for rendering
-  void add_entity();
+  // upload data to gpu, setup scene for it, add AABB, add to pass list
+  void add_entity(PBRVertex const *vertices, u64 num_vertices,
+                  ImageView<u8> ambient, ImageView<u8> albedo,
+                  ImageView<u8> emmissive, ImageView<u8> metallic_roughness,
+                  ImageView<u8> normal);
 };
 
 struct ChromaticAberrationPass

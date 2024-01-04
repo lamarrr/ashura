@@ -1,4 +1,5 @@
 #pragma once
+#include "ashura/gfx.h"
 #include "ashura/primitives.h"
 #include "ashura/utils.h"
 #include "stx/memory.h"
@@ -8,102 +9,94 @@
 namespace ash
 {
 
-namespace gfx
-{
-
-/// NOTE: resource image with index 0 must be a transparent white image
-using image = u64;
-
-constexpr image WHITE_IMAGE = 0;
-
-}        // namespace gfx
-
-enum class ImageFormat : u8
-{
-  /// R8G8B8A8 image, stored on GPU as is
-  Rgba8888,
-  /// B8G8R8A8 image, stored on GPU as is
-  Bgra8888,
-  /// R8G8B8 image, stored on GPU as R8G8B8A8 with alpha = 255
-  Rgb888,
-  /// R8 image, stored on GPU as is
-  R8
-};
-
-enum class ColorSpace : u8
-{
-  Rgb,
-  Srgb,
-  AdobeRgb,
-  Dp3,
-  DciP3
-};
-
-inline usize pixel_byte_size(ImageFormat fmt)
+inline u64 pixel_byte_size(gfx::Format fmt)
 {
   switch (fmt)
   {
-    case ImageFormat::Rgba8888:
-      return 4;
-    case ImageFormat::Bgra8888:
-      return 4;
-    case ImageFormat::Rgb888:
+    case gfx::Format::Undefined:
+      return 0;
+    case gfx::Format::R8_UNORM:
+      return 1;
+    case gfx::Format::R8G8B8_UNORM:
+      return 2;
+    case gfx::Format::B8G8R8_UNORM:
       return 3;
-    case ImageFormat::R8:
+    case gfx::Format::R8G8B8A8_UNORM:
+      return 4;
+    case gfx::Format::B8G8R8A8_UNORM:
+      return 4;
+    case gfx::Format::R32G32_SFLOAT:
+      return 8;
+    case gfx::Format::R32G32B32_SFLOAT:
+      return 24;
+    case gfx::Format::R32G32B32A32_SFLOAT:
+      return 16;
+    case gfx::Format::A8_UNORM:
       return 1;
     default:
-      ASH_UNREACHABLE();
+      ASH_UNIMPLEMENTED();
   }
 }
 
-inline usize fitted_byte_size(Extent extent, ImageFormat format)
+inline u64 packed_image_size(u32 width, u32 height, gfx::Format format)
 {
-  return extent.y * (extent.x * pixel_byte_size(format));
+  return (u64) width * (u64) height * pixel_byte_size(format);
 }
 
+/// B: must be u8 or u8 const
+///
+/// This is a linear-tiled image with homogenic channels
+///
+/// Supported Formats:
+/// Undefined
+/// R8_UNORM
+/// R8G8B8_UNORM
+/// B8G8R8_UNORM
+/// R8G8B8A8_UNORM
+/// B8G8R8A8_UNORM
+/// R32G32_SFLOAT
+/// R32G32B32_SFLOAT
+/// R32G32B32A32_SFLOAT
+/// A8_UNORM
+///
+///
+/// @pitch: number of bytes to skip to get to the next row
+///
 template <typename B>
 struct ImageView
 {
-  static_assert(sizeof(B) == 1);
+  static_assert(std::is_same_v<B, u8> || std::is_same_v<B, u8 const>);
 
-  stx::Span<B> span;
-  ash::Extent  extent;
-  usize        pitch  = 0;
-  ImageFormat  format = ImageFormat::Rgba8888;
+  Span<B>     span;
+  u32         width  = 0;
+  u32         height = 0;
+  u64         pitch  = 0;
+  gfx::Format format = gfx::Format::Undefined;
 
-  bool is_fitted() const
+  u64 row_bytes() const
   {
-    return pitch == (extent.x * pixel_byte_size(format));
-  }
-
-  usize row_bytes() const
-  {
-    return extent.x * pixel_byte_size(format);
-  }
-
-  usize fitted_size_bytes() const
-  {
-    return fitted_byte_size(extent, format);
+    return width * pixel_byte_size(format);
   }
 
   operator ImageView<B const>() const
   {
-    return ImageView<B const>{.span   = span.as_const(),
-                              .extent = extent,
+    return ImageView<B const>{.span   = Span<B const>{span},
+                              .width  = width,
+                              .height = height,
                               .pitch  = pitch,
                               .format = format};
   }
 
-  ImageView subview(Offset sub_offset, Extent sub_extent) const
+  ImageView subview(Vec2U offset, Vec2U extent = Vec2U{U32_MAX, U32_MAX}) const
   {
     ASH_CHECK(sub_offset.x <= extent.x);
     ASH_CHECK(sub_offset.y <= extent.y);
     ASH_CHECK(sub_offset.x + sub_extent.x <= extent.x);
     ASH_CHECK(sub_offset.y + sub_extent.y <= extent.y);
 
-    usize const pixel_bytes = pixel_byte_size(format);
-    usize const byte_offset = sub_offset.y * pitch + sub_offset.x * pixel_bytes;
-    usize const byte_span =
+    u64 const pixel_bytes = pixel_byte_size(format);
+    u64 const byte_offset = sub_offset.y * pitch + sub_offset.x * pixel_bytes;
+    u64 const byte_span =
         sub_extent.y > 0 ?
             (sub_extent.x * pixel_bytes + (sub_extent.y - 1U) * pitch) :
             0;
@@ -113,115 +106,99 @@ struct ImageView
                      .pitch  = pitch,
                      .format = format};
   }
-
-  ImageView subview(Offset slice) const
-  {
-    return subview(slice, ash::Extent{extent.x - std::min(extent.x, slice.x),
-                                      extent.y - std::min(extent.y, slice.y)});
-  }
-
-  ImageView<B const> as_const() const
-  {
-    return ImageView{.span   = span.as_const(),
-                     .extent = extent,
-                     .pitch  = pitch,
-                     .format = format};
-  }
-
-  template <typename U>
-  ImageView copy(ImageView<U> view) const
-  {
-    static_assert(!std::is_const_v<B>);
-
-    ASH_CHECK(format == view.format);
-    ASH_CHECK(extent.x <= view.extent.x);
-    ASH_CHECK(extent.y <= view.extent.y);
-
-    u8         *out       = span.as_u8().data();
-    u8 const   *in        = view.span.as_u8().data();
-    usize const row_bytes = this->row_bytes();
-
-    for (usize irow = 0; irow < extent.y;
-         irow++, out += pitch, in += view.pitch)
-    {
-      stx::Span{out, row_bytes}.copy(stx::Span{in, row_bytes});
-    }
-
-    return *this;
-  }
 };
 
-struct ImageBuffer
+template <typename T, typename U>
+void copy_image(ImageView<T const> src, ImageView<U> dst)
 {
-  stx::Memory memory;
-  ash::Extent extent;
-  ImageFormat format = ImageFormat::Rgba8888;
+  ASH_CHECK(src.format == dst.format);
+  ASH_CHECK(extent.x <= view.extent.x);
+  ASH_CHECK(extent.y <= view.extent.y);
 
-  static stx::Result<ImageBuffer, stx::AllocError> make(ash::Extent extent,
-                                                        ImageFormat format)
-  {
-    TRY_OK(memory, stx::mem::allocate(stx::os_allocator,
-                                      fitted_byte_size(extent, format)));
-    return stx::Ok(ImageBuffer{
-        .memory = std::move(memory), .extent = extent, .format = format});
-  }
+  u8       *out       = span.as_u8().data();
+  u8 const *in        = view.span.as_u8().data();
+  u64 const row_bytes = this->row_bytes();
 
-  u8 const *data() const
+  for (u64 irow = 0; irow < extent.y; irow++, out += pitch, in += view.pitch)
   {
-    return (u8 const *) memory.handle;
+    Span{out, row_bytes}.copy(Span{in, row_bytes});
   }
+}
 
-  u8 *data()
-  {
-    return (u8 *) memory.handle;
-  }
+// struct ImageBuffer
+// {
+//   stx::Memory memory;
+//   u64         width  = 0;
+//   u64         height = 0;
+//   gfx::Format format = gfx::Format::Undefined;
 
-  usize row_bytes() const
-  {
-    return extent.x * pixel_byte_size(format);
-  }
+//   static stx::Result<ImageBuffer, stx::AllocError> make(ash::Extent extent,
+//                                                         gfx::Format format)
+//   {
+//     TRY_OK(memory, stx::mem::allocate(stx::os_allocator,
+//                                       packed_image_size(extent, format)));
+//     return stx::Ok(ImageBuffer{
+//         .memory = std::move(memory), .extent = extent, .format = format});
+//   }
 
-  usize pitch() const
-  {
-    return row_bytes();
-  }
+//   u8 const *data() const
+//   {
+//     return (u8 const *) memory.handle;
+//   }
 
-  usize size_bytes() const
-  {
-    return fitted_byte_size(extent, format);
-  }
+//   u8 *data()
+//   {
+//     return (u8 *) memory.handle;
+//   }
 
-  stx::Span<u8 const> span() const
-  {
-    return stx::Span{data(), size_bytes()};
-  }
+//   u64 row_bytes() const
+//   {
+//     return extent.x * pixel_byte_size(format);
+//   }
 
-  stx::Span<u8> span()
-  {
-    return stx::Span{data(), size_bytes()};
-  }
+//   u64 pitch() const
+//   {
+//     return row_bytes();
+//   }
 
-  operator ImageView<u8 const>() const
-  {
-    return ImageView<u8 const>{
-        .span = span(), .extent = extent, .pitch = pitch(), .format = format};
-  }
+//   u64 size_bytes() const
+//   {
+//     return packed_image_size(extent, format);
+//   }
 
-  operator ImageView<u8>()
-  {
-    return ImageView<u8>{
-        .span = span(), .extent = extent, .pitch = pitch(), .format = format};
-  }
+//   Span<u8 const> span() const
+//   {
+//     return Span{data(), size_bytes()};
+//   }
 
-  ImageView<u8 const> view() const
-  {
-    return static_cast<ImageView<u8 const>>(*this);
-  }
+//   Span<u8> span()
+//   {
+//     return Span{data(), size_bytes()};
+//   }
 
-  ImageView<u8> view()
-  {
-    return static_cast<ImageView<u8>>(*this);
-  }
-};
+//   operator ImageView<u8 const>() const
+//   {
+//     return ImageView<u8 const>{
+//         .span = span(), .extent = extent, .pitch = pitch(), .format =
+//         format};
+//   }
+
+//   operator ImageView<u8>()
+//   {
+//     return ImageView<u8>{
+//         .span = span(), .extent = extent, .pitch = pitch(), .format =
+//         format};
+//   }
+
+//   ImageView<u8 const> view() const
+//   {
+//     return static_cast<ImageView<u8 const>>(*this);
+//   }
+
+//   ImageView<u8> view()
+//   {
+//     return static_cast<ImageView<u8>>(*this);
+//   }
+// };
 
 }        // namespace ash
