@@ -234,7 +234,8 @@ struct PassNode
 //
 //
 //
-// TODO(lamarrr): invocation procedure. on a pass-by-pass basis? how about object relationship? won't that affect the pass procedure?
+// TODO(lamarrr): invocation procedure. on a pass-by-pass basis? how about
+// object relationship? won't that affect the pass procedure?
 //
 //
 //
@@ -345,16 +346,20 @@ struct PBRObject
 // TODO(lamarrr): custom passes?
 //
 //
-// problem is: 
+// problem is:
 // - add custom pass
 // - add object to pass
 //    - add object to scene tree
-// - how to invoke passes for each object from the scene store? and manage updates
-//   this will mean that we can't make batched draw calls easily as we previously did
+// - how to invoke passes for each object from the scene store? and manage
+// updates
+//   this will mean that we can't make batched draw calls easily as we
+//   previously did
 //
-// well, what if the passes have screen-space effects? must be done in a separate post-scene effect
+// well, what if the passes have screen-space effects? must be done in a
+// separate post-scene effect
 //
-//
+// - we can't invoke from pbr passes since they are not the only passes in the
+// scene, so it must be scheduled
 //
 // TODO(lamarrr): what texture to render to
 // PBR meshes are always static
