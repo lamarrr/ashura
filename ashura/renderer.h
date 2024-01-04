@@ -289,11 +289,20 @@ struct Renderer
 
 struct PBRMaterial
 {
-  gfx::Image ambient           = nullptr;
-  gfx::Image albedo            = nullptr;
-  gfx::Image emmissive         = nullptr;
-  gfx::Image metalic_roughness = nullptr;
-  gfx::Image normal            = nullptr;
+  ImageView<u8 const> ambient           = {};
+  ImageView<u8 const> albedo            = {};
+  ImageView<u8 const> emmissive         = {};
+  ImageView<u8 const> metalic_roughness = {};
+  ImageView<u8 const> normal            = {};
+};
+
+struct PBRMaterialTextures
+{
+  gfx::ImageView ambient           = nullptr;
+  gfx::ImageView albedo            = nullptr;
+  gfx::ImageView emmissive         = nullptr;
+  gfx::ImageView metalic_roughness = nullptr;
+  gfx::ImageView normal            = nullptr;
 };
 
 struct PBRVertex
@@ -305,9 +314,9 @@ struct PBRVertex
 /// @mesh: static or dynamic?
 struct PBREntity
 {
-  PBRMaterial material = {};
-  u64         mesh     = 0;
-  u64         aabb     = 0;
+  PBRMaterialTextures textures = {};
+  u64                 mesh     = 0;
+  u64                 aabb     = 0;
 };
 
 struct PBRPass
@@ -326,9 +335,7 @@ struct PBRPass
   // add AABB to scene and init material for rendering
   // upload data to gpu, setup scene for it, add AABB, add to pass list
   void add_entity(PBRVertex const *vertices, u64 num_vertices,
-                  ImageView<u8> ambient, ImageView<u8> albedo,
-                  ImageView<u8> emmissive, ImageView<u8> metallic_roughness,
-                  ImageView<u8> normal);
+                  PBRMaterial const &material);
 };
 
 struct ChromaticAberrationPass
