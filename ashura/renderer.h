@@ -345,6 +345,13 @@ struct PBRObject
 // TODO(lamarrr): custom passes?
 //
 //
+// problem is: 
+// - add custom pass
+// - add object to pass
+//    - add object to scene tree
+// - how to invoke passes for each object from the scene store? and manage updates
+// 
+//
 //
 //
 // TODO(lamarrr): what texture to render to
