@@ -10,6 +10,7 @@ namespace ash
 constexpr u32 MAXIMUM_SPOT_LIGHTS        = 64;
 constexpr u32 MAXIMUM_POINT_LIGHTS       = 64;
 constexpr u32 MAXIMUM_DIRECTIONAL_LIGHTS = 64;
+constexpr u32 MAXIMUM_ID_LENGTH          = 64;
 
 typedef struct Box                     Box;
 typedef struct DirectionalLight        DirectionalLight;
@@ -19,31 +20,16 @@ typedef struct OrthographicCamera      OrthographicCamera;
 typedef struct PerspectiveCamera       PerspectiveCamera;
 typedef struct Scene                   Scene;
 typedef struct Renderer                Renderer;
-typedef struct BokehPass               BokehPass;
-typedef struct TAAPass                 TAAPass;
-typedef struct FXAAPass                FXAAPass;
+typedef struct PBRPass                 PBRPass;
 typedef struct BlurPass                BlurPass;
 typedef struct BloomPass               BloomPass;
+typedef struct TAAPass                 TAAPass;
+typedef struct FXAAPass                FXAAPass;
+typedef struct BokehPass               BokehPass;
 typedef struct ChromaticAberrationPass ChromaticAberrationPass;
-typedef struct PBRPass                 PBRPass;
+typedef char                           Id[MAXIMUM_ID_LENGTH];
 
 // Skybox?
-
-struct Box
-{
-  Vec3 offset;
-  Vec3 extent;
-
-  constexpr Vec3 center() const
-  {
-    return offset + (extent / 2);
-  }
-
-  constexpr Vec3 end() const
-  {
-    return offset + extent;
-  }
-};
 
 struct DirectionalLight
 {
@@ -198,17 +184,20 @@ typedef struct Pass_T       *Pass;
 typedef struct PassInterface PassInterface;
 typedef struct PassImpl      PassImpl;
 
-/// @create: initialize on adding to the renderer
-/// @destroy: uninitialize on removing from the renderer
-/// @tick: update internal data based on changed information in the scene
+// TODO(lamarrr): pass task executor
+///
+///
+/// @init: add self and resources to renderer
+/// @deinit: remove self and resources from renderer
+/// @update: update internal data based on changed information in the scene
 /// @encode: encode commands to be sent to the gpu
 struct PassInterface
 {
-  void (*create)(Pass self, Scene *scene, PassResourceManager *mgr)  = nullptr;
-  void (*destroy)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
-  void (*tick)(Pass self, Scene *scene, PassResourceManager *mgr)    = nullptr;
+  void (*init)(Pass self, Scene *scene, PassResourceManager *mgr)   = nullptr;
+  void (*deinit)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
+  void (*update)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
   void (*encode)(Pass self, Scene *scene, PassResourceManager *mgr,
-                 gfx::CommandEncoderImpl command_encoder)            = nullptr;
+                 gfx::CommandEncoderImpl command_encoder)           = nullptr;
 };
 
 struct PassImpl
@@ -217,7 +206,8 @@ struct PassImpl
   PassInterface const *interface = nullptr;
 };
 
-struct SceneNode
+/// tilted tree
+struct ObjectNode
 {
   u64 parent       = 0;
   u64 level        = 0;
@@ -225,84 +215,100 @@ struct SceneNode
   u64 first_child  = 0;
 };
 
-// on change, on modification, on stream
-// renderer inputs to the scene
-struct Scene
+// TODO(lamarrr): this still doesn't solve the custom shader problem?
+struct PassNode
 {
-  Camera              camera                    = {};
-  OrthographicCamera *orthographic_cameras      = nullptr;
-  PerspectiveCamera  *perspective_cameras       = nullptr;
-  u32                 num_orthographic_cameras  = 0;
-  u32                 num_perspective_cameras   = 0;
-  DirectionalLight   *directional_lights        = 0;
-  PointLight         *point_lights              = 0;
-  SpotLight          *spot_lights               = 0;
-  u32                 num_directional_lights    = 0;
-  u32                 num_point_lights          = 0;
-  u32                 num_spot_lights           = 0;
-  PassImpl           *passes                    = nullptr;
-  u32                 num_passes                = 0;
-  SceneNode          *nodes                     = nullptr;
-  Mat4Affine         *node_local_transforms     = nullptr;
-  Mat4Affine         *node_global_transforms    = nullptr;
-  Mat4Affine         *node_effective_transforms = nullptr;
-  Box                *node_aabb                 = nullptr;
-  u64                *node_frustum_mask         = nullptr;
-  u64                *transform_dirty_mask      = nullptr;
-  u64                 num_nodes                 = 0;
-
-  u64  add_entity_aab(Box);
-  Box &get_entity_aab(u64);
-  void remove_entity_aabb(u64);
-
-  u64      add_pass(PassImpl pass);
-  PassImpl get_pass(u64);
-
-  // objects -> mesh + material
-  // vfx
-  // add_light(); -> update buffers and descriptor sets, increase size of
-  // buffers add_camera(); add_object(); remove_light(); remove_camera();
-  // remove_object();
-  // &get_light();
-  // &get_camera();
-  // &get_object();
+  u64 pass  = 0;
+  u64 level = 0;
+  u64 child = 0;
 };
 
-// we need
-// the mesh and object render-data is mostly pre-configured or modified outside
-// the renderer we just need to implement the post-effects and render-orders and
-// add other passes on top of the objects
+// on change, on modification, on stream
+// renderer inputs to the scene
 //
+// camera should be assumed to change every frame
 //
-// what if the shader or source needs the transforms or whatever
-//
-// on frame begin, pending uploads are first performed
-//
-// bounding box or frustum culling
-struct Renderer
+// Passes are static and not per-object?
+struct Scene
 {
+  Camera              camera                      = {};
+  OrthographicCamera *orthographic_cameras        = nullptr;
+  PerspectiveCamera  *perspective_cameras         = nullptr;
+  u32                 num_orthographic_cameras    = 0;
+  u32                 num_perspective_cameras     = 0;
+  DirectionalLight   *directional_lights          = 0;
+  PointLight         *point_lights                = 0;
+  SpotLight          *spot_lights                 = 0;
+  u32                 num_directional_lights      = 0;
+  u32                 num_point_lights            = 0;
+  u32                 num_spot_lights             = 0;
+  PassImpl           *passes                      = nullptr;
+  PassNode           *pass_nodes                  = nullptr;
+  u64                 num_passes                  = 0;
+  ObjectNode         *object_nodes                = nullptr;
+  Mat4Affine         *object_local_transforms     = nullptr;
+  Mat4Affine         *object_global_transforms    = nullptr;
+  Mat4Affine         *object_effective_transforms = nullptr;
+  Box                *object_aabb                 = nullptr;
+  u64                *object_transform_dirty_mask = nullptr;
+  u64                *object_cull_mask            = nullptr;
+  u64                 num_objects                 = 0;
+  Id                 *orthographic_cameras_id     = nullptr;
+  Id                 *perspective_cameras_id      = nullptr;
+  Id                 *directional_lights_id       = nullptr;
+  Id                 *point_lights_id             = nullptr;
+  Id                 *spot_lights_id              = nullptr;
+  Id                 *passes_id                   = nullptr;
+  Id                 *object_nodes_id             = nullptr;
+  bool                lights_dirty_mask           = false;
+
+  u64      add_aabb(Box);
+  Box     &get_aabb(u64);
+  void     remove_aabb(u64);
+  u64      add_pass(char const *pass_id, PassImpl pass);
+  PassImpl get_pass(u64);
+  PassImpl get_pass_by_id(char const *pass_id);
+  // void     frustum_cull();
+  // void occlusion culling
+  // scene lights_culling by camera
+  // object lights_culling if affected by light
+  //
+  // vfx
+  // add_light(); -> update buffers and descriptor sets, increase size of
+
+  // we need
+  // the mesh and object render-data is mostly pre-configured or modified
+  // outside the renderer we just need to implement the post-effects and
+  // render-orders and add other passes on top of the objects
+  //
+  //
+  // what if the shader or source needs the transforms or whatever
+  //
+  // on frame begin, pending uploads are first performed
+  //
+  // bounding box or frustum culling
   // scenes
   // sort by z-index
   // mesh + shaders
-  void render(Scene const &scene);
+  void render();
 };
 
 struct PBRMaterial
 {
-  ImageView<u8 const> ambient           = {};
-  ImageView<u8 const> albedo            = {};
-  ImageView<u8 const> emmissive         = {};
-  ImageView<u8 const> metalic_roughness = {};
-  ImageView<u8 const> normal            = {};
+  ImageView<u8 const> albedo             = {};
+  ImageView<u8 const> ambient            = {};
+  ImageView<u8 const> emmissive          = {};
+  ImageView<u8 const> metallic_roughness = {};
+  ImageView<u8 const> normal             = {};
 };
 
-struct PBRMaterialTextures
+struct PBRTextures
 {
-  gfx::ImageView ambient           = nullptr;
-  gfx::ImageView albedo            = nullptr;
-  gfx::ImageView emmissive         = nullptr;
-  gfx::ImageView metalic_roughness = nullptr;
-  gfx::ImageView normal            = nullptr;
+  gfx::ImageView albedo             = nullptr;
+  gfx::ImageView ambient            = nullptr;
+  gfx::ImageView emmissive          = nullptr;
+  gfx::ImageView metallic_roughness = nullptr;
+  gfx::ImageView normal             = nullptr;
 };
 
 struct PBRVertex
@@ -311,31 +317,126 @@ struct PBRVertex
   f32 s = 0, t = 0;
 };
 
-/// @mesh: static or dynamic?
-struct PBREntity
+struct PBRMesh
 {
-  PBRMaterialTextures textures = {};
-  u64                 mesh     = 0;
-  u64                 aabb     = 0;
+  u32 buffer      = 0;
+  u32 first_index = 0;
+  u32 num_indices = 0;
 };
 
+struct PBRObject
+{
+  PBRTextures textures   = {};
+  PBRMesh     mesh       = {};
+  u64         scene_node = 0;
+};
+
+//
+//
+// TODO(lamarrr): custom passes?
+//
+//
+//
+//
+// TODO(lamarrr): what texture to render to
+// PBR meshes are always static
+// static scene mesh?
+//
+// TODO(lamarrr): sort opaque objects by materials and textures and resources to
+// minimize pipeline state changes
+//
+// for renderer 2d, we can sort by z-index and also perform batching of draw
+// shapes of the same type
+//
 struct PBRPass
 {
-  PBREntity               *entities              = nullptr;
-  u64                      num_entities          = 0;
-  Scene                   *scene                 = nullptr;
-  gfx::GraphicsPipeline    pipeline              = nullptr;
-  gfx::PipelineCache       pipeline_cache        = nullptr;
-  gfx::Sampler             sampler               = nullptr;
-  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
-  gfx::DescriptorHeapImpl  descriptor_heap       = {};
-  gfx::RenderPass          render_pass           = nullptr;
-  gfx::Framebuffer         framebuffer           = nullptr;
+  PBRObject               *opaque_objects          = nullptr;
+  u64                      num_opaque_objects      = 0;
+  PBRObject               *transparent_objects     = nullptr;
+  u64                      num_transparent_objects = 0;
+  Scene                   *scene                   = nullptr;
+  PassResourceManager     *manager                 = nullptr;
+  gfx::GraphicsPipeline    pipeline                = nullptr;
+  gfx::PipelineCache       pipeline_cache          = nullptr;
+  gfx::Sampler             sampler                 = nullptr;
+  gfx::DescriptorSetLayout descriptor_set_layout   = nullptr;
+  gfx::DescriptorHeapImpl  descriptor_heap         = {};
+  gfx::RenderPass          render_pass             = nullptr;
+  gfx::Framebuffer         framebuffer             = nullptr;
 
   // add AABB to scene and init material for rendering
   // upload data to gpu, setup scene for it, add AABB, add to pass list
-  void add_entity(PBRVertex const *vertices, u64 num_vertices,
-                  PBRMaterial const &material);
+  u64 add_object(PBRVertex const *vertices, u64 num_vertices,
+                 PBRMaterial const &material)
+  {
+    // build mesh
+    // build textures
+    // add object to scene hierarchy for transforms
+    // add aabb to scene for frustum culling
+    // GPU-based frustum culling + transform calculations?
+  }
+
+  void remove_object(u64);
+
+  static void init(Pass self_, Scene *scene, PassResourceManager *mgr)
+  {
+    // create pipeline descriptor sets
+    // create sampler
+    // create descriptor heap
+    // create renderpass
+    // fetch pipeline cache
+    // async build pipeline
+    PBRPass *pbr_pass = (PBRPass *) self_;
+  }
+
+  static void deinit(Pass self_, Scene *scene, PassResourceManager *mgr)
+  {
+  }
+
+  static void update(Pass self_, Scene *scene, PassResourceManager *mgr)
+  {
+    // re-build renderpass and framebuffer if needed
+  }
+
+  static void encode(Pass self_, Scene *scene, PassResourceManager *mgr,
+                     gfx::CommandEncoderImpl command_encoder)
+  {
+  }
+
+  static PassInterface const interface{
+      .init = init, .deinit = deinit, .update = update, .encode = encode};
+};
+
+// can be loaded from a DLL i.e. C++ with C-linkage => Clang IR => DLL
+// can be per-object or global
+//
+// we consult the passes to execute, not the objects. what about with culling on
+// others?
+//
+struct CustomPass
+{
+  // add_object
+  // encode, etc.
+};
+
+// needs to be 3d as we need to add to be able to add it to the scene
+struct UIObject
+{
+};
+
+// normal 2d objects
+// z_index mapped to clip space, occlusion culling + batching
+// custom objects + custom passes?
+// offscreen passes
+//
+// we can't use a linear draw list anymore
+// just straight-up frustum culling + occlusion culling +
+//
+//
+// CUSTOM SHADERS + CUSTOM PASSES
+//
+struct UIPass
+{
 };
 
 struct ChromaticAberrationPass

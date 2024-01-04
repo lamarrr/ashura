@@ -58,6 +58,32 @@ struct Rect
 
     return Rect{int_begin, int_end - int_begin};
   }
+
+  constexpr Vec2 center() const
+  {
+    return offset + (extent / 2);
+  }
+
+  constexpr Vec2 end() const
+  {
+    return offset + extent;
+  }
+};
+
+struct Box
+{
+  Vec3 offset;
+  Vec3 extent;
+
+  constexpr Vec3 center() const
+  {
+    return offset + (extent / 2);
+  }
+
+  constexpr Vec3 end() const
+  {
+    return offset + extent;
+  }
 };
 
 /*

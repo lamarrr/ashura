@@ -1,7 +1,6 @@
 #pragma once
 #include "ashura/gfx.h"
 #include "ashura/primitives.h"
-#include "ashura/utils.h"
 
 namespace ash
 {
@@ -31,7 +30,7 @@ inline u64 pixel_byte_size(gfx::Format fmt)
     case gfx::Format::A8_UNORM:
       return 1;
     default:
-      ASH_UNIMPLEMENTED();
+      std::abort();
   }
 }
 
@@ -70,12 +69,18 @@ struct ImageView
   u64         pitch  = 0;
   gfx::Format format = gfx::Format::Undefined;
 
-  u64 row_bytes() const
+  constexpr u64 row_bytes() const
   {
     return width * pixel_byte_size(format);
   }
 
-  operator ImageView<B const>() const
+  constexpr bool is_empty() const
+  {
+    return width == 0 || height == 0 || pitch == 0 ||
+           format == gfx::Format::Undefined || span.is_empty();
+  }
+
+  constexpr operator ImageView<B const>() const
   {
     return ImageView<B const>{.span   = Span<B const>{span},
                               .width  = width,
@@ -84,7 +89,8 @@ struct ImageView
                               .format = format};
   }
 
-  ImageView subview(Vec2U offset, Vec2U extent = Vec2U{U32_MAX, U32_MAX}) const
+  constexpr ImageView subview(Vec2U offset,
+                              Vec2U extent = Vec2U{U32_MAX, U32_MAX}) const
   {
     ASH_CHECK(sub_offset.x <= extent.x);
     ASH_CHECK(sub_offset.y <= extent.y);
