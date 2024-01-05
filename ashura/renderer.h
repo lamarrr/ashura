@@ -6,7 +6,14 @@
 namespace ash
 {
 
-// shader and mesh authoring and consuming
+// TODO(lamarrr): offscreen rendering
+// GUI blur for example needs to capture the whole scene at one point and then
+// render to screen (Layer)
+//
+//
+// Store last capture z-index + area, if non-intersecting and re-usable re-use
+//
+//
 constexpr u32 MAXIMUM_SPOT_LIGHTS        = 64;
 constexpr u32 MAXIMUM_POINT_LIGHTS       = 64;
 constexpr u32 MAXIMUM_DIRECTIONAL_LIGHTS = 64;
@@ -203,27 +210,43 @@ struct PassImpl
   PassInterface const *interface = nullptr;
 };
 
-/// tilted tree
+/// linearly-tilted tree node
+/// @pass: pass to be used to render this object
 struct ObjectNode
 {
-  u64  parent       = 0;
-  u64  level        = 0;
-  u64  next_sibling = 0;
-  u64  first_child  = 0;
-  bool opaque       = false;
+  u64 parent       = 0;
+  u64 level        = 0;
+  u64 next_sibling = 0;
+  u64 first_child  = 0;
+  u64 pass         = 0;
+  u64 pass_object  = 0;
 };
 
+// world->[capture->world]->post-fx->hud->[capture->hud]
+//
+//
+//
 // TODO(lamarrr): this still doesn't solve the custom shader problem?
 // helps with structuring dependency of passes
 // i.e. world scene pass -> post-fx pass -> HUD pass
 //
-// can HUD pass be represented by a separate world scene pass?
+//
+// used to represent dependency of passes
 //
 struct PassNode
 {
   u64 pass  = 0;
   u64 level = 0;
   u64 child = 0;
+};
+
+struct SceneObject
+{
+  Mat4Affine local_transform  = {};
+  Mat4Affine global_transform = {};
+  Box        aabb             = {};
+  i64        z_index          = 0;
+  bool       is_transparent   = false;
 };
 
 // on change, on modification, on stream
@@ -252,6 +275,7 @@ struct Scene
   DirectionalLight   *directional_lights          = 0;
   PointLight         *point_lights                = 0;
   SpotLight          *spot_lights                 = 0;
+  bool                lights_dirty_mask           = false;
   u32                 num_directional_lights      = 0;
   u32                 num_point_lights            = 0;
   u32                 num_spot_lights             = 0;
@@ -262,6 +286,8 @@ struct Scene
   Box                *object_aabb                 = nullptr;
   u64                *object_transform_dirty_mask = nullptr;
   u64                *object_cull_mask            = nullptr;
+  i64                *object_z_index              = nullptr;
+  u64                *object_transparency_mask    = nullptr;
   u64                 num_objects                 = 0;
   Id                 *orthographic_cameras_id     = nullptr;
   Id                 *perspective_cameras_id      = nullptr;
@@ -269,13 +295,20 @@ struct Scene
   Id                 *point_lights_id             = nullptr;
   Id                 *spot_lights_id              = nullptr;
   Id                 *object_nodes_id             = nullptr;
-  bool                lights_dirty_mask           = false;
 
-  u64  add_aabb(Box);
-  Box &get_aabb(u64);
-  void remove_aabb(u64);
+  // validity mask for object, node, light
+  // free slots list for  object,node,light
+
+  u64  add_object(SceneObject const &);
+  void remove_object(u64);
 };
 
+// sort objects by z-index, get min and max z-index
+// for all objects in the z-index range, invoke the passes pass->encode(z_index,
+// begin_objects, num_objects)
+// 3d scene objects are all in z-index 0, HUD objects are all in z-index 1 and
+// above this means objects in the same z-index can be batch-rendered
+//
 struct Renderer
 {
   PassNode *pass_nodes = nullptr;
@@ -286,14 +319,16 @@ struct Renderer
   u64      add_pass(char const *pass_id, PassImpl pass);
   PassImpl get_pass(u64);
   PassImpl get_pass_by_id(char const *pass_id);
-  // perform frustum and occlusion culling of objects and light
+
+  // perform frustum and occlusion culling of objects and light (in the same
+  // z-index) then cull by z-index
+  // occlussion culling only happens when a fully-opaque object occludes another
+  // object.
+  //
+  // cull lights by camera frustum
+  //
   void cull(Span<Scene *const> scenes);
-  //  needs to respect
-  // transparent/semi-transparent/opaque objects
-  //
-  // scene lights_culling by camera
-  // object lights_culling if affected by light
-  //
+
   // vfx
   // add_light(); -> update buffers and descriptor sets, increase size of
   //
@@ -302,8 +337,6 @@ struct Renderer
   // outside the renderer we just need to implement the post-effects and
   // render-orders and add other passes on top of the objects
   //
-  //
-  // what if the shader or source needs the transforms or whatever
   //
   // on frame begin, pending uploads are first performed
   //
@@ -340,7 +373,7 @@ struct PBRTextures
 struct PBRVertex
 {
   f32 x = 0, y = 0, z = 0;
-  f32 s = 0, t = 0;
+  f32 u = 0, v = 0;
 };
 
 struct PBRMesh
@@ -384,8 +417,7 @@ struct PBRObject
 // TODO(lamarrr): sort opaque objects by materials and textures and resources to
 // minimize pipeline state changes
 //
-// for renderer 2d, we can sort by z-index and also perform batching of draw
-// shapes of the same type
+// for renderer 2d, we can perform batching of draw shapes of the same type
 //
 struct PBRPass
 {
@@ -446,6 +478,33 @@ struct PBRPass
       .init = init, .deinit = deinit, .update = update, .encode = encode};
 };
 
+// use for:
+// fill, stroke, fill and stroke, images, rects, squares, round rects,
+// gradients, gradient blended images can be instanced
+// TODO(lamarrr): clipping
+//
+// TODO(lamarrr): temp-offscreen rendering
+//
+// antialiased
+//
+struct RRectObject
+{
+  Vec3 center           = {};
+  Vec3 extent           = {};
+  Vec4 border_radii     = {};
+  Vec2 uv0              = {};
+  Vec2 uv1              = {};
+  Vec4 tint_uv0         = {};
+  Vec4 tint_uv1         = {};
+  f32  border_thickness = 0;
+  Vec4 border_color     = {};
+};
+
+struct RRectMaterial
+{
+  ImageView<u8 const> texture;
+};
+
 // normal 2d objects
 // z_index mapped to clip space, occlusion culling + batching
 // custom objects + custom passes?
@@ -457,6 +516,17 @@ struct PBRPass
 //
 // CUSTOM SHADERS + CUSTOM PASSES
 //
+//
+// MUST BE rendered in a z-index independent order
+// need a way to map from z-index to depth
+//
+//
+// first sort by z_index key from the scene
+//
+struct RRectPass
+{
+  void add_object(RRectObject const &, RRectMaterial const &);
+};
 
 struct ChromaticAberrationPass
 {
