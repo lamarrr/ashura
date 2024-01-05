@@ -37,6 +37,8 @@ struct NetworkImageSource
 using ImageSource = std::variant<ImageBuffer, FileImageSource,
                                  NetworkImageSource, stx::NoneType>;
 
+// TODO(lamarrr): image width and height should have a size limit for it to be
+// scaled to when stored on the gpu
 // TODO(lamarrr): fix image layout
 struct ImageProps
 {
