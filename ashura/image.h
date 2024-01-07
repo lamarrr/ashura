@@ -1,6 +1,6 @@
 #pragma once
 #include "ashura/gfx.h"
-#include "ashura/primitives.h"
+#include "ashura/types.h"
 
 namespace ash
 {

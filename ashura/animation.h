@@ -8,6 +8,94 @@
 namespace ash
 {
 
+// SEE: https://www.youtube.com/watch?v=jvPPXbo87ds
+struct Curve
+{
+  virtual ~Curve()
+  {
+  }
+
+  virtual f32 operator()(f32 t) = 0;
+};
+
+struct Linear final : public Curve
+{
+  virtual ~Linear() override
+  {
+  }
+
+  virtual f32 operator()(f32 t) override
+  {
+    return t;
+  }
+};
+
+struct EaseIn final : public Curve
+{
+  virtual ~EaseIn() override
+  {
+  }
+
+  virtual f32 operator()(f32 t) override
+  {
+    return t * t;
+  }
+};
+
+struct EaseOut final : public Curve
+{
+  virtual ~EaseOut() override
+  {
+  }
+
+  virtual f32 operator()(f32 t) override
+  {
+    return 1 - (1 - t) * (1 - t);
+  }
+};
+
+struct EaseInOut final : public Curve
+{
+  virtual ~EaseInOut() override
+  {
+  }
+
+  virtual f32 operator()(f32 t) override
+  {
+    return lerp(t * t, 1 - (1 - t) * (1 - t), t);
+  }
+};
+
+struct Quadratic final : public Curve
+{
+};
+
+struct Cubic final : public Curve
+{
+};
+
+struct QuadraticBezier final : public Curve
+{
+  f32 p0 = 0;
+  f32 p1 = 0;
+  f32 p2 = 0;
+
+  virtual ~QuadraticBezier() override
+  {
+  }
+
+  virtual f32 operator()(f32 t) override
+  {
+    return lerp(lerp(p0, p1, t), lerp(p1, p2, t), t);
+  }
+};
+// TODO(lamarrr): Splines, Bezier Curves, Hermite Curves, Catmull-Rom curves,
+// B-Spline
+
+struct Spline final : public Curve
+{
+};
+
 template <typename T>
 struct Tween
 {
@@ -36,23 +124,20 @@ enum class AnimationCfg : u8
 
 STX_DEFINE_ENUM_BIT_OPS(AnimationCfg)
 
-// TODO(lamarrr): support CSS-like Animation Keyframes?
-// TODO(lamarrr): animation resolution for anime-like frames
-
 struct Animation
 {
   Nanoseconds  duration   = Milliseconds{256};
   u64          iterations = 1;
   AnimationCfg cfg        = AnimationCfg::Default;
-  f64 speed = 1;        // higher spead means faster time to completion than
+  f32 speed = 1;        // higher spead means faster time to completion than
                         // specified duration
 
   Nanoseconds elapsed_duration = Nanoseconds{0};
   u64         iterations_done  = 0;
-  f64         t                = 0;
+  f32         t                = 0;
 
   void restart(Nanoseconds duration, u64 iterations, AnimationCfg cfg,
-               f64 speed)
+               f32 speed)
   {
     ASH_CHECK(duration.count() > 0);
     ASH_CHECK(speed >= 0);
@@ -108,10 +193,10 @@ struct Animation
     }
 
     Nanoseconds const tick_duration =
-        Nanoseconds{(i64) ((f64) interval.count() * (f64) speed)};
+        Nanoseconds{(i64) ((f32) interval.count() * (f32) speed)};
     Nanoseconds const total_elapsed_duration = elapsed_duration + tick_duration;
-    f64 const         t_total =
-        (((f64) total_elapsed_duration.count()) / (f64) duration.count());
+    f32 const         t_total =
+        (((f32) total_elapsed_duration.count()) / (f32) duration.count());
     u64 const t_iterations = (u64) t_total;
 
     if (!has_bits(cfg, AnimationCfg::Loop) && t_iterations >= iterations)
@@ -124,8 +209,8 @@ struct Animation
     }
     else
     {
-      f64 const t_unsigned = t_total - (f64) t_iterations;
-      f64 const t_signed =
+      f32 const t_unsigned = t_total - (f32) t_iterations;
+      f32 const t_signed =
           has_bits(cfg, AnimationCfg::Alternate) ?
               ((t_iterations % 2) == 0 ? t_unsigned : (1.0 - t_unsigned)) :
               t_unsigned;

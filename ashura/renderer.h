@@ -1,12 +1,12 @@
 #pragma once
 #include "ashura/gfx.h"
 #include "ashura/image.h"
+#include "ashura/primitives.h"
 #include "ashura/types.h"
 
 namespace ash
 {
 
-// TODO(lamarrr): offscreen rendering
 // GUI blur for example needs to capture the whole scene at one point and then
 // render to screen (Layer)
 //
@@ -19,28 +19,37 @@ constexpr u32 MAXIMUM_POINT_LIGHTS       = 64;
 constexpr u32 MAXIMUM_DIRECTIONAL_LIGHTS = 64;
 constexpr u32 MAXIMUM_ID_SIZE            = 128;
 
-typedef struct Box                     Box;
-typedef char                           Id[MAXIMUM_ID_SIZE];
-typedef Vec4                           AmbientLight;
-typedef struct DirectionalLight        DirectionalLight;
-typedef struct PointLight              PointLight;
-typedef struct SpotLight               SpotLight;
-typedef struct OrthographicCamera      OrthographicCamera;
-typedef struct PerspectiveCamera       PerspectiveCamera;
-typedef struct Scene                   Scene;
-typedef struct Pass_T                 *Pass;
-typedef struct PassInterface           PassInterface;
-typedef struct PassImpl                PassImpl;
-typedef struct Renderer                Renderer;
-typedef struct PBRPass                 PBRPass;
-typedef struct BlurPass                BlurPass;
-typedef struct BloomPass               BloomPass;
-typedef struct TAAPass                 TAAPass;
-typedef struct FXAAPass                FXAAPass;
-typedef struct BokehPass               BokehPass;
-typedef struct ChromaticAberrationPass ChromaticAberrationPass;
+typedef char                                Id[MAXIMUM_ID_SIZE];
+typedef Vec4                                AmbientLight;
+typedef struct DirectionalLight             DirectionalLight;
+typedef struct PointLight                   PointLight;
+typedef struct SpotLight                    SpotLight;
+typedef struct OrthographicCamera           OrthographicCamera;
+typedef struct PerspectiveCamera            PerspectiveCamera;
+typedef struct Scene                        Scene;
+typedef struct Pass_T                      *Pass;
+typedef struct PassInterface                PassInterface;
+typedef struct PassImpl                     PassImpl;
+typedef struct Renderer                     Renderer;
+typedef struct PBRPass                      PBRPass;
+typedef struct BlurPass                     BlurPass;
+typedef struct BloomPass                    BloomPass;
+typedef struct TAAPass                      TAAPass;
+typedef struct FXAAPass                     FXAAPass;
+typedef struct BokehPass                    BokehPass;
+typedef struct ChromaticAberrationPass      ChromaticAberrationPass;
+typedef struct PassContext                  PassContext;
+typedef stx::Fn<void(u64)>                  Task;
+typedef stx::Fn<i32(Scene *, u64 a, u64 b)> ObjectSortKey;
 
 // Skybox? : custom renderer at z-index 0?
+
+struct PassContext
+{
+  gfx::Image     root_image;
+  gfx::ImageDesc root_image_desc;
+  // task executor
+};
 
 struct DirectionalLight
 {
@@ -55,7 +64,6 @@ struct PointLight
   Vec3 position    = {};
 };
 
-// TODO(lamarrr): light materials, shader?
 struct SpotLight
 {
   Vec3 direction   = {};
@@ -110,12 +118,7 @@ struct Camera
 // we can cull lights
 //
 //
-// TODO(lamarrr): multi-pass object rendering?
-//
 // A scene prepared for rendering
-//
-//
-// TODO(lamarrr): make it passes instead? culled by specifications
 //
 //
 // if lights buffer dirty, update
@@ -167,7 +170,7 @@ struct Camera
 //
 
 // manages and uploads render resources to the GPU.
-struct PassResourceManager
+struct PassContext
 {
   // sort by update frequency, per-frame updates, rare-updates
   // allocate temporary image for rendering
@@ -182,23 +185,22 @@ struct PassResourceManager
   // UNIFORM COLOR Texture cache with image component swizzling
   //
   //
+  Scene *scene = nullptr;
 };
 
-// TODO(lamarrr): pass task executor
-///
-///
 /// @init: add self and resources to renderer
 /// @deinit: remove self and resources from renderer
 /// @update: update internal data based on changed information in the scene
 /// @encode: encode commands to be sent to the gpu
 struct PassInterface
 {
-  void (*init)(Pass self, Scene *scene, PassResourceManager *mgr)   = nullptr;
-  void (*deinit)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
-  void (*update)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
-  void (*encode)(Pass self, Scene *scene, PassResourceManager *mgr,
+  void (*init)(Pass self, PassContext *ctx)   = nullptr;
+  void (*deinit)(Pass self, PassContext *ctx) = nullptr;
+  void (*update)(Pass self, PassContext *ctx) = nullptr;
+  void (*encode)(Pass self, PassContext *ctx,
                  gfx::CommandEncoderImpl command_encoder, i64 z_index,
-                 u64 const *scene_objects, u64 num_scene_objects)   = nullptr;
+                 bool is_transparent, u64 first_scene_object,
+                 u64 num_scene_objects)       = nullptr;
 };
 
 // can be loaded from a DLL i.e. C++ with C-linkage => DLL
@@ -227,8 +229,6 @@ struct ObjectNode
 //
 //
 //
-// TODO(lamarrr): this still doesn't solve the custom shader problem?
-// helps with structuring dependency of passes
 // i.e. world scene pass -> post-fx pass -> HUD pass
 //
 //
@@ -254,19 +254,32 @@ struct SceneObject
 //
 // Passes are static and not per-object?
 //
-// NOTE: the Scene never shrinks, only grows
+// NOTE: the Scene's memory usage never shrinks, only grows. it is re-used.
 //
 //
-// TODO(lamarrr): invocation procedure. on a pass-by-pass basis? how about
-// object relationship? won't that affect the pass procedure?
+// Invocation Procedure
+//
+// - sort scene objects by z-index
+// - for objects in the same z-index, sort by transparency (transparent objects
+// drawn last)
+// - sort transparent objects by AABB from camera frustum
+// - for objects in the same z-index, sort by passes so objects in the same pass
+// can be rendered together.
+// - sort objects in the same pass by key from render pass (materials and
+// textures and resources) to minimize pipeline state changes
+// - for the z-index group sorted objects with the same passes
+// - invoke the pass with the objects
+//
+//
 //
 // all objects belong to and respect this hierarchy
 //
-//
-// TODO(lamarrr): when objects are sorted by z-index
-//
 // objects_z_ordered will contain indices to the objects and will be sorted by a
 // z_index key
+//
+//
+// Area lights: https://learnopengl.com/Guest-Articles/2022/Area-Lights
+//
 //
 struct Scene
 {
@@ -289,23 +302,20 @@ struct Scene
   u64              *objects_z_ordered           = nullptr;
   u64              *object_transparency_mask    = nullptr;
   u64               num_objects                 = 0;
-  Id               *directional_lights_id       = nullptr;
-  Id               *point_lights_id             = nullptr;
-  Id               *spot_lights_id              = nullptr;
-  Id               *object_nodes_id             = nullptr;
 
   // validity mask for object, node, light
   // free slots list for  object,node,light
 
-  u64  add_object(char const *node_id, SceneObject const &);
+  u64  add_object(Span<char const> node_id, SceneObject const &);
   void remove_object(u64);
 };
 
 // sort objects by z-index, get min and max z-index
 // for all objects in the z-index range, invoke the passes pass->encode(z_index,
 // begin_objects, num_objects)
-// 3d scene objects are all in z-index 0, HUD objects are all in z-index 1 and
-// above this means objects in the same z-index can be batch-rendered
+// NOPPPEEE 3d scene objects are all in z-index 0 ?? typically, HUD objects are
+// all in z-index 1 and above this means objects in the same z-index can be
+// batch-rendered
 //
 struct Renderer
 {
@@ -314,18 +324,20 @@ struct Renderer
   u64       num_passes = 0;
   Id       *passes_id  = nullptr;
 
-  u64      add_pass(char const *pass_id, PassImpl pass);
+  u64      add_pass(Span<char const> pass_id, PassImpl pass);
   PassImpl get_pass(u64);
-  PassImpl get_pass_by_id(char const *pass_id);
+  PassImpl get_pass_by_id(Span<char const> pass_id);
 
   // perform frustum and occlusion culling of objects and light (in the same
-  // z-index) then cull by z-index
+  // z-index) then cull by z-index???? Z-index not needed in culling
   // occlussion culling only happens when a fully-opaque object occludes another
   // object.
   //
   // cull lights by camera frustum
   //
-  void cull(Scene &scene);
+  // TODO(lamarrr): how to represent directional lights not affecting an area.
+  //
+  void cull(PassContext *ctx);
 
   // vfx
   // add_light(); -> update buffers and descriptor sets, increase size of
@@ -338,16 +350,11 @@ struct Renderer
   //
   // on frame begin, pending uploads are first performed
   //
-  // bounding box or frustum culling
-  // scenes
-  // sort by z-index
-  // mesh + shaders
   //
   // each scene is rendered and composited onto one another? can this possibly
   // work for portals?
   //
-  //
-  void render(Scene &scene, gfx::Framebuffer);
+  void render(PassContext *ctx);
 };
 
 struct PBRMaterialSource
@@ -401,60 +408,27 @@ struct PBRObject
   PBRMesh     mesh       = {};
   i64         z_index    = 0;
   u64         scene_node = 0;
-  // descriptor group
 };
 
-//
-//
-// TODO(lamarrr): custom passes?
-//
-//
-// problem is:
-// - add custom pass
-// - add object to pass
-//    - add object to scene tree
-// - how to invoke passes for each object from the scene store? and manage
-// updates
-//   this will mean that we can't make batched draw calls easily as we
-//   previously did
-//
-// well, what if the passes have screen-space effects? must be done in a
-// separate post-scene effect
-//
-// - we can't invoke from pbr passes since they are not the only passes in the
-// scene, so it must be scheduled
-//
-// TODO(lamarrr): what texture to render to
-// PBR meshes are always static
-// static scene mesh?
-//
-// TODO(lamarrr): sort opaque objects by materials and textures and resources to
-// minimize pipeline state changes
-//
-// for renderer 2d, we can perform batching of draw shapes of the same type
-//
 struct PBRPass
 {
-  PBRObject               *opaque_objects          = nullptr;
-  u64                      num_opaque_objects      = 0;
-  PBRObject               *transparent_objects     = nullptr;
-  u64                      num_transparent_objects = 0;
-  Scene                   *scene                   = nullptr;
-  PassResourceManager     *manager                 = nullptr;
-  gfx::GraphicsPipeline    pipeline                = nullptr;
-  gfx::PipelineCache       pipeline_cache          = nullptr;
-  gfx::Sampler             sampler                 = nullptr;
-  gfx::DescriptorSetLayout descriptor_set_layout   = nullptr;
-  gfx::DescriptorHeapImpl  descriptor_heap         = {};
-  gfx::RenderPass          render_pass             = nullptr;
-  gfx::Framebuffer         framebuffer             = nullptr;
+  PBRObject               *objects               = nullptr;
+  u64                      num_objects           = 0;
+  PassContext             *ctx                   = nullptr;
+  gfx::GraphicsPipeline    pipeline              = nullptr;
+  gfx::PipelineCache       pipeline_cache        = nullptr;
+  gfx::Sampler             sampler               = nullptr;
+  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
+  gfx::DescriptorHeapImpl  descriptor_heap       = {};
+  gfx::RenderPass          render_pass           = nullptr;
+  gfx::Framebuffer         framebuffer           = nullptr;
 
   // add AABB to scene and init material for rendering
   // upload data to gpu, setup scene for it, add AABB, add to pass list
-  u64 add_object(char const *id, Span<PBRVertex const> vertices,
+  u64 add_object(Span<char const> id, Span<PBRVertex const> vertices,
                  PBRMaterialSource const &material)
   {
-    // build mesh
+    // build mesh tree (static and dynamic)
     // build textures
     // add object to scene hierarchy for transforms
     // add aabb to scene for frustum culling
@@ -463,7 +437,7 @@ struct PBRPass
 
   void remove_object(u64);
 
-  static void init(Pass self_, Scene *scene, PassResourceManager *mgr)
+  static void init(Pass self_, PassContext *ctx)
   {
     // create pipeline descriptor sets
     // create sampler
@@ -474,16 +448,16 @@ struct PBRPass
     PBRPass *pbr_pass = (PBRPass *) self_;
   }
 
-  static void deinit(Pass self_, Scene *scene, PassResourceManager *mgr)
+  static void deinit(Pass self_, PassContext *ctx)
   {
   }
 
-  static void update(Pass self_, Scene *scene, PassResourceManager *mgr)
+  static void update(Pass self_, PassContext *ctx)
   {
     // re-build renderpass and framebuffer if needed
   }
 
-  static void encode(Pass self_, Scene *scene, PassResourceManager *mgr,
+  static void encode(Pass self_, PassContext *ctx,
                      gfx::CommandEncoderImpl command_encoder)
   {
   }
@@ -496,12 +470,19 @@ struct PBRPass
 // fill, stroke, fill and stroke, images, rects, squares, round rects,
 // linear-gradients, linear-gradient blended images can be instanced
 // TODO(lamarrr): clipping
+// TODO(lamarrr): temp-offscreen rendering: request scratch image with maximum
+// size of the viewport size and specific format, not released until execution
+// completes, the pass doesn't need to release it so other passes can re-use it
+// if needed.
 //
-// TODO(lamarrr): temp-offscreen rendering
 //
-// antialiased
 //
-struct RRectObject
+// quad + instanced + transformed + antialiased
+//
+// Quad is an object without a type or specification. a unit square with just a
+// transformation matrix.
+//
+struct RRect
 {
   Vec3 center           = {};
   Vec3 half_extent      = {};
@@ -512,6 +493,7 @@ struct RRectObject
   Vec4 tint_uv0         = {};
   Vec4 tint_uv1         = {};
   Vec4 border_color     = {};
+  // i64 z_index?
 };
 
 struct RRectMaterialSource
@@ -524,6 +506,12 @@ struct RRectMaterial
   gfx::ImageView ambient;
 };
 
+struct RRectObject
+{
+  RRect         rrect;
+  RRectMaterial material;
+};
+
 // normal 2d objects
 // occlusion culling + batching
 // custom objects + custom passes?
@@ -533,15 +521,19 @@ struct RRectMaterial
 // CUSTOM SHADERS + CUSTOM PASSES
 //
 //
-// MUST BE rendered in a z-index independent order
-// need a way to map from z-index to depth
-//
-//
-// first sort by z_index key from the scene
-//
 struct RRectPass
 {
-  u64  add_object(char const *id, RRectObject const &,
+  RRectObject             *objects               = nullptr;
+  u64                      num_objects           = 0;
+  gfx::GraphicsPipeline    pipeline              = nullptr;
+  gfx::PipelineCache       pipeline_cache        = nullptr;
+  gfx::Sampler             sampler               = nullptr;
+  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
+  gfx::DescriptorHeapImpl  descriptor_heap       = {};
+  gfx::RenderPass          render_pass           = nullptr;
+  gfx::Framebuffer         framebuffer           = nullptr;
+
+  u64  add_object(Span<char const> id, RRect const &,
                   RRectMaterialSource const &);
   void remove_object(u64);
 };
@@ -551,6 +543,21 @@ struct ChromaticAberrationPass
 };
 
 struct FXAAPass
+{
+};
+
+// TODO(lamarrr): we can create a single image and just re-use it depending on
+// the components/aspects we need to use for each type of pass
+//
+//
+// object-clip space blur
+//
+// - capture scene at object's screen-space area, dilate by the blur extent
+// - reserve scratch stencil image with at least size of the dilated area
+// - blur captured area
+// - render object to offscreen scratch image stencil only
+// - using rendered stencil, directly-write (without blending) onto scene again
+struct BlurPass
 {
 };
 
