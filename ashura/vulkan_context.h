@@ -228,8 +228,8 @@ struct RenderResourceManager
   /// Converts textures to their GPU representations
   /// Note that RGB is converted to RGBA as neither OpenGL nor Vulkan require
   /// implementation support for RGB it.
-  static void copy_image_to_GPU_Buffer(ImageView<u8 const> src,
-                                       ImageView<u8>       rep_dst)
+  static void copy_image_to_GPU_Buffer(ImageSpan<u8 const> src,
+                                       ImageSpan<u8>       rep_dst)
   {
     ASH_CHECK(src.extent.x <= rep_dst.extent.x);
     ASH_CHECK(src.extent.y <= rep_dst.extent.y);
@@ -276,7 +276,7 @@ struct RenderResourceManager
   }
 
   /// image will uploaded and be available for use before next frame
-  gfx::image add_image(ImageView<u8 const> image_view, bool is_real_time)
+  gfx::image add_image(ImageSpan<u8 const> image_view, bool is_real_time)
   {
     gfx::image id = next_image_id;
     next_image_id++;
@@ -364,7 +364,7 @@ struct RenderResourceManager
 
     auto begin = std::chrono::steady_clock::now();
     copy_image_to_GPU_Buffer(image_view,
-                             ImageView<u8>{.span   = staging_buffer.span(),
+                             ImageSpan<u8>{.span   = staging_buffer.span(),
                                            .extent = image_view.extent,
                                            .pitch  = image_view.extent.x *
                                                     pixel_byte_size(rep_format),
@@ -433,7 +433,7 @@ struct RenderResourceManager
     return id;
   }
 
-  void update(gfx::image image, ImageView<u8 const> view)
+  void update(gfx::image image, ImageSpan<u8 const> view)
   {
     auto pos = images.find(image);
     ASH_CHECK(pos != images.end());
@@ -447,7 +447,7 @@ struct RenderResourceManager
     if (rimage.needs_upload || rimage.is_real_time)
     {
       copy_image_to_GPU_Buffer(
-          view, ImageView<u8>{.span   = rimage.staging_buffer.value().span(),
+          view, ImageSpan<u8>{.span   = rimage.staging_buffer.value().span(),
                               .extent = rimage.extent,
                               .pitch  = rimage.extent.x *
                                        pixel_byte_size(rep_format),
@@ -461,7 +461,7 @@ struct RenderResourceManager
           fitted_byte_size(rimage.extent, rep_format),
           VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
       copy_image_to_GPU_Buffer(
-          view, ImageView<u8>{.span   = staging_buffer.span(),
+          view, ImageSpan<u8>{.span   = staging_buffer.span(),
                               .extent = rimage.extent,
                               .pitch  = rimage.extent.x *
                                        pixel_byte_size(rep_format),
@@ -649,7 +649,7 @@ struct RenderResourceManager
     ASH_LOG_INFO(Vulkan_RenderResourceManager, "Deleted pending images");
   }
 
-  gfx::image upload_font_atlas(Font &font, ImageView<u8 const> atlas)
+  gfx::image upload_font_atlas(Font &font, ImageSpan<u8 const> atlas)
   {
     // VkImageFormatProperties image_format_properties;
     // ASH_VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(queue.value()->device->phy_dev->phy_device,

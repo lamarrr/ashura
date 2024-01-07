@@ -1274,7 +1274,7 @@ constexpr Mat4Affine &operator/=(Mat4Affine &a, Mat4Affine const &b)
 struct Slice
 {
   usize offset = 0;
-  usize size   = 0;
+  usize span   = 0;
 };
 
 template <typename T>
@@ -1313,14 +1313,29 @@ struct Span
     // written such that overflow will not occur even if both offset and size
     // are set to USIZE_MAX
     slice.offset = slice.offset > size ? size : slice.offset;
-    slice.size =
-        (size - slice.offset) > slice.size ? slice.size : (size - slice.offset);
-    return Span<T>{data + slice.offset, slice.size};
+    slice.span =
+        (size - slice.offset) > slice.span ? slice.span : (size - slice.offset);
+    return Span<T>{data + slice.offset, slice.span};
   }
 
   constexpr operator Span<T const>() const
   {
     return Span<T const>{data, size};
+  }
+
+  constexpr Span<T const> as_const() const
+  {
+    return Span<T const>{data, size};
+  }
+
+  constexpr Span slice(usize slice_offset, usize slice_span) const
+  {
+    return (*this)[Slice{slice_offset, slice_span}];
+  }
+
+  constexpr Span slice(usize slice_offset) const
+  {
+    return slice(slice_offset, USIZE_MAX);
   }
 };
 

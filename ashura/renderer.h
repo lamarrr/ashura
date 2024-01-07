@@ -17,15 +17,20 @@ namespace ash
 constexpr u32 MAXIMUM_SPOT_LIGHTS        = 64;
 constexpr u32 MAXIMUM_POINT_LIGHTS       = 64;
 constexpr u32 MAXIMUM_DIRECTIONAL_LIGHTS = 64;
-constexpr u32 MAXIMUM_ID_LENGTH          = 128;
+constexpr u32 MAXIMUM_ID_SIZE            = 128;
 
 typedef struct Box                     Box;
+typedef char                           Id[MAXIMUM_ID_SIZE];
+typedef Vec4                           AmbientLight;
 typedef struct DirectionalLight        DirectionalLight;
 typedef struct PointLight              PointLight;
 typedef struct SpotLight               SpotLight;
 typedef struct OrthographicCamera      OrthographicCamera;
 typedef struct PerspectiveCamera       PerspectiveCamera;
 typedef struct Scene                   Scene;
+typedef struct Pass_T                 *Pass;
+typedef struct PassInterface           PassInterface;
+typedef struct PassImpl                PassImpl;
 typedef struct Renderer                Renderer;
 typedef struct PBRPass                 PBRPass;
 typedef struct BlurPass                BlurPass;
@@ -34,9 +39,8 @@ typedef struct TAAPass                 TAAPass;
 typedef struct FXAAPass                FXAAPass;
 typedef struct BokehPass               BokehPass;
 typedef struct ChromaticAberrationPass ChromaticAberrationPass;
-typedef char                           Id[MAXIMUM_ID_LENGTH];
 
-// Skybox?
+// Skybox? : custom renderer at z-index 0?
 
 struct DirectionalLight
 {
@@ -46,19 +50,19 @@ struct DirectionalLight
 
 struct PointLight
 {
-  Vec3 position    = {};
   f32  attenuation = 0;
   Vec4 color       = {};
+  Vec3 position    = {};
 };
 
 // TODO(lamarrr): light materials, shader?
 struct SpotLight
 {
-  Vec3 position    = {};
   Vec3 direction   = {};
   f32  cutoff      = 0;
   f32  attenuation = 0;
   Vec4 color       = {};
+  Vec3 position    = {};
 };
 
 /// @x_mag: The floating-point horizontal magnification of the view. This value
@@ -175,14 +179,10 @@ struct PassResourceManager
   // dynamic buffers + streaming
   //
   //
-  // UNIFORM COLOR Texture cache
+  // UNIFORM COLOR Texture cache with image component swizzling
   //
   //
 };
-
-typedef struct Pass_T       *Pass;
-typedef struct PassInterface PassInterface;
-typedef struct PassImpl      PassImpl;
 
 // TODO(lamarrr): pass task executor
 ///
@@ -197,10 +197,11 @@ struct PassInterface
   void (*deinit)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
   void (*update)(Pass self, Scene *scene, PassResourceManager *mgr) = nullptr;
   void (*encode)(Pass self, Scene *scene, PassResourceManager *mgr,
-                 gfx::CommandEncoderImpl command_encoder)           = nullptr;
+                 gfx::CommandEncoderImpl command_encoder, i64 z_index,
+                 u64 const *scene_objects, u64 num_scene_objects)   = nullptr;
 };
 
-// can be loaded from a DLL i.e. C++ with C-linkage => Clang IR => DLL
+// can be loaded from a DLL i.e. C++ with C-linkage => DLL
 //
 // we consult the passes to execute, not the objects.
 //
@@ -235,18 +236,15 @@ struct ObjectNode
 //
 struct PassNode
 {
-  u64 pass  = 0;
-  u64 level = 0;
-  u64 child = 0;
+  u64 pass = 0;
 };
 
 struct SceneObject
 {
-  Mat4Affine local_transform  = {};
-  Mat4Affine global_transform = {};
-  Box        aabb             = {};
-  i64        z_index          = 0;
-  bool       is_transparent   = false;
+  Mat4Affine local_transform = {};
+  Box        aabb            = {};
+  i64        z_index         = 0;
+  bool       is_transparent  = false;
 };
 
 // on change, on modification, on stream
@@ -256,7 +254,7 @@ struct SceneObject
 //
 // Passes are static and not per-object?
 //
-//
+// NOTE: the Scene never shrinks, only grows
 //
 //
 // TODO(lamarrr): invocation procedure. on a pass-by-pass basis? how about
@@ -264,42 +262,42 @@ struct SceneObject
 //
 // all objects belong to and respect this hierarchy
 //
+//
+// TODO(lamarrr): when objects are sorted by z-index
+//
+// objects_z_ordered will contain indices to the objects and will be sorted by a
+// z_index key
+//
 struct Scene
 {
-  Camera              camera                      = {};
-  OrthographicCamera *orthographic_cameras        = nullptr;
-  PerspectiveCamera  *perspective_cameras         = nullptr;
-  u32                 num_orthographic_cameras    = 0;
-  u32                 num_perspective_cameras     = 0;
-  Vec4                ambient_light               = {};
-  DirectionalLight   *directional_lights          = 0;
-  PointLight         *point_lights                = 0;
-  SpotLight          *spot_lights                 = 0;
-  bool                lights_dirty_mask           = false;
-  u32                 num_directional_lights      = 0;
-  u32                 num_point_lights            = 0;
-  u32                 num_spot_lights             = 0;
-  ObjectNode         *object_nodes                = nullptr;
-  Mat4Affine         *object_local_transforms     = nullptr;
-  Mat4Affine         *object_global_transforms    = nullptr;
-  Mat4Affine         *object_effective_transforms = nullptr;
-  Box                *object_aabb                 = nullptr;
-  u64                *object_transform_dirty_mask = nullptr;
-  u64                *object_cull_mask            = nullptr;
-  i64                *object_z_index              = nullptr;
-  u64                *object_transparency_mask    = nullptr;
-  u64                 num_objects                 = 0;
-  Id                 *orthographic_cameras_id     = nullptr;
-  Id                 *perspective_cameras_id      = nullptr;
-  Id                 *directional_lights_id       = nullptr;
-  Id                 *point_lights_id             = nullptr;
-  Id                 *spot_lights_id              = nullptr;
-  Id                 *object_nodes_id             = nullptr;
+  Camera            camera                      = {};
+  AmbientLight      ambient_light               = {};
+  DirectionalLight *directional_lights          = 0;
+  PointLight       *point_lights                = 0;
+  SpotLight        *spot_lights                 = 0;
+  bool              lights_dirty_mask           = false;
+  u32               num_directional_lights      = 0;
+  u32               num_point_lights            = 0;
+  u32               num_spot_lights             = 0;
+  ObjectNode       *object_nodes                = nullptr;
+  Mat4Affine       *object_local_transforms     = nullptr;
+  Mat4Affine       *object_global_transforms    = nullptr;
+  Box              *object_aabb                 = nullptr;
+  i64              *object_z_index              = nullptr;
+  u64              *object_transform_dirty_mask = nullptr;
+  u64              *object_cull_mask            = nullptr;
+  u64              *objects_z_ordered           = nullptr;
+  u64              *object_transparency_mask    = nullptr;
+  u64               num_objects                 = 0;
+  Id               *directional_lights_id       = nullptr;
+  Id               *point_lights_id             = nullptr;
+  Id               *spot_lights_id              = nullptr;
+  Id               *object_nodes_id             = nullptr;
 
   // validity mask for object, node, light
   // free slots list for  object,node,light
 
-  u64  add_object(SceneObject const &);
+  u64  add_object(char const *node_id, SceneObject const &);
   void remove_object(u64);
 };
 
@@ -327,7 +325,7 @@ struct Renderer
   //
   // cull lights by camera frustum
   //
-  void cull(Span<Scene *const> scenes);
+  void cull(Scene &scene);
 
   // vfx
   // add_light(); -> update buffers and descriptor sets, increase size of
@@ -349,25 +347,39 @@ struct Renderer
   // work for portals?
   //
   //
-  void render(Span<Scene *const> scenes, gfx::Framebuffer);
+  void render(Scene &scene, gfx::Framebuffer);
+};
+
+struct PBRMaterialSource
+{
+  ImageSpan<u8 const> albedo                   = {};
+  ImageSpan<u8 const> ambient_occlusion        = {};
+  ImageSpan<u8 const> emmissive                = {};
+  ImageSpan<u8 const> metallic                 = {};
+  ImageSpan<u8 const> normal                   = {};
+  ImageSpan<u8 const> roughness                = {};
+  Vec4                albedo_factor            = {};
+  Vec4                ambient_occlusion_factor = {};
+  Vec4                emmissive_factor         = {};
+  Vec4                metallic_factor          = {};
+  Vec4                normal_factor            = {};
+  Vec4                roughness_factor         = {};
 };
 
 struct PBRMaterial
 {
-  ImageView<u8 const> albedo             = {};
-  ImageView<u8 const> ambient            = {};
-  ImageView<u8 const> emmissive          = {};
-  ImageView<u8 const> metallic_roughness = {};
-  ImageView<u8 const> normal             = {};
-};
-
-struct PBRTextures
-{
-  gfx::ImageView albedo             = nullptr;
-  gfx::ImageView ambient            = nullptr;
-  gfx::ImageView emmissive          = nullptr;
-  gfx::ImageView metallic_roughness = nullptr;
-  gfx::ImageView normal             = nullptr;
+  gfx::ImageView albedo                   = nullptr;
+  gfx::ImageView ambient_occlussion       = nullptr;
+  gfx::ImageView emmissive                = nullptr;
+  gfx::ImageView metallic                 = nullptr;
+  gfx::ImageView normal                   = nullptr;
+  gfx::ImageView roughness                = nullptr;
+  Vec4           albedo_factor            = {};
+  Vec4           ambient_occlusion_factor = {};
+  Vec4           emmissive_factor         = {};
+  Vec4           metallic_factor          = {};
+  Vec4           normal_factor            = {};
+  Vec4           roughness_factor         = {};
 };
 
 struct PBRVertex
@@ -385,9 +397,11 @@ struct PBRMesh
 
 struct PBRObject
 {
-  PBRTextures textures   = {};
+  PBRMaterial material   = {};
   PBRMesh     mesh       = {};
+  i64         z_index    = 0;
   u64         scene_node = 0;
+  // descriptor group
 };
 
 //
@@ -437,8 +451,8 @@ struct PBRPass
 
   // add AABB to scene and init material for rendering
   // upload data to gpu, setup scene for it, add AABB, add to pass list
-  u64 add_object(PBRVertex const *vertices, u64 num_vertices,
-                 PBRMaterial const &material)
+  u64 add_object(char const *id, Span<PBRVertex const> vertices,
+                 PBRMaterialSource const &material)
   {
     // build mesh
     // build textures
@@ -480,7 +494,7 @@ struct PBRPass
 
 // use for:
 // fill, stroke, fill and stroke, images, rects, squares, round rects,
-// gradients, gradient blended images can be instanced
+// linear-gradients, linear-gradient blended images can be instanced
 // TODO(lamarrr): clipping
 //
 // TODO(lamarrr): temp-offscreen rendering
@@ -490,28 +504,30 @@ struct PBRPass
 struct RRectObject
 {
   Vec3 center           = {};
-  Vec3 extent           = {};
+  Vec3 half_extent      = {};
+  f32  border_thickness = 0;
   Vec4 border_radii     = {};
   Vec2 uv0              = {};
   Vec2 uv1              = {};
   Vec4 tint_uv0         = {};
   Vec4 tint_uv1         = {};
-  f32  border_thickness = 0;
   Vec4 border_color     = {};
+};
+
+struct RRectMaterialSource
+{
+  ImageSpan<u8 const> ambient;
 };
 
 struct RRectMaterial
 {
-  ImageView<u8 const> texture;
+  gfx::ImageView ambient;
 };
 
 // normal 2d objects
-// z_index mapped to clip space, occlusion culling + batching
+// occlusion culling + batching
 // custom objects + custom passes?
 // offscreen passes
-//
-// we can't use a linear draw list anymore
-// just straight-up frustum culling + occlusion culling +
 //
 //
 // CUSTOM SHADERS + CUSTOM PASSES
@@ -525,7 +541,9 @@ struct RRectMaterial
 //
 struct RRectPass
 {
-  void add_object(RRectObject const &, RRectMaterial const &);
+  u64  add_object(char const *id, RRectObject const &,
+                  RRectMaterialSource const &);
+  void remove_object(u64);
 };
 
 struct ChromaticAberrationPass

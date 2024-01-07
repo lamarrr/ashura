@@ -535,8 +535,8 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
 
       bin_buffers[glyph.bin]
           .view()
-          .subview(glyph.bin_offset, glyph.bin_extent)
-          .copy(ImageView<u8>{
+          .slice(glyph.bin_offset, glyph.bin_extent)
+          .copy(ImageSpan<u8>{
               .span   = stx::Span<u8>{slot->bitmap.buffer,
                                       slot->bitmap.rows * slot->bitmap.pitch},
               .extent = Extent{slot->bitmap.width, slot->bitmap.rows},

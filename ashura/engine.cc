@@ -226,7 +226,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   u8 transparent_image_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
   gfx::image transparent_image = render_resource_manager.add_image(
-      ImageView<u8 const>{.span   = transparent_image_data,
+      ImageSpan<u8 const>{.span   = transparent_image_data,
                           .extent = {1, 1},
                           .pitch  = 4,
                           .format = ImageFormat::Rgba8888},
@@ -237,7 +237,7 @@ Engine::Engine(AppConfig const &cfg, Widget *iroot_widget) :
   u8 icon[] = {0xFF, 0xFF, 0xFF, 0xFF};
 
   root_window.value()->set_icon(
-      ImageView<u8 const>{.span   = icon,
+      ImageSpan<u8 const>{.span   = icon,
                           .extent = {1, 1},
                           .pitch  = 4,
                           .format = ImageFormat::Rgba8888});

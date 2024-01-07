@@ -16,7 +16,7 @@ struct BitSpan
 
   constexpr bool is_empty() const
   {
-    return current_slice.size == 0;
+    return current_slice.span == 0;
   }
 
   constexpr bool operator[](usize offset) const
@@ -48,45 +48,26 @@ struct BitSpan
   {
     slice.offset += current_slice.offset;
     slice.offset =
-        slice.offset > current_slice.size ? current_slice.size : slice.offset;
-    slice.size = (current_slice.size - slice.offset) > slice.size ?
-                     slice.size :
-                     (current_slice.size - slice.offset);
+        slice.offset > current_slice.span ? current_slice.span : slice.offset;
+    slice.span = (current_slice.span - slice.offset) > slice.span ?
+                     slice.span :
+                     (current_slice.span - slice.offset);
     return BitSpan{body, slice};
+  }
+
+  constexpr BitSpan slice(usize offset) const
+  {
+    return (*this)[Slice{offset, USIZE_MAX}];
+  }
+
+  constexpr BitSpan slice(usize bit_offset, usize bit_size) const
+  {
+    return (*this)[Slice{bit_offset, bit_size}];
   }
 };
 
 namespace span
 {
-template <typename T>
-constexpr Span<T> slice(Span<T> self, usize offset)
-{
-  return self[Slice{offset, USIZE_MAX}];
-}
-
-template <typename T>
-constexpr Span<T> slice(Span<T> self, usize offset, usize size)
-{
-  return self[Slice{offset, size}];
-}
-
-template <typename T>
-constexpr BitSpan<T> slice(BitSpan<T> span, usize offset)
-{
-  return span[Slice{offset, USIZE_MAX}];
-}
-
-template <typename T>
-constexpr BitSpan<T> slice(BitSpan<T> span, usize bit_offset, usize bit_size)
-{
-  return span[Slice{bit_offset, bit_size}];
-}
-
-template <typename T>
-constexpr Span<T const> as_const(Span<T> self)
-{
-  return Span<T const>{self.data, self.size};
-}
 
 template <typename T>
 constexpr Span<u8> as_u8(Span<T> self)

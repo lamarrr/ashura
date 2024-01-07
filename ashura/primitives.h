@@ -17,8 +17,10 @@ constexpr f32 epsilon_clamp(f32 x)
   return abs(x) > F32_EPSILON ? x : F32_EPSILON;
 }
 
-typedef Vec2U Extent;
-typedef Vec2U Offset;
+typedef Vec2U       Extent;
+typedef Vec2U       Offset;
+typedef struct Rect Rect;
+typedef struct Box  Box;
 
 struct Rect
 {

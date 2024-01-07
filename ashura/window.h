@@ -174,7 +174,7 @@ struct Window
     return Extent{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
-  void set_icon(ImageView<u8 const> image)
+  void set_icon(ImageSpan<u8 const> image)
   {
     SDL_PixelFormatEnum fmt = SDL_PIXELFORMAT_RGBA8888;
 

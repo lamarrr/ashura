@@ -853,7 +853,13 @@ struct ImageDesc
   u32          array_layers = 0;
 };
 
-/// a sub-resource that specifies mips, aspects, and layer of images
+/// a sub-resource that specifies mips, aspects, layer, and component mapping of
+/// images. typically for reference in shaders.
+///
+/// @mapping: mapping of the components in the shader. i.e. for R8G8B8_UNORM the
+/// non-existent Alpha component is always 0. To set it to 1 we set its
+/// component mapping (mapping.a) to ComponentSwizzle::One.
+///
 struct ImageViewDesc
 {
   char const      *label             = nullptr;
