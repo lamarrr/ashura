@@ -373,20 +373,104 @@ struct PBRMaterialSource
   Vec4                roughness_factor         = {};
 };
 
-struct PBRMaterial
+//
+// TODO(lamarrr): let's make the pbr a shader function instead. the pass should
+// be able to chain multiple properties atop of each other
+// use shader functions
+//
+//
+// i.e. single block Pbr in editor
+//
+//  CustomPbrOp{
+//
+//  properties: [emmissive, base_color, base_factor]
+//
+//
+//  }
+//
+//  construct GLSL shader with Ops and macros to configure based on ops
+//
+//
+//
+//
+// struct TextureLoc{
+// // image
+// // aspect
+// // subset
+// // size
+// };
+//
+// textures need to be packed together by usage as much as possible
+//
+//
+enum class PbrMaterialType : u8
 {
-  gfx::ImageView albedo                   = nullptr;
-  gfx::ImageView ambient_occlussion       = nullptr;
-  gfx::ImageView emmissive                = nullptr;
-  gfx::ImageView metallic                 = nullptr;
-  gfx::ImageView normal                   = nullptr;
-  gfx::ImageView roughness                = nullptr;
-  Vec4           albedo_factor            = {};
-  Vec4           ambient_occlusion_factor = {};
-  Vec4           emmissive_factor         = {};
-  Vec4           metallic_factor          = {};
-  Vec4           normal_factor            = {};
-  Vec4           roughness_factor         = {};
+  None    = 0,
+  Bool    = 1,
+  F32     = 2,
+  Vec2    = 3,
+  Vec3    = 4,
+  Vec4    = 5,
+  Texture = 6
+};
+
+// SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
+// SEE: https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
+enum class PbrMaterialSlot : u8
+{
+  None                      = 0,
+  BaseColorFactor           = 1,        // KHR's PBR metallic roughness
+  BaseColorTexture          = 2,
+  MetallicFactor            = 3,
+  MetallicTexture           = 4,
+  RoughnessFactor           = 5,
+  RoughnessTexture          = 6,
+  NormalFactor              = 7,
+  NormalTexture             = 8,
+  OcclusionFactor           = 9,
+  OcclusionTexture          = 10,
+  EmmissiveFactor           = 11,
+  EmmissiveTexture          = 12,
+  AnisotropyStrength        = 13,        //  KHR_materials_anisotropy; 0.0
+  AnistropyRotation         = 14,        // 0.0
+  AnisotropyTexture         = 15,
+  ClearcoatFactor           = 16,        //  KHR_materials_clearcoat; 0.0
+  ClearcoatTexture          = 17,
+  ClearcoatRoughnessFactor  = 18,        // 0.0
+  ClearcoatRoughnessTexture = 19,
+  ClearcoatNormalTexture    = 20,
+  EmissiveStrength          = 21,        // KHR_materials_emissive_strength; 1.0
+  IndexOfRefraction         = 22,        // KHR_materials_ior; 1.5
+  IridescenceFactor         = 23,        // KHR_materials_iridescence 0.0
+  IridescenceTexture        = 24,
+  IridescenceIndexOfRefraction = 25,        // 1.3
+  IridescenceThicknessMinimum  = 26,        // 100.0
+  IridescenceThicknessMaximum  = 27,        // 400.0
+  IridescenceThicknessTexture  = 28,
+  SheenColorFactor             = 29,        // KHR_materials_sheen; (0,0,0)
+  SheenColorTexture            = 30,
+  SheenRoughnessFactor         = 31,        // 0
+  SheenRoughnessTexture        = 32,
+  SpecularFactor               = 33,        // KHR_materials_specular;1.0
+  SpecularTexture              = 34,
+  SpecularColorFactor          = 35,        // (1,1,1)
+  SpecularColorTexture         = 36,
+  TransmissionFactor           = 37,        // KHR_materials_transmission: 0
+  TransmissionTexture          = 38,
+  Unlit                        = 39        // KHR_materials_unlit
+};
+
+struct PbrMaterialNameType
+{
+  char const     *name;
+  PbrMaterialType type;
+};
+
+constexpr PbrMaterialNameType pbr_material_slot_name_type[] = {
+    {"None", PbrMaterialType::None}, {"None", PbrMaterialType::None},
+    {"None", PbrMaterialType::None}, {"None", PbrMaterialType::None},
+    {"None", PbrMaterialType::None}, {"None", PbrMaterialType::None},
+    {"None", PbrMaterialType::None}, {"None", PbrMaterialType::None},
 };
 
 struct PBRVertex
@@ -395,6 +479,7 @@ struct PBRVertex
   f32 u = 0, v = 0;
 };
 
+// height map + other shader functions?
 struct PBRMesh
 {
   u32 buffer      = 0;
