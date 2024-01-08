@@ -420,7 +420,8 @@ enum class PbrMaterialType : u8
 };
 
 // SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
-// SEE: https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
+// SEE:
+// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
 enum class PbrMaterialSlot : u8
 {
   None                      = 0,
@@ -430,39 +431,38 @@ enum class PbrMaterialSlot : u8
   MetallicTexture           = 4,
   RoughnessFactor           = 5,
   RoughnessTexture          = 6,
-  NormalFactor              = 7,
-  NormalTexture             = 8,
-  OcclusionFactor           = 9,
-  OcclusionTexture          = 10,
-  EmmissiveFactor           = 11,
-  EmmissiveTexture          = 12,
-  AnisotropyStrength        = 13,        //  KHR_materials_anisotropy; 0.0
-  AnistropyRotation         = 14,        // 0.0
-  AnisotropyTexture         = 15,
-  ClearcoatFactor           = 16,        //  KHR_materials_clearcoat; 0.0
-  ClearcoatTexture          = 17,
-  ClearcoatRoughnessFactor  = 18,        // 0.0
-  ClearcoatRoughnessTexture = 19,
-  ClearcoatNormalTexture    = 20,
-  EmissiveStrength          = 21,        // KHR_materials_emissive_strength; 1.0
-  IndexOfRefraction         = 22,        // KHR_materials_ior; 1.5
-  IridescenceFactor         = 23,        // KHR_materials_iridescence 0.0
-  IridescenceTexture        = 24,
-  IridescenceIndexOfRefraction = 25,        // 1.3
-  IridescenceThicknessMinimum  = 26,        // 100.0
-  IridescenceThicknessMaximum  = 27,        // 400.0
-  IridescenceThicknessTexture  = 28,
-  SheenColorFactor             = 29,        // KHR_materials_sheen; (0,0,0)
-  SheenColorTexture            = 30,
-  SheenRoughnessFactor         = 31,        // 0
-  SheenRoughnessTexture        = 32,
-  SpecularFactor               = 33,        // KHR_materials_specular;1.0
-  SpecularTexture              = 34,
-  SpecularColorFactor          = 35,        // (1,1,1)
-  SpecularColorTexture         = 36,
-  TransmissionFactor           = 37,        // KHR_materials_transmission: 0
-  TransmissionTexture          = 38,
-  Unlit                        = 39        // KHR_materials_unlit
+  NormalTexture             = 7,
+  OcclusionFactor           = 8,
+  OcclusionTexture          = 9,
+  EmmissiveFactor           = 10,
+  EmmissiveTexture          = 11,
+  AnisotropyStrength        = 12,        //  KHR_materials_anisotropy; 0.0
+  AnistropyRotation         = 13,        // 0.0
+  AnisotropyTexture         = 14,
+  ClearcoatFactor           = 15,        //  KHR_materials_clearcoat; 0.0
+  ClearcoatTexture          = 16,
+  ClearcoatRoughnessFactor  = 17,        // 0.0
+  ClearcoatRoughnessTexture = 18,
+  ClearcoatNormalTexture    = 19,
+  EmissiveStrength          = 20,        // KHR_materials_emissive_strength; 1.0
+  IndexOfRefraction         = 21,        // KHR_materials_ior; 1.5
+  IridescenceFactor         = 22,        // KHR_materials_iridescence 0.0
+  IridescenceTexture        = 23,
+  IridescenceIndexOfRefraction = 24,        // 1.3
+  IridescenceThicknessMinimum  = 25,        // 100.0
+  IridescenceThicknessMaximum  = 26,        // 400.0
+  IridescenceThicknessTexture  = 27,
+  SheenColorFactor             = 28,        // KHR_materials_sheen; (0,0,0)
+  SheenColorTexture            = 29,
+  SheenRoughnessFactor         = 30,        // 0
+  SheenRoughnessTexture        = 31,
+  SpecularFactor               = 32,        // KHR_materials_specular;1.0
+  SpecularTexture              = 33,
+  SpecularColorFactor          = 34,        // (1,1,1)
+  SpecularColorTexture         = 35,
+  TransmissionFactor           = 36,        // KHR_materials_transmission: 0
+  TransmissionTexture          = 37,
+  Unlit                        = 38        // KHR_materials_unlit
 };
 
 struct PbrMaterialNameType
