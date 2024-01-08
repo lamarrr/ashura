@@ -405,6 +405,9 @@ struct PBRMaterialSource
 // textures need to be packed together by usage as much as possible
 //
 //
+// U8, I8, ...
+//
+//
 enum class PbrMaterialType : u8
 {
   None    = 0,
