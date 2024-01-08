@@ -305,6 +305,8 @@ struct Scene
 
   // validity mask for object, node, light
   // free slots list for  object,node,light
+  // id map?
+  // free ids?
 
   u64  add_object(Span<char const> node_id, SceneObject const &);
   void remove_object(u64);
