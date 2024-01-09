@@ -118,58 +118,6 @@ inline u32 num_mip_levels(Vec4U a)
   return max == 0 ? 0 : (u32log2(max) + 1);
 }
 
-constexpr f32 dot(Vec2 a, Vec2 b)
-{
-  return a.x * b.x + a.y * b.y;
-}
-
-constexpr i32 dot(Vec2I a, Vec2I b)
-{
-  return a.x * b.x + a.y * b.y;
-}
-
-constexpr f32 dot(Vec3 a, Vec3 b)
-{
-  return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-constexpr i32 dot(Vec3I a, Vec3I b)
-{
-  return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-constexpr f32 dot(Vec4 a, Vec4 b)
-{
-  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
-}
-
-constexpr i32 dot(Vec4I a, Vec4I b)
-{
-  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
-}
-
-constexpr f32 cross(Vec2 a, Vec2 b)
-{
-  return a.x * b.y - b.x * a.y;
-}
-
-constexpr i32 cross(Vec2I a, Vec2I b)
-{
-  return a.x * b.y - b.x * a.y;
-}
-
-constexpr Vec3 cross(Vec3 a, Vec3 b)
-{
-  return Vec3{a.y * b.z - a.z * b.y, -(a.x * b.z - a.z * b.x),
-              a.x * b.y - a.y * b.x};
-}
-
-constexpr Vec3I cross(Vec3I a, Vec3I b)
-{
-  return Vec3I{a.y * b.z - a.z * b.y, -(a.x * b.z - a.z * b.x),
-               a.x * b.y - a.y * b.x};
-}
-
 constexpr Vec2 uniform_vec2(f32 value)
 {
   return Vec2{value, value};
@@ -251,124 +199,6 @@ constexpr Mat3 transpose(Mat3 const &a)
 constexpr Mat4 transpose(Mat4 const &a)
 {
   return Mat4{.rows = {a.x(), a.y(), a.z(), a.w()}};
-}
-
-constexpr Vec2 matmul(Mat2 const &a, Vec2 const &b)
-{
-  return Vec2{dot(a[0], b), dot(a[1], b)};
-}
-
-constexpr Mat2 matmul(Mat2 const &a, Mat2 const &b)
-{
-  return Mat2{.rows = {{dot(a[0], b.x()), dot(a[0], b.y())},
-                       {dot(a[1], b.x()), dot(a[1], b.y())}}};
-}
-
-constexpr Vec3 matmul(Mat3 const &a, Vec3 const &b)
-{
-  return Vec3{dot(a[0], b), dot(a[1], b), dot(a[2], b)};
-}
-
-constexpr Mat3 matmul(Mat3 const &a, Mat3 const &b)
-{
-  return Mat3{.rows = {
-                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-                  {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())},
-              }};
-}
-
-constexpr Vec3 matmul(Mat3Affine const &a, Vec3 const &b)
-{
-  return Vec3{dot(a[0], b), dot(a[1], b), dot(Mat3Affine::trailing_row, b)};
-}
-
-constexpr Mat3 matmul(Mat3Affine const &a, Mat3 const &b)
-{
-  return Mat3{.rows = {
-                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-                  {dot(Mat3Affine::trailing_row, b.x()),
-                   dot(Mat3Affine::trailing_row, b.y()),
-                   dot(Mat3Affine::trailing_row, b.z())},
-              }};
-}
-
-constexpr Mat3 matmul(Mat3 const &a, Mat3Affine const &b)
-{
-  return Mat3{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-                       {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-                       {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())}}};
-}
-
-constexpr Mat3Affine matmul(Mat3Affine const &a, Mat3Affine const &b)
-{
-  return Mat3Affine{
-      .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())}}};
-}
-
-constexpr Vec4 matmul(Mat4 const &a, Vec4 const &b)
-{
-  return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b), dot(a[3], b)};
-}
-
-constexpr Mat4 matmul(Mat4 const &a, Mat4 const &b)
-{
-  return Mat4{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-                        dot(a[0], b.w())},
-                       {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-                        dot(a[1], b.w())},
-                       {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-                        dot(a[2], b.w())},
-                       {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
-                        dot(a[3], b.w())}}};
-}
-
-constexpr Vec4 matmul(Mat4Affine const &a, Vec4 const &b)
-{
-  return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b),
-              dot(Mat4Affine::trailing_row, b)};
-}
-
-constexpr Mat4 matmul(Mat4Affine const &a, Mat4 const &b)
-{
-  return Mat4{.rows = {
-                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-                   dot(a[0], b.w())},
-                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-                   dot(a[1], b.w())},
-                  {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-                   dot(a[2], b.w())},
-                  {dot(Mat4Affine::trailing_row, b.x()),
-                   dot(Mat4Affine::trailing_row, b.y()),
-                   dot(Mat4Affine::trailing_row, b.z()),
-                   dot(Mat4Affine::trailing_row, b.w())},
-              }};
-}
-
-constexpr Mat4 matmul(Mat4 const &a, Mat4Affine const &b)
-{
-  return Mat4{.rows = {
-                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-                   dot(a[0], b.w())},
-                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-                   dot(a[1], b.w())},
-                  {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-                   dot(a[2], b.w())},
-                  {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
-                   dot(a[3], b.w())},
-              }};
-}
-
-constexpr Mat4Affine matmul(Mat4Affine const &a, Mat4Affine const &b)
-{
-  return Mat4Affine{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()),
-                              dot(a[0], b.z()), dot(a[0], b.w())},
-                             {dot(a[1], b.x()), dot(a[1], b.y()),
-                              dot(a[1], b.z()), dot(a[1], b.w())},
-                             {dot(a[2], b.x()), dot(a[2], b.y()),
-                              dot(a[2], b.z()), dot(a[2], b.w())}}};
 }
 
 constexpr f32 determinant(Mat2 const &a)
@@ -592,8 +422,7 @@ inline Mat4Affine affine_rotate3d_z(f32 radians)
 // TODO(lamarrr): implement for affine
 constexpr Vec2 transform(Mat3 const &t, Vec2 value)
 {
-  Vec3 v{value.x, value.y, 1};
-  v = matmul(t, v);
+  Vec3 v = t * Vec3{value.x, value.y, 1};
   return Vec2{v.x, v.y};
 }
 

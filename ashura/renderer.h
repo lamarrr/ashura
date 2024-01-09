@@ -359,20 +359,62 @@ struct Renderer
   void render(PassContext *ctx);
 };
 
-struct PBRMaterialSource
+struct Texture
 {
-  ImageSpan<u8 const> albedo                   = {};
-  ImageSpan<u8 const> ambient_occlusion        = {};
-  ImageSpan<u8 const> emmissive                = {};
-  ImageSpan<u8 const> metallic                 = {};
-  ImageSpan<u8 const> normal                   = {};
-  ImageSpan<u8 const> roughness                = {};
-  Vec4                albedo_factor            = {};
-  Vec4                ambient_occlusion_factor = {};
-  Vec4                emmissive_factor         = {};
-  Vec4                metallic_factor          = {};
-  Vec4                normal_factor            = {};
-  Vec4                roughness_factor         = {};
+  gfx::ImageView view = nullptr;
+  Vec2           uv0  = {};
+  Vec2           uv1  = {};
+};
+
+struct PBRMaterialExt
+{
+  Texture base_color_texture              = {};
+  Texture metallic_texture                = {};
+  Texture roughness_texture               = {};
+  Texture normal_texture                  = {};
+  Texture occlusion_texture               = {};
+  Texture emissive_texture                = {};
+  Texture anisotropy_texture              = {};
+  Texture clearcoat_texture               = {};
+  Texture clearcoat_roughness_texture     = {};
+  Texture clearcoat_normal_texture        = {};
+  Texture iridescence_texture             = {};
+  Texture iridescence_thickness_texture   = {};
+  Texture sheen_color_texture             = {};
+  Texture sheen_roughness_texture         = {};
+  Texture specular_texture                = {};
+  Texture specular_color_texture          = {};
+  Texture transmission_texture            = {};
+  Vec4    base_color_factor               = {};
+  f32     metallic_factor                 = 0;
+  f32     roughness_factor                = 0;
+  f32     normal_scale                    = 0;
+  f32     occlusion_strength              = 0;
+  Vec3    emissive_factor                 = {};
+  f32     anisotropy_strength             = 0;
+  f32     anisotropy_rotation             = 0;
+  f32     clearcoat_factor                = 0;
+  f32     clearcoat_roughness_factor      = 0;
+  f32     emissive_strength               = 1;
+  f32     index_of_refraction             = 1.5F;
+  f32     iridescence_factor              = 0;
+  f32     iridescence_index_of_refraction = 1.3f;
+  f32     iridescence_thickness_minimum   = 100.0;
+  f32     iridescence_thickness_maximum   = 400.0;
+  Vec3    sheen_color_factor              = {};
+  f32     sheen_roughness_factor          = 0;
+  f32     specular_factor                 = 1.0;
+  Vec3    specular_color_factor           = Vec3{1, 1, 1};
+  f32     transmission_factor             = 0;
+  bool    unlit                           = false;
+};
+
+constexpr u32 i = sizeof(PBRMaterialExt);
+
+struct PbrMaterialX
+{
+  u64 mask = 0;
+  u32 ids[2];
 };
 
 //
@@ -424,14 +466,16 @@ enum class PbrMaterialType : u8
 // https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
 enum class PbrMaterialSlot : u8
 {
-  None                      = 0,
-  BaseColorFactor           = 1,        // KHR's PBR metallic roughness
-  BaseColorTexture          = 2,
-  MetallicFactor            = 3,
-  MetallicTexture           = 4,
-  RoughnessFactor           = 5,
-  RoughnessTexture          = 6,
-  NormalTexture             = 7,
+  None             = 0,
+  BaseColorFactor  = 1,        // KHR's PBR metallic roughness
+  BaseColorTexture = 2,
+  MetallicFactor   = 3,
+  MetallicTexture  = 4,
+  RoughnessFactor  = 5,
+  RoughnessTexture = 6,
+  NormalScale      = 7,
+  NormalTexture    = 7,
+  OcclusionStrength,
   OcclusionTexture          = 8,
   EmmissiveFactor           = 9,
   EmmissiveTexture          = 10,
@@ -464,19 +508,7 @@ enum class PbrMaterialSlot : u8
   Unlit                        = 37        // KHR_materials_unlit
 };
 
-struct PbrMaterialNameType
-{
-  char const     *name;
-  PbrMaterialType type;
-};
-
-constexpr PbrMaterialNameType pbr_material_slot_name_type[] = {
-    {"None", PbrMaterialType::None}, {"None", PbrMaterialType::None},
-    {"None", PbrMaterialType::None}, {"None", PbrMaterialType::None},
-    {"None", PbrMaterialType::None}, {"None", PbrMaterialType::None},
-    {"None", PbrMaterialType::None}, {"None", PbrMaterialType::None},
-};
-
+// TODO(lamarrr): make this programmable
 struct PBRVertex
 {
   f32 x = 0, y = 0, z = 0;
@@ -514,8 +546,7 @@ struct PBRPass
 
   // add AABB to scene and init material for rendering
   // upload data to gpu, setup scene for it, add AABB, add to pass list
-  u64 add_object(Span<char const> id, Span<PBRVertex const> vertices,
-                 PBRMaterialSource const &material)
+  u64 add_object(Span<char const> id, Span<PBRVertex const> vertices)
   {
     // build mesh tree (static and dynamic)
     // build textures
