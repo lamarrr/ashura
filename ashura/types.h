@@ -931,9 +931,15 @@ constexpr Mat2 operator-(Mat2 const &a, Mat2 const &b)
   return Mat2{.rows = {a[0] - b[0], a[1] - b[1]}};
 }
 
+constexpr Vec2 operator*(Mat2 const &a, Vec2 const &b)
+{
+  return Vec2{dot(a[0], b), dot(a[1], b)};
+}
+
 constexpr Mat2 operator*(Mat2 const &a, Mat2 const &b)
 {
-  return Mat2{.rows = {a[0] * b[0], a[1] * b[1]}};
+  return Mat2{.rows = {{dot(a[0], b.x()), dot(a[0], b.y())},
+                       {dot(a[1], b.x()), dot(a[1], b.y())}}};
 }
 
 constexpr Mat2 operator/(Mat2 const &a, Mat2 const &b)
@@ -963,17 +969,6 @@ constexpr Mat2 &operator/=(Mat2 &a, Mat2 const &b)
 {
   a = a / b;
   return a;
-}
-
-constexpr Vec2 operator*(Mat2 const &a, Vec2 const &b)
-{
-  return Vec2{dot(a[0], b), dot(a[1], b)};
-}
-
-constexpr Mat2 operator*(Mat2 const &a, Mat2 const &b)
-{
-  return Mat2{.rows = {{dot(a[0], b.x()), dot(a[0], b.y())},
-                       {dot(a[1], b.x()), dot(a[1], b.y())}}};
 }
 
 struct Mat3
@@ -1026,9 +1021,18 @@ constexpr Mat3 operator-(Mat3 const &a, Mat3 const &b)
   return Mat3{.rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2]}};
 }
 
+constexpr Vec3 operator*(Mat3 const &a, Vec3 const &b)
+{
+  return Vec3{dot(a[0], b), dot(a[1], b), dot(a[2], b)};
+}
+
 constexpr Mat3 operator*(Mat3 const &a, Mat3 const &b)
 {
-  return Mat3{.rows = {a[0] * b[0], a[1] * b[1], a[2] * b[2]}};
+  return Mat3{.rows = {
+                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
+                  {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())},
+              }};
 }
 
 constexpr Mat3 operator/(Mat3 const &a, Mat3 const &b)
@@ -1058,20 +1062,6 @@ constexpr Mat3 &operator/=(Mat3 &a, Mat3 const &b)
 {
   a = a / b;
   return a;
-}
-
-constexpr Vec3 operator*(Mat3 const &a, Vec3 const &b)
-{
-  return Vec3{dot(a[0], b), dot(a[1], b), dot(a[2], b)};
-}
-
-constexpr Mat3 operator*(Mat3 const &a, Mat3 const &b)
-{
-  return Mat3{.rows = {
-                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-                  {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())},
-              }};
 }
 
 struct Mat3Affine
@@ -1130,9 +1120,34 @@ constexpr Mat3Affine operator-(Mat3Affine const &a, Mat3Affine const &b)
   return Mat3Affine{.rows = {a[0] - b[0], a[1] - b[1]}};
 }
 
+constexpr Vec3 operator*(Mat3Affine const &a, Vec3 const &b)
+{
+  return Vec3{dot(a[0], b), dot(a[1], b), dot(Mat3Affine::trailing_row, b)};
+}
+
+constexpr Mat3 operator*(Mat3Affine const &a, Mat3 const &b)
+{
+  return Mat3{.rows = {
+                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
+                  {dot(Mat3Affine::trailing_row, b.x()),
+                   dot(Mat3Affine::trailing_row, b.y()),
+                   dot(Mat3Affine::trailing_row, b.z())},
+              }};
+}
+
+constexpr Mat3 operator*(Mat3 const &a, Mat3Affine const &b)
+{
+  return Mat3{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+                       {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
+                       {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())}}};
+}
+
 constexpr Mat3Affine operator*(Mat3Affine const &a, Mat3Affine const &b)
 {
-  return Mat3Affine{.rows = {a[0] * b[0], a[1] * b[1]}};
+  return Mat3Affine{
+      .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
+               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())}}};
 }
 
 constexpr Mat3Affine operator/(Mat3Affine const &a, Mat3Affine const &b)
@@ -1162,36 +1177,6 @@ constexpr Mat3Affine &operator/=(Mat3Affine &a, Mat3Affine const &b)
 {
   a = a / b;
   return a;
-}
-
-constexpr Vec3 operator*(Mat3Affine const &a, Vec3 const &b)
-{
-  return Vec3{dot(a[0], b), dot(a[1], b), dot(Mat3Affine::trailing_row, b)};
-}
-
-constexpr Mat3 operator*(Mat3Affine const &a, Mat3 const &b)
-{
-  return Mat3{.rows = {
-                  {dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-                  {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-                  {dot(Mat3Affine::trailing_row, b.x()),
-                   dot(Mat3Affine::trailing_row, b.y()),
-                   dot(Mat3Affine::trailing_row, b.z())},
-              }};
-}
-
-constexpr Mat3 operator*(Mat3 const &a, Mat3Affine const &b)
-{
-  return Mat3{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-                       {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())},
-                       {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z())}}};
-}
-
-constexpr Mat3Affine operator*(Mat3Affine const &a, Mat3Affine const &b)
-{
-  return Mat3Affine{
-      .rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z())},
-               {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z())}}};
 }
 
 struct Mat4
@@ -1249,9 +1234,21 @@ constexpr Mat4 operator-(Mat4 const &a, Mat4 const &b)
   return Mat4{.rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2], a[3] - b[3]}};
 }
 
+constexpr Vec4 operator*(Mat4 const &a, Vec4 const &b)
+{
+  return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b), dot(a[3], b)};
+}
+
 constexpr Mat4 operator*(Mat4 const &a, Mat4 const &b)
 {
-  return Mat4{.rows = {a[0] * b[0], a[1] * b[1], a[2] * b[2], a[3] * b[3]}};
+  return Mat4{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
+                        dot(a[0], b.w())},
+                       {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
+                        dot(a[1], b.w())},
+                       {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
+                        dot(a[2], b.w())},
+                       {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
+                        dot(a[3], b.w())}}};
 }
 
 constexpr Mat4 operator/(Mat4 const &a, Mat4 const &b)
@@ -1281,23 +1278,6 @@ constexpr Mat4 &operator/=(Mat4 &a, Mat4 const &b)
 {
   a = a / b;
   return a;
-}
-
-constexpr Vec4 operator*(Mat4 const &a, Vec4 const &b)
-{
-  return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b), dot(a[3], b)};
-}
-
-constexpr Mat4 operator*(Mat4 const &a, Mat4 const &b)
-{
-  return Mat4{.rows = {{dot(a[0], b.x()), dot(a[0], b.y()), dot(a[0], b.z()),
-                        dot(a[0], b.w())},
-                       {dot(a[1], b.x()), dot(a[1], b.y()), dot(a[1], b.z()),
-                        dot(a[1], b.w())},
-                       {dot(a[2], b.x()), dot(a[2], b.y()), dot(a[2], b.z()),
-                        dot(a[2], b.w())},
-                       {dot(a[3], b.x()), dot(a[3], b.y()), dot(a[3], b.z()),
-                        dot(a[3], b.w())}}};
 }
 
 struct Mat4Affine
@@ -1361,40 +1341,6 @@ constexpr Mat4Affine operator-(Mat4Affine const &a, Mat4Affine const &b)
   return Mat4Affine{.rows = {a[0] - b[0], a[1] - b[1], a[2] - b[2]}};
 }
 
-constexpr Mat4Affine operator*(Mat4Affine const &a, Mat4Affine const &b)
-{
-  return Mat4Affine{.rows = {a[0] * b[0], a[1] * b[1], a[2] * b[2]}};
-}
-
-constexpr Mat4Affine operator/(Mat4Affine const &a, Mat4Affine const &b)
-{
-  return Mat4Affine{.rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2]}};
-}
-
-constexpr Mat4Affine &operator+=(Mat4Affine &a, Mat4Affine const &b)
-{
-  a = a + b;
-  return a;
-}
-
-constexpr Mat4Affine &operator-=(Mat4Affine &a, Mat4Affine const &b)
-{
-  a = a - b;
-  return a;
-}
-
-constexpr Mat4Affine &operator*=(Mat4Affine &a, Mat4Affine const &b)
-{
-  a = a * b;
-  return a;
-}
-
-constexpr Mat4Affine &operator/=(Mat4Affine &a, Mat4Affine const &b)
-{
-  a = a / b;
-  return a;
-}
-
 constexpr Vec4 operator*(Mat4Affine const &a, Vec4 const &b)
 {
   return Vec4{dot(a[0], b), dot(a[1], b), dot(a[2], b),
@@ -1439,6 +1385,35 @@ constexpr Mat4Affine operator*(Mat4Affine const &a, Mat4Affine const &b)
                               dot(a[1], b.z()), dot(a[1], b.w())},
                              {dot(a[2], b.x()), dot(a[2], b.y()),
                               dot(a[2], b.z()), dot(a[2], b.w())}}};
+}
+
+constexpr Mat4Affine operator/(Mat4Affine const &a, Mat4Affine const &b)
+{
+  return Mat4Affine{.rows = {a[0] / b[0], a[1] / b[1], a[2] / b[2]}};
+}
+
+constexpr Mat4Affine &operator+=(Mat4Affine &a, Mat4Affine const &b)
+{
+  a = a + b;
+  return a;
+}
+
+constexpr Mat4Affine &operator-=(Mat4Affine &a, Mat4Affine const &b)
+{
+  a = a - b;
+  return a;
+}
+
+constexpr Mat4Affine &operator*=(Mat4Affine &a, Mat4Affine const &b)
+{
+  a = a * b;
+  return a;
+}
+
+constexpr Mat4Affine &operator/=(Mat4Affine &a, Mat4Affine const &b)
+{
+  a = a / b;
+  return a;
 }
 
 struct Slice

@@ -65,3 +65,44 @@ Material Shader System
 ========================
 - PBR (textures or values)
 - Plain colors
+
+Custom Passes
+- Some passes will be customisable with custom shaders
+
+Custom Shaders
+
+ --> shader library pack --> composed shader code (inputs linked to material system) (vertex + mesh)
+
+
+vertex shader
+fragment shader
+
+
+
+
+
+geometry pass?
+compute pass? 
+
+Material{
+    hashmap(<string, float>,
+    <string, vec2>,
+    <string, vec3>,
+    <string, vec4>,
+    <string, mat2>,
+    <string, mat3>,
+    <string, mat4>,
+    <string, texture>,
+    <string, buffer>,
+    <string, buffer_view>
+    )
+}
+
+Pass{
+    add_object(mesh, material)
+}
+
+- PBR shader for example
+
+--> PBR pass --> PBR shader pack
+

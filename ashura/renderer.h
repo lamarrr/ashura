@@ -40,15 +40,14 @@ typedef struct BokehPass                    BokehPass;
 typedef struct ChromaticAberrationPass      ChromaticAberrationPass;
 typedef struct PassContext                  PassContext;
 typedef stx::Fn<void(u64)>                  Task;
+typedef void                               *TaskExecutor;
 typedef stx::Fn<i32(Scene *, u64 a, u64 b)> ObjectSortKey;
-
-// Skybox? : custom renderer at z-index 0?
 
 struct PassContext
 {
   gfx::Image     root_image;
   gfx::ImageDesc root_image_desc;
-  // task executor
+  TaskExecutor   executor = nullptr;
 };
 
 struct DirectionalLight
