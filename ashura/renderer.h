@@ -365,55 +365,25 @@ struct Texture
   Vec2           uv1  = {};
 };
 
-struct PBRMaterialExt
+// SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
+// SEE:
+// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
+struct PBRMaterial
 {
-  Texture base_color_texture              = {};
-  Texture metallic_texture                = {};
-  Texture roughness_texture               = {};
-  Texture normal_texture                  = {};
-  Texture occlusion_texture               = {};
-  Texture emissive_texture                = {};
-  Texture anisotropy_texture              = {};
-  Texture clearcoat_texture               = {};
-  Texture clearcoat_roughness_texture     = {};
-  Texture clearcoat_normal_texture        = {};
-  Texture iridescence_texture             = {};
-  Texture iridescence_thickness_texture   = {};
-  Texture sheen_color_texture             = {};
-  Texture sheen_roughness_texture         = {};
-  Texture specular_texture                = {};
-  Texture specular_color_texture          = {};
-  Texture transmission_texture            = {};
-  Vec4    base_color_factor               = {};
-  f32     metallic_factor                 = 0;
-  f32     roughness_factor                = 0;
-  f32     normal_scale                    = 0;
-  f32     occlusion_strength              = 0;
-  Vec3    emissive_factor                 = {};
-  f32     anisotropy_strength             = 0;
-  f32     anisotropy_rotation             = 0;
-  f32     clearcoat_factor                = 0;
-  f32     clearcoat_roughness_factor      = 0;
-  f32     emissive_strength               = 1;
-  f32     index_of_refraction             = 1.5F;
-  f32     iridescence_factor              = 0;
-  f32     iridescence_index_of_refraction = 1.3f;
-  f32     iridescence_thickness_minimum   = 100.0;
-  f32     iridescence_thickness_maximum   = 400.0;
-  Vec3    sheen_color_factor              = {};
-  f32     sheen_roughness_factor          = 0;
-  f32     specular_factor                 = 1.0;
-  Vec3    specular_color_factor           = Vec3{1, 1, 1};
-  f32     transmission_factor             = 0;
-  bool    unlit                           = false;
-};
-
-constexpr u32 i = sizeof(PBRMaterialExt);
-
-struct PbrMaterialX
-{
-  u64 mask = 0;
-  u32 ids[2];
+  Texture base_color_texture = {};
+  Texture metallic_texture   = {};
+  Texture roughness_texture  = {};
+  Texture normal_texture     = {};
+  Texture occlusion_texture  = {};
+  Texture emissive_texture   = {};
+  Vec4    base_color_factor  = {};
+  f32     metallic_factor    = 0;
+  f32     roughness_factor   = 0;
+  f32     normal_scale       = 0;
+  f32     occlusion_strength = 0;
+  Vec3    emissive_factor    = {};
+  f32     emissive_strength  = 1;
+  bool    unlit              = false;
 };
 
 //
@@ -433,79 +403,12 @@ struct PbrMaterialX
 //
 //  construct GLSL shader with Ops and macros to configure based on ops
 //
-//
-//
-//
-// struct TextureLoc{
-// // image
-// // aspect
-// // subset
-// // size
-// };
-//
 // textures need to be packed together by usage as much as possible
 //
 //
 // U8, I8, ...
 //
 //
-enum class PbrMaterialType : u8
-{
-  None    = 0,
-  Bool    = 1,
-  F32     = 2,
-  Vec2    = 3,
-  Vec3    = 4,
-  Vec4    = 5,
-  Texture = 6
-};
-
-// SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
-// SEE:
-// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
-enum class PbrMaterialSlot : u8
-{
-  None             = 0,
-  BaseColorFactor  = 1,        // KHR's PBR metallic roughness
-  BaseColorTexture = 2,
-  MetallicFactor   = 3,
-  MetallicTexture  = 4,
-  RoughnessFactor  = 5,
-  RoughnessTexture = 6,
-  NormalScale      = 7,
-  NormalTexture    = 7,
-  OcclusionStrength,
-  OcclusionTexture          = 8,
-  EmmissiveFactor           = 9,
-  EmmissiveTexture          = 10,
-  AnisotropyStrength        = 11,        //  KHR_materials_anisotropy; 0.0
-  AnistropyRotation         = 12,        // 0.0
-  AnisotropyTexture         = 13,
-  ClearcoatFactor           = 14,        //  KHR_materials_clearcoat; 0.0
-  ClearcoatTexture          = 15,
-  ClearcoatRoughnessFactor  = 16,        // 0.0
-  ClearcoatRoughnessTexture = 17,
-  ClearcoatNormalTexture    = 18,
-  EmissiveStrength          = 19,        // KHR_materials_emissive_strength; 1.0
-  IndexOfRefraction         = 20,        // KHR_materials_ior; 1.5
-  IridescenceFactor         = 21,        // KHR_materials_iridescence 0.0
-  IridescenceTexture        = 22,
-  IridescenceIndexOfRefraction = 23,        // 1.3
-  IridescenceThicknessMinimum  = 24,        // 100.0
-  IridescenceThicknessMaximum  = 25,        // 400.0
-  IridescenceThicknessTexture  = 26,
-  SheenColorFactor             = 27,        // KHR_materials_sheen; (0,0,0)
-  SheenColorTexture            = 28,
-  SheenRoughnessFactor         = 29,        // 0
-  SheenRoughnessTexture        = 30,
-  SpecularFactor               = 31,        // KHR_materials_specular;1.0
-  SpecularTexture              = 32,
-  SpecularColorFactor          = 33,        // (1,1,1)
-  SpecularColorTexture         = 34,
-  TransmissionFactor           = 35,        // KHR_materials_transmission: 0
-  TransmissionTexture          = 36,
-  Unlit                        = 37        // KHR_materials_unlit
-};
 
 // TODO(lamarrr): make this programmable
 struct PBRVertex
@@ -617,12 +520,12 @@ struct RRect
 
 struct RRectMaterialSource
 {
-  ImageSpan<u8 const> ambient;
+  ImageSpan<u8 const> base_color;
 };
 
 struct RRectMaterial
 {
-  gfx::ImageView ambient;
+  gfx::ImageView base_color;
 };
 
 struct RRectObject
