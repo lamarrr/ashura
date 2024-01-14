@@ -43,16 +43,16 @@ inline u64 packed_image_size(u32 width, u32 height, gfx::Format format)
 /// This is a linear-tiled image with channels
 ///
 /// Supported Formats:
-/// Undefined
-/// R8_UNORM
-/// R8G8B8_UNORM
-/// B8G8R8_UNORM
-/// R8G8B8A8_UNORM
-/// B8G8R8A8_UNORM
-/// R32G32_SFLOAT
-/// R32G32B32_SFLOAT
-/// R32G32B32A32_SFLOAT
-/// A8_UNORM
+/// - Undefined
+/// - R8_UNORM
+/// - R8G8B8_UNORM
+/// - B8G8R8_UNORM
+/// - R8G8B8A8_UNORM
+/// - B8G8R8A8_UNORM
+/// - R32G32_SFLOAT
+/// - R32G32B32_SFLOAT
+/// - R32G32B32A32_SFLOAT
+/// - A8_UNORM
 ///
 ///
 /// @offset: offset where the first row of the image begins from. this enables
