@@ -145,7 +145,8 @@ struct ResourceManager
 
   /// TODO(lamarrr): whatttt??
   ///
-  u64 add_scene(Scene *);
+  u64  add_scene(Scene *);
+  void get_scene_resource(u64, Scene *);
   /// TODO(lamarrr): destroy all resources added by the pass for the scene
   void remove_scene(u64);
 };
