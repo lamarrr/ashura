@@ -6,6 +6,9 @@ namespace ash
 constexpr u32 DEFAULT_PCG32_MULTIPLIER = 747796405U;
 constexpr u32 DEFAULT_PCG32_INCREMENT  = 2891336453U;
 constexpr u32 DEFAULT_PCG32_SEED       = 0x46b56677U;
+constexpr u64 DEFAULT_PCG64_MULTIPLIER = 6364136223846793005ULL;
+constexpr u64 DEFAULT_PCG64_INCREMENT  = 1442695040888963407ULL;
+constexpr u64 DEFAULT_PCG64_SEED       = 0x4d595df4d0f33173ULL;
 
 /// Permuted Congruential Renerator.
 /// GPU/Multithreaded-compatible PRNG and Hash function.
@@ -23,10 +26,23 @@ constexpr u32 pcg32_rxs_m_xs(u32 state)
   return (word >> 22U) ^ word;
 }
 
+u64 pcg64_rxs_m_xs(u64 state)
+{
+  u64 word =
+      ((state >> ((state >> 59u) + 5u)) ^ state) * 12605985483714917081ull;
+  return (word >> 43u) ^ word;
+}
+
 /// linearly step/change the state of the machine
 constexpr u32 pcg32_step(u32 state)
 {
   u32 new_state = state * DEFAULT_PCG32_MULTIPLIER + DEFAULT_PCG32_INCREMENT;
+  return new_state;
+}
+
+constexpr u64 pcg64_step(u64 state)
+{
+  u64 new_state = state * DEFAULT_PCG64_MULTIPLIER + DEFAULT_PCG64_INCREMENT;
   return new_state;
 }
 
@@ -37,10 +53,23 @@ constexpr u32 pcg32(u32 input)
   return pcg32_rxs_m_xs(state);
 }
 
+constexpr u64 pcg64(u64 input)
+{
+  u64 state = pcg64_step(input);
+  return pcg64_rxs_m_xs(state);
+}
+
 constexpr u32 pcg32_generate(u32 &state)
 {
   u32 output = pcg32_rxs_m_xs(state);
   state      = pcg32_step(state);
+  return output;
+}
+
+constexpr u64 pcg64_generate(u64 &state)
+{
+  u64 output = pcg64_rxs_m_xs(state);
+  state      = pcg64_step(state);
   return output;
 }
 
@@ -51,16 +80,24 @@ constexpr u32 pcg32_combine(u32 pcg0, u32 input)
   return pcg32_rxs_m_xs(state);
 }
 
+constexpr u64 pcg64_combine(u64 pcg0, u64 input)
+{
+  u64 state = pcg64_step(pcg0 + input);
+  return pcg64_rxs_m_xs(state);
+}
+
 constexpr u32 pcg32_hash_bytes(void const *ptr, usize size)
 {
   // get bytes
-  u8 const * bytes = (u8 const*)ptr;
-  u32 pcg = DEFAULT_PCG32_SEED;
+  u8 const *bytes = (u8 const *) ptr;
+  u32       pcg   = DEFAULT_PCG32_SEED;
   // TODO(lamarrr): implement packed loads
   // for all u32 packs
   // pcg= pcg32_combine(pcg, pack);
   return pcg;
 }
+
+constexpr u64 pcg64_hash_bytes(void const *ptr, usize size);
 
 /// Super-fast PCG random number generator.
 struct Pcg32Rng
@@ -71,6 +108,17 @@ struct Pcg32Rng
   constexpr u32 generate()
   {
     return pcg32_generate(state);
+  }
+};
+
+struct Pcg64Rng
+{
+  // RNG state/seed. can be set to any value
+  u64 state = DEFAULT_PCG64_SEED;
+
+  constexpr u64 generate()
+  {
+    return pcg64_generate(state);
   }
 };
 
