@@ -1,11 +1,13 @@
 #pragma once
 #include "ashura/gfx.h"
-#include "ashura/uid.h"
 #include "ashura/image.h"
 #include "ashura/primitives.h"
 #include "ashura/types.h"
+#include "ashura/uid.h"
 
 namespace ash
+{
+namespace gfx
 {
 
 constexpr u32   MAX_SPOT_LIGHTS        = 64;
@@ -394,4 +396,5 @@ struct ViewPass
   uid32 view;
 };
 
-};        // namespace ash
+}        // namespace gfx
+}        // namespace ash
