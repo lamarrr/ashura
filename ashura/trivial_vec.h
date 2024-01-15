@@ -6,6 +6,7 @@ namespace ash
 {
 
 // only for purely trivial types
+// TODO(lamarrr): write a C-based implementation
 template <typename T>
 struct TrivialVec
 {

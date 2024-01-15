@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/gfx.h"
+#include "ashura/uid.h"
 #include "ashura/image.h"
 #include "ashura/primitives.h"
 #include "ashura/types.h"
@@ -7,47 +8,41 @@
 namespace ash
 {
 
-constexpr u32 MAXIMUM_SPOT_LIGHTS        = 64;
-constexpr u32 MAXIMUM_POINT_LIGHTS       = 64;
-constexpr u32 MAXIMUM_DIRECTIONAL_LIGHTS = 64;
-constexpr u32 MAXIMUM_ID_SIZE            = 128;
+constexpr u32   MAX_SPOT_LIGHTS        = 64;
+constexpr u32   MAX_POINT_LIGHTS       = 64;
+constexpr u32   MAX_DIRECTIONAL_LIGHTS = 64;
+constexpr u32   MAX_NAME_LENGTH        = 128;
+constexpr u8    RECT_TOP_LEFT          = 0;
+constexpr u8    RECT_TOP_RIGHT         = 1;
+constexpr u8    RECT_BOTTOM_RIGHT      = 2;
+constexpr u8    RECT_BOTTOM_LEFT       = 3;
+constexpr usize MEMORY_POOL_SIZE       = 4096;
 
-typedef char                           Id[MAXIMUM_ID_SIZE];
-typedef Vec4                           AmbientLight;
-typedef struct DirectionalLight        DirectionalLight;
-typedef struct PointLight              PointLight;
-typedef struct SpotLight               SpotLight;
-typedef struct OrthographicCamera      OrthographicCamera;
-typedef struct PerspectiveCamera       PerspectiveCamera;
-typedef struct Scene                   Scene;
-typedef struct Texture                 Texture;
-typedef struct ResourceManager         ResourceManager;
-typedef struct Pass_T                 *Pass;
-typedef struct PassInterface           PassInterface;
-typedef struct PassImpl                PassImpl;
-typedef struct Renderer                Renderer;
-typedef struct PBRPass                 PBRPass;
-typedef struct BlurPass                BlurPass;
-typedef struct BloomPass               BloomPass;
-typedef struct TAAPass                 TAAPass;
-typedef struct FXAAPass                FXAAPass;
-typedef struct BokehPass               BokehPass;
-typedef struct ChromaticAberrationPass ChromaticAberrationPass;
-typedef i32 (*PassObjectCmp)(void *, Scene *, u64 a, u64 b);
+typedef char                      Name[MAX_NAME_LENGTH];
+typedef struct Texture            Texture;
+typedef Vec4                      AmbientLight;
+typedef struct DirectionalLight   DirectionalLight;
+typedef struct PointLight         PointLight;
+typedef struct SpotLight          SpotLight;
+typedef struct OrthographicCamera OrthographicCamera;
+typedef struct PerspectiveCamera  PerspectiveCamera;
+typedef struct ResourceManager    ResourceManager;
+typedef struct Pass_T            *Pass;
+typedef struct PassInterface      PassInterface;
+typedef struct PassImpl           PassImpl;
+typedef struct RenderObject       RenderObject;
+typedef struct Scene              Scene;
+typedef struct SceneGroup         SceneGroup;
+typedef struct View               View;
+typedef struct ViewGroup          ViewGroup;
+typedef struct Renderer           Renderer;
+typedef i8 (*RenderObjectCmp)(Pass, SceneGroup *, u32, u64 a, u64 b);
 
 struct Texture
 {
   gfx::ImageView view = nullptr;
   Vec2           uv0  = {};
   Vec2           uv1  = {};
-};
-
-struct RenderTarget
-{
-  u64         generation = 0;
-  gfx::Extent extent     = {};
-  gfx::Format format     = gfx::Format::Undefined;
-  gfx::Image  image      = nullptr;
 };
 
 struct DirectionalLight
@@ -110,6 +105,7 @@ struct Camera
 /// Manages and uploads render resources to the GPU.
 struct ResourceManager
 {
+  AllocatorImpl allocator = {};
   // sort by update frequency, per-frame updates, rare-updates
   // allocate temporary image for rendering
   // renderpasses, framebuffers, pipeline caches,async pipeline cache loader and
@@ -122,6 +118,9 @@ struct ResourceManager
   //
   //
   // mapping of color and depth components?
+  //
+  // it should have a buffer of MAX_SWAPCHAIN_IMAGES it cycles from to prevent
+  // stalling
   //
   // full-screen depth stencil image
   // full-screen color image
@@ -139,61 +138,95 @@ struct ResourceManager
   //
   //
   // on frame begin, pending uploads are first performed
-  RenderTarget root_render_target = {};
-
-  void init();
-
-  /// TODO(lamarrr): whatttt??
-  ///
-  u64  add_scene(Scene *);
-  void get_scene_resource(u64, Scene *);
-  /// TODO(lamarrr): destroy all resources added by the pass for the scene
-  void remove_scene(u64);
+  //
+  //
+  // TODO(lamarrr): for scratch images there should be a way to request a
+  // discard of the image contents such that the image will be left in an
+  // unspecified state and no flushing or re-reading will occur?
+  //
 };
 
-/// @init: add self and resources to renderer
-/// @deinit: remove self and resources from renderer
-/// @update: update internal data based on changed information in the scene
-/// @encode: encode commands to be sent to the gpu
+/// @brief: Arguments to allocate new resources or update existing resources
+/// based on the changed state of the scene. called at the beginning of the
+/// frame. i.e. camera buffers, transform buffers, staging buffers.
+/// can also be used for resource management, i.e. ring buffers of per-frame
+/// resources.
+struct PassUpdateArgs
+{
+  ResourceManager        *mgr             = nullptr;
+  gfx::CommandEncoderImpl command_encoder = {};
+  ViewGroup const        *view_group      = nullptr;
+};
+
+/// @brief Arguments to encode the commands to render a batch of objects in a
+/// scene.
+/// @first_scene_object: pull from z_ordered index
+struct PassEncodeArgs
+{
+  ResourceManager        *mgr                = nullptr;
+  gfx::CommandEncoderImpl command_encoder    = {};
+  ViewGroup const        *view_group         = nullptr;
+  uid32                   view               = 0;
+  i64                     z_index            = 0;
+  bool                    is_transparent     = false;
+  u64                     first_scene_object = 0;
+  u64                     num_scene_objects  = 0;
+};
+
+/// @init: add self and resources
+/// @deinit: remove self and resources
 struct PassInterface
 {
-  void (*init)(Pass self, ResourceManager *mgr)   = nullptr;
-  void (*deinit)(Pass self, ResourceManager *mgr) = nullptr;
-  void (*update)(Pass self, ResourceManager *mgr) = nullptr;
-  void (*encode)(Pass self, ResourceManager *mgr, Scene *scene,
-                 gfx::CommandEncoderImpl command_encoder, i64 z_index,
-                 bool is_transparent, u64 first_scene_object,
-                 u64 num_scene_objects)           = nullptr;
+  Pass (*create)(ResourceManager *mgr)                  = nullptr;
+  void (*destroy)(Pass self, ResourceManager *mgr)      = nullptr;
+  void (*init)(Pass self, ResourceManager *mgr)         = nullptr;
+  RenderObjectCmp (*get_cmp)(Pass self)                 = nullptr;
+  void (*deinit)(Pass self, ResourceManager *mgr)       = nullptr;
+  void (*update)(Pass self, PassUpdateArgs const &args) = nullptr;
+  void (*encode)(Pass self, PassEncodeArgs const &args) = nullptr;
 };
 
-// can be loaded from a DLL i.e. C++ with C-linkage => DLL
+/// can be loaded from a DLL i.e. C++ with C-linkage => DLL
 struct PassImpl
 {
   Pass                 self      = nullptr;
   PassInterface const *interface = nullptr;
 };
 
+// TODO(lamarrr): a well-defined way to represent full-screen post-fx passes?
+//
+//
+// TODO(lamarrr): for HUD use different scene
 // world->[capture->world]->post-fx->hud->[capture->hud]
 // use z-indexes with full screen quad?
 // how to project from object-space to full-screen space
 //
 // i.e. world scene pass -> post-fx pass -> HUD pass
-
+//
 /// linearly-tilted tree node
-/// @pass: pass to be used to render this object
-struct SceneObject
+/// @pass: pass to be used to render this object. only one pass is responsible
+/// for rendering an object.
+struct RenderObject
 {
-  u64 parent       = 0;
-  u64 level        = 0;
-  u64 next_sibling = 0;
-  u64 first_child  = 0;
-  u64 pass         = 0;
-  u64 pass_object  = 0;
+  uid64 parent       = 0;
+  uid64 next_sibling = 0;
+  uid64 first_child  = 0;
+  u32   level        = 0;
+  uid32 pass         = 0;
+  uid64 pass_object  = 0;
+};
+
+/// @is_camera_space: if the object's coordinates are in camera space.???????
+struct RenderObjectDesc
+{
+  Mat4Affine local_transform = {};
+  Box        aabb            = {};
+  i64        z_index         = 0;
+  bool       is_camera_space = false;
+  bool       is_transparent  = false;
 };
 
 // A scene repared for rendering
-//
-// camera should be assumed to change every frame
 //
 // NOTE: the Scene's memory usage never shrinks, only grows. it is re-used.
 //
@@ -207,17 +240,22 @@ struct SceneObject
 // can be rendered together.
 // - sort objects in the same pass by key from render pass (materials and
 // textures and resources) to minimize pipeline state changes
-// - for the z-index group sorted objects with the same passes
-// - invoke the pass with the objects
-//
-//
-// objects_z_ordered will contain indices to the objects and will be sorted by a
-// z_index key
+// - for the z-index group sorted objects with the same passes, sort using the
+// PassCmp key
+// - for each partition, invoke the pass with the objects
 //
 // Area lights: https://learnopengl.com/Guest-Articles/2022/Area-Lights
+//
+// Unit is -1 to +1 for x,y,z. will help with objects that cover the whole
+// scene.
+// will be scaled to the screen dimensions eventually.
+//
+//
+// TODO(lamarrr): how will management of per-object resources work?
+//
+//
 struct Scene
 {
-  Camera            camera                      = {};
   AmbientLight      ambient_light               = {};
   DirectionalLight *directional_lights          = 0;
   PointLight       *point_lights                = 0;
@@ -226,54 +264,99 @@ struct Scene
   u32               num_directional_lights      = 0;
   u32               num_point_lights            = 0;
   u32               num_spot_lights             = 0;
-  SceneObject      *object_nodes                = nullptr;
+  RenderObject     *object_nodes                = nullptr;
   Mat4Affine       *object_local_transforms     = nullptr;
-  Mat4Affine       *object_global_transforms    = nullptr;
   u64              *camera_space_mask           = nullptr;
   Box              *object_aabb                 = nullptr;
   i64              *object_z_index              = nullptr;
   u64              *object_transform_dirty_mask = nullptr;
-  u64              *object_cull_mask            = nullptr;
-  u64              *objects_z_ordered           = nullptr;
   u64              *object_transparency_mask    = nullptr;
+  u64              *objects_sorted              = nullptr;
   u64              *object_ids_map              = nullptr;
+  uid64            *free_object_ids             = nullptr;
   u64               num_objects                 = 0;
+  // Mat4Affine       *object_global_transforms    = nullptr;
 
-  u64  add_object(Mat4Affine const &local_transform, Box const &aabb,
-                  i64 z_index, bool is_transparent);
-  void remove_object(u64);        // remove and shift objects only
-  // add_light();
-  //
-  // perform frustum and occlusion culling of objects and light (in the same
-  // z-index) then cull by z-index???? Z-index not needed in culling
-  // occlussion culling only happens when a fully-opaque object occludes another
-  // object.
-  //
-  // cull lights by camera frustum
-  void cull();
+  uid64 add_object(RenderObjectDesc const &);
+  // remove and shift objects only
+  void change_camera();
+  void remove_object(uid64);
+  void change_ambient_light();
+  void add_directional_light();
+  void add_point_light();
+  void add_spot_light();
+  void remove_directional_light();
+  void remove_point_light();
+  void remove_spot_light();
+};
 
-  // calls PassObjectCmp to sort all objects belonging to a pass invocation
-  void sort();
+// scene dependency? not explicitly expressed. left to the pass processor to
+// decide which scene to render and when scene pointer and ids can be re-used
+struct SceneGroup
+{
+  Scene *scenes = nullptr;
+  Name  *names  = nullptr;
+  u32    num    = 0;
+  u32   *id_map = nullptr;
+};
+
+// TODO(lamarrr): buffering
+// sized to screen size or lower if specified??? STILL Not good. we need to
+// prevent resizing as much as possible. this will also help with zooming for
+// example
+struct RenderTarget
+{
+  gfx::Format      color_format         = gfx::Format::Undefined;
+  gfx::Image       color_image          = nullptr;
+  gfx::Format      depth_stencil_format = gfx::Format::Undefined;
+  gfx::Image       depth_stencil_image  = nullptr;
+  gfx::RenderPass  render_pass          = nullptr;
+  gfx::Framebuffer framebuffer          = nullptr;
+};
+
+typedef RenderTarget ViewRenderTargets[gfx::MAX_SWAPCHAIN_IMAGES];
+
+// each view can have attachments for each pass
+/// camera should be assumed to change every frame
+struct View
+{
+  Camera      camera           = {};
+  SceneGroup *scene_group      = nullptr;
+  uid32       scene            = 0;
+  u64        *object_cull_mask = nullptr;
+  // TODO(lamarrr): consider map of string to void* resources + destructor?
+};
+
+struct ViewGroup
+{
+  View              *views          = nullptr;
+  ViewRenderTargets *render_targets = nullptr;
+  Name              *names          = nullptr;
+  u32               *id_map         = nullptr;
+  u32                num            = 0;
+  u32                buffering      = 0;
 };
 
 // sort objects by z-index, get min and max z-index
 // for all objects in the z-index range, invoke the passes pass->encode(z_index,
 // begin_objects, num_objects)
-//
-// Unit is -1 to +1 for x,y,z
-// will be scaled to the screen dimensions
-//
-//
+///
+/// passes are built at program startup and never change.
+///
+///
 struct Renderer
 {
-  PassImpl      *passes          = nullptr;
-  PassObjectCmp *pass_object_cmp = nullptr;
-  u64            num_passes      = 0;
-  Id            *passes_id       = nullptr;
+  PassImpl        *passes             = nullptr;
+  RenderObjectCmp *render_object_cmps = nullptr;
+  u32              num_passes         = 0;
+  Name            *pass_names         = nullptr;
+  // TODO(lamarrr): stable ids
 
-  u64      add_pass(Span<char const> pass_id, PassImpl pass);
-  PassImpl get_pass(u64);
-  PassImpl get_pass_by_id(Span<char const> pass_id);
+  void            init(Renderer *renderer, Span<char const *const> pass_names,
+                       Span<PassImpl const> passes);
+  PassImpl const *get_pass(uid32);
+  Name const     *get_pass_name(uid32);
+  PassImpl const *get_pass_by_name(char const *pass_name);
 
   // we need the mesh and object render-data is mostly pre-configured or
   // modified outside the renderer we just need to implement the post-effects
@@ -281,210 +364,34 @@ struct Renderer
   //
   // each scene is rendered and composited onto one another? can this possibly
   // work for portals?
-  void render(ResourceManager *mgr, Scene *scene);
+  void render(ResourceManager *mgr, ViewGroup const *group, u32 view);
 
   // remove all resources associated with a scene object.
-  void remove_scene(ResourceManager *mgr, Scene *scene);
-};
-
-/// SEE: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos
-/// SEE:
-/// https://github.com/KhronosGroup/glTF-Sample-Viewer/blob/main/source/Renderer/shaders/textures.glsl
-struct PBRMaterial
-{
-  Texture base_color_texture = {};
-  Texture metallic_texture   = {};
-  Texture roughness_texture  = {};
-  Texture normal_texture     = {};
-  Texture occlusion_texture  = {};
-  Texture emissive_texture   = {};
-  Vec4    base_color_factor  = {1, 1, 1, 1};
-  f32     metallic_factor    = 1;
-  f32     roughness_factor   = 1;
-  f32     normal_scale       = 1;
-  f32     occlusion_strength = 1;
-  Vec3    emissive_factor    = {1, 1, 1};
-  f32     emissive_strength  = 1;
-  bool    unlit              = false;
-};
-
-struct PBRVertex
-{
-  f32 x = 0, y = 0, z = 0;
-  f32 u = 0, v = 0;
-};
-
-struct PBRMesh
-{
-  u32            vertex_buffer = 0;
-  u32            index_buffer  = 0;
-  u32            first_index   = 0;
-  u32            num_indices   = 0;
-  gfx::IndexType index_type    = gfx::IndexType::Uint16;
-};
-
-struct PBRObject
-{
-  PBRMaterial material   = {};
-  PBRMesh     mesh       = {};
-  u64         scene_node = 0;
-};
-
-struct PBRPass
-{
-  PBRObject               *objects               = nullptr;
-  u64                      num_objects           = 0;
-  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
-  gfx::DescriptorHeapImpl  descriptor_heap       = {};
-  gfx::PipelineCache       pipeline_cache        = nullptr;
-  gfx::GraphicsPipeline    pipeline              = nullptr;
-  gfx::Sampler             sampler               = nullptr;
-
-  u64 add_object(Scene *scene, PBRMesh const &mesh, PBRMaterial const &material)
-  {
-  }
-
-  void remove_object(Scene *scene, u64 object)
-  {
-  }
-
-  static void init(Pass self_, ResourceManager *mgr)
-  {
-    // create resources
-    PBRPass *self = (PBRPass *) self_;
-  }
-
-  static void deinit(Pass self_, ResourceManager *mgr)
-  {
-  }
-
-  static void update(Pass self_, ResourceManager *mgr)
-  {
-    // re-build renderpass and framebuffer if needed
-  }
-
-  static void encode(Pass self_, ResourceManager *mgr, Scene *scene,
-                     gfx::CommandEncoderImpl command_encoder, i64 z_index,
-                     bool is_transparent, u64 first_scene_object,
-                     u64 num_scene_objects)
-  {
-  }
-
-  static PassInterface const interface{
-      .init = init, .deinit = deinit, .update = update, .encode = encode};
-};
-
-struct RRect
-{
-  Vec3 center           = {};
-  Vec3 half_extent      = {};
-  f32  border_thickness = 0;
-  Vec4 border_radii     = {};
-};
-
-/// @base_color_factors: [TL, TR, BR, BL]
-/// @border_colors: [TL, TR, BR, BL]
-struct RRectMaterial
-{
-  Texture base_color_texture    = {};
-  Vec4    base_color_factors[4] = {};
-  Vec4    border_colors[4]      = {};
-};
-
-struct RRectObject
-{
-  RRect         rrect      = {};
-  RRectMaterial material   = {};
-  u64           scene_node = 0;
-};
-
-// quad + instanced + transformed + antialiased
-//
-// Quad is an object without a type or specification. a unit square with just a
-// transformation matrix.
-//
-// Quads don't need vertex/index buffers. only shaders + gl_Index into
-// shader-stored vertices
-//
-// offscreen passes - run offscreen passes in the update function? what about
-// pass data and context? bool is_offscreen?
-//
-// how will offscreen rendering work? separate scene? - it must not be a
-// separate scene, it is left to the pass to decide allocate own texture for
-// rendering, then call passes of the objects to be rendered onto the allocated
-// framebuffer void render(...); the objects will be added during render?
-// will also need separate coordinates? or transformed?
-// HOW TO REUSE PASSES IN OFFSCREEN PASSES
-//
-//
-// - temp-offscreen rendering: request scratch image with maximum
-// size of the viewport size and specific format, not released until execution
-// completes, the pass doesn't need to release it so other passes can re-use it
-// if needed.
-//
-//
-// - offscreen pass will store the objects + their actual rendering pass and
-// invoke the actual pass when rendering is needed. these are sorted by sub-pass
-// again. we then invoke the actual passes with the frame buffer and location we
-// need to render to? WROOONNGGGGG - the subpass will also need to store info
-// and track data of the objects
-//   recursive offscreen?
-//
-//
-// GUI blur for example needs to capture the whole scene at one point and then
-// render to screen (Layer)
-//
-// Store last capture z-index + area, if non-intersecting and re-usable re-use
-//
-struct RRectPass
-{
-  RRectObject             *objects               = nullptr;
-  u64                      num_objects           = 0;
-  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
-  gfx::DescriptorHeapImpl  descriptor_heap       = {};
-  gfx::PipelineCache       pipeline_cache        = nullptr;
-  gfx::GraphicsPipeline    pipeline              = nullptr;
-  gfx::Sampler             sampler               = nullptr;
-
-  // todo(lamarrr): multiple framebuffers? should it be
-  // stored here? since we are allocating scratch images, we would need to
-  // recreate the framebuffers every frame [scene, pass] association cos we need
-  // to be able to dispatch for several types of scenes (offscreen and
-  // onscreen?)
+  // void remove_scene
+  // void add_scene
+  // void add_view
+  // void remove_view
   //
-  // resource_mgr->create_frame_buffer()
-  // resource_mgr->allocate_scratch_frame_buffer()
-  // resource_mgr->release_scratch_frame_buffer()
-  // resource_mgr->destroy_frame_buffer/_image()
   //
-  // i.e. blur on offscreen layer
+  // perform frustum and occlusion culling of objects and light (in the same
+  // z-index) then cull by z-index???? Z-index not needed in culling
+  // occlussion culling only happens when a fully-opaque object occludes another
+  // object.
   //
-  u64  add_object(Scene *scene, RRect const &rrect,
-                  RRectMaterial const &material, i64 z_index);
-  void remove_object(Scene *scene, u64 object);
+  // cull lights by camera frustum
+  void cull(ResourceManager *mgr, ViewGroup const *group);
+
+  // also calls PassObjectCmp to sort all objects belonging to a pass invocation
+  void sort(ResourceManager *mgr, SceneGroup const *scene_group);
 };
 
-struct ChromaticAberrationPass
+// needed because we need to be able to render a view that is part of another
+// view without adding the elements of the view to the root view
+struct ViewPass
 {
-};
-
-struct FXAAPass
-{
-};
-
-// object-clip space blur
-//
-// - capture scene at object's screen-space area, dilate by the blur extent
-// - reserve scratch stencil image with at least size of the dilated area
-// - blur captured area
-// - render object to offscreen scratch image stencil only
-// - using rendered stencil, directly-write (without blending) onto scene again
-struct BlurPass
-{
-};
-
-struct BloomPass
-{
+  // render to view's frame buffer and then composite onto the present view
+  // there must be no recursion happening here
+  uid32 view;
 };
 
 };        // namespace ash
