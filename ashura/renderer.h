@@ -5,6 +5,7 @@
 #include "ashura/trivial_vec.h"
 #include "ashura/types.h"
 #include "ashura/uid.h"
+#include "ashura/sparse_set.h"
 
 namespace ash
 {
