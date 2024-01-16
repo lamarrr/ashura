@@ -2,6 +2,7 @@
 #include "ashura/gfx.h"
 #include "ashura/image.h"
 #include "ashura/primitives.h"
+#include "ashura/trivial_vec.h"
 #include "ashura/types.h"
 #include "ashura/uid.h"
 
