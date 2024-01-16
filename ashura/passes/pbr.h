@@ -4,6 +4,8 @@
 
 namespace ash
 {
+namespace gfx
+{
 
 typedef struct PBRMaterial PBRMaterial;
 typedef struct PBRVertex   PBRVertex;
@@ -40,11 +42,11 @@ struct PBRVertex
 
 struct PBRMesh
 {
-  u32            vertex_buffer = 0;
-  u32            index_buffer  = 0;
-  u32            first_index   = 0;
-  u32            num_indices   = 0;
-  gfx::IndexType index_type    = gfx::IndexType::Uint16;
+  u32       vertex_buffer = 0;
+  u32       index_buffer  = 0;
+  u32       first_index   = 0;
+  u32       num_indices   = 0;
+  IndexType index_type    = IndexType::Uint16;
 };
 
 struct PBRObject
@@ -56,13 +58,13 @@ struct PBRObject
 
 struct PBRPass
 {
-  PBRObject               *objects               = nullptr;
-  u64                      num_objects           = 0;
-  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
-  gfx::DescriptorHeapImpl  descriptor_heap       = {};
-  gfx::PipelineCache       pipeline_cache        = nullptr;
-  gfx::GraphicsPipeline    pipeline              = nullptr;
-  gfx::Sampler             sampler               = nullptr;
+  PBRObject          *objects               = nullptr;
+  u64                 num_objects           = 0;
+  DescriptorSetLayout descriptor_set_layout = nullptr;
+  DescriptorHeapImpl  descriptor_heap       = {};
+  PipelineCache       pipeline_cache        = nullptr;
+  GraphicsPipeline    pipeline              = nullptr;
+  Sampler             sampler               = nullptr;
 
   u64 add_object(Scene *scene, PBRMesh const &mesh, PBRMaterial const &material,
                  Box aabb)
@@ -89,7 +91,7 @@ struct PBRPass
   }
 
   static void encode(Pass self_, ResourceManager *mgr, Scene *scene,
-                     gfx::CommandEncoderImpl command_encoder, i64 z_index,
+                     CommandEncoderImpl command_encoder, i64 z_index,
                      bool is_transparent, u64 first_scene_object,
                      u64 num_scene_objects)
   {
@@ -99,4 +101,5 @@ struct PBRPass
       .init = init, .deinit = deinit, .update = update, .encode = encode};
 };
 
+}        // namespace gfx
 }        // namespace ash

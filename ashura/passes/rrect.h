@@ -4,6 +4,8 @@
 
 namespace ash
 {
+namespace gfx
+{
 
 typedef struct RRect         RRect;
 typedef struct RRectMaterial RRectMaterial;
@@ -72,13 +74,13 @@ struct RRectObject
 //
 struct RRectPass
 {
-  RRectObject             *objects               = nullptr;
-  u64                      num_objects           = 0;
-  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
-  gfx::DescriptorHeapImpl  descriptor_heap       = {};
-  gfx::PipelineCache       pipeline_cache        = nullptr;
-  gfx::GraphicsPipeline    pipeline              = nullptr;
-  gfx::Sampler             sampler               = nullptr;
+  RRectObject        *objects               = nullptr;
+  u64                 num_objects           = 0;
+  DescriptorSetLayout descriptor_set_layout = nullptr;
+  DescriptorHeapImpl  descriptor_heap       = {};
+  PipelineCache       pipeline_cache        = nullptr;
+  GraphicsPipeline    pipeline              = nullptr;
+  Sampler             sampler               = nullptr;
 
   // todo(lamarrr): multiple framebuffers? should it be
   // stored here? since we are allocating scratch images, we would need to
@@ -102,4 +104,5 @@ struct RRectPass
   void remove_object(Scene *scene, u64 object);
 };
 
+}        // namespace gfx
 }        // namespace ash

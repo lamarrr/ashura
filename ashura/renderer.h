@@ -43,9 +43,9 @@ typedef i8 (*RenderObjectCmp)(Pass, SceneGroup *, u32, u64 a, u64 b);
 
 struct Texture
 {
-  gfx::ImageView view = nullptr;
-  Vec2           uv0  = {};
-  Vec2           uv1  = {};
+  ImageView view = nullptr;
+  Vec2      uv0  = {};
+  Vec2      uv1  = {};
 };
 
 struct DirectionalLight
@@ -156,9 +156,9 @@ struct ResourceManager
 /// resources.
 struct PassUpdateInfo
 {
-  ResourceManager        *mgr             = nullptr;
-  gfx::CommandEncoderImpl command_encoder = {};
-  ViewGroup const        *view_group      = nullptr;
+  ResourceManager   *mgr             = nullptr;
+  CommandEncoderImpl command_encoder = {};
+  ViewGroup const   *view_group      = nullptr;
 };
 
 /// @brief Arguments to encode the commands to render a batch of objects in a
@@ -166,14 +166,14 @@ struct PassUpdateInfo
 /// @first_scene_object: pull from z_ordered index
 struct PassEncodeInfo
 {
-  ResourceManager        *mgr                = nullptr;
-  gfx::CommandEncoderImpl command_encoder    = {};
-  ViewGroup const        *view_group         = nullptr;
-  uid32                   view               = 0;
-  i64                     z_index            = 0;
-  bool                    is_transparent     = false;
-  u64                     first_scene_object = 0;
-  u64                     num_scene_objects  = 0;
+  ResourceManager   *mgr                = nullptr;
+  CommandEncoderImpl command_encoder    = {};
+  ViewGroup const   *view_group         = nullptr;
+  uid32              view               = 0;
+  i64                z_index            = 0;
+  bool               is_transparent     = false;
+  u64                first_scene_object = 0;
+  u64                num_scene_objects  = 0;
 };
 
 /// @init: add self and resources
@@ -309,15 +309,15 @@ struct SceneGroup
 // example
 struct RenderTarget
 {
-  gfx::Format      color_format         = gfx::Format::Undefined;
-  gfx::Image       color_image          = nullptr;
-  gfx::Format      depth_stencil_format = gfx::Format::Undefined;
-  gfx::Image       depth_stencil_image  = nullptr;
-  gfx::RenderPass  render_pass          = nullptr;
-  gfx::Framebuffer framebuffer          = nullptr;
+  Format      color_format         = Format::Undefined;
+  Image       color_image          = nullptr;
+  Format      depth_stencil_format = Format::Undefined;
+  Image       depth_stencil_image  = nullptr;
+  RenderPass  render_pass          = nullptr;
+  Framebuffer framebuffer          = nullptr;
 };
 
-typedef RenderTarget ViewRenderTargets[gfx::MAX_SWAPCHAIN_IMAGES];
+typedef RenderTarget ViewRenderTargets[MAX_SWAPCHAIN_IMAGES];
 
 // each view can have attachments for each pass
 /// camera should be assumed to change every frame
