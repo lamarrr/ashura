@@ -153,7 +153,7 @@ struct ResourceManager
 /// frame. i.e. camera buffers, transform buffers, staging buffers.
 /// can also be used for resource management, i.e. ring buffers of per-frame
 /// resources.
-struct PassUpdateArgs
+struct PassUpdateInfo
 {
   ResourceManager        *mgr             = nullptr;
   gfx::CommandEncoderImpl command_encoder = {};
@@ -163,7 +163,7 @@ struct PassUpdateArgs
 /// @brief Arguments to encode the commands to render a batch of objects in a
 /// scene.
 /// @first_scene_object: pull from z_ordered index
-struct PassEncodeArgs
+struct PassEncodeInfo
 {
   ResourceManager        *mgr                = nullptr;
   gfx::CommandEncoderImpl command_encoder    = {};
@@ -184,8 +184,8 @@ struct PassInterface
   void (*init)(Pass self, ResourceManager *mgr)         = nullptr;
   RenderObjectCmp (*get_cmp)(Pass self)                 = nullptr;
   void (*deinit)(Pass self, ResourceManager *mgr)       = nullptr;
-  void (*update)(Pass self, PassUpdateArgs const &args) = nullptr;
-  void (*encode)(Pass self, PassEncodeArgs const &args) = nullptr;
+  void (*update)(Pass self, PassUpdateInfo const &args) = nullptr;
+  void (*encode)(Pass self, PassEncodeInfo const &args) = nullptr;
 };
 
 /// can be loaded from a DLL i.e. C++ with C-linkage => DLL
