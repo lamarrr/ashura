@@ -3,6 +3,7 @@
 namespace ash
 {
 
+// TODO(lamarrr): remove both and use span instead?
 // Byte-encoded string view. can represent ASCII and UTF-8
 struct StringView
 {
