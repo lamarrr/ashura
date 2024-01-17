@@ -4,50 +4,26 @@ namespace ash
 {
 
 // TODO(lamarrr): remove both and use span instead?
-// Byte-encoded string view. can represent ASCII and UTF-8
-struct StringView
-{
-  char const *data = nullptr;
-  usize       size = 0;
-
-  constexpr char const &operator[](usize index) const
-  {
-    return data[index];
-  }
-
-  constexpr operator Span<char const>() const
-  {
-    return Span{data, size};
-  }
-};
-
-// UTF-8-encoded string view
-struct Utf8StringView
-{
-  char const *data           = nullptr;
-  usize       size           = 0;
-  usize       num_codepoints = 0;
-
-  constexpr bool is_empty() const
-  {
-    return size == 0;
-  }
-};
-
 // TODO(lamarrr): algorithms, find, rotate, etc.
+// Byte-encoded string view. can represent ASCII and UTF-8
+// UTF-8-encoded string view
+struct Utf8Span
+{
+  Span<char const> text;
+  usize            num_codepoints = 0;
+};
 
 // decode.size must be encoded.num_codepoints
-constexpr void utf8_decode(Utf8StringView encoded, Span<u32> decode);
-
+constexpr void utf8_decode(Utf8Span encoded, Span<u32> decode);
 // encode.size must be at least decoded.size * 4
-constexpr void utf8_encode(Span<u32 const> decoded, Span<char> encode);
-constexpr Utf8StringView to_utf8_unchecked(StringView);
-constexpr bool           to_utf8(StringView, Utf8StringView &);
-constexpr bool           is_utf8(StringView);
-constexpr bool           is_ascii(char const *, usize size);
-constexpr bool           count_utf8_codepoints(StringView);
+constexpr void     utf8_encode(Span<u32 const> decoded, Span<char> encode);
+constexpr Utf8Span to_utf8_unchecked(Span<char const>);
+constexpr bool     to_utf8(Span<char const>, Utf8Span &);
+constexpr bool     is_utf8(Span<char const>);
+constexpr bool     is_ascii(Span<char const>);
+constexpr bool     count_utf8_codepoints(Span<char const>);
 template <typename Operation>
-constexpr void iterate_codepoints(Utf8StringView, Operation);
+constexpr void iterate_codepoints(Utf8Span, Operation);
 constexpr void utf8_get_codepoint();
 constexpr void utf8_insert_codepoint();
 
