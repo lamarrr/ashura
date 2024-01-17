@@ -34,6 +34,11 @@ struct RRectObject
   u64           scene_node = 0;
 };
 
+// TODO(lamarrr): can we do more specialized clips?
+//
+//
+//
+//
 // quad + instanced + transformed + antialiased
 //
 // Quad is an object without a type or specification. a unit square with just a

@@ -292,9 +292,9 @@ struct SceneGroup
   u32    num    = 0;
 };
 
-// sized to screen size or lower if specified??? STILL Not good. we need to
-// prevent resizing as much as possible. this will also help with zooming for
-// example
+// TODO(lamarrr): sized to screen size or lower if specified??? STILL Not good.
+// we need to prevent resizing as much as possible. this will also help with
+// zooming for example
 struct RenderTarget
 {
   Format      color_format         = Format::Undefined;
@@ -376,6 +376,10 @@ struct Renderer
 
 // needed because we need to be able to render a view that is part of another
 // view without adding the elements of the view to the root view
+//
+// view pass should also check if the view has already been rendered for the
+// current frame.
+//
 struct ViewPass
 {
   // render to view's frame buffer and then composite onto the present view
