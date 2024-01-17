@@ -8,7 +8,7 @@ namespace gfx
 
 // linear-probing hash map
 template <typename K, typename V>
-void flat_hash_map();
+void flat_map();
 
 }        // namespace gfx
 }        // namespace ash

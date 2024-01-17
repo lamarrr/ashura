@@ -126,4 +126,15 @@ template <typename T, typename SizeT>
   return true;
 }
 
+template <typename T, typename SizeT>
+[[nodiscard]] bool trivial_vec_insert(AllocatorImpl const &allocator, T *&data,
+                                      SizeT size, SizeT &capacity,
+                                      SizeT insert_index, T const &);
+
+template <typename T, typename SizeT>
+[[nodiscard]] bool trivial_vec_insert_range(AllocatorImpl const &allocator,
+                                            T *&data, SizeT size,
+                                            SizeT &capacity, SizeT insert_index,
+                                            T const *, SizeT       num_insert);
+
 };        // namespace ash

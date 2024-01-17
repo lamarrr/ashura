@@ -99,6 +99,8 @@ struct RRectPass
   // each.
   //
   //
+  // TODO(lamarrr): clipping
+  //
   u64  add_object(Scene *scene, RRect const &rrect,
                   RRectMaterial const &material, i64 z_index);
   void remove_object(Scene *scene, u64 object);

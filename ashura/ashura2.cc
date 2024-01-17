@@ -1,7 +1,13 @@
+#include "ashura/passes/bloom.h"
+#include "ashura/passes/blur.h"
+#include "ashura/passes/chromatic_aberration.h"
+#include "ashura/passes/fxaa.h"
+#include "ashura/passes/pbr.h"
+#include "ashura/passes/rrect.h"
+#include "ashura/renderer.h"
 #include "ashura/span.h"
 #include "ashura/storage.h"
 #include "ashura/vulkan_gfx.h"
-#include "ashura/renderer.h"
 
 int main()
 {

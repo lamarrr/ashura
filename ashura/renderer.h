@@ -2,10 +2,10 @@
 #include "ashura/gfx.h"
 #include "ashura/image.h"
 #include "ashura/primitives.h"
+#include "ashura/sparse_set.h"
 #include "ashura/trivial_vec.h"
 #include "ashura/types.h"
 #include "ashura/uid.h"
-#include "ashura/sparse_set.h"
 
 namespace ash
 {
@@ -383,6 +383,8 @@ struct Renderer
   // object.
   //
   // cull lights by camera frustum
+  //
+  // https://github.com/GPUOpen-LibrariesAndSDKs/Cauldron/blob/b92d559bd083f44df9f8f42a6ad149c1584ae94c/src/common/Misc/Misc.cpp#L265
   void cull(ResourceManager *mgr, ViewGroup const *group);
 
   // also calls PassObjectCmp to sort all objects belonging to a pass invocation
