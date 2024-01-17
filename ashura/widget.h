@@ -202,13 +202,9 @@ struct DragData
 /// all methods are already implemented with reasonable defaults.
 struct Widget
 {
-  Widget()
-  {
-  }
+  Widget() = default;
 
-  virtual ~Widget()
-  {
-  }
+  virtual ~Widget() = default;
 
   /// @brief get child widgets
   /// @param ctx
