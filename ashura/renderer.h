@@ -143,11 +143,6 @@ struct ResourceManager
   //
   // on frame begin, pending uploads are first performed
   //
-  //
-  // TODO(lamarrr): for scratch images there should be a way to request a
-  // discard of the image contents such that the image will be left in an
-  // unspecified state and no flushing or re-reading will occur?
-  //
 };
 
 /// @brief: Arguments to allocate new resources or update existing resources
@@ -197,10 +192,10 @@ struct PassImpl
   PassInterface const *interface = nullptr;
 };
 
-// TODO(lamarrr): a well-defined way to represent full-screen post-fx passes?
+// full-screen post-fx passes are full-screen quads with dependency determined
+// by their z-indexes.
+// HUD is a full-screen quad of a view-pass (another scene).
 //
-//
-// TODO(lamarrr): for HUD use different scene
 // world->[capture->world]->post-fx->hud->[capture->hud]
 // use z-indexes with full screen quad?
 // how to project from object-space to full-screen space
@@ -254,10 +249,6 @@ struct RenderObjectDesc
 // scene.
 // will be scaled to the screen dimensions eventually.
 //
-//
-// TODO(lamarrr): how will management of per-object resources work?
-//
-//
 struct Scene
 {
   AmbientLight      ambient_light               = {};
@@ -279,19 +270,16 @@ struct Scene
   u64              *object_ids_map              = nullptr;
   uid64            *free_object_ids             = nullptr;
   u64               num_objects                 = 0;
-  // Mat4Affine       *object_global_transforms    = nullptr;
 
   uid64 add_object(RenderObjectDesc const &);
-  // remove and shift objects only
-  void change_camera();
-  void remove_object(uid64);
-  void change_ambient_light();
-  void add_directional_light();
-  void add_point_light();
-  void add_spot_light();
-  void remove_directional_light();
-  void remove_point_light();
-  void remove_spot_light();
+  void  remove_object(uid64);
+  void  change_ambient_light();
+  void  add_directional_light();
+  void  add_point_light();
+  void  add_spot_light();
+  void  remove_directional_light();
+  void  remove_point_light();
+  void  remove_spot_light();
 };
 
 // scene dependency? not explicitly expressed. left to the pass processor to
@@ -300,11 +288,10 @@ struct SceneGroup
 {
   Scene *scenes = nullptr;
   Name  *names  = nullptr;
-  u32    num    = 0;
   u32   *id_map = nullptr;
+  u32    num    = 0;
 };
 
-// TODO(lamarrr): buffering
 // sized to screen size or lower if specified??? STILL Not good. we need to
 // prevent resizing as much as possible. this will also help with zooming for
 // example
@@ -318,8 +305,6 @@ struct RenderTarget
   Framebuffer framebuffer          = nullptr;
 };
 
-typedef RenderTarget ViewRenderTargets[MAX_SWAPCHAIN_IMAGES];
-
 // each view can have attachments for each pass
 /// camera should be assumed to change every frame
 struct View
@@ -328,17 +313,15 @@ struct View
   SceneGroup *scene_group      = nullptr;
   uid32       scene            = 0;
   u64        *object_cull_mask = nullptr;
-  // TODO(lamarrr): consider map of string to void* resources + destructor?
 };
 
 struct ViewGroup
 {
-  View              *views          = nullptr;
-  ViewRenderTargets *render_targets = nullptr;
-  Name              *names          = nullptr;
-  u32               *id_map         = nullptr;
-  u32                num            = 0;
-  u32                buffering      = 0;
+  View         *views          = nullptr;
+  RenderTarget *render_targets = nullptr;
+  Name         *names          = nullptr;
+  u32          *id_map         = nullptr;
+  u32           num            = 0;
 };
 
 // sort objects by z-index, get min and max z-index
@@ -352,9 +335,9 @@ struct Renderer
 {
   PassImpl        *passes             = nullptr;
   RenderObjectCmp *render_object_cmps = nullptr;
-  u32              num_passes         = 0;
+  u32             *id_map             = nullptr;
   Name            *pass_names         = nullptr;
-  // TODO(lamarrr): stable ids
+  u32              num_passes         = 0;
 
   void            init(Renderer *renderer, Span<char const *const> pass_names,
                        Span<PassImpl const> passes);
