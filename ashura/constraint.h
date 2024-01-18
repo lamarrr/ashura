@@ -1,3 +1,4 @@
+#pragma once
 #include "ashura/math.h"
 #include "ashura/types.h"
 
