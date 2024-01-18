@@ -30,7 +30,7 @@ struct RenderImage
       VK_FORMAT_R8G8B8A8_UNORM;        // format used to store texture on GPU
   VkImageLayout       layout     = VK_IMAGE_LAYOUT_UNDEFINED;
   VkImageLayout       dst_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-  ash::Extent         extent;
+  Vec2U               extent;
   stx::Option<Buffer> staging_buffer;
   VkDescriptorSet     descriptor_set = VK_NULL_HANDLE;
   bool                needs_upload   = false;
@@ -447,11 +447,11 @@ struct RenderResourceManager
     if (rimage.needs_upload || rimage.is_real_time)
     {
       copy_image_to_GPU_Buffer(
-          view, ImageSpan<u8>{.span   = rimage.staging_buffer.value().span(),
-                              .extent = rimage.extent,
-                              .pitch  = rimage.extent.x *
-                                       pixel_byte_size(rep_format),
-                              .format = rep_format});
+          view,
+          ImageSpan<u8>{.span   = rimage.staging_buffer.value().span(),
+                        .extent = rimage.extent,
+                        .pitch  = rimage.extent.x * pixel_byte_size(rep_format),
+                        .format = rep_format});
     }
     else
     {
@@ -461,11 +461,11 @@ struct RenderResourceManager
           fitted_byte_size(rimage.extent, rep_format),
           VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
       copy_image_to_GPU_Buffer(
-          view, ImageSpan<u8>{.span   = staging_buffer.span(),
-                              .extent = rimage.extent,
-                              .pitch  = rimage.extent.x *
-                                       pixel_byte_size(rep_format),
-                              .format = rep_format});
+          view,
+          ImageSpan<u8>{.span   = staging_buffer.span(),
+                        .extent = rimage.extent,
+                        .pitch  = rimage.extent.x * pixel_byte_size(rep_format),
+                        .format = rep_format});
       rimage.staging_buffer = stx::Some(std::move(staging_buffer));
     }
     rimage.needs_upload = true;

@@ -1,6 +1,5 @@
 #version 450
-#extension GL_ARB_shading_language_include : require
-#define M_PI 3.1415926535897932384626433832795
+#extension GL_GOOGLE_include_directive : require
 
 // texture inputs defined by shader at compilation stage
 // layout(set = 0, binding = 0) uniform sampler2D sampler;

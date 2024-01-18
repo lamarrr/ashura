@@ -110,7 +110,7 @@ struct Window
     ASH_SDL_CHECK(SDL_MinimizeWindow(window) == 0);
   }
 
-  void set_size(Extent size)
+  void set_size(Vec2U size)
   {
     ASH_SDL_CHECK(SDL_SetWindowSize(window, static_cast<int>(size.x),
                                     static_cast<int>(size.y)) == 0);
@@ -122,18 +122,18 @@ struct Window
                                         SDL_WINDOWPOS_CENTERED) == 0);
   }
 
-  Extent get_size()
+  Vec2U get_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowSize(window, &w, &h) == 0);
-    return Extent{static_cast<u32>(w), static_cast<u32>(h)};
+    return Vec2U{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
-  Extent get_surface_size()
+  Vec2U get_surface_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowSizeInPixels(window, &w, &h) == 0);
-    return Extent{static_cast<u32>(w), static_cast<u32>(h)};
+    return Vec2U{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
   void set_position(Vec2I pos)
@@ -148,30 +148,30 @@ struct Window
     return Vec2I{x, y};
   }
 
-  void set_min_size(Extent min)
+  void set_min_size(Vec2U min)
   {
     ASH_SDL_CHECK(SDL_SetWindowMinimumSize(window, static_cast<int>(min.x),
                                            static_cast<int>(min.y)) == 0);
   }
 
-  Extent get_min_size()
+  Vec2U get_min_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowMinimumSize(window, &w, &h) == 0);
-    return Extent{static_cast<u32>(w), static_cast<u32>(h)};
+    return Vec2U{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
-  void set_max_size(Extent max)
+  void set_max_size(Vec2U max)
   {
     ASH_SDL_CHECK(SDL_SetWindowMaximumSize(window, static_cast<int>(max.x),
                                            static_cast<int>(max.y)) == 0);
   }
 
-  Extent get_max_size()
+  Vec2U get_max_size()
   {
     int w, h;
     ASH_SDL_CHECK(SDL_GetWindowMaximumSize(window, &w, &h) == 0);
-    return Extent{static_cast<u32>(w), static_cast<u32>(h)};
+    return Vec2U{static_cast<u32>(w), static_cast<u32>(h)};
   }
 
   void set_icon(ImageSpan<u8 const> image)
@@ -193,8 +193,7 @@ struct Window
 
     SDL_Surface *icon = SDL_CreateSurfaceFrom(
         (void *) image.span.data(), static_cast<int>(image.extent.x),
-        static_cast<int>(image.extent.y), static_cast<int>(image.pitch),
-        fmt);
+        static_cast<int>(image.extent.y), static_cast<int>(image.pitch), fmt);
     ASH_SDL_CHECK(icon != nullptr);
     ASH_SDL_CHECK(SDL_SetWindowIcon(window, icon) == 0);
     SDL_DestroySurface(icon);

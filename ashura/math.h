@@ -29,6 +29,11 @@ constexpr bool approx_equal(f64 a, f64 b)
   return abs(b - a) <= F64_EPSILON;
 }
 
+constexpr f32 epsilon_clamp(f32 x)
+{
+  return abs(x) > F32_EPSILON ? x : F32_EPSILON;
+}
+
 constexpr f32 to_radians(f32 degree)
 {
   return PI * degree / 180.0f;

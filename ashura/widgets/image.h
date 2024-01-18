@@ -242,7 +242,7 @@ struct Image : public Widget
   ImageProps props;
   ImageState state = ImageState::Inactive;
   gfx::image image = 0;
-  Extent     image_extent;
+  Vec2U     image_extent;
   stx::Option<stx::Future<stx::Result<ImageBuffer, ImageLoadError>>>
       image_load_future;
 };
