@@ -67,6 +67,7 @@ struct SpotLight
   Vec3 position    = {};
 };
 
+/// SEE: https://learnopengl.com/Guest-Articles/2022/Area-Lights
 struct AreaLight
 {
   Vec3 color     = {};
@@ -190,6 +191,7 @@ struct SceneNode
   uid64 pass_id      = 0;
 };
 
+// TODO(lamarrr): dispatch sorting by passes?
 struct RenderObjectDesc
 {
   Mat4Affine transform      = {};
@@ -200,39 +202,31 @@ struct RenderObjectDesc
 
 // A scene repared for rendering
 //
-//
-// Area lights: https://learnopengl.com/Guest-Articles/2022/Area-Lights
-//
 // Unit is -1 to +1 for x,y,z. will help with objects that cover the whole
 // scene.
 // will be scaled to the screen dimensions eventually.
-//
 struct Scene
 {
-  AmbientLight      ambient_light               = {};
-  DirectionalLight *directional_lights          = 0;
-  PointLight       *point_lights                = 0;
-  SpotLight        *spot_lights                 = 0;
-  AreaLight        *area_lights                 = 0;
-  bool              lights_dirty_mask           = false;
-  u32               num_directional_lights      = 0;
-  u32               num_point_lights            = 0;
-  u32               num_spot_lights             = 0;
-  u32               num_area_lights             = 0;
-  SceneNode        *object_nodes                = nullptr;
-  Mat4Affine       *object_local_transforms     = nullptr;
-  Box              *object_aabb                 = nullptr;
-  i64              *object_z_index              = nullptr;
-  u64              *object_transform_dirty_mask = nullptr;
-  u64              *object_transparency_mask    = nullptr;
-  u64              *objects_sorted              = nullptr;
-  u64              *object_ids_map              = nullptr;
-  uid64            *free_object_ids             = nullptr;
-  u64               num_objects                 = 0;
+  AmbientLight      ambient_light            = {};
+  DirectionalLight *directional_lights       = 0;
+  PointLight       *point_lights             = 0;
+  SpotLight        *spot_lights              = 0;
+  AreaLight        *area_lights              = 0;
+  u32               num_directional_lights   = 0;
+  u32               num_point_lights         = 0;
+  u32               num_spot_lights          = 0;
+  u32               num_area_lights          = 0;
+  SceneNode        *object_nodes             = nullptr;
+  Mat4Affine       *object_local_transforms  = nullptr;
+  Box              *object_aabb              = nullptr;
+  i64              *object_z_index           = nullptr;
+  u64              *object_transparency_mask = nullptr;
+  u64              *object_ids_map           = nullptr;
+  uid64            *free_object_ids          = nullptr;
+  u64              *objects_sorted           = nullptr;
+  u64               num_objects              = 0;
 };
 
-// scene dependency? not explicitly expressed. left to the pass processor to
-// decide which scene to render and when scene pointer and ids can be re-used
 struct SceneGroup
 {
   Scene *scenes = nullptr;
@@ -241,8 +235,6 @@ struct SceneGroup
   u32    num    = 0;
 };
 
-// each view can have attachments for each pass
-/// camera should be assumed to change every frame
 struct View
 {
   Camera camera           = {};
@@ -260,15 +252,10 @@ struct ViewGroup
 };
 
 // sort by update frequency, per-frame updates, rare-updates
-// allocate temporary image for rendering
-// renderpasses, framebuffers, pipeline caches,async pipeline cache loader and
-// pipeline builder, buffer views
-//
 //
 // resource manager
 // static buffer + streaming
 // dynamic buffers + streaming
-//
 //
 // mapping of color and depth components?
 //
@@ -281,7 +268,6 @@ struct ViewGroup
 // scratch full-screen color image
 // allocate/deallocate - for re-use by others
 //
-//
 // usage tracking
 // - we can create a single image and just re-use it depending on the
 // components/aspects we need to use for each type of pass
@@ -289,14 +275,11 @@ struct ViewGroup
 // UNIFORM COLOR Texture cache with image component swizzling. Only 1 white
 // RGBA texture is needed.
 //
-//
 // on frame begin, pending uploads are first performed
 //
 /// Manages and uploads render resources to the GPU.
 ///
-///
 /// @remove_scene: remove all pass resources associated with a scene object.
-///
 struct ResourceManager
 {
   gfx::DeviceImpl device      = {};
@@ -340,9 +323,6 @@ struct ResourceManager
   void              remove_area_light(uid32 scene, uid32 light);
 };
 
-///
-/// passes are built at program startup and never change.
-///
 /// transform->frustum_cull->occlusion_cull->sort->render
 ///
 // Invocation Procedure
@@ -361,7 +341,7 @@ struct ResourceManager
 struct Renderer
 {
   // transform views from object-space to world space then to clip space using
-  // camera
+  // view's camera
   static void transform(ResourceManager *mgr);
 
   // perform frustum and occlusion culling of objects and light (in the same
@@ -378,8 +358,6 @@ struct Renderer
   // sort objects by z-index, get min and max z-index
   // for all objects in the z-index range, invoke the passes
   // pass->encode(z_index, begin_objects, num_objects)
-  //
-  //
   //
   // also calls PassObjectCmp to sort all objects belonging to a pass invocation
   // sort by z-index
