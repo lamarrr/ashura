@@ -180,11 +180,11 @@ struct Window
 
     switch (image.format)
     {
-      case ImageFormat::Rgba8888:
+      case gfx::Format::R8G8B8A8_UNORM:
         fmt = SDL_PIXELFORMAT_RGBA8888;
         break;
-      case ImageFormat::Bgra8888:
-        fmt = SDL_PIXELFORMAT_RGBA8888;
+      case gfx::Format::B8G8R8A8_UNORM:
+        fmt = SDL_PIXELFORMAT_BGRA8888;
         break;
       default:
         ASH_PANIC("unsupported icon image format");
@@ -192,8 +192,8 @@ struct Window
     }
 
     SDL_Surface *icon = SDL_CreateSurfaceFrom(
-        (void *) image.span.data(), static_cast<int>(image.extent.x),
-        static_cast<int>(image.extent.y), static_cast<int>(image.pitch), fmt);
+        (void *) image.span.data(), static_cast<int>(image.width),
+        static_cast<int>(image.height static_cast<int>(image.pitch), fmt);
     ASH_SDL_CHECK(icon != nullptr);
     ASH_SDL_CHECK(SDL_SetWindowIcon(window, icon) == 0);
     SDL_DestroySurface(icon);

@@ -533,7 +533,7 @@ struct Canvas
     // TODO(lamarrr): check for scissor
     Vec2 begin     = offset;
     Vec2 end       = offset + extent;
-    Mat3 transform = matmul(state.global_transform, state.local_transform);
+    Mat3 transform = state.global_transform * state.local_transform;
     begin          = ash::transform(transform, begin);
     end            = ash::transform(transform, end);
     return overlaps({0, 0}, viewport_extent, begin, end);
@@ -557,15 +557,12 @@ struct Canvas
                                         epsilon_clamp(viewport_extent.y)};
 
     Mat3 t = state.local_transform;        /// apply local coordinate transform
-    t      = matmul(translate2d(position),
-                    t);        /// apply positioning
-    t      = matmul(state.global_transform,
-                    t);        /// apply global coordinate transform
-    t      = matmul(scale2d(2 / viewport_extent_clamped),
-                    t);        /// normalize to 0 to 2 coordinate range
-    t      = matmul(translate2d({-1, -1}),
-                    t);        /// normalize from [0, 2] to vulkan
-                               /// viewport coordinate range [-1, -1]
+    t      = translate2d(position) * t;        /// apply positioning
+    t = state.global_transform * t;        /// apply global coordinate transform
+    t = scale2d(2 / viewport_extent_clamped) *
+        t;        /// normalize to 0 to 2 coordinate range
+    t = translate2d({-1, -1}) * t;        /// normalize from [0, 2] to vulkan
+                                          /// viewport coordinate range [-1, -1]
     return t;
   }
 
@@ -600,8 +597,7 @@ struct Canvas
 
   Canvas &translate(f32 tx, f32 ty)
   {
-    state.local_transform =
-        matmul(translate2d({tx, ty}), state.local_transform);
+    state.local_transform = translate2d({tx, ty}) * state.local_transform;
     return *this;
   }
 
@@ -613,8 +609,7 @@ struct Canvas
 
   Canvas &global_translate(f32 tx, f32 ty)
   {
-    state.global_transform =
-        matmul(translate2d({tx, ty}), state.global_transform);
+    state.global_transform = translate2d({tx, ty}) * state.global_transform;
     return *this;
   }
 
@@ -625,21 +620,20 @@ struct Canvas
 
   Canvas &rotate(f32 angle)
   {
-    state.local_transform =
-        matmul(rotate2d(to_radians(angle)), state.local_transform);
+    state.local_transform = rotate2d(to_radians(angle)) * state.local_transform;
     return *this;
   }
 
   Canvas &global_rotate(f32 angle)
   {
     state.global_transform =
-        matmul(rotate2d(to_radians(angle)), state.global_transform);
+        rotate2d(to_radians(angle)) * state.global_transform;
     return *this;
   }
 
   Canvas &scale(f32 sx, f32 sy)
   {
-    state.local_transform = matmul(scale2d({sx, sy}), state.local_transform);
+    state.local_transform = scale2d({sx, sy}) * state.local_transform;
     return *this;
   }
 
@@ -650,7 +644,7 @@ struct Canvas
 
   Canvas &global_scale(f32 sx, f32 sy)
   {
-    state.global_transform = matmul(scale2d({sx, sy}), state.global_transform);
+    state.global_transform = scale2d({sx, sy}) * state.global_transform;
     return *this;
   }
 
@@ -662,13 +656,13 @@ struct Canvas
   // TODO(lamarrr): transform_origin
   Canvas &transform(Mat3 const &t)
   {
-    state.local_transform = matmul(t, state.local_transform);
+    state.local_transform = t * state.local_transform;
     return *this;
   }
 
   Canvas &global_transform(Mat3 const &t)
   {
-    state.global_transform = matmul(t, state.global_transform);
+    state.global_transform = t * state.global_transform;
     return *this;
   }
 
@@ -1084,15 +1078,14 @@ struct Canvas
                      TextStyle const &style, gfx::image atlas)
   {
     save();
-    state.local_transform =
-        matmul(state.local_transform, translate2d(baseline));
+    state.local_transform = state.local_transform * translate2d(baseline);
 
     Vec2 offset = Vec2{glyph.metrics.bearing.x, -glyph.metrics.bearing.y} *
                       style.font_height * text_scale_factor +
                   shaping.offset;
     Vec2 extent = glyph.metrics.extent * style.font_height * text_scale_factor;
-    Mat3 transform = state.global_transform *
-                     matmul(translate2d(block_position), state.local_transform);
+    Mat3 transform = state.global_transform * translate2d(block_position) *
+                     state.local_transform;
 
     if (!overlaps({0, 0}, viewport_extent, ash::transform(transform, offset),
                   ash::transform(transform, offset + extent)))
@@ -1140,8 +1133,7 @@ struct Canvas
                             gfx::image atlas)
   {
     save();
-    state.local_transform =
-        matmul(state.local_transform, translate2d(baseline));
+    state.local_transform = state.local_transform * translate2d(baseline);
 
     // TODO(lamarrr): add offset to shadow scale? and let offset be from
     // midpoint??
@@ -1149,9 +1141,8 @@ struct Canvas
                       style.font_height * text_scale_factor +
                   shaping.offset;
     Vec2 extent = glyph.metrics.extent * style.font_height * text_scale_factor;
-    Mat3 transform =
-        matmul(state.global_transform,
-               matmul(translate2d(block_position), state.local_transform));
+    Mat3 transform = state.global_transform *
+                     (translate2d(block_position) * state.local_transform);
 
     Vec2 shadow_offset = offset + style.shadow_offset;
     Vec2 shadow_extent = extent * style.shadow_scale;

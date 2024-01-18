@@ -27,7 +27,7 @@
 
 namespace ash
 {
-constexpr Extent DEFAULT_MAX_ATLAS_BIN_EXTENT = Extent{1024, 1024};
+constexpr Vec2U DEFAULT_MAX_ATLAS_BIN_EXTENT = Vec2U{1024, 1024};
 
 enum class FontLoadError : u8
 {
@@ -175,7 +175,7 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError>
 struct FontAtlasBin
 {
   gfx::image texture = 0;
-  Extent     extent;
+  Vec2U     extent;
   usize      used_area = 0;
 };
 
@@ -263,7 +263,7 @@ struct FontSpec
   u32 face = 0;        // font face to use
   u32 font_height =
       40;        // the height at which the SDF texture is cached at
-  Extent max_atlas_bin_extent =
+  Vec2U max_atlas_bin_extent =
       DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
   stx::Span<UnicodeRange const> ranges =
       {};        // if set only the specified unicode ranges will be loaded,
@@ -446,7 +446,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
       unpacked_rects = unpacked;
 
       // NOTE: vulkan doesn't allow zero-extent images
-      Extent bin_extent{1, 1};
+      Vec2U bin_extent{1, 1};
       usize  used_area = 0;
 
       for (rect_packer::rect const &rect : just_packed)
@@ -539,7 +539,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
           .copy(ImageSpan<u8>{
               .span   = stx::Span<u8>{slot->bitmap.buffer,
                                       slot->bitmap.rows * slot->bitmap.pitch},
-              .extent = Extent{slot->bitmap.width, slot->bitmap.rows},
+              .extent = Vec2U{slot->bitmap.width, slot->bitmap.rows},
               .pitch  = (usize) slot->bitmap.pitch,
               .format = ImageFormat::R8});
     }

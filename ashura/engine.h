@@ -2,7 +2,6 @@
 
 #include <chrono>
 
-#include "ashura/app_config.h"
 #include "ashura/canvas.h"
 #include "ashura/clipboard.h"
 #include "ashura/font.h"

@@ -1,5 +1,4 @@
 #pragma once
-#include "ashura/curve.h"
 #include "ashura/math.h"
 #include "ashura/primitives.h"
 #include "ashura/types.h"

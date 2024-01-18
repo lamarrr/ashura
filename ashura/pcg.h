@@ -26,11 +26,11 @@ constexpr u32 pcg32_rxs_m_xs(u32 state)
   return (word >> 22U) ^ word;
 }
 
-u64 pcg64_rxs_m_xs(u64 state)
+constexpr u64 pcg64_rxs_m_xs(u64 state)
 {
   u64 word =
-      ((state >> ((state >> 59u) + 5u)) ^ state) * 12605985483714917081ull;
-  return (word >> 43u) ^ word;
+      ((state >> ((state >> 59U) + 5U)) ^ state) * 12605985483714917081ULL;
+  return (word >> 43U) ^ word;
 }
 
 /// linearly step/change the state of the machine

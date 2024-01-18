@@ -4,9 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 
-// todo(lamarrr): operator == != and assign for mat*
-// todo: add scalar ops
-
 namespace ash
 {
 

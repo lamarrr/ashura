@@ -93,7 +93,6 @@ add_library(
   ashura/app.cc
   ashura/engine.cc
   ashura/widget.cc
-  ashura/rengoku.cc
   ashura/loggers.cc
   ashura/subsystems/http_client.cc
   ashura/ecs.cc)
