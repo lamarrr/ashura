@@ -12,8 +12,8 @@ namespace ash
 namespace gfx
 {
 
-constexpr u32   MAX_NAME_LENGTH  = 128;
-constexpr usize MEMORY_POOL_SIZE = 4096;
+constexpr u32   MAX_NAME_LENGTH          = 128;
+constexpr usize DEFAULT_POOL_MEMORY_SIZE = 4096;
 
 typedef char                      Name[MAX_NAME_LENGTH];
 typedef struct Texture            Texture;
