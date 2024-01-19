@@ -131,8 +131,8 @@ struct PassEncodeInfo
   ResourceManager   *mgr                = nullptr;
   CommandEncoderImpl command_encoder    = {};
   uid32              view               = 0;
-  i64                z_index            = 0;
   bool               is_transparent     = false;
+  i64                z_index            = 0;
   u64                first_scene_object = 0;
   u64                num_scene_objects  = 0;
 };
@@ -141,11 +141,11 @@ struct PassEncodeInfo
 /// @deinit: remove self and resources
 struct PassInterface
 {
-  void            (*init)(Pass self, ResourceManager *mgr, uid32 id)  = nullptr;
-  void            (*deinit)(Pass self, ResourceManager *mgr)          = nullptr;
+  void (*init)(Pass self, ResourceManager *mgr, uid32 id)             = nullptr;
+  void (*deinit)(Pass self, ResourceManager *mgr)                     = nullptr;
   RenderObjectCmp (*get_cmp)(Pass self)                               = nullptr;
-  void            (*update)(Pass self, PassUpdateInfo const &args)    = nullptr;
-  void            (*encode)(Pass self, PassEncodeInfo const &args)    = nullptr;
+  void (*update)(Pass self, PassUpdateInfo const &args)               = nullptr;
+  void (*encode)(Pass self, PassEncodeInfo const &args)               = nullptr;
   void (*acquire_scene)(Pass self, ResourceManager *mgr, uid32 scene) = nullptr;
   void (*release_scene)(Pass self, ResourceManager *mgr, uid32 scene) = nullptr;
   void (*acquire_view)(Pass self, ResourceManager *mgr, uid32 view)   = nullptr;
@@ -296,19 +296,20 @@ struct ResourceManager
   void release_screen_depth_stencil_image();
 
   PassImpl const  *get_pass(uid32 pass);
+  uid32            get_pass_id(char const *name);
   Span<char const> get_pass_name(uid32 pass);
-  PassImpl const  *get_pass_by_name(char const *pass_name);
+  PassImpl const  *get_pass_by_name(char const *name);
 
   uid32 add_scene(Scene const &, char const *name);
-  void  remove_scene(uid32);
+  void  remove_scene(uid32 scene);
   uid32 add_view(View const &, char const *name);
-  void  remove_view(uid32);
+  void  remove_view(uid32 scene);
 
   Camera *get_view_camera(uid32 view);
 
-  uid64 add_object(uid32 scene, RenderObjectDesc const &, uid32 parent);
+  uid64 add_object(uid32 scene, RenderObjectDesc const &, uid64 parent);
   RenderObjectDesc *get_object(uid32 scene, uid64 object);
-  void              remove_object(uid32 scene, uid64);
+  void              remove_object(uid32 scene, uid64 object);
   uid32             add_directional_light(uid32 scene);
   uid32             add_point_light(uid32 scene);
   uid32             add_spot_light(uid32 scene);
