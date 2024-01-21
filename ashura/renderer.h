@@ -2,7 +2,7 @@
 #include "ashura/gfx.h"
 #include "ashura/image.h"
 #include "ashura/primitives.h"
-#include "ashura/sparse_set.h"
+#include "ashura/trivial_sparse_set.h"
 #include "ashura/trivial_vec.h"
 #include "ashura/types.h"
 #include "ashura/uid.h"
