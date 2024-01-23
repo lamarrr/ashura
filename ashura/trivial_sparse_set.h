@@ -8,18 +8,6 @@ namespace ash
 namespace gfx
 {
 
-template <u8 Index, u8 Target, typename T, typename... U>
-struct IndexTypePack
-{
-  using Type = typename IndexTypePack<Index + 1, Target, U...>::Type;
-};
-
-template <u8 Index, typename T, typename... U>
-struct IndexTypePack<Index, Index, T, U...>
-{
-  using Type = T;
-};
-
 /// @brief
 /// @tparam T: contained type, must be movable
 /// @tparam SizeT: size type, u8, u32, u64
@@ -28,68 +16,83 @@ struct IndexTypePack<Index, Index, T, U...>
 /// @index_to_id: id of data, ordered relative to {data}
 /// @id_to_index: map of id to index in {data}
 ///
-template <typename SizeType, typename... T>
+template <typename SizeType = u64>
 struct TrivialSparseSet
 {
   static_assert(!IntTraits<SizeType>::SIGNED);
-
-  template <u8 Index>
-  using Type = typename IndexTypePack<0, Index, T...>::Type;
-  using UID  = SizeType;
-  static constexpr SizeType NUM_COMPONENTS = sizeof...(T);
-  static constexpr SizeType ID_MASK        = ((SizeType) 1)
+  using UID                         = SizeType;
+  static constexpr SizeType ID_MASK = ((SizeType) 1)
                                       << (IntTraits<SizeType>::NUM_BITS - 1);
-  void     *data[NUM_COMPONENTS]          = {};
-  SizeType  data_capacity[NUM_COMPONENTS] = {};
-  UID      *index_to_id                   = nullptr;
-  SizeType *id_to_index                   = nullptr;
-  SizeType  index_to_id_capacity          = 0;
-  SizeType  id_to_index_capacity          = 0;
-  UID       next_free_id                  = -1;
-  SizeType  next_free_index               = -1;
-  SizeType  num_items                     = 0;
-
-
-template<u8 Index, typename Fn>
-void _apply_recursive(Fn ... fn){
-    fn(   (  Type<Index> *  )  data[Index]   );
-    _apply_recursive(Index+1, fn);
-}
-
-template<typename Fn>
-void _apply_recursive<NUM_COMPONENTS - 1>(){
-
-}
+  UID      *index_to_id          = nullptr;
+  SizeType *id_to_index          = nullptr;
+  SizeType  index_to_id_capacity = 0;
+  SizeType  id_to_index_capacity = 0;
+  UID       next_free_id         = -1;
+  SizeType  next_free_index      = -1;
+  SizeType  num_items            = 0;
 
   void clear()
   {
-
   }
 
-  void reset(AllocatorImpl const &allocator);
-
-  template <u8 Index>
-  constexpr Type<Index> *get_unsafe(UID item) const
+  void reset(AllocatorImpl const &allocator)
   {
-  static_assert(Index < NUM_COMPONENTS);
-    return ((Type<Index> *) data[Index]) + id_to_index[item];
+    allocator.deallocate_typed(index_to_id, index_to_id_capacity);
+    allocator.deallocate_typed(id_to_index, id_to_index_capacity);
+    index_to_id          = nullptr;
+    id_to_index          = nullptr;
+    index_to_id_capacity = 0;
+    id_to_index_capacity = 0;
+    next_free_id         = -1;
+    next_free_index      = -1;
+    num_items            = 0;
   }
 
-  constexpr bool is_valid(UID item) const
+  bool is_valid(UID item) const
   {
     return true;
   }
 
-  constexpr T *get(UID item) const
+  SizeType to_index_unsafe(UID id) const
   {
-    return is_valid(item) ? get_unsafe(item) : nullptr;
+    return id_to_index[id];
+  }
+
+  [[nodiscard]] bool to_index(UID id, SizeType &index) const
+  {
+    if (!is_valid(id))
+    {
+      return false;
+    }
+
+    index = to_index_unsafe(id);
+    return true;
   }
 
   bool push(AllocatorImpl const &allocator, T const &item, UID &out_id)
   {
+    UID id = -1;
     if (next_free_id == -1)
     {
+      // no free ids available,
+      // allocate new id
     }
+    else
+    {
+      //  id = next_free_id & ~ID_MASK;
+      // don't use id until all operations are successfull, so we can return it
+      // if it fails
+    }
+
+    if (next_free_index == -1)
+    {
+      // no free indices available, i.e. array full
+      // allocate new index and resize array
+    }
+    else
+    {
+    }
+
     return true;
   }
 
