@@ -25,12 +25,12 @@ struct TrivialSparseSet
                                       << (IntTraits<SizeType>::NUM_BITS - 1);
   UID      *index_to_id          = nullptr;
   SizeType *id_to_index          = nullptr;
-  SizeType  index_to_id_capacity = 0;
-  SizeType  id_to_index_capacity = 0;
   UID       next_free_id         = -1;
   SizeType  next_free_index      = -1;
   SizeType  num_items            = 0;
-
+  SizeType  index_to_id_capacity = 0;
+  SizeType  id_to_index_capacity = 0;
+  
   void clear()
   {
   }
@@ -41,11 +41,11 @@ struct TrivialSparseSet
     allocator.deallocate_typed(id_to_index, id_to_index_capacity);
     index_to_id          = nullptr;
     id_to_index          = nullptr;
-    index_to_id_capacity = 0;
-    id_to_index_capacity = 0;
     next_free_id         = -1;
     next_free_index      = -1;
     num_items            = 0;
+    index_to_id_capacity = 0;
+    id_to_index_capacity = 0;
   }
 
   bool is_valid(UID item) const
