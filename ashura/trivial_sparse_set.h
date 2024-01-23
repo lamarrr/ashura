@@ -28,7 +28,7 @@ struct TrivialSparseSet
   SizeType                 *id_to_index          = nullptr;
   UID                       next_free_id         = -1;
   SizeType                  next_free_index      = -1;
-  SizeType                  num_items            = 0;
+  SizeType                  num_slots            = 0;
   SizeType                  index_to_id_capacity = 0;
   SizeType                  id_to_index_capacity = 0;
 
@@ -44,7 +44,7 @@ struct TrivialSparseSet
     id_to_index          = nullptr;
     next_free_id         = -1;
     next_free_index      = -1;
-    num_items            = 0;
+    num_slots            = 0;
     index_to_id_capacity = 0;
     id_to_index_capacity = 0;
   }
