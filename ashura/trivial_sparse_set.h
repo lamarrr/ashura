@@ -127,11 +127,10 @@ struct TrivialSparseSet
     // iterate linearly through the elements and index_to_ids from the back for
     // num_free valid elements
     //
-    // move the valid elements into the holes that have indices lower than
-    // (num_slots - num_free)
+    // starting from the back, move the valid elements into the holes that have
+    // indices lower than (num_slots - num_free) as gotten from the implict free
+    // index list
     //
-    // move the valid elements into the holes that have indices higher than the
-    // index of the present element??? holes???
   }
 };
 
