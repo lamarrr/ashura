@@ -122,6 +122,16 @@ struct TrivialSparseSet
     return true;
   }
 
+  UID reclaim_id()
+  {
+  }
+  SizeType reclaim_index_from(SizeType &pos, SizeType bound)
+  {
+    if (pos < bound)
+      return 0;
+    return 0;
+  }
+
   void compact()
   {
     // iterate linearly through the elements and index_to_ids from the back for
