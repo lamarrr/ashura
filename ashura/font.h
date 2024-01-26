@@ -175,18 +175,21 @@ inline stx::Result<stx::Rc<Font *>, FontLoadError>
 struct FontAtlasBin
 {
   gfx::image texture = 0;
-  Vec2U     extent;
+  Vec2U      extent;
   usize      used_area = 0;
 };
 
 /// Metrics are normalized
+/// @bearing: offset from cursor baseline to start drawing glyph from
+/// @descent: distance from baseline to the bottom of the glyph
+/// @advance: advancement of the cursor after drawing this glyph
+/// @extent: glyph extent
 struct GlyphMetrics
 {
-  Vec2
-      bearing;        // offset from cursor baseline to start drawing glyph from
-  f32 descent = 0;        // distance from baseline to the bottom of the glyph
-  f32 advance = 0;        // advancement of the cursor after drawing this glyph
-  Vec2 extent;            // glyph extent
+  Vec2 bearing;
+  f32  descent = 0;
+  f32  advance = 0;
+  Vec2 extent;
 };
 
 /// see:
@@ -195,25 +198,28 @@ struct GlyphMetrics
 /// NOTE: using stubs enables us to perform fast constant lookups of glyph
 /// indices by ensuring the array is filled and sorted by glyph index from 0 ->
 /// nglyphs_found_in_font-1
+/// @is_valid: if the glyph was found in the font and loaded
+// successfully
+/// @is_needed: if the texture is a texture that is needed. i.e. if the
+/// unicode ranges are empty then this is always true,
+/// otherwise it is set to true if the config unicode ranges
+/// contains it, note that special glyphs like replacement
+/// unicode codepoint glyph (0xFFFD) will always be true
+/// @metrics: normalized font metrics
+/// @bin: atlas bin this glyph belongs to
+/// @bin_offset: area in the atlas this glyph's cache data is placed
+/// @uv0, uv1: normalized texture coordinates of this
+/// glyph in the atlas bin
 struct Glyph
 {
-  bool is_valid = false;        // if the glyph was found in the font and loaded
-                                // successfully
-  bool is_needed =
-      false;        // if the texture is a texture that is needed. i.e. if the
-                    // unicode ranges are empty then this is always true,
-                    // otherwise it is set to true if the config unicode ranges
-                    // contains it, note that special glyphs like replacement
-                    // unicode codepoint glyph (0xFFFD) will always be true
-  GlyphMetrics metrics;        // normalized font metrics
-  u32          bin = 0;        // atlas bin this glyph belongs to
-  Vec2U
-      bin_offset;        // area in the atlas this glyph's cache data is placed
-  Vec2U bin_extent;
-  Vec2  uv0;
-  Vec2  uv1;
-  // TextureRect bin_region;        // normalized texture coordinates of this
-  // glyph in the atlas bin
+  bool         is_valid  = false;
+  bool         is_needed = false;
+  GlyphMetrics metrics;
+  u32          bin = 0;
+  Vec2U        bin_offset;
+  Vec2U        bin_extent;
+  Vec2         uv0;
+  Vec2         uv1;
 };
 
 /// stores codepoint glyphs for a font at a specific font height
@@ -229,18 +235,23 @@ struct Glyph
 /// the glyph however is encoded with a value lower than the midpoint. i.e.
 /// encoded 0-127.
 ///
+/// @replacement_glyph: glyph for the replacement glyph 0xFFFD if
+/// found, otherwise glyph index 0
+/// @ellipsis_glyph: glyph for the ellipsis character '…'
+/// @font_height: font height at which the this atlas was rendered
+/// @ascent: normalized maximum ascent of the font's glyphs
+/// @descent: normalized maximum descent of the font's glyphs
+/// @advance: normalized maximum advance of the font's glyphs
 struct FontAtlas
 {
-  stx::Vec<Glyph> glyphs;
-  u32 replacement_glyph = 0;        // glyph for the replacement glyph 0xFFFD if
-                                    // found, otherwise glyph index 0
-  u32 space_glyph    = 0;
-  u32 ellipsis_glyph = 0;        // glypg for the ellipsis character '…'
-  u32 font_height =
-      0;                  // font height at which the this atlas was rendered
-  f32 ascent  = 0;        // normalized maximum ascent of the font's glyphs
-  f32 descent = 0;        // normalized maximum descent of the font's glyphs
-  f32 advance = 0;        // normalized maximum advance of the font's glyphs
+  stx::Vec<Glyph>        glyphs;
+  u32                    replacement_glyph = 0;
+  u32                    space_glyph       = 0;
+  u32                    ellipsis_glyph    = 0;
+  u32                    font_height       = 0;
+  f32                    ascent            = 0;
+  f32                    descent           = 0;
+  f32                    advance           = 0;
   stx::Vec<FontAtlasBin> bins;
 };
 
@@ -251,26 +262,29 @@ struct BundledFont
   FontAtlas       atlas;
 };
 
+/// @name: name to use in font matching
+/// @path: local file system path of the typeface resource
+/// @use_caching: whether to try to load or save font atlas from the cache
+/// directory. the font is identified in the cache directory
+/// by its postscript name, which is different from its font
+/// matching name
+/// @face: font face to use
+/// @font_height: the height at which the SDF texture is cached at
+/// @max_atlas_bin_extent: maximum extent of each atlas bin
+/// @ranges: if set only the specified unicode ranges will be loaded,
+/// otherwise glyphs in the font will be loaded. Note that this
+/// means during font ligature glyph substitution where scripts
+/// might change, if the replacement glyph is not in the unicode
+/// range, it won't result in a valid glyph.
 struct FontSpec
 {
-  stx::String name;        // name to use in font matching
-  stx::String path;        // local file system path of the typeface resource
-  bool        use_caching =
-      true;        // whether to try to load or save font atlas from the cache
-                   // directory. the font is identified in the cache directory
-                   // by its postscript name, which is different from its font
-                   // matching name
-  u32 face = 0;        // font face to use
-  u32 font_height =
-      40;        // the height at which the SDF texture is cached at
-  Vec2U max_atlas_bin_extent =
-      DEFAULT_MAX_ATLAS_BIN_EXTENT;        // maximum extent of each atlas bin
-  stx::Span<UnicodeRange const> ranges =
-      {};        // if set only the specified unicode ranges will be loaded,
-                 // otherwise glyphs in the font will be loaded. Note that this
-                 // means during font ligature glyph substitution where scripts
-                 // might change, if the replacement glyph is not in the unicode
-                 // range, it won't result in a valid glyph.
+  stx::String name;
+  stx::String path;
+  bool        use_caching              = true;
+  u32         face                     = 0;
+  u32         font_height              = 40;
+  Vec2U       max_atlas_bin_extent     = DEFAULT_MAX_ATLAS_BIN_EXTENT;
+  stx::Span<UnicodeRange const> ranges = {};
 };
 
 inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
@@ -447,7 +461,7 @@ inline std::pair<FontAtlas, stx::Vec<ImageBuffer>>
 
       // NOTE: vulkan doesn't allow zero-extent images
       Vec2U bin_extent{1, 1};
-      usize  used_area = 0;
+      usize used_area = 0;
 
       for (rect_packer::rect const &rect : just_packed)
       {
