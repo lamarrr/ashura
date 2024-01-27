@@ -1,6 +1,6 @@
 #pragma once
-#include "ashura/gfx.h"
-#include "ashura/types.h"
+#include "ashura/core/gfx.h"
+#include "ashura/std/types.h"
 
 namespace ash
 {
@@ -134,7 +134,8 @@ constexpr bool copy_image(ImageSpan<T const> const &src,
   u8 const *in        = src.span.data;
   u64 const row_bytes = src.row_bytes();
 
-  for (u64 irow = 0; irow < src.height; irow++, out += dst.pitch, in += src.pitch)
+  for (u64 irow = 0; irow < src.height;
+       irow++, out += dst.pitch, in += src.pitch)
   {
     memcpy(out, in, row_bytes);
   }

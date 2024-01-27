@@ -7,7 +7,7 @@
 
 namespace ash
 {
-namespace fmtx
+namespace fmt
 {
 
 enum class Style : u8
@@ -65,5 +65,5 @@ bool format(Context &ctx, Args const &...args)
   return true && (push(ctx, spec, args) && ...);
 }
 
-}        // namespace fmtx
+}        // namespace fmt
 }        // namespace ash

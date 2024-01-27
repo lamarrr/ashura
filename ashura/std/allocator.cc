@@ -1,6 +1,6 @@
 
 #include "ashura/std/allocator.h"
-#include "ashura/cfg.h"
+#include "ashura/std/cfg.h"
 
 #if ASH_CFG(OS, POSIX) && (ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, GNUC))
 #  define STDC_ALIGNED_ALLOC_SUPPORTED 1

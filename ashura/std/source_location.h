@@ -1,19 +1,8 @@
-/**
- * @file source_location.h
- * @author Basit Ayantunde <rlamarrr@gmail.com>
- * @date 2020-06-04
- *
- * @copyright MIT License
- *
- * Copyright (c) 2020-2022 Basit Ayantunde
- *
- */
-
 #pragma once
 
 #include <cstdint>
 
-#include "ash/std/cfg.h"
+#include "ashura/std/cfg.h"
 
 namespace ash
 {

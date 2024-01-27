@@ -87,6 +87,7 @@ constexpr bool has_any_bit(T src, T cmp)
   return (src & cmp) != (T) 0;
 }
 
+typedef struct Void       Void;
 typedef struct Vec2       Vec2;
 typedef struct Vec2       Complex;
 typedef struct Vec3       Vec3;
@@ -106,6 +107,11 @@ typedef struct Mat4Affine Mat4Affine;
 typedef struct Slice      Slice;
 template <typename T>
 struct Span;
+
+/// regular void
+struct Void
+{
+};
 
 struct alignas(8) Vec2
 {
@@ -1540,5 +1546,4 @@ constexpr Span<T const> init_list(std::initializer_list<T> init)
 }
 
 }        // namespace span
-
 }        // namespace ash

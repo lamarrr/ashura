@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ashura/std/allocator.h"
+#include "ashura/std/enum.h"
 #include "ashura/std/format.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/runtime.h"
@@ -22,16 +23,16 @@ typedef struct FileSinkInterface  FileSinkInterface;
 
 enum class LogLevel : u8
 {
-  None    = 0,
-  Debug   = 1,
-  Trace   = 2,
-  Info    = 4,
-  Warning = 8,
-  Error   = 16,
-  Fatal   = 32
+  None    = 0x00,
+  Debug   = 0x01,
+  Trace   = 0x02,
+  Info    = 0x04,
+  Warning = 0x08,
+  Error   = 0x10,
+  Fatal   = 0x20
 };
 
-STX_DEFINE_ENUM_BIT_OPS(LogLevel)
+ASH_DEFINE_ENUM_BIT_OPS(LogLevel)
 
 struct LogSinkInterface
 {
@@ -59,7 +60,7 @@ struct Logger
   usize                buffer_capacity                     = 0;
   char                 scratch_buffer[SCRATCH_BUFFER_SIZE] = {};
   AllocatorImpl        allocator                           = {};
-  fmtx::Context        fmt_ctx                             = {};
+  fmt::Context         fmt_ctx                             = {};
   std::mutex           mutex                               = {};
 
   template <typename... Args>
@@ -112,7 +113,7 @@ struct Logger
   bool log(LogLevel level, Args const &...args)
   {
     std::unique_lock lock{mutex};
-    if (fmtx::format(fmt_ctx, args..., "\n"))
+    if (fmt::format(fmt_ctx, args..., "\n"))
     {
       for (u32 i = 0; i < num_sinks; i++)
       {
@@ -165,7 +166,7 @@ inline bool create_logger(Logger *memory, Span<LogSinkImpl const> sinks,
       .buffer_size     = 0,
       .buffer_capacity = 0,
       .allocator       = allocator,
-      .fmt_ctx         = fmtx::Context{
+      .fmt_ctx         = fmt::Context{
                   .push =
                       {
                           .dispatcher =

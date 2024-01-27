@@ -2,22 +2,15 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/enum.h"
 #include "ashura/std/log.h"
+#include "ashura/std/result.h"
 #include "ashura/std/types.h"
-#include "stx/result.h"
-#include "stx/void.h"
 
 typedef struct VkSurfaceKHR_T *VkSurfaceKHR;
 
 namespace ash
 {
-using stx::Err;
-using stx::Ok;
-using stx::Result;
-using stx::Void;
-
 namespace gfx
 {
-
 constexpr u32 REMAINING_MIP_LEVELS         = ~0U;
 constexpr u32 REMAINING_ARRAY_LAYERS       = ~0U;
 constexpr u64 WHOLE_SIZE                   = ~0ULL;

@@ -11,11 +11,6 @@ set(VMA_DYNAMIC_VULKAN_FUNCTIONS ON)
 include(FetchContent)
 
 FetchContent_Declare(
-  stx
-  GIT_REPOSITORY https://github.com/lamarrr/STX.git
-  GIT_TAG main)
-
-FetchContent_Declare(
   VulkanHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
   GIT_TAG v1.3.269)
@@ -53,7 +48,6 @@ find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 
-FetchContent_MakeAvailable(stx)
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityHeaders)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
@@ -68,13 +62,10 @@ target_include_directories(
 add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  add_compile_options(
-    -Wall -Wextra -Wpedantic # -fno-rtti -fno-exceptions TODO(lamarrr): future
-  )
+  add_compile_options(-Wall -Wextra -Wpedantic -fno-rtti -fno-exceptions)
 else()
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic # -fno-rtti -fno-exceptions
-    )
+    add_compile_options(-Wall -Wextra -Wpedantic -fno-rtti -fno-exceptions)
   else()
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
       add_compile_options(/W3)
@@ -82,65 +73,24 @@ else()
   endif()
 endif()
 
-add_library(ashura_format STATIC ashura/format.cc)
-add_library(ashura_log STATIC ashura/log.cc ashura/runtime.cc)
-add_library(ashura_allocator STATIC ashura/allocator.cc
-                                    ashura/arena_allocator.cc)
-add_library(ashura_gfx STATIC ashura/gfx.cc ashura/vulkan_gfx.cc
-                              ashura/vma_def.cc)
 add_library(
-  ashura STATIC
-  # ashura/app.cc ashura/engine.cc ashura/widget.cc
-  ashura/loggers.cc 
-  # ashura/subsystems/http_client.cc
-)
-add_executable(ashura_main ashura/ashura.cc)
-add_executable(ashura_main2 ashura/ashura2.cc)
-add_executable(ashura_networking_test ashura/tests/http.cc)
-add_executable(
-  ashura_test
-  # ashura/tests/layout.cc
-  ashura/tests/sparse_set.cc)
+  ashura_std ashura/std/allocator.cc ashura/std/arena_allocator.cc
+             ashura/std/format.cc ashura/std/log.cc ashura/std/runtime.cc)
+target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_include_directories(ashura_format PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(ashura_log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(ashura_allocator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(
-  ashura PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR}
-                ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
-
-target_link_libraries(ashura_format stx::stx)
-target_link_libraries(ashura_log ashura_format)
-target_link_libraries(
-  ashura_gfx
-  stx::stx
-  Vulkan-Headers
-  Vulkan::UtilityHeaders
-  Vulkan::Vulkan
-  GPUOpen::VulkanMemoryAllocator
-  ashura_allocator
-  ashura_log
-  ashura_format)
-target_link_libraries(
-  ashura
-  ashura_gfx
-  stx::stx
-  SDL3::SDL3-static
-  fmt::fmt
-  spdlog::spdlog
-  harfbuzz
-  CURL::libcurl
-  Freetype::Freetype
-  simdjson::simdjson
-  WebP::webp
-  WebP::webpdecoder
-  ${JPEG_LIBRARIES}
-  PNG::PNG
-  ${FFMPEG_LIBRARIES}
-  SheenBidi::SheenBidi)
-target_link_libraries(ashura_main ashura)
-target_link_libraries(ashura_main2 ashura_gfx)
-target_link_libraries(ashura_networking_test ashura GTest::gtest
+add_executable(ashura_std_tests ashura/tests/result.cc)
+target_link_libraries(ashura_std_tests ashura_std GTest::gtest
                       GTest::gtest_main)
-target_link_libraries(ashura_test ashura GTest::gtest GTest::gtest_main)
+
+add_library(ashura_core ashura/core/gfx.cc)
+target_link_libraries(ashura_core ashura_std)
+target_include_directories(ashura_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR} ${FFMPEG_INCLUDE_DIRS}
+# ${FFMPEG_LIBRARY_DIRS} target_link_libraries( ashura_gfx stx::stx
+# Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Vulkan
+# GPUOpen::VulkanMemoryAllocator ashura_allocator ashura_log ashura_format)
+# target_link_libraries( ashura ashura_gfx stx::stx SDL3::SDL3-static fmt::fmt
+# spdlog::spdlog harfbuzz CURL::libcurl Freetype::Freetype simdjson::simdjson
+# WebP::webp WebP::webpdecoder ${JPEG_LIBRARIES} PNG::PNG ${FFMPEG_LIBRARIES}
+# SheenBidi::SheenBidi) target_link_libraries(ashura_test ashura GTest::gtest
+# GTest::gtest_main)

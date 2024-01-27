@@ -52,12 +52,12 @@ constexpr EnumType enum_and(EnumType a, EnumType b)
 #define ASH_DEFINE_ENUM_BIT_OPS(enum_type)                   \
   constexpr enum_type operator|(enum_type a, enum_type b)    \
   {                                                          \
-    return ::stx::enum_or(a, b);                             \
+    return ::ash::enum_or(a, b);                             \
   }                                                          \
                                                              \
   constexpr enum_type operator~(enum_type a)                 \
   {                                                          \
-    return ::stx::enum_toggle(a);                            \
+    return ::ash::enum_toggle(a);                            \
   }                                                          \
                                                              \
   constexpr enum_type &operator|=(enum_type &a, enum_type b) \
@@ -68,7 +68,7 @@ constexpr EnumType enum_and(EnumType a, EnumType b)
                                                              \
   constexpr enum_type operator&(enum_type a, enum_type b)    \
   {                                                          \
-    return ::stx::enum_and(a, b);                            \
+    return ::ash::enum_and(a, b);                            \
   }                                                          \
                                                              \
   constexpr enum_type &operator&=(enum_type &a, enum_type b) \
