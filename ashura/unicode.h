@@ -1,5 +1,5 @@
 #pragma once
-#include "ashura/primitives.h"
+#include "ashura/types.h"
 
 namespace ash
 {

@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
 #pragma once
-#include "ashura/allocator.h"
-#include "ashura/log.h"
-#include "ashura/types.h"
-#include "stx/enum.h"
+#include "ashura/std/allocator.h"
+#include "ashura/std/enum.h"
+#include "ashura/std/log.h"
+#include "ashura/std/types.h"
 #include "stx/result.h"
 #include "stx/void.h"
 
@@ -86,7 +85,7 @@ enum class DeviceFeatures : u64
   RayTracing  = 0x000004ULL
 };
 
-STX_DEFINE_ENUM_BIT_OPS(DeviceFeatures)
+ASH_DEFINE_ENUM_BIT_OPS(DeviceFeatures)
 
 enum class MemoryProperties : u32
 {
@@ -99,7 +98,7 @@ enum class MemoryProperties : u32
   Protected       = 0x00000020
 };
 
-STX_DEFINE_ENUM_BIT_OPS(MemoryProperties)
+ASH_DEFINE_ENUM_BIT_OPS(MemoryProperties)
 
 enum class PresentMode : u8
 {
@@ -451,7 +450,7 @@ enum class ImageAspects : u32
   Plane2   = 0x00000040
 };
 
-STX_DEFINE_ENUM_BIT_OPS(ImageAspects)
+ASH_DEFINE_ENUM_BIT_OPS(ImageAspects)
 
 enum class LoadOp : u8
 {
@@ -606,7 +605,7 @@ enum class ColorComponents : u8
   All  = R | G | B | A
 };
 
-STX_DEFINE_ENUM_BIT_OPS(ColorComponents)
+ASH_DEFINE_ENUM_BIT_OPS(ColorComponents)
 
 enum class BufferUsage : u32
 {
@@ -630,7 +629,7 @@ enum class BufferUsage : u32
   RayTracing                              = ShaderBindingTable
 };
 
-STX_DEFINE_ENUM_BIT_OPS(BufferUsage)
+ASH_DEFINE_ENUM_BIT_OPS(BufferUsage)
 
 enum class ImageUsage : u32
 {
@@ -650,7 +649,7 @@ enum class ImageUsage : u32
   VideoEncodeDpb         = 0x00008000
 };
 
-STX_DEFINE_ENUM_BIT_OPS(ImageUsage)
+ASH_DEFINE_ENUM_BIT_OPS(ImageUsage)
 
 enum class InputRate : u8
 {
@@ -674,7 +673,7 @@ enum class ShaderStages : u32
   Callable     = 0x00002000
 };
 
-STX_DEFINE_ENUM_BIT_OPS(ShaderStages)
+ASH_DEFINE_ENUM_BIT_OPS(ShaderStages)
 
 enum class BorderColor : u8
 {
@@ -751,7 +750,7 @@ enum class CompositeAlpha : u8
   Inherit        = 0x00000008
 };
 
-STX_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
+ASH_DEFINE_ENUM_BIT_OPS(CompositeAlpha)
 
 struct SurfaceFormat
 {

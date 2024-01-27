@@ -3,6 +3,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 
 namespace ash
 {
@@ -61,6 +62,16 @@ constexpr f64 F64_MAX          = DBL_MAX;
 constexpr f32 F64_EPSILON      = DBL_EPSILON;
 
 constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
+
+typedef u8  uid8;
+typedef u16 uid16;
+typedef u32 uid32;
+typedef u64 uid64;
+
+constexpr uid8  INVALID_UID8  = U8_MAX;
+constexpr uid16 INVALID_UID16 = U16_MAX;
+constexpr uid32 INVALID_UID32 = U32_MAX;
+constexpr uid64 INVALID_UID64 = U64_MAX;
 
 constexpr f32 PI = 3.14159265358979323846f;
 
@@ -1480,5 +1491,54 @@ struct Span
     return slice(slice_offset, USIZE_MAX);
   }
 };
+
+namespace span
+{
+
+template <typename T>
+constexpr Span<u8> as_u8(Span<T> self)
+{
+  return Span<u8>{reinterpret_cast<u8 *>(self.data), self.size_bytes()};
+}
+
+template <typename T>
+constexpr Span<u8 const> as_u8(Span<T const> self)
+{
+  return Span<u8 const>{reinterpret_cast<u8 const *>(self.data),
+                        self.size_bytes()};
+}
+
+template <typename T>
+constexpr Span<char> as_char(Span<T> self)
+{
+  return Span<char>{reinterpret_cast<char *>(self.data), self.size_bytes()};
+}
+
+template <typename T>
+constexpr Span<char const> as_char(Span<T const> self)
+{
+  return Span<char const>{reinterpret_cast<char const *>(self.data),
+                          self.size_bytes()};
+}
+
+template <typename T, usize N>
+constexpr Span<T> array(T (&array)[N])
+{
+  return Span<T>{array, N};
+}
+
+template <typename StdContainer>
+constexpr auto container(StdContainer &container)
+{
+  return Span{container.data(), container.size()};
+}
+
+template <typename T>
+constexpr Span<T const> init_list(std::initializer_list<T> init)
+{
+  return Span<T const>{init.begin(), init.size()};
+}
+
+}        // namespace span
 
 }        // namespace ash

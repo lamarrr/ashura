@@ -1,9 +1,8 @@
 
 #pragma once
 
-#include "ashura/time.h"
-#include "ashura/types.h"
-#include "stx/source_location.h"
+#include "ashura/std/time.h"
+#include "ashura/std/types.h"
 
 #define DECLARE_TRACE_CATEGORY()
 #define DEFINE_TRACE_CATEGORY()

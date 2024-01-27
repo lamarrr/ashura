@@ -1,7 +1,7 @@
 #pragma once
-#include "ashura/allocator.h"
-#include "ashura/mem.h"
-#include "ashura/types.h"
+#include "ashura/std/allocator.h"
+#include "ashura/std/mem.h"
+#include "ashura/std/types.h"
 
 namespace ash
 {

@@ -1,7 +1,7 @@
+#pragma once
 
-
-#include "ashura/types.h"
-#include "stx/fn.h"
+#include "ashura/std/fn.h"
+#include "ashura/std/types.h"
 #include <string>
 #include <string_view>
 
@@ -29,9 +29,9 @@ struct Spec
 /// @sratch_buffer: recommended size of 256 bytes
 struct Context
 {
-  stx::Fn<bool(char const *buffer, usize size)> push;
-  char                                         *scratch_buffer      = nullptr;
-  usize                                         scratch_buffer_size = 0;
+  Fn<bool(char const *buffer, usize size)> push;
+  char                                    *scratch_buffer      = nullptr;
+  usize                                    scratch_buffer_size = 0;
 };
 
 template <typename T>

@@ -1,11 +1,11 @@
 
 #pragma once
 
-#include "ashura/allocator.h"
-#include "ashura/format.h"
-#include "ashura/mem.h"
-#include "ashura/runtime.h"
-#include "ashura/types.h"
+#include "ashura/std/allocator.h"
+#include "ashura/std/format.h"
+#include "ashura/std/mem.h"
+#include "ashura/std/runtime.h"
+#include "ashura/std/types.h"
 #include <atomic>
 #include <mutex>
 #include <stdlib.h>

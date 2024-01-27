@@ -1,5 +1,5 @@
 #pragma once
-#include "ashura/types.h"
+#include "ashura/std/types.h"
 #include <atomic>
 
 typedef void (*PFN_panic_handler)();

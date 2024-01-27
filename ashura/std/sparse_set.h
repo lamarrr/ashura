@@ -1,9 +1,9 @@
 #pragma once
-#include "ashura/algorithms.h"
-#include "ashura/allocator.h"
-#include "ashura/mem.h"
-#include "ashura/traits.h"
-#include "ashura/types.h"
+#include "ashura/std/algorithms.h"
+#include "ashura/std/allocator.h"
+#include "ashura/std/mem.h"
+#include "ashura/std/traits.h"
+#include "ashura/std/types.h"
 
 namespace ash
 {
@@ -108,7 +108,7 @@ struct SparseSet
     unsafe_remove(id);
     return true;
   }
-  
+
   bool resize(AllocatorImpl const &allocator, SizeType size)
   {
     // if smaller, compact and then

@@ -123,17 +123,16 @@ enum class AnimationCfg : u8
 
 STX_DEFINE_ENUM_BIT_OPS(AnimationCfg)
 
+/// @speed: higher spead means faster time to completion than specified duration
 struct Animation
 {
-  Nanoseconds  duration   = Milliseconds{256};
-  u64          iterations = 1;
-  AnimationCfg cfg        = AnimationCfg::Default;
-  f32 speed = 1;        // higher spead means faster time to completion than
-                        // specified duration
-
-  Nanoseconds elapsed_duration = Nanoseconds{0};
-  u64         iterations_done  = 0;
-  f32         t                = 0;
+  Nanoseconds  duration         = Milliseconds{256};
+  u64          iterations       = 1;
+  AnimationCfg cfg              = AnimationCfg::Default;
+  f32          speed            = 1;
+  Nanoseconds  elapsed_duration = Nanoseconds{0};
+  u64          iterations_done  = 0;
+  f32          t                = 0;
 
   void restart(Nanoseconds duration, u64 iterations, AnimationCfg cfg,
                f32 speed)

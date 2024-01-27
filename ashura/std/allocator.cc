@@ -1,5 +1,5 @@
 
-#include "ashura/allocator.h"
+#include "ashura/std/allocator.h"
 #include "ashura/cfg.h"
 
 #if ASH_CFG(OS, POSIX) && (ASH_CFG(COMPILER, CLANG) || ASH_CFG(COMPILER, GNUC))
@@ -30,8 +30,6 @@ void *HeapInterface::allocate(Allocator self, usize alignment, usize size)
   (void) self;
   (void) alignment;
   (void) size;
-  // heap_used += size;
-  // printf("used: %zu\n", heap_used);
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
     return malloc(size);
@@ -57,8 +55,6 @@ void *HeapInterface::allocate_zeroed(Allocator self, usize alignment,
   (void) self;
   (void) alignment;
   (void) size;
-  // heap_used += size;
-  // printf("used: %zu\n", heap_used);
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
     return calloc(size, 1);
@@ -98,9 +94,6 @@ void *HeapInterface::reallocate(Allocator self, usize alignment, void *memory,
   (void) memory;
   (void) old_size;
   (void) new_size;
-  // heap_used -= old_size;
-  // heap_used += new_size;
-  // printf("used: %zu\n", heap_used);
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
     return realloc(memory, new_size);
@@ -136,8 +129,6 @@ void HeapInterface::deallocate(Allocator self, usize alignment, void *memory,
   (void) alignment;
   (void) memory;
   (void) size;
-  // heap_used -= size;
-  // printf("used: %zu\n", heap_used);
   if (alignment <= MAX_STANDARD_ALIGNMENT)
   {
     free(memory);

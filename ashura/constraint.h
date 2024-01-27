@@ -1,6 +1,6 @@
 #pragma once
-#include "ashura/math.h"
-#include "ashura/types.h"
+#include "ashura/std/math.h"
+#include "ashura/std/types.h"
 
 namespace ash
 {

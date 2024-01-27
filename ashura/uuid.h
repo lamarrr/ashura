@@ -5,8 +5,6 @@
 namespace ash
 {
 
-using uuid = u64;
-
 /// A PRNG-Based UUID Generator
 /// https://datatracker.ietf.org/doc/html/rfc4122
 struct PrngUuidGenerator
@@ -17,7 +15,7 @@ struct PrngUuidGenerator
 
   Pcg32Rng rng;
 
-  uuid generate()
+  uid64 generate()
   {
     u64 r0 = rng.generate();
     rng.state += 1;
