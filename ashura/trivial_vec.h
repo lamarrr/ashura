@@ -9,22 +9,23 @@ namespace ash
 // T: container element type
 // SizeT: size type of the container: u8, u16, u32, u64
 template <typename T, typename SizeType>
-[[nodiscard]] bool trivial_vec_create_zeroed(AllocatorImpl const &allocator,
-                                             T *&data, SizeType target_size)
+[[nodiscard]] constexpr bool
+    trivial_vec_create_zeroed(AllocatorImpl const &allocator, T *&data,
+                              SizeType target_size)
 {
   data = allocator.allocate_zeroed_typed(data, target_size);
   return data != nullptr;
 }
 
 template <typename T, typename SizeType>
-[[nodiscard]] bool trivial_vec_reserve(AllocatorImpl const &allocator, T *&data,
-                                       SizeType &capacity, SizeType target_size)
+[[nodiscard]] constexpr bool trivial_vec_reserve(AllocatorImpl const &allocator,
+                                                 T *&data, SizeType &capacity,
+                                                 SizeType target_capacity)
 {
-  if (target_size <= capacity)
+  if (target_capacity <= capacity)
   {
     return true;
   }
-  SizeType const target_capacity = target_size + (target_size >> 1);
   T *new_data = allocator.reallocate_typed(data, capacity, target_capacity);
   if (new_data == nullptr)
   {
@@ -36,21 +37,9 @@ template <typename T, typename SizeType>
 }
 
 template <typename T, typename SizeType>
-[[nodiscard]] bool trivial_vec_grow_size(AllocatorImpl const &allocator,
-                                         T *&data, SizeType &size, SizeType &capacity,
-                                         SizeType growth)
-{
-  if (!trivial_vec_reserve(allocator, data, capacity, size + growth))
-  {
-    return false;
-  }
-  size += growth;
-  return true;
-}
-
-template <typename T, typename SizeType>
-[[nodiscard]] void trivial_vec_reset(AllocatorImpl const &allocator, T *&data,
-                                     SizeType &size, SizeType &capacity)
+[[nodiscard]] constexpr void trivial_vec_reset(AllocatorImpl const &allocator,
+                                               T *&data, SizeType &size,
+                                               SizeType &capacity)
 {
   allocator.deallocate_typed(data, capacity);
   data     = nullptr;
@@ -59,11 +48,14 @@ template <typename T, typename SizeType>
 }
 
 template <typename T, typename SizeType>
-[[nodiscard]] bool trivial_vec_push(AllocatorImpl const &allocator, T *&data,
-                                    SizeType &size, SizeType &capacity,
-                                    T const &element)
+[[nodiscard]] constexpr bool
+    trivial_vec_push(AllocatorImpl const &allocator, T *&data, SizeType &size,
+                     SizeType &capacity, T const &element)
 {
-  if (!trivial_vec_reserve(allocator, data, capacity, size + 1))
+  SizeType const target_size = size + 1;
+  SizeType const target_capacity =
+      target_size > capacity ? (target_size + (target_size >> 1)) : target_size;
+  if (!trivial_vec_reserve(allocator, data, capacity, target_capacity))
   {
     return false;
   }
@@ -73,12 +65,15 @@ template <typename T, typename SizeType>
 }
 
 template <typename T, typename SizeType>
-[[nodiscard]] bool trivial_vec_extend(AllocatorImpl const &allocator, T *&data,
-                                      SizeType &size, SizeType &capacity,
-                                      T const *push_elements,
-                                      SizeType    num_push_elements)
+[[nodiscard]] constexpr bool
+    trivial_vec_extend(AllocatorImpl const &allocator, T *&data, SizeType &size,
+                       SizeType &capacity, T const *push_elements,
+                       SizeType num_push_elements)
 {
-  if (!trivial_vec_reserve(allocator, data, capacity, size + num_push_elements))
+  SizeType const target_size = size + num_push_elements;
+  SizeType const target_capacity =
+      target_size > capacity ? (target_size + (target_size >> 1)) : target_size;
+  if (!trivial_vec_reserve(allocator, data, capacity, target_capacity))
   {
     return false;
   }
@@ -89,8 +84,9 @@ template <typename T, typename SizeType>
 }
 
 template <typename T, typename SizeType>
-void trivial_vec_erase(AllocatorImpl const &allocator, T *&data, SizeType &size,
-                       SizeType first_erase, SizeType num_erase)
+constexpr void trivial_vec_erase(AllocatorImpl const &allocator, T *&data,
+                                 SizeType &size, SizeType first_erase,
+                                 SizeType num_erase)
 {
   // num_erase can be as large as SizeT::max()
   // essencially a slice
@@ -107,8 +103,9 @@ void trivial_vec_erase(AllocatorImpl const &allocator, T *&data, SizeType &size,
 }
 
 template <typename T, typename SizeType>
-[[nodiscard]] bool trivial_vec_fit(AllocatorImpl const &allocator, T *&data,
-                                   SizeType size, SizeType &capacity)
+[[nodiscard]] constexpr bool trivial_vec_fit(AllocatorImpl const &allocator,
+                                             T *&data, SizeType size,
+                                             SizeType &capacity)
 {
   if (size == capacity)
   {
@@ -127,14 +124,13 @@ template <typename T, typename SizeType>
 }
 
 template <typename T, typename SizeType>
-[[nodiscard]] bool trivial_vec_insert(AllocatorImpl const &allocator, T *&data,
-                                      SizeType size, SizeType &capacity,
-                                      SizeType insert_index, T const &);
+[[nodiscard]] constexpr bool
+    trivial_vec_insert(AllocatorImpl const &allocator, T *&data, SizeType size,
+                       SizeType &capacity, SizeType insert_index, T const &);
 
 template <typename T, typename SizeType>
-[[nodiscard]] bool trivial_vec_insert_range(AllocatorImpl const &allocator,
-                                            T *&data, SizeType size,
-                                            SizeType &capacity, SizeType insert_index,
-                                            T const *, SizeType       num_insert);
+[[nodiscard]] constexpr bool trivial_vec_insert_range(
+    AllocatorImpl const &allocator, T *&data, SizeType size, SizeType &capacity,
+    SizeType insert_index, T const *, SizeType num_insert);
 
 };        // namespace ash

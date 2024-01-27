@@ -90,16 +90,17 @@ add_library(ashura_gfx STATIC ashura/gfx.cc ashura/vulkan_gfx.cc
                               ashura/vma_def.cc)
 add_library(
   ashura STATIC
-  ashura/app.cc
-  ashura/engine.cc
-  ashura/widget.cc
-  ashura/loggers.cc
-  ashura/subsystems/http_client.cc
-  ashura/ecs.cc)
+  # ashura/app.cc ashura/engine.cc ashura/widget.cc
+  ashura/loggers.cc 
+  # ashura/subsystems/http_client.cc
+)
 add_executable(ashura_main ashura/ashura.cc)
 add_executable(ashura_main2 ashura/ashura2.cc)
 add_executable(ashura_networking_test ashura/tests/http.cc)
-add_executable(ashura_test ashura/tests/layout.cc)
+add_executable(
+  ashura_test
+  # ashura/tests/layout.cc
+  ashura/tests/sparse_set.cc)
 
 target_include_directories(ashura_format PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(ashura_log PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
