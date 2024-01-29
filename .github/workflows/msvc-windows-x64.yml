@@ -59,4 +59,4 @@ jobs:
 
       - name: Run Ashura Test
         run: |
-         cd build/${{ matrix.build_mode }}/ && ./ashura_test.exe
+         cd build/${{ matrix.build_mode }}/ && ./ashura_std_tests.exe
