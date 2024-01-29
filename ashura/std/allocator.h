@@ -46,54 +46,55 @@ struct AllocatorImpl
   Allocator                 self      = nullptr;
   AllocatorInterface const *interface = nullptr;
 
-  [[nodiscard]] void *allocate(usize alignment, usize size) const
+  [[nodiscard]] constexpr void *allocate(usize alignment, usize size) const
   {
     return interface->allocate(self, alignment, size);
   }
 
   template <typename T>
-  [[nodiscard]] T *allocate_typed(usize num) const
+  [[nodiscard]] constexpr T *allocate_typed(usize num) const
   {
     return (T *) interface->allocate(self, alignof(T), sizeof(T) * num);
   }
 
-  [[nodiscard]] void *allocate_zeroed(usize alignment, usize size) const
+  [[nodiscard]] constexpr void *allocate_zeroed(usize alignment,
+                                                usize size) const
   {
     return interface->allocate_zeroed(self, alignment, size);
   }
 
   template <typename T>
-  [[nodiscard]] T *allocate_zeroed_typed(usize num) const
+  [[nodiscard]] constexpr T *allocate_zeroed_typed(usize num) const
   {
     return (T *) interface->allocate_zeroed(self, alignof(T), sizeof(T) * num);
   }
 
-  [[nodiscard]] void *reallocate(usize alignment, void *memory, usize old_size,
-                                 usize new_size) const
+  [[nodiscard]] constexpr void *reallocate(usize alignment, void *memory,
+                                           usize old_size, usize new_size) const
   {
     return interface->reallocate(self, alignment, memory, old_size, new_size);
   }
 
   template <typename T>
-  [[nodiscard]] T *reallocate_typed(T *memory, usize old_num,
-                                    usize new_num) const
+  [[nodiscard]] constexpr T *reallocate_typed(T *memory, usize old_num,
+                                              usize new_num) const
   {
     return (T *) interface->reallocate(
         self, alignof(T), memory, sizeof(T) * old_num, sizeof(T) * new_num);
   }
 
-  void deallocate(usize alignment, void *memory, usize size) const
+  constexpr void deallocate(usize alignment, void *memory, usize size) const
   {
     interface->deallocate(self, alignment, memory, size);
   }
 
   template <typename T>
-  void deallocate_typed(T *memory, usize num) const
+  constexpr void deallocate_typed(T *memory, usize num) const
   {
     interface->deallocate(self, alignof(T), memory, sizeof(T) * num);
   }
 
-  void release() const
+  constexpr void release() const
   {
     interface->release(self);
   }
