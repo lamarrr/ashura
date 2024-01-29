@@ -40,9 +40,7 @@ struct TrivialVec
   }
 
   [[nodiscard]] constexpr bool grow__(AllocatorImpl const &allocator,
-                                      SizeType             target_capacity)
-  {
-  }
+                                      SizeType             target_capacity);
 
   [[nodiscard]] constexpr bool push(AllocatorImpl const &allocator,
                                     T const             &element)
