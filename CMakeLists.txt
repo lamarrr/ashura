@@ -49,7 +49,6 @@ FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(SheenBidi)
 find_package(Vulkan REQUIRED)
 
-
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
 add_library(SheenBidi ${SheenBidi_SOURCES})
@@ -120,3 +119,7 @@ target_link_libraries(
   PNG::PNG
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
+
+add_executable(ashura_engine_tests ashura/engine/tests/renderer.cc)
+target_link_libraries(ashura_engine_tests ashura_std ashura_gfx ashura_engine
+                      GTest::gtest GTest::gtest_main)

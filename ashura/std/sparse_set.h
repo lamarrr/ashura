@@ -1,9 +1,9 @@
 #pragma once
-#include "ashura/std/algorithms.h"
 #include "ashura/std/allocator.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/traits.h"
 #include "ashura/std/types.h"
+
 namespace ash
 {
 
@@ -40,6 +40,11 @@ struct SparseSet
     return num_slots;
   }
 
+  constexpr SizeType num_valid() const
+  {
+    return num_slots - num_free;
+  }
+
   // clear all slots and id allocations
   constexpr void clear()
   {
@@ -52,20 +57,20 @@ struct SparseSet
   // release all allocated ids
   constexpr void release_ids()
   {
-    SizeType head   = num_slots == 0 ? STUB : 0;
-    free_id_head    = head;
-    free_index_head = head;
-    for (SizeType i = 0; i < num_slots - 1; i++)
-    {
-      index_to_id[i] = (i + 1) | RELEASE_MASK;
-      id_to_index[i] = (i + 1) | RELEASE_MASK;
-    }
     if (num_slots > 0)
     {
+      free_id_head    = 0;
+      free_index_head = 0;
+      for (SizeType i = 0; i < num_slots - 1; i++)
+      {
+        index_to_id[i] = (i + 1) | RELEASE_MASK;
+        id_to_index[i] = (i + 1) | RELEASE_MASK;
+      }
+
       index_to_id[num_slots - 1] = STUB;
       id_to_index[num_slots - 1] = STUB;
+      num_free                   = num_slots;
     }
-    num_free = num_slots;
   }
 
   constexpr void reset(AllocatorImpl const &allocator)

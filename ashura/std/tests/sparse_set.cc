@@ -48,5 +48,9 @@ TEST(SparseSetTest, Start)
     ASSERT_TRUE(id % 2 == 0);
   }
   ASSERT_FALSE(set.allocate_id(id));
+  set.release_ids();
+  EXPECT_EQ(set.num_free, set.num_slots);
+  EXPECT_TRUE(set.allocate_id(id));
+  EXPECT_EQ(id, 0);
   set.reset(ash::heap_allocator);
 }

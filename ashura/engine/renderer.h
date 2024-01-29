@@ -1,6 +1,7 @@
 #pragma once
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/box.h"
+#include "ashura/std/fn.h"
 #include "ashura/std/image.h"
 #include "ashura/std/rect.h"
 #include "ashura/std/sparse_set.h"
@@ -207,24 +208,70 @@ struct RenderObjectDesc
 // will be scaled to the screen dimensions eventually.
 struct Scene
 {
-  AmbientLight      ambient_light            = {};
-  DirectionalLight *directional_lights       = 0;
-  PointLight       *point_lights             = 0;
-  SpotLight        *spot_lights              = 0;
-  AreaLight        *area_lights              = 0;
-  u32               num_directional_lights   = 0;
-  u32               num_point_lights         = 0;
-  u32               num_spot_lights          = 0;
-  u32               num_area_lights          = 0;
-  SceneNode        *object_nodes             = nullptr;
-  Mat4Affine       *object_local_transforms  = nullptr;
-  Box              *object_aabb              = nullptr;
-  i64              *object_z_index           = nullptr;
-  u64              *object_transparency_mask = nullptr;
-  u64              *object_ids_map           = nullptr;
-  uid64            *free_object_ids          = nullptr;
-  u64              *objects_sorted           = nullptr;
-  u64               num_objects              = 0;
+  AmbientLight      ambient_light               = {};
+  DirectionalLight *directional_lights          = 0;
+  PointLight       *point_lights                = 0;
+  SpotLight        *spot_lights                 = 0;
+  AreaLight        *area_lights                 = 0;
+  SceneNode        *object_nodes                = nullptr;
+  Mat4Affine       *object_local_transforms     = nullptr;
+  Box              *object_aabb                 = nullptr;
+  i64              *object_z_index              = nullptr;
+  u64              *object_transparency_mask    = nullptr;
+  u64              *objects_sorted              = nullptr;
+  u16               directional_lights_capacity = 0;
+  u16               point_lights_capacity       = 0;
+  u16               spot_lights_capacity        = 0;
+  u16               area_lights_capacity        = 0;
+  u64               objects_capacity            = 0;
+  SparseSet<u16>    directional_lights_id_map   = {};
+  SparseSet<u16>    point_lights_id_map         = {};
+  SparseSet<u16>    spot_lights_id_map          = {};
+  SparseSet<u16>    area_lights_id_map          = {};
+  SparseSet<u64>    objects_id_map              = {};
+
+  static constexpr void bit_relocate(u64 *arr, usize src_index, usize dst_index)
+  {
+    u8 const    src_pack_index = src_index & 63ULL;
+    u8 const    dst_pack_index = dst_index & 63ULL;
+    usize const src_pack       = src_index >> 6;
+    usize const dst_pack       = dst_index >> 6;
+    u64 const   src_bit        = (arr[src_pack] >> src_pack_index) & 1;
+    u64         dst_pack_bits  = arr[dst_pack];
+    dst_pack_bits &= ~(1ULL << dst_pack_index);
+    dst_pack_bits |= (src_bit << dst_pack_index);
+    arr[dst_pack] = dst_pack_bits;
+  }
+
+  template <typename T>
+  static void trivial_relocate(T *arr, usize src_index, usize dst_index)
+  {
+    mem::copy(arr + src_index, arr + dst_index, 1);
+  }
+
+  void compact()
+  {
+    directional_lights_id_map.compact([this](u16 src, u16 dst) {
+      trivial_relocate(directional_lights, src, dst);
+    });
+
+    point_lights_id_map.compact(
+        [this](u16 src, u16 dst) { trivial_relocate(point_lights, src, dst); });
+
+    spot_lights_id_map.compact(
+        [this](u16 src, u16 dst) { trivial_relocate(spot_lights, src, dst); });
+
+    area_lights_id_map.compact(
+        [this](u16 src, u16 dst) { trivial_relocate(area_lights, src, dst); });
+
+    objects_id_map.compact([this](u64 src, u64 dst) {
+      trivial_relocate(object_nodes, src, dst);
+      trivial_relocate(object_local_transforms, src, dst);
+      trivial_relocate(object_aabb, src, dst);
+      trivial_relocate(object_z_index, src, dst);
+      bit_relocate(object_transparency_mask, src, dst);
+    });
+  }
 };
 
 struct SceneGroup
