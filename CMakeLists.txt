@@ -16,7 +16,7 @@ FetchContent_Declare(
   GIT_TAG v1.3.276)
 
 FetchContent_Declare(
-  VulkanUtilityHeaders
+  VulkanUtilityLibraries
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
   GIT_TAG v1.3.276)
 
@@ -42,12 +42,13 @@ find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
-find_package(Vulkan REQUIRED)
 
 FetchContent_MakeAvailable(VulkanHeaders)
-FetchContent_MakeAvailable(VulkanUtilityHeaders)
+FetchContent_MakeAvailable(VulkanUtilityLibraries)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
 FetchContent_MakeAvailable(SheenBidi)
+find_package(Vulkan REQUIRED)
+
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 

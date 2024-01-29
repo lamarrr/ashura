@@ -281,7 +281,7 @@ TEST(OptionLifeTimeTest, AsRef)
   EXPECT_TRUE(a.as_ref().is_some());
 
   auto b = Option<MoveOnly<1>>(None);
-  EXPECT_TRUE(b.as_ref().is_some());
+  EXPECT_TRUE(b.as_ref().is_none());
 }
 
 TEST(OptionTest, Unwrap)
@@ -385,7 +385,7 @@ TEST(OptionTest, Map)
 TEST(OptionLifetimeTest, Map)
 {
   auto a = Option(Some(make_mv<0>()));
-  std::move(a).map([](auto r) { return r; }).unwrap().done();
+  std::move(a).map([](auto &r) { return std::move(r); }).unwrap().done();
 }
 
 TEST(OptionTest, FnMutMap)
@@ -428,8 +428,8 @@ TEST(OptionTest, MapOrElse)
 TEST(OptionLifetimeTest, MapOrElse)
 {
   auto a    = Option(Some(make_mv<0>()));
-  auto fn   = [](auto) { return make_mv<0>(); };        // NOLINT
-  auto fn_b = []() { return make_mv<0>(); };            // NOLINT
+  auto fn   = [](auto &) { return make_mv<0>(); };        // NOLINT
+  auto fn_b = []() { return make_mv<0>(); };              // NOLINT
   std::move(a).map_or_else(fn, fn_b).done();
 }
 
