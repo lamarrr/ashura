@@ -103,7 +103,7 @@ struct SparseSet
     return true;
   }
 
-  constexpr void unsafe_remove(SizeType id)
+  constexpr void unsafe_release(SizeType id)
   {
     SizeType const index = id_to_index[id];
     index_to_id[index]   = RELEASE_MASK | free_index_head;
@@ -113,18 +113,18 @@ struct SparseSet
     num_free++;
   }
 
-  [[nodiscard]] constexpr bool remove(SizeType id)
+  [[nodiscard]] constexpr bool release(SizeType id)
   {
     if (!is_valid_id(id))
     {
       return false;
     }
-    unsafe_remove(id);
+    unsafe_release(id);
     return true;
   }
 
-  [[nodiscard]] constexpr bool reserve(AllocatorImpl const &allocator,
-                                       SizeType             target_capacity)
+  [[nodiscard]] constexpr bool reserve_memory(AllocatorImpl const &allocator,
+                                              SizeType target_capacity)
   {
     if (target_capacity > index_to_id_capacity)
     {
@@ -163,7 +163,7 @@ struct SparseSet
 
     SizeType const new_num_slots = num_slots + num_extra_slots;
 
-    if (!reserve(allocator, new_num_slots))
+    if (!reserve_memory(allocator, new_num_slots))
     {
       return false;
     }
@@ -173,14 +173,11 @@ struct SparseSet
       index_to_id[index] = RELEASE_MASK | (index + 1);
       id_to_index[index] = RELEASE_MASK | (index + 1);
     }
-    // todo(lamarrr): what if it points to nothing?, the linking here is
-    // incorrect, need the previous head to be the first tail of the list, no
-    // checking of what the head points to free_index_head and free_id_head
-    // could also be -1
+
     index_to_id[new_num_slots - 1] = RELEASE_MASK | free_index_head;
     id_to_index[new_num_slots - 1] = RELEASE_MASK | free_id_head;
-    free_index_head                = new_num_slots - 1;
-    free_id_head                   = new_num_slots - 1;
+    free_index_head                = num_slots;
+    free_id_head                   = num_slots;
     num_slots += num_extra_slots;
     num_free += num_extra_slots;
     return true;
@@ -218,8 +215,9 @@ struct SparseSet
 
     for (SizeType src = num_valid; src < num_slots; src++)
     {
-      for (; src < num_slots && !(index_to_id[src] & RELEASE_MASK); src++)
+      if (index_to_id[src] & RELEASE_MASK)
       {
+        continue;
       }
 
       while (dst >= num_valid)

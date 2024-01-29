@@ -1,30 +1,52 @@
 #include "gtest/gtest.h"
 
 #include "ashura/std/sparse_set.h"
+#include <bitset>
 #include <iostream>
 
 TEST(SparseSetTest, Start)
 {
   ash::SparseSet<ash::u64> set;
   set.compact([](ash::u64, ash::u64) {});
-  EXPECT_TRUE(set.reserve_new_ids(ash::heap_allocator, 5));
-  EXPECT_EQ(set.num_slots, 5);
-  EXPECT_EQ(set.num_free, 5);
-  std::cout << "a: "
-            << "id"
-            << ", b:" << set.num_slots << ", c:" << set.num_free
-            << ", d:" << set.free_id_head << ", e:" << set.free_index_head
-            << std::endl;
+  ASSERT_TRUE(set.reserve_new_ids(ash::heap_allocator, 100));
+  ASSERT_EQ(set.num_slots, 100);
+  ASSERT_EQ(set.num_free, 100);
   ash::uid64 id;
-  for (ash::u32 i = 0; i < 5; i++)
+  for (ash::u32 i = 0; i < 100; i++)
   {
     ASSERT_TRUE(set.allocate_id(id));
-    EXPECT_LT(id, set.num_slots);
-    EXPECT_GE(id, 0);
-    std::cout << "a: " << id << ", b:" << set.num_slots
-              << ", c:" << set.num_free << ", d:" << set.free_id_head
-              << ", e:" << set.free_index_head << std::endl;
+    ASSERT_LT(id, set.num_slots);
+    ASSERT_GE(id, 0);
   }
-  // ASSERT_FALSE(set.allocate_id(id));
+  ASSERT_FALSE(set.allocate_id(id));
+  for (ash::u32 i = 0; i < 100; i += 2)
+  {
+    ASSERT_TRUE(set.release(i));
+  }
+  set.compact([](auto src, auto dst) {
+    ASSERT_TRUE(src % 2 == 1);
+    ASSERT_TRUE(dst % 2 == 0);
+  });
+  ASSERT_EQ(set.num_free, 100 / 2);
+
+  for (ash::u32 i = 0; i < 100; i++)
+  {
+    if (i % 2)
+    {
+      ASSERT_TRUE(set.is_valid_id(i));
+    }
+    else
+    {
+      ASSERT_FALSE(set.is_valid_id(i));
+    }
+  }
+  for (ash::u32 i = 0; i < 100 / 2; i++)
+  {
+    ASSERT_TRUE(set.allocate_id(id));
+    ASSERT_LT(id, set.num_slots);
+    ASSERT_GE(id, 0);
+    ASSERT_TRUE(id % 2 == 0);
+  }
+  ASSERT_FALSE(set.allocate_id(id));
   set.reset(ash::heap_allocator);
 }
