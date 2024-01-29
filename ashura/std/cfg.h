@@ -1,15 +1,4 @@
 
-/**
- * @file config.h
- * @author Basit Ayantunde <rlamarrr@gmail.com>
- * @date 2020-05-22
- *
- * @copyright MIT License
- *
- * Copyright (c) 2020-2022 Basit Ayantunde
- *
- */
-
 #pragma once
 
 /// configuration macro

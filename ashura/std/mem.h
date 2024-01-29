@@ -1,5 +1,4 @@
 #pragma once
-
 #include "ashura/std/types.h"
 #include <cstring>
 

@@ -140,13 +140,4 @@ constexpr bool copy_image(ImageSpan<T const> const &src,
     memcpy(out, in, row_bytes);
   }
 }
-
-// struct ImageBuffer
-// .span
-// .size
-// .zero()
-// .fill_pixels()
-// ::make_uninitialized(allocator)
-// ::make_with_color(Format, color, allocator)
-
 }        // namespace ash

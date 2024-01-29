@@ -1,6 +1,5 @@
 
 #pragma once
-
 #include "ashura/std/time.h"
 #include "ashura/std/types.h"
 
