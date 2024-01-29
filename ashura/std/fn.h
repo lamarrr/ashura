@@ -3,10 +3,10 @@
 namespace ash
 {
 
-/// NOTE that this is just an handle and doesn't manage any lifetime.
+/// Fn is a function handle and doesn't manage any lifetime.
 ///
-/// it is essentially a trivial struct. it is just contains pointers (resource
-/// handles).
+/// it is essentially a trivial struct. it is just contains 2 pointers
+/// (dispatcher + data).
 ///
 template <typename Signature>
 struct Fn;

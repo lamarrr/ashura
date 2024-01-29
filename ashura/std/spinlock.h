@@ -4,12 +4,10 @@
 #include <cinttypes>
 #include <utility>
 
-#include "stx/config.h"
-#include "stx/lock_status.h"
-#include "stx/struct.h"
+#include "ashura/std/struct.h"
 
-STX_BEGIN_NAMESPACE
-
+namespace ash
+{
 // a rarely-contended lock.
 //
 // desirable for low-latency scenarios.
@@ -19,48 +17,41 @@ STX_BEGIN_NAMESPACE
 // less desirable for multi-contended and frequently updated memory regions.
 struct SpinLock
 {
-  STX_MAKE_PINNED(SpinLock)
-
-  SpinLock() :
-      lock_status{LockStatus::Unlocked}
-  {}
+  std::atomic<bool> lock_status{false};
 
   void lock()
   {
-    LockStatus expected = LockStatus::Unlocked;
-    LockStatus target   = LockStatus::Locked;
-    while (!lock_status.compare_exchange_strong(expected, target, std::memory_order_acquire, std::memory_order_relaxed))
+    bool expected = false;
+    bool target   = true;
+    while (!lock_status.compare_exchange_strong(
+        expected, target, std::memory_order_acquire, std::memory_order_relaxed))
     {
-      expected = LockStatus::Unlocked;
+      expected = false;
     }
   }
 
-  LockStatus try_lock()
+  bool try_lock()
   {
-    LockStatus expected = LockStatus::Unlocked;
-    LockStatus target   = LockStatus::Locked;
-    lock_status.compare_exchange_strong(expected, target, std::memory_order_acquire, std::memory_order_relaxed);
+    bool expected = false;
+    bool target   = true;
+    lock_status.compare_exchange_strong(
+        expected, target, std::memory_order_acquire, std::memory_order_relaxed);
     return expected;
   }
 
   void unlock()
   {
-    lock_status.store(LockStatus::Unlocked, std::memory_order_release);
+    lock_status.store(false, std::memory_order_release);
   }
-
-private:
-  std::atomic<LockStatus> lock_status;
 };
 
 template <typename Resource>
 struct LockGuard
 {
-  STX_MAKE_PINNED(LockGuard)
+  ASH_MAKE_PINNED(LockGuard)
 
-  explicit LockGuard(Resource &iresource, char const *operation_name = "") :
-      resource{&iresource}
+  explicit LockGuard(Resource &iresource) : resource{&iresource}
   {
-    (void) operation_name;
     resource->lock();
   }
 
@@ -69,8 +60,6 @@ struct LockGuard
     resource->unlock();
   }
 
-private:
   Resource *resource;
 };
-
-STX_END_NAMESPACE
+}        // namespace ash

@@ -1,8 +1,8 @@
-#include "ashura/vulkan_gfx.h"
-#include "ashura/algorithms.h"
-#include "ashura/math.h"
-#include "ashura/mem.h"
-#include "stx/source_location.h"
+#include "ashura/gfx/vulkan.h"
+#include "ashura/std/algorithms.h"
+#include "ashura/std/math.h"
+#include "ashura/std/mem.h"
+#include "ashura/std/source_location.h"
 #include "vulkan/vulkan.h"
 #include <stdlib.h>
 
@@ -15,18 +15,17 @@ namespace ash
 namespace vk
 {
 
-#define PANIC_IF(logger, description, ...)                          \
-  do                                                                \
-  {                                                                 \
-    if (!(__VA_ARGS__))                                             \
-    {                                                               \
-      (logger)->panic(                                              \
-          description, " (expression: " #__VA_ARGS__,               \
-          ") [function: ", stx::SourceLocation::current().function, \
-          ", file: ", stx::SourceLocation::current().file, ":",     \
-          stx::SourceLocation::current().line, ":",                 \
-          stx::SourceLocation::current().column, "]");              \
-    }                                                               \
+#define PANIC_IF(logger, description, ...)                                 \
+  do                                                                       \
+  {                                                                        \
+    if (!(__VA_ARGS__))                                                    \
+    {                                                                      \
+      (logger)->panic(description, " (expression: " #__VA_ARGS__,          \
+                      ") [function: ", SourceLocation::current().function, \
+                      ", file: ", SourceLocation::current().file, ":",     \
+                      SourceLocation::current().line, ":",                 \
+                      SourceLocation::current().column, "]");              \
+    }                                                                      \
   } while (false)
 
 #define CHECK_WITH(logger, description, ...) \

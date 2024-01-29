@@ -1,6 +1,5 @@
 #pragma once
-
-#include "ashura/renderer.h"
+#include "ashura/engine/renderer.h"
 
 namespace ash
 {
@@ -97,8 +96,8 @@ struct PBRPass
   {
   }
 
-  static PassInterface const interface{
-      .init = init, .deinit = deinit, .update = update, .encode = encode};
+  static constexpr PassInterface const interface{
+      .init = nullptr, .deinit = nullptr, .update = nullptr, .encode = nullptr};
 };
 
 }        // namespace gfx

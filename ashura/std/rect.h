@@ -1,4 +1,5 @@
 #pragma once
+#include "ashura/std/algorithms.h"
 #include "ashura/std/types.h"
 
 namespace ash

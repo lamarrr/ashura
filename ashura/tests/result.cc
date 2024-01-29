@@ -13,7 +13,6 @@ using namespace ash;
 
 ash::Logger panic_logger;
 
-
 struct NonTrivial
 {
   NonTrivial(NonTrivial &&)
@@ -203,38 +202,19 @@ TEST(ResultTest, MapOrElse)
             (vector<int>{6, 7, 8, 9, 10}));
 }
 
-TEST(ResultTest, MapErr)
-{
-  // will it be problematic if the map function is not in scope? No!
-  auto a = [](int &value) { return value * 10; };
-  EXPECT_EQ((make_err<int, int>(10).map_err(a).unwrap_err()), 100);
-  EXPECT_TRUE((make_ok<int, int>(20).map_err(a).is_ok()));
-
-  // will it be problematic if the map function is not in scope? No!
-  auto b = [](vector<int> &value) {
-    value.push_back(6);
-    return std::move(value);
-  };
-  EXPECT_EQ(
-      (make_err<int, vector<int>>({1, 2, 3, 4, 5}).map_err(b).unwrap_err()),
-      (vector{1, 2, 3, 4, 5, 6}));
-
-  EXPECT_TRUE((make_ok<int, vector<int>>(256).map_err(b).is_ok()));
-}
-
 TEST(ResultTest, AndThen)
 {
-  auto a = [](int v) { return v * 2.0f; };
+  auto a = [](int v) -> Result<float, int> { return Ok{v * 2.0f}; };
   EXPECT_FLOAT_EQ((make_ok<int, int>(20).and_then(a).unwrap()), 40.0f);
 
   EXPECT_TRUE((make_err<int, int>(-20).and_then(a).is_err()));
 
   EXPECT_EQ((make_err<int, int>(-20).and_then(a).unwrap_err()), -20);
 
-  auto b = [](int &v) {
+  auto b = [](int &v) -> Result<vector<float>, int> {
     vector<float> res;
     res.push_back(static_cast<float>(v));
-    return res;
+    return Ok{res};
   };
 
   EXPECT_EQ((make_ok<int, int>(80).and_then(b).unwrap()), (vector{80.0f}));

@@ -8,7 +8,7 @@
 namespace ash
 {
 
-/// @brief
+/// @brief An externally managed sparse set
 /// @tparam SizeT: size type, u8, u32, u64
 ///
 /// @index_to_id: id of data, ordered relative to {data}
@@ -17,28 +17,41 @@ namespace ash
 /// The index and id either point to valid indices/ids or are an implicit free
 /// list of ids and indices masked by RELEASE_MASK
 ///
-template <typename SizeType = u64>
+template <typename SizeType>
 struct SparseSet
 {
-  static_assert(!IntTraits<SizeType>::SIGNED);
-
-  static constexpr SizeType RELEASE_MASK =
-      ((SizeType) 1) << (IntTraits<SizeType>::NUM_BITS - 1);
-  static constexpr SizeType MAX_ELEMENTS = ~RELEASE_MASK;
-  static constexpr SizeType MAX_ID       = ~RELEASE_MASK;
+  static_assert(!Traits<SizeType>::SIGNED);
+  static constexpr SizeType STUB         = Traits<SizeType>::MAX;
+  static constexpr SizeType RELEASE_MASK = ~(STUB >> 1);
+  static constexpr SizeType MAX_ELEMENTS = STUB >> 1;
+  static constexpr SizeType MAX_ID       = MAX_ELEMENTS;
 
   SizeType *index_to_id          = nullptr;
   SizeType *id_to_index          = nullptr;
-  SizeType  free_id_head         = -1;
-  SizeType  free_index_head      = -1;
+  SizeType  free_id_head         = STUB;
+  SizeType  free_index_head      = STUB;
   SizeType  num_free             = 0;
   SizeType  num_slots            = 0;
   SizeType  index_to_id_capacity = 0;
   SizeType  id_to_index_capacity = 0;
 
+  // the minimum required size of the referred-to external array
+  constexpr SizeType required_size() const
+  {
+    return num_slots;
+  }
+
   constexpr void clear()
   {
-    SizeType head   = num_slots ? 0 : (SizeType) -1;
+    free_id_head    = STUB;
+    free_index_head = STUB;
+    num_free        = 0;
+    num_slots       = 0;
+  }
+
+  constexpr void release_ids()
+  {
+    SizeType head   = num_slots == 0 ? STUB : 0;
     free_id_head    = head;
     free_index_head = head;
     for (SizeType i = 0; i < num_slots - 1; i++)
@@ -48,8 +61,8 @@ struct SparseSet
     }
     if (num_slots > 0)
     {
-      index_to_id[num_slots - 1] = -1;
-      id_to_index[num_slots - 1] = -1;
+      index_to_id[num_slots - 1] = STUB;
+      id_to_index[num_slots - 1] = STUB;
     }
     num_free = num_slots;
   }
@@ -60,15 +73,15 @@ struct SparseSet
     allocator.deallocate_typed(id_to_index, id_to_index_capacity);
     index_to_id          = nullptr;
     id_to_index          = nullptr;
-    free_id_head         = -1;
-    free_index_head      = -1;
+    free_id_head         = STUB;
+    free_index_head      = STUB;
     num_free             = 0;
     num_slots            = 0;
     index_to_id_capacity = 0;
     id_to_index_capacity = 0;
   }
 
-  [[nodiscard]] constexpr bool is_valid(SizeType id) const
+  [[nodiscard]] constexpr bool is_valid_id(SizeType id) const
   {
     return id < num_slots && !(id_to_index[id] & RELEASE_MASK);
   }
@@ -80,7 +93,7 @@ struct SparseSet
 
   [[nodiscard]] constexpr bool to_index(SizeType id, SizeType &index) const
   {
-    if (!is_valid(id))
+    if (!is_valid_id(id))
     {
       return false;
     }
@@ -101,7 +114,7 @@ struct SparseSet
 
   [[nodiscard]] constexpr bool remove(SizeType id)
   {
-    if (!is_valid(id))
+    if (!is_valid_id(id))
     {
       return false;
     }
@@ -109,12 +122,43 @@ struct SparseSet
     return true;
   }
 
-  bool resize(AllocatorImpl const &allocator, SizeType size)
+  [[nodiscard]] constexpr bool reserve(AllocatorImpl const &allocator,
+                                       SizeType             target_capacity)
+  {
+    if (target_capacity < index_to_id_capacity)
+    {
+      SizeType *new_index_to_id = allocator.reallocate_typed(
+          index_to_id, index_to_id_capacity, target_size);
+      if (new_index_to_id == nullptr)
+      {
+        return false;
+      }
+      index_to_id_capacity = target_capacity;
+      index_to_id          = new_index_to_id;
+    }
+
+    if (target_capacity < id_to_index_capacity)
+    {
+      SizeType *new_id_to_index = allocator.reallocate_typed(
+          id_to_index, id_to_index_capacity, target_size);
+      if (new_id_to_index == nullptr)
+      {
+        return false;
+      }
+      id_to_index_capacity = target_capacity;
+      id_to_index          = new_id_to_index;
+    }
+
+    return true;
+  }
+
+  [[nodiscard]] bool reserve_ids(AllocatorImpl const &allocator,
+                                 SizeType             num_slots)
   {
     // if smaller, compact and then
     //
     // reserve needs to be called on elements as well to sync capacity
-    // no free ids available,
+    // no free ids available
     // allocate new id
     // don't use id until all operations are successfull, so we can return it
     // if it fails
@@ -122,21 +166,21 @@ struct SparseSet
     // allocate new index and resize array
   }
 
-  [[nodiscard]] constexpr bool push(AllocatorImpl const &allocator,
-                                    SizeType            &out_id)
+  [[nodiscard]] constexpr bool allocate_id(SizeType &out_id)
   {
-    // still need to check if it is actually freee???
-    if (!reserve(allocator, num_slots + 1))
+    if (num_free == 0)
     {
       return false;
     }
+
     SizeType const index = free_index_head;
     SizeType const id    = free_id_head;
     free_id_head         = id_to_index[free_id_head] & ~RELEASE_MASK;
     free_index_head      = index_to_id[free_index_head] & ~RELEASE_MASK;
-    id_to_index[id]      = index;
     index_to_id[index]   = id;
+    id_to_index[id]      = index;
     out_id               = id;
+    num_free--;
     return true;
   }
 
@@ -149,8 +193,8 @@ struct SparseSet
     //
     SizeType const num_valid           = num_slots - num_free;
     SizeType       dst                 = free_index_head;
-    SizeType       prev_free_index     = -1;
-    SizeType       new_free_index_head = -1;
+    SizeType       prev_free_index     = STUB;
+    SizeType       new_free_index_head = STUB;
 
     for (SizeType src = num_valid; src < num_slots; src++)
     {
@@ -160,7 +204,7 @@ struct SparseSet
 
       while (dst >= num_valid)
       {
-        if (new_free_index_head == -1)
+        if (new_free_index_head == STUB)
         {
           new_free_index_head = dst;
         }
@@ -169,9 +213,9 @@ struct SparseSet
       }
 
       // update the free index list, consuming this index from the list
-      if (prev_free_index != -1)
+      if (prev_free_index != STUB)
       {
-        // should be a masked free index or -1
+        // should be a masked free index or STUB
         index_to_id[prev_free_index] = index_to_id[dst];
       }
 

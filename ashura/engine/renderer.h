@@ -1,11 +1,11 @@
 #pragma once
-#include "ashura/gfx.h"
-#include "ashura/image.h"
-#include "ashura/primitives.h"
-#include "ashura/trivial_sparse_set.h"
-#include "ashura/trivial_vec.h"
-#include "ashura/types.h"
-#include "ashura/uid.h"
+#include "ashura/gfx/gfx.h"
+#include "ashura/std/box.h"
+#include "ashura/std/image.h"
+#include "ashura/std/rect.h"
+#include "ashura/std/sparse_set.h"
+#include "ashura/std/trivial_vec.h"
+#include "ashura/std/types.h"
 
 namespace ash
 {

@@ -3,8 +3,8 @@
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
 #define VMA_VULKAN_VERSION 1000000
 
-#include "ashura/allocator.h"
-#include "ashura/gfx.h"
+#include "ashura/gfx/gfx.h"
+#include "ashura/std/allocator.h"
 #include "vk_mem_alloc.h"
 #include "vulkan/vk_enum_string_helper.h"
 #include "vulkan/vulkan.h"

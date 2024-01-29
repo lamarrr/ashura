@@ -1,5 +1,5 @@
 #pragma once
-#include "ashura/core/gfx.h"
+#include "ashura/gfx/gfx.h"
 #include "ashura/std/types.h"
 
 namespace ash

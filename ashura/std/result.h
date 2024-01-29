@@ -9,7 +9,7 @@ template <typename T>
 struct [[nodiscard]] Ok
 {
   using type = T;
-  T value    = {};
+  T value{};
 };
 
 template <typename T>
@@ -19,7 +19,7 @@ template <typename E>
 struct [[nodiscard]] Err
 {
   using type = E;
-  E value    = {};
+  E value{};
 };
 
 template <typename T>
@@ -183,8 +183,8 @@ struct [[nodiscard]] Result
     return is_ok_;
   }
 
-  template <typename CmpType>
-  [[nodiscard]] constexpr bool contains(CmpType const &cmp) const
+  template <typename U>
+  [[nodiscard]] constexpr bool contains(U const &cmp) const
   {
     if (is_ok_)
     {
@@ -193,8 +193,8 @@ struct [[nodiscard]] Result
     return false;
   }
 
-  template <typename ErrCmp>
-  [[nodiscard]] constexpr bool contains_err(ErrCmp const &cmp) const
+  template <typename F>
+  [[nodiscard]] constexpr bool contains_err(F const &cmp) const
   {
     if (is_ok_)
     {
@@ -258,86 +258,76 @@ struct [[nodiscard]] Result
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto map(Fn op)
+  [[nodiscard]] constexpr auto map(Fn &&op)
   {
-    using U = decltype(op(value_));
+    using U = decltype(((Fn &&) op)(value_));
     if (is_ok_)
     {
-      return Result<U, E>{Ok<U>{op(value_)}};
+      return Result<U, E>{Ok<U>{((Fn &&) op)(value_)}};
     }
     return Result<U, E>{Err{error_}};
   }
 
-  template <typename Fn, typename AltType>
-  [[nodiscard]] constexpr auto map_or(Fn op, AltType alt)
+  template <typename Fn, typename U>
+  [[nodiscard]] constexpr auto map_or(Fn &&op, U &&alt)
   {
     if (is_ok_)
     {
-      return op(value_);
+      return ((Fn &&) op)(value_);
     }
-    return (AltType &&) alt;
+    return (U &&) alt;
   }
 
   template <typename Fn, typename AltFn>
-  [[nodiscard]] constexpr auto map_or_else(Fn op, AltFn alt_op)
+  [[nodiscard]] constexpr auto map_or_else(Fn &&op, AltFn &&alt_op)
   {
     if (is_ok_)
     {
-      return op(value_);
+      return ((Fn &&) op)(value_);
     }
-    return alt_op(error_);
+    return ((AltFn &&) alt_op)(error_);
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto map_err(Fn op)
+  [[nodiscard]] constexpr auto and_then(Fn &&op)
   {
-    using F = decltype(op(error_));
-    if (!is_ok_)
-    {
-      return Result<T, F>{Err<F>{op(error_)}};
-    }
-    return Result<T, F>{Ok<T>{value_}};
-  }
-
-  template <typename Fn>
-  [[nodiscard]] constexpr auto and_then(Fn op)
-  {
-    using U = decltype(op(value_));
+    using OutResult = decltype(((Fn &&) op)(value_));
     if (is_ok_)
     {
-      return Result<U, E>{Ok{op(value_)}};
+      return ((Fn &&) op)(value_);
     }
-    return Result<U, E>{Err{error_}};
+    return OutResult{Err{error_}};
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto or_else(Fn op)
+  [[nodiscard]] constexpr auto or_else(Fn &&op)
   {
-    using OutResult = decltype(op(error_));
+    using OutResult = decltype(((Fn &&) op)(error_));
     if (is_ok_)
     {
       return OutResult{Ok{value_}};
     }
-    return op(error_);
+    return ((Fn &&) op)(error_);
   }
 
-  [[nodiscard]] constexpr T unwrap_or(T alt)
+  template <typename U>
+  [[nodiscard]] constexpr T unwrap_or(U &&alt)
   {
     if (is_ok_)
     {
       return (T &&) value_;
     }
-    return (T &&) alt;
+    return (U &&) alt;
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr T unwrap_or_else(Fn op)
+  [[nodiscard]] constexpr T unwrap_or_else(Fn &&op)
   {
     if (is_ok_)
     {
       return (T &&) value_;
     }
-    return op(error_);
+    return ((Fn &&) op)(error_);
   }
 
   [[nodiscard]] constexpr T unwrap()
@@ -387,7 +377,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename OkFn, typename ErrFn>
-  [[nodiscard]] constexpr auto match(OkFn ok_fn, ErrFn err_fn) const
+  [[nodiscard]] constexpr auto match(OkFn &&ok_fn, ErrFn &&err_fn) const
   {
     if (is_ok_)
     {
@@ -531,28 +521,3 @@ template <typename T, typename E, typename U, typename F>
   return true;
 }
 }        // namespace ash
-
-#define STX_TRY_OK_IMPL_(STX_ARG_UNIQUE_PLACEHOLDER, qualifier_identifier,    \
-                         ...)                                                 \
-  static_assert(!::std::is_const_v<decltype((__VA_ARGS__))>,                  \
-                "the expression: ' " #__VA_ARGS__                             \
-                " ' evaluates to a const and is not mutable");                \
-  static_assert(                                                              \
-      !::std::is_lvalue_reference_v<decltype((__VA_ARGS__))>,                 \
-      "the expression: ' " #__VA_ARGS__                                       \
-      " ' evaluates to an l-value reference, 'TRY_OK' only accepts r-values " \
-      "and r-value references ");                                             \
-  decltype((__VA_ARGS__)) &&STX_ARG_UNIQUE_PLACEHOLDER = (__VA_ARGS__);       \
-                                                                              \
-  if (STX_ARG_UNIQUE_PLACEHOLDER.is_err())                                    \
-  {                                                                           \
-    return std::move(STX_ARG_UNIQUE_PLACEHOLDER.err_);                        \
-  }                                                                           \
-                                                                              \
-  typename std::remove_reference_t<decltype((__VA_ARGS__))>::value_type       \
-      qualifier_identifier = STX_ARG_UNIQUE_PLACEHOLDER.val_.move();
-
-#define TRY_OK(qualifier_identifier, ...)                           \
-  STX_TRY_OK_IMPL_(                                                 \
-      STX_WITH_UNIQUE_SUFFIX_(STX_TRY_OK_PLACEHOLDER, __COUNTER__), \
-      qualifier_identifier, __VA_ARGS__)

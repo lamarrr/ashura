@@ -36,8 +36,6 @@ endif()
 
 find_package(Freetype REQUIRED)
 find_package(harfbuzz REQUIRED)
-find_package(fmt REQUIRED)
-find_package(spdlog REQUIRED)
 find_package(simdjson CONFIG REQUIRED)
 find_package(GTest REQUIRED)
 find_package(WebP CONFIG REQUIRED)
@@ -78,19 +76,46 @@ add_library(
              ashura/std/format.cc ashura/std/log.cc ashura/std/runtime.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(ashura_std_tests ashura/tests/result.cc)
+add_executable(ashura_std_tests ashura/tests/option.cc ashura/tests/result.cc
+                                ashura/tests/sparse_set.cc)
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
                       GTest::gtest_main)
 
-add_library(ashura_core ashura/core/gfx.cc)
-target_link_libraries(ashura_core ashura_std)
-target_include_directories(ashura_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# ${CMAKE_CURRENT_SOURCE_DIR} ${JPEG_INCLUDE_DIR} ${FFMPEG_INCLUDE_DIRS}
-# ${FFMPEG_LIBRARY_DIRS} target_link_libraries( ashura_gfx stx::stx
-# Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Vulkan
-# GPUOpen::VulkanMemoryAllocator ashura_allocator ashura_log ashura_format)
-# target_link_libraries( ashura ashura_gfx stx::stx SDL3::SDL3-static fmt::fmt
-# spdlog::spdlog harfbuzz CURL::libcurl Freetype::Freetype simdjson::simdjson
-# WebP::webp WebP::webpdecoder ${JPEG_LIBRARIES} PNG::PNG ${FFMPEG_LIBRARIES}
-# SheenBidi::SheenBidi) target_link_libraries(ashura_test ashura GTest::gtest
-# GTest::gtest_main)
+add_library(ashura_gfx ashura/gfx/vma_def.cc ashura/gfx/vulkan.cc)
+target_link_libraries(
+  ashura_gfx ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Vulkan
+  GPUOpen::VulkanMemoryAllocator)
+target_include_directories(ashura_gfx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_library(
+  ashura_engine
+  # ashura/engine/image_decoder.cc
+  ashura/engine/renderer.cc
+  ashura/engine/passes/bloom.cc
+  ashura/engine/passes/blur.cc
+  ashura/engine/passes/chromatic_aberration.cc
+  ashura/engine/passes/fxaa.cc
+  ashura/engine/passes/pbr.cc
+  ashura/engine/passes/rrect.cc
+  ashura/engine/passes/view.cc)
+target_link_libraries(ashura_engine ashura_std ashura_gfx)
+target_include_directories(
+  ashura_engine
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}
+         ${JPEG_INCLUDE_DIR} ${FFMPEG_INCLUDE_DIRS} ${FFMPEG_LIBRARY_DIRS})
+
+target_link_libraries(
+  ashura_engine
+  ashura_std
+  ashura_gfx
+  SDL3::SDL3-static
+  harfbuzz
+  CURL::libcurl
+  Freetype::Freetype
+  simdjson::simdjson
+  WebP::webp
+  WebP::webpdecoder
+  ${JPEG_LIBRARIES}
+  PNG::PNG
+  ${FFMPEG_LIBRARIES}
+  SheenBidi::SheenBidi)

@@ -58,7 +58,7 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      value_->~T();
+      value_.~T();
     }
     new (&value_) T{(T &&) other.value};
     is_some_ = true;
@@ -69,7 +69,7 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      value_->~T();
+      value_.~T();
     }
     is_some_ = false;
     return *this;
@@ -88,7 +88,7 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      value_->~T();
+      value_.~T();
     }
 
     if (other.is_some_)
@@ -150,7 +150,7 @@ struct [[nodiscard]] Option
   {
     if (is_some_)
     {
-      return some_.value == cmp;
+      return value_ == cmp;
     }
     else
     {
@@ -212,17 +212,18 @@ struct [[nodiscard]] Option
     panic_logger.panic("Expected value in Option but got None");
   }
 
-  [[nodiscard]] constexpr T unwrap_or(T alt)
+  template <typename U>
+  [[nodiscard]] constexpr T unwrap_or(U &&alt)
   {
     if (is_some_)
     {
       return (T &&) value_;
     }
-    return (T &&) alt;
+    return (U &&) alt;
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr T unwrap_or_else(Fn op)
+  [[nodiscard]] constexpr T unwrap_or_else(Fn &&op)
   {
     if (is_some_)
     {
@@ -232,24 +233,24 @@ struct [[nodiscard]] Option
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto map(Fn op)
+  [[nodiscard]] constexpr auto map(Fn &&op)
   {
-    using return_type = decltype(op(value_));
+    using U = decltype(op(value_));
     if (is_some_)
     {
-      return Option<return_type>{Some(op(value_))};
+      return Option<U>{Some(op(value_))};
     }
-    return None;
+    return Option<U>{None};
   }
 
-  template <typename Fn, typename Alt>
-  [[nodiscard]] constexpr auto map_or(Fn op, Alt alt)
+  template <typename Fn, typename U>
+  [[nodiscard]] constexpr auto map_or(Fn &&op, U &&alt)
   {
     if (is_some_)
     {
       return op(value_);
     }
-    return (Alt &&) alt;
+    return (U &&) alt;
   }
 
   template <typename Fn, typename AltFn>
@@ -260,6 +261,28 @@ struct [[nodiscard]] Option
       return op(value_);
     }
     return alt_fn();
+  }
+
+  template <typename Fn>
+  [[nodiscard]] constexpr auto and_then(Fn &&op)
+  {
+    using OutOption = decltype(op(value_));
+    if (is_some_)
+    {
+      return op(value_);
+    }
+    return OutOption{None};
+  }
+
+  template <typename Fn>
+  [[nodiscard]] constexpr auto or_else(Fn &&op)
+  {
+    using OutOption = decltype(op());
+    if (is_some_)
+    {
+      return OutOption{Some{value_}};
+    }
+    return op();
   }
 
   constexpr void expect_none(char const *msg)
@@ -279,7 +302,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename SomeFn, typename NoneFn>
-  [[nodiscard]] constexpr auto match(SomeFn some_fn, NoneFn none_fn)
+  [[nodiscard]] constexpr auto match(SomeFn &&some_fn, NoneFn &&none_fn)
   {
     if (is_some_)
     {
@@ -289,7 +312,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename SomeFn, typename NoneFn>
-  [[nodiscard]] constexpr auto match(SomeFn some_fn, NoneFn none_fn) const
+  [[nodiscard]] constexpr auto match(SomeFn &&some_fn, NoneFn &&none_fn) const
   {
     if (is_some_)
     {
@@ -300,7 +323,7 @@ struct [[nodiscard]] Option
 };
 
 template <typename T>
-Option(T) -> Option<T>;
+Option(Some<T>) -> Option<T>;
 
 template <typename T, typename U>
 [[nodiscard]] constexpr bool operator==(Some<T> const &a, Some<U> const &b)
@@ -322,6 +345,18 @@ template <typename T, typename U>
 [[nodiscard]] constexpr bool operator!=(NoneType, NoneType)
 {
   return false;
+}
+
+template <typename T>
+[[nodiscard]] constexpr bool operator==(Some<T> const &, NoneType)
+{
+  return false;
+}
+
+template <typename T>
+[[nodiscard]] constexpr bool operator!=(Some<T> const &, NoneType)
+{
+  return true;
 }
 
 template <typename T, typename U>
@@ -357,7 +392,7 @@ template <typename T, typename U>
 {
   if (a.is_some_)
   {
-    return a.value_ == b;
+    return a.value_ == b.value;
   }
   return false;
 }
@@ -367,7 +402,7 @@ template <typename T, typename U>
 {
   if (a.is_some_)
   {
-    return a.value_ != b;
+    return a.value_ != b.value;
   }
   return true;
 }
@@ -377,7 +412,7 @@ template <typename U, typename T>
 {
   if (b.is_some_)
   {
-    return a == b.value_;
+    return a.value == b.value_;
   }
   return false;
 }
@@ -387,7 +422,7 @@ template <typename U, typename T>
 {
   if (b.is_some_)
   {
-    return a != b.value_;
+    return a.value != b.value_;
   }
   return true;
 }
@@ -417,28 +452,3 @@ template <typename T>
 }
 
 }        // namespace ash
-
-#define STX_TRY_SOME_IMPL_(STX_ARG_UNIQUE_PLACEHOLDER, qualifier_identifier, \
-                           ...)                                              \
-  static_assert(!::std::is_const_v<decltype((__VA_ARGS__))>,                 \
-                "the expression: ' " #__VA_ARGS__                            \
-                " ' evaluates to a const and is not mutable");               \
-  static_assert(!::std::is_lvalue_reference_v<decltype((__VA_ARGS__))>,      \
-                "the expression: ' " #__VA_ARGS__                            \
-                " ' evaluates to an l-value reference, 'TRY_SOME' only "     \
-                "accepts r-values "                                          \
-                "and r-value references ");                                  \
-  decltype((__VA_ARGS__)) &&STX_ARG_UNIQUE_PLACEHOLDER = (__VA_ARGS__);      \
-                                                                             \
-  if (STX_ARG_UNIQUE_PLACEHOLDER.is_none())                                  \
-  {                                                                          \
-    return ::stx::None;                                                      \
-  }                                                                          \
-                                                                             \
-  typename std::remove_reference_t<decltype((__VA_ARGS__))>::type            \
-      qualifier_identifier = STX_ARG_UNIQUE_PLACEHOLDER.val_.move();
-
-#define TRY_SOME(qualifier_identifier, ...)                           \
-  STX_TRY_SOME_IMPL_(                                                 \
-      STX_WITH_UNIQUE_SUFFIX_(STX_TRY_SOME_PLACEHOLDER, __COUNTER__), \
-      qualifier_identifier, __VA_ARGS__)

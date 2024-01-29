@@ -498,9 +498,7 @@ constexpr void min_max(Span<T> span, Span<T> &min, Span<T> &max,
 // once gotten, it will call op(span) for each range
 // TODO(lamarrr)
 template <typename T, typename U, typename Op, typename Cmp = op::Equal>
-constexpr void split(Span<T> span, Span<U const> delimeter, Op op, Cmp cmp = {})
-{
-}
+constexpr void split(Span<T> span, Span<U const> delimeter, Op op, Cmp cmp = {});
 
 // first check if src begins with other
 // keep advancing whilst src begins with other
@@ -510,9 +508,7 @@ constexpr void split(Span<T> span, Span<U const> delimeter, Op op, Cmp cmp = {})
 // if equal again, move back
 // move back until it is no longer equal
 template <typename T, typename U, typename Cmp = op::Equal>
-constexpr Span<T> strip(Span<T> src, Span<U const> other, Cmp cmp = {})
-{
-}
+constexpr Span<T> strip(Span<T> src, Span<U const> other, Cmp cmp = {});
 // title() span, no string_view types
 
 // returns the

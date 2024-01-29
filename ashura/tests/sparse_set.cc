@@ -1,4 +1,4 @@
-#include "ashura/sparse_set.h"
+#include "ashura/std/sparse_set.h"
 #include "gtest/gtest.h"
 
 TEST(SparseSetTest, Start)

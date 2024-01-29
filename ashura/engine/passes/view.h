@@ -1,5 +1,5 @@
-
-#include "ashura/renderer.h"
+#pragma once
+#include "ashura/engine/renderer.h"
 
 namespace ash
 {
