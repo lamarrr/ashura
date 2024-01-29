@@ -1,4 +1,3 @@
-#pragma once
 #include "gtest/gtest.h"
 
 #include "ashura/std/option.h"
@@ -7,8 +6,9 @@
 #include <numeric>
 #include <vector>
 
-using namespace std;        // NOLINT
-using namespace ash;        // NOLINT
+using ash::None;
+using ash::Option;
+using ash::Some;
 
 template <typename T>
 constexpr auto make_some(T &&value) -> Option<T>
@@ -133,12 +133,13 @@ TEST(OptionTest, CopyConstructionTest)
     EXPECT_NE(a, c);
     EXPECT_NE(a, b);
 
-    Option<vector<int>> d = None;
-    Option<vector<int>> e = d;
+    Option<std::vector<int>> d = None;
+    Option<std::vector<int>> e = d;
     EXPECT_EQ(d, e);
 
-    Option f = Some(vector{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15});
-    e        = f;
+    Option f =
+        Some(std::vector{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15});
+    e = f;
     EXPECT_EQ(e, f);
     EXPECT_NE(d, e);
     EXPECT_NE(d, f);
@@ -155,12 +156,13 @@ TEST(OptionTest, CopyConstructionTest)
     EXPECT_NE(a, c);
     EXPECT_NE(a, b);
 
-    Option<vector<int>> d = None;
-    Option<vector<int>> e = d;
+    Option<std::vector<int>> d = None;
+    Option<std::vector<int>> e = d;
     EXPECT_EQ(d, e);
 
-    Option f = Some(vector{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15});
-    e        = f;
+    Option f =
+        Some(std::vector{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15});
+    e = f;
     EXPECT_EQ(e, f);
     EXPECT_NE(d, e);
     EXPECT_NE(d, f);
@@ -173,24 +175,24 @@ TEST(OptionTest, ObjectForwardingTest)
     return Some(make_mv<0>());        // NOLINT
   };
   EXPECT_TRUE(fn_a().is_some());
-  auto fn_b = []() -> Option<unique_ptr<int[]>> {
-    return Some(make_unique<int[]>(1024));
+  auto fn_b = []() -> Option<std::unique_ptr<int[]>> {
+    return Some(std::make_unique<int[]>(1024));
   };
   EXPECT_TRUE(fn_b().is_some());
 
-  Option g = Some(vector{1, 2, 3, 4, 5});
+  Option g = Some(std::vector{1, 2, 3, 4, 5});
 
-  g = Some(vector{5, 6, 7, 8, 9});
+  g = Some(std::vector{5, 6, 7, 8, 9});
 
-  EXPECT_EQ(g, Some(vector{5, 6, 7, 8, 9}));
+  EXPECT_EQ(g, Some(std::vector{5, 6, 7, 8, 9}));
 
   g = None;
 
   EXPECT_EQ(g, None);
 
-  g = Some(vector{1, 2, 3, 4, 5});
+  g = Some(std::vector{1, 2, 3, 4, 5});
 
-  EXPECT_EQ(g, Some(vector{1, 2, 3, 4, 5}));
+  EXPECT_EQ(g, Some(std::vector{1, 2, 3, 4, 5}));
 
   g = None;
 
@@ -226,9 +228,10 @@ TEST(OptionTest, Equality)
 
 TEST(OptionTest, Contains)
 {
-  EXPECT_TRUE(Option(Some(vector{1, 2, 3, 4})).contains(vector{1, 2, 3, 4}));
-  EXPECT_FALSE(
-      Option(Some(vector{1, 2, 3, 4})).contains(vector{1, 2, 3, 4, 5}));
+  EXPECT_TRUE(
+      Option(Some(std::vector{1, 2, 3, 4})).contains(std::vector{1, 2, 3, 4}));
+  EXPECT_FALSE(Option(Some(std::vector{1, 2, 3, 4}))
+                   .contains(std::vector{1, 2, 3, 4, 5}));
 
   EXPECT_TRUE(Option(Some(8)).contains(8));
   EXPECT_FALSE(Option(Some(8)).contains(88));
@@ -248,10 +251,10 @@ TEST(OptionTest, AsConstRef)
   Option<int> const b = None;
   EXPECT_EQ(b.as_ref(), None);
 
-  Option const c = Some(vector{1, 2, 3, 4});
-  EXPECT_EQ(*c.as_ref().unwrap(), (vector{1, 2, 3, 4}));
+  Option const c = Some(std::vector{1, 2, 3, 4});
+  EXPECT_EQ(*c.as_ref().unwrap(), (std::vector{1, 2, 3, 4}));
 
-  Option<vector<int>> const d = None;
+  Option<std::vector<int>> const d = None;
   EXPECT_EQ(d.as_ref(), None);
 }
 
@@ -264,11 +267,11 @@ TEST(OptionTest, AsRef)
   Option<int> b = None;
   EXPECT_EQ(b.as_ref(), None);
 
-  auto c               = Option(Some(vector{1, 2, 3, 4}));
-  *c.as_ref().unwrap() = vector{5, 6, 7, 8, 9, 10};
-  EXPECT_EQ(c, Some(vector{5, 6, 7, 8, 9, 10}));
+  auto c               = Option(Some(std::vector{1, 2, 3, 4}));
+  *c.as_ref().unwrap() = std::vector{5, 6, 7, 8, 9, 10};
+  EXPECT_EQ(c, Some(std::vector{5, 6, 7, 8, 9, 10}));
 
-  auto d = Option<vector<int>>(None);
+  auto d = Option<std::vector<int>>(None);
   EXPECT_EQ(d.as_ref(), None);
 }
 
@@ -286,9 +289,9 @@ TEST(OptionTest, Unwrap)
   EXPECT_EQ(Option(Some(0)).unwrap(), 0);
   EXPECT_DEATH_IF_SUPPORTED(Option<int>(None).unwrap(), ".*");
 
-  EXPECT_EQ(Option(Some(vector{1, 2, 3, 4, 5})).unwrap(),
-            (vector{1, 2, 3, 4, 5}));
-  EXPECT_DEATH_IF_SUPPORTED(Option<vector<int>>(None).unwrap(), ".*");
+  EXPECT_EQ(Option(Some(std::vector{1, 2, 3, 4, 5})).unwrap(),
+            (std::vector{1, 2, 3, 4, 5}));
+  EXPECT_DEATH_IF_SUPPORTED(Option<std::vector<int>>(None).unwrap(), ".*");
 }
 
 TEST(OptionTest, Expect)
@@ -296,7 +299,7 @@ TEST(OptionTest, Expect)
   Option(Some(0)).expect("No Value Received");
   // how does it behave with unique_ptr?
   EXPECT_DEATH_IF_SUPPORTED(
-      Option<unique_ptr<int>>(None).expect("No Value Received"), ".*");
+      Option<std::unique_ptr<int>>(None).expect("No Value Received"), ".*");
 }
 
 TEST(OptionLifetimeTest, Expect)
@@ -310,11 +313,12 @@ TEST(OptionTest, UnwrapOr)
   EXPECT_EQ(Option(Some(0)).unwrap_or(90), 0);
   EXPECT_EQ(Option<int>(None).unwrap_or(90), 90);
 
+  EXPECT_EQ(Option(Some(std::vector{1, 2, 3, 4, 5}))
+                .unwrap_or(std::vector{6, 7, 8, 9, 10}),
+            (std::vector{1, 2, 3, 4, 5}));
   EXPECT_EQ(
-      Option(Some(vector{1, 2, 3, 4, 5})).unwrap_or(vector{6, 7, 8, 9, 10}),
-      (vector{1, 2, 3, 4, 5}));
-  EXPECT_EQ(Option<vector<int>>(None).unwrap_or(vector{6, 7, 8, 9, 10}),
-            (vector{6, 7, 8, 9, 10}));
+      Option<std::vector<int>>(None).unwrap_or(std::vector{6, 7, 8, 9, 10}),
+      (std::vector{6, 7, 8, 9, 10}));
 }
 
 TEST(OptionLifetimeTest, UnwrapOr)
@@ -333,15 +337,15 @@ TEST(OptionTest, UnwrapOrElse)
   auto &&b = Option<int>(None).unwrap_or_else([]() { return 90; });
   EXPECT_EQ(b, 90);
 
-  auto &&c = Option(Some(vector{1, 2, 3, 4, 5})).unwrap_or_else([]() {
-    return vector{6, 7, 8, 9, 10};
+  auto &&c = Option(Some(std::vector{1, 2, 3, 4, 5})).unwrap_or_else([]() {
+    return std::vector{6, 7, 8, 9, 10};
   });
-  EXPECT_EQ(c, (vector{1, 2, 3, 4, 5}));
+  EXPECT_EQ(c, (std::vector{1, 2, 3, 4, 5}));
 
-  auto &&d = Option<vector<int>>(None).unwrap_or_else([]() {
-    return vector{6, 7, 8, 9, 10};
+  auto &&d = Option<std::vector<int>>(None).unwrap_or_else([]() {
+    return std::vector{6, 7, 8, 9, 10};
   });
-  EXPECT_EQ(d, (vector{6, 7, 8, 9, 10}));
+  EXPECT_EQ(d, (std::vector{6, 7, 8, 9, 10}));
 }
 
 TEST(OptionLifetimeTest, UnwrapOrElse)
@@ -363,14 +367,15 @@ TEST(OptionTest, Map)
   auto &&b = Option<int>(None).map([](int &x) { return x + 90; });
   EXPECT_EQ(b, None);
 
-  auto &&c = Option(Some(vector{1, 2, 3, 4, 5})).map([](vector<int> &vec) {
-    vec.push_back(6);
-    return std::move(vec);
-  });
+  auto &&c =
+      Option(Some(std::vector{1, 2, 3, 4, 5})).map([](std::vector<int> &vec) {
+        vec.push_back(6);
+        return std::move(vec);
+      });
 
-  EXPECT_EQ(c, Some(vector{1, 2, 3, 4, 5, 6}));
+  EXPECT_EQ(c, Some(std::vector{1, 2, 3, 4, 5, 6}));
 
-  auto &&d = Option<vector<int>>(None).map([](vector<int> &vec) {
+  auto &&d = Option<std::vector<int>>(None).map([](std::vector<int> &vec) {
     vec.push_back(6);
     return std::move(vec);
   });
@@ -452,18 +457,18 @@ TEST(OptionTest, OrElse)
   EXPECT_EQ(c, None);
   //
   //
-  auto &&d = Option(Some(vector{1, 2, 3, 4, 5})).or_else([]() {
-    return Option(Some(vector{6, 7, 8, 9, 10}));
+  auto &&d = Option(Some(std::vector{1, 2, 3, 4, 5})).or_else([]() {
+    return Option(Some(std::vector{6, 7, 8, 9, 10}));
   });
-  EXPECT_EQ(std::move(d).unwrap(), (vector{1, 2, 3, 4, 5}));
+  EXPECT_EQ(std::move(d).unwrap(), (std::vector{1, 2, 3, 4, 5}));
 
-  auto &&e = Option<vector<int>>(None).or_else([]() {
-    return Option(Some(vector{6, 7, 8, 9, 10}));
+  auto &&e = Option<std::vector<int>>(None).or_else([]() {
+    return Option(Some(std::vector{6, 7, 8, 9, 10}));
   });
-  EXPECT_EQ(std::move(e).unwrap(), (vector{6, 7, 8, 9, 10}));
+  EXPECT_EQ(std::move(e).unwrap(), (std::vector{6, 7, 8, 9, 10}));
 
-  auto &&f = Option<vector<int>>(None).or_else(
-      []() { return Option<vector<int>>(None); });
+  auto &&f = Option<std::vector<int>>(None).or_else(
+      []() { return Option<std::vector<int>>(None); });
   EXPECT_EQ(f, None);
 }
 
@@ -473,8 +478,9 @@ TEST(OptionTest, ExpectNone)
   Option<int>(None).expect_none("===TEST===");
 
   EXPECT_DEATH_IF_SUPPORTED(
-      Option(Some(vector<int>{1, 2, 3, 4, 5})).expect_none("===TEST==="), ".*");
-  Option<vector<int>>(None).expect_none("===TEST===");
+      Option(Some(std::vector<int>{1, 2, 3, 4, 5})).expect_none("===TEST==="),
+      ".*");
+  Option<std::vector<int>>(None).expect_none("===TEST===");
 }
 
 TEST(OptionTest, Match)
@@ -492,12 +498,12 @@ TEST(OptionTest, Match)
   EXPECT_EQ(b, -1);
 
   auto &&c =
-      Option(Some(vector{1, 2, 3, 4, 5}))
+      Option(Some(std::vector{1, 2, 3, 4, 5}))
           .match([](auto &x) { return accumulate(x.begin(), x.end(), 0); },
                  []() { return -1; });
   EXPECT_EQ(c, 15);
 
-  auto &&d = Option<vector<int>>(None).match(
+  auto &&d = Option<std::vector<int>>(None).match(
       [](auto &x) { return accumulate(x.begin(), x.end(), 0); },
       []() { return -1; });
   EXPECT_EQ(d, -1);

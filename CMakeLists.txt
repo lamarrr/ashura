@@ -76,7 +76,9 @@ add_library(
              ashura/std/format.cc ashura/std/log.cc ashura/std/runtime.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(ashura_std_tests ashura/std/tests/tests.cc)
+add_executable(
+  ashura_std_tests ashura/std/tests/tests.cc ashura/std/tests/option.cc
+                   ashura/std/tests/result.cc ashura/std/tests/sparse_set.cc)
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
                       GTest::gtest_main)
 

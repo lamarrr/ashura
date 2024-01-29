@@ -1,4 +1,3 @@
-#pragma once
 #include "gtest/gtest.h"
 
 #include "ashura/std/sparse_set.h"
