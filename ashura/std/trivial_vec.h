@@ -10,12 +10,11 @@ namespace ash
 template <typename T, typename SizeType>
 struct TrivialVec
 {
-  AllocatorImpl allocator = {};
-  T            *data      = nullptr;
-  SizeType      size      = 0;
-  SizeType      capacity  = 0;
+  T       *data     = nullptr;
+  SizeType size     = 0;
+  SizeType capacity = 0;
 
-  [[nodiscard]] constexpr void reset()
+  [[nodiscard]] constexpr void reset(AllocatorImpl const &allocator)
   {
     allocator.deallocate_typed(data, capacity);
     data     = nullptr;
@@ -23,7 +22,8 @@ struct TrivialVec
     capacity = 0;
   }
 
-  [[nodiscard]] constexpr bool reserve(SizeType target_capacity)
+  [[nodiscard]] constexpr bool reserve(AllocatorImpl const &allocator,
+                                       SizeType             target_capacity)
   {
     if (target_capacity <= capacity)
     {
@@ -39,11 +39,13 @@ struct TrivialVec
     return true;
   }
 
-  [[nodiscard]] constexpr bool grow__(SizeType target_capacity)
+  [[nodiscard]] constexpr bool grow__(AllocatorImpl const &allocator,
+                                      SizeType             target_capacity)
   {
   }
 
-  [[nodiscard]] constexpr bool push(T const &element)
+  [[nodiscard]] constexpr bool push(AllocatorImpl const &allocator,
+                                    T const             &element)
   {
     SizeType const target_size     = size + 1;
     SizeType const target_capacity = target_size > capacity ?
@@ -58,8 +60,9 @@ struct TrivialVec
     return true;
   }
 
-  [[nodiscard]] constexpr bool extend(T const *push_elements,
-                                      SizeType num_push_elements)
+  [[nodiscard]] constexpr bool extend(AllocatorImpl const &allocator,
+                                      T const             *push_elements,
+                                      SizeType             num_push_elements)
   {
     SizeType const target_size     = size + num_push_elements;
     SizeType const target_capacity = target_size > capacity ?
@@ -91,7 +94,7 @@ struct TrivialVec
     size -= num_erase;
   }
 
-  [[nodiscard]] constexpr bool fit()
+  [[nodiscard]] constexpr bool fit(AllocatorImpl const &allocator)
   {
     if (size == capacity)
     {
@@ -109,15 +112,12 @@ struct TrivialVec
     return true;
   }
 
-  [[nodiscard]] constexpr bool insert(AllocatorImpl const &allocator, T *&data,
-                                      SizeType size, SizeType &capacity,
+  [[nodiscard]] constexpr bool insert(AllocatorImpl const &allocator,
                                       SizeType insert_index, T const &);
 
   [[nodiscard]] constexpr bool insert_range(AllocatorImpl const &allocator,
-                                            T *&data, SizeType size,
-                                            SizeType &capacity,
-                                            SizeType  insert_index, T const *,
-                                            SizeType  num_insert);
+                                            SizeType insert_index, T const *,
+                                            SizeType num_insert);
 };
 
 };        // namespace ash

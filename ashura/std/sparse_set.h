@@ -41,6 +41,7 @@ struct SparseSet
     return num_slots;
   }
 
+  // clear all slots and id allocations
   constexpr void clear()
   {
     free_id_head    = STUB;
@@ -49,6 +50,7 @@ struct SparseSet
     num_slots       = 0;
   }
 
+  // release all allocated ids
   constexpr void release_ids()
   {
     SizeType head   = num_slots == 0 ? STUB : 0;
@@ -128,7 +130,7 @@ struct SparseSet
     if (target_capacity < index_to_id_capacity)
     {
       SizeType *new_index_to_id = allocator.reallocate_typed(
-          index_to_id, index_to_id_capacity, target_size);
+          index_to_id, index_to_id_capacity, target_capacity);
       if (new_index_to_id == nullptr)
       {
         return false;
@@ -140,7 +142,7 @@ struct SparseSet
     if (target_capacity < id_to_index_capacity)
     {
       SizeType *new_id_to_index = allocator.reallocate_typed(
-          id_to_index, id_to_index_capacity, target_size);
+          id_to_index, id_to_index_capacity, target_capacity);
       if (new_id_to_index == nullptr)
       {
         return false;
