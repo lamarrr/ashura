@@ -26,13 +26,11 @@ FetchContent_Declare(
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
   GIT_TAG 94b1aca)
 
-set(SheenBidi_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/SheenBidi)
-
-if(NOT EXISTS ${SheenBidi_DIR})
-  execute_process(
-    COMMAND git clone https://github.com/Tehreer/SheenBidi.git --depth=1 -bv2.7
-            ${SheenBidi_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
-endif()
+FetchContent_Declare(
+  SheenBidi
+  GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
+  GIT_TAG v2.7
+  CONFIGURE_COMMAND "" BUILD_COMMAND "")
 
 find_package(Freetype REQUIRED)
 find_package(harfbuzz REQUIRED)
@@ -49,14 +47,15 @@ find_package(Vulkan REQUIRED)
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityHeaders)
 FetchContent_MakeAvailable(VulkanMemoryAllocator)
+FetchContent_MakeAvailable(SheenBidi)
 
-file(GLOB SheenBidi_SOURCES ${SheenBidi_DIR}/Source/*.c)
+file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
 add_library(SheenBidi ${SheenBidi_SOURCES})
 target_include_directories(
   SheenBidi
-  PUBLIC ${SheenBidi_DIR}/Headers
-  PRIVATE ${SheenBidi_DIR}/Source)
+  PUBLIC ${sheenbidi_SOURCE_DIR}/Headers
+  PRIVATE ${sheenbidi_SOURCE_DIR}/Source)
 add_library(SheenBidi::SheenBidi ALIAS SheenBidi)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
