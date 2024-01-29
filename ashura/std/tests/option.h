@@ -1,11 +1,11 @@
-#include "ashura/std/option.h"
+#pragma once
+#include "gtest/gtest.h"
 
+#include "ashura/std/option.h"
 #include <algorithm>
 #include <memory>
 #include <numeric>
 #include <vector>
-
-#include "gtest/gtest.h"
 
 using namespace std;        // NOLINT
 using namespace ash;        // NOLINT
@@ -66,18 +66,6 @@ MoveOnly<id> make_mv()
 {
   return MoveOnly<id>(id);
 }
-
-struct NonTrivial
-{
-  NonTrivial(NonTrivial &&)
-  {
-  }
-
-  NonTrivial &operator=(NonTrivial &&)
-  {
-    return *this;
-  }
-};
 
 struct FnMut
 {

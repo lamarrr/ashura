@@ -4,7 +4,6 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/traits.h"
 #include "ashura/std/types.h"
-
 namespace ash
 {
 

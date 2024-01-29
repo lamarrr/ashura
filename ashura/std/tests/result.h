@@ -1,29 +1,15 @@
+#pragma once
+#include "gtest/gtest.h"
 
+#include "ashura/std/result.h" 
 #include <algorithm>
 #include <numeric>
 #include <type_traits>
 #include <utility>
 
-#include "ashura/std/result.h"
-#include "gtest/gtest.h"
-
 using namespace std;
 using namespace string_literals;
 using namespace ash;
-
-ash::Logger panic_logger;
-
-struct NonTrivial
-{
-  NonTrivial(NonTrivial &&)
-  {
-  }
-
-  NonTrivial &operator=(NonTrivial &&)
-  {
-    return *this;
-  }
-};
 
 // static_assert(std::is_trivially_move_constructible_v<Result<int, int>>);
 // static_assert(std::is_trivially_move_assignable_v<Result<int, int>>);
@@ -107,43 +93,6 @@ TEST(ResultTest, IsErr)
   EXPECT_FALSE(
       (make_ok<vector<int>, vector<int>>(vector{1, 2, 3, 4}).is_err()));
 }
-
-/*
-TEST(ResultTest, Ok) {
-  EXPECT_EQ((make_ok<int, int>(20).ok().unwrap()), 20);
-  EXPECT_EQ((make_err<int, int>(90).ok()), None);
-
-  EXPECT_EQ((make_ok<vector<int>, int>(vector{1, 2, 3, 4}).ok().unwrap()),
-            (vector{1, 2, 3, 4}));
-  EXPECT_EQ((make_err<vector<int>, int>(90).ok()), None);
-
-  EXPECT_EQ((make_ok<int, vector<int>>(90).ok().unwrap()), 90);
-  EXPECT_EQ((make_err<int, vector<int>>(vector{1, 2, 3, 4}).ok()), None);
-
-  EXPECT_EQ(
-      (make_ok<vector<int>, vector<int>>(vector{1, 2, 3, 4}).ok().unwrap()),
-      (vector{1, 2, 3, 4}));
-  EXPECT_EQ((make_err<vector<int>, vector<int>>(vector{1, 2, 3, 4}).ok()),
-            None);
-}
-
-TEST(ResultTest, Err) {
-  EXPECT_EQ((make_err<int, int>(20).err().unwrap()), 20);
-  EXPECT_EQ((make_ok<int, int>(90).err()), None);
-
-  EXPECT_EQ((make_err<vector<int>, int>(10).err().unwrap()), 10);
-  EXPECT_EQ((make_ok<vector<int>, int>(vector{1, 2, 3, 4}).err()), None);
-
-  EXPECT_EQ((make_err<int, vector<int>>(vector{1, 2, 3, 4}).err().unwrap()),
-            (vector{1, 2, 3, 4}));
-  EXPECT_EQ((make_ok<int, vector<int>>(78).err()), None);
-
-  EXPECT_EQ(
-      (make_err<vector<int>, vector<int>>(vector{1, 2, 3, 4}).err().unwrap()),
-      (vector{1, 2, 3, 4}));
-  EXPECT_EQ((make_ok<vector<int>, vector<int>>(vector{78, 67}).err()), None);
-}
-*/
 
 TEST(ResultTest, Map)
 {

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.6)
 
 project(Ashura)
 
@@ -76,8 +76,7 @@ add_library(
              ashura/std/format.cc ashura/std/log.cc ashura/std/runtime.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(ashura_std_tests ashura/tests/option.cc ashura/tests/result.cc
-                                ashura/tests/sparse_set.cc)
+add_executable(ashura_std_tests ashura/std/tests/tests.cc)
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
                       GTest::gtest_main)
 

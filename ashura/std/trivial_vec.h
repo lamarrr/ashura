@@ -14,7 +14,7 @@ struct TrivialVec
   SizeType size     = 0;
   SizeType capacity = 0;
 
-  [[nodiscard]] constexpr void reset(AllocatorImpl const &allocator)
+  constexpr void reset(AllocatorImpl const &allocator)
   {
     allocator.deallocate_typed(data, capacity);
     data     = nullptr;
