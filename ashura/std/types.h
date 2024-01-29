@@ -7,19 +7,42 @@
 
 namespace ash
 {
-
-using u8    = uint8_t;
-using u16   = uint16_t;
-using u32   = uint32_t;
-using u64   = uint64_t;
-using i8    = int8_t;
-using i16   = int16_t;
-using i32   = int32_t;
-using i64   = int64_t;
-using f32   = float;
-using f64   = double;
-using usize = size_t;
-using isize = ptrdiff_t;
+typedef uint8_t           u8;
+typedef uint16_t          u16;
+typedef uint32_t          u32;
+typedef uint64_t          u64;
+typedef int8_t            i8;
+typedef int16_t           i16;
+typedef int32_t           i32;
+typedef int64_t           i64;
+typedef float             f32;
+typedef double            f64;
+typedef size_t            usize;
+typedef ptrdiff_t         isize;
+typedef u8                uid8;
+typedef u16               uid16;
+typedef u32               uid32;
+typedef u64               uid64;
+typedef struct Void       Void;
+typedef struct Vec2       Vec2;
+typedef struct Vec2       Complex;
+typedef struct Vec3       Vec3;
+typedef struct Vec4       Vec4;
+typedef struct Vec4       Quaternion;
+typedef struct Vec4U8     Vec4U8;
+typedef struct Vec2I      Vec2I;
+typedef struct Vec3I      Vec3I;
+typedef struct Vec2U      Vec2U;
+typedef struct Vec3U      Vec3U;
+typedef struct Vec4U      Vec4U;
+typedef struct Mat2       Mat2;
+typedef struct Mat3       Mat3;
+typedef struct Mat3Affine Mat3Affine;
+typedef struct Mat4       Mat4;
+typedef struct Mat4Affine Mat4Affine;
+typedef struct Slice      Slice;
+template <typename T>
+struct Span;
 
 constexpr u8 U8_MIN = 0;
 constexpr u8 U8_MAX = 0xFFU;
@@ -63,11 +86,6 @@ constexpr f32 F64_EPSILON      = DBL_EPSILON;
 
 constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
 
-typedef u8  uid8;
-typedef u16 uid16;
-typedef u32 uid32;
-typedef u64 uid64;
-
 constexpr uid8  INVALID_UID8  = U8_MAX;
 constexpr uid16 INVALID_UID16 = U16_MAX;
 constexpr uid32 INVALID_UID32 = U32_MAX;
@@ -86,27 +104,6 @@ constexpr bool has_any_bit(T src, T cmp)
 {
   return (src & cmp) != (T) 0;
 }
-
-typedef struct Void       Void;
-typedef struct Vec2       Vec2;
-typedef struct Vec2       Complex;
-typedef struct Vec3       Vec3;
-typedef struct Vec4       Vec4;
-typedef struct Vec4       Quaternion;
-typedef struct Vec4U8     Vec4U8;
-typedef struct Vec2I      Vec2I;
-typedef struct Vec3I      Vec3I;
-typedef struct Vec2U      Vec2U;
-typedef struct Vec3U      Vec3U;
-typedef struct Vec4U      Vec4U;
-typedef struct Mat2       Mat2;
-typedef struct Mat3       Mat3;
-typedef struct Mat3Affine Mat3Affine;
-typedef struct Mat4       Mat4;
-typedef struct Mat4Affine Mat4Affine;
-typedef struct Slice      Slice;
-template <typename T>
-struct Span;
 
 /// regular void
 struct Void

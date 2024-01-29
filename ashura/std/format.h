@@ -36,6 +36,7 @@ struct Context
 template <typename T>
 bool push(Context &ctx, Spec const &, T const &value)
 {
+  (void) value;
   return ctx.push("{?}", 3);
 }
 

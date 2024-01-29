@@ -34,8 +34,8 @@ struct SparseSet
   SizeType  index_to_id_capacity = 0;
   SizeType  id_to_index_capacity = 0;
 
-  // the minimum required size of the referred-to external array
-  constexpr SizeType required_size() const
+  // the minimum required capacity of the referred-to external array
+  constexpr SizeType required_capacity() const
   {
     return num_slots;
   }
@@ -126,7 +126,7 @@ struct SparseSet
   [[nodiscard]] constexpr bool reserve(AllocatorImpl const &allocator,
                                        SizeType             target_capacity)
   {
-    if (target_capacity < index_to_id_capacity)
+    if (target_capacity > index_to_id_capacity)
     {
       SizeType *new_index_to_id = allocator.reallocate_typed(
           index_to_id, index_to_id_capacity, target_capacity);
@@ -138,7 +138,7 @@ struct SparseSet
       index_to_id          = new_index_to_id;
     }
 
-    if (target_capacity < id_to_index_capacity)
+    if (target_capacity > id_to_index_capacity)
     {
       SizeType *new_id_to_index = allocator.reallocate_typed(
           id_to_index, id_to_index_capacity, target_capacity);
@@ -153,18 +153,34 @@ struct SparseSet
     return true;
   }
 
-  [[nodiscard]] bool reserve_ids(AllocatorImpl const &allocator,
-                                 SizeType             num_slots)
+  [[nodiscard]] constexpr bool reserve_new_ids(AllocatorImpl const &allocator,
+                                               SizeType num_extra_slots)
   {
-    // if smaller, compact and then
-    //
-    // reserve needs to be called on elements as well to sync capacity
-    // no free ids available
-    // allocate new id
-    // don't use id until all operations are successfull, so we can return it
-    // if it fails
-    // no free indices available, i.e. array full
-    // allocate new index and resize array
+    if (num_extra_slots == 0)
+    {
+      return true;
+    }
+
+    SizeType const new_num_slots = num_slots + num_extra_slots;
+
+    if (!reserve(allocator, new_num_slots))
+    {
+      return false;
+    }
+
+    for (SizeType index = num_slots; index < new_num_slots - 1; index++)
+    {
+      index_to_id[index] = (index + 1) | RELEASE_MASK;
+      id_to_index[index] = (index + 1) | RELEASE_MASK;
+    }
+    // todo(lamarrr): what if it points to nothing?
+    index_to_id[new_num_slots - 1] = free_index_head | RELEASE_MASK;
+    id_to_index[new_num_slots - 1] = free_id_head | RELEASE_MASK;
+    free_index_head                = new_num_slots - 1;
+    free_id_head                   = new_num_slots - 1;
+    num_slots += num_extra_slots;
+    num_free += num_extra_slots;
+    return true;
   }
 
   [[nodiscard]] constexpr bool allocate_id(SizeType &out_id)

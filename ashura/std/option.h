@@ -9,7 +9,7 @@ template <typename T>
 struct [[nodiscard]] Some
 {
   using type = T;
-  T value    = {};
+  T value{};
 };
 
 template <typename T>
