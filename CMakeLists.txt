@@ -13,24 +13,24 @@ include(FetchContent)
 FetchContent_Declare(
   VulkanHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-  GIT_TAG v1.3.269)
+  GIT_TAG v1.3.276)
 
 FetchContent_Declare(
   VulkanUtilityHeaders
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git
-  GIT_TAG vulkan-sdk-1.3.268.0)
+  GIT_TAG v1.3.276)
 
 FetchContent_Declare(
   VulkanMemoryAllocator
   GIT_REPOSITORY
     https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-  GIT_TAG 5e43c79)
+  GIT_TAG 94b1aca)
 
 set(SheenBidi_DIR ${CMAKE_CURRENT_LIST_DIR}/third_party/SheenBidi)
 
 if(NOT EXISTS ${SheenBidi_DIR})
   execute_process(
-    COMMAND git clone https://github.com/Tehreer/SheenBidi.git --depth=1 -bv2.6
+    COMMAND git clone https://github.com/Tehreer/SheenBidi.git --depth=1 -bv2.7
             ${SheenBidi_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 endif()
 
