@@ -170,12 +170,15 @@ struct SparseSet
 
     for (SizeType index = num_slots; index < new_num_slots - 1; index++)
     {
-      index_to_id[index] = (index + 1) | RELEASE_MASK;
-      id_to_index[index] = (index + 1) | RELEASE_MASK;
+      index_to_id[index] = RELEASE_MASK | (index + 1);
+      id_to_index[index] = RELEASE_MASK | (index + 1);
     }
-    // todo(lamarrr): what if it points to nothing?
-    index_to_id[new_num_slots - 1] = free_index_head | RELEASE_MASK;
-    id_to_index[new_num_slots - 1] = free_id_head | RELEASE_MASK;
+    // todo(lamarrr): what if it points to nothing?, the linking here is
+    // incorrect, need the previous head to be the first tail of the list, no
+    // checking of what the head points to free_index_head and free_id_head
+    // could also be -1
+    index_to_id[new_num_slots - 1] = RELEASE_MASK | free_index_head;
+    id_to_index[new_num_slots - 1] = RELEASE_MASK | free_id_head;
     free_index_head                = new_num_slots - 1;
     free_id_head                   = new_num_slots - 1;
     num_slots += num_extra_slots;
@@ -192,8 +195,8 @@ struct SparseSet
 
     SizeType const index = free_index_head;
     SizeType const id    = free_id_head;
-    free_id_head         = id_to_index[free_id_head] & ~RELEASE_MASK;
-    free_index_head      = index_to_id[free_index_head] & ~RELEASE_MASK;
+    free_id_head         = ~RELEASE_MASK & id_to_index[free_id_head];
+    free_index_head      = ~RELEASE_MASK & index_to_id[free_index_head];
     index_to_id[index]   = id;
     id_to_index[id]      = index;
     out_id               = id;

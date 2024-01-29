@@ -10,9 +10,11 @@ TEST(SparseSetTest, Start)
   EXPECT_TRUE(set.reserve_new_ids(ash::heap_allocator, 5));
   EXPECT_EQ(set.num_slots, 5);
   EXPECT_EQ(set.num_free, 5);
-     std::cout << "a: " << "id"<< ", b:" << set.num_slots
-              << ", c:" << set.num_free << ", d:" << set.free_id_head
-              << ", e:" << set.free_index_head<<std::endl;
+  std::cout << "a: "
+            << "id"
+            << ", b:" << set.num_slots << ", c:" << set.num_free
+            << ", d:" << set.free_id_head << ", e:" << set.free_index_head
+            << std::endl;
   ash::uid64 id;
   for (ash::u32 i = 0; i < 5; i++)
   {
@@ -21,7 +23,7 @@ TEST(SparseSetTest, Start)
     EXPECT_GE(id, 0);
     std::cout << "a: " << id << ", b:" << set.num_slots
               << ", c:" << set.num_free << ", d:" << set.free_id_head
-              << ", e:" << set.free_index_head<<std::endl;
+              << ", e:" << set.free_index_head << std::endl;
   }
   // ASSERT_FALSE(set.allocate_id(id));
   set.reset(ash::heap_allocator);
