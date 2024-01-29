@@ -187,7 +187,7 @@ struct SparseSet
   }
 
   template <typename Relocate>
-  constexpr void compact(Relocate relocate_op)
+  constexpr void compact(Relocate &&relocate_op)
   {
     // starting from index num_valid elements to end of the array, move the
     // valid elements into the holes that have indices lower than (num_slots -
