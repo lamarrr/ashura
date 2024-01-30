@@ -114,6 +114,11 @@ struct alignas(8) Vec2
 {
   f32 x = 0;
   f32 y = 0;
+
+  static constexpr Vec2 uniform(f32 value)
+  {
+    return Vec2{value, value};
+  }
 };
 
 constexpr bool operator==(Vec2 a, Vec2 b)
@@ -215,6 +220,11 @@ struct Vec3
   f32 x = 0;
   f32 y = 0;
   f32 z = 0;
+
+  static constexpr Vec3 uniform(f32 value)
+  {
+    return Vec3{value, value, value};
+  }
 };
 
 constexpr bool operator==(Vec3 a, Vec3 b)
@@ -317,6 +327,11 @@ struct alignas(16) Vec4
   f32 y = 0;
   f32 z = 0;
   f32 w = 0;
+
+  static constexpr Vec4 uniform(f32 value)
+  {
+    return Vec4{value, value, value, value};
+  }
 };
 
 constexpr bool operator==(Vec4 a, Vec4 b)
@@ -901,6 +916,21 @@ struct Mat2
 {
   Vec2 rows[2] = {};
 
+  static constexpr Mat2 uniform(f32 value)
+  {
+    return Mat2{.rows = {{value, value}, {value, value}}};
+  }
+
+  static constexpr Mat2 diagonal(f32 value)
+  {
+    return Mat2{.rows = {{value, 0}, {0, value}}};
+  }
+
+  static constexpr Mat2 identity_mat2()
+  {
+    return diagonal(1);
+  }
+
   constexpr Vec2 &operator[](usize index)
   {
     return rows[index];
@@ -985,6 +1015,23 @@ constexpr Mat2 &operator/=(Mat2 &a, Mat2 const &b)
 struct Mat3
 {
   Vec3 rows[3] = {};
+
+  static constexpr Mat3 uniform(f32 value)
+  {
+    return Mat3{.rows = {{value, value, value},
+                         {value, value, value},
+                         {value, value, value}}};
+  }
+
+  static constexpr Mat3 diagonal(f32 value)
+  {
+    return Mat3{.rows = {{value, 0, 0}, {0, value, 0}, {0, 0, value}}};
+  }
+
+  static constexpr Mat3 identity_mat3()
+  {
+    return diagonal(1);
+  }
 
   constexpr Vec3 &operator[](usize index)
   {
@@ -1193,6 +1240,27 @@ constexpr Mat3Affine &operator/=(Mat3Affine &a, Mat3Affine const &b)
 struct Mat4
 {
   Vec4 rows[4] = {};
+
+  static constexpr Mat4 uniform(f32 value)
+  {
+    return Mat4{.rows = {{value, value, value, value},
+                         {value, value, value, value},
+                         {value, value, value, value},
+                         {value, value, value, value}}};
+  }
+
+  static constexpr Mat4 diagonal(f32 value)
+  {
+    return Mat4{.rows = {{value, 0, 0, 0},
+                         {0, value, 0, 0},
+                         {0, 0, value, 0},
+                         {0, 0, 0, value}}};
+  }
+
+  static constexpr Mat4 identity()
+  {
+    return diagonal(1);
+  }
 
   constexpr Vec4 &operator[](usize index)
   {

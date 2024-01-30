@@ -140,13 +140,13 @@ inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii,
                                       u32 nsegments, Vec4 color,
                                       stx::Span<Vertex2d> polygon)
 {
-  f32 max_radius   = op::min(extent.x, extent.y);
-  radii.x          = op::min(radii.x, max_radius);
-  radii.y          = op::min(radii.y, max_radius - radii.x);
-  f32 max_radius_z = op::min(max_radius - radii.x, max_radius - radii.y);
-  radii.z          = op::min(radii.z, max_radius_z);
-  f32 max_radius_w = op::min(max_radius_z, max_radius - radii.z);
-  radii.w          = op::min(radii.w, max_radius_w);
+  f32 max_radius   = min(extent.x, extent.y);
+  radii.x          = min(radii.x, max_radius);
+  radii.y          = min(radii.y, max_radius - radii.x);
+  f32 max_radius_z = min(max_radius - radii.x, max_radius - radii.y);
+  radii.z          = min(radii.z, max_radius_z);
+  f32 max_radius_w = min(max_radius_z, max_radius - radii.z);
+  radii.w          = min(radii.w, max_radius_w);
 
   f32 step = nsegments == 0 ? 0.0f : (PI / 2) / nsegments;
 
@@ -221,13 +221,13 @@ inline stx::Span<Vertex2d> round_rect(Vec2 offset, Vec2 extent, Vec4 radii,
 inline stx::Span<Vertex2d> bevel_rect(Vec2 offset, Vec2 extent, Vec4 radii,
                                       Vec4 color, stx::Span<Vertex2d> polygon)
 {
-  f32 max_radius   = op::min(extent.x, extent.y);
-  radii.x          = op::min(radii.x, max_radius);
-  radii.y          = op::min(radii.y, max_radius - radii.x);
-  f32 max_radius_z = op::min(max_radius - radii.x, max_radius - radii.y);
-  radii.z          = op::min(radii.z, max_radius_z);
-  f32 max_radius_w = op::min(max_radius_z, max_radius - radii.z);
-  radii.w          = op::min(radii.w, max_radius_w);
+  f32 max_radius   = min(extent.x, extent.y);
+  radii.x          = min(radii.x, max_radius);
+  radii.y          = min(radii.y, max_radius - radii.x);
+  f32 max_radius_z = min(max_radius - radii.x, max_radius - radii.y);
+  radii.z          = min(radii.z, max_radius_z);
+  f32 max_radius_w = min(max_radius_z, max_radius - radii.z);
+  radii.w          = min(radii.w, max_radius_w);
 
   Vertex2d const vertices[] = {
       {.position = offset + Vec2{radii.x, 0}, .uv = {}, .color = color},
@@ -1344,7 +1344,7 @@ struct Canvas
 
         f32       x_segment_cursor = x_alignment;
         f32 const line_gap =
-            op::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+            max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
         f32 const baseline =
             line_top + line.line_height - line_gap - line.descent;
 
@@ -1422,7 +1422,7 @@ struct Canvas
 
         f32       x_segment_cursor = x_alignment;
         f32 const line_gap =
-            op::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+            max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
         f32 const baseline =
             line_top + line.line_height - line_gap - line.descent;
 
@@ -1494,7 +1494,7 @@ struct Canvas
 
         f32       x_cursor = x_alignment;
         f32 const line_gap =
-            op::max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
+            max(line.line_height - (line.ascent + line.descent), 0.0f) / 2;
         f32 const baseline =
             line_top + line.line_height - line_gap - line.descent;
 

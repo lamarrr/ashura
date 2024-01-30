@@ -1,6 +1,7 @@
 #pragma once
 #include "ashura/std/algorithms.h"
 #include "ashura/std/cfg.h"
+#include "ashura/std/op.h"
 #include "ashura/std/types.h"
 #include <bit>
 #include <math.h>
@@ -79,24 +80,24 @@ inline u32 u32log2(u32 value)
 
 constexpr u32 mip_down(u32 a, u32 level)
 {
-  return op::max(a >> level, 1U);
+  return max(a >> level, 1U);
 }
 
 constexpr Vec2U mip_down(Vec2U a, u32 level)
 {
-  return Vec2U{op::max(a.x >> level, 1U), op::max(a.y >> level, 1U)};
+  return Vec2U{max(a.x >> level, 1U), max(a.y >> level, 1U)};
 }
 
 constexpr Vec3U mip_down(Vec3U a, u32 level)
 {
-  return Vec3U{op::max(a.x >> level, 1U), op::max(a.y >> level, 1U),
-               op::max(a.z >> level, 1U)};
+  return Vec3U{max(a.x >> level, 1U), max(a.y >> level, 1U),
+               max(a.z >> level, 1U)};
 }
 
 constexpr Vec4U mip_down(Vec4U a, u32 level)
 {
-  return Vec4U{op::max(a.x >> level, 1U), op::max(a.y >> level, 1U),
-               op::max(a.z >> level, 1U), op::max(a.w >> level, 1U)};
+  return Vec4U{max(a.x >> level, 1U), max(a.y >> level, 1U),
+               max(a.z >> level, 1U), max(a.w >> level, 1U)};
 }
 
 inline u32 num_mip_levels(u32 a)
@@ -106,88 +107,20 @@ inline u32 num_mip_levels(u32 a)
 
 inline u32 num_mip_levels(Vec2U a)
 {
-  u32 max = op::max(a.x, a.y);
+  u32 max = ash::max(a.x, a.y);
   return max == 0 ? 0 : (u32log2(max) + 1);
 }
 
 inline u32 num_mip_levels(Vec3U a)
 {
-  u32 max = op::max(op::max(a.x, a.y), a.z);
+  u32 max = ash::max(ash::max(a.x, a.y), a.z);
   return max == 0 ? 0 : (u32log2(max) + 1);
 }
 
 inline u32 num_mip_levels(Vec4U a)
 {
-  u32 max = op::max(op::max(op::max(a.x, a.y), a.z), a.w);
+  u32 max = ash::max(ash::max(ash::max(a.x, a.y), a.z), a.w);
   return max == 0 ? 0 : (u32log2(max) + 1);
-}
-
-constexpr Vec2 uniform_vec2(f32 value)
-{
-  return Vec2{value, value};
-}
-
-constexpr Vec3 uniform_vec3(f32 value)
-{
-  return Vec3{value, value, value};
-}
-
-constexpr Vec4 uniform_vec4(f32 value)
-{
-  return Vec4{value, value, value, value};
-}
-
-constexpr Mat2 uniform_mat2(f32 value)
-{
-  return Mat2{.rows = {{value, value}, {value, value}}};
-}
-
-constexpr Mat3 uniform_mat3(f32 value)
-{
-  return Mat3{.rows = {{value, value, value},
-                       {value, value, value},
-                       {value, value, value}}};
-}
-
-constexpr Mat4 uniform_mat4(f32 value)
-{
-  return Mat4{.rows = {{value, value, value, value},
-                       {value, value, value, value},
-                       {value, value, value, value},
-                       {value, value, value, value}}};
-}
-
-constexpr Mat2 diagonal_mat2(f32 value)
-{
-  return Mat2{.rows = {{value, 0}, {0, value}}};
-}
-
-constexpr Mat3 diagonal_mat3(f32 value)
-{
-  return Mat3{.rows = {{value, 0, 0}, {0, value, 0}, {0, 0, value}}};
-}
-
-constexpr Mat4 diagonal_mat4(f32 value)
-{
-  return Mat4{.rows = {{value, 0, 0, 0},
-                       {0, value, 0, 0},
-                       {0, 0, value, 0},
-                       {0, 0, 0, value}}};
-}
-
-constexpr Mat2 identity_mat2()
-{
-  return diagonal_mat2(1);
-}
-
-constexpr Mat3 identity_mat3()
-{
-  return diagonal_mat3(1);
-}
-
-constexpr Mat4 identity_mat4()
-{
-  return diagonal_mat4(1);
 }
 
 constexpr Mat2 transpose(Mat2 const &a)
@@ -306,17 +239,17 @@ constexpr Mat4 adjoint(Mat4 const &a)
 
 constexpr Mat2 inverse(Mat2 a)
 {
-  return uniform_mat2(1.0F / determinant(a)) * adjoint(a);
+  return Mat2::uniform(1.0F / determinant(a)) * adjoint(a);
 }
 
 constexpr Mat3 inverse(Mat3 const &a)
 {
-  return uniform_mat3(1.0F / determinant(a)) * adjoint(a);
+  return Mat3::uniform(1.0F / determinant(a)) * adjoint(a);
 }
 
 constexpr Mat4 inverse(Mat4 const &a)
 {
-  return uniform_mat4(1.0F / determinant(a)) * adjoint(a);
+  return Mat4::uniform(1.0F / determinant(a)) * adjoint(a);
 }
 
 constexpr Mat3 translate2d(Vec2 t)
@@ -455,9 +388,8 @@ constexpr void rect_intersect(Vec2 a_begin, Vec2 a_end, Vec2 &b_begin,
     return;
   }
 
-  Vec2 intersect_begin{op::max(a_begin.x, b_begin.x),
-                       op::max(a_begin.y, b_begin.y)};
-  Vec2 intersect_end{op::min(a_end.x, b_end.x), op::min(a_end.y, b_end.y)};
+  Vec2 intersect_begin{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)};
+  Vec2 intersect_end{min(a_end.x, b_end.x), min(a_end.y, b_end.y)};
 
   b_begin = intersect_begin;
   b_end   = intersect_end;

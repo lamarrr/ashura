@@ -2,12 +2,13 @@
 #include "ashura/std/allocator.h"
 #include "ashura/std/mem.h"
 #include "ashura/std/traits.h"
+#include "ashura/std/trivial_vec.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
-/// @brief An externally managed sparse set
+/// @brief An externally managed sparse set, the sparse set is always compacted
 /// @tparam SizeT: size type, u8, u32, u64
 ///
 /// @index_to_id: id of data, ordered relative to {data}
@@ -28,46 +29,43 @@ struct SparseSet
   SizeType *index_to_id          = nullptr;
   SizeType *id_to_index          = nullptr;
   SizeType  free_id_head         = STUB;
-  SizeType  free_index_head      = STUB;
   SizeType  num_free             = 0;
   SizeType  num_slots            = 0;
   SizeType  index_to_id_capacity = 0;
   SizeType  id_to_index_capacity = 0;
 
-  // the minimum required capacity of the referred-to external array
+  /// the minimum required capacity of the referred-to external array
   constexpr SizeType required_capacity() const
   {
     return num_slots;
   }
 
+  /// the number of valid elements in the array
   constexpr SizeType num_valid() const
   {
     return num_slots - num_free;
   }
 
-  // clear all slots and id allocations
+  /// clear all slots and id allocations
+  /// all elements must have been destroyed
   constexpr void clear()
   {
-    free_id_head    = STUB;
-    free_index_head = STUB;
-    num_free        = 0;
-    num_slots       = 0;
+    free_id_head = STUB;
+    num_free     = 0;
+    num_slots    = 0;
   }
 
-  // release all allocated ids
-  constexpr void release_ids()
+  /// release all allocated ids.
+  /// all elements must have been destroyed before calling this.
+  constexpr void release_all()
   {
     if (num_slots > 0)
     {
-      free_id_head    = 0;
-      free_index_head = 0;
+      free_id_head = 0;
       for (SizeType i = 0; i < num_slots - 1; i++)
       {
-        index_to_id[i] = (i + 1) | RELEASE_MASK;
         id_to_index[i] = (i + 1) | RELEASE_MASK;
       }
-
-      index_to_id[num_slots - 1] = STUB;
       id_to_index[num_slots - 1] = STUB;
       num_free                   = num_slots;
     }
@@ -80,7 +78,6 @@ struct SparseSet
     index_to_id          = nullptr;
     id_to_index          = nullptr;
     free_id_head         = STUB;
-    free_index_head      = STUB;
     num_free             = 0;
     num_slots            = 0;
     index_to_id_capacity = 0;
@@ -108,54 +105,43 @@ struct SparseSet
     return true;
   }
 
-  constexpr void unsafe_release(SizeType id)
+  template <typename Relocate>
+  constexpr void unsafe_release(SizeType id, Relocate &&relocate_op)
   {
     SizeType const index = id_to_index[id];
-    index_to_id[index]   = RELEASE_MASK | free_index_head;
-    id_to_index[id]      = RELEASE_MASK | free_id_head;
-    free_id_head         = id;
-    free_index_head      = index;
+    SizeType const last  = num_valid() - 1;
+    if (index != last)
+    {
+      relocate_op(last, index);
+    }
+    id_to_index[index_to_id[last]] = index;
+    index_to_id[index]             = index_to_id[last];
+    id_to_index[id]                = free_id_head | RELEASE_MASK;
+    free_id_head                   = id;
     num_free++;
   }
 
-  [[nodiscard]] constexpr bool release(SizeType id)
+  // element at id must have already been destroyed.
+  // Relocate: operation to move from initialized src to uninitialized dst, and
+  // then destroy src
+  template <typename Relocate>
+  [[nodiscard]] constexpr bool release(SizeType id, Relocate &&relocate_op)
   {
     if (!is_valid_id(id))
     {
       return false;
     }
-    unsafe_release(id);
+    unsafe_release(id, relocate_op);
     return true;
   }
 
   [[nodiscard]] constexpr bool reserve_memory(AllocatorImpl const &allocator,
                                               SizeType target_capacity)
   {
-    if (target_capacity > index_to_id_capacity)
-    {
-      SizeType *new_index_to_id = allocator.reallocate_typed(
-          index_to_id, index_to_id_capacity, target_capacity);
-      if (new_index_to_id == nullptr)
-      {
-        return false;
-      }
-      index_to_id_capacity = target_capacity;
-      index_to_id          = new_index_to_id;
-    }
-
-    if (target_capacity > id_to_index_capacity)
-    {
-      SizeType *new_id_to_index = allocator.reallocate_typed(
-          id_to_index, id_to_index_capacity, target_capacity);
-      if (new_id_to_index == nullptr)
-      {
-        return false;
-      }
-      id_to_index_capacity = target_capacity;
-      id_to_index          = new_id_to_index;
-    }
-
-    return true;
+    return tvec::reserve(allocator, id_to_index, id_to_index_capacity,
+                         target_capacity) &&
+           tvec::reserve(allocator, index_to_id, index_to_id_capacity,
+                         target_capacity);
   }
 
   [[nodiscard]] constexpr bool reserve_new_ids(AllocatorImpl const &allocator,
@@ -175,13 +161,10 @@ struct SparseSet
 
     for (SizeType index = num_slots; index < new_num_slots - 1; index++)
     {
-      index_to_id[index] = RELEASE_MASK | (index + 1);
       id_to_index[index] = RELEASE_MASK | (index + 1);
     }
 
-    index_to_id[new_num_slots - 1] = RELEASE_MASK | free_index_head;
     id_to_index[new_num_slots - 1] = RELEASE_MASK | free_id_head;
-    free_index_head                = num_slots;
     free_id_head                   = num_slots;
     num_slots += num_extra_slots;
     num_free += num_extra_slots;
@@ -195,63 +178,14 @@ struct SparseSet
       return false;
     }
 
-    SizeType const index = free_index_head;
+    SizeType const index = num_valid();
     SizeType const id    = free_id_head;
     free_id_head         = ~RELEASE_MASK & id_to_index[free_id_head];
-    free_index_head      = ~RELEASE_MASK & index_to_id[free_index_head];
     index_to_id[index]   = id;
     id_to_index[id]      = index;
     out_id               = id;
     num_free--;
     return true;
-  }
-
-  template <typename Relocate>
-  constexpr void compact(Relocate &&relocate_op)
-  {
-    // starting from index num_valid elements to end of the array, move the
-    // valid elements into the holes that have indices lower than (num_slots -
-    // num_free) as gotten from the implict free index list
-    //
-    SizeType const num_valid           = num_slots - num_free;
-    SizeType       dst                 = free_index_head;
-    SizeType       prev_free_index     = STUB;
-    SizeType       new_free_index_head = STUB;
-
-    for (SizeType src = num_valid; src < num_slots; src++)
-    {
-      if (index_to_id[src] & RELEASE_MASK)
-      {
-        continue;
-      }
-
-      while (dst >= num_valid)
-      {
-        if (new_free_index_head == STUB)
-        {
-          new_free_index_head = dst;
-        }
-        prev_free_index = dst;
-        dst             = index_to_id[dst] & ~RELEASE_MASK;
-      }
-
-      // update the free index list, consuming this index from the list
-      if (prev_free_index != STUB)
-      {
-        // should be a masked free index or STUB
-        index_to_id[prev_free_index] = index_to_id[dst];
-      }
-
-      relocate_op(src, dst);
-      SizeType const next_dst       = index_to_id[dst] & ~RELEASE_MASK;
-      id_to_index[index_to_id[src]] = dst;
-      index_to_id[dst]              = index_to_id[src];
-      index_to_id[src]              = new_free_index_head | RELEASE_MASK;
-      new_free_index_head           = src;
-      dst                           = next_dst;
-    }
-
-    free_index_head = new_free_index_head;
   }
 
   // TODO(lamarrr): sort_index_with_key, sort_id_with_key

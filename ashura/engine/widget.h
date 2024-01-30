@@ -96,7 +96,7 @@ struct Constraint
 
   constexpr f32 resolve(f32 value) const
   {
-    return op::clamp(op::clamp(bias + value * scale, min, max), minr * value,
+    return clamp(clamp(bias + value * scale, min, max), minr * value,
                      maxr * value);
   }
 };
@@ -243,7 +243,7 @@ struct BorderRadius
 
   constexpr Vec4 resolve(f32 w, f32 h) const
   {
-    f32 const src = op::min(w, h) / 2;
+    f32 const src = min(w, h) / 2;
     return Vec4{.x = top_left.resolve(src),
                 .y = top_right.resolve(src),
                 .z = bottom_right.resolve(src),

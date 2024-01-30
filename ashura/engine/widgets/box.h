@@ -54,8 +54,8 @@ struct Box : public Widget
   {
     Vec2 const box_size   = props.border_thickness * 2 + props.padding.xy();
     Vec2       child_size = allocated_size - box_size;
-    child_size.x          = op::max(child_size.x, 0.0f);
-    child_size.y          = op::max(child_size.y, 0.0f);
+    child_size.x          = max(child_size.x, 0.0f);
+    child_size.y          = max(child_size.y, 0.0f);
     children_allocation.fill(child_size);
   }
 

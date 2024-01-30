@@ -83,8 +83,8 @@ struct Stack : public Widget
 
     for (Vec2 child_size : children_sizes)
     {
-      size.x = op::max(size.x, child_size.x);
-      size.y = op::max(size.y, child_size.y);
+      size.x = max(size.x, child_size.x);
+      size.y = max(size.y, child_size.y);
     }
 
     size = props.frame.resolve(size);

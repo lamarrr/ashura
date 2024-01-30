@@ -3,7 +3,5 @@
 
 TEST(RendererTest, Scene)
 {
-    ash::gfx::Scene scene{
-    };
-    scene.compact();
+  ash::gfx::Scene scene{};
 }

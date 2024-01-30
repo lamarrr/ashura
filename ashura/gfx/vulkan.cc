@@ -2874,7 +2874,7 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
                 (u32) mem::align_offset(alignof(gfx::SamplerBinding), offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::SamplerBinding) * desc.count);
-            num_image_infos = op::max(num_image_infos, desc.count);
+            num_image_infos = max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::CombinedImageSampler:
             offset = (u32) mem::align_offset(
@@ -2882,21 +2882,21 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::CombinedImageSamplerBinding) * desc.count);
-            num_image_infos = op::max(num_image_infos, desc.count);
+            num_image_infos = max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::SampledImage:
             offset = (u32) mem::align_offset(alignof(gfx::SampledImageBinding),
                                              offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::SampledImageBinding) * desc.count);
-            num_image_infos = op::max(num_image_infos, desc.count);
+            num_image_infos = max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::StorageImage:
             offset = (u32) mem::align_offset(alignof(gfx::StorageImageBinding),
                                              offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::StorageImageBinding) * desc.count);
-            num_image_infos = op::max(num_image_infos, desc.count);
+            num_image_infos = max(num_image_infos, desc.count);
             break;
           case gfx::DescriptorType::UniformTexelBuffer:
             offset = (u32) mem::align_offset(
@@ -2904,7 +2904,7 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::UniformTexelBufferBinding) * desc.count);
-            num_buffer_views = op::max(num_buffer_views, desc.count);
+            num_buffer_views = max(num_buffer_views, desc.count);
             break;
           case gfx::DescriptorType::StorageTexelBuffer:
             offset = (u32) mem::align_offset(
@@ -2912,21 +2912,21 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::StorageTexelBufferBinding) * desc.count);
-            num_buffer_views = op::max(num_buffer_views, desc.count);
+            num_buffer_views = max(num_buffer_views, desc.count);
             break;
           case gfx::DescriptorType::UniformBuffer:
             offset = (u32) mem::align_offset(alignof(gfx::UniformBufferBinding),
                                              offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::UniformBufferBinding) * desc.count);
-            num_buffer_infos = op::max(num_buffer_infos, desc.count);
+            num_buffer_infos = max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::StorageBuffer:
             offset = (u32) mem::align_offset(alignof(gfx::StorageBufferBinding),
                                              offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::StorageBufferBinding) * desc.count);
-            num_buffer_infos = op::max(num_buffer_infos, desc.count);
+            num_buffer_infos = max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::DynamicUniformBuffer:
             offset = (u32) mem::align_offset(
@@ -2934,7 +2934,7 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::DynamicUniformBufferBinding) * desc.count);
-            num_buffer_infos = op::max(num_buffer_infos, desc.count);
+            num_buffer_infos = max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::DynamicStorageBuffer:
             offset = (u32) mem::align_offset(
@@ -2942,14 +2942,14 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
             binding_offsets[set][binding] = offset;
             offset +=
                 (u32) (sizeof(gfx::DynamicStorageBufferBinding) * desc.count);
-            num_buffer_infos = op::max(num_buffer_infos, desc.count);
+            num_buffer_infos = max(num_buffer_infos, desc.count);
             break;
           case gfx::DescriptorType::InputAttachment:
             offset = (u32) mem::align_offset(
                 alignof(gfx::InputAttachmentBinding), offset);
             binding_offsets[set][binding] = offset;
             offset += (u32) (sizeof(gfx::InputAttachmentBinding) * desc.count);
-            num_image_infos = op::max(num_image_infos, desc.count);
+            num_image_infos = max(num_image_infos, desc.count);
             break;
           default:
             break;
@@ -2960,7 +2960,7 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
   }
 
   usize scratch_memory_size =
-      op::max(op::max(num_image_infos * sizeof(VkDescriptorImageInfo),
+      max(max(num_image_infos * sizeof(VkDescriptorImageInfo),
                       num_buffer_infos * sizeof(VkDescriptorBufferInfo)),
               num_buffer_views * sizeof(VkBufferView));
 
@@ -3843,10 +3843,10 @@ inline VkResult recreate_swapchain(Device const *self, Swapchain *swapchain)
   if (surface_capabilities.currentExtent.width == 0xFFFFFFFFU &&
       surface_capabilities.currentExtent.height == 0xFFFFFFFFU)
   {
-    vk_extent.width  = op::clamp(swapchain->desc.preferred_extent.x,
+    vk_extent.width  = clamp(swapchain->desc.preferred_extent.x,
                                  surface_capabilities.minImageExtent.width,
                                  surface_capabilities.maxImageExtent.width);
-    vk_extent.height = op::clamp(swapchain->desc.preferred_extent.y,
+    vk_extent.height = clamp(swapchain->desc.preferred_extent.y,
                                  surface_capabilities.minImageExtent.height,
                                  surface_capabilities.maxImageExtent.height);
   }
@@ -3859,14 +3859,14 @@ inline VkResult recreate_swapchain(Device const *self, Swapchain *swapchain)
 
   if (surface_capabilities.maxImageCount != 0)
   {
-    min_image_count = op::clamp(swapchain->desc.preferred_buffering,
+    min_image_count = clamp(swapchain->desc.preferred_buffering,
                                 surface_capabilities.minImageCount,
                                 surface_capabilities.maxImageCount);
   }
   else
   {
     min_image_count =
-        op::max(min_image_count, surface_capabilities.minImageCount);
+        max(min_image_count, surface_capabilities.minImageCount);
   }
 
   VkSwapchainCreateInfoKHR create_info{
@@ -4759,7 +4759,7 @@ Result<u32, Status> DeviceInterface::get_surface_formats(
     CHECK(self, "", num_read == num_supported);
   }
 
-  u32 num_copies = op::min(num_supported, (u32) formats.size);
+  u32 num_copies = min(num_supported, (u32) formats.size);
 
   for (u32 i = 0; i < num_copies; i++)
   {
@@ -4811,7 +4811,7 @@ Result<u32, Status> DeviceInterface::get_surface_present_modes(
     CHECK(self, "", num_read == num_supported);
   }
 
-  u32 num_copies = op::min(num_supported, (u32) modes.size);
+  u32 num_copies = min(num_supported, (u32) modes.size);
 
   for (u32 i = 0; i < num_copies; i++)
   {
@@ -4968,7 +4968,7 @@ Result<Void, Status>
   // commands could have been executed.
   frame_context->current_frame++;
   frame_context->trailing_frame =
-      op::max(frame_context->current_frame,
+      max(frame_context->current_frame,
               (gfx::FrameId) frame_context->max_frames_in_flight) -
       frame_context->max_frames_in_flight;
   frame_context->current_command_encoder =

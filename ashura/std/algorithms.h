@@ -1,162 +1,9 @@
 #pragma once
 #include "ashura/std/types.h"
+#include "ashura/std/op.h"
 
 namespace ash
 {
-
-namespace op
-{
-
-struct Add
-{
-  constexpr auto operator()(auto const &a, auto const &b) const
-  {
-    return a + b;
-  }
-};
-
-struct Sub
-{
-  constexpr auto operator()(auto const &a, auto const &b) const
-  {
-    return a - b;
-  }
-};
-
-struct Mul
-{
-  constexpr auto operator()(auto const &a, auto const &b) const
-  {
-    return a * b;
-  }
-};
-
-struct Div
-{
-  constexpr auto operator()(auto const &a, auto const &b) const
-  {
-    return a / b;
-  }
-};
-
-struct Equal
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a == b;
-  }
-};
-
-struct NotEqual
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a != b;
-  }
-};
-
-struct Lesser
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a < b;
-  }
-};
-
-struct LesserOrEqual
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a <= b;
-  }
-};
-
-struct Greater
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a > b;
-  }
-};
-
-struct GreaterOrEqual
-{
-  constexpr bool operator()(auto const &a, auto const &b) const
-  {
-    return a >= b;
-  }
-};
-
-struct Compare
-{
-  constexpr i8 operator()(auto const &a, auto const &b) const
-  {
-    if (a == b)
-    {
-      return 0;
-    }
-    if (a > b)
-    {
-      return -1;
-    }
-    return 1;
-  }
-};
-
-struct Min
-{
-  constexpr auto const &operator()(auto const &a, auto const &b) const
-  {
-    return a < b ? a : b;
-  }
-};
-
-struct Max
-{
-  constexpr auto const &operator()(auto const &a, auto const &b) const
-  {
-    return a > b ? a : b;
-  }
-};
-
-struct Swap
-{
-  template <typename T>
-  constexpr void operator()(T &a, T &b) const
-  {
-    T a_tmp{(T &&) a};
-    a = (T &&) b;
-    b = (T &&) a_tmp;
-  }
-};
-
-struct Clamp
-{
-  template <typename T>
-  constexpr T const &operator()(T const &value, T const &min,
-                                T const &max) const
-  {
-    return value < min ? min : (value > max ? max : value);
-  }
-};
-
-constexpr Add            add;
-constexpr Sub            sub;
-constexpr Mul            mul;
-constexpr Div            div;
-constexpr Equal          equal;
-constexpr NotEqual       not_equal;
-constexpr Lesser         lesser;
-constexpr LesserOrEqual  lesser_or_equal;
-constexpr Greater        greater;
-constexpr GreaterOrEqual greater_or_equal;
-constexpr Compare        compare;
-constexpr Min            min;
-constexpr Max            max;
-constexpr Swap           swap;
-constexpr Clamp          clamp;
-
-}        // namespace op
 
 namespace alg
 {
@@ -222,7 +69,7 @@ constexpr void copy(Span<Src> src, Span<Dst> dst)
   }
 }
 
-template <typename A, typename B, typename Swap = op::Swap>
+template <typename A, typename B, typename Swap = Swap>
 constexpr void swap(Span<A> a, Span<B> b, Swap swap_op = {})
 {
   A *a_iter = a.begin();
@@ -277,7 +124,7 @@ constexpr bool any_of(Span<T> span, Predicate predicate)
   return false;
 }
 
-template <typename T, typename U, typename Cmp = op::Equal>
+template <typename T, typename U, typename Cmp = Equal>
 constexpr bool contains(Span<T const> span, U const &value, Cmp cmp = {})
 {
   for (T const &element : span)
@@ -290,7 +137,7 @@ constexpr bool contains(Span<T const> span, U const &value, Cmp cmp = {})
   return false;
 }
 
-template <typename B, typename H, typename Cmp = op::Equal>
+template <typename B, typename H, typename Cmp = Equal>
 constexpr bool begins_with(Span<B const> body, Span<H const> header,
                            Cmp cmp = {})
 {
@@ -308,7 +155,7 @@ constexpr bool begins_with(Span<B const> body, Span<H const> header,
   return true;
 }
 
-template <typename B, typename F, typename Cmp = op::Equal>
+template <typename B, typename F, typename Cmp = Equal>
 constexpr bool ends_with(Span<B const> body, Span<F const> footer, Cmp cmp = {})
 {
   if (footer.size > body.size)
@@ -327,7 +174,7 @@ constexpr bool ends_with(Span<B const> body, Span<F const> footer, Cmp cmp = {})
 }
 
 // size is 0 if not found, size is 1 if found
-template <typename T, typename U, typename Cmp = op::Equal>
+template <typename T, typename U, typename Cmp = Equal>
 constexpr Span<T> find(Span<T> span, U const &value, Cmp cmp = {})
 {
   usize offset = 0;
@@ -364,11 +211,11 @@ constexpr Span<T> skip_while(Span<T>, Predicate predicate);
 template <typename T, typename Predicate>
 constexpr Span<T> skip_to_last(Span<T>, Predicate predicate);
 
-template <typename T, typename U, typename Cmp = op::Equal>
+template <typename T, typename U, typename Cmp = Equal>
 constexpr void find_mismatch(Span<T>, Span<U>, Span<T> &, Span<U> &,
                              Cmp cmp = {});
 
-template <typename T, typename Element, typename Cmp = op::Equal>
+template <typename T, typename Element, typename Cmp = Equal>
 constexpr usize count(Span<T const> span, Element const &element, Cmp cmp = {})
 {
   usize count = 0;
@@ -396,7 +243,7 @@ constexpr usize count_if(Span<T const> span, Predicate predicate)
   return count;
 }
 
-template <typename A, typename B, typename Cmp = op::Equal>
+template <typename A, typename B, typename Cmp = Equal>
 constexpr bool equal(Span<A const> a, Span<B const> b, Cmp cmp = {})
 {
   for (usize i = 0; i < a.size; i++)
@@ -418,7 +265,7 @@ constexpr void map(Span<Input const> input, Span<Output> output, Map mapper)
   }
 }
 
-template <typename Input, typename Init, typename Reduce = op::Add>
+template <typename Input, typename Init, typename Reduce = Add>
 constexpr Init reduce(Span<Input const> span, Init init, Reduce reducer = {})
 {
   for (usize i = 0; i < span.size; i++)
@@ -442,7 +289,7 @@ constexpr Init map_reduce(Span<Input const> input, Init init, Map map,
   return (Init &&) init;
 }
 
-template <typename T, typename E, typename R, typename Cmp = op::Equal>
+template <typename T, typename E, typename R, typename Cmp = Equal>
 constexpr void replace(Span<T> span, E const &element, R const &replacement,
                        Cmp cmp = {})
 {
@@ -470,10 +317,10 @@ constexpr void replace_if(Span<T> span, R const &replacement, Test test)
 template <typename T, typename Predicate>
 constexpr void partition(Span<T>, Span<T> &, Span<T> &, Predicate);
 
-template <typename T, typename Cmp = op::Equal>
+template <typename T, typename Cmp = Equal>
 constexpr void unique(Span<T>, Cmp cmp = {});        // destroy? retain?
 
-template <typename T, typename Swap = op::Swap>
+template <typename T, typename Swap = Swap>
 constexpr void reverse(Span<T> span, Swap swap = {})
 {
   for (usize fwd = 0, bwd = span.size - 1; fwd < span.size / 2; fwd++, bwd--)
@@ -482,23 +329,24 @@ constexpr void reverse(Span<T> span, Swap swap = {})
   }
 }
 
-template <typename T, typename Swap = op::Swap>
+template <typename T, typename Swap = Swap>
 constexpr void rotate(Span<T>, Swap swap = {});
 
-template <typename T, typename Cmp = op::Min>
+template <typename T, typename Cmp = Min>
 constexpr Span<T> min(Span<T> span, Cmp cmp = {});        // return Span
 
-template <typename T, typename Cmp = op::Max>
+template <typename T, typename Cmp = Max>
 constexpr Span<T> max(Span<T> span, Cmp cmp = {});        // return Span
 
-template <typename T, typename LexOrd = op::Compare>
+template <typename T, typename LexOrd = Compare>
 constexpr void min_max(Span<T> span, Span<T> &min, Span<T> &max,
                        LexOrd ord = {});
 
 // once gotten, it will call op(span) for each range
 // TODO(lamarrr)
-template <typename T, typename U, typename Op, typename Cmp = op::Equal>
-constexpr void split(Span<T> span, Span<U const> delimeter, Op op, Cmp cmp = {});
+template <typename T, typename U, typename Op, typename Cmp = Equal>
+constexpr void split(Span<T> span, Span<U const> delimeter, Op op,
+                     Cmp cmp = {});
 
 // first check if src begins with other
 // keep advancing whilst src begins with other
@@ -507,7 +355,7 @@ constexpr void split(Span<T> span, Span<U const> delimeter, Op op, Cmp cmp = {})
 // if equal, move back from end - other.size
 // if equal again, move back
 // move back until it is no longer equal
-template <typename T, typename U, typename Cmp = op::Equal>
+template <typename T, typename U, typename Cmp = Equal>
 constexpr Span<T> strip(Span<T> src, Span<U const> other, Cmp cmp = {});
 // title() span, no string_view types
 

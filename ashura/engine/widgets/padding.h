@@ -55,8 +55,8 @@ struct Padding : public Widget
                              stx::Span<Vec2> children_allocation) override
   {
     Vec2 child_size = allocated_size - edge_insets.xy();
-    child_size.x    = op::max(child_size.x, 0);
-    child_size.y    = op::max(child_size.y, 0);
+    child_size.x    = max(child_size.x, 0);
+    child_size.y    = max(child_size.y, 0);
     children_allocation.fill(child_size);
   }
 
@@ -67,8 +67,8 @@ struct Padding : public Widget
   {
     children_positions[0] = edge_insets.top_left();
     Vec2 child_cover      = children_sizes[0] + edge_insets.xy();
-    child_cover.x         = op::min(child_cover.x, allocated_size.x);
-    child_cover.y         = op::min(child_cover.y, allocated_size.y);
+    child_cover.x         = min(child_cover.x, allocated_size.x);
+    child_cover.y         = min(child_cover.y, allocated_size.y);
     return child_cover;
   }
 
