@@ -11,13 +11,7 @@
 
 namespace ash
 {
-namespace gfx
-{
 
-constexpr u32   MAX_NAME_LENGTH          = 128;
-constexpr usize DEFAULT_POOL_MEMORY_SIZE = 4096;
-
-typedef char                      Name[MAX_NAME_LENGTH];
 typedef struct Texture            Texture;
 typedef Vec4                      AmbientLight;
 typedef struct DirectionalLight   DirectionalLight;
@@ -26,7 +20,7 @@ typedef struct SpotLight          SpotLight;
 typedef struct AreaLight          AreaLight;
 typedef struct OrthographicCamera OrthographicCamera;
 typedef struct PerspectiveCamera  PerspectiveCamera;
-typedef struct ResourceManager    ResourceManager;
+typedef struct RenderServer       RenderServer;
 typedef struct Pass_T            *Pass;
 typedef struct PassInterface      PassInterface;
 typedef struct PassImpl           PassImpl;
@@ -37,14 +31,12 @@ typedef struct SceneGroup         SceneGroup;
 typedef struct View               View;
 typedef struct ViewGroup          ViewGroup;
 typedef struct Renderer           Renderer;
-typedef i32 (*RenderObjectCmp)(Pass, Scene *, u64 a, u64 b);
-// TODO(lamarrr): should we make a pass sorter instead?
 
 struct Texture
 {
-  ImageView view = nullptr;
-  Vec2      uv0  = {};
-  Vec2      uv1  = {};
+  gfx::ImageView view = nullptr;
+  Vec2           uv0  = {};
+  Vec2           uv1  = {};
 };
 
 struct DirectionalLight
@@ -121,8 +113,8 @@ struct Camera
 /// resources.
 struct PassUpdateInfo
 {
-  ResourceManager   *mgr             = nullptr;
-  CommandEncoderImpl command_encoder = {};
+  RenderServer           *server          = nullptr;
+  gfx::CommandEncoderImpl command_encoder = {};
 };
 
 /// @brief Arguments to encode the commands to render a batch of objects in a
@@ -130,28 +122,28 @@ struct PassUpdateInfo
 /// @first_scene_object: pull from z_ordered index
 struct PassEncodeInfo
 {
-  ResourceManager   *mgr                = nullptr;
-  CommandEncoderImpl command_encoder    = {};
-  uid32              view               = 0;
-  bool               is_transparent     = false;
-  i64                z_index            = 0;
-  u64                first_scene_object = 0;
-  u64                num_scene_objects  = 0;
+  RenderServer           *server          = nullptr;
+  gfx::CommandEncoderImpl command_encoder = {};
+  uid32                   view            = 0;
+  bool                    is_transparent  = false;
+  i64                     z_index         = 0;
+  Span<u64>               object_indices  = {};
 };
 
 /// @init: add self and resources
 /// @deinit: remove self and resources
 struct PassInterface
 {
-  void (*init)(Pass self, ResourceManager *mgr, uid32 id)             = nullptr;
-  void (*deinit)(Pass self, ResourceManager *mgr)                     = nullptr;
-  RenderObjectCmp (*get_cmp)(Pass self)                               = nullptr;
+  void (*init)(Pass self, RenderServer *server, uid32 id)             = nullptr;
+  void (*deinit)(Pass self, RenderServer *server)                     = nullptr;
+  void (*sort_objects)(Pass, RenderServer *server, uid32 scene,
+                       Span<u64> object_indices)                      = nullptr;
   void (*update)(Pass self, PassUpdateInfo const &args)               = nullptr;
   void (*encode)(Pass self, PassEncodeInfo const &args)               = nullptr;
-  void (*acquire_scene)(Pass self, ResourceManager *mgr, uid32 scene) = nullptr;
-  void (*release_scene)(Pass self, ResourceManager *mgr, uid32 scene) = nullptr;
-  void (*acquire_view)(Pass self, ResourceManager *mgr, uid32 view)   = nullptr;
-  void (*release_view)(Pass self, ResourceManager *mgr, uid32 view)   = nullptr;
+  void (*acquire_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
+  void (*release_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
+  void (*acquire_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
+  void (*release_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
 };
 
 /// can be loaded from a DLL i.e. C++ with C-linkage => DLL
@@ -163,10 +155,9 @@ struct PassImpl
 
 struct PassGroup
 {
-  PassImpl        *passes             = nullptr;
-  RenderObjectCmp *render_object_cmps = nullptr;
-  Name            *pass_names         = nullptr;
-  SparseSet<u32>   id_map             = {};
+  PassImpl      *passes     = nullptr;
+  char const   **pass_names = nullptr;
+  SparseSet<u32> id_map     = {};
 };
 
 // full-screen post-fx passes are full-screen quads with dependency determined
@@ -229,12 +220,13 @@ struct Scene
   SparseSet<u16>    spot_lights_id_map          = {};
   SparseSet<u16>    area_lights_id_map          = {};
   SparseSet<u64>    objects_id_map              = {};
+  uid64             root_object                 = INVALID_UID64;
 };
 
 struct SceneGroup
 {
   Scene         *scenes = nullptr;
-  Name          *names  = nullptr;
+  char const   **names  = nullptr;
   SparseSet<u32> id_map = {};
 };
 
@@ -249,7 +241,7 @@ struct View
 struct ViewGroup
 {
   View          *views  = nullptr;
-  Name          *names  = nullptr;
+  char const   **names  = nullptr;
   SparseSet<u32> id_map = {};
 };
 
@@ -282,7 +274,7 @@ struct ViewGroup
 /// Manages and uploads render resources to the GPU.
 ///
 /// @remove_scene: remove all pass resources associated with a scene object.
-struct ResourceManager
+struct RenderServer
 {
   gfx::DeviceImpl device      = {};
   AllocatorImpl   allocator   = {};
@@ -297,10 +289,10 @@ struct ResourceManager
   void release_screen_color_image();
   void release_screen_depth_stencil_image();
 
-  PassImpl const  *get_pass(uid32 pass);
-  uid32            get_pass_id(char const *name);
-  Span<char const> get_pass_name(uid32 pass);
-  PassImpl const  *get_pass_by_name(char const *name);
+  PassImpl const *get_pass(uid32 pass);
+  uid32           get_pass_id(char const *name);
+  char const     *get_pass_name(uid32 pass);
+  PassImpl const *get_pass_by_name(char const *name);
 
   uid32 add_scene(Scene const &, char const *name);
   void  remove_scene(uid32 scene);
@@ -311,6 +303,7 @@ struct ResourceManager
 
   uid64 add_object(uid32 scene, RenderObjectDesc const &, uid64 parent);
   RenderObjectDesc *get_object(uid32 scene, uid64 object);
+  // remove object and all its children
   void              remove_object(uid32 scene, uid64 object);
   uid32             add_directional_light(uid32 scene);
   uid32             add_point_light(uid32 scene);
@@ -345,7 +338,7 @@ struct Renderer
 {
   // transform views from object-space to world space then to clip space using
   // view's camera
-  static void transform(ResourceManager *mgr);
+  static void transform(RenderServer *server);
 
   // perform frustum and occlusion culling of objects and light (in the same
   // z-index) then cull by z-index???? Z-index not needed in culling
@@ -355,8 +348,8 @@ struct Renderer
   // cull lights by camera frustum
   //
   // https://github.com/GPUOpen-LibrariesAndSDKs/Cauldron/blob/b92d559bd083f44df9f8f42a6ad149c1584ae94c/src/common/Misc/Misc.cpp#L265
-  static void frustum_cull(ResourceManager *mgr);
-  static void occlussion_cull(ResourceManager *mgr);
+  static void frustum_cull(RenderServer *server);
+  static void occlussion_cull(RenderServer *server);
 
   // sort objects by z-index, get min and max z-index
   // for all objects in the z-index range, invoke the passes
@@ -367,7 +360,7 @@ struct Renderer
   // sort by transparency, transparent objects last
   // sort by pass sort key
   // sort by depth?
-  static void sort(ResourceManager *mgr);
+  static void sort(RenderServer *server);
 
   // we need the mesh and object render-data is mostly pre-configured or
   // modified outside the renderer we just need to implement the post-effects
@@ -375,8 +368,7 @@ struct Renderer
   //
   // each scene is rendered and composited onto one another? can this possibly
   // work for portals?
-  static void render(ResourceManager *mgr);
+  static void render(RenderServer *server);
 };
 
-}        // namespace gfx
 }        // namespace ash

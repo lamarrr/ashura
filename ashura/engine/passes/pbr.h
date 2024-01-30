@@ -74,22 +74,22 @@ struct PBRPass
   {
   }
 
-  static void init(Pass self_, ResourceManager *mgr)
+  static void init(Pass self_, RenderServer *mgr)
   {
     // create resources
     PBRPass *self = (PBRPass *) self_;
   }
 
-  static void deinit(Pass self_, ResourceManager *mgr)
+  static void deinit(Pass self_, RenderServer *mgr)
   {
   }
 
-  static void update(Pass self_, ResourceManager *mgr)
+  static void update(Pass self_, RenderServer *mgr)
   {
     // re-build renderpass and framebuffer if needed
   }
 
-  static void encode(Pass self_, ResourceManager *mgr, Scene *scene,
+  static void encode(Pass self_, RenderServer *mgr, Scene *scene,
                      CommandEncoderImpl command_encoder, i64 z_index,
                      bool is_transparent, u64 first_scene_object,
                      u64 num_scene_objects)

@@ -188,7 +188,7 @@ struct SparseSet
     return true;
   }
 
-  // TODO(lamarrr): sort_index_with_key, sort_id_with_key
+  void reorder(SizeType const *indices);
 };
 
 }        // namespace ash

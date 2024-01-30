@@ -25,4 +25,9 @@ TEST(SparseSetTest, Start)
     ASSERT_LT(a, set.num_valid());
     ASSERT_LT(b, set.num_valid());
   })));
+
+  alg::indirect_sort(set.index_to_id, Span{set.id_to_index, 100});
+  ASSERT_TRUE(std::is_sorted(set.index_to_id, set.index_to_id + 100));
+  alg::stable_indirect_sort(set.index_to_id, Span{set.id_to_index, 100});
+  ASSERT_TRUE(std::is_sorted(set.index_to_id, set.index_to_id + 100));
 }
