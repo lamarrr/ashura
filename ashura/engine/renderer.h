@@ -164,9 +164,8 @@ struct PassGroup
 {
   PassImpl        *passes             = nullptr;
   RenderObjectCmp *render_object_cmps = nullptr;
-  u32             *id_map             = nullptr;
   Name            *pass_names         = nullptr;
-  u32              num_passes         = 0;
+  SparseSet<u32>   id_map             = {};
 };
 
 // full-screen post-fx passes are full-screen quads with dependency determined
@@ -276,10 +275,9 @@ struct Scene
 
 struct SceneGroup
 {
-  Scene *scenes = nullptr;
-  Name  *names  = nullptr;
-  u32   *id_map = nullptr;
-  u32    num    = 0;
+  Scene         *scenes = nullptr;
+  Name          *names  = nullptr;
+  SparseSet<u32> id_map{};
 };
 
 struct View
@@ -292,10 +290,9 @@ struct View
 
 struct ViewGroup
 {
-  View *views  = nullptr;
-  Name *names  = nullptr;
-  u32  *id_map = nullptr;
-  u32   num    = 0;
+  View          *views = nullptr;
+  Name          *names = nullptr;
+  SparseSet<u32> id_map{};
 };
 
 // sort by update frequency, per-frame updates, rare-updates

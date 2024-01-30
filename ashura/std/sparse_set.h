@@ -253,6 +253,8 @@ struct SparseSet
 
     free_index_head = new_free_index_head;
   }
+
+  // TODO(lamarrr): sort_index_with_key, sort_id_with_key
 };
 
 }        // namespace ash
