@@ -1137,7 +1137,7 @@ struct Mat3Affine
     return rows[index];
   }
 
-  explicit operator Mat3() const
+  explicit constexpr operator Mat3() const
   {
     return Mat3{.rows = {rows[0], rows[1], {0, 0, 1}}};
   }
@@ -1374,7 +1374,7 @@ struct Mat4Affine
     return rows[index];
   }
 
-  explicit operator Mat4() const
+  explicit constexpr operator Mat4() const
   {
     return Mat4{.rows = {rows[0], rows[1], rows[2], {0, 0, 0, 1}}};
   }

@@ -66,35 +66,23 @@ struct PBRPass
   Sampler             sampler               = nullptr;
 
   u64 add_object(Scene *scene, PBRMesh const &mesh, PBRMaterial const &material,
-                 Box aabb)
-  {
-  }
+                 Box aabb);
 
-  void remove_object(Scene *scene, u64 object)
-  {
-  }
+  void remove_object(Scene *scene, u64 object);
 
-  static void init(Pass self_, RenderServer *mgr)
-  {
-    // create resources
-    PBRPass *self = (PBRPass *) self_;
-  }
+  // create resources
+  // PBRPass *self = (PBRPass *) self_;
+  static void init(Pass self_, RenderServer *mgr);
 
-  static void deinit(Pass self_, RenderServer *mgr)
-  {
-  }
+  static void deinit(Pass self_, RenderServer *mgr);
 
-  static void update(Pass self_, RenderServer *mgr)
-  {
-    // re-build renderpass and framebuffer if needed
-  }
+  // re-build renderpass and framebuffer if needed
+  static void update(Pass self_, RenderServer *mgr);
 
   static void encode(Pass self_, RenderServer *mgr, Scene *scene,
                      CommandEncoderImpl command_encoder, i64 z_index,
                      bool is_transparent, u64 first_scene_object,
-                     u64 num_scene_objects)
-  {
-  }
+                     u64 num_scene_objects);
 
   static constexpr PassInterface const interface{
       .init = nullptr, .deinit = nullptr, .update = nullptr, .encode = nullptr};

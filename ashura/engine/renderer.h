@@ -199,29 +199,38 @@ struct RenderObjectDesc
 // will be scaled to the screen dimensions eventually.
 struct Scene
 {
-  AmbientLight      ambient_light               = {};
-  DirectionalLight *directional_lights          = nullptr;
-  PointLight       *point_lights                = nullptr;
-  SpotLight        *spot_lights                 = nullptr;
-  AreaLight        *area_lights                 = nullptr;
-  SceneNode        *object_nodes                = nullptr;
-  Mat4Affine       *object_local_transforms     = nullptr;
-  Mat4Affine       *object_global_transforms    = nullptr;
-  Box              *object_aabb                 = nullptr;
-  i64              *object_z_index              = nullptr;
-  u64              *object_transparency_mask    = nullptr;
-  u64              *objects_sorted              = nullptr;
-  u16               directional_lights_capacity = 0;
-  u16               point_lights_capacity       = 0;
-  u16               spot_lights_capacity        = 0;
-  u16               area_lights_capacity        = 0;
-  u64               objects_capacity            = 0;
-  SparseSet<u16>    directional_lights_id_map   = {};
-  SparseSet<u16>    point_lights_id_map         = {};
-  SparseSet<u16>    spot_lights_id_map          = {};
-  SparseSet<u16>    area_lights_id_map          = {};
-  SparseSet<u64>    objects_id_map              = {};
-  uid64             root_object                 = INVALID_UID64;
+  AmbientLight      ambient_light                     = {};
+  DirectionalLight *directional_lights                = nullptr;
+  PointLight       *point_lights                      = nullptr;
+  SpotLight        *spot_lights                       = nullptr;
+  AreaLight        *area_lights                       = nullptr;
+  SceneNode        *object_nodes                      = nullptr;
+  Mat4Affine       *object_local_transforms           = nullptr;
+  Mat4Affine       *object_global_transforms          = nullptr;
+  Box              *object_aabb                       = nullptr;
+  i64              *object_z_index                    = nullptr;
+  u64              *object_transparency_mask          = nullptr;
+  u16               directional_lights_capacity       = 0;
+  u16               point_lights_capacity             = 0;
+  u16               spot_lights_capacity              = 0;
+  u16               area_lights_capacity              = 0;
+  u64               object_nodes_capacity             = 0;
+  u64               object_local_transforms_capacity  = 0;
+  u64               object_global_transforms_capacity = 0;
+  u64               object_aabb_capacity              = 0;
+  u64               object_z_index_capacity           = 0;
+  u64               object_transparency_mask_capacity = 0;
+  SparseSet<u32>    directional_lights_id_map         = {};
+  SparseSet<u32>    point_lights_id_map               = {};
+  SparseSet<u32>    spot_lights_id_map                = {};
+  SparseSet<u32>    area_lights_id_map                = {};
+  SparseSet<u64>    objects_id_map                    = {};
+  uid64             root_object                       = INVALID_UID64;
+
+  constexpr u64 num_objects() const
+  {
+    return objects_id_map.num_valid();
+  }
 };
 
 struct SceneGroup
@@ -229,14 +238,25 @@ struct SceneGroup
   Scene         *scenes = nullptr;
   char const   **names  = nullptr;
   SparseSet<u32> id_map = {};
+
+  constexpr u32 num_scenes() const
+  {
+    return id_map.num_valid();
+  }
 };
 
 struct View
 {
-  Camera camera           = {};
-  uid32  scene            = 0;
-  u64   *object_cull_mask = nullptr;
-  // todo(lamarrr): effective object clip space volume, used for frustum culling
+  Camera camera                         = {};
+  uid32  scene                          = 0;
+  u64   *object_cull_mask               = nullptr;
+  u64   *point_light_cull_mask          = nullptr;
+  u64   *spot_light_cull_mask           = nullptr;
+  u64   *area_light_cull_mask           = nullptr;
+  u64    object_cull_mask_capacity      = 0;
+  u32    point_light_cull_mask_capacity = 0;
+  u32    spot_light_cull_mask_capacity  = 0;
+  u32    area_light_cull_mask_capacity  = 0;
 };
 
 struct ViewGroup
@@ -244,6 +264,11 @@ struct ViewGroup
   View          *views  = nullptr;
   char const   **names  = nullptr;
   SparseSet<u32> id_map = {};
+
+  constexpr u32 num_views() const
+  {
+    return id_map.num_valid();
+  }
 };
 
 // sort by update frequency, per-frame updates, rare-updates
@@ -285,40 +310,46 @@ struct RenderServer
 
   // TODO(lamarrr): how to cache the framebuffer and renderpass and not allocate
   // it for every time the renderpass and framebuffers are requested
-  void acquire_screen_color_image();
-  void acquire_screen_depth_stencil_image();
-  void release_screen_color_image();
-  void release_screen_depth_stencil_image();
+  constexpr void acquire_screen_color_image();
+  constexpr void acquire_screen_depth_stencil_image();
+  constexpr void release_screen_color_image();
+  constexpr void release_screen_depth_stencil_image();
 
-  PassImpl const *get_pass(uid32 pass);
-  uid32           get_pass_id(char const *name);
-  char const     *get_pass_name(uid32 pass);
-  PassImpl const *get_pass_by_name(char const *name);
+  constexpr PassImpl const *get_pass(uid32 pass);
+  constexpr uid32           get_pass_id(char const *name);
+  constexpr char const     *get_pass_name(uid32 pass);
+  constexpr PassImpl const *get_pass_by_name(char const *name);
+  constexpr uid32           register_pass();
 
-  uid32 add_scene(Scene const &, char const *name);
-  void  remove_scene(uid32 scene);
-  uid32 add_view(View const &, char const *name);
-  void  remove_view(uid32 scene);
+  // on objects added to scene, resize the cull masks
+  constexpr uid32   create_scene(char const *name);
+  constexpr Scene  *get_scene(uid32 scene);
+  constexpr void    remove_scene(uid32 scene);
+  constexpr uid32   add_view(View const &, char const *name);
+  constexpr View   *get_view(uid32 view);
+  constexpr Camera *get_camera(uid32 view);
+  constexpr void    remove_view(uid32 view);
 
-  Camera *get_view_camera(uid32 view);
-
-// once an object is added to the scene, if it is not at the end of the tree, then the tree should be re-sorted based on depth
-  uid64 add_object(uid32 scene, RenderObjectDesc const &, uid64 parent);
-  RenderObjectDesc *get_object(uid32 scene, uid64 object);
+  // once an object is added to the scene, if it is not at the end of the tree,
+  // then the tree should be re-sorted based on depth
+  constexpr uid64             add_object(uid32 scene, RenderObjectDesc const &,
+                                         uid64 parent);
+  constexpr RenderObjectDesc *get_object(uid32 scene, uid64 object);
   // remove object and all its children
-  void              remove_object(uid32 scene, uid64 object);
-  uid32             add_directional_light(uid32 scene);
-  uid32             add_point_light(uid32 scene);
-  uid32             add_spot_light(uid32 scene);
-  uid32             add_area_light(uid32 scene);
-  DirectionalLight *get_directional_light(uid32 scene, uid32 light);
-  PointLight       *get_point_light(uid32 scene, uid32 light);
-  SpotLight        *get_spot_light(uid32 scene, uid32 light);
-  AreaLight        *get_area_light(uid32 scene, uid32 light);
-  void              remove_directional_light(uid32 scene, uid32 light);
-  void              remove_point_light(uid32 scene, uid32 light);
-  void              remove_spot_light(uid32 scene, uid32 light);
-  void              remove_area_light(uid32 scene, uid32 light);
+  constexpr void              remove_object(uid32 scene, uid64 object);
+  constexpr uid32             add_directional_light(uid32 scene);
+  constexpr uid32             add_point_light(uid32 scene);
+  constexpr uid32             add_spot_light(uid32 scene);
+  constexpr uid32             add_area_light(uid32 scene);
+  constexpr AmbientLight     *get_ambient_light(uid32 scene);
+  constexpr DirectionalLight *get_directional_light(uid32 scene, uid32 light);
+  constexpr PointLight       *get_point_light(uid32 scene, uid32 light);
+  constexpr SpotLight        *get_spot_light(uid32 scene, uid32 light);
+  constexpr AreaLight        *get_area_light(uid32 scene, uid32 light);
+  constexpr void remove_directional_light(uid32 scene, uid32 light);
+  constexpr void remove_point_light(uid32 scene, uid32 light);
+  constexpr void remove_spot_light(uid32 scene, uid32 light);
+  constexpr void remove_area_light(uid32 scene, uid32 light);
 };
 
 /// transform->frustum_cull->occlusion_cull->sort->render
@@ -349,7 +380,6 @@ struct Renderer
   //
   // cull lights by camera frustum
   //
-  // https://github.com/GPUOpen-LibrariesAndSDKs/Cauldron/blob/b92d559bd083f44df9f8f42a6ad149c1584ae94c/src/common/Misc/Misc.cpp#L265
   static void frustum_cull(RenderServer *server);
   static void occlussion_cull(RenderServer *server);
 
