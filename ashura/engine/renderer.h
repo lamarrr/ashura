@@ -78,7 +78,7 @@ struct AreaLight
 /// @z_far: The floating-point distance to the far clipping plane. This value
 /// MUST NOT be equal to zero. zfar MUST be greater than znear.
 /// @z_near: The floating-point distance to the near clipping plane.
-struct OrthographicCamera
+struct Orthographic
 {
   f32 x_mag  = 0;
   f32 y_mag  = 0;
@@ -91,7 +91,7 @@ struct OrthographicCamera
 /// SHOULD be less than π.
 /// @z_far: The floating-point distance to the far clipping plane.
 /// @z_near: The floating-point distance to the near clipping plane.
-struct PerspectiveCamera
+struct Perspective
 {
   f32 aspect_ratio = 0;
   f32 y_fov        = 0;
@@ -113,7 +113,6 @@ struct Camera
 /// resources.
 struct PassUpdateInfo
 {
-  RenderServer           *server          = nullptr;
   gfx::CommandEncoderImpl command_encoder = {};
 };
 
@@ -122,7 +121,6 @@ struct PassUpdateInfo
 /// @first_scene_object: pull from z_ordered index
 struct PassEncodeInfo
 {
-  RenderServer           *server          = nullptr;
   gfx::CommandEncoderImpl command_encoder = {};
   uid32                   view            = 0;
   bool                    is_transparent  = false;
@@ -138,8 +136,10 @@ struct PassInterface
   void (*deinit)(Pass self, RenderServer *server)                     = nullptr;
   void (*sort_objects)(Pass, RenderServer *server, uid32 scene,
                        Span<u64> object_indices)                      = nullptr;
-  void (*update)(Pass self, PassUpdateInfo const &args)               = nullptr;
-  void (*encode)(Pass self, PassEncodeInfo const &args)               = nullptr;
+  void (*update)(Pass self, RenderServer *server,
+                 PassUpdateInfo const &args)                          = nullptr;
+  void (*encode)(Pass self, RenderServer *server,
+                 PassEncodeInfo const &args)                          = nullptr;
   void (*acquire_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
   void (*release_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
   void (*acquire_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
@@ -351,14 +351,15 @@ struct RenderServer
   constexpr void remove_area_light(uid32 scene, uid32 light);
 };
 
-/// transform->frustum_cull->occlusion_cull->sort->render
+/// transform->frustum_cull->sort->render
 ///
 // Invocation Procedure
 //
 // - sort scene objects by z-index
 // - for objects in the same z-index, sort by transparency (transparent objects
 // drawn last)
-// - sort transparent objects by AABB from camera frustum
+// - sort transparent objects by AABB from camera frustum, this will help with
+// layering/blending one object atop of the other
 // - for objects in the same z-index, sort by passes so objects in the same pass
 // can be rendered together.
 // - sort objects in the same pass by key from render pass (materials and
@@ -372,15 +373,9 @@ struct Renderer
   // view's camera
   static void transform(RenderServer *server);
 
-  // perform frustum and occlusion culling of objects and light (in the same
+  // perform frustum culling of objects and light (in the same
   // z-index) then cull by z-index???? Z-index not needed in culling
-  // occlussion culling only happens when a fully-opaque object occludes another
-  // object.
-  //
-  // cull lights by camera frustum
-  //
   static void frustum_cull(RenderServer *server);
-  static void occlussion_cull(RenderServer *server);
 
   // sort objects by z-index, get min and max z-index
   // for all objects in the z-index range, invoke the passes
