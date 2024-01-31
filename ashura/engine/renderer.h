@@ -319,21 +319,20 @@ struct RenderServer
   constexpr uid32           get_pass_id(char const *name);
   constexpr char const     *get_pass_name(uid32 pass);
   constexpr PassImpl const *get_pass_by_name(char const *name);
-  constexpr uid32           register_pass();
+  constexpr uid32           register_pass(PassImpl pass, char const *name);
 
   // on objects added to scene, resize the cull masks
-  constexpr uid32   create_scene(char const *name);
-  constexpr Scene  *get_scene(uid32 scene);
-  constexpr void    remove_scene(uid32 scene);
-  constexpr uid32   add_view(View const &, char const *name);
-  constexpr View   *get_view(uid32 view);
-  constexpr Camera *get_camera(uid32 view);
-  constexpr void    remove_view(uid32 view);
+  constexpr uid32  create_scene(char const *name);
+  constexpr Scene *get_scene(uid32 scene);
+  constexpr void   remove_scene(uid32 scene);
+  constexpr uid32  add_view(uid32 scene, char const *name);
+  constexpr View  *get_view(uid32 view);
+  constexpr void   remove_view(uid32 view);
 
   // once an object is added to the scene, if it is not at the end of the tree,
   // then the tree should be re-sorted based on depth
-  constexpr uid64             add_object(uid32 scene, RenderObjectDesc const &,
-                                         uid64 parent);
+  constexpr uid64             add_object(uid32 scene, uid64 parent,
+                                         RenderObjectDesc const &);
   constexpr RenderObjectDesc *get_object(uid32 scene, uid64 object);
   // remove object and all its children
   constexpr void              remove_object(uid32 scene, uid64 object);
