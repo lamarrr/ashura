@@ -356,11 +356,28 @@ inline Mat4Affine affine_rotate3d_z(f32 radians)
                              {0, 0, 1, 0}}};
 }
 
-// TODO(lamarrr): implement for affine
 constexpr Vec2 transform(Mat3 const &t, Vec2 value)
 {
   Vec3 v = t * Vec3{value.x, value.y, 1};
   return Vec2{v.x, v.y};
+}
+
+constexpr Vec2 transform(Mat3Affine const &t, Vec2 value)
+{
+  Vec3 v = t * Vec3{value.x, value.y, 1};
+  return Vec2{v.x, v.y};
+}
+
+constexpr Vec3 transform(Mat4 const &t, Vec3 value)
+{
+  Vec4 v = t * Vec4{value.x, value.y, value.z, 1};
+  return Vec3{v.x, v.y, v.z};
+}
+
+constexpr Vec3 transform(Mat4Affine const &t, Vec3 value)
+{
+  Vec4 v = t * Vec4{value.x, value.y, 1};
+  return Vec3{v.x, v.y, v.z};
 }
 
 // TODO(lamarrr): is this correct? for transformed vertices

@@ -175,12 +175,12 @@ struct PassGroup
 /// @pass: pass to be used to render this object
 struct SceneNode
 {
-  uid64 parent       = 0;
-  uid64 next_sibling = 0;
-  uid64 first_child  = 0;
-  u32   depth        = 0;
-  uid32 pass         = 0;
-  uid64 pass_id      = 0;
+  uid64 parent         = INVALID_UID64;
+  uid64 next_sibling   = INVALID_UID64;
+  uid64 first_child    = INVALID_UID64;
+  u32   depth          = 0;
+  uid32 pass           = INVALID_UID32;
+  uid64 pass_object_id = INVALID_UID64;
 };
 
 // TODO(lamarrr): dispatch sorting by passes?
@@ -206,6 +206,7 @@ struct Scene
   AreaLight        *area_lights                 = nullptr;
   SceneNode        *object_nodes                = nullptr;
   Mat4Affine       *object_local_transforms     = nullptr;
+  Mat4Affine       *object_global_transforms    = nullptr;
   Box              *object_aabb                 = nullptr;
   i64              *object_z_index              = nullptr;
   u64              *object_transparency_mask    = nullptr;
@@ -301,6 +302,7 @@ struct RenderServer
 
   Camera *get_view_camera(uid32 view);
 
+// once an object is added to the scene, if it is not at the end of the tree, then the tree should be re-sorted based on depth
   uid64 add_object(uid32 scene, RenderObjectDesc const &, uid64 parent);
   RenderObjectDesc *get_object(uid32 scene, uid64 object);
   // remove object and all its children
