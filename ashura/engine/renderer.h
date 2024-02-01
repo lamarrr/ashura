@@ -192,6 +192,23 @@ struct RenderObjectDesc
   bool       is_transparent = false;
 };
 
+struct SceneObject
+{
+  SceneNode     *node                       = nullptr;
+  Mat4Affine    *local_transform            = nullptr;
+  Mat4Affine    *global_transform           = nullptr;
+  Box           *aabb                       = nullptr;
+  i64           *z_index                    = nullptr;
+  u64           *transparency_mask          = nullptr;
+  u64            nodes_capacity             = 0;
+  u64            local_transforms_capacity  = 0;
+  u64            global_transforms_capacity = 0;
+  u64            aabb_capacity              = 0;
+  u64            z_index_capacity           = 0;
+  u64            transparency_mask_capacity = 0;
+  SparseSet<u64> id_map                     = {};
+};
+
 // A scene repared for rendering
 //
 // Unit is -1 to +1 for x,y,z. will help with objects that cover the whole
@@ -199,37 +216,25 @@ struct RenderObjectDesc
 // will be scaled to the screen dimensions eventually.
 struct Scene
 {
-  AmbientLight      ambient_light                     = {};
-  DirectionalLight *directional_lights                = nullptr;
-  PointLight       *point_lights                      = nullptr;
-  SpotLight        *spot_lights                       = nullptr;
-  AreaLight        *area_lights                       = nullptr;
-  SceneNode        *object_nodes                      = nullptr;
-  Mat4Affine       *object_local_transforms           = nullptr;
-  Mat4Affine       *object_global_transforms          = nullptr;
-  Box              *object_aabb                       = nullptr;
-  i64              *object_z_index                    = nullptr;
-  u64              *object_transparency_mask          = nullptr;
-  u16               directional_lights_capacity       = 0;
-  u16               point_lights_capacity             = 0;
-  u16               spot_lights_capacity              = 0;
-  u16               area_lights_capacity              = 0;
-  u64               object_nodes_capacity             = 0;
-  u64               object_local_transforms_capacity  = 0;
-  u64               object_global_transforms_capacity = 0;
-  u64               object_aabb_capacity              = 0;
-  u64               object_z_index_capacity           = 0;
-  u64               object_transparency_mask_capacity = 0;
-  SparseSet<u32>    directional_lights_id_map         = {};
-  SparseSet<u32>    point_lights_id_map               = {};
-  SparseSet<u32>    spot_lights_id_map                = {};
-  SparseSet<u32>    area_lights_id_map                = {};
-  SparseSet<u64>    objects_id_map                    = {};
-  uid64             root_object                       = INVALID_UID64;
+  AmbientLight      ambient_light               = {};
+  DirectionalLight *directional_lights          = nullptr;
+  SparseSet<u32>    directional_lights_id_map   = {};
+  PointLight       *point_lights                = nullptr;
+  SparseSet<u32>    point_lights_id_map         = {};
+  SpotLight        *spot_lights                 = nullptr;
+  SparseSet<u32>    spot_lights_id_map          = {};
+  AreaLight        *area_lights                 = nullptr;
+  SparseSet<u32>    area_lights_id_map          = {};
+  u16               directional_lights_capacity = 0;
+  u16               point_lights_capacity       = 0;
+  u16               spot_lights_capacity        = 0;
+  u16               area_lights_capacity        = 0;
+  SceneObject       objects                     = {};
+  uid64             root_object                 = INVALID_UID64;
 
   constexpr u64 num_objects() const
   {
-    return objects_id_map.num_valid();
+    return objects.id_map.num_valid();
   }
 };
 

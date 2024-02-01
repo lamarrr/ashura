@@ -12,10 +12,10 @@ void Renderer::transform(RenderServer *server)
     u64 const num_objects = scene.num_objects();
     for (u64 i = 0; i < num_objects; i++)
     {
-      scene.object_global_transforms[i] =
-          scene.object_global_transforms[scene.objects_id_map.unsafe_to_index(
-              scene.object_nodes[i].parent)] *
-          scene.object_local_transforms[i];
+      scene.objects.global_transform[i] =
+          scene.objects.global_transform[scene.objects.id_map.unsafe_to_index(
+              scene.objects.node[i].parent)] *
+          scene.objects.local_transform[i];
     }
   }
 }
@@ -34,8 +34,8 @@ void Renderer::frustum_cull(RenderServer *server)
           view.object_cull_mask, i,
           !is_outside_frustum(
               static_cast<Mat4>(view.camera.projection * view.camera.view *
-                                scene->object_global_transforms[i]),
-              scene->object_aabb[i]));
+                                scene->objects.global_transform[i]),
+              scene->objects.aabb[i]));
     }
   }
 }
