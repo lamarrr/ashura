@@ -31,8 +31,8 @@ typedef struct ViewGroup          ViewGroup;
 
 enum class RenderError : i32
 {
-  _Reserved_  = 0,
-  OutOfMemory = 1
+  __RenderErrorReserved = 0,
+  OutOfMemory           = 1
 };
 
 struct Texture
@@ -121,7 +121,6 @@ struct PassUpdateInfo
 
 /// @brief Arguments to encode the commands to render a batch of objects in a
 /// scene.
-/// @first_scene_object: pull from z_ordered index
 struct PassEncodeInfo
 {
   gfx::CommandEncoderImpl command_encoder = {};
@@ -131,8 +130,14 @@ struct PassEncodeInfo
   Span<u64>               object_indices  = {};
 };
 
-/// @init: add self and resources
+/// @init: add self and resources to server
 /// @deinit: remove self and resources
+/// @sort: sort scene objects belonging to passes for efficient batching
+/// @encode: encode compute/graphics commands to gpu command encoder
+/// @acquire_scene: @acquire_view: new scene/view was added, add resources or
+/// begin tracking it
+/// @release_scene: @release_view: scene/view was removed, remove associated
+/// resources or stop tracking it
 struct PassInterface
 {
   void (*init)(Pass self, RenderServer *server, uid32 id)             = nullptr;
@@ -194,7 +199,7 @@ struct RenderObjectDesc
   bool       is_transparent = false;
 };
 
-struct SceneObject
+struct SceneObjects
 {
   SceneNode     *node                       = nullptr;
   Mat4Affine    *local_transform            = nullptr;
@@ -202,20 +207,18 @@ struct SceneObject
   Box           *aabb                       = nullptr;
   i64           *z_index                    = nullptr;
   u64           *transparency_mask          = nullptr;
-  u64            nodes_capacity             = 0;
-  u64            local_transforms_capacity  = 0;
-  u64            global_transforms_capacity = 0;
+  u64           *sort_index                 = nullptr;
+  u64            node_capacity              = 0;
+  u64            local_transform_capacity   = 0;
+  u64            global_transform_capacity  = 0;
   u64            aabb_capacity              = 0;
   u64            z_index_capacity           = 0;
   u64            transparency_mask_capacity = 0;
+  u64            sort_index_capacity        = 0;
   SparseSet<u64> id_map                     = {};
 };
 
 // A scene repared for rendering
-//
-// Unit is -1 to +1 for x,y,z. will help with objects that cover the whole
-// scene.
-// will be scaled to the screen dimensions eventually.
 struct Scene
 {
   char const       *name                        = nullptr;
@@ -232,7 +235,7 @@ struct Scene
   u32               point_lights_capacity       = 0;
   u32               spot_lights_capacity        = 0;
   u32               area_lights_capacity        = 0;
-  SceneObject       objects                     = {};
+  SceneObjects      objects                     = {};
 
   constexpr u64 num_objects() const
   {
@@ -310,7 +313,8 @@ struct ViewGroup
 /// renderpass and not allocate it for every time the renderpass and
 /// framebuffers are requested
 /// @add_object: once an object is added to the scene, if it is not at the end
-/// of the tree, then the tree should be re-sorted based on depth
+/// of the tree, then the tree should be re-sorted based on depth, resize and
+/// iota-fill sort indices, sort indices, resize object cull masks for all views
 /// @remove_object: remove object and all its children
 struct RenderServer
 {
@@ -320,6 +324,10 @@ struct RenderServer
   SceneGroup      scene_group = {};
   ViewGroup       view_group  = {};
 
+  void                       acquire_screen_color_image();
+  void                       acquire_screen_depth_stencil_image();
+  void                       release_screen_color_image();
+  void                       release_screen_depth_stencil_image();
   Option<PassImpl const *>   get_pass(uid32 pass);
   Option<uid32>              get_pass_id(char const *name);
   Option<uid32>              register_pass(PassImpl pass);
@@ -347,62 +355,10 @@ struct RenderServer
   void                       remove_point_light(uid32 scene, uid32 id);
   void                       remove_spot_light(uid32 scene, uid32 id);
   void                       remove_area_light(uid32 scene, uid32 id);
-
-  void acquire_screen_color_image();
-  void acquire_screen_depth_stencil_image();
-  void release_screen_color_image();
-  void release_screen_depth_stencil_image();
-
-  /// transform->frustum_cull->sort->render
-  ///
-  // Invocation Procedure
-  //
-  // - sort scene objects by z-index
-  // - for objects in the same z-index, sort by transparency (transparent
-  // objects drawn last)
-  // - sort transparent objects by AABB from camera frustum, this will help with
-  // layering/blending one object atop of the other
-  // - for objects in the same z-index, sort by passes so objects in the same
-  // pass can be rendered together.
-  // - sort objects in the same pass by key from render pass (materials and
-  // textures and resources) to minimize pipeline state changes
-  // - for the z-index group sorted objects with the same passes, sort using the
-  // PassCmp key
-  // - for each partition, invoke the pass with the objects
-  //
-  //
-  //
-  //
-  //
-  // transform views from object-space to world space then to clip space using
-  // view's camera
-  void transform_();
-
-  // perform frustum culling of objects and light (in the same
-  // z-index) then cull by z-index???? Z-index not needed in culling
-  Result<Void, RenderError> frustum_cull_();
-
-  // sort objects by z-index, get min and max z-index
-  // for all objects in the z-index range, invoke the passes
-  // pass->encode(z_index, begin_objects, num_objects)
-  //
-  // also calls PassObjectCmp to sort all objects belonging to a pass invocation
-  // sort by z-index
-  // sort by transparency, transparent objects last
-  // sort by pass sort key
-  // sort by depth?
-  void sort_();
-
-  //
-  //
-  //
-  // we need the mesh and object render-data is mostly pre-configured or
-  // modified outside the renderer we just need to implement the post-effects
-  // and render-orders and add other passes on top of the objects
-  //
-  // each scene is rendered and composited onto one another? can this possibly
-  // work for portals?
-  Result<Void, RenderError> render();
+  void                       transform_();
+  Result<Void, RenderError>  frustum_cull_();
+  Result<Void, RenderError>  sort_();
+  Result<Void, RenderError>  render_();
 };
 
 }        // namespace ash

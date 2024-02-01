@@ -3,6 +3,13 @@
 namespace ash
 {
 
+struct Noop
+{
+  constexpr void operator()(auto &&...) const
+  {
+  }
+};
+
 struct Add
 {
   constexpr auto operator()(auto const &a, auto const &b) const
@@ -136,6 +143,7 @@ struct Clamp
   }
 };
 
+constexpr Noop           noop;
 constexpr Add            add;
 constexpr Sub            sub;
 constexpr Mul            mul;

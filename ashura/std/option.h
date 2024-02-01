@@ -158,7 +158,7 @@ struct [[nodiscard]] Option
     }
   }
 
-  [[nodiscard]] constexpr T &value()
+  constexpr T &value()
   {
     if (is_some_)
     {
@@ -167,7 +167,7 @@ struct [[nodiscard]] Option
     panic_logger.panic("Expected value in Option but got None");
   }
 
-  [[nodiscard]] constexpr T const &value() const
+  constexpr T const &value() const
   {
     if (is_some_)
     {
@@ -194,7 +194,7 @@ struct [[nodiscard]] Option
     return None;
   }
 
-  [[nodiscard]] constexpr T expect(char const *msg)
+  constexpr T expect(char const *msg)
   {
     if (is_some_)
     {
@@ -203,7 +203,7 @@ struct [[nodiscard]] Option
     panic_logger.panic(msg);
   }
 
-  [[nodiscard]] constexpr T unwrap()
+  constexpr T unwrap()
   {
     if (is_some_)
     {
@@ -213,7 +213,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename U>
-  [[nodiscard]] constexpr T unwrap_or(U &&alt)
+  constexpr T unwrap_or(U &&alt)
   {
     if (is_some_)
     {
@@ -223,7 +223,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr T unwrap_or_else(Fn &&op)
+  constexpr T unwrap_or_else(Fn &&op)
   {
     if (is_some_)
     {
@@ -233,7 +233,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto map(Fn &&op)
+  constexpr auto map(Fn &&op)
   {
     using U = decltype(op(value_));
     if (is_some_)
@@ -244,7 +244,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename Fn, typename U>
-  [[nodiscard]] constexpr auto map_or(Fn &&op, U &&alt)
+  constexpr auto map_or(Fn &&op, U &&alt)
   {
     if (is_some_)
     {
@@ -254,7 +254,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename Fn, typename AltFn>
-  [[nodiscard]] constexpr auto map_or_else(Fn op, AltFn alt_fn)
+  constexpr auto map_or_else(Fn op, AltFn alt_fn)
   {
     if (is_some_)
     {
@@ -264,7 +264,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto and_then(Fn &&op)
+  constexpr auto and_then(Fn &&op)
   {
     using OutOption = decltype(op(value_));
     if (is_some_)
@@ -275,7 +275,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto or_else(Fn &&op)
+  constexpr auto or_else(Fn &&op)
   {
     using OutOption = decltype(op());
     if (is_some_)
@@ -302,7 +302,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename SomeFn, typename NoneFn>
-  [[nodiscard]] constexpr auto match(SomeFn &&some_fn, NoneFn &&none_fn)
+  constexpr auto match(SomeFn &&some_fn, NoneFn &&none_fn)
   {
     if (is_some_)
     {
@@ -312,7 +312,7 @@ struct [[nodiscard]] Option
   }
 
   template <typename SomeFn, typename NoneFn>
-  [[nodiscard]] constexpr auto match(SomeFn &&some_fn, NoneFn &&none_fn) const
+  constexpr auto match(SomeFn &&some_fn, NoneFn &&none_fn) const
   {
     if (is_some_)
     {

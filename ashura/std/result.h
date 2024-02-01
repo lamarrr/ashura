@@ -203,7 +203,7 @@ struct [[nodiscard]] Result
     return error_ == cmp;
   }
 
-  [[nodiscard]] constexpr T &value()
+  constexpr T &value()
   {
     if (is_ok_)
     {
@@ -212,7 +212,7 @@ struct [[nodiscard]] Result
     panic_logger.panic(".value() called on result with Error{=", error_, "}");
   }
 
-  [[nodiscard]] constexpr T const &value() const
+  constexpr T const &value() const
   {
     if (is_ok_)
     {
@@ -221,7 +221,7 @@ struct [[nodiscard]] Result
     panic_logger.panic(".value() called on result with Error{=", error_, "}");
   }
 
-  [[nodiscard]] constexpr E &err()
+  constexpr E &err()
   {
     if (!is_ok_)
     {
@@ -230,7 +230,7 @@ struct [[nodiscard]] Result
     panic_logger.panic(".err() called on result with Value{=", value_, "}");
   }
 
-  [[nodiscard]] constexpr E const &err() const
+  constexpr E const &err() const
   {
     if (!is_ok_)
     {
@@ -258,7 +258,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto map(Fn &&op)
+  constexpr auto map(Fn &&op)
   {
     using U = decltype(((Fn &&) op)(value_));
     if (is_ok_)
@@ -269,7 +269,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename Fn, typename U>
-  [[nodiscard]] constexpr auto map_or(Fn &&op, U &&alt)
+  constexpr auto map_or(Fn &&op, U &&alt)
   {
     if (is_ok_)
     {
@@ -279,7 +279,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename Fn, typename AltFn>
-  [[nodiscard]] constexpr auto map_or_else(Fn &&op, AltFn &&alt_op)
+  constexpr auto map_or_else(Fn &&op, AltFn &&alt_op)
   {
     if (is_ok_)
     {
@@ -289,7 +289,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto and_then(Fn &&op)
+  constexpr auto and_then(Fn &&op)
   {
     using OutResult = decltype(((Fn &&) op)(value_));
     if (is_ok_)
@@ -300,7 +300,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr auto or_else(Fn &&op)
+  constexpr auto or_else(Fn &&op)
   {
     using OutResult = decltype(((Fn &&) op)(error_));
     if (is_ok_)
@@ -311,7 +311,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename U>
-  [[nodiscard]] constexpr T unwrap_or(U &&alt)
+  constexpr T unwrap_or(U &&alt)
   {
     if (is_ok_)
     {
@@ -321,7 +321,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename Fn>
-  [[nodiscard]] constexpr T unwrap_or_else(Fn &&op)
+  constexpr T unwrap_or_else(Fn &&op)
   {
     if (is_ok_)
     {
@@ -330,7 +330,7 @@ struct [[nodiscard]] Result
     return ((Fn &&) op)(error_);
   }
 
-  [[nodiscard]] constexpr T unwrap()
+  constexpr T unwrap()
   {
     if (is_ok_)
     {
@@ -339,7 +339,7 @@ struct [[nodiscard]] Result
     panic_logger.panic("Expected Value in Result but got Error{=", error_, "}");
   }
 
-  [[nodiscard]] constexpr T expect(char const *msg)
+  constexpr T expect(char const *msg)
   {
     if (is_ok_)
     {
@@ -348,7 +348,7 @@ struct [[nodiscard]] Result
     panic_logger.panic(msg);
   }
 
-  [[nodiscard]] constexpr E unwrap_err()
+  constexpr E unwrap_err()
   {
     if (!is_ok_)
     {
@@ -357,7 +357,7 @@ struct [[nodiscard]] Result
     panic_logger.panic("Expected Error in Result but got Value{=", value_, "}");
   }
 
-  [[nodiscard]] constexpr E expect_err(char const *msg)
+  constexpr E expect_err(char const *msg)
   {
     if (!is_ok_)
     {
@@ -367,7 +367,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename OkFn, typename ErrFn>
-  [[nodiscard]] constexpr auto match(OkFn &&ok_fn, ErrFn &&err_fn)
+  constexpr auto match(OkFn &&ok_fn, ErrFn &&err_fn)
   {
     if (is_ok_)
     {
@@ -377,7 +377,7 @@ struct [[nodiscard]] Result
   }
 
   template <typename OkFn, typename ErrFn>
-  [[nodiscard]] constexpr auto match(OkFn &&ok_fn, ErrFn &&err_fn) const
+  constexpr auto match(OkFn &&ok_fn, ErrFn &&err_fn) const
   {
     if (is_ok_)
     {
