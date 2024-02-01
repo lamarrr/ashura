@@ -19,6 +19,8 @@ constexpr u32 pixel_byte_size(gfx::Format fmt)
       return 4;
     case gfx::Format::B8G8R8A8_UNORM:
       return 4;
+    case gfx::Format::R32_SFLOAT:
+      return 4;
     case gfx::Format::R32G32_SFLOAT:
       return 8;
     case gfx::Format::R32G32B32_SFLOAT:
@@ -121,8 +123,7 @@ struct ImageSpan
 };
 
 template <typename T, typename U>
-constexpr bool copy_image(ImageSpan<T const> const &src,
-                          ImageSpan<U> const       &dst)
+bool copy_image(ImageSpan<T const> const &src, ImageSpan<U> const &dst)
 {
   if (src.format != dst.format || src.width > dst.width ||
       src.height > dst.height)

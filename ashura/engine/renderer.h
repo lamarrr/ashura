@@ -3,6 +3,7 @@
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/box.h"
 #include "ashura/std/image.h"
+#include "ashura/std/option.h"
 #include "ashura/std/sparse_set.h"
 #include "ashura/std/types.h"
 
@@ -315,31 +316,31 @@ struct RenderServer
   SceneGroup      scene_group = {};
   ViewGroup       view_group  = {};
 
-  PassImpl const *get_pass(uid32 pass);
-  uid32           get_pass_id(char const *name);
-  uid32           register_pass(PassImpl pass);
-  uid32           create_scene(char const *name);
-  Scene          *get_scene(uid32 scene);
-  void            remove_scene(uid32 scene);
-  uid32           add_view(uid32 scene, char const *name);
-  View           *get_view(uid32 view);
-  void            remove_view(uid32 view);
-  uid64 add_object(uid32 scene, uid64 parent, RenderObjectDesc const &);
-  RenderObjectDesc *get_object(uid32 scene, uid64 object);
-  void              remove_object(uid32 scene, uid64 object);
-  uid32         add_directional_light(uid32 scene, DirectionalLight const &);
-  uid32         add_point_light(uid32 scene, PointLight const &);
-  uid32         add_spot_light(uid32 scene, SpotLight const &);
-  uid32         add_area_light(uid32 scene, AreaLight const &);
-  AmbientLight *get_ambient_light(uid32 scene);
-  DirectionalLight *get_directional_light(uid32 scene, uid32 id);
-  PointLight       *get_point_light(uid32 scene, uid32 id);
-  SpotLight        *get_spot_light(uid32 scene, uid32 id);
-  AreaLight        *get_area_light(uid32 scene, uid32 id);
-  void              remove_directional_light(uid32 scene, uid32 id);
-  void              remove_point_light(uid32 scene, uid32 id);
-  void              remove_spot_light(uid32 scene, uid32 id);
-  void              remove_area_light(uid32 scene, uid32 id);
+  Option<PassImpl const *> get_pass(uid32 pass);
+  uid32                    get_pass_id(char const *name);
+  uid32                    register_pass(PassImpl pass);
+  uid32                    create_scene(char const *name);
+  Option<Scene *>          get_scene(uid32 scene);
+  void                     remove_scene(uid32 scene);
+  uid32                    add_view(uid32 scene, char const *name);
+  Option<View *>           get_view(uid32 view);
+  void                     remove_view(uid32 view);
+  uid64 add_object(uid32 scene, uid64 parent, RenderObjectDesc const &desc);
+  Option<RenderObjectDesc *> get_object(uid32 scene, uid64 object);
+  void                       remove_object(uid32 scene, uid64 object);
+  uid32 add_directional_light(uid32 scene, DirectionalLight const &light);
+  uid32 add_point_light(uid32 scene, PointLight const &light);
+  uid32 add_spot_light(uid32 scene, SpotLight const &light);
+  uid32 add_area_light(uid32 scene, AreaLight const &light);
+  Option<AmbientLight *>     get_ambient_light(uid32 scene);
+  Option<DirectionalLight *> get_directional_light(uid32 scene, uid32 id);
+  Option<PointLight *>       get_point_light(uid32 scene, uid32 id);
+  Option<SpotLight *>        get_spot_light(uid32 scene, uid32 id);
+  Option<AreaLight *>        get_area_light(uid32 scene, uid32 id);
+  void                       remove_directional_light(uid32 scene, uid32 id);
+  void                       remove_point_light(uid32 scene, uid32 id);
+  void                       remove_spot_light(uid32 scene, uid32 id);
+  void                       remove_area_light(uid32 scene, uid32 id);
 
   void acquire_screen_color_image();
   void acquire_screen_depth_stencil_image();
