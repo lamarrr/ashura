@@ -14,68 +14,6 @@ using WindowID      = u32;
 using MouseID       = u32;
 using AudioDeviceID = u32;
 
-enum class WindowEvents : u32
-{
-  None    = 0,
-  Shown   = 1,
-  Hidden  = 1 << 1,
-  Exposed = 1 << 2,
-  Moved   = 1 << 3,
-  Resized = 1 << 4,        // window size changed by user
-  PixelSizeChanged =
-      1 << 5,        // window size changed by user or via window API
-  Minimized      = 1 << 6,
-  Maximized      = 1 << 7,
-  Restored       = 1 << 8,
-  MouseEnter     = 1 << 9,
-  MouseLeave     = 1 << 10,
-  FocusGained    = 1 << 11,
-  FocusLost      = 1 << 12,
-  CloseRequested = 1 << 13,
-  TakeFocus      = 1 << 14,
-  All            = (1 << 15) - 1
-};
-
-STX_DEFINE_ENUM_BIT_OPS(WindowEvents)
-
-enum class MouseButton : u8
-{
-  None      = 0,
-  Primary   = 1,
-  Secondary = 2,
-  Middle    = 4,
-  A1        = 8,
-  A2        = 16,
-  A3        = 32,
-  A4        = 64,
-  A5        = 128
-};
-
-STX_DEFINE_ENUM_BIT_OPS(MouseButton)
-
-enum class KeyModifiers : u16
-{
-  None       = SDL_KMOD_NONE,
-  LeftShift  = SDL_KMOD_LSHIFT,
-  RightShift = SDL_KMOD_RSHIFT,
-  LeftCtrl   = SDL_KMOD_LCTRL,
-  RightCtrl  = SDL_KMOD_RCTRL,
-  LeftAlt    = SDL_KMOD_LALT,
-  RightAlt   = SDL_KMOD_RALT,
-  LeftWin    = SDL_KMOD_LGUI,
-  RightWin   = SDL_KMOD_RGUI,
-  Num        = SDL_KMOD_NUM,
-  Caps       = SDL_KMOD_CAPS,
-  AltGr      = SDL_KMOD_MODE,
-  ScrollLock = SDL_KMOD_SCROLL,
-  Ctrl       = SDL_KMOD_CTRL,
-  Shift      = SDL_KMOD_SHIFT,
-  Alt        = SDL_KMOD_ALT,
-  Gui        = SDL_KMOD_GUI
-};
-
-STX_DEFINE_ENUM_BIT_OPS(KeyModifiers)
-
 enum class KeyAction : u8
 {
   Press,

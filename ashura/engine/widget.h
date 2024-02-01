@@ -1,24 +1,11 @@
 #pragma once
-#include <algorithm>
-#include <chrono>
-#include <functional>
-#include <map>
-#include <string>
-#include <type_traits>
-#include <utility>
 
-#include "ashura/canvas.h"
-#include "ashura/context.h"
-#include "ashura/event.h"
-#include "ashura/primitives.h"
-#include "ashura/uuid.h"
-#include "stx/async.h"
-#include "stx/fn.h"
-#include "stx/option.h"
-#include "stx/span.h"
-#include "stx/string.h"
-#include "stx/vec.h"
-#include <type_traits>
+#include "ashura/engine/key.h"
+#include "ashura/std/enum.h"
+#include "ashura/std/option.h"
+#include "ashura/std/rect.h"
+#include "ashura/std/time.h"
+#include "ashura/std/types.h"
 
 namespace ash
 {
@@ -33,7 +20,7 @@ namespace ash
 /// of source size
 /// @maxr: clamps the source size relatively. i.e. value should be at most 0.5
 /// of source size
-struct Constraint
+struct LayoutConstraint
 {
   f32 bias  = 0;
   f32 scale = 0;
@@ -42,109 +29,109 @@ struct Constraint
   f32 minr  = 0;
   f32 maxr  = 1;
 
-  static constexpr Constraint relative(f32 scale)
+  static constexpr LayoutConstraint relative(f32 scale)
   {
-    return Constraint{
+    return LayoutConstraint{
         .bias = 0, .scale = scale, .min = F32_MIN, .max = F32_MAX};
   }
 
-  static constexpr Constraint absolute(f32 value)
+  static constexpr LayoutConstraint absolute(f32 value)
   {
-    return Constraint{
+    return LayoutConstraint{
         .bias = value, .scale = 0, .min = F32_MIN, .max = F32_MAX};
   }
 
-  constexpr Constraint with_min(f32 v) const
+  constexpr LayoutConstraint with_min(f32 v) const
   {
-    return Constraint{.bias  = bias,
-                      .scale = scale,
-                      .min   = v,
-                      .max   = max,
-                      .minr  = minr,
-                      .maxr  = maxr};
+    return LayoutConstraint{.bias  = bias,
+                            .scale = scale,
+                            .min   = v,
+                            .max   = max,
+                            .minr  = minr,
+                            .maxr  = maxr};
   }
 
-  constexpr Constraint with_max(f32 v) const
+  constexpr LayoutConstraint with_max(f32 v) const
   {
-    return Constraint{.bias  = bias,
-                      .scale = scale,
-                      .min   = min,
-                      .max   = v,
-                      .minr  = minr,
-                      .maxr  = maxr};
+    return LayoutConstraint{.bias  = bias,
+                            .scale = scale,
+                            .min   = min,
+                            .max   = v,
+                            .minr  = minr,
+                            .maxr  = maxr};
   }
 
-  constexpr Constraint with_minr(f32 v) const
+  constexpr LayoutConstraint with_minr(f32 v) const
   {
-    return Constraint{.bias  = bias,
-                      .scale = scale,
-                      .min   = min,
-                      .max   = max,
-                      .minr  = v,
-                      .maxr  = maxr};
+    return LayoutConstraint{.bias  = bias,
+                            .scale = scale,
+                            .min   = min,
+                            .max   = max,
+                            .minr  = v,
+                            .maxr  = maxr};
   }
 
-  constexpr Constraint with_maxr(f32 v) const
+  constexpr LayoutConstraint with_maxr(f32 v) const
   {
-    return Constraint{.bias  = bias,
-                      .scale = scale,
-                      .min   = min,
-                      .max   = max,
-                      .minr  = minr,
-                      .maxr  = v};
+    return LayoutConstraint{.bias  = bias,
+                            .scale = scale,
+                            .min   = min,
+                            .max   = max,
+                            .minr  = minr,
+                            .maxr  = v};
   }
 
   constexpr f32 resolve(f32 value) const
   {
     return clamp(clamp(bias + value * scale, min, max), minr * value,
-                     maxr * value);
+                 maxr * value);
   }
 };
 
-struct Constraint2D
+struct LayoutConstraint2D
 {
-  Constraint x, y;
+  LayoutConstraint x, y;
 
-  static constexpr Constraint2D relative(f32 x, f32 y)
+  static constexpr LayoutConstraint2D relative(f32 x, f32 y)
   {
-    return Constraint2D{.x = Constraint::relative(x),
-                        .y = Constraint::relative(y)};
+    return LayoutConstraint2D{.x = LayoutConstraint::relative(x),
+                              .y = LayoutConstraint::relative(y)};
   }
 
-  static constexpr Constraint2D relative(Vec2 xy)
+  static constexpr LayoutConstraint2D relative(Vec2 xy)
   {
     return relative(xy.x, xy.y);
   }
 
-  static constexpr Constraint2D absolute(f32 x, f32 y)
+  static constexpr LayoutConstraint2D absolute(f32 x, f32 y)
   {
-    return Constraint2D{.x = Constraint::absolute(x),
-                        .y = Constraint::absolute(y)};
+    return LayoutConstraint2D{.x = LayoutConstraint::absolute(x),
+                              .y = LayoutConstraint::absolute(y)};
   }
 
-  static constexpr Constraint2D absolute(Vec2 xy)
+  static constexpr LayoutConstraint2D absolute(Vec2 xy)
   {
     return absolute(xy.x, xy.y);
   }
 
-  constexpr Constraint2D with_min(f32 nx, f32 ny) const
+  constexpr LayoutConstraint2D with_min(f32 nx, f32 ny) const
   {
-    return Constraint2D{.x = x.with_min(nx), .y = y.with_min(ny)};
+    return LayoutConstraint2D{.x = x.with_min(nx), .y = y.with_min(ny)};
   }
 
-  constexpr Constraint2D with_max(f32 nx, f32 ny) const
+  constexpr LayoutConstraint2D with_max(f32 nx, f32 ny) const
   {
-    return Constraint2D{.x = x.with_max(nx), .y = y.with_max(ny)};
+    return LayoutConstraint2D{.x = x.with_max(nx), .y = y.with_max(ny)};
   }
 
-  constexpr Constraint2D with_minr(f32 nx, f32 ny) const
+  constexpr LayoutConstraint2D with_minr(f32 nx, f32 ny) const
   {
-    return Constraint2D{.x = x.with_minr(nx), .y = y.with_minr(ny)};
+    return LayoutConstraint2D{.x = x.with_minr(nx), .y = y.with_minr(ny)};
   }
 
-  constexpr Constraint2D with_maxr(f32 nx, f32 ny) const
+  constexpr LayoutConstraint2D with_maxr(f32 nx, f32 ny) const
   {
-    return Constraint2D{.x = x.with_maxr(nx), .y = y.with_maxr(ny)};
+    return LayoutConstraint2D{.x = x.with_maxr(nx), .y = y.with_maxr(ny)};
   }
 
   constexpr Vec2 resolve(f32 xsrc, f32 ysrc) const
@@ -158,59 +145,16 @@ struct Constraint2D
   }
 };
 
-template <typename T, typename Base>
-concept Impl = std::is_base_of_v<Base, T>;
-
-struct EdgeInsets
-{
-  f32 left = 0, top = 0, right = 0, bottom = 0;
-
-  static constexpr EdgeInsets all(f32 v)
-  {
-    return EdgeInsets{.left = v, .top = v, .right = v, .bottom = v};
-  }
-
-  static constexpr EdgeInsets horizontal(f32 v)
-  {
-    return EdgeInsets{.left = v, .top = 0, .right = v, .bottom = 0};
-  }
-
-  static constexpr EdgeInsets vertical(f32 v)
-  {
-    return EdgeInsets{.left = 0, .top = v, .right = 0, .bottom = v};
-  }
-
-  constexpr f32 y() const
-  {
-    return top + bottom;
-  }
-
-  constexpr f32 x() const
-  {
-    return left + right;
-  }
-
-  constexpr Vec2 xy() const
-  {
-    return Vec2{x(), y()};
-  }
-
-  constexpr Vec2 top_left() const
-  {
-    return Vec2{left, top};
-  }
-};
-
 struct BorderRadius
 {
-  Constraint top_left, top_right, bottom_right, bottom_left;
+  LayoutConstraint top_left, top_right, bottom_right, bottom_left;
 
   static constexpr BorderRadius relative(f32 tl, f32 tr, f32 br, f32 bl)
   {
-    return BorderRadius{.top_left     = Constraint::relative(tl),
-                        .top_right    = Constraint::relative(tr),
-                        .bottom_right = Constraint::relative(br),
-                        .bottom_left  = Constraint::relative(bl)};
+    return BorderRadius{.top_left     = LayoutConstraint::relative(tl),
+                        .top_right    = LayoutConstraint::relative(tr),
+                        .bottom_right = LayoutConstraint::relative(br),
+                        .bottom_left  = LayoutConstraint::relative(bl)};
   }
 
   static constexpr BorderRadius relative(Vec4 v)
@@ -225,10 +169,10 @@ struct BorderRadius
 
   static constexpr BorderRadius absolute(f32 tl, f32 tr, f32 br, f32 bl)
   {
-    return BorderRadius{.top_left     = Constraint::absolute(tl),
-                        .top_right    = Constraint::absolute(tr),
-                        .bottom_right = Constraint::absolute(br),
-                        .bottom_left  = Constraint::absolute(bl)};
+    return BorderRadius{.top_left     = LayoutConstraint::absolute(tl),
+                        .top_right    = LayoutConstraint::absolute(tr),
+                        .bottom_right = LayoutConstraint::absolute(br),
+                        .bottom_left  = LayoutConstraint::absolute(bl)};
   }
 
   static constexpr BorderRadius absolute(Vec4 v)
@@ -243,7 +187,7 @@ struct BorderRadius
 
   constexpr Vec4 resolve(f32 w, f32 h) const
   {
-    f32 const src = min(w, h) / 2;
+    f32 src = min(w, h) / 2;
     return Vec4{.x = top_left.resolve(src),
                 .y = top_right.resolve(src),
                 .z = bottom_right.resolve(src),
@@ -256,29 +200,23 @@ struct BorderRadius
   }
 };
 
+/// @H: horizontal
+/// @V: vertical
 enum class Direction : u8
 {
-  H = 0,        /// Horizontal
-  V = 1         /// Vertical
+  H = 0,
+  V = 1
 };
 
-enum class Wrap : u8
-{
-  None = 0,
-  Wrap = 1
-};
-
-typedef Vec2 Alignment;
-
-constexpr Alignment ALIGN_TOP_LEFT      = Vec2{0, 0};
-constexpr Alignment ALIGN_TOP_CENTER    = Vec2{0.5f, 0};
-constexpr Alignment ALIGN_TOP_RIGHT     = Vec2{1, 0};
-constexpr Alignment ALIGN_LEFT_CENTER   = Vec2{0, 0.5f};
-constexpr Alignment ALIGN_CENTER        = Vec2{0.5f, 0.5f};
-constexpr Alignment ALIGN_RIGHT_CENTER  = Vec2{1, 0.5f};
-constexpr Alignment ALIGN_BOTTOM_LEFT   = Vec2{0, 1};
-constexpr Alignment ALIGN_BOTTOM_CENTER = Vec2{0.5f, 1};
-constexpr Alignment ALIGN_BOTTOM_RIGHT  = Vec2{1, 1};
+constexpr Vec2 ALIGN_TOP_LEFT      = Vec2{0, 0};
+constexpr Vec2 ALIGN_TOP_CENTER    = Vec2{0.5f, 0};
+constexpr Vec2 ALIGN_TOP_RIGHT     = Vec2{1, 0};
+constexpr Vec2 ALIGN_LEFT_CENTER   = Vec2{0, 0.5f};
+constexpr Vec2 ALIGN_CENTER        = Vec2{0.5f, 0.5f};
+constexpr Vec2 ALIGN_RIGHT_CENTER  = Vec2{1, 0.5f};
+constexpr Vec2 ALIGN_BOTTOM_LEFT   = Vec2{0, 1};
+constexpr Vec2 ALIGN_BOTTOM_CENTER = Vec2{0.5f, 1};
+constexpr Vec2 ALIGN_BOTTOM_RIGHT  = Vec2{1, 1};
 
 enum class MainAlign : u8
 {
@@ -298,69 +236,55 @@ enum class CrossAlign : u8
 
 enum class TextRenderStyleWrap : u8
 {
-  None,
-  Letter,
-  Word,
-  Line
+  None   = 0,
+  Letter = 1,
+  Word   = 2,
+  Line   = 3
 };
+
 // https://fossheim.io/writing/posts/css-text-gradient/
 struct TextRenderStyle
 {
-  gfx::LinearColorGradient color_gradient;
-  TextRenderStyleWrap      wrap = TextRenderStyleWrap::None;
-};
-
-enum class Visibility : u8
-{
-  Visible,
-  Hidden
+  // gfx::LinearColorGradient color_gradient;
+  TextRenderStyleWrap wrap = TextRenderStyleWrap::None;
 };
 
 struct WidgetDebugInfo
 {
-  std::string_view type;
+  Span<char const> type;
 };
 
-struct DragData
-{
-  stx::String                      type;
-  stx::Unique<stx::Span<u8 const>> data =
-      stx::Unique{stx::Span<u8 const>{}, stx::noop_manager};
-};
+typedef struct WidgetSystem WidgetSystem;
 
 // TODO(lamarrr): we might need request detach so child widgets can request to
 // be removed and remove all callbacks they may have attached or cancel tasks
 // they have pending.
 // consider: having tokens that de-register themselves once deleted
 
+// TODO(lamarrr): we need re-calculable offsets so we can shift the parents
+// around without shifting the children this is important for cursors, drag
+// and drop? this might mean we need to totally remove the concept of area.
+// storing transformed area might not be needed?
+
 /// @brief Base widget class. All widget types must inherit from this struct.
 /// all methods are already implemented with reasonable defaults.
 struct Widget
 {
-  Widget() = default;
-
+  Widget()          = default;
   virtual ~Widget() = default;
 
   /// @brief get child widgets
   /// @param ctx
   /// @return
-  virtual stx::Span<Widget *const> get_children(Context &ctx)
-  {
-    return {};
-  }
+  virtual Span<Widget *const> get_children(WidgetSystem &);
 
   /// @brief get debug and logging information
   /// @param ctx
   /// @return
-  virtual WidgetDebugInfo get_debug_info(Context &ctx)
+  virtual WidgetDebugInfo get_debug_info(WidgetSystem &)
   {
-    return WidgetDebugInfo{.type = "Widget"};
+    return WidgetDebugInfo{.type = {"Widget", 6}};
   }
-
-  // TODO(lamarrr): we need re-calculable offsets so we can shift the parents
-  // around without shifting the children this is important for cursors, drag
-  // and drop? this might mean we need to totally remove the concept of area.
-  // storing transformed area might not be needed?
 
   /// @brief distributes the size allocated to it to its child widgets.
   /// unlike CSS. has the advantage that children wouldn't need extra attributes
@@ -368,10 +292,11 @@ struct Widget
   /// @param ctx
   /// @param allocated_size the size allocated to this widget
   /// @param[out] children_allocation sizes allocated to the children.
-  virtual void allocate_size(Context &ctx, Vec2 allocated_size,
-                             stx::Span<Vec2> children_allocation)
+  virtual void allocate_size(WidgetSystem &, Vec2 allocated_size,
+                             Span<Vec2> children_allocation)
   {
-    children_allocation.fill(Vec2{0, 0});
+    (void) allocated_size;
+    alg::fill(children_allocation, Vec2{0, 0});
   }
 
   /// @brief fits itself around its children and positions child widgets
@@ -384,11 +309,15 @@ struct Widget
   /// @param[out] children_positions positions of the children widget on the
   /// parent
   /// @return this widget's fitted extent
-  virtual Vec2 fit(Context &ctx, Vec2 allocated_size,
-                   stx::Span<Vec2 const> children_allocations,
-                   stx::Span<Vec2 const> children_sizes,
-                   stx::Span<Vec2>       children_positions)
+  virtual Vec2 fit(WidgetSystem &, Vec2 allocated_size,
+                   Span<Vec2 const> children_allocations,
+                   Span<Vec2 const> children_sizes,
+                   Span<Vec2>       children_positions)
   {
+    (void) allocated_size;
+    (void) children_allocations;
+    (void) children_sizes;
+    (void) children_positions;
     return Vec2{0, 0};
   }
 
@@ -396,7 +325,7 @@ struct Widget
   /// @param ctx
   /// @param allocated_position the allocated absolute position of this widget
   /// @return
-  virtual Vec2 position(Context &ctx, Vec2 allocated_position)
+  virtual Vec2 position(WidgetSystem &, Vec2 allocated_position)
   {
     return allocated_position;
   }
@@ -408,11 +337,10 @@ struct Widget
   /// @param allocated_visibility
   /// @param[out] children_allocation visibility assigned to children
   /// @return
-  virtual Visibility get_visibility(Context              &ctx,
-                                    Visibility            allocated_visibility,
-                                    stx::Span<Visibility> children_allocation)
+  virtual bool get_visibility(WidgetSystem &, bool allocated_visibility,
+                              Span<bool> children_allocation)
   {
-    children_allocation.fill(allocated_visibility);
+    alg::fill(children_allocation, allocated_visibility);
     return allocated_visibility;
   }
 
@@ -421,10 +349,10 @@ struct Widget
   /// @param allocated_z_index
   /// @param[out] children_allocation z-index assigned to children
   /// @return
-  virtual i32 z_stack(Context &ctx, i32 allocated_z_index,
-                      stx::Span<i32> children_allocation)
+  virtual i32 z_stack(WidgetSystem &, i32 allocated_z_index,
+                      Span<i32> children_allocation)
   {
-    children_allocation.fill(allocated_z_index + 1);
+    alg::fill(children_allocation, allocated_z_index + 1);
     return allocated_z_index;
   }
 
@@ -440,10 +368,10 @@ struct Widget
   /// @param allocated_clip
   /// @param[out] children_allocation
   /// @return
-  virtual Rect clip(Context &ctx, Rect allocated_clip,
-                    stx::Span<Rect> children_allocation)
+  virtual Rect clip(WidgetSystem &, Rect allocated_clip,
+                    Span<Rect> children_allocation)
   {
-    children_allocation.fill(allocated_clip);
+    alg::fill(children_allocation, allocated_clip);
     return allocated_clip;
   }
 
@@ -454,10 +382,7 @@ struct Widget
   /// @param canvas
   ///
   ///
-  virtual void draw(Context &ctx, gfx::Canvas &canvas)
-  {
-  }
-
+  virtual void draw(WidgetSystem &);
   // TODO(lamarrr): draw_tooltip();
 
   /// @brief called on every frame. used for state changes, animations, task
@@ -466,170 +391,114 @@ struct Widget
   /// handle that. i.e. using the multi-tasking system.
   /// @param ctx
   /// @param interval time passed since last call to this method
-  virtual void tick(Context &ctx, std::chrono::nanoseconds interval)
-  {
-  }
+  virtual void tick(WidgetSystem &, Nanoseconds interval);
 
   /// @brief called on every frame the widget is viewed on the viewport.
   /// @param ctx
-  virtual void on_view_hit(Context &ctx)
-  {
-  }
+  virtual void on_view_hit(WidgetSystem &);
 
   /// @brief called on every frame that the widget is not seen on the viewport
   /// this can be because it has hidden visibility, is clipped away, or parent
   /// positioned out of the visible region
   /// @param ctx
-  virtual void on_view_miss(Context &ctx)
-  {
-  }
+  virtual void on_view_miss(WidgetSystem &);
 
   // this needs to happen before mouse actions as some widgets .i.e. some
   // widgets don't need to intercept or receive mouse events
-  virtual bool hit_test(Context &ctx, Vec2 mouse_position)
-  {
-    return false;
-  }
+  /// return true if accepts hit test at position.
+  virtual bool hit_test(WidgetSystem &, Vec2 mouse_position);
 
-  virtual bool scroll_test(Context &ctx)
-  {
-    return false;
-  }
+  /// return true if accepts scroll at position
+  virtual bool scroll_test(WidgetSystem &);
 
-  virtual void on_mouse_down(Context &ctx, MouseButton button,
-                             Vec2 mouse_position, u32 nclicks)
-  {
-  }
+  virtual void on_mouse_down(WidgetSystem &, MouseButton button,
+                             Vec2 mouse_position, u32 nclicks);
 
-  virtual void on_mouse_up(Context &ctx, MouseButton button,
-                           Vec2 mouse_position, u32 nclicks)
-  {
-  }
+  virtual void on_mouse_up(WidgetSystem &, MouseButton button,
+                           Vec2 mouse_position, u32 nclicks);
 
   // TODO(lamarrr): how do we fix translation and zooming? i.e. positioning once
   // transform is applied
-  virtual void on_mouse_move(Context &ctx, Vec2 mouse_position,
-                             Vec2 translation)
-  {
-  }
+  virtual void on_mouse_move(WidgetSystem &, Vec2 mouse_position,
+                             Vec2 translation);
 
-  virtual void on_mouse_enter(Context &ctx, Vec2 mouse_position)
-  {
-  }
+  virtual void on_mouse_enter(WidgetSystem &, Vec2 mouse_position);
 
-  virtual void on_mouse_leave(Context &ctx, stx::Option<Vec2> mouse_position)
-  {
-  }
+  virtual void on_mouse_leave(WidgetSystem &, Option<Vec2> mouse_position);
 
   // virtual bool on_mouse_wheel(Context& ctx, Vec2 translation, Vec2
   // mouse_position?). propagates up
-
+  ///
   /// callback to begin drag operation
   /// if this returns false, it is treated as a click operation.???
-  virtual stx::Option<DragData> on_drag_start(Context &ctx, Vec2 mouse_position)
-  {
-    return stx::None;
-  }
+  virtual Span<char const> on_drag_start(WidgetSystem &, Vec2 mouse_position);
 
   /// @brief called when theres a drag position update
   /// @param ctx
   /// @param mouse_position current global drag position
   /// @param translation difference between this drag update and the last drag
   /// update position
-  virtual void on_drag_update(Context &ctx, Vec2 mouse_position,
-                              Vec2 translation, DragData const &drag_data)
-  {
-  }
+  virtual void on_drag_update(WidgetSystem &, Vec2 mouse_position,
+                              Vec2 translation, Span<u8 const> drag_data);
 
   /// the drop of the drag data has been ended
-  virtual void on_drag_end(Context &ctx, Vec2 mouse_position)
-  {
-  }
+  virtual void on_drag_end(WidgetSystem &, Vec2 mouse_position);
 
   /// this widget has begun receiving drag data, i.e. it has been dragged onto
   ///
   /// returns true if widget can accept this drag event
-  virtual void on_drag_enter(Context &ctx, DragData const &drag_data)
-  {
-  }
+  virtual void on_drag_enter(WidgetSystem &, Span<u8 const> drag_data);
 
   /// this widget has previously begun receiving drag data, but the mouse is
   /// still dragging within it
-  virtual void on_drag_over(Context &ctx, DragData const &drag_data)
-  {
-  }
+  virtual void on_drag_over(WidgetSystem &, Span<u8 const> drag_data);
 
   /// the drag event has left this widget
-  virtual void on_drag_leave(Context &ctx, stx::Option<Vec2> mouse_position)
-  {
-  }
+  virtual void on_drag_leave(WidgetSystem &, Option<Vec2> mouse_position);
 
-  /// drop of drag data on this widget
-  virtual bool on_drop(Context &ctx, Vec2 mouse_position,
-                       DragData const &drag_data)
-  {
-    return false;
-  }
+  /// drop of drag data on this widget, return true if accept drag data
+  virtual bool on_drop(WidgetSystem &, Vec2 mouse_position,
+                       Span<u8 const> drag_data);
 
-  //
-  virtual void on_tap(Context &ctx)
-  {
-  }
+  virtual void on_tap(WidgetSystem &);
 
-  //
-  virtual void on_touch_cancel(Context &ctx)
-  {
-  }
+  virtual void on_touch_cancel(WidgetSystem &);
 
-  //
-  virtual void on_touch_end(Context &ctx)
-  {
-  }
+  virtual void on_touch_end(WidgetSystem &);
 
-  //
-  virtual void on_touch_move(Context &ctx)
-  {
-  }
+  virtual void on_touch_move(WidgetSystem &);
 
-  //
-  virtual void on_touch_start(Context &ctx)
-  {
-  }
+  virtual void on_touch_start(WidgetSystem &);
 
-  //
-  virtual void on_touch_enter(Context &ctx)
-  {
-  }
+  virtual void on_touch_enter(WidgetSystem &);
 
-  //
-  virtual void on_touch_leave(Context &ctx)
-  {
-  }
+  virtual void on_touch_leave(WidgetSystem &);
 
   /// id used to recognise the widget. checked every frame. if
   /// one is not present or removed. a new uuid is generated and
   /// assigned.
-  stx::Option<uuid> id;
-  Rect              area;
+  Option<uid32> id;
+  Rect          area;
 };
 
-inline Widget *__find_widget_recursive(Context &ctx, Widget &widget, uuid id)
-{
-  if (widget.id.contains(id))
-  {
-    return &widget;
-  }
-
-  for (Widget *child : widget.get_children(ctx))
-  {
-    Widget *found = __find_widget_recursive(ctx, *child, id);
-    if (found != nullptr)
-    {
-      return found;
-    }
-  }
-
-  return nullptr;
-}
+// inline Widget *__find_widget_recursive(WidgetSystem& system, Widget &widget,
+// uuid id)
+// {
+//   if (widget.id.contains(id))
+//   {
+//     return &widget;
+//   }
+//
+//   for (Widget *child : widget.get_children(ctx))
+//   {
+//     Widget *found = __find_widget_recursive(ctx, *child, id);
+//     if (found != nullptr)
+//     {
+//       return found;
+//     }
+//   }
+//
+//   return nullptr;
+// }
 
 }        // namespace ash

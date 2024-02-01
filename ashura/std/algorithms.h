@@ -92,7 +92,7 @@ constexpr Span<T> destruct_if(Span<T> span, usize &destroy_start);
 constexpr void relocate_if();
 
 template <typename T, typename U>
-constexpr void fill(Span<T> dst, T const &value)
+constexpr void fill(Span<T> dst, U const &value)
 {
   for (T &element : dst)
   {
