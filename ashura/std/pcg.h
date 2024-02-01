@@ -86,7 +86,7 @@ constexpr u64 pcg64_combine(u64 pcg0, u64 input)
   return pcg64_rxs_m_xs(state);
 }
 
-constexpr u32 pcg32_hash_bytes(void const *ptr, usize size)
+inline u32 pcg32_hash_bytes(void const *ptr, usize size)
 {
   // get bytes
   u8 const *bytes = (u8 const *) ptr;
@@ -97,7 +97,7 @@ constexpr u32 pcg32_hash_bytes(void const *ptr, usize size)
   return pcg;
 }
 
-constexpr u64 pcg64_hash_bytes(void const *ptr, usize size);
+inline u64 pcg64_hash_bytes(void const *ptr, usize size);
 
 /// Super-fast PCG random number generator.
 struct Pcg32Rng
