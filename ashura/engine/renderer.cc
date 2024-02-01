@@ -32,7 +32,7 @@ void Renderer::frustum_cull(RenderServer *server)
     {
       bitvec::set(
           view.object_cull_mask, i,
-          !is_outside_frustum(
+          is_outside_frustum(
               static_cast<Mat4>(view.camera.projection * view.camera.view *
                                 scene->objects.global_transform[i]),
               scene->objects.aabb[i]));
