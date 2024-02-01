@@ -20,14 +20,19 @@ void RenderServer::transform_()
   }
 }
 
-void RenderServer::frustum_cull_()
+Result<Void, RenderError> RenderServer::frustum_cull_()
 {
   for (u32 iview = 0; iview < view_group.num_views(); iview++)
   {
     View  &view = view_group.views[iview];
     Scene &scene =
         scene_group.scenes[scene_group.id_map.unsafe_to_index(view.scene)];
-    // view.object_cull_mask; reallocate cull mask bitvec::size_u64(num_objects)
+    usize const required_size = bitvec::size_u64(scene.num_objects());
+    if (!tvec::reserve(allocator, view.object_cull_mask,
+                       view.object_cull_mask_capacity, required_size))
+    {
+      return Err{RenderError::OutOfMemory};
+    }
   }
 
   for (u32 iview = 0; iview < view_group.num_views(); iview++)
@@ -45,6 +50,8 @@ void RenderServer::frustum_cull_()
               scene.objects.aabb[i]));
     }
   }
+
+  return Ok<Void>{};
 }
 
 }        // namespace ash

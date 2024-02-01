@@ -28,7 +28,12 @@ typedef struct Scene              Scene;
 typedef struct SceneGroup         SceneGroup;
 typedef struct View               View;
 typedef struct ViewGroup          ViewGroup;
-typedef struct Renderer           Renderer;
+
+enum class RenderError : i32
+{
+  _Reserved_  = 0,
+  OutOfMemory = 1
+};
 
 struct Texture
 {
@@ -181,7 +186,6 @@ struct SceneNode
   uid64 pass_object_id = INVALID_UID64;
 };
 
-// TODO(lamarrr): dispatch sorting by passes?
 struct RenderObjectDesc
 {
   Mat4Affine transform      = {};
@@ -316,23 +320,25 @@ struct RenderServer
   SceneGroup      scene_group = {};
   ViewGroup       view_group  = {};
 
-  Option<PassImpl const *> get_pass(uid32 pass);
-  uid32                    get_pass_id(char const *name);
-  uid32                    register_pass(PassImpl pass);
-  uid32                    create_scene(char const *name);
-  Option<Scene *>          get_scene(uid32 scene);
-  void                     remove_scene(uid32 scene);
-  uid32                    add_view(uid32 scene, char const *name);
-  Option<View *>           get_view(uid32 view);
-  void                     remove_view(uid32 view);
-  uid64 add_object(uid32 scene, uid64 parent, RenderObjectDesc const &desc);
+  Option<PassImpl const *>   get_pass(uid32 pass);
+  Option<uid32>              get_pass_id(char const *name);
+  Option<uid32>              register_pass(PassImpl pass);
+  Option<uid32>              create_scene(char const *name);
+  Option<Scene *>            get_scene(uid32 scene);
+  void                       remove_scene(uid32 scene);
+  Option<uid32>              add_view(uid32 scene, char const *name);
+  Option<View *>             get_view(uid32 view);
+  void                       remove_view(uid32 view);
+  Option<uid64>              add_object(uid32 scene, uid64 parent,
+                                        RenderObjectDesc const &desc);
   Option<RenderObjectDesc *> get_object(uid32 scene, uid64 object);
   void                       remove_object(uid32 scene, uid64 object);
-  uid32 add_directional_light(uid32 scene, DirectionalLight const &light);
-  uid32 add_point_light(uid32 scene, PointLight const &light);
-  uid32 add_spot_light(uid32 scene, SpotLight const &light);
-  uid32 add_area_light(uid32 scene, AreaLight const &light);
-  Option<AmbientLight *>     get_ambient_light(uid32 scene);
+  Option<uid32>              add_directional_light(uid32                   scene,
+                                                   DirectionalLight const &light);
+  Option<uid32>          add_point_light(uid32 scene, PointLight const &light);
+  Option<uid32>          add_spot_light(uid32 scene, SpotLight const &light);
+  Option<uid32>          add_area_light(uid32 scene, AreaLight const &light);
+  Option<AmbientLight *> get_ambient_light(uid32 scene);
   Option<DirectionalLight *> get_directional_light(uid32 scene, uid32 id);
   Option<PointLight *>       get_point_light(uid32 scene, uid32 id);
   Option<SpotLight *>        get_spot_light(uid32 scene, uid32 id);
@@ -374,7 +380,7 @@ struct RenderServer
 
   // perform frustum culling of objects and light (in the same
   // z-index) then cull by z-index???? Z-index not needed in culling
-  void frustum_cull_();
+  Result<Void, RenderError> frustum_cull_();
 
   // sort objects by z-index, get min and max z-index
   // for all objects in the z-index range, invoke the passes
@@ -396,7 +402,7 @@ struct RenderServer
   //
   // each scene is rendered and composited onto one another? can this possibly
   // work for portals?
-  void render();
+  Result<Void, RenderError> render();
 };
 
 }        // namespace ash

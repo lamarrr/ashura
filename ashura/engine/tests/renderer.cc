@@ -5,5 +5,7 @@ ash::Logger panic_logger;
 
 TEST(RendererTest, Scene)
 {
-  ash::Scene scene{};
+  ash::Scene        scene{};
+  ash::RenderServer server{};
+  server.frustum_cull_().unwrap();
 }

@@ -9,7 +9,6 @@ typedef Vec4 Color;
 
 namespace colors
 {
-constexpr Color TRANSPARENT = Vec4{0x00, 0x00, 0x00, 0x00} / 255;
 constexpr Color WHITE       = Vec4{0xff, 0xff, 0xff, 0xff} / 255;
 constexpr Color BLACK       = Vec4{0x00, 0x00, 0x00, 0xff} / 255;
 constexpr Color RED         = Vec4{0xff, 0x00, 0x00, 0xff} / 255;
