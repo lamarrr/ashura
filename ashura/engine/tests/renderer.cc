@@ -8,4 +8,5 @@ TEST(RendererTest, Scene)
   ash::Scene        scene{};
   ash::RenderServer server{};
   server.frustum_cull_().unwrap();
+  server.transform_();
 }
