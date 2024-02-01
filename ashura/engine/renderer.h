@@ -2,11 +2,8 @@
 #include "ashura/engine/utils.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/box.h"
-#include "ashura/std/fn.h"
 #include "ashura/std/image.h"
-#include "ashura/std/rect.h"
 #include "ashura/std/sparse_set.h"
-#include "ashura/std/trivial_vec.h"
 #include "ashura/std/types.h"
 
 namespace ash
@@ -134,12 +131,12 @@ struct PassInterface
 {
   void (*init)(Pass self, RenderServer *server, uid32 id)             = nullptr;
   void (*deinit)(Pass self, RenderServer *server)                     = nullptr;
-  void (*sort_objects)(Pass, RenderServer *server, uid32 scene,
-                       Span<u64> object_indices)                      = nullptr;
+  void (*sort)(Pass, RenderServer *server, uid32 scene,
+               Span<u64> object_indices)                              = nullptr;
   void (*update)(Pass self, RenderServer *server,
-                 PassUpdateInfo const &args)                          = nullptr;
+                 PassUpdateInfo const *args)                          = nullptr;
   void (*encode)(Pass self, RenderServer *server,
-                 PassEncodeInfo const &args)                          = nullptr;
+                 PassEncodeInfo const *args)                          = nullptr;
   void (*acquire_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
   void (*release_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
   void (*acquire_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
@@ -149,15 +146,15 @@ struct PassInterface
 /// can be loaded from a DLL i.e. C++ with C-linkage => DLL
 struct PassImpl
 {
+  char const          *name      = nullptr;
   Pass                 self      = nullptr;
   PassInterface const *interface = nullptr;
 };
 
 struct PassGroup
 {
-  PassImpl      *passes     = nullptr;
-  char const   **pass_names = nullptr;
-  SparseSet<u32> id_map     = {};
+  PassImpl      *passes = nullptr;
+  SparseSet<u32> id_map = {};
 };
 
 // full-screen post-fx passes are full-screen quads with dependency determined
@@ -216,6 +213,7 @@ struct SceneObject
 // will be scaled to the screen dimensions eventually.
 struct Scene
 {
+  char const       *name                        = nullptr;
   AmbientLight      ambient_light               = {};
   DirectionalLight *directional_lights          = nullptr;
   SparseSet<u32>    directional_lights_id_map   = {};
@@ -225,12 +223,11 @@ struct Scene
   SparseSet<u32>    spot_lights_id_map          = {};
   AreaLight        *area_lights                 = nullptr;
   SparseSet<u32>    area_lights_id_map          = {};
-  u16               directional_lights_capacity = 0;
-  u16               point_lights_capacity       = 0;
-  u16               spot_lights_capacity        = 0;
-  u16               area_lights_capacity        = 0;
+  u32               directional_lights_capacity = 0;
+  u32               point_lights_capacity       = 0;
+  u32               spot_lights_capacity        = 0;
+  u32               area_lights_capacity        = 0;
   SceneObject       objects                     = {};
-  uid64             root_object                 = INVALID_UID64;
 
   constexpr u64 num_objects() const
   {
@@ -241,7 +238,6 @@ struct Scene
 struct SceneGroup
 {
   Scene         *scenes = nullptr;
-  char const   **names  = nullptr;
   SparseSet<u32> id_map = {};
 
   constexpr u32 num_scenes() const
@@ -252,22 +248,22 @@ struct SceneGroup
 
 struct View
 {
-  Camera camera                         = {};
-  uid32  scene                          = 0;
-  u64   *object_cull_mask               = nullptr;
-  u64   *point_light_cull_mask          = nullptr;
-  u64   *spot_light_cull_mask           = nullptr;
-  u64   *area_light_cull_mask           = nullptr;
-  u64    object_cull_mask_capacity      = 0;
-  u32    point_light_cull_mask_capacity = 0;
-  u32    spot_light_cull_mask_capacity  = 0;
-  u32    area_light_cull_mask_capacity  = 0;
+  char const *name                           = nullptr;
+  Camera      camera                         = {};
+  uid32       scene                          = 0;
+  u64        *object_cull_mask               = nullptr;
+  u64        *point_light_cull_mask          = nullptr;
+  u64        *spot_light_cull_mask           = nullptr;
+  u64        *area_light_cull_mask           = nullptr;
+  u64         object_cull_mask_capacity      = 0;
+  u32         point_light_cull_mask_capacity = 0;
+  u32         spot_light_cull_mask_capacity  = 0;
+  u32         area_light_cull_mask_capacity  = 0;
 };
 
 struct ViewGroup
 {
   View          *views  = nullptr;
-  char const   **names  = nullptr;
   SparseSet<u32> id_map = {};
 
   constexpr u32 num_views() const
@@ -305,82 +301,79 @@ struct ViewGroup
 /// Manages and uploads render resources to the GPU.
 ///
 /// @remove_scene: remove all pass resources associated with a scene object.
+/// @acquire_screen_color_image: TODO(lamarrr): how to cache the framebuffer and
+/// renderpass and not allocate it for every time the renderpass and
+/// framebuffers are requested
+/// @add_object: once an object is added to the scene, if it is not at the end
+/// of the tree, then the tree should be re-sorted based on depth
+/// @remove_object: remove object and all its children
 struct RenderServer
 {
   gfx::DeviceImpl device      = {};
   AllocatorImpl   allocator   = {};
-  PassGroup      *pass_group  = nullptr;
-  SceneGroup     *scene_group = nullptr;
-  ViewGroup      *view_group  = nullptr;
+  PassGroup       pass_group  = {};
+  SceneGroup      scene_group = {};
+  ViewGroup       view_group  = {};
 
-  // TODO(lamarrr): how to cache the framebuffer and renderpass and not allocate
-  // it for every time the renderpass and framebuffers are requested
-  constexpr void acquire_screen_color_image();
-  constexpr void acquire_screen_depth_stencil_image();
-  constexpr void release_screen_color_image();
-  constexpr void release_screen_depth_stencil_image();
+  PassImpl const *get_pass(uid32 pass);
+  uid32           get_pass_id(char const *name);
+  uid32           register_pass(PassImpl pass);
+  uid32           create_scene(char const *name);
+  Scene          *get_scene(uid32 scene);
+  void            remove_scene(uid32 scene);
+  uid32           add_view(uid32 scene, char const *name);
+  View           *get_view(uid32 view);
+  void            remove_view(uid32 view);
+  uid64 add_object(uid32 scene, uid64 parent, RenderObjectDesc const &);
+  RenderObjectDesc *get_object(uid32 scene, uid64 object);
+  void              remove_object(uid32 scene, uid64 object);
+  uid32         add_directional_light(uid32 scene, DirectionalLight const &);
+  uid32         add_point_light(uid32 scene, PointLight const &);
+  uid32         add_spot_light(uid32 scene, SpotLight const &);
+  uid32         add_area_light(uid32 scene, AreaLight const &);
+  AmbientLight *get_ambient_light(uid32 scene);
+  DirectionalLight *get_directional_light(uid32 scene, uid32 id);
+  PointLight       *get_point_light(uid32 scene, uid32 id);
+  SpotLight        *get_spot_light(uid32 scene, uid32 id);
+  AreaLight        *get_area_light(uid32 scene, uid32 id);
+  void              remove_directional_light(uid32 scene, uid32 id);
+  void              remove_point_light(uid32 scene, uid32 id);
+  void              remove_spot_light(uid32 scene, uid32 id);
+  void              remove_area_light(uid32 scene, uid32 id);
 
-  constexpr PassImpl const *get_pass(uid32 pass);
-  constexpr uid32           get_pass_id(char const *name);
-  constexpr char const     *get_pass_name(uid32 pass);
-  constexpr PassImpl const *get_pass_by_name(char const *name);
-  constexpr uid32           register_pass(PassImpl pass, char const *name);
+  void acquire_screen_color_image();
+  void acquire_screen_depth_stencil_image();
+  void release_screen_color_image();
+  void release_screen_depth_stencil_image();
 
-  // on objects added to scene, resize the cull masks
-  constexpr uid32  create_scene(char const *name);
-  constexpr Scene *get_scene(uid32 scene);
-  constexpr void   remove_scene(uid32 scene);
-  constexpr uid32  add_view(uid32 scene, char const *name);
-  constexpr View  *get_view(uid32 view);
-  constexpr void   remove_view(uid32 view);
-
-  // once an object is added to the scene, if it is not at the end of the tree,
-  // then the tree should be re-sorted based on depth
-  constexpr uid64             add_object(uid32 scene, uid64 parent,
-                                         RenderObjectDesc const &);
-  constexpr RenderObjectDesc *get_object(uid32 scene, uid64 object);
-  // remove object and all its children
-  constexpr void              remove_object(uid32 scene, uid64 object);
-  constexpr uid32             add_directional_light(uid32 scene);
-  constexpr uid32             add_point_light(uid32 scene);
-  constexpr uid32             add_spot_light(uid32 scene);
-  constexpr uid32             add_area_light(uid32 scene);
-  constexpr AmbientLight     *get_ambient_light(uid32 scene);
-  constexpr DirectionalLight *get_directional_light(uid32 scene, uid32 light);
-  constexpr PointLight       *get_point_light(uid32 scene, uid32 light);
-  constexpr SpotLight        *get_spot_light(uid32 scene, uid32 light);
-  constexpr AreaLight        *get_area_light(uid32 scene, uid32 light);
-  constexpr void remove_directional_light(uid32 scene, uid32 light);
-  constexpr void remove_point_light(uid32 scene, uid32 light);
-  constexpr void remove_spot_light(uid32 scene, uid32 light);
-  constexpr void remove_area_light(uid32 scene, uid32 light);
-};
-
-/// transform->frustum_cull->sort->render
-///
-// Invocation Procedure
-//
-// - sort scene objects by z-index
-// - for objects in the same z-index, sort by transparency (transparent objects
-// drawn last)
-// - sort transparent objects by AABB from camera frustum, this will help with
-// layering/blending one object atop of the other
-// - for objects in the same z-index, sort by passes so objects in the same pass
-// can be rendered together.
-// - sort objects in the same pass by key from render pass (materials and
-// textures and resources) to minimize pipeline state changes
-// - for the z-index group sorted objects with the same passes, sort using the
-// PassCmp key
-// - for each partition, invoke the pass with the objects
-struct Renderer
-{
+  /// transform->frustum_cull->sort->render
+  ///
+  // Invocation Procedure
+  //
+  // - sort scene objects by z-index
+  // - for objects in the same z-index, sort by transparency (transparent
+  // objects drawn last)
+  // - sort transparent objects by AABB from camera frustum, this will help with
+  // layering/blending one object atop of the other
+  // - for objects in the same z-index, sort by passes so objects in the same
+  // pass can be rendered together.
+  // - sort objects in the same pass by key from render pass (materials and
+  // textures and resources) to minimize pipeline state changes
+  // - for the z-index group sorted objects with the same passes, sort using the
+  // PassCmp key
+  // - for each partition, invoke the pass with the objects
+  //
+  //
+  //
+  //
+  //
   // transform views from object-space to world space then to clip space using
   // view's camera
-  static void transform(RenderServer *server);
+  void transform_();
 
   // perform frustum culling of objects and light (in the same
   // z-index) then cull by z-index???? Z-index not needed in culling
-  static void frustum_cull(RenderServer *server);
+  void frustum_cull_();
 
   // sort objects by z-index, get min and max z-index
   // for all objects in the z-index range, invoke the passes
@@ -391,15 +384,18 @@ struct Renderer
   // sort by transparency, transparent objects last
   // sort by pass sort key
   // sort by depth?
-  static void sort(RenderServer *server);
+  void sort_();
 
+  //
+  //
+  //
   // we need the mesh and object render-data is mostly pre-configured or
   // modified outside the renderer we just need to implement the post-effects
   // and render-orders and add other passes on top of the objects
   //
   // each scene is rendered and composited onto one another? can this possibly
   // work for portals?
-  static void render(RenderServer *server);
+  void render();
 };
 
 }        // namespace ash
