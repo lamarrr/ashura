@@ -69,13 +69,13 @@ struct AreaLight
   bool two_sided = false;
 };
 
-/// @x_mag: The floating-point horizontal magnification of the view. This value
+/// @x_mag: The horizontal magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
-/// @y_mag: The floating-point vertical magnification of the view. This value
+/// @y_mag: The vertical magnification of the view. This value
 /// MUST NOT be equal to zero. This value SHOULD NOT be negative.
-/// @z_far: The floating-point distance to the far clipping plane. This value
+/// @z_far: The distance to the far clipping plane. This value
 /// MUST NOT be equal to zero. zfar MUST be greater than znear.
-/// @z_near: The floating-point distance to the near clipping plane.
+/// @z_near: The distance to the near clipping plane.
 struct Orthographic
 {
   f32 x_mag  = 0;
@@ -84,11 +84,11 @@ struct Orthographic
   f32 z_near = 0;
 };
 
-/// @aspect_ratio: The floating-point aspect ratio of the field of view.
-/// @y_fov: The floating-point vertical field of view in radians. This value
+/// @aspect_ratio: The aspect ratio of the field of view.
+/// @y_fov: The vertical field of view in radians. This value
 /// SHOULD be less than π.
-/// @z_far: The floating-point distance to the far clipping plane.
-/// @z_near: The floating-point distance to the near clipping plane.
+/// @z_far: The distance to the far clipping plane.
+/// @z_near: The distance to the near clipping plane.
 struct Perspective
 {
   f32 aspect_ratio = 0;
