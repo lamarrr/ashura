@@ -10,16 +10,16 @@ typedef struct SystemImpl      SystemImpl;
 
 struct SystemInterface
 {
-  void (*init)(System)      = nullptr;
-  void (*deinit)(System)    = nullptr;
-  void (*tick)(System, u64) = nullptr;
+  void (*init)(System self)      = nullptr;
+  void (*deinit)(System self)    = nullptr;
+  void (*tick)(System self, u64) = nullptr;
 };
 
 struct SystemImpl
 {
   char const            *name      = nullptr;
   u64                    version   = 0;
-  System                 system    = nullptr;
+  System                 self      = nullptr;
   SystemInterface const *interface = nullptr;
 };
 
