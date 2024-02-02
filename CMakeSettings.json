@@ -11,7 +11,8 @@
       "installRoot": "${projectDir}\\install\\${name}",
       "cmakeCommandArgs": "-DVCPKG_MANIFEST_MODE=ON",
       "buildCommandArgs": "",
-      "ctestCommandArgs": ""
+      "ctestCommandArgs": "",
+      "cmakeToolchain": "${env.VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
     },
     {
       "name": "x64-Release",
@@ -24,7 +25,8 @@
       "installRoot": "${projectDir}\\install\\${name}",
       "cmakeCommandArgs": "-DVCPKG_MANIFEST_MODE=ON",
       "buildCommandArgs": "",
-      "ctestCommandArgs": ""
+      "ctestCommandArgs": "",
+      "cmakeToolchain": "${env.VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
     }
   ]
 }
