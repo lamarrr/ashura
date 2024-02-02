@@ -6,9 +6,6 @@
 namespace ash
 {
 
-/// @brief range algorithms
-namespace alg
-{
 template <typename T>
 constexpr void default_construct(Span<T> span)
 {
@@ -72,7 +69,7 @@ constexpr void copy(Span<Src> src, Span<Dst> dst)
 }
 
 template <typename A, typename B, typename SwapOpT = Swap>
-constexpr void swap(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
+constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
 {
   A *a_iter = a.begin();
   B *b_iter = b.begin();
@@ -127,7 +124,7 @@ constexpr bool any_of(Span<T> span, Predicate &&predicate)
 }
 
 template <typename T, typename U, typename Cmp = Equal>
-constexpr bool contains(Span<T const> span, U const &value, Cmp &&cmp = {})
+constexpr bool contains(Span<T> span, U const &value, Cmp &&cmp = {})
 {
   for (T const &element : span)
   {
@@ -140,8 +137,7 @@ constexpr bool contains(Span<T const> span, U const &value, Cmp &&cmp = {})
 }
 
 template <typename B, typename H, typename Cmp = Equal>
-constexpr bool begins_with(Span<B const> body, Span<H const> header,
-                           Cmp &&cmp = {})
+constexpr bool begins_with(Span<B> body, Span<H> header, Cmp &&cmp = {})
 {
   if (header.size > body.size)
   {
@@ -158,8 +154,7 @@ constexpr bool begins_with(Span<B const> body, Span<H const> header,
 }
 
 template <typename B, typename F, typename Cmp = Equal>
-constexpr bool ends_with(Span<B const> body, Span<F const> footer,
-                         Cmp &&cmp = {})
+constexpr bool ends_with(Span<B> body, Span<F> footer, Cmp &&cmp = {})
 {
   if (footer.size > body.size)
   {
@@ -219,13 +214,12 @@ constexpr void find_mismatch(Span<T>, Span<U>, Span<T> &, Span<U> &,
                              Cmp &&cmp = {});
 
 template <typename T, typename Element, typename Cmp = Equal>
-constexpr usize count(Span<T const> span, Element const &element,
-                      Cmp &&cmp = {})
+constexpr usize count(Span<T> span, Element const &target, Cmp &&cmp = {})
 {
   usize count = 0;
-  for (usize i = 0; i < span.size; i++)
+  for (T &element : span)
   {
-    if (cmp(span.data[i], element))
+    if (cmp(element, target))
     {
       count++;
     }
@@ -234,12 +228,12 @@ constexpr usize count(Span<T const> span, Element const &element,
 }
 
 template <typename T, typename Predicate>
-constexpr usize count_if(Span<T const> span, Predicate &&predicate)
+constexpr usize count_if(Span<T> span, Predicate &&predicate)
 {
   usize count = 0;
-  for (usize i = 0; i < span.size; i++)
+  for (T &element : span)
   {
-    if (predicate(span.data[i]))
+    if (predicate(element))
     {
       count++;
     }
@@ -248,7 +242,7 @@ constexpr usize count_if(Span<T const> span, Predicate &&predicate)
 }
 
 template <typename A, typename B, typename Cmp = Equal>
-constexpr bool equal(Span<A const> a, Span<B const> b, Cmp &&cmp = {})
+constexpr bool range_equal(Span<A> a, Span<B> b, Cmp &&cmp = {})
 {
   for (usize i = 0; i < a.size; i++)
   {
@@ -261,7 +255,7 @@ constexpr bool equal(Span<A const> a, Span<B const> b, Cmp &&cmp = {})
 }
 
 template <typename Input, typename Output, typename Map>
-constexpr void map(Span<Input const> input, Span<Output> output, Map &&mapper)
+constexpr void map(Span<Input> input, Span<Output> output, Map &&mapper)
 {
   for (usize i = 0; i < input.size; i++)
   {
@@ -270,11 +264,11 @@ constexpr void map(Span<Input const> input, Span<Output> output, Map &&mapper)
 }
 
 template <typename Input, typename Init, typename Reduce = Add>
-constexpr Init reduce(Span<Input const> span, Init init, Reduce &&reducer = {})
+constexpr Init reduce(Span<Input> span, Init init, Reduce &&reducer = {})
 {
-  for (usize i = 0; i < span.size; i++)
+  for (Input &input : span)
   {
-    init = reducer(init, span.data[i]);
+    init = reducer(init, input);
   }
 
   return (Init &&) init;
@@ -282,26 +276,26 @@ constexpr Init reduce(Span<Input const> span, Init init, Reduce &&reducer = {})
 
 template <typename Input, typename Output, typename Init, typename Map,
           typename Reduce>
-constexpr Init map_reduce(Span<Input const> input, Init init, Map &&mapper,
+constexpr Init map_reduce(Span<Input> input, Init init, Map &&mapper,
                           Reduce &&reducer)
 {
-  for (usize i = 0; i < input.size; i++)
+  for (Input &element : input)
   {
-    init = reducer(init, mapper(input.data[i]));
+    init = reducer(init, mapper(element));
   }
 
   return (Init &&) init;
 }
 
 template <typename T, typename E, typename R, typename Cmp = Equal>
-constexpr void replace(Span<T> span, E const &element, R const &replacement,
+constexpr void replace(Span<T> span, E const &target, R const &replacement,
                        Cmp &&cmp = {})
 {
-  for (usize i = 0; i < span.size; i++)
+  for (T &element : span)
   {
-    if (cmp(span.data[i], element))
+    if (cmp(element, target))
     {
-      span.data[i] = replacement;
+      element = replacement;
     }
   }
 }
@@ -309,11 +303,11 @@ constexpr void replace(Span<T> span, E const &element, R const &replacement,
 template <typename T, typename R, typename Test>
 constexpr void replace_if(Span<T> span, R const &replacement, Test &&test)
 {
-  for (usize i = 0; i < span.size; i++)
+  for (T &element : span)
   {
-    if (test(span.data[i]))
+    if (test(element))
     {
-      span.data[i] = replacement;
+      element = replacement;
     }
   }
 }
@@ -337,20 +331,19 @@ template <typename T, typename Swap = Swap>
 constexpr void rotate(Span<T>, Swap &&swap = {});
 
 template <typename T, typename Cmp = Min>
-constexpr Span<T> min(Span<T> span, Cmp &&cmp = {});        // return Span
+constexpr Span<T> range_min(Span<T> span, Cmp &&cmp = {});        // return Span
 
 template <typename T, typename Cmp = Max>
-constexpr Span<T> max(Span<T> span, Cmp &&cmp = {});        // return Span
+constexpr Span<T> range_max(Span<T> span, Cmp &&cmp = {});        // return Span
 
 template <typename T, typename LexOrd = Compare>
-constexpr void min_max(Span<T> span, Span<T> &min, Span<T> &max,
-                       LexOrd &&ord = {});
+constexpr void range_min_max(Span<T> span, Span<T> &min, Span<T> &max,
+                             LexOrd &&ord = {});
 
 // once gotten, it will call op(span) for each range
 // TODO(lamarrr)
 template <typename T, typename U, typename Op, typename Cmp = Equal>
-constexpr void split(Span<T> span, Span<U const> delimeter, Op op,
-                     Cmp &&cmp = {});
+constexpr void split(Span<T> span, Span<U> delimeter, Op op, Cmp &&cmp = {});
 
 // first check if src begins with other
 // keep advancing whilst src begins with other
@@ -360,7 +353,7 @@ constexpr void split(Span<T> span, Span<U const> delimeter, Op op,
 // if equal again, move back
 // move back until it is no longer equal
 template <typename T, typename U, typename Cmp = Equal>
-constexpr Span<T> strip(Span<T> src, Span<U const> other, Cmp &&cmp = {});
+constexpr Span<T> strip(Span<T> src, Span<U> other, Cmp &&cmp = {});
 // title() span, no string_view types
 
 // returns the
@@ -368,22 +361,38 @@ template <typename T, typename Predicate>
 constexpr void find_reflection(Span<T> span, Span<T> &head, Span<T> &body,
                                Span<T> &tail, Predicate &&predicate);
 
-template <typename T, typename SizeType, typename Cmp = Lesser>
-constexpr void indirect_sort(T *data, Span<SizeType> indices, Cmp &&cmp = {})
+template <typename T, typename IndexType, typename Cmp = Lesser>
+constexpr void indirect_sort(T *data, Span<IndexType> indices, Cmp &&cmp = {})
 {
   std::sort(
       indices.begin(), indices.end(),
-      [data, &cmp](SizeType a, SizeType b) { return cmp(data[a], data[b]); });
+      [data, &cmp](IndexType a, IndexType b) { return cmp(data[a], data[b]); });
 }
 
-template <typename T, typename SizeType, typename Cmp = Lesser>
-constexpr void stable_indirect_sort(T *data, Span<SizeType> indices,
+template <typename T, typename IndexType, typename Cmp = Lesser>
+constexpr void stable_indirect_sort(T *data, Span<IndexType> indices,
                                     Cmp &&cmp = {})
 {
   std::stable_sort(
       indices.begin(), indices.end(),
-      [data, &cmp](SizeType a, SizeType b) { return cmp(data[a], data[b]); });
+      [data, &cmp](IndexType a, IndexType b) { return cmp(data[a], data[b]); });
 }
 
-}        // namespace alg
+template <typename T, typename IndexType, typename Fn, typename Cmp = Equal>
+void iter_partitions_indirect(T *data, Span<IndexType> indices, Fn &&op,
+                              Cmp &&cmp = {})
+{
+  IndexType *partition_begin = indices.begin();
+  IndexType *iter            = indices.begin();
+
+  while (iter < indices.end())
+  {
+    while (iter < indices.end() && cmp(data[*partition_begin], data[*iter]))
+    {
+      iter++;
+    }
+    op(Span{partition_begin, static_cast<usize>(iter - partition_begin)});
+    partition_begin = iter;
+  }
+}
 }        // namespace  ash

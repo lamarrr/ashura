@@ -1348,7 +1348,7 @@ Result<gfx::InstanceImpl, Status>
       logger,
       "Required Vulkan Extension: " VK_KHR_SURFACE_EXTENSION_NAME
       " is not supported",
-      !alg::find(
+      !find(
            Span<VkExtensionProperties const>{extensions, num_extensions},
            VK_KHR_SURFACE_EXTENSION_NAME,
            [](VkExtensionProperties const &property, char const *find_name) {
@@ -1365,7 +1365,7 @@ Result<gfx::InstanceImpl, Status>
         logger,
         "Required Vulkan Validation Layer: " VK_EXT_DEBUG_UTILS_EXTENSION_NAME
         " is not supported",
-        !alg::find(
+        !find(
              Span<VkExtensionProperties const>{extensions, num_extensions},
              VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
              [](VkExtensionProperties const &property, char const *find_name) {
@@ -1378,7 +1378,7 @@ Result<gfx::InstanceImpl, Status>
 
   if (enable_validation_layer)
   {
-    if (alg::find(Span<VkLayerProperties const>{layers, num_layers},
+    if (find(Span<VkLayerProperties const>{layers, num_layers},
                   "VK_LAYER_KHRONOS_validation",
                   [](VkLayerProperties const &property, char const *find_name) {
                     return strcmp(property.layerName, find_name) == 0;

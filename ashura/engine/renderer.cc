@@ -71,9 +71,34 @@ Result<Void, RenderError> RenderServer::sort_()
   {
     Scene    &scene       = scene_group.scenes[iscene];
     u64 const num_objects = scene.num_objects();
-    alg::indirect_sort(scene.objects.z_index,
-                       Span{scene.objects.sort_index, num_objects});
-    // what is it called when you iterate to a partition
+    indirect_sort(scene.objects.z_index,
+                  Span{scene.objects.sort_index, num_objects});
+    iter_partitions_indirect(
+        scene.objects.z_index, Span{scene.objects.sort_index, num_objects},
+        [&](Span<u64> partition) {
+          indirect_sort(scene.objects.transparency_mask, partition);
+          iter_partitions_indirect(
+              scene.objects.transparency_mask, partition,
+              [&](Span<u64> partition) {
+                indirect_sort(scene.objects.node, partition,
+                              [](SceneNode const &a, SceneNode const &b) {
+                                return a.pass < b.pass;
+                              });
+                iter_partitions_indirect(
+                    scene.objects.node, partition,
+                    [&](Span<u64> partition) {
+                      PassImpl const &pass =
+                          pass_group.passes[pass_group.id_map.unsafe_to_index(
+                              scene.objects.node[partition[0]].pass)];
+                      pass.interface->sort(
+                          pass.self, this,
+                          scene_group.id_map.index_to_id[iscene], partition);
+                    },
+                    [](SceneNode const &a, SceneNode const &b) {
+                      return a.pass == b.pass;
+                    });
+              });
+        });
   }
 
   return Ok<Void>{};

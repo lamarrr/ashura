@@ -98,7 +98,7 @@ constexpr void erase(T *&data, SizeType &size, SizeType first_erase,
   SizeType relocate_begin = first_erase + num_erase;
   SizeType num_relocate   = size - relocate_begin;
   // can't use memcpy as it is potentially overlapping
-  alg::copy(Span{data + relocate_begin, num_relocate},
+  copy(Span{data + relocate_begin, num_relocate},
             Span{data + first_erase, num_relocate});
   // calculate new size
   size -= num_erase;

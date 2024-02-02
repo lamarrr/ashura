@@ -296,7 +296,7 @@ struct Widget
                              Span<Vec2> children_allocation)
   {
     (void) allocated_size;
-    alg::fill(children_allocation, Vec2{0, 0});
+    fill(children_allocation, Vec2{0, 0});
   }
 
   /// @brief fits itself around its children and positions child widgets
@@ -340,7 +340,7 @@ struct Widget
   virtual bool get_visibility(WidgetSystem &, bool allocated_visibility,
                               Span<bool> children_allocation)
   {
-    alg::fill(children_allocation, allocated_visibility);
+    fill(children_allocation, allocated_visibility);
     return allocated_visibility;
   }
 
@@ -352,7 +352,7 @@ struct Widget
   virtual i32 z_stack(WidgetSystem &, i32 allocated_z_index,
                       Span<i32> children_allocation)
   {
-    alg::fill(children_allocation, allocated_z_index + 1);
+    fill(children_allocation, allocated_z_index + 1);
     return allocated_z_index;
   }
 
@@ -371,7 +371,7 @@ struct Widget
   virtual Rect clip(WidgetSystem &, Rect allocated_clip,
                     Span<Rect> children_allocation)
   {
-    alg::fill(children_allocation, allocated_clip);
+    fill(children_allocation, allocated_clip);
     return allocated_clip;
   }
 
