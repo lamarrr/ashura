@@ -411,10 +411,10 @@ struct Widget
   /// return true if accepts scroll at position
   virtual bool scroll_test(WidgetSystem &);
 
-  virtual void on_mouse_down(WidgetSystem &, MouseButton button,
+  virtual void on_mouse_down(WidgetSystem &, MouseButtons button,
                              Vec2 mouse_position, u32 nclicks);
 
-  virtual void on_mouse_up(WidgetSystem &, MouseButton button,
+  virtual void on_mouse_up(WidgetSystem &, MouseButtons button,
                            Vec2 mouse_position, u32 nclicks);
 
   // TODO(lamarrr): how do we fix translation and zooming? i.e. positioning once

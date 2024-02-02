@@ -278,7 +278,7 @@ enum Key : u32
   KEY_ENDCAL             = 0x40000000 | 290
 };
 
-enum class MouseButton : u32
+enum class MouseButtons : u32
 {
   None      = 0x00,
   Primary   = 0x01,
@@ -292,6 +292,6 @@ enum class MouseButton : u32
   All       = 0xFFFFFFFF
 };
 
-ASH_DEFINE_ENUM_BIT_OPS(MouseButton)
+ASH_DEFINE_ENUM_BIT_OPS(MouseButtons)
 
 }        // namespace ash

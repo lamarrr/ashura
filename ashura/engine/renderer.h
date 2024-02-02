@@ -1,4 +1,5 @@
 #pragma once
+#include "ashura/engine/errors.h"
 #include "ashura/engine/utils.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/box.h"
@@ -28,12 +29,6 @@ typedef struct Scene              Scene;
 typedef struct SceneGroup         SceneGroup;
 typedef struct View               View;
 typedef struct ViewGroup          ViewGroup;
-
-enum class RenderError : i32
-{
-  __RenderErrorReserved = 0,
-  OutOfMemory           = 1
-};
 
 struct Texture
 {

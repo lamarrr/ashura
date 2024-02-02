@@ -107,6 +107,7 @@ Result<Void, RenderError> RenderServer::sort_()
 // work for portals?
 Result<Void, RenderError> RenderServer::render_()
 {
+  return Ok<Void>{};
 }
 
 }        // namespace ash
