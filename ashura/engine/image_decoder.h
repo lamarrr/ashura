@@ -7,8 +7,8 @@
 namespace ash
 {
 
-Result<ImageBuffer,  LoadError> decode_webp(Span<u8 const> data);
-Result<ImageBuffer,  LoadError> decode_jpg(Span<u8 const> bytes);
-Result<ImageBuffer,  LoadError> decode_image(Span<u8 const> bytes);
+Result<ImageBuffer, LoadError> decode_webp(Span<u8 const> data);
+Result<ImageBuffer, LoadError> decode_jpg(Span<u8 const> bytes);
+Result<ImageBuffer, LoadError> decode_image(Span<u8 const> bytes);
 
 }        // namespace ash

@@ -216,9 +216,9 @@ TEST(ResultTest, UnwrapOr)
 
   EXPECT_EQ(
       (make_ok<std::string, int>(std::string{"John Doe"}).unwrap_or("Unknown")),
-    "John Doe");
+      "John Doe");
   EXPECT_EQ((make_err<std::string, int>(-20).unwrap_or(std::string{"Unknown"})),
-           "Unknown");
+            "Unknown");
 }
 
 TEST(ResultTest, Unwrap)

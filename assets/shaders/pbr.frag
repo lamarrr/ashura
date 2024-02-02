@@ -4,7 +4,6 @@
 #include "constants.glsl"
 #define PI 3.1415926535897932384626433832795
 
-
 layout(location = 0) in vec3 in_world_position;
 layout(location = 1) in vec2 in_uv;
 

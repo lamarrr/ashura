@@ -2961,8 +2961,8 @@ Result<gfx::DescriptorHeapImpl, Status> DeviceInterface::create_descriptor_heap(
 
   usize scratch_memory_size =
       max(max(num_image_infos * sizeof(VkDescriptorImageInfo),
-                      num_buffer_infos * sizeof(VkDescriptorBufferInfo)),
-              num_buffer_views * sizeof(VkBufferView));
+              num_buffer_infos * sizeof(VkDescriptorBufferInfo)),
+          num_buffer_views * sizeof(VkBufferView));
 
   void *scratch_memory =
       self->allocator.allocate(MAX_STANDARD_ALIGNMENT, scratch_memory_size);
@@ -3844,11 +3844,11 @@ inline VkResult recreate_swapchain(Device const *self, Swapchain *swapchain)
       surface_capabilities.currentExtent.height == 0xFFFFFFFFU)
   {
     vk_extent.width  = clamp(swapchain->desc.preferred_extent.x,
-                                 surface_capabilities.minImageExtent.width,
-                                 surface_capabilities.maxImageExtent.width);
+                             surface_capabilities.minImageExtent.width,
+                             surface_capabilities.maxImageExtent.width);
     vk_extent.height = clamp(swapchain->desc.preferred_extent.y,
-                                 surface_capabilities.minImageExtent.height,
-                                 surface_capabilities.maxImageExtent.height);
+                             surface_capabilities.minImageExtent.height,
+                             surface_capabilities.maxImageExtent.height);
   }
   else
   {
@@ -3860,13 +3860,12 @@ inline VkResult recreate_swapchain(Device const *self, Swapchain *swapchain)
   if (surface_capabilities.maxImageCount != 0)
   {
     min_image_count = clamp(swapchain->desc.preferred_buffering,
-                                surface_capabilities.minImageCount,
-                                surface_capabilities.maxImageCount);
+                            surface_capabilities.minImageCount,
+                            surface_capabilities.maxImageCount);
   }
   else
   {
-    min_image_count =
-        max(min_image_count, surface_capabilities.minImageCount);
+    min_image_count = max(min_image_count, surface_capabilities.minImageCount);
   }
 
   VkSwapchainCreateInfoKHR create_info{
@@ -4969,7 +4968,7 @@ Result<Void, Status>
   frame_context->current_frame++;
   frame_context->trailing_frame =
       max(frame_context->current_frame,
-              (gfx::FrameId) frame_context->max_frames_in_flight) -
+          (gfx::FrameId) frame_context->max_frames_in_flight) -
       frame_context->max_frames_in_flight;
   frame_context->current_command_encoder =
       (frame_context->current_command_encoder + 1) %

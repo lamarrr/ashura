@@ -1,7 +1,7 @@
 #pragma once
 #include "ashura/std/algorithms.h"
-#include "ashura/std/types.h"
 #include "ashura/std/op.h"
+#include "ashura/std/types.h"
 
 namespace ash
 {
@@ -55,8 +55,7 @@ struct Rect
     Vec2 a_end   = offset + extent;
     Vec2 b_begin = other.offset;
     Vec2 b_end   = other.offset + other.extent;
-    Vec2 int_begin{max(a_begin.x, b_begin.x),
-                   max(a_begin.y, b_begin.y)};
+    Vec2 int_begin{max(a_begin.x, b_begin.x), max(a_begin.y, b_begin.y)};
     Vec2 int_end{min(a_end.x, b_end.x), min(a_end.y, b_end.y)};
 
     return Rect{int_begin, int_end - int_begin};

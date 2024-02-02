@@ -24,4 +24,3 @@ struct ViewPass
 
 }        // namespace gfx
 }        // namespace ash
-

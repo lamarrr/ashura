@@ -58,7 +58,8 @@ struct ProgressBar : public Widget
     else
     {
       f32 pos = std::clamp(value * area.extent.x, 0.0f, area.extent.x);
-      canvas.draw_rect_filled(area.offset, {pos, area.extent.y}, props.bar_color);
+      canvas.draw_rect_filled(area.offset, {pos, area.extent.y},
+                              props.bar_color);
     }
 
     canvas.draw_rect_stroke(area.offset, area.extent, props.bar_color, 1);

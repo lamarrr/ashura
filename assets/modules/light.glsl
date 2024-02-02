@@ -84,15 +84,14 @@ vec3 ltc_evaluate(vec3 N, vec3 V, vec3 P, mat3 Minv, vec3 points[4],
   return Lo_i;
 }
 
-
 void area_light_main()
 {
   // gamma correction
   vec3 mDiffuse = texture(material.diffuse, texcoord)
                       .xyz;        // * vec3(0.7f, 0.8f, 0.96f);
 
-// PBR-maps for roughness (and metallic) are usually stored in non-linear
-// color space (sRGB), so we use these functions to convert into linear RGB.
+  // PBR-maps for roughness (and metallic) are usually stored in non-linear
+  // color space (sRGB), so we use these functions to convert into linear RGB.
   vec3 mSpecular = ToLinear(vec3(0.23f, 0.23f, 0.23f));        // mDiffuse
 
   vec3 result = vec3(0.0f);
