@@ -163,6 +163,7 @@ struct PassGroup
   SparseSet<u32> id_map = {};
 };
 
+// TODO(lamarrr): multi-recursive passes
 // full-screen post-fx passes are full-screen quads with dependency determined
 // by their z-indexes.
 // HUD is a full-screen quad of a view-pass (another scene).

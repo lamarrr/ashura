@@ -13,7 +13,7 @@ struct BitRef
   u16  index = 0;
 
   constexpr BitRef const &operator=(bool bit) const
-    requires !Const<Rep>
+    requires (!Const<Rep>)
   {
     *pack = (*pack & ~(((Rep) 1) << index)) | (((Rep) (bit)) << index);
     return *this;
