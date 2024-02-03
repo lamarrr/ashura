@@ -26,7 +26,7 @@ struct BitRef
 
   constexpr operator BitRef<Rep const>() const
   {
-    return BitRef<Rep>{pack, index};
+    return BitRef<Rep const>{pack, index};
   }
 
   bool operator|(bool other) const
