@@ -20,7 +20,7 @@ TEST(SparseSetTest, Start)
     ASSERT_GE(id, 0);
   }
   ASSERT_FALSE(set.allocate_id(id));
-  ASSERT_TRUE((set.release(id, [&](u64 a, u64 b) {
+  ASSERT_TRUE((set.try_release(id, [&](u64 a, u64 b) {
     ASSERT_EQ(a, set.num_valid() - 1);
     ASSERT_LT(a, set.num_valid());
     ASSERT_LT(b, set.num_valid());
