@@ -51,7 +51,7 @@ find_package(Vulkan REQUIRED)
 
 file(GLOB SheenBidi_SOURCES ${sheenbidi_SOURCE_DIR}/Source/*.c)
 
-add_library(SheenBidi ${SheenBidi_SOURCES})
+add_library(SheenBidi ${SheenBidi_SOURCES} "ashura/std/bit_span.h")
 target_include_directories(
   SheenBidi
   PUBLIC ${sheenbidi_SOURCE_DIR}/Headers
@@ -77,11 +77,13 @@ target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(
   ashura_std_tests ashura/std/tests/tests.cc ashura/std/tests/option.cc
-                   ashura/std/tests/result.cc ashura/std/tests/sparse_set.cc)
+                   ashura/std/tests/result.cc 
+                   ashura/std/tests/bit_span.cc
+                   ashura/std/tests/sparse_set.cc)
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
                       GTest::gtest_main)
 
-add_library(ashura_gfx ashura/gfx/vma_def.cc ashura/gfx/vulkan.cc)
+add_library(ashura_gfx ashura/gfx/vma_def.cc ashura/gfx/vulkan.cc "ashura/std/bit_span.h")
 target_link_libraries(
   ashura_gfx ashura_std Vulkan-Headers Vulkan::UtilityHeaders Vulkan::Vulkan
   GPUOpen::VulkanMemoryAllocator)
@@ -98,7 +100,7 @@ add_library(
   ashura/engine/passes/pbr.cc
   ashura/engine/passes/rrect.cc
   ashura/engine/passes/view.cc
-  ashura/engine/widget.cc)
+  ashura/engine/widget.cc "ashura/std/bit_span.h")
 target_link_libraries(ashura_engine ashura_std ashura_gfx)
 target_include_directories(
   ashura_engine
@@ -121,6 +123,6 @@ target_link_libraries(
   ${FFMPEG_LIBRARIES}
   SheenBidi::SheenBidi)
 
-add_executable(ashura_engine_tests ashura/engine/tests/renderer.cc)
+add_executable(ashura_engine_tests ashura/engine/tests/renderer.cc "ashura/std/bit_span.h")
 target_link_libraries(ashura_engine_tests ashura_std ashura_gfx ashura_engine
                       GTest::gtest GTest::gtest_main)

@@ -9,7 +9,7 @@ namespace ash
 template <typename T>
 constexpr void default_construct(Span<T> span)
 {
-  for (T *iter = span.begin(); iter < span.end(); iter++)
+  for (T *iter = begin(span); iter != end(span); iter++)
   {
     new (iter) T{};
   }
@@ -18,9 +18,9 @@ constexpr void default_construct(Span<T> span)
 template <typename Src, typename Dst>
 constexpr void move_construct(Span<Src> src, Span<Dst> dst)
 {
-  Src *input  = src.begin();
-  Dst *output = dst.begin();
-  for (; input < src.end(); output++, input++)
+  Src *input  = begin(src);
+  Dst *output = begin(dst);
+  for (; input != end(src); output++, input++)
   {
     new (*output) Dst{(Src &&) (*input)};
   }
@@ -29,9 +29,9 @@ constexpr void move_construct(Span<Src> src, Span<Dst> dst)
 template <typename Src, typename Dst>
 constexpr void copy_construct(Span<Src> src, Span<Dst> dst)
 {
-  Src *input  = src.begin();
-  Dst *output = dst.begin();
-  for (; input < src.end(); output++, input++)
+  Src *input  = begin(src);
+  Dst *output = begin(dst);
+  for (; input != end(src); output++, input++)
   {
     new (*output) Dst{*input};
   }
@@ -40,7 +40,7 @@ constexpr void copy_construct(Span<Src> src, Span<Dst> dst)
 template <typename T>
 constexpr void destruct(Span<T> span)
 {
-  for (T *iter = span.begin(); iter < span.end(); iter++)
+  for (T *iter = begin(span); iter != end(span); iter++)
   {
     iter->~T();
   }
@@ -49,9 +49,9 @@ constexpr void destruct(Span<T> span)
 template <typename Src, typename Dst>
 constexpr void move(Span<Src> src, Span<Dst> dst)
 {
-  Src *input  = src.begin();
-  Dst *output = dst.begin();
-  for (; input < src.end(); output++, input++)
+  Src *input  = begin(src);
+  Dst *output = begin(dst);
+  for (; input != end(src); output++, input++)
   {
     *output = (Src &&) *input;
   }
@@ -60,9 +60,9 @@ constexpr void move(Span<Src> src, Span<Dst> dst)
 template <typename Src, typename Dst>
 constexpr void copy(Span<Src> src, Span<Dst> dst)
 {
-  Src *input  = src.begin();
-  Dst *output = dst.begin();
-  for (; input < src.end(); output++, input++)
+  Src *input  = begin(src);
+  Dst *output = begin(dst);
+  for (; input != end(src); output++, input++)
   {
     *output = *input;
   }
@@ -71,9 +71,9 @@ constexpr void copy(Span<Src> src, Span<Dst> dst)
 template <typename A, typename B, typename SwapOpT = Swap>
 constexpr void swap_range(Span<A> a, Span<B> b, SwapOpT &&swap_op = {})
 {
-  A *a_iter = a.begin();
-  B *b_iter = b.begin();
-  for (; a_iter < a.end(); a_iter++, b_iter++)
+  A *a_iter = begin(a);
+  B *b_iter = begin(b);
+  for (; a_iter != end(a); a_iter++, b_iter++)
   {
     swap_op(*a_iter, *b_iter);
   }
@@ -88,92 +88,129 @@ constexpr Span<T> destruct_if(Span<T> span, usize &destroy_start);
 // moves the elements to the end of the range if predicate is true
 constexpr void relocate_if();
 
-template <typename T, typename U>
-constexpr void fill(Span<T> dst, U const &value)
+template <OutputRange R, typename U>
+constexpr void fill(R &&dst, U &&value)
 {
-  for (T &element : dst)
+  OutputIterator auto it = begin(dst);
+  while (it != end(dst))
   {
-    element = value;
+    *it = value;
+    it++;
   }
 }
 
-template <typename T, typename Predicate>
-constexpr bool all_of(Span<T> span, Predicate &&predicate)
+template <InputRange R, typename Predicate>
+constexpr bool all_of(R &&range, Predicate &&predicate)
 {
-  for (T const &element : span)
+  InputIterator auto it = begin(range);
+  while (it != end(range))
   {
-    if (!predicate(element))
+    if (!predicate(*it))
     {
       return false;
     }
+    it++;
   }
   return true;
 }
 
-template <typename T, typename Predicate>
-constexpr bool any_of(Span<T> span, Predicate &&predicate)
+template <InputRange R, typename Predicate>
+constexpr bool any_of(R &&range, Predicate &&predicate)
 {
-  for (T const &element : span)
+  InputIterator auto it = begin(range);
+  while (it != end(range))
   {
-    if (predicate(element))
+    if (predicate(*it))
     {
       return true;
     }
+    it++;
   }
   return false;
 }
 
-template <typename T, typename U, typename Cmp = Equal>
-constexpr bool contains(Span<T> span, U const &value, Cmp &&cmp = {})
+template <InputRange R, typename Predicate>
+constexpr bool none_of(R &&range, Predicate &&predicate)
 {
-  for (T const &element : span)
+  InputIterator auto it = begin(range);
+  while (it != end(range))
   {
-    if (cmp(element, value))
-    {
-      return true;
-    }
-  }
-  return false;
-}
-
-template <typename B, typename H, typename Cmp = Equal>
-constexpr bool begins_with(Span<B> body, Span<H> header, Cmp &&cmp = {})
-{
-  if (header.size > body.size)
-  {
-    return false;
-  }
-  for (usize i = 0; i < header.size; i++)
-  {
-    if (!cmp(body.data[i], header.data[i]))
+    if (predicate(*it))
     {
       return false;
     }
+    it++;
   }
   return true;
 }
 
-template <typename B, typename F, typename Cmp = Equal>
-constexpr bool ends_with(Span<B> body, Span<F> footer, Cmp &&cmp = {})
+template <InputRange R, typename U, typename Cmp = Equal>
+constexpr bool contains(R &&range, U &&value, Cmp &&cmp = {})
 {
-  if (footer.size > body.size)
+  InputIterator auto it = begin(range);
+  while (it != end(range))
+  {
+    if (cmp(*it, value))
+    {
+      return true;
+    }
+    it++;
+  }
+  return false;
+}
+
+template <InputRange B, InputRange H, typename Cmp = Equal>
+constexpr bool begins_with(B &&body, H &&head, Cmp &&cmp = {})
+{
+  if (size(head) > size(body))
   {
     return false;
   }
-  for (usize ibody = body.size - footer.size, ifooter = 0;
-       ifooter < footer.size; ifooter++)
+
+  InputIterator auto body_it = begin(body);
+  InputIterator auto head_it = begin(head);
+
+  while (head_it != end(head))
   {
-    if (!cmp(body.data[ibody], footer.data[ifooter]))
+    if (!cmp(*head_it, *body_it))
     {
       return false;
     }
+
+    head_it++;
+    body_it++;
   }
+  return true;
+}
+
+template <InputRange B, InputRange F, typename Cmp = Equal>
+constexpr bool ends_with(B &&body, F &&foot, Cmp &&cmp = {})
+{
+  if (size(foot) > size(body))
+  {
+    return false;
+  }
+
+  InputIterator auto foot_it = begin(foot);
+  InputIterator auto body_it = end(body) - size(foot);
+
+  while (foot_it != end(foot))
+  {
+    if (!cmp(*foot_it, *body_it))
+    {
+      return false;
+    }
+
+    foot_it++;
+    body_it++;
+  }
+
   return true;
 }
 
 // size is 0 if not found, size is 1 if found
 template <typename T, typename U, typename Cmp = Equal>
-constexpr Span<T> find(Span<T> span, U const &value, Cmp &&cmp = {})
+constexpr Span<T> find(Span<T> span, U &&value, Cmp &&cmp = {})
 {
   usize offset = 0;
   for (; offset < span.size; offset++)
@@ -213,11 +250,11 @@ template <typename T, typename U, typename Cmp = Equal>
 constexpr void find_mismatch(Span<T>, Span<U>, Span<T> &, Span<U> &,
                              Cmp &&cmp = {});
 
-template <typename T, typename Element, typename Cmp = Equal>
-constexpr usize count(Span<T> span, Element const &target, Cmp &&cmp = {})
+template <InputRange R, typename Target, typename Cmp = Equal>
+constexpr usize count(R &&range, Target &&target, Cmp &&cmp = {})
 {
   usize count = 0;
-  for (T &element : span)
+  for (auto &element : range)
   {
     if (cmp(element, target))
     {
@@ -227,11 +264,11 @@ constexpr usize count(Span<T> span, Element const &target, Cmp &&cmp = {})
   return count;
 }
 
-template <typename T, typename Predicate>
-constexpr usize count_if(Span<T> span, Predicate &&predicate)
+template <InputRange R, typename Predicate>
+constexpr usize count_if(R &&range, Predicate &&predicate)
 {
   usize count = 0;
-  for (T &element : span)
+  for (auto &element : range)
   {
     if (predicate(element))
     {
@@ -241,73 +278,93 @@ constexpr usize count_if(Span<T> span, Predicate &&predicate)
   return count;
 }
 
-template <typename A, typename B, typename Cmp = Equal>
-constexpr bool range_equal(Span<A> a, Span<B> b, Cmp &&cmp = {})
+template <InputRange A, InputRange B, typename Cmp = Equal>
+constexpr bool range_equal(A &&a, B &&b, Cmp &&cmp = {})
 {
-  for (usize i = 0; i < a.size; i++)
+  if (size(a) != size(b))
   {
-    if (!cmp(a.data[i], b.data[i]))
+    return false;
+  }
+
+  InputIterator auto a_it = begin(a);
+  InputIterator auto b_it = begin(b);
+
+  while (a_it != end(a))
+  {
+    if (!cmp(*a_it, *b_it))
     {
       return false;
     }
-    return true;
+    a_it++;
+    b_it++;
+  }
+
+  return true;
+}
+
+template <InputRange I, OutputRange O, typename Map>
+constexpr void map(I &&input, O &&output, Map &&mapper)
+{
+  InputIterator auto  input_it  = begin(input);
+  OutputIterator auto output_it = begin(output);
+
+  while (input_it != end(input))
+  {
+    *output_it = map(*input_it);
+    input_it++;
+    output_it++;
   }
 }
 
-template <typename Input, typename Output, typename Map>
-constexpr void map(Span<Input> input, Span<Output> output, Map &&mapper)
+template <InputRange R, typename Init, typename Reduce = Add>
+constexpr Init reduce(R &&range, Init &&init, Reduce &&reducer = {})
 {
-  for (usize i = 0; i < input.size; i++)
+  InputIterator auto it = begin(range);
+  while (it != end(range))
   {
-    output.data[i] = mapper(input.data[i]);
-  }
-}
-
-template <typename Input, typename Init, typename Reduce = Add>
-constexpr Init reduce(Span<Input> span, Init init, Reduce &&reducer = {})
-{
-  for (Input &input : span)
-  {
-    init = reducer(init, input);
+    init = reducer((Init &&) init, *it);
+    it++;
   }
 
   return (Init &&) init;
 }
 
-template <typename Input, typename Output, typename Init, typename Map,
-          typename Reduce>
-constexpr Init map_reduce(Span<Input> input, Init init, Map &&mapper,
+template <InputRange R, typename Init, typename Map, typename Reduce>
+constexpr Init map_reduce(R &&range, Init &&init, Map &&mapper,
                           Reduce &&reducer)
 {
-  for (Input &element : input)
+  InputIterator auto it = begin(range);
+  while (it != end(range))
   {
-    init = reducer(init, mapper(element));
+    init = reducer((Init &&) init, map(*it));
+    it++;
   }
 
   return (Init &&) init;
 }
 
-template <typename T, typename E, typename R, typename Cmp = Equal>
-constexpr void replace(Span<T> span, E const &target, R const &replacement,
-                       Cmp &&cmp = {})
+template <OutputRange R, typename E, typename F, typename Cmp = Equal>
+constexpr void replace(R &&range, E &&target, F &&replacement, Cmp &&cmp = {})
 {
-  for (T &element : span)
+  OutputIterator auto iter = begin(range);
+  while (iter != end(range))
   {
-    if (cmp(element, target))
+    if (cmp(*iter, target))
     {
-      element = replacement;
+      *iter = replacement;
     }
   }
 }
 
-template <typename T, typename R, typename Test>
-constexpr void replace_if(Span<T> span, R const &replacement, Test &&test)
+template <OutputRange R, typename F, typename Test>
+constexpr void replace_if(R &&range, F &&replacement, Test &&test)
 {
-  for (T &element : span)
+  OutputIterator auto iter = begin(range);
+  while (iter != end(range))
   {
-    if (test(element))
+    if (test(*iter))
     {
-      element = replacement;
+      *iter = replacement;
     }
   }
 }
@@ -318,17 +375,21 @@ constexpr void partition(Span<T>, Span<T> &, Span<T> &, Predicate &&);
 template <typename T, typename Cmp = Equal>
 constexpr void unique(Span<T>, Cmp &&cmp = {});        // destroy? retain?
 
-template <typename T, typename Swap = Swap>
-constexpr void reverse(Span<T> span, Swap &&swap = {})
+template <OutputRange R, typename SwapOp = Swap>
+constexpr void reverse(R &&range, SwapOp &&swap = {})
 {
-  for (usize fwd = 0, bwd = span.size - 1; fwd < span.size / 2; fwd++, bwd--)
+  OutputIterator auto head = begin(range);
+  OutputIterator auto tail = end(range);
+
+  while (head != --tail)
   {
-    swap(span.data[fwd], span.data[bwd]);
+    swap(*head, *tail);
+    head++;
   }
 }
 
-template <typename T, typename Swap = Swap>
-constexpr void rotate(Span<T>, Swap &&swap = {});
+template <typename T, typename SwapOp = Swap>
+constexpr void rotate(Span<T>, SwapOp &&swap = {});
 
 template <typename T, typename Cmp = Min>
 constexpr Span<T> range_min(Span<T> span, Cmp &&cmp = {});        // return Span
@@ -356,38 +417,36 @@ template <typename T, typename U, typename Cmp = Equal>
 constexpr Span<T> strip(Span<T> src, Span<U> other, Cmp &&cmp = {});
 // title() span, no string_view types
 
-// returns the
 template <typename T, typename Predicate>
 constexpr void find_reflection(Span<T> span, Span<T> &head, Span<T> &body,
                                Span<T> &tail, Predicate &&predicate);
 
-template <typename T, typename IndexType, typename Cmp = Lesser>
-constexpr void indirect_sort(T *data, Span<IndexType> indices, Cmp &&cmp = {})
+template <typename S, typename IndexType, typename Cmp = Lesser>
+constexpr void indirect_sort(S &&span, Span<IndexType> indices, Cmp &&cmp = {})
 {
-  std::sort(
-      indices.begin(), indices.end(),
-      [data, &cmp](IndexType a, IndexType b) { return cmp(data[a], data[b]); });
+  std::sort(begin(indices), end(indices),
+            [&](IndexType a, IndexType b) { return cmp(span[a], span[b]); });
 }
 
-template <typename T, typename IndexType, typename Cmp = Lesser>
-constexpr void stable_indirect_sort(T *data, Span<IndexType> indices,
+template <typename S, typename IndexType, typename Cmp = Lesser>
+constexpr void stable_indirect_sort(S &&span, Span<IndexType> indices,
                                     Cmp &&cmp = {})
 {
-  std::stable_sort(
-      indices.begin(), indices.end(),
-      [data, &cmp](IndexType a, IndexType b) { return cmp(data[a], data[b]); });
+  std::stable_sort(begin(indices), end(indices), [&](IndexType a, IndexType b) {
+    return cmp(span[a], span[b]);
+  });
 }
 
-template <typename T, typename IndexType, typename Fn, typename Cmp = Equal>
-void iter_partitions_indirect(T *data, Span<IndexType> indices, Fn &&op,
-                              Cmp &&cmp = {})
+template <typename S, typename IndexType, typename Fn, typename Cmp = Equal>
+void for_each_partition_indirect(S &&span, Span<IndexType> indices, Fn &&op,
+                                 Cmp &&cmp = {})
 {
-  IndexType *partition_begin = indices.begin();
-  IndexType *iter            = indices.begin();
+  IndexType *partition_begin = begin(indices);
+  IndexType *iter            = begin(indices);
 
-  while (iter < indices.end())
+  while (iter != end(indices))
   {
-    while (iter < indices.end() && cmp(data[*partition_begin], data[*iter]))
+    while (iter != end(indices) && cmp(span[*partition_begin], span[*iter]))
     {
       iter++;
     }

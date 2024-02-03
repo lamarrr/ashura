@@ -33,8 +33,7 @@ int main()
                             gfx::DeviceType::VirtualGpu,
                             gfx::DeviceType::Other};
   gfx::DeviceImpl device =
-      instance
-          ->create_device(instance.self, span::array(pref), {}, heap_allocator)
+      instance->create_device(instance.self, to_span(pref), {}, heap_allocator)
           .unwrap();
 
   gfx::Buffer buffer =
@@ -107,11 +106,10 @@ int main()
           ->create_render_pass(
               device.self,
               gfx::RenderPassDesc{
-                  .label = "RENDER_PASS_0",
-                  .color_attachments =
-                      span::init_list({gfx::RenderPassAttachment{
-                          .format = gfx::Format::R8G8B8A8_UNORM}}),
-                  .input_attachments        = {},
+                  .label             = "RENDER_PASS_0",
+                  .color_attachments = to_span({gfx::RenderPassAttachment{
+                      .format = gfx::Format::R8G8B8A8_UNORM}}),
+                  .input_attachments = {},
                   .depth_stencil_attachment = {}})
           .unwrap();
 
@@ -119,10 +117,10 @@ int main()
       device
           ->create_framebuffer(
               device.self,
-              gfx::FramebufferDesc{.label             = "FRAMEBUFFER_0",
-                                   .render_pass       = render_pass,
-                                   .extent            = {200, 200},
-                                   .color_attachments = span::init_list({view}),
+              gfx::FramebufferDesc{.label                    = "FRAMEBUFFER_0",
+                                   .render_pass              = render_pass,
+                                   .extent                   = {200, 200},
+                                   .color_attachments        = to_span({view}),
                                    .depth_stencil_attachment = nullptr,
                                    .layers                   = 1})
           .unwrap();
@@ -132,23 +130,23 @@ int main()
           ->create_descriptor_set_layout(
               device.self,
               gfx::DescriptorSetLayoutDesc{
-                  .label    = "main set layout",
-                  .bindings = span::init_list(
-                      {gfx::DescriptorBindingDesc{
-                           .type  = gfx::DescriptorType::SampledImage,
-                           .count = 2},
-                       gfx::DescriptorBindingDesc{
-                           .type  = gfx::DescriptorType::StorageImage,
-                           .count = 4},
-                       gfx::DescriptorBindingDesc{
-                           .type  = gfx::DescriptorType::InputAttachment,
-                           .count = 8}})})
+                  .label = "main set layout",
+                  .bindings =
+                      to_span({gfx::DescriptorBindingDesc{
+                                   .type  = gfx::DescriptorType::SampledImage,
+                                   .count = 2},
+                               gfx::DescriptorBindingDesc{
+                                   .type  = gfx::DescriptorType::StorageImage,
+                                   .count = 4},
+                               gfx::DescriptorBindingDesc{
+                                   .type = gfx::DescriptorType::InputAttachment,
+                                   .count = 8}})})
           .unwrap();
 
   gfx::DescriptorHeapImpl descriptor_heap =
       device
-          ->create_descriptor_heap(device.self, span::init_list({set_layout}),
-                                   200, heap_allocator)
+          ->create_descriptor_heap(device.self, to_span({set_layout}), 200,
+                                   heap_allocator)
           .unwrap();
 
   u32 group   = descriptor_heap->add_group(descriptor_heap.self, 0).unwrap();
@@ -161,20 +159,18 @@ int main()
 
   descriptor_heap->release(descriptor_heap.self, group_1);
 
-  descriptor_heap->sampled_image(
-      descriptor_heap.self, group, 0, 0,
-      span::init_list(
-          {gfx::SampledImageBinding{view}, gfx::SampledImageBinding{view}}));
+  descriptor_heap->sampled_image(descriptor_heap.self, group, 0, 0,
+                                 to_span({gfx::SampledImageBinding{view},
+                                          gfx::SampledImageBinding{view}}));
 
   gfx::DescriptorHeapStats stats =
       descriptor_heap->get_stats(descriptor_heap.self);
 
   gfx::FrameContext frame_ctx =
       device
-          ->create_frame_context(
-              device.self, 4,
-              span::init_list({heap_allocator, heap_allocator, heap_allocator,
-                               heap_allocator}))
+          ->create_frame_context(device.self, 4,
+                                 to_span({heap_allocator, heap_allocator,
+                                          heap_allocator, heap_allocator}))
           .unwrap();
 
   gfx::FrameInfo frame_info = device->get_frame_info(device.self, frame_ctx);
@@ -189,12 +185,11 @@ int main()
                                0);
   command_encoder->clear_color_image(
       command_encoder.self, image, {},
-      span::init_list(
-          {gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
-                                      .first_mip_level   = 0,
-                                      .num_mip_levels    = 1,
-                                      .first_array_layer = 0,
-                                      .num_array_layers  = 1}}));
+      to_span({gfx::ImageSubresourceRange{.aspects = gfx::ImageAspects::Color,
+                                          .first_mip_level   = 0,
+                                          .num_mip_levels    = 1,
+                                          .first_array_layer = 0,
+                                          .num_array_layers  = 1}}));
   command_encoder->end_debug_marker(command_encoder.self);
   command_encoder->end(command_encoder.self).unwrap();
   command_encoder->reset(command_encoder.self);
@@ -205,7 +200,7 @@ int main()
               device.self,
               gfx::ShaderDesc{
                   .label      = "SHADER_0",
-                  .spirv_code = span::init_list(
+                  .spirv_code = to_span(
                       {0x07230203U, 0x00010000U, 0x0008000bU, 0x00000006U,
                        0x00000000U, 0x00020011U, 0x00000001U, 0x0006000bU,
                        0x00000001U, 0x4c534c47U, 0x6474732eU, 0x3035342eU,
@@ -239,7 +234,7 @@ int main()
                                            .specialization_constants_data = {},
                                            .specialization_constants      = {}},
                   .push_constant_size     = 128,
-                  .descriptor_set_layouts = span::init_list({set_layout}),
+                  .descriptor_set_layouts = to_span({set_layout}),
                   .cache                  = cache})
           .unwrap();
 

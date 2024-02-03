@@ -1563,52 +1563,139 @@ struct Span
   }
 };
 
-namespace span
+constexpr Span<char const> operator""_str(char const *lit, usize len)
 {
+  return Span<char const>{lit, len};
+}
 
 template <typename T>
-constexpr Span<u8> as_u8(Span<T> self)
+constexpr Span<T const> to_span(std::initializer_list<T> init)
+{
+  return Span<T const>{init.begin(), init.size()};
+}
+
+template <typename T, usize N>
+constexpr Span<T> to_span(T (&array)[N])
+{
+  return Span<T>{array, N};
+}
+
+template <typename Container>
+constexpr auto to_span(Container &container)
+    -> Span<decltype(*(container.data() + container.size()))>
+{
+  return Span{container.data(), container.size()};
+}
+
+template <typename T>
+constexpr Span<u8> as_u8_span(Span<T> self)
 {
   return Span<u8>{reinterpret_cast<u8 *>(self.data), self.size_bytes()};
 }
 
 template <typename T>
-constexpr Span<u8 const> as_u8(Span<T const> self)
+constexpr Span<u8 const> as_u8_span(Span<T const> self)
 {
   return Span<u8 const>{reinterpret_cast<u8 const *>(self.data),
                         self.size_bytes()};
 }
 
 template <typename T>
-constexpr Span<char> as_char(Span<T> self)
+constexpr Span<char> as_char_span(Span<T> self)
 {
   return Span<char>{reinterpret_cast<char *>(self.data), self.size_bytes()};
 }
 
 template <typename T>
-constexpr Span<char const> as_char(Span<T const> self)
+constexpr Span<char const> as_char_span(Span<T const> self)
 {
   return Span<char const>{reinterpret_cast<char const *>(self.data),
                           self.size_bytes()};
 }
 
 template <typename T, usize N>
-constexpr Span<T> array(T (&array)[N])
+constexpr T *begin(T (&a)[N])
 {
-  return Span<T>{array, N};
+  return a;
 }
 
-template <typename StdContainer>
-constexpr auto container(StdContainer &container)
+template <typename T, usize N>
+constexpr T *end(T (&a)[N])
 {
-  return Span{container.data(), container.size()};
+  return a + N;
 }
 
 template <typename T>
-constexpr Span<T const> init_list(std::initializer_list<T> init)
+constexpr auto begin(T &&a) -> decltype(a.begin())
 {
-  return Span<T const>{init.begin(), init.size()};
+  return a.begin();
 }
 
-}        // namespace span
+template <typename T>
+constexpr auto end(T &&a) -> decltype(a.end())
+{
+  return a.end();
+}
+
+template <typename It>
+concept InputIterator = requires(It it) {
+  {
+    // deref
+    *it
+  };
+  {
+    // advance
+    it = it++
+  };
+  {
+    // advance
+    it = ++it
+  };
+  {
+    // distance
+    it = it + (it - it)
+  };
+  {
+    // equal
+    (it == it) && true
+  };
+  {
+    // not equal
+    (it != it) && true
+  };
+};
+
+template <typename It>
+concept OutputIterator = InputIterator<It> && requires(It it) {
+  {
+    // assign
+    *it = *it
+  };
+};
+
+template <typename R>
+concept InputRange = requires(R r) {
+  {
+    begin(r)
+  } -> InputIterator;
+  {
+    end(r)
+  } -> InputIterator;
+};
+
+template <typename R>
+concept OutputRange = requires(R r) {
+  {
+    begin(r)
+  } -> OutputIterator;
+  {
+    end(r)
+  } -> OutputIterator;
+};
+
+constexpr auto size(InputRange auto &&range)
+{
+  return end(range) - begin(range);
+}
+
 }        // namespace ash

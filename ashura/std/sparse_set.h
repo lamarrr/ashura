@@ -20,8 +20,8 @@ namespace ash
 template <typename SizeType>
 struct SparseSet
 {
-  static_assert(!Traits<SizeType>::SIGNED);
-  static constexpr SizeType STUB         = Traits<SizeType>::MAX;
+  static_assert(!IntTraits<SizeType>::SIGNED);
+  static constexpr SizeType STUB         = IntTraits<SizeType>::MAX;
   static constexpr SizeType RELEASE_MASK = ~(STUB >> 1);
   static constexpr SizeType MAX_ELEMENTS = STUB >> 1;
   static constexpr SizeType MAX_ID       = MAX_ELEMENTS;
@@ -89,12 +89,17 @@ struct SparseSet
     return id < num_slots && !(id_to_index[id] & RELEASE_MASK);
   }
 
-  [[nodiscard]] constexpr SizeType unsafe_to_index(SizeType id) const
+  [[nodiscard]] constexpr SizeType to_index(SizeType id) const
   {
     return id_to_index[id];
   }
 
-  [[nodiscard]] constexpr bool to_index(SizeType id, SizeType &index) const
+  [[nodiscard]] constexpr SizeType operator[](SizeType id) const
+  {
+    return id_to_index[id];
+  }
+
+  [[nodiscard]] constexpr bool try_to_index(SizeType id, SizeType &index) const
   {
     if (!is_valid_id(id))
     {
@@ -106,7 +111,7 @@ struct SparseSet
   }
 
   template <typename Relocate>
-  constexpr void unsafe_release(SizeType id, Relocate &&relocate_op)
+  constexpr void release(SizeType id, Relocate &&relocate_op)
   {
     SizeType const index = id_to_index[id];
     SizeType const last  = num_valid() - 1;
@@ -125,7 +130,7 @@ struct SparseSet
   // Relocate: operation to move from initialized src to uninitialized dst, and
   // then destroy src
   template <typename Relocate>
-  [[nodiscard]] constexpr bool release(SizeType id, Relocate &&relocate_op)
+  [[nodiscard]] constexpr bool try_release(SizeType id, Relocate &&relocate_op)
   {
     if (!is_valid_id(id))
     {

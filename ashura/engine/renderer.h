@@ -101,7 +101,7 @@ struct Camera
 {
   Mat4Affine model      = {};
   Mat4Affine view       = {};
-  Mat4Affine projection = {};
+  Mat4       projection = {};
 };
 
 /// @brief: Arguments to allocate new resources or update existing resources
@@ -122,7 +122,7 @@ struct PassEncodeInfo
   uid32                   view            = 0;
   bool                    is_transparent  = false;
   i64                     z_index         = 0;
-  Span<u64>               object_indices  = {};
+  Span<u32>               object_indices  = {};
 };
 
 /// @init: add self and resources to server
@@ -138,7 +138,7 @@ struct PassInterface
   void (*init)(Pass self, RenderServer *server, uid32 id)             = nullptr;
   void (*deinit)(Pass self, RenderServer *server)                     = nullptr;
   void (*sort)(Pass, RenderServer *server, uid32 scene,
-               Span<u64> object_indices)                              = nullptr;
+               Span<u32> object_indices)                              = nullptr;
   void (*update)(Pass self, RenderServer *server,
                  PassUpdateInfo const *args)                          = nullptr;
   void (*encode)(Pass self, RenderServer *server,
@@ -178,15 +178,15 @@ struct PassGroup
 /// @pass: pass to be used to render this object
 struct SceneNode
 {
-  uid64 parent         = INVALID_UID64;
-  uid64 next_sibling   = INVALID_UID64;
-  uid64 first_child    = INVALID_UID64;
+  uid32 parent         = INVALID_UID32;
+  uid32 next_sibling   = INVALID_UID32;
+  uid32 first_child    = INVALID_UID32;
   u32   depth          = 0;
   uid32 pass           = INVALID_UID32;
-  uid64 pass_object_id = INVALID_UID64;
+  uid32 pass_object_id = INVALID_UID32;
 };
 
-struct RenderObjectDesc
+struct SceneObjectDesc
 {
   Mat4Affine transform      = {};
   Box        aabb           = {};
@@ -196,24 +196,21 @@ struct RenderObjectDesc
 
 struct SceneObjects
 {
-  SceneNode     *node                       = nullptr;
-  Mat4Affine    *local_transform            = nullptr;
-  Mat4Affine    *global_transform           = nullptr;
-  Box           *aabb                       = nullptr;
-  i64           *z_index                    = nullptr;
-  u64           *transparency_mask          = nullptr;
-  u64           *sort_index                 = nullptr;
-  u64            node_capacity              = 0;
-  u64            local_transform_capacity   = 0;
-  u64            global_transform_capacity  = 0;
-  u64            aabb_capacity              = 0;
-  u64            z_index_capacity           = 0;
-  u64            transparency_mask_capacity = 0;
-  u64            sort_index_capacity        = 0;
-  SparseSet<u64> id_map                     = {};
+  SceneNode       *node                      = nullptr;
+  Mat4Affine      *local_transform           = nullptr;
+  Mat4Affine      *global_transform          = nullptr;
+  Box             *aabb                      = nullptr;
+  i64             *z_index                   = nullptr;
+  u64             *is_transparent            = nullptr;
+  u32              node_capacity             = 0;
+  u32              local_transform_capacity  = 0;
+  u32              global_transform_capacity = 0;
+  u32              aabb_capacity             = 0;
+  u32              z_index_capacity          = 0;
+  u32              is_transparent_capacity   = 0;
+  SparseSet<uid32> id_map                    = {};
 };
 
-// A scene repared for rendering
 struct Scene
 {
   char const       *name                        = nullptr;
@@ -231,10 +228,32 @@ struct Scene
   u32               spot_lights_capacity        = 0;
   u32               area_lights_capacity        = 0;
   SceneObjects      objects                     = {};
+  u32              *sort_indices                = nullptr;
+  u32               sort_indices_capacity       = 0;
 
-  constexpr u64 num_objects() const
+  constexpr u32 num_objects() const
   {
     return objects.id_map.num_valid();
+  }
+
+  constexpr u32 num_directional_lights() const
+  {
+    return directional_lights_id_map.num_valid();
+  }
+
+  constexpr u32 num_point_lights() const
+  {
+    return point_lights_id_map.num_valid();
+  }
+
+  constexpr u32 num_spot_lights() const
+  {
+    return spot_lights_id_map.num_valid();
+  }
+
+  constexpr u32 num_area_lights() const
+  {
+    return area_lights_id_map.num_valid();
   }
 };
 
@@ -251,17 +270,11 @@ struct SceneGroup
 
 struct View
 {
-  char const *name                           = nullptr;
-  Camera      camera                         = {};
-  uid32       scene                          = 0;
-  u64        *object_cull_mask               = nullptr;
-  u64        *point_light_cull_mask          = nullptr;
-  u64        *spot_light_cull_mask           = nullptr;
-  u64        *area_light_cull_mask           = nullptr;
-  u64         object_cull_mask_capacity      = 0;
-  u32         point_light_cull_mask_capacity = 0;
-  u32         spot_light_cull_mask_capacity  = 0;
-  u32         area_light_cull_mask_capacity  = 0;
+  char const *name                       = nullptr;
+  Camera      camera                     = {};
+  uid32       scene                      = 0;
+  u64        *is_object_visible          = nullptr;
+  u32         is_object_visible_capacity = 0;
 };
 
 struct ViewGroup
@@ -319,25 +332,25 @@ struct RenderServer
   SceneGroup      scene_group = {};
   ViewGroup       view_group  = {};
 
-  void                       acquire_screen_color_image();
-  void                       acquire_screen_depth_stencil_image();
-  void                       release_screen_color_image();
-  void                       release_screen_depth_stencil_image();
-  Option<PassImpl const *>   get_pass(uid32 pass);
-  Option<uid32>              get_pass_id(char const *name);
-  Option<uid32>              register_pass(PassImpl pass);
-  Option<uid32>              create_scene(char const *name);
-  Option<Scene *>            get_scene(uid32 scene);
-  void                       remove_scene(uid32 scene);
-  Option<uid32>              add_view(uid32 scene, char const *name);
-  Option<View *>             get_view(uid32 view);
-  void                       remove_view(uid32 view);
-  Option<uid64>              add_object(uid32 scene, uid64 parent,
-                                        RenderObjectDesc const &desc);
-  Option<RenderObjectDesc *> get_object(uid32 scene, uid64 object);
-  void                       remove_object(uid32 scene, uid64 object);
-  Option<uid32>              add_directional_light(uid32                   scene,
-                                                   DirectionalLight const &light);
+  void                     acquire_screen_color_image();
+  void                     acquire_screen_depth_stencil_image();
+  void                     release_screen_color_image();
+  void                     release_screen_depth_stencil_image();
+  Option<PassImpl const *> get_pass(uid32 pass);
+  Option<uid32>            get_pass_id(char const *name);
+  Option<uid32>            register_pass(PassImpl pass);
+  Option<uid32>            create_scene(char const *name);
+  Option<Scene *>          get_scene(uid32 scene);
+  void                     remove_scene(uid32 scene);
+  Option<uid32>  add_view(uid32 scene, char const *name, Camera const &camera);
+  Option<View *> get_view(uid32 view);
+  void           remove_view(uid32 view);
+  Option<uid32>  add_object(uid32 scene, uid32 parent,
+                            SceneObjectDesc const &desc);
+  Option<SceneObjectDesc *> get_object(uid32 scene, uid32 object);
+  void                      remove_object(uid32 scene, uid32 object);
+  Option<uid32>             add_directional_light(uid32                   scene,
+                                                  DirectionalLight const &light);
   Option<uid32>          add_point_light(uid32 scene, PointLight const &light);
   Option<uid32>          add_spot_light(uid32 scene, SpotLight const &light);
   Option<uid32>          add_area_light(uid32 scene, AreaLight const &light);
