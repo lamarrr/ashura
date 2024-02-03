@@ -136,7 +136,7 @@ struct SparseSet
     {
       return false;
     }
-    unsafe_release(id, relocate_op);
+    release(id, relocate_op);
     return true;
   }
 
