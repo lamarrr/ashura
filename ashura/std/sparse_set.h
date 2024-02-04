@@ -8,11 +8,37 @@
 namespace ash
 {
 
+template <typename T>
+struct SparseVec
+{
+  using Type = T;
+
+  AllocatorImpl allocator = {};
+  T            *data      = nullptr;
+  usize         capacity  = 0;
+  usize         size      = 0;
+
+  constexpr T &operator[](usize index) const
+  {
+    return data[index];
+  }
+  constexpr void clear();
+  constexpr bool reserve(usize target_capacity);
+  constexpr void destruct_element(usize index);
+  constexpr void reset(usize count);
+  constexpr void relocate(usize src, usize dst_uninit);
+  constexpr T   *get(usize index);
+  constexpr T   *begin() const;
+  constexpr T   *end() const;
+};
+
 /// @brief An externally managed sparse set, the sparse set is always compacted
 /// @tparam SizeT: size type, u8, u32, u64
 ///
 /// @index_to_id: id of data, ordered relative to {data}
 /// @id_to_index: map of id to index in {data}
+/// @size: the number of valid elements in the sparse set
+/// @capacity: the number of elements the sparse set has capacity for
 ///
 /// The index and id either point to valid indices/ids or are an implicit free
 /// list of ids and indices masked by RELEASE_MASK
@@ -26,67 +52,54 @@ struct SparseSet
   static constexpr SizeType MAX_ELEMENTS = STUB >> 1;
   static constexpr SizeType MAX_ID       = MAX_ELEMENTS;
 
-  SizeType *index_to_id          = nullptr;
-  SizeType *id_to_index          = nullptr;
-  SizeType  free_id_head         = STUB;
-  SizeType  num_free             = 0;
-  SizeType  num_slots            = 0;
-  SizeType  index_to_id_capacity = 0;
-  SizeType  id_to_index_capacity = 0;
+  AllocatorImpl allocator            = {};
+  SizeType      size                 = 0;
+  SizeType      capacity             = 0;
+  SizeType     *index_to_id          = nullptr;
+  SizeType     *id_to_index          = nullptr;
+  SizeType      free_id_head         = STUB;
+  SizeType      index_to_id_capacity = 0;
+  SizeType      id_to_index_capacity = 0;
 
-  /// the minimum required capacity of the referred-to external array
-  constexpr SizeType required_capacity() const
+  template <typename... T>
+  constexpr void clear(SparseVec<T> &...sparse)
   {
-    return num_slots;
+    (sparse.clear(), ...);
+    size = 0;
+    if (capacity > 0)
+    {
+      free_id_head = 0;
+      for (SizeType i = 0; i < capacity - 1; i++)
+      {
+        id_to_index[i] = (i + 1) | RELEASE_MASK;
+      }
+      id_to_index[capacity - 1] = STUB;
+    }
+    else
+    {
+      free_id_head = STUB;
+    }
   }
 
-  /// the number of valid elements in the array
-  constexpr SizeType num_valid() const
+  template <typename... T>
+  constexpr void reset(SparseVec<T> &...sparse)
   {
-    return num_slots - num_free;
-  }
-
-  /// clear all slots and id allocations
-  /// all elements must have been destroyed
-  constexpr void clear()
-  {
+    (sparse.reset(), ...);
+    tvec::reset(allocator, id_to_index, id_to_index_capacity);
+    tvec::reset(allocator, index_to_id, index_to_id_capacity);
     free_id_head = STUB;
     num_free     = 0;
     num_slots    = 0;
   }
 
-  /// release all allocated ids.
-  /// all elements must have been destroyed before calling this.
-  constexpr void release_all()
-  {
-    if (num_slots > 0)
-    {
-      free_id_head = 0;
-      for (SizeType i = 0; i < num_slots - 1; i++)
-      {
-        id_to_index[i] = (i + 1) | RELEASE_MASK;
-      }
-      id_to_index[num_slots - 1] = STUB;
-      num_free                   = num_slots;
-    }
-  }
-
-  constexpr void reset(AllocatorImpl const &allocator)
-  {
-    allocator.deallocate_typed(index_to_id, index_to_id_capacity);
-    allocator.deallocate_typed(id_to_index, id_to_index_capacity);
-    index_to_id          = nullptr;
-    id_to_index          = nullptr;
-    free_id_head         = STUB;
-    num_free             = 0;
-    num_slots            = 0;
-    index_to_id_capacity = 0;
-    id_to_index_capacity = 0;
-  }
-
   [[nodiscard]] constexpr bool is_valid_id(SizeType id) const
   {
-    return id < num_slots && !(id_to_index[id] & RELEASE_MASK);
+    return id < capacity && !(id_to_index[id] & RELEASE_MASK);
+  }
+
+  [[nodiscard]] constexpr bool is_valid_index(SizeType index) const
+  {
+    return index < size;
   }
 
   [[nodiscard]] constexpr SizeType to_index(SizeType id) const
@@ -106,29 +119,28 @@ struct SparseSet
       return false;
     }
 
-    index = unsafe_to_index(id);
+    index = to_index(id);
     return true;
   }
 
-  template <typename Relocate>
-  constexpr void release(SizeType id, Relocate &&relocate_op)
+  template <typename... T>
+  constexpr void erase2(SizeType id, SparseVec<T> &...sparse)
   {
     SizeType const index = id_to_index[id];
-    SizeType const last  = num_valid() - 1;
+    SizeType const last  = size - 1;
+    (sparse.destruct_element(index), ...);
     if (index != last)
     {
-      relocate_op(last, index);
+      (sparse.relocate(last, index), ...);
+      (sparse.size--, ...);
     }
     id_to_index[index_to_id[last]] = index;
     index_to_id[index]             = index_to_id[last];
     id_to_index[id]                = free_id_head | RELEASE_MASK;
     free_id_head                   = id;
-    num_free++;
+    size--;
   }
 
-  // element at id must have already been destroyed.
-  // Relocate: operation to move from initialized src to uninitialized dst, and
-  // then destroy src
   template <typename Relocate>
   [[nodiscard]] constexpr bool try_release(SizeType id, Relocate &&relocate_op)
   {
@@ -138,15 +150,6 @@ struct SparseSet
     }
     release(id, relocate_op);
     return true;
-  }
-
-  [[nodiscard]] constexpr bool reserve_memory(AllocatorImpl const &allocator,
-                                              SizeType target_capacity)
-  {
-    return tvec::reserve(allocator, id_to_index, id_to_index_capacity,
-                         target_capacity) &&
-           tvec::reserve(allocator, index_to_id, index_to_id_capacity,
-                         target_capacity);
   }
 
   [[nodiscard]] constexpr bool reserve_new_ids(AllocatorImpl const &allocator,
@@ -159,7 +162,10 @@ struct SparseSet
 
     SizeType const new_num_slots = num_slots + num_extra_slots;
 
-    if (!reserve_memory(allocator, new_num_slots))
+    if (!tvec::reserve(allocator, id_to_index, id_to_index_capacity,
+                       target_capacity) ||
+        !tvec::reserve(allocator, index_to_id, index_to_id_capacity,
+                       target_capacity))
     {
       return false;
     }
@@ -176,7 +182,9 @@ struct SparseSet
     return true;
   }
 
-  [[nodiscard]] constexpr bool allocate_id(SizeType &out_id)
+  template <typename... T>
+  [[nodiscard]] constexpr bool push(SizeType &out_id, SizeType &out_index,
+                                    SparseVec<T> &...sparse)
   {
     if (num_free == 0)
     {
@@ -189,6 +197,7 @@ struct SparseSet
     index_to_id[index]   = id;
     id_to_index[id]      = index;
     out_id               = id;
+    out_index            = index;
     num_free--;
     return true;
   }

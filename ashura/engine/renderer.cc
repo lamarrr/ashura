@@ -6,18 +6,299 @@
 namespace ash
 {
 
-// for (u32 iview = 0; iview < view_group.num_views(); iview++)
-//   {
-//     View  &view = view_group.views[iview];
-//     Scene &scene =
-//         scene_group.scenes[scene_group.id_map.unsafe_to_index(view.scene)];
-//     usize const required_size = bitvec::size_u64(scene.num_objects());
-//     if (!tvec::reserve(allocator, view.object_cull_mask,
-//                        view.object_cull_mask_capacity, required_size))
-//     {
-//       return Err{RenderError::OutOfMemory};
-//     }
-//   }
+void destroy_pass_group(PassGroup &group, AllocatorImpl const &allocator)
+{
+  allocator.deallocate_typed(group.passes, group.passes_capacity);
+  group.id_map.reset(allocator);
+}
+
+void destroy_scene(Scene &scene, AllocatorImpl const &allocator)
+{
+  allocator.deallocate_typed(scene.directional_lights,
+                             scene.directional_lights_capacity);
+  scene.directional_lights_id_map.reset(allocator);
+  allocator.deallocate_typed(scene.point_lights, scene.point_lights_capacity);
+  scene.point_lights_id_map.reset(allocator);
+  allocator.deallocate_typed(scene.spot_lights, scene.spot_lights_capacity);
+  scene.spot_lights_id_map.reset(allocator);
+  allocator.deallocate_typed(scene.area_lights, scene.area_lights_capacity);
+  scene.area_lights_id_map.reset(allocator);
+  allocator.deallocate_typed(scene.sort_indices, scene.sort_indices_capacity);
+}
+
+void destroy_scene_group(SceneGroup &group, AllocatorImpl const &allocator)
+{
+  for (u32 i = 0; i < group.id_map.num_valid(); i++)
+  {
+    destroy_scene(group.scenes[i], allocator);
+  }
+  group.id_map.reset(allocator);
+}
+
+void destroy_view(View &view, AllocatorImpl const &allocator)
+{
+  allocator.deallocate_typed(view.is_object_visible,
+                             view.is_object_visible_capacity);
+}
+
+Option<PassImpl const *> RenderServer::get_pass(uid32 pass)
+{
+  u32 index;
+  if (!pass_group.id_map.try_to_index(pass, index))
+  {
+    return None;
+  }
+
+  return Some{static_cast<PassImpl const *>(&pass_group.passes[index])};
+}
+
+Option<uid32> RenderServer::get_pass_id(char const *name)
+{
+  for (u32 i = 0; i < pass_group.id_map.num_valid(); i++)
+  {
+    if (strcmp(pass_group.passes[i].name, name) == 0)
+    {
+      return Some{pass_group.id_map.index_to_id[i]};
+    }
+  }
+  return None;
+}
+
+Option<uid32> RenderServer::register_pass(PassImpl pass)
+{
+  if (pass_group.id_map.num_free == 0)
+  {
+    if (!tvec::reserve(allocator, pass_group.passes, pass_group.passes_capacity,
+                       pass_group.id_map.num_slots + 1) ||
+        !pass_group.id_map.reserve_new_ids(allocator, 1))
+    {
+      return None;
+    }
+  }
+
+  uid32 id;
+  u32   index;
+  if (!pass_group.id_map.allocate_id(id, index))
+  {
+    return None;
+  }
+
+  pass_group.passes[index] = pass;
+  return Some{id};
+}
+
+Option<uid32> RenderServer::create_scene(char const *name)
+{
+  if (scene_group.id_map.num_free == 0)
+  {
+    if (!tvec::reserve(allocator, scene_group.scenes,
+                       scene_group.scenes_capacity,
+                       scene_group.id_map.num_slots + 1) ||
+        !scene_group.id_map.reserve_new_ids(allocator, 1))
+    {
+      return None;
+    }
+  }
+
+  uid32 id;
+  u32   index;
+  if (!scene_group.id_map.allocate_id(id, index))
+  {
+    return None;
+  }
+
+  scene_group.scenes[index] = Scene{.name = name};
+  return Some{id};
+}
+
+Option<Scene *> RenderServer::get_scene(uid32 scene)
+{
+  u32 index;
+  if (!scene_group.id_map.try_to_index(scene, index))
+  {
+    return None;
+  }
+  return Some{scene_group.scenes + index};
+}
+
+void RenderServer::remove_scene(uid32 scene)
+{
+  u32 index;
+  if (!scene_group.id_map.try_to_index(scene, index))
+  {
+    return;
+  }
+  // TODO(lamarrr): notify all views
+
+  destroy_scene(scene_group.scenes[index], allocator);
+  scene_group.id_map.release(scene, [](auto...) {
+    // TODO(lamarrr): trivial relocate op
+  });
+}
+
+Option<uid32> RenderServer::add_view(uid32 scene, char const *name,
+                                     Camera const &camera)
+{
+  u32 scene_index;
+  if (!scene_group.id_map.try_to_index(scene, scene_index))
+  {
+    return None;
+  }
+
+  if (scene_group.id_map.num_free == 0)
+  {
+    if (!tvec::reserve(allocator, scene_group.scenes,
+                       scene_group.scenes_capacity,
+                       scene_group.id_map.num_slots + 1) ||
+        !scene_group.id_map.reserve_new_ids(allocator, 1))
+    {
+      return None;
+    }
+  }
+
+  uid32 id;
+  u32   index;
+  if (!view_group.id_map.allocate_id(id, index))
+  {
+    return None;
+  }
+
+  // TODO(lamarrr): resize is_object_visible?
+  view_group.views[index] = View{.name                       = name,
+                                 .camera                     = camera,
+                                 .scene                      = scene,
+                                 .is_object_visible          = nullptr,
+                                 .is_object_visible_capacity = 0};
+
+  // TODO(lamarrr): notify all views
+  return Some{id};
+}
+
+Option<View *> RenderServer::get_view(uid32 view)
+{
+  u32 index;
+  if (!view_group.id_map.try_to_index(view, index))
+  {
+    return None;
+  }
+  return Some{view_group.views + index};
+}
+
+void RenderServer::remove_view(uid32 view)
+{
+  u32 index;
+  if (!view_group.id_map.try_to_index(view, index))
+  {
+    return;
+  }
+  destroy_view(view_group.views[index], allocator);
+  view_group.id_map.release(view, [](auto...) {
+    // TODO(lamarrr): trivial relocate op
+  });
+}
+
+Option<uid32> RenderServer::add_object(uid32 scene, uid32 parent,
+                                       SceneObjectDesc const &desc)
+{
+  // resize cull masks for all views referring to the scene, on view added, on
+  // view removed, on view for (u32 iview = 0; iview < view_group.num_views();
+  // iview++)
+  //   {
+  //     View  &view = view_group.views[iview];
+  //     Scene &scene =
+  //         scene_group.scenes[scene_group.id_map.unsafe_to_index(view.scene)];
+  //     usize const required_size = bitvec::size_u64(scene.num_objects());
+  //     if (!tvec::reserve(allocator, view.object_cull_mask,
+  //                        view.object_cull_mask_capacity, required_size))
+  //     {
+  //       return Err{RenderError::OutOfMemory};
+  //     }
+  //   }
+  return None;
+}
+
+void RenderServer::remove_object(uid32 scene, uid32 object)
+{
+  u32 scene_index;
+  if (!scene_group.id_map.try_to_index(scene, scene_index))
+  {
+    return;
+  }
+
+  Scene &scene_r = scene_group.scenes[scene_index];
+
+  (void) scene_r.objects.id_map.try_release(object, [](auto...) {});
+
+  // uid32 object_pass = scene_r.objects.node[object_index].pass;
+  // uid32 object_pass_id = scene_r.objects.node[object_index].pass_object_id;
+  // u32 object_pass_index =  pass_group.id_map[object_pass_id];
+  // PassImpl const  pass = pass_group.passes[object_index];
+  // pass.interface->
+}
+
+Option<uid32> RenderServer::add_directional_light(uid32                   scene,
+                                                  DirectionalLight const &light)
+{
+  return None;
+}
+
+Option<uid32> RenderServer::add_point_light(uid32             scene,
+                                            PointLight const &light)
+{
+  return None;
+}
+
+Option<uid32> RenderServer::add_spot_light(uid32 scene, SpotLight const &light)
+{
+  return None;
+}
+
+Option<uid32> RenderServer::add_area_light(uid32 scene, AreaLight const &light)
+{
+  return None;
+}
+
+Option<AmbientLight *> RenderServer::get_ambient_light(uid32 scene)
+{
+  return None;
+}
+
+Option<DirectionalLight *> RenderServer::get_directional_light(uid32 scene,
+                                                               uid32 id)
+{
+  return None;
+}
+
+Option<PointLight *> RenderServer::get_point_light(uid32 scene, uid32 id)
+{
+  return None;
+}
+
+Option<SpotLight *> RenderServer::get_spot_light(uid32 scene, uid32 id)
+{
+  return None;
+}
+
+Option<AreaLight *> RenderServer::get_area_light(uid32 scene, uid32 id)
+{
+  return None;
+}
+
+void RenderServer::remove_directional_light(uid32 scene, uid32 id)
+{
+}
+
+void RenderServer::remove_point_light(uid32 scene, uid32 id)
+{
+}
+
+void RenderServer::remove_spot_light(uid32 scene, uid32 id)
+{
+}
+
+void RenderServer::remove_area_light(uid32 scene, uid32 id)
+{
+}
 
 // transform views from object-space to root-object space
 void RenderServer::transform_()
@@ -127,7 +408,8 @@ Result<Void, RenderError> RenderServer::sort_()
   for (u32 iscene = 0; iscene < scene_group.num_scenes(); iscene++)
   {
     // TODO(lamarrr): don't perform any sorting on frustum-culled objects
-      // select();
+    // filter_indirect();?
+    // filter_masked();?
     Scene    &scene       = scene_group.scenes[iscene];
     u32 const num_objects = scene.num_objects();
     indirect_sort(scene.objects.z_index, Span{scene.sort_indices, num_objects});

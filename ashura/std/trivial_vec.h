@@ -9,15 +9,25 @@ namespace ash
 
 namespace tvec
 {
+
+    
+template <typename T, typename SizeType>
+constexpr void reset(AllocatorImpl const &allocator, T *&data,
+                     SizeType &capacity)
+{
+  allocator.deallocate_typed(data, capacity);
+  data     = nullptr;
+  capacity = 0;
+}
+
 template <typename T, typename SizeType>
 constexpr void reset(AllocatorImpl const &allocator, T *&data,
                      SizeType &capacity, SizeType &size)
 {
-  allocator.deallocate_typed(data, capacity);
-  data     = nullptr;
-  size     = 0;
-  capacity = 0;
+  reset(allocator, data, capacity);
+  size = 0;
 }
+
 
 template <typename T, typename SizeType>
 [[nodiscard]] constexpr bool reserve(AllocatorImpl const &allocator, T *&data,
@@ -99,7 +109,7 @@ constexpr void erase(T *&data, SizeType &size, SizeType first_erase,
   SizeType num_relocate   = size - relocate_begin;
   // can't use memcpy as it is potentially overlapping
   copy(Span{data + relocate_begin, num_relocate},
-            Span{data + first_erase, num_relocate});
+       Span{data + first_erase, num_relocate});
   // calculate new size
   size -= num_erase;
 }

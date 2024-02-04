@@ -41,6 +41,10 @@ typedef struct Mat4Affine Mat4Affine;
 typedef struct Slice      Slice;
 template <typename T>
 struct Span;
+template <unsigned int Index, typename T>
+struct TupleElement;
+template <typename H, typename... T>
+struct Tuple;
 
 constexpr u8 U8_MIN = 0;
 constexpr u8 U8_MAX = 0xFFU;
@@ -1611,6 +1615,56 @@ constexpr Span<char const> as_char_span(Span<T const> self)
                           self.size_bytes()};
 }
 
+template <unsigned int Current, unsigned int Index, typename H, typename... T>
+struct TypePackIndexImpl : TypePackIndexImpl<Current + 1, Index, H, T...>
+{
+};
+
+template <unsigned int Index, typename H, typename... T>
+struct TypePackIndexImpl<Index, Index, H, T...>
+{
+  using type = H;
+};
+
+template <unsigned int Index, typename H, typename... T>
+using TypePackIndex = typename TypePackIndexImpl<0, Index, H, T...>::type;
+
+template <unsigned int Index, typename T>
+struct TupleElement
+{
+  T value;
+};
+
+template <unsigned int Index, typename H, typename... T>
+struct TupleImpl : TupleElement<Index, H>, TupleImpl<Index + 1, T...>
+{
+};
+
+template <unsigned int Index, typename H>
+struct TupleImpl<Index, H> : TupleElement<Index, H>
+{
+};
+
+template <typename H, typename... T>
+struct Tuple : TupleImpl<0, H, T...>
+{
+  template <unsigned int Index>
+  constexpr TypePackIndex<Index, H, T...> &get()
+  {
+    static_assert(Index < sizeof...(T) + 1, "tuple index out of bounds");
+    TupleElement<Index, TypePackIndex<Index, H, T...>> *ref = this;
+    return ref->value;
+  }
+
+  template <unsigned int Index>
+  constexpr TypePackIndex<Index, H, T...> const &get() const
+  {
+    static_assert(Index < sizeof...(T) + 1, "tuple index out of bounds");
+    TupleElement<Index, TypePackIndex<Index, H, T...>> const *ref = this;
+    return ref->value;
+  }
+};
+
 template <typename T, usize N>
 constexpr T *begin(T (&a)[N])
 {
@@ -1694,6 +1748,11 @@ concept OutputRange = requires(R r) {
 constexpr auto size(InputRange auto &&range)
 {
   return end(range) - begin(range);
+}
+
+constexpr bool is_empty(InputRange auto &&range)
+{
+  return end(range) == begin(range);
 }
 
 }        // namespace ash

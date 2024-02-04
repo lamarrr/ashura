@@ -159,14 +159,17 @@ struct PassImpl
 
 struct PassGroup
 {
-  PassImpl      *passes = nullptr;
-  SparseSet<u32> id_map = {};
+  PassImpl      *passes          = nullptr;
+  u32            passes_capacity = 0;
+  SparseSet<u32> id_map          = {};
 };
 
-// TODO(lamarrr): multi-recursive passes
-// full-screen post-fx passes are full-screen quads with dependency determined
-// by their z-indexes.
-// HUD is a full-screen quad of a view-pass (another scene).
+// TODO(lamarrr): multi-recursive passes, and how to know when to begin and end
+// passes, i.e. begin render pass, end render pass
+//
+// full-screen post-fx passes are full-screen quads with dependency
+// determined by their z-indexes. HUD is a full-screen quad of a view-pass
+// (another scene).
 //
 // world->[capture->world]->post-fx->hud->[capture->hud]
 // how to project from object-space to full-screen space
@@ -260,8 +263,9 @@ struct Scene
 
 struct SceneGroup
 {
-  Scene         *scenes = nullptr;
-  SparseSet<u32> id_map = {};
+  Scene         *scenes          = nullptr;
+  u32            scenes_capacity = 0;
+  SparseSet<u32> id_map          = {};
 
   constexpr u32 num_scenes() const
   {
@@ -280,8 +284,9 @@ struct View
 
 struct ViewGroup
 {
-  View          *views  = nullptr;
-  SparseSet<u32> id_map = {};
+  View          *views          = nullptr;
+  u32            views_capacity = 0;
+  SparseSet<u32> id_map         = {};
 
   constexpr u32 num_views() const
   {
@@ -348,7 +353,6 @@ struct RenderServer
   void           remove_view(uid32 view);
   Option<uid32>  add_object(uid32 scene, uid32 parent,
                             SceneObjectDesc const &desc);
-  Option<SceneObjectDesc *> get_object(uid32 scene, uid32 object);
   void                      remove_object(uid32 scene, uid32 object);
   Option<uid32>             add_directional_light(uid32                   scene,
                                                   DirectionalLight const &light);
