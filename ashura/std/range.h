@@ -213,9 +213,9 @@ template <typename T, typename U, typename Cmp = Equal>
 constexpr Span<T> find(Span<T> span, U &&value, Cmp &&cmp = {})
 {
   usize offset = 0;
-  for (; offset < span.size; offset++)
+  for (; offset < span.size(); offset++)
   {
-    if (cmp(span.data[offset], value))
+    if (cmp(span[offset], value))
     {
       break;
     }

@@ -155,7 +155,7 @@ bool fmt::push(fmt::Context &, fmt::Spec &spec, fmt::Spec const &value)
 
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &, Span<char const> str)
 {
-  return ctx.push(str.data, str.size);
+  return ctx.push(str.data(), str.size());
 }
 
 bool fmt::push(fmt::Context &ctx, fmt::Spec const &, std::string_view str)

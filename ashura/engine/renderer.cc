@@ -1,5 +1,5 @@
 #include "ashura/engine/renderer.h"
-#include "ashura/std/algorithms.h"
+#include "ashura/std/range.h"
 #include "ashura/std/bit_span.h"
 #include "ashura/std/math.h"
 

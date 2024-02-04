@@ -149,7 +149,7 @@ struct Logger
 inline bool create_logger(Logger *memory, Span<LogSinkImpl const> sinks,
                           AllocatorImpl allocator)
 {
-  u32 const    num_sinks = (u32) sinks.size;
+  u32 const    num_sinks = (u32) sinks.size();
   LogSinkImpl *log_sinks = allocator.allocate_typed<LogSinkImpl>(num_sinks);
   if (log_sinks == nullptr)
   {

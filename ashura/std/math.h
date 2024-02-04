@@ -1,5 +1,5 @@
 #pragma once
-#include "ashura/std/algorithms.h"
+#include "ashura/std/range.h"
 #include "ashura/std/cfg.h"
 #include "ashura/std/op.h"
 #include "ashura/std/types.h"

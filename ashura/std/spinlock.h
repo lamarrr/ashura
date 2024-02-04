@@ -1,7 +1,5 @@
 #pragma once
 #include <atomic>
-#include <cinttypes>
-#include <utility>
 
 #include "ashura/std/struct.h"
 
@@ -13,7 +11,8 @@ namespace ash
 // typically used when the operations on the objects being guarded/locked are
 // very short.
 //
-// less desirable for multi-contended and frequently updated memory regions.
+// less desirable for multi-contended and prolonged operations which would cause
+// busy waiting.
 struct SpinLock
 {
   std::atomic<bool> lock_status{false};
@@ -49,16 +48,16 @@ struct LockGuard
 {
   ASH_MAKE_PINNED(LockGuard)
 
-  explicit LockGuard(Resource &iresource) : resource{&iresource}
+  explicit LockGuard(Resource &resource) : m_resource{&resource}
   {
-    resource->lock();
+    m_resource->lock();
   }
 
   ~LockGuard()
   {
-    resource->unlock();
+    m_resource->unlock();
   }
 
-  Resource *resource;
+  Resource *m_resource;
 };
 }        // namespace ash

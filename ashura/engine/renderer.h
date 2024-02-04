@@ -161,7 +161,7 @@ struct PassGroup
 {
   PassImpl      *passes          = nullptr;
   u32            passes_capacity = 0;
-  SparseSet<u32> id_map          = {};
+  SparseVec<u32> id_map          = {};
 };
 
 // TODO(lamarrr): multi-recursive passes, and how to know when to begin and end
@@ -212,7 +212,7 @@ struct SceneObjects
   u32              aabb_capacity             = 0;
   u32              z_index_capacity          = 0;
   u32              is_transparent_capacity   = 0;
-  SparseSet<uid32> id_map                    = {};
+  SparseVec<uid32> id_map                    = {};
 };
 
 struct Scene
@@ -220,13 +220,13 @@ struct Scene
   char const       *name                        = nullptr;
   AmbientLight      ambient_light               = {};
   DirectionalLight *directional_lights          = nullptr;
-  SparseSet<u32>    directional_lights_id_map   = {};
+  SparseVec<u32>    directional_lights_id_map   = {};
   PointLight       *point_lights                = nullptr;
-  SparseSet<u32>    point_lights_id_map         = {};
+  SparseVec<u32>    point_lights_id_map         = {};
   SpotLight        *spot_lights                 = nullptr;
-  SparseSet<u32>    spot_lights_id_map          = {};
+  SparseVec<u32>    spot_lights_id_map          = {};
   AreaLight        *area_lights                 = nullptr;
-  SparseSet<u32>    area_lights_id_map          = {};
+  SparseVec<u32>    area_lights_id_map          = {};
   u32               directional_lights_capacity = 0;
   u32               point_lights_capacity       = 0;
   u32               spot_lights_capacity        = 0;
@@ -265,7 +265,7 @@ struct SceneGroup
 {
   Scene         *scenes          = nullptr;
   u32            scenes_capacity = 0;
-  SparseSet<u32> id_map          = {};
+  SparseVec<u32> id_map          = {};
 
   constexpr u32 num_scenes() const
   {
@@ -286,7 +286,7 @@ struct ViewGroup
 {
   View          *views          = nullptr;
   u32            views_capacity = 0;
-  SparseSet<u32> id_map         = {};
+  SparseVec<u32> id_map         = {};
 
   constexpr u32 num_views() const
   {

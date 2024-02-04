@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
 
-#include "ashura/std/sparse_set.h"
+#include "ashura/std/sparse_vec.h"
 #include <bitset>
 #include <iostream>
 
@@ -8,7 +8,7 @@ using namespace ash;
 
 TEST(SparseSetTest, Start)
 {
-  SparseSet<u64> set;
+  SparseVec<u64> set;
   ASSERT_TRUE(set.reserve_new_ids(heap_allocator, 100));
   ASSERT_EQ(set.num_slots, 100);
   ASSERT_EQ(set.num_free, 100);

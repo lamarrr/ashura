@@ -1,5 +1,5 @@
-#include "ashura/std/bit_span.h"
-#include "ashura/std/algorithms.h"
+#include "ashura/std/range.h"
+#include "ashura/std/types.h"
 #include "gtest/gtest.h"
 
 using namespace ash;
@@ -7,7 +7,7 @@ using namespace ash;
 TEST(BitSpanTest, Misc)
 {
   u32          x[20];
-  BitSpan<u32> span{.data = x, .num_bits = 20 * 32};
+  BitSpan<u32> span{x, 20 * 32};
 
   span[0] = true;
   EXPECT_TRUE(span[0]);

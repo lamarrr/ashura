@@ -9,7 +9,7 @@ struct Storage
 {
   static_assert(Capacity > 0);
   static constexpr usize capacity = Capacity;
-  alignas(T) u8 rep[sizeof(T) * Capacity];
+  alignas(T) unsigned char rep[sizeof(T) * Capacity];
 
   operator T *()
   {
@@ -42,7 +42,7 @@ struct UntypedStorage
   template <typename T>
   static constexpr usize capacity = ByteCapacity / sizeof(T);
 
-  alignas(Alignment) u8 rep[ByteCapacity];
+  alignas(Alignment) unsigned char rep[ByteCapacity];
 
   template <typename T>
   operator T *()
