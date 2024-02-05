@@ -1849,6 +1849,13 @@ struct BitRef
   Rep *pack      = nullptr;
   u16  bit_index = 0;
 
+  template <typename U>
+  constexpr BitRef const &operator=(BitRef<U> bit) const
+    requires(OutputIterator<Rep *>)
+  {
+    return (*this = static_cast<bool>(bit));
+  }
+
   constexpr BitRef const &operator=(bool bit) const
     requires(OutputIterator<Rep *>)
   {

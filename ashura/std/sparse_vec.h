@@ -28,11 +28,9 @@ struct SparseVec
   static constexpr SizeType MAX_ELEMENTS = STUB >> 1;
   static constexpr SizeType MAX_ID       = MAX_ELEMENTS;
 
-  // TODO(lamarrr): m_size and m_capacity might not be needed
   Vec<SizeType> m_index_to_id  = {};
   Vec<SizeType> m_id_to_index  = {};
   SizeType      m_size         = 0;
-  SizeType      m_capacity     = 0;
   SizeType      m_free_id_head = STUB;
 
   [[nodiscard]] constexpr bool is_empty() const
@@ -48,11 +46,6 @@ struct SparseVec
   [[nodiscard]] constexpr SizeType size() const
   {
     return m_size;
-  }
-
-  [[nodiscard]] constexpr SizeType capacity() const
-  {
-    return m_capacity;
   }
 
   [[nodiscard]] constexpr SizeType *begin() const
@@ -77,7 +70,6 @@ struct SparseVec
     m_id_to_index.clear();
     m_index_to_id.clear();
     m_size         = 0;
-    m_capacity     = 0;
     m_free_id_head = STUB;
   }
 
@@ -89,12 +81,11 @@ struct SparseVec
     m_index_to_id.reset();
     m_free_id_head = STUB;
     m_size         = 0;
-    m_capacity     = 0;
   }
 
   [[nodiscard]] constexpr bool is_valid_id(SizeType id) const
   {
-    return id < m_capacity && !(m_id_to_index[id] & RELEASE_MASK);
+    return id < m_id_to_index.size() && !(m_id_to_index[id] & RELEASE_MASK);
   }
 
   [[nodiscard]] constexpr bool is_valid_index(SizeType index) const
@@ -139,23 +130,21 @@ struct SparseVec
     return true;
   }
 
-  template<typename VecT>
-  void erase_and_compact_(VecT &vec, usize index)
-  {
-      
-  }
-
   template <typename... VecT>
   constexpr void erase(SizeType id, VecT &...dense)
   {
     SizeType const index = m_id_to_index[id];
     SizeType const last  = m_size - 1;
-    (dense.destroy_element(index), ...);
-    if (index != last)
+
+    if (m_size != 1 && index != last)
     {
-      (dense.relocate(last, index), ...);
+      (dense.swap(index, dense.size() - 1), ...);
     }
-    (dense.m_size--, ...);
+
+    (dense.pop(), ...);
+
+    // TODO(lamarrr): pop index_to_id
+    // don't forget to remove
     m_id_to_index[m_index_to_id[last]] = index;
     m_index_to_id[index]               = m_index_to_id[last];
     m_id_to_index[id]                  = m_free_id_head | RELEASE_MASK;
@@ -177,8 +166,7 @@ struct SparseVec
   template <typename... VecT>
   [[nodiscard]] constexpr bool reserve(SizeType target_capacity, VecT &...dense)
   {
-    return (m_capacity >= target_capacity) ||
-           ((m_id_to_index.reserve(target_capacity) &&
+    return ((m_id_to_index.reserve(target_capacity) &&
              m_index_to_id.reserve(target_capacity)) &&
             ... && dense.reserve(target_capacity));
   }
@@ -186,9 +174,9 @@ struct SparseVec
   template <typename... VecT>
   [[nodiscard]] constexpr bool grow(SizeType target_size, VecT &...dense)
   {
-    return (m_capacity >= target_size) || ((m_id_to_index.grow(target_size) &&
-                                            m_index_to_id.grow(target_size)) &&
-                                           ... && dense.grow(target_size));
+    return (
+        (m_id_to_index.grow(target_size) && m_index_to_id.grow(target_size)) &&
+        ... && dense.grow(target_size));
   }
 
   template <typename... VecT>
@@ -200,6 +188,8 @@ struct SparseVec
       return false;
     }
 
+    // find free id, and grow all dense, and increase sizes of dense
+    // also take callback to insert elements into indices?
     SizeType const index = m_size;
     SizeType const id    = m_free_id_head;
     m_free_id_head       = ~RELEASE_MASK & m_id_to_index[m_free_id_head];

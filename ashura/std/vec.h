@@ -238,7 +238,7 @@ struct Vec
     return true;
   }
 
-  void pop()
+  constexpr void pop()
   {
     if constexpr (!TriviallyDestructible<T>)
     {
@@ -248,7 +248,7 @@ struct Vec
     m_size--;
   }
 
-  [[nodiscard]] bool try_pop()
+  [[nodiscard]] constexpr bool try_pop()
   {
     if (m_size == 0)
     {
@@ -433,6 +433,11 @@ struct Vec
 
     return true;
   }
+
+  constexpr void swap(usize a, usize b) const
+  {
+    ::ash::swap(m_data[a], m_data[b]);
+  }
 };
 
 // Adapter
@@ -445,39 +450,73 @@ struct BitVec
   Vec<Rep> *m_vec      = nullptr;
   usize     m_num_bits = 0;
 
-  constexpr BitRef<Rep> operator[](usize index)
+  [[nodiscard]] constexpr BitRef<Rep> operator[](usize index)
   {
     return *(begin() + index);
   }
 
-  constexpr operator BitSpan<Rep>() const
+  [[nodiscard]] constexpr operator BitSpan<Rep>() const
   {
     return BitSpan<Rep>{m_vec->data(), m_num_bits};
   }
 
-  constexpr bool is_empty() const
+  [[nodiscard]] constexpr bool is_empty() const
   {
     return m_num_bits == 0;
   }
 
-  constexpr BitIterator<Rep> begin() const
+  [[nodiscard]] constexpr BitIterator<Rep> begin() const
   {
     return BitIterator<Rep>{m_vec->data(), 0};
   }
 
-  constexpr BitIterator<Rep> end() const
+  [[nodiscard]] constexpr BitIterator<Rep> end() const
   {
     return BitIterator<Rep>{m_vec->data(), m_num_bits};
   }
 
-  constexpr usize size() const
+  [[nodiscard]] constexpr usize size() const
   {
     return m_num_bits;
   }
 
-  bool push(bool);
-  bool erase();
-  bool extend();
+  [[nodiscard]] bool push(bool bit)
+  {
+    // TODO(lamarrr):
+    // grow enough for m_num_bits + 1 bit
+    // set it to end()
+    *(end() - 1) = bit;
+    return true;
+  }
+
+  constexpr void pop()
+  {
+    m_num_bits--;
+  }
+
+  [[nodiscard]] constexpr bool try_pop()
+  {
+    if (m_num_bits == 0)
+    {
+      return false;
+    }
+    pop();
+    return true;
+  }
+
+  [[nodiscard]] bool erase();
+
+  template <typename T>
+  [[nodiscard]] bool extend();
+
+  constexpr void swap(usize a, usize b) const
+  {
+    BitRef<Rep> a_r = this->operator[](a);
+    BitRef<Rep> b_r = this->operator[](b);
+    bool        a_v = a_r;
+    a_r             = b_r;
+    b_r             = a_v;
+  }
 };
 
 }        // namespace ash
