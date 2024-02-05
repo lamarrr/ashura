@@ -46,10 +46,21 @@ struct IsTriviallyRelocatable
                                 std::is_trivially_move_constructible_v<T>;
 };
 
+// trivially move constructible to uninitialized memory, and have old object
+// trivially destroyed
 template <typename T>
 concept TriviallyRelocatable = IsTriviallyRelocatable<T>::value;
 
 template <typename T>
 concept TriviallyDestructible = std::is_trivially_destructible_v<T>;
+
+template <typename T>
+concept TriviallyCopyable = std::is_trivially_copyable_v<T>;
+
+template <typename T>
+concept TriviallyCopyConstructible = std::is_trivially_copy_constructible_v<T>;
+
+template <typename T>
+concept TriviallyMoveConstructible = std::is_trivially_move_constructible_v<T>;
 
 }        // namespace ash

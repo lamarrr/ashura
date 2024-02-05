@@ -63,7 +63,7 @@ struct Vec
   {
     if (index < m_size)
     {
-      return m_data + m_size;
+      return m_data + index;
     }
 
     return nullptr;
@@ -96,7 +96,7 @@ struct Vec
     m_capacity = 0;
   }
 
-  [[nodiscard]] constexpr bool reserve(usize target_capacity)
+  [[nodiscard]] bool reserve(usize target_capacity)
   {
     if (m_capacity >= target_capacity)
     {
@@ -142,95 +142,7 @@ struct Vec
     return true;
   }
 
-  [[nodiscard]] constexpr bool grow(usize target_size)
-  {
-    if (m_capacity >= target_size)
-    {
-      return true;
-    }
-
-    return reserve(max(target_size, m_capacity + (m_capacity >> 1)));
-  }
-
-  constexpr void erase_index(usize first, usize num)
-  {
-  }
-
-  constexpr void erase_index(usize first)
-  {
-  }
-
-  [[nodiscard]] constexpr bool try_erase_index(usize first, usize num)
-  {
-    return false;
-  }
-
-  [[nodiscard]] constexpr bool try_erase_index(usize first)
-  {
-    return false;
-  }
-
-  // standard free function ????, memcpy if possible?
-  // constexpr void               destroy_element(usize index);
-  // [[nodiscard]] constexpr bool try_destroy_element(usize index);
-  // constexpr void               relocate(usize src, usize dst_uninit);
-  // [[nodiscard]] constexpr bool try_relocate(usize src, usize dst_uninit);
-
-  template <typename... Args>
-  [[nodiscard]] constexpr bool push(Args &&...args)
-  {
-    if (!grow(m_size + 1))
-    {
-      return false;
-    }
-
-    new (m_data + m_size) T{((Args &&) args)...};
-    m_size++;
-    return true;
-  }
-
-  constexpr void pop()
-  {
-    if constexpr (!TriviallyDestructible<T>)
-    {
-      (m_data + (m_size - 1))->~T();
-    }
-    m_size--;
-  }
-
-  [[nodiscard]] constexpr bool try_pop()
-  {
-    if (m_size == 0)
-    {
-      return false;
-    }
-    pop();
-    return true;
-  }
-
-  [[nodiscard]] constexpr bool insert(usize dst)
-  {
-    return false;
-  }
-
-  [[nodiscard]] constexpr bool insert_range(usize dst)
-  {
-    return false;
-  }
-
-  [[nodiscard]] constexpr bool extend_copy(Span<T> span);
-
-  [[nodiscard]] constexpr bool extend_move(Span<T> span);
-
-  [[nodiscard]] constexpr bool extend_defaulted(usize extension);
-
-  [[nodiscard]] constexpr bool extend_uninitialized(usize extension);
-
-  [[nodiscard]] constexpr bool resize_defaulted();
-
-  [[nodiscard]] constexpr bool resize_uninitialized();
-
-  [[nodiscard]] constexpr bool fit()
+  [[nodiscard]] bool fit()
   {
     if (m_size == m_capacity)
     {
@@ -274,6 +186,241 @@ struct Vec
     m_capacity = m_size;
     return true;
   }
+
+  [[nodiscard]] bool grow(usize target_size)
+  {
+    if (m_capacity >= target_size)
+    {
+      return true;
+    }
+
+    return reserve(max(target_size, m_capacity + (m_capacity >> 1)));
+  }
+
+  void erase_index(usize first, usize num)
+  {
+    if constexpr (TriviallyRelocatable<T>)
+    {
+      mem::move(m_data + first + num, m_data + first, m_size - (first + num));
+    }
+    else
+    {
+      for (usize i = first; i < m_size - num; i++)
+      {
+        m_data[i] = (T &&) (m_data[i + num]);
+      }
+
+      for (usize i = m_size - num; i < m_size; i++)
+      {
+        (m_data + i)->~T();
+      }
+    }
+    m_size -= num;
+  }
+
+  void erase_index(usize first)
+  {
+    erase_index(first, 1);
+  }
+
+  // standard free function ????, memcpy if possible?
+  // constexpr void               destroy_element(usize index);
+  // [[nodiscard]] constexpr bool try_destroy_element(usize index);
+  // constexpr void               relocate(usize src, usize dst_uninit);
+  // [[nodiscard]] constexpr bool try_relocate(usize src, usize dst_uninit);
+
+  template <typename... Args>
+  [[nodiscard]] bool push(Args &&...args)
+  {
+    if (!grow(m_size + 1))
+    {
+      return false;
+    }
+
+    new (m_data + m_size) T{((Args &&) args)...};
+    m_size++;
+    return true;
+  }
+
+  void pop()
+  {
+    if constexpr (!TriviallyDestructible<T>)
+    {
+      (m_data + (m_size - 1))->~T();
+    }
+    m_size--;
+  }
+
+  [[nodiscard]] bool try_pop()
+  {
+    if (m_size == 0)
+    {
+      return false;
+    }
+    pop();
+    return true;
+  }
+
+  [[nodiscard]] bool shift_with_uninit_(usize first, usize distance)
+  {
+    if (!grow(m_size + distance))
+    {
+      return false;
+    }
+
+    if constexpr (TriviallyRelocatable<T>)
+    {
+      mem::move(m_data + first, m_data + first + distance, m_size - first);
+    }
+    else
+    {
+      // move construct tail elements
+      usize const tail_first =
+          max(first, m_size - (m_size, distance) - distance);
+      for (usize i = tail_first; i < m_size; i++)
+      {
+        new (m_data + i + distance) T{(T &&) m_data[i]};
+      }
+
+      // move non-tail elements towards end
+      for (usize i = first; i < tail_first; i++)
+      {
+        m_data[i + distance] = (T &&) m_data[i];
+      }
+
+      // destruct previous position of non-tail elements
+      for (usize i = first; i < tail_first; i++)
+      {
+        (m_data + i)->~T();
+      }
+    }
+
+    m_size += distance;
+
+    return false;
+  }
+
+  template <typename... Args>
+  [[nodiscard]] bool insert(usize dst, Args &&...args)
+  {
+    // should allow 1 past the end of the array???
+  }
+
+  [[nodiscard]] bool insert_span_copy(usize dst, Span<T const> span)
+  {
+    if (!shift_with_uninit_(dst, span.size()))
+    {
+      return false;
+    }
+
+    if constexpr (TriviallyCopyConstructible<T>)
+    {
+      mem::copy(span.data(), m_data + dst, span.size());
+    }
+    else
+    {
+      for (usize i = 0; i < span.size(); i++)
+      {
+        new (m_data + dst + i) T{span[i]};
+      }
+    }
+
+    return true;
+  }
+
+  [[nodiscard]] bool insert_span_move(usize dst, Span<T> span)
+  {
+    if (!shift_with_uninit_(dst, span.size()))
+    {
+      return false;
+    }
+
+    if constexpr (TriviallyMoveConstructible<T>)
+    {
+      mem::copy(span.data(), m_data + dst, span.size());
+    }
+    else
+    {
+      for (usize i = 0; i < span.size(); i++)
+      {
+        new (m_data + dst + i) T{(T &&) span[i]};
+      }
+    }
+
+    return true;
+  }
+
+  [[nodiscard]] bool extend_uninitialized(usize extension)
+  {
+    if (!grow(m_size + extension))
+    {
+      return false;
+    }
+
+    m_size += extension;
+
+    return true;
+  }
+
+  [[nodiscard]] bool extend_defaulted(usize extension)
+  {
+    usize const first = m_size;
+    if (!extend_uninitialized(extension))
+    {
+      return false;
+    }
+
+    for (usize i = first; i < m_size; i++)
+    {
+      new (m_data + i) T{};
+    }
+  }
+
+  [[nodiscard]] bool extend_copy(Span<T const> span)
+  {
+    usize first = m_size;
+    if (!extend_uninitialized(span.size()))
+    {
+      return false;
+    }
+
+    if constexpr (TriviallyCopyConstructible<T>)
+    {
+      mem::copy(span.data(), m_data + first, span.size());
+    }
+    else
+    {
+      for (usize i = 0; i < span.size(); i++)
+      {
+        new (m_data + first + i) T{span[i]};
+      }
+    }
+
+    return true;
+  }
+
+  [[nodiscard]] bool extend_move(Span<T> span)
+  {
+    usize first = m_size;
+    if (!extend_uninitialized(span.size()))
+    {
+      return false;
+    }
+
+    if constexpr (TriviallyMoveConstructible<T>)
+    {
+      mem::copy(span.data(), m_data + first, span.size());
+    }
+    else
+    {
+      for (usize i = 0; i < span.size(); i++)
+      {
+        new (m_data + first + i) T{(T &&) span[i]};
+      }
+    }
+
+    return true;
+  }
 };
 
 // Adapter
@@ -286,15 +433,15 @@ struct BitVec
   Vec<Rep> *m_vec      = nullptr;
   usize     m_num_bits = 0;
 
-  constexpr BitRef<Rep>      operator[](usize i);
-  constexpr                  operator BitSpan<Rep>() const;
-  constexpr bool             is_empty() const;
-  constexpr BitIterator<Rep> begin() const;
-  constexpr BitIterator<Rep> end() const;
-  constexpr usize            size() const;
-  constexpr bool             push(bool);
-  constexpr bool             erase();
-  constexpr bool             extend();
+  BitRef<Rep> operator[](usize i);
+  operator BitSpan<Rep>() const;
+  bool             is_empty() const;
+  BitIterator<Rep> begin() const;
+  BitIterator<Rep> end() const;
+  usize            size() const;
+  bool             push(bool);
+  bool             erase();
+  bool             extend();
 };
 
 }        // namespace ash
