@@ -223,12 +223,6 @@ struct Vec
     erase_index(first, 1);
   }
 
-  // standard free function ????, memcpy if possible?
-  // constexpr void               destroy_element(usize index);
-  // [[nodiscard]] constexpr bool try_destroy_element(usize index);
-  // constexpr void               relocate(usize src, usize dst_uninit);
-  // [[nodiscard]] constexpr bool try_relocate(usize src, usize dst_uninit);
-
   template <typename... Args>
   [[nodiscard]] bool push(Args &&...args)
   {
@@ -238,7 +232,9 @@ struct Vec
     }
 
     new (m_data + m_size) T{((Args &&) args)...};
+
     m_size++;
+
     return true;
   }
 
@@ -248,6 +244,7 @@ struct Vec
     {
       (m_data + (m_size - 1))->~T();
     }
+
     m_size--;
   }
 
@@ -257,11 +254,13 @@ struct Vec
     {
       return false;
     }
+
     pop();
+
     return true;
   }
 
-  [[nodiscard]] bool shift_with_uninit_(usize first, usize distance)
+  [[nodiscard]] bool shift_uninitialized(usize first, usize distance)
   {
     if (!grow(m_size + distance))
     {
@@ -275,8 +274,7 @@ struct Vec
     else
     {
       // move construct tail elements
-      usize const tail_first =
-          max(first, m_size - (m_size, distance) - distance);
+      usize const tail_first = max(first, min(m_size, distance) - m_size);
       for (usize i = tail_first; i < m_size; i++)
       {
         new (m_data + i + distance) T{(T &&) m_data[i]};
@@ -288,10 +286,13 @@ struct Vec
         m_data[i + distance] = (T &&) m_data[i];
       }
 
-      // destruct previous position of non-tail elements
-      for (usize i = first; i < tail_first; i++)
+      if constexpr (!TriviallyDestructible<T>)
       {
-        (m_data + i)->~T();
+        // destruct previous position of non-tail elements
+        for (usize i = first; i < tail_first; i++)
+        {
+          (m_data + i)->~T();
+        }
       }
     }
 
@@ -303,12 +304,18 @@ struct Vec
   template <typename... Args>
   [[nodiscard]] bool insert(usize dst, Args &&...args)
   {
-    // should allow 1 past the end of the array???
+    if (!shift_uninitialized(dst, 1))
+    {
+      return false;
+    }
+
+    new (m_data + dst) T{((Args &&) args)...};
+    return true;
   }
 
   [[nodiscard]] bool insert_span_copy(usize dst, Span<T const> span)
   {
-    if (!shift_with_uninit_(dst, span.size()))
+    if (!shift_uninitialized(dst, span.size()))
     {
       return false;
     }
@@ -330,7 +337,7 @@ struct Vec
 
   [[nodiscard]] bool insert_span_move(usize dst, Span<T> span)
   {
-    if (!shift_with_uninit_(dst, span.size()))
+    if (!shift_uninitialized(dst, span.size()))
     {
       return false;
     }
@@ -364,13 +371,13 @@ struct Vec
 
   [[nodiscard]] bool extend_defaulted(usize extension)
   {
-    usize const first = m_size;
+    usize const pos = m_size;
     if (!extend_uninitialized(extension))
     {
       return false;
     }
 
-    for (usize i = first; i < m_size; i++)
+    for (usize i = pos; i < m_size; i++)
     {
       new (m_data + i) T{};
     }
@@ -378,21 +385,23 @@ struct Vec
 
   [[nodiscard]] bool extend_copy(Span<T const> span)
   {
-    usize first = m_size;
+    usize pos = m_size;
     if (!extend_uninitialized(span.size()))
     {
       return false;
     }
 
+    // free to use memcpy because the source range is not overlapping with this
+    // anyway
     if constexpr (TriviallyCopyConstructible<T>)
     {
-      mem::copy(span.data(), m_data + first, span.size());
+      mem::copy(span.data(), m_data + pos, span.size());
     }
     else
     {
       for (usize i = 0; i < span.size(); i++)
       {
-        new (m_data + first + i) T{span[i]};
+        new (m_data + pos + i) T{span[i]};
       }
     }
 
@@ -401,26 +410,33 @@ struct Vec
 
   [[nodiscard]] bool extend_move(Span<T> span)
   {
-    usize first = m_size;
+    usize pos = m_size;
     if (!extend_uninitialized(span.size()))
     {
       return false;
     }
 
+    // non-overlapping, use memcpy
     if constexpr (TriviallyMoveConstructible<T>)
     {
-      mem::copy(span.data(), m_data + first, span.size());
+      mem::copy(span.data(), m_data + pos, span.size());
     }
     else
     {
       for (usize i = 0; i < span.size(); i++)
       {
-        new (m_data + first + i) T{(T &&) span[i]};
+        new (m_data + pos + i) T{(T &&) span[i]};
       }
     }
 
     return true;
   }
+
+  // standard free function ????, memcpy if possible?
+  // constexpr void               destroy_element(usize index);
+  // [[nodiscard]] constexpr bool try_destroy_element(usize index);
+  // constexpr void               relocate(usize src, usize dst_uninit);
+  // [[nodiscard]] constexpr bool try_relocate(usize src, usize dst_uninit);
 };
 
 // Adapter
