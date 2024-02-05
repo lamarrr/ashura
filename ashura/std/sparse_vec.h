@@ -28,6 +28,7 @@ struct SparseVec
   static constexpr SizeType MAX_ELEMENTS = STUB >> 1;
   static constexpr SizeType MAX_ID       = MAX_ELEMENTS;
 
+  // TODO(lamarrr): m_size and m_capacity might not be needed
   Vec<SizeType> m_index_to_id  = {};
   Vec<SizeType> m_id_to_index  = {};
   SizeType      m_size         = 0;
@@ -73,20 +74,11 @@ struct SparseVec
   constexpr void clear(VecT &...dense)
   {
     (dense.clear(), ...);
-    m_size = 0;
-    if (m_capacity > 0)
-    {
-      m_free_id_head = 0;
-      for (SizeType i = 0; i < m_capacity - 1; i++)
-      {
-        m_id_to_index[i] = (i + 1) | RELEASE_MASK;
-      }
-      m_id_to_index[m_capacity - 1] = STUB;
-    }
-    else
-    {
-      m_free_id_head = STUB;
-    }
+    m_id_to_index.clear();
+    m_index_to_id.clear();
+    m_size         = 0;
+    m_capacity     = 0;
+    m_free_id_head = STUB;
   }
 
   template <typename... VecT>
@@ -147,6 +139,12 @@ struct SparseVec
     return true;
   }
 
+  template<typename VecT>
+  void erase_and_compact_(VecT &vec, usize index)
+  {
+      
+  }
+
   template <typename... VecT>
   constexpr void erase(SizeType id, VecT &...dense)
   {
@@ -179,41 +177,18 @@ struct SparseVec
   template <typename... VecT>
   [[nodiscard]] constexpr bool reserve(SizeType target_capacity, VecT &...dense)
   {
-    if (m_capacity >= target_capacity)
-    {
-      return true;
-    }
-
-    if (!((m_id_to_index.reserve(target_capacity) &&
-           m_index_to_id.reserve(target_capacity)) &&
-          ... && dense.reserve(target_capacity)))
-    {
-      return false;
-    }
-
-    m_id_to_index.m_size = target_capacity;
-    m_index_to_id.m_size = target_capacity;
-
-    for (SizeType index = m_capacity; index < target_capacity - 1; index++)
-    {
-      m_id_to_index[index] = RELEASE_MASK | (index + 1);
-    }
-
-    m_id_to_index[target_capacity - 1] = RELEASE_MASK | m_free_id_head;
-    m_free_id_head                     = m_capacity;
-    m_capacity                         = target_capacity;
-    return true;
+    return (m_capacity >= target_capacity) ||
+           ((m_id_to_index.reserve(target_capacity) &&
+             m_index_to_id.reserve(target_capacity)) &&
+            ... && dense.reserve(target_capacity));
   }
 
   template <typename... VecT>
   [[nodiscard]] constexpr bool grow(SizeType target_size, VecT &...dense)
   {
-    if (target_size <= m_capacity)
-    {
-      return true;
-    }
-
-    return reserve(max(target_size, m_capacity + m_capacity >> 1), dense...);
+    return (m_capacity >= target_size) || ((m_id_to_index.grow(target_size) &&
+                                            m_index_to_id.grow(target_size)) &&
+                                           ... && dense.grow(target_size));
   }
 
   template <typename... VecT>
@@ -236,8 +211,6 @@ struct SparseVec
     (dense.m_size++, ...);
     return true;
   }
-
-  // void fit();
 };
 
 }        // namespace ash

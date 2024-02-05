@@ -54,7 +54,7 @@ struct Vec
     return Span<T>{m_data, m_size};
   }
 
-  constexpr T &operator[](usize index) const
+  [[nodiscard]] constexpr T &operator[](usize index) const
   {
     return m_data[index];
   }
@@ -298,7 +298,7 @@ struct Vec
 
     m_size += distance;
 
-    return false;
+    return true;
   }
 
   template <typename... Args>
@@ -381,11 +381,13 @@ struct Vec
     {
       new (m_data + i) T{};
     }
+
+    return true;
   }
 
   [[nodiscard]] bool extend_copy(Span<T const> span)
   {
-    usize pos = m_size;
+    usize const pos = m_size;
     if (!extend_uninitialized(span.size()))
     {
       return false;
@@ -410,7 +412,7 @@ struct Vec
 
   [[nodiscard]] bool extend_move(Span<T> span)
   {
-    usize pos = m_size;
+    usize const pos = m_size;
     if (!extend_uninitialized(span.size()))
     {
       return false;
@@ -431,12 +433,6 @@ struct Vec
 
     return true;
   }
-
-  // standard free function ????, memcpy if possible?
-  // constexpr void               destroy_element(usize index);
-  // [[nodiscard]] constexpr bool try_destroy_element(usize index);
-  // constexpr void               relocate(usize src, usize dst_uninit);
-  // [[nodiscard]] constexpr bool try_relocate(usize src, usize dst_uninit);
 };
 
 // Adapter
@@ -449,15 +445,39 @@ struct BitVec
   Vec<Rep> *m_vec      = nullptr;
   usize     m_num_bits = 0;
 
-  BitRef<Rep> operator[](usize i);
-  operator BitSpan<Rep>() const;
-  bool             is_empty() const;
-  BitIterator<Rep> begin() const;
-  BitIterator<Rep> end() const;
-  usize            size() const;
-  bool             push(bool);
-  bool             erase();
-  bool             extend();
+  constexpr BitRef<Rep> operator[](usize index)
+  {
+    return *(begin() + index);
+  }
+
+  constexpr operator BitSpan<Rep>() const
+  {
+    return BitSpan<Rep>{m_vec->data(), m_num_bits};
+  }
+
+  constexpr bool is_empty() const
+  {
+    return m_num_bits == 0;
+  }
+
+  constexpr BitIterator<Rep> begin() const
+  {
+    return BitIterator<Rep>{m_vec->data(), 0};
+  }
+
+  constexpr BitIterator<Rep> end() const
+  {
+    return BitIterator<Rep>{m_vec->data(), m_num_bits};
+  }
+
+  constexpr usize size() const
+  {
+    return m_num_bits;
+  }
+
+  bool push(bool);
+  bool erase();
+  bool extend();
 };
 
 }        // namespace ash

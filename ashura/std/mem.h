@@ -12,7 +12,7 @@ constexpr usize align_offset(usize alignment, usize offset)
 }
 
 template <typename T>
-void copy(T *src, T *dst, usize count)
+void copy(T const *src, T *dst, usize count)
 {
   memcpy(dst, src, sizeof(T) * count);
 }
@@ -30,7 +30,7 @@ void copy(Span<T const> src, T *dst)
 }
 
 template <typename T>
-void move(T *src, T *dst, usize count)
+void move(T const *src, T *dst, usize count)
 {
   memmove(dst, src, sizeof(T) * count);
 }
