@@ -138,7 +138,7 @@ struct SparseVec
 
     if (m_size != 1 && index != last)
     {
-      (dense.swap(index, dense.size() - 1), ...);
+      (dense.swap(index, last), ...);
     }
 
     (dense.pop(), ...);
