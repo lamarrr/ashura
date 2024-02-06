@@ -43,27 +43,30 @@ TEST(SparseSetTest, Start)
   ASSERT_EQ(f.data(), nullptr);
   ASSERT_EQ(f.capacity(), 0);
 
-  SparseVec<u64> set;
-  // ASSERT_TRUE(set.reserve_new_ids(heap_allocator, 100));
-  // ASSERT_EQ(set.num_slots, 100);
-  // ASSERT_EQ(set.num_free, 100);
-  //  uid64 id;
-  //  u64   index;
-  //  for (u32 i = 0; i < 100; i++)
-  //  {
-  //    ASSERT_TRUE(set.allocate_id(id, index));
-  //    ASSERT_LT(id, set.num_slots);
-  //    ASSERT_GE(id, 0);
-  //  }
-  //  ASSERT_FALSE(set.allocate_id(id, index));
-  //  ASSERT_TRUE((set.try_release(id, [&](u64 a, u64 b) {
-  //    ASSERT_EQ(a, set.num_valid() - 1);
-  //    ASSERT_LT(a, set.num_valid());
-  //    ASSERT_LT(b, set.num_valid());
-  //  })));
-  //
-  //  indirect_sort(set.index_to_id, Span{set.id_to_index, 100});
-  //  ASSERT_TRUE(std::is_sorted(set.index_to_id, set.index_to_id + 100));
-  //  stable_indirect_sort(set.index_to_id, Span{set.id_to_index, 100});
-  // ASSERT_TRUE(std::is_sorted(set.index_to_id, set.index_to_id + 100));
+  Vec<u64>    bvsrc{heap_allocator};
+  BitVec<u64> bv{&bvsrc, 0};
+
+  EXPECT_TRUE(bv.push(false));
+  EXPECT_TRUE(bv.push(true));
+  EXPECT_FALSE(bv[0]);
+  EXPECT_TRUE(bv[1]);
+  EXPECT_EQ(bv.size(), 2);
+
+  SparseVec<u64> set{.index_to_id = {heap_allocator},
+                     .id_to_index = {heap_allocator}};
+
+  ASSERT_TRUE(set.push([&](u64 id, u64 index) {
+    ASSERT_EQ(id, 0);
+    EXPECT_EQ(index, 0);
+  }));
+  ASSERT_EQ(set.size(), 1);
+  ASSERT_TRUE(set.push([&](u64 id, u64 index) {
+    ASSERT_EQ(id, 1);
+    ASSERT_EQ(index, 1);
+  }));
+  ASSERT_EQ(set.size(), 2);
+  ASSERT_TRUE(set.try_erase(0));
+  ASSERT_EQ(set.size(), 1);
+  ASSERT_TRUE(set.try_erase(1));
+  ASSERT_EQ(set.size(), 0);
 }

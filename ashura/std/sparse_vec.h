@@ -9,8 +9,8 @@ namespace ash
 
 /// @tparam SizeT: size type, u8, u32, u64
 ///
-/// @m_index_to_id: id of data, ordered relative to {data}
-/// @m_id_to_index: map of id to index in {data}
+/// @index_to_id: id of data, ordered relative to {data}
+/// @id_to_index: map of id to index in {data}
 /// @size: the number of valid elements in the sparse set
 /// @capacity: the number of elements the sparse set has capacity for, includes
 /// reserved but unallocated ids pointing to valid but uninitialized memory
@@ -28,9 +28,9 @@ struct SparseVec
   static constexpr SizeType MAX_ELEMENTS = STUB >> 1;
   static constexpr SizeType MAX_ID       = MAX_ELEMENTS;
 
-  Vec<SizeType> m_index_to_id  = {};
-  Vec<SizeType> m_id_to_index  = {};
-  SizeType      m_free_id_head = STUB;
+  Vec<SizeType> index_to_id  = {};
+  Vec<SizeType> id_to_index  = {};
+  SizeType      free_id_head = STUB;
 
   [[nodiscard]] constexpr bool is_empty() const
   {
@@ -39,50 +39,50 @@ struct SparseVec
 
   [[nodiscard]] constexpr SizeType *data() const
   {
-    return m_index_to_id.data();
+    return index_to_id.data();
   }
 
   [[nodiscard]] constexpr SizeType size() const
   {
-    return m_index_to_id.size();
+    return static_cast<SizeType>(index_to_id.size());
   }
 
   [[nodiscard]] constexpr SizeType *begin() const
   {
-    return m_index_to_id.begin();
+    return index_to_id.begin();
   }
 
   [[nodiscard]] constexpr SizeType *end() const
   {
-    return m_index_to_id.end();
+    return index_to_id.end();
   }
 
   constexpr operator Span<SizeType>() const
   {
-    return m_index_to_id;
+    return index_to_id;
   }
 
   template <typename... VecT>
   constexpr void clear(VecT &...dense)
   {
     (dense.clear(), ...);
-    m_id_to_index.clear();
-    m_index_to_id.clear();
-    m_free_id_head = STUB;
+    id_to_index.clear();
+    index_to_id.clear();
+    free_id_head = STUB;
   }
 
   template <typename... VecT>
   constexpr void reset(VecT &...dense)
   {
     (dense.reset(), ...);
-    m_id_to_index.reset();
-    m_index_to_id.reset();
-    m_free_id_head = STUB;
+    id_to_index.reset();
+    index_to_id.reset();
+    free_id_head = STUB;
   }
 
   [[nodiscard]] constexpr bool is_valid_id(SizeType id) const
   {
-    return id < m_id_to_index.size() && !(m_id_to_index[id] & RELEASE_MASK);
+    return id < id_to_index.size() && !(id_to_index[id] & RELEASE_MASK);
   }
 
   [[nodiscard]] constexpr bool is_valid_index(SizeType index) const
@@ -92,12 +92,12 @@ struct SparseVec
 
   [[nodiscard]] constexpr SizeType operator[](SizeType id) const
   {
-    return m_id_to_index[id];
+    return id_to_index[id];
   }
 
   [[nodiscard]] constexpr SizeType to_index(SizeType id) const
   {
-    return m_id_to_index[id];
+    return id_to_index[id];
   }
 
   [[nodiscard]] constexpr bool try_to_index(SizeType id, SizeType &index) const
@@ -113,7 +113,7 @@ struct SparseVec
 
   [[nodiscard]] constexpr SizeType to_id(SizeType index) const
   {
-    return m_index_to_id[index];
+    return index_to_id[index];
   }
 
   [[nodiscard]] constexpr bool try_to_id(SizeType index, SizeType &id) const
@@ -130,7 +130,7 @@ struct SparseVec
   template <typename... VecT>
   constexpr void erase(SizeType id, VecT &...dense)
   {
-    SizeType const index = m_id_to_index[id];
+    SizeType const index = id_to_index[id];
     SizeType const last  = size() - 1;
 
     if (index != last)
@@ -143,13 +143,13 @@ struct SparseVec
     // adjust id and index mapping
     if (index != last)
     {
-      m_id_to_index[m_index_to_id[last]] = index;
-      m_index_to_id[index]               = m_index_to_id[last];
+      id_to_index[index_to_id[last]] = index;
+      index_to_id[index]             = index_to_id[last];
     }
 
-    m_id_to_index[id] = m_free_id_head | RELEASE_MASK;
-    m_free_id_head    = id;
-    m_index_to_id.pop();
+    id_to_index[id] = free_id_head | RELEASE_MASK;
+    free_id_head    = id;
+    index_to_id.pop();
   }
 
   template <typename... VecT>
@@ -164,41 +164,55 @@ struct SparseVec
   }
 
   template <typename... VecT>
-  [[nodiscard]] constexpr bool reserve(SizeType target_capacity, VecT &...dense)
+  [[nodiscard]]   bool reserve(SizeType target_capacity, VecT &...dense)
   {
-    return ((m_id_to_index.reserve(target_capacity) &&
-             m_index_to_id.reserve(target_capacity)) &&
+    return ((id_to_index.reserve(target_capacity) &&
+             index_to_id.reserve(target_capacity)) &&
             ... && dense.reserve(target_capacity));
   }
 
   template <typename... VecT>
-  [[nodiscard]] constexpr bool grow(SizeType target_size, VecT &...dense)
+  [[nodiscard]]   bool grow(SizeType target_size, VecT &...dense)
   {
-    return (
-        (m_id_to_index.grow(target_size) && m_index_to_id.grow(target_size)) &&
-        ... && dense.grow(target_size));
+    return ((id_to_index.grow(target_size) && index_to_id.grow(target_size)) &&
+            ... && dense.grow(target_size));
   }
 
-  template <typename... VecT>
-  [[nodiscard]] constexpr bool allocate(SizeType &out_id, SizeType &out_index,
-                                        VecT &...dense)
+  /// make new id and map the unique id to the unique index
+  [[nodiscard]] bool make_id(SizeType &out_id, SizeType index)
   {
-    if (!grow(m_index_to_id.size() + 1, dense...))
+    if (free_id_head != STUB)
+    {
+      out_id              = free_id_head;
+      id_to_index[out_id] = index;
+      free_id_head        = ~RELEASE_MASK & id_to_index[free_id_head];
+      return true;
+    }
+    else
+    {
+      if (!id_to_index.push(index))
+      {
+        return false;
+      }
+      out_id = static_cast<SizeType>(id_to_index.size() - 1);
+      return true;
+    }
+  }
+
+  template <typename PushOp, typename... VecT>
+  [[nodiscard]]   bool push(PushOp &&push_op, VecT &...dense)
+  {
+    SizeType const index = size();
+    SizeType       id;
+
+    if (!(grow(size() + 1, dense...) && make_id(id, index) &&
+          index_to_id.push(id)))
     {
       return false;
     }
 
-    // find free id, and grow all dense, and increase sizes of dense
-    // also take callback to insert elements into indices?
-    SizeType const index = size();
-    SizeType const id    = m_free_id_head;
-    m_free_id_head       = ~RELEASE_MASK & m_id_to_index[m_free_id_head];
-    m_index_to_id[index] = id;
-    m_id_to_index[id]    = index;
-    out_id               = id;
-    out_index            = index;
-    // m_size++;
-    // (dense.m_size++, ...);
+    push_op(id, index, dense...);
+
     return true;
   }
 };

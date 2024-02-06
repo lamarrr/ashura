@@ -13,6 +13,7 @@ template <typename T>
 struct Vec
 {
   using Type = T;
+  using Rep  = T;
 
   AllocatorImpl m_allocator = {};
   T            *m_data      = nullptr;
@@ -447,8 +448,8 @@ struct BitVec
   using Type = bool;
   using Rep  = RepT;
 
-  Vec<Rep> *m_vec      = nullptr;
-  usize     m_num_bits = 0;
+  Vec<Rep> *vec      = nullptr;
+  usize     num_bits = 0;
 
   [[nodiscard]] constexpr BitRef<Rep> operator[](usize index)
   {
@@ -457,46 +458,69 @@ struct BitVec
 
   [[nodiscard]] constexpr operator BitSpan<Rep>() const
   {
-    return BitSpan<Rep>{m_vec->data(), m_num_bits};
+    return BitSpan<Rep>{vec->data(), num_bits};
   }
 
   [[nodiscard]] constexpr bool is_empty() const
   {
-    return m_num_bits == 0;
+    return num_bits == 0;
   }
 
   [[nodiscard]] constexpr BitIterator<Rep> begin() const
   {
-    return BitIterator<Rep>{m_vec->data(), 0};
+    return BitIterator<Rep>{vec->data(), 0};
   }
 
   [[nodiscard]] constexpr BitIterator<Rep> end() const
   {
-    return BitIterator<Rep>{m_vec->data(), m_num_bits};
+    return BitIterator<Rep>{vec->data(), num_bits};
   }
 
   [[nodiscard]] constexpr usize size() const
   {
-    return m_num_bits;
+    return num_bits;
+  }
+
+  [[nodiscard]] constexpr usize capacity() const
+  {
+    return vec->capacity() * NumTraits<Rep>::NUM_BITS;
+  }
+
+  static constexpr usize num_packs(usize num_bits)
+  {
+    return (num_bits >> NumTraits<Rep>::LOG2_NUM_BITS) +
+           ((num_bits & (NumTraits<Rep>::NUM_BITS - 1)) == 0 ? 0 : 1);
+  }
+
+  [[nodiscard]] bool reserve(usize target_capacity)
+  {
+    return vec->reserve(num_packs(target_capacity));
+  }
+
+  [[nodiscard]] bool grow(usize target_size)
+  {
+    return vec->grow(num_packs(target_size));
   }
 
   [[nodiscard]] bool push(bool bit)
   {
-    // TODO(lamarrr):
-    // grow enough for m_num_bits + 1 bit
-    // set it to end()
-    *(end() - 1) = bit;
+    if (!grow(num_bits + 1))
+    {
+      return false;
+    }
+    this->operator[](num_bits) = bit;
+    num_bits++;
     return true;
   }
 
   constexpr void pop()
   {
-    m_num_bits--;
+    num_bits--;
   }
 
   [[nodiscard]] constexpr bool try_pop()
   {
-    if (m_num_bits == 0)
+    if (num_bits == 0)
     {
       return false;
     }
@@ -504,10 +528,26 @@ struct BitVec
     return true;
   }
 
-  [[nodiscard]] bool erase();
+  // shift?
+  void erase_index(usize index, usize num)
+  {
+    // use iterator to shift
+  }
+
+  void erase_index(usize index)
+  {
+    erase_index(index, 1);
+  }
 
   template <typename T>
-  [[nodiscard]] bool extend();
+  [[nodiscard]] bool extend_span_copy(BitSpan<T const> span);
+
+  template <typename T>
+  [[nodiscard]] bool extend_span_move(BitSpan<T const> span);
+
+  // resize
+  // flip
+  // insert
 
   constexpr void swap(usize a, usize b) const
   {

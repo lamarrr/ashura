@@ -1666,7 +1666,7 @@ constexpr auto data(T &&a) -> decltype(a.data())
 }
 
 template <typename T, usize N>
-constexpr usize size(T (&a)[N])
+constexpr usize size(T (&)[N])
 {
   return N;
 }
@@ -1893,7 +1893,8 @@ struct BitRef
 template <typename RepT>
 struct BitIterator
 {
-  using Rep = RepT;
+  using Rep  = RepT;
+  using Type = bool;
 
   Rep  *data  = nullptr;
   usize index = 0;
@@ -1901,6 +1902,11 @@ struct BitIterator
   constexpr BitIterator operator+(usize advance) const
   {
     return BitIterator{data, index + advance};
+  }
+
+  constexpr BitIterator operator-(usize advance) const
+  {
+    return BitIterator{data, index - advance};
   }
 
   constexpr BitIterator &operator++()
@@ -1913,6 +1919,19 @@ struct BitIterator
   {
     BitIterator out{data, index};
     index++;
+    return out;
+  }
+
+  constexpr BitIterator &operator--()
+  {
+    index--;
+    return *this;
+  }
+
+  constexpr BitIterator operator--(int)
+  {
+    BitIterator out{data, index};
+    index--;
     return out;
   }
 
@@ -1939,7 +1958,8 @@ constexpr BitRef<Rep> operator*(BitIterator<Rep> it)
 {
   constexpr u16 INDEX_SHIFT = NumTraits<Rep>::LOG2_NUM_BITS;
   constexpr u16 INDEX_MASK  = NumTraits<Rep>::NUM_BITS - 1;
-  return BitRef{it.data + (it.index >> INDEX_SHIFT), (it.index & INDEX_MASK)};
+  return BitRef{it.data + (it.index >> INDEX_SHIFT),
+                static_cast<u16>(it.index & INDEX_MASK)};
 }
 
 /// UB if not pointing to the same data
@@ -1953,7 +1973,8 @@ constexpr usize operator-(BitIterator<Rep> a, BitIterator<Rep> b)
 template <typename RepT>
 struct BitSpan
 {
-  using Rep = RepT;
+  using Rep  = RepT;
+  using Type = bool;
 
   Rep  *m_data     = nullptr;
   usize m_num_bits = 0;
@@ -1962,7 +1983,8 @@ struct BitSpan
   {
     constexpr u16 INDEX_SHIFT = NumTraits<Rep>::LOG2_NUM_BITS;
     constexpr u16 INDEX_MASK  = NumTraits<Rep>::NUM_BITS - 1;
-    return BitRef{m_data + (index >> INDEX_SHIFT), (index & INDEX_MASK)};
+    return BitRef{m_data + (index >> INDEX_SHIFT),
+                  static_cast<u16>(index & INDEX_MASK)};
   }
 
   constexpr operator BitSpan<Rep const>() const

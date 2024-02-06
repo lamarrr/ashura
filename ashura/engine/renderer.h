@@ -5,7 +5,7 @@
 #include "ashura/std/box.h"
 #include "ashura/std/image.h"
 #include "ashura/std/option.h"
-#include "ashura/std/sparse_set.h"
+#include "ashura/std/sparse_vec.h"
 #include "ashura/std/types.h"
 
 namespace ash
