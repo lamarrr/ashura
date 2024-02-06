@@ -30,12 +30,11 @@ struct SparseVec
 
   Vec<SizeType> m_index_to_id  = {};
   Vec<SizeType> m_id_to_index  = {};
-  SizeType      m_size         = 0;
   SizeType      m_free_id_head = STUB;
 
   [[nodiscard]] constexpr bool is_empty() const
   {
-    return m_size == 0;
+    return size() == 0;
   }
 
   [[nodiscard]] constexpr SizeType *data() const
@@ -45,7 +44,7 @@ struct SparseVec
 
   [[nodiscard]] constexpr SizeType size() const
   {
-    return m_size;
+    return m_index_to_id.size();
   }
 
   [[nodiscard]] constexpr SizeType *begin() const
@@ -69,7 +68,6 @@ struct SparseVec
     (dense.clear(), ...);
     m_id_to_index.clear();
     m_index_to_id.clear();
-    m_size         = 0;
     m_free_id_head = STUB;
   }
 
@@ -80,7 +78,6 @@ struct SparseVec
     m_id_to_index.reset();
     m_index_to_id.reset();
     m_free_id_head = STUB;
-    m_size         = 0;
   }
 
   [[nodiscard]] constexpr bool is_valid_id(SizeType id) const
@@ -90,7 +87,7 @@ struct SparseVec
 
   [[nodiscard]] constexpr bool is_valid_index(SizeType index) const
   {
-    return index < m_size;
+    return index < size();
   }
 
   [[nodiscard]] constexpr SizeType operator[](SizeType id) const
@@ -134,22 +131,25 @@ struct SparseVec
   constexpr void erase(SizeType id, VecT &...dense)
   {
     SizeType const index = m_id_to_index[id];
-    SizeType const last  = m_size - 1;
+    SizeType const last  = size() - 1;
 
-    if (m_size != 1 && index != last)
+    if (index != last)
     {
       (dense.swap(index, last), ...);
     }
 
     (dense.pop(), ...);
 
-    // TODO(lamarrr): pop index_to_id
-    // don't forget to remove
-    m_id_to_index[m_index_to_id[last]] = index;
-    m_index_to_id[index]               = m_index_to_id[last];
-    m_id_to_index[id]                  = m_free_id_head | RELEASE_MASK;
-    m_free_id_head                     = id;
-    m_size--;
+    // adjust id and index mapping
+    if (index != last)
+    {
+      m_id_to_index[m_index_to_id[last]] = index;
+      m_index_to_id[index]               = m_index_to_id[last];
+    }
+
+    m_id_to_index[id] = m_free_id_head | RELEASE_MASK;
+    m_free_id_head    = id;
+    m_index_to_id.pop();
   }
 
   template <typename... VecT>
@@ -183,22 +183,22 @@ struct SparseVec
   [[nodiscard]] constexpr bool allocate(SizeType &out_id, SizeType &out_index,
                                         VecT &...dense)
   {
-    if (!grow(m_size + 1, dense...))
+    if (!grow(m_index_to_id.size() + 1, dense...))
     {
       return false;
     }
 
     // find free id, and grow all dense, and increase sizes of dense
     // also take callback to insert elements into indices?
-    SizeType const index = m_size;
+    SizeType const index = size();
     SizeType const id    = m_free_id_head;
     m_free_id_head       = ~RELEASE_MASK & m_id_to_index[m_free_id_head];
     m_index_to_id[index] = id;
     m_id_to_index[id]    = index;
     out_id               = id;
     out_index            = index;
-    m_size++;
-    (dense.m_size++, ...);
+    // m_size++;
+    // (dense.m_size++, ...);
     return true;
   }
 };
