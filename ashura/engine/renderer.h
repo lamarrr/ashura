@@ -159,9 +159,8 @@ struct PassImpl
 
 struct PassGroup
 {
-  PassImpl      *passes          = nullptr;
-  u32            passes_capacity = 0;
-  SparseVec<u32> id_map          = {};
+  Vec<PassImpl>  passes = {};
+  SparseVec<u32> id_map = {};
 };
 
 // TODO(lamarrr): multi-recursive passes, and how to know when to begin and end
@@ -200,98 +199,49 @@ struct SceneObjectDesc
 
 struct SceneObjects
 {
-  SceneNode       *node                      = nullptr;
-  Mat4Affine      *local_transform           = nullptr;
-  Mat4Affine      *global_transform          = nullptr;
-  Box             *aabb                      = nullptr;
-  i64             *z_index                   = nullptr;
-  u64             *is_transparent            = nullptr;
-  u32              node_capacity             = 0;
-  u32              local_transform_capacity  = 0;
-  u32              global_transform_capacity = 0;
-  u32              aabb_capacity             = 0;
-  u32              z_index_capacity          = 0;
-  u32              is_transparent_capacity   = 0;
-  SparseVec<uid32> id_map                    = {};
+  Vec<SceneNode>   node             = {};
+  Vec<Mat4Affine>  local_transform  = {};
+  Vec<Mat4Affine>  global_transform = {};
+  Vec<Box>         aabb             = {};
+  Vec<i64>         z_index          = {};
+  BitVec<u64>      is_transparent   = {};
+  SparseVec<uid32> id_map           = {};
 };
 
 struct Scene
 {
-  char const       *name                        = nullptr;
-  AmbientLight      ambient_light               = {};
-  DirectionalLight *directional_lights          = nullptr;
-  SparseVec<u32>    directional_lights_id_map   = {};
-  PointLight       *point_lights                = nullptr;
-  SparseVec<u32>    point_lights_id_map         = {};
-  SpotLight        *spot_lights                 = nullptr;
-  SparseVec<u32>    spot_lights_id_map          = {};
-  AreaLight        *area_lights                 = nullptr;
-  SparseVec<u32>    area_lights_id_map          = {};
-  u32               directional_lights_capacity = 0;
-  u32               point_lights_capacity       = 0;
-  u32               spot_lights_capacity        = 0;
-  u32               area_lights_capacity        = 0;
-  SceneObjects      objects                     = {};
-  u32              *sort_indices                = nullptr;
-  u32               sort_indices_capacity       = 0;
-
-  constexpr u32 num_objects() const
-  {
-    return objects.id_map.num_valid();
-  }
-
-  constexpr u32 num_directional_lights() const
-  {
-    return directional_lights_id_map.num_valid();
-  }
-
-  constexpr u32 num_point_lights() const
-  {
-    return point_lights_id_map.num_valid();
-  }
-
-  constexpr u32 num_spot_lights() const
-  {
-    return spot_lights_id_map.num_valid();
-  }
-
-  constexpr u32 num_area_lights() const
-  {
-    return area_lights_id_map.num_valid();
-  }
+  char const           *name                      = nullptr;
+  AmbientLight          ambient_light             = {};
+  Vec<DirectionalLight> directional_lights        = {};
+  SparseVec<u32>        directional_lights_id_map = {};
+  Vec<PointLight>       point_lights              = {};
+  SparseVec<u32>        point_lights_id_map       = {};
+  Vec<SpotLight>        spot_lights               = {};
+  SparseVec<u32>        spot_lights_id_map        = {};
+  Vec<AreaLight>        area_lights               = {};
+  SparseVec<u32>        area_lights_id_map        = {};
+  SceneObjects          objects                   = {};
+  Vec<u32>              sort_indices              = {};
 };
 
 struct SceneGroup
 {
-  Scene         *scenes          = nullptr;
-  u32            scenes_capacity = 0;
-  SparseVec<u32> id_map          = {};
-
-  constexpr u32 num_scenes() const
-  {
-    return id_map.num_valid();
-  }
+  Vec<Scene>     scenes = {};
+  SparseVec<u32> id_map = {};
 };
 
 struct View
 {
-  char const *name                       = nullptr;
-  Camera      camera                     = {};
-  uid32       scene                      = 0;
-  u64        *is_object_visible          = nullptr;
-  u32         is_object_visible_capacity = 0;
+  char const *name              = nullptr;
+  Camera      camera            = {};
+  uid32       scene             = 0;
+  BitVec<u64> is_object_visible = {};
 };
 
 struct ViewGroup
 {
-  View          *views          = nullptr;
-  u32            views_capacity = 0;
-  SparseVec<u32> id_map         = {};
-
-  constexpr u32 num_views() const
-  {
-    return id_map.num_valid();
-  }
+  Vec<View>      views  = {};
+  SparseVec<u32> id_map = {};
 };
 
 // sort by update frequency, per-frame updates, rare-updates
@@ -353,13 +303,13 @@ struct RenderServer
   void           remove_view(uid32 view);
   Option<uid32>  add_object(uid32 scene, uid32 parent,
                             SceneObjectDesc const &desc);
-  void                      remove_object(uid32 scene, uid32 object);
-  Option<uid32>             add_directional_light(uid32                   scene,
-                                                  DirectionalLight const &light);
-  Option<uid32>          add_point_light(uid32 scene, PointLight const &light);
-  Option<uid32>          add_spot_light(uid32 scene, SpotLight const &light);
-  Option<uid32>          add_area_light(uid32 scene, AreaLight const &light);
-  Option<AmbientLight *> get_ambient_light(uid32 scene);
+  void           remove_object(uid32 scene, uid32 object);
+  Option<uid32>  add_directional_light(uid32                   scene,
+                                       DirectionalLight const &light);
+  Option<uid32>  add_point_light(uid32 scene, PointLight const &light);
+  Option<uid32>  add_spot_light(uid32 scene, SpotLight const &light);
+  Option<uid32>  add_area_light(uid32 scene, AreaLight const &light);
+  Option<AmbientLight *>     get_ambient_light(uid32 scene);
   Option<DirectionalLight *> get_directional_light(uid32 scene, uid32 id);
   Option<PointLight *>       get_point_light(uid32 scene, uid32 id);
   Option<SpotLight *>        get_spot_light(uid32 scene, uid32 id);

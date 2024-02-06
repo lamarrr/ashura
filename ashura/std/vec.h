@@ -15,7 +15,7 @@ struct Vec
   using Type = T;
   using Rep  = T;
 
-  AllocatorImpl m_allocator = {};
+  AllocatorImpl m_allocator = heap_allocator;
   T            *m_data      = nullptr;
   usize         m_capacity  = 0;
   usize         m_size      = 0;
@@ -198,7 +198,7 @@ struct Vec
     return reserve(max(target_size, m_capacity + (m_capacity >> 1)));
   }
 
-  void erase_index(usize first, usize num)
+  void erase_index(usize first, usize num = 1)
   {
     if constexpr (TriviallyRelocatable<T>)
     {
@@ -219,11 +219,6 @@ struct Vec
     m_size -= num;
   }
 
-  void erase_index(usize first)
-  {
-    erase_index(first, 1);
-  }
-
   template <typename... Args>
   [[nodiscard]] bool push(Args &&...args)
   {
@@ -239,24 +234,27 @@ struct Vec
     return true;
   }
 
-  constexpr void pop()
+  constexpr void pop(usize num = 1)
   {
     if constexpr (!TriviallyDestructible<T>)
     {
-      (m_data + (m_size - 1))->~T();
+      for (usize i = m_size - num; i < m_size; i++)
+      {
+        (m_data + i)->~T();
+      }
     }
 
-    m_size--;
+    m_size -= num;
   }
 
-  [[nodiscard]] constexpr bool try_pop()
+  [[nodiscard]] constexpr bool try_pop(usize num = 1)
   {
-    if (m_size == 0)
+    if (m_size < num)
     {
       return false;
     }
 
-    pop();
+    pop(num);
 
     return true;
   }
@@ -448,17 +446,17 @@ struct BitVec
   using Type = bool;
   using Rep  = RepT;
 
-  Vec<Rep> *vec      = nullptr;
-  usize     num_bits = 0;
+  Vec<Rep> vec      = {};
+  usize    num_bits = 0;
 
-  [[nodiscard]] constexpr BitRef<Rep> operator[](usize index)
+  [[nodiscard]] constexpr BitRef<Rep> operator[](usize index) const
   {
     return *(begin() + index);
   }
 
   [[nodiscard]] constexpr operator BitSpan<Rep>() const
   {
-    return BitSpan<Rep>{vec->data(), num_bits};
+    return BitSpan<Rep>{vec.data(), num_bits};
   }
 
   [[nodiscard]] constexpr bool is_empty() const
@@ -468,12 +466,12 @@ struct BitVec
 
   [[nodiscard]] constexpr BitIterator<Rep> begin() const
   {
-    return BitIterator<Rep>{vec->data(), 0};
+    return BitIterator<Rep>{vec.data(), 0};
   }
 
   [[nodiscard]] constexpr BitIterator<Rep> end() const
   {
-    return BitIterator<Rep>{vec->data(), num_bits};
+    return BitIterator<Rep>{vec.data(), num_bits};
   }
 
   [[nodiscard]] constexpr usize size() const
@@ -483,7 +481,19 @@ struct BitVec
 
   [[nodiscard]] constexpr usize capacity() const
   {
-    return vec->capacity() * NumTraits<Rep>::NUM_BITS;
+    return vec.capacity() * NumTraits<Rep>::NUM_BITS;
+  }
+
+  void clear()
+  {
+    num_bits = 0;
+    vec.clear();
+  }
+
+  void reset()
+  {
+    num_bits = 0;
+    vec.reset();
   }
 
   static constexpr usize num_packs(usize num_bits)
@@ -494,12 +504,12 @@ struct BitVec
 
   [[nodiscard]] bool reserve(usize target_capacity)
   {
-    return vec->reserve(num_packs(target_capacity));
+    return vec.reserve(num_packs(target_capacity));
   }
 
   [[nodiscard]] bool grow(usize target_size)
   {
-    return vec->grow(num_packs(target_size));
+    return vec.grow(num_packs(target_size));
   }
 
   [[nodiscard]] bool push(bool bit)
@@ -513,30 +523,34 @@ struct BitVec
     return true;
   }
 
-  constexpr void pop()
+  constexpr void pop(usize num = 1)
   {
-    num_bits--;
+    num_bits -= num;
+    usize diff = vec.size() - num_packs(num_bits);
+    if (diff > 0)
+    {
+      vec.pop(diff);
+    }
   }
 
-  [[nodiscard]] constexpr bool try_pop()
+  [[nodiscard]] constexpr bool try_pop(usize num = 1)
   {
-    if (num_bits == 0)
+    if (num_bits < num)
     {
       return false;
     }
-    pop();
+    pop(num);
     return true;
   }
 
-  // shift?
-  void erase_index(usize index, usize num)
+  void erase_index(usize index, usize num = 1)
   {
-    // use iterator to shift
-  }
-
-  void erase_index(usize index)
-  {
-    erase_index(index, 1);
+    for (BitIterator out = begin() + index, src = out + num; src != end();
+         out++, src++)
+    {
+      *out = *src;
+    };
+    pop(num);
   }
 
   template <typename T>

@@ -1856,6 +1856,12 @@ struct BitRef
     return (*this = static_cast<bool>(bit));
   }
 
+  constexpr BitRef const &operator=(BitRef const &bit) const
+    requires(OutputIterator<Rep *>)
+  {
+    return (*this = static_cast<bool>(bit));
+  }
+
   constexpr BitRef const &operator=(bool bit) const
     requires(OutputIterator<Rep *>)
   {
@@ -1944,13 +1950,25 @@ struct BitIterator
 template <typename Rep>
 constexpr bool operator==(BitIterator<Rep> a, BitIterator<Rep> b)
 {
-  return a.data == b.data && a.index == b.index;
+  return a.index == b.index;
 }
 
 template <typename Rep>
 constexpr bool operator!=(BitIterator<Rep> a, BitIterator<Rep> b)
 {
-  return a.data != b.data || a.index != b.index;
+  return a.index != b.index;
+}
+
+template <typename Rep>
+constexpr bool operator<(BitIterator<Rep> a, BitIterator<Rep> b)
+{
+  return a.index < b.index;
+}
+
+template <typename Rep>
+constexpr bool operator>(BitIterator<Rep> a, BitIterator<Rep> b)
+{
+  return a.index > b.index;
 }
 
 template <typename Rep>

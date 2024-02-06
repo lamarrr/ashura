@@ -43,30 +43,52 @@ TEST(SparseSetTest, Start)
   ASSERT_EQ(f.data(), nullptr);
   ASSERT_EQ(f.capacity(), 0);
 
-  Vec<u64>    bvsrc{heap_allocator};
-  BitVec<u64> bv{&bvsrc, 0};
+  BitVec<u64> bv{Vec<u64>{heap_allocator}, 0};
 
   EXPECT_TRUE(bv.push(false));
   EXPECT_TRUE(bv.push(true));
   EXPECT_FALSE(bv[0]);
   EXPECT_TRUE(bv[1]);
   EXPECT_EQ(bv.size(), 2);
+  bv.erase_index(0, 1);
+  EXPECT_EQ(bv.size(), 1);
+  EXPECT_TRUE(bv[0]);
 
   SparseVec<u64> set{.index_to_id = {heap_allocator},
                      .id_to_index = {heap_allocator}};
+  BitVec<u64>    bool_attr{Vec<u64>{heap_allocator}, 0};
+  Vec<u32>       int_attr{heap_allocator};
 
-  ASSERT_TRUE(set.push([&](u64 id, u64 index) {
-    ASSERT_EQ(id, 0);
-    EXPECT_EQ(index, 0);
-  }));
+  ASSERT_TRUE(set.push(
+      [&](u64 id, u64 index) {
+        ASSERT_EQ(id, 0);
+        EXPECT_EQ(index, 0);
+        (void) bool_attr.push(true);
+        (void) int_attr.push(69u);
+      },
+      bool_attr, int_attr));
   ASSERT_EQ(set.size(), 1);
+  ASSERT_EQ(bool_attr.size(), set.size());
+  ASSERT_EQ(bool_attr.size(), int_attr.size());
   ASSERT_TRUE(set.push([&](u64 id, u64 index) {
     ASSERT_EQ(id, 1);
     ASSERT_EQ(index, 1);
+    (void) bool_attr.push(false);
+    (void) int_attr.push(42u);
   }));
   ASSERT_EQ(set.size(), 2);
-  ASSERT_TRUE(set.try_erase(0));
+  ASSERT_EQ(bool_attr.size(), set.size());
+  ASSERT_EQ(bool_attr.size(), int_attr.size());
+  ASSERT_EQ(bool_attr[0], true);
+  ASSERT_EQ(int_attr[0], 69);
+  ASSERT_EQ(bool_attr[1], false);
+  ASSERT_EQ(int_attr[1], 42);
+  ASSERT_TRUE(set.try_erase(0, bool_attr, int_attr));
   ASSERT_EQ(set.size(), 1);
-  ASSERT_TRUE(set.try_erase(1));
+  ASSERT_EQ(bool_attr.size(), set.size());
+  ASSERT_EQ(bool_attr.size(), int_attr.size());
+  ASSERT_TRUE(set.try_erase(1, bool_attr, int_attr));
   ASSERT_EQ(set.size(), 0);
+  ASSERT_EQ(bool_attr.size(), set.size());
+  ASSERT_EQ(bool_attr.size(), int_attr.size());
 }

@@ -164,7 +164,7 @@ struct SparseVec
   }
 
   template <typename... VecT>
-  [[nodiscard]]   bool reserve(SizeType target_capacity, VecT &...dense)
+  [[nodiscard]] bool reserve(SizeType target_capacity, VecT &...dense)
   {
     return ((id_to_index.reserve(target_capacity) &&
              index_to_id.reserve(target_capacity)) &&
@@ -172,14 +172,14 @@ struct SparseVec
   }
 
   template <typename... VecT>
-  [[nodiscard]]   bool grow(SizeType target_size, VecT &...dense)
+  [[nodiscard]] bool grow(SizeType target_size, VecT &...dense)
   {
     return ((id_to_index.grow(target_size) && index_to_id.grow(target_size)) &&
             ... && dense.grow(target_size));
   }
 
   /// make new id and map the unique id to the unique index
-  [[nodiscard]] bool make_id(SizeType &out_id, SizeType index)
+  [[nodiscard]] bool make_id(SizeType index, SizeType &out_id)
   {
     if (free_id_head != STUB)
     {
@@ -200,18 +200,18 @@ struct SparseVec
   }
 
   template <typename PushOp, typename... VecT>
-  [[nodiscard]]   bool push(PushOp &&push_op, VecT &...dense)
+  [[nodiscard]] bool push(PushOp &&push_op, VecT &...dense)
   {
     SizeType const index = size();
     SizeType       id;
 
-    if (!(grow(size() + 1, dense...) && make_id(id, index) &&
+    if (!(grow(size() + 1, dense...) && make_id(index, id) &&
           index_to_id.push(id)))
     {
       return false;
     }
 
-    push_op(id, index, dense...);
+    push_op(id, index);
 
     return true;
   }
