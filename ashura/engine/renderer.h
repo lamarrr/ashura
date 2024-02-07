@@ -288,16 +288,16 @@ struct RenderServer
   SceneGroup      scene_group = {};
   ViewGroup       view_group  = {};
 
-  void                     acquire_screen_color_image();
-  void                     acquire_screen_depth_stencil_image();
-  void                     release_screen_color_image();
-  void                     release_screen_depth_stencil_image();
-  Option<PassImpl const *> get_pass(uid32 pass);
-  Option<uid32>            get_pass_id(char const *name);
-  Option<uid32>            register_pass(PassImpl pass);
-  Option<uid32>            create_scene(char const *name);
-  Option<Scene *>          get_scene(uid32 scene);
-  void                     remove_scene(uid32 scene);
+  void               acquire_screen_color_image();
+  void               acquire_screen_depth_stencil_image();
+  void               release_screen_color_image();
+  void               release_screen_depth_stencil_image();
+  Option<PassImpl *> get_pass(uid32 pass);
+  Option<uid32>      get_pass_id(char const *name);
+  Option<uid32>      register_pass(PassImpl pass);
+  Option<uid32>      add_scene(char const *name);
+  Option<Scene *>    get_scene(uid32 scene);
+  void               remove_scene(uid32 scene);
   Option<uid32>  add_view(uid32 scene, char const *name, Camera const &camera);
   Option<View *> get_view(uid32 view);
   void           remove_view(uid32 view);
