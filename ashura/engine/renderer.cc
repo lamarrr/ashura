@@ -220,7 +220,6 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
               (void) scene->objects.local_transform.push();
               (void) scene->objects.node.push(
                   SceneNode{.parent         = parent_id,
-                            .next_sibling   = INVALID_UID32,
                             .depth          = depth,
                             .pass           = pass,
                             .pass_object_id = pass_object_id});
@@ -243,13 +242,23 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
   });
 }
 
-void RenderServer::remove_object(uid32 scene_id, uid32 object)
+void RenderServer::remove_object(uid32 scene_id, uid32 object_id)
 {
   get_scene(scene_id).match(
       [&](Scene *scene) {
         // unlink from parent and siblings
-        (void) scene->objects.id_map.try_erase(
-            object, scene->objects.aabb, scene->objects.global_transform,
+        u32 object_index;
+        if (!scene->objects.id_map.try_to_index(object_id, object_index))
+        {
+          return;
+        }
+
+        SceneNode &object = scene->objects.node[object_index];
+
+        object.
+
+        scene->objects.id_map.erase(
+            object_id, scene->objects.aabb, scene->objects.global_transform,
             scene->objects.is_transparent, scene->objects.local_transform,
             scene->objects.node, scene->objects.z_index);
       },

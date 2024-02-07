@@ -12,8 +12,10 @@ namespace ash
 template <typename T>
 struct Vec
 {
-  using Type = T;
-  using Rep  = T;
+  using Type          = T;
+  using Rep           = T;
+  using Iterator      = T *;
+  using ConstIterator = T const *;
 
   AllocatorImpl m_allocator = heap_allocator;
   T            *m_data      = nullptr;
@@ -443,8 +445,10 @@ struct Vec
 template <typename RepT>
 struct BitVec
 {
-  using Type = bool;
-  using Rep  = RepT;
+  using Type          = bool;
+  using Rep           = RepT;
+  using Iterator      = BitIterator<Rep>;
+  using ConstIterator = BitIterator<Rep const>;
 
   Vec<Rep> vec      = {};
   usize    num_bits = 0;
