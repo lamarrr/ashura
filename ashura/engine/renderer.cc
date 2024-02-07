@@ -189,10 +189,17 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
   // view removed, on view
   //
   // TODO(lamarrr): call on view updated, resize bit masks and all
-  //
   return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid32> {
-    uid32 object_id;
+    u32 parent_index;
+    if (!scene->objects.id_map.try_to_index(parent_id, parent_index))
+    {
+      return None;
+    }
 
+    u32 depth = scene->objects.node[parent_index].depth + 1;
+    // TODO(lamarrr): get sibling
+    // u32 depth = scene->objects.node[parent_index].depth;
+    uid32 object_id;
     if (!scene->objects.id_map.push(
             [&](u32 in_object_id, u32) {
               object_id = in_object_id;
@@ -203,7 +210,7 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
               (void) scene->objects.node.push(
                   SceneNode{.parent         = parent_id,
                             .next_sibling   = INVALID_UID32,
-                            .depth          = 0x000,        // TODO(lamarrr)
+                            .depth          = depth,
                             .pass           = pass,
                             .pass_object_id = pass_object_id});
               (void) scene->objects.z_index.push(desc.z_index);
