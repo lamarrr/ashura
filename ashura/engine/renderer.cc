@@ -564,7 +564,7 @@ Result<Void, RenderError> RenderServer::sort_()
                                                      .node[partition_indices[0]]
                                                      .pass]];
                       pass.interface->sort(pass.self, this,
-                                           scene_group.id_map.to_index(iscene),
+                                           scene_group.id_map.to_id(iscene),
                                            partition_indices);
                     },
                     [](SceneNode const &a, SceneNode const &b) {
