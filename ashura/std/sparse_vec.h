@@ -127,6 +127,18 @@ struct SparseVec
     return true;
   }
 
+  template <typename VecT>
+  constexpr bool try_get(SizeType id, VecT::Iterator &iterator, VecT &vec)
+  {
+    SizeType index;
+    if (!try_to_index(id, index))
+    {
+      return false;
+    }
+    iterator = vec.begin() + index;
+    return true;
+  }
+
   template <typename... VecT>
   constexpr void erase(SizeType id, VecT &...dense)
   {
