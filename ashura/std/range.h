@@ -310,7 +310,7 @@ constexpr void map(I &&input, O &&output, Map &&mapper)
 
   while (input_it != end(input))
   {
-    *output_it = map(*input_it);
+    *output_it = mapper(*input_it);
     input_it++;
     output_it++;
   }
@@ -336,7 +336,7 @@ constexpr Init map_reduce(R &&range, Init &&init, Map &&mapper,
   InputIterator auto it = begin(range);
   while (it != end(range))
   {
-    init = reducer((Init &&) init, map(*it));
+    init = reducer((Init &&) init, mapper(*it));
     it++;
   }
 

@@ -196,9 +196,20 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
       return None;
     }
 
-    u32 depth = scene->objects.node[parent_index].depth + 1;
-    // TODO(lamarrr): get sibling
-    // u32 depth = scene->objects.node[parent_index].depth;
+    u32   depth            = scene->objects.node[parent_index].depth + 1;
+    uid32 previous_sibling = scene->objects.node[parent_index].first_child;
+
+    if (previous_sibling != INVALID_UID32)
+    {
+      while (scene->objects.node[scene->objects.id_map[previous_sibling]]
+                 .next_sibling != INVALID_UID32)
+      {
+        previous_sibling =
+            scene->objects.node[scene->objects.id_map[previous_sibling]]
+                .next_sibling;
+      }
+    }
+
     uid32 object_id;
     if (!scene->objects.id_map.push(
             [&](u32 in_object_id, u32) {
@@ -222,6 +233,12 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
       return None;
     }
 
+    if (previous_sibling != INVALID_UID32)
+    {
+      scene->objects.node[scene->objects.id_map[previous_sibling]]
+          .next_sibling = object_id;
+    }
+
     return Some{object_id};
   });
 }
@@ -230,6 +247,7 @@ void RenderServer::remove_object(uid32 scene_id, uid32 object)
 {
   get_scene(scene_id).match(
       [&](Scene *scene) {
+        // unlink from parent and siblings
         (void) scene->objects.id_map.try_erase(
             object, scene->objects.aabb, scene->objects.global_transform,
             scene->objects.is_transparent, scene->objects.local_transform,
