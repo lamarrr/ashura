@@ -301,8 +301,8 @@ struct RenderServer
   Option<uid32>  add_view(uid32 scene, char const *name, Camera const &camera);
   Option<View *> get_view(uid32 view);
   void           remove_view(uid32 view);
-  Option<uid32>  add_object(uid32 scene, uid32 parent,
-                            SceneObjectDesc const &desc);
+  Option<uid32>  add_object(uid32 pass, uid32 pass_object_id, uid32 scene,
+                            uid32 parent, SceneObjectDesc const &desc);
   void           remove_object(uid32 scene, uid32 object);
   Option<uid32>  add_directional_light(uid32                   scene,
                                        DirectionalLight const &light);

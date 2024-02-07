@@ -1,5 +1,4 @@
 #include "ashura/engine/renderer.h"
-#include "ashura/std/bit_span.h"
 #include "ashura/std/math.h"
 #include "ashura/std/range.h"
 
@@ -92,6 +91,11 @@ Option<uid32> RenderServer::create_scene(char const *name)
     return None;
   }
 
+  for (PassImpl &pass : pass_group.passes)
+  {
+    pass.interface->acquire_scene(pass.self, this, id);
+  }
+
   return Some{id};
 }
 
@@ -112,7 +116,11 @@ void RenderServer::remove_scene(uid32 scene)
   {
     return;
   }
-  // TODO(lamarrr): notify all views
+
+  for (PassImpl &pass : pass_group.passes)
+  {
+    pass.interface->release_scene(pass.self, this, scene);
+  }
 
   destroy_scene(scene_group.scenes[index]);
   scene_group.id_map.erase(scene, scene_group.scenes);
@@ -126,22 +134,23 @@ Option<uid32> RenderServer::add_view(uid32 scene, char const *name,
     return None;
   }
 
- 
   uid32 id;
-  u32   index;
-  if (!view_group.id_map.allocate_id(id, index))
+  if (!view_group.id_map.push(
+          [&](u32 in_id, u32) {
+            id = in_id;
+            (void) view_group.views.push(
+                View{.name = name, .camera = camera, .scene = scene});
+          },
+          view_group.views))
   {
     return None;
   }
 
-  // TODO(lamarrr): resize is_object_visible?
-  view_group.views[index] = View{.name                       = name,
-                                 .camera                     = camera,
-                                 .scene                      = scene,
-                                 .is_object_visible          = nullptr,
-                                 .is_object_visible_capacity = 0};
+  for (PassImpl &pass : pass_group.passes)
+  {
+    pass.interface->acquire_view(pass.self, this, id);
+  }
 
-  // TODO(lamarrr): notify all views
   return Some{id};
 }
 
@@ -162,97 +171,236 @@ void RenderServer::remove_view(uid32 view)
   {
     return;
   }
-  destroy_view(view_group.views[index], allocator);
-  view_group.id_map.release(view, [](auto...) {
-    // TODO(lamarrr): trivial relocate op
-  });
+
+  for (PassImpl &pass : pass_group.passes)
+  {
+    pass.interface->release_view(pass.self, this, view);
+  }
+
+  destroy_view(view_group.views[index]);
+  view_group.id_map.erase(view, view_group.views);
 }
 
-Option<uid32> RenderServer::add_object(uid32 scene, uid32 parent,
+Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
+                                       uid32 scene_id, uid32 parent_id,
                                        SceneObjectDesc const &desc)
 {
   // resize cull masks for all views referring to the scene, on view added, on
-  // view removed, on view for (u32 iview = 0; iview < view_group.num_views();
-  // iview++)
-  //   {
+  // view removed, on view
+  //
   //     View  &view = view_group.views[iview];
   //     Scene &scene =
   //         scene_group.scenes[scene_group.id_map.unsafe_to_index(view.scene)];
   //     usize const required_size = bitvec::size_u64(scene.num_objects());
-  //     if (!tvec::reserve(allocator, view.object_cull_mask,
-  //                        view.object_cull_mask_capacity, required_size))
-  //     {
-  //       return Err{RenderError::OutOfMemory};
-  //     }
-  //   }
+  u32 scene_index;
+  if (!scene_group.id_map.try_to_index(scene_id, scene_index))
+  {
+    return None;
+  }
+
+  Scene &scene = scene_group.scenes[scene_index];
+
+  if (!scene.objects.id_map.is_valid_id(parent_id))
+  {
+    return None;
+  }
+
+  uid32 object_id;
+
+  if (!scene.objects.id_map.push(
+          [&](u32 in_object_id, u32) {
+            object_id = in_object_id;
+            (void) scene.objects.aabb.push(desc.aabb);
+            (void) scene.objects.global_transform.push();
+            (void) scene.objects.is_transparent.push(desc.is_transparent);
+            (void) scene.objects.local_transform.push();
+            (void) scene.objects.node.push(
+                SceneNode{.parent         = parent_id,
+                          .next_sibling   = INVALID_UID16,
+                          .depth          = 0x000,        //
+                          .pass           = pass,
+                          .pass_object_id = pass_object_id});
+            (void) scene.objects.z_index.push(desc.z_index);
+          },
+          scene.objects.aabb, scene.objects.global_transform,
+          scene.objects.is_transparent, scene.objects.local_transform,
+          scene.objects.node, scene.objects.z_index))
+  {
+    return None;
+  }
+
   return None;
 }
 
-void RenderServer::remove_object(uid32 scene, uid32 object)
+void RenderServer::remove_object(uid32 scene_id, uid32 object)
 {
   u32 scene_index;
-  if (!scene_group.id_map.try_to_index(scene, scene_index))
+  if (!scene_group.id_map.try_to_index(scene_id, scene_index))
   {
     return;
   }
 
-  Scene &scene_r = scene_group.scenes[scene_index];
+  Scene &scene = scene_group.scenes[scene_index];
 
-  (void) scene_r.objects.id_map.try_release(object, [](auto...) {});
-
-  // uid32 object_pass = scene_r.objects.node[object_index].pass;
-  // uid32 object_pass_id = scene_r.objects.node[object_index].pass_object_id;
-  // u32 object_pass_index =  pass_group.id_map[object_pass_id];
-  // PassImpl const  pass = pass_group.passes[object_index];
-  // pass.interface->
+  (void) scene.objects.id_map.try_erase(
+      object, scene.objects.aabb, scene.objects.global_transform,
+      scene.objects.is_transparent, scene.objects.local_transform,
+      scene.objects.node, scene.objects.z_index);
 }
 
-Option<uid32> RenderServer::add_directional_light(uid32                   scene,
+Option<uid32> RenderServer::add_directional_light(uid32 scene_id,
                                                   DirectionalLight const &light)
 {
-  return None;
+  u32 scene_index;
+  if (!scene_group.id_map.try_to_index(scene_id, scene_index))
+  {
+    return None;
+  }
+
+  Scene &scene = scene_group.scenes[scene_index];
+  uid32  light_id;
+  if (!scene.directional_lights_id_map.push(
+          [&](uid32 in_id, u32) {
+            light_id = in_id;
+            (void) scene.directional_lights.push(light);
+          },
+          scene.directional_lights))
+  {
+    return None;
+  }
+
+  return Some{light_id};
 }
 
-Option<uid32> RenderServer::add_point_light(uid32             scene,
+Option<uid32> RenderServer::add_point_light(uid32             scene_id,
                                             PointLight const &light)
 {
-  return None;
+  u32 scene_index;
+  if (!scene_group.id_map.try_to_index(scene_id, scene_index))
+  {
+    return None;
+  }
+
+  Scene &scene = scene_group.scenes[scene_index];
+  uid32  light_id;
+  if (!scene.point_lights_id_map.push(
+          [&](uid32 in_id, u32) {
+            light_id = in_id;
+            (void) scene.point_lights.push(light);
+          },
+          scene.point_lights))
+  {
+    return None;
+  }
+
+  return Some{light_id};
 }
 
-Option<uid32> RenderServer::add_spot_light(uid32 scene, SpotLight const &light)
+Option<uid32> RenderServer::add_spot_light(uid32            scene_id,
+                                           SpotLight const &light)
 {
-  return None;
+  u32 scene_index;
+  if (!scene_group.id_map.try_to_index(scene_id, scene_index))
+  {
+    return None;
+  }
+
+  Scene &scene = scene_group.scenes[scene_index];
+  uid32  light_id;
+  if (!scene.spot_lights_id_map.push(
+          [&](uid32 in_id, u32) {
+            light_id = in_id;
+            (void) scene.spot_lights.push(light);
+          },
+          scene.spot_lights))
+  {
+    return None;
+  }
+
+  return Some{light_id};
 }
 
-Option<uid32> RenderServer::add_area_light(uid32 scene, AreaLight const &light)
+Option<uid32> RenderServer::add_area_light(uid32            scene_id,
+                                           AreaLight const &light)
 {
-  return None;
+  u32 scene_index;
+  if (!scene_group.id_map.try_to_index(scene_id, scene_index))
+  {
+    return None;
+  }
+
+  Scene &scene = scene_group.scenes[scene_index];
+  uid32  light_id;
+  if (!scene.area_lights_id_map.push(
+          [&](uid32 in_id, u32) {
+            light_id = in_id;
+            (void) scene.area_lights.push(light);
+          },
+          scene.area_lights))
+  {
+    return None;
+  }
+
+  return Some{light_id};
 }
 
-Option<AmbientLight *> RenderServer::get_ambient_light(uid32 scene)
+Option<AmbientLight *> RenderServer::get_ambient_light(uid32 scene_id)
 {
-  return None;
+  return get_scene(scene_id).map(
+      [&](Scene *scene) { return &scene->ambient_light; });
 }
 
-Option<DirectionalLight *> RenderServer::get_directional_light(uid32 scene,
-                                                               uid32 id)
+Option<DirectionalLight *> RenderServer::get_directional_light(uid32 scene_id,
+                                                               uid32 light_id)
 {
-  return None;
+  return get_scene(scene_id).and_then(
+      [&](Scene *scene) -> Option<DirectionalLight *> {
+        u32 light_index;
+        if (!scene->directional_lights_id_map.try_to_index(light_id,
+                                                           light_index))
+        {
+          return None;
+        }
+        return Some{&scene->directional_lights[light_index]};
+      });
 }
 
-Option<PointLight *> RenderServer::get_point_light(uid32 scene, uid32 id)
+Option<PointLight *> RenderServer::get_point_light(uid32 scene_id,
+                                                   uid32 light_id)
 {
-  return None;
+  return get_scene(scene_id).and_then(
+      [&](Scene *scene) -> Option<PointLight *> {
+        u32 light_index;
+        if (!scene->point_lights_id_map.try_to_index(light_id, light_index))
+        {
+          return None;
+        }
+        return Some{&scene->point_lights[light_index]};
+      });
 }
 
-Option<SpotLight *> RenderServer::get_spot_light(uid32 scene, uid32 id)
+Option<SpotLight *> RenderServer::get_spot_light(uid32 scene_id, uid32 light_id)
 {
-  return None;
+  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<SpotLight *> {
+    u32 light_index;
+    if (!scene->spot_lights_id_map.try_to_index(light_id, light_index))
+    {
+      return None;
+    }
+    return Some{&scene->spot_lights[light_index]};
+  });
 }
 
-Option<AreaLight *> RenderServer::get_area_light(uid32 scene, uid32 id)
+Option<AreaLight *> RenderServer::get_area_light(uid32 scene_id, uid32 light_id)
 {
-  return None;
+  return get_scene(scene_id).and_then([&](Scene *scene) -> Option<AreaLight *> {
+    u32 light_index;
+    if (!scene->area_lights_id_map.try_to_index(light_id, light_index))
+    {
+      return None;
+    }
+    return Some{&scene->area_lights[light_index]};
+  });
 }
 
 void RenderServer::remove_directional_light(uid32 scene, uid32 id)
@@ -274,7 +422,7 @@ void RenderServer::remove_area_light(uid32 scene, uid32 id)
 // transform views from object-space to root-object space
 void RenderServer::transform_()
 {
-  for (Scene &scene: scene_group.scenes)
+  for (Scene &scene : scene_group.scenes)
   {
     for (u32 i = 0; i < scene.objects.id_map.size(); i++)
     {
@@ -352,15 +500,13 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Box const &box)
 // transform objects from root object space to clip space using view's camera
 Result<Void, RenderError> RenderServer::frustum_cull_()
 {
-  for (u32 iview = 0; iview < view_group.num_views(); iview++)
+  for (View &view : view_group.views)
   {
-    View     &view        = view_group.views[iview];
     Scene    &scene       = scene_group.scenes[scene_group.id_map[view.scene]];
-    u32 const num_objects = scene.num_objects();
-    BitSpan   is_object_visible{view.is_object_visible, num_objects};
+    u32 const num_objects = scene.objects.id_map.size();
     for (u32 i = 0; i < num_objects; i++)
     {
-      is_object_visible[i] =
+      view.is_object_visible[i] =
           !is_outside_frustum(view.camera.projection * view.camera.view *
                                   scene.objects.global_transform[i],
                               scene.objects.aabb[i]);
@@ -375,8 +521,10 @@ Result<Void, RenderError> RenderServer::frustum_cull_()
 // sort by pass sorter
 Result<Void, RenderError> RenderServer::sort_()
 {
-  for (Scene &scene : scene_group.scenes)
+  u32 num_scenes = scene_group.scenes.size();
+  for (u32 iscene = 0; iscene < num_scenes; iscene++)
   {
+    Scene &scene = scene_group.scenes[iscene];
     // TODO(lamarrr): don't perform any sorting on frustum-culled objects
     // filter_indirect();?
     // filter_masked();?
@@ -384,12 +532,11 @@ Result<Void, RenderError> RenderServer::sort_()
     for_each_partition_indirect(
         scene.objects.z_index, to_span(scene.sort_indices),
         [&](Span<u32> partition_indices) {
-          indirect_sort(BitSpan{scene.objects.is_transparent,
-                                scene.objects.is_transparent.num_bits},
+          indirect_sort(static_cast<BitSpan<u64>>(scene.objects.is_transparent),
                         partition_indices);
           for_each_partition_indirect(
-              BitSpan{scene.objects.is_transparent}, partition_indices,
-              [&](Span<u32> partition_indices) {
+              static_cast<BitSpan<u64>>(scene.objects.is_transparent),
+              partition_indices, [&](Span<u32> partition_indices) {
                 indirect_sort(scene.objects.node, partition_indices,
                               [](SceneNode const &a, SceneNode const &b) {
                                 return a.pass < b.pass;
@@ -402,10 +549,9 @@ Result<Void, RenderError> RenderServer::sort_()
                               [pass_group.id_map[scene.objects
                                                      .node[partition_indices[0]]
                                                      .pass]];
-                      pass.interface->sort(
-                          pass.self, this,
-                          scene_group.id_map.index_to_id[iscene],
-                          partition_indices);
+                      pass.interface->sort(pass.self, this,
+                                           scene_group.id_map.to_index(iscene),
+                                           partition_indices);
                     },
                     [](SceneNode const &a, SceneNode const &b) {
                       return a.pass == b.pass;

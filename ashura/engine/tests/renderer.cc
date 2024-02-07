@@ -11,4 +11,5 @@ TEST(RendererTest, Scene)
   ash::RenderServer server{};
   server.frustum_cull_().unwrap();
   server.transform_();
+  server.sort_();
 }
