@@ -235,24 +235,103 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
   });
 }
 
+struct ObjectReleaseInfo
+{
+  uid32 scene_object_id = INVALID_UID32;
+  uid32 pass_id         = INVALID_UID32;
+  uid32 pass_object_id  = INVALID_UID32;
+};
+
+static void collect_node_ids(Scene &scene, Vec<ObjectReleaseInfo> &vec,
+                             uid32 id)
+{
+  SceneNode &object = scene.objects.node[scene.objects.id_map[id]];
+  // TODO(lamarrr): check
+  vec.push(ObjectReleaseInfo{.scene_object_id = id,
+                             .pass_id         = object.pass,
+                             .pass_object_id  = object.pass_object_id});
+
+  uid32 child_id = object.first_child;
+
+  while (child_id != INVALID_UID32)
+  {
+    collect_node_ids(scene, vec, child_id);
+    child_id = scene.objects.node[scene.objects.id_map[child_id]].next_sibling;
+  }
+}
+
+static void remove_node(RenderServer &server, uid32 scene_id, Scene &scene,
+                        uid32 scene_object_id, SceneNode &object)
+{
+  Vec<ObjectReleaseInfo> infos;
+  collect_node_ids(scene, infos, scene_object_id);
+
+  for (ObjectReleaseInfo const &info : infos)
+  {
+    PassImpl const &pass =
+        server.pass_group.passes[server.pass_group.id_map[info.pass_id]];
+    PassObjectReleaseInfo pass_info{.scene_id        = scene_id,
+                                    .scene_object_id = info.scene_object_id,
+                                    .pass_object_id  = info.pass_object_id};
+    pass.interface->release_object(pass.self, &server, &pass_info);
+  }
+
+  uid32 const parent_id = object.parent;
+  if (parent_id != INVALID_UID32)
+  {
+    SceneNode &parent = scene.objects.node[scene.objects.id_map[parent_id]];
+    if (parent.first_child == scene_object_id)
+    {
+      if (object.next_sibling != INVALID_UID32)
+      {
+        parent.first_child = object.next_sibling;
+      }
+      else
+      {
+        parent.first_child = INVALID_UID32;
+      }
+    }
+    else
+    {
+      uid32 sibling_id = parent.first_child;
+
+      while (sibling_id != INVALID_UID32)
+      {
+        SceneNode &sibling =
+            scene.objects.node[scene.objects.id_map[sibling_id]];
+        if (sibling.next_sibling == scene_object_id)
+        {
+          sibling.next_sibling = object.next_sibling;
+          break;
+        }
+        sibling_id = sibling.next_sibling;
+      }
+    }
+  }
+
+  for (ObjectReleaseInfo const &info : infos)
+  {
+    scene.objects.id_map.erase(info.scene_object_id, scene.objects.aabb,
+                               scene.objects.global_transform,
+                               scene.objects.is_transparent,
+                               scene.objects.local_transform,
+                               scene.objects.node, scene.objects.z_index);
+  }
+
+  infos.reset();
+}
+
 void RenderServer::remove_object(uid32 scene_id, uid32 object_id)
 {
   get_scene(scene_id).match(
       [&](Scene *scene) {
-        // unlink from parent and siblings
-        // remove children
-        // fix tree
         SceneNode *object;
         if (!scene->objects.id_map.try_get(object_id, object,
                                            scene->objects.node))
         {
           return;
         }
-
-        scene->objects.id_map.erase(
-            object_id, scene->objects.aabb, scene->objects.global_transform,
-            scene->objects.is_transparent, scene->objects.local_transform,
-            scene->objects.node, scene->objects.z_index);
+        remove_node(*this, scene_id, *scene, object_id, *object);
       },
       [] {});
 }
@@ -546,6 +625,7 @@ Result<Void, RenderError> RenderServer::sort_()
     for_each_partition_indirect(
         scene.objects.z_index, to_span(scene.sort_indices),
         [&](Span<u32> partition_indices) {
+          // TODO(lamarrr): partition, not sort
           indirect_sort(static_cast<BitSpan<u64>>(scene.objects.is_transparent),
                         partition_indices);
           for_each_partition_indirect(

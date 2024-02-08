@@ -125,6 +125,13 @@ struct PassEncodeInfo
   Span<u32>               object_indices  = {};
 };
 
+struct PassObjectReleaseInfo
+{
+  uid32 scene_id        = INVALID_UID32;
+  uid32 scene_object_id = INVALID_UID32;
+  uid32 pass_object_id  = INVALID_UID32;
+};
+
 /// @init: add self and resources to server
 /// @deinit: remove self and resources
 /// @sort: sort scene objects belonging to passes for efficient batching
@@ -143,6 +150,8 @@ struct PassInterface
                  PassUpdateInfo const *args)                          = nullptr;
   void (*encode)(Pass self, RenderServer *server,
                  PassEncodeInfo const *args)                          = nullptr;
+  void (*release_object)(Pass self, RenderServer *server,
+                         PassObjectReleaseInfo const *args)           = nullptr;
   void (*acquire_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
   void (*release_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
   void (*acquire_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
