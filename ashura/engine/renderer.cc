@@ -244,8 +244,7 @@ struct ObjectReleaseInfo
   uid32 pass_object_id  = INVALID_UID32;
 };
 
-static void collect_node_ids(Scene &scene, Vec<ObjectReleaseInfo> &vec,
-                             uid32 id)
+static void collect_nodes(Scene &scene, Vec<ObjectReleaseInfo> &vec, uid32 id)
 {
   SceneNode &object = scene.objects.node[scene.objects.id_map[id]];
   // TODO(lamarrr): check
@@ -257,7 +256,7 @@ static void collect_node_ids(Scene &scene, Vec<ObjectReleaseInfo> &vec,
 
   while (child_id != INVALID_UID32)
   {
-    collect_node_ids(scene, vec, child_id);
+    collect_nodes(scene, vec, child_id);
     child_id = scene.objects.node[scene.objects.id_map[child_id]].next_sibling;
   }
 }
@@ -266,7 +265,7 @@ static void remove_node(RenderServer &server, uid32 scene_id, Scene &scene,
                         uid32 scene_object_id, SceneNode &object)
 {
   Vec<ObjectReleaseInfo> infos;
-  collect_node_ids(scene, infos, scene_object_id);
+  collect_nodes(scene, infos, scene_object_id);
 
   for (ObjectReleaseInfo const &info : infos)
   {
