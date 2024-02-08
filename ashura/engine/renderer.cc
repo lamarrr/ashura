@@ -455,9 +455,9 @@ void RenderServer::transform_()
 /// exploits the fact that in clip-space all vertices in the view frustum will
 /// obey:
 ///
-/// -w <= x << w
-/// -w <= y << w
-///  0 <= z << w
+/// -w <= x <= w
+/// -w <= y <= w
+///  0 <= z <= w
 ///
 constexpr bool is_outside_frustum(Mat4 const &mvp, Box const &box)
 {
