@@ -201,8 +201,9 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
       }
     }
 
-    u32   depth        = parent ? (parent->depth + 1) : 0;
-    uid32 next_sibling = parent ? parent->first_child : INVALID_UID32;
+    u32   depth = parent == nullptr ? 0 : (parent->depth + 1);
+    uid32 next_sibling =
+        parent == nullptr ? INVALID_UID32 : parent->first_child;
     uid32 object_id;
     if (!scene->objects.id_map.push(
             [&](uid32 in_object_id, u32) {
@@ -533,9 +534,9 @@ void RenderServer::transform_()
 /// exploits the fact that in clip-space all vertices in the view frustum will
 /// obey:
 ///
-/// -w <= x << w
-/// -w <= y << w
-///  0 <= z << w
+/// -w <= x <= w
+/// -w <= y <= w
+///  0 <= z <= w
 ///
 constexpr bool is_outside_frustum(Mat4 const &mvp, Box const &box)
 {
