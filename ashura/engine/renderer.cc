@@ -189,6 +189,7 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
   // view removed, on view
   //
   // TODO(lamarrr): call on view updated, resize bit masks and all
+  // what about passes that may want to access the view?
   return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid32> {
     SceneNode *parent = nullptr;
 
