@@ -1,6 +1,22 @@
 #include "ashura/engine/renderer.h"
 #include "ashura/std/math.h"
 #include "ashura/std/range.h"
+#include "ashura/std/source_location.h"
+
+#define ENSURE
+
+#define ENSURE(description, ...)                                              \
+  do                                                                          \
+  {                                                                           \
+    if (!(__VA_ARGS__))                                                       \
+    {                                                                         \
+      panic_logger.panic(description, " (expression: " #__VA_ARGS__,          \
+                         ") [function: ", SourceLocation::current().function, \
+                         ", file: ", SourceLocation::current().file, ":",     \
+                         SourceLocation::current().line, ":",                 \
+                         SourceLocation::current().column, "]");              \
+    }                                                                         \
+  } while (false)
 
 namespace ash
 {
@@ -20,7 +36,6 @@ void destroy_scene(Scene &scene)
                              scene.objects.global_transform, scene.objects.aabb,
                              scene.objects.z_index,
                              scene.objects.is_transparent);
-  scene.sort_indices.reset();
 }
 
 void destroy_scene_group(SceneGroup &group)
@@ -34,6 +49,7 @@ void destroy_scene_group(SceneGroup &group)
 
 void destroy_view(View &view)
 {
+  view.sort_indices.reset();
   view.is_object_visible.reset();
 }
 
@@ -67,7 +83,7 @@ Option<uid32> RenderServer::register_pass(PassImpl pass)
   if (!pass_group.id_map.push(
           [&](u32 in_id, u32) {
             id = in_id;
-            (void) pass_group.passes.push(pass);
+            ENSURE("", pass_group.passes.push(pass));
           },
           pass_group.passes))
   {
@@ -84,7 +100,7 @@ Option<uid32> RenderServer::add_scene(char const *name)
   if (!scene_group.id_map.push(
           [&](uid32 in_id, u32) {
             id = in_id;
-            (void) scene_group.scenes.push(Scene{.name = name});
+            ENSURE("", scene_group.scenes.push(Scene{.name = name}));
           },
           scene_group.scenes))
   {
@@ -138,8 +154,8 @@ Option<uid32> RenderServer::add_view(uid32 scene, char const *name,
   if (!view_group.id_map.push(
           [&](uid32 in_id, u32) {
             id = in_id;
-            (void) view_group.views.push(
-                View{.name = name, .camera = camera, .scene = scene});
+            ENSURE("", view_group.views.push(View{
+                           .name = name, .camera = camera, .scene = scene}));
           },
           view_group.views))
   {
@@ -209,17 +225,18 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
     if (!scene->objects.id_map.push(
             [&](uid32 in_object_id, u32) {
               object_id = in_object_id;
-              (void) scene->objects.aabb.push(desc.aabb);
-              (void) scene->objects.global_transform.push();
-              (void) scene->objects.is_transparent.push(desc.is_transparent);
-              (void) scene->objects.local_transform.push();
-              (void) scene->objects.node.push(
-                  SceneNode{.parent         = parent_id,
-                            .next_sibling   = next_sibling,
-                            .depth          = depth,
-                            .pass           = pass,
-                            .pass_object_id = pass_object_id});
-              (void) scene->objects.z_index.push(desc.z_index);
+              ENSURE("", scene->objects.aabb.push(desc.aabb));
+              ENSURE("", scene->objects.global_transform.push());
+              ENSURE("",
+                     scene->objects.is_transparent.push(desc.is_transparent));
+              ENSURE("", scene->objects.local_transform.push());
+              ENSURE("", scene->objects.node.push(
+                             SceneNode{.parent       = parent_id,
+                                       .next_sibling = next_sibling,
+                                       .depth        = depth,
+                                       .pass         = pass,
+                                       .pass_object  = pass_object_id}));
+              ENSURE("", scene->objects.z_index.push(desc.z_index));
             },
             scene->objects.aabb, scene->objects.global_transform,
             scene->objects.is_transparent, scene->objects.local_transform,
@@ -239,18 +256,17 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
 
 struct ObjectReleaseInfo
 {
-  uid32 scene_object_id = INVALID_UID32;
-  uid32 pass_id         = INVALID_UID32;
-  uid32 pass_object_id  = INVALID_UID32;
+  uid32 scene_object = INVALID_UID32;
+  uid32 pass         = INVALID_UID32;
+  uid32 pass_object  = INVALID_UID32;
 };
 
 static void collect_nodes(Scene &scene, Vec<ObjectReleaseInfo> &vec, uid32 id)
 {
   SceneNode &object = scene.objects.node[scene.objects.id_map[id]];
-  // TODO(lamarrr): check
-  vec.push(ObjectReleaseInfo{.scene_object_id = id,
-                             .pass_id         = object.pass,
-                             .pass_object_id  = object.pass_object_id});
+  ENSURE("", vec.push(ObjectReleaseInfo{.scene_object = id,
+                                        .pass         = object.pass,
+                                        .pass_object  = object.pass_object}));
 
   uid32 child_id = object.first_child;
 
@@ -270,10 +286,10 @@ static void remove_node(RenderServer &server, uid32 scene_id, Scene &scene,
   for (ObjectReleaseInfo const &info : infos)
   {
     PassImpl const &pass =
-        server.pass_group.passes[server.pass_group.id_map[info.pass_id]];
-    PassObjectReleaseInfo pass_info{.scene_id        = scene_id,
-                                    .scene_object_id = info.scene_object_id,
-                                    .pass_object_id  = info.pass_object_id};
+        server.pass_group.passes[server.pass_group.id_map[info.pass]];
+    PassObjectReleaseInfo pass_info{.scene        = scene_id,
+                                    .scene_object = info.scene_object,
+                                    .pass_object  = info.pass_object};
     pass.interface->release_object(pass.self, &server, &pass_info);
   }
 
@@ -312,11 +328,10 @@ static void remove_node(RenderServer &server, uid32 scene_id, Scene &scene,
 
   for (ObjectReleaseInfo const &info : infos)
   {
-    scene.objects.id_map.erase(info.scene_object_id, scene.objects.aabb,
-                               scene.objects.global_transform,
-                               scene.objects.is_transparent,
-                               scene.objects.local_transform,
-                               scene.objects.node, scene.objects.z_index);
+    scene.objects.id_map.erase(
+        info.scene_object, scene.objects.aabb, scene.objects.global_transform,
+        scene.objects.is_transparent, scene.objects.local_transform,
+        scene.objects.node, scene.objects.z_index);
   }
 
   infos.reset();
@@ -345,7 +360,7 @@ Option<uid32> RenderServer::add_directional_light(uid32 scene_id,
     if (!scene->directional_lights_id_map.push(
             [&](uid32 in_id, u32) {
               light_id = in_id;
-              (void) scene->directional_lights.push(light);
+              ENSURE("", scene->directional_lights.push(light));
             },
             scene->directional_lights))
     {
@@ -364,7 +379,7 @@ Option<uid32> RenderServer::add_point_light(uid32             scene_id,
     if (!scene->point_lights_id_map.push(
             [&](uid32 in_id, u32) {
               light_id = in_id;
-              (void) scene->point_lights.push(light);
+              ENSURE("", scene->point_lights.push(light));
             },
             scene->point_lights))
     {
@@ -383,7 +398,7 @@ Option<uid32> RenderServer::add_spot_light(uid32            scene_id,
     if (!scene->spot_lights_id_map.push(
             [&](uid32 in_id, u32) {
               light_id = in_id;
-              (void) scene->spot_lights.push(light);
+              ENSURE("", scene->spot_lights.push(light));
             },
             scene->spot_lights))
     {
@@ -402,7 +417,7 @@ Option<uid32> RenderServer::add_area_light(uid32            scene_id,
     if (!scene->area_lights_id_map.push(
             [&](uid32 in_id, u32) {
               light_id = in_id;
-              (void) scene->area_lights.push(light);
+              ENSURE("", scene->area_lights.push(light));
             },
             scene->area_lights))
     {
@@ -615,38 +630,40 @@ Result<Void, RenderError> RenderServer::frustum_cull_()
 // sort by pass sorter
 Result<Void, RenderError> RenderServer::sort_()
 {
-  u32 num_scenes = scene_group.scenes.size();
-  for (u32 iscene = 0; iscene < num_scenes; iscene++)
+  for (u32 iview = 0; iview < pass_group.id_map.size(); iview++)
   {
-    Scene &scene = scene_group.scenes[iscene];
-    // TODO(lamarrr): don't perform any sorting on frustum-culled objects
-    // filter_indirect();?
-    // filter_masked();?
-    indirect_sort(scene.objects.z_index, to_span(scene.sort_indices));
+    uid32  view_id = view_group.id_map.to_id(iview);
+    View  &view    = view_group.views[iview];
+    Scene &scene   = scene_group.scenes[scene_group.id_map[view.scene]];
+    u32    num_visible =
+        partition(view.sort_indices,
+                  [&](u32 index) { return view.is_object_visible[index]; }) -
+        view.sort_indices.begin();
+    Span<u32> indices = to_span(view.sort_indices).slice(0, num_visible);
+    indirect_sort(scene.objects.z_index, indices);
     for_each_partition_indirect(
-        scene.objects.z_index, to_span(scene.sort_indices),
-        [&](Span<u32> partition_indices) {
-          // TODO(lamarrr): partition, not sort
-          indirect_sort(static_cast<BitSpan<u64>>(scene.objects.is_transparent),
-                        partition_indices);
+        scene.objects.z_index, indices, [&](Span<u32> indices) {
+          // TODO(lamarrr): use partitions returned from this
+          partition(indices, [&](u32 index) {
+            return scene.objects.is_transparent[index];
+          });
           for_each_partition_indirect(
-              static_cast<BitSpan<u64>>(scene.objects.is_transparent),
-              partition_indices, [&](Span<u32> partition_indices) {
-                indirect_sort(scene.objects.node, partition_indices,
+              to_span(scene.objects.is_transparent), indices,
+              [&](Span<u32> indices) {
+                indirect_sort(scene.objects.node, indices,
                               [](SceneNode const &a, SceneNode const &b) {
                                 return a.pass < b.pass;
                               });
                 for_each_partition_indirect(
-                    scene.objects.node, partition_indices,
-                    [&](Span<u32> partition_indices) {
+                    scene.objects.node, indices,
+                    [&](Span<u32> indices) {
+                      uid32 pass_id = scene.objects.node[indices[0]].pass;
                       PassImpl const &pass =
-                          pass_group.passes
-                              [pass_group.id_map[scene.objects
-                                                     .node[partition_indices[0]]
-                                                     .pass]];
-                      pass.interface->sort(pass.self, this,
-                                           scene_group.id_map.to_id(iscene),
-                                           partition_indices);
+                          pass_group.passes[pass_group.id_map[pass_id]];
+                      PassSortInfo info{.view           = view_id,
+                                        .scene          = view.scene,
+                                        .object_indices = indices};
+                      pass.interface->sort(pass.self, this, &info);
                     },
                     [](SceneNode const &a, SceneNode const &b) {
                       return a.pass == b.pass;

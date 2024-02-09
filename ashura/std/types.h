@@ -1821,25 +1821,6 @@ constexpr Span<char const> operator""_span(char const *lit, usize len)
   return Span<char const>{lit, len};
 }
 
-template <typename T>
-constexpr Span<T const> to_span(std::initializer_list<T> init)
-{
-  return Span<T const>{init.begin(), init.size()};
-}
-
-template <typename T, usize N>
-constexpr Span<T> to_span(T (&array)[N])
-{
-  return Span<T>{array, N};
-}
-
-template <typename Container>
-constexpr auto to_span(Container &container)
-    -> decltype(Span{data(container), size(container)})
-{
-  return Span{data(container), size(container)};
-}
-
 /// @index: max of Rep::NUM_BITS - 1
 template <typename RepT>
 struct BitRef
@@ -2025,5 +2006,24 @@ struct BitSpan
     return m_num_bits == 0;
   }
 };
+
+template <typename T>
+constexpr Span<T const> to_span(std::initializer_list<T> init)
+{
+  return Span<T const>{init.begin(), init.size()};
+}
+
+template <typename T, usize N>
+constexpr Span<T> to_span(T (&array)[N])
+{
+  return Span<T>{array, N};
+}
+
+template <typename Container>
+constexpr auto to_span(Container &container)
+    -> decltype(Span{data(container), size(container)})
+{
+  return Span{data(container), size(container)};
+}
 
 }        // namespace ash

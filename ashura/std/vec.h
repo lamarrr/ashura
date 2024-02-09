@@ -468,6 +468,11 @@ struct BitVec
     return num_bits == 0;
   }
 
+  [[nodiscard]] constexpr Rep *data() const
+  {
+    return vec.data();
+  }
+
   [[nodiscard]] constexpr BitIterator<Rep> begin() const
   {
     return BitIterator<Rep>{vec.data(), 0};
@@ -576,5 +581,17 @@ struct BitVec
     b_r             = a_v;
   }
 };
+
+template <typename Rep>
+constexpr auto to_span(BitVec<Rep> &container) -> BitSpan<Rep>
+{
+  return BitSpan{container.data(), container.size()};
+}
+
+template <typename Rep>
+constexpr auto to_span(BitVec<Rep> const &container) -> BitSpan<Rep>
+{
+  return BitSpan{container.data(), container.size()};
+}
 
 }        // namespace ash

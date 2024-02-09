@@ -369,9 +369,6 @@ constexpr void replace_if(R &&range, F &&replacement, Test &&test)
   }
 }
 
-template <typename T, typename Predicate>
-constexpr void partition(Span<T>, Span<T> &, Span<T> &, Predicate &&);
-
 template <typename T, typename Cmp = Equal>
 constexpr void unique(Span<T>, Cmp &&cmp = {});        // destroy? retain?
 
@@ -426,6 +423,29 @@ constexpr void indirect_sort(S &&span, Span<IndexType> indices, Cmp &&cmp = {})
 {
   std::sort(begin(indices), end(indices),
             [&](IndexType a, IndexType b) { return cmp(span[a], span[b]); });
+}
+
+template <OutputRange R, typename Predicate>
+constexpr OutputIterator auto partition(R &&range, Predicate &&predicate)
+{
+  OutputIterator auto next = begin(range);
+  OutputIterator auto iter = begin(range);
+
+  while (iter != end(range) && predicate(*iter))
+  {
+    iter++;
+  }
+
+  for (; iter != end(range); iter++)
+  {
+    if (predicate(*iter))
+    {
+      swap(*iter, *next);
+      next++;
+    }
+  }
+
+  return next;
 }
 
 template <typename S, typename IndexType, typename Cmp = Lesser>

@@ -103,6 +103,13 @@ struct Camera
   Mat4       projection = {};
 };
 
+struct PassSortInfo
+{
+  uid32     view           = INVALID_UID32;
+  uid32     scene          = INVALID_UID32;
+  Span<u32> object_indices = {};
+};
+
 /// @brief: Arguments to allocate new resources or update existing resources
 /// based on the changed state of the scene. called at the beginning of the
 /// frame. i.e. camera buffers, transform buffers, staging buffers.
@@ -126,9 +133,9 @@ struct PassEncodeInfo
 
 struct PassObjectReleaseInfo
 {
-  uid32 scene_id        = INVALID_UID32;
-  uid32 scene_object_id = INVALID_UID32;
-  uid32 pass_object_id  = INVALID_UID32;
+  uid32 scene        = INVALID_UID32;
+  uid32 scene_object = INVALID_UID32;
+  uid32 pass_object  = INVALID_UID32;
 };
 
 /// @init: add self and resources to server
@@ -143,14 +150,13 @@ struct PassInterface
 {
   void (*init)(Pass self, RenderServer *server, uid32 id)             = nullptr;
   void (*deinit)(Pass self, RenderServer *server)                     = nullptr;
-  void (*sort)(Pass, RenderServer *server, uid32 scene,
-               Span<u32> object_indices)                              = nullptr;
+  void (*sort)(Pass, RenderServer *server, PassSortInfo const *info)  = nullptr;
   void (*update)(Pass self, RenderServer *server,
-                 PassUpdateInfo const *args)                          = nullptr;
+                 PassUpdateInfo const *info)                          = nullptr;
   void (*encode)(Pass self, RenderServer *server,
-                 PassEncodeInfo const *args)                          = nullptr;
+                 PassEncodeInfo const *info)                          = nullptr;
   void (*release_object)(Pass self, RenderServer *server,
-                         PassObjectReleaseInfo const *args)           = nullptr;
+                         PassObjectReleaseInfo const *info)           = nullptr;
   void (*acquire_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
   void (*release_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
   void (*acquire_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
@@ -189,12 +195,12 @@ struct PassGroup
 /// @pass: pass to be used to render this object
 struct SceneNode
 {
-  uid32 parent         = INVALID_UID32;
-  uid32 next_sibling   = INVALID_UID32;
-  uid32 first_child    = INVALID_UID32;
-  u32   depth          = 0;
-  uid32 pass           = INVALID_UID32;
-  uid32 pass_object_id = INVALID_UID32;
+  uid32 parent       = INVALID_UID32;
+  uid32 next_sibling = INVALID_UID32;
+  uid32 first_child  = INVALID_UID32;
+  u32   depth        = 0;
+  uid32 pass         = INVALID_UID32;
+  uid32 pass_object  = INVALID_UID32;
 };
 
 struct SceneObjectDesc
@@ -229,7 +235,6 @@ struct Scene
   Vec<AreaLight>        area_lights               = {};
   SparseVec<u32>        area_lights_id_map        = {};
   SceneObjects          objects                   = {};
-  Vec<u32>              sort_indices              = {};
 };
 
 struct SceneGroup
@@ -244,6 +249,7 @@ struct View
   Camera      camera            = {};
   uid32       scene             = 0;
   BitVec<u64> is_object_visible = {};
+  Vec<u32>    sort_indices      = {};
 };
 
 struct ViewGroup
