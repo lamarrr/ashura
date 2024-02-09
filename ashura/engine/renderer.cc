@@ -3,8 +3,6 @@
 #include "ashura/std/range.h"
 #include "ashura/std/source_location.h"
 
-#define ENSURE
-
 #define ENSURE(description, ...)                                              \
   do                                                                          \
   {                                                                           \
