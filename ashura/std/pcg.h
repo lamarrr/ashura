@@ -10,7 +10,7 @@ constexpr u64 DEFAULT_PCG64_MULTIPLIER = 6364136223846793005ULL;
 constexpr u64 DEFAULT_PCG64_INCREMENT  = 1442695040888963407ULL;
 constexpr u64 DEFAULT_PCG64_SEED       = 0x4d595df4d0f33173ULL;
 
-/// Permuted Congruential Renerator.
+/// Permuted Congruential Generator.
 /// GPU/Multithreaded-compatible PRNG and Hash function.
 /// See: https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
 /// 32-bit “RXS-M-XS” PCG
@@ -73,39 +73,12 @@ constexpr u64 pcg64_generate(u64 &state)
   return output;
 }
 
-/// use a PCG hash as the seed/state for generating the next hash value
-constexpr u32 pcg32_combine(u32 pcg0, u32 input)
-{
-  u32 state = pcg32_step(pcg0 + input);
-  return pcg32_rxs_m_xs(state);
-}
-
-constexpr u64 pcg64_combine(u64 pcg0, u64 input)
-{
-  u64 state = pcg64_step(pcg0 + input);
-  return pcg64_rxs_m_xs(state);
-}
-
-inline u32 pcg32_hash_bytes(void const *ptr, usize size)
-{
-  // get bytes
-  u8 const *bytes = (u8 const *) ptr;
-  u32       pcg   = DEFAULT_PCG32_SEED;
-  // TODO(lamarrr): implement packed loads
-  // for all u32 packs
-  // pcg= pcg32_combine(pcg, pack);
-  return pcg;
-}
-
-inline u64 pcg64_hash_bytes(void const *ptr, usize size);
-
-/// Super-fast PCG random number generator.
 struct Pcg32Rng
 {
   // RNG state/seed. can be set to any value
   u32 state = DEFAULT_PCG32_SEED;
 
-  constexpr u32 generate()
+  constexpr u32 operator()()
   {
     return pcg32_generate(state);
   }
@@ -116,7 +89,7 @@ struct Pcg64Rng
   // RNG state/seed. can be set to any value
   u64 state = DEFAULT_PCG64_SEED;
 
-  constexpr u64 generate()
+  constexpr u64 operator()()
   {
     return pcg64_generate(state);
   }

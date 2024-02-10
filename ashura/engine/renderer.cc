@@ -105,7 +105,7 @@ Option<uid32> RenderServer::add_scene(char const *name)
     return None;
   }
 
-  for (PassImpl &pass : pass_group.passes)
+  for (PassImpl const &pass : pass_group.passes)
   {
     pass.interface->acquire_scene(pass.self, this, id);
   }
@@ -131,7 +131,7 @@ void RenderServer::remove_scene(uid32 scene)
     return;
   }
 
-  for (PassImpl &pass : pass_group.passes)
+  for (PassImpl const &pass : pass_group.passes)
   {
     pass.interface->release_scene(pass.self, this, scene);
   }
@@ -160,7 +160,7 @@ Option<uid32> RenderServer::add_view(uid32 scene, char const *name,
     return None;
   }
 
-  for (PassImpl &pass : pass_group.passes)
+  for (PassImpl const &pass : pass_group.passes)
   {
     pass.interface->acquire_view(pass.self, this, id);
   }
@@ -186,7 +186,7 @@ void RenderServer::remove_view(uid32 view)
     return;
   }
 
-  for (PassImpl &pass : pass_group.passes)
+  for (PassImpl const &pass : pass_group.passes)
   {
     pass.interface->release_view(pass.self, this, view);
   }
@@ -199,11 +199,6 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
                                        uid32 scene_id, uid32 parent_id,
                                        SceneObjectDesc const &desc)
 {
-  // resize cull masks for all views referring to the scene, on view added, on
-  // view removed, on view
-  //
-  // TODO(lamarrr): call on view updated, resize bit masks and all
-  // what about passes that may want to access the view?
   return get_scene(scene_id).and_then([&](Scene *scene) -> Option<uid32> {
     SceneNode *parent = nullptr;
 
@@ -216,8 +211,8 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
       }
     }
 
-    u32   depth = parent == nullptr ? 0 : (parent->depth + 1);
-    uid32 next_sibling =
+    u32 const   depth = parent == nullptr ? 0 : (parent->depth + 1);
+    uid32 const next_sibling =
         parent == nullptr ? INVALID_UID32 : parent->first_child;
     uid32 object_id;
     if (!scene->objects.id_map.push(
@@ -252,25 +247,16 @@ Option<uid32> RenderServer::add_object(uid32 pass, uid32 pass_object_id,
   });
 }
 
-struct ObjectReleaseInfo
+static void collect_nodes(Scene const &scene, Vec<uid32> &ids, uid32 id)
 {
-  uid32 scene_object = INVALID_UID32;
-  uid32 pass         = INVALID_UID32;
-  uid32 pass_object  = INVALID_UID32;
-};
-
-static void collect_nodes(Scene &scene, Vec<ObjectReleaseInfo> &vec, uid32 id)
-{
-  SceneNode &object = scene.objects.node[scene.objects.id_map[id]];
-  ENSURE("", vec.push(ObjectReleaseInfo{.scene_object = id,
-                                        .pass         = object.pass,
-                                        .pass_object  = object.pass_object}));
+  SceneNode const &object = scene.objects.node[scene.objects.id_map[id]];
+  ENSURE("", ids.push(object.pass_object));
 
   uid32 child_id = object.first_child;
 
   while (child_id != INVALID_UID32)
   {
-    collect_nodes(scene, vec, child_id);
+    collect_nodes(scene, ids, child_id);
     child_id = scene.objects.node[scene.objects.id_map[child_id]].next_sibling;
   }
 }
@@ -278,17 +264,15 @@ static void collect_nodes(Scene &scene, Vec<ObjectReleaseInfo> &vec, uid32 id)
 static void remove_node(RenderServer &server, uid32 scene_id, Scene &scene,
                         uid32 scene_object_id, SceneNode &object)
 {
-  Vec<ObjectReleaseInfo> infos;
-  collect_nodes(scene, infos, scene_object_id);
+  Vec<uid32> ids;
+  collect_nodes(scene, ids, scene_object_id);
 
-  for (ObjectReleaseInfo const &info : infos)
+  for (uid32 object_id : ids)
   {
+    uid32 pass_id = scene.objects.node[scene.objects.id_map[object_id]].pass;
     PassImpl const &pass =
-        server.pass_group.passes[server.pass_group.id_map[info.pass]];
-    PassObjectReleaseInfo pass_info{.scene        = scene_id,
-                                    .scene_object = info.scene_object,
-                                    .pass_object  = info.pass_object};
-    pass.interface->release_object(pass.self, &server, &pass_info);
+        server.pass_group.passes[server.pass_group.id_map[pass_id]];
+    pass.interface->release_object(pass.self, &server, scene_id, object_id);
   }
 
   uid32 const parent_id = object.parent;
@@ -324,15 +308,15 @@ static void remove_node(RenderServer &server, uid32 scene_id, Scene &scene,
     }
   }
 
-  for (ObjectReleaseInfo const &info : infos)
+  for (uid32 id : ids)
   {
     scene.objects.id_map.erase(
-        info.scene_object, scene.objects.aabb, scene.objects.global_transform,
+        id, scene.objects.aabb, scene.objects.global_transform,
         scene.objects.is_transparent, scene.objects.local_transform,
         scene.objects.node, scene.objects.z_index);
   }
 
-  infos.reset();
+  ids.reset();
 }
 
 void RenderServer::remove_object(uid32 scene_id, uid32 object_id)
@@ -611,6 +595,10 @@ Result<Void, RenderError> RenderServer::frustum_cull_()
   {
     Scene    &scene       = scene_group.scenes[scene_group.id_map[view.scene]];
     u32 const num_objects = scene.objects.id_map.size();
+    if (!view.is_object_visible.resize_uninitialized(num_objects))
+    {
+      return Err{RenderError::OutOfMemory};
+    }
     for (u32 i = 0; i < num_objects; i++)
     {
       view.is_object_visible[i] =
@@ -630,10 +618,21 @@ Result<Void, RenderError> RenderServer::sort_()
 {
   for (u32 iview = 0; iview < pass_group.id_map.size(); iview++)
   {
-    uid32  view_id = view_group.id_map.to_id(iview);
-    View  &view    = view_group.views[iview];
-    Scene &scene   = scene_group.scenes[scene_group.id_map[view.scene]];
-    u32    num_visible =
+    uid32 const view_id = view_group.id_map.to_id(iview);
+    View       &view    = view_group.views[iview];
+    Scene      &scene   = scene_group.scenes[scene_group.id_map[view.scene]];
+    u32 const   num_objects = scene.objects.id_map.size();
+    if (!view.sort_indices.resize_uninitialized(num_objects))
+    {
+      return Err{RenderError::OutOfMemory};
+    }
+
+    for (u32 i = 0; i < num_objects; i++)
+    {
+      view.sort_indices[i] = i;
+    }
+
+    u32 const num_visible =
         partition(view.sort_indices,
                   [&](u32 index) { return view.is_object_visible[index]; }) -
         view.sort_indices.begin();
@@ -641,13 +640,11 @@ Result<Void, RenderError> RenderServer::sort_()
     indirect_sort(scene.objects.z_index, indices);
     for_each_partition_indirect(
         scene.objects.z_index, indices, [&](Span<u32> indices) {
-          // TODO(lamarrr): use partitions returned from this
           partition(indices, [&](u32 index) {
             return scene.objects.is_transparent[index];
           });
           for_each_partition_indirect(
-              to_span(scene.objects.is_transparent), indices,
-              [&](Span<u32> indices) {
+              scene.objects.is_transparent, indices, [&](Span<u32> indices) {
                 indirect_sort(scene.objects.node, indices,
                               [](SceneNode const &a, SceneNode const &b) {
                                 return a.pass < b.pass;
@@ -658,9 +655,9 @@ Result<Void, RenderError> RenderServer::sort_()
                       uid32 pass_id = scene.objects.node[indices[0]].pass;
                       PassImpl const &pass =
                           pass_group.passes[pass_group.id_map[pass_id]];
-                      PassSortInfo info{.view           = view_id,
-                                        .scene          = view.scene,
-                                        .object_indices = indices};
+                      PassSortInfo const info{.view           = view_id,
+                                              .scene          = view.scene,
+                                              .object_indices = indices};
                       pass.interface->sort(pass.self, this, &info);
                     },
                     [](SceneNode const &a, SceneNode const &b) {

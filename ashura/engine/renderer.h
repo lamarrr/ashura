@@ -19,6 +19,7 @@ typedef struct AreaLight          AreaLight;
 typedef struct OrthographicCamera OrthographicCamera;
 typedef struct PerspectiveCamera  PerspectiveCamera;
 typedef struct RenderServer       RenderServer;
+typedef struct PassSortInfo       PassSortInfo;
 typedef struct Pass_T            *Pass;
 typedef struct PassInterface      PassInterface;
 typedef struct PassImpl           PassImpl;
@@ -110,16 +111,6 @@ struct PassSortInfo
   Span<u32> object_indices = {};
 };
 
-/// @brief: Arguments to allocate new resources or update existing resources
-/// based on the changed state of the scene. called at the beginning of the
-/// frame. i.e. camera buffers, transform buffers, staging buffers.
-/// can also be used for resource management, i.e. ring buffers of per-frame
-/// resources.
-struct PassUpdateInfo
-{
-  gfx::CommandEncoderImpl command_encoder = {};
-};
-
 /// @brief Arguments to encode the commands to render a batch of objects in a
 /// scene.
 struct PassEncodeInfo
@@ -131,13 +122,20 @@ struct PassEncodeInfo
   Span<u32>               object_indices  = {};
 };
 
-struct PassObjectReleaseInfo
-{
-  uid32 scene        = INVALID_UID32;
-  uid32 scene_object = INVALID_UID32;
-  uid32 pass_object  = INVALID_UID32;
-};
-
+// TODO(lamarrr): multi-recursive passes, and how to know when to begin and end
+// passes, i.e. begin render pass, end render pass
+//
+// full-screen post-fx passes are full-screen quads with dependency
+// determined by their z-indexes. HUD is a full-screen quad of a view-pass
+// (another scene).
+//
+// world->[capture->world]->post-fx->hud->[capture->hud]
+// how to project from object-space to full-screen space
+//
+// i.e. world scene pass -> post-fx pass -> HUD pass
+//
+//
+//
 /// @init: add self and resources to server
 /// @deinit: remove self and resources
 /// @sort: sort scene objects belonging to passes for efficient batching
@@ -146,21 +144,31 @@ struct PassObjectReleaseInfo
 /// begin tracking it
 /// @release_scene: @release_view: scene/view was removed, remove associated
 /// resources or stop tracking it
+///
+///
+/// @begin: allocate new resources or update existing resources
+/// based on the changed state of the scene. called at the beginning of the
+/// frame. i.e. camera buffers, transform buffers, staging buffers.
+/// can also be used for resource management, i.e. ring buffers of per-frame
+/// resources.
 struct PassInterface
 {
   void (*init)(Pass self, RenderServer *server, uid32 id)             = nullptr;
   void (*deinit)(Pass self, RenderServer *server)                     = nullptr;
-  void (*sort)(Pass, RenderServer *server, PassSortInfo const *info)  = nullptr;
-  void (*update)(Pass self, RenderServer *server,
-                 PassUpdateInfo const *info)                          = nullptr;
-  void (*encode)(Pass self, RenderServer *server,
-                 PassEncodeInfo const *info)                          = nullptr;
-  void (*release_object)(Pass self, RenderServer *server,
-                         PassObjectReleaseInfo const *info)           = nullptr;
   void (*acquire_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
   void (*release_scene)(Pass self, RenderServer *server, uid32 scene) = nullptr;
   void (*acquire_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
   void (*release_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
+  void (*release_object)(Pass self, RenderServer *server, uid32 scene,
+                         uid32 object)                                = nullptr;
+  void (*sort)(Pass self, RenderServer *server,
+               PassSortInfo const *info)                              = nullptr;
+  void (*begin)(Pass self, RenderServer *server,
+                gfx::CommandEncoderImpl const *encoder)               = nullptr;
+  void (*encode)(Pass self, RenderServer *server,
+                 gfx::CommandEncoderImpl const *encoder)              = nullptr;
+  void (*end)(Pass self, RenderServer *server,
+              gfx::CommandEncoderImpl const *encoder)                 = nullptr;
 };
 
 /// can be loaded from a DLL i.e. C++ with C-linkage => DLL
@@ -177,18 +185,6 @@ struct PassGroup
   SparseVec<u32> id_map = {};
 };
 
-// TODO(lamarrr): multi-recursive passes, and how to know when to begin and end
-// passes, i.e. begin render pass, end render pass
-//
-// full-screen post-fx passes are full-screen quads with dependency
-// determined by their z-indexes. HUD is a full-screen quad of a view-pass
-// (another scene).
-//
-// world->[capture->world]->post-fx->hud->[capture->hud]
-// how to project from object-space to full-screen space
-//
-// i.e. world scene pass -> post-fx pass -> HUD pass
-//
 /// linearly-tilted tree node
 /// @depth: depth of the tree this node belongs to. there's ever only one root
 /// node at depth 0
@@ -296,16 +292,17 @@ struct ViewGroup
 /// @remove_object: remove object and all its children
 struct RenderServer
 {
-  gfx::DeviceImpl device      = {};
-  AllocatorImpl   allocator   = {};
-  PassGroup       pass_group  = {};
-  SceneGroup      scene_group = {};
-  ViewGroup       view_group  = {};
+  gfx::DeviceImpl    device         = {};
+  gfx::PipelineCache pipeline_cache = nullptr;
+  PassGroup          pass_group     = {};
+  SceneGroup         scene_group    = {};
+  ViewGroup          view_group     = {};
 
-  void               acquire_screen_color_image();
-  void               acquire_screen_depth_stencil_image();
-  void               release_screen_color_image();
-  void               release_screen_depth_stencil_image();
+  void acquire_screen_color_image();
+  void acquire_screen_depth_stencil_image();
+  void release_screen_color_image();
+  void release_screen_depth_stencil_image();
+
   Option<PassImpl *> get_pass(uid32 pass);
   Option<uid32>      get_pass_id(char const *name);
   Option<uid32>      register_pass(PassImpl pass);
@@ -332,10 +329,11 @@ struct RenderServer
   void                       remove_point_light(uid32 scene, uid32 id);
   void                       remove_spot_light(uid32 scene, uid32 id);
   void                       remove_area_light(uid32 scene, uid32 id);
-  void                       transform_();
-  Result<Void, RenderError>  frustum_cull_();
-  Result<Void, RenderError>  sort_();
-  Result<Void, RenderError>  render_();
+
+  void                      transform_();
+  Result<Void, RenderError> frustum_cull_();
+  Result<Void, RenderError> sort_();
+  Result<Void, RenderError> render_();
 };
 
 }        // namespace ash

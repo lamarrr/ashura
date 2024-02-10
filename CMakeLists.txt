@@ -42,6 +42,7 @@ find_package(PNG REQUIRED)
 find_package(SDL3 REQUIRED)
 find_package(FFMPEG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
+find_package(xxHash CONFIG REQUIRED)
 
 FetchContent_MakeAvailable(VulkanHeaders)
 FetchContent_MakeAvailable(VulkanUtilityLibraries)
@@ -74,6 +75,7 @@ add_library(
   ashura_std ashura/std/allocator.cc ashura/std/arena_allocator.cc
              ashura/std/format.cc ashura/std/log.cc ashura/std/runtime.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(ashura_std PRIVATE xxHash::xxhash)
 
 add_executable(
   ashura_std_tests

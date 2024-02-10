@@ -418,11 +418,17 @@ template <typename T, typename Predicate>
 constexpr void find_reflection(Span<T> span, Span<T> &head, Span<T> &body,
                                Span<T> &tail, Predicate &&predicate);
 
+template <typename S, typename Cmp = Lesser>
+constexpr void sort(S &&span, Cmp &&cmp = {})
+{
+  std::sort(begin(span), end(span), cmp);
+}
+
 template <typename S, typename IndexType, typename Cmp = Lesser>
 constexpr void indirect_sort(S &&span, Span<IndexType> indices, Cmp &&cmp = {})
 {
-  std::sort(begin(indices), end(indices),
-            [&](IndexType a, IndexType b) { return cmp(span[a], span[b]); });
+  sort(indices,
+       [&](IndexType a, IndexType b) { return cmp(span[a], span[b]); });
 }
 
 template <OutputRange R, typename Predicate>

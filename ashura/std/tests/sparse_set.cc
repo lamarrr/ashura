@@ -50,7 +50,7 @@ TEST(SparseSetTest, Start)
   EXPECT_FALSE(bv[0]);
   EXPECT_TRUE(bv[1]);
   EXPECT_EQ(bv.size(), 2);
-  bv.erase_index(0, 1);
+  bv.erase(0, 1);
   EXPECT_EQ(bv.size(), 1);
   EXPECT_TRUE(bv[0]);
 

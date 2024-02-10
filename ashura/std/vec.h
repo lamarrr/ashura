@@ -200,7 +200,7 @@ struct Vec
     return reserve(max(target_size, m_capacity + (m_capacity >> 1)));
   }
 
-  void erase_index(usize first, usize num = 1)
+  void erase(usize first, usize num = 1)
   {
     if constexpr (TriviallyRelocatable<T>)
     {
@@ -439,6 +439,28 @@ struct Vec
   {
     ::ash::swap(m_data[a], m_data[b]);
   }
+
+  [[nodiscard]] bool resize_uninitialized(usize new_size)
+  {
+    if (new_size <= m_size)
+    {
+      erase(new_size, m_size - new_size);
+      return true;
+    }
+
+    return extend_uninitialized(new_size - m_size);
+  }
+
+  [[nodiscard]] bool resize_defaulted(usize new_size)
+  {
+    if (new_size <= m_size)
+    {
+      erase(new_size, m_size - new_size);
+      return true;
+    }
+
+    return extend_defaulted(new_size - m_size);
+  }
 };
 
 // Adapter
@@ -552,7 +574,7 @@ struct BitVec
     return true;
   }
 
-  void erase_index(usize index, usize num = 1)
+  void erase(usize index, usize num = 1)
   {
     for (BitIterator out = begin() + index, src = out + num; src != end();
          out++, src++)
@@ -568,7 +590,57 @@ struct BitVec
   template <typename T>
   [[nodiscard]] bool extend_span_move(BitSpan<T const> span);
 
-  // resize
+  [[nodiscard]] bool extend_uninitialized(usize extension)
+  {
+    if (!vec.extend_uninitialized(num_packs(num_bits + extension) -
+                                  num_packs(num_bits)))
+    {
+      return false;
+    }
+
+    num_bits += extension;
+
+    return true;
+  }
+
+  [[nodiscard]] bool extend_defaulted(usize extension)
+  {
+    usize const pos = num_bits;
+    if (!extend_uninitialized(extension))
+    {
+      return false;
+    }
+
+    for (usize i = pos; i < num_bits; i++)
+    {
+      this->operator[](i) = false;
+    }
+
+    return true;
+  }
+
+  [[nodiscard]] bool resize_uninitialized(usize new_size)
+  {
+    if (new_size <= num_bits)
+    {
+      erase(new_size, num_bits - new_size);
+      return true;
+    }
+
+    return extend_uninitialized(new_size - num_bits);
+  }
+
+  [[nodiscard]] bool resize_defaulted(usize new_size)
+  {
+    if (new_size <= num_bits)
+    {
+      erase(new_size, num_bits - new_size);
+      return true;
+    }
+
+    return extend_defaulted(new_size - num_bits);
+  }
+
   // flip
   // insert
 

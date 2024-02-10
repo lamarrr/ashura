@@ -3,8 +3,6 @@
 
 namespace ash
 {
-namespace gfx
-{
 
 typedef struct PBRMaterial PBRMaterial;
 typedef struct PBRVertex   PBRVertex;
@@ -41,46 +39,60 @@ struct PBRVertex
 
 struct PBRMesh
 {
-  u32       vertex_buffer = 0;
-  u32       index_buffer  = 0;
-  u32       first_index   = 0;
-  u32       num_indices   = 0;
-  IndexType index_type    = IndexType::Uint16;
+  uid32          vertex_buffer = 0;
+  uid32          index_buffer  = 0;
+  u32            first_index   = 0;
+  u32            num_indices   = 0;
+  gfx::IndexType index_type    = gfx::IndexType::Uint16;
 };
 
 struct PBRObject
 {
-  PBRMaterial material   = {};
-  PBRMesh     mesh       = {};
-  u64         scene_node = 0;
+  PBRMaterial material              = {};
+  PBRMesh     mesh                  = {};
+  uid32       scene_id              = INVALID_UID32;
+  uid32       scene_object_id       = INVALID_UID32;
+  u32         descriptor_heap_index = 0;
 };
 
 struct PBRPass
 {
-  PBRObject          *objects               = nullptr;
-  u64                 num_objects           = 0;
-  DescriptorSetLayout descriptor_set_layout = nullptr;
-  DescriptorHeapImpl  descriptor_heap       = {};
-  PipelineCache       pipeline_cache        = nullptr;
-  GraphicsPipeline    pipeline              = nullptr;
-  Sampler             sampler               = nullptr;
+  Vec<PBRObject>           objects               = {};
+  SparseVec<u32>           id_map                = {};
+  gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
+  gfx::DescriptorHeapImpl  descriptor_heap       = {};
+  gfx::PipelineCache       pipeline_cache        = nullptr;
+  gfx::GraphicsPipeline    pipeline              = nullptr;
+  gfx::Sampler             sampler               = nullptr;
 
-  u64 add_object(Scene *scene, PBRMesh const &mesh, PBRMaterial const &material,
-                 Box aabb);
-  void remove_object(Scene *scene, u64 object);
-  // create resources
-  // PBRPass *self = (PBRPass *) self_;
-  static void init(Pass self_, RenderServer *mgr);
-  static void deinit(Pass self_, RenderServer *mgr);
-  // re-build renderpass and framebuffer if needed
-  static void update(Pass self_, RenderServer *mgr);
-  static void encode(Pass self_, RenderServer *mgr, Scene *scene,
-                     CommandEncoderImpl command_encoder, i64 z_index,
-                     bool is_transparent, u64 first_scene_object,
-                     u64 num_scene_objects);
-  static constexpr PassInterface const interface{
-      .init = nullptr, .deinit = nullptr, .update = nullptr, .encode = nullptr};
+  static void init(Pass self, RenderServer *server, uid32 id);
+  static void deinit(Pass self, RenderServer *server);
+  static void acquire_scene(Pass self, RenderServer *server, uid32 scene);
+  static void release_scene(Pass self, RenderServer *server, uid32 scene);
+  static void acquire_view(Pass self, RenderServer *server, uid32 view);
+  static void release_view(Pass self, RenderServer *server, uid32 view);
+  static void release_object(Pass self, RenderServer *server, uid32 scene,
+                             uid32 object);
+  static void sort(Pass self, RenderServer *server, PassSortInfo const *info);
+  static void begin(Pass self, RenderServer *server,
+                    gfx::CommandEncoderImpl const *encoder);
+  static void encode(Pass self, RenderServer *server,
+                     gfx::CommandEncoderImpl const *encoder);
+  static void end(Pass self, RenderServer *server,
+                  gfx::CommandEncoderImpl const *encoder);
+
+  static constexpr PassInterface const interface{.init          = init,
+                                                 .deinit        = deinit,
+                                                 .acquire_scene = acquire_scene,
+                                                 .release_scene = release_scene,
+                                                 .acquire_view  = acquire_view,
+                                                 .release_view  = release_view,
+                                                 .release_object =
+                                                     release_object,
+                                                 .sort   = sort,
+                                                 .begin  = begin,
+                                                 .encode = encode,
+                                                 .end    = end};
 };
 
-}        // namespace gfx
 }        // namespace ash

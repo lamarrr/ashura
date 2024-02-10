@@ -3,8 +3,6 @@
 
 namespace ash
 {
-namespace gfx
-{
 
 // needed because we need to be able to render a view that is part of another
 // view without adding the elements of the view to the root view
@@ -22,5 +20,4 @@ struct ViewPass
   uid32 view;
 };
 
-}        // namespace gfx
 }        // namespace ash
