@@ -105,14 +105,6 @@ struct Camera
   Mat4       projection = {};
 };
 
-struct PassSortInfo
-{
-  uid32      view            = UID32_INVALID;
-  uid32      scene           = UID32_INVALID;
-  Span<u32>  sort_indices    = {};
-  Span<u32> *sub_batch_sizes = nullptr;
-};
-
 /// @brief Arguments to encode the commands to render a batch of objects in a
 /// scene.
 struct PassEncodeInfo
@@ -120,8 +112,7 @@ struct PassEncodeInfo
   gfx::CommandEncoderImpl command_encoder = {};
   bool                    is_transparent  = false;
   i64                     z_index         = 0;
-  Span<u32 const>         indices         = {};
-  Span<u32 const>         sub_batch_sizes = {};
+  Span<u32>               indices         = {};
 };
 
 // TODO(lamarrr): multi-recursive passes, and how to know when to begin and end
@@ -168,8 +159,6 @@ struct PassInterface
   void (*release_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
   void (*release_object)(Pass self, RenderServer *server, uid32 scene,
                          uid32 object)                                = nullptr;
-  void (*sort)(Pass self, RenderServer *server,
-               PassSortInfo const *info)                              = nullptr;
   void (*begin)(Pass self, RenderServer *server, uid32 view,
                 gfx::CommandEncoderImpl const *encoder)               = nullptr;
   void (*encode)(Pass self, RenderServer *server, uid32 view,
@@ -257,8 +246,6 @@ struct View
   uid32              scene             = 0;
   BitVec<u64>        is_object_visible = {};
   Vec<u32>           sort_indices      = {};
-  Vec<u32>           batch_sizes       = {};
-  Vec<u32>           sub_batch_sizes   = {};
   StrHashMap<void *> resources         = {};
 };
 
@@ -337,10 +324,13 @@ struct RenderServer
   void                       remove_spot_light(uid32 scene, uid32 id);
   void                       remove_area_light(uid32 scene, uid32 id);
 
-  void                      transform_();
-  Result<Void, RenderError> frustum_cull_();
-  Result<Void, RenderError> sort_();
-  Result<Void, RenderError> render_();
+  void                      transform();
+  Result<Void, RenderError> frustum_cull();
+  Result<Void, RenderError>
+      encode_view(uid32 view, gfx::CommandEncoderImpl const &command_encoder);
+  Result<Void, RenderError>
+       render(gfx::CommandEncoderImpl const &command_encoder);
+  void tick();
 };
 
 }        // namespace ash

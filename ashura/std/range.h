@@ -432,7 +432,7 @@ constexpr void indirect_sort(S &&span, Span<IndexType> indices, Cmp &&cmp = {})
 }
 
 template <OutputRange R, typename Predicate>
-constexpr OutputIterator auto partition(R &&range, Predicate &&predicate)
+constexpr OutputIterator auto binary_partition(R &&range, Predicate &&predicate)
 {
   OutputIterator auto next = begin(range);
   OutputIterator auto iter = begin(range);

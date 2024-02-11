@@ -511,7 +511,7 @@ void RenderServer::remove_area_light(uid32 scene_id, uid32 light_id)
 }
 
 // transform views from object-space to root-object space
-void RenderServer::transform_()
+void RenderServer::transform()
 {
   for (Scene &scene : scene_group.scenes)
   {
@@ -589,7 +589,7 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Box const &box)
 }
 
 // transform objects from root object space to clip space using view's camera
-Result<Void, RenderError> RenderServer::frustum_cull_()
+Result<Void, RenderError> RenderServer::frustum_cull()
 {
   for (View &view : view_group.views)
   {
@@ -606,82 +606,6 @@ Result<Void, RenderError> RenderServer::frustum_cull_()
                                   scene.objects.global_transform[i],
                               scene.objects.aabb[i]);
     }
-  }
-
-  return Ok<Void>{};
-}
-
-// sort by z-index
-// sort by transparency, transparent objects last
-// sort by pass sorter
-Result<Void, RenderError> RenderServer::sort_()
-{
-  for (u32 iview = 0; iview < pass_group.id_map.size(); iview++)
-  {
-    uid32 const view_id = view_group.id_map.to_id(iview);
-    View       &view    = view_group.views[iview];
-    Scene      &scene   = scene_group.scenes[scene_group.id_map[view.scene]];
-    u32 const   num_objects = scene.objects.id_map.size();
-    if (!(view.sort_indices.resize_uninitialized(num_objects) &&
-          view.batch_sizes.resize_uninitialized(num_objects) &&
-          view.sub_batch_sizes.resize_uninitialized(num_objects)))
-    {
-      return Err{RenderError::OutOfMemory};
-    }
-
-    for (u32 i = 0; i < num_objects; i++)
-    {
-      view.sort_indices[i]    = i;
-      view.batch_sizes[i]     = 0;
-      view.sub_batch_sizes[i] = 0;
-    }
-
-    u32       batch     = 0;
-    u32       sub_batch = 0;
-    u32 const num_visible =
-        partition(view.sort_indices,
-                  [&](u32 index) { return view.is_object_visible[index]; }) -
-        view.sort_indices.begin();
-    Span<u32> indices = to_span(view.sort_indices).slice(0, num_visible);
-    indirect_sort(scene.objects.z_index, indices);
-    for_each_partition_indirect(
-        scene.objects.z_index, indices, [&](Span<u32> indices) {
-          partition(indices, [&](u32 index) {
-            return !scene.objects.is_transparent[index];
-          });
-          for_each_partition_indirect(
-              scene.objects.is_transparent, indices, [&](Span<u32> indices) {
-                indirect_sort(scene.objects.node, indices,
-                              [](SceneNode const &a, SceneNode const &b) {
-                                return a.pass < b.pass;
-                              });
-                for_each_partition_indirect(
-                    scene.objects.node, indices,
-                    [&](Span<u32> indices) {
-                      uid32 const pass_id = scene.objects.node[indices[0]].pass;
-                      PassImpl const &pass =
-                          pass_group.passes[pass_group.id_map[pass_id]];
-                      Span<u32> sub_batch_sizes =
-                          to_span(view.sub_batch_sizes)
-                              .slice(sub_batch, indices.size());
-                      PassSortInfo const info{.view         = view_id,
-                                              .scene        = view.scene,
-                                              .sort_indices = indices,
-                                              .sub_batch_sizes =
-                                                  &sub_batch_sizes};
-                      pass.interface->sort(pass.self, this, &info);
-                      view.batch_sizes[batch] = sub_batch_sizes.size();
-                      sub_batch += sub_batch_sizes.size();
-                      batch++;
-                    },
-                    [](SceneNode const &a, SceneNode const &b) {
-                      return a.pass == b.pass;
-                    });
-              });
-        });
-
-    ENSURE("", view.batch_sizes.resize_uninitialized(batch));
-    ENSURE("", view.sub_batch_sizes.resize_uninitialized(sub_batch));
   }
 
   return Ok<Void>{};
@@ -704,61 +628,93 @@ Result<Void, RenderError> RenderServer::sort_()
 // PassCmp key
 // - for each partition, invoke the pass with the objects
 //
+// TODO(lamarrr): we need the mesh and object render-data is mostly
+// pre-configured or modified outside the renderer we just need to implement the
+// post-effects and render-orders and add other passes on top of the objects
+//
+// TODO(lamarrr): each scene is rendered and composited onto one another? can
+// this possibly work for portals?
 //
 //
 //
-// we need the mesh and object render-data is mostly pre-configured or
-// modified outside the renderer we just need to implement the post-effects
-// and render-orders and add other passes on top of the objects
-//
-// each scene is rendered and composited onto one another? can this possibly
-// work for portals?
-Result<Void, RenderError> RenderServer::render_()
+// sort by z-index
+// sort by transparency, transparent objects last
+// sort by pass sorter
+Result<Void, RenderError>
+    RenderServer::encode_view(uid32                          view_id,
+                              gfx::CommandEncoderImpl const &command_encoder)
 {
-  // TODO(lamarrr): view ordering?
-  if (view_group.root_view != UID32_INVALID)
+  View     &view        = view_group.views[view_group.id_map[view_id]];
+  Scene    &scene       = scene_group.scenes[scene_group.id_map[view.scene]];
+  u32 const num_objects = scene.objects.id_map.size();
+  if (!view.sort_indices.resize_uninitialized(num_objects))
   {
-    for (PassImpl const &pass : pass_group.passes)
-    {
-      pass.interface->begin(pass.self, this, view_group.root_view, nullptr);
-    }
-    View const &view =
-        view_group.views[view_group.id_map[view_group.root_view]];
-    Scene const &scene = scene_group.scenes[scene_group.id_map[view.scene]];
-
-    u32 isub_batch = 0;
-    u32 iobject    = 0;
-    for (u32 num_sub_batches : view.batch_sizes)
-    {
-      u32 num_objects = 0;
-      for (u32 i = isub_batch; i < (isub_batch + num_sub_batches); i++)
-      {
-        num_objects += view.sub_batch_sizes[i];
-      }
-
-      u32 const  first_object_index = view.sort_indices[iobject];
-      bool const is_transparent =
-          scene.objects.is_transparent[first_object_index];
-      uid32 const     pass_id = scene.objects.node[first_object_index].pass;
-      PassImpl const &pass    = pass_group.passes[pass_group.id_map[pass_id]];
-      i64 const       z_index = scene.objects.z_index[first_object_index];
-      Span indices = to_span(view.sort_indices).slice(iobject, num_objects);
-      Span sub_batch_sizes =
-          to_span(view.sub_batch_sizes).slice(isub_batch, num_sub_batches);
-      PassEncodeInfo const info{.command_encoder = {},
-                                .is_transparent  = is_transparent,
-                                .z_index         = z_index,
-                                .indices         = indices,
-                                .sub_batch_sizes = sub_batch_sizes};
-      pass.interface->encode(pass.self, this, view_group.root_view, &info);
-      isub_batch += num_sub_batches;
-    }
-    for (PassImpl const &pass : pass_group.passes)
-    {
-      pass.interface->end(pass.self, this, view_group.root_view, nullptr);
-    }
+    return Err{RenderError::OutOfMemory};
   }
 
+  for (PassImpl const &pass : pass_group.passes)
+  {
+    pass.interface->begin(pass.self, this, view_id, &command_encoder);
+  }
+
+  for (u32 i = 0; i < num_objects; i++)
+  {
+    view.sort_indices[i] = i;
+  }
+
+  u32 const num_visible =
+      binary_partition(
+          view.sort_indices,
+          [&](u32 index) { return view.is_object_visible[index]; }) -
+      view.sort_indices.begin();
+  Span<u32> indices = to_span(view.sort_indices).slice(0, num_visible);
+  indirect_sort(scene.objects.z_index, indices);
+  for_each_partition_indirect(
+      scene.objects.z_index, indices, [&](Span<u32> indices) {
+        binary_partition(indices, [&](u32 index) {
+          return !scene.objects.is_transparent[index];
+        });
+        for_each_partition_indirect(
+            scene.objects.is_transparent, indices, [&](Span<u32> indices) {
+              indirect_sort(scene.objects.node, indices,
+                            [](SceneNode const &a, SceneNode const &b) {
+                              return a.pass < b.pass;
+                            });
+              for_each_partition_indirect(
+                  scene.objects.node, indices,
+                  [&](Span<u32> indices) {
+                    uid32 const pass_id = scene.objects.node[indices[0]].pass;
+                    PassImpl const &pass =
+                        pass_group.passes[pass_group.id_map[pass_id]];
+                    PassEncodeInfo const info{
+                        .command_encoder = command_encoder,
+                        .is_transparent =
+                            scene.objects.is_transparent[indices[0]],
+                        .z_index = scene.objects.z_index[indices[0]],
+                        .indices = indices};
+                    pass.interface->encode(pass.self, this, view_id, &info);
+                  },
+                  [](SceneNode const &a, SceneNode const &b) {
+                    return a.pass == b.pass;
+                  });
+            });
+      });
+
+  for (PassImpl const &pass : pass_group.passes)
+  {
+    pass.interface->end(pass.self, this, view_id, &command_encoder);
+  }
+
+  return Ok<Void>{};
+}
+
+Result<Void, RenderError>
+    RenderServer::render(gfx::CommandEncoderImpl const &command_encoder)
+{
+  if (view_group.root_view != UID32_INVALID)
+  {
+    encode_view(view_group.root_view, command_encoder);
+  }
   return Ok<Void>{};
 }
 
