@@ -2,6 +2,7 @@
 #include "ashura/engine/errors.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/box.h"
+#include "ashura/std/hash_map.h"
 #include "ashura/std/image.h"
 #include "ashura/std/option.h"
 #include "ashura/std/sparse_vec.h"
@@ -106,9 +107,10 @@ struct Camera
 
 struct PassSortInfo
 {
-  uid32     view           = INVALID_UID32;
-  uid32     scene          = INVALID_UID32;
-  Span<u32> object_indices = {};
+  uid32      view            = UID32_INVALID;
+  uid32      scene           = UID32_INVALID;
+  Span<u32>  sort_indices    = {};
+  Span<u32> *sub_batch_sizes = nullptr;
 };
 
 /// @brief Arguments to encode the commands to render a batch of objects in a
@@ -116,14 +118,18 @@ struct PassSortInfo
 struct PassEncodeInfo
 {
   gfx::CommandEncoderImpl command_encoder = {};
-  uid32                   view            = 0;
   bool                    is_transparent  = false;
   i64                     z_index         = 0;
-  Span<u32>               object_indices  = {};
+  Span<u32 const>         indices         = {};
+  Span<u32 const>         sub_batch_sizes = {};
 };
 
 // TODO(lamarrr): multi-recursive passes, and how to know when to begin and end
 // passes, i.e. begin render pass, end render pass
+//
+//
+// TODO(lamarrr): view pass recursive render
+//
 //
 // full-screen post-fx passes are full-screen quads with dependency
 // determined by their z-indexes. HUD is a full-screen quad of a view-pass
@@ -134,6 +140,7 @@ struct PassEncodeInfo
 //
 // i.e. world scene pass -> post-fx pass -> HUD pass
 //
+// how to queue screen image resize
 //
 //
 /// @init: add self and resources to server
@@ -163,18 +170,18 @@ struct PassInterface
                          uid32 object)                                = nullptr;
   void (*sort)(Pass self, RenderServer *server,
                PassSortInfo const *info)                              = nullptr;
-  void (*begin)(Pass self, RenderServer *server,
+  void (*begin)(Pass self, RenderServer *server, uid32 view,
                 gfx::CommandEncoderImpl const *encoder)               = nullptr;
-  void (*encode)(Pass self, RenderServer *server,
-                 gfx::CommandEncoderImpl const *encoder)              = nullptr;
-  void (*end)(Pass self, RenderServer *server,
+  void (*encode)(Pass self, RenderServer *server, uid32 view,
+                 PassEncodeInfo const *info)                          = nullptr;
+  void (*end)(Pass self, RenderServer *server, uid32 view,
               gfx::CommandEncoderImpl const *encoder)                 = nullptr;
 };
 
 /// can be loaded from a DLL i.e. C++ with C-linkage => DLL
 struct PassImpl
 {
-  char const          *name      = nullptr;
+  Span<char const>     name      = {};
   Pass                 self      = nullptr;
   PassInterface const *interface = nullptr;
 };
@@ -191,12 +198,12 @@ struct PassGroup
 /// @pass: pass to be used to render this object
 struct SceneNode
 {
-  uid32 parent       = INVALID_UID32;
-  uid32 next_sibling = INVALID_UID32;
-  uid32 first_child  = INVALID_UID32;
+  uid32 parent       = UID32_INVALID;
+  uid32 next_sibling = UID32_INVALID;
+  uid32 first_child  = UID32_INVALID;
   u32   depth        = 0;
-  uid32 pass         = INVALID_UID32;
-  uid32 pass_object  = INVALID_UID32;
+  uid32 pass         = UID32_INVALID;
+  uid32 pass_object  = UID32_INVALID;
 };
 
 struct SceneObjectDesc
@@ -220,7 +227,7 @@ struct SceneObjects
 
 struct Scene
 {
-  char const           *name                      = nullptr;
+  Span<char const>      name                      = {};
   AmbientLight          ambient_light             = {};
   Vec<DirectionalLight> directional_lights        = {};
   SparseVec<u32>        directional_lights_id_map = {};
@@ -239,21 +246,30 @@ struct SceneGroup
   SparseVec<u32> id_map = {};
 };
 
+/// @sub_batch_sizes: this is the number of sub-batches of an object determined
+/// by the pass
+/// @batch_sizes: number of sub-batches in a batch of a pass, these are indices
+/// of objects sharing common passes
 struct View
 {
-  char const *name              = nullptr;
-  Camera      camera            = {};
-  uid32       scene             = 0;
-  BitVec<u64> is_object_visible = {};
-  Vec<u32>    sort_indices      = {};
+  Span<char const>   name              = {};
+  Camera             camera            = {};
+  uid32              scene             = 0;
+  BitVec<u64>        is_object_visible = {};
+  Vec<u32>           sort_indices      = {};
+  Vec<u32>           batch_sizes       = {};
+  Vec<u32>           sub_batch_sizes   = {};
+  StrHashMap<void *> resources         = {};
 };
 
 struct ViewGroup
 {
-  Vec<View>      views  = {};
-  SparseVec<u32> id_map = {};
+  Vec<View>      views     = {};
+  SparseVec<u32> id_map    = {};
+  uid32          root_view = UID32_INVALID;
 };
 
+// TODO(lamarrr):
 // sort by update frequency, per-frame updates, rare-updates
 //
 // resource manager
@@ -262,14 +278,6 @@ struct ViewGroup
 //
 // mapping of color and depth components?
 //
-// it should have a buffer of MAX_SWAPCHAIN_IMAGES it cycles from to prevent
-// stalling
-//
-// full-screen depth stencil image
-// full-screen color image
-// scratch full-screen depth stencil image
-// scratch full-screen color image
-// allocate/deallocate - for re-use by others
 //
 // usage tracking
 // - we can create a single image and just re-use it depending on the
@@ -283,12 +291,15 @@ struct ViewGroup
 /// Manages and uploads render resources to the GPU.
 ///
 /// @remove_scene: remove all pass resources associated with a scene object.
-/// @acquire_screen_color_image: TODO(lamarrr): how to cache the framebuffer and
+/// @acquire_screen_color_image:
+///
+///
+/// TODO(lamarrr): how to cache the framebuffer and
 /// renderpass and not allocate it for every time the renderpass and
 /// framebuffers are requested
 /// @add_object: once an object is added to the scene, if it is not at the end
-/// of the tree, then the tree should be re-sorted based on depth, resize and
-/// iota-fill sort indices, sort indices, resize object cull masks for all views
+/// of the tree, then the tree should be re-sorted based on depth, sort indices,
+/// resize object cull masks for all views
 /// @remove_object: remove object and all its children
 struct RenderServer
 {
@@ -298,28 +309,24 @@ struct RenderServer
   SceneGroup         scene_group    = {};
   ViewGroup          view_group     = {};
 
-  void acquire_screen_color_image();
-  void acquire_screen_depth_stencil_image();
-  void release_screen_color_image();
-  void release_screen_depth_stencil_image();
-
-  Option<PassImpl *> get_pass(uid32 pass);
-  Option<uid32>      get_pass_id(char const *name);
-  Option<uid32>      register_pass(PassImpl pass);
-  Option<uid32>      add_scene(char const *name);
-  Option<Scene *>    get_scene(uid32 scene);
-  void               remove_scene(uid32 scene);
-  Option<uid32>  add_view(uid32 scene, char const *name, Camera const &camera);
-  Option<View *> get_view(uid32 view);
-  void           remove_view(uid32 view);
-  Option<uid32>  add_object(uid32 pass, uid32 pass_object_id, uid32 scene,
-                            uid32 parent, SceneObjectDesc const &desc);
-  void           remove_object(uid32 scene, uid32 object);
-  Option<uid32>  add_directional_light(uid32                   scene,
-                                       DirectionalLight const &light);
-  Option<uid32>  add_point_light(uid32 scene, PointLight const &light);
-  Option<uid32>  add_spot_light(uid32 scene, SpotLight const &light);
-  Option<uid32>  add_area_light(uid32 scene, AreaLight const &light);
+  Option<PassImpl> get_pass(uid32 pass);
+  Option<uid32>    get_pass_id(Span<char const> name);
+  Option<uid32>    register_pass(PassImpl pass);
+  Option<uid32>    add_scene(Span<char const> name);
+  Option<Scene *>  get_scene(uid32 scene);
+  void             remove_scene(uid32 scene);
+  Option<uid32>    add_view(uid32 scene, Span<char const> name,
+                            Camera const &camera);
+  Option<View *>   get_view(uid32 view);
+  void             remove_view(uid32 view);
+  Option<uid32>    add_object(uid32 pass, uid32 pass_object_id, uid32 scene,
+                              uid32 parent, SceneObjectDesc const &desc);
+  void             remove_object(uid32 scene, uid32 object);
+  Option<uid32>    add_directional_light(uid32                   scene,
+                                         DirectionalLight const &light);
+  Option<uid32>    add_point_light(uid32 scene, PointLight const &light);
+  Option<uid32>    add_spot_light(uid32 scene, SpotLight const &light);
+  Option<uid32>    add_area_light(uid32 scene, AreaLight const &light);
   Option<AmbientLight *>     get_ambient_light(uid32 scene);
   Option<DirectionalLight *> get_directional_light(uid32 scene, uid32 id);
   Option<PointLight *>       get_point_light(uid32 scene, uid32 id);

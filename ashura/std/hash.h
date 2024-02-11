@@ -14,7 +14,4 @@ constexpr Hash hash_combine(Hash hash_a, Hash hash_b)
 
 Hash hash_bytes(void const *data, usize size);
 
-template <typename T>
-u64 hash(T const &);
-
 }        // namespace ash

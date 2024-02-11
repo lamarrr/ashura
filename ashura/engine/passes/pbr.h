@@ -50,8 +50,8 @@ struct PBRObject
 {
   PBRMaterial material              = {};
   PBRMesh     mesh                  = {};
-  uid32       scene_id              = INVALID_UID32;
-  uid32       scene_object_id       = INVALID_UID32;
+  uid32       scene_id              = UID32_INVALID;
+  uid32       scene_object_id       = UID32_INVALID;
   u32         descriptor_heap_index = 0;
 };
 

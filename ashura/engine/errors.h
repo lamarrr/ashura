@@ -20,8 +20,8 @@ enum class LoadError : i32
 
 enum class RenderError : i32
 {
-  __RenderErrorReserved = 0,
-  OutOfMemory           = 1
+  None        = 0,
+  OutOfMemory = 1
 };
 
 }        // namespace ash

@@ -86,10 +86,10 @@ constexpr f32 F64_EPSILON      = DBL_EPSILON;
 
 constexpr usize MAX_STANDARD_ALIGNMENT = alignof(max_align_t);
 
-constexpr uid8  INVALID_UID8  = U8_MAX;
-constexpr uid16 INVALID_UID16 = U16_MAX;
-constexpr uid32 INVALID_UID32 = U32_MAX;
-constexpr uid64 INVALID_UID64 = U64_MAX;
+constexpr uid8  UID8_INVALID  = U8_MAX;
+constexpr uid16 UID16_INVALID = U16_MAX;
+constexpr uid32 UID32_INVALID = U32_MAX;
+constexpr uid64 UID64_INVALID = U64_MAX;
 
 constexpr f32 PI = 3.14159265358979323846f;
 
