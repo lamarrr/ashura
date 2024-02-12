@@ -711,11 +711,11 @@ Result<Void, RenderError>
 Result<Void, RenderError>
     RenderServer::render(gfx::CommandEncoderImpl const &command_encoder)
 {
-  if (view_group.root_view != UID32_INVALID)
+  if (view_group.root_view == UID32_INVALID)
   {
-    encode_view(view_group.root_view, command_encoder);
+    return Ok<Void>{};
   }
-  return Ok<Void>{};
+  return encode_view(view_group.root_view, command_encoder);
 }
 
 }        // namespace ash
