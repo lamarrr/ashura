@@ -17,7 +17,7 @@ struct Vec
   using Iterator      = T *;
   using ConstIterator = T const *;
 
-  AllocatorImpl m_allocator = heap_allocator;
+  AllocatorImpl m_allocator = default_allocator;
   T            *m_data      = nullptr;
   usize         m_capacity  = 0;
   usize         m_size      = 0;

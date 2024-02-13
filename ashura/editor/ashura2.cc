@@ -20,20 +20,20 @@ int main()
   LogSinkImpl     sink_impl{.self      = (LogSink) &sink,
                             .interface = &stdio_sink_interface};
 
-  if (!create_logger(logger, {&sink_impl, 1}, heap_allocator))
+  if (!create_logger(logger, {&sink_impl, 1}, default_allocator))
   {
     abort();
   }
 
   gfx::InstanceImpl instance =
-      vk::instance_interface.create(heap_allocator, logger, true).unwrap();
+      vk::instance_interface.create(default_allocator, logger, true).unwrap();
 
   gfx::DeviceType pref[] = {gfx::DeviceType::DiscreteGpu, gfx::DeviceType::Cpu,
                             gfx::DeviceType::IntegratedGpu,
                             gfx::DeviceType::VirtualGpu,
                             gfx::DeviceType::Other};
   gfx::DeviceImpl device =
-      instance->create_device(instance.self, to_span(pref), {}, heap_allocator)
+      instance->create_device(instance.self, to_span(pref), {}, default_allocator)
           .unwrap();
 
   gfx::Buffer buffer =
@@ -146,7 +146,7 @@ int main()
   gfx::DescriptorHeapImpl descriptor_heap =
       device
           ->create_descriptor_heap(device.self, to_span({set_layout}), 200,
-                                   heap_allocator)
+                                   default_allocator)
           .unwrap();
 
   u32 group   = descriptor_heap->add_group(descriptor_heap.self, 0).unwrap();
@@ -169,8 +169,8 @@ int main()
   gfx::FrameContext frame_ctx =
       device
           ->create_frame_context(device.self, 4,
-                                 to_span({heap_allocator, heap_allocator,
-                                          heap_allocator, heap_allocator}))
+                                 to_span({default_allocator, default_allocator,
+                                          default_allocator, default_allocator}))
           .unwrap();
 
   gfx::FrameInfo frame_info = device->get_frame_info(device.self, frame_ctx);

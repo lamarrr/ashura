@@ -127,4 +127,6 @@ static AllocatorInterface heap_interface{
 static AllocatorImpl const heap_allocator{
     .self = (Allocator) &global_heap_object, .interface = &heap_interface};
 
+extern AllocatorImpl const default_allocator;
+
 }        // namespace ash

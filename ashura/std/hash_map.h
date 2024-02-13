@@ -50,29 +50,94 @@ struct HashMap
   using HasherType = Hasher;
   using KeyCmpType = KeyCmp;
 
-  void reset();
-
-  void               rehash();
-  [[nodiscard]] bool should_rehash() const
+  usize num_buckets() const
   {
-    // num_entries/num_buckets > .875
+    return m_bucket_sizes.size();
   }
 
-  [[nodiscard]] V   *operator[](K const &);
-  [[nodiscard]] bool has(K const &);
-  [[nodiscard]] V   *get(K const &);
-  void               remove(K const &);
-  template <typename KArg, typename... Args>
-  [[nodiscard]] bool push(KArg &&key_arg, Args &&...value_args);
-  void               pop(K const &);
+  usize bucket_capacity() const
+  {
+    return m_buckets_capacity;
+  }
 
-  KeyCmp        cmp              = {};
-  AllocatorImpl allocator        = heap_allocator;
-  usize         num_entries      = 0;
-  usize         num_buckets      = 0;
-  u8            buckets_capacity = 0;
-  Vec<u8>       bucket_sizes     = {};
-  void         *storage          = nullptr;
+  usize num_entries() const
+  {
+    return m_num_entries;
+  }
+
+  void reset();
+
+  [[nodiscard]] V *operator[](K const &key) const
+  {
+    if (num_buckets() == 0)
+    {
+      return nullptr;
+    }
+    Hash const  hash         = hasher(key);
+    usize const bucket_index = hash % num_buckets();
+    usize const bucket_size  = m_bucket_sizes[bucket_index];
+    EntryType  *bucket_it    = m_entries + bucket_index * bucket_capacity();
+    for (usize i = 0; i < bucket_size; i++, bucket_it++)
+    {
+      if (m_cmp(bucket_it->key, key))
+      {
+        return &bucket_it->value;
+      }
+    } 
+    return nullptr;
+  }
+
+  void remove(K const &key)
+  {
+    if (num_buckets() == 0)
+    {
+      return;
+    }
+    Hash const  hash         = hasher(key);
+    usize const bucket_index = hash % num_buckets();
+    usize const bucket_size  = m_bucket_sizes[bucket_index];
+    EntryType  *bucket_it    = m_entries + bucket_index * bucket_capacity();
+    for (usize i = 0; i < bucket_size; i++, bucket_it++)
+    {
+      if (m_cmp(bucket_it->key, key))
+      {
+        for (usize src = i + 1; src < bucket_size; src++)
+        {
+          bucket_it[src - 1] = (EntryType &&) (bucket_it[src]);
+        }
+        (bucket_it + bucket_size - 1)->~T();
+      }
+    }
+  }
+
+  // num_entries/num_buckets > .875, increase number of buckets or buckets
+  // capacity?
+  template <typename... Args>
+  [[nodiscard]] bool push(K const &key, Args &&...value_args)
+  {
+    if (num_buckets() == 0)
+    {
+      // increase num buckets
+    }
+
+    if (((m_num_entries * 100) / num_buckets()) > 875)
+    {
+      // increase bucket count and rehash
+    }
+
+    // what if after rehashing a number of elements fall into the same slot? and
+    // then can't fit in?
+  }
+
+  // push if not exists
+
+  KeyCmp        m_cmp              = {};
+  Hasher        m_hasher           = {};
+  AllocatorImpl m_allocator        = default_allocator;
+  usize         m_num_entries      = 0;
+  usize         m_buckets_capacity = 0;
+  Vec<usize>    m_bucket_sizes     = {};
+  EntryType    *m_entries          = nullptr;
 };
 
 template <typename V>

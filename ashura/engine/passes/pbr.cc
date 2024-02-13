@@ -24,7 +24,7 @@ void PBRPass::init(Pass self_, RenderServer *server, uid32 id)
       device
           ->create_descriptor_heap(device.self,
                                    {&self->descriptor_set_layout, 1}, 256,
-                                   heap_allocator)
+                                   default_allocator)
           .unwrap();
 
   self->sampler =
