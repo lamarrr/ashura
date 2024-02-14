@@ -38,6 +38,9 @@ struct IsConstImpl<T const>
 template <typename T>
 concept Const = IsConstImpl<T>::value;
 
+template <typename T>
+concept NonConst = !IsConstImpl<T>::value;
+
 /// can be overloaded for custom types
 template <typename T>
 struct IsTriviallyRelocatable

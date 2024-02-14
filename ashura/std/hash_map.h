@@ -39,6 +39,14 @@ struct HashMapEntry
   V value;
 };
 
+template <typename K, typename V>
+struct HashBucket
+{
+  HashMapEntry<K, V> *data     = nullptr;
+  usize               capacity = 0;
+  usize               size     = 0;
+};
+
 // Linear Probing hash map
 // https://developer.nvidia.com/blog/maximizing-performance-with-massively-parallel-hash-maps-on-gpus/
 template <typename K, typename V, typename Hasher, typename KeyCmp>
@@ -112,7 +120,8 @@ struct HashMap
     usize const    new_num_buckets_log2 = m_num_buckets_log2 + 1;
     usize const    new_num_buckets      = ((usize) 1) << new_num_buckets_log2;
     Vec<EntryType> entries{m_allocator};
-    // problem is that we don't know which is initialized and which isn't, so a destroy would occur for all elements, leading to double-destroy
+    // problem is that we don't know which is initialized and which isn't, so a
+    // destroy would occur for all elements, leading to double-destroy
     if (!(m_bucket_sizes.resize_defaulted(new_num_buckets) &&
           m_entries.resize_uninitialized(new_num_buckets
                                          << m_bucket_capacity_log2) &&
@@ -134,7 +143,6 @@ struct HashMap
       mem::relocate(m_entries.data() + (ibucket << m_bucket_capacity_log2),
                     entries.data() + ientry, m_bucket_sizes[ibucket]);
     }
-
 
     for (usize ientry = 0; ientry < m_num_entries; ientry++)
     {
