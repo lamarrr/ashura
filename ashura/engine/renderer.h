@@ -2,7 +2,7 @@
 #include "ashura/engine/errors.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/box.h"
-#include "ashura/std/hash_map.h"
+#include "ashura/std/dict.h"
 #include "ashura/std/image.h"
 #include "ashura/std/option.h"
 #include "ashura/std/sparse_vec.h"
