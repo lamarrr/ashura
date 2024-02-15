@@ -44,12 +44,13 @@ struct DictEntry
 template <typename K, typename V, typename Hasher, typename KeyCmp>
 struct Dict
 {
-  using KeyType                           = K;
-  using ValueType                         = V;
-  using EntryType                         = DictEntry<K, V>;
-  using HasherType                        = Hasher;
-  using KeyCmpType                        = KeyCmp;
-  static constexpr usize INIT_BUCKET_SIZE = 16;
+  using KeyType                               = K;
+  using ValueType                             = V;
+  using EntryType                             = DictEntry<K, V>;
+  using HasherType                            = Hasher;
+  using KeyCmpType                            = KeyCmp;
+  static constexpr usize INIT_BUCKET_CAPACITY = 8;
+  static constexpr usize INIT_NUM_BUCKETS     = 4;
 
   usize num_buckets() const
   {
@@ -66,8 +67,15 @@ struct Dict
     return num_buckets() << m_bucket_capacity_log2;
   }
 
-  void init()
+  usize bucket_capacity() const
   {
+    return ((usize) 1) << m_bucket_capacity_log2;
+  }
+
+  [[nodiscard]] bool init()
+  {
+    INIT_BUCKET_CAPACITY;
+    INIT_NUM_BUCKETS;
   }
 
   void destroy()
@@ -133,28 +141,24 @@ struct Dict
     }
   }
 
-  void impl__insert_relocating(EntryType *entry)
+  // the elements will be relocated
+  void reinsert(Span<EntryType> entries)
   {
-    Hash const       hash         = m_hasher(entry->key);
-    usize const      bucket_index = hash & (num_buckets() - 1);
-    usize           &bucket_size  = m_bucket_sizes[bucket_index];
-    EntryType *const dst =
-        m_entries + (bucket_index << m_num_buckets_log2) + bucket_size;
-    mem::relocate(entry, dst, 1);
-    bucket_size++;
-    m_num_entries++;
-  }
-
-  void impl__insert_relocating(EntryType *entry, usize size)
-  {
-    for (usize i = 0; i < size; i++)
+    for (EntryType &entry : entries)
     {
-      impl__insert_relocating(entry + i);
+      Hash const       hash         = m_hasher(entry.key);
+      usize const      bucket_index = hash & (num_buckets() - 1);
+      usize           &bucket_size  = m_bucket_sizes[bucket_index];
+      EntryType *const dst =
+          m_entries + (bucket_index << m_num_buckets_log2) + bucket_size;
+      mem::relocate(&entry, dst, 1);
+      bucket_size++;
+      m_num_entries++;
     }
   }
 
   // double the number of buckets
-  bool impl__rehash()
+  [[nodiscard]] bool grow_hash()
   {
     usize const num_buckets          = ((usize) 1) << m_num_buckets_log2;
     usize const new_num_buckets_log2 = m_num_buckets_log2 + 1;
@@ -201,18 +205,18 @@ struct Dict
 
     if (new_entries == nullptr)
     {
-      impl__insert_relocating(entries_array, num_entries);
+      reinsert({entries_array, num_entries});
       m_allocator.deallocate_typed(entries_array, num_entries);
       return false;
     }
 
     m_num_buckets_log2 = new_num_buckets_log2;
-    impl__insert_relocating(entries_array, num_entries);
+    reinsert({entries_array, num_entries});
     m_allocator.deallocate_typed(entries_array, num_entries);
     return true;
   }
 
-  bool impl__needs_rehash() const
+  [[nodiscard]] bool needs_rehash() const
   {
     // max load factor of .875
     // scale of 8, 8 * .875 = 7
@@ -220,23 +224,61 @@ struct Dict
     return load_factor > 7;
   }
 
-  bool impl__grow_buckets()
+  [[nodiscard]] bool grow_buckets()
   {
+    usize const new_bucket_capacity_log2 = m_bucket_capacity_log2 + 1;
+    usize const new_bucket_capacity = ((usize) 1) << new_bucket_capacity_log2;
   }
 
-  template <typename... Args>
-  [[nodiscard]] bool push(K const &key, Args &&...value_args)
+  template <typename KeyArg, typename... Args>
+  [[nodiscard]] bool push_overwrite(bool *replaced, KeyArg &&key_arg,
+                                    Args &&...value_args)
   {
-    if (impl__needs_rehash())
+    if (needs_rehash())
     {
-      if (!impl__rehash())
+      if (!grow_hash())
       {
         return false;
       }
     }
 
-    // check if bucket isn't full, if full, increase bucket size >> 2
-    insert();
+    Hash const  hash         = m_hasher(key_arg);
+    usize const bucket_index = hash & (num_buckets() - 1);
+
+    {
+      usize &bucket_size = m_bucket_sizes[bucket_index];
+      if (bucket_size < bucket_capacity())
+      {
+        EntryType *entry =
+            m_entries + (bucket_index << m_bucket_capacity_log2) + bucket_size;
+        new (entry) EntryType{.key{key_arg}, .value{((Args &&) value_args)...}};
+        bucket_size++;
+        m_num_entries++;
+        return true;
+      }
+    }
+
+    if (!grow_buckets())
+    {
+      return false;
+    }
+
+    {
+      usize     &bucket_size = m_bucket_sizes[bucket_index];
+      EntryType *entry =
+          m_entries + (bucket_index << m_bucket_capacity_log2) + bucket_size;
+      new (entry) EntryType{.key{key_arg}, .value{((Args &&) value_args)...}};
+      bucket_size++;
+      m_num_entries++;
+    }
+
+    return true;
+  }
+
+  template <typename KeyArg, typename... Args>
+  [[nodiscard]] bool push_no_overwrite(bool *exists, KeyArg &&key_arg,
+                                       Args &&...value_args)
+  {
   }
 
   // push if not exists
