@@ -17,56 +17,56 @@ struct Vec
   using Iterator      = T *;
   using ConstIterator = T const *;
 
-  AllocatorImpl m_allocator = default_allocator;
-  T            *m_data      = nullptr;
-  usize         m_capacity  = 0;
-  usize         m_size      = 0;
+  AllocatorImpl allocator_ = default_allocator;
+  T            *data_      = nullptr;
+  usize         capacity_  = 0;
+  usize         size_      = 0;
 
   [[nodiscard]] constexpr bool is_empty() const
   {
-    return m_size == 0;
+    return size_ == 0;
   }
 
   [[nodiscard]] constexpr T *data() const
   {
-    return m_data;
+    return data_;
   }
 
   [[nodiscard]] constexpr usize size() const
   {
-    return m_size;
+    return size_;
   }
 
   [[nodiscard]] constexpr usize capacity() const
   {
-    return m_capacity;
+    return capacity_;
   }
 
   [[nodiscard]] constexpr T *begin() const
   {
-    return m_data;
+    return data_;
   }
 
   [[nodiscard]] constexpr T *end() const
   {
-    return m_data + m_size;
+    return data_ + size_;
   }
 
   constexpr operator Span<T>() const
   {
-    return Span<T>{m_data, m_size};
+    return Span<T>{data_, size_};
   }
 
   [[nodiscard]] constexpr T &operator[](usize index) const
   {
-    return m_data[index];
+    return data_[index];
   }
 
   [[nodiscard]] constexpr T *try_get(usize index) const
   {
-    if (index < m_size)
+    if (index < size_)
     {
-      return m_data + index;
+      return data_ + index;
     }
 
     return nullptr;
@@ -81,7 +81,7 @@ struct Vec
         iter->~T();
       }
     }
-    m_size = 0;
+    size_ = 0;
   }
 
   constexpr void reset()
@@ -93,15 +93,15 @@ struct Vec
         iter->~T();
       }
     }
-    m_allocator.deallocate_typed(m_data, m_capacity);
-    m_data     = nullptr;
-    m_size     = 0;
-    m_capacity = 0;
+    allocator_.deallocate_typed(data_, capacity_);
+    data_     = nullptr;
+    size_     = 0;
+    capacity_ = 0;
   }
 
   [[nodiscard]] bool reserve(usize target_capacity)
   {
-    if (m_capacity >= target_capacity)
+    if (capacity_ >= target_capacity)
     {
       return true;
     }
@@ -109,129 +109,129 @@ struct Vec
     if constexpr (TriviallyRelocatable<T>)
     {
       T *new_data =
-          m_allocator.reallocate_typed(m_data, m_capacity, target_capacity);
+          allocator_.reallocate_typed(data_, capacity_, target_capacity);
 
       if (new_data == nullptr)
       {
         return false;
       }
 
-      m_data = new_data;
+      data_ = new_data;
     }
     else
     {
-      T *new_data = m_allocator.allocate_typed<T>(target_capacity);
+      T *new_data = allocator_.allocate_typed<T>(target_capacity);
 
       if (new_data == nullptr)
       {
         return false;
       }
 
-      for (usize i = 0; i < m_size; i++)
+      for (usize i = 0; i < size_; i++)
       {
-        new (new_data + i) T{(T &&) m_data[i]};
+        new (new_data + i) T{(T &&) data_[i]};
       }
 
-      for (usize i = 0; i < m_size; i++)
+      for (usize i = 0; i < size_; i++)
       {
-        (m_data + i)->~T();
+        (data_ + i)->~T();
       }
 
-      m_allocator.deallocate_typed(m_data, m_capacity);
-      m_data = new_data;
+      allocator_.deallocate_typed(data_, capacity_);
+      data_ = new_data;
     }
 
-    m_capacity = target_capacity;
+    capacity_ = target_capacity;
     return true;
   }
 
   [[nodiscard]] bool fit()
   {
-    if (m_size == m_capacity)
+    if (size_ == capacity_)
     {
       return true;
     }
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      T *new_data = m_allocator.reallocate_typed(m_data, m_capacity, m_size);
+      T *new_data = allocator_.reallocate_typed(data_, capacity_, size_);
 
       if (new_data == nullptr)
       {
         return false;
       }
 
-      m_data = new_data;
+      data_ = new_data;
     }
     else
     {
-      T *new_data = m_allocator.allocate_typed<T>(m_size);
+      T *new_data = allocator_.allocate_typed<T>(size_);
 
       if (new_data == nullptr)
       {
         return false;
       }
 
-      for (usize i = 0; i < m_size; i++)
+      for (usize i = 0; i < size_; i++)
       {
-        new (new_data + i) T{(T &&) m_data[i]};
+        new (new_data + i) T{(T &&) data_[i]};
       }
 
-      for (usize i = 0; i < m_size; i++)
+      for (usize i = 0; i < size_; i++)
       {
-        (m_data + i)->~T();
+        (data_ + i)->~T();
       }
 
-      m_allocator.deallocate_typed(m_data, m_capacity);
-      m_data = new_data;
+      allocator_.deallocate_typed(data_, capacity_);
+      data_ = new_data;
     }
 
-    m_capacity = m_size;
+    capacity_ = size_;
     return true;
   }
 
   [[nodiscard]] bool grow(usize target_size)
   {
-    if (m_capacity >= target_size)
+    if (capacity_ >= target_size)
     {
       return true;
     }
 
-    return reserve(max(target_size, m_capacity + (m_capacity >> 1)));
+    return reserve(max(target_size, capacity_ + (capacity_ >> 1)));
   }
 
   void erase(usize first, usize num = 1)
   {
     if constexpr (TriviallyRelocatable<T>)
     {
-      mem::move(m_data + first + num, m_data + first, m_size - (first + num));
+      mem::move(data_ + first + num, data_ + first, size_ - (first + num));
     }
     else
     {
-      for (usize i = first; i < m_size - num; i++)
+      for (usize i = first; i < size_ - num; i++)
       {
-        m_data[i] = (T &&) (m_data[i + num]);
+        data_[i] = (T &&) (data_[i + num]);
       }
 
-      for (usize i = m_size - num; i < m_size; i++)
+      for (usize i = size_ - num; i < size_; i++)
       {
-        (m_data + i)->~T();
+        (data_ + i)->~T();
       }
     }
-    m_size -= num;
+    size_ -= num;
   }
 
   template <typename... Args>
   [[nodiscard]] bool push(Args &&...args)
   {
-    if (!grow(m_size + 1))
+    if (!grow(size_ + 1))
     {
       return false;
     }
 
-    new (m_data + m_size) T{((Args &&) args)...};
+    new (data_ + size_) T{((Args &&) args)...};
 
-    m_size++;
+    size_++;
 
     return true;
   }
@@ -240,18 +240,18 @@ struct Vec
   {
     if constexpr (!TriviallyDestructible<T>)
     {
-      for (usize i = m_size - num; i < m_size; i++)
+      for (usize i = size_ - num; i < size_; i++)
       {
-        (m_data + i)->~T();
+        (data_ + i)->~T();
       }
     }
 
-    m_size -= num;
+    size_ -= num;
   }
 
   [[nodiscard]] constexpr bool try_pop(usize num = 1)
   {
-    if (m_size < num)
+    if (size_ < num)
     {
       return false;
     }
@@ -263,28 +263,28 @@ struct Vec
 
   [[nodiscard]] bool shift_uninitialized(usize first, usize distance)
   {
-    if (!grow(m_size + distance))
+    if (!grow(size_ + distance))
     {
       return false;
     }
 
     if constexpr (TriviallyRelocatable<T>)
     {
-      mem::move(m_data + first, m_data + first + distance, m_size - first);
+      mem::move(data_ + first, data_ + first + distance, size_ - first);
     }
     else
     {
       // move construct tail elements
-      usize const tail_first = max(first, min(m_size, distance) - m_size);
-      for (usize i = tail_first; i < m_size; i++)
+      usize const tail_first = max(first, min(size_, distance) - size_);
+      for (usize i = tail_first; i < size_; i++)
       {
-        new (m_data + i + distance) T{(T &&) m_data[i]};
+        new (data_ + i + distance) T{(T &&) data_[i]};
       }
 
       // move non-tail elements towards end
       for (usize i = first; i < tail_first; i++)
       {
-        m_data[i + distance] = (T &&) m_data[i];
+        data_[i + distance] = (T &&) data_[i];
       }
 
       if constexpr (!TriviallyDestructible<T>)
@@ -292,12 +292,12 @@ struct Vec
         // destruct previous position of non-tail elements
         for (usize i = first; i < tail_first; i++)
         {
-          (m_data + i)->~T();
+          (data_ + i)->~T();
         }
       }
     }
 
-    m_size += distance;
+    size_ += distance;
 
     return true;
   }
@@ -310,7 +310,7 @@ struct Vec
       return false;
     }
 
-    new (m_data + dst) T{((Args &&) args)...};
+    new (data_ + dst) T{((Args &&) args)...};
     return true;
   }
 
@@ -323,13 +323,13 @@ struct Vec
 
     if constexpr (TriviallyCopyConstructible<T>)
     {
-      mem::copy(span.data(), m_data + dst, span.size());
+      mem::copy(span.data(), data_ + dst, span.size());
     }
     else
     {
       for (usize i = 0; i < span.size(); i++)
       {
-        new (m_data + dst + i) T{span[i]};
+        new (data_ + dst + i) T{span[i]};
       }
     }
 
@@ -345,13 +345,13 @@ struct Vec
 
     if constexpr (TriviallyMoveConstructible<T>)
     {
-      mem::copy(span.data(), m_data + dst, span.size());
+      mem::copy(span.data(), data_ + dst, span.size());
     }
     else
     {
       for (usize i = 0; i < span.size(); i++)
       {
-        new (m_data + dst + i) T{(T &&) span[i]};
+        new (data_ + dst + i) T{(T &&) span[i]};
       }
     }
 
@@ -360,27 +360,27 @@ struct Vec
 
   [[nodiscard]] bool extend_uninitialized(usize extension)
   {
-    if (!grow(m_size + extension))
+    if (!grow(size_ + extension))
     {
       return false;
     }
 
-    m_size += extension;
+    size_ += extension;
 
     return true;
   }
 
   [[nodiscard]] bool extend_defaulted(usize extension)
   {
-    usize const pos = m_size;
+    usize const pos = size_;
     if (!extend_uninitialized(extension))
     {
       return false;
     }
 
-    for (usize i = pos; i < m_size; i++)
+    for (usize i = pos; i < size_; i++)
     {
-      new (m_data + i) T{};
+      new (data_ + i) T{};
     }
 
     return true;
@@ -388,7 +388,7 @@ struct Vec
 
   [[nodiscard]] bool extend_copy(Span<T const> span)
   {
-    usize const pos = m_size;
+    usize const pos = size_;
     if (!extend_uninitialized(span.size()))
     {
       return false;
@@ -398,13 +398,13 @@ struct Vec
     // anyway
     if constexpr (TriviallyCopyConstructible<T>)
     {
-      mem::copy(span.data(), m_data + pos, span.size());
+      mem::copy(span.data(), data_ + pos, span.size());
     }
     else
     {
       for (usize i = 0; i < span.size(); i++)
       {
-        new (m_data + pos + i) T{span[i]};
+        new (data_ + pos + i) T{span[i]};
       }
     }
 
@@ -413,7 +413,7 @@ struct Vec
 
   [[nodiscard]] bool extend_move(Span<T> span)
   {
-    usize const pos = m_size;
+    usize const pos = size_;
     if (!extend_uninitialized(span.size()))
     {
       return false;
@@ -422,13 +422,13 @@ struct Vec
     // non-overlapping, use memcpy
     if constexpr (TriviallyMoveConstructible<T>)
     {
-      mem::copy(span.data(), m_data + pos, span.size());
+      mem::copy(span.data(), data_ + pos, span.size());
     }
     else
     {
       for (usize i = 0; i < span.size(); i++)
       {
-        new (m_data + pos + i) T{(T &&) span[i]};
+        new (data_ + pos + i) T{(T &&) span[i]};
       }
     }
 
@@ -437,29 +437,29 @@ struct Vec
 
   constexpr void swap(usize a, usize b) const
   {
-    ::ash::swap(m_data[a], m_data[b]);
+    ::ash::swap(data_[a], data_[b]);
   }
 
   [[nodiscard]] bool resize_uninitialized(usize new_size)
   {
-    if (new_size <= m_size)
+    if (new_size <= size_)
     {
-      erase(new_size, m_size - new_size);
+      erase(new_size, size_ - new_size);
       return true;
     }
 
-    return extend_uninitialized(new_size - m_size);
+    return extend_uninitialized(new_size - size_);
   }
 
   [[nodiscard]] bool resize_defaulted(usize new_size)
   {
-    if (new_size <= m_size)
+    if (new_size <= size_)
     {
-      erase(new_size, m_size - new_size);
+      erase(new_size, size_ - new_size);
       return true;
     }
 
-    return extend_defaulted(new_size - m_size);
+    return extend_defaulted(new_size - size_);
   }
 };
 

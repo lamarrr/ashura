@@ -1736,72 +1736,72 @@ concept OutputRange = requires(R r) {
 template <typename T>
 struct Span
 {
-  T    *m_data = nullptr;
-  usize m_size = 0;
+  T    *data_ = nullptr;
+  usize size_ = 0;
 
   constexpr bool is_empty() const
   {
-    return m_size == 0;
+    return size_ == 0;
   }
 
   constexpr T *data() const
   {
-    return m_data;
+    return data_;
   }
 
   constexpr usize size() const
   {
-    return m_size;
+    return size_;
   }
 
   constexpr usize size_bytes() const
   {
-    return sizeof(T) * m_size;
+    return sizeof(T) * size_;
   }
 
   constexpr T *begin() const
   {
-    return m_data;
+    return data_;
   }
 
   constexpr T *end() const
   {
-    return m_data + m_size;
+    return data_ + size_;
   }
 
   constexpr T &operator[](usize index) const
   {
-    return m_data[index];
+    return data_[index];
   }
 
   constexpr Span<T> operator[](Slice slice) const
   {
     // written such that overflow will not occur even if both offset and size
     // are set to USIZE_MAX
-    slice.offset = slice.offset > m_size ? m_size : slice.offset;
-    slice.span   = (m_size - slice.offset) > slice.span ? slice.span :
-                                                          (m_size - slice.offset);
-    return Span<T>{m_data + slice.offset, slice.span};
+    slice.offset = slice.offset > size_ ? size_ : slice.offset;
+    slice.span   = (size_ - slice.offset) > slice.span ? slice.span :
+                                                         (size_ - slice.offset);
+    return Span<T>{data_ + slice.offset, slice.span};
   }
 
   constexpr operator Span<T const>() const
   {
-    return Span<T const>{m_data, m_size};
+    return Span<T const>{data_, size_};
   }
 
   constexpr Span<T const> as_const() const
   {
-    return Span<T const>{m_data, m_size};
+    return Span<T const>{data_, size_};
   }
 
   constexpr Span<u8 const> as_u8() const
   {
-    return Span<u8 const>{reinterpret_cast<u8 const *>(m_data), size_bytes()};
+    return Span<u8 const>{reinterpret_cast<u8 const *>(data_), size_bytes()};
   }
 
   constexpr Span<char const> as_char() const
   {
-    return Span<char const>{reinterpret_cast<char const *>(m_data),
+    return Span<char const>{reinterpret_cast<char const *>(data_),
                             size_bytes()};
   }
 
@@ -1975,30 +1975,30 @@ struct BitSpan
   using Rep  = RepT;
   using Type = bool;
 
-  Rep  *m_data     = nullptr;
+  Rep  *data_      = nullptr;
   usize m_num_bits = 0;
 
   constexpr BitRef<Rep> operator[](usize index) const
   {
     constexpr u16 INDEX_SHIFT = NumTraits<Rep>::LOG2_NUM_BITS;
     constexpr u16 INDEX_MASK  = NumTraits<Rep>::NUM_BITS - 1;
-    return BitRef{m_data + (index >> INDEX_SHIFT),
+    return BitRef{data_ + (index >> INDEX_SHIFT),
                   static_cast<u16>(index & INDEX_MASK)};
   }
 
   constexpr operator BitSpan<Rep const>() const
   {
-    return BitSpan<Rep const>{m_data, m_num_bits};
+    return BitSpan<Rep const>{data_, m_num_bits};
   }
 
   constexpr BitIterator<Rep> begin() const
   {
-    return BitIterator<Rep>{m_data, 0};
+    return BitIterator<Rep>{data_, 0};
   }
 
   constexpr BitIterator<Rep> end() const
   {
-    return BitIterator<Rep>{m_data, m_num_bits};
+    return BitIterator<Rep>{data_, m_num_bits};
   }
 
   constexpr bool is_empty() const

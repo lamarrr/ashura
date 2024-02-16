@@ -48,16 +48,16 @@ struct LockGuard
 {
   ASH_MAKE_PINNED(LockGuard)
 
-  explicit LockGuard(Resource &resource) : m_resource{&resource}
+  explicit LockGuard(Resource &resource) : resource_{&resource}
   {
-    m_resource->lock();
+    resource_->lock();
   }
 
   ~LockGuard()
   {
-    m_resource->unlock();
+    resource->unlock();
   }
 
-  Resource *m_resource;
+  Resource *resource_;
 };
 }        // namespace ash

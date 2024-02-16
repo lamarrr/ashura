@@ -241,12 +241,12 @@ struct SceneGroup
 /// of objects sharing common passes
 struct View
 {
-  Span<char const>   name              = {};
-  Camera             camera            = {};
-  uid32              scene             = 0;
-  BitVec<u64>        is_object_visible = {};
-  Vec<u32>           sort_indices      = {};
-  StrHashMap<void *> resources         = {};
+  Span<char const> name              = {};
+  Camera           camera            = {};
+  uid32            scene             = 0;
+  BitVec<u64>      is_object_visible = {};
+  Vec<u32>         sort_indices      = {};
+  StrDict<void *>  resources         = {};
 };
 
 struct ViewGroup
