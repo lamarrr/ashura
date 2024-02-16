@@ -1,5 +1,6 @@
 #pragma once
 #include "ashura/std/types.h"
+#include "ashura/std/traits.h"
 #include <string.h>
 
 namespace ash

@@ -1975,8 +1975,8 @@ struct BitSpan
   using Rep  = RepT;
   using Type = bool;
 
-  Rep  *data_      = nullptr;
-  usize m_num_bits = 0;
+  Rep  *data_     = nullptr;
+  usize num_bits_ = 0;
 
   constexpr BitRef<Rep> operator[](usize index) const
   {
@@ -1988,7 +1988,7 @@ struct BitSpan
 
   constexpr operator BitSpan<Rep const>() const
   {
-    return BitSpan<Rep const>{data_, m_num_bits};
+    return BitSpan<Rep const>{data_, num_bits_};
   }
 
   constexpr BitIterator<Rep> begin() const
@@ -1998,12 +1998,12 @@ struct BitSpan
 
   constexpr BitIterator<Rep> end() const
   {
-    return BitIterator<Rep>{data_, m_num_bits};
+    return BitIterator<Rep>{data_, num_bits_};
   }
 
   constexpr bool is_empty() const
   {
-    return m_num_bits == 0;
+    return num_bits_ == 0;
   }
 };
 

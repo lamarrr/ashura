@@ -4,7 +4,8 @@ std::atomic<ash::u64> panic_count = 0;
 
 void custom_panic_handler();
 
-PFN_panic_handler panic_handler = custom_panic_handler;
+ash::PanicHandler const  panic_handler     = custom_panic_handler;
+ash::AllocatorImpl const default_allocator = ash::heap_allocator;
 
 void custom_panic_handler()
 {

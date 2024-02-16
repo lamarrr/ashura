@@ -72,14 +72,15 @@ else()
 endif()
 
 add_library(
-  ashura_std ashura/std/allocator.cc ashura/std/arena_allocator.cc
-             ashura/std/format.cc ashura/std/log.cc ashura/std/runtime.cc)
+  ashura_std
+  ashura/std/allocator.cc ashura/std/hash.cc ashura/std/arena_allocator.cc
+  ashura/std/format.cc ashura/std/log.cc ashura/std/runtime.cc)
 target_include_directories(ashura_std PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ashura_std PRIVATE xxHash::xxhash)
 
 add_executable(
   ashura_std_tests
-  ashura/std/tests/tests.cc ashura/std/tests/option.cc
+  ashura/std/tests/tests.cc ashura/std/tests/dict.cc ashura/std/tests/option.cc
   ashura/std/tests/result.cc ashura/std/tests/bit_span.cc
   ashura/std/tests/sparse_set.cc)
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest

@@ -4,7 +4,12 @@
 #include "ashura/std/mem.h"
 #include "ashura/std/op.h"
 #include "ashura/std/types.h"
+#include <iostream>
 #include <string.h>
+
+#define HALT_IF()
+#define PRINT_DEBUG(IDENTIFIER) \
+  std::cout << #IDENTIFIER << ": " << IDENTIFIER << std::endl
 
 namespace ash
 {
@@ -43,13 +48,12 @@ struct DictEntry
 template <typename K, typename V, typename Hasher, typename KeyCmp>
 struct Dict
 {
-  using KeyType                                    = K;
-  using ValueType                                  = V;
-  using EntryType                                  = DictEntry<K, V>;
-  using HasherType                                 = Hasher;
-  using KeyCmpType                                 = KeyCmp;
-  static constexpr usize INIT_BUCKET_CAPACITY_LOG2 = 8;
-  static constexpr usize INIT_NUM_BUCKETS_LOG2     = 2;
+  using KeyType                                   = K;
+  using ValueType                                 = V;
+  using EntryType                                 = DictEntry<K, V>;
+  using HasherType                                = Hasher;
+  using KeyCmpType                                = KeyCmp;
+  static constexpr usize INITIAL_NUM_BUCKETS_LOG2 = 1;
 
   usize num_buckets() const
   {
@@ -63,19 +67,34 @@ struct Dict
 
   usize entries_capacity() const
   {
-    return num_buckets() << bucket_capacity_log2_;
+    return num_buckets() * bucket_capacity_;
   }
 
   usize bucket_capacity() const
   {
-    return ((usize) 1) << bucket_capacity_log2_;
+    return bucket_capacity_;
   }
 
   [[nodiscard]] bool init()
   {
-    // todo(lamarrr):
-    num_buckets_log2_     = INIT_NUM_BUCKETS_LOG2;
-    bucket_capacity_log2_ = INIT_BUCKET_CAPACITY_LOG2;
+    static constexpr usize INITIAL_NUM_BUCKETS = 1 << INITIAL_NUM_BUCKETS_LOG2;
+
+    usize *bucket_sizes =
+        allocator_.allocate_zeroed_typed<usize>(INITIAL_NUM_BUCKETS);
+
+    if (bucket_sizes == nullptr)
+    {
+      return false;
+    }
+
+    num_entries_             = 0;
+    num_buckets_log2_        = INITIAL_NUM_BUCKETS_LOG2;
+    bucket_capacity_         = 0;
+    p_bucket_sizes_          = bucket_sizes;
+    p_entries_               = nullptr;
+    p_entries_capacity_      = 0;
+    p_bucket_sizes_capacity_ = INITIAL_NUM_BUCKETS;
+    return true;
   }
 
   void destroy()
@@ -86,7 +105,7 @@ struct Dict
     p_entries_capacity_      = 0;
     p_bucket_sizes_capacity_ = 0;
     num_buckets_log2_        = 0;
-    bucket_capacity_log2_    = 0;
+    bucket_capacity_         = 0;
   }
 
   void clear()
@@ -95,15 +114,15 @@ struct Dict
     {
       for (usize ibucket = 0; ibucket < num_buckets(); ibucket++)
       {
-        usize const bucket_size = m_bucket_sizes[ibucket];
-        EntryType  *bucket_it = p_entries_ + (ibucket << bucket_capacity_log2_);
+        usize const bucket_size = p_bucket_sizes_[ibucket];
+        EntryType  *bucket_it   = p_entries_ + ibucket * bucket_capacity_;
         for (usize i = 0; i < bucket_size; i++, bucket_it++)
         {
           bucket_it->~EntryType();
         }
       }
     }
-    mem::fill(p_bucket_sizes_, num_buckets(), 0);
+    mem::zero(p_bucket_sizes_, num_buckets());
     num_entries_ = 0;
   }
 
@@ -111,8 +130,8 @@ struct Dict
   {
     Hash const  hash         = hasher_(key);
     usize const bucket_index = hash & (num_buckets() - 1);
-    usize const bucket_size  = m_bucket_sizes[bucket_index];
-    EntryType *bucket_it = p_entries_ + (bucket_index << bucket_capacity_log2_);
+    usize const bucket_size  = p_bucket_sizes_[bucket_index];
+    EntryType  *bucket_it    = p_entries_ + bucket_index * bucket_capacity_;
     for (usize i = 0; i < bucket_size; i++, bucket_it++)
     {
       if (cmp_(bucket_it->key, key))
@@ -127,8 +146,8 @@ struct Dict
   {
     Hash const  hash         = hasher_(key);
     usize const bucket_index = hash & (num_buckets() - 1);
-    usize      &bucket_size  = m_bucket_sizes[bucket_index];
-    EntryType *bucket_it = p_entries_ + (bucket_index << bucket_capacity_log2_);
+    usize      &bucket_size  = p_bucket_sizes_[bucket_index];
+    EntryType  *bucket_it    = p_entries_ + bucket_index * bucket_capacity_;
     for (usize i = 0; i < bucket_size; i++, bucket_it++)
     {
       if (cmp_(bucket_it->key, key))
@@ -146,31 +165,34 @@ struct Dict
     return false;
   }
 
-  // relocate elements relocated to a temporary array to the hash map.
-  void reinsert(Span<EntryType> entries)
+  // reinsert temporarily relocated elements
+  void reinsert_(EntryType *entry)
   {
-    for (EntryType &entry : entries)
+    Hash const  hash         = hasher_(entry->key);
+    usize const bucket_index = hash & (num_buckets() - 1);
+    usize      &bucket_size  = p_bucket_sizes_[bucket_index];
+    EntryType *dst = p_entries_ + bucket_index * bucket_capacity_ + bucket_size;
+    mem::relocate(entry, dst, 1);
+    bucket_size++;
+    num_entries_++;
+  }
+
+  void reinsert_(EntryType *entries, usize num_insert)
+  {
+    for (usize i = 0; i < num_insert; i++)
     {
-      Hash const       hash         = hasher_(entry.key);
-      usize const      bucket_index = hash & (num_buckets() - 1);
-      usize           &bucket_size  = m_bucket_sizes[bucket_index];
-      EntryType *const dst =
-          p_entries_ + (bucket_index << num_buckets_log2_) + bucket_size;
-      mem::relocate(&entry, dst, 1);
-      bucket_size++;
-      num_entries_++;
+      reinsert_(entries + i);
     }
   }
 
   // double the number of buckets
-  [[nodiscard]] bool grow_hash()
+  [[nodiscard]] bool increase_buckets()
   {
     usize const num_buckets          = ((usize) 1) << num_buckets_log2_;
     usize const new_num_buckets_log2 = num_buckets_log2_ + 1;
     usize const new_num_buckets      = ((usize) 1) << new_num_buckets_log2;
-    usize const bucket_capacity      = ((usize) 1) << bucket_capacity_log2_;
-    usize const entries_capacity     = num_buckets << bucket_capacity_log2_;
-    usize const new_entries_capacity = new_num_buckets << bucket_capacity_log2_;
+    usize const bucket_capacity      = bucket_capacity_;
+    usize const new_entries_capacity = new_num_buckets * bucket_capacity_;
     usize const num_entries          = num_entries_;
 
     usize *new_bucket_sizes = allocator_.reallocate_typed(
@@ -194,14 +216,14 @@ struct Dict
       EntryType *src = p_entries_;
       for (usize ibucket = 0, ientry = 0; ibucket < num_buckets; ibucket++)
       {
-        usize const bucket_size = m_bucket_sizes[ibucket];
+        usize const bucket_size = p_bucket_sizes_[ibucket];
         mem::relocate(src, entries_array + ientry, bucket_size);
         ientry += bucket_size;
         src += bucket_capacity;
       }
     }
 
-    mem::fill(p_bucket_sizes_, p_bucket_sizes_capacity_, 0);
+    mem::zero(p_bucket_sizes_, p_bucket_sizes_capacity_);
     num_entries_ = 0;
 
     EntryType *new_entries = allocator_.reallocate_typed(
@@ -209,145 +231,138 @@ struct Dict
 
     if (new_entries == nullptr)
     {
-      reinsert({entries_array, num_entries});
+      reinsert_(entries_array, num_entries);
       allocator_.deallocate_typed(entries_array, num_entries);
       return false;
     }
 
-    num_buckets_log2_ = new_num_buckets_log2;
-    reinsert({entries_array, num_entries});
+    p_entries_          = new_entries;
+    p_entries_capacity_ = new_entries_capacity;
+    num_buckets_log2_   = new_num_buckets_log2;
+
+    reinsert_(entries_array, num_entries);
     allocator_.deallocate_typed(entries_array, num_entries);
     return true;
   }
 
-  [[nodiscard]] bool needs_rehash() const
+  [[nodiscard]] static constexpr bool needs_rehash(usize num_entries,
+                                                   usize num_buckets_log2)
   {
-    // max load factor of .875
-    // scale of 8, 8 * .875 = 7
-    usize const load_factor = ((num_entries_ + 1) << 3) >> num_buckets_log2_;
+    // max load factor of .875, scale of 8, 8 * .875 = 7
+    usize load_factor = (num_entries << 3) >> num_buckets_log2;
     return load_factor > 7;
   }
 
-  [[nodiscard]] bool grow_buckets()
+  [[nodiscard]] bool increase_bucket_slots()
   {
-    usize const bucket_capacity_log2     = bucket_capacity_log2_;
-    usize const bucket_capacity          = ((usize) 1) << bucket_capacity_log2;
-    usize const new_bucket_capacity_log2 = bucket_capacity_log2 + 1;
-    usize const new_bucket_capacity = ((usize) 1) << new_bucket_capacity_log2;
-    usize const new_entries_capacity =
-        ((usize) 1) << (num_buckets_log2_ + bucket_capacity_log2);
+    usize const bucket_capacity         = bucket_capacity_;
+    usize const target_bucket_capacity  = bucket_capacity_ + 1;
+    usize const target_entries_capacity = target_bucket_capacity
+                                          << num_buckets_log2_;
 
     if constexpr (TriviallyRelocatable<EntryType>)
     {
       EntryType *new_entries = allocator_.reallocate_typed(
-          p_entries_, p_entries_capacity_, new_entries_capacity);
+          p_entries_, p_entries_capacity_, target_entries_capacity);
       if (new_entries == nullptr)
       {
         return false;
       }
 
-      for (usize i = num_buckets(); i != 0; i--)
+      p_entries_          = new_entries;
+      p_entries_capacity_ = target_entries_capacity;
+      bucket_capacity_    = target_bucket_capacity;
+
+      for (usize i = num_buckets(); i != 0;)
       {
-        mem::relocate(p_entries_ + (i << bucket_capacity_log2),
-                      p_entries_ + (i << new_bucket_capacity_log2),
-                      p_bucket_sizes_[i]);
+        i--;
+        usize from = i * bucket_capacity;
+        usize to   = i * target_bucket_capacity;
+        mem::relocate(p_entries_ + from, p_entries_ + to, p_bucket_sizes_[i]);
       }
 
-      p_entries_            = new_entries;
-      p_entries_capacity_   = new_entries_capacity;
-      bucket_capacity_log2_ = new_bucket_capacity_log2;
       return true;
     }
     else
     {
       EntryType *new_entries =
-          allocator_.allocate_typed<EntryType>(new_entries_capacity);
+          allocator_.allocate_typed<EntryType>(target_entries_capacity);
 
       if (new_entries == nullptr)
       {
         return false;
       }
 
-      for (usize i = 0; i < num_buckets(); i++)
+      for (usize i = num_buckets(); i != 0;)
       {
-        mem::relocate(p_entries_ + (i << bucket_capacity_log2),
-                      new_entries + (i << new_bucket_capacity_log2),
-                      p_bucket_sizes_[i]);
+        i--;
+        usize from = i * bucket_capacity;
+        usize to   = i * target_bucket_capacity;
+        mem::relocate(p_entries_ + from, new_entries + to, p_bucket_sizes_[i]);
       }
 
       allocator_.deallocate_typed(p_entries_, p_entries_capacity_);
 
-      p_entries_            = new_entries;
-      p_entries_capacity_   = new_entries_capacity;
-      bucket_capacity_log2_ = new_bucket_capacity_log2;
+      p_entries_          = new_entries;
+      p_entries_capacity_ = target_entries_capacity;
+      bucket_capacity_    = target_bucket_capacity;
       return true;
     }
   }
 
   template <typename KeyArg, typename... Args>
-  [[nodiscard]] bool push_overwrite(bool *replaced, KeyArg &&key_arg,
-                                    Args &&...value_args)
+  [[nodiscard]] bool insert(ValueType *overwritten, KeyArg &&key_arg,
+                            Args &&...value_args)
   {
-    *replaced = false;
-    // TODO(lamarrr): abstract this for no-overwrite
-    if (needs_rehash())
+    Hash const hash = hasher_(key_arg);
+
     {
-      if (!grow_hash())
+      usize const bucket_index = hash & (num_buckets() - 1);
+      usize const bucket_size  = p_bucket_sizes_[bucket_index];
+      EntryType  *bucket_it    = p_entries_ + bucket_index * bucket_capacity_;
+      for (usize i = 0; i < bucket_size; i++, bucket_it++)
       {
-        return false;
+        if (cmp_(bucket_it->key, key_arg))
+        {
+          if (overwritten != nullptr)
+          {
+            *overwritten     = (ValueType &&) bucket_it->value;
+            bucket_it->value = ValueType{((Args &&) value_args)...};
+          }
+          return true;
+        }
       }
     }
 
-    Hash const  hash         = hasher_(key_arg);
-    usize const bucket_index = hash & (num_buckets() - 1);
-
-    // TODO(lamarrr): replace if exists
-
-    {
-      usize &bucket_size = m_bucket_sizes[bucket_index];
-      if (bucket_size < bucket_capacity())
-      {
-        EntryType *entry =
-            p_entries_ + (bucket_index << bucket_capacity_log2_) + bucket_size;
-        new (entry) EntryType{.key{key_arg}, .value{((Args &&) value_args)...}};
-        bucket_size++;
-        num_entries_++;
-        return true;
-      }
-    }
-
-    if (!grow_buckets())
+    if (needs_rehash(num_entries_ + 1, num_buckets_log2_) &&
+        !increase_buckets())
     {
       return false;
     }
 
+    usize const bucket_index = hash & (num_buckets() - 1);
+    usize      &bucket_size  = p_bucket_sizes_[bucket_index];
+
+    if (((bucket_size + 1) > bucket_capacity()) && !increase_bucket_slots())
     {
-      usize     &bucket_size = m_bucket_sizes[bucket_index];
-      EntryType *entry =
-          p_entries_ + (bucket_index << bucket_capacity_log2_) + bucket_size;
-      new (entry) EntryType{.key{key_arg}, .value{((Args &&) value_args)...}};
-      bucket_size++;
-      num_entries_++;
+      return false;
     }
 
+    EntryType *entry =
+        p_entries_ + bucket_index * bucket_capacity_ + bucket_size;
+    new (entry) EntryType{.key{key_arg}, .value{((Args &&) value_args)...}};
+
+    bucket_size++;
+    num_entries_++;
     return true;
   }
-
-  template <typename KeyArg, typename... Args>
-  [[nodiscard]] bool push_no_overwrite(bool *exists, KeyArg &&key_arg,
-                                       Args &&...value_args)
-  {
-    *exists = false;
-  }
-
-  // push if not exists
 
   KeyCmp        cmp_{};
   Hasher        hasher_{};
   AllocatorImpl allocator_               = default_allocator;
   usize         num_entries_             = 0;
   usize         num_buckets_log2_        = 0;
-  usize         bucket_capacity_log2_    = 0;
+  usize         bucket_capacity_         = 0;
   usize        *p_bucket_sizes_          = nullptr;
   EntryType    *p_entries_               = nullptr;
   usize         p_entries_capacity_      = 0;
