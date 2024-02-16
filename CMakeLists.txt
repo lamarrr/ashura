@@ -80,7 +80,7 @@ target_link_libraries(ashura_std PRIVATE xxHash::xxhash)
 
 add_executable(
   ashura_std_tests
-  ashura/std/tests/tests.cc ashura/std/tests/dict.cc ashura/std/tests/option.cc
+  ashura/std/tests/tests.cc ashura/std/tests/option.cc
   ashura/std/tests/result.cc ashura/std/tests/bit_span.cc
   ashura/std/tests/sparse_set.cc)
 target_link_libraries(ashura_std_tests ashura_std GTest::gtest
@@ -96,6 +96,7 @@ add_library(
   ashura_engine
   # ashura/engine/image_decoder.cc
   ashura/engine/renderer.cc
+  ashura/engine/passes/root.cc
   ashura/engine/passes/bloom.cc
   ashura/engine/passes/blur.cc
   ashura/engine/passes/chromatic_aberration.cc

@@ -73,12 +73,11 @@ struct PBRPass
   static void release_view(Pass self, RenderServer *server, uid32 view);
   static void release_object(Pass self, RenderServer *server, uid32 scene,
                              uid32 object);
-  static void sort(Pass self, RenderServer *server, PassSortInfo const *info);
-  static void begin(Pass self, RenderServer *server,
+  static void begin(Pass self, RenderServer *server, uid32 view,
                     gfx::CommandEncoderImpl const *encoder);
-  static void encode(Pass self, RenderServer *server,
-                     gfx::CommandEncoderImpl const *encoder);
-  static void end(Pass self, RenderServer *server,
+  static void encode(Pass self, RenderServer *server, uid32 view,
+                     PassEncodeInfo const *info);
+  static void end(Pass self, RenderServer *server, uid32 view,
                   gfx::CommandEncoderImpl const *encoder);
 
   static constexpr PassInterface const interface{.init          = init,
@@ -89,7 +88,6 @@ struct PBRPass
                                                  .release_view  = release_view,
                                                  .release_object =
                                                      release_object,
-                                                 .sort   = sort,
                                                  .begin  = begin,
                                                  .encode = encode,
                                                  .end    = end};

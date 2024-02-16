@@ -242,6 +242,7 @@ struct SceneGroup
 struct View
 {
   Span<char const> name              = {};
+  gfx::Extent      extent            = {};
   Camera           camera            = {};
   uid32            scene             = 0;
   BitVec<u64>      is_object_visible = {};
@@ -295,6 +296,8 @@ struct RenderServer
   PassGroup          pass_group     = {};
   SceneGroup         scene_group    = {};
   ViewGroup          view_group     = {};
+  gfx::FrameContext  frame_context  = nullptr;
+  gfx::Swapchain     swapchain      = nullptr;
 
   Option<PassImpl> get_pass(uid32 pass);
   Option<uid32>    get_pass_id(Span<char const> name);
