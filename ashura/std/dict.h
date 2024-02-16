@@ -44,13 +44,13 @@ struct DictEntry
 template <typename K, typename V, typename Hasher, typename KeyCmp>
 struct Dict
 {
-  using KeyType                               = K;
-  using ValueType                             = V;
-  using EntryType                             = DictEntry<K, V>;
-  using HasherType                            = Hasher;
-  using KeyCmpType                            = KeyCmp;
-  static constexpr usize INIT_BUCKET_CAPACITY = 8;
-  static constexpr usize INIT_NUM_BUCKETS     = 4;
+  using KeyType                                    = K;
+  using ValueType                                  = V;
+  using EntryType                                  = DictEntry<K, V>;
+  using HasherType                                 = Hasher;
+  using KeyCmpType                                 = KeyCmp;
+  static constexpr usize INIT_BUCKET_CAPACITY_LOG2 = 8;
+  static constexpr usize INIT_NUM_BUCKETS_LOG2     = 2;
 
   usize num_buckets() const
   {
@@ -74,8 +74,9 @@ struct Dict
 
   [[nodiscard]] bool init()
   {
-    INIT_BUCKET_CAPACITY;
-    INIT_NUM_BUCKETS;
+    // todo(lamarrr):
+    m_num_buckets_log2     = INIT_NUM_BUCKETS_LOG2;
+    m_bucket_capacity_log2 = INIT_BUCKET_CAPACITY_LOG2;
   }
 
   void destroy()
@@ -96,7 +97,8 @@ struct Dict
       for (usize ibucket = 0; ibucket < num_buckets(); ibucket++)
       {
         usize const bucket_size = m_bucket_sizes[ibucket];
-        EntryType  *bucket_it = m_p_entries + ibucket << m_bucket_capacity_log2;
+        EntryType  *bucket_it =
+            m_p_entries + (ibucket << m_bucket_capacity_log2);
         for (usize i = 0; i < bucket_size; i++, bucket_it++)
         {
           bucket_it->~EntryType();
@@ -112,7 +114,8 @@ struct Dict
     Hash const  hash         = hasher(key);
     usize const bucket_index = hash & (num_buckets() - 1);
     usize const bucket_size  = m_bucket_sizes[bucket_index];
-    EntryType *bucket_it = m_p_entries + bucket_index << m_bucket_capacity_log2;
+    EntryType  *bucket_it =
+        m_p_entries + (bucket_index << m_bucket_capacity_log2);
     for (usize i = 0; i < bucket_size; i++, bucket_it++)
     {
       if (m_cmp(bucket_it->key, key))
@@ -128,7 +131,8 @@ struct Dict
     Hash const  hash         = hasher(key);
     usize const bucket_index = hash & (num_buckets() - 1);
     usize      &bucket_size  = m_bucket_sizes[bucket_index];
-    EntryType *bucket_it = m_p_entries + bucket_index << m_bucket_capacity_log2;
+    EntryType  *bucket_it =
+        m_p_entries + (bucket_index << m_bucket_capacity_log2);
     for (usize i = 0; i < bucket_size; i++, bucket_it++)
     {
       if (m_cmp(bucket_it->key, key))
@@ -231,10 +235,12 @@ struct Dict
 
   [[nodiscard]] bool grow_buckets()
   {
-    usize const new_bucket_capacity_log2 = m_bucket_capacity_log2 + 1;
-    usize const new_bucket_capacity  = ((usize) 1) << new_bucket_capacity_log2;
-    usize const new_entries_capacity = (((usize) 1) << m_num_buckets_log2)
-                                       << new_bucket_capacity_log2;
+    usize const bucket_capacity_log2     = m_bucket_capacity_log2;
+    usize const bucket_capacity          = ((usize) 1) << bucket_capacity_log2;
+    usize const new_bucket_capacity_log2 = bucket_capacity_log2 + 1;
+    usize const new_bucket_capacity = ((usize) 1) << new_bucket_capacity_log2;
+    usize const new_entries_capacity =
+        ((usize) 1) << (m_num_buckets_log2 + bucket_capacity_log2);
 
     if constexpr (TriviallyRelocatable<EntryType>)
     {
@@ -245,7 +251,12 @@ struct Dict
         return false;
       }
 
-      // shift relocate elements
+      for (usize i = num_buckets(); i != 0; i--)
+      {
+        mem::relocate(m_p_entries + (i << bucket_capacity_log2),
+                      m_p_entries + (i << new_bucket_capacity_log2),
+                      m_p_bucket_sizes[i]);
+      }
 
       m_p_entries            = new_entries;
       m_p_entries_capacity   = new_entries_capacity;
@@ -262,8 +273,12 @@ struct Dict
         return false;
       }
 
-      // relocate valid elements here and shift by necessary amount
-      //
+      for (usize i = 0; i < num_buckets(); i++)
+      {
+        mem::relocate(m_p_entries + (i << bucket_capacity_log2),
+                      new_entries + (i << new_bucket_capacity_log2),
+                      m_p_bucket_sizes[i]);
+      }
 
       m_allocator.deallocate_typed(m_p_entries, m_p_entries_capacity);
 
@@ -278,6 +293,7 @@ struct Dict
   [[nodiscard]] bool push_overwrite(bool *replaced, KeyArg &&key_arg,
                                     Args &&...value_args)
   {
+    *replaced = false;
     // TODO(lamarrr): abstract this for no-overwrite
     if (needs_rehash())
     {
@@ -327,6 +343,7 @@ struct Dict
   [[nodiscard]] bool push_no_overwrite(bool *exists, KeyArg &&key_arg,
                                        Args &&...value_args)
   {
+    *exists = false;
   }
 
   // push if not exists
