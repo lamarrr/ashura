@@ -9,7 +9,6 @@ concept Sender = requires(T) {};
 template <typename T>
 concept Receiver = requires(T) {};
 
-
 template <typename T>
 concept ExecutionContext = requires(T) {};
 
