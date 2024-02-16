@@ -347,8 +347,8 @@ struct Dict
 
   // push if not exists
 
-  KeyCmp        m_cmp                     = {};
-  Hasher        m_hasher                  = {};
+  KeyCmp        m_cmp{};
+  Hasher        m_hasher{};
   AllocatorImpl m_allocator               = default_allocator;
   usize         m_num_entries             = 0;
   usize         m_num_buckets_log2        = 0;
