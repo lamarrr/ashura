@@ -55,7 +55,6 @@ void destroy_view(View &view)
 {
   view.sort_indices.reset();
   view.is_object_visible.reset();
-  destruct(&view.resources);
 }
 
 Option<PassImpl> RenderServer::get_pass(uid32 pass)
@@ -73,7 +72,7 @@ Option<uid32> RenderServer::get_pass_id(Span<char const> name)
 {
   for (u32 i = 0; i < pass_group.id_map.size(); i++)
   {
-    if (str_equal(pass_group.passes[i].name, name) == 0)
+    if (str_equal(pass_group.passes[i].name, name))
     {
       return Some{pass_group.id_map.to_id(i)};
     }

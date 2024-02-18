@@ -235,19 +235,32 @@ struct SceneGroup
   SparseVec<u32> id_map = {};
 };
 
-/// @sub_batch_sizes: this is the number of sub-batches of an object determined
-/// by the pass
-/// @batch_sizes: number of sub-batches in a batch of a pass, these are indices
-/// of objects sharing common passes
+struct Attachment
+{
+  gfx::Image     image  = nullptr;
+  gfx::ImageView view   = nullptr;
+  gfx::Extent    extent = {0, 0};
+};
+
+// TODO(lamarrr): ownership semantics
+struct ViewResource
+{
+  uid32            pass     = UID32_INVALID;
+  Span<char const> tag      = {};
+  void            *resource = nullptr;
+};
+
+// TODO(lamarrr): how to automate and manage per-view resources across all views
+// with deletion as well.
 struct View
 {
-  Span<char const> name              = {};
-  gfx::Extent      extent            = {};
-  Camera           camera            = {};
-  uid32            scene             = 0;
-  BitVec<u64>      is_object_visible = {};
-  Vec<u32>         sort_indices      = {};
-  StrDict<void *>  resources         = {};
+  Span<char const>      name              = {};
+  gfx::Extent           viewport_extent   = {};
+  Camera                camera            = {};
+  uid32                 scene             = 0;
+  BitVec<u64>           is_object_visible = {};
+  Vec<u32>              sort_indices      = {};
+  StrDict<ViewResource> resources         = {};
 };
 
 struct ViewGroup
@@ -298,6 +311,11 @@ struct RenderServer
   ViewGroup          view_group     = {};
   gfx::FrameContext  frame_context  = nullptr;
   gfx::Swapchain     swapchain      = nullptr;
+
+  void release(gfx::Image, u64 last_use_tick);
+  void release(gfx::ImageView, u64 last_use_tick);
+  void release(gfx::Buffer, u64 last_use_tick);
+  void release(gfx::Framebuffer, u64 last_use_tick);
 
   Option<PassImpl> get_pass(uid32 pass);
   Option<uid32>    get_pass_id(Span<char const> name);

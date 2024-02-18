@@ -120,4 +120,153 @@ void PBRPass::init(Pass self_, RenderServer *server, uid32 id)
           .unwrap();
 }
 
+void PBRPass::begin(Pass self, RenderServer *server, uid32 view_id,
+                    gfx::CommandEncoderImpl const *encoder)
+{
+  View              *view   = server->get_view(view_id).unwrap();
+  gfx::DeviceImpl    device = server->device;
+  gfx::SwapchainInfo swapchain_info =
+      device->get_swapchain_info(device.self, server->swapchain).unwrap();
+  ViewResource *color_resource = view->resources["COLOR_ATTACHMENT"_span];
+  ViewResource *depth_stencil_resource =
+      view->resources["DEPTH_STENCIL_ATTACHMENT"_span];
+
+  // get_per_frame_image/per_frame_framebuffer?
+  if (color_resource == nullptr)
+  {
+    gfx::Image image =
+        device
+            ->create_image(
+                device.self,
+                gfx::ImageDesc{.label  = nullptr,
+                               .type   = gfx::ImageType::Type2D,
+                               .format = gfx::Format::B8G8R8A8_UNORM,
+                               .usage  = gfx::ImageUsage::ColorAttachment |
+                                        gfx::ImageUsage::Sampled |
+                                        gfx::ImageUsage::TransferSrc,
+                               .aspects      = gfx::ImageAspects::Color,
+                               .extent       = {view->viewport_extent.x,
+                                                view->viewport_extent.y, 1},
+                               .mip_levels   = 1,
+                               .array_layers = 1})
+            .unwrap();
+
+    gfx::ImageView image_view =
+        device
+            ->create_image_view(
+                device.self,
+                gfx::ImageViewDesc{.label       = nullptr,
+                                   .image       = nullptr,
+                                   .view_type   = gfx::ImageViewType::Type2D,
+                                   .view_format = gfx::Format::B8G8R8A8_UNORM,
+                                   .mapping     = {},
+                                   .aspects     = gfx::ImageAspects::Color,
+                                   .first_mip_level   = 0,
+                                   .num_mip_levels    = 1,
+                                   .first_array_layer = 0,
+                                   .num_array_layers  = 1})
+            .unwrap();
+
+    view->resources.emplace(
+        "COLOR_ATTACHMENT"_span,
+        ViewResource{.pass = 0, .resource = image, .tag = {}});
+  }
+  else
+  {
+    Attachment *color_attachment = (Attachment *) color_resource->resource;
+
+    if (color_attachment->extent != view->viewport_extent)
+    {
+      // queue for deletion
+      // create new image
+      // create new image view
+    }
+  }
+
+  if (depth_stencil_resource == nullptr)
+  {
+    device
+        ->create_image(
+            device.self,
+            gfx::ImageDesc{
+                .label  = nullptr,
+                .type   = gfx::ImageType::Type2D,
+                .format = gfx::Format::D16_UNORM_S8_UINT,
+                .usage  = gfx::ImageUsage::DepthStencilAttachment |
+                         gfx::ImageUsage::Sampled |
+                         gfx::ImageUsage::TransferSrc,
+                .aspects =
+                    gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
+                .extent = {view->viewport_extent.x, view->viewport_extent.y, 1},
+                .mip_levels   = 1,
+                .array_layers = 1})
+        .unwrap();
+
+    view->resources.emplace("DEPTH_STENCIL_ATTACHMENT"_span, ViewResource{});
+  }
+  else
+  {
+    Attachment *depth_stencil_attachment =
+        (Attachment *) depth_stencil_resource->resource;
+
+    if (depth_stencil_attachment->extent != view->viewport_extent)
+    {
+      // queue for deletion
+      // create new image
+      // create new image view
+    }
+  }
+
+  device->create_framebuffer(device.self, {}).unwrap();
+
+  // clear view
+
+  // get_view_resource().or_else( create_and_attach_view_resource  )
+  //
+  // get_render_pass/get_framebuffer(
+  gfx::RenderPassDesc{
+      .label             = "PBR RenderPass",
+      .color_attachments = to_span<gfx::RenderPassAttachment>(
+          {{.format           = gfx::Format::B8G8R8A8_UNORM,
+            .load_op          = gfx::LoadOp::Load,
+            .store_op         = gfx::StoreOp::Store,
+            .stencil_load_op  = gfx::LoadOp::Load,
+            .stencil_store_op = gfx::StoreOp::DontCare}}),
+      .depth_stencil_attachment =
+          gfx::RenderPassAttachment{.format   = gfx::Format::D16_UNORM_S8_UINT,
+                                    .load_op  = gfx::LoadOp::Load,
+                                    .store_op = gfx::StoreOp::Store,
+                                    .stencil_load_op  = gfx::LoadOp::Load,
+                                    .stencil_store_op = gfx::StoreOp::Store},
+      .input_attachments = {}};
+  // )
+}
+
+void PBRPass::encode(Pass self_, RenderServer *server, uid32 view,
+                     PassEncodeInfo const *info)
+{
+  PBRPass                *self = (PBRPass *) self_;
+  gfx::RenderPass         render_pass;
+  gfx::Framebuffer        framebuffer;
+  gfx::Extent             extent;
+  gfx::CommandEncoderImpl enc = info->command_encoder;
+
+  enc->begin_render_pass(enc.self, framebuffer, render_pass, {0, 0}, extent,
+                         to_span({gfx::Color{}}), gfx::DepthStencil{});
+  enc->bind_graphics_pipeline(enc.self, self->pipeline);
+
+  for (usize i = 0; i < info->indices.size(); i++)
+  {
+    usize batch_end = i;
+    while (batch_end < info->indices.size())
+    {
+      // if materials not same
+      batch_end++;
+    }
+    enc->draw(enc.self, 0, 0, 0, 0, 0);
+  }
+
+  enc->end_render_pass(enc.self);
+}
+
 }        // namespace ash

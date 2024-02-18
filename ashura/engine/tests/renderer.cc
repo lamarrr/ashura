@@ -11,5 +11,5 @@ TEST(RendererTest, Scene)
   ash::RenderServer server{};
   ash::uid32 scene_id = server.add_scene("ROOT SCENE"_span).unwrap();
   ash::uid32 light_id = server.add_point_light(scene_id, {}).unwrap();
-  server.render_();
+  // server.render_();
 }

@@ -29,7 +29,41 @@ struct StrHasher
 constexpr StrEqual  str_equal;
 constexpr StrHasher str_hash;
 
+template <typename K, typename V, typename Hasher, typename KeyCmp>
+struct Dict
+{
+  using KeyType    = K;
+  using ValueType  = V;
+  using HasherType = Hasher;
+  using KeyCmpType = KeyCmp;
+
+  void destroy()
+  {
+    this->~Dict();
+  }
+
+  void clear()
+  {
+    impl_.clear();
+  }
+
+  [[nodiscard]] ValueType *operator[](KeyType const &key)
+  {
+    auto it = impl_.find(key);
+    return it == impl_.end() ? nullptr : &it->second;
+  }
+
+  template <typename KeyArg, typename... Args>
+  [[nodiscard]] bool emplace(KeyArg &&key_arg, Args &&...value_args)
+  {
+    impl_.emplace((KeyArg &&) key_arg, ((Args &&) value_args)...);
+    return true;
+  }
+
+  std::unordered_map<K, V, Hasher, KeyCmp> impl_;
+};
+
 template <typename V>
-using StrDict = std::unordered_map<Span<char const>, V, StrHasher, StrEqual>;
+using StrDict = Dict<Span<char const>, V, StrHasher, StrEqual>;
 
 }        // namespace ash

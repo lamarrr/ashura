@@ -96,7 +96,6 @@ add_library(
   ashura_engine
   # ashura/engine/image_decoder.cc
   ashura/engine/renderer.cc
-  ashura/engine/passes/root.cc
   ashura/engine/passes/bloom.cc
   ashura/engine/passes/blur.cc
   ashura/engine/passes/chromatic_aberration.cc
