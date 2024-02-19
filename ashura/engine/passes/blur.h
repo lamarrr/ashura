@@ -18,6 +18,7 @@ struct BlurDesc
   gfx::Extent kernel_extent;
   BlurNode    input;
   BlurNode    output;
+  u32         num_levels = 0;
 };
 
 struct BlurObject
