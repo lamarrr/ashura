@@ -4,6 +4,22 @@
 namespace ash
 {
 
+struct params_t
+{
+  struct bloom_params_t
+  {
+    f32 strength{1};
+    f32 radius{1};
+  } bloom;
+  struct luma_threshold_params_t
+  {
+    f32 defaultColor[3]{0.f, 0.f, 0.f};        // vec3(0)
+    f32 defaultOpacity{0.7f};                  // 0
+    f32 luminosityThreshold{0.75f};            // 1.f
+    f32 smoothWidth{0.01f};                    // 1.0
+  } luma_threshold;
+};
+
 struct BlurInput
 {
   union
