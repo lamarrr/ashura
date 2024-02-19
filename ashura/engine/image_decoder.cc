@@ -12,7 +12,8 @@ extern "C"
 namespace ash
 {
 
-Result<ImageBuffer, LoadError> decode_webp(Span<u8 const> data)
+Result<ImageBuffer, LoadError> decode_webp(AllocatorImpl const &allocator,
+                                           Span<u8 const>       data)
 {
   WebPBitstreamFeatures features;
 
@@ -65,7 +66,8 @@ inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
   *input = input->slice(nbytes_to_read);
 }
 
-Result<ImageBuffer, LoadError> decode_png(Span<u8 const> data)
+Result<ImageBuffer, LoadError> decode_png(AllocatorImpl const &allocator,
+                                          Span<u8 const>       data)
 {
   // skip magic number
   data = data.slice(8);
@@ -136,7 +138,8 @@ Result<ImageBuffer, LoadError> decode_png(Span<u8 const> data)
                         .format = fmt}};
 }
 
-Result<ImageBuffer, LoadError> decode_jpg(Span<u8 const> bytes)
+Result<ImageBuffer, LoadError> decode_jpg(AllocatorImpl const &allocator,
+                                          Span<u8 const>       bytes)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -196,7 +199,8 @@ Result<ImageBuffer, LoadError> decode_jpg(Span<u8 const> bytes)
                              .format = fmt}};
 }
 
-Result<ImageBuffer, LoadError> decode_image(Span<u8 const> bytes)
+Result<ImageBuffer, LoadError> decode_image(AllocatorImpl const &allocator,
+                                            Span<u8 const>       bytes)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 

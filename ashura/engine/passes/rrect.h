@@ -24,11 +24,16 @@ struct RRectMaterial
   Vec4    border_colors[4]      = {};
 };
 
+struct RRectDesc
+{
+  RRect         rrect    = {};
+  RRectMaterial material = {};
+};
+
 struct RRectObject
 {
-  RRect         rrect      = {};
-  RRectMaterial material   = {};
-  u64           scene_node = 0;
+  RRectDesc desc       = {};
+  u64       scene_node = 0;
 };
 
 // TODO(lamarrr): can we do more specialized clips?
@@ -76,13 +81,40 @@ struct RRectObject
 //
 struct RRectPass
 {
-  RRectObject             *objects               = nullptr;
-  u64                      num_objects           = 0;
+  Vec<RRectObject>         objects               = {};
+  SparseVec<u32>           id_map                = {};
   gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
   gfx::DescriptorHeapImpl  descriptor_heap       = {};
   gfx::PipelineCache       pipeline_cache        = nullptr;
   gfx::GraphicsPipeline    pipeline              = nullptr;
   gfx::Sampler             sampler               = nullptr;
+
+  static void init(Pass self, RenderServer *server, uid32 id);
+  static void deinit(Pass self, RenderServer *server);
+  static void acquire_scene(Pass self, RenderServer *server, uid32 scene);
+  static void release_scene(Pass self, RenderServer *server, uid32 scene);
+  static void acquire_view(Pass self, RenderServer *server, uid32 view);
+  static void release_view(Pass self, RenderServer *server, uid32 view);
+  static void release_object(Pass self, RenderServer *server, uid32 scene,
+                             uid32 object);
+  static void begin(Pass self, RenderServer *server, uid32 view,
+                    gfx::CommandEncoderImpl const *encoder);
+  static void encode(Pass self, RenderServer *server, uid32 view,
+                     PassEncodeInfo const *info);
+  static void end(Pass self, RenderServer *server, uid32 view,
+                  gfx::CommandEncoderImpl const *encoder);
+
+  static constexpr PassInterface const interface{.init          = init,
+                                                 .deinit        = deinit,
+                                                 .acquire_scene = acquire_scene,
+                                                 .release_scene = release_scene,
+                                                 .acquire_view  = acquire_view,
+                                                 .release_view  = release_view,
+                                                 .release_object =
+                                                     release_object,
+                                                 .begin  = begin,
+                                                 .encode = encode,
+                                                 .end    = end};
 
   // todo(lamarrr): multiple framebuffers? should it be
   // stored here? since we are allocating scratch images, we would need to

@@ -4,42 +4,25 @@
 namespace ash
 {
 
-struct params_t
+// do we need to copy directly from the image?
+struct BlurNode
 {
-  struct bloom_params_t
-  {
-    f32 strength{1};
-    f32 radius{1};
-  } bloom;
-  struct luma_threshold_params_t
-  {
-    f32 defaultColor[3]{0.f, 0.f, 0.f};        // vec3(0)
-    f32 defaultOpacity{0.7f};                  // 0
-    f32 luminosityThreshold{0.75f};            // 1.f
-    f32 smoothWidth{0.01f};                    // 1.0
-  } luma_threshold;
+  gfx::Offset    offset;
+  gfx::Extent    extent;
+  gfx::ImageView image = nullptr;
+  uid32          view  = UID32_INVALID;
 };
 
-struct BlurInput
+struct BlurDesc
 {
-  union
-  {
-    struct
-    {
-      gfx::Image image;
-      u32        mip_level;
-      u32        layer;
-    } image;
-    uid32 view;
-  } input, output;
-  gfx::Extent src_extent;
-  gfx::Extent dst_extent;
-  u32         kernel_width;
-  u32         kernel_height;
+  gfx::Extent kernel_extent;
+  BlurNode    input;
+  BlurNode    output;
 };
 
 struct BlurObject
 {
+  BlurDesc desc = {};
 };
 
 // object-clip space blur

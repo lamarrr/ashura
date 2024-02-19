@@ -8,37 +8,25 @@ namespace ash
 {
 
 // SEE: https://www.youtube.com/watch?v=jvPPXbo87ds
-struct Linear
+constexpr f32 linear(f32 t)
 {
-  constexpr f32 operator()(f32 t) const
-  {
-    return t;
-  }
-};
+  return t;
+}
 
-struct EaseIn
+constexpr f32 ease_in(f32 t)
 {
-  constexpr f32 operator()(f32 t) const
-  {
-    return t * t;
-  }
-};
+  return t * t;
+}
 
-struct EaseOut
+constexpr f32 ease_out(f32 t)
 {
-  constexpr f32 operator()(f32 t) const
-  {
-    return 1 - (1 - t) * (1 - t);
-  }
-};
+  return 1 - (1 - t) * (1 - t);
+}
 
-struct EaseInOut
+constexpr f32 ease_in_out(f32 t)
 {
-  constexpr f32 operator()(f32 t) const
-  {
-    return lerp(t * t, 1 - (1 - t) * (1 - t), t);
-  }
-};
+  return lerp(t * t, 1 - (1 - t) * (1 - t), t);
+}
 
 struct Quadratic
 {

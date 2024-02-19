@@ -1,5 +1,5 @@
 #pragma once
-#include "ashura/engine/errors.h"
+#include "ashura/engine/error.h"
 #include "ashura/gfx/gfx.h"
 #include "ashura/std/box.h"
 #include "ashura/std/dict.h"
@@ -338,13 +338,12 @@ struct RenderServer
   void                       remove_spot_light(uid32 scene, uid32 id);
   void                       remove_area_light(uid32 scene, uid32 id);
 
-  void                      transform();
-  Result<Void, RenderError> frustum_cull();
-  Result<Void, RenderError>
+  void                transform();
+  Result<Void, Error> frustum_cull();
+  Result<Void, Error>
       encode_view(uid32 view, gfx::CommandEncoderImpl const &command_encoder);
-  Result<Void, RenderError>
-       render(gfx::CommandEncoderImpl const &command_encoder);
-  void tick();
+  Result<Void, Error> render(gfx::CommandEncoderImpl const &command_encoder);
+  void                tick();
 };
 
 }        // namespace ash

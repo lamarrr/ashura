@@ -595,7 +595,7 @@ constexpr bool is_outside_frustum(Mat4 const &mvp, Box const &box)
 }
 
 // transform objects from root object space to clip space using view's camera
-Result<Void, RenderError> RenderServer::frustum_cull()
+Result<Void, Error> RenderServer::frustum_cull()
 {
   for (View &view : view_group.views)
   {
@@ -603,7 +603,7 @@ Result<Void, RenderError> RenderServer::frustum_cull()
     u32 const num_objects = scene.objects.id_map.size();
     if (!view.is_object_visible.resize_uninitialized(num_objects))
     {
-      return Err{RenderError::OutOfMemory};
+      return Err{Error::OutOfMemory};
     }
     for (u32 i = 0; i < num_objects; i++)
     {
@@ -646,7 +646,7 @@ Result<Void, RenderError> RenderServer::frustum_cull()
 // sort by z-index
 // sort by transparency, transparent objects last
 // sort by pass sorter
-Result<Void, RenderError>
+Result<Void, Error>
     RenderServer::encode_view(uid32                          view_id,
                               gfx::CommandEncoderImpl const &command_encoder)
 {
@@ -655,7 +655,7 @@ Result<Void, RenderError>
   u32 const num_objects = scene.objects.id_map.size();
   if (!view.sort_indices.resize_uninitialized(num_objects))
   {
-    return Err{RenderError::OutOfMemory};
+    return Err{Error::OutOfMemory};
   }
 
   for (PassImpl const &pass : pass_group.passes)
@@ -714,7 +714,7 @@ Result<Void, RenderError>
   return Ok<Void>{};
 }
 
-Result<Void, RenderError>
+Result<Void, Error>
     RenderServer::render(gfx::CommandEncoderImpl const &command_encoder)
 {
   if (view_group.root_view == UID32_INVALID)

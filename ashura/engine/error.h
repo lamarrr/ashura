@@ -9,19 +9,14 @@ namespace ash
 /// @InvalidData: detected image but image seems to be corrupted
 /// @UnsupportedChannels: image contains unsupported channel types
 /// @UnsupportedFormat: the image file format is unsupported
-enum class LoadError : i32
+enum class Error : i32
 {
   None                = 0,
-  InvalidPath         = 1,
-  InvalidData         = 2,
-  UnsupportedChannels = 3,
-  UnsupportedFormat   = 4
-};
-
-enum class RenderError : i32
-{
-  None        = 0,
-  OutOfMemory = 1
+  OutOfMemory         = 1,
+  InvalidPath         = 2,
+  InvalidData         = 3,
+  UnsupportedChannels = 4,
+  UnsupportedFormat   = 5
 };
 
 }        // namespace ash
