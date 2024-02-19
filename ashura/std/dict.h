@@ -53,6 +53,11 @@ struct Dict
     return it == impl_.end() ? nullptr : &it->second;
   }
 
+  [[nodiscard]] bool has(KeyType const &key)
+  {
+    return impl_.find(key) != impl_.end();
+  }
+
   template <typename KeyArg, typename... Args>
   [[nodiscard]] bool emplace(KeyArg &&key_arg, Args &&...value_args)
   {

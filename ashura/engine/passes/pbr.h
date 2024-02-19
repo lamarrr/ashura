@@ -39,11 +39,12 @@ struct PBRVertex
 
 struct PBRMesh
 {
-  uid32          vertex_buffer = 0;
-  uid32          index_buffer  = 0;
-  u32            first_index   = 0;
-  u32            num_indices   = 0;
-  gfx::IndexType index_type    = gfx::IndexType::Uint16;
+  gfx::Buffer    vertex_buffer        = 0;
+  gfx::Buffer    index_buffer         = 0;
+  u64            vertex_buffer_offset = 0;
+  u32            first_index          = 0;
+  u32            num_indices          = 0;
+  gfx::IndexType index_type           = gfx::IndexType::Uint16;
 };
 
 struct PBRObject
@@ -52,7 +53,7 @@ struct PBRObject
   PBRMesh     mesh                  = {};
   uid32       scene_id              = UID32_INVALID;
   uid32       scene_object_id       = UID32_INVALID;
-  u32         descriptor_heap_index = 0;
+  u32         descriptor_heap_group = 0;
 };
 
 struct PBRPass
