@@ -8,6 +8,10 @@ void BlurPass::init(Pass self_, RenderServer *server, uid32 id)
   BlurPass              *self   = (BlurPass *) self_;
   gfx::DeviceImpl const &device = server->device;
 
+// https://www.khronos.org/opengl/wiki/Compute_Shader
+// https://web.engr.oregonstate.edu/~mjb/vulkan/Handouts/OpenglComputeShaders.1pp.pdf
+// https://github.com/lisyarus/compute/blob/master/blur/source/compute_separable_lds.cpp
+// https://lisyarus.github.io/blog/graphics/2022/04/21/compute-blur.html
   self->descriptor_set_layout =
       device
           ->create_descriptor_set_layout(
