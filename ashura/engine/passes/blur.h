@@ -35,6 +35,8 @@ struct BlurObject
 // - using rendered stencil, directly-write (without blending) onto scene again
 struct BlurPass
 {
+    gfx::ComputePipeline pipeline = nullptr;
+    gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
   static void init(Pass self, RenderServer *server, uid32 id);
   static void deinit(Pass self, RenderServer *server);
   static void acquire_scene(Pass self, RenderServer *server, uid32 scene);

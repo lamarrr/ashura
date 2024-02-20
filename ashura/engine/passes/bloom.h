@@ -7,7 +7,7 @@ namespace ash
 
 struct BloomDesc
 {
-  BlurDesc blur_desc            = {};
+  BlurDesc blur                 = {};
   f32      strength             = 1;
   f32      radius               = 1;
   Vec3     default_color        = {};

@@ -431,6 +431,8 @@ enum class FormatFeatures : u64
   VideoEncodeDpb              = 0x10000000ULL
 };
 
+ASH_DEFINE_ENUM_BIT_OPS(FormatFeatures)
+
 enum class ImageAspects : u32
 {
   None     = 0x00000000,

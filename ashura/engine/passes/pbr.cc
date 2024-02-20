@@ -147,6 +147,7 @@ void PBRPass::begin(Pass self, RenderServer *server, uid32 view_id,
       (Attachment **) view->resources["COLOR_ATTACHMENT"_span];
   Attachment **depth_attachment =
       (Attachment **) view->resources["DEPTH_STENCIL_ATTACHMENT"_span];
+  bool use_hdr = view->resources["USE_HDR"_span] == nullptr;
 
   if (color_attachment == nullptr ||
       (color_attachment != nullptr &&
@@ -158,13 +159,42 @@ void PBRPass::begin(Pass self, RenderServer *server, uid32 view_id,
       //   color_attachment->view;         // queue for deletion
     }
 
+    gfx::Format format = gfx::Format::B8G8R8A8_UNORM;
+
+    if (use_hdr)
+    {
+      if (has_any_bit(device
+                          ->get_format_properties(
+                              device.self, gfx::Format::R32G32B32A32_SFLOAT)
+                          .unwrap()
+                          .optimal_tiling_features,
+                      gfx::FormatFeatures::ColorAttachment |
+                          gfx::FormatFeatures::ColorAttachmentBlend))
+      {
+        format = gfx::Format::R32G32B32A32_SFLOAT;
+      }
+      else
+      {
+        if (has_any_bit(device
+                            ->get_format_properties(
+                                device.self, gfx::Format::R32G32B32_SFLOAT)
+                            .unwrap()
+                            .optimal_tiling_features,
+                        gfx::FormatFeatures::ColorAttachment |
+                            gfx::FormatFeatures::ColorAttachmentBlend))
+        {
+          format = gfx::Format::R32G32B32_SFLOAT;
+        }
+      }
+    }
+
     gfx::Image image =
         device
             ->create_image(
                 device.self,
                 gfx::ImageDesc{.label  = nullptr,
                                .type   = gfx::ImageType::Type2D,
-                               .format = gfx::Format::B8G8R8A8_UNORM,
+                               .format = format,
                                .usage  = gfx::ImageUsage::ColorAttachment |
                                         gfx::ImageUsage::Sampled |
                                         gfx::ImageUsage::TransferSrc,
@@ -182,7 +212,7 @@ void PBRPass::begin(Pass self, RenderServer *server, uid32 view_id,
                 gfx::ImageViewDesc{.label       = nullptr,
                                    .image       = nullptr,
                                    .view_type   = gfx::ImageViewType::Type2D,
-                                   .view_format = gfx::Format::B8G8R8A8_UNORM,
+                                   .view_format = format,
                                    .mapping     = {},
                                    .aspects     = gfx::ImageAspects::Color,
                                    .first_mip_level   = 0,
@@ -194,7 +224,7 @@ void PBRPass::begin(Pass self, RenderServer *server, uid32 view_id,
     Attachment *attachment = server->allocator.allocate_typed<Attachment>(1);
     new (attachment) Attachment{.image  = image,
                                 .view   = image_view,
-                                .format = gfx::Format::B8G8R8A8_UNORM,
+                                .format = format,
                                 .extent = view->viewport_extent};
 
     // deletion is incorrect
