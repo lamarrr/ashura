@@ -5,32 +5,38 @@
 #include "ashura/std/dict.h"
 #include "ashura/std/image.h"
 #include "ashura/std/option.h"
+#include "ashura/std/result.h"
 #include "ashura/std/sparse_vec.h"
 #include "ashura/std/types.h"
 
 namespace ash
 {
 
-typedef struct Texture            Texture;
-typedef struct Resource_T        *Resource;
-typedef Vec4                      AmbientLight;
-typedef struct DirectionalLight   DirectionalLight;
-typedef struct PointLight         PointLight;
-typedef struct SpotLight          SpotLight;
-typedef struct AreaLight          AreaLight;
-typedef struct OrthographicCamera OrthographicCamera;
-typedef struct PerspectiveCamera  PerspectiveCamera;
-typedef struct RenderServer       RenderServer;
-typedef struct PassSortInfo       PassSortInfo;
-typedef struct Pass_T            *Pass;
-typedef struct PassInterface      PassInterface;
-typedef struct PassImpl           PassImpl;
-typedef struct PassGroup          PassGroup;
-typedef struct SceneNode          SceneNode;
-typedef struct Scene              Scene;
-typedef struct SceneGroup         SceneGroup;
-typedef struct View               View;
-typedef struct ViewGroup          ViewGroup;
+typedef struct Texture          Texture;
+typedef Vec4                    AmbientLight;
+typedef struct DirectionalLight DirectionalLight;
+typedef struct PointLight       PointLight;
+typedef struct SpotLight        SpotLight;
+typedef struct AreaLight        AreaLight;
+typedef struct Orthographic     Orthographic;
+typedef struct Perspective      Perspective;
+typedef struct Camera           Camera;
+typedef struct PassBinding_T   *PassBinding;
+typedef struct Pass_T          *Pass;
+typedef struct PassBeginInfo    PassBeginInfo;
+typedef struct PassEncodeInfo   PassEncodeInfo;
+typedef struct PassEndInfo      PassEndInfo;
+typedef struct PassInterface    PassInterface;
+typedef struct PassImpl         PassImpl;
+typedef struct PassGroup        PassGroup;
+typedef struct SceneNode        SceneNode;
+typedef struct SceneObjectDesc  SceneObjectDesc;
+typedef struct Scene            Scene;
+typedef struct SceneGroup       SceneGroup;
+typedef struct Attachment       Attachment;
+typedef struct View             View;
+typedef struct ViewGroup        ViewGroup;
+typedef struct RenderServer     RenderServer;
 
 struct Texture
 {
@@ -106,14 +112,30 @@ struct Camera
   Mat4       projection = {};
 };
 
+struct PassBeginInfo
+{
+  uid32                   view    = UID32_INVALID;
+  gfx::CommandEncoderImpl encoder = {};
+  PassBinding            *binding = nullptr;
+};
+
 /// @brief Arguments to encode the commands to render a batch of objects in a
 /// scene.
 struct PassEncodeInfo
 {
-  gfx::CommandEncoderImpl command_encoder = {};
-  bool                    is_transparent  = false;
-  i64                     z_index         = 0;
-  Span<u32>               indices         = {};
+  uid32                   view           = UID32_INVALID;
+  gfx::CommandEncoderImpl encoder        = {};
+  PassBinding             binding        = nullptr;
+  bool                    is_transparent = false;
+  i64                     z_index        = 0;
+  Span<u32>               indices        = {};
+};
+
+struct PassEndInfo
+{
+  uid32                   view    = UID32_INVALID;
+  gfx::CommandEncoderImpl encoder = {};
+  PassBinding             binding = nullptr;
 };
 
 // TODO(lamarrr): multi-recursive passes, and how to know when to begin and end
@@ -137,8 +159,8 @@ struct PassEncodeInfo
 //
 /// @init: add self and resources to server
 /// @deinit: remove self and resources
-/// @sort: sort scene objects belonging to passes for efficient batching
-/// @encode: encode compute/graphics commands to gpu command encoder
+/// @encode: sort scene objects belonging to passes for more efficient batching,
+/// and encode compute/graphics commands to gpu command encoder
 /// @acquire_scene: @acquire_view: new scene/view was added, add resources or
 /// begin tracking it
 /// @release_scene: @release_view: scene/view was removed, remove associated
@@ -160,12 +182,12 @@ struct PassInterface
   void (*release_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
   void (*release_object)(Pass self, RenderServer *server, uid32 scene,
                          uid32 object)                                = nullptr;
-  void (*begin)(Pass self, RenderServer *server, uid32 view,
-                gfx::CommandEncoderImpl const *encoder)               = nullptr;
-  void (*encode)(Pass self, RenderServer *server, uid32 view,
+  void (*begin)(Pass self, RenderServer *server,
+                PassBeginInfo const *info)                            = nullptr;
+  void (*encode)(Pass self, RenderServer *server,
                  PassEncodeInfo const *info)                          = nullptr;
-  void (*end)(Pass self, RenderServer *server, uid32 view,
-              gfx::CommandEncoderImpl const *encoder)                 = nullptr;
+  void (*end)(Pass self, RenderServer *server,
+              PassEndInfo const *info)                                = nullptr;
 };
 
 /// can be loaded from a DLL i.e. C++ with C-linkage => DLL
@@ -248,13 +270,13 @@ struct Attachment
 // with deletion as well.
 struct View
 {
-  Span<char const>  name              = {};
-  gfx::Extent       viewport_extent   = {};
-  Camera            camera            = {};
-  uid32             scene             = 0;
-  BitVec<u64>       is_object_visible = {};
-  Vec<u32>          sort_indices      = {};
-  StrDict<Resource> resources         = {};
+  Span<char const>     name              = {};
+  gfx::Extent          viewport_extent   = {};
+  Camera               camera            = {};
+  uid32                scene             = 0;
+  BitVec<u64>          is_object_visible = {};
+  Vec<u32>             sort_indices      = {};
+  StrDict<PassBinding> bindings          = {};
 };
 
 struct ViewGroup
@@ -298,14 +320,19 @@ struct ViewGroup
 /// @remove_object: remove object and all its children
 struct RenderServer
 {
-  AllocatorImpl      allocator      = default_allocator;
-  gfx::DeviceImpl    device         = {};
-  gfx::PipelineCache pipeline_cache = nullptr;
-  PassGroup          pass_group     = {};
-  SceneGroup         scene_group    = {};
-  ViewGroup          view_group     = {};
-  gfx::FrameContext  frame_context  = nullptr;
-  gfx::Swapchain     swapchain      = nullptr;
+  AllocatorImpl        allocator            = default_allocator;
+  gfx::DeviceImpl      device               = {};
+  gfx::PipelineCache   pipeline_cache       = nullptr;
+  PassGroup            pass_group           = {};
+  SceneGroup           scene_group          = {};
+  ViewGroup            view_group           = {};
+  gfx::FrameContext    frame_context        = nullptr;
+  gfx::Swapchain       swapchain            = nullptr;
+  gfx::Format          color_format         = gfx::Format::B8G8R8A8_UNORM;
+  gfx::Format          depth_format         = gfx::Format::D16_UNORM;
+  gfx::Format          stencil_format       = gfx::Format::S8_UINT;
+  gfx::Format          depth_stencil_format = gfx::Format::D16_UNORM_S8_UINT;
+  StrDict<PassBinding> bindings             = {};
 
   Option<gfx::RenderPass> get_render_pass(gfx::RenderPassDesc const &desc);
   Option<gfx::Shader>     get_shader(Span<char const> name);
@@ -340,9 +367,9 @@ struct RenderServer
 
   void                transform();
   Result<Void, Error> frustum_cull();
-  Result<Void, Error>
-      encode_view(uid32 view, gfx::CommandEncoderImpl const &command_encoder);
-  Result<Void, Error> render(gfx::CommandEncoderImpl const &command_encoder);
+  Result<Void, Error> encode_view(uid32                          view,
+                                  gfx::CommandEncoderImpl const &encoder);
+  Result<Void, Error> render(gfx::CommandEncoderImpl const &encoder);
   void                tick();
 };
 

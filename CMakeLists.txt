@@ -102,6 +102,7 @@ add_library(
   ashura/engine/passes/fxaa.cc
   ashura/engine/passes/pbr.cc
   ashura/engine/passes/rrect.cc
+  ashura/engine/passes/view.cc
   ashura/engine/widget.cc)
 target_link_libraries(ashura_engine ashura_std ashura_gfx)
 target_include_directories(

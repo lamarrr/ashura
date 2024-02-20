@@ -648,19 +648,30 @@ Result<Void, Error> RenderServer::frustum_cull()
 // sort by pass sorter
 Result<Void, Error>
     RenderServer::encode_view(uid32                          view_id,
-                              gfx::CommandEncoderImpl const &command_encoder)
+                              gfx::CommandEncoderImpl const &encoder)
 {
-  View     &view        = view_group.views[view_group.id_map[view_id]];
-  Scene    &scene       = scene_group.scenes[scene_group.id_map[view.scene]];
+  u32 const view_index  = view_group.id_map[view_id];
+  View     &view        = view_group.views[view_index];
+  u32 const scene_index = scene_group.id_map[view.scene];
+  Scene    &scene       = scene_group.scenes[scene_index];
   u32 const num_objects = scene.objects.id_map.size();
   if (!view.sort_indices.resize_uninitialized(num_objects))
   {
     return Err{Error::OutOfMemory};
   }
 
+  Vec<PassBinding> bindings;
+  if (!bindings.resize_defaulted(pass_group.id_map.size()))
+  {
+    return Err{Error::OutOfMemory};
+  }
+
   for (PassImpl const &pass : pass_group.passes)
   {
-    pass.interface->begin(pass.self, this, view_id, &command_encoder);
+    PassBeginInfo info{.view    = view_id,
+                       .encoder = encoder,
+                       .binding = bindings.data() + 0x000};
+    pass.interface->begin(pass.self, this, &info);
   }
 
   for (u32 i = 0; i < num_objects; i++)
@@ -690,15 +701,17 @@ Result<Void, Error>
                   scene.objects.node, indices,
                   [&](Span<u32> indices) {
                     uid32 const pass_id = scene.objects.node[indices[0]].pass;
-                    PassImpl const &pass =
-                        pass_group.passes[pass_group.id_map[pass_id]];
+                    u32 const   pass_index    = pass_group.id_map[pass_id];
+                    PassImpl const      &pass = pass_group.passes[pass_index];
                     PassEncodeInfo const info{
-                        .command_encoder = command_encoder,
+                        .view    = view_id,
+                        .encoder = encoder,
+                        .binding = bindings.data() + pass_index,
                         .is_transparent =
                             scene.objects.is_transparent[indices[0]],
                         .z_index = scene.objects.z_index[indices[0]],
                         .indices = indices};
-                    pass.interface->encode(pass.self, this, view_id, &info);
+                    pass.interface->encode(pass.self, this, &info);
                   },
                   [](SceneNode const &a, SceneNode const &b) {
                     return a.pass == b.pass;
@@ -708,20 +721,24 @@ Result<Void, Error>
 
   for (PassImpl const &pass : pass_group.passes)
   {
-    pass.interface->end(pass.self, this, view_id, &command_encoder);
+    PassBeginInfo info{.view    = view_id,
+                       .encoder = encoder,
+                       .binding = bindings.data() + 0x000};
+    pass.interface->end(pass.self, this, &info);
   }
+
+  bindings.reset();
 
   return Ok<Void>{};
 }
 
-Result<Void, Error>
-    RenderServer::render(gfx::CommandEncoderImpl const &command_encoder)
+Result<Void, Error> RenderServer::render(gfx::CommandEncoderImpl const &encoder)
 {
   if (view_group.root_view == UID32_INVALID)
   {
     return Ok<Void>{};
   }
-  return encode_view(view_group.root_view, command_encoder);
+  return encode_view(view_group.root_view, encoder);
 }
 
 }        // namespace ash

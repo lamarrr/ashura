@@ -16,6 +16,12 @@ struct BloomDesc
   f32      smooth_width         = 0.01f;
 };
 
+struct BloomObject
+{
+  BloomDesc desc            = {};
+  uid32     scene_object_id = UID32_INVALID;
+};
+
 struct BloomPass
 {
   static void init(Pass self, RenderServer *server, uid32 id);
@@ -26,12 +32,10 @@ struct BloomPass
   static void release_view(Pass self, RenderServer *server, uid32 view);
   static void release_object(Pass self, RenderServer *server, uid32 scene,
                              uid32 object);
-  static void begin(Pass self, RenderServer *server, uid32 view,
-                    gfx::CommandEncoderImpl const *encoder);
-  static void encode(Pass self, RenderServer *server, uid32 view,
+  static void begin(Pass self, RenderServer *server, PassBeginInfo const *info);
+  static void encode(Pass self, RenderServer *server,
                      PassEncodeInfo const *info);
-  static void end(Pass self, RenderServer *server, uid32 view,
-                  gfx::CommandEncoderImpl const *encoder);
+  static void end(Pass self, RenderServer *server, PassEndInfo const *info);
 
   static constexpr PassInterface const interface{.init          = init,
                                                  .deinit        = deinit,

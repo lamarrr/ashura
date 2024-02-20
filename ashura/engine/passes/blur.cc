@@ -1,4 +1,5 @@
 #include "ashura/engine/passes/blur.h"
+#include "ashura/engine/passes/gaussian_weights.h"
 
 namespace ash
 {
@@ -8,10 +9,11 @@ void BlurPass::init(Pass self_, RenderServer *server, uid32 id)
   BlurPass              *self   = (BlurPass *) self_;
   gfx::DeviceImpl const &device = server->device;
 
-// https://www.khronos.org/opengl/wiki/Compute_Shader
-// https://web.engr.oregonstate.edu/~mjb/vulkan/Handouts/OpenglComputeShaders.1pp.pdf
-// https://github.com/lisyarus/compute/blob/master/blur/source/compute_separable_lds.cpp
-// https://lisyarus.github.io/blog/graphics/2022/04/21/compute-blur.html
+  // https://www.khronos.org/opengl/wiki/Compute_Shader
+  // https://web.engr.oregonstate.edu/~mjb/vulkan/Handouts/OpenglComputeShaders.1pp.pdf
+  // https://github.com/lisyarus/compute/blob/master/blur/source/compute_separable_lds.cpp
+  // https://lisyarus.github.io/blog/graphics/2022/04/21/compute-blur.html
+  // https://www.youtube.com/watch?v=ml-5OGZC7vE
   self->descriptor_set_layout =
       device
           ->create_descriptor_set_layout(
@@ -33,15 +35,23 @@ void BlurPass::init(Pass self_, RenderServer *server, uid32 id)
                   .label = "Gaussian Blur",
                   .compute_shader =
                       gfx::ShaderStageDesc{
-                          .entry_point = "cs_main",
                           .shader =
-                              server->get_shader("GAUSSIAN_BLUR_SHADER"_span).unwrap(),
+                              server->get_shader("GAUSSIAN_BLUR_SHADER"_span)
+                                  .unwrap(),
+                          .entry_point                   = "cs_main",
                           .specialization_constants      = {},
                           .specialization_constants_data = {}},
                   .push_constant_size     = gfx::MAX_PUSH_CONSTANT_SIZE,
-                  .descriptor_set_layouts = to_span({self->descriptor_set_layout}),
+                  .descriptor_set_layouts = {&self->descriptor_set_layout, 1},
                   .cache                  = server->pipeline_cache})
           .unwrap();
+
+  // kernels stored in single buffer
+  // radius 2, 4, 8, 16
+  // TODO(lamarrr): global kernel buffer
+  //
+  //
+  //
 }
 
 void BlurPass::deinit(Pass self, RenderServer *server)

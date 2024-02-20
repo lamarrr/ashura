@@ -1021,8 +1021,8 @@ struct ShaderStageDesc
 {
   Shader                             shader                        = nullptr;
   char const                        *entry_point                   = nullptr;
-  Span<u8 const>                     specialization_constants_data = {};
   Span<SpecializationConstant const> specialization_constants      = {};
+  Span<u8 const>                     specialization_constants_data = {};
 };
 
 struct ComputePipelineDesc

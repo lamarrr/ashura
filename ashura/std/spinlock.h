@@ -28,7 +28,7 @@ struct SpinLock
     }
   }
 
-  bool try_lock()
+  [[nodiscard]] bool try_lock()
   {
     bool expected = false;
     bool target   = true;

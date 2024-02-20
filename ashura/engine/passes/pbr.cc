@@ -53,87 +53,6 @@ void PBRPass::init(Pass self_, RenderServer *server, uid32 id)
   // get shader from server
   // get or create render pass
   // get or create frame buffer for each view on view added
-  self->pipeline =
-      device
-          ->create_graphics_pipeline(
-              device.self,
-              gfx::GraphicsPipelineDesc{
-                  .label = "PBR Graphics Pipeline",
-                  .vertex_shader =
-                      gfx::ShaderStageDesc{
-                          .shader = server->get_shader("PBR_VERTEX_SHADER"_span)
-                                        .unwrap(),
-                          .entry_point                   = "vs_main",
-                          .specialization_constants_data = {},
-                          .specialization_constants      = {}},
-                  .fragment_shader =
-                      gfx::ShaderStageDesc{
-                          .shader =
-                              server->get_shader("PBR_FRAGMENT_SHADER"_span)
-                                  .unwrap(),
-                          .entry_point                   = "fs_main",
-                          .specialization_constants_data = {},
-                          .specialization_constants      = {}},
-                  .render_pass           = gfx::RenderPass{},
-                  .vertex_input_bindings = to_span<gfx::VertexInputBinding>(
-                      {{.binding    = 0,
-                        .stride     = sizeof(PBRVertex),
-                        .input_rate = gfx::InputRate::Vertex}}),
-                  .vertex_attributes = to_span<gfx::VertexAttribute>(
-                      {{.binding  = 0,
-                        .location = 0,
-                        .format   = gfx::Format::R32G32B32_SFLOAT,
-                        .offset   = offsetof(PBRVertex, x)},
-                       {.binding  = 0,
-                        .location = 1,
-                        .format   = gfx::Format::R32G32_SFLOAT,
-                        .offset   = offsetof(PBRVertex, u)}}),
-                  .push_constant_size     = gfx::MAX_PUSH_CONSTANT_SIZE,
-                  .descriptor_set_layouts = {&self->descriptor_set_layout, 1},
-                  .primitive_topology = gfx::PrimitiveTopology::TriangleList,
-                  .rasterization_state =
-                      gfx::PipelineRasterizationState{
-                          .depth_clamp_enable = false,
-                          .polygon_mode       = gfx::PolygonMode::Fill,
-                          .cull_mode          = gfx::CullMode::None,
-                          .front_face        = gfx::FrontFace::CounterClockWise,
-                          .depth_bias_enable = false,
-                          .depth_bias_constant_factor = 0,
-                          .depth_bias_clamp           = 0,
-                          .depth_bias_slope_factor    = 0},
-                  .depth_stencil_state =
-                      gfx::PipelineDepthStencilState{
-                          .depth_test_enable        = true,
-                          .depth_write_enable       = true,
-                          .depth_compare_op         = gfx::CompareOp::Greater,
-                          .depth_bounds_test_enable = false,
-                          .stencil_test_enable      = false,
-                          .front_stencil            = gfx::StencilOpState{},
-                          .back_stencil             = gfx::StencilOpState{},
-                          .min_depth_bounds         = 0,
-                          .max_depth_bounds         = 0},
-                  .color_blend_state =
-                      gfx::PipelineColorBlendState{
-                          .logic_op_enable = true,
-                          .logic_op        = gfx::LogicOp::Set,
-                          .attachments =
-                              to_span<gfx::PipelineColorBlendAttachmentState>(
-                                  {{.blend_enable = false,
-                                    .src_color_blend_factor =
-                                        gfx::BlendFactor::Zero,
-                                    .dst_color_blend_factor =
-                                        gfx::BlendFactor::Zero,
-                                    .color_blend_op = gfx::BlendOp::Add,
-                                    .src_alpha_blend_factor =
-                                        gfx::BlendFactor::Zero,
-                                    .dst_alpha_blend_factor =
-                                        gfx::BlendFactor::Zero,
-                                    .alpha_blend_op = gfx::BlendOp::Add,
-                                    .color_write_mask =
-                                        gfx::ColorComponents::All}}),
-                          .blend_constant = {1, 1, 1, 1}},
-                  .cache = server->pipeline_cache})
-          .unwrap();
 }
 
 void PBRPass::begin(Pass self, RenderServer *server, uid32 view_id,
@@ -188,6 +107,7 @@ void PBRPass::begin(Pass self, RenderServer *server, uid32 view_id,
       }
     }
 
+    // TODO(lamarrr): double buffering
     gfx::Image image =
         device
             ->create_image(
@@ -293,19 +213,88 @@ void PBRPass::begin(Pass self, RenderServer *server, uid32 view_id,
   //
   (*encoder)->clear_color_image(encoder->self, nullptr, {}, {});
   (*encoder)->clear_depth_stencil_image(encoder->self, nullptr, {}, {});
-}
 
-void PBRPass::encode(Pass self_, RenderServer *server, uid32 view_id,
-                     PassEncodeInfo const *info)
-{
-  PBRPass                *self   = (PBRPass *) self_;
-  gfx::DeviceImpl         device = server->device;
-  View                   *view   = server->get_view(view_id).unwrap();
-  gfx::CommandEncoderImpl enc    = info->command_encoder;
-  Attachment            **color_attachment =
-      (Attachment **) view->resources["COLOR_ATTACHMENT"_span];
-  Attachment **depth_stencil_attachment =
-      (Attachment **) view->resources["DEPTH_STENCIL_ATTACHMENT"_span];
+  self->pipeline =
+      device
+          ->create_graphics_pipeline(
+              device.self,
+              gfx::GraphicsPipelineDesc{
+                  .label = "PBR Graphics Pipeline",
+                  .vertex_shader =
+                      gfx::ShaderStageDesc{
+                          .shader = server->get_shader("PBR_VERTEX_SHADER"_span)
+                                        .unwrap(),
+                          .entry_point                   = "vs_main",
+                          .specialization_constants_data = {},
+                          .specialization_constants      = {}},
+                  .fragment_shader =
+                      gfx::ShaderStageDesc{
+                          .shader =
+                              server->get_shader("PBR_FRAGMENT_SHADER"_span)
+                                  .unwrap(),
+                          .entry_point                   = "fs_main",
+                          .specialization_constants_data = {},
+                          .specialization_constants      = {}},
+                  .render_pass           = gfx::RenderPass{},
+                  .vertex_input_bindings = to_span<gfx::VertexInputBinding>(
+                      {{.binding    = 0,
+                        .stride     = sizeof(PBRVertex),
+                        .input_rate = gfx::InputRate::Vertex}}),
+                  .vertex_attributes = to_span<gfx::VertexAttribute>(
+                      {{.binding  = 0,
+                        .location = 0,
+                        .format   = gfx::Format::R32G32B32_SFLOAT,
+                        .offset   = offsetof(PBRVertex, x)},
+                       {.binding  = 0,
+                        .location = 1,
+                        .format   = gfx::Format::R32G32_SFLOAT,
+                        .offset   = offsetof(PBRVertex, u)}}),
+                  .push_constant_size     = gfx::MAX_PUSH_CONSTANT_SIZE,
+                  .descriptor_set_layouts = {&self->descriptor_set_layout, 1},
+                  .primitive_topology = gfx::PrimitiveTopology::TriangleList,
+                  .rasterization_state =
+                      gfx::PipelineRasterizationState{
+                          .depth_clamp_enable = false,
+                          .polygon_mode       = gfx::PolygonMode::Fill,
+                          .cull_mode          = gfx::CullMode::None,
+                          .front_face        = gfx::FrontFace::CounterClockWise,
+                          .depth_bias_enable = false,
+                          .depth_bias_constant_factor = 0,
+                          .depth_bias_clamp           = 0,
+                          .depth_bias_slope_factor    = 0},
+                  .depth_stencil_state =
+                      gfx::PipelineDepthStencilState{
+                          .depth_test_enable        = true,
+                          .depth_write_enable       = true,
+                          .depth_compare_op         = gfx::CompareOp::Greater,
+                          .depth_bounds_test_enable = false,
+                          .stencil_test_enable      = false,
+                          .front_stencil            = gfx::StencilOpState{},
+                          .back_stencil             = gfx::StencilOpState{},
+                          .min_depth_bounds         = 0,
+                          .max_depth_bounds         = 0},
+                  .color_blend_state =
+                      gfx::PipelineColorBlendState{
+                          .logic_op_enable = true,
+                          .logic_op        = gfx::LogicOp::Set,
+                          .attachments =
+                              to_span<gfx::PipelineColorBlendAttachmentState>(
+                                  {{.blend_enable = false,
+                                    .src_color_blend_factor =
+                                        gfx::BlendFactor::Zero,
+                                    .dst_color_blend_factor =
+                                        gfx::BlendFactor::Zero,
+                                    .color_blend_op = gfx::BlendOp::Add,
+                                    .src_alpha_blend_factor =
+                                        gfx::BlendFactor::Zero,
+                                    .dst_alpha_blend_factor =
+                                        gfx::BlendFactor::Zero,
+                                    .alpha_blend_op = gfx::BlendOp::Add,
+                                    .color_write_mask =
+                                        gfx::ColorComponents::All}}),
+                          .blend_constant = {1, 1, 1, 1}},
+                  .cache = server->pipeline_cache})
+          .unwrap();
 
   gfx::RenderPass render_pass =
       server
@@ -339,6 +328,19 @@ void PBRPass::encode(Pass self_, RenderServer *server, uid32 view_id,
                   .depth_stencil_attachment = (*depth_stencil_attachment)->view,
                   .layers                   = 1})
           .unwrap();
+}
+
+void PBRPass::encode(Pass self_, RenderServer *server, uid32 view_id,
+                     PassEncodeInfo const *info)
+{
+  PBRPass                *self   = (PBRPass *) self_;
+  gfx::DeviceImpl         device = server->device;
+  View                   *view   = server->get_view(view_id).unwrap();
+  gfx::CommandEncoderImpl enc    = info->command_encoder;
+  Attachment            **color_attachment =
+      (Attachment **) view->resources["COLOR_ATTACHMENT"_span];
+  Attachment **depth_stencil_attachment =
+      (Attachment **) view->resources["DEPTH_STENCIL_ATTACHMENT"_span];
 
   enc->begin_render_pass(enc.self, framebuffer, render_pass, {0, 0},
                          (*color_attachment)->extent, to_span({gfx::Color{}}),
@@ -347,12 +349,6 @@ void PBRPass::encode(Pass self_, RenderServer *server, uid32 view_id,
 
   for (usize i = 0; i < info->indices.size(); i++)
   {
-    usize batch_end = i;
-    while (batch_end < info->indices.size())
-    {
-      // if materials not same
-      batch_end++;
-    }
     PBRMesh   mesh;
     PBRObject object;
     enc->bind_vertex_buffers(enc.self, {&mesh.vertex_buffer, 1},
