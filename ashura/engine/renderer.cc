@@ -628,9 +628,6 @@ Result<Void, Error> RenderServer::frustum_cull()
 // PassCmp key
 // - for each partition, invoke the pass with the objects
 //
-// sort by z-index
-// sort by transparency, transparent objects last
-// sort by pass sorter
 Result<Void, Error>
     RenderServer::encode_view(uid32                          view_id,
                               gfx::CommandEncoderImpl const &encoder)
