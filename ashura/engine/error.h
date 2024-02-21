@@ -14,8 +14,7 @@ enum class Error : i32
   None                = 0,
   OutOfMemory         = 1,
   InvalidPath         = 2,
-  InvalidData         = 3,
-  UnsupportedChannels = 4,
+  DecodeFailed        = 3,
   UnsupportedFormat   = 5
 };
 

@@ -68,7 +68,7 @@ struct ImageSpan
 
   Span<B>     span   = {};
   gfx::Format format = gfx::Format::Undefined;
-  u64         pitch  = 0;
+  u32         pitch  = 0;
   u32         width  = 0;
   u32         height = 0;
 

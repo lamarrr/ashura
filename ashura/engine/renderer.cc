@@ -706,7 +706,7 @@ Result<Void, Error>
                     PassEncodeInfo const info{
                         .view    = view_id,
                         .encoder = encoder,
-                        .binding = bindings.data() + pass_index,
+                        .binding = bindings[pass_index],
                         .is_transparent =
                             scene.objects.is_transparent[indices[0]],
                         .z_index = scene.objects.z_index[indices[0]],
@@ -721,9 +721,8 @@ Result<Void, Error>
 
   for (PassImpl const &pass : pass_group.passes)
   {
-    PassBeginInfo info{.view    = view_id,
-                       .encoder = encoder,
-                       .binding = bindings.data() + 0x000};
+    PassEndInfo info{
+        .view = view_id, .encoder = encoder, .binding = bindings[0x000]};
     pass.interface->end(pass.self, this, &info);
   }
 

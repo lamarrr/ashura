@@ -55,8 +55,7 @@ void PBRPass::init(Pass self_, RenderServer *server, uid32 id)
   // get or create frame buffer for each view on view added
 }
 
-void PBRPass::begin(Pass self, RenderServer *server, uid32 view_id,
-                    gfx::CommandEncoderImpl const *encoder)
+void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
 {
   View              *view   = server->get_view(view_id).unwrap();
   gfx::DeviceImpl    device = server->device;
@@ -330,7 +329,7 @@ void PBRPass::begin(Pass self, RenderServer *server, uid32 view_id,
           .unwrap();
 }
 
-void PBRPass::encode(Pass self_, RenderServer *server, uid32 view_id,
+void PBRPass::encode(Pass self_, RenderServer *server,
                      PassEncodeInfo const *info)
 {
   PBRPass                *self   = (PBRPass *) self_;

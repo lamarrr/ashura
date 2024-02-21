@@ -4,11 +4,19 @@
 namespace ash
 {
 
+typedef struct Allocation         Allocation;
 typedef struct Allocator_T       *Allocator;
 typedef struct AllocatorInterface AllocatorInterface;
 typedef struct AllocatorImpl      AllocatorImpl;
 typedef struct Heap               Heap;
 typedef struct HeapInterface      HeapInterface;
+
+struct Allocation
+{
+  void *memory    = nullptr;
+  usize alignment = 0;
+  usize size      = 0;
+};
 
 /// @allocate: allocate aligned memory. returns null if
 /// failed.

@@ -9,16 +9,18 @@
 namespace ash
 {
 
-Result<ImageBuffer, Error> decode_webp(AllocatorImpl const &allocator,
-                                       Span<u8 const>       bytes);
+Result<Allocation, Error> decode_webp(AllocatorImpl const &allocator,
+                                      Span<u8 const>       bytes,
+                                      ImageSpan<u8>       &span);
 
-Result<ImageBuffer, Error> decode_jpg(AllocatorImpl const &allocator,
-                                      Span<u8 const>       bytes);
+Result<Allocation, Error> decode_jpg(AllocatorImpl const &allocator,
+                                     Span<u8 const> bytes, ImageSpan<u8> &span);
 
-Result<ImageBuffer, LoadError> decode_png(AllocatorImpl const &allocator,
-                                          Span<u8 const>       bytes);
+Result<Allocation, Error> decode_png(AllocatorImpl const &allocator,
+                                     Span<u8 const> bytes, ImageSpan<u8> &span);
 
-Result<ImageBuffer, Error> decode_image(AllocatorImpl const &allocator,
-                                        Span<u8 const>       bytes);
+Result<Allocation, Error> decode_image(AllocatorImpl const &allocator,
+                                       Span<u8 const>       bytes,
+                                       ImageSpan<u8>       &span);
 
 }        // namespace ash

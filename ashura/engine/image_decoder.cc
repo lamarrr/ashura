@@ -1,4 +1,5 @@
 #include "ashura/engine/image_decoder.h"
+#include "ashura/std/range.h"
 
 extern "C"
 {
@@ -12,62 +13,71 @@ extern "C"
 namespace ash
 {
 
-Result<ImageBuffer, LoadError> decode_webp(AllocatorImpl const &allocator,
-                                           Span<u8 const>       data)
+constexpr u64 rgba8_size(bool has_alpha, u32 width, u32 height)
+{
+  return ((u64) width) * ((u64) height) * (has_alpha ? 4ULL : 3ULL);
+}
+
+Result<Allocation, Error> decode_webp(AllocatorImpl const &allocator,
+                                      Span<u8 const> data, ImageSpan<u8> &span)
 {
   WebPBitstreamFeatures features;
 
   if (WebPGetFeatures(data.data(), data.size(), &features) != VP8_STATUS_OK)
   {
-    return Err(LoadError::InvalidData);
+    return Err{Error::DecodeFailed};
   }
 
-  stx::Memory memory =
-      stx::mem::allocate(stx::os_allocator,
-                         static_cast<usize>(features.width) *
-                             static_cast<usize>(features.height) *
-                             (features.has_alpha ? 4ULL : 3ULL))
-          .unwrap();
+  u32 const pitch = features.width * (features.has_alpha ? 4U : 3U);
+  u64 const buffer_size =
+      rgba8_size(features.has_alpha, features.width, features.height);
+  u8 *buffer = allocator.allocate_typed<u8>(buffer_size);
 
-  u8 *pixels = (u8 *) memory.handle;
+  if (buffer == nullptr)
+  {
+    return Err{Error::OutOfMemory};
+  }
 
   if (features.has_alpha)
   {
-    if (WebPDecodeRGBAInto(data.data(), data.size(), pixels,
-                           features.width * features.height * 4,
-                           features.width * 4) == nullptr)
+    if (WebPDecodeRGBAInto(data.data(), data.size(), buffer, buffer_size,
+                           pitch) == nullptr)
     {
-      return Err(LoadError::InvalidData);
+      allocator.deallocate_typed(buffer, buffer_size);
+      return Err{Error::DecodeFailed};
     }
   }
   else
   {
-    if (WebPDecodeRGBInto(data.data(), data.size(), pixels,
-                          features.width * features.height * 3,
-                          features.width * 3) == nullptr)
+    if (WebPDecodeRGBInto(data.data(), data.size(), buffer, buffer_size,
+                          pitch) == nullptr)
     {
-      return Err(LoadError::InvalidData);
+      allocator.deallocate_typed(buffer, buffer_size);
+      return Err{Error::DecodeFailed};
     }
   }
 
-  return Ok(ImageBuffer{.memory = std::move(memory),
-                        .extent = Extent{static_cast<u32>(features.width),
-                                         static_cast<u32>(features.height)},
-                        .format = features.has_alpha ? ImageFormat::Rgba8888 :
-                                                       ImageFormat::Rgb888});
+  span = ImageSpan<u8>{.span   = {buffer, buffer_size},
+                       .format = features.has_alpha == 0 ?
+                                     gfx::Format::R8G8B8_UNORM :
+                                     gfx::Format::R8G8B8A8_UNORM,
+                       .pitch  = pitch,
+                       .width  = (u32) features.width,
+                       .height = (u32) features.height};
+
+  return Ok{Allocation{.memory = buffer, .alignment = 1, .size = buffer_size}};
 }
 
 inline void png_stream_reader(png_structp png_ptr, unsigned char *out,
                               usize nbytes_to_read)
 {
-  Span<u8 const> *input =
-      reinterpret_cast<Span<u8 const> *>(png_get_io_ptr(png_ptr));
-  Span{out, nbytes_to_read}.copy(*input);
+  Span<u8 const> *input = (Span<u8 const> *) png_get_io_ptr(png_ptr);
+  mem::copy(input->slice(0, nbytes_to_read), out);
   *input = input->slice(nbytes_to_read);
 }
 
-Result<ImageBuffer, LoadError> decode_png(AllocatorImpl const &allocator,
-                                          Span<u8 const>       data)
+Result<Allocation, Error> decode_png(AllocatorImpl const &allocator,
+                                     Span<u8 const> data, ImageSpan<u8> &span)
 {
   // skip magic number
   data = data.slice(8);
@@ -75,11 +85,18 @@ Result<ImageBuffer, LoadError> decode_png(AllocatorImpl const &allocator,
   png_structp png_ptr =
       png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
 
-  ASH_CHECK(png_ptr != nullptr);
+  if (png_ptr == nullptr)
+  {
+    return Err{Error::OutOfMemory};
+  }
 
   png_infop info_ptr = png_create_info_struct(png_ptr);
 
-  ASH_CHECK(info_ptr != nullptr);
+  if (png_ptr == nullptr)
+  {
+    png_destroy_read_struct(&png_ptr, nullptr, nullptr);
+    return Err{Error::OutOfMemory};
+  }
 
   Span stream = data;
   png_set_read_fn(png_ptr, &stream, png_stream_reader);
@@ -97,49 +114,48 @@ Result<ImageBuffer, LoadError> decode_png(AllocatorImpl const &allocator,
 
   if (status != 1)
   {
-    return Err(LoadError::InvalidData);
+    return Err{Error::DecodeFailed};
   }
 
-  usize       ncomponents = 0;
-  ImageFormat fmt         = ImageFormat::Rgba8888;
-
-  if (color_type == PNG_COLOR_TYPE_RGB)
-  {
-    ncomponents = 3;
-    fmt         = ImageFormat::Rgb888;
-  }
-  else if (color_type == PNG_COLOR_TYPE_RGBA)
-  {
-    ncomponents = 4;
-    fmt         = ImageFormat::Rgba8888;
-  }
-  else
+  if (color_type != PNG_COLOR_TYPE_RGB && color_type != PNG_COLOR_TYPE_RGBA)
   {
     png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-    return Err(LoadError::UnsupportedChannels);
+    return Err{Error::UnsupportedFormat};
   }
 
-  stx::Memory pixels_mem =
-      stx::mem::allocate(stx::os_allocator, width * height * ncomponents)
-          .unwrap();
+  usize       ncomponents = (color_type == PNG_COLOR_TYPE_RGB) ? 3 : 4;
+  gfx::Format fmt         = (ncomponents == 3) ? gfx::Format::R8G8B8_UNORM :
+                                                 gfx::Format::R8G8B8A8_UNORM;
+  u32         pitch       = width * ncomponents;
+  u64         buffer_size = height * pitch;
 
-  u8 *pixels = (u8 *) pixels_mem.handle;
+  u8 *buffer = allocator.allocate_typed<u8>(buffer_size);
 
+  if (buffer == nullptr)
+  {
+    return Err{Error::OutOfMemory};
+  }
+
+  u8 *row = buffer;
   for (u32 i = 0; i < height; i++)
   {
-    png_read_row(png_ptr, pixels, nullptr);
-    pixels += width * ncomponents;
+    png_read_row(png_ptr, row, nullptr);
+    row += pitch;
   }
 
   png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 
-  return Ok{ImageBuffer{.memory = std::move(pixels_mem),
-                        .extent = Extent{width, height},
-                        .format = fmt}};
+  span = ImageSpan<u8>{.span   = {buffer, buffer_size},
+                       .format = fmt,
+                       .width  = width,
+                       .height = height,
+                       .pitch  = pitch};
+
+  return Ok{Allocation{.memory = buffer, .alignment = 1, .size = buffer_size}};
 }
 
-Result<ImageBuffer, LoadError> decode_jpg(AllocatorImpl const &allocator,
-                                          Span<u8 const>       bytes)
+Result<Allocation, Error> decode_jpg(AllocatorImpl const &allocator,
+                                     Span<u8 const> bytes, ImageSpan<u8> &span)
 {
   jpeg_decompress_struct info;
   jpeg_error_mgr         error_mgr;
@@ -151,56 +167,58 @@ Result<ImageBuffer, LoadError> decode_jpg(AllocatorImpl const &allocator,
   if (jpeg_read_header(&info, true) != JPEG_HEADER_OK)
   {
     jpeg_destroy_decompress(&info);
-    return stx::Err(LoadError::InvalidData);
+    return Err{Error::DecodeFailed};
   }
 
   if (!jpeg_start_decompress(&info))
   {
     jpeg_destroy_decompress(&info);
-    return stx::Err(LoadError::InvalidData);
+    return Err{Error::DecodeFailed};
+  }
+
+  if (info.num_components != 3 && info.num_components != 4)
+  {
+    jpeg_destroy_decompress(&info);
+    return Err{Error::UnsupportedFormat};
   }
 
   u32         width       = info.output_width;
   u32         height      = info.output_height;
   u32         ncomponents = info.num_components;
-  ImageFormat fmt         = ImageFormat::Rgba8888;
+  u32         pitch       = width * ncomponents;
+  u64         buffer_size = height * pitch;
+  gfx::Format fmt         = ncomponents == 3 ? gfx::Format::R8G8B8_UNORM :
+                                               gfx::Format::R8G8B8A8_UNORM;
 
-  if (ncomponents == 3)
-  {
-    fmt = ImageFormat::Rgb888;
-  }
-  else if (ncomponents == 4)
-  {
-    fmt = ImageFormat::Rgba8888;
-  }
-  else
+  u8 *buffer = allocator.allocate_typed<u8>(buffer_size);
+  if (buffer == nullptr)
   {
     jpeg_destroy_decompress(&info);
-    return stx::Err(LoadError::UnsupportedChannels);
+    return Err{Error::OutOfMemory};
   }
 
-  stx::Memory pixels_mem =
-      stx::mem::allocate(stx::os_allocator, height * width * ncomponents)
-          .unwrap();
-
-  u8 *pixels = (u8 *) pixels_mem.handle;
-
+  u8 *scanline = buffer;
   while (info.output_scanline < height)
   {
-    u8 *scanlines[] = {pixels};
-    pixels += jpeg_read_scanlines(&info, scanlines, 1) * width * ncomponents;
+    u8 *scanlines[] = {scanline};
+    scanline += (u64) jpeg_read_scanlines(&info, scanlines, 1) * pitch;
   }
 
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
 
-  return stx::Ok{ImageBuffer{.memory = std::move(pixels_mem),
-                             .extent = Extent{width, height},
-                             .format = fmt}};
+  span = ImageSpan<u8>{.span   = {buffer, buffer_size},
+                       .format = fmt,
+                       .width  = width,
+                       .height = height,
+                       .pitch  = pitch};
+
+  return Ok{Allocation{.memory = buffer, .alignment = 1, .size = buffer_size}};
 }
 
-Result<ImageBuffer, LoadError> decode_image(AllocatorImpl const &allocator,
-                                            Span<u8 const>       bytes)
+Result<Allocation, Error> decode_image(AllocatorImpl const &allocator,
+                                       Span<u8 const>       bytes,
+                                       ImageSpan<u8>       &span)
 {
   constexpr u8 JPG_MAGIC[] = {0xFF, 0xD8, 0xFF};
 
@@ -210,22 +228,22 @@ Result<ImageBuffer, LoadError> decode_image(AllocatorImpl const &allocator,
   constexpr u8 WEBP_MAGIC1[] = {'R', 'I', 'F', 'F'};
   constexpr u8 WEBP_MAGIC2[] = {'W', 'E', 'B', 'P'};
 
-  if (bytes.slice(0, std::size(JPG_MAGIC)).equals(Span{JPG_MAGIC}))
+  if (range_equal(bytes.slice(0, size(JPG_MAGIC)), JPG_MAGIC))
   {
-    return decode_jpg(bytes);
+    return decode_jpg(allocator, bytes, span);
   }
-  else if (bytes.slice(0, std::size(PNG_MAGIC)).equals(Span{PNG_MAGIC}))
+  else if (range_equal(bytes.slice(0, size(PNG_MAGIC)), PNG_MAGIC))
   {
-    return decode_png(bytes);
+    return decode_png(allocator, bytes, span);
   }
-  else if (bytes.slice(0, std::size(WEBP_MAGIC1)).equals(Span{WEBP_MAGIC1}) &&
-           bytes.slice(8, std::size(WEBP_MAGIC2)).equals(Span{WEBP_MAGIC2}))
+  else if (range_equal(bytes.slice(0, size(WEBP_MAGIC1)), WEBP_MAGIC1) &&
+           range_equal(bytes.slice(8, size(WEBP_MAGIC2)), WEBP_MAGIC2))
   {
-    return decode_webp(bytes);
+    return decode_webp(allocator, bytes, span);
   }
   else
   {
-    return Err(LoadError::UnsupportedFormat);
+    return Err{Error::UnsupportedFormat};
   }
 }
 

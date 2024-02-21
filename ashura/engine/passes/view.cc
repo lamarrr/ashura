@@ -31,18 +31,16 @@ void ViewPass::release_object(Pass self, RenderServer *server, uid32 scene,
 {
 }
 
-void ViewPass::begin(Pass self, RenderServer *server, uid32 view,
-                     gfx::CommandEncoderImpl const *encoder)
+void ViewPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
 {
 }
 
-void ViewPass::encode(Pass self, RenderServer *server, uid32 view,
+void ViewPass::encode(Pass self, RenderServer *server,
                       PassEncodeInfo const *info)
 {
 }
 
-void ViewPass::end(Pass self, RenderServer *server, uid32 view,
-                   gfx::CommandEncoderImpl const *encoder)
+void ViewPass::end(Pass self, RenderServer *server, PassEndInfo const *info)
 {
 }
 

@@ -37,21 +37,19 @@ void BloomPass::release_object(Pass self, RenderServer *server, uid32 scene,
 {
 }
 
-void BloomPass::begin(Pass self, RenderServer *server, uid32 view,
-                      gfx::CommandEncoderImpl const *encoder)
+void BloomPass::begin(Pass self, RenderServer *server,
+                      PassBeginInfo const *info)
 {
 }
 
-void BloomPass::encode(Pass self, RenderServer *server, uid32 view,
+void BloomPass::encode(Pass self, RenderServer *server,
                        PassEncodeInfo const *info)
-{
-  // downsample to mip chains of 5 total
-  // perform gaussian blur of the image
-  // addittive composite back unto the first mip
+{        // downsample to mip chains of 5 total
+         // perform gaussian blur of the image
+         // addittive composite back unto the first mip
 }
 
-void BloomPass::end(Pass self, RenderServer *server, uid32 view,
-                    gfx::CommandEncoderImpl const *encoder)
+void BloomPass::end(Pass self, RenderServer *server, PassEndInfo const *info)
 {
 }
 

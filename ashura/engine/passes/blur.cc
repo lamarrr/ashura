@@ -79,20 +79,16 @@ void BlurPass::release_object(Pass self, RenderServer *server, uid32 scene,
 {
 }
 
-void BlurPass::begin(Pass self, RenderServer *server, uid32 view,
-                     gfx::CommandEncoderImpl const *encoder)
+void BlurPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
 {
 }
 
-void BlurPass::encode(Pass self, RenderServer *server, uid32 view,
+void BlurPass::encode(Pass self, RenderServer *server,
                       PassEncodeInfo const *info)
 {
-  gfx::CommandEncoderImpl enc = info->command_encoder;
-  // enc->copy_image(enc.self, );
 }
 
-void BlurPass::end(Pass self, RenderServer *server, uid32 view,
-                   gfx::CommandEncoderImpl const *encoder)
+void BlurPass::end(Pass self, RenderServer *server, PassEndInfo const *info)
 {
 }
 
