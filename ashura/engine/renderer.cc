@@ -45,12 +45,6 @@ void destroy_scene_group(SceneGroup &group)
   group.id_map.reset(group.scenes);
 }
 
-template <typename T>
-constexpr void destruct(T *t)
-{
-  t->~T();
-}
-
 void destroy_view(View &view)
 {
   view.sort_indices.reset();

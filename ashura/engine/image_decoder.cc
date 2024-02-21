@@ -38,7 +38,7 @@ Result<Allocation, Error> decode_webp(AllocatorImpl const &allocator,
     return Err{Error::OutOfMemory};
   }
 
-  if (features.has_alpha)
+  if (features.has_alpha != 0)
   {
     if (WebPDecodeRGBAInto(data.data(), data.size(), buffer, buffer_size,
                            pitch) == nullptr)
@@ -232,19 +232,19 @@ Result<Allocation, Error> decode_image(AllocatorImpl const &allocator,
   {
     return decode_jpg(allocator, bytes, span);
   }
-  else if (range_equal(bytes.slice(0, size(PNG_MAGIC)), PNG_MAGIC))
+
+  if (range_equal(bytes.slice(0, size(PNG_MAGIC)), PNG_MAGIC))
   {
     return decode_png(allocator, bytes, span);
   }
-  else if (range_equal(bytes.slice(0, size(WEBP_MAGIC1)), WEBP_MAGIC1) &&
-           range_equal(bytes.slice(8, size(WEBP_MAGIC2)), WEBP_MAGIC2))
+
+  if (range_equal(bytes.slice(0, size(WEBP_MAGIC1)), WEBP_MAGIC1) &&
+      range_equal(bytes.slice(8, size(WEBP_MAGIC2)), WEBP_MAGIC2))
   {
     return decode_webp(allocator, bytes, span);
   }
-  else
-  {
-    return Err{Error::UnsupportedFormat};
-  }
+
+  return Err{Error::UnsupportedFormat};
 }
 
 }        // namespace ash
