@@ -28,9 +28,9 @@ Result<Allocation, Error> decode_webp(AllocatorImpl const &allocator,
     return Err{Error::DecodeFailed};
   }
 
-  u32 const pitch = features.width * (features.has_alpha ? 4U : 3U);
+  u32 const pitch = features.width * (features.has_alpha == 0 ? 3U : 4U);
   u64 const buffer_size =
-      rgba8_size(features.has_alpha, features.width, features.height);
+      rgba8_size(features.has_alpha != 0, features.width, features.height);
   u8 *buffer = allocator.allocate_typed<u8>(buffer_size);
 
   if (buffer == nullptr)
@@ -127,7 +127,7 @@ Result<Allocation, Error> decode_png(AllocatorImpl const &allocator,
   gfx::Format fmt         = (ncomponents == 3) ? gfx::Format::R8G8B8_UNORM :
                                                  gfx::Format::R8G8B8A8_UNORM;
   u32         pitch       = width * ncomponents;
-  u64         buffer_size = height * pitch;
+  u64         buffer_size = (u64) height * pitch;
 
   u8 *buffer = allocator.allocate_typed<u8>(buffer_size);
 
@@ -147,9 +147,9 @@ Result<Allocation, Error> decode_png(AllocatorImpl const &allocator,
 
   span = ImageSpan<u8>{.span   = {buffer, buffer_size},
                        .format = fmt,
+                       .pitch  = pitch,
                        .width  = width,
-                       .height = height,
-                       .pitch  = pitch};
+                       .height = height};
 
   return Ok{Allocation{.memory = buffer, .alignment = 1, .size = buffer_size}};
 }
@@ -186,7 +186,7 @@ Result<Allocation, Error> decode_jpg(AllocatorImpl const &allocator,
   u32         height      = info.output_height;
   u32         ncomponents = info.num_components;
   u32         pitch       = width * ncomponents;
-  u64         buffer_size = height * pitch;
+  u64         buffer_size = (u64) height * pitch;
   gfx::Format fmt         = ncomponents == 3 ? gfx::Format::R8G8B8_UNORM :
                                                gfx::Format::R8G8B8A8_UNORM;
 
@@ -209,9 +209,9 @@ Result<Allocation, Error> decode_jpg(AllocatorImpl const &allocator,
 
   span = ImageSpan<u8>{.span   = {buffer, buffer_size},
                        .format = fmt,
+                       .pitch  = pitch,
                        .width  = width,
-                       .height = height,
-                       .pitch  = pitch};
+                       .height = height};
 
   return Ok{Allocation{.memory = buffer, .alignment = 1, .size = buffer_size}};
 }

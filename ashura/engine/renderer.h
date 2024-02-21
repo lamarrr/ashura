@@ -138,25 +138,6 @@ struct PassEndInfo
   PassBinding             binding = nullptr;
 };
 
-// TODO(lamarrr): multi-recursive passes, and how to know when to begin and end
-// passes, i.e. begin render pass, end render pass
-//
-//
-// TODO(lamarrr): view pass recursive render
-//
-//
-// full-screen post-fx passes are full-screen quads with dependency
-// determined by their z-indexes. HUD is a full-screen quad of a view-pass
-// (another scene).
-//
-// world->[capture->world]->post-fx->hud->[capture->hud]
-// how to project from object-space to full-screen space
-//
-// i.e. world scene pass -> post-fx pass -> HUD pass
-//
-// how to queue screen image resize
-//
-//
 /// @init: add self and resources to server
 /// @deinit: remove self and resources
 /// @encode: sort scene objects belonging to passes for more efficient batching,
@@ -266,8 +247,6 @@ struct Attachment
   gfx::Extent    extent = {0, 0};
 };
 
-// TODO(lamarrr): how to automate and manage per-view resources across all views
-// with deletion as well.
 struct View
 {
   Span<char const>     name              = {};
@@ -286,34 +265,9 @@ struct ViewGroup
   uid32          root_view = UID32_INVALID;
 };
 
-// TODO(lamarrr):
-// sort by update frequency, per-frame updates, rare-updates
-//
-// resource manager
-// static buffer + streaming
-// dynamic buffers + streaming
-//
-// mapping of color and depth components?
-//
-//
-// usage tracking
-// - we can create a single image and just re-use it depending on the
-// components/aspects we need to use for each type of pass
-//
-// UNIFORM COLOR Texture cache with image component swizzling. Only 1 white
-// RGBA texture is needed.
-//
-// on frame begin, pending uploads are first performed
-//
-/// Manages and uploads render resources to the GPU.
-///
 /// @remove_scene: remove all pass resources associated with a scene object.
 /// @acquire_screen_color_image:
 ///
-///
-/// TODO(lamarrr): how to cache the framebuffer and
-/// renderpass and not allocate it for every time the renderpass and
-/// framebuffers are requested
 /// @add_object: once an object is added to the scene, if it is not at the end
 /// of the tree, then the tree should be re-sorted based on depth, sort indices,
 /// resize object cull masks for all views

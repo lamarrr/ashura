@@ -634,15 +634,6 @@ Result<Void, Error> RenderServer::frustum_cull()
 // PassCmp key
 // - for each partition, invoke the pass with the objects
 //
-// TODO(lamarrr): we need the mesh and object render-data is mostly
-// pre-configured or modified outside the renderer we just need to implement the
-// post-effects and render-orders and add other passes on top of the objects
-//
-// TODO(lamarrr): each scene is rendered and composited onto one another? can
-// this possibly work for portals?
-//
-//
-//
 // sort by z-index
 // sort by transparency, transparent objects last
 // sort by pass sorter
