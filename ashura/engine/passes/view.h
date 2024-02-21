@@ -3,8 +3,8 @@
 
 namespace ash
 {
-
-// invokes encpoding of the view by the server
+typedef struct ViewPass ViewPass;
+// invokes encoding of the view by the server
 
 struct ViewPass
 {

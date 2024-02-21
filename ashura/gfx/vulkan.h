@@ -733,6 +733,9 @@ struct CommandEncoderInterface
   static void blit_image(gfx::CommandEncoder self, gfx::Image src,
                          gfx::Image dst, Span<gfx::ImageBlit const> blits,
                          gfx::Filter filter);
+  static void resolve_image(gfx::CommandEncoder self, gfx::Image src,
+                            gfx::Image                    dst,
+                            Span<gfx::ImageResolve const> resolves);
   static void begin_render_pass(
       gfx::CommandEncoder self, gfx::Framebuffer framebuffer,
       gfx::RenderPass render_pass, gfx::Offset render_offset,
@@ -892,6 +895,7 @@ static gfx::CommandEncoderInterface const command_encoder_interface{
     .copy_image             = CommandEncoderInterface::copy_image,
     .copy_buffer_to_image   = CommandEncoderInterface::copy_buffer_to_image,
     .blit_image             = CommandEncoderInterface::blit_image,
+    .resolve_image          = CommandEncoderInterface::resolve_image,
     .begin_render_pass      = CommandEncoderInterface::begin_render_pass,
     .end_render_pass        = CommandEncoderInterface::end_render_pass,
     .bind_compute_pipeline  = CommandEncoderInterface::bind_compute_pipeline,

@@ -6,6 +6,7 @@ namespace ash
 
 typedef struct RRect         RRect;
 typedef struct RRectMaterial RRectMaterial;
+typedef struct RRectDesc     RRectDesc;
 typedef struct RRectObject   RRectObject;
 typedef struct RRectPass     RRectPass;
 
@@ -71,7 +72,6 @@ struct RRectPass
                                                  .encode = encode,
                                                  .end    = end};
 
- 
   u64  add_object(Scene *scene, RRect const &rrect,
                   RRectMaterial const &material, i64 z_index);
   void remove_object(Scene *scene, u64 object);

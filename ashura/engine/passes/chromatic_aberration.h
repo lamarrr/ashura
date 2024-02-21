@@ -6,6 +6,8 @@
 namespace ash
 {
 
+typedef struct ChromaticAberrationPass ChromaticAberrationPass;
+
 struct ChromaticAberrationPass
 {
   static void init(Pass self, RenderServer *server, uid32 id);

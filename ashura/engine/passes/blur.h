@@ -5,6 +5,9 @@ namespace ash
 {
 
 // do we need to copy directly from the image?
+typedef struct BlurDesc   BlurDesc;
+typedef struct BlurObject BlurObject;
+typedef struct BlurPass   BlurPass;
 
 struct BlurDesc
 {
@@ -38,8 +41,8 @@ struct BlurPass
 {
   gfx::ComputePipeline     pipeline              = nullptr;
   gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
-  static void init(Pass self, RenderServer *server, uid32 id);
-  static void deinit(Pass self, RenderServer *server);
+  static void              init(Pass self, RenderServer *server, uid32 id);
+  static void              deinit(Pass self, RenderServer *server);
   static void acquire_scene(Pass self, RenderServer *server, uid32 scene);
   static void release_scene(Pass self, RenderServer *server, uid32 scene);
   static void acquire_view(Pass self, RenderServer *server, uid32 view);

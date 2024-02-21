@@ -55,17 +55,15 @@ void PBRPass::init(Pass self_, RenderServer *server, uid32 id)
   // get or create frame buffer for each view on view added
 }
 
-void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
-{
-  View              *view   = server->get_view(view_id).unwrap();
-  gfx::DeviceImpl    device = server->device;
-  gfx::SwapchainInfo swapchain_info =
+void get_or_create_attachments(){
+ gfx::SwapchainInfo swapchain_info =
       device->get_swapchain_info(device.self, server->swapchain).unwrap();
   Attachment **color_attachment =
-      (Attachment **) view->resources["COLOR_ATTACHMENT"_span];
+      (Attachment **) view->bindings["COLOR_ATTACHMENT"_span];
   Attachment **depth_attachment =
-      (Attachment **) view->resources["DEPTH_STENCIL_ATTACHMENT"_span];
-  bool use_hdr = view->resources["USE_HDR"_span] == nullptr;
+      (Attachment **) view->bindings["DEPTH_STENCIL_ATTACHMENT"_span];
+  bool use_hdr = view->bindings["USE_HDR"_span] != nullptr;
+  view->bindings["ANTI_ALIASING_CONFIG"_span];
 
   if (color_attachment == nullptr ||
       (color_attachment != nullptr &&
@@ -81,6 +79,7 @@ void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
 
     if (use_hdr)
     {
+      // use other less-intensive format specified in the render context
       if (has_any_bit(device
                           ->get_format_properties(
                               device.self, gfx::Format::R32G32B32A32_SFLOAT)
@@ -106,7 +105,7 @@ void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
       }
     }
 
-    // TODO(lamarrr): double buffering
+    // TODO(lamarrr): double buffering, MSAA
     gfx::Image image =
         device
             ->create_image(
@@ -121,7 +120,8 @@ void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
                                .extent       = {view->viewport_extent.x,
                                                 view->viewport_extent.y, 1},
                                .mip_levels   = 1,
-                               .array_layers = 1})
+                               .array_layers = 1,
+                               .sample_count = gfx::SampleCount::Count1})
             .unwrap();
 
     gfx::ImageView image_view =
@@ -147,7 +147,7 @@ void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
                                 .extent = view->viewport_extent};
 
     // deletion is incorrect
-    view->resources.emplace("COLOR_ATTACHMENT"_span, attachment);
+    view->bindings.emplace("COLOR_ATTACHMENT"_span, attachment);
   }
 
   if (depth_attachment == nullptr ||
@@ -176,7 +176,8 @@ void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
                                .extent       = {view->viewport_extent.x,
                                                 view->viewport_extent.y, 1},
                                .mip_levels   = 1,
-                               .array_layers = 1})
+                               .array_layers = 1,
+                               .sample_count = gfx::SampleCount::Count1})
             .unwrap();
 
     gfx::ImageView image_view =
@@ -203,9 +204,17 @@ void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
                                 .format = gfx::Format::D16_UNORM_S8_UINT,
                                 .extent = view->viewport_extent};
 
-    view->resources.emplace("DEPTH_STENCIL_ATTACHMENT"_span, attachment);
+    view->bindings.emplace("DEPTH_STENCIL_ATTACHMENT"_span, attachment);
   }
 
+}
+
+void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
+{
+  View *view = server->get_view(view_id).unwrap();
+  // TODO(lamarrr): refactor this into a separate function?
+  gfx::DeviceImpl    device = server->device;
+ 
   // clear view
   // TODO(lamarrr): who clears the attachments
   // SYNCING RENDERPASS AND images, and framebuffers
@@ -337,9 +346,9 @@ void PBRPass::encode(Pass self_, RenderServer *server,
   View                   *view   = server->get_view(view_id).unwrap();
   gfx::CommandEncoderImpl enc    = info->command_encoder;
   Attachment            **color_attachment =
-      (Attachment **) view->resources["COLOR_ATTACHMENT"_span];
+      (Attachment **) view->bindings["COLOR_ATTACHMENT"_span];
   Attachment **depth_stencil_attachment =
-      (Attachment **) view->resources["DEPTH_STENCIL_ATTACHMENT"_span];
+      (Attachment **) view->bindings["DEPTH_STENCIL_ATTACHMENT"_span];
 
   enc->begin_render_pass(enc.self, framebuffer, render_pass, {0, 0},
                          (*color_attachment)->extent, to_span({gfx::Color{}}),

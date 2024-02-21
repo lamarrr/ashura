@@ -47,16 +47,17 @@ struct PBRMesh
   gfx::IndexType index_type           = gfx::IndexType::Uint16;
 };
 
-struct PBRObject
-{
-  PBRMaterial material              = {};
-  PBRMesh     mesh                  = {};
-  uid32       scene_object_id       = UID32_INVALID;
-  u32         descriptor_heap_group = 0;
-};
-
 struct PBRDesc
 {
+  PBRMaterial material = {};
+  PBRMesh     mesh     = {};
+};
+
+struct PBRObject
+{
+  PBRDesc desc                  = {};
+  uid32   scene_object_id       = UID32_INVALID;
+  u32     descriptor_heap_group = 0;
 };
 
 // needed because we need to be able to render a view that is part of another

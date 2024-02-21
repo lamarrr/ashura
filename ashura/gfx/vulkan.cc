@@ -2160,6 +2160,7 @@ Result<gfx::Image, Status>
   VALIDATE(self, "", desc.format != gfx::Format::Undefined);
   VALIDATE(self, "", desc.usage != gfx::ImageUsage::None);
   VALIDATE(self, "", desc.aspects != gfx::ImageAspects::None);
+  VALIDATE(self, "", desc.sample_count != gfx::SampleCount::None);
   VALIDATE(self, "", desc.extent.x != 0);
   VALIDATE(self, "", desc.extent.y != 0);
   VALIDATE(self, "", desc.extent.z != 0);
@@ -6484,6 +6485,124 @@ void CommandEncoderInterface::blit_image(gfx::CommandEncoder self_,
                                       num_blits, vk_blits, (VkFilter) filter);
 
   self->allocator.deallocate_typed(vk_blits, num_blits);
+}
+
+void CommandEncoderInterface::resolve_image(
+    gfx::CommandEncoder self_, gfx::Image src_, gfx::Image dst_,
+    Span<gfx::ImageResolve const> resolves)
+{
+  CommandEncoder *const self         = (CommandEncoder *) self_;
+  Image *const          src          = (Image *) src_;
+  Image *const          dst          = (Image *) dst_;
+  u32 const             num_resolves = (u32) resolves.size();
+
+  VALIDATE(self, "", num_resolves > 0);
+  VALIDATE(self, "", has_bits(src->desc.usage, gfx::ImageUsage::TransferSrc));
+  VALIDATE(self, "", has_bits(dst->desc.usage, gfx::ImageUsage::TransferDst));
+  VALIDATE(self, "",
+           has_bits(dst->desc.sample_count, gfx::SampleCount::Count1));
+
+  for (u32 i = 0; i < num_resolves; i++)
+  {
+    gfx::ImageResolve const &resolve = resolves[i];
+
+    VALIDATE(self, "",
+             is_valid_image_subresource_access(
+                 src->desc.aspects, src->desc.mip_levels,
+                 src->desc.array_layers, resolve.src_layers.aspects,
+                 resolve.src_layers.mip_level, 1,
+                 resolve.src_layers.first_array_layer,
+                 resolve.src_layers.num_array_layers));
+    VALIDATE(self, "",
+             is_valid_image_subresource_access(
+                 dst->desc.aspects, dst->desc.mip_levels,
+                 dst->desc.array_layers, resolve.dst_layers.aspects,
+                 resolve.dst_layers.mip_level, 1,
+                 resolve.dst_layers.first_array_layer,
+                 resolve.dst_layers.num_array_layers));
+
+    gfx::Extent3D src_extent =
+        mip_down(src->desc.extent, resolve.src_layers.mip_level);
+    gfx::Extent3D dst_extent =
+        mip_down(dst->desc.extent, resolve.dst_layers.mip_level);
+    VALIDATE(self, "", resolve.extent.x > 0);
+    VALIDATE(self, "", resolve.extent.y > 0);
+    VALIDATE(self, "", resolve.extent.z > 0);
+    VALIDATE(self, "", resolve.src_offset.x <= src_extent.x);
+    VALIDATE(self, "", resolve.src_offset.y <= src_extent.y);
+    VALIDATE(self, "", resolve.src_offset.z <= src_extent.z);
+    VALIDATE(self, "",
+             (resolve.src_offset.x + resolve.extent.x) <= src_extent.x);
+    VALIDATE(self, "",
+             (resolve.src_offset.y + resolve.extent.x) <= src_extent.y);
+    VALIDATE(self, "",
+             (resolve.src_offset.z + resolve.extent.x) <= src_extent.z);
+    VALIDATE(self, "", resolve.dst_offset.x <= dst_extent.x);
+    VALIDATE(self, "", resolve.dst_offset.y <= dst_extent.y);
+    VALIDATE(self, "", resolve.dst_offset.z <= dst_extent.z);
+    VALIDATE(self, "",
+             (resolve.dst_offset.x + resolve.extent.x) <= dst_extent.x);
+    VALIDATE(self, "",
+             (resolve.dst_offset.y + resolve.extent.x) <= dst_extent.y);
+    VALIDATE(self, "",
+             (resolve.dst_offset.z + resolve.extent.x) <= dst_extent.z);
+  }
+
+  if (self->status != Status::Success)
+  {
+    return;
+  }
+
+  VkImageResolve *vk_resolves =
+      self->allocator.allocate_typed<VkImageResolve>(num_resolves);
+
+  if (vk_resolves == nullptr)
+  {
+    self->status = Status::OutOfHostMemory;
+    return;
+  }
+
+  for (u32 i = 0; i < num_resolves; i++)
+  {
+    gfx::ImageResolve const &resolve = resolves[i];
+    VkImageSubresourceLayers src_subresource{
+        .aspectMask     = (VkImageAspectFlags) resolve.src_layers.aspects,
+        .mipLevel       = resolve.src_layers.mip_level,
+        .baseArrayLayer = resolve.src_layers.first_array_layer,
+        .layerCount     = resolve.src_layers.num_array_layers};
+    VkOffset3D               src_offset{(i32) resolve.src_offset.x,
+                          (i32) resolve.src_offset.y,
+                          (i32) resolve.src_offset.z};
+    VkImageSubresourceLayers dst_subresource{
+        .aspectMask     = (VkImageAspectFlags) resolve.dst_layers.aspects,
+        .mipLevel       = resolve.dst_layers.mip_level,
+        .baseArrayLayer = resolve.dst_layers.first_array_layer,
+        .layerCount     = resolve.dst_layers.num_array_layers};
+    VkOffset3D dst_offset{(i32) resolve.dst_offset.x,
+                          (i32) resolve.dst_offset.y,
+                          (i32) resolve.dst_offset.z};
+    VkExtent3D extent{resolve.extent.x, resolve.extent.y, resolve.extent.z};
+
+    vk_resolves[i] = VkImageResolve{.srcSubresource = src_subresource,
+                                    .srcOffset      = src_offset,
+                                    .dstSubresource = dst_subresource,
+                                    .dstOffset      = dst_offset,
+                                    .extent         = extent};
+  }
+
+  access_image(*self, *src, VK_PIPELINE_STAGE_TRANSFER_BIT,
+               VK_ACCESS_TRANSFER_READ_BIT,
+               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+  access_image(*self, *dst, VK_PIPELINE_STAGE_TRANSFER_BIT,
+               VK_ACCESS_TRANSFER_WRITE_BIT,
+               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+  self->device->vk_table.CmdResolveImage(
+      self->vk_command_buffer, src->vk_image,
+      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->vk_image,
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, num_resolves, vk_resolves);
+
+  self->allocator.deallocate_typed(vk_resolves, num_resolves);
 }
 
 void CommandEncoderInterface::begin_render_pass(

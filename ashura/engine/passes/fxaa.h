@@ -4,6 +4,8 @@
 namespace ash
 {
 
+typedef struct FXAAPass FXAAPass;
+
 struct FXAAPass
 {
   static void init(Pass self, RenderServer *server, uid32 id);

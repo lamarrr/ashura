@@ -648,11 +648,11 @@ Result<Void, Error>
     return Err{Error::OutOfMemory};
   }
 
-  for (PassImpl const &pass : pass_group.passes)
+  for (u32 i = 0; i < pass_group.id_map.size(); i++)
   {
-    PassBeginInfo info{.view    = view_id,
-                       .encoder = encoder,
-                       .binding = bindings.data() + 0x000};
+    PassImpl const &pass = pass_group.passes[i];
+    PassBeginInfo   info{
+          .view = view_id, .encoder = encoder, .binding = &bindings[i]};
     pass.interface->begin(pass.self, this, &info);
   }
 
@@ -701,10 +701,11 @@ Result<Void, Error>
             });
       });
 
-  for (PassImpl const &pass : pass_group.passes)
+  for (u32 i = 0; i < pass_group.id_map.size(); i++)
   {
-    PassEndInfo info{
-        .view = view_id, .encoder = encoder, .binding = bindings[0x000]};
+    PassImpl const &pass = pass_group.passes[i];
+    PassEndInfo     info{
+            .view = view_id, .encoder = encoder, .binding = bindings[i]};
     pass.interface->end(pass.self, this, &info);
   }
 

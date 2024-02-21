@@ -447,6 +447,20 @@ enum class ImageAspects : u32
 
 ASH_DEFINE_ENUM_BIT_OPS(ImageAspects)
 
+enum class SampleCount : u8
+{
+  None    = 0x00000000,
+  Count1  = 0x00000001,
+  Count2  = 0x00000002,
+  Count4  = 0x00000004,
+  Count8  = 0x00000008,
+  Count16 = 0x00000010,
+  Count32 = 0x00000020,
+  Count64 = 0x00000040
+};
+
+ASH_DEFINE_ENUM_BIT_OPS(SampleCount)
+
 enum class LoadOp : u8
 {
   Load     = 0,
@@ -845,6 +859,7 @@ struct ImageDesc
   Extent3D     extent       = {};
   u32          mip_levels   = 0;
   u32          array_layers = 0;
+  SampleCount  sample_count = SampleCount::None;
 };
 
 /// a sub-resource that specifies mips, aspects, layer, and component mapping of
@@ -1157,19 +1172,28 @@ struct BufferImageCopy
 
 struct ImageCopy
 {
-  Offset3D               src_offset = {};
   ImageSubresourceLayers src_layers = {};
-  Offset3D               dst_offset = {};
+  Offset3D               src_offset = {};
   ImageSubresourceLayers dst_layers = {};
+  Offset3D               dst_offset = {};
   Extent3D               extent     = {};
 };
 
 struct ImageBlit
 {
-  Offset3D               src_offsets[2] = {};
   ImageSubresourceLayers src_layers     = {};
-  Offset3D               dst_offsets[2] = {};
+  Offset3D               src_offsets[2] = {};
   ImageSubresourceLayers dst_layers     = {};
+  Offset3D               dst_offsets[2] = {};
+};
+
+struct ImageResolve
+{
+  ImageSubresourceLayers src_layers = {};
+  Offset3D               src_offset = {};
+  ImageSubresourceLayers dst_layers = {};
+  Offset3D               dst_offset = {};
+  Extent3D               extent     = {};
 };
 
 union Color
@@ -1334,6 +1358,8 @@ struct CommandEncoderInterface
                                Span<BufferImageCopy const> copies) = nullptr;
   void (*blit_image)(CommandEncoder self, Image src, Image dst,
                      Span<ImageBlit const> blits, Filter filter)   = nullptr;
+  void (*resolve_image)(CommandEncoder self, Image src, Image dst,
+                        Span<ImageResolve const> resolves)         = nullptr;
   void (*begin_render_pass)(
       CommandEncoder self, Framebuffer framebuffer, RenderPass render_pass,
       Offset render_offset, Extent render_extent,

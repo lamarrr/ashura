@@ -5,6 +5,10 @@
 namespace ash
 {
 
+typedef struct BloomDesc   BloomDesc;
+typedef struct BloomObject BloomObject;
+typedef struct BloomPass   BloomPass;
+
 struct BloomDesc
 {
   BlurDesc blur                 = {};
