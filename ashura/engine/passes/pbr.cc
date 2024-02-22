@@ -3,6 +3,13 @@
 namespace ash
 {
 
+struct PBRBinding
+{
+  gfx::RenderPass       render_pass = nullptr;
+  gfx::Framebuffer      framebuffer = nullptr;
+  gfx::GraphicsPipeline pipeline    = nullptr;
+};
+
 void PBRPass::init(Pass self_, RenderServer *server, uid32 id)
 {
   PBRPass               *self   = (PBRPass *) self_;
@@ -49,274 +56,40 @@ void PBRPass::init(Pass self_, RenderServer *server, uid32 id)
                   .border_color      = gfx::BorderColor::FloatTransparentBlack,
                   .unnormalized_coordinates = false})
           .unwrap();
-
-  // get shader from server
-  // get or create render pass
-  // get or create frame buffer for each view on view added
 }
 
-void get_or_create_attachments(){
- gfx::SwapchainInfo swapchain_info =
-      device->get_swapchain_info(device.self, server->swapchain).unwrap();
-  Attachment **color_attachment =
-      (Attachment **) view->bindings["COLOR_ATTACHMENT"_span];
-  Attachment **depth_attachment =
-      (Attachment **) view->bindings["DEPTH_STENCIL_ATTACHMENT"_span];
-  bool use_hdr = view->bindings["USE_HDR"_span] != nullptr;
-  view->bindings["ANTI_ALIASING_CONFIG"_span];
-
-  if (color_attachment == nullptr ||
-      (color_attachment != nullptr &&
-       ((*color_attachment)->extent != view->viewport_extent)))
-  {
-    if (color_attachment != nullptr)
-    {
-      //   color_attachment->image;        // queue for deletion
-      //   color_attachment->view;         // queue for deletion
-    }
-
-    gfx::Format format = gfx::Format::B8G8R8A8_UNORM;
-
-    if (use_hdr)
-    {
-      // use other less-intensive format specified in the render context
-      if (has_any_bit(device
-                          ->get_format_properties(
-                              device.self, gfx::Format::R32G32B32A32_SFLOAT)
-                          .unwrap()
-                          .optimal_tiling_features,
-                      gfx::FormatFeatures::ColorAttachment |
-                          gfx::FormatFeatures::ColorAttachmentBlend))
-      {
-        format = gfx::Format::R32G32B32A32_SFLOAT;
-      }
-      else
-      {
-        if (has_any_bit(device
-                            ->get_format_properties(
-                                device.self, gfx::Format::R32G32B32_SFLOAT)
-                            .unwrap()
-                            .optimal_tiling_features,
-                        gfx::FormatFeatures::ColorAttachment |
-                            gfx::FormatFeatures::ColorAttachmentBlend))
-        {
-          format = gfx::Format::R32G32B32_SFLOAT;
-        }
-      }
-    }
-
-    // TODO(lamarrr): double buffering, MSAA
-    gfx::Image image =
-        device
-            ->create_image(
-                device.self,
-                gfx::ImageDesc{.label  = nullptr,
-                               .type   = gfx::ImageType::Type2D,
-                               .format = format,
-                               .usage  = gfx::ImageUsage::ColorAttachment |
-                                        gfx::ImageUsage::Sampled |
-                                        gfx::ImageUsage::TransferSrc,
-                               .aspects      = gfx::ImageAspects::Color,
-                               .extent       = {view->viewport_extent.x,
-                                                view->viewport_extent.y, 1},
-                               .mip_levels   = 1,
-                               .array_layers = 1,
-                               .sample_count = gfx::SampleCount::Count1})
-            .unwrap();
-
-    gfx::ImageView image_view =
-        device
-            ->create_image_view(
-                device.self,
-                gfx::ImageViewDesc{.label       = nullptr,
-                                   .image       = nullptr,
-                                   .view_type   = gfx::ImageViewType::Type2D,
-                                   .view_format = format,
-                                   .mapping     = {},
-                                   .aspects     = gfx::ImageAspects::Color,
-                                   .first_mip_level   = 0,
-                                   .num_mip_levels    = 1,
-                                   .first_array_layer = 0,
-                                   .num_array_layers  = 1})
-            .unwrap();
-
-    Attachment *attachment = server->allocator.allocate_typed<Attachment>(1);
-    new (attachment) Attachment{.image  = image,
-                                .view   = image_view,
-                                .format = format,
-                                .extent = view->viewport_extent};
-
-    // deletion is incorrect
-    view->bindings.emplace("COLOR_ATTACHMENT"_span, attachment);
-  }
-
-  if (depth_attachment == nullptr ||
-      (depth_attachment != nullptr &&
-       (*depth_attachment)->extent != view->viewport_extent))
-  {
-    if (depth_attachment != nullptr)
-    {
-      //   depth_attachment->image;        // queue for deletion
-      //   depth_attachment->view;         // queue for deletion
-    }
-
-    gfx::Image image =
-        device
-            ->create_image(
-                device.self,
-                gfx::ImageDesc{.label  = nullptr,
-                               .type   = gfx::ImageType::Type2D,
-                               .format = gfx::Format::D16_UNORM_S8_UINT,
-                               .usage =
-                                   gfx::ImageUsage::DepthStencilAttachment |
-                                   gfx::ImageUsage::Sampled |
-                                   gfx::ImageUsage::TransferSrc,
-                               .aspects = gfx::ImageAspects::Depth |
-                                          gfx::ImageAspects::Stencil,
-                               .extent       = {view->viewport_extent.x,
-                                                view->viewport_extent.y, 1},
-                               .mip_levels   = 1,
-                               .array_layers = 1,
-                               .sample_count = gfx::SampleCount::Count1})
-            .unwrap();
-
-    gfx::ImageView image_view =
-        device
-            ->create_image_view(
-                device.self,
-                gfx::ImageViewDesc{.label     = nullptr,
-                                   .image     = nullptr,
-                                   .view_type = gfx::ImageViewType::Type2D,
-                                   .view_format =
-                                       gfx::Format::D16_UNORM_S8_UINT,
-                                   .mapping = {},
-                                   .aspects = gfx::ImageAspects::Depth |
-                                              gfx::ImageAspects::Stencil,
-                                   .first_mip_level   = 0,
-                                   .num_mip_levels    = 1,
-                                   .first_array_layer = 0,
-                                   .num_array_layers  = 1})
-            .unwrap();
-
-    Attachment *attachment = server->allocator.allocate_typed<Attachment>(1);
-    new (attachment) Attachment{.image  = image,
-                                .view   = image_view,
-                                .format = gfx::Format::D16_UNORM_S8_UINT,
-                                .extent = view->viewport_extent};
-
-    view->bindings.emplace("DEPTH_STENCIL_ATTACHMENT"_span, attachment);
-  }
-
-}
-
-void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
+void PBRPass::begin(Pass self_, RenderServer *server, PassBeginInfo const *info)
 {
-  View *view = server->get_view(view_id).unwrap();
-  // TODO(lamarrr): refactor this into a separate function?
-  gfx::DeviceImpl    device = server->device;
- 
+  gfx::DeviceImpl device = server->device;
+  View           *view   = server->get_view(info->view).unwrap();
+  PBRPass        *self   = (PBRPass *) self_;
+
   // clear view
-  // TODO(lamarrr): who clears the attachments
+  // TODO(lamarrr): when and who clears the attachments
   // SYNCING RENDERPASS AND images, and framebuffers
   //
-  (*encoder)->clear_color_image(encoder->self, nullptr, {}, {});
-  (*encoder)->clear_depth_stencil_image(encoder->self, nullptr, {}, {});
- 
-  self->pipeline =
-      device
-          ->create_graphics_pipeline(
-              device.self,
-              gfx::GraphicsPipelineDesc{
-                  .label = "PBR Graphics Pipeline",
-                  .vertex_shader =
-                      gfx::ShaderStageDesc{
-                          .shader = server->get_shader("PBR_VERTEX_SHADER"_span)
-                                        .unwrap(),
-                          .entry_point                   = "vs_main",
-                          .specialization_constants_data = {},
-                          .specialization_constants      = {}},
-                  .fragment_shader =
-                      gfx::ShaderStageDesc{
-                          .shader =
-                              server->get_shader("PBR_FRAGMENT_SHADER"_span)
-                                  .unwrap(),
-                          .entry_point                   = "fs_main",
-                          .specialization_constants_data = {},
-                          .specialization_constants      = {}},
-                  .render_pass           = gfx::RenderPass{},
-                  .vertex_input_bindings = to_span<gfx::VertexInputBinding>(
-                      {{.binding    = 0,
-                        .stride     = sizeof(PBRVertex),
-                        .input_rate = gfx::InputRate::Vertex}}),
-                  .vertex_attributes = to_span<gfx::VertexAttribute>(
-                      {{.binding  = 0,
-                        .location = 0,
-                        .format   = gfx::Format::R32G32B32_SFLOAT,
-                        .offset   = offsetof(PBRVertex, x)},
-                       {.binding  = 0,
-                        .location = 1,
-                        .format   = gfx::Format::R32G32_SFLOAT,
-                        .offset   = offsetof(PBRVertex, u)}}),
-                  .push_constant_size     = gfx::MAX_PUSH_CONSTANT_SIZE,
-                  .descriptor_set_layouts = {&self->descriptor_set_layout, 1},
-                  .primitive_topology = gfx::PrimitiveTopology::TriangleList,
-                  .rasterization_state =
-                      gfx::PipelineRasterizationState{
-                          .depth_clamp_enable = false,
-                          .polygon_mode       = gfx::PolygonMode::Fill,
-                          .cull_mode          = gfx::CullMode::None,
-                          .front_face        = gfx::FrontFace::CounterClockWise,
-                          .depth_bias_enable = false,
-                          .depth_bias_constant_factor = 0,
-                          .depth_bias_clamp           = 0,
-                          .depth_bias_slope_factor    = 0},
-                  .depth_stencil_state =
-                      gfx::PipelineDepthStencilState{
-                          .depth_test_enable        = true,
-                          .depth_write_enable       = true,
-                          .depth_compare_op         = gfx::CompareOp::Greater,
-                          .depth_bounds_test_enable = false,
-                          .stencil_test_enable      = false,
-                          .front_stencil            = gfx::StencilOpState{},
-                          .back_stencil             = gfx::StencilOpState{},
-                          .min_depth_bounds         = 0,
-                          .max_depth_bounds         = 0},
-                  .color_blend_state =
-                      gfx::PipelineColorBlendState{
-                          .logic_op_enable = true,
-                          .logic_op        = gfx::LogicOp::Set,
-                          .attachments =
-                              to_span<gfx::PipelineColorBlendAttachmentState>(
-                                  {{.blend_enable = false,
-                                    .src_color_blend_factor =
-                                        gfx::BlendFactor::Zero,
-                                    .dst_color_blend_factor =
-                                        gfx::BlendFactor::Zero,
-                                    .color_blend_op = gfx::BlendOp::Add,
-                                    .src_alpha_blend_factor =
-                                        gfx::BlendFactor::Zero,
-                                    .dst_alpha_blend_factor =
-                                        gfx::BlendFactor::Zero,
-                                    .alpha_blend_op = gfx::BlendOp::Add,
-                                    .color_write_mask =
-                                        gfx::ColorComponents::All}}),
-                          .blend_constant = {1, 1, 1, 1}},
-                  .cache = server->pipeline_cache})
-          .unwrap();
+  //   (*encoder)->clear_color_image(encoder->self, nullptr, {}, {});
+  //   (*encoder)->clear_depth_stencil_image(encoder->self, nullptr, {}, {});
 
-  gfx::RenderPass render_pass =
+  PBRBinding *binding = server->allocator.allocate_typed<PBRBinding>(1);
+  // TODO: check allocation
+  Attachment color_attachment = info->attachments->color_attachment.value();
+  Attachment depth_stencil_attachment =
+      info->attachments->depth_stencil_attachment.value();
+
+  binding->render_pass =
       server
           ->get_render_pass(gfx::RenderPassDesc{
               .label             = "PBR RenderPass",
               .color_attachments = to_span<gfx::RenderPassAttachment>(
-                  {{.format           = (*color_attachment)->format,
+                  {{.format           = color_attachment.desc.format,
                     .load_op          = gfx::LoadOp::Load,
                     .store_op         = gfx::StoreOp::Store,
                     .stencil_load_op  = gfx::LoadOp::DontCare,
                     .stencil_store_op = gfx::StoreOp::DontCare}}),
               .depth_stencil_attachment =
                   gfx::RenderPassAttachment{
-                      .format           = (*depth_stencil_attachment)->format,
+                      .format           = depth_stencil_attachment.desc.format,
                       .load_op          = gfx::LoadOp::Load,
                       .store_op         = gfx::StoreOp::Store,
                       .stencil_load_op  = gfx::LoadOp::Load,
@@ -324,34 +97,117 @@ void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
               .input_attachments = {}})
           .unwrap();
 
+  gfx::Shader vertex_shader =
+      server->get_shader("PBR_VERTEX_SHADER"_span).unwrap();
+  gfx::Shader fragment_shader =
+      server->get_shader("PBR_FRAGMENT_SHADER"_span).unwrap();
+
+  gfx::GraphicsPipelineDesc pipeline_desc{
+      .label         = "PBR Graphics Pipeline",
+      .vertex_shader = gfx::ShaderStageDesc{.shader      = vertex_shader,
+                                            .entry_point = "vs_main",
+                                            .specialization_constants_data = {},
+                                            .specialization_constants = {}},
+      .fragment_shader =
+          gfx::ShaderStageDesc{.shader                        = fragment_shader,
+                               .entry_point                   = "fs_main",
+                               .specialization_constants_data = {},
+                               .specialization_constants      = {}},
+      .render_pass           = gfx::RenderPass{},
+      .vertex_input_bindings = to_span<gfx::VertexInputBinding>(
+          {{.binding    = 0,
+            .stride     = sizeof(PBRVertex),
+            .input_rate = gfx::InputRate::Vertex}}),
+      .vertex_attributes = to_span<gfx::VertexAttribute>(
+          {{.binding  = 0,
+            .location = 0,
+            .format   = gfx::Format::R32G32B32_SFLOAT,
+            .offset   = offsetof(PBRVertex, x)},
+           {.binding  = 0,
+            .location = 1,
+            .format   = gfx::Format::R32G32_SFLOAT,
+            .offset   = offsetof(PBRVertex, u)}}),
+      .push_constant_size     = gfx::MAX_PUSH_CONSTANT_SIZE,
+      .descriptor_set_layouts = {&self->descriptor_set_layout, 1},
+      .primitive_topology     = gfx::PrimitiveTopology::TriangleList,
+      .rasterization_state =
+          gfx::PipelineRasterizationState{
+              .depth_clamp_enable         = false,
+              .polygon_mode               = gfx::PolygonMode::Fill,
+              .cull_mode                  = gfx::CullMode::None,
+              .front_face                 = gfx::FrontFace::CounterClockWise,
+              .depth_bias_enable          = false,
+              .depth_bias_constant_factor = 0,
+              .depth_bias_clamp           = 0,
+              .depth_bias_slope_factor    = 0},
+      .depth_stencil_state =
+          gfx::PipelineDepthStencilState{.depth_test_enable  = true,
+                                         .depth_write_enable = true,
+                                         .depth_compare_op =
+                                             gfx::CompareOp::Greater,
+                                         .depth_bounds_test_enable = false,
+                                         .stencil_test_enable      = false,
+                                         .front_stencil = gfx::StencilOpState{},
+                                         .back_stencil  = gfx::StencilOpState{},
+                                         .min_depth_bounds = 0,
+                                         .max_depth_bounds = 0},
+      .color_blend_state =
+          gfx::PipelineColorBlendState{
+              .logic_op_enable = true,
+              .logic_op        = gfx::LogicOp::Set,
+              .attachments = to_span<gfx::PipelineColorBlendAttachmentState>(
+                  {{.blend_enable           = false,
+                    .src_color_blend_factor = gfx::BlendFactor::Zero,
+                    .dst_color_blend_factor = gfx::BlendFactor::Zero,
+                    .color_blend_op         = gfx::BlendOp::Add,
+                    .src_alpha_blend_factor = gfx::BlendFactor::Zero,
+                    .dst_alpha_blend_factor = gfx::BlendFactor::Zero,
+                    .alpha_blend_op         = gfx::BlendOp::Add,
+                    .color_write_mask       = gfx::ColorComponents::All}}),
+              .blend_constant = {1, 1, 1, 1}},
+      .cache = server->pipeline_cache};
+
+  binding->pipeline =
+      device->create_graphics_pipeline(device.self, pipeline_desc).unwrap();
+
   gfx::Framebuffer framebuffer =
       device
           ->create_framebuffer(
               device.self,
               gfx::FramebufferDesc{
                   .label                    = "PBR Framebuffer",
-                  .render_pass              = render_pass,
-                  .extent                   = (*color_attachment)->extent,
-                  .color_attachments        = {&(*color_attachment)->view, 1},
-                  .depth_stencil_attachment = (*depth_stencil_attachment)->view,
+                  .render_pass              = binding->render_pass,
+                  .extent                   = view->config.extent,
+                  .color_attachments        = {&color_attachment.view, 1},
+                  .depth_stencil_attachment = depth_stencil_attachment.view,
                   .layers                   = 1})
           .unwrap();
+
+  *info->binding = (PassBinding) binding;
+}
+
+void PBRPass::end(Pass self_, RenderServer *server, PassEndInfo const *info)
+{
+  gfx::DeviceImpl device  = server->device;
+  PBRBinding     *binding = (PBRBinding *) info->binding;
+  // TODO(lamarrr): use cache instead, and never delete immediately, add
+  // deletion queue
+  device->unref_render_pass(device.self, binding->render_pass);
+  device->unref_graphics_pipeline(device.self, binding->pipeline);
+  device->unref_framebuffer(device.self, binding->framebuffer);
 }
 
 void PBRPass::encode(Pass self_, RenderServer *server,
                      PassEncodeInfo const *info)
 {
-  PBRPass                *self   = (PBRPass *) self_;
-  gfx::DeviceImpl         device = server->device;
-  View                   *view   = server->get_view(view_id).unwrap();
-  gfx::CommandEncoderImpl enc    = info->command_encoder;
-  Attachment            **color_attachment =
-      (Attachment **) view->bindings["COLOR_ATTACHMENT"_span];
-  Attachment **depth_stencil_attachment =
-      (Attachment **) view->bindings["DEPTH_STENCIL_ATTACHMENT"_span];
+  PBRPass                *self    = (PBRPass *) self_;
+  gfx::DeviceImpl         device  = server->device;
+  View                   *view    = server->get_view(info->view).unwrap();
+  gfx::CommandEncoderImpl enc     = info->encoder;
+  PBRBinding             *binding = (PBRBinding *) info->binding;
 
-  enc->begin_render_pass(enc.self, framebuffer, render_pass, {0, 0},
-                         (*color_attachment)->extent, to_span({gfx::Color{}}),
+  enc->begin_render_pass(enc.self, binding->framebuffer, binding->render_pass,
+                         {0, 0}, view->config.extent, to_span({gfx::Color{}}),
                          gfx::DepthStencil{});
   enc->bind_graphics_pipeline(enc.self, self->pipeline);
 

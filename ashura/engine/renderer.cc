@@ -630,7 +630,8 @@ Result<Void, Error> RenderServer::frustum_cull()
 //
 Result<Void, Error>
     RenderServer::encode_view(uid32                          view_id,
-                              gfx::CommandEncoderImpl const &encoder)
+                              gfx::CommandEncoderImpl const &encoder,
+                              ViewAttachments const         &attachments)
 {
   u32 const view_index  = view_group.id_map[view_id];
   View     &view        = view_group.views[view_index];
@@ -651,8 +652,10 @@ Result<Void, Error>
   for (u32 i = 0; i < pass_group.id_map.size(); i++)
   {
     PassImpl const &pass = pass_group.passes[i];
-    PassBeginInfo   info{
-          .view = view_id, .encoder = encoder, .binding = &bindings[i]};
+    PassBeginInfo   info{.view        = view_id,
+                         .encoder     = encoder,
+                         .attachments = &attachments,
+                         .binding     = &bindings[i]};
     pass.interface->begin(pass.self, this, &info);
   }
 
@@ -686,9 +689,10 @@ Result<Void, Error>
                     u32 const   pass_index    = pass_group.id_map[pass_id];
                     PassImpl const      &pass = pass_group.passes[pass_index];
                     PassEncodeInfo const info{
-                        .view    = view_id,
-                        .encoder = encoder,
-                        .binding = bindings[pass_index],
+                        .view        = view_id,
+                        .encoder     = encoder,
+                        .attachments = &attachments,
+                        .binding     = bindings[pass_index],
                         .is_transparent =
                             scene.objects.is_transparent[indices[0]],
                         .z_index = scene.objects.z_index[indices[0]],
@@ -704,8 +708,10 @@ Result<Void, Error>
   for (u32 i = 0; i < pass_group.id_map.size(); i++)
   {
     PassImpl const &pass = pass_group.passes[i];
-    PassEndInfo     info{
-            .view = view_id, .encoder = encoder, .binding = bindings[i]};
+    PassEndInfo     info{.view        = view_id,
+                         .encoder     = encoder,
+                         .attachments = &attachments,
+                         .binding     = bindings[i]};
     pass.interface->end(pass.self, this, &info);
   }
 
@@ -714,17 +720,133 @@ Result<Void, Error>
   return Ok<Void>{};
 }
 
-Result<Void, Error> RenderServer::render(gfx::CommandEncoderImpl const &encoder)
+Result<ViewAttachments, int> create_view_attachments(RenderServer &server,
+                                                     View const   &view)
 {
-  if (view_group.root_view == UID32_INVALID)
+  ViewAttachments attachments;
+
+  if (view.config.color_format != gfx::Format::Undefined &&
+      view.config.extent.x > 0 && view.config.extent.y > 0)
   {
-    return Ok<Void>{};
+    gfx::SampleCount sample_count = gfx::SampleCount::Count1;
+    switch (view.config.aa.technique)
+    {
+      case AATechnique::FXAA:
+        break;
+      case AATechnique::MSAA:
+        sample_count = view.config.aa.msaa.sample_count;
+        break;
+    }
+
+    attachments.color_attachment =
+        Some{server
+                 .request_scratch_attachment(
+                     gfx::ImageDesc{.label   = nullptr,
+                                    .type    = gfx::ImageType::Type2D,
+                                    .format  = view.config.color_format,
+                                    .usage   = gfx::ImageUsage::ColorAttachment,
+                                    .aspects = gfx::ImageAspects::Color,
+                                    .extent =
+                                        gfx::Extent3D{
+                                            view.config.extent.x,
+                                            view.config.extent.y,
+                                            1,
+                                        },
+                                    .mip_levels   = 1,
+                                    .array_layers = 1,
+                                    .sample_count = sample_count})
+                 .unwrap()};
+
+    if (sample_count != gfx::SampleCount::Count1)
+    {
+      attachments.resolve_color_attachment =
+          Some{server
+                   .request_scratch_attachment(
+                       gfx::ImageDesc{.label  = nullptr,
+                                      .type   = gfx::ImageType::Type2D,
+                                      .format = view.config.color_format,
+                                      .usage = gfx::ImageUsage::ColorAttachment,
+                                      .aspects = gfx::ImageAspects::Color,
+                                      .extent =
+                                          gfx::Extent3D{
+                                              view.config.extent.x,
+                                              view.config.extent.y,
+                                              1,
+                                          },
+                                      .mip_levels   = 1,
+                                      .array_layers = 1,
+                                      .sample_count = gfx::SampleCount::Count1})
+                   .unwrap()};
+    }
   }
-  return encode_view(view_group.root_view, encoder);
+
+  if (view.config.depth_stencil_format != gfx::Format::Undefined &&
+      view.config.extent.x > 0 && view.config.extent.y > 0)
+  {
+    attachments.depth_stencil_attachment =
+        Some{server
+                 .request_scratch_attachment(gfx::ImageDesc{
+                     .label  = nullptr,
+                     .type   = gfx::ImageType::Type2D,
+                     .format = view.config.depth_stencil_format,
+                     .usage  = gfx::ImageUsage::DepthStencilAttachment,
+                     .aspects =
+                         gfx::ImageAspects::Depth | gfx::ImageAspects::Stencil,
+                     .extent =
+                         gfx::Extent3D{
+                             view.config.extent.x,
+                             view.config.extent.y,
+                             1,
+                         },
+                     .mip_levels   = 1,
+                     .array_layers = 1,
+                     .sample_count = gfx::SampleCount::Count1})
+                 .unwrap()};
+  }
+
+  return Ok{attachments};
 }
 
-void RenderServer::tick(){
-  
+void RenderServer::tick()
+{
+  transform();
+  frustum_cull().unwrap();
+  gfx::FrameInfo frame_info =
+      device->get_frame_info(device.self, frame_context);
+  gfx::CommandEncoderImpl const encoder =
+      frame_info.command_encoders[frame_info.current_command_encoder];
+
+  for (PassImpl const &pass : pass_group.passes)
+  {
+    pass.interface->begin_frame(pass.self, this, &encoder);
+  }
+
+  if (view_group.root_view != UID32_INVALID)
+  {
+    // render scene to offscreen image, and then perform
+    // post-fx, and then composite back to parent view
+    View &view = view_group.views[view_group.id_map[view_group.root_view]];
+    ViewAttachments attachments = create_view_attachments(*this, view).unwrap();
+    encode_view(view_group.root_view, encoder, attachments);
+    if (attachments.color_attachment)
+    {
+      release_scratch_attachment(attachments.color_attachment.value());
+    }
+    if (attachments.depth_stencil_attachment)
+    {
+      release_scratch_attachment(attachments.color_attachment.value());
+    }
+
+    if (attachments.resolve_color_attachment)
+    {
+      release_scratch_attachment(attachments.color_attachment.value());
+    }
+  }
+
+  for (PassImpl const &pass : pass_group.passes)
+  {
+    pass.interface->end_frame(pass.self, this, &encoder);
+  }
 }
 
 }        // namespace ash

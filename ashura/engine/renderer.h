@@ -112,11 +112,61 @@ struct Camera
   Mat4       projection = {};
 };
 
+struct Attachment
+{
+  gfx::Image     image = nullptr;
+  gfx::ImageView view  = nullptr;
+  gfx::ImageDesc desc  = {};
+};
+
+struct MSAAConfig
+{
+  gfx::SampleCount sample_count = gfx::SampleCount::None;
+};
+
+struct FXAAConfig
+{
+};
+
+enum class AATechnique : u8
+{
+  None = 0,
+  MSAA = 1,
+  FXAA = 2
+};
+
+struct AAConfig
+{
+  union
+  {
+    MSAAConfig msaa;
+    FXAAConfig fxaa;
+    char       none_ = 0;
+  };
+  AATechnique technique = AATechnique::None;
+};
+
+struct ViewConfig
+{
+  gfx::Extent extent               = {};
+  gfx::Format color_format         = gfx::Format::Undefined;
+  gfx::Format depth_stencil_format = gfx::Format::Undefined;
+  AAConfig    aa                   = {};
+};
+
+struct ViewAttachments
+{
+  Option<Attachment> color_attachment         = {};
+  Option<Attachment> depth_stencil_attachment = {};
+  Option<Attachment> resolve_color_attachment = {};
+};
+
 struct PassBeginInfo
 {
-  uid32                   view    = UID32_INVALID;
-  gfx::CommandEncoderImpl encoder = {};
-  PassBinding            *binding = nullptr;
+  uid32                   view        = UID32_INVALID;
+  gfx::CommandEncoderImpl encoder     = {};
+  ViewAttachments const  *attachments = nullptr;
+  PassBinding            *binding     = nullptr;
 };
 
 /// @brief Arguments to encode the commands to render a batch of objects in a
@@ -125,6 +175,7 @@ struct PassEncodeInfo
 {
   uid32                   view           = UID32_INVALID;
   gfx::CommandEncoderImpl encoder        = {};
+  ViewAttachments const  *attachments    = nullptr;
   PassBinding             binding        = nullptr;
   bool                    is_transparent = false;
   i64                     z_index        = 0;
@@ -133,9 +184,10 @@ struct PassEncodeInfo
 
 struct PassEndInfo
 {
-  uid32                   view    = UID32_INVALID;
-  gfx::CommandEncoderImpl encoder = {};
-  PassBinding             binding = nullptr;
+  uid32                   view        = UID32_INVALID;
+  gfx::CommandEncoderImpl encoder     = {};
+  ViewAttachments const  *attachments = nullptr;
+  PassBinding             binding     = nullptr;
 };
 
 /// @init: add self and resources to server
@@ -163,6 +215,10 @@ struct PassInterface
   void (*release_view)(Pass self, RenderServer *server, uid32 view)   = nullptr;
   void (*release_object)(Pass self, RenderServer *server, uid32 scene,
                          uid32 object)                                = nullptr;
+  void (*begin_frame)(Pass self, RenderServer *server,
+                      gfx::CommandEncoderImpl const *encoder)         = nullptr;
+  void (*end_frame)(Pass self, RenderServer *server,
+                    gfx::CommandEncoderImpl const *encoder)           = nullptr;
   void (*begin)(Pass self, RenderServer *server,
                 PassBeginInfo const *info)                            = nullptr;
   void (*encode)(Pass self, RenderServer *server,
@@ -207,7 +263,6 @@ struct SceneObjectDesc
   bool       is_transparent = false;
 };
 
-
 struct SceneObjects
 {
   Vec<SceneNode>   node             = {};
@@ -232,61 +287,14 @@ struct Scene
   Vec<AreaLight>        area_lights               = {};
   SparseVec<u32>        area_lights_id_map        = {};
   SceneObjects          objects                   = {};
+  i64                   lowest_z_index            = 0;
+  i64                   highest_z_index           = 0;
 };
 
 struct SceneGroup
 {
   Vec<Scene>     scenes = {};
   SparseVec<u32> id_map = {};
-};
-
-struct Attachment
-{
-  gfx::Image     image  = nullptr;
-  gfx::ImageView view   = nullptr;
-  gfx::Format    format = gfx::Format::Undefined;
-  gfx::Extent    extent = {0, 0};
-};
-
-struct MSAAConfig
-{
-  u32 num_samples = 4;
-};
-
-struct FXAAConfig
-{
-};
-
-enum class AATechnique : u8
-{
-  None = 0,
-  MSAA = 1,
-  FXAA = 2
-};
-
-struct AAConfig
-{
-  union
-  {
-    MSAAConfig msaa;
-    FXAAConfig fxaa;
-    char       none_ = 0;
-  };
-  AATechnique technique = AATechnique::None;
-};
-
-struct ViewConfig
-{
-  gfx::Extent viewport_extent      = {};
-  gfx::Format color_format         = gfx::Format::Undefined;
-  gfx::Format depth_stencil_format = gfx::Format::Undefined;
-  AAConfig    aa                   = {};
-};
-
-struct ViewBindings
-{
-  Attachment color_attachment         = {};
-  Attachment depth_stencil_attachment = {};
 };
 
 struct View
@@ -297,8 +305,7 @@ struct View
   BitVec<u64>          is_object_visible = {};
   Vec<u32>             sort_indices      = {};
   ViewConfig           config            = {};
-  ViewBindings         bindings{};
-  StrDict<PassBinding> pass_bindings = {};
+  StrDict<PassBinding> pass_bindings     = {};
 };
 
 struct ViewGroup
@@ -317,15 +324,19 @@ struct ViewGroup
 /// @remove_object: remove object and all its children
 struct RenderServer
 {
-  AllocatorImpl        allocator      = default_allocator;
-  gfx::DeviceImpl      device         = {};
-  gfx::PipelineCache   pipeline_cache = nullptr;
-  PassGroup            pass_group     = {};
-  SceneGroup           scene_group    = {};
-  ViewGroup            view_group     = {};
-  gfx::FrameContext    frame_context  = nullptr;
-  gfx::Swapchain       swapchain      = nullptr;
-  StrDict<PassBinding> bindings       = {};
+  AllocatorImpl      allocator           = default_allocator;
+  gfx::DeviceImpl    device              = {};
+  gfx::PipelineCache pipeline_cache      = nullptr;
+  PassGroup          pass_group          = {};
+  SceneGroup         scene_group         = {};
+  ViewGroup          view_group          = {};
+  gfx::FrameContext  frame_context       = nullptr;
+  gfx::Swapchain     swapchain           = nullptr;
+  Vec<Attachment>    scratch_attachments = {};
+
+  // images resized when swapchain extents changes
+  Option<Attachment> request_scratch_attachment(gfx::ImageDesc const &desc);
+  void               release_scratch_attachment(Attachment const &attachment);
 
   Option<gfx::RenderPass> get_render_pass(gfx::RenderPassDesc const &desc);
   Option<gfx::Shader>     get_shader(Span<char const> name);
@@ -361,8 +372,8 @@ struct RenderServer
   void                transform();
   Result<Void, Error> frustum_cull();
   Result<Void, Error> encode_view(uid32                          view,
-                                  gfx::CommandEncoderImpl const &encoder);
-  Result<Void, Error> render(gfx::CommandEncoderImpl const &encoder);
+                                  gfx::CommandEncoderImpl const &encoder,
+                                  ViewAttachments const         &attachments);
   void                tick();
 };
 
