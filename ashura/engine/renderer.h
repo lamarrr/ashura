@@ -207,6 +207,7 @@ struct SceneObjectDesc
   bool       is_transparent = false;
 };
 
+
 struct SceneObjects
 {
   Vec<SceneNode>   node             = {};
