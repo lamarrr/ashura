@@ -723,4 +723,8 @@ Result<Void, Error> RenderServer::render(gfx::CommandEncoderImpl const &encoder)
   return encode_view(view_group.root_view, encoder);
 }
 
+void RenderServer::tick(){
+  
+}
+
 }        // namespace ash

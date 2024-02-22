@@ -221,7 +221,7 @@ void PBRPass::begin(Pass self, RenderServer *server, PassBeginInfo const *info)
   //
   (*encoder)->clear_color_image(encoder->self, nullptr, {}, {});
   (*encoder)->clear_depth_stencil_image(encoder->self, nullptr, {}, {});
-
+ 
   self->pipeline =
       device
           ->create_graphics_pipeline(

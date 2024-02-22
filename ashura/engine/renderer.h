@@ -247,15 +247,57 @@ struct Attachment
   gfx::Extent    extent = {0, 0};
 };
 
+struct MSAAConfig
+{
+  u32 num_samples = 4;
+};
+
+struct FXAAConfig
+{
+};
+
+enum class AATechnique : u8
+{
+  None = 0,
+  MSAA = 1,
+  FXAA = 2
+};
+
+struct AAConfig
+{
+  union
+  {
+    MSAAConfig msaa;
+    FXAAConfig fxaa;
+    char       none_ = 0;
+  };
+  AATechnique technique = AATechnique::None;
+};
+
+struct ViewConfig
+{
+  gfx::Extent viewport_extent      = {};
+  gfx::Format color_format         = gfx::Format::Undefined;
+  gfx::Format depth_stencil_format = gfx::Format::Undefined;
+  AAConfig    aa                   = {};
+};
+
+struct ViewBindings
+{
+  Attachment color_attachment         = {};
+  Attachment depth_stencil_attachment = {};
+};
+
 struct View
 {
   Span<char const>     name              = {};
-  gfx::Extent          viewport_extent   = {};
   Camera               camera            = {};
   uid32                scene             = 0;
   BitVec<u64>          is_object_visible = {};
   Vec<u32>             sort_indices      = {};
-  StrDict<PassBinding> bindings          = {};
+  ViewConfig           config            = {};
+  ViewBindings         bindings{};
+  StrDict<PassBinding> pass_bindings = {};
 };
 
 struct ViewGroup
@@ -274,19 +316,15 @@ struct ViewGroup
 /// @remove_object: remove object and all its children
 struct RenderServer
 {
-  AllocatorImpl        allocator            = default_allocator;
-  gfx::DeviceImpl      device               = {};
-  gfx::PipelineCache   pipeline_cache       = nullptr;
-  PassGroup            pass_group           = {};
-  SceneGroup           scene_group          = {};
-  ViewGroup            view_group           = {};
-  gfx::FrameContext    frame_context        = nullptr;
-  gfx::Swapchain       swapchain            = nullptr;
-  gfx::Format          color_format         = gfx::Format::B8G8R8A8_UNORM;
-  gfx::Format          depth_format         = gfx::Format::D16_UNORM;
-  gfx::Format          stencil_format       = gfx::Format::S8_UINT;
-  gfx::Format          depth_stencil_format = gfx::Format::D16_UNORM_S8_UINT;
-  StrDict<PassBinding> bindings             = {};
+  AllocatorImpl        allocator      = default_allocator;
+  gfx::DeviceImpl      device         = {};
+  gfx::PipelineCache   pipeline_cache = nullptr;
+  PassGroup            pass_group     = {};
+  SceneGroup           scene_group    = {};
+  ViewGroup            view_group     = {};
+  gfx::FrameContext    frame_context  = nullptr;
+  gfx::Swapchain       swapchain      = nullptr;
+  StrDict<PassBinding> bindings       = {};
 
   Option<gfx::RenderPass> get_render_pass(gfx::RenderPassDesc const &desc);
   Option<gfx::Shader>     get_shader(Span<char const> name);
