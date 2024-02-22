@@ -3,7 +3,7 @@
 
 namespace ash
 {
-
+// TODO(lamarrr): should this be less general-purpose?
 // do we need to copy directly from the image?
 typedef struct BlurDesc   BlurDesc;
 typedef struct BlurObject BlurObject;

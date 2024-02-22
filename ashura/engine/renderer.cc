@@ -847,6 +847,9 @@ void RenderServer::tick()
   {
     pass.interface->end_frame(pass.self, this, &encoder);
   }
+
+  // TODO(lamarrr): copy resolved attachment to screen
+  // move attachment release here
 }
 
 }        // namespace ash

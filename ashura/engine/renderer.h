@@ -146,12 +146,33 @@ struct AAConfig
   AATechnique technique = AATechnique::None;
 };
 
+/// E' = Blur(E)
+/// D' = Blur(D) + E'
+/// C' = Blur(C) + D'
+/// B' = Blur(B) + C'
+/// A' = Blur(A) + B'
+// downsample to mip chains of 5 total
+// perform gaussian blur of the image
+// addittive composite back unto the first mip
+struct BloomConfig
+{
+  u32  blur_radius          = 4;
+  f32  strength             = 1;
+  f32  radius               = 1;
+  Vec3 default_color        = {};
+  f32  default_opacity      = 0.7f;
+  f32  luminosity_threshold = 0.75f;
+  f32  smooth_width         = 0.01f;
+};
+
 struct ViewConfig
 {
   gfx::Extent extent               = {};
   gfx::Format color_format         = gfx::Format::Undefined;
   gfx::Format depth_stencil_format = gfx::Format::Undefined;
   AAConfig    aa                   = {};
+  BloomConfig bloom                = {};
+  f32         chromatic_aberration = 0;
 };
 
 struct ViewAttachments
