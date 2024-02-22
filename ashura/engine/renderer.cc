@@ -736,6 +736,8 @@ Result<ViewAttachments, int> create_view_attachments(RenderServer &server,
       case AATechnique::MSAA:
         sample_count = view.config.aa.msaa.sample_count;
         break;
+      default:
+        break;
     }
 
     attachments.color_attachment =

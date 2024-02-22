@@ -96,13 +96,9 @@ add_library(
   ashura_engine
   ashura/engine/image_decoder.cc
   ashura/engine/renderer.cc
-  ashura/engine/passes/bloom.cc
   ashura/engine/passes/blur.cc
-  ashura/engine/passes/chromatic_aberration.cc
-  ashura/engine/passes/fxaa.cc
   ashura/engine/passes/pbr.cc
   ashura/engine/passes/rrect.cc
-  ashura/engine/passes/view.cc
   ashura/engine/widget.cc)
 target_link_libraries(ashura_engine ashura_std ashura_gfx)
 target_include_directories(

@@ -33,8 +33,8 @@ struct RRectDesc
 
 struct RRectObject
 {
-  RRectDesc desc            = {};
-  uid32     scene_object_id = UID32_INVALID;
+  RRectDesc desc                  = {};
+  u32       descriptor_heap_group = 0;
 };
 
 struct RRectPass
@@ -55,6 +55,10 @@ struct RRectPass
   static void release_view(Pass self, RenderServer *server, uid32 view);
   static void release_object(Pass self, RenderServer *server, uid32 scene,
                              uid32 object);
+  static void begin_frame(Pass self, RenderServer *server,
+                          gfx::CommandEncoderImpl const *encoder);
+  static void end_frame(Pass self, RenderServer *server,
+                        gfx::CommandEncoderImpl const *encoder);
   static void begin(Pass self, RenderServer *server, PassBeginInfo const *info);
   static void encode(Pass self, RenderServer *server,
                      PassEncodeInfo const *info);
@@ -68,9 +72,11 @@ struct RRectPass
                                                  .release_view  = release_view,
                                                  .release_object =
                                                      release_object,
-                                                 .begin  = begin,
-                                                 .encode = encode,
-                                                 .end    = end};
+                                                 .begin_frame = begin_frame,
+                                                 .end_frame   = end_frame,
+                                                 .begin       = begin,
+                                                 .encode      = encode,
+                                                 .end         = end};
 
   u64  add_object(Scene *scene, RRect const &rrect,
                   RRectMaterial const &material, i64 z_index);

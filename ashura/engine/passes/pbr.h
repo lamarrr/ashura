@@ -56,34 +56,15 @@ struct PBRDesc
 struct PBRObject
 {
   PBRDesc desc                  = {};
-  uid32   scene_object_id       = UID32_INVALID;
   u32     descriptor_heap_group = 0;
 };
 
-// needed because we need to be able to render a view that is part of another
-// view without adding the elements of the view to the root view
-//
-// view pass should also check if the view has already been rendered for the
-// current frame.
-//
-// TODO(lamarrr): should be able to request render of another view
-//
-// get metadata for another pass belonging to a view
-// i.e. get color attachment for view, get depth attachment for view, get
-// framebuffer, renderpass. named tagged and used for a specific purpose,
-// possibly referenced by all passes if they need to modify or add data atop of
-// it but what if another view modifies it?
-//
-// render to view's frame buffer and then composite onto the present view
-// there must be no recursion happening here
 struct PBRPass
 {
   Vec<PBRObject>           objects               = {};
   SparseVec<u32>           id_map                = {};
   gfx::DescriptorSetLayout descriptor_set_layout = nullptr;
   gfx::DescriptorHeapImpl  descriptor_heap       = {};
-  gfx::PipelineCache       pipeline_cache        = nullptr;
-  gfx::GraphicsPipeline    pipeline              = nullptr;
   gfx::Sampler             sampler               = nullptr;
 
   static void init(Pass self, RenderServer *server, uid32 id);
@@ -94,6 +75,10 @@ struct PBRPass
   static void release_view(Pass self, RenderServer *server, uid32 view);
   static void release_object(Pass self, RenderServer *server, uid32 scene,
                              uid32 object);
+  static void begin_frame(Pass self, RenderServer *server,
+                          gfx::CommandEncoderImpl const *encoder);
+  static void end_frame(Pass self, RenderServer *server,
+                        gfx::CommandEncoderImpl const *encoder);
   static void begin(Pass self, RenderServer *server, PassBeginInfo const *info);
   static void encode(Pass self, RenderServer *server,
                      PassEncodeInfo const *info);
@@ -107,9 +92,11 @@ struct PBRPass
                                                  .release_view  = release_view,
                                                  .release_object =
                                                      release_object,
-                                                 .begin  = begin,
-                                                 .encode = encode,
-                                                 .end    = end};
+                                                 .begin_frame = begin_frame,
+                                                 .end_frame   = end_frame,
+                                                 .begin       = begin,
+                                                 .encode      = encode,
+                                                 .end         = end};
 };
 
 }        // namespace ash

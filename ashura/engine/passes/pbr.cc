@@ -62,6 +62,7 @@ void PBRPass::begin(Pass self_, RenderServer *server, PassBeginInfo const *info)
 {
   gfx::DeviceImpl device = server->device;
   View           *view   = server->get_view(info->view).unwrap();
+  Scene          *scene  = server->get_scene(view->scene).unwrap();
   PBRPass        *self   = (PBRPass *) self_;
 
   // clear view
@@ -203,13 +204,14 @@ void PBRPass::encode(Pass self_, RenderServer *server,
   PBRPass                *self    = (PBRPass *) self_;
   gfx::DeviceImpl         device  = server->device;
   View                   *view    = server->get_view(info->view).unwrap();
+  Scene                  *scene   = server->get_scene(view->scene).unwrap();
   gfx::CommandEncoderImpl enc     = info->encoder;
   PBRBinding             *binding = (PBRBinding *) info->binding;
 
   enc->begin_render_pass(enc.self, binding->framebuffer, binding->render_pass,
                          {0, 0}, view->config.extent, to_span({gfx::Color{}}),
                          gfx::DepthStencil{});
-  enc->bind_graphics_pipeline(enc.self, self->pipeline);
+  enc->bind_graphics_pipeline(enc.self, binding->pipeline);
 
   for (usize i = 0; i < info->indices.size(); i++)
   {

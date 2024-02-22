@@ -114,11 +114,6 @@
    to be able to dispatch for several types of scenes (offscreen and
    onscreen?)
   
-   resource_mgr->create_frame_buffer()
-   resource_mgr->allocate_scratch_frame_buffer()
-   resource_mgr->release_scratch_frame_buffer()
-   resource_mgr->destroy_frame_buffer/_image()
-  
    i.e. blur on offscreen layer
   
    store attachments for each scene in the scene group. prepare to render for

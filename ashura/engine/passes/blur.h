@@ -9,25 +9,29 @@ typedef struct BlurDesc   BlurDesc;
 typedef struct BlurObject BlurObject;
 typedef struct BlurPass   BlurPass;
 
+enum class BlurRadius : u8
+{
+  None     = 0,
+  Radius1  = 1,
+  Radius2  = 2,
+  Radius4  = 4,
+  Radius8  = 8,
+  Radius16 = 16,
+  Radius32 = 32
+};
+
 struct BlurDesc
 {
-  u32         blur_radius = 4;
-  gfx::Offset src_offset;
-  gfx::Extent src_extent;
-  gfx::Image  src_image       = nullptr;
-  u32         src_mip_level   = 0;
-  u32         src_array_layer = 0;
-  gfx::Offset dst_offset;
-  gfx::Extent dst_extent;
-  gfx::Image  dst_image       = nullptr;
-  u32         dst_mip_level   = 0;
-  u32         dst_array_layer = 0;
+  BlurRadius blur_radius      = BlurRadius::None;
+  Vec3       center           = {};
+  Vec3       half_extent      = {};
+  f32        border_thickness = 0;
+  Vec4       border_radii     = {};
 };
 
 struct BlurObject
 {
-  BlurDesc desc            = {};
-  uid32    scene_object_id = UID32_INVALID;
+  BlurDesc desc = {};
 };
 
 // object-clip space blur
@@ -49,6 +53,10 @@ struct BlurPass
   static void release_view(Pass self, RenderServer *server, uid32 view);
   static void release_object(Pass self, RenderServer *server, uid32 scene,
                              uid32 object);
+  static void begin_frame(Pass self, RenderServer *server,
+                          gfx::CommandEncoderImpl const *encoder);
+  static void end_frame(Pass self, RenderServer *server,
+                        gfx::CommandEncoderImpl const *encoder);
   static void begin(Pass self, RenderServer *server, PassBeginInfo const *info);
   static void encode(Pass self, RenderServer *server,
                      PassEncodeInfo const *info);
@@ -62,9 +70,11 @@ struct BlurPass
                                                  .release_view  = release_view,
                                                  .release_object =
                                                      release_object,
-                                                 .begin  = begin,
-                                                 .encode = encode,
-                                                 .end    = end};
+                                                 .begin_frame = begin_frame,
+                                                 .end_frame   = end_frame,
+                                                 .begin       = begin,
+                                                 .encode      = encode,
+                                                 .end         = end};
 };
 
 }        // namespace ash
